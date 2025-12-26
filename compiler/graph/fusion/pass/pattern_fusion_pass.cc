@@ -1,0 +1,71 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+#include "ge/fusion/pass/pattern_fusion_pass.h"
+#include "common/ge_common/debug/ge_log.h"
+#include "common/checker.h"
+#include "common/plugin/ge_make_unique_util.h"
+#include "graph/fusion/fusion_utils.h"
+#include "ge/fusion/subgraph_boundary.h"
+#include "ge/fusion/graph_rewriter.h"
+#include "ge/fusion/pattern_matcher.h"
+#include <boost/core/demangle.hpp>
+#include "graph/utils/graph_utils_ex.h"
+
+namespace ge {
+namespace fusion {
+PatternFusionPass::PatternFusionPass() : match_config_(PatternMatcherConfigBuilder().Build()) {}
+PatternFusionPass::PatternFusionPass(std::unique_ptr<PatternMatcherConfig> match_config)
+    : match_config_(std::move(match_config)) {}
+
+Status PatternFusionPass::Run(GraphPtr &graph, CustomPassContext &pass_context) {
+  (void) pass_context;
+  bool is_changed = false;
+  auto patterns = Patterns();
+  for (auto &pattern_graph : patterns) {
+    auto match_config =  std::make_unique<PatternMatcherConfig>(*match_config_);
+    GE_ASSERT_NOTNULL(match_config);
+    PatternMatcher matcher(std::move(pattern_graph), graph, std::move(match_config));
+    std::unique_ptr<MatchResult> match_result;
+    while (match_result = matcher.MatchNext(), match_result != nullptr) {
+      if (!MeetRequirements(match_result)) {
+        GELOGD("Match result[%s] is not meet requirements, skip replace.", match_result->ToAscendString().GetString());
+        continue;
+      }
+      if (FusionUtils::WillCauseCycleIfFuse(match_result)) {
+        GELOGI("[Replace]Skip to replace match result [%s] in case of causing cycle after fusion.",
+               match_result->ToAscendString().GetString());
+        continue;
+      }
+      auto boundary = match_result->ToSubgraphBoundary();
+      GE_ASSERT_NOTNULL(boundary);
+      const auto replacement = Replacement(match_result);
+      GE_ASSERT_NOTNULL(replacement);
+      (void)FusionUtils::MarkPassNameOnReplacementNodes(replacement, boundary, boost::core::demangle(typeid(*this).name()));
+      if (SubgraphRewriter::Replace(*boundary, *replacement) != SUCCESS) {
+        GELOGE(FAILED, "Failed to replace %s to %s", match_result->ToAscendString().GetString(), "");
+        return FAILED;
+      }
+      GE_ASSERT_SUCCESS(FusionUtils::UpdateToCycleDetector(match_result, replacement));
+      if (!is_changed) {
+        is_changed = true;
+      }
+      GELOGI("Replace [%s] to [%s] success", match_result->ToAscendString().GetString(), FusionUtils::ToString(replacement).c_str());
+    }
+  }
+  return is_changed ? SUCCESS : NOT_CHANGED;
+}
+
+bool PatternFusionPass::MeetRequirements(const unique_ptr<MatchResult> &match_result) {
+  (void) match_result;
+  return true;
+}
+} // namespace fusion
+}  // namespace ge

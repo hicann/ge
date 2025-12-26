@@ -1,0 +1,234 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+/*!
+ * \file mat_mul_v3_apt.cpp
+ * \brief
+ */
+
+#include "include/matmul/block/block_scheduler_policy.h"
+#include "include/matmul/block/block_scheduler_utils.h"
+#include "include/epilogue/block_epilogue_empty.h"
+#include "include/matmul/block/block_mmad_builder.h"
+#include "include/matmul/kernel/kernel_matmul_without_que.h"
+#include "include/matmul/kernel/kernel_matmul_streamk.h"
+#include "autofuse_cube_tiling_data.h"
+
+using namespace Act;
+using namespace Act::Gemm;
+
+using namespace AscendC;
+using namespace matmul;
+
+#if defined(FORMAT_X1) && FORMAT_X1 == FORMAT_FRACTAL_NZ
+constexpr CubeFormat format_x1 = CubeFormat::NZ;
+#else
+constexpr CubeFormat format_x1 = CubeFormat::ND;
+#endif
+
+#if defined(FORMAT_X2) && FORMAT_X2 == FORMAT_FRACTAL_NZ
+constexpr CubeFormat format_x2 = CubeFormat::NZ;
+#else
+constexpr CubeFormat format_x2 = CubeFormat::ND;
+#endif
+
+#if defined(FORMAT_Y) && FORMAT_Y == FORMAT_FRACTAL_NZ
+constexpr CubeFormat format_y = CubeFormat::NZ;
+#else
+constexpr CubeFormat format_y = CubeFormat::ND;
+#endif
+
+#define MMV3_IMPL_CLASS_TRANS(tilingData, tilingGM, transA, transB, workspace, templateClass, ...)     \
+    do {                                                                                               \
+        uint64_t tilingdata_offset =                                                                   \
+            (sizeof(MatMulV3TilingData) > TILINGDATA_OFFSET) ?                                         \
+                0 :                                                                                    \
+                MMV3DivFloor(GetCurrentBlockIdx(), MMV3DivCeil(GetBlockNum(), TILINGDATA_SPLIT_NUM)) * \
+                    TILINGDATA_OFFSET;                                                                 \
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3TilingData, tilingData, tilingGM + tilingdata_offset);     \
+        using cType = MatmulType<AscendC::TPosition::GM, CubeFormat::ND, DTYPE_Y>;                     \
+        using biasType = MatmulType<AscendC::TPosition::GM, CubeFormat::ND, DTYPE_BIAS>;               \
+        TPipe pipe;                                                                                    \
+        using aType = MatmulType<AscendC::TPosition::GM, format_x1, DTYPE_X1, transA>;                 \
+        using bType = MatmulType<AscendC::TPosition::GM, format_x2, DTYPE_X2, transB>;                 \
+        templateClass<aType, bType, cType, biasType, __VA_ARGS__> op;                                  \
+        op.Init(aGM, bGM, cGM, biasGM, offsetWGM, workspace, &tilingData, &pipe);                      \
+        op.Process();                                                                                  \
+    } while (0)
+template <class DTYPE_X1, class DTYPE_X2, class DTYPE_Y, class DTYPE_BIAS, // 此处和act模板代码有差异，注意保留dtype
+    int8_t API_LEVEL, int8_t A_TRANS, int8_t B_TRANS, int8_t BATCH_MODEL, int8_t MODEL, int8_t FULL_LOAD,
+    int8_t L0C2OUT_MODEL>
+__global__ __aicore__ void mat_mul_v3(
+    GM_ADDR aGM, GM_ADDR bGM, GM_ADDR biasGM, GM_ADDR offsetWGM, GM_ADDR cGM, GM_ADDR workspaceGM, GM_ADDR tilingGM)
+{
+    constexpr bool aTran = (A_TRANS == 1);
+    constexpr bool bTran = (B_TRANS == 1);
+
+#if !(defined(__NPU_ARCH__) && (__NPU_ARCH__ == 5102))
+    using aLayout = std::conditional_t<aTran, layout::ColumnMajor, layout::RowMajor>;
+    using bLayout = std::conditional_t<bTran, layout::ColumnMajor, layout::RowMajor>;
+#endif
+
+    REGISTER_TILING_DEFAULT(MatMulV3TilingDataCopy);
+    KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_AIC_ONLY);
+
+    if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, nullptr, MatmulV3Advanced::MatmulAswKernel,
+            MatmulV3Advanced::MatmulAswBlock, MM_CFG_NO_PRELOAD_WITH_SPLIT_K_N); // 自动融合：切k n轴随路fixpip精度问题解决
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_DOUBLE_ASWT &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, nullptr, MatmulV3Advanced::MatmulAswKernel,
+            MatmulV3Advanced::MatmulDaswBlock, MM_CFG_NO_PRELOAD_WITH_SPLIT_K_N); // 自动融合：切k n轴随路fixpip精度问题解决
+#if !(defined(__NPU_ARCH__) && (__NPU_ARCH__ == 5102))
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulActKernel<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor,
+            0, IS_ENABLE_RELU>(
+            aGM, bGM, biasGM, cGM, nullptr, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_B_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, B_FULL_LOAD_MODE,
+            IS_ENABLE_RELU>(
+            aGM, bGM, biasGM, cGM, nullptr, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_STREAM_K &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatMulStreamKActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, MatMulL0C2Out::ON_THE_FLY,
+            IS_ENABLE_RELU>(aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_STREAM_K &&
+        L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE) {
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatMulStreamKActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, MatMulL0C2Out::ND_FIXPIPE_1_2,
+            IS_ENABLE_RELU>(aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_K_EQUAL_ZERO &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        TPipe pipe;
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3KEqZeroBasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulInputKEqZeroClearOutput<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS>(biasGM, cGM, tilingData); // 此处自动融合和act有差异，多模版代码：<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS>
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_STREAM_K &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, workspaceGM, MatmulV3Advanced::MatmulStreamKKernel,
+            MatmulV3Advanced::MatmulStreamKBlock, MM_CFG_NO_PRELOAD, false);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_STREAM_K &&
+        L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, workspaceGM, MatmulV3Advanced::MatmulStreamKKernel,
+            MatmulV3Advanced::MatmulStreamKBlock, MM_CFG_NO_PRELOAD, true);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_A_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, nullptr, MatmulV3Advanced::MatmulAswKernelAL1FullLoad,
+            MatmulV3Advanced::MatmulAswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_A_FULL_LOAD && MODEL == MAT_MUL_DOUBLE_ASWT &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, nullptr, MatmulV3Advanced::MatmulAswKernelAL1FullLoad,
+            MatmulV3Advanced::MatmulDaswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_A_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) { // A全载模板切换基础API kernel实现
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, A_FULL_LOAD_MODE,
+            IS_ENABLE_RELU>(
+            aGM, bGM, biasGM, cGM, nullptr, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_B_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, nullptr, MatmulV3Advanced::MatmulAswKernelBL1FullLoad,
+            MatmulV3Advanced::MatmulAswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_B_FULL_LOAD && MODEL == MAT_MUL_DOUBLE_ASWT &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, nullptr, MatmulV3Advanced::MatmulAswKernelBL1FullLoad,
+            MatmulV3Advanced::MatmulDaswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_1V1_ND_ALIG_FIXPIPE) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, workspaceGM, MatmulV3Advanced::MatmulFixpipeOptiKernel,
+            MatmulV3Advanced::MatmulAswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_B_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_1V1_ND_ALIG_FIXPIPE) {
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulFixpipeOptiActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, B_FULL_LOAD_MODE>(
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_1V1_ND_ALIG_FIXPIPE) {
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulFixpipeOptiActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor>(
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE) {
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulFixpipeOptiActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor>(
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_DOUBLE_ASWT &&
+        L0C2OUT_MODEL == MAT_MUL_1V1_ND_ALIG_FIXPIPE) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, workspaceGM, MatmulV3Advanced::MatmulFixpipeOptiKernel,
+            MatmulV3Advanced::MatmulDaswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, workspaceGM, MatmulV3Advanced::MatmulFixpipeOptiDualDstKernel,
+            MatmulV3Advanced::MatmulAswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_B_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE) { // Fixpipe B全载fp32场景切换act kernel
+        GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulFixpipeOptiActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, B_FULL_LOAD_MODE>(
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_DOUBLE_ASWT &&
+        L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, workspaceGM, MatmulV3Advanced::MatmulFixpipeOptiDualDstKernel,
+            MatmulV3Advanced::MatmulDaswBlock, MM_CFG_NO_PRELOAD);
+    } else if constexpr (
+        API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_AB_FULL_LOAD && MODEL == MAT_MUL_BASIC &&
+        L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
+        MMV3_IMPL_CLASS_TRANS(
+            tilingData, tilingGM, aTran, bTran, nullptr, MatmulV3Advanced::MatmulAswKernelABL1FullLoad,
+            MatmulV3Advanced::MatmulAswBlock, MM_CFG_NO_PRELOAD);
+#endif
+    }
+}

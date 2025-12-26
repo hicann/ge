@@ -1,0 +1,41 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+syntax = "proto3";
+
+package domi.tensorflow;
+option cc_enable_arenas = true;
+option java_outer_classname = "VersionsProtos";
+option java_multiple_files = true;
+option java_package = "org.tensorflow.framework";
+
+// Version information for a piece of serialized data
+//
+// There are different types of versions for each type of data
+// (GraphDef, etc.), but they all have the same common shape
+// described here.
+//
+// Each consumer has "consumer" and "min_producer" versions (specified
+// elsewhere).  A consumer is allowed to consume this data if
+//
+//   producer >= min_producer
+//   consumer >= min_consumer
+//   consumer not in bad_consumers
+//
+message VersionDef {
+  // The version of the code that produced this data.
+  int32 producer = 1;
+
+  // Any consumer below this version is not allowed to consume this data.
+  int32 min_consumer = 2;
+
+  // Specific consumer versions which are disallowed (e.g. due to bugs).
+  repeated int32 bad_consumers = 3;
+};

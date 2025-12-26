@@ -1,0 +1,247 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+#include "common/config/configurations.h"
+#include "common/config/json_parser.h"
+#include "common/debug/log.h"
+#include "common/config/config_parser.h"
+#include "common/utils/deploy_location.h"
+#include "common/utils/process_utils.h"
+#include "common/checker.h"
+#include "framework/common/ge_types.h"
+#include "graph/ge_context.h"
+#include "graph/utils/file_utils.h"
+
+namespace ge {
+namespace {
+const char_t *const kConfigFileName = "/resource.json";
+const char_t *const kHelperResConfig = "HELPER_RES_CONFIG";
+const char_t *const kHelperResFilePath = "HELPER_RES_FILE_PATH";
+const char_t *const kResourceConfigPath = "RESOURCE_CONFIG_PATH";
+const char_t *const kHomeEnvName = "HOME";
+constexpr size_t kMaxConfigSize = 10 * 1024U;
+constexpr size_t kMaxPathLen = 1024UL;
+}  // namespace
+
+Configurations &Configurations::GetInstance() {
+  static Configurations instance;
+  return instance;
+}
+
+void Configurations::Finalize() {
+  information_ = {};
+  config_file_ = "";
+  rank_table_file_ = "";
+  GELOGI("Finalize success, remote node size = %zu", information_.remote_node_config_list.size());
+}
+
+Status Configurations::GetConfigDir(std::string &config_dir) {
+  const char_t *file_path = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_HELPER_RES_FILE_PATH, file_path);
+  if (file_path != nullptr) {
+    const std::string real_path = RealPath(file_path);
+    if (real_path.empty()) {
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "The path[%s] of env[%s] is invalid", file_path, kHelperResFilePath);
+      return ACL_ERROR_GE_PARAM_INVALID;
+    }
+    if (ProcessUtils::IsValidPath(real_path) != SUCCESS) {
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "env %s config value[%s] real path[%s] is invalid", kHelperResFilePath,
+             file_path, real_path.c_str());
+      return ACL_ERROR_GE_PARAM_INVALID;
+    }
+    config_dir = real_path;
+    GEEVENT("Get config dir[%s] success from env[%s]", config_dir.c_str(), kHelperResFilePath);
+    return SUCCESS;
+  }
+  // read env ASCEND_LATEST_INSTALL_PATH
+  std::string base_dir = GetBaseDirByEnv();
+  GE_CHK_BOOL_RET_STATUS(!base_dir.empty(),
+                         ACL_ERROR_GE_PARAM_INVALID,
+                         "Env HELPER_RES_FILE_PATH and ASCEND_LATEST_INSTALL_PATH don't exist.");
+  config_dir = base_dir + "/conf";
+  return SUCCESS;
+}
+
+Status Configurations::GetWorkingDir(std::string &working_dir) const {
+  if (!information_.node_config.deploy_res_path.empty()) {
+    working_dir = information_.node_config.deploy_res_path;
+    GELOGI("Get working dir success, path = %s", working_dir.c_str());
+    return SUCCESS;
+  }
+
+  if (DeployLocation::IsNpu()) {
+    working_dir = GetBaseDirByEnv();
+    if (working_dir.empty()) {
+      working_dir = "/usr/local/Ascend/latest";
+      GELOGI("Use default working dir, path = %s", working_dir.c_str());
+    }
+  } else {
+    std::string ascend_work_path;
+    GE_ASSERT_SUCCESS(GetAscendWorkPath(ascend_work_path));
+    if (!ascend_work_path.empty()) {
+      working_dir = ascend_work_path;
+    } else {
+      working_dir = GetHostDirByEnv();
+    }
+    GE_CHK_BOOL_RET_STATUS(!working_dir.empty(), ACL_ERROR_GE_PARAM_INVALID, "Env HOME don't exist.");
+  }
+  GELOGI("Get working dir success, path = %s", working_dir.c_str());
+  return SUCCESS;
+}
+
+std::string Configurations::GetDeployResDir() {
+  return information_.working_dir + "/runtime/deploy_res/";
+}
+
+std::string Configurations::GetBaseDirByEnv() {
+  const char_t *kConfigInstallPathEnv = "ASCEND_LATEST_INSTALL_PATH";
+  const char_t *install_path = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_ASCEND_LATEST_INSTALL_PATH, install_path);
+  if (install_path == nullptr) {
+    return "";
+  }
+  const std::string real_path = RealPath(install_path);
+  if (real_path.empty()) {
+    GELOGW("The path[%s] of env[%s] is invalid", install_path, kConfigInstallPathEnv);
+    return "";
+  }
+  if (ProcessUtils::IsValidPath(real_path) != SUCCESS) {
+    GELOGW("env %s config value[%s] real path[%s] is invalid", kConfigInstallPathEnv, install_path, real_path.c_str());
+    return "";
+  }
+  GELOGI("Get base dir success from env[%s], path = %s, realpath=%s", kConfigInstallPathEnv, install_path,
+         real_path.c_str());
+  return real_path;
+}
+
+std::string Configurations::GetHostDirByEnv() {
+  const char_t *res_path = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_HOME, res_path);
+  if (res_path == nullptr) {
+    return "";
+  }
+  const std::string real_path = RealPath(res_path);
+  if (real_path.empty()) {
+    GELOGW("The path[%s] of env[%s] is invalid", res_path, kHomeEnvName);
+    return "";
+  }
+  if (ProcessUtils::IsValidPath(real_path) != SUCCESS) {
+    GELOGW("env %s config value[%s] real path[%s] is invalid", kHomeEnvName, res_path, real_path.c_str());
+    return "";
+  }
+  GELOGI("Get host dir success from env[%s], path = %s", kHomeEnvName, real_path.c_str());
+  return real_path;
+}
+
+Status Configurations::Initialize() {
+  std::string file_path;
+  GE_CHK_STATUS_RET_NOLOG(GetConfigDir(file_path));
+  config_file_ = file_path + kConfigFileName;
+  return SUCCESS;
+}
+
+Status Configurations::ParseHostInfo() {
+  const char_t *res_config = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_HELPER_RES_CONFIG, res_config);
+  if (res_config == nullptr) {
+    GELOGI("Parse config from file[%s].", config_file_.c_str());
+    GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseHostInfoFromConfigFile(config_file_, information_));
+  } else {
+    GELOGI("Parse config from env[%s].", kHelperResConfig);
+    GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseHostInfoFromResConfig(res_config, information_));
+  }
+  return SUCCESS;
+}
+
+Status Configurations::InitHostInformation() {
+  if (IsServer()) {
+    return InitInformation();
+  }
+
+  GE_CHK_STATUS_RET_NOLOG(Initialize());
+  GE_CHK_STATUS_RET_NOLOG(ParseHostInfo());
+  GE_CHK_STATUS_RET_NOLOG(GetWorkingDir(information_.working_dir));
+  return SUCCESS;
+}
+
+Status Configurations::InitDeviceInformation() {
+  if (IsServer()) {
+    return InitInformation();
+  }
+  GE_CHK_STATUS_RET_NOLOG(Initialize());
+  GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseDeviceConfigFromConfigFile(config_file_, information_.node_config));
+  information_.node_config.is_local = true;
+  GE_CHK_STATUS_RET_NOLOG(GetWorkingDir(information_.working_dir));
+  return SUCCESS;
+}
+
+std::vector<NodeConfig> Configurations::GetAllNodeConfigs() const {
+  std::vector<NodeConfig> configs {information_.node_config};
+  configs.insert(configs.cend(),
+                 information_.remote_node_config_list.cbegin(),
+                 information_.remote_node_config_list.cend());
+  std::sort(configs.begin(), configs.end(),
+            [](const NodeConfig &lhs, const NodeConfig &rhs) -> bool {
+              return (lhs.node_id < rhs.node_id);
+            });
+  return configs;
+}
+
+const std::vector<NodeConfig> &Configurations::GetRemoteNodeConfigs() const {
+  return information_.remote_node_config_list;
+}
+
+Status Configurations::GetResourceConfigPath(std::string &config_dir) {
+  std::string resource_path;
+  const char_t *file_path = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_RESOURCE_CONFIG_PATH, file_path);
+  if (file_path == nullptr) {
+    (void)ge::GetContext().GetOption(RESOURCE_CONFIG_PATH, resource_path);
+    GE_CHK_BOOL_RET_STATUS(!resource_path.empty(), ACL_ERROR_GE_PARAM_INVALID,
+                           "Env RESOURCE_CONFIG_PATH or option[%s] does not exist.", RESOURCE_CONFIG_PATH);
+    GEEVENT("Get config dir[%s] success from option[%s]", resource_path.c_str(), RESOURCE_CONFIG_PATH);
+  } else {
+    resource_path = file_path;
+    GEEVENT("Get config dir[%s] success from env[%s]", resource_path.c_str(), kResourceConfigPath);
+  }
+  const std::string real_path = RealPath(resource_path.c_str());
+  GE_CHK_BOOL_RET_STATUS(!real_path.empty(),
+                         ACL_ERROR_GE_PARAM_INVALID,
+                         "The path[%s] is invalid", resource_path.c_str());
+  config_dir = resource_path;
+  return SUCCESS;
+}
+
+Status Configurations::InitInformation() {
+  std::string file_path;
+  GE_CHK_STATUS_RET_NOLOG(GetResourceConfigPath(file_path));
+  GE_CHK_STATUS_RET_NOLOG(ConfigParser::ParseServerInfo(file_path, information_));
+  GE_CHK_STATUS_RET_NOLOG(GetWorkingDir(information_.working_dir));
+  return SUCCESS;
+}
+
+const NodeConfig &Configurations::GetLocalNode() const {
+  return information_.node_config;
+}
+
+bool Configurations::IsServer() {
+  std::string resource_path;
+  (void)ge::GetContext().GetOption(RESOURCE_CONFIG_PATH, resource_path);
+  const char_t *env = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_RESOURCE_CONFIG_PATH, env);
+  return (env != nullptr) || (!resource_path.empty());
+}
+
+std::vector<std::string> Configurations::GetHeterogeneousEnvs() {
+  static std::vector<std::string> envs = {kHelperResConfig, kHelperResFilePath,
+                                          kResourceConfigPath};
+  return envs;
+}
+}  // namespace ge

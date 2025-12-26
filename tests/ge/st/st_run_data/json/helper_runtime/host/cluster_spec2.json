@@ -1,0 +1,29 @@
+{
+  "psNum": 1,
+  "workerNum": 1,
+  "psCluster": [
+  {
+      "name": "ps0",
+      "id": 0,
+      "ctrlPanel": {
+          "ipaddr": "127.0.0.2",
+          "availPorts": ["2000~29999"]
+    },
+        "dataPanel": {
+            "ipaddr": "127.0.0.2",
+            "availPorts": ["2000~29999"]
+    }
+  }],
+  "workerCluster": [{
+        "name": "worker0",
+        "id": 0,
+       "ctrlPanel": {
+            "ipaddr": "127.0.0.1",
+            "availPorts": ["3000~29999"]
+    },
+       "dataPanel": {
+           "ipaddr": "127.0.0.1",
+           "availPorts": ["3000~29999"]
+    }
+  }]
+}

@@ -1,0 +1,9 @@
+{
+  "deviceId":1,
+  "ipaddr":"192.168.1.30",
+  "port":2509,
+  "caFile":"./ca.pem",
+  "keyFile":"./client.key",
+  "certFile":"./client.pem",
+  "deployResPath":"./"
+}

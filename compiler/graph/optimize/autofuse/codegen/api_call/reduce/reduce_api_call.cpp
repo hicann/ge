@@ -1,0 +1,103 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+#include "reduce_api_call_base.h"
+#include "reduce_api_call.h"
+
+#include <sstream>
+#include "attr_utils.h"
+#include "ascir_ops.h"
+#include "common_utils.h"
+#include "common/ge_common/debug/log.h"
+#include "graph/ascendc_ir/utils/asc_tensor_utils.h"
+#include "common/checker.h"
+#include "../utils/api_call_factory.h"
+#include "../utils/api_call_utils.h"
+
+namespace codegen {
+using namespace std;
+using namespace ge::ops;
+using namespace ge::ascir_op;
+using namespace ascgen_utils;
+using namespace reduce_base;
+
+Status ReduceApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis,
+                               const std::vector<std::reference_wrapper<const Tensor>> &inputs,
+                               const std::vector<std::reference_wrapper<const Tensor>> &outputs,
+                               std::string &result) const {
+  auto iter = reduce_type_map.find(this->api_name_);
+  GE_CHK_BOOL_RET_STATUS(iter != reduce_type_map.end(), ge::FAILED, "Codegen unsupported reduce api::%s", this->api_name_.c_str());
+  auto &[type_value, instr_type] = iter->second;
+
+  auto x = inputs[0].get();
+  auto y = outputs[0].get();
+
+  std::string reduce_pattern;
+  GetIsArAndPattern(y, x.isAr, reduce_pattern);
+
+  std::string dtype_name;
+  GE_CHK_STATUS_RET(Tensor::DtypeName(y.dtype, dtype_name), "Codegen get data type:%d failed", static_cast<int32_t>(y.dtype));
+  GELOGI("Tensor::DtypeName(y.dtype) == %s", dtype_name.c_str());
+
+  stringstream ss;
+
+  ReduceMergedSizeCodeGen(tpipe, ss, x, y);
+
+  ReduceDimACodeGen(x, this->api_name_, ss);
+
+  ReduceInitCodeGen(x, y, type_value, ss, tpipe);
+
+  ss << "uint32_t tmp_reduce_shape[] = {first_actual, last};" << std::endl;
+
+  std::string new_api_name = this->api_name_ == "Mean" ? "Sum" : this->api_name_;
+  if (!IsNeedMultiReduce(tpipe.tiler, x, y, current_axis.back())) {
+    if (new_api_name == "Sum" && dtype_name == "int32_t") {
+      ss << "ReduceSumInt32<" << dtype_name << ", " << reduce_pattern << ", false>("
+         << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
+         << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
+         << tpipe.tmp_buf <<", tmp_reduce_shape, true);" << std::endl;
+    } else {
+      ss << "Reduce" << new_api_name << "<" << dtype_name << ", " << reduce_pattern << ", false>("
+         << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
+         << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
+         << tpipe.tmp_buf <<", tmp_reduce_shape, true);" << std::endl;
+    }
+    if (this->api_name_== "Mean") {
+      ReduceMeanCodeGen(dtype_name, tpipe, x, y, ss);
+    }
+  } else {
+    ss << "LocalTensor<" << dtype_name << "> tmp_reduce;" << std::endl;
+    ss << "tmp_reduce = " << tpipe.tmp_buf << "_0" << ".template ReinterpretCast<" << dtype_name << ">();" << std::endl;
+    if (new_api_name == "Sum" && dtype_name == "int32_t") {
+      ss << "ReduceSumInt32<" << dtype_name << ", " << reduce_pattern << ", false>"
+         << "(tmp_reduce[0], " << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
+         << tpipe.tmp_buf << ", tmp_reduce_shape, true);" << std::endl;
+    } else {
+      ss << "Reduce" << new_api_name << "<" << dtype_name << "," << reduce_pattern << ", false>"
+         << "(tmp_reduce[0], " << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
+         << tpipe.tmp_buf << ", tmp_reduce_shape, true);" << std::endl;
+    }
+    ss << "AscendC::PipeBarrier<PIPE_V>();" << std::endl;
+    ss << "uint32_t temp_size = " << KernelUtils::SizeAlign() << "(" << y.actual_size << ", 32/sizeof(" << dtype_name << "));" << std::endl;
+    ss << "if (" << tpipe.tiler.GetAxis(current_axis.back()) << " == 0) {" << std::endl;
+    ss << "DataCopyExtend(" << y << "[0], " << "tmp_reduce[0], " << "temp_size);" << std::endl;
+    ss << "} else {" << std::endl;
+    ss << "AscendC::" << instr_type << "(" << y << "[0], " << "tmp_reduce[0], " << y << "[0], temp_size);\n"
+       << "}" << std::endl;
+  }
+
+  ss << "}" << std::endl;
+  result = ss.str();
+  return ge::SUCCESS;
+}
+
+static ApiCallRegister<ReduceApiCall> register_reduce_api_call("ReduceApiCall");
+
+}  // namespace codegen

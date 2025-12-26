@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<block name="GeExecutorSo" copy_type="delivery" src_path="lib/host" dst_path="" install_path="" install_own="$username:$usergroup" install_mod="750" install_type="all">
+    <dir_info value="GeExecutorSo">
+        <path value="$(TARGET_ENV)/lib64"/>
+        <path value="$(TARGET_ENV)/devlib" install_mod="550"/>
+        <path value="$(TARGET_ENV)/devlib/linux" install_mod="550"/>
+        <path value="$(TARGET_ENV)/devlib/linux/aarch64" install_mod="550"/>
+        <path value="$(TARGET_ENV)/devlib/linux/x86_64" install_mod="550"/>
+        <path value="$(TARGET_ENV)/devlib/minios" install_type="devel" install_mod="550"/>
+        <path value="$(TARGET_ENV)/devlib/minios/aarch64" install_type="devel" install_mod="550"/>
+        <path value="$(TARGET_ENV)/devlib/aoskernel" install_type="devel" install_mod="550"/>
+        <path value="$(TARGET_ENV)/devlib/aoskernel/aarch64" install_type="devel" install_mod="550"/>
+    </dir_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/host" dst_path="lib64" install_path="$(TARGET_ENV)/lib64" install_type="all" install_mod="440">
+        <file value="libdata_flow_base.so" file_type="shared"/>
+        <file value="libge_common.so" file_type="shared"/>
+        <file value="libmodel_deployer.so" file_type="shared"/>
+        <file value="libnpu_sched_model_loader.so" file_type="shared"/>
+        <file value="libgraph_base.so" file_type="shared"/>
+        <file value="libhcom_executor.so" file_type="shared"/>
+        <file value="liblowering.so" file_type="shared"/>
+        <file value="libge_executor.so" file_type="shared"/>
+        <file value="libge_common_base.so" file_type="shared"/>
+        <file value="libdavinci_executor.so" file_type="shared"/>
+        <file value="libhybrid_executor.so" file_type="shared"/>
+        <file value="libgert.so" file_type="shared"/>
+        <file value="libgraph.so" file_type="shared"/>
+        <file value="libregister.so" file_type="shared"/>
+        <file value="libregister.a" file_type="static"/>
+        <file value="libacl_mdl.so" file_type="shared"/>
+        <file value="libacl_mdl_impl.so" file_type="shared"/>
+        <file value="libacl_op_executor.so" file_type="shared"/>
+        <file value="libacl_op_executor_impl.so" file_type="shared"/>
+        <file value="libacl_cblas.so" file_type="shared"/>
+        <file value="UpdateModelParam_ascend910B.o" pkg_feature="filter_florence;filter_device" feature="comm"/>
+        <file value="UpdateModelParam_ascend910_93.o" pkg_feature="filter_florence;filter_device" feature="comm"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/host/${ARM}/stub" dst_path="lib64/stub/linux/aarch64" install_path="$(TARGET_ENV)/devlib/linux/aarch64" install_type="devel" install_mod="440">
+        <file value="libge_common.so" file_type="shared"/>
+        <file value="libhybrid_executor.so" file_type="shared"/>
+        <file value="libgert.so" file_type="shared"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/host/${ARM}/stub" dst_path="lib64/stub/linux/aarch64" install_path="$(TARGET_ENV)/devlib/linux/aarch64" pkg_feature="tiny" install_type="devel" install_mod="440">
+        <file value="libregister.a" file_type="static"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/host/aarch64/stub" dst_path="lib64/stub/linux/aarch64" install_path="$(TARGET_ENV)/devlib/linux/aarch64" pkg_feature="filter_florence" install_type="devel" install_mod="440">
+        <file value="libregister.so" file_type="shared"/>
+        <file value="liblowering.so" file_type="shared" pkg_feature="filter_florence;tiny"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/host/x86_64/stub" dst_path="lib64/stub/linux/x86_64" install_path="$(TARGET_ENV)/devlib/linux/x86_64" install_type="devel" install_mod="440">
+        <file value="libge_common.so" file_type="shared"/>
+        <file value="liblowering.so" file_type="shared"/>
+        <file value="libhybrid_executor.so" file_type="shared"/>
+        <file value="libregister.so" file_type="shared"/>
+        <file value="libgert.so" file_type="shared"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/host/x86_64/stub" dst_path="lib64/stub/linux/x86_64" install_path="$(TARGET_ENV)/devlib/linux/x86_64" pkg_feature="filter_device;stub" install_type="devel" install_mod="440" feature="comm">
+        <file value="libgraph.so" file_type="shared"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/host/${ARM}/stub" dst_path="lib64/stub/linux/aarch64" install_path="$(TARGET_ENV)/devlib/linux/aarch64" pkg_feature="filter_device;stub" install_type="devel" install_mod="440" feature="comm">
+        <file value="libgraph.so" file_type="shared"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/device/aarch64/stub" dst_path="lib64/stub/minios/aarch64" install_path="$(TARGET_ENV)/devlib/minios/aarch64" pkg_feature="filter_florence" install_type="devel" install_mod="440">
+        <file value="libgraph.so" file_type="shared"/>
+        <file value="libregister.so" file_type="shared"/>
+        <file value="liblowering.so" file_type="shared"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="lib/device/aarch64/stub" dst_path="lib64/stub/aoskernel/aarch64" install_path="$(TARGET_ENV)/devlib/aoskernel/aarch64" pkg_feature="lite_aos" install_type="devel" install_mod="440">
+        <file value="libgraph.so" file_type="shared"/>
+        <file value="libregister.so" file_type="shared"/>
+        <file value="liblowering.so" file_type="shared"/>
+    </file_info>
+    <file_info value="lib64" copy_type="delivery" src_path="" dst_path="lib64" install_path="$(TARGET_ENV)/devlib/" install_mod="440">
+        <file value="libacl_mdl.so" file_type="shared"/>
+        <file value="libacl_mdl_impl.so" file_type="shared"/>
+        <file value="libacl_op_executor.so" file_type="shared"/>
+        <file value="libacl_op_executor_impl.so" file_type="shared"/>
+        <file value="libacl_cblas.so" file_type="shared"/>
+    </file_info>
+    <pkg_softlink>
+        <path value="lib64/stub/libge_common.so" src_path="lib64/stub/linux/${ARCH}/libge_common.so"/>
+        <path value="lib64/stub/libhybrid_executor.so" src_path="lib64/stub/linux/${ARCH}/libhybrid_executor.so"/>
+        <path value="lib64/stub/libgert.so" src_path="lib64/stub/linux/${ARCH}/libgert.so"/>
+        <path value="lib64/stub/libgraph.so" src_path="lib64/stub/linux/${ARCH}/libgraph.so" pkg_feature="stub"/>
+    </pkg_softlink>
+</block>

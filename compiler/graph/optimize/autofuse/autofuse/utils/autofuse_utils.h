@@ -1,0 +1,152 @@
+/**
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
+
+#ifndef AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_UTILS_AUTOFUSE_UTILS_H_
+#define AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_UTILS_AUTOFUSE_UTILS_H_
+#include <sstream>
+#include "ge_common/ge_api_types.h"
+#include "graph/symbolizer/symbolic.h"
+#include "graph/utils/op_type_utils.h"
+#include "graph/node.h"
+#include "graph/operator_reg.h"
+#include "autofuse_frame/autofuse_frames.h"
+
+namespace ge {
+const std::string kLoweringDir = "lowering";
+const std::string kCanFuseDir = "canfuse";
+const std::string kPostProcessDir = "postprocess";
+const std::string kCanFuseOrigin = "CanFuseOrigin";
+const std::string kGeFallBack = "ge_fallback";
+const std::string kCompleteAscIoIndex = "complete_asc_io_index";
+
+const std::string AF_SPLIT = "Split";
+const std::string AF_SPLITD = "SplitD";
+const std::string AF_SPLITV = "SplitV";
+const std::string AF_SPLITVD = "SplitVD";
+const std::set<string> SPLIT_TYPES{AF_SPLIT, AF_SPLITD, AF_SPLITVD, AF_SPLITV};
+
+class AutofuseUtils {
+ public:
+  static int64_t GenUniqueNumber();
+
+  template <typename Container>
+  static std::string VectorPairToStr(const Container &vec) {
+    std::ostringstream oss;
+    oss << "[";
+    auto i = 0U;
+    for (auto &pair : vec) {
+      oss << "(" << pair.first << ", " << pair.second << ")";
+      if (i < vec.size() - 1U) {
+        oss << ", ";
+      }
+      i++;
+    }
+    oss << "]";
+    return oss.str();
+  }
+
+  template <typename T>
+  static std::string VectorToStr(const std::vector<T> &vec) {
+    std::string result = "[";
+    for (size_t i = 0; i < vec.size(); ++i) {
+      if constexpr (std::is_same<T, ge::Expression>::value) {
+        result += (vec[i].Str().get());
+      } else if constexpr (std::is_same<T, ge::NodePtr>::value || std::is_same<T, ge::OpDescPtr>::value) {
+        result += (vec[i]->GetNamePtr());
+        result += " ";
+        result += (vec[i]->GetTypePtr());
+      } else {
+        result += std::to_string(vec[i]);
+      }
+      if (i < vec.size() - 1) {
+        result += ", ";
+      }
+    }
+    result += "]";
+    return result;
+  }
+
+  template<typename T>
+  static std::string VectorToStr(const std::vector<T> *vec) {
+    if (vec == nullptr) {
+      return "nullptr";
+    }
+    return VectorToStr(*vec);
+  }
+
+  template <typename T>
+  static std::string SetToStr(const std::set<T> &s) {
+    std::ostringstream oss;
+    oss << "[";
+    for (auto it = s.begin(); it != s.end(); ++it) {
+      oss << *it;
+      if (std::next(it) != s.end()) {
+        oss << ", ";
+      }
+    }
+    oss << "]";
+    return oss.str();
+  }
+
+  static bool IsAutoFuseNode(const ge::OpDescPtr &op_desc) {
+    // op_desc外部保证非空
+    return OpTypeUtils::IsAutofuseNode(op_desc);
+  }
+
+  static Status SerilizeAscBackend(Node *node_ptr, std::string &output, bool isHash = false);
+
+  static Status CopyGraphAndRenameNode(const ComputeGraphPtr &graph, ComputeGraphPtr &copy_graph,
+                                       const CounterPtr &counter);
+
+  static Status AddOperatorPrototypeAttrs(const OpDescPtr &op_desc);
+
+  static void DumpGraphToOnnx(const ge::ComputeGraph &compute_graph, const std::string &module_name,
+                              const std::string &suffix);
+
+  static void DumpGEGraph(const ge::ComputeGraphPtr &graph, const std::string &module_name, const std::string &suffix);
+
+  static void DumpGEGraphLevel1(const ge::ComputeGraphPtr &graph, const std::string &module_name,
+                                const std::string &suffix);
+
+  static void DumpGraphToOnnxLevel1(const ge::ComputeGraph &compute_graph, const std::string &module_name,
+                                    const std::string &suffix);
+
+  static bool IsUbScalar(const std::vector<ge::Expression> &repeats);
+
+  static bool IsSplitType(const std::string &node_type);
+
+  static Status DelOneNodeInGraph(const ComputeGraphPtr &graph, const NodePtr &node);
+
+  static Status RemoveUnusefulCastPattern(const ComputeGraphPtr &graph);
+
+  static bool CheckAndMulDetect(const std::vector<Expression> &long_dims, const std::vector<Expression> &short_dims,
+                                size_t &sort_idx, std::vector<size_t> &mul_idx);
+  static graphStatus GetListIntFromInput(const NodePtr &node, std::vector<int64_t> &value_vec,
+                                         const std::string &input = "");
+
+  static graphStatus GetListIntFromAttr(const NodePtr &node, std::vector<int64_t> &value_vec,
+                                        const std::string &attr_name = "");
+
+  static graphStatus GetListIntByInputOrAttr(const NodePtr &node, std::vector<int64_t> &value_vec,
+                                             const std::string &input = "", const std::string &attr = "");
+
+ private:
+  static NodePtr ConvertAscBackendNodeToAscGraphNode(const ComputeGraphPtr compute_graph, const NodePtr &node);
+
+  static Status SerializeAndPackComputeGraph(const ComputeGraphPtr &compute_graph, const NodePtr &node,
+                                             std::string &output);
+
+  static Status GetNodeOutputIndex(const NodePtr &node, std::vector<uint32_t> &node_output_index);
+
+  static Status RenameInputAndOutputForGraph(ComputeGraphPtr &compute_graph, const NodePtr &node);
+};
+}  // namespace ge
+
+#endif  // AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_UTILS_AUTOFUSE_UTILS_H_

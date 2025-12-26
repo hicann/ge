@@ -1,0 +1,12 @@
+{
+  "graph_parallel_option":{
+    "graph_id":"1",
+    "version":1,
+    "auto":true,
+    "tensor_parallel_option": {
+      "tensor_parallel_size": 8,
+      "inter_batch_flow_num": 2,
+      "auto": false
+    }
+  }
+}

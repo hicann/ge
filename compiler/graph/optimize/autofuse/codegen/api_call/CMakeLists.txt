@@ -1,0 +1,8 @@
+add_subdirectory(broadcast)
+add_subdirectory(concat)
+add_subdirectory(datacopy)
+add_subdirectory(elewise)
+add_subdirectory(gather)
+add_subdirectory(reduce)
+add_subdirectory(transpose)
+add_subdirectory(utils)
