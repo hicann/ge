@@ -433,7 +433,7 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_llm_engine_utest ${OUTPUT_PATH}
       cp -rf ${BUILD_PATH}/tests/ge/ut/ge/runtime/fast_v2/ut_fast_runtime2_test ${OUTPUT_PATH}
       echo "Begin to run tests with leaks check"
-      
+
       # 创建临时文件保存每个测试的输出
       temp_output_ascendc_ir="${OUTPUT_PATH}/.test_output_ut_ascendc_ir_$$.tmp"
       temp_output_exe_graph="${OUTPUT_PATH}/.test_output_ut_exe_graph_$$.tmp"
@@ -528,33 +528,38 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       unset PYDFLOW_TEST_PATH
       unset PYDFLOW_BUILD_PATH
 
-      echo "---------------- Dflow Udf UT Run Start ----------------"
-      cp -rf ${BUILD_PATH}/tests/dflow/udf/ut/testcase/built_in/ut_built_in_flow_func ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/dflow/udf/ut/testcase/udf_executor/ut_flow_func_executor ${OUTPUT_PATH}
-      
-      # 创建临时文件保存每个测试的输出
-      temp_output_built_in="${OUTPUT_PATH}/.test_output_ut_built_in_flow_func_$$.tmp"
-      temp_output_executor="${OUTPUT_PATH}/.test_output_ut_flow_func_executor_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_built_in_flow_func --gtest_output=xml:${report_dir}/ut/ut_built_in_flow_func.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_built_in}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_flow_func_executor --gtest_output=xml:${report_dir}/ut/ut_flow_func_executor.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_executor}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("ut_built_in_flow_func" "ut_flow_func_executor")
-      temp_files=("${temp_output_built_in}" "${temp_output_executor}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
-        echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
-        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-        exit 1
+      LOCAL_ARCH=$(uname -m)
+      if [[ "${LOCAL_ARCH}" = "x86_64" ]]; then
+        echo "---------------- Dflow Udf UT Run Start ----------------"
+        cp -rf ${BUILD_PATH}/tests/dflow/udf/ut/testcase/built_in/ut_built_in_flow_func ${OUTPUT_PATH}
+        cp -rf ${BUILD_PATH}/tests/dflow/udf/ut/testcase/udf_executor/ut_flow_func_executor ${OUTPUT_PATH}
+
+        # 创建临时文件保存每个测试的输出
+        temp_output_built_in="${OUTPUT_PATH}/.test_output_ut_built_in_flow_func_$$.tmp"
+        temp_output_executor="${OUTPUT_PATH}/.test_output_ut_flow_func_executor_$$.tmp"
+
+        set -o pipefail
+        RUN_TEST_CASE="${OUTPUT_PATH}/ut_built_in_flow_func --gtest_output=xml:${report_dir}/ut/ut_built_in_flow_func.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_built_in}" &&
+        RUN_TEST_CASE="${OUTPUT_PATH}/ut_flow_func_executor --gtest_output=xml:${report_dir}/ut/ut_flow_func_executor.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_executor}"
+        test_status=$?
+        set +o pipefail
+
+        # 给tee一点时间刷新缓冲区（段错误时可能需要）
+        sleep 0.1
+
+        # 保存测试信息到文件
+        test_names=("ut_built_in_flow_func" "ut_flow_func_executor")
+        temp_files=("${temp_output_built_in}" "${temp_output_executor}")
+        save_test_summary_to_file "test_names" "temp_files"
+
+        # 检查测试是否失败（保持原来的逻辑）
+        if [[ "${test_status}" -ne 0 ]]; then
+          echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
+          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+          exit 1
+        fi
+      else
+        echo "!!! mockcpp is not supported on LOCAL_ARCH=${LOCAL_ARCH}, Dflow udf ut will not be run !!!"
       fi
     fi
 
@@ -688,7 +693,7 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
 
     if [[ "X$ENABLE_RT3_ST" = "Xon" ]]; then
       echo "Run tests with leaks check"
-      
+
       # 创建临时文件保存每个测试的输出
       temp_output_running_env="${OUTPUT_PATH}/.test_output_ge_running_env_test_$$.tmp"
       temp_output_graph_dsl="${OUTPUT_PATH}/.test_output_ge_graph_dsl_test_$$.tmp"
@@ -815,33 +820,38 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
       unset PYDFLOW_TEST_PATH
       unset PYDFLOW_BUILD_PATH
 
-      echo "---------------- Dflow Udf ST Run Start ----------------"
-      cp -rf ${BUILD_PATH}/tests/dflow/udf/st/testcase/built_in/st_built_in_flow_func ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/dflow/udf/st/testcase/udf_executor/st_flow_func_executor ${OUTPUT_PATH}
-      
-      # 创建临时文件保存每个测试的输出
-      temp_output_st_built_in="${OUTPUT_PATH}/.test_output_st_built_in_flow_func_$$.tmp"
-      temp_output_st_executor="${OUTPUT_PATH}/.test_output_st_flow_func_executor_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${OUTPUT_PATH}/st_built_in_flow_func --gtest_output=xml:${report_dir}/st/st_built_in_flow_func.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_st_built_in}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/st_flow_func_executor --gtest_output=xml:${report_dir}/st/st_flow_func_executor.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_st_executor}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("st_built_in_flow_func" "st_flow_func_executor")
-      temp_files=("${temp_output_st_built_in}" "${temp_output_st_executor}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
-        echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
-        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-        exit 1
+      LOCAL_ARCH=$(uname -m)
+      if [[ "${LOCAL_ARCH}" = "x86_64" ]]; then
+        echo "---------------- Dflow Udf ST Run Start ----------------"
+        cp -rf ${BUILD_PATH}/tests/dflow/udf/st/testcase/built_in/st_built_in_flow_func ${OUTPUT_PATH}
+        cp -rf ${BUILD_PATH}/tests/dflow/udf/st/testcase/udf_executor/st_flow_func_executor ${OUTPUT_PATH}
+
+        # 创建临时文件保存每个测试的输出
+        temp_output_st_built_in="${OUTPUT_PATH}/.test_output_st_built_in_flow_func_$$.tmp"
+        temp_output_st_executor="${OUTPUT_PATH}/.test_output_st_flow_func_executor_$$.tmp"
+
+        set -o pipefail
+        RUN_TEST_CASE="${OUTPUT_PATH}/st_built_in_flow_func --gtest_output=xml:${report_dir}/st/st_built_in_flow_func.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_st_built_in}" &&
+        RUN_TEST_CASE="${OUTPUT_PATH}/st_flow_func_executor --gtest_output=xml:${report_dir}/st/st_flow_func_executor.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_st_executor}"
+        test_status=$?
+        set +o pipefail
+
+        # 给tee一点时间刷新缓冲区（段错误时可能需要）
+        sleep 0.1
+
+        # 保存测试信息到文件
+        test_names=("st_built_in_flow_func" "st_flow_func_executor")
+        temp_files=("${temp_output_st_built_in}" "${temp_output_st_executor}")
+        save_test_summary_to_file "test_names" "temp_files"
+
+        # 检查测试是否失败（保持原来的逻辑）
+        if [[ "${test_status}" -ne 0 ]]; then
+          echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+          exit 1
+        fi
+      else
+        echo "!!! mockcpp is not supported on LOCAL_ARCH=${LOCAL_ARCH}, Dflow udf st will not be run !!!"
       fi
     fi
 
