@@ -58,7 +58,7 @@ usage() {
   echo "                   Please ensure that the environment has correctly installed lcov, gcov, and genhtml."
   echo "                   and the version matched gcc/g++."
   echo "    -v, --verbose  Show detailed build commands during the build process"
-  echo "    -j<N>          Set the number of threads used for building Parser, default 8"
+  echo "    -j<N>          Set the number of threads used for building ut/st, default 16"
   echo "    --cann_3rd_lib_path=<PATH>"
   echo "                   Set third_party package install path, default ./output/third_party"
   echo ""

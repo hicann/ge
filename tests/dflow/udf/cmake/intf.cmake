@@ -20,6 +20,7 @@ target_compile_definitions(intf_llt_pub INTERFACE
 target_compile_options(intf_llt_pub INTERFACE
         -g
         -w
+	$<$<COMPILE_LANGUAGE:CXX>:-std=c++17>
         $<$<BOOL:${ENABLE_GCOV}>:-fprofile-arcs -ftest-coverage>
         $<$<BOOL:${ENABLE_ASAN}>:-fsanitize=address -fno-omit-frame-pointer -static-libasan -fsanitize=undefined -static-libubsan -fsanitize=leak -static-libtsan>
         -fPIC
