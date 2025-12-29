@@ -14,8 +14,8 @@ target_sources(hcom_graph_adaptor  PRIVATE
     hcom_base_funs.cc
     hcom_acl_adapter.cc
     hcom_log.cc
-    dlhcclops_function.cc
-    adatper_hcclops.cc
+    dlhccl_function.cc
+    adapter_dlhcclfunc.cc
 )
 
 target_sources(hcom_executor  PRIVATE
@@ -24,8 +24,8 @@ target_sources(hcom_executor  PRIVATE
     hcom_base_funs.cc
     hcom_acl_adapter.cc
     hcom_log.cc
-    dlhcclops_function.cc
-    adatper_hcclops.cc
+    dlhccl_function.cc
+    adapter_dlhcclfunc.cc
 )
 
 target_sources(hcom_opskernel_builder PRIVATE

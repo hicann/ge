@@ -15,7 +15,7 @@
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "acl/acl_rt.h"
 #include "hcom_acl_adapter.h"
-#include "adapter_hcclops.h"
+#include "adapter_dlhcclfunc.h"
 
 namespace hccl {
 enum class HcomOpLaunchInput {
@@ -93,10 +93,9 @@ HcclResult HcomLaunchAllGatherKernel(const HcomOpInputStruct *inputStruct, std::
 #endif
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   HcclComm hcclComm = inputStruct->hcclComm;
-  uint64_t count = inputStruct->count;  
-  CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));  
-  CHK_RET(HcomHcclAllGather(inputAddrs[0], outputAddrs[0], count,
-      launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
+  uint64_t count = inputStruct->count;
+  CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
+  CHK_RET(HcceAllGather(inputAddrs[0], outputAddrs[0], count, launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -121,8 +120,8 @@ HcclResult HcomLaunchAllGatherKernelV2(const HcomOpInputStruct *inputStruct, std
   void *hcclCommPtr = inputStruct->hcclCommPtr;
   uint64_t count = inputStruct->count;
 
-  CHK_RET(HcomHcclAllGather(inputAddrs[0], outputAddrs[0], count, launchArgs.opAttr.dataType, hcclCommPtr,
-                            launchArgs.stream));
+  CHK_RET(
+      HcceAllGather(inputAddrs[0], outputAddrs[0], count, launchArgs.opAttr.dataType, hcclCommPtr, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 #endif
@@ -161,8 +160,8 @@ HcclResult HcomLaunchAllGatherVKernel(const HcomOpInputStruct *inputStruct, std:
 
   CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
 
-  CHK_RET(HcomHcclAllGatherV(inputAddrs[0], inputStruct->sendCount, outputAddrs[0], recvcountsPtr, recvDisplsPtr,
-                             launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
+  CHK_RET(HcceAllGatherV(inputAddrs[0], inputStruct->sendCount, outputAddrs[0], recvcountsPtr, recvDisplsPtr,
+                         launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -302,8 +301,8 @@ HcclResult HcomLaunchAllReduceKernel(const HcomOpInputStruct *inputStruct, std::
       u8 *curInputPtr = static_cast<u8 *>(inputAddrs[inputOffset]);
       u8 *curOutputPtr = static_cast<u8 *>(outputAddrs[inputOffset]);
 
-      CHK_RET(HcomHcclAllReduce(curInputPtr, curOutputPtr, inputsCount[inputOffset], launchArgs.opAttr.dataType,
-                                launchArgs.opAttr.op.allreduce.reduction, hcclComm, launchArgs.stream));
+      CHK_RET(HcceAllReduce(curInputPtr, curOutputPtr, inputsCount[inputOffset], launchArgs.opAttr.dataType,
+                            launchArgs.opAttr.op.allreduce.reduction, hcclComm, launchArgs.stream));
     } else {
       uint64_t commCount = 0;
       // step1 将allreduce的输入tensor copy到in cclbuffer
@@ -311,9 +310,9 @@ HcclResult HcomLaunchAllReduceKernel(const HcomOpInputStruct *inputStruct, std::
                                       inputStruct->commInputSize, commCount, inputAddrs));
 
       // step2 执行allreduce
-      CHK_RET(HcomHcclAllReduce(inputStruct->commInputPtr, inputStruct->commOutputPtr, commCount,
-                                launchArgs.opAttr.dataType, launchArgs.opAttr.op.allreduce.reduction, hcclComm,
-                                launchArgs.stream));
+      CHK_RET(HcceAllReduce(inputStruct->commInputPtr, inputStruct->commOutputPtr, commCount,
+                            launchArgs.opAttr.dataType, launchArgs.opAttr.op.allreduce.reduction, hcclComm,
+                            launchArgs.stream));
 
       // step3 将out cclbuffer的内容copy到allreduce的输出tensor
       CHK_RET(HcomCopyCCLbuffToOutnputs(launchArgs, sliceIdxs[i], inputOffset, inputsCount, inputStruct->commOutputPtr,
@@ -368,8 +367,8 @@ HcclResult HcomLaunchAllReduceKernelV2(const HcomOpInputStruct *inputStruct, std
       u8 *curInputPtr = static_cast<u8 *>(inputAddrs[inputOffset]);
       u8 *curOutputPtr = static_cast<u8 *>(outputAddrs[inputOffset]);
 
-      CHK_RET(HcomHcclAllReduce(curInputPtr, curOutputPtr, inputsCount[inputOffset], launchArgs.opAttr.dataType,
-                                launchArgs.opAttr.op.allreduce.reduction, hcclCommPtr, launchArgs.stream));
+      CHK_RET(HcceAllReduce(curInputPtr, curOutputPtr, inputsCount[inputOffset], launchArgs.opAttr.dataType,
+                            launchArgs.opAttr.op.allreduce.reduction, hcclCommPtr, launchArgs.stream));
     } else {
       uint64_t commCount = 0;
       // step1 将allreduce的输入tensor copy到in cclbuffer
@@ -377,9 +376,9 @@ HcclResult HcomLaunchAllReduceKernelV2(const HcomOpInputStruct *inputStruct, std
                                       inputStruct->commInputSize, commCount, inputAddrs));
 
       // step2 执行allreduce
-      CHK_RET(HcomHcclAllReduce(inputStruct->commInputPtr, inputStruct->commOutputPtr, commCount,
-                                launchArgs.opAttr.dataType, launchArgs.opAttr.op.allreduce.reduction, hcclCommPtr,
-                                launchArgs.stream));
+      CHK_RET(HcceAllReduce(inputStruct->commInputPtr, inputStruct->commOutputPtr, commCount,
+                            launchArgs.opAttr.dataType, launchArgs.opAttr.op.allreduce.reduction, hcclCommPtr,
+                            launchArgs.stream));
 
       // step3 将out cclbuffer的内容copy到allreduce的输出tensor
       CHK_RET(HcomCopyCCLbuffToOutnputs(launchArgs, sliceIdxs[i], inputOffset, inputsCount, inputStruct->commOutputPtr,
@@ -426,8 +425,8 @@ HcclResult HcomLaunchBroadcastKernel(const HcomOpInputStruct *inputStruct, std::
   HcclComm hcclComm = inputStruct->hcclComm;
   uint64_t count = inputStruct->count;
   CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
-  CHK_RET(HcomHcclBroadcast(inputAddrs[0], count, launchArgs.opAttr.dataType, launchArgs.opAttr.op.broadcast.root,
-                            hcclComm, launchArgs.stream));
+  CHK_RET(HcceBroadcast(inputAddrs[0], count, launchArgs.opAttr.dataType, launchArgs.opAttr.op.broadcast.root, hcclComm,
+                        launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -455,8 +454,8 @@ HcclResult HcomLaunchBroadcastKernelV2(const HcomOpInputStruct *inputStruct, std
   void *hcclCommPtr = inputStruct->hcclCommPtr;
   uint64_t count = inputStruct->count;
 
-  CHK_RET(HcomHcclBroadcast(inputAddrs[0], count, launchArgs.opAttr.dataType, launchArgs.opAttr.op.broadcast.root,
-                            hcclCommPtr, launchArgs.stream));
+  CHK_RET(HcceBroadcast(inputAddrs[0], count, launchArgs.opAttr.dataType, launchArgs.opAttr.op.broadcast.root,
+                        hcclCommPtr, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 #endif
@@ -495,8 +494,8 @@ HcclResult HcomLaunchReduceScatterKernel(const HcomOpInputStruct *inputStruct, s
   HcclComm hcclComm = inputStruct->hcclComm;
   uint64_t count = inputStruct->count;
   CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
-  CHK_RET(HcomHcclReduceScatter(inputAddrs[0], outputAddrs[0], count, launchArgs.opAttr.dataType,
-                                launchArgs.opAttr.op.reducescatter.reduction, hcclComm, launchArgs.stream));
+  CHK_RET(HcceReduceScatter(inputAddrs[0], outputAddrs[0], count, launchArgs.opAttr.dataType,
+                            launchArgs.opAttr.op.reducescatter.reduction, hcclComm, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -534,9 +533,9 @@ HcclResult HcomLaunchReduceScatterVKernel(const HcomOpInputStruct *inputStruct, 
   const void *sendDisplsPtr = static_cast<const void *>(sendDispls.data());
   const void *sendCountsPtr = static_cast<const void *>(sendCounts);
   CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
-  CHK_RET(HcomHcclReduceScatterV(inputAddrs[0], sendCountsPtr, sendDisplsPtr, outputAddrs[0], inputStruct->recvCount,
-                                 launchArgs.opAttr.dataType, launchArgs.opAttr.op.reducescatterv.reduction, hcclComm,
-                                 launchArgs.stream));
+  CHK_RET(HcceReduceScatterV(inputAddrs[0], sendCountsPtr, sendDisplsPtr, outputAddrs[0], inputStruct->recvCount,
+                             launchArgs.opAttr.dataType, launchArgs.opAttr.op.reducescatterv.reduction, hcclComm,
+                             launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -564,8 +563,8 @@ HcclResult HcomLaunchReduceScatterKernelV2(const HcomOpInputStruct *inputStruct,
   void *hcclCommPtr = inputStruct->hcclCommPtr;
   uint64_t count = inputStruct->count;
 
-  CHK_RET(HcomHcclReduceScatter(inputAddrs[0], outputAddrs[0], count, launchArgs.opAttr.dataType,
-                                launchArgs.opAttr.op.reducescatter.reduction, hcclCommPtr, launchArgs.stream));
+  CHK_RET(HcceReduceScatter(inputAddrs[0], outputAddrs[0], count, launchArgs.opAttr.dataType,
+                            launchArgs.opAttr.op.reducescatter.reduction, hcclCommPtr, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 #endif
@@ -597,9 +596,9 @@ HcclResult HcomLaunchAllToAllVKernel(const HcomOpInputStruct *inputStruct, std::
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   HcclComm hcclComm = inputStruct->hcclComm;
   CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
-  CHK_RET(HcomHcclAlltoAllV(inputAddrs[0], inputAddrs[1], inputAddrs[INPUT_INDEX_2], launchArgs.opAttr.dataType,
-                            outputAddrs[0], inputAddrs[INPUT_INDEX_3], inputAddrs[INPUT_INDEX_4],
-                            launchArgs.opAttr.op.alltoallv.recvType, hcclComm, launchArgs.stream));
+  CHK_RET(HcceAlltoAllV(inputAddrs[0], inputAddrs[1], inputAddrs[INPUT_INDEX_2], launchArgs.opAttr.dataType,
+                        outputAddrs[0], inputAddrs[INPUT_INDEX_3], inputAddrs[INPUT_INDEX_4],
+                        launchArgs.opAttr.op.alltoallv.recvType, hcclComm, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -620,9 +619,9 @@ HcclResult HcomLaunchAllToAllVKernelV2(const HcomOpInputStruct *inputStruct, std
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   void *hcclCommPtr = inputStruct->hcclCommPtr;
 
-  CHK_RET(HcomHcclAlltoAllV(inputAddrs[0], inputAddrs[1], inputAddrs[INPUT_INDEX_2], launchArgs.opAttr.dataType,
-                            outputAddrs[0], inputAddrs[INPUT_INDEX_3], inputAddrs[INPUT_INDEX_4],
-                            launchArgs.opAttr.op.alltoallv.recvType, hcclCommPtr, launchArgs.stream));
+  CHK_RET(HcceAlltoAllV(inputAddrs[0], inputAddrs[1], inputAddrs[INPUT_INDEX_2], launchArgs.opAttr.dataType,
+                        outputAddrs[0], inputAddrs[INPUT_INDEX_3], inputAddrs[INPUT_INDEX_4],
+                        launchArgs.opAttr.op.alltoallv.recvType, hcclCommPtr, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 #endif
@@ -653,9 +652,9 @@ HcclResult HcomLaunchAllToAllVCKernel(const HcomOpInputStruct *inputStruct, std:
 #endif
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   HcclComm hcclComm = inputStruct->hcclComm;
-  CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));  
-  CHK_RET(HcomHcclAlltoAllVC(inputAddrs[0], inputAddrs[1], launchArgs.opAttr.dataType, outputAddrs[0],
-                             launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
+  CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
+  CHK_RET(HcceAlltoAllVC(inputAddrs[0], inputAddrs[1], launchArgs.opAttr.dataType, outputAddrs[0],
+                         launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -676,8 +675,8 @@ HcclResult HcomLaunchAllToAllVCKernelV2(const HcomOpInputStruct *inputStruct, st
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   void *hcclCommPtr = inputStruct->hcclCommPtr;
 
-  CHK_RET(HcomHcclAlltoAllVC(inputAddrs[0], inputAddrs[1], launchArgs.opAttr.dataType, outputAddrs[0],
-                             launchArgs.opAttr.dataType, hcclCommPtr, launchArgs.stream));
+  CHK_RET(HcceAlltoAllVC(inputAddrs[0], inputAddrs[1], launchArgs.opAttr.dataType, outputAddrs[0],
+                         launchArgs.opAttr.dataType, hcclCommPtr, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 #endif
@@ -703,8 +702,8 @@ HcclResult HcomLaunchAllToAllKernel(const HcomOpInputStruct *inputStruct, std::v
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   HcclComm hcclComm = inputStruct->hcclComm;
   CHK_RET(HcomSetAivCoreLimit(launchArgs.opAttr.group, launchArgs.opAttr.aivCoreLimit));
-  CHK_RET(HcomHcclAlltoAll(inputAddrs[0], inputStruct->sendCount, launchArgs.opAttr.dataType, outputAddrs[0],
-                           inputStruct->recvCount, launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
+  CHK_RET(HcceAlltoAll(inputAddrs[0], inputStruct->sendCount, launchArgs.opAttr.dataType, outputAddrs[0],
+                       inputStruct->recvCount, launchArgs.opAttr.dataType, hcclComm, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -741,8 +740,8 @@ HcclResult HcomSendKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *input
                          HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
 
   // send
-  CHK_RET(HcomHcclSend(sendShapeMemPtr, SHAPE_INFO_COUNT, HCCL_DATA_TYPE_INT64, launchArgs.opAttr.op.send.destRank,
-                       commHandle, launchArgs.stream));
+  CHK_RET(HcceSend(sendShapeMemPtr, SHAPE_INFO_COUNT, HCCL_DATA_TYPE_INT64, launchArgs.opAttr.op.send.destRank,
+                   commHandle, launchArgs.stream));
 
   CHK_RET(hcclStreamSynchronize(launchArgs.stream));
 
@@ -761,8 +760,8 @@ HcclResult HcomLaunchSendKernel(const HcomOpInputStruct *inputStruct, std::vecto
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   HcclComm hcclComm = inputStruct->hcclComm;
 
-  CHK_RET(HcomHcclSend(inputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType,
-                       launchArgs.opAttr.op.send.destRank, hcclComm, launchArgs.stream));
+  CHK_RET(HcceSend(inputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType, launchArgs.opAttr.op.send.destRank,
+                   hcclComm, launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -799,7 +798,7 @@ HcclResult HcomLaunchReduceKernel(const HcomOpInputStruct *inputStruct, std::vec
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   HcclComm hcclComm = inputStruct->hcclComm;
 
-  CHK_RET(HcomHcclReduce(inputAddrs[0], outputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType,
+  CHK_RET(HcceReduce(inputAddrs[0], outputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType,
                          launchArgs.opAttr.op.reduce.reduction, launchArgs.opAttr.op.reduce.root, hcclComm,
                          launchArgs.stream));
   return HCCL_SUCCESS;
@@ -829,7 +828,7 @@ HcclResult HcomLaunchReduceKernelV2(const HcomOpInputStruct *inputStruct, std::v
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   void *hcclCommPtr = inputStruct->hcclCommPtr;
 
-  CHK_RET(HcomHcclReduce(inputAddrs[0], outputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType,
+  CHK_RET(HcceReduce(inputAddrs[0], outputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType,
                          launchArgs.opAttr.op.reduce.reduction, launchArgs.opAttr.op.reduce.root, hcclCommPtr,
                          launchArgs.stream));
   return HCCL_SUCCESS;
@@ -842,12 +841,10 @@ std::vector<std::function<HcclResult(HcomOpLaunchArgs &, HcomOpInputStruct *)>> 
     HcomAllToAllKernel,      HcomSendKernel,           HcomReduceKernel};
 
 std::vector<std::function<HcclResult(const HcomOpInputStruct *, std::vector<void *> &, std::vector<void *> &)>>
-    HcomOpLaunchKernelFuncs = {
-        HcomLaunchAllGatherKernel, HcomLaunchAllGatherVKernel,    HcomLaunchAllReduceKernel,
-        HcomLaunchBroadcastKernel, HcomLaunchReduceScatterKernel, HcomLaunchReduceScatterVKernel,
-        HcomLaunchAllToAllVKernel, HcomLaunchAllToAllVCKernel,    HcomLaunchAllToAllKernel,
-        HcomLaunchSendKernel,      HcomLaunchReduceKernel,
-};
+    HcomOpLaunchKernelFuncs = {HcomLaunchAllGatherKernel, HcomLaunchAllGatherVKernel,    HcomLaunchAllReduceKernel,
+                               HcomLaunchBroadcastKernel, HcomLaunchReduceScatterKernel, HcomLaunchReduceScatterVKernel,
+                               HcomLaunchAllToAllVKernel, HcomLaunchAllToAllVCKernel,    HcomLaunchAllToAllKernel,
+                               HcomLaunchSendKernel,      HcomLaunchReduceKernel};
 
 HcclResult GetHcomOpLaunchArgs(gert::KernelContext *context, HcomOpLaunchArgs &args) {
   args.opAttr = *(context->GetInputPointer<struct HcomOpAttr>(static_cast<int32_t>(HcomOpLaunchInput::OP_ARGS)));
@@ -907,11 +904,11 @@ std::vector<std::string> PrintLaunchArgs(const gert::KernelContext *context) {
  * 注册kernel函数，提供kernel函数的执行原型
  * **********************************************************************
  */
-ge::graphStatus PrepareHcomKernel(gert::KernelContext *context) {   
+ge::graphStatus PrepareHcomKernel(gert::KernelContext *context) {
   // 获取算子输入输出资源
   HcomOpLaunchArgs launchArgs;
   if (GetHcomOpLaunchArgs(context, launchArgs) != HCCL_SUCCESS) {
-  HCCL_ERROR("PrepareHcomKernel: get hcom op launch args failed.");
+    HCCL_ERROR("PrepareHcomKernel: get hcom op launch args failed.");
     return ge::GRAPH_FAILED;
   }
 
@@ -1051,8 +1048,8 @@ ge::graphStatus HcomGetRecvBeforeKernel(HcomOpLaunchArgs &args, std::vector<int6
   std::unique_ptr<void, decltype(deleter)> recvShapeMemPtrUnique(recvShapeMemPtr, deleter);
 
   // 2、recv
-  CHK_RET(HcomHcclRecv(recvShapeMemPtr, SHAPE_INFO_COUNT, HCCL_DATA_TYPE_INT64, args.opAttr.op.recv.srcRank, commHandle,
-                       args.stream));
+  CHK_RET(HcceRecv(recvShapeMemPtr, SHAPE_INFO_COUNT, HCCL_DATA_TYPE_INT64, args.opAttr.op.recv.srcRank, commHandle,
+                   args.stream));
 
   CHK_RET(hcclStreamSynchronize(args.stream));
 
@@ -1145,8 +1142,8 @@ ge::graphStatus LaunchRecvKernel(gert::KernelContext *context) {
 
   // 调用算子kernel，实现算子下发
   uint64_t recvCount = (tensorSize - 32) / SIZE_TABLE[launchArgs.opAttr.dataType];
-  if (HcomHcclRecv(outputTensorData->GetAddr(), recvCount, launchArgs.opAttr.dataType,
-                   launchArgs.opAttr.op.recv.srcRank, commHandle, launchArgs.stream) != HCCL_SUCCESS) {
+  if (HcceRecv(outputTensorData->GetAddr(), recvCount, launchArgs.opAttr.dataType, launchArgs.opAttr.op.recv.srcRank,
+               commHandle, launchArgs.stream) != HCCL_SUCCESS) {
     HcomSetLaunchKernelMode(false);
     return ge::GRAPH_FAILED;
   }

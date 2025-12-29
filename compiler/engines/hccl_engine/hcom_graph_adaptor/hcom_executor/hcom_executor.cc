@@ -15,7 +15,7 @@
 #include "graph/ge_local_context.h"
 #include "framework/common/ge_types.h"  // ge对外options
 #include "hcom_executor_internel.h"
-#include "adapter_hcclops.h"
+#include "adapter_dlhcclfunc.h"
 
 HcclResult HcomExecInitialize() {
   HCCL_INFO("Hcom Excutor Initialize start.");
@@ -318,13 +318,13 @@ HcclResult HcomExecutor::ExecuteAlltoAll(const HcomAllToAllVParams &opInfo, bool
     CHK_RET(hrtMemSyncCopy(rdisplsPtr.get(), rankSize * sizeof(u64), opInfo.rdispls, rankSize * sizeof(u64),
                            HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_DEVICE_TO_HOST));
 
-    CHK_RET(HcomHcclAlltoAllV(opInfo.sendbuf, sendCountsPtr.get(), sdisplsPtr.get(), opInfo.sendtype, opInfo.recvbuf,
-                              recvCountsPtr.get(), rdisplsPtr.get(), opInfo.recvtype, comm,
-                              parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
+    CHK_RET(HcceAlltoAllV(opInfo.sendbuf, sendCountsPtr.get(), sdisplsPtr.get(), opInfo.sendtype, opInfo.recvbuf,
+                          recvCountsPtr.get(), rdisplsPtr.get(), opInfo.recvtype, comm,
+                          parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
   } else {
-    CHK_RET(HcomHcclAlltoAllV(opInfo.sendbuf, opInfo.sendcounts, opInfo.sdispls, opInfo.sendtype, opInfo.recvbuf,
-                              opInfo.recvcounts, opInfo.rdispls, opInfo.recvtype, comm,
-                              parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
+    CHK_RET(HcceAlltoAllV(opInfo.sendbuf, opInfo.sendcounts, opInfo.sdispls, opInfo.sendtype, opInfo.recvbuf,
+                          opInfo.recvcounts, opInfo.rdispls, opInfo.recvtype, comm,
+                          parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
   }
   CHK_RET(HcomSetWorkflowMode(lastWorkflowMode));
   return HCCL_SUCCESS;
@@ -347,8 +347,8 @@ HcclResult HcomExecutor::ExecuteAlltoAllVC(const HcomAllToAllVCParams &opInfo) {
   CHK_RET(hrtMemSyncCopy(sendCountMatrixPtr.get(), rankSize * rankSize * sizeof(u64), opInfo.sendcountmatrix,
                          rankSize * rankSize * sizeof(u64), HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_DEVICE_TO_HOST));
 
-  CHK_RET(HcomHcclAlltoAllVC(opInfo.sendbuf, sendCountMatrixPtr.get(), opInfo.sendtype, opInfo.recvbuf, opInfo.recvtype,
-                             comm, parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
+  CHK_RET(HcceAlltoAllVC(opInfo.sendbuf, sendCountMatrixPtr.get(), opInfo.sendtype, opInfo.recvbuf, opInfo.recvtype,
+                         comm, parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
 
   CHK_RET(HcomSetWorkflowMode(lastWorkflowMode));
   return HCCL_SUCCESS;
@@ -386,8 +386,8 @@ HcclResult HcomExecutor::ExecuteBroadcast(const HcomOperation_t &opInfo) {
   // 获取通信域
   HcclComm comm;
   CHK_RET(GetComm(opInfo.group, &comm));
-  CHK_RET(HcomHcclBroadcast(opInfo.inputPtr, opInfo.count, opInfo.dataType, opInfo.root, comm,
-                            parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
+  CHK_RET(HcceBroadcast(opInfo.inputPtr, opInfo.count, opInfo.dataType, opInfo.root, comm,
+                        parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
   return HCCL_SUCCESS;
 }
 
@@ -395,8 +395,8 @@ HcclResult HcomExecutor::ExecuteAllreduce(const HcomOperation_t &opInfo) {
   // 获取通信域
   HcclComm comm;
   CHK_RET(GetComm(opInfo.group, &comm));
-  CHK_RET(HcomHcclAllReduce(opInfo.inputPtr, opInfo.outputPtr, opInfo.count, opInfo.dataType, opInfo.opType, comm,
-                            parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
+  CHK_RET(HcceAllReduce(opInfo.inputPtr, opInfo.outputPtr, opInfo.count, opInfo.dataType, opInfo.opType, comm,
+                        parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
   return HCCL_SUCCESS;
 }
 
@@ -404,8 +404,8 @@ HcclResult HcomExecutor::ExecuteAllGather(const HcomOperation_t &opInfo) {
   // 获取通信域
   HcclComm comm;
   CHK_RET(GetComm(opInfo.group, &comm));
-  CHK_RET(HcomHcclAllGather(opInfo.inputPtr, opInfo.outputPtr, opInfo.count, opInfo.dataType, comm,
-                            parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
+  CHK_RET(HcceAllGather(opInfo.inputPtr, opInfo.outputPtr, opInfo.count, opInfo.dataType, comm,
+                        parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
   return HCCL_SUCCESS;
 }
 
@@ -413,8 +413,8 @@ HcclResult HcomExecutor::ExecuteReduceScatter(const HcomOperation_t &opInfo) {
   // 获取通信域
   HcclComm comm;
   CHK_RET(GetComm(opInfo.group, &comm));
-  CHK_RET(HcomHcclReduceScatter(opInfo.inputPtr, opInfo.outputPtr, opInfo.count, opInfo.dataType, opInfo.opType, comm,
-                                parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
+  CHK_RET(HcceReduceScatter(opInfo.inputPtr, opInfo.outputPtr, opInfo.count, opInfo.dataType, opInfo.opType, comm,
+                            parralMap_[MsgQueueType::OPBASE_QUEUE].stream));
 
   return HCCL_SUCCESS;
 }

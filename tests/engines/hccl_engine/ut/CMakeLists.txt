@@ -27,8 +27,8 @@ set(hccl_engine_src_file
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/hcom_base_funs.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/hcom_acl_adapter.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/hcom_log.cc
-    ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/dlhcclops_function.cc
-    ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/adatper_hcclops.cc
+    ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/dlhccl_function.cc
+    ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/common/adapter_dlhcclfunc.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/hcom/hcom_all_reduce_fusion.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/hcom/hcom_alltoallvc_fusion.cc
     ${AIR_CODE_DIR}/compiler/engines/hccl_engine/hcom_graph_adaptor/ge_plugin/hcom/hcom_allgather_fusion.cc

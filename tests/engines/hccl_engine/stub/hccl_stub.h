@@ -312,7 +312,7 @@ void HcomSetDumpDebugMode(const bool dumpDebug);
 
 HcclResult HcomClearAivSyncBuf(const char *group, bool aivClearEnable);
 
-HcclResult HcomGetandClearOverFlowTasks(const char *group, hccl::HcclDumpInfo *hcclDumpInfo, s32 len);
+HcclResult HcceGetandClearOverFlowTasks(const char *group, hccl::HcclDumpInfo **hcclDumpInfo, s32 *len);
 
 HcclResult HcomUnloadTask(const char *group, const char *tag);
 

@@ -1945,7 +1945,7 @@ TEST_F(HcomKernelInfoTest, st_hcom_offline_build_init_hcom)
     .with(mockcpp::any())
     .will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomGetandClearOverFlowTasks)
+    MOCKER(HcceGetandClearOverFlowTasks)
     .stubs()
     .will(returnValue(HCCL_SUCCESS));
 

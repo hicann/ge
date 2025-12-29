@@ -306,7 +306,7 @@ HcclResult HcomClearAivSyncBuf(const char *group, bool aivClearEnable)
     return HCCL_SUCCESS;
 }
 
-HcclResult HcomGetandClearOverFlowTasks(const char *group, hccl::HcclDumpInfo *hcclDumpInfo, s32 len)
+HcclResult HcceGetandClearOverFlowTasks(const char *group, hccl::HcclDumpInfo **hcclDumpInfo, s32 *len)
 {
     return HCCL_SUCCESS;
 }

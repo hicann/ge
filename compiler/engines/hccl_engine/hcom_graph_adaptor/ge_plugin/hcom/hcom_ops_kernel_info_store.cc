@@ -30,6 +30,7 @@
 #include "hcom/hcom_topo_info.h"
 #include "offline_build_config_parse.h"
 #include "hcom_op_utils.h"
+#include "adapter_dlhcclfunc.h"
 
 using namespace std;
 
@@ -336,15 +337,15 @@ HcclResult HcomOpsKernelInfoStore::CheckCommunicatorValidity(const char *group, 
   HcclComm commHandle;
   if (!isCommunicatorValid && (HcomGetCommHandleByGroup(group, &commHandle) != HCCL_SUCCESS)) {
     REPORT_PREDEFINED_ERR_MSG(
-        "EI0004", 
-        std::vector<const char *>({"error_reason", "ranktable_path"}),
+        "EI0004", std::vector<const char *>({"error_reason", "ranktable_path"}),
         std::vector<const char *>({"No valid RankTable found, Please Check RankTable Path or Master Info ENV"
                                    " config or hccl initialization has been called before call this function",
                                    "The ranktable path "
                                    "configured in the training can be found in the plogs."}));
-    HCCL_ERROR("[%s][%s]No valid communicator found, please check the RankTable Path or Master Info config or hccl "
-                   "initialization has been called before call this function",
-            LOG_KEYWORDS_INIT_GROUP.c_str(), LOG_KEYWORDS_RANKTABLE_CONFIG.c_str());
+    HCCL_ERROR(
+        "[%s][%s]No valid communicator found, please check the RankTable Path or Master Info config or hccl "
+        "initialization has been called before call this function",
+        LOG_KEYWORDS_INIT_GROUP.c_str(), LOG_KEYWORDS_RANKTABLE_CONFIG.c_str());
     return HCCL_E_PARA;
   }
 
@@ -2913,21 +2914,17 @@ ge::Status HcomOpsKernelInfoStore::LoadTask(ge::GETaskInfo &task) {
   hccl::HcclDumpInfo *hcclDumpInfoPtr = nullptr;
   s32 len = 0;
   if (comm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
-    CHK_RET(HcomGetandClearOverFlowTasks(group.c_str(), hcclDumpInfoPtr, len));
+    CHK_RET(HcceGetandClearOverFlowTasks(group.c_str(), &hcclDumpInfoPtr, &len));
   } else {
     char *groupname = nullptr;
     CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
-    CHK_RET(HcomGetandClearOverFlowTasks(groupname, hcclDumpInfoPtr, len));
+    CHK_RET(HcceGetandClearOverFlowTasks(groupname, &hcclDumpInfoPtr, &len));
   }
-  std::vector<hccl::HcclDumpInfo> hcclDumpInfo;
-  if (len > 0 && hcclDumpInfoPtr != nullptr) {
-    hcclDumpInfo = std::vector<hccl::HcclDumpInfo>(hcclDumpInfoPtr, hcclDumpInfoPtr + len);
-  } else {
-    hcclDumpInfo = std::vector<hccl::HcclDumpInfo>();
-  }
-  HCCL_DEBUG("hcclDumpInfo.size = %d", hcclDumpInfo.size());
-  if (hcclDumpInfo.size() > 0 && !task.kernelHcclInfo.empty()) {
+  HCCL_DEBUG("hcclDumpInfo.size = %d", len);
+  if (len > 0 && !task.kernelHcclInfo.empty()) {
     // HCOM场景下只会有一个kernelHcclInfo
+    std::vector<hccl::HcclDumpInfo> hcclDumpInfo =
+        std::vector<hccl::HcclDumpInfo>(hcclDumpInfoPtr, hcclDumpInfoPtr + len);
     SaveReduceDumpTask(task.kernelHcclInfo[0].hccl_dump_info, hcclDumpInfo);
   }
 

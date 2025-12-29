@@ -8,20 +8,21 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef DLHCCLOPS_FUNCTION_H
-#define DLHCCLOPS_FUNCTION_H
+#ifndef DLHCCL_FUNCTION_H
+#define DLHCCL_FUNCTION_H
 
 #include <mutex>
 #include <dlfcn.h>
 #include <functional>
 #include "hccl/hccl_types.h"
+#include "hccl/hcom.h"
 #include "hcom_log.h"
 
 typedef void *aclrtStream;
 
-class DlHcclOpsFunction {
+class DlHcclFunction {
  public:
-  static DlHcclOpsFunction &get_instance();
+  static DlHcclFunction &get_instance();
   HcclResult init();
   void deinit();
 
@@ -63,13 +64,16 @@ class DlHcclOpsFunction {
   HcclResult dlHcclReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
                           uint32_t root, HcclComm comm, aclrtStream stream);
 
- private:
-  DlHcclOpsFunction();
-  ~DlHcclOpsFunction();
-  DlHcclOpsFunction(const DlHcclOpsFunction &) = delete;
-  DlHcclOpsFunction &operator=(const DlHcclOpsFunction &) = delete;
+  HcclResult dlHcomGetandClearOverFlowTasks(const char *group, hccl::HcclDumpInfo **hcclDumpInfoPtr, s32 *len);
 
-  void *dll_handle;
+ private:
+  DlHcclFunction();
+  ~DlHcclFunction();
+  DlHcclFunction(const DlHcclFunction &) = delete;
+  DlHcclFunction &operator=(const DlHcclFunction &) = delete;
+
+  void *dl_hccl_handle;
+  void *dl_hcomm_handle;
   std::mutex handleMutex_;
 
   std::function<HcclResult(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType, HcclComm comm,
@@ -121,6 +125,9 @@ class DlHcclOpsFunction {
   std::function<HcclResult(void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank, HcclComm comm,
                            aclrtStream stream)>
       dlHcclRecvFunc;
+
+  std::function<HcclResult(const char *group, hccl::HcclDumpInfo **hcclDumpInfoPtr, s32 *len)>
+      dlHcomGetandClearOverFlowTasksFunc;
 };
 
 #endif
