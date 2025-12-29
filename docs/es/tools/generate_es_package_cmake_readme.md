@@ -10,7 +10,7 @@
 ## 快速开始
 
 ### 前置要求
-1. 通过[安装指导](../README.md)正确安装`toolkit`包, 并正确配置环境变量
+1. 通过[安装指导](../../build.md)正确安装`toolkit`包，并正确配置环境变量
 
 2. 定义原型动态库
 ```cmake
@@ -23,7 +23,7 @@ add_library(opgraph_math SHARED #要求是so的形式
 #### 使用 find_package
 
 ```cmake
-# 在你的 CMakeLists.txt 中添加模块路径
+# 在你的 CMakeLists.txt 中添加模块路径(ASCEND_HOME_PATH来自`前置要求`中的配置环境变量)
 list(APPEND CMAKE_MODULE_PATH "${ASCEND_HOME_PATH}/include/ge/cmake")
 
 # 查找模块
@@ -41,7 +41,7 @@ find_package(GenerateEsPackage REQUIRED)
 ```cmake
 add_es_library_and_whl(
     ES_LINKABLE_AND_ALL_TARGET es_math
-    OPP_PROTO_TARGET  opgraph_math #前置条件中的原型库target
+    OPP_PROTO_TARGET  opgraph_math #`前置要求`中的原型库target
     OUTPUT_PATH       ${CMAKE_BINARY_DIR}/output
 )
 ```
@@ -88,9 +88,9 @@ make my_app
 - `add_es_library`: 只生成库（跳过 wheel 包生成）
 
 **重要**：
-- 因为ES产物是函数内部动态生成，而cmake整体又是配置和构建分阶段处理，所以我们的函数内部会有重配置和构建的操作，这也是我们目前直接提供一个interface
-  类型的`ES_LINKABLE_AND_ALL_TARGET`的原因
-- 函数会自动从 `OPP_PROTO_TARGET`的`LIBRARY_OUTPUT_DIRECTORY` 推导原型库路径, 这是生成原型库对应的ES产物的基本条件
+- 因为 ES 产物是函数内部动态生成，而 cmake 整体又是配置和构建分阶段处理，所以我们的函数内部会有重配置和构建的操作，这也是我们目前直接提供一个 interface
+  类型的 `ES_LINKABLE_AND_ALL_TARGET` 的原因
+- 函数会自动从 `OPP_PROTO_TARGET` 的 `LIBRARY_OUTPUT_DIRECTORY` 推导原型库路径，这是生成原型库对应的 ES 产物的基本条件
 
 ## 输出产物
 
@@ -102,11 +102,11 @@ OUTPUT_PATH/
 │   └── es_math/               # 头文件目录
 │       ├── es_math_ops.h      # C++ 接口聚合头文件
 │       ├── es_math_ops_c.h    # C 接口聚合头文件
-│       └── es_add.h           # 单个算子头文件(一般是有多个文件)
+│       └── es_add.h ...       # 单个算子头文件(一般是有多个文件)
 ├── lib64/
 │   └── libes_math.so          # 动态库
 └── whl/
-    └── es_math-1.0.0-py3-none-any.whl  # Python 包 ✅
+    └── es_math-1.0.0-py3-none-any.whl  # Python 包
 ```
 
 ### add_es_library 生成的产物
@@ -117,12 +117,11 @@ OUTPUT_PATH/
 │   └── es_math/               # 头文件目录
 │       ├── es_math_ops.h      # C++ 接口聚合头文件
 │       ├── es_math_ops_c.h    # C 接口聚合头文件
-│       └── es_add.h           # 单个算子头文件(一般是有多个文件)
+│       └── es_add.h ...       # 单个算子头文件(一般是有多个文件)
 └── lib64/
     └── libes_math.so          # 动态库
-    # ⚠️  whl/ 目录不会生成
 ```
-**聚合的含义**：包含es_math下所有算子的构图api
+**聚合的含义**：包含 es_math 下所有算子的构图 API
 
 ## 生成的 Target
 
@@ -134,10 +133,10 @@ OUTPUT_PATH/
 
 ## 使用示例
 
-### 示例 1: 基本用法
+### 示例 1：基本用法
 
 ```cmake
-# 1. 定义原型动态库(前置条件)
+# 1. 定义原型动态库(`前置要求`)
 add_library(opgraph_math SHARED
 )
 # 2. 生成 ES API 包（库 + wheel 包）
@@ -171,7 +170,7 @@ target_link_libraries(my_app PRIVATE
 )
 ```
 
-### 示例 2: 只生成 C/C++ 库
+### 示例 2：只生成 C/C++ 库
 
 ```cmake
 # 只生成 C/C++ 库（跳过 Python wheel 包）
@@ -181,7 +180,7 @@ add_es_library(
     OUTPUT_PATH       ${CMAKE_BINARY_DIR}/output
 )
 ```
-### 示例 3: 排除部分算子生成
+### 示例 3：排除部分算子生成
 
 ```cmake
 # 生成 math TARGET
@@ -194,7 +193,7 @@ add_es_library(
 )
 ```
 
-### 示例 4: 多个TARGET
+### 示例 4：多个 TARGET
 
 ```cmake
 # 生成 math TARGET
@@ -219,7 +218,7 @@ target_link_libraries(my_inference_app PRIVATE
 )
 ```
 
-### 示例 5: C++ 代码中使用
+### 示例 5：C++ 代码中使用
 
 ```cpp
 #include "es_math/es_math_ops.h"
@@ -242,7 +241,7 @@ int main() {
 }
 ```
 
-### 示例 4: Python 中使用
+### 示例 6：Python 中使用
 
 ```bash
 # 安装 wheel 包
@@ -305,7 +304,7 @@ graph = builder.build_and_reset()
 
 ## 常见问题
 
-### Q: 多个TARGET如何共享输出目录？
+### Q：多个 TARGET 如何共享输出目录？
 
 A: 所有TARGET可以使用同一个 `OUTPUT_PATH`，头文件会按包名组织在子目录中：
 
@@ -335,7 +334,7 @@ add_es_library_and_whl(
 #     └── es_nn-1.0.0-py3-none-any.whl
 ```
 
-### Q: gen_esb 找不到怎么办？
+### Q：gen_esb 找不到怎么办？
 
 A: 函数会自动查找 gen_esb，如果失败请检查：
 
@@ -356,7 +355,7 @@ project(my_es_project LANGUAGES CXX)
 list(APPEND CMAKE_MODULE_PATH "${ASCEND_HOME_PATH}/include/ge/cmake")
 find_package(GenerateEsPackage REQUIRED)
 
-# ===== 第一部分: 前置条件：定义原型库 =====
+# ===== 第一部分: `前置要求`：定义原型库 =====
 add_library(opgraph_math SHARED
 )
 
@@ -389,6 +388,6 @@ make my_app
 # [Smart Build] Found xx generated source file(s)
 # [Smart Build] Step 2: Reconfiguring...
 # [Smart Build] Step 3: Rebuilding with all generated sources...
-# [Smart Build] ✓ Successfully built ES package 'es_math' with xx source file(s)
+# [Smart Build] Successfully built ES package 'es_xx' with xx source file(s)
 # Building my_app...
 ```

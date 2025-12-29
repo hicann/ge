@@ -93,10 +93,10 @@ graph TB
 **功能**: 张量持有者类，封装了张量的各种操作
 
 **主要方法**:
-- 算术运算: `operator+`, `operator-`, `operator*`, `operator/`
-- 属性设置: `SetDataType()`, `SetFormat()`, `SetShape()`
-- 属性管理: `SetAttr()`, `SetAttrForNode()`
-- 访问器: `GetCTensorHolder()`, `GetProducer()`
+- 算术运算：`operator+`, `operator-`, `operator*`, `operator/`
+- 属性设置：`SetDataType()`, `SetFormat()`, `SetShape()`
+- 属性管理：`SetAttr()`, `SetAttrForNode()`
+- 访问器：`GetCTensorHolder()`, `GetProducer()`
 
 **关系**:
 
@@ -108,7 +108,7 @@ graph TB
 
 **文件位置**: `cpp/es_tensor_like.h`
 
-**功能**: 类Tensor类型定义，用于将EsTensorHolder、标量和向量转为EsTensorHolder对象
+**功能**：类 Tensor 类型定义，用于将 EsTensorHolder、标量和向量转为 EsTensorHolder 对象
 
 **主要方法**:
 - `ToTensorHolder()`   - 转为EsTensorHolder对象
@@ -140,28 +140,18 @@ graph TB
 
 **文件位置**: `c/esb_funcs.h`
 
-**功能**: 提供底层的C语言接口
+**功能**：提供底层的 C 语言接口
 
 **主要函数类别**:
-- 图构建器管理: `EsCreateGraphBuilder()`, `EsDestroyGraphBuilder()`
-- 输入创建: `EsCreateGraphInput()`, `EsCreateGraphInputWithDetails()`
-- 常量创建: `EsCreateScalar*()`, `EsCreateVector*()`, `EsCreateConst*()`
-- 属性设置: `EsSet*AttrForGraph()`, `EsSet*AttrForTensor()`, `EsSet*AttrForNode()`
+- 图构建器管理：`EsCreateGraphBuilder()`, `EsDestroyGraphBuilder()`
+- 输入创建：`EsCreateGraphInput()`, `EsCreateGraphInputWithDetails()`
+- 常量创建：`EsCreateScalar*()`, `EsCreateVector*()`, `EsCreateConst*()`
+- 属性设置：`EsSet*AttrForGraph()`, `EsSet*AttrForTensor()`, `EsSet*AttrForNode()`
 - 输出设置：`EsSetGraphOutput()`
-- 图构建:  `EsBuildGraphAndReset()`, 
+- 图构建：`EsBuildGraphAndReset()` 
 
 ### 使用示例
-```c++
-namespace ge {
-namespace es {
-std::unique_ptr<ge::Graph> MakeReluAddGraphByEs() {
-  auto graph_builder = std::make_unique<EsGraphBuilder>("MakeReluAddGraph");
-  auto input = graph_builder->CreateInput(0, "input", ge::DT_FLOAT, ge::FORMAT_ND, {2, 3});
-  auto relu2 = Relu(Relu(input));
-  (void) graph_builder->SetOutput(Add(input, relu2), 0);
-  auto graph = graph_builder->BuildAndReset();
-  return graph;
-}
-}
-}
+参考[sample](../../../examples/es)
 ```
+
+
