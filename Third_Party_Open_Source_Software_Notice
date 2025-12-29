@@ -1225,3 +1225,81 @@ by James Random Hacker.
 signature of Moe Ghoul, 1 April 1990
 Moe Ghoul, President of Vice
 That's all there is to it!
+
+
+This project includes code snippets from the following open source projects:
+
+Software: mxnet 1.5.0
+
+Official Repository: https://github.com/apache/mxnet
+
+Usage: "parser/parser/common/tuple.h"
+
+Copyright Notice: Copyright 2017-2023 The Apache Software Foundation.
+
+License: Apache License V2.0
+Please see above.
+
+
+Software: tensorflow 1.15.0
+
+Official Repository: https://github.com/tensorflow/tensorflow
+
+Usage: "
+graph_metadef/proto/tensorflow/attr_value.proto,
+graph_metadef/proto/tensorflow/function.proto,
+graph_metadef/proto/tensorflow/graph.proto,
+graph_metadef/proto/tensorflow/node_def.proto,
+graph_metadef/proto/tensorflow/op_def.proto,
+graph_metadef/proto/tensorflow/resource_handle.proto,
+graph_metadef/proto/tensorflow/tensor.proto,
+graph_metadef/proto/tensorflow/tensor_shape.proto,
+graph_metadef/proto/tensorflow/types.proto,
+graph_metadef/proto/tensorflow/versions.proto"
+
+Copyright Notice: Copyright 2020 The TensorFlow Authors.
+
+License: Apache License V2.0
+Please see above.
+
+
+Software: caffe 1.0
+
+Official Repository: https://github.com/BVLC/caffe
+
+Usage: "graph_metadef/proto/caffe/caffe.proto"
+
+Copyright Notice: Copyright (c) 2014-2017 The Regents of the University of California (Regents).
+
+License: BSD 2-Clause License
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+Software: onnx 1.15.0
+
+Official Repository: https://github.com/onnx/onnx
+
+Usage: "graph_metadef/proto/onnx/ge_onnx.proto"
+
+Copyright Notice: Copyright (c) ONNX Project Contributors.
+
+License: Apache License V2.0
+Please see above.

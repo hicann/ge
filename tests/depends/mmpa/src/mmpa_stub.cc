@@ -602,10 +602,24 @@ INT32 mmUnlink(const CHAR *filename) {
   }
   return unlink(filename);
 }
+INT32 mmSysSetEnv(mmEnvId id, const CHAR *value, INT32 overwrite) {
+  (void)value;
+  (void)overwrite;
+  if (id == MM_ENV_AUTO_USE_UC_MEMORY) {
+    return EN_OK;
+  }
+  return EN_INVALID_PARAM;
+}
 
 INT32 mmSetEnv(const CHAR *name, const CHAR *value, INT32 overwrite) {
   if ((name == nullptr) || (value == nullptr)) {
     return EN_INVALID_PARAM;
+  }
+  const std::set<std::string> ignore_env_set = {"ASCEND_LOG_SAVE_MODE",
+                                                "ASCEND_HOSTPID",
+                                                "LD_LIBRARY_PATH"};
+  if (ignore_env_set.find(name) != ignore_env_set.end()) {
+    return EN_OK;
   }
   return setenv(name, value, overwrite);
 }
