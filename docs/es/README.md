@@ -22,11 +22,8 @@ ES (Eager Style)是 GraphEngine 中用于构建计算图的函数式接口模块
 
 ### API 参考文档
 
-- **[Python API](api/ge_python.md)** - GE-PY Python 模块类关系文档
-  - Graph、Node、Tensor 等基础类的主要接口
-  - Session 的图编译执行类的主要接口
-  - ES 模块 GraphBuilder、TensorHolder 等基础类的主要接口
-
+- **[Python API](api/es_python.md)** - Eager Style Graph Builder Python 接口文档
+  - GraphBuilder、TensorHolder 等基础类的主要接口
 - **[C++/C API](api/es_cpp.md)** - Eager Style Graph Builder C++/C 接口文档
   - EsGraphBuilder、EsTensorHolder 等基础类的主要接口
 
@@ -70,3 +67,25 @@ docs/es/
 
 - [自定义es的api构图的多语言sample](../../examples/custom_es_api)
 
+
+## 开发路线图
+
+### 已完成 ✅
+
+- **核心架构**：主体功能已设计完成并落地，支持全量原型的代码生成和多语言构图
+- **API 集成**：math 分包已完成集成
+- **示例代码**：已提供多语言的 sample，涵盖常见使用场景
+
+### 进行中 🚧
+
+- **API 集成**：nn、cv、transformer、hcom 分包预计 2026 年 Q1 完成集成
+- **示例完善**：更多 sample 持续添加中
+
+### 计划中 📋
+
+- **历史原型库**：C++ API的后向兼容依赖于此，目前处于设计阶段，预计 2026 年 Q1 完成落地
+- **自定义算子工程**：ascendc 自定义算子工程集成 ES 的代码生成能力，暂无规划
+
+### 使用说明
+
+在全量原型打包到算子分包之前，如需使用 ES API，可以参考工具文档中的 [generate_es_package.cmake](tools/generate_es_package_cmake_readme.md) 进行代码生成和集成。
