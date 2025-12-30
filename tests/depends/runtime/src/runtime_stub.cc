@@ -204,7 +204,7 @@ rtError_t RuntimeStub::rtMemcpyAsync(void *dst, uint64_t dest_max, const void *s
   size_t remain_size = count;
   do {
     size_t copy_size = (remain_size > SECUREC_MEM_MAX_LEN) ? SECUREC_MEM_MAX_LEN : remain_size;
-    memcpy_s((dst + offset), copy_size, (src + offset), copy_size);
+    memcpy_s(ValueToPtr(PtrToValue(dst) + offset), copy_size, ValueToPtr(PtrToValue(src) + offset), copy_size);
     offset += copy_size;
     remain_size -= copy_size;
   } while (remain_size > 0U);

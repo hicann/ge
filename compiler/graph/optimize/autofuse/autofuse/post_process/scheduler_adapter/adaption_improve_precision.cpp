@@ -47,10 +47,6 @@ bool IsUltraLowToLowPrecision(DataType peer_output_dtype, DataType output_dtype)
   return IsUltraLowPrecisionDataType(peer_output_dtype) && IsLowPrecisionDataType(output_dtype);
 }
 
-bool IsLowToUltraLowPrecision(DataType peer_output_dtype, DataType output_dtype) {
-  return IsLowPrecisionDataType(peer_output_dtype) && IsUltraLowPrecisionDataType(output_dtype);
-}
-
 bool IsFloatToUltraLowPrecision(DataType peer_output_dtype, DataType output_dtype) {
   return IsFloatDataType(peer_output_dtype) && IsUltraLowPrecisionDataType(output_dtype);
 }

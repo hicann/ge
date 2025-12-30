@@ -54,7 +54,9 @@ TEST_F(GraphDslTest, test_build_graph_with_name) {
   auto geGraph = ToGeGraph(g1);
 
   ASSERT_EQ(geGraph.GetAllNodes().size(), 2);
-  ASSERT_EQ(geGraph.GetName(), "sample_graph");
+  AscendString get_name;
+  geGraph.GetName(get_name);
+  ASSERT_STRCASEEQ(get_name.GetString(), "sample_graph");
 }
 
 TEST_F(GraphDslTest, test_build_from_from_op_desc_ptr) {

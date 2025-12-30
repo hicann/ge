@@ -18,18 +18,6 @@ namespace py = pybind11;
 namespace llm {
 std::unique_ptr<LLMDataDist> LLMDataDistWrapper::llm_data_dist;
 
-namespace {
-ge::Status CollectTensors(const std::map<int32_t, std::vector<uintptr_t>> &device_id_to_inputs,
-                          std::map<int32_t, std::vector<ge::Tensor>> &device_id_to_input_tensors) {
-  for (const auto &device_id_and_tensor_ids : device_id_to_inputs) {
-    std::vector<ge::Tensor> tensors;
-    LLM_CHK_STATUS_RET(LLMTensor::TensorIdsToTensors(device_id_and_tensor_ids.second, tensors));
-    device_id_to_input_tensors.emplace(device_id_and_tensor_ids.first, std::move(tensors));
-  }
-  return ge::SUCCESS;
-}
-}  // namespace
-
 CopyCacheParam LLMDataDistWrapper::UnpackCopyCacheParam(CopyCacheParamTuple cache_param_tuple) {
   constexpr size_t kIndexDstCacheId = 0;
   constexpr size_t kIndexSrcCacheId = 1;

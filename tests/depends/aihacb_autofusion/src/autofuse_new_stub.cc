@@ -68,7 +68,9 @@ int32_t GenAscGraphAxisGroup(const ge::AscGraph &graph, optimize::autoschedule::
 }
 
 bool CanMergeAxisGroup(const optimize::autoschedule::AxisGroup &lhs, const optimize::autoschedule::AxisGroup &rhs,
-                       optimize::autoschedule::AxisGroup &merged_group) {
+                       optimize::autoschedule::AxisGroup &merged_group, const bool is_ge_call = false) {
+  (void)rhs;
+  (void)is_ge_call;
   merged_group = lhs;
   return true;
 }

@@ -26,7 +26,7 @@ namespace ge {
 std::string ge::PathUtils::Join(const std::vector<std::string> &names) {
   return StringUtils::Join(names.begin(), names.end(), "/");
 }
-bool PathUtils::CopyFile(const std::string &src, const std::string &dst) {
+void PathUtils::CopyFile(const std::string &src, const std::string &dst) {
   std::ifstream src_file(src, std::ios::binary);
   std::ofstream dst_file(dst, std::ios::binary);
   dst_file << src_file.rdbuf();

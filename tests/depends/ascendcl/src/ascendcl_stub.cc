@@ -7,22 +7,19 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#include <string>
-#include <map>
-#include <queue>
-#include <iostream>
 #include "ascendcl_stub.h"
 #include "mmpa/mmpa_api.h"
+#include <iostream>
+#include <string>
+#include "graph/def_types.h"
 
 static std::string g_acl_stub_mock = "";
-static std::string g_acl_stub_mock_v2 = "";
 static char g_soc_version[50] = {0};
 
 static int32_t g_free_stream_num = 2048;
 static int32_t g_free_event_num = 2048;
 static int32_t g_cnt_rtStreamSynchronize_over_flow = 0;
 static int32_t g_cnt_rtStreamSynchronize_fail = 0;
-static size_t reserve_mem_size_ = 200UL * 1024UL * 1024UL;
 
 #define EVENT_LENTH 10
 #define NOTIFY_LENTH 10
@@ -371,7 +368,7 @@ aclError AclRuntimeStub::aclrtMemcpyAsync(void *dst,
   size_t remain_size = src_count;
   do {
     size_t copy_size = (remain_size > SECUREC_MEM_MAX_LEN) ? SECUREC_MEM_MAX_LEN : remain_size;
-    memcpy_s((dst + offset), copy_size, (src + offset), copy_size);
+    memcpy_s(ValueToPtr(PtrToValue(dst) + offset), copy_size, ValueToPtr(PtrToValue(src) + offset), copy_size);
     offset += copy_size;
     remain_size -= copy_size;
   } while (remain_size > 0U);

@@ -14,11 +14,7 @@
 namespace gert {
 namespace {
 uint32_t RunHostCpuFuncStub(void *args) {
-  auto *arg_base = reinterpret_cast<uint8_t *>(args);
-  auto io_addrs = reinterpret_cast<uintptr_t *>(arg_base + sizeof(aicpu::AicpuParamHead));
-  auto *input_0 = reinterpret_cast<int32_t *>(io_addrs[0]);
-  auto *input_1 = reinterpret_cast<int32_t *>(io_addrs[1]);
-  auto *output = reinterpret_cast<int32_t *>(io_addrs[2]);
+  (void)args;
   return 0;
 }
 } // namespace

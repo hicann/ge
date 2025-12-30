@@ -536,7 +536,7 @@ namespace {
     fusion_rlt->InsertOutputs("scope_node_n", {1});  // scope output 1
 
     fusion_rlt->SetType(ge::kScopeToMultiNodes);
-    fusion_rlt->SetName(fusion_op_name);
+    fusion_rlt->SetName(fusion_op_name.c_str());
     fusion_rlt->SetDescription("Description for fusion node");
 
     // Add inner nodes in sequence.

@@ -16,7 +16,7 @@ namespace ge {
 class PathUtils {
  public:
   static std::string Join(const std::vector<std::string> &names);
-  static bool CopyFile(const std::string &src, const std::string &dst);
+  static void CopyFile(const std::string &src, const std::string &dst);
   static int64_t RemoveDirectories(const std::string &path);
 };
 }

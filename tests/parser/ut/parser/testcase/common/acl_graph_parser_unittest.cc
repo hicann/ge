@@ -125,8 +125,8 @@ TEST_F(UtestAclGraphParser, test_CheckConflictOp)
 TEST_F(UtestAclGraphParser, test_CheckConflictIdentifier)
 {
   ge::ProtoFileParser op;
-  char *caffe_proto_file = "/dev/null";
-  char *custom_proto_file = "/dev/null";
+  const char *caffe_proto_file = "/dev/null";
+  const char *custom_proto_file = "/dev/null";
   std::map<int, std::pair<string, string>> caffe_op_identifier_map;
   std::map<int, std::pair<string, string>> custom_op_identifier_map;
   custom_op_identifier_map.insert(std::make_pair(1, std::make_pair("ge", "ge")));
@@ -143,14 +143,14 @@ TEST_F(UtestAclGraphParser, test_CheckConflictIdentifier)
 TEST_F(UtestAclGraphParser, test_AddCustomAndConflictLayer)
 {
   Status ret;
-  char *custom_proto_file = "../parser/parser/caffe/caffe_parser.h";
+  const char *custom_proto_file = "../parser/parser/caffe/caffe_parser.h";
   ge::ProtoFileParser op;
   std::ofstream write_tmp;
   ret = op.ProtoFileParser::AddCustomAndConflictLayer(custom_proto_file, write_tmp);
   EXPECT_EQ(ret, SUCCESS);
 
-  custom_proto_file = "/dev/ge";
-  ret = op.ProtoFileParser::AddCustomAndConflictLayer(custom_proto_file, write_tmp);
+  const char *custom_proto_file2 = "/dev/ge";
+  ret = op.ProtoFileParser::AddCustomAndConflictLayer(custom_proto_file2, write_tmp);
   EXPECT_EQ(ret, FAILED);
 }
 
@@ -239,8 +239,8 @@ TEST_F(UtestAclGraphParser, test_WriteProtoFile)
 {
   Status ret;
   ProtoFileParser op;
-  char *caffe_proto_file = "/dev/null";
-  char *custom_proto_file = "/ge/ge/ge/ge.c";
+  const char *caffe_proto_file = "/dev/null";
+  const char *custom_proto_file = "/ge/ge/ge/ge.c";
   ret = op.WriteProtoFile(caffe_proto_file, custom_proto_file);
   EXPECT_EQ(ret, FAILED);
 }
@@ -334,7 +334,6 @@ TEST_F(UtestAclGraphParser, test_operatoreq)
   fp16_4.operator/(fp16_3);
 
   fp16.val = 21504;
-  int16_t int16 = fp16;
   int8 = fp16;
   EXPECT_NE(int8, 0);
 }

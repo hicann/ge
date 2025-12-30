@@ -14,11 +14,11 @@
 namespace gert {
 
 AiCoreTaskDefFaker::AiCoreTaskDefFaker(std::string stub_name) : with_handle_(false), need_atomic_(false),
-                                                                inited_(false), stub_name_(stub_name), with_aicpu_(false) {
+                                                                with_aicpu_(false), inited_(false), stub_name_(stub_name) {
 }
 
 AiCoreTaskDefFaker::AiCoreTaskDefFaker(bool with_handle, bool need_atomic, std::string stub_name, bool with_aicpu)
-        : with_handle_(with_handle), need_atomic_(need_atomic), inited_(false), stub_name_(stub_name), with_aicpu_(with_aicpu) {
+        : with_handle_(with_handle), need_atomic_(need_atomic), with_aicpu_(with_aicpu), inited_(false), stub_name_(stub_name) {
 }
 
 vector<domi::TaskDef> AiCoreTaskDefFaker::CreateTaskDef(uint64_t op_index) {

@@ -12450,8 +12450,7 @@ ComputeGraphPtr ShareGraph::MultiStreamGraphDynamicAndStaticGraph(int64_t &strea
  * pred(Data)  input(Data)  +-----------+  +-----------+
  */
 ComputeGraphPtr ShareGraph::MultiStreamGraphWithIfGraph(int64_t &stream_num, int64_t &event_num) {
-  auto origin_graph = IfGraph3();
-
+  return IfGraph3();
 }
 
 /*

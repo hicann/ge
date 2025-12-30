@@ -15,7 +15,6 @@ using namespace gert;
 namespace ops {
 ge::graphStatus InferShapeForAssign(InferShapeContext *context) {
   GELOGD("InferShapeForAssign");
-  auto input_shape_0 = *context->GetInputShape(0);
   auto input_shape_1 = *context->GetInputShape(1);
   auto output_shape = context->GetOutputShape(0);
   *output_shape = input_shape_1;

@@ -226,7 +226,7 @@ Status MemConflictShareGraph::TopologicalSortingMock(const ComputeGraphPtr &grap
       EnsureOrder(origin_nodes, cur_node, param_nodes[j]);
     }
   }
-  for (int64_t i = 0; i < origin_nodes.size(); ++i) {
+  for (size_t i = 0U; i < origin_nodes.size(); ++i) {
     origin_nodes.at(i)->GetOpDesc()->SetId(i);
   }
   graph->ReorderByNodeId();

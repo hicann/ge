@@ -51,18 +51,18 @@ void RegistOpToInfoStore(OpsKernelInfoStorePtr& info_store, const std::string& o
 }
 
 struct FakeOperator : Operator {
-  FakeOperator(const std::string& op_type) : Operator(op_type) {}
+  FakeOperator(const std::string& op_type) : Operator(op_type.c_str()) {}
 
   FakeOperator& RegistInputs(const std::vector<std::string>& inputs) {
     for (auto& input : inputs) {
-      Operator::InputRegister(input);
+      Operator::InputRegister(input.c_str());
     }
     return *this;
   }
 
   FakeOperator& RegistOutputs(const std::vector<std::string>& outputs) {
     for (auto& output : outputs) {
-      Operator::OutputRegister(output);
+      Operator::OutputRegister(output.c_str());
     }
     return *this;
   }
@@ -70,7 +70,7 @@ struct FakeOperator : Operator {
   FakeOperator& AttrRegister(const std::map<std::string, std::variant<int64_t>>& attrs) {
     for (auto& attr : attrs) {
       std::visit([this, name = attr.first](const auto& value) {
-        Operator::AttrRegister(name, value);
+        Operator::AttrRegister(name.c_str(), value);
       }, attr.second);
     }
     

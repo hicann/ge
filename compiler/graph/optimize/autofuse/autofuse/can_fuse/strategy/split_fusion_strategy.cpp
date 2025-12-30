@@ -22,8 +22,8 @@ bool SplitFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
   const auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
   GE_ASSERT_NOTNULL(attr2);
 
-  if (attr1->HasFuseType(loop::FuseType::kSplit) && attr2->HasFuseType(loop::FuseType::kReduction)
-      || attr1->HasFuseType(loop::FuseType::kReduction) && attr2->HasFuseType(loop::FuseType::kSplit)) {
+  if ((attr1->HasFuseType(loop::FuseType::kSplit) && attr2->HasFuseType(loop::FuseType::kReduction))
+      || (attr1->HasFuseType(loop::FuseType::kReduction) && attr2->HasFuseType(loop::FuseType::kSplit))) {
     GELOGI(
         "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][split cannot fuse reduction]", node1->GetNamePtr(), node1->GetType().c_str(),
         node2->GetNamePtr(), node2->GetType().c_str(),

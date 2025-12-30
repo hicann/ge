@@ -701,7 +701,6 @@ graphStatus LowerGather(const NodePtr &node) {
                  node->GetNamePtr());
   GE_WARN_ASSERT(batch_dims == 0, "Skip lowering node %s, as: Batch dims is not 0", node->GetNamePtr());
   std::vector<Expression> dims;
-  auto indices = node->GetInDataAnchor(1)->GetPeerOutAnchor().get();
   for (auto &anchor : node->GetAllInDataAnchors()) {
     if (anchor == nullptr || anchor->GetPeerOutAnchor() == nullptr) {
       continue;

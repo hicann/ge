@@ -741,8 +741,8 @@ std::vector<LoopVar> StoreSplit(const std::vector<OutDataAnchorPtr> &outputs, co
     }
     output_dims.emplace_back(outputx_dims);
   }
-  char soc_version[128] = {};
-  auto res = rtGetSocVersion(soc_version, 128U);
+  char soc_version[128U] = {};
+  (void)rtGetSocVersion(soc_version, 128U);
   GELOGI("soc_version: %s", soc_version);
   size_t idx = 0U;
   std::vector<LoopVar> ret;

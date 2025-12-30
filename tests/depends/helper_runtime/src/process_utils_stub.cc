@@ -28,7 +28,10 @@ pid_t ProcessUtils::Fork() {
 }
 
 int32_t ProcessUtils::Execute(const std::string &path, char *const *argv) {
-  char *argv_stub[] = {"echo", "stub exec", NULL};
+  (void)path;
+  (void)argv;
+  char *argv_stub[] = {const_cast<char*>("echo"),
+    const_cast<char*>("stub exec"), NULL};
   return execvp("echo", argv_stub);
 }
 

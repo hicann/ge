@@ -246,7 +246,7 @@ INT32 mmGetErrorCode()
 INT32 mmIsDir(const CHAR *fileName)
 {
   struct stat fileStat;
-  memset(&fileStat, sizeof(fileStat), 0);
+  memset(&fileStat, 0, sizeof(fileStat));
   int32_t ret = lstat(fileName, &fileStat);
   if (ret < 0) {
     return -1;
@@ -269,7 +269,7 @@ INT32 mmDlclose(VOID *handle)
 
 CHAR *mmDlerror()
 {
-  return "";
+  return nullptr;
 }
 
 INT32 mmDladdr(VOID *addr, mmDlInfo *info)

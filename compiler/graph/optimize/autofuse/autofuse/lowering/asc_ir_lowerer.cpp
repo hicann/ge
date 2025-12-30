@@ -118,7 +118,7 @@ graphStatus AscIrLowerer::Lowering(const ComputeGraphPtr &graph) {
     graphs.insert(graphs.begin(), graph);
   }
   for (const auto &subgraph : graphs) {
-    GE_ASSERT_GRAPH_SUCCESS(RemoveDirectNodeUnusedEdges(graph));
+    GE_ASSERT_GRAPH_SUCCESS(RemoveDirectNodeUnusedEdges(subgraph));
   }
   do_lowered_ = true;
   return GRAPH_SUCCESS;

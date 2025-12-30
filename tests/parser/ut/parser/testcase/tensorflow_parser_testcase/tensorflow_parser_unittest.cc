@@ -545,7 +545,7 @@ namespace {
     fusion_rlt->InsertOutputs("scope_node_n", {1});  // scope output 1
 
     fusion_rlt->SetType(ge::kScopeToMultiNodes);
-    fusion_rlt->SetName(fusion_op_name);
+    fusion_rlt->SetName(fusion_op_name.c_str());
     fusion_rlt->SetDescription("Description for fusion node");
 
     // Add inner nodes in sequence.
@@ -1125,7 +1125,7 @@ TEST_F(UtestTensorflowParser, parser_tensorflow_model) {
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   const char *model_file = modelFile.c_str();
   std::string op_name = "ge_ascend_irgraph";
-  ge::Graph graph(op_name);
+  ge::Graph graph(op_name.c_str());
 
   std::map<ge::AscendString, ge::AscendString> parser_options = {
     {ge::AscendString(ge::ir_option::INPUT_FORMAT), ge::AscendString("NHWC")},
@@ -1139,7 +1139,7 @@ TEST_F(UtestTensorflowParser, parser_tensorflow_model) {
   std::map<AscendString, AscendString> out_nodes_with_node_and_index = {
     {AscendString(ge::ir_option::OUT_NODES), AscendString("Placeholder:0;Placeholder_1:1")}};
   ParerUTestsUtils::ClearParserInnerCtx();
-  auto ret = acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
+  (void)acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
   ret_graph = ge::aclgrphParseTensorFlow(model_file, graph);
   EXPECT_EQ(ret_graph, domi::FAILED);
 
@@ -1148,7 +1148,7 @@ TEST_F(UtestTensorflowParser, parser_tensorflow_model) {
   model_file = modelFile.c_str();
   out_nodes_with_node_and_index = {{AscendString(ge::ir_option::OUT_NODES), AscendString("x:0;y:0")}};
   ParerUTestsUtils::ClearParserInnerCtx();
-  ret = acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
+  (void)acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
   ret_graph = ge::aclgrphParseTensorFlow(model_file, graph);
   EXPECT_EQ(ret_graph, domi::SUCCESS);
 }
@@ -1346,7 +1346,7 @@ TEST_F(UtestTensorflowParser, modelparser_parsefrommemory_success)
   TensorFlowModelParser modelParser;
   MemBuffer* memBuffer = MemBufferFromFile(tmp_tf_pb_model);
   PreChecker::Instance().HasError() == false;
-  ret = modelParser.ParseFromMemory((char*)memBuffer->data, memBuffer->size, compute_graph);
+  (void)modelParser.ParseFromMemory((char*)memBuffer->data, memBuffer->size, compute_graph);
   free(memBuffer->data);
   delete memBuffer;
 }
@@ -1399,8 +1399,8 @@ TEST_F(UtestTensorflowParser, parser_ParseProtoWithSubgraphWithConstValue)
   ge::ComputeGraphPtr root_graph = std::make_shared<ge::ComputeGraph>("ge_default");
   domi::tensorflow::GraphDef graph_def;
   auto const1 = graph_def.add_node();
-  auto const2 = graph_def.add_node();
-  auto add = graph_def.add_node();
+  (void)graph_def.add_node();
+  (void)graph_def.add_node();
   const1->set_name("const1");
   const1->set_op("Const");
   std::string root_proto = graph_def.SerializeAsString();
@@ -1618,7 +1618,9 @@ TEST_F(UtestTensorflowParser, parse_AutoMappingByOp) {
 
   status = domi::AutoMappingByOpFn(op, op_dest);
   EXPECT_EQ(domi::SUCCESS, status);
-  EXPECT_EQ(VALUE_NAME, op_dest.GetName());
+  AscendString name;
+  op_dest.GetName(name);
+  EXPECT_EQ(VALUE_NAME, name.GetString());
 
   value_string = "";
   ge::AttrUtils::GetStr(op_desc_dest, KEY_STRING, value_string);
@@ -1732,7 +1734,7 @@ TEST_F(UtestTensorflowParser, parse_AddScopeInnerNode)
   std::string caseDir = FILE_TENSORFLOW_PATH;
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   std::string op_name = "ge_ascend_irgraph";
-  ge::Graph graph(op_name);
+  ge::Graph graph(op_name.c_str());
   ge::ComputeGraphPtr compute_graph = ge::GraphUtilsEx::GetComputeGraph(graph);
   std::map<ge::AscendString, ge::AscendString> parser_params = {
     {AscendString(ge::ir_option::OUT_NODES), AscendString("Placeholder:0;Placeholder_1:0")}};
@@ -2663,8 +2665,9 @@ TEST_F(UtestTensorflowParser, Tensorflow_recordFusionResult_parser_test)
   fusion_scope_rlt->Init();
   fusion_scope_rlt->SetName("OP");
   auto &impl_scope_graph = scope_graph->impl_;
-  std::string scope_name = fusion_scope_rlt->Name();
-  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name, fusion_scope_rlt));
+  AscendString scope_name;
+  fusion_scope_rlt->Name(scope_name);
+  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name.GetString(), fusion_scope_rlt));
   std::vector<ge::OperatorPtr> nodes;
   ge::OperatorPtr op = ge::parser::MakeShared<ge::Operator>("op_name", "op_type");
   if (op == nullptr) {
@@ -3412,7 +3415,9 @@ TEST_F(UtestTensorflowParser, OptimizeConstNodes4CustomOp_success)
 
   REGISTER_CUSTOM_OP("BatchNormGrad")
       .FrameworkType(domi::TENSORFLOW)
-      .OriginOpType({"FusedBatchNormGradV3", "FusedBatchNormGradV2", "FusedBatchNormGrad"})
+      .OriginOpType({AscendString("FusedBatchNormGradV3"),
+        AscendString("FusedBatchNormGradV2"),
+        AscendString("FusedBatchNormGrad")})
       .ParseParamsFn(AutoMappingFn)
       .DelInputWithOriginalType(5, "FusedBatchNormGradV3")
       .ImplyType(ImplyType::TVM);
@@ -3456,8 +3461,9 @@ TEST_F(UtestTensorflowParser, tensorflow_AddFusionInnerNodeDef_test)
   fusion_scope_rlt->Init();
   fusion_scope_rlt->SetName("FusionCustom");
   auto &impl_scope_graph = scope_graph->impl_;
-  std::string scope_name = fusion_scope_rlt->Name();
-  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name, fusion_scope_rlt));
+  AscendString scope_name;
+  fusion_scope_rlt->Name(scope_name);
+  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name.GetString(), fusion_scope_rlt));
   std::string fusion_op_name = "FusionCustom";
   GenOriginNodeDef(&model_parser, op_node_name_list);
   GenFusionScopesResult(scope_graph, fusion_scope_rlt, fusion_op_name);

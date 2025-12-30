@@ -43,7 +43,7 @@ std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcGatherTmpSizeV2(const ge::AscNo
   AscNodeInputs node_inputs = node.inputs;
   AscNodeOutputs node_outputs = node.outputs;
   Expression param_size = Symbol(ONE);
-  for(int i = 0;i < node_inputs[0].attr.repeats.size();i++) {
+  for(size_t i = 0U; i < node_inputs[0].attr.repeats.size(); i++) {
     param_size = sym::Mul(param_size, node_inputs[0].attr.repeats[i]);
   }
   GE_CHK_BOOL_RET_SPECIAL_STATUS(node_inputs.Size() < TWO, tmpBufDescs, "node.inputs.Size less than TWO");
@@ -68,7 +68,7 @@ std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcGatherTmpSizeV2(const ge::AscNo
       indices_add = Symbol(INDICES_ADD_INT64);
       critical_point = Symbol(CRITICAL_POINT_INT64);
     }
-    for(int i = 0;i < node_inputs[1].attr.repeats.size();i++){
+    for(size_t i = 0U; i < node_inputs[1].attr.repeats.size(); i++){
       indicesSize = sym::Mul(indicesSize, node_inputs[1].attr.repeats[i]);
     }
     Expression indices_tmp = sym::Div(indicesSize, indices_div);

@@ -1007,18 +1007,20 @@ Status AscGraphAxisMapping::ProcessSubGraphVerticalMapInfo(const NodePtr &node1,
           return FAILED;
         }
       } else {
-        //        node1                         node1                        node1
-        //         /\                            /\                            |
-        //        /  \                          /  \                           |
-        // 原图 node2 node3   -> 场景1：        node2  \             场景2：  FusedAscBackend
-        //       \    /                          \   \
-        //       concat                     FusedAscendBackend
-        // 上面原图里node1的输出多引用，连接了node2和node3，此时有两种融合场景：
-        // 场景1：node3和concat融合，然后node2不能和concat融合，此时需要判断node1和Fused节点是否能融合。如果node1的输出是多引用，同时Fused
-        // 节点中与node1连接的节点中包含view op，那么node1和Fused节点不能融合。
-        // 场景2：node3和node2与concat节点融合了，最后会判断node1和Fused节点是否能融合，这个时候node1和Fused节点只有一条边，fuse_info中没有
-        // 多引用的信息。这个时候不能只用fuse_info.HasMulReference()来判断，还需要判断Fused节点中与node1连接的data节点后面是否有多个节点。
-        // 如果后面有多个节点（> 1U），同时对应节点中也包含view op，那么node1和Fused节点不能融合。
+        /*
+         *        node1                         node1                        node1
+         *         /\                            /\                            |
+         *        /  \                          /  \                           |
+         * 原图 node2 node3   -> 场景1：        node2  \             场景2：  FusedAscBackend
+         *       \    /                          \   \
+         *       concat                     FusedAscendBackend
+         * 上面原图里node1的输出多引用，连接了node2和node3，此时有两种融合场景：
+         * 场景1：node3和concat融合，然后node2不能和concat融合，此时需要判断node1和Fused节点是否能融合。如果node1的输出是多引用，同时Fused
+         * 节点中与node1连接的节点中包含view op，那么node1和Fused节点不能融合。
+         * 场景2：node3和node2与concat节点融合了，最后会判断node1和Fused节点是否能融合，这个时候node1和Fused节点只有一条边，fuse_info中没有
+         * 多引用的信息。这个时候不能只用fuse_info.HasMulReference()来判断，还需要判断Fused节点中与node1连接的data节点后面是否有多个节点。
+         * 如果后面有多个节点（> 1U），同时对应节点中也包含view op，那么node1和Fused节点不能融合。
+         */
         bool has_mul_reference = fuse_info.HasMulReference();
         auto asc_node = node2;
         auto index = subgraph_link.second;

@@ -48,7 +48,8 @@ static Status ParseParamByOpFunc(const ge::Operator &op_src, ge::Operator& op_de
   return SUCCESS;
 }
 
-Status ParseSubgraphPostFnIf(const std::string& subgraph_name, const ge::Graph& graph) {
+Status ParseSubgraphPostFnIf(const AscendString& subgraph_name, const ge::Graph& graph) {
+  (void)subgraph_name;
   domi::AutoMappingSubgraphIOIndexFunc auto_mapping_subgraph_index_func =
       domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
   if (auto_mapping_subgraph_index_func == nullptr) {
@@ -75,11 +76,11 @@ void STestOnnxParser::RegisterCustomOp() {
   // register if op info to GE
   REGISTER_CUSTOM_OP("If")
   .FrameworkType(domi::ONNX)
-  .OriginOpType({"ai.onnx::9::If",
-                 "ai.onnx::10::If",
-                 "ai.onnx::11::If",
-                 "ai.onnx::12::If",
-                 "ai.onnx::13::If"})
+  .OriginOpType({AscendString("ai.onnx::9::If"),
+                 AscendString("ai.onnx::10::If"),
+                 AscendString("ai.onnx::11::If"),
+                 AscendString("ai.onnx::12::If"),
+                 AscendString("ai.onnx::13::If")})
   .ParseParamsFn(ParseParams)
   .ParseParamsByOperatorFn(ParseParamByOpFunc)
   .ParseSubgraphPostFn(ParseSubgraphPostFnIf);

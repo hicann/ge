@@ -347,7 +347,7 @@ TEST_F(UtestCaffeParser, caffe_parser_ParseParamsForDummyData_test)
   ret = caffe_parser.ParseParamsForDummyData(*lay, op);
   EXPECT_EQ(ret, FAILED);
 
-  domi::caffe::BlobShape* dummpShape = dummyData->add_shape();
+  (void)dummyData->add_shape();
   ret = caffe_parser.ParseParamsForDummyData(*lay, op);
   EXPECT_EQ(ret, SUCCESS);
 }
@@ -984,7 +984,6 @@ TEST_F(UtestCaffeParser, CaffeReshapeParser_ParseWeights_test)
   CaffeReshapeParser reshapeParser;
   domi::caffe::NetParameter net;
   domi::caffe::LayerParameter *layer = net.add_layer();
-  domi::caffe::ReshapeParameter* reshape_param = layer->mutable_reshape_param();
   layer->add_bottom("bottom");
   layer->add_top("top");
 
@@ -1246,7 +1245,6 @@ TEST_F(UtestCaffeParser, ParseFromMemory_success_graph)
   std::string weight_file = caseDir + "/caffe_model/caffe_add.caffemodel";
 
   const char* tmp_tf_pb_model = modelFile.c_str();
-  const char* tmp_tf_weight_model = weight_file.c_str();
   ge::Graph graph;
 
   Status ret = ge::aclgrphParseCaffe(modelFile.c_str(), weight_file.c_str(), graph);

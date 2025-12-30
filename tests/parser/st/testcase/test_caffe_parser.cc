@@ -294,7 +294,7 @@ TEST_F(STestCaffeParser, caffe_parser_ParseParamsForDummyData_test)
   ret = caffe_parser.ParseParamsForDummyData(*lay, op);
   EXPECT_EQ(ret, FAILED);
 
-  domi::caffe::BlobShape* dummpShape = dummyData->add_shape();
+  (void)dummyData->add_shape();
   ret = caffe_parser.ParseParamsForDummyData(*lay, op);
   EXPECT_EQ(ret, SUCCESS);
 }

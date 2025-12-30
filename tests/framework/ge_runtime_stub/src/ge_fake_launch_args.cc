@@ -81,7 +81,7 @@ GeFakeLaunchArgs::GeFakeLaunchArgs(const void *kernel_name, uint32_t block_dim, 
 }
 
 GeFakeLaunchArgs::GeFakeLaunchArgs(uintptr_t *ctrl, uint32_t num, uint32_t type, std::unique_ptr<std::string> tag)
-    : type_(type), tag_name_(std::move(tag)) {
+    : tag_name_(std::move(tag)), type_(type) {
   if (type == RT_GNL_CTRL_TYPE_MEMCPY_ASYNC_CFG) {
     args_addr_ = reinterpret_cast<void *>(*(ctrl + 2));
     return;

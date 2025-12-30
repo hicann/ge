@@ -282,17 +282,13 @@ std::vector<loop::KernelBox> GetRealizedKernelBoxes(const ge::NodePtr &node, con
     }
     return realized_kernel_boxes;
   }
-  // view op also lowering to ascbc
-  for (auto &kernel_box : realized_kernel_boxes) {
-    return realized_kernel_boxes;
-  }
 
   GELOGI("All kernel box of node %s is too small:", node->GetName().c_str());
   for (auto &kernel_box : realized_kernel_boxes) {
     GELOGI("  kernel box %s num ascend ir nodes %zu < %zu", kernel_box.Name().c_str(),
            kernel_box.GetAscendIrNodes().size(), config.min_ascend_ir_nodes);
   }
-  return {};
+  return realized_kernel_boxes;
 }
 
 graphStatus MoveControlEdges(const NodePtr &src, const NodePtr &dst) {

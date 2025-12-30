@@ -252,7 +252,6 @@ Status BackendUtils::FusedBackSteppingViewOpBroadcast(TensorAttrInfo &temp_graph
   auto &broadcast_info = attr_info.broadcast_info;
   const auto &load_axis = temp_load_attr.axis;
   const auto &load_repeats = temp_load_attr.repeats;
-  const auto &load_strides = temp_load_attr.strides;
 
   GE_ASSERT_TRUE(temp_graph_attr.axis.size() <= load_repeats.size());
   for (auto index = 0U; index < load_repeats.size(); index++) {
