@@ -1721,13 +1721,6 @@ Status ModelHelper::UpdatePlatfromInfoWithRuntime(const int32_t device_id, const
   UpdateCoreCountWithRuntime(kVectorcoreNum, vector_core_cnt_ini, vector_core_cnt,
     platform_info.soc_info.vector_core_cnt);
 
-   rtAiCoreMemorySize_t aicore_memory_size;
-   if (rtAiCoreMemorySizes(&aicore_memory_size) == RT_ERROR_NONE) {
-     GELOGI("Change l2_size from platform %lu to rts %u bytes.",
-            platform_info.soc_info.l2_size, aicore_memory_size.l2Size);
-     platform_info.soc_info.l2_size = aicore_memory_size.l2Size;
-   }
-
    size_t free_mem = 0U;
    size_t total_mem_size = 0U;
    if (rtMemGetInfoEx(RT_MEMORYINFO_HBM, &free_mem, &total_mem_size) == RT_ERROR_NONE) {
