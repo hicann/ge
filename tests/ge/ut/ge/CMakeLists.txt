@@ -2010,7 +2010,7 @@ target_link_libraries(ut_libge_others_utest
 )
 
 add_test(NAME ut_libge_others_utest COMMAND ut_libge_others_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_others_utest.xml)
-set_tests_properties(ut_libge_others_utest PROPERTIES LABELS "ut;ge_common;ut_libge_others_utest")
+set_tests_properties(ut_libge_others_utest PROPERTIES LABELS "ut;ge_common;ut_libge_others_utest"  DEPENDS ut_libge_distinct_load_utest)
 
 # libge_label_maker_utest
 add_executable(ut_libge_label_maker_utest
