@@ -127,6 +127,7 @@ TEST_F(MultiInOutSTest, basic_test) {
 
   executor.Stop();
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(MultiInOutSTest, basic_test_need_align) {
@@ -192,6 +193,7 @@ TEST_F(MultiInOutSTest, basic_test_need_align) {
   EXPECT_EQ(trans_id_set, all_out_trans_id_set);
   executor.Stop();
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(MultiInOutSTest, basic_test_align_pad_empty_tensor) {
@@ -252,6 +254,7 @@ TEST_F(MultiInOutSTest, basic_test_align_pad_empty_tensor) {
   }
   executor.Stop();
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(MultiInOutSTest, basic_test_input_queue_not_exist) {
@@ -283,6 +286,7 @@ TEST_F(MultiInOutSTest, basic_test_input_queue_not_exist) {
 
   // as some input queue error, executor will auto exit
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(MultiInOutSTest, basic_test_output_queue_not_exist) {
@@ -312,6 +316,7 @@ TEST_F(MultiInOutSTest, basic_test_output_queue_not_exist) {
   }
 
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(MultiInOutSTest, raw_data_basic_test) {
@@ -379,6 +384,7 @@ TEST_F(MultiInOutSTest, raw_data_basic_test) {
 
   executor.Stop();
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(MultiInOutSTest, multi_loop_test_part_input) {
@@ -426,6 +432,7 @@ TEST_F(MultiInOutSTest, multi_loop_test_part_input) {
   }
   executor.Stop();
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(MultiInOutSTest, multi_loop_test_one_by_one) {
@@ -476,5 +483,6 @@ TEST_F(MultiInOutSTest, multi_loop_test_one_by_one) {
   }
   executor.Stop();
   executor.WaitForStop();
+  executor.Destroy();
 }
 }  // namespace FlowFunc

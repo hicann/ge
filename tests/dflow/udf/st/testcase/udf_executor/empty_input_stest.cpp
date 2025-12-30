@@ -18,9 +18,13 @@
 #include "model/flow_func_model.h"
 #include "flow_func/meta_multi_func.h"
 #include "config/global_config.h"
+#include "flow_func/flow_func_log.h"
 
 namespace FlowFunc {
 namespace {
+std::mutex g_sync_mutex;
+std::condition_variable_any g_cv_;
+
 class EmptyInputFlowFuncStub : public MetaMultiFunc {
  public:
   EmptyInputFlowFuncStub() = default;
@@ -30,6 +34,7 @@ class EmptyInputFlowFuncStub : public MetaMultiFunc {
   int32_t EmptyInputProc1(const std::shared_ptr<MetaRunContext> &run_context,
                           const std::vector<std::shared_ptr<FlowMsg>> &input_flow_msgs) {
     ++empty_proc_count;
+    g_cv_.notify_all();
     usleep(200 * 1000);
     return FLOW_FUNC_SUCCESS;
   }
@@ -110,7 +115,11 @@ TEST_F(EmptyInputSTest, basic_test) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
-
+  {
+    std::unique_lock<std::mutex> lock(g_sync_mutex);
+    // wait empty input notify
+    g_cv_.wait_for(lock, std::chrono::seconds(1));
+  }
   std::vector<int64_t> shape = {};
   int32_t input_value = 0;
   for (size_t i = 0; i < input_queues.size(); ++i) {
@@ -148,5 +157,6 @@ TEST_F(EmptyInputSTest, basic_test) {
 
   executor.Stop();
   executor.WaitForStop();
+  executor.Destroy();
 }
 }  // namespace FlowFunc
