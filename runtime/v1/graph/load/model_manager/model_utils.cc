@@ -38,6 +38,7 @@ constexpr char_t const *kWorkSpace = "workspace";
 constexpr char_t const *kInner = "built-in";
 constexpr char_t const *kVendors = "vendors";
 constexpr char_t const *kOpImpl = "op_impl";
+constexpr char_t const *kLegacySoSuffix = "_legacy.so";
 static thread_local uint32_t load_so_count = 0;
 uint64_t GetWorkspaceMemTypeByPriority(const bool is_p2p_memory, const bool is_l1_memory, const bool is_ub_memory,
                                        const bool session_scope_memory) {
@@ -97,6 +98,12 @@ void GetSpecificSoBins(const ge::GeRootModelPtr &root_model, const SoBinType so_
     if (so_bin->GetSoBinType() == so_bin_type) {
       so_list.emplace_back(so_bin);
     }
+  });
+  // sort, move "_legacy.so" to the end
+  std::stable_partition(so_list.begin(), so_list.end(), [](const OpSoBinPtr &so_bin) {
+    const std::string so_bin_name = so_bin->GetSoName();
+    return so_bin_name.size() < std::strlen(kLegacySoSuffix) ||
+           so_bin_name.compare((so_bin_name.size() - std::strlen(kLegacySoSuffix)), std::strlen(kLegacySoSuffix), kLegacySoSuffix) != 0;
   });
 }
 }  // namespace
@@ -165,6 +172,7 @@ ge::graphStatus ModelUtils::SaveToFile(const std::shared_ptr<ge::OpSoBin> &so_bi
                              static_cast<int32_t>(static_cast<uint32_t>(M_WRONLY) | static_cast<uint32_t>(M_CREAT) |
                                                   static_cast<uint32_t>(O_TRUNC)),
                              kAccess);
+  GELOGD("Prepare to save so: [%s], the save path: [%s]", so_bin->GetSoName().c_str(), opp_path.c_str());
   GE_MAKE_GUARD(close_opp_path, [&fd]() -> void { mmClose(fd); });
   GE_ASSERT(fd >= 0, "open file [%s] failed!", opp_path.c_str());
   const int32_t write_count =
@@ -1549,17 +1557,38 @@ Status ModelUtils::GetSpaceRegistries(const ge::GeRootModelPtr &root_model,
              version_2_so_list.second.size());
       auto space_registry = ge::MakeShared<gert::OpImplSpaceRegistryV2>();
       GE_ASSERT_NOTNULL(space_registry);
-      for (const auto &so_bin : version_2_so_list.second) {
-        GE_ASSERT_NOTNULL(so_bin);
-        GE_ASSERT_TRUE(so_bin->GetBinDataSize() <= kGByteSize);
-        std::string opp_dir;
-        GE_ASSERT_SUCCESS(CreateOmOppDir(opp_dir));
-        GE_MAKE_GUARD(clear_tmp_om, [&opp_dir]() -> void { RmOmOppDir(opp_dir); });
-        const auto &so_path = opp_dir + so_bin->GetSoName();
-        GE_ASSERT_GRAPH_SUCCESS(SaveToFile(so_bin, so_path));
-        GE_ASSERT_GRAPH_SUCCESS(
-            space_registry->AddSoToRegistry(
-                gert::OppSoDesc(std::vector<ge::AscendString>{ge::AscendString(so_path.c_str())}, so_bin->GetSoName().c_str())));
+      {
+        std::vector<gert::OppSoDesc> opp_so_desc_list;
+        std::vector<std::string> opp_dir_list;
+        // 在出作用域，析构opp_dir_list时一并删除创建的临时so目录
+        GE_MAKE_GUARD(clear_tmp_opp_dir_list, [&opp_dir_list]() -> void {
+          for (const auto& opp_dir : opp_dir_list) {
+            GELOGD("clear_tmp_opp_dir_list opp dir: %s", opp_dir.c_str());
+            (void)RmOmOppDir(opp_dir);
+          }
+        });
+        for (const auto &so_bin : version_2_so_list.second) {
+          GE_ASSERT_NOTNULL(so_bin);
+          GE_ASSERT_TRUE(so_bin->GetBinDataSize() <= kGByteSize);
+          std::string opp_dir;
+          GE_ASSERT_SUCCESS(CreateOmOppDir(opp_dir));
+          opp_dir_list.emplace_back(opp_dir);
+          const auto &so_path = opp_dir + so_bin->GetSoName();
+          GE_ASSERT_GRAPH_SUCCESS(SaveToFile(so_bin, so_path));
+          opp_so_desc_list.emplace_back(gert::OppSoDesc(std::vector<ge::AscendString>{ge::AscendString(so_path.c_str())},
+                                                        so_bin->GetSoName().c_str()));
+        }
+        // 因子包中nn对common_legacy有依赖，需先全部落盘再加载
+        for (const auto &opp_so_desc : opp_so_desc_list) {
+          GELOGD("Prepare to AddSoToRegistry, so name: %s", opp_so_desc.GetPackageName().GetString());
+          const auto is_opp_depend_common_so = opp_so_desc.GetPackageName().Find("libophost_comm_legacy.so");
+          // 正式方案需由aoe整改，当前规避方案由GE跳过加载
+          if (is_opp_depend_common_so != std::string::npos) {
+            GELOGD("AddSoToRegistry skiped, the specify so: libophost_comm_legacy.so");
+            continue;
+          }
+          GE_ASSERT_GRAPH_SUCCESS(space_registry->AddSoToRegistry(opp_so_desc));
+        }
       }
       space_registries->at(static_cast<size_t>(version_2_so_list.first)) = space_registry;
     }

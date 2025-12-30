@@ -422,11 +422,6 @@ Status ModelHelper::LoadAndStoreOppSo(const string &path, bool is_split, bool is
     ge::PluginManager::GetFileListWithSuffix(path, so_buff, op_so_list);
   } else {
     ge::PluginManager::GetFileListWithSuffix(path, kSoSuffix, op_so_list);
-    // 排序，将"_legacy.so"移到到最后
-    std::stable_partition(op_so_list.begin(), op_so_list.end(), [](const std::string &op_so_name) {
-      return op_so_name.size() < std::strlen(kLegacySoSuffix) ||
-             op_so_name.compare((op_so_name.size() - std::strlen(kLegacySoSuffix)), std::strlen(kLegacySoSuffix), kLegacySoSuffix) != 0;
-    });
   }
 
   if (is_built_in_path && op_so_list.empty()) {
