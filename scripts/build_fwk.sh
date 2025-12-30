@@ -361,115 +361,17 @@ if [ ! -z "$ONLY_BUILD" ];then
 fi
 export LD_LIBRARY_PATH=${BUILD_PATH}/tests/depends/aoe/:$LD_LIBRARY_PATH
 if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$ENABLE_PYTHON_UT" = "Xon" ]] || [[ "X$ENABLE_PARSER_UT" = "Xon" ]] || [[ "X$ENABLE_DFLOW_UT" = "Xon" ]]; then
-    cp -rf ${BUILD_PATH}/tests/ge/ut/common/graph/ut_libgraph ${OUTPUT_PATH}
     #execute ut testcase with mem leaks by default
     if [[ "X$ENABLE_GE_UT" = "Xon" ]]; then
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_multiparts_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_symbol_infer_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_others_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_kernel_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_distinct_load_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_label_maker_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_common_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/sc_check/ut_sc_check ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/depends/hccl/libhccl_stub.so ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/depends/graph_tuner/libgraphtuner_executor.so ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_jit_execution ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_eager_style_builder ${OUTPUT_PATH}
-
-      echo "Begin to run tests with leaks check"
-      
-      # 创建临时文件保存每个测试的输出
-      temp_output_libgraph="${OUTPUT_PATH}/.test_output_ut_libgraph_$$.tmp"
-      temp_output_label_maker="${OUTPUT_PATH}/.test_output_ut_libge_label_maker_utest_$$.tmp"
-      temp_output_kernel="${OUTPUT_PATH}/.test_output_ut_libge_kernel_utest_$$.tmp"
-      temp_output_distinct_load="${OUTPUT_PATH}/.test_output_ut_libge_distinct_load_utest_$$.tmp"
-      temp_output_common="${OUTPUT_PATH}/.test_output_ut_libge_common_utest_$$.tmp"
-      temp_output_sc_check="${OUTPUT_PATH}/.test_output_ut_sc_check_$$.tmp"
-      temp_output_others="${OUTPUT_PATH}/.test_output_ut_libge_others_utest_$$.tmp"
-      temp_output_multiparts="${OUTPUT_PATH}/.test_output_ut_libge_multiparts_utest_$$.tmp"
-      temp_output_symbol_infer="${OUTPUT_PATH}/.test_output_ut_libge_symbol_infer_utest_$$.tmp"
-      temp_output_jit_execution="${OUTPUT_PATH}/.test_output_ut_jit_execution_$$.tmp"
-      temp_output_eager_style_builder="${OUTPUT_PATH}/.test_output_ut_eager_style_builder_$$.tmp"
-
-      set -o pipefail
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libgraph --gtest_output=xml:${report_dir}/ut/ut_libgraph.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_libgraph}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_label_maker_utest --gtest_output=xml:${report_dir}/ut/ut_libge_label_maker_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_label_maker}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_kernel_utest --gtest_output=xml:${report_dir}/ut/ut_libge_kernel_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_kernel}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_distinct_load_utest --gtest_output=xml:${report_dir}/ut/ut_libge_distinct_load_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_distinct_load}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_common_utest --gtest_output=xml:${report_dir}/ut/ut_libge_common_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_common}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_sc_check" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_sc_check}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_others_utest --gtest_output=xml:${report_dir}/ut/ut_libge_others_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_others}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_multiparts_utest --gtest_output=xml:${report_dir}/ut/ut_libge_multiparts_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_multiparts}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_symbol_infer_utest --gtest_output=xml:${report_dir}/ut/ut_libge_symbol_infer_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_symbol_infer}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_jit_execution --gtest_output=xml:${report_dir}/ut/ut_jit_execution.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_jit_execution}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_eager_style_builder --gtest_output=xml:${report_dir}/ut/ut_eager_style_builder.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_eager_style_builder}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("ut_libgraph" "ut_libge_label_maker_utest" "ut_libge_kernel_utest" "ut_libge_distinct_load_utest" "ut_libge_common_utest" "ut_sc_check" "ut_libge_others_utest" "ut_libge_multiparts_utest" "ut_libge_symbol_infer_utest" "ut_jit_execution" "ut_eager_style_builder")
-      temp_files=("${temp_output_libgraph}" "${temp_output_label_maker}" "${temp_output_kernel}" "${temp_output_distinct_load}" "${temp_output_common}" "${temp_output_sc_check}" "${temp_output_others}" "${temp_output_multiparts}" "${temp_output_symbol_infer}" "${temp_output_jit_execution}" "${temp_output_eager_style_builder}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
-        echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
-        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-        exit 1;
-      fi
-      unset ASAN_OPTIONS
+      echo "[TEST GE COMMON] Begin to run tests with leaks check"
+      ASAN_OPTIONS=detect_container_overflow=0 \
+      ctest --output-on-failure -j ${THREAD_NUM} -L ut -L ge_common --test-dir ${BUILD_PATH} --no-tests=error \
+            -O ${BUILD_PATH}/ctest_ut_ge_common.log
     fi
     if [[ "X$ENABLE_RT2_UT" = "Xon" ]]; then
-      cp -rf ${BUILD_PATH}/tests/graph_metadef/ut/ascendc_ir/ut_ascendc_ir ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/graph_metadef/ut/exe_graph/ut_exe_graph ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/graph_metadef/ut/register/ut_register ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/graph_metadef/ut/expression/ut_expression ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_libge_helper_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/dflow/ut_flow_graph ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ut_llm_engine_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/ge/ut/ge/runtime/fast_v2/ut_fast_runtime2_test ${OUTPUT_PATH}
-      echo "Begin to run tests with leaks check"
-
-      # 创建临时文件保存每个测试的输出
-      temp_output_ascendc_ir="${OUTPUT_PATH}/.test_output_ut_ascendc_ir_$$.tmp"
-      temp_output_exe_graph="${OUTPUT_PATH}/.test_output_ut_exe_graph_$$.tmp"
-      temp_output_register="${OUTPUT_PATH}/.test_output_ut_register_$$.tmp"
-      temp_output_expression="${OUTPUT_PATH}/.test_output_ut_expression_$$.tmp"
-      temp_output_llm_engine="${OUTPUT_PATH}/.test_output_ut_llm_engine_utest_$$.tmp"
-      temp_output_helper="${OUTPUT_PATH}/.test_output_ut_libge_helper_utest_$$.tmp"
-      temp_output_flow_graph="${OUTPUT_PATH}/.test_output_ut_flow_graph_$$.tmp"
-      temp_output_fast_runtime2="${OUTPUT_PATH}/.test_output_ut_fast_runtime2_test_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_ascendc_ir --gtest_output=xml:${report_dir}/ut/ut_ascendc_ir.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_ascendc_ir}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_exe_graph --gtest_output=xml:${report_dir}/ut/ut_exe_graph.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_exe_graph}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_register --gtest_output=xml:${report_dir}/ut/ut_register.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_register}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_expression --gtest_output=xml:${report_dir}/ut/ut_expression.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_expression}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_llm_engine_utest --gtest_output=xml:${report_dir}/ut/ut_llm_engine_utest.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_llm_engine}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_helper_utest --gtest_output=xml:${report_dir}/ut/ut_libge_helper_utest.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_helper}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_flow_graph --gtest_output=xml:${report_dir}/ut/ut_flow_graph.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_flow_graph}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_fast_runtime2_test --gtest_output=xml:${report_dir}/ut/ut_fast_runtime2_test.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_fast_runtime2}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("ut_ascendc_ir" "ut_exe_graph" "ut_register" "ut_expression" "ut_llm_engine_utest" "ut_libge_helper_utest" "ut_flow_graph" "ut_fast_runtime2_test")
-      temp_files=("${temp_output_ascendc_ir}" "${temp_output_exe_graph}" "${temp_output_register}" "${temp_output_expression}" "${temp_output_llm_engine}" "${temp_output_helper}" "${temp_output_flow_graph}" "${temp_output_fast_runtime2}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
-        echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
-        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-        exit 1;
-      fi
+      echo "[TEST GE RT] Begin to run tests with leaks check"
+      ctest --output-on-failure -j ${THREAD_NUM} -L ut -L ge_rt --test-dir ${BUILD_PATH} --no-tests=error \
+            -O ${BUILD_PATH}/ctest_ut_rt.log
     fi
     if [[ "X$ENABLE_PYTHON_UT" = "Xon" ]]; then
       unset LD_PRELOAD
@@ -693,47 +595,8 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
 
     if [[ "X$ENABLE_RT3_ST" = "Xon" ]]; then
       echo "Run tests with leaks check"
-
-      # 创建临时文件保存每个测试的输出
-      temp_output_running_env="${OUTPUT_PATH}/.test_output_ge_running_env_test_$$.tmp"
-      temp_output_graph_dsl="${OUTPUT_PATH}/.test_output_ge_graph_dsl_test_$$.tmp"
-      temp_output_llm_engine="${OUTPUT_PATH}/.test_output_llm_engine_test_$$.tmp"
-      temp_output_helper_runtime="${OUTPUT_PATH}/.test_output_helper_runtime_test_$$.tmp"
-      temp_output_autofuse="${OUTPUT_PATH}/.test_output_autofuse_test_$$.tmp"
-      temp_output_kernel="${OUTPUT_PATH}/.test_output_ut_libge_kernel_utest_$$.tmp"
-      temp_output_common="${OUTPUT_PATH}/.test_output_ut_libge_common_utest_$$.tmp"
-      temp_output_jit_execution="${OUTPUT_PATH}/.test_output_ut_jit_execution_$$.tmp"
-      temp_output_eager_style_builder="${OUTPUT_PATH}/.test_output_ut_eager_style_builder_$$.tmp"
-      temp_output_graph_construction="${OUTPUT_PATH}/.test_output_ut_graph_construction_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${BUILD_PATH}/tests/framework/ge_running_env/tests/ge_running_env_test --gtest_output=xml:${report_dir}/st/ge_running_env_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_running_env}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/framework/ge_graph_dsl/tests/ge_graph_dsl_test --gtest_output=xml:${report_dir}/st/ge_graph_dsl_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_graph_dsl}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/llm_engine_test --gtest_output=xml:${report_dir}/st/llm_engine_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_llm_engine}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/helper_runtime_test --gtest_output=xml:${report_dir}/st/helper_runtime_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_helper_runtime}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/autofuse/autofuse_test --gtest_output=xml:${report_dir}/st/autofuse_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_autofuse}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/ut/ge/ut_libge_kernel_utest --gtest_output=xml:${report_dir}/st/ut_libge_kernel_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_kernel}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/ut/ge/ut_libge_common_utest --gtest_output=xml:${report_dir}/st/ut_libge_common_utest.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_common}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/ut/ge/ut_jit_execution --gtest_output=xml:${report_dir}/st/ut_jit_execution.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_jit_execution}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/ut/ge/ut_eager_style_builder --gtest_output=xml:${report_dir}/st/ut_eager_style_builder.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_eager_style_builder}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/ut/ge/graph/eager_style_graph_builder/graph_construction_test/ut_graph_construction --gtest_output=xml:${report_dir}/st/ut_graph_construction.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_graph_construction}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("ge_running_env_test" "ge_graph_dsl_test" "llm_engine_test" "helper_runtime_test" "autofuse_test" "ut_libge_kernel_utest" "ut_libge_common_utest" "ut_jit_execution" "ut_eager_style_builder" "ut_graph_construction")
-      temp_files=("${temp_output_running_env}" "${temp_output_graph_dsl}" "${temp_output_llm_engine}" "${temp_output_helper_runtime}" "${temp_output_autofuse}" "${temp_output_kernel}" "${temp_output_common}" "${temp_output_jit_execution}" "${temp_output_eager_style_builder}" "${temp_output_graph_construction}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
-          echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
-          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-          exit 1;
-      fi
+      ctest --output-on-failure -j ${THREAD_NUM} -L st -L st_hetero --test-dir ${BUILD_PATH} --no-tests=error \
+            -O ${BUILD_PATH}/ctest_st_hetero.log
     fi
 
     if [[ "X$ENABLE_RT2_ST" = "Xon" ]]; then
@@ -822,34 +685,8 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
 
       LOCAL_ARCH=$(uname -m)
       if [[ "${LOCAL_ARCH}" = "x86_64" ]]; then
-        echo "---------------- Dflow Udf ST Run Start ----------------"
-        cp -rf ${BUILD_PATH}/tests/dflow/udf/st/testcase/built_in/st_built_in_flow_func ${OUTPUT_PATH}
-        cp -rf ${BUILD_PATH}/tests/dflow/udf/st/testcase/udf_executor/st_flow_func_executor ${OUTPUT_PATH}
-
-        # 创建临时文件保存每个测试的输出
-        temp_output_st_built_in="${OUTPUT_PATH}/.test_output_st_built_in_flow_func_$$.tmp"
-        temp_output_st_executor="${OUTPUT_PATH}/.test_output_st_flow_func_executor_$$.tmp"
-
-        set -o pipefail
-        RUN_TEST_CASE="${OUTPUT_PATH}/st_built_in_flow_func --gtest_output=xml:${report_dir}/st/st_built_in_flow_func.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_st_built_in}" &&
-        RUN_TEST_CASE="${OUTPUT_PATH}/st_flow_func_executor --gtest_output=xml:${report_dir}/st/st_flow_func_executor.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_st_executor}"
-        test_status=$?
-        set +o pipefail
-
-        # 给tee一点时间刷新缓冲区（段错误时可能需要）
-        sleep 0.1
-
-        # 保存测试信息到文件
-        test_names=("st_built_in_flow_func" "st_flow_func_executor")
-        temp_files=("${temp_output_st_built_in}" "${temp_output_st_executor}")
-        save_test_summary_to_file "test_names" "temp_files"
-
-        # 检查测试是否失败（保持原来的逻辑）
-        if [[ "${test_status}" -ne 0 ]]; then
-          echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
-          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-          exit 1
-        fi
+        ctest --output-on-failure -j ${THREAD_NUM} -L st -L st_dflow --test-dir ${BUILD_PATH} --no-tests=error \
+              -O ${BUILD_PATH}/ctest_st_dflow.log
       else
         echo "!!! mockcpp is not supported on LOCAL_ARCH=${LOCAL_ARCH}, Dflow udf st will not be run !!!"
       fi

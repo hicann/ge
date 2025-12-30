@@ -27,6 +27,9 @@ target_compile_options(ge_running_env_test PRIVATE
 target_link_libraries(ge_running_env_test PUBLIC intf_pub GTest::gtest ge_running_env graphengine flow_graph
 -Wl,--no-as-needed)
 
+add_test(NAME ge_running_env_test COMMAND ge_running_env_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ge_running_env_test.xml)
+set_tests_properties(ge_running_env_test PROPERTIES LABELS "st;st_hetero;ge_running_env_test")
+
 include(CTest)
 enable_testing()
 add_test(NAME test COMMAND ge_running_env_test)

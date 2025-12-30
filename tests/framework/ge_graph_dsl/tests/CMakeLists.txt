@@ -22,6 +22,9 @@ target_compile_options(ge_graph_dsl_test PRIVATE
 
 target_link_libraries(ge_graph_dsl_test PUBLIC intf_pub GTest::gtest ge_graph_dsl)
 
+add_test(NAME ge_graph_dsl_test COMMAND ge_graph_dsl_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ge_graph_dsl_test.xml)
+set_tests_properties(ge_graph_dsl_test PROPERTIES LABELS "st;st_hetero;ge_graph_dsl_test")
+
 include(CTest)
 enable_testing()
 add_test(NAME test COMMAND ge_graph_dsl_test)

@@ -68,3 +68,6 @@ target_include_directories(ut_ascendc_ir PRIVATE
     ${GE_METADEF_TEST_DIR}/depends
     ${GE_METADEF_TEST_DIR}/ut/ascendc_ir
 )
+
+add_test(NAME ut_ascendc_ir COMMAND ut_ascendc_ir --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_ascendc_ir.xml)
+set_tests_properties(ut_ascendc_ir PROPERTIES LABELS "ut;ge_rt;ut_ascendc_ir")

@@ -61,3 +61,5 @@ target_link_libraries(ut_graph_construction
         )
 set_target_properties(ut_graph_construction PROPERTIES CXX_STANDARD 17)
 
+add_test(NAME ut_graph_construction COMMAND ut_graph_construction --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_graph_construction.xml)
+set_tests_properties(ut_graph_construction PROPERTIES LABELS "st;st_hetero;ut_graph_construction")

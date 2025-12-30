@@ -58,3 +58,6 @@ target_include_directories(ut_expression PRIVATE
     ${GE_METADEF_TEST_DIR}/depends
     ${GE_METADEF_TEST_DIR}/ut/ascendc_ir
 )
+
+add_test(NAME ut_expression COMMAND ut_expression --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_expression.xml)
+set_tests_properties(ut_expression PROPERTIES LABELS "ut;ge_rt;ut_expression")

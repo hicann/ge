@@ -120,6 +120,7 @@ cmake_print_variables(BUILD_COMPONENT)
 
 # 新开关适配，完成后删除原开关，从外部传入
 if (ENABLE_TEST)
+    enable_testing()
     set(GE_DT TRUE)
 endif ()
 if (ENABLE_FE_LLT)

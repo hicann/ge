@@ -74,3 +74,5 @@ target_include_directories(ut_register PRIVATE
     ${AIR_CODE_DIR}/inc/graph_metadef/external
 )
 
+add_test(NAME ut_register COMMAND ut_register --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_register.xml)
+set_tests_properties(ut_register PROPERTIES LABELS "ut;ge_rt;ut_register")

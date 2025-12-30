@@ -77,3 +77,6 @@ target_compile_definitions(st_built_in_flow_func PRIVATE
         google=ascend_private
         UDF_TEST
 )
+
+add_test(NAME st_built_in_flow_func COMMAND st_built_in_flow_func --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/st_built_in_flow_func.xml)
+set_tests_properties(st_built_in_flow_func PROPERTIES LABELS "st;st_dflow;st_built_in_flow_func")

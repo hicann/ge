@@ -54,3 +54,6 @@ target_link_libraries(ut_libgraph
     GTest::gtest_main
     ge_graph_dsl
 )
+
+add_test(NAME ut_libgraph COMMAND ut_libgraph --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libgraph.xml)
+set_tests_properties(ut_libgraph PROPERTIES LABELS "ut;ge_common;ut_libgraph")

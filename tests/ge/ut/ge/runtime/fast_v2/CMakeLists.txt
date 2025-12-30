@@ -83,6 +83,9 @@ target_link_libraries(ut_fast_runtime2_test PRIVATE
         ge_runtime_stub
         )
 
+add_test(NAME ut_fast_runtime2_test COMMAND ut_fast_runtime2_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_fast_runtime2_test.xml)
+set_tests_properties(ut_fast_runtime2_test PROPERTIES LABELS "ut;ge_rt;ut_fast_runtime2_test")
+
 include(CTest)
 enable_testing()
 add_test(NAME test COMMAND ut_fast_runtime2_test)

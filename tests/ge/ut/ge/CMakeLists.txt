@@ -1876,6 +1876,9 @@ target_link_libraries(ut_libge_multiparts_utest
 
 set_target_properties(ut_libge_multiparts_utest PROPERTIES CXX_STANDARD 17)
 
+add_test(NAME ut_libge_multiparts_utest COMMAND ut_libge_multiparts_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_multiparts_utest.xml)
+set_tests_properties(ut_libge_multiparts_utest PROPERTIES LABELS "ut;ge_common;ut_libge_multiparts_utest")
+
 # ut_libge_symbol_infer_utest
 add_executable(ut_libge_symbol_infer_utest
         ${SYMBOL_SHAPE_INFER_FILE}
@@ -1916,6 +1919,9 @@ target_link_libraries(ut_libge_symbol_infer_utest
         -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
 )
 
+add_test(NAME ut_libge_symbol_infer_utest COMMAND ut_libge_symbol_infer_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_symbol_infer_utest.xml)
+set_tests_properties(ut_libge_symbol_infer_utest PROPERTIES LABELS "ut;ge_common;ut_libge_symbol_infer_utest")
+
 # libge_common_utest
 add_executable(ut_libge_common_utest
     ${COMMON_TEST_FILES}
@@ -1955,6 +1961,11 @@ target_link_options(ut_libge_common_utest PRIVATE
         -rdynamic
         -Wl,-Bsymbolic
         )
+
+add_test(NAME ut_libge_common_utest COMMAND ut_libge_common_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_common_utest.xml)
+set_tests_properties(ut_libge_common_utest PROPERTIES LABELS "ut;ge_common")
+add_test(NAME ut_libge_common_utest_st COMMAND ut_libge_common_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_libge_common_utest.xml)
+set_tests_properties(ut_libge_common_utest_st PROPERTIES LABELS "st;st_hetero")
 
 # libge_others_utest
 add_executable(ut_libge_others_utest
@@ -1998,6 +2009,9 @@ target_link_libraries(ut_libge_others_utest
     -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
 )
 
+add_test(NAME ut_libge_others_utest COMMAND ut_libge_others_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_others_utest.xml)
+set_tests_properties(ut_libge_others_utest PROPERTIES LABELS "ut;ge_common;ut_libge_others_utest")
+
 # libge_label_maker_utest
 add_executable(ut_libge_label_maker_utest
     ${COMMON_TEST_FILES}
@@ -2029,6 +2043,9 @@ target_link_libraries(ut_libge_label_maker_utest
     -Wl,--no-as-needed unified_dlog GTest::gmock -Wl,--as-needed
 )
 
+add_test(NAME ut_libge_label_maker_utest COMMAND ut_libge_label_maker_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_label_maker_utest.xml)
+set_tests_properties(ut_libge_label_maker_utest PROPERTIES LABELS "ut;ge_common;ut_libge_label_maker_utest")
+
 # libge_kernel_utest
 add_executable(ut_libge_kernel_utest
         ${COMMON_TEST_FILES}
@@ -2056,6 +2073,11 @@ target_link_libraries(ut_libge_kernel_utest
         ge_running_env GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lgcov
         -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
 )
+
+add_test(NAME ut_libge_kernel_utest COMMAND ut_libge_kernel_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_kernel_utest.xml)
+set_tests_properties(ut_libge_kernel_utest PROPERTIES LABELS "ut;ge_common")
+add_test(NAME ut_libge_kernel_utest_st COMMAND ut_libge_kernel_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_libge_kernel_utest.xml)
+set_tests_properties(ut_libge_kernel_utest_st PROPERTIES LABELS "st;st_hetero")
 
 # libge_distinct_load_utest
 add_executable(ut_libge_distinct_load_utest
@@ -2115,6 +2137,9 @@ target_link_options(ut_libge_distinct_load_utest PRIVATE
         -Wl,-Bsymbolic
         )
 
+add_test(NAME ut_libge_distinct_load_utest COMMAND ut_libge_distinct_load_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_distinct_load_utest.xml)
+set_tests_properties(ut_libge_distinct_load_utest PROPERTIES LABELS "ut;ge_common;ut_libge_distinct_load_utest")
+
 # helper ut
 add_executable(ut_libge_helper_utest
     ${COMMON_TEST_FILES}
@@ -2173,6 +2198,9 @@ target_link_libraries(ut_libge_helper_utest
     GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lpthread -lgcov
     -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
 )
+
+add_test(NAME ut_libge_helper_utest COMMAND ut_libge_helper_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_helper_utest.xml)
+set_tests_properties(ut_libge_helper_utest PROPERTIES LABELS "ut;ge_rt;ut_libge_helper_utest")
 
 # ge_manual_test
 add_executable(ge_manual_test
@@ -2274,6 +2302,9 @@ target_link_libraries(ut_llm_engine_utest
         -Wl,--no-as-needed unified_dlog GTest::gmock -Wl,--as-needed
         )
 
+add_test(NAME ut_llm_engine_utest COMMAND ut_llm_engine_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_llm_engine_utest.xml)
+set_tests_properties(ut_llm_engine_utest PROPERTIES LABELS "ut;ge_rt;ut_llm_engine_utest")
+
 file(GLOB_RECURSE JIT_EXECUTION_TEST_FILES CONFIGURE_DEPENDS "${AIR_CODE_DIR}/tests/ge/ut/ge/jit_execution/*.cc")
 file(GLOB_RECURSE JIT_EXECUTION_UTIL_SRC_FILES CONFIGURE_DEPENDS "graph/passes/graph_builder_utils.cc")
 
@@ -2324,6 +2355,11 @@ target_link_options(ut_jit_execution PRIVATE
         -Wl,-Bsymbolic
         )
 
+add_test(NAME ut_jit_execution COMMAND ut_jit_execution --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_jit_execution.xml)
+set_tests_properties(ut_jit_execution PROPERTIES LABELS "ut;ge_common")
+add_test(NAME ut_jit_execution_st COMMAND ut_jit_execution --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_jit_execution.xml)
+set_tests_properties(ut_jit_execution_st PROPERTIES LABELS "st;st_hetero")
+
 add_executable(ut_eager_style_builder
         ${ES_GRAPH_BUILDER_TEST_SRCS}
         )
@@ -2351,5 +2387,11 @@ target_link_libraries(ut_eager_style_builder
         st_stubs GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lgcov
         -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
         )
+
+add_test(NAME ut_eager_style_builder COMMAND ut_eager_style_builder --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_eager_style_builder.xml)
+set_tests_properties(ut_eager_style_builder PROPERTIES LABELS "ut;ge_common")
+add_test(NAME ut_eager_style_builder_st COMMAND ut_eager_style_builder --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_eager_style_builder.xml)
+set_tests_properties(ut_eager_style_builder_st PROPERTIES LABELS "st;st_hetero")
+
 add_subdirectory(graph/eager_style_graph_builder/graph_construction_test)
 add_subdirectory(graph/pyge_tests)

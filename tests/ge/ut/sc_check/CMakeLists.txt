@@ -34,3 +34,6 @@ target_link_libraries(ut_sc_check PRIVATE
     -lstdc++fs
     GTest::gtest GTest::gtest_main -lrt -ldl
 )
+
+add_test(NAME ut_sc_check COMMAND ut_sc_check --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_sc_check.xml)
+set_tests_properties(ut_sc_check PROPERTIES LABELS "ut;ge_common;ut_sc_check")

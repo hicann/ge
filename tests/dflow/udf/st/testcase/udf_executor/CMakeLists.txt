@@ -88,3 +88,6 @@ target_compile_definitions(st_flow_func_executor PRIVATE
         google=ascend_private
         UDF_TEST
 )
+
+add_test(NAME st_flow_func_executor COMMAND st_flow_func_executor --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/st_flow_func_executor.xml)
+set_tests_properties(st_flow_func_executor PROPERTIES LABELS "st;st_dflow;st_flow_func_executor")

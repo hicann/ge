@@ -77,6 +77,9 @@ target_link_options(autofuse_test PRIVATE
 
 add_dependencies(autofuse_test gert_op_impl)
 
+add_test(NAME autofuse_test COMMAND autofuse_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/autofuse_test.xml)
+set_tests_properties(autofuse_test PROPERTIES LABELS "st;st_hetero;autofuse_test")
+
 include(CTest)
 enable_testing()
 add_test(NAME test COMMAND autofuse_test)

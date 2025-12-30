@@ -275,6 +275,9 @@ target_link_libraries(helper_runtime_test
     GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main
 )
 
+add_test(NAME helper_runtime_test COMMAND helper_runtime_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/helper_runtime_test.xml)
+set_tests_properties(helper_runtime_test PROPERTIES LABELS "st;st_hetero;helper_runtime_test")
+
 ################################################################################
 # build llm_engine_test
 set(LLM_ENGINE_TEST_FILES
@@ -332,6 +335,9 @@ target_link_libraries(llm_engine_test
 
 add_subdirectory(fast_runtime_v2)
 add_subdirectory(autofuse)
+
+add_test(NAME llm_engine_test COMMAND llm_engine_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/llm_engine_test.xml)
+set_tests_properties(llm_engine_test PROPERTIES LABELS "st;st_hetero;llm_engine_test")
 
 include(CTest)
 enable_testing()

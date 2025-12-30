@@ -60,3 +60,6 @@ target_link_libraries(ut_exe_graph PRIVATE
 		aihac_symbolizer
         -Wl,--as-needed
         )
+
+add_test(NAME ut_exe_graph COMMAND ut_exe_graph --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_exe_graph.xml)
+set_tests_properties(ut_exe_graph PROPERTIES LABELS "ut;ge_rt;ut_exe_graph")
