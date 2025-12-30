@@ -10,6 +10,7 @@ endif ()
 set(common_compile_options
         -std=c++17
         -Wall
+        -D_GLIBCXX_USE_CXX11_ABI=0  # 使用旧的 ABI，确保与依赖库兼容
 )
 
 message(STATUS "Ascend Toolkit path: ${ASCEND_PATH}")
