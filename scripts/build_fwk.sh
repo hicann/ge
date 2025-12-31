@@ -476,21 +476,36 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
         mv .coverage ${BASEPATH}/cov/
       fi
 
+      # 执行 lcov 收集覆盖率数据
+      # 使用 set +e 允许命令失败，避免某些版本的 lcov 不支持 --ignore-errors 参数的错误类型导致脚本退出
+      set +e  # 临时禁用 set -e，允许命令失败
       lcov -c -d ${BUILD_PATH}/runtime/v2/CMakeFiles/gert.dir -d ${BUILD_PATH}/runtime/v1/CMakeFiles/davinci_executor.dir \
               -d ${BUILD_PATH}/tests/ge/ut/ge -d ${BUILD_PATH}/tests/ge/ut/common/graph/ -d ${BUILD_PATH}/tests/parser/ut/parser \
               -d ${BUILD_PATH}/tests/depends/llm_datadist -d ${BUILD_PATH}/runtime/llm_datadist -d ${BUILD_PATH}/api/python \
               -d ${BUILD_PATH}/api/python/llm_datadist_v1 -d ${BUILD_PATH}/api/python/llm_wrapper \
-              -d ${BUILD_PATH}/tests/framework/CMakeFiles/graphengine.dir -o cov/tmp.info
+              -d ${BUILD_PATH}/base -d ${BUILD_PATH}/compiler/graph/eager_style_graph_builder \
+              -d ${BUILD_PATH}/tests/framework/CMakeFiles/graphengine.dir -o cov/tmp.info --ignore-errors mismatch,empty,negative
+      set -e  # 恢复 set -e
+      
       if [ ! -s "cov/tmp.info" ] || ! grep -q "SF:" "cov/tmp.info"; then
         echo "No valid cpp coverage data found; skip filtering."
         touch cov/coverage.info  # 生成空文件占位，避免后续流程报错
       else
+        # 执行 lcov remove 过滤覆盖率数据
+        # 使用 set +e 允许命令失败，避免某些版本的 lcov 不支持 --ignore-errors 参数的错误类型导致脚本退出
+        set +e  # 临时禁用 set -e
         lcov -r cov/tmp.info '*/output/*' "*/${BUILD_RELATIVE_PATH}/opensrc/*" "*/${BUILD_RELATIVE_PATH}/proto/*" \
                              '*/op_impl/*' "*/${BUILD_RELATIVE_PATH}/grpc_*" '*/third_party/*' '*/op_impl/*' '*/tests/*' \
                              '/usr/local/*' '/usr/include/*' '*/metadef/*' \
-                             "${ASCEND_INSTALL_PATH}/*" "${ASCEND_3RD_LIB_PATH}/*" -o cov/coverage.info
+                             "${ASCEND_INSTALL_PATH}/*" "${ASCEND_3RD_LIB_PATH}/*" -o cov/coverage.info --ignore-errors mismatch,empty,unused
+        set -e  # 恢复 set -e
+        
         cd ${BASEPATH}/cov
-        genhtml coverage.info
+        # 执行 genhtml 生成 HTML 报告
+        # 使用 set +e 允许命令失败，避免某些版本的 genhtml 不支持 --ignore-errors 参数的错误类型导致脚本退出
+        set +e  # 临时禁用 set -e
+        genhtml coverage.info --ignore-errors mismatch,empty
+        set -e  # 恢复 set -e
 
         if [[ "X$ENABLE_ICOV" = "Xon" ]]; then
           generate_inc_coverage
@@ -512,7 +527,7 @@ if [[ "X$ENABLE_GE_DT" = "Xon" ]]; then
     #execute ut testcase
     export ASAN_OPTIONS=detect_leaks=0
     export LD_PRELOAD=${USE_ASAN}
-    echo "Begin to run tests WITHOUT leaks check"
+    echo "Begin to run ge_manual_test WITHOUT leaks check and WITHOUT coverage"
     
     # 创建临时文件保存测试输出
     temp_output_ge_manual_test="${OUTPUT_PATH}/.test_output_ge_manual_test_$$.tmp"

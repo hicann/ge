@@ -26,7 +26,8 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 
      ```bash
      # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
-     sudo apt-get install cmake ccache bash libasan4 autoconf automake libtool gperf libgraph-easy-perl
+     # asan以gcc 7.5.0版本为例安装的是libasan4，其他版本请安装对应版本asan
+     sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf libgraph-easy-perl
      ```
 
    - python三方库依赖。
@@ -155,10 +156,29 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
   ```
   --st（必选）：可以指定`${TARGET}`编译特定对象的st测试用例，取值可通过`bash tests/run_test.sh -h`查看。
 
+
+- 统计代码覆盖率:
+
+  使用 `tests/run_test.sh` 脚本的 `-c` 参数可以在测试用例运行过程中生成代码覆盖率统计文件。
+
+  **前置条件**：
+  - 确保 `lcov` 工具已正确安装
+  - 编译运行环境上的 `gcc` 和 `gcov` 必须是配套版本
+
+  **使用方法**：
+  ```bash
+  bash tests/run_test.sh -c [其他参数]
+  ```
+
+  **输出位置**：生成的覆盖率文件位于代码根目录下的 `cov/` 目录中。
+
+
+- 清理产物：
+
 `UT/ST`测试用例编译输出目录为`build_ut`和`build_st`，如果想清除历史编译记录，可执行如下操作：
 
 ```bash
-rm -rf build_ut/ build_st/ output/ build/ build_out/
+rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/
 ```
 
 > [!NOTE]说明
