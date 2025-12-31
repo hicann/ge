@@ -1485,7 +1485,6 @@ set(UDF_COMPILER_TEST_FILES
 
 set(MANUAL_TEST_FILES
     "graph/build/memory_assigner_manual_test.cc"
-    "${AIR_CODE_DIR}/tests/autofuse/ut/autofuse/fusion_strategy_solver_manual_test.cpp"
 )
 
 set(SYMBOL_SHAPE_INFER_FILE

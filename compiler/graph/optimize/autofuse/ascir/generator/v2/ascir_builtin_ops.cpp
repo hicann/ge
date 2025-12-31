@@ -36,9 +36,7 @@ class AscIrAttStubV2 : public ge::ascir::AscIrAtt {
   }
 };
 
-const std::vector<std::string> v2_soc_versions{"Ascend910_9591", "Ascend910_950z", "Ascend910_957b", "Ascend910_957d",
-                                               "Ascend910_9589", "Ascend910_958a", "Ascend910_958b", "Ascend910_9599",
-                                               "Ascend910_9581", "Ascend910_9579", "Ascend910_957c"};
+const std::vector<std::string> v2_soc_versions{"Ascend910_v2"};
 
 REG_ASC_IR(VectorFunc)
     .DynamicInput("x", "T")

@@ -78,15 +78,5 @@ const PlatformConfig &PlatformV2::GetPlatformConfig() const {
 #define REGISTER_PLATFORM_V2(platform_name, suffix) \
   static PlatformRegistrar<PlatformV2> registrar_##suffix(platform_name)
 
-REGISTER_PLATFORM_V2("Ascend910_9591", 9591);
-REGISTER_PLATFORM_V2("Ascend910_950z", 950z);
-REGISTER_PLATFORM_V2("Ascend910_957b", 957b);
-REGISTER_PLATFORM_V2("Ascend910_957d", 957d);
-REGISTER_PLATFORM_V2("Ascend910_9589", 9589);
-REGISTER_PLATFORM_V2("Ascend910_958a", 958a);
-REGISTER_PLATFORM_V2("Ascend910_958b", 958b);
-REGISTER_PLATFORM_V2("Ascend910_9599", 9599);
-REGISTER_PLATFORM_V2("Ascend910_9581", 9581);
-REGISTER_PLATFORM_V2("Ascend910_9579", 9579);
-REGISTER_PLATFORM_V2("Ascend910_957c", 957c);
+REGISTER_PLATFORM_V2("Ascend910_v2", v2);
 }  // namespace optimize
