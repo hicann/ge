@@ -132,6 +132,16 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 - `<version>`表示版本号。
 - `<arch>`表示操作系统架构，取值包括x86_64与aarch64。
 
+#### 4.1 关于签名的补充说明
+* 编译产生`cann-dflow-executor_<version>_<arch>.run`软件包中含有`cann-udf-compat.tar.gz`(UDF兼容升级包)。
+* `cann-udf-compat.tar.gz`会在业务启动时加载至Device，加载过程中默认会由驱动进行安全验签，确保包可信。
+* 开发者下载本仓源码自行编译产生`cann-udf-compat.tar.gz` 并不含签名头，为此需要关闭驱动安全验签的机制。
+* 关闭验签方式：
+  配套使用HDK 25.5.T2.B001或以上版本，并通过该HDK配套的npu-smi工具关闭验签。参考如下命令，以root用户在物理机上执行。  
+  以device 0为例：  
+  npu-smi set -t custom-op-secverify-enable -i ***0*** -d 1     # 使能验签配置  
+  npu-smi set -t custom-op-secverify-mode -i ***0*** -d 0      # 关闭客户自定义验签
+
 ### 5. 本地验证（UT/ST）
 
 编译完成后，用户可以进行开发者测试。
