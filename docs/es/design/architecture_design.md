@@ -816,7 +816,7 @@ EsCaseOutput EsCase(EsCTensorHolder *branch_index, EsCTensorHolder **input, int6
 > 
 > **输入输出个数说明**
 > 
-> 详见附录<<子图内外index映射关系表达>>章节
+> 详见附录[子图内外index映射关系表达](#子图内外index映射关系表达)章节
 
 #### `Tensor` 属性语法
 
@@ -858,8 +858,8 @@ EsCTensor *EsCreateEsCTensorFromFile(const char *data_file_path,
 这两个接口会生成一个 `EsCTensor *`的匿名指针指向`ge::Tensor *`，用于后续作为 `Tensor` 类型属性传入对应算子的构图函数。
 
 参数说明如下：
-- **`data` / `const_data_file_path`**：常量数据来源。前者表示数据已加载至内存中，后者为数据文件路径，将从文件中读取内容。
-- **`dims` + `dims_num`**：指定常量 `Tensor` 的形状。
+- **`data` / `data_file_path`**：常量数据来源。前者表示数据已加载至内存中，后者为数据文件路径，将从文件中读取内容。
+- **`dim` + `dim_num`**：指定常量 `Tensor` 的形状。
 - **`data_type`**：数据类型，使用 `C_DataType` 枚举，定义与 `ge::DataType` 保持一致。
 - **`format`**：数据格式，使用 `C_Format` 枚举，定义与 `ge::Format` 保持一致。
 
@@ -909,7 +909,7 @@ EsCTensorHolder *EsCreateConstFloat(EsCGraphBuilder *graph,
 参数说明如下：
 - **`graph`**：算子所属的`Graph`。
 - **`value`**：常量数据来源。
-- **`dims` + `dims_num`**：指定常量 `Tensor` 的形状。
+- **`dims` + `dim_num`**：指定常量 `Tensor` 的形状。
 
 具体接口可以参考[api目录](../api/es_cpp.md)
 
@@ -1162,13 +1162,43 @@ EsTensorHolder add = x1 + x2;
 | `*`    | `Mul`             |
 | `/`    | `Div`             |
 
+#### 数值输入支持
+
+为提升构图易用性，`C++ API` 支持直接使用标量或向量作为算子输入，无需手动创建常量节点。该特性通过 `EsTensorLike` 包装类实现，实现机制如下：
+
+1. **构造函数重载**：`EsTensorLike` 通过构造函数重载承接不同输入类型（`EsTensorHolder`、标量、向量等）
+2. **解析图构建器**：从输入参数中解析出 `EsCGraphBuilder*`，用于后续创建常量节点
+3. **归一化处理**：调用 `EsTensorLike::ToTensorHolder(EsCGraphBuilder *graph)` 方法完成归一化，将数值类型转换为 `EsTensorHolder` 对象
+
+##### 支持的输入类型
+
+`EsTensorLike` 通过构造函数重载支持以下输入类型:
+
+```c++
+EsTensorLike(const EsTensorHolder &tensor);
+EsTensorLike(const int64_t value);
+EsTensorLike(const float value);
+EsTensorLike(const std::vector<int64_t> &values);
+EsTensorLike(const std::vector<float> &values);
+EsTensorLike(const std::nullptr_t);
+// 更多数据类型，按需添加
+```
+
+##### 适用范围与约束
+
+1. C++ 向量不支持隐式类型转换，因此动态输入参数不支持传入数值类型 
+2. 满足以下任一条件的算子支持数值输入:
+- 输入数量超过一个，且不全为动态输入（传参时至少包含一个 `EsTensorHolder` 类型的输入参数，可从该参数解析图构建器）
+- 所有输入都是可选参数（该场景下，API 会提供可选的 `owner_builder` 参数用于显式传入 `EsGraphBuilder*`。传参时至少包含一个 `EsTensorHolder` 类型的输入参数，或者传入`owner_builder`）
+
+具体调用示例可参考 [make_transformer_graph.cpp](../../../examples/es/transformer/cpp/src/make_transformer_graph.cpp)。
 
 ### `Python API` 风格设计
 
 以下示例展示了使用 `Python` 接口构造一个“两个输入求和”的计算图：
 
 ```python
-rom ge.es.graph_builder import GraphBuilder, TensorHolder
+from ge.es.graph_builder import GraphBuilder, TensorHolder
 
 # 1. 创建图构建器（GraphBuilder）
 builder = GraphBuilder("graph_name")
@@ -1256,12 +1286,37 @@ with EsBuilder.control_dependencies([f0, f1]):
 | `*`  | `Mul`        |
 | `/`  | `Div`        |
 
+#### 数值输入支持
+
+为提升构图易用性，`Python API` 支持直接使用标量或（嵌套）列表作为算子输入，无需手动创建常量节点。该特性通过 `tensor_like` 模块实现，实现机制如下：
+
+1. **API 参数类型扩展**：`TensorLike` 是标量和（嵌套）列表类型的集合，支持数值传入的算子 API 的输入参数类型扩展为 `Union[TensorHolder, TensorLike]`，以承接不同输入类型（EsTensorHolder、标量、向量等）
+2. **解析图构建器**：通过 `resolve_builder` 函数从输入参数中解析出 `GraphBuilder` 实例，用于后续创建常量节点
+3. **归一化处理**：调用 `convert_to_tensor_holder` 函数完成归一化，将数值类型转换为 `TensorHolder` 对象
+
+##### 支持的输入类型
+
+`Python API` 支持以下数值类型作为输入:
+
+- `int` / `float`: 标量
+- `List[int]` / `List[float]`: 一维列表
+- `List[List[...]]`: 多维嵌套列表
+
+##### 适用范围与约束
+
+满足以下任一条件的算子支持数值输入:
+- 输入数量超过一个（传参时至少包含一个 `TensorHolder` 类型的输入参数，可从该参数解析图构建器）
+- 所有输入都是可选参数（该场景下，API 会提供可选的 `owner_builder` 参数用于显式传入 `GraphBuilder`。传参时至少包含一个 `TensorHolder` 类型的输入参数，或者传入`owner_builder`）
+
+与 `C++ API` 不同的是，**Python 的动态输入参数也支持传入数值**。
+
+具体调用示例可参考 [make_transformer_graph.py](../../../examples/es/transformer/python/src/make_transformer_graph.py)。
 
 #### Python 特有的一些构图语法糖
 
 ##### node 级别的私有属性 scope 设置
 
-详见后续的私有属性设置章节
+详见后续[私有属性](#私有属性)章节
 
 
 ## 详细设计

@@ -113,7 +113,7 @@ graph TB
 **主要方法**:
 - `ToTensorHolder()`   - 转为EsTensorHolder对象
 - `GetOwnerBuilder()`  - 获取对应Tensor的owner builder
-- 
+
 ### 4. CompliantNodeBuilder 类
 **文件位置**: `cpp/compoliant_node_builder.h`
 
