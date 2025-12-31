@@ -295,7 +295,7 @@ ge::Status HcomGraphOptimizer::OptimizeSubgraphPreProc(ge::ComputeGraph &graph) 
               ge::INTERNAL_ERROR);
 
   ge::TraceManager::GetInstance().SetTraceOwner("HCCL", "OptimizeSubgraphPreProc", graph.GetName());
-  for (auto nodePtr : graph.GetDirectNode()) {
+  for (auto nodePtr : graph.GetAllNodes()) {
     if (!nodePtr) {
       HCCL_WARNING("null node exists.");
       continue;
