@@ -16,6 +16,5 @@ endif()
 add_subdirectory(common/graph)
 add_subdirectory(ge)
 add_subdirectory(ge/runtime/fast_v2)
-add_subdirectory(dflow)
 add_subdirectory(sc_check)
 

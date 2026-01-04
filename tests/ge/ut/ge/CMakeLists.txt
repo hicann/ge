@@ -809,83 +809,6 @@ set(SINGLE_OP_SRC_FILES
     "${AIR_CODE_DIR}/runtime/v1/common/dump/dump_callback.cc"
 )
 
-set(HELPER_RUNTIME_SRC_FILES
-        "${AIR_CODE_DIR}/dflow/base/utils/data_flow_utils.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/config/config_parser.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/config/numa_config_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/config/configurations.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/config/device_debug_config.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/config/json_parser.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/data_flow/event/proxy_event_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/data_flow/queue/heterogeneous_exchange_service.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/message_handle/message_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/message_handle/message_server.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/data_flow/route/rank_table_builder.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/mem_grp/memory_group_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/subprocess/subprocess_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/utils/deploy_location_cpu.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/daemon/daemon_client_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/daemon/model_deployer_daemon.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/utils/heterogeneous_profiler.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/utils/memory_statistic_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/daemon/daemon_service.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/daemon/deployer_daemon_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/heterogeneous_execution_runtime.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/deploy_context.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/deploy_state.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/deployer_authentication.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/deployer.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/deployer_proxy.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/deployer_service_impl.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/deployer_var_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/heterogeneous_model_deployer.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/deployer/master_model_deployer.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/abnormal_status_handler/abnormal_status_handler.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/abnormal_status_handler/device_abnormal_status_handler.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/executor_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/builtin_executor_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/builtin_thread_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/udf_executor_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/udf_proxy_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/pne_executor_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/flowrm/flowgw_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/flowrm/flowgw_client_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/flowrm/flow_route_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/flowrm/flow_route_planner.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/flowrm/heterogeneous_exchange_deployer.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/flowrm/network_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/flowrm/tsd_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/model_send/flow_model_sender.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/model_recv/flow_model_receiver.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/deployer_port_distributor.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/device_info.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/heterogeneous_deploy_planner.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/node_info.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/resource_allocator.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/resource_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/rank_deploy_planner.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/rpc/deployer_client.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/rpc/deployer_server.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/cpu_id_resource_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/cpu_sched_event_dispatcher.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/cpu_sched_model.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/cpu_sched_model_builder.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/cpu_tasks.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/dynamic_model_executor.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/sched_task_info.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/npu_sched_model_loader.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/npu_sched_model_configurator.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/npu_sched_model.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/proxy_dynamic_model_executor.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/engine_daemon.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/engine_thread.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/event_handler.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/executor/executor_context.cc"
-        #   "${AIR_CODE_DIR}/runtime/deploy/daemon/executor_manager.cc"
-        #   "${AIR_CODE_DIR}/runtime/deploy/daemon/grpc_server.cc"
-        #   "${AIR_CODE_DIR}/runtime/deploy/executor/npu_executor.cc"
-        )
-
 set(LABEL_MAKER_SRC_FILES
     "${AIR_CODE_DIR}/compiler/graph/label/label_maker.cc"
     "${AIR_CODE_DIR}/compiler/graph/label/case_op_label_maker.cc"
@@ -903,26 +826,11 @@ set(COMMON_TEST_FILES
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/plugin_manager_stub.cc"
 )
 
-set(HETEROGENEOUS_MODEL_TEST_FILES
-    "common/execution_runtime_unittest.cc"
-    "common/model_relation_unittest.cc"
-    "common/model_introduction_unittest.cc"
-    "common/deploy_planner_unittest.cc"
-        "graph/load/heterogeneous_model_executor_unittest.cc"
-    "graph/load/inner_process_msg_forwarding_unittest.cc"
-    "graph/load/data_flow_exception_handler_unittest.cc"
-    "graph/load/data_flow_data_aligner_unittest.cc"
-    "runtime/heterogeneous/stub/stub_models.cc"
-    "graph/load/data_flow_info_impl_unittest.cc"
-    "graph/load/flow_msg_unittest.cc"
-)
-
 set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "${AIR_CODE_DIR}/tests/ge/ut/ge/test_tools_task_info.cc"
     "graph/load/aipp_utils_unittest.cc"
     "graph/load/data_dumper_unittest.cc"
     "graph/load/model_manager_unittest.cc"
-    "${AIR_CODE_DIR}/tests/ge/ut/dflow/executor/flow_model_manager_unittest.cc"
     "graph/load/new_model_manager_model_manager_aicpu_unittest.cc"
     "graph/load/end_graph_task_unittest.cc"
     "graph/load/event_record_task_unittest.cc"
@@ -1192,7 +1100,6 @@ set(BASE_COMMON_TEST_FILES
     "common/tensor_trans_utils_unittest.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/checker/tensor_check_utils.cc"
     "common/external_allocator_unittest.cc"
-    "common/model_saver_unittest.cc"
     "common/properties_manager_unittest.cc"
     "common/kernel_store_unittest.cc"
     "common/ge_auth_file_saver_unittest.cc"
@@ -1222,21 +1129,6 @@ set(BASE_COMMON_TEST_FILES
     "common/dump_callback_unittest.cc"
 )
 
-set(UDF_COMPILER_TEST_FILES
-    "pne/udf/udf_unittest.cc"
-)
-
-set(DATA_FLOW_GRAPH_TEST_FILES
-    "pne/data_flow_graph/compile_config_json_unittest.cc"
-    "pne/data_flow_graph/data_flow_graph_pass_unittest.cc"
-    "pne/data_flow_graph/data_flow_graph_unittest.cc"
-    "pne/data_flow_graph/data_flow_graph_model_relation_builder_unittest.cc"
-    "pne/data_flow_graph/data_flow_graph_utils_unittest.cc"
-    "pne/data_flow_graph/funciton_compile_unittest.cc"
-    "pne/data_flow_graph/data_flow_graph_auto_deployer_unittest.cc"
-    "pne/data_flow_graph/process_point_loader_unittest.cc"
-    "pne/data_flow_graph/inner_pp_loader_unittest.cc"
-)
 file(GLOB_RECURSE SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS CONFIGURE_DEPENDS "graph/optimize/symbolic/*.cc")
 file(GLOB_RECURSE ES_GRAPH_BUILDER_TEST_SRCS CONFIGURE_DEPENDS "graph/eager_style_graph_builder/es_base_struct/*.cc" "graph/eager_style_graph_builder/es_generator/*.cc")
 
@@ -1343,11 +1235,6 @@ set(MULTI_PARTS_TEST_FILES
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/checker/tensor_check_utils.cc"
     "session_v2/inner_ge_session_unittest.cc"
     "session_v2/ge_session_manager_unittest.cc"
-    "pne/model/flow_model_builder_unittest.cc"
-    "pne/model/flow_model_cache_unittest.cc"
-    "pne/model/flow_model_helper_unittest.cc"
-    "${UDF_COMPILER_TEST_FILES}"
-    "${DATA_FLOW_GRAPH_TEST_FILES}"
     "common/error_tracking_unittest.cc")
 
 set(GE_OPT_INFO_TEST_FILES
@@ -1367,69 +1254,6 @@ set(SINGLE_OP_TEST_FILES
     "single_op/task/op_task_unittest.cc"
     "single_op/task/tbe_task_builder_unittest.cc"
 )
-
-SET(DFLOW_SESSION_TEST_FILES
-        ${AIR_CODE_DIR}/tests/ge/ut/dflow/session/dflow_api_unittest.cc
-        ${AIR_CODE_DIR}/tests/ge/ut/dflow/session/dflow_graph_manager_unittest.cc
-        ${AIR_CODE_DIR}/tests/ge/ut/dflow/session/dflow_session_manager_unittest.cc
-)
-
-SET(HELPER_RUNTIME_TEST_FILES
-        runtime/heterogeneous/common/config/config_parser_unittest.cc
-        runtime/heterogeneous/common/config/configurations_unittest.cc
-        runtime/heterogeneous/common/config/numa_config_manager_unittest.cpp
-        runtime/heterogeneous/common/config/device_debug_config_unittest.cc
-        runtime/heterogeneous/common/config/json_parser_unittest.cc
-        runtime/heterogeneous/common/data_flow/queue/heterogeneous_exchange_service_unittest.cc
-        runtime/heterogeneous/common/data_flow/event/proxy_event_manager_unittest.cc
-        runtime/heterogeneous/common/data_flow/route/rank_table_builder_utest.cc
-        runtime/heterogeneous/common/mem_grp/memory_group_manager_unittest.cc
-        runtime/heterogeneous/common/subprocess/subprocess_manager_unittest.cc
-        runtime/heterogeneous/common/utils/memory_statistic_manager_unittest.cc
-        runtime/heterogeneous/daemon/client_manager_unittest.cc
-        runtime/heterogeneous/daemon/daemon_service_unittest.cc
-        runtime/heterogeneous/daemon/model_deployer_daemon_unittest.cc
-        runtime/heterogeneous/deploy/abnormal_status_handler/device_abnormal_status_handler_unittest.cc
-        runtime/heterogeneous/deploy/deployer/deploy_context_unittest.cc
-        runtime/heterogeneous/deploy/deployer/deployer_proxy_unittest.cc
-        runtime/heterogeneous/deploy/deployer/deployer_unittest.cc
-        runtime/heterogeneous/deploy/deployer/deployer_authentication_unittest.cc
-        runtime/heterogeneous/deploy/deployer/deployer_service_impl_unittest.cc
-        runtime/heterogeneous/deploy/deployer/deployer_var_manager_unittest.cc
-        runtime/heterogeneous/deploy/deployer/master_model_deployer_unittest.cc
-        runtime/heterogeneous/deploy/execfwk/builtin_executor_client_unittest.cc
-        runtime/heterogeneous/deploy/execfwk/builtin_thread_client_unittest.cc
-        runtime/heterogeneous/deploy/execfwk/udf_proxy_client_unittest.cc
-        runtime/heterogeneous/deploy/execfwk/udf_executor_client_unittest.cc
-        runtime/heterogeneous/deploy/flowrm/flowgw_client_unittest.cc
-        runtime/heterogeneous/deploy/flowrm/flowgw_client_manager_unittest.cc
-        runtime/heterogeneous/deploy/flowrm/tsd_client_unittest.cc
-        runtime/heterogeneous/deploy/flowrm/flow_route_manager_unittest.cc
-        runtime/heterogeneous/deploy/flowrm/flow_route_planner_unittest.cc
-        runtime/heterogeneous/deploy/flowrm/heterogeneous_exchange_deployer_unittest.cc
-        runtime/heterogeneous/deploy/model_send/flow_model_sender_unittest.cc
-        runtime/heterogeneous/deploy/resource/deployer_port_distributor_unittest.cc
-        runtime/heterogeneous/deploy/resource/heterogeneous_deploy_planner_unittest.cc
-        runtime/heterogeneous/deploy/resource/rank_deploy_planner_unittest.cc
-        runtime/heterogeneous/deploy/resource/resource_manager_unittest.cc
-        runtime/heterogeneous/deploy/rpc/deployer_client_unittest.cc
-        runtime/heterogeneous/deploy/heterogeneous_execution_runtime_unittest.cc
-        runtime/heterogeneous/executor/dynamic_model_executor_unittest.cc
-        runtime/heterogeneous/executor/cpu_tasks_unittest.cc
-        runtime/heterogeneous/executor/npu_sched_model_unittest.cc
-        runtime/heterogeneous/executor/engine_thread_unittest.cc
-        runtime/heterogeneous/executor/engine_daemon_unittest.cc
-        runtime/heterogeneous/executor/event_handler_unittest.cc
-        runtime/heterogeneous/executor/executor_context_unittest.cc
-        runtime/heterogeneous/executor/proxy_dynamic_model_executor_unittest.cc
-        runtime/heterogeneous/stub/dgw_client_stub.cc
-        runtime/heterogeneous/stub/tsd_client_stub.cc
-        runtime/heterogeneous/stub/heterogeneous_stub_env.cc
-        runtime/heterogeneous/stub/re_mem_group_stub.cc
-        runtime/heterogeneous/stub/stub_models.cc
-        ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/caas_dataflow_auth_stub.cc
-        ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/process_utils_stub.cc
-        )
 
 set(PROFILING_MNG_TEST_FILES
     "profiling/ge_profiling_manager_unittest.cc"
@@ -1477,10 +1301,6 @@ set(OTHERS_TEST_FILES
 
 set(LABEL_MAKER_TEST_FILES
     "label_maker/label_maker_unittest.cc"
-)
-
-set(UDF_COMPILER_TEST_FILES
-    "pne/udf/udf_process_node_engine_unittest.cc"
 )
 
 set(MANUAL_TEST_FILES
@@ -1775,60 +1595,6 @@ target_link_libraries(ge_single_op PRIVATE
     ascendcl_stub
 )
 
-#build runtime
-add_library(helper_ut_runtime SHARED ${HELPER_RUNTIME_SRC_FILES} ${PROTO_HDRS} ${DEPLOYER_PROTO_HDRS} ${DEPLOYER_PROTO_SRCS})
-
-target_compile_definitions(helper_ut_runtime PRIVATE
-    google=ascend_private
-    $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
-)
-
-target_compile_options(helper_ut_runtime PRIVATE -g ${AIR_COV_COMPILE_OPTION}
-    -Werror=format
-    -Wno-deprecated-declarations
-    -Wall -Wfloat-equal -Werror
-)
-
-target_link_libraries(helper_ut_runtime PUBLIC
-    intf_pub
-    metadef_headers
-    slog_headers
-    cce_headers
-    msprof_headers
-    datagw_headers
-    ascend_hal_headers
-    hccl_headers
-    adump_headers
-    ascend_protobuf
-    gRPC::grpc++
-    gRPC::grpc
-    json
-    c_sec
-    runtime_stub
-    mmpa_stub
-    -Wl,--no-as-needed
-    memset_stubs
-    dl
-    -Wl,--as-needed
-    -lrt -ldl -lpthread -lgcov
-    ascendcl_stub
-)
-
-target_include_directories(helper_ut_runtime PRIVATE
-    ${AIR_CODE_DIR}/runtime/device/remote
-    ${AIR_CODE_DIR}/runtime/communication
-    ${AIR_CODE_DIR}/runtime
-    ${AIR_CODE_DIR}/dflow/deployer
-    ${AIR_CODE_DIR}
-    ${AIR_CODE_DIR}/base
-    ${AIR_CODE_DIR}/inc
-    ${AIR_CODE_DIR}/inc/framework
-    ${AIR_CODE_DIR}/runtime/deploy/deployer/device_mgr
-    ${AIR_CODE_DIR}/tests/ge/ut/ge/runtime/stub
-    ${ASCEND_INSTALL_PATH}/include
-    ${ASCGEN_DIR}/inc
-)
-
 # ut binary
 file(GLOB_RECURSE JIT_EXECUTION_SRC_FILES CONFIGURE_DEPENDS "${AIR_CODE_DIR}/api/session/jit_execution/*.cc")
 # libge_mutiparts_utest
@@ -2083,7 +1849,6 @@ add_executable(ut_libge_distinct_load_utest
         ${COMMON_TEST_FILES}
         ${GENERATOR_TEST_FILES}
         ${DISTINCT_GRAPH_LOAD_TEST_FILES}
-        ${HETEROGENEOUS_MODEL_TEST_FILES}
         ${SINGLE_OP_TEST_FILES}
         ${PROFILING_MNG_TEST_FILES}
         ${HYBRID_TEST_FILES}
@@ -2138,68 +1903,6 @@ target_link_options(ut_libge_distinct_load_utest PRIVATE
 
 add_test(NAME ut_libge_distinct_load_utest COMMAND ut_libge_distinct_load_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_distinct_load_utest.xml)
 set_tests_properties(ut_libge_distinct_load_utest PROPERTIES LABELS "ut;ge_common;ut_libge_distinct_load_utest")
-
-# helper ut
-add_executable(ut_libge_helper_utest
-    ${COMMON_TEST_FILES}
-    ${HELPER_RUNTIME_TEST_FILES}
-    ${JIT_EXECUTION_SRC_FILES}
-)
-
-target_include_directories(ut_libge_helper_utest PRIVATE
-        ${AIR_CODE_DIR}/dflow/deployer/
-        ${AIR_CODE_DIR}/runtime
-        ${AIR_CODE_DIR}/inc/framework
-        ${AIR_CODE_DIR}/inc
-        ${AIR_CODE_DIR}/base
-        ${AIR_CODE_DIR}/tests
-        ${AIR_CODE_DIR}/tests/ge/ut
-        ${AIR_CODE_DIR}/tests/framework/ge_running_env/include
-        ${AIR_CODE_DIR}/tests/ge/ut/ge/runtime/heterogeneous/
-        ${AIR_CODE_DIR}/tests/depends/runtime/src
-        ${AIR_CODE_DIR}/tests/depends/ascendcl/src
-        ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
-        ${ASCEND_INSTALL_PATH}/include
-        ${ASCGEN_DIR}/inc
-        )
-
-target_compile_options(ut_libge_helper_utest PRIVATE -g ${AIR_COMMON_COMPILE_OPTION}
-    -Werror=format
-    -Wno-deprecated-declarations
-    -Wall -Wfloat-equal -Werror
-    -Wno-address
-    -Wno-write-strings
-)
-
-target_compile_definitions(ut_libge_helper_utest PRIVATE
-    google=ascend_private
-    $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
-)
-
-target_link_options(ut_libge_helper_utest PRIVATE
-    -Wl,-Bsymbolic
-)
-
-target_link_libraries(ut_libge_helper_utest
-    intf_pub
-    metadef_headers
-    ascendcl_stub
-    datagw_headers
-    ascend_hal_headers
-    runtime_headers
-    -Wl,--whole-archive
-    ge_common_base eager_graph_builder_lib
-    ge_single_op ge_davinci_model ge_build_common ge_prepare_common ge_pass_common ge_ut_common ge_ut_common_format
-    helper_ut_runtime ge_runtime_stub
-    ge_running_env
-    rt2_registry_static
-    -Wl,--no-whole-archive
-    GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lpthread -lgcov
-    -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
-)
-
-add_test(NAME ut_libge_helper_utest COMMAND ut_libge_helper_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_helper_utest.xml)
-set_tests_properties(ut_libge_helper_utest PROPERTIES LABELS "ut;ge_rt;ut_libge_helper_utest")
 
 # ge_manual_test
 add_executable(ge_manual_test

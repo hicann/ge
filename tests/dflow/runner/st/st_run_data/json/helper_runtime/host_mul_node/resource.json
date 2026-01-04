@@ -1,0 +1,37 @@
+{
+  "host":{
+    "resourceType":"X86",
+    "ctrlPanel":{
+      "ipaddr":"127.0.0.2",
+      "availPorts":["1023", "2000~3000"]
+    },
+    "dataPanel":{
+      "ipaddr":"127.0.0.2",
+      "availPorts":["3000~5000"]
+    },
+    "dataAffinity":[15, 16]
+  },
+  "mode":"StaticAlloc",
+  "devList":[
+    {
+      "resourceType":"Ascend",
+      "deviceId":0,
+      "ipaddr":"127.0.0.1",
+      "port":50005,
+      "token":"helper",
+      "caFile":"./ca.pem",
+      "keyFile":"./client.key",
+      "certFile":"./client.pem"
+    },
+    {
+      "resourceType":"Ascend",
+      "deviceId":1,
+      "ipaddr":"127.0.0.3",
+      "port":50006,
+      "token":"helper",
+      "caFile":"./ca.pem",
+      "keyFile":"./client.key",
+      "certFile":"./client.pem"
+    }
+  ]
+}

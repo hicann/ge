@@ -420,6 +420,15 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
     fi
 
     if [[ "X$ENABLE_DFLOW_UT" = "Xon" ]]; then
+      cp -rf ${BUILD_PATH}/tests/dflow/runner/ut/ge/ut_libge_helper_utest ${OUTPUT_PATH}
+      cp -rf ${BUILD_PATH}/tests/dflow/flow_graph/ut/dflow/ut_flow_graph ${OUTPUT_PATH}
+      RUN_TEST_CASE="${OUTPUT_PATH}/ut_flow_graph --gtest_output=xml:${report_dir}/ut/ut_flow_graph.xml" && ${RUN_TEST_CASE} &&
+      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_helper_utest --gtest_output=xml:${report_dir}/ut/ut_libge_helper_utest.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
+        echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
+        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+        exit 1
+      fi
       echo "---------------- Dflow Python UT Run Start ----------------"
       export PYDFLOW_SRC_PATH=${BASEPATH}/dflow/pydflow
       export PYDFLOW_TEST_PATH=${BUILD_PATH}/tests/dflow/pydflow
@@ -688,6 +697,13 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
     fi
 
     if [[ "X$ENABLE_DFLOW_ST" = "Xon" ]]; then
+      RUN_TEST_CASE="${BUILD_PATH}/tests/dflow/runner/st/testcase/helper_runtime_test --gtest_output=xml:${report_dir}/dflow/runner/st/helper_runtime_test.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
+        echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+        exit 1
+      fi
+
       echo "---------------- Dflow Python ST Run Start ----------------"
       export PYDFLOW_SRC_PATH=${BASEPATH}/dflow/pydflow
       export PYDFLOW_TEST_PATH=${BUILD_PATH}/tests/dflow/pydflow

@@ -27,6 +27,4 @@ ${OUTPUT_PATH}/ut_libge_kernel_utest &&
 ${OUTPUT_PATH}/ut_libge_common_utest &&
 ${OUTPUT_PATH}/ut_llm_engine_utest &&
 ${OUTPUT_PATH}/ut_llm_datadist_utest &&
-${OUTPUT_PATH}/ut_libge_helper_utest &&
-${OUTPUT_PATH}/ut_flow_graph &&
 ${OUTPUT_PATH}/ut_sc_check

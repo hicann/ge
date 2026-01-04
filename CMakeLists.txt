@@ -302,7 +302,6 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
         if (ENABLE_RT3_ST)
             add_dependencies(select_targets ge_graph_dsl_test
                     ge_running_env_test
-                    helper_runtime_test
                     llm_engine_test
                     autofuse_test
                     ut_libge_kernel_utest
@@ -329,7 +328,7 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
         endif ()
 
         if(ENABLE_DFLOW_ST)
-            add_dependencies(select_targets graphtuner_executor st_built_in_flow_func st_flow_func_executor)
+            add_dependencies(select_targets graphtuner_executor st_built_in_flow_func st_flow_func_executor helper_runtime_test)
         endif ()
 
     elseif (ENABLE_GE_UT OR ENABLE_RT2_UT OR ENABLE_PYTHON_UT OR ENABLE_PARSER_UT OR ENABLE_DFLOW_UT)
@@ -353,8 +352,6 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
                     ut_libge_distinct_load_utest
                     ut_libge_kernel_utest
                     ut_libgraph
-                    ut_libge_helper_utest
-                    ut_flow_graph
                     ut_llm_engine_utest
                     ut_fast_runtime2_test)
         endif ()
@@ -370,7 +367,9 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
         endif ()
 
         if (ENABLE_DFLOW_UT)
-            add_dependencies(select_targets ut_libgraph ut_built_in_flow_func ut_flow_func_executor)
+            add_dependencies(select_targets ut_libgraph ut_built_in_flow_func ut_flow_func_executor
+            ut_libge_helper_utest
+            ut_flow_graph)
         endif ()
     elseif (ENABLE_GE_DT)
         add_dependencies(select_targets ge_manual_test)
