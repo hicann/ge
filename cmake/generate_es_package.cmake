@@ -749,6 +749,7 @@ exit 1
                 -std=c++17
                 -D_GLIBCXX_USE_CXX11_ABI=0  # 使用旧的 ABI，确保与依赖库兼容
                 -O2
+                -Wno-free-nonheap-object # 抑制高版本的gcc12+的误报
                 )
         target_compile_options(${SO_NAME} PRIVATE ${ES_SO_COMPILE_OPTION})
         message(STATUS "add_es_library: Using default compile options: ${ES_SO_COMPILE_OPTION}")
