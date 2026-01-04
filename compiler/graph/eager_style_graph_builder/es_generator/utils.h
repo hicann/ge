@@ -40,18 +40,7 @@ class NotSupportException : public std::exception {
 
 inline void GenCopyright(std::stringstream &ss, bool is_py = false) {
   int32_t born_year = 2025;
-
-  auto now = std::chrono::system_clock::now();
-  std::time_t currentTime = std::chrono::system_clock::to_time_t(now);
-  std::tm *localTime = std::localtime(&currentTime);
-  auto last_edit_year = static_cast<int32_t>(localTime->tm_year + 1900);
-
-  std::string year_str;
-  if (born_year == last_edit_year) {
-    year_str = std::to_string(born_year);
-  } else {
-    year_str = std::to_string(born_year) + "-" + std::to_string(last_edit_year);
-  }
+  std::string year_str = std::to_string(born_year);
 
   if (is_py) {
     ss << R"(# Copyright (c) )" << year_str << R"( Huawei Technologies Co., Ltd.
