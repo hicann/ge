@@ -96,10 +96,8 @@ Status InnerPpLoader::LoadModel(const DataFlowGraph &data_flow_graph, const std:
   std::string file_constant_weight_dir;
   GE_ASSERT_SUCCESS(FileConstantUtils::GetExternalWeightDirFromOmPath(model_path, file_constant_weight_dir));
   GE_CHK_STATUS_RET(
-      FlowModelOmLoader::AssignConstantVarMem(flow_model, file_constant_weight_dir, session_id, graph_id, true),
+      FlowModelOmLoader::RefreshModel(flow_model, file_constant_weight_dir, session_id, graph_id),
       "Failed to assign constant mem for model");
-  GE_ASSERT_SUCCESS(FlowModelHelper::UpdateGeModelSessionId(flow_model, session_id),
-                    "Failed to update ge model session id");
   // change to offline session graph id to avoid conflit with other model pp.
   const std::string offline_session_graph_id = "-1_" + std::to_string(graph_id);
   GE_CHK_STATUS_RET(FlowModelHelper::UpdateSessionGraphId(flow_model, offline_session_graph_id),

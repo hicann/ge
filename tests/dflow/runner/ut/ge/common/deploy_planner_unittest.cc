@@ -123,12 +123,15 @@ TEST_F(DeployPlannerTest, TestGetQueueInfo) {
 
 TEST_F(DeployPlannerTest, TestAddingControlInput) {
   auto flow_model = make_shared<FlowModel>();
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
-  auto submodel_2 = make_shared<GeRootModel>();
-  submodel_2->SetModelName("subgraph-2");
-  auto submodel_3 = make_shared<GeRootModel>();
-  submodel_3->SetModelName("subgraph-3");
+  auto graph_1 = ge::MakeShared<ComputeGraph>("subgraph-1");
+  auto graph_2 = ge::MakeShared<ComputeGraph>("subgraph-2");
+  auto graph_3 = ge::MakeShared<ComputeGraph>("subgraph-3");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
+  auto submodel_2 = StubModels::BuildRootModel(graph_2, false);
+  auto submodel_3 = StubModels::BuildRootModel(graph_3, false);
+  ASSERT_TRUE(submodel_1 != nullptr);
+  ASSERT_TRUE(submodel_2 != nullptr);
+  ASSERT_TRUE(submodel_3 != nullptr);
   flow_model->AddSubModel(submodel_1);
   flow_model->AddSubModel(submodel_2);
   flow_model->AddSubModel(submodel_3);
@@ -172,10 +175,12 @@ TEST_F(DeployPlannerTest, TestAddingControlInput) {
 
 TEST_F(DeployPlannerTest, TestAddingControlOutput) {
   auto flow_model = make_shared<FlowModel>();
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
-  auto submodel_2 = make_shared<GeRootModel>();
-  submodel_2->SetModelName("subgraph-2");
+  auto graph_1 = ge::MakeShared<ComputeGraph>("subgraph-1");
+  auto graph_2 = ge::MakeShared<ComputeGraph>("subgraph-2");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
+  auto submodel_2 = StubModels::BuildRootModel(graph_2, false);
+  ASSERT_TRUE(submodel_1 != nullptr);
+  ASSERT_TRUE(submodel_2 != nullptr);
   flow_model->AddSubModel(submodel_1);
   flow_model->AddSubModel(submodel_2);
 
@@ -205,10 +210,12 @@ TEST_F(DeployPlannerTest, TestAddingControlOutput) {
 
 TEST_F(DeployPlannerTest, TestAddingControlOutput_NotForInvoked) {
   auto flow_model = make_shared<FlowModel>();
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
-  auto submodel_2 = make_shared<GeRootModel>();
-  submodel_2->SetModelName("subgraph-2");
+  auto graph_1 = ge::MakeShared<ComputeGraph>("subgraph-1");
+  auto graph_2 = ge::MakeShared<ComputeGraph>("subgraph-2");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
+  auto submodel_2 = StubModels::BuildRootModel(graph_2, false);
+  ASSERT_TRUE(submodel_1 != nullptr);
+  ASSERT_TRUE(submodel_2 != nullptr);
   flow_model->AddSubModel(submodel_1);
   flow_model->AddSubModel(submodel_2);
 
@@ -395,19 +402,22 @@ TEST_F(DeployPlannerTest, TestBuildDynamicSchedDeployPlan_WithoutQueueBindings) 
 TEST_F(DeployPlannerTest, TestWithFusionInvokeModel) {
   std::string graph_inputs_fusion = "{\"invoke_model_key2\":\"0~2;3,4\", \"invoke_model_key3\":\"1,2\", \"invoke_model_key5\":\"0\"}";
   auto flow_model = make_shared<FlowModel>();
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
-  auto graph_1 = ge::MakeShared<ComputeGraph>("graph-1");
+  auto graph_1 = ge::MakeShared<ComputeGraph>("subgraph-1");
   AttrUtils::SetStr(graph_1, "_invoked_model_fusion_inputs", graph_inputs_fusion);
-  submodel_1->SetRootGraph(graph_1);
-  auto submodel_2 = make_shared<GeRootModel>();
-  submodel_2->SetModelName("subgraph-2");
-  auto submodel_3 = make_shared<GeRootModel>();
-  submodel_3->SetModelName("subgraph-3");
-  auto submodel_4 = make_shared<GeRootModel>();
-  submodel_4->SetModelName("subgraph-4");
-  auto submodel_5 = make_shared<GeRootModel>();
-  submodel_5->SetModelName("subgraph-5");
+  auto graph_2 = ge::MakeShared<ComputeGraph>("subgraph-2");
+  auto graph_3 = ge::MakeShared<ComputeGraph>("subgraph-3");
+  auto graph_4 = ge::MakeShared<ComputeGraph>("subgraph-4");
+  auto graph_5 = ge::MakeShared<ComputeGraph>("subgraph-5");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
+  auto submodel_2 = StubModels::BuildRootModel(graph_2, false);
+  auto submodel_3 = StubModels::BuildRootModel(graph_3, false);
+  auto submodel_4 = StubModels::BuildRootModel(graph_4, false);
+  auto submodel_5 = StubModels::BuildRootModel(graph_5, false);
+  ASSERT_TRUE(submodel_1 != nullptr);
+  ASSERT_TRUE(submodel_2 != nullptr);
+  ASSERT_TRUE(submodel_3 != nullptr);
+  ASSERT_TRUE(submodel_4 != nullptr);
+  ASSERT_TRUE(submodel_5 != nullptr);
   flow_model->AddSubModel(submodel_1);
   flow_model->AddSubModel(submodel_2);
   flow_model->AddSubModel(submodel_3);
@@ -531,14 +541,14 @@ TEST_F(DeployPlannerTest, TestParseInvalidFusionInputs) {
 
 TEST_F(DeployPlannerTest, TestGetInvalidFusionInputs) {
   std::string graph_inputs_fusion = "{\"invoke_model_key2\":\"0~2;3,4\", invalid_json}";
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
+  auto flow_model = std::make_shared<FlowModel>();
   auto graph_1 = ge::MakeShared<ComputeGraph>("graph-1");
   AttrUtils::SetStr(graph_1, "_invoked_model_fusion_inputs", graph_inputs_fusion);
-  submodel_1->SetRootGraph(graph_1);
-  auto graph_model = FlowModelHelper::ToPneModel(submodel_1);
+  auto model_1 = StubModels::BuildRootModel(graph_1, false);
+  ASSERT_TRUE(model_1 != nullptr);
+  flow_model->AddSubModel(model_1);
   std::map<std::string, std::string> fusion_inputs;
-  auto ret = DeployPlannerBase::GetInvokedModelFusionInputs(graph_model, fusion_inputs);
+  auto ret = DeployPlannerBase::GetInvokedModelFusionInputs(model_1, fusion_inputs);
   ASSERT_NE(ret, SUCCESS);
 }
 }  // namespace ge

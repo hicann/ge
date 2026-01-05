@@ -413,7 +413,8 @@ TEST_F(UtestDflowApi, GetSessionId) {
   DFlowSession session(options);
   EXPECT_EQ(session.GetSessionId(), 0);
   DFlowSession session2(options);
-  EXPECT_EQ(session2.GetSessionId(), 1);
+  // because we init ge_session in dflow session, temporarily
+  EXPECT_EQ(session2.GetSessionId(), 2);
   EXPECT_EQ(DFlowFinalize(), SUCCESS);
   ge::MmpaStub::GetInstance().Reset();
 }
@@ -747,11 +748,9 @@ TEST_F(UtestDflowApi, DFlowInitializeWithoutFinalize) {
 }
 
 TEST_F(UtestDflowApi, test_build) {
-  ge::GraphManager graph_manager;
-  graph_manager.graph_rebuild_state_ctrl_ = ge::MakeShared<ge::GraphRebuildStateCtrl>();
-
+  std::map<std::string, std::string> options = {{"ge.buildMode", "tuning"}, {"ge.buildStep", "after_merge"}};
   ge::DFlowSessionImpl impl(0, {});
-  impl.Initialize(&graph_manager);
+  impl.Initialize(options);
   ge::FlowModelBuilder &builer = impl.dflow_graph_manager_.flow_model_builder_;
   EXPECT_FALSE(builer.process_node_engines_.empty());
   auto pne_iter = builer.process_node_engines_.find(ge::PNE_ID_NPU);
@@ -759,7 +758,7 @@ TEST_F(UtestDflowApi, test_build) {
   ge::ProcessNodeEnginePtr pne = pne_iter->second;
   ComputeGraphPtr graph = ge::MakeShared<ge::ComputeGraph>("test");
   ge::PneModelPtr model;
-  std::map<std::string, std::string> options = {{"ge.buildMode", "tuning"}, {"ge.buildStep", "after_merge"}};
+  
   // graph invalid
   EXPECT_NE(pne->BuildGraph(0, graph, options, {}, model), ge::SUCCESS);
   impl.Finalize();

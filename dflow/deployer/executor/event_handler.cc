@@ -197,9 +197,6 @@ Status EventHandler::BatchLoadModels(deployer::ExecutorRequest &request) {
   }
   GE_CHK_STATUS_RET_NOLOG(context_->DeployCommGroup(comm_groups));
 
-  if (message.has_var_manager_info()) {
-    GE_CHK_STATUS_RET_NOLOG(context_->LoadVarManager(request));
-  }
   GE_CHK_STATUS_RET(BatchParseAndLoadModels(message), "Failed to parse and load models");
   GEEVENT("[Batch][LoadModel] success, model size = %d.", message.models_size());
   return SUCCESS;

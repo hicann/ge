@@ -36,10 +36,63 @@
 #include "dflow/compiler/model/flow_model_cache.h"
 #include "common/env_path.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "framework/common/helper/model_save_helper.h"
 
 using namespace testing;
 
 namespace ge {
+namespace {
+ComputeGraphPtr FakeComputeGraph(const string &graph_name) {
+  DEF_GRAPH(graph1) {
+    auto data_0 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {16});
+
+    auto fake_type2_op1 = OP_CFG("FakeOpNpu").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
+
+    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {-1});
+
+    CHAIN(NODE("_arg_0", data_0)->NODE("fused_op1", fake_type2_op1)->NODE("Node_Output", net_output));
+  };
+
+  auto root_graph = ToComputeGraph(graph1);
+  root_graph->SetName(graph_name);
+  root_graph->SetSessionID(0);
+  AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, "0_1");
+
+  auto op_desc = root_graph->FindNode("Node_Output")->GetOpDesc();
+  std::vector<std::string> src_name{"out"};
+  op_desc->SetSrcName(src_name);
+  std::vector<int64_t> src_index{0};
+  op_desc->SetSrcIndex(src_index);
+  return root_graph;
+}
+
+PneModelPtr BuildPneModel(const string &name, ComputeGraphPtr graph) {
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  GE_ASSERT_SUCCESS(ge_root_model->Initialize(graph));
+  auto ge_model = MakeShared<ge::GeModel>();
+  auto model_task_def = MakeShared<domi::ModelTaskDef>();
+  model_task_def->set_version("test_v100_r001");
+  ge_model->SetModelTaskDef(model_task_def);
+  ge_model->SetName(name);
+  ge_model->SetGraph(graph);
+  ge_root_model->SetModelName(name);	
+  ge_root_model->SetSubgraphInstanceNameToModel(name, ge_model);	
+  bool is_unknown_shape = false;
+  GE_ASSERT_SUCCESS(ge_root_model->CheckIsUnknownShape(is_unknown_shape));
+  ModelBufferData model_buffer_data{};
+  const auto model_save_helper =
+    ModelSaveHelperFactory::Instance().Create(OfflineModelFormat::OM_FORMAT_DEFAULT);
+  model_save_helper->SetSaveMode(false);
+  GE_ASSERT_SUCCESS(model_save_helper->SaveToOmRootModel(ge_root_model, name, model_buffer_data, is_unknown_shape));
+  ModelData model_data{};
+  model_data.model_data = model_buffer_data.data.get();
+	model_data.model_len = model_buffer_data.length;
+  auto graph_model = FlowModelHelper::ToPneModel(model_data, graph, PNE_ID_NPU);
+  graph_model->SetLogicDeviceId("0:0:1");
+  return graph_model;
+}
+}
+
 class FlowModelBuilderTest : public testing::Test {
  protected:
   void SetUp() {
@@ -94,11 +147,7 @@ class MockNpuEngineImpl : public ProcessNodeEngineImpl {
   Status BuildGraph(uint32_t graph_id, ComputeGraphPtr &compute_graph,
                     const std::map<std::string, std::string> &options, const std::vector<GeTensor> &inputs,
                     PneModelPtr &model) override {
-    auto ge_root_model = MakeShared<GeRootModel>();
-    EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
-    ge_root_model->SetModelName(compute_graph->GetName());
-    auto graph_model = FlowModelHelper::ToPneModel(ge_root_model);
-    model = graph_model;
+    model = BuildPneModel(compute_graph->GetName(), compute_graph);
     return SUCCESS;
   }
 };
@@ -277,8 +326,10 @@ TEST_F(FlowModelBuilderTest, BuildHeterogeneousModel_NoPartition) {
     CHAIN(NODE("_arg_0", data_0)->NODE("fused_op1", fake_type2_op1)->NODE("fused_op2", fake_type2_op2)
               ->NODE("fused_op3", fake_type2_op3)->NODE("Node_Output", net_output));
   };
-
   auto root_graph = ToComputeGraph(dynamic_graph);
+  auto output_node = root_graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"FakeOpNpu"});
   (void) AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, "0");
   std::string logic_device_id = "0:0:0:0";
   std::string redundant_logic_device_id = "0:0:1:0";
@@ -461,6 +512,9 @@ TEST_F(FlowModelBuilderTest, DISABLED_BuildModel_DataFlowGraph_SUCCESS) {
     CHAIN(NODE("node2", node2)->EDGE(0, 0)->NODE("net_output", net_output));
   };
   auto root_graph = ToComputeGraph(flow_graph);
+  auto output_node = root_graph->FindNode("net_output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"node2"});
   EXPECT_EQ(AttrUtils::SetBool(root_graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, true), true);
   (void)AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, "xxxx");
   auto pp0 = dataflow::ProcessPoint();
@@ -523,11 +577,15 @@ TEST_F(FlowModelBuilderTest, DISABLED_BuildModel_DataFlowGraph_SUCCESS) {
     auto data0 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto data1 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto add = OP_CFG("Add").InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3}).Build("add");
+    auto net_output = OP_CFG("NetOutput").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     CHAIN(NODE("data0", data0)->EDGE(0, 0)->NODE(add));
     CHAIN(NODE("data1", data1)->EDGE(0, 1)->NODE(add));
-    ADD_OUTPUT(add, 0);
+    CHAIN(NODE(add)->EDGE(0, 0)->NODE("Node_Output", net_output));
   };
   auto sub_graph = GraphUtilsEx::GetComputeGraph(ToGeGraph(sub_graph_def));
+  auto graph_output_node = sub_graph->FindNode("Node_Output");
+  graph_output_node->GetOpDesc()->SetSrcIndex({0});
+  graph_output_node->GetOpDesc()->SetSrcName({"add"});
   (void)AttrUtils::SetStr(sub_graph, ATTR_NAME_SESSION_GRAPH_ID, "xxxx");
   sub_graph->SetParentNode(node1);
   sub_graph->SetParentGraph(root_graph);
@@ -575,10 +633,15 @@ TEST_F(FlowModelBuilderTest, DISABLED_BuildModel_DataFlowGraph_SUCCESS) {
     auto data0 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto data1 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto node0 = OP_CFG("FlowNode").InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
+    auto net_output = OP_CFG("NetOutput").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     CHAIN(NODE("data0", data0)->EDGE(0, 0)->NODE("node0", node0));
     CHAIN(NODE("data1", data1)->EDGE(0, 1)->NODE("node0", node0));
+    CHAIN(NODE("node0", node0)->EDGE(0, 0)->NODE("Node_Output", net_output));
   };
   auto invoked_graph = GraphUtilsEx::GetComputeGraph(ToGeGraph(invoked_graph_def));
+  auto invoked_output_node = invoked_graph->FindNode("Node_Output");
+  invoked_output_node->GetOpDesc()->SetSrcIndex({0});
+  invoked_output_node->GetOpDesc()->SetSrcName({"node0"});
   (void)AttrUtils::SetStr(invoked_graph, ATTR_NAME_SESSION_GRAPH_ID, "xxxx");
   (void)AttrUtils::SetBool(invoked_graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, true);
   auto pp4 = dataflow::ProcessPoint();
@@ -606,11 +669,15 @@ TEST_F(FlowModelBuilderTest, DISABLED_BuildModel_DataFlowGraph_SUCCESS) {
     auto data0 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto data1 = OP_CFG("Data").InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     auto add = OP_CFG("Add").InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3}).Build("add");
+    auto net_output = OP_CFG("NetOutput").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {1, 2, 3});
     CHAIN(NODE("data0", data0)->EDGE(0, 0)->NODE(add));
     CHAIN(NODE("data1", data1)->EDGE(0, 1)->NODE(add));
-    ADD_OUTPUT(add, 0);
+    CHAIN(NODE(add)->EDGE(0, 0)->NODE("Node_Output", net_output));
   };
   auto sub_graph1 = GraphUtilsEx::GetComputeGraph(ToGeGraph(sub_graph_def1));
+  auto graph1_output_node = sub_graph1->FindNode("Node_Output");
+  graph1_output_node->GetOpDesc()->SetSrcIndex({0});
+  graph1_output_node->GetOpDesc()->SetSrcName({"add"});
   (void)AttrUtils::SetStr(sub_graph1, ATTR_NAME_SESSION_GRAPH_ID, "xxxx");
   sub_graph1->SetParentNode(node2);
   sub_graph1->SetParentGraph(root_graph);
@@ -879,10 +946,7 @@ TEST_F(FlowModelBuilderTest, UpdateDeployInfo_SUCCESS) {
   };
   auto graph = GraphUtilsEx::GetComputeGraph(ToGeGraph(graph_def));
   std::string logic_device_id0 = "0:0:0";
-  GeRootModelPtr ge_model = MakeShared<GeRootModel>();
-  ASSERT_EQ(ge_model->Initialize(graph), SUCCESS);
-  ASSERT_NE(ge_model, nullptr);
-  auto graph_model = FlowModelHelper::ToPneModel(ge_model, PNE_ID_NPU);
+  auto graph_model = BuildPneModel("root_graph", graph);
   ASSERT_EQ(graph_model->SetLogicDeviceId(logic_device_id0), SUCCESS);
   ASSERT_EQ(graph_model->GetLogicDeviceId(), logic_device_id0);
   FlowModelPtr flow_model = MakeShared<FlowModel>(graph);
@@ -973,48 +1037,6 @@ TEST_F(FlowModelBuilderTest, BuildModel_Failed) {
   remove("./pp0_config.json");
 }
 
-namespace {
-ComputeGraphPtr FakeComputeGraph(const string &graph_name) {
-  DEF_GRAPH(graph1) {
-    auto data_0 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto fake_type2_op1 = OP_CFG("FakeOpNpu").InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, {-1});
-
-    CHAIN(NODE("_arg_0", data_0)->NODE("fused_op1", fake_type2_op1)->NODE("Node_Output", net_output));
-  };
-
-  auto root_graph = ToComputeGraph(graph1);
-  root_graph->SetName(graph_name);
-  root_graph->SetSessionID(0);
-  AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, "0_1");
-
-  auto op_desc = root_graph->FindNode("Node_Output")->GetOpDesc();
-  std::vector<std::string> src_name{"out"};
-  op_desc->SetSrcName(src_name);
-  std::vector<int64_t> src_index{0};
-  op_desc->SetSrcIndex(src_index);
-  return root_graph;
-}
-
-PneModelPtr BuildGeRootModel(const string &name, ComputeGraphPtr graph) {
-  auto ge_root_model = MakeShared<ge::GeRootModel>();
-  ge_root_model->Initialize(graph);
-  auto ge_model = MakeShared<ge::GeModel>();
-  auto model_task_def = MakeShared<domi::ModelTaskDef>();
-  model_task_def->set_version("test_v100_r001");
-  ge_model->SetModelTaskDef(model_task_def);
-  ge_model->SetName(name);
-  ge_model->SetGraph(graph);
-  ge_root_model->SetModelName(name);
-  ge_root_model->SetSubgraphInstanceNameToModel(name, ge_model);
-  auto graph_model = FlowModelHelper::ToPneModel(ge_root_model, PNE_ID_NPU);
-  graph_model->SetLogicDeviceId("0:0:1");
-  return graph_model;
-}
-}
-
 TEST_F(FlowModelBuilderTest, FlowModelBuildWithCache) {
   std::map<std::string, std::string> graph_options = ge::GetThreadLocalContext().GetAllGraphOptions();
   GE_MAKE_GUARD(recover_graph_cfg, [&graph_options](){
@@ -1023,13 +1045,14 @@ TEST_F(FlowModelBuilderTest, FlowModelBuildWithCache) {
   VarManager::Instance(0)->Init(0, 0, 0, 0);
   std::map<std::string, std::string> graph_option_new;
   graph_option_new["ge.graph_compiler_cache_dir"] = "./ut_cache_dir";
+  graph_option_new["ge.ExternalWeightDir"] = "./ut_cache_dir";
   graph_option_new["ge.graph_key"] = "graph_key_xxx";
   GetThreadLocalContext().SetGraphOption(graph_option_new);
   (void)system("mkdir ./ut_cache_dir");
   auto graph = FakeComputeGraph("root_graph");
 
   auto graph1 = FakeComputeGraph("root_graph");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
   flow_model->AddSubModel(ge_root_model1, PNE_ID_NPU);
 
@@ -1062,7 +1085,7 @@ TEST_F(FlowModelBuilderTest, FlowModelBuildWithCacheIOChkSucc) {
   EXPECT_EQ(AttrUtils::SetBool(graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, true), true);
 
   auto graph1 = FakeComputeGraph("root_graph");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
   flow_model->AddSubModel(ge_root_model1, PNE_ID_NPU);
 
@@ -1096,7 +1119,7 @@ TEST_F(FlowModelBuilderTest, FlowModelBuildWithCacheIOChkOutputFailed) {
   EXPECT_EQ(AttrUtils::SetBool(graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, true), true);
 
   auto graph1 = FakeComputeGraph("root_graph");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
   flow_model->AddSubModel(ge_root_model1, PNE_ID_NPU);
 
@@ -1150,7 +1173,7 @@ TEST_F(FlowModelBuilderTest, FlowModelBuildWithCacheIOChkInputNumFailed) {
   EXPECT_EQ(AttrUtils::SetBool(graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, true), true);
 
   auto graph1 = FakeComputeGraph("root_graph");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
   flow_model->AddSubModel(ge_root_model1, PNE_ID_NPU);
 
@@ -1198,7 +1221,7 @@ TEST_F(FlowModelBuilderTest, FlowModelBuildWithCacheIOChkInputNameFailed) {
   EXPECT_EQ(AttrUtils::SetBool(graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, true), true);
 
   auto graph1 = FakeComputeGraph("root_graph");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
   flow_model->AddSubModel(ge_root_model1, PNE_ID_NPU);
 
@@ -1238,7 +1261,7 @@ TEST_F(FlowModelBuilderTest, FlowModelBuildWithCacheRemoveSubgraphs) {
                     ge::ATTR_NAME_PARENT_NODE_INDEX, 0);
   auto graph1 = FakeComputeGraph("root_graph");
   graph1->SetAllSubgraphs({static_graph});
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
+  auto ge_root_model1 = BuildPneModel("root_graph", graph1);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph1);
   flow_model->AddSubModel(ge_root_model1, PNE_ID_NPU);
 

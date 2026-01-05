@@ -89,8 +89,8 @@ class DFlowSessionImplTest : public testing::Test {
 TEST_F(DFlowSessionImplTest, InitialFinalizeBasicTest) {
   std::map<std::string, std::string> options;
   ge::DFlowSessionImpl inner_session(0, options);
-  EXPECT_EQ(inner_session.Initialize(nullptr), SUCCESS);
-  EXPECT_EQ(inner_session.Initialize(nullptr), SUCCESS);
+  EXPECT_EQ(inner_session.Initialize({}), SUCCESS);
+  EXPECT_EQ(inner_session.Initialize({}), SUCCESS);
   EXPECT_EQ(inner_session.GetFlowModel(0), nullptr);
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);

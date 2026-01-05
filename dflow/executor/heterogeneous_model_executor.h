@@ -16,7 +16,6 @@
 #include "common/blocking_queue.h"
 #include "common/context/local_context.h"
 #include "common/context/ome_context.h"
-#include "common/model/ge_root_model.h"
 #include "ge/ge_data_flow_api.h"
 #include "dflow/base/deploy/exchange_service.h"
 #include "graph/ge_tensor.h"

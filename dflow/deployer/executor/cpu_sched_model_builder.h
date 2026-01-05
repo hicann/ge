@@ -14,9 +14,9 @@
 #include <atomic>
 #include <vector>
 #include "executor/cpu_sched_model.h"
-#include "common/model/ge_root_model.h"
 #include "framework/common/ge_types.h"
 #include "graph/ge_context.h"
+#include "graph/ge_tensor.h"
 
 namespace ge {
 class CpuSchedModelBuilder {

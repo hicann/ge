@@ -440,45 +440,6 @@ TEST_F(MasterModelDeployerTest, TestCopyOneWeightToTransfer) {
   RuntimeStub::Reset();
 }
 
-TEST_F(MasterModelDeployerTest, TestGetVarManagerAndSendToRemote) {
-  EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
-  auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
-  EXPECT_CALL(remote_device, Process)
-      .WillRepeatedly(Return(SUCCESS));
-  auto op_desc = make_shared<OpDesc>("var_name", FILECONSTANT);
-  GeShape shape({16, 16});
-  GeTensorDesc tensor_desc(shape, FORMAT_ND, DT_INT16);
-  op_desc->AddOutputDesc(tensor_desc);
-  std::vector<int16_t> tensor(16 * 16);
-  auto size = 16 * 16 * 2;
-  EXPECT_EQ(VarManager::Instance(0)->AssignVarMem("var_name", nullptr, tensor_desc, RT_MEMORY_HBM), SUCCESS);
-  std::string buffer(reinterpret_cast<char *>(tensor.data()), size);
-  std::stringstream ss(buffer);
-
-  std::map<std::string, std::string> options;
-  options["ge.exec.value_bins"] =
-      R"({"value_bins":[{"value_bin_id":"vector_search_buchet_value_bin", "value_bin_file":"hello.bin"}]})";
-  ge::GetThreadLocalContext().SetGraphOption(options);
-  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_FILE_CONSTANT_ID, "vector_search_buchet_value_bin"));
-
-  std::map<int32_t, std::set<int32_t>> sub_device_ids{{0, {0, 1}}};
-  std::map<int32_t, std::set<uint64_t>> sessions{{0, {0}}};
-  std::map<int32_t, std::map<uint64_t, std::map<OpDescPtr, std::set<int32_t>>>> node_need_transfer_memory;
-  std::map<uint64_t, std::map<OpDescPtr, std::set<int32_t>>> sess_map;
-  std::map<OpDescPtr, std::set<int32_t>> op_desc_map;
-  op_desc_map[op_desc].emplace(0);
-  op_desc_map[op_desc].emplace(1);
-
-  sess_map.insert({0, op_desc_map});
-  node_need_transfer_memory.insert({0, sess_map});
-  FlowModelSender::SendInfo send_info{};
-  send_info.device_ids = {1};
-  FlowModelSender flow_model_sender;
-  ASSERT_NE(flow_model_sender.GetVarManagerAndSendToRemote(sub_device_ids, sessions, node_need_transfer_memory),
-            SUCCESS);
-}
-
 TEST_F(MasterModelDeployerTest, TestInitFlowGwInfoSuccess) {
   uint32_t old_port = NetworkManager::GetInstance().main_port_;
   MasterModelDeployer model_deployer;

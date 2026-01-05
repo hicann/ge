@@ -13,7 +13,10 @@ target_compile_options(ascendcl_stub PRIVATE -g)
 target_compile_definitions(ascendcl_stub PRIVATE
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
 )
-target_include_directories(ascendcl_stub PRIVATE ${CMAKE_CURRENT_LIST_DIR}/src)
+target_include_directories(ascendcl_stub PRIVATE 
+    ${CMAKE_CURRENT_LIST_DIR}/src
+    ${AIR_CODE_DIR}/inc/graph_metadef
+    ${AIR_CODE_DIR}/base/metadef/pkg_inc)
 target_link_libraries(ascendcl_stub
     PRIVATE
         intf_pub

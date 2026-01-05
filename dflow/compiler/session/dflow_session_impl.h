@@ -15,12 +15,13 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <atomic>
 #include "framework/common/ge_types.h"
 #include "ge/ge_api_types.h"
 #include "ge/ge_data_flow_api.h"
 #include "dflow/compiler/model/dflow_graph_manager.h"
-#include "graph/manager/graph_manager.h"
 #include "flow_graph/flow_graph.h"
+#include "external/ge/ge_api_v2.h"
 
 namespace ge {
 GE_FUNC_VISIBILITY Status DFlowInitializeInner(const std::map<AscendString, AscendString> &options);
@@ -32,13 +33,13 @@ class DFlowSessionImpl {
    * @brief 构造函数
    * @param session_id 会话ID
    * @param options 选项
-   * @param graph_manager 从inner_session传入的GraphManager实例
+   * @param options 从inner_session传入的options
    */
   DFlowSessionImpl(uint64_t session_id, const std::map<std::string, std::string> &options);
 
   ~DFlowSessionImpl();
 
-  Status Initialize(GraphManager *graph_manager = nullptr);
+  Status Initialize(const std::map<std::string, std::string> &options = {});
 
   Status AddGraph(uint32_t graph_id, const dflow::FlowGraph &graph, const std::map<std::string, std::string> &options);
 
@@ -90,6 +91,7 @@ class DFlowSessionImpl {
   std::mutex build_run_mutex_;  // BuildGraph and RunGraph use
   std::mutex model_mutex_;
   std::set<uint32_t> loaded_models_;
+  std::shared_ptr<GeSession> ge_session_;
 };
 }  // namespace ge
 

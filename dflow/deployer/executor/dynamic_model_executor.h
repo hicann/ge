@@ -15,33 +15,40 @@
 #include <vector>
 #include "ge_common/ge_api_error_codes.h"
 #include "common/blocking_queue.h"
-#include "common/model/ge_root_model.h"
 #include "framework/common/runtime_tensor_desc.h"
 #include "executor/ge_executor.h"
 #include "executor/cpu_sched_model.h"
 #include "executor/cpu_id_resource_manager.h"
 #include "hybrid/common/npu_memory_allocator.h"
+#include "common/ge_common/ge_types.h"
+#include "acl/acl_mdl.h"
+#include "acl/acl_rt.h"
+#include "runtime/rt.h"
+#include "rt_error_codes.h"
 
 namespace ge {
 class DynamicModelExecutor {
- public:
+ public:  
   explicit DynamicModelExecutor(bool is_host);
   virtual ~DynamicModelExecutor() noexcept;
   virtual Status Initialize();
   virtual void Finalize();
-  virtual Status LoadModel(const GeRootModelPtr &root_model, const ModelQueueParam &model_queue_param);
+  virtual Status LoadModel(const ModelData &model_data,
+                           const ComputeGraphPtr &root_graph,
+                           const ModelQueueParam &model_queue_param);
 
   virtual Status ExecuteAsync(const std::function<void(Status, void *, void *)> &callback,
                               void *req_mbuf = nullptr, void *resp_mbuf = nullptr);
   Status ExecuteInternal();
-  virtual Status ExecuteDirectly(const GeRootModelPtr &root_model);
+  virtual Status ExecuteDirectly();
   virtual void UnloadModel();
   void SetModelEschedPriority(int32_t esched_process_priority, int32_t esched_event_priority);
   void SetModelExecuteTimes(int32_t execute_times);
   virtual Status ClearModel(const int32_t clear_type);
   virtual Status ExceptionNotify(uint32_t type, uint64_t trans_id);
   Status CheckLocalAicpuSupportExceptionNotify() const;
-
+  static Status GenerateLoadConfig(const ModelData &model_data, const std::vector<FileConstantMem> &external_weight_mem_data, aclmdlConfigHandle *handle);
+  static Status InitExternalWeightMem(const ComputeGraphPtr &root_graph, std::vector<FileConstantMem> &external_weight_files);
   struct ModelExecuteParam {
     std::function<void(Status, void *, void *)> callback;
     void *req_mbuf;
@@ -49,25 +56,24 @@ class DynamicModelExecutor {
   };
  protected:
   void Run();
+  void DestroyDatasetResource();
   void Stop();
-  static Status GetOutputRefToInput(const ComputeGraphPtr &root_graph,
-                                    std::map<int32_t, int32_t> &output_ref_to_input_idx);
   Status AllocEventIOBuffer(const ComputeGraphPtr &root_graph);
   Status FreeEventIOBuffer();
-  virtual Status DoLoadModel(const shared_ptr<GeRootModel> &root_model);
-  virtual Status DoExecuteModel(const RunModelData &inputs, RunModelData &outputs);
-  Status GetGlobalStepAddr(const uint32_t model_id);
-  Status ParseModelDesc(const GeRootModelPtr &root_model);
-  virtual Status GetInputAndOutputNum(const GeRootModelPtr &root_model, const ModelQueueParam &model_queue_param);
-  virtual Status LoadWithAicpuSd(const GeRootModelPtr &root_model, const ModelQueueParam &model_queue_param);
+  virtual Status DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph);
+  virtual Status DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs);
+  Status GetGlobalStepAddr();
+  Status ParseModelDesc(const ComputeGraphPtr &root_graph);
+  virtual Status GetInputAndOutputNum(const ComputeGraphPtr &root_graph, const ModelQueueParam &model_queue_param);
+  virtual Status LoadWithAicpuSd(const ComputeGraphPtr &root_graph, const ModelQueueParam &model_queue_param);
   virtual Status UnloadFromAicpuSd();
   static Status UpdateTensorDesc(const RuntimeTensorDesc &runtime_tensor_desc, GeTensorDesc &tensor_desc);
   static Status UpdateRuntimeTensorDesc(const GeTensorDesc &tensor_desc, RuntimeTensorDesc &runtime_tensor_desc);
   static Status UpdateRuntimeShape(const GeShape &shape, int64_t (&shape_buffer)[33]);
-  virtual Status PrepareInputs(RunModelData &model_inputs);
+  virtual Status PrepareInputs(std::vector<DataBuffer> &model_inputs);
   Status UpdateBufferDataAddr(size_t index, void *&buffer_data, uint64_t buffer_size) const;
-  virtual Status PrepareOutputs(RunModelData &model_outputs);
-  virtual Status UpdateOutputs(RunModelData &model_outputs);
+  virtual Status PrepareOutputs(std::vector<DataBuffer> &model_outputs);
+  virtual Status UpdateOutputs(std::vector<DataBuffer> &model_outputs);
   static Status GetTensorSize(const GeTensorDesc &tensor_desc, int64_t &tensor_size);
   static Status CopyMbufHead(rtMbufPtr_t src, rtMbufPtr_t dst);
   Status CheckAndGetAlignAttr(uint32_t &align_interval, std::vector<uint32_t> &align_offsets);
@@ -87,6 +93,9 @@ class DynamicModelExecutor {
   bool StopAndWaitRestart();
   Status CreateFakeAicpuModelAndStream();
   Status CheckAicpuKernelSupported(const std::string &kernel_name, bool &is_supported) const;
+  Status ParseModelOutputToTensorDesc(const aclTensorDesc *acl_tensor_desc, GeTensorDesc &tensor_desc);
+  Status CreateInputDataset(const std::vector<DataBuffer> &inputs);
+  Status CreateOutputDataset(const std::vector<DataBuffer> &outputs);
  private:
   void FinalizeInternal();
  protected:
@@ -94,13 +103,19 @@ class DynamicModelExecutor {
   BlockingQueue<ModelExecuteParam> task_queue_;
   size_t num_inputs_ = 0U;
   size_t num_outputs_ = 0U;
+  aclmdlDataset *input_dataset_ = nullptr;
+  aclmdlDataset *output_dataset_ = nullptr;
+  aclmdlDesc *model_desc_ = nullptr;
+  aclmdlConfigHandle *handle_ = nullptr;
+  std::vector<aclTensorDesc *> acl_tensor_desc_;
+  std::vector<aclDataBuffer *> output_data_buffer_;
+  std::vector<aclDataBuffer *> input_data_buffer_;
   // send/recv num
   size_t input_events_num_ = 0U;
   size_t output_events_num_ = 0U;
   // queue num
   size_t input_queues_num_ = 0U;
   size_t output_queues_num_ = 0U;
-  GeExecutor ge_executor_;
   std::vector<QueueAttrs> input_queue_attrs_;
   std::vector<QueueAttrs> output_queue_attrs_;
   std::vector<int32_t> input_fusion_offsets_;
@@ -134,7 +149,6 @@ class DynamicModelExecutor {
   int32_t data_ret_code_ = 0;
   void *aicpu_handle_ = nullptr;
   int32_t execute_times_ = -1;
-  hybrid::NpuMemoryAllocator *npu_memory_allocator_ = nullptr;
   void *new_allocated_global_step_ = nullptr;
   bool is_need_alloc_output_mbuf_ = true;  // no need alloc mbuf for output in ps model
   ModelExecuteParam model_execute_param_;   // record current model execute param
@@ -147,6 +161,7 @@ class DynamicModelExecutor {
   std::atomic<bool> has_stop_schedule_{false};
   std::vector<uint32_t> aicpu_model_ids_;
   InputAlignAttrs input_align_attrs_{};
+  std::vector<FileConstantMem> external_weight_mem_data_{};
   bool exec_with_mutex_ = false;
   static std::mutex exec_mutex_;
 };

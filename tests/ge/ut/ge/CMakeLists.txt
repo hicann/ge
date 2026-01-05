@@ -1341,6 +1341,11 @@ target_compile_options(ge_ut_parser PRIVATE
     -Wall -Wfloat-equal -Werror
 )
 
+target_link_options(ge_ut_parser PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ge_ut_parser PRIVATE
     intf_pub
     metadef_headers
@@ -1373,6 +1378,11 @@ target_compile_options(ge_ut_common PRIVATE -g ${AIR_COV_COMPILE_OPTION}
     -Wno-deprecated-declarations
     -Wall -Wfloat-equal -Werror
     -Wno-subobject-linkage
+)
+
+target_link_options(ge_ut_common PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
 )
 
 target_link_libraries(ge_ut_common PRIVATE
@@ -1409,6 +1419,11 @@ target_compile_options(ge_ut_common_format PRIVATE -g ${AIR_COV_COMPILE_OPTION}
     -Wall -Wfloat-equal -Werror
 )
 
+target_link_options(ge_ut_common_format PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ge_ut_common_format PRIVATE
     intf_pub
     metadef_headers
@@ -1436,6 +1451,11 @@ target_compile_options(ge_prepare_common PRIVATE -g ${AIR_COV_COMPILE_OPTION}
     -Werror=format
     -Wno-deprecated-declarations
     -Wall -Wfloat-equal -Werror
+)
+
+target_link_options(ge_prepare_common PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
 )
 
 target_link_libraries(ge_prepare_common PRIVATE
@@ -1469,6 +1489,11 @@ target_compile_options(ge_davinci_model PRIVATE -g ${AIR_COV_COMPILE_OPTION}
     -Wall -Wfloat-equal -Werror
 )
 
+target_link_options(ge_davinci_model PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ge_davinci_model PRIVATE
     intf_pub
     metadef_headers
@@ -1496,6 +1521,11 @@ target_compile_options(ge_build_common PRIVATE -g ${AIR_COV_COMPILE_OPTION}
     -Werror=format
     -Wno-deprecated-declarations
     -Wall -Wfloat-equal -Werror
+)
+
+target_link_options(ge_build_common PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
 )
 
 target_link_libraries(ge_build_common PRIVATE
@@ -1544,6 +1574,11 @@ target_include_directories(ge_pass_common PRIVATE
         ${ASCEND_INSTALL_PATH}/include
 )
 
+target_link_options(ge_pass_common PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ge_pass_common PRIVATE
     intf_pub
     metadef_headers
@@ -1577,6 +1612,11 @@ target_compile_options(ge_single_op PRIVATE -g ${AIR_COV_COMPILE_OPTION}
     -Werror=format
     -Wno-deprecated-declarations
     -Wall -Wfloat-equal -Werror
+)
+
+target_link_options(ge_single_op PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
 )
 
 target_link_libraries(ge_single_op PRIVATE
@@ -1626,6 +1666,11 @@ target_include_directories(ut_libge_multiparts_utest PRIVATE
     ${AIR_CODE_DIR}/inc/graph_metadef
 )
 
+target_link_options(ut_libge_multiparts_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ut_libge_multiparts_utest
     intf_pub
     metadef_headers
@@ -1672,6 +1717,8 @@ target_include_directories(ut_libge_symbol_infer_utest PRIVATE
 target_link_options(ut_libge_symbol_infer_utest PRIVATE
         -rdynamic
         -Wl,-Bsymbolic
+        -Wl,--disable-new-dtags
+        -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
         )
 
 target_link_libraries(ut_libge_symbol_infer_utest
@@ -1706,6 +1753,11 @@ target_compile_definitions(ut_libge_common_utest PRIVATE
     AIR_CODE_DIR=\"${AIR_CODE_DIR}\"
     CMAKE_BINARY_DIR=\"${CMAKE_BINARY_DIR}\"
     FILE_COMMON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/common/"
+)
+
+target_link_options(ut_libge_common_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
 )
 
 target_link_libraries(ut_libge_common_utest
@@ -1761,6 +1813,11 @@ target_compile_definitions(ut_libge_others_utest PRIVATE
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
 )
 
+target_link_options(ut_libge_others_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ut_libge_others_utest
     intf_pub
     metadef_headers
@@ -1795,6 +1852,11 @@ target_compile_options(ut_libge_label_maker_utest PRIVATE -g ${AIR_COV_COMPILE_O
 target_include_directories(ut_libge_label_maker_utest PRIVATE
     ${ASCEND_INSTALL_PATH}/include)
 
+target_link_options(ut_libge_label_maker_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 # TODO:ge_ut_common need shrink; it has too many depends so
 target_link_libraries(ut_libge_label_maker_utest
     intf_pub
@@ -1825,6 +1887,11 @@ target_compile_options(ut_libge_kernel_utest PRIVATE -g ${AIR_COV_COMPILE_OPTION
         -Wno-deprecated-declarations
         -Wall -Wfloat-equal -Werror
         -fno-access-control
+)
+
+target_link_options(ut_libge_kernel_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
 )
 
 target_link_libraries(ut_libge_kernel_utest
@@ -1879,6 +1946,11 @@ target_include_directories(ut_libge_distinct_load_utest PRIVATE
     ${AIR_CODE_DIR}/tests/depends/op_stub
     ${ASCEND_INSTALL_PATH}/include)
 
+target_link_options(ut_libge_distinct_load_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ut_libge_distinct_load_utest
     intf_pub
     metadef_headers
@@ -1925,6 +1997,11 @@ target_include_directories(ge_manual_test PRIVATE ${AIR_CODE_DIR}/tests/framewor
         ${CMAKE_BINARY_DIR}/tests/depends/aihacb_autofusion
         ${ASCEND_INSTALL_PATH}/include
         ${ASCGEN_DIR}/inc
+)
+
+target_link_options(ge_manual_test PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
 )
 
 target_link_libraries(ge_manual_test
@@ -1977,6 +2054,11 @@ target_include_directories(ut_llm_engine_utest PRIVATE
         #for session_util.h
         ${AIR_CODE_DIR}/api/session
         )
+
+target_link_options(ut_llm_engine_utest PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
 
 target_link_libraries(ut_llm_engine_utest
         c_sec_headers
@@ -2036,6 +2118,11 @@ target_include_directories(ut_jit_execution PRIVATE
         ${ASCGEN_DIR}/inc
 )
 
+target_link_options(ut_jit_execution PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
+
 target_link_libraries(ut_jit_execution
         intf_pub
         metadef_headers
@@ -2075,6 +2162,11 @@ target_compile_options(ut_eager_style_builder PRIVATE ${AIR_COMMON_COMPILE_OPTIO
 target_compile_definitions(ut_eager_style_builder PRIVATE
         google=ascend_private
         )
+
+target_link_options(ut_eager_style_builder PRIVATE
+    -Wl,--disable-new-dtags
+    -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+)
 
 target_link_libraries(ut_eager_style_builder
         intf_pub

@@ -55,6 +55,7 @@ target_link_libraries(autofuse_test PRIVATE
         graphengine
         flow_graph
         metadef_headers
+        ascendcl_stub
         GTest::gtest
         GTest::gtest_main
         GTest::gmock

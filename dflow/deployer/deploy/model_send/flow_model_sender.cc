@@ -95,7 +95,7 @@ Status FlowModelSender::DeployRemoteVarManager(const std::map<std::string,
                       "Failed to GetAllRelatedVarManager");
     GELOGD("[Deploy][RemoteVarManager] Success, target_device = %s.", target_device.GetDesc().c_str());
   }
-  GE_CHK_STATUS_RET(GetVarManagerAndSendToRemote(device_ids, sessions, node_need_transfer_memory),
+  GE_CHK_STATUS_RET(TransferFileConstants(device_ids, node_need_transfer_memory),
                     "Failed to GetVarManagerAndSendToRemote.");
   return SUCCESS;
 }
@@ -130,48 +130,6 @@ Status FlowModelSender::GetAllRelatedVarManager(
         }
       }
     }
-  }
-  return SUCCESS;
-}
-
-Status FlowModelSender::GetVarManagerAndSendToRemote(
-    const std::map<int32_t, std::set<int32_t>> &device_ids,
-    const std::map<int32_t, std::set<uint64_t>> &sessions,
-    const std::map<int32_t, std::map<uint64_t, std::map<OpDescPtr, std::set<int32_t>>>> &node_need_transfer_memory) {
-  GE_CHK_STATUS_RET_NOLOG(TransferVarManager(device_ids, sessions));
-  GE_CHK_STATUS_RET_NOLOG(TransferFileConstants(device_ids, node_need_transfer_memory));
-  return SUCCESS;
-}
-
-Status FlowModelSender::TransferVarManager(const std::map<int32_t, std::set<int32_t>> &device_ids,
-                                           const std::map<int32_t, std::set<uint64_t>> &sessions) {
-  for (const auto &session_iter : sessions) {
-    auto node_id = session_iter.first;
-    auto session_vec = session_iter.second;
-    auto dev_iter = device_ids.find(node_id);
-    if (dev_iter == device_ids.end()) {
-      continue;
-    }
-    deployer::DeployerRequest request;
-    request.set_type(deployer::kDownloadVarManager);
-    auto multi_var_manger_request = request.mutable_multi_var_manager_request();
-    GE_CHECK_NOTNULL(multi_var_manger_request);
-    multi_var_manger_request->mutable_device_ids()->Add(dev_iter->second.begin(), dev_iter->second.end());
-    auto multi_var_manger_info = multi_var_manger_request->mutable_multi_var_manager_info();
-    GE_CHECK_NOTNULL(multi_var_manger_info);
-    for (const auto &session : session_vec) {
-      GELOGI("[VarManager] The Session is %ld to serial.", session);
-      auto single_info = multi_var_manger_info->add_var_manager_info();
-      GE_CHECK_NOTNULL(single_info);
-      GE_CHECK_NOTNULL(VarManager::Instance(session));
-      VarManager::Instance(session)->VarManagerToSerial(session, *single_info);
-    }
-    deployer::DeployerResponse response;
-    GE_CHK_STATUS_RET(DeployerProxy::GetInstance().SendRequest(node_id, request, response),
-                      "[send][VarManager] failed.");
-    GE_CHK_STATUS_RET(response.error_code(),
-                      "Failed to send var manager info, node id = %d, error code = %u, error message = %s.",
-                      node_id, response.error_code(), response.error_message().c_str());
   }
   return SUCCESS;
 }
@@ -240,10 +198,6 @@ Status FlowModelSender::TransferFileConstants(
                         std::to_string(node_id);
         ge::ConstGeTensorDescPtr tensor_desc = op_desc->GetOutputDescPtr(0U);
         GE_CHECK_NOTNULL(tensor_desc);
-        GE_CHECK_NOTNULL(VarManager::Instance(session_id));
-        if (VarManager::Instance(session_id)->IsVarReady(send_key, *tensor_desc, static_cast<uint32_t>(node_id))) {
-          continue;
-        }
 
         SendInfo send_info;
         send_info.session_id = session_id;
@@ -257,7 +211,6 @@ Status FlowModelSender::TransferFileConstants(
                                                   op_desc,
                                                   op_transfer_device_list[send_key]),
                           "Failed to send data.");
-        VarManager::Instance(session_id)->SetVarIsReady(send_key, *tensor_desc, static_cast<uint32_t>(node_id));
       }
     }
   }
@@ -349,16 +302,11 @@ Status FlowModelSender::CopyOneWeightToTransfer(const SendInfo &send_info,
 
   auto tensor_desc = op_desc->MutableOutputDesc(0);
   GE_CHECK_NOTNULL(tensor_desc);
-  uint8_t *var_logic = nullptr;
-  auto var_manager = VarManager::Instance(GetContext().SessionId());
-  GE_CHECK_NOTNULL(var_manager);
-  var_manager->GetVarAddr(op_desc->GetName(), *tensor_desc, var_logic);
   rtMemType_t memory_type = RT_MEMORY_HBM;
   auto mem_type = static_cast<uint32_t>(RT_MEMORY_DEFAULT);
   if (AttrUtils::GetInt(op_desc, ATTR_OUTPUT_MEMORY_TYPE, mem_type) && (mem_type == 1)) {  // 1: rdma
     memory_type = RT_MEMORY_RDMA_HBM;
   }
-  uint64_t base_offset = reinterpret_cast<uintptr_t>(var_logic) - var_manager->GetVarMemLogicBase();
 
   deployer::DeployerRequest request;
   request.set_type(deployer::kDownloadSharedContent);
@@ -372,7 +320,6 @@ Status FlowModelSender::CopyOneWeightToTransfer(const SendInfo &send_info,
   shared_content_description->set_node_name(op_desc->GetName());
   shared_content_description->set_total_length(file_constant_size);
   shared_content_description->set_mem_type(memory_type);
-  shared_content_description->set_current_offset(base_offset);
   proto::TensorDescriptor *tensor_desc_proto = shared_content_description->mutable_tensor_desc();
   GeTensorSerializeUtils::GeTensorDescAsProto(*tensor_desc, tensor_desc_proto);
   deployer::DeployerResponse response;

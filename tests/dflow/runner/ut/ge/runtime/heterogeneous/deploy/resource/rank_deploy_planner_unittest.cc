@@ -15,7 +15,7 @@
 #include "deploy/resource/rank_deploy_planner.h"
 #include "deploy/resource/resource_manager.h"
 #include "macro_utils/dt_public_unscope.h"
-
+#include "stub_models.h"
 #include "graph/ge_local_context.h"
 #include "common/env_path.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
@@ -130,16 +130,15 @@ TEST_F(RankDeployPlannerTest, SetHcomClusterInfo) {
   model_to_cluster_rank_id["submodel_1"] = std::make_pair("hcom_desc_0", 0);
   flow_model->SetModelNameToClusterAndRankId(model_to_cluster_rank_id);
 
-  auto submodel = MakeShared<GeRootModel>();
-  submodel->SetModelName("submodel");
+  auto graph = ge::MakeShared<ComputeGraph>("submodel");
+  auto submodel = StubModels::BuildRootModel(graph, false);
   flow_model->AddSubModel(submodel);
-  auto submodel_1 = MakeShared<GeRootModel>();
-  submodel_1->SetModelName("submodel_1");
+  auto graph_1 = ge::MakeShared<ComputeGraph>("submodel_1");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
   flow_model->AddSubModel(submodel_1);
-
   DeployPlan deploy_plan;
-  deploy_plan.MutableSubmodels()["submodel"].model = FlowModelHelper::ToPneModel(submodel);
-  deploy_plan.MutableSubmodels()["submodel_1"].model = FlowModelHelper::ToPneModel(submodel_1);
+  deploy_plan.MutableSubmodels()["submodel"].model = submodel;
+  deploy_plan.MutableSubmodels()["submodel_1"].model = submodel_1;
   RankDeployPlanner().SetHcomClusterInfo(*flow_model, deploy_plan);
   EXPECT_EQ(deploy_plan.GetCommGroups("hcom_desc_0").size(), 3);
   EXPECT_EQ(deploy_plan.GetCommGroups("hcom_desc_1").size(), 0);

@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <gtest/gtest.h>
 #include "common/model/ge_root_model.h"
 
 #include "macro_utils/dt_public_scope.h"
@@ -23,6 +24,7 @@
 #include "generator/ge_generator.h"
 #include "dflow/compiler/data_flow_graph/process_point_loader.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "framework/common/helper/model_save_helper.h"
 
 namespace ge {
 namespace {
@@ -137,8 +139,11 @@ Status BuildForPipelinePartitionedGraph(ge::GraphBuilder &graph_builder, uint64_
     GE_CHK_STATUS_RET(graph_builder.Build(subgraph, submodel, session_id),
                       "Failed to build subgraph %s", subgraph->GetName().c_str());
     GELOGD("Done building subgraph successfully, name = %s ", subgraph->GetName().c_str());
+    ModelData model_data{};
+    ModelBufferData model_buffer_data;
+    GE_CHK_STATUS_RET(StubModels::SaveGeRootModelToModelData(submodel, model_data, model_buffer_data), "Save GeRootModel to model data failed.");
     submodel->SetModelName(subgraph->GetName());
-    GE_CHK_STATUS_RET_NOLOG(root_model->AddSubModel(FlowModelHelper::ToPneModel(submodel)));
+    GE_CHK_STATUS_RET_NOLOG(root_model->AddSubModel(FlowModelHelper::ToPneModel(model_data, subgraph)));
   }
   return SUCCESS;
 }
@@ -209,6 +214,21 @@ void StubModels::FinalizeGeLib() {
   if (instance_ptr != nullptr) {
     instance_ptr->Finalize();
   }
+}
+
+Status StubModels::SaveGeRootModelToModelData(const GeRootModelPtr &ge_root_model, ModelData &model_data, ModelBufferData &model_buffer_data) {
+  bool is_unknown_shape = false;
+  GE_ASSERT_SUCCESS(ge_root_model->CheckIsUnknownShape(is_unknown_shape),
+                    "root model(id:%u) CheckIsUnknownShape failed", ge_root_model->GetModelId());
+  const auto model_save_helper =
+    ModelSaveHelperFactory::Instance().Create(OfflineModelFormat::OM_FORMAT_DEFAULT);
+  EXPECT_NE(model_save_helper, nullptr);
+  model_save_helper->SetSaveMode(false);
+  GE_ASSERT_SUCCESS(model_save_helper->SaveToOmRootModel(ge_root_model, "NoUse", 
+                          model_buffer_data, is_unknown_shape), "SaveToOmRootModel failed, model id:%u", ge_root_model->GetModelId());
+  model_data.model_data = model_buffer_data.data.get();
+	model_data.model_len = model_buffer_data.length;
+  return SUCCESS;
 }
 
 ComputeGraphPtr StubModels::BuildSinglePartitionedCallGraph() {
@@ -393,10 +413,21 @@ PneModelPtr StubModels::BuildRootModel(ComputeGraphPtr root_graph, bool pipeline
     EXPECT_EQ(ret, SUCCESS);
     EXPECT_NE(root_model->GetModelRelation(), nullptr);
   } else {
-    GeRootModelPtr ge_root_model;
-    auto ret = graph_builder.Build(root_graph, ge_root_model);
+    GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+    EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    auto ge_model = MakeShared<ge::GeModel>();
+    auto model_task_def = MakeShared<domi::ModelTaskDef>();
+    model_task_def->set_version("test_v100_r001");
+    ge_model->SetModelTaskDef(model_task_def);
+    ge_model->SetName(root_graph->GetName());
+    ge_model->SetGraph(root_graph);
+    ge_root_model->SetModelName(root_graph->GetName());	
+    ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
+    ModelData model_data{};
+    ModelBufferData model_buffer_data;
+    auto ret = SaveGeRootModelToModelData(ge_root_model, model_data, model_buffer_data);
     EXPECT_EQ(ret, SUCCESS);
-    root_model = FlowModelHelper::ToPneModel(ge_root_model);
+    root_model = FlowModelHelper::ToPneModel(model_data, root_graph);
   }
   FinalizeGeLib();
   return root_model;
@@ -466,7 +497,11 @@ DeployPlan StubModels::BuildSimpleDeployPlan(int32_t remote_node_id) {
   model->SetGraph(ge_submodel_1->GetRootGraph());
   model->SetWeight(Buffer(512));
   ge_submodel_1->SetSubgraphInstanceNameToModel("subgraph-1", model);
-  submodel_1.model = FlowModelHelper::ToPneModel(ge_submodel_1);
+  ModelData model_data_1{};
+  ModelBufferData model_buffer_data_1;
+  auto ret = SaveGeRootModelToModelData(ge_submodel_1, model_data_1, model_buffer_data_1);
+  EXPECT_EQ(ret, SUCCESS);
+  submodel_1.model = FlowModelHelper::ToPneModel(model_data_1, ge_submodel_1->GetRootGraph());
 
   auto &submodel_2 = deploy_plan.submodels_["subgraph-2"];
   submodel_2.input_queue_indices.emplace_back(2);
@@ -479,7 +514,11 @@ DeployPlan StubModels::BuildSimpleDeployPlan(int32_t remote_node_id) {
   model->SetWeight(Buffer(512));
   model->SetGraph(ge_submodel_2->GetRootGraph());
   ge_submodel_2->SetSubgraphInstanceNameToModel("subgraph-2", model);
-  submodel_2.model = FlowModelHelper::ToPneModel(ge_submodel_2);
+  ModelData model_data_2{};
+  ModelBufferData model_buffer_data_2;
+  ret = SaveGeRootModelToModelData(ge_submodel_2, model_data_2, model_buffer_data_2);
+  EXPECT_EQ(ret, SUCCESS);
+  submodel_2.model = FlowModelHelper::ToPneModel(model_data_2, ge_submodel_2->GetRootGraph());
 
   deploy_plan.queue_bindings_.emplace_back(0, 5);
   deploy_plan.queue_bindings_.emplace_back(6, 1);
@@ -539,8 +578,11 @@ DeployPlan StubModels::BuildSingleModelDeployPlan(int32_t remote_node_id) {
   model->SetGraph(ge_submodel_1->GetRootGraph());
   model->SetWeight(Buffer(512));
   ge_submodel_1->SetSubgraphInstanceNameToModel("subgraph-1", model);
-  submodel_1.model = FlowModelHelper::ToPneModel(ge_submodel_1);
-
+  ModelData model_data_1{};
+  ModelBufferData model_buffer_data_1;
+  auto ret = SaveGeRootModelToModelData(ge_submodel_1, model_data_1, model_buffer_data_1);
+  EXPECT_EQ(ret, SUCCESS);
+  submodel_1.model = FlowModelHelper::ToPneModel(model_data_1, ge_submodel_1->GetRootGraph());
 
   deploy_plan.queue_bindings_.emplace_back(0, 4);
   deploy_plan.queue_bindings_.emplace_back(5, 2);
@@ -603,7 +645,11 @@ DeployPlan StubModels::BuildSingleModelDeployPlanWithDummyQ(int32_t remote_node_
   model->SetGraph(ge_submodel_1->GetRootGraph());
   model->SetWeight(Buffer(512));
   ge_submodel_1->SetSubgraphInstanceNameToModel("subgraph-1", model);
-  submodel_1.model = FlowModelHelper::ToPneModel(ge_submodel_1);
+  ModelData model_data_1{};
+  ModelBufferData model_buffer_data_1;
+  auto ret = SaveGeRootModelToModelData(ge_submodel_1, model_data_1, model_buffer_data_1);
+  EXPECT_EQ(ret, SUCCESS);
+  submodel_1.model = FlowModelHelper::ToPneModel(model_data_1, ge_submodel_1->GetRootGraph());
 
   deploy_plan.queue_bindings_.emplace_back(0, 4);
   deploy_plan.queue_bindings_.emplace_back(5, 2);
@@ -669,7 +715,11 @@ DeployPlan StubModels::BuildSingleModelWithFileConstDeployPlan(const std::string
   model->SetGraph(ge_submodel_1->GetRootGraph());
   model->SetWeight(Buffer(512));
   ge_submodel_1->SetSubgraphInstanceNameToModel("subgraph-1", model);
-  submodel_1.model = FlowModelHelper::ToPneModel(ge_submodel_1);
+  ModelData model_data_1{};
+  ModelBufferData model_buffer_data_1;
+  auto ret = SaveGeRootModelToModelData(ge_submodel_1, model_data_1, model_buffer_data_1);
+  EXPECT_EQ(ret, SUCCESS);
+  submodel_1.model = FlowModelHelper::ToPneModel(model_data_1, ge_submodel_1->GetRootGraph());
 
   deploy_plan.queue_bindings_.emplace_back(0, 4);
   deploy_plan.queue_bindings_.emplace_back(5, 2);
@@ -729,7 +779,11 @@ DeployPlan StubModels::BuildSingleModelDeployPlanWithProxy(int32_t remote_node_i
   model->SetGraph(ge_submodel_1->GetRootGraph());
   model->SetWeight(Buffer(512));
   ge_submodel_1->SetSubgraphInstanceNameToModel("subgraph-1", model);
-  submodel_1.model = FlowModelHelper::ToPneModel(ge_submodel_1);
+  ModelData model_data_1{};
+  ModelBufferData model_buffer_data_1;
+  auto ret = SaveGeRootModelToModelData(ge_submodel_1, model_data_1, model_buffer_data_1);
+  EXPECT_EQ(ret, SUCCESS);
+  submodel_1.model = FlowModelHelper::ToPneModel(model_data_1, ge_submodel_1->GetRootGraph());
 
   deploy_plan.queue_bindings_.emplace_back(0, 4);
   deploy_plan.queue_bindings_.emplace_back(5, 2);

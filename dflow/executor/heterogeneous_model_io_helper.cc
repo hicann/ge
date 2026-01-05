@@ -14,6 +14,8 @@
 #include "dflow/base/deploy/exchange_service.h"
 #include "graph/utils/tensor_adapter.h"
 #include "data_flow_executor_utils.h"
+#include "runtime/rt.h"
+#include "rt_error_codes.h"
 
 namespace ge {
 namespace {

@@ -10,6 +10,9 @@
 
 #include "dflow/inc/data_flow/model/flow_model.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
+#include "common/helper/model_parser_base.h"
+#include "graph/types.h"
+#include "dflow/base/model/flow_model_om_loader.h"
 
 namespace ge {
 FlowModel::FlowModel(const ComputeGraphPtr &root_graph) : PneModel(root_graph) {};
@@ -131,13 +134,5 @@ bool HcomClusterDesc::operator==(const HcomClusterDesc &rhs) const {
       (rank_table == rhs.rank_table) &&
       (device_to_rank_ids == rhs.device_to_rank_ids) &&
       (group_name_to_rank_ids == rhs.group_name_to_rank_ids);
-}
-
-Status FlowModel::AddSubModel(const GeRootModelPtr &ge_root_model, const std::string &type) {
-  GE_ASSERT_NOTNULL(ge_root_model);
-  auto graph_model = MakeShared<ge::GraphModel>(ge_root_model);
-  GE_ASSERT_NOTNULL(graph_model);
-  graph_model->SetModelType(type);
-  return PneModel::AddSubModel(graph_model, type);
 }
 }  // namespace ge

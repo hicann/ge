@@ -139,12 +139,33 @@ TEST_F(UtestFlowModelManager, TestLoadFlowModel) {
   ExecutionRuntime::SetExecutionRuntime(make_shared<MockExecutionRuntime>());
   auto graph = std::make_shared<ComputeGraph>("root-graph");
   auto root_model = std::make_shared<GeRootModel>();
-  root_model->Initialize(graph);
+  EXPECT_EQ(root_model->Initialize(graph), SUCCESS);
+  auto ge_model = MakeShared<ge::GeModel>();
+  auto model_task_def = MakeShared<domi::ModelTaskDef>();
+  model_task_def->set_version("test_v100_r001");
+  ge_model->SetModelTaskDef(model_task_def);
+  ge_model->SetName(graph->GetName());
+  ge_model->SetGraph(graph);
+  root_model->SetModelName(graph->GetName());	
+  root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);	
   auto flow_root_model = ge::MakeShared<ge::FlowModel>();
   EXPECT_NE(flow_root_model, nullptr);
   flow_root_model->root_graph_ = std::make_shared<ComputeGraph>("root-graph");
   flow_root_model->model_relation_.reset(new ModelRelation());
-  (void)flow_root_model->AddSubModel(root_model);
+  bool is_unknown_shape = false;
+  auto ret = root_model->CheckIsUnknownShape(is_unknown_shape);
+  EXPECT_EQ(ret, SUCCESS);
+  ModelBufferData model_buffer_data{};
+  const auto model_save_helper =
+    ModelSaveHelperFactory::Instance().Create(OfflineModelFormat::OM_FORMAT_DEFAULT);
+  EXPECT_NE(model_save_helper, nullptr);
+  model_save_helper->SetSaveMode(false);
+  ret = model_save_helper->SaveToOmRootModel(root_model, "NoUse", model_buffer_data, is_unknown_shape);
+  EXPECT_EQ(ret, SUCCESS);
+  ModelData model_data{};
+  model_data.model_data = model_buffer_data.data.get();
+	model_data.model_len = model_buffer_data.length;
+  (void)flow_root_model->AddSubModel(FlowModelHelper::ToPneModel(model_data, graph));
 
   FlowModelManager model_manager;
 

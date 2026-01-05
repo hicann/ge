@@ -11,15 +11,16 @@
 #ifndef DFLOW_INC_MODEL_GRAPH_MODEL_H_
 #define DFLOW_INC_MODEL_GRAPH_MODEL_H_
 #include "dflow/inc/data_flow/model/pne_model.h"
-#include "common/model/ge_root_model.h"
 namespace ge {
 class GraphModel : public PneModel {
  public:
-  explicit GraphModel(const GeRootModelPtr &ge_root_model);
-  ~GraphModel() override = default;
+  explicit GraphModel(const ComputeGraphPtr compute_graph);
+  ~GraphModel() override;
 
-  GeRootModelPtr GetGeRootModel() const {
-    return ge_root_model_;
+  Status Init(const ModelData &model_data);
+
+  ModelData& GetModelData() {
+    return model_data_;
   }
 
   Status SerializeModel(ModelBufferData &model_buff) override;
@@ -28,11 +29,12 @@ class GraphModel : public PneModel {
 
   void SetModelId(uint32_t model_id) override {
     PneModel::SetModelId(model_id);
-    ge_root_model_->SetModelId(model_id);
   }
 
  private:
-  GeRootModelPtr ge_root_model_;
+  ModelData model_data_;
 };
+
+using GraphModelPtr = std::shared_ptr<GraphModel>;
 }  // namespace ge
 #endif  // DFLOW_INC_MODEL_GRAPH_MODEL_H_

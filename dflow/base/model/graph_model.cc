@@ -10,28 +10,50 @@
 
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "framework/common/helper/model_helper.h"
+#include "framework/omg/version.h"
 
 namespace ge {
 
-GraphModel::GraphModel(const GeRootModelPtr &ge_root_model)
-    : PneModel(ge_root_model->GetRootGraph()), ge_root_model_(ge_root_model) {
-  PneModel::SetModelName(ge_root_model->GetModelName());
-  PneModel::SetModelId(ge_root_model->GetModelId());
+GraphModel::~GraphModel() {
+  delete[] static_cast<char *>(model_data_.model_data);
+  model_data_.model_data = nullptr;
 }
 
-Status GraphModel::SerializeModel(ModelBufferData &model_buff) {
-  bool is_unknown_shape = false;
-  (void)ge_root_model_->CheckIsUnknownShape(is_unknown_shape);
-  ModelHelper model_helper;
-  model_helper.SetSaveMode(false);
-  GE_CHK_STATUS_RET(model_helper.SaveToOmRootModel(ge_root_model_, "no-output.om", model_buff, is_unknown_shape),
-                    "[Serialize][Submodel] failed, model_name = [%s]", GetModelName().c_str());
-  GELOGD("[Serialize][Submodel] succeeded, model_name = [%s], size = %lu", GetModelName().c_str(), model_buff.length);
+GraphModel::GraphModel(const ComputeGraphPtr compute_graph)
+    : PneModel(compute_graph) {
+  PneModel::SetModelName(compute_graph->GetName());
+  PneModel::SetModelId(compute_graph->GetGraphID());
+}
+
+Status GraphModel::Init(const ModelData &model_data) {
+  char *const model_data_addr = new (std::nothrow) char[model_data.model_len];
+  if (model_data_addr == nullptr) {
+    REPORT_INNER_ERR_MSG("E19999", "new an object failed.");
+    GELOGE(FAILED, "new an object failed. Length: [%zu].", model_data.model_len);
+    return FAILED;
+  }
+  if (memcpy_s(model_data_addr, model_data.model_len, model_data.model_data, model_data.model_len) != EOK) {
+      GELOGE(FAILED, "Failed to copy data, dst size=%zu, src size=%zu", model_data.model_len, model_data.model_len);
+      delete[] static_cast<char *>(model_data_addr);
+      model_data_.model_data = nullptr;
+      return FAILED;
+  }
+  model_data_.model_data = static_cast<void*>(model_data_addr);
+  model_data_.model_len = model_data.model_len;
   return SUCCESS;
 }
 
-Status GraphModel::UnSerializeModel(const ModelBufferData &model_buff) {
-  (void)model_buff;
+Status GraphModel::SerializeModel(ModelBufferData &model_buffer) {
+  model_buffer.length = model_data_.model_len;
+  model_buffer.data = std::shared_ptr<uint8_t>(PtrToPtr<void, uint8_t>(model_data_.model_data),
+                                                   [](const uint8_t *const pointer) { (void)pointer; });
+  GELOGD("[Serialize][Submodel] succeeded, model_name = [%s], size = %lu", 
+                  GetModelName().c_str(), model_buffer.length);
+  return SUCCESS;
+}
+
+Status GraphModel::UnSerializeModel(const ModelBufferData &model_buffer) {
+  (void)model_buffer;
   return SUCCESS;
 }
 }  // namespace ge

@@ -19,6 +19,8 @@
 #include "dflow/compiler/model/flow_model_cache.h"
 #include "api/session/jit_execution/utils/guarded_execution_point_util.h"
 #include "graph/optimize/symbolic/shape_env_guarder.h"
+#include "framework/common/helper/model_save_helper.h"
+#include "dflow/inc/data_flow/model/flow_model_helper.h"
 #undef private
 #undef protected
 using namespace ge;
@@ -166,8 +168,19 @@ void SliceResultMocker::GenOmFile(const std::string &cache_dir,
   GetThreadLocalContext().SetSessionOption({{"ge.graph_compiler_cache_dir", cache_dir + "/jit/"}});
   GetThreadLocalContext().SetGraphOption({{"ge.graph_key", graph_key}});
   GeRootModelPtr ge_root_model = BuildGeRootModel(graph->GetName(), graph);
+  ModelData model_data{};
+  ModelBufferData model_buffer_data;
+  bool is_unknown_shape = false;
+  EXPECT_EQ(ge_root_model->CheckIsUnknownShape(is_unknown_shape), SUCCESS);
+  const auto model_save_helper =
+      ModelSaveHelperFactory::Instance().Create(OfflineModelFormat::OM_FORMAT_DEFAULT);
+  EXPECT_NE(model_save_helper, nullptr);
+  model_save_helper->SetSaveMode(false);
+  EXPECT_EQ(model_save_helper->SaveToOmRootModel(ge_root_model, "NoUse", model_buffer_data, is_unknown_shape), SUCCESS);
+  model_data.model_data = model_buffer_data.data.get();
+	model_data.model_len = model_buffer_data.length;
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
-  EXPECT_EQ(flow_model->AddSubModel(ge_root_model, PNE_ID_NPU), SUCCESS);
+  EXPECT_EQ(flow_model->AddSubModel(FlowModelHelper::ToPneModel(model_data, graph), PNE_ID_NPU), SUCCESS);
 
   {
     FlowModelCache flow_model_cache;

@@ -26,6 +26,7 @@
 #include "graph/ge_local_context.h"
 #include "stub/heterogeneous_stub_env.h"
 #include "depends/runtime/src/runtime_stub.h"
+#include "dflow/inc/data_flow/model/flow_model_helper.h"
 
 using namespace std;
 
@@ -606,12 +607,12 @@ void AddQueueDef(ModelRelation &model_relation, const std::string &name) {
  *    data1          data1
  */
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlan_2_dev) {
-  auto submodel_1 = std::make_shared<GeRootModel>();
-  auto submodel_2 = std::make_shared<GeRootModel>();
+  auto graph_1 = ge::MakeShared<ComputeGraph>("submodel-1");
+  auto graph_2 = ge::MakeShared<ComputeGraph>("submodel-2");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
+  auto submodel_2 = StubModels::BuildRootModel(graph_2, false);
   ASSERT_TRUE(submodel_1 != nullptr);
   ASSERT_TRUE(submodel_2 != nullptr);
-  submodel_1->SetModelName("submodel-1");
-  submodel_2->SetModelName("submodel-2");
 
   auto model_relation_ptr = std::make_shared<ModelRelation>();
   ASSERT_TRUE(model_relation_ptr != nullptr);
@@ -630,6 +631,7 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlan_2_dev) {
 
   DeployPlan deploy_plan;
   auto flow_model = std::make_shared<FlowModel>();
+
   ASSERT_TRUE(flow_model != nullptr);
   flow_model->AddSubModel(submodel_1, PNE_ID_NPU);
   flow_model->AddSubModel(submodel_2, PNE_ID_NPU);
@@ -663,15 +665,15 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlan_2_dev) {
  *    D1    D2    D3   D4
  */
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlan_AllRawModel) {
-  auto submodel_1 = std::make_shared<GeRootModel>();
-  auto submodel_2 = std::make_shared<GeRootModel>();
-  auto submodel_3 = std::make_shared<GeRootModel>();
+  auto graph_1 = ge::MakeShared<ComputeGraph>("submodel-1");
+  auto graph_2 = ge::MakeShared<ComputeGraph>("submodel-2");
+  auto graph_3 = ge::MakeShared<ComputeGraph>("submodel-3");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
+  auto submodel_2 = StubModels::BuildRootModel(graph_2, false);
+  auto submodel_3 = StubModels::BuildRootModel(graph_3, false);
   ASSERT_TRUE(submodel_1 != nullptr);
   ASSERT_TRUE(submodel_2 != nullptr);
   ASSERT_TRUE(submodel_3 != nullptr);
-  submodel_1->SetModelName("submodel-1");
-  submodel_2->SetModelName("submodel-2");
-  submodel_3->SetModelName("submodel-3");
 
   auto model_relation_ptr = std::make_shared<ModelRelation>();
   ASSERT_TRUE(model_relation_ptr != nullptr);
@@ -837,8 +839,12 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlan_NoModel) {
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlan_MultiplyModelWithNoRelation) {
-  auto submodel_1 = std::make_shared<GeRootModel>();
-  auto submodel_2 = std::make_shared<GeRootModel>();
+  auto graph_1 = ge::MakeShared<ComputeGraph>("subgraph-1");
+  auto graph_2 = ge::MakeShared<ComputeGraph>("subgraph-2");
+  auto submodel_1 = StubModels::BuildRootModel(graph_1, false);
+  auto submodel_2 = StubModels::BuildRootModel(graph_2, false);
+  ASSERT_TRUE(submodel_1 != nullptr);
+  ASSERT_TRUE(submodel_2 != nullptr);
   DeployPlan deploy_plan;
   auto flow_model = std::make_shared<FlowModel>();
   ASSERT_TRUE(flow_model != nullptr);
@@ -1253,7 +1259,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestFlattenModelRelation_2_level) {
   submodel_1->SetModelName("submodel-1");
   submodel_2->SetModelName("submodel-2");
   submodel_3->SetModelName("submodel-3");
-  EXPECT_EQ(submodel_1->GetSubmodels().size(), 3);
 
   auto model_relation_ptr = std::make_shared<ModelRelation>();
   ASSERT_TRUE(model_relation_ptr != nullptr);

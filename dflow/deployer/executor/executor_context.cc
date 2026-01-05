@@ -15,9 +15,9 @@
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "executor/cpu_sched_event_dispatcher.h"
 #include "executor/proxy_dynamic_model_executor.h"
+#include "executor/dynamic_model_executor.h"
 #include "cpu_tasks.h"
 #include "framework/executor/ge_executor.h"
-#include "graph/manager/graph_var_manager.h"
 #include "graph/ge_context.h"
 #include "graph/manager/mem_manager.h"
 #include "runtime/mem.h"
@@ -34,6 +34,12 @@
 #include "framework/common/helper/model_helper.h"
 #include "toolchain/prof_api.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
+#include "external/ge/ge_ir_build.h"
+#include "acl/acl_mdl.h"
+#include "acl/acl_rt.h"
+#include "external/graph/types.h"
+#include "dflow/base/model/flow_model_om_loader.h"
+#include "graph/utils/op_type_utils.h"
 
 namespace ge {
 namespace {
@@ -176,7 +182,8 @@ Status ExecutorContext::ParseModel(uint32_t root_model_id, uint32_t model_id, co
   if (model != nullptr) {
     auto graph_model = std::dynamic_pointer_cast<GraphModel>(model);
     GE_CHECK_NOTNULL(graph_model, "cast to graph model failed, model name=%s", model->GetModelName().c_str());
-    handle->SetModel(graph_model->GetGeRootModel());
+    handle->SetModelData(graph_model->GetModelData());
+    handle->SetRootGraph(graph_model->GetRootGraph());
     GELOGI("Parse model from cache success");
     return SUCCESS;
   }
@@ -213,6 +220,11 @@ ExecutorContext::ModelHandle::~ModelHandle() {
   if (loaded_) {
     (void) UnloadModel();
   }
+  if (model_data_from_cache_ && model_data_.model_data != nullptr) {
+    delete[] static_cast<char_t *>(model_data_.model_data);
+    model_data_.model_data = nullptr;
+    model_data_from_cache_ = false;
+  }
 }
 
 Status ExecutorContext::SyncSharedVarManager(const deployer::ExecutorRequest &request) const {
@@ -220,47 +232,20 @@ Status ExecutorContext::SyncSharedVarManager(const deployer::ExecutorRequest &re
   const auto &var_manager_info = sync_var_manager_request.var_manager_info();
   auto session_id = var_manager_info.session_id();
   GELOGI("Init var manager, session id is %zu.", session_id);
-  auto var_manager = VarManager::Instance(session_id);
-  GE_CHECK_NOTNULL(var_manager);
-
-  if (GetContext().GetHostExecFlag()) {
-    GELOGI("Begin to init var manager on host cpu executor progress, session_id = %zu.", session_id);
-    int32_t version = static_cast<int32_t>(SessionVersion::ClOUD_VERSION);
-    const int32_t device_id = 0;
-    const int32_t job_id = 0;
-    return var_manager->Init(version, session_id, device_id, job_id);
-  }
-
-  GE_CHK_STATUS_RET(var_manager->VarManagerToDeserial(session_id, var_manager_info),
-                    "Failed to init var manager, session id is %zu.", session_id);
 
   const std::vector<rtMemType_t> mem_type{RT_MEMORY_HBM, RT_MEMORY_P2P_DDR};
   auto &var_mem_manager = SharedMemoryManager::GetInstance();
   GE_CHK_STATUS_RET(var_mem_manager.Initialize(mem_type),
                     "[Init][MemManager] MemoryAllocatorManager initialize failed.");
-  var_manager->SetMemManager(&var_mem_manager);
   int32_t device_id = -1;
   GE_CHK_RT_RET(rtGetDevice(&device_id));
   GELOGD("SyncSharedVarManager get device_id[%d] success", device_id);
   for (const auto &shared_content_desc : sync_var_manager_request.shared_content_descs()) {
     GeTensorDesc tensor_desc;
     GeTensorSerializeUtils::AssembleGeTensorDescFromProto(&shared_content_desc.tensor_desc(), tensor_desc);
-    var_manager->SetVarIsReady(shared_content_desc.node_name(), tensor_desc, device_id);
   }
 
   GELOGI("Init var manager successfully, session_id = %lu.", session_id);
-  return SUCCESS;
-}
-
-Status ExecutorContext::LoadVarManager(const deployer::ExecutorRequest &request) {
-  auto &message = request.batch_load_model_message();
-  const auto &var_manager_info = message.var_manager_info();
-  auto session_id = var_manager_info.session_id();
-  GELOGI("Init var manager, session id is %zu.", session_id);
-  auto var_manager = VarManager::Instance(session_id);
-  GE_CHECK_NOTNULL(var_manager);
-  GE_CHK_STATUS_RET(var_manager->VarManagerToDeserial(session_id, var_manager_info),
-                    "Failed to init var manager, session id is %zu.", session_id);
   return SUCCESS;
 }
 
@@ -570,14 +555,22 @@ Status ExecutorContext::UpdateProfInfo(const deployer::ExecutorRequest &request)
   return SUCCESS;
 }
 
-Status ExecutorContext::ModelHandle::GetModel(GeRootModelPtr &root_model) {
-  GE_ASSERT_NOTNULL(root_model_);
-  root_model = root_model_;
+Status ExecutorContext::ModelHandle::GetModelData(ModelData &model_data) {
+  model_data = model_data_;
   return SUCCESS;
 }
 
-void ExecutorContext::ModelHandle::SetModel(const GeRootModelPtr &root_model) {
-  root_model_ = root_model;
+void ExecutorContext::ModelHandle::SetModelData(const ModelData &model_data) {
+  model_data_ = model_data;
+}
+
+Status ExecutorContext::ModelHandle::GetRootGraph(ComputeGraphPtr &root_graph) {
+  root_graph = root_graph_;
+  return SUCCESS;
+}
+
+void ExecutorContext::ModelHandle::SetRootGraph(const ComputeGraphPtr &root_graph) {
+  root_graph_ = root_graph;
 }
 
 Status ExecutorContext::ModelHandle::GetModelRuntimeIdOrHandle(std::vector<uint32_t> &davinci_model_runtime_ids,
@@ -614,17 +607,10 @@ Status ExecutorContext::ModelHandle::ParseModel(const std::string &model_path) {
   ge::ModelData model{};
   GE_CHK_STATUS_RET(ModelParserBase::LoadFromFile(model_path.c_str(), 0, model),
                     "Load model from file[%s] failed.", model_path.c_str());
-  GE_MAKE_GUARD(model_guard, [&model]() {
-    if (model.model_data != nullptr) {
-      delete[] static_cast<char_t *>(model.model_data);
-      model.model_data = nullptr;
-    }
-  });
-  ModelHelper model_helper;
-  const auto ret = model_helper.LoadRootModel(model);
-  GE_CHK_STATUS_RET(ret, "load ge root model failed, file=%s.", model_path.c_str());
-  root_model_ = model_helper.GetGeRootModel();
-  GE_CHECK_NOTNULL(root_model_);
+  GE_CHK_STATUS_RET(FlowModelOmLoader::TransModelDataToComputeGraph(model, root_graph_), "Failed to trans Modeldata to ComputeGraph");
+  GE_CHECK_NOTNULL(root_graph_, "load root graph is null");
+  model_data_ = model;
+  model_data_from_cache_ = true;
   return SUCCESS;
 }
 
@@ -633,16 +619,19 @@ Status ExecutorContext::ModelHandle::LoadModel(const LoadParam &param) {
     GELOGW("Already loaded");
     return SUCCESS;
   }
-  GeRootModelPtr root_model;
-  GE_CHK_STATUS_RET_NOLOG(GetModel(root_model));
-  GE_CHK_STATUS_RET(DoLoadModel(root_model, param), "Do load model failed.");
+  ModelData model_data;
+  ComputeGraphPtr root_graph;
+  GE_CHK_STATUS_RET_NOLOG(GetRootGraph(root_graph));
+  GE_CHK_STATUS_RET_NOLOG(GetModelData(model_data));
+  GE_CHK_STATUS_RET(DoLoadModel(model_data, root_graph, param), "Do load model failed.");
   loaded_ = true;
   return SUCCESS;
 }
 
-Status ExecutorContext::ModelHandle::DoLoadModel(const std::shared_ptr<GeRootModel> &root_model,
+Status ExecutorContext::ModelHandle::DoLoadModel(const ModelData &model_data,
+                                                 const ComputeGraphPtr &root_graph,
                                                  const LoadParam &params) {
-  return DoLoadModelWithQ(root_model, params);
+  return DoLoadModelWithQ(model_data, root_graph, params);
 }
 
 Status ExecutorContext::ModelHandle::UnloadModel() {
@@ -673,7 +662,8 @@ Status ExecutorContext::ModelHandle::CheckAicpuAlignTask(const InputAlignAttrs &
   return SUCCESS;
 }
 
-Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const std::shared_ptr<GeRootModel> &root_model,
+Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const ModelData &model_data,
+                                                      const ComputeGraphPtr &root_graph,
                                                       const LoadParam &params) {
   ModelQueueParam model_queue_param;
   model_queue_param.group_total_count = params.replica_num;
@@ -693,13 +683,13 @@ Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const std::shared_ptr<GeRo
   model_queue_param.is_dynamic_sched = params.is_dynamic_sched;
   model_queue_param.need_report_status = params.need_report_status;
   model_queue_param.is_head = params.is_head;
-  (void)AttrUtils::GetBool(root_model_->GetRootGraph(), ATTR_NAME_DATA_FLOW_UDF_INVOKED_NN, is_invoked_nn_);
+  (void)AttrUtils::GetBool(root_graph, ATTR_NAME_DATA_FLOW_UDF_INVOKED_NN, is_invoked_nn_);
   // invoked nn no need align
   if (!is_invoked_nn_) {
     model_queue_param.input_align_attrs = params.input_align_attrs;
   }
   bool dflow_invoked_by_built_in = false;
-  (void)AttrUtils::GetBool(root_model_->GetRootGraph(), kAttrNameInvokedByBuiltIn,
+  (void)AttrUtils::GetBool(root_graph, kAttrNameInvokedByBuiltIn,
                            dflow_invoked_by_built_in);
   model_queue_param.need_check_inputs = !dflow_invoked_by_built_in;
   model_queue_param.need_model_config = true;
@@ -708,7 +698,8 @@ Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const std::shared_ptr<GeRo
   model_queue_param.copy_inputs_for_non_zero_copy = true;
   bool is_host = GetContext().GetHostExecFlag();
   bool is_dynamic = false;
-  GE_CHK_STATUS_RET_NOLOG(root_model->CheckIsUnknownShape(is_dynamic));
+  (void)AttrUtils::GetBool(root_graph, ATTR_NAME_DYNAMIC_SHAPE_PARTITIONED, is_dynamic);
+  is_dynamic = (is_dynamic || (root_graph->GetGraphUnknownFlag()));
   GE_TIMESTAMP_START(LoadModel);
   // dynamic model loaded on host
   if (is_dynamic_proxy_controlled_) {
@@ -723,7 +714,7 @@ Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const std::shared_ptr<GeRo
     dynamic_model_executor_ = CreateProxyDynamicModelExecutor();
     GE_CHECK_NOTNULL(dynamic_model_executor_);
     GE_CHK_STATUS_RET_NOLOG(dynamic_model_executor_->Initialize());
-    GE_CHK_STATUS_RET_NOLOG(dynamic_model_executor_->LoadModel(root_model, model_queue_param));
+    GE_CHK_STATUS_RET_NOLOG(dynamic_model_executor_->LoadModel(model_data, root_graph, model_queue_param));
     GE_TIMESTAMP_EVENT_END(LoadModel, "LoadDynamicModel");
     GELOGD("[LoadProxyDynamicModel] success");
     return SUCCESS;
@@ -740,38 +731,57 @@ Status ExecutorContext::ModelHandle::DoLoadModelWithQ(const std::shared_ptr<GeRo
                         "local aicpu does not support exception catch.");
     }
     dynamic_model_executor_->SetModelEschedPriority(esched_process_priority_, esched_event_priority_);
-    GE_CHK_STATUS_RET_NOLOG(dynamic_model_executor_->LoadModel(root_model, model_queue_param));
+    GE_CHK_STATUS_RET_NOLOG(dynamic_model_executor_->LoadModel(model_data, root_graph, model_queue_param));
     GE_TIMESTAMP_EVENT_END(LoadModel, "LoadDynamicModel");
     GELOGD("[LoadDynamicModel] success");
     return SUCCESS;
   }
   // static model
+  aclError ret;
   GELOGD("Load static model, replica_num = %u, replica_idx = %u, is_dynamic = %d, is_dynamic_proxy_controlled = %d.",
          params.replica_num, params.replica_idx, static_cast<int32_t>(is_dynamic),
          static_cast<int32_t>(is_dynamic_proxy_controlled_));
-  GeExecutor executor;
+  std::vector<FileConstantMem> external_weight_mem_data{}; 
+  GE_CHK_STATUS_RET(DynamicModelExecutor::InitExternalWeightMem(root_graph, external_weight_mem_data), "Failed to init external weright mem.");
   if (params.input_queues.empty() && params.output_queues.empty()) {
-    // it is temporary solution for diagrams without input and output queue in helper.
-    GE_CHK_STATUS_RET(executor.LoadModelWithoutQ(inner_model_id_, root_model), "[LoadModelWithoutQ] failed");
-    GE_TIMESTAMP_EVENT_END(LoadModel, "LoadModelWithoutQ");
+    handle_ = aclmdlCreateConfigHandle();
+    GE_CHECK_NOTNULL(handle_, "Create acl load config handle failed.");
+    GE_CHK_STATUS_RET(DynamicModelExecutor::GenerateLoadConfig(model_data, external_weight_mem_data, handle_));
+    ret = aclmdlLoadWithConfig(handle_, &inner_model_id_);
+    if (ret != ACL_SUCCESS) {
+      GELOGE(FAILED, "Failed to load model");
+      (void) aclmdlDestroyConfigHandle(handle_);
+      handle_ = nullptr;
+      return FAILED;
+    }
+    GELOGI("Load static model[%u] on success.", inner_model_id_);
   } else {
+    GeExecutor executor;
     if (IsEnableExceptionCatch()) {
       GE_CHK_STATUS_RET(CpuTasks::CheckSupportExceptionNotify(), "aicpu not support exception catch.");
     }
     GE_CHK_STATUS_RET(CpuTasks::ExecuteModelEschedPriorityTask(esched_process_priority_, esched_event_priority_));
     GE_CHK_STATUS_RET(CheckAicpuAlignTask(model_queue_param.input_align_attrs),
                       "[Check][Algin] attrs failed.");
-    GE_CHK_STATUS_RET(executor.LoadModelWithQ(inner_model_id_, root_model, model_queue_param),
-                      "[LoadModelWithQ] failed");
+    if (!external_weight_mem_data.empty()) {
+      model_queue_param.file_constant_mems = &external_weight_mem_data;
+    }
+    GE_CHK_STATUS_RET(executor.LoadModelWithQueueParam(inner_model_id_, model_data, model_queue_param), "[LoadModelWithQueueParam] failed");
     GE_TIMESTAMP_EVENT_END(LoadModel, "LoadModelWithQ");
   }
   GELOGI("[LoadModelWithQ] success, model_id = %u, model_name = %s",
-         inner_model_id_, root_model->GetModelName().c_str());
+         inner_model_id_, root_graph->GetName().c_str());
   return SUCCESS;
 }
 
-Status ExecutorContext::ModelHandle::DoUnloadModel(uint32_t model_id) const {
-  GE_CHK_STATUS_RET(GeExecutor().UnloadModel(model_id), "Unload model[%u] faield.", model_id);
+Status ExecutorContext::ModelHandle::DoUnloadModel(uint32_t model_id) {
+  if (handle_ != nullptr) {
+    (void) aclmdlUnload(model_id);
+    (void) aclmdlDestroyConfigHandle(handle_);
+    handle_ = nullptr;
+  } else {
+    GE_CHK_STATUS_RET(GeExecutor().UnloadModel(model_id), "Unload model[%u] faield.", model_id);
+  }
   return SUCCESS;
 }
 

@@ -34,7 +34,7 @@ class MockMmpa : public MmpaStubApiGe {
 class ModelHandleMock : public ExecutorContext::ModelHandle {
  public:
   explicit ModelHandleMock() : ModelHandle() {}
-  MOCK_CONST_METHOD1(DoUnloadModel, Status(const uint32_t));
+  MOCK_METHOD1(DoUnloadModel, Status(const uint32_t));
   MOCK_METHOD1(ParseModel, Status(const std::string &));
   MOCK_METHOD1(LoadModel, Status(const LoadParam &));
 };
@@ -81,6 +81,7 @@ TEST_F(BuiltinThreadClientTest, TestLoadAndUnloadModel) {
   };
 
   auto mock_model_handle2 = MakeUnique<ModelHandleMock>();
+  auto &ref_mock_handle2 = *mock_model_handle2;
   std::map<uint32_t, std::unique_ptr<ExecutorContext::ModelHandle>> submodel_map;
   submodel_map[0] = std::move(mock_model_handle2);
   EXPECT_CALL(mock_context, GetOrCreateModelHandle).WillRepeatedly(testing::Invoke(MockCreateModelHandle));
@@ -93,6 +94,11 @@ TEST_F(BuiltinThreadClientTest, TestLoadAndUnloadModel) {
   EXPECT_CALL(mock_context, GetOrCreateModelHandle).WillRepeatedly(testing::Invoke(MockCreateModelHandle));
   EXPECT_CALL(ref_mock_handle, ParseModel).WillRepeatedly(testing::Return(SUCCESS));
   EXPECT_CALL(ref_mock_handle, LoadModel).WillRepeatedly(testing::Return(SUCCESS));
+  EXPECT_CALL(ref_mock_handle, DoUnloadModel).WillRepeatedly(testing::Return(SUCCESS));
+
+  EXPECT_CALL(ref_mock_handle2, ParseModel).WillRepeatedly(testing::Return(SUCCESS));
+  EXPECT_CALL(ref_mock_handle2, LoadModel).WillRepeatedly(testing::Return(SUCCESS));
+  EXPECT_CALL(ref_mock_handle2, DoUnloadModel).WillRepeatedly(testing::Return(SUCCESS));
 
   deployer::ExecutorRequest_BatchLoadModelMessage batch_load_model_request;
   batch_load_model_request.set_rank_table("rank_table");

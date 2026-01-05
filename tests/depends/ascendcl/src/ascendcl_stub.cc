@@ -24,6 +24,196 @@ static int32_t g_cnt_rtStreamSynchronize_fail = 0;
 #define EVENT_LENTH 10
 #define NOTIFY_LENTH 10
 
+#define ACL_DELETE_AND_SET_NULL(var) \
+    do { \
+        if ((var) != nullptr) { \
+            delete (var); \
+            (var) = nullptr; \
+        } \
+    } \
+    while (false)
+
+#define ACL_DELETE_ARRAY_AND_SET_NULL(var) \
+    do { \
+        if ((var) != nullptr) { \
+            delete[] (var); \
+            (var) = nullptr; \
+        } \
+    } \
+    while (false)
+
+enum class AttrRangeTypeStub : std::uint8_t {
+    RANGE_TYPE,
+    VALUE_TYPE
+};
+
+
+struct aclTensorDescStub {
+    aclTensorDescStub(const aclDataType aclTensorDataType, const std::initializer_list<int64_t> shape,
+        const aclFormat aclTensorFormat);
+    aclTensorDescStub(const aclDataType aclTensorDataType, const size_t numDims, const int64_t *const aclTensorDims,
+        const aclFormat aclTensorFormat) : dataType(aclTensorDataType), format(aclTensorFormat) {
+      for (size_t i = 0U; i < numDims; ++i) {
+        this->dims.push_back(*(aclTensorDims + i));
+      }
+    }
+    aclTensorDescStub(const aclTensorDescStub &tensorDesc);
+    aclTensorDescStub &operator=(const aclTensorDescStub &tensorDesc);
+    aclTensorDescStub() = default;
+    ~aclTensorDescStub() = default;
+    aclDataType dataType;
+    aclFormat storageFormat = ACL_FORMAT_UNDEFINED;
+    aclFormat format;
+    ge::SmallVector<int64_t, static_cast<size_t>(8)> dims;
+    ge::SmallVector<int64_t, static_cast<size_t>(8)> dimsBackup;
+    ge::SmallVector<int64_t, static_cast<size_t>(8)> storageDims;
+    ge::SmallVector<int64_t, static_cast<size_t>(8)> storageDimsBackup;
+    std::string name;
+    std::vector<std::pair<int64_t, int64_t>> shapeRange;
+    std::vector<std::pair<int64_t, int64_t>> shapeRangeBackup;
+    void *address = nullptr;
+    std::string dynamicInputName;
+    bool isConst = false;
+    std::shared_ptr<void> constDataBuf;
+    size_t constDataLen = 0U;
+    bool isConstBackup = false;
+    std::shared_ptr<void> constDataBufBackup;
+    size_t constDataLenBackup = 0U;
+    aclMemType memtype = ACL_MEMTYPE_DEVICE;
+    // valRange is set from aclSetTensorValueRange
+    std::vector<std::pair<int64_t, int64_t>> valRange;
+    // for windows compile,use map ignore dvpp.so find the implementation GeAttrValue
+    std::map<AttrRangeTypeStub, ge::GeAttrValue> valueRange;
+    std::string DebugString() const;
+    bool IsSameTensor(const aclTensorDescStub *const other) const;
+    bool IsDynamicTensor() const;
+    bool CheckShapeRange() const;
+    bool IsConstTensor() const
+    {
+        return isConst;
+    }
+    bool IsHostMemTensor() const
+    {
+        return (memtype == ACL_MEMTYPE_HOST) || (memtype == ACL_MEMTYPE_HOST_COMPILE_INDEPENDENT);
+    }
+    inline bool IsOptinalTensor() const
+    {
+        return (dataType == ACL_DT_UNDEFINED) && (format == ACL_FORMAT_UNDEFINED) && (dims.empty());
+    }
+    void Init(const aclTensorDescStub &tensorDesc);
+    void UpdateTensorShape(const std::vector<int64_t> &shape);
+    void UpdateTensorShapeRange(const std::vector<std::pair<int64_t, int64_t>> &ranges);
+    inline bool CheckConstTensor(const bool needCheckHostMem) const
+    {
+        return isConst || (needCheckHostMem && (memtype == ACL_MEMTYPE_HOST));
+    }
+
+    bool operator==(const aclTensorDescStub *const other) const;
+    void BackupDimsAndShapeRanges();
+    void RecoverDimsAndShapeRanges();
+    void BackupConst();
+    void RecoverConst();
+
+private:
+    mutable std::string cachedKey;
+    mutable std::string cachedShapeKey;
+};
+
+struct aclDataBufferStub {
+    aclDataBufferStub(void* const dataIn, const uint64_t len) : data(dataIn), length(len)
+    {
+    }
+
+    ~aclDataBufferStub() = default;
+    void *data;
+    uint64_t length;
+};
+
+struct AclModelTensorStub {
+    AclModelTensorStub(aclDataBufferStub *const dataBufIn,
+        aclTensorDescStub *const tensorDescIn) : dataBuf(dataBufIn), tensorDesc(tensorDescIn)
+    {
+    }
+
+    ~AclModelTensorStub() = default;
+    aclDataBufferStub *dataBuf;
+    aclTensorDescStub *tensorDesc;
+};
+
+typedef void (*FnDestroyStub)(void *);
+
+typedef struct {
+  size_t itemSize;
+  size_t size;
+  size_t capacity;
+  uint8_t *data;
+  FnDestroyStub pfnDestroyItem;
+} VectorStub;
+
+struct aclmdlDescStub {
+  uint32_t modelId;
+  VectorStub inputDesc;
+  VectorStub outputDesc;
+};
+
+struct aclmdlDatasetStub {
+    aclmdlDatasetStub()
+        : seq(0U),
+          modelId(0U),
+          timestamp(0U),
+          timeout(0U),
+          requestId(0U),
+          dynamicBatchSize(0U),
+          dynamicResolutionHeight(0U),
+          dynamicResolutionWidth(0U) {}
+    ~aclmdlDatasetStub() = default;
+    uint32_t seq;
+    uint32_t modelId;
+    std::vector<AclModelTensorStub> blobs;
+    uint32_t timestamp;
+    uint32_t timeout;
+    uint64_t requestId;
+    uint64_t dynamicBatchSize;
+    uint64_t dynamicResolutionHeight;
+    uint64_t dynamicResolutionWidth;
+    std::vector<uint64_t> dynamicDims;
+};
+
+
+struct aclmdlConfigHandleStub {
+    aclmdlConfigHandleStub()
+        : priority(0),
+          mdlLoadType(0U),
+          mdlAddr(nullptr),
+          mdlSize(0U),
+          workPtr(nullptr),
+          workSize(0U),
+          weightPtr(nullptr),
+          weightSize(0U),
+          inputQ(nullptr),
+          inputQNum(0U),
+          outputQ(nullptr),
+          outputQNum(0U),
+          reuseZeroCopy(0U) {}
+    int32_t priority;
+    size_t mdlLoadType;
+    std::string loadPath;
+    void *mdlAddr;
+    size_t mdlSize;
+    void *workPtr;
+    size_t workSize;
+    void *weightPtr;
+    size_t weightSize;
+    const uint32_t *inputQ;
+    size_t inputQNum;
+    const uint32_t *outputQ;
+    size_t outputQNum;
+    size_t reuseZeroCopy;
+    std::string weightPath;
+    std::set<aclmdlConfigAttr> attrState;
+    std::vector<ge::FileConstantMem> fileConstantMem;
+};
+
 namespace ge {
 std::shared_ptr<AclRuntimeStub> AclRuntimeStub::instance_;
 std::mutex AclRuntimeStub::mutex_;
@@ -409,6 +599,223 @@ aclError AclRuntimeStub::aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t 
   *phyId = devIndex;
   return ACL_ERROR_NONE;
 }
+
+std::shared_ptr<AclApiStub> AclApiStub::instance_;
+std::mutex AclApiStub::mutex_;
+thread_local AclApiStub* AclApiStub::fake_instance_;
+AclApiStub *AclApiStub::GetInstance() {
+  const std::lock_guard<std::mutex> lock(mutex_);
+  if(fake_instance_ != nullptr){
+    return fake_instance_;
+  }
+  if (instance_ == nullptr) {
+    instance_ = std::make_shared<AclApiStub>();
+  }
+  return instance_.get();
+}
+
+
+void AclApiStub::Install(AclApiStub* instance) {
+  fake_instance_ = instance;
+}
+
+void AclApiStub::UnInstall(AclApiStub*) {
+  fake_instance_ = nullptr;
+}
+
+
+aclError AclApiStub::aclInit(const char *configPath) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclFinalize() {
+  return ACL_SUCCESS;
+}
+
+aclDataBuffer *AclApiStub::aclCreateDataBuffer(void *data, size_t size) {
+  if (data == nullptr || size <= 0) {
+    return nullptr;
+  }
+  aclDataBufferStub *buffer = new(std::nothrow) aclDataBufferStub(data, size);
+  return reinterpret_cast<aclDataBuffer *>(buffer);
+}
+
+aclTensorDesc *AclApiStub::aclCreateTensorDesc(aclDataType dataType,
+                                  int numDims,
+                                  const int64_t *dims,
+                                  aclFormat format) {
+  if (numDims < 0) {
+    return nullptr;
+  }
+  if ((numDims > 0) && (dims == nullptr)) {
+    return nullptr;
+  }
+  aclTensorDescStub *tensor_desc = new(std::nothrow) aclTensorDescStub[1]{{dataType, static_cast<size_t>(numDims), dims, format}};
+  return reinterpret_cast<aclTensorDesc *>(tensor_desc);
+}
+
+void *AclApiStub::aclGetDataBufferAddr(const aclDataBuffer *dataBuffer) {
+  if (dataBuffer == nullptr) {
+    return nullptr;
+  }
+  aclDataBufferStub *buffer = reinterpret_cast<aclDataBufferStub *>(const_cast<aclDataBuffer *>(dataBuffer));
+  return buffer->data;
+}
+
+size_t AclApiStub::aclGetDataBufferSizeV2(const aclDataBuffer *dataBuffer) {
+  if (dataBuffer == NULL) {
+    return 0UL;
+  }
+  aclDataBufferStub *buffer = reinterpret_cast<aclDataBufferStub *>(const_cast<aclDataBuffer *>(dataBuffer));
+  return static_cast<size_t>(buffer->length);
+}
+
+aclError AclApiStub::aclGetTensorDescDimV2(const aclTensorDesc *desc, size_t index, int64_t *dimSize) {
+  if (desc == NULL) {
+    return ACL_ERROR;
+  }
+  aclTensorDescStub *stub_desc = reinterpret_cast<aclTensorDescStub *>(const_cast<aclTensorDesc *>(desc));
+  if (index >= stub_desc->dims.size()) {
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *dimSize = stub_desc->dims[index];
+  return ACL_SUCCESS;
+}
+
+aclFormat AclApiStub::aclGetTensorDescFormat(const aclTensorDesc *desc) {
+  if (desc == nullptr) {
+    return ACL_FORMAT_UNDEFINED;
+  }
+  aclTensorDescStub *stub_desc = reinterpret_cast<aclTensorDescStub *>(const_cast<aclTensorDesc *>(desc));
+  return stub_desc->format;
+}
+
+size_t AclApiStub::aclGetTensorDescNumDims(const aclTensorDesc *desc) {
+  if (desc == nullptr) {
+    return 0U;
+  }
+  aclTensorDescStub *stub_desc = reinterpret_cast<aclTensorDescStub *>(const_cast<aclTensorDesc *>(desc));
+  if ((stub_desc->dims.size() > 0U) && (stub_desc->dims[0U] == -2)) {
+    return static_cast<size_t>(ACL_UNKNOWN_RANK);
+  }
+  return stub_desc->dims.size();
+}
+
+aclDataType AclApiStub::aclGetTensorDescType(const aclTensorDesc *desc) {
+  if (desc == nullptr) {
+    return ACL_DT_UNDEFINED;
+  }
+  aclTensorDescStub *stub_desc = reinterpret_cast<aclTensorDescStub *>(const_cast<aclTensorDesc *>(desc));
+  return stub_desc->dataType;
+}
+
+aclError AclApiStub::aclmdlAddDatasetBuffer(aclmdlDataset *dataset, aclDataBuffer *dataBuffer) {
+  return ACL_SUCCESS;
+}
+
+aclmdlConfigHandle *AclApiStub::aclmdlCreateConfigHandle() {
+  aclmdlConfigHandleStub *stub_handle = new(std::nothrow) aclmdlConfigHandleStub();
+  return reinterpret_cast<aclmdlConfigHandle *>(stub_handle);
+}
+
+aclmdlDataset *AclApiStub::aclmdlCreateDataset() {
+  aclmdlDatasetStub *stub_dataset = new(std::nothrow) aclmdlDatasetStub();
+  return reinterpret_cast<aclmdlDataset *>(stub_dataset);
+}
+
+aclmdlDesc *AclApiStub::aclmdlCreateDesc() {
+  aclmdlDescStub *stub_desc = new(std::nothrow) aclmdlDescStub();
+  return reinterpret_cast<aclmdlDesc *>(stub_desc);
+}
+
+aclError AclApiStub::aclmdlDestroyDataset(const aclmdlDataset *dataset) {
+  aclmdlDatasetStub *stub_dataset = reinterpret_cast<aclmdlDatasetStub *>(const_cast<aclmdlDataset *>(dataset));
+  for (size_t i = 0U; i < stub_dataset->blobs.size(); ++i) {
+    ACL_DELETE_ARRAY_AND_SET_NULL(stub_dataset->blobs[i].tensorDesc);
+  }
+  ACL_DELETE_AND_SET_NULL(stub_dataset);
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlDestroyDesc(aclmdlDesc *modelDesc) {
+  aclmdlDescStub *stub_desc = reinterpret_cast<aclmdlDescStub *>(modelDesc);
+  ACL_DELETE_AND_SET_NULL(stub_desc);
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlExecute(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output) {
+  return ACL_SUCCESS;
+}
+
+aclDataBuffer *AclApiStub::aclmdlGetDatasetBuffer(const aclmdlDataset *dataset, size_t index) {
+  aclmdlDatasetStub *stub_dataset = reinterpret_cast<aclmdlDatasetStub *>(const_cast<aclmdlDataset *>(dataset));
+  if ((stub_dataset == nullptr) || (index >= stub_dataset->blobs.size())) {
+    return nullptr;
+  }
+
+  return reinterpret_cast<aclDataBuffer *>(stub_dataset->blobs[index].dataBuf);
+}
+
+aclTensorDesc *AclApiStub::aclmdlGetDatasetTensorDesc(const aclmdlDataset *dataset, size_t index) {
+  aclmdlDatasetStub *stub_dataset = reinterpret_cast<aclmdlDatasetStub *>(const_cast<aclmdlDataset *>(dataset));
+  if (index >= stub_dataset->blobs.size()) {
+    return nullptr;
+  }
+  return reinterpret_cast<aclTensorDesc *>(stub_dataset->blobs[index].tensorDesc);
+}
+
+aclError AclApiStub::aclmdlGetDesc(aclmdlDesc *modelDesc, uint32_t modelId) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlLoadFromMem(const void *model,  size_t modelSize, uint32_t *modelId) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlLoadWithConfig(const aclmdlConfigHandle *handle, uint32_t *modelId) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlSetConfigOpt(aclmdlConfigHandle *handle, aclmdlConfigAttr attr,
+                                  const void *attrValue, size_t valueSize) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlSetDatasetTensorDesc(aclmdlDataset *dataset,
+                                    aclTensorDesc *tensorDesc,
+                                    size_t index) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlSetExternalWeightAddress(aclmdlConfigHandle *handle, const char *weightFileName,
+                                        void *devPtr, size_t size) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlUnload(uint32_t modelId) {
+  return ACL_SUCCESS;
+}
+
+aclError AclApiStub::aclmdlDestroyConfigHandle(aclmdlConfigHandle *handle) {
+  aclmdlConfigHandleStub *stub_handle = reinterpret_cast<aclmdlConfigHandleStub *>(handle);
+  if (stub_handle == nullptr) {
+    return ACL_ERROR;
+  }
+  ACL_DELETE_AND_SET_NULL(stub_handle);
+  return ACL_SUCCESS;
+}
+
+void AclApiStub::aclDestroyTensorDesc(const aclTensorDesc *desc) {
+  aclTensorDescStub *stub_desc = reinterpret_cast<aclTensorDescStub *>(const_cast<aclTensorDesc *>(desc));
+  ACL_DELETE_ARRAY_AND_SET_NULL(stub_desc);
+}
+
+aclError AclApiStub::aclDestroyDataBuffer(const aclDataBuffer *dataBuffer) {
+  aclDataBufferStub *stub_buffer = reinterpret_cast<aclDataBufferStub *>(const_cast<aclDataBuffer *>(dataBuffer));
+  ACL_DELETE_AND_SET_NULL(stub_buffer);
+  return ACL_SUCCESS;
+}
+
 }
 
 #ifdef __cplusplus
@@ -558,6 +965,126 @@ aclError aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetDevicePhyIdByIndex(devIndex, phyId);
 }
 
+aclError aclInit(const char *configPath) {
+  return ge::AclApiStub::GetInstance()->aclInit(configPath);
+}
+
+aclError aclFinalize() {
+  return ge::AclApiStub::GetInstance()->aclFinalize();
+}
+
+aclDataBuffer *aclCreateDataBuffer(void *data, size_t size) {
+  return ge::AclApiStub::GetInstance()->aclCreateDataBuffer(data, size);
+}
+
+aclTensorDesc *aclCreateTensorDesc(aclDataType dataType,
+                                  int numDims,
+                                  const int64_t *dims,
+                                  aclFormat format) {
+  return ge::AclApiStub::GetInstance()->aclCreateTensorDesc(dataType, numDims, dims, format);
+}
+
+void *aclGetDataBufferAddr(const aclDataBuffer *dataBuffer) {
+  return ge::AclApiStub::GetInstance()->aclGetDataBufferAddr(dataBuffer);
+}
+
+size_t aclGetDataBufferSizeV2(const aclDataBuffer *dataBuffer) {
+  return ge::AclApiStub::GetInstance()->aclGetDataBufferSizeV2(dataBuffer);
+}
+
+aclError aclGetTensorDescDimV2(const aclTensorDesc *desc, size_t index, int64_t *dimSize) {
+  return ge::AclApiStub::GetInstance()->aclGetTensorDescDimV2(desc, index, dimSize);
+}
+
+aclFormat aclGetTensorDescFormat(const aclTensorDesc *desc) {
+  return ge::AclApiStub::GetInstance()->aclGetTensorDescFormat(desc);
+}
+
+size_t aclGetTensorDescNumDims(const aclTensorDesc *desc) {
+  return ge::AclApiStub::GetInstance()->aclGetTensorDescNumDims(desc);
+}
+
+aclDataType aclGetTensorDescType(const aclTensorDesc *desc) {
+  return ge::AclApiStub::GetInstance()->aclGetTensorDescType(desc);
+}
+
+aclError aclmdlAddDatasetBuffer(aclmdlDataset *dataset, aclDataBuffer *dataBuffer) {
+  return ge::AclApiStub::GetInstance()->aclmdlAddDatasetBuffer(dataset, dataBuffer);
+}
+
+aclmdlConfigHandle *aclmdlCreateConfigHandle() {
+  return ge::AclApiStub::GetInstance()->aclmdlCreateConfigHandle();
+}
+
+aclmdlDataset *aclmdlCreateDataset() {
+  return ge::AclApiStub::GetInstance()->aclmdlCreateDataset();
+}
+
+aclmdlDesc *aclmdlCreateDesc() {
+  return ge::AclApiStub::GetInstance()->aclmdlCreateDesc();
+}
+
+aclError aclmdlDestroyDataset(const aclmdlDataset *dataset) {
+  return ge::AclApiStub::GetInstance()->aclmdlDestroyDataset(dataset);
+}
+
+aclError aclmdlDestroyDesc(aclmdlDesc *modelDesc) {
+  return ge::AclApiStub::GetInstance()->aclmdlDestroyDesc(modelDesc);
+}
+
+aclError aclmdlExecute(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output) {
+  return ge::AclApiStub::GetInstance()->aclmdlExecute(modelId, input, output);
+}
+
+aclDataBuffer *aclmdlGetDatasetBuffer(const aclmdlDataset *dataset, size_t index) {
+  return ge::AclApiStub::GetInstance()->aclmdlGetDatasetBuffer(dataset, index);
+}
+
+aclTensorDesc *aclmdlGetDatasetTensorDesc(const aclmdlDataset *dataset, size_t index) {
+  return ge::AclApiStub::GetInstance()->aclmdlGetDatasetTensorDesc(dataset, index);
+}
+
+aclError aclmdlGetDesc(aclmdlDesc *modelDesc, uint32_t modelId) {
+  return ge::AclApiStub::GetInstance()->aclmdlGetDesc(modelDesc, modelId);
+}
+
+aclError aclmdlLoadFromMem(const void *model,  size_t modelSize, uint32_t *modelId) {
+  return ge::AclApiStub::GetInstance()->aclmdlLoadFromMem(model,  modelSize, modelId);
+}
+
+aclError aclmdlLoadWithConfig(const aclmdlConfigHandle *handle, uint32_t *modelId) {
+  return ge::AclApiStub::GetInstance()->aclmdlLoadWithConfig(handle, modelId);
+}
+
+aclError aclmdlSetConfigOpt(aclmdlConfigHandle *handle, aclmdlConfigAttr attr,
+                                  const void *attrValue, size_t valueSize) {
+  return ge::AclApiStub::GetInstance()->aclmdlSetConfigOpt(handle, attr, attrValue, valueSize);
+}
+
+aclError aclmdlSetDatasetTensorDesc(aclmdlDataset *dataset, aclTensorDesc *tensorDesc, size_t index) {
+  return ge::AclApiStub::GetInstance()->aclmdlSetDatasetTensorDesc(dataset, tensorDesc, index);
+}
+
+aclError aclmdlSetExternalWeightAddress(aclmdlConfigHandle *handle, const char *weightFileName,
+                                        void *devPtr, size_t size) {
+  return ge::AclApiStub::GetInstance()->aclmdlSetExternalWeightAddress(handle, weightFileName, devPtr, size);
+}
+
+aclError aclmdlUnload(uint32_t modelId) {
+  return ge::AclApiStub::GetInstance()->aclmdlUnload(modelId);
+}
+
+aclError aclmdlDestroyConfigHandle(aclmdlConfigHandle *handle) {
+  return ge::AclApiStub::GetInstance()->aclmdlDestroyConfigHandle(handle);
+}
+
+void aclDestroyTensorDesc(const aclTensorDesc *desc) {
+  return ge::AclApiStub::GetInstance()->aclDestroyTensorDesc(desc);
+}
+
+aclError aclDestroyDataBuffer(const aclDataBuffer *dataBuffer) {
+  return ge::AclApiStub::GetInstance()->aclDestroyDataBuffer(dataBuffer);
+}
 #ifdef __cplusplus
 }
 #endif

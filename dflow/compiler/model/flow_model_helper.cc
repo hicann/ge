@@ -20,89 +20,51 @@
 #include "graph/utils/op_type_utils.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
 
+
 namespace ge {
 Status FlowModelHelper::LoadToFlowModel(const std::string &model_path, FlowModelPtr &flow_model,
                                         const std::string &split_om_data_base_dir) {
   flow_model = nullptr;
-  ModelData model;
+  ModelData model_data;
   // Load model from file, default 0 priority.
-  GE_CHK_STATUS_RET_NOLOG(ModelParserBase::LoadFromFile(model_path.c_str(), 0, model));
-  GE_MAKE_GUARD(model_guard, [&model]() {
-    if (model.model_data != nullptr) {
-      delete[] static_cast<char *>(model.model_data);
-      model.model_data = nullptr;
+  GE_CHK_STATUS_RET_NOLOG(ModelParserBase::LoadFromFile(model_path.c_str(), 0, model_data));
+  GE_MAKE_GUARD(model_guard, [&model_data]() {
+    if (model_data.model_data != nullptr) {
+      delete[] static_cast<char *>(model_data.model_data);
+      model_data.model_data = nullptr;
     }
   });
 
   const ModelFileHeader *mdl_file_header = nullptr;
-  auto ret = ModelHelper::GetModelFileHead(model, mdl_file_header);
+  auto ret = ModelHelper::GetModelFileHead(model_data, mdl_file_header);
   GE_CHK_STATUS_RET(ret, "Failed to get model file head, model_path:%s", model_path.c_str());
 
   if (mdl_file_header->modeltype != MODEL_TYPE_FLOW_MODEL) {
-    ret = LoadGeRootModelToFlowModel(model, flow_model);
+    ret = LoadModelDataToFlowModel(model_data, flow_model);
     GE_CHK_STATUS_RET(ret, "Failed to load root model to flow model, model_path:%s", model_path.c_str());
   } else {
-    ret = FlowModelOmLoader::LoadToFlowModel(model, flow_model, split_om_data_base_dir);
+    ret = FlowModelOmLoader::LoadToFlowModel(model_data, flow_model, split_om_data_base_dir);
     GE_CHK_STATUS_RET(ret, "Failed to load flow model, model_path:%s", model_path.c_str());
   }
   return SUCCESS;
 }
 
-Status FlowModelHelper::LoadGeRootModelToFlowModel(const ModelData &model, FlowModelPtr &flow_model) {
-  ModelHelper model_helper;
-  GE_CHK_STATUS_RET(model_helper.LoadRootModel(model), "[Load][RootModel] failed.");
-  auto ge_root_model = model_helper.GetGeRootModel();
-  GE_CHECK_NOTNULL(ge_root_model);
-  GE_CHECK_NOTNULL(ge_root_model->GetRootGraph());
-  GELOGD("load ge root model success, model_name=%s, graph=%s.", ge_root_model->GetModelName().c_str(),
-         ge_root_model->GetRootGraph()->GetName().c_str());
-  // ge root model dynamic model name is empty, need set by graph name.
-  if (ge_root_model->GetModelName().empty()) {
-    ge_root_model->SetModelName(ge_root_model->GetRootGraph()->GetName());
-  }
-  flow_model = MakeShared<FlowModel>(ge_root_model->GetRootGraph());
+Status FlowModelHelper::LoadModelDataToFlowModel(const ModelData &model_data, FlowModelPtr &flow_model) {
+  ComputeGraphPtr root_graph = nullptr;
+  Status ret = FlowModelOmLoader::TransModelDataToComputeGraph(model_data, root_graph);
+  GE_CHK_STATUS_RET(ret, "Failed to trans model data to compute graph");
+  GE_CHECK_NOTNULL(root_graph, "load root graph is null");
+  flow_model = MakeShared<FlowModel>(root_graph);
   GE_CHECK_NOTNULL(flow_model);
-  auto graph_model = MakeShared<ge::GraphModel>(ge_root_model);
-  GE_CHECK_NOTNULL(graph_model);
-  Status ret = flow_model->AddSubModel(graph_model, PNE_ID_NPU);
-  GE_CHK_STATUS_RET(ret, "AddSubModel failed, model_name=%s.", ge_root_model->GetModelName().c_str());
-  return ret;
-}
-
-Status FlowModelHelper::UpdateGeModelSessionId(const FlowModelPtr &flow_model, const uint64_t session_id) {
-  for (const auto &submodel_pair : flow_model->GetSubmodels()) {
-    const auto &submodel = submodel_pair.second;
-    const auto graph_model = std::dynamic_pointer_cast<GraphModel>(submodel);
-    if (graph_model == nullptr) {
-      continue;
-    }
-    const auto &ge_root_model = graph_model->GetGeRootModel();
-    if (ge_root_model == nullptr) {
-      continue;
-    }
-    const auto &ge_models = ge_root_model->GetSubgraphInstanceNameToModel();
-    for (const auto &pair : ge_models) {
-      const auto &ge_model = pair.second;
-      uint64_t old_session_id = std::numeric_limits<uint64_t>::max();
-      (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_SESSION_ID, old_session_id);
-      if (old_session_id != session_id) {
-        GE_ASSERT_TRUE(AttrUtils::SetInt(ge_model, MODEL_ATTR_SESSION_ID, session_id));
-        GELOGI("update ge model[%s] session id from %llu to %llu",
-               ge_model->GetName().c_str(), old_session_id, session_id);
-      }
-    }
-  }
+  GraphModelPtr graph_model_ptr = MakeShared<ge::GraphModel>(root_graph);
+  GE_ASSERT_NOTNULL(graph_model_ptr);
+  GE_CHK_STATUS_RET(graph_model_ptr->Init(model_data), "Failed to init graph model.");
+  ret = flow_model->AddSubModel(graph_model_ptr, PNE_ID_NPU);
+  GE_CHK_STATUS_RET(ret, "AddSubModel failed, model_name=%s.", root_graph->GetName());
   return SUCCESS;
 }
 
 Status FlowModelHelper::UpdateSessionGraphId(const FlowModelPtr &flow_model, const std::string &session_graph_id) {
-  std::set<PneModelPtr> refreshed_models;
-  return UpdateSessionGraphId(flow_model, session_graph_id, refreshed_models);
-}
-
-Status FlowModelHelper::UpdateSessionGraphId(const FlowModelPtr &flow_model,
-                                             const std::string &session_graph_id,
-                                             std::set<PneModelPtr> &refreshed_models) {
   const auto &root_graph = flow_model->GetRootGraph();
   GE_CHECK_NOTNULL(root_graph, ", flow model root graph is null");
   std::string old_session_graph_id;
@@ -127,23 +89,6 @@ Status FlowModelHelper::UpdateSessionGraphId(const FlowModelPtr &flow_model,
     bool refreshed = false;
     GE_CHK_STATUS_RET(ModelHelper::UpdateSessionGraphId(submodel->GetRootGraph(), session_graph_id, refreshed),
                       "update submodel[%s] session graph id failed", submodel->GetModelName().c_str());
-    if ((submodel->GetModelType() == PNE_ID_NPU) || (submodel->GetModelType() == PNE_ID_CPU)) {
-      const auto graph_model = std::dynamic_pointer_cast<GraphModel>(submodel);
-      GE_CHECK_NOTNULL(graph_model, ", submodel is not GraphModel, model name=%s, model type=%s.",
-                       submodel->GetModelName().c_str(), submodel->GetModelType().c_str());
-      const auto &ge_root_model = graph_model->GetGeRootModel();
-      GE_CHECK_NOTNULL(ge_root_model, ", submodel GetGeRootModel is null, model name=%s, model type=%s.",
-                       submodel->GetModelName().c_str(), submodel->GetModelType().c_str());
-      const auto &ge_models = ge_root_model->GetSubgraphInstanceNameToModel();
-      for (const auto &pair : ge_models) {
-        const auto &ge_model = pair.second;
-        GE_CHK_STATUS_RET(ModelHelper::UpdateSessionGraphId(ge_model->GetGraph(), session_graph_id, refreshed),
-                          "update ge model[%s] session graph id failed", ge_model->GetName().c_str());
-      }
-    }
-    if (refreshed) {
-      refreshed_models.emplace(submodel);
-    }
   }
   return SUCCESS;
 }
@@ -168,9 +113,9 @@ Status FlowModelHelper::LoadFlowModelFromOmFile(const char_t *const model_path, 
   // Load model from file, default 0 priority.
   GE_CHK_STATUS_RET_NOLOG(ModelParserBase::LoadFromFile(model_path, 0, model));
   GE_MAKE_GUARD(model_guard, [&model]() {
-    if (model.model_data != nullptr) {
-      delete[] static_cast<char *>(model.model_data);
-      model.model_data = nullptr;
+  if (model.model_data != nullptr) {
+    delete[] static_cast<char *>(model.model_data);
+    model.model_data = nullptr;
     }
   });
   return TransModelDataToFlowModel(model, flow_model);
@@ -185,7 +130,7 @@ Status FlowModelHelper::TransModelDataToFlowModel(const ge::ModelData &model_dat
 
   if (mdl_file_header->modeltype != MODEL_TYPE_FLOW_MODEL) {
     GELOGI("mdl_file_header->modeltype = %d.", mdl_file_header->modeltype);
-    ret = LoadGeRootModelToFlowModel(model_data, flow_model);
+    ret = LoadModelDataToFlowModel(model_data, flow_model);
     GE_CHK_STATUS_RET(ret, "Failed to load root model to flow model, om_name:%s.", model_data.om_name.c_str());
     if (flow_model->GetModelRelation() == nullptr) {
       GELOGI("flow_model->GetModelRelation() == nullptr");
@@ -205,12 +150,17 @@ Status FlowModelHelper::TransModelDataToFlowModel(const ge::ModelData &model_dat
   return ge::SUCCESS;
 }
 
-PneModelPtr FlowModelHelper::ToPneModel(const GeRootModelPtr &root_model, const std::string &model_type) {
-  GE_ASSERT_NOTNULL(root_model);
-  auto graph_model = MakeShared<ge::GraphModel>(root_model);
-  GE_ASSERT_NOTNULL(graph_model);
-  graph_model->SetModelType(model_type);
-  return graph_model;
+PneModelPtr FlowModelHelper::ToPneModel(const ModelData &model_data, const ComputeGraphPtr &compute_graph,
+                               const std::string &model_type) {
+  GraphModelPtr graph_model_ptr = MakeShared<ge::GraphModel>(compute_graph);
+  GE_ASSERT_NOTNULL(graph_model_ptr);
+  auto ret = graph_model_ptr->Init(model_data);
+  if (ret != SUCCESS) {
+    GELOGE(FAILED, "Failed to init graph model.");
+    return nullptr;
+  }
+  graph_model_ptr->SetModelType(model_type);
+  return graph_model_ptr;
 }
 
 Status FlowModelHelper::EnsureWithModelRelation(const FlowModelPtr &flow_model) {

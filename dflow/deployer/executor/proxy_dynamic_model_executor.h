@@ -25,12 +25,12 @@ class ProxyDynamicModelExecutor : public DynamicModelExecutor {
   Status ExceptionNotify(uint32_t type, uint64_t trans_id) override;
   uint32_t GetRuntimeModelId() const;
  protected:
-  Status LoadWithAicpuSd(const GeRootModelPtr &root_model, const ModelQueueParam &model_queue_param) override;
+  Status LoadWithAicpuSd(const ComputeGraphPtr &root_graph, const ModelQueueParam &model_queue_param) override;
   Status UnloadFromAicpuSd() override;
   Status CheckInputs() override;
-  Status PrepareInputs(RunModelData &model_inputs) override;
-  Status PrepareOutputs(RunModelData &model_outputs) override;
-  Status UpdateOutputs(RunModelData &model_outputs) override;
+  Status PrepareInputs(std::vector<DataBuffer> &model_inputs) override;
+  Status PrepareOutputs(std::vector<DataBuffer> &model_outputs) override;
+  Status UpdateOutputs(std::vector<DataBuffer> &model_outputs) override;
   void UpdateFusionInputsAddr() override;
   Status PublishOutputWithoutExecute() override;
   void PublishErrorOutput(Status ret) override;

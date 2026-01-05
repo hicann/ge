@@ -99,6 +99,7 @@ target_link_libraries(dflow_runner
         ge_compiler
         -Wl,--as-needed
         graph
+        ascendcl
         graph_base
         ge_common
         ge_common_base

@@ -423,8 +423,6 @@ TEST_F(ModelCacheTest, save_and_load_ge_root_model) {
   SetGraphKeyOption("graph_key_1");
   auto graph = FakeComputeGraph("test_graph_cache");
   GeRootModelPtr ge_root_model = BuildGeRootModel("test_graph_cache", graph);
-  FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
-  flow_model->AddSubModel(ge_root_model, PNE_ID_NPU);
   GraphRebuildStateCtrl ctrl;
   {
     ModelCache model_cache;

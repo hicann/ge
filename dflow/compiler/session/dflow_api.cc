@@ -18,10 +18,12 @@
 #include "rt_error_codes.h"
 #include "common/option_supportion_checker.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
+#include "acl/acl.h"
 
 namespace {
 constexpr uint32_t kExternalErrorCodeMaxValue = 9999999U; // user define error code max value
 constexpr uint64_t INVALID_SESSION_ID = 0xFFFFFFFFFFFFFFFFULL;
+std::atomic<bool> acl_initialized{false};
 
 static void ConvertAscendStringMap(const std::map<ge::AscendString, ge::AscendString> &options,
                                    std::map<std::string, std::string> &str_options) {
@@ -50,12 +52,21 @@ using ge::PARAM_INVALID;
 using ge::GE_CLI_INIT_FAILED;
 using ge::GE_CLI_GE_NOT_INITIALIZED;
 using ge::GE_CLI_SESS_DESTROY_FAILED;
-using ge::SessionId;
 
 Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
   if (g_dflow_ge_initialized) {
     GELOGW("DFlowInitialize is called more than once");
     return SUCCESS;
+  }
+  if (!acl_initialized) {
+    aclError ret = aclInit(nullptr);
+    if (ret != ACL_SUCCESS) {
+      GELOGE(FAILED, "ACL init failed.");
+      return FAILED;
+    } else {
+      GELOGI("ACL init success.");
+      acl_initialized.store(true);
+    }
   }
   // todo call GEInitialize in new so
   GE_TIMESTAMP_START(DflowInitializeAll);
@@ -90,6 +101,10 @@ Status DFlowFinalize() {
   if (!g_dflow_ge_initialized) {
     GELOGW("[FINAL]DFlowFinalize is called before DFlowInitialize");
     return SUCCESS;
+  }
+  if (acl_initialized) {
+    aclFinalize();
+    acl_initialized.store(false);
   }
   std::lock_guard<std::mutex> lock(g_dflow_ge_release_mutex);
   GELOGT(TRACE_INIT, "DFlowFinalize start.");

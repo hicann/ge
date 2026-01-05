@@ -171,6 +171,7 @@ target_link_libraries(helper_runtime PUBLIC
     runtime_headers
     cce_headers
     datagw_headers
+    ascendcl_headers
     ascend_hal_headers
     adump_headers
     flow_graph_protos_obj

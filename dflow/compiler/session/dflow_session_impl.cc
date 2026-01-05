@@ -9,7 +9,6 @@
  */
 
 #include "dflow_session_impl.h"
-
 #include <map>
 #include <memory>
 #include <vector>
@@ -21,8 +20,13 @@
 #include "graph/ge_context.h"
 #include "graph/utils/tensor_adapter.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
+#include "external/ge/ge_api_v2.h"
+#include "common/helper/model_parser_base.h"
+#include "framework/common/helper/model_helper.h"
+#include "external/ge/ge_ir_build.h"
 #include "dflow/compiler/pne/process_node_engine_manager.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
+#include "graph/debug/ge_attr_define.h"
 
 namespace ge {
 namespace {
@@ -44,35 +48,57 @@ std::vector<Tensor> ToTensors(const std::vector<GeTensor> &ge_tensors) {
   return tensors;
 }
 
+static Status ConvertStringMap(const std::map<std::string, std::string> &options,
+                          std::map<ge::AscendString, ge::AscendString> &ascend_options) {
+	for (auto &option_item : options) {
+		if (option_item.first.size() == 0) {
+			GELOGE(ge::FAILED, "Construct session failed, option key is empty.");
+			REPORT_INNER_ERR_MSG("E19999", "Construct session failed, option key is empty.");
+			return FAILED;
+		}
+		const ge::AscendString &key = ge::AscendString(option_item.first.c_str());
+		const ge::AscendString &val = ge::AscendString(option_item.second.c_str());
+		ascend_options[key] = val;
+	}
+  return SUCCESS;
+}
+
 class DefaultNpuProcessNodeEngineImpl : public ProcessNodeEngineImpl {
  public:
-  explicit DefaultNpuProcessNodeEngineImpl(GraphManager *graph_manager) : graph_manager_(graph_manager) {};
+  explicit DefaultNpuProcessNodeEngineImpl(std::shared_ptr<GeSession> ge_session) : ge_session_(ge_session) {};
   ~DefaultNpuProcessNodeEngineImpl() override = default;
 
   Status BuildGraph(uint32_t graph_id, ComputeGraphPtr &compute_graph,
                     const std::map<std::string, std::string> &options, const std::vector<GeTensor> &inputs,
                     PneModelPtr &model) override {
     GELOGD("Build graph begin, graph_id=%u, graph_name=%s.", graph_id, compute_graph->GetName().c_str());
-    GE_CHECK_NOTNULL(graph_manager_);
+    GE_CHECK_NOTNULL(ge_session_);
+
+    // option
+    std::map<ge::AscendString, ge::AscendString> ascend_options;
+		GE_CHK_STATUS_RET(ConvertStringMap(options, ascend_options), "Convert string to ascend string map.");
+
     auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
-    const OmgContext omg_context{};
-    GE_CHK_STATUS_RET(graph_manager_->AddGraph(graph_id, graph, options, omg_context),
+    GE_CHK_STATUS_RET(ge_session_->AddGraph(graph_id, graph, ascend_options),
                       "Failed to add graph, graph_id=%u, graph_name=%s.", graph_id, compute_graph->GetName().c_str());
-    ScopeGuard guard([this, graph_id]() { return graph_manager_->RemoveGraph(graph_id); });
-    GE_CHK_STATUS_RET(graph_manager_->OptimizeGraph(inputs, compute_graph),
-                      "Optimize graph failed, graph_id=%u, graph_name=%s.", graph_id, compute_graph->GetName().c_str());
-    GeRootModelPtr ge_root_model = nullptr;
-    GE_CHK_STATUS_RET(graph_manager_->BuildGraph(compute_graph, ge_root_model), "Failed to build graph");
-    // BUILD_MODE_TUNING return null is not error
-    if (ge_root_model != nullptr) {
-      model = FlowModelHelper::ToPneModel(ge_root_model);
-    }
+    ScopeGuard guard([this, graph_id]() { return ge_session_->RemoveGraph(graph_id); });
+    GE_CHK_STATUS_RET(ge_session_->CompileGraph(graph_id, ge::ToTensors(inputs)),
+                      "Compile graph failed, graph_id=%u, graph_name=%s.", graph_id, compute_graph->GetName().c_str());
+    ge::ModelBufferData model_buffer_data{};
+    GE_CHK_STATUS_RET(ge_session_->GetCompiledModel(graph_id, model_buffer_data), "Failed to get built model");
+                
+    ge::ModelData model_data{};
+    model_data.model_data = model_buffer_data.data.get();
+    model_data.model_len = model_buffer_data.length;
+    model = FlowModelHelper::ToPneModel(model_data, compute_graph);
+    GE_CHECK_NOTNULL(model);
+
     GELOGD("Build graph end, graph_id=%u, graph_name=%s.", graph_id, compute_graph->GetName().c_str());
     return SUCCESS;
   }
 
  private:
-  GraphManager *graph_manager_;
+  std::shared_ptr<GeSession> ge_session_;
 };
 }
 
@@ -98,6 +124,7 @@ Status DFlowInitializeInner(const std::map<AscendString, AscendString> &options)
   }
   return SUCCESS;
 }
+
 void DFlowFinalizeInner() {
   (void)ProcessNodeEngineManager::GetInstance().Finalize();
 }
@@ -109,14 +136,30 @@ DFlowSessionImpl::~DFlowSessionImpl() {
   (void)Finalize();
 }
 
-Status DFlowSessionImpl::Initialize(GraphManager *graph_manager) {
+Status DFlowSessionImpl::Initialize(const std::map<std::string, std::string> &options) {
   if (is_initialized_) {
     GELOGI("[DFlowSessionImpl:%lu] session already initialize.", session_id_);
     return SUCCESS;
   }
-  // todo pure inner session construct
+  
+  std::map<ge::AscendString, ge::AscendString> ascend_options;
+  GE_CHK_STATUS_RET(ConvertStringMap(options, ascend_options), "Convert string to ascend string map.");
+  ge::AscendString graph_key("ge.graph_key");
+  ge::AscendString cache_dir("ge.graph_compiler_cache_dir");
+  ge::AscendString external_weight("ge.externalWeightDir");
+  if (ascend_options.find(graph_key) != ascend_options.end() && ascend_options.find(cache_dir) != ascend_options.end()) {
+    if (ascend_options.find(external_weight) != ascend_options.end()) {
+      ascend_options[external_weight] = ascend_options[cache_dir];
+      ascend_options.erase(graph_key);
+      ascend_options.erase(cache_dir);
+    }
+  }
+
+  ge_session_ = MakeShared<GeSession>(ascend_options);
+  GE_CHECK_NOTNULL(ge_session_);
+
   GE_CHK_STATUS_RET(InitializeExecutionRuntime(options_), "Failed to init execution runtime");
-  auto pneImpl = MakeShared<DefaultNpuProcessNodeEngineImpl>(graph_manager);
+  auto pneImpl = MakeShared<DefaultNpuProcessNodeEngineImpl>(ge_session_);
   GE_CHECK_NOTNULL(pneImpl);
   GE_CHK_STATUS_RET(dflow_graph_manager_.Initialize(options_, pneImpl), "Failed to init dflow graph manager");
   is_initialized_ = true;
@@ -137,8 +180,6 @@ Status DFlowSessionImpl::Finalize() {
     }
     loaded_models_.clear();
   }
-
-  // todo pure inner session destruct
   dflow_graph_manager_.Finalize();
 
   is_initialized_ = false;

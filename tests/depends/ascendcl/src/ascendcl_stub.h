@@ -16,8 +16,13 @@
 #include <vector>
 #include <memory>
 #include <mutex>
+#include <set>
 #include "mmpa/mmpa_api.h"
 #include "acl/acl.h"
+#include "acl/acl_base.h"
+#include "common/ge_common/ge_types.h"
+#include "graph/small_vector.h"
+#include "graph/any_value.h"
 
 namespace ge {
 class AclRuntimeStub {
@@ -96,6 +101,67 @@ private:
   std::vector<aclrtStream> model_bind_streams_;
   std::vector<aclrtStream> model_unbind_streams_;
   size_t input_mem_copy_batch_count_{0UL};
+};
+
+class AclApiStub {
+public:
+  virtual ~AclApiStub() = default;
+
+  static AclApiStub* GetInstance();
+
+  static void SetInstance(const std::shared_ptr<AclApiStub> &instance) {
+    instance_ = instance;
+  }
+
+  static void Install(AclApiStub*);
+  static void UnInstall(AclApiStub*);
+
+  static void Reset() {
+    instance_.reset();
+  }
+
+  virtual aclError aclInit(const char *configPath);
+  virtual aclError aclFinalize();
+  virtual aclDataBuffer *aclCreateDataBuffer(void *data, size_t size);
+  virtual aclTensorDesc *aclCreateTensorDesc(aclDataType dataType,
+                                    int numDims,
+                                    const int64_t *dims,
+                                    aclFormat format);
+  virtual void *aclGetDataBufferAddr(const aclDataBuffer *dataBuffer);
+  virtual size_t aclGetDataBufferSizeV2(const aclDataBuffer *dataBuffer);
+  virtual aclError aclGetTensorDescDimV2(const aclTensorDesc *desc, size_t index, int64_t *dimSize);
+  virtual aclFormat aclGetTensorDescFormat(const aclTensorDesc *desc);
+  virtual size_t aclGetTensorDescNumDims(const aclTensorDesc *desc);
+  virtual aclDataType aclGetTensorDescType(const aclTensorDesc *desc);
+  virtual aclError aclmdlAddDatasetBuffer(aclmdlDataset *dataset, aclDataBuffer *dataBuffer);
+  virtual aclmdlConfigHandle *aclmdlCreateConfigHandle();
+  virtual aclmdlDataset *aclmdlCreateDataset();
+  virtual aclmdlDesc *aclmdlCreateDesc();
+  virtual aclError aclmdlDestroyDataset(const aclmdlDataset *dataset);
+  virtual aclError aclmdlDestroyDesc(aclmdlDesc *modelDesc);
+  virtual aclError aclmdlExecute(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output);
+  virtual aclDataBuffer *aclmdlGetDatasetBuffer(const aclmdlDataset *dataset, size_t index);
+  virtual aclTensorDesc *aclmdlGetDatasetTensorDesc(const aclmdlDataset *dataset, size_t index);
+  virtual aclError aclmdlGetDesc(aclmdlDesc *modelDesc, uint32_t modelId);
+  virtual aclError aclmdlLoadFromMem(const void *model,  size_t modelSize, uint32_t *modelId);
+  virtual aclError aclmdlLoadWithConfig(const aclmdlConfigHandle *handle, uint32_t *modelId);
+  virtual aclError aclmdlSetConfigOpt(aclmdlConfigHandle *handle, aclmdlConfigAttr attr,
+                                    const void *attrValue, size_t valueSize);
+  virtual aclError aclmdlSetDatasetTensorDesc(aclmdlDataset *dataset,
+                                      aclTensorDesc *tensorDesc,
+                                      size_t index);
+  virtual aclError aclmdlSetExternalWeightAddress(aclmdlConfigHandle *handle, const char *weightFileName,
+                                          void *devPtr, size_t size);
+  virtual aclError aclmdlUnload(uint32_t modelId);
+  virtual aclError aclmdlDestroyConfigHandle(aclmdlConfigHandle *handle);
+  virtual void aclDestroyTensorDesc(const aclTensorDesc *desc);
+  virtual aclError aclDestroyDataBuffer(const aclDataBuffer *dataBuffer);
+
+private:
+  static std::mutex mutex_;
+  static std::shared_ptr<AclApiStub> instance_;
+  static thread_local AclApiStub *fake_instance_;
+  std::mutex mtx_;
 };
 }
 

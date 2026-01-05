@@ -28,6 +28,8 @@
 #include "debug/ge_attr_define.h"
 #include "graph/utils/file_utils.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
+#include "common/model/ge_root_model.h"
+#include "dflow/inc/data_flow/model/flow_model_helper.h"
 
 namespace ge {
 namespace {
@@ -83,14 +85,17 @@ void ConvertModelRealtion(const flow_model::proto::ModelRelationDef &model_relat
   ConvertModelQueueInfo(proto_root_model_queue_info, model_relation.root_model_endpoint_info);
 }
 
-Status ParseGeRootModel(const flow_model::proto::SubmodelDef &flow_submodel_def, const ge::ModelData &model,
+Status ParseModeldata(const flow_model::proto::SubmodelDef &flow_submodel_def, const ge::ModelData &model_data,
                         PneModelPtr &pne_model) {
-  ModelHelper model_helper;
-  const auto ret = model_helper.LoadRootModel(model);
-  GE_CHK_STATUS_RET(ret, "load ge root model failed, model_name=%s, model_type=%s.",
-                    flow_submodel_def.model_name().c_str(), flow_submodel_def.model_type().c_str());
-  const auto ge_root_model = model_helper.GetGeRootModel();
-  pne_model = MakeShared<ge::GraphModel>(ge_root_model);
+  ComputeGraphPtr root_graph;
+  auto ret = FlowModelOmLoader::TransModelDataToComputeGraph(model_data, root_graph);
+  GE_CHK_STATUS_RET(ret, "Failed to trans model data to compute graph");
+  GE_CHECK_NOTNULL(root_graph, "[ParseModelData] load root graph is null");
+  GraphModelPtr graph_model_ptr = MakeShared<ge::GraphModel>(root_graph);
+  GE_ASSERT_NOTNULL(graph_model_ptr);
+  GE_CHK_STATUS_RET(graph_model_ptr->Init(model_data), "Failed to init graph model.");
+  pne_model = graph_model_ptr;
+
   if (flow_submodel_def.has_deploy_info()) {
     const auto &deploy_info = flow_submodel_def.deploy_info();
     GE_CHK_STATUS_RET(pne_model->SetLogicDeviceId(deploy_info.logic_device_id()),
@@ -109,7 +114,7 @@ Status ParseGeRootModel(const flow_model::proto::SubmodelDef &flow_submodel_def,
   return SUCCESS;
 }
 
-Status LoadGeRootModel(const flow_model::proto::SubmodelDef &flow_submodel_def,
+Status LoadModeldata(const flow_model::proto::SubmodelDef &flow_submodel_def,
                        const std::string &split_om_data_base_dir, PneModelPtr &pne_model) {
   ge::ModelData model;
   const auto &om_data_file_name = flow_submodel_def.om_data_file_path();
@@ -120,19 +125,19 @@ Status LoadGeRootModel(const flow_model::proto::SubmodelDef &flow_submodel_def,
     GE_CHK_STATUS_RET(ModelParserBase::LoadFromFile(submodel_file_path.c_str(), 0, model),
         "Load model from file[%s] failed.", submodel_file_path.c_str());
     GE_MAKE_GUARD(model_guard, [&model]() {
-      if (model.model_data != nullptr) {
+    if (model.model_data != nullptr) {
         delete[] static_cast<char_t *>(model.model_data);
         model.model_data = nullptr;
       }
     });
-    GE_CHK_STATUS_RET(ParseGeRootModel(flow_submodel_def, model, pne_model), "Failed to parse ge root model");
+    GE_CHK_STATUS_RET(ParseModeldata(flow_submodel_def, model, pne_model), "Failed to parse ge root model");
     pne_model->SetSavedModelPath(submodel_file_path);
     return SUCCESS;
   } else {
     const auto &om_data = flow_submodel_def.om_data();
     model.model_len = om_data.size();
     model.model_data = const_cast<char_t *>(om_data.c_str());
-    return ParseGeRootModel(flow_submodel_def, model, pne_model);
+    return ParseModeldata(flow_submodel_def, model, pne_model);
   }
   return SUCCESS;
 }
@@ -448,8 +453,8 @@ Status FlowModelOmLoader::LoadFlowSubmodelPartition(const std::vector<ModelParti
                           "LoadSerializedModel failed, model_name=%s, model_type=%s",
                           flow_submodel_def.model_name().c_str(), flow_submodel_def.model_type().c_str());
       } else {
-        GE_CHK_STATUS_RET(LoadGeRootModel(flow_submodel_def, split_om_data_base_dir, submodel),
-                          "LoadGeRootModel failed, model_name=%s, model_type=%s",
+        GE_CHK_STATUS_RET(LoadModeldata(flow_submodel_def, split_om_data_base_dir, submodel),
+                          "LoadModeldata failed, model_name=%s, model_type=%s",
                           flow_submodel_def.model_name().c_str(), flow_submodel_def.model_type().c_str());
       }
       GE_CHECK_NOTNULL(submodel, ", load flow submodel failed, model_name=%s, model_type=%s.",
@@ -478,17 +483,8 @@ Status FlowModelOmLoader::LoadFlowSubmodelPartition(const std::vector<ModelParti
   return result;
 }
 
-Status FlowModelOmLoader::AssignConstantVarMem(const FlowModelPtr &flow_model, const std::string &model_path,
-                                               const uint64_t session_id, const uint32_t graph_id,
-                                               const bool is_cache) {
-  std::set<PneModelPtr> refreshed_models;
-  return AssignConstantVarMem(flow_model, model_path, session_id, graph_id, refreshed_models, is_cache);
-}
-
-Status FlowModelOmLoader::AssignConstantVarMem(const FlowModelPtr &flow_model, const std::string &model_path,
-                                               const uint64_t session_id, const uint32_t graph_id,
-                                               std::set<PneModelPtr> &refreshed_models,
-                                               const bool is_cache) {
+Status FlowModelOmLoader::RefreshModel(const FlowModelPtr &flow_model, const std::string &model_path,
+                                               const uint64_t session_id, const uint32_t graph_id) {
   std::set<ComputeGraph *> refreshed_graphs;
   for (const auto &submodel_iter : flow_model->GetSubmodels()) {
     const auto &model_name = submodel_iter.first;
@@ -505,18 +501,6 @@ Status FlowModelOmLoader::AssignConstantVarMem(const FlowModelPtr &flow_model, c
                       model_path.c_str());
     submodel_graph->SetSessionID(session_id);
     submodel_graph->SetGraphID(graph_id);
-    auto *graph_model = dynamic_cast<GraphModel *>(submodel.get());
-    GE_ASSERT_NOTNULL(graph_model, "submodel [%s] is not a GraphModel, graph name = %s",
-                      submodel->GetModelName().c_str(), submodel->GetRootGraph()->GetName().c_str());
-    auto ge_root_model = graph_model->GetGeRootModel();
-    GE_ASSERT_NOTNULL(ge_root_model, "submodel [%s] ge root model is null, graph name = %s",
-                      submodel->GetModelName().c_str(), submodel->GetRootGraph()->GetName().c_str());
-    const auto refreshed_graphs_num = refreshed_graphs.size();
-    GE_CHK_STATUS_RET(ModelHelper::UpdateGeRootModelTaskAddr(ge_root_model, submodel_graph, refreshed_graphs, is_cache),
-        "Update model task address failed, graph name %s", submodel_graph->GetName().c_str());
-    if (refreshed_graphs_num != refreshed_graphs.size()) {
-      refreshed_models.emplace(submodel);
-    }
   }
   return SUCCESS;
 }

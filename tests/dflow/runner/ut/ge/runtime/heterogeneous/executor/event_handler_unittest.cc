@@ -89,7 +89,7 @@ class MockDynamicModelExecutor : public DynamicModelExecutor {
  public:
   explicit MockDynamicModelExecutor(bool is_host) : DynamicModelExecutor(is_host) {};
  private:
-  virtual Status DoLoadModel(const shared_ptr<GeRootModel> &root_model) {
+  virtual Status DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph) {
     return SUCCESS;
   }
 };
@@ -98,7 +98,7 @@ class MockProxyDynamicModelExecutor : public ProxyDynamicModelExecutor {
  public:
   explicit MockProxyDynamicModelExecutor() : ProxyDynamicModelExecutor() {};
  private:
-  Status DoLoadModel(const shared_ptr<GeRootModel> &root_model) override {
+  Status DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph) override {
     return SUCCESS;
   }
   void Dispatcher() override {
@@ -441,7 +441,8 @@ TEST_F(EventHandlerTest, TestEventHandlerClearModel) {
   std::vector<ExecutorContext::ModelHandle *> dynamic_model_handles;
   EXPECT_EQ(model_handle->GetModelRuntimeIdOrHandle(davinci_model_runtime_ids,
     dynamic_model_handles), FAILED);
-
+  
+  EXPECT_NE(model_handle->DoUnloadModel(UINT32_MAX), SUCCESS);
   model_handle->dynamic_model_executor_ = model_handle->CreateProxyDynamicModelExecutor();
   EXPECT_NE(model_handle->dynamic_model_executor_.get(), nullptr);
   model_handle->is_dynamic_proxy_controlled_ = true;
@@ -496,8 +497,6 @@ TEST_F(EventHandlerTest, TestInitVarManager) {
   handler.context_ = MakeUnique<ExecutionContextMock>();
   auto &mock_context = *reinterpret_cast<ExecutionContextMock *>(handler.context_.get());
   EXPECT_CALL(mock_context, CreateInputStream).WillRepeatedly(testing::Invoke(mock_create_input_stream));
-
-  EXPECT_EQ(handler.context_->LoadVarManager(request), SUCCESS);
   VarManagerPool::Instance().RemoveVarManager(1);
 }
 
@@ -521,8 +520,6 @@ TEST_F(EventHandlerTest, TestInitVarManagerInfo) {
   handler.context_ = MakeUnique<ExecutionContextMock>();
   auto &mock_context = *reinterpret_cast<ExecutionContextMock *>(handler.context_.get());
   EXPECT_CALL(mock_context, CreateInputStream).WillRepeatedly(testing::Invoke(mock_create_input_stream));
-
-  EXPECT_EQ(handler.context_->LoadVarManager(request), SUCCESS);
   VarManagerPool::Instance().RemoveVarManager(1);
 }
 
@@ -562,14 +559,9 @@ TEST_F(EventHandlerTest, LoadDynamicModelWithQ_Failed) {
   };
   auto root_graph = ToComputeGraph(graph);
   root_graph->TopologicalSorting();
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
+  auto output_node = root_graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_0"});
   // init request
   deployer::ExecutorRequest request;
   QueueAttrs in_queue_0 = {.queue_id = 0, .device_type = CPU, .device_id = 0};
@@ -579,7 +571,7 @@ TEST_F(EventHandlerTest, LoadDynamicModelWithQ_Failed) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  auto pne_model = FlowModelHelper::ToPneModel(root_model);
+  auto pne_model = StubModels::BuildRootModel(root_graph, false);
   handler.context_->LocalContext().AddLocalModel(0, 0, pne_model);
   ASSERT_FALSE(handler.context_.get() == nullptr);
   g_runtime_stub_mock = "rtCpuKernelLaunchWithFlag";
@@ -604,15 +596,9 @@ TEST_F(EventHandlerTest, LoadDynamicModelWithQ_Success) {
     CHAIN(NODE("_arg_1", data_1)->NODE("add_1", add0));
   };
   auto root_graph = ToComputeGraph(graph);
-  root_graph->TopologicalSorting();
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
+  auto output_node = root_graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_0"});
   // init request
   deployer::ExecutorRequest request;
   QueueAttrs in_queue_0 = {.queue_id = 0, .device_type = CPU, .device_id = 0};
@@ -622,7 +608,7 @@ TEST_F(EventHandlerTest, LoadDynamicModelWithQ_Success) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  auto pne_model = FlowModelHelper::ToPneModel(root_model);
+  auto pne_model = StubModels::BuildRootModel(root_graph, false);;
   handler.context_->LocalContext().AddLocalModel(0, 0, pne_model);
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);

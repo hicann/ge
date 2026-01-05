@@ -20,12 +20,13 @@
 #include "graph/model.h"
 #include "framework/common/types.h"
 #include "framework/common/helper/om_file_helper.h"
-#include "common/model/ge_root_model.h"
 #include "executor/dynamic_model_executor.h"
 #include "executor/proxy_dynamic_model_executor.h"
 #include "proto/deployer.pb.h"
 #include "dflow/base/model/model_deploy_resource.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
+#include "external/ge/ge_ir_build.h"
+#include "acl/acl.h"
 
 namespace ge {
 class ExecutorContext {
@@ -66,19 +67,23 @@ class ExecutorContext {
     bool IsInvokedNN() const;
     void SetEnableExceptionCatch(bool enable_exception_catch);
     bool IsEnableExceptionCatch() const;
-    Status GetModel(GeRootModelPtr &root_model);
-    void SetModel(const GeRootModelPtr &root_model);
+    Status GetModelData(ModelData &model_data);
+    void SetModelData(const ModelData &model_data);
+    Status GetRootGraph(ComputeGraphPtr &root_graph);
+    void SetRootGraph(const ComputeGraphPtr &root_graph);
     virtual Status GetModelRuntimeIdOrHandle(std::vector<uint32_t> &davinci_model_runtime_ids,
                                              std::vector<ExecutorContext::ModelHandle *> &dynamic_model_handles);
     virtual Status ClearModel(const int32_t clear_type);
     virtual Status ExceptionNotify(uint32_t type, uint64_t trans_id);
    protected:
-    virtual Status DoLoadModel(const std::shared_ptr<GeRootModel> &root_model,
+    virtual Status DoLoadModel(const ModelData &model_data,
+                               const ComputeGraphPtr &root_graph,
                                const LoadParam &params);
-    virtual Status DoLoadModelWithQ(const std::shared_ptr<GeRootModel> &root_model,
+    virtual Status DoLoadModelWithQ(const ModelData &model_data,
+                                    const ComputeGraphPtr &root_graph,
                                     const LoadParam &params);
 
-    virtual Status DoUnloadModel(uint32_t model_id) const;
+    virtual Status DoUnloadModel(uint32_t model_id);
     virtual std::unique_ptr<DynamicModelExecutor> CreateDynamicModelExecutor(bool is_host);
     virtual std::unique_ptr<ProxyDynamicModelExecutor> CreateProxyDynamicModelExecutor();
 
@@ -89,12 +94,15 @@ class ExecutorContext {
     bool loaded_ = false;
     int32_t esched_process_priority_ = -1;  // -1 is user unset eshced priority
     int32_t esched_event_priority_ = -1;
-    GeRootModelPtr root_model_;
+    ModelData model_data_;
+    bool model_data_from_cache_ = false;
+    ComputeGraphPtr root_graph_;
     int32_t execute_times_ = -1; // execute times
     bool is_dynamic_proxy_controlled_ = false;  // control dynamic model execution by proxy process
     bool is_invoked_nn_ = false;
     bool enable_exception_catch_ = false;
     std::string scope_;  // data flow exception scope
+    aclmdlConfigHandle *handle_ = nullptr;
   };
 
   Status Initialize() const;
@@ -106,8 +114,6 @@ class ExecutorContext {
   virtual Status GetModel(uint32_t root_model_id, std::map<uint32_t, std::unique_ptr<ModelHandle>> *&submodel_map);
 
   Status SyncSharedVarManager(const deployer::ExecutorRequest &request) const;
-
-  Status LoadVarManager(const deployer::ExecutorRequest &request);
 
   Status DeployCommGroup(const std::vector<HcomCommGroup> &comm_groups) const;
 
@@ -155,7 +161,6 @@ class ExecutorContext {
   std::string cluster_spec_;
   std::string role_table_;
   std::string event_table_;
-  std::shared_ptr<VarManager> var_manager_ = nullptr;
   uint8_t *var_mem_base_ = nullptr;
   uint64_t var_mem_size_ = 0U;
   std::string base_dir_;

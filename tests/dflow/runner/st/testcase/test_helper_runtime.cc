@@ -380,11 +380,11 @@ class MockDynamicModelExecutor : public DynamicModelExecutor {
   MockDynamicModelExecutor(bool is_host, int32_t load_mode) : DynamicModelExecutor(is_host), load_mode_(load_mode) {}
   void SetIsHost(const bool is_host) { is_host_ = is_host; }
  protected:
-  Status DoLoadModel(const shared_ptr<GeRootModel> &root_model) override {
+  Status DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph) override {
     if (load_mode_ == kLoadSyncEventModel) {
       return SUCCESS;
     }
-    (void) DynamicModelExecutor::DoLoadModel(root_model);
+    (void) DynamicModelExecutor::DoLoadModel(model_data, root_graph);
     model_id_ = 2;
     aicpu_model_id_ = 1021;
     auto hybrid_model = std::make_shared<hybrid::HybridDavinciModel>();
@@ -392,7 +392,7 @@ class MockDynamicModelExecutor : public DynamicModelExecutor {
     return SUCCESS;
   }
 
-  Status DoExecuteModel(const RunModelData &inputs, RunModelData &outputs) override {
+  Status DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs) override {
     (void) DynamicModelExecutor::DoExecuteModel(inputs, outputs);
     output_tensor_descs_.resize(1);
     std::vector<int64_t> dims{1, 8};
@@ -407,8 +407,9 @@ class MockDynamicModelExecutor : public DynamicModelExecutor {
 class MockProxyDynamicModelExecutor : public ProxyDynamicModelExecutor {
  public:
   explicit MockProxyDynamicModelExecutor() : ProxyDynamicModelExecutor() {};
-  Status DoExecuteModel(const RunModelData &inputs, RunModelData &outputs) override {
-    DataBuffer &data_buffer = outputs.blobs[0];
+  Status DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs) override {
+    (void) DynamicModelExecutor::DoExecuteModel(inputs, outputs);
+    DataBuffer &data_buffer = outputs[0];
     if (data_buffer.data == nullptr) {
       data_buffer.data = output_buffer_;
     }
@@ -422,15 +423,11 @@ class MockProxyDynamicModelExecutor : public ProxyDynamicModelExecutor {
     return SUCCESS;
   }
 
-  void UnloadModel() {
-    Stop();
-    (void) UnloadFromAicpuSd();
+  void UnloadModel() {  
+    (void) DynamicModelExecutor::UnloadModel();
     ModelManager::GetInstance().DeleteModel(model_id_);
   }
  private:
-  Status DoLoadModel(const shared_ptr<GeRootModel> &root_model) override {
-    return SUCCESS;
-  }
   void Dispatcher() override {
     return;
   }
@@ -820,7 +817,6 @@ class ModelDeployerMock2 : public ModelDeployer {
     sess_map.insert({0, op_desc_map});
     node_need_transfer_memory.insert({1, sess_map});
     (void)system("echo > hello.bin");
-    FlowModelSender().GetVarManagerAndSendToRemote(sub_device_ids, sessions, node_need_transfer_memory);
     (void)system("rm -f hello.bin");
     return SUCCESS;
   }
@@ -1080,15 +1076,33 @@ cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/b
     json_file << npu_compiler_json << std::endl;
   }
 
-  ComputeGraphPtr BuildDynamicRootGraph(const std::vector<int64_t> &shape, bool add_align_attr = false, bool with_attr = true) {
+  ComputeGraphPtr BuildDynamicRootGraph(const std::vector<int64_t> &shape, bool add_align_attr = false, 
+                                                bool with_attr = true, bool with_file_constant = false) {
     vector<std::string> engine_list = {"AIcoreEngine"};
+    ComputeGraphPtr root_graph = nullptr;
     auto data = OP_CFG(DATA).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape).Attr(ATTR_NAME_INDEX, 0);
-    auto neg = OP_CFG(NEG).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape);
     auto netoutput = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_INT32, shape);
-    DEF_GRAPH(graph) {
-      CHAIN(NODE("Node_data_1", data)->EDGE(0, 0)->NODE("Neg", neg)->NODE("Node_output_1", netoutput));
-    };
-    auto root_graph = ToComputeGraph(graph);
+    if (with_file_constant) {
+      (void) system("echo 1 > hello.bin");
+      auto neg = OP_CFG(FILECONSTANT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape)
+                          .Attr(ATTR_NAME_INDEX, 0)
+                          .Attr(ATTR_NAME_LOCATION, "hello.bin")
+                          .Attr(ATTR_NAME_OFFSET, 0)
+                          .Attr(ATTR_NAME_LENGTH, 2);
+      DEF_GRAPH(graph) {
+        CHAIN(NODE("Node_data_1", data)->EDGE(0, 0)->NODE("Neg", neg)->NODE("Node_output_1", netoutput));
+      };
+      root_graph = ToComputeGraph(graph);
+    } else {
+      auto neg = OP_CFG(NEG).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape).Attr(ATTR_NAME_INDEX, 1);
+      DEF_GRAPH(graph) {
+        CHAIN(NODE("Node_data_1", data)->EDGE(0, 0)->NODE("Neg", neg)->NODE("Node_output_1", netoutput));
+      };
+      root_graph = ToComputeGraph(graph);
+    }
+    auto output_node = root_graph->FindNode("Node_output_1");
+    output_node->GetOpDesc()->SetSrcIndex({1});
+    output_node->GetOpDesc()->SetSrcName({"neg"});
     if (add_align_attr) {
       auto data_node = root_graph->FindNode("Node_data_1");
       NamedAttrs align_attr;
@@ -1111,17 +1125,48 @@ cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/b
   std::string st_dir_path;
 };
 namespace {
+  PneModelPtr BuildPneModel(ComputeGraphPtr root_graph) {
+    GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+    EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+    auto ge_model = MakeShared<ge::GeModel>();
+    auto model_task_def = MakeShared<domi::ModelTaskDef>();
+    model_task_def->set_version("test_v100_r001");
+    ge_model->SetModelTaskDef(model_task_def);
+    ge_model->SetName(root_graph->GetName());
+    ge_model->SetGraph(root_graph);
+    ge_root_model->SetModelName(root_graph->GetName());	
+    ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
+    bool is_unknown_shape = false;
+    auto ret = ge_root_model->CheckIsUnknownShape(is_unknown_shape);
+    EXPECT_EQ(ret, SUCCESS);
+    ModelBufferData model_buffer_data{};
+    const auto model_save_helper =
+        ModelSaveHelperFactory::Instance().Create(OfflineModelFormat::OM_FORMAT_DEFAULT);
+    EXPECT_NE(model_save_helper, nullptr);
+    model_save_helper->SetSaveMode(false);
+    ret = model_save_helper->SaveToOmRootModel(ge_root_model, "NoUse", model_buffer_data, is_unknown_shape);
+    EXPECT_EQ(ret, SUCCESS);
+    ModelData model_data{};
+    model_data.model_data = model_buffer_data.data.get();
+    model_data.model_len = model_buffer_data.length;
+    PneModelPtr pne_model = FlowModelHelper::ToPneModel(model_data, root_graph);
+    return pne_model;
+  }
+
   ComputeGraphPtr BuildTwoInputDynamicRootGraph(const std::vector<int64_t> &shape, bool add_align_attr = false) {
     vector<std::string> engine_list = {"AIcoreEngine"};
     auto data0 = OP_CFG(DATA).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape).Attr(ATTR_NAME_INDEX, 0);
     auto data1 = OP_CFG(DATA).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape).Attr(ATTR_NAME_INDEX, 1);
-    auto neg = OP_CFG(NEG).InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape);
+    auto neg = OP_CFG(NEG).InCnt(2).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape).Attr(ATTR_NAME_INDEX, 2);
     auto netoutput = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_INT32, shape);
     DEF_GRAPH(graph) {
       CHAIN(NODE("Node_data_1", data0)->EDGE(0, 0)->NODE("Neg", neg)->NODE("Node_output_1", netoutput));
       CHAIN(NODE("Node_data_2", data1)->EDGE(0, 1)->NODE("Neg", neg));
     };
     auto root_graph = ToComputeGraph(graph);
+    auto output_node = root_graph->FindNode("Node_output_1");
+    output_node->GetOpDesc()->SetSrcIndex({2});
+    output_node->GetOpDesc()->SetSrcName({"neg"});
     if (add_align_attr) {
       auto data_node = root_graph->FindNode("Node_data_1");
       NamedAttrs align_attr;
@@ -3462,14 +3507,11 @@ TEST_F(STEST_helper_runtime, TestDeployWithCompileRes) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  flow_model->AddSubModel(ge_root_model);
+  flow_model->AddSubModel(BuildPneModel(graph));
   std::shared_ptr<ModelCompileResource> compile_res;
   flow_model->SetCompileResource(compile_res);
 
@@ -3667,14 +3709,11 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  flow_model->AddSubModel(ge_root_model);
+  flow_model->AddSubModel(BuildPneModel(graph));
 
   std::map<std::string, uint32_t> model_name_to_rank_id;
   model_name_to_rank_id["g1"] = 0U;
@@ -3829,44 +3868,10 @@ TEST_F(STEST_helper_runtime, TestDeployHostCpuDynamicModel) {
 
   subevent_info.modelId = 1023 - 2;
   CpuSchedEventDispatcher::GetInstance().OnInputsReady(event_info);
-  executor->Stop();
-  executor->run_thread_ = std::thread([&]() { executor->Run(); });
-
-  // invalid input
-  void *head_buf = nullptr;
-  uint64_t head_size = 0U;
-  (void)rtMbufGetPrivInfo(input_mbuf, &head_buf, &head_size);
-  if ((head_buf != nullptr) && (head_size >= sizeof(ExchangeService::MsgInfo))) {
-    ExchangeService::MsgInfo *msg_info = reinterpret_cast<ExchangeService::MsgInfo *>(
-        static_cast<char *>(head_buf) + head_size - sizeof(ExchangeService::MsgInfo));
-    msg_info->ret_code = -1;
-  }
-  CpuSchedEventDispatcher::GetInstance().OnInputsReady(event_info);
-  executor->Stop();
-  executor->run_thread_ = std::thread([&]() { executor->Run(); });
-
-  // null data input with eos
-  (void)rtMbufGetPrivInfo(input_mbuf, &head_buf, &head_size);
-  if ((head_buf != nullptr) && (head_size >= sizeof(ExchangeService::MsgInfo))) {
-    ExchangeService::MsgInfo *msg_info = reinterpret_cast<ExchangeService::MsgInfo *>(
-        static_cast<char *>(head_buf) + head_size - sizeof(ExchangeService::MsgInfo));
-    msg_info->ret_code = 0;
-    msg_info->flags = 1U;
-    msg_info->data_flag = 1U;
-  }
-  CpuSchedEventDispatcher::GetInstance().OnInputsReady(event_info);
 
   GEFinalize();
-
   CpuSchedEventDispatcher::GetInstance().Finalize();
-  if ((head_buf != nullptr) && (head_size >= sizeof(ExchangeService::MsgInfo))) {
-    ExchangeService::MsgInfo *msg_info = reinterpret_cast<ExchangeService::MsgInfo *>(
-        static_cast<char *>(head_buf) + head_size - sizeof(ExchangeService::MsgInfo));
-    msg_info->flags = 0U;
-    msg_info->data_flag = 0U;
-  }
   rtMbufFree(input_mbuf);
-
   MmpaStub::GetInstance().Reset();
   RuntimeStub::Reset();
   unsetenv("RESOURCE_CONFIG_PATH");
@@ -4662,17 +4667,6 @@ TEST_F(STEST_helper_runtime, TestHeterogeneousProfiler) {
   unsetenv("GE_PROFILING_TO_STD_OUT");
 }
 
-class MockGraphModel : public GraphModel {
- public:
-  explicit MockGraphModel(const GeRootModelPtr &root_model) : GraphModel(root_model){};
-
- protected:
-  Status SerializeModel(ModelBufferData &model_buff) override {
-    model_buff.length = 0;
-    return SUCCESS;
-  }
-};
-
 class MockPneExecutorClientDevice : public BuiltinExecutorClient {
  public:
   explicit MockPneExecutorClientDevice(int32_t device_id) : BuiltinExecutorClient(device_id) {}
@@ -4731,10 +4725,7 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlowOnServerWithSharedContent) {
   EXPECT_EQ(VarManager::Instance(0)->AssignVarMem("test_file_const", nullptr, tensor_desc, RT_MEMORY_HBM), SUCCESS);
 
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  ge_root_model->Initialize(graph);
-  ge_root_model->SetModelName("g1");
-  auto graph_model = MakeShared<MockGraphModel>(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0:0");
   flow_model->AddSubModel(graph_model);
 
@@ -4786,19 +4777,15 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlowOnServer) {
     CHAIN(NODE("data_3", data3)->EDGE(0, 1)->NODE("add_2", add_2));
     CHAIN(NODE("add_2", add_2)->EDGE(0, 0)->NODE("Node_Output", NETOUTPUT));
   };
-
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   AttrUtils::SetInt(graph, "_inputs_align_max_cache_num", 100);
   AttrUtils::SetInt(graph, "_inputs_align_timeout", 30 * 1000);
   AttrUtils::SetBool(graph, "_inputs_align_dropout", true);
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  ge_root_model->Initialize(graph);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = MakeShared<MockGraphModel>(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0:0");
   flow_model->AddSubModel(graph_model);
 
@@ -4939,13 +4926,7 @@ TEST_F(STEST_helper_runtime, DeployFlowModelWithHcomClusterDesc) {
     std::string submodel_name = "submodel-" + std::to_string(index);
     auto flow_model = std::make_shared<FlowModel>();
     flow_model->SetModelName("flow_model-" + std::to_string(index));
-    auto graph = ShareGraph::AicoreGraph();
-    GeModelBuilder builder(graph);
-    auto submodel_1 = builder.AddTaskDef("add1", AiCoreTaskDefFaker("AddStubBin1"))
-        .BuildGeRootModel();
-    submodel_1->SetModelName(submodel_name);
-    submodel_1->SetRootGraph(std::make_shared<ComputeGraph>(submodel_name));
-    auto graph_model_1 = FlowModelHelper::ToPneModel(submodel_1);
+    auto graph_model_1 = BuildPneModel(std::make_shared<ComputeGraph>(submodel_name));
     graph_model_1->SetLogicDeviceId("0:0:0:0");
     flow_model->AddSubModel(graph_model_1, PNE_ID_NPU);
     flow_model->SetRootGraph(MakeShared<ComputeGraph>("test"));
@@ -5131,15 +5112,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Success) {
   mock_handle = (void *) 0x12345678;
   mock_method = (void *) &MockHcomDestroy;
 
-  auto root_graph = BuildDynamicRootGraph({-1}, true);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
+  auto root_graph = BuildDynamicRootGraph({-1}, true, true, true);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -5177,7 +5150,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Success) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
@@ -5220,7 +5193,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Success) {
       reinterpret_cast<MockProxyDynamicModelExecutor *>(handle->dynamic_model_executor_.get());
   EXPECT_EQ(executor->ExceptionNotify(0, 100), SUCCESS);
   executor->OnInputsReady(req_msg_mbuf, resp_msg_mbuf);
-  executor->UnloadModel();
   EXPECT_EQ(executor->data_ret_code_, 0);
   {
     // 此处释放SetRequest产生的mbuf，用例中未释放
@@ -5236,15 +5208,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Without_Max_attr_Succ
   mock_handle = (void *) 0x12345678;
   mock_method = (void *) &MockHcomDestroy;
 
-  auto root_graph = BuildDynamicRootGraph({-1}, true, false);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
+  auto root_graph = BuildDynamicRootGraph({-1}, true, false, true);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -5282,7 +5246,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Without_Max_attr_Succ
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
@@ -5324,7 +5288,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Without_Max_attr_Succ
   MockProxyDynamicModelExecutor *executor =
       reinterpret_cast<MockProxyDynamicModelExecutor *>(handle->dynamic_model_executor_.get());
   executor->OnInputsReady(req_msg_mbuf, resp_msg_mbuf);
-  executor->UnloadModel();
   EXPECT_EQ(executor->data_ret_code_, 0);
   {
     // 此处释放SetRequest产生的mbuf，用例中未释放
@@ -5341,14 +5304,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_with_retcode) {
   mock_method = (void *) &MockHcomDestroy;
 
   auto root_graph = BuildDynamicRootGraph({-1}, true);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -5386,7 +5341,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_with_retcode) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
@@ -5430,8 +5385,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_with_retcode) {
   MockProxyDynamicModelExecutor *executor =
       reinterpret_cast<MockProxyDynamicModelExecutor *>(handle->dynamic_model_executor_.get());
   executor->OnInputsReady(req_msg_mbuf, resp_msg_mbuf);
-  executor->UnloadModel();
-  EXPECT_FALSE(executor->is_need_execute_model_);
+  EXPECT_TRUE(executor->is_need_execute_model_);
   {
     // 此处释放SetRequest产生的mbuf，用例中未释放
     rtMbufPtr_t m_buf;
@@ -5447,14 +5401,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_null_data_flag) {
   mock_method = (void *) &MockHcomDestroy;
 
   auto root_graph = BuildDynamicRootGraph({-1}, true);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -5492,7 +5438,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_null_data_flag) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
@@ -5536,15 +5482,14 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_null_data_flag) {
   MockProxyDynamicModelExecutor *executor =
       reinterpret_cast<MockProxyDynamicModelExecutor *>(handle->dynamic_model_executor_.get());
   executor->OnInputsReady(req_msg_mbuf, resp_msg_mbuf);
-  executor->UnloadModel();
-  EXPECT_FALSE(executor->is_need_execute_model_);
+  EXPECT_TRUE(executor->is_need_execute_model_);
+  handle->UnloadModel();
   {
     // 此处释放SetRequest产生的mbuf，用例中未释放
     rtMbufPtr_t m_buf;
     (void)HeterogeneousExchangeService::GetInstance().DequeueMbuf(0, 3, &m_buf, 3000);
     rtMbufFree(m_buf);
   }
-  executor->Finalize();
   handler.Finalize();
 }
 
@@ -5560,14 +5505,6 @@ TEST_F(STEST_helper_runtime, TestDynamicModel_WithInputAlign_Execute_Success) {
   mock_handle = (void *) 0x12345678;
 
   auto root_graph = BuildTwoInputDynamicRootGraph({-1}, false);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -5614,7 +5551,7 @@ TEST_F(STEST_helper_runtime, TestDynamicModel_WithInputAlign_Execute_Success) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
@@ -5637,14 +5574,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_WithInputAlign_Execute_Succes
   mock_method = (void *) &MockHcomDestroy;
 
   auto root_graph = BuildTwoInputDynamicRootGraph({-1}, false);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -5690,7 +5619,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_WithInputAlign_Execute_Succes
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
@@ -5734,7 +5663,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_WithInputAlign_Execute_Succes
   MockProxyDynamicModelExecutor *executor =
       reinterpret_cast<MockProxyDynamicModelExecutor *>(handle->dynamic_model_executor_.get());
   executor->OnInputsReady(req_msg_mbuf, resp_msg_mbuf);
-  executor->UnloadModel();
   EXPECT_EQ(executor->data_ret_code_, 0);
   {
     // 此处释放SetRequest产生的mbuf，用例中未释放
@@ -5751,14 +5679,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModelWithDummy_Execute_Success) {
   mock_method = (void *) &MockHcomDestroy;
 
   auto root_graph = BuildDynamicRootGraph({-1}, true);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -5796,7 +5716,7 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModelWithDummy_Execute_Success) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
@@ -5833,7 +5753,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModelWithDummy_Execute_Success) {
   MockProxyDynamicModelExecutor *executor =
       reinterpret_cast<MockProxyDynamicModelExecutor *>(handle->dynamic_model_executor_.get());
   executor->OnInputsReady(req_msg_mbuf, resp_msg_mbuf);
-  executor->UnloadModel();
   EXPECT_EQ(executor->data_ret_code_, 0);
   {
     // 此处释放SetRequest产生的mbuf，用例中未释放
@@ -6134,14 +6053,11 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedDeployWithFlowOnServer) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  ge_root_model->Initialize(graph);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = MakeShared<MockGraphModel>(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0:0");
   flow_model->AddSubModel(graph_model);
 
@@ -6212,14 +6128,12 @@ TEST_F(STEST_helper_runtime, TestRedeployWithMulModelInstanceOnServer) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
+
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  ge_root_model->Initialize(graph);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = MakeShared<MockGraphModel>(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0:0,0:0:1:0");
   flow_model->AddSubModel(graph_model);
 
@@ -6244,7 +6158,6 @@ TEST_F(STEST_helper_runtime, TestRedeployWithMulModelInstanceOnServer) {
   std::vector<ge::GeTensor> input_ge_tensors(3);
   std::vector<ge::GeTensor> output_ge_tensors;
   (void)executor->Execute(input_ge_tensors, output_ge_tensors);
-
   dlog_setlevel(0, 0, 0);
   // 更改RESOURCE_CONFIG_PATH
   std::vector<int> lineNumbers = {17, 18, 19, 20, 21};
@@ -6306,14 +6219,11 @@ TEST_F(STEST_helper_runtime, TestRedeployWithProcessAbnormal) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  ge_root_model->Initialize(graph);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = MakeShared<MockGraphModel>(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0:0,0:0:1:0");
   flow_model->AddSubModel(graph_model);
 
@@ -6406,14 +6316,11 @@ TEST_F(STEST_helper_runtime, TestRedeployWithOneModelInstanceOnServer) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  ge_root_model->Initialize(graph);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = MakeShared<MockGraphModel>(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:1");
   flow_model->AddSubModel(graph_model);
 
@@ -6561,14 +6468,11 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedFindGroupIndexBySched) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = FlowModelHelper::ToPneModel(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0");
   flow_model->AddSubModel(graph_model);
 
@@ -6691,14 +6595,11 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedFindGroupIndexByCache) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = FlowModelHelper::ToPneModel(ge_root_model);
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0");
   flow_model->AddSubModel(graph_model);
 
@@ -6796,14 +6697,6 @@ TEST_F(STEST_helper_runtime, TestHostCpuEngineModel_Execute_Success) {
   new_option["ge.exec.placement"] = "HOST";
   GetThreadLocalContext().SetSessionOption(new_option);
   auto root_graph = BuildDynamicRootGraph({-1}, true);
-  auto root_model = std::make_shared<GeRootModel>();
-  root_model->SetRootGraph(root_graph);
-  GeModelPtr ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(root_graph);
-  // init davinci model
-  auto hybrid_model_ptr = ge::hybrid::HybridDavinciModel::Create(root_model);
-  auto shared_model = std::shared_ptr<hybrid::HybridDavinciModel>(hybrid_model_ptr.release());
-  ModelManager::GetInstance().InsertModel(UINT32_MAX, shared_model);
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
@@ -6834,7 +6727,7 @@ TEST_F(STEST_helper_runtime, TestHostCpuEngineModel_Execute_Success) {
   EventHandler handler;
   EXPECT_EQ(handler.Initialize(), SUCCESS);
   handler.context_ = MakeUnique<MockExecutorContext>();
-  handler.context_->LocalContext().AddLocalModel(0, 0, FlowModelHelper::ToPneModel(root_model));
+  handler.context_->LocalContext().AddLocalModel(0, 0, BuildPneModel(root_graph));
   ASSERT_FALSE(handler.context_.get() == nullptr);
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   auto ret = handler.BatchLoadModels(request);
@@ -6880,14 +6773,11 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedDeployWithFlow) {
   };
 
   auto graph = ToComputeGraph(g1);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  flow_model->AddSubModel(ge_root_model);
+  flow_model->AddSubModel(BuildPneModel(graph));
 
   std::map<std::string, uint32_t> model_name_to_rank_id;
   model_name_to_rank_id["g1"] = 0U;
@@ -6934,14 +6824,11 @@ TEST_F(STEST_helper_runtime, UpdateAbnormalInstanceInTrimmingModel) {
   };
 
   auto graph = ToComputeGraph(g1);
-  auto flow_model = MakeShared<FlowModel>(graph);
-  const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  ge_root_model->SetModelName("g1");
-  auto ge_model = MakeShared<GeModel>();
-  ge_model->SetGraph(graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
-  auto graph_model = FlowModelHelper::ToPneModel(ge_root_model);
+  auto output_node = graph->FindNode("Node_Output");
+  output_node->GetOpDesc()->SetSrcIndex({0});
+  output_node->GetOpDesc()->SetSrcName({"add_2"});
+  auto flow_model = MakeShared<FlowModel>(graph);;
+  auto graph_model = BuildPneModel(graph);
   graph_model->SetLogicDeviceId("0:0:0");
   flow_model->AddSubModel(graph_model);
 

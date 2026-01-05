@@ -30,6 +30,13 @@
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "proto/deployer.pb.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
+#include "acl/acl_mdl.h"
+#include "acl/acl_rt.h"
+#include "acl/acl_base.h"
+#include "common/file_constant_utils.h"
+#include "common/helper/model_parser_base.h"
+#include "graph/ge_tensor.h"
+#include "framework/runtime/gert_api.h"
 
 namespace ge {
 namespace {
@@ -82,6 +89,12 @@ void DynamicModelExecutor::Finalize() {
 }
 
 void DynamicModelExecutor::FinalizeInternal() {
+  if (is_host_ && (new_allocated_global_step_ != nullptr)) {
+    free(new_allocated_global_step_);
+  } else if (new_allocated_global_step_ != nullptr) {
+    (void)aclrtFree(new_allocated_global_step_);
+  }
+  new_allocated_global_step_ = nullptr;
   if (aicpu_handle_ != nullptr) {
     (void)mmDlclose(aicpu_handle_);
     aicpu_handle_ = nullptr;
@@ -112,96 +125,21 @@ Status DynamicModelExecutor::FreeEventIOBuffer() {
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::GetOutputRefToInput(const ComputeGraphPtr &root_graph,
-                                                 std::map<int32_t, int32_t> &output_ref_to_input_idx) {
-  const auto &direct_nodes = root_graph->GetDirectNode();
-  const auto net_output_iter = std::find_if(direct_nodes.begin(), direct_nodes.end(),
-                                            [](const NodePtr &node) { return (node->GetType() == NETOUTPUT); });
-  GE_ASSERT_TRUE(net_output_iter != direct_nodes.end());
-  for (const auto &in_anchor : (*net_output_iter)->GetAllInDataAnchorsPtr()) {
-    const auto &peer_anchor = in_anchor->GetPeerOutAnchor();
-    GE_CHECK_NOTNULL(peer_anchor);
-    const auto peer_out_node = peer_anchor->GetOwnerNodeBarePtr();
-    GE_CHECK_NOTNULL(peer_out_node);
-    const auto &peer_op = peer_out_node->GetOpDesc();
-    GE_CHECK_NOTNULL(peer_op);
-    const auto out_idx = peer_anchor->GetIdx();
-    const auto output_name = peer_op->GetOutputNameByIndex(out_idx);
-    const auto input_names = peer_op->GetAllInputName();
-    for (const auto &input_name : input_names) {
-      if (output_name == input_name.first) {
-        GELOGI("Get ref input = %s:%d, peer_out_node = %s", input_name.first.c_str(), input_name.second,
-               peer_out_node->GetNamePtr());
-        const auto &peer_node_ref_in_anchor = peer_out_node->GetInDataAnchor(input_name.second);
-        GE_CHECK_NOTNULL(peer_node_ref_in_anchor);
-        const auto &peer_node_ref_in_anchor_peer_out = peer_node_ref_in_anchor->GetPeerOutAnchor();
-        if (peer_node_ref_in_anchor_peer_out == nullptr) {
-          continue;
-        }
-        const auto peer_node_ref_in_anchor_peer_node = peer_node_ref_in_anchor_peer_out->GetOwnerNodeBarePtr();
-        GE_CHECK_NOTNULL(peer_node_ref_in_anchor_peer_node);
-        if (OpTypeUtils::IsDataNode(peer_node_ref_in_anchor_peer_node->GetType())) {
-          uint32_t index = 0;
-          GE_CHK_BOOL_RET_STATUS(
-              AttrUtils::GetInt(peer_node_ref_in_anchor_peer_node->GetOpDesc(), ATTR_NAME_INDEX, index), PARAM_INVALID,
-              "Failed to get attribute index from data node: %s", peer_node_ref_in_anchor_peer_node->GetName().c_str());
-          output_ref_to_input_idx[in_anchor->GetIdx()] = index;
-          GELOGI("Get net output in:%u, peer out_idx = %d, output_name = %s, ref to input node = %s:%u",
-                 in_anchor->GetIdx(), out_idx, output_name.c_str(), peer_node_ref_in_anchor_peer_node->GetNamePtr(),
-                 index);
-          break;
-        }
-      }
-    }
-    GELOGI("NetOutput in idx = %d, output_name = %s, peer_out_node = %s", in_anchor->GetIdx(), output_name.c_str(),
-           peer_out_node->GetNamePtr());
-  }
-  return SUCCESS;
-}
-
 Status DynamicModelExecutor::AllocEventIOBuffer(const ComputeGraphPtr &root_graph) {
-  // event io buffer is alloc by GE before LoadModel, queue output is alloc by GE when Run graph
-  for (size_t i = input_queues_num_; i < num_inputs_; i++) {
-    int64_t tensor_size = 0L;
-    const int32_t align_size = 512;
-    GE_CHK_STATUS_RET(HcomOmeUtil::GetAlignedTensorSize(input_tensor_descs_[i], align_size, tensor_size),
-                      "[Get][Size] from TensorDesc of hcom recv op failed, index[%zu].", i);
-    const size_t id = i - input_queues_num_;
-    GE_CHK_RT_RET(rtMallocHost(&input_buf_addresses_[id], tensor_size, GE_MODULE_NAME_U16));
-    GE_CHECK_NOTNULL(input_buf_addresses_[id]);
-    GELOGI("input[%zu] was allocated by executor, Host memory allocated, size = %zu", i, tensor_size);
-  }
-  std::map<int32_t, int32_t> output_ref_to_input_idx;
-  GE_CHK_STATUS_RET(GetOutputRefToInput(root_graph, output_ref_to_input_idx), "[Get][OutputRef] failed, graph = %s",
-                    root_graph->GetName().c_str());
-  for (size_t i = output_queues_num_; i < num_outputs_; i++) {
-    int64_t tensor_size = 0L;
-    GE_CHK_GRAPH_STATUS_RET(TensorUtils::GetTensorMemorySizeInBytes(output_tensor_descs_[i], tensor_size),
-                            "[Get][TensorMemorySizeInBytes] failed.");
-    const size_t id = i - output_queues_num_;
-    const auto &iter = output_ref_to_input_idx.find(i);
-    if (iter != output_ref_to_input_idx.cend()) {
-      GE_ASSERT_TRUE(iter->second >= 0);
-      GE_CHECK_GE(static_cast<size_t>(iter->second), input_queues_num_);
-      output_buf_addresses_[id] = input_buf_addresses_[iter->second - input_queues_num_];
-      GELOGI("output[%zu] was ref to input %d, size = %zu", i, iter->second, tensor_size);
-      continue;
-    }
-    GE_CHK_RT_RET(rtMallocHost(&output_buf_addresses_[id], tensor_size, GE_MODULE_NAME_U16));
-    GE_CHECK_NOTNULL(output_buf_addresses_[id]);
-    GELOGI("output[%zu] was allocated by executor, Host memory allocated, size = %zu", i, tensor_size);
-  }
+  // delete related parameter when delete event
+  (void)root_graph;
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::LoadModel(const GeRootModelPtr &root_model,
+Status DynamicModelExecutor::LoadModel(const ModelData &model_data,
+                                       const ComputeGraphPtr &root_graph,
                                        const ModelQueueParam &model_queue_param) {
   GE_CHK_RT_RET(rtGetDevice(&device_id_));
   GE_CHK_RT_RET(rtCtxGetCurrent(&rt_context_));
   if (!GetContext().GetHostExecFlag()) {
     GE_CHK_RT_RET(rtStreamCreate(&stream_, 0));
   }
-  GE_CHK_STATUS_RET_NOLOG(GetInputAndOutputNum(root_model, model_queue_param));
+  GE_CHK_STATUS_RET_NOLOG(GetInputAndOutputNum(root_graph, model_queue_param));
   input_queue_attrs_ = model_queue_param.input_queues_attrs;
   output_queue_attrs_ = model_queue_param.output_queues_attrs;
   input_fusion_offsets_ = model_queue_param.input_fusion_offsets;
@@ -222,15 +160,15 @@ Status DynamicModelExecutor::LoadModel(const GeRootModelPtr &root_model,
   output_buf_addresses_.resize(output_events_num_);
   input_mbuf_addresses_.resize(input_queues_num_);
   output_mbuf_addresses_.resize(output_queues_num_);
-  GE_CHK_STATUS_RET_NOLOG(ParseModelDesc(root_model));
-  GE_CHK_STATUS_RET_NOLOG(DoLoadModel(root_model));
-  GE_CHK_STATUS_RET_NOLOG(GetGlobalStepAddr(model_id_));
-  GE_CHK_STATUS_RET_NOLOG(AllocEventIOBuffer(root_model->GetRootGraph()));
+  GE_CHK_STATUS_RET_NOLOG(ParseModelDesc(root_graph));
+  GE_CHK_STATUS_RET_NOLOG(DoLoadModel(model_data, root_graph));
+  GE_CHK_STATUS_RET_NOLOG(GetGlobalStepAddr());
+  GE_CHK_STATUS_RET_NOLOG(AllocEventIOBuffer(root_graph));
   if ((num_inputs_ == 0U) && (num_outputs_ == 0U)) {
-    return ExecuteDirectly(root_model);
+    return ExecuteDirectly();
   }
   // load with aicpu-sd
-  GE_CHK_STATUS_RET_NOLOG(LoadWithAicpuSd(root_model, model_queue_param));
+  GE_CHK_STATUS_RET_NOLOG(LoadWithAicpuSd(root_graph, model_queue_param));
   if (need_report_status_) {
     GE_CHK_STATUS_RET(
         RtsApiUtils::MemQueueAttach(status_output_queue_device_id_, status_output_queue_id_, kQueueAttachTime),
@@ -244,11 +182,64 @@ Status DynamicModelExecutor::LoadModel(const GeRootModelPtr &root_model,
   return SUCCESS;
 }
 
+void DynamicModelExecutor::DestroyDatasetResource() {
+  rtCtxSetCurrent(rt_context_);
+  GEEVENT("Destroy dataset resource begin, inner model_id = %u.", model_id_);
+  if (model_desc_ != nullptr) {
+    (void) aclmdlDestroyDesc(model_desc_);
+    model_desc_ = nullptr;
+  }
+  for (aclTensorDesc* &desc : acl_tensor_desc_) {
+    if (desc != nullptr) {
+      (void) aclDestroyTensorDesc(desc);
+      desc = nullptr;
+    }
+  }
+  for (aclDataBuffer* &buffer : output_data_buffer_) {
+    if (buffer != nullptr) {
+      (void) aclDestroyDataBuffer(buffer);
+      buffer = nullptr;
+    }
+  }
+  for (aclDataBuffer* &buffer : input_data_buffer_) {
+    if (buffer != nullptr) {
+      (void) aclDestroyDataBuffer(buffer);
+      buffer = nullptr;
+    }
+  }
+  if (input_dataset_ != nullptr) {
+    (void) aclmdlDestroyDataset(input_dataset_);
+    input_dataset_ = nullptr;
+  }
+  if (output_dataset_ != nullptr) {
+    (void) aclmdlDestroyDataset(output_dataset_);
+    output_dataset_ = nullptr;
+  }
+  GEEVENT("Destroy dataset resource success, inner model_id = %u.", model_id_);
+}
+
 void DynamicModelExecutor::UnloadModel() {
   Stop();
   (void) UnloadFromAicpuSd();
   GEEVENT("UnloadModel model begin, inner model_id = %u.", model_id_);
-  (void) ge_executor_.UnloadModel(model_id_);
+  if (!external_weight_mem_data_.empty()){
+    for (auto &external_weight : external_weight_mem_data_) {
+      if (external_weight.device_mem == nullptr) {
+        continue;
+      }
+      void *data_addr = const_cast<void*>(external_weight.device_mem);
+      (void)aclrtFree(data_addr);
+      external_weight.device_mem = nullptr;
+      data_addr = nullptr;
+    }
+    GEEVENT("UnloadModel model external weight success, inner model_id = %u.", model_id_);
+  }
+  rtCtxSetCurrent(rt_context_);
+  if (handle_ != nullptr) {
+    (void) aclmdlDestroyConfigHandle(handle_);
+    handle_ = nullptr;
+  }
+  (void) aclmdlUnload(model_id_);
   GEEVENT("UnloadModel model success, inner model_id = %u.", model_id_);
   FreeEventIOBuffer();
 }
@@ -392,9 +383,8 @@ Status DynamicModelExecutor::ExecuteInternal() {
     return PublishOutputWithoutExecute();
   }
   // prepare inputs
-  RunModelData model_inputs;
-  std::vector<GeTensor> input_tensors;
-  RunModelData model_outputs;
+  std::vector<DataBuffer> model_inputs;
+  std::vector<DataBuffer> model_outputs;
   GE_CHK_STATUS_RET_NOLOG(PrepareInputs(model_inputs));
   GELOGD("Inputs prepared successfully, model_id = %u.", model_id_);
   GE_CHK_STATUS_RET_NOLOG(PrepareOutputs(model_outputs));
@@ -416,13 +406,12 @@ Status DynamicModelExecutor::ExecuteInternal() {
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::ExecuteDirectly(const GeRootModelPtr &root_model) {
-  (void) root_model;
+Status DynamicModelExecutor::ExecuteDirectly() {
   GE_CHK_BOOL_RET_STATUS((num_inputs_ == 0UL) && (num_outputs_ == 0UL),
                          UNSUPPORTED, "Inputs or outputs num is invalid, num_inputs_ = %zu, num_outputs_ = %zu",
                          num_inputs_, num_outputs_);
-  RunModelData model_inputs;
-  RunModelData model_outputs;
+  std::vector<DataBuffer> model_inputs;
+  std::vector<DataBuffer> model_outputs;
   GE_CHK_STATUS_RET(DoExecuteModel(model_inputs, model_outputs), "Failed to execute model");
   return SUCCESS;
 }
@@ -448,7 +437,7 @@ Status DynamicModelExecutor::UpdateBufferDataAddr(size_t index, void *&buffer_da
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::PrepareInputs(RunModelData &model_inputs) {
+Status DynamicModelExecutor::PrepareInputs(std::vector<DataBuffer> &model_inputs) {
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kStartPoint,
                                                                      ProfilerEvent::kPrepareInputs, device_id_);
   for (size_t i = 0U; i < num_inputs_; ++i) {
@@ -494,16 +483,15 @@ Status DynamicModelExecutor::PrepareInputs(RunModelData &model_inputs) {
       data_buffer.data = input_buf_addresses_[i - input_queues_num_];
     }
     data_buffer.placement = is_host_ ? kPlacementHost : kPlacementDevice;
-    model_inputs.blobs.emplace_back(data_buffer);
+    model_inputs.emplace_back(data_buffer);
   }
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kEndPoint,
                                                                      ProfilerEvent::kPrepareInputs, device_id_);
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::ParseModelDesc(const GeRootModelPtr &root_model) {
-  GE_CHECK_NOTNULL(root_model);
-  const auto &root_graph = root_model->GetRootGraph();
+Status DynamicModelExecutor::ParseModelDesc(const ComputeGraphPtr &root_graph) {
+  GE_CHECK_NOTNULL(root_graph);
   input_tensor_descs_.resize(num_inputs_);
   input_tensor_sizes_.resize(num_inputs_);
   is_input_dynamic_.resize(num_inputs_);
@@ -584,53 +572,19 @@ bool DynamicModelExecutor::IsEventOutput(const int64_t index) const {
          (index >= static_cast<int64_t>(output_queues_num_));
 }
 
-Status DynamicModelExecutor::GetInputAndOutputNum(const GeRootModelPtr &root_model,
+Status DynamicModelExecutor::GetInputAndOutputNum(const ComputeGraphPtr &root_graph,
                                                   const ModelQueueParam &model_queue_param) {
-  GE_CHECK_NOTNULL(root_model);
-  num_inputs_ = 0UL;
+  GE_CHECK_NOTNULL(root_graph);
   input_events_num_ = model_queue_param.input_events.size();
+  GE_ASSERT_TRUE(input_events_num_ == 0, "input_events_num_ not equal to 0.");  // delete when delete event situation
   output_events_num_ = model_queue_param.output_events.size();
+  GE_ASSERT_TRUE(output_events_num_ == 0, "output_events_num_ not equal to 0.");  // delete when delete event situation
   input_queues_num_ = model_queue_param.input_queues.size();
   output_queues_num_ = model_queue_param.output_queues.size();
-  for (const auto &node : root_model->GetRootGraph()->GetDirectNode()) {
-    const auto &op_desc = node->GetOpDesc();
-    GE_ASSERT_NOTNULL(op_desc);
-    if ((node->GetType() == DATA) || OpTypeUtils::IsInputRefData(op_desc)) {
-      const auto tensor = op_desc->MutableOutputDesc(0);
-      GE_CHECK_NOTNULL(tensor);
-      int64_t index = 0;
-      GE_CHK_BOOL_RET_STATUS(ge::AttrUtils::GetInt(op_desc, ATTR_NAME_INDEX, index), PARAM_INVALID,
-                             "Failed to get attr index from data node: %s.", node->GetName().c_str());
-      if (IsEventInput(index)) {
-        int64_t size = 0UL;
-        GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytes(*tensor, size));
-        TensorUtils::SetSize(*tensor, size);
-      }
-      num_inputs_++;
-    } else if (node->GetType() == NETOUTPUT) {
-      num_outputs_ = op_desc->GetAllInputsDescPtr().size();
-      int64_t index = 0;
-      for (auto &input_tensor : op_desc->GetAllInputsDescPtr()) {
-        if (IsEventOutput(index)) {
-          GE_CHECK_NOTNULL(input_tensor);
-          int64_t size = 0UL;
-          GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytes(*input_tensor, size),
-                                  "[Get][MemSize] failed, shape = %s", input_tensor->GetShape().ToString().c_str());
-          TensorUtils::SetSize(*input_tensor, size);
-        }
-      }
-    } else {
-      // skip other nodes
-    }
-  }
-  // check param
-  GE_CHK_BOOL_RET_STATUS(num_inputs_ == (input_events_num_ + input_queues_num_), FAILED,
-                         "[Check][InputNum] failed, num_inputs[%zu] != input_events_num[%zu] + input_queues_num[%zu].",
-                         num_inputs_, input_events_num_, input_queues_num_);
-  GE_CHK_BOOL_RET_STATUS(
-      num_outputs_ == (output_events_num_ + output_queues_num_), FAILED,
-      "[Check][OutputNum] failed, num_outputs[%zu] != output_events_num[%zu] + output_queues_num[%zu].", num_outputs_,
-      output_events_num_, output_queues_num_);
+  num_inputs_ = input_queues_num_;
+  num_outputs_ = output_queues_num_;
+
+  (void)model_queue_param;              
   GELOGD("Load model[%u], input num = [all:%zu, events:%zu, queue:%zu], output num = [all:%zu, events:%zu, queue:%zu]",
          model_id_, num_inputs_, input_events_num_, input_queues_num_, num_outputs_, output_events_num_,
          output_queues_num_);
@@ -700,7 +654,7 @@ Status DynamicModelExecutor::CopyMbufHead(rtMbufPtr_t src, rtMbufPtr_t dst) {
   return FAILED;
 }
 
-Status DynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
+Status DynamicModelExecutor::PrepareOutputs(std::vector<DataBuffer> &model_outputs) {
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kStartPoint,
                                                                      ProfilerEvent::kPrepareOutputs, device_id_);
   for (size_t i = 0; i < num_outputs_; ++i) {
@@ -708,7 +662,7 @@ Status DynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
     if (tensor_size < 0) { // no valid range
       GELOGD("Output[%zu] is dynamic and cannot get a valid size by range.", i);
       output_mbuf_addresses_[i] = nullptr;
-      model_outputs.blobs.emplace_back(DataBuffer{});
+      model_outputs.emplace_back(DataBuffer{});
       continue;
     }
 
@@ -718,7 +672,7 @@ Status DynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
     // recv mbuf has been alloc when load model, skip alloc
     if (!IsEventOutput(i)) {
       if ((i < output_queue_attrs_.size()) && (output_queue_attrs_[i].queue_id == kDummyQId)) {
-        model_outputs.blobs.emplace_back(data_buffer);
+        model_outputs.emplace_back(data_buffer);
         continue;
       }
       GE_CHK_RT_RET(rtMbufAlloc(&output_mbuf_addresses_[i], buffer_size));
@@ -730,11 +684,9 @@ Status DynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
       data_buffer.data = output_buf_addresses_[i - output_queues_num_];
     }
     data_buffer.placement = is_host_ ? kPlacementHost : kPlacementDevice;
-    GELOGD("Output[%zu] is dynamic = %d, data buffer size = %zu",
-           i,
-           static_cast<int32_t>(is_output_dynamic_[i]),
-           data_buffer.length);
-    model_outputs.blobs.emplace_back(data_buffer);
+    GELOGD("Output[%zu] is dynamic = %d, data buffer size = %zu", i,
+           static_cast<int32_t>(is_output_dynamic_[i]), data_buffer.length);
+    model_outputs.emplace_back(data_buffer);
     // mbuf will be freed by consumer
   }
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kEndPoint,
@@ -766,7 +718,7 @@ Status DynamicModelExecutor::GetTensorSize(const GeTensorDesc &tensor_desc, int6
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::UpdateOutputs(RunModelData &model_outputs) {
+Status DynamicModelExecutor::UpdateOutputs(std::vector<DataBuffer> &model_outputs) {
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kStartPoint,
                                                                      ProfilerEvent::kUpdateOutputs, device_id_);
   for (size_t i = 0; i < num_outputs_; ++i) {
@@ -780,7 +732,7 @@ Status DynamicModelExecutor::UpdateOutputs(RunModelData &model_outputs) {
     auto &tensor_desc = output_tensor_descs_[i];
     void *buffer_addr = nullptr;
     if (output_mbuf_addresses_[i] == nullptr) {
-      auto &data_buffer = model_outputs.blobs[i];
+      auto &data_buffer = model_outputs[i];
       auto buffer_size = sizeof(RuntimeTensorDesc) + data_buffer.length;
       GE_CHK_RT_RET(rtMbufAlloc(&output_mbuf_addresses_[i], buffer_size));
       GE_CHK_RT_RET(rtMbufSetDataLen(output_mbuf_addresses_[i], buffer_size));
@@ -827,7 +779,7 @@ Status DynamicModelExecutor::UpdateOutputs(RunModelData &model_outputs) {
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::LoadWithAicpuSd(const GeRootModelPtr &root_model,
+Status DynamicModelExecutor::LoadWithAicpuSd(const ComputeGraphPtr &root_graph,
                                              const ModelQueueParam &model_queue_param) {
   GE_CHK_STATUS_RET(CreateFakeAicpuModelAndStream(), "Failed to create aicpu model and stream");
   CpuSchedEventDispatcher::GetInstance().Register(aicpu_model_id_, this);
@@ -904,7 +856,7 @@ Status DynamicModelExecutor::LoadWithAicpuSd(const GeRootModelPtr &root_model,
   }
 
   GEEVENT("[LoadWithAicpuSd] success, model_id = %u, model_name = %s, device_id = %d, aicpu model_id = %u", model_id_,
-          root_model->GetModelName().c_str(), device_id_, aicpu_model_id_);
+          root_graph->GetName().c_str(), device_id_, aicpu_model_id_);
   return SUCCESS;
 }
 Status DynamicModelExecutor::CheckAicpuKernelSupported(const std::string &kernel_name, bool &is_supported) const {
@@ -996,6 +948,7 @@ void DynamicModelExecutor::Run() {
       GELOGE(ret, "Failed to execute model, model_id = %u", model_id_);
       PublishErrorOutput(ret);
     }
+    DestroyDatasetResource();
     model_execute_param_.callback(ret, model_execute_param_.req_mbuf, model_execute_param_.resp_mbuf);
     GELOGD("callback finished");
     if (need_report_status_) {
@@ -1072,14 +1025,12 @@ void DynamicModelExecutor::Stop() {
   if (run_thread_.joinable()) {
     run_thread_.join();
   }
-  if ((npu_memory_allocator_ != nullptr) && (new_allocated_global_step_ != nullptr)) {
-    npu_memory_allocator_->Deallocate(new_allocated_global_step_, MemStorageType::HBM);
-    new_allocated_global_step_ = nullptr;
-  }
   if (is_host_ && (new_allocated_global_step_ != nullptr)) {
     free(new_allocated_global_step_);
-    new_allocated_global_step_ = nullptr;
+  } else if (new_allocated_global_step_ != nullptr) {
+    (void)aclrtFree(new_allocated_global_step_);
   }
+  new_allocated_global_step_ = nullptr;
   GELOGI("Global step is allocated in dynamic model executor which need to be deallocated when executor stopping");
 }
 
@@ -1106,48 +1057,205 @@ Status DynamicModelExecutor::CreateFakeAicpuModelAndStream() {
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::DoLoadModel(const shared_ptr<GeRootModel> &root_model) {
-  auto graph_node = MakeShared<GraphNode>(0U);
-  GE_CHECK_NOTNULL(graph_node);
-  graph_node->SetAsync(false);
-  // Will be changed to flow model api, use inner api(ModelManager) for now
+Status DynamicModelExecutor::DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph) {
   int32_t device_id = is_host_ ? GetContext().DeviceId() : device_id_;
-  GE_CHK_STATUS_RET(ModelManager::GetInstance().LoadModelOnline(model_id_, root_model, graph_node, device_id),
-                    "Failed to load model");
+  aclError ret = aclrtSetDevice(device_id);
+  GE_ASSERT_TRUE(ret == ACL_SUCCESS, "ACL set device id failed.");
+  rtCtxSetCurrent(rt_context_);
+  GE_CHK_STATUS_RET(InitExternalWeightMem(root_graph, external_weight_mem_data_), "Failed to init external weright mem.");
+  handle_ = aclmdlCreateConfigHandle();
+  GE_CHECK_NOTNULL(handle_, "Create acl load config handle failed.");
+  GE_CHK_STATUS_RET(GenerateLoadConfig(model_data, external_weight_mem_data_, handle_));
+  ret = aclmdlLoadWithConfig(handle_, &model_id_);
+  if (ret != ACL_SUCCESS) {
+    GELOGE(FAILED, "Failed to load model");
+    (void) aclmdlDestroyConfigHandle(handle_);
+    handle_ = nullptr;
+    return FAILED;
+  }
+  GELOGI("Load model[%u] on device[%u] success.", model_id_, device_id);
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::DoExecuteModel(const RunModelData &inputs, RunModelData &outputs) {
-  output_tensor_descs_.clear();
-  return ge_executor_.ExecModel(model_id_,
-                                stream_,
-                                inputs,
-                                input_tensor_descs_,
-                                outputs,
-                                output_tensor_descs_,
-                                false);
+Status DynamicModelExecutor::GenerateLoadConfig(const ModelData &model_data, const std::vector<FileConstantMem> &external_weight_mem_data, aclmdlConfigHandle *handle) {
+  GELOGD("[GenerateLoadConfig] Start to generate acl type load config.");
+  aclError ret;
+  GE_CHECK_NOTNULL(handle, "Failed to create acl config handle.");
+  for (auto &external_weight : external_weight_mem_data) {
+    ret = aclmdlSetExternalWeightAddress(handle, external_weight.file_name.c_str(), 
+                                                    (void *)(external_weight.device_mem), external_weight.mem_size);
+    GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to set acl external weight address.");
+  }
+  size_t load_type = ACL_MDL_LOAD_FROM_MEM;
+  ret = aclmdlSetConfigOpt(handle, ACL_MDL_LOAD_TYPE_SIZET, &load_type, sizeof(load_type));
+  GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to set acl load option ACL_MDL_LOAD_TYPE_SIZET.");
+  ret = aclmdlSetConfigOpt(handle, ACL_MDL_MEM_ADDR_PTR, &model_data.model_data, sizeof(void *));
+  GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to set acl load option ACL_MDL_MEM_ADDR_PTR.");
+  size_t model_len = static_cast<size_t>(model_data.model_len);
+  ret = aclmdlSetConfigOpt(handle, ACL_MDL_MEM_SIZET, &model_len, sizeof(size_t));
+  GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to set acl load option ACL_MDL_MEM_SIZET.");
+  GELOGD("[GenerateLoadConfig] Succeed to generate acl type load config.");
+  return SUCCESS;
 }
 
-Status DynamicModelExecutor::GetGlobalStepAddr(const uint32_t model_id) {
-  auto hybrid_model = ModelManager::GetInstance().GetHybridModel(model_id);
-  GE_CHECK_NOTNULL(hybrid_model);
-  global_step_ = hybrid_model->GetGlobalStepAddr();
-  if (global_step_ == 0UL) {
-    GEEVENT("Current process procedure maybe runtime 2.0. Create global_step memory now.");
-    if (is_host_) {
-      GELOGI("Alloc global step memory for host cpu model.");
-      new_allocated_global_step_ = malloc(sizeof(int64_t));
-    } else {
-      npu_memory_allocator_ = hybrid::NpuMemoryAllocator::GetAllocator(hybrid_model->GetDeviceId(), stream_);
-      GE_CHECK_NOTNULL(npu_memory_allocator_);
-      hybrid::AllocationAttr attr;
-      attr.SetMemType(MemStorageType::HBM);
-      new_allocated_global_step_ = npu_memory_allocator_->Allocate(sizeof(int64_t), &attr);
+Status DynamicModelExecutor::InitExternalWeightMem(const ComputeGraphPtr &root_graph, std::vector<FileConstantMem> &external_weight_mem_data) {
+  GELOGD("[InitExternalWeightMem] Start to init extrnal weight mem.");
+  // load external weight
+  for (const auto &node : root_graph->GetAllNodes()) {
+    const auto &op_desc = node->GetOpDesc();
+    GE_CHECK_NOTNULL(op_desc);
+    if (op_desc->GetType() != FILECONSTANT) {
+      continue;
     }
-    GE_CHECK_NOTNULL(new_allocated_global_step_);
-    global_step_ = PtrToValue(new_allocated_global_step_);
-    GELOGI("Create global step success.");
+
+    FileConstantMem external_weight{};
+    std::string fileconstant_name;
+    (void)AttrUtils::GetStr(op_desc, ATTR_NAME_LOCATION, fileconstant_name);
+    if (fileconstant_name.empty()) {
+      GELOGE(PARAM_INVALID, "File constant name invalid.");
+      return PARAM_INVALID;
+    }
+    int64_t attr_length = 0;
+    (void)AttrUtils::GetInt(op_desc, ATTR_NAME_LENGTH, attr_length);
+    if ((attr_length < 0) || (attr_length >= INT64_MAX)) {
+      GELOGE(PARAM_INVALID, "Data length out of range, data length = %ld", attr_length);
+      return PARAM_INVALID;
+    }
+
+    auto file_name = RealPath(fileconstant_name.c_str());
+    if (file_name.empty()) {
+      GELOGE(ACL_ERROR_GE_PARAM_INVALID, "The path[%s]is invalid", fileconstant_name.c_str());
+      return ACL_ERROR_GE_PARAM_INVALID;
+    }
+    external_weight.file_name = file_name;
+    external_weight.mem_size = static_cast<size_t>(attr_length);
+    external_weight.device_mem = nullptr;
+
+    auto host_buffer = ge::MakeUnique<char_t[]>(attr_length);
+    GE_CHK_STATUS_RET(FileConstantUtils::ReadExternalWeightFromFile(file_name , 0, attr_length, host_buffer.get()));
+
+    auto alloc_size = (attr_length + 32 - 1) / 32 * 32;
+    void *data_addr = nullptr;
+    aclError ret = aclrtMalloc(&data_addr, alloc_size, ACL_MEM_MALLOC_HUGE_FIRST);
+    GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to malloc device mem.");
+
+    // copy to device
+    ret = aclrtMemcpy(data_addr, attr_length,
+                    host_buffer.get(), attr_length, ACL_MEMCPY_HOST_TO_DEVICE);
+    if (ret != ACL_SUCCESS) {
+      GELOGE(FAILED, "Failed to copy host buffer to device.");
+      (void)aclrtFree(data_addr);
+      return FAILED;
+    }
+    external_weight.device_mem = data_addr;
+    external_weight_mem_data.emplace_back(external_weight);
+    GELOGD("Success initialize external weight mem from file[%s], length[%lu]", file_name.c_str(), attr_length);
   }
+  GELOGD("[InitExternalWeightMem] Succeed to init extrnal weight mem.");
+  return SUCCESS;
+}
+
+Status DynamicModelExecutor::CreateInputDataset(const std::vector<DataBuffer> &inputs) {
+  // acl type input dataset
+  GELOGD("[CreateInputDataset] Start to acl type create input dataset.");
+  aclError ret;
+  input_data_buffer_.resize(num_inputs_);
+  acl_tensor_desc_.resize(num_inputs_);
+  input_dataset_ = aclmdlCreateDataset();
+  GE_CHECK_NOTNULL(input_dataset_);
+  for (size_t i = 0U; i < num_inputs_; ++i){
+    input_data_buffer_[i] = aclCreateDataBuffer(inputs[i].data, static_cast<size_t>(inputs[i].length));
+    GE_CHECK_NOTNULL(input_data_buffer_[i]);
+    ret = aclmdlAddDatasetBuffer(input_dataset_, input_data_buffer_[i]);
+    GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to add acl input databuffer to dataset.");
+  }
+  // add input tensor desc
+  for (size_t i = 0; i < num_inputs_; ++i) {
+    acl_tensor_desc_[i] = aclCreateTensorDesc(
+      static_cast<aclDataType>(input_tensor_descs_[i].GetDataType()),
+      input_tensor_descs_[i].GetShape().GetDims().size(),
+      input_tensor_descs_[i].GetShape().GetDims().data(),
+      static_cast<aclFormat>(input_tensor_descs_[i].GetFormat())
+    );
+    ret = aclmdlSetDatasetTensorDesc(input_dataset_, acl_tensor_desc_[i], i);
+    GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to add input tensor desc to input dataset.");
+  }
+  GELOGD("[CreateInputDataset] Succeed to acl type create input dataset.");
+  return SUCCESS;
+}
+
+Status DynamicModelExecutor::CreateOutputDataset(const std::vector<DataBuffer> &outputs) {
+  GELOGD("[CreateOutputDataset] Start to acl type create output dataset.");
+  // acl type output
+  output_data_buffer_.resize(num_outputs_);
+  model_desc_ = aclmdlCreateDesc();
+  GE_CHECK_NOTNULL(model_desc_);
+  auto ret = aclmdlGetDesc(model_desc_, model_id_);
+  GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to get acl model description.");
+
+  output_dataset_ = aclmdlCreateDataset();
+  GE_CHECK_NOTNULL(output_dataset_);
+  for (size_t i = 0; i < num_outputs_; ++i){
+    output_data_buffer_[i] = aclCreateDataBuffer(outputs[i].data, static_cast<size_t>(outputs[i].length));
+    GE_CHECK_NOTNULL(output_data_buffer_[i]);
+    ret = aclmdlAddDatasetBuffer(output_dataset_, output_data_buffer_[i]);
+    GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to add acl output databuffer to dataset.");
+  }
+  GELOGD("[CreateOutputDataset] Succeed to acl type create output dataset.");
+  return SUCCESS;
+}
+
+Status DynamicModelExecutor::DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs) {
+  GE_CHK_STATUS_RET(CreateInputDataset(inputs), "Failed to prepare acl type input dataset.");
+  GE_CHK_STATUS_RET(CreateOutputDataset(outputs), "Failed to prepare acl type output dataset.");
+  rtCtxSetCurrent(rt_context_);
+  auto ret = aclmdlExecute(model_id_, input_dataset_, output_dataset_);
+  GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to execute model.");
+
+  // parse output tensor_desc
+  for (size_t i = 0; i < num_outputs_; ++i) {
+    aclTensorDesc *acl_tensor_desc = aclmdlGetDatasetTensorDesc(output_dataset_, i);
+    GE_CHK_STATUS_RET(ParseModelOutputToTensorDesc(acl_tensor_desc, output_tensor_descs_[i]));
+    aclDataBuffer *output_tensor_data = aclmdlGetDatasetBuffer(output_dataset_, i);
+    outputs[i].data = aclGetDataBufferAddr(output_tensor_data);
+    outputs[i].length = static_cast<uint64_t>(aclGetDataBufferSizeV2(output_tensor_data));
+  }
+
+  GELOGI("Execute model[%u] success.", model_id_);
+  return SUCCESS;
+}
+
+Status DynamicModelExecutor::ParseModelOutputToTensorDesc(const aclTensorDesc *acl_tensor_desc, GeTensorDesc &tensor_desc) {
+  tensor_desc.SetFormat(static_cast<Format>(aclGetTensorDescFormat(acl_tensor_desc)));
+  tensor_desc.SetDataType(static_cast<DataType>(aclGetTensorDescType(acl_tensor_desc)));
+  std::vector<int64_t> tensor_shape;
+  size_t num_dims = aclGetTensorDescNumDims(acl_tensor_desc);
+  for (size_t i = 0; i < num_dims; ++i) {
+    int64_t dim;
+    aclError ret = aclGetTensorDescDimV2(acl_tensor_desc, i, &dim);
+    GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to get dim at index[%lu].", dim);
+    tensor_shape.emplace_back(dim);
+  }
+  GeShape shape(tensor_shape);
+  tensor_desc.SetShape(shape);
+  GELOGI("Successfully parse model output tensor desc. shape = [%s]", shape.ToString().c_str());
+  return SUCCESS;
+}
+
+Status DynamicModelExecutor::GetGlobalStepAddr() {
+  int32_t device_id = -1;
+  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GEEVENT("Current process procedure maybe runtime 2.0. Create global_step memory now.");
+  if (is_host_) {
+    GELOGI("Alloc global step memory for host cpu model.");
+    new_allocated_global_step_ = malloc(sizeof(int64_t));
+  } else {
+    aclError ret = aclrtMalloc(&new_allocated_global_step_, sizeof(int64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to malloc device mem.");
+  }
+  GE_CHECK_NOTNULL(new_allocated_global_step_);
+  global_step_ = PtrToValue(new_allocated_global_step_);
+  GELOGI("Create global step success.");
   return SUCCESS;
 }
 

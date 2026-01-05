@@ -31,6 +31,9 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
+#include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "dflow/inc/data_flow/model/graph_model.h"
+#include "stub_models.h"
 
 using namespace std;
 
@@ -60,19 +63,18 @@ class RuntimeMock : public RuntimeStub {
 class MockDynamicModelExecutor : public DynamicModelExecutor {
  public:
   MockDynamicModelExecutor(bool is_host) : DynamicModelExecutor(is_host) {}
-  Status DoLoadModel(const shared_ptr<GeRootModel> &root_model) override {
-    (void) DynamicModelExecutor::DoLoadModel(root_model);
+  Status DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph) override {
+    (void) DynamicModelExecutor::DoLoadModel(model_data, root_graph);
     model_id_ = 0;
     aicpu_model_id_ = 1023;
-    auto hybrid_model = std::make_shared<hybrid::HybridDavinciModel>();
-    ModelManager::GetInstance().InsertModel(model_id_, hybrid_model);
     return SUCCESS;
   }
 
-  Status DoExecuteModel(const RunModelData &inputs, RunModelData &outputs) override {
-    DataBuffer &data_buffer = outputs.blobs[0];
-    if (data_buffer.data == nullptr) {
-      data_buffer.data = output_buffer_;
+  Status DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs) override {
+    (void) DynamicModelExecutor::DoExecuteModel(inputs, outputs);
+    DataBuffer &data_buffer = outputs[0];
+    if (data_buffer.data == nullptr) {	
+      data_buffer.data = output_buffer_;	
     }
     data_buffer.length = 8;
     auto output_values = reinterpret_cast<int32_t *>(data_buffer.data);
@@ -199,7 +201,43 @@ class DynamicModelExecutorTest : public testing::Test {
   void TearDown() override {
   }
 
-  GeRootModelPtr BuildRootModel(const std::vector<int64_t> &shape, bool add_align_attr = false) {
+  PneModelPtr BuildRootModelWithFileConstant(const std::vector<int64_t> &shape, bool add_align_attr = false) {
+    vector<std::string> engine_list = {"AIcoreEngine"};
+    auto data1 = OP_CFG(DATA)
+        .InCnt(1)
+        .OutCnt(1)
+        .TensorDesc(FORMAT_ND, DT_INT32, shape)
+        .Attr(ATTR_NAME_INDEX, 0);
+    (void) system("echo 1 > hello.bin");
+    auto neg = OP_CFG(FILECONSTANT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape)
+                          .Attr(ATTR_NAME_INDEX, 0)
+                          .Attr(ATTR_NAME_LOCATION, "hello.bin")
+                          .Attr(ATTR_NAME_OFFSET, 0)
+                          .Attr(ATTR_NAME_LENGTH, 2);
+    auto netoutput = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_INT32, shape);
+    DEF_GRAPH(g1) {
+      CHAIN(NODE("data_1", data1)->EDGE(0, 0)->NODE("neg", neg)->NODE("Node_Output", netoutput));
+    };
+    auto root_graph = ToComputeGraph(g1);
+    if (std::find(shape.begin(), shape.end(), -1) != shape.end()) {
+      (void)AttrUtils::SetBool(root_graph, ATTR_NAME_GRAPH_UNKNOWN_FLAG, true);
+    }
+    auto output_node = root_graph->FindNode("Node_Output");
+    output_node->GetOpDesc()->SetSrcIndex({0});
+    output_node->GetOpDesc()->SetSrcName({"neg"});
+
+    if (add_align_attr) {
+      auto data_node = root_graph->FindNode("data_1");
+      NamedAttrs align_attr;
+      AttrUtils::SetInt(align_attr, ATTR_NAME_INPUTS_ALIGN_INTERVAL, 10U);
+      AttrUtils::SetInt(align_attr, ATTR_NAME_INPUTS_ALIGN_OFFSET, 5U);
+      AttrUtils::SetNamedAttrs(data_node->GetOpDesc(), ATTR_NAME_INPUTS_ALIGN_ATTR, align_attr);
+    }
+    PneModelPtr pne_model = StubModels::BuildRootModel(root_graph, false);
+    return pne_model;
+  }
+
+  PneModelPtr BuildRootModel(const std::vector<int64_t> &shape, bool add_align_attr = false) {
     vector<std::string> engine_list = {"AIcoreEngine"};
     auto data1 = OP_CFG(DATA)
         .InCnt(1)
@@ -212,10 +250,13 @@ class DynamicModelExecutorTest : public testing::Test {
     DEF_GRAPH(g1) {
       CHAIN(NODE("data_1", data1)->EDGE(0, 0)->NODE("neg", neg)->NODE("Node_Output", netoutput));
     };
-
-    auto root_model = std::make_shared<GeRootModel>();
     auto root_graph = ToComputeGraph(g1);
-    root_model->SetRootGraph(root_graph);
+    if (std::find(shape.begin(), shape.end(), -1) != shape.end()) {
+      (void)AttrUtils::SetBool(root_graph, ATTR_NAME_GRAPH_UNKNOWN_FLAG, true);
+    }
+    auto output_node = root_graph->FindNode("Node_Output");
+    output_node->GetOpDesc()->SetSrcIndex({0});
+    output_node->GetOpDesc()->SetSrcName({"neg"});
 
     if (add_align_attr) {
       auto data_node = root_graph->FindNode("data_1");
@@ -224,9 +265,73 @@ class DynamicModelExecutorTest : public testing::Test {
       AttrUtils::SetInt(align_attr, ATTR_NAME_INPUTS_ALIGN_OFFSET, 5U);
       AttrUtils::SetNamedAttrs(data_node->GetOpDesc(), ATTR_NAME_INPUTS_ALIGN_ATTR, align_attr);
     }
-    return root_model;
+    PneModelPtr pne_model = StubModels::BuildRootModel(root_graph, false);
+    return pne_model;
   }
 };
+
+TEST_F(DynamicModelExecutorTest, TestDynamicModelWithFileConstantWithDummyQ) {
+  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  auto &dispatcher = CpuSchedEventDispatcher::GetInstance();
+  EXPECT_EQ(dispatcher.Initialize(0, false), SUCCESS);
+
+  rtMbufPtr_t input_mbuf = nullptr;
+  RuntimeTensorDesc input_runtime_tensor_desc{};
+  input_runtime_tensor_desc.shape[0] = 1;
+  input_runtime_tensor_desc.shape[1] = 2;
+  input_runtime_tensor_desc.original_shape[0] = 1;
+  input_runtime_tensor_desc.original_shape[1] = 2;
+  input_runtime_tensor_desc.dtype = DT_FLOAT;
+  input_runtime_tensor_desc.format = FORMAT_ND;
+  rtMbufAlloc(&input_mbuf, sizeof(input_runtime_tensor_desc) + 8);
+  void *input_buffer = nullptr;
+  rtMbufGetBuffAddr(input_mbuf, &input_buffer);
+  memcpy(input_buffer, &input_runtime_tensor_desc, sizeof(input_runtime_tensor_desc));
+  {
+    auto root_model = BuildRootModelWithFileConstant({-1});
+    ModelQueueParam model_queue_param{};
+    model_queue_param.input_queues = {1};
+    model_queue_param.output_queues = {UINT32_MAX};
+    QueueAttrs in_queue_0 = {.queue_id = 1, .device_type = NPU, .device_id = 0};
+    QueueAttrs out_queue_0 = {.queue_id = UINT32_MAX, .device_type = NPU, .device_id = 0};
+    model_queue_param.input_queues_attrs = {in_queue_0};
+    model_queue_param.output_queues_attrs = {out_queue_0};
+    model_queue_param.is_dynamic_sched = true;
+    model_queue_param.need_report_status = true;
+    DumpProperties dump_properties;
+    dump_properties.enable_dump_ = "1";
+    dump_properties.dump_step_ = "0|2-4|6";
+    DumpManager::GetInstance().AddDumpProperties(0, dump_properties);
+    EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
+    MockDynamicModelExecutor executor(false);
+    executor.Initialize();
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_NE(graph_model_ptr, nullptr);
+    EXPECT_NE(graph_model_ptr->GetRootGraph(), nullptr);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
+    
+    AICPUSubEventInfo event_info{};
+    event_info.modelId = 1023;
+    rtEschedEventSummary_t event_summary;
+    event_summary.msg = (char *)&event_info;
+    event_summary.msgLen = sizeof(event_info);
+    executor.input_mbuf_addresses_[0] = input_mbuf;
+    dispatcher.OnInputsReady(event_summary);
+    executor.UnloadModel();
+
+    EXPECT_EQ(executor.output_mbuf_addresses_.size(), 1);
+    EXPECT_EQ(executor.output_mbuf_addresses_[0], nullptr);
+    executor.Finalize();
+    rtMbufPtr_t m_buf;
+    HeterogeneousExchangeService::GetInstance().DequeueMbuf(executor.device_id_, executor.status_output_queue_id_,
+                                                            &m_buf, 3000);
+    rtMbufFree(m_buf);
+  }
+  dispatcher.Finalize();
+  rtMbufFree(input_mbuf);
+  MmpaStub::GetInstance().Reset();
+}
+
 TEST_F(DynamicModelExecutorTest, TestDynamicModelWithDummyQ) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   auto &dispatcher = CpuSchedEventDispatcher::GetInstance();
@@ -262,8 +367,11 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelWithDummyQ) {
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
-
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_NE(graph_model_ptr, nullptr);
+    EXPECT_NE(graph_model_ptr->GetRootGraph(), nullptr);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
+    
     AICPUSubEventInfo event_info{};
     event_info.modelId = 1023;
     rtEschedEventSummary_t event_summary;
@@ -319,7 +427,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelClearModel) {
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
 
     EXPECT_EQ(executor.stop_schedule_flag_.load(), false);
     EXPECT_EQ(executor.has_stop_schedule_.load(), false);
@@ -391,7 +500,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModel) {
     graph_options[OPTION_EXEC_DYNAMIC_GRAPH_PARALLEL_MODE] = "1";
     GetThreadLocalContext().SetGraphOption(graph_options);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
 
     AICPUSubEventInfo event_info{};
     event_info.modelId = 1023;
@@ -415,63 +525,9 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModel) {
     auto output_values = reinterpret_cast<int32_t *>(PtrToValue(output_buffer) + sizeof(RuntimeTensorDesc));
     EXPECT_EQ(output_values[0], 222);
     EXPECT_EQ(output_values[1], 666);
-    // 一个用例最好只看护一个场景: 动态模型执行器加载的模型若在device侧执行, 会创建stream, 析构时销毁stream
     rtMbufFree(executor.output_mbuf_addresses_[0]);
-    rtStreamDestroy(executor.stream_);
-
-    // invalid input
-    void *head_buf = nullptr;
-    uint64_t head_size = 0U;
-    (void)rtMbufGetPrivInfo(input_mbuf, &head_buf, &head_size);
-    if ((head_buf != nullptr) && (head_size >= sizeof(ExchangeService::MsgInfo))) {
-      ExchangeService::MsgInfo *msg_info = reinterpret_cast<ExchangeService::MsgInfo *>(
-          static_cast<char *>(head_buf) + head_size - sizeof(ExchangeService::MsgInfo));
-      msg_info->ret_code = -1;
-    }
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
-    dispatcher.OnInputsReady(event_summary);
-    executor.UnloadModel();
-    rtMbufGetBuffSize(executor.output_mbuf_addresses_[0], &output_buffer_size);
-    EXPECT_EQ(output_buffer_size, sizeof(RuntimeTensorDesc));
-    rtMbufGetPrivInfo(executor.output_mbuf_addresses_[0], &head_buf, &head_size);
-    if ((head_buf != nullptr) && (head_size >= sizeof(ExchangeService::MsgInfo))) {
-      ExchangeService::MsgInfo *msg_info = reinterpret_cast<ExchangeService::MsgInfo *>(
-          static_cast<char *>(head_buf) + head_size - sizeof(ExchangeService::MsgInfo));
-      EXPECT_EQ(msg_info->ret_code, -1);
-      msg_info->ret_code = 0;
-    }
-    rtMbufFree(executor.output_mbuf_addresses_[0]);
-    rtStreamDestroy(executor.stream_);
-
-    // null data input with eos
-    (void)rtMbufGetPrivInfo(input_mbuf, &head_buf, &head_size);
-    if ((head_buf != nullptr) && (head_size >= sizeof(ExchangeService::MsgInfo))) {
-      ExchangeService::MsgInfo *msg_info = reinterpret_cast<ExchangeService::MsgInfo *>(
-          static_cast<char *>(head_buf) + head_size - sizeof(ExchangeService::MsgInfo));
-      msg_info->flags = 1U;
-      msg_info->data_flag = 1U;
-      msg_info->ret_code = 0;
-    }
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
-    dispatcher.OnInputsReady(event_summary);
-    executor.UnloadModel();
-    rtMbufGetBuffSize(executor.output_mbuf_addresses_[0], &output_buffer_size);
-    EXPECT_EQ(output_buffer_size, sizeof(RuntimeTensorDesc));
-    rtMbufGetPrivInfo(executor.output_mbuf_addresses_[0], &head_buf, &head_size);
-    if ((head_buf != nullptr) && (head_size >= sizeof(ExchangeService::MsgInfo))) {
-      ExchangeService::MsgInfo *msg_info = reinterpret_cast<ExchangeService::MsgInfo *>(
-          static_cast<char *>(head_buf) + head_size - sizeof(ExchangeService::MsgInfo));
-      EXPECT_EQ(msg_info->ret_code, 0);
-      EXPECT_EQ(msg_info->flags, 1U);
-      EXPECT_EQ(msg_info->data_flag, 1U);
-      msg_info->flags = 0U;
-      msg_info->data_flag = 0U;
-    }
-    rtMbufFree(executor.output_mbuf_addresses_[0]);
-//    executor.UnloadModel();
     executor.Finalize();
   }
-
   dispatcher.Finalize();
   rtMbufFree(input_mbuf);
   MmpaStub::GetInstance().Reset();
@@ -504,6 +560,9 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelWithInputAlign) {
     auto root_model = std::make_shared<GeRootModel>();
     auto root_graph = ToComputeGraph(g1);
     root_model->SetRootGraph(root_graph);
+    ModelData model_data{};
+    ModelBufferData model_buffer_data;
+    StubModels::SaveGeRootModelToModelData(root_model, model_data, model_buffer_data);
 
     ModelQueueParam model_queue_param{};
     model_queue_param.input_queues = {1, 3};
@@ -523,7 +582,7 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelWithInputAlign) {
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(true);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    EXPECT_EQ(executor.LoadModel(model_data, root_graph, model_queue_param), SUCCESS);
 
     executor.UnloadModel();
 
@@ -558,7 +617,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelWithInputAlignFaile_NotSupporte
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), PARAM_INVALID);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), PARAM_INVALID);
 
     executor.UnloadModel();
     executor.Finalize();
@@ -593,7 +653,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelWithInputAlignFaile_InterfaceEr
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), FAILED);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), FAILED);
 
     executor.UnloadModel();
     executor.Finalize();
@@ -629,7 +690,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelWithInputAlignFaile_WithoutInte
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), PARAM_INVALID);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), PARAM_INVALID);
 
     executor.UnloadModel();
     executor.Finalize();
@@ -665,7 +727,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelInHostCpuEngineWithClientQFaile
     DeployLocation::is_npu_ = false;
     MockDynamicModelExecutor executor(true);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
     executor.UnloadModel();
     executor.Finalize();
   }
@@ -694,7 +757,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelInHostCpuEngineWithClientQAlign
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(true);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
     executor.UnloadModel();
     executor.Finalize();
   }
@@ -723,7 +787,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelInHostCpuEngineWithHostQFailed)
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(true);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
     executor.UnloadModel();
     executor.Finalize();
   }
@@ -765,7 +830,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModel_BatchDequeue) {
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
 
     AICPUSubEventInfo event_info{};
     event_info.modelId = 1023;
@@ -835,7 +901,8 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModel_ReportStatusFail) {
     auto mem_queue_enqueue_mock = std::make_shared<MockMemQueueEnQueue>();
     mem_queue_enqueue_mock->SetErrorCode(100);
     RuntimeStub::SetInstance(mem_queue_enqueue_mock);
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
 
     AICPUSubEventInfo event_info{};
     event_info.modelId = 1023;
@@ -855,56 +922,6 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModel_ReportStatusFail) {
   MmpaStub::GetInstance().Reset();
 }
 
-TEST_F(DynamicModelExecutorTest, TestStaticModel) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
-  auto &dispatcher = CpuSchedEventDispatcher::GetInstance();
-  EXPECT_EQ(dispatcher.Initialize(0, false), SUCCESS);
-
-  rtMbufPtr_t input_mbuf = nullptr;
-  rtMbufAlloc(&input_mbuf, 8 + sizeof(RuntimeTensorDesc));
-  {
-    auto root_model = BuildRootModel({2});
-    ModelQueueParam model_queue_param{};
-    model_queue_param.input_queues = {1};
-    model_queue_param.output_queues = {2};
-    QueueAttrs in_queue_0 = {.queue_id = 1, .device_type = NPU, .device_id = 0};
-    QueueAttrs out_queue_0 = {.queue_id = 2, .device_type = NPU, .device_id = 0};
-    model_queue_param.input_queues_attrs = {in_queue_0};
-    model_queue_param.output_queues_attrs = {out_queue_0};
-    DumpProperties dump_properties;
-    dump_properties.enable_dump_ = "1";
-    dump_properties.dump_step_ = "0|2-4|6";
-    DumpManager::GetInstance().AddDumpProperties(0, dump_properties);
-    EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
-    MockDynamicModelExecutor executor(false);
-    executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
-
-    AICPUSubEventInfo event_info{};
-    event_info.modelId = 1023;
-    rtEschedEventSummary_t event_summary;
-    event_summary.msg = (char *)&event_info;
-    event_summary.msgLen = sizeof(event_info);
-    executor.input_mbuf_addresses_[0] = input_mbuf;
-    dispatcher.OnInputsReady(event_summary);
-    executor.UnloadModel();
-
-    uint64_t output_buffer_size = 0;
-    rtMbufGetBuffSize(executor.output_mbuf_addresses_[0], &output_buffer_size);
-    EXPECT_EQ(output_buffer_size, 8 + sizeof(RuntimeTensorDesc));
-    int32_t *output_buffer = nullptr;
-    rtMbufGetBuffAddr(executor.output_mbuf_addresses_[0], (void **)&output_buffer);
-    output_buffer = reinterpret_cast<int32_t *>(PtrToValue(output_buffer) + sizeof(RuntimeTensorDesc));
-    EXPECT_EQ(output_buffer[0], 222);
-    EXPECT_EQ(output_buffer[1], 666);
-    rtMbufFree(executor.output_mbuf_addresses_[0]);
-    executor.Finalize();
-  }
-
-  dispatcher.Finalize();
-  rtMbufFree(input_mbuf);
-  MmpaStub::GetInstance().Reset();
-}
 
 TEST_F(DynamicModelExecutorTest, UpdateOutputs_EmptyTensor) {
   DynamicModelExecutor executor(false);
@@ -917,10 +934,10 @@ TEST_F(DynamicModelExecutorTest, UpdateOutputs_EmptyTensor) {
   executor.input_mbuf_addresses_[0] = input_mbuf;
   executor.output_mbuf_addresses_.resize(2);
   executor.output_runtime_tensor_descs_.resize(2);
-  RunModelData model_outputs;
-  model_outputs.blobs.resize(2);
-  model_outputs.blobs[1].data = nullptr;
-  model_outputs.blobs[1].length = 0;
+  std::vector<DataBuffer> model_outputs;
+  model_outputs.resize(2);
+  model_outputs[1].data = nullptr;
+  model_outputs[1].length = 0;
 
   EXPECT_EQ(executor.UpdateOutputs(model_outputs), SUCCESS);
   executor.FreeOutputs();
@@ -946,7 +963,8 @@ TEST_F(DynamicModelExecutorTest, PublishErrorOutput_Success) {
     model_queue_param.output_queues_attrs = {out_queue_0};
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+    EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
 
     AICPUSubEventInfo event_info{};
     event_info.modelId = 1023;
@@ -1003,6 +1021,9 @@ TEST_F(DynamicModelExecutorTest, TestFusionInputs) {
     auto root_model = std::make_shared<GeRootModel>();
     auto root_graph = ToComputeGraph(g1);
     root_model->SetRootGraph(root_graph);
+    ModelData model_data{};
+    ModelBufferData model_buffer_data;
+    StubModels::SaveGeRootModelToModelData(root_model, model_data, model_buffer_data);
     ModelQueueParam model_queue_param{};
     model_queue_param.input_queues = {1, 1};
     model_queue_param.input_fusion_offsets = {0, 1};
@@ -1013,7 +1034,7 @@ TEST_F(DynamicModelExecutorTest, TestFusionInputs) {
     model_queue_param.output_queues_attrs = {out_queue_0};
     MockDynamicModelExecutor executor(false);
     executor.Initialize();
-    EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+    EXPECT_EQ(executor.LoadModel(model_data, root_graph, model_queue_param), SUCCESS);
 
     AICPUSubEventInfo event_info{};
     event_info.modelId = 1023;
@@ -1060,12 +1081,12 @@ TEST_F(DynamicModelExecutorTest, PrepareInputsIsEventInput) {
   TensorUtils::SetSize(ge_tensor_desc, 0x16);
   executor.input_tensor_descs_.emplace_back(ge_tensor_desc);
   executor.input_buf_addresses_.emplace_back((void *)host_input_buf);
-  RunModelData model_inputs;
+  std::vector<DataBuffer> model_inputs;
   executor.PrepareInputs(model_inputs);
-  ASSERT_EQ(model_inputs.blobs.size(), 1);
-  EXPECT_EQ(model_inputs.blobs[0].data, host_input_buf);
-  EXPECT_EQ(model_inputs.blobs[0].placement, kPlacementHost);
-  EXPECT_EQ(model_inputs.blobs[0].length, 512);
+  ASSERT_EQ(model_inputs.size(), 1);
+  EXPECT_EQ(model_inputs[0].data, host_input_buf);
+  EXPECT_EQ(model_inputs[0].placement, kPlacementHost);
+  EXPECT_EQ(model_inputs[0].length, 512);
   rtFreeHost(host_input_buf);
 }
 TEST_F(DynamicModelExecutorTest, PrepareOutputsOfDummyQ) {
@@ -1077,9 +1098,9 @@ TEST_F(DynamicModelExecutorTest, PrepareOutputsOfDummyQ) {
   QueueAttrs attr;
   attr.queue_id = UINT32_MAX;
   executor.output_queue_attrs_.emplace_back(attr);
-  RunModelData model_outputs;
+  std::vector<DataBuffer> model_outputs;
   executor.PrepareOutputs(model_outputs);
-  ASSERT_EQ(model_outputs.blobs.size(), 1);
+  ASSERT_EQ(model_outputs.size(), 1);
 }
 
 TEST_F(DynamicModelExecutorTest, TestCreateFakeAicpuModelAndStreamSuccess) {

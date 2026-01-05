@@ -93,7 +93,7 @@ class FlowModelCache {
   bool TryLoadCompileResultFromCache(CacheCompileResult &cache_compile_result) const;
 
  private:
-  static Status SaveFlowModelToGeRootModel(const FlowModelPtr &flow_model, const std::string &cache_file_name);
+  static Status SaveFlowModelToCachedData(const FlowModelPtr &flow_model, const std::string &cache_file_name);
   static bool IsMatchFileName(const std::string &str);
   static std::string GenNormalizeName(const std::string &name);
   static bool CheckFileExist(const std::string &file_path);

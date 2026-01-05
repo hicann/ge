@@ -12,27 +12,22 @@
 #define INC_FRAMEWORK_PNE_FLOW_MODEL_HELPER_H_
 #include "dflow/inc/data_flow/model/flow_model.h"
 #include "common/ge_common/ge_types.h"
-#include "common/model/ge_root_model.h"
 
 namespace ge {
 class GE_FUNC_VISIBILITY FlowModelHelper {
  public:
   static Status LoadToFlowModel(const std::string &model_path, FlowModelPtr &flow_model,
                                 const std::string &split_om_data_base_dir = "");
-  static Status UpdateGeModelSessionId(const FlowModelPtr &flow_model, const uint64_t session_id);
-  static Status UpdateSessionGraphId(const FlowModelPtr &flow_model,
-                                     const std::string &session_graph_id,
-                                     std::set<PneModelPtr> &refreshed_models);
   static Status UpdateSessionGraphId(const FlowModelPtr &flow_model, const std::string &session_graph_id);
+  static Status LoadModelDataToFlowModel(const ModelData &model_data, FlowModelPtr &flow_model);
   static Status SaveToOmModel(const FlowModelPtr &flow_model, const std::string &output_file);
   static Status LoadFlowModelFromBuffData(const ModelBufferData &model_buffer_data,
                                           ge::FlowModelPtr &flow_model);
   static Status LoadFlowModelFromOmFile(const char_t *const model_path, ge::FlowModelPtr &flow_model);
 
-  static PneModelPtr ToPneModel(const GeRootModelPtr &root_model, const std::string &model_type = "");
+  static PneModelPtr ToPneModel(const ModelData &model_data, const ComputeGraphPtr &compute_graph, const std::string &model_type = "");
   static Status EnsureWithModelRelation(const FlowModelPtr &flow_model);
  private:
-  static Status LoadGeRootModelToFlowModel(const ModelData &model, FlowModelPtr &flow_model);
   static Status TransModelDataToFlowModel(const ge::ModelData &model_data, ge::FlowModelPtr &flow_model);
 };
 

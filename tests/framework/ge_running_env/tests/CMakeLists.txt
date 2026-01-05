@@ -24,7 +24,7 @@ target_compile_options(ge_running_env_test PRIVATE
     -g
 )
 
-target_link_libraries(ge_running_env_test PUBLIC intf_pub GTest::gtest ge_running_env graphengine flow_graph
+target_link_libraries(ge_running_env_test PUBLIC intf_pub GTest::gtest ge_running_env graphengine flow_graph ascendcl_stub
 -Wl,--no-as-needed)
 
 add_test(NAME ge_running_env_test COMMAND ge_running_env_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ge_running_env_test.xml)

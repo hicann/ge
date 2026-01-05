@@ -17,24 +17,16 @@
 #include "graph/manager/graph_var_manager.h"
 
 namespace ge {
-
 class FlowModelOmLoader {
  public:
   static Status TransModelDataToComputeGraph(const ge::ModelData &model_data, ge::ComputeGraphPtr &root_graph);
   static Status LoadToFlowModel(const ge::ModelData &model_data, FlowModelPtr &flow_model,
                                 const std::string &split_om_data_path = "");
   static Status LoadToFlowModelDesc(const ge::ModelData &model_data, const FlowModelPtr &flow_model);
-  static Status AssignConstantVarMem(const FlowModelPtr &flow_model,
+  static Status RefreshModel(const FlowModelPtr &flow_model,
                                      const std::string &model_path,
                                      const uint64_t session_id,
-                                     const uint32_t graph_id,
-                                     const bool is_cache = false);
-  static Status AssignConstantVarMem(const FlowModelPtr &flow_model,
-                                     const std::string &model_path,
-                                     const uint64_t session_id,
-                                     const uint32_t graph_id,
-                                     std::set<PneModelPtr> &refreshed_models,
-                                     const bool is_cache = false);
+                                     const uint32_t graph_id);
   static bool CheckFilePathValid(const std::string &base_dir, const std::string &check_dir);
  private:
   static Status CheckModelPartitions(const std::vector<ModelPartition> &model_partitions);

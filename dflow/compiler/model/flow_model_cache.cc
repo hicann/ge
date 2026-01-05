@@ -364,19 +364,14 @@ Status FlowModelCache::TryLoadFlowModelFromCache(const ComputeGraphPtr &root_gra
   GE_CHK_STATUS_RET(FlowModelHelper::LoadToFlowModel(cache_index_.cache_file_name, flow_model, split_om_data_base_dir),
                     "Failed to load flow model, cache_file:%s", cache_index_.cache_file_name.c_str());
 
-  std::set<PneModelPtr> refreshed_models;
   GE_CHK_STATUS_RET(
-      FlowModelOmLoader::AssignConstantVarMem(flow_model, cache_dir_ + "/weight/",
-                                              session_id_, graph_id_, refreshed_models, true),
+      FlowModelOmLoader::RefreshModel(flow_model, cache_dir_ + "/weight/", session_id_, graph_id_),
       "Failed to assign constant mem for cache model, cache_file:%s", cache_index_.cache_file_name.c_str());
-  GE_ASSERT_SUCCESS(FlowModelHelper::UpdateGeModelSessionId(flow_model, session_id_),
-                    "Failed to update ge model session id");
   std::string session_graph_id;
   if (AttrUtils::GetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id)) {
-    GE_CHK_STATUS_RET(FlowModelHelper::UpdateSessionGraphId(flow_model, session_graph_id, refreshed_models),
+    GE_CHK_STATUS_RET(FlowModelHelper::UpdateSessionGraphId(flow_model, session_graph_id),
                       "Failed to update flow model session graph id, session_graph_id:%s", session_graph_id.c_str());
   }
-  GE_CHK_STATUS_RET(UpdateFlowModelCache(refreshed_models), "Failed to update flow model cache");
 
   const std::string trace_log = "loading flow model cache by key[" + cache_index_.graph_key + "]";
   GE_COMPILE_TRACE_TIMESTAMP_END(LoadFlowModel, trace_log.c_str());
@@ -433,7 +428,7 @@ Status FlowModelCache::TryCacheFlowModel(const FlowModelPtr &flow_model) {
 
   if ((flow_model->GetModelRelation() == nullptr)) {
     // cache by old om.
-    auto ret = SaveFlowModelToGeRootModel(flow_model, cache_index_.cache_file_name);
+    auto ret = SaveFlowModelToCachedData(flow_model, cache_index_.cache_file_name);
     GE_CHK_STATUS_RET(ret, "Failed to cache no model relation flow model, cache_file:%s",
                       cache_index_.cache_file_name.c_str());
   } else {
@@ -520,7 +515,7 @@ Status FlowModelCache::ReadCacheConfig(const std::string &config_file, CacheConf
   return SUCCESS;
 }
 
-Status FlowModelCache::SaveFlowModelToGeRootModel(const FlowModelPtr &flow_model, const std::string &cache_file_name) {
+Status FlowModelCache::SaveFlowModelToCachedData(const FlowModelPtr &flow_model, const std::string &cache_file_name) {
   const auto &submodels = flow_model->GetSubmodels();
   if (submodels.size() != 1U) {
     GELOGE(FAILED, "save ge root model must be only one submodel, but size=%zu.", submodels.size());

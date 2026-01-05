@@ -48,6 +48,7 @@ const char_t * const kArgsKeyBaseDir = "--base_dir";
 const char_t * const kArgsKeyDeviceId = "--device_id";
 const char_t * const kArgsKeyMsgQueueDeviceId = "--msg_queue_device_id";
 std::atomic<bool> kLoopFlag(true);
+std::atomic<bool> acl_initialized{false};
 }
 
 EngineDaemon::EngineDaemon(bool is_host_cpu) : is_host_cpu_(is_host_cpu) {}
@@ -81,6 +82,16 @@ Status EngineDaemon::InitializeWithArgs(int32_t argc, char_t **argv) {
   GE_CHK_STATUS_RET_NOLOG(event_handler_.Initialize());
   GE_CHK_STATUS_RET_NOLOG(NotifyInitialized());
   MemoryStatisticManager::Instance().Initialize(mem_group_name_);
+    if (!acl_initialized) {
+    aclError ret = aclInit(nullptr);
+    if (ret != ACL_SUCCESS) {
+      GELOGE(FAILED, "ACL init failed.");
+      return FAILED;
+    } else {
+      GELOGI("ACL init success.");
+      acl_initialized.store(true);
+    }
+  }
   return SUCCESS;
 }
 
@@ -112,6 +123,10 @@ Status EngineDaemon::InitializeExecutor() {
 }
 
 void EngineDaemon::Finalize() {
+  if (acl_initialized) {
+    aclFinalize();
+    acl_initialized.store(false);
+  }
   MemoryStatisticManager::Instance().Finalize();
   (void)FinalizeMaintenance();
   (void)ge_executor_.Finalize();

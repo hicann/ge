@@ -14,7 +14,6 @@
 #include <map>
 #include "graph/compute_graph.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
-#include "common/model/ge_root_model.h"
 
 namespace ge {
 struct HcomClusterDesc {
@@ -67,9 +66,6 @@ class FlowModel : public PneModel {
   const std::map<std::string, std::pair<uint32_t, uint32_t>> &GetLogicDeviceToMemCfg() const {
     return logic_dev_id_to_mem_cfg_;
   }
-
-  using PneModel::AddSubModel;
-  Status AddSubModel(const GeRootModelPtr &ge_root_model, const std::string &type = "");
 
  private:
   HcomClusterDesc &GetOrCreateHcomClusterDesc(const std::string &name);

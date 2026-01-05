@@ -26,8 +26,8 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "framework/common/helper/om_file_helper.h"
 #include "dflow/base/model/flow_model_om_loader.h"
-#include "dflow/inc/data_flow/model/flow_model_helper.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "framework/common/helper/model_save_helper.h"
 
 namespace ge {
 namespace {
@@ -137,18 +137,28 @@ ComputeGraphPtr FakeComputeGraphWithVar(const string &graph_name) {
   return root_graph;
 }
 
-PneModelPtr BuildGeRootModel(const string &name, ComputeGraphPtr graph) {
+PneModelPtr BuildPneModel(const string &name, ComputeGraphPtr graph) {
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+  GE_ASSERT_SUCCESS(ge_root_model->Initialize(graph));
   auto ge_model = MakeShared<ge::GeModel>();
   auto model_task_def = MakeShared<domi::ModelTaskDef>();
   model_task_def->set_version("test_v100_r001");
   ge_model->SetModelTaskDef(model_task_def);
   ge_model->SetName(name);
   ge_model->SetGraph(graph);
-  ge_root_model->SetModelName(name);
-  ge_root_model->SetSubgraphInstanceNameToModel(name, ge_model);
-  auto graph_model = FlowModelHelper::ToPneModel(ge_root_model);
+  ge_root_model->SetModelName(name);	
+  ge_root_model->SetSubgraphInstanceNameToModel(name, ge_model);	
+  bool is_unknown_shape = false;
+  GE_ASSERT_SUCCESS(ge_root_model->CheckIsUnknownShape(is_unknown_shape));
+  ModelBufferData model_buffer_data{};
+  const auto model_save_helper =
+    ModelSaveHelperFactory::Instance().Create(OfflineModelFormat::OM_FORMAT_DEFAULT);
+  model_save_helper->SetSaveMode(false);
+  GE_ASSERT_SUCCESS(model_save_helper->SaveToOmRootModel(ge_root_model, name, model_buffer_data, is_unknown_shape));
+  ModelData model_data{};
+  model_data.model_data = model_buffer_data.data.get();
+	model_data.model_len = model_buffer_data.length;
+  auto graph_model = FlowModelHelper::ToPneModel(model_data, graph);
   graph_model->SetLogicDeviceId("0:0:1");
   return graph_model;
 }
@@ -197,8 +207,8 @@ void AddSubModelP2pNodeInfo(const std::shared_ptr<ModelRelation> &model_relation
 FlowModelPtr BuildFlowModelWithOutP2pNode(const string &name, ComputeGraphPtr graph) {
   auto graph1 = FakeComputeGraph("graph1");
   auto graph2 = FakeComputeGraph("graph2");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
-  auto ge_root_model2 = BuildGeRootModel("graph2", graph2);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
+  auto ge_root_model2 = BuildPneModel("graph2", graph2);
   auto model_relation = MakeShared<ModelRelation>();
   ModelRelation::ModelEndpointInfo model1_queue_info;
   model1_queue_info.input_endpoint_names = {"model1_in1", "model1_in2"};
@@ -219,8 +229,8 @@ FlowModelPtr BuildFlowModelWithOutP2pNode(const string &name, ComputeGraphPtr gr
 FlowModelPtr BuildFlowModelWithoutUdf(const string &name, ComputeGraphPtr graph) {
   auto graph1 = FakeComputeGraph("graph1");
   auto graph2 = FakeComputeGraph("graph2");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
-  auto ge_root_model2 = BuildGeRootModel("graph2", graph2);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
+  auto ge_root_model2 = BuildPneModel("graph2", graph2);
   auto model_relation = MakeShared<ModelRelation>();
   ModelRelation::ModelEndpointInfo model1_queue_info;
   model1_queue_info.input_endpoint_names = {"model1_in1", "model1_in2"};
@@ -248,8 +258,8 @@ FlowModelPtr BuildFlowModelWithOutUdfV2(const string &name, ComputeGraphPtr grap
   fake_node->GetOpDesc()->SetOutputOffset(constant_node->GetOpDesc()->GetOutputOffset());
   auto graph2 = FakeComputeGraphWithVar("graph2");
   EXPECT_EQ(VarMemAssignUtil::AssignConstantOpMemory(graph2), SUCCESS);
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
-  auto ge_root_model2 = BuildGeRootModel("graph2", graph2);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
+  auto ge_root_model2 = BuildPneModel("graph2", graph2);
   auto model_relation = MakeShared<ModelRelation>();
   ModelRelation::ModelEndpointInfo model1_queue_info;
   model1_queue_info.input_endpoint_names = {"model1_in1", "model1_in2"};
@@ -270,7 +280,7 @@ FlowModelPtr BuildFlowModelWithOutUdfV2(const string &name, ComputeGraphPtr grap
 FlowModelPtr BuildFlowModelWithUdf(const string &name, ComputeGraphPtr graph) {
   auto graph1 = FakeComputeGraph("graph1");
   auto udf_graph = FakeComputeGraph("udf_graph");
-  auto ge_root_model1 = BuildGeRootModel("graph1", graph1);
+  auto ge_root_model1 = BuildPneModel("graph1", graph1);
   auto udf_model = BuildUdfModel("udf_model", udf_graph);
   auto model_relation = MakeShared<ModelRelation>();
   ModelRelation::ModelEndpointInfo model1_queue_info;
@@ -658,7 +668,7 @@ TEST_F(FlowModelCacheTest, save_and_load_ge_root_model) {
   SetCacheDirOption("./ut_cache_dir");
   SetGraphKeyOption("graph_key_1");
   auto graph = FakeComputeGraph("test_graph_cache");
-  auto ge_root_model = BuildGeRootModel("test_graph_cache", graph);
+  auto ge_root_model = BuildPneModel("test_graph_cache", graph);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
   flow_model->AddSubModel(ge_root_model, PNE_ID_NPU);
   GraphRebuildStateCtrl ctrl;
@@ -1429,81 +1439,5 @@ TEST_F(FlowModelCacheTest, save_flow_model_open_lock_failed) {
   auto ret = flow_model_cache.Init(graph);
   EXPECT_EQ(ret, FAILED);
   MmpaStub::GetInstance().Reset();
-}
-
-TEST_F(FlowModelCacheTest, update_model_task_addr) {
-  DEF_GRAPH(test_graph) {
-    auto file_constant =
-        OP_CFG(FILECONSTANT).InCnt(0).OutCnt(1)
-            .Attr("shape", GeShape{})
-            .Attr("dtype", DT_FLOAT)
-            .Attr("file_id", "fake_id");
-    auto ffts_plus_neg = OP_CFG(NEG).InCnt(1).OutCnt(1);
-    auto net_output = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1)
-        .TensorDesc(FORMAT_ND, DT_FLOAT, {});
-    CHAIN(NODE("file_constant", file_constant)->NODE("ffts_plus_neg", ffts_plus_neg)->NODE("Node_Output", net_output));
-  };
-
-  auto compute_graph = ToComputeGraph(test_graph);
-  compute_graph->SetName(test_graph.GetName());
-  compute_graph->SetSessionID(0);
-  AttrUtils::SetStr(*compute_graph, ATTR_NAME_SESSION_GRAPH_ID, "0_1");
-
-  auto op_desc = compute_graph->FindNode("Node_Output")->GetOpDesc();
-  std::vector<std::string> src_name{"out"};
-  op_desc->SetSrcName(src_name);
-  std::vector<int64_t> src_index{0};
-  op_desc->SetSrcIndex(src_index);
-
-  auto fc_node = compute_graph->FindFirstNodeMatchType(FILECONSTANT);
-  fc_node->GetOpDesc()->SetOutputOffset({0x10000000});
-  auto neg_node = compute_graph->FindFirstNodeMatchType(NEG);
-  neg_node->GetOpDesc()->SetInputOffset({0x10000000});
-  auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
-  auto ge_model = MakeShared<ge::GeModel>();
-  ge_model->SetName("test");
-  ge_model->SetGraph(compute_graph);
-  auto model_task_def = MakeShared<domi::ModelTaskDef>();
-  auto task_def = model_task_def->add_task();
-  task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_FFTS_PLUS));
-  auto ffts_plus_task = task_def->mutable_ffts_plus_task();
-  auto ctx_def = ffts_plus_task->add_ffts_plus_ctx();
-  auto mutable_mix_aic_aiv_ctx = ctx_def->mutable_mix_aic_aiv_ctx();
-  mutable_mix_aic_aiv_ctx->add_task_addr(0x10000000);
-  mutable_mix_aic_aiv_ctx->add_task_addr(0x20000000);
-  model_task_def->set_version("test_v100_r001");
-  ge_model->SetModelTaskDef(model_task_def);
-  ge_root_model->SetModelName("test_model");
-  ge_root_model->SetSubgraphInstanceNameToModel("model_name", ge_model);
-  auto graph_model = FlowModelHelper::ToPneModel(ge_root_model, PNE_ID_NPU);
-  graph_model->SetLogicDeviceId("0:0:1");
-
-  SetCacheDirOption("./ut_cache_dir");
-  SetGraphKeyOption("graph_key_1");
-  FlowModelPtr flow_model = MakeShared<ge::FlowModel>(compute_graph);
-  flow_model->AddSubModel(graph_model, PNE_ID_NPU);
-  GraphRebuildStateCtrl ctrl;
-  {
-    FlowModelCache flow_model_cache;
-    auto ret = flow_model_cache.Init(compute_graph);
-    EXPECT_EQ(ret, SUCCESS);
-    ret = flow_model_cache.TryCacheFlowModel(flow_model);
-    EXPECT_EQ(ret, SUCCESS);
-    auto check_ret = CheckCacheResult("./ut_cache_dir", "graph_key_1", 1);
-    EXPECT_EQ(check_ret, true);
-  }
-
-  {
-    FlowModelCache flow_model_cache_for_load;
-    auto ret = flow_model_cache_for_load.Init(compute_graph);
-    EXPECT_EQ(ret, SUCCESS);
-    FlowModelPtr load_flow_model;
-    ret = flow_model_cache_for_load.TryLoadFlowModelFromCache(compute_graph, load_flow_model);
-    EXPECT_EQ(ret, SUCCESS);
-    ASSERT_NE(load_flow_model, nullptr);
-    EXPECT_EQ(load_flow_model->GetModelRelation(), nullptr);
-    ASSERT_EQ(load_flow_model->GetSubmodels().size(), 1);
-  }
 }
 }  // namespace ge

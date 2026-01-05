@@ -16,6 +16,8 @@
 #include "deploy/flowrm/flow_route_planner.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "common/model/ge_root_model.h"
+#include "framework/common/helper/model_save_helper.h"
 
 using namespace std;
 
@@ -29,6 +31,34 @@ class HeterogeneousPlannerTest : public testing::Test {
 };
 
 namespace {
+PneModelPtr BuildPneModel(ComputeGraphPtr root_graph) {
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+  auto ge_model = MakeShared<ge::GeModel>();
+  auto model_task_def = MakeShared<domi::ModelTaskDef>();
+  model_task_def->set_version("test_v100_r001");
+  ge_model->SetModelTaskDef(model_task_def);
+  ge_model->SetName(root_graph->GetName());
+  ge_model->SetGraph(root_graph);
+  ge_root_model->SetModelName(root_graph->GetName());	
+  ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
+  bool is_unknown_shape = false;
+  auto ret = ge_root_model->CheckIsUnknownShape(is_unknown_shape);
+  EXPECT_EQ(ret, SUCCESS);
+  ModelBufferData model_buffer_data{};
+  const auto model_save_helper =
+      ModelSaveHelperFactory::Instance().Create(OfflineModelFormat::OM_FORMAT_DEFAULT);
+  EXPECT_NE(model_save_helper, nullptr);
+  model_save_helper->SetSaveMode(false);
+  ret = model_save_helper->SaveToOmRootModel(ge_root_model, "NoUse", model_buffer_data, is_unknown_shape);
+  EXPECT_EQ(ret, SUCCESS);
+  ModelData model_data{};
+  model_data.model_data = model_buffer_data.data.get();
+  model_data.model_len = model_buffer_data.length;
+  PneModelPtr pne_model = FlowModelHelper::ToPneModel(model_data, root_graph);
+  return pne_model;
+}
+
 void AddQueueDef(ModelRelation &model_relation, const std::string &name) {
   Endpoint queue_def(name, EndpointType::kQueue);
   model_relation.endpoints.emplace_back(queue_def);
@@ -124,9 +154,7 @@ TEST_F(HeterogeneousPlannerTest, TestFlattenModelRelation_3_level) {
 
 TEST_F(HeterogeneousPlannerTest, TestLongNameSuccess) {
   auto flow_model = make_shared<FlowModel>();
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
-  flow_model->AddSubModel(submodel_1);
+  flow_model->AddSubModel(BuildPneModel(std::make_shared<ComputeGraph>("subgraph-1")));
 
   flow_model->model_relation_ = MakeShared<ModelRelation>();
   std::string log_in_name = "in_1_0";
@@ -155,21 +183,12 @@ TEST_F(HeterogeneousPlannerTest, TestLongNameSuccess) {
 TEST_F(HeterogeneousPlannerTest, TestWithFusionInvokeModel) {
   std::string graph_inputs_fusion = "{\"invoke_model_key2\":\"0~2;3,4\", \"invoke_model_key3\":\"1,2\"}";
   auto flow_model = make_shared<FlowModel>();
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
-  auto graph_1 = ge::MakeShared<ComputeGraph>("graph-1");
+  auto graph_1 = ge::MakeShared<ComputeGraph>("subgraph-1");
   AttrUtils::SetStr(graph_1, "_invoked_model_fusion_inputs", graph_inputs_fusion);
-  submodel_1->SetRootGraph(graph_1);
-  auto submodel_2 = make_shared<GeRootModel>();
-  submodel_2->SetModelName("subgraph-2");
-  auto submodel_3 = make_shared<GeRootModel>();
-  submodel_3->SetModelName("subgraph-3");
-  auto submodel_4 = make_shared<GeRootModel>();
-  submodel_4->SetModelName("subgraph-4");
-  flow_model->AddSubModel(submodel_1);
-  flow_model->AddSubModel(submodel_2);
-  flow_model->AddSubModel(submodel_3);
-  flow_model->AddSubModel(submodel_4);
+  flow_model->AddSubModel(BuildPneModel(graph_1));
+  flow_model->AddSubModel(BuildPneModel(std::make_shared<ComputeGraph>("subgraph-2")));
+  flow_model->AddSubModel(BuildPneModel(std::make_shared<ComputeGraph>("subgraph-3")));
+  flow_model->AddSubModel(BuildPneModel(std::make_shared<ComputeGraph>("subgraph-4")));
 
   flow_model->model_relation_ = MakeShared<ModelRelation>();
   AddQueueDef(*(flow_model->model_relation_), "external_in_1_0");
@@ -266,12 +285,9 @@ TEST_F(HeterogeneousPlannerTest, TestWithFusionInvokeModel) {
 
 TEST_F(HeterogeneousPlannerTest, TestGetInvalidFusionInputs) {
   std::string graph_inputs_fusion = "{\"invoke_model_key2\":\"0~2;3,4\", invalid_json}";
-  auto submodel_1 = make_shared<GeRootModel>();
-  submodel_1->SetModelName("subgraph-1");
   auto graph_1 = ge::MakeShared<ComputeGraph>("graph-1");
   AttrUtils::SetStr(graph_1, "_invoked_model_fusion_inputs", graph_inputs_fusion);
-  submodel_1->SetRootGraph(graph_1);
-  auto graph_model = FlowModelHelper::ToPneModel(submodel_1);
+  auto graph_model = BuildPneModel(graph_1);
   std::map<std::string, std::string> fusion_inputs;
   auto ret = DeployPlannerBase::GetInvokedModelFusionInputs(graph_model, fusion_inputs);
   ASSERT_NE(ret, SUCCESS);

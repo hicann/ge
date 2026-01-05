@@ -219,6 +219,7 @@ target_link_options(model_deployer PRIVATE
 
 target_link_libraries(model_deployer PRIVATE
         intf_pub
+        ascendcl
         msprof_headers
         cce_headers
         datagw_headers
@@ -401,6 +402,7 @@ target_link_libraries(npu_executor_main PRIVATE
         unified_dlog
         alog
         error_manager
+        ge_executor_shared
         c_sec
         runtime
         profapi_share
@@ -507,6 +509,7 @@ target_link_libraries(host_cpu_executor_main PRIVATE
         -Wl,--no-as-needed
         ascend_protobuf
         unified_dlog
+        ge_executor_shared
         alog
         error_manager
         c_sec

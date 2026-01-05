@@ -24,24 +24,27 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "runtime_stub.h"
 #include "dflow/base/deploy/exchange_service.h"
+#include "dflow/inc/data_flow/model/pne_model.h"
+#include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "dflow/inc/data_flow/model/graph_model.h"
+#include "stub_models.h"
+
 
 namespace ge {
 class MockProxyDynamicModelExecutor : public ProxyDynamicModelExecutor {
  public:
   MockProxyDynamicModelExecutor() = default;
   ~MockProxyDynamicModelExecutor() override = default;
-  Status DoLoadModel(const shared_ptr<GeRootModel> &root_model) override {
+  Status DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph) override {
     // (void) DynamicModelExecutor::DoLoadModel(root_model);
     model_id_ = 0;
     aicpu_model_id_ = 1023;
-    auto hybrid_model = std::make_shared<hybrid::HybridDavinciModel>();
-    ModelManager::GetInstance().InsertModel(model_id_, hybrid_model);
     return SUCCESS;
   }
 
-  Status DoExecuteModel(const RunModelData &inputs, RunModelData &outputs) override {
-    GELOGD("outputs.blobs size is %zu.", outputs.blobs.size());
-    DataBuffer &data_buffer = outputs.blobs[0];
+  Status DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs) override {
+    GELOGD("outputs size is %zu.", outputs.size());
+    DataBuffer &data_buffer = outputs[0];
     if (data_buffer.data == nullptr) {
       data_buffer.data = output_buffer_;
     }
@@ -57,7 +60,6 @@ class MockProxyDynamicModelExecutor : public ProxyDynamicModelExecutor {
   void UnloadModel() {
     Stop();
     (void) UnloadFromAicpuSd();
-    ModelManager::GetInstance().DeleteModel(model_id_);
   }
 
  protected:
@@ -72,7 +74,7 @@ class MockFailedProxyDynamicModelExecutor : public MockProxyDynamicModelExecutor
  public:
   MockFailedProxyDynamicModelExecutor() = default;
   ~MockFailedProxyDynamicModelExecutor() override = default;
-  Status DoExecuteModel(const RunModelData &inputs, RunModelData &outputs) override {
+  Status DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs) override {
     GELOGE(FAILED, "Fail to execute model.");
     return FAILED;
   }
@@ -89,7 +91,7 @@ class ProxyDynamicModelExecutorTest : public testing::Test {
   void TearDown() override {
   }
 
-  GeRootModelPtr BuildRootModel(const std::vector<int64_t> &shape, bool add_align_attr = false, bool with_max_size = true) {
+  PneModelPtr BuildRootModel(const std::vector<int64_t> &shape, bool add_align_attr = false, bool with_max_size = true) {
     vector<std::string> engine_list = {"AIcoreEngine"};
     auto data = OP_CFG(DATA).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape).Attr(ATTR_NAME_INDEX, 0);
     auto neg = OP_CFG(NEG).InCnt(1).OutCnt(1).TensorDesc(FORMAT_ND, DT_INT32, shape);
@@ -97,9 +99,10 @@ class ProxyDynamicModelExecutorTest : public testing::Test {
     DEF_GRAPH(graph) {
       CHAIN(NODE("Node_data_1", data)->EDGE(0, 0)->NODE("Neg", neg)->NODE("Node_output_1", netoutput));
     };
-    auto root_model = std::make_shared<GeRootModel>();
     auto root_graph = ToComputeGraph(graph);
-    root_model->SetRootGraph(root_graph);
+    if (std::find(shape.begin(), shape.end(), -1) != shape.end()) {
+      (void)AttrUtils::SetBool(root_graph, ATTR_NAME_GRAPH_UNKNOWN_FLAG, true);
+    }
     if (add_align_attr) {
       auto data_node = root_graph->FindNode("Node_data_1");
       NamedAttrs align_attr;
@@ -109,10 +112,15 @@ class ProxyDynamicModelExecutorTest : public testing::Test {
     }
     auto netoutput_node = root_graph->FindNode("Node_output_1");
     const auto &tensor_desc = netoutput_node->GetOpDesc()->MutableInputDesc(0U);
+    netoutput_node->GetOpDesc()->SetSrcIndex({0});
+    netoutput_node->GetOpDesc()->SetSrcName({"neg"});
     if (with_max_size) {
       AttrUtils::SetInt(*tensor_desc, "_graph_output_max_size", 8);
     }
-    return root_model;
+    PneModelPtr pne_model = StubModels::BuildRootModel(root_graph, false);
+    EXPECT_NE(pne_model, nullptr);
+    EXPECT_NE(pne_model->GetRootGraph(), nullptr);
+    return pne_model;
   }
 
   GeRootModelPtr BuildRootModelWithDummy(const std::vector<int64_t> &shape, bool add_align_attr = false) {
@@ -152,7 +160,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_NotExecute) {
 
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   executor.UnloadModel();
   executor.Finalize();
 }
@@ -170,7 +179,9 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_NotExecute_WithInput
   auto root_model = std::make_shared<GeRootModel>();
   auto root_graph = ToComputeGraph(graph);
   root_model->SetRootGraph(root_graph);
-
+  ModelData model_data{};
+  ModelBufferData model_buffer_data;
+  StubModels::SaveGeRootModelToModelData(root_model, model_data, model_buffer_data);
   auto netoutput_node = root_graph->FindNode("Node_output_1");
   const auto &tensor_desc = netoutput_node->GetOpDesc()->MutableInputDesc(0U);
   AttrUtils::SetInt(*tensor_desc, "_graph_output_max_size", 8);
@@ -187,7 +198,7 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_NotExecute_WithInput
                                          .drop_when_not_align = true};
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  EXPECT_EQ(executor.LoadModel(model_data, root_graph, model_queue_param), SUCCESS);
   executor.UnloadModel();
   executor.Finalize();
 }
@@ -203,7 +214,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_Execute_Success) {
   model_queue_param.output_queues_attrs = {out_queue_0};
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   // prepare req_msg_mbuf
   uint64_t input_data = 0UL;
   rtMbufPtr_t req_msg_mbuf = nullptr;
@@ -246,7 +258,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_Withoumaxsize_Execut
   model_queue_param.output_queues_attrs = {out_queue_0};
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   // prepare req_msg_mbuf
   uint64_t input_data = 0UL;
   rtMbufPtr_t req_msg_mbuf = nullptr;
@@ -290,7 +303,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_Withoumaxsize_Execut
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
   g_runtime_stub_mock = "rtCpuKernelLaunchWithFlag";
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), FAILED);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), FAILED);
   executor.Finalize();
   g_runtime_stub_mock = "";
 }
@@ -306,7 +320,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_retcode) {
   model_queue_param.output_queues_attrs = {out_queue_0};
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   // prepare req_msg_mbuf
   uint64_t input_data = 0UL;
   rtMbufPtr_t req_msg_mbuf = nullptr;
@@ -358,7 +373,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_null_data) {
   model_queue_param.output_queues_attrs = {out_queue_0};
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   // prepare req_msg_mbuf
   uint64_t input_data = 0UL;
   rtMbufPtr_t req_msg_mbuf = nullptr;
@@ -409,7 +425,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_Execute_Dummy) {
   model_queue_param.output_queues_attrs = {out_queue_0};
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   // prepare req_msg_mbuf
   uint64_t input_data = 0UL;
   rtMbufPtr_t req_msg_mbuf = nullptr;
@@ -447,7 +464,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModelWithStaticOut_Execute
   model_queue_param.output_queues_attrs = {out_queue_0};
   MockProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   executor.UnloadModel();
   executor.Finalize();
 }
@@ -463,7 +481,8 @@ TEST_F(ProxyDynamicModelExecutorTest, TestProxyDynamicModel_Execute_Failed) {
   model_queue_param.output_queues_attrs = {out_queue_0};
   MockFailedProxyDynamicModelExecutor executor;
   executor.Initialize();
-  EXPECT_EQ(executor.LoadModel(root_model, model_queue_param), SUCCESS);
+  auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);
+  EXPECT_EQ(executor.LoadModel(graph_model_ptr->GetModelData(), root_model->GetRootGraph(), model_queue_param), SUCCESS);
   // prepare req_msg_mbuf
   uint64_t input_data = 0UL;
   rtMbufPtr_t req_msg_mbuf = nullptr;

@@ -268,7 +268,7 @@ Status InnerSession::Initialize() {
   if (ExecutionRuntimeUtils::IsHeterogeneous()) {
     dflow_session_impl_ = MakeShared<DFlowSessionImpl>(session_id_, options_);
     GE_CHECK_NOTNULL(dflow_session_impl_, ", make DFlowSessionImpl failed");
-    GE_ASSERT_SUCCESS(dflow_session_impl_->Initialize(&graph_manager_));
+    GE_ASSERT_SUCCESS(dflow_session_impl_->Initialize(options_));
     GELOGI("Session[%lu] will be implemented using dflow session", session_id_);
   }
   is_initialized_ = true;

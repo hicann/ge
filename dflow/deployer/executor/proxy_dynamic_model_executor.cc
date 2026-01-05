@@ -17,6 +17,8 @@
 #include "dflow/base/deploy/exchange_service.h"
 #include "cpu_tasks.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
+#include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "dflow/inc/data_flow/model/graph_model.h"
 
 namespace ge {
 namespace {
@@ -93,11 +95,11 @@ Status ProxyDynamicModelExecutor::SetNpuModelLoaderOutputInfo() {
   return SUCCESS;
 }
 
-Status ProxyDynamicModelExecutor::LoadWithAicpuSd(const GeRootModelPtr &root_model,
+Status ProxyDynamicModelExecutor::LoadWithAicpuSd(const ComputeGraphPtr &root_graph,
                                                   const ModelQueueParam &model_queue_param) {
   GE_CHK_BOOL_RET_STATUS(num_outputs_ == output_queue_attrs_.size(), FAILED,
                          "Invalid! num_outputs[%zu] != output_queues_num[%zu].", num_outputs_, output_queues_num_);
-  model_name_ = root_model->GetModelName();
+  model_name_ = root_graph->GetName();
   GELOGD("Begin to load model with aicpu sd, device_id = %d, model_id = %u, model_name = %s.",
          device_id_, model_id_, model_name_.c_str());
   loader_.SetModelId(model_id_);
@@ -197,7 +199,7 @@ Status ProxyDynamicModelExecutor::CheckInputs() {
   return SUCCESS;
 }
 
-Status ProxyDynamicModelExecutor::PrepareInputs(RunModelData &model_inputs) {
+Status ProxyDynamicModelExecutor::PrepareInputs(std::vector<DataBuffer> &model_inputs) {
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kStartPoint,
                                                                      ProfilerEvent::kPrepareInputs,
                                                                      device_id_);
@@ -237,7 +239,7 @@ Status ProxyDynamicModelExecutor::PrepareInputs(RunModelData &model_inputs) {
     }
     GE_CHECK_NOTNULL(data_buffer.data);
     data_buffer.placement = kPlacementDevice;
-    model_inputs.blobs.emplace_back(data_buffer);
+    model_inputs.emplace_back(data_buffer);
   }
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kEndPoint,
                                                                      ProfilerEvent::kPrepareInputs,
@@ -245,7 +247,7 @@ Status ProxyDynamicModelExecutor::PrepareInputs(RunModelData &model_inputs) {
   return SUCCESS;
 }
 
-Status ProxyDynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
+Status ProxyDynamicModelExecutor::PrepareOutputs(std::vector<DataBuffer> &model_outputs) {
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kStartPoint,
                                                                      ProfilerEvent::kPrepareOutputs,
                                                                      device_id_);
@@ -257,7 +259,7 @@ Status ProxyDynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
     auto tensor_size = output_tensor_sizes_[i];
     if (tensor_size < 0) { // no valid range
       GELOGD("Output[%zu] is dynamic and cannot get a valid size by range.", i);
-      model_outputs.blobs.emplace_back(DataBuffer{});
+      model_outputs.emplace_back(DataBuffer{});
       continue;
     }
     DataBuffer data_buffer;
@@ -272,7 +274,7 @@ Status ProxyDynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
           "runtime_model_id = %u.",
           i, static_cast<int32_t>(is_output_dynamic_[i]), tensor_size, *addr, device_id_, model_id_, runtime_model_id_);
     }
-    model_outputs.blobs.emplace_back(data_buffer);
+    model_outputs.emplace_back(data_buffer);
   }
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kEndPoint,
                                                                      ProfilerEvent::kPrepareOutputs,
@@ -280,7 +282,7 @@ Status ProxyDynamicModelExecutor::PrepareOutputs(RunModelData &model_outputs) {
   return SUCCESS;
 }
 
-Status ProxyDynamicModelExecutor::UpdateOutputs(RunModelData &model_outputs) {
+Status ProxyDynamicModelExecutor::UpdateOutputs(std::vector<DataBuffer> &model_outputs) {
   HeterogeneousProfiler::Instance().RecordHeterogeneousProfilerEvent(ProfilerType::kStartPoint,
                                                                      ProfilerEvent::kUpdateOutputs,
                                                                      device_id_);
@@ -299,11 +301,11 @@ Status ProxyDynamicModelExecutor::UpdateOutputs(RunModelData &model_outputs) {
                                                      tensor_desc.GetDataType(), tensor_size),
                       "Fail to calculate output size, shape = [%s]", tensor_desc.GetShape().ToString().c_str());
     output_runtime_tensor_descs_[i].data_size = static_cast<uint64_t>(tensor_size);
-    output_runtime_tensor_descs_[i].data_addr = PtrToValue(model_outputs.blobs[i].data);
+    output_runtime_tensor_descs_[i].data_addr = PtrToValue(model_outputs[i].data);
     dynamic_output_tensor_descs.emplace_back(output_runtime_tensor_descs_[i]);
     GELOGI("Output[%zu] is dynamic, tensor size = %ld, device_id = %d, model_id = %u, runtime_model_id = %u,"
            "model_name = %s, output data addr = %p.", i, tensor_size, device_id_, model_id_,
-           runtime_model_id_, model_name_.c_str(), model_outputs.blobs[i].data);
+           runtime_model_id_, model_name_.c_str(), model_outputs[i].data);
   }
   size_t buffer_size = resp_total_len_;
   if (!dynamic_output_tensor_descs.empty()) {
