@@ -22,7 +22,7 @@
 ## 环境要求
 
 - 使用python及其依赖库版本：python>=3.8 、pytorch>=2.1
-- 已完成[昇腾AI软件栈在开发环境上的部署](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)
+- 已完成[相关环境准备](../../../docs/build.md)。
 
 ## 实现步骤
 

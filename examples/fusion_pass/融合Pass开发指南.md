@@ -152,8 +152,7 @@ explicit PatternFusionPass(std::unique_ptr<PatternMatcherConfig> match_config);
 `Build`函数用于构造`PatternMatcherConfig`。
 
 - `EnableConstValueMatch`开启const值匹配，
-在匹配过程中将对pattern中定义的const/constant进行值的匹配，值相等才认为匹配成功
-(注意：若在开启值匹配的场景下，pattern中const的tensor维度高于1维，将匹配失败)。
+在匹配过程中将对pattern中定义的const/constant进行值的匹配，值相等才认为匹配成功。
 
 - `EnableIrAttrMatch`开启ir属性及其值匹配，
 pass将在pattern匹配过程中对pattern中节点上携带的IR属性的数量和值进行匹配。
@@ -212,7 +211,7 @@ bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result) override
 与`Patterns`一样，使用`EsGraphBuilder`定义结构，此处不再赘述：
 
 ```c++
-std::unique_ptr<Graph> Replacement(const std::unique_ptr<MatchResult> &match_result) override {
+GraphUniqPtr Replacement(const std::unique_ptr<MatchResult> &match_result) override {
   auto replacement_graph_builder = es::EsGraphBuilder("replacement");
   // 此处定义替换结构
   // ...
@@ -275,7 +274,7 @@ REG_DECOMPOSE_PASS(CustomOne2NPass, {"Conv2D"}).Stage(CustomPassStage::kAfterInf
 bool MeetRequirements(const GNode &matched_node) override {
     ...
 }
-std::unique_ptr<Graph> Replacement(const GNode &matched_node) override {
+GraphUniqPtr Replacement(const GNode &matched_node) override {
     ...
 } 	
 ```
