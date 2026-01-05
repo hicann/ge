@@ -450,15 +450,15 @@ rtError_t RuntimeStubImpl::rtStreamTaskClean(rtStream_t stm) {
 rtError_t RuntimeStubImpl::rtsBinaryLoadFromFile(const char * const binPath, const rtLoadBinaryConfig_t *const optionalCfg,
                                                  rtBinHandle *binHandle)
 {
-  rtBinHandle tmp_binHandle = nullptr;
-  *binHandle = &tmp_binHandle;
+  uint64_t stub_bin_addr = 0x1200;
+  *binHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_bin_addr));
   return RT_ERROR_NONE;
 }
 rtError_t RuntimeStubImpl::rtsFuncGetByName(const rtBinHandle binHandle, const char *kernelName,
                                             rtFuncHandle *funcHandle)
 {
-  rtFuncHandle tmp_funcHandle = nullptr;
-  *funcHandle = &tmp_funcHandle;
+  uint64_t stub_func_addr = 0x1600;
+  *funcHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_func_addr));
   return RT_ERROR_NONE;
 }
 rtError_t RuntimeStubImpl::rtsLaunchCpuKernel(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t st,
@@ -496,16 +496,16 @@ rtError_t RuntimeStubImpl::rtsLaunchKernelWithHostArgs(rtFuncHandle funcHandle, 
 rtError_t RuntimeStubImpl::rtsBinaryLoadFromData(const void * const data, const uint64_t length,
                                                  const rtLoadBinaryConfig_t * const optionalCfg, rtBinHandle *handle)
 {
-  rtBinHandle tmp_binHandle = nullptr;
-  *handle = &tmp_binHandle;
+  uint64_t stub_bin_addr = 0x1200;
+  *handle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_bin_addr));
   return RT_ERROR_NONE;
 }
 
 rtError_t RuntimeStubImpl::rtsRegisterCpuFunc(const rtBinHandle binHandle, const char_t * const funcName,
                                               const char_t * const kernelName, rtFuncHandle *funcHandle)
 {
-  rtFuncHandle tmp_funcHandle = nullptr;
-  *funcHandle = &tmp_funcHandle;
+  uint64_t stub_func_addr = 0x1600;
+  *funcHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_func_addr));
   return RT_ERROR_NONE;
 }
 }

@@ -42,8 +42,8 @@ rtError_t rtsBinaryLoadFromFile(const char_t * const binPath, const rtLoadBinary
 {
   (void)binPath;
   (void)optionalCfg;
-  static rtBinHandle *tmp = nullptr;
-  *handle = &tmp;
+  uint64_t stub_bin_addr = 0x1200;
+  *handle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_bin_addr));
   return RT_ERROR_NONE;
 }
 
@@ -53,8 +53,8 @@ rtError_t rtsBinaryLoadFromData(const void * const data, const uint64_t length,
   (void)data;
   (void)length;
   (void)optionalCfg;
-  static rtBinHandle *tmp = nullptr;
-  *handle = &tmp;
+  uint64_t stub_bin_addr = 0x1200;
+  *handle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_bin_addr));
   return RT_ERROR_NONE;
 }
 
@@ -62,8 +62,8 @@ rtError_t rtsFuncGetByName(const rtBinHandle binHandle, const char_t *kernelName
 {
   (void)binHandle;
   (void)kernelName;
-  static rtFuncHandle *tmp = nullptr;
-  *funcHandle = &tmp;
+  uint64_t stub_func_addr = 0x1600;
+  *funcHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_func_addr));
   return RT_ERROR_NONE;
 }
 
@@ -73,8 +73,8 @@ rtError_t rtsRegisterCpuFunc(const rtBinHandle binHandle, const char_t * const f
   (void)binHandle;
   (void)funcName;
   (void)kernelName;
-  static rtFuncHandle *tmp = nullptr;
-  *funcHandle = &tmp;
+  uint64_t stub_func_addr = 0x1600;
+  *funcHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_func_addr));
   return RT_ERROR_NONE;
 }
 #endif

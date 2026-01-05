@@ -95,6 +95,7 @@ graphengine:
       - scripts/build_fwk.sh
       - base/CMakeLists.txt
       - base/parser
+      - runtime/v2/engine/aicpu/kernel/rts_stub.cc
       - dflow/deployer/daemon/deployer_daemon.cc
       - dflow/deployer/common/utils/process_utils.cc
       - compiler/pne/udf/system_utils.cc
