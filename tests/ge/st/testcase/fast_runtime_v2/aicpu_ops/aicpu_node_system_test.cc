@@ -121,9 +121,9 @@ class AicpuTfLaunchStub : public RuntimeStub {
     EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[0].addrOffset, 80);
     EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[0].dataOffset, 112);
     EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[1].addrOffset, 88);
-    EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[1].dataOffset, 294);
+    EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[1].dataOffset, 308);
     EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[2].addrOffset, 104);
-    EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[2].dataOffset, 318);
+    EXPECT_EQ(argsInfo->kernelOffsetInfoPtr[2].dataOffset, 332);
     return RT_ERROR_NONE;
   }
 };

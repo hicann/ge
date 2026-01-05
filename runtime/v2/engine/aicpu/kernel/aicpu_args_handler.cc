@@ -390,6 +390,7 @@ ge::graphStatus BuildCCArgsFunctionHandle(KernelContext *context) {
     GE_ASSERT_NOTNULL(bin_handle);
     GE_ASSERT_SUCCESS(rtsFuncGetByName(bin_handle, node_type, func_handle));
   }
+  *func_handle = nullptr;
   return ge::GRAPH_SUCCESS;
 }
 REGISTER_KERNEL(BuildCCArgsFunctionHandle).RunFunc(BuildCCArgsFunctionHandle);
@@ -414,6 +415,7 @@ ge::graphStatus BuildTfArgsFunctionHandle(KernelContext *context) {
   rtBinHandle bin_handle = TfJsonBinHandler::Instance().GetBinHandle();
   GE_ASSERT_NOTNULL(bin_handle);
   GE_ASSERT_SUCCESS(rtsFuncGetByName(bin_handle, node_type, func_handle));
+  *func_handle = nullptr;
   return ge::GRAPH_SUCCESS;
 }
 REGISTER_KERNEL(BuildTfArgsFunctionHandle).RunFunc(BuildTfArgsFunctionHandle);
