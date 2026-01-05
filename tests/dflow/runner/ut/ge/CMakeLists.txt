@@ -339,6 +339,7 @@ add_executable(ut_libge_helper_utest
     ${HETEROGENEOUS_MODEL_TEST_FILES}
     ${DFLOW_EXECUTOR_TEST_FILES}
     ${DFLOW_SESSION_TEST_FILES}
+    ${DATA_FLOW_GRAPH_TEST_FILES}
 )
 
 target_include_directories(ut_libge_helper_utest PRIVATE

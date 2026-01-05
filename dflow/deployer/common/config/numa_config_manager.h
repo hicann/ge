@@ -92,24 +92,7 @@ class NumaConfigManager {
  private:
   static std::string ToJsonString(const NumaConfig &numa_config);
 
-  static Status ParseClusterInfo(const nlohmann::json &json_host,
-                                 ClusterInfo &cluster_info,
-                                 std::string &node_resource_type,
-                                 std::string &item_resource_type);
-
-  static Status ParseNodeDef(const size_t item_size, NodeDef &node_def);
-
-  static Status ParseItemDef(ItemDef &item_def);
-
-  static Status ParseNumaConfig(const nlohmann::json &json_host, NumaConfig &numa_config);
-
-  static Status ParseNumaConfigFromConfigFile(const std::string &file_path, NumaConfig &numa_config);
-
-  static Status ParseNumaConfigFromResConfig(const char_t *res_config, NumaConfig &numa_config);
-
   static Status InitServerNumaConfig(NumaConfig &numa_config);
-
-  static Status InitHostNumaConfig(NumaConfig &numa_config);
 
   static bool ExportOptionSupported();
 };

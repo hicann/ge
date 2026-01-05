@@ -26,18 +26,9 @@
 
 namespace ge {
 namespace {
-constexpr int32_t kDefaultTimeout = 3000;
 constexpr uint32_t kMaxExecutorShutdownWaitTimeInSec = 60;
 constexpr const char_t * const kArgsKeyBaseDir = "--base_dir";
 constexpr const char_t * const kArgsKeyMsgQueueDeviceId = "--msg_queue_device_id";
-const std::set<std::string> kNpuExecutorEnvWhiteList = {
-    "HOME",
-    "ASCEND_OPP_PATH",
-    "ASCEND_AICPU_PATH",
-    "HCCL_NPU_NET_PROTOCOL",
-    "HELPER_RES_FILE_PATH",
-    "HELPER_RES_CONFIG"
-};
 
 PneExecutorClientCreatorRegistrar<BuiltinExecutorClient> __attribute__((unused)) npu_client_reg(PNE_ID_NPU);
 PneExecutorClientCreatorRegistrar<HostCpuExecutorClient> __attribute__((unused)) cpu_client_reg(PNE_ID_CPU);
@@ -383,19 +374,6 @@ Status BuiltinExecutorClient::GenerateKvArgs(std::map<std::string, std::string> 
     kv_args[OPTION_EXEC_PROFILING_OPTIONS] = options_it->second;
   }
   return SUCCESS;
-}
-
-void BuiltinExecutorClient::PrepareNpuExecutorEnvs(std::map<std::string, std::string> &envs) {
-  for (const auto &env : kNpuExecutorEnvWhiteList) {
-    char_t value[MMPA_MAX_PATH] = {'\0'};
-    const int32_t ret = mmGetEnv(env.c_str(), &(value[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
-    if (ret != EN_OK) {
-      GELOGW("Env[%s] of npu executor is not set", env.c_str());
-      continue;
-    }
-    envs.emplace(env, std::string(value));
-    GELOGI("Get npu executor env[%s=%s] success", env.c_str(), value);
-  }
 }
 
 Status BuiltinExecutorClient::DoBindHostPid(const int32_t pid) {

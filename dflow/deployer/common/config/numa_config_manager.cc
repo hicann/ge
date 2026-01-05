@@ -23,16 +23,6 @@
 namespace ge {
 namespace {
 using Json = nlohmann::json;
-
-constexpr size_t kSocVersionLen = 50U;
-constexpr const char_t *kConfigFileName = "/resource.json";
-constexpr const char_t *kResoureConfigModeStatic = "StaticAlloc";
-constexpr const char_t *kNodeTypeAtlas300 = "ATLAS300";
-constexpr const char_t *kNodeDefaultSupportLinks = "[ROCE]";
-constexpr const char_t *kItemTopologyLinksMode = "ROCE:25Gb";
-constexpr const char_t *kItemDefMemory = "[DDR:80GB]";
-constexpr const char_t *kItemDefAicType = "[DAVINCI_V100:10]";
-constexpr const char_t *kItemDefLinksMode = "HCCS:192Gb";
 }  // namespace
 
 static void to_json(nlohmann::json &j, const ItemDeviceInfo &item_device_info) {
@@ -148,160 +138,14 @@ Status NumaConfigManager::InitServerNumaConfig(NumaConfig &numa_config) {
   return SUCCESS;
 }
 
-Status NumaConfigManager::ParseClusterInfo(const nlohmann::json &json_host,
-                                           ClusterInfo &cluster_info,
-                                           std::string &node_resource_type,
-                                           std::string &item_resource_type) {
-  ClusterNode cluster_node;
-  cluster_node.node_id = 0;
-  cluster_node.node_type = kNodeTypeAtlas300;
-  cluster_node.is_local = true;
-  try {
-    nlohmann::json js_host_info = json_host.at("host").get<nlohmann::json>();
-    if (js_host_info.contains("resourceType")) {
-      node_resource_type = js_host_info.at("resourceType").get<std::string>();
-    }
-
-    std::string mode = json_host.at("mode").get<std::string>();
-    if (mode == kResoureConfigModeStatic) {
-      nlohmann::json json_dev_list = json_host.at("devList").get<nlohmann::json>();
-      int32_t item_id = 0;
-      for (const auto &dev_json : json_dev_list) {
-        ItemInfo item_info;
-        item_info.item_id = item_id++;
-        if (dev_json.contains("resourceType")) {
-          item_resource_type = dev_json.at("resourceType").get<std::string>();
-        }
-        cluster_node.item_list.emplace_back(item_info);
-      }
-    }
-  } catch (const nlohmann::json::exception &e) {
-    GELOGE(FAILED, "[Check][Format]The format of the configuration file is wrong, %s", e.what());
-        REPORT_INNER_ERR_MSG("E19999", "The format of the configuration file is wrong, %s", e.what());
-    return FAILED;
-  }
-  cluster_info.cluster_nodes.emplace_back(cluster_node);
-  return SUCCESS;
-}
-
-Status NumaConfigManager::ParseNodeDef(const size_t item_size,
-                                       NodeDef &node_def) {
-  node_def.node_type = kNodeTypeAtlas300;
-  node_def.support_links = kNodeDefaultSupportLinks;
-  char_t soc_version[kSocVersionLen] = {0};
-  (void) rtGetSocVersion(soc_version, kSocVersionLen);
-  node_def.item_type = soc_version;
-  if (item_size <= 1U) {
-    return SUCCESS;
-  }
-  ItemTopology item_topology;
-  item_topology.links_mode = kItemTopologyLinksMode;
-  for (uint32_t id = 0; id < item_size; ++id) {
-    for (uint32_t pair_id = (id + 1); pair_id < item_size; ++pair_id) {
-      LinkPair link_pair;
-      link_pair.id = id;
-      link_pair.pair_id = pair_id;
-      item_topology.links.emplace_back(link_pair);
-    }
-  }
-  node_def.item_topology.emplace_back(item_topology);
-  return SUCCESS;
-}
-
-Status NumaConfigManager::ParseItemDef(ItemDef &item_def) {
-  char_t soc_version[kSocVersionLen] = {0};
-  (void) rtGetSocVersion(soc_version, kSocVersionLen);
-  item_def.item_type = soc_version;
-  item_def.memory = kItemDefMemory;
-  item_def.aic_type = kItemDefAicType;
-  const auto num_nodes = DeployerProxy::GetInstance().NumNodes();
-  for (int32_t node_id = 0; node_id < num_nodes; ++node_id) {
-    const auto *node_info = DeployerProxy::GetInstance().GetNodeInfo(node_id);
-    GE_CHECK_NOTNULL(node_info);
-    if (node_info->GetDeviceList().size() > 1U) {
-      for (uint32_t i = 0; i < node_info->GetDeviceList().size(); ++i) {
-        ItemDeviceInfo device_info;
-        device_info.device_id = i;
-        item_def.device_list.emplace_back(device_info);
-      }
-      item_def.links_mode = kItemDefLinksMode;
-      return SUCCESS;
-    }
-  }
-  return SUCCESS;
-}
-
-Status NumaConfigManager::ParseNumaConfig(const nlohmann::json &json_host, NumaConfig &numa_config) {
-  ClusterInfo cluster_info;
-  NodeDef node_def;
-  ItemDef item_def;
-  GE_CHK_STATUS_RET_NOLOG(ParseClusterInfo(json_host, cluster_info, node_def.resource_type, item_def.resource_type));
-  numa_config.cluster.emplace_back(cluster_info);
-  GE_CHK_STATUS_RET_NOLOG(ParseNodeDef(cluster_info.cluster_nodes[0].item_list.size(), node_def));
-  numa_config.node_def.emplace_back(node_def);
-
-  GE_CHK_STATUS_RET_NOLOG(ParseItemDef(item_def));
-  numa_config.item_def.emplace_back(item_def);
-  return SUCCESS;
-}
-
-Status NumaConfigManager::ParseNumaConfigFromConfigFile(const std::string &file_path, NumaConfig &numa_config) {
-  GE_CHK_BOOL_RET_STATUS(!file_path.empty(), FAILED, "File path is null.");
-  GELOGI("Get host config json path[%s]successfully", file_path.c_str());
-
-  nlohmann::json json_host;
-  GE_CHK_STATUS_RET(JsonParser::ReadConfigFile(file_path, json_host), "[Read][File]Read host config file:%s failed",
-                    file_path.c_str());
-  GE_CHK_STATUS_RET_NOLOG(ParseNumaConfig(json_host, numa_config));
-  return SUCCESS;
-}
-
-Status NumaConfigManager::ParseNumaConfigFromResConfig(const char_t *res_config, NumaConfig &numa_config) {
-  GE_CHECK_NOTNULL(res_config);
-  // get json
-  nlohmann::json json_host;
-  try {
-    json_host = nlohmann::json::parse(res_config);
-  } catch (const nlohmann::json::exception &e) {
-    GELOGE(FAILED, "Invalid json resource config, exception:%s", e.what());
-        REPORT_INNER_ERR_MSG("E19999", "Invalid json resource config, exception:%s", e.what());
-    return FAILED;
-  }
-  GE_CHK_STATUS_RET_NOLOG(ParseNumaConfig(json_host, numa_config));
-  return SUCCESS;
-}
-
-Status NumaConfigManager::InitHostNumaConfig(NumaConfig &numa_config) {
-  std::string file_path;
-  GE_CHK_STATUS_RET_NOLOG(Configurations::GetConfigDir(file_path));
-  std::string config_file = file_path + kConfigFileName;
-  const char_t *res_config = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_HELPER_RES_CONFIG, res_config);
-  if (res_config == nullptr) {
-    GE_CHK_STATUS_RET_NOLOG(ParseNumaConfigFromConfigFile(config_file, numa_config));
-  } else {
-    GE_CHK_STATUS_RET_NOLOG(ParseNumaConfigFromResConfig(res_config, numa_config));
-  }
-  return SUCCESS;
-}
-
 bool NumaConfigManager::ExportOptionSupported() {
   std::string resource_path;
   (void)ge::GetContext().GetOption(RESOURCE_CONFIG_PATH, resource_path);
 
-  const char_t *env_helper_res_config = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_HELPER_RES_CONFIG, env_helper_res_config);
-  bool enable_env_helper_res_config = (env_helper_res_config != nullptr);
-
-  const char_t *env_helper_res_file_path = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_HELPER_RES_FILE_PATH, env_helper_res_file_path);
-  bool enable_env_helper_res_file_path = (env_helper_res_file_path != nullptr);
-
   const char_t *env_resource_config_path = nullptr;
   MM_SYS_GET_ENV(MM_ENV_RESOURCE_CONFIG_PATH, env_resource_config_path);
   bool enable_env_resource_config_path = (env_resource_config_path != nullptr);
-  return enable_env_helper_res_config || enable_env_helper_res_file_path ||
-         enable_env_resource_config_path || !resource_path.empty();
+  return enable_env_resource_config_path || !resource_path.empty();
 }
 
 Status NumaConfigManager::InitNumaConfig() {
@@ -309,11 +153,7 @@ Status NumaConfigManager::InitNumaConfig() {
     return SUCCESS;
   }
   NumaConfig numa_config;
-  if (Configurations::GetInstance().IsServer()) {
-    GE_CHK_STATUS_RET(InitServerNumaConfig(numa_config), "Failed to init numa config");
-  } else {
-    GE_CHK_STATUS_RET(InitHostNumaConfig(numa_config), "Failed to init numa config");
-  }
+  GE_CHK_STATUS_RET(InitServerNumaConfig(numa_config), "Failed to init numa config");
   std::string numa_config_json_string = ToJsonString(numa_config);
   GE_CHK_BOOL_RET_STATUS(!numa_config_json_string.empty(), FAILED, "Invalid json string");
   auto &global_options_mutex = GetGlobalOptionsMutex();

@@ -132,15 +132,7 @@ void FunctionCompile::SetRunningResourceInfoToCompileResult() {
 }
 
 std::string FunctionCompile::GetAscendLatestInstallPath() {
-  constexpr const char_t *kAscendToolKitHome = "ASCEND_TOOLKIT_HOME";
   const char_t *env_value = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_ASCEND_TOOLKIT_HOME, env_value);
-  if (env_value != nullptr) {
-    std::string file_path(env_value);
-    GEEVENT("env:%s value=%s.", kAscendToolKitHome, file_path.c_str());
-    return file_path;
-  }
-
   constexpr const char_t *kAscendHomePath = "ASCEND_HOME_PATH";
   MM_SYS_GET_ENV(MM_ENV_ASCEND_HOME_PATH, env_value);
   if (env_value != nullptr) {
@@ -149,16 +141,8 @@ std::string FunctionCompile::GetAscendLatestInstallPath() {
     return file_path;
   }
 
-  constexpr const char_t *kAscendLatestInstallPath = "ASCEND_LATEST_INSTALL_PATH";
-  MM_SYS_GET_ENV(MM_ENV_ASCEND_LATEST_INSTALL_PATH, env_value);
-  if (env_value != nullptr) {
-    std::string file_path(env_value);
-    GEEVENT("env:%s value=%s.", kAscendLatestInstallPath, file_path.c_str());
-    return file_path;
-  }
-  constexpr const char_t *kDefaultLatestInstallPath = "/usr/local/Ascend/latest";
-  GEEVENT("env:%s, env:%s and env:%s do not exist, use default path:%s", kAscendToolKitHome, kAscendHomePath,
-         kAscendLatestInstallPath, kDefaultLatestInstallPath);
+  constexpr const char_t *kDefaultLatestInstallPath = "/usr/local/Ascend/cann";
+  GEEVENT("env:%s do not exist, use default path:%s", kAscendHomePath, kDefaultLatestInstallPath);
   return kDefaultLatestInstallPath;
 }
 

@@ -62,7 +62,6 @@ class BuiltinExecutorClient : public PneExecutorClient {
   Status GrantQueues(const deployer::ExecutorRequest_BatchLoadModelMessage &load_model_desc);
   Status GrantDynamicSchedQueues(const deployer::ExecutorRequest_BatchLoadModelMessage &load_model_desc);
   void ParserLoadWithSyncEvent(const deployer::ExecutorRequest &request);
-  static void PrepareNpuExecutorEnvs(std::map<std::string, std::string> &envs);
 
   std::atomic_bool heartbeat_listening_{false};
   pid_t pid_ = -1;

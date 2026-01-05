@@ -190,28 +190,14 @@ TEST_F(FunctionCompileTest, CompileAllResourceTypeFailed) {
 }
 
 TEST_F(FunctionCompileTest, GetAscendLatestInstallPath) {
-  constexpr const char_t *kAscendToolKitHome = "ASCEND_TOOLKIT_HOME";
   constexpr const char_t *kAscendHomePath = "ASCEND_HOME_PATH";
-  constexpr const char_t *kAscendLatestInstallPath = "ASCEND_LATEST_INSTALL_PATH";
-  std::string toolkit_home_path("/test/toolkit_home");
   std::string ascend_home_path("/test/ascend_path");
-  std::string latest_install_home_path("/test/latest_path");
-  mmSetEnv(kAscendToolKitHome, toolkit_home_path.c_str(), 1);
   mmSetEnv(kAscendHomePath, ascend_home_path.c_str(), 1);
-  mmSetEnv(kAscendLatestInstallPath, latest_install_home_path.c_str(), 1);
   std::string path = FunctionCompile::GetAscendLatestInstallPath();
-  EXPECT_EQ(path, toolkit_home_path);
-
-  unsetenv(kAscendToolKitHome);
-  path = FunctionCompile::GetAscendLatestInstallPath();
   EXPECT_EQ(path, ascend_home_path);
 
   unsetenv(kAscendHomePath);
   path = FunctionCompile::GetAscendLatestInstallPath();
-  EXPECT_EQ(path, latest_install_home_path);
-
-  unsetenv(kAscendLatestInstallPath);
-  path = FunctionCompile::GetAscendLatestInstallPath();
-  EXPECT_EQ(path, "/usr/local/Ascend/latest");
+  EXPECT_EQ(path, "/usr/local/Ascend/cann");
 }
 }  // namespace ge
