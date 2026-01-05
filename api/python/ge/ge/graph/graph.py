@@ -448,3 +448,82 @@ class Graph:
             raise RuntimeError(
                 f"Failed to find Node name {name}")
         return Node._create_from(node)
+
+    def get_all_subgraphs(self) -> List['Graph']:
+        """Get all subgraphs in the graph.
+
+        Returns:
+            List of Graph objects representing subgraphs.
+        """
+        subgraph_num = ctypes.c_size_t()
+        subgraphs = graph_lib.GeApiWrapper_Graph_GetAllSubgraphs(self._handle, ctypes.byref(subgraph_num))
+        if not subgraphs:
+            return []
+
+        try:
+            return [Graph._create_from(subgraphs[i]) for i in range(subgraph_num.value)]
+        finally:
+            graph_lib.GeApiWrapper_Graph_FreeGraphArray(subgraphs)
+
+    def get_subgraph(self, name: str) -> Optional['Graph']:
+        """Get subgraph by name.
+
+        Args:
+            name: Subgraph name.
+
+        Returns:
+            Graph object representing the subgraph, or None if not found.
+
+        Raises:
+            TypeError: If name is not a string.
+            RuntimeError: If getting subgraph fails.
+        """
+        if not isinstance(name, str):
+            raise TypeError("name must be a string")
+
+        name_bytes = name.encode('utf-8')
+        subgraph_handle = graph_lib.GeApiWrapper_Graph_GetSubGraph(self._handle, name_bytes)
+        if not subgraph_handle:
+            return None
+
+        return Graph._create_from(subgraph_handle)
+
+    def add_subgraph(self, subgraph: 'Graph') -> None:
+        """Add a subgraph to the graph.
+
+        The subgraph is indexed by its name. Subgraph names must be unique within the parent graph;
+        attempting to add a subgraph whose name already exists will fail.
+
+        Args:
+            subgraph: Graph object to be added as a subgraph.
+
+        Raises:
+            TypeError: If subgraph is not a Graph.
+            RuntimeError: If adding subgraph fails.
+        """
+        if not isinstance(subgraph, Graph):
+            raise TypeError("subgraph must be a Graph")
+
+        ret = graph_lib.GeApiWrapper_Graph_AddSubGraph(self._handle, subgraph._handle)
+        if ret != 0:  # GRAPH_SUCCESS
+            raise RuntimeError(
+                f"Failed to add subgraph '{subgraph.name}' to graph '{self.name}'")
+
+    def remove_subgraph(self, name: str) -> None:
+        """Remove subgraph by name.
+
+        Args:
+            name: Subgraph name.
+
+        Raises:
+            TypeError: If name is not a string.
+            RuntimeError: If removing subgraph fails.
+        """
+        if not isinstance(name, str):
+            raise TypeError("name must be a string")
+
+        name_bytes = name.encode('utf-8')
+        ret = graph_lib.GeApiWrapper_Graph_RemoveSubgraph(self._handle, name_bytes)
+        if ret != 0:  # GRAPH_SUCCESS
+            raise RuntimeError(
+                f"Failed to remove subgraph '{name}' from graph '{self.name}'")

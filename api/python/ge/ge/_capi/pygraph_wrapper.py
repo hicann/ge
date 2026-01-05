@@ -139,6 +139,9 @@ graph_lib.GeApiWrapper_Graph_CreateGraph.argtypes = [c_char_p]
 graph_lib.GeApiWrapper_Graph_DestroyGraph.restype = None
 graph_lib.GeApiWrapper_Graph_DestroyGraph.argtypes = [c_void_p]
 
+graph_lib.GeApiWrapper_Graph_FreeGraphArray.restype = None
+graph_lib.GeApiWrapper_Graph_FreeGraphArray.argtypes = [ctypes.POINTER(c_void_p)]
+
 # 属性操作
 graph_lib.GeApiWrapper_Graph_GetName.restype = c_char_ptr
 graph_lib.GeApiWrapper_Graph_GetName.argtypes = [c_void_p]
@@ -186,6 +189,19 @@ graph_lib.GeApiWrapper_Graph_RemoveNode.argtypes = [c_void_p, c_void_p]
 
 graph_lib.GeApiWrapper_Graph_FindNodeByName.restype = int
 graph_lib.GeApiWrapper_Graph_FindNodeByName.argtypes = [c_void_p, c_char_p, ctypes.POINTER(c_void_p)]
+
+# 子图相关 API
+graph_lib.GeApiWrapper_Graph_GetAllSubgraphs.restype = ctypes.POINTER(c_void_p)
+graph_lib.GeApiWrapper_Graph_GetAllSubgraphs.argtypes = [c_void_p, ctypes.POINTER(c_size_t)]
+
+graph_lib.GeApiWrapper_Graph_GetSubGraph.restype = c_void_p
+graph_lib.GeApiWrapper_Graph_GetSubGraph.argtypes = [c_void_p, c_char_p]
+
+graph_lib.GeApiWrapper_Graph_AddSubGraph.restype = c_int
+graph_lib.GeApiWrapper_Graph_AddSubGraph.argtypes = [c_void_p, c_void_p]
+
+graph_lib.GeApiWrapper_Graph_RemoveSubgraph.restype = c_int
+graph_lib.GeApiWrapper_Graph_RemoveSubgraph.argtypes = [c_void_p, c_char_p]
 
 # ============ GNode C API ============
 # 销毁

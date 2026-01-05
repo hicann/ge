@@ -84,7 +84,7 @@ graph TB
 - `__init__(name)` - 初始化图
 - `get_all_nodes()` - 获取所有节点
 - `get_direct_node()` - 获取直接连接节点
-- `get_node_by_name(name)` - 根据名称获取节点
+- `find_node_by_name(name)` - 根据名称获取节点
 - `get_attr(key)` - 获取图属性
 - `set_attr(key, value)` - 设置图属性
 - `remove_node(node)` - 移除节点
@@ -93,6 +93,10 @@ graph TB
 - `add_control_edge(src_node, dst_node)` - 添加控制边
 - `save_to_air(file_path)` - 将图保存成AIR文件
 - `load_from_air(file_path)` - 从AIR文件加载图
+- `get_all_subgraphs()` - 获取所有子图
+- `get_subgraph(name)` - 根据名称获取子图
+- `add_subgraph(subgraph)` - 添加子图，以子图的名称为key，不允许出现重复。若添加名称相同的子图，添加子图失败
+- `remove_subgraph(name)` - 根据名称移除子图
 
 **属性**:
 - `_handle` - 底层C图对象的句柄

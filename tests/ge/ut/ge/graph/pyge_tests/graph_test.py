@@ -38,6 +38,29 @@ class TestGraph:
         return Graph("test_graph")
 
     @pytest.fixture
+    def graph_with_subgraph(self):
+        """创建 含有子图的 Graph 实例的 fixture"""
+        from ge.es.graph_builder import GraphBuilder
+        from es_ut_test import phony_If
+        builder = GraphBuilder("graph_with_subgraph")
+        input_tensor = builder.create_input(0)
+
+        then_graph_builder = GraphBuilder("then_graph")
+        then_graph_const = then_graph_builder.create_const_int64(1)
+        then_graph_builder.set_graph_output(then_graph_const, 0)
+        then_graph = then_graph_builder.build_and_reset()
+
+        else_graph_builder = GraphBuilder("else_graph")
+        else_graph_const = else_graph_builder.create_const_int64(1)
+        else_graph_builder.set_graph_output(else_graph_const, 0)
+        else_graph = else_graph_builder.build_and_reset()
+
+        phony_if_res = phony_If(input_tensor, [1, 2], 1, then_graph, else_graph)
+
+        builder.set_graph_output(phony_if_res[0], 0)
+        return builder.build_and_reset()
+
+    @pytest.fixture
     def graph_with_data(self):
         """创建 含有实际数据的的 Graph 实例的 fixture"""
         from ge.es.graph_builder import GraphBuilder
@@ -361,3 +384,93 @@ class TestGraph:
         with pytest.raises(TypeError, match="dst_node must be a Node"):
             node = graph_with_data.get_all_nodes()[-1]
             graph_with_data.add_control_edge(node, 1)
+
+    def test_get_all_subgraphs_empty(self, graph):
+        """测试获取空子图列表"""
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 0
+        assert isinstance(subgraphs, list)
+
+    def test_get_and_add_subgraph(self, graph, graph_with_subgraph):
+        """测试获取并添加子图"""
+        # 获取并添加第一个子图
+        then_graph = graph_with_subgraph.get_subgraph("then_graph")
+        assert then_graph is not None
+        assert then_graph.name == "then_graph"
+
+        graph.add_subgraph(then_graph)
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 1
+        assert subgraphs[0].name == "then_graph"
+
+        # 获取并添加第二个子图
+        else_graph = graph_with_subgraph.get_subgraph("else_graph")
+        assert else_graph is not None
+        assert else_graph.name == "else_graph"
+
+        graph.add_subgraph(else_graph)
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 2
+        subgraph_names = [sg.name for sg in subgraphs]
+        assert "then_graph" in subgraph_names
+        assert "else_graph" in subgraph_names
+
+        # 获取不存在的子图
+        not_found = graph.get_subgraph("nonexistent")
+        assert not_found is None
+
+    def test_add_duplicate_subgraph_name_error(self, graph, graph_with_subgraph):
+        """测试添加同名子图"""
+        # 添加第一个子图
+        then_graph = graph_with_subgraph.get_subgraph("then_graph")
+        graph.add_subgraph(then_graph)
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 1
+        assert subgraphs[0].name == "then_graph"
+
+        # 尝试添加同名子图，应该失败
+        with pytest.raises(RuntimeError, match="Failed to add subgraph 'then_graph' to graph 'test_graph'"):
+            graph.add_subgraph(then_graph)
+
+        # 验证只有一个子图
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 1
+        assert subgraphs[0].name == "then_graph"
+
+    def test_add_subgraph_type_error(self, graph):
+        """测试添加子图时类型错误"""
+        with pytest.raises(TypeError, match="subgraph must be a Graph"):
+            graph.add_subgraph("not_a_graph")
+
+    def test_get_subgraph_type_error(self, graph):
+        """测试获取子图时类型错误"""
+        with pytest.raises(TypeError, match="name must be a string"):
+            graph.get_subgraph(123)
+
+    def test_remove_subgraph(self, graph, graph_with_subgraph):
+        """测试移除子图"""
+        # 添加子图
+        then_graph = graph_with_subgraph.get_subgraph("then_graph")
+        graph.add_subgraph(then_graph)
+        else_graph = graph_with_subgraph.get_subgraph("else_graph")
+        graph.add_subgraph(else_graph)
+
+        # 验证子图存在
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 2
+
+        # 移除一个子图
+        graph.remove_subgraph("then_graph")
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 1
+        assert subgraphs[0].name == "else_graph"
+
+        # 移除另一个子图
+        graph.remove_subgraph("else_graph")
+        subgraphs = graph.get_all_subgraphs()
+        assert len(subgraphs) == 0
+
+    def test_remove_subgraph_type_error(self, graph):
+        """测试移除子图时类型错误"""
+        with pytest.raises(TypeError, match="name must be a string"):
+            graph.remove_subgraph(123)

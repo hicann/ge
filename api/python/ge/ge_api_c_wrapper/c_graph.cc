@@ -33,6 +33,10 @@ void GeApiWrapper_Graph_DestroyGraph(const Graph *graph) {
   delete graph;
 }
 
+void GeApiWrapper_Graph_FreeGraphArray(Graph **graphs) {
+  delete[] graphs;
+}
+
 GNode **GeApiWrapper_Graph_GetAllNodes(const Graph *graph, size_t *node_num) {
   GE_ASSERT_NOTNULL(graph);
   GE_ASSERT_NOTNULL(node_num);
@@ -137,6 +141,44 @@ graphStatus GeApiWrapper_Graph_FindNodeByName(Graph *graph, const char *name, GN
   return ge::GRAPH_SUCCESS;
 }
 
+Graph **GeApiWrapper_Graph_GetAllSubgraphs(const Graph *graph, size_t *subgraph_num) {
+  GE_ASSERT_NOTNULL(graph);
+  GE_ASSERT_NOTNULL(subgraph_num);
+  auto subgraphs = graph->GetAllSubgraphs();
+  if (subgraphs.empty()) {
+    return nullptr;
+  }
+  *subgraph_num = subgraphs.size();
+  auto c_graphs = new (std::nothrow) Graph *[*subgraph_num];
+  GE_ASSERT_NOTNULL(c_graphs);
+  for (size_t i = 0U; i < *subgraph_num; ++i) {
+    c_graphs[i] = new (std::nothrow) Graph(*subgraphs.at(i));
+    GE_ASSERT_NOTNULL(c_graphs[i]);
+  }
+  return c_graphs;
+}
+
+Graph *GeApiWrapper_Graph_GetSubGraph(const Graph *graph, const char *name) {
+  GE_ASSERT_NOTNULL(graph);
+  GE_ASSERT_NOTNULL(name);
+  auto subgraph_ptr = graph->GetSubGraph(name);
+  if (subgraph_ptr == nullptr) {
+    return nullptr;
+  }
+  return new (std::nothrow) Graph(*subgraph_ptr);
+}
+
+graphStatus GeApiWrapper_Graph_AddSubGraph(Graph *graph, const Graph *subgraph) {
+  GE_ASSERT_NOTNULL(graph);
+  GE_ASSERT_NOTNULL(subgraph);
+  return graph->AddSubGraph(*subgraph);
+}
+
+graphStatus GeApiWrapper_Graph_RemoveSubgraph(Graph *graph, const char *name) {
+  GE_ASSERT_NOTNULL(graph);
+  GE_ASSERT_NOTNULL(name);
+  return graph->RemoveSubgraph(name);
+}
 
 #ifdef __cplusplus
 }

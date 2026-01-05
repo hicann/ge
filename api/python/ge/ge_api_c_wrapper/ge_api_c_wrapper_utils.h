@@ -202,6 +202,11 @@ ge::graphStatus GeApiWrapper_GNode_GetAttr(const ge::GNode *node, const char *ke
 ge::graphStatus GeApiWrapper_GNode_SetOutputAttr(ge::GNode *node, const char *attr_name, uint32_t output_index,
                                                  const void *attr_value);
 void GeApiWrapper_GNode_FreeIntArray(int32_t *arrs);
+void GeApiWrapper_Graph_FreeGraphArray(ge::Graph **graphs);
+ge::Graph **GeApiWrapper_Graph_GetAllSubgraphs(const ge::Graph *graph, size_t *subgraph_num);
+ge::Graph *GeApiWrapper_Graph_GetSubGraph(const ge::Graph *graph, const char *name);
+ge::graphStatus GeApiWrapper_Graph_AddSubGraph(ge::Graph *graph, const ge::Graph *subgraph);
+ge::graphStatus GeApiWrapper_Graph_RemoveSubgraph(ge::Graph *graph, const char *name);
 
 #ifdef __cplusplus
 }

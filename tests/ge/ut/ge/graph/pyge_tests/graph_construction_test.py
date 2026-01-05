@@ -527,6 +527,35 @@ class TestGraphConstruction:
         assert "phony_If" in node_types
         assert "NetOutput" in node_types
 
+        all_subgraphs = graph.get_all_subgraphs()
+        assert len(all_subgraphs) == 6
+
+        then_branch_subgraph = graph.get_subgraph("then_branch")
+        assert then_branch_subgraph is not None
+        else_branch_subgraph = graph.get_subgraph("else_branch")
+        assert else_branch_subgraph is not None
+
+        while_01_cond_subgraph = then_branch_subgraph.get_subgraph("while_01_cond")
+        assert while_01_cond_subgraph is not None
+        while_01_cond_subgraph = graph.get_subgraph("while_01_cond")
+        assert while_01_cond_subgraph is not None
+
+        while_01_body_subgraph = then_branch_subgraph.get_subgraph("while_01_body")
+        assert while_01_body_subgraph is not None
+        while_01_body_subgraph = graph.get_subgraph("while_01_body")
+        assert while_01_body_subgraph is not None
+
+        while_02_cond_subgraph = else_branch_subgraph.get_subgraph("while_02_cond")
+        assert while_02_cond_subgraph is not None
+        while_02_cond_subgraph = graph.get_subgraph("while_02_cond")
+        assert while_02_cond_subgraph is not None
+
+
+        while_02_body_subgraph = else_branch_subgraph.get_subgraph("while_02_body")
+        assert while_02_body_subgraph is not None
+        while_02_body_subgraph = graph.get_subgraph("while_02_body")
+        assert while_02_body_subgraph is not None
+
     def test_list_attr_graph_construction(self, builder):
         """测试带有二维数组、字符串数组属性的算子图构建功能 - 使用 phony_req_attrs 算子"""
         # 创建输入 tensor
