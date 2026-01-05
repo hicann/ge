@@ -367,7 +367,10 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
         endif ()
 
         if (ENABLE_DFLOW_UT)
-            add_dependencies(select_targets ut_libgraph ut_built_in_flow_func ut_flow_func_executor
+            add_dependencies(select_targets ut_libgraph
+            ge_single_op ge_davinci_model ge_build_common ge_prepare_common
+            ge_pass_common ge_ut_common ge_ut_common_format
+            ut_built_in_flow_func ut_flow_func_executor
             ut_libge_helper_utest
             ut_flow_graph)
         endif ()
