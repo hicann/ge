@@ -227,27 +227,8 @@ rtError_t rtSetProfDir(char *profdir)
     return RT_ERROR_NONE;
 }
 
-rtError_t rtSetProfDirEx(char *profdir, char *address, char *job_ctx)
-{
-    return RT_ERROR_NONE;
-}
-
 rtError_t rtAiCoreMemorySizes(rtAiCoreMemorySize_t *aiCoreMemorySize)
 {
-    return RT_ERROR_NONE;
-}
-
-rtError_t rtSetKernelReportCallback(rtKernelReportCallback callBack)
-{
-    rtKernelInfo rt_kernel_info = { 0 };
-    rt_kernel_info.arg_size = 12;
-    rt_kernel_info.task_offset = 100;
-    rt_kernel_info.arg = (void *)100;
-    rt_kernel_info.module_addr = (void *)100;
-    rt_kernel_info.module_size = 100;
-
-    rtStream_t stream;
-    callBack(stream, &rt_kernel_info);
     return RT_ERROR_NONE;
 }
 
@@ -364,19 +345,9 @@ rtError_t rtProfilerStop(void)
     return RT_ERROR_NONE;
 }
 
-rtError_t rtUnsetDvfsProfile()
-{
-    return RT_ERROR_NONE;
-}
-
 rtError_t rtCtxDestroy(rtContext_t ctx)
 {
 	return RT_ERROR_NONE;
-}
-
-rtError_t rtProfilerInit(const char *profdir, const char *address, const char *job_ctx)
-{
-    return RT_ERROR_NONE;
 }
 
 rtError_t rtProfilerStart(void)
@@ -395,16 +366,6 @@ rtError_t rtLabelDestroy(rtLabel_t label)
 }
 
 rtError_t rtLabelSet(rtLabel_t label, rtStream_t stream)
-{
-    return RT_ERROR_NONE;
-}
-
-rtError_t rtLabelSwitch(void *ptr, rtCondition_t condition, uint32_t value, rtLabel_t trueLabel, rtStream_t stream)
-{
-    return RT_ERROR_NONE;
-}
-
-rtError_t rtLabelGoto(rtLabel_t label, rtStream_t stream)
 {
     return RT_ERROR_NONE;
 }
@@ -430,17 +391,7 @@ rtError_t rtFlushCache(uint64_t base, uint32_t len)
     return RT_ERROR_NONE;
 }
 
-rtError_t rtProfilerTrace(uint64_t id, bool notify, uint32_t flags, rtStream_t stream_)
-{
-    return RT_ERROR_NONE;
-}
-
 rtError_t rtMemSetRC(const void *devPtr, uint64_t size, uint32_t readCount)
-{
-    return RT_ERROR_NONE;
-}
-
-rtError_t rtStreamSwitch(void *ptr,  rtCondition_t condition, int64_t value, rtStream_t true_stream, rtStream_t stream)
 {
     return RT_ERROR_NONE;
 }

@@ -700,12 +700,6 @@ rtError_t rtGetDeviceMode(rtDeviceMode *deviceMode)
     return RT_ERROR_NONE;
 }
 
-rtError_t rtGetDie( int32_t* die )
-{
-    *die = current_die;
-    return RT_ERROR_NONE;
-}
-
 aclError aclrtGetCurrentContext(aclrtContext *ctx)
 {
     void* tmp;

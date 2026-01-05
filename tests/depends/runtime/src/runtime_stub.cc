@@ -1102,21 +1102,6 @@ rtError_t rtConfigureCall(uint32_t num_blocks, rtSmDesc_t *sm_desc, rtStream_t s
 
 rtError_t rtSetProfDir(char *prof_dir) { return RT_ERROR_NONE; }
 
-rtError_t rtSetProfDirEx(const char *profDir, const char *address, const char *jobCtx) { return RT_ERROR_NONE; }
-
-rtError_t rtSetKernelReportCallback(rtKernelReportCallback callback) {
-  rtKernelInfo rt_kernel_info = {0};
-  rt_kernel_info.arg_size = 12;
-  rt_kernel_info.task_offset = 100;
-  rt_kernel_info.arg = (void *)100;
-  rt_kernel_info.module_addr = (void *)100;
-  rt_kernel_info.module_size = 100;
-
-  rtStream_t stream = nullptr;
-  callback(stream, &rt_kernel_info);
-  return RT_ERROR_NONE;
-}
-
 rtError_t rtMemAdvise(void *ptr, uint64_t size, uint32_t advise) { return RT_ERROR_NONE; }
 
 /// @ingroup rt_kernel
@@ -1229,10 +1214,6 @@ rtError_t rtGetAddrByFun(const void *stubFunc, void **addr) {
 rtError_t rtCtxCreate(rtContext_t *ctx, uint32_t flags, int32_t device) {
   return ge::RuntimeStub::GetInstance()->rtCtxCreate(ctx, flags, device);
 }
-rtError_t rtCtxCreateV2(rtContext_t *ctx,
-                        uint32_t flags,
-                        int32_t device,
-                        rtDeviceMode deviceMode) { return RT_ERROR_NONE; }
 
 rtError_t rtKernelLaunchEx(void *args, uint32_t args_size, uint32_t flags, rtStream_t stream_) {
   const char * const kEnvRecordPath = "CONSTANT_FOLDING_PASS_6";
@@ -1266,11 +1247,8 @@ rtError_t rtProfilerStop(uint64_t profConfig, int32_t numsDev, uint32_t *deviceL
   return RT_ERROR_NONE;
 }
 
-rtError_t rtUnsetDvfsProfile() { return RT_ERROR_NONE; }
 
 rtError_t rtCtxDestroy(rtContext_t ctx) { return RT_ERROR_NONE; }
-
-rtError_t rtProfilerInit(const char *prof_dir, const char *address, const char *job_ctx) { return RT_ERROR_NONE; }
 
 rtError_t rtProfilerStart(uint64_t profConfig, int32_t numsDev, uint32_t *deviceList) {
   return RT_ERROR_NONE;
@@ -1303,20 +1281,9 @@ rtError_t rtLabelDestroy(rtLabel_t label) {
 
 rtError_t rtLabelSet(rtLabel_t label, rtStream_t stream) { return RT_ERROR_NONE; }
 
-rtError_t rtLabelSwitch(void *ptr, rtCondition_t condition, uint32_t value, rtLabel_t true_label, rtStream_t stream) {
-  return RT_ERROR_NONE;
-}
-
 rtError_t rtLabelSwitchByIndex(void *ptr, uint32_t max, void *labelInfoPtr, rtStream_t stream) {
   return RT_ERROR_NONE;
 }
-
-rtError_t rtLabelGoto(rtLabel_t label, rtStream_t stream) { return RT_ERROR_NONE; }
-
-rtError_t rtLabelGotoEx(rtLabel_t label, rtStream_t stream) {
-  return RT_ERROR_NONE;
-}
-
 
 rtError_t rtInvalidCache(void *base, size_t len) {
   return RT_ERROR_NONE;
@@ -1346,8 +1313,6 @@ rtError_t rtFlushCache(void *base, size_t len) {
   return RT_ERROR_NONE;
 }
 
-rtError_t rtProfilerTrace(uint64_t id, bool notify, uint32_t flags, rtStream_t stream_) { return RT_ERROR_NONE; }
-
 ADD_STUB_RETURN_VALUE(rtProfilerTraceEx, rtError_t);
 rtError_t rtProfilerTraceEx(uint64_t id, uint64_t modelId, uint16_t tagId, rtStream_t stream) {
   const char *const kEnvRecordPath = "CONSTANT_FOLDING_PASS";
@@ -1360,10 +1325,6 @@ rtError_t rtProfilerTraceEx(uint64_t id, uint64_t modelId, uint16_t tagId, rtStr
 }
 
 rtError_t rtMemSetRC(const void *dev_ptr, uint64_t size, uint32_t read_count) { return RT_ERROR_NONE; }
-
-rtError_t rtStreamSwitch(void *ptr, rtCondition_t condition, int64_t value, rtStream_t true_stream, rtStream_t stream) {
-  return RT_ERROR_NONE;
-}
 
 rtError_t rtStreamSwitchEx(void *ptr, rtCondition_t condition, void *value_ptr, rtStream_t true_stream,
                            rtStream_t stream, rtSwitchDataType_t data_type) {
@@ -1395,11 +1356,6 @@ rtError_t rtCpuKernelLaunchWithFlag(const void *so_name, const void *kernel_name
                                     const rtArgsEx_t *args, rtSmDesc_t *smDesc, rtStream_t stream_, uint32_t flags) {
   return ge::RuntimeStub::GetInstance()->rtCpuKernelLaunchWithFlag(so_name, kernel_name, core_dim, args, smDesc,
                                                                    stream_, flags);
-}
-
-rtError_t rtModelSetExtId(rtModel_t model, uint32_t extId)
-{
-  return RT_ERROR_NONE;
 }
 
 rtError_t rtModelGetId(rtModel_t model, uint32_t *modelId)

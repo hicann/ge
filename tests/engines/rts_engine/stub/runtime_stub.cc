@@ -176,22 +176,7 @@ rtError_t rtConfigureCall(uint32_t num_blocks, rtSmDesc_t *sm_desc, rtStream_t s
 
 rtError_t rtSetProfDir(char *prof_dir) { return RT_ERROR_NONE; }
 
-rtError_t rtSetProfDirEx(const char *profDir, const char *address, const char *jobCtx) { return RT_ERROR_NONE; }
-
 rtError_t rtAiCoreMemorySizes(rtAiCoreMemorySize_t *aicore_memory_size) { return RT_ERROR_NONE; }
-
-rtError_t rtSetKernelReportCallback(rtKernelReportCallback callback) {
-  rtKernelInfo rt_kernel_info = {0};
-  rt_kernel_info.arg_size = 12;
-  rt_kernel_info.task_offset = 100;
-  rt_kernel_info.arg = (void *)100;
-  rt_kernel_info.module_addr = (void *)100;
-  rt_kernel_info.module_size = 100;
-
-  rtStream_t stream = nullptr;
-  callback(stream, &rt_kernel_info);
-  return RT_ERROR_NONE;
-}
 
 rtError_t rtMemAdvise(void *ptr, uint64_t size, uint32_t advise) { return RT_ERROR_NONE; }
 
@@ -253,8 +238,6 @@ rtError_t rtEndGraphEx(rtModel_t model, rtStream_t stream, uint32_t flags)
 
 rtError_t rtCtxDestroy(rtContext_t ctx) { return RT_ERROR_NONE; }
 
-rtError_t rtProfilerInit(const char *prof_dir, const char *address, const char *job_ctx) { return RT_ERROR_NONE; }
-
 rtError_t rtLabelCreate(rtLabel_t *label) {
   *label = new uint64_t;
   return RT_ERROR_NONE;
@@ -298,13 +281,6 @@ rtError_t rtCmoAddrTaskLaunch(void *cmoAddrInfo, uint64_t destMax, rtCmoOpCode_t
   return RT_ERROR_NONE;
 }
 
-rtError_t rtLabelGoto(rtLabel_t label, rtStream_t stream) { return RT_ERROR_NONE; }
-
-rtError_t rtLabelGotoEx(rtLabel_t label, rtStream_t stream) {
-  return RT_ERROR_NONE;
-}
-
-
 rtError_t rtInvalidCache(void *base, size_t len) {
   return RT_ERROR_NONE;
 }
@@ -319,8 +295,6 @@ rtError_t rtStreamCreateWithFlags(rtStream_t *stream, int32_t priority, uint32_t
 rtError_t rtFlushCache(void *base, size_t len) {
   return RT_ERROR_NONE;
 }
-
-rtError_t rtProfilerTrace(uint64_t id, bool notify, uint32_t flags, rtStream_t stream_) { return RT_ERROR_NONE; }
 
 rtError_t rtProfilerTraceEx(uint64_t id, uint64_t modelId, uint16_t tagId, rtStream_t stream) { return RT_ERROR_NONE; }
 

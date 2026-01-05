@@ -13,10 +13,6 @@
 #include "runtime/base.h"
 #include "aprof_pub.h"
 
-rtError_t rtSetMsprofReporterCallback(MsprofReporterCallback callback) {
-  return 0;
-}
-
 rtError_t rtRegDeviceStateCallback(const char *regName, rtDeviceStateCallback callback) {
   return 0;
 }
