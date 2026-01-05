@@ -21,6 +21,9 @@ find_package(Boost CONFIG
 
 if(Boost_FOUND)
     message(STATUS "[boost] Third party has been found: ${Boost_INCLUDE_DIRS}")
+    ExternalProject_Add(boost_build
+                        SOURCE_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/boost
+                        CONFIGURE_COMMAND "" BUILD_COMMAND "" INSTALL_COMMAND "")
     return()
 endif()
 
