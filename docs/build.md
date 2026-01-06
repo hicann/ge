@@ -22,7 +22,7 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 
    - CMake >= 3.16.0 （建议使用3.20.0版本）
    - bash >= 5.1.16 
-   - ccache/asan/autoconf/automake/libtool/gperf/graph-easy(可选)
+   - ccache/asan/autoconf/automake/libtool/gperf/graph-easy(其中graph-easy可选)
 
      ```bash
      # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
