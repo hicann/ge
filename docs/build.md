@@ -84,7 +84,7 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 
 运行样例时必须安装该软件包，若仅编译源码，可跳过本操作。
 
-根据实际产品型号和环境架构，获取对应的`Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run`包，本操作以获取Atlas A2系列产品软件包为例，下载链接为[ops_x86_64](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1/x86_64/Ascend-cann-910b-ops_8.5.0-beta.1_linux-x86_64.run)。
+根据实际产品型号和环境架构，获取对应的`Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run`包，本操作以获取Atlas A2系列产品软件包为例，下载链接为[ops_x86_64](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1/x86_64/Ascend-cann-910b-ops_8.5.0-beta.1_linux-x86_64.run)、[ops_aarch64](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1/aarch64/Ascend-cann-910b-ops_8.5.0-beta.1_linux-aarch64.run)。
 
   ```bash
   # 确保安装包具有可执行权限
