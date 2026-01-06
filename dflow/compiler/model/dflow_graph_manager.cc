@@ -51,7 +51,6 @@ void DflowGraphManager::Finalize() {
   is_initialized_ = false;
   
   GELOGI("[DflowGraphManager] Finalize success.");
-  return;
 }
 
 Status DflowGraphManager::AddGraph(uint32_t graph_id, const Graph &graph, 
@@ -105,9 +104,7 @@ Status DflowGraphManager::RemoveGraph(uint32_t graph_id) {
   return ret;
 }
 
-Status DflowGraphManager::CompileGraph(uint32_t graph_id, const std::vector<GeTensor> &inputs,
-                                       bool is_compatibility_mode) {
-  (void)is_compatibility_mode;
+Status DflowGraphManager::CompileGraph(uint32_t graph_id, const std::vector<GeTensor> &inputs) {
   if (!is_initialized_) {
     GELOGE(ACL_ERROR_GE_EXEC_NOT_INIT, "[Build][Graph] DflowGraphManager not initialized.");
     return ACL_ERROR_GE_EXEC_NOT_INIT;

@@ -28,7 +28,6 @@ void DFlowSessionManager::Initialize() {
     return;
   }
   init_flag_ = true;
-  return;
 }
 
 void DFlowSessionManager::Finalize() {
@@ -37,12 +36,11 @@ void DFlowSessionManager::Finalize() {
     return;
   }
   const std::lock_guard<std::mutex> lock(mutex_);
-  for (auto iter = session_manager_map_.cbegin(); iter != session_manager_map_.cend(); ++iter) {
-    (void)iter->second->Finalize();
+  for (const auto &item : session_manager_map_) {
+    (void)item.second->Finalize();
   }
   session_manager_map_.clear();
   init_flag_ = false;
-  return;
 }
 
 SessionPtr DFlowSessionManager::CreateSession(const std::map<std::string, std::string> &options,

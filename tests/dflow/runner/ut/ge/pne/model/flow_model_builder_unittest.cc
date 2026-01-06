@@ -37,6 +37,7 @@
 #include "common/env_path.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
 #include "framework/common/helper/model_save_helper.h"
+#include "graph/manager/graph_var_manager.h"
 
 using namespace testing;
 

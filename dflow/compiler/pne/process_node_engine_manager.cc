@@ -13,7 +13,6 @@
 #include <cstdio>
 #include <map>
 
-#include "framework/common/debug/log.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "base/err_msg.h"
 #include "common/compile_profiling/ge_call_wrapper.h"

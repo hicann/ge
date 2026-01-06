@@ -11,11 +11,9 @@
 #ifndef DFLOW_SESSION_SESSION_MANAGER_H_
 #define DFLOW_SESSION_SESSION_MANAGER_H_
 
-#include <iostream>
 #include <map>
 #include <memory>
 #include <string>
-#include <vector>
 #include "ge/ge_api_types.h"
 #include "dflow_session_impl.h"
 

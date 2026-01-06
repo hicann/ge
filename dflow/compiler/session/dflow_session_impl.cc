@@ -21,7 +21,6 @@
 #include "graph/utils/tensor_adapter.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
 #include "external/ge/ge_api_v2.h"
-#include "common/helper/model_parser_base.h"
 #include "framework/common/helper/model_helper.h"
 #include "external/ge/ge_ir_build.h"
 #include "dflow/compiler/pne/process_node_engine_manager.h"
@@ -48,10 +47,10 @@ std::vector<Tensor> ToTensors(const std::vector<GeTensor> &ge_tensors) {
   return tensors;
 }
 
-static Status ConvertStringMap(const std::map<std::string, std::string> &options,
-                          std::map<ge::AscendString, ge::AscendString> &ascend_options) {
+Status ConvertStringMap(const std::map<std::string, std::string> &options,
+                        std::map<ge::AscendString, ge::AscendString> &ascend_options) {
 	for (auto &option_item : options) {
-		if (option_item.first.size() == 0) {
+		if (option_item.first.empty()) {
 			GELOGE(ge::FAILED, "Construct session failed, option key is empty.");
 			REPORT_INNER_ERR_MSG("E19999", "Construct session failed, option key is empty.");
 			return FAILED;
@@ -65,7 +64,8 @@ static Status ConvertStringMap(const std::map<std::string, std::string> &options
 
 class DefaultNpuProcessNodeEngineImpl : public ProcessNodeEngineImpl {
  public:
-  explicit DefaultNpuProcessNodeEngineImpl(std::shared_ptr<GeSession> ge_session) : ge_session_(ge_session) {};
+  explicit DefaultNpuProcessNodeEngineImpl(std::shared_ptr<GeSession> ge_session)
+      : ge_session_(std::move(ge_session)) {}
   ~DefaultNpuProcessNodeEngineImpl() override = default;
 
   Status BuildGraph(uint32_t graph_id, ComputeGraphPtr &compute_graph,
@@ -193,13 +193,13 @@ Status DFlowSessionImpl::AddGraph(uint32_t graph_id, const dflow::FlowGraph &gra
     GELOGI("DFlow option: %s, value: %s, dflowInnerSession:%lu, graph id: %u.", item.first.c_str(), item.second.c_str(),
            session_id_, graph_id);
   }
-  const auto ge_graph = graph.ToGeGraph();
+  const auto &ge_graph = graph.ToGeGraph();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(ge_graph);
   GE_CHECK_NOTNULL(compute_graph);
   compute_graph->SetSessionID(session_id_);
   std::string session_graph_id = std::to_string(session_id_) + "_" + std::to_string(graph_id);
   (void)AttrUtils::SetStr(*compute_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id);
-  for (auto sub_graph : compute_graph->GetAllSubgraphs()) {
+  for (auto &sub_graph : compute_graph->GetAllSubgraphs()) {
     sub_graph->SetSessionID(session_id_);
     (void)AttrUtils::SetStr(*sub_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id);
   }
@@ -218,7 +218,7 @@ Status DFlowSessionImpl::AddGraph(uint32_t graph_id, const Graph &graph,
   compute_graph->SetSessionID(session_id_);
   std::string session_graph_id = std::to_string(session_id_) + "_" + std::to_string(graph_id);
   (void)AttrUtils::SetStr(*compute_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id);
-  for (auto sub_graph : compute_graph->GetAllSubgraphs()) {
+  for (auto &sub_graph : compute_graph->GetAllSubgraphs()) {
     sub_graph->SetSessionID(session_id_);
     (void)AttrUtils::SetStr(*sub_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id);
   }

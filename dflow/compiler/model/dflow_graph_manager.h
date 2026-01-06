@@ -19,8 +19,6 @@
 #include "dflow/compiler/model/flow_model_builder.h"
 #include "flow_graph/data_flow.h"
 // external
-#include "ge/ge_api_types.h"
-#include "ge/ge_data_flow_api.h"
 #include "framework/common/ge_types.h"
 #include "graph/preprocess/graph_prepare.h"
 
@@ -49,7 +47,7 @@ class DflowGraphManager {
 
   /// @brief add specific flow graph
   /// @param [in] graph_id graph id
-  /// @param [in] Graph ge graph
+  /// @param [in] graph ge graph
   /// @param [in] options user config params
   /// @return Status result of function
   Status AddGraph(uint32_t graph_id, const Graph &graph,
@@ -64,7 +62,7 @@ class DflowGraphManager {
   /// @param [in] graph_id graph id
   /// @param [in] inputs inputs for graph
   /// @return Status result of function
-  Status CompileGraph(uint32_t graph_id, const std::vector<GeTensor> &inputs, bool is_compatibility_mode = false);
+  Status CompileGraph(uint32_t graph_id, const std::vector<GeTensor> &inputs);
 
   /// @brief get all options define for specific graph id
   /// @param [in] graph_id graph id

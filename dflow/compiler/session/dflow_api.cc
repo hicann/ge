@@ -10,7 +10,6 @@
 
 #include "dflow_api.h"
 #include <atomic>
-#include <iostream>
 #include <malloc.h>
 #include "dflow_session_manager.h"
 #include "common/compile_profiling/ge_call_wrapper.h"

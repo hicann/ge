@@ -60,7 +60,7 @@ Status FlowModelHelper::LoadModelDataToFlowModel(const ModelData &model_data, Fl
   GE_ASSERT_NOTNULL(graph_model_ptr);
   GE_CHK_STATUS_RET(graph_model_ptr->Init(model_data), "Failed to init graph model.");
   ret = flow_model->AddSubModel(graph_model_ptr, PNE_ID_NPU);
-  GE_CHK_STATUS_RET(ret, "AddSubModel failed, model_name=%s.", root_graph->GetName());
+  GE_CHK_STATUS_RET(ret, "AddSubModel failed, model_name=%s.", root_graph->GetName().c_str());
   return SUCCESS;
 }
 

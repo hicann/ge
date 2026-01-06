@@ -36,7 +36,7 @@ constexpr const char *kFileNamePattern = R"(^[A-Za-z0-9_\-]{1,128}$)";
 constexpr const char *kJsonFieldCacheFileList = "cache_file_list";
 constexpr const char *kJsonFieldCacheFileName = "cache_file_name";
 constexpr const char *kJsonFieldGraphKey = "graph_key";
-constexpr const char *kJsonFielCacheManualCheck = "cache_manual_check";
+constexpr const char *kJsonFieldCacheManualCheck = "cache_manual_check";
 constexpr const char *kJsonFieldCacheDebugMode = "cache_debug_mode";
 constexpr int32_t kIndentationLen = 4;
 constexpr const char *kFinalWeightDirName = "/weight/";
@@ -45,7 +45,6 @@ constexpr const char *kSuspendGraphOriginalName = "_suspend_graph_original_name"
 constexpr const char *kAttrNameDataFlowCompilerResult = "_dflow_compiler_result";
 constexpr const char *kAttrNameDataFlowRunningResourceInfo = "_dflow_running_resource_info";
 constexpr const char *kAttrNameDataFlowRunnableResource = "_dflow_runnable_resource";
-const std::unordered_set<std::string> kDataUnChangedNodeType = {RESHAPE, REFORMAT, SQUEEZEV2, UNSQUEEZEV2};
 constexpr size_t kMaxUpdateCacheThreadPoolSize = 8U;
 
 Status TryLockFile(const std::string &lock_file, int32_t &fd) {
@@ -155,7 +154,7 @@ Status FlowModelCache::Init(const ComputeGraphPtr &root_graph) {
   GELOGI("Cache is enable, cache_dir=%s, graph_key=%s.", cache_dir_.c_str(), cache_index_.graph_key.c_str());
   if (!CheckFileExist(cache_dir_)) {
     REPORT_PREDEFINED_ERR_MSG("E13026", std::vector<const char_t *>({"pathname", "reason"}),
-                       std::vector<const char_t *>({cache_dir_.c_str(), "Cache directory does not exist."}));
+                       std::vector<const char_t *>({cache_dir_.c_str(), "The cache directory does not exist."}));
     GELOGE(PARAM_INVALID, "Init cache failed, as cache dir[%s] does not exist.", cache_dir_.c_str());
     return PARAM_INVALID;
   }
@@ -498,7 +497,7 @@ Status FlowModelCache::ReadCacheConfig(const std::string &config_file, CacheConf
   nlohmann::json json_obj;
   GE_CHK_STATUS_RET(ReadJsonFile(config_file, json_obj), "Failed to read cache config file[%s].", config_file.c_str());
   try {
-    auto iter = json_obj.find(kJsonFielCacheManualCheck);
+    auto iter = json_obj.find(kJsonFieldCacheManualCheck);
     if (iter != json_obj.end()) {
       cache_config.cache_manual_check = iter.value().get<bool>();
     }
@@ -623,8 +622,8 @@ Status FlowModelCache::CreateDir(const std::string &dir_path) {
     return SUCCESS;
   }
   // 700
-  const auto mkdir_mode = static_cast<mmMode_t>(static_cast<uint32_t>(M_IRUSR) | static_cast<uint32_t>(M_IWUSR) |
-                                                static_cast<uint32_t>(M_IXUSR));
+  constexpr auto mkdir_mode = static_cast<mmMode_t>(static_cast<uint32_t>(M_IRUSR) | static_cast<uint32_t>(M_IWUSR) |
+                                                    static_cast<uint32_t>(M_IXUSR));
   GE_CHK_BOOL_RET_STATUS(mmMkdir(dir_path.c_str(), mkdir_mode) == 0, FAILED, "Failed to mkdir[%s]", dir_path.c_str());
   return SUCCESS;
 }

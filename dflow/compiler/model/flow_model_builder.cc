@@ -37,15 +37,12 @@
 #include "graph/passes/control_flow_and_stream/data_pass.h"
 
 namespace {
-constexpr int64_t kHighestPriority = 0;
-constexpr int64_t kLowestPriority = 2;
-constexpr size_t kMaxThreadNum = 8U;
-constexpr const char_t *ATTR_NAME_DATA_FLOW_DEVICE_MEM_CFG = "_dflow_logic_device_memory_config";
-constexpr const char_t *kAttrNameInvokedByBuiltIn = "_dflow_invoked_by_built_in";
-constexpr const char_t *kAttrNameInvokedModelFusionInputs = "_invoked_model_fusion_inputs";
+constexpr const char *ATTR_NAME_DATA_FLOW_DEVICE_MEM_CFG = "_dflow_logic_device_memory_config";
+constexpr const char *kAttrNameInvokedByBuiltIn = "_dflow_invoked_by_built_in";
+constexpr const char *kAttrNameInvokedModelFusionInputs = "_invoked_model_fusion_inputs";
 constexpr const char *ATTR_NAME_DATA_FLOW_SUB_DATA_FLOW_DEPLOY_INFOS = "_sub_data_flow_deploy_infos";
 constexpr const char *kDeployInfoFilePrefix = "deploy_info_file;";
-constexpr const char_t *ATTR_NAME_DATA_FLOW_DATA_FLOW_SCOPE = "_dflow_data_flow_scope";
+constexpr const char *ATTR_NAME_DATA_FLOW_DATA_FLOW_SCOPE = "_dflow_data_flow_scope";
 std::string GetInputStr(const std::map<int32_t, std::string> &inputs_info) {
   std::stringstream ss;
   for (const auto &info : inputs_info) {
@@ -57,7 +54,7 @@ std::string GetInputStr(const std::map<int32_t, std::string> &inputs_info) {
 
 namespace ge {
 Status FlowModelBuilder::CheckCacheGraphIoNodesWithGraphAdded(const ComputeGraphPtr &cached_graph,
-                                                            const ComputeGraphPtr &added_graph) const{
+                                                              const ComputeGraphPtr &added_graph) {
   GE_CHECK_NOTNULL(cached_graph);
   GE_CHECK_NOTNULL(added_graph);
   bool is_data_flow_graph = false;
@@ -108,7 +105,7 @@ Status FlowModelBuilder::CheckCacheGraphIoNodesWithGraphAdded(const ComputeGraph
 }
 
 Status FlowModelBuilder::BuildModel(Graph &graph, const std::vector<GeTensor> &input_tensors,
-                                    const std::map<std::string, std::string> &options, FlowModelPtr &flow_model) {
+                                    const std::map<std::string, std::string> &options, FlowModelPtr &flow_model) const {
   ComputeGraphPtr root_graph = GraphUtilsEx::GetComputeGraph(graph);
   GE_CHECK_NOTNULL(root_graph);
   GE_DUMP(root_graph, "FlowGraphPreRunBegin");
@@ -146,7 +143,7 @@ Status FlowModelBuilder::BuildModel(Graph &graph, const std::vector<GeTensor> &i
 
 Status FlowModelBuilder::BuildModel(ComputeGraphPtr &root_graph, const std::vector<GeTensor> &input_tensors,
                                     const std::map<std::string, std::string> &options, const FlowModelPtr &flow_model,
-                                    const CacheParam &cache_param) {
+                                    const CacheParam &cache_param) const {
   Status ret = SUCCESS;
   bool is_data_flow_graph = false;
   (void)AttrUtils::GetBool(root_graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, is_data_flow_graph);
@@ -167,7 +164,7 @@ Status FlowModelBuilder::BuildModel(ComputeGraphPtr &root_graph, const std::vect
 }
 
 Status FlowModelBuilder::GetEschedPriority(const ComputeGraphPtr &graph, const std::string &attr_name,
-                                           std::map<std::string, int32_t> &esched_priority) const {
+                                           std::map<std::string, int32_t> &esched_priority) {
   if (AttrUtils::HasAttr(graph, attr_name)) {
     int64_t priority = 0;
     GE_CHK_BOOL_RET_STATUS(AttrUtils::GetInt(graph, attr_name, priority), FAILED,
@@ -180,7 +177,7 @@ Status FlowModelBuilder::GetEschedPriority(const ComputeGraphPtr &graph, const s
 }
 
 Status FlowModelBuilder::GetModelEschedPriority(const PneModelPtr &pne_model,
-                                                std::map<std::string, int32_t> &esched_priority) const {
+                                                std::map<std::string, int32_t> &esched_priority) {
   const auto &graph = pne_model->GetRootGraph();
   GE_CHK_STATUS_RET(GetEschedPriority(graph, ATTR_NAME_ESCHED_PROCESS_PRIORITY, esched_priority),
                     "Failed to get [%s] for graph name[%s].", ATTR_NAME_ESCHED_PROCESS_PRIORITY.c_str(),
@@ -191,7 +188,7 @@ Status FlowModelBuilder::GetModelEschedPriority(const PneModelPtr &pne_model,
   return SUCCESS;
 }
 
-Status FlowModelBuilder::BuildModelEschedPriority(const FlowModelPtr &flow_model) const {
+Status FlowModelBuilder::BuildModelEschedPriority(const FlowModelPtr &flow_model) {
   const auto &submodels = flow_model->GetSubmodels();
   std::map<std::string, std::map<std::string, int32_t>> models_esched_priority;
   for (const auto &submodel : submodels) {
@@ -340,7 +337,7 @@ Status FlowModelBuilder::MakeInputTensors(const ComputeGraphPtr &graph,
 
 Status FlowModelBuilder::BuildFlowSubgraph(ComputeGraphPtr &graph, const std::vector<GeTensor> &input_tensors,
                                            const std::map<std::string, std::string> &options,
-                                           FlowModelPtr &flow_model) {
+                                           const FlowModelPtr &flow_model) const {
   GELOGD("Begin to build flow subgraph[%s].", graph->GetName().c_str());
   // use subgraph options
   GetThreadLocalContext().SetGraphOption(options);
@@ -349,7 +346,7 @@ Status FlowModelBuilder::BuildFlowSubgraph(ComputeGraphPtr &graph, const std::ve
 
 Status FlowModelBuilder::BuildGraph(ComputeGraphPtr &graph, const vector<GeTensor> &input_tensors,
                                     const map<std::string, std::string> &options, bool is_sub_graph,
-                                    const FlowModelPtr &flow_model) {
+                                    const FlowModelPtr &flow_model) const {
   GE_CHK_STATUS_RET(ProcessNetOutput(graph), "Failed to process net out put");
   GE_CHK_STATUS_RET(DoBuildGraph(graph, options, input_tensors, is_sub_graph, flow_model),
                     "Failed to build graph, graph[%s].", graph->GetName().c_str());
@@ -360,7 +357,7 @@ Status FlowModelBuilder::BuildGraph(ComputeGraphPtr &graph, const vector<GeTenso
 }
 
 Status FlowModelBuilder::BuildFlowSubgraph(ComputeGraphPtr graph, const std::map<std::string, std::string> &options,
-                                           FlowModelPtr &flow_model) {
+                                           const FlowModelPtr &flow_model) const {
   GELOGD("prepare to build flow subgraph[%s].", graph->GetName().c_str());
   // generate input_tensors from node.
   std::vector<GeTensor> input_tensors;
@@ -369,8 +366,8 @@ Status FlowModelBuilder::BuildFlowSubgraph(ComputeGraphPtr graph, const std::map
   return BuildFlowSubgraph(graph, input_tensors, options, flow_model);
 }
 
-Status FlowModelBuilder::CheckAndSetUdfInvokeKeys(std::shared_ptr<PneModel> pne_model,
-                                                  std::shared_ptr<ModelRelation> model_relation) {
+Status FlowModelBuilder::CheckAndSetUdfInvokeKeys(const std::shared_ptr<PneModel> &pne_model,
+                                                  const std::shared_ptr<ModelRelation> &model_relation) {
   if (pne_model->GetModelType() != PNE_ID_UDF) {
     return SUCCESS;
   }
@@ -396,8 +393,9 @@ Status FlowModelBuilder::CheckAndSetUdfInvokeKeys(std::shared_ptr<PneModel> pne_
   return SUCCESS;
 }
 
-Status FlowModelBuilder::SetUdfInvokeKeysRecurively(std::shared_ptr<PneModel> pne_model,
-                                                    std::shared_ptr<ModelRelation> model_relation, int32_t depth) {
+Status FlowModelBuilder::SetUdfInvokeKeysRecursively(const std::shared_ptr<PneModel> &pne_model,
+                                                     const std::shared_ptr<ModelRelation> &model_relation,
+                                                     int32_t depth) {
   GE_CHECK_NOTNULL(pne_model);
   GE_CHECK_NOTNULL(model_relation);
   const auto &submodels = pne_model->GetSubmodels();
@@ -412,7 +410,7 @@ Status FlowModelBuilder::SetUdfInvokeKeysRecurively(std::shared_ptr<PneModel> pn
     return UNSUPPORTED;
   }
   for (const auto &submodel : submodels) {
-    GE_CHK_STATUS_RET_NOLOG(SetUdfInvokeKeysRecurively(submodel.second, pne_model->GetModelRelation(), depth + 1));
+    GE_CHK_STATUS_RET_NOLOG(SetUdfInvokeKeysRecursively(submodel.second, pne_model->GetModelRelation(), depth + 1));
   }
   return SUCCESS;
 }
@@ -457,7 +455,7 @@ Status FlowModelBuilder::PostProcessSubFlowModel(const DataFlowGraph &data_flow_
   if (pne_id == PNE_ID_UDF) {
     const auto &invoke_keys = data_flow_graph.GetInvokeKeys(graph_name);
     if (!invoke_keys.empty()) {
-      GE_CHK_STATUS_RET(SetUdfInvokeKeysRecurively(sub_flow_model, sub_flow_model->GetModelRelation(), 0),
+      GE_CHK_STATUS_RET(SetUdfInvokeKeysRecursively(sub_flow_model, sub_flow_model->GetModelRelation(), 0),
                         "Failed to set udf invoke key, graph[%s].", graph_name.c_str());
       std::string invoked_model_attrs;
       data_flow_graph.GetInvokedModelFusionAttrs(invoke_keys, invoked_model_attrs);
@@ -468,7 +466,7 @@ Status FlowModelBuilder::PostProcessSubFlowModel(const DataFlowGraph &data_flow_
         GELOGI("Set fusion attr size[%zu] for graph [%s] success.", invoked_model_attrs.size(), graph_name.c_str());
       }
     }
-    GE_CHK_STATUS_RET(flow_model->AddSubModel(sub_flow_model, pne_id), "Faield to add sub flow model[%s].",
+    GE_CHK_STATUS_RET(flow_model->AddSubModel(sub_flow_model, pne_id), "Failed to add sub flow model[%s].",
                       graph_name.c_str());
   } else {
     // if model is invoked, the invoked key will be not empty.
@@ -511,8 +509,8 @@ Status FlowModelBuilder::PostOfDataFlowSubGraphsBuild(const DataFlowGraph &data_
   return result;
 }
 
-Status FlowModelBuilder::FindInvokesAndGetSubDataFlowDeployInfos(const DataFlowGraph &data_flow_graph,
-           std::map<std::string, DataFlowGraphParam> &deploy_infos) const {
+Status FlowModelBuilder::FindInvokesAndGetSubDataFlowDeployInfos(
+    const DataFlowGraph &data_flow_graph, std::map<std::string, DataFlowGraphParam> &deploy_infos) {
   for (const auto &graph_pair : data_flow_graph.GetAllSubgraphs()) {
     const auto &graph = graph_pair.second;
     if (!data_flow_graph.IsInvokedGraph(graph->GetName())) {
@@ -548,7 +546,7 @@ Status FlowModelBuilder::CheckInvokedDataFlowDepth(uint32_t depth) {
 
 Status FlowModelBuilder::BuildDataFlowSubGraphs(const DataFlowGraph &data_flow_graph,
                                                 const std::map<std::string, std::string> &options,
-                                                const FlowModelPtr &flow_model, const CacheParam &cache_param) {
+                                                const FlowModelPtr &flow_model, const CacheParam &cache_param) const {
   std::vector<std::future<Status>> vector_future;
   std::vector<FlowModelPtr> sub_flow_models(data_flow_graph.GetAllSubgraphs().size(), nullptr);
   const std::string cache_dir = FlowModelCache::GetCacheDirFromContext();
@@ -621,10 +619,10 @@ Status FlowModelBuilder::BuildDataFlowSubGraphs(const DataFlowGraph &data_flow_g
   return BuildModelEschedPriority(flow_model);
 }
 
-Status FlowModelBuilder::BuildDataFlowGraph(ComputeGraphPtr &root_graph,
+Status FlowModelBuilder::BuildDataFlowGraph(const ComputeGraphPtr &root_graph,
                                             const std::map<std::string, std::string> &options,
                                             const FlowModelPtr &flow_model, const CacheParam &cache_param,
-                                            const DataFlowGraphParam &df_param) {
+                                            const DataFlowGraphParam &df_param) const {
   GE_TRACE_START(BuildDataFlowGraph);
   DataFlowGraph data_flow_graph(root_graph, df_param.df_scope, cache_param.enable_cache,
                                 cache_param.manual_check, df_param.df_depth);
@@ -681,7 +679,7 @@ Status FlowModelBuilder::RemoveDataFlowSubgraphs(const FlowModelPtr &flow_model,
 Status FlowModelBuilder::BuildHeterogeneousModel(ComputeGraphPtr &root_graph,
                                                  const std::vector<GeTensor> &input_tensors,
                                                  const std::map<std::string, std::string> &options,
-                                                 const FlowModelPtr &flow_model) {
+                                                 const FlowModelPtr &flow_model) const {
   GE_CHK_STATUS_RET(BuildGraph(root_graph, input_tensors, options, false, flow_model), "Failed to build graph[%s].",
                     root_graph->GetName().c_str());
   return BuildModelEschedPriority(flow_model);
@@ -698,7 +696,7 @@ Status FlowModelBuilder::GetOrAssignDefaultEngine(const ComputeGraphPtr &compute
     static const std::set<std::string> kSupportedEngines = {PNE_ID_CPU, PNE_ID_NPU, PNE_ID_UDF};
     GE_CHK_BOOL_RET_STATUS(
         kSupportedEngines.find(process_node_engine_id) != kSupportedEngines.cend(), PARAM_INVALID,
-        "unsupport process node, engine=%s, support list=%s", process_node_engine_id.c_str(),
+        "unsupported process node, engine=%s, support list=%s", process_node_engine_id.c_str(),
         ToString(std::vector<std::string>(kSupportedEngines.cbegin(), kSupportedEngines.cend())).c_str());
   } else {
     process_node_engine_id = GetContext().GetHostExecFlag() ? PNE_ID_CPU : PNE_ID_NPU;
@@ -753,7 +751,7 @@ Status FlowModelBuilder::DoBuildGraph(ComputeGraphPtr &compute_graph,
                                       const std::map<std::string, std::string> &options,
                                       const std::vector<GeTensor> &input_tensors,
                                       bool is_sub_graph,
-                                      const FlowModelPtr &flow_model) {
+                                      const FlowModelPtr &flow_model) const {
   std::string pne_id;
   GE_CHK_STATUS_RET(GetOrAssignDefaultEngine(compute_graph, pne_id), "assign default engine failed.");
   ProcessNodeEnginePtr process_node_engine;
@@ -764,6 +762,7 @@ Status FlowModelBuilder::DoBuildGraph(ComputeGraphPtr &compute_graph,
     UpdateThreadLocalOptions(pne_id);
   }
 
+  // dflow 添加子图固定从2000000000开始
   static std::atomic<uint32_t> inner_graph_id_gen_{2000000000};
   if (is_sub_graph) {
     compute_graph->SetGraphID(inner_graph_id_gen_++);
@@ -840,7 +839,7 @@ Status FlowModelBuilder::UpdateDeployInfo(const ComputeGraphPtr &graph, const Fl
   return SUCCESS;
 }
 
-Status FlowModelBuilder::ProcessNetOutput(ComputeGraphPtr &compute_graph) {
+Status FlowModelBuilder::ProcessNetOutput(const ComputeGraphPtr &compute_graph) {
   PassManager graph_passes;
   GE_CHK_STATUS_RET(graph_passes.AddPass("ProcessNetOutput::SavePass", new (std::nothrow) SavePass),
                     "add SavePass failed");

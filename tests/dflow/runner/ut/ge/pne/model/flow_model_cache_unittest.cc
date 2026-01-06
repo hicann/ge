@@ -671,8 +671,6 @@ TEST_F(FlowModelCacheTest, save_and_load_ge_root_model) {
   auto ge_root_model = BuildPneModel("test_graph_cache", graph);
   FlowModelPtr flow_model = MakeShared<ge::FlowModel>(graph);
   flow_model->AddSubModel(ge_root_model, PNE_ID_NPU);
-  GraphRebuildStateCtrl ctrl;
-  dlog_setlevel(0,0,0);
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -682,7 +680,6 @@ TEST_F(FlowModelCacheTest, save_and_load_ge_root_model) {
     auto check_ret = CheckCacheResult("./ut_cache_dir", "graph_key_1", 1);
     EXPECT_EQ(check_ret, true);
   }
-  dlog_setlevel(0,3,0);
 
   {
     FlowModelCache flow_model_cache_for_load;
@@ -702,7 +699,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model) {
   SetGraphKeyOption("graph_key_flow_model1");
   auto graph = FakeComputeGraph("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithoutUdf("flow_model1", graph);
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -733,7 +729,6 @@ TEST_F(FlowModelCacheTest, save_and_load_with_subgraph) {
   auto sub_graph = FakeComputeGraph("sub_graph");
   auto root_graph = FakeGraphWithSubGraph("root_graph", sub_graph);
   FlowModelPtr flow_model = BuildFlowModelWithoutUdf("flow_model1", root_graph);
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(root_graph);
@@ -768,7 +763,6 @@ TEST_F(FlowModelCacheTest, fake_load_flow_model_failed) {
   auto sub_graph = FakeComputeGraph("sub_graph");
   auto root_graph = FakeGraphWithSubGraph("root_graph", sub_graph);
   FlowModelPtr flow_model = BuildFlowModelWithoutUdf("flow_model1", root_graph);
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(root_graph);
@@ -808,7 +802,6 @@ TEST_F(FlowModelCacheTest, save_flow_init_graph_model) {
   auto graph = FakeComputeGraph("root_graph_init_by_graph");
   (void)AttrUtils::SetStr(graph, "_suspend_graph_original_name", orig_name);
   FlowModelPtr flow_model = BuildFlowModelWithoutUdf("flow_model1", graph);
-  GraphRebuildStateCtrl ctrl;
   {
     SetCacheDirOption("./ut_cache_dir");
     SetGraphKeyOption("init_graph_key");
@@ -833,7 +826,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_with_constant) {
   auto graph = FakeComputeGraphWithConstant("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithOutUdfV2("flow_model1", graph);
 
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -865,7 +857,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_with_var) {
   auto graph = FakeComputeGraphWithVar("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithOutUdfV2("flow_model1", graph);
 
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -908,7 +899,6 @@ TEST_F(FlowModelCacheTest, save_and_load_with_compile_resource) {
     deploy_resource.resource_list["CpuNum"] = 10;
     submodel->SetDeployResource(deploy_resource_ptr);
   }
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -954,7 +944,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_with_invalid_graph_key) {
   SetGraphKeyOption(graph_key);
   auto graph = FakeComputeGraph("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithoutUdf("flow_model1", graph);
-  GraphRebuildStateCtrl ctrl;
   FlowModelCache flow_model_cache;
   auto ret = flow_model_cache.Init(graph);
   EXPECT_EQ(ret, PARAM_INVALID);
@@ -969,7 +958,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_with_udf) {
 
   auto graph = FakeComputeGraph("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithUdf("flow_model1", graph);
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -1035,7 +1023,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_check_rang_id_and_priority) 
   flow_model->SetGroupNameToRankIds(group_name_to_rank_ids);
   flow_model->SetModelNameToRankId(model_name_to_rank_id);
   flow_model->SetDeviceToRankIds(device_to_rank_ids);
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -1088,7 +1075,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_compile_and_deploy) {
   flow_model->SetRedundantLogicDeviceId(redundant_logic_device_id);
   GELOGD("flow_model_cache after BuildFlowModelWithoutUdf");
 
-  GraphRebuildStateCtrl ctrl;
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -1137,7 +1123,6 @@ TEST_F(FlowModelCacheTest, load_and_save_flow_model) {
  
   auto fake_graph = FakeComputeGraph("test_load_graph");
   AttrUtils::SetStr(*fake_graph, ATTR_NAME_SESSION_GRAPH_ID, "100_99");
-  GraphRebuildStateCtrl ctrl;
   FlowModelPtr load_flow_model;
   {
     FlowModelCache flow_model_cache;
@@ -1421,7 +1406,7 @@ TEST_F(FlowModelCacheTest, save_flow_model_open_lock_file_failed) {
   SetGraphKeyOption("graph_key_flow_model1");
   auto graph = FakeComputeGraph("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithoutUdf("flow_model1", graph);
-  GraphRebuildStateCtrl ctrl;
+
   FlowModelCache flow_model_cache;
   auto ret = flow_model_cache.Init(graph);
   EXPECT_EQ(ret, FAILED);
@@ -1434,7 +1419,6 @@ TEST_F(FlowModelCacheTest, save_flow_model_open_lock_failed) {
   SetGraphKeyOption("graph_key_flow_model1");
   auto graph = FakeComputeGraph("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithoutUdf("flow_model1", graph);
-  GraphRebuildStateCtrl ctrl;
   FlowModelCache flow_model_cache;
   auto ret = flow_model_cache.Init(graph);
   EXPECT_EQ(ret, FAILED);

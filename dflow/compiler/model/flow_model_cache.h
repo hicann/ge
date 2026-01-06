@@ -15,8 +15,6 @@
 #include "ge/ge_api_types.h"
 #include "dflow/inc/data_flow/model/flow_model.h"
 #include "nlohmann/json.hpp"
-#include "graph/manager/graph_var_manager.h"
-#include "graph/manager/util/graph_rebuild_state_ctrl.h"
 
 namespace ge {
 struct CacheFileIndex {

@@ -15,10 +15,9 @@
 #include <memory>
 #include <vector>
 
-#include "external/ge_common/ge_api_error_codes.h"
-#include "ge/ge_api_types.h"
+#include "ge_common/ge_api_error_codes.h"
+#include "ge_common/ge_api_types.h"
 #include "graph/graph.h"
-#include "graph/tensor.h"
 #include "ge/ge_data_flow_api.h"
 #include "flow_graph/data_flow.h"
 namespace ge {
@@ -124,7 +123,7 @@ class GE_FUNC_VISIBILITY DFlowSession {
    * @param [in] timeout data feed timeout(ms), -1 means never timeout
    * @return Status result of function
    */
-  Status FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_data_list, const uint32_t index,
+  Status FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_data_list, uint32_t index,
                      const DataFlowInfo &info, int32_t timeout);
 
   /**
