@@ -259,9 +259,6 @@ void CreateEngineConfigJson() {
   system(cmd.c_str());
 }
 
-}
-
-
 class GeFakeOpsKernelBuilder : public ge::OpsKernelBuilder {
  public:
   GeFakeOpsKernelBuilder() = default;
@@ -304,6 +301,8 @@ class MockMmpa : public ge::MmpaStubApiGe {
     return 0;
   }
 };
+}
+
 class UtestDflowApi : public testing::Test {
  protected:
   static void SetUpTestSuite() {

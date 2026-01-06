@@ -490,7 +490,7 @@ TEST_F(FlowModelBuilderTest, FlowModelBuild) {
   EXPECT_TRUE(CheckFlowModelIsFlattened(flow_model));
 }
 
-TEST_F(FlowModelBuilderTest, DISABLED_BuildModel_DataFlowGraph_SUCCESS) {
+TEST_F(FlowModelBuilderTest, BuildModel_DataFlowGraph_SUCCESS) {
 
   {
     auto &global_options_mutex = GetGlobalOptionsMutex();
