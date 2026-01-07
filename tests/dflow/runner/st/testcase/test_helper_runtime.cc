@@ -275,8 +275,6 @@ class MockRuntime : public RuntimeStub {
     *buff = &g_buffer[0];
     return RT_ERROR_NONE;
   }
-
-  MOCK_METHOD1(rtGetDeviceCount, rtError_t(int32_t*));
 };
 
 class ModelHandleMock2 : public ExecutorContext::ModelHandle {
@@ -514,15 +512,6 @@ class MockPneExecutorClient : public BuiltinExecutorClient {
  protected:
   Status ForAndInit(int32_t device_id, std::unique_ptr<ExecutorMessageClient> &executor_process) override {
     executor_process = MakeUnique<MockExecutorMessageClient>();
-    std::map<std::string, std::string> options {
-        {"ge.exec.placement", "HOST"},
-    };
-    options[OPTION_EXEC_RANK_ID] = "1";
-    options[OPTION_EXEC_RANK_TABLE_LEN] = "10";
-    options[OPTION_EXEC_RANK_TABLE_ADDR] = "0x1234";
-    options[OPTION_EXEC_ROLE_TABLE_LEN] = "10";
-    options[OPTION_EXEC_ROLE_TABLE_ADDR] = "0x1235";
-    ge::GetThreadLocalContext().SetGlobalOption(options);
     return SUCCESS;
   }
 };
@@ -1228,8 +1217,6 @@ class MockRuntimeForSharedContent : public RuntimeStub {
     *size = 2UL;
     return 0;
   }
-
-  MOCK_METHOD1(rtGetDeviceCount, rtError_t(int32_t*));
 };
 
 TEST_F(STEST_helper_runtime, json_parser_fail) {
@@ -1785,14 +1772,6 @@ class MockRuntimeUDF : public MockRuntimeForClient {
   deployer::ExecutorResponse response_;
 };
 
-class MockRuntime2PG : public MockRuntime {
- public:
-  rtError_t rtGetDeviceCount(int32_t *count) override {
-    *count = 2;
-    return RT_ERROR_NONE;
-  }
-};
-
 HcclResult HcomSetRankTable(const string &rankTable) {
   return HCCL_SUCCESS;
 }
@@ -1963,31 +1942,6 @@ Graph BuildGraph() {
 
     CHAIN(NODE("var", var)
               ->NODE("Node_Output", net_output));
-  };
-
-  auto graph = ToGeGraph(graph_def);
-  return graph;
-}
-
-Graph BuildGraphWithQueueData() {
-  DEF_GRAPH(graph_def) {
-    auto data_0 = OP_CFG(QUEUE_DATA)
-        .InCnt(0)
-        .OutCnt(1)
-        .Attr("queue_name", "some_queue")
-        .TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto addn1 = OP_CFG(ADDN)
-        .InCnt(1)
-        .OutCnt(1)
-        .TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    auto net_output = OP_CFG(NETOUTPUT)
-        .InCnt(1)
-        .OutCnt(1)
-        .TensorDesc(FORMAT_ND, DT_INT32, {16});
-
-    CHAIN(NODE("arg_0", data_0)->EDGE(0, 0)->NODE("add_1", addn1)->EDGE(0, 0)->NODE("net_output", net_output));
   };
 
   auto graph = ToGeGraph(graph_def);
@@ -3219,100 +3173,6 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModelWriteTarSuccessByMultiTimes) {
     system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
 }
 
-TEST_F(STEST_helper_runtime, TestDeployUdfModel2PG) {
-  auto is_npu = DeployLocation::IsNpu();
-  class MockMmpaForUdf : public MockMmpaForHeterogeneousRuntime {
-   public:
-    INT32 WaitPid(mmProcess pid, INT32 *status, INT32 options) override {
-      return waitpid(pid, status, options);
-    }
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForUdf>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime2PG>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-  Session session0(options);
-  // 3. BuildAndExecuteGraph
-  constexpr const char *udf_config_file = "./udf_config.json";
-  {
-    std::string cmd = "mkdir -p ./temp_udf_st; cd temp_udf_st; echo aaaa > libtest.so";
-    (void)system(cmd.c_str());
-    std::ofstream cmakefile("./temp_udf_st/CMakeLists.txt");
-    cmakefile << "cmake_minimum_required(VERSION 3.5)\n";
-    // Prevent cmake from testing the toolchain
-    cmakefile << "set(CMAKE_C_COMPILER_FORCED TRUE)\n";
-    cmakefile << "set(CMAKE_CXX_COMPILER_FORCED TRUE)\n";
-    cmakefile << "project(test)\n";
-    cmakefile << "set(BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})\n";
-    cmakefile << "execute_process(\n";
-    cmakefile << "\tCOMMAND cp ${BASE_DIR}/libtest.so ${RELEASE_DIR}\n";
-    cmakefile << ")\n";
-    cmakefile << "unset(CMAKE_C_COMPILER_FORCED)\n";
-    cmakefile << "unset(CMAKE_CXX_COMPILER_FORCED)\n";
-
-    nlohmann::json udf_cfg_json = {{"workspace", "./temp_udf_st"},
-                                   {"target_bin", "libtest.so"},
-                                   {"input_num", 1},
-                                   {"output_num", 1},
-                                   {"cmakelist_path", "CMakeLists.txt"},
-                                   {"func_list", {{{"func_name", "func1"}}}}};
-    std::ofstream json_file(udf_config_file);
-    json_file << udf_cfg_json << std::endl;
-  }
-
-  ge::ProcessNodeEngineRegisterar ps_engine_register __attribute__((unused)) (
-      "UDF", []() -> ::ge::ProcessNodeEngine * { return new (std::nothrow) ge::UdfProcessNodeEngine(); });
-  auto graph = BuildUdfGraph("udf_model", udf_config_file);
-  Session session(options);
-  uint32_t graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape(std::vector<int64_t>({16}));
-  TensorDesc tensor_desc(shape, FORMAT_ND, DT_INT32);
-  Tensor tensor(tensor_desc);
-  uint8_t buffer[16 * 4];
-  tensor.SetData(buffer, sizeof(buffer));
-
-  std::vector<Tensor> inputs{tensor};
-  mock_handle = (void *) 0x12345678;
-  DeployLocation::is_npu_ = true;
-  EXPECT_EQ(session.BuildGraph(graph_id, inputs), SUCCESS);
-  mock_handle = nullptr;
-  GEFinalize();
-
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-
-  remove(udf_config_file);
-  DeployLocation::is_npu_ = is_npu;
-    system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
-}
-
 TEST_F(STEST_helper_runtime, TestHeterogeneousInitInvalid) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
@@ -3323,21 +3183,6 @@ TEST_F(STEST_helper_runtime, TestHeterogeneousInitInvalid) {
   std::map<AscendString, AscendString> options;
   EXPECT_EQ(ge::GEInitialize(options), ACL_ERROR_GE_PARAM_INVALID);
   unsetenv("HELPER_RES_FILE_PATH");
-
-  // test invalid resource type
-  std::string res_config = "{\"host\":{\"resourceType\":123, \"ctrlPanel\":{\"mode\":\"address\"}},"
-                           "\"mode\":\"StaticAlloc\",\"protocal\":\"TCP\","
-                           "\"devList\":[{\"ipaddr\":\"192.168.2.11\",\"port\":9090,\"token\":\"xxx\"}]}";
-  setenv("HELPER_RES_CONFIG", res_config.c_str(), 1);
-  EXPECT_EQ(ge::GEInitialize(options), ACL_ERROR_GE_PARAM_INVALID);
-
-  // test without host
-  res_config = "{\"hostxxx\":{\"ctrlPanel\":{\"mode\":\"address\"}},"
-               "\"mode\":\"StaticAlloc\",\"protocal\":\"TCP\","
-               "\"devList\":[{\"ipaddr\":\"192.168.2.11\",\"port\":9090,\"token\":\"xxx\"}]}";
-  setenv("HELPER_RES_CONFIG", res_config.c_str(), 1);
-  EXPECT_EQ(ge::GEInitialize(options), ACL_ERROR_GE_PARAM_INVALID);
-  unsetenv("HELPER_RES_CONFIG");
 
   real_path = st_dir_path + "st_run_data/json/helper_runtime/host_invalid";
   // has no local node
@@ -3574,112 +3419,6 @@ TEST_F(STEST_helper_runtime, TestDeployWithCompileRes) {
   unsetenv("HELPER_RES_FILE_PATH");
 }
 
-TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModel2PG) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime2PG>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-
-  // 3. BuildAndExecuteGraph
-  auto graph = BuildGraph();
-  Session session(options);
-  uint32_t graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape(std::vector<int64_t>({16}));
-  TensorDesc tensor_desc(shape, FORMAT_ND, DT_INT32);
-  Tensor tensor(tensor_desc);
-  uint8_t buffer[16 * 4];
-  tensor.SetData(buffer, sizeof(buffer));
-
-  std::vector<Tensor> inputs{tensor};
-  EXPECT_EQ(session.BuildGraph(graph_id, inputs), SUCCESS);
-  GEFinalize();
-
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-}
-
-TEST_F(STEST_helper_runtime, TestDeployModelWithQueueData) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime2PG>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-
-  // 3. BuildAndExecuteGraph
-  auto graph = BuildGraphWithQueueData();
-  Session session(options);
-  uint32_t graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape(std::vector<int64_t>({16}));
-  TensorDesc tensor_desc(shape, FORMAT_ND, DT_INT32);
-  Tensor tensor(tensor_desc);
-  uint8_t buffer[16 * 4];
-  tensor.SetData(buffer, sizeof(buffer));
-
-  std::vector<Tensor> inputs{tensor};
-  EXPECT_EQ(session.BuildGraph(graph_id, inputs), SUCCESS);
-  GEFinalize();
-
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-}
-
 TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
@@ -3737,61 +3476,6 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
   ResourceManager::GetInstance().Finalize();
   unsetenv("HELPER_RES_FILE_PATH");
   unsetenv("NPU_COLLECT_PATH_EXE");
-}
-
-TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModel2PGUseDev0) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime2PG>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  options.insert(std::pair<AscendString, AscendString>("ge.exec.logicalDeviceClusterDeployMode", "SINGLE"));
-  options.insert(std::pair<AscendString, AscendString>("ge.exec.logicalDeviceId", "[0:0]"));
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-
-  // 3. BuildAndExecuteGraph
-  auto graph = BuildGraph();
-  Session session(options);
-  uint32_t graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape(std::vector<int64_t>({16}));
-  TensorDesc tensor_desc(shape, FORMAT_ND, DT_INT32);
-  Tensor tensor(tensor_desc);
-  uint8_t buffer[16 * 4];
-  tensor.SetData(buffer, sizeof(buffer));
-
-  std::vector<Tensor> inputs{tensor};
-  EXPECT_EQ(session.BuildGraph(graph_id, inputs), SUCCESS);
-  GEFinalize();
-
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
 }
 
 TEST_F(STEST_helper_runtime, TestDeployHostCpuDynamicModel) {
@@ -4667,28 +4351,8 @@ TEST_F(STEST_helper_runtime, TestHeterogeneousProfiler) {
   unsetenv("GE_PROFILING_TO_STD_OUT");
 }
 
-class MockPneExecutorClientDevice : public BuiltinExecutorClient {
- public:
-  explicit MockPneExecutorClientDevice(int32_t device_id) : BuiltinExecutorClient(device_id) {}
-
- protected:
-  Status ForAndInit(int32_t device_id, std::unique_ptr<ExecutorMessageClient> &executor_process) override {
-    executor_process = MakeUnique<MockExecutorMessageClient>();
-    std::map<std::string, std::string> options {
-        {"ge.exec.placement", "DEVICE"},
-    };
-    options[OPTION_EXEC_RANK_ID] = "1";
-    options[OPTION_EXEC_RANK_TABLE_LEN] = "10";
-    options[OPTION_EXEC_RANK_TABLE_ADDR] = "0x1234";
-    options[OPTION_EXEC_ROLE_TABLE_LEN] = "10";
-    options[OPTION_EXEC_ROLE_TABLE_ADDR] = "0x1235";
-    ge::GetThreadLocalContext().SetGlobalOption(options);
-    return SUCCESS;
-  }
-};
-
 TEST_F(STEST_helper_runtime, TestDeployWithFlowOnServerWithSharedContent) {
-  PneExecutorClientCreatorRegistrar<MockPneExecutorClientDevice> npu_thread_registrar(PNE_ID_NPU, DeployProcessMode::kThread);
+  PneExecutorClientCreatorRegistrar<MockPneExecutorClient> npu_thread_registrar(PNE_ID_NPU, DeployProcessMode::kThread);
   VarManager::Instance(0)->Destory();
   ge::GetContext().SetSessionId(0);
   setenv("GE_PROFILING_TO_STD_OUT", "2", true);

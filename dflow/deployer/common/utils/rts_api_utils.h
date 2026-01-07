@@ -87,11 +87,6 @@ class RtsApiUtils {
     return SUCCESS;
   }
 
-  static inline Status GetDeviceCount(int32_t &dev_count) {
-    GE_CHK_RT_RET(rtGetDeviceCount(&dev_count));
-    return SUCCESS;
-  }
-
   static inline Status GetAicpuSchedulePid(int32_t device_id, int32_t host_pid, int32_t &aicpu_pid) {
     rtBindHostpidInfo_t info{};
     info.cpType = RT_DEV_PROCESS_CP1;

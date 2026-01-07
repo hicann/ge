@@ -22,12 +22,9 @@
 namespace ge {
 namespace {
 const char_t *const kConfigFileName = "/resource.json";
-const char_t *const kHelperResConfig = "HELPER_RES_CONFIG";
 const char_t *const kHelperResFilePath = "HELPER_RES_FILE_PATH";
 const char_t *const kResourceConfigPath = "RESOURCE_CONFIG_PATH";
 const char_t *const kHomeEnvName = "HOME";
-constexpr size_t kMaxConfigSize = 10 * 1024U;
-constexpr size_t kMaxPathLen = 1024UL;
 }  // namespace
 
 Configurations &Configurations::GetInstance() {
@@ -148,15 +145,8 @@ Status Configurations::Initialize() {
 }
 
 Status Configurations::ParseHostInfo() {
-  const char_t *res_config = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_HELPER_RES_CONFIG, res_config);
-  if (res_config == nullptr) {
-    GELOGI("Parse config from file[%s].", config_file_.c_str());
-    GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseHostInfoFromConfigFile(config_file_, information_));
-  } else {
-    GELOGI("Parse config from env[%s].", kHelperResConfig);
-    GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseHostInfoFromResConfig(res_config, information_));
-  }
+  GELOGI("Parse config from file[%s].", config_file_.c_str());
+  GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseHostInfoFromConfigFile(config_file_, information_));
   return SUCCESS;
 }
 
@@ -240,8 +230,7 @@ bool Configurations::IsServer() {
 }
 
 std::vector<std::string> Configurations::GetHeterogeneousEnvs() {
-  static std::vector<std::string> envs = {kHelperResConfig, kHelperResFilePath,
-                                          kResourceConfigPath};
+  static std::vector<std::string> envs = {kResourceConfigPath};
   return envs;
 }
 }  // namespace ge

@@ -20,7 +20,6 @@
 #include "macro_utils/dt_public_scope.h"
 #include "common/config/json_parser.h"
 #include "macro_utils/dt_public_unscope.h"
-#include "dflow/deployer/common/utils/deploy_location.h"
 
 using namespace std;
 namespace ge {
@@ -80,48 +79,6 @@ TEST_F(UtJsonParser, run_parse_host_info_from_config_file_3) {
   std::string config_file = PathUtils::Join({data_path, "wrong_value/host/resource.json"});
   auto ret = jsonParser.ParseHostInfoFromConfigFile(config_file, hostInformation_);
   ASSERT_NE(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, run_parse_host_info_from_resource_config) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation_;
-  std::string res_config = "{\"host\":{\"resourceType\":\"X86\",\"ctrlPanel\":{\"mode\":\"address\"}},"
-                           "\"mode\":\"StaticAlloc\",\"protocal\":\"TCP\","
-                           "\"devList\":[{\"resourceType\":\"Ascend\",\"ipaddr\":\"192.168.2.11\",\"port\":9090}]}";
-  auto ret = jsonParser.ParseHostInfoFromResConfig(res_config.c_str(), hostInformation_);
-  ASSERT_EQ(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, run_parse_host_info_invalid_resource_type) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation;
-  std::string res_config = "{\"host\":{\"resourceType\":123, \"ctrlPanel\":{\"mode\":\"address\"}},"
-                           "\"mode\":\"StaticAlloc\",\"protocal\":\"TCP\","
-                           "\"devList\":[{\"ipaddr\":\"192.168.2.11\",\"port\":9090}]}";
-  auto ret = jsonParser.ParseHostInfoFromResConfig(res_config.c_str(), hostInformation);
-  ASSERT_EQ(ret, ACL_ERROR_GE_PARAM_INVALID);
-}
-
-TEST_F(UtJsonParser, run_parse_host_info_no_resource_type) {
-  ge::JsonParser json_parser;
-  ge::DeployerConfig host_information;
-  std::string res_config = "{\"host\":{\"ctrlPanel\":{\"mode\":\"address\"}},"
-                           "\"mode\":\"StaticAlloc\",\"protocal\":\"TCP\","
-                           "\"devList\":[{\"ipaddr\":\"192.168.2.11\",\"port\":9090}]}";
-  auto ret = json_parser.ParseHostInfoFromResConfig(res_config.c_str(), host_information);
-  ASSERT_EQ(ret, SUCCESS);
-  ASSERT_EQ(host_information.node_config.resource_type, DeployLocation::IsX86() ? "X86" : "Aarch");
-  ASSERT_EQ(host_information.remote_node_config_list[0].resource_type, "Ascend");
-}
-
-TEST_F(UtJsonParser, run_parse_host_info_invalid_json) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation;
-  std::string res_config = "{\"host\":{\"ctrlPanel\":{\"mode\":\"address\"}for json invalid},"
-                           "\"mode\":\"StaticAlloc\",\"protocal\":\"TCP\","
-                           "\"devList\":[{\"ipaddr\":\"192.168.2.11\",\"port\":9090}]}";
-  auto ret = jsonParser.ParseHostInfoFromResConfig(res_config.c_str(), hostInformation);
-  ASSERT_EQ(ret, ACL_ERROR_GE_PARAM_INVALID);
 }
 
 TEST_F(UtJsonParser, run_parse_host_info_invalid_path) {

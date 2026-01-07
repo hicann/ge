@@ -15,6 +15,7 @@
 #include "framework/common/scope_guard.h"
 #include "dflow/compiler/data_flow_graph/compile_config_json.h"
 #include "mmpa/mmpa_api.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 FunctionCompile::FunctionCompile(const std::string &pp_name, const CompileConfigJson::FunctionPpConfig &func_pp_cfg) :
@@ -124,7 +125,7 @@ void FunctionCompile::SetRunningResourceInfoToCompileResult() {
     resource_info.resource_num = kDefaultMemorySize;
     compile_result_.running_resources_info.emplace_back(resource_info);
   } else {
-    for (auto resource_info : func_pp_cfg_.running_resources_info) {
+    for (const auto &resource_info : func_pp_cfg_.running_resources_info) {
       compile_result_.running_resources_info.emplace_back(resource_info);
     }
   }
@@ -156,7 +157,7 @@ std::string FunctionCompile::GetAscendToolchainPath() {
 }
 
 Status FunctionCompile::GetToolchainByResourceType(const std::string &resource_type, std::string &toolchain) {
-  if (func_pp_cfg_.toolchain_map[resource_type] == "") {
+  if (func_pp_cfg_.toolchain_map[resource_type].empty()) {
     if (resource_type == kResourceTypeAscend) {
       toolchain = GetAscendToolchainPath();
       INT32 mm_ret = mmAccess(toolchain.c_str());

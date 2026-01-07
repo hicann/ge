@@ -18,7 +18,6 @@
 #include "common/config/configurations.h"
 #include "common/mem_grp/memory_group_manager.h"
 #include "common/subprocess/subprocess_manager.h"
-#include "common/utils/deploy_location.h"
 #include "common/utils/process_utils.h"
 #include "common/data_flow/event/proxy_event_manager.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
@@ -796,7 +795,7 @@ Status UdfExecutorClient::ForkChildProcess(const deployer::ExecutorRequest_LoadM
   // only LD_LIBRARY_PATH need set, other env can be inherited by subprocess
   config.envs.emplace("LD_LIBRARY_PATH", new_ld_library_path);
   GELOGD("LD_LIBRARY_PATH is been set to %s", new_ld_library_path.c_str());
-  config.unset_envs = std::move(Configurations::GetHeterogeneousEnvs());
+  config.unset_envs = Configurations::GetHeterogeneousEnvs();
 
   GE_CHK_STATUS_RET(SubprocessManager::GetInstance().ForkSubprocess(config, child_pid), "Failed to fork %s.",
                     kProcessName.c_str());

@@ -23,7 +23,6 @@
 #include "executor/dynamic_model_executor.h"
 #include "executor/proxy_dynamic_model_executor.h"
 #include "proto/deployer.pb.h"
-#include "dflow/base/model/model_deploy_resource.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
 #include "external/ge/ge_ir_build.h"
 #include "acl/acl.h"

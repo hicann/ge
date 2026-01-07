@@ -342,19 +342,6 @@ Status ExecutorContext::DeployRankTable(const std::string &rank_table,
   rank_table_ = rank_table;
   rank_id_ = rank_id;
   role_table_ = role_table;
-
-  GELOGD("[Handle][RankTable] begin. rank table=%s, rank id=%s, role table=%s.",
-         rank_table.c_str(), rank_id.c_str(), role_table.c_str());
-  UpdateGraphOptions(OPTION_EXEC_RANK_ID, rank_id);
-  UpdateGraphOptions(OPTION_EXEC_RANK_TABLE, rank_table);
-  std::map<std::string, std::string> graph_options = GetThreadLocalContext().GetAllGraphOptions();
-  graph_options[OPTION_EXEC_RANK_TABLE_ADDR] = std::to_string(PtrToValue(rank_table_.data()));
-  graph_options[OPTION_EXEC_RANK_TABLE_LEN] = std::to_string(rank_table_.length());
-  graph_options[OPTION_EXEC_ROLE_TABLE_ADDR] = std::to_string(PtrToValue(role_table_.data()));
-  graph_options[OPTION_EXEC_ROLE_TABLE_LEN] = std::to_string(role_table_.length());
-  GetThreadLocalContext().SetGraphOption(graph_options);
-  GELOGD("[Handle][RankTable] success. rank table=%s, rank id=%s, role table=%s.",
-         rank_table.c_str(), rank_id.c_str(), role_table.c_str());
   return SUCCESS;
 }
 

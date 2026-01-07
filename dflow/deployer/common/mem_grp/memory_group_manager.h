@@ -131,29 +131,6 @@ class MemoryGroupManager {
 
   /*
    *  @ingroup ge
-   *  @brief   init memory group
-   *  @return: SUCCESS or FAILED
-   */
-  Status MemGroupInit(const std::string &group_name, uint64_t pre_alloc_size);
-
-  /*
-   *  @ingroup ge
-   *  @brief   memory group cache alloc
-   *  @return: SUCCESS or FAILED
-   */
-  static Status MemGroupCacheAlloc(const std::string &group_name, uint64_t pre_alloc_size);
-
-  /*
-   *  @ingroup ge
-   *  @brief   memory group cache alloc
-   *  @return: SUCCESS or FAILED
-   */
-  static Status MemGroupCacheAlloc(const std::string &group_name,
-                                   int32_t device_count,
-                                   uint64_t mem_size);
-
-  /*
-   *  @ingroup ge
    *  @brief   init remote memory group
    *  @return: SUCCESS or FAILED
    */

@@ -555,80 +555,7 @@ Status HeterogeneousModelExecutor::GetTimeoutFromOption(int32_t &timeout) {
 Status HeterogeneousModelExecutor::EnqueueInputTensors(const std::vector<GeTensor> &inputs, const size_t replica_num) {
   GELOGD("Start to enqueue inputs with replica, size = %zu, replica_num = %zu.", inputs.size(), replica_num);
   for (size_t i = 0U; i < replica_num; ++i) {
-    if (ExecutionRuntime::IsMbufAllocatorEnabled()) {
-      GE_CHK_STATUS_RET(MbufEnqueueInputTensors(inputs), "Failed to mbuf_enqueue input tensors.");
-    } else {
-      GE_CHK_STATUS_RET(EnqueueInputTensors(inputs), "Failed to enqueue input tensors.");
-    }
-  }
-  return SUCCESS;
-}
-
-Status HeterogeneousModelExecutor::EnqueueInputTensor(const GeTensor &input, const int index,
-                                                      ExchangeService::ControlInfo &control_info) {
-  const auto &queue_attr = input_queue_attrs_[index];
-  const auto tensor_data = input.GetData().GetData();
-  const auto tensor_size = input.GetData().GetSize();
-  auto device_id = queue_attr.device_id;
-  auto queue_id = queue_attr.queue_id;
-  const auto &tensor_desc = input.GetTensorDesc();
-  // Restore the address to the shared memory address requested by tensorflow
-  void *buffer = const_cast<void *>(PtrToPtr<uint8_t, void>(tensor_data - sizeof(RuntimeTensorDesc)));
-  auto is_shared_buffer = rtBuffConfirm(buffer, tensor_size + sizeof(RuntimeTensorDesc));
-  if (is_shared_buffer == RT_ERROR_NONE) {
-    rtMbufPtr_t m_buf = nullptr;
-    GE_CHK_RT_RET(rtBuffGet(nullptr, buffer, static_cast<uint64_t>(tensor_size + sizeof(RuntimeTensorDesc))));
-    GE_CHK_RT_RET(rtMbufBuild(buffer, static_cast<uint64_t>(tensor_size + sizeof(RuntimeTensorDesc)), &m_buf));
-    GE_DISMISSABLE_GUARD(m_buf, ([m_buf]() { GE_CHK_RT(rtMbufFree(m_buf)); }));
-    // Fill RuntimeTensorDesc information
-    RuntimeTensorDesc *const mbuf_tensor_desc = PtrToPtr<void, RuntimeTensorDesc>(buffer);
-    GE_CHK_STATUS_RET(DataFlowExecutorUtils::FillRuntimeTensorDesc(tensor_desc, *mbuf_tensor_desc));
-    GE_CHK_STATUS_RET(exchange_service_->Enqueue(device_id, queue_id,
-                                                 tensor_size + sizeof(RuntimeTensorDesc), m_buf, control_info),
-                      "Failed to enqueue input[%zu], model id = %u, queue id = %u", index, model_id_, queue_id);
-    GE_DISMISS_GUARD(m_buf);
-  } else {
-    RuntimeTensorDesc runtime_tensor_desc = {};
-    GE_CHK_STATUS_RET(DataFlowExecutorUtils::FillRuntimeTensorDesc(tensor_desc, runtime_tensor_desc));
-    const ExchangeService::BuffInfo tensor_desc_buff = {.addr = &runtime_tensor_desc, .len = sizeof(RuntimeTensorDesc)};
-    const ExchangeService::BuffInfo data_buff = {.addr = ValueToPtr(PtrToValue(tensor_data)), .len = tensor_size};
-    const std::vector<ExchangeService::BuffInfo> buffs = {tensor_desc_buff, data_buff};
-    GE_CHK_STATUS_RET(exchange_service_->Enqueue(device_id, queue_id, buffs, control_info),
-                      "Failed to enqueue input[%zu], model id=%u, queue id=%u", index, model_id_, queue_id);
-  }
-  return SUCCESS;
-}
-
-Status HeterogeneousModelExecutor::MbufEnqueueInputTensors(const std::vector<GeTensor> &inputs) {
-  GELOGD("Start to mbuf_enqueue inputs, size = %zu", inputs.size());
-  GE_CHK_STATUS_RET_NOLOG(ValidateInputTensors(inputs));
-  int32_t timeout = kQueueDefaultTimeout;
-  GE_CHK_STATUS_RET(GetTimeoutFromOption(timeout), "Get graph timeout failed.");
-
-  std::map<DeployQueueAttr, std::vector<GeTensor>> fusion_inputs;
-  ExchangeService::ControlInfo control_info{};
-  control_info.timeout = timeout;
-  for (size_t i = 0U; i < inputs.size(); ++i) {
-    const auto &queue_attr = input_queue_attrs_[i];
-    if (is_fusion_input_[i]) {
-      fusion_inputs[queue_attr].emplace_back(inputs[i]);
-      continue;
-    }
-
-    const auto tensor_size = inputs[i].GetData().GetSize();
-    GE_CHK_STATUS_RET(EnqueueInputTensor(inputs[i], i, control_info));
-    GELOGD("Enqueue input[%zu] successfully, model id = %u, queue id = %u, size = %zu, notiling = %d", i, model_id_,
-           queue_attr.queue_id, tensor_size, static_cast<int32_t>(input_is_no_tiling_[i]));
-  }
-  GE_CHK_STATUS_RET(EnqueueFusionInputs(fusion_inputs, control_info), "Failed to enqueue fusion inputs.");
-
-  for (size_t i = 0U; i < control_input_queue_attrs_.size(); ++i) {
-    const int32_t control_value = 0;
-    GE_CHK_STATUS_RET(exchange_service_->Enqueue(control_input_queue_attrs_[i].device_id,
-                                                 control_input_queue_attrs_[i].queue_id,
-                                                 &control_value, sizeof(control_value), control_info),
-                      "Failed to enqueue control input[%zu], model id = %u, queue id = %u",
-                      i, model_id_, control_input_queue_attrs_[i].queue_id);
+    GE_CHK_STATUS_RET(EnqueueInputTensors(inputs), "Failed to enqueue input tensors.");
   }
   return SUCCESS;
 }
@@ -908,9 +835,6 @@ Status HeterogeneousModelExecutor::DoDequeueOnce(GeTensor &output_tensor, std::s
   Status status = SUCCESS;
   if (aligned_ptr == nullptr) {
     status = exchange_service_->DequeueTensor(device, queue_id, output_tensor, control_info);
-  } else if (ExecutionRuntime::IsMbufAllocatorEnabled()) {
-    status = exchange_service_->DequeueMbufTensor(device, queue_id, aligned_ptr,
-                                                  static_cast<size_t>(output_tensor_raw_size), control_info);
   } else {
     status = exchange_service_->Dequeue(device, queue_id, aligned_ptr->MutableGet(),
                                         static_cast<size_t>(output_tensor_raw_size), control_info);

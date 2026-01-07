@@ -53,7 +53,7 @@ class LocalDeployer : public Deployer {
  public:
   explicit LocalDeployer(bool with_heartbeat = true);
   ~LocalDeployer() override {
-    Finalize();
+    LocalDeployer::Finalize();
   };
   Status Initialize() override;
   const NodeInfo &GetNodeInfo() const override;

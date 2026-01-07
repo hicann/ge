@@ -90,7 +90,6 @@ Status FlowGwClient::InnerStartFlowGw(const ProcessParam &param) {
     proc_status_ = proc_status;
   };
   SubprocessManager::GetInstance().RegExcptHandleCallback(pid_, excpt_handle_callback);
-  GE_CHK_RT_RET(rtBufEventTrigger(param.group_name.c_str()));
   status_func_ = [this]() -> ProcStatus {
     return proc_status_;
   };

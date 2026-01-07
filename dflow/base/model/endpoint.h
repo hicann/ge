@@ -13,6 +13,7 @@
 
 #include <string>
 #include "graph/node.h"
+#include "graph/attr_store.h"
 #include "ge/ge_api_types.h"
 #include "proto/flow_model.pb.h"
 

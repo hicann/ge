@@ -50,21 +50,25 @@ DaemonClientManager::~DaemonClientManager() {
 }
 
 void DaemonClientManager::Finalize() {
-  running_ = false;
-  running_cv_.notify_all();
-  if (evict_thread_.joinable()) {
-    evict_thread_.join();
-  }
-
-  if (client_fd_ >= 0) {
-    (void) mmClose(client_fd_);
-    client_fd_ = -1;
-  }
-
-  DeleteAllClientInfo();
-  {
-    std::lock_guard<std::mutex> lk(mu_);
-    clients_.clear();
+  try {
+    running_ = false;
+    running_cv_.notify_all();
+    if (evict_thread_.joinable()) {
+      evict_thread_.join();
+    }
+    if (client_fd_ >= 0) {
+      (void) mmClose(client_fd_);
+      client_fd_ = -1;
+    }
+    DeleteAllClientInfo();
+    {
+      std::lock_guard<std::mutex> lk(mu_);
+      clients_.clear();
+    }
+  } catch (const std::exception &e) {
+    GELOGW("Exception caught during DaemonClientManager Finalize: %s", e.what());
+  } catch (...) {
+    GELOGW("Unknown exception caught during DaemonClientManager Finalize");
   }
 }
 

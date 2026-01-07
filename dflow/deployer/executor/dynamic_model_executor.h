@@ -16,7 +16,6 @@
 #include "ge_common/ge_api_error_codes.h"
 #include "common/blocking_queue.h"
 #include "framework/common/runtime_tensor_desc.h"
-#include "executor/ge_executor.h"
 #include "executor/cpu_sched_model.h"
 #include "executor/cpu_id_resource_manager.h"
 #include "hybrid/common/npu_memory_allocator.h"
@@ -48,7 +47,7 @@ class DynamicModelExecutor {
   virtual Status ExceptionNotify(uint32_t type, uint64_t trans_id);
   Status CheckLocalAicpuSupportExceptionNotify() const;
   static Status GenerateLoadConfig(const ModelData &model_data, const std::vector<FileConstantMem> &external_weight_mem_data, aclmdlConfigHandle *handle);
-  static Status InitExternalWeightMem(const ComputeGraphPtr &root_graph, std::vector<FileConstantMem> &external_weight_files);
+  static Status InitExternalWeightMem(const ComputeGraphPtr &root_graph, std::vector<FileConstantMem> &external_weight_mem_data);
   struct ModelExecuteParam {
     std::function<void(Status, void *, void *)> callback;
     void *req_mbuf;
@@ -58,7 +57,7 @@ class DynamicModelExecutor {
   void Run();
   void DestroyDatasetResource();
   void Stop();
-  Status AllocEventIOBuffer(const ComputeGraphPtr &root_graph);
+  Status AllocEventIOBuffer(const ComputeGraphPtr &root_graph) const;
   Status FreeEventIOBuffer();
   virtual Status DoLoadModel(const ModelData &model_data, const ComputeGraphPtr &root_graph);
   virtual Status DoExecuteModel(const std::vector<DataBuffer> &inputs, std::vector<DataBuffer> &outputs);
@@ -93,7 +92,7 @@ class DynamicModelExecutor {
   bool StopAndWaitRestart();
   Status CreateFakeAicpuModelAndStream();
   Status CheckAicpuKernelSupported(const std::string &kernel_name, bool &is_supported) const;
-  Status ParseModelOutputToTensorDesc(const aclTensorDesc *acl_tensor_desc, GeTensorDesc &tensor_desc);
+  Status ParseModelOutputToTensorDesc(const aclTensorDesc *acl_tensor_desc, GeTensorDesc &tensor_desc) const;
   Status CreateInputDataset(const std::vector<DataBuffer> &inputs);
   Status CreateOutputDataset(const std::vector<DataBuffer> &outputs);
  private:

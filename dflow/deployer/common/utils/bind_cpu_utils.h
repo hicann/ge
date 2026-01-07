@@ -13,6 +13,7 @@
 #include "framework/common/debug/log.h"
 #include "pthread.h"
 #include "sched.h"
+#include "ge/ge_api_error_codes.h"
 
 namespace ge {
 class BindCpuUtils {

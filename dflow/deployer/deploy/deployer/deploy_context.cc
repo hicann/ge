@@ -175,7 +175,7 @@ Status DeployContext::GetOrCreateTransferQueue(int32_t device_id, uint32_t &queu
 }
 
 Status DeployContext::ProcessSharedContent(const deployer::SharedContentDescRequest &request,
-                                           deployer::DeployerResponse &response) {
+                                           const deployer::DeployerResponse &response) {
   (void) response;
   GE_CHK_BOOL_RET_STATUS(request.has_shared_content_desc(), PARAM_INVALID, "Request shared_content_desc is not set");
   GE_CHK_BOOL_RET_STATUS(!request.device_ids().empty(), PARAM_INVALID, "request device id not set");

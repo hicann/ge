@@ -13,16 +13,14 @@
 #include "runtime/rt_mem_queue.h"
 #include "rt_error_codes.h"
 #include "mmpa/mmpa_api.h"
-#include "dflow/base/exec_runtime/execution_runtime.h"
+#include "exec_runtime/execution_runtime_utils.h"
 #include "proto/deployer.pb.h"
 #include "event_handler.h"
-#include "executor_event_defs.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "common/profiling/profiling_manager.h"
 #include "common/profiling/profiling_init.h"
 #include "common/utils/bind_cpu_utils.h"
 #include "common/utils/process_utils.h"
-#include "common/utils/deploy_location.h"
 #include "common/utils/memory_statistic_manager.h"
 #include "common/config/device_debug_config.h"
 #include "common/profiling/command_handle.h"
@@ -31,15 +29,12 @@
 #include "common/string_util.h"
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
-#include "graph/def_types.h"
 #include "executor/cpu_sched_event_dispatcher.h"
 #include "adx_datadump_server.h"
-#include "common/compile_profiling/ge_call_wrapper.h"
 
 namespace ge {
 namespace {
 constexpr int32_t kDefaultTimeout = 10 * 1000;  // 10s
-constexpr uint32_t kCpuNumsInDevice = 8U;
 constexpr int32_t kAdxErrorNone = 0;
 constexpr uint32_t kModelExeErr = 507018U;
 constexpr char_t kDumpoff[] = "off";
@@ -391,7 +386,7 @@ Status EngineDaemon::NotifyInitialized() const {
 }
 
 Status EngineDaemon::InitializeGeExecutor() {
-  ExecutionRuntime::EnableGlobalInHeterogeneousExecutor();
+  ExecutionRuntimeUtils::EnableGlobalInHeterogeneousExecutor();
   args_option_.emplace(OPTION_EXEC_IS_USEHCOM, "1");
   args_option_.emplace(OPTION_GRAPH_RUN_MODE, "0");
   std::string hccl_flag = "1";

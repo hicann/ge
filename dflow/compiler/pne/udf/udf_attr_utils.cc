@@ -11,6 +11,7 @@
 #include "udf_attr_utils.h"
 #include "framework/common/debug/log.h"
 #include "graph/types.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 const std::map<AnyValue::ValueType, UdfAttrUtils::SetAttrFunc> UdfAttrUtils::set_attr_funcs_ = {

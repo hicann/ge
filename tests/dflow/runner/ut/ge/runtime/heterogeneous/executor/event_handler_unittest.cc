@@ -530,11 +530,6 @@ TEST_F(EventHandlerTest, DeployRankTable_Success) {
   ExecutorContext context;
   auto ret = context.DeployRankTable(rank_table, rank_id, role_table);
   EXPECT_EQ(ret, SUCCESS);
-  std::map<std::string, std::string> graph_options = GetThreadLocalContext().GetAllGraphOptions();
-  EXPECT_EQ(graph_options[OPTION_EXEC_RANK_ID], rank_id);
-  EXPECT_EQ(graph_options[OPTION_EXEC_RANK_TABLE], rank_table);
-  EXPECT_EQ(graph_options[OPTION_EXEC_RANK_TABLE_LEN], "14");
-  EXPECT_EQ(graph_options[OPTION_EXEC_ROLE_TABLE_LEN], "14");
 }
 
 TEST_F(EventHandlerTest, CreateProxyDynamicModelExecutor_Success) {

@@ -16,7 +16,13 @@
 
 namespace ge {
 DeployerProxy::~DeployerProxy() {
-  Finalize();
+  try {
+    Finalize();
+  } catch (const std::exception &e) {
+    GELOGE(FAILED, "Exception occurred in ~DeployerProxy: %s", e.what());
+  } catch (...) {
+    GELOGE(FAILED, "Unknown exception occurred in ~DeployerProxy");
+  }
 }
 
 DeployerProxy &DeployerProxy::GetInstance() {

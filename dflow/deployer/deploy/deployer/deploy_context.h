@@ -88,7 +88,7 @@ class DeployContext {
   Status ProcessMultiVarManager(const deployer::MultiVarManagerRequest &request);
 
   Status ProcessSharedContent(const deployer::SharedContentDescRequest &request,
-                              deployer::DeployerResponse &response);
+                              const deployer::DeployerResponse &response);
 
   Status ProcessHeartbeat(const deployer::DeployerRequest &request,
                           deployer::DeployerResponse &response);

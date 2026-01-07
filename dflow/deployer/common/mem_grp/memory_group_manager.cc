@@ -66,43 +66,12 @@ Status MemoryGroupManager::MemGrpAddProc(const std::string &group_name, const pi
   return SUCCESS;
 }
 
-Status MemoryGroupManager::MemGroupCacheAlloc(const std::string &group_name,
-                                              int32_t device_count,
-                                              uint64_t mem_size) {
-  for (int32_t device_id = 0; device_id < device_count; ++device_id) {
-    rtMemGrpCacheAllocPara para = {};
-    para.memSize = mem_size;
-    para.memFlag = RT_BUFF_SP_HUGEPAGE_ONLY;
-    auto start = std::chrono::steady_clock::now();
-    GE_CHK_RT_RET(rtMemGrpCacheAlloc(group_name.c_str(), device_id, &para));
-    auto end = std::chrono::steady_clock::now();
-    auto dur_us = std::chrono::duration<double, std::micro>(end - start).count();
-    GEEVENT("[Alloc][Cache] success, group name = %s, device_id = %d, run time = %lf us.",
-            group_name.c_str(), device_id, dur_us);
-  }
-  return SUCCESS;
-}
-
-Status MemoryGroupManager::MemGroupCacheAlloc(const std::string &group_name, uint64_t pre_alloc_size) {
-  int32_t device_count = 1;
-  GE_CHK_RT_RET(rtGetDeviceCount(&device_count));
-  GE_CHK_STATUS_RET_NOLOG(MemGroupCacheAlloc(group_name, device_count, pre_alloc_size));
-  GELOGD("[Alloc][Cache] success, group name = %s.", group_name.c_str());
-  return SUCCESS;
-}
-
 Status MemoryGroupManager::MemGroupInit(const NodeConfig &node_config, const std::string &group_name) {
   for (const auto &device_config : node_config.device_list) {
     if (device_config.device_type == CPU) {
       GE_CHK_STATUS_RET(MemGroupInit(group_name),
                         "Memory group init failed, group name = %s.",
                         group_name.c_str());
-    } else {
-      if (node_config.is_device_soc) {
-        GE_CHK_STATUS_RET(MemGroupInit(group_name, kNpuMaxGroupMemSize),
-                          "Memory group init failed, group name = %s.",
-                          group_name.c_str());
-      }
     }
   }
   return SUCCESS;
@@ -240,26 +209,6 @@ Status MemoryGroupManager::MemGroupInit(const std::string &group_name) {
                       "[Add][Pid] add leader pid[%d] into memory group[%s] error.", pid, group_name.c_str());
     GE_CHK_RT_RET(rtMemGrpAttach(group_name.c_str(), kTimeout));
     GELOGD("[Attach][MemoryGrp] success.");
-    inited_groups_.emplace(group_name);
-    GELOGI("Memory group added success, group name = %s.", group_name.c_str());
-  }
-  GELOGI("Memory group init success, group name = %s.", group_name.c_str());
-  return SUCCESS;
-}
-
-Status MemoryGroupManager::MemGroupInit(const std::string &group_name, uint64_t pre_alloc_size) {
-  std::unique_lock<std::mutex> lk(mutex_);
-  if (!IsGroupInited(group_name)) {
-    GE_CHK_STATUS_RET(MemGrpCreate(group_name, pre_alloc_size),
-                      "Failed to create group, group name = %s, pre alloc size = %lu kb.",
-                      group_name.c_str(), pre_alloc_size);
-    pid_t pid = getpid();
-    GE_CHK_STATUS_RET(MemGrpAddProc(group_name, pid, true, true),
-                      "[Add][Pid] add leader pid[%d] into memory group[%s] error.", pid, group_name.c_str());
-    GE_CHK_RT_RET(rtMemGrpAttach(group_name.c_str(), kTimeout));
-    GE_CHK_STATUS_RET(MemGroupCacheAlloc(group_name, pre_alloc_size),
-                      "[Alloc][Cache] failed, group name = %s", group_name.c_str());
-    GELOGD("[PreAlloc][MemoryGrp] success.");
     inited_groups_.emplace(group_name);
     GELOGI("Memory group added success, group name = %s.", group_name.c_str());
   }

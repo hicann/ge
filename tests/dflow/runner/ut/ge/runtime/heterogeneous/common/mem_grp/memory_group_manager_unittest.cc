@@ -88,28 +88,6 @@ TEST_F(UtMemoryGroupManager, run_npu_InitializeSuccess) {
   ASSERT_EQ(ret, SUCCESS);
 }
 
-TEST_F(UtMemoryGroupManager, run_MemGroupCacheAlloc) {
-  auto runtime_stub = std::make_shared<MockRuntime>();
-  RuntimeStub::SetInstance(runtime_stub);
-  EXPECT_CALL(*runtime_stub, rtMemGrpCacheAlloc).WillRepeatedly(Return(SUCCESS));
-  std::string group_name = "DM_QS_GROUP";
-  ge::MemoryGroupManager group_manager;
-  auto ret = group_manager.MemGroupCacheAlloc(group_name, 1);
-  ASSERT_EQ(ret, SUCCESS);
-  RuntimeStub::Reset();
-}
-
-TEST_F(UtMemoryGroupManager, run_MemGroupCacheAllocFailed) {
-  auto runtime_stub = std::make_shared<MockRuntime>();
-  RuntimeStub::SetInstance(runtime_stub);
-  EXPECT_CALL(*runtime_stub, rtMemGrpCacheAlloc).WillRepeatedly(Return(FAILED));
-  std::string group_name = "DM_QS_GROUP";
-  ge::MemoryGroupManager group_manager;
-  auto ret = group_manager.MemGroupCacheAlloc(group_name, 1);
-  ASSERT_EQ(ret, FAILED);
-  RuntimeStub::Reset();
-}
-
 TEST_F(UtMemoryGroupManager, run_RemoteMemGroupSuccess) {
   ge::MemoryGroupManager group_manager;
   auto group_name = group_manager.GetRemoteMemGroupName(0);

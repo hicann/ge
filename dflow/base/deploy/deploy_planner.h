@@ -351,7 +351,7 @@ class DeployPlannerBase {
   void MarkMultiDeployedModels();
   Status AdjustEnqueueDevices();
   Status AdjustEnqueueDevice(DeployPlan::QueueInfo &src_endpoint,
-                             const std::map<ModelQueueIndex, std::vector<DeployPlan::QueueInfo>> &dst_endpoints);
+                             const std::map<ModelQueueIndex, std::vector<DeployPlan::QueueInfo>> &dst_endpoints) const;
   Status AdjustDequeueDevice(DeployPlan::QueueInfo &dst_endpoint, const std::vector<int32_t> &src_endpoint_indices);
   Status ResolveDataFlows();
   Status ResolveModelInputs(const std::string &model_instance_name,

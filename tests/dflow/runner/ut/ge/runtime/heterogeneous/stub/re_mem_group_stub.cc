@@ -86,10 +86,6 @@ rtError_t rtEschedQueryInfo(const uint32_t devId,
   return 0;
 }
 
-RTS_API rtError_t rtBufEventTrigger(const char *name) {
-  return 0;
-}
-
 RTS_API rtError_t rtMemQueueInitFlowGw(int32_t devId, const rtInitFlowGwInfo_t * const initInfo) {
   const std::string group_name(initInfo->groupName);
   const std::string qs_name("TEST_ERROR");

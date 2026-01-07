@@ -18,6 +18,7 @@
 #include "dflow/flow_graph/data_flow_attr_define.h"
 #include "flow_graph/data_flow.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "common/ge_common/scope_guard.h"
 
 using namespace testing;
 namespace ge {

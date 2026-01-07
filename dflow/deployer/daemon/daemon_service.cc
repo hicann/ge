@@ -15,7 +15,6 @@
 #include "base/err_msg.h"
 #include "common/util.h"
 #include "common/utils/process_utils.h"
-#include "common/utils/deploy_location.h"
 #include "common/config/configurations.h"
 #include "daemon/daemon_client_manager.h"
 #include "common/utils/rts_api_utils.h"

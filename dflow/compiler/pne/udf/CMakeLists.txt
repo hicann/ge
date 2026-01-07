@@ -13,7 +13,7 @@ set(UDF_COMPILER_SRC_LIST
     "system_utils.cc"
     "udf_model_builder.cc"
     "udf_model.cc"
-        "udf_process_node_engine.cc"
+    "udf_process_node_engine.cc"
 )
 
 ############ libudf_compiler.so ############
@@ -21,7 +21,7 @@ add_library(udf_compiler SHARED
     ${UDF_COMPILER_SRC_LIST}
 )
 
-add_dependencies(cpu_compiler
+add_dependencies(udf_compiler
     graphengine_protos
     data_flow_base_proto
 )

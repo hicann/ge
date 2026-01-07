@@ -16,6 +16,7 @@
 #include "graph/ge_context.h"
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/types.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -963,7 +964,7 @@ Status DeployPlannerBase::AdjustDequeueDevice(DeployPlan::QueueInfo &dst_endpoin
 
 Status DeployPlannerBase::AdjustEnqueueDevice(
     DeployPlan::QueueInfo &src_endpoint,
-    const std::map<ModelQueueIndex, std::vector<DeployPlan::QueueInfo>> &dst_endpoints) {
+    const std::map<ModelQueueIndex, std::vector<DeployPlan::QueueInfo>> &dst_endpoints) const {
   if (!src_endpoint.device_info.WithProxy()) {
     return SUCCESS;
   }

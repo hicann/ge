@@ -37,17 +37,12 @@ class MockMmpa : public MmpaStubApiGe {
 };
 }  // namespace
 
-TEST_F(HelperExecutionRuntimeTest, ConfigEnvNotSet) {
-  unsetenv("HELPER_RES_FILE_PATH");
-  std::map<std::string, std::string> options;
-  EXPECT_EQ(InitializeHeterogeneousRuntime(options), ACL_ERROR_GE_PARAM_INVALID);
-}
-
 TEST_F(HelperExecutionRuntimeTest, InitializeAndFinalize) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   Configurations::GetInstance().information_ = DeployerConfig{};
-  std::string real_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data/empty_device/host"});
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  std::string real_path = PathUtils::Join(
+      {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/valid/server/numa_config2.json"});
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   std::map<std::string, std::string> options;
   EXPECT_EQ(InitializeHeterogeneousRuntime(options), SUCCESS);
   auto const *execution_runtime = ExecutionRuntime::GetInstance();
@@ -56,6 +51,6 @@ TEST_F(HelperExecutionRuntimeTest, InitializeAndFinalize) {
   (void)execution_runtime->GetCompileDeviceInfo();
   ExecutionRuntime::FinalizeExecutionRuntime();
   MmpaStub::GetInstance().Reset();
-  unsetenv("HELPER_RES_FILE_PATH");
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 }  // namespace ge

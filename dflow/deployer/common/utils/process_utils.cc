@@ -24,6 +24,7 @@
 #include "common/checker.h"
 #include "common/debug/ge_log.h"
 #include "common/debug/log.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

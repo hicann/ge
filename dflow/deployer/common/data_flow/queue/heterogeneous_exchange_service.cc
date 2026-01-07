@@ -25,6 +25,8 @@
 #include "graph/ge_context.h"
 #include "common/utils/heterogeneous_profiler.h"
 #include "common/checker.h"
+#include "common/ge_common/util.h"
+
 namespace ge {
 namespace {
 constexpr int32_t kQueueOpTimeout = 10 * 60 * 1000;  // 10 min

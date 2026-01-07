@@ -38,8 +38,6 @@ namespace ge {
 namespace {
 class MockRuntime : public RuntimeStub {
  public:
-  MOCK_METHOD1(rtGetDeviceCount, rtError_t(int32_t * ));
-
   rtError_t rtMemQueueDeQueue(int32_t device, uint32_t qid, void **mbuf) override {
     rtMbufPtr_t data;
     (void)rtMbufAlloc(&data, 1536);

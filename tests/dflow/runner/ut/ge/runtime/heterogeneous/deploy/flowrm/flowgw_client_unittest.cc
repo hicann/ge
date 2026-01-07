@@ -53,6 +53,10 @@ class MockMmpa : public MmpaStubApiGe {
   int32_t Sleep(UINT32 microSecond) override {
     return 0;
   }
+  int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    memcpy_s(realPath, realPathLen, path, strlen(path));
+    return 0;
+  }
 };
 
 class MockFlowGwClient : public FlowGwClient {
@@ -68,20 +72,21 @@ class UtFlowGwClient : public testing::Test {
   UtFlowGwClient() {}
  protected:
   void SetUp() override {
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   }
   void TearDown() override {
     MmpaStub::GetInstance().Reset();
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
 
   static void SetConfigEnv(const std::string &path) {
-    std::string config_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data", path});
-    setenv("HELPER_RES_FILE_PATH", config_path.c_str(), 1);
+    std::string config_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data", path});
+    setenv("RESOURCE_CONFIG_PATH", config_path.c_str(), 1);
     EXPECT_EQ(Configurations::GetInstance().InitHostInformation(), SUCCESS);
   }
 };
 
 TEST_F(UtFlowGwClient, run_InitializeAndFinalize) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   MockFlowGwClient flowgw_client(0, 0, {0}, false);
   EXPECT_CALL(flowgw_client, KillProcess).WillRepeatedly(testing::Return(1));
   EXPECT_EQ(flowgw_client.Initialize(), SUCCESS);
@@ -96,7 +101,6 @@ TEST_F(UtFlowGwClient, run_InitializeAndFinalize) {
 }
 
 TEST_F(UtFlowGwClient, run_Exception) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   MockFlowGwClient flowgw_client(0, 0, {0}, false);
   EXPECT_CALL(flowgw_client, KillProcess).WillRepeatedly(testing::Return(1));
   EXPECT_EQ(flowgw_client.Initialize(), SUCCESS);
@@ -108,7 +112,6 @@ TEST_F(UtFlowGwClient, run_Exception) {
 }
 
 TEST_F(UtFlowGwClient, run_HostFlowgwInitialize) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   MockFlowGwClient flowgw_client(0, 0, {0}, false);
   EXPECT_CALL(flowgw_client, KillProcess).WillRepeatedly(testing::Return(1));
   auto &node_config = Configurations::GetInstance().information_.node_config;
@@ -269,7 +272,7 @@ TEST_F(UtFlowGwClient, run_DestroyValidHandle) {
 }
 
 TEST_F(UtFlowGwClient, run_GetHostPort) {
-  SetConfigEnv("valid/host");
+  SetConfigEnv("valid/server/numa_config.json");
   ge::NetworkManager::GetInstance().Initialize();
   int32_t port = -1;
   auto ret = ge::NetworkManager::GetInstance().GetDataPanelPort(port);
@@ -277,7 +280,7 @@ TEST_F(UtFlowGwClient, run_GetHostPort) {
 }
 
 TEST_F(UtFlowGwClient, run_GetHostIp) {
-  SetConfigEnv("valid/host");
+  SetConfigEnv("valid/server/numa_config.json");
   std::string ip;
   EXPECT_EQ(ge::NetworkManager::GetInstance().GetDataPanelIp(ip), SUCCESS);
 }
@@ -330,13 +333,13 @@ TEST_F(UtFlowGwClient, run_GrantQueue_GRANT_INVALID) {
 }
 
 TEST_F(UtFlowGwClient, run_BindMainPortError) {
-  SetConfigEnv("error_port/host");
+  SetConfigEnv("invalid/numa_config_error_port.json");
   auto ret = ge::NetworkManager::GetInstance().BindMainPort();
   EXPECT_NE(ret, SUCCESS);
 }
 
 TEST_F(UtFlowGwClient, run_BindMainPortError2) {
-  SetConfigEnv("zero_port/host");
+  SetConfigEnv("invalid/numa_config_zero_port.json");
   auto ret = ge::NetworkManager::GetInstance().BindMainPort();
   EXPECT_NE(ret, SUCCESS);
 }

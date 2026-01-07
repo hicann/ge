@@ -15,7 +15,6 @@
 #include <map>
 #include <string>
 #include "ge/ge_api_error_codes.h"
-#include "dflow/base/model/model_deploy_resource.h"
 #include "dflow/base/deploy/model_deployer.h"
 #include "dflow/base/deploy/exchange_service.h"
 
@@ -33,12 +32,6 @@ class ExecutionRuntime {
   static void FinalizeExecutionRuntime();
 
   static void SetExecutionRuntime(const std::shared_ptr<ExecutionRuntime> &instance);
-
-  static bool IsMbufAllocatorEnabled();
-
-  static void EnableInHeterogeneousExecutor();
-
-  static void EnableGlobalInHeterogeneousExecutor();
 
   /// Initialize ExecutionRuntime
   /// @param execution_runtime    instance of execution runtime

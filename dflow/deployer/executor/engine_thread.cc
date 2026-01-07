@@ -15,7 +15,7 @@
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
 #include "common/utils/rts_api_utils.h"
-#include "dflow/base/exec_runtime/execution_runtime.h"
+#include "exec_runtime/execution_runtime_utils.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 
 namespace ge {
@@ -95,7 +95,7 @@ Status EngineThread::SendResponse(const std::shared_ptr<deployer::ExecutorRespon
 Status EngineThread::Run() {
   SET_THREAD_NAME(pthread_self(), "ge_dpl_etrun");
   GELOGD("Engine thread started, device_id = %d.", device_id_);
-  ExecutionRuntime::EnableInHeterogeneousExecutor();
+  ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
   GE_CHK_STATUS_RET_NOLOG(RtsApiUtils::SetDevice(device_id_));
   GE_CHK_RT(rtCtxCreate(&rt_context_, RT_CTX_NORMAL_MODE, device_id_));
   while (is_running_.load()) {

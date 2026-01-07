@@ -13,13 +13,13 @@
 #include <fstream>
 #include <exception>
 #include <algorithm>
-#include "runtime/dev.h"
 #include "graph/utils/math_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "common/debug/log.h"
 #include "common/utils/process_utils.h"
 #include "common/utils/deploy_location.h"
 #include "base/err_msg.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -292,21 +292,6 @@ Status JsonParser::ParseHostInfoFromConfigFile(const std::string &file_path, Dep
   return SUCCESS;
 }
 
-Status JsonParser::ParseHostInfoFromResConfig(const char_t *res_config, DeployerConfig &deployer_config) {
-  GE_CHECK_NOTNULL(res_config);
-  // get json
-  nlohmann::json json_host;
-  try {
-    json_host = nlohmann::json::parse(res_config);
-  } catch (const nlohmann::json::exception &e) {
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Invalid json resource config, exception:%s", e.what());
-    REPORT_INNER_ERR_MSG("E19999", "Invalid json resource config, exception:%s", e.what());
-    return ACL_ERROR_GE_PARAM_INVALID;
-  }
-  GE_CHK_STATUS_RET_NOLOG(ParseHostInfo(json_host, deployer_config));
-  return SUCCESS;
-}
-
 Status JsonParser::ParseVerifyTool(const nlohmann::json &js, std::string &verify_tool) {
   GE_CHK_STATUS_RET_NOLOG(ParseOptionalInfo(js, "verifyTool", verify_tool));
   if (verify_tool.empty()) {
@@ -334,10 +319,6 @@ Status JsonParser::ParseDeviceConfigFromConfigFile(const std::string &file_path,
     GE_CHK_STATUS_RET_NOLOG(ParseNodeConfig(js, node_config));
     int32_t device_count = 1;
     DeviceType device_type = CPU;
-    if (DeployLocation::IsNpu()) {
-      device_type = NPU;
-      GE_CHK_RT_RET(rtGetDeviceCount(&device_count));
-    }
     for (int32_t i = 0; i < device_count; ++i) {
       DeviceConfig device_config = {};
       device_config.device_type = device_type;

@@ -9,8 +9,8 @@
  */
 
 #include "execution_runtime.h"
-#include "exec_runtime/execution_runtime_utils.h"
 #include "mmpa/mmpa_api.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -82,26 +82,6 @@ void ExecutionRuntime::FinalizeExecutionRuntime() {
     handle_ = nullptr;
   }
   GEEVENT("Execution runtime finalized.");
-}
-
-bool ExecutionRuntime::IsMbufAllocatorEnabled() {
-  const int32_t base = 10;
-  const char_t *enable_mbuf_allocator = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_ENABLE_MBUF_ALLOCATOR, enable_mbuf_allocator);
-  if ((enable_mbuf_allocator != nullptr) &&
-      (static_cast<int32_t>(std::strtol(enable_mbuf_allocator, nullptr, base)) == 1)) {
-    GELOGD("ENABLE_MBUF_ALLOCATOR=[%s].", enable_mbuf_allocator);
-    return true;
-  }
-  return false;
-}
-
-void ExecutionRuntime::EnableInHeterogeneousExecutor() {
-  ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
-}
-
-void ExecutionRuntime::EnableGlobalInHeterogeneousExecutor() {
-  ExecutionRuntimeUtils::EnableGlobalInHeterogeneousExecutor();
 }
 
 const std::string &ExecutionRuntime::GetCompileHostResourceType() const {

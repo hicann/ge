@@ -23,9 +23,9 @@ class GraphModel : public PneModel {
     return model_data_;
   }
 
-  Status SerializeModel(ModelBufferData &model_buff) override;
+  Status SerializeModel(ModelBufferData &model_buffer) override;
 
-  Status UnSerializeModel(const ModelBufferData &model_buff) override;
+  Status UnSerializeModel(const ModelBufferData &model_buffer) override;
 
   void SetModelId(uint32_t model_id) override {
     PneModel::SetModelId(model_id);

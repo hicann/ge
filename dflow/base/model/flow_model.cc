@@ -11,7 +11,6 @@
 #include "dflow/inc/data_flow/model/flow_model.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "common/helper/model_parser_base.h"
-#include "graph/types.h"
 #include "dflow/base/model/flow_model_om_loader.h"
 
 namespace ge {

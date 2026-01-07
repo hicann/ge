@@ -143,10 +143,7 @@ class HeterogeneousModelExecutor {
                        const bool is_input);
   static Status GetTimeoutFromOption(int32_t &timeout);
   Status EnqueueInputTensors(const std::vector<GeTensor> &inputs);
-  Status MbufEnqueueInputTensors(const std::vector<GeTensor> &inputs);
   Status EnqueueInputTensors(const std::vector<GeTensor> &inputs, const size_t replica_num);
-  Status EnqueueInputTensor(const GeTensor &input, const int index,
-                            ExchangeService::ControlInfo &control_info);
   Status DequeueOutputTensors(std::vector<GeTensor> &outputs);
   Status DequeueControlOutputs(const size_t replica_num, const int32_t timeout);
   Status DoDequeue(GeTensor &output_tensor, std::shared_ptr<AlignedPtr> &aligned_ptr,

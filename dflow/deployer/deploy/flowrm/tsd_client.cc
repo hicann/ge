@@ -19,6 +19,7 @@
 #include "common/data_flow/event/proxy_event_manager.h"
 #include "mmpa/mmpa_api.h"
 #include "common/thread_pool.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

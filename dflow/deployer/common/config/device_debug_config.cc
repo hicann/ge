@@ -17,6 +17,7 @@
 #include "common/profiling/profiling_properties.h"
 #include "graph/ge_context.h"
 #include "common/ge_inner_attrs.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

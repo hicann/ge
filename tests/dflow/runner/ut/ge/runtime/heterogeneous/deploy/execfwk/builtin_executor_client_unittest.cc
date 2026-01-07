@@ -26,6 +26,7 @@
 #include "common/config/configurations.h"
 #include "common/utils/deploy_location.h"
 #include "macro_utils/dt_public_unscope.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

@@ -125,7 +125,7 @@ Status DynamicModelExecutor::FreeEventIOBuffer() {
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::AllocEventIOBuffer(const ComputeGraphPtr &root_graph) {
+Status DynamicModelExecutor::AllocEventIOBuffer(const ComputeGraphPtr &root_graph) const {
   // delete related parameter when delete event
   (void)root_graph;
   return SUCCESS;
@@ -1225,7 +1225,7 @@ Status DynamicModelExecutor::DoExecuteModel(const std::vector<DataBuffer> &input
   return SUCCESS;
 }
 
-Status DynamicModelExecutor::ParseModelOutputToTensorDesc(const aclTensorDesc *acl_tensor_desc, GeTensorDesc &tensor_desc) {
+Status DynamicModelExecutor::ParseModelOutputToTensorDesc(const aclTensorDesc *acl_tensor_desc, GeTensorDesc &tensor_desc) const {
   tensor_desc.SetFormat(static_cast<Format>(aclGetTensorDescFormat(acl_tensor_desc)));
   tensor_desc.SetDataType(static_cast<DataType>(aclGetTensorDescType(acl_tensor_desc)));
   std::vector<int64_t> tensor_shape;

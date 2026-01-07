@@ -26,6 +26,7 @@
 #include "graph/ge_local_context.h"
 #include "rt_error_codes.h"
 #include "common/util/sanitizer_options.h"
+#include "common/ge_common/util.h"
 
 using namespace ::testing;
 bool enqueue_dequeue_error_flag = false;

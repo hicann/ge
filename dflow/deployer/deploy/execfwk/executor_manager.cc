@@ -16,6 +16,7 @@
 #include "runtime/rt_mem_queue.h"
 #include "common/utils/bind_cpu_utils.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 std::map<std::string, std::function<std::string(const ExecutorManager::ExecutorKey &)>>

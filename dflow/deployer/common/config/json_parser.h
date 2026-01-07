@@ -31,15 +31,6 @@ class JsonParser {
 
   /*
    *  @ingroup ge
-   *  @brief   parse host resource config string
-   *  @param   [in]  const char_t *
-   *  @param   [in]  DeployerConfig &
-   *  @return  SUCCESS or FAILED
-   */
-  static Status ParseHostInfoFromResConfig(const char_t *res_config, DeployerConfig &deployer_config);
-
-  /*
-   *  @ingroup ge
    *  @brief   parse device json file
    *  @param   [in]  std::string &
    *  @param   [in]  NodeConfig &

@@ -22,7 +22,6 @@
 #include "common/utils/bind_cpu_utils.h"
 #include "common/utils/rts_api_utils.h"
 #include "common/utils/process_utils.h"
-#include "common/utils/deploy_location.h"
 #include "common/utils/memory_statistic_manager.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "deploy/flowrm/tsd_client.h"

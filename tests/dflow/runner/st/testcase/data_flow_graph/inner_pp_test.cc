@@ -296,19 +296,20 @@ protected:
     ExecutionRuntime::instance_ = ge::MakeShared<ExecutionRuntimeMock>();
     PrepareForUdf();
     ReInitGe();
+    std::string st_dir_path = ge::PathUtils::Join({ge::EnvPath().GetAirBasePath(), "/tests/st/"});
+    auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config.json";
+    setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   }
   static void TearDownTestSuite() {
     ExecutionRuntime::instance_ = nullptr;
     system("rm -fr model_pp_udf");
     GEFinalize();
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
   void SetUp() {
     MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
     mock_handle = (void *)0xffffffff;
     mock_method = (void *)&InitializeHeterogeneousRuntime;
-    char path[MMPA_MAX_PATH];
-    realpath("dflow/runner/st/config_file/right_json/host", path);
-    mmSetEnv("HELPER_RES_FILE_PATH", &path[0], MMPA_MAX_PATH);
     std::map<std::string, std::string> options_runtime;
     ASSERT_EQ(ExecutionRuntime::InitHeterogeneousRuntime(options_runtime), SUCCESS);
     ge::ProcessNodeEngineRegisterar udf_engine_register __attribute__((unused)) (

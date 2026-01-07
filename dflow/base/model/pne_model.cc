@@ -10,6 +10,7 @@
 
 #include "dflow/inc/data_flow/model/pne_model.h"
 #include "graph/debug/ge_attr_define.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 Status PneModel::SetLogicDeviceId(const std::string &logic_device_id) {
