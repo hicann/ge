@@ -387,60 +387,8 @@ else ()
 
     add_dependencies(select_targets fmk_parser parser_common _caffe_parser fmk_onnx_parser)
 
-    if (ENABLE_ENGINES_COMPILE)
-        add_dependencies(select_targets aicore_utils
-                                        opskernel
-                                        fusion_pass
-                                        fe
-                                        ffts
-                                        ffts.ini
-                                        fe.ini
-                                        aicpu_engine_common
-                                        aicpu_ascend_engine
-                                        aicpu_tf_engine
-                                        aicpu_const_folding
-                                        dvpp_engine
-                                        rts_engine
-                                        host_cpu_engine
-                                        host_cpu_opskernel_builder
-                                        op_compile_adapter)
-    endif ()
-
-    if (ENABLE_GE_COMPILE)
-        add_dependencies(select_targets ge_local_engine
-                                        ge_local_opskernel_builder
-                                        ge_common
-                                        ge_common_base
-                                        slice
-                                        engine
-                                        engine_conf.json
-                                        optimizer_priority.pbtxt
-                                        ge_runner
-                                        ge_runner_v2
-                                        jit_exe
-                                        ge_compiler
-                                        fwk_atc.bin
-                                        atc_atc.bin
-                                        ge_executor_shared
-                                        davinci_executor
-                                        hybrid_executor
-                                        gert
-                                        llm_engine
-                                        dflow_runner
-                                        dataflow_python
-                                        llm_datadist_python_v1
-                                        ge_python
-                                        pyautofuse
-                                        aihac_codegen
-                                        aihac_autofusion)
-    endif ()
-
     if(MINDSPORE_MODE)
         add_dependencies(select_targets ge_common ge_common_base graph graph_base)
-    endif ()
-
-    if (ENABLE_EXECUTOR_C_COMPILE)
-        add_dependencies(select_targets ge_dbg_c ge_executor_c_static)
     endif ()
 endif ()
 
@@ -527,110 +475,6 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
     message(STATUS "In test mode, skip installing")
 else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
     set(ARCH_LINX_PATH "${CMAKE_SYSTEM_PROCESSOR}-linux")
-
-    if (ENABLE_ENGINES_COMPILE)
-        install(TARGETS aicore_utils
-                        op_compile_adapter
-                        aicpu_engine_common
-                        opskernel
-                        fusion_pass
-            LIBRARY DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-            ARCHIVE DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(TARGETS aicpu_ascend_engine
-                        aicpu_tf_engine
-                        aicpu_const_folding
-                        dvpp_engine
-                        rts_engine
-                        fe
-                        ffts
-                        host_cpu_engine
-                        host_cpu_opskernel_builder
-            LIBRARY DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/opskernel OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-            ARCHIVE DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/opskernel OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(FILES ${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBRARY_DIR}/aicpu_ops_parallel_rule.json
-                      ${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBRARY_DIR}/init.conf
-                      ${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBRARY_DIR}/ir2tf_op_mapping_lib.json
-            DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/opskernel/config OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(FILES ${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBRARY_DIR}/fe.ini
-            DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/opskernel/fe_config OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(FILES ${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBRARY_DIR}/ffts.ini
-            DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/opskernel/ffts_config OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-    endif ()
-
-    if (ENABLE_EXECUTOR_C_COMPILE)
-        install(TARGETS ge_dbg_c
-                        ge_executor_c_static
-            LIBRARY DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-            ARCHIVE DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-    endif ()
-
-    if (ENABLE_GE_COMPILE)
-        install(TARGETS davinci_executor
-                        ge_common
-                        ge_common_base
-                        ge_executor_shared
-                        gert
-                        hybrid_executor
-                        atc_atc.bin
-                        ge_compiler
-                        ge_runner
-                        ge_runner_v2
-                        dflow_runner
-                        slice
-                        llm_engine
-                        eager_style_graph_builder_base_static
-                        eager_style_graph_builder_base
-                        gen_esb
-                        pyautofuse
-                        aihac_codegen
-                        aihac_autofusion
-            LIBRARY DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-            ARCHIVE DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-            RUNTIME DESTINATION ${ARCH_LINX_PATH}/bin OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(TARGETS _caffe_parser fmk_onnx_parser fmk_parser parser_common
-            LIBRARY DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-            ARCHIVE DESTINATION ${ARCH_LINX_PATH}/lib64 OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-            RUNTIME DESTINATION ${ARCH_LINX_PATH}/bin OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(TARGETS engine
-            LIBRARY DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/nnengine OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(TARGETS ge_local_engine
-                        ge_local_opskernel_builder
-            LIBRARY DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/opskernel OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(FILES ${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBRARY_DIR}/engine_conf.json
-            DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/nnengine/ge_config OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(FILES ${CMAKE_INSTALL_PREFIX}/${INSTALL_LIBRARY_DIR}/optimizer_priority.pbtxt
-            DESTINATION ${ARCH_LINX_PATH}/lib64/plugin/opskernel OPTIONAL COMPONENT packages EXCLUDE_FROM_ALL
-        )
-
-        install(DIRECTORY ${AIR_CODE_DIR}/inc/graph_metadef/external/
-                          ${AIR_CODE_DIR}/inc/parser/external/
-                          ${AIR_CODE_DIR}/inc/external/
-            DESTINATION ${ARCH_LINX_PATH}/include
-            FILE_PERMISSIONS OWNER_EXECUTE OWNER_READ GROUP_READ
-            COMPONENT packages EXCLUDE_FROM_ALL
-            PATTERN "inc/external/OWNERS" EXCLUDE
-        )
-    endif ()
     set(version_info "${ASCEND_INSTALL_PATH}/runtime/version.info")
     set(install_script_dir "${CMAKE_CURRENT_BINARY_DIR}/install_scripts/")
 
@@ -650,86 +494,67 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
         COMPONENT . EXCLUDE_FROM_ALL
     )
 
-    if(NOT BUILD_PKG_COMPONENT)
-        set(CPACK_COMPONENTS_ALL ".;packages")
-        set(CPACK_PACKAGE_NAME ${CMAKE_PROJECT_NAME})
-        set(CPACK_PACKAGE_VERSION ${CMAKE_PROJECT_VERSION})
-        set(CPACK_PACKAGE_DESCRIPTION "CPack air project")
-        set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "CPack air project")
-        set(CPACK_PACKAGE_DIRECTORY ${CMAKE_INSTALL_PREFIX}/package)
-        set(CPACK_PACKAGE_FILE_NAME "CANN-graph-engine-linux.${CMAKE_SYSTEM_PROCESSOR}.run")
-        set(CPACK_GENERATOR External)
-        set(CPACK_CMAKE_GENERATOR "Unix Makefiles")
-        set(CPACK_EXTERNAL_ENABLE_STAGING TRUE)
-        set(CPACK_EXTERNAL_PACKAGE_SCRIPT ${ASCEND_INSTALL_PATH}/toolkit/tools/op_project_templates/ascendc/customize/cmake/makeself.cmake)
-        set(CPACK_EXTERNAL_BUILT_PACKAGES ${CPACK_PACKAGE_DIRECTORY}/_CPack_Packages/Linux/External/${CPACK_PACKAGE_FILE_NAME}/${CPACK_PACKAGE_FILE_NAME})
-        include(CPack)
-    else()
-        if (ENABLE_GE_COMPILE)
-            add_custom_target(ge-compiler)
-            add_dependencies(ge-compiler parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
-                    slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion dflow_runner
-                    eager_style_graph_builder_base eager_style_graph_builder_base_static gen_esb aihac_ir
-                    aihac_ir_register aihac_symbolizer pyautofuse ge_python llm_datadist_python_v1 dataflow_python
-                    hcom_gradient_split_tune hcom_graph_adaptor hcom_opskernel_builder hcom_gradtune_opskernel_builder)
-            add_dependencies(ge-compiler fmk_parser ge_compiler fmk_onnx_parser ge_runner)
-            add_dependencies(ge-compiler engine)
-            add_dependencies(ge-compiler aicpu_ascend_engine aicpu_tf_engine dvpp_engine fe ffts ge_local_engine ge_local_opskernel_builder
-                    host_cpu_opskernel_builder host_cpu_engine)
-            add_dependencies(ge-compiler cpu_compiler udf_compiler)
-            add_dependencies(ge-compiler atc_atc.bin)
-            add_dependencies(ge-compiler fwk_atc.bin)
-            add_dependencies(ge-compiler compress compress_static compressweight compressweight_static rts_engine switch_by_index)
-            add_dependencies(ge-compiler acl_op_compiler)
+    if(BUILD_PKG_COMPONENT)
+        add_custom_target(ge-compiler)
+        add_dependencies(ge-compiler parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
+                slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion dflow_runner
+                eager_style_graph_builder_base eager_style_graph_builder_base_static gen_esb aihac_ir
+                aihac_ir_register aihac_symbolizer pyautofuse ge_python llm_datadist_python_v1 dataflow_python
+                hcom_gradient_split_tune hcom_graph_adaptor hcom_opskernel_builder hcom_gradtune_opskernel_builder)
+        add_dependencies(ge-compiler fmk_parser ge_compiler fmk_onnx_parser ge_runner)
+        add_dependencies(ge-compiler engine)
+        add_dependencies(ge-compiler aicpu_ascend_engine aicpu_tf_engine dvpp_engine fe ffts ge_local_engine ge_local_opskernel_builder
+                host_cpu_opskernel_builder host_cpu_engine)
+        add_dependencies(ge-compiler cpu_compiler udf_compiler)
+        add_dependencies(ge-compiler atc_atc.bin)
+        add_dependencies(ge-compiler fwk_atc.bin)
+        add_dependencies(ge-compiler compress compress_static compressweight compressweight_static rts_engine switch_by_index)
+        add_dependencies(ge-compiler acl_op_compiler)
 
-            add_custom_target(ge-executor)
-            add_dependencies(ge-executor ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
-                    graph npu_sched_model_loader lowering register_static graph_base model_deployer data_flow_base hcom_executor)
-            add_dependencies(ge-executor ge_common gert graph register hybrid_executor lowering)
-            add_dependencies(ge-executor ge_common gert graph register hybrid_executor lowering register_static)
-            add_dependencies(ge-executor graph register lowering)
-            add_dependencies(ge-executor acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas)
-            add_dependencies(ge-executor runtime_update_model_param_ascend910B runtime_update_model_param_ascend910_93)
-        endif ()
+        add_custom_target(ge-executor)
+        add_dependencies(ge-executor ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
+                graph npu_sched_model_loader lowering register_static graph_base model_deployer data_flow_base hcom_executor)
+        add_dependencies(ge-executor ge_common gert graph register hybrid_executor lowering)
+        add_dependencies(ge-executor ge_common gert graph register hybrid_executor lowering register_static)
+        add_dependencies(ge-executor graph register lowering)
+        add_dependencies(ge-executor acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas)
+        add_dependencies(ge-executor runtime_update_model_param_ascend910B runtime_update_model_param_ascend910_93)
 
-        if (ENABLE_DFLOW_COMPILE)
-            add_custom_target(dflow-executor)
-            add_dependencies(dflow-executor deployer_daemon npu_executor_main host_cpu_executor_main udf_dump
-                    reader_writer udf_profiling flow_func built_in_flowfunc udf_executor)
-
-            if (DEFINED ENV{TOOLCHAIN_DIR})
-                message(STATUS $ENV{TOOLCHAIN_DIR})
-                set(TOOLCHAIN_DIR $ENV{TOOLCHAIN_DIR})
-                set(CHILD_INSTALL_DIR ${CMAKE_BINARY_DIR}/device_install)
-                cmake_print_variables(TOOLCHAIN_DIR ENABLE_SIGN CUSTOM_SIGN_SCRIPT)
-                if (NOT DEFINED TOP_DIR)
-                    set(TOP_DIR ${CMAKE_SOURCE_DIR})
-                    message(STATUS "TOP_DIR is not exists, set it to ${CMAKE_SOURCE_DIR}")
-                endif ()
-                include(ExternalProject)
-                ExternalProject_Add(udf_device
-                        SOURCE_DIR ${CMAKE_SOURCE_DIR}/dflow/udf/cmake/device
-                        BINARY_DIR ${CMAKE_BINARY_DIR}/device_build
-                        CMAKE_ARGS
-                        -DTOP_DIR=${TOP_DIR}
-                        -DTOOLCHAIN_DIR=${TOOLCHAIN_DIR}
-                        -DCMAKE_INSTALL_PREFIX=${CHILD_INSTALL_DIR}
-                        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/dflow/udf/cmake/aarch64-hcc-toolchain.cmake
-                        -DOPEN_SOURCE_DIR=${ASCEND_3RD_LIB_PATH}
-                        -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
-                        -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
-                        -DINSTALL_LIBRARY_DIR=${INSTALL_LIBRARY_DIR}
-                        -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}
-                        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                        -DHI_PYTHON=${HI_PYTHON}
-                        -DENABLE_SIGN=${ENABLE_SIGN}
-                        -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
-                        -DVERSION_INFO=${VERSION_INFO}
-                        BUILD_ALWAYS TRUE)
-                add_dependencies(dflow-executor udf_device)
-            else ()
-                message(WARNING "ENV TOOLCHAIN_DIR is not defined, can't build udf device pkg!!!")
+        add_custom_target(dflow-executor)
+        add_dependencies(dflow-executor deployer_daemon npu_executor_main host_cpu_executor_main udf_dump
+                reader_writer udf_profiling flow_func built_in_flowfunc udf_executor)
+        if (DEFINED ENV{TOOLCHAIN_DIR})
+            message(STATUS $ENV{TOOLCHAIN_DIR})
+            set(TOOLCHAIN_DIR $ENV{TOOLCHAIN_DIR})
+            set(CHILD_INSTALL_DIR ${CMAKE_BINARY_DIR}/device_install)
+            cmake_print_variables(TOOLCHAIN_DIR ENABLE_SIGN CUSTOM_SIGN_SCRIPT)
+            if (NOT DEFINED TOP_DIR)
+                set(TOP_DIR ${CMAKE_SOURCE_DIR})
+                message(STATUS "TOP_DIR is not exists, set it to ${CMAKE_SOURCE_DIR}")
             endif ()
+            include(ExternalProject)
+            ExternalProject_Add(udf_device
+                    SOURCE_DIR ${CMAKE_SOURCE_DIR}/dflow/udf/cmake/device
+                    BINARY_DIR ${CMAKE_BINARY_DIR}/device_build
+                    CMAKE_ARGS
+                    -DTOP_DIR=${TOP_DIR}
+                    -DTOOLCHAIN_DIR=${TOOLCHAIN_DIR}
+                    -DCMAKE_INSTALL_PREFIX=${CHILD_INSTALL_DIR}
+                    -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/dflow/udf/cmake/aarch64-hcc-toolchain.cmake
+                    -DOPEN_SOURCE_DIR=${ASCEND_3RD_LIB_PATH}
+                    -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
+                    -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+                    -DINSTALL_LIBRARY_DIR=${INSTALL_LIBRARY_DIR}
+                    -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}
+                    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+                    -DHI_PYTHON=${HI_PYTHON}
+                    -DENABLE_SIGN=${ENABLE_SIGN}
+                    -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
+                    -DVERSION_INFO=${VERSION_INFO}
+                    BUILD_ALWAYS TRUE)
+            add_dependencies(dflow-executor udf_device)
+        else ()
+            message(WARNING "ENV TOOLCHAIN_DIR is not defined, can't build udf device pkg!!!")
         endif ()
 
         include(cmake/package.cmake)

@@ -62,10 +62,6 @@ checkopts() {
   VERBOSE=""
   THREAD_NUM=$(grep -c ^processor /proc/cpuinfo)
 
-  ENABLE_ENGINES_COMPILE="off"
-  ENABLE_GE_COMPILE="off"
-  ENABLE_DFLOW_COMPILE="off"
-  ENABLE_EXECUTOR_C_COMPILE="off"
   ENABLE_SIGN="off"
   CUSTOM_SIGN_SCRIPT=""
   VERSION_INFO="8.5.0"
@@ -208,10 +204,6 @@ make_package() {
   rm -rf ${BUILD_PATH}_CPack_Packages/makeself_staging/
   cmake -D BUILD_OPEN_PROJECT=True \
         -D ENABLE_OPEN_SRC=True \
-        -D ENABLE_GE_COMPILE=${ENABLE_GE_COMPILE} \
-        -D ENABLE_DFLOW_COMPILE=${ENABLE_DFLOW_COMPILE} \
-        -D ENABLE_ENGINES_COMPILE=${ENABLE_ENGINES_COMPILE} \
-        -D ENABLE_EXECUTOR_C_COMPILE=${ENABLE_EXECUTOR_C_COMPILE} \
         -D ENABLE_ASAN=${ENABLE_ASAN} \
         -D ENABLE_GCOV=${ENABLE_GCOV} \
         -D BUILD_METADEF=${BUILD_METADEF} \
@@ -242,6 +234,7 @@ build_pkg() {
     make_package "${BUILD_COMPONENT_EXECUTOR}" || { echo "Build Build ge-executor run package failed."; exit 1; }
   fi
   if [ "X$ENABLE_DFLOW_EXECUTOR_PKG" == "Xon" ]; then
+    TOOLCHAIN_DIR=${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc \
     make_package "${BUILD_COMPONENT_DFLOW}" || { echo "Build Build dflow-executor run package failed."; exit 1; }
   fi
 
@@ -251,16 +244,6 @@ build_pkg() {
 main() {
   cd "${BASEPATH}"
   checkopts "$@"
-
-  if [ "X$ENABLE_GE_COMPILE" != "Xon" ] && [ "X$ENABLE_ENGINES_COMPILE" != "Xon" ] && [ "X$ENABLE_EXECUTOR_C_COMPILE" != "Xon" ] && [ "X$ENABLE_DFLOW_COMPILE" != "Xon" ]; then
-    ENABLE_GE_COMPILE="on"
-    ENABLE_ENGINES_COMPILE="on"
-    ENABLE_DFLOW_COMPILE="on"
-  fi
-
-  if [ "X$ENABLE_DFLOW_COMPILE" == "Xon" ] && [[ -n "${ASCEND_INSTALL_PATH}" ]]; then
-      export TOOLCHAIN_DIR=${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc
-  fi
 
   env
   g++ -v
