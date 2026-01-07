@@ -1,12 +1,15 @@
-name: Question|问题咨询
+name: 💬 Question|问题咨询
 description: 如果您需要咨询或者讨论问题，请使用此模板。
 title: "[Question|问题咨询]: "
 labels: ["question"]
 body:
-  - type: markdown
+  - type: checkboxes
+    id: terms
     attributes:
-      value: |
-        Welcome to ask questions and discuss with other members.
+      label: 在您提交issue前，请确认以下信息：
+      options:
+        - label: 我已经搜索过[现有和历史issues](https://gitcode.com/cann/ge/issues)，确认这是一个新问题
+          required: true
   - type: textarea
     attributes:
       label: 问题描述
