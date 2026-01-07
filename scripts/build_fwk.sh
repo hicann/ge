@@ -420,15 +420,9 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
     fi
 
     if [[ "X$ENABLE_DFLOW_UT" = "Xon" ]]; then
-      cp -rf ${BUILD_PATH}/tests/dflow/runner/ut/ge/ut_libge_helper_utest ${OUTPUT_PATH}
-      cp -rf ${BUILD_PATH}/tests/dflow/flow_graph/ut/dflow/ut_flow_graph ${OUTPUT_PATH}
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_flow_graph --gtest_output=xml:${report_dir}/ut/ut_flow_graph.xml" && ${RUN_TEST_CASE} &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_libge_helper_utest --gtest_output=xml:${report_dir}/ut/ut_libge_helper_utest.xml" && ${RUN_TEST_CASE}
-      if [[ "$?" -ne 0 ]]; then
-        echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
-        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-        exit 1
-      fi
+      ctest --output-on-failure -j ${THREAD_NUM} -L ut -L ut_dflow --test-dir ${BUILD_PATH} --no-tests=error \
+              -O ${BUILD_PATH}/ctest_ut_dflow.log
+
       echo "---------------- Dflow Python UT Run Start ----------------"
       export PYDFLOW_SRC_PATH=${BASEPATH}/dflow/pydflow
       export PYDFLOW_TEST_PATH=${BUILD_PATH}/tests/dflow/pydflow
@@ -697,13 +691,6 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
     fi
 
     if [[ "X$ENABLE_DFLOW_ST" = "Xon" ]]; then
-      RUN_TEST_CASE="${BUILD_PATH}/tests/dflow/runner/st/testcase/helper_runtime_test --gtest_output=xml:${report_dir}/dflow/runner/st/helper_runtime_test.xml" && ${RUN_TEST_CASE}
-      if [[ "$?" -ne 0 ]]; then
-        echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
-        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
-        exit 1
-      fi
-
       echo "---------------- Dflow Python ST Run Start ----------------"
       export PYDFLOW_SRC_PATH=${BASEPATH}/dflow/pydflow
       export PYDFLOW_TEST_PATH=${BUILD_PATH}/tests/dflow/pydflow
@@ -720,6 +707,29 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
               -O ${BUILD_PATH}/ctest_st_dflow.log
       else
         echo "!!! mockcpp is not supported on LOCAL_ARCH=${LOCAL_ARCH}, Dflow udf st will not be run !!!"
+
+       # 创建临时文件保存每个测试的输出
+ 	       temp_output_helper_runtime_test="${OUTPUT_PATH}/.test_output_helper_runtime_test_$$.tmp"
+ 	 
+ 	       set -o pipefail
+ 	       RUN_TEST_CASE="${BUILD_PATH}/tests/dflow/runner/st/testcase/helper_runtime_test --gtest_output=xml:${report_dir}/st/helper_runtime_test.xml" && ${RUN_TEST_CASE}  | tee "${temp_output_helper_runtime_test}" 
+ 	       test_status=$?
+ 	       set +o pipefail
+ 	 
+ 	       # 给tee一点时间刷新缓冲区（段错误时可能需要）
+ 	       sleep 0.1
+ 	       
+ 	       # 保存测试信息到文件
+ 	       test_names=("helper_runtime_test")
+ 	       temp_files=("${temp_output_helper_runtime_test}")
+ 	       save_test_summary_to_file "test_names" "temp_files"
+ 	 
+ 	       # 检查测试是否失败（保持原来的逻辑）
+ 	       if [[ "${test_status}" -ne 0 ]]; then
+          echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
+          echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+          exit 1
+        fi
       fi
     fi
 

@@ -395,3 +395,7 @@ target_link_libraries(ut_libge_helper_utest
     GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lpthread -lgcov
     -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
 )
+
+
+add_test(NAME ut_libge_helper_utest COMMAND ut_libge_helper_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_helper_utest.xml)
+set_tests_properties(ut_libge_helper_utest PROPERTIES LABELS "ut;ut_dflow;ut_libge_helper_utest")
