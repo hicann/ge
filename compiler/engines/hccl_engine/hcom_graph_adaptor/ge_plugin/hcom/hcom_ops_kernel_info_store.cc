@@ -2926,6 +2926,10 @@ ge::Status HcomOpsKernelInfoStore::LoadTask(ge::GETaskInfo &task) {
     std::vector<hccl::HcclDumpInfo> hcclDumpInfo =
         std::vector<hccl::HcclDumpInfo>(hcclDumpInfoPtr, hcclDumpInfoPtr + len);
     SaveReduceDumpTask(task.kernelHcclInfo[0].hccl_dump_info, hcclDumpInfo);
+    if (hcclDumpInfoPtr != nullptr) {
+      free(hcclDumpInfoPtr);
+      hcclDumpInfoPtr = nullptr;
+    }
   }
 
   CHK_RET(HcomSetWorkflowMode(lastWorkflowMode));
