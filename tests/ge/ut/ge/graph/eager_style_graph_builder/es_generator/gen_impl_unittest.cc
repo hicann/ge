@@ -8,19 +8,17 @@
  * ===================================================================================================================*/
 
 #include <gtest/gtest.h>
-#include <experimental/filesystem>
 #include <string>
 #include <vector>
 #include "es_graph_builder.h"
 #include "es_tensor_holder.h"
 #include "graph/utils/node_adapter.h"
-#include "es_c_tensor_holder.h"
+#include "graph/utils/file_utils.h"
 #include "c_generator.h"
 #include "cpp_generator.h"
 #include "utils.h"
 #include "graph/op_desc.h"
 
-namespace fs = std::experimental::filesystem;
 namespace ge {
 namespace es {
 void GenEsImpl(const std::string &output_dir, const std::string &module_name, const std::string &h_guard_prefix,
@@ -44,9 +42,8 @@ class GenImplLLT : public ::testing::Test {
   }
 
   void TearDown() override {
-    if (fs::exists(test_output_dir_)) {
-      fs::remove_all(test_output_dir_);
-    }
+    const std::string command = "rm -rf " + test_output_dir_;
+    (void) std::system(command.c_str());
   }
 
   std::string test_output_dir_;
@@ -61,7 +58,7 @@ TEST_F(GenImplLLT, GeneratedFileStructure) {
   // 验证文件是否生成
   for (const auto &file : expected_files) {
     std::string file_path = test_output_dir_ + file;
-    EXPECT_TRUE(fs::exists(file_path)) << "File should exist: " << file_path;
+    EXPECT_FALSE(ge::RealPath(file_path.c_str()).empty()) << "File should exist: " << file_path;
   }
 }
 

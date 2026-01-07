@@ -29,6 +29,7 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/op_desc_utils_ex.h"
 #include "graph_builder_utils.h"
+#include "graph/utils/file_utils.h"
 #include "graph/ge_attr_value.h"
 #include "ge_ir.pb.h"
 #include "common/ge_common/ge_inner_error_codes.h"
@@ -36,11 +37,10 @@
 #include "graph/ascend_string.h"
 #include "graph/types.h"
 #include "graph/ge_context.h"
-
+#include "mmpa/mmpa_api.h"
 #include <debug/ge_attr_define.h>
 #include <dirent.h>
 #include <google/protobuf/text_format.h>
-#include "graph/utils/file_utils.h"
 #include "proto/onnx/ge_onnx.pb.h"
 using namespace ge;
 namespace {

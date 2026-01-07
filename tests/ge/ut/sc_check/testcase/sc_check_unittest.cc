@@ -8,33 +8,57 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include <gtest/gtest.h>
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
+#include <dirent.h>
+#include <sys/stat.h>
+#include <string>
+#include <unistd.h>
+
 namespace {
-void CountFilesAndDirs(const fs::path &path, int &max_cnt) {
+bool IsDirectory(const std::string &path) {
+  struct stat buffer;
+  return (stat(path.c_str(), &buffer) == 0 && S_ISDIR(buffer.st_mode));
+}
+
+bool IsRegularFile(const std::string &path) {
+  struct stat buffer;
+  return (stat(path.c_str(), &buffer) == 0 && S_ISREG(buffer.st_mode));
+}
+
+void CountFilesAndDirs(const std::string &path, int &max_cnt) {
   int file_count = 0;
   int dir_count = 0;
 
-  // 计算当前目录下的文件和子目录数量
-  for (const auto &entry : fs::directory_iterator(path)) {
-    if (fs::is_directory(entry.status())) {
+  DIR *dir = opendir(path.c_str());
+  if (dir == nullptr) {
+    return;
+  }
+
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+    std::string entry_path = path + "/" + entry->d_name;
+    if (IsDirectory(entry_path)) {
       dir_count++;
       // 递归调用以检查子目录
-      CountFilesAndDirs(entry.path(), max_cnt);
-    } else if (fs::is_regular_file(entry.status())) {
+      CountFilesAndDirs(entry_path, max_cnt);
+    } else if (IsRegularFile(entry_path)) {
       file_count++;
     }
   }
+  closedir(dir);
+
   const auto count = file_count + dir_count;
   if (count > 50) {
-    throw std::runtime_error("Directory " + path.string() +
+    throw std::runtime_error("Directory " + path +
                              " exceeds the limit of 50 files and directories number "
                              ":" +
                              std::to_string(count));
   }
   if (count > max_cnt) {
     max_cnt = count;
-    std::cout << path.string() << "/ with files and direct sub directories number is " << count << ", update max_cnt."
+    std::cout << path << "/ with files and direct sub directories number is " << count << ", update max_cnt."
               << std::endl;
   }
 }
@@ -47,22 +71,22 @@ namespace SC {
 TEST(FileCount, CheckFileCount) {
   int max_cnt = 0;
   // 待rts_engine整改后取消注释
-  // fs::path dir0(std::string(TOP_DIR).append("/compiler"));
+  // std::string dir0(std::string(TOP_DIR).append("/compiler"));
   // EXPECT_NO_THROW(CountFilesAndDirs(dir0, max_cnt));
 
-  fs::path dir1(std::string(TOP_DIR).append("/inc"));
+  std::string dir1(std::string(TOP_DIR).append("/inc"));
   EXPECT_NO_THROW(CountFilesAndDirs(dir1, max_cnt));
 
-  fs::path dir2(std::string(TOP_DIR).append("/parser"));
+  std::string dir2(std::string(TOP_DIR).append("/parser"));
   EXPECT_NO_THROW(CountFilesAndDirs(dir2, max_cnt));
 
-  fs::path dir3(std::string(TOP_DIR).append("/api/session"));
+  std::string dir3(std::string(TOP_DIR).append("/api/session"));
   EXPECT_NO_THROW(CountFilesAndDirs(dir3, max_cnt));
 
-  fs::path dir4(std::string(TOP_DIR).append("/runtime"));
+  std::string dir4(std::string(TOP_DIR).append("/runtime"));
   EXPECT_NO_THROW(CountFilesAndDirs(dir4, max_cnt));
 
-  fs::path dir5(std::string(TOP_DIR).append("/api/python"));
+  std::string dir5(std::string(TOP_DIR).append("/api/python"));
   EXPECT_NO_THROW(CountFilesAndDirs(dir5, max_cnt));
   std::cout << "max_cnt is " << max_cnt << std::endl;
 }

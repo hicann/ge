@@ -31,7 +31,6 @@ target_compile_definitions(ut_sc_check PRIVATE
 target_link_libraries(ut_sc_check PRIVATE
     -lgcov
     -Wl,--no-as-needed
-    -lstdc++fs
     GTest::gtest GTest::gtest_main -lrt -ldl
 )
 

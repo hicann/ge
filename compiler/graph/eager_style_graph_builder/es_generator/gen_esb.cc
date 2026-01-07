@@ -9,7 +9,8 @@
  */
 #include <iostream>
 #include <vector>
-#include <experimental/filesystem>
+#include "graph/utils/file_utils.h"
+#include "mmpa/mmpa_api.h"
 
 #include "ge_ir_collector.h"
 #include "utils.h"
@@ -18,8 +19,6 @@
 #include "py_generator.h"
 #include "c_generator.h"
 #include "cpp_generator.h"
-
-namespace fs = std::experimental::filesystem;
 namespace ge {
 namespace es {
 
@@ -202,15 +201,12 @@ void ProcessOutputDirectory(std::string &output_dir) {
   }
 
   // 检查输出目录是否存在，如果不存在则创建
-  fs::path output_path(output_dir);
-  if (!fs::exists(output_path)) {
-    try {
-      fs::create_directories(output_path);
-      std::cout << "Created output directory: " << output_dir << std::endl;
-    } catch (const fs::filesystem_error &e) {
+  if (mmAccess(output_dir.c_str()) != EN_OK) {
+    if (ge::CreateDir(output_dir) != 0) {
       std::cerr << "Error creating output directory: " << output_dir << std::endl;
-      std::cerr << "Error: " << e.what() << std::endl;
       output_dir = ge::es::kEsCodeGenDefaultOutputDir;
+    } else {
+      std::cout << "Created output directory: " << output_dir << std::endl;
     }
   }
 

@@ -45,13 +45,12 @@ target_link_libraries(gen_esb_impl PRIVATE
         error_manager
         geir_collector
         c_sec
-        -lstdc++fs
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
         )
 add_executable(gen_esb main.cc)
 target_compile_options(gen_esb PRIVATE ${AIR_COMMON_COMPILE_OPTION})
-target_link_libraries(gen_esb PRIVATE gen_esb_impl intf_pub cmd_flag_info_static metadef)
+target_link_libraries(gen_esb PRIVATE c_sec metadef  intf_pub cmd_flag_info_static gen_esb_impl)
 install(TARGETS gen_esb OPTIONAL
         RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR})
 

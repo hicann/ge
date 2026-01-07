@@ -62,6 +62,5 @@ target_link_libraries(ut_flow_graph PRIVATE
         flow_graph_protos_obj
         -Wl,--no-as-needed
         unified_dlog
-        -lstdc++fs
         GTest::gtest GTest::gtest_main -lrt -ldl
 )
