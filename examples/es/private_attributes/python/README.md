@@ -15,12 +15,11 @@ python/
 ## 3、使用方法
 
 ### 3.1、准备cann包
-- 通过安装指导 [环境准备](../../../../README.md)正确安装`toolkit`包
+- 通过安装指导 [环境准备](../../../../docs/build.md#2-安装软件包)正确安装`toolkit`和`ops`包
 - 设置环境变量 (假设包安装在/usr/local/Ascend/)
 ```
 source /usr/local/Ascend/cann/set_env.sh 
 ```
-- 通过[安装指导](https://gitcode.com/cann/ops-math/blob/master/docs/zh/context/quick_install.md)正确安装算子`ops`包 (ES依赖算子原型进行API生成), 并正确配置环境变量
 ### 3.2、编译和执行
 - 注：和 C/C++构图对比，Python构图需要额外添加 LD_LIBRARY_PATH 和 PYTHONPATH(参考sample中的配置方式)
 ```bash

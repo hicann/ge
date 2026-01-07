@@ -15,7 +15,7 @@
 ```
 
 ## 环境要求
-- 已完成[昇腾AI软件栈在开发环境上的部署](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)
+- 已完成[昇腾AI软件栈在开发环境上的部署](../../docs/build.md#2-安装软件包)
 
 ## 实现步骤
 1. 图构建：使用aclgrphParseTensorFlow解析模型文件，构建GE计算图。

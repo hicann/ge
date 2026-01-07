@@ -22,12 +22,13 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 
    - CMake >= 3.16.0 （建议使用3.20.0版本）
    - bash >= 5.1.16 
-   - ccache/asan/autoconf/automake/libtool/gperf/graph-easy(其中graph-easy可选)
+   - ccache/asan/autoconf/automake/libtool/gperf/lcov/libasan/patch/graph-easy(其中graph-easy可选)
 
      ```bash
      # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
      # asan以gcc 7.5.0版本为例安装的是libasan4，其他版本请安装对应版本asan
-     sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf libgraph-easy-perl
+     sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf
+     libgraph-easy-perl patch
      ```
 
    - python三方库依赖。

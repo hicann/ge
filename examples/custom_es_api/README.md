@@ -3,16 +3,15 @@
 该Sample旨在指导用户如何自定义ES API <br>
 **注:** Conv2D等算子在默认生成API中, 直接使用会有Format问题, 需要自行添加逻辑并生成自定义ES API(见 [Sample 1](#sample1))
 ## 快速开始
-1. 通过[安装指导](../../README.md)正确安装`toolkit`包, 并正确配置环境变量
-2. 通过[安装指导](https://gitcode.com/cann/ops-math/blob/master/docs/zh/context/quick_install.md)正确安装算子`ops`包 (ES依赖算子原型进行API生成), 并正确配置环境变量
-3. 通过命令`bash run_sample.sh` 运行脚本 [run_sample.sh](run_sample.sh)
+1. 通过[安装指导](../../docs/build.md#2-安装软件包)正确安装`toolkit`和`ops`包, 并正确配置环境变量
+2. 通过命令`bash run_sample.sh` 运行脚本 [run_sample.sh](run_sample.sh)
 
 ## 预期结果
 项目build目录下生成pbtxt格式dump图
 
 ## 实现步骤
 ### 步骤一. [可选] 生成ES API代码参考
-通过gen_esb可执行程序生成ES_API代码 (参考 [gen_esb_readme.md](../../docs/es/gen_esb_readme.md))
+通过gen_esb可执行程序生成ES_API代码 (参考 [gen_esb_readme.md](../../docs/es/tools/gen_esb.md))
 ### 步骤二. 自定义ES API代码
 参考步骤一生成的代码编写自定义API代码, 以下为代码样例
 - Sample 1. 合法性补全 Conv2D <a id="sample1"></a> <br>

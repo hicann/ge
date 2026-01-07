@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
     }
     int result = -1;
     if (es_showcase::MakeControlEdgeGraphByEsAndRun() == 0 ) {
-      result = 1;
+      result = 0;
     }
     ge::GEFinalize();
     std::cout << "执行结束" << std::endl;
