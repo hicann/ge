@@ -163,7 +163,7 @@ class DaemonServiceUnittest : public testing::Test {
   }
 
   static void SetConfigEnv(const std::string &path) {
-    std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data"});
+    std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
     std::string config_path = PathUtils::Join({data_path, path});
 
     setenv("HELPER_RES_FILE_PATH", config_path.c_str(), 1);
@@ -202,7 +202,7 @@ TEST_F(DaemonServiceUnittest, TestProcessInitServerRequest) {
     Configurations::GetInstance().information_ = information;
   });
   std::string path = PathUtils::Join(
-      {EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data/valid/server/numa_config2_with_auth.json"});
+      {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/valid/server/numa_config2_with_auth.json"});
   SetNumaConfigEnv(path);
   SubprocessManager::GetInstance().executable_paths_["deployer_daemon"] = "deployer_daemon";
   ge::DaemonService daemon_service;

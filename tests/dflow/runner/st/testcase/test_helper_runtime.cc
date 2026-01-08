@@ -1011,7 +1011,7 @@ cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/b
   }
 
   void SetUp() {
-    st_dir_path = PathUtils::Join({EnvPath().GetAirBasePath(), "/tests/ge/st/"});
+    st_dir_path = PathUtils::Join({EnvPath().GetAirBasePath(), "/tests/dflow/runner/st/"});
     hybrid::NodeExecutorManager::GetInstance().
         engine_mapping_.emplace("AiCoreLib", hybrid::NodeExecutorManager::ExecutorType::AICORE);
     hybrid::NodeExecutorManager::GetInstance().
@@ -1045,7 +1045,8 @@ cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/b
   }
 
   static void SetConfigEnv(const std::string &path) {
-    const std::string config_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/st/config_file", path});
+    const std::string config_path =
+        PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/st/config_file", path});
     char real_path[1024]{};
     realpath(config_path.c_str(), real_path);
     setenv("HELPER_RES_FILE_PATH", real_path, 1);

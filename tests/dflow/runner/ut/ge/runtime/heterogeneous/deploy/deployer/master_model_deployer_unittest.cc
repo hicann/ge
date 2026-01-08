@@ -745,8 +745,10 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithHelperResFilePath_Success) {
   printf("GetConfigDir %s\n", file_path.c_str());
 
   // 更改resource.json
+  std::string config_path = PathUtils::Join(
+  {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/host/resource.json"});
   char real_path_with_resource[200];
-  (void)realpath("../tests/ge/ut/ge/runtime/data/redeploy/host/resource.json", real_path_with_resource);
+  (void)realpath(config_path.c_str(), real_path_with_resource);
   std::vector<int> lineNumbers;
   for (int i = 17; i <= 17; i++) {
     lineNumbers.push_back(i);
@@ -805,9 +807,11 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithHelperResFilePath_Succes
   file_path = path + "/resource.json";
   printf("GetConfigDir %s\n", file_path.c_str());
 
+  std::string config_path = PathUtils::Join(
+        {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/host/resource.json"});
   // 更改resource.json
   char real_path_with_resource[200];
-  (void)realpath("../tests/ge/ut/ge/runtime/data/redeploy/host/resource.json", real_path_with_resource);
+  (void)realpath(config_path.c_str(), real_path_with_resource);
   std::vector<int> lineNumbers;
   for (int i = 17; i <= 17; i++) {
     lineNumbers.push_back(i);
@@ -870,8 +874,10 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_Success) {
   printf("GetConfigDir %s\n", file_path.c_str());
   // 更改numa_config.json
   dlog_setlevel(0, 0, 0);
+  std::string config_path = PathUtils::Join(
+    {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/server/numa_config.json"});
   char real_path[200];
-  realpath("../tests/ge/ut/ge/runtime/data/redeploy/server/numa_config.json", real_path);
+  realpath(config_path.c_str(), real_path);
   std::vector<int> lineNumbers = {45, 46, 47, 48, 49};
   DeleteLines(real_path, lineNumbers);
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
@@ -944,8 +950,10 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithMulRootModel_Success) {
   printf("GetConfigDir %s\n", file_path.c_str());
   // 更改numa_config.json
   dlog_setlevel(0, 0, 0);
+  std::string config_path = PathUtils::Join(
+    {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/server/numa_config.json"});
   char real_path[200];
-  realpath("../tests/ge/ut/ge/runtime/data/redeploy/server/numa_config.json", real_path);
+  realpath(config_path.c_str(), real_path);
   std::vector<int> lineNumbers = {45, 46, 47, 48, 49};
   DeleteLines(real_path, lineNumbers);
   CreateRedeployFile(real_path);
@@ -990,8 +998,10 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_FAILED) {
   file_path = path + "/resource.json";
   printf("GetConfigDir %s\n", file_path.c_str());
   // 更改numa_config.json
+  std::string config_path = PathUtils::Join(
+    {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/server/numa_config.json"});
   char real_path[200];
-  (void)realpath("../tests/ge/ut/ge/runtime/data/redeploy/server/numa_config.json", real_path);
+  (void)realpath(config_path.c_str(), real_path);
   std::vector<int> lineNumbers = {45, 46, 47, 48, 49};
   DeleteLines(real_path, lineNumbers);
   CreateRedeployFile(real_path);
@@ -1336,7 +1346,7 @@ TEST_F(MasterModelDeployerTest, TestIsReployFileGeneratedThenRemove) {
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
   std::string file_path1 = "resource.json";
   ASSERT_EQ(model_deployer.abnormal_status_handler_.IsReployFileGeneratedThenRemove(file_path1), false);
-  std::string file_path2 = "air_dataflow/tests/ge/ut/ge/runtime/data/redeploy/server/";
+  std::string file_path2 = "this_is_a_not_exist_dir/redeploy/server/";
   ASSERT_EQ(model_deployer.abnormal_status_handler_.IsReployFileGeneratedThenRemove(file_path2), false);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }

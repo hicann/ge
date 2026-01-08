@@ -1,9 +1,0 @@
-{
-  "deviceId":0,
-  "ipaddr":"127.0.0.1",
-  "port":50005,
-  "caFile":"ca.pem",
-  "File":"ca.pem",
-  "keyFile":"client.key",
-  "certFile":"client.pem"
-}

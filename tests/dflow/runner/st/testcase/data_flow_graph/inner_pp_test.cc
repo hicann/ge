@@ -296,7 +296,7 @@ protected:
     ExecutionRuntime::instance_ = ge::MakeShared<ExecutionRuntimeMock>();
     PrepareForUdf();
     ReInitGe();
-    std::string st_dir_path = ge::PathUtils::Join({ge::EnvPath().GetAirBasePath(), "/tests/st/"});
+    std::string st_dir_path = ge::PathUtils::Join({ge::EnvPath().GetAirBasePath(), "/tests/dflow/runner/st/"});
     auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config.json";
     setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   }

@@ -1,9 +1,0 @@
-{
-  "deviceId":8888,
-      "ipaddr":"192.168.1.30",
-      "port":2509,
-      "token":"xxxxxxx",
-      "caFile":"./ca.pem",
-      "keyFile":"./client.key",
-      "certFile":"./client.pem","xxxxx"
-}

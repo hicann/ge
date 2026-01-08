@@ -8,9 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-#MESSAGE("copy partition ut run data from ${AIR_CODE_DIR}/tests/ge/ut/ge/partition/data to ${CMAKE_CURRENT_BINARY_DIR}/")
-#file(COPY ${AIR_CODE_DIR}/tests/ge/ut/ge/partition/data DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
-
 set(PROTO_LIST
     "${METADEF_PROTO_DIR}/om.proto"
     "${METADEF_PROTO_DIR}/ge_ir.proto"

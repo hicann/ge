@@ -38,7 +38,7 @@ class UtConfigurations : public testing::Test {
   }
 
   static void SetConfigEnv(const char *env_name, const std::string &path) {
-    std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data"});
+    std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
     std::string config_path = PathUtils::Join({data_path, path});
     setenv(env_name, config_path.c_str(), 1);
   }

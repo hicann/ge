@@ -136,7 +136,6 @@ class FlowModelBuilderTest : public testing::Test {
     (void)system(cmd.c_str());
   }
   const std::string run_data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/st/st_run_data/"});
-  const std::string partition_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/partition/data/"});
 };
 
 namespace {

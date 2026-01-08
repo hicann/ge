@@ -73,7 +73,7 @@ void HeterogeneousStubEnv::SetupAIServerEnv() {
 
 void HeterogeneousStubEnv::LoadAIServerHostConfig(const string &path) {
   Configurations::GetInstance().information_ = DeployerConfig{};
-  std::string config_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data", path});
+  std::string config_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data", path});
   setenv("RESOURCE_CONFIG_PATH", config_path.c_str(), 1);
   EXPECT_EQ(Configurations::GetInstance().InitHostInformation(), SUCCESS);
 }
@@ -90,7 +90,7 @@ void HeterogeneousStubEnv::ClearEnv() {
 
 void HeterogeneousStubEnv::LoadHostConfig(const string &path) {
   Configurations::GetInstance().information_ = DeployerConfig{};
-  std::string config_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data", path});
+  std::string config_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data", path});
   setenv("HELPER_RES_FILE_PATH", config_path.c_str(), 1);
   EXPECT_EQ(Configurations::GetInstance().InitHostInformation(), SUCCESS);
 }

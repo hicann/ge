@@ -44,7 +44,7 @@ class UtConfigParser : public testing::Test {
   void TearDown() override {
     MmpaStub::GetInstance().Reset();
   }
-  const std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data"});
+  const std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
 };
 
 TEST_F(UtConfigParser, parse_server_info_success) {

@@ -126,7 +126,7 @@ class ModelDeployerDaemonTest : public testing::Test {
  protected:
   void SetUp() override {
     std::string real_path =
-        PathUtils::Join({EnvPath().GetAirBasePath(), "/tests/ge/st/st_run_data/json/helper_runtime/device"});
+        PathUtils::Join({EnvPath().GetAirBasePath(), "/tests/dflow/runner/st/st_run_data/json/helper_runtime/device"});
     setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
     // clear options
     std::map<std::string, std::string> empty_options;

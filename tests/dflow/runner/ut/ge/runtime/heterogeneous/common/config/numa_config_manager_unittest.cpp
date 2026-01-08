@@ -38,7 +38,7 @@ class UtNumaConfigManager : public testing::Test {
   void TearDown() override {
     MmpaStub::GetInstance().Reset();
   }
-  const std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/ge/ut/ge/runtime/data"});
+  const std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
 };
 
 TEST_F(UtNumaConfigManager, init_server_numa_config_success) {
