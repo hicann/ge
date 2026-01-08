@@ -14,13 +14,7 @@ endif ()
 
 include(ExternalProject)
 
-if (CANN_PKG)
-    set(REQ_URL "${CANN_PKG}/libs/ge_nlohmann_json/v3.11.2/include.zip")
-elseif (ENABLE_GITHUB)
-    set(REQ_URL "https://github.com/nlohmann/json/releases/download/v3.11.2/include.zip")
-else ()
-    set(REQ_URL "https://gitee.com/mirrors/JSON-for-Modern-CPP/repository/archive/v3.11.2.zip")
-endif ()
+set(REQ_URL "https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/json-3.11.3.tar.gz")
 
 ExternalProject_Add(json_build
                     URL ${REQ_URL}

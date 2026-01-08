@@ -14,11 +14,7 @@ endif ()
 
 include(ExternalProject)
 
-if (CANN_PKG)
-    set(REQ_URL "${CANN_PKG}/libs/symengine/v0.10.1.zip")
-else ()
-    set(REQ_URL "https://gitee.com/mirrors/SymEngine/repository/archive/v0.10.1.zip")
-endif ()
+set(REQ_URL "https://gitcode.com/cann-src-third-party/symengine/releases/download/v0.12.0/symengine-0.12.0.tar.gz")
 
 set(SYMENGINE_CXXFLAGS  "--std=c++14  -O2 -fPIC -fstack-protector-all -Wl,-z,relro,-z,now,-z,noexecstack -s -D_FORTIFY_SOURCE=2 -Wno-maybe-uninitialized -Wno-unused-parameter -D_GLIBCXX_USE_CXX11_ABI=0 -Wl,-Bsymbolic")
 

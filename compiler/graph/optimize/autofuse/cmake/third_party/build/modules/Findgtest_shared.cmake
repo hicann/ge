@@ -14,13 +14,7 @@ endif ()
 
 include(ExternalProject)
 
-if (CANN_PKG)
-    set(REQ_URL "${CANN_PKG}/libs/ge_gtest/release-1.11.0.tar.gz")
-elseif (ENABLE_GITHUB)
-    set(REQ_URL "https://github.com/google/googletest/archive/release-1.11.0.tar.gz")
-else ()
-    set(REQ_URL "https://gitee.com/mirrors/googletest/repository/archive/release-1.11.0.tar.gz")
-endif ()
+set(REQ_URL "https://gitcode.com/cann-src-third-party/googletest/releases/download/v1.14.0/googletest-1.14.0.tar.gz")
 
 set (gtest_CXXFLAGS "-D_GLIBCXX_USE_CXX11_ABI=0 -D_FORTIFY_SOURCE=2 -fPIC -fstack-protector-all -Wl,-z,relro,-z,now,-z,noexecstack")
 set (gtest_CFLAGS   "-D_GLIBCXX_USE_CXX11_ABI=0 -D_FORTIFY_SOURCE=2 -fPIC -fstack-protector-all -Wl,-z,relro,-z,now,-z,noexecstack")

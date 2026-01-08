@@ -14,12 +14,7 @@ endif ()
 
 include(ExternalProject)
 
-if (CANN_PKG)
-    set(REQ_URL "${CANN_PKG}/libs/boost/boost_1_82_0.tar.gz")
-else ()
-    set(REQ_URL "https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.tar.gz")
-endif ()
-
+set(REQ_URL "https://gitcode.com/cann-src-third-party/boost/releases/download/v1.87.0/boost_1_87_0.tar.gz")
 
 ExternalProject_Add(boost_build
         URL ${REQ_URL}
