@@ -392,6 +392,7 @@ int main(int argc, char *argv[]) {
   const std::string model_type = "TensorFlow";
   ModelConfig cfg = BuildDCNV2Config(model_path, model_type, args.batchSize);
   ge::Status status = RunInference(cfg, args.runs, args.multiInstanceNum, args.enableBatchH2D, args.aiCoreNum);
+  aclFinalize();
   if (status != ge::SUCCESS) {
     std::cerr << "RunInference failed" << std::endl;
     return EXIT_FAILURE;
