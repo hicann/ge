@@ -6,9 +6,10 @@ set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
 if (DEFINED ENV{ASCEND_HOME_PATH})
     set(ASCEND_PATH $ENV{ASCEND_HOME_PATH})
 else ()
-    set(ASCEND_PATH /usr/local/Ascend/ascend-toolkit/latest)
+    set(ASCEND_PATH /usr/local/Ascend/cann) # 可根据实际修改
 endif ()
 
+set(PASS_SO_DIR pass_so_dir) # 可根据实际修改
 set(INCLUDE_DIR ${ASCEND_PATH}/include)
 aux_source_directory(${PROJECT_SOURCE_DIR}/src SRC_LIST)
 
@@ -66,3 +67,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 add_dependencies(${PROJECT_NAME} esb_generated_shared)
+install(TARGETS ${PROJECT_NAME}
+        LIBRARY DESTINATION ${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes
+)

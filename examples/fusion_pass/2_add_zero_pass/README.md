@@ -52,6 +52,8 @@
 
    - ASCEND_PATH：可以设置默认的软件包路径，如果通过set_env.sh设置了`$ASCEND_HOME_PATH`，无需修改。
 
+   - PASS_SO_DIR：可以设置自定义融合pass动态库安装目录名，默认为`pass_so_dir`。
+
    - target_include_directories：需要包含的头文件，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加头文件时，在示例下方直接增加行即可，注意不要删除原有项目。如果网络中有自定义算子，请增加自定义算子的原型定义头文件。
 
    - target_link_libraries：需要链接的库，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加链接库时，在示例下方直接增加行即可，注意不要删除原有项目。
@@ -83,10 +85,10 @@
    cp gen_es_api/libesb_generated_shared.so ${ASCEND_PATH}/aarch64-linux/lib64
    ```
 
-5. 执行如下命令编译自定义pass so，并将编译后的动态库文件libadd_zero_pass.so拷贝到自定义融合pass目录下，其中“xxx”为用户自定义目录。
+5. 执行make命令编译自定义pass so，成功编译后通过make install将动态库文件libadd_zero_pass.so安装到自定义融合pass目录下。
    ```
    make
-   cp ./libadd_zero_pass.so ${ASCEND_PATH}/opp/vendors/xxx/custom_fusion_passes/libadd_zero_pass.so
+   make install
    ```
 
 ## 程序运行
