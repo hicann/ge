@@ -1,11 +1,13 @@
-# ES (Eager Style) Graph Builder Code Generator
+# ES (Eager Style) Code Generator
 ## 前置要求
-1. 通过[安装指导](../../build.md)正确安装`toolkit`包，并正确配置环境变量
-2. 通过[安装指导](../../build.md)正确安装算子`ops`包（ES 依赖算子原型进行 API 生成），并正确配置环境变量
+1. 通过[安装指导](../../build.md#2-安装软件包)正确安装`toolkit`包，并按照指导**正确配置环境变量**
+2. 通过[安装指导](../../build.md#2-安装软件包)正确安装算子`ops`包（ES 依赖算子原型进行 API 生成），并按照指导**正确配置环境变量**
 ## 环境变量要求
-注：环境变量在前置要求中已经被配置，仅列出 gen_esb 所需环境变量列表
+gen_esb 所需环境变量列表：
 - ASCEND_OPP_PATH: 指向安装目录下的opp路径
 - LD_LIBRARY_PATH: 指定动态链接库搜索路径的环境变量
+
+注：上述环境变量无需也不推荐单独配置，默认[前置要求](#前置要求)中已经配置过的环境变量即满足要求
 
 ## 功能说明
 ### 本程序用于生成 ES 图构建器的 C、C++、Python 代码，包括：
@@ -16,8 +18,8 @@
 - 聚合Python文件，方便用户一次性导入所有算子
  
 ## 使用方法
-### `./gen_esb [--output_dir=DIR] [--module_name=NAME] [--h_guard_prefix=PREFIX] [--exclude_ops=OP_TYPE1,OP_TYPE2]`
-
+### `gen_esb [--output_dir=DIR] [--module_name=NAME] [--h_guard_prefix=PREFIX] [--exclude_ops=OP_TYPE1,OP_TYPE2]`
+注：因为[前置要求](#前置要求)中已经配置过环境变量，此时`gen_esb`已经被添加到了`PATH`环境变量中，因此可直接执行
 ### 参数说明
 - --output_dir：可选参数，指定代码生成的目标目录
   如果不指定，默认输出到当前目录
@@ -43,22 +45,22 @@
  
 ## 使用示例
 ### 生成到当前目录，使用默认模块名"all"，默认保护宏前缀
-`./gen_esb`
+`gen_esb`
  
 ### 生成到指定目录，使用默认模块名"all"，默认保护宏前缀
-`./gen_esb --output_dir=./output`
+`gen_esb --output_dir=./output`
  
 ### 生成到指定目录，使用"math"模块名，默认保护宏前缀
-`./gen_esb --output_dir=./output --module_name=math`
+`gen_esb --output_dir=./output --module_name=math`
  
 ### 生成到指定目录，使用"all"模块名，默认保护宏前缀
-`./gen_esb --output_dir=./output --module_name=all`
+`gen_esb --output_dir=./output --module_name=all`
  
 ### 生成到指定目录，使用"math"模块名，自定义保护宏前缀"MY_CUSTOM"
-`./gen_esb --output_dir=./output --module_name=math --h_guard_prefix=MY_CUSTOM`
+`gen_esb --output_dir=./output --module_name=math --h_guard_prefix=MY_CUSTOM`
 
 ### 生成到指定目录，使用"math"模块名，自定义保护宏前缀"MY_CUSTOM"，并排除 Add 算子生成
-`./gen_esb --output_dir=./output --module_name=math --h_guard_prefix=MY_CUSTOM --exclude_ops=Add`
+`gen_esb --output_dir=./output --module_name=math --h_guard_prefix=MY_CUSTOM --exclude_ops=Add`
 
 ## 检查环境变量
 `echo $ASCEND_OPP_PATH`
