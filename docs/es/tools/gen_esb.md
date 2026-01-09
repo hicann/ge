@@ -62,11 +62,9 @@ gen_esb 所需环境变量列表：
 ### 生成到指定目录，使用"math"模块名，自定义保护宏前缀"MY_CUSTOM"，并排除 Add 算子生成
 `gen_esb --output_dir=./output --module_name=math --h_guard_prefix=MY_CUSTOM --exclude_ops=Add`
 
-## 检查环境变量
-`echo $ASCEND_OPP_PATH`
  
 ## 注意事项
-1. 确保ASCEND_OPP_PATH环境变量已正确设置
+1. 确保[环境变量](#环境变量要求)已正确设置
 2. 确保有足够的磁盘空间存储生成的代码文件
 3. 生成的代码文件数量取决于系统中注册的算子数量
 4. 保护宏前缀应该以大写字母和下划线组成，避免与C++关键字冲突
