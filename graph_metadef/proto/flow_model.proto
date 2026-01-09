@@ -50,8 +50,6 @@ message ModelRelationDef {
     repeated string output_endpoint_name = 3;
     repeated string external_input_queue_name = 4;
     repeated string external_output_queue_name = 5;
-    repeated string event_input_name = 6;
-    repeated string event_output_name = 7;
     repeated string invoke_model_key = 8;
   }
 
@@ -110,28 +108,9 @@ message FlowModelDef {
   message EschedPriority {
     map<string, int32> esched_priority = 1;
   }
-  message RankIds {
-    repeated uint32 rank_id = 1;
-  }
-  message HcomClusterDef {
-    string name = 1;
-    string rank_table = 2;
-    map<string, RankIds> group_name_to_rank_ids = 3;
-    map<string, RankIds> device_to_rank_ids = 4;
-  }
-  message ModelClusterRankId {
-    string model_name = 1;
-    string cluster_name = 2;
-    uint32 rank_id = 3;
-  }
   string model_name = 1;
   ModelRelationDef relation = 2;
   repeated string submodel_name = 3;
   map<string, EschedPriority> models_esched_priority = 4;
-  map<string, uint32> model_name_to_rank_id = 6;
-  map<string, RankIds> group_name_to_rank_ids = 5;
-  map<string, RankIds> device_to_rank_ids = 7;
   CompileResource compile_resource = 8;
-  repeated HcomClusterDef hcom_cluster_defs = 9;
-  repeated ModelClusterRankId model_cluster_rank_ids = 10;
 }

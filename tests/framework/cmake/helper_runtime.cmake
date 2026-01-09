@@ -66,7 +66,6 @@ set(HELPER_RUNTIME_SRC
     ${AIR_CODE_DIR}/dflow/deployer/deploy/resource/device_info.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/resource/node_info.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/resource/heterogeneous_deploy_planner.cc
-    ${AIR_CODE_DIR}/dflow/deployer/deploy/resource/rank_deploy_planner.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/resource/resource_allocator.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/resource/resource_manager.cc
     ${AIR_CODE_DIR}/dflow/deployer/executor/cpu_id_resource_manager.cc

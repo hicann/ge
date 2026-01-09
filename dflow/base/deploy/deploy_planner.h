@@ -155,12 +155,6 @@ class DeployPlan {
     std::vector<int32_t> fetch_queue_indices;
   };
 
-  struct RankInfo {
-    bool deploy_with_rank = false;
-    uint32_t rank_id;
-    std::string hcom_cluster_name;
-  };
-
   enum class ProcessMode {
     kProcess,
     kThread
@@ -182,7 +176,6 @@ class DeployPlan {
     int32_t process_id = 0;
     DeviceInfo device_info;
     DeviceInfo queue_device_info;
-    RankInfo rank_info;
     LoadInfo load_info;
     PneModelPtr model;
     std::vector<int32_t> input_queue_indices;
@@ -243,10 +236,6 @@ class DeployPlan {
   std::map<std::string, SubmodelInfo> &MutableSubmodels();
   const std::map<int32_t, std::vector<int32_t>> &GetGroups() const;
   bool IsGroupEndpoint(const int32_t queue_index) const;
-  const std::vector<HcomCommGroup> &GetCommGroups(const std::string &hcom_cluster_name) const;
-  void AddCommGroup(const std::string &hcom_cluster_name, const HcomCommGroup &comm_group);
-  void AddHcomRankTable(const std::string &name, const std::string &rank_table);
-  const std::string &GetHcomRankTable(const std::string &hcom_cluster_name) const;
   const DynamicSchedPlan &GetDynamicSchedPlan() const;
   void SetIsDynamicSched(const bool is_dynamic_sched);
   const bool &GetIsDynamicSched() const;
@@ -269,8 +258,6 @@ class DeployPlan {
   std::map<int32_t, std::vector<int32_t>> groups_;
   std::map<std::string, int32_t> groups_key_to_idx_;
   std::vector<QueueInfo> group_entries_;
-  std::map<std::string, std::vector<HcomCommGroup>> cluster_name_to_comm_groups_;
-  std::map<std::string, std::string> cluster_name_to_rank_table_;
   DynamicSchedPlan dynamic_sched_plan_;
   bool is_dynamic_sched_ = false;
   bool enable_exception_catch_ = false;

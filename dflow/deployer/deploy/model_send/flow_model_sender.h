@@ -65,14 +65,6 @@ class FlowModelSender {
       std::map<int32_t, std::map<uint64_t, std::map<OpDescPtr, std::set<int32_t>>>> &node_need_transfer_memory,
       std::map<int32_t, std::set<int32_t>> &device_ids);
 
-  Status GetVarManagerAndSendToRemote(
-      const std::map<int32_t, std::set<int32_t>> &device_ids,
-      const std::map<int32_t, std::set<uint64_t>> &sessions,
-      const std::map<int32_t, std::map<uint64_t, std::map<OpDescPtr, std::set<int32_t>>>> &node_need_transfer_memory);
-
-  static Status TransferVarManager(const std::map<int32_t, std::set<int32_t>> &device_ids,
-                                   const std::map<int32_t, std::set<uint64_t>> &sessions);
-
   Status TransferFileConstants(
       const std::map<int32_t, std::set<int32_t>> &device_ids,
       const std::map<int32_t, std::map<uint64_t, std::map<OpDescPtr, std::set<int32_t>>>> &node_need_transfer_memory);
@@ -102,9 +94,6 @@ class FlowModelSender {
       const DeployPlan::DeviceInfo &target_device,
       std::vector<deployer::SubmodelDesc> &submodel_descs,
       deployer::DeployerRequest &request);
-  static Status SetHcomClusterInfo(const DeployState &deploy_state,
-                                   const std::vector<deployer::SubmodelDesc> &submodel_descs,
-                                   deployer::UpdateDeployPlanRequest *update_deploy_plan_request);
   static void AddDynamicSchedInfo(const DeployState &deploy_state, const std::string &model_instance_name,
                                   deployer::SubmodelDesc &submodel_desc);
   static Status BuildSubmodelDescs(const DeployState &deploy_state,
@@ -115,8 +104,6 @@ class FlowModelSender {
 
   static bool CacheLocalModel(const DeployPlan::SubmodelInfo &submodel);
 
-  static Status GetHcomClusterName(const std::vector<deployer::SubmodelDesc> &submodel_descs,
-                                   std::string &hcom_cluster_name);
   static Status GetOpFileInfo(const OpDescPtr &op_desc,
                               const std::map<std::string, std::string> &file_id_to_path,
                               std::string &file_path,

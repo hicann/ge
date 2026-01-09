@@ -422,7 +422,6 @@ Status FlowModelBuilder::MergeDataFlowLoadedModel(const DataFlowGraph &data_flow
   for (const auto &loaded_model_pair : data_flow_graph.GetAllLoadedModels()) {
     const auto &graph_name = loaded_model_pair.first;
     const auto &sub_flow_model = loaded_model_pair.second;
-    GE_CHK_STATUS_RET(flow_model->MergeHcomClusterInfo(*sub_flow_model), "Failed to merge hcom cluster info");
     // if model is invoked, the invoked key will be not empty.
     const auto &invoked_key = data_flow_graph.GetInvokedGraphKey(graph_name);
     if (invoked_key.empty()) {
@@ -449,7 +448,6 @@ Status FlowModelBuilder::PostProcessSubFlowModel(const DataFlowGraph &data_flow_
                                                  const ComputeGraphPtr &subgraph, const FlowModelPtr &sub_flow_model) {
   const std::string graph_name = subgraph->GetName();
   GE_CHECK_NOTNULL(sub_flow_model);
-  GE_CHK_STATUS_RET(flow_model->MergeHcomClusterInfo(*sub_flow_model), "Failed to merge hcom cluster info");
   std::string pne_id = PNE_ID_NPU;
   (void)AttrUtils::GetStr(subgraph, ATTR_NAME_PROCESS_NODE_ENGINE_ID, pne_id);
   if (pne_id == PNE_ID_UDF) {

@@ -648,13 +648,6 @@ Status FlowModelSender::BuildSubmodelDescs(
         submodel_desc.set_process_mode(static_cast<int32_t>(submodel_info.load_info.process_mode));
         submodel_desc.set_load_mode(static_cast<int32_t>(submodel_info.load_info.load_mode));
         submodel_desc.set_phy_device_id(submodel_info.device_info.GetProxyDeviceId());
-        if (submodel_info.rank_info.deploy_with_rank) {
-          submodel_desc.set_rank_id(std::to_string(submodel_info.rank_info.rank_id));
-          submodel_desc.set_hcom_cluster_name(submodel_info.rank_info.hcom_cluster_name);
-          GELOGI("Model [%s] will deploy with rank, cluster name = %s",
-                 submodel_desc.model_name().c_str(),
-                 submodel_desc.hcom_cluster_name().c_str());
-        }
         if (input_align_attrs.align_max_cache_num > 0) {
           auto *proto_input_align_attrs = submodel_desc.mutable_input_align_attrs();
           proto_input_align_attrs->set_align_max_cache_num(input_align_attrs.align_max_cache_num);
@@ -763,7 +756,6 @@ Status FlowModelSender::BuildUpdateDeployPlanRequest(
     deployer::DeployerRequest &request) {
   request.set_type(deployer::kUpdateDeployPlan);
   auto update_deploy_plan_request = request.mutable_update_deploy_plan_request();
-  GE_CHK_STATUS_RET_NOLOG(SetHcomClusterInfo(deploy_state, submodel_descs, update_deploy_plan_request));
   update_deploy_plan_request->set_graph_id(deploy_state.GetGraphId());
   update_deploy_plan_request->set_device_id(target_device.GetDeviceId());
   update_deploy_plan_request->set_device_type(target_device.GetType());
@@ -782,49 +774,6 @@ Status FlowModelSender::BuildUpdateDeployPlanRequest(
   }
 
   BuildDeployPlanOptions(deploy_state, *update_deploy_plan_request);
-  return SUCCESS;
-}
-
-Status FlowModelSender::SetHcomClusterInfo(const DeployState &deploy_state,
-                                           const std::vector<deployer::SubmodelDesc> &submodel_descs,
-                                           deployer::UpdateDeployPlanRequest *update_deploy_plan_request) {
-  std::string hcom_cluster_name;
-  GE_CHK_STATUS_RET_NOLOG(GetHcomClusterName(submodel_descs, hcom_cluster_name));
-  if (hcom_cluster_name.empty()) {
-    return SUCCESS;
-  }
-
-  // set group info
-  const auto &comm_groups = deploy_state.GetDeployPlan().GetCommGroups(hcom_cluster_name);
-  for (const auto &comm_group : comm_groups) {
-    auto new_group = update_deploy_plan_request->add_comm_groups();
-    new_group->set_group_name(comm_group.group_name);
-    new_group->mutable_group_rank_list()->Add(comm_group.group_rank_list.begin(),
-                                              comm_group.group_rank_list.end());
-    GELOGD("Add group:%s, group rank list:%s.",
-           comm_group.group_name.c_str(), ToString(comm_group.group_rank_list).c_str());
-  }
-
-  const auto &rank_table = deploy_state.GetDeployPlan().GetHcomRankTable(hcom_cluster_name);
-  GE_CHK_BOOL_RET_STATUS(!rank_table.empty(),
-                         FAILED, "rank table is empty, hcom_cluster_name = %s",
-                         hcom_cluster_name.c_str());
-  update_deploy_plan_request->set_hcom_rank_table(rank_table);
-  GELOGD("hcom_cluster_name = %s, rank table = %s", hcom_cluster_name.c_str(), rank_table.c_str());
-  return SUCCESS;
-}
-
-Status FlowModelSender::GetHcomClusterName(const std::vector<deployer::SubmodelDesc> &submodel_descs,
-                                           std::string &hcom_cluster_name) {
-  std::set<std::string> hcom_cluster_names;
-  for (const auto &submodel_desc : submodel_descs) {
-    hcom_cluster_names.emplace(submodel_desc.hcom_cluster_name());
-  }
-  hcom_cluster_names.erase("");
-  GE_CHK_BOOL_RET_STATUS(hcom_cluster_names.size() <= 1U,
-                         UNSUPPORTED,
-                         "Multiple hcom cluster in one device is not supported");
-  hcom_cluster_name = hcom_cluster_names.empty() ? "" : *hcom_cluster_names.cbegin();
   return SUCCESS;
 }
 

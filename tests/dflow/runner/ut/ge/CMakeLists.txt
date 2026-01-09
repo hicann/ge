@@ -135,7 +135,6 @@ set(HELPER_RUNTIME_SRC_FILES
         "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/node_info.cc"
         "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/resource_allocator.cc"
         "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/resource_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/deploy/resource/rank_deploy_planner.cc"
         "${AIR_CODE_DIR}/dflow/deployer/deploy/rpc/deployer_client.cc"
         "${AIR_CODE_DIR}/dflow/deployer/deploy/rpc/deployer_server.cc"
         "${AIR_CODE_DIR}/dflow/deployer/executor/cpu_id_resource_manager.cc"
@@ -234,7 +233,6 @@ SET(HELPER_RUNTIME_TEST_FILES
     runtime/heterogeneous/deploy/model_send/flow_model_sender_unittest.cc
     runtime/heterogeneous/deploy/resource/deployer_port_distributor_unittest.cc
     runtime/heterogeneous/deploy/resource/heterogeneous_deploy_planner_unittest.cc
-    runtime/heterogeneous/deploy/resource/rank_deploy_planner_unittest.cc
     runtime/heterogeneous/deploy/resource/resource_manager_unittest.cc
     runtime/heterogeneous/deploy/rpc/deployer_client_unittest.cc
     runtime/heterogeneous/deploy/heterogeneous_execution_runtime_unittest.cc

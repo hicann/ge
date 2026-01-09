@@ -117,7 +117,6 @@ set(HELPER_RESOURCE_MANAGER_SRC_LIST
         deploy/resource/device_info.cc
         deploy/resource/heterogeneous_deploy_planner.cc
         deploy/resource/node_info.cc
-        deploy/resource/rank_deploy_planner.cc
         deploy/resource/resource_allocator.cc
         deploy/resource/resource_manager.cc
         )

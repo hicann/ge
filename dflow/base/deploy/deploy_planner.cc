@@ -109,29 +109,6 @@ bool DeployPlan::IsGroupEndpoint(const int32_t queue_index) const {
   return groups_.find(queue_index) != groups_.end();
 }
 
-const std::vector<HcomCommGroup> &DeployPlan::GetCommGroups(const std::string &hcom_cluster_name) const {
-  static const std::vector<HcomCommGroup> kEmpty;
-  const auto it = cluster_name_to_comm_groups_.find(hcom_cluster_name);
-  if (it != cluster_name_to_comm_groups_.cend()) {
-    return it->second;
-  }
-  return kEmpty;
-}
-
-void DeployPlan::AddCommGroup(const std::string &hcom_cluster_name, const HcomCommGroup &comm_group) {
-  cluster_name_to_comm_groups_[hcom_cluster_name].emplace_back(comm_group);
-}
-
-void DeployPlan::AddHcomRankTable(const std::string &name, const std::string &rank_table) {
-  cluster_name_to_rank_table_[name] = rank_table;
-}
-
-const std::string &DeployPlan::GetHcomRankTable(const std::string &hcom_cluster_name) const {
-  static const std::string kEmpty{};
-  const auto it = cluster_name_to_rank_table_.find(hcom_cluster_name);
-  return it != cluster_name_to_rank_table_.cend() ? it->second : kEmpty;
-}
-
 Status DeployPlan::GetQueueInfo(const int32_t queue_index, const DeployPlan::QueueInfo *&queue_info) const {
   if ((queue_index < 0) || (static_cast<size_t>(queue_index) >= queues_.size())) {
     GELOGE(PARAM_INVALID, "Queue index(%d) out of range: [0, %zu)", queue_index, queues_.size());

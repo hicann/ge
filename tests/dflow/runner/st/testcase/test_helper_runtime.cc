@@ -3361,10 +3361,6 @@ TEST_F(STEST_helper_runtime, TestDeployWithCompileRes) {
   std::shared_ptr<ModelCompileResource> compile_res;
   flow_model->SetCompileResource(compile_res);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
-
   auto &resources = ResourceManager::GetInstance();
   DeviceInfo cpu_device(0, CPU, 0);
   DeviceInfo npu_device0(1, NPU, 0);
@@ -3410,9 +3406,6 @@ TEST_F(STEST_helper_runtime, TestDeployWithCompileRes) {
     compile_res4->logic_dev_id_to_res_type[dev_to_type.first] = dev_to_type.second;
   }
   flow_model->SetCompileResource(compile_res4);
-  std::map<std::string, std::vector<uint32_t>> device_to_rank_ids;
-  device_to_rank_ids["0:0:0"] = {1};
-  flow_model->SetDeviceToRankIds(device_to_rank_ids);
   ASSERT_EQ(MasterModelDeployer().DeployModel(flow_model, deploy_result), FAILED);
 
   DeployerProxy::GetInstance().deployers_.clear();
@@ -3454,10 +3447,6 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
   output_node->GetOpDesc()->SetSrcName({"add_2"});
   auto flow_model = MakeShared<FlowModel>(graph);
   flow_model->AddSubModel(BuildPneModel(graph));
-
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
 
   auto &resources = ResourceManager::GetInstance();
   DeviceInfo cpu_device(0, CPU, 0);
@@ -4394,10 +4383,6 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlowOnServerWithSharedContent) {
   graph_model->SetLogicDeviceId("0:0:0:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
-
   DeployResult deploy_result;
   ASSERT_EQ(MasterModelDeployer().DeployModel(flow_model, deploy_result), SUCCESS);
 
@@ -4454,9 +4439,6 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlowOnServer) {
   graph_model->SetLogicDeviceId("0:0:0:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
   DeployResult deploy_result;
   MasterModelDeployer model_deployer;
   ASSERT_EQ(model_deployer.DeployModel(flow_model, deploy_result), SUCCESS);
@@ -4567,97 +4549,6 @@ void SetSubGraph(OpDesc &op_desc, const std::string &name) {
   auto subgraph = std::make_shared<ComputeGraph>(name);
   op_desc.AddSubgraphName(name);
   op_desc.SetSubgraphInstanceName(0, name);
-}
-
-// FlowModel的submodel为带HcomClusterDesc的FlowModel
-// 1. 验证ModelRelation与HcomClusterDesc的Flatten
-// 2. 验证包含HcomClusterDesc的FlowModel的部署
-TEST_F(STEST_helper_runtime, DeployFlowModelWithHcomClusterDesc) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_1server.json";
-  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
-  std::map<std::string, std::string> options;
-  EXPECT_EQ(InitializeHeterogeneousRuntime(options), SUCCESS);
-
-  // 1. Construct FlowModel begin
-  HcomClusterDesc hcom_cluster_desc;
-  hcom_cluster_desc.name = "hcom_cluster_0";
-  hcom_cluster_desc.device_to_rank_ids["0:0:0:0"].emplace_back(0);
-  hcom_cluster_desc.device_to_rank_ids["0:0:0:0"].emplace_back(1);
-  hcom_cluster_desc.group_name_to_rank_ids["group_0"] = std::vector<uint32_t>{0, 1};
-  hcom_cluster_desc.rank_table = "rank_table";
-
-  auto create_flow_model = [&](int32_t index) -> FlowModelPtr {
-    std::string submodel_name = "submodel-" + std::to_string(index);
-    auto flow_model = std::make_shared<FlowModel>();
-    flow_model->SetModelName("flow_model-" + std::to_string(index));
-    auto graph_model_1 = BuildPneModel(std::make_shared<ComputeGraph>(submodel_name));
-    graph_model_1->SetLogicDeviceId("0:0:0:0");
-    flow_model->AddSubModel(graph_model_1, PNE_ID_NPU);
-    flow_model->SetRootGraph(MakeShared<ComputeGraph>("test"));
-    std::map<std::string, HcomClusterDesc> hcom_cluster_descs;
-    hcom_cluster_descs[hcom_cluster_desc.name] = hcom_cluster_desc;
-    flow_model->SetHcomClusterDescs(hcom_cluster_descs);
-    std::map<std::string, std::pair<std::string, uint32_t>> model_name_to_cluster_and_rank_id;
-    model_name_to_cluster_and_rank_id[submodel_name] = std::make_pair(hcom_cluster_desc.name, index - 1);
-    flow_model->SetModelNameToClusterAndRankId(model_name_to_cluster_and_rank_id);
-
-    auto model_relation_ptr = std::make_shared<ModelRelation>();
-    ModelRelation &model_relation = *model_relation_ptr;
-    model_relation.root_model_endpoint_info.input_endpoint_names = {"in-queue-1"};
-    model_relation.root_model_endpoint_info.output_endpoint_names = {"out-queue-1"};
-    model_relation.submodel_endpoint_infos[submodel_name].model_name = submodel_name;
-    model_relation.submodel_endpoint_infos[submodel_name].input_endpoint_names = {"in-queue-1"};
-    model_relation.submodel_endpoint_infos[submodel_name].output_endpoint_names = {"out-queue-1"};
-    model_relation.endpoints.emplace_back("in-queue-1", EndpointType::kQueue);
-    model_relation.endpoints.emplace_back("out-queue-1", EndpointType::kQueue);
-    QueueNodeUtils(model_relation.endpoints[0]).SetDepth(10);
-    QueueNodeUtils(model_relation.endpoints[1]).SetDepth(20);
-    flow_model->SetModelRelation(model_relation_ptr);
-    return flow_model;
-  };
-
-  auto model_relation_ptr = std::make_shared<ModelRelation>();
-  ASSERT_TRUE(model_relation_ptr != nullptr);
-  ModelRelation &model_relation = *model_relation_ptr;
-  model_relation.root_model_endpoint_info.input_endpoint_names = {"in-queue-1"};
-  model_relation.root_model_endpoint_info.output_endpoint_names = {"out-queue-1", "out-queue-2"};
-  model_relation.submodel_endpoint_infos["flow_model-1"].model_name = "flow_model-1";
-  model_relation.submodel_endpoint_infos["flow_model-1"].input_endpoint_names = {"in-queue-1"};
-  model_relation.submodel_endpoint_infos["flow_model-1"].output_endpoint_names = {"out-queue-1"};
-  model_relation.submodel_endpoint_infos["flow_model-2"].model_name = "flow_model-2";
-  model_relation.submodel_endpoint_infos["flow_model-2"].input_endpoint_names = {"in-queue-1"};
-  model_relation.submodel_endpoint_infos["flow_model-2"].output_endpoint_names = {"out-queue-2"};
-  model_relation.endpoints.emplace_back("in-queue-1", EndpointType::kQueue);
-  model_relation.endpoints.emplace_back("out-queue-1", EndpointType::kQueue);
-  model_relation.endpoints.emplace_back("out-queue-2", EndpointType::kQueue);
-
-  FlowModelPtr flow_model_1 = create_flow_model(1);
-  FlowModelPtr flow_model_2 = create_flow_model(2);
-  auto root_flow_model = std::make_shared<FlowModel>();
-  root_flow_model->SetRootGraph(MakeShared<ComputeGraph>("root_graph"));
-  root_flow_model->AddSubModel(flow_model_1);
-  root_flow_model->AddSubModel(flow_model_2);
-  root_flow_model->SetModelRelation(model_relation_ptr);
-  // 1. Construct FlowModel End
-
-  // 2. Test Merge HcomClusterInfo from sub flow model to root flow model
-  root_flow_model->MergeHcomClusterInfo(*flow_model_1);
-  root_flow_model->MergeHcomClusterInfo(*flow_model_2);
-  EXPECT_TRUE(flow_model_1->GetHcomClusterDescs().empty());
-  EXPECT_TRUE(flow_model_1->GetModelNameToClusterAndRankId().empty());
-  EXPECT_TRUE(flow_model_2->GetHcomClusterDescs().empty());
-  EXPECT_TRUE(flow_model_2->GetModelNameToClusterAndRankId().empty());
-  EXPECT_EQ(root_flow_model->GetHcomClusterDescs().size(), 1U);
-  EXPECT_EQ(root_flow_model->GetModelNameToClusterAndRankId().size(), 2U);
-
-  // 3. Test Deploy flow model
-  DeployResult deploy_result;
-  EXPECT_EQ(MasterModelDeployer().DeployModel(root_flow_model, deploy_result), SUCCESS);
-
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  TsdClient::GetInstance().Finalize();
-  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(STEST_helper_runtime, TestBuiltinExecutorClient_host) {
@@ -5726,9 +5617,6 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedDeployWithFlowOnServer) {
   graph_model->SetLogicDeviceId("0:0:0:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
   (void)AttrUtils::SetBool(flow_model->GetRootGraph(), "dynamic_schedule_enable", true);
   DeployResult deploy_result;
   MasterModelDeployer model_deployer;
@@ -5802,13 +5690,6 @@ TEST_F(STEST_helper_runtime, TestRedeployWithMulModelInstanceOnServer) {
   graph_model->SetLogicDeviceId("0:0:0:0,0:0:1:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
-  map<std::string, std::vector<uint32_t>> device_to_rank_ids;
-  device_to_rank_ids["0:0:0:0"] = {0};
-  device_to_rank_ids["0:0:1:0"] = {1};
-  flow_model->SetDeviceToRankIds(device_to_rank_ids);
   (void)AttrUtils::SetBool(flow_model->GetRootGraph(), "dynamic_schedule_enable", true);
   DeployResult deploy_result;
   auto *const execution_runtime = ExecutionRuntime::GetInstance();
@@ -5892,13 +5773,6 @@ TEST_F(STEST_helper_runtime, TestRedeployWithProcessAbnormal) {
   graph_model->SetLogicDeviceId("0:0:0:0,0:0:1:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
-  map<std::string, std::vector<uint32_t>> device_to_rank_ids;
-  device_to_rank_ids["0:0:0:0"] = {0};
-  device_to_rank_ids["0:0:1:0"] = {1};
-  flow_model->SetDeviceToRankIds(device_to_rank_ids);
   (void)AttrUtils::SetBool(flow_model->GetRootGraph(), "dynamic_schedule_enable", true);
   DeployResult deploy_result;
   auto *const execution_runtime = ExecutionRuntime::GetInstance();
@@ -5989,12 +5863,6 @@ TEST_F(STEST_helper_runtime, TestRedeployWithOneModelInstanceOnServer) {
   graph_model->SetLogicDeviceId("0:0:1");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
-  map<std::string, std::vector<uint32_t>> device_to_rank_ids;
-  device_to_rank_ids["0:0:1:0"] = {1};
-  flow_model->SetDeviceToRankIds(device_to_rank_ids);
   (void)AttrUtils::SetBool(flow_model->GetRootGraph(), "dynamic_schedule_enable", true);
   DeployResult deploy_result;
   auto *const execution_runtime = ExecutionRuntime::GetInstance();
@@ -6141,9 +6009,6 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedFindGroupIndexBySched) {
   graph_model->SetLogicDeviceId("0:0:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
   DeployResult deploy_result;
   auto executor = unique_ptr<HeterogeneousModelExecutor>(new HeterogeneousModelExecutor(flow_model, deploy_result));
   executor->is_dynamic_sched_ = true;
@@ -6268,9 +6133,6 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedFindGroupIndexByCache) {
   graph_model->SetLogicDeviceId("0:0:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
   DeployResult deploy_result;
   auto executor = unique_ptr<HeterogeneousModelExecutor>(new HeterogeneousModelExecutor(flow_model, deploy_result));
   executor->is_dynamic_sched_ = true;
@@ -6444,9 +6306,6 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedDeployWithFlow) {
   auto flow_model = MakeShared<FlowModel>(graph);
   flow_model->AddSubModel(BuildPneModel(graph));
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
   (void)AttrUtils::SetBool(flow_model->GetRootGraph(), "dynamic_schedule_enable", true);
 
   auto &resources = ResourceManager::GetInstance();
@@ -6497,9 +6356,6 @@ TEST_F(STEST_helper_runtime, UpdateAbnormalInstanceInTrimmingModel) {
   graph_model->SetLogicDeviceId("0:0:0");
   flow_model->AddSubModel(graph_model);
 
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  model_name_to_rank_id["g1"] = 0U;
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
   DeployResult deploy_result;
   std::unordered_set<std::string> trimming_names = {"test_model", "test_model2"};
   deploy_result.model_trimming_edges_model_instances.emplace_back(trimming_names);

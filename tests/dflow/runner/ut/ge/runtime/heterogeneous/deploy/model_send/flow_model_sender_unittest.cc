@@ -28,42 +28,6 @@ class FlowModelSenderTest : public testing::Test {
   }
 };
 
-TEST_F(FlowModelSenderTest, SetHcomClusterInfo) {
-  FlowModelSender flow_model_sender;
-  DeployState deploy_state;
-  HcomCommGroup comm_group;
-  comm_group.group_name = "group";
-  comm_group.group_rank_list = std::vector<uint32_t>{0, 1};
-  deploy_state.MutableDeployPlan().AddCommGroup("hcom_1", comm_group);
-  deploy_state.MutableDeployPlan().AddHcomRankTable("hcom_1", "rank_table");
-
-  std::vector<deployer::SubmodelDesc> submodel_descs;
-  deployer::SubmodelDesc submodel_desc;
-  submodel_descs.emplace_back(submodel_desc);
-
-  deployer::DeployerRequest request;
-  // no hcom cluster desc
-  EXPECT_EQ(flow_model_sender.SetHcomClusterInfo(deploy_state,
-                                                 submodel_descs,
-                                                 request.mutable_update_deploy_plan_request()), SUCCESS);
-  EXPECT_EQ(request.update_deploy_plan_request().comm_groups().size(), 0);
-
-  // one hcom cluster
-  submodel_desc.set_hcom_cluster_name("hcom_1");
-  submodel_descs.emplace_back(submodel_desc);
-  EXPECT_EQ(flow_model_sender.SetHcomClusterInfo(deploy_state,
-                                                 submodel_descs,
-                                                 request.mutable_update_deploy_plan_request()), SUCCESS);
-  EXPECT_EQ(request.update_deploy_plan_request().comm_groups().size(), 1);
-
-  // multiple hcom cluster
-  submodel_desc.set_hcom_cluster_name("hcom_2");
-  submodel_descs.emplace_back(submodel_desc);
-  EXPECT_EQ(flow_model_sender.SetHcomClusterInfo(deploy_state,
-                                                 submodel_descs,
-                                                 request.mutable_update_deploy_plan_request()), UNSUPPORTED);
-}
-
 TEST_F(FlowModelSenderTest, AddDynamicSchedInfo) {
   FlowModelSender flow_model_sender;
   DeployState deploy_state;

@@ -22,7 +22,6 @@
 #include "deploy/flowrm/flow_route_planner.h"
 #include "deploy/model_send/flow_model_sender.h"
 #include "graph/debug/ge_attr_define.h"
-#include "deploy/resource/rank_deploy_planner.h"
 
 namespace ge {
 Status HeterogeneousModelDeployer::DeployModel(DeployContext &deploy_context, DeployState &deploy_state) {
@@ -161,7 +160,6 @@ Status HeterogeneousModelDeployer::BuildDeployPlan(DeployState &deploy_state) {
   deploy_plan.SetEnableExceptionCatch(deploy_state.IsEnableExceptionCatch());
   GE_CHK_STATUS_RET_NOLOG(ResourceManager::GetInstance().AllocateResources(flow_model, deploy_plan));
   BuildModelAttrs(flow_model, deploy_plan);
-  GE_CHK_STATUS_RET_NOLOG(RankDeployPlanner::BuildPlan(deploy_state, deploy_plan));
   deploy_state.SetDeployPlan(std::move(deploy_plan));
   return SUCCESS;
 }

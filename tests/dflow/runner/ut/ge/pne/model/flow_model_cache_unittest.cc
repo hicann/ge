@@ -998,31 +998,19 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_with_udf) {
 }
 
 
-TEST_F(FlowModelCacheTest, save_and_load_flow_model_check_rang_id_and_priority) {
+TEST_F(FlowModelCacheTest, save_and_load_flow_model_check_priority) {
   SetCacheDirOption("./ut_cache_dir");
   SetGraphKeyOption("graph_key_flow_model_with_udf1");
   auto graph = FakeComputeGraph("root_graph");
   FlowModelPtr flow_model = BuildFlowModelWithUdf("flow_model1", graph);
-  // fake rank info and priority
+  // fake priority
   std::map<std::string, std::map<std::string, int32_t>> models_esched_priority;
-  std::map<std::string, std::vector<uint32_t>> group_name_to_rank_ids;
-  std::map<std::string, uint32_t> model_name_to_rank_id;
-  std::map<std::string, std::pair<std::string, uint32_t>> model_name_to_cluster_and_rank_id;
-  std::map<std::string, std::vector<uint32_t>> device_to_rank_ids;
-  uint32_t rank_id = 1;
+
   for (const auto &submodel : flow_model->GetSubmodels()) {
     models_esched_priority[submodel.first] = {{ATTR_NAME_ESCHED_PROCESS_PRIORITY, 1},
                                               {ATTR_NAME_ESCHED_EVENT_PRIORITY, 2}};
-    group_name_to_rank_ids["group_name"].emplace_back(rank_id);
-    model_name_to_rank_id[submodel.first] = rank_id;
-    device_to_rank_ids["0_0_1_1"].emplace_back(rank_id);
-    model_name_to_cluster_and_rank_id[submodel.first] = std::make_pair(flow_model->GetModelName(), rank_id);
-    rank_id++;
   }
   flow_model->SetModelsEschedPriority(models_esched_priority);
-  flow_model->SetGroupNameToRankIds(group_name_to_rank_ids);
-  flow_model->SetModelNameToRankId(model_name_to_rank_id);
-  flow_model->SetDeviceToRankIds(device_to_rank_ids);
   {
     FlowModelCache flow_model_cache;
     auto ret = flow_model_cache.Init(graph);
@@ -1058,9 +1046,6 @@ TEST_F(FlowModelCacheTest, save_and_load_flow_model_check_rang_id_and_priority) 
     EXPECT_EQ(udf_model_num, 1);
     EXPECT_EQ(ge_root_model_num, 1);
     EXPECT_EQ(load_flow_model->GetModelsEschedPriority(), models_esched_priority);
-    EXPECT_EQ(load_flow_model->GetGroupNameToRankIds(), group_name_to_rank_ids);
-    EXPECT_EQ(load_flow_model->GetModelNameToClusterAndRankId(), model_name_to_cluster_and_rank_id);
-    EXPECT_EQ(load_flow_model->GetDeviceToRankIds(), device_to_rank_ids);
   }
 }
   

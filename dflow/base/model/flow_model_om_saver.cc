@@ -74,44 +74,6 @@ void ConvertModelRealtion(const ModelRelation &model_relation,
   auto *proto_root_model_endpoint_info = model_relation_def.mutable_root_model_endpoint_info();
   ConvertModelQueueInfo(model_relation.root_model_endpoint_info, *proto_root_model_endpoint_info);
 }
-
-void SaveHcomClusterDescs(const FlowModel &flow_model, flow_model::proto::FlowModelDef &flow_model_def) {
-  (void) flow_model_def;
-  (void) flow_model;
-  for (const auto &name_and_cluster_desc : flow_model.GetHcomClusterDescs()) {
-    const auto &hcom_cluster_desc = name_and_cluster_desc.second;
-    GELOGD("Save HcomClusterDesc, name = %s", hcom_cluster_desc.name.c_str());
-    auto const hcom_cluster_def = flow_model_def.mutable_hcom_cluster_defs()->Add();
-    hcom_cluster_def->set_name(hcom_cluster_desc.name);
-    hcom_cluster_def->set_rank_table(hcom_cluster_desc.rank_table);
-    for (const auto &grp_name_and_rids : hcom_cluster_desc.group_name_to_rank_ids) {
-      const auto &rank_ids = grp_name_and_rids.second;
-      (*hcom_cluster_def->mutable_group_name_to_rank_ids())[grp_name_and_rids.first]
-          .mutable_rank_id()->Add(rank_ids.cbegin(), rank_ids.cend());
-    }
-    for (const auto &device_and_rids : hcom_cluster_desc.device_to_rank_ids) {
-      const auto &rank_ids = device_and_rids.second;
-      (*hcom_cluster_def->mutable_device_to_rank_ids())[device_and_rids.first]
-          .mutable_rank_id()->Add(rank_ids.cbegin(), rank_ids.cend());
-    }
-  }
-}
-
-void SaveModelClusterRank(const FlowModel &flow_model, flow_model::proto::FlowModelDef &flow_model_def) {
-  (void) flow_model_def;
-  (void) flow_model;
-  for (const auto &model_name_and_cluster_and_rank_id : flow_model.GetModelNameToClusterAndRankId()) {
-    const auto &cluster_name_and_rank_id = model_name_and_cluster_and_rank_id.second;
-    auto const model_cluster_rank = flow_model_def.mutable_model_cluster_rank_ids()->Add();
-    model_cluster_rank->set_model_name(model_name_and_cluster_and_rank_id.first);
-    model_cluster_rank->set_cluster_name(cluster_name_and_rank_id.first);
-    model_cluster_rank->set_rank_id(cluster_name_and_rank_id.second);
-    GELOGD("Save model_cluster_rank, model_name = %s, hcom_cluster name = %s,rank_id = %u",
-           model_cluster_rank->model_name().c_str(),
-           model_cluster_rank->cluster_name().c_str(),
-           model_cluster_rank->rank_id());
-  }
-}
 }  // namespace
 
 Status FlowModelOmSaver::SaveToOm(const std::string &output_file, const std::string &split_om_data_base_dir) {
@@ -186,9 +148,6 @@ Status FlowModelOmSaver::AddFlowModelPartition() {
     }
     (*proto_models_esched_priority)[models_esched_priority.first] = proto_esched_priority;
   }
-
-  SaveHcomClusterDescs(*flow_model_, flow_model_def);
-  SaveModelClusterRank(*flow_model_, flow_model_def);
 
   GE_CHK_STATUS_RET(AddFlowModelCompileResource(flow_model_def), "[Add][CompileResource] to flow model failed.");
   GE_CHK_STATUS_RET(AddPartition(flow_model_def, FLOW_MODEL), "[Add][FlowModelDef]Failed, model=%s",

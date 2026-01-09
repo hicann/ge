@@ -174,7 +174,6 @@ message SubmodelDesc {
   int32 execute_times = 18;
   int32 process_id = 19;
   int32 phy_device_id = 21;
-  string hcom_cluster_name = 22;
   bool is_head = 23;
   string model_instance_name = 24;
   InputAlignAttrs input_align_attrs = 25;

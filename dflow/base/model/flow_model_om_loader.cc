@@ -224,44 +224,6 @@ Status LoadSerializedModel(flow_model::proto::SubmodelDef &flow_submodel_def, co
   GELOGD("load serialized model success, model name=%s.", flow_submodel_def.model_name().c_str());
   return SUCCESS;
 }
-
-void LoadHcomClusterDescs(const flow_model::proto::FlowModelDef &flow_model_def, FlowModel &flow_model) {
-  std::map<std::string, HcomClusterDesc> hcom_cluster_descs;
-  for (const auto &hcom_cluster_def : flow_model_def.hcom_cluster_defs()) {
-    HcomClusterDesc hcom_cluster_desc;
-    hcom_cluster_desc.name = hcom_cluster_def.name();
-    hcom_cluster_desc.rank_table = hcom_cluster_def.rank_table();
-    for (const auto &grp_name_and_rids : hcom_cluster_def.group_name_to_rank_ids()) {
-      const auto &group_name = grp_name_and_rids.first;
-      const auto &rank_ids = grp_name_and_rids.second.rank_id();
-      hcom_cluster_desc.group_name_to_rank_ids[group_name] = std::vector<uint32_t>(rank_ids.cbegin(), rank_ids.cend());
-    }
-    for (const auto &device_and_rank_ids : hcom_cluster_def.device_to_rank_ids()) {
-      const auto &logical_device_id = device_and_rank_ids.first;
-      const auto &rank_ids = device_and_rank_ids.second.rank_id();
-      hcom_cluster_desc.device_to_rank_ids[logical_device_id] =
-          std::vector<uint32_t>(rank_ids.cbegin(), rank_ids.cend());
-    }
-    (void) hcom_cluster_descs.emplace(hcom_cluster_def.name(), std::move(hcom_cluster_desc));
-    GELOGD("Load HcomClusterDesc, name = %s", hcom_cluster_def.name().c_str());
-  }
-  flow_model.SetHcomClusterDescs(hcom_cluster_descs);
-}
-
-void LoadModelClusterRank(const flow_model::proto::FlowModelDef &flow_model_def, FlowModel &flow_model) {
-  std::map<std::string, std::pair<std::string, uint32_t>> model_name_to_cluster_and_rank_id;
-  for (const auto &model_cluster_rank_id : flow_model_def.model_cluster_rank_ids()) {
-    const auto &submodel_name = model_cluster_rank_id.model_name();
-    const auto &cluster_name = model_cluster_rank_id.cluster_name();
-    const auto rank_id = model_cluster_rank_id.rank_id();
-    model_name_to_cluster_and_rank_id[submodel_name] = std::make_pair(cluster_name, rank_id);
-    GELOGD("Load model_cluster_rank, model_name = %s, hcom_cluster_name = %s,rank_id = %u",
-           model_cluster_rank_id.model_name().c_str(),
-           model_cluster_rank_id.cluster_name().c_str(),
-           model_cluster_rank_id.rank_id());
-  }
-  flow_model.SetModelNameToClusterAndRankId(model_name_to_cluster_and_rank_id);
-}
 }  // namespace
 
 Status FlowModelOmLoader::LoadToFlowModelDesc(const ge::ModelData &model_data, const FlowModelPtr &flow_model) {
@@ -394,8 +356,6 @@ Status FlowModelOmLoader::LoadFlowModelPartition(const ModelPartition &flow_mode
     }
     flow_model->SetModelsEschedPriority(models_esched_priority);
   }
-  LoadHcomClusterDescs(flow_model_def, *flow_model);
-  LoadModelClusterRank(flow_model_def, *flow_model);
   const auto compile_resource = MakeShared<ModelCompileResource>();
   GE_CHECK_NOTNULL(compile_resource);
   const auto &proto_compile_resource = flow_model_def.compile_resource();
