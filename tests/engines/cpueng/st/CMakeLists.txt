@@ -132,7 +132,6 @@ set(cpu_engine_src_files
 set(engine_common_src_test_files st_main.cpp)
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
-    # 蓝区编译
     set(cpu_engine_includes
         ${AIR_CODE_DIR}/tests/engines/cpueng/stub/
         ${AIR_CODE_DIR}/compiler/engines/cpu_engine/cpu_engine/
@@ -145,7 +144,6 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         ${METADEF_DIR}/inc
     )
 else ()
-    # 黄区编译
     set(cpu_engine_includes
         ${AIR_CODE_DIR}/tests/engines/cpueng/stub/
         ${AIR_CODE_DIR}/compiler/engines/cpu_engine/cpu_engine/
@@ -288,7 +286,6 @@ target_compile_definitions(cpu_engine_stest PRIVATE
 )
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
-    # 蓝区编译
     target_link_libraries(cpu_engine_stest PRIVATE
         intf_pub
         msprof_headers
@@ -318,7 +315,6 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         cce_headers
     )
 else ()
-    # 黄区编译
     target_link_libraries(cpu_engine_stest PRIVATE
         intf_pub
         msprof_headers

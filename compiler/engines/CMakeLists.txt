@@ -18,8 +18,6 @@ add_subdirectory(hccl_engine)
 add_subdirectory(nn_engine)
 add_subdirectory(ffts_engine)
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
-    # 蓝区编译
     add_subdirectory(rts_engine)
 else()
-    # 黄区编译
 endif()

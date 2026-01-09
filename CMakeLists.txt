@@ -16,8 +16,6 @@ set(CMAKE_CXX_FLAGS_RELEASE "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BASE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
-# 存在`.dev_env`文件说明是蓝区开发环境，并且调用了`prepare_dev_env.sh`完成了开发环境准备
-# 除了设置好`.dev_env`中有的环境变量外，还会设置其他几个蓝区开发的必要变量
 if(EXISTS "${CMAKE_SOURCE_DIR}/.dev_env")
     set(ENABLE_OPEN_SRC True)
     set(ENABLE_GE_UT ON)
@@ -182,7 +180,6 @@ else ()
 endif ()
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
-    # 蓝区编译
     if (NOT DEFINED HI_PYTHON)
         set(HI_PYTHON python3)
     endif()
@@ -199,7 +196,6 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
     include(cmake/intf_pub_linux.cmake)
     include(cmake/test_utils.cmake)
 else ()
-    # 黄区编译
     set(PARSER_DIR ${TOP_DIR}/parser)
     set(METADEF_DIR ${TOP_DIR}/metadef)
     set(OP_PROTO_DIR ${TOP_DIR}/asl/ops/cann/ops/built-in/op_proto/inc)
@@ -410,7 +406,6 @@ if (NOT BUILD_OPEN_PROJECT)
         install(TARGETS gert ge_common ge_common_base ge_executor_shared davinci_executor hybrid_executor ge_runner
                 ge_runner_v2 dflow_runner
                 ge_compiler aicore_utils slice air_headers
-                # 黄区某些没有下载parser目录
                 # _caffe_parser fmk_onnx_parser fmk_parser parser_common
                 EXPORT air-targets
                 LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} OPTIONAL COMPONENT opensdk

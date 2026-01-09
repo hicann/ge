@@ -11,11 +11,9 @@
 add_subdirectory(engines)
 add_subdirectory(graph/eager_style_graph_builder)
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
-    # 蓝区编译
     add_subdirectory(graph/common/compress)
     add_subdirectory(opcompiler/op_compile_adapter/source)
 else()
-    # 黄区编译
 endif()
 if (BUILD_METADEF)
     add_subdirectory(graph/optimize/autofuse)

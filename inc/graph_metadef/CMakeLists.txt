@@ -9,7 +9,7 @@
 # -----------------------------------------------------------------------------------------------------------
 
 if (NOT DEFINED GE_METADEF_INC_DIR)
-    # 黄区编译兼容处理
+    # 开发编译兼容处理
     set(METADEF_DIR ${TOP_DIR}/metadef)
     set(GE_METADEF_DIR ${TOP_DIR}/air/graph_metadef)
     set(GE_METADEF_INC_DIR ${TOP_DIR}/air/inc/graph_metadef)
@@ -59,7 +59,7 @@ target_include_directories(metadef_headers INTERFACE
     # ---------------------end-----------------------
 )
 
-# 黄区支持run包后可删除
+# 开发环境支持run包后可删除
 if (ENABLE_OPEN_SRC)
     target_include_directories(metadef_headers INTERFACE
             $<BUILD_INTERFACE:${AIR_CODE_DIR}/base/metadef/pkg_inc>

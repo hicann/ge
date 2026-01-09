@@ -5,8 +5,6 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-all -Wl,-z,now")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-all -Wl,-z,now")
 
 if (EXISTS "${CMAKE_SOURCE_DIR}/.dev_env")
-    # 存在`.dev_env`文件说明是蓝区开发环境，并且调用了`prepare_dev_env.sh`完成了开发环境准备
-    # 除了设置好`.dev_env`中有的环境变量外，还会设置其他几个蓝区开发的必要变量
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.dev_env")
         set(ENABLE_OPEN_SRC True)
         # Read the file into a list of lines

@@ -24,7 +24,7 @@
 #            PRODUCT_NAME：待扫描的产品名
 #            CHIP_NAME：芯片名称
 #            signature_tag：是否需要数字签名
-#            蓝区签名步骤 1、加esbc头; 2、生成ini文件; 3、进行签名（参数控制，暂不启动）; 4、签名结果写入文件头  
+#            签名步骤 1、加esbc头; 2、生成ini文件; 3、进行签名（参数控制，暂不启动）; 4、签名结果写入文件头  
 # 返回值    ：0:成功，-1:失败
 # 修改历史  ：
 # 日期    ：2025年11月25日
@@ -295,7 +295,6 @@ def build_sign(item_size_set, sign_file_dir, sign_tool_path, sign_tmp_path, root
         # 临时目录下ini文件完整路径，实际前面生成ini文件时，已经生成到对应的目录下
         file_sign_des = "{}.ini".format(os.path.join(sign_path, os.path.basename(file)))
         print(file_sign_des)
-        # 蓝区签名平台，命令不一样
         if not cmd:
             cmd = "{} {} {} {}".format(os.environ["HI_PYTHON"], sign_tool_path, root_dir, file_sign_des)
         else:
@@ -433,7 +432,7 @@ def add_bios_header(item_size_set, sign_file_dir, bios_tool_path, sign_tool_path
             if conf_item.position != "":
                 cmd = cmd + " -position %s" % (conf_item.position)
         elif add_sign == "true" and conf_item.type != "":
-            # 原代码支持/分割多种签名方式，实际只能一种，暂时保持不变，后续统一黄区代码时再优化
+            # 原代码支持/分割多种签名方式，实际只能一种，暂时保持不变，后续统一开发环境代码时再优化
             for sign in conf_item.type.split('/'):
                 cmd = cmd + " -raw_img %s -out_img %s -version %s -nvcnt %s -tag %s %s" \
                       % (input_file, input_file, conf_item.version, conf_item.nvcnt, conf_item.tag, add_cmd)

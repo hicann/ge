@@ -80,7 +80,6 @@ target_include_directories(host_cpu_opskernel_builder PRIVATE
 )
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
-    # 蓝区编译
     target_include_directories(aicpu_const_folding PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${AIR_CODE_DIR}/compiler/engines/cpu_engine
@@ -91,7 +90,6 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         ${ASCEND_INSTALL_PATH}/include/aicpu_common/context/cpu_proto
     )
 else ()
-    # 黄区编译
     target_include_directories(aicpu_const_folding PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${AIR_CODE_DIR}/compiler/engines/cpu_engine
@@ -234,7 +232,6 @@ target_link_libraries(host_cpu_opskernel_builder PRIVATE
 )
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
-    # 蓝区编译
     target_link_libraries(aicpu_const_folding PRIVATE
         intf_pub
         aicpu_headers
@@ -248,7 +245,6 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         -Wl,--as-needed
     )
 else ()
-    # 黄区编译
     target_link_libraries(aicpu_const_folding PRIVATE
         intf_pub
         air_headers

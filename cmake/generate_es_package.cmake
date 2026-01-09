@@ -34,7 +34,7 @@ message(STATUS "[add_es_library] Module loaded from: ${_ADD_ES_LIBRARY_CMAKE_DIR
 #   - CMake 版本: >= 3.16 (使用 CONFIGURE_DEPENDS、configure_file COPYONLY 等特性)
 #   - gen_esb: 支持两种环境
 #     1. 社区环境: 自动从 cmake 文件路径推导 run 包中的 gen_esb 位置
-#     2. 黄区环境: 使用源码编译的 gen_esb target
+#     2. 开发环境: 使用源码编译的 gen_esb target
 #   - OPP_PROTO_TARGET: 必须存在，且需要设置 LIBRARY_OUTPUT_DIRECTORY 属性
 #   - eager_style_graph_builder_base: 支持两种来源
 #     1. 源码编译的 target（优先）: 如果存在 target，直接使用
@@ -375,7 +375,7 @@ exit 1
     set(ASCEND_LIB_DIR "")
 
     if (TARGET gen_esb)
-        # 黄区环境/源码编译环境: 使用源码编译的 gen_esb target
+        # 开发环境/源码编译环境: 使用源码编译的 gen_esb target
         set(USE_EXTERNAL_GEN_ESB FALSE)
         message(STATUS "Yellow Zone Environment: Use the source-compiled gen_esb target")
 
@@ -552,7 +552,7 @@ exit 1
             set(ES_BASE_LIB eager_style_graph_builder_base)
         endif ()
     else ()
-        # 黄区环境但 target 不存在
+        # 开发环境但 target 不存在
         message(WARNING "eager_style_graph_builder_base target not available, will try to link by library name\n"
                 "  Please ensure the runtime LD_LIBRARY_PATH contains the directory of this library")
         set(ES_BASE_LIB eager_style_graph_builder_base)
