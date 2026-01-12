@@ -1189,7 +1189,7 @@ TEST_F(FlowFuncExecutorUTest, MonitorParentExit) {
   MOCKER_CPP(&FlowFuncExecutor::SendMessageByResponseQueue).stubs().will(returnValue(0));
   MOCKER(system).stubs().will(returnValue(0));
   GlobalConfig::on_device_ = true;
-  MOCKER(getppid).stubs().will(repeat(1111, 6)).then(returnValue(-1));
+  MOCKER(getppid).stubs().will(repeat(1111, 2)).then(returnValue(-1));
   FlowFuncModelParam flow_func_model_param = {"./test_flow_func.proto",
                                               "model_name",
                                               UdfTestHelper::CreateQueueDevInfos({1, 2}),

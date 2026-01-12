@@ -9,7 +9,6 @@
  */
 #include "udf_stub.h"
 #include <mutex>
-#include <vector>
 #include <list>
 #include <map>
 #include <chrono>
@@ -57,6 +56,7 @@ uint32_t CreateQueue(uint32_t depth) {
     halMbufFree(mbuf);
   }
   queue_data.clear();
+  return queue_id;
 }
 
 void DestroyQueue(uint32_t queue_id) {
@@ -216,11 +216,11 @@ int halMbufGetDataLen(Mbuf *mbuf, uint64_t *len) {
 
 drvError_t halQueueDeQueue(unsigned int devId, unsigned int qid, void **mbuf) {
   std::unique_lock<std::mutex> lock(queue_mutex);
-  auto iter = queue_list.find(qid);
-  if (iter == queue_list.end()) {
+  auto queue_iter = queue_list.find(qid);
+  if (queue_iter == queue_list.end()) {
     return DRV_ERROR_QUEUE_NOT_CREATED;
   }
-  auto &queue_data = iter->second;
+  auto &queue_data = queue_iter->second;
   if (queue_data.empty()) {
     auto iter = g_link_queues.find(qid);
     if (iter != g_link_queues.end()) {
@@ -283,7 +283,7 @@ int halGrpQuery(GroupQueryCmdType cmd, void *inBuff, unsigned int inLen, void *o
 drvError_t halQueueGetStatus(unsigned int devId, unsigned int qid, QUEUE_QUERY_ITEM queryItem, unsigned int len,
                              void *data) {
   if (queryItem == QUERY_QUEUE_STATUS) {
-    *static_cast<int32_t *>(data) == static_cast<int32_t>(QUEUE_NORMAL);
+    *static_cast<int32_t *>(data) = static_cast<int32_t>(QUEUE_NORMAL);
   } else if (queryItem == QUERY_QUEUE_DEPTH) {
     *static_cast<int32_t *>(data) = UDF_ST_QUEUE_MAX_DEPTH;
   }
@@ -430,11 +430,11 @@ drvError_t halEschedGetEvent(unsigned int devId, unsigned int grpId, unsigned in
 
 drvError_t halQueuePeek(unsigned int devId, unsigned int qid, uint64_t *buf_len, int timeout) {
   std::unique_lock<std::mutex> lock(queue_mutex);
-  auto iter = queue_list.find(qid);
-  if (iter == queue_list.end()) {
+  auto queue_iter = queue_list.find(qid);
+  if (queue_iter == queue_list.end()) {
     return DRV_ERROR_QUEUE_NOT_CREATED;
   }
-  auto &queue_data = iter->second;
+  auto &queue_data = queue_iter->second;
   if (queue_data.empty()) {
     auto iter = g_link_queues.find(qid);
     if (iter != g_link_queues.end()) {
@@ -458,11 +458,11 @@ drvError_t halQueueDeQueueBuff(unsigned int devId, unsigned int qid, struct buff
     return DRV_ERROR_PARA_ERROR;
   }
   std::unique_lock<std::mutex> lock(queue_mutex);
-  auto iter = queue_list.find(qid);
-  if (iter == queue_list.end()) {
+  auto queue_iter = queue_list.find(qid);
+  if (queue_iter == queue_list.end()) {
     return DRV_ERROR_QUEUE_NOT_CREATED;
   }
-  auto &queue_data = iter->second;
+  auto &queue_data = queue_iter->second;
   if (queue_data.empty()) {
     auto iter = g_link_queues.find(qid);
     if (iter != g_link_queues.end()) {
@@ -510,11 +510,11 @@ drvError_t drvGetProcessSign(struct process_sign *sign) {
 
 drvError_t halQueueQueryInfo(unsigned int devId, unsigned int qid, QueueInfo *queInfo) {
   std::unique_lock<std::mutex> lock(queue_mutex);
-  auto iter = queue_list.find(qid);
-  if (iter == queue_list.end()) {
+  auto queue_iter = queue_list.find(qid);
+  if (queue_iter == queue_list.end()) {
     return DRV_ERROR_QUEUE_NOT_CREATED;
   }
-  auto &queue_data = iter->second;
+  auto &queue_data = queue_iter->second;
   if (queue_data.empty()) {
     auto iter = g_link_queues.find(qid);
     if (iter != g_link_queues.end()) {
@@ -530,6 +530,6 @@ drvError_t halQueueQueryInfo(unsigned int devId, unsigned int qid, QueueInfo *qu
 }
 
 drvError_t halQueryDevpid(struct halQueryDevpidInfo info, pid_t *dev_pid) {
-  dev_pid = 12345;
+  *dev_pid = 12345;
   return DRV_ERROR_NONE;
 }

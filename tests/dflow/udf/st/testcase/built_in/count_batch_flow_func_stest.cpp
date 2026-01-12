@@ -91,11 +91,11 @@ class CountBatchFlowFuncSTest : public testing::Test {
 
  protected:
   std::vector<uint32_t> record_queue_ids;
-  uint32_t req_queue_id;
-  uint32_t rsp_queue_id;
+  uint32_t req_queue_id = UINT32_MAX;
+  uint32_t rsp_queue_id = UINT32_MAX;;
 };
 
-TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_no_batchsize) {
+TEST_F(CountBatchFlowFuncSTest, parse_and_init_model) {
   int32_t in_out_num = 2;
   std::vector<uint32_t> inputs_qid(in_out_num, 0);
   std::vector<uint32_t> outputs_qid(in_out_num, 0);
@@ -275,18 +275,21 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_only_batchSize) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等1秒
+  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (int64_t loop_index = 0; loop_index < size; ++loop_index) {
-    wait_second = 0;
+    wait_time_in_ms = 0;
     get_out_num = 0;
     outs_mbuf_ptr.resize(in_out_num, nullptr);
     get_out.resize(in_out_num, false);
     for (const auto qid : inputs_qid) {
       DataEnqueue(qid, shape, TensorDataType::DT_INT32, head_msg, input_data);
     }
-    while (wait_second < max_wait_second) {
+    while (wait_time_in_ms < kMaxWaitTimeInMs) {
       for (size_t i = 0; i < outputs_qid.size(); ++i) {
         if (!get_out[i]) {
           auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -299,8 +302,8 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_only_batchSize) {
       if (get_out_num == in_out_num) {
         break;
       }
-      sleep(1);
-      wait_second++;
+      usleep(kWaitMsPerTime * 1000);
+      wait_time_in_ms += kWaitMsPerTime;
     }
     if (loop_index < size - 1) {
       for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
@@ -347,11 +350,14 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_with_slide_stride) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等1秒
+  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (int64_t loop_index = 0; loop_index < size; ++loop_index) {
-    wait_second = 0;
+    wait_time_in_ms = 0;
     get_out_num = 0;
     for (int32_t num_index = 0; num_index < in_out_num; ++num_index) {
       get_out[num_index] = false;
@@ -361,7 +367,7 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_with_slide_stride) {
     for (const auto qid : inputs_qid) {
       DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
     }
-    while (wait_second < max_wait_second) {
+    while (wait_time_in_ms < kMaxWaitTimeInMs) {
       for (size_t i = 0; i < outputs_qid.size(); ++i) {
         if (!get_out[i]) {
           auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -374,8 +380,8 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_with_slide_stride) {
       if (get_out_num == in_out_num) {
         break;
       }
-      sleep(1);
-      wait_second++;
+      usleep(kWaitMsPerTime * 1000);
+      wait_time_in_ms += kMaxWaitTimeInMs;
     }
     if (loop_index < size - 1) {
       for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
@@ -404,7 +410,6 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_no_batchSize) {
   std::vector<uint32_t> inputs_qid(in_out_num, 0);
   std::vector<uint32_t> outputs_qid(in_out_num, 0);
   std::map<std::string, ff::udf::AttrValue> attrs;
-  int64_t stride = 1;
   ff::udf::AttrValue timeout_val;
   timeout_val.set_i(100);
   attrs["timeout"] = timeout_val;
@@ -426,14 +431,18 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_no_batchSize) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等1秒
+  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (const auto qid : inputs_qid) {
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -446,10 +455,9 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_no_batchSize) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
-  int32_t expect_out[] = {4, 7, 5, 5, 1, 0, 4, 7, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0};
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_EQ(outs_mbuf_ptr[i], nullptr);
   }
@@ -481,14 +489,17 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_no_padding) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等1秒
+  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (const auto qid : inputs_qid) {
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -501,8 +512,8 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_no_padding) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   int32_t expect_out[] = {4, 7, 5, 5, 1, 0, 4, 7, 5, 5, 1, 0};
   new_shape = {2, 2, 3};
@@ -542,14 +553,17 @@ TEST_F(CountBatchFlowFuncSTest, input_data_type_error) {
   int64_t input_data2[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等1秒
+  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (const auto qid : inputs_qid) {
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data1);
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT64, head_msg, input_data2);
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -562,8 +576,8 @@ TEST_F(CountBatchFlowFuncSTest, input_data_type_error) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_NE(outs_mbuf_ptr[i], nullptr);
@@ -599,14 +613,17 @@ TEST_F(CountBatchFlowFuncSTest, input_shape_error) {
   int32_t input_data2[] = {4, 7, 5, 5};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等1秒
+  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (const auto qid : inputs_qid) {
     DataEnqueue(qid, {2, 3}, TensorDataType::DT_INT32, head_msg, input_data1);
     DataEnqueue(qid, {2, 2}, TensorDataType::DT_INT32, head_msg, input_data2);
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -619,8 +636,8 @@ TEST_F(CountBatchFlowFuncSTest, input_shape_error) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_NE(outs_mbuf_ptr[i], nullptr);
@@ -658,14 +675,17 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_padding) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等5秒
+  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (const auto qid : inputs_qid) {
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -678,8 +698,8 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_padding) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   int32_t expect_out[] = {4, 7, 5, 5, 1, 0, 4, 7, 5, 5, 1, 0, 0, 0, 0, 0, 0, 0};
   new_shape = {size, 2, 3};
@@ -712,15 +732,17 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
-
   MbufHeadMsg head_msg{0};
   std::vector<int64_t> origin_shape = {2, 2};
   std::vector<int64_t> new_shape = {2, 2};
   int32_t input_data[] = {4, 7, 5, 5};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等50ms
+  constexpr uint64_t kWaitMsPerTime = 50;
+  // 最长等5秒
+  constexpr uint64_t kMaxWaitTimeInMs = 5 * 1000;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (const auto qid : inputs_qid) {
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
@@ -731,7 +753,7 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
     DataEnqueue(qid, origin_shape, TensorDataType::DT_INT32, head_msg, input_data);
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -744,8 +766,8 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   int32_t expect_out[] = {4, 7, 5, 5, 4, 7, 5, 5, 4, 7, 5, 5, 4, 7, 5, 5, 4, 7, 5, 5};
   new_shape = {size, 2, 2};
@@ -757,12 +779,13 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
       halMbufFree(out_mbuf);
     }
   }
-  wait_second = 0;
+  get_out_num = 0;
+  wait_time_in_ms = 0;
   for (int32_t index = 0; index < in_out_num; ++index) {
     get_out[index] = false;
     outs_mbuf_ptr[index] = nullptr;
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -775,8 +798,8 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   int expect_out2[] = {4, 7, 5, 5, 4, 7, 5, 5, 4, 7, 5, 5, 4, 7, 5, 5, 4, 7, 5, 5};
   new_shape = {size, 2, 2};
@@ -789,12 +812,13 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
     }
   }
 
-  wait_second = 0;
+  wait_time_in_ms = 0;
+  get_out_num = 0;
   for (int32_t index = 0; index < in_out_num; ++index) {
     get_out[index] = false;
     outs_mbuf_ptr[index] = nullptr;
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -807,8 +831,8 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   int32_t expect_out3[] = {4, 7, 5, 5, 4, 7, 5, 5, 4, 7, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0};
   new_shape = {5, 2, 2};
@@ -821,12 +845,13 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
     }
   }
   // forth
-  wait_second = 0;
+  wait_time_in_ms = 0;
+  get_out_num = 0;
   for (int32_t index = 0; index < in_out_num; ++index) {
     get_out[index] = false;
     outs_mbuf_ptr[index] = nullptr;
   }
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -839,8 +864,8 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   int32_t expect_out4[] = {4, 7, 5, 5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
   new_shape = {5, 2, 2};

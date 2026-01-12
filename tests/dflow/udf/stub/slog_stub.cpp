@@ -63,44 +63,6 @@ void DlogRecord(int module_id, int level, const char *fmt, ...) {
   }
 }
 
-void DlogErrorInner(int module_id, const char *fmt, ...) {
-  auto log_level = dlog_getlevel(module_id, nullptr);
-  if (log_level > DLOG_ERROR) {
-    return;
-  }
-  __DO_PRINT(ERROR);
-}
-
-void DlogWarnInner(int module_id, const char *fmt, ...) {
-  auto log_level = dlog_getlevel(module_id, nullptr);
-  if (log_level > DLOG_WARN) {
-    return;
-  }
-  __DO_PRINT(WARN);
-}
-
-void DlogInfoInner(int module_id, const char *fmt, ...) {
-  auto log_level = dlog_getlevel(module_id, nullptr);
-  if (log_level > DLOG_INFO) {
-    return;
-  }
-  __DO_PRINT(INFO);
-}
-
-void DlogDebugInner(int module_id, const char *fmt, ...) {
-  auto log_level = dlog_getlevel(module_id, nullptr);
-  if (log_level > DLOG_DEBUG) {
-    return;
-  }
-  __DO_PRINT(DEBUG);
-}
-
-void DlogEventInner(int module_id, const char *fmt, ...) {
-  if (g_enableEvent != 0) {
-    __DO_PRINT(EVENT);
-  }
-}
-
 void DlogVaList(int module_id, int level, const char *fmt, va_list valist) {
   auto log_level = dlog_getlevel(module_id, nullptr);
   if (log_level > level) {
