@@ -113,7 +113,7 @@ TEST_F(TilingContextBuilderUT, CompileInfoNullptr) {
   auto tiling_context_holder =
       builder.CompileInfo(nullptr).PlatformInfo(reinterpret_cast<void *>(&platform_infos)).Build(op, ret);
   EXPECT_NE(ret, ge::GRAPH_SUCCESS);
-  EXPECT_NE(tiling_context_holder.context_, nullptr);
+  EXPECT_EQ(tiling_context_holder.context_, nullptr);
 }
 
 TEST_F(TilingContextBuilderUT, PlatformInfoNullptr) {
@@ -129,7 +129,7 @@ TEST_F(TilingContextBuilderUT, PlatformInfoNullptr) {
   ge::graphStatus ret;
   auto tiling_context_holder = builder.CompileInfo(&op_compile_info_json).PlatformInfo(nullptr).Build(op, ret);
   EXPECT_NE(ret, ge::GRAPH_SUCCESS);
-  EXPECT_NE(tiling_context_holder.context_, nullptr);
+  EXPECT_EQ(tiling_context_holder.context_, nullptr);
 }
 
 TEST_F(TilingContextBuilderUT, BuildRTInputTensorsFailed) {

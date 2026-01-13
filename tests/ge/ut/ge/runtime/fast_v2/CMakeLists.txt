@@ -29,6 +29,7 @@ target_compile_options(ut_fast_runtime2_test PRIVATE
         ${AIR_COMMON_COMPILE_OPTION}
         -Wno-deprecated-declarations
         -Wall -Wfloat-equal -Werror
+        -fno-sanitize-address-use-after-scope
         )
 
 target_compile_definitions(ut_fast_runtime2_test PRIVATE

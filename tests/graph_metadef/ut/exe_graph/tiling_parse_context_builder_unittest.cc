@@ -28,7 +28,7 @@ TEST_F(TilingParseContextBuilderUT, CompileInfoNullptr) {
   auto node = ComputeNodeFaker().NameAndType("bar", "Bar").IoNum(2, 1).InputNames({"x", "y"}).Build();
   auto op = ge::OpDescUtils::CreateOperatorFromNode(node->shared_from_this());
   auto holder = builder.CompileJson(nullptr).PlatformInfo(&platform_infos).Build(op);
-  EXPECT_NE(holder.context_, nullptr);
+  EXPECT_EQ(holder.context_, nullptr);
 }
 
 TEST_F(TilingParseContextBuilderUT, PlatformInfosNullptr) {
@@ -39,7 +39,7 @@ TEST_F(TilingParseContextBuilderUT, PlatformInfosNullptr) {
   auto node = ComputeNodeFaker().NameAndType("bar", "Bar").IoNum(2, 1).InputNames({"x", "y"}).Build();
   auto op = ge::OpDescUtils::CreateOperatorFromNode(node->shared_from_this());
   auto holder = builder.CompileJson(op_compile_info_json.c_str()).PlatformInfo(nullptr).Build(op);
-  EXPECT_NE(holder.context_, nullptr);
+  EXPECT_EQ(holder.context_, nullptr);
 }
 
 TEST_F(TilingParseContextBuilderUT, TilingFuncNullptr) {

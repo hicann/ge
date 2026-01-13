@@ -42,7 +42,7 @@ TilingParseContextBuilder &TilingParseContextBuilder::CompileInfoDeleterFunc(
 }
 
 KernelContextHolder TilingParseContextBuilder::Build(const ge::Operator &op) {
-  KernelContextHolder holder;
+  KernelContextHolder holder{};
   if (compile_json_ == nullptr) {
     GELOGE(ge::GRAPH_PARAM_INVALID, "Compile info is nullptr.");
     return holder;
