@@ -37,11 +37,37 @@ GE-PY 模块包含以下核心组件：
 
 ### 基础图操作示例
 
-参考 [使用es的python api构图sample](../../../examples/es/transformer/python/src/make_transformer_graph.py)
+参考 [使用es的python api构图sample](../../examples/es/transformer/python/src/make_transformer_graph.py)
 
 ### 更多示例
 
-更多 Python 用例请参考 [examples/es](../../../examples/es) 目录下的各个子目录：
+更多 Python 用例请参考 [examples/es](../../examples/es) 目录下的各个子目录：
 
+## 开发路线图
 
+我们在2025年首次推出了`ge-python`的模块，目标是提供 Python 语言的构图、编译图、执行图的能力， 2026Q1 我们主要工作是重点完成 es api 集成，让用户安装好 ops 包后使用 Python 的 es api 构图能力：
+
+---
+
+### 核心架构
+
+- [x] [***December 2025***] `ge-python` 模块已经完成设计和落地，具备了基本的使用es api 构图、 编译图、 执行图的能力。
+
+### API 集成
+
+- [x] [***December 2025***]基础接口已经完成设计和落地。
+- [ ] [***February 2026***] es 的 python 算子 api 支持，详见[es api集成路标](../es/README.md#api-集成)。
+
+### sample和相关文档
+
+- [x] [***December 2025***]已提供对应的sample，涵盖常见使用场景。
+- [x] [***December 2025***]已提供细化的文档，即本目录。
+
+### 后向兼容
+
+- [x] [***December 2025***]Python api 后向兼容完成设计并落地。
+
+### others
+
+- [ ] [***TBD***] 离线图编译执行的python接口暂无提供计划。
 
