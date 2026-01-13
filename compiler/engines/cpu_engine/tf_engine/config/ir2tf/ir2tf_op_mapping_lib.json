@@ -8000,11 +8000,28 @@
                     "parserExpress":"input_0"
                 }
             ],
+            "inputRefMapDesc":[
+                {
+                    "srcInOutputName":"var",
+                    "dstInOutputName":"var",
+                    "isRef":true
+                },
+                {
+                    "srcInOutputName":"m",
+                    "dstInOutputName":"m",
+                    "isRef":true
+                },
+                {
+                    "srcInOutputName":"v",
+                    "dstInOutputName":"v",
+                    "isRef":true
+                }
+            ],
             "outputRefDesc":[
                 {
                     "srcInOutputName":"var",
                     "dstInOutputName":"out",
-                    "isRef":false
+                    "isRef":true
                 }
             ]
         },
