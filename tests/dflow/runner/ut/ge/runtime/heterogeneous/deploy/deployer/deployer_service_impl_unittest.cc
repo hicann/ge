@@ -242,6 +242,7 @@ TEST_F(DeployerServiceImplTest, InitProcessResourceProcess) {
   request.set_type(deployer::kInitProcessResource);
   auto &body = *request.mutable_init_process_resource_request();
   body.set_device_id(0);
+  body.set_device_type(CPU);
   std::string rank_table_json =
       "{\"collective_id\":\"192.168.1.1:111-123\",\"master_ip\":\"10.2.3.4\",\"master_port\":\"111\",\"node_list\":[{"
       "\"node_addr\":\"192.168.1.101\",\"ranks\":[{\"device_id\":\"0\",\"port\":\"1966\",\"rank_id\":\"2\"},{\"device_"

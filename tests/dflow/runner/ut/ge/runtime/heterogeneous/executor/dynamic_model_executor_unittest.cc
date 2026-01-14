@@ -19,7 +19,6 @@
 #include "executor/cpu_sched_model_builder.h"
 #include "executor/executor_context.h"
 #include "common/dump/dump_manager.h"
-#include "common/utils/deploy_location.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "hybrid/model/hybrid_model_builder.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -722,9 +721,6 @@ TEST_F(DynamicModelExecutorTest, TestDynamicModelInHostCpuEngineWithClientQFaile
     dump_properties.dump_step_ = "0|2-4|6";
     DumpManager::GetInstance().AddDumpProperties(0, dump_properties);
     EXPECT_EQ(DumpManager::GetInstance().GetDumpProperties(0).IsDumpOpen(), true);
-    auto is_npu = DeployLocation::IsNpu();
-    GE_MAKE_GUARD(recover, [is_npu]() { DeployLocation::is_npu_ = is_npu; });
-    DeployLocation::is_npu_ = false;
     MockDynamicModelExecutor executor(true);
     executor.Initialize();
     auto graph_model_ptr = std::dynamic_pointer_cast<GraphModel>(root_model);

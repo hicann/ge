@@ -17,8 +17,6 @@ class DeployLocation {
   DeployLocation() = delete;
   ~DeployLocation() = delete;
 
-  static bool IsNpu();
-
   static bool IsX86() {
 #ifdef __x86_64__
     return true;
@@ -26,9 +24,6 @@ class DeployLocation {
     return false;
 #endif
   }
-
- private:
-  static bool is_npu_;
 };
 }  // namespace ge
 

@@ -95,7 +95,6 @@ set(HELPER_RUNTIME_SRC_FILES
         "${AIR_CODE_DIR}/dflow/deployer/common/data_flow/route/rank_table_builder.cc"
         "${AIR_CODE_DIR}/dflow/deployer/common/mem_grp/memory_group_manager.cc"
         "${AIR_CODE_DIR}/dflow/deployer/common/subprocess/subprocess_manager.cc"
-        "${AIR_CODE_DIR}/dflow/deployer/common/utils/deploy_location_cpu.cc"
         "${AIR_CODE_DIR}/dflow/deployer/daemon/daemon_client_manager.cc"
         "${AIR_CODE_DIR}/dflow/deployer/daemon/model_deployer_daemon.cc"
         "${AIR_CODE_DIR}/dflow/deployer/common/utils/heterogeneous_profiler.cc"

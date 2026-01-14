@@ -26,10 +26,8 @@
 #include "hccl/hccl_types.h"
 #include "graph/debug/ge_attr_define.h"
 #include "dflow/base/deploy/deploy_planner.h"
-#include "common/config/json_parser.h"
 #include "common/checker.h"
 #include "common/thread_pool.h"
-#include "common/utils/deploy_location.h"
 #include "common/helper/model_parser_base.h"
 #include "framework/common/helper/model_helper.h"
 #include "toolchain/prof_api.h"
@@ -419,21 +417,18 @@ Status ExecutorContext::AttachQueues(const deployer::ExecutorRequest_LoadModelRe
   std::map<int32_t, std::set<uint32_t>> attach_queue_list;
   for (const auto &queue_attr : request.model_queues_attrs().input_queues_attrs()) {
     if ((queue_attr.device_type() == static_cast<int32_t>(NPU)) &&
-        (!DeployLocation::IsNpu()) &&
         (queue_attr.queue_id() != UINT32_MAX)) {
       attach_queue_list[queue_attr.device_id()].emplace(queue_attr.queue_id());
     }
   }
   for (const auto &queue_attr : request.model_queues_attrs().output_queues_attrs()) {
     if ((queue_attr.device_type() == static_cast<int32_t>(NPU)) &&
-        (!DeployLocation::IsNpu()) &&
         (queue_attr.queue_id() != UINT32_MAX)) {
       attach_queue_list[queue_attr.device_id()].emplace(queue_attr.queue_id());
     }
   }
   for (const auto &queue_attr : request.status_queues().output_queues_attrs()) {
     if ((queue_attr.device_type() == static_cast<int32_t>(NPU)) &&
-        (!DeployLocation::IsNpu()) &&
         (queue_attr.queue_id() != UINT32_MAX)) {
       attach_queue_list[queue_attr.device_id()].emplace(queue_attr.queue_id());
     }

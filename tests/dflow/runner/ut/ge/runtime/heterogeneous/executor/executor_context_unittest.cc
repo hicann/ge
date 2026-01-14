@@ -12,9 +12,6 @@
 #include <gtest/gtest.h>
 #include "dflow/inc/data_flow/model/flow_model.h"
 #include "executor/executor_context.h"
-#include "macro_utils/dt_public_scope.h"
-#include "common/utils/deploy_location.h"
-#include "macro_utils/dt_public_unscope.h"
 using namespace std;
 
 namespace ge {
@@ -25,10 +22,6 @@ class ExecutorContextTest : public testing::Test {
 };
 
 TEST_F(ExecutorContextTest, AttachQueuesSuccess) {
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = false;
-  GE_MAKE_GUARD(recover, [is_npu]() { DeployLocation::is_npu_ = is_npu; });
-
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *queue_def = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   queue_def->set_queue_id(0);

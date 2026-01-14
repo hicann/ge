@@ -14,7 +14,6 @@
 #include "framework/common/util.h"
 #include "securec.h"
 #include "dflow/base/deploy/exchange_service.h"
-#include "common/utils/deploy_location.h"
 
 namespace ge {
 Status ExchangeRoute::GetQueueId(int32_t queue_index, uint32_t &queue_id) const {
@@ -59,7 +58,7 @@ bool ExchangeRoute::IsProxyQueue(int32_t queue_index) const {
   auto endpoint = MutableEndpoint(queue_index);
   if (endpoint != nullptr) {
     return (endpoint->type == ExchangeEndpointType::kEndpointTypeQueue) &&
-           ((!DeployLocation::IsNpu()) && (endpoint->device_type != static_cast<int32_t>(CPU)));
+           (endpoint->device_type != static_cast<int32_t>(CPU));
   }
   return false;
 }
@@ -282,7 +281,7 @@ Status HeterogeneousExchangeDeployer::DoCreateQueue(const deployer::QueueDesc &q
   mem_queue_attr.work_mode = work_mode;
   mem_queue_attr.depth = queue_desc.depth();
   mem_queue_attr.overwrite = queue_desc.enqueue_policy() == "OVERWRITE";
-  mem_queue_attr.is_client = (!DeployLocation::IsNpu()) && (endpoint.device_type != static_cast<int32_t>(CPU));
+  mem_queue_attr.is_client = endpoint.device_type != static_cast<int32_t>(CPU);
   endpoint.fusion_offset = queue_desc.fusion_offset();
   auto ret = exchange_service_.CreateQueue(endpoint.device_id, queue_desc.name(), mem_queue_attr, endpoint.id);
   GE_CHK_STATUS_RET(ret, "Failed to create queue, queue_name = %s.", queue_desc.name().c_str());

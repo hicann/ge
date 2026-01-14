@@ -17,7 +17,6 @@
 #include "framework/common/debug/ge_log.h"
 #include "graph/ge_local_context.h"
 #include "common/env_path.h"
-
 #include "macro_utils/dt_public_scope.h"
 #include "common/config/config_parser.h"
 #include "macro_utils/dt_public_unscope.h"

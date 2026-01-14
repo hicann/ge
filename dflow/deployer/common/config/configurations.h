@@ -111,7 +111,6 @@ class Configurations {
  private:
   Status Initialize();
   Status GetWorkingDir(std::string &working_dir) const;
-  static std::string GetBaseDirByEnv();
   static std::string GetHostDirByEnv();
   Status ParseHostInfo();
 

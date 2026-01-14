@@ -25,7 +25,6 @@
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "common/config/configurations.h"
 #include "deploy/execfwk/udf_executor_client.h"
-#include "common/utils/deploy_location.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "deploy/flowrm/tsd_client.h"
 
@@ -160,8 +159,6 @@ class UdfExecutorClientTest : public testing::Test {
     system("rm -fr ut_udf_client");
   }
   void SetUp() override {
-    back_is_npu_ = DeployLocation::IsNpu();
-    back_is_device_soc_ = Configurations::GetInstance().information_.node_config.is_device_soc;
     MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaUdfClient>());
     SubprocessManager::GetInstance().Initialize();
     auto mock_runtime = std::make_shared<MockRuntime>();
@@ -173,8 +170,6 @@ class UdfExecutorClientTest : public testing::Test {
     SubprocessManager::GetInstance().Finalize();
     system("rm -fr ./ut_udf_models");
     MmpaStub::GetInstance().Reset();
-    DeployLocation::is_npu_ = back_is_npu_;
-    Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc_;
     HeterogeneousExchangeService::GetInstance().Finalize();
   }
 
@@ -196,10 +191,6 @@ class UdfExecutorClientTest : public testing::Test {
       udfDef->set_bin_name("libbuilt_in_flowfunc.so");
     }
   }
-
- private:
-  bool back_is_device_soc_ = true;
-  bool back_is_npu_ = false;
 };
 
 TEST_F(UdfExecutorClientTest, InitAndFinalize) {
@@ -209,7 +200,6 @@ TEST_F(UdfExecutorClientTest, InitAndFinalize) {
       return 0;
     }
   };
-  DeployLocation::is_npu_ = false;
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaWaitPid>());
   UdfExecutorClient client(0);
   client.model_id_to_pids_[0].emplace_back(1111111111111);
@@ -254,7 +244,6 @@ TEST_F(UdfExecutorClientTest, LoadModel_no_model) {
 }
 
 TEST_F(UdfExecutorClientTest, LoadModel_success_host) {
-  DeployLocation::is_npu_ = false;
   MockUdfExecutorClient client(0);
   deployer::ExecutorRequest_BatchLoadModelMessage load_model_desc;
   auto model = load_model_desc.add_models();
@@ -282,7 +271,6 @@ TEST_F(UdfExecutorClientTest, LoadModel_success_host) {
 }
 
 TEST_F(UdfExecutorClientTest, LoadModel_success_host_failed) {
-  DeployLocation::is_npu_ = false;
   MockUdfExecutorClientError client(0);
   deployer::ExecutorRequest_BatchLoadModelMessage load_model_desc;
   auto model = load_model_desc.add_models();
@@ -308,7 +296,6 @@ TEST_F(UdfExecutorClientTest, LoadModel_success_host_failed) {
 
 TEST_F(UdfExecutorClientTest, LoadModel_success_host_heavy_load) {
   Configurations::GetInstance().information_.node_config.is_device_soc = false;
-  DeployLocation::is_npu_ = false;
   MockUdfExecutorClient client(0);
   deployer::ExecutorRequest_BatchLoadModelMessage load_model_desc;
   auto model = load_model_desc.add_models();
@@ -335,7 +322,6 @@ TEST_F(UdfExecutorClientTest, LoadModel_success_host_heavy_load) {
 }
 
 TEST_F(UdfExecutorClientTest, LoadModel_success_device) {
-  DeployLocation::is_npu_ = true;
   MockUdfExecutorClient client(0);
   deployer::ExecutorRequest_BatchLoadModelMessage load_model_desc;
   auto model = load_model_desc.add_models();
@@ -363,7 +349,6 @@ TEST_F(UdfExecutorClientTest, LoadModel_success_device) {
 }
 
 TEST_F(UdfExecutorClientTest, LoadModel_success_device_npu_sched) {
-  DeployLocation::is_npu_ = true;
   MockUdfExecutorClient client(0);
   deployer::ExecutorRequest_BatchLoadModelMessage load_model_desc;
   auto model = load_model_desc.add_models();

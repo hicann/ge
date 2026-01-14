@@ -83,8 +83,6 @@ target_link_libraries(npu_sched_model_loader PRIVATE
 
 ########################################## libmodel_deployer #################################
 set(HELPER_COMMON_SRC_LIST
-        $<$<STREQUAL:${PRODUCT_SIDE},host>:common/utils/deploy_location_cpu.cc>
-        $<$<NOT:$<STREQUAL:${PRODUCT_SIDE},host>>:common/utils/deploy_location_npu.cc>
         common/config/config_parser.cc
         common/config/numa_config_manager.cc
         common/config/configurations.cc
@@ -321,8 +319,6 @@ target_link_libraries(deployer_daemon PRIVATE
 ########################################## npu_executor ###############################
 set(EXECUTOR_COMMON_SRC_LIST
         common/config/json_parser.cc
-        $<$<STREQUAL:${PRODUCT_SIDE},host>:common/utils/deploy_location_cpu.cc>
-        $<$<NOT:$<STREQUAL:${PRODUCT_SIDE},host>>:common/utils/deploy_location_npu.cc>
         common/utils/process_utils.cc
         common/utils/heterogeneous_profiler.cc
         common/utils/memory_statistic_manager.cc

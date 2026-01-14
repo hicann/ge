@@ -43,7 +43,6 @@ int32_t DgwClient::Initialize(const uint32_t dgwPid,
                               const std::string procSign,
                               const bool isProxy,
                               const int32_t timeout) {
-  if (dgwPid == 100) return -1;
   return 0;
 }
 

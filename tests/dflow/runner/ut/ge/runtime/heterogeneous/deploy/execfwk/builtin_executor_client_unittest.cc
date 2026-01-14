@@ -23,10 +23,6 @@
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "deploy/execfwk/builtin_executor_client.h"
 #include "deploy/flowrm/tsd_client.h"
-#include "common/config/configurations.h"
-#include "common/utils/deploy_location.h"
-#include "macro_utils/dt_public_unscope.h"
-#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -112,9 +108,6 @@ TEST_F(BuiltinExecutorClientTest, TestNpuOnHostInitAndFinalize) {
   RuntimeStub::SetInstance(mock_runtime);
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
 
-  auto is_npu = DeployLocation::IsNpu();
-  GE_MAKE_GUARD(recover, [is_npu]() { DeployLocation::is_npu_ = is_npu; });
-  DeployLocation::is_npu_ = false;
   PneExecutorClient::ClientContext context = {};
   context.device_id = 0;
   context.device_type = static_cast<int32_t>(NPU);

@@ -15,7 +15,6 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/ge_context.h"
 #include "common/utils/heterogeneous_profiler.h"
-#include "common/utils/deploy_location.h"
 #include "common/utils/rts_api_utils.h"
 #include "common/dump/dump_manager.h"
 #include "graph/load/model_manager/model_manager.h"
@@ -147,7 +146,7 @@ Status DynamicModelExecutor::LoadModel(const ModelData &model_data,
   status_output_queue_id_ = model_queue_param.status_output_queue.queue_id;
   auto status_queue_device_type = model_queue_param.status_output_queue.device_type;
   need_report_status_ = (model_queue_param.is_dynamic_sched && model_queue_param.need_report_status);
-  auto is_client = (!DeployLocation::IsNpu()) && (status_queue_device_type == static_cast<int32_t>(NPU));
+  auto is_client = status_queue_device_type == static_cast<int32_t>(NPU);
   if (is_client && need_report_status_) {
     HeterogeneousExchangeService::GetInstance().AddClientQueue(status_output_queue_id_);
   }

@@ -17,7 +17,6 @@
 #include "hccl/hccl_types.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "macro_utils/dt_public_scope.h"
-#include "common/utils/deploy_location.h"
 #include "deploy/flowrm/flow_route_manager.h"
 #include "deploy/flowrm/tsd_client.h"
 #include "deploy/deployer/deploy_context.h"
@@ -96,16 +95,10 @@ class MockRuntimeNoLeaks : public RuntimeStub {
 } // namespace
 void *mock_handle = nullptr;
 
-HcclResult HcomInitByString(const string &rankTable) {
-  return HCCL_SUCCESS;
-}
-
 class MockMmpa : public MmpaStubApiGe {
  public:
   void *DlSym(void *handle, const char *func_name) override {
-    if (std::string(func_name) == "HcomInitByString") {
-      return (void *) &HcomInitByString;
-    } else if (std::string(func_name) == "TsdCapabilityGet") {
+    if (std::string(func_name) == "TsdCapabilityGet") {
       return (void *) &TsdCapabilityGet;
     } else if (std::string(func_name) == "ProcessCloseSubProcList") {
       return (void *) &ProcessCloseSubProcList;
@@ -113,8 +106,12 @@ class MockMmpa : public MmpaStubApiGe {
       return (void *) &TsdProcessOpen;
     } else if (std::string(func_name) == "TsdGetProcListStatus") {
       return (void *) &TsdGetProcListStatus;
+    } else if (std::string(func_name) == "TsdFileLoad") {
+      return (void *) &TsdFileLoad;
+    } else if (std::string(func_name) == "TsdInitFlowGw") {
+      return (void *) &TsdInitFlowGw;
     }
-    return (void *)0xFFFFFFFF;
+    return MmpaStubApiGe::DlSym(handle, func_name);
   }
 
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
@@ -123,10 +120,16 @@ class MockMmpa : public MmpaStubApiGe {
   }
 
   void *DlOpen(const char *fileName, int32_t mode) override {
-    return (void *) mock_handle;
+    if (std::string(fileName) == "libtsdclient.so") {
+      return (void *) mock_handle;
+    }
+    return MmpaStubApiGe::DlOpen(fileName, mode);
   }
   int32_t DlClose(void *handle) override {
-    return 0L;
+    if (mock_handle == handle) {
+      return 0L;
+    }
+    return MmpaStubApiGe::DlClose(handle);
   }
 };
 
@@ -140,13 +143,13 @@ class DeployContextTest : public testing::Test {
     TsdClient::GetInstance().Initialize();
   }
   void TearDown() override {
-    mock_handle = nullptr;
     SubprocessManager::GetInstance().Finalize();
     TsdClient::GetInstance().Finalize();
     HeterogeneousExchangeService::GetInstance().Finalize();
     Configurations::GetInstance().information_ = {};
     RuntimeStub::Reset();
     MmpaStub::GetInstance().Reset();
+    mock_handle = nullptr;
   }
 };
 
@@ -190,12 +193,9 @@ class MockDeployerVarManager : public DeployerVarManager {
 TEST_F(DeployContextTest, TestProcessVarManagerOfAIServer) {
   DeployContext context;
   deployer::DeployerResponse response;
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
   deployer::InitProcessResourceRequest init_process_resource_request;
   init_process_resource_request.set_device_id(0);
   init_process_resource_request.set_device_type(0);
-  init_process_resource_request.set_rank_table("rank_table");
   init_process_resource_request.set_rank_id(0);
   init_process_resource_request.set_profiling_on(true);
   std::vector<int32_t> res_ids_0 = {0};
@@ -209,7 +209,6 @@ TEST_F(DeployContextTest, TestProcessVarManagerOfAIServer) {
   init_process_resource_request.mutable_res_ids()->Add(res_ids_1.begin(), res_ids_1.end());
   EXPECT_EQ(context.InitProcessResource(init_process_resource_request, response), SUCCESS);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   int32_t device_id = 0;
   deployer::MultiVarManagerRequest info;
   info.add_device_ids(device_id);
@@ -294,9 +293,6 @@ TEST_F(DeployContextTest, TestProcessVarManagerOfAIServer) {
   ret = context.ProcessSharedContent(worker_var_req, response);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(context.tansfer_routes_.size(), 1);
-
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
-  DeployLocation::is_npu_ = is_npu;
 }
 
 TEST_F(DeployContextTest, TestProcessVarManagerAndSharedInfo) {
@@ -306,8 +302,6 @@ TEST_F(DeployContextTest, TestProcessVarManagerAndSharedInfo) {
   auto ret = context.ProcessSharedContent(shared_info, response);
   EXPECT_EQ(ret, PARAM_INVALID);
 
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
   const int32_t device_id = 0;
   deployer::InitProcessResourceRequest init_process_resource_request;
   init_process_resource_request.set_device_id(device_id);
@@ -317,7 +311,6 @@ TEST_F(DeployContextTest, TestProcessVarManagerAndSharedInfo) {
   std::vector<int32_t> res_ids_0 = {0};
   init_process_resource_request.mutable_res_ids()->Add(res_ids_0.begin(), res_ids_0.end());
   EXPECT_EQ(context.InitProcessResource(init_process_resource_request, response), SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
 
   auto shared_content_desc = shared_info.mutable_shared_content_desc();
   shared_content_desc->set_session_id(1);
@@ -404,8 +397,6 @@ TEST_F(DeployContextTest, TestProcessVarManagerAndSharedInfoAndSyncMem) {
   deployer::SharedContentDescRequest shared_info;
   auto ret = context.ProcessSharedContent(shared_info, response);
 
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
   const int32_t device_id = 0;
   deployer::InitProcessResourceRequest init_process_resource_request;
   init_process_resource_request.set_device_id(device_id);
@@ -415,7 +406,6 @@ TEST_F(DeployContextTest, TestProcessVarManagerAndSharedInfoAndSyncMem) {
   std::vector<int32_t> res_ids_0 = {0};
   init_process_resource_request.mutable_res_ids()->Add(res_ids_0.begin(), res_ids_0.end());
   EXPECT_EQ(context.InitProcessResource(init_process_resource_request, response), SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
 
   auto shared_content_desc = shared_info.mutable_shared_content_desc();
   shared_content_desc->set_session_id(1);
@@ -479,7 +469,6 @@ TEST_F(DeployContextTest, TestProcessVarManagerAndSharedInfoAndSyncMem) {
   EXPECT_EQ(context.tansfer_routes_.size(), 1);
   // test sync auto malloc
   deployer::UpdateDeployPlanRequest req;
-  DeployLocation::is_npu_ = true;
   req.set_device_id(0);
   req.set_root_model_id(1);
   req.set_session_id(1);
@@ -573,7 +562,6 @@ TEST_F(DeployContextTest, TestLoadModelWithInvoke) {
 TEST_F(DeployContextTest, TestLoadModelNpu) {
   DeployContext context;
   deployer::UpdateDeployPlanRequest req;
-  DeployLocation::is_npu_ = true;
   req.set_device_id(0);
   req.set_root_model_id(1);
   auto submodel_desc = req.add_submodel_descs();
@@ -604,7 +592,6 @@ TEST_F(DeployContextTest, TestLoadModelNpu) {
 TEST_F(DeployContextTest, TestBatchPreLoadLocalUdf) {
   DeployContext context;
   deployer::UpdateDeployPlanRequest req;
-  DeployLocation::is_npu_ = true;
   req.set_device_id(0);
   req.set_root_model_id(1);
   auto submodel_desc = req.add_submodel_descs();

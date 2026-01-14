@@ -25,10 +25,7 @@
 #include "deploy/flowrm/flow_route_manager.h"
 #include "common/data_flow/route/rank_table_builder.h"
 #include "common/utils/rts_api_utils.h"
-#include "common/subprocess/subprocess_manager.h"
-#include "graph/ge_context.h"
 #include "graph/utils/tensor_utils.h"
-#include "common/utils/deploy_location.h"
 #include "graph/utils/file_utils.h"
 
 namespace ge {
@@ -1175,7 +1172,7 @@ Status DeployContext::InitProcessResource(const deployer::InitProcessResourceReq
   const int32_t device_id = request.device_id();
   const int32_t device_type = request.device_type();
   std::vector<int32_t> res_ids(request.res_ids().begin(), request.res_ids().end());
-  bool is_proxy = !DeployLocation::IsNpu() && (static_cast<int32_t>(NPU) == device_type);
+  bool is_proxy = static_cast<int32_t>(NPU) == device_type;
   auto client = flowgw_client_manager_.GetOrCreateClient(device_id, device_type, res_ids, is_proxy);
   GE_CHECK_NOTNULL(client);
   const auto &rank_table = request.rank_table();

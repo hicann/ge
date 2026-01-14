@@ -14,7 +14,6 @@
 #include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "common/utils/process_utils.h"
-#include "common/utils/deploy_location.h"
 
 namespace ge {
 namespace {
@@ -22,7 +21,6 @@ constexpr size_t kMaxReceivingFiles = 1024U;
 constexpr size_t kMaxRootModelSize = 64U;
 constexpr int32_t kMaxSubmodelDescSize = 1024;  // max head node processes * pg * submodels
 constexpr size_t kMaxFlowRoutePlanSize = 64U;
-constexpr uint64_t kMaxTransferSize = 5UL * 1024UL * 1024UL * 1024UL;
 }  // namespace
 
 Status FlowModelReceiver::UpdateDeployPlan(const deployer::UpdateDeployPlanRequest &request) {
@@ -101,24 +99,18 @@ Status FlowModelReceiver::AppendToFile(const std::string &path, const char_t *fi
       auto dir = GetDirectory(path);
       constexpr auto dir_mode =
           static_cast<uint32_t>(M_UMASK_USRREAD | M_UMASK_USRWRITE | M_UMASK_USREXEC | M_UMASK_GRPEXEC);
-      GE_CHK_BOOL_RET_STATUS((mmAccess2(dir.c_str(), M_F_OK) == EN_OK) ||
-                             (ProcessUtils::CreateDir(dir, dir_mode) == SUCCESS),
-                             FAILED,
-                             "Failed to create directory: %s", dir.c_str());
-      const mmMode_t kAccess = static_cast<mmMode_t>(static_cast<uint32_t>(M_IRUSR) | static_cast<uint32_t>(M_IWUSR));
-      const int32_t fd = mmOpen2(path.c_str(),
-                                static_cast<int32_t>(static_cast<uint32_t>(M_WRONLY) |
-                                                      static_cast<uint32_t>(M_CREAT) |
-                                                      static_cast<uint32_t>(O_TRUNC)),
-                                kAccess);
+      GE_CHK_BOOL_RET_STATUS(
+          (mmAccess2(dir.c_str(), M_F_OK) == EN_OK) || (ProcessUtils::CreateDir(dir, dir_mode) == SUCCESS), FAILED,
+          "Failed to create directory: %s", dir.c_str());
+      constexpr mmMode_t kAccess = M_IRUSR | M_IWUSR;
+      constexpr int32_t kOpenFlags = M_WRONLY | M_CREAT |O_TRUNC;
+      const int32_t fd = mmOpen2(path.c_str(), kOpenFlags, kAccess);
       GE_CHK_BOOL_RET_STATUS(fd >= 0, FAILED, "Failed to open file, path = %s", path.c_str());
       (void) mmClose(fd);
       auto receiving_file_stream = MakeUnique<std::ofstream>(path, std::ios::out | std::ios::binary);
       GE_CHECK_NOTNULL(receiving_file_stream);
-      GE_CHK_BOOL_RET_STATUS(receiving_file_stream->good(),
-                            FAILED,
-                            "Failed to open file for write, path = %s",
-                            path.c_str());
+      GE_CHK_BOOL_RET_STATUS(receiving_file_stream->good(), FAILED, "Failed to open file for write, path = %s",
+                             path.c_str());
       output_file = receiving_file_stream.get();
       receiving_files_[path] = std::move(receiving_file_stream);
     } else {
@@ -129,33 +121,18 @@ Status FlowModelReceiver::AppendToFile(const std::string &path, const char_t *fi
   GE_DISMISSABLE_GUARD(file_guard, [&path]() {
     (void) std::remove(path.c_str());
   });
-  GE_CHK_BOOL_RET_STATUS((!DeployLocation::IsNpu()) || (size <= kMaxTransferSize - total_size_),
-                         FAILED,
-                         "File[%s] transfer size[%zu] is invalid, total max transfer size = %lu,"
-                         "total used size = %lu.",
-                         path.c_str(), size, kMaxTransferSize, total_size_);
   output_file->write(file_content, static_cast<std::streamsize>(size));
   GE_CHK_BOOL_RET_STATUS(!output_file->fail(), FAILED,
                          "Failed to write to file[%s], size = %zu bytes, current file size = %ld bytes, "
                          "error msg = %s. If there  is not enough space, "
                          "you can specify another path through the configuration file.",
                          path.c_str(), size, static_cast<int64_t>(output_file->tellp()), strerror(errno));
-  total_size_ += size;
-  GELOGD("[TransferFile] success, path = %s, block_size = %zu bytes, current_size = %ld bytes, "
-         "is_eof = %d, used size = %lu bytes",
-         path.c_str(),
-         size,
-         static_cast<int64_t>(output_file->tellp()),
-         static_cast<int32_t>(is_eof),
-         total_size_);
+  GELOGD("[TransferFile] success, path = %s, block_size = %zu bytes, current_size = %ld bytes, is_eof = %d",
+         path.c_str(), size, static_cast<int64_t>(output_file->tellp()), static_cast<int32_t>(is_eof));
   if (is_eof) {
     // auto flush and close
-    GEEVENT("[TransferFile] success, path = %s, file_size = %ld bytes, total max transfer size = %lu bytes, "
-            "total used size = %lu bytes.",
-            path.c_str(),
-            static_cast<int64_t>(output_file->tellp()),
-            kMaxTransferSize,
-            total_size_);
+    GEEVENT("[TransferFile] success, path = %s, file_size = %ld bytes.", path.c_str(),
+            static_cast<int64_t>(output_file->tellp()));
     std::lock_guard<std::mutex> lk(mu_);
     receiving_files_.erase(path);
   }

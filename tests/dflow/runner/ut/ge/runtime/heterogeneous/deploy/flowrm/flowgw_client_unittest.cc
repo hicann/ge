@@ -94,8 +94,7 @@ TEST_F(UtFlowGwClient, run_InitializeAndFinalize) {
   flowgw_client.Finalize();
 
   FlowGwClient flowgw_proxy_client(0, 0, {0}, true);
-  // flowgw pid = 100, client init failed
-  EXPECT_NE(flowgw_proxy_client.Initialize(), SUCCESS);
+  EXPECT_EQ(flowgw_proxy_client.Initialize(), SUCCESS);
   EXPECT_EQ(flowgw_client.GetSubProcStat(), ProcStatus::INVALID);
   flowgw_proxy_client.Finalize();
 }

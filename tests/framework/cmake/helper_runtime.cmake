@@ -28,7 +28,6 @@ set(HELPER_RUNTIME_SRC
     ${AIR_CODE_DIR}/dflow/deployer/common/data_flow/event/proxy_event_manager.cc
     ${AIR_CODE_DIR}/dflow/deployer/common/mem_grp/memory_group_manager.cc
     ${AIR_CODE_DIR}/dflow/deployer/common/subprocess/subprocess_manager.cc
-    ${AIR_CODE_DIR}/dflow/deployer/common/utils/deploy_location_cpu.cc
     ${AIR_CODE_DIR}/dflow/deployer/common/utils/heterogeneous_profiler.cc
     ${AIR_CODE_DIR}/dflow/deployer/common/utils/memory_statistic_manager.cc
     ${AIR_CODE_DIR}/dflow/deployer/daemon/daemon_client_manager.cc

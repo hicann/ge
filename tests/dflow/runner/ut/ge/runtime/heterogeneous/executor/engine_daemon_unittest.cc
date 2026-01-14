@@ -15,7 +15,6 @@
 #include "runtime/rt_mem_queue.h"
 
 #include "macro_utils/dt_public_scope.h"
-#include "common/utils/deploy_location.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "executor/engine_daemon.h"
 #include "macro_utils/dt_public_unscope.h"
@@ -312,17 +311,12 @@ TEST_F(EngineDaemonTest, TestInitProfilingFromOption) {
   mmRealPath(".", &npu_collect_path[0U], MMPA_MAX_PATH);
   const std::string fail_collect_path = (std::string(&npu_collect_path[0U]) + "/mock_fail");
   mmSetEnv(kEnvValue, fail_collect_path.c_str(), 1);
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
   ret = engine_daemon.InitProfilingFromOption(options);
-  DeployLocation::is_npu_ = is_npu;
   EXPECT_NE(ret, SUCCESS);
   unsetenv(kEnvValue);
 
   // init profiling with ge option
-  DeployLocation::is_npu_ = false;
   EXPECT_EQ(engine_daemon.InitProfilingFromOption(options), SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
 }
 
 TEST_F(EngineDaemonTest, TestInitDumpFromOption) {

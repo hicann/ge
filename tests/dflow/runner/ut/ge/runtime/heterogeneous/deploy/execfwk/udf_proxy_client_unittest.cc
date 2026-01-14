@@ -22,7 +22,6 @@
 #include "udf_def.pb.h"
 #include "macro_utils/dt_public_scope.h"
 #include "deploy/execfwk/udf_proxy_client.h"
-#include "common/utils/deploy_location.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "deploy/flowrm/tsd_client.h"
 #include "common/profiling/profiling_properties.h"

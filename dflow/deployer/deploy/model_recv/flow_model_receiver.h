@@ -39,7 +39,6 @@ class FlowModelReceiver {
   std::mutex mu_;
   std::map<uint32_t, DeployState> deploy_states_;
   std::map<std::string, std::unique_ptr<std::ofstream>> receiving_files_;
-  uint64_t total_size_ = 0UL;
 };
 }  // namespace ge
 

@@ -23,7 +23,6 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/subprocess/subprocess_manager.h"
-#include "common/utils/deploy_location.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 
@@ -89,9 +88,7 @@ TEST_F(SubprocessManagerTest, UtSubProcessManagerWaitpidRet0) {
   SubprocessManager::GetInstance().UnRegExcptHandleCallback(pid);
 }
 
-TEST_F(SubprocessManagerTest, UtShutdownSubprocess_host) {
-  auto back = DeployLocation::is_npu_;
-  DeployLocation::is_npu_ = false;
+TEST_F(SubprocessManagerTest, UtShutdownSubprocess) {
   std::function<void(const ProcStatus &)> func = [](const ProcStatus &status) {};
   // not exist pid
   pid_t pid = 9999999;
@@ -102,23 +99,6 @@ TEST_F(SubprocessManagerTest, UtShutdownSubprocess_host) {
   SubprocessManager::GetInstance().ShutdownSubprocess(pid, 1);
   EXPECT_EQ(SubprocessManager::GetInstance().planned_shutdown_[pid], true);
   SubprocessManager::GetInstance().Finalize();
-  DeployLocation::is_npu_ = back;
-}
-
-TEST_F(SubprocessManagerTest, UtShutdownSubprocess_on_npu) {
-  auto back = DeployLocation::is_npu_;
-  DeployLocation::is_npu_ = true;
-  std::function<void(const ProcStatus &)> func = [](const ProcStatus &status) {};
-  // not exist pid
-  pid_t pid = 9999999;
-  g_waitpid_ret = 0;
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
-  SubprocessManager::GetInstance().RegExcptHandleCallback(pid, func);
-  SubprocessManager::GetInstance().NotifySubprocessShutdown(pid);
-  SubprocessManager::GetInstance().ShutdownSubprocess(pid, 1);
-  EXPECT_EQ(SubprocessManager::GetInstance().planned_shutdown_[pid], true);
-  SubprocessManager::GetInstance().Finalize();
-  DeployLocation::is_npu_ = back;
 }
 
 TEST_F(SubprocessManagerTest, UtSubProcessManagerWaitpidStop) {

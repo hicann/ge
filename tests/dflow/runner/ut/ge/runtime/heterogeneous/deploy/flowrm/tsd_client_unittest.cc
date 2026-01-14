@@ -11,9 +11,6 @@
 #include <gtest/gtest.h>
 #include "deploy/flowrm/tsd_client.h"
 #include "depends/mmpa/src/mmpa_stub.h"
-#include "macro_utils/dt_public_scope.h"
-#include "common/utils/deploy_location.h"
-#include "macro_utils/dt_public_unscope.h"
 
 namespace ge {
 namespace {
@@ -55,16 +52,11 @@ class UtTsdClient : public testing::Test {
   void SetUp() override {
     MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
     TsdClient::GetInstance().Initialize();
-    back_is_npu_ = DeployLocation::IsNpu();
   }
   void TearDown() override {
     TsdClient::GetInstance().Finalize();
     MmpaStub::GetInstance().Reset();
-    DeployLocation::is_npu_ = back_is_npu_;
   }
-
- private:
-  bool back_is_npu_ = false;
 };
 
 TEST_F(UtTsdClient, run_GetProcStatus) {
@@ -90,7 +82,6 @@ TEST_F(UtTsdClient, run_StartFlowGw) {
 }
 
 TEST_F(UtTsdClient, run_ForkSubprocess) {
-  DeployLocation::is_npu_ = false;
   pid_t pid = 0;
   SubprocessManager::SubprocessConfig config = {};
   config.envs["env1"] = "val1";

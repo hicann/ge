@@ -63,7 +63,6 @@
 #include "dflow/executor/inner_process_msg_forwarding.h"
 #include "dflow/executor/heterogeneous_model_executor.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
-#include "common/utils/deploy_location.h"
 #include "common/config/configurations.h"
 #include "common/dump/dump_manager.h"
 #include "daemon/daemon_service.h"
@@ -1256,28 +1255,7 @@ TEST_F(STEST_helper_runtime, helper_res_path_env_invalid) {
   EXPECT_NE(Configurations::GetInstance().GetConfigDir(config_dir), SUCCESS);
 }
 
-TEST_F(STEST_helper_runtime, helper_install_path_invalid) {
-  bool is_npu_back = DeployLocation::is_npu_;
-  DeployLocation::is_npu_ = true;
-  class MockMmpaRealPath : public ge::MmpaStubApiGe {
-   public:
-    int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-      memcpy_s(realPath, realPathLen, path, strlen(path));
-      return 0;
-    }
-  };
-  unsetenv("HELPER_RES_FILE_PATH");
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
-  mmSetEnv("ASCEND_LATEST_INSTALL_PATH", "../../", 1);
-  std::string config_dir;
-  EXPECT_NE(Configurations::GetInstance().GetConfigDir(config_dir), SUCCESS);
-  unsetenv("ASCEND_LATEST_INSTALL_PATH");
-  DeployLocation::is_npu_ = is_npu_back;
-}
-
 TEST_F(STEST_helper_runtime, helper_host_dir_invalid) {
-  bool is_npu_back = DeployLocation::is_npu_;
-  DeployLocation::is_npu_ = false;
   class MockMmpaRealPath : public ge::MmpaStubApiGe {
    public:
     int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
@@ -1289,7 +1267,6 @@ TEST_F(STEST_helper_runtime, helper_host_dir_invalid) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
   std::string work_dir;
   EXPECT_NE(Configurations::GetInstance().GetWorkingDir(work_dir), SUCCESS);
-  DeployLocation::is_npu_ = is_npu_back;
 }
 
 TEST_F(STEST_helper_runtime, test_var_manager_serial_deserial) {
@@ -1773,14 +1750,6 @@ class MockRuntimeUDF : public MockRuntimeForClient {
   deployer::ExecutorResponse response_;
 };
 
-HcclResult HcomSetRankTable(const string &rankTable) {
-  return HCCL_SUCCESS;
-}
-
-HcclResult HcomInitByStringStub(const char *a, const char *b) {
-  return HCCL_SUCCESS;
-}
-
 int32_t AicpuLoadModelWithQStub(void *ptr) {
   (void) ptr;
   return 0;
@@ -1828,10 +1797,6 @@ class MockMmpaForHeterogeneousRuntime : public MmpaStubApiGe {
   void *DlSym(void *handle, const char *func_name) override {
     if (std::string(func_name) == "InitializeHeterogeneousRuntime") {
       return (void *) &InitializeHeterogeneousRuntime;
-    } else if (std::string(func_name) == "HcomSetRankTable") {
-      return (void *) &HcomSetRankTable;
-    } else if (std::string(func_name) == "HcomInitByString") {
-      return (void *) &HcomInitByStringStub;
     } else if (std::string(func_name) == "AicpuLoadModelWithQ") {
       return (void *) &AicpuLoadModelWithQStub;
     } else if (std::string(func_name) == "AICPUModelDestroy") {
@@ -2464,8 +2429,6 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModel) {
   PneExecutorClientCreatorRegistrar<MockUdfExecutorClient> udf_registrar(PNE_ID_UDF);
   PneExecutorClientCreatorRegistrar<MockUdfProxyClient> udf_proxy_registrar(PNE_ID_UDF, true);
   auto graph = BuildUdfGraph("udf_model", udf_config_file);
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
   Session session(options);
   uint32_t graph_id = 1;
   EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
@@ -2492,8 +2455,7 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModel) {
   RuntimeStub::Reset();
 
   remove(udf_config_file);
-  DeployLocation::is_npu_ = is_npu;
-    system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
+  system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
 }
 
 TEST_F(STEST_helper_runtime, TestDeployHeavyLoadUdfModelOnServerWithHostFlowgw) {
@@ -2986,7 +2948,6 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModelOnNpu) {
   // 1. start server
   auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
   setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  DeployLocation::is_npu_ = true;
   EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
   ge::GrpcServer grpc_server;
   std::thread server_thread = std::thread([&]() {
@@ -3062,10 +3023,9 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModelOnNpu) {
   ExecutionRuntime::FinalizeExecutionRuntime();
   MmpaStub::GetInstance().Reset();
   RuntimeStub::Reset();
-  DeployLocation::is_npu_ = false;
 
   remove(udf_config_file);
-    system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
+  system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
 }
 
 TEST_F(STEST_helper_runtime, TestDeployUdfModelWriteTarSuccessByMultiTimes) {
@@ -4133,42 +4093,6 @@ TEST_F(STEST_helper_runtime, TestProcManager) {
   MmpaStub::GetInstance().Reset();
 }
 
-TEST_F(STEST_helper_runtime, TestHeterogeneousResFilePathNotSeted) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  DeployLocation::is_npu_ = true;
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  unsetenv("HELPER_RES_FILE_PATH");
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  EXPECT_NE(ge::GEInitialize(options), ge::SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-  GEFinalize();
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-  DeployLocation::is_npu_ = false;
-}
-
 TEST_F(STEST_helper_runtime, test_get_int_value) {
   ge::JsonParser jsonParser;
   nlohmann::json js = {};
@@ -4285,17 +4209,12 @@ TEST_F(STEST_helper_runtime, TestInitProfilingFromOption) {
   mmRealPath(".", &npu_collect_path[0U], MMPA_MAX_PATH);
   const std::string fail_collect_path = (std::string(&npu_collect_path[0U]) + "/mock_fail");
   mmSetEnv(kEnvValue, fail_collect_path.c_str(), 1);
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
   auto ret = engine_daemon.InitProfilingFromOption(options);
-  DeployLocation::is_npu_ = is_npu;
   EXPECT_NE(ret, SUCCESS);
   unsetenv(kEnvValue);
 
   // init profiling with ge option
-  DeployLocation::is_npu_ = false;
   EXPECT_EQ(engine_daemon.InitProfilingFromOption(options), SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
 }
 
 TEST_F(STEST_helper_runtime, TestEnqueueAndDequeueFail) {
@@ -4552,8 +4471,6 @@ void SetSubGraph(OpDesc &op_desc, const std::string &name) {
 }
 
 TEST_F(STEST_helper_runtime, TestBuiltinExecutorClient_host) {
-  auto back = DeployLocation::is_npu_;
-  DeployLocation::is_npu_ = false;
   SubprocessManager::GetInstance().executable_paths_[PNE_ID_NPU] = "npu_executor";
   RuntimeStub::SetInstance(std::make_shared<MockRuntimeForClient>());
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaUdfClient>());
@@ -4562,7 +4479,6 @@ TEST_F(STEST_helper_runtime, TestBuiltinExecutorClient_host) {
   EXPECT_EQ(client.Initialize(), SUCCESS);
   EXPECT_EQ(client.GetSubProcStat(), ProcStatus::NORMAL);
   EXPECT_EQ(client.Finalize(), SUCCESS);
-  DeployLocation::is_npu_ = back;
 }
 
 TEST_F(STEST_helper_runtime, TestThreadClient) {
@@ -4580,8 +4496,6 @@ TEST_F(STEST_helper_runtime, TestThreadClient) {
 }
 
 TEST_F(STEST_helper_runtime, TestUDFClient_host) {
-  auto back = DeployLocation::is_npu_;
-  DeployLocation::is_npu_ = false;
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaUdfClient>());
   UdfExecutorClient client(0);
   client.model_id_to_pids_[0].emplace_back(1111111111111);
@@ -4589,21 +4503,6 @@ TEST_F(STEST_helper_runtime, TestUDFClient_host) {
   EXPECT_EQ(client.Initialize(), SUCCESS);
   EXPECT_EQ(client.Finalize(), SUCCESS);
   EXPECT_EQ(client.model_id_to_pids_.size(), 0U);
-  DeployLocation::is_npu_ = back;
-}
-
-TEST_F(STEST_helper_runtime, TestUDFClient_npu) {
-  auto back = DeployLocation::is_npu_;
-  DeployLocation::is_npu_ = true;
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaUdfClient>());
-  UdfExecutorClient client(0);
-  client.model_id_to_pids_[0].emplace_back(1111111111111);
-  client.model_id_to_pids_[1].emplace_back(2222222222222);
-  EXPECT_EQ(client.Initialize(), SUCCESS);
-  EXPECT_EQ(client.Finalize(), SUCCESS);
-  EXPECT_EQ(client.model_id_to_pids_.size(), 0U);
-  TsdClient::GetInstance().Finalize();
-  DeployLocation::is_npu_ = back;
 }
 
 TEST_F(STEST_helper_runtime, CheckDevPidStatusStartByFork) {

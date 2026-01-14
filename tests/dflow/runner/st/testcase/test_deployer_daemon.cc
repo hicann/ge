@@ -14,7 +14,6 @@
 #include "graph/ge_local_context.h"
 
 #include "macro_utils/dt_public_scope.h"
-#include "common/utils/deploy_location.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "daemon/model_deployer_daemon.h"
 #include "deploy/flowrm/tsd_client.h"
@@ -126,8 +125,8 @@ class ModelDeployerDaemonTest : public testing::Test {
  protected:
   void SetUp() override {
     std::string real_path =
-        PathUtils::Join({EnvPath().GetAirBasePath(), "/tests/dflow/runner/st/st_run_data/json/helper_runtime/device"});
-    setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+        PathUtils::Join({EnvPath().GetAirBasePath(), "/tests/dflow/runner/st/st_run_data/json/helper_runtime/host/numa_config.json"});
+    setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
     // clear options
     std::map<std::string, std::string> empty_options;
     ge::GetThreadLocalContext().SetGlobalOption(empty_options);
@@ -136,39 +135,15 @@ class ModelDeployerDaemonTest : public testing::Test {
     RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   }
   void TearDown() override {
-    unsetenv("HELPER_RES_FILE_PATH");
     HeterogeneousExchangeService::GetInstance().Finalize();
     RuntimeStub::Reset();
     MmpaStub::GetInstance().Reset();
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
 };
 
-TEST_F(ModelDeployerDaemonTest, TestInitializeAndFinalizeOnNpu) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDeployer>());
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::ModelDeployerDaemon daemon;
-  Status ret = FAILED;
-  const std::string process_name = "deployer_daemon";
-  const char_t *argv[] = {
-      process_name.c_str(),
-  };
-  std::thread start = std::thread([&]() { ret = daemon.Start(1, (char **)argv); });
-  sleep(1); // wait grpc server init
-  daemon.SignalHandler(9);
-  if (start.joinable()) {
-    start.join();
-  }
-  EXPECT_EQ(ret, SUCCESS);
-  TsdClient::GetInstance().Finalize();
-  DeployLocation::is_npu_ = is_npu;
-}
-
 TEST_F(ModelDeployerDaemonTest, TestInitializeAndFinalizeOnCpu) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDeployer>());
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = false;
   EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
   Status ret = FAILED;
   ge::ModelDeployerDaemon daemon;
@@ -187,30 +162,5 @@ TEST_F(ModelDeployerDaemonTest, TestInitializeAndFinalizeOnCpu) {
     start.join();
   }
   EXPECT_EQ(ret, SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
-}
-
-TEST_F(ModelDeployerDaemonTest, TestInitializeAndFinalizeSubDeployerOnNpu) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDeployer>());
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
-  Status ret = FAILED;
-  ge::ModelDeployerDaemon daemon;
-  daemon.is_sub_deployer_ = true;
-  const std::string process_name = "sub_deployer";
-  const char_t *argv[] = {
-      process_name.c_str(),
-      "MEM_GROUP_123456",
-      "0",
-      "1",
-  };
-  std::thread start = std::thread([&]() { ret = daemon.Start(4, (char **)argv); });
-  sleep(1);
-  daemon.SignalHandler(9);
-  if (start.joinable()) {
-    start.join();
-  }
-  EXPECT_EQ(ret, SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
 }
 } // namespace ge

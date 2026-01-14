@@ -15,7 +15,6 @@
 #include "depends/runtime/src/runtime_stub.h"
 
 #include "macro_utils/dt_public_scope.h"
-#include "common/utils/deploy_location.h"
 #include "common/utils/rts_api_utils.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "daemon/model_deployer_daemon.h"
@@ -99,7 +98,7 @@ class MockMmpaDeployer : public MmpaStubApiGe {
       return get_tsd_capability_func_;
     }
     std::cout << "func name:" << func_name << " not stub\n";
-    return (void *) 0xFFFFFFFF;
+    return MmpaStubApiGe::DlSym(handle, func_name);
   }
 
   void *DlOpen(const char *fileName, int32_t mode) override {
@@ -141,61 +140,6 @@ class ModelDeployerDaemonUnittest : public testing::Test {
   }
 };
 
-TEST_F(ModelDeployerDaemonUnittest, TestInitializeAndFinalizeOnNpu) {
-  auto MockRealPath = [](const CHAR *path, CHAR *realPath, INT32 realPathLen)->int32_t {
-    strncpy(realPath, path, realPathLen);
-    return 0;
-  };
-  auto mock_mmpa = std::make_shared<MockMmpaDeployer>();
-  MmpaStub::GetInstance().SetImpl(mock_mmpa);
-  EXPECT_CALL(*mock_mmpa, RealPath).WillRepeatedly(testing::Invoke(MockRealPath));
-
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
-  ge::ModelDeployerDaemon daemon;
-  Status ret = FAILED;
-  const std::string process_name = "deployer_daemon";
-  const char_t *argv[] = {
-      process_name.c_str(),
-  };
-  std::thread start = std::thread([&]() { ret = daemon.Start(1, (char **)argv); });
-  sleep(1); // wait grpc server init
-  daemon.SignalHandler(9);
-  if (start.joinable()) {
-    start.join();
-  }
-  EXPECT_EQ(ret, SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
-}
-
-TEST_F(ModelDeployerDaemonUnittest, TestAddUserCgroupOnNpu) {
-  auto MockRealPath = [](const CHAR *path, CHAR *realPath, INT32 realPathLen)->int32_t {
-    strncpy(realPath, path, realPathLen);
-    return 0;
-  };
-  auto mock_mmpa = std::make_shared<MockMmpaDeployer>();
-  MmpaStub::GetInstance().SetImpl(mock_mmpa);
-  // mock fwk cgroup is not exist
-  EXPECT_CALL(*mock_mmpa, RealPath).WillRepeatedly(testing::Invoke(MockRealPath));
-
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
-  ge::ModelDeployerDaemon daemon;
-  Status ret = FAILED;
-  const std::string process_name = "deployer_daemon";
-  const char_t *argv[] = {
-      process_name.c_str(),
-  };
-  std::thread start = std::thread([&]() { ret = daemon.Start(1, (char **)argv); });
-  sleep(1); // wait grpc server init
-  daemon.SignalHandler(9);
-  if (start.joinable()) {
-    start.join();
-  }
-  EXPECT_EQ(ret, SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
-}
-
 TEST_F(ModelDeployerDaemonUnittest, TestInitializeAndFinalizeSubDeployerOnCpu) {
   class MockRuntimeDequeueTimeEmpty : public MockRuntime {
    public:
@@ -212,8 +156,6 @@ TEST_F(ModelDeployerDaemonUnittest, TestInitializeAndFinalizeSubDeployerOnCpu) {
   MmpaStub::GetInstance().SetImpl(mock_mmpa);
   EXPECT_CALL(*mock_mmpa, RealPath).WillRepeatedly(testing::Invoke(MockRealPath));
 
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = false;
   Status ret = FAILED;
   ge::ModelDeployerDaemon daemon;
   daemon.is_sub_deployer_ = true;
@@ -231,37 +173,5 @@ TEST_F(ModelDeployerDaemonUnittest, TestInitializeAndFinalizeSubDeployerOnCpu) {
     start.join();
   }
   EXPECT_EQ(ret, SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
-}
-
-TEST_F(ModelDeployerDaemonUnittest, TestInitializeAndFinalizeSubDeployerOnNpu) {
-  auto MockRealPath = [](const CHAR *path, CHAR *realPath, INT32 realPathLen) -> int32_t {
-    strncpy(realPath, path, realPathLen);
-    return 0;
-  };
-  auto mock_mmpa = std::make_shared<MockMmpaDeployer>();
-  MmpaStub::GetInstance().SetImpl(mock_mmpa);
-  EXPECT_CALL(*mock_mmpa, RealPath).WillRepeatedly(testing::Invoke(MockRealPath));
-
-  auto is_npu = DeployLocation::IsNpu();
-  DeployLocation::is_npu_ = true;
-  Status ret = FAILED;
-  ge::ModelDeployerDaemon daemon;
-  daemon.is_sub_deployer_ = true;
-  const std::string process_name = "sub_deployer";
-  const char_t *argv[] = {
-      process_name.c_str(),
-      "MEM_GROUP_123456",
-      "0",
-      "1",
-  };
-  std::thread start = std::thread([&]() { ret = daemon.Start(4, (char **)argv); });
-  sleep(1);
-  daemon.SignalHandler(9);
-  if (start.joinable()) {
-    start.join();
-  }
-  EXPECT_EQ(ret, SUCCESS);
-  DeployLocation::is_npu_ = is_npu;
 }
 } // namespace ge

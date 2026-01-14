@@ -22,7 +22,6 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/config/configurations.h"
-#include "common/utils/deploy_location.h"
 #include "macro_utils/dt_public_unscope.h"
 
 using namespace std;
@@ -33,7 +32,6 @@ class UtConfigurations : public testing::Test {
  protected:
   void SetUp() override {}
   void TearDown() override {
-    DeployLocation::is_npu_ = false;
     MmpaStub::GetInstance().Reset();
   }
 

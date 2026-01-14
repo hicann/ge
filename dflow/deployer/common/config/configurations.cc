@@ -12,7 +12,6 @@
 #include "common/config/json_parser.h"
 #include "common/debug/log.h"
 #include "common/config/config_parser.h"
-#include "common/utils/deploy_location.h"
 #include "common/utils/process_utils.h"
 #include "common/checker.h"
 #include "framework/common/ge_types.h"
@@ -57,13 +56,8 @@ Status Configurations::GetConfigDir(std::string &config_dir) {
     GEEVENT("Get config dir[%s] success from env[%s]", config_dir.c_str(), kHelperResFilePath);
     return SUCCESS;
   }
-  // read env ASCEND_LATEST_INSTALL_PATH
-  std::string base_dir = GetBaseDirByEnv();
-  GE_CHK_BOOL_RET_STATUS(!base_dir.empty(),
-                         ACL_ERROR_GE_PARAM_INVALID,
-                         "Env HELPER_RES_FILE_PATH and ASCEND_LATEST_INSTALL_PATH don't exist.");
-  config_dir = base_dir + "/conf";
-  return SUCCESS;
+  GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Env HELPER_RES_FILE_PATH  don't exist.");
+  return ACL_ERROR_GE_PARAM_INVALID;
 }
 
 Status Configurations::GetWorkingDir(std::string &working_dir) const {
@@ -73,49 +67,20 @@ Status Configurations::GetWorkingDir(std::string &working_dir) const {
     return SUCCESS;
   }
 
-  if (DeployLocation::IsNpu()) {
-    working_dir = GetBaseDirByEnv();
-    if (working_dir.empty()) {
-      working_dir = "/usr/local/Ascend/latest";
-      GELOGI("Use default working dir, path = %s", working_dir.c_str());
-    }
+  std::string ascend_work_path;
+  GE_ASSERT_SUCCESS(GetAscendWorkPath(ascend_work_path));
+  if (!ascend_work_path.empty()) {
+    working_dir = ascend_work_path;
   } else {
-    std::string ascend_work_path;
-    GE_ASSERT_SUCCESS(GetAscendWorkPath(ascend_work_path));
-    if (!ascend_work_path.empty()) {
-      working_dir = ascend_work_path;
-    } else {
-      working_dir = GetHostDirByEnv();
-    }
-    GE_CHK_BOOL_RET_STATUS(!working_dir.empty(), ACL_ERROR_GE_PARAM_INVALID, "Env HOME don't exist.");
+    working_dir = GetHostDirByEnv();
   }
+  GE_CHK_BOOL_RET_STATUS(!working_dir.empty(), ACL_ERROR_GE_PARAM_INVALID, "Env HOME don't exist.");
   GELOGI("Get working dir success, path = %s", working_dir.c_str());
   return SUCCESS;
 }
 
 std::string Configurations::GetDeployResDir() {
   return information_.working_dir + "/runtime/deploy_res/";
-}
-
-std::string Configurations::GetBaseDirByEnv() {
-  const char_t *kConfigInstallPathEnv = "ASCEND_LATEST_INSTALL_PATH";
-  const char_t *install_path = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_ASCEND_LATEST_INSTALL_PATH, install_path);
-  if (install_path == nullptr) {
-    return "";
-  }
-  const std::string real_path = RealPath(install_path);
-  if (real_path.empty()) {
-    GELOGW("The path[%s] of env[%s] is invalid", install_path, kConfigInstallPathEnv);
-    return "";
-  }
-  if (ProcessUtils::IsValidPath(real_path) != SUCCESS) {
-    GELOGW("env %s config value[%s] real path[%s] is invalid", kConfigInstallPathEnv, install_path, real_path.c_str());
-    return "";
-  }
-  GELOGI("Get base dir success from env[%s], path = %s, realpath=%s", kConfigInstallPathEnv, install_path,
-         real_path.c_str());
-  return real_path;
 }
 
 std::string Configurations::GetHostDirByEnv() {
