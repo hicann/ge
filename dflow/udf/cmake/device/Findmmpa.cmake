@@ -46,8 +46,7 @@ unset(_cmake_expected_targets)
 set(CMAKE_FIND_DEBUG_MODE ON)
 find_path(mmpa_INCLUDE_DIR
     NAMES mmpa/mmpa_api.h
-    PATH_SUFFIXES
-        include
+    PATH_SUFFIXES pkg_inc
     NO_CMAKE_SYSTEM_PATH
     NO_CMAKE_FIND_ROOT_PATH)
 
