@@ -1441,6 +1441,11 @@ HcclResult HcomGraphOptimizer::SetHcomOpParam(const ge::Node &node, HcomOpParam 
               ret);
   hcomOpParam->count = count;
 
+  // 获取aivCoreLimit，提供给HCCL，用于和Optype，count等参数一起选择具体的算法及判断是否是AIV模式
+  uint32_t aivCoreLimit;
+  CHK_RET(HcomOpUtils::GetAivCoreLimit(node.GetOpDesc(), sCollectiveType, aivCoreLimit));
+  hcomOpParam->aivCoreLimit = aivCoreLimit;
+
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_REDUCESCATTERV) {
     // reducescatterv复用HcomOpParam的All2AllDataDes字段    
     CHK_RET(HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));

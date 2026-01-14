@@ -358,12 +358,12 @@ HcclResult HcomPlugin::HcomSetGroupToTopoInfo(const char *group, uint32_t rankSi
     u32 netLayerNum = 0;
     u32 *netLayer = nullptr;
     
-    ret = HcclGetNetLayers(commHandle, &netLayer, &netLayerNum);
-    if (ret != HCCL_SUCCESS) return ret;
-    for (u32 i=0; i<netLayerNum; i++) {
-        ret = HcclGetInstSizeByNetLayer(commHandle, netLayer[i], &gRankSize);
-        if (ret != HCCL_SUCCESS) return ret;
-        ret = HcclGetInstTopoTypeByNetLayer(commHandle, netLayer[i], &topoType);
+    ret = HcclRankGraphGetLayers(commHandle, &netLayer, &netLayerNum);
+ 	     if (ret != HCCL_SUCCESS) return ret;
+ 	     for (u32 i=0; i<netLayerNum; i++) {
+ 	         ret = HcclRankGraphGetRankSizeByLayer(commHandle, netLayer[i], &gRankSize);
+ 	         if (ret != HCCL_SUCCESS) return ret;
+ 	         ret = HcclRankGraphGetTopoTypeByLayer(commHandle, netLayer[i], &topoType);
         if (ret != HCCL_SUCCESS) return ret;
         topoInfo.topo_level_descs[netLayer[i]].comm_sets = static_cast<uint32_t>(topoType);
         topoInfo.topo_level_descs[netLayer[i]].rank_size = gRankSize;

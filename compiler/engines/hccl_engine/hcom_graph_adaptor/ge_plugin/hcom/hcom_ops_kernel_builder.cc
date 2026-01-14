@@ -363,10 +363,10 @@ HcclResult HcomOpsKernelBuilder::HcomCalcOpRunningParam(ge::Node &node) {
 
 HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const string &group)
 {
-  const u32 STREAM_CONFIG_NAME = 0;
-  const u32 STREAM_CONFIG_REUSE_KEY = 1;
-  const u32 STREAM_CONFIG_STREAM_NAMED_ATTRS = 2;
-  const u32 STREAM_ATTACHED_TASK_NUM = 2;
+  const uint32_t STREAM_CONFIG_NAME = 0;
+  const uint32_t STREAM_CONFIG_REUSE_KEY = 1;
+  const uint32_t STREAM_CONFIG_STREAM_NAMED_ATTRS = 2;
+  const uint32_t STREAM_ATTACHED_TASK_NUM = 2;
 
   ge::GeAttrValue::NAMED_ATTRS attachedGraphStream;
   ge::GeAttrValue::NAMED_ATTRS attachedGroupStream;
@@ -380,7 +380,7 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
   bool required = true;
   std::vector<ge::GeAttrValue::NAMED_ATTRS> attachedStreamInfo;
 
-  // 添加附属从流暂时规避superKernel场景
+  // 添加附属从流暂时规避superKernel场景 
   std::string superKernel;
   auto const opDesc = node.GetOpDesc();
   CHK_RET(GetSuperKernelFromDesc(opDesc, superKernel));
@@ -1059,6 +1059,11 @@ HcclResult HcomOpsKernelBuilder::SetHcomOpParam(const ge::Node &node, HcomOpPara
                 HCCL_E_PARA);
   }
   hcomOpParam->rankSize = rankSize;
+
+  // 获取aivCoreLimit，提供给HCCL，用于和Optype，count等参数一起选择具体的算法及判断是否是AIV模式
+  uint32_t aivCoreLimit;
+  CHK_RET(HcomOpUtils::GetAivCoreLimit(node.GetOpDesc(), sCollectiveType, aivCoreLimit));
+  hcomOpParam->aivCoreLimit = aivCoreLimit;
 
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_ALLREDUCE || sCollectiveType == HCCL_KERNEL_OP_TYPE_REDUCESCATTER ||
       sCollectiveType == HCCL_KERNEL_OP_TYPE_REDUCESCATTERV) {
