@@ -153,6 +153,7 @@ message KernelHcclDef {
     string hccl_type = 9;
     repeated int32 input_zero_copy_flag = 10;
     repeated int32 output_zero_copy_flag = 11;
+    uint32 aiv_block_dim = 12;
 }
  
  

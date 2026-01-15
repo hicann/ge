@@ -521,13 +521,13 @@ HcclResult HcomSetAttachedStream(const char *group, u32 graphId, const rtStream_
 {
     return HCCL_SUCCESS;
 }
-HcclResult HcomSelectAlg(s64 comm, const char *group, u64 count,
+HcclResult HcomSelectAlg(s64 comm, const char *group, u64 count, void* counts,
     HcclDataType dataType, HcclReduceOp op, HcclCMDType opType, int32_t aivCoreLimit,
     bool &ifAiv, char *algName)
 {
     return HCCL_SUCCESS;
 }
-HcclResult HcomCalcAivCoreNum(const char *group, HcclCMDType opType, u64 count, HcclDataType dataType, int32_t aivCoreLimit,
+HcclResult HcomCalcAivCoreNum(const char *group, HcclCMDType opType, u64 count, void* counts, HcclDataType dataType, int32_t aivCoreLimit,
         char *algName, u32 *blockDim)
 {
     return HCCL_SUCCESS;
