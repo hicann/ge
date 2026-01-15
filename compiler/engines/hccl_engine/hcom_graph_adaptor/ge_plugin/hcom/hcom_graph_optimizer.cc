@@ -792,7 +792,7 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
     }
     u32 aivCoreLimit;
     CHK_RET(HcomOpUtils::GetAivCoreLimit(opDescPtr, sCollectiveType, aivCoreLimit));
-    CHK_RET(HcomSelectAlg(comm, group.c_str(), count, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
+    CHK_RET(HcomSelectAlg(comm, group.c_str(), count, nullptr, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
     /* 判断获取出来的算子模式是否是AIV，如果不是，则将此算子的superkernel属性置为空 */
     if (!ifAiv) {
       HCCL_INFO("no support aiv, del superKernelScope attr");
@@ -844,7 +844,7 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
 
     // 将BlockDim包装成Hcom层接口，层层下发参数，到Hccl communictor里计算结果并返回到这一层。
     u32 blockDim;
-    CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, dataType, aivCoreLimit, algName, &blockDim));
+    CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, 0, dataType, aivCoreLimit, algName, &blockDim));
     ge::AttrUtils::SetInt(opDescPtr, "hcom_block_dim", blockDim);
 
     HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] rankSize[%u] aivCoreLimit[%u] blockDim[%u]",

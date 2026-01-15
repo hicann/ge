@@ -5831,6 +5831,10 @@ uint32_t DavinciModel::GetBlockDim(const ModelTaskType type, const domi::TaskDef
     block_dim = task_def.kernel_with_handle().block_dim();
   }
 
+  if (type == ModelTaskType::MODEL_TASK_HCCL) {
+    block_dim = task_def.kernel_hccl().aiv_block_dim();
+  }
+
   // mix op
   uint32_t task_ratio = 0;
   bool is_fftsplus_task = false;

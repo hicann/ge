@@ -67,6 +67,7 @@ class HcomOpsKernelBuilder : public HCCLOpsKernelBuilder {
   HcclResult GenerateTaskPrivateDef(const ge::Node &node, HCCL_KERNEL_INFO_PRIVATE_DEF &privateDefBuf,
                                     domi::TaskDef &taskDef, const std::string sCollectiveType);
   HcclResult SetAttachedStreamInfoList(ge::Node &node, const std::string &group);  // 设置附属从流信息
+  HcclResult TaskDefSetBlockDim(const ge::Node &node, domi::TaskDef &taskDef, const std::string sCollectiveType, const u32 aivCoreLimit);
 };
 }  // namespace hccl
 #endif  // GE_OPS_KERNEL_INFO_H
