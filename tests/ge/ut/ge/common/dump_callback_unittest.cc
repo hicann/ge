@@ -869,6 +869,62 @@ TEST_F(DumpConfigValidatorTest, GetConfigWithDefault_DumpSceneHandling) {
     EXPECT_TRUE(value2.empty());
 }
 
+TEST_F(DumpConfigValidatorTest, ParseDumpConfig_SetDumpStatus_BasedOnDumpLevel) {
+    // 测试场景1: dump_level = "op" -> dump_status = "on"
+    {
+        std::string configStr = R"({
+            "dump": {
+                "dump_path": "/tmp/test",
+                "dump_level": "op"
+            }
+        })";
+
+        DumpConfig config;
+        bool result = DumpConfigValidator::ParseDumpConfig(
+            configStr.c_str(), configStr.size(), config);
+
+        EXPECT_TRUE(result);
+        EXPECT_EQ(config.dump_level, "op");
+        EXPECT_EQ(config.dump_status, "on");
+    }
+
+    // 测试场景2: dump_level = "all" -> dump_status = "on"
+    {
+        std::string configStr = R"({
+            "dump": {
+                "dump_path": "/tmp/test",
+                "dump_level": "all"
+            }
+        })";
+
+        DumpConfig config;
+        bool result = DumpConfigValidator::ParseDumpConfig(
+            configStr.c_str(), configStr.size(), config);
+
+        EXPECT_TRUE(result);
+        EXPECT_EQ(config.dump_level, "all");
+        EXPECT_EQ(config.dump_status, "on");
+    }
+
+    // 测试场景3: dump_level = "kernel" -> dump_status = "off"
+    {
+        std::string configStr = R"({
+            "dump": {
+                "dump_path": "/tmp/test",
+                "dump_level": "kernel"
+            }
+        })";
+
+        DumpConfig config;
+        bool result = DumpConfigValidator::ParseDumpConfig(
+            configStr.c_str(), configStr.size(), config);
+
+        EXPECT_TRUE(result);
+        EXPECT_EQ(config.dump_level, "kernel");
+        EXPECT_EQ(config.dump_status, "off");
+    }
+}
+
 // 主函数
 int main(int argc, char** argv) {
     testing::InitGoogleTest(&argc, argv);

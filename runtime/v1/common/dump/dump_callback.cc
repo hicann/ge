@@ -692,6 +692,9 @@ void DumpConfigValidator::ParseComplexConfigs(const nlohmann::json& dumpJson, Du
     if (dumpJson.contains(GE_DUMP_LIST) && dumpJson[GE_DUMP_LIST].is_array()) {
         ParseModelDumpConfigList(dumpJson[GE_DUMP_LIST], dumpConfig.dump_list);
     }
+    dumpConfig.dump_status = ((dumpConfig.dump_level == GE_DUMP_LEVEL_OP) ||
+                            (dumpConfig.dump_level == GE_DUMP_LEVEL_ALL))
+                            ? GE_DUMP_STATUS_ON : GE_DUMP_STATUS_OFF;
 }
 
 void DumpConfigValidator::ParseStringArray(const nlohmann::json& jsonArray,
@@ -854,7 +857,6 @@ Status DumpCallbackManager::HandleEnableDump(const char* dumpData, int32_t size)
         else if (dumpConfig.dump_debug == GE_DUMP_STATUS_ON) {
             result = HandleDumpDebugConfig(dumpConfig);
         }
-
         if (result != SUCCESS) {
             return result;
         }
