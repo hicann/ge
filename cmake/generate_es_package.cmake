@@ -765,6 +765,12 @@ exit 1
     # 13.1.1 在 Release 配置下添加 -s 选项去除符号表
     target_link_options(${SO_NAME} PRIVATE $<$<CONFIG:Release>:-s>)
 
+    # 清除so中的RPATH，避免安全风险
+    set_target_properties(${SO_NAME} PROPERTIES
+            SKIP_BUILD_RPATH TRUE
+            SKIP_INSTALL_RPATH TRUE
+    )
+
     # 13.2 准备头文件搜索路径列表（供 SO 和 IMPORTED library 共用）
     set(ES_INCLUDE_DIRS ${GEN_CODE_DIR} ${INCLUDE_DIR})
 
