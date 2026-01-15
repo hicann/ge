@@ -180,7 +180,7 @@ FORCE_INLINE Tensor *Foo(const Tensor *x, const Tensor *xo1, int64_t a=0);
 namespace es {
 // v1 版本
 FORCE_INLINE Tensor *Foo(const Tensor *x, const Tensor *xo1,
-  int64_t a=0, int64_t b=0);
+  int64_t a=0);
 
 // v2 版本，由于新增可选输入，带来的重载版本，重载版本多了一个`xo2`的输入
 FORCE_INLINE Tensor *Foo(const Tensor *x, const Tensor *xo1, const Tensor *xo2,
