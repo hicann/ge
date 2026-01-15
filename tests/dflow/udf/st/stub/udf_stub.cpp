@@ -523,7 +523,7 @@ drvError_t halQueueQueryInfo(unsigned int devId, unsigned int qid, QueueInfo *qu
       return halQueueQueryInfo(devId, linked_qid, queInfo);
     }
     queInfo->size = queue_data.size();
-    return DRV_ERROR_QUEUE_EMPTY;
+    return DRV_ERROR_NONE;
   }
   queInfo->size = queue_data.size();
   return DRV_ERROR_NONE;

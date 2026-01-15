@@ -22,6 +22,7 @@
 #include "model/flow_func_model.h"
 #include "config/global_config.h"
 #include "execute/npu_sched_processor.h"
+#include "flow_func/flow_func_config_manager.h"
 
 namespace FlowFunc {
 namespace {
@@ -78,7 +79,11 @@ VOID *MockmmDlsym(VOID *handle, const CHAR *func_name) {
 }
 }  // namespace
 class FlowFuncExecutorWithNpuSchedModelSTest : public testing::Test {
- protected:
+protected:
+  static void SetUpTestSuite() {
+    FlowFuncConfigManager::SetConfig(
+        std::shared_ptr<FlowFuncConfig>(&GlobalConfig::Instance(), [](FlowFuncConfig *) {}));
+  }
   virtual void SetUp() {
     MOCKER(mmDlsym).defaults().will(invoke(MockmmDlsym));
     ClearStubEschedEvents();

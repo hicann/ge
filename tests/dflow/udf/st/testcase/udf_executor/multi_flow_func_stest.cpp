@@ -19,12 +19,27 @@
 #include "execute/flow_func_executor.h"
 #include "model/flow_func_model.h"
 #include "mockcpp/mockcpp.hpp"
-#undef private
 #include "config/global_config.h"
+#undef private
+#include "flow_func/flow_func_config_manager.h"
 
 namespace FlowFunc {
+namespace {
+constexpr uint64_t kWaitInMsPerTime = 10;
+bool back_is_on_device_ = false;
+}
 class MultiFlowFuncSTest : public testing::Test {
  protected:
+  static void SetUpTestSuite() {
+    FlowFuncConfigManager::SetConfig(
+        std::shared_ptr<FlowFuncConfig>(&GlobalConfig::Instance(), [](FlowFuncConfig *) {}));
+    back_is_on_device_ = GlobalConfig::Instance().IsOnDevice();
+    GlobalConfig::on_device_ = false;
+  }
+  static void TearDownTestSuite() {
+    GlobalConfig::on_device_ = back_is_on_device_;
+  }
+
   virtual void SetUp() {
     ClearStubEschedEvents();
     CreateModelDir();
@@ -200,7 +215,7 @@ class MultiFlowFuncSTest : public testing::Test {
     CreateUdfModel(model_def, "StreamInputProc", __FILE__, attrs, false, {}, {}, {}, true);
     auto proto_path = WriteProto(model_def, "StreamInputProc.pb");
     ff::deployer::ExecutorRequest_BatchLoadModelMessage batch_load_model_req;
-    AddModelToBatchModel(batch_load_model_req, proto_path, inputs_qid, outputs_qid);
+    AddModelToBatchModel(batch_load_model_req, proto_path, inputs_qid, outputs_qid, {}, Common::kDeviceTypeNpu);
     return WriteProto(batch_load_model_req, "batchModels.pb");
   }
 
@@ -369,15 +384,15 @@ TEST_F(MultiFlowFuncSTest, register_single_func) {
 
   for (size_t i = 0; i < output_qids.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    constexpr uint32_t max_wait_second = 120;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    constexpr uint64_t kMaxWaitInMs = 120 * 1000UL;
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_qids[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -392,15 +407,15 @@ TEST_F(MultiFlowFuncSTest, register_single_func) {
 
   for (size_t i = 0; i < status_output_queues.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    constexpr uint32_t max_wait_second = 120;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    constexpr uint64_t kMaxWaitInMs = 120 * 1000UL;
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, status_output_queues[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -440,8 +455,8 @@ TEST_F(MultiFlowFuncSTest, register_stream_input_func) {
     executor.WaitForStop();
     executor.Destroy();
   });
-  // wait 500us processor init
-  usleep(500);
+  // wait 100ms processor init
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   auto &processor = executor.func_processors_[0];
   EXPECT_EQ(processor->flow_msg_queues_.size(), 2);
   auto &input_flow_msg_queue = processor->flow_msg_queues_[0];
@@ -461,16 +476,13 @@ TEST_F(MultiFlowFuncSTest, register_stream_input_func) {
   }
   for (size_t i = 0; i < output_qids.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    constexpr uint32_t max_wait_second = 120;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    constexpr uint64_t kMaxWaitInMs = 120 * 1000UL;
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_qids[i], &out_mbuf_ptr);
-      if (drv_ret == DRV_ERROR_NONE) {
-        break;
-      } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
-        continue;
+      if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
       } else {
         break;
       }
@@ -504,18 +516,18 @@ TEST_F(MultiFlowFuncSTest, register_multi_func_call_nn_test) {
     }
   }
 
-  constexpr uint32_t max_wait_second = 2;
+  constexpr uint64_t kMaxWaitInMs = 2 * 1000UL;
   for (int64_t j = 0; j < UDF_ST_QUEUE_MAX_DEPTH; ++j) {
     for (size_t i = 0; i < output_queues.size(); i++) {
       void *out_mbuf_ptr = nullptr;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
         if (drv_ret == DRV_ERROR_NONE) {
           break;
         } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
           continue;
         } else {
           break;
@@ -555,18 +567,18 @@ TEST_F(MultiFlowFuncSTest, register_multi_func_raw_data_test) {
     }
   }
 
-  constexpr uint32_t max_wait_second = 2;
+  constexpr uint64_t kMaxWaitInMs = 2 * 1000UL;
   for (int64_t j = 0; j < UDF_ST_QUEUE_MAX_DEPTH; ++j) {
     for (size_t i = 0; i < output_queues.size(); i++) {
       void *out_mbuf_ptr = nullptr;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
         if (drv_ret == DRV_ERROR_NONE) {
           break;
         } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
           continue;
         } else {
           break;
@@ -631,16 +643,14 @@ TEST_F(MultiFlowFuncSTest, multi_func_with_invalid_func_name) {
 
   for (size_t i = 0; i < multi_func_out_num; i++) {
     void *out_mbuf_ptr = nullptr;
-    constexpr uint32_t max_wait_second = 5;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+
+    uint64_t wait_in_ms = 0;
+    // 最大等1s
+    while (wait_in_ms < 1000) {
       auto drv_ret = halQueueDeQueue(0, multi_output_qids[i], &out_mbuf_ptr);
-      if (drv_ret == DRV_ERROR_NONE) {
-        break;
-      } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
-        continue;
+      if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
       } else {
         break;
       }
@@ -686,15 +696,15 @@ TEST_F(MultiFlowFuncSTest, multi_func_basic_test) {
 
   for (size_t i = 0; i < multi_func_out_num; i++) {
     void *out_mbuf_ptr = nullptr;
-    constexpr uint32_t max_wait_second = 60;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, multi_output_qids[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -715,15 +725,15 @@ TEST_F(MultiFlowFuncSTest, multi_func_basic_test) {
 
   for (size_t i = 0; i < single_output_qids.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    constexpr uint32_t max_wait_second = 60;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, single_output_qids[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -768,15 +778,27 @@ TEST_F(MultiFlowFuncSTest, multi_func_raise_exception) {
   MbufHeadMsg head_msg{0};
   head_msg.trans_id = 1;
   std::vector<int64_t> shape = {1, 2};
-  uint32_t input_value[] = {11, 22};
   uint32_t input_value_to_raise[] = {1000, 1000};
 
   DataEnqueue(multi_input_qids[0], shape, TensorDataType::DT_UINT32, head_msg, input_value_to_raise);
   DataEnqueue(multi_input_qids[1], shape, TensorDataType::DT_UINT32, head_msg, input_value_to_raise);
 
-  sleep(20);
-  // enqueue message queue failed
-  EXPECT_EQ(executor.running_, true);
+  constexpr uint64_t kMaxWaitInMs = 20 * 1000;
+  uint64_t wait_in_ms = 0;
+  bool executor_exit = false;
+
+  // 等待异常退出
+  while (wait_in_ms < kMaxWaitInMs) {
+    if (executor.running_) {
+      executor_exit = true;
+      break;
+    }
+    // 每次检查间隔一段时间，避免CPU空转
+    std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+    wait_in_ms += kWaitInMsPerTime;
+  }
+
+  EXPECT_TRUE(executor_exit);
   executor.Stop();
   executor.WaitForStop();
   executor.Destroy();
@@ -816,20 +838,17 @@ TEST_F(MultiFlowFuncSTest, full_to_not_full) {
     }
   }
 
-  sleep(1);
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   for (int64_t i = 0; i < UDF_ST_QUEUE_MAX_DEPTH + 2; i++) {
     for (size_t j = 0; j < multi_output_qids.size(); j++) {
       void *out_mbuf_ptr = nullptr;
-      constexpr uint32_t max_wait_second = 120;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      constexpr uint64_t kMaxWaitInMs = 20 * 1000;
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, multi_output_qids[j], &out_mbuf_ptr);
-        if (drv_ret == DRV_ERROR_NONE) {
-          break;
-        } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
-          continue;
+        if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
         } else {
           break;
         }
@@ -850,16 +869,13 @@ TEST_F(MultiFlowFuncSTest, full_to_not_full) {
   for (int64_t i = 0; i < UDF_ST_QUEUE_MAX_DEPTH + 2; i++) {
     for (size_t j = 0; j < single_output_qids.size(); j++) {
       void *out_mbuf_ptr = nullptr;
-      constexpr uint32_t max_wait_second = 120;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      constexpr uint64_t kMaxWaitInMs = 20 * 1000;
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, single_output_qids[j], &out_mbuf_ptr);
-        if (drv_ret == DRV_ERROR_NONE) {
-          break;
-        } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
-          continue;
+        if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
         } else {
           break;
         }

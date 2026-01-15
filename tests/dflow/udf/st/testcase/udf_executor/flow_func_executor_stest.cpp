@@ -25,11 +25,13 @@
 #undef private
 #include "config/global_config.h"
 #include "dlog_pub.h"
+#include "flow_func/flow_func_config_manager.h"
 #include "toolchain/dump/udf_dump_manager.h"
 #include "utils/udf_test_helper.h"
 
 namespace FlowFunc {
 namespace {
+constexpr uint64_t kWaitInMsPerTime = 10;
 class DefaultFlowMsg : public FlowMsg {
   FlowFunc::MsgType GetMsgType() const override {
     return FlowFunc::MsgType::MSG_TYPE_TENSOR_DATA;
@@ -127,7 +129,11 @@ class DefaultMetaParams : public MetaParams {
 };
 }  // namespace
 class FlowFuncExecutorSTest : public testing::Test {
- protected:
+protected:
+  static void SetUpTestSuite() {
+    FlowFuncConfigManager::SetConfig(
+        std::shared_ptr<FlowFuncConfig>(&GlobalConfig::Instance(), [](FlowFuncConfig *) {}));
+  }
   virtual void SetUp() {
     ClearStubEschedEvents();
     CreateModelDir();
@@ -317,22 +323,23 @@ TEST_F(FlowFuncExecutorSTest, basic_test) {
   float float_value = 123.1;
   DataEnqueue(input_qid, shape, TensorDataType::DT_FLOAT, float_value);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 120;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
       break;
     }
   }
-  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_second;
+  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_in_ms=" << wait_in_ms;
   Mbuf *out_mbuf = (Mbuf *)out_mbuf_ptr;
   std::vector<int64_t> expect_output(CalcElementCnt(shape), (int64_t)float_value);
   CheckMbufData(out_mbuf, shape, TensorDataType::DT_INT64, expect_output.data(), expect_output.size());
@@ -372,22 +379,23 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_valid_buf_cfg) {
   float float_value = 123.1;
   DataEnqueue(input_qid, shape, TensorDataType::DT_FLOAT, float_value);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 120;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
       break;
     }
   }
-  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_second;
+  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_in_ms=" << wait_in_ms;
   Mbuf *out_mbuf = (Mbuf *)out_mbuf_ptr;
   std::vector<int64_t> expect_output(CalcElementCnt(shape), (int64_t)float_value);
   CheckMbufData(out_mbuf, shape, TensorDataType::DT_INT64, expect_output.data(), expect_output.size());
@@ -428,15 +436,15 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_tensor_list) {
   DataEnqueue(input_qid, {static_cast<int64_t>(size)}, TensorDataType::DT_FLOAT, head_msg, input_data);
 
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 120;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
@@ -469,22 +477,23 @@ TEST_F(FlowFuncExecutorSTest, ReshapeTest) {
   float float_value = 123.1;
   DataEnqueue(input_qid, shape, TensorDataType::DT_FLOAT, float_value);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 120;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
       break;
     }
   }
-  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_second;
+  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_in_ms=" << wait_in_ms;
   Mbuf *out_mbuf = (Mbuf *)out_mbuf_ptr;
 
   std::vector<int64_t> expect_shape = {CalcElementCnt(shape)};
@@ -520,22 +529,22 @@ TEST_F(FlowFuncExecutorSTest, basic_test_dummy_q) {
   float float_value = 123.1;
   DataEnqueue(input_qid, shape, TensorDataType::DT_FLOAT, float_value);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 120;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
       break;
     }
   }
-  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_second;
+  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_in_ms=" << wait_in_ms;
   Mbuf *out_mbuf = (Mbuf *)out_mbuf_ptr;
   std::vector<int64_t> expect_output(CalcElementCnt(shape), (int64_t)float_value);
   CheckMbufData(out_mbuf, shape, TensorDataType::DT_INT64, expect_output.data(), expect_output.size());
@@ -568,22 +577,22 @@ TEST_F(FlowFuncExecutorSTest, data_size_over_tensor_size) {
   drv_ret = halQueueEnQueue(0, input_qid, mbuf);
   EXPECT_EQ(drv_ret, DRV_ERROR_NONE);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 1;
-  uint32_t wait_second = 0;
-  while (wait_second <= max_wait_second) {
+  constexpr uint64_t kMaxWaitInMs = 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms <= kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
       break;
     }
   }
-  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_second;
+  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_in_ms=" << wait_in_ms;
   ;
   Mbuf *out_mbuf = (Mbuf *)out_mbuf_ptr;
   halMbufFree(out_mbuf);
@@ -614,15 +623,15 @@ TEST_F(FlowFuncExecutorSTest, data_size_less_than_tensor_size) {
   drv_ret = halQueueEnQueue(0, input_qid, mbuf);
   EXPECT_EQ(drv_ret, DRV_ERROR_NONE);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 1;
-  uint32_t wait_second = 0;
-  while (wait_second <= max_wait_second) {
+  constexpr uint64_t kMaxWaitInMs = 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms <= kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
@@ -659,15 +668,16 @@ TEST_F(FlowFuncExecutorSTest, shape_negative) {
   drv_ret = halQueueEnQueue(0, input_qid, mbuf);
   EXPECT_EQ(drv_ret, DRV_ERROR_NONE);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 1;
-  uint32_t wait_second = 0;
-  while (wait_second <= max_wait_second) {
+
+  constexpr uint64_t kMaxWaitInMs = 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms <= kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
@@ -776,25 +786,25 @@ TEST_F(FlowFuncExecutorSTest, full_to_not_full) {
   for (int64_t i = 0; i < UDF_ST_QUEUE_MAX_DEPTH * 2; ++i) {
     DataEnqueue(input_qid, {i}, TensorDataType::DT_FLOAT, float_value);
   }
-  sleep(1);
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
   for (int64_t i = 0; i < UDF_ST_QUEUE_MAX_DEPTH * 2; ++i) {
     void *out_mbuf_ptr = nullptr;
-    constexpr uint32_t max_wait_second = 120;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    constexpr uint64_t kMaxWaitInMs = 120 * 1000UL;
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         ADD_FAILURE() << "drv_ret=" << drv_ret;
         break;
       }
     }
-    ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_second;
+    ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_in_ms=" << wait_in_ms;
     ;
     Mbuf *out_mbuf = (Mbuf *)out_mbuf_ptr;
     std::vector<int64_t> expect_output(CalcElementCnt({i}), (int64_t)float_value);
@@ -899,16 +909,16 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_exception_msg) {
 
   EnqueueControlMsg(req_queue_id, executor_request);
 
-  constexpr uint32_t max_wait_second = 60;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, rsp_queue_id, &rsp_mbuff);
     if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      ++wait_second;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else if (drv_ret == DRV_ERROR_NONE) {
-      ASSERT_NE(rsp_mbuff, nullptr) << "wait_second=" << wait_second;
+      ASSERT_NE(rsp_mbuff, nullptr) << "wait_in_ms=" << wait_in_ms;
       void *data_ptr = nullptr;
       EXPECT_EQ(halMbufGetBuffAddr(rsp_mbuff, &data_ptr), DRV_ERROR_NONE);
       uint64_t data_len = 0UL;
@@ -931,14 +941,15 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_exception_msg) {
   exp_request->set_trans_id(transid);
   exp_request->set_exception_context(&priv_info[0], priv_size);
   EnqueueControlMsg(req_queue_id, executor_request);
-  while (wait_second < max_wait_second) {
+  wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, rsp_queue_id, &rsp_mbuff);
     if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      ++wait_second;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else if (drv_ret == DRV_ERROR_NONE) {
-      ASSERT_NE(rsp_mbuff, nullptr) << "wait_second=" << wait_second;
+      ASSERT_NE(rsp_mbuff, nullptr) << "wait_second=" << wait_in_ms;
       void *data_ptr = nullptr;
       EXPECT_EQ(halMbufGetBuffAddr(rsp_mbuff, &data_ptr), DRV_ERROR_NONE);
       uint64_t data_len = 0UL;
@@ -1015,16 +1026,17 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_suspend_msg) {
   control_msg->set_clear_msg_type(1);
   control_msg->set_model_id(1);
   EnqueueControlMsg(req_queue_id, executor_request);
-  constexpr uint32_t max_wait_second = 60;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, rsp_queue_id, &rsp_mbuff);
     if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      ++wait_second;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else if (drv_ret == DRV_ERROR_NONE) {
-      ASSERT_NE(rsp_mbuff, nullptr) << "wait_second=" << wait_second;
+      ASSERT_NE(rsp_mbuff, nullptr) << "wait_in_ms=" << wait_in_ms;
       void *data_ptr = nullptr;
       EXPECT_EQ(halMbufGetBuffAddr(rsp_mbuff, &data_ptr), DRV_ERROR_NONE);
       uint64_t data_len = 0UL;
@@ -1096,16 +1108,16 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_suspend_and_recover_msg) {
   control_msg->set_clear_msg_type(1);
   control_msg->set_model_id(1);
   EnqueueControlMsg(req_queue_id, executor_request);
-  constexpr uint32_t max_wait_second = 60;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, rsp_queue_id, &rsp_mbuff);
     if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      ++wait_second;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else if (drv_ret == DRV_ERROR_NONE) {
-      ASSERT_NE(rsp_mbuff, nullptr) << "wait_second=" << wait_second;
+      ASSERT_NE(rsp_mbuff, nullptr) << "wait_in_ms=" << wait_in_ms;
       void *data_ptr = nullptr;
       EXPECT_EQ(halMbufGetBuffAddr(rsp_mbuff, &data_ptr), DRV_ERROR_NONE);
       uint64_t data_len = 0UL;
@@ -1128,15 +1140,15 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_suspend_and_recover_msg) {
   control_msg->set_clear_msg_type(2);
   control_msg->set_model_id(1);
   EnqueueControlMsg(req_queue_id, executor_request);
-  wait_second = 0;
-  while (wait_second < max_wait_second) {
+  wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, rsp_queue_id, &rsp_mbuff);
     if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      ++wait_second;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else if (drv_ret == DRV_ERROR_NONE) {
-      ASSERT_NE(rsp_mbuff, nullptr) << "wait_second=" << wait_second;
+      ASSERT_NE(rsp_mbuff, nullptr) << "wait_in_ms=" << wait_in_ms;
       void *data_ptr = nullptr;
       EXPECT_EQ(halMbufGetBuffAddr(rsp_mbuff, &data_ptr), DRV_ERROR_NONE);
       uint64_t data_len = 0UL;
@@ -1205,22 +1217,23 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_dump) {
   float float_value = 123.1;
   DataEnqueue(input_qid, shape, TensorDataType::DT_FLOAT, float_value);
   void *out_mbuf_ptr = nullptr;
-  constexpr uint32_t max_wait_second = 120;
-  uint32_t wait_second = 0;
-  while (wait_second < max_wait_second) {
+
+  constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+  uint64_t wait_in_ms = 0;
+  while (wait_in_ms < kMaxWaitInMs) {
     auto drv_ret = halQueueDeQueue(0, output_qid, &out_mbuf_ptr);
     if (drv_ret == DRV_ERROR_NONE) {
       break;
     } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-      sleep(1);
-      wait_second++;
+      std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+      wait_in_ms += kWaitInMsPerTime;
       continue;
     } else {
       ADD_FAILURE() << "drv_ret=" << drv_ret;
       break;
     }
   }
-  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_second;
+  ASSERT_NE(out_mbuf_ptr, nullptr) << "wait_second=" << wait_in_ms;
   Mbuf *out_mbuf = (Mbuf *)out_mbuf_ptr;
   std::vector<int64_t> expect_output(CalcElementCnt(shape), (int64_t)float_value);
   CheckMbufData(out_mbuf, shape, TensorDataType::DT_INT64, expect_output.data(), expect_output.size());

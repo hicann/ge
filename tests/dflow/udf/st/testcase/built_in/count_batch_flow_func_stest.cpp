@@ -220,10 +220,13 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_input_null) {
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint32_t max_wait_second = 5;
-  uint32_t wait_second = 0;
+  // 每次等10ms
+  constexpr uint64_t kWaitMsPerTime = 10;
+  // 最长等5秒
+  constexpr uint64_t kMaxWaitTimeInMs = 5 * 1000UL;
+  uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
-  while (wait_second < max_wait_second) {
+  while (wait_time_in_ms < kMaxWaitTimeInMs) {
     for (size_t i = 0; i < outputs_qid.size(); ++i) {
       if (!get_out[i]) {
         auto drv_ret = halQueueDeQueue(0, outputs_qid[i], &(outs_mbuf_ptr[i]));
@@ -236,8 +239,8 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_input_null) {
     if (get_out_num == in_out_num) {
       break;
     }
-    sleep(1);
-    wait_second++;
+    usleep(kWaitMsPerTime * 1000);
+    wait_time_in_ms += kWaitMsPerTime;
   }
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_NE(outs_mbuf_ptr[i], nullptr);

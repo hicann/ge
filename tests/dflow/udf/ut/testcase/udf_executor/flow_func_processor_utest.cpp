@@ -87,7 +87,7 @@ class TestProcSlow : public MetaFlowFunc {
   }
 
   int32_t Proc(const std::vector<std::shared_ptr<FlowMsg>> &input_tensors) override {
-    sleep(5);
+    sleep(2);
     return FLOW_FUNC_ERR_PROC_PENDING;
   }
 };
@@ -887,7 +887,7 @@ TEST_F(FlowFuncProcessorUTest, scedule_parall_test) {
   });
 
   std::thread t2([&processor1]() {
-    sleep(1);
+    usleep(200 * 1000);
     bool sch_ret = processor1.Schedule(0U);
     EXPECT_FALSE(sch_ret);
   });

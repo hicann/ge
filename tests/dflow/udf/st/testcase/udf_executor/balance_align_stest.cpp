@@ -20,9 +20,13 @@
 #include "flow_func/meta_multi_func.h"
 #include "flow_func/flow_func_log.h"
 #include "config/global_config.h"
+#include "flow_func/flow_func_config_manager.h"
 
 namespace FlowFunc {
 namespace {
+constexpr uint64_t kMaxWaitInMs = 60 * 1000UL;
+constexpr uint64_t kWaitInMsPerTime = 10;
+
 class BalanceFlowFunc : public MetaMultiFunc {
  public:
   virtual int32_t Init(const std::shared_ptr<MetaParams> &params) {
@@ -101,7 +105,11 @@ FLOW_FUNC_REGISTRAR(AssignFlowFunc).RegProcFunc("AssignFlowFunc", &AssignFlowFun
 }  // namespace
 
 class BalanceAlignSTest : public testing::Test {
- protected:
+protected:
+  static void SetUpTestSuite() {
+    FlowFuncConfigManager::SetConfig(
+        std::shared_ptr<FlowFuncConfig>(&GlobalConfig::Instance(), [](FlowFuncConfig *) {}));
+  }
   virtual void SetUp() {
     ClearStubEschedEvents();
     for (int32_t i = 0; i < 9; ++i) {
@@ -218,7 +226,6 @@ TEST_F(BalanceAlignSTest, test_scatter) {
     DataEnqueue(all_queue_ids[2], shape, TensorDataType::DT_INT32, head_msg, buf3);
   }
 
-  constexpr uint32_t max_wait_second = 60;
   std::vector<uint32_t> output_queues = {all_queue_ids[6], all_queue_ids[7], all_queue_ids[8]};
 
   for (int j = 0; j < data_group_num; ++j) {
@@ -226,14 +233,14 @@ TEST_F(BalanceAlignSTest, test_scatter) {
     std::set<std::pair<uint64_t, uint32_t>> trans_id_and_data_labels;
     for (size_t i = 0; i < output_queues.size(); i++) {
       void *out_mbuf_ptr = nullptr;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
         if (drv_ret == DRV_ERROR_NONE) {
           break;
         } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
           continue;
         } else {
           break;
@@ -289,7 +296,6 @@ TEST_F(BalanceAlignSTest, test_gather_row) {
     DataEnqueue(all_queue_ids[2], shape, TensorDataType::DT_INT32, head_msg, buf3);
   }
 
-  constexpr uint32_t max_wait_second = 60;
   std::vector<uint32_t> output_queues = {all_queue_ids[6], all_queue_ids[7], all_queue_ids[8]};
 
   for (int j = 0; j < data_group_num; ++j) {
@@ -297,14 +303,14 @@ TEST_F(BalanceAlignSTest, test_gather_row) {
     std::set<std::pair<uint64_t, uint32_t>> trans_id_and_data_labels;
     for (size_t i = 0; i < output_queues.size(); i++) {
       void *out_mbuf_ptr = nullptr;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
         if (drv_ret == DRV_ERROR_NONE) {
           break;
         } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
           continue;
         } else {
           break;
@@ -360,7 +366,6 @@ TEST_F(BalanceAlignSTest, test_gather_col) {
     DataEnqueue(all_queue_ids[2], shape, TensorDataType::DT_INT32, head_msg, buf3);
   }
 
-  constexpr uint32_t max_wait_second = 60;
   std::vector<uint32_t> output_queues = {all_queue_ids[6], all_queue_ids[7], all_queue_ids[8]};
 
   for (int j = 0; j < data_group_num; ++j) {
@@ -368,14 +373,14 @@ TEST_F(BalanceAlignSTest, test_gather_col) {
     std::set<std::pair<uint64_t, uint32_t>> trans_id_and_data_labels;
     for (size_t i = 0; i < output_queues.size(); i++) {
       void *out_mbuf_ptr = nullptr;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
         if (drv_ret == DRV_ERROR_NONE) {
           break;
         } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
           continue;
         } else {
           break;

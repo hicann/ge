@@ -18,10 +18,14 @@
 #include "model/flow_func_model.h"
 #include "flow_func/meta_multi_func.h"
 #include "config/global_config.h"
+#include "flow_func/flow_func_config_manager.h"
 #include "flow_func/flow_func_log.h"
 
 namespace FlowFunc {
 namespace {
+constexpr uint64_t kMaxWaitInMs = 10 * 1000UL;
+constexpr uint64_t kWaitInMsPerTime = 10;
+
 std::mutex g_sync_mutex;
 std::condition_variable_any g_cv_;
 
@@ -35,7 +39,7 @@ class EmptyInputFlowFuncStub : public MetaMultiFunc {
                           const std::vector<std::shared_ptr<FlowMsg>> &input_flow_msgs) {
     ++empty_proc_count;
     g_cv_.notify_all();
-    usleep(200 * 1000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     return FLOW_FUNC_SUCCESS;
   }
 
@@ -57,7 +61,11 @@ FLOW_FUNC_REGISTRAR(EmptyInputFlowFuncStub)
     .RegProcFunc("empty_input_proc2", &EmptyInputFlowFuncStub::EmptyInputProc2);
 }  // namespace
 class EmptyInputSTest : public testing::Test {
- protected:
+protected:
+  static void SetUpTestSuite() {
+    FlowFuncConfigManager::SetConfig(
+        std::shared_ptr<FlowFuncConfig>(&GlobalConfig::Instance(), [](FlowFuncConfig *) {}));
+  }
   virtual void SetUp() {
     ClearStubEschedEvents();
     CreateModelDir();
@@ -126,17 +134,16 @@ TEST_F(EmptyInputSTest, basic_test) {
     DataEnqueue(input_queues[i], shape, TensorDataType::DT_INT32, input_value);
   }
 
-  constexpr uint32_t max_wait_second = 10;
   for (size_t i = 0; i < output_queues.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;

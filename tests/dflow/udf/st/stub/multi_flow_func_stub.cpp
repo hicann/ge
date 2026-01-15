@@ -73,7 +73,7 @@ class MultiFlowFuncStub : public MetaMultiFunc {
     auto input_data2 = input_tensor2->GetData();
     auto data_size1 = input_tensor1->GetDataSize();
     if (((*static_cast<uint32_t *>(input_data1)) == 1000) && ((*static_cast<uint32_t *>(input_data2)) == 1000)) {
-      FLOW_FUNC_LOG_INFO("Start raise exception");
+      FLOW_FUNC_RUN_LOG_INFO("Start raise exception");
       run_context->RaiseException(-100, 100);
       return FLOW_FUNC_SUCCESS;
     }
@@ -218,6 +218,7 @@ class MultiFlowFuncWithStreamInputStub : public MetaMultiFunc {
     auto ret1 = input_msg_queues[0]->Dequeue(input_flow_msg1, -1);
     auto ret2 = input_msg_queues[1]->Dequeue(input_flow_msg2, -1);
     if ((ret1 != FLOW_FUNC_SUCCESS) || (ret2 != FLOW_FUNC_SUCCESS)) {
+      FLOW_FUNC_LOG_ERROR("dequeue faild, ret1=%d, ret2=%d", ret1, ret2);
       return FLOW_FUNC_FAILED;
     }
 

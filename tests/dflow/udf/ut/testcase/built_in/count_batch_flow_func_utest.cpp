@@ -354,7 +354,6 @@ TEST_F(COUNT_BATCH_FLOW_FUNC_UTEST, set_output_failed) {
   int64_t slide_stride = 2;
   vector<int64_t> shape = {3, 2};
   MbufHead mbuf_head;
-  int data_num = 6;
   std::map<std::string, std::shared_ptr<const AttrValue>> attrs = CreateAttrs(batch_size, timeout, true, slide_stride);
   FlowFuncContext flow_func_context = CreateFlowFuncContext(attrs);
   CountBatchFlowFunc count_batch;
@@ -387,7 +386,6 @@ TEST_F(COUNT_BATCH_FLOW_FUNC_UTEST, proc_batchsize_timeout) {
   int64_t slide_stride = 2;
   vector<int64_t> shape = {3, 2};
   MbufHead mbuf_head;
-  int data_num = 6;
   std::map<std::string, std::shared_ptr<const AttrValue>> attrs = CreateAttrs(batch_size, timeout, true, slide_stride);
   FlowFuncContext flow_func_context = CreateFlowFuncContext(attrs);
   CountBatchFlowFunc count_batch;

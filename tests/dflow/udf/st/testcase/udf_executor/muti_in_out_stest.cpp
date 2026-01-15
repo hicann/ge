@@ -18,10 +18,19 @@
 #include "execute/flow_func_executor.h"
 #include "model/flow_func_model.h"
 #include "config/global_config.h"
+#include "flow_func/flow_func_config_manager.h"
 
 namespace FlowFunc {
+namespace {
+constexpr uint64_t kMaxWaitInMs = 120 * 1000UL;
+constexpr uint64_t kWaitInMsPerTime = 10;
+}
 class MultiInOutSTest : public testing::Test {
- protected:
+protected:
+  static void SetUpTestSuite() {
+    FlowFuncConfigManager::SetConfig(
+        std::shared_ptr<FlowFuncConfig>(&GlobalConfig::Instance(), [](FlowFuncConfig *) {}));
+  }
   virtual void SetUp() {
     ClearStubEschedEvents();
     CreateModelDir();
@@ -102,17 +111,16 @@ TEST_F(MultiInOutSTest, basic_test) {
     expect_value[in_to_out_idx_list[i]] = float_value[i];
   }
 
-  constexpr uint32_t max_wait_second = 120;
   for (size_t i = 0; i < output_queues.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -161,20 +169,19 @@ TEST_F(MultiInOutSTest, basic_test_need_align) {
     DataEnqueue(input_queues[3], shape, TensorDataType::DT_FLOAT, float_value[3], (trans_id + 3) % TEST_COUNT, 1);
   }
 
-  constexpr uint32_t max_wait_second = 120;
   std::set<uint64_t> all_out_trans_id_set;
   for (uint64_t test_idx = 0; test_idx < TEST_COUNT; ++test_idx) {
     std::set<uint64_t> trans_id_per_out;
     for (size_t i = 0; i < output_queues.size(); i++) {
       void *out_mbuf_ptr = nullptr;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
         if (drv_ret == DRV_ERROR_NONE) {
           break;
         } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
           continue;
         } else {
           break;
@@ -228,14 +235,14 @@ TEST_F(MultiInOutSTest, basic_test_align_pad_empty_tensor) {
   constexpr uint32_t max_wait_second = 120;
   for (size_t i = 0; i < output_queues.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -278,7 +285,7 @@ TEST_F(MultiInOutSTest, basic_test_input_queue_not_exist) {
     DataEnqueue(input_queues[i], shape, TensorDataType::DT_FLOAT, float_value[i]);
     if (i == 0) {
       // wait for flow func init.
-      sleep(1);
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
       // Destroy one InputQueue
       DestroyQueue(input_queues.back());
     }
@@ -309,7 +316,7 @@ TEST_F(MultiInOutSTest, basic_test_output_queue_not_exist) {
     DataEnqueue(input_queues[i], shape, TensorDataType::DT_FLOAT, float_value[i]);
     if (i == 0) {
       // wait for flow func init.
-      sleep(1);
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
       // Destroy one outputQueue
       DestroyQueue(output_queues.back());
     }
@@ -356,17 +363,16 @@ TEST_F(MultiInOutSTest, raw_data_basic_test) {
   halQueueEnQueue(0, input_queues[0], mbuf1_ref);
   halQueueEnQueue(0, input_queues[1], mbuf2_ref);
 
-  constexpr uint32_t max_wait_second = 30;
   for (size_t i = 0; i < output_queues.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -408,17 +414,16 @@ TEST_F(MultiInOutSTest, multi_loop_test_part_input) {
     expect_value[in_to_out_idx_list[i]] = float_value[i];
   }
 
-  constexpr uint32_t max_wait_second = 120;
   for (size_t i = 0; i < output_queues.size(); i++) {
     void *out_mbuf_ptr = nullptr;
-    uint32_t wait_second = 0;
-    while (wait_second < max_wait_second) {
+    uint64_t wait_in_ms = 0;
+    while (wait_in_ms < kMaxWaitInMs) {
       auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
       if (drv_ret == DRV_ERROR_NONE) {
         break;
       } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-        sleep(1);
-        wait_second++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+        wait_in_ms += kWaitInMsPerTime;
         continue;
       } else {
         break;
@@ -458,18 +463,16 @@ TEST_F(MultiInOutSTest, multi_loop_test_one_by_one) {
       expect_value[in_to_out_idx_list[i]] = float_value[i];
     }
 
-    constexpr uint32_t max_wait_second = 120;
+    constexpr uint64_t kMaxWaitInMs = 120 * 1000UL;
     for (size_t i = 0; i < output_queues.size(); i++) {
       void *out_mbuf_ptr = nullptr;
-      uint32_t wait_second = 0;
-      while (wait_second < max_wait_second) {
+      uint64_t wait_in_ms = 0;
+      while (wait_in_ms < kMaxWaitInMs) {
         auto drv_ret = halQueueDeQueue(0, output_queues[i], &out_mbuf_ptr);
-        if (drv_ret == DRV_ERROR_NONE) {
-          break;
-        } else if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
-          sleep(1);
-          wait_second++;
-          continue;
+        if (drv_ret == DRV_ERROR_QUEUE_EMPTY) {
+          constexpr uint64_t kWaitInMsPerTime = 10;
+          std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+          wait_in_ms += kWaitInMsPerTime;
         } else {
           break;
         }
