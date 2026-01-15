@@ -14,3 +14,4 @@
 | es构图可选输入样例                                         | [C++样例](optional_input/cpp/README.md)<br>[Python样例](optional_input/python/README.md) |
 | es构图私有属性样例                                         | [C++样例](private_attributes/cpp/README.md)<br>[Python样例](private_attributes/python/README.md) |
 | es构图transformer样例                                      | [C++样例](transformer/cpp/README.md)<br>[Python样例](transformer/python/README.md) |
+| es构图集合通信hccl_tp样例                                      | [C++样例](hccl_tp/cpp/README.md)<br>[Python样例](hccl_tp/python/README.md) |

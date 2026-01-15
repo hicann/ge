@@ -6,10 +6,10 @@
 ```angular2html
 cpp/
 ├── src/
-|   └── CMakeLists.txt           // 编译脚本
+|   └── CMakeLists.txt           // CMake构建文件
 |   └── es_showcase.h            // 头文件
 |   └── make_relu_add_graph.cpp  // sample文件
-├── CMakeLists.txt               // 编译脚本
+├── CMakeLists.txt               // CMake构建文件
 ├── main.cpp                     // 程序主入口
 ├── README.md                    // README文件
 ├── run_sample.sh                // 执行脚本
