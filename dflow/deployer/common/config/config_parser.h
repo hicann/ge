@@ -69,8 +69,6 @@ class ConfigParser {
                                      NodeConfig &node_config);
 
   static Status CheckProtocolType(const std::string &protocol);
-  static Status FilterForMultiMasterMode(DeployerConfig &deployer_config);
-  static bool FilterDeviceList(NodeConfig &node_config, std::set<std::string> &logical_device_id_list);
 };
 }  // namespace ge
 #endif  // AIR_RUNTIME_HETEROGENEOUS_COMMON_CONFIG_CONFIG_PARSER_H_

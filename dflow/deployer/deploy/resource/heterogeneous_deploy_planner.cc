@@ -19,7 +19,6 @@
 
 namespace ge {
 namespace {
-const char_t *const kDeployModeSingle = "SINGLE";
 constexpr int64_t kDepDefQueDepth = 128L;
 
 void RewriteQueueName(const std::string &model_name,
@@ -235,10 +234,6 @@ Status HeterogeneousDeployPlanner::GetLogicalDeviceIdFromOption(std::string &log
     return SUCCESS;
   }
   GELOGI("Got %s from option = %s", OPTION_EXEC_LOGICAL_DEVICE_ID, logical_device_id.c_str());
-  std::string deploy_mode;
-  (void) GetContext().GetOption(OPTION_EXEC_LOGICAL_DEVICE_CLUSTER_DEPLOY_MODE, deploy_mode);
-  GE_CHK_BOOL_RET_STATUS(deploy_mode == kDeployModeSingle, FAILED,
-                         "Option:%s only supported in single deploy mode.", OPTION_EXEC_LOGICAL_DEVICE_ID);
   return SUCCESS;
 }
 

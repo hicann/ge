@@ -42,7 +42,6 @@ const std::string kConfigPort = "port";
 const std::string kConfigDeviceList = "item_list";
 const std::string kConfigItemId = "item_id";
 const std::string kConfigDeviceId = "device_id";
-const std::string kNodeTypeAtlas800 = "ATLAS800";
 const std::string kConfigNodeId = "node_id";
 const std::string kConfigProtocol = "protocol";
 const std::string kConfigDeployResPath = "deploy_res_path";
@@ -56,7 +55,6 @@ const std::string kProtocolTypeRdma = "RDMA";
 const std::string kDefaultAvailPorts = "16666~32767";
 const char_t *const kNetworkModeCtrlDefaultPorts = "10023";
 const char_t *const kNetworkModeDataDefaultPorts = "18000~22000";
-constexpr uint64_t kRemoteNpuMaxGroupMemSize = 10 * 1024 * 1024UL;
 
 template <typename T>
 inline void AssignOptionalField(T &varible, const string &key, const nlohmann::json &json_read) {
@@ -382,7 +380,6 @@ Status ConfigParser::InitDeployerConfig(const std::vector<ClusterConfig> &cluste
            ToString(node.node_mesh_index).c_str(),
            static_cast<int32_t>(node.is_local));
   }
-  GE_CHK_STATUS_RET_NOLOG(FilterForMultiMasterMode(deployer_config));
   InitNetWorkInfo(deployer_config);
   return SUCCESS;
 }
@@ -588,57 +585,5 @@ Status ConfigParser::InitNumaConfig(const std::string &file_path, NumaConfig &nu
                     file_path.c_str());
   numa_config.item_def = std::move(items_def);
   return SUCCESS;
-}
-
-Status ConfigParser::FilterForMultiMasterMode(DeployerConfig &deployer_config) {
-  std::string deploy_mode;
-  std::string logical_device_id_list;
-  static const std::string kDeployModeMultiMaster = "MultiMaster";
-  (void) GetContext().GetOption(OPTION_EXEC_MODEL_DEPLOY_MODE, deploy_mode);
-  (void) GetContext().GetOption(OPTION_EXEC_MODEL_DEPLOY_DEVICELIST, logical_device_id_list);
-  if ((deploy_mode != kDeployModeMultiMaster) || logical_device_id_list.empty()) {
-    return SUCCESS;
-  }
-  GELOGI("Option %s = %s", OPTION_EXEC_MODEL_DEPLOY_DEVICELIST, logical_device_id_list.c_str());
-  const auto logical_device_ids = StringUtils::Split(logical_device_id_list, ',');
-  std::set<std::string> logical_device_id_set(logical_device_ids.cbegin(), logical_device_ids.cend());
-  std::vector<NodeConfig> filtered_node_config_list;
-  for (auto &node_config : deployer_config.remote_node_config_list) {
-    if (FilterDeviceList(node_config, logical_device_id_set)) {
-      filtered_node_config_list.emplace_back(std::move(node_config));
-    }
-  }
-  (void) FilterDeviceList(deployer_config.node_config, logical_device_id_set);
-  GE_CHK_BOOL_RET_STATUS(logical_device_id_set.empty(),
-                         PARAM_INVALID,
-                         "Option [%s] = [%s], Unseen device list = %s",
-                         OPTION_EXEC_MODEL_DEPLOY_DEVICELIST, logical_device_id_list.c_str(),
-                         ToString(std::vector<std::string>(logical_device_id_set.cbegin(),
-                                                           logical_device_id_set.cend())).c_str());
-  deployer_config.remote_node_config_list = std::move(filtered_node_config_list);
-  return SUCCESS;
-}
-
-bool ConfigParser::FilterDeviceList(NodeConfig &node_config, std::set<std::string> &logical_device_id_list) {
-  std::vector<DeviceConfig> filtered_device_config_list;
-  bool has_npu = false;
-  for (const auto &device_config : node_config.device_list) {
-    DeviceInfo device_info;
-    device_info.SetDeviceId(device_config.device_id);
-    device_info.SetDeviceIndex(device_config.device_index);
-    device_info.SetNodeMeshIndex(node_config.node_mesh_index);
-    const auto &logical_device_id = device_info.ToIndex();
-    if ((logical_device_id_list.find(logical_device_id) != logical_device_id_list.cend()) ||
-        (device_config.device_type == CPU)) {
-      filtered_device_config_list.emplace_back(device_config);
-      GELOGI("Logical device id [%s] was accepted", logical_device_id.c_str());
-      logical_device_id_list.erase(logical_device_id);
-      has_npu = (has_npu || device_config.device_type == NPU);
-    }
-  }
-  if (has_npu) {
-    node_config.device_list = std::move(filtered_device_config_list);
-  }
-  return has_npu;
 }
 }  // namespace ge

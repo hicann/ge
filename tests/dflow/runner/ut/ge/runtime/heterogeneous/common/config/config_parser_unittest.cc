@@ -124,22 +124,6 @@ TEST_F(UtConfigParser, parse_server_shuffle_node_success) {
   ASSERT_EQ(information.node_config.node_mesh_index[1], 0);
 }
 
-TEST_F(UtConfigParser, filter_by_partial_cluster_success) {
-  ge::DeployerConfig information;
-  std::string config_file = PathUtils::Join({data_path, "valid/server/numa_config2.json"});
-  std::map<std::string, std::string> options;
-  options[OPTION_EXEC_MODEL_DEPLOY_MODE] = "MultiMaster";
-  options[OPTION_EXEC_MODEL_DEPLOY_DEVICELIST] = "0:0:1:0,0:1:0:0";
-  GetThreadLocalContext().SetGraphOption(options);
-  auto ret = ge::ConfigParser::ParseServerInfo(config_file, information);
-  GetThreadLocalContext().SetGraphOption({});
-
-  ASSERT_EQ(ret, ge::SUCCESS);
-  ASSERT_EQ(information.remote_node_config_list.size(), 1);
-  ASSERT_EQ(information.remote_node_config_list[0].device_list.size(), 2);
-  ASSERT_EQ(information.node_config.device_list.size(), 2);
-}
-
 TEST_F(UtConfigParser, parse_server_info_failed) {
   ge::DeployerConfig information;
   std::string config_file = PathUtils::Join({data_path, "wrong_value/server/numa_config_2p.json"});

@@ -224,14 +224,8 @@ ge::Status LlmFlowService::Initialize(const std::map<ge::AscendString, ge::Ascen
   LLMLOGI("device_num in numa config = %zu, deploy to device_indices = %s",
          logical_device_ids.size(),
          llm::ToString(device_indices_).c_str());
-  auto engine_options = options;
-  if (is_spmd_ && (device_indices_.size() < logical_device_ids.size())) {
-    // 通过MultiMaster模式过滤numa config中的device
-    engine_options[ge::OPTION_EXEC_MODEL_DEPLOY_MODE] = "MultiMaster";
-    engine_options[ge::OPTION_EXEC_MODEL_DEPLOY_DEVICELIST] = logical_device_ids[device_indices_.front()].c_str();
-  }
-  auto ret = main_pool_.commit([&engine_options]() -> ge::Status {
-    return GeApi::GetInstance().Initialize(engine_options);
+  auto ret = main_pool_.commit([&options]() -> ge::Status {
+    return GeApi::GetInstance().Initialize(options);
   }).get(); // 异步执行，防止在主线程SetDevice，否则可能会影响torch_npu场景
   LLM_CHK_STATUS_RET(ret, "Failed to initialize GE");
 
