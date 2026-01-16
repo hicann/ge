@@ -290,22 +290,6 @@ TEST_F(HeterogeneousRuntimeTest, TestDeployModel) {
   ret = session.RunGraph(1, input_tensors, output_tensors);
   ASSERT_EQ(ret, SUCCESS);
   ASSERT_EQ(output_tensors.size(), 1);
-
-  std::mutex mu;
-  std::condition_variable cv;
-  bool done = false;
-  auto callback = [&](Status status, std::vector<ge::Tensor> &outputs) {
-    std::unique_lock<std::mutex> lk(mu);
-    done = true;
-    ret = status;
-    cv.notify_all();
-  };
-  session.RunGraphAsync(1, input_tensors, callback);
-  std::unique_lock<std::mutex> lk(mu);
-  cv.wait_for(lk, std::chrono::seconds(5), [&]() {
-    return done;
-  });
-  ASSERT_EQ(ret, SUCCESS);
 }
 
 namespace {
@@ -488,22 +472,6 @@ TEST_F(HeterogeneousRuntimeTest, TestDeployModelNoTiling) {
   ret = session.FetchDataFlowGraph(11, fetch_output_tensors, data_flow_info, 100);
   ASSERT_EQ(ret, SUCCESS);
   ASSERT_EQ(fetch_output_tensors.size(), 1);
-
-  std::mutex mu;
-  std::condition_variable cv;
-  bool done = false;
-  auto callback = [&](Status status, std::vector<ge::Tensor> &outputs) {
-    std::unique_lock<std::mutex> lk(mu);
-    done = true;
-    ret = status;
-    cv.notify_all();
-  };
-  session.RunGraphAsync(1, input_tensors, callback);
-  std::unique_lock<std::mutex> lk(mu);
-  cv.wait_for(lk, std::chrono::seconds(5), [&]() {
-    return done;
-  });
-  ASSERT_EQ(ret, SUCCESS);
 }
 
 TEST_F(HeterogeneousRuntimeTest, TestFeedDataWithoutRun) {
@@ -753,21 +721,5 @@ TEST_F(HeterogeneousRuntimeTest, TestDeployDynamicSchedModelNoTiling) {
   ret = session.FetchDataFlowGraph(11, fetch_output_tensors, data_flow_info, 100);
   ASSERT_EQ(ret, SUCCESS);
   ASSERT_EQ(fetch_output_tensors.size(), 1);
-
-  std::mutex mu;
-  std::condition_variable cv;
-  bool done = false;
-  auto callback = [&](Status status, std::vector<ge::Tensor> &outputs) {
-    std::unique_lock<std::mutex> lk(mu);
-    done = true;
-    ret = status;
-    cv.notify_all();
-  };
-  session.RunGraphAsync(1, input_tensors, callback);
-  std::unique_lock<std::mutex> lk(mu);
-  cv.wait_for(lk, std::chrono::seconds(5), [&]() {
-    return done;
-  });
-  ASSERT_EQ(ret, SUCCESS);
 }
 }  // namespace ge

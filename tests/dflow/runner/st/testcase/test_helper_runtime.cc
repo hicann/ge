@@ -1465,18 +1465,6 @@ TEST_F(STEST_helper_runtime, TestMulitBatch) {
   ret = session.RunGraph(1, input_tensors, output_tensors);
   ASSERT_EQ(ret, SUCCESS);
 
-  std::mutex mu;
-  std::condition_variable cv;
-  bool done = false;
-  auto callback = [&](Status status, std::vector<ge::Tensor> &outputs) {
-    std::unique_lock<std::mutex> lk(mu);
-    done = true;
-    ret = status;
-    cv.notify_all();
-  };
-  session.RunGraphAsync(1, input_tensors, callback);
-  std::unique_lock<std::mutex> lk(mu);
-  cv.wait_for(lk, std::chrono::seconds(5), [&]() { return done; });
   GetLocalOmgContext().user_input_dims = old_user_input_dims;
   GetLocalOmgContext().dynamic_dims = old_dynamic_dims;
   GetLocalOmgContext().is_subgraph_multi_batch = old_is_subgraph_multi_batch;
@@ -1543,20 +1531,6 @@ TEST_F(STEST_helper_runtime, TestDeployModelWithFileConstant) {
   ret = session.RunGraph(1, input_tensors, output_tensors);
   ASSERT_EQ(ret, SUCCESS);
   ASSERT_EQ(output_tensors.size(), 1);
-
-  std::mutex mu;
-  std::condition_variable cv;
-  bool done = false;
-  auto callback = [&](Status status, std::vector<ge::Tensor> &outputs) {
-    std::unique_lock<std::mutex> lk(mu);
-    done = true;
-    ret = status;
-    cv.notify_all();
-  };
-  session.RunGraphAsync(1, input_tensors, callback);
-  std::unique_lock<std::mutex> lk(mu);
-  cv.wait_for(lk, std::chrono::seconds(5), [&]() { return done; });
-  ASSERT_EQ(ret, SUCCESS);
   (void) remove("test_copy_one_weight.bin");
 }
 
@@ -5956,31 +5930,10 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedFindGroupIndexBySched) {
   g_is_dynamic_sched_ = true;
   g_dynamic_sched_by_cache_ = false;
 
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < executor->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = executor->input_tensor_desc_[i];
-    auto tensor_size = executor->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = executor->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
-
   ASSERT_EQ(executor->ModelRunStart(), SUCCESS);
 
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  executor->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    ret = status;
-    usleep(300 * 1000UL);
-    cb.notify_all();
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
+  // wait sched
+  std::this_thread::sleep_for(std::chrono::milliseconds(300));
   ASSERT_EQ(executor->ModelRunStop(), SUCCESS);
   ASSERT_EQ(executor->ModelRunStop(), SUCCESS);  // not started
   EXPECT_EQ(executor->cached_trans_ids_.size(), 1024);
@@ -6075,30 +6028,10 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedFindGroupIndexByCache) {
   g_is_dynamic_sched_ = true;
   g_dynamic_sched_by_cache_ = true;
 
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < executor->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = executor->input_tensor_desc_[i];
-    auto tensor_size = executor->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = executor->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
-
   ASSERT_EQ(executor->ModelRunStart(), SUCCESS);
 
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  executor->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
+  // wait sched
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ASSERT_EQ(executor->ModelRunStop(), SUCCESS);
   ASSERT_EQ(executor->ModelRunStop(), SUCCESS);  // not started
   executor->is_dynamic_sched_ = false;

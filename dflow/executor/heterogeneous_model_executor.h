@@ -14,8 +14,6 @@
 #include <thread>
 #include "common/thread_pool.h"
 #include "common/blocking_queue.h"
-#include "common/context/local_context.h"
-#include "common/context/ome_context.h"
 #include "ge/ge_data_flow_api.h"
 #include "dflow/base/deploy/exchange_service.h"
 #include "graph/ge_tensor.h"
@@ -27,8 +25,6 @@
 #include "data_flow_data_aligner.h"
 
 namespace ge {
-class FlowModelCallback;
-using FlowModelCallbackPtr = std::shared_ptr<FlowModelCallback>;
 class HeterogeneousModelExecutor {
  public:
   /// @ingroup ge
@@ -66,14 +62,6 @@ class HeterogeneousModelExecutor {
   /// @param [out] callback   callback function
   /// @return SUCCESS success / others failure
   Status ExecuteAsync(const std::vector<Tensor> &inputs, const RunAsyncCallback &callback);
-
-/// @ingroup ge
-  /// @brief Execute model async
-  /// @param [in]  graph_id   graph_id
-  /// @param [in]  inputs     inputs
-  /// @param [out] callback   callback function
-  /// @return SUCCESS success / others failure
-  Status ExecuteAsync(uint32_t graph_id, const std::vector<Tensor> &inputs, const RunAsyncCallback &callback);
 
   /// @ingroup ge
   /// @brief create model std::thread,
@@ -240,10 +228,8 @@ class HeterogeneousModelExecutor {
   // {key: input_queue_attr, value: { input tensor index }
   std::map<DeployQueueAttr, std::vector<size_t>> fusion_input_queue_attrs_;
   std::mutex mu_;
-  std::thread run_thread_;
   std::atomic_bool run_flag_{false};
   GEThreadLocalContext run_context_;
-  BlockingQueue<std::shared_ptr<RunAsyncRequest>> input_queue_;
   std::string input_model_name_;
   std::map<std::string, ModelIndices> model_indices_;
   std::mutex output_mutex_;

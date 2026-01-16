@@ -66,40 +66,6 @@ thread_local uint64_t HeterogeneousModelExecutor::duration_max_ = 0ULL;
 thread_local uint64_t HeterogeneousModelExecutor::duration_size_ = 0ULL;
 thread_local uint64_t HeterogeneousModelExecutor::call_ = 0ULL;
 
-class FlowModelCallback {
- public:
-  FlowModelCallback(RunAsyncCallback callback, const size_t submodle_size, const size_t outputs_size)
-      : callback_(std::move(callback)), submodel_size_(submodle_size) {
-    flow_model_outputs_.resize(outputs_size);
-  };
-
-  ~FlowModelCallback() = default;
-
-  void operator()(Status status) {
-    ++callback_times_;
-    ret_ = ((status != SUCCESS) ? status : ret_);
-    if (callback_times_ == submodel_size_) {
-      callback_(ret_, flow_model_outputs_);
-    }
-  }
-
-  std::mutex &GetCallbackMutex() {
-    return mutex_;
-  }
-
-  std::vector<Tensor> &MutableFlowModelOutputs() {
-    return flow_model_outputs_;
-  }
-
- private:
-  std::mutex mutex_;
-  RunAsyncCallback callback_;
-  size_t submodel_size_{0};
-  size_t callback_times_{0};
-  Status ret_{SUCCESS};
-  std::vector<Tensor> flow_model_outputs_;
-};
-
 HeterogeneousModelExecutor::HeterogeneousModelExecutor(const FlowModelPtr &flow_model,
                                                        const DeployResult &deploy_result)
     : flow_model_(flow_model),
@@ -489,39 +455,6 @@ uint32_t HeterogeneousModelExecutor::GetDeployedModelId() const {
   return deployed_model_id_;
 }
 
-Status HeterogeneousModelExecutor::ExecuteAsync(uint32_t graph_id,
-                                                const std::vector<Tensor> &inputs,
-                                                const RunAsyncCallback &callback) {
-  (void)graph_id;
-  GE_CHK_STATUS_RET_NOLOG(ExecuteAsync(inputs, callback));
-  GELOGD("Input enqueued successfully, model id = %u", model_id_);
-  return SUCCESS;
-}
-
-Status HeterogeneousModelExecutor::ExecuteAsync(const std::vector<Tensor> &inputs, const RunAsyncCallback &callback) {
-  GE_CHECK_NOTNULL(callback);
-  if (!run_flag_) {
-    GELOGE(FAILED, "Model is not running, model id = %u", model_id_);
-    return FAILED;
-  }
-  auto request = MakeShared<RunAsyncRequest>();
-  GE_CHECK_NOTNULL(request);
-  request->callback = callback;
-  vector<GeTensor> input_tensors;
-  input_tensors.resize(inputs.size());
-  (void) std::transform(inputs.begin(), inputs.end(), input_tensors.begin(),
-                        [](const Tensor &input) { return TensorAdapter::AsGeTensor(input); });
-  {
-    GELOGD("Start to execute model async, model id = %u", model_id_);
-    const std::lock_guard<std::mutex> lk(mu_);
-    GE_CHK_STATUS_RET(EnqueueInputTensors(input_tensors, replica_num_), "Failed to enqueue input tensors with replica");
-    GELOGD("Start to execute model async, model id = %u", model_id_);
-    GE_CHK_BOOL_RET_STATUS(input_queue_.Push(std::move(request)), INTERNAL_ERROR, "Failed to enqueue input");
-  }
-  GELOGD("Input enqueued successfully, model id = %u", model_id_);
-  return SUCCESS;
-}
-
 Status HeterogeneousModelExecutor::Execute(const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) {
   GELOGD("Start to execute model, model id = %u", model_id_);
   GE_CHK_STATUS_RET(EnqueueInputTensors(inputs, replica_num_), "Failed to enqueue input tensors with replica");
@@ -875,11 +808,7 @@ Status HeterogeneousModelExecutor::ModelRunStart() {
   const std::lock_guard<std::mutex> lk(mu_);
   run_flag_ = true;
   run_context_ = GetThreadLocalContext();
-  run_thread_ = std::thread([&]() {
-    SET_THREAD_NAME(pthread_self(), "ge_dpl_iorun");
-    GetThreadLocalContext() = run_context_;
-    Run();
-  });
+
   if (is_dynamic_sched_) {
     uint32_t threadNum = sched_output_queue_attrs_.size();
     for (auto iter : datagw_rqt_to_rsp_) {
@@ -1450,42 +1379,10 @@ bool HeterogeneousModelExecutor::IsRedeployFailed(const uint32_t abnormal_status
   return abnormal_status_operation_type == kCallbackFailedRedeploy;
 }
 
-void HeterogeneousModelExecutor::Run() {
-  GELOGD("Run thread started, model id = %u, deployed model id = %u", model_id_, deployed_model_id_);
-  while (run_flag_) {
-    std::shared_ptr<RunAsyncRequest> request;
-    if ((!input_queue_.Pop(request)) || (request == nullptr)) {
-      GELOGI("Got end of inputs, model id = %u, deployed model id = %u", model_id_, deployed_model_id_);
-      break;
-    }
-
-    std::vector<GeTensor> output_tensors;
-    std::vector<Tensor> outputs;
-    const auto ret = DequeueOutputTensors(output_tensors);
-    if (ret == SUCCESS) {
-      for (auto &output : output_tensors) {
-        outputs.emplace_back(TensorAdapter::AsTensor(output));
-      }
-    } else if (ret == END_OF_SEQUENCE) {
-      GELOGI("end of sequence is coming.");
-    } else {
-      REPORT_INNER_ERR_MSG("E19999", "Failed to execute model, model id = %u, deployed model id = %u", model_id_,
-                        deployed_model_id_);
-      GELOGE(ret, "Failed to execute model, model id = %u, deployed model id = %u", model_id_, deployed_model_id_);
-    }
-    request->callback(ret, outputs);
-  }
-  GELOGD("Run thread ended, model id = %u, deployed model id = %u", model_id_, deployed_model_id_);
-}
-
 Status HeterogeneousModelExecutor::ModelRunStop() {
   GELOGI("model id = %u, deployed model id = %u", model_id_, deployed_model_id_);
   const std::lock_guard<std::mutex> lk(mu_);
   run_flag_ = false;
-  if (run_thread_.joinable()) {
-    (void) input_queue_.Push(nullptr);
-    run_thread_.join();
-  }
   if (is_exception_catch_ || is_dynamic_sched_) {
     status_messages_queue_.Stop();
     process_forwarding_.Finalize();

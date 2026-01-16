@@ -26,8 +26,6 @@
 #include "depends/runtime/src/runtime_stub.h"
 #include "rt_error_codes.h"
 #include "stub_models.h"
-#include "dflow/executor/inner_process_msg_forwarding.h"
-#include "exec_runtime/execution_runtime_utils.h"
 
 using namespace std;
 using namespace testing;
@@ -37,18 +35,6 @@ namespace {
 Status DevStatCallBackFail() {
   return FAILED;
 }
-static std::vector<int32_t> kConstMeshNode = {0, 0};
-namespace {
-std::vector<uint8_t> g_tmp_buffer(1024 * 1024);
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtBuffAlloc(uint64_t size, void **buff) override {
-    *buff = &g_tmp_buffer[0];
-    return RT_ERROR_NONE;
-  }
-  MOCK_METHOD2(rtBuffConfirm, int32_t(void *buff, const uint64_t size));
-};
-}  // namespace
 } // namespace
 
 class HeterogeneousModelExecutorTest : public testing::Test {
@@ -356,43 +342,6 @@ TEST_F(HeterogeneousModelExecutorTest, TestEnqueueFailed) {
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
       .WillRepeatedly(Return(RT_FAILED));
   ASSERT_EQ(default_executor_->EnqueueInputTensors(input_tensors), RT_FAILED);
-}
-
-TEST_F(HeterogeneousModelExecutorTest, TestRunAsync) {
-  ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
-
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = default_executor_->input_tensor_desc_[i];
-    auto tensor_size = default_executor_->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
-
-  ASSERT_EQ(default_executor_->ModelRunStart(), SUCCESS);
-
-  auto &exchange_service = (MockExchangeService &) ExecutionRuntime::GetInstance()->GetExchangeService();
-  void *data = nullptr;
-  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
-      .WillRepeatedly(Return(SUCCESS));
-  EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
-
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
-  ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);
-  ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);  // not started
 }
 
 TEST_F(HeterogeneousModelExecutorTest, TestExecuteModelWithEOS) {
@@ -733,49 +682,6 @@ Status DynamicSchedDequeueMbufStub(int32_t device_id, uint32_t queue_id,
   return RT_ERROR_TO_GE_STATUS(ACL_ERROR_RT_QUEUE_EMPTY);
 }
 
-TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedRunAsync) {
-  default_executor_->is_dynamic_sched_ = true;
-  DeployQueueAttr queue_attr;
-  queue_attr.queue_id = 105;
-  default_executor_->status_input_queue_attrs_.push_back(queue_attr);
-  auto &exchange_service = (MockExchangeService &) ExecutionRuntime::GetInstance()->GetExchangeService();
-  EXPECT_CALL(exchange_service, DequeueMbuf).WillRepeatedly(testing::Invoke(DynamicSchedDequeueMbufStub));
-  ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
-
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = default_executor_->input_tensor_desc_[i];
-    auto tensor_size = default_executor_->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
-
-  ASSERT_EQ(default_executor_->ModelRunStart(), SUCCESS);
-
-  void *data = nullptr;
-  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
-      .WillRepeatedly(Return(SUCCESS));
-  EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
-
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
-  ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);
-  ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);  // not started
-  default_executor_->is_dynamic_sched_ = false;
-}
-
 bool g_dynamic_sched_by_cache = false;
 Status DynamicSchedEnqueueStub(int32_t device_id, uint32_t queue_id, size_t size, const ExchangeService::FillFunc &fill_func,
                    const ExchangeService::ControlInfo &control_info) {
@@ -831,17 +737,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexByDefaultSt
   EXPECT_CALL(exchange_service, DequeueMbuf).WillRepeatedly(testing::Invoke(DynamicSchedDequeueMbufStub));
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   g_sched_cnt = 0;
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = default_executor_->input_tensor_desc_[i];
-    auto tensor_size = default_executor_->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
 
-  auto ret = default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
   size_t size = 0;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
@@ -849,16 +745,8 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexByDefaultSt
 
   ASSERT_EQ(default_executor_->ModelRunStart(), SUCCESS);
 
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
+  // wait sched
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);  // not started
   EXPECT_EQ(default_executor_->cached_trans_ids_.size(), 1024);
@@ -910,17 +798,6 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexBySched) {
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   g_sched_cnt = 0;
 
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = default_executor_->input_tensor_desc_[i];
-    auto tensor_size = default_executor_->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
   size_t size = 0;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
@@ -928,16 +805,8 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexBySched) {
 
   ASSERT_EQ(default_executor_->ModelRunStart(), SUCCESS);
 
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
+  // wait sched
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);  // not started
   default_executor_->is_dynamic_sched_ = false;
@@ -988,17 +857,6 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexInSingleIns
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   g_sched_cnt = 0;
 
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = default_executor_->input_tensor_desc_[i];
-    auto tensor_size = default_executor_->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
   size_t size = 0;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
@@ -1006,16 +864,8 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexInSingleIns
 
   ASSERT_EQ(default_executor_->ModelRunStart(), SUCCESS);
 
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
+  // wait sched
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);  // not started
   default_executor_->is_dynamic_sched_ = false;
@@ -1071,18 +921,6 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedResponseEnqueueFailed) {
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   g_sched_cnt = 0;
 
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = default_executor_->input_tensor_desc_[i];
-    auto tensor_size = default_executor_->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
-
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
   size_t size = 0;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
@@ -1090,16 +928,8 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedResponseEnqueueFailed) {
 
   ASSERT_EQ(default_executor_->ModelRunStart(), SUCCESS);
 
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
+  // wait sched
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);  // not started
   default_executor_->is_dynamic_sched_ = false;
@@ -1149,17 +979,6 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexByCache) {
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   g_sched_cnt = 0;
 
-  std::vector<Tensor> input_tensors;
-  for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
-    auto tensor_desc = default_executor_->input_tensor_desc_[i];
-    auto tensor_size = default_executor_->input_tensor_sizes_[i];
-    GeTensor tensor(*tensor_desc, std::vector<uint8_t>(tensor_size));
-    input_tensors.emplace_back(TensorAdapter::AsTensor(tensor));
-  }
-
-  auto ret = default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-  });
-  ASSERT_EQ(ret, FAILED);  // not started
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
   size_t size = 0;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
@@ -1167,16 +986,8 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFindGroupIndexByCache) {
 
   ASSERT_EQ(default_executor_->ModelRunStart(), SUCCESS);
 
-  std::mutex mu;
-  std::unique_lock<std::mutex> lk(mu);
-  condition_variable cb;
-  ret = FAILED;
-  default_executor_->ExecuteAsync(input_tensors, [&](Status status, std::vector<ge::Tensor> &outputs) {
-    cb.notify_all();
-    ret = status;
-  });
-
-  cb.wait_for(lk, std::chrono::seconds(5));
+  // wait sched
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);
   ASSERT_EQ(default_executor_->ModelRunStop(), SUCCESS);  // not started
   default_executor_->is_dynamic_sched_ = false;
