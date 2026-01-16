@@ -20,7 +20,7 @@
   - [my_Conv2D.h](./custom/my_Conv2D.h)
   - [my_Conv2D.cpp](./custom/my_Conv2D.cpp)
 
-- Sample 2. 冗余属性消除 Concat2D <br>
+- Sample 2. 冗余属性消除 ConcatD <br>
   由于历史原因，部分 IR 中定义的属性存在冗余 <br>
   例如在 ConcatD 算子中，属性 N 表示输入 x 的数量 <br>
   优化方式是将属性 N 注册为可推导属性，使其由 x_num 自动推导。通过如下语句注册推导逻辑：`int64_t N = x_num;`

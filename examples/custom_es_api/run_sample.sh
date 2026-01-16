@@ -19,8 +19,8 @@ if [[ -z "${ASCEND_HOME_PATH}" ]]; then
 fi
 
 BUILD_DIR="build"
-if [[ -d "${BUILD_DIR}" ]]; then
-  echo "[Info] 创建构建目录 ${BUILD_DIR}"gen_esb
+if [[ ! -d "${BUILD_DIR}" ]]; then
+  echo "[Info] 创建构建目录 ${BUILD_DIR}"
   mkdir -p "${BUILD_DIR}"
 fi
 

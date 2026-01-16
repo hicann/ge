@@ -30,7 +30,9 @@
 #include "normal_graph/operator_impl.h"
 #include "default_attr_utils.h"
 #include "graph_dump_utils.h"
+#include "node_utils.h"
 #include "common/util/tiling_utils.h"
+#include "recover_ir_utils.h"
 
 using namespace ge;
 namespace {
@@ -47,6 +49,7 @@ ComputeGraphPtr BuildGraphWithConst(const std::string &graph_name = "graph") {
   AttrUtils::SetTensor(const_node->GetOpDesc(), ge::ATTR_NAME_WEIGHTS, ge_tensor);
   AttrUtils::SetStr(const_node->GetOpDesc(), "fake_attr_name", "fake_attr_value");
   auto add_node = builder.AddNode("Add", "Add", 2, 1);
+  RecoverIrUtils::RecoverOpDescIrDefinition(add_node->GetOpDesc(), "Add");
   AttrUtils::SetStr(add_node->GetOpDesc(), "fake_attr_name", "fake_attr_value");
   AttrUtils::SetStr(add_node->GetOpDesc(), ge::ATTR_NAME_WEIGHTS, "fake_attr_value");
   auto netoutput = builder.AddNode("Netoutput", "NetOutput", 1, 0);
@@ -299,7 +302,7 @@ TEST_F(UtestReadableDump, test_GenSimple) {
   std::string readable_dump = R"(graph("GenSimple"):
   %Data : [#users=1] = Node[type=Data] ()
   %Const : [#users=1] = Node[type=Const] ()
-  %Add : [#users=1] = Node[type=Add] (inputs = (%Data, %Const))
+  %Add : [#users=1] = Node[type=Add] (inputs = (x1=%Data, x2=%Const))
 
   return (%Add)
 )";
@@ -337,14 +340,19 @@ TEST_F(UtestReadableDump, test_OptionalInputsAndControlEdges) {
   graph.AddDataEdge(data1_node, 0, phony_mul_i_node, 2);
   graph.AddDataEdge(data2_node, 0, phony_mul_i_node, 3);
 
+  // 更新OPTIONAL_INPUT opt_x的描述信息
+  ge::TensorDesc tensor_desc;
+  phony_mul_i_node.GetInputDesc(3, tensor_desc);
+  phony_mul_i_node.UpdateInputDesc(3, tensor_desc);
+
   GNode netoutput_gnode = NodeAdapter::Node2GNode(netoutput);
   graph.AddControlEdge(const_node, netoutput_gnode);
 
   std::string readable_dump = R"(graph("graph_OptionalInputsAndControlEdges"):
   %const : [#users=1] = Node[type=Const] (attrs = {value: [0.000000]})
-  %data1 : [#users=1] = Node[type=Data] (inputs = (%const), attrs = {index: 0})
-  %data2 : [#users=1] = Node[type=Data] (inputs = (%const), attrs = {index: 0})
-  %test : [#users=1] = Node[type=phony_mul_i] (inputs = (%const, %data1, %data2))
+  %data1 : [#users=1] = Node[type=Data] (inputs = (x=%const), attrs = {index: 0})
+  %data2 : [#users=1] = Node[type=Data] (inputs = (x=%const), attrs = {index: 0})
+  %test : [#users=1] = Node[type=phony_mul_i] (inputs = (x=%const, opt_x=%data2, dx1_1=%data1))
 )";
 
   std::stringstream readable_ss;
@@ -378,6 +386,10 @@ TEST_F(UtestReadableDump, test_GenComplex) {
   phony_multi_attr_op2.create_dynamic_output_dy(2);
   auto phony_multi_attr_node2 = graph.AddNodeByOp(phony_multi_attr_op2);
   graph.AddDataEdge(data_node, 0, phony_multi_attr_node2, 0);
+  // 更新OPTIONAL_INPUT x的描述信息
+  ge::TensorDesc tensor_desc;
+  phony_multi_attr_node2.GetInputDesc(0, tensor_desc);
+  phony_multi_attr_node2.UpdateInputDesc(0, tensor_desc);
 
   auto phony_mix_ios_op = op::phony_mix_ios("phony_mix_ios")
                               .create_dynamic_input_byindex_dx1(2, 2);
@@ -402,19 +414,19 @@ TEST_F(UtestReadableDump, test_GenComplex) {
   std::string readable_dump = R"(graph("graph_complex"):
   %data : [#users=1] = Node[type=Data] (attrs = {index: 0})
   %const : [#users=1] = Node[type=Const] (attrs = {value: [0.000000]})
-  %phony1 : [#users=1] = Node[type=Phony1] (inputs = (%data), attrs = {N: 1})
+  %phony1 : [#users=1] = Node[type=Phony1] (inputs = (x=%data), attrs = {N: 1})
   %phony_multi_attr_node1 : [#users=1] = Node[type=phony_multi_attr] (attrs = {li: {10, 10, 10}, f: 0.000000, s: "s", b: true, lf: {0.100000, 0.200000}, lb: {false, true}, opt_data_type: DT_INT64, opt_list_data_type: {DT_FLOAT, DT_DOUBLE}, opt_list_list_int: {{1, 2, 3}, {3, 2, 1}}, opt_tensor: <empty>, opt_list_string: {"test"}})
-  %phony_multi_attr_node2 : [#users=3] = Node[type=phony_multi_attr] (inputs = (%data), attrs = {li: {10, 10, 10}, f: 0.000000, s: "s", b: true, lf: {0.100000, 0.200000}, lb: {false, true}, opt_data_type: DT_INT64, opt_list_data_type: {DT_FLOAT, DT_DOUBLE}, opt_list_list_int: {{1, 2, 3}, {3, 2, 1}}, opt_tensor: <empty>, opt_list_string: {"test"}})
+  %phony_multi_attr_node2 : [#users=3] = Node[type=phony_multi_attr] (inputs = (x=%data), attrs = {li: {10, 10, 10}, f: 0.000000, s: "s", b: true, lf: {0.100000, 0.200000}, lb: {false, true}, opt_data_type: DT_INT64, opt_list_data_type: {DT_FLOAT, DT_DOUBLE}, opt_list_list_int: {{1, 2, 3}, {3, 2, 1}}, opt_tensor: <empty>, opt_list_string: {"test"}})
   %ret : [#users=2] = get_element[node=%phony_multi_attr_node2](0)
   %ret_1 : [#users=2] = get_element[node=%phony_multi_attr_node2](1)
   %ret_2 : [#users=0] = get_element[node=%phony_multi_attr_node2](2)
-  %phony_mix_ios : [#users=4] = Node[type=phony_mix_ios] (inputs = (%data, %phony1, %ret, %ret_1))
+  %phony_mix_ios : [#users=4] = Node[type=phony_mix_ios] (inputs = (x1=%data, x2=%phony1, dx1_0=%ret, dx1_1=%ret_1))
   %ret_3 : [#users=1] = get_element[node=%phony_mix_ios](0)
   %ret_4 : [#users=1] = get_element[node=%phony_mix_ios](1)
   %ret_5 : [#users=0] = get_element[node=%phony_mix_ios](2)
   %ret_6 : [#users=0] = get_element[node=%phony_mix_ios](3)
 
-  return (%phony1, %ret, %ret_1, %ret_3, %ret_4)
+  return (output_0=%phony1, output_1=%ret, output_2=%ret_1, output_3=%ret_3, output_4=%ret_4)
 )";
 
   std::stringstream readable_ss;
@@ -583,7 +595,7 @@ TEST_F(UtestReadableDump, test_phony_Squeeze_WithInputNoAttr) {
 
   std::string readable_dump = R"(graph("graph_WithInputNoAttr"):
   %data : [#users=1] = Node[type=Data] (attrs = {index: 0})
-  %phony_Squeeze : [#users=1] = Node[type=phony_Squeeze] (inputs = (%data))
+  %phony_Squeeze : [#users=1] = Node[type=phony_Squeeze] (inputs = (x=%data))
 )";
   std::stringstream readable_ss;
   EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, compute_graph));
@@ -647,4 +659,517 @@ TEST_F(UtestReadableDump, test_EmtpyDefaultValues) {
   std::stringstream readable_ss;
   EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, compute_graph));
   EXPECT_EQ(readable_dump, readable_ss.str());
+}
+
+REG_OP(Add)
+    .INPUT(x1, TensorType::All())
+    .INPUT(x2, TensorType::All())
+    .OUTPUT(y, TensorType::All())
+    .OP_END_FACTORY_REG(Add)
+REG_OP(If)
+    .INPUT(cond, TensorType::ALL())
+    .DYNAMIC_INPUT(input, TensorType::ALL())
+    .DYNAMIC_OUTPUT(output, TensorType::ALL())
+    .GRAPH(then_branch)
+    .GRAPH(else_branch)
+    .OP_END_FACTORY_REG(If)
+REG_OP(While)
+    .DYNAMIC_INPUT(input, TensorType::ALL())
+    .DYNAMIC_OUTPUT(output, TensorType::ALL())
+    .GRAPH(cond)
+    .GRAPH(body)
+    .ATTR(parallel_iterations, Int, 10)
+    .OP_END_FACTORY_REG(While)
+REG_OP(Case)
+    .INPUT(branch_index, DT_INT32)
+    .DYNAMIC_INPUT(input, TensorType::ALL())
+    .DYNAMIC_OUTPUT(output, TensorType::ALL())
+    .DYNAMIC_GRAPH(branches)
+    .OP_END_FACTORY_REG(Case)
+REG_OP(For)
+    .INPUT(start, DT_INT32)
+    .INPUT(limit, DT_INT32)
+    .INPUT(delta, DT_INT32)
+    .DYNAMIC_INPUT(input, TensorType::ALL())
+    .DYNAMIC_OUTPUT(output, TensorType::ALL())
+    .GRAPH(body)
+    .OP_END_FACTORY_REG(For)
+
+// 测试子图内联展示功能
+TEST_F(UtestReadableDump, test_SubgraphInlineDisplay) {
+  // 创建主图
+  ut::GraphBuilder builder = ut::GraphBuilder("main_graph");
+  auto main_graph = builder.GetGraph();
+  auto graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(main_graph);
+  auto cond_op = op::Data("cond").set_attr_index(0);
+  auto cond_node = graph.AddNodeByOp(cond_op);
+  auto input0_op = op::Data("input0").set_attr_index(1);
+  auto input0_node = graph.AddNodeByOp(input0_op);
+  auto input1_op = op::Data("input1").set_attr_index(2);
+  auto input1_node = graph.AddNodeByOp(input1_op);
+  auto if_op = op::If("if_node")
+                   .create_dynamic_input_byindex_input(2, 1)
+                   .create_dynamic_output_output(1);
+  auto if_node_gnode = graph.AddNodeByOp(if_op);
+  graph.AddDataEdge(cond_node, 0, if_node_gnode, 0);
+  graph.AddDataEdge(input0_node, 0, if_node_gnode, 1);
+  graph.AddDataEdge(input1_node, 0, if_node_gnode, 2);
+  const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode netoutput_gnode = NodeAdapter::Node2GNode(netoutput);
+  graph.AddDataEdge(if_node_gnode, 0, netoutput_gnode, 0);
+
+  // 创建then子图
+  ut::GraphBuilder then_builder = ut::GraphBuilder("then_branch");
+  auto then_compute_graph = then_builder.GetGraph();
+  auto then_graph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(then_compute_graph);
+  auto then_data0_op = op::Data("Data_0").set_attr_index(0);
+  auto then_data0_node = then_graph_obj.AddNodeByOp(then_data0_op);
+  auto then_data1_op = op::Data("Data_1").set_attr_index(1);
+  auto then_data1_node = then_graph_obj.AddNodeByOp(then_data1_op);
+  auto then_add_op = op::Add("Add_0");
+  auto then_add_node = then_graph_obj.AddNodeByOp(then_add_op);
+  then_graph_obj.AddDataEdge(then_data0_node, 0, then_add_node, 0);
+  then_graph_obj.AddDataEdge(then_data1_node, 0, then_add_node, 1);
+  const auto &then_netoutput = then_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode then_netoutput_gnode = NodeAdapter::Node2GNode(then_netoutput);
+  then_graph_obj.AddDataEdge(then_add_node, 0, then_netoutput_gnode, 0);
+  auto then_graph = then_compute_graph;
+
+  // 创建else子图
+  ut::GraphBuilder else_builder = ut::GraphBuilder("else_branch");
+  auto else_compute_graph = else_builder.GetGraph();
+  auto else_graph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(else_compute_graph);
+  auto else_data0_op = op::Data("Data_0").set_attr_index(0);
+  auto else_data0_node = else_graph_obj.AddNodeByOp(else_data0_op);
+  auto else_data1_op = op::Data("Data_1").set_attr_index(1);
+  auto else_data1_node = else_graph_obj.AddNodeByOp(else_data1_op);
+  auto else_add_op = op::Add("Add_1");
+  auto else_add_node = else_graph_obj.AddNodeByOp(else_add_op);
+  else_graph_obj.AddDataEdge(else_data0_node, 0, else_add_node, 0);
+  else_graph_obj.AddDataEdge(else_data1_node, 0, else_add_node, 1);
+  const auto &else_netoutput = else_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode else_netoutput_gnode = NodeAdapter::Node2GNode(else_netoutput);
+  else_graph_obj.AddDataEdge(else_add_node, 0, else_netoutput_gnode, 0);
+  auto else_graph = else_compute_graph;
+
+  // 将子图添加到主图的If节点
+  NodeUtils::SetSubgraph(*NodeAdapter::GNode2Node(if_node_gnode), 0, then_graph);
+  NodeUtils::SetSubgraph(*NodeAdapter::GNode2Node(if_node_gnode), 1, else_graph);
+
+  std::string readable_dump = R"(graph("main_graph"):
+  %cond : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %input0 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %input1 : [#users=1] = Node[type=Data] (attrs = {index: 2})
+  %if_node : [#users=1] = Node[type=If] (inputs = (cond=%cond, input_0=%input0, input_1=%input1), attrs = {then_branch: %then_branch, else_branch: %else_branch})
+
+  return (%if_node)
+
+graph("then_branch"):
+  %Data_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Data_1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %Add_0 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_0, x2=%Data_1))
+
+  return (%Add_0)
+
+graph("else_branch"):
+  %Data_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Data_1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %Add_1 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_0, x2=%Data_1))
+
+  return (%Add_1)
+)";
+
+  std::stringstream readable_ss;
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, main_graph));
+  EXPECT_EQ(readable_dump, readable_ss.str());
+}
+
+// 测试嵌套子图内联展示功能
+TEST_F(UtestReadableDump, test_NestedSubgraphInlineDisplay) {
+  // 创建主图
+  ut::GraphBuilder builder = ut::GraphBuilder("main_graph");
+  auto main_graph = builder.GetGraph();
+  auto graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(main_graph);
+
+  auto cond_op = op::Data("cond").set_attr_index(0);
+  auto cond_node = graph.AddNodeByOp(cond_op);
+  auto input_op = op::Data("input").set_attr_index(1);
+  auto input_node = graph.AddNodeByOp(input_op);
+  auto if_op = op::If("If_0")
+                   .create_dynamic_input_byindex_input(1, 1)
+                   .create_dynamic_output_output(2);
+  auto if_node_gnode = graph.AddNodeByOp(if_op);
+  graph.AddDataEdge(cond_node, 0, if_node_gnode, 0);
+  graph.AddDataEdge(input_node, 0, if_node_gnode, 1);
+
+  const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 2, 0);
+  GNode netoutput_gnode = NodeAdapter::Node2GNode(netoutput);
+  graph.AddDataEdge(if_node_gnode, 0, netoutput_gnode, 0);
+  graph.AddDataEdge(if_node_gnode, 1, netoutput_gnode, 1);
+
+  // 创建then子图（包含While节点）
+  ut::GraphBuilder then_builder = ut::GraphBuilder("then_branch");
+  auto then_graph = then_builder.GetGraph();
+  auto then_compute_graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(then_graph);
+  auto then_data_op = op::Data("Data_0").set_attr_index(0);
+  auto then_data_node = then_compute_graph.AddNodeByOp(then_data_op);
+  auto while_op = op::While("While_0")
+                      .create_dynamic_input_input(1)
+                      .create_dynamic_output_output(4);
+  auto while_node_gnode = then_compute_graph.AddNodeByOp(while_op);
+  then_compute_graph.AddDataEdge(then_data_node, 0, while_node_gnode, 0);
+  auto then_phony1_op = op::Phony1("Phony1_0").set_attr_N(1);
+  auto then_phony1_gnode = then_compute_graph.AddNodeByOp(then_phony1_op);
+  then_compute_graph.AddDataEdge(then_data_node, 0, then_phony1_gnode, 0);
+  const auto &then_netoutput = then_builder.AddNode("netoutput", NETOUTPUT, 3, 0);
+  GNode then_netoutput_gnode = NodeAdapter::Node2GNode(then_netoutput);
+  then_compute_graph.AddDataEdge(while_node_gnode, 0, then_netoutput_gnode, 0);
+  then_compute_graph.AddDataEdge(then_phony1_gnode, 0, then_netoutput_gnode, 1);
+  then_compute_graph.AddDataEdge(while_node_gnode, 1, then_netoutput_gnode, 2);
+
+  // 创建While的cond子图
+  ut::GraphBuilder cond_builder = ut::GraphBuilder("while_01_cond");
+  auto cond_graph = cond_builder.GetGraph();
+  auto cond_compute_graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(cond_graph);
+  auto cond_data_op = op::Data("Data_1").set_attr_index(0);
+  auto cond_data_node = cond_compute_graph.AddNodeByOp(cond_data_op);
+  auto cond_add_op = op::Add("Add_0");
+  auto cond_add_node = cond_compute_graph.AddNodeByOp(cond_add_op);
+  cond_compute_graph.AddDataEdge(cond_data_node, 0, cond_add_node, 0);
+  cond_compute_graph.AddDataEdge(cond_data_node, 0, cond_add_node, 1);
+  auto cond_phony1_op = op::Phony1("Phony1_1").set_attr_N(1);
+  auto cond_phony1_node = cond_compute_graph.AddNodeByOp(cond_phony1_op);
+  cond_compute_graph.AddDataEdge(cond_add_node, 0, cond_phony1_node, 0);
+  const auto &cond_netoutput = cond_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode cond_netoutput_gnode = NodeAdapter::Node2GNode(cond_netoutput);
+  cond_compute_graph.AddDataEdge(cond_phony1_node, 0, cond_netoutput_gnode, 0);
+
+  // 创建While的body子图
+  ut::GraphBuilder body_builder = ut::GraphBuilder("while_01_body");
+  auto body_graph = body_builder.GetGraph();
+  auto body_compute_graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(body_graph);
+  auto body_data_op = op::Data("Data_2").set_attr_index(0);
+  auto body_data_node = body_compute_graph.AddNodeByOp(body_data_op);
+  auto body_add_op = op::Add("Add_1");
+  auto body_add_node = body_compute_graph.AddNodeByOp(body_add_op);
+  body_compute_graph.AddDataEdge(body_data_node, 0, body_add_node, 0);
+  body_compute_graph.AddDataEdge(body_data_node, 0, body_add_node, 1);
+  auto body_phony1_op = op::Phony1("Phony1_2").set_attr_N(1);
+  auto body_phony1_node = body_compute_graph.AddNodeByOp(body_phony1_op);
+  body_compute_graph.AddDataEdge(body_data_node, 0, body_phony1_node, 0);
+  const auto &body_netoutput = body_builder.AddNode("netoutput", NETOUTPUT, 3, 0);
+  GNode body_netoutput_gnode = NodeAdapter::Node2GNode(body_netoutput);
+  body_compute_graph.AddDataEdge(body_add_node, 0, body_netoutput_gnode, 0);
+  body_compute_graph.AddDataEdge(body_phony1_node, 0, body_netoutput_gnode, 1);
+  body_compute_graph.AddDataEdge(body_data_node, 0, body_netoutput_gnode, 2);
+
+  // 将then子图添加到主图的If节点
+  auto if_node = NodeAdapter::GNode2Node(if_node_gnode);
+  NodeUtils::SetSubgraph(*if_node, 0, then_graph);
+  // 将cond和body子图添加到While节点
+  auto while_node = NodeAdapter::GNode2Node(while_node_gnode);
+  NodeUtils::SetSubgraph(*while_node, 0, cond_graph);
+  NodeUtils::SetSubgraph(*while_node, 1, body_graph);
+
+  std::string readable_dump = R"(graph("main_graph"):
+  %cond : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %input : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %If_0 : [#users=2] = Node[type=If] (inputs = (cond=%cond, input_0=%input), attrs = {then_branch: %then_branch})
+  %ret : [#users=1] = get_element[node=%If_0](0)
+  %ret_1 : [#users=1] = get_element[node=%If_0](1)
+
+  return (output_0=%ret, output_1=%ret_1)
+
+graph("then_branch"):
+  %Data_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %While_0 : [#users=4] = Node[type=While] (inputs = (input_0=%Data_0), attrs = {cond: %while_01_cond, body: %while_01_body, parallel_iterations: 10})
+  %ret : [#users=1] = get_element[node=%While_0](0)
+  %ret_1 : [#users=1] = get_element[node=%While_0](1)
+  %ret_2 : [#users=0] = get_element[node=%While_0](2)
+  %ret_3 : [#users=0] = get_element[node=%While_0](3)
+  %Phony1_0 : [#users=1] = Node[type=Phony1] (inputs = (x=%Data_0), attrs = {N: 1})
+
+  return (output_0=%ret, output_1=%Phony1_0, output_2=%ret_1)
+
+graph("while_01_cond"):
+  %Data_1 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Add_0 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_1, x2=%Data_1))
+  %Phony1_1 : [#users=1] = Node[type=Phony1] (inputs = (x=%Add_0), attrs = {N: 1})
+
+  return (%Phony1_1)
+
+graph("while_01_body"):
+  %Data_2 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Add_1 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_2, x2=%Data_2))
+  %Phony1_2 : [#users=1] = Node[type=Phony1] (inputs = (x=%Data_2), attrs = {N: 1})
+
+  return (output_0=%Add_1, output_1=%Phony1_2, output_2=%Data_2)
+)";
+
+  std::stringstream readable_ss;
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, main_graph));
+  EXPECT_EQ(readable_dump, readable_ss.str());
+}
+
+// 测试Case节点多个子图输入（显示 IR 参数名）
+TEST_F(UtestReadableDump, test_CaseSubgraphMultipleInputsIndex) {
+  // 创建主图
+  auto builder = ut::GraphBuilder("main_graph");
+  auto main_graph = builder.GetGraph();
+  auto graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(main_graph);
+
+  auto branch_index_op = op::Data("branch_index").set_attr_index(0);
+  auto branch_index_node = graph.AddNodeByOp(branch_index_op);
+  auto input0_op = op::Data("input0").set_attr_index(1);
+  auto input0_node = graph.AddNodeByOp(input0_op);
+  auto input1_op = op::Data("input1").set_attr_index(2);
+  auto input1_node = graph.AddNodeByOp(input1_op);
+
+  auto case_op = op::Case("Case_0")
+                     .create_dynamic_input_byindex_input(2, 1)
+                     .create_dynamic_output_output(1)
+                     .create_dynamic_subgraph_branches(3);
+  auto case_node_gnode = graph.AddNodeByOp(case_op);
+  graph.AddDataEdge(branch_index_node, 0, case_node_gnode, 0);
+  graph.AddDataEdge(input0_node, 0, case_node_gnode, 1);
+  graph.AddDataEdge(input1_node, 0, case_node_gnode, 2);
+
+  const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode netoutput_gnode = NodeAdapter::Node2GNode(netoutput);
+  graph.AddDataEdge(case_node_gnode, 0, netoutput_gnode, 0);
+
+  // 创建第一个branch子图（包含2个Data节点）
+  auto branch0_builder = ut::GraphBuilder("branch_0");
+  auto branch0_compute_graph = branch0_builder.GetGraph();
+  auto branch0_graph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(branch0_compute_graph);
+
+  auto branch0_data0_op = op::Data("Data_0").set_attr_index(0);
+  auto branch0_data0_node = branch0_graph_obj.AddNodeByOp(branch0_data0_op);
+  auto branch0_data1_op = op::Data("Data_1").set_attr_index(1);
+  auto branch0_data1_node = branch0_graph_obj.AddNodeByOp(branch0_data1_op);
+
+  auto branch0_add_op = op::Add("Add_0");
+  auto branch0_add_node = branch0_graph_obj.AddNodeByOp(branch0_add_op);
+  branch0_graph_obj.AddDataEdge(branch0_data0_node, 0, branch0_add_node, 0);
+  branch0_graph_obj.AddDataEdge(branch0_data1_node, 0, branch0_add_node, 1);
+
+  const auto &branch0_netoutput = branch0_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode branch0_netoutput_gnode = NodeAdapter::Node2GNode(branch0_netoutput);
+  branch0_graph_obj.AddDataEdge(branch0_add_node, 0, branch0_netoutput_gnode, 0);
+
+
+  // 创建第二个branch子图（包含2个Data节点）
+  auto branch1_builder = ut::GraphBuilder("branch_1");
+  auto branch1_compute_graph = branch1_builder.GetGraph();
+  auto branch1_graph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(branch1_compute_graph);
+
+  auto branch1_data0_op = op::Data("Data_0").set_attr_index(0);
+  auto branch1_data0_node = branch1_graph_obj.AddNodeByOp(branch1_data0_op);
+  auto branch1_data1_op = op::Data("Data_1").set_attr_index(1);
+  auto branch1_data1_node = branch1_graph_obj.AddNodeByOp(branch1_data1_op);
+
+  auto branch1_add_op = op::Add("Add_0");
+  auto branch1_add_node = branch1_graph_obj.AddNodeByOp(branch1_add_op);
+  branch1_graph_obj.AddDataEdge(branch1_data0_node, 0, branch1_add_node, 0);
+  branch1_graph_obj.AddDataEdge(branch1_data1_node, 0, branch1_add_node, 1);
+
+  const auto &branch1_netoutput = branch1_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode branch1_netoutput_gnode = NodeAdapter::Node2GNode(branch1_netoutput);
+  branch1_graph_obj.AddDataEdge(branch1_add_node, 0, branch1_netoutput_gnode, 0);
+
+  // 将子图添加到主图的Case节点
+  NodeUtils::SetSubgraph(*NodeAdapter::GNode2Node(case_node_gnode), 0, branch0_compute_graph);
+  NodeUtils::SetSubgraph(*NodeAdapter::GNode2Node(case_node_gnode), 1, branch1_compute_graph);
+
+  std::string readable_dump = R"(graph("main_graph"):
+  %branch_index : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %input0 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %input1 : [#users=1] = Node[type=Data] (attrs = {index: 2})
+  %Case_0 : [#users=1] = Node[type=Case] (inputs = (branch_index=%branch_index, input_0=%input0, input_1=%input1), attrs = {branches0: %branch_0, branches1: %branch_1})
+
+  return (%Case_0)
+
+graph("branch_0"):
+  %Data_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Data_1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %Add_0 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_0, x2=%Data_1))
+
+  return (%Add_0)
+
+graph("branch_1"):
+  %Data_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Data_1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %Add_0 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_0, x2=%Data_1))
+
+  return (%Add_0)
+)";
+
+  std::stringstream readable_ss;
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, main_graph));
+  EXPECT_EQ(readable_dump, readable_ss.str());
+}
+
+// 测试 For 节点多个子图输入（显示 IR 参数名，动态输入 index 从1 开始）
+TEST_F(UtestReadableDump, test_ForSubgraphMultipleInputsIndex) {
+  // 创建主图
+  auto builder = ut::GraphBuilder("main_graph");
+  auto main_graph = builder.GetGraph();
+  auto graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(main_graph);
+
+  // 创建 For 的三个固定输入：start, limit, delta
+  auto ge_tensor_start = std::make_shared<GeTensor>();
+  int32_t start_data = 0;
+  ge_tensor_start->SetData(reinterpret_cast<uint8_t *>(&start_data), sizeof(int32_t));
+  ge_tensor_start->MutableTensorDesc().SetDataType(DT_INT32);
+  auto start_op = op::Const("start").set_attr_value(ge::TensorAdapter::AsTensor(*ge_tensor_start));
+  auto start_node = graph.AddNodeByOp(start_op);
+
+  auto ge_tensor_limit = std::make_shared<GeTensor>();
+  int32_t limit_data = 5;
+  ge_tensor_limit->SetData(reinterpret_cast<uint8_t *>(&limit_data), sizeof(int32_t));
+  ge_tensor_limit->MutableTensorDesc().SetDataType(DT_INT32);
+  auto limit_op = op::Const("limit").set_attr_value(ge::TensorAdapter::AsTensor(*ge_tensor_limit));
+  auto limit_node = graph.AddNodeByOp(limit_op);
+
+  auto ge_tensor_delta = std::make_shared<GeTensor>();
+  int32_t delta_data = 1;
+  ge_tensor_delta->SetData(reinterpret_cast<uint8_t *>(&delta_data), sizeof(int32_t));
+  ge_tensor_delta->MutableTensorDesc().SetDataType(DT_INT32);
+  auto delta_op = op::Const("delta").set_attr_value(ge::TensorAdapter::AsTensor(*ge_tensor_delta));
+  auto delta_node = graph.AddNodeByOp(delta_op);
+
+  // 创建 For 的动态输入
+  auto input0_op = op::Data("input0").set_attr_index(0);
+  auto input0_node = graph.AddNodeByOp(input0_op);
+  auto input1_op = op::Data("input1").set_attr_index(1);
+  auto input1_node = graph.AddNodeByOp(input1_op);
+
+  auto for_op = op::For("For_0")
+                    .create_dynamic_input_byindex_input(2, 3)
+                    .create_dynamic_output_output(2);
+  auto for_node_gnode = graph.AddNodeByOp(for_op);
+  graph.AddDataEdge(start_node, 0, for_node_gnode, 0);
+  graph.AddDataEdge(limit_node, 0, for_node_gnode, 1);
+  graph.AddDataEdge(delta_node, 0, for_node_gnode, 2);
+  graph.AddDataEdge(input0_node, 0, for_node_gnode, 3);
+  graph.AddDataEdge(input1_node, 0, for_node_gnode, 4);
+
+  const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode netoutput_gnode = NodeAdapter::Node2GNode(netoutput);
+  graph.AddDataEdge(for_node_gnode, 0, netoutput_gnode, 0);
+
+  // 创建body子图（包含2个Data节点：Data_0 对应 input0，Data_1 对应 input1）
+  auto body_builder = ut::GraphBuilder("body");
+  auto body_compute_graph = body_builder.GetGraph();
+  auto body_graph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(body_compute_graph);
+
+  auto body_data0_op = op::Data("Data_0").set_attr_index(0);
+  auto body_data0_node = body_graph_obj.AddNodeByOp(body_data0_op);
+  auto body_data1_op = op::Data("Data_1").set_attr_index(1);
+  auto body_data1_node = body_graph_obj.AddNodeByOp(body_data1_op);
+
+  auto body_add_op = op::Add("Add_0");
+  auto body_add_node = body_graph_obj.AddNodeByOp(body_add_op);
+  body_graph_obj.AddDataEdge(body_data0_node, 0, body_add_node, 0);
+  body_graph_obj.AddDataEdge(body_data1_node, 0, body_add_node, 1);
+
+  const auto &body_netoutput = body_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode body_netoutput_gnode = NodeAdapter::Node2GNode(body_netoutput);
+  body_graph_obj.AddDataEdge(body_add_node, 0, body_netoutput_gnode, 0);
+
+  // 将子图添加到主图的For节点
+  NodeUtils::SetSubgraph(*NodeAdapter::GNode2Node(for_node_gnode), 0, body_compute_graph);
+
+  std::string readable_dump = R"(graph("main_graph"):
+  %start : [#users=1] = Node[type=Const] (attrs = {value: [0]})
+  %limit : [#users=1] = Node[type=Const] (attrs = {value: [5]})
+  %delta : [#users=1] = Node[type=Const] (attrs = {value: [1]})
+  %input0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %input1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %For_0 : [#users=2] = Node[type=For] (inputs = (start=%start, limit=%limit, delta=%delta, input_1=%input0, input_2=%input1), attrs = {body: %body})
+  %ret : [#users=1] = get_element[node=%For_0](0)
+  %ret_1 : [#users=0] = get_element[node=%For_0](1)
+
+  return (%ret)
+
+graph("body"):
+  %Data_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Data_1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %Add_0 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_0, x2=%Data_1))
+
+  return (%Add_0)
+)";
+
+  std::stringstream readable_ss;
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, main_graph));
+  EXPECT_EQ(readable_dump, readable_ss.str());
+}
+
+// 测试递归深度保护
+TEST_F(UtestReadableDump, test_RecursionDepthProtection) {
+  ComputeGraphPtr root_graph;
+  ComputeGraphPtr current_graph;
+  NodePtr current_node;
+
+  // 创建根图
+  ut::GraphBuilder root_builder = ut::GraphBuilder("graph0");
+  root_graph = root_builder.GetGraph();
+  auto graph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
+
+  // 在根图中创建一个 If 节点，用于引用第一个子图
+  auto root_if_op = op::If("If_0")
+                        .create_dynamic_input_byindex_input(1, 1)
+                        .create_dynamic_output_output(1);
+  auto root_if_node_gnode = graph_obj.AddNodeByOp(root_if_op);
+  current_node = NodeAdapter::GNode2Node(root_if_node_gnode);
+
+  // 创建根图的输入和输出节点
+  auto root_data_op = op::Data("data0").set_attr_index(0);
+  auto root_data_node_gnode = graph_obj.AddNodeByOp(root_data_op);
+  graph_obj.AddDataEdge(root_data_node_gnode, 0, root_if_node_gnode, 1);
+  const auto &root_netoutput = root_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode root_netoutput_gnode = NodeAdapter::Node2GNode(root_netoutput);
+  graph_obj.AddDataEdge(root_if_node_gnode, 0, root_netoutput_gnode, 0);
+
+  current_graph = root_graph;
+
+  // 创建深度嵌套的子图链（深度为 12，超过 kMaxRecursionDepth=10）
+  for (int i = 1; i <= 12; ++i) {
+    std::string subgraph_name = "graph" + std::to_string(i);
+    ut::GraphBuilder sub_builder = ut::GraphBuilder(subgraph_name);
+    auto sub_compute_graph = sub_builder.GetGraph();
+    auto sub_graph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(sub_compute_graph);
+
+    // 在子图中创建一个 If 节点
+    auto if_op = op::If("If_" + std::to_string(i))
+                     .create_dynamic_input_byindex_input(1, 1)
+                     .create_dynamic_output_output(1);
+    auto if_node_gnode = sub_graph_obj.AddNodeByOp(if_op);
+    auto if_node = NodeAdapter::GNode2Node(if_node_gnode);
+
+    // 创建子图的输入节点
+    auto sub_data_op = op::Data("Data_" + std::to_string(i)).set_attr_index(0);
+    auto sub_data_node_gnode = sub_graph_obj.AddNodeByOp(sub_data_op);
+    sub_graph_obj.AddDataEdge(sub_data_node_gnode, 0, if_node_gnode, 1);
+
+    // 创建子图的输出节点
+    const auto &sub_netoutput = sub_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+    GNode sub_netoutput_gnode = NodeAdapter::Node2GNode(sub_netoutput);
+    sub_graph_obj.AddDataEdge(if_node_gnode, 0, sub_netoutput_gnode, 0);
+
+    // 设置子图的父子关系
+    sub_compute_graph->SetParentGraph(current_graph);
+    sub_compute_graph->SetParentNode(current_node);
+    current_graph->AddSubgraph(subgraph_name, sub_compute_graph);
+
+    // 设置当前节点的子图引用
+    NodeUtils::SetSubgraph(*current_node, 0, sub_compute_graph);
+
+    // 更新为下一个子图
+    current_graph = sub_compute_graph;
+    current_node = if_node;
+  }
+
+  std::stringstream readable_ss;
+  EXPECT_NE(SUCCESS, ReadableDump::GenReadableDump(readable_ss, root_graph));
 }

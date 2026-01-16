@@ -11,6 +11,7 @@
 #ifndef INC_GRAPH_UTILS_READABLE_DUMP_H_
 #define INC_GRAPH_UTILS_READABLE_DUMP_H_
 
+#include <set>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -44,6 +45,20 @@ class ReadableDump {
   static Status GenReadableDump(std::stringstream &readable_ss, const ComputeGraphPtr &graph);
 
  private:
+  struct DumpContext {
+    std::set<std::string> visited_subgraph_instances;
+  };
+
+  /**
+   * @brief 生成可读的图结构
+   * @param readable_ss 字符串流
+   * @param graph 计算图
+   * @param ctx dump上下文
+   * @param recursion_depth 递归深度
+   */
+  static Status GenReadableDump(std::stringstream &readable_ss, const ComputeGraphPtr &graph,
+                                DumpContext &ctx, int32_t recursion_depth = 0);
+
   class OutputHandler {
    public:
     OutputHandler() = default;
@@ -53,14 +68,11 @@ class ReadableDump {
       return node_to_outputs_;
     }
     std::string GetOutputRet() {
-      std::stringstream index;
       if (index_ == 0) {
-        index << "ret";
         index_++;
-      } else {
-        index << "ret_" << index_++;
+        return "ret";
       }
-      return index.str();
+      return "ret_" + std::to_string(index_++);
     }
     void GenNodeToOutputsMap(const ge::ComputeGraphPtr &graph) {
       for (const auto &node : graph->GetDirectNode()) {
@@ -94,10 +106,13 @@ class ReadableDump {
   /**
    * @brief 生成节点Readable Dump
    * @param readable_ss 字符串流
-   * @param node Dump节点
    * @param output_handler 节点输出处理器
+   * @param node Dump节点
+   * @param subgraphs_to_dump 收集到的子图列表
+   * @param ctx dump上下文
    */
-  static void GenNodeDump(std::stringstream &readable_ss, OutputHandler &output_handler, const Node *node);
+  static void GenNodeDump(std::stringstream &readable_ss, OutputHandler &output_handler, const Node *node,
+                          std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx);
 
   /**
    * @brief 获取实例名称
@@ -122,10 +137,30 @@ class ReadableDump {
   static std::string GetNodeType(const Node *node);
 
   /**
-   * @brief 获取节点入参实例
+   * @brief 获取入参实例名称
    * @param node 节点
-   * @param output_handler 节点输出处理器
-   * @return 节点实例入参字符串
+   * @param input_index 输入锚点索引
+   * @param output_handler 输出处理器
+   * @return 入参实例名称，如果获取失败返回空字符串
+   */
+  static std::string GetInputInstanceName(const Node *node, size_t input_index, OutputHandler &output_handler);
+
+  /**
+   * @brief 追加入参实例到字符串流
+   * @param ss 字符串流
+   * @param first 是否为第一个入参
+   * @param param_name 参数IR名称
+   * @param instance_name 实例名称
+   */
+  static void AppendInputInstance(std::stringstream &ss, bool &first, const std::string &param_name,
+                                  const std::string &instance_name);
+
+  /**
+   * @brief 获取节点入参，带 IR 参数名称
+   *
+   * @param node 节点
+   * @param output_handler 输出处理器
+   * @return 带参数名称的入参实例字符串，格式：param1=%instance1, param2=%instance2, ...
    */
   static std::string GetNodeInputInstance(const Node *node, OutputHandler &output_handler);
 
@@ -141,11 +176,48 @@ class ReadableDump {
                                      const std::string &av_type);
 
   /**
-   * @brief 生成节点属性信息
-   * @param readable_ss 字符串流
+   * @brief 收集子图并建立IR名称到实例名称的映射
+   * @param node 节点
+   * @param subgraphs_to_dump 收集到的子图列表
+   * @param ctx dump上下文
+   * @return IR名称到实例名称的映射
+   */
+  static std::unordered_map<std::string, std::string> CollectSubgraphsAndBuildIrToInstanceMap(
+      const Node *node, std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx);
+
+  /**
+   * @brief 根据索引对子图IR名称进行排序
+   * @param node 节点
+   * @return 按索引排序的子图IR名称列表
+   */
+  static std::vector<std::string> GetSortedSubgraphIrNames(const Node *node);
+
+  /**
+   * @brief 添加节点的子图属性信息，同时收集子图用于后续展开
+   * @param attr_contents 字符串流
+   * @param node 节点
+   * @param subgraphs_to_dump 收集到的子图列表
+   * @param ctx dump上下文
+   */
+  static void AppendSubgraphAttrs(std::stringstream &attr_contents, const Node *node,
+                           std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx);
+
+  /**
+   * @brief 添加节点属性信息
+   * @param attr_contents 字符串流
    * @param node 节点
    */
-  static void GenNodeAttrs(std::stringstream &readable_ss, const Node *node);
+  static void AppendNodeAttrs(std::stringstream &attr_contents, const Node *node);
+
+  /**
+   * @brief 生成节点属性信息，同时收集子图用于后续展开
+   * @param readable_ss 字符串流
+   * @param node 节点
+   * @param subgraphs_to_dump 收集到的子图列表
+   * @param ctx dump上下文
+   */
+  static void GenNodeAttrs(std::stringstream &readable_ss, const Node *node,
+                           std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx);
 
   /**
    * @brief 获取节点输出实例的出度信息
@@ -163,6 +235,14 @@ class ReadableDump {
    */
   static void GenMultipleOutputsIfNeeded(std::stringstream &readable_ss, const Node *node,
                                          OutputHandler &output_handler);
+
+  /**
+   * @brief 获取图输出实例字符串
+   * @param net_output NetOutput节点
+   * @param output_handler 节点输出处理器
+   * @return 图输出实例字符串
+   */
+  static std::string GetGraphOutputInstance(const Node *net_output, OutputHandler &output_handler);
 
   /**
    * @brief 获取图的输出实例信息

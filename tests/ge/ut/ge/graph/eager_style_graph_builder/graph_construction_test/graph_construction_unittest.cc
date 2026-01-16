@@ -13,7 +13,6 @@
 #include <string>
 
 #include "es_ut_test_ops.h"
-#include "es_c_graph_builder.h"
 #include "utils/graph_utils_ex.h"
 #include "common/summary_checker.h"
 #include "common/topo_checker.h"
@@ -21,6 +20,7 @@
 #include "es_tensor_holder.h"
 #include "graph_utils.h"
 #include "graph/operator_factory.h"
+#include "readable_dump.h"
 
 class GraphConstructionTest : public ::testing::Test {
  protected:
@@ -273,39 +273,48 @@ TEST_F(GraphConstructionTest, Test_attrs) {
   EXPECT_EQ(v.at(1), "test_str_2");
 }
 
-std::unique_ptr<Graph> BuildWhileGraph(std::unique_ptr<es::EsGraphBuilder> while_graph_builder) {
+std::unique_ptr<Graph> BuildWhileCondGraph(std::unique_ptr<es::EsGraphBuilder> while_graph_builder) {
   auto while_cond_input = while_graph_builder->CreateInput(0);
   auto while_cond_output = es::phony_1i_1o(while_cond_input, 0);
   (void)es::EsGraphBuilder::SetOutput(while_cond_output, 0);
   return while_graph_builder->BuildAndReset();
 }
 
+std::unique_ptr<Graph> BuildWhileBodyGraph(std::unique_ptr<es::EsGraphBuilder> while_graph_builder) {
+  auto while_body_input = while_graph_builder->CreateInput(0);
+  auto while_body_output = es::phony_1i_1o(while_body_input, 0);
+  (void)es::EsGraphBuilder::SetOutput(while_body_input, 0);
+  (void)es::EsGraphBuilder::SetOutput(while_body_output, 1);
+  return while_graph_builder->BuildAndReset();
+}
+
 std::unique_ptr<Graph> BuildWhile01CondGraph() {
   auto while_cond_builder = std::make_unique<es::EsGraphBuilder>("while_01_cond");
-  return BuildWhileGraph(std::move(while_cond_builder));
+  return BuildWhileCondGraph(std::move(while_cond_builder));
 }
 
 std::unique_ptr<Graph> BuildWhile01BodyGraph() {
   auto while_body_builder = std::make_unique<es::EsGraphBuilder>("while_01_body");
-  return BuildWhileGraph(std::move(while_body_builder));
+  return BuildWhileBodyGraph(std::move(while_body_builder));
 }
 
 std::unique_ptr<Graph> BuildWhile02CondGraph() {
   auto while_cond_builder = std::make_unique<es::EsGraphBuilder>("while_02_cond");
-  return BuildWhileGraph(std::move(while_cond_builder));
+  return BuildWhileCondGraph(std::move(while_cond_builder));
 }
 
 std::unique_ptr<Graph> BuildWhile02BodyGraph() {
   auto while_body_builder = std::make_unique<es::EsGraphBuilder>("while_02_body");
-  return BuildWhileGraph(std::move(while_body_builder));
+  return BuildWhileBodyGraph(std::move(while_body_builder));
 }
 
 std::unique_ptr<Graph> BuildIfThenBranchGraph() {
   auto then_builder = std::make_unique<es::EsGraphBuilder>("then_branch");
   auto then_input = then_builder->CreateInput(0);
   std::vector then_while_input{then_input};
-  auto then_while_output = es::While(then_while_input, 1, BuildWhile01CondGraph(), BuildWhile01BodyGraph(), 10);
+  auto then_while_output = es::While(then_while_input, 2, BuildWhile01CondGraph(), BuildWhile01BodyGraph(), 10);
   (void)es::EsGraphBuilder::SetOutput(then_while_output.at(0), 0);
+  (void)es::EsGraphBuilder::SetOutput(then_while_output.at(1), 1);
   return then_builder->BuildAndReset();
 }
 
@@ -313,8 +322,9 @@ std::unique_ptr<Graph> BuildIfElseBranchGraph() {
   auto else_builder = std::make_unique<es::EsGraphBuilder>("else_branch");
   auto else_input = else_builder->CreateInput(0);
   std::vector else_while_input{else_input};
-  auto else_while_output = es::While(else_while_input, 1, BuildWhile02CondGraph(), BuildWhile02BodyGraph(), 10);
+  auto else_while_output = es::While(else_while_input, 2, BuildWhile02CondGraph(), BuildWhile02BodyGraph(), 10);
   (void)es::EsGraphBuilder::SetOutput(else_while_output.at(0), 0);
+  (void)es::EsGraphBuilder::SetOutput(else_while_output.at(1), 1);
   return else_builder->BuildAndReset();
 }
 
@@ -322,7 +332,7 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   auto cond_tensor = graph_builder_->CreateInput(0, "cond", ge::DT_BOOL, ge::FORMAT_ND, {});
   auto input_tensor = graph_builder_->CreateInput(1, "input", ge::DT_FLOAT, ge::FORMAT_ND, {1});
   std::vector input_vec{input_tensor};
-  auto if_output = phony_If(cond_tensor, input_vec, 1, BuildIfThenBranchGraph(), BuildIfElseBranchGraph());
+  auto if_output = phony_If(cond_tensor, input_vec, 2, BuildIfThenBranchGraph(), BuildIfElseBranchGraph());
   (void)es::EsGraphBuilder::SetOutput(if_output.at(0), 0);
   auto graph = graph_builder_->BuildAndReset();
   EXPECT_NE(graph, nullptr);
@@ -381,6 +391,60 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   EXPECT_EQ(while_02_body_subgraph1, while_02_body_subgraph2);
   EXPECT_NE(while_02_body_subgraph1->GetParentGraph(), nullptr);
   EXPECT_NE(while_02_body_subgraph1->GetParentNode(), nullptr);
+
+  // 验证 Readable Dump 输出
+  std::stringstream readable_ss;
+  EXPECT_EQ(ge::ReadableDump::GenReadableDump(readable_ss, compute_graph), ge::SUCCESS);
+  std::string expected_dump = R"(graph("test_graph"):
+  %cond : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %input : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %phony_If_0 : [#users=2] = Node[type=phony_If] (inputs = (cond=%cond, input_0=%input), attrs = {then_branch: %then_branch, else_branch: %else_branch})
+  %ret : [#users=1] = get_element[node=%phony_If_0](0)
+  %ret_1 : [#users=0] = get_element[node=%phony_If_0](1)
+
+  return (%ret)
+
+graph("then_branch"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %While_0 : [#users=2] = Node[type=While] (inputs = (input_0=%input_0), attrs = {cond: %while_01_cond, body: %while_01_body})
+  %ret : [#users=1] = get_element[node=%While_0](0)
+  %ret_1 : [#users=1] = get_element[node=%While_0](1)
+
+  return (output_0=%ret, output_1=%ret_1)
+
+graph("while_01_cond"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (%phony_1i_1o_0)
+
+graph("while_01_body"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (output_0=%input_0, output_1=%phony_1i_1o_0)
+
+graph("else_branch"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %While_0 : [#users=2] = Node[type=While] (inputs = (input_0=%input_0), attrs = {cond: %while_02_cond, body: %while_02_body})
+  %ret : [#users=1] = get_element[node=%While_0](0)
+  %ret_1 : [#users=1] = get_element[node=%While_0](1)
+
+  return (output_0=%ret, output_1=%ret_1)
+
+graph("while_02_cond"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (%phony_1i_1o_0)
+
+graph("while_02_body"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (output_0=%input_0, output_1=%phony_1i_1o_0)
+)";
+  EXPECT_EQ(expected_dump, readable_ss.str());
 }
 
 // 测试所有输入都是可选，所有输入都提供，传递 owner_graph

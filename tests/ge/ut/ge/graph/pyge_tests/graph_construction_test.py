@@ -188,21 +188,21 @@ class TestGraphConstruction:
   %Const_7 : [#users=1] = Node[type=Const] (attrs = {value: [1 2 3 4 5]})
   %Const_8 : [#users=1] = Node[type=Const] (attrs = {value: [1.000000 2.000000 3.000000 4.000000 5.000000]})
   %Const_9 : [#users=1] = Node[type=Const] (attrs = {value: [1.000000 2.000000 3.000000 4.000000 5.000000]})
-  %Add_10 : [#users=1] = Node[type=Add] (inputs = (%input, %Const_0))
-  %Add_11 : [#users=1] = Node[type=Add] (inputs = (%Add_10, %Const_1))
-  %Add_12 : [#users=1] = Node[type=Add] (inputs = (%Add_11, %Const_2))
-  %Add_13 : [#users=1] = Node[type=Add] (inputs = (%Add_12, %Const_3))
-  %Add_14 : [#users=1] = Node[type=Add] (inputs = (%input, %Const_0))
-  %Add_15 : [#users=1] = Node[type=Add] (inputs = (%Add_14, %Const_4))
-  %Add_16 : [#users=1] = Node[type=Add] (inputs = (%Add_15, %Const_5))
-  %Add_17 : [#users=1] = Node[type=Add] (inputs = (%Add_16, %Const_7))
-  %Add_18 : [#users=1] = Node[type=Add] (inputs = (%Const_8, %Const_9))
-  %Add_19 : [#users=1] = Node[type=Add] (inputs = (%Add_13, %Add_17))
-  %Add_20 : [#users=1] = Node[type=Add] (inputs = (%Add_19, %Add_18))
+  %Add_10 : [#users=1] = Node[type=Add] (inputs = (x1=%input, x2=%Const_0))
+  %Add_11 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_10, x2=%Const_1))
+  %Add_12 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_11, x2=%Const_2))
+  %Add_13 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_12, x2=%Const_3))
+  %Add_14 : [#users=1] = Node[type=Add] (inputs = (x1=%input, x2=%Const_0))
+  %Add_15 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_14, x2=%Const_4))
+  %Add_16 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_15, x2=%Const_5))
+  %Add_17 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_16, x2=%Const_7))
+  %Add_18 : [#users=1] = Node[type=Add] (inputs = (x1=%Const_8, x2=%Const_9))
+  %Add_19 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_13, x2=%Add_17))
+  %Add_20 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_19, x2=%Add_18))
   %Const_21 : [#users=1] = Node[type=Const] (attrs = {value: [0]})
-  %Add_22 : [#users=1] = Node[type=Add] (inputs = (%Add_20, %Const_21))
+  %Add_22 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_20, x2=%Const_21))
   %Const_23 : [#users=1] = Node[type=Const] (attrs = {value: [0]})
-  %Add_24 : [#users=1] = Node[type=Add] (inputs = (%Add_22, %Const_23))
+  %Add_24 : [#users=1] = Node[type=Add] (inputs = (x1=%Add_22, x2=%Const_23))
 
   return (%Add_24)
 """.strip()
@@ -514,7 +514,7 @@ class TestGraphConstruction:
 
     def test_nested_subgraph_construction(self, builder):
         input_tensor = builder.create_input(0)
-        if_output = phony_If(input_tensor, [1, 2], 1, build_if_then_branch_graph(), build_if_else_branch_graph())
+        if_output = phony_If(input_tensor, [1, 2], 2, build_if_then_branch_graph(), build_if_else_branch_graph())
         builder.set_graph_output(if_output[0], 0)
         graph = builder.build_and_reset()
 
@@ -556,6 +556,61 @@ class TestGraphConstruction:
         while_02_body_subgraph = graph.get_subgraph("while_02_body")
         assert while_02_body_subgraph is not None
 
+        # 验证 Readable Dump 输出
+        print("=== Nested subgraph readable dump BEGIN ===")
+        print(graph)
+        print("=== Nested subgraph readable dump END ===")
+        assert str(graph).strip() == """graph("test_graph"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Const_0 : [#users=1] = Node[type=Const] (attrs = {value: [1]})
+  %Const_1 : [#users=1] = Node[type=Const] (attrs = {value: [2]})
+  %phony_If_2 : [#users=2] = Node[type=phony_If] (inputs = (cond=%input_0, input_0=%Const_0, input_1=%Const_1), attrs = {then_branch: %then_branch, else_branch: %else_branch})
+  %ret : [#users=1] = get_element[node=%phony_If_2](0)
+  %ret_1 : [#users=0] = get_element[node=%phony_If_2](1)
+
+  return (%ret)
+
+graph("then_branch"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %While_0 : [#users=2] = Node[type=While] (inputs = (input_0=%input_0), attrs = {cond: %while_01_cond, body: %while_01_body})
+  %ret : [#users=1] = get_element[node=%While_0](0)
+  %ret_1 : [#users=1] = get_element[node=%While_0](1)
+
+  return (output_0=%ret, output_1=%ret_1)
+
+graph("while_01_cond"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (%phony_1i_1o_0)
+
+graph("while_01_body"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (output_0=%input_0, output_1=%phony_1i_1o_0)
+
+graph("else_branch"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %While_0 : [#users=2] = Node[type=While] (inputs = (input_0=%input_0), attrs = {cond: %while_02_cond, body: %while_02_body})
+  %ret : [#users=1] = get_element[node=%While_0](0)
+  %ret_1 : [#users=1] = get_element[node=%While_0](1)
+
+  return (output_0=%ret, output_1=%ret_1)
+
+graph("while_02_cond"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (%phony_1i_1o_0)
+
+graph("while_02_body"):
+  %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %phony_1i_1o_0 : [#users=1] = Node[type=phony_1i_1o] (inputs = (x=%input_0))
+
+  return (output_0=%input_0, output_1=%phony_1i_1o_0)
+""".strip()
+
     def test_list_attr_graph_construction(self, builder):
         """测试带有二维数组、字符串数组属性的算子图构建功能 - 使用 phony_req_attrs 算子"""
         # 创建输入 tensor
@@ -593,50 +648,60 @@ class TestGraphConstruction:
         # 验证dump结果
         assert str(graph).strip() == """graph("test_graph"):
   %input_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
-  %phony_req_attrs_0 : [#users=1] = Node[type=phony_req_attrs] (inputs = (%input_0), attrs = {req_data_type: DT_INT64, req_list_data_type: {DT_FLOAT, DT_INT32, DT_INT64}, req_list_list_int: {{0, 1}, {2, 3}}, req_tensor: <empty>, req_list_string: {"test"}})
+  %phony_req_attrs_0 : [#users=1] = Node[type=phony_req_attrs] (inputs = (x=%input_0), attrs = {req_data_type: DT_INT64, req_list_data_type: {DT_FLOAT, DT_INT32, DT_INT64}, req_list_list_int: {{0, 1}, {2, 3}}, req_tensor: <empty>, req_list_string: {"test"}})
 
   return (%phony_req_attrs_0)
 """.strip()
 
 
-def build_while_graph(while_graph_builder: GraphBuilder):
+def build_while_cond_graph(while_graph_builder: GraphBuilder):
     while_cond_input = while_graph_builder.create_input(0)
     while_cond_output = phony_1i_1o(while_cond_input)
     while_graph_builder.set_graph_output(while_cond_output, 0)
     return while_graph_builder.build_and_reset()
 
 
+def build_while_body_graph(while_graph_builder: GraphBuilder):
+    while_body_input = while_graph_builder.create_input(0)
+    while_body_output = phony_1i_1o(while_body_input)
+    while_graph_builder.set_graph_output(while_body_input, 0)
+    while_graph_builder.set_graph_output(while_body_output, 1)
+    return while_graph_builder.build_and_reset()
+
+
 def build_while01_cond_graph():
     while_cond_builder = GraphBuilder("while_01_cond")
-    return build_while_graph(while_cond_builder)
+    return build_while_cond_graph(while_cond_builder)
 
 
 def build_while01_body_graph():
-    while_cond_builder = GraphBuilder("while_01_body")
-    return build_while_graph(while_cond_builder)
+    while_body_builder = GraphBuilder("while_01_body")
+    return build_while_body_graph(while_body_builder)
 
 
 def build_while02_cond_graph():
     while_cond_builder = GraphBuilder("while_02_cond")
-    return build_while_graph(while_cond_builder)
+    return build_while_cond_graph(while_cond_builder)
 
 
 def build_while02_body_graph():
-    while_cond_builder = GraphBuilder("while_02_body")
-    return build_while_graph(while_cond_builder)
+    while_body_builder = GraphBuilder("while_02_body")
+    return build_while_body_graph(while_body_builder)
 
 
 def build_if_then_branch_graph():
     then_builder = GraphBuilder("then_branch")
     then_input = then_builder.create_input(0)
-    then_while_output = While([then_input], 1, build_while01_cond_graph(), build_while01_body_graph())
+    then_while_output = While([then_input], 2, build_while01_cond_graph(), build_while01_body_graph())
     then_builder.set_graph_output(then_while_output[0], 0)
+    then_builder.set_graph_output(then_while_output[1], 1)
     return then_builder.build_and_reset()
 
 
 def build_if_else_branch_graph():
     else_builder = GraphBuilder("else_branch")
     else_input = else_builder.create_input(0)
-    else_while_output = While([else_input], 1, build_while02_cond_graph(), build_while02_body_graph())
+    else_while_output = While([else_input], 2, build_while02_cond_graph(), build_while02_body_graph())
     else_builder.set_graph_output(else_while_output[0], 0)
+    else_builder.set_graph_output(else_while_output[1], 1)
     return else_builder.build_and_reset()
