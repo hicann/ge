@@ -19,14 +19,14 @@
 
 namespace fe {
 std::map<std::string, std::vector<std::string>> kFeErrorParamMap = {
-  {EM_COMPLIE_FAILED, {"parameter0", "parameter1"}},
-  {EM_ENVIRONMENT_VARIABLE_FAILED, {"value", "env", "situation"}},
-  {EM_INVALID_CONTENT, {"parameter0", "parameter1", "parameter2"}},
-  {EM_RUN_PASS_FAILED, {"parameter0", "parameter1"}},
-  {EM_INPUT_OPTION_INVALID, {"parameter0", "parameter1", "parameter2"}},
-  {EM_AICORENUM_OUT_OF_RANGE, {"parameter0", "parameter1", "parameter2"}},
-  {EM_OPEN_FILE_FAILED, {"parameter0"}},
-  {EM_READ_FILE_FAILED, {"parameter0", "parameter1"}},
+  {EM_COMPLIE_FAILED, {"pass_name", "pass_type"}},
+  {EM_ENVIRONMENT_VARIABLE_FAILED, {"value", "env", "reason"}},
+  {EM_INVALID_CONTENT, {"parameter", "filepath", "reason"}},
+  {EM_RUN_PASS_FAILED, {"pass_name", "pass_type"}},
+  {EM_INPUT_OPTION_INVALID, {"value", "parameter", "reason"}},
+  {EM_AICORENUM_OUT_OF_RANGE, {"value", "parameter", "range"}},
+  {EM_OPEN_FILE_FAILED, {"file_name", "reason"}},
+  {EM_READ_FILE_FAILED, {"file_name", "reason"}},
 };
 
 void ErrorMessageDetail::ModifyArgsByErrorCode() {

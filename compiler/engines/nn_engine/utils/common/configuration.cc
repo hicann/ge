@@ -1062,10 +1062,10 @@ Status Configuration::AssembleEachOpsStoreInfo(string &op_store_name, std::vecto
 
   if (impl == EN_IMPL_HW_TBE && GetRealPath(str_cfg_file_path).empty()) {
     const std::map<string, string> error_key_map = {
-        {EM_VALUE, ascend_ops_path_}, {EM_ENV, ASCEND_OPP_PATH}, {EM_SITUATION, "ASCEND_OPP_PATH does not exist or access permission is denied during FE initialization"}};
+        {EM_VALUE, ascend_ops_path_}, {EM_ENV, ASCEND_OPP_PATH}, {EM_REASON, "ASCEND_OPP_PATH does not exist or access permission is denied during FE initialization"}};
     (void)REPORT_PREDEFINED_ERR_MSG(
         EM_ENVIRONMENT_VARIABLE_FAILED.c_str(),
-        std::vector<const char *>({EM_VALUE.c_str(), EM_ENV.c_str(), EM_SITUATION.c_str()}),
+        std::vector<const char *>({EM_VALUE.c_str(), EM_ENV.c_str(), EM_REASON.c_str()}),
         std::vector<const char *>({ascend_ops_path_.c_str(), ASCEND_OPP_PATH, "ASCEND_OPP_PATH does not exist or access permission is denied during FE initialization"}));
     FE_LOGE("Builtin op store[%s] with path [%s] is invalid.", op_store_name.c_str(), str_cfg_file_path.c_str());
     ErrorMessageDetail err_msg(EM_ENVIRONMENT_VARIABLE_FAILED,

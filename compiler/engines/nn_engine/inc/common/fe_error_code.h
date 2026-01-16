@@ -46,6 +46,7 @@ const std::string EM_COMMON_ERROR = "common_error";
 const std::string EM_ORIGIN_DTYPE     = "origin_dtype";
 const std::string EM_ENV              = "env";
 const std::string EM_SITUATION        = "situation";
+const std::string EM_REASON           = "reason";
 
 /* Input parameter[--%s]'s value is empty!
  * parameter
