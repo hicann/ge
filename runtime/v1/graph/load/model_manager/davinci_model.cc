@@ -437,8 +437,8 @@ void DavinciModel::DestroyResources() {
   }
 
   for (auto &it : cust_platform_infos_addr_to_launch_) {
-    if (it.second != nullptr) {
-      it.second = nullptr;
+    if (it.second.first != nullptr) {
+      it.second.first = nullptr;
     }
   }
 
@@ -504,9 +504,8 @@ Status DavinciModel::InitWeightMem(const uintptr_t mem_ptr, const uintptr_t weig
 
   const auto weights_size = ge_model_->GetWeightSize();
   if ((weight_ptr != 0U) && (weight_size < weights_size)) {
-    const std::string reason = "The model[" + std::to_string(model_id_) + "](" + name_ +
-                               ") need weight size: " + std::to_string(weights_size) +
-                               ", but the user input is: " + std::to_string(weight_size);
+    const std::string reason = "The weight size of model " + name_ + " is " + std::to_string(weights_size) +
+                               ", but the input size set by user is " + std::to_string(weight_size) + ".";
     const std::vector<const char_t *> key{"reason"};
     const std::vector<const char_t *> val{reason.c_str()};
     REPORT_PREDEFINED_ERR_MSG("E13025", key, val);
@@ -3998,7 +3997,8 @@ static Status CopyInputForNoTiling(const InputData &input_data, const size_t dat
     tensor_desc.shape[i + 1U] = shape[i];
   }
   // fill actual shape and copy to tensor_desc addr
-  GE_CHK_RT_RET(rtMemcpy(mem_addr, sizeof(RuntimeTensorDesc), &tensor_desc, sizeof(RuntimeTensorDesc),
+  GE_CHK_RT_RET(
+      rtMemcpy(mem_addr, sizeof(RuntimeTensorDesc), &tensor_desc, sizeof(RuntimeTensorDesc),
       RT_MEMCPY_HOST_TO_DEVICE));
   mem_addr = ValueToPtr(tensor_desc.data_addr);
   GELOGD("copy tensor desc for no tiling, data_addr:%p, dim:%" PRId64, mem_addr, tensor_desc.shape[0]);
@@ -4024,7 +4024,7 @@ Status DavinciModel::CopyInputData(const InputData &input_data) {
     const size_t data_idx = data_info.first;
     if (data_idx >= blobs.size()) {
       const std::string reason = "The required input " + std::to_string(data_idx) +
-                                 " is not provided by user, total input data num is " + std::to_string(blobs.size());
+                                 " is not provided by user, while the total input data num is " + std::to_string(blobs.size()) + ".";
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
       GELOGE(FAILED, "[Check][Param] Blobs not match: blobs=%zu, model input num=%zu, required index=%u, op_name(%s)",
@@ -4084,7 +4084,7 @@ Status DavinciModel::CopyInputDataWithMergeH2D(const InputData &input_data) {
     const size_t data_idx = data_info.first;
     if (data_idx >= blobs.size()) {
       const std::string reason = "The required input " + std::to_string(data_idx) +
-                                 " is not provided by user, total input data num is " + std::to_string(blobs.size());
+                                 " is not provided by user, while the total input data num is " + std::to_string(blobs.size()) + ".";
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
       GELOGE(FAILED, "[Check][Param] Blobs not match: blobs=%zu, model input num=%zu, required index=%zu, op_name(%s)",
@@ -6319,15 +6319,9 @@ bool DavinciModel::CheckUserAndModelSize(const int64_t size, const int64_t op_si
   // The input and model input size can not be exactly equal because user input is not definite.
   if ((size + kDataMemAlignSizeCompare) < op_size) {
     std::string model_id_type_str = model_io_type;
-    const std::string reason = "The " + model_id_type_str +
-                         " memory provided by the user, plus " +
-                         std::to_string(kDataMemAlignSizeCompare) +
-                         " bytes for data alignment, "
-                         "is smaller than op_size in the model, "
-                         "which is an illegal behavior. " +
-                         model_id_type_str+ " size=" +
-                         std::to_string(size) +
-                         ", op_size=" + std::to_string(op_size);
+    const std::string reason = "The input memory size set by the user is invalid.The provided " + std::to_string(size) +
+                                " bytes of buffer size plus the aligned " + std::to_string(kDataMemAlignSizeCompare) +
+                                " bytes is less than the tensor size " + std::to_string(op_size) + " bytes required by the model.";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Param] %s size:%" PRId64 " "
@@ -6621,9 +6615,11 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(std::vector<std::pair<ui
       } else {
         // 支持零拷贝，但用户给的host内存，要校验fm内存有没有申请零拷贝段
         if (mem_base_size_ < TotalMemSize()) {
-          const std::string reason = std::string("When zero copy memory is reused(ge.exec.reuseZeroCopyMemory=1), ") +
-              "all model inputs and outputs must reside in device memory, but " +
-              std::string(is_input ? "input[":"output[") + std::to_string(io_idx) + "] placement is host.";
+          const std::string reason = "Zero-copy memory reuse mode is enabled, requiring all I/O tensors to be allocated in device memory, but " +
+                                      std::string(is_input ? "input " : "output ") + std::to_string(io_idx) +
+                                      " is located in host memory, and the model's reusable device memory is insufficient(available: " +
+                                      std::to_string(mem_base_size_) + ", required: " + std::to_string(TotalMemSize()) + ").";
+
           REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                     std::vector<const char_t *>({reason.c_str()}));
           GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6707,9 +6703,10 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(const std::vector<std::p
       } else {
         // 支持零拷贝，但用户给的host内存，要校验fm内存有没有申请零拷贝段
         if (mem_base_size_ < TotalMemSize()) {
-          const std::string reason = std::string("When zero copy memory is reused(ge.exec.reuseZeroCopyMemory=1), ") +
-              "all model inputs and outputs must reside in device memory, but " +
-              std::string(is_input ? "input[":"output[") + std::to_string(io_idx) + "] placement is host.";
+          const std::string reason = "Zero-copy memory reuse mode is enabled, requiring all I/O tensors to be allocated in device memory, but " +
+                                      std::string(is_input ? "input " : "output ") + std::to_string(io_idx) +
+                                      " is located in host memory, and the model's reusable device memory is insufficient(available: " +
+                                      std::to_string(mem_base_size_) + ", required: " + std::to_string(TotalMemSize()) + ").";
           REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                     std::vector<const char_t *>({reason.c_str()}));
           GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6768,7 +6765,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
       input_data.blobs.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() != output_index_to_allocation_ids_.size() &&
       output_data.blobs.size() != 0)) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model.";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6781,7 +6778,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
 
   if ((input_data.blobs.size() == 0 && input_tensor.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() == 0 && output_tensor.size() != output_index_to_allocation_ids_.size())) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model.";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6824,7 +6821,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
       input_data.blobs.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() != output_index_to_allocation_ids_.size() &&
       output_data.blobs.size() != 0)) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model.";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6837,7 +6834,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
 
   if ((input_data.blobs.size() == 0 && input_tensor.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() == 0 && output_tensor.size() != output_index_to_allocation_ids_.size())) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model.";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -8147,11 +8144,9 @@ Status DavinciModel::GetCurDynamicDims(const std::vector<std::vector<int64_t>> &
 
   const auto &user_input_dims = run_context_.user_input_dims;
   if (user_real_input_dims.size() != user_input_dims.size()) {
-    const std::string reason = "The number of tensor from user is not equal to the number of tensor in the graph."
-                         " tensor in graph=" +
-                         std::to_string(user_input_dims.size()) +
-                         ", tensor from user=" +
-                         std::to_string(user_real_input_dims.size());
+    const std::string reason = "The number of tensors " + std::to_string(user_input_dims.size()) +
+                               " configured by the user is not equal to number of tensors " +
+                               std::to_string(user_real_input_dims.size()) + " in the graph.";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(INTERNAL_ERROR, "[Check][Param] The input count of user:%zu should be equal to the data count of graph:%zu",
@@ -8183,7 +8178,7 @@ Status DavinciModel::GetCurDynamicDims(const std::vector<std::vector<int64_t>> &
     }
   }
 
-  const std::string reason = "Dynamic dims of user tensor does not exist in options. dims=" + ToString(cur_dynamic_dims);
+  const std::string reason = "The input tensor dimension " + ToString(cur_dynamic_dims) + " is not in the dynamic dimension list configured by dynamic_dims.";
   REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
   GELOGE(INTERNAL_ERROR, "[Check][Param] Cur dynamic dims is %s, does not exist in options.",
@@ -8621,7 +8616,6 @@ Status DavinciModel::LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_p
   if (is_custom) {
     auto it = cust_platform_infos_addr_.find(addr_key);
     if (it != cust_platform_infos_addr_.end()) {
-      GELOGD("Found existing custom platform infos address [%p] for [%s]", it->second, addr_key.c_str());
       dev_addr = it->second;
       return SUCCESS;
     }
@@ -8630,10 +8624,9 @@ Status DavinciModel::LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_p
       GE_ASSERT_TRUE(UpdateCoreCountWithOpDesc(node, platform_infos_to_load));
     }
 
-    it = cust_platform_infos_addr_to_launch_.find(addr_key);
-    if (it != cust_platform_infos_addr_to_launch_.end()) {
-      GELOGD("Found existing custom platform infos address to launch [%p] for [%s]", it->second, addr_key.c_str());
-      dev_addr = it->second;
+    auto it_to_launch = cust_platform_infos_addr_to_launch_.find(addr_key);
+    if (it_to_launch != cust_platform_infos_addr_to_launch_.end()) {
+      dev_addr = it_to_launch->second.first;
       return SUCCESS;
     }
   }
@@ -8666,13 +8659,14 @@ Status DavinciModel::LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_p
   GE_CHK_RT_RET(rtMemcpy(dev_addr, total_size, host_addr.get(), total_size, RT_MEMCPY_HOST_TO_DEVICE));
   GELOGD("load platform_infos_addr = %p", dev_addr);
   if (is_custom) {
-    cust_platform_infos_addr_to_launch_[addr_key] = dev_addr;
+    cust_platform_infos_addr_to_launch_[addr_key] = std::make_pair(dev_addr, copy_size);
   }
   return SUCCESS;
 }
 
 Status DavinciModel::LoadCustPlatformInfos(void *&cust_platform_infos_addr, const NodePtr &node) {
-  GE_CHK_STATUS_RET(LoadPlatformInfos(&platform_infos_, cust_platform_copy_size_, cust_platform_infos_addr, true, node),
+  size_t copy_size = 0U;
+  GE_CHK_STATUS_RET(LoadPlatformInfos(&platform_infos_, copy_size, cust_platform_infos_addr, true, node),
                     "Failed to load platform infos");
   GELOGI("Succeed to load cust platform infos.");
   return SUCCESS;
@@ -8709,7 +8703,7 @@ Status DavinciModel::LaunchFromPlatformSo(const std::string &platform_so_path) {
 
   for (const auto &it : cust_platform_infos_addr_to_launch_) {
     const std::string &addr_key = it.first;
-    auto cust_platform_infos_addr = it.second;
+    auto cust_platform_infos_addr = it.second.first;
     GELOGI("Launch custom platform infos: addr_key[%s], addr[%p].", addr_key.c_str(), cust_platform_infos_addr);
     rtStream_t stream = nullptr;
     const std::function<void()> callback = [&stream]() {
@@ -8726,7 +8720,7 @@ Status DavinciModel::LaunchFromPlatformSo(const std::string &platform_so_path) {
     LaunchKernelConfig launch_config;
     launch_param.launch_config = launch_config;
     LoadCustPlatformInfosArgs load_args = {};
-    load_args.args = PtrToValue(cust_platform_infos_addr) + cust_platform_copy_size_;
+    load_args.args = PtrToValue(cust_platform_infos_addr) + it.second.second;
     load_args.args_size = static_cast<uint64_t>(sizeof(PlatformInfosLaunchArgs));
     GELOGD("Load cust platform infos args is %lu, args size is %lu", load_args.args, load_args.args_size);
     launch_param.args = static_cast<void *>(&load_args);
@@ -8750,7 +8744,7 @@ Status DavinciModel::LaunchFromOpMasterSo() {
   GE_ASSERT_TRUE(!so_name.empty(), "do not find so for launching custom platform infos.");
   for (const auto &it : cust_platform_infos_addr_to_launch_) {
     const std::string &addr_key = it.first;
-    auto cust_platform_infos_addr = it.second;
+    auto cust_platform_infos_addr = it.second.first;
     GELOGI("Launch custom platform infos: addr_key[%s], addr[%p].", addr_key.c_str(), cust_platform_infos_addr);
 
     rtStream_t stream = nullptr;
@@ -8762,7 +8756,7 @@ Status DavinciModel::LaunchFromOpMasterSo() {
     GE_MAKE_GUARD(release, callback);
     GE_CHK_RT_RET(rtStreamCreate(&stream, 0));
     LoadCustPlatformInfosArgs load_args = {};
-    load_args.args = PtrToValue(cust_platform_infos_addr) + cust_platform_copy_size_;
+    load_args.args = PtrToValue(cust_platform_infos_addr) + it.second.second;
     load_args.args_size = static_cast<uint64_t>(sizeof(PlatformInfosLaunchArgs));
     GELOGD("Load cust platform infos args is %lu, args size is %lu", load_args.args, load_args.args_size);
 

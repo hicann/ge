@@ -523,8 +523,7 @@ graphStatus Impl::CheckDataOpAttrIndexValid(const Graph &graph, const std::strin
   if (!IsAttrIndexSetByUser(compute_graph, data_num, attr_index)) {
     if (index_input_shape_range_flag) {
       std::string situation = "Data op index";
-      std::string reason = "it must be set by user, total data op num[" + std::to_string(data_num) + "], "
-                           "when set input shape range by index.";
+      std::string reason = "When setting the input shape range by index, you must set the index attribute of all DATA operators.";
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"situation", "reason"}),
                                 std::vector<const char_t *>({situation.c_str(), reason.c_str()}));
       GELOGE(GRAPH_FAILED, "[Check][AttrIndex] Data op index is not set, total data op num[%ld], "
@@ -540,8 +539,7 @@ graphStatus Impl::CheckDataOpAttrIndexValid(const Graph &graph, const std::strin
       omg_context_.user_attr_index_valid = false;
       if (index_input_shape_range_flag) {
         std::string situation = "Data op index[" + std::to_string(i) + "]";
-        std::string reason = "it must be set by user, total data op num[" + std::to_string(data_num) + "], "
-                             "when set input shape range by index";
+        std::string reason = "When setting the input shape range by index, you must set the index attribute of all DATA operators.";
         REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"situation", "reason"}),
                                   std::vector<const char_t *>({situation.c_str(), reason.c_str()}));
         GELOGE(GRAPH_FAILED, "[Check][AttrIndex] Attr index [%ld] is not set, total data op num[%ld], "

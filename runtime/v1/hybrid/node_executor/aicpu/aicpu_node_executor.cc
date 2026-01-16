@@ -706,9 +706,9 @@ Status AicpuNodeTaskBase::AllocOutputBuffer(const TaskContext &context, const in
              "[Check][Size] %s(%s) index[%d] mem size out of range! Expected size: %lu, but given input size: %lu.",
              node_name_.c_str(), node_type_.c_str(), idx, data_size, allocated_size);
 
-      std::string reason = node_name_ + "(" + node_type_ + ") index[" + std::to_string(idx);
-      (void)reason.append(std::string("] mem size out of range! Expected size: ") + std::to_string(data_size));
-      (void)reason.append(std::string(", but given input size: ") + std::to_string(allocated_size));
+      std::string reason = "The memory " + std::to_string(data_size) + " required by the output " + std::to_string(idx) +
+                           " of the node " + node_name_ + "(" + node_type_ + ") is greater than the allocated memory " +
+                           std::to_string(allocated_size) + ".";
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
       return GRAPH_PARAM_INVALID;

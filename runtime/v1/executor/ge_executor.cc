@@ -975,7 +975,7 @@ Status GeExecutor::LoadDataFromFile(const std::string &path, ModelData &model_da
   if (filePath.empty()) {
     REPORT_PREDEFINED_ERR_MSG(
         "E13026", std::vector<const char_t *>({"pathname", "reason"}),
-        std::vector<const char_t *>({path.c_str(), "It's not a real path, please check your model path."}));
+        std::vector<const char_t *>({path.c_str(), "It is not a real path. Please check your model path."}));
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID,
            "[Call][RealPath] File path is invalid. please check your text file '%s'.", path.c_str());
     return ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID;

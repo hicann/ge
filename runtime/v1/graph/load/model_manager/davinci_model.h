@@ -1714,13 +1714,11 @@ class DavinciModel {
 
   std::map<std::string, void *> platform_infos_addr_;
   std::map<std::string, void *> cust_platform_infos_addr_; // 已经launch的缓存
-  std::map<std::string, void *> cust_platform_infos_addr_to_launch_; // 已申请内存，待launch的缓存
+  std::map<std::string, std::pair<void *, size_t>> cust_platform_infos_addr_to_launch_; // 已申请内存，待launch的缓存
   bool is_dump_to_std_enable_ = false;
   std::unordered_set<uint32_t> frozen_input_indexes_;
 
   uint64_t no_frozen_input_allocation_base_id_{0U};
-
-  size_t cust_platform_copy_size_ = 0U;
 
   struct ModelDevMemStatistic {
     uint64_t alloc_size;

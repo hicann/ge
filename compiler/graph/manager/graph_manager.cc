@@ -708,7 +708,11 @@ Status GraphManager::ModifyDataIndex(const Graph &graph, const std::map<std::str
       auto iter = graph_option.find(OPTION_EXEC_DATA_INPUTS_SHAPE_RANGE);
       if (iter != graph_option.end() && !iter->second.empty()) {
         // If data inputs shape range is set, user must set valid data index.
-        std::string reason = "Data index must be set continuous from 0 when data shape range enabled!";
+        std::string reason = "Data indexes must be consecutive and start from 0 to " + std::to_string(data_size - 1) +
+                             " (data node size is " + std::to_string(data_size) +
+                             ") when the data shape range is enabled. Current indexes size is " +
+                             std::to_string(indexes.size()) + ", first index is " + std::to_string(*first_iter) +
+                             ", last index is " + std::to_string(*end_iter) + ".";
         REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}),
                            std::vector<const char *>({reason.c_str()}));
         GELOGE(GRAPH_PARAM_INVALID, "[COMP][AddGraph]Input data index is invalid when data shape range enabled.");

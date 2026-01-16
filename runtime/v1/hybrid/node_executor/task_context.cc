@@ -300,9 +300,11 @@ Status TaskContext::AllocateOutput(const int32_t idx,
              "[Check][Size] %s(%s) index[%d] mem size out of range! Expected size: %ld, but given input size: %ld.",
              node_item_->NodeName().c_str(), node_item_->NodeType().c_str(), idx, expected_size, allocated_size);
 
-      std::string reason = node_item_->NodeName() + "(" + node_item_->NodeType() + ") index[" + std::to_string(idx);
-      (void)reason.append(std::string("] mem size out of range! Expected size: ") + std::to_string(expected_size));
-      (void)reason.append(std::string(", but given input size: ") + std::to_string(allocated_size));
+      std::string reason = "The memory " + std::to_string(expected_size) + " required by the output " + std::to_string(idx) +
+                           " of the node " + node_item_->NodeName().c_str() + "(" +
+                           node_item_->NodeType().c_str() + ") is greater than the allocated memory " +
+                           std::to_string(allocated_size) + ".";
+
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
       return GRAPH_PARAM_INVALID;

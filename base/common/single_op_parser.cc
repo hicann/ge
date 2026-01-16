@@ -596,7 +596,7 @@ Status SingleOpParser::VerifyOpInputOutputSizeByIr(const OpDesc &current_op_desc
     const size_t current_opdesc_inputs_num = current_op_desc.GetInputsSize();
     const size_t ir_opdesc_inputs_num = opdesc_ir->GetInputsSize();
     if (current_opdesc_inputs_num < ir_opdesc_inputs_num) {
-      const std::string reason = "is smaller than the ir needed input size " + std::to_string(ir_opdesc_inputs_num);
+      const std::string reason = "The number of actual input in operator is less than the required number of inputs.";
       REPORT_PREDEFINED_ERR_MSG(
           "E13014", std::vector<const char *>({"opname", "value", "reason"}),
           std::vector<const char *>({current_op_desc.GetName().c_str(),
@@ -610,7 +610,7 @@ Status SingleOpParser::VerifyOpInputOutputSizeByIr(const OpDesc &current_op_desc
     const size_t current_opdesc_outputs_num = current_op_desc.GetOutputsSize();
     const size_t ir_opdesc_outputs_num = opdesc_ir->GetOutputsSize();
     if (current_opdesc_outputs_num < ir_opdesc_outputs_num) {
-      const std::string reason = "is smaller than the ir needed output size " + std::to_string(ir_opdesc_outputs_num);
+      const std::string reason = "The number of actual output in operator is less than the required number of outputs.";
       REPORT_PREDEFINED_ERR_MSG(
           "E13014", std::vector<const char *>({"opname", "value", "reason"}),
           std::vector<const char *>({current_op_desc.GetName().c_str(),
@@ -635,7 +635,7 @@ Status SingleOpParser::SetShapeRange(const std::string &op_name,
     if (tensor_desc.dims != ge::UNKNOWN_RANK) {
       REPORT_PREDEFINED_ERR_MSG(
           "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-          std::vector<const char *>({op_name.c_str(), "shape", "has unknown rank but dim size is not one"}));
+          std::vector<const char *>({op_name.c_str(), "shape", "The tensor has unknown rank, so its shape must be set to {-2}."}));
       GELOGE(PARAM_INVALID, "[Set][ShapeRange]Invalid tensor shape:%s.",
           ge_tensor_desc.MutableShape().ToString().c_str());
       return PARAM_INVALID;
@@ -643,7 +643,7 @@ Status SingleOpParser::SetShapeRange(const std::string &op_name,
     if (!tensor_desc.dim_ranges.empty()) {
       REPORT_PREDEFINED_ERR_MSG("E13014", std::vector<const char *>({"opname", "value", "reason"}),
                                 std::vector<const char *>({op_name.c_str(), "shape range",
-                                                           "is not needed while the rank the shape is unknown"}));
+                                                           "The tensor has dynamic dimensions, but the shape range is not empty."}));
       GELOGE(PARAM_INVALID, "[Set][ShapeRange]Shape range is not needed while the rank the shape is unknown.");
       return PARAM_INVALID;
     }
@@ -661,7 +661,8 @@ Status SingleOpParser::SetShapeRange(const std::string &op_name,
     } else {
       GELOGD("To get shape range by index = %zu", range_index);
       if (range_index >= num_shape_ranges) {
-        std::string reason = "is smaller than the unknown dim size " + std::to_string(++range_index);
+        ++range_index;
+        std::string reason = "The number of dimensions with a configured shape range is inconsistent with the actual number of dynamic dimensions.";
         REPORT_PREDEFINED_ERR_MSG("E13014", std::vector<const char *>({"opname", "value", "reason"}),
             std::vector<const char *>(
                 {op_name.c_str(), ("shape range size " + std::to_string(num_shape_ranges)).c_str(), reason.c_str()}));
@@ -671,7 +672,9 @@ Status SingleOpParser::SetShapeRange(const std::string &op_name,
 
       auto &range = tensor_desc.dim_ranges[range_index];
       if (range.size() != kShapeRangePairSize) {
-        std::string reason = "has " + std::to_string(range.size()) + " item(s)";
+        std::string reason = "The format of shape range " + std::to_string(range_index) +
+                             " is invalid. The expected number of shape ranges is 2, but actual number is " +
+                             std::to_string(range.size());
         REPORT_PREDEFINED_ERR_MSG(
             "E13014", std::vector<const char *>({"opname", "value", "reason"}),
             std::vector<const char *>(
@@ -688,7 +691,7 @@ Status SingleOpParser::SetShapeRange(const std::string &op_name,
   }
 
   if (num_shape_ranges != range_index) {
-    std::string reason = "is greater than the unknown dim size " + std::to_string(range_index);
+    std::string reason = "The number of dimensions with a configured shape range is inconsistent with the actual number of dynamic dimensions.";
     REPORT_PREDEFINED_ERR_MSG(
         "E13014", std::vector<const char *>({"opname", "value", "reason"}),
         std::vector<const char *>(

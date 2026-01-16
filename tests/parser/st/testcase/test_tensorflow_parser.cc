@@ -2490,7 +2490,7 @@ TEST_F(STestTensorflowParser, tensorflow_DefunToPartitionedCall_parser_test)
   node_def->set_name("ShapeN");
   ge::OpDescPtr op = make_shared<ge::OpDesc>("ShapeN", ge::parser::PARTITIONEDCALL);
   Status ret = parser.DefunToPartitionedCall(node_def, op);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, PARAM_INVALID);
 
   static const string KEY_SHAPE_LIST = "key_shape_list";
   static const string KEY_TENSOR_LIST = "key_tensor_list";
@@ -2550,7 +2550,7 @@ TEST_F(STestTensorflowParser, tensorflow_TransNodeToOpDesc_parser_test)
   std::string op_type = "ge::parser::DATA";
   ge::OpDescPtr op = make_shared<ge::OpDesc>("constant", ge::parser::CONSTANT);
   Status ret = parser.TransNodeToOpDesc(node_def, op, op_type);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, PARAM_INVALID);
 }
 
 domi::Status fusion_parse_param_by_op(const std::vector<ge::Operator> &op_src, ge::Operator &op) {

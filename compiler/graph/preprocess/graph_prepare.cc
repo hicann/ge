@@ -1572,8 +1572,8 @@ Status GraphPrepare::CheckInternalFormat(const NodePtr &input_node, const GeTens
                                     (!tune_flag) && (inner_model_flag);
   if (need_check_internal_format) {
     if (TypeUtilsInner::IsInternalFormat(origin_format)) {
-      std::string reason = "Origin_format[" + TypeUtils::FormatToSerialString(origin_format) + "] of op:" +
-                           input_node->GetName() + " is not support";
+      std::string reason = "The original format " + TypeUtils::FormatToSerialString(origin_format) + " of operator " +
+                           input_node->GetName() + " is not supported.";
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}), std::vector<const char *>({reason.c_str()}));
       GELOGE(PARAM_INVALID, "[Check][Param] Origin_format %s is not supported.",
              TypeUtils::FormatToSerialString(origin_format).c_str());
@@ -1588,8 +1588,8 @@ Status GraphPrepare::UpdateDataInputOutputDesc(int64_t index, const OpDescPtr &o
   uint32_t length = 1;
   bool type_ret = TypeUtils::GetDataTypeLength(data_type, length);
   if (!type_ret) {
-    std::string reason = "Input datatype[" + TypeUtils::DataTypeToSerialString(data_type) + "] of index:" +
-                         std::to_string(index) + " input tensor is not support";
+    std::string reason = "The input tensor is invalid. The input data type " + TypeUtils::DataTypeToSerialString(data_type) + " of operator " +
+                         std::to_string(index) + " is not supported.";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}), std::vector<const char *>({reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] Input datatype %s is not supported.",
            TypeUtils::DataTypeToSerialString(data_type).c_str());
@@ -1722,8 +1722,11 @@ Status GraphPrepare::UpdateInput(const std::vector<GeTensor> &user_input,
       }
 
       if ((index < 0) || (static_cast<size_t>(index) >= user_input.size())) {
-        std::string reason = "exist data op:" + input_node->GetName() + " index " + std::to_string(index) +
-                             " bigger than input tensor size[" + std::to_string(user_input.size()) + "], check invalid";
+        std::string reason =
+            "Index " + std::to_string(index) + " of DATA node " + input_node->GetName() +
+            " is invalid. It must be greater than or equal to 0 and less than the number of input tensors " +
+            std::to_string(user_input.size());
+
         REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}), std::vector<const char *>({reason.c_str()}));
         GELOGE(PARAM_INVALID, "[Check][Param] user_input size = %zu, graph data op index = %ld.",
                user_input.size(), index);
@@ -2344,14 +2347,16 @@ Status GraphPrepare::CheckUserInput(const std::vector<GeTensor> &user_input) {
         return GE_GRAPH_INIT_FAILED;
       }
       if ((index < 0) || (static_cast<size_t>(index) >= user_input.size())) {
-        std::string reason = "The number of input tensors is: " + std::to_string(user_input.size()) +
-                             +", but the graph requires at least " + std::to_string(index + 1) + " inputs.";
+        std::string reason =
+            "Index " + std::to_string(index) + " of DATA node " + input_node->GetName() +
+            " is invalid. It must be greater than or equal to 0 and less than the number of input tensors " +
+            std::to_string(user_input.size());
         REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}), std::vector<const char *>({reason.c_str()}));
         GELOGE(GE_GRAPH_INIT_FAILED, "[Check][Param] %s", reason.c_str());
         return GE_GRAPH_INIT_FAILED;
       }
       if ((op->GetType() == REFDATA) && (alloc_mode == "ByGE")) {
-        std::string reason = "When IO allocation mode is ByGE, RefData is not supported in the graph.";
+        std::string reason = "When the input and output memory allocation is controlled by GE, RefData operators are not supported in the graph.";
         REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}), std::vector<const char *>({reason.c_str()}));
         GELOGE(GE_GRAPH_INIT_FAILED, "[Check][Param] %s", reason.c_str());
         return GE_GRAPH_INIT_FAILED;
@@ -2364,8 +2369,7 @@ Status GraphPrepare::CheckUserInput(const std::vector<GeTensor> &user_input) {
       for (size_t i = 0; i < desc.GetShape().GetDimNum(); ++i) {
         int64_t dim = desc.GetShape().GetDim(i);
         if (dim < UNKNOWN_DIM_NUM) {
-          std::string reason = "data dim[" + std::to_string(i) + "][" + std::to_string(dim) + "] of index:" +
-                               std::to_string(index) + " input tensor it need >= -2";
+          std::string reason = "The dim " + std::to_string(dim) + " of input tensor " + std::to_string(i) + " is invalid. It must be greater than or equal to -2.";
           REPORT_PREDEFINED_ERR_MSG(
               "E13025", std::vector<const char *>({"reason"}), std::vector<const char *>({reason.c_str()}));
           GELOGE(GE_GRAPH_INIT_FAILED, "[Check][InputDim]data dim %zu is not supported, need >= -2, real:%ld.", i, dim);

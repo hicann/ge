@@ -394,17 +394,7 @@ Status TensorFlowModelParser::DefunToPartitionedCall(const domi::tensorflow::Nod
                                                      ge::OpDescPtr &op) const {
   const string op_name = node_def->name();
   domi::tensorflow::AttrValue attr_call_inference;
-  if (!ge::TensorFlowUtil::FindAttrValue(node_def, "_disable_call_shape_inference", attr_call_inference)) {
-    REPORT_PREDEFINED_ERR_MSG(
-        "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-        std::vector<const char *>({node_def->name().c_str(), "attr [_disable_call_shape_inference]",
-         "may has no ir definition, if it is not a common decorate function operator"}));
-    GELOGE(FAILED,
-           "Op %s has no ir definition, or has no attr [_disable_call_shape_inference] "
-           "if it is a common decorate function operator.",
-           op_name.c_str());
-    return FAILED;
-  }
+  GE_ASSERT_TRUE(ge::TensorFlowUtil::FindAttrValue(node_def, "_disable_call_shape_inference", attr_call_inference));
 
   op = ge::parser::MakeShared<ge::OpDesc>(op_name, ge::parser::PARTITIONEDCALL);
   GE_CHECK_NOTNULL(op);
@@ -694,7 +684,9 @@ Status TensorFlowModelParser::CheckoutInputNum(ge::OpDescPtr &op_desc, const dom
         std::vector<const char *>(
             {op_desc->GetName().c_str(),
              ("input number of tensorflow[" + std::to_string(input_tensor_num) + "]").c_str(),
-             ("should be equal to factory size[" + std::to_string(factory_input_size) + "]").c_str()}));
+                                   ("The number of TensorFlow input tensors " + std::to_string(input_tensor_num) +
+                                    " is inconsistent with the number of inputs " + std::to_string(factory_input_size) +
+                                    " defined by the operator.").c_str()}));
     GELOGE(FAILED, "op [%s], type[%s], The input number of tensorflow[%zu] should be equal to factory size[%zu]",
            op_desc->GetName().c_str(), op_desc->GetType().c_str(), input_tensor_num, factory_input_size);
     return FAILED;

@@ -1355,7 +1355,7 @@ Status UpdateDataOpShapeRange(const OpDescPtr &op,
 
   if ((index < 0) || (static_cast<size_t>(index) >= index_shape_range_map.size())) {
     std::string situation = "data op index[" + std::to_string(index) + "]";
-    std::string reason = "it must less than user_input size[" + std::to_string(index_shape_range_map.size()) + "]";
+    std::string reason = "The attribute index of the operator is less than 0 or exceeds the shape range entered by the user";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"situation", "reason"}),
                        std::vector<const char *>({situation.c_str(), reason.c_str()}));
     GELOGE(PARAM_INVALID, "user_input size = %zu, graph data op index = %ld.", index_shape_range_map.size(), index);

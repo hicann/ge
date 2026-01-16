@@ -1172,7 +1172,7 @@ Status AippOp::CreateAippData(const NodePtr &aipp_node) {
     std::string format_str = TypeUtils::FormatToSerialString(ori_data_format);
     GELOGE(PARAM_INVALID, "[Check][Param] when dynamic aipp, input_format must be NCHW or NHWC, but [%s] format is %s",
            data_node->GetName().c_str(), format_str.c_str());
-    std::string reason = "format must be NCHW or NHWC in dynamic aipp process";
+    std::string reason = "The format must be NCHW or NHWC in the dynamic AIPP scenario.";
     REPORT_PREDEFINED_ERR_MSG(
         "E13014", std::vector<const char *>({"opname", "value", "reason"}),
         std::vector<const char *>({data_node->GetName().c_str(), ("format " + format_str).c_str(), reason.c_str()}));

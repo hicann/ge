@@ -44,8 +44,7 @@ Status RunAllocateStreamPass(const PassRegistrationData &reg_data, const GraphPt
     GE_LOGE("[Check][Param] It is required CustomAllocateStreamPassFunc of [%s] at stage[%s] but got nullptr.",
             reg_data.GetPassName().c_str(), CustomPassStageToString(reg_data.GetStage()).c_str());
     std::stringstream reason;
-    reason << "It is required CustomAllocateStreamPassFunc in stage " << CustomPassStageToString(reg_data.GetStage()) <<
-        ", but got nullptr";
+    reason << "Custom stream allocation pass function is required in stage " << CustomPassStageToString(reg_data.GetStage()) << ", but got nullptr.";
     REPORT_PREDEFINED_ERR_MSG("E13030", std::vector<const char_t *>({"passname", "reason"}),
                               std::vector<const char_t *>({reg_data.GetPassName().c_str(), reason.str().c_str()}));
     return FAILED;

@@ -1758,10 +1758,11 @@ Status ModelHelper::SetPlatformInfos(const std::string &soc_version, const fe::P
          platform_info.soc_info.l2_size, platform_info.soc_info.memory_size);
 
   platform_infos.SetPlatformResWithLock("SoCInfo", res);
-  if (fe::PlatformInfoManager::GeInstance().UpdatePlatformInfos(soc_version, platform_infos) != 0U) {
-    GELOGE(FAILED, "Update platform infos failed.");
-    return FAILED;
-  }
+
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().UpdatePlatformInfos(soc_version, platform_infos) == 0U, "Update platform infos of GeInstance failed.");
+
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::Instance().InitializePlatformInfo() == 0U, "Initialize platform info of Instance failed.");
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::Instance().UpdatePlatformInfos(soc_version, platform_infos) == 0U, "Update platform infos of Instance failed.");
 #endif
   return SUCCESS;
 }

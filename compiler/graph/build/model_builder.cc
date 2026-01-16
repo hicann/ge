@@ -484,8 +484,7 @@ Status ModelBuilder::InitL1FusionOption() {
     std::string virtual_type = "0";
     ret = ge::GetContext().GetOption(VIRTUAL_TYPE, virtual_type);
     if ((ret == GRAPH_SUCCESS) && (virtual_type == "1")) {
-        std::string situation = "Enabling L1_fusion, ";
-        situation += "which is not supported in scenarios where computational power is divided";
+        std::string situation = "L1_fusion is not supported in the virtual instance scenario.";
         REPORT_PREDEFINED_ERR_MSG("E13024", std::vector<const char_t *>({"value", "env", "situation"}),
                                    std::vector<const char_t *>({virtual_type.c_str(), "VIRTUAL_TYPE", situation.c_str()}));
         GELOGE(FAILED, "BuildModelDef fail because l1fusion enable and virtual type is %s.", virtual_type.c_str());

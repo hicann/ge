@@ -101,9 +101,10 @@ Status RefInputTask::RefOneByOne(const TaskContext &context) const {
         GELOGE(GRAPH_PARAM_INVALID,
                "[Check][Size] %s(%s) index[%d] mem size out of range! Expected size: %ld, but given input size: %ld.",
                node_name_.c_str(), node_type_.c_str(), out_index, expected_size, output->GetSize());
-        std::string reason = node_name_ + "(" + node_type_ + ") index[" + std::to_string(out_index);
-        (void)reason.append(std::string("] mem size out of range! Expected size: ") + std::to_string(expected_size));
-        (void)reason.append(std::string(", but given input size: ") + std::to_string(output->GetSize()));
+
+        std::string reason = "The memory " + std::to_string(expected_size) + " required by the output " + std::to_string(out_index) +
+                             " of the node " + node_name_ + "(" + node_type_ + ") is greater than the allocated memory " +
+                             std::to_string(output->GetSize()) + ".";
         REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                   std::vector<const char_t *>({reason.c_str()}));
         return GRAPH_PARAM_INVALID;
