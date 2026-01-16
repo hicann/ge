@@ -36,7 +36,7 @@ class GraphOptimize {
 
   Status OptimizeGraphInit(const ComputeGraphPtr &compute_graph) const;
 
-  Status FinalizeSessionInfo(const std::string &session_graph_id) const;
+  Status FinalizeSessionInfo(const ComputeGraphPtr &compute_graph) const;
 
   // subgraph optimize
   Status OptimizeSubGraph(ComputeGraphPtr &compute_graph, const std::string &engine_name) const;
