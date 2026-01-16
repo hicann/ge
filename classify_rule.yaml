@@ -114,6 +114,7 @@ graphengine:
       - api/acl
       - inc/external/acl
       - graph_metadef/graph/attr/ge_attr_define.cc
+      - runtime/v2/engine/aicpu
   llt:
     ut_check:true
     st_check:true

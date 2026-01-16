@@ -31,7 +31,7 @@ struct TfArgsInfo {
 };
 
 struct RtsArgs {
-  ValueHolderPtr function_handle;
+  ValueHolderPtr bin_handle;
 };
 
 AicpuArgs BuildHostCCAicpuArg(const ge::NodePtr node, const domi::KernelDef &kernel_def, const size_t io_num,
@@ -58,10 +58,10 @@ inline bool IsAicpuOutputUnknownShape(const ge::NodePtr &node) {
 }
 
 
-RtsArgs BuildTfArgsFunctionHandle(const ge::NodePtr node);
+RtsArgs BuildTfArgsBinHandle(const ge::NodePtr node);
 
 
-RtsArgs BuildCCArgsFunctionHandle(const ge::NodePtr node);
+RtsArgs BuildCCArgsBinHandle(const ge::NodePtr node);
 } // bg
 } // gert
 #endif // AIR_CXX_RUNTIME_V2_GRAPH_BUILDER_BG_AICPU_ARG_H_
