@@ -383,44 +383,41 @@ ge::Status CpuKernelBuilder::MakeAicpuKernelExtInfo(
   AICPU_CHECK_RES_WITH_LOG(MakeNoTilingExtInfo(op_desc_ptr, task_ext_info),
                            "Call MakeNoTilingExtInfo funtion failed, op[%s].",
                            op_desc_ptr->GetName().c_str())
-  if ((kernel_lib_name == nullptr) || (*kernel_lib_name != kCustAicpuKernelInfoChoice)) {
-    uint64_t extend_info_len = task_ext_info.size();
+  uint64_t extend_info_len = task_ext_info.size();
+  extend_info_len += aicpu::FWKAdapter::kExtInfoHeadSize;
+  extend_info_len += sizeof(SessionInfo);
 
-        extend_info_len += aicpu::FWKAdapter::kExtInfoHeadSize;
-        extend_info_len += sizeof(SessionInfo);
+  uint64_t ext_info_offset = task_ext_info.size();
+  task_ext_info.resize(extend_info_len, 0);
+  char *ext_info_buf = task_ext_info.data();
+  auto ext_info = reinterpret_cast<aicpu::FWKAdapter::ExtInfo *>(ext_info_buf + ext_info_offset);
+  ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_SESSION_INFO;
+  ext_info->infoLen = (sizeof(SessionInfo));
+  ext_info_offset += aicpu::FWKAdapter::kExtInfoHeadSize;
+  SessionInfo *session_info = reinterpret_cast<SessionInfo *>(ext_info_buf + ext_info_offset);
+  session_info->sessionId = GenerateUniqueSessionId();
+  session_info->kernelId = GenerateUniqueKernelId();
+  session_info->sessFlag = false;
 
-        uint64_t ext_info_offset = task_ext_info.size();
-        task_ext_info.resize(extend_info_len, 0);
-        char *ext_info_buf = task_ext_info.data();
+  // 针对cust op设定workspace size
+  if ((kernel_lib_name != nullptr) && (*kernel_lib_name == kCustAicpuKernelInfoChoice)) {
+    extend_info_len = task_ext_info.size();
+    extend_info_len += aicpu::FWKAdapter::kExtInfoHeadSize;
+    extend_info_len += sizeof(aicpu::FWKAdapter::WorkSpaceInfo);
 
-        // init ext info 1: input ShapeAndType
-        auto ext_info = reinterpret_cast<aicpu::FWKAdapter::ExtInfo *>(ext_info_buf + ext_info_offset);
-        ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_SESSION_INFO;
-        ext_info->infoLen = (sizeof(SessionInfo));
-        ext_info_offset += aicpu::FWKAdapter::kExtInfoHeadSize;
-        SessionInfo *session_info = reinterpret_cast<SessionInfo *>(ext_info_buf + ext_info_offset);
-        session_info->sessionId = GenerateUniqueSessionId();
-        session_info->kernelId = GenerateUniqueKernelId();
-        session_info->sessFlag = false;
-  } else {  // 针对cust op设定workspace size
-        uint64_t extend_info_len = task_ext_info.size();
-
-        extend_info_len += aicpu::FWKAdapter::kExtInfoHeadSize;
-        extend_info_len += sizeof(aicpu::FWKAdapter::WorkSpaceInfo);
-
-        uint64_t ext_info_offset = task_ext_info.size();
-        task_ext_info.resize(extend_info_len, 0);
-        char *ext_info_buf = task_ext_info.data();
-
-        auto ext_info = reinterpret_cast<aicpu::FWKAdapter::ExtInfo *>(ext_info_buf + ext_info_offset);
-        ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_WORKSPACE_INFO;
-        ext_info->infoLen = (sizeof(aicpu::FWKAdapter::WorkSpaceInfo));
-        ext_info_offset += aicpu::FWKAdapter::kExtInfoHeadSize;
-        aicpu::FWKAdapter::WorkSpaceInfo *workspace_info =
-            reinterpret_cast<aicpu::FWKAdapter::WorkSpaceInfo *>(ext_info_buf + ext_info_offset);
-        workspace_info->size = 0UL;
-        workspace_info->addr = 0UL;
+    ext_info_offset = task_ext_info.size();
+    task_ext_info.resize(extend_info_len, 0);
+    ext_info_buf = task_ext_info.data();
+    ext_info = reinterpret_cast<aicpu::FWKAdapter::ExtInfo *>(ext_info_buf + ext_info_offset);
+    ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_WORKSPACE_INFO;
+    ext_info->infoLen = (sizeof(aicpu::FWKAdapter::WorkSpaceInfo));
+    ext_info_offset += aicpu::FWKAdapter::kExtInfoHeadSize;
+    aicpu::FWKAdapter::WorkSpaceInfo *workspace_info =
+        reinterpret_cast<aicpu::FWKAdapter::WorkSpaceInfo *>(ext_info_buf + ext_info_offset);
+    workspace_info->size = 0UL;
+    workspace_info->addr = 0UL;
   }
+
   return ge::SUCCESS;
 }
 
