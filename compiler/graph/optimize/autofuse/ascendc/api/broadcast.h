@@ -212,10 +212,17 @@ template <typename T>
 inline __aicore__ void GetSrcTensorWithoutStride(const LocalTensor<T> &tmp_src, const LocalTensor<T> &src,
                                                  const uint32_t cal_cnt, const uint32_t offset) {
   uint64_t src_offset = 0;
+  event_t event_id_v_to_s = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::V_S));
+  event_t event_id_s_to_v = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::S_V));
+  AscendC::SetFlag<HardEvent::V_S>(event_id_v_to_s);
+  AscendC::WaitFlag<HardEvent::V_S>(event_id_v_to_s);
   for (uint32_t i = 0; i < cal_cnt; i++) {
-    tmp_src.SetValue(i, src.GetValue(src_offset));
+    auto tmp = src.GetValue(src_offset);
+    tmp_src.SetValue(i, tmp);
     src_offset += offset;
   }
+  AscendC::SetFlag<HardEvent::S_V>(event_id_s_to_v);
+  AscendC::WaitFlag<HardEvent::S_V>(event_id_s_to_v);
 }
 
 template <typename T>
@@ -227,7 +234,6 @@ inline __aicore__ void BroadcastWithStride(const LocalTensor<T> &dst, const Loca
   uint32_t tail_m = 0;
   uint64_t dst_offset = 0;
   uint64_t src_offset = 0;
-  event_t event_id = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::S_V));
   if (dst_k * sizeof(T) % ONE_BLK_SIZE == 0) {
     GetBrcAlignLoopNumbers<T>(dst_m, dst_k, tmp_buf.GetSize(), one_repeat_size, range_m, tail_m);
     LocalTensor<T> tmp_src = tmp_buf;
@@ -235,17 +241,12 @@ inline __aicore__ void BroadcastWithStride(const LocalTensor<T> &dst, const Loca
     LocalTensor<T> brcb_buf = tmp_buf[one_repeat_size];
     for (uint32_t i = 0; i < range_m; i++) {
       GetSrcTensorWithoutStride(tmp_src, src[src_offset], one_repeat_size, src_k);
-      AscendC::SetFlag<HardEvent::S_V>(event_id);
-      AscendC::WaitFlag<HardEvent::S_V>(event_id);
       TwoDimBroadCastLastDimAlign(dst[dst_offset], tmp_src, brcb_buf, one_repeat_size, dst_k);
       dst_offset += one_repeat_size * dst_k;
       src_offset += one_repeat_size * src_k;
     }
-
     if (tail_m != 0) {
       GetSrcTensorWithoutStride(tmp_src, src[src_offset], tail_m, src_k);
-      AscendC::SetFlag<HardEvent::S_V>(event_id);
-      AscendC::WaitFlag<HardEvent::S_V>(event_id);
       TwoDimBroadCastLastDimAlign(dst[dst_offset], tmp_src, brcb_buf, tail_m, dst_k);
     }
   } else {
@@ -255,16 +256,12 @@ inline __aicore__ void BroadcastWithStride(const LocalTensor<T> &dst, const Loca
     LocalTensor<T> brcb_buf = tmp_buf[one_repeat_size];
     for (uint32_t i = 0; i < range_m; i++) {
       GetSrcTensorWithoutStride(tmp_src, src[src_offset], one_repeat_size, src_k);
-      AscendC::SetFlag<HardEvent::S_V>(event_id);
-      AscendC::WaitFlag<HardEvent::S_V>(event_id);
       TwoDimBroadCastLastDimNotAlign(dst[dst_offset], tmp_src, brcb_buf, one_repeat_size, dst_k);
       dst_offset += one_repeat_size * dst_k;
       src_offset += one_repeat_size * src_k;
     }
     if (tail_m != 0) {
       GetSrcTensorWithoutStride(tmp_src, src[src_offset], tail_m, src_k);
-      AscendC::SetFlag<HardEvent::S_V>(event_id);
-      AscendC::WaitFlag<HardEvent::S_V>(event_id);
       TwoDimBroadCastLastDimNotAlign(dst[dst_offset], tmp_src, brcb_buf, tail_m, dst_k);
     }
   }
@@ -381,12 +378,15 @@ inline __aicore__ void BroadcastInt64LastDim(const LocalTensor<int32_t> &dst_int
                                              const uint32_t dst_k, const uint32_t dst_z, LocalTensor<int32_t> &calc_buf,
                                              const uint32_t last_dim_stride = 1) {
   constexpr uint32_t ONE_LOOP_CALC_NUM = 2;
+  auto event_id_vs = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::V_S));
   auto event_id = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::S_V));
   AscendC::SetMaskNorm();
   const uint32_t loop_cnt = src_m / ONE_LOOP_CALC_NUM;
   uint32_t calc_buf_offset = 0;
   constexpr uint32_t one_loop_offset = ONE_BLK_SIZE / sizeof(int32_t);
   uint32_t src_offset = 0;
+  AscendC::SetFlag<HardEvent::V_S>(event_id_vs);
+ 	AscendC::WaitFlag<HardEvent::V_S>(event_id_vs);
   for (uint32_t loop = 0; loop < loop_cnt; loop++) {
     int32_t calc_element_1 = src_int32.GetValue(src_offset++);
     AscendC::SetFlag<HardEvent::S_V>(event_id);
