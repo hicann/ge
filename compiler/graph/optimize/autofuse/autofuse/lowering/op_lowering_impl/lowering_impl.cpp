@@ -144,8 +144,10 @@ graphStatus LowerConcat(const NodePtr &node) {
   std::vector<InDataAnchorPtr> inputs;
   size_t dyn_input_num = 0;
   GE_WARN_ASSERT_GRAPH_SUCCESS(CollectConcatInputs(node, concat_dim_tensor_index, concat_dim, inputs, dyn_input_num));
+  const auto backend_spec = optimize::BackendSpec::GetInstance();
+  GE_WARN_ASSERT(backend_spec != nullptr);
   // 每个动态shape的输入会单独分组，太多会导致编译时间过长，函数栈过大等问题，性能大概率也不好
-  GE_WARN_ASSERT(dyn_input_num <= kMaxConcatDynInputNum,
+  GE_WARN_ASSERT((dyn_input_num <= kMaxConcatDynInputNum) || (inputs.size() > backend_spec->concat_max_input_num),
                  "Skip lowering node %s, as too many dynamic inputs: %zu, exceeds max value: %zu", node->GetNamePtr(),
                  dyn_input_num, kMaxConcatDynInputNum);
   loop::StoreConcat(node->GetOutDataAnchor(0), inputs, static_cast<size_t>(concat_dim));
