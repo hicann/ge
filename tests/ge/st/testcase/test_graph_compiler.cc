@@ -1956,7 +1956,8 @@ TEST_F(GraphCompilerTest, test_ffts_inner_no_reuse_plus) {
   EXPECT_NE(dsp_graph_call_0, nullptr);
   std::vector<domi::TaskDef> task_def_list_per_node;
   EXPECT_NE(task_generate.GenerateTaskForFftsNode(dsp_graph_call_0.get(), "test", task_def_list_per_node,
-                                                  GetThreadLocalContext(), error_message::GetErrMgrContext()), SUCCESS);
+                                                  GetThreadLocalContext(), error_message::GetErrMgrContext(), 0),
+            SUCCESS);
 }
 
 static void BuildContainUnSupportZerocopyNodeGraph(ComputeGraphPtr &root_graph, const std::string &name) {

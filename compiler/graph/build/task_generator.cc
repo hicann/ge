@@ -42,6 +42,7 @@ const std::set<std::string> kNanoSocVersion{"Ascend035", "Ascend035A", "Ascend03
 const int64_t kHashFactor = 100000;
 const int64_t kInvalidGroupId = -1;
 const int64_t kInvalidStream = -1;
+const int32_t kInvalidDeviceId = -1;
 const int64_t kDefaultThreadNum = 1;
 const uint64_t invalidAddrType = 0xFFFFFFFFFFFFFFFFULL;
 const std::set<std::string> kHcclDvppKernelInfoNames = {"ops_kernel_info_hccl", "ops_kernel_info_hccl_gradtune",
@@ -75,7 +76,7 @@ GenTaskCallKey GetKey(const Node *const node) {
 using GenTaskCall = std::function<Status(TaskGenerator *, Node *, const std::string &,
                                          std::vector<domi::TaskDef> &task_def_list_per_node,
                                          const GEThreadLocalContext &,
-                                         const error_message::ErrorManagerContext &)>;
+                                         const error_message::ErrorManagerContext &, int32_t)>;
 uint32_t GetThreadNum() {
   const char_t *value = nullptr;
   MM_SYS_GET_ENV(MM_ENV_MAX_COMPILE_CORE_NUMBER, value);
@@ -493,9 +494,18 @@ Status TaskGenerator::PrepareForGenerateTask(const ComputeGraphPtr &graph) {
 Status TaskGenerator::GenerateTaskForNormalNode(Node *const node, const std::string &tag,
                                                 std::vector<domi::TaskDef> &task_def_list_per_node,
                                                 const GEThreadLocalContext &ge_context,
-                                                const error_message::ErrorManagerContext &error_context) {
+                                                const error_message::ErrorManagerContext &error_context,
+                                                int32_t device_id) {
   GetThreadLocalContext() = ge_context;
   error_message::SetErrMgrContext(error_context);
+  if (device_id != kInvalidDeviceId) {
+    GE_CHK_RT_RET(rtSetDevice(device_id));
+  }
+  GE_MAKE_GUARD(reset_device, [device_id]() {
+    if (device_id != kInvalidDeviceId) {
+      GE_CHK_RT(rtDeviceReset(device_id));
+    }
+  });
   return GenTaskForNormalNode(node, tag, task_def_list_per_node);
 }
 
@@ -532,9 +542,18 @@ Status TaskGenerator::GenTaskForNormalNode(Node *const node, const std::string &
 Status TaskGenerator::GenerateTaskForFftsNode(Node *ffts_node, const std::string &tag,
                                               std::vector<domi::TaskDef> &task_def_list_per_node,
                                               const GEThreadLocalContext &ge_context,
-                                              const error_message::ErrorManagerContext &error_context) {
+                                              const error_message::ErrorManagerContext &error_context,
+                                              int32_t device_id) {
   GetThreadLocalContext() = ge_context;
   error_message::SetErrMgrContext(error_context);
+  if (device_id != kInvalidDeviceId) {
+    GE_CHK_RT_RET(rtSetDevice(device_id));
+  }
+  GE_MAKE_GUARD(reset_device, [device_id]() {
+    if (device_id != kInvalidDeviceId) {
+      GE_CHK_RT(rtDeviceReset(device_id));
+    }
+  });
   const auto &op_desc = ffts_node->GetOpDesc();  // node and op desc must not be null
   if (!op_desc->HasAttr(ATTR_NAME_FFTS_PLUS_SUB_GRAPH)) {
     return SUCCESS;
@@ -574,7 +593,7 @@ Status TaskGenerator::GenerateTaskForFftsNode(Node *ffts_node, const std::string
       auto &task_defs = node_id_2_node_tasks[node->GetOpDesc()->GetId()];
       std::future<Status> f =
           ffts_inner_thread_pool_->commit(func, this, node.get(), "FFTS INNER", std::ref(task_defs),
-                                          ge_context, error_context);
+                                          ge_context, error_context, device_id);
       if (f.valid()) {
         vector_future.emplace_back(std::move(f));
       }
@@ -728,13 +747,17 @@ Status TaskGenerator::GenerateTaskForNodes(const std::vector<Node *> nodes) {
   thread_pool_ = MakeUnique<ThreadPool>("ge_gentask", GetThreadNum(), false);
   GE_ASSERT_NOTNULL(thread_pool_);
   std::vector<std::future<Status>> vector_future;
+  int32_t device_id = kInvalidDeviceId;
+  // 离线场景不会SetDevice，所以离线场景GetDevice会报错，可以通过device id是否是-1判断是在线or离线。在线场景需要给子线程SetDevice
+  (void)rtGetDevice(&device_id);
+  GELOGI("Get device id %d", device_id);
   for (const auto node : nodes) {
     const auto key = GetKey(node);
     auto &task_defs = node_id_2_node_tasks_[node->GetOpDesc()->GetId()];
     // key must be valid
     const auto &func = handles.find(key)->second;
     std::future<Status> f = thread_pool_->commit(func, this, node, key_2_string.at(key), std::ref(task_defs),
-                                                 GetThreadLocalContext(), error_message::GetErrMgrContext());
+                                                 GetThreadLocalContext(), error_message::GetErrMgrContext(), device_id);
     if (f.valid()) {
       vector_future.emplace_back(std::move(f));
     }

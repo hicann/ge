@@ -72,11 +72,11 @@ class TaskGenerator {
   Status GenerateTaskForFftsNode(Node *ffts_node, const std::string &tag,
                                  std::vector<domi::TaskDef> &task_def_list_per_node,
                                  const GEThreadLocalContext &ge_context,
-                                 const error_message::ErrorManagerContext &error_context);
+                                 const error_message::ErrorManagerContext &error_context, int32_t device_id);
   Status GenerateTaskForNormalNode(Node *const node, const std::string &tag,
                                    std::vector<domi::TaskDef> &task_def_list_per_node,
                                    const GEThreadLocalContext &ge_context,
-                                   const error_message::ErrorManagerContext &error_context);
+                                   const error_message::ErrorManagerContext &error_context, int32_t device_id);
   Status GenTaskForNormalNode(Node *const node, const std::string &tag,
                               std::vector<domi::TaskDef> &task_def_list_per_node);
   Status FilterCandidatesNodes(const ComputeGraphPtr &graph);
