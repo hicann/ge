@@ -88,7 +88,7 @@ auto root_model = GeModelBuilder(graph).BuildGeRootModel();
                                         {"Data", 6},
                                         {"FreeMemory", 3},
                                         {"InferShape", 1},
-                                        {"InnerData", 17},
+                                        {"InnerData", 18},
                                         {"SplitRtStreams", 1},
                                         {"UpdateAicpuIoAddr", 1},
                                         {"UpdateExtShape", 1},

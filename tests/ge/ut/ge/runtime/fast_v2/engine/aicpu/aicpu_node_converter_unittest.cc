@@ -100,7 +100,7 @@ TEST_F(AicpuNodeConverterUT, TestAicpTfInitNode) {
   ASSERT_NE(init_node, nullptr);
 
   auto init_graph = ge::FastNodeUtils::GetSubgraphFromNode(init_node, 0);
-  auto rts_args = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildTfArgsFunctionHandle");
+  auto rts_args = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildTfArgsBinHandle");
   auto build_tf_args = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildTfArgs");
   auto create_session = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "EnsureCreateTfSession");
   auto build_ext = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildExtInfoHandle");
@@ -161,7 +161,7 @@ TEST_F(AicpuNodeConverterUT, TestAicpCCInitNode) {
   ASSERT_NE(init_node, nullptr);
 
   auto init_graph = ge::FastNodeUtils::GetSubgraphFromNode(init_node, 0);
-  auto rts_args = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildCCArgsFunctionHandle");
+  auto rts_args = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildCCArgsBinHandle");
   auto build_cc_args = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildCCArgs");
   auto build_ext = ge::ExecuteGraphUtils::FindFirstNodeMatchType(init_graph, "BuildExtInfoHandle");
   ASSERT_NE(rts_args, nullptr);

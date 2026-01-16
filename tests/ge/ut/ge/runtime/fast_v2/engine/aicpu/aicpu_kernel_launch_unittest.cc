@@ -70,12 +70,14 @@ TEST_F(AicpuKernelLaunchUT, test_run_launch_tf_kernel) {
   ASSERT_EQ(registry.FindKernelFuncs("UpdateAicpuIoAddr")->run_func(run_context), ge::GRAPH_SUCCESS);
   EXPECT_NE(io_addrs[0], 0);
 
-  auto run_context2 = BuildKernelRunContext(3, 0);
+  auto run_context2 = BuildKernelRunContext(4, 0);
   run_context2.value_holder[0].Set(&args_handler, nullptr);
   rtStream_t stream = nullptr;
   run_context2.value_holder[1].Set(stream, nullptr);
-  rtFuncHandle function_handle = nullptr;
-  run_context2.value_holder[2].Set(&function_handle, nullptr);
+  rtFuncHandle bin_handle = nullptr;
+  run_context2.value_holder[2].Set(&bin_handle, nullptr);
+  std::string node_type = "test_aicpu";
+  run_context2.value_holder[3].Set(const_cast<char *>(node_type.c_str()), nullptr);
   ASSERT_EQ(registry.FindKernelFuncs("AicpuLaunchTfKernel")->run_func(run_context2), ge::GRAPH_SUCCESS);
 
   auto ret = registry.FindKernelFuncs("AicpuLaunchTfKernel")->trace_printer(run_context2);
@@ -228,7 +230,7 @@ TEST_F(AicpuKernelLaunchUT, test_build_aicpu_args) {
 }
 
 TEST_F(AicpuKernelLaunchUT, test_run_launch_cc_kernel_with_block) {
-  rtFuncHandle function_handle = nullptr;
+  rtFuncHandle bin_handle = nullptr;
   AicpuCCArgsHandler args_handler("temp", 1, false);
   std::string arg_data = "111";
   std::string so_name = "libcpu_kernels.so";
@@ -242,12 +244,14 @@ TEST_F(AicpuKernelLaunchUT, test_run_launch_cc_kernel_with_block) {
   rtStream_t stream = nullptr;
   uint32_t kernel_type = 6;
 
-  auto run_context2 = BuildKernelRunContext(6, 0);
+  auto run_context2 = BuildKernelRunContext(7, 0);
   run_context2.value_holder[0].Set(&args_handler, nullptr);
   run_context2.value_holder[1].Set(stream, nullptr);
   run_context2.value_holder[2].Set(reinterpret_cast<void *>(1), nullptr);
   run_context2.value_holder[3].Set(reinterpret_cast<void *>(kernel_type), nullptr);
-  run_context2.value_holder[5].Set(&function_handle, nullptr);
+  run_context2.value_holder[5].Set(&bin_handle, nullptr);
+  std::string node_type = "test_aicpu";
+  run_context2.value_holder[6].Set(const_cast<char *>(node_type.c_str()), nullptr);
   ASSERT_EQ(registry.FindKernelFuncs("AicpuLaunchCCKernel")->run_func(run_context2), ge::GRAPH_SUCCESS);
   auto ret = registry.FindKernelFuncs("AicpuLaunchCCKernel")->trace_printer(run_context2);
   EXPECT_FALSE(ret.empty());
@@ -295,7 +299,7 @@ TEST_F(AicpuKernelLaunchUT, test_creat_event) {
 
 TEST_F(AicpuKernelLaunchUT, test_run_new_launch_cc_kernel) {
   rtFuncHandle tmp_function_handle = nullptr;
-  rtFuncHandle function_handle = &tmp_function_handle;
+  rtFuncHandle bin_handle = &tmp_function_handle;
   AicpuCCArgsHandler args_handler("temp", 1, false);
   std::string arg_data = "111";
   std::string so_name = "libcpu_kernels.so";
@@ -309,12 +313,14 @@ TEST_F(AicpuKernelLaunchUT, test_run_new_launch_cc_kernel) {
   rtStream_t stream = nullptr;
   uint32_t kernel_type = 6;
 
-  auto run_context2 = BuildKernelRunContext(6, 0);
+  auto run_context2 = BuildKernelRunContext(7, 0);
   run_context2.value_holder[0].Set(&args_handler, nullptr);
   run_context2.value_holder[1].Set(stream, nullptr);
   run_context2.value_holder[2].Set(reinterpret_cast<void *>(1), nullptr);
   run_context2.value_holder[3].Set(reinterpret_cast<void *>(kernel_type), nullptr);
-  run_context2.value_holder[5].Set(&function_handle, nullptr);
+  run_context2.value_holder[5].Set(&bin_handle, nullptr);
+  std::string node_type = "test_aicpu";
+  run_context2.value_holder[6].Set(const_cast<char *>(node_type.c_str()), nullptr);
   ASSERT_EQ(registry.FindKernelFuncs("AicpuLaunchCCKernel")->run_func(run_context2), ge::GRAPH_SUCCESS);
   auto ret = registry.FindKernelFuncs("AicpuLaunchCCKernel")->trace_printer(run_context2);
   EXPECT_FALSE(ret.empty());
@@ -343,13 +349,15 @@ TEST_F(AicpuKernelLaunchUT, test_run_new_launch_tf_kernel) {
   ASSERT_EQ(registry.FindKernelFuncs("UpdateAicpuIoAddr")->run_func(run_context), ge::GRAPH_SUCCESS);
   EXPECT_NE(io_addrs[0], 0);
 
-  auto run_context2 = BuildKernelRunContext(3, 0);
+  auto run_context2 = BuildKernelRunContext(4, 0);
   run_context2.value_holder[0].Set(&args_handler, nullptr);
   rtStream_t stream = nullptr;
   run_context2.value_holder[1].Set(stream, nullptr);
   rtFuncHandle tmp_function_handle = nullptr;
-  rtFuncHandle function_handle = &tmp_function_handle;
-  run_context2.value_holder[2].Set(&function_handle, nullptr);
+  rtFuncHandle bin_handle = &tmp_function_handle;
+  run_context2.value_holder[2].Set(&bin_handle, nullptr);
+  std::string node_type = "test_aicpu";
+  run_context2.value_holder[3].Set(const_cast<char *>(node_type.c_str()), nullptr);
   ASSERT_EQ(registry.FindKernelFuncs("AicpuLaunchTfKernel")->run_func(run_context2), ge::GRAPH_SUCCESS);
 
   auto ret = registry.FindKernelFuncs("AicpuLaunchTfKernel")->trace_printer(run_context2);
@@ -365,7 +373,7 @@ TEST_F(AicpuKernelLaunchUT, test_build_cc_function_handle) {
   run_context.value_holder[0].Set(op_desc.get(), nullptr);
   run_context.value_holder[1].Set(const_cast<char *>(node_type.c_str()), nullptr);
 
-  ASSERT_EQ(registry.FindKernelFuncs("BuildCCArgsFunctionHandle")->run_func(run_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(registry.FindKernelFuncs("BuildCCArgsBinHandle")->run_func(run_context), ge::GRAPH_SUCCESS);
 }
 
 TEST_F(AicpuKernelLaunchUT, test_build_cust_cc_function_handle) {
@@ -382,6 +390,6 @@ TEST_F(AicpuKernelLaunchUT, test_build_cust_cc_function_handle) {
   run_context.value_holder[0].Set(op_desc.get(), nullptr);
   run_context.value_holder[1].Set(const_cast<char *>(node_type.c_str()), nullptr);
 
-  ASSERT_EQ(registry.FindKernelFuncs("BuildCCArgsFunctionHandle")->run_func(run_context), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(registry.FindKernelFuncs("BuildCCArgsBinHandle")->run_func(run_context), ge::GRAPH_SUCCESS);
 }
 }  // namespace gert

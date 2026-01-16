@@ -365,59 +365,52 @@ ge::graphStatus BuildTfArgs(KernelContext *context) {
 }
 REGISTER_KERNEL(BuildTfArgs).RunFunc(BuildTfArgs).OutputsCreator(CreateOutputsForAicpuArgs);
 
-ge::graphStatus BuildCCArgsFunctionHandle(KernelContext *context) {
+ge::graphStatus BuildCCArgsBinHandle(KernelContext *context) {
   auto op_desc = context->GetInputValue<ge::OpDesc *>(static_cast<size_t>(CommonBinArgsInfo::kOpDesc));
   auto node_type = context->GetInputValue<char_t *>(static_cast<size_t>(CommonBinArgsInfo::kNodeType));
-  auto func_handle = context->GetOutputPointer<rtFuncHandle>(0U);
+  auto bin_handle = context->GetOutputPointer<rtBinHandle>(0U);
   GE_ASSERT_NOTNULL(op_desc);
   GE_ASSERT_NOTNULL(node_type);
-  GE_ASSERT_NOTNULL(func_handle);
-
-  rtBinHandle bin_handle = nullptr;
+  GE_ASSERT_NOTNULL(bin_handle);
   bool custom_flag = false;
   (void)ge::AttrUtils::GetBool(op_desc, kAttrCustAicpuFlag, custom_flag);
   if (!custom_flag) {
     std::string json_path;
     (void)ge::AttrUtils::GetStr(op_desc, kAttrJsonPath, json_path);
     if (json_path == "") {
-      *func_handle = nullptr;
-      GELOGI("Node[%s] attr ops_json_path is empty, can not get function handle.", node_type);
+      *bin_handle = nullptr;
+      GELOGI("Node[%s] attr ops_json_path is empty, can not get bin handle.", node_type);
       return ge::GRAPH_SUCCESS;
     }
     GELOGI("Building aicpu bin handle, node_type=%s, json_path=%s", node_type, json_path.c_str());
     GE_ASSERT_SUCCESS(AicpuJsonBinHandler::Instance().LoadBinary(json_path));
-    bin_handle = AicpuJsonBinHandler::Instance().GetBinHandle();
-    GE_ASSERT_NOTNULL(bin_handle);
-    GE_ASSERT_SUCCESS(rtsFuncGetByName(bin_handle, node_type, func_handle));
+    *bin_handle = AicpuJsonBinHandler::Instance().GetBinHandle();
+    GE_ASSERT_NOTNULL(*bin_handle);
   }
-  *func_handle = nullptr;
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(BuildCCArgsFunctionHandle).RunFunc(BuildCCArgsFunctionHandle);
+REGISTER_KERNEL(BuildCCArgsBinHandle).RunFunc(BuildCCArgsBinHandle);
 
-ge::graphStatus BuildTfArgsFunctionHandle(KernelContext *context) {
+ge::graphStatus BuildTfArgsBinHandle(KernelContext *context) {
   auto op_desc = context->GetInputValue<ge::OpDesc *>(static_cast<size_t>(CommonBinArgsInfo::kOpDesc));
   auto node_type = context->GetInputValue<char_t *>(static_cast<size_t>(CommonBinArgsInfo::kNodeType));
-  auto func_handle = context->GetOutputPointer<rtFuncHandle>(0U);
+  auto bin_handle = context->GetOutputPointer<rtBinHandle>(0U);
   GE_ASSERT_NOTNULL(op_desc);
   GE_ASSERT_NOTNULL(node_type);
-  GE_ASSERT_NOTNULL(func_handle);
-
+  GE_ASSERT_NOTNULL(bin_handle);
   std::string json_path;
   (void)ge::AttrUtils::GetStr(op_desc, kAttrJsonPath, json_path);
   if (json_path == "") {
-    *func_handle = nullptr;
-    GELOGI("Node[%s] attr ops_json_path is empty, can not get function handle.", node_type);
+    *bin_handle = nullptr;
+    GELOGI("Node[%s] attr ops_json_path is empty, can not get bin handle.", node_type);
     return ge::GRAPH_SUCCESS;
   }
   GELOGI("Building aicpu tf bin handle, node_type=%s, json_path=%s", node_type, json_path.c_str());
   GE_ASSERT_SUCCESS(TfJsonBinHandler::Instance().LoadBinary(json_path));
-  rtBinHandle bin_handle = TfJsonBinHandler::Instance().GetBinHandle();
-  GE_ASSERT_NOTNULL(bin_handle);
-  GE_ASSERT_SUCCESS(rtsFuncGetByName(bin_handle, node_type, func_handle));
-  *func_handle = nullptr;
+  *bin_handle = TfJsonBinHandler::Instance().GetBinHandle();
+  GE_ASSERT_NOTNULL(*bin_handle);
   return ge::GRAPH_SUCCESS;
 }
-REGISTER_KERNEL(BuildTfArgsFunctionHandle).RunFunc(BuildTfArgsFunctionHandle);
+REGISTER_KERNEL(BuildTfArgsBinHandle).RunFunc(BuildTfArgsBinHandle);
 
 }  // namespace gert

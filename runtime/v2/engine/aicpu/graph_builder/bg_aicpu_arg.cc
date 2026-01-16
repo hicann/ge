@@ -294,11 +294,11 @@ std::vector<ValueHolderPtr> BuildCCArgsFunctionHandleImpl(const ge::NodePtr node
   const auto &node_type = node->GetType();
   inputs.emplace_back(ValueHolder::CreateConst(node_type.c_str(), node_type.size()+1U, true));
 
-  auto function_handle = ValueHolder::CreateSingleDataOutput("BuildCCArgsFunctionHandle", inputs);
-  return std::vector<ValueHolderPtr>({function_handle});
+  auto bin_handle = ValueHolder::CreateSingleDataOutput("BuildCCArgsBinHandle", inputs);
+  return std::vector<ValueHolderPtr>({bin_handle});
 }
 
-RtsArgs BuildCCArgsFunctionHandle(const ge::NodePtr node) {
+RtsArgs BuildCCArgsBinHandle(const ge::NodePtr node) {
   auto res = FrameSelector::OnInitRoot(
     [&node]() -> std::vector<ValueHolderPtr> {
     return BuildCCArgsFunctionHandleImpl(node);
@@ -319,11 +319,11 @@ std::vector<ValueHolderPtr> BuildTfArgsFunctionHandleImpl(const ge::NodePtr node
   const auto &node_type = node->GetType();
   inputs.emplace_back(ValueHolder::CreateConst(node_type.c_str(), node_type.size()+1U, true));
 
-  auto function_handle = ValueHolder::CreateSingleDataOutput("BuildTfArgsFunctionHandle", inputs);
-  return std::vector<ValueHolderPtr>({function_handle});
+  auto bin_handle = ValueHolder::CreateSingleDataOutput("BuildTfArgsBinHandle", inputs);
+  return std::vector<ValueHolderPtr>({bin_handle});
 }
 
-RtsArgs BuildTfArgsFunctionHandle(const ge::NodePtr node) {
+RtsArgs BuildTfArgsBinHandle(const ge::NodePtr node) {
   auto res = FrameSelector::OnInitRoot(
     [&node]() -> std::vector<ValueHolderPtr> {
     return BuildTfArgsFunctionHandleImpl(node);

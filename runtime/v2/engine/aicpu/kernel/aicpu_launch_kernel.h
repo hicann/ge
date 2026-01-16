@@ -24,11 +24,13 @@ enum class AicpuCCLaunch {
   kBlockDim = static_cast<int32_t>(AicpuLaunchCommon::kNum),
   kKernelType,
   kExternHandle,
-  kFunctionHandler
+  kBinHandler,
+  kNodeType
 };
 
 enum class AicpuTfLaunch {
-  kFunctionHandler = static_cast<int32_t>(AicpuLaunchCommon::kNum)
+  kBinHandler = static_cast<int32_t>(AicpuLaunchCommon::kNum),
+  kNodeType
 };
 }  // namespace kernel
 }  // namespace gert

@@ -190,7 +190,7 @@ void LaunchTfMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr& ordered_hol
   auto current_node_guarder = bg::ValueHolder::SetScopedCurrentComputeNode(tf_memcpy_node);
 
   // gen function handle
-  auto rts_args = bg::BuildTfArgsFunctionHandle(node);
+  auto rts_args = bg::BuildTfArgsBinHandle(node);
 
   // build tf memcpy task
   auto step_id = GetStepId(global_data);
@@ -201,7 +201,7 @@ void LaunchTfMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr& ordered_hol
   auto prepare_copy_inputs = PrepareCopyInputs(node, ordered_holder, memcpy_input, global_data, node_output);
 
   // launch & sync
-  auto launch_tf_holder = bg::AicpuTfLaunchKernel(aicpu_tf_args.args_handler, global_data.GetStream(), rts_args.function_handle);
+  auto launch_tf_holder = bg::AicpuTfLaunchKernel(aicpu_tf_args.args_handler, global_data.GetStream(), rts_args.bin_handle, node);
   auto sync_stream = bg::ValueHolder::CreateSingleDataOutput("SyncStream", {global_data.GetStream()});
 
   SetReleaseAfter(memcpy_input, launch_tf_holder);
@@ -244,7 +244,7 @@ void LaunchCCMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr& ordered_hol
   // If the value is ignored, there will be functional problems.
   auto current_node_guarder = bg::ValueHolder::SetScopedCurrentComputeNode(cc_memcpy_node);
   // gen function handle
-  auto rts_args = bg::BuildCCArgsFunctionHandle(node);
+  auto rts_args = bg::BuildCCArgsBinHandle(node);
 
   // build cc memcpy task
   auto aicpu_cc_args = bg::BuildCCAicpuArg(node, kernel_def, memcpy_input.size(), session_id, true);
@@ -258,7 +258,7 @@ void LaunchCCMemcpyTask(const ge::NodePtr &node, bg::ValueHolderPtr& ordered_hol
   auto block_dim_holder = bg::ValueHolder::CreateConst(&block_dim, sizeof(block_dim));
   auto launch_cc_holder = bg::AicpuCCLaunchKernel(aicpu_cc_args.args_handler, global_data.GetStream(), block_dim_holder,
                                                   kernel_def, node->GetOpDesc(), aicpu_cc_args.ext_info_handler,
-                                                  rts_args.function_handle);
+                                                  rts_args.bin_handle, node);
   auto sync_stream = bg::ValueHolder::CreateSingleDataOutput("SyncStream", {global_data.GetStream()});
 
   SetReleaseAfter(memcpy_input, launch_cc_holder);

@@ -95,18 +95,21 @@ ValueHolderPtr UpdateAicpuIoAddr(const ValueHolderPtr &args_handler,
 
 ValueHolderPtr AicpuTfLaunchKernel(const ValueHolderPtr &args_handler,
                                    const ValueHolderPtr &stream,
-                                   const ValueHolderPtr &function_handler) {
+                                   const ValueHolderPtr &bin_handler,
+                                   const ge::NodePtr node) {
   std::vector<ValueHolderPtr> inputs;
   inputs.emplace_back(args_handler);
   inputs.emplace_back(stream);
-  inputs.emplace_back(function_handler);
+  inputs.emplace_back(bin_handler);
+  const auto &node_type = node->GetType();
+  inputs.emplace_back(ValueHolder::CreateConst(node_type.c_str(), node_type.size() + 1U, true));
   return ValueHolder::CreateSingleDataOutput("AicpuLaunchTfKernel", inputs);
 }
 
 ValueHolderPtr AicpuCCLaunchKernel(const ValueHolderPtr &args_handler, const ValueHolderPtr &stream,
                                    const ValueHolderPtr &block_dim, const domi::KernelDef &kernel_def,
                                    const ge::OpDescPtr &op_desc, const ValueHolderPtr &ext_info_handler,
-                                   const ValueHolderPtr &function_handle) {
+                                   const ValueHolderPtr &bin_handle, const ge::NodePtr node) {
   const uint32_t kernel_type = kernel_def.context().kernel_type();	
   // for cust aicpu task
   if (static_cast<ge::ccKernelType>(kernel_type) == ge::ccKernelType::CUST_AI_CPU) {
@@ -138,7 +141,9 @@ ValueHolderPtr AicpuCCLaunchKernel(const ValueHolderPtr &args_handler, const Val
   inputs.emplace_back(ValueHolder::CreateConst(&kernel_type, sizeof(kernel_type)));
   // This is for GE dump log
   inputs.emplace_back(ext_info_handler);
-  inputs.emplace_back(function_handle);
+  inputs.emplace_back(bin_handle);
+  const auto &node_type = node->GetType();
+  inputs.emplace_back(ValueHolder::CreateConst(node_type.c_str(), node_type.size() + 1U, true));
   auto launch_cc =  ValueHolder::CreateSingleDataOutput("AicpuLaunchCCKernel", inputs);
   return launch_cc;
 }

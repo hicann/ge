@@ -212,11 +212,13 @@ ge::graphStatus DistributeAsyncWaitTask(rtStream stream, const std::string &op_n
 ge::graphStatus AicpuLaunchTfKernel(KernelContext *context) {
   auto args_handler = context->GetInputPointer<AicpuArgsHandler>(static_cast<size_t>(AicpuLaunchCommon::kArgsHandler));
   auto stream = context->GetInputValue<rtStream_t>(static_cast<size_t>(AicpuLaunchCommon::kStream));
-  auto function_handler = context->GetInputPointer<rtFuncHandle>(static_cast<size_t>(AicpuTfLaunch::kFunctionHandler));
+  auto bin_handle = context->GetInputPointer<rtBinHandle>(static_cast<size_t>(AicpuTfLaunch::kBinHandler));
   GE_ASSERT_NOTNULL(args_handler);
-  GE_ASSERT_NOTNULL(function_handler);
+  GE_ASSERT_NOTNULL(bin_handle);
+  auto node_type = context->GetInputValue<char_t *>(static_cast<size_t>(AicpuTfLaunch::kNodeType));
+  GE_ASSERT_NOTNULL(node_type);
   const auto &op_name = args_handler->GetNodeName();
-  if (!OpJsonBinHandler::IsSupportBinHandle() || *function_handler == nullptr) {
+  if (!OpJsonBinHandler::IsSupportBinHandle() || *bin_handle == nullptr) {
     GELOGI("launch tf kernel %s with compatable.", op_name.c_str());
     const auto &arg_ex = args_handler->GetArgsEx();
     GE_ASSERT_RT_OK(rtAicpuKernelLaunchExWithArgs(rtKernelType_t::KERNEL_TYPE_FWK, op_name.c_str(), 1U, &arg_ex, nullptr,
@@ -230,30 +232,63 @@ ge::graphStatus AicpuLaunchTfKernel(KernelContext *context) {
     for (const auto &host_Info : args_handler->GetHostInputOffset()) {
       placeHolder_info.emplace_back(rtPlaceHolderInfo_t({host_Info.addrOffset, host_Info.dataOffset}));
     }
-    GELOGI("launch tf kernel %s with new interface, place_size=%lu, args_size=%lu",
-      op_name.c_str(), placeHolder_info.size(), args_handler->GetArgsEx().argsSize);
+    GELOGI("launch tf kernel %s with new interface, place_size=%lu, args_size=%lu, node_type=%s",
+      op_name.c_str(), placeHolder_info.size(), args_handler->GetArgsEx().argsSize, node_type);
     rtLaunchKernelAttr_t launch_attr = {};
     rtKernelLaunchCfg_t cfg = {&launch_attr, 0UL};
-    GE_ASSERT_RT_OK(rtsLaunchKernelWithHostArgs(*function_handler, 1U, stream, &cfg, args_handler->GetArgsEx().args,
+    rtFuncHandle func_handle = nullptr;
+    GE_ASSERT_SUCCESS(rtsFuncGetByName(*bin_handle, node_type, &func_handle));
+    GE_ASSERT_NOTNULL(func_handle);
+    GE_ASSERT_RT_OK(rtsLaunchKernelWithHostArgs(func_handle, 1U, stream, &cfg, args_handler->GetArgsEx().args,
       args_handler->GetArgsEx().argsSize, placeHolder_info.data(), placeHolder_info.size()));
   }
   return DistributeAsyncWaitTask(stream, op_name, args_handler);
 }
 REGISTER_KERNEL(AicpuLaunchTfKernel).RunFunc(AicpuLaunchTfKernel).TracePrinter(PrintTfLaunchArgs);
 
+ge::graphStatus AicpuLaunchCCKernelWithNewInterface(KernelContext *context) {
+  auto args_handler = context->GetInputPointer<AicpuArgsHandler>(static_cast<size_t>(AicpuLaunchCommon::kArgsHandler));
+  auto stream = context->GetInputValue<rtStream_t>(static_cast<size_t>(AicpuLaunchCommon::kStream));
+  auto block_dim = context->GetInputValue<uint32_t>(static_cast<size_t>(AicpuCCLaunch::kBlockDim));
+  auto bin_handle = context->GetInputPointer<rtBinHandle>(static_cast<size_t>(AicpuCCLaunch::kBinHandler));
+  std::vector<rtPlaceHolderInfo_t> placeHolder_info;
+  for (auto &kernel_info : args_handler->GetKernelOffset()) {
+    placeHolder_info.emplace_back(rtPlaceHolderInfo_t({kernel_info.addrOffset, kernel_info.dataOffset}));
+  }
+ 
+  for (auto &host_Info : args_handler->GetHostInputOffset()) {
+    placeHolder_info.emplace_back(rtPlaceHolderInfo_t({host_Info.addrOffset, host_Info.dataOffset}));
+  }
+
+  const auto &op_name = args_handler->GetNodeName();
+  auto node_type = context->GetInputValue<char_t *>(static_cast<size_t>(AicpuCCLaunch::kNodeType));
+  GE_ASSERT_NOTNULL(node_type);
+  GELOGI("launch cc kernel %s with new interface, block_dim=%u, place_size=%lu, args_size=%lu, node_type=%s",
+    op_name.c_str(), block_dim, placeHolder_info.size(), args_handler->GetArgsEx().argsSize, node_type);
+  rtLaunchKernelAttr_t launch_attr = {};
+  rtKernelLaunchCfg_t cfg = {&launch_attr, 0UL};
+  rtFuncHandle func_handle = nullptr;
+  GE_ASSERT_SUCCESS(rtsFuncGetByName(*bin_handle, node_type, &func_handle));
+  GE_ASSERT_NOTNULL(func_handle);
+  GE_ASSERT_RT_OK(rtsLaunchKernelWithHostArgs(func_handle, block_dim, stream, &cfg,
+    args_handler->GetArgsEx().args, args_handler->GetArgsEx().argsSize,
+    placeHolder_info.data(), placeHolder_info.size()));   
+  return SUCCESS;
+}
+
 ge::graphStatus AicpuLaunchCCKernel(KernelContext *context) {
   auto args_handler = context->GetInputPointer<AicpuArgsHandler>(static_cast<size_t>(AicpuLaunchCommon::kArgsHandler));
   auto stream = context->GetInputValue<rtStream_t>(static_cast<size_t>(AicpuLaunchCommon::kStream));
   auto block_dim = context->GetInputValue<uint32_t>(static_cast<size_t>(AicpuCCLaunch::kBlockDim));
   auto kernel_type = context->GetInputValue<ccKernelType>(static_cast<size_t>(AicpuCCLaunch::kKernelType));
-  auto function_handler = context->GetInputPointer<rtFuncHandle>(static_cast<size_t>(AicpuCCLaunch::kFunctionHandler));
+  auto bin_handle = context->GetInputPointer<rtBinHandle>(static_cast<size_t>(AicpuCCLaunch::kBinHandler));
   GE_ASSERT_NOTNULL(args_handler);
-  GE_ASSERT_NOTNULL(function_handler);
+  GE_ASSERT_NOTNULL(bin_handle);
 
   uint32_t flag = RT_KERNEL_DEFAULT;
   uint32_t rt_kernel_type = static_cast<uint32_t>(rtKernelType_t::KERNEL_TYPE_AICPU);
   const auto &op_name = args_handler->GetNodeName();
-  if ((kernel_type == ccKernelType::CUST_AI_CPU) || (!OpJsonBinHandler::IsSupportBinHandle()) || (*function_handler == nullptr)) {
+  if ((kernel_type == ccKernelType::CUST_AI_CPU) || (!OpJsonBinHandler::IsSupportBinHandle()) || (*bin_handle == nullptr)) {
     if (kernel_type == ccKernelType::CUST_AI_CPU) {
       flag |= static_cast<uint32_t>(RT_KERNEL_CUSTOM_AICPU);
       rt_kernel_type = static_cast<uint32_t>(rtKernelType_t::KERNEL_TYPE_AICPU_CUSTOM);
@@ -263,22 +298,7 @@ ge::graphStatus AicpuLaunchCCKernel(KernelContext *context) {
     GE_ASSERT_RT_OK(rtAicpuKernelLaunchExWithArgs(rt_kernel_type,
                     op_name.c_str(), block_dim, &arg_ex, nullptr, stream, flag));
   } else {
-    std::vector<rtPlaceHolderInfo_t> placeHolder_info;
-    for (auto &kernel_info : args_handler->GetKernelOffset()) {
-      placeHolder_info.emplace_back(rtPlaceHolderInfo_t({kernel_info.addrOffset, kernel_info.dataOffset}));
-    }
- 
-    for (auto &host_Info : args_handler->GetHostInputOffset()) {
-      placeHolder_info.emplace_back(rtPlaceHolderInfo_t({host_Info.addrOffset, host_Info.dataOffset}));
-    }
-
-    GELOGI("launch cc kernel %s with new interface, block_dim=%u, place_size=%lu, args_size=%lu",
-      op_name.c_str(), block_dim, placeHolder_info.size(), args_handler->GetArgsEx().argsSize);
-    rtLaunchKernelAttr_t launch_attr = {};
-    rtKernelLaunchCfg_t cfg = {&launch_attr, 0UL};
-    GE_ASSERT_RT_OK(rtsLaunchKernelWithHostArgs(*function_handler, block_dim, stream, &cfg,
-      args_handler->GetArgsEx().args, args_handler->GetArgsEx().argsSize,
-      placeHolder_info.data(), placeHolder_info.size()));
+    GE_ASSERT_SUCCESS(AicpuLaunchCCKernelWithNewInterface(context));
   }
 
   return DistributeAsyncWaitTask(stream, op_name, args_handler);

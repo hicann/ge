@@ -128,7 +128,7 @@ LowerResult LoweringAiCpuTfNode(const ge::NodePtr &node, const LowerInput &lower
   auto session_id = bg::GetSessionId(*lower_input.global_data);
 
   // gen function handle
-  auto rts_args = bg::BuildTfArgsFunctionHandle(node);
+  auto rts_args = bg::BuildTfArgsBinHandle(node);
 
   // alloc args
   auto step_id = GetStepId(*lower_input.global_data);
@@ -141,7 +141,7 @@ LowerResult LoweringAiCpuTfNode(const ge::NodePtr &node, const LowerInput &lower
   auto node_output = UpdateOutputShapeAndAddr(node, lower_input, aicpu_args, update_holder, workspace_addr_holder);
 
   // launch
-  auto launch_holder = bg::AicpuTfLaunchKernel(aicpu_args.args_handler, lower_input.global_data->GetStream(), rts_args.function_handle);
+  auto launch_holder = bg::AicpuTfLaunchKernel(aicpu_args.args_handler, lower_input.global_data->GetStream(), rts_args.bin_handle, node);
   bg::ValueHolder::AddDependency(update_holder, launch_holder);
 
   SetReleaseAfter(lower_input.input_addrs, launch_holder);
@@ -180,7 +180,7 @@ LowerResult LoweringAiCpuCCNode(const ge::NodePtr &node, const LowerInput &lower
   auto session_id = bg::GetSessionId(*lower_input.global_data);
 
   // gen function handle
-  auto rts_args = bg::BuildCCArgsFunctionHandle(node);
+  auto rts_args = bg::BuildCCArgsBinHandle(node);
 
   // alloc args
   auto io_num = node->GetInDataNodesAndAnchors().size() + node->GetAllOutDataAnchorsSize();
@@ -194,7 +194,7 @@ LowerResult LoweringAiCpuCCNode(const ge::NodePtr &node, const LowerInput &lower
   // launch
   auto block_dim = bg::CalcBlockDim(op_desc, lower_input.input_shapes);
   auto launch_holder = bg::AicpuCCLaunchKernel(aicpu_args.args_handler, stream, block_dim, kernel_def, op_desc,
-                                               aicpu_args.ext_info_handler, rts_args.function_handle);
+                                               aicpu_args.ext_info_handler, rts_args.bin_handle, node);
 
   bg::ValueHolder::AddDependency(update_holder, launch_holder);
   SetReleaseAfter(lower_input.input_addrs, launch_holder);
