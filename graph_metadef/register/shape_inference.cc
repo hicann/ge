@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -624,14 +624,15 @@ ge::graphStatus InferShapeRangeOnCompile(const ge::Operator &op, const ge::OpDes
   if (functions->infer_shape_range != nullptr) {
     GELOGD("Op[%s], type[%s] use custom derivation strategy.", op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return InferShapeRangeCustom(op, op_desc, functions->infer_shape_range);
-  } else if (functions->infer_shape != nullptr) {
+  }
+  if (functions->infer_shape != nullptr) {
     GELOGD("Can not get infer shape range func op[%s], type[%s], will use an automatic derivation strategy.",
            op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return InferShapeRangeAutomaticly(op, op_desc, functions->infer_shape);
-  } else {
-    GELOGE(ge::PARAM_INVALID, "infer_shape_range and infer_shape is nullptr.");
-    return ge::PARAM_INVALID;
   }
+  GELOGD("Skip infer shape range for node[%s], type[%s] as no infer shape range func.", op_desc->GetName().c_str(),
+         op_desc->GetType().c_str());
+  return ge::GRAPH_SUCCESS;
 }
 
 ge::graphStatus InferShapeOnCompile(const ge::Operator &op, const ge::OpDescPtr &op_desc) {
