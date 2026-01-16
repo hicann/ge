@@ -350,7 +350,7 @@ TEST_F(COUNT_BATCH_FLOW_FUNC_UTEST, proc_batchsize_slide_stride) {
 
 TEST_F(COUNT_BATCH_FLOW_FUNC_UTEST, set_output_failed) {
   int64_t batch_size = 5;
-  int64_t timeout = 900;
+  int64_t timeout = 100;
   int64_t slide_stride = 2;
   vector<int64_t> shape = {3, 2};
   MbufHead mbuf_head;
@@ -374,15 +374,15 @@ TEST_F(COUNT_BATCH_FLOW_FUNC_UTEST, set_output_failed) {
   count_batch.start_time_ = 0UL;
   TimerInfo *timer_info = (TimerInfo *)(count_batch.timer_handle_);
   timer_info->timer_callback();
-  sleep(1);
+  usleep(200 * 1000UL);
   timer_info->timer_callback();
-  sleep(1);
+  usleep(200 * 1000UL);
   timer_info->timer_callback();
 }
 
 TEST_F(COUNT_BATCH_FLOW_FUNC_UTEST, proc_batchsize_timeout) {
   int64_t batch_size = 5;
-  int64_t timeout = 900;
+  int64_t timeout = 100;
   int64_t slide_stride = 2;
   vector<int64_t> shape = {3, 2};
   MbufHead mbuf_head;
@@ -406,9 +406,9 @@ TEST_F(COUNT_BATCH_FLOW_FUNC_UTEST, proc_batchsize_timeout) {
   count_batch.start_time_ = 0UL;
   TimerInfo *timer_info = (TimerInfo *)(count_batch.timer_handle_);
   timer_info->timer_callback();
-  sleep(1);
+  usleep(200 * 1000UL);
   timer_info->timer_callback();
-  sleep(1);
+  usleep(200 * 1000UL);
   timer_info->timer_callback();
 }
 }  // namespace FlowFunc

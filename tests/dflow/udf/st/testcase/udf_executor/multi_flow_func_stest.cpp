@@ -426,7 +426,7 @@ TEST_F(MultiFlowFuncSTest, register_single_func) {
     halMbufFree(out_mbuf);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -451,7 +451,7 @@ TEST_F(MultiFlowFuncSTest, register_stream_input_func) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -541,7 +541,7 @@ TEST_F(MultiFlowFuncSTest, register_multi_func_call_nn_test) {
     }
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -592,7 +592,7 @@ TEST_F(MultiFlowFuncSTest, register_multi_func_raw_data_test) {
     }
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -658,7 +658,7 @@ TEST_F(MultiFlowFuncSTest, multi_func_with_invalid_func_name) {
     ASSERT_EQ(out_mbuf_ptr, nullptr);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -746,7 +746,7 @@ TEST_F(MultiFlowFuncSTest, multi_func_basic_test) {
     halMbufFree(out_mbuf);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -799,7 +799,7 @@ TEST_F(MultiFlowFuncSTest, multi_func_raise_exception) {
   }
 
   EXPECT_TRUE(executor_exit);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -888,7 +888,7 @@ TEST_F(MultiFlowFuncSTest, full_to_not_full) {
     }
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }

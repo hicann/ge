@@ -133,7 +133,7 @@ TEST_F(MultiInOutSTest, basic_test) {
     halMbufFree(out_mbuf);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -198,7 +198,7 @@ TEST_F(MultiInOutSTest, basic_test_need_align) {
     all_out_trans_id_set.insert(trans_id_per_out.cbegin(), trans_id_per_out.cend());
   }
   EXPECT_EQ(trans_id_set, all_out_trans_id_set);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -259,7 +259,7 @@ TEST_F(MultiInOutSTest, basic_test_align_pad_empty_tensor) {
     }
     halMbufFree(out_mbuf);
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -388,7 +388,7 @@ TEST_F(MultiInOutSTest, raw_data_basic_test) {
     halMbufFree(out_mbuf);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -435,7 +435,7 @@ TEST_F(MultiInOutSTest, multi_loop_test_part_input) {
     CheckMbufData(out_mbuf, shape, TensorDataType::DT_FLOAT, expect_output.data(), expect_output.size());
     halMbufFree(out_mbuf);
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -484,7 +484,7 @@ TEST_F(MultiInOutSTest, multi_loop_test_one_by_one) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }

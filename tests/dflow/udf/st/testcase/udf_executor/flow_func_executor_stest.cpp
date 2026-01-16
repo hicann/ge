@@ -314,7 +314,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -370,7 +370,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_valid_buf_cfg) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -420,7 +420,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_tensor_list) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -468,7 +468,7 @@ TEST_F(FlowFuncExecutorSTest, ReshapeTest) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -520,7 +520,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test_dummy_q) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -563,7 +563,7 @@ TEST_F(FlowFuncExecutorSTest, data_size_over_tensor_size) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -610,7 +610,7 @@ TEST_F(FlowFuncExecutorSTest, data_size_less_than_tensor_size) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -655,7 +655,7 @@ TEST_F(FlowFuncExecutorSTest, shape_negative) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -777,7 +777,7 @@ TEST_F(FlowFuncExecutorSTest, full_to_not_full) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -825,7 +825,7 @@ TEST_F(FlowFuncExecutorSTest, Start_Failed) {
   MOCKER(halEschedSubmitEvent).stubs().will(returnValue(DRV_ERROR_NO_SUBSCRIBE_THREAD));
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_ERR_DRV_ERROR);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -883,7 +883,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_exception_msg) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -1010,7 +1010,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_suspend_msg) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -1092,7 +1092,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_suspend_and_recover_msg) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });
@@ -1208,7 +1208,7 @@ TEST_F(FlowFuncExecutorSTest, basic_test_with_dump) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });

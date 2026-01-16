@@ -21,6 +21,10 @@
 #include "config/global_config.h"
 
 namespace FlowFunc {
+namespace {
+// 每次等10ms
+constexpr uint64_t kWaitMsPerTime = 10;
+}
 class CountBatchFlowFuncSTest : public testing::Test {
  protected:
   virtual void SetUp() {
@@ -108,7 +112,7 @@ TEST_F(CountBatchFlowFuncSTest, parse_and_init_model) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -132,7 +136,7 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_invalid_timeout_attr) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -153,7 +157,7 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_no_timeout) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -173,8 +177,9 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_invalid_timeout) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
+  executor.Destroy();
 }
 
 TEST_F(CountBatchFlowFuncSTest, abnormal_test_no_slide_stride_attr) {
@@ -192,7 +197,7 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_no_slide_stride_attr) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -220,8 +225,6 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_input_null) {
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等10ms
-  constexpr uint64_t kWaitMsPerTime = 10;
   // 最长等5秒
   constexpr uint64_t kMaxWaitTimeInMs = 5 * 1000UL;
   uint64_t wait_time_in_ms = 0;
@@ -251,7 +254,7 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_input_null) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -278,10 +281,8 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_only_batchSize) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
-  // 最长等1秒
-  constexpr uint64_t kMaxWaitTimeInMs = 1000;
+  // 最长等0.5秒
+  constexpr uint64_t kMaxWaitTimeInMs = 500;
   uint64_t wait_time_in_ms = 0;
   int32_t get_out_num = 0;
   for (int64_t loop_index = 0; loop_index < size; ++loop_index) {
@@ -325,7 +326,7 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_only_batchSize) {
       }
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -353,8 +354,6 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_with_slide_stride) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
   // 最长等1秒
   constexpr uint64_t kMaxWaitTimeInMs = 1000;
   uint64_t wait_time_in_ms = 0;
@@ -402,7 +401,7 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_with_slide_stride) {
       }
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -435,8 +434,6 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_no_batchSize) {
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
 
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
   // 最长等1秒
   constexpr uint64_t kMaxWaitTimeInMs = 1000;
   uint64_t wait_time_in_ms = 0;
@@ -464,7 +461,7 @@ TEST_F(CountBatchFlowFuncSTest, abnormal_test_with_no_batchSize) {
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_EQ(outs_mbuf_ptr[i], nullptr);
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -492,8 +489,6 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_no_padding) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
   // 最长等1秒
   constexpr uint64_t kMaxWaitTimeInMs = 1000;
   uint64_t wait_time_in_ms = 0;
@@ -528,7 +523,7 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_no_padding) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -556,8 +551,6 @@ TEST_F(CountBatchFlowFuncSTest, input_data_type_error) {
   int64_t input_data2[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
   // 最长等1秒
   constexpr uint64_t kMaxWaitTimeInMs = 1000;
   uint64_t wait_time_in_ms = 0;
@@ -590,7 +583,7 @@ TEST_F(CountBatchFlowFuncSTest, input_data_type_error) {
     }
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -616,8 +609,6 @@ TEST_F(CountBatchFlowFuncSTest, input_shape_error) {
   int32_t input_data2[] = {4, 7, 5, 5};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
   // 最长等1秒
   constexpr uint64_t kMaxWaitTimeInMs = 1000;
   uint64_t wait_time_in_ms = 0;
@@ -650,7 +641,7 @@ TEST_F(CountBatchFlowFuncSTest, input_shape_error) {
     }
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -678,8 +669,6 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_padding) {
   int32_t input_data[] = {4, 7, 5, 5, 1, 0};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
   // 最长等5秒
   constexpr uint64_t kMaxWaitTimeInMs = 1000;
   uint64_t wait_time_in_ms = 0;
@@ -714,7 +703,7 @@ TEST_F(CountBatchFlowFuncSTest, timeout_test_with_padding) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }
@@ -741,8 +730,6 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
   int32_t input_data[] = {4, 7, 5, 5};
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  // 每次等50ms
-  constexpr uint64_t kWaitMsPerTime = 50;
   // 最长等5秒
   constexpr uint64_t kMaxWaitTimeInMs = 5 * 1000;
   uint64_t wait_time_in_ms = 0;
@@ -880,7 +867,7 @@ TEST_F(CountBatchFlowFuncSTest, basic_test_all) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }

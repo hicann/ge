@@ -94,7 +94,7 @@ TEST_F(FlowFuncExecutorWithProxySTest, basic_test) {
   ret = executor.Start();
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });

@@ -87,7 +87,7 @@ class TestProcSlow : public MetaFlowFunc {
   }
 
   int32_t Proc(const std::vector<std::shared_ptr<FlowMsg>> &input_tensors) override {
-    sleep(2);
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     return FLOW_FUNC_ERR_PROC_PENDING;
   }
 };
@@ -860,7 +860,7 @@ TEST_F(FlowFuncProcessorUTest, with_invoked_model) {
   EXPECT_EQ(ret, FLOW_FUNC_SUCCESS);
 }
 
-TEST_F(FlowFuncProcessorUTest, scedule_parall_test) {
+TEST_F(FlowFuncProcessorUTest, schedule_parall_test) {
   std::string flow_func_name1 = "TestProcSlow";
   std::string pp_name = "TestProcSlow";
   std::string lib_path = "/xxx";

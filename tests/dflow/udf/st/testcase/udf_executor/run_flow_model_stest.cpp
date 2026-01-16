@@ -170,7 +170,7 @@ TEST_F(RunFlowModelSTest, basic_test) {
     halMbufFree(out_mbuf);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -218,7 +218,7 @@ TEST_F(RunFlowModelSTest, basic_test_timeout_zero) {
     CheckMbufData(out_mbuf, shape, TensorDataType::DT_FLOAT, expect_output.data(), expect_output.size());
     halMbufFree(out_mbuf);
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -227,7 +227,8 @@ TEST_F(RunFlowModelSTest, run_flow_model_timeout) {
   MOCKER(system).stubs().will(returnValue(0));
   std::vector<uint32_t> input_queues;
   std::vector<uint32_t> output_queues;
-  std::string batch_model_path = CreateModelForRunFlowModel(input_queues, output_queues, false, Common::kDeviceTypeNpu);
+  std::string batch_model_path =
+      CreateModelForRunFlowModel(input_queues, output_queues, false, Common::kDeviceTypeNpu, 500);
 
   auto batch_models = FlowFuncModel::ParseModels(batch_model_path);
   EXPECT_EQ(batch_models.size(), 1);
@@ -243,7 +244,7 @@ TEST_F(RunFlowModelSTest, run_flow_model_timeout) {
     DataEnqueue(input_queues[i], shape, TensorDataType::DT_INT32, int_value[i]);
   }
 
-  constexpr uint64_t kMaxWaitInMs = 2 * 1000UL;
+  constexpr uint64_t kMaxWaitInMs = 1000UL;
   for (size_t i = 0; i < output_queues.size(); i++) {
     void *out_mbuf_ptr = nullptr;
     uint64_t wait_in_ms = 0;

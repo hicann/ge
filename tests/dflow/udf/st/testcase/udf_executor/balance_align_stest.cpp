@@ -263,7 +263,7 @@ TEST_F(BalanceAlignSTest, test_scatter) {
     EXPECT_EQ(trans_id_and_data_labels.size(), 1);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -333,7 +333,7 @@ TEST_F(BalanceAlignSTest, test_gather_row) {
     EXPECT_EQ(trans_id_and_data_labels.size(), 1);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -403,7 +403,7 @@ TEST_F(BalanceAlignSTest, test_gather_col) {
     EXPECT_EQ(trans_id_and_data_labels.size(), 1);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 }  // namespace FlowFunc

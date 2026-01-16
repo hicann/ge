@@ -106,7 +106,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_default_attr_value) {
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint64_t kMaxWaitInMs = 5 * 1000;
+  constexpr uint64_t kMaxWaitInMs = 500;
   uint64_t wait_in_ms = 0;
   int32_t get_out_num = 0;
   while (wait_in_ms < kMaxWaitInMs) {
@@ -127,8 +127,9 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_default_attr_value) {
   }
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_EQ(outs_mbuf_ptr[i], nullptr);
+    EXPECT_FALSE(get_out[i]);
   }
-
+  EXPECT_EQ(get_out_num, 0);
   head_msg.flags = 1;
   for (const auto qid : inputs_qid) {
     DataEnqueue(qid, shape, TensorDataType::DT_INT32, head_msg, input_data);
@@ -161,7 +162,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_default_attr_value) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -197,7 +198,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_0_drop_remainde
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint64_t kMaxWaitInMs = 5 * 1000;
+  constexpr uint64_t kMaxWaitInMs = 500;
   uint64_t wait_in_ms = 0;
   int32_t get_out_num = 0;
   while (wait_in_ms < kMaxWaitInMs) {
@@ -218,7 +219,9 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_0_drop_remainde
   }
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_EQ(outs_mbuf_ptr[i], nullptr);
+    EXPECT_FALSE(get_out[i]);
   }
+  EXPECT_EQ(get_out_num, 0);
 
   head_msg.flags = 1;
   for (const auto qid : inputs_qid) {
@@ -252,7 +255,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_0_drop_remainde
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -288,7 +291,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_1_drop_remainde
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint64_t kMaxWaitInMs = 5 * 1000;
+  constexpr uint64_t kMaxWaitInMs = 500;
   uint64_t wait_in_ms = 0;
   int32_t get_out_num = 0;
   while (wait_in_ms < kMaxWaitInMs) {
@@ -309,7 +312,9 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_1_drop_remainde
   }
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_EQ(outs_mbuf_ptr[i], nullptr);
+    EXPECT_FALSE(get_out[i]);
   }
+  EXPECT_EQ(get_out_num, 0);
 
   head_msg.flags = 1;
   for (const auto qid : inputs_qid) {
@@ -343,7 +348,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_1_drop_remainde
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -379,7 +384,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_2_drop_remainde
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint64_t kMaxWaitInMs = 5 * 1000;
+  constexpr uint64_t kMaxWaitInMs = 500;
   uint64_t wait_in_ms = 0;
   int32_t get_out_num = 0;
   while (wait_in_ms < kMaxWaitInMs) {
@@ -400,7 +405,9 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_2_drop_remainde
   }
   for (size_t i = 0; i < outs_mbuf_ptr.size(); ++i) {
     EXPECT_EQ(outs_mbuf_ptr[i], nullptr);
+    EXPECT_FALSE(get_out[i]);
   }
+  EXPECT_EQ(get_out_num, 0);
 
   head_msg.flags = 1;
   for (const auto qid : inputs_qid) {
@@ -434,7 +441,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_2_drop_remainde
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -471,7 +478,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_3_drop_remainde
   }
   std::vector<void *> outs_mbuf_ptr(in_out_num, nullptr);
   std::vector<bool> get_out(in_out_num, false);
-  constexpr uint64_t kMaxWaitInMs = 5 * 1000;
+  constexpr uint64_t kMaxWaitInMs = 500;
   uint64_t wait_in_ms = 0;
   int32_t get_out_num = 0;
   while (wait_in_ms < kMaxWaitInMs) {
@@ -499,7 +506,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_with_flag_and_batch_dim_3_drop_remainde
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -566,7 +573,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_all_empty_eos_msg) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -632,7 +639,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_publish_empty_eos_msg) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 
@@ -703,7 +710,7 @@ TEST_F(TimeBatchFlowFuncSTest, timebatch_publish_cache_msg) {
       halMbufFree(out_mbuf);
     }
   }
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 }  // namespace FlowFunc

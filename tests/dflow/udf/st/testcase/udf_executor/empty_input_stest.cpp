@@ -162,7 +162,7 @@ TEST_F(EmptyInputSTest, basic_test) {
     halMbufFree(out_mbuf);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
   executor.Destroy();
 }

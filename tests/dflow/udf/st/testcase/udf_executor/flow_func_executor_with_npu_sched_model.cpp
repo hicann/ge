@@ -152,7 +152,7 @@ TEST_F(FlowFuncExecutorWithNpuSchedModelSTest, basic_test) {
   EXPECT_EQ(batch_models.size(), 1);
   FlowFuncExecutor executor;
   ScopeGuard executor_guard([&executor]() {
-    executor.Stop();
+    executor.Stop(true);
     executor.WaitForStop();
     executor.Destroy();
   });

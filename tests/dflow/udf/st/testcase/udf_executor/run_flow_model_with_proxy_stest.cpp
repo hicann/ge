@@ -159,7 +159,7 @@ TEST_F(RunFlowModelWithProxySTest, basic_test) {
     halMbufFree(out_mbuf);
   }
 
-  executor.Stop();
+  executor.Stop(true);
   executor.WaitForStop();
 }
 

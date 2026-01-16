@@ -66,7 +66,8 @@ drvError_t halEschedWaitEvent(unsigned int devId, unsigned int grpId, unsigned i
     return DRV_ERROR_NO_EVENT;
   }
   std::unique_lock<std::mutex> lk(event_mutex);
-  condition.wait_for(lk, std::chrono::milliseconds(timeout), [] { return !event_list.empty(); });
+  // 用例降低10倍等待，防止用例耗时太长
+  condition.wait_for(lk, std::chrono::milliseconds(timeout / 10), [] { return !event_list.empty(); });
   if (event_list.empty()) {
     return DRV_ERROR_SCHED_WAIT_TIMEOUT;
   }
