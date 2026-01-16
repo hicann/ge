@@ -298,7 +298,18 @@ Status FEGraphOptimizer::Finalize() {
   return SUCCESS;
 }
 
-Status FEGraphOptimizer::FinalizeSessionInfo(const std::string &session_graph_id) {
+Status FEGraphOptimizer::FinalizeSessionInfo(ge::ComputeGraph& graph) {
+  if (ge::GraphUtils::IsSingleOpScene(graph.shared_from_this())) {
+    FE_LOGI("[GraphOpt] _single_op_scene is true, skip FinalizeSessionInfo, graph name=%s.",
+            graph.GetName().c_str());
+    return SUCCESS;
+  }
+
+  std::string session_graph_id = "";
+  if (ge::AttrUtils::GetStr(graph, ge::ATTR_NAME_SESSION_GRAPH_ID, session_graph_id) == false) {
+    FE_LOGW("[GraphOpt] get session graph id failed, graph name=%s.", graph.GetName().c_str());
+    return SUCCESS;
+  }
   OpStoreAdapterPtr op_store_adapter = OpStoreAdapterManager::Instance(
                     graph_optimizer_attr_.engineName).GetOpStoreAdapter(EN_IMPL_HW_TBE);
   FE_CHECK_NOTNULL(op_store_adapter);

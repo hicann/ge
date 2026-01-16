@@ -33,8 +33,8 @@ class GraphOptimizer {
   // close graphOptimizer
   virtual Status Finalize() = 0;
 
-  virtual Status FinalizeSessionInfo(const std::string &session_graph_id) {
-    (void)session_graph_id;
+  virtual Status FinalizeSessionInfo(ComputeGraph& graph) {
+    (void)graph;
     return SUCCESS;
   }
 

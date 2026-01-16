@@ -154,7 +154,7 @@ Status GraphOptimize::OptimizeGraphInit(const ComputeGraphPtr &compute_graph) co
   return SUCCESS;
 }
 
-Status GraphOptimize::FinalizeSessionInfo(const std::string &session_graph_id) const {
+Status GraphOptimize::FinalizeSessionInfo(const ComputeGraphPtr &compute_graph) const {
   std::shared_ptr<GELib> instance_ptr = ge::GELib::GetInstance();
   if (instance_ptr == nullptr || !instance_ptr->InitFlag()) {
     GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Get][GELib] Gelib not init before.");
@@ -165,10 +165,10 @@ Status GraphOptimize::FinalizeSessionInfo(const std::string &session_graph_id) c
   GELOGD("FinalizeSessionInfo by graph manager, num of graph_optimizer is %zu.", graph_optimizer.size());
 
   for (auto &iter : graph_optimizer) {
-    Status ret = (iter.second)->FinalizeSessionInfo(session_graph_id);
+    Status ret = (iter.second)->FinalizeSessionInfo(*compute_graph);
     if (ret != SUCCESS) {
-      GELOGE(ret, "[Optimize][FinalizeSessionInfo] failed, ret:%u, engine_name:%s, session_graph:%s",
-             ret, iter.first.c_str(), session_graph_id.c_str());
+      GELOGE(ret, "[Optimize][FinalizeSessionInfo] failed, ret:%u, engine_name:%s, graph_name:%s",
+             ret, iter.first.c_str(), compute_graph->GetName().c_str());
       return ret;
     }
   }

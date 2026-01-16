@@ -484,14 +484,9 @@ Status GraphManager::Finalize() {
     auto session_id = compute_graph->GetSessionID();
     auto graph_id = compute_graph->GetGraphID();
     Analyzer::GetInstance()->DestroyGraphJsonObject(session_id, graph_id);
-    
-    std::string session_graph_id = "";
-    if (ge::AttrUtils::GetStr(compute_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id) == false) {
-      GELOGW("[GraphManager] get session graph id failed, graph name=%s.", compute_graph->GetName().c_str());
-      continue;
-    }
+
     CompilerStages &stages = GetCompilerStages(graph_id);
-    Status res = stages.optimizer.FinalizeSessionInfo(session_graph_id);
+    Status res = stages.optimizer.FinalizeSessionInfo(compute_graph);
     if (res != SUCCESS) {
       GELOGE(res, "[Finalize][GraphManager] failed, graph name=%s", compute_graph->GetName().c_str());
       return res;

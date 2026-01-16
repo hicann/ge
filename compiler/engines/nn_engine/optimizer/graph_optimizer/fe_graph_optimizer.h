@@ -151,7 +151,7 @@ class FEGraphOptimizer : public ge::GraphOptimizer {
    */
   Status Finalize() override;
 
-  Status FinalizeSessionInfo(const std::string &session_graph_id) override;
+  Status FinalizeSessionInfo(ge::ComputeGraph& graph) override;
 
   /*
    *  @ingroup fe

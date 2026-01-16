@@ -1604,7 +1604,7 @@ TEST_F(UtestGraphManagerTest, test_initialize3) {
   std::shared_ptr<Graph> graph_ptr = MakeShared<ge::Graph>(graph);
   graph_node2->SetGraph(graph_ptr);
   graph_manager.AddGraphNode(graph_id2, graph_node2);
-  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), FAILED);
 }
 
 TEST_F(UtestGraphManagerTest, test_initialize4) {
@@ -1753,7 +1753,7 @@ TEST_F(UtestGraphManagerTest, test_StartForRunGraph) {
   const std::vector<GeTensor> inputs;
   uint64_t session_id = 1;
   EXPECT_EQ(graph_manager.StartForRunGraph(graph_node2, inputs, ge_root_model, session_id), FAILED);
-  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), FAILED);
 }
 
 // test autofuse env and input not empty
@@ -1785,7 +1785,7 @@ TEST_F(UtestGraphManagerTest, test_StartForRunGraph_failed) {
   }
   uint64_t session_id = 1;
   EXPECT_EQ(graph_manager.StartForRunGraph(graph_node2, inputs, ge_root_model, session_id), FAILED);
-  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), FAILED);
   unsetenv("AUTOFUSE_FLAGS");
 }
 

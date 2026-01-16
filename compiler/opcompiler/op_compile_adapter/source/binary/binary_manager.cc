@@ -361,6 +361,8 @@ bool BinaryManager::GetBinaryFileName(const OpBuildTaskPtr &opTask, std::string 
     std::string binaryFile;
     if (opTask->opNodes.size() == 1) {
         (void)ge::AttrUtils::GetStr(opTask->opNodes[0]->GetOpDesc(), OPS_PATH_NAME_PREFIX, opsPathNamePrefix);
+    } else {
+        opsPathNamePrefix = "ops_legacy";
     }
     if (opsPathNamePrefix != "") {
         binaryFile = filePath + opsPathNamePrefix + "/" + binaryFileName + ".json";
