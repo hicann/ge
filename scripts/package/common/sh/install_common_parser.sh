@@ -840,8 +840,8 @@ add_cann_uninstall_package() {
     get_package_dirpath "package_dirpath" "${package}"
     script_dir="${package_dirpath}/script"
 
-    # graph_autofusion_kernel包存在同时安装多种芯片包的场景
-    # 确保cann_uninstall.sh脚本中只有一个graph_autofusion_kernel的uninstall_package
+    # opp_kernel包存在同时安装多种芯片包的场景
+    # 确保cann_uninstall.sh脚本中只有一个opp_kernel的uninstall_package
     del_cann_uninstall_script_dir "${install_path}" "${script_dir}"
     ret="$?" && [ ${ret} -ne 0 ] && return ${ret}
 
@@ -1212,7 +1212,7 @@ do_remove() {
         ret="$?" && [ $ret -ne 0 ] && return $ret
 
         if [ "$REMOVE_INSTALL_INFO" = "y" ]; then
-            del_ascend_install_info
+            del_ascend_install_info "$install_path"
         fi
     fi
 
@@ -1506,7 +1506,7 @@ do_install() {
     local feature_param="$5"
     local docker_root="$6"
     local is_simple="$7"
-    local install_path_real ret 
+    local install_path_real ret
 
     check_param_not_empty "package" "need set package parameter in install!"
     ret="$?" && [ ${ret} -ne 0 ] && return ${ret}
@@ -1840,7 +1840,7 @@ formal_commands() {
         ret="$?" && [ $ret -ne 0 ] && return $ret
         ;;
     "uninstall")
-        # 统一使用full模式卸载文件。两个包共用部分block（如graph_autofusion），以不同的模式安装时（如：run/full）
+        # 统一使用full模式卸载文件。两个包共用部分block（如opp和opp_kernel），以不同的模式安装时（如：run/full）
         # full模式的包先卸载，run模式的包后卸载，确保能够完整卸载。
         do_uninstall "full" "${install_path}" "${filelist_path}" "${PACKAGE}" "${feature_param}" "${docker_root}"
         ret="$?" && [ $ret -ne 0 ] && return $ret

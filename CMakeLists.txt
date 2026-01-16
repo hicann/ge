@@ -11,8 +11,6 @@
 cmake_minimum_required(VERSION 3.16)
 project(CANN-GRAPH-ENGINE)
 
-set(CMAKE_C_FLAGS_RELEASE "")
-set(CMAKE_CXX_FLAGS_RELEASE "")
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BASE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
@@ -235,6 +233,7 @@ if(DEFINED BUILD_COMPONENT)
     add_subdirectory(api/acl/acl_op_executor)
     add_subdirectory(api/acl/acl_cblas)
     add_subdirectory(api/acl/acl_op_compiler)
+    add_subdirectory(api/acl/stub)
 endif()
 
 if (GE_DT)
@@ -507,6 +506,8 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
         add_dependencies(ge-compiler fwk_atc.bin)
         add_dependencies(ge-compiler compress compress_static compressweight compressweight_static rts_engine switch_by_index)
         add_dependencies(ge-compiler acl_op_compiler)
+        add_dependencies(ge-compiler fmk_onnx_parser_stub fmk_parser_stub atc_stub_ge_compiler fwk_stub_ge_runner fwk_stub_ge_runner_v2
+                stub_acl_op_compiler)
 
         add_custom_target(ge-executor)
         add_dependencies(ge-executor ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
@@ -516,6 +517,8 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
         add_dependencies(ge-executor graph register lowering)
         add_dependencies(ge-executor acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas)
         add_dependencies(ge-executor runtime_update_model_param_ascend910B runtime_update_model_param_ascend910_93)
+        add_dependencies(ge-executor ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register stub_acl_mdl
+                stub_acl_cblas stub_acl_op_executor)
 
         add_custom_target(dflow-executor)
         add_dependencies(dflow-executor deployer_daemon npu_executor_main host_cpu_executor_main udf_dump

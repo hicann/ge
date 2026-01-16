@@ -9,8 +9,6 @@
         <path value="$(TARGET_ENV)/devlib" install_softlink="devlib"/>
         <path value="$(TARGET_ENV)/conf" install_softlink="conf"/>
         <path value="$(TARGET_ENV)/pkg_inc" install_softlink="pkg_inc"/>
-        <path value="share" install_mod="550"/>
-        <path value="share/info" install_mod="750"/>
         <path value="var" install_mod="750"/>
     </dir_info>
 </block>

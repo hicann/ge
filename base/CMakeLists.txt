@@ -525,8 +525,8 @@ list(TRANSFORM STUB_HEADER_LIST
 
 add_custom_command(
     OUTPUT ${STUB_SRC_LIST}
-    COMMAND echo "Generating stub files."
-            && ${HI_PYTHON} ${METADEF_DIR}/tests/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
+    COMMAND echo "Generating ge_common_stub files."
+            && ${HI_PYTHON} ${GE_METADEF_DIR}/../tests/graph_metadef/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
             && echo "Generating stub files end."
 )
 
