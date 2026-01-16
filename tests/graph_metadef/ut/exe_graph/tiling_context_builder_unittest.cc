@@ -304,7 +304,7 @@ TEST_F(TilingContextBuilderUT, BuildAtomicCompileInfoNullptr) {
   ge::graphStatus ret;
   auto tiling_context_holder = builder.CompileInfo(nullptr).Build(op, ret);
   auto context = reinterpret_cast<AtomicCleanTilingContext *>(tiling_context_holder.context_);
-  EXPECT_NE(context, nullptr);
+  EXPECT_EQ(context, nullptr);
   EXPECT_NE(ret, ge::GRAPH_SUCCESS);
   // deprecated later
   builder.CompileInfo(nullptr).Build(op);

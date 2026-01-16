@@ -222,7 +222,7 @@ AtomicTilingContextBuilder &AtomicTilingContextBuilder::Workspace(ContinuousVect
 }
 KernelContextHolder AtomicTilingContextBuilder::Build(const ge::Operator &op, ge::graphStatus &ret) {
   ret = ge::GRAPH_FAILED;
-  KernelContextHolder holder;
+  KernelContextHolder holder{};
   if (compile_info_ == nullptr) {
     GELOGE(ge::GRAPH_PARAM_INVALID, "Please give tiling context builder compile info.");
     return holder;
