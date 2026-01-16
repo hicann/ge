@@ -257,27 +257,23 @@ target_link_libraries(op_tiling_o2 PRIVATE
 
 ##############################################################
 set(STUB_HEADER_LIST
-    ${METADEF_DIR}/inc/external/register/op_impl_registry.h
-    ${METADEF_DIR}/inc/register/op_impl_registry_holder_manager.h
-    ${METADEF_DIR}/inc/register/opp_so_manager.h
-    ${METADEF_DIR}/inc/register/op_impl_space_registry.h
-    ${METADEF_DIR}/inc/register/op_impl_registry_base.h
-    ${METADEF_DIR}/inc/external/register/register.h
+    ${ASCEND_INSTALL_PATH}/include/register/op_impl_registry.h
+    ${GE_METADEF_INC_DIR}/register/register.h
     ${GE_METADEF_INC_DIR}/register/op_lib_register_impl.h
     ${GE_METADEF_INC_DIR}/register/optimization_option_registry.h
+    ${GE_METADEF_INC_DIR}/register/op_tiling.h
+    ${GE_METADEF_INC_DIR}/register/stream_manage_func_registry.h
     ${GE_METADEF_INC_DIR}/external/register/op_def.h
     ${GE_METADEF_INC_DIR}/external/register/op_def_factory.h
     ${GE_METADEF_INC_DIR}/external/register/op_lib_register.h
-    ${GE_METADEF_INC_DIR}/external/register/register_base.h
     ${GE_METADEF_INC_DIR}/external/register/op_tiling_info.h
     ${GE_METADEF_INC_DIR}/external/register/op_tiling_registry.h
     ${GE_METADEF_INC_DIR}/external/register/tilingdata_base.h
+    ${GE_METADEF_INC_DIR}/external/register/register_base.h
     ${GE_METADEF_INC_DIR}/external/register/tuning_bank_key_registry.h
     ${GE_METADEF_INC_DIR}/external/register/tuning_tiling_registry.h
     ${GE_METADEF_INC_DIR}/external/register/hidden_input_func_registry.h
     ${GE_METADEF_INC_DIR}/external/register/hidden_inputs_func_registry.h
-    ${GE_METADEF_INC_DIR}/register/op_tiling.h
-    ${GE_METADEF_INC_DIR}/register/stream_manage_func_registry.h
 )
 
 list(TRANSFORM STUB_HEADER_LIST

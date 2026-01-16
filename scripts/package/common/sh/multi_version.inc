@@ -126,7 +126,7 @@ notify_latest_manager() {
     fi
 
     if [ "$USE_SHARE_INFO" = "y" ]; then
-      ext_params="$ext_params --use-share-info"
+        ext_params="$ext_params --use-share-info"
     fi
 
     get_package_dir package_dir "$package"

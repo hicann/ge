@@ -45,7 +45,7 @@ function(install_public_packages components)
     set(SCRIPTS_FILES
         ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/check_version_required.awk
         ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_func.inc
-        ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.bash
+        ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.sh
         ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.csh
         ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/common_interface.fish
         ${CMAKE_SOURCE_DIR}/scripts/package/common/sh/version_compatiable.inc
@@ -108,9 +108,9 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
             LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
             ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
     )
-    install(TARGETS fmk_parser ge_compiler fmk_onnx_parser ge_runner ge_runner_v2
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub
+    install(TARGETS fmk_onnx_parser_stub fmk_parser_stub atc_stub_ge_compiler fwk_stub_ge_runner fwk_stub_ge_runner_v2 stub_acl_op_compiler
+            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
     )
     install(TARGETS engine
             LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/plugin/nnengine
@@ -258,21 +258,21 @@ elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
             LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
             ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
     )
-    install(TARGETS ge_common gert graph register hybrid_executor lowering
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/x86_64
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/x86_64
+    install(TARGETS ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register
+            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
     )
-    install(TARGETS ge_common gert graph register hybrid_executor lowering register_static
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/aarch64
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/aarch64
+    install(TARGETS ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register
+            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+    )
+    install(TARGETS stub_acl_mdl stub_acl_cblas stub_acl_op_executor
+            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
     )
     install(TARGETS graph register lowering
             LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
             ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
-    )
-    install(TARGETS graph register lowering
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/aoskernel/aarch64
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/aoskernel/aarch64
     )
     install(FILES ${CMAKE_SOURCE_DIR}/build/runtime/ops/update_model_param/ascend910B/UpdateModelParam_ascend910B.o
                   ${CMAKE_SOURCE_DIR}/build/runtime/ops/update_model_param/ascend910_93/UpdateModelParam_ascend910_93.o

@@ -37,6 +37,7 @@ target_include_directories(metadef_headers INTERFACE
     $<BUILD_INTERFACE:${ASCEND_INSTALL_PATH}/include/graph>
     $<BUILD_INTERFACE:${ASCEND_INSTALL_PATH}/include/exe_graph>
     $<BUILD_INTERFACE:${ASCEND_INSTALL_PATH}/include/experiment/metadef>
+    $<BUILD_INTERFACE:${ASCEND_INSTALL_PATH}/include/register>
     $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc>
     $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc/graph_metadef>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/common>

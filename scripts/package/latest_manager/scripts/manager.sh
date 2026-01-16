@@ -87,7 +87,7 @@ do
         ;;
     --use-share-info)
         USE_SHARE_INFO="y"
-        shift 1
+        shift
         ;;
     -*)
         comm_log "ERROR" "Unsupported parameters : $1"

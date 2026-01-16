@@ -15,8 +15,10 @@ is_quiet=n
 curpath=$(dirname $(readlink -f "$0"))
 common_func_path="${curpath}/common_func.inc"
 pkg_version_path="${curpath}/../version.info"
+ge_compiler_func_path="${curpath}/ge-compiler_func.sh"
 
 . "${common_func_path}"
+. "${ge_compiler_func_path}"
 
 if [ "$1" ]; then
     input_install_dir="${2}"
@@ -94,27 +96,11 @@ new_uninstall() {
         return 0
     fi
 
+    # remove softlinks for stub libs in devlib/linux/$(ARCH)
+    remove_stub_softlink "$common_parse_dir"
+
     # 赋可写权限
     chmod +w -R "${SOURCE_INSTALL_COMMON_PARSER_FILE}"
-
-    if [ "$pkg_is_multi_version" = "true" ]; then
-        local package_db_info="$common_parse_dir/var/ascend_package_db.info"
-        if [ -e "$package_db_info" ]; then
-            local linux_path="$(realpath $common_parse_dir/..)"
-            local arch_path="$(basename $linux_path)"
-            local latest_path="$(realpath $linux_path/../..)/cann"
-            local pkgs="$(cut -d'|' -f2 $package_db_info | sort -u)"
-            if [ "$pkgs" = "ge-compiler" ]; then
-                if [ -L "$latest_path/$arch_path" ] && [ "$(realpath $linux_path)" = "$(realpath $latest_path/$arch_path)" ]; then
-                    rm -f "$latest_path/$arch_path"
-                fi
-            elif [ -n "$pkgs" ] && [ -d "$latest_path" ]; then
-                if [ ! -e "$latest_path/$arch_path" ] || [ -L "$latest_path/$arch_path" ]; then
-                    ln -srfn "$linux_path" "$latest_path"
-                fi
-            fi
-        fi
-    fi
 
     # 执行卸载
     custom_options="--custom-options=--common-parse-dir=$common_parse_dir,--logfile=$logfile,--stage=uninstall,--quiet=$is_quiet"
@@ -124,10 +110,6 @@ new_uninstall() {
     if [ $? -ne 0 ]; then
         log "ERROR" "ERR_NO:0x0090;ERR_DES:failed to uninstall package."
         return 1
-    fi
-
-    if [ -n "$latest_path" ] && [ -d "$latest_path" ] && [ "x$(ls -A $latest_path 2>&1)" = "x" ]; then
-        rm -rf "$latest_path"
     fi
 
     return 0

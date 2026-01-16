@@ -19,6 +19,7 @@ sourcedir="$PWD/ge-compiler"
 curpath=$(dirname $(readlink -f "$0"))
 common_func_path="${curpath}/common_func.inc"
 pkg_version_path="${curpath}/../version.info"
+ge_compiler_func_path="${curpath}/ge-compiler_func.sh"
 
 . "${common_func_path}"
 
@@ -78,19 +79,6 @@ new_echo() {
 output_progress() {
     new_echo "INFO" "install upgradePercentage:$1%"
     log "INFO" "install upgradePercentage:$1%"
-}
-
-create_latest_linux_softlink() {
-    if [ "$pkg_is_multi_version" = "true" ]; then
-        local linux_path="$(realpath $common_parse_dir/..)"
-        local arch_path="$(basename $linux_path)"
-        local latest_path="$(realpath $linux_path/../..)/cann"
-        if [ -d "$latest_path" ]; then
-            if [ ! -e "$latest_path/$arch_path" ] || [ -L "$latest_path/$arch_path" ]; then
-                ln -srfn "$linux_path" "$latest_path"
-            fi
-        fi
-    fi
 }
 
 ##########################################################################

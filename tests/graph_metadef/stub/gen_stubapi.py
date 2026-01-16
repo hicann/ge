@@ -1059,12 +1059,15 @@ def collect_header_files(inc_file):
         'inc/framework/',
         'inc/',
         'air/runtime/v1/',
-        'cann-graph-engine/runtime/v1/',
+        'ge-dev/runtime/v1/',
+        'ge/runtime/v1/',
         'air/base/',
         'metadef/base/',
-        'cann-graph-engine/base/',
+        'ge-dev/base/',
+        'ge/base/',
         'metadef/register/',
         'metadef/third_party/transformer/src/',
+        'include/register/',
         # add include dirs
     ]
     for inc_dir in inc_dirs:
