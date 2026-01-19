@@ -25,7 +25,7 @@ std::map<std::string, std::vector<std::string>> kFeErrorParamMap = {
   {EM_RUN_PASS_FAILED, {"pass_name", "pass_type"}},
   {EM_INPUT_OPTION_INVALID, {"value", "parameter", "reason"}},
   {EM_AICORENUM_OUT_OF_RANGE, {"value", "parameter", "range"}},
-  {EM_OPEN_FILE_FAILED, {"file_name", "reason"}},
+  {EM_OPEN_FILE_FAILED, {"file_name"}},
   {EM_READ_FILE_FAILED, {"file_name", "reason"}},
 };
 
