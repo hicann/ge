@@ -23,7 +23,7 @@
 
 namespace llm {
 const std::string PNE_ID_NPU = "NPU";
-// deleted file runtime/llm_datadist/v1/priority_schedule/priority_schedule_manager.h, which defined RoleType
+// deleted file dflow/llm_datadist/v1/priority_schedule/priority_schedule_manager.h, which defined RoleType
 enum class RoleType : uint32_t { PROMPT = 0, DECODER, ROLE_TYPE_END };
 
 class LLMTestUtils {

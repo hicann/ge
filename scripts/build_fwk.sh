@@ -484,7 +484,7 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       set +e  # 临时禁用 set -e，允许命令失败
       lcov -c -d ${BUILD_PATH}/runtime/v2/CMakeFiles/gert.dir -d ${BUILD_PATH}/runtime/v1/CMakeFiles/davinci_executor.dir \
               -d ${BUILD_PATH}/tests/ge/ut/ge -d ${BUILD_PATH}/tests/ge/ut/common/graph/ -d ${BUILD_PATH}/tests/parser/ut/parser \
-              -d ${BUILD_PATH}/tests/depends/llm_datadist -d ${BUILD_PATH}/runtime/llm_datadist -d ${BUILD_PATH}/api/python \
+              -d ${BUILD_PATH}/tests/depends/llm_datadist -d ${BUILD_PATH}/dflow/llm_datadist -d ${BUILD_PATH}/api/python \
               -d ${BUILD_PATH}/api/python/llm_datadist_v1 -d ${BUILD_PATH}/api/python/llm_wrapper \
               -d ${BUILD_PATH}/base -d ${BUILD_PATH}/compiler/graph/eager_style_graph_builder \
               -d ${BUILD_PATH}/tests/framework/CMakeFiles/graphengine.dir -o cov/tmp.info --ignore-errors mismatch,empty,negative
@@ -756,7 +756,7 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
               -d ${BUILD_PATH}/tests/ge/ut/ge/CMakeFiles/ut_eager_style_builder.dir \
               -d ${BUILD_PATH}/tests/ge/ut/ge/graph/eager_style_graph_builder/graph_construction_test/CMakeFiles/ut_graph_construction.dir \
               -d ${BUILD_PATH}/runtime/v2/CMakeFiles/gert.dir \
-              -d ${BUILD_PATH}/tests/ge/st/testcase/CMakeFiles/llm_engine_test.dir \
+              -d ${BUILD_PATH}/tests/dflow/llm_datadist/st/testcase/CMakeFiles/llm_engine_test.dir \
               -d ${BUILD_PATH}/tests/ge/st/testcase/autofuse/CMakeFiles/autofuse_test.dir \
               -d ${BUILD_PATH}/tests/parser/st \
               -d ${BUILD_PATH}/runtime/v1/CMakeFiles/davinci_executor.dir \

@@ -125,9 +125,9 @@ class LlmDataDistUTest : public ::testing::Test {
                                                                  const std::string &deploy_cluster_info) {
     char_t numa_config_path[4096];
     if (role == "Prompt") {
-      (void) mmRealPath("../tests/ge/st/testcase /llm_datadist/json_file/numa_config_prompt.json", numa_config_path, 4096);
+      (void) mmRealPath("../tests/dflow/llm_datadist/st/testcase/llm_datadist/json_file/numa_config_prompt.json", numa_config_path, 4096);
     } else {
-      (void) mmRealPath("../tests/ge/st/testcase/llm_datadist/json_file/numa_config_decoder.json", numa_config_path, 4096);
+      (void) mmRealPath("../tests/dflow/llm_datadist/st/testcase/llm_datadist/json_file/numa_config_decoder.json", numa_config_path, 4096);
     }
     LLMLOGI("numa_config_path:%s", numa_config_path);
     std::map<ge::AscendString, ge::AscendString> options = {

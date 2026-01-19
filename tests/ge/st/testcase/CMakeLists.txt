@@ -220,66 +220,8 @@ target_link_libraries(graph_engine_compile_test
         gert_op_impl eager_graph_builder ge_running_env ge_graph_dsl st_stubs ge_runtime_stub GTest::gtest GTest::gmock GTest::gmock_main
         )
 
-################################################################################
-# build llm_engine_test
-set(LLM_ENGINE_TEST_FILES
-        llm_datadist/test_llm_engine_v2.cc
-        llm_datadist/test_llm_datadist_v1_api.cc
-)
-
-add_executable(llm_engine_test
-        ${LLM_ENGINE_TEST_FILES}
-)
-
-target_compile_definitions(llm_engine_test PRIVATE
-        $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
-        google=ascend_private
-)
-target_compile_options(llm_engine_test PRIVATE
-        ${AIR_COMMON_COMPILE_OPTION}
-)
-
-target_include_directories(llm_engine_test PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${AIR_CODE_DIR}
-        ${AIR_CODE_DIR}/inc/external
-        ${AIR_CODE_DIR}/runtime/llm_datadist/v1
-        ${AIR_CODE_DIR}/runtime/llm_datadist/v1/flow_func
-        ${AIR_CODE_DIR}/runtime/llm_datadist/v1/common
-        ${AIR_CODE_DIR}/tests/depends/llm_datadist/src
-        ${ASCEND_3RD_LIB_PATH}/json/include
-        ${ASCGEN_DIR}/inc
-        ${AIR_CODE_DIR}/api/session
-)
-
-target_link_libraries(llm_engine_test
-        c_sec_headers
-        mmpa_headers
-        runtime_headers
-        ascendcl_headers
-        msprof_headers
-        air_headers
-        slog_headers
-        metadef_headers
-        c_sec
-        slog_stub
-        error_manager
-        runtime_stub
-        mmpa_stub2
-        ascendcl_stub
-        intf_pub
-        llm_engine_base
-        ${AIR_COMMON_LINK_OPTION}
-        GTest::gtest GTest::gtest_main GTest::gmock
-        -Wl,--no-as-needed
-        unified_dlog
-)
-
 add_subdirectory(fast_runtime_v2)
 add_subdirectory(autofuse)
-
-add_test(NAME llm_engine_test COMMAND llm_engine_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/llm_engine_test.xml)
-set_tests_properties(llm_engine_test PROPERTIES LABELS "st;st_hetero;llm_engine_test")
 
 include(CTest)
 enable_testing()

@@ -8,31 +8,43 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-set(LLM_ENGINE_WRAPPER_SRC_FILES
-        "${AIR_CODE_DIR}/api/python/llm_wrapper/llm_wrapper.cc"
-        "${AIR_CODE_DIR}/api/python/llm_wrapper/llm_tensor.cc"
-        "${AIR_CODE_DIR}/api/python/llm_wrapper/llm_datadist_wrapper.cc"
-        "${CMAKE_CURRENT_SOURCE_DIR}/llm_ge_api.cc")
+include_directories(${AIR_CODE_DIR}/tests/)
+include_directories(${AIR_CODE_DIR}/tests/ut)
+include_directories(${AIR_CODE_DIR}/tests/ut/ge)
 
-add_library(llm_wrapper MODULE
-        ${LLM_ENGINE_WRAPPER_SRC_FILES}
+################################################################################
+# build llm_engine_test
+set(LLM_ENGINE_TEST_FILES
+        llm_datadist/test_llm_engine_v2.cc
+        llm_datadist/test_llm_datadist_v1_api.cc
 )
 
-target_include_directories(llm_wrapper PRIVATE
-        ${HI_PYTHON_INC}
-        ${pybind11_INCLUDE_DIR}
-        ${METADEF_DIR}/inc
-        ${METADEF_DIR}/inc/external
-        ${AIR_CODE_DIR}/inc
+add_executable(llm_engine_test
+        ${LLM_ENGINE_TEST_FILES}
+)
+
+target_compile_definitions(llm_engine_test PRIVATE
+        $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
+        google=ascend_private
+)
+target_compile_options(llm_engine_test PRIVATE
+        ${AIR_COMMON_COMPILE_OPTION}
+)
+
+target_include_directories(llm_engine_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${AIR_CODE_DIR}
         ${AIR_CODE_DIR}/inc/external
         ${AIR_CODE_DIR}/dflow/llm_datadist/v1
+        ${AIR_CODE_DIR}/dflow/llm_datadist/v1/flow_func
         ${AIR_CODE_DIR}/dflow/llm_datadist/v1/common
         ${AIR_CODE_DIR}/tests/depends/llm_datadist/src
         ${ASCEND_3RD_LIB_PATH}/json/include
+        ${ASCGEN_DIR}/inc
         ${AIR_CODE_DIR}/api/session
 )
 
-target_link_libraries(llm_wrapper PRIVATE
+target_link_libraries(llm_engine_test
         c_sec_headers
         mmpa_headers
         runtime_headers
@@ -44,24 +56,18 @@ target_link_libraries(llm_wrapper PRIVATE
         c_sec
         slog_stub
         error_manager
-        json
         runtime_stub
         mmpa_stub2
-        intf_pub
         ascendcl_stub
+        intf_pub
         llm_engine_base
+        ${AIR_COMMON_LINK_OPTION}
+        GTest::gtest GTest::gtest_main GTest::gmock
         -Wl,--no-as-needed
         unified_dlog
-        -Wl,-as-needed
-        ${AIR_COMMON_LINK_OPTION}
 )
 
-set_target_properties(llm_wrapper
-        PROPERTIES
-        PREFIX ""
-)
+add_test(NAME llm_engine_test COMMAND llm_engine_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/llm_engine_test.xml)
+set_tests_properties(llm_engine_test PROPERTIES LABELS "st;st_hetero;llm_engine_test")
 
-target_compile_options(llm_wrapper PRIVATE
-        ${AIR_COMMON_COMPILE_OPTION}
-        -Xlinker -export-dynamic
-)
+

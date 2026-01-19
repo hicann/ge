@@ -15,8 +15,8 @@ add_library(llm_mmpa_stub SHARED
 target_include_directories(llm_mmpa_stub PRIVATE
         ${METADEF_DIR}/inc/external
         ${AIR_CODE_DIR}/inc/external
-        ${AIR_CODE_DIR}/runtime/llm_datadist/v1
-        ${AIR_CODE_DIR}/runtime/llm_datadist/v1/common
+        ${AIR_CODE_DIR}/dflow/llm_datadist/v1
+        ${AIR_CODE_DIR}/dflow/llm_datadist/v1/common
         ${AIR_CODE_DIR}/tests
         ${AIR_CODE_DIR}/tests/depends/llm_datadist/src
 )
@@ -49,20 +49,20 @@ set(LLM_ENGINE_BASE_SRCS
         "${AIR_CODE_DIR}/tests/depends/llm_datadist/src/cache_engine_stubs.cc"
         "${AIR_CODE_DIR}/tests/depends/llm_datadist/src/llm_test_helper.cc"
         "${AIR_CODE_DIR}/tests/depends/llm_datadist/src/llm_engine_test_helper.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/cache_engine.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/cache_manager.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/swap_impl.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/llm_ge_api.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/llm_utils.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/llm_common.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/link_manager.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/flow_graph_manager.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/llm_flow_service.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/llm_datadist.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/llm_error_codes.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/llm_file_saver.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/common/llm_thread_pool.cc"
-        "${AIR_CODE_DIR}/runtime/llm_datadist/v1/api/llm_datadist_impl.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/cache_engine.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/cache_manager.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/swap_impl.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/llm_ge_api.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/llm_utils.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/llm_common.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/link_manager.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/flow_graph_manager.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/llm_flow_service.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/llm_datadist.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/llm_error_codes.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/llm_file_saver.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/common/llm_thread_pool.cc"
+        "${AIR_CODE_DIR}/dflow/llm_datadist/v1/api/llm_datadist_impl.cc"
 )
 
 add_library(llm_engine_base SHARED
@@ -72,8 +72,8 @@ add_library(llm_engine_base SHARED
 target_include_directories(llm_engine_base PRIVATE
         ${METADEF_DIR}/inc/external
         ${AIR_CODE_DIR}/inc/external
-        ${AIR_CODE_DIR}/runtime/llm_datadist/v1
-        ${AIR_CODE_DIR}/runtime/llm_datadist/v1/common
+        ${AIR_CODE_DIR}/dflow/llm_datadist/v1
+        ${AIR_CODE_DIR}/dflow/llm_datadist/v1/common
         ${AIR_CODE_DIR}/tests/depends/llm_datadist/src
         ${ASCEND_3RD_LIB_PATH}/json/include
         #for session_util.h

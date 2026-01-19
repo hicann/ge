@@ -56,7 +56,7 @@ std::map<ge::AscendString, ge::AscendString> &LlmEngineOptionBuilder::Build() {
   std::string hcom_cluster_config =
       R"({"comm_group":[{"group_name": "tp_group_0", "group_rank_list" : "[0, 1]"}, {"group_name": "tp_group_1", "group_rank_list" : "[2, 3]"}], "rank_table": "rank_table"})";
   char_t numa_config_path[4096];
-  (void) realpath("../tests/ge/st/testcase/llm_datadist/json_file/numa_config_decoder.json", numa_config_path);
+  (void) realpath("../tests/dflow/llm_datadist/st/testcase/llm_datadist/json_file/numa_config_decoder.json", numa_config_path);
   // 构建选项参数
   llm_options_ = {
       {"ge.socVersion", "Ascend910B1"},

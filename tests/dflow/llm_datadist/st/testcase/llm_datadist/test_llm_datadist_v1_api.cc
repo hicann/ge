@@ -1,12 +1,11 @@
-/**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
- * CANN Open Software License Agreement Version 2.0 (the "License").
+/* Copyright (c) 2024 Huawei Technologies Co., Ltd.
+ * This file is a part of the CANN Open Software.
+ * Licensed under CANN Open Software License Agreement Version 1.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
- */
+ * ===================================================================================================================*/
 
 #include <memory>
 #include <vector>
@@ -68,9 +67,9 @@ class LlmDataDistSTest : public ::testing::Test {
                                                                  const std::string &deploy_cluster_info) {
     char_t numa_config_path[4096];
     if (role == "Prompt") {
-      (void) mmRealPath("../tests/ge/st/testcase/llm_datadist/json_file/numa_config_prompt.json", numa_config_path, 4096);
+      (void) mmRealPath("../tests/dflow/llm_datadist/st/testcase/llm_datadist/json_file/numa_config_prompt.json", numa_config_path, 4096);
     } else {
-      (void) mmRealPath("../tests/ge/st/testcase/llm_datadist/json_file/numa_config_decoder.json", numa_config_path, 4096);
+      (void) mmRealPath("../tests/dflow/llm_datadist/st/testcase/llm_datadist/json_file/numa_config_decoder.json", numa_config_path, 4096);
     }
     LLMLOGI("numa_config_path:%s", numa_config_path);
     std::map<ge::AscendString, ge::AscendString> options = {

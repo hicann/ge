@@ -27,7 +27,7 @@ from llm_datadist_v1.config import EngineConfig
 
 _INVALID_ID = 2 ** 64 - 1
 
-_TEST_BASE_DIR = '../tests/ge/ut/testcase/llm_datadist'
+_TEST_BASE_DIR = '../tests/dflow/llm_datadist/st/testcase/llm_datadist'
 
 class LlmEngineV2Ut(unittest.TestCase):
     def setUp(self) -> None:

@@ -11,5 +11,4 @@
 add_subdirectory(v1)
 add_subdirectory(v2)
 add_subdirectory(stub)
-add_subdirectory(llm_datadist)
 add_subdirectory(ops)

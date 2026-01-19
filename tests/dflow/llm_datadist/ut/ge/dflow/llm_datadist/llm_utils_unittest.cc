@@ -51,7 +51,7 @@ class LLMUtilsTest : public ::testing::Test {
       }
     }
     char_t deploy_cluster_path[4096]{};
-    (void)realpath("../tests/ge/ut/ge/runtime/llm_datadist/json_file/deploy_cluster_info.json", deploy_cluster_path);
+    (void)realpath("../tests/dflow/llm_datadist/ut/ge/dflow/llm_datadist/json_file/deploy_cluster_info.json", deploy_cluster_path);
     std::map<ge::AscendString, ge::AscendString> options = {
         {"ge.exec.deviceId", "0"},
         {"ge.socVersion", "TestSocType1"},

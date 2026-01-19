@@ -49,7 +49,6 @@ graphengine:
       - inc/graph_metadef/
       - api/session/
       - dflow/
-      - runtime/llm_datadist
       - runtime/stub
       - runtime/v1
       - runtime/v2
@@ -58,7 +57,7 @@ graphengine:
       - python/llm_datadist/llm_datadist
       - parser/parser/
     unrelease:
-      - runtime/llm_datadist/v1/llm_error_codes.cc
+      - dflow/llm_datadist/v1/llm_error_codes.cc
       - python/llm_wrapper/CMakeLists.txt
       - python/llm_wrapper/llm_wrapper.cc
       - python/ge/ge_api_c_wrapper

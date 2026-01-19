@@ -20,7 +20,7 @@ if (NOT ENABLE_TEST)
             ${METADEF_DIR}/inc/external
             ${METADEF_DIR}/pkg_inc
             ${AIR_CODE_DIR}/inc/external
-            ${AIR_CODE_DIR}/runtime/llm_datadist/v1
+            ${AIR_CODE_DIR}/dflow/llm_datadist/v1
     )
 
     target_link_libraries(llm_wrapper PRIVATE

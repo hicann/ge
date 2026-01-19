@@ -7,7 +7,10 @@
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
-add_subdirectory(udf)
-add_subdirectory(runner)
-add_subdirectory(flow_graph)
-add_subdirectory(llm_datadist)
+
+if (ENABLE_GE_COV)
+    set(COVERAGE_COMPILER_FLAGS "-g --coverage -fprofile-arcs -fPIC -O0 -ftest-coverage")
+    set(CMAKE_CXX_FLAGS "${COVERAGE_COMPILER_FLAGS}")
+endif()
+
+add_subdirectory(ge)
