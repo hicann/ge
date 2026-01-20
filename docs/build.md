@@ -31,13 +31,6 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
      libgraph-easy-perl patch
      ```
 
-   - python三方库依赖。
-
-     ```bash
-     # 编译依赖的python三方库在源码根目录下的requirements.txt
-     pip3 install -r requirements.txt
-     ```
-
 #### 方式二：使用 Docker 镜像
 
   **配套 X86 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_x86:lv1_latest`
@@ -115,6 +108,9 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
   ```bash
   # 下载项目源码，以master分支为例 
   git clone https://gitcode.com/cann/ge.git
+  # 安装根目录下的requirements.txt依赖
+  cd ge
+  pip3 install -r requirements.txt
   ```
 
 ### 4. 编译
@@ -139,7 +135,7 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 * 开发者下载本仓源码自行编译产生`cann-udf-compat.tar.gz` 并不含签名头，为此需要关闭驱动安全验签的机制。
 * 关闭验签方式：
   配套使用HDK 25.5.T2.B001或以上版本，并通过该HDK配套的npu-smi工具关闭验签。详见[设置自定义验签能力使能状态](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/3152813c?idPath=23710424|251366513|254884019|261408772|252764743), [设置验签模式](https://support.huawei.com/enterprise/zh/doc/EDOC1100540362/a484ba7b?idPath=23710424|251366513|254884019|261408772|252764743)命令文档，以root用户在物理机上执行。  
-  以device 0为例 (其中 -i 后面的参数是device id）：  
+  以device 0为例 （其中 -i 后面的参数是device id）：  
   npu-smi set -t custom-op-secverify-enable -i ***0*** -d 1     # 使能自定义验签  
   npu-smi set -t custom-op-secverify-mode -i ***0*** -d 0      # 设置成"关闭验签模式"
 
