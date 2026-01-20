@@ -655,4 +655,11 @@ PYBIND11_MODULE(dflow_wrapper, m) {
           py::call_guard<py::gil_scoped_release>());
   m.def("init_datatype_manager",
         [](const std::map<ge::DataType, py::array> &type_map) { DFlowDataTypeManager::GetInstance().Init(type_map); });
+  m.def("get_dflow_pybind11_build_abi", []() {
+#ifdef PYBIND11_BUILD_ABI
+    return PYBIND11_BUILD_ABI;
+#else
+    return "";
+#endif
+  });
 }

@@ -12,6 +12,7 @@
 
 import sys
 from jinja2 import Template
+import dataflow.dflow_wrapper as dwrapper
 
 CONTENT = """
 # -----------------------------------------------------------------------------------------------------------
@@ -98,6 +99,10 @@ add_library(${UDF_TARGET_LIB} SHARED
         ${SRC_LIST}
 )
 
+target_compile_definitions(${UDF_TARGET_LIB} PRIVATE
+        PYBIND11_BUILD_ABI="{{dflow_pybind11_build_abi}}"
+)
+
 target_compile_options(${UDF_TARGET_LIB} PRIVATE
         -O2
         -std=c++17
@@ -130,9 +135,11 @@ TPL = Template(CONTENT)
 def gen_func_cmake(prj_name, src_dir, py_src_dir):
     global TPL
     running_python_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+    dflow_pybind11_build_abi = dwrapper.get_dflow_pybind11_build_abi()
     return TPL.render(
         prj_name=prj_name,
         src_dir=src_dir,
         py_src_dir=py_src_dir,
         running_python_version=running_python_version,
+        dflow_pybind11_build_abi=dflow_pybind11_build_abi,
     )
