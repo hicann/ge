@@ -9,7 +9,5 @@
 # -----------------------------------------------------------------------------------------------------------
 
 include(cmake/intf.cmake)
-include(cmake/third_party/boost.cmake)
-include(cmake/third_party/mockcpp.cmake)
 add_subdirectory(ut)
 add_subdirectory(st)

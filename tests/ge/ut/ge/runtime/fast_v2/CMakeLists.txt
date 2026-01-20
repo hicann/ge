@@ -9,6 +9,12 @@
 # -----------------------------------------------------------------------------------------------------------
 
 file(GLOB_RECURSE RUNTIME2_TEST_SRCS CONFIGURE_DEPENDS "*.cc" )
+
+list(REMOVE_ITEM RUNTIME2_TEST_SRCS
+        "${AIR_CODE_DIR}/tests/ge/ut/ge/runtime/fast_v2/engine/dvpp/dvpp_rtkernel/dvpp_rtkernel_unittest.cc"
+        "${AIR_CODE_DIR}/tests/ge/ut/ge/runtime/fast_v2/engine/dvpp/dvpp_rtkernel/stub_dvpp_context.cc"
+)
+
 add_executable(ut_fast_runtime2_test
         "${AIR_CODE_DIR}/tests/depends/graph_tuner/rt2_src/graph_tunner_rt2_stub.cc"
         "${AIR_CODE_DIR}/tests/ge/ut/ge/ffts_plus_proto_tools.cc"

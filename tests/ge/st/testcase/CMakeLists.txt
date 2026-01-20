@@ -221,6 +221,7 @@ target_link_libraries(graph_engine_compile_test
         )
 
 add_subdirectory(fast_runtime_v2)
+add_subdirectory(fast_runtime_v2/dvpp/dvpp_rtkernel)
 add_subdirectory(autofuse)
 
 include(CTest)

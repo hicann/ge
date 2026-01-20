@@ -109,4 +109,5 @@ else ()
             INTERFACE_INCLUDE_DIRECTORIES "${MOCKCPP_INCLUDE_DIR}"
             IMPORTED_LOCATION "${MOCKCPP_INSTALL_PATH}/lib/libmockcpp.a")
     add_dependencies(mockcpp_static mockcpp)
+    message(STATUS "!!!!!!!!!!!!!!!!22 mockcpp_static:" ${mockcpp_static})
 endif ()

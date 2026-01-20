@@ -12,10 +12,16 @@
 #include <mutex>
 #include "securec.h"
 #include "acl/acl_rt.h"
+#ifdef DVPP_LLT
+#include "stub_op_impl_registry.h"
+#include "stub_kernel_registry.h"
+#include "stub_ge_log.h"
+#else
 #include "register/kernel_registry.h"
 #include "register/op_impl_registry.h"
 #include "gert_tensor_data.h"
-#include "ge_log.h"
+#include "debug/ge_log.h"
+#endif
 #include "dvpp_rt_kernel.h"
 
 namespace gert {
@@ -66,7 +72,7 @@ static void LoadDvppRtKernelFunc()
     DvppRtKernelLoadFunc(dvppHandle, dvppFreeSqeReadOnlyMemFunPtr, "FreeSqeReadOnlyMem");
 }
 
-static int32_t BuildDvppCmdlistV2(gert::DvppContext* context, std::vector<void*>& ioAddrs, DvppSqeInfo& sqeInfo)
+int32_t BuildDvppCmdlistV2(gert::DvppContext* context, std::vector<void*>& ioAddrs, DvppSqeInfo& sqeInfo)
 {
     std::call_once(loadFlag, LoadDvppRtKernelFunc);
     if (dvppBuildDvppCmdlistV2FunPtr == nullptr) {
@@ -77,7 +83,7 @@ static int32_t BuildDvppCmdlistV2(gert::DvppContext* context, std::vector<void*>
     return dvppBuildDvppCmdlistV2FunPtr(context, ioAddrs, sqeInfo);
 }
 
-static int32_t CalcOpWorkspaceMemSize(gert::DvppContext* context, size_t& memSize)
+int32_t CalcOpWorkspaceMemSize(gert::DvppContext* context, size_t& memSize)
 {
     std::call_once(loadFlag, LoadDvppRtKernelFunc);
     if (dvppCalcOpWorkspaceMemSizeFunPtr == nullptr) {
@@ -88,7 +94,7 @@ static int32_t CalcOpWorkspaceMemSize(gert::DvppContext* context, size_t& memSiz
     return dvppCalcOpWorkspaceMemSizeFunPtr(context, memSize);
 }
 
-static int32_t StarsBatchTaskLaunch(void* taskSqe, const uint32_t sqeCount, void* stream)
+int32_t StarsBatchTaskLaunch(void* taskSqe, const uint32_t sqeCount, void* stream)
 {
     std::call_once(loadFlag, LoadDvppRtKernelFunc);
     if (dvppStarsBatchTaskLaunchFunPtr == nullptr) {
@@ -99,7 +105,7 @@ static int32_t StarsBatchTaskLaunch(void* taskSqe, const uint32_t sqeCount, void
     return dvppStarsBatchTaskLaunchFunPtr(taskSqe, sqeCount, stream);
 }
 
-static int32_t StarsMultipleTaskLaunch(void* taskSqe, const uint32_t sqeCount, void* stream)
+int32_t StarsMultipleTaskLaunch(void* taskSqe, const uint32_t sqeCount, void* stream)
 {
     std::call_once(loadFlag, LoadDvppRtKernelFunc);
     if (dvppStarsMultipleTaskLaunchFunPtr == nullptr) {
@@ -110,7 +116,7 @@ static int32_t StarsMultipleTaskLaunch(void* taskSqe, const uint32_t sqeCount, v
     return dvppStarsMultipleTaskLaunchFunPtr(taskSqe, sqeCount, stream);
 }
 
-static void FreeSqeReadOnlyMem(void* sqePtr)
+void FreeSqeReadOnlyMem(void* sqePtr)
 {
     std::call_once(loadFlag, LoadDvppRtKernelFunc);
     if (dvppFreeSqeReadOnlyMemFunPtr == nullptr) {
@@ -139,6 +145,7 @@ void FreeSqeBuf(void *ptr)
     }
     delete dvppSqe;
     ptr = nullptr;
+
     return;
 }
 
@@ -177,6 +184,7 @@ static int32_t FillDvppSqeInfo(KernelContext* context, DvppSqeInfo &sqeInfo, Sqe
         GELOGE(ge::FAILED, "output0 is null");
         return ge::FAILED;
     }
+
     dvppSqe = reinterpret_cast<Sqe*>(*output0);
 
     // 对SQE进行清零，方便后边只读内存释放
@@ -229,7 +237,6 @@ ge::graphStatus GenerateSqeAndLaunchTask(KernelContext* context)
     }
     const size_t workSpaceNums = workSpace->GetSize();
     std::vector<void*> ioAddrs(ioNum + workSpaceNums);
-
     for (size_t i = 0UL; i < ioNum; i++) {
         const auto inputTensorData = context->GetInputValue<gert::TensorData*>(ioAddrStart + i);
         if (inputTensorData == nullptr) {
@@ -238,7 +245,6 @@ ge::graphStatus GenerateSqeAndLaunchTask(KernelContext* context)
         }
         ioAddrs[i] = inputTensorData->GetAddr();
     }
-
     const auto workSpaceVector = reinterpret_cast<gert::GertTensorData *const *>(workSpace->GetData());
     const auto dvppKernelContext = reinterpret_cast<DvppContext *>(context);
     const std::string opType = dvppKernelContext->GetNodeType();
@@ -255,7 +261,7 @@ ge::graphStatus GenerateSqeAndLaunchTask(KernelContext* context)
     if (ret != ge::SUCCESS) {
         return ge::FAILED;
     }
-    
+
     ret = BuildDvppCmdlistV2(reinterpret_cast<DvppContext*>(context), ioAddrs, sqeInfo);
     if (ret != 0) {
         GELOGE(ge::FAILED, "build dvpp cmdlistV2 failed, ret=%d.", ret);
