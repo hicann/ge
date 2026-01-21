@@ -47,6 +47,7 @@ else()
                 -DBUILD_SHARED_LIBS:BOOL=OFF
                 -DBOOST_ROOT=${CMAKE_THIRD_PARTY_LIB_DIR}/boost
                 -DBUILD_TESTS=off
+                -DCMAKE_POLICY_VERSION_MINIMUM=3.5
                 -DCMAKE_CXX_STANDARD=17
                 -DWITH_SYMENGINE_THREAD_SAFE:BOOL=ON
                 -DCMAKE_CXX_EXTENSIONS=OFF

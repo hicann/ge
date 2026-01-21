@@ -57,6 +57,7 @@ else()
                         CONFIGURE_COMMAND ${CMAKE_COMMAND}
                             -DCMAKE_INSTALL_PREFIX=${CMAKE_THIRD_PARTY_LIB_DIR}/zlib
                             -DCMAKE_C_FLAGS=${ZLIB_C_FLAGS}
+                            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
                             -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                             -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
                             <SOURCE_DIR>

@@ -44,6 +44,7 @@ build_third_party() {
   cd "${BASEPATH}"
 
   CMAKE_ARGS="-D CMAKE_THIRD_PARTY_LIB_DIR=${THIRD_PARTY_LIB_DIR} \
+              -D CMAKE_POLICY_VERSION_MINIMUM=3.5 \
               -D CMAKE_BUILD_COMPONENT=${BUILD_COMPONENT}"
   echo "CMAKE_ARGS is: $CMAKE_ARGS"
   # make clean

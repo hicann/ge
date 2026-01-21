@@ -22,6 +22,7 @@ ExternalProject_Add(symengine_build
         URL ${REQ_URL}
         TLS_VERIFY OFF
         CONFIGURE_COMMAND ${CMAKE_COMMAND}
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             -DINTEGER_CLASS:STRING=boostmp
             -DBUILD_SHARED_LIBS:BOOL=ON
             -DBOOST_ROOT=${CMAKE_INSTALL_PREFIX}/boost

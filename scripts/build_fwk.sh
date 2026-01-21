@@ -311,6 +311,7 @@ build_graphengine()
         -D ASCEND_3RD_LIB_PATH=${ASCEND_3RD_LIB_PATH} \
         -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
+        -D CMAKE_POLICY_VERSION_MINIMUM=3.5 \
         ..
   if [ $? -ne 0 ]
   then
