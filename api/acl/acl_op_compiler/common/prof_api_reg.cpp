@@ -13,7 +13,6 @@
 #include <unordered_set>
 #include <map>
 #include "mmpa/mmpa_api.h"
-#include "runtime/base.h"
 #include "common/log_inner.h"
 
 namespace {
@@ -76,7 +75,7 @@ namespace {
         return ACL_SUCCESS;
     }
 
-    static aclError ProfInnerStart(const rtProfCommandHandle_t *const profilerConfig)
+    static aclError ProfInnerStart(const MsprofCommandHandle *const profilerConfig)
     {
         ACL_LOG_INFO("start to execute ProfInnerStart");
         if (!g_profRun) {
@@ -88,7 +87,7 @@ namespace {
         return ACL_SUCCESS;
     }
 
-    static aclError ProfInnerStop(const rtProfCommandHandle_t *const profilerConfig)
+    static aclError ProfInnerStop(const MsprofCommandHandle *const profilerConfig)
     {
         ACL_LOG_INFO("start to execute ProfInnerStop");
         (void)RemoveDeviceList(profilerConfig->devIdList, profilerConfig->devNums);
@@ -105,12 +104,12 @@ namespace {
         ACL_LOG_INFO("start to execute ProcessProfData");
        const std::lock_guard<std::mutex> lk(g_profMutex);
         ACL_REQUIRES_NOT_NULL(data);
-        constexpr size_t commandLen = sizeof(rtProfCommandHandle_t);
+        constexpr size_t commandLen = sizeof(MsprofCommandHandle);
         if (len < commandLen) {
             ACL_LOG_INNER_ERROR("[Check][Len]len[%u] is invalid, it should not be smaller than %zu", len, commandLen);
             return ACL_ERROR_INVALID_PARAM;
         }
-        rtProfCommandHandle_t *const profilerConfig = static_cast<rtProfCommandHandle_t *>(data);
+        MsprofCommandHandle *const profilerConfig = static_cast<MsprofCommandHandle *>(data);
         aclError ret = ACL_SUCCESS;
         const uint64_t profSwitch = profilerConfig->profSwitch;
         const uint32_t type = profilerConfig->type;
@@ -128,7 +127,7 @@ namespace {
     {
         ACL_REQUIRES_NOT_NULL(data);
 
-        if (dataType == RT_PROF_CTRL_SWITCH) {
+        if (dataType == PROF_CTRL_SWITCH) {
             const aclError ret = ProcessProfData(data, dataLen);
             if (ret != ACL_SUCCESS) {
                 ACL_LOG_INNER_ERROR("[Process][ProfSwitch]failed to call ProcessProfData, result is %u", ret);

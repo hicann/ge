@@ -165,7 +165,6 @@ endif ()
 
 if(BUILD_PKG_COMPONENT)
     find_package(acl_rt MODULE REQUIRED)
-    find_package(aclrtimpl MODULE REQUIRED)
     find_package(awatchdog MODULE REQUIRED)
 endif()
 

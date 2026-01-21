@@ -20,8 +20,6 @@
 #undef protected
 
 #include "acl/acl.h"
-#include "runtime/rt.h"
-/// #include "utils/file_utils.h"
 #include "single_op/op_model_parser.h"
 #include "framework/common/helper/om_file_helper.h"
 #include "framework/common/types.h"

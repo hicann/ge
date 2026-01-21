@@ -76,13 +76,12 @@ target_link_libraries(acl_op_compiler PRIVATE
     -Wl,--no-as-needed
     acl_op_executor
     acl_op_executor_impl
-    acl_rt_impl
+    acl_rt
     c_sec
     unified_dlog
     runtime
     mmpa
     profapi_share
-    platform
     gert
     graph_base
     graph

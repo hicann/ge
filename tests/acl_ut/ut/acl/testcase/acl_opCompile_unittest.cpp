@@ -80,8 +80,6 @@ TEST_F(UTEST_ACL_OpCompiler, InitLocalCompiler_SetOptionNameMap) {
 
 TEST_F(UTEST_ACL_OpCompiler, OnlineCompileTest)
 {
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-        .WillRepeatedly(Return(1));
     LocalCompiler compiler;
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), BuildSingleOpModel(_,_,_,_,_,_))
         .WillOnce(Return(ge::PARAM_INVALID))
@@ -397,7 +395,7 @@ TEST_F(UTEST_ACL_OpCompiler, aclGetCompileopt_Ok)
 TEST_F(UTEST_ACL_OpCompiler, aclGetCompileoptLengthCheckFailed)
 {
     char value;
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocNameImpl())
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocName())
         .WillOnce(Return("Ascend910B1"));
     EXPECT_EQ(aclGetCompileopt(ACL_OP_JIT_COMPILE, &value, 1), ACL_ERROR_FAILURE);
 }
@@ -408,22 +406,9 @@ TEST_F(UTEST_ACL_OpCompiler, aclGetCompileoptNotSupportFailed)
     EXPECT_EQ(aclGetCompileopt(ACL_AICORE_NUM, &value, 256), ACL_ERROR_API_NOT_SUPPORT);
 }
 
-TEST_F(UTEST_ACL_OpCompiler, aclGetCompileopt_Fail_GetJitCompileButPlatformError)
-{
-    std::vector<char> value(256);
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocNameImpl())
-        .WillRepeatedly(Return("Ascend910B1"));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), InitializePlatformInfo())
-        .WillOnce(Return(0xFFFFFFFF))
-        .WillOnce(Return(0));
-    EXPECT_EQ(aclGetCompileopt(ACL_OP_JIT_COMPILE, value.data(), 256), ACL_ERROR_INTERNAL_ERROR);
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetPlatformInfos(_, _, _)).WillOnce(Return(0xFFFFFFFF));
-    EXPECT_EQ(aclGetCompileopt(ACL_OP_JIT_COMPILE, value.data(), 256), ACL_ERROR_INTERNAL_ERROR);
-}
-
 TEST_F(UTEST_ACL_OpCompiler, aclGetCompileoptTestDisable)
 {
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocNameImpl())
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocName())
         .WillRepeatedly(Return("Ascend910B1"));
     const auto size = aclGetCompileoptSize(ACL_OP_JIT_COMPILE);
     char *value_buff = new char[size];
@@ -434,9 +419,9 @@ TEST_F(UTEST_ACL_OpCompiler, aclGetCompileoptTestDisable)
 
 TEST_F(UTEST_ACL_OpCompiler, TestSetOptionFail)
 {
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetSocVersion(_, _))
-        .WillOnce(Return(1));
-    EXPECT_EQ(acl::OpCompileProcessor::GetInstance().SetOption(), 1);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocName())
+        .WillOnce(Return(nullptr));
+    EXPECT_EQ(acl::OpCompileProcessor::GetInstance().SetOption(), 500000);
 }
 
 TEST_F(UTEST_ACL_OpCompiler, aclSetCompileoptTest4)
@@ -479,8 +464,6 @@ TEST_F(UTEST_ACL_OpCompiler, TestOnlineCompile02)
     std::shared_ptr<void> modelData = nullptr;
     size_t modelSize = 0;
 
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-        .WillRepeatedly(Return(ACL_ERROR_INVALID_PARAM));
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Initialize(_, _))
         .WillOnce(Return(ge::PARAM_INVALID));
     EXPECT_NE(compiler.OnlineCompileAndDump(param, modelData, modelSize, nullptr, nullptr), ACL_SUCCESS);
@@ -528,7 +511,7 @@ TEST_F(UTEST_ACL_OpCompiler, aclopCompile_Check_JitCompileDefaultValue)
     .WillRepeatedly(Return(ge::SUCCESS));
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Ge_Generator_Finalize())
     .WillRepeatedly(Return(ge::SUCCESS));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocNameImpl())
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocName())
     .WillOnce(Return(("Ascend910B1")));
 
     aclError ret = aclopCompile(opType, numInputs, inputDesc,
@@ -875,7 +858,7 @@ TEST_F(UTEST_ACL_OpCompiler, aclGenGraphAndDumpForOpTest)
     aclError ret = aclGenGraphAndDumpForOp("Add", numInputs, inputDesc, inputs,
                 numOutputs, outputDesc, outputs, &attr, engineType, "./", opt);
     EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetCurrentContextImpl(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetCurrentContext(_))
         .WillRepeatedly(Return(ACL_SUCCESS));
     ret = aclGenGraphAndDumpForOp("Add", numInputs, inputDesc, inputs,
                 numOutputs, outputDesc, outputs, &attr, engineType, "./", nullptr);

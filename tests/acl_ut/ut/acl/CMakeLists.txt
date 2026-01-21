@@ -119,8 +119,6 @@ target_include_directories(ut_acl_model_src PRIVATE
     ${BASE_DIR}/inc/external/acl
     ${BASE_DIR}/api/acl/acl_model
     ${BASE_DIR}/api/acl/acl_model/common
-    ${BASE_DIR}/api/acl/include_other_module/acl
-    ${BASE_DIR}/api/acl/include_other_module
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
@@ -165,8 +163,6 @@ target_include_directories(ut_acl_cblas_src PRIVATE
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/external/acl
     ${BASE_DIR}/api/acl/acl_cblas
-    ${BASE_DIR}/api/acl/include_other_module/acl
-    ${BASE_DIR}/api/acl/include_other_module
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
@@ -217,8 +213,6 @@ target_include_directories(ut_acl_op_exec_src PRIVATE
     ${BASE_DIR}/api/acl/acl_op_executor
     ${BASE_DIR}/api/acl/acl_op_executor/common
     ${BASE_DIR}/api/acl/acl_model
-    ${BASE_DIR}/api/acl/include_other_module/acl
-    ${BASE_DIR}/api/acl/include_other_module
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
@@ -269,8 +263,6 @@ target_include_directories(ut_acl_op_compiler_src PRIVATE
     ${BASE_DIR}/api/acl/acl_op_compiler
     ${BASE_DIR}/api/acl/acl_op_compiler/common
     ${BASE_DIR}/api/acl/acl_op_executor/single_op
-    ${BASE_DIR}/api/acl/include_other_module/acl
-    ${BASE_DIR}/api/acl/include_other_module
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
@@ -321,8 +313,6 @@ target_include_directories(acl_utest PRIVATE
     ${BASE_DIR}/api/acl/acl_op_compiler
     ${BASE_DIR}/api/acl/acl_op_executor
     ${BASE_DIR}/api/acl/acl_op_executor/single_op
-    ${BASE_DIR}/api/acl/include_other_module/acl
-    ${BASE_DIR}/api/acl/include_other_module
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}

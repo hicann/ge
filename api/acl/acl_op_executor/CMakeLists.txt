@@ -70,7 +70,6 @@ target_compile_options(acl_op_executor_impl PRIVATE
 target_compile_definitions(acl_op_executor_impl PRIVATE
     $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,OS_TYPE=WIN,OS_TYPE=0>
     FUNC_VISIBILITY
-    LOG_CPP
     google=ascend_private
     $<$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>:SECUREC_USING_STD_SECURE_LIB=0 NOMINMAX>
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
@@ -97,7 +96,7 @@ target_link_libraries(acl_op_executor_impl PRIVATE
     -Wl,--whole-archive
     -Wl,--no-whole-archive
     -Wl,--no-as-needed
-    acl_rt_impl
+    acl_rt
     acl_mdl
     acl_mdl_impl
     c_sec
@@ -146,7 +145,6 @@ target_compile_options(acl_op_executor PRIVATE
 target_compile_definitions(acl_op_executor PRIVATE
     $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,OS_TYPE=WIN,OS_TYPE=0>
     FUNC_VISIBILITY
-    LOG_CPP
     google=ascend_private
     $<$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>:SECUREC_USING_STD_SECURE_LIB=0 NOMINMAX>
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>

@@ -9,7 +9,6 @@
  */
 
 #include "acl_resource_manager.h"
-#include "runtime/stream.h"
 #include "framework/runtime/gert_api.h"
 #include "framework/common/profiling_definitions.h"
 #include "framework/memory/allocator_desc.h"
@@ -18,7 +17,7 @@
 #include "common/acl_model_log_inner.h"
 #include "framework/runtime/subscriber/global_profiler.h"
 #include "ge/ge_allocator.h"
-#include "acl/acl_rt_impl.h"
+#include "acl/acl_rt.h"
 
 namespace {
 std::atomic<std::uint64_t> atomicModelId(0UL);
@@ -158,10 +157,10 @@ void *AclResourceManager::GetKeyByStreamOrDefaultStream(const aclrtStream stream
         return stream;
     }
     // get current context default stream
-    rtStream_t curCtxDefaultStream = nullptr;
-    const rtError_t rtErr = rtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
-    if (rtErr != RT_ERROR_NONE) {
-        ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(rtErr));
+    aclrtStream curCtxDefaultStream = nullptr;
+    const aclError aclErr = aclrtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
+    if (aclErr != ACL_ERROR_NONE) {
+        ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(aclErr));
         return nullptr;
     }
     return curCtxDefaultStream;
@@ -269,7 +268,7 @@ std::shared_ptr<gert::Allocators> AclResourceManager::UpdateExternalAllocators(a
     aclrtAllocatorFreeFunc freeFunc;
     aclrtAllocatorAllocAdviseFunc allocAdviseFunc;
     aclrtAllocatorGetAddrFromBlockFunc getAddrFromBlockFunc;
-    bool new_desc_exist = aclrtAllocatorGetByStreamImpl(stream, &new_desc, &allocator, &allocFunc,
+    bool new_desc_exist = aclrtAllocatorGetByStream(stream, &new_desc, &allocator, &allocFunc,
                             &freeFunc, &allocAdviseFunc, &getAddrFromBlockFunc) == ACL_SUCCESS;
     const auto iter_old_desc = streamExternalAllocator_.find(cacheKey);
     bool old_desc_exist = iter_old_desc != streamExternalAllocator_.end();
@@ -317,22 +316,24 @@ AclResourceManager::~AclResourceManager()
     streamExternalAllocator_.clear();
 }
 
-void AclResourceManager::HandleReleaseSourceByDevice(uint32_t devId, bool isReset) const
+void AclResourceManager::HandleReleaseSourceByDevice(int32_t deviceId, aclrtDeviceState state, void *args) const
 {
-    ACL_LOG_INFO("start to execute HandleReleaseSourceByDevice, devId:%u.", devId);
-    if (!isReset) {
-        ACL_LOG_INFO("it's set device callback, currently do nothing.");
+    (void)args;
+    ACL_LOG_INFO("start to execute HandleReleaseSourceByDevice, devId:%d.", deviceId);
+    if (state != ACL_RT_DEVICE_STATE_RESET_PRE) {
+        ACL_LOG_INFO("it's not reset pre device callback, currently do nothing.");
         return;
     }
     (void)ge::GeExecutor::ReleaseResource();
-    ACL_LOG_INFO("successfully execute HandleReleaseSourceByDevice, devId:%u.", devId);
+    ACL_LOG_INFO("successfully execute HandleReleaseSourceByDevice, devId:%d.", deviceId);
 }
 
-void AclResourceManager::HandleReleaseSourceByStream(aclrtStream stream, bool isCreate)
+void AclResourceManager::HandleReleaseSourceByStream(aclrtStream stream, aclrtStreamState state, void *args)
 {
+    (void)args;
     ACL_LOG_INFO("start to execute HandleReleaseSourceByStream.");
-    if (isCreate) {
-        ACL_LOG_INFO("it's create stream callback, currently do nothing.");
+    if (state != ACL_RT_STREAM_STATE_DESTROY_PRE) {
+        ACL_LOG_INFO("it's not destroy stream callback, currently do nothing.");
         return;
     }
     (void)CleanAllocators(stream);

@@ -85,8 +85,8 @@ public:
 
     void SetMaxOpNum(const uint64_t maxOpNum);
 
-    void HandleReleaseSourceByStream(aclrtStream stream, bool isCreate);
-    void HandleReleaseSourceByDevice(uint32_t devId, bool isReset) const;
+    void HandleReleaseSourceByStream(aclrtStream stream, aclrtStreamState state, void *args);
+    void HandleReleaseSourceByDevice(int32_t deviceId, aclrtDeviceState state, void *args) const;
     void UpdateAllocatorsForOp(const void * const cacheKey, std::shared_ptr<gert::Allocators> &allocators);
 
     aclError CreateRT2Executor(std::shared_ptr<gert::StreamExecutor> &streamExecutor, rtStream_t stream,

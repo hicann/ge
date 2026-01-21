@@ -616,37 +616,6 @@ MockFunctionTest& MockFunctionTest::aclStubInstance()
 };
 
 void  MockFunctionTest::ResetToDefaultMock() {
-    // delegates the default actions of the RTS methods to aclStub
-    ON_CALL(*this, rtDvppMallocWithFlag)
-        .WillByDefault([this](void **devPtr, uint64_t size, uint32_t flag, uint16_t moduleId) {
-          return aclStub::rtDvppMallocWithFlag(devPtr, size, flag, moduleId);
-        });
-    ON_CALL(*this, rtDvppMalloc).WillByDefault([this](void **devPtr, uint64_t size, uint16_t moduleId) {
-      return aclStub::rtDvppMalloc(devPtr, size, moduleId);
-    });
-    ON_CALL(*this, rtDvppFree).WillByDefault([this](void *devPtr) {
-      return aclStub::rtDvppFree(devPtr);
-    });
-    ON_CALL(*this, rtMalloc).WillByDefault([this](void **devPtr, uint64_t size, rtMemType_t type, uint16_t moduleId) {
-      return aclStub::rtMalloc(devPtr, size, type, moduleId);
-    });
-    ON_CALL(*this, rtFree).WillByDefault([this](void *devPtr) {
-      return aclStub::rtFree(devPtr);
-    });
-    ON_CALL(*this, rtMallocHost).WillByDefault([this](void **hostPtr, uint64_t size, uint16_t moduleId) {
-      return aclStub::rtMallocHost(hostPtr, size, moduleId);
-    });
-    ON_CALL(*this, rtFreeHost).WillByDefault([this](void *devPtr) {
-      return aclStub::rtFreeHost(devPtr);
-    });
-    ON_CALL(*this, rtMallocCached)
-        .WillByDefault([this](void **devPtr, uint64_t size, rtMemType_t type, uint16_t moduleId) {
-          return aclStub::rtMallocCached(devPtr, size, type, moduleId);
-        });
-    ON_CALL(*this, rtMemcpy)
-        .WillByDefault([this](void *dst, uint64_t destMax, const void *src, uint64_t count, rtMemcpyKind_t kind) {
-          return aclStub::rtMemcpy(dst, destMax, src, count, kind);
-        });
 }
 
 namespace ge {

@@ -9,7 +9,6 @@
  */
 
 #include "op_compile_processor.h"
-#include "runtime/dev.h"
 #include "acl_op_resource_manager.h"
 #include "op_compile_service.h"
 #include "ge/ge_api.h"
@@ -75,12 +74,10 @@ aclError OpCompileProcessor::Init()
 
 aclError OpCompileProcessor::SetOption()
 {
-    char socVersion[SOC_VERSION_LEN] = {0};
-    auto ret = rtGetSocVersion(socVersion, sizeof(socVersion));
-    if (ret != RT_ERROR_NONE) {
-        ACL_LOG_CALL_ERROR("[Get][SocVersion]get soc version failed, runtime result = %d",
-            static_cast<int32_t>(ret));
-        return ACL_GET_ERRCODE_RTS(ret);
+    const char *socVersion = aclrtGetSocName();
+    if (socVersion == nullptr) {
+        ACL_LOG_CALL_ERROR("[Get][SocVersion]get soc version failed, runtime result = %d", ACL_ERROR_INTERNAL_ERROR);
+        return ACL_ERROR_INTERNAL_ERROR;
     }
 
     std::map<std::string, std::string> options = {

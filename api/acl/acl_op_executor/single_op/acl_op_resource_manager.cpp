@@ -10,7 +10,6 @@
 
 #include "acl_op_resource_manager.h"
 #include "awatchdog.h"
-#include "runtime/stream.h"
 #include "framework/runtime/gert_api.h"
 #include "framework/common/profiling_definitions.h"
 #include "framework/memory/allocator_desc.h"
@@ -70,10 +69,10 @@ void *AclOpResourceManager::GetKeyByStreamOrDefaultStream(const aclrtStream stre
         return stream;
     }
     // get current context default stream
-    rtStream_t curCtxDefaultStream = nullptr;
-    const rtError_t rtErr = rtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
-    if (rtErr != RT_ERROR_NONE) {
-        ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(rtErr));
+    aclrtStream curCtxDefaultStream = nullptr;
+    const aclError aclErr = aclrtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
+    if (aclErr != ACL_ERROR_NONE) {
+        ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(aclErr));
         return nullptr;
     }
     return curCtxDefaultStream;
@@ -577,15 +576,16 @@ AclOpResourceManager::~AclOpResourceManager()
     streamAllocators_.clear();
 }
 
-void AclOpResourceManager::HandleReleaseSourceByDevice(uint32_t devId, bool isReset) const
+void AclOpResourceManager::HandleReleaseSourceByDevice(int32_t deviceId, aclrtDeviceState state, void *args) const
 {
-    ACL_LOG_INFO("start to execute HandleReleaseSourceByDevice, devId:%u.", devId);
-    if (!isReset) {
-        ACL_LOG_INFO("it's set device callback, currently do nothing.");
+    (void)args;
+    ACL_LOG_INFO("start to execute HandleReleaseSourceByDevice, devId:%d.", deviceId);
+    if (state != ACL_RT_DEVICE_STATE_RESET_PRE) {
+        ACL_LOG_INFO("it's not reset pre device callback, currently do nothing.");
         return;
     }
     (void)ge::GeExecutor::ReleaseResource();
-    ACL_LOG_INFO("successfully execute HandleReleaseSourceByDevice, devId:%u.", devId);
+    ACL_LOG_INFO("successfully execute HandleReleaseSourceByDevice, devId:%d.", deviceId);
 }
 
 void AclOpResourceManager::UpdateAllocatorsForOp(const void * const cacheKey,
@@ -604,11 +604,12 @@ void AclOpResourceManager::CleanAllocatorsForOp(const void * const cacheKey)
     (void)streamAllocators_.erase(cacheKey);
 }
 
-void AclOpResourceManager::HandleReleaseSourceByStream(aclrtStream stream, bool isCreate)
+void AclOpResourceManager::HandleReleaseSourceByStream(aclrtStream stream, aclrtStreamState state, void *args)
 {
+    (void)args;
     ACL_LOG_INFO("start to execute HandleReleaseSourceByStream.");
-    if (isCreate) {
-        ACL_LOG_INFO("it's create stream callback, currently do nothing.");
+    if (state != ACL_RT_STREAM_STATE_DESTROY_PRE) {
+        ACL_LOG_INFO("it's not destroy stream callback, currently do nothing.");
         return;
     }
     (void)ge::GeExecutor::ReleaseSingleOpResource(stream);

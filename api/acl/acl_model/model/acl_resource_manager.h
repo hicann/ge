@@ -27,6 +27,7 @@
 #include "framework/runtime/stream_executor.h"
 #include "ge/ge_allocator.h"
 #include "acl/acl_rt_allocator.h"
+#include "acl/acl_rt.h"
 
 namespace acl {
 class ExternalAllocatorDesc {
@@ -107,8 +108,8 @@ public:
 
     bool IsBundleInnerId(const uint32_t modelId);
 
-    void HandleReleaseSourceByStream(aclrtStream stream, bool isCreate);
-    void HandleReleaseSourceByDevice(uint32_t devId, bool isReset) const;
+    void HandleReleaseSourceByStream(aclrtStream stream, aclrtStreamState state, void *args);
+    void HandleReleaseSourceByDevice(int32_t deviceId, aclrtDeviceState state, void *args) const;
 private:
     AclResourceManager();
     void GetRuntimeV2Env();

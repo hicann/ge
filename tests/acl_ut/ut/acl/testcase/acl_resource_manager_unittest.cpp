@@ -36,7 +36,6 @@
 #undef protected
 #include "acl/acl.h"
 #include "acl/acl_rt_allocator.h"
-#include "runtime/rt.h"
 #include "utils/acl_op_executor_hash_utils.h"
 #include "utils/acl_op_executor_file_utils.h"
 #include "utils/attr_utils.h"
@@ -66,6 +65,8 @@ protected:
         acl::AclResourceManager::GetInstance().streamDefaultAllocator_.clear();
     }
 };
+
+static void *g_priCtx = nullptr;
 
 TEST(UTEST_ACL_Resource_Manager, TestGetEnv) {
     AclResourceManager mng;
@@ -667,8 +668,6 @@ TEST(UTEST_ACL_Resource_Manager, BuildOpModelTest)
 
 TEST(UTEST_ACL_Resource_Manager, BuildOpModelTestSuccess)
 {
-    // EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-    //         .WillOnce(Return((ACL_ERROR_RT_PARAM_INVALID)));
     AclOp aclop;
     std::map<std::string, std::string> options;
     OpCompileService service;
@@ -698,8 +697,6 @@ ge::Status BuildSingleOpModel_Invoke(ge::OpDescPtr &op_desc, const std::vector<G
 
 TEST(UTEST_ACL_Resource_Manager, GetOpModelSucc)
 {
-    // EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-    //     .WillOnce(Return((ACL_ERROR_RT_PARAM_INVALID)));
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), BuildSingleOpModel(_,_,_,_,_,_))
         .WillOnce(Invoke(BuildSingleOpModel_Invoke));
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetListTensor(_, _, _))
@@ -1027,21 +1024,6 @@ TEST(UTEST_ACL_Resource_Manager, TestStream) {
     instance.CleanAllocators(stream2);
 }
 
-static rtContext_t g_currCtx = nullptr;
-static rtContext_t g_priCtx = nullptr;
-rtError_t rtCtxGetCurrent_invoke(rtContext_t *ctx)
-{
-    *ctx = g_currCtx;
-    return RT_ERROR_NONE;
-}
-
-rtError_t rtGetPriCtxByDeviceId_invoke(int32_t device, rtContext_t *ctx)
-{
-    (void) device;
-    *ctx = g_priCtx;
-    return RT_ERROR_NONE;
-}
-
 /// TODO: move to runtime-dev
 ///TEST(UTEST_ACL_Resource_Manager, TestContext) {
 //     AclResourceManager &instance = AclResourceManager::GetInstance();
@@ -1189,11 +1171,6 @@ TEST(UTEST_ACL_Resource_Manager, TestResetDevice)
 
     const aclrtStream stream = nullptr;
 
-    // stream is nullptr, curr context error, pri context is not nullptr
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-            .WillRepeatedly(Return(1));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetPriCtxByDeviceId(_,_))
-            .WillRepeatedly(Invoke(rtGetPriCtxByDeviceId_invoke));
     g_priCtx = (void *)0xbb;
     instance.CleanAllocators(g_priCtx);
     void *ptr = instance.GetAllocators(stream).get();
@@ -1356,7 +1333,7 @@ TEST(UTEST_ACL_Resource_Manager, RegisterModelTest_SameDynamicCache)
 TEST(UTEST_ACL_Resource_Manager, GetAllocators_Fail_DeviceAllocatorIsNull)
 {
     auto &instance = AclResourceManager::GetInstance();
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtAllocatorGetByStreamImpl(_,_,_,_,_,_,_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtAllocatorGetByStream(_,_,_,_,_,_,_))
         .WillOnce(Return(false));
     aclrtStream stream = (aclrtStream)0x2233;
     auto allocators = instance.GetAllocators(stream, true).get();
@@ -1366,13 +1343,13 @@ TEST(UTEST_ACL_Resource_Manager, GetAllocators_Fail_DeviceAllocatorIsNull)
 TEST(UTEST_ACL_Resource_Manager, GetKeyByStreamOrDefaultStreamTest)
 {
     auto &instance = AclResourceManager::GetInstance();
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCtxGetCurrentDefaultStream(_))
         .WillOnce(Return(ACL_ERROR_RT_FAILURE));
     aclrtStream stream = nullptr;
     auto retStream = instance.GetKeyByStreamOrDefaultStream(stream);
     EXPECT_EQ(retStream, nullptr);
 
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCtxGetCurrentDefaultStream(_))
         .WillRepeatedly(Return(ACL_RT_SUCCESS));
     stream = (aclrtStream)0x2233;
     retStream = instance.GetKeyByStreamOrDefaultStream(stream);

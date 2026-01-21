@@ -29,8 +29,6 @@ target_include_directories(mmpa_stub PRIVATE
     ${BASE_DIR}/inc/external/ge
     ${BASE_DIR}/inc/framework
     ${BASE_DIR}/tests/acl_ut/depends
-    ${BASE_DIR}/api/acl/include_other_module/acl
-    ${BASE_DIR}/api/acl/include_other_module
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}

@@ -27,7 +27,6 @@
 #include "acl_resource_manager.h"
 #include "framework/runtime/model_v2_executor.h"
 #include "utils/acl_model_math_utils.h"
-#include "acl/acl_rt_impl.h"
 #include "acl_model_impl.h"
 
 namespace {
@@ -67,7 +66,7 @@ constexpr size_t STATIC_BATCH_INFO_SIZE = 1U;
 
 static std::string GetSocName()
 {
-  const char *socName = aclrtGetSocNameImpl();
+  const char *socName = aclrtGetSocName();
   if (socName == nullptr) {
     return "";
   }
@@ -1210,12 +1209,12 @@ aclError aclmdlSetInputAIPPImpl(uint32_t modelId,
         return ACL_ERROR_INVALID_PARAM;
     }
 
-    void *const devPtr = aclGetDataBufferAddrImpl(buff);
+    void *const devPtr = aclGetDataBufferAddr(buff);
     if (devPtr == nullptr) {
         ACL_LOG_INNER_ERROR("[Check][DevPtr]failed to get addr by index[%zu]", index);
         return ACL_ERROR_INVALID_PARAM;
     }
-    const uint64_t memSize = aclGetDataBufferSizeV2Impl(buff);
+    const uint64_t memSize = aclGetDataBufferSizeV2(buff);
     ACL_LOG_DEBUG("aippParmsSet->aippParms: %s .", AippParmsDebugString(aippParmsSet->aippParms).c_str());
     for (size_t i = 0U; i < aippParmsSet->aippBatchPara.size(); ++i) {
         ACL_LOG_DEBUG("batchIndex[%lu] aippParmsSet->aippBatchPara: %s .",

@@ -9,10 +9,19 @@
  */
 
 #include "op_task.h"
-#include "runtime/rt.h"
 #include "acl_op_executor_error_codes_inner.h"
 
 namespace acl {
+
+namespace {
+    typedef void *rtSmDesc_t;
+    typedef void *rtStream_t;
+
+    typedef int32_t rtError_t;
+    extern "C" rtError_t rtKernelLaunch(const void *stubFunc, uint32_t blockDim, void *args, uint32_t argsSize,
+                                 rtSmDesc_t *smDesc, rtStream_t stm);
+}
+
 TbeOpTask::TbeOpTask(const void *const stubFunction, const uint32_t block) : OpTask(),
     stubFunc_(stubFunction), blockDim_(block)
 {

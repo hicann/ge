@@ -45,7 +45,7 @@ aclError ResourceManager::GetMemory(void **const address, const size_t size)
         return ACL_SUCCESS;
     }
 
-    ACL_REQUIRES_OK(aclrtMallocImpl(address, size, ACL_MEM_MALLOC_NORMAL_ONLY));
+    ACL_REQUIRES_OK(aclrtMalloc(address, size, ACL_MEM_MALLOC_NORMAL_ONLY));
     pending_mem_.push_back(current_mem_);
     current_mem_ = *address;
     current_mem_size_ = size;

@@ -8,15 +8,15 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "acl/acl_rt_impl.h"
+#include "acl/acl_rt.h"
 #include "acl_op_executor_error_codes_inner.h"
 #include "common/acl_op_executor_log_inner.h"
 #include "single_op/acl_op_resource_manager.h"
 
 namespace {
-void HandleReleaseSourceByStream(aclrtStream stream, bool isCreate)
+void HandleReleaseSourceByStream(aclrtStream stream, aclrtStreamState state, void *args)
 {
-    acl::AclOpResourceManager::GetInstance().HandleReleaseSourceByStream(stream, isCreate);
+    acl::AclOpResourceManager::GetInstance().HandleReleaseSourceByStream(stream, state, args);
 }
 }
 
@@ -41,11 +41,11 @@ aclError AclOpExecutorInitCallbackFunc(const char *configBuffer, size_t bufferSi
 }
 __attribute__((constructor)) aclError RegAclOpExecutorInitCallback()
 {
-    return aclInitCallbackRegisterImpl(ACL_REG_TYPE_ACL_OP_EXECUTOR, AclOpExecutorInitCallbackFunc, nullptr);
+    return aclInitCallbackRegister(ACL_REG_TYPE_ACL_OP_EXECUTOR, AclOpExecutorInitCallbackFunc, nullptr);
 }
 __attribute__((destructor)) aclError UnRegAclOpExecutorInitCallback()
 {
-    return aclInitCallbackUnRegisterImpl(ACL_REG_TYPE_ACL_OP_EXECUTOR, AclOpExecutorInitCallbackFunc);
+    return aclInitCallbackUnRegister(ACL_REG_TYPE_ACL_OP_EXECUTOR, AclOpExecutorInitCallbackFunc);
 }
 
 aclError AclOpResourceInitCallbackFunc(const char *configBuffer, size_t bufferSize, void *userData)
@@ -55,20 +55,20 @@ aclError AclOpResourceInitCallbackFunc(const char *configBuffer, size_t bufferSi
     (void)userData;
     ACL_LOG_INFO("start to enter AclOpResourceInitCallbackFunc");
     // register ge release function by stream
-    auto rtErr = rtRegStreamStateCallback("ACL_MODULE_STREAM_OP", &HandleReleaseSourceByStream);
-    if (rtErr != RT_ERROR_NONE) {
-        ACL_LOG_ERROR("register release function by stream to runtime failed, ret:%d", rtErr);
-        return ACL_GET_ERRCODE_RTS(rtErr);
+    auto aclErr = aclrtRegStreamStateCallback("ACL_MODULE_STREAM_OP", &HandleReleaseSourceByStream, nullptr);
+    if (aclErr != ACL_SUCCESS) {
+        ACL_LOG_ERROR("register release function by stream to runtime failed, ret:%d", aclErr);
+        return aclErr;
     }
     return ACL_SUCCESS;
 }
 __attribute__((constructor)) aclError RegResourceInitCallback()
 {
-    return aclInitCallbackRegisterImpl(ACL_REG_TYPE_OTHER, AclOpResourceInitCallbackFunc, nullptr);
+    return aclInitCallbackRegister(ACL_REG_TYPE_OTHER, AclOpResourceInitCallbackFunc, nullptr);
 }
 __attribute__((destructor)) aclError UnRegResourceInitCallback()
 {
-    return aclInitCallbackUnRegisterImpl(ACL_REG_TYPE_OTHER, AclOpResourceInitCallbackFunc);
+    return aclInitCallbackUnRegister(ACL_REG_TYPE_OTHER, AclOpResourceInitCallbackFunc);
 }
 
 // --------------------------- finalize --------------------------------------------------
@@ -77,19 +77,19 @@ aclError AclOpResourceFinalizeCallbackFunc(void *userData)
     (void)userData;
     ACL_LOG_INFO("start to enter AclOpResourceFinalizeCallbackFunc");
     // unregister ge release function by stream
-    auto rtErr = rtRegStreamStateCallback("ACL_MODULE_STREAM_OP", nullptr);
-    if (rtErr != RT_ERROR_NONE) {
-        ACL_LOG_ERROR("unregister release function by stream to runtime failed, ret:%d", rtErr);
-        return ACL_GET_ERRCODE_RTS(rtErr);
+    auto aclErr = aclrtRegStreamStateCallback("ACL_MODULE_STREAM_OP", nullptr, nullptr);
+    if (aclErr != ACL_SUCCESS) {
+        ACL_LOG_ERROR("unregister release function by stream to runtime failed, ret:%d", aclErr);
+        return aclErr;
     }
     return ACL_SUCCESS;
 }
 __attribute__((constructor)) aclError RegResourceFinalizeCallback()
 {
-    return aclFinalizeCallbackRegisterImpl(ACL_REG_TYPE_OTHER, AclOpResourceFinalizeCallbackFunc, nullptr);
+    return aclFinalizeCallbackRegister(ACL_REG_TYPE_OTHER, AclOpResourceFinalizeCallbackFunc, nullptr);
 }
 __attribute__((destructor)) aclError UnRegResourceFinalizeCallback()
 {
-    return aclFinalizeCallbackUnRegisterImpl(ACL_REG_TYPE_OTHER, AclOpResourceFinalizeCallbackFunc);
+    return aclFinalizeCallbackUnRegister(ACL_REG_TYPE_OTHER, AclOpResourceFinalizeCallbackFunc);
 }
 }

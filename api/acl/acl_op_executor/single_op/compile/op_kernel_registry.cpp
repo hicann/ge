@@ -9,7 +9,6 @@
  */
 
 #include "op_kernel_registry.h"
-#include "runtime/rt.h"
 #include "framework/common/util.h"
 #include "utils/acl_op_executor_file_utils.h"
 #include "common/acl_op_executor_log_inner.h"
@@ -18,6 +17,33 @@
 namespace acl {
 namespace {
     const char_t *const STUB_NAME_PREFIX = "acl_dynamic_";
+    const int32_t RT_ERROR_NONE = 0;
+
+    #define RT_DEV_BINARY_MAGIC_ELF 0x43554245U
+    #define RT_DEV_BINARY_MAGIC_ELF_AICPU 0x41415243U
+    #define RT_DEV_BINARY_MAGIC_ELF_AIVEC 0x41415246U
+
+    typedef enum {
+        FUNC_MODE_NORMAL = 0,
+        FUNC_MODE_PCTRACE_USERPROFILE_RECORDLOOP,
+        FUNC_MODE_PCTRACE_USERPROFILE_SKIPLOOP,
+        FUNC_MODE_PCTRACE_CYCLECNT_RECORDLOOP,
+        FUNC_MODE_PCTRACE_CYCLECNT_SKIPLOOP,
+        FUNC_MODE_BUTT
+    } rtFuncModeType_t;
+
+    typedef struct tagRtDevBinary {
+        uint32_t magic;    // magic number
+        uint32_t version;  // version of binary
+        const void *data;  // binary data
+        uint64_t length;   // binary length
+    } rtDevBinary_t;
+
+    typedef int32_t rtError_t;
+    extern "C" rtError_t rtDevBinaryUnRegister(void *hdl);
+    extern "C" rtError_t rtDevBinaryRegister(const rtDevBinary_t *bin, void **hdl);
+    extern "C" rtError_t rtFunctionRegister(void *binHandle, const void *stubFunc, const char_t *stubName,
+                                     const void *kernelInfoExt, uint32_t funcMode);
 } // namespace
 const void *OpKernelRegistry::GetStubFunc(const std::string &opType, const std::string &kernelId)
 {

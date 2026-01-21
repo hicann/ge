@@ -29,8 +29,6 @@ target_include_directories(ge_stub PRIVATE
     ${BASE_DIR}/inc/graph_metadef
     ${BASE_DIR}/inc/framework
     ${BASE_DIR}/inc/graph_metadef/external
-    ${BASE_DIR}/api/acl/include_other_module/acl
-    ${BASE_DIR}/api/acl/include_other_module
     ${BASE_DIR}/tests/acl_ut/depends
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc

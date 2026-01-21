@@ -36,7 +36,6 @@
 
 #include "acl/acl.h"
 #include "acl/acl_mdl.h"
-#include "runtime/rt.h"
 #include "single_op/op_model_parser.h"
 #include "single_op/executor/resource_manager.h"
 #include "utils/acl_op_executor_math_utils.h"
@@ -519,13 +518,13 @@ TEST_F(OpExecutorTest, TestExecutors)
     ASSERT_NE(exec, nullptr);
     ASSERT_EQ(exec, Executors::GetOrCreate(nullptr, nullptr));
 
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCtxGetCurrentDefaultStream(_))
         .WillRepeatedly(Return(ACL_ERROR_INVALID_PARAM));
     exec = Executors::GetOrCreate(nullptr, nullptr);
     ASSERT_EQ(exec, nullptr);
     Executors::RemoveExecutor(nullptr);
 
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCtxGetCurrentDefaultStream(_))
         .WillOnce(Return(ACL_RT_SUCCESS));
     Executors::RemoveExecutor(nullptr);
 }
@@ -762,15 +761,8 @@ TEST_F(OpExecutorTest, DoRTV2ExecuteAsyncTest)
     aclOp.isDynamic = true;
     const aclrtStream streamIsNullptr = nullptr;
 
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
-        .WillRepeatedly(Return(ACL_ERROR_INVALID_PARAM));
-
     ret = OpExecutor::ExecuteAsync(aclOp, inputs, outputs, streamIsNullptr);
     EXPECT_EQ(ret, ACL_SUCCESS); // go with rt2 rtCtxGetCurrentDefaultStream
-
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetDevice(_)).WillRepeatedly(Invoke(rtGetDeviceSuccess));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
-        .WillRepeatedly(Invoke(rtCtxGetCurrentDefaultStreamSuccess));
 
     ret = OpExecutor::ExecuteAsync(aclOp, inputs, outputs, streamIsNullptr);
     EXPECT_EQ(ret, ACL_SUCCESS); // go with rt2 rtGetDeviceSuccess

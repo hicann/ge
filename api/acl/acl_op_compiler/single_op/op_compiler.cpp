@@ -13,12 +13,11 @@
 #include "compile/op_compile_processor.h"
 #include "framework/common/ge_format_util.h"
 #include "op_executor.h"
-#include "platform/platform_info.h"
 #include "acl_op_resource_manager.h"
 #include "common/prof_api_reg.h"
 #include "types/acl_op.h"
 #include "utils/array_utils.h"
-#include "acl/acl_rt_impl.h"
+#include "acl/acl_rt.h"
 
 namespace {
 constexpr size_t COMPILE_OPT_SIZE = 256U;
@@ -110,30 +109,16 @@ aclError CopyOptValue(char *value, size_t length, const std::string &str)
     return ACL_SUCCESS;
 }
 
-aclError QueryPlatformInfoValue(const std::string &label, const std::string &key, std::string &value)
+std::string GetDefaultJitCompileValue(const std::string &version)
 {
-    const char *socName = aclrtGetSocNameImpl();
-    if (socName == nullptr) {
-        return ACL_ERROR_INTERNAL_ERROR;
+    static const std::set<std::string> kDisabledVersion = {"Ascend910B1", "Ascend910B2",   "Ascend910B3",
+                                                           "Ascend910B4", "Ascend910B4-1", "Ascend910B2C"};
+    static const std::string kDisabledShortVersion = "Ascend910_9";
+    std::string opt_value = "enable";
+    if ((kDisabledVersion.find(version) != kDisabledVersion.end()) || (version.find(kDisabledShortVersion) == 0UL)) {
+        opt_value = "disable";
     }
-    // call after aclInit
-    const std::string socVersion(socName);
-
-    // init platform info
-    if (fe::PlatformInfoManager::GeInstance().InitializePlatformInfo() != 0U) {
-        ACL_LOG_INNER_ERROR("init runtime platform info failed, SocVersion = %s", socVersion.c_str());
-        return ACL_ERROR_INTERNAL_ERROR;
-    }
-    fe::PlatFormInfos platformInfos;
-    fe::OptionalInfos optionalInfos;
-    if (fe::PlatformInfoManager::GeInstance().GetPlatformInfos(socVersion, platformInfos, optionalInfos) != 0U) {
-        ACL_LOG_INNER_ERROR("get platform info failed, SocVersion = %s", socVersion.c_str());
-        return ACL_ERROR_INTERNAL_ERROR;
-    }
-    if (!platformInfos.GetPlatformResWithLock(label, key, value)) {
-        ACL_LOG_WARN("Can not get platform info, label = %s, key = %s", label.c_str(), key.c_str());
-    }
-    return ACL_SUCCESS;
+    return opt_value;
 }
 }  // namespace
 
@@ -308,20 +293,21 @@ size_t aclGetCompileoptSize(aclCompileOpt opt)
 aclError aclGetCompileopt(aclCompileOpt opt, char *value, size_t length)
 {
     ACL_REQUIRES_NOT_NULL(value);
-    std::string optValue;
     if (opt == ACL_OP_DEBUG_OPTION) {
+        std::string optValue;
         aclError ret = acl::OpCompileProcessor::GetInstance().GetCompileOpt(compileOptMap[opt], optValue);
         if (ret != ACL_SUCCESS) {
             return ACL_ERROR_API_NOT_SUPPORT;
         }
-        ACL_LOG_INFO("Get compile option [ACL_OP_DEBUG_OPTION] and value [%s]", optValue.c_str());
         return CopyOptValue(value, length, optValue);
     }
     if (opt == ACL_OP_JIT_COMPILE) {
-        ACL_REQUIRES_OK(QueryPlatformInfoValue("SoftwareSpec", "jit_compile_default_value", optValue));
-        optValue = (optValue == "1") ? "enable" : "disable";
-        ACL_LOG_INFO("Get compile option [ACL_OP_JIT_COMPILE] and value [%s]", optValue.c_str());
-        return CopyOptValue(value, length, optValue);
+        const char *socName = aclrtGetSocName();
+        std::string socVersion;
+        if (socName != nullptr) {
+            socVersion = std::string(socName);
+        }
+        return CopyOptValue(value, length, GetDefaultJitCompileValue(socVersion));
     }
     return ACL_ERROR_API_NOT_SUPPORT;
 }

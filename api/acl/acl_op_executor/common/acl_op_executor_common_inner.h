@@ -13,8 +13,7 @@
 
 #include <map>
 #include "acl/acl_base.h"
-#include "acl/acl_rt_impl.h"
-#include "runtime/mem_base.h"
+#include "acl/acl_rt.h"
 #include "acl_op_executor_log_inner.h"
 
 namespace acl {

@@ -21,7 +21,6 @@
 #include "model/acl_resource_manager.h"
 #include "single_op/op_executor.h"
 #include "single_op/compile/op_kernel_registry.h"
-#include "runtime/rt.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/operator.h"
 #include "graph/opsproto_manager.h"

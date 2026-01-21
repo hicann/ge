@@ -17,9 +17,6 @@
 #define private public
 #include "model/acl_resource_manager.h"
 #undef private
-#include "runtime/gert_api.h"
-#include "runtime/stream.h"
-#include "runtime/rt_model.h"
 #include "model/aipp_param_check.h"
 #include "framework/executor/ge_executor.h"
 #include "common/ge_types.h"
@@ -3406,12 +3403,12 @@ TEST_F(UTEST_ACL_Model, RuntimeV2LoadFromFileFailed)
         .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), IsDynamicModel(_,_))
         .WillRepeatedly(Invoke((IsDynamicModelReturnTrue)));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCreateStreamImpl(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCreateStream(_))
         .WillOnce(Return(ACL_ERROR_RT_PARAM_INVALID))
         .WillOnce(Return(RT_ERROR_NONE));
     auto ret = aclmdlLoadFromFile(modelPath, &modelId);
     EXPECT_EQ(ret, ACL_ERROR_RT_PARAM_INVALID);
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtSynchronizeStreamImpl(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtSynchronizeStream(_))
         .WillOnce(Return((ACL_ERROR_RT_PARAM_INVALID)));
     ret = aclmdlLoadFromFile(modelPath, &modelId);
     EXPECT_EQ(ret, ACL_ERROR_RT_PARAM_INVALID);
@@ -3428,12 +3425,12 @@ TEST_F(UTEST_ACL_Model, RuntimeV2LoadFromMemFailed)
     void *model = (void *)&head;
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
         .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCreateStreamImpl(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCreateStream(_))
         .WillOnce(Return(ACL_ERROR_RT_PARAM_INVALID))
         .WillOnce(Return(RT_ERROR_NONE));
     auto ret = aclmdlLoadFromMem(model, sizeof(head), &modelId);
     EXPECT_EQ(ret, ACL_ERROR_RT_PARAM_INVALID);
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtSynchronizeStreamImpl(_))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtSynchronizeStream(_))
         .WillOnce(Return((ACL_ERROR_RT_PARAM_INVALID)));
     ret = aclmdlLoadFromMem(model, sizeof(head), &modelId);
     EXPECT_EQ(ret, ACL_ERROR_RT_PARAM_INVALID);
@@ -3707,7 +3704,7 @@ TEST_F(UTEST_ACL_Model, aclmdlExecuteV2_ModelExecute_StreamNotNull_failed)
     ret = aclmdlLoadFromFile(modelPath, &modelId);
     EXPECT_EQ(ret, ACL_SUCCESS);
 
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtSynchronizeStreamWithTimeoutImpl(_, _))
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtSynchronizeStreamWithTimeout(_, _))
             .WillOnce(Return(ACL_ERROR_RT_STREAM_SYNC_TIMEOUT));
     aclrtStream stream = (aclrtStream)0x11;
     ret = aclmdlExecuteV2(1, dataset, dataset, stream, handle);

@@ -9,7 +9,6 @@
  */
 
 #include <stdio.h>
-#include "acl_rt_impl.h"
 #include "acl/acl_rt.h"
 #include "acl_stub.h"
 #include "acl/acl_base_rt.h"
@@ -31,15 +30,6 @@ aclDataBuffer *aclStub::aclCreateDataBuffer(void *data, size_t size)
 }
 
 void *aclStub::aclGetDataBufferAddr(const aclDataBuffer *dataBuffer)
-{
-    if (dataBuffer == nullptr) {
-        return nullptr;
-    }
-    TestAclDataBuffer *buffer = (TestAclDataBuffer *)dataBuffer;
-    return buffer->data;
-}
-
-void *aclStub::aclGetDataBufferAddrImpl(const aclDataBuffer *dataBuffer)
 {
     if (dataBuffer == nullptr) {
         return nullptr;
@@ -73,15 +63,6 @@ void *aclGetDataBufferAddr(const aclDataBuffer *dataBuffer)
     return MockFunctionTest::aclStubInstance().aclGetDataBufferAddr(dataBuffer);
 }
 
-void *aclGetDataBufferAddrImpl(const aclDataBuffer *dataBuffer)
-{
-    if (dataBuffer == nullptr) {
-        return nullptr;
-    }
-    TestAclDataBuffer *buffer = (TestAclDataBuffer *)dataBuffer;
-    return buffer->data;
-}
-
 size_t aclStub::aclGetDataBufferSizeV2(const aclDataBuffer *dataBuffer)
 {
     if (dataBuffer == nullptr) {
@@ -98,71 +79,65 @@ uint32_t aclStub::aclGetDataBufferSize(const aclDataBuffer *dataBuffer)
     return ((TestAclDataBuffer *)dataBuffer)->length;
 }
 
-aclError aclStub::aclrtCreateEventWithFlagImpl(aclrtEvent *event, uint32_t flag)
+aclError aclStub::aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag)
 {
     return ACL_SUCCESS;
 }
 
-aclError aclStub::aclrtFreeImpl(void *devPtr)
-{
-    free(devPtr);
-    return ACL_ERROR_NONE;
-}
-
-aclError aclStub::aclrtMallocImpl(void **devPtr, size_t size, aclrtMemMallocPolicy policy)
+aclError aclStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy)
 {
     *devPtr = malloc(size);
     return ACL_ERROR_NONE;
 }
 
-aclError aclStub::aclrtGetEventIdImpl(aclrtEvent event, uint32_t *eventId)
+aclError aclStub::aclrtGetEventId(aclrtEvent event, uint32_t *eventId)
 {
     return ACL_ERROR_NONE;
 }
 
-aclError aclStub::aclrtResetEventImpl(aclrtEvent event, aclrtStream stream)
+aclError aclStub::aclrtResetEvent(aclrtEvent event, aclrtStream stream)
 {
     return static_cast<aclError>(ACL_ERROR_NONE);
 }
 
-aclError aclStub::aclrtDestroyEventImpl(aclrtEvent event)
+aclError aclStub::aclrtDestroyEvent(aclrtEvent event)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtStreamWaitEventImpl(aclrtStream stream, aclrtEvent event)
+aclError aclStub::aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtGetRunModeImpl(aclrtRunMode *runMode)
+aclError aclStub::aclrtGetRunMode(aclrtRunMode *runMode)
 {
     return ACL_SUCCESS;
 }
 
-aclError aclStub::aclrtMemcpyImpl(void *dst, size_t destMax, const void *src, size_t count,
+aclError aclStub::aclrtMemcpy(void *dst, size_t destMax, const void *src, size_t count,
     aclrtMemcpyKind kind)
 {
     return ACL_SUCCESS;
 }
 
-aclError aclStub::aclrtCreateStreamImpl(aclrtStream *stream)
+aclError aclStub::aclrtCreateStream(aclrtStream *stream)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtMemcpyAsyncImpl(void *dst, size_t destMax, const void *src, size_t count,
+aclError aclStub::aclrtMemcpyAsync(void *dst, size_t destMax, const void *src, size_t count,
     aclrtMemcpyKind kind, aclrtStream stream)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtDestroyStreamImpl(aclrtStream stream)
+aclError aclStub::aclrtDestroyStream(aclrtStream stream)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtSynchronizeStreamImpl(aclrtStream stream)
+aclError aclStub::aclrtSynchronizeStream(aclrtStream stream)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
@@ -174,43 +149,58 @@ aclError aclStub::aclrtFree(void *devPtr)
     return ACL_ERROR_NONE;
 }
 
-aclError aclStub::aclrtGetNotifyIdImpl(aclrtNotify notify, uint32_t *notifyId)
+aclError aclStub::aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtUnSubscribeReportImpl(uint64_t threadId, aclrtStream stream)
+aclError aclStub::aclrtUnSubscribeReport(uint64_t threadId, aclrtStream stream)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtSubscribeReportImpl(uint64_t threadId, aclrtStream stream)
+aclError aclStub::aclrtSubscribeReport(uint64_t threadId, aclrtStream stream)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtMemsetImpl(void *devPtr, size_t maxCount, int32_t value, size_t count)
+aclError aclStub::aclrtMemset(void *devPtr, size_t maxCount, int32_t value, size_t count)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtGetCurrentContextImpl(aclrtContext *context)
+
+aclError aclStub::aclrtDeviceGetStreamPriorityRange(int32_t *leastPriority, int32_t *greatestPriority)
 {
-    return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
+    *leastPriority = 7;
+    *greatestPriority = 0;
+    return ACL_SUCCESS;
 }
 
-aclError aclStub::aclrtSetCurrentContextImpl(aclrtContext context)
+aclError aclStub::aclrtCtxGetCurrentDefaultStream(aclrtStream *stream)
 {
-    return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
+    int tmp = 0x1;
+    *stream = (aclrtStream)(&tmp);
+    return ACL_SUCCESS;
 }
 
-aclError aclStub::aclrtLaunchCallbackImpl(aclrtCallback fn, void *userData,
+aclError aclStub::aclrtRegStreamStateCallback(const char *regName, aclrtStreamStateCallback callback, void *args)
+{
+    return ACL_SUCCESS;
+}
+
+aclError aclStub::aclrtRegDeviceStateCallback(const char *regName, aclrtDeviceStateCallback callback, void *args)
+{
+    return ACL_SUCCESS;
+}
+
+aclError aclStub::aclrtLaunchCallback(aclrtCallback fn, void *userData,
     aclrtCallbackBlockType blockType, aclrtStream stream)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
 
-aclError aclStub::aclrtGetDeviceImpl(int32_t *deviceId)
+aclError aclStub::aclrtGetDevice(int32_t *deviceId)
 {
     return static_cast<aclError>(ACL_ERROR_COMPILING_STUB_MODE);
 }
@@ -220,16 +210,12 @@ size_t aclStub::aclDataTypeSize(aclDataType dataType)
     return 0;
 }
 
-aclError aclStub::aclrtSynchronizeStreamWithTimeoutImpl(aclrtStream stream, int32_t timeout)
+aclError aclStub::aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout)
 {
     return ACL_SUCCESS;
 }
 
-size_t aclStub::aclGetDataBufferSizeV2Impl(const aclDataBuffer *dataBuffer)
-{
-    return 0;
-}
-aclError aclStub::aclrtAllocatorGetByStreamImpl(aclrtStream stream,
+aclError aclStub::aclrtAllocatorGetByStream(aclrtStream stream,
                                 aclrtAllocatorDesc *allocatorDesc,
                                 aclrtAllocator *allocator,
                                 aclrtAllocatorAllocFunc *allocFunc,
@@ -239,27 +225,27 @@ aclError aclStub::aclrtAllocatorGetByStreamImpl(aclrtStream stream,
 {
     return ACL_SUCCESS;
 }
-aclError aclStub::aclInitCallbackRegisterImpl(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc,
+aclError aclStub::aclInitCallbackRegister(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc,
                                                         void *userData)
 {
     return ACL_SUCCESS;
 }
-aclError aclStub::aclInitCallbackUnRegisterImpl(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc)
+aclError aclStub::aclInitCallbackUnRegister(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc)
 {
     return ACL_SUCCESS;
 }
-aclError aclStub::aclFinalizeCallbackRegisterImpl(aclRegisterCallbackType type,
+aclError aclStub::aclFinalizeCallbackRegister(aclRegisterCallbackType type,
                                                             aclFinalizeCallbackFunc cbFunc, void *userData)
 {
     return ACL_SUCCESS;
 }
-aclError aclStub::aclFinalizeCallbackUnRegisterImpl(aclRegisterCallbackType type,
+aclError aclStub::aclFinalizeCallbackUnRegister(aclRegisterCallbackType type,
                                                             aclFinalizeCallbackFunc cbFunc)
 {
     return ACL_SUCCESS;
 }
 
-const char *aclStub::aclrtGetSocNameImpl()
+const char *aclStub::aclrtGetSocName()
 {
     return "";
 }
@@ -312,20 +298,21 @@ MockFunctionTest& MockFunctionTest::aclStubInstance()
 
 void MockFunctionTest::ResetToDefaultMock() {
     // delegates the default actions of the RTS methods to aclStub
-    ON_CALL(*this, aclrtMallocImpl)
+    ON_CALL(*this, aclrtMalloc)
         .WillByDefault([this](void **devPtr, size_t size, aclrtMemMallocPolicy policy) {
-          return aclStub::aclrtMallocImpl(devPtr, size, policy);
+          return aclStub::aclrtMalloc(devPtr, size, policy);
         });
-    ON_CALL(*this, aclrtFreeImpl)
-        .WillByDefault([this](void *devPtr) {
-          return aclStub::aclrtFreeImpl(devPtr);
+    ON_CALL(*this, aclrtGetSocName)
+        .WillByDefault([this]() {
+          return aclStub::aclrtGetSocName();
         });
     ON_CALL(*this, aclrtFree)
         .WillByDefault([this](void *devPtr) {
           return aclStub::aclrtFree(devPtr);
         });
-    ON_CALL(*this, rtMalloc).WillByDefault([this](void **devPtr, uint64_t size, rtMemType_t type, uint16_t moduleId) {
-          return aclStub::rtMalloc(devPtr, size, type, moduleId);
+    ON_CALL(*this, aclrtFree)
+        .WillByDefault([this](void *devPtr) {
+          return aclStub::aclrtFree(devPtr);
         });
     ON_CALL(*this, aclCreateDataBuffer)
         .WillByDefault([this](void *data, size_t size) {
@@ -335,9 +322,9 @@ void MockFunctionTest::ResetToDefaultMock() {
         .WillByDefault([this](const aclDataBuffer *dataBuffer) {
           return aclStub::aclGetDataBufferAddr(dataBuffer);
         });
-    ON_CALL(*this, aclGetDataBufferAddrImpl)
+    ON_CALL(*this, aclGetDataBufferAddr)
         .WillByDefault([this](const aclDataBuffer *dataBuffer) {
-          return aclStub::aclGetDataBufferAddrImpl(dataBuffer);
+          return aclStub::aclGetDataBufferAddr(dataBuffer);
         });
     ON_CALL(*this, aclDestroyDataBuffer)
         .WillByDefault([this](const aclDataBuffer *dataBuffer) {
@@ -351,87 +338,72 @@ void MockFunctionTest::ResetToDefaultMock() {
         .WillByDefault([this](const aclDataBuffer *dataBuffer) {
           return aclStub::aclGetDataBufferSize(dataBuffer);
         });
-    ON_CALL(*this, aclrtMemcpyImpl)
+    ON_CALL(*this, aclrtMemcpy)
         .WillByDefault([this](void *dst, size_t destMax, const void *src, size_t count, aclrtMemcpyKind kind) {
-          return aclStub::aclrtMemcpyImpl(dst, destMax, src, count, kind);
+          return aclStub::aclrtMemcpy(dst, destMax, src, count, kind);
         });
-    ON_CALL(*this, rtDvppMallocWithFlag)
-        .WillByDefault([this](void **devPtr, uint64_t size, uint32_t flag, uint16_t moduleId) {
-          return aclStub::rtDvppMallocWithFlag(devPtr, size, flag, moduleId);
-        });
-    ON_CALL(*this, rtDvppMalloc).WillByDefault([this](void **devPtr, uint64_t size, uint16_t moduleId) {
-      return aclStub::rtDvppMalloc(devPtr, size, moduleId);
-    });
-    ON_CALL(*this, rtDvppFree).WillByDefault([this](void *devPtr) {
-      return aclStub::rtDvppFree(devPtr);
-    });
 }
 
-aclError aclrtCreateEventWithFlagImpl(aclrtEvent *event, uint32_t flag)
+aclError aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag)
 {
-    return MockFunctionTest::aclStubInstance().aclrtCreateEventWithFlagImpl(event, flag);
+    return MockFunctionTest::aclStubInstance().aclrtCreateEventWithFlag(event, flag);
 }
 
-aclError aclrtFreeImpl(void *devPtr)
+aclError aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy)
 {
-    return MockFunctionTest::aclStubInstance().aclrtFreeImpl(devPtr);
+    return MockFunctionTest::aclStubInstance().aclrtMalloc(devPtr, size, policy);
 }
 
-aclError aclrtMallocImpl(void **devPtr, size_t size, aclrtMemMallocPolicy policy)
+aclError aclrtGetEventId(aclrtEvent event, uint32_t *eventId)
 {
-    return MockFunctionTest::aclStubInstance().aclrtMallocImpl(devPtr, size, policy);
+    return MockFunctionTest::aclStubInstance().aclrtGetEventId(event, eventId);
 }
 
-aclError aclrtGetEventIdImpl(aclrtEvent event, uint32_t *eventId)
+aclError aclrtResetEvent(aclrtEvent event, aclrtStream stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtGetEventIdImpl(event, eventId);
+    return MockFunctionTest::aclStubInstance().aclrtResetEvent(event, stream);
 }
 
-aclError aclrtResetEventImpl(aclrtEvent event, aclrtStream stream)
+aclError aclrtDestroyEvent(aclrtEvent event)
 {
-    return MockFunctionTest::aclStubInstance().aclrtResetEventImpl(event, stream);
+    return MockFunctionTest::aclStubInstance().aclrtDestroyEvent(event);
 }
 
-aclError aclrtDestroyEventImpl(aclrtEvent event)
+aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event)
 {
-    return MockFunctionTest::aclStubInstance().aclrtDestroyEventImpl(event);
+    return MockFunctionTest::aclStubInstance().aclrtStreamWaitEvent(stream, event);
 }
 
-aclError aclrtStreamWaitEventImpl(aclrtStream stream, aclrtEvent event)
+aclError aclrtGetRunMode(aclrtRunMode *runMode)
 {
-    return MockFunctionTest::aclStubInstance().aclrtStreamWaitEventImpl(stream, event);
+    return MockFunctionTest::aclStubInstance().aclrtGetRunMode(runMode);
 }
 
-aclError aclrtGetRunModeImpl(aclrtRunMode *runMode)
-{
-    return MockFunctionTest::aclStubInstance().aclrtGetRunModeImpl(runMode);
-}
-
-aclError aclrtMemcpyImpl(void *dst, size_t destMax, const void *src, size_t count,
+aclError aclrtMemcpy(void *dst, size_t destMax, const void *src, size_t count,
     aclrtMemcpyKind kind)
 {
-    return MockFunctionTest::aclStubInstance().aclrtMemcpyImpl(dst, destMax, src, count, kind);
+    return MockFunctionTest::aclStubInstance().aclrtMemcpy(dst, destMax, src, count, kind);
 }
 
-aclError aclrtCreateStreamImpl(aclrtStream *stream)
+aclError aclrtCreateStream(aclrtStream *stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtCreateStreamImpl(stream);
+    return MockFunctionTest::aclStubInstance().aclrtCreateStream(stream);
 }
 
-aclError aclrtMemcpyAsyncImpl(void *dst, size_t destMax, const void *src, size_t count,
+aclError aclrtMemcpyAsync(void *dst, size_t destMax, const void *src, size_t count,
     aclrtMemcpyKind kind, aclrtStream stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtMemcpyAsyncImpl(dst, destMax, src, count, kind, stream);
+    return MockFunctionTest::aclStubInstance().aclrtMemcpyAsync(dst, destMax, src, count, kind, stream);
 }
 
-aclError aclrtDestroyStreamImpl(aclrtStream stream)
+aclError aclrtDestroyStream(aclrtStream stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtDestroyStreamImpl(stream);
+    return MockFunctionTest::aclStubInstance().aclrtDestroyStream(stream);
 }
 
-aclError aclrtSynchronizeStreamImpl(aclrtStream stream)
+aclError aclrtSynchronizeStream(aclrtStream stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtSynchronizeStreamImpl(stream);
+    return MockFunctionTest::aclStubInstance().aclrtSynchronizeStream(stream);
 }
 
 aclError aclrtFree(void *devPtr)
@@ -439,45 +411,35 @@ aclError aclrtFree(void *devPtr)
     return MockFunctionTest::aclStubInstance().aclrtFree(devPtr);
 }
 
-aclError aclrtGetNotifyIdImpl(aclrtNotify notify, uint32_t *notifyId)
+aclError aclrtGetNotifyId(aclrtNotify notify, uint32_t *notifyId)
 {
-    return MockFunctionTest::aclStubInstance().aclrtGetNotifyIdImpl(notify, notifyId);
+    return MockFunctionTest::aclStubInstance().aclrtGetNotifyId(notify, notifyId);
 }
 
-aclError aclrtUnSubscribeReportImpl(uint64_t threadId, aclrtStream stream)
+aclError aclrtUnSubscribeReport(uint64_t threadId, aclrtStream stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtUnSubscribeReportImpl(threadId, stream);
+    return MockFunctionTest::aclStubInstance().aclrtUnSubscribeReport(threadId, stream);
 }
 
-aclError aclrtSubscribeReportImpl(uint64_t threadId, aclrtStream stream)
+aclError aclrtSubscribeReport(uint64_t threadId, aclrtStream stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtSubscribeReportImpl(threadId, stream);
+    return MockFunctionTest::aclStubInstance().aclrtSubscribeReport(threadId, stream);
 }
 
-aclError aclrtMemsetImpl(void *devPtr, size_t maxCount, int32_t value, size_t count)
+aclError aclrtMemset(void *devPtr, size_t maxCount, int32_t value, size_t count)
 {
-    return MockFunctionTest::aclStubInstance().aclrtMemsetImpl(devPtr, maxCount, value, count);
+    return MockFunctionTest::aclStubInstance().aclrtMemset(devPtr, maxCount, value, count);
 }
 
-aclError aclrtGetCurrentContextImpl(aclrtContext *context)
-{
-    return MockFunctionTest::aclStubInstance().aclrtGetCurrentContextImpl(context);
-}
-
-aclError aclrtSetCurrentContextImpl(aclrtContext context)
-{
-    return MockFunctionTest::aclStubInstance().aclrtSetCurrentContextImpl(context);
-}
-
-aclError aclrtLaunchCallbackImpl(aclrtCallback fn, void *userData,
+aclError aclrtLaunchCallback(aclrtCallback fn, void *userData,
     aclrtCallbackBlockType blockType, aclrtStream stream)
 {
-    return MockFunctionTest::aclStubInstance().aclrtLaunchCallbackImpl(fn, userData, blockType, stream);
+    return MockFunctionTest::aclStubInstance().aclrtLaunchCallback(fn, userData, blockType, stream);
 }
 
-aclError aclrtGetDeviceImpl(int32_t *deviceId)
+aclError aclrtGetDevice(int32_t *deviceId)
 {
-    return MockFunctionTest::aclStubInstance().aclrtGetDeviceImpl(deviceId);
+    return MockFunctionTest::aclStubInstance().aclrtGetDevice(deviceId);
 }
 
 size_t aclDataTypeSize(aclDataType dataType)
@@ -485,17 +447,12 @@ size_t aclDataTypeSize(aclDataType dataType)
     return MockFunctionTest::aclStubInstance().aclDataTypeSize(dataType);
 }
 
-aclError aclrtSynchronizeStreamWithTimeoutImpl(aclrtStream stream, int32_t timeout)
+aclError aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout)
 {
-    return MockFunctionTest::aclStubInstance().aclrtSynchronizeStreamWithTimeoutImpl(stream, timeout);
+    return MockFunctionTest::aclStubInstance().aclrtSynchronizeStreamWithTimeout(stream, timeout);
 }
 
-size_t aclGetDataBufferSizeV2Impl(const aclDataBuffer *dataBuffer)
-{
-    return MockFunctionTest::aclStubInstance().aclGetDataBufferSizeV2Impl(dataBuffer);
-}
-
-aclError aclrtAllocatorGetByStreamImpl(aclrtStream stream,
+aclError aclrtAllocatorGetByStream(aclrtStream stream,
                                 aclrtAllocatorDesc *allocatorDesc,
                                 aclrtAllocator *allocator,
                                 aclrtAllocatorAllocFunc *allocFunc,
@@ -503,27 +460,27 @@ aclError aclrtAllocatorGetByStreamImpl(aclrtStream stream,
                                 aclrtAllocatorAllocAdviseFunc *allocAdviseFunc,
                                 aclrtAllocatorGetAddrFromBlockFunc *getAddrFromBlockFunc)
 {
-    return MockFunctionTest::aclStubInstance().aclrtAllocatorGetByStreamImpl(stream,
+    return MockFunctionTest::aclStubInstance().aclrtAllocatorGetByStream(stream,
                                                         allocatorDesc, allocator, allocFunc, freeFunc, allocAdviseFunc, getAddrFromBlockFunc);
 }
 
-aclError aclInitCallbackRegisterImpl(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc, void *userData)
+aclError aclInitCallbackRegister(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc, void *userData)
 {
-    return MockFunctionTest::aclStubInstance().aclInitCallbackRegisterImpl(type, cbFunc, userData);
+    return MockFunctionTest::aclStubInstance().aclInitCallbackRegister(type, cbFunc, userData);
 }
 
-aclError aclInitCallbackUnRegisterImpl(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc)
+aclError aclInitCallbackUnRegister(aclRegisterCallbackType type, aclInitCallbackFunc cbFunc)
 {
     return ACL_SUCCESS;
 }
 
-aclError aclFinalizeCallbackRegisterImpl(aclRegisterCallbackType type,
+aclError aclFinalizeCallbackRegister(aclRegisterCallbackType type,
                                                             aclFinalizeCallbackFunc cbFunc, void *userData)
 {
-    return MockFunctionTest::aclStubInstance().aclFinalizeCallbackRegisterImpl(type, cbFunc, userData);
+    return MockFunctionTest::aclStubInstance().aclFinalizeCallbackRegister(type, cbFunc, userData);
 }
 
-aclError aclFinalizeCallbackUnRegisterImpl(aclRegisterCallbackType type,
+aclError aclFinalizeCallbackUnRegister(aclRegisterCallbackType type,
                                                             aclFinalizeCallbackFunc cbFunc)
 {
     return ACL_SUCCESS;
@@ -539,9 +496,9 @@ uint32_t aclGetDataBufferSize(const aclDataBuffer *dataBuffer)
     return MockFunctionTest::aclStubInstance().aclGetDataBufferSize(dataBuffer);
 }
 
-const char *aclrtGetSocNameImpl()
+const char *aclrtGetSocName()
 {
-    return MockFunctionTest::aclStubInstance().aclrtGetSocNameImpl();
+    return MockFunctionTest::aclStubInstance().aclrtGetSocName();
 }
 
 #ifdef __cplusplus
@@ -579,4 +536,26 @@ aclError aclrtGetCurrentContext(aclrtContext *context)
 aclError aclrtSetCurrentContext(aclrtContext context)
 {
     return MockFunctionTest::aclStubInstance().aclrtSetCurrentContext(context);
+}
+
+aclError aclrtDeviceGetStreamPriorityRange(int32_t *leastPriority, int32_t *greatestPriority)
+{
+    *leastPriority = 7;
+    *greatestPriority = 0;
+    return MockFunctionTest::aclStubInstance().aclrtDeviceGetStreamPriorityRange(leastPriority, greatestPriority);
+}
+
+aclError aclrtCtxGetCurrentDefaultStream(aclrtStream *stream)
+{
+    return MockFunctionTest::aclStubInstance().aclrtCtxGetCurrentDefaultStream(stream);
+}
+
+aclError aclrtRegStreamStateCallback(const char *regName, aclrtStreamStateCallback callback, void *args)
+{
+    return MockFunctionTest::aclStubInstance().aclrtRegStreamStateCallback(regName, callback, args);
+}
+
+aclError aclrtRegDeviceStateCallback(const char *regName, aclrtDeviceStateCallback callback, void *args)
+{
+    return MockFunctionTest::aclStubInstance().aclrtRegDeviceStateCallback(regName, callback, args);
 }

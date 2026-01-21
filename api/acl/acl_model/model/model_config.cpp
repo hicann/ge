@@ -9,7 +9,6 @@
  */
 #include "model_config.h"
 #include "common/ge_inner_error_codes.h"
-#include "runtime/dev.h"
 #include "common/acl_model_log_inner.h"
 #include "model_desc_internal.h"
 #include "acl_model_error_codes_inner.h"
@@ -40,14 +39,14 @@ namespace {
         static int32_t leastPriority;
         static int32_t greatestPriority;
         if (!mdlLoadPriorityFlag) {
-            const rtError_t rtErr = rtDeviceGetStreamPriorityRange(&leastPriority, &greatestPriority);
-            if (rtErr != RT_ERROR_NONE) {
+            const aclError aclErr = aclrtDeviceGetStreamPriorityRange(&leastPriority, &greatestPriority);
+            if (aclErr != ACL_ERROR_NONE) {
                 ACL_LOG_CALL_ERROR("[Get][PriorityRange]get range of stream priority failed, "
-                    "runtime errorCode = %d", static_cast<int32_t>(rtErr));
-                return ACL_GET_ERRCODE_RTS(rtErr);
+                    "runtime errorCode = %d", static_cast<int32_t>(aclErr));
+                return aclErr;
             }
             mdlLoadPriorityFlag = true;
-            ACL_LOG_INFO("execute rtDeviceGetStreamPriorityRange success, greatest load priority = %d, "
+            ACL_LOG_INFO("execute aclrtDeviceGetStreamPriorityRange success, greatest load priority = %d, "
                 "least load priority = %d", greatestPriority, leastPriority);
         }
         const int32_t priority = *static_cast<const int32_t *>(attrValue);

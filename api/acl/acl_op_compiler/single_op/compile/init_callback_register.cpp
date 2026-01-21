@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "acl/acl_rt_impl.h"
+#include "acl/acl_rt.h"
 #include "common/acl_op_compiler_common_inner.h"
 
 namespace acl {
@@ -38,12 +38,10 @@ aclError AclOpCompilerFinalizeCallbackFunc(void *userData)
 }
 __attribute__((constructor)) aclError RegAclOpCompilerFinalizeCallback()
 {
-    return aclFinalizeCallbackRegisterImpl(ACL_REG_TYPE_ACL_OP_COMPILER,
-                                           AclOpCompilerFinalizeCallbackFunc, nullptr);
+    return aclFinalizeCallbackRegister(ACL_REG_TYPE_ACL_OP_COMPILER, AclOpCompilerFinalizeCallbackFunc, nullptr);
 }
 __attribute__((destructor)) aclError UnRegAclOpCompilerFinalizeCallback()
 {
-    return aclFinalizeCallbackUnRegisterImpl(ACL_REG_TYPE_ACL_OP_COMPILER,
-                                             AclOpCompilerFinalizeCallbackFunc);
+    return aclFinalizeCallbackUnRegister(ACL_REG_TYPE_ACL_OP_COMPILER, AclOpCompilerFinalizeCallbackFunc);
 }
 }

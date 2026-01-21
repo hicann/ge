@@ -18,9 +18,6 @@
 #include "executor/ge_executor.h"
 #include "common/ge_inner_error_codes.h"
 #include "common/acl_model_log_inner.h"
-#include "acl/acl_rt_impl.h"
-#include "runtime/stream.h"
-#include "runtime/mem.h"
 #include "graph/tensor.h"
 #include "graph/types.h"
 #include "exe_graph/runtime/tensor.h"
@@ -28,7 +25,7 @@
 #include "model_desc_internal.h"
 #include "acl_model_error_codes_inner.h"
 #include "common/acl_model_prof_api_reg.h"
-#include "common/ge_common/ge_types.h"
+#include "framework/common/ge_types.h"
 #include "framework/runtime/model_v2_executor.h"
 #include "framework/runtime/gert_api.h"
 #include "framework/runtime/subscriber/global_profiler.h"
@@ -71,7 +68,7 @@ enum class TensorType : std::uint8_t {
 };
 
 aclError aclmdlCheckQueueParam(const uint32_t *const inputQ, const size_t inputQNum, const uint32_t *const outputQ,
-                               const size_t outputQNum) {
+                                const size_t outputQNum) {
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(inputQ);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(outputQ);
     if ((inputQNum == 0U) || (outputQNum == 0U)) {
@@ -337,23 +334,23 @@ static aclError RuntimeV2ModelLoadCommon(ge::ModelData &modelData, uint32_t *con
     // 4. load rt2.0 executor
     ACL_LOG_DEBUG("call ge interface executorV2.Load");
     aclrtStream rtStream = nullptr;
-    ACL_REQUIRES_CALL_RTS_OK(aclrtCreateStreamImpl(&rtStream), aclrtCreateStreamImpl);
+    ACL_REQUIRES_CALL_RTS_OK(aclrtCreateStream(&rtStream), aclrtCreateStream);
 
     gert::ModelExecuteArg exeArg;
     exeArg.stream = rtStream;
     ret = executor->Load(exeArg, gert::ModelLoadArg(rtSession.get(), {weightPtr, weightSize}));
     if (ret != ge::GRAPH_SUCCESS) {
         ACL_LOG_CALL_ERROR("[Model][FromData]call load executorV2 failed, ge result[%u]", ret);
-        (void)aclrtDestroyStreamImpl(rtStream);
+        (void)aclrtDestroyStream(rtStream);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
     }
-    ret = aclrtSynchronizeStreamImpl(rtStream);
+    ret = aclrtSynchronizeStream(rtStream);
     if (ret != ACL_ERROR_NONE) {
         ACL_LOG_CALL_ERROR("synchronize stream failed, runtime result = %d", static_cast<int32_t>(ret));
-        (void)aclrtDestroyStreamImpl(rtStream);
+        (void)aclrtDestroyStream(rtStream);
         return ACL_GET_ERRCODE_RTS(ret);
     }
-    (void)aclrtDestroyStreamImpl(rtStream);
+    (void)aclrtDestroyStream(rtStream);
 
     // 5. get model-id
     acl::AclResourceManager::GetInstance().AddExecutor(*modelId , std::move(executor), rtSession);
@@ -721,8 +718,8 @@ static aclError RuntimeV2ModelExecute(const uint32_t modelId, const aclmdlDatase
         if ((dataBuffer->data == nullptr) && (!isAsync)) {
             const size_t memSize = static_cast<size_t>(desc.GetOutputDesc(i)->GetSize());
             if (memSize > 0UL) {
-                ACL_REQUIRES_CALL_RTS_OK(rtMalloc(reinterpret_cast<void **>(&dataBuffer->data), memSize, RT_MEMORY_HBM,
-                    acl::ACL_MODE_ID_U16), rtMalloc);
+                ACL_REQUIRES_CALL_RTS_OK(aclrtMalloc(reinterpret_cast<void **>(&dataBuffer->data), memSize,
+                    ACL_MEM_TYPE_HIGH_BAND_WIDTH), aclrtMalloc);
                 dataBuffer->length = memSize;
                 ACL_LOG_DEBUG("ModelExecute, assign acl-malloced output addr to user-defined buffer, addr:[%p], "
                               "len:[%lu]", dataBuffer->data, dataBuffer->length);
@@ -781,11 +778,11 @@ static aclError RuntimeV2ModelExecute(const uint32_t modelId, const aclmdlDatase
         if ((dataBuffer->data == nullptr) && (!isAsync)) {
             ACL_REQUIRES_NOT_NULL(outputTensor[i].MutableTensorData().GetAddr());
             const auto outputSize = outputTensor[i].MutableTensorData().GetSize();
-            ACL_REQUIRES_CALL_RTS_OK(rtMalloc(reinterpret_cast<void **>(&dataBuffer->data), outputSize,
-                RT_MEMORY_HBM, acl::ACL_MODE_ID_U16), rtMalloc);
-            ACL_REQUIRES_CALL_RTS_OK(aclrtMemcpyImpl(dataBuffer->data, outputSize,
+            ACL_REQUIRES_CALL_RTS_OK(aclrtMalloc(reinterpret_cast<void **>(&dataBuffer->data), outputSize,
+                ACL_MEM_TYPE_HIGH_BAND_WIDTH), aclrtMalloc);
+            ACL_REQUIRES_CALL_RTS_OK(aclrtMemcpy(dataBuffer->data, outputSize,
                 outputTensor[i].MutableTensorData().GetAddr(), outputSize, ACL_MEMCPY_DEVICE_TO_DEVICE),
-                aclrtMemcpyImpl);
+                aclrtMemcpy);
             dataBuffer->length = outputSize;
             ACL_LOG_DEBUG("ModelExecute, assign acl-malloced output addr to user-defined buffer, addr:[%p], len:[%lu]",
                           dataBuffer->data, dataBuffer->length);
@@ -878,8 +875,8 @@ static aclError ModelExecute(const uint32_t modelId, const aclmdlDataset *const 
             auto &dataBuffer = output->blobs[idx].dataBuf;
             const size_t outputSize = static_cast<size_t>(outputDesc[idx].GetSize());
             if (outputSize > 0UL) {
-                ACL_REQUIRES_CALL_RTS_OK(rtMalloc(reinterpret_cast<void **>(&dataBuffer->data), outputSize,
-                    RT_MEMORY_HBM, acl::ACL_MODE_ID_U16), rtMalloc);
+                ACL_REQUIRES_CALL_RTS_OK(aclrtMalloc(reinterpret_cast<void **>(&dataBuffer->data), outputSize,
+                    ACL_MEM_TYPE_HIGH_BAND_WIDTH), aclrtMalloc);
                 dataBuffer->length = outputSize;
                 outputData.blobs[idx].data = dataBuffer->data;
                 outputData.blobs[idx].length = outputSize;
@@ -928,10 +925,10 @@ static aclError ModelExecute(const uint32_t modelId, const aclmdlDataset *const 
         auto &dataBuffer = output->blobs[i].dataBuf;
         if ((dataBuffer->data == nullptr) && (!basync)) {
             const auto outputSize = outputData.blobs[i].length;
-            ACL_REQUIRES_CALL_RTS_OK(rtMalloc(reinterpret_cast<void **>(&dataBuffer->data), outputSize,
-                RT_MEMORY_HBM, acl::ACL_MODE_ID_U16), rtMalloc);
-            ACL_REQUIRES_CALL_RTS_OK(aclrtMemcpyImpl(dataBuffer->data, outputSize, outputData.blobs[i].data,
-                outputSize, ACL_MEMCPY_DEVICE_TO_DEVICE), aclrtMemcpyImpl);
+            ACL_REQUIRES_CALL_RTS_OK(aclrtMalloc(reinterpret_cast<void **>(&dataBuffer->data), outputSize,
+                ACL_MEM_TYPE_HIGH_BAND_WIDTH), aclrtMalloc);
+            ACL_REQUIRES_CALL_RTS_OK(aclrtMemcpy(dataBuffer->data, outputSize, outputData.blobs[i].data,
+                outputSize, ACL_MEMCPY_DEVICE_TO_DEVICE), aclrtMemcpy);
             dataBuffer->length = outputSize;
             ACL_LOG_DEBUG("ModelExecute, assign acl-malloced output addr to user-defined buffer, addr:[%p], "
                           "len:[%lu]", dataBuffer->data, dataBuffer->length);
@@ -2111,7 +2108,7 @@ aclError aclmdlExecuteV2Impl(uint32_t modelId, const aclmdlDataset *input, aclmd
     } else {
         ret = acl::ModelExecute(modelId, input, output, false, stream);
         if (stream != nullptr) {
-            const aclError rtErr = aclrtSynchronizeStreamWithTimeoutImpl(stream, handle->streamSyncTimeout);
+            const aclError rtErr = aclrtSynchronizeStreamWithTimeout(stream, handle->streamSyncTimeout);
             if (rtErr != ACL_ERROR_NONE) {
                 ACL_LOG_CALL_ERROR("synchronize stream failed, runtime result = %d", static_cast<int32_t>(rtErr));
                 return ACL_GET_ERRCODE_RTS(rtErr);
@@ -2253,7 +2250,7 @@ aclError aclmdlSetDynamicBatchSizeImpl(uint32_t modelId, aclmdlDataset *dataset,
         return ACL_ERROR_INVALID_PARAM;
     }
 
-    void *const devPtr = aclGetDataBufferAddrImpl(buf);
+    void *const devPtr = aclGetDataBufferAddr(buf);
     if (devPtr == nullptr) {
         ACL_LOG_INNER_ERROR("[Check][devPtr]get addr by index[%zu] failed, data buffer addr can not be null", index);
         return ACL_ERROR_INVALID_PARAM;
@@ -2296,12 +2293,12 @@ aclError aclmdlSetDynamicHWSizeImpl(uint32_t modelId, aclmdlDataset *dataset, si
         return ACL_ERROR_INVALID_PARAM;
     }
 
-    void *const devPtr = aclGetDataBufferAddrImpl(buffer);
+    void *const devPtr = aclGetDataBufferAddr(buffer);
     if (devPtr == nullptr) {
         ACL_LOG_INNER_ERROR("[Check][devPtr]get addr by index[%zu] failed, data buffer addr can not be nullptr", index);
         return ACL_ERROR_INVALID_PARAM;
     }
-    const uint64_t memSize = aclGetDataBufferSizeV2Impl(buffer);
+    const uint64_t memSize = aclGetDataBufferSizeV2(buffer);
 
     dataset->dynamicBatchSize = 0U;
     dataset->dynamicResolutionHeight = height;
@@ -2339,10 +2336,10 @@ aclError aclmdlSetInputDynamicDimsImpl(uint32_t modelId, aclmdlDataset *dataset,
     ACL_CHECK_WITH_INNER_MESSAGE_AND_RETURN(buffer != nullptr, ACL_ERROR_INVALID_PARAM,
         "[Check][buffer]get data buffer by index[%zu] failed, dataset buffer can not be null", index);
 
-    void *const devPtr = aclGetDataBufferAddrImpl(buffer);
+    void *const devPtr = aclGetDataBufferAddr(buffer);
     ACL_CHECK_WITH_INNER_MESSAGE_AND_RETURN(devPtr != nullptr, ACL_ERROR_INVALID_PARAM,
         "[Get][devPtr]get addr by index[%zu] failed, data buffer addr can not be null", index);
-    const uint64_t memSize = aclGetDataBufferSizeV2Impl(buffer);
+    const uint64_t memSize = aclGetDataBufferSizeV2(buffer);
 
     dataset->dynamicBatchSize = 0U;
     dataset->dynamicResolutionHeight = 0U;

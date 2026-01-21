@@ -13,8 +13,7 @@
 
 #include <map>
 #include "acl/acl_base.h"
-#include "acl/acl_rt_impl.h"
-#include "runtime/mem_base.h"
+#include "acl/acl_rt.h"
 #include "log_inner.h"
 
 namespace acl {
@@ -29,12 +28,6 @@ namespace acl {
                                                    bool isPadding,
                                                    const aclrtMemMallocPolicy policy,
                                                    const uint16_t moduleId);
-
-    ACL_FUNC_VISIBILITY aclError aclrtMallocInnerWithCfg(void **devPtr,
-                                                         const size_t size,
-                                                         aclrtMemMallocPolicy policy,
-                                                         rtMallocAdvise advise,
-                                                         aclrtMallocConfig *cfg);
 
     bool GetAclInitFlag();
 
@@ -59,8 +52,8 @@ namespace acl {
     int32_t UpdateOpSystemRunCfg(void *cfgAddr, uint32_t cfgLen);
 
     aclError HandleDefaultDeviceAndStackSize(const char_t *const configPath);
-    void HandleReleaseSourceByStream(aclrtStream stream, bool isCreate);
-    void HandleReleaseSourceByDevice(uint32_t devId, bool isReset);
+    void HandleReleaseSourceByStream(aclrtStream stream, aclrtStreamState state, void *args);
+    void HandleReleaseSourceByDevice(int32_t deviceId, aclrtDeviceState state, void *args);
 
     ACL_FUNC_VISIBILITY aclError GetAlignedAndPaddingSize(const size_t size, const bool isPadding, size_t &alignedSize);
 

@@ -15,7 +15,6 @@
 #include "securec.h"
 #include "utils/acl_op_executor_math_utils.h"
 #include "utils/acl_op_executor_attr_utils.h"
-#include "runtime/stream.h"
 
 namespace acl {
 namespace {
@@ -175,10 +174,10 @@ StreamExecutor *Executors::GetOrCreate(const aclrtContext context, const aclrtSt
     if (stream == nullptr)
     {
         // get current context default stream
-        rtStream_t curCtxDefaultStream = nullptr;
-        const rtError_t rtErr = rtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
-        if (rtErr != RT_ERROR_NONE) {
-            ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(rtErr));
+        aclrtStream curCtxDefaultStream = nullptr;
+        const aclError aclErr = aclrtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
+        if (aclErr != ACL_ERROR_NONE) {
+            ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(aclErr));
             return nullptr;
         }
         key = reinterpret_cast<uintptr_t>(curCtxDefaultStream);
@@ -212,10 +211,10 @@ void Executors::RemoveExecutor(const aclrtStream stream)
         ACL_LOG_INFO("To remove executor by stream = %lu", key);
     } else {
         // get current context default stream
-        rtStream_t curCtxDefaultStream = nullptr;
-        const rtError_t rtErr = rtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
-        if (rtErr != RT_ERROR_NONE) {
-            ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(rtErr));
+        aclrtStream curCtxDefaultStream = nullptr;
+        const aclError aclErr = aclrtCtxGetCurrentDefaultStream(&curCtxDefaultStream);
+        if (aclErr != ACL_ERROR_NONE) {
+            ACL_LOG_CALL_ERROR("get current default stream failed, ret:%d", static_cast<int32_t>(aclErr));
             return;
         }
         key = reinterpret_cast<uintptr_t>(curCtxDefaultStream);
