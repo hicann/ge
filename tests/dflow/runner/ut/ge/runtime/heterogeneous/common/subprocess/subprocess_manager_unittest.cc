@@ -102,9 +102,14 @@ TEST_F(SubprocessManagerTest, UtShutdownSubprocess) {
 }
 
 TEST_F(SubprocessManagerTest, UtSubProcessManagerWaitpidStop) {
+  std::mutex mt;
+  std::condition_variable condition;
+  bool callback_finish = false;
   ProcStatus status_result = ProcStatus::NORMAL;
   std::function<void(const ProcStatus &)> func = [&](const ProcStatus &status) {
     status_result = status;
+    callback_finish = true;
+    condition.notify_all();
   };
   pid_t pid = getpid();
   g_waitpid_ret = 3;
@@ -112,7 +117,13 @@ TEST_F(SubprocessManagerTest, UtSubProcessManagerWaitpidStop) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   SubprocessManager::GetInstance().RegExcptHandleCallback(pid, func);
   SubprocessManager::GetInstance().Initialize();
-  usleep(10);  // 0.01ms, Wait for RunThread.
+  // 等待回调
+  std::unique_lock<std::mutex> lock(mt);
+  condition.wait_for(lock, std::chrono::seconds(1),
+                     [&callback_finish]() {
+                       return callback_finish;
+                     });
+
   SubprocessManager::GetInstance().run_flag_.store(false);
   if (SubprocessManager::GetInstance().watch_sub_proc_thread_.joinable()) {
     SubprocessManager::GetInstance().watch_sub_proc_thread_.join();
@@ -123,9 +134,14 @@ TEST_F(SubprocessManagerTest, UtSubProcessManagerWaitpidStop) {
 }
 
 TEST_F(SubprocessManagerTest, UtSubProcessManagerWaitpidExit) {
+  std::mutex mt;
+  std::condition_variable condition;
+  bool callback_finish = false;
   ProcStatus status_result = ProcStatus::NORMAL;
   std::function<void(const ProcStatus &)> func = [&](const ProcStatus &status) {
     status_result = status;
+    callback_finish = true;
+    condition.notify_all();
   };
   pid_t pid = 1000000;
   g_waitpid_ret = -1;
@@ -133,7 +149,13 @@ TEST_F(SubprocessManagerTest, UtSubProcessManagerWaitpidExit) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   SubprocessManager::GetInstance().RegExcptHandleCallback(pid, func);
   SubprocessManager::GetInstance().Initialize();
-  usleep(10);  // 0.01ms, Wait for RunThread.
+
+  // 等待回调
+  std::unique_lock<std::mutex> lock(mt);
+  condition.wait_for(lock, std::chrono::seconds(1),
+                     [&callback_finish]() {
+                       return callback_finish;
+                     });
   SubprocessManager::GetInstance().run_flag_.store(false);
   if (SubprocessManager::GetInstance().watch_sub_proc_thread_.joinable()) {
     SubprocessManager::GetInstance().watch_sub_proc_thread_.join();

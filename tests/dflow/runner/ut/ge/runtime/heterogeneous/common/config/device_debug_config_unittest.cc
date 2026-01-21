@@ -54,11 +54,8 @@ TEST_F(UtDeviceDebugConfig, DeviceDebugConfigMasterLogEncodeDecode) {
   // init log env
   int32_t env_val = 1;
   int32_t expect_env_val = 1;
-  char_t env[4][128] = {0};
-  for (size_t id = 0; id < kLogEnvNames.size(); id++) {
-    std::string env_set = (kLogEnvNames[id] + "=" + std::to_string(env_val)).c_str();
-    (void)strncpy(env[id], env_set.c_str(), env_set.size());
-    putenv(env[id]);
+  for (const auto &env_name : kLogEnvNames) {
+    setenv(env_name.c_str(), std::to_string(env_val).c_str(), 1);
     env_val++;
   }
   DeviceMaintenanceMasterCfg dev_cfg;
@@ -82,6 +79,11 @@ TEST_F(UtDeviceDebugConfig, DeviceDebugConfigMasterLogEncodeDecode) {
   EXPECT_EQ(env_option.size(), kLogEnvNames.size());
   for (size_t id = 0; id < kLogEnvNames.size(); id++) {
     EXPECT_EQ(env_option[kLogEnvNames[id]] ==  std::to_string(expect_env_val++), true);
+  }
+
+  for (const auto &env_name : kLogEnvNames) {
+    unsetenv(env_name.c_str());
+    env_val++;
   }
 }
 
