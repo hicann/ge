@@ -6,7 +6,7 @@
 ```angular2html
 python/
 ├── src/
-|   └── make_batchnorm_garph.py   // sample文件
+|   └── make_batchnorm_graph.py   // sample文件
 ├── run_sample.sh                 // 执行脚本
 ├── CMakeLists.txt                // 编译脚本
 ├──README.md                     // README文件

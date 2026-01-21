@@ -40,7 +40,7 @@ def build_split_graph():
 
 
 def dump_split_graph(graph):
-    graph.dump_to_file(format=DumpFormat.kOnnx, suffix="make_spilt_graph")
+    graph.dump_to_file(format=DumpFormat.kOnnx, suffix="make_split_graph")
 
 
 def run_graph(graph) -> int:

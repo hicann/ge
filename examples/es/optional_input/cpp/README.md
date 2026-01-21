@@ -8,7 +8,7 @@ cpp/
 ├── src/
 |   └── CMakeLists.txt            // CMake构建文件
 |   └── es_showcase.h             // 头文件
-|   └── make_batchnorm_garph.cpp  // sample文件
+|   └── make_batchnorm_graph.cpp  // sample文件
 ├── CMakeLists.txt                // CMake构建文件
 ├── main.cpp                      // 程序主入口
 ├── README.md                     // README文件
