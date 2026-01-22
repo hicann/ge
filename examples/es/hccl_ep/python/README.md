@@ -1,18 +1,18 @@
 # 样例使用指导
 
 ## 1、功能描述
-本样例演示如何使用HcomAllReduce算子集合通信进行构图，旨在帮助构图开发者快速理解集合通信定义和使用该类型算子进行构图。
+本样例演示如何使用HcomAllGather、HcomReduceScatter算子集合通信进行构图，旨在帮助构图开发者快速理解集合通信定义和使用该类型算子进行构图。
 
 ## 2、目录结构
 ```angular2html
 python/
 ├── src/
-|   └── make_pfa_hcom_graph.py     // sample文件
+|   └── make_ep_graph.py               // sample文件
 ├── rank_table/
-|   └── rank_table_2p.json         // 2卡rank table配置
-├── CMakeLists.txt                 // 编译脚本
-├── README.md                      // README文件
-├── run_sample.sh                  // 执行脚本
+|   └── rank_table_2p.json             // 2卡rank table配置
+├── CMakeLists.txt                     // 编译脚本
+├── README.md                          // README文件
+└── run_sample.sh                      // 执行脚本
 ```
 
 ## 3、使用方法
@@ -53,7 +53,7 @@ bash run_sample.sh -t sample_and_run_python
 #### 输出文件说明
 
 执行成功后会在当前目录生成以下文件：
-- `ge_onnx_MakePfaHcomGraph.pbtxt` - 图结构的protobuf文本格式，可用netron查看
+- `ge_onnx_MakeEPGraph.pbtxt` - 图结构的protobuf文本格式，可用netron查看
 
 ### 3.3、日志打印
 可执行程序执行过程中如果需要日志打印来辅助定位，可以在bash run_sample.sh -t sample_and_run_python之前设置如下环境变量来让日志打印到屏幕
@@ -94,28 +94,54 @@ config = {
 }
 ```
 
-### 4.3、TP图构图
+### 4.3、EP图构图
 **概念说明：**
-TP（Tensor Parallel）图是指通过张量并行方式在多卡上运行的图结构。本样例演示了如何使用ES算子构建包含集合通信算子的TP图，实现多卡间的数据同步和并行计算。
+EP（Expert Parallel）图是指通过专家并行方式在多卡上运行的图结构。本样例演示了如何使用ES算子构建包含集合通信算子的EP图，实现多卡间的数据同步和并行计算。
 
-HcomAllReduce 算子原型如下所示，ES 构图生成的API是`HcomAllReduce()`，支持在 Python 中使用
+HcomAllGather 算子原型如下所示，ES 构图生成的API是`HcomAllGather()`，支持在 Python 中使用
 ```
-  REG_OP(HcomAllReduce)
-      .INPUT(x, TensorType({DT_FLOAT, DT_INT32, DT_INT8, DT_INT16, DT_FLOAT16, DT_INT64}))
-      .OUTPUT(y, TensorType({DT_FLOAT, DT_INT32, DT_INT8, DT_INT16, DT_FLOAT16, DT_INT64}))
-      .REQUIRED_ATTR(reduction, String)
+  REG_OP(HcomAllGather)
+      .INPUT(x, TensorType({DT_FLOAT, DT_INT32, DT_INT8, DT_INT16, DT_FLOAT16, DT_BFLOAT16, DT_INT64, DT_UINT64,
+                            DT_UINT8, DT_UINT16, DT_UINT32, DT_FLOAT64}))
+      .OUTPUT(y, TensorType({DT_FLOAT, DT_INT32, DT_INT8, DT_INT16, DT_FLOAT16, DT_BFLOAT16, DT_INT64, DT_UINT64,
+                            DT_UINT8, DT_UINT16, DT_UINT32, DT_FLOAT64}))
+      .REQUIRED_ATTR(rank_size, Int)
       .REQUIRED_ATTR(group, String)
-      .ATTR(fusion, Int, 1)
-      .ATTR(fusion_id, Int, -1) 
-      .OP_END_FACTORY_REG(HcomAllReduce)
+      .ATTR(fusion, Int, 0)
+      .ATTR(fusion_id, Int, -1)
+      .OP_END_FACTORY_REG(HcomAllGather)
 ```
 其对应的函数原型为：
-- 函数名：HcomAllReduce
-- 参数：共 5 个，依次为 x， reduction， group， fusion（可选，默认1）， fusion_id（可选，默认-1）
+- 函数名：HcomAllGather
+- 参数：共 5 个，依次为 x， rank_size， group， fusion（可选，默认0）， fusion_id（可选，默认-1）
 - 返回值：输出 y
 
 **Python API中：**
 ```
-HcomAllReduce(x: TensorHolder, *, reduction: str, group: str, fusion: int = 1, fusion_id: int = -1) -> TensorHolder
+HcomAllGather(x: TensorHolder, *, rank_size: int, group: str, fusion: int = 0, fusion_id: int = -1) -> TensorHolder
 ```
-注： reduction、group为必选关键字参数，fusion和fusion_id为可选参数，具有默认值
+注： rank_size、group为必选关键字参数，fusion和fusion_id为可选参数，具有默认值
+
+HcomReduceScatter 算子原型如下所示，ES 构图生成的API是`HcomReduceScatter()`，支持在 Python 中使用
+```
+  REG_OP(HcomReduceScatter)
+      .INPUT(x, TensorType({DT_FLOAT, DT_INT32, DT_INT8, DT_INT16, DT_FLOAT16, DT_INT64}))
+      .OUTPUT(y, TensorType({DT_FLOAT, DT_INT32, DT_INT8, DT_INT16, DT_FLOAT16, DT_INT64}))
+      .REQUIRED_ATTR(reduction, String)
+      .ATTR(fusion, Int, 0)
+      .ATTR(fusion_id, Int, -1)
+      .REQUIRED_ATTR(group, String)
+      .REQUIRED_ATTR(rank_size, Int)
+      .OP_END_FACTORY_REG(HcomReduceScatter)
+```
+其对应的函数原型为：
+- 函数名：HcomReduceScatter
+- 参数：共 6 个，依次为 x， reduction， group， rank_size， fusion（可选，默认0）， fusion_id（可选，默认-1）
+- 返回值：输出 y
+
+**Python API中：**
+```
+HcomReduceScatter(x: TensorHolder, *, reduction: str, group: str, rank_size: int, fusion: int = 0, fusion_id: int = -1) -> TensorHolder
+```
+注： reduction、group、rank_size为必选关键字参数，fusion和fusion_id为可选参数，具有默认值
+
