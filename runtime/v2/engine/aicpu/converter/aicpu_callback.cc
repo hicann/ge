@@ -23,6 +23,7 @@
 #include "lowering/lowering_utils.h"
 #include "graph_builder/bg_rt_session.h"
 #include "exe_graph/lowering/frame_selector.h"
+#include "common/ge_common/util.h"
 
 namespace gert {
 namespace {

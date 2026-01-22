@@ -21,9 +21,6 @@
  *
  * This file is safe, minimal, and production-friendly.
  */
-
-#include <stddef.h>
-#include <stdint.h>
  
 namespace aicpu_stub {
 // --------------------------------------------------------------

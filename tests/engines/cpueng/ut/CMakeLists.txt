@@ -294,6 +294,9 @@ target_link_libraries(tf_engine_utest PRIVATE
     -lpthread
     -lgcov
     cce_headers
+    platform
+    ascendalog
+    mmpa
 )
 
 if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
@@ -324,6 +327,9 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         -lpthread
         -lgcov
         cce_headers
+        platform
+        ascendalog
+        mmpa
     )
 else ()
     target_link_libraries(cpu_engine_utest PRIVATE
@@ -352,6 +358,9 @@ else ()
         -lpthread
         -lgcov
         cce_headers
+        platform
+        ascendalog
+        mmpa
     )
 endif ()
 
@@ -382,4 +391,7 @@ target_link_libraries(host_engine_utest PRIVATE
     -lpthread
     -lgcov
     cce_headers
+    platform
+    ascendalog
+    mmpa
 )

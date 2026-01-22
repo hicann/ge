@@ -23,6 +23,7 @@
 #include "engine/aicpu/kernel/aicpu_args_handler.h"
 #include "engine/aicpu/kernel/aicpu_fuse_host_inputs.h"
 #include "engine/aicpu/kernel/aicpu_resource_manager.h"
+#include "common/ge_common/util.h"
 
 namespace gert {
 namespace bg {

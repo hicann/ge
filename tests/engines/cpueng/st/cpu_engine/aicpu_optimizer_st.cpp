@@ -433,7 +433,7 @@ TEST(AicpuGraphOptimizer, OptimizeFusedGraphFftsCast_SUCCESS)
     auto node3 = graphPtr->AddNode(Op2DescPtr);
     node3->AddLinkFrom(node2);
 
-    ASSERT_NE(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), SUCCESS);
+    ASSERT_EQ(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), PACKAGE_BIN_FILE);
 }
 
 TEST(AicpuGraphOptimizer, GetAttrValueFromGe_STRING_SUCCESS)
@@ -541,7 +541,7 @@ TEST(AicpuGraphOptimizer, OptimizeFusedGraph_OPTIMIZE_CPU_KERNEL_SUCCESS)
     auto node3 = graphPtr->AddNode(Op2DescPtr);
     node3->AddLinkFrom(node2);
 
-    ASSERT_NE(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), SUCCESS);
+    ASSERT_EQ(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), PACKAGE_BIN_FILE);
 }
 
 TEST(AicpuGraphOptimizer, ValidateStr_FAILED)

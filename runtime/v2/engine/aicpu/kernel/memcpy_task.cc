@@ -25,6 +25,7 @@
 #include "core/debug/kernel_tracing.h"
 #include "framework/common/ge_types.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
+#include "common/ge_common/util.h"
 
 namespace gert {
 namespace kernel {
@@ -128,16 +129,18 @@ ge::graphStatus GetOutputShapeFromHbmBuffer(KernelContext *context) {
 }
 
 ge::graphStatus CreateOutputsForHbmBuffer(const ge::FastNode *node, KernelContext *context) {
-  (void) node;
+  (void)node;
+  GELOGD("Output number = %zd.", context->GetOutputNum());
   for (size_t i = 0U; i < context->GetOutputNum(); i++) {
     auto av_holder = context->GetOutput(i);
-    auto shape = ge::MakeUnique<StorageShape>();
+    auto tensor = ge::MakeUnique<Tensor>();
     GE_ASSERT_NOTNULL(av_holder);
-    GE_ASSERT_NOTNULL(shape);
-    av_holder->SetWithDefaultDeleter(shape.release());
+    GE_ASSERT_NOTNULL(tensor);
+    av_holder->SetWithDefaultDeleter(tensor.release());
   }
   return ge::GRAPH_SUCCESS;
 }
+
 REGISTER_KERNEL(GetOutputShapeFromHbmBuffer)
     .RunFunc(GetOutputShapeFromHbmBuffer)
     .OutputsCreator(CreateOutputsForHbmBuffer);

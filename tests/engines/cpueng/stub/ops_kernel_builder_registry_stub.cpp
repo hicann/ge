@@ -10,7 +10,7 @@
 
 #include <stdio.h>
 #include "register/ops_kernel_builder_registry.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
 

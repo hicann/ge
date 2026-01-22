@@ -462,7 +462,7 @@ TEST(AicpuGraphOptimizer, OptimizeFusedGraphFftsCast_SUCCESS)
     auto node3 = graphPtr->AddNode(Op2DescPtr);
     node3->AddLinkFrom(node2);
 
-    ASSERT_EQ(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), SUCCESS);
+    ASSERT_EQ(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), PACKAGE_BIN_FILE);
 }
 
 TEST(AicpuGraphOptimizer, OptimizeFusedGraph_SUCCESS_006)
@@ -648,7 +648,7 @@ TEST(AicpuGraphOptimizer, OptimizeFusedGraph_OPTIMIZE_CPU_KERNEL_SUCCESS)
     auto node3 = graphPtr->AddNode(Op2DescPtr);
     node3->AddLinkFrom(node2);
 
-    ASSERT_EQ(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), SUCCESS);
+    ASSERT_EQ(graphOptimizers["aicpu_ascend_optimizer"]->OptimizeFusedGraph(*(graphPtr.get())), PACKAGE_BIN_FILE);
 }
 
 TEST(AicpuGraphOptimizer, GetBinFileName_FIALED)
@@ -674,7 +674,7 @@ TEST(AicpuGraphOptimizer, GetBinFileName_FIALED)
     command = "touch " + fileSo0;
     system((char*) command.c_str());
     ASSERT_EQ(optimizer.GetBinFileName(opInfo, real_dir_file_path,
-                                       bin_file_name), SUCCESS);
+                                       bin_file_name), NO_CPU_KERNELS_SO_EXIST);
     string fileSo1 = real_dir_file_path + "/libcpu_kernels_v1.so";
     command = "touch " + fileSo1;
     system((char*) command.c_str());
@@ -682,7 +682,7 @@ TEST(AicpuGraphOptimizer, GetBinFileName_FIALED)
     command = "touch " + fileSo2;
     system((char*) command.c_str());
     ASSERT_EQ(optimizer.GetBinFileName(opInfo, real_dir_file_path,
-                                       bin_file_name), SUCCESS);
+                                       bin_file_name), MULTI_CPU_KERNELS_SO_EXIST);
 
     real_dir_file_path = so_file_path.substr(0, so_file_path.rfind('/') + 1) + "op_impl/";
     command = "rm -rf " + real_dir_file_path;

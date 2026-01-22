@@ -11,7 +11,6 @@
 #ifndef AICPU_OPS_PARALLEL_RULE_JSON_FILE_H
 #define AICPU_OPS_PARALLEL_RULE_JSON_FILE_H
 
-#include <map>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>

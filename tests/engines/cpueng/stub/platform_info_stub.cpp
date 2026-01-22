@@ -9,7 +9,7 @@
  */
 
 #include "platform_info_stub.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/def_types.h"
 
 namespace fe {

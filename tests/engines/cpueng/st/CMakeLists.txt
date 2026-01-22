@@ -272,6 +272,9 @@ target_link_libraries(tf_engine_stest PRIVATE
     -lpthread
     -lgcov
     cce_headers
+    platform
+    ascendalog
+    mmpa
 )
 
 target_include_directories(cpu_engine_stest PRIVATE
@@ -313,6 +316,9 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         -lpthread
         -lgcov
         cce_headers
+        platform
+        ascendalog
+        mmpa
     )
 else ()
     target_link_libraries(cpu_engine_stest PRIVATE
@@ -341,6 +347,9 @@ else ()
         -lpthread
         -lgcov
         cce_headers
+        platform
+        ascendalog
+        mmpa
     )
 endif ()
 
@@ -381,4 +390,7 @@ target_link_libraries(host_engine_stest PRIVATE
     -lpthread
     -lgcov
     cce_headers
+    platform
+    ascendalog
+    mmpa
 )

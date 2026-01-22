@@ -202,7 +202,7 @@ ge::Status AicpuGraphOptimizer::AddAicpuSupportedNodeAttr(ge::ComputeGraph &grap
 
 bool AicpuGraphOptimizer::NodeExistStringOutput(const ge::NodePtr &node) const {
   OpDescPtr op_desc_ptr = node->GetOpDesc();
-  for (const ge::GeTensorDesc output_tensor_desc : op_desc_ptr->GetAllOutputsDesc()) {
+  for (const ge::GeTensorDesc &output_tensor_desc : op_desc_ptr->GetAllOutputsDesc()) {
     if (output_tensor_desc.GetDataType() == DT_STRING) {
       return true;
     }

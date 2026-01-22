@@ -11,7 +11,6 @@
 #ifndef AICPU_OPS_JSON_FILE_H_
 #define AICPU_OPS_JSON_FILE_H_
 
-#include <map>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <vector>

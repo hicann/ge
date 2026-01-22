@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 #endif // __cplusplus
-LOG_FUNC_VISIBILITY int32_t __attribute__((weak)) CheckLogLevel(int32_t moduleId, int32_t level);
+LOG_FUNC_VISIBILITY int32_t __attribute__((weak)) CheckLogLevel(int32_t moduleId, int32_t logLevel);
 LOG_FUNC_VISIBILITY void __attribute__((weak)) DlogRecord(int32_t moduleId, int32_t level, const char *fmt, ...);
 #ifdef __cplusplus
 #ifndef LOG_CPP
