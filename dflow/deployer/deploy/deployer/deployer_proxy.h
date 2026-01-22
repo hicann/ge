@@ -37,8 +37,6 @@ class DeployerProxy {
   Status GetDeviceAbnormalCode() const;
 
   Status SendRequest(int32_t node_id, deployer::DeployerRequest &request, deployer::DeployerResponse &response);
-
-  bool IsContailFakeDevice() const;
  private:
   DeployerProxy() = default;
   ~DeployerProxy();

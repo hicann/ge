@@ -32,7 +32,7 @@ class FLOW_FUNC_VISIBILITY MetaParams {
    * @param attr_name attr name, cannot be null, must end with '\0'.
    * @return AttrValue *: not null->success, null->failed
    */
-  std::shared_ptr<const AttrValue> GetAttr(const char *attr_name) const;
+  virtual std::shared_ptr<const AttrValue> GetAttr(const char *attr_name) const;
 
   template <class T>
   int32_t GetAttr(const char *attr_name, T &value) const {
@@ -48,7 +48,7 @@ class FLOW_FUNC_VISIBILITY MetaParams {
    * used for check whether the number of inputs is consistent.
    * @return input num.
    */
-  size_t GetInputNum() const {
+  virtual size_t GetInputNum() const {
     return 2UL;
   }
 
@@ -57,7 +57,7 @@ class FLOW_FUNC_VISIBILITY MetaParams {
    * used for check whether the number of outputs is consistent.
    * @return output num.
    */
-  size_t GetOutputNum() const {
+  virtual size_t GetOutputNum() const {
     return 1UL;
   }
 
@@ -66,7 +66,7 @@ class FLOW_FUNC_VISIBILITY MetaParams {
    * used for check whether the number of outputs is consistent.
    * @return output num.
    */
-  const char *GetWorkPath() const {
+  virtual const char *GetWorkPath() const {
     return work_path_.c_str();
   }
 
@@ -74,7 +74,7 @@ class FLOW_FUNC_VISIBILITY MetaParams {
    * @brief get running device id.
    * @return device id.
    */
-  int32_t GetRunningDeviceId() const {
+  virtual int32_t GetRunningDeviceId() const {
     return 0;
   }
 
@@ -82,7 +82,7 @@ class FLOW_FUNC_VISIBILITY MetaParams {
    * @brief get running instance id.
    * @return instance id.
    */
-  int32_t GetRunningInstanceId() const {
+  virtual int32_t GetRunningInstanceId() const {
     return 0;
   }
 
@@ -90,7 +90,7 @@ class FLOW_FUNC_VISIBILITY MetaParams {
    * @brief get running instance num.
    * @return instance num.
    */
-  int32_t GetRunningInstanceNum() const {
+  virtual int32_t GetRunningInstanceNum() const {
     return 1;
   }
 

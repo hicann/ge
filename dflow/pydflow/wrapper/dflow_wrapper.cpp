@@ -82,7 +82,7 @@ std::string ConvertNumpyDataTypeToGeDataType(const py::dtype &np_data_dtype, ge:
     ge_data_type = it->second;
     return "";
   }
-  return "Unsupported data type:" + np_data_dtype.char_();
+  return std::string("Unsupported data type:") + np_data_dtype.char_();
 }
 
 bool IsStringDataType(const std::string &data_type) {
@@ -144,6 +144,8 @@ class PyFlowMsg : public ge::FlowMsg {
   }
 
   ge::Status GetRawData(void *&data_ptr, uint64_t &data_size) const override {
+    (void)data_ptr;
+    (void)data_size;
     PYBIND11_OVERRIDE_PURE(ge::Status, ge::FlowMsg, GetRawData, );
   }
 
@@ -188,6 +190,9 @@ class PyFlowMsg : public ge::FlowMsg {
   }
 
   ge::Status GetUserData(void *data, size_t size, size_t offset = 0U) const override {
+    (void)data;
+    (void)size;
+    (void)offset;
     PYBIND11_OVERRIDE_PURE(ge::Status, FlowMsg, GetUserData, );
   }
 
@@ -217,7 +222,13 @@ PYBIND11_MODULE(dflow_wrapper, m) {
   m.def(
       "ge_initialize",
       [](const std::map<std::string, std::string> &options) {
-        const auto ret = ge::GEInitialize(options);
+        std::map<ge::AscendString, ge::AscendString> options_ascend_string;
+        for (auto it = options.cbegin(); it != options.cend(); ++it) {
+          AscendString key{it->first.data()};
+          AscendString value{it->second.data()};
+          options_ascend_string[key] = value;
+        }
+        const auto ret = ge::GEInitialize(options_ascend_string);
         return ret;
       },
       py::call_guard<py::gil_scoped_release>());
@@ -544,7 +555,13 @@ PYBIND11_MODULE(dflow_wrapper, m) {
       .def("add_flow_graph", ([](ge::Session &self, uint32_t graph_id, dflow::FlowGraph &flow_graph,
                                  const std::map<std::string, std::string> &options) {
              ReturnMessage return_msg = {.ret_code = ge::SUCCESS, .error_msg = "success"};
-             const auto ret = self.AddGraph(graph_id, flow_graph.ToGeGraph(), options);
+             std::map<ge::AscendString, ge::AscendString> options_ascend_string;
+             for (auto it = options.cbegin(); it != options.cend(); ++it) {
+               AscendString key{it->first.data()};
+               AscendString value{it->second.data()};
+               options_ascend_string[key] = value;
+             }
+             const auto ret = self.AddGraph(graph_id, flow_graph.ToGeGraph(), options_ascend_string);
              if (ret != 0) {
                return_msg.ret_code = ret;
                return_msg.error_msg = "Failed to add flow graph, " + ERR_MSG;

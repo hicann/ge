@@ -306,10 +306,6 @@ Status RemoteDeployer::InitRequest(deployer::DeployerRequest &request) {
   return SUCCESS;
 }
 
-bool RemoteDeployer::IsContailFakeDevInfo() const {
-  return (node_config_.chip_count != 0U);
-}
-
 Status RemoteDeployer::SendInitRequest(const deployer::DeployerRequest request,
                                        deployer::DeployerResponse &response) {
   Status ret = SUCCESS;

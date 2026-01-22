@@ -33,7 +33,6 @@ class Deployer {
   virtual Status Initialize() = 0;
   virtual Status Finalize() = 0;
   virtual Status GetDevStat() = 0;
-  virtual bool IsContailFakeDevInfo() const { return false; }
   virtual void AddAbnormalNodeConfig() { return; }
   virtual void AddAbnormalDeviceInfo(int32_t device_id, int32_t device_type) {
     (void) device_id;
@@ -83,7 +82,6 @@ class RemoteDeployer : public Deployer {
   Status GetDevStat() override {
     return dev_status_;
   }
-  bool IsContailFakeDevInfo() const override;
  protected:
   virtual std::unique_ptr<DeployerClient> CreateClient();
 

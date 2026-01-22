@@ -56,7 +56,7 @@ enum class FLOW_FUNC_VISIBILITY StatusQueueMsgType : uint32_t {
 class FLOW_FUNC_VISIBILITY FlowFuncProcessor {
 public:
     FlowFuncProcessor(const std::shared_ptr<FlowFuncParams> &params, const std::string &flow_func_name,
-        const std::vector<QueueDevInfo> &input_queue_infos, const std::vector<QueueDevInfo> &all_output_queue_infos,
+        const std::vector<QueueDevInfo> &input_queue_infos, const std::vector<QueueDevInfo> &all_out_queue_infos,
         const std::vector<uint32_t> &usable_output_indexes,
         const std::shared_ptr<AsyncExecutor> &async_executor = nullptr);
 

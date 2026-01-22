@@ -123,15 +123,6 @@ const NodeInfo *DeployerProxy::GetNodeInfo(int32_t node_id) const {
   return &deployers_[node_id]->GetNodeInfo();
 }
 
-bool DeployerProxy::IsContailFakeDevice() const {
-  for (const auto &deployer : deployers_) {
-    if (deployer->IsContailFakeDevInfo()) {
-      return true;
-    }
-  }
-  return false;
-}
-
 Status DeployerProxy::GetNodeStat() const {
   for (size_t deployer_index = 0U; deployer_index < deployers_.size(); deployer_index++) {
     Status stat = deployers_[deployer_index]->GetDevStat();

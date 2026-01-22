@@ -38,6 +38,10 @@ Status GEInitialize(const std::map<std::string, std::string> &options) {
   return SUCCESS;
 }
 
+Status GEInitialize(const std::map<ge::AscendString, ge::AscendString> &options) {
+  return SUCCESS;
+}
+
 Status GEFinalize() {
   return SUCCESS;
 }
@@ -51,6 +55,11 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph) {
 }
 
 Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<std::string, std::string> &options) {
+  return SUCCESS;
+}
+
+Status Session::AddGraph(uint32_t graph_id, const Graph &graph,
+                         const std::map<ge::AscendString, ge::AscendString> &options) {
   return SUCCESS;
 }
 

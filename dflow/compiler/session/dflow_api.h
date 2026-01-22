@@ -118,7 +118,7 @@ class GE_FUNC_VISIBILITY DFlowSession {
    * @brief Feed input data to graph.
    * @param [in] graph_id graph id
    * @param [in] raw_data_list can be 1 or n, feed will be combine n raw data automatically
-   * @param [in] indexes feed input index
+   * @param [in] index feed input index
    * @param [in] info intput data flow flag
    * @param [in] timeout data feed timeout(ms), -1 means never timeout
    * @return Status result of function

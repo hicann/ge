@@ -108,8 +108,6 @@ std::shared_ptr<HeterogeneousModelExecutor> FlowModelManager::GetHeterogeneousMo
 }
 
 void FlowModelManager::GenModelId(uint32_t &id) {
-  const std::lock_guard<std::mutex> lk(map_mutex_);
-  ++max_model_id_;
-  id = max_model_id_;
+  id = max_model_id_.fetch_add(1);
 }
 }  // namespace ge

@@ -22,8 +22,8 @@ std::string DataFlowUtils::GetAscendHomePath() {
     GEEVENT("env:%s value=%s.", kAscendHomePath, file_path.c_str());
     return file_path;
   }
-  constexpr const char *kDefaultLatestInstallPath = "/usr/local/Ascend/latest";
-  GEEVENT("env:%s do not exist, use default path:%s", kAscendHomePath, kDefaultLatestInstallPath);
-  return kDefaultLatestInstallPath;
+  constexpr const char *kDefaultAscendHomePath = "/usr/local/Ascend/cann";
+  GEEVENT("env:%s do not exist, use default path:%s", kAscendHomePath, kDefaultAscendHomePath);
+  return kDefaultAscendHomePath;
 }
 }  // namespace ge

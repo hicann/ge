@@ -25,14 +25,14 @@
 
 namespace FlowFunc {
 FlowFuncProcessor::FlowFuncProcessor(const std::shared_ptr<FlowFuncParams> &params, const std::string &flow_func_name,
-    const std::vector<QueueDevInfo> &input_queue_infos, const std::vector<QueueDevInfo> &all_output_queue_infos,
+    const std::vector<QueueDevInfo> &input_queue_infos, const std::vector<QueueDevInfo> &all_out_queue_infos,
     const std::vector<uint32_t> &usable_output_indexes, const std::shared_ptr<AsyncExecutor> &async_executor)
-    : flow_func_name_(flow_func_name), pp_name_(params->GetName()), cache_output_data_(all_output_queue_infos.size()),
-    writers_(all_output_queue_infos.size()), params_(params), input_queue_infos_(input_queue_infos),
-    all_output_queue_infos(all_output_queue_infos), usable_output_indexes_(usable_output_indexes),
-    set_output_times_(all_output_queue_infos.size()),
-    cached_nums_(all_output_queue_infos.size()),
-    set_output_times_round_(all_output_queue_infos.size()),
+    : flow_func_name_(flow_func_name), pp_name_(params->GetName()), cache_output_data_(all_out_queue_infos.size()),
+    writers_(all_out_queue_infos.size()), params_(params), input_queue_infos_(input_queue_infos),
+    all_output_queue_infos(all_out_queue_infos), usable_output_indexes_(usable_output_indexes),
+    set_output_times_(all_out_queue_infos.size()),
+    cached_nums_(all_out_queue_infos.size()),
+    set_output_times_round_(all_out_queue_infos.size()),
     async_executor_(async_executor) {
     (void)flow_func_info_.append(flow_func_name_).append("[").append(params_->GetInstanceName()).append("]");
 }

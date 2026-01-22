@@ -43,7 +43,7 @@ inline int32_t CheckAndMkdir(const char_t *tmp_dir_path, mmMode_t mode) {
   }
   return 0;
 }
-
+namespace {
 /**
  *  @ingroup domi_common
  *  @brief Create directory, support to create multi-level directory
@@ -85,7 +85,7 @@ int32_t CreateDir(const std::string &directory_path) {
   constexpr auto mkdir_mode = static_cast<uint32_t>(M_IRUSR | M_IWUSR | M_IXUSR);
   return CreateDir(directory_path, mkdir_mode);
 }
-
+} // namespace
 /**
  *  @ingroup domi_common
  *  @brief Create directory, support to create multi-level directory

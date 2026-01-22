@@ -350,10 +350,6 @@ Status MasterModelDeployer::DeployModel(const FlowModelPtr &flow_model, DeployRe
     DecreaseDeployingRootModelNum();
   });
 
-  if (DeployerProxy::GetInstance().IsContailFakeDevice()) {
-    GELOGE(FAILED, "Model can not be deploy by fake device info. Perhaps there is chip_count in resource json.");
-    return FAILED;
-  }
   GE_CHK_STATUS_RET(InitFlowGwInfo());
 
   // register device status callback

@@ -191,27 +191,27 @@ class PyFlowFuncLogger : public FlowFunc::FlowFuncLogger {
   void Debug(const char *fmt, ...) override {
     PYBIND11_OVERRIDE_PURE(void, FlowFunc::FlowFuncLogger, Debug, );
   }
-  void Error(const char *location_message, const char *user_message) {
+  void ErrorLog(const char *location_message, const char *user_message) const {
     auto &logger = GetLogger(FlowFunc::FlowFuncLogType::DEBUG_LOG);
     logger.Error("%s%s: %s", location_message, GetLogExtHeader(), user_message);
   }
-  void Warn(const char *location_message, const char *user_message) {
+  void WarnLog(const char *location_message, const char *user_message) const {
     auto &logger = GetLogger(FlowFunc::FlowFuncLogType::DEBUG_LOG);
     logger.Warn("%s%s: %s", location_message, GetLogExtHeader(), user_message);
   }
-  void Info(const char *location_message, const char *user_message) {
+  void InfoLog(const char *location_message, const char *user_message) const {
     auto &logger = GetLogger(FlowFunc::FlowFuncLogType::DEBUG_LOG);
     logger.Info("%s%s: %s", location_message, GetLogExtHeader(), user_message);
   }
-  void Debug(const char *location_message, const char *user_message) {
+  void DebugLog(const char *location_message, const char *user_message) const {
     auto &logger = GetLogger(FlowFunc::FlowFuncLogType::DEBUG_LOG);
     logger.Debug("%s%s: %s", location_message, GetLogExtHeader(), user_message);
   }
-  void RunTypeError(const char *location_message, const char *user_message) {
+  void RunTypeError(const char *location_message, const char *user_message) const {
     auto &logger = GetLogger(FlowFunc::FlowFuncLogType::RUN_LOG);
     logger.Error("%s%s[RUN]: %s", location_message, GetLogExtHeader(), user_message);
   }
-  void RunTypeInfo(const char *location_message, const char *user_message) {
+  void RunTypeInfo(const char *location_message, const char *user_message) const {
     auto &logger = GetLogger(FlowFunc::FlowFuncLogType::RUN_LOG);
     logger.Info("%s%s[RUN]: %s", location_message, GetLogExtHeader(), user_message);
   }
@@ -260,6 +260,7 @@ class PyFlowMsg : public FlowFunc::FlowMsg {
   }
 
   void SetRouteLabel(uint32_t route_label) override {
+    (void)route_label;
     PYBIND11_OVERRIDE_PURE(void, FlowFunc::FlowMsg, SetRouteLabel, );
   }
 
@@ -271,6 +272,7 @@ class PyFlowMsg : public FlowFunc::FlowMsg {
 class PyFlowMsgQueue : public FlowFunc::FlowMsgQueue {
  public:
   int32_t Dequeue(std::shared_ptr<FlowFunc::FlowMsg> &flow_msg, int32_t timeout) override {
+    (void)flow_msg;
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::FlowMsgQueue, Dequeue, );
   }
 
@@ -316,30 +318,31 @@ class PyMetaParams : public FlowFunc::MetaParams {
     PYBIND11_OVERRIDE_PURE(char *, FlowFunc::MetaParams, GetName, );
   }
 
-  std::shared_ptr<const FlowFunc::AttrValue> GetAttr(const char *attr_name) const {
+  std::shared_ptr<const FlowFunc::AttrValue> GetAttr(const char *attr_name) const override {
+    (void)attr_name;
     PYBIND11_OVERRIDE_PURE(std::shared_ptr<const FlowFunc::AttrValue>, FlowFunc::MetaParams, GetAttr, );
   }
 
-  size_t GetInputNum() const {
+  size_t GetInputNum() const override {
     PYBIND11_OVERRIDE_PURE(size_t, FlowFunc::MetaParams, GetInputNum, );
   }
 
-  size_t GetOutputNum() const {
+  size_t GetOutputNum() const override {
     PYBIND11_OVERRIDE_PURE(size_t, FlowFunc::MetaParams, GetOutputNum, );
   }
-  const char *GetWorkPath() const {
+  const char *GetWorkPath() const override {
     PYBIND11_OVERRIDE_PURE(char *, FlowFunc::MetaParams, GetWorkPath, );
   }
 
-  int32_t GetRunningDeviceId() const {
+  int32_t GetRunningDeviceId() const override {
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::MetaParams, GetRunningDeviceId, );
   }
 
-  int32_t GetRunningInstanceId() const {
+  int32_t GetRunningInstanceId() const override {
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::MetaParams, GetRunningInstanceId, );
   }
 
-  int32_t GetRunningInstanceNum() const {
+  int32_t GetRunningInstanceNum() const override {
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::MetaParams, GetRunningInstanceNum, );
   }
 };
@@ -348,35 +351,49 @@ class PyMetaRunContext : public FlowFunc::MetaRunContext {
  public:
   std::shared_ptr<FlowFunc::FlowMsg> AllocTensorMsg(const std::vector<int64_t> &shape,
                                                     FlowFunc::TensorDataType data_type) override {
+    (void)data_type;
     PYBIND11_OVERRIDE_PURE(std::shared_ptr<FlowFunc::FlowMsg>, FlowFunc::MetaRunContext, AllocTensorMsg, );
   }
 
   std::shared_ptr<FlowFunc::FlowMsg> AllocTensorMsgWithAlign(const std::vector<int64_t> &shape,
                                                              FlowFunc::TensorDataType data_type,
                                                              uint32_t align) override {
+    (void)data_type;
     PYBIND11_OVERRIDE_PURE(std::shared_ptr<FlowFunc::FlowMsg>, FlowFunc::MetaRunContext, AllocTensorMsg, );
   }
 
   int32_t SetOutput(uint32_t out_idx, std::shared_ptr<FlowFunc::FlowMsg> out_msg) override {
+    (void)out_idx;
+    (void)out_msg;
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::MetaRunContext, SetOutput, );
   }
 
   int32_t SetOutput(uint32_t out_idx, std::shared_ptr<FlowFunc::FlowMsg> out_msg,
                     const FlowFunc::OutOptions &options) override {
+    (void)out_idx;
+    (void)out_msg;
+    (void)options;
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::MetaRunContext, SetOutput, );
   }
 
   int32_t SetMultiOutputs(uint32_t out_idx, const std::vector<std::shared_ptr<FlowFunc::FlowMsg>> &out_msgs,
                           const FlowFunc::OutOptions &options) override {
+    (void)out_msgs;
+    (void)out_idx;
+    (void)options;
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::MetaRunContext, SetMultiOutputs, );
   }
 
   std::shared_ptr<FlowFunc::FlowMsg> AllocEmptyDataMsg(FlowFunc::MsgType msg_type) override {
+    (void)msg_type;
     PYBIND11_OVERRIDE_PURE(std::shared_ptr<FlowFunc::FlowMsg>, FlowFunc::MetaRunContext, AllocEmptyDataMsg, );
   }
 
   int32_t RunFlowModel(const char *model_key, const std::vector<std::shared_ptr<FlowFunc::FlowMsg>> &input_msgs,
                        std::vector<std::shared_ptr<FlowFunc::FlowMsg>> &output_msgs, int32_t timeout) override {
+    (void)model_key;
+    (void)input_msgs;
+    (void)output_msgs;
     PYBIND11_OVERRIDE_PURE(int32_t, FlowFunc::MetaRunContext, RunFlowModel, );
   }
 
@@ -569,13 +586,13 @@ PYBIND11_MODULE(flowfunc_wrapper, m) {
              return logger.IsLogEnable(log_level);
            })
       .def("debug_log_error", [](PyFlowFuncLogger &self, const char *location_message,
-                                 const char *user_message) { self.Error(location_message, user_message); })
+                                 const char *user_message) { self.ErrorLog(location_message, user_message); })
       .def("debug_log_info", [](PyFlowFuncLogger &self, const char *location_message,
-                                const char *user_message) { self.Info(location_message, user_message); })
+                                const char *user_message) { self.InfoLog(location_message, user_message); })
       .def("debug_log_warn", [](PyFlowFuncLogger &self, const char *location_message,
-                                const char *user_message) { self.Warn(location_message, user_message); })
+                                const char *user_message) { self.WarnLog(location_message, user_message); })
       .def("debug_log_debug", [](PyFlowFuncLogger &self, const char *location_message,
-                                 const char *user_message) { self.Debug(location_message, user_message); })
+                                 const char *user_message) { self.DebugLog(location_message, user_message); })
       .def("run_log_error", [](PyFlowFuncLogger &self, const char *location_message,
                                const char *user_message) { self.RunTypeError(location_message, user_message); })
       .def("run_log_info", [](PyFlowFuncLogger &self, const char *location_message,
@@ -906,6 +923,7 @@ PYBIND11_MODULE(flowfunc_wrapper, m) {
              return std::make_tuple(ret, exp_code, usr_context_id);
            })
       .def("__repr__", [](FlowFunc::MetaRunContext &self) {
+        (void)self;
         std::stringstream repr;
         repr << "MetaRunContext()";
         return repr.str();

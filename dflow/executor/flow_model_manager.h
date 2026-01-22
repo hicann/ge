@@ -54,8 +54,8 @@ class FlowModelManager {
 
   std::mutex map_mutex_;
   std::map<uint32_t, std::shared_ptr<HeterogeneousModelExecutor>> heterogeneous_model_map_;
-  // start from 100000 to avoid same with ge
-  uint32_t max_model_id_ = 100000U;
+  // start from 100001 to avoid same with ge
+  std::atomic<uint32_t> max_model_id_ = 100001U;
 };
 }  // namespace ge
 #endif  // DFLOW_EXECUTOR_FLOW_MODEL_MANAGER_H

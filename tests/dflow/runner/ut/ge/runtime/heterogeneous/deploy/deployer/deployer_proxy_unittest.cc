@@ -382,24 +382,6 @@ TEST_F(DeployerProxyTest, TestRemoteDeployerWithParseRsponse) {
   DeployerAuthentication::GetInstance().Finalize();
 }
 
-TEST_F(DeployerProxyTest, TestRemoteDeployerLazyConnect) {
-  NodeConfig remote_node_config;
-  DeviceConfig device_config;
-  device_config.device_id = 0;
-  remote_node_config.ipaddr = "192.168.1.30";
-  remote_node_config.chip_count = 2;
-  remote_node_config.lazy_connect = true;
-  remote_node_config.available_ports = "61000~65535";
-  RemoteDeployer deployer(remote_node_config);
-  ASSERT_EQ(deployer.Initialize(), SUCCESS);
-  ASSERT_EQ(deployer.IsContailFakeDevInfo(), true);
-  ASSERT_EQ(deployer.node_info_.GetDeviceList().size(), 2);
-  for (size_t i = 0UL; i < deployer.node_info_.GetDeviceList().size(); ++i) {
-    ASSERT_NE(deployer.node_info_.GetDeviceList()[i].dgw_port_, -1);
-  }
-  ASSERT_EQ(deployer.InitNodeInfoByChipCount(), FAILED);
-}
-
 TEST_F(DeployerProxyTest, TestGetNodeStat) {
   std::unique_ptr<Deployer> deployer = nullptr;
   deployer.reset((Deployer*)(new LocalDeployer()));

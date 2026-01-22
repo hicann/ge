@@ -163,7 +163,7 @@ public:
         return abnormal_status_.load();
     }
 
-    void SetCurrentSchedThreadIdx(uint32_t current_sched_thread_idx) {
+    void SetCurrentSchedThreadIdx(uint32_t current_sched_thread_idx) const {
         current_sched_thread_idx_ = current_sched_thread_idx;
     }
 
