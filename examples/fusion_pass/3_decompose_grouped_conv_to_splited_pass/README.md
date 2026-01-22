@@ -108,12 +108,7 @@
      ```
      export DUMP_GE_GRAPH=1
      ```
-   - 进入data目录执行.py文件导出onnx（文件中使用了torch的onnx导出器，依赖额外的Python包onnx，运行前确保安装）：
-     ```
-     python torch_gen_onnx.py
-     ```
-   - 执行结束后，在data目录下生成.onnx格式的模型文件，名称为model.onnx。
-   - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾社区](www.hiascend.com)搜索ATC离线模型编译工具)，`soc_version`请根据实际环境修改：
+   - data目录中提供了当前sample对应场景的模型`model.onnx`。执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾社区](www.hiascend.com)搜索ATC离线模型编译工具)，`soc_version`请根据实际环境修改：
      ```
      atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model
      ```
