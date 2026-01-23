@@ -11,9 +11,9 @@
 #ifndef INC_EXTERNAL_ACL_OPS_ACL_CBLAS_H_
 #define INC_EXTERNAL_ACL_OPS_ACL_CBLAS_H_
 
-#include "acl_rt.h"
-#include "acl_op.h"
-#include "acl_mdl.h"
+#include "acl/acl_rt.h"
+#include "acl/acl_op.h"
+#include "acl/acl_mdl.h"
 
 #ifdef __cplusplus
 extern "C" {
