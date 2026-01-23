@@ -734,13 +734,6 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_Success) {
   deploy_model.model_deploy_infos["model1"]["model1_0_0_6"] = {local_device7};
   deploy_model.model_deploy_infos["model1"]["model1_0_0_7"] = {local_device8};
   model_deployer.abnormal_status_handler_.deployed_models_[0] = deploy_model;
-  std::string file_path;
-  (void)(Configurations::GetInstance().GetResourceConfigPath(file_path));
-  printf("GetResourceConfigPath %s\n", file_path.c_str());
-  std::string path;
-  (void)(Configurations::GetInstance().GetConfigDir(path));
-  file_path = path + "/resource.json";
-  printf("GetConfigDir %s\n", file_path.c_str());
   // 更改numa_config.json
   dlog_setlevel(0, 0, 0);
   std::string config_path = PathUtils::Join(

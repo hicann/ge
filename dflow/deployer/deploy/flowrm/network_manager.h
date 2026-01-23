@@ -11,10 +11,7 @@
 #ifndef AIR_RUNTIME_HETEROGENEOUS_FLOWRM_NETWORK_MANAGER_H_
 #define AIR_RUNTIME_HETEROGENEOUS_FLOWRM_NETWORK_MANAGER_H_
 
-#include <regex>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include "common/config/configurations.h"
 #include "ge/ge_api_error_codes.h"
 #include "common/config/json_parser.h"
 

@@ -144,7 +144,7 @@ class ModelDeployerDaemonTest : public testing::Test {
 
 TEST_F(ModelDeployerDaemonTest, TestInitializeAndFinalizeOnCpu) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaDeployer>());
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
+  EXPECT_EQ(Configurations::GetInstance().InitInformation(), SUCCESS);
   Status ret = FAILED;
   ge::ModelDeployerDaemon daemon;
   daemon.is_sub_deployer_ = true;

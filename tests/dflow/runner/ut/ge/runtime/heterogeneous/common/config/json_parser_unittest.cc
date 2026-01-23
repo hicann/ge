@@ -44,97 +44,11 @@ class UtJsonParser : public testing::Test {
   const std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
 };
 
-// host
-TEST_F(UtJsonParser, run_parse_host_info_from_config_file) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation_;
-  std::string config_file = PathUtils::Join({data_path, "valid/host/resource.json"});
-  auto ret = jsonParser.ParseHostInfoFromConfigFile(config_file, hostInformation_);
-  ASSERT_EQ(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, run_parse_host_info_from_config_file_2) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation_;
-  std::string config_file = PathUtils::Join({data_path, "wrong_key/host/resource.json"});
-  auto ret = jsonParser.ParseHostInfoFromConfigFile(config_file, hostInformation_);
-  ASSERT_NE(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, run_parse_host_info_from_config_file_3) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation_;
-  std::string config_file = PathUtils::Join({data_path, "wrong_value/host/resource.json"});
-  auto ret = jsonParser.ParseHostInfoFromConfigFile(config_file, hostInformation_);
-  ASSERT_NE(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, run_parse_host_info_invalid_path) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation;
-
-  std::string config_file = "./invalid_path";
-  auto ret = jsonParser.ParseHostInfoFromConfigFile(config_file, hostInformation);
-  ASSERT_EQ(ret, ACL_ERROR_GE_PARAM_INVALID);
-}
-
-TEST_F(UtJsonParser, run_read_config_file) {
+TEST_F(UtJsonParser, read_config_file_invalid) {
   ge::JsonParser jsonParser;
   nlohmann::json js;
   auto ret = jsonParser.ReadConfigFile("", js);
   ASSERT_EQ(ret, ACL_ERROR_GE_PARAM_INVALID);
-}
-
-// device
-TEST_F(UtJsonParser, run_device_config_from_config_file) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
-  ge::JsonParser jsonParser;
-  ge::NodeConfig device_config;
-  std::string config_file = PathUtils::Join({data_path, "valid/device/resource.json"});
-  auto ret = jsonParser.ParseDeviceConfigFromConfigFile(config_file, device_config);
-  ASSERT_EQ(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, run_device_config_from_config_file_2) {
-  ge::JsonParser jsonParser;
-  ge::NodeConfig device_config;
-  std::string config_file = PathUtils::Join({data_path, "wrong_key/device/resource.json"});
-  auto ret = jsonParser.ParseDeviceConfigFromConfigFile(config_file, device_config);
-  ASSERT_NE(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, run_device_config_from_config_file_3) {
-  ge::JsonParser jsonParser;
-  ge::NodeConfig device_config;
-  std::string config_file = PathUtils::Join({data_path, "wrong_value/device/resource.json"});
-  auto ret = jsonParser.ParseDeviceConfigFromConfigFile(config_file, device_config);
-  ASSERT_NE(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, ParseVerifyTool_path_invalid) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
-  nlohmann::json js = {{"verifyTool", "../../"}};
-  std::string verify_tool;
-  ge::JsonParser jsonParser;
-  auto ret = jsonParser.ParseVerifyTool(js, verify_tool);
-  ASSERT_NE(ret, ge::SUCCESS);
-}
-
-TEST_F(UtJsonParser, test_get_int_value) {
-  ge::JsonParser jsonParser;
-  nlohmann::json js = {};
-  js["port"] = 2509.9;
-  uint16_t port = 0;
-  auto ret = jsonParser.GetIntValue(js.at("port"), port);
-  ASSERT_NE(ret, ge::SUCCESS);
-
-  js["port"] = "123";
-  ret = jsonParser.GetIntValue(js.at("port"), port);
-  ASSERT_NE(ret, ge::SUCCESS);
-
-  js["port"] = 250999;
-  ret = jsonParser.GetIntValue(js.at("port"), port);
-  ASSERT_NE(ret, ge::SUCCESS);
 }
 }
 

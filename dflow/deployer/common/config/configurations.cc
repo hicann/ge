@@ -33,8 +33,6 @@ Configurations &Configurations::GetInstance() {
 
 void Configurations::Finalize() {
   information_ = {};
-  config_file_ = "";
-  rank_table_file_ = "";
   GELOGI("Finalize success, remote node size = %zu", information_.remote_node_config_list.size());
 }
 
@@ -102,41 +100,6 @@ std::string Configurations::GetHostDirByEnv() {
   return real_path;
 }
 
-Status Configurations::Initialize() {
-  std::string file_path;
-  GE_CHK_STATUS_RET_NOLOG(GetConfigDir(file_path));
-  config_file_ = file_path + kConfigFileName;
-  return SUCCESS;
-}
-
-Status Configurations::ParseHostInfo() {
-  GELOGI("Parse config from file[%s].", config_file_.c_str());
-  GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseHostInfoFromConfigFile(config_file_, information_));
-  return SUCCESS;
-}
-
-Status Configurations::InitHostInformation() {
-  if (IsServer()) {
-    return InitInformation();
-  }
-
-  GE_CHK_STATUS_RET_NOLOG(Initialize());
-  GE_CHK_STATUS_RET_NOLOG(ParseHostInfo());
-  GE_CHK_STATUS_RET_NOLOG(GetWorkingDir(information_.working_dir));
-  return SUCCESS;
-}
-
-Status Configurations::InitDeviceInformation() {
-  if (IsServer()) {
-    return InitInformation();
-  }
-  GE_CHK_STATUS_RET_NOLOG(Initialize());
-  GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseDeviceConfigFromConfigFile(config_file_, information_.node_config));
-  information_.node_config.is_local = true;
-  GE_CHK_STATUS_RET_NOLOG(GetWorkingDir(information_.working_dir));
-  return SUCCESS;
-}
-
 std::vector<NodeConfig> Configurations::GetAllNodeConfigs() const {
   std::vector<NodeConfig> configs {information_.node_config};
   configs.insert(configs.cend(),
@@ -185,14 +148,6 @@ Status Configurations::InitInformation() {
 
 const NodeConfig &Configurations::GetLocalNode() const {
   return information_.node_config;
-}
-
-bool Configurations::IsServer() {
-  std::string resource_path;
-  (void)ge::GetContext().GetOption(RESOURCE_CONFIG_PATH, resource_path);
-  const char_t *env = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_RESOURCE_CONFIG_PATH, env);
-  return (env != nullptr) || (!resource_path.empty());
 }
 
 std::vector<std::string> Configurations::GetHeterogeneousEnvs() {

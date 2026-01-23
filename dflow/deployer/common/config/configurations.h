@@ -38,7 +38,6 @@ struct NodeConfig {
   bool is_local = false;
   bool is_device_soc = true;
   std::vector<DeviceConfig> device_list;
-  std::string verify_tool;
   std::string resource_type;
   std::string deploy_res_path;
   bool lazy_connect = true;
@@ -82,10 +81,6 @@ class Configurations {
 
   void Finalize();
 
-  Status InitHostInformation();
-
-  Status InitDeviceInformation();
-
   Status InitInformation();
 
   std::vector<NodeConfig> GetAllNodeConfigs() const;
@@ -98,8 +93,6 @@ class Configurations {
 
   const NodeConfig &GetLocalNode() const;
 
-  static bool IsServer();
-
   std::string GetDeployResDir();
 
   static Status GetResourceConfigPath(std::string &config_dir);
@@ -109,13 +102,8 @@ class Configurations {
   static std::vector<std::string> GetHeterogeneousEnvs();
 
  private:
-  Status Initialize();
   Status GetWorkingDir(std::string &working_dir) const;
   static std::string GetHostDirByEnv();
-  Status ParseHostInfo();
-
-  std::string config_file_;
-  std::string rank_table_file_;
   DeployerConfig information_;
 };
 }  // namespace ge

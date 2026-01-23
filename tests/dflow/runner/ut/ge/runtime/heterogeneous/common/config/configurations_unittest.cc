@@ -53,9 +53,7 @@ TEST_F(UtConfigurations, parse_server_info_success) {
   };
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
   SetConfigEnv("RESOURCE_CONFIG_PATH", "valid/server/numa_config.json");
-  EXPECT_EQ(Configurations().InitDeviceInformation(), SUCCESS);
-  SetConfigEnv("RESOURCE_CONFIG_PATH", "valid/server/numa_config.json");
-  EXPECT_EQ(Configurations().InitHostInformation(), SUCCESS);
+  EXPECT_EQ(Configurations().InitInformation(), SUCCESS);
   unsetenv("RESOURCE_CONFIG_PATH");
 }
 

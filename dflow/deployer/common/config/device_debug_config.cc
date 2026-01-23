@@ -34,7 +34,6 @@ const std::vector<std::string> kConfigNames = {kLogConfName, kDumpConfName, kPro
 // option type
 constexpr char_t const *kTypeName = "type";
 constexpr char_t const *kParamListName = "param_list";
-const std::vector<std::string> kOptionNames = {kTypeName, kParamListName};
 // log name
 const std::string kLogLevelEnvName = "ASCEND_GLOBAL_LOG_LEVEL";
 const std::string kLogModuleLogLevelEnvName = "ASCEND_MODULE_LOG_LEVEL";

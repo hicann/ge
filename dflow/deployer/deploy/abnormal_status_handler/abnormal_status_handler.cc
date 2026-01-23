@@ -21,11 +21,9 @@
 
 namespace ge {
 namespace {
-constexpr const char_t *const kConfigFileName = "/resource.json";
 constexpr const char_t *const kRedeployFileName = "redeploy";
 constexpr const char_t *const kRedeployDoneFileName = "redeploy.done";
 constexpr const char_t *const kRedeployErrorFileName = "redeploy.error";
-constexpr const char_t *const kHelperResFilePath = "HELPER_RES_FILE_PATH";
 constexpr size_t kMaxPathLen = 1024UL;
 constexpr int32_t kMaxReadMonitorFileStrLen = 1024;
 constexpr int32_t kFileMonitorInterval = 500;
@@ -154,19 +152,11 @@ Status AbnormalStatusHandler::ParseDeviceStateList(const std::string &file_path,
   GELOGI("AbnormalStatusMonitor, show old node info");
   ShowNodeInfo(information_old);
   DeployerConfig information_new;
-  if (Configurations::GetInstance().IsServer()) {
-    GE_CHK_STATUS_RET_NOLOG(ConfigParser::ParseServerInfo(file_path, information_new));
-    GELOGI("AbnormalStatusMonitor, show new node info on server");
-    ShowNodeInfo(information_new);
-    GE_CHK_STATUS_RET(FindAbnormalDeviceOnServer(device_state_list, information_new, information_old),
-      "AbnormalStatusMonitor, failed to do FindAbnormalDevice if is on server");
-  } else {
-    GE_CHK_STATUS_RET_NOLOG(JsonParser::ParseHostInfoFromConfigFile(file_path, information_new));
-    GELOGI("AbnormalStatusMonitor, show new node info not on server");
-    ShowNodeInfo(information_new);
-    GE_CHK_STATUS_RET(FindAbnormalDevice(device_state_list, information_new, information_old),
-      "AbnormalStatusMonitor, failed to do FindAbnormalDevice");
-  }
+  GE_CHK_STATUS_RET_NOLOG(ConfigParser::ParseServerInfo(file_path, information_new));
+  GELOGI("AbnormalStatusMonitor, show new node info on server");
+  ShowNodeInfo(information_new);
+  GE_CHK_STATUS_RET(FindAbnormalDeviceOnServer(device_state_list, information_new, information_old),
+    "AbnormalStatusMonitor, failed to do FindAbnormalDevice if is on server");
   return SUCCESS;
 }
 
@@ -179,37 +169,15 @@ bool AbnormalStatusHandler::IsHeartbeatNormal() const {
 
 void AbnormalStatusHandler::ParseAbnormalNodeConfig(DeployPlan::DeviceStateList &device_state_list) const {
   auto &deploy_context = DeployContext::LocalContext();
-  if (Configurations::GetInstance().IsServer()) {
-    for (auto &iter : deploy_context.GetAbnormalNodeConfig()) {
-      for (auto& iter_device : iter.first.device_list) {
-        DeployPlan::DeviceInfo device_info =
-            DeployPlan::DeviceInfo(iter_device.device_type, iter.first.node_id, iter_device.device_id);
-        device_state_list.emplace(device_info, false);
-        GELOGI("AbnormalStatusMonitor, node abnormal(process OnServer), node_id=%d, device_id=%d, device_type=%d",
-            device_info.GetNodeId(), device_info.GetDeviceId(), device_info.GetType());
-      }
-    }
-  } else {
-    for (auto &iter : deploy_context.GetAbnormalNodeConfig()) {
-      if (iter.first.node_id == 0) {
-        DeployPlan::DeviceInfo device_info0 = DeployPlan::DeviceInfo(CPU, iter.first.node_id, 0);
-        device_state_list.emplace(device_info0, false);
-        GELOGI("AbnormalStatusMonitor, node abnormal(process), ipaddr=%s, node_id=%d, device_id=%d, device_type=%d",
-            iter.first.ipaddr.c_str(),
-            device_info0.GetNodeId(), device_info0.GetDeviceId(), device_info0.GetType());
-      } else {
-        DeployPlan::DeviceInfo device_info0 = DeployPlan::DeviceInfo(NPU, iter.first.node_id, 0);
-        DeployPlan::DeviceInfo device_info1 = DeployPlan::DeviceInfo(NPU, iter.first.node_id, 1);
-        device_state_list.emplace(device_info0, false);
-        device_state_list.emplace(device_info1, false);
-        GELOGI("AbnormalStatusMonitor, node abnormal(process) , ipaddr=%s, node_id=%d, device_id=%d, device_type=%d"
-            " node_id=%d, device_id=%d, device_type=%d", iter.first.ipaddr.c_str(),
-            device_info0.GetNodeId(), device_info0.GetDeviceId(), device_info0.GetType(),
-            device_info1.GetNodeId(), device_info1.GetDeviceId(), device_info1.GetType());
-      }
+  for (auto &iter : deploy_context.GetAbnormalNodeConfig()) {
+    for (auto& iter_device : iter.first.device_list) {
+      DeployPlan::DeviceInfo device_info =
+          DeployPlan::DeviceInfo(iter_device.device_type, iter.first.node_id, iter_device.device_id);
+      device_state_list.emplace(device_info, false);
+      GELOGI("AbnormalStatusMonitor, node abnormal(process OnServer), node_id=%d, device_id=%d, device_type=%d",
+          device_info.GetNodeId(), device_info.GetDeviceId(), device_info.GetType());
     }
   }
-  return;
 }
 
 void AbnormalStatusHandler::ParseAbnormalDeviceInfo(DeployPlan::DeviceStateList &device_state_list) const {
@@ -578,22 +546,10 @@ Status AbnormalStatusHandler::GetFilePath(std::string &config_dir,
 }
 
 Status AbnormalStatusHandler::GetMonitorFilePath(std::string &file_path) {
-  if (Configurations::GetInstance().IsServer()) {
-    GELOGI("AbnormalStatusMonitor, try get resource config path, on server");
-    GE_CHK_STATUS_RET(Configurations::GetResourceConfigPath(file_path), "Failed to get resource file");
-    GELOGI("AbnormalStatusMonitor, get resource config path[%s] success", file_path.c_str());
-    return SUCCESS;
-  } else {
-    GELOGI("AbnormalStatusMonitor, try get helper res file path, not on server");
-    std::string path;
-    if (GetFilePath(path, kHelperResFilePath) == SUCCESS) {
-      file_path = path + kConfigFileName;
-      GELOGI("AbnormalStatusMonitor, get helper res file path[%s] success",
-          file_path.c_str());
-      return SUCCESS;
-    }
-  }
-  return FAILED;
+  GELOGI("AbnormalStatusMonitor, try get resource config path, on server");
+  GE_CHK_STATUS_RET(Configurations::GetResourceConfigPath(file_path), "Failed to get resource file");
+  GELOGI("AbnormalStatusMonitor, get resource config path[%s] success", file_path.c_str());
+  return SUCCESS;
 }
 
 void AbnormalStatusHandler::MonitorFileAndHeartbeatProc(const std::string &file_path,

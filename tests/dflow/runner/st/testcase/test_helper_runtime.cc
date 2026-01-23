@@ -922,7 +922,7 @@ class ExecutionRuntimeHeterogeneousMock3 : public ExecutionRuntime {
 class ExecutionRuntimeHeterogeneousMock4 : public ExecutionRuntime {
  public:
   Status Initialize(const map<std::string, std::string> &options) override {
-    GE_CHK_STATUS_RET_NOLOG(Configurations::GetInstance().InitHostInformation());
+    GE_CHK_STATUS_RET_NOLOG(Configurations::GetInstance().InitInformation());
     GE_CHK_STATUS_RET_NOLOG(SubprocessManager::GetInstance().Initialize());
     GE_CHK_STATUS_RET_NOLOG(RtsApiUtils::MbufInit());
     (void) MemoryGroupManager::GetInstance().Initialize(Configurations::GetInstance().GetLocalNode());
@@ -2297,7 +2297,7 @@ TEST_F(STEST_helper_runtime, TestDeployHeavyLoadUdfModelOnDiffServerWithHostFlow
   setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
 
   // 0. start server
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
+  EXPECT_EQ(Configurations::GetInstance().InitInformation(), SUCCESS);
   ge::GrpcServer grpc_server;
   std::thread server_thread = std::thread([&]() {
     StartServer(grpc_server);
@@ -2798,7 +2798,7 @@ TEST_F(STEST_helper_runtime, TestDeployWithCompileRes) {
   // 1. start server
   auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device/numa_config_2server.json";
   setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
+  EXPECT_EQ(Configurations::GetInstance().InitInformation(), SUCCESS);
 
   DeployerProxy::GetInstance().deployers_.clear();
   ResourceManager::GetInstance().Finalize();
@@ -2886,7 +2886,7 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
   // 1. start server
   auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device/numa_config_2server.json";
   setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
+  EXPECT_EQ(Configurations::GetInstance().InitInformation(), SUCCESS);
   setenv("NPU_COLLECT_PATH_EXE", "/var/log/npu/dump/", 0);
 
   DeployerProxy::GetInstance().deployers_.clear();
@@ -3110,7 +3110,7 @@ TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModelMaintenanceCfg) {
   // 1. start server
   auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device/numa_config_2server.json";
   setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
+  EXPECT_EQ(Configurations::GetInstance().InitInformation(), SUCCESS);
   ge::GrpcServer grpc_server;
   std::thread server_thread = std::thread([&]() {
     StartServer(grpc_server);
@@ -3500,23 +3500,6 @@ TEST_F(STEST_helper_runtime, TestProcManager) {
   unsetenv("RESOURCE_CONFIG_PATH");
   unsetenv("GE_PROFILING_TO_STD_OUT");
   MmpaStub::GetInstance().Reset();
-}
-
-TEST_F(STEST_helper_runtime, test_get_int_value) {
-  ge::JsonParser jsonParser;
-  nlohmann::json js = {};
-  js["port"] = 2509.9;
-  uint16_t port = 0;
-  auto ret = jsonParser.GetIntValue(js.at("port"), port);
-  ASSERT_NE(ret, ge::SUCCESS);
-
-  js["port"] = "123";
-  ret = jsonParser.GetIntValue(js.at("port"), port);
-  ASSERT_NE(ret, ge::SUCCESS);
-
-  js["port"] = 250999;
-  ret = jsonParser.GetIntValue(js.at("port"), port);
-  ASSERT_NE(ret, ge::SUCCESS);
 }
 
 TEST_F(STEST_helper_runtime, TestHeterogeneousRegCallback) {

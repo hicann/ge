@@ -9,6 +9,9 @@
  */
 
 #include "deploy/flowrm/network_manager.h"
+#include <regex>
+#include <sys/types.h>
+#include <netinet/in.h>
 #include "common/ge_common/debug/log.h"
 #include "base/err_msg.h"
 

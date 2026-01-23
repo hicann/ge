@@ -18,8 +18,8 @@ int main(int argc, char_t *argv[]) {
   }
   std::string process_name(argv[0]);
   bool is_sub_deployer = (process_name.find("sub_deployer") != std::string::npos);
-  if (ge::Configurations::GetInstance().InitDeviceInformation() != ge::SUCCESS) {
-    REPORT_INNER_ERR_MSG("E19999", "Parse device configuration failed.");
+  if (ge::Configurations::GetInstance().InitInformation() != ge::SUCCESS) {
+    REPORT_INNER_ERR_MSG("E19999", "Parse configuration failed.");
     return 1;
   }
 

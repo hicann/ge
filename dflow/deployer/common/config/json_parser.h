@@ -14,50 +14,14 @@
 #include <string>
 #include "nlohmann/json.hpp"
 #include "ge/ge_api_error_codes.h"
-#include "common/config/configurations.h"
 
 namespace ge {
-
 class JsonParser {
  public:
-  /*
-   *  @ingroup ge
-   *  @brief   parse host json file
-   *  @param   [in]  std::string &
-   *  @param   [in]  DeployerConfig &
-   *  @return  SUCCESS or FAILED
-   */
-  static Status ParseHostInfoFromConfigFile(const std::string &file_path, DeployerConfig &deployer_config);
-
-  /*
-   *  @ingroup ge
-   *  @brief   parse device json file
-   *  @param   [in]  std::string &
-   *  @param   [in]  NodeConfig &
-   *  @return  SUCCESS or FAILED
-   */
-  static Status ParseDeviceConfigFromConfigFile(const std::string &file_path, NodeConfig &node_config);
-
   static Status ReadConfigFile(const std::string &file_path, nlohmann::json &js);
 
  private:
   static bool CheckFilePath(const std::string &file_path);
-  static Status ParseDeployResource(const nlohmann::json &js,
-                                    const std::string &default_type,
-                                    std::string &resource_type);
-  static Status ParseProtocol(const nlohmann::json &json, std::string &protocol);
-  static Status ParseHostInfo(const nlohmann::json &json_host, DeployerConfig &deployer_config);
-  static Status ParseOptionalInfo(const nlohmann::json &js,
-                                  const char_t *name,
-                                  std::string &value,
-                                  const std::string &default_value = "");
-  static Status ParseNodeConfig(const nlohmann::json &js, NodeConfig &node_config);
-  static Status ParseNetworkInfo(const nlohmann::json &js, NetworkInfo &network, const std::string &default_ports);
-  static Status ParseVerifyTool(const nlohmann::json &js, std::string &verify_tool);
-  static Status ParseDeployResPath(const nlohmann::json &js, std::string &res_path);
-
-  template<typename T>
-  static Status GetIntValue(const nlohmann::json &js, T &value);
 };
 }  // namespace ge
 #endif  // RUNTIME_COMMON_JSON_PARSER_H_

@@ -48,7 +48,7 @@ Status HeterogeneousExecutionRuntime::Initialize(const std::map<std::string, std
 }
 
 Status HeterogeneousExecutionRuntime::InitializeInner(const std::map<std::string, std::string> &options) {
-  GE_CHK_STATUS_RET_NOLOG(Configurations::GetInstance().InitHostInformation());
+  GE_CHK_STATUS_RET_NOLOG(Configurations::GetInstance().InitInformation());
   GE_CHK_STATUS_RET_NOLOG(SubprocessManager::GetInstance().Initialize());
   GE_CHK_STATUS_RET_NOLOG(RtsApiUtils::MbufInit());
   (void) MemoryGroupManager::GetInstance().Initialize(Configurations::GetInstance().GetLocalNode());
