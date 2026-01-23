@@ -1173,3 +1173,76 @@ TEST_F(UtestReadableDump, test_RecursionDepthProtection) {
   std::stringstream readable_ss;
   EXPECT_NE(SUCCESS, ReadableDump::GenReadableDump(readable_ss, root_graph));
 }
+
+// 测试 IR 信息异常时使用位置参数格式
+TEST_F(UtestReadableDump, test_DumpNodeWithoutIrInfo) {
+  ut::GraphBuilder builder = ut::GraphBuilder("main_graph");
+  auto compute_graph = builder.GetGraph();
+  auto graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  // 创建输入节点
+  auto input0_op = op::Data("input0").set_attr_index(0);
+  auto input0_node = graph.AddNodeByOp(input0_op);
+  auto input1_op = op::Data("input1").set_attr_index(1);
+  auto input1_node = graph.AddNodeByOp(input1_op);
+
+  // 使用 GraphBuilder::AddNode 直接创建，不恢复 IR 定义
+  auto node_without_ir = builder.AddNode("PartitionedCall_0", "PartitionedCall", 2, 1);
+
+  // 将节点添加到图中并连接输入
+  auto partitioned_call_node = NodeAdapter::Node2GNode(node_without_ir);
+  graph.AddDataEdge(input0_node, 0, partitioned_call_node, 0);
+  graph.AddDataEdge(input1_node, 0, partitioned_call_node, 1);
+
+  const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode netoutput_gnode = NodeAdapter::Node2GNode(netoutput);
+  graph.AddDataEdge(partitioned_call_node, 0, netoutput_gnode, 0);
+
+  // 创建子图
+  std::string subgraph_name = "Conv2D_17function_graph_1";
+  ut::GraphBuilder subgraph_builder = ut::GraphBuilder(subgraph_name);
+  auto subgraph_compute_graph = subgraph_builder.GetGraph();
+  auto subgraph_obj = ge::GraphUtilsEx::CreateGraphFromComputeGraph(subgraph_compute_graph);
+
+  auto subgraph_data0_op = op::Data("Data_0").set_attr_index(0);
+  auto subgraph_data0_node = subgraph_obj.AddNodeByOp(subgraph_data0_op);
+  auto subgraph_data1_op = op::Data("Data_1").set_attr_index(1);
+  auto subgraph_data1_node = subgraph_obj.AddNodeByOp(subgraph_data1_op);
+
+  auto subgraph_add_op = op::Add("Add_0");
+  auto subgraph_add_node = subgraph_obj.AddNodeByOp(subgraph_add_op);
+  subgraph_obj.AddDataEdge(subgraph_data0_node, 0, subgraph_add_node, 0);
+  subgraph_obj.AddDataEdge(subgraph_data1_node, 0, subgraph_add_node, 1);
+
+  const auto &subgraph_netoutput = subgraph_builder.AddNode("netoutput", NETOUTPUT, 1, 0);
+  GNode subgraph_netoutput_gnode = NodeAdapter::Node2GNode(subgraph_netoutput);
+  subgraph_obj.AddDataEdge(subgraph_add_node, 0, subgraph_netoutput_gnode, 0);
+
+  // 使用子图实际名称作为 IR 名称
+  auto partitioned_call_node_ptr = NodeAdapter::GNode2Node(partitioned_call_node);
+  auto op_desc = partitioned_call_node_ptr->GetOpDesc();
+  subgraph_compute_graph->SetParentGraph(compute_graph);
+  subgraph_compute_graph->SetParentNode(partitioned_call_node_ptr);
+  (void)op_desc->AddSubgraphName(subgraph_name);
+  (void)op_desc->SetSubgraphInstanceName(0, subgraph_name);
+  compute_graph->AddSubgraph(subgraph_compute_graph->GetName(), subgraph_compute_graph);
+
+  std::string readable_dump = R"(graph("main_graph"):
+  %input0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %input1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %PartitionedCall_0 : [#users=1] = Node[type=PartitionedCall] (inputs = (_input_0=%input0, _input_1=%input1), attrs = {_graph_0: %Conv2D_17function_graph_1})
+
+  return (%PartitionedCall_0)
+
+graph("Conv2D_17function_graph_1"):
+  %Data_0 : [#users=1] = Node[type=Data] (attrs = {index: 0})
+  %Data_1 : [#users=1] = Node[type=Data] (attrs = {index: 1})
+  %Add_0 : [#users=1] = Node[type=Add] (inputs = (x1=%Data_0, x2=%Data_1))
+
+  return (%Add_0)
+)";
+
+  std::stringstream readable_ss;
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, compute_graph));
+  EXPECT_EQ(readable_dump, readable_ss.str());
+}

@@ -99,7 +99,29 @@ graphStatus EsMoveSubgraphToRoot(Graph &root_graph) {
   return GRAPH_SUCCESS;
 }
 
+graphStatus EsUpdateDataNodeInputDesc(const Graph &graph) {
+  AscendString graph_name;
+  graph.GetName(graph_name);
+  auto all_nodes = graph.GetDirectNode();
+  for (auto &node : all_nodes) {
+    AscendString node_type;
+    GE_ASSERT_GRAPH_SUCCESS(node.GetType(node_type));
+    if (kDataOpSet.find(node_type.GetString()) != kDataOpSet.end()) {
+      TensorDesc tensor_desc;
+      GE_ASSERT_GRAPH_SUCCESS(node.GetOutputDesc(0, tensor_desc));
+      GE_ASSERT_GRAPH_SUCCESS(node.UpdateInputDesc(0, tensor_desc));
+      AscendString node_name;
+      GE_ASSERT_GRAPH_SUCCESS(node.GetName(node_name));
+      GELOGI("Update input desc from output desc for %s type node %s in graph %s",
+             node_type.GetString(), node_name.GetString(), graph_name.GetString());
+    }
+  }
+
+  return GRAPH_SUCCESS;
+}
+
 graphStatus NormalizeEsToGe(Graph &graph) {
+  GE_ASSERT_GRAPH_SUCCESS(EsUpdateDataNodeInputDesc(graph));
   GE_ASSERT_GRAPH_SUCCESS(EsMoveSubgraphToRoot(graph));
   return GRAPH_SUCCESS;
 }

@@ -274,14 +274,14 @@ TEST_F(GraphConstructionTest, Test_attrs) {
 }
 
 std::unique_ptr<Graph> BuildWhileCondGraph(std::unique_ptr<es::EsGraphBuilder> while_graph_builder) {
-  auto while_cond_input = while_graph_builder->CreateInput(0);
+  auto while_cond_input = while_graph_builder->CreateInput(0, "input_0", ge::DT_INT32, ge::FORMAT_NCHW, {2, 2});
   auto while_cond_output = es::phony_1i_1o(while_cond_input, 0);
   (void)es::EsGraphBuilder::SetOutput(while_cond_output, 0);
   return while_graph_builder->BuildAndReset();
 }
 
 std::unique_ptr<Graph> BuildWhileBodyGraph(std::unique_ptr<es::EsGraphBuilder> while_graph_builder) {
-  auto while_body_input = while_graph_builder->CreateInput(0);
+  auto while_body_input = while_graph_builder->CreateInput(0, "input_0", ge::DT_INT32, ge::FORMAT_NCHW, {2, 2});
   auto while_body_output = es::phony_1i_1o(while_body_input, 0);
   (void)es::EsGraphBuilder::SetOutput(while_body_input, 0);
   (void)es::EsGraphBuilder::SetOutput(while_body_output, 1);
@@ -310,7 +310,7 @@ std::unique_ptr<Graph> BuildWhile02BodyGraph() {
 
 std::unique_ptr<Graph> BuildIfThenBranchGraph() {
   auto then_builder = std::make_unique<es::EsGraphBuilder>("then_branch");
-  auto then_input = then_builder->CreateInput(0);
+  auto then_input = then_builder->CreateInput(0, "input_0", ge::DT_INT32, ge::FORMAT_NCHW, {2, 2});
   std::vector then_while_input{then_input};
   auto then_while_output = es::While(then_while_input, 2, BuildWhile01CondGraph(), BuildWhile01BodyGraph(), 10);
   (void)es::EsGraphBuilder::SetOutput(then_while_output.at(0), 0);
@@ -320,12 +320,48 @@ std::unique_ptr<Graph> BuildIfThenBranchGraph() {
 
 std::unique_ptr<Graph> BuildIfElseBranchGraph() {
   auto else_builder = std::make_unique<es::EsGraphBuilder>("else_branch");
-  auto else_input = else_builder->CreateInput(0);
+  auto else_input = else_builder->CreateInput(0, "input_0", ge::DT_INT32, ge::FORMAT_NCHW, {2, 2});
   std::vector else_while_input{else_input};
   auto else_while_output = es::While(else_while_input, 2, BuildWhile02CondGraph(), BuildWhile02BodyGraph(), 10);
   (void)es::EsGraphBuilder::SetOutput(else_while_output.at(0), 0);
   (void)es::EsGraphBuilder::SetOutput(else_while_output.at(1), 1);
   return else_builder->BuildAndReset();
+}
+
+void EsValidateRootGraphInputDesc(ComputeGraphPtr &compute_graph) {
+  auto input_nodes = compute_graph->GetInputNodes();
+  EXPECT_EQ(input_nodes.size(), 2);
+  auto input0 = input_nodes.at(0);
+  EXPECT_EQ(input0->GetName(), "cond");
+  ge::GeTensorDesc input_td = input0->GetOpDesc()->GetInputDesc("x");
+  EXPECT_EQ(input_td.GetDataType(), ge::DT_BOOL);
+  EXPECT_EQ(input_td.GetFormat(), ge::FORMAT_ND);
+  EXPECT_EQ(input_td.GetOriginFormat(), ge::FORMAT_ND);
+  EXPECT_EQ(input_td.GetShape().GetDims(), std::vector<int64_t>({}));
+  EXPECT_EQ(input_td.GetOriginShape().GetDims(), std::vector<int64_t>({}));
+
+
+  auto input1 = input_nodes.at(1);
+  EXPECT_EQ(input1->GetName(), "input");
+  input_td = input1->GetOpDesc()->GetInputDesc("x");
+  EXPECT_EQ(input_td.GetDataType(), ge::DT_FLOAT);
+  EXPECT_EQ(input_td.GetFormat(), ge::FORMAT_ND);
+  EXPECT_EQ(input_td.GetOriginFormat(), ge::FORMAT_ND);
+  EXPECT_EQ(input_td.GetShape().GetDims(), std::vector<int64_t>({1}));
+  EXPECT_EQ(input_td.GetOriginShape().GetDims(), std::vector<int64_t>({1}));
+}
+
+void EsValidateSubgraphInputDesc(ComputeGraphPtr &compute_graph) {
+  auto input_nodes = compute_graph->GetInputNodes();
+  EXPECT_EQ(input_nodes.size(), 1);
+  auto input0 = input_nodes.at(0);
+  EXPECT_EQ(input0->GetName(), "input_0");
+  ge::GeTensorDesc input_td = input0->GetOpDesc()->GetInputDesc("x");
+  EXPECT_EQ(input_td.GetDataType(), ge::DT_INT32);
+  EXPECT_EQ(input_td.GetFormat(), ge::FORMAT_NCHW);
+  EXPECT_EQ(input_td.GetOriginFormat(), ge::FORMAT_NCHW);
+  EXPECT_EQ(input_td.GetShape().GetDims(), std::vector<int64_t>({2, 2}));
+  EXPECT_EQ(input_td.GetOriginShape().GetDims(), std::vector<int64_t>({2, 2}));
 }
 
 TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
@@ -338,6 +374,7 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   EXPECT_NE(graph, nullptr);
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
   EXPECT_NE(compute_graph, nullptr);
+  EsValidateRootGraphInputDesc(compute_graph);
 
   // 验证节点类型和数量
   gert::SummaryChecker checker(compute_graph);
@@ -352,10 +389,12 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   EXPECT_NE(then_subgraph, nullptr);
   EXPECT_NE(then_subgraph->GetParentGraph(), nullptr);
   EXPECT_NE(then_subgraph->GetParentNode(), nullptr);
+  EsValidateSubgraphInputDesc(then_subgraph);
   auto else_subgraph = compute_graph->GetSubgraph("else_branch");
   EXPECT_NE(else_subgraph, nullptr);
   EXPECT_NE(else_subgraph->GetParentGraph(), nullptr);
   EXPECT_NE(else_subgraph->GetParentNode(), nullptr);
+  EsValidateSubgraphInputDesc(then_subgraph);
 
   // 验证 While 子图存在
   // 验证 then_subgraph 中的 While 子图
@@ -366,6 +405,7 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   EXPECT_EQ(while_01_cond_subgraph1, while_01_cond_subgraph2);
   EXPECT_NE(while_01_cond_subgraph1->GetParentGraph(), nullptr);
   EXPECT_NE(while_01_cond_subgraph1->GetParentNode(), nullptr);
+  EsValidateSubgraphInputDesc(while_01_cond_subgraph1);
 
   auto while_01_body_subgraph1 = then_subgraph->GetSubgraph("while_01_body");
   EXPECT_NE(while_01_body_subgraph1, nullptr);
@@ -374,6 +414,7 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   EXPECT_EQ(while_01_body_subgraph1, while_01_body_subgraph2);
   EXPECT_NE(while_01_body_subgraph1->GetParentGraph(), nullptr);
   EXPECT_NE(while_01_body_subgraph1->GetParentNode(), nullptr);
+  EsValidateSubgraphInputDesc(while_01_cond_subgraph1);
 
   // 验证 else_subgraph 中的 While 子图
   auto while_02_cond_subgraph1 = then_subgraph->GetSubgraph("while_02_cond");
@@ -383,6 +424,7 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   EXPECT_EQ(while_02_cond_subgraph1, while_02_cond_subgraph2);
   EXPECT_NE(while_02_cond_subgraph1->GetParentGraph(), nullptr);
   EXPECT_NE(while_02_cond_subgraph1->GetParentNode(), nullptr);
+  EsValidateSubgraphInputDesc(while_02_cond_subgraph1);
 
   auto while_02_body_subgraph1 = then_subgraph->GetSubgraph("while_02_body");
   EXPECT_NE(while_02_body_subgraph1, nullptr);
@@ -391,6 +433,7 @@ TEST_F(GraphConstructionTest, NestedSubgraphConstruction) {
   EXPECT_EQ(while_02_body_subgraph1, while_02_body_subgraph2);
   EXPECT_NE(while_02_body_subgraph1->GetParentGraph(), nullptr);
   EXPECT_NE(while_02_body_subgraph1->GetParentNode(), nullptr);
+  EsValidateSubgraphInputDesc(while_02_body_subgraph1);
 
   // 验证 Readable Dump 输出
   std::stringstream readable_ss;

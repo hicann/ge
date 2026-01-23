@@ -8,9 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <algorithm>
 #include <cstring>
-#include <set>
 #include <vector>
 
 #include "graph/debug/ge_op_types.h"
@@ -138,26 +136,34 @@ void ReadableDump::AppendInputInstance(std::stringstream &ss, bool &first, const
   ss << param_name << "=" << GetInstanceName(instance_name, kIndentZero);
 }
 
-std::string ReadableDump::GetNodeInputInstance(const Node *node, OutputHandler &output_handler) {
+std::string ReadableDump::GetNodeInputInstanceWithIr(const Node *node, OutputHandler &output_handler) {
   GE_ASSERT_NOTNULL(node);
   const auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
 
   const auto &ir_inputs = op_desc->GetIrInputs();
+  if (ir_inputs.empty()) {
+    GELOGI("[ReadableDump][GetNodeInputInstanceWithIr] Node %s IR inputs definition is empty.", node->GetName().c_str());
+    return "";
+  }
+
   std::map<size_t, std::pair<size_t, size_t>> ir_input_to_range;
   GE_ASSERT_GRAPH_SUCCESS(ge::OpDescUtils::GetIrInputRawDescRange(op_desc, ir_input_to_range));
 
   std::stringstream input_instance_ss;
   bool first = true;
   for (size_t ir_input_index = 0U; ir_input_index < ir_inputs.size(); ++ir_input_index) {
-    const auto &ir_input = ir_inputs[ir_input_index];
-    const auto &ir_input_name = ir_input.first;
-    const auto &ir_input_type = ir_input.second;
-
     const auto &ir_input_to_range_iter = ir_input_to_range.find(ir_input_index);
     GE_ASSERT_TRUE(ir_input_to_range_iter != ir_input_to_range.end());
     const size_t start_index = ir_input_to_range_iter->second.first;
     const size_t count = ir_input_to_range_iter->second.second;
+    if (count == 0U) {
+      continue;
+    }
+
+    const auto &ir_input = ir_inputs[ir_input_index];
+    const auto &ir_input_name = ir_input.first;
+    const auto &ir_input_type = ir_input.second;
 
     if (ir_input_type == ge::IrInputType::kIrInputRequired) {
       GE_ASSERT_EQ(count, 1U);
@@ -165,7 +171,6 @@ std::string ReadableDump::GetNodeInputInstance(const Node *node, OutputHandler &
       auto instance_name = GetInputInstanceName(node, start_index, output_handler);
       AppendInputInstance(input_instance_ss, first, ir_input_name, instance_name);
     } else if (ir_input_type == ge::IrInputType::kIrInputDynamic) {
-      GE_ASSERT_TRUE(count > 0U);
       size_t dump_start_index = 0U;
       if (node->GetType() == FOR) {
         dump_start_index = kForNodeInputStartIndex;  // FOR input_0 为start，因此动态输入 index 从 1 开始，其他从 0 开始
@@ -179,13 +184,34 @@ std::string ReadableDump::GetNodeInputInstance(const Node *node, OutputHandler &
       }
     } else {
       GE_ASSERT_TRUE(ir_input_type == ge::IrInputType::kIrInputOptional);
-      if (count == 0U) {
-        continue;
-      }
       GE_ASSERT_EQ(1U, count);
       auto instance_name = GetInputInstanceName(node, start_index, output_handler);
       AppendInputInstance(input_instance_ss, first, ir_input_name, instance_name);
     }
+  }
+
+  return input_instance_ss.str();
+}
+
+std::string ReadableDump::GetNodeInputInstance(const Node *node, OutputHandler &output_handler) {
+  GE_ASSERT_NOTNULL(node);
+  auto input_instance_with_ir = GetNodeInputInstanceWithIr(node, output_handler);
+  if (!input_instance_with_ir.empty()) {
+    return input_instance_with_ir;
+  }
+
+  GELOGI("[ReadableDump][GetNodeInputInstance] get node %s input instance with IR definition failed, "
+         "using parameters (_input_0, _input_1, ...) instead.", node->GetName().c_str());
+  std::stringstream input_instance_ss;
+  bool first = true;
+  for (size_t i = 0U; i < node->GetAllInDataAnchorsSize(); i++) {
+    auto input_instance_name = GetInputInstanceName(node, i, output_handler);
+    if (input_instance_name.empty()) {
+      continue;
+    }
+
+    std::string param_name = "_input_" + std::to_string(i);
+    AppendInputInstance(input_instance_ss, first, param_name, input_instance_name);
   }
 
   return input_instance_ss.str();
@@ -227,92 +253,168 @@ std::string ReadableDump::GetAttrValueStr(const OpDescPtr &op_desc, const std::s
   return attr_value_str;
 }
 
-std::unordered_map<std::string, std::string> ReadableDump::CollectSubgraphsAndBuildIrToInstanceMap(
-    const Node* node, std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx) {
+std::map<size_t, std::pair<size_t, size_t>> ReadableDump::GetIrGraphDescRange(const Node *node) {
   GE_ASSERT_NOTNULL(node);
   const auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
-  std::unordered_map<std::string, std::string> ir_name_to_instance;
-  const auto &subgraph_instance_names = op_desc->GetSubgraphInstanceNames();
-  if (subgraph_instance_names.empty()) {
-    return ir_name_to_instance;
+
+  std::map<size_t, std::pair<size_t, size_t>> ir_graph_to_range;
+  const auto &ir_names = op_desc->GetOrderedSubgraphIrNames();
+  const auto &name_to_indexes = op_desc->GetSubgraphNameIndexes();
+  for (size_t ir_idx = 0U; ir_idx < ir_names.size(); ++ir_idx) {
+    const auto &ir_name_to_type = ir_names[ir_idx];
+    if (ir_name_to_type.second == kStatic) {
+      const auto &ir_name = ir_name_to_type.first;
+      const auto it = name_to_indexes.find(ir_name);
+      if (it != name_to_indexes.end()) {
+        ir_graph_to_range.emplace(ir_idx, std::make_pair(it->second, 1U));
+      }
+      continue;
+    }
+
+    // 动态子图：IR 名称需要添加索引
+    std::set<uint32_t> indexes;
+    for (size_t n = 0U;; n++) {
+      auto dy_ir_name = ir_name_to_type.first + std::to_string(n);
+      const auto it = name_to_indexes.find(dy_ir_name);
+      if (it == name_to_indexes.end()) {
+        break;
+      }
+      indexes.insert(it->second);
+    }
+
+    if (indexes.empty()) {
+      continue;
+    }
+
+    // 校验Dynamic类型的IR graph对应的多个index连续
+    if (indexes.size() <= 1U || (*indexes.rbegin() - *indexes.begin() == (indexes.size() - 1U))) {
+      ir_graph_to_range.emplace(ir_idx, std::make_pair(*indexes.begin(), indexes.size()));
+    } else {
+      GELOGI("[ReadableDump][GetIrGraphDescRange] Node %s dynamic subgraph %s desc index is not continuous.",
+        node->GetName().c_str(), ir_name_to_type.first.c_str());
+    }
   }
-  const auto root_graph = GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
-  if (root_graph == nullptr) {
-    GELOGW("[ReadableDump][GenNodeGraphAttrs] can not find the root graph, node: %s.", node->GetName().c_str());
-    return ir_name_to_instance;
+  return ir_graph_to_range;
+}
+
+void ReadableDump::CollectSubgraphIfNeeded(std::vector<ComputeGraphPtr> &subgraphs_to_dump,
+                                           const std::string &instance_name, DumpContext &ctx) {
+  if (instance_name.empty()) {
+    return;
+  }
+  if (ctx.visited_subgraph_instances.insert(instance_name).second) {
+    const auto subgraph = ctx.root_graph->GetSubgraph(instance_name);
+    if (subgraph != nullptr) {
+      subgraphs_to_dump.emplace_back(subgraph);
+    } else {
+      GELOGI("[ReadableDump][CollectSubgraphIfNeeded] Subgraph %s is empty.", instance_name.c_str());
+    }
+  }
+}
+
+void ReadableDump::AppendSubgraphAttr(std::stringstream &ss, bool &first, const std::string &param_name,
+                                      const std::string &instance_name) {
+  if (instance_name.empty()) {
+    return;
+  }
+  if (first) {
+    first = false;
+  } else {
+    ss << ", ";
+  }
+  ss << param_name << ": " << GetInstanceName(instance_name, kIndentZero);
+}
+
+std::string ReadableDump::GetSubgraphAttrsWithIr(const Node *node, std::vector<ComputeGraphPtr> &subgraphs_to_dump,
+                                                 DumpContext &ctx) {
+  GE_ASSERT_NOTNULL(node);
+  const auto op_desc = node->GetOpDesc();
+  GE_ASSERT_NOTNULL(op_desc);
+  const auto &ir_graphs = op_desc->GetOrderedSubgraphIrNames();
+  if (ir_graphs.empty()) {
+    GELOGI("[ReadableDump][GetSubgraphAttrsWithIr] Node %s subgraph IR definition is empty.", node->GetName().c_str());
+    return "";
   }
 
+  const auto &subgraph_instance_names = op_desc->GetSubgraphInstanceNames();
+  auto ir_graph_to_range = GetIrGraphDescRange(node);
+
+  std::stringstream ss;
+  bool first = true;
+  for (size_t ir_index = 0U; ir_index < ir_graphs.size(); ++ir_index) {
+    const auto &ir_graph_to_range_iter = ir_graph_to_range.find(ir_index);
+    if (ir_graph_to_range_iter == ir_graph_to_range.end()) {
+      continue;
+    }
+    const size_t start_index = ir_graph_to_range_iter->second.first;
+    const size_t count = ir_graph_to_range_iter->second.second;
+    if (count == 0U) {
+      continue;
+    }
+
+    const auto &ir_graph = ir_graphs[ir_index];
+    const auto &ir_graph_name = ir_graph.first;
+    const auto &ir_graph_type = ir_graph.second;
+
+    if (ir_graph_type == kStatic) {
+      GE_ASSERT_TRUE(start_index < subgraph_instance_names.size());
+      const auto &instance_name = subgraph_instance_names.at(start_index);
+      CollectSubgraphIfNeeded(subgraphs_to_dump, instance_name, ctx);
+      AppendSubgraphAttr(ss, first, ir_graph_name, instance_name);
+    } else {
+      GE_ASSERT_TRUE(ir_graph_type == kDynamic);
+      for (size_t dy_i = 0U; dy_i < count; ++dy_i) {
+        const size_t real_index = start_index + dy_i;
+        GE_ASSERT_TRUE(real_index < subgraph_instance_names.size());
+        const auto &instance_name = subgraph_instance_names.at(real_index);
+        CollectSubgraphIfNeeded(subgraphs_to_dump, instance_name, ctx);
+        const auto param_name = ir_graph_name + std::to_string(dy_i);
+        AppendSubgraphAttr(ss, first, param_name, instance_name);
+      }
+    }
+  }
+  return ss.str();
+}
+
+std::string ReadableDump::GetSubgraphAttrs(const Node *node, std::vector<ComputeGraphPtr> &subgraphs_to_dump,
+                                           DumpContext &ctx) {
+  GE_ASSERT_NOTNULL(node);
+  const auto op_desc = node->GetOpDesc();
+  GE_ASSERT_NOTNULL(op_desc);
+  const auto &subgraph_instance_names = op_desc->GetSubgraphInstanceNames();
+  if (subgraph_instance_names.empty()) {
+    return "";
+  }
+
+  const auto root_graph = GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
+  if (root_graph == nullptr) {
+    GELOGW("[ReadableDump][AppendSubgraphAttrs] can not find the root graph, node: %s.", node->GetName().c_str());
+    return "";
+  }
+  ctx.root_graph = root_graph;
+
+  auto subgraph_attrs_contents = GetSubgraphAttrsWithIr(node, subgraphs_to_dump, ctx);
+  if (!subgraph_attrs_contents.empty()) {
+    return subgraph_attrs_contents;
+  }
+
+  GELOGI("[ReadableDump][GetSubgraphAttrs] get node %s subgraph attrs with IR definition failed, "
+         "using parameters (_graph_0, _graph_1, ...) instead.", node->GetName().c_str());
+
+  std::stringstream ss;
+  bool first = true;
+  size_t graph_index = 0U;
   for (const auto &instance_name : subgraph_instance_names) {
     if (instance_name.empty()) {
       continue;
     }
-
-    if (ctx.visited_subgraph_instances.insert(instance_name).second) {
-      const auto subgraph = root_graph->GetSubgraph(instance_name);
-      if (subgraph != nullptr) {
-        subgraphs_to_dump.emplace_back(subgraph);
-      }
-    }
-
-    std::string ir_name;
-    GE_ASSERT_SUCCESS(op_desc->GetSubgraphNameByInstanceName(instance_name, ir_name));
-    ir_name_to_instance.emplace(ir_name, instance_name);
+    CollectSubgraphIfNeeded(subgraphs_to_dump, instance_name, ctx);
+    const auto param_name = "_graph_" + std::to_string(graph_index);
+    AppendSubgraphAttr(ss, first, param_name, instance_name);
+    graph_index++;
   }
-
-  return ir_name_to_instance;
-}
-
-std::vector<std::string> ReadableDump::GetSortedSubgraphIrNames(const Node *node) {
-  GE_ASSERT_NOTNULL(node);
-  const auto op_desc = node->GetOpDesc();
-  GE_ASSERT_NOTNULL(op_desc);
-  const auto &ir_names_to_index = op_desc->GetSubgraphNameIndexes();
-  std::vector<std::pair<std::string, uint32_t>> sorted_ir_name_pairs;
-  sorted_ir_name_pairs.reserve(ir_names_to_index.size());
-
-  for (const auto &ir_name_pair : ir_names_to_index) {
-    sorted_ir_name_pairs.emplace_back(ir_name_pair);
-  }
-  std::sort(sorted_ir_name_pairs.begin(), sorted_ir_name_pairs.end(),
-            [](const std::pair<std::string, uint32_t> &a, const std::pair<std::string, uint32_t> &b) {
-              return a.second < b.second;
-            });
-
-  std::vector<std::string> sorted_ir_names;
-  sorted_ir_names.reserve(sorted_ir_name_pairs.size());
-  for (const auto &ir_name_pair : sorted_ir_name_pairs) {
-    sorted_ir_names.emplace_back(ir_name_pair.first);
-  }
-  return sorted_ir_names;
-}
-
-void ReadableDump::AppendSubgraphAttrs(std::stringstream &attr_contents, const Node *node,
-                                       std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx) {
-  auto ir_name_to_instance = CollectSubgraphsAndBuildIrToInstanceMap(node, subgraphs_to_dump, ctx);
-  if (ir_name_to_instance.empty()) {
-    return;
-  }
-
-  bool first = true;
-  auto sorted_subgraph_ir_names = GetSortedSubgraphIrNames(node);
-  for (const auto &ir_name : sorted_subgraph_ir_names) {
-    const auto it = ir_name_to_instance.find(ir_name);
-    if (it == ir_name_to_instance.end()) {
-      continue;
-    }
-    const auto &instance_name = it->second;
-    if (instance_name.empty()) {
-      continue;
-    }
-
-    if (first) {
-      first = false;
-    } else {
-      attr_contents << ", ";
-    }
-    attr_contents << ir_name << ": " << GetInstanceName(instance_name, kIndentZero);
-  }
+  return ss.str();
 }
 
 void ReadableDump::AppendNodeAttrs(std::stringstream &attr_contents, const Node *node) {
@@ -360,7 +462,7 @@ void ReadableDump::AppendNodeAttrs(std::stringstream &attr_contents, const Node 
 void ReadableDump::GenNodeAttrs(std::stringstream &readable_ss, const Node *node,
                                 std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx) {
   std::stringstream attr_contents;
-  AppendSubgraphAttrs(attr_contents, node, subgraphs_to_dump, ctx);
+  attr_contents << GetSubgraphAttrs(node, subgraphs_to_dump, ctx);
   AppendNodeAttrs(attr_contents, node);
   std::string attr_str = attr_contents.str();
   if (node->GetInDataNodesSize() != 0 && !attr_str.empty()) {
@@ -415,7 +517,7 @@ std::string ReadableDump::GetGraphOutputInstance(const Node *net_output, OutputH
 
     // 输出个数为1，直接返回实例名；否则使用 output_index= 格式
     if (output_num > 1U) {
-      input_instance_ss << "output_" << retval_index << "=" ;
+      input_instance_ss << "output_" << retval_index << "=";
     }
     input_instance_ss << GetInstanceName(input_instance_name, kIndentZero);
     retval_index++;

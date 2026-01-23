@@ -11,7 +11,7 @@ GE（Graph Engine）支持将计算图导出为多种格式，便于开发者查
 | 格式 | 文件命名 | 主要特点                                                                           |
 |------|---------|--------------------------------------------------------------------------------|
 | **ge_proto** | `ge_proto*.txt` | protobuf文本格式，**信息完整性最好**，可以转成JSON格式文件方便用户定位问题                       |
-| **onnx** | `ge_onnx*.pbtxt` | 基于ONNX的模型描述结构，支持 [Netron](https://netron.app/) 等**可视化**工具打开                            |
+| **onnx** | `ge_onnx*.pbtxt` | 基于ONNX的模型描述结构，支持 [Netron](https://netron.app/) 等**可视化**工具打开。详细说明见[Netron 可视化说明](#netron-可视化说明) |
 | **readable** | `ge_readable*.txt` | 类似Dynamo fx图风格，**文本可读性最高**。详细格式说明请参考 [readable_dump.md](./readable_dump.md) |
 
 ---
@@ -78,3 +78,26 @@ print(graph)  # 直接打印 readable 格式到控制台查看图结构
 readable_str = str(graph)  # 获取 readable 格式字符串，可用于保存或进一步处理
 ```
 > 关于 `ge.graph` 的详细说明，请参考 [graph模块](../ge_python/design/ge_python.md#graph模块)
+
+---
+
+## 附录
+
+### Netron 可视化说明
+
+在 Netron 中打开 `ge_onnx*.pbtxt` 文件时：
+
+- **节点表示**：图中的每个节点表示为一个算子
+- **连边关系**：连边关系用带箭头的实线表示，箭头方向表示数据流向（从源节点指向目标节点）
+- **节点信息查看**：点击算子节点可查看算子的详细信息，重点信息包括：
+
+    | 属性名               | 说明                |
+    | -------------------- | ------------------- |
+    | `type`               | 算子类型            |
+    | `name`               | 算子名              |
+    | `input_desc_dtype:x` | 第x个输入的数据类型 |
+    | `input_desc_layout:x` | 第x个输入的数据格式 |
+    | `input_desc_shape:x` | 第x个输入的shape    |
+    | `output_desc_dtype:x` | 第x个输出的数据类型 |
+    | `output_desc_layout:x` | 第x个输出的数据格式 |
+    | `output_desc_shape:x` | 第x个输出的shape    |

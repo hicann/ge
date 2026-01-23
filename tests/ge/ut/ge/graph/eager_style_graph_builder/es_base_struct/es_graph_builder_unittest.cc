@@ -301,6 +301,41 @@ TEST_F(EsGraphBuilderLLT, SetOutputAndBuild) {
   }
 }
 
+TEST_F(EsGraphBuilderLLT, CheckDataNodeInputTensorDesc) {
+  EsGraphBuilder builder("test_graph");
+  auto t1 = builder.CreateInput(0, "input0", ge::DT_INT32, ge::FORMAT_NCHW, {2, 2});
+  auto t2 = builder.CreateInput(1, "input1", ge::DT_FLOAT, ge::FORMAT_ND, {1});
+  builder.SetOutput(t1, 0);
+  builder.SetOutput(t2, 1);
+  auto graph = builder.BuildAndReset();
+  EXPECT_NE(graph, nullptr);
+  auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(*graph);
+  EXPECT_NE(compute_graph, nullptr);
+  gert::SummaryChecker checker(compute_graph);
+  const std::map<std::string, size_t> &node_types_to_count = {{"Data", 2}, {"NetOutput", 1}};
+  STRICT_DIRECT_NODE_TYPES(compute_graph, node_types_to_count);
+
+  auto input_nodes = compute_graph->GetInputNodes();
+  EXPECT_EQ(input_nodes.size(), 2);
+  auto input0 = input_nodes.at(0);
+  EXPECT_EQ(input0->GetName(), "input0");
+  ge::GeTensorDesc input_td = input0->GetOpDesc()->GetInputDesc("x");
+  EXPECT_EQ(input_td.GetDataType(), ge::DT_INT32);
+  EXPECT_EQ(input_td.GetFormat(), ge::FORMAT_NCHW);
+  EXPECT_EQ(input_td.GetOriginFormat(), ge::FORMAT_NCHW);
+  EXPECT_EQ(input_td.GetShape().GetDims(), std::vector<int64_t>({2, 2}));
+  EXPECT_EQ(input_td.GetOriginShape().GetDims(), std::vector<int64_t>({2, 2}));
+
+  auto input1 = input_nodes.at(1);
+  EXPECT_EQ(input1->GetName(), "input1");
+  input_td = input1->GetOpDesc()->GetInputDesc("x");
+  EXPECT_EQ(input_td.GetDataType(), ge::DT_FLOAT);
+  EXPECT_EQ(input_td.GetFormat(), ge::FORMAT_ND);
+  EXPECT_EQ(input_td.GetOriginFormat(), ge::FORMAT_ND);
+  EXPECT_EQ(input_td.GetShape().GetDims(), std::vector<int64_t>({1}));
+  EXPECT_EQ(input_td.GetOriginShape().GetDims(), std::vector<int64_t>({1}));
+}
+
 TEST_F(EsGraphBuilderLLT, BuildWithOutputsVector) {
   EsGraphBuilder builder("test_graph");
   auto t1 = builder.CreateInput(0, "input0", "Data");

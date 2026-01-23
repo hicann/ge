@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -11,6 +11,7 @@
 #ifndef INC_GRAPH_UTILS_READABLE_DUMP_H_
 #define INC_GRAPH_UTILS_READABLE_DUMP_H_
 
+#include <map>
 #include <set>
 #include <sstream>
 #include <string>
@@ -47,6 +48,7 @@ class ReadableDump {
  private:
   struct DumpContext {
     std::set<std::string> visited_subgraph_instances;
+    ComputeGraphPtr root_graph;
   };
 
   /**
@@ -162,6 +164,15 @@ class ReadableDump {
    * @param output_handler 输出处理器
    * @return 带参数名称的入参实例字符串，格式：param1=%instance1, param2=%instance2, ...
    */
+  static std::string GetNodeInputInstanceWithIr(const Node *node, OutputHandler &output_handler);
+
+  /**
+   * @brief 获取节点入参，带参数名称
+   *
+   * @param node 节点
+   * @param output_handler 输出处理器
+   * @return 带参数名称的入参实例字符串，格式：param1=%instance1, param2=%instance2, ...
+   */
   static std::string GetNodeInputInstance(const Node *node, OutputHandler &output_handler);
 
   /**
@@ -176,31 +187,54 @@ class ReadableDump {
                                      const std::string &av_type);
 
   /**
-   * @brief 收集子图并建立IR名称到实例名称的映射
+   * @brief 获取 IR 子图索引到 desc 索引范围的映射
+   * @param node 节点
+   * @return IR 子图索引到 desc 索引范围的映射
+   *         key: IR 子图索引
+   *         value: (start_index, count) - desc 中的起始索引和数量
+   */
+  static std::map<size_t, std::pair<size_t, size_t>> GetIrGraphDescRange(const Node *node);
+
+  /**
+   * @brief 收集子图到 subgraphs_to_dump
+   * @param subgraphs_to_dump 收集到的子图列表
+   * @param instance_name 子图实例名称
+   * @param ctx dump上下文
+   */
+  static void CollectSubgraphIfNeeded(std::vector<ComputeGraphPtr> &subgraphs_to_dump, const std::string &instance_name,
+                                      DumpContext &ctx);
+
+  /**
+   * @brief 追加子图属性到字符串流
+   * @param ss 字符串流
+   * @param first 是否为第一个属性
+   * @param param_name 参数IR名称
+   * @param instance_name 子图实例名称
+   */
+  static void AppendSubgraphAttr(std::stringstream &ss, bool &first, const std::string &param_name,
+                                 const std::string &instance_name);
+
+  /**
+   * @brief 获取节点的子图属性信息，带子图 IR 名称
    * @param node 节点
    * @param subgraphs_to_dump 收集到的子图列表
    * @param ctx dump上下文
-   * @return IR名称到实例名称的映射
+   * @return 子图属性字符串，格式：ir_name1: %instance1, ir_name2: %instance2, ...
+   *         如果 IR 定义为空，返回空字符串
    */
-  static std::unordered_map<std::string, std::string> CollectSubgraphsAndBuildIrToInstanceMap(
-      const Node *node, std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx);
+  static std::string GetSubgraphAttrsWithIr(const Node *node, std::vector<ComputeGraphPtr> &subgraphs_to_dump,
+                                             DumpContext &ctx);
 
   /**
-   * @brief 根据索引对子图IR名称进行排序
-   * @param node 节点
-   * @return 按索引排序的子图IR名称列表
-   */
-  static std::vector<std::string> GetSortedSubgraphIrNames(const Node *node);
-
-  /**
-   * @brief 添加节点的子图属性信息，同时收集子图用于后续展开
-   * @param attr_contents 字符串流
+   * @brief 获取节点的子图属性信息，同时收集子图用于后续展开
    * @param node 节点
    * @param subgraphs_to_dump 收集到的子图列表
    * @param ctx dump上下文
+   * @return 子图属性字符串
+   *         优先使用 IR 定义中的子图名称，如果失败则使用（_graph_0, _graph_1, ...）
    */
-  static void AppendSubgraphAttrs(std::stringstream &attr_contents, const Node *node,
-                           std::vector<ComputeGraphPtr> &subgraphs_to_dump, DumpContext &ctx);
+  static std::string GetSubgraphAttrs(const Node *node, std::vector<ComputeGraphPtr> &subgraphs_to_dump,
+                                      DumpContext &ctx);
 
   /**
    * @brief 添加节点属性信息
