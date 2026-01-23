@@ -13,16 +13,16 @@
 #include <mutex>
 #include <fstream>
 
-#include "common/acl_op_executor_log_inner.h"
+#include "common/log_inner.h"
 #include "types/acl_op.h"
 #include "op_executor.h"
-#include "utils/acl_op_executor_array_utils.h"
+#include "utils/array_utils.h"
 #include "utils/string_utils.h"
 #include "single_op/acl_op_resource_manager.h"
 #include "single_op/compile/op_kernel_registry.h"
 #include "single_op/compile/op_kernel_selector.h"
-#include "acl_op_executor_error_codes_inner.h"
-#include "common/acl_op_executor_prof_api_reg.h"
+#include "error_codes_inner.h"
+#include "common/prof_api_reg.h"
 #include "graph/operator.h"
 #include "graph/tensor.h"
 #include "graph/operator_factory.h"
@@ -81,7 +81,7 @@ aclError aclopSetModelDirImpl(const char *modelDir)
 
 aclError aclopLoadImpl(const void *model, size_t modelSize)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopLoad);
+    ACL_PROFILING_REG(acl::AclProfType::AclopLoad);
 
     ACL_LOG_INFO("start to execute aclopLoad");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
@@ -110,7 +110,7 @@ aclError aclopCreateHandleImpl(const char *opType,
                            const aclopAttr *opAttr,
                            aclopHandle **handle)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopCreateHandle);
+    ACL_PROFILING_REG(acl::AclProfType::AclopCreateHandle);
     ACL_LOG_INFO("start to execute aclopCreateHandle");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(opType);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle);
@@ -151,7 +151,7 @@ aclError aclopCreateHandleImpl(const char *opType,
 
 void aclopDestroyHandleImpl(aclopHandle *handle)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopDestroyHandle);
+    ACL_PROFILING_REG(acl::AclProfType::AclopDestroyHandle);
     ACL_DELETE_AND_SET_NULL(handle);
 }
 
@@ -162,7 +162,7 @@ aclError aclopExecWithHandleImpl(aclopHandle *handle,
                              aclDataBuffer *const outputs[],
                              aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopExecWithHandle);
+    ACL_PROFILING_REG(acl::AclProfType::AclopExecWithHandle);
     ACL_LOG_INFO("start to execute aclopExecWithHandle");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle);
     ACL_REQUIRES_NON_NEGATIVE_WITH_INPUT_REPORT(numInputs);
@@ -208,7 +208,7 @@ aclError aclopExecuteImpl(const char *opType,
                       const aclopAttr *attr,
                       aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopExecute);
+    ACL_PROFILING_REG(acl::AclProfType::AclopExecute);
     ACL_LOG_INFO("start to execute aclopExecute");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(opType);
     ACL_REQUIRES_NON_NEGATIVE_WITH_INPUT_REPORT(numInputs);
@@ -247,7 +247,7 @@ aclError aclopExecuteV2Impl(const char *opType,
                         aclopAttr *attr,
                         aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopExecuteV2);
+    ACL_PROFILING_REG(acl::AclProfType::AclopExecuteV2);
 
     ACL_LOG_INFO("start to execute aclopExecuteV2");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(opType);
@@ -286,7 +286,7 @@ aclError aclopCreateKernelImpl(const char *opType,
                            aclopEngineType enginetype,
                            aclDataDeallocator deallocator)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopCreateKernel);
+    ACL_PROFILING_REG(acl::AclProfType::AclopCreateKernel);
     ACL_LOG_INFO("start to execute aclopCreateKernel");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(opType);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(kernelId);
@@ -318,7 +318,7 @@ aclError aclopUpdateParamsImpl(const char *opType,
                            const aclTensorDesc *const outputDesc[],
                            const aclopAttr *attr)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopUpdateParams);
+    ACL_PROFILING_REG(acl::AclProfType::AclopUpdateParams);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(opType);
     ACL_REQUIRES_NON_NEGATIVE_WITH_INPUT_REPORT(numInputs);
     ACL_REQUIRES_NON_NEGATIVE_WITH_INPUT_REPORT(numOutputs);
@@ -689,7 +689,7 @@ aclError aclopInferShapeImpl(const char *opType,
                          aclopAttr *attr)
 {
     ACL_LOG_INFO("start to execute aclopInferShape");
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopInferShape);
+    ACL_PROFILING_REG(acl::AclProfType::AclopInferShape);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(opType);
     ACL_REQUIRES_NON_NEGATIVE(numInputs);
     ACL_REQUIRES_NON_NEGATIVE(numOutputs);

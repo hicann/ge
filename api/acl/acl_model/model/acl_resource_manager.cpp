@@ -14,7 +14,7 @@
 #include "framework/memory/allocator_desc.h"
 #include "framework/executor/ge_executor.h"
 #include "mmpa/mmpa_api.h"
-#include "common/acl_model_log_inner.h"
+#include "common/log_inner.h"
 #include "framework/runtime/subscriber/global_profiler.h"
 #include "ge/ge_allocator.h"
 #include "acl/acl_rt.h"

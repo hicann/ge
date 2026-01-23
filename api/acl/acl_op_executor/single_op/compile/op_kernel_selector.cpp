@@ -11,9 +11,9 @@
 #include "op_kernel_selector.h"
 #include <map>
 #include <memory>
-#include "common/acl_op_executor_log_inner.h"
+#include "common/log_inner.h"
 #include "op_kernel_registry.h"
-#include "utils/acl_op_executor_attr_utils.h"
+#include "utils/attr_utils.h"
 
 namespace {
     constexpr uint64_t DEFAULT_MAX_OP_NUM_FOR_HANDLE = UINT64_MAX;

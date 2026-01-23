@@ -14,9 +14,9 @@
 #include <gmock/gmock.h>
 
 #include "acl/acl.h"
-#include "types/acl_op_executor_op_attr.h"
+#include "types/op_attr.h"
 #include "graph/ge_attr_value.h"
-#include "utils/acl_op_executor_attr_utils.h"
+#include "utils/attr_utils.h"
 #include "acl_stub.h"
 
 using namespace testing;

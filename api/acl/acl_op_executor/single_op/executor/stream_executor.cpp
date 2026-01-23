@@ -9,12 +9,12 @@
  */
 
 #include "stream_executor.h"
-#include "common/acl_op_executor_common_inner.h"
+#include "common/common_inner.h"
 #include "single_op/compile/op_kernel_selector.h"
 #include "op_task.h"
 #include "securec.h"
-#include "utils/acl_op_executor_math_utils.h"
-#include "utils/acl_op_executor_attr_utils.h"
+#include "utils/math_utils.h"
+#include "utils/attr_utils.h"
 
 namespace acl {
 namespace {

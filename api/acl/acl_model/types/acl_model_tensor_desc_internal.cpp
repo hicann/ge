@@ -11,11 +11,11 @@
 #include "acl_model_tensor_desc_internal.h"
 #include <sstream>
 #include "framework/common/ge_format_util.h"
-#include "utils/acl_model_string_utils.h"
-#include "utils/acl_model_math_utils.h"
+#include "utils/string_utils.h"
+#include "utils/math_utils.h"
 #include "model/acl_resource_manager.h"
-#include "common/acl_model_prof_api_reg.h"
-#include "common/acl_model_error_codes_inner.h"
+#include "common/prof_api_reg.h"
+#include "common/error_codes_inner.h"
 #include "model/acl_model_impl.h"
 
 namespace acl {
@@ -224,7 +224,7 @@ aclTensorDesc *aclCreateTensorDescImpl(aclDataType dataType,
                                    const int64_t *dims,
                                    aclFormat format)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclCreateTensorDesc);
+    ACL_PROFILING_REG(acl::AclProfType::AclCreateTensorDesc);
     if (numDims < 0) {
         ACL_LOG_ERROR("[Check][NumDims]numDims[%d] is smaller than 0", numDims);
         acl::AclErrorLogManager::ReportInputError(acl::INVALID_PARAM_MSG,
@@ -248,7 +248,7 @@ aclTensorDesc *aclCreateTensorDescImpl(aclDataType dataType,
 
 void aclDestroyTensorDescImpl(const aclTensorDesc *desc)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclDestroyTensorDesc);
+    ACL_PROFILING_REG(acl::AclProfType::AclDestroyTensorDesc);
     ACL_DELETE_ARRAY_AND_SET_NULL(desc);
 }
 
@@ -463,7 +463,7 @@ const char *aclGetTensorDescNameImpl(aclTensorDesc *desc)
 
 aclError aclTransTensorDescFormatImpl(const aclTensorDesc *srcDesc, aclFormat dstFormat, aclTensorDesc **dstDesc)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclTransTensorDescFormat);
+    ACL_PROFILING_REG(acl::AclProfType::AclTransTensorDescFormat);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(srcDesc);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dstDesc);
 

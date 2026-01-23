@@ -15,7 +15,7 @@
 #include <map>
 #include <functional>
 #include <sstream>
-#include "common/acl_model_log_inner.h"
+#include "common/log_inner.h"
 #include "securec.h"
 #include "acl/acl_mdl.h"
 #include "common/dynamic_aipp.h"

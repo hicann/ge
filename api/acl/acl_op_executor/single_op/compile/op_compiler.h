@@ -18,7 +18,7 @@
 #include "graph/ge_tensor.h"
 #include "common/ge_types.h"
 
-#include "common/acl_op_executor_common_inner.h"
+#include "common/common_inner.h"
 #include "types/acl_op.h"
 #include "types/op_model.h"
 

@@ -38,7 +38,7 @@
 #include "acl/acl_mdl.h"
 #include "single_op/op_model_parser.h"
 #include "single_op/executor/resource_manager.h"
-#include "utils/acl_op_executor_math_utils.h"
+#include "utils/math_utils.h"
 #include "common/ge_types.h"
 #include "acl_stub.h"
 

@@ -9,7 +9,7 @@
  */
 
 #include "aipp_param_check.h"
-#include "utils/acl_model_math_utils.h"
+#include "utils/math_utils.h"
 
 namespace {
     constexpr uint32_t TWO_CHANNEL = 2U;

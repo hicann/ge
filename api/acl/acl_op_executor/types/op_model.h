@@ -19,7 +19,7 @@
 
 #include "graph/ge_attr_value.h"
 #include "acl/acl_base.h"
-#include "types/acl_op_executor_op_attr.h"
+#include "types/op_attr.h"
 #include "framework/runtime/model_v2_executor.h"
 #include "framework/runtime/stream_executor.h"
 

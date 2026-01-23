@@ -9,7 +9,7 @@
  */
 
 #include "acl/acl_rt.h"
-#include "common/acl_op_compiler_common_inner.h"
+#include "common/common_inner.h"
 
 namespace acl {
 GeFinalizeCallback aclGeFinalizeCallback = nullptr;

@@ -12,14 +12,14 @@
 #include <graph/debug/ge_attr_define.h>
 #include "framework/common/profiling_definitions.h"
 #include "types/acl_op.h"
-#include "common/acl_op_executor_log_inner.h"
+#include "common/log_inner.h"
 #include "model/acl_resource_manager.h"
 #include "single_op/acl_op_resource_manager.h"
 #include "ge_tensor_cache.h"
 #include "single_op/executor/stream_executor.h"
-#include "acl_op_executor_error_codes_inner.h"
+#include "error_codes_inner.h"
 #include "utils/string_utils.h"
-#include "utils/acl_op_executor_array_utils.h"
+#include "utils/array_utils.h"
 #include "framework/runtime/gert_api.h"
 #include "framework/runtime/subscriber/global_profiler.h"
 

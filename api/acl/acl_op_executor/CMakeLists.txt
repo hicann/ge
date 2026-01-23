@@ -26,23 +26,25 @@ add_library(acl_op_executor_impl SHARED
     single_op/executor/stream_executor.cpp
     single_op/executor/resource_manager.cpp
     single_op/executor/op_task.cpp
-    types/acl_op_executor_op_attr.cpp
+    types/op_attr.cpp
     types/op_model.cpp
     types/acl_op.cpp
-    common/acl_op_executor_common_inner.cpp
-    common/acl_op_executor_log_inner.cpp
-    common/acl_op_executor_json_parser.cpp
-    utils/acl_op_executor_attr_utils.cpp
-    utils/acl_op_executor_array_utils.cpp
-    utils/acl_op_executor_hash_utils.cpp
-    utils/string_utils.cpp
-    utils/acl_op_executor_file_utils.cpp
-    common/acl_op_executor_prof_api_reg.cpp
+    ../common/common_inner.cpp
+    ../common/log_inner.cpp
+    ../common/json_parser.cpp
+    ../utils/attr_utils.cpp
+    ../utils/array_utils.cpp
+    ../utils/hash_utils.cpp
+    ../utils/string_utils.cpp
+    ../utils/file_utils.cpp
+    ../common/prof_api_reg.cpp
 )
 
 target_include_directories(acl_op_executor_impl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/common
+    ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_LIST_DIR}/../common
+    ${CMAKE_CURRENT_LIST_DIR}/../util
 
     #TODO from acl_mdl
     ${CMAKE_CURRENT_LIST_DIR}/../acl_model

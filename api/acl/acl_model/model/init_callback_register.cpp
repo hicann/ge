@@ -11,8 +11,8 @@
 #include "acl/acl_rt.h"
 #include "executor/ge_executor.h"
 #include "acl_resource_manager.h"
-#include "acl_model_error_codes_inner.h"
-#include "acl_model_json_parser.h"
+#include "error_codes_inner.h"
+#include "json_parser.h"
 
 namespace {
 void HandleReleaseSourceByDevice(int32_t deviceId, aclrtDeviceState state, void *args)

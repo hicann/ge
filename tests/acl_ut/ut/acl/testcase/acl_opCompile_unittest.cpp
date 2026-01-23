@@ -33,7 +33,7 @@
 #include "framework/generator/ge_generator.h"
 #include "ge/ge_api.h"
 #include "framework/executor/ge_executor.h"
-#include "common/acl_op_compiler_common_inner.h"
+#include "common/common_inner.h"
 #include "graph/ge_context.h"
 
 using namespace testing;

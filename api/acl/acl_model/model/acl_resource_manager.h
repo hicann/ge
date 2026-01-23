@@ -21,7 +21,7 @@
 #include "acl/acl_base.h"
 #include "graph/ge_attr_value.h"
 #include "mmpa/mmpa_api.h"
-#include "utils/acl_model_string_utils.h"
+#include "utils/string_utils.h"
 #include "framework/runtime/mem_allocator.h"
 #include "framework/runtime/model_v2_executor.h"
 #include "framework/runtime/stream_executor.h"

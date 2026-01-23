@@ -19,7 +19,7 @@
 
 #include "types/acl_op.h"
 #include "utils/acl_op_map.h"
-#include "types/acl_op_executor_op_attr.h"
+#include "types/op_attr.h"
 
 struct aclopKernelDesc {
     std::string kernelId;

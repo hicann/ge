@@ -17,20 +17,20 @@
 #include "acl/acl_base.h"
 #include "executor/ge_executor.h"
 #include "common/ge_inner_error_codes.h"
-#include "common/acl_model_log_inner.h"
+#include "common/log_inner.h"
 #include "graph/tensor.h"
 #include "graph/types.h"
 #include "exe_graph/runtime/tensor.h"
 #include "exe_graph/runtime/shape.h"
 #include "model_desc_internal.h"
-#include "acl_model_error_codes_inner.h"
-#include "common/acl_model_prof_api_reg.h"
+#include "error_codes_inner.h"
+#include "common/prof_api_reg.h"
 #include "framework/common/ge_types.h"
 #include "framework/runtime/model_v2_executor.h"
 #include "framework/runtime/gert_api.h"
 #include "framework/runtime/subscriber/global_profiler.h"
-#include "utils/acl_model_math_utils.h"
-#include "utils/acl_model_string_utils.h"
+#include "utils/math_utils.h"
+#include "utils/string_utils.h"
 #include "model_config.h"
 #include "acl_resource_manager.h"
 #include "graph/ge_local_context.h"
@@ -1454,7 +1454,7 @@ static aclError RuntimeV2GetDesc(aclmdlDesc * const modelDesc, const uint32_t mo
 
 aclError aclmdlGetDescImpl(aclmdlDesc *modelDesc, uint32_t modelId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlGetDesc);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlGetDesc);
     ACL_LOG_INFO("start to execute aclmdlGetDesc, model id[%u]", modelId);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelDesc);
     modelDesc->Clear();
@@ -1598,7 +1598,7 @@ static aclError GetDescFromMem(const ge::ModelData &modelData, const ge::GeExecu
 
 aclError aclmdlGetDescFromFileImpl(aclmdlDesc *modelDesc, const char *modelPath)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlGetDesc);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlGetDesc);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelDesc);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelPath);
     ACL_LOG_INFO("start to execute aclmdlGetDescFromFile, path is %s", modelPath);
@@ -1620,7 +1620,7 @@ aclError aclmdlGetDescFromFileImpl(aclmdlDesc *modelDesc, const char *modelPath)
 
 aclError aclmdlGetDescFromMemImpl(aclmdlDesc *modelDesc, const void *model, size_t modelSize)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlGetDesc);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlGetDesc);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelDesc);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
     ACL_REQUIRES_POSITIVE_WITH_INPUT_REPORT(modelSize);
@@ -1863,7 +1863,7 @@ static aclError BundleLoadFromMem(const void *model, size_t modelSize,
 
 aclError aclmdlBundleLoadFromFileImpl(const char *modelPath, uint32_t *bundleId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlBundleLoadFromFile);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleLoadFromFile);
     ACL_LOG_INFO("start to execute aclmdlBundleLoadFromFile");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelPath);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(bundleId);
@@ -1888,7 +1888,7 @@ aclError aclmdlBundleLoadFromFileImpl(const char *modelPath, uint32_t *bundleId)
 
 aclError aclmdlBundleLoadFromMemImpl(const void *model,  size_t modelSize, uint32_t *bundleId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlBundleLoadFromMem);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleLoadFromMem);
     ACL_LOG_INFO("start to execute aclmdlBundleLoadFromMem, modelSize[%zu]", modelSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
     ACL_REQUIRES_POSITIVE_WITH_INPUT_REPORT(modelSize);
@@ -1902,7 +1902,7 @@ aclError aclmdlBundleLoadFromMemImpl(const void *model,  size_t modelSize, uint3
 
 aclError aclmdlLoadFromFileImpl(const char *modelPath, uint32_t *modelId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlLoadFromFile);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlLoadFromFile);
     ACL_LOG_INFO("start to execute aclmdlLoadFromFile");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelPath);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
@@ -1927,7 +1927,7 @@ aclError aclmdlLoadFromFileWithMemImpl(const char *modelPath, uint32_t *modelId,
                                    void *workPtr, size_t workSize,
                                    void *weightPtr, size_t weightSize)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlLoadFromFileWithMem);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlLoadFromFileWithMem);
     ACL_LOG_INFO("start to execute aclmdlLoadFromFileWithMem, workSize[%zu], weightSize[%zu]", workSize, weightSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelPath);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
@@ -1949,7 +1949,7 @@ aclError aclmdlLoadFromFileWithMemImpl(const char *modelPath, uint32_t *modelId,
 
 aclError aclmdlLoadFromMemImpl(const void *model, size_t modelSize, uint32_t *modelId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlLoadFromMem);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlLoadFromMem);
     ACL_LOG_INFO("start to execute aclmdlLoadFromMem, modelSize[%zu]", modelSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
     ACL_REQUIRES_POSITIVE_WITH_INPUT_REPORT(modelSize);
@@ -2001,7 +2001,7 @@ aclError aclmdlLoadFromMemWithMemImpl(const void *model, size_t modelSize,
                                   uint32_t *modelId, void *workPtr, size_t workSize,
                                   void *weightPtr, size_t weightSize)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlLoadFromMemWithMem);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlLoadFromMemWithMem);
     ACL_LOG_INFO("start to execute aclmdlLoadFromMemWithMem, modelSize[%zu], workSize[%zu], weightSize[%zu]",
         modelSize, workSize, weightSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
@@ -2027,7 +2027,7 @@ aclError aclmdlLoadFromMemWithMemImpl(const void *model, size_t modelSize,
 aclError aclmdlLoadFromFileWithQImpl(const char *modelPath, uint32_t *modelId, const uint32_t *inputQ,
                                  size_t inputQNum, const uint32_t *outputQ, size_t outputQNum)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlLoadFromFileWithQ);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlLoadFromFileWithQ);
     if (aclmdlCheckQueueParam(inputQ, inputQNum, outputQ, outputQNum) != ACL_SUCCESS) {
         return ACL_ERROR_INVALID_PARAM;
     }
@@ -2048,7 +2048,7 @@ aclError aclmdlLoadFromFileWithQImpl(const char *modelPath, uint32_t *modelId, c
 aclError aclmdlLoadFromMemWithQImpl(const void *model, size_t modelSize, uint32_t *modelId,
     const uint32_t *inputQ, size_t inputQNum, const uint32_t *outputQ, size_t outputQNum)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlLoadFromMemWithQ);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlLoadFromMemWithQ);
     if (aclmdlCheckQueueParam(inputQ, inputQNum, outputQ, outputQNum) != ACL_SUCCESS) {
         return ACL_ERROR_INVALID_PARAM;
     }
@@ -2069,7 +2069,7 @@ aclError aclmdlLoadFromMemWithQImpl(const void *model, size_t modelSize, uint32_
 
 aclError aclmdlExecuteImpl(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlExecute);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlExecute);
     ACL_LOG_INFO("start to execute aclmdlExecute, modelId[%u]", modelId);
     aclError ret = ACL_SUCCESS;
     if ((acl::AclResourceManager::GetInstance().IsRuntimeV2Enable(true)) &&
@@ -2126,7 +2126,7 @@ aclError aclmdlExecuteV2Impl(uint32_t modelId, const aclmdlDataset *input, aclmd
 aclError aclmdlExecuteAsyncImpl(uint32_t modelId, const aclmdlDataset *input,
                             aclmdlDataset *output, aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlExecuteAsync);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlExecuteAsync);
     ACL_LOG_INFO("start to execute aclmdlExecuteAsync, modelId[%u]", modelId);
 
     aclError ret = ACL_SUCCESS;
@@ -2146,7 +2146,7 @@ aclError aclmdlExecuteAsyncImpl(uint32_t modelId, const aclmdlDataset *input,
 
 aclError aclmdlUnloadImpl(uint32_t modelId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlUnload);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlUnload);
     ACL_LOG_INFO("start to execute aclmdlUnload, modelId[%u]", modelId);
     if (acl::AclResourceManager::GetInstance().IsBundleInnerId(modelId)) {
       ACL_LOG_ERROR("this modeId %u is bundle inner modelId, please ues aclmdlBundleUnload api instead", modelId);
@@ -2159,7 +2159,7 @@ aclError aclmdlUnloadImpl(uint32_t modelId)
 
 aclError aclmdlBundleUnloadImpl(uint32_t bundleId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlBundleUnload);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleUnload);
     ACL_LOG_INFO("start to execute aclmdlBundleUnload %u", bundleId);
     std::vector<acl::BundleInfo> bundleInfos;
     ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
@@ -2181,7 +2181,7 @@ aclError aclmdlBundleUnloadImpl(uint32_t bundleId)
 
 aclError aclmdlQuerySizeImpl(const char *fileName, size_t *workSize, size_t *weightSize)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlQuerySize);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlQuerySize);
     ACL_LOG_INFO("start to execute aclmdlQuerySize");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(fileName);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(workSize);
@@ -2208,7 +2208,7 @@ aclError aclmdlQuerySizeImpl(const char *fileName, size_t *workSize, size_t *wei
 
 aclError aclmdlQuerySizeFromMemImpl(const void *model, size_t modelSize, size_t *workSize, size_t *weightSize)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlQuerySizeFromMem);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlQuerySizeFromMem);
     ACL_LOG_INFO("start to execute ACL_QueryModelSizeFromMem, modelSize[%zu]", modelSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(workSize);
@@ -2234,7 +2234,7 @@ aclError aclmdlQuerySizeFromMemImpl(const void *model, size_t modelSize, size_t 
 
 aclError aclmdlSetDynamicBatchSizeImpl(uint32_t modelId, aclmdlDataset *dataset, size_t index, uint64_t batchSize)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlSetDynamicBatchSize);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlSetDynamicBatchSize);
     ACL_LOG_INFO("start to execute aclmdlSetDynamicBatchSize, modelId[%u], index[%zu], batchSize[%lu]",
         modelId, index, batchSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dataset);
@@ -2276,7 +2276,7 @@ aclError aclmdlSetDynamicBatchSizeImpl(uint32_t modelId, aclmdlDataset *dataset,
 aclError aclmdlSetDynamicHWSizeImpl(uint32_t modelId, aclmdlDataset *dataset, size_t index,
     uint64_t height, uint64_t width)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlSetDynamicHWSize);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlSetDynamicHWSize);
     ACL_LOG_INFO("start to execute aclmdlSetDynamicHWSize, modelId[%u], index[%zu], height[%lu], width[%lu]",
         modelId, index, height, width);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dataset);
@@ -2318,7 +2318,7 @@ aclError aclmdlSetDynamicHWSizeImpl(uint32_t modelId, aclmdlDataset *dataset, si
 
 aclError aclmdlSetInputDynamicDimsImpl(uint32_t modelId, aclmdlDataset *dataset, size_t index, const aclmdlIODims *dims)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlSetInputDynamicDims);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlSetInputDynamicDims);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dataset);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dims);
     if (dims->dimCount == 0U) {
@@ -2847,7 +2847,7 @@ aclError aclmdlCreateAndGetOpDescImpl(uint32_t deviceId, uint32_t streamId, uint
 
 aclError aclmdlLoadWithConfigImpl(const aclmdlConfigHandle *handle, uint32_t *modelId)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlLoadWithConfig);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlLoadWithConfig);
     ACL_LOG_INFO("start to execute aclmdlLoadWithConfig");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);

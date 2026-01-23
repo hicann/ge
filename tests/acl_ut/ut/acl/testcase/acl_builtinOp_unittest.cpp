@@ -13,7 +13,7 @@
 #include "acl/acl.h"
 #include "acl/acl_op.h"
 #include "acl/ops/acl_cblas.h"
-#include "common/acl_op_executor_common_inner.h"
+#include "common/common_inner.h"
 #include "acl_stub.h"
 
 using namespace testing;

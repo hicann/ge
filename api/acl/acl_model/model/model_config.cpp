@@ -9,9 +9,9 @@
  */
 #include "model_config.h"
 #include "common/ge_inner_error_codes.h"
-#include "common/acl_model_log_inner.h"
+#include "common/log_inner.h"
 #include "model_desc_internal.h"
-#include "acl_model_error_codes_inner.h"
+#include "error_codes_inner.h"
 #include "acl_model_impl.h"
 
 namespace {

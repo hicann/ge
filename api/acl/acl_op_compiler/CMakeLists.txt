@@ -14,17 +14,19 @@ add_library(acl_op_compiler SHARED
     single_op/compile/local_compiler.cpp
     single_op/compile/op_compile_processor.cpp
     single_op/compile/init_callback_register.cpp
-    common/log_inner.cpp
-    common/json_parser.cpp
-    common/prof_api_reg.cpp
-    utils/attr_utils.cpp
-    utils/array_utils.cpp
-    utils/hash_utils.cpp
+    ../common/log_inner.cpp
+    ../common/json_parser.cpp
+    ../common/prof_api_reg.cpp
+    ../utils/attr_utils.cpp
+    ../utils/array_utils.cpp
+    ../utils/hash_utils.cpp
 )
 
 target_include_directories(acl_op_compiler PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/common
+    ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_LIST_DIR}/../common
+    ${CMAKE_CURRENT_LIST_DIR}/../utils
     ${CMAKE_CURRENT_LIST_DIR}/compile
     ${CMAKE_CURRENT_LIST_DIR}/utils
     ${CMAKE_CURRENT_LIST_DIR}/single_op

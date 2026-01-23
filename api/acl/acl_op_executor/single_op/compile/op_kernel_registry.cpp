@@ -10,9 +10,9 @@
 
 #include "op_kernel_registry.h"
 #include "framework/common/util.h"
-#include "utils/acl_op_executor_file_utils.h"
-#include "common/acl_op_executor_log_inner.h"
-#include "acl_op_executor_error_codes_inner.h"
+#include "utils/file_utils.h"
+#include "common/log_inner.h"
+#include "error_codes_inner.h"
 
 namespace acl {
 namespace {

@@ -36,8 +36,8 @@
 #undef protected
 #include "acl/acl.h"
 #include "acl/acl_rt_allocator.h"
-#include "utils/acl_op_executor_hash_utils.h"
-#include "utils/acl_op_executor_file_utils.h"
+#include "utils/hash_utils.h"
+#include "utils/file_utils.h"
 #include "utils/attr_utils.h"
 #include "single_op/op_model_parser.h"
 #include "single_op/compile/op_compile_service.h"

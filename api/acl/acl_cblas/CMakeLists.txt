@@ -12,12 +12,13 @@
 add_library(acl_cblas SHARED
     single_op/blas/gemm_ops.cpp
     single_op/blas/gemv_ops.cpp
-    common/acl_cblas_prof_api_reg.cpp
-    common/log_inner.cpp
+    ../common/prof_api_reg.cpp
+    ../common/log_inner.cpp
 )
 
 target_include_directories(acl_cblas PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
+    ${CMAKE_CURRENT_LIST_DIR}/..
 
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/graph_metadef

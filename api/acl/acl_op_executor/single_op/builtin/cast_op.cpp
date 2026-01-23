@@ -9,9 +9,9 @@
  */
 
 #include "acl/acl_op.h"
-#include "types/acl_op_executor_op_attr.h"
-#include "common/acl_op_executor_common_inner.h"
-#include "common/acl_op_executor_prof_api_reg.h"
+#include "types/op_attr.h"
+#include "common/common_inner.h"
+#include "common/prof_api_reg.h"
 #include "single_op/acl_op_executor_impl.h"
 
 namespace {
@@ -29,7 +29,7 @@ aclError aclopCastImpl(const aclTensorDesc *srcDesc,
                    uint8_t truncate,
                    aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopCast);
+    ACL_PROFILING_REG(acl::AclProfType::AclopCast);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dstDesc);
     const aclTensorDesc *inputDesc[CAST_INPUT_NUM] = {srcDesc};
     const aclTensorDesc *outputDesc[CAST_OUTPUT_NUM] = {dstDesc};
@@ -57,7 +57,7 @@ aclError aclopCreateHandleForCastImpl(aclTensorDesc *srcDesc,
                                   uint8_t truncate,
                                   aclopHandle **handle)
 {
-    ACL_PROFILING_REG(acl::AclOpExecProfType::AclopCreateHandleForCast);
+    ACL_PROFILING_REG(acl::AclProfType::AclopCreateHandleForCast);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dstDesc);
     const aclTensorDesc *inputDesc[CAST_INPUT_NUM] = {srcDesc};
     const aclTensorDesc *outputDesc[CAST_OUTPUT_NUM] = {dstDesc};

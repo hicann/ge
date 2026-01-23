@@ -17,7 +17,7 @@
 #include "common/ge_types.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_attr_value.h"
-#include "utils/acl_op_executor_array_utils.h"
+#include "utils/array_utils.h"
 
 namespace {
     const std::map<ge::GeAttrValue::ValueType,  std::string> ATTR_TYPES_MAP = {

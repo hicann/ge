@@ -126,7 +126,7 @@ aclError aclopCompile(const char *opType, int numInputs, const aclTensorDesc *co
                       const aclTensorDesc *const outputDesc[], const aclopAttr *attr, aclopEngineType engineType,
                       aclopCompileType compileFlag, const char *opPath)
 {
-    ACL_PROFILING_REG(acl::AclOpCompileProfType::AclopCompile);
+    ACL_PROFILING_REG(acl::AclProfType::AclopCompile);
     ACL_REQUIRES_NON_NEGATIVE(numInputs);
     ACL_REQUIRES_NON_NEGATIVE(numOutputs);
     if (compileFlag != ACL_COMPILE_SYS && compileFlag != ACL_COMPILE_UNREGISTERED) {
@@ -180,7 +180,7 @@ aclError aclopCompileAndExecute(const char *opType, int numInputs, const aclTens
                                 const aclopAttr *attr, aclopEngineType engineType, aclopCompileType compileFlag,
                                 const char *opPath, aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclOpCompileProfType::AclopCompileAndExecute);
+    ACL_PROFILING_REG(acl::AclProfType::AclopCompileAndExecute);
     RT2_PROFILING_SCOPE(gert::profiling::kUnknownName, gert::profiling::kAclCompileAndExecute);
     ACL_REQUIRES_OK(CheckInput(opType, numInputs, inputDesc, inputs, numOutputs, outputDesc, outputs, compileFlag));
     if (acl::array_utils::IsAllTensorEmpty(numOutputs, outputDesc)) {
@@ -213,7 +213,7 @@ aclError aclopCompileAndExecuteV2(const char *opType, int numInputs, aclTensorDe
                                   aclDataBuffer *outputs[], aclopAttr *attr, aclopEngineType engineType,
                                   aclopCompileType compileFlag, const char *opPath, aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclOpCompileProfType::AclopCompileAndExecuteV2);
+    ACL_PROFILING_REG(acl::AclProfType::AclopCompileAndExecuteV2);
     RT2_PROFILING_SCOPE(gert::profiling::kUnknownName, gert::profiling::kAclCompileAndExecuteV2);
     ACL_REQUIRES_OK(CheckInput(opType, numInputs, inputDesc, inputs, numOutputs, outputDesc, outputs, compileFlag));
     if (acl::array_utils::IsAllTensorEmpty(numOutputs, outputDesc)) {
@@ -325,7 +325,7 @@ aclError aclGenGraphAndDumpForOp(const char *opType, int numInputs, const aclTen
                                  const aclopAttr *attr, aclopEngineType engineType, const char *graphDumpPath,
                                  const aclGraphDumpOption *graphDumpOpt)
 {
-    ACL_PROFILING_REG(acl::AclOpCompileProfType::AclGenGraphAndDumpForOp);
+    ACL_PROFILING_REG(acl::AclProfType::AclGenGraphAndDumpForOp);
     ACL_LOG_INFO("start to execute aclGenGraphAndDumpForOp");
     if (graphDumpOpt != nullptr) {
         ACL_LOG_ERROR("[Check][PARAM]graphDumpOpt only support nullptr currently");

@@ -14,7 +14,7 @@
 #include <string>
 
 #include "acl/acl_op.h"
-#include "acl_op_executor_op_attr.h"
+#include "op_attr.h"
 #include "op_model.h"
 
 namespace acl {

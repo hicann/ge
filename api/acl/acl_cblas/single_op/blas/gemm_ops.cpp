@@ -12,7 +12,7 @@
 #include "acl/acl_op.h"
 #include "common/log_inner.h"
 #include "types/op_attr.h"
-#include "common/acl_cblas_prof_api_reg.h"
+#include "common/prof_api_reg.h"
 
 namespace {
 constexpr int32_t GEMM_NUM_INPUTS = 5;
@@ -161,7 +161,7 @@ aclError aclblasGemmEx(aclTransType transA,
     aclDataType dataTypeB, const void *beta, void *matrixC,
     int ldc, aclDataType dataTypeC, aclComputeType type, aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclCblasProfType::AclblasGemmEx);
+    ACL_PROFILING_REG(acl::AclProfType::AclblasGemmEx);
     ACL_LOG_INFO("start to execute aclblasGemmEx");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(alpha);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(beta);
@@ -225,7 +225,7 @@ aclError aclblasCreateHandleForGemmEx(aclTransType transA,
     aclDataType dataTypeA, aclDataType dataTypeB, aclDataType dataTypeC,
     aclComputeType type, aclopHandle **handle)
 {
-    ACL_PROFILING_REG(acl::AclCblasProfType::AclblasCreateHandleForGemmEx);
+    ACL_PROFILING_REG(acl::AclProfType::AclblasCreateHandleForGemmEx);
     ACL_LOG_INFO("start to execute aclblasCreateHandleForGemmEx");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle);
     if ((m <= 0) || (n <= 0) || (k <= 0)) {
@@ -281,7 +281,7 @@ aclError aclblasCreateHandleForHgemm(aclTransType transA,
                                      aclComputeType type,
                                      aclopHandle **handle)
 {
-    ACL_PROFILING_REG(acl::AclCblasProfType::AclblasCreateHandleForHgemm);
+    ACL_PROFILING_REG(acl::AclProfType::AclblasCreateHandleForHgemm);
     ACL_LOG_INFO("start to execute aclblasCreateHandleForHgemm");
 
     return aclblasCreateHandleForGemmEx(transA, transB, transC,
@@ -297,7 +297,7 @@ aclError aclblasHgemm(aclTransType transA,
     const aclFloat16 *matrixB, int ldb, const aclFloat16 *beta,
     aclFloat16 *matrixC, int ldc, aclComputeType type, aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclCblasProfType::AclblasHgemm);
+    ACL_PROFILING_REG(acl::AclProfType::AclblasHgemm);
     ACL_LOG_INFO("start to execute aclblasHgemm");
     return aclblasGemmEx(transA, transB, transC,
                          m, n, k,
@@ -313,7 +313,7 @@ aclError aclblasS8gemm(aclTransType transA,
     const int8_t *matrixB, int ldb, const int32_t *beta, int32_t *matrixC,
     int ldc, aclComputeType type, aclrtStream stream)
 {
-    ACL_PROFILING_REG(acl::AclCblasProfType::AclblasS8gemm);
+    ACL_PROFILING_REG(acl::AclProfType::AclblasS8gemm);
     ACL_LOG_INFO("start to execute aclblasS8gemm");
     return aclblasGemmEx(transA, transB, transC,
                          m, n, k,
@@ -332,7 +332,7 @@ aclError aclblasCreateHandleForS8gemm(aclTransType transA,
                                       aclComputeType type,
                                       aclopHandle **handle)
 {
-    ACL_PROFILING_REG(acl::AclCblasProfType::AclblasCreateHandleForS8gemm);
+    ACL_PROFILING_REG(acl::AclProfType::AclblasCreateHandleForS8gemm);
     ACL_LOG_INFO("start to execute aclblasCreateHandleForS8gemm");
     return aclblasCreateHandleForGemmEx(transA, transB, transC, m, n, k, ACL_INT8, ACL_INT8, ACL_INT32, type, handle);
 }

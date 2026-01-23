@@ -20,13 +20,13 @@
 #include "common/ge_inner_error_codes.h"
 #include "common/ge_types.h"
 #include "model_desc_internal.h"
-#include "acl_model_error_codes_inner.h"
-#include "common/acl_model_log_inner.h"
-#include "common/acl_model_prof_api_reg.h"
+#include "error_codes_inner.h"
+#include "common/log_inner.h"
+#include "common/prof_api_reg.h"
 #include "aipp_param_check.h"
 #include "acl_resource_manager.h"
 #include "framework/runtime/model_v2_executor.h"
-#include "utils/acl_model_math_utils.h"
+#include "utils/math_utils.h"
 #include "acl_model_impl.h"
 
 namespace {
@@ -1179,7 +1179,7 @@ aclError aclmdlSetInputAIPPImpl(uint32_t modelId,
                             size_t index,
                             const aclmdlAIPP *aippParmsSet)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlSetInputAIPP);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlSetInputAIPP);
     ACL_LOG_DEBUG("start to execute aclmdlSetInputAIPP, modelId[%u], index[%zu]", modelId, index);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(dataset);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(aippParmsSet);
@@ -1257,7 +1257,7 @@ aclError aclmdlSetAIPPByInputIndexImpl(uint32_t modelId,
                                    size_t index,
                                    const aclmdlAIPP *aippParmsSet)
 {
-    ACL_PROFILING_REG(acl::AclMdlProfType::AclmdlSetAIPPByInputIndex);
+    ACL_PROFILING_REG(acl::AclProfType::AclmdlSetAIPPByInputIndex);
     ACL_LOG_INFO("start to execute aclmdlSetAIPPByInputIndex, modelId[%u], index[%zu]", modelId, index);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(aippParmsSet);
     if ((dataset == nullptr) || (index >= dataset->blobs.size())) {

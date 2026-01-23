@@ -43,17 +43,17 @@ set(MODEL_SRC_FILES
     "${BASE_DIR}/api/acl/acl_model/model/acl_resource_manager.cpp"
     "${BASE_DIR}/api/acl/acl_model/model/init_callback_register.cpp"
     "${BASE_DIR}/api/acl/acl_model/types/acl_model_tensor_desc_internal.cpp"
-    "${BASE_DIR}/api/acl/acl_model/common/acl_model_json_parser.cpp"
-    "${BASE_DIR}/api/acl/acl_model/common/acl_model_log_inner.cpp"
-    "${BASE_DIR}/api/acl/acl_model/utils/acl_model_string_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_model/common/acl_model_prof_api_reg.cpp"
+    "${BASE_DIR}/api/acl/common/json_parser.cpp"
+    "${BASE_DIR}/api/acl/common/log_inner.cpp"
+    "${BASE_DIR}/api/acl/utils/string_utils.cpp"
+    "${BASE_DIR}/api/acl/common/prof_api_reg.cpp"
 )
 
 set(CBLAS_SRC_FILES
     "${BASE_DIR}/api/acl/acl_cblas/single_op/blas/gemm_ops.cpp"
     "${BASE_DIR}/api/acl/acl_cblas/single_op/blas/gemv_ops.cpp"
-    "${BASE_DIR}/api/acl/acl_cblas/common/acl_cblas_prof_api_reg.cpp"
-    "${BASE_DIR}/api/acl/acl_cblas/common/log_inner.cpp"
+    "${BASE_DIR}/api/acl/common/prof_api_reg.cpp"
+    "${BASE_DIR}/api/acl/common/log_inner.cpp"
 )
 
 set(OP_COMPILE_SRC_FILES
@@ -61,12 +61,12 @@ set(OP_COMPILE_SRC_FILES
     "${BASE_DIR}/api/acl/acl_op_compiler/single_op/compile/local_compiler.cpp"
     "${BASE_DIR}/api/acl/acl_op_compiler/single_op/compile/op_compile_processor.cpp"
     "${BASE_DIR}/api/acl/acl_op_compiler/single_op/compile/init_callback_register.cpp"
-    "${BASE_DIR}/api/acl/acl_op_compiler/common/log_inner.cpp"
-    "${BASE_DIR}/api/acl/acl_op_compiler/common/json_parser.cpp"
-    "${BASE_DIR}/api/acl/acl_op_compiler/common/prof_api_reg.cpp"
-    "${BASE_DIR}/api/acl/acl_op_compiler/utils/attr_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_op_compiler/utils/array_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_op_compiler/utils/hash_utils.cpp"
+    "${BASE_DIR}/api/acl/common/log_inner.cpp"
+    "${BASE_DIR}/api/acl/common/json_parser.cpp"
+    "${BASE_DIR}/api/acl/common/prof_api_reg.cpp"
+    "${BASE_DIR}/api/acl/utils/attr_utils.cpp"
+    "${BASE_DIR}/api/acl/utils/array_utils.cpp"
+    "${BASE_DIR}/api/acl/utils/hash_utils.cpp"
 )
 
 set(OP_EXEC_SRC_FILES
@@ -87,18 +87,18 @@ set(OP_EXEC_SRC_FILES
     "${BASE_DIR}/api/acl/acl_op_executor/single_op/executor/stream_executor.cpp"
     "${BASE_DIR}/api/acl/acl_op_executor/single_op/executor/resource_manager.cpp"
     "${BASE_DIR}/api/acl/acl_op_executor/single_op/executor/op_task.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/types/acl_op_executor_op_attr.cpp"
+    "${BASE_DIR}/api/acl/acl_op_executor/types/op_attr.cpp"
     "${BASE_DIR}/api/acl/acl_op_executor/types/op_model.cpp"
     "${BASE_DIR}/api/acl/acl_op_executor/types/acl_op.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/common/acl_op_executor_common_inner.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/common/acl_op_executor_log_inner.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/common/acl_op_executor_json_parser.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/utils/acl_op_executor_attr_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/utils/acl_op_executor_array_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/utils/acl_op_executor_hash_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/utils/string_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/utils/acl_op_executor_file_utils.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/common/acl_op_executor_prof_api_reg.cpp"
+    "${BASE_DIR}/api/acl/common/common_inner.cpp"
+    "${BASE_DIR}/api/acl/common/log_inner.cpp"
+    "${BASE_DIR}/api/acl/common/json_parser.cpp"
+    "${BASE_DIR}/api/acl/utils/attr_utils.cpp"
+    "${BASE_DIR}/api/acl/utils/array_utils.cpp"
+    "${BASE_DIR}/api/acl/utils/hash_utils.cpp"
+    "${BASE_DIR}/api/acl/utils/string_utils.cpp"
+    "${BASE_DIR}/api/acl/utils/file_utils.cpp"
+    "${BASE_DIR}/api/acl/common/prof_api_reg.cpp"
 )
 
 ############ libut_acl_model_src.so ############
@@ -117,8 +117,9 @@ target_include_directories(ut_acl_model_src PRIVATE
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/external/ge
     ${BASE_DIR}/inc/external/acl
+    ${BASE_DIR}/api/acl
     ${BASE_DIR}/api/acl/acl_model
-    ${BASE_DIR}/api/acl/acl_model/common
+    ${BASE_DIR}/api/acl/common
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
@@ -162,6 +163,7 @@ target_include_directories(ut_acl_cblas_src PRIVATE
     ${BASE_DIR}/inc/graph_metadef
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/external/acl
+    ${BASE_DIR}/api/acl
     ${BASE_DIR}/api/acl/acl_cblas
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
@@ -210,8 +212,9 @@ target_include_directories(ut_acl_op_exec_src PRIVATE
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/external/ge
     ${BASE_DIR}/inc/framework
+    ${BASE_DIR}/api/acl
     ${BASE_DIR}/api/acl/acl_op_executor
-    ${BASE_DIR}/api/acl/acl_op_executor/common
+    ${BASE_DIR}/api/acl/common
     ${BASE_DIR}/api/acl/acl_model
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
@@ -260,8 +263,9 @@ target_include_directories(ut_acl_op_compiler_src PRIVATE
     ${BASE_DIR}/inc/graph_metadef/external
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/framework
+    ${BASE_DIR}/api/acl
     ${BASE_DIR}/api/acl/acl_op_compiler
-    ${BASE_DIR}/api/acl/acl_op_compiler/common
+    ${BASE_DIR}/api/acl/common
     ${BASE_DIR}/api/acl/acl_op_executor/single_op
     ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
@@ -309,6 +313,7 @@ target_include_directories(acl_utest PRIVATE
     ${BASE_DIR}/inc/external/acl
     ${BASE_DIR}/inc/framework
     ${BASE_DIR}/tests/acl_ut/depends
+    ${BASE_DIR}/api/acl
     ${BASE_DIR}/api/acl/acl_model
     ${BASE_DIR}/api/acl/acl_op_compiler
     ${BASE_DIR}/api/acl/acl_op_executor

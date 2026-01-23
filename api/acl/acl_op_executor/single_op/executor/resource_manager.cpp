@@ -9,8 +9,8 @@
  */
 
 #include "resource_manager.h"
-#include "common/acl_op_executor_common_inner.h"
-#include "common/acl_op_executor_log_inner.h"
+#include "common/common_inner.h"
+#include "common/log_inner.h"
 
 
 namespace acl {

@@ -17,15 +17,17 @@ add_library(acl_mdl_impl SHARED
     model/acl_resource_manager.cpp
     model/init_callback_register.cpp
     types/acl_model_tensor_desc_internal.cpp
-    common/acl_model_json_parser.cpp
-    common/acl_model_log_inner.cpp
-    utils/acl_model_string_utils.cpp
-    common/acl_model_prof_api_reg.cpp
+    ../common/json_parser.cpp
+    ../common/log_inner.cpp
+    ../utils/string_utils.cpp
+    ../common/prof_api_reg.cpp
 )
 
 target_include_directories(acl_mdl_impl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
-    ${CMAKE_CURRENT_LIST_DIR}/common
+    ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_LIST_DIR}/../common
+    ${CMAKE_CURRENT_LIST_DIR}/../utils
 
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/external

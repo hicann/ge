@@ -14,7 +14,7 @@
 #include "ge/ge_api.h"
 #include "error_codes_inner.h"
 #include "common/prof_api_reg.h"
-#include "common/acl_op_compiler_common_inner.h"
+#include "common/common_inner.h"
 
 namespace acl {
 namespace {
@@ -89,7 +89,7 @@ aclError OpCompileProcessor::SetOption()
 
 aclError OpCompileProcessor::OpCompile(AclOp &aclOp)
 {
-    ACL_PROFILING_REG(acl::AclOpCompileProfType::OpCompile);
+    ACL_PROFILING_REG(acl::AclProfType::OpCompile);
     ACL_REQUIRES_TRUE(isInit_, ACL_ERROR_FAILURE, "[Init][Env]init env failed!");
     ACL_REQUIRES_OK(SetJitCompileDefaultValue());
     return AclOpResourceManager::GetInstance().GetOpModel(aclOp);
@@ -98,7 +98,7 @@ aclError OpCompileProcessor::OpCompile(AclOp &aclOp)
 aclError OpCompileProcessor::OpCompileAndDump(AclOp &aclOp, const char_t *const graphDumpPath,
     const aclGraphDumpOption *const dumpOpt) const
 {
-    ACL_PROFILING_REG(acl::AclOpCompileProfType::OpCompileAndDump);
+    ACL_PROFILING_REG(acl::AclProfType::OpCompileAndDump);
     ACL_REQUIRES_TRUE(isInit_, ACL_ERROR_FAILURE, "[Init][Env]init env failed!");
     ACL_REQUIRES_OK(SetJitCompileDefaultValue());
     return OpCompileService::GetInstance().CompileAndDumpGraph(aclOp, graphDumpPath, dumpOpt);

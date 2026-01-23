@@ -17,8 +17,8 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_error_codes.h"
 
-#include "common/acl_op_executor_log_inner.h"
-#include "utils/acl_op_executor_attr_utils.h"
+#include "common/log_inner.h"
+#include "utils/attr_utils.h"
 
 namespace acl {
 namespace {
