@@ -103,6 +103,7 @@ target_link_libraries(dflow_runner
         graph_base
         ge_common
         ge_common_base
+        data_flow_base
         runtime
         error_manager
         unified_dlog

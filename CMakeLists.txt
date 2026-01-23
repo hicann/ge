@@ -394,7 +394,7 @@ if (NOT BUILD_OPEN_PROJECT)
     # blue zone for ge
     if (ENABLE_OPEN_SRC)
         install(TARGETS gert ge_common ge_common_base ge_executor_shared davinci_executor hybrid_executor ge_runner
-                ge_runner_v2 dflow_runner
+                ge_runner_v2 dflow_runner data_flow_base
                 ge_compiler slice air_headers _caffe_parser fmk_onnx_parser fmk_parser parser_common
                 EXPORT air-targets
                 LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} OPTIONAL COMPONENT opensdk
@@ -404,7 +404,7 @@ if (NOT BUILD_OPEN_PROJECT)
     # yellow zone for ge/fe/others
     else ()
         install(TARGETS gert ge_common ge_common_base ge_executor_shared davinci_executor hybrid_executor ge_runner
-                ge_runner_v2 dflow_runner
+                ge_runner_v2 dflow_runner data_flow_base
                 ge_compiler aicore_utils slice air_headers
                 # _caffe_parser fmk_onnx_parser fmk_parser parser_common
                 EXPORT air-targets

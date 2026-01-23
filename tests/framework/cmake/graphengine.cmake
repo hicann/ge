@@ -42,8 +42,6 @@ set(PROTO_LIST
     "${METADEF_PROTO_DIR}/flow_model.proto"
     "${METADEF_PROTO_DIR}/attr_group_base.proto"
     "${METADEF_PROTO_DIR}/ascendc_ir.proto"
-    "${AIR_CODE_DIR}/dflow/base/proto/udf_attr.proto"
-    "${AIR_CODE_DIR}/dflow/base/proto/udf_def.proto"
     "${METADEF_PROTO_DIR}/ge_ir_mobile.proto"
     "${METADEF_PROTO_DIR}/task_mobile.proto"
 )
@@ -194,6 +192,11 @@ target_include_directories(graphengine_inc INTERFACE
     "${CMAKE_BINARY_DIR}/proto/ge"
     "${CMAKE_BINARY_DIR}/proto/ge/proto"
     "${CMAKE_BINARY_DIR}/proto/data_flow_protos"
+    "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto"
+    "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto/proto"
+    "${AIR_CODE_DIR}/dflow"
+    "${AIR_CODE_DIR}/dflow/inc"
+    "${AIR_CODE_DIR}/dflow/inc/data_flow"
 )
 
 add_library(ge_metadef_inc INTERFACE)
@@ -384,7 +387,7 @@ target_link_libraries(graphengine PUBLIC
     metadef_graph
     crypto_static
     aihacb_autofusion_stub
-)
+    data_flow_base)
 
 add_dependencies(graphengine local_engine nnengine engine_conf_json optimizer_priority_pbtxt)
 

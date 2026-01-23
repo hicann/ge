@@ -306,6 +306,7 @@ target_link_libraries(helper_ut_runtime PUBLIC
     -Wl,--as-needed
     -lrt -ldl -lpthread -lgcov
     ascendcl_stub
+    data_flow_base
 )
 
 target_include_directories(helper_ut_runtime PRIVATE
@@ -321,6 +322,12 @@ target_include_directories(helper_ut_runtime PRIVATE
     ${AIR_CODE_DIR}/tests/dflow/runner/ut/ge/runtime/stub
     ${ASCEND_INSTALL_PATH}/include
     ${ASCGEN_DIR}/inc
+    "${CMAKE_BINARY_DIR}/proto/data_flow_protos"
+    "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto"
+    "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto/proto"
+    "${AIR_CODE_DIR}/dflow"
+    "${AIR_CODE_DIR}/dflow/inc"
+    "${AIR_CODE_DIR}/dflow/inc/data_flow"
 )
 
 # ut binary
@@ -354,6 +361,12 @@ target_include_directories(ut_libge_helper_utest PRIVATE
         ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
         ${ASCEND_INSTALL_PATH}/include
         ${ASCGEN_DIR}/inc
+        "${CMAKE_BINARY_DIR}/proto/data_flow_protos"
+        "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto"
+        "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto/proto"
+        "${AIR_CODE_DIR}/dflow"
+        "${AIR_CODE_DIR}/dflow/inc"
+        "${AIR_CODE_DIR}/dflow/inc/data_flow"
         )
 
 target_compile_options(ut_libge_helper_utest PRIVATE -g ${AIR_COMMON_COMPILE_OPTION}
@@ -391,8 +404,8 @@ target_link_libraries(ut_libge_helper_utest
     -Wl,--no-whole-archive
     GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lpthread -lgcov
     -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
+    data_flow_base
 )
-
 
 add_test(NAME ut_libge_helper_utest COMMAND ut_libge_helper_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_helper_utest.xml)
 set_tests_properties(ut_libge_helper_utest PROPERTIES LABELS "ut;ut_dflow;ut_libge_helper_utest")

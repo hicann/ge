@@ -154,6 +154,11 @@ target_include_directories(helper_runtime PUBLIC
     ${CMAKE_BINARY_DIR}/proto/ge
     ${CMAKE_BINARY_DIR}/proto/ge/proto
     ${CMAKE_BINARY_DIR}/proto/data_flow_protos
+    ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto
+    ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto/proto
+    ${AIR_CODE_DIR}/dflow
+    ${AIR_CODE_DIR}/dflow/inc
+    ${AIR_CODE_DIR}/dflow/inc/data_flow
 )
 
 target_compile_options(helper_runtime PRIVATE
@@ -181,6 +186,7 @@ target_link_libraries(helper_runtime PUBLIC
     dl
     -Wl,--as-needed
     -lrt -ldl -lpthread -lgcov
+    data_flow_base
 )
 
 # ---- Target : helper runtime no_grpc ----
@@ -219,6 +225,12 @@ target_include_directories(helper_runtime_no_grpc PUBLIC
         ${CMAKE_BINARY_DIR}/protoc_grpc_build-prefix/src/protoc_grpc_build/include
         ${CMAKE_BINARY_DIR}/proto/ge
         ${CMAKE_BINARY_DIR}/proto/ge/proto
+        ${CMAKE_BINARY_DIR}/proto/data_flow_protos
+        ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto
+        ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto/proto
+        ${AIR_CODE_DIR}/dflow
+        ${AIR_CODE_DIR}/dflow/inc
+        ${AIR_CODE_DIR}/dflow/inc/data_flow
         )
 
 target_compile_options(helper_runtime_no_grpc PRIVATE
@@ -236,4 +248,5 @@ target_link_libraries(helper_runtime_no_grpc PUBLIC
         dl
         -Wl,--as-needed
         -lrt -ldl -lpthread -lgcov
+        data_flow_base
         )

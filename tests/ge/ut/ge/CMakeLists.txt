@@ -31,18 +31,7 @@ set(PROTO_LIST
     "${METADEF_PROTO_DIR}/task_mobile.proto"
 )
 
-set(DEPLOYER_PROTO_LIST
-    "${AIR_CODE_DIR}/dflow/deployer/proto/deployer.proto"
-)
-
-set (UDF_PROTO_LIST
-    "${AIR_CODE_DIR}/dflow/base/proto/udf_attr.proto"
-    "${AIR_CODE_DIR}/dflow/base/proto/udf_def.proto"
-)
-
 protobuf_generate(ge PROTO_SRCS PROTO_HDRS ${PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
-protobuf_generate_grpc(deployer_proto DEPLOYER_PROTO_SRCS DEPLOYER_PROTO_HDRS ${DEPLOYER_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
-protobuf_generate(ge UDF_PROTO_SRCS UDF_PROTO_HDRS ${UDF_PROTO_LIST} "--proto_path=${METADEF_PROTO_DIR}")
 
 # include directories
 include_directories(${CMAKE_CURRENT_LIST_DIR})
@@ -363,7 +352,6 @@ set(COMPILER_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/dflow/compiler/pne/udf/udf_model_builder.cc"
     "${AIR_CODE_DIR}/tests/depends/helper_runtime/src/system_utils_stub.cc"
     "${SYMBOL_SHAPE_INFER_FUNCS_SRCS}"
-    "${UDF_PROTO_SRCS}"
     "${DATA_FLOW_GRAPH_SRC_FILES}"
     "${COMPILER_LINKED_PROTO_SRCS}"
 )
@@ -1356,13 +1344,15 @@ target_link_libraries(ge_ut_parser PRIVATE
 
 # build common
 add_library(ge_ut_common STATIC ${COMMON_SRC_FILES} ${COMPILER_COMMON_SRC_FILES}
-    ${EXECUTOR_COMMON_SRC_FILES} ${PROTO_HDRS} ${UDF_PROTO_HDRS})
+    ${EXECUTOR_COMMON_SRC_FILES} ${PROTO_HDRS})
 
 target_include_directories(ge_ut_common PRIVATE
     ${AIR_CODE_DIR}
     ${ASCEND_INSTALL_PATH}/include
     ${ASCGEN_DIR}/inc
     ${AIR_CODE_DIR}/inc/graph_metadef
+    "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto"
+    "${CMAKE_BINARY_DIR}/proto/data_flow_base_proto/proto"
 )
 
 target_compile_definitions(ge_ut_common PRIVATE
@@ -1396,6 +1386,7 @@ target_link_libraries(ge_ut_common PRIVATE
     profiler_stub
     crypto_static
     ascendcl_stub
+    data_flow_base
 )
 
 target_link_libraries(ge_ut_common PUBLIC

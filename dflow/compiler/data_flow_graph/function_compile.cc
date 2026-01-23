@@ -16,6 +16,7 @@
 #include "dflow/compiler/data_flow_graph/compile_config_json.h"
 #include "mmpa/mmpa_api.h"
 #include "common/ge_common/util.h"
+#include "dflow/base/utils/data_flow_utils.h"
 
 namespace ge {
 FunctionCompile::FunctionCompile(const std::string &pp_name, const CompileConfigJson::FunctionPpConfig &func_pp_cfg) :
@@ -133,18 +134,7 @@ void FunctionCompile::SetRunningResourceInfoToCompileResult() {
 }
 
 std::string FunctionCompile::GetAscendLatestInstallPath() {
-  const char_t *env_value = nullptr;
-  constexpr const char_t *kAscendHomePath = "ASCEND_HOME_PATH";
-  MM_SYS_GET_ENV(MM_ENV_ASCEND_HOME_PATH, env_value);
-  if (env_value != nullptr) {
-    std::string file_path(env_value);
-    GEEVENT("env:%s value=%s.", kAscendHomePath, file_path.c_str());
-    return file_path;
-  }
-
-  constexpr const char_t *kDefaultLatestInstallPath = "/usr/local/Ascend/cann";
-  GEEVENT("env:%s do not exist, use default path:%s", kAscendHomePath, kDefaultLatestInstallPath);
-  return kDefaultLatestInstallPath;
+  return DataFlowUtils::GetAscendHomePath();
 }
 
 std::string FunctionCompile::GetAscendToolchainPath() {

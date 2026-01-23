@@ -76,6 +76,12 @@ target_include_directories(helper_runtime_test PRIVATE
     ${CMAKE_BINARY_DIR}/proto/data_flow_protos
     ${AIR_CODE_DIR}/dflow/base
     ${AIR_CODE_DIR}/dflow/base/exec_runtime
+    ${CMAKE_BINARY_DIR}/proto/data_flow_protos
+    ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto
+    ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto/proto
+    ${AIR_CODE_DIR}/dflow
+    ${AIR_CODE_DIR}/dflow/inc
+    ${AIR_CODE_DIR}/dflow/inc/data_flow
 )
 
 target_compile_options(helper_runtime_test PRIVATE
@@ -94,6 +100,7 @@ target_link_libraries(helper_runtime_test
     -Wl,--no-whole-archive
     ge_graph_dsl df_st_stubs ge_running_env ge_runtime_stub ascendcl_stub
     GTest::gtest GTest::gtest_main GTest::gmock GTest::gmock_main
+    data_flow_base
 )
 
 include(CTest)
