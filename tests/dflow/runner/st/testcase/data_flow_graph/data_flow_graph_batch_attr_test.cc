@@ -23,6 +23,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
 #include "macro_utils/dt_public_unscope.h"
+#include "common/env_path.h"
 
 using namespace testing;
 
@@ -133,20 +134,16 @@ class ConvertBatchAttrToUdfPassTest : public testing::Test {
       global_options[OPTION_NUMA_CONFIG] =
           R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
     }
+    std::string st_dir_path = ge::PathUtils::Join({ge::EnvPath().GetAirBasePath(), "/tests/dflow/runner/st/"});
+    auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config.json";
+    setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
     ReInitGe();
   }
   void TearDown() {
     ExecutionRuntime::instance_ = nullptr;
     ExecutionRuntime::handle_ = nullptr;
     GEFinalize();
-  }
-};
-
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
 };
 
@@ -190,7 +187,6 @@ TEST_F(ConvertBatchAttrToUdfPassTest, TimeBatch_CountBatch_Run_Success) {
 
   EXPECT_EQ(graph->GetDirectNode().size(), 3);
   std::map<AscendString, AscendString> options = {{"ge.runFlag", "0"}};
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
   Session session(options);
   session.AddGraph(1, flow_graph.ToGeGraph());
   std::vector<InputTensorInfo> inputs;
@@ -242,7 +238,6 @@ TEST_F(ConvertBatchAttrToUdfPassTest, TimeBatch_CountBatch_with_catch_exception)
   Session session(options);
   session.AddGraph(1, flow_graph.ToGeGraph());
   std::vector<InputTensorInfo> inputs;
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
   auto ret = session.BuildGraph(1, inputs);
   EXPECT_EQ(ret, FAILED);
 }
@@ -292,7 +287,6 @@ TEST_F(ConvertBatchAttrToUdfPassTest, TimeBatch_CountBatch_with_deploy_info) {
   map<AscendString, AscendString> graph_options = {{"ge.experiment.data_flow_deploy_info_path", file_name}};
   session.AddGraph(1, flow_graph.ToGeGraph(), graph_options);
   std::vector<InputTensorInfo> inputs;
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
   auto ret = session.BuildGraph(1, inputs);
   ASSERT_EQ(ret, SUCCESS);
   EXPECT_EQ(graph->GetDirectNode().size(), 6);

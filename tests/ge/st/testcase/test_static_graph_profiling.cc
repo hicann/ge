@@ -83,14 +83,6 @@ class StaticGraphProfilingSt : public testing::Test {
   }
 };
 
-class ProfMockRuntime : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 0;
-    return RT_ERROR_NONE;
-  }
-};
-
 void TestLoadStaticModel() {
   auto compute_graph = gert::ShareGraph::BuildWithKnownSubgraph();
   for (auto &node : compute_graph->GetAllNodes()) {
@@ -256,7 +248,6 @@ void BuildFftsPlusGraph(ComputeGraphPtr &root_graph, ComputeGraphPtr &ffts_plus_
 }
 
 void TestStaticFftsPlusGraphLoad() {
-  RuntimeStub::SetInstance(std::make_shared<ProfMockRuntime>());
   ComputeGraphPtr root_graph;
   ComputeGraphPtr ffts_plus_graph;
   TBEKernelStore tbe_kernel_store;

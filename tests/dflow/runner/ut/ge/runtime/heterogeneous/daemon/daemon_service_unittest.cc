@@ -155,30 +155,23 @@ class DaemonServiceUnittest : public testing::Test {
   }
 
   void TearDown() override {
-    unsetenv("HELPER_RES_FILE_PATH");
-    unsetenv("RESOURCE_CONFIG_PATH");
     HeterogeneousExchangeService::GetInstance().Finalize();
     RuntimeStub::Reset();
     MmpaStub::GetInstance().Reset();
-  }
-
-  static void SetConfigEnv(const std::string &path) {
-    std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
-    std::string config_path = PathUtils::Join({data_path, path});
-
-    setenv("HELPER_RES_FILE_PATH", config_path.c_str(), 1);
-    EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
 
   static void SetNumaConfigEnv(const std::string &path) {
-    setenv("RESOURCE_CONFIG_PATH", path.c_str(), 1);
-    EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
+    std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
+    std::string config_path = PathUtils::Join({data_path, path});
+    setenv("RESOURCE_CONFIG_PATH", config_path.c_str(), 1);
+    EXPECT_EQ(Configurations::GetInstance().InitInformation(), SUCCESS);
   }
 };
 
 TEST_F(DaemonServiceUnittest, TestInitializeAndFinalize) {
   ge::DaemonService daemon_service;
-  SetConfigEnv("valid/device");
+  SetNumaConfigEnv("valid/server/numa_config2.json");
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
   daemon_service.Finalize();
 }
@@ -187,12 +180,12 @@ TEST_F(DaemonServiceUnittest, TestProcessInitRequest) {
   SubprocessManager::GetInstance().executable_paths_["deployer_daemon"] = "deployer_daemon";
   ge::DaemonService daemon_service;
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
-  SetConfigEnv("valid/device");
+  SetNumaConfigEnv("valid/server/numa_config2.json");
   deployer::DeployerRequest request;
   deployer::DeployerResponse response;
   deployer::InitRequest init_request_;
   *request.mutable_init_request() = init_request_;
-  daemon_service.ProcessInitRequest("xxx:127.0.0.1:8080", request, response);
+  daemon_service.ProcessInitRequest("xxx:10.216.56.15:8080", request, response);
   ASSERT_EQ(response.error_code(), SUCCESS);
 }
 
@@ -201,9 +194,7 @@ TEST_F(DaemonServiceUnittest, TestProcessInitServerRequest) {
   GE_MAKE_GUARD(recover, [information]() {
     Configurations::GetInstance().information_ = information;
   });
-  std::string path = PathUtils::Join(
-      {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/valid/server/numa_config2_with_auth.json"});
-  SetNumaConfigEnv(path);
+  SetNumaConfigEnv("valid/server/numa_config2_with_auth.json");
   SubprocessManager::GetInstance().executable_paths_["deployer_daemon"] = "deployer_daemon";
   ge::DaemonService daemon_service;
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
@@ -223,45 +214,47 @@ TEST_F(DaemonServiceUnittest, TestProcessInitServerRequest) {
 TEST_F(DaemonServiceUnittest, TestHeartbeatRequest) {
   SubprocessManager::GetInstance().executable_paths_["deployer_daemon"] = "deployer_daemon";
   DaemonService daemon_service;
+  SetNumaConfigEnv("valid/server/numa_config2.json");
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
-  SetConfigEnv("valid/device");
   deployer::DeployerRequest request;
   deployer::DeployerResponse response;
   deployer::InitRequest init_request_;
   request.set_client_id(0);
   *request.mutable_init_request() = init_request_;
-  daemon_service.ProcessInitRequest("xxx:127.0.0.1:8080", request, response);
+  daemon_service.ProcessInitRequest("xxx:10.216.56.15:8080", request, response);
   request.set_type(deployer::kHeartbeat);
-  daemon_service.Process("xxx:127.0.0.1:8080", request, response);
+  daemon_service.Process("xxx:10.216.56.15:8080", request, response);
   ASSERT_EQ(response.error_code(), SUCCESS);
 }
 
 TEST_F(DaemonServiceUnittest, TestDisconnectRequest) {
   DaemonService daemon_service;
+  SetNumaConfigEnv("valid/server/numa_config2.json");
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
   deployer::DeployerRequest request;
   request.set_type(deployer::kDisconnect);
   deployer::DeployerResponse response;
-  daemon_service.Process("xxx:127.0.0.1:8080", request, response);
+  daemon_service.Process("xxx:10.216.56.15:8080", request, response);
   daemon_service.Finalize();
 }
 
 TEST_F(DaemonServiceUnittest, TestInitAndDisconnectRequest) {
   DaemonService daemon_service;
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
-  SetConfigEnv("valid/device");
+  SetNumaConfigEnv("valid/server/numa_config2.json");
   deployer::DeployerRequest request;
   deployer::DeployerResponse response;
   deployer::InitRequest init_request_;
   *request.mutable_init_request() = init_request_;
-  daemon_service.ProcessInitRequest("xxx:127.0.0.1:8080", request, response);
+  daemon_service.ProcessInitRequest("xxx:10.216.56.15:8080", request, response);
   request.set_client_id(0);
-  daemon_service.ProcessDisconnectRequest("xxx:127.0.0.1:8080", request, response);
+  daemon_service.ProcessDisconnectRequest("xxx:10.216.56.15:8080", request, response);
 }
 
 TEST_F(DaemonServiceUnittest, TestDeployRequest) {
   SubprocessManager::GetInstance().executable_paths_["deployer_daemon"] = "deployer_daemon";
   DaemonService daemon_service;
+  SetNumaConfigEnv("valid/server/numa_config2.json");
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
   auto client = std::make_unique<DeployerDaemonClient>(1);
   std::map<std::string, std::string> deployer_envs = {};
@@ -271,7 +264,7 @@ TEST_F(DaemonServiceUnittest, TestDeployRequest) {
   request.set_client_id(1);
   request.set_type(deployer::kLoadModel);
   deployer::DeployerResponse response;
-  daemon_service.Process("xxx:127.0.0.1:8080", request, response);
+  daemon_service.Process("xxx:10.216.56.15:8080", request, response);
   ASSERT_EQ(response.error_code(), SUCCESS);
   daemon_service.Finalize();
 }
@@ -279,18 +272,13 @@ TEST_F(DaemonServiceUnittest, TestDeployRequest) {
 TEST_F(DaemonServiceUnittest, TestProcessInitRequestVerifyToolSuccess) {
   SubprocessManager::GetInstance().executable_paths_["deployer_daemon"] = "deployer_daemon";
   ge::DaemonService daemon_service;
+  SetNumaConfigEnv("valid/server/numa_config2.json");
   EXPECT_EQ(daemon_service.Initialize(), SUCCESS);
-  SetConfigEnv("valid/device");
   deployer::DeployerRequest request;
   deployer::DeployerResponse response;
   deployer::InitRequest init_request_;
   *request.mutable_init_request() = init_request_;
-  daemon_service.ProcessInitRequest("xxx:127.0.0.1:8080", request, response);
+  daemon_service.ProcessInitRequest("xxx:10.216.56.15:8080", request, response);
   ASSERT_EQ(response.error_code(), SUCCESS);
 }
 } // namespace ge
-
-
-
-
-

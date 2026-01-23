@@ -427,15 +427,6 @@ TEST_F(UtestInnerGeSession, Initialize_03) {
 }
 
 TEST_F(UtestInnerGeSession, InitializeExecutionRuntime) {
-  class RuntimeMockHete : public RuntimeMock910B1 {
-   public:
-    rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-      std::cout << "rtGetIsHeterogenous stub, heterogeneous = 1." << std::endl;
-      *heterogeneous = 1;
-      return RT_ERROR_NONE;
-    }
-  };
-
   class MockMmpa : public MmpaStubApiGe {
    public:
     void *DlSym(void *handle, const char *func_name) override {
@@ -460,7 +451,7 @@ TEST_F(UtestInnerGeSession, InitializeExecutionRuntime) {
   EXPECT_EQ(local_session.Initialize(), SUCCESS);
   EXPECT_EQ(local_session.Finalize(), SUCCESS);
 
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMockHete>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   ExecutionRuntime::handle_ = (void *)0xffffffff;
 
@@ -476,7 +467,7 @@ TEST_F(UtestInnerGeSession, InitializeExecutionRuntime) {
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
   ExecutionRuntime::instance_ = nullptr;
   MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(UtestInnerGeSession, AddGraph) {

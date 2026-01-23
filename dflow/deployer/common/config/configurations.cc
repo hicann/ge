@@ -175,6 +175,7 @@ Status Configurations::GetResourceConfigPath(std::string &config_dir) {
 }
 
 Status Configurations::InitInformation() {
+  information_ = {};
   std::string file_path;
   GE_CHK_STATUS_RET_NOLOG(GetResourceConfigPath(file_path));
   GE_CHK_STATUS_RET_NOLOG(ConfigParser::ParseServerInfo(file_path, information_));

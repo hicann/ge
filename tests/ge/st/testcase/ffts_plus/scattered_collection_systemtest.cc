@@ -38,14 +38,6 @@
 using namespace std;
 using namespace testing;
 namespace ge {
-class MyRuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 0;
-    return RT_ERROR_NONE;
-  }
-};
-
 class StestScatteredCollection : public testing::Test {
  protected:
   void SetUp() {}
@@ -88,7 +80,6 @@ TEST_F(StestScatteredCollection, InitAutoMixAicAivCtx_Test) {
 }
 
 TEST_F(StestScatteredCollection, mixl2_graph_load_and_success) {
-  RuntimeStub::SetInstance(std::make_shared<MyRuntimeMock>());
   DEF_GRAPH(g1) {
     auto data_0 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0);
     auto data_1 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 1);
@@ -197,7 +188,6 @@ TEST_F(StestScatteredCollection, mixl2_with_args_format_graph_load_and_success) 
   };
   REG_HIDDEN_INPUTS_FUNC(HiddenInputsType::HCOM, hcom_hidden_func);
 
-  RuntimeStub::SetInstance(std::make_shared<MyRuntimeMock>());
   DEF_GRAPH(g1) {
     auto data_0 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0);  // query
     auto data_1 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 1);  // k0
@@ -341,7 +331,6 @@ TEST_F(StestScatteredCollection, mixl2_mem_check_success) {
   };
   REG_HIDDEN_INPUTS_FUNC(HiddenInputsType::HCOM, hcom_hidden_func);
 
-  RuntimeStub::SetInstance(std::make_shared<MyRuntimeMock>());
   auto root_graph = gert::ShareGraph::IFASingleGraph();
   EXPECT_NE(root_graph, nullptr);
   auto ifa_node = root_graph->FindNode("IncreFlashAttention");
@@ -513,7 +502,6 @@ TEST_F(StestScatteredCollection, ifa_aicore_with_args_format_graph_load_and_succ
   };
   REG_HIDDEN_INPUTS_FUNC(HiddenInputsType::HCOM, hcom_hidden_func);
 
-  RuntimeStub::SetInstance(std::make_shared<MyRuntimeMock>());
   DEF_GRAPH(g1) {
                   auto data_0 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0);  // query
                   auto data_1 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 1);  // k0
@@ -664,7 +652,6 @@ TEST_F(StestScatteredCollection, ifa_aicore_with_args_format_graph_load_and_succ
 /*
 // mixl2
 TEST_F(StestScatteredCollection, ifa_aicore_with_tiling_sink_graph_load_and_success) {
-  RuntimeStub::SetInstance(std::make_shared<MyRuntimeMock>());
   DEF_GRAPH(g1) {
     auto data_0 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0);  // query
     auto data_1 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 1);  // k0
@@ -871,7 +858,6 @@ TEST_F(StestScatteredCollection, mc2kernel_runtime_tiling_success) {
   funcs->tiling_parse = StubTilingParseMC2;
   funcs->compile_info_creator = CompileInfoCreatorMC2;
   funcs->compile_info_deleter = nullptr;
-  RuntimeStub::SetInstance(std::make_shared<MyRuntimeMock>());
   auto hcom_hidden_func = [](const ge::OpDescPtr &op_desc, std::vector<void *> &addr) {
     addr.push_back(reinterpret_cast<void *>(0xf1));
     return ge::GRAPH_SUCCESS;
@@ -1010,7 +996,6 @@ TEST_F(StestScatteredCollection, mc2kernel_runtime_tiling_success) {
 }
 
 TEST_F(StestScatteredCollection, mc2kernel_graph_load_and_success) {
-  RuntimeStub::SetInstance(std::make_shared<MyRuntimeMock>());
   auto hcom_hidden_func = [](const ge::OpDescPtr &op_desc, std::vector<void *> &addr) {
     addr.push_back(reinterpret_cast<void *>(0xf1));
     return ge::GRAPH_SUCCESS;

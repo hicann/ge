@@ -180,19 +180,13 @@ class MockMmpa : public MmpaStubApiGe {
     return 0;
   }
 };
-
-class MockRuntime : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-
 }  // namespace
 class HeterogeneousRuntimeTest : public testing::Test {
   void SetUp() {
     MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+    std::string st_dir_path = ge::PathUtils::Join({ge::EnvPath().GetAirBasePath(), "/tests/dflow/runner/st/"});
+    auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config.json";
+    setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   }
   void TearDown() {
     ExecutionRuntime::FinalizeExecutionRuntime();
@@ -200,6 +194,7 @@ class HeterogeneousRuntimeTest : public testing::Test {
     mock_handle = nullptr;
     mock_method = nullptr;
     RuntimeStub::Reset();
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
 };
 
@@ -342,7 +337,6 @@ TEST_F(HeterogeneousRuntimeTest, TestDeployModelNoTiling) {
   GE_MAKE_GUARD(recover_sess_cfg, [&sess_options](){
     GetThreadLocalContext().SetSessionOption(sess_options);
   });
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   mock_handle = (void *) 0xffffffff;
   mock_method = (void *) &InitializeHeterogeneousRuntime;
   std::map<std::string, std::string> options_runtime;
@@ -479,7 +473,6 @@ TEST_F(HeterogeneousRuntimeTest, TestFeedDataWithoutRun) {
   GE_MAKE_GUARD(recover_sess_cfg, [&sess_options](){
     GetThreadLocalContext().SetSessionOption(sess_options);
   });
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   mock_handle = (void *) 0xffffffff;
   mock_method = (void *) &InitializeHeterogeneousRuntime;
   std::map<std::string, std::string> options_runtime;
@@ -592,7 +585,6 @@ TEST_F(HeterogeneousRuntimeTest, TestFeedDataWithoutRun) {
 }
 
 TEST_F(HeterogeneousRuntimeTest, TestDeployDynamicSchedModelNoTiling) {
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   mock_handle = (void *) 0xffffffff;
   mock_method = (void *) &InitializeHeterogeneousRuntime;
   std::map<std::string, std::string> options_runtime;

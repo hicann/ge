@@ -533,25 +533,25 @@ DeployPlan StubModels::BuildSingleModelDeployPlan(int32_t remote_node_id) {
   deploy_plan.group_entries_.resize(4);
   deploy_plan.group_entries_[0].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.group_entries_[0].name = "data1@PC_1:0";
-  deploy_plan.group_entries_[1].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.group_entries_[1].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.group_entries_[1].name = "data1@PC_1:0";
-  deploy_plan.group_entries_[2].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.group_entries_[2].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.group_entries_[2].name = "PC_2:0@__tail:0";
   deploy_plan.group_entries_[3].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.group_entries_[3].name = "PC_2:0@__tail:0";
 
   deploy_plan.queues_.resize(8);
   // head output
-  deploy_plan.queues_[0].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[0].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   // model1 output
   deploy_plan.queues_[1].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   // model_1 input
   deploy_plan.queues_[2].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   // tail input
-  deploy_plan.queues_[3].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[3].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
 
   // input tag
-  deploy_plan.queues_[4].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[4].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.groups_[4].emplace_back(0);
   deploy_plan.queues_[5].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.groups_[5].emplace_back(1);
@@ -559,7 +559,7 @@ DeployPlan StubModels::BuildSingleModelDeployPlan(int32_t remote_node_id) {
   // output tag
   deploy_plan.queues_[6].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.groups_[6].emplace_back(2);
-  deploy_plan.queues_[7].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[7].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.groups_[7].emplace_back(3);
 
   deploy_plan.root_model_info_.input_queue_indices.emplace_back(0);
@@ -597,25 +597,25 @@ DeployPlan StubModels::BuildSingleModelDeployPlanWithDummyQ(int32_t remote_node_
   deploy_plan.group_entries_.resize(4);
   deploy_plan.group_entries_[0].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.group_entries_[0].name = "data1@PC_1:0";
-  deploy_plan.group_entries_[1].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.group_entries_[1].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.group_entries_[1].name = "data1@PC_1:0";
-  deploy_plan.group_entries_[2].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.group_entries_[2].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.group_entries_[2].name = "PC_2:0@__tail:0";
   deploy_plan.group_entries_[3].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.group_entries_[3].name = "PC_2:0@__tail:0";
 
   deploy_plan.queues_.resize(9);
   // head output
-  deploy_plan.queues_[0].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[0].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   // model1 output
   deploy_plan.queues_[1].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   // model_1 input
   deploy_plan.queues_[2].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   // tail input
-  deploy_plan.queues_[3].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[3].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
 
   // input tag
-  deploy_plan.queues_[4].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[4].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.groups_[4].emplace_back(0);
   deploy_plan.queues_[5].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.groups_[5].emplace_back(1);
@@ -623,10 +623,10 @@ DeployPlan StubModels::BuildSingleModelDeployPlanWithDummyQ(int32_t remote_node_
   // output tag
   deploy_plan.queues_[6].device_info = DeployPlan::DeviceInfo(NPU, remote_node_id, 0);
   deploy_plan.groups_[6].emplace_back(2);
-  deploy_plan.queues_[7].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[7].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.groups_[7].emplace_back(3);
 
-  deploy_plan.queues_[7].device_info = DeployPlan::DeviceInfo(CPU, local_node_id, 0);
+  deploy_plan.queues_[7].device_info = DeployPlan::DeviceInfo(NPU, local_node_id, 0);
   deploy_plan.queues_[8].is_dummy = true;
 
   deploy_plan.root_model_info_.input_queue_indices.emplace_back(0);

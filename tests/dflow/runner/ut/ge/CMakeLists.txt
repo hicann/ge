@@ -244,12 +244,12 @@ SET(HELPER_RUNTIME_TEST_FILES
     runtime/heterogeneous/executor/executor_context_unittest.cc
     runtime/heterogeneous/executor/proxy_dynamic_model_executor_unittest.cc
     runtime/heterogeneous/stub/dgw_client_stub.cc
-    runtime/heterogeneous/stub/tsd_client_stub.cc
     runtime/heterogeneous/stub/heterogeneous_stub_env.cc
     runtime/heterogeneous/stub/re_mem_group_stub.cc
     runtime/heterogeneous/stub/stub_models.cc
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/caas_dataflow_auth_stub.cc
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/process_utils_stub.cc
+    ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/tsd_client_stub.cc
     )
 
 SET(DFLOW_EXECUTOR_TEST_FILES

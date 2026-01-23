@@ -44,14 +44,6 @@ using namespace testing;
 
 namespace ge {
 namespace{
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-
 class MockExchangeService : public ExchangeService {
  public:
   Status CreateQueue(const int32_t device_id,
@@ -1404,7 +1396,7 @@ TEST_F(OnlineInferTest, online_infer_dynamic_dims_graph_helper) {
   shape_range.emplace_back(std::make_pair(1, 20));
   input0->SetShapeRange(shape_range);
   input0->GetOriginShapeRange(shape_range);
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   DUMP_GRAPH_WHEN("PreRunAfterOptimize1");
   // new session & add graph
   map<AscendString, AscendString> options = {
@@ -1423,7 +1415,7 @@ TEST_F(OnlineInferTest, online_infer_dynamic_dims_graph_helper) {
     EXPECT_EQ(graph->GetDirectNodesSize(), 4);
   };
 
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
   ge_env.Reset();
   ge_env.InstallDefault();
 }
@@ -1482,7 +1474,7 @@ TEST_F(OnlineInferTest, online_infer_dynamic_dims_graph_with_running_format) {
   shape_range.emplace_back(std::make_pair(1, 20));
   input0->SetShapeRange(shape_range);
   input0->GetOriginShapeRange(shape_range);
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   DUMP_GRAPH_WHEN("PreRunAfterOptimize1");
   // new session & add graph
   map<AscendString, AscendString> options = {
@@ -1505,7 +1497,7 @@ TEST_F(OnlineInferTest, online_infer_dynamic_dims_graph_with_running_format) {
     }
   };
 
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
   ge_env.Reset();
   ge_env.InstallDefault();
 }
@@ -1541,14 +1533,14 @@ TEST_F(OnlineInferTest, online_infer_dynamic_dims_graph_empty_dynamic_node) {
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_SHAPE, "0:-1;1:-1");
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_DIMS, "1,1;10,10;20,20");
 
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   DUMP_GRAPH_WHEN("PreRunAfterOptimize1");
   // new session & add graph
   map<AscendString, AscendString> options = {
       {"ge.inputShape", "data0:-1;data1:-1"}, {"ge.dynamicDims", "1,1;10,10;20,20"}, {"ge.dynamicNodeType", "1"}};
   EXPECT_NE(OnlineInferDynCompile(graph, 1, options), SUCCESS);
   // check result
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
   ge_env.Reset();
   ge_env.InstallDefault();
 }
@@ -1689,7 +1681,7 @@ TEST_F(OnlineInferTest, OneDataTwoOutputMultiDims) {
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_SHAPE, "0:-1;1:-1");
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_DIMS, "1,1;10,10;20,20");
 
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   DUMP_GRAPH_WHEN("PreRunAfterOptimize1");
   // new session & add graph
   map<AscendString, AscendString> options = {
@@ -1700,7 +1692,7 @@ TEST_F(OnlineInferTest, OneDataTwoOutputMultiDims) {
     EXPECT_EQ(graph->GetAllSubgraphs().size(), 4);
     EXPECT_EQ(graph->GetDirectNodesSize(), 3);
   };
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
   ge_env.Reset();
   ge_env.InstallDefault();
 }
@@ -1744,13 +1736,13 @@ TEST_F(OnlineInferTest, GraphMultiDimsWithMiddleDynamicShape_ReportError) {
   };
   where_node->GetOpDesc()->AddInferFunc(where_infer_func);
 
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   // new session & add graph
   map<AscendString, AscendString> options = {
       {"ge.inputShape", "data0:-1"}, {"ge.dynamicDims", "1;10;20"}};
   EXPECT_EQ(OnlineInferDynCompile(graph, 1, options), FAILED);
 
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
   ge_env.Reset();
   ge_env.InstallDefault();
 }

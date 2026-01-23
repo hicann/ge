@@ -26,14 +26,25 @@ using namespace std;
 using namespace ::testing;
 
 namespace ge {
+namespace {
+class MockMmpaRealPath : public ge::MmpaStubApiGe {
+public:
+  int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    strncpy(realPath, path, realPathLen);
+    return 0;
+  }
+};
+}
 class FlowRoutePlannerTest : public testing::Test {
  protected:
   void SetUp() override {
-    stub_env_.SetupDefaultEnv();
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
+    HeterogeneousStubEnv::SetupAIServerEnv();
   }
 
   void TearDown() override {
     HeterogeneousStubEnv::ClearEnv();
+    MmpaStub::GetInstance().Reset();
   }
 
   static size_t CountEndpoints(const deployer::FlowRoutePlan &route_plan, int32_t type) {
@@ -49,8 +60,6 @@ class FlowRoutePlannerTest : public testing::Test {
                            return queue_desc.type() >= 0;
                          });
   }
-
-  HeterogeneousStubEnv stub_env_;
 };
 
 TEST_F(FlowRoutePlannerTest, ResolveFlowRoutePlan_IrrelevantNode) {
@@ -85,21 +94,12 @@ TEST_F(FlowRoutePlannerTest, ResolveFlowRoutePlan_LocalDeviceWithDummyQ) {
 }
 
 TEST_F(FlowRoutePlannerTest, TestResolveProxyPlan) {
-  class MockMmpaRealPath : public ge::MmpaStubApiGe {
-   public:
-    int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-      strncpy(realPath, path, realPathLen);
-      return 0;
-    }
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
   HeterogeneousStubEnv::ClearEnv();
-  stub_env_.SetupAIServerEnv();
+  HeterogeneousStubEnv::SetupAIServerEnv();
   auto deploy_plan = StubModels::BuildSingleModelDeployPlanWithProxy(0);
   DeployState deploy_state;
   deploy_state.SetDeployPlan(std::move(deploy_plan));
   ASSERT_EQ(FlowRoutePlanner::ResolveFlowRoutePlans(deploy_state), SUCCESS);
-  MmpaStub::GetInstance().Reset();
 }
 
 ///    NetOutput (4)       8->4(input_group)

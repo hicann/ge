@@ -69,15 +69,6 @@ class FakeLabelMaker : public LabelMaker {
   virtual Status Run(uint32_t &label_index) { return ge::GRAPH_SUCCESS; }
 };
 
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    std::cout << "rtGetIsHeterogenous stub, heterogeneous = 1." << std::endl;
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-
 Status InitializeHeterogeneousRuntime(const std::map<std::string, std::string> &options) {
   return SUCCESS;
 }
@@ -734,7 +725,7 @@ TEST_F(UtestGeApi, Fetch_flow_msg_graph_not_exist) {
 }
 
 TEST_F(UtestGeApi, InitializeExecutionRuntime_test) {
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   ExecutionRuntime::instance_ = nullptr;
   ExecutionRuntime::handle_ = (void *)0xffffffff;
@@ -744,6 +735,7 @@ TEST_F(UtestGeApi, InitializeExecutionRuntime_test) {
   EXPECT_EQ(GEFinalize(), SUCCESS);
   ExecutionRuntime::instance_ = nullptr;
   MmpaStub::GetInstance().Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(UtestGeApi, GetCompileGraphSummary_test) {

@@ -161,14 +161,6 @@ class GraphBuilder {
   ComputeGraphPtr graph_;
 };
 
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-
 NodePtr GraphBuilder::AddNode(const std::string &name, const std::string &type, int in_cnt, int out_cnt, Format format,
                               DataType data_type, std::vector<int64_t> shape) {
   auto tensor_desc = std::make_shared<GeTensorDesc>();

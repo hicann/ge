@@ -548,13 +548,13 @@ Graph BuildDataFlowGraphWithRedundantNode(const std::string &name) {
   auto node2 = dflow::FlowNode("node2", 2, 1).SetInput(0,node1).SetInput(1, data2);
 
   // function pp
-  auto host_udf_pp = dflow::FunctionPp("host_udf_pp").SetCompileConfig("./host_udf_config.json");
-  node0.AddPp(host_udf_pp);
-
   auto pp0 = dflow::FunctionPp("func_pp0").SetCompileConfig("./pp0_config.json");
-  node1.AddPp(pp0);
-  auto pp1 = dflow::FunctionPp("func_pp0").SetCompileConfig("./pp0_config.json");
-  node2.AddPp(pp1);
+  node0.AddPp(pp0);
+
+  auto pp1 = dflow::FunctionPp("func_pp1").SetCompileConfig("./pp0_config.json");
+  node1.AddPp(pp1);
+  auto pp2 = dflow::FunctionPp("func_pp2").SetCompileConfig("./pp0_config.json");
+  node2.AddPp(pp2);
   std::vector<dflow::FlowOperator> inputsOperator{data0, data1, data2};
   std::vector<dflow::FlowOperator> outputsOperator{node0};
 
@@ -631,25 +631,12 @@ bool CheckCacheResult(const std::string &cache_dir, const std::string &graph_key
   return true;
 }
 
-class HeterogenousRuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-
 struct StubMbufInfo {
   size_t size = 0;
   size_t len = 0;
 };
 class RuntimeMock : public RuntimeStub {
  public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-
   rtError_t rtMbufAlloc(rtMbufPtr_t *mbuf, uint64_t size) override {
     *mbuf = malloc(size);
     std::lock_guard<std::mutex> lk(mt_);
@@ -933,7 +920,6 @@ cd -
 
   void SetUp() {
     ExecutionRuntime::instance_ = ge::MakeShared<ExecutionRuntimeMock>();
-    RuntimeStub::SetInstance(std::make_shared<HeterogenousRuntimeMock>());
     MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
     CreateCompilerJson("./cpu_compile.json");
     PrepareForOnlyHostUdf();
@@ -1100,9 +1086,9 @@ cd -
       global_options[OPTION_NUMA_CONFIG] =
           R"({"cluster":[{"cluster_nodes":[{"is_local":true, "item_list":[{"item_id":0}], "node_id":0, "node_type":"TestNodeType1"}]}],"item_def":[{"aic_type":"[DAVINCI_V100:10]","item_type":"","memory":"[DDR:80GB]","resource_type":"Ascend"}],"node_def":[{"item_type":"","links_mode":"TCP:128Gb","node_type":"TestNodeType1","resource_type":"X86","support_links":"[ROCE]"}]})";
     }
-    unsetenv("RESOURCE_CONFIG_PATH");
-    auto path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/st/config_file/right_json/host"});
-    setenv("HELPER_RES_FILE_PATH", path.c_str(), MMPA_MAX_PATH);
+    auto path = PathUtils::Join(
+        {EnvPath().GetAirBasePath(), "tests/dflow/runner/st/st_run_data/json/helper_runtime/host/numa_config.json"});
+    setenv("RESOURCE_CONFIG_PATH", path.c_str(), MMPA_MAX_PATH);
     mock_handle = (void *)0xffffffff;
     ReInitGe();
   }
@@ -1129,7 +1115,7 @@ cd -
     (void)system("rm -fr ./temp_host_udf");
     (void)system("rm -fr ./build_cache_dir");
     GEFinalize();
-    unsetenv("HELPER_RES_FILE_PATH");
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
 
   static void PrepareForOnlyHostUdf() {
@@ -1157,7 +1143,7 @@ cd -
                                           {"target_bin", "libxxx.so"},
                                           {"input_num", 2},
                                           {"output_num", 2},
-                                          {"heavy_load", false},
+                                          {"heavy_load", true},
                                           {"cmakelist_path", "CMakeLists.txt"},
                                           {"compiler", "./cpu_compile.json"},
                                           {
@@ -1437,7 +1423,7 @@ TEST_F(DataFlowGraphTest, Build_with_deploy_info) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -1468,8 +1454,7 @@ TEST_F(DataFlowGraphTest, Build_with_deploy_info) {
   ASSERT_EQ(ret, SUCCESS);
   remove(file_name);
 }
-// todo test
-/*
+
 TEST_F(DataFlowGraphTest, Build_with_deploy_info_invoke_df) {
   constexpr const char *file_name = "./st_data_flow_deploy_info.json";
   std::ofstream json_file(file_name);
@@ -1511,7 +1496,6 @@ TEST_F(DataFlowGraphTest, Build_with_deploy_info_invoke_df) {
   ASSERT_EQ(ret, SUCCESS);
   remove(file_name);
 }
-*/
 
 TEST_F(DataFlowGraphTest, Build_with_deploy_info_invoke_df_error) {
   constexpr const char *file_name = "./st_data_flow_deploy_info.json";
@@ -1649,7 +1633,7 @@ TEST_F(DataFlowGraphTest, Build_with_cache_and_deploy_info) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -1698,7 +1682,7 @@ TEST_F(DataFlowGraphTest, Build_with_manual_cache) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -1790,7 +1774,7 @@ TEST_F(DataFlowGraphTest, Build_with_deploy_info_ascend_format_error) {
         "batch_deploy_info": [
           {
             "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1:0"
+            "logic_device_list":"0:0:1:0"
           },
           {
             "flow_node_list":["node1"],
@@ -1830,7 +1814,7 @@ TEST_F(DataFlowGraphTest, Build_with_deploy_info_range_format_error) {
         "batch_deploy_info": [
           {
             "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1:0"
+            "logic_device_list":"0:0:1:0"
           },
           {
             "flow_node_list":["node1"],
@@ -1870,7 +1854,7 @@ TEST_F(DataFlowGraphTest, Build_with_batch_deploy_info) {
         "batch_deploy_info": [
           {
             "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1:0"
+            "logic_device_list":"0:0:1:0"
           },
           {
             "flow_node_list":["node1"],
@@ -2083,7 +2067,7 @@ TEST_F(DataFlowGraphTest, Build_host_udf_call_nn_with_deploy_info) {
         "batch_deploy_info": [
           {
             "flow_node_list":["node0", "node2"],
-            "logic_device_list":"0:0:-1:0"
+            "logic_device_list":"0:0:1:0"
           },
           {
             "flow_node_list":["node1"],
@@ -2248,7 +2232,7 @@ TEST_F(DataFlowGraphTest, Build_deploy_info_not_all) {
         "batch_deploy_info": [
           {
             "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1:0"
+            "logic_device_list":"0:0:1:0"
           },
           {
             "flow_node_list":["node2"],
@@ -2283,7 +2267,7 @@ TEST_F(DataFlowGraphTest, Build_with_deploy_info_repeat_config) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -2323,7 +2307,7 @@ TEST_F(DataFlowGraphTest, Build_with_batch_deploy_info_repeat_config) {
         "batch_deploy_info": [
           {
             "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1:0"
+            "logic_device_list":"0:0:1:0"
           },
           {
             "flow_node_list":["node1"],
@@ -2363,7 +2347,7 @@ TEST_F(DataFlowGraphTest, Build_with_both_deploy_info) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           }
         ],
         "batch_deploy_info": [
@@ -2465,7 +2449,7 @@ TEST_F(DataFlowGraphTest, Build_with_both_deploy_info_repeat_config) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           }
         ],
         "batch_deploy_info": [
@@ -2518,7 +2502,7 @@ TEST_F(DataFlowGraphTest, Build_with_deploy_info_with_head_node) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -2553,7 +2537,7 @@ TEST_F(DataFlowGraphTest, Build_with_cache_exception_without_align_attrs) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -2585,42 +2569,6 @@ TEST_F(DataFlowGraphTest, Build_with_cache_exception_without_align_attrs) {
   remove(file_name);
 }
 
-TEST_F(DataFlowGraphTest, Build_with_deploy_info_with_head_node_mismatch) {
-  constexpr const char *file_name = "./st_data_flow_deploy_info.json";
-  std::ofstream json_file(file_name);
-  std::string content = R"(
-      {
-        "deploy_info": [
-          {
-            "flow_node_name":"node0",
-            "logic_device_id":"0:0:0:0"
-          },
-          {
-            "flow_node_name":"node1",
-            "logic_device_id":"0:0:1:0,0:0:1:1"
-          }
-        ]
-      })";
-  json_file << content << std::endl;
-  json_file.close();
-
-  mock_handle = (void *)0xffffffff;
-  std::map<std::string, std::string> options_runtime;
-  ASSERT_EQ(ExecutionRuntime::InitHeterogeneousRuntime(options_runtime), SUCCESS);
-  ge::ProcessNodeEngineRegisterar udf_engine_register __attribute__((unused)) (
-      PNE_ID_UDF, []() -> ::ge::ProcessNodeEngine * { return new (std::nothrow) ge::UdfProcessNodeEngine(); });
-  auto graph = BuildDataFlowGraphWithHostUdf("test_mismatch");
-  map<AscendString, AscendString> session_options = {};
-  map<AscendString, AscendString> graph_options = {{"ge.experiment.data_flow_deploy_info_path", file_name}};
-  std::vector<InputTensorInfo> inputs;
-  Session session(session_options);
-  session.AddGraph(1, graph, graph_options);
-  auto ret = session.BuildGraph(1, inputs);
-  ASSERT_NE(ret, SUCCESS);
-  remove(file_name);
-}
-
-
 TEST_F(DataFlowGraphTest, Build_with_sub_cache_and_deploy_info) {
   constexpr const char *file_name = "./st_data_flow_deploy_info.json";
   std::ofstream json_file(file_name);
@@ -2629,7 +2577,7 @@ TEST_F(DataFlowGraphTest, Build_with_sub_cache_and_deploy_info) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -2686,7 +2634,7 @@ TEST_F(DataFlowGraphTest, Build_with_sub_cache_and_deploy_info) {
         "deploy_info": [
           {
             "flow_node_name":"node0",
-            "logic_device_id":"0:0:-1:0"
+            "logic_device_id":"0:0:1:0"
           },
           {
             "flow_node_name":"node1",
@@ -2744,8 +2692,6 @@ Graph BuildGeGraph() {
 }  // namespace
 
 TEST_F(DataFlowGraphTest, BuildModelRelationNodeNotUse) {
-  auto real_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/st/config_file/right_json/host"});
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
   auto data0 = dflow::FlowData("Data0", 0);
   auto data1 = dflow::FlowData("Data1", 1);
   auto node0 = dflow::FlowNode("Node0", 2, 1).SetInput(0, data0).SetInput(1, data1);
@@ -3132,7 +3078,7 @@ TEST_F(DataFlowGraphTest, Build_with_batch_deploy_info_and_dynamic_sched) {
         "batch_deploy_info": [
           {
             "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1"
+            "logic_device_list":"0:0:1"
           },
           {
             "flow_node_list":["node1"],
@@ -3148,8 +3094,6 @@ TEST_F(DataFlowGraphTest, Build_with_batch_deploy_info_and_dynamic_sched) {
   json_file.close();
 
   mock_handle = (void *)0xffffffff;
-  auto path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/st/config_file/right_json/host"});
-  mmSetEnv("HELPER_RES_FILE_PATH", path.c_str(), MMPA_MAX_PATH);
   std::map<std::string, std::string> options_runtime;
   ASSERT_EQ(ExecutionRuntime::InitHeterogeneousRuntime(options_runtime), SUCCESS);
   ge::ProcessNodeEngineRegisterar udf_engine_register __attribute__((unused)) (

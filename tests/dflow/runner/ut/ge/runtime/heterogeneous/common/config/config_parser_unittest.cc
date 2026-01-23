@@ -48,7 +48,6 @@ class UtConfigParser : public testing::Test {
 
 TEST_F(UtConfigParser, parse_server_info_success) {
   ge::DeployerConfig information;
-  setenv("SUPPORT_HOST_FLOWGW", "1", 1);
   std::string config_file = PathUtils::Join({data_path, "valid/server/numa_config.json"});
   std::map<std::string, std::string> options;
   const auto back_options = ge::GetThreadLocalContext().GetAllGlobalOptions();
@@ -66,13 +65,11 @@ TEST_F(UtConfigParser, parse_server_info_success) {
       ASSERT_EQ(device_config.resource_type, "Ascend");
     }
   }
-  unsetenv("SUPPORT_HOST_FLOWGW");
   ge::GetThreadLocalContext().SetGlobalOption(back_options);
 }
 
 TEST_F(UtConfigParser, parse_server_info_success_with_remote_no_device) {
   ge::DeployerConfig information;
-  setenv("SUPPORT_HOST_FLOWGW", "1", 1);
   std::string config_file = PathUtils::Join({data_path, "valid/server/numa_config_with_remote_no_device.json"});
   auto ret = ge::ConfigParser::ParseServerInfo(config_file, information);
   ASSERT_EQ(ret, ge::SUCCESS);
@@ -80,7 +77,6 @@ TEST_F(UtConfigParser, parse_server_info_success_with_remote_no_device) {
   ASSERT_EQ(information.remote_node_config_list[0].device_list.size(), 1);
   ASSERT_EQ(information.remote_node_config_list[0].device_list[0].device_type, CPU);
   ASSERT_EQ(information.remote_node_config_list[0].device_list[0].support_flowgw, false);
-  unsetenv("SUPPORT_HOST_FLOWGW");
 }
 
 TEST_F(UtConfigParser, parse_config_without_resource_success) {

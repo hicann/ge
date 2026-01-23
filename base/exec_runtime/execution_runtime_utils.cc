@@ -10,7 +10,6 @@
 
 #include "execution_runtime_utils.h"
 #include "mmpa/mmpa_api.h"
-#include "runtime/rt.h"
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
 #include "common/ge_common/ge_types.h"
@@ -31,14 +30,6 @@ bool ExecutionRuntimeUtils::IsHeterogeneous() {
   (void)ge::GetContext().GetOption(RESOURCE_CONFIG_PATH, resource_path);
   if (!resource_path.empty()) {
     GELOGI("Get is heterogenous from option[%s], path = %s", RESOURCE_CONFIG_PATH, resource_path.c_str());
-    return true;
-  }
-
-  constexpr int32_t kRuntimeTypeHeterogeneous = 1;
-  int32_t heterogeneous_flag = 0;
-  if (rtGetIsHeterogenous(&heterogeneous_flag) == RT_ERROR_NONE &&
-    heterogeneous_flag == kRuntimeTypeHeterogeneous) {
-    GELOGI("Get is heterogenous flag success, heterogeneous_flag = %d", heterogeneous_flag);
     return true;
   }
 

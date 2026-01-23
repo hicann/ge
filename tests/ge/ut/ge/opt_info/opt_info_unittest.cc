@@ -71,23 +71,4 @@ TEST_F(UTEST_opt_info, get_opt_info_failed) {
   auto ret = GeOptInfo::SetOptInfo();
   EXPECT_EQ(ret, ge::FAILED);
 }
-
-class MockRuntime : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-
-TEST_F(UTEST_opt_info, get_opt_info_InHeterogeneousHost) {
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-
-  std::map<std::string, std::string> options = {{ge::SOC_VERSION, "Ascend310P3"}};
-  GetThreadLocalContext().SetGlobalOption(options);
-
-  auto ret = GeOptInfo::SetOptInfo();
-  EXPECT_EQ(ret, ge::SUCCESS);
-  RuntimeStub::Reset();
-}
 }  // namespace ge

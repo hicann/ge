@@ -142,18 +142,18 @@ class MockMasterModelDeployer : public MasterModelDeployer {
 class MasterModelDeployerTest : public testing::Test {
  protected:
   void SetUp() override {
-    // todo 用例依赖下面的状态，本文件中未初始化SubprocessManager，依赖前面SubprocessManager的UT
-    // SubprocessManager::GetInstance().executable_paths_.emplace("queue_schedule", "/var/queue_schedule");
-    stub_env_.SetupDefaultEnv();
+    mock_handle = (void *) 0x8888;
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+    // 用例依赖下面的状态，本文件中未初始化SubprocessManager，依赖前面SubprocessManager的UT
+    SubprocessManager::GetInstance().executable_paths_.emplace("queue_schedule", "/var/queue_schedule");
+    HeterogeneousStubEnv::SetupAIServerEnv();
   }
 
   void TearDown() override {
     HeterogeneousStubEnv::ClearEnv();
+    MmpaStub::GetInstance().Reset();
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
-
-
- private:
-  HeterogeneousStubEnv stub_env_;
 };
 
 /**
@@ -166,7 +166,6 @@ class MasterModelDeployerTest : public testing::Test {
  *  data1  data2
  */
 TEST_F(MasterModelDeployerTest, TestDeployModel_Success) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   mock_handle = (void *) 0x8888;
   EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
   auto &exchange_service =
@@ -211,8 +210,6 @@ TEST_F(MasterModelDeployerTest, TestDeployModel_Success) {
   ASSERT_NE(deploy_result.dev_abnormal_callback, nullptr);
   ASSERT_EQ(deploy_result.dev_abnormal_callback(), SUCCESS);
   RuntimeStub::Reset();
-
-  MmpaStub::GetInstance().Reset();
   mock_handle = nullptr;
 }
 
@@ -235,7 +232,7 @@ TEST_F(MasterModelDeployerTest, TestInitinalize) {
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("empty_device/host");
+  HeterogeneousStubEnv::LoadAIServerHostConfig("valid/server/numa_config2.json");
   dlog_setlevel(0, 0, 0);
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
   dlog_setlevel(0, 3, 0);
@@ -276,7 +273,8 @@ TEST_F(MasterModelDeployerTest, TestGetDeviceMeshIndex) {
   std::vector<int32_t> device_mesh_index;
   ASSERT_EQ(model_deployer.GetDeviceMeshIndex(0, device_mesh_index), SUCCESS);
   ASSERT_EQ(device_mesh_index.size(), 4);
-  ASSERT_EQ(model_deployer.GetDeviceMeshIndex(1, device_mesh_index), FAILED);
+  ASSERT_EQ(model_deployer.GetDeviceMeshIndex(1, device_mesh_index), SUCCESS);
+  ASSERT_EQ(model_deployer.GetDeviceMeshIndex(2, device_mesh_index), FAILED);
 }
 
 TEST_F(MasterModelDeployerTest, TestGetValidLogicDeviceId) {
@@ -352,8 +350,7 @@ TEST_F(MasterModelDeployerTest, TestDeployRemoteVarManagerWithFileConstant) {
   auto mock_runtime = std::make_shared<MockRuntime>();
   RuntimeStub::SetInstance(mock_runtime);
   auto &client_manager = DeployContext::LocalContext().GetFlowGwClientManager();
-  client_manager.GetOrCreateClient(0, 1, {0}, false);
-  EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
+  client_manager.GetOrCreateClient(0, 0, {0}, false);
   (void)system("echo 1 > hello.bin");
   auto deploy_plan = StubModels::BuildSingleModelWithFileConstDeployPlan("hello.bin");
   auto &remote_device =
@@ -374,8 +371,7 @@ TEST_F(MasterModelDeployerTest, TestTransferFileConstants) {
   auto mock_runtime = std::make_shared<MockRuntime>();
   RuntimeStub::SetInstance(mock_runtime);
   auto &client_manager = DeployContext::LocalContext().GetFlowGwClientManager();
-  client_manager.GetOrCreateClient(0, 1, {0}, false);
-  EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
+  client_manager.GetOrCreateClient(0, 0, {0}, false);
   auto &remote_device =
       reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
@@ -413,8 +409,7 @@ TEST_F(MasterModelDeployerTest, TestCopyOneWeightToTransfer) {
   auto mock_runtime = std::make_shared<MockRuntime>();
   RuntimeStub::SetInstance(mock_runtime);
   auto &client_manager = DeployContext::LocalContext().GetFlowGwClientManager();
-  client_manager.GetOrCreateClient(0, 1, {0}, false);
-  EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
+  client_manager.GetOrCreateClient(0, 0, {0}, false);
   auto &remote_device =
       reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
@@ -702,133 +697,7 @@ void RestoreFile(const char* path) {
   std::rename(bk_file_path.c_str(), new_file_path.c_str());
 }
 
-TEST_F(MasterModelDeployerTest, TestFileMonitorWithHelperResFilePath_Success) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
-  DeployerProxy::GetInstance().Finalize();
-  ResourceManager::GetInstance().Finalize();
-
-  MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("redeploy/host");
-  dlog_setlevel(0, 0, 0);
-  ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  {
-    auto &deploy_context = DeployContext::LocalContext();
-    std::lock_guard<std::mutex> lk(deploy_context.GetAbnormalHeartbeatInfoMu());
-    deploy_context.ClearAbnormalNodeConfig();
-    deploy_context.ClearAbnormalDeviceInfo();
-    deploy_context.ClearAbnormalSubmodelInstanceName();
-  }
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  model_deployer.abnormal_status_handler_.is_dynamic_sched_ = true;
-  DeployPlan::AbnormalStatusCallbackInfo abnormal_status_callback_info;
-  {
-    DeployPlan::AbnormalStatusCallback abnormal_status_clear_callback = [this](
-        uint32_t abnormal_status_operation_type, RootModelId2SubmodelName &abnormal_submodel_instances_name)
-        -> Status {
-      (void) abnormal_submodel_instances_name;
-      (void) abnormal_status_operation_type;
-      return SUCCESS;
-    };
-    std::lock_guard<std::mutex> lk(model_deployer.abnormal_status_handler_.abnormal_status_callback_info_.mu);
-    for (auto i = 0U; i < model_deployer.abnormal_status_handler_.deployed_models_.size(); i++) {
-      (model_deployer.abnormal_status_handler_.abnormal_status_callback_info_.callback_list)[i] = abnormal_status_clear_callback;
-    }
-  }
-
-  std::string file_path;
-  (void)(Configurations::GetInstance().GetResourceConfigPath(file_path));
-  printf("GetResourceConfigPath %s\n", file_path.c_str());
-  std::string path;
-  (void)(Configurations::GetInstance().GetConfigDir(path));
-  file_path = path + "/resource.json";
-  printf("GetConfigDir %s\n", file_path.c_str());
-
-  // 更改resource.json
-  std::string config_path = PathUtils::Join(
-  {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/host/resource.json"});
-  char real_path_with_resource[200];
-  (void)realpath(config_path.c_str(), real_path_with_resource);
-  std::vector<int> lineNumbers;
-  for (int i = 17; i <= 17; i++) {
-    lineNumbers.push_back(i);
-  }
-  DeleteLines(real_path_with_resource, lineNumbers);
-  CreateRedeployFile(real_path_with_resource);
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-  dlog_setlevel(0, 3, 0);
-  RestoreFile(real_path_with_resource);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
-}
-
-TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithHelperResFilePath_Success) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
-  DeployerProxy::GetInstance().Finalize();
-  ResourceManager::GetInstance().Finalize();
-
-  MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("redeploy/host");
-  dlog_setlevel(0, 0, 0);
-  ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  {
-    auto &deploy_context = DeployContext::LocalContext();
-    std::lock_guard<std::mutex> lk(deploy_context.GetAbnormalHeartbeatInfoMu());
-    NodeConfig node_config;
-    node_config.node_id = 0;
-    deploy_context.AddAbnormalNodeConfig(node_config);
-    deploy_context.ClearAbnormalDeviceInfo();
-    deploy_context.ClearAbnormalSubmodelInstanceName();
-  }
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
-  model_deployer.abnormal_status_handler_.is_dynamic_sched_ = true;
-  DeployPlan::AbnormalStatusCallbackInfo abnormal_status_callback_info;
-  {
-    DeployPlan::AbnormalStatusCallback abnormal_status_clear_callback = [this](
-        uint32_t abnormal_status_operation_type, RootModelId2SubmodelName &abnormal_submodel_instances_name)
-        -> Status {
-      (void) abnormal_submodel_instances_name;
-      (void) abnormal_status_operation_type;
-      return SUCCESS;
-    };
-    std::lock_guard<std::mutex> lk(model_deployer.abnormal_status_handler_.abnormal_status_callback_info_.mu);
-    for (auto i = 0U; i < model_deployer.abnormal_status_handler_.deployed_models_.size(); i++) {
-      (model_deployer.abnormal_status_handler_.abnormal_status_callback_info_.callback_list)[i] = abnormal_status_clear_callback;
-    }
-  }
-
-  std::string file_path;
-  (void)(Configurations::GetInstance().GetResourceConfigPath(file_path));
-  printf("GetResourceConfigPath %s\n", file_path.c_str());
-  std::string path;
-  (void)(Configurations::GetInstance().GetConfigDir(path));
-  file_path = path + "/resource.json";
-  printf("GetConfigDir %s\n", file_path.c_str());
-
-  std::string config_path = PathUtils::Join(
-        {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/host/resource.json"});
-  // 更改resource.json
-  char real_path_with_resource[200];
-  (void)realpath(config_path.c_str(), real_path_with_resource);
-  std::vector<int> lineNumbers;
-  for (int i = 17; i <= 17; i++) {
-    lineNumbers.push_back(i);
-  }
-  DeleteLines(real_path_with_resource, lineNumbers);
-  CreateRedeployFile(real_path_with_resource);
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-  dlog_setlevel(0, 3, 0);
-  RestoreFile(real_path_with_resource);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
-}
-
 TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_Success) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -886,13 +755,9 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_Success) {
   dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
   RestoreFile(real_path);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestFileMonitorWithMulRootModel_Success) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -941,15 +806,8 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithMulRootModel_Success) {
   deploy_model1.model_deploy_infos["model1"]["model1_0_0_6"] = {local_device7};
   deploy_model1.model_deploy_infos["model1"]["model1_0_0_7"] = {local_device8};
   model_deployer.abnormal_status_handler_.deployed_models_[1] = deploy_model1;
-  std::string file_path;
-  (void)(Configurations::GetInstance().GetResourceConfigPath(file_path));
-  printf("GetResourceConfigPath %s\n", file_path.c_str());
-  std::string path;
-  (void)(Configurations::GetInstance().GetConfigDir(path));
-  file_path = path + "/resource.json";
-  printf("GetConfigDir %s\n", file_path.c_str());
+
   // 更改numa_config.json
-  dlog_setlevel(0, 0, 0);
   std::string config_path = PathUtils::Join(
     {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/server/numa_config.json"});
   char real_path[200];
@@ -958,16 +816,11 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithMulRootModel_Success) {
   DeleteLines(real_path, lineNumbers);
   CreateRedeployFile(real_path);
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
   RestoreFile(real_path);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_FAILED) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -990,13 +843,6 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_FAILED) {
   DeployPlan::DeviceInfo local_device(NPU, 0, 6);
   deploy_model.model_deploy_infos["model1"]["model1_1_0_0"] = {local_device};
   model_deployer.abnormal_status_handler_.deployed_models_[0U] = deploy_model;
-  std::string file_path;
-  (void)(Configurations::GetInstance().GetResourceConfigPath(file_path));
-  printf("GetResourceConfigPath %s\n", file_path.c_str());
-  std::string path;
-  (void)(Configurations::GetInstance().GetConfigDir(path));
-  file_path = path + "/resource.json";
-  printf("GetConfigDir %s\n", file_path.c_str());
   // 更改numa_config.json
   std::string config_path = PathUtils::Join(
     {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/server/numa_config.json"});
@@ -1008,13 +854,9 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_FAILED) {
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
   RestoreFile(real_path);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestHeartbeatMonitor_Success) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -1049,13 +891,9 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitor_Success) {
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithNode0CpuAbnormal) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -1107,13 +945,9 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithNode0CpuAbnormal) 
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithDevice0) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -1148,13 +982,9 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithDevice0) {
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithNoNewAbnormal) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -1188,13 +1018,9 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithNoNewAbnormal) {
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithMulRootModel_Success) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
@@ -1255,26 +1081,13 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithMulRootModel_Success) {
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
-}
-
-TEST_F(MasterModelDeployerTest, TestGetMonitorFilePathWithConfigInstallPathEnv) {
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
-  MasterModelDeployer deploy_model;
-  std::string file_path;
-  ASSERT_EQ(deploy_model.abnormal_status_handler_.GetMonitorFilePath(file_path), SUCCESS);
-  printf("kConfigInstallPathEnv %s\n", file_path.c_str());
-  unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("HELPER_RES_FILE_PATH");
 }
 
 TEST_F(MasterModelDeployerTest, TestFindAbnormalDeviceOnServer) {
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("empty_device/host");
+  HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
   DeployPlan::DeviceStateList device_state_list;
   DeployerConfig information_new;
@@ -1309,7 +1122,7 @@ TEST_F(MasterModelDeployerTest, TestPreHandleAbnormalInfo) {
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("empty_device/host");
+  HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
 
   dlog_setlevel(0, 0, 0);
@@ -1339,12 +1152,8 @@ TEST_F(MasterModelDeployerTest, TestPreHandleAbnormalInfo) {
 }
 
 TEST_F(MasterModelDeployerTest, TestIsReployFileGeneratedThenRemove) {
-  DeployerProxy::GetInstance().Finalize();
-  ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("empty_device/host");
-  ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  std::string file_path1 = "resource.json";
+  std::string file_path1 = "test.json";
   ASSERT_EQ(model_deployer.abnormal_status_handler_.IsReployFileGeneratedThenRemove(file_path1), false);
   std::string file_path2 = "this_is_a_not_exist_dir/redeploy/server/";
   ASSERT_EQ(model_deployer.abnormal_status_handler_.IsReployFileGeneratedThenRemove(file_path2), false);
@@ -1355,7 +1164,7 @@ TEST_F(MasterModelDeployerTest, TestIsSupportDynamicSched) {
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("empty_device/host");
+  HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
   dlog_setlevel(0, 0, 0);
   DeployPlan::DeviceStateList device_state_list;
@@ -1382,7 +1191,7 @@ TEST_F(MasterModelDeployerTest, TestIsInDeviceList) {
   DeployerProxy::GetInstance().Finalize();
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("empty_device/host");
+  HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
   DeployPlan::DeviceStateList device_state_list;
   DeployPlan::DeviceInfo device_info = DeployPlan::DeviceInfo(NPU, 0, 1);
@@ -1390,38 +1199,6 @@ TEST_F(MasterModelDeployerTest, TestIsInDeviceList) {
   std::set<DeployPlan::DeviceInfo> device_info_proxy;
   device_info_proxy.emplace(DeployPlan::DeviceInfo(CPU, 0, 0, 1));
   ASSERT_EQ(model_deployer.abnormal_status_handler_.IsInDeviceList(device_info_proxy, device_state_list), false);
-  ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
-}
-
-TEST_F(MasterModelDeployerTest, TestFindAbnormalDevice) {
-  DeployerProxy::GetInstance().Finalize();
-  ResourceManager::GetInstance().Finalize();
-  MasterModelDeployer model_deployer;
-  HeterogeneousStubEnv::LoadHostConfig("empty_device/host");
-  ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  DeployPlan::DeviceStateList device_state_list;
-  DeployerConfig information_new;
-  DeployerConfig information_old;
-  information_old.node_config.ipaddr = "127.0.0.2";
-  NodeConfig node_config1;
-  node_config1.node_id = 0;
-  node_config1.ipaddr = "127.0.0.3";
-  node_config1.node_mesh_index = {0, 0, 1};
-  NodeConfig node_config2;
-  node_config2.node_id = 0;
-  node_config2.ipaddr = "127.0.0.4";
-  node_config2.node_mesh_index = {0, 0, 2};
-  NodeConfig node_config3;
-  node_config3.node_id = 0;
-  node_config3.ipaddr = "127.0.0.5";
-  node_config3.node_mesh_index = {0, 0, 3};
-  information_new.remote_node_config_list.push_back(node_config1);
-  information_new.remote_node_config_list.push_back(node_config2);
-  information_old.remote_node_config_list.push_back(node_config1);
-  information_old.remote_node_config_list.push_back(node_config2);
-  information_old.remote_node_config_list.push_back(node_config3);
-  ASSERT_EQ(model_deployer.abnormal_status_handler_.FindAbnormalDevice(device_state_list,
-      information_new, information_old), SUCCESS);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 

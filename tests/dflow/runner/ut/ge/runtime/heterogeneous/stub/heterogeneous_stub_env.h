@@ -136,16 +136,9 @@ class MockPneExecutorClient : public BuiltinExecutorClient {
 
 class HeterogeneousStubEnv {
  public:
-  void SetupDefaultEnv();
   static void ClearEnv();
-  static void LoadHostConfig(const std::string &path);
-  void SetupAIServerEnv();
+  static void SetupAIServerEnv();
   static void LoadAIServerHostConfig(const string &path);
-
- private:
-  std::vector<DeviceInfo> device_info_list_;
-  HcomRank hcom_rank_0_;
-  HcomRank hcom_rank_1_;
 };
 }  // namespace ge
 

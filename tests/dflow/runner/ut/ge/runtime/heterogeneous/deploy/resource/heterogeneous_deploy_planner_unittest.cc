@@ -31,17 +31,6 @@
 using namespace std;
 
 namespace ge {
-namespace {
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    std::cout << "rtGetIsHeterogenous stub, heterogeneous = 1." << std::endl;
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-}  // namespace
-
 class HeterogeneousDeployPlannerTest : public testing::Test {
  protected:
   void SetUp() override {
@@ -369,7 +358,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanInputsFusion) {
   std::map<std::string, std::string> options;
   options.insert(std::pair<std::string, std::string>(OPTION_EXEC_ENABLE_FUSION, "true"));
   ge::GetThreadLocalContext().SetGraphOption(options);
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
 
   DeployPlan deploy_plan;
   std::vector<GeRootModelPtr> models;

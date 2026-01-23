@@ -30,16 +30,6 @@
 #include "common/share_graph.h"
 
 namespace ge {
-namespace {
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-}  // namespace
-
 class CreateSubgraphWithScopePassTest : public testing::Test {
  public:
   NodePtr MakeNode(const ComputeGraphPtr &graph, int in_num, int out_num, string name, string type,
@@ -302,13 +292,12 @@ TEST_F(CreateSubgraphWithScopePassTest, base_dynamic_dims_graph_success) {
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test_graph");
 
   CreateDynamicDimsGraph(graph);
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
-
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   auto add0 = graph->FindNode("add0");
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_SHAPE, "0:-1;1:-1");
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_DIMS, "1,1;10,10;20,20");
   EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(CreateSubgraphWithScopePassTest, one_data_two_output_success) {
@@ -335,13 +324,13 @@ TEST_F(CreateSubgraphWithScopePassTest, one_data_two_output_success) {
     GraphUtils::AddEdge(data0->GetOutDataAnchor(0), add0->GetInDataAnchor(0));
     GraphUtils::AddEdge(data0->GetOutDataAnchor(0), add0->GetInDataAnchor(1));
     GraphUtils::AddEdge(add0->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
-    RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+    setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
 
     add0 = graph->FindNode("add0");
     AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_SHAPE, "0:-1;1:-1");
     AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_DIMS, "1,1;10,10;20,20");
     EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
-    RuntimeStub::Reset();
+    unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(CreateSubgraphWithScopePassTest, output_with_ctrl_edge_success) {
@@ -370,13 +359,13 @@ TEST_F(CreateSubgraphWithScopePassTest, output_with_ctrl_edge_success) {
   GraphUtils::AddEdge(data0->GetOutDataAnchor(0), add0->GetInDataAnchor(1));
   GraphUtils::AddEdge(add0->GetOutDataAnchor(0), netoutput->GetInDataAnchor(0));
   GraphUtils::AddEdge(add0->GetOutControlAnchor(), netoutput->GetInControlAnchor());
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
 
   add0 = graph->FindNode("add0");
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_SHAPE, "0:-1;1:-1");
   AttrUtils::SetStr(add0->GetOpDesc(), ATTR_NAME_SUBGRAPH_MULTI_DIMS_INPUT_DIMS, "1,1;10,10;20,20");
   EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(CreateSubgraphWithScopePassTest, global_graph_trans_to_subgraph) {
@@ -388,8 +377,8 @@ TEST_F(CreateSubgraphWithScopePassTest, global_graph_trans_to_subgraph) {
   auto graph = gert::ShareGraph::IFASingleGraph();
   PassManager pass_manager;
   pass_manager.AddPass("CreateSubGraphWithScopePass", new (std::nothrow) CreateSubGraphWithScopePass);
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
   EXPECT_EQ(pass_manager.Run(graph), SUCCESS);
-  RuntimeStub::Reset();
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 }  // namespace ge

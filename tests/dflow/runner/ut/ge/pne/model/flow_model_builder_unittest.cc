@@ -152,14 +152,6 @@ class MockNpuEngineImpl : public ProcessNodeEngineImpl {
   }
 };
 
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-
 Status InitializeHeterogeneousRuntime(const std::map<std::string, std::string> &options) {
   return SUCCESS;
 }

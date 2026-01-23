@@ -47,13 +47,6 @@ using namespace ge;
 using namespace std;
 
 namespace {
-class RuntimeMock : public RuntimeStub {
- public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
 enum ProfCommandHandleType {
     kProfCommandhandleInit = 0,
     kProfCommandhandleStart,
@@ -514,22 +507,6 @@ TEST_F(UtestGeProfilingManager, HandleCtrlSetStepInfo_ReportOk) {
   uint32_t prof_type = PROF_CTRL_STEPINFO;
   Status ret = ProfCtrlHandle(prof_type, &info, sizeof(info));
   EXPECT_EQ(ret, ge::SUCCESS);
-}
-
-TEST_F(UtestGeProfilingManager, HandleHelperCtrlSetStepInfo_ReportOk) {
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
-  uint32_t prof_type = RT_PROF_CTRL_SWITCH;
-  MsprofCommandHandle prof_data;
-  prof_data.profSwitch = 0;
-  prof_data.modelId = 1;
-  prof_data.type = 0;
-  domi::GetContext().train_flag = true;
-  ProfilingProperties::Instance().SetProfilingLoadOfflineFlag(false);
-  auto prof_ptr = std::make_shared<MsprofCommandHandle>(prof_data);
-  Status ret = ProfCtrlHandle(prof_type, static_cast<void *>(prof_ptr.get()), sizeof(prof_data));
-  EXPECT_EQ(ret, ge::SUCCESS);
-  RuntimeStub::Reset();
-  ProfilingProperties::Instance().ClearProperties();
 }
 
 TEST_F(UtestGeProfilingManager, StartProfilingWithDeviceNum_Ok) {

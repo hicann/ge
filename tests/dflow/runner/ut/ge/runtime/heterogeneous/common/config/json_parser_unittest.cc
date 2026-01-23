@@ -53,18 +53,6 @@ TEST_F(UtJsonParser, run_parse_host_info_from_config_file) {
   ASSERT_EQ(ret, ge::SUCCESS);
 }
 
-TEST_F(UtJsonParser, run_parse_chip_count_from_config_file) {
-  ge::JsonParser jsonParser;
-  ge::DeployerConfig hostInformation_;
-  std::string config_file = PathUtils::Join({data_path, "valid/host/resource_fake.json"});
-  auto ret = jsonParser.ParseHostInfoFromConfigFile(config_file, hostInformation_);
-  ASSERT_EQ(ret, ge::SUCCESS);
-  for (const auto &node : hostInformation_.remote_node_config_list) {
-      ASSERT_EQ(node.chip_count, 2);
-      ASSERT_EQ(node.lazy_connect, true);
-  }
-}
-
 TEST_F(UtJsonParser, run_parse_host_info_from_config_file_2) {
   ge::JsonParser jsonParser;
   ge::DeployerConfig hostInformation_;

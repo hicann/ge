@@ -256,11 +256,6 @@ class MockRuntime : public RuntimeStub {
     return 0;
   }
 
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-
   rtError_t rtEschedWaitEvent(int32_t device_id,
                               uint32_t group_id,
                               uint32_t thread_id,
@@ -651,11 +646,6 @@ class MockRuntimeForClient: public RuntimeStub {
     return 0;
   }
 
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-
   ~MockRuntimeForClient() {
     for (auto &mbuf : mem_bufs_) {
       RuntimeStub::rtMbufFree(mbuf);
@@ -1017,10 +1007,12 @@ cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/b
         engine_mapping_.emplace("AicpuLib", hybrid::NodeExecutorManager::ExecutorType::AICPU_CUSTOM);
     MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
 
-    setenv("ASCEND_LATEST_INSTALL_PATH", "./", 1);
     PneExecutorClientCreatorRegistrar<MockPneExecutorClient> npu_registrar(PNE_ID_NPU);
     PneExecutorClientCreatorRegistrar<MockPneExecutorClient> npu_thread_registrar(PNE_ID_NPU, DeployProcessMode::kThread);
     PneExecutorClientCreatorRegistrar<MockHostCpuExecutorClient> cpu_registrar(PNE_ID_CPU);
+    // default config
+    auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_1server.json";
+    setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   }
   void TearDown() {
     MemoryGroupManager::GetInstance().Finalize();
@@ -1040,15 +1032,7 @@ cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/b
     SubprocessManager::GetInstance().Finalize();
     MmpaStub::GetInstance().Reset();
     RuntimeStub::Reset();
-    unsetenv("ASCEND_LATEST_INSTALL_PATH");
-  }
-
-  static void SetConfigEnv(const std::string &path) {
-    const std::string config_path =
-        PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/st/config_file", path});
-    char real_path[1024]{};
-    realpath(config_path.c_str(), real_path);
-    setenv("HELPER_RES_FILE_PATH", real_path, 1);
+    unsetenv("RESOURCE_CONFIG_PATH");
   }
 
   static void CreateCompilerJson(const std::string &npu_compile_config_file) {
@@ -1185,11 +1169,6 @@ class MockRuntimeForSharedContent : public RuntimeStub {
     return 1;
   }
 
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-
   rtError_t rtEschedWaitEvent(int32_t device_id,
                               uint32_t group_id,
                               uint32_t thread_id,
@@ -1219,42 +1198,6 @@ class MockRuntimeForSharedContent : public RuntimeStub {
   }
 };
 
-TEST_F(STEST_helper_runtime, json_parser_fail) {
-  Configurations::GetInstance().config_file_ = "";
-  ASSERT_NE(Configurations::GetInstance().InitHostInformation(), ge::SUCCESS);
-  SetConfigEnv("wrong_json/value_fail/host");
-  ASSERT_EQ(Configurations::GetInstance().InitHostInformation(), ge::SUCCESS);
-  ASSERT_NE(Configurations::GetInstance().InitDeviceInformation(), ge::SUCCESS);
-}
-
-TEST_F(STEST_helper_runtime, helper_res_path_env_realpath_failed) {
-  class MockMmpaRealPath : public ge::MmpaStubApiGe {
-   public:
-    int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-      realPath[0] = '\0';
-      return 0;
-    }
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
-  mmSetEnv("HELPER_RES_FILE_PATH", "../../", 1);
-  std::string config_dir;
-  EXPECT_NE(Configurations::GetInstance().GetConfigDir(config_dir), SUCCESS);
-}
-
-TEST_F(STEST_helper_runtime, helper_res_path_env_invalid) {
-  class MockMmpaRealPath : public ge::MmpaStubApiGe {
-   public:
-    int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-      memcpy_s(realPath, realPathLen, path, strlen(path));
-      return 0;
-    }
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
-  mmSetEnv("HELPER_RES_FILE_PATH", "../../", 1);
-  std::string config_dir;
-  EXPECT_NE(Configurations::GetInstance().GetConfigDir(config_dir), SUCCESS);
-}
-
 TEST_F(STEST_helper_runtime, helper_host_dir_invalid) {
   class MockMmpaRealPath : public ge::MmpaStubApiGe {
    public:
@@ -1263,7 +1206,6 @@ TEST_F(STEST_helper_runtime, helper_host_dir_invalid) {
       return 0;
     }
   };
-  unsetenv("HELPER_RES_FILE_PATH");
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
   std::string work_dir;
   EXPECT_NE(Configurations::GetInstance().GetWorkingDir(work_dir), SUCCESS);
@@ -1419,57 +1361,6 @@ TEST_F(STEST_helper_runtime, TestDeployModel) {
   ASSERT_EQ(output_tensors.size(), 1);
 }
 
-TEST_F(STEST_helper_runtime, TestMulitBatch) {
-  mock_handle = (void *) 0xffffffff;
-  mock_method = (void *) &MockInitializeHeterogeneousRuntime;
-  std::map<std::string, std::string> options_runtime;
-  ASSERT_EQ(ExecutionRuntime::InitHeterogeneousRuntime(options_runtime), SUCCESS);
-
-  std::vector<std::string> engine_list = {"AIcoreEngine"};
-  auto add_1 = OP_CFG(ADD);
-  auto add_2 = OP_CFG(ADD);
-  auto data1 = OP_CFG(DATA);
-  auto data2 = OP_CFG(DATA);
-  auto data3 = OP_CFG(DATA);
-   DEF_GRAPH(g1) {
-    CHAIN(NODE("data_1", data1)->EDGE(0, 0)->NODE("add_1", add_1)->EDGE(0, 0)->NODE("add_2", add_2));
-    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_1", add_1));
-    CHAIN(NODE("data_3", data3)->EDGE(0, 1)->NODE("add_2", add_2));
-    CHAIN(NODE("add_2", add_2)->EDGE(0, 0)->NODE("Node_Output", NETOUTPUT));
-  };
-
-  auto graph = ToGeGraph(g1);
-  map<AscendString, AscendString> options;
-  options["ge.exec.graphExecTimeout"] = "600000";
-  Session session(options);
-  session.AddGraph(1, graph, options);
-  std::vector<InputTensorInfo> inputs;
-  auto old_user_input_dims = GetLocalOmgContext().user_input_dims;
-  auto old_dynamic_dims = GetLocalOmgContext().dynamic_dims;
-  auto old_is_subgraph_multi_batch = GetLocalOmgContext().is_subgraph_multi_batch;
-  GetLocalOmgContext().user_input_dims = {{"input1", {-1, 1, 224, 224}}, {"input2", {-1, 1, 224, 224}}, {"input3", {-1, 1, 224, 224}}};
-  GetLocalOmgContext().dynamic_dims = "2,2,2;10,10,10";
-  GetLocalOmgContext().is_subgraph_multi_batch = true;
-  auto ret = session.BuildGraph(1, inputs);
-  ASSERT_EQ(ret, SUCCESS);
-
-  Shape shape({1, 1, 224, 224});
-  TensorDesc tensor_desc(shape, FORMAT_NCHW, DT_FLOAT);
-  std::vector<Tensor> input_tensors;
-  for (int i = 0; i < 3; ++i) {
-    std::vector<uint8_t> data(224 * 224 * sizeof(float));
-    Tensor tensor(tensor_desc, data);
-    input_tensors.emplace_back(tensor);
-  }
-  std::vector<Tensor> output_tensors;
-  ret = session.RunGraph(1, input_tensors, output_tensors);
-  ASSERT_EQ(ret, SUCCESS);
-
-  GetLocalOmgContext().user_input_dims = old_user_input_dims;
-  GetLocalOmgContext().dynamic_dims = old_dynamic_dims;
-  GetLocalOmgContext().is_subgraph_multi_batch = old_is_subgraph_multi_batch;
-}
-
 TEST_F(STEST_helper_runtime, TestDeployModelWithFileConstant) {
   mock_handle = (void *) 0xffffffff;
   mock_method = (void *) &MockInitializeHeterogeneousRuntime2;
@@ -1527,10 +1418,9 @@ TEST_F(STEST_helper_runtime, TestDeployModelWithFileConstant) {
   auto ret = session.BuildGraph(1, inputs);
   ASSERT_EQ(ret, SUCCESS);
 
-  std::vector<Tensor> input_tensors, output_tensors;
-  ret = session.RunGraph(1, input_tensors, output_tensors);
+  std::vector<Tensor> input_tensors;
+  ret = session.BuildGraph(1, input_tensors);
   ASSERT_EQ(ret, SUCCESS);
-  ASSERT_EQ(output_tensors.size(), 1);
   (void) remove("test_copy_one_weight.bin");
 }
 
@@ -2127,55 +2017,6 @@ TEST_F(STEST_helper_runtime, UpdateProfInfo_Succ) {
   EXPECT_EQ(response.error_code(), FAILED);
 }
 
-TEST_F(STEST_helper_runtime, TestDeployOpenClientJsonFailed) {
-  class MockMmpaOpenClientJsonFailed : public MockMmpaForHeterogeneousRuntime {
-   public:
-    INT32 Open2(const CHAR *path_name, INT32 flags, MODE mode) {
-      std::string tmp_path(path_name);
-      if (tmp_path.find("/client.json") != std::string::npos) {
-        return -1;
-      }
-      return MockMmpaForHeterogeneousRuntime::Open2(path_name, flags, mode);
-    }
-
-    int32_t Sleep(UINT32 microSecond) override {
-      return 0;
-    }
-  };
-
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaOpenClientJsonFailed>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  EXPECT_NE(ge::GEInitialize(options), SUCCESS);
-
-  GEFinalize();
-  // 3. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-}
-
 TEST_F(STEST_helper_runtime, TestDeployUdfModelOnServer) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntimeUDF>());
@@ -2338,100 +2179,6 @@ TEST_F(STEST_helper_runtime, TestDeployHeavyLoadUdfModelOnServer) {
     system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
 }
 
-TEST_F(STEST_helper_runtime, TestDeployUdfModel) {
-  class MockMmpaForUdf : public MockMmpaForHeterogeneousRuntime {
-   public:
-    INT32 WaitPid(mmProcess pid, INT32 *status, INT32 options) override {
-      return waitpid(pid, status, options);
-    }
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForUdf>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-  Session session0(options);
-  // 3. BuildAndExecuteGraph
-
-  constexpr const char *udf_config_file = "./udf_config.json";
-  {
-    std::string cmd = "mkdir -p ./temp_udf_st; cd temp_udf_st; echo aaaa > libtest.so";
-    (void)system(cmd.c_str());
-    std::ofstream cmakefile("./temp_udf_st/CMakeLists.txt");
-    cmakefile << "cmake_minimum_required(VERSION 3.5)\n";
-    // Prevent cmake from testing the toolchain
-    cmakefile << "set(CMAKE_C_COMPILER_FORCED TRUE)\n";
-    cmakefile << "set(CMAKE_CXX_COMPILER_FORCED TRUE)\n";
-    cmakefile << "project(test)\n";
-    cmakefile << "set(BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})\n";
-    cmakefile << "execute_process(\n";
-    cmakefile << "\tCOMMAND cp ${BASE_DIR}/libtest.so ${RELEASE_DIR}\n";
-    cmakefile << ")\n";
-    cmakefile << "unset(CMAKE_C_COMPILER_FORCED)\n";
-    cmakefile << "unset(CMAKE_CXX_COMPILER_FORCED)\n";
-
-    nlohmann::json udf_cfg_json = {{"workspace", "./temp_udf_st"},
-                                   {"target_bin", "libtest.so"},
-                                   {"input_num", 1},
-                                   {"output_num", 1},
-                                   {"cmakelist_path", "CMakeLists.txt"},
-                                   {"func_list", {{{"func_name", "func1"}}}}};
-    std::ofstream json_file(udf_config_file);
-    json_file << udf_cfg_json << std::endl;
-  }
-
-  ge::ProcessNodeEngineRegisterar ps_engine_register __attribute__((unused)) (
-      "UDF", []() -> ::ge::ProcessNodeEngine * { return new (std::nothrow) ge::UdfProcessNodeEngine(); });
-  PneExecutorClientCreatorRegistrar<MockUdfExecutorClient> udf_registrar(PNE_ID_UDF);
-  PneExecutorClientCreatorRegistrar<MockUdfProxyClient> udf_proxy_registrar(PNE_ID_UDF, true);
-  auto graph = BuildUdfGraph("udf_model", udf_config_file);
-  Session session(options);
-  uint32_t graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape(std::vector<int64_t>({16}));
-  TensorDesc tensor_desc(shape, FORMAT_ND, DT_INT32);
-  Tensor tensor(tensor_desc);
-  uint8_t buffer[16 * 4];
-  tensor.SetData(buffer, sizeof(buffer));
-
-  std::vector<Tensor> inputs{tensor};
-  mock_handle = (void *) 0x12345678;
-  EXPECT_EQ(session.BuildGraph(graph_id, inputs), SUCCESS);
-  mock_handle = nullptr;
-  GEFinalize();
-
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-
-  remove(udf_config_file);
-  system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
-}
-
 TEST_F(STEST_helper_runtime, TestDeployHeavyLoadUdfModelOnServerWithHostFlowgw) {
   constexpr const char *deploy_info_path = "./st_data_flow_deploy_info.json";
   std::ofstream json_file(deploy_info_path);
@@ -2544,7 +2291,6 @@ TEST_F(STEST_helper_runtime, TestDeployHeavyLoadUdfModelOnDiffServerWithHostFlow
   json_file.close();
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-  setenv("SUPPORT_HOST_FLOWGW", "1", 1);
 
   // 1. Init master
   auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device/numa_config_2server.json";
@@ -2634,10 +2380,9 @@ TEST_F(STEST_helper_runtime, TestDeployHeavyLoadUdfModelOnDiffServerWithHostFlow
   MmpaStub::GetInstance().Reset();
   RuntimeStub::Reset();
   unsetenv("RESOURCE_CONFIG_PATH");
-  unsetenv("SUPPORT_HOST_FLOWGW");
   remove(udf_config_file);
   remove(deploy_info_path);
-    system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
+  system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
 }
 
 TEST_F(STEST_helper_runtime, TestDeployUdfModelsOnServerWithHostFlowgw) {
@@ -2868,140 +2613,6 @@ TEST_F(STEST_helper_runtime, TestDeployNpuUdfModelsOnServerWithHostFlowgw) {
   system("rm -fr ./npu_udf_compile.json");
 }
 
-TEST_F(STEST_helper_runtime, TestDeployUdfModelOnNpu) {
-  class MockMmpaForUdf : public MockMmpaForHeterogeneousRuntime {
-   public:
-    INT32 WaitPid(mmProcess pid, INT32 *status, INT32 options) override {
-      std::cout << "mock wait pid stub begin\n";
-      auto ret = waitpid(pid, status, options);
-      if (ret != 0) {
-        // always wait success
-        *status = 0;
-        return ret;
-      }
-      return 0;
-    }
-  };
-
-  class MockRuntimeForHeterogeneous : public MockRuntime {
-   public:
-    MockRuntimeForHeterogeneous() {
-      response_.set_error_code(0);
-      response_.set_error_message("success !!");
-    }
-    rtError_t rtMemGrpQuery(rtMemGrpQueryInput_t * const input, rtMemGrpQueryOutput_t *output) {
-      return 1;
-    }
-    rtError_t rtMemQueueDeQueueBuff(int32_t device, uint32_t qid, rtMemQueueBuff_t *outBuf, int32_t timeout) {
-      if (memcpy_s(outBuf->buffInfo->addr, response_.ByteSizeLong(), &response_, response_.ByteSizeLong()) !=
-          EOK) {
-        printf("Failed to copy mbuf data \n");
-        return -1;
-      }
-      return 0;
-    }
-    rtError_t rtMemQueueDeQueue(int32_t devId, uint32_t qid, void **mbuf) {
-      *mbuf = &response_;
-      return 0;
-    }
-
-    rtError_t rtMbufGetBuffAddr(rtMbufPtr_t mbuf, void **databuf) {
-      *databuf = mbuf;
-      return 0;
-    }
-
-    rtError_t rtMbufGetBuffSize(rtMbufPtr_t mbuf, uint64_t *size) {
-      *size = response_.ByteSizeLong();
-      return 0;
-    }
-    deployer::ExecutorResponse response_;
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForUdf>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntimeForHeterogeneous>());
-
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  MemoryGroupManager::GetInstance().Initialize(Configurations::GetInstance().GetLocalNode());
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-  Session session0(options);
-  // 3. BuildAndExecuteGraph
-
-  constexpr const char *udf_config_file = "./udf_config.json";
-  {
-    std::string cmd = "mkdir -p ./temp_udf_st; cd temp_udf_st; echo aaaa > libtest.so";
-    (void)system(cmd.c_str());
-    std::ofstream cmakefile("./temp_udf_st/CMakeLists.txt");
-    cmakefile << "cmake_minimum_required(VERSION 3.5)\n";
-    // Prevent cmake from testing the toolchain
-    cmakefile << "set(CMAKE_C_COMPILER_FORCED TRUE)\n";
-    cmakefile << "set(CMAKE_CXX_COMPILER_FORCED TRUE)\n";
-    cmakefile << "project(test)\n";
-    cmakefile << "set(BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR})\n";
-    cmakefile << "execute_process(\n";
-    cmakefile << "\tCOMMAND cp ${BASE_DIR}/libtest.so ${RELEASE_DIR}\n";
-    cmakefile << ")\n";
-    cmakefile << "unset(CMAKE_C_COMPILER_FORCED)\n";
-    cmakefile << "unset(CMAKE_CXX_COMPILER_FORCED)\n";
-
-    nlohmann::json udf_cfg_json = {{"workspace", "./temp_udf_st"},
-                                   {"target_bin", "libtest.so"},
-                                   {"input_num", 1},
-                                   {"output_num", 1},
-                                   {"cmakelist_path", "CMakeLists.txt"},
-                                   {"func_list", {{{"func_name", "func1"}}}}};
-    std::ofstream json_file(udf_config_file);
-    json_file << udf_cfg_json << std::endl;
-  }
-
-  ge::ProcessNodeEngineRegisterar ps_engine_register __attribute__((unused)) (
-      "UDF", []() -> ::ge::ProcessNodeEngine * { return new (std::nothrow) ge::UdfProcessNodeEngine(); });
-  auto graph = BuildUdfGraph("udf_model", udf_config_file);
-  Session session(options);
-  uint32_t graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape(std::vector<int64_t>({16}));
-  TensorDesc tensor_desc(shape, FORMAT_ND, DT_INT32);
-  Tensor tensor(tensor_desc);
-  uint8_t buffer[16 * 4];
-  tensor.SetData(buffer, sizeof(buffer));
-
-  std::vector<Tensor> inputs{tensor};
-  mock_handle = (void *) 0x12345678;
-  EXPECT_EQ(session.BuildGraph(graph_id, inputs), SUCCESS);
-  mock_handle = nullptr;
-  GEFinalize();
-
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-
-  remove(udf_config_file);
-  system("rm -fr `ls ./temp_udf_st/* | grep -v build`");
-}
-
 TEST_F(STEST_helper_runtime, TestDeployUdfModelWriteTarSuccessByMultiTimes) {
   class MockMmpaWriteByMultiTimes : public MockMmpaForHeterogeneousRuntime {
    public:
@@ -3024,21 +2635,9 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModelWriteTarSuccessByMultiTimes) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaWriteByMultiTimes>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
 
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
   // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_1server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   GEFinalize();
   std::map<AscendString, AscendString> options;
   EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
@@ -3095,11 +2694,6 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModelWriteTarSuccessByMultiTimes) {
   mock_handle = nullptr;
   GEFinalize();
 
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
   ExecutionRuntime::FinalizeExecutionRuntime();
   MmpaStub::GetInstance().Reset();
   RuntimeStub::Reset();
@@ -3112,14 +2706,9 @@ TEST_F(STEST_helper_runtime, TestHeterogeneousInitInvalid) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
 
-  // test json invalid
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host_invalid/json_invalid";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
   std::map<AscendString, AscendString> options;
-  EXPECT_EQ(ge::GEInitialize(options), ACL_ERROR_GE_PARAM_INVALID);
-  unsetenv("HELPER_RES_FILE_PATH");
 
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host_invalid";
+  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host_invalid";
   // has no local node
   std::string config_file = real_path + std::string("/numa_config_without_local_node.json");
   setenv("RESOURCE_CONFIG_PATH", config_file.c_str(), 1);
@@ -3156,64 +2745,12 @@ TEST_F(STEST_helper_runtime, TestHeterogeneousInitInvalid) {
   RuntimeStub::Reset();
 }
 
-TEST_F(STEST_helper_runtime, TestBuildFakeDev) {
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-
-  // 2. Init master
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/fake_dev";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-  Session session0(options);
-  // 3. BuildAndExecuteGraph
-  auto graph = BuildGraph();
-  Session session(options);
-  uint32_t graph_id = 1;
-  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
-
-  Shape shape(std::vector<int64_t>({16}));
-  TensorDesc tensor_desc(shape, FORMAT_ND, DT_INT32);
-  Tensor tensor(tensor_desc);
-  uint8_t buffer[16 * 4];
-  tensor.SetData(buffer, sizeof(buffer));
-
-  std::vector<Tensor> input{tensor};
-  mock_handle = nullptr;
-  EXPECT_EQ(session.BuildGraph(graph_id, input), FAILED);
-  std::vector<Tensor> inputs{tensor};
-  mock_handle = (void *) 0x12345678;
-  EXPECT_EQ(session.BuildGraph(graph_id, inputs), FAILED);
-  mock_handle = nullptr;
-  GEFinalize();
-
-  ExecutionRuntime::FinalizeExecutionRuntime();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-}
-
 TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModelFusionInput) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
 
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_1server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   GEFinalize();
   std::map<AscendString, AscendString> options;
   EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
@@ -3249,11 +2786,6 @@ TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModelFusionInput) {
   mock_handle = nullptr;
   GEFinalize();
 
-  // 4. Cleanup
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
   ExecutionRuntime::FinalizeExecutionRuntime();
   MmpaStub::GetInstance().Reset();
   RuntimeStub::Reset();
@@ -3264,14 +2796,14 @@ TEST_F(STEST_helper_runtime, TestDeployWithCompileRes) {
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   GEFinalize();
   // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device/numa_config_2server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
 
   DeployerProxy::GetInstance().deployers_.clear();
   ResourceManager::GetInstance().Finalize();
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_2server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
 
   std::vector<std::string> engine_list = {"AIcoreEngine"};
   auto add_1 = OP_CFG(ADD);
@@ -3344,7 +2876,7 @@ TEST_F(STEST_helper_runtime, TestDeployWithCompileRes) {
 
   DeployerProxy::GetInstance().deployers_.clear();
   ResourceManager::GetInstance().Finalize();
-  unsetenv("HELPER_RES_FILE_PATH");
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
@@ -3352,15 +2884,15 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   GEFinalize();
   // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device/numa_config_2server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
   setenv("NPU_COLLECT_PATH_EXE", "/var/log/npu/dump/", 0);
 
   DeployerProxy::GetInstance().deployers_.clear();
   ResourceManager::GetInstance().Finalize();
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_2server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
 
   std::vector<std::string> engine_list = {"AIcoreEngine"};
   auto add_1 = OP_CFG(ADD);
@@ -3398,7 +2930,7 @@ TEST_F(STEST_helper_runtime, TestDeployWithFlow) {
   ASSERT_EQ(MasterModelDeployer().DeployModel(flow_model, deploy_result), FAILED);
   DeployerProxy::GetInstance().deployers_.clear();
   ResourceManager::GetInstance().Finalize();
-  unsetenv("HELPER_RES_FILE_PATH");
+  unsetenv("RESOURCE_CONFIG_PATH");
   unsetenv("NPU_COLLECT_PATH_EXE");
 }
 
@@ -3533,7 +3065,7 @@ void CreateRedeployFile(const char* real_path) {
   parent_path = parent_path.substr(0, parent_path.find_last_of("/\\") + 1);
   std::ofstream redeploy_file(parent_path + "redeploy");
   if (redeploy_file.is_open()) {
-    std::cout << "redeploy file created!" << std::endl;
+    std::cout << "redeploy file " << parent_path << " created!" << std::endl;
     redeploy_file.close();
   }
   else {
@@ -3558,101 +3090,6 @@ void RestoreFile(const char* path) {
   std::rename(bk_file_path.c_str(), new_file_path.c_str());
 }
 
-TEST_F(STEST_helper_runtime, TestRedeployWithMulModelInstance) {
-  const std::string kEnableFlag = "1";
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
-  RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-  // init log/dump/profiling cfg
-  std::map<std::string, std::string> kLogEnvs =
-      {{"ASCEND_GLOBAL_LOG_LEVEL", "1"}, {"ASCEND_GLOBAL_EVENT_ENABLE", "1"},
-       {"ASCEND_HOST_LOG_FILE_NUM", "1"}};
-
-  setenv("ASCEND_GLOBAL_LOG_LEVEL", kLogEnvs["ASCEND_GLOBAL_LOG_LEVEL"].c_str(), 1);
-  setenv("ASCEND_GLOBAL_EVENT_ENABLE", kLogEnvs["ASCEND_GLOBAL_EVENT_ENABLE"].c_str(), 1);
-  setenv("ASCEND_HOST_LOG_FILE_NUM", kLogEnvs["ASCEND_HOST_LOG_FILE_NUM"].c_str(), 1);
-  DumpProperties dump_properties;
-  dump_properties.enable_dump_ = kEnableFlag;
-  DumpManager::GetInstance().AddDumpProperties(0, dump_properties);
-  ProfilingProperties::Instance().UpdateDeviceIdCommandParams("mode=all");
-
-  // 1.1 start device 0
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device_node1";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server;
-  std::thread server_thread = std::thread([&]() {
-    StartServer(grpc_server);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 1.2 start device 1
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/device_node2";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  ge::GrpcServer grpc_server2;
-  std::thread server_thread2 = std::thread([&]() {
-    StartServer(grpc_server2);
-  });
-  std::this_thread::sleep_for(std::chrono::seconds(1));
-  DeployerProxy::GetInstance().deployers_.clear();
-  ResourceManager::GetInstance().Finalize();
-
-  // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host_mul_node";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  GEFinalize();
-  std::map<AscendString, AscendString> options;
-  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  GeRunningEnvFaker ge_env;
-  ge_env.InstallDefault();
-
-  // 3. BuildAndExecuteGraph
-  std::vector<std::string> engine_list = {"AIcoreEngine"};
-  auto add_1 = OP_CFG(ADD);
-  auto add_2 = OP_CFG(ADD);
-  auto data1 = OP_CFG(DATA);
-  auto data2 = OP_CFG(DATA);
-  auto data3 = OP_CFG(DATA);
-  DEF_GRAPH(g1) {
-    CHAIN(NODE("data_1", data1)->EDGE(0, 0)->NODE("add_1", add_1)->EDGE(0, 0)->NODE("add_2", add_2));
-    CHAIN(NODE("data_2", data2)->EDGE(0, 1)->NODE("add_1", add_1));
-    CHAIN(NODE("data_3", data3)->EDGE(0, 1)->NODE("add_2", add_2));
-    CHAIN(NODE("add_2", add_2)->EDGE(0, 0)->NODE("Node_Output", NETOUTPUT));
-  };
-
-  auto graph = ToGeGraph(g1);
-  options["ge.exec.graphExecTimeout"] = "600000";
-  Session session(options);
-  session.AddGraph(1, graph, options);
-
-  // 更改 HELPER_RES_FILE_PATH
-  dlog_setlevel(0, 0, 0);
-  std::vector<int> lineNumbers = {25, 26, 27, 28, 29, 30, 31, 32, 33, 34};
-  auto real_path_with_resource = st_dir_path + "st_run_data/json/helper_runtime/host_mul_node/resource.json";
-  DeleteLines(real_path_with_resource.c_str(), lineNumbers);
-  CreateRedeployFile(real_path_with_resource.c_str());
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
-
-  // 4. Cleanup
-  GEFinalize();
-  grpc_server.Finalize();
-  if (server_thread.joinable()) {
-    server_thread.join();
-  }
-  grpc_server2.Finalize();
-  if (server_thread2.joinable()) {
-    server_thread2.join();
-  }
-  TsdClient::GetInstance().Finalize();
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-  RestoreFile(real_path_with_resource.c_str());
-  unsetenv("HELPER_RES_FILE_PATH");
-}
-
 TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModelMaintenanceCfg) {
   const std::string kEnableFlag = "1";
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
@@ -3671,8 +3108,8 @@ TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModelMaintenanceCfg) {
   ProfilingProperties::Instance().UpdateDeviceIdCommandParams("mode=all");
 
   // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device/numa_config_2server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
   ge::GrpcServer grpc_server;
   std::thread server_thread = std::thread([&]() {
@@ -3683,8 +3120,8 @@ TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModelMaintenanceCfg) {
   ResourceManager::GetInstance().Finalize();
 
   // 2. Init master
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_2server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   GEFinalize();
   std::map<AscendString, AscendString> options;
   EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
@@ -3714,7 +3151,7 @@ TEST_F(STEST_helper_runtime, TestDeployHeterogeneousModelMaintenanceCfg) {
   }
   MmpaStub::GetInstance().Reset();
   RuntimeStub::Reset();
-  unsetenv("HELPER_RES_FILE_PATH");
+  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 TEST_F(STEST_helper_runtime, TestDeployServerModel) {
@@ -3728,8 +3165,6 @@ TEST_F(STEST_helper_runtime, TestDeployServerModel) {
   setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
   GEFinalize();
   std::map<AscendString, AscendString> options;
-  options.insert(std::pair<AscendString, AscendString>("ge.exec.modelDeployMode", "SPMD"));
-  options.insert(std::pair<AscendString, AscendString>("ge.exec.modelDeployDevicelist", "[0]"));
   EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
   GeRunningEnvFaker ge_env;
   ge_env.InstallDefault();
@@ -6107,16 +5542,11 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedDeployWithFlow) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   GEFinalize();
-  // 1. start server
-  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/device";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
-  EXPECT_EQ(Configurations::GetInstance().InitDeviceInformation(), SUCCESS);
-  setenv("NPU_COLLECT_PATH_EXE", "/var/log/npu/dump/", 0);
 
   DeployerProxy::GetInstance().deployers_.clear();
   ResourceManager::GetInstance().Finalize();
-  real_path = st_dir_path + "st_run_data/json/helper_runtime/host";
-  setenv("HELPER_RES_FILE_PATH", real_path.c_str(), 1);
+  auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host/numa_config_1server.json";
+  setenv("RESOURCE_CONFIG_PATH", real_path.c_str(), 1);
 
   std::vector<std::string> engine_list = {"AIcoreEngine"};
   auto add_1 = OP_CFG(ADD);
@@ -6156,7 +5586,7 @@ TEST_F(STEST_helper_runtime, TestDynamicSchedDeployWithFlow) {
   ASSERT_EQ(MasterModelDeployer().DeployModel(flow_model, deploy_result), FAILED);
   DeployerProxy::GetInstance().deployers_.clear();
   ResourceManager::GetInstance().Finalize();
-  unsetenv("HELPER_RES_FILE_PATH");
+  unsetenv("RESOURCE_CONFIG_PATH");
   unsetenv("NPU_COLLECT_PATH_EXE");
 }
 

@@ -26,8 +26,6 @@ constexpr const char_t *const kRedeployFileName = "redeploy";
 constexpr const char_t *const kRedeployDoneFileName = "redeploy.done";
 constexpr const char_t *const kRedeployErrorFileName = "redeploy.error";
 constexpr const char_t *const kHelperResFilePath = "HELPER_RES_FILE_PATH";
-constexpr const char_t *const kResourceConfigPath = "RESOURCE_CONFIG_PATH";
-constexpr const char_t *const kConfigInstallPathEnv = "ASCEND_LATEST_INSTALL_PATH";
 constexpr size_t kMaxPathLen = 1024UL;
 constexpr int32_t kMaxReadMonitorFileStrLen = 1024;
 constexpr int32_t kFileMonitorInterval = 500;
@@ -591,11 +589,6 @@ Status AbnormalStatusHandler::GetMonitorFilePath(std::string &file_path) {
     if (GetFilePath(path, kHelperResFilePath) == SUCCESS) {
       file_path = path + kConfigFileName;
       GELOGI("AbnormalStatusMonitor, get helper res file path[%s] success",
-          file_path.c_str());
-      return SUCCESS;
-    } else if (GetFilePath(path, kConfigInstallPathEnv) == SUCCESS) {
-      file_path = path + "/conf" + kConfigFileName;
-      GELOGI("AbnormalStatusMonitor, get config install file path[%s] success",
           file_path.c_str());
       return SUCCESS;
     }

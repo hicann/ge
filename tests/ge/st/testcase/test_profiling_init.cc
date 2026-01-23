@@ -25,16 +25,6 @@
 #include "depends/runtime/src/runtime_stub.h"
 
 namespace ge {
-namespace {
-class RuntimeMock : public RuntimeStub {
-public:
-  rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) override {
-    *heterogeneous = 1;
-    return RT_ERROR_NONE;
-  }
-};
-}
-
 class ProfilingInitTest : public testing::Test {
  protected:
   void SetUp() {}
@@ -107,22 +97,6 @@ TEST_F(ProfilingInitTest, HandleCtrlSetStepInfo_ReportOk) {
   uint32_t prof_type = PROF_CTRL_STEPINFO;
   Status ret = ProfCtrlHandle(prof_type, &info, sizeof(info));
   EXPECT_EQ(ret, ge::SUCCESS);
-}
-
-TEST_F(ProfilingInitTest, HandleHelperCtrlSetStepInfo_ReportOk) {
-  RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
-  uint32_t prof_type = RT_PROF_CTRL_SWITCH;
-  MsprofCommandHandle prof_data;
-  prof_data.profSwitch = 0;
-  prof_data.modelId = 1;
-  prof_data.type = 0;
-  domi::GetContext().train_flag = true;
-  ProfilingProperties::Instance().SetProfilingLoadOfflineFlag(false);
-  auto prof_ptr = std::make_shared<MsprofCommandHandle>(prof_data);
-  Status ret = ProfCtrlHandle(prof_type, static_cast<void *>(prof_ptr.get()), sizeof(prof_data));
-  EXPECT_EQ(ret, ge::SUCCESS);
-  RuntimeStub::Reset();
-  ProfilingProperties::Instance().ClearProperties();
 }
 
 TEST_F(ProfilingInitTest, ProfOpDetailProfiling_Ok) {
