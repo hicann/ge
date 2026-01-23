@@ -10,7 +10,12 @@
 #include "es_showcase.h"// es构图方式
 #include "es_Add.h"
 #include "es_Relu.h"
+#include "utils.h"
 #include <memory>
+#include <vector>
+#include <iostream>
+#include "ge/ge_api.h"
+
 using namespace ge;
 using namespace ge::es;
 namespace {
@@ -32,6 +37,44 @@ es::EsTensorHolder MakeReluAddGraph(es::EsTensorHolder input) {
 }
 }
 namespace es_showcase {
+
+int RunGraph(ge::Graph &graph, const std::vector<ge::Tensor> &inputs,
+             const std::string &output_prefix) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  auto *s = new (std::nothrow) ge::Session(options);
+  if (s == nullptr) {
+    std::cout << "Global session not ready" << std::endl;
+    return -1;
+  }
+  static uint32_t next = 0;
+  const uint32_t graph_id = next++;
+  auto ret = s->AddGraph(graph_id, graph);
+  if (ret != ge::SUCCESS) {
+    std::cout << "AddGraph failed" << std::endl;
+    delete s;
+    return -1;
+  }
+  std::cout << "input is :" << std::endl;
+  ge::Utils::PrintTensorsToConsole(inputs);
+  std::vector<ge::Tensor> outputs;
+  ret = s->RunGraph(graph_id, inputs, outputs);
+  if (ret != ge::SUCCESS) {
+    std::cout << "RunGraph failed" << std::endl;
+    (void)s->RemoveGraph(graph_id);
+    delete s;
+    return -1;
+  }
+  (void)s->RemoveGraph(graph_id);
+  ge::Utils::PrintTensorsToFile(outputs, output_prefix);
+  delete s;
+  return 0;
+}
+
+void MakeReluAddGraphByEsAndDump() {
+  std::unique_ptr<ge::Graph> graph = MakeReluAddGraphByEs();
+  graph->DumpToFile(ge::Graph::DumpFormat::kOnnx, ge::AscendString("make_relu_add_graph"));
+}
+
 std::unique_ptr<ge::Graph> MakeReluAddGraphByEs() {
   // 1、创建图构建器
   auto graph_builder = std::make_unique<EsGraphBuilder>("MakeReluAddGraph");
@@ -44,8 +87,18 @@ std::unique_ptr<ge::Graph> MakeReluAddGraphByEs() {
   auto graph = graph_builder->BuildAndReset();
   return graph;
 }
-void MakeReluAddGraphByEsAndDump() {
+
+int MakeReluAddGraphByEsAndRun() {
   std::unique_ptr<ge::Graph> graph = MakeReluAddGraphByEs();
-  graph->DumpToFile(ge::Graph::DumpFormat::kOnnx, ge::AscendString("make_relu_add_graph"));
+  std::vector<ge::Tensor> inputs;
+
+  // 准备输入数据
+  std::vector<float> input_data(2 * 3, 1.0f);
+
+  // 创建输入tensor
+  auto input_tensor = ge::Utils::StubTensor<float>(input_data, {2, 3});
+  inputs.push_back(*input_tensor);
+  return RunGraph(*graph, inputs, "ReluAdd");
 }
-}
+
+}  // namespace es_showcase

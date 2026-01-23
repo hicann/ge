@@ -24,7 +24,7 @@ cpp/
 source /usr/local/Ascend/cann/set_env.sh 
 ```
 ### 3.2、编译和执行
-
+#### 1.2.1 生成 es 接口与构建图进行DUMP
 只需运行下述命令即可完成清理、生成接口、构图和DUMP图：
 ```bash
 bash run_sample.sh
@@ -33,14 +33,38 @@ bash run_sample.sh
 ```
 [Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示
 ```
-执行成功后会在当前目录生成以下文件：
-- `ge_onnx_*.pbtxt` - 图结构的protobuf文本格式，可用netron查看
+**1.2.2 输出文件说明**
 
+执行成功后会在当前目录生成以下文件：
+```bash
+ge_onnx_*.pbtxt - 图结构的protobuf文本格式，可用netron查看
+```
+#### 1.2.3 构建图并执行
+
+基本的图构建和dump功能外，esb_sample支持构建图并实际执行计算。
+
+```bash
+bash run_sample.sh -t sample_and_run
+```
+该命令会：
+1. 自动生成ES接口
+2. 编译sample程序
+3. 生成dump图、运行图并输出计算结果
+
+执行成功后会看到：
+```
+[Success] sample_and_run 执行成功，pbtxt和data输出dump 已生成在当前目录
+```
 ### 3.3、日志打印
 可执行程序执行过程中如果需要日志打印来辅助定位，可以在bash run_sample.sh之前设置如下环境变量来让日志打印到屏幕
 ```bash
 export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
 export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别
+```
+### 1.4、图编译DUMP图
+可执行程序执行过程中，如果需要DUMP图来辅助定位图编译流程，可以在 bash run_sample.sh -t sample_and_run 之前设置如下环境变量来DUMP图到执行路径下
+```bash
+export DUMP_GE_GRAPH=2 
 ```
 
 ## 4、核心概念介绍

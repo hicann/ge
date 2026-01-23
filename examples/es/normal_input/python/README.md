@@ -27,7 +27,7 @@ bash run_sample.sh -t sample_and_run_python
 该命令会：
 1. 自动生成ES接口
 2. 编译sample程序
-3. 生成dump图
+3. 生成dump图并运行该图
 
 执行成功后会看到：
 ```
@@ -43,6 +43,11 @@ bash run_sample.sh -t sample_and_run_python
 ```bash
 export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
 export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别
+```
+### 3.4、图编译流程中DUMP图
+可执行程序执行过程中，如果需要DUMP图来辅助定位图编译流程，可以在bash run_sample.sh -t sample_and_run_python 之前设置如下环境变量来DUMP图到执行路径下
+```bash
+export DUMP_GE_GRAPH=2 
 ```
 
 ## 4、核心概念介绍

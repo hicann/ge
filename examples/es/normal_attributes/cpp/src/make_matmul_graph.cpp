@@ -9,13 +9,17 @@
  */
 #include "es_showcase.h"
 #include "es_MatMul.h"
+#include "utils.h"
 #include <memory>
+#include <vector>
+#include <iostream>
+#include "ge/ge_api.h"
+
 using namespace ge;
 using namespace ge::es;
 namespace {
 es::EsTensorHolder MakeMatMulGraph(es::EsTensorHolder input, EsGraphBuilder &graph_builder) {
-  auto weight = graph_builder.CreateVector(std::vector<int64_t>(6, 1));
-  weight.SetShape({2, 3});
+  auto weight = graph_builder.CreateConst(std::vector<int32_t>(6, 1), std::vector<int64_t>{2, 3});
   /*
   MatMul原型注释：
   REG_OP(MatMul)
@@ -34,19 +38,66 @@ es::EsTensorHolder MakeMatMulGraph(es::EsTensorHolder input, EsGraphBuilder &gra
 }
 }
 namespace es_showcase {
+
+int RunGraph(ge::Graph &graph, const std::vector<ge::Tensor> &inputs,
+             const std::string &output_prefix) {
+  std::map<ge::AscendString, ge::AscendString> options;
+  auto *s = new (std::nothrow) ge::Session(options);
+  if (s == nullptr) {
+    std::cout << "Global session not ready" << std::endl;
+    return -1;
+  }
+  static uint32_t next = 0;
+  const uint32_t graph_id = next++;
+  auto ret = s->AddGraph(graph_id, graph);
+  if (ret != ge::SUCCESS) {
+    std::cout << "AddGraph failed" << std::endl;
+    delete s;
+    return -1;
+  }
+  std::cout << "input is :" << std::endl;
+  ge::Utils::PrintTensorsToConsole(inputs);
+  std::vector<ge::Tensor> outputs;
+  ret = s->RunGraph(graph_id, inputs, outputs);
+  if (ret != ge::SUCCESS) {
+    std::cout << "RunGraph failed" << std::endl;
+    (void)s->RemoveGraph(graph_id);
+    delete s;
+    return -1;
+  }
+  (void)s->RemoveGraph(graph_id);
+  ge::Utils::PrintTensorsToFile(outputs, output_prefix);
+  delete s;
+  return 0;
+}
+
+void MakeMatMulGraphByEsAndDump() {
+  std::unique_ptr<ge::Graph> graph = MakeMatMulGraphByEs();
+  graph->DumpToFile(ge::Graph::DumpFormat::kOnnx, ge::AscendString("make_matmul_graph"));
+}
+
 std::unique_ptr<ge::Graph> MakeMatMulGraphByEs() {
   // 1、创建图构建器
   auto graph_builder = std::make_unique<EsGraphBuilder>("MakeMatMulGraph");
   // 2、创建输入节点
-  auto input = graph_builder->CreateInput(0, "input", ge::DT_INT64, ge::FORMAT_ND, {2, 3});  
-  auto result = MakeMatMulGraph(input,*graph_builder);
+  auto input = graph_builder->CreateInput(0, "input", ge::DT_INT32, ge::FORMAT_ND, {2, 3});
+  auto result = MakeMatMulGraph(input, *graph_builder);
   // 3、设置输出
   (void) graph_builder->SetOutput(result, 0);
   // 4、构建图
   return graph_builder->BuildAndReset();
 }
-void MakeMatMulGraphByEsAndDump() {
+
+int MakeMatMulGraphByEsAndRun() {
   std::unique_ptr<ge::Graph> graph = MakeMatMulGraphByEs();
-  graph->DumpToFile(ge::Graph::DumpFormat::kOnnx, ge::AscendString("make_matmul_graph"));
+  std::vector<ge::Tensor> inputs;
+
+  // 准备输入数据
+  std::vector<int32_t> input_data = {1, 2, 3, 4, 5, 6};
+
+  // 创建输入tensor
+  auto input_tensor = ge::Utils::StubTensor<int32_t>(input_data, {2, 3});
+  inputs.push_back(*input_tensor);
+  return RunGraph(*graph, inputs, "MatMul");
 }
-}
+}  // namespace es_showcase

@@ -14,5 +14,6 @@
 namespace es_showcase {
   std::unique_ptr<ge::Graph> MakeBatchNormGraphByEs();
   void MakeBatchNormGraphByEsAndDump();
+  int MakeBatchNormGraphByEsAndRun();
 }
 #endif //SAMPLES_ES_SHOWCASE_MAKE_SIMPLE_H_

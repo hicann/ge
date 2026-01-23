@@ -55,7 +55,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 验证目标有效性
-VALID_TARGETS=("sample")
+VALID_TARGETS=("sample" "sample_and_run")
 if [[ ! " ${VALID_TARGETS[@]} " =~ " ${TARGET} " ]]; then
     echo "错误: 无效目标 '${TARGET}'。有效目标: ${VALID_TARGETS[*]}" >&2
     exit 1
@@ -70,6 +70,7 @@ if [[ -z "${ASCEND_HOME_PATH}" ]]; then
   echo -e "ERROR 请先执行: source /usr/local/Ascend/cann/set_env.sh   " >&2
   exit 1
 fi
+
 
 # ---------- 自动获取系统架构 ----------
 ARCH=$(uname -m)
@@ -92,7 +93,7 @@ esac
 echo "[Info] 检测到系统架构: ${ARCH}"
 echo "[Info] 使用 ASCEND 架构: ${ASCEND_ARCH}"
 
-ASCEND_LIB_DIR="${ASCEND_INSTALL_PATH}/lib64"
+ASCEND_LIB_DIR="${ASCEND_HOME_PATH}/lib64"
 echo "[Info] ASCEND_LIB_DIR = ${ASCEND_LIB_DIR}"
 
 # 预先设置 LD_LIBRARY_PATH，保证 gen_esb 能加载
@@ -127,6 +128,34 @@ case "${TARGET}" in
       exit 1
     fi
     ;;
+  sample_and_run)
+    echo "[Info] 开始准备并编译目标: sample_and_run"
+    bash "$0" -t sample
+    echo "[Info] 设置NPU设备下的环境变量 ${ASCEND_HOME_PATH}/set_env.sh"
+    echo "[Info] 检查环境变量和文件"
+    if [ -z "${ASCEND_HOME_PATH:-}" ]; then
+      echo "[Error] ASCEND_HOME_PATH 未设置"
+      exit 1
+    fi
+
+    if [ -z "${ASCEND_ARCH:-}" ]; then
+      echo "[Error] ASCEND_ARCH 未设置"
+      exit 1
+    fi
+
+    SETENV_FILE="${ASCEND_HOME_PATH}/set_env.sh"
+    if [ ! -f "$SETENV_FILE" ]; then
+      echo "[Error] set_env.sh 不存在: $SETENV_FILE"
+      exit 1
+    fi
+    # 临时禁用错误退出进行 source
+    set +e
+    source "$SETENV_FILE"
+    set -e
+      echo "[Info] 运行 ${BUILD_DIR}/sample run ${CASE_NAME}"
+      "${BUILD_DIR}/sample" run "${CASE_NAME}"
+      echo "[Success] sample_and_run 执行成功，pbtxt和data输出dump 已生成在当前目录"
+      ;;
   *)
     echo "错误: 未知目标 ${TARGET}" >&2
     exit 1

@@ -8,6 +8,10 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "src/es_showcase.h" // es构图方式
+#include "ge/ge_api.h"
+#include "graph/graph.h"
+#include "graph/tensor.h"
+#include "utils.h"
 #include <iostream>
 #include <map>
 #include <functional>
@@ -18,8 +22,24 @@ int main(int argc, char **argv) {
     return 0;
   }
   std::string command = argv[1];
-  std::string case_name = (argc > 2) ? argv[2] : "matmul";
-  if (command == "dump") {
+  if (command == "run") {
+    std::map<ge::AscendString, ge::AscendString> config = {
+      {"ge.exec.deviceId", "0"},
+      {"ge.graphRunMode", "0"}
+    };
+    auto ret = ge::GEInitialize(config);
+    if (ret != ge::SUCCESS) {
+      std::cerr << "GE 初始化失败\n";
+      return -1;
+    }
+    int result = -1;
+    if (es_showcase::MakeMatMulGraphByEsAndRun() == 0 ) {
+      result = 0;
+    }
+    ge::GEFinalize();
+    std::cout << "执行结束" << std::endl;
+    return result;
+  } else if (command == "dump") {
     es_showcase::MakeMatMulGraphByEsAndDump();
     return 0;
   } else {

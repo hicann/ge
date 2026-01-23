@@ -28,23 +28,27 @@ bash run_sample.sh -t sample_and_run_python
 该命令会：
 1. 自动生成ES接口
 2. 编译sample程序
-3. 生成dump图
+3. 生成dump图并运行该图
 
 执行成功后会看到：
 ```
-[Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 和 ge_proto_ 开头，可以在 netron 中打开显示
+[Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示
 ```
 #### 输出文件说明
 
 执行成功后会在当前目录生成以下文件：
 - `ge_onnx_*.pbtxt` - 图结构的protobuf文本格式，可用netron查看
-- `ge_proto_*.txt` - 图结构的txt文本格式，可直接使用文本编辑器查看是否包含"node_rank"属性字段
 
 ### 3.3、日志打印
 可执行程序执行过程中如果需要日志打印来辅助定位，可以在bash run_sample.sh -t sample_and_run_python之前设置如下环境变量来让日志打印到屏幕
 ```bash
 export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
 export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别
+```
+### 3.4、图编译流程中DUMP图
+可执行程序执行过程中，如果需要DUMP图来辅助定位图编译流程，可以在bash run_sample.sh -t sample_and_run_python 之前设置如下环境变量来DUMP图到执行路径下
+```bash
+export DUMP_GE_GRAPH=2 
 ```
 
 ## 4、核心概念介绍
