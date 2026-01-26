@@ -15,7 +15,6 @@ if (NOT DEFINED PRODUCT_SIDE)
 endif ()
 
 set(HELPER_RUNTIME_SRC
-    ${AIR_CODE_DIR}/dflow/base/utils/data_flow_utils.cc
     ${AIR_CODE_DIR}/dflow/deployer/common/config/config_parser.cc
     ${AIR_CODE_DIR}/dflow/deployer/common/config/numa_config_manager.cc
     ${AIR_CODE_DIR}/dflow/deployer/common/config/configurations.cc

@@ -18,6 +18,15 @@ protobuf_generate(data_flow_base_proto PROTO_SRCS PROTO_HDRS ${proto_src_files} 
 set(DATA_FLOW_BASE_SRC_LIST
     ${PROTO_SRCS}
     utils/data_flow_utils.cc
+    model/flow_model.cc
+    model/pne_model.cc
+    model/flow_model_om_loader.cc
+    model/flow_model_om_saver.cc
+    model/graph_model.cc
+    model/model_relation.cc
+    model/endpoint.cc
+    deploy/deploy_planner.cc
+    exec_runtime/execution_runtime.cc
 )
 
 ############ libdata_flow_base.so ############
@@ -44,6 +53,15 @@ target_compile_options(data_flow_base PRIVATE
 target_include_directories(data_flow_base SYSTEM PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto
+    ${CMAKE_BINARY_DIR}/proto/graphengine_protos
+    ${AIR_CODE_DIR}/
+    ${AIR_CODE_DIR}/inc
+    ${AIR_CODE_DIR}/inc/external
+    ${AIR_CODE_DIR}/inc/framework
+    ${AIR_CODE_DIR}/base
+    ${AIR_CODE_DIR}/dflow
+    ${AIR_CODE_DIR}/dflow/inc
+    ${AIR_CODE_DIR}/dflow/inc/data_flow
 )
 
 target_link_options(data_flow_base PRIVATE
@@ -56,11 +74,14 @@ target_link_libraries(data_flow_base PRIVATE
     ascend_protobuf
     static_mmpa
     metadef_headers
+    msprof_headers
+    runtime_headers
     unified_dlog
     c_sec
     -Wl,--as-needed
     -lrt
     -ldl
+    json
 )
 
 install(TARGETS data_flow_base OPTIONAL

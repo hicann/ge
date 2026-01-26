@@ -79,6 +79,7 @@ target_link_libraries(npu_sched_model_loader PRIVATE
         error_manager
         dl
         -Wl,--as-needed
+        data_flow_base
         )
 
 ########################################## libmodel_deployer #################################
@@ -420,6 +421,7 @@ target_link_libraries(npu_executor_main PRIVATE
         npu_sched_model_loader
         ge_executor_shared
         -Wl,--as-needed
+        data_flow_base
         )
 
 if ("${BUILD_COMPONENT}" STREQUAL "dflow-executor")
@@ -529,6 +531,7 @@ target_link_libraries(host_cpu_executor_main PRIVATE
         npu_sched_model_loader
         ge_executor_shared
         -Wl,--as-needed
+        data_flow_base
         )
 
 if ("${BUILD_COMPONENT}" STREQUAL "dflow-executor")

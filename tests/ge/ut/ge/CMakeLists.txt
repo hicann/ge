@@ -117,12 +117,6 @@ set(COMMON_SRC_FILES
     "${AIR_CODE_DIR}/base/common/model/ge_model.cc"
     "${AIR_CODE_DIR}/base/common/model/ge_root_model.cc"
     "${AIR_CODE_DIR}/base/common/model/external_allocator_manager.cc"
-    "${AIR_CODE_DIR}/dflow/base/model/flow_model.cc"
-    "${AIR_CODE_DIR}/dflow/base/model/flow_model_om_loader.cc"
-    "${AIR_CODE_DIR}/dflow/base/model/flow_model_om_saver.cc"
-    "${AIR_CODE_DIR}/dflow/base/model/model_relation.cc"
-    "${AIR_CODE_DIR}/dflow/base/model/endpoint.cc"
-    "${AIR_CODE_DIR}/dflow/base/deploy/deploy_planner.cc"
     "${AIR_CODE_DIR}/base/common/model/model_introduction.cc"
     "${AIR_CODE_DIR}/base/common/model/tlv/model_tensor_descs_value.cc"
     "${AIR_CODE_DIR}/base/common/model/tlv/vec_int_int_value.cc"
@@ -505,7 +499,6 @@ set(GRAPH_BUILD_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/api/session/session_v2/ge_session_manager.cc"
     "${AIR_CODE_DIR}/dflow/compiler/session/dflow_session_manager.cc"
     "${AIR_CODE_DIR}/dflow/compiler/pne/process_node_engine_manager.cc"
-    "${AIR_CODE_DIR}/dflow/base/exec_runtime/execution_runtime.cc"
     "${AIR_CODE_DIR}/base/exec_runtime/execution_runtime_utils.cc"
 )
 

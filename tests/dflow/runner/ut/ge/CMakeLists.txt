@@ -82,7 +82,6 @@ include_directories(${METADEF_DIR})
 include_directories(${ASCGEN_DIR}/inc)
 
 set(HELPER_RUNTIME_SRC_FILES
-        "${AIR_CODE_DIR}/dflow/base/utils/data_flow_utils.cc"
         "${AIR_CODE_DIR}/dflow/deployer/common/config/config_parser.cc"
         "${AIR_CODE_DIR}/dflow/deployer/common/config/numa_config_manager.cc"
         "${AIR_CODE_DIR}/dflow/deployer/common/config/configurations.cc"
