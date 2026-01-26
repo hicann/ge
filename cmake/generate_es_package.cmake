@@ -597,7 +597,6 @@ exit 1
     if (NOT EXISTS ${GEN_CODE_DIR}/placeholder.cpp)
         file(WRITE ${GEN_CODE_DIR}/placeholder.cpp
                 "// Placeholder file - will be replaced during build\n"
-                "static void placeholder_function_${ARG_ES_LINKABLE_AND_ALL_TARGET}() {}\n"
                 )
     endif ()
 
