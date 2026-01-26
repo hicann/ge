@@ -9,8 +9,8 @@
 # -----------------------------------------------------------------------------------------------------------
 
 include_directories(${AIR_CODE_DIR}/tests/)
-include_directories(${AIR_CODE_DIR}/tests/ut)
-include_directories(${AIR_CODE_DIR}/tests/ut/ge)
+include_directories(${AIR_CODE_DIR}/tests/ge/ut)
+include_directories(${AIR_CODE_DIR}/tests/ge/ut/ge)
 
 MESSAGE("copy st run data from ${AIR_CODE_DIR}/tests/dflow/runner/st/st_run_data to ${CMAKE_CURRENT_BINARY_DIR}/")
 file(COPY ${AIR_CODE_DIR}/tests/dflow/runner/st/st_run_data DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)

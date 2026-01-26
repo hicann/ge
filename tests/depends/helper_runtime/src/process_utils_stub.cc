@@ -17,6 +17,7 @@
 #include "common/debug/log.h"
 #include "common/checker.h"
 #include "graph/utils/file_utils.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -40,6 +41,7 @@ Status ProcessUtils::System(const std::string &cmd, bool print_err) {
 }
 
 Status ProcessUtils::GetIpaddr(const std::string &name, std::string &ipaddr) {
+  ipaddr = "127.0.0.1";
   return SUCCESS;
 }
 

@@ -88,10 +88,6 @@ RTS_API rtError_t rtMemQueueDeQueueBuff(int32_t device, uint32_t qid, rtMemQueue
   return 0;
 }
 
-RTS_API rtError_t rtBufEventTrigger(const char *name) {
-  return 0;
-}
-
 RTS_API rtError_t rtMemQueueInitFlowGw(int32_t devId, const rtInitFlowGwInfo_t *const initInfo) {
   const std::string group_name(initInfo->groupName);
   const std::string qs_name("DM_QS_GROUP");

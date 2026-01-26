@@ -356,7 +356,7 @@ Status ConfigParser::InitAllNodeConfig(const std::vector<ClusterConfig> &cluster
     GE_CHK_STATUS_RET_NOLOG(ProcessUtils::GetIpaddr(kConfigNetName, local_addr));
     const auto &it = node_to_index.find(local_addr);
     GE_CHK_BOOL_RET_STATUS(it != node_to_index.cend(), ACL_ERROR_GE_PARAM_INVALID,
-                           "Get local node failed, local ipaddr = %s", local_addr.c_str());
+                           "Get local node failed, local ipaddr = %s.", local_addr.c_str());
     node_configs[it->second].is_local = true;
   }
   return SUCCESS;

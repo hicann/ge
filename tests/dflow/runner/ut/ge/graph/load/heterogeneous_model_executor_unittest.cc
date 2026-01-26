@@ -127,7 +127,6 @@ class HeterogeneousModelExecutorTest : public testing::Test {
     deploy_result.input_queue_attrs = {{1, 0, 0}, {2, 0, 0}};
     deploy_result.broadcast_input_queue_attrs= {{{1, 0, 0}}};
     deploy_result.output_queue_attrs = {{5, 0, 0}};
-    deploy_result.control_input_queue_attrs = {{6, 0, 0}};
     deploy_result.input_model_name = default_root_model_->GetModelName();
     deploy_result.dev_abnormal_callback = []() -> Status { return SUCCESS; };
     auto flow_model = std::make_shared<FlowModel>();
@@ -317,6 +316,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestExecuteModelNoTilingSuccess) {
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
       .WillRepeatedly(Return(SUCCESS));
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(testing::Invoke(DequeueNoTilingStub));
+  EXPECT_CALL(exchange_service, DequeueTensor).WillRepeatedly(testing::Return(SUCCESS));
   std::vector<GeTensor> output_tensors;
   ASSERT_EQ(default_executor_->Execute(input_tensors, output_tensors), SUCCESS);
 }
@@ -329,6 +329,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestInputSizeMismatches) {
 
 TEST_F(HeterogeneousModelExecutorTest, TestEnqueueFailed) {
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
+  default_executor_->control_input_queue_attrs_ = {{6, 0, 0}};
   std::vector<GeTensor> input_tensors;
   for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
     auto tensor_desc = default_executor_->input_tensor_desc_[i];
@@ -385,6 +386,10 @@ TEST_F(HeterogeneousModelExecutorTest, TestFeedDataSuccess) {
   void *data = nullptr;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
       .WillRepeatedly(Return(SUCCESS));
+  size_t size = 0;
+  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
+      .WillRepeatedly(Return(SUCCESS));
+
   DataFlowInfo info;
   info.SetStartTime(1UL);
   info.SetEndTime(2UL);
@@ -535,6 +540,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestFetchDataSuccess) {
   }
   auto &exchange_service = (MockExchangeService &)ExecutionRuntime::GetInstance()->GetExchangeService();
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
+  EXPECT_CALL(exchange_service, DequeueTensor).WillRepeatedly(testing::Return(SUCCESS));
 
   DataFlowInfo info;
   info.SetStartTime(1UL);
@@ -595,6 +601,9 @@ TEST_F(HeterogeneousModelExecutorTest, TestTensorsExecuteFusion) {
   auto &exchange_service = (MockExchangeService &) ExecutionRuntime::GetInstance()->GetExchangeService();
   void *data = nullptr;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
+      .WillRepeatedly(Return(SUCCESS));
+  size_t size = 0;
+  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
       .WillRepeatedly(Return(SUCCESS));
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
   std::vector<GeTensor> output_tensors;
@@ -1066,6 +1075,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFetchDataSuccess) {
   auto &exchange_service = (MockExchangeService &)ExecutionRuntime::GetInstance()->GetExchangeService();
   EXPECT_CALL(exchange_service, DequeueMbuf).WillRepeatedly(testing::Invoke(DynamicSchedDequeueMbufStub));
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
+  EXPECT_CALL(exchange_service, DequeueTensor).WillRepeatedly(testing::Return(SUCCESS));
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   for (size_t i = 0; i < default_executor_->output_queue_attrs_.size(); ++i) {
     default_executor_->output_is_no_tiling_[i] = true;
@@ -1297,7 +1307,10 @@ TEST_F(HeterogeneousModelExecutorTest, TestFeedDataSubhealthyState) {
 
   auto &exchange_service = (MockExchangeService &) ExecutionRuntime::GetInstance()->GetExchangeService();
   void *data = nullptr;
-  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
+  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void *>(Enqueue3VoidMatcher(data)), _, _))
+      .WillRepeatedly(Return(SUCCESS));
+  size_t size = 0;
+  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
       .WillRepeatedly(Return(SUCCESS));
   DataFlowInfo info;
   info.SetStartTime(1UL);
@@ -1333,6 +1346,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestFetchDataSubhealthyState) {
   }
   auto &exchange_service = (MockExchangeService &)ExecutionRuntime::GetInstance()->GetExchangeService();
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
+  EXPECT_CALL(exchange_service, DequeueTensor).WillRepeatedly(testing::Return(SUCCESS));
 
   DataFlowInfo info;
   info.SetStartTime(1UL);
@@ -1430,7 +1444,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFeedDataSuccess) {
   default_executor_->datagw_request_bindings_ = {{1, 102}};
   auto &exchange_service = (MockExchangeService &) ExecutionRuntime::GetInstance()->GetExchangeService();
   EXPECT_CALL(exchange_service, DequeueMbuf).WillRepeatedly(testing::Invoke(DynamicSchedDequeueMbufStub));
- 
+
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   std::vector<GeTensor> input_tensors;
   for (size_t i = 0; i < default_executor_->input_queue_attrs_.size(); ++i) {
@@ -1444,6 +1458,10 @@ TEST_F(HeterogeneousModelExecutorTest, TestDynamicSchedFeedDataSuccess) {
   void *data = nullptr;
   EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<const void*>(Enqueue3VoidMatcher(data)), _, _))
       .WillRepeatedly(Return(SUCCESS));
+  size_t size = 0;
+  EXPECT_CALL(exchange_service, Enqueue(_, _, Matcher<size_t>(Enqueue3SizeMatcher(size)), _, _))
+      .WillRepeatedly(Return(SUCCESS));
+
   DataFlowInfo info;
   info.SetStartTime(1UL);
   info.SetEndTime(2UL);
@@ -1497,6 +1515,7 @@ TEST_F(HeterogeneousModelExecutorTest, TestAlignFetchDataSuccess) {
   ASSERT_EQ(default_executor_->Initialize(), SUCCESS);
   auto &exchange_service = (MockExchangeService &)ExecutionRuntime::GetInstance()->GetExchangeService();
   EXPECT_CALL(exchange_service, Dequeue).WillRepeatedly(Return(SUCCESS));
+  EXPECT_CALL(exchange_service, DequeueTensor).WillRepeatedly(testing::Return(SUCCESS));
 
   DataFlowInfo info;
   info.SetStartTime(1UL);
@@ -1591,6 +1610,8 @@ TEST_F(HeterogeneousModelExecutorTest, TestAlignFetchDataOverLimit) {
   tensor_desc->SetDataType(DT_FLOAT);
   // default model just have one output, fork to two output.
   default_executor_->output_tensor_desc_.emplace_back(std::move(tensor_desc));
+  default_executor_->output_tensor_raw_sizes_.emplace_back(1024);
+  default_executor_->output_is_no_tiling_.emplace_back(true);
 
   DataFlowInfo info;
   std::vector<GeTensor> outputs;
@@ -1669,6 +1690,8 @@ TEST_F(HeterogeneousModelExecutorTest, TestAlignFetchDataWithException) {
   tensor_desc->SetDataType(DT_FLOAT);
   // default model just have one output, fork to two output.
   default_executor_->output_tensor_desc_.emplace_back(std::move(tensor_desc));
+  default_executor_->output_tensor_raw_sizes_.emplace_back(1024);
+  default_executor_->output_is_no_tiling_.emplace_back(true);
 
   auto original_handle = ExecutionRuntime::handle_;
   ExecutionRuntime::handle_ = (void*)0x12345678;

@@ -23,6 +23,8 @@ file(GLOB_RECURSE LLM_FLOW_FUNC_SRC_FILES
 
 set(LOCAL_BUILT_IN_FLOW_FUNC_TEST_CASE_FILES
         ../../main.cpp
+        time_batch_flow_func_utest.cpp
+        count_batch_flow_func_utest.cpp
         llm_service_flow_func_utest.cpp
 )
 

@@ -40,15 +40,19 @@ bool JsonParser::CheckFilePath(const std::string &file_path) {
     GELOGE(FAILED,
            "[Check][File]Cannot get config file status,which path is %s, maybe does not exist, return %d, errcode %d",
            trusted_path, ret, mmGetErrorCode());
-    REPORT_INNER_ERR_MSG("E19999", "Cannot get config file status, which path is %s, "
-                      "maybe does not exist, return %d, errcode %d", trusted_path, ret, mmGetErrorCode());
+    char_t err_buf[kMaxErrorStringLen + 1U] = {};
+    const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStringLen);
+    std::string reason = "[Error " + std::to_string(mmGetErrorCode()) + "] " + err_msg;
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({trusted_path, reason.c_str()}));
     return false;
   }
   if ((stat.st_mode & S_IFMT) != S_IFREG) {
     GELOGE(FAILED, "[Check][File]Config file is not a common file,which path is %s, mode is %u", trusted_path,
            stat.st_mode);
-    REPORT_INNER_ERR_MSG("E19999", "Config file is not a common file,which path is %s, mode is %u",
-                      trusted_path, stat.st_mode);
+    REPORT_PREDEFINED_ERR_MSG("E13006", std::vector<const char *>({"file", "current_type", "expect_type"}),
+                              std::vector<const char *>({trusted_path, std::to_string(stat.st_mode).c_str(),
+                                                         std::to_string(S_IFREG).c_str()}));
     return false;
   }
   return true;

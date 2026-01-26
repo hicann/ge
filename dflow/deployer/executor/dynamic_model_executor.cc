@@ -1082,7 +1082,7 @@ Status DynamicModelExecutor::GenerateLoadConfig(const ModelData &model_data, con
   GE_CHECK_NOTNULL(handle, "Failed to create acl config handle.");
   for (auto &external_weight : external_weight_mem_data) {
     ret = aclmdlSetExternalWeightAddress(handle, external_weight.file_name.c_str(), 
-                                                    (void *)(external_weight.device_mem), external_weight.mem_size);
+                                                    const_cast<void *>(external_weight.device_mem), external_weight.mem_size);
     GE_ASSERT_TRUE(ret == ACL_SUCCESS, "Failed to set acl external weight address.");
   }
   size_t load_type = ACL_MDL_LOAD_FROM_MEM;

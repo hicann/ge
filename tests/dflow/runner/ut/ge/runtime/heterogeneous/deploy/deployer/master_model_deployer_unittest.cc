@@ -202,7 +202,9 @@ TEST_F(MasterModelDeployerTest, TestDeployModel_Success) {
   DeployResult deploy_result;
   auto mock_runtime = std::make_shared<MockRuntimeNoLeaks>();
   RuntimeStub::SetInstance(mock_runtime);
+  dlog_setlevel(0, 2, 0);
   ASSERT_EQ(model_deployer.DeployModel(flow_model, deploy_result), SUCCESS);
+  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.deployed_models_.size(), 1);
   ASSERT_EQ(model_deployer.UpdateProfilingInfo(true), SUCCESS);
   ASSERT_EQ(model_deployer.Undeploy(deploy_result.model_id), SUCCESS);

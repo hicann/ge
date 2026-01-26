@@ -196,7 +196,8 @@ Status DeviceMaintenanceClientCfg::LoadJsonData(const std::string &data) {
     config = nlohmann::json::parse(data);
   } catch (const nlohmann::json::exception &e) {
     GELOGE(FAILED, "[Check][data]Invalid json file, data:%s,exception:%s", data.c_str(), e.what());
-    REPORT_INNER_ERR_MSG("E19999", "Invalid json data, data:%s,exception:%s", data.c_str(), e.what());
+    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                              std::vector<const char *>({data.c_str(), e.what()}));
     return FAILED;
   }
   if (config.is_null()) {

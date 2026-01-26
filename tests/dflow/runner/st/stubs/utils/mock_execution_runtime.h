@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include "graph/ge_global_options.h"
-#include "dflow/base/exec_runtime/execution_runtime.h"
+#include "exec_runtime/execution_runtime.h"
 #include "ge/ge_api.h"
 #include "flow_graph/data_flow.h"
 
