@@ -64,7 +64,7 @@ checkopts() {
 
   ENABLE_SIGN="off"
   CUSTOM_SIGN_SCRIPT=""
-  VERSION_INFO="8.5.0"
+  VERSION_INFO="9.0.0"
 
   OUTPUT_PATH="${BASEPATH}/output"
   CANN_3RD_LIB_PATH="${BASEPATH}/output/third_party"
