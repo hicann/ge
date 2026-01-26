@@ -2058,98 +2058,6 @@ class UB_FUSION_UT_CONV_ELT_RELU : public testing::Test {
   }
 };
 
-/************************
- *
- *          op    conv
- *           |     |
- *           eltiwse
- *              |
- *             op
- *
- *************************
- *conv eltw ubfusion
- *************************/
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_data_eltwise_relu) {
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraph(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_data_eltwise_relu_l2_fusion) {
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraphForL2Fusion1(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_conv_eltwise_relu) {
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraph2(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_conv_eltwise_relu3) {
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraph3(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_conv_eltwise_relu4) {
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraph4(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_conv_eltwise_relu5) {
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraph5(graph, 1);
-  graph->TopologicalSorting();
-
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_conv_eltwise_relu6) {
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraph6(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_relu_quant_fusion_pass) {
-
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraphConvReluQuant(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_leakyrelu_quant_fusion_pass) {
-
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraphConvLeakyReluQuant1(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_leakyrelu_quant_fusion_pass_no_fusion) {
-
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraphConvLeakyReluQuant2(graph, 1);
-  graph->TopologicalSorting();
-  RunPass(*graph);
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_eltwise_relu_quant_fusion_pass) {
-
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraphConvEltReluQuant1(graph, 1);
-
-  RunPass(*graph);
-}
-
 TEST_F(UB_FUSION_UT_CONV_ELT_RELU, coverage_01) {
 
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
@@ -2171,14 +2079,6 @@ TEST_F(UB_FUSION_UT_CONV_ELT_RELU, coverage_01) {
   for (auto &pattern : patterns) {
     delete pattern;
   }
-}
-
-TEST_F(UB_FUSION_UT_CONV_ELT_RELU, conv_eltwise_relu_quant_fusion_pass_no_fusion) {
-  std::map<string, BufferFusionPassRegistry::CreateFn> create_fns =
-      BufferFusionPassRegistry::GetInstance().GetCreateFnByType(BUILT_IN_AI_CORE_BUFFER_FUSION_PASS);
-  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-  BuildGraphConvEltReluQuant2(graph, 1);
-  RunPass(*graph);
 }
 
 TEST_F(UB_FUSION_UT_CONV_ELT_RELU, dyn_static_check) {

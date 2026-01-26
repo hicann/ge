@@ -257,21 +257,7 @@ TEST_F(ZeroCopyST, ZeroCopy_Disable_WhenOuptutGivenButPlacementNotMatch) {
   ASSERT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
   rtStreamDestroy(stream);
 }
-/**
- * 用例描述：用户提供的输出长度不足，执行失败
- *
- * 预置条件：
- * 1. fake Add算子的lowering、tiling等整套实现
- *
- * 测试步骤：
- * 1. 构造单算子Add的计算图
- * 2. lowering、加载计算图
- * 3. 构造输入Tensor，shape为[1,2,3,4]，输出Tensor的shape为[1,2,3]，执行
- *
- * 预期结果：
- * 1. 执行失败
- */
-TEST_F(ZeroCopyST, ZeroCopy_Failed_WhenOuptutMemoryNotEnough) {}
+
 /**
  * 用例描述：用户未提供输出，模型中申请的内存传出
  *

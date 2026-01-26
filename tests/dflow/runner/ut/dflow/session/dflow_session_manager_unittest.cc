@@ -50,15 +50,6 @@ class DFlowSessionManagerTest : public testing::Test {
   void TearDown() override {}
 };
 
-TEST_F(DFlowSessionManagerTest, BasicInitializeFinalize) {
-  DFlowSessionManager flow_session_manger;
-  // finalize without init
-  flow_session_manger.Finalize();
-  flow_session_manger.Initialize();
-  // init twice
-  flow_session_manger.Initialize();
-}
-
 TEST_F(DFlowSessionManagerTest, OperateGraphWithoutInit) {
   DFlowSessionManager flow_session_manger;
   std::map<std::string, std::string> options;

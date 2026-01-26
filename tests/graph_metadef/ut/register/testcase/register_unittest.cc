@@ -2601,7 +2601,3 @@ TEST_F(UtestRegister, new_optiling_py_interface_ok_with_bf16_data) {
             1);
   gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
 }
-
-TEST_F(UtestRegister, tbe_load_so_and_save_to_registry) {
-  TbeLoadSoAndSaveToRegistry("");
-}

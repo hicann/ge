@@ -1459,11 +1459,6 @@ TEST_F(ConstantExpressionsMotionUT, CemSuccess_CheckNoOpCreateOnlySecondTime) {
   ASSERT_EQ(pass.Run(root_frame->GetExecuteGraph().get(), changed), ge::GRAPH_SUCCESS);
   ASSERT_FALSE(changed);
 }
-/*
- *
- * todo: not support yet
- */
-TEST_F(ConstantExpressionsMotionUT, If_Success_ConstFromParentGraph) {}
 
 TEST_F(ConstantExpressionsMotionUT, While_CemSuccess_WhenCondGraphHasCe) {
   while (ValueHolder::PopGraphFrame() != nullptr) {
@@ -1619,9 +1614,6 @@ TEST_F(ConstantExpressionsMotionUT, While_AllCem_CondAndBodyContainsCE) {
   ASSERT_NE(bar_body_node, nullptr);
   ConnectFromInitToMain(bar_body_node, 0, body_launch_node, 0);
 }
-
-TEST_F(ConstantExpressionsMotionUT, While_AllHoist_MultipleNodes) {}
-TEST_F(ConstantExpressionsMotionUT, While_HoistNodesAndGuarders_CeWithGuarder) {}
 
 /*
  * main graph:

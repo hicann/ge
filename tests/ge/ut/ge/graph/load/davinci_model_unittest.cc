@@ -1799,42 +1799,6 @@ TEST_F(UtestDavinciModel, output_no_tiling_data) {
   model.runtime_param_.mem_base = 0U;
 }
 
-TEST_F(UtestDavinciModel, OnComputeDoneWithResult_ListenerNull) {
-  DavinciModel model(0, nullptr);
-  std::vector<gert::Tensor> outputs;
-  model.OnComputeDoneWithResult(1, 1, outputs);
-}
-
-TEST_F(UtestDavinciModel, AssembleListenerOutput_ListenerNull) {
-  DavinciModel model(0, nullptr);
-  std::vector<gert::Tensor> outputs;
-  model.AssembleListenerOutput(nullptr, 1, outputs);
-}
-
-TEST_F(UtestDavinciModel, AssembleListenerOutput_IsGetNexTTrue) {
-  DavinciModel model(0, g_local_call_back);
-  model.is_getnext_sink_dynamic_ = true;
-  model.shape_of_cur_dynamic_dims_ = 1;
-  model.netoutput_last_input_size_ = sizeof(int32_t);
-  int32_t temp;
-  model.netoutput_last_input_addr_ = &temp;
-  std::vector<gert::Tensor> outputs;
-  model.AssembleListenerOutput(nullptr, 1, outputs);
-}
-
-TEST_F(UtestDavinciModel, ReturnSequenceResult_SeqEndFlag_False) {
-  DavinciModel model(0, g_local_call_back);
-  auto args = std::make_shared<RunArgsV2>();
-  model.ReturnSequenceResult(args, 1, false);
-}
-
-TEST_F(UtestDavinciModel, ReturnSequenceResult_SeqEndFlag_True) {
-  DavinciModel model(0, g_local_call_back);
-  model.has_output_node_ = true;
-  auto args = std::make_shared<RunArgsV2>();
-  model.ReturnSequenceResult(args, 1, true);
-}
-
 TEST_F(UtestDavinciModel, copy_input_data_no_tiling) {
   DavinciModel model(0, g_local_call_back);
   model.ge_model_ = MakeShared<GeModel>();

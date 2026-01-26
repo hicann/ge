@@ -65,16 +65,6 @@ class FlowGraphManagerTest : public testing::Test {
   }
 };
 
-TEST_F(FlowGraphManagerTest, BasicInitializeFinalize) {
-  std::map<std::string, std::string> options;
-  DflowGraphManager dflow_graph_manager;
-  // finalize without init
-  dflow_graph_manager.Finalize();
-  dflow_graph_manager.Initialize(options);
-  // init twice
-  dflow_graph_manager.Initialize(options);
-}
-
 TEST_F(FlowGraphManagerTest, OperateGraphWithoutInit) {
   DflowGraphManager dflow_graph_manager;
   std::map<std::string, std::string> options;

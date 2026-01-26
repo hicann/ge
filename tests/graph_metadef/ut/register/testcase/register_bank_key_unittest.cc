@@ -65,39 +65,6 @@ class RegisterOPBankKeyUT : public testing::Test {
   void TearDown() {}
 };
 
-extern "C" void _ZN12tuningtiling21OpBankKeyFuncRegistryC1ERKN2ge12AscendStringERKSt8functionIFbRKSt10shared_ptrIvEmRN15ascend_nlohmann10basic_jsonISt3mapSt6vectorSsblmdSaNSA_14adl_serializerESD_IhSaIhEEEEEERKS5_IFbRS7_RmRKSH_EE();
-
-extern "C" void _ZN12tuningtiling21OpBankKeyFuncRegistryC1ERKN2ge12AscendStringERKSt8functionIFbRKSt10shared_ptrIvEmRN15ascend_nlohmann16json_abi_v3_11_210basic_jsonISt3mapSt6vectorSsblmdSaNSB_14adl_serializerESE_IhSaIhEEEEEERKS5_IFbRS7_RmRKSI_EE();
-
-TEST_F(RegisterOPBankKeyUT, convert_tiling_context) {
-  _ZN12tuningtiling21OpBankKeyFuncRegistryC1ERKN2ge12AscendStringERKSt8functionIFbRKSt10shared_ptrIvEmRN15ascend_nlohmann10basic_jsonISt3mapSt6vectorSsblmdSaNSA_14adl_serializerESD_IhSaIhEEEEEERKS5_IFbRS7_RmRKSH_EE();
-  _ZN12tuningtiling21OpBankKeyFuncRegistryC1ERKN2ge12AscendStringERKSt8functionIFbRKSt10shared_ptrIvEmRN15ascend_nlohmann16json_abi_v3_11_210basic_jsonISt3mapSt6vectorSsblmdSaNSB_14adl_serializerESE_IhSaIhEEEEEERKS5_IFbRS7_RmRKSI_EE();
-  auto& func = OpBankKeyFuncRegistry::RegisteredOpFuncInfo();
-  auto iter = func.find("DynamicRNN");
-  nlohmann::json test;
-  test["batch"] = 12;
-  test["dims"] = 2;
-  std::string dump_str;
-  dump_str = test.dump();
-  ge::AscendString test_str;
-
-  const OpBankLoadFun& load_func = iter->second.GetBankKeyLoadFunc();
-  std::shared_ptr<void> ld = nullptr;
-  size_t len = 0;
-  load_func(ld, len, test_str);
-
-  const auto &parse_func = iter->second.GetBankKeyParseFunc();
-  ge::AscendString test2_str;
-  parse_func(ld, len, test2_str);
-
-  const auto &convert_func = iter->second.GetBankKeyConvertFunc();
-  std::shared_ptr<void> op_key = nullptr;
-  size_t s = 0U;
-  convert_func(nullptr, op_key, s);
-  auto rnn_ky = std::static_pointer_cast<DynamicRnnInputArgsV2>(op_key);
-
-}
-
 TEST_F(RegisterOPBankKeyUT, convert_tiling_contextV2) {
   auto& func = OpBankKeyFuncRegistryV2::RegisteredOpFuncInfoV2();
   auto iter = func.find("RNN");

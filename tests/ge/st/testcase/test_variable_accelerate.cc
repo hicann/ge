@@ -535,8 +535,6 @@ TEST_F(VariableAccSt, variable_modified_when_second_graph_then_run_first_graph) 
   VarManagerPool::Instance().GetVarManager(pre_session_id)->FreeVarMemory();
 }
 
-TEST_F(VariableAccSt, variable_write_edge_insert_transdata) {}
-
 /*
  * 用例场景：本用例测试变量回边写入场景，在写入算子没有输出ref时，最终图是正确的
  * 步骤：

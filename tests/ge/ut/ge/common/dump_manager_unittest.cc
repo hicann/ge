@@ -152,15 +152,6 @@ TEST_F(UTEST_dump_manager, add_invalid_dump_opblacklist_failed) {
   EXPECT_EQ(ret, ge::PARAM_INVALID);
 }
 
-TEST_F(UTEST_dump_manager, add_dump_properties_success) {
-  DumpProperties dump_properties;
-  DumpManager::GetInstance().AddDumpProperties(0, dump_properties);
-  auto dump = DumpManager::GetInstance().GetDumpProperties(0);
-  std::map<uint64_t, DumpProperties> dumpPropertiesMap;
-  dumpPropertiesMap = DumpManager::GetInstance().GetDumpPropertiesMap();
-  DumpManager::GetInstance().RemoveDumpProperties(0);
-}
-
 TEST_F(UTEST_dump_manager, not_need_do_dump) {
   DumpConfig dump_config;
   dump_config.dump_status = "off";

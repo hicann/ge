@@ -224,7 +224,7 @@ TEST_F(GraphExecutorBuilderUT, TopoExecutionData_Ok) {
 
   ASSERT_EQ(execution_data->node_watchers[1]->watch_num, 0U);
 }
-TEST_F(GraphExecutorBuilderUT, TopoExecutionData_Ok_ExtracWatcherInfo) {}
+
 TEST_F(GraphExecutorBuilderUT, ExecutorSelection_SelectSeqPriority_WhenNoIfOrWhile) {
   auto exe_graph = BuildGraph2(50);
   auto mld = ExeGraphModelLevelDataFaker(exe_graph.GetRootGraph()).Build();

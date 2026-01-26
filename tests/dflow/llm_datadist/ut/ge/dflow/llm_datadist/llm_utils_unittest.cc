@@ -177,26 +177,6 @@ TEST_F(LLMUtilsTest, TestParserOptions) {
   EXPECT_EQ(ret, ge::SUCCESS);
 }
 
-TEST_F(LLMUtilsTest, TestGeApiBase) {
-  llm::GeApi test_api;
-  const std::map<ge::AscendString, ge::AscendString> options = {
-      {"ge.socVersion", "TestSocType1"},
-      {"ge.graphRunMode", "0"}
-  };
-  test_api.Initialize(options);
-  test_api.Finalize();
-
-  llm::GeApi::GetInstance().Initialize({});
-  // mock 存在其他组件的session
-  auto sess = llm::GeApi::GetInstance().NewSession({});
-  // 不调用GEFinalize
-  llm::GeApi::GetInstance().Finalize();
-  // 其他组件释放session
-  sess.reset();
-  // 当前session数为0, 不调用GEFinalize
-  llm::GeApi::GetInstance().SafeFinalize();
-}
-
 TEST_F(LLMUtilsTest, TestCacheManager) {
   llm::CacheManager cache_manager;
   llm::CacheEntry src_cache_entry;

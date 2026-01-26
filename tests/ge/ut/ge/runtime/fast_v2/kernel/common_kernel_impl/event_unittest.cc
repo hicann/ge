@@ -198,10 +198,7 @@ TEST_F(EventUT, SendEvents_Success) {
   EXPECT_TRUE(runtime_stub.GetSlogStub().FindInfoLogRegex(kSendEvent, {{2, "0"}, {3, "0x100"}, {7, "0"}}) >= 0);
   EXPECT_TRUE(runtime_stub.GetSlogStub().FindInfoLogRegex(kSendEvent, {{2, "2"}, {3, "0x300"}, {7, "0"}}) >= 0);
 }
-#if 0
-// todo allocator应该测试的内容
-TEST_F(EventUT, SendEvents_DropOutDatedBlock) {}
-#endif
+
 TEST_F(EventUT, RecvEvents_Success) {
   auto event_ids = ContinuousVectorBuilder::Create<int64_t>({0, 2});
   auto rt_events = ContinuousVectorBuilder::Create<rtEvent_t>({(rtEvent_t)0x100, (rtEvent_t)0x200, (rtEvent_t)0x300});

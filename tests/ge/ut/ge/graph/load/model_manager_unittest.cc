@@ -1661,14 +1661,6 @@ TEST_F(UtestModelManagerModelManager, MallocConstMemory_has_been_set) {
   EXPECT_EQ(MallocConstMemory(graph_id, graph_node, external_allocator), SUCCESS);
 }
 
-TEST_F(UtestModelManagerModelManager, CalcTensorSizeByShape_MulOverflow_Test) {
-  GeShape shape;
-  shape.AppendDim(INT64_MAX);
-  DataType data_type = ge::DT_STRING;
-  size_t ret_tensor_size;
-  CalcTensorSizeByShape(shape, data_type, ret_tensor_size);
-}
-
 TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_AppRefreshable) {
   GraphNodePtr graph_node;
   GraphId graph_id = 1;

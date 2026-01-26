@@ -382,14 +382,6 @@ TEST_F(UtestNode, Verify) {
   // EXPECT_EQ(node_op2.IsEmpty(), true);
 }
 
-// 临时屏蔽
-TEST_F(UtestNode, InferShapeAndType_failed) {
-  ut::GraphBuilder builder = ut::GraphBuilder("graph");
-  auto data_node = builder.AddNode("Data", "Data", 1, 1);
-  data_node->impl_->in_data_anchors_.push_back(nullptr);
-  // EXPECT_EQ(NodeUtilsEx::InferShapeAndType(data_node), GRAPH_PARAM_INVALID);
-}
-
 TEST_F(UtestNode, GetOutControlNodes) {
   ut::GraphBuilder builder = ut::GraphBuilder("graph");
   auto data_node1 = builder.AddNode("Data1", "Data", 1, 1);

@@ -183,7 +183,7 @@ TEST_F(IfOrCaseKernelUT, GenIndexForCase_Failed_WhenTensorDataDataNullptr) {
   ASSERT_NE(context, nullptr);
   ASSERT_NE(GenIndexForIf(context_holder.GetContext<KernelContext>()), ge::GRAPH_SUCCESS);
 }
-TEST_F(IfOrCaseKernelUT, SwitchNotify_SwitchCorrect_BranchIndexLessThanBranchNum) {}
+
 TEST_F(IfOrCaseKernelUT, SwitchNotify_CreateOutputsFailed_NoWatchAttr) {
   const KernelRegistry::KernelFuncs *kernel = KernelRegistry::GetInstance().FindKernelFuncs("SwitchNotify");
   ASSERT_NE(kernel, nullptr);

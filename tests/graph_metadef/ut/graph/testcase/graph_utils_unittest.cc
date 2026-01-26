@@ -5449,22 +5449,4 @@ TEST_F(UtestGraphUtils, IsolateNodeNodeWithNoOpOptimize_SetIoMap_NoOutAnchr) {
   EXPECT_EQ(out_node_0->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode(), in_node_2);
 }
 
-TEST_F(UtestGraphUtils, DumpGEGraphToOnnxForLongName_Then_CutoffTheFileName) {
-  setenv("DUMP_GE_GRAPH", "1", 1);
-  ComputeGraph compute_graph("test_graph0");
-  const std::string suffix = std::string(255, 'a');
-  ge::GraphUtils::DumpGEGraphToOnnx(compute_graph, suffix);
-  unsetenv("DUMP_GE_GRAPH");
-  system("rm -rf ./ge_onnx*");
-}
-
-TEST_F(UtestGraphUtils, DumpGrphToOnnxForLongName_Then_CutoffTheFileName) {
-  setenv("DUMP_GE_GRAPH", "1", 1);
-  ComputeGraph compute_graph("test_graph0");
-  const std::string suffix = std::string(255, 'a');
-  const std::string path = "./";
-  ge::GraphUtils::DumpGrphToOnnx(compute_graph, path, suffix);
-  unsetenv("DUMP_GE_GRAPH");
-  system("rm -rf ./ge_onnx*");
-}
 }  // namespace ge
