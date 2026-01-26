@@ -175,6 +175,7 @@ if [[ "X$ENABLE_GE_C_LLT" = "Xon" ]]; then
         exit 1;
     fi
     unset LD_PRELOAD
+
     cp -rf ${BUILD_PATH}tests/test_c/ut/testcase/executor/ut_ge_executor_c_liteos_utest ${OUTPUT_PATH}
     #execute ut testcase
     export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
@@ -186,11 +187,24 @@ if [[ "X$ENABLE_GE_C_LLT" = "Xon" ]]; then
         exit 1;
     fi
     unset LD_PRELOAD
+
     cp -rf ${BUILD_PATH}tests/test_c/ut/testcase/executor/ut_dbg_liteos_static_utest ${OUTPUT_PATH}
     #execute ut testcase
     export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
     echo "Begin to run tests WITH leaks check"
     RUN_TEST_CASE=${OUTPUT_PATH}/ut_dbg_liteos_static_utest && ${RUN_TEST_CASE}
+    if [[ "$?" -ne 0 ]]; then
+        echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
+        echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
+        exit 1;
+    fi
+    unset LD_PRELOAD
+
+    cp -rf ${BUILD_PATH}tests/test_c/ut/testcase/acl/ut_ascendcl_c_utest ${OUTPUT_PATH}
+    #execute ut testcase
+    export LD_PRELOAD=$(gcc -print-file-name=libasan.so)
+    echo "Begin to run tests WITH leaks check"
+    RUN_TEST_CASE=${OUTPUT_PATH}/ut_ascendcl_c_utest && ${RUN_TEST_CASE}
     if [[ "$?" -ne 0 ]]; then
         echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
         echo -e "\033[31m${RUN_TEST_CASE}\033[0m"

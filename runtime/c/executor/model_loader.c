@@ -55,7 +55,7 @@ static Status LoadExeModel(ModelLoadParam *paramPtr) {
     return ret;
   }
   uint32_t phyMdlId = 0U;
-  Status rtRet = (Status)rtPreLoadModelLoad(&mdlLoad, &phyMdlId);
+  Status rtRet = (Status)rtNanoModelLoad(&mdlLoad, &phyMdlId);
   if (rtRet != SUCCESS) {
     return rtRet;
   }

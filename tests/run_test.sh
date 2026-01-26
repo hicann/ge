@@ -45,6 +45,7 @@ usage() {
   echo "            =python       Build ge python ut"
   echo "            =parser       Build ge parser ut"
   echo "            =dflow        Build ge dflow ut"
+  echo "        =executor_c       Build executor_c ut"
   echo "    -s, --st       Build all st"
   echo "        =ge               Build all ge st"
   echo "            =ge_common    Build ge common st"
@@ -53,6 +54,7 @@ usage() {
   echo "            =python       Build ge python st"
   echo "            =parser       Build ge parser st"
   echo "            =dflow        Build ge dflow st"
+  echo "        =executor_c       Build executor_c st"
   echo "    -h, --help     Print usage"
   echo "    -c, --cov      Build ut/st with coverage tag"
   echo "                   Please ensure that the environment has correctly installed lcov, gcov, and genhtml."
@@ -102,6 +104,7 @@ checkopts() {
   ENABLE_ENGINES="off"
   ENABLE_ST_WHOLE_PROCESS="off"
   ENABLE_ACL_UT="off"
+  ENABLE_GE_C="off"
 
   ENABLE_GE_BENCHMARK="off"
 
@@ -176,6 +179,10 @@ checkopts() {
             ENABLE_GE="on"
             shift 2
             ;;
+          "executor_c")
+            ENABLE_GE_C="on"
+            shift 2
+            ;;
           *)
             usage
             exit 1
@@ -233,6 +240,10 @@ checkopts() {
           "dflow")
             ENABLE_DFLOW="on"
             ENABLE_GE="on"
+            shift 2
+            ;;
+          "executor_c")
+            ENABLE_GE_C="on"
             shift 2
             ;;
           *)
@@ -674,6 +685,19 @@ main() {
         unset TEST_SUMMARY_FILE
         exit 1
       fi
+    fi
+  fi
+  
+  # module executor_c
+  if [ "X$ENABLE_GE_C" == "Xon" ]; then
+    # executor_c ut
+    if [ "X$ENABLE_UT" = "Xon" ]; then
+      bash scripts/build_executor_c.sh -u -j $THREAD_NUM $VERBOSE $COVERAGE
+    fi
+
+    # executor_c st
+    if [ "X$ENABLE_ST" = "Xon" ]; then
+      bash scripts/build_executor_c.sh -s -j $THREAD_NUM $VERBOSE $COVERAGE
     fi
   fi
 

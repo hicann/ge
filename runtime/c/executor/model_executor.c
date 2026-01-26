@@ -106,7 +106,7 @@ static Status ModelExecute(ExecHandleDesc *execDesc, bool sync, const InputData 
   rtMdlExec.aicQos = execDesc->aicQos;
   rtMdlExec.aicOst = execDesc->aicOst;
 
-  rtRet = (Status)rtPreLoadModelExecute(&rtMdlExec);
+  rtRet = (Status)rtNanoModelExecute(&rtMdlExec);
   if (rtRet != SUCCESS) {
     return rtRet;
   }

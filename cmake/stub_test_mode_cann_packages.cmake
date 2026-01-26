@@ -23,8 +23,8 @@ if (GE_DT)
         set(GE_METADEF_INC_DIR ${CMAKE_CURRENT_LIST_DIR}/../inc/graph_metadef)
     endif ()
     set(PARSER_DIR ${CMAKE_CURRENT_LIST_DIR}/parser)
-elseif (ENGINE_DT OR GE_C_DT)
-    message(STATUS "ENGINE OR GE_C DT mode")
+elseif (ENGINE_DT)
+    message(STATUS "ENGINE mode")
     add_library(licctrl_headers INTERFACE)
     target_include_directories(licctrl_headers INTERFACE
         ${ASCEND_INSTALL_PATH}/include/experiment
@@ -50,6 +50,31 @@ elseif (ENGINE_DT OR GE_C_DT)
     find_package_if_target_not_exists(opat MODULE REQUIRED)
     find_package_if_target_not_exists(runtime_static MODULE REQUIRED)
     find_package_if_target_not_exists(aicpu MODULE REQUIRED)
+    find_package_if_target_not_exists(ascendcl MODULE REQUIRED)
+
+    # 使用medadef发布包编译
+    find_package(metadef MODULE REQUIRED)
+
+    set(METADEF_DIR ${CMAKE_CURRENT_LIST_DIR}/../base/metadef)
+    set(PARSER_DIR ${CMAKE_CURRENT_LIST_DIR}/parser)
+elseif (GE_C_DT)
+    message(STATUS "GE_C DT mode")
+    add_library(licctrl_headers INTERFACE)
+    target_include_directories(licctrl_headers INTERFACE
+        ${ASCEND_INSTALL_PATH}/include/experiment
+        ${ASCEND_INSTALL_PATH}/include/experiment/licctrl
+    )
+
+    include(cmake/function.cmake)
+    find_package_if_target_not_exists(slog MODULE REQUIRED)
+    find_package_if_target_not_exists(unified_dlog MODULE REQUIRED)
+    find_package_if_target_not_exists(atrace MODULE REQUIRED)
+    find_package_if_target_not_exists(platform MODULE REQUIRED)
+    find_package_if_target_not_exists(runtime MODULE REQUIRED)
+    find_package_if_target_not_exists(datagw MODULE REQUIRED)
+    find_package_if_target_not_exists(msprof MODULE REQUIRED)
+    find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
+    find_package_if_target_not_exists(adump MODULE REQUIRED)
     find_package_if_target_not_exists(ascendcl MODULE REQUIRED)
 
     # 使用medadef发布包编译

@@ -129,7 +129,7 @@ if (ENABLE_GE_C_LLT)
 endif ()
 
 cmake_print_variables(ENABLE_OPEN_SRC ENABLE_TEST ENABLE_GE_BENCHMARK ENABLE_GE_ST ENABLE_GE_UT MINDSPORE_MODE PLATFORM
-        BUILD_METADEF ENABLE_GE_DT ENABLE_RT2_UT ENABLE_PYTHON_UT ENABLE_PARSER_UT ENABLE_DFLOW_UT)
+        BUILD_METADEF ENABLE_GE_DT ENABLE_RT2_UT ENABLE_PYTHON_UT ENABLE_PARSER_UT ENABLE_DFLOW_UT ENABLE_GE_C_LLT GE_C_DT ENABLE_TEST_C)
 cmake_print_variables(BUILD_OPEN_PROJECT ENABLE_LLT_COV ENABLE_FE_LLT ENABLE_FFTS_LLT ENABLE_AICPU_LLT ENABLE_DVPP_LLT
         ENABLE_HCCE_LLT ENABLE_RTS_LLT ENABLE_UT ENABLE_ST, HI_PYTHON)
 
@@ -375,7 +375,7 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
     elseif (ENABLE_GE_DT)
         add_dependencies(select_targets ge_manual_test)
     elseif(ENABLE_GE_C_LLT)
-        add_dependencies(select_targets ut_ge_executor_c_utest ut_ge_executor_c_liteos_utest ut_dbg_liteos_static_utest)
+        add_dependencies(select_targets ut_ge_executor_c_utest ut_ge_executor_c_liteos_utest ut_dbg_liteos_static_utest ut_ascendcl_c_utest)
     endif ()
 else ()
     # build air run package

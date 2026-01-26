@@ -77,7 +77,7 @@ static void FreeModelDescMem(GeModelDesc *modelDesc) {
 
 void DestroyModelDesc(GeModelDesc *modelDesc) {
   if (modelDesc->phyModelId != INVALID_PHY_MODLE_ID) {
-    (void)rtPreLoadModelDestroy(modelDesc->phyModelId);
+    (void)rtNanoModelDestroy(modelDesc->phyModelId);
   }
   FreeModelDescMem(modelDesc);
 }
