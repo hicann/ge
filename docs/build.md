@@ -78,17 +78,26 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 
 运行样例时必须安装该软件包，若仅编译源码，可跳过本操作。
 
-根据实际产品型号和环境架构，获取对应的`Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run`包，本操作以获取Atlas A2系列产品软件包为例，下载链接为[ops_x86_64](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1/x86_64/Ascend-cann-910b-ops_8.5.0-beta.1_linux-x86_64.run)、[ops_aarch64](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1/aarch64/Ascend-cann-910b-ops_8.5.0-beta.1_linux-aarch64.run)。
+根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
 
-  ```bash
-  # 确保安装包具有可执行权限
-  chmod +x Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run
-  # 安装命令
-  ./Ascend-cann-${soc_name}-ops_${cann_version}_linux-${arch}.run --install --install-path=${install_path}
-  ```
+- Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
+- Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run`
 
-- `${soc_name}`：表示NPU型号名称，即$\{soc\_version\}删除“ascend”后剩余的内容。
-- `${install_path}`：表示指定安装路径，需要与Toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
+```bash
+# 确保安装包具有可执行权限
+# Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
+chmod +x Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run
+# Atlas A3 训练系列产品/Atlas A3 推理系列产品
+chmod +x Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run
+
+# 安装命令
+# Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
+./Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
+# Atlas A3 训练系列产品/Atlas A3 推理系列产品
+./Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
+```
+
+- `${install_path}`：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。
 
 #### 步骤三：配置环境变量
 
