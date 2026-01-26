@@ -467,7 +467,7 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadFromFile(const char *modelPath, uin
  *
  * @par Function
  * After the system finishes loading the bundle model,
- * the bundle model ID returned is used as a mark to identify the bundle  model
+ * the bundle model ID returned is used as a mark to identify the bundle model
  * during subsequent operations
  *
  * @param model [IN]      Bundle model data stored in memory
@@ -484,7 +484,7 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadFromMem(const void *model,  size_t 
  * @ingroup AscendCL
  * @brief unload bundle model with bundle model id
  *
- * @param  bundleId [IN]   bundle model id to be unloaded
+ * @param bundleId [IN] bundle model id to be unloaded
  *
  * @retval ACL_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
@@ -646,11 +646,11 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleInitFromMem(const void* model, size_t m
 
 /**
  * @ingroup AscendCL
- * @brief Load  bundle model inner model
+ * @brief Load model by index in bundle model
  *
  * @param bundleId [IN]   Bundle model id generated
  * @param index [IN]      Bundle om inner model index
- * @param modelId [IN]    inner model id loaded which can be executed
+ * @param modelId [OUT]   inner model id loaded which can be executed
  *
  * @retval ACL_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
@@ -659,7 +659,7 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModel(uint32_t bundleId, size_t ind
 
 /**
  * @ingroup AscendCL
- * @brief Load bundle model inner model with mem
+ * @brief Load model by index in bundle model with mem
  *
  * @param bundleId [IN]   Bundle model id generated
  * @param index [IN]      Bundle om inner model index
@@ -669,7 +669,7 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModel(uint32_t bundleId, size_t ind
  * @param weightPtr [IN]  Pointer to model weight memory on Device,can be null
  * @param weightSize [IN] The amount of weight memory required by the model
 
- * @param modelId [IN]    inner model id loaded which can be executed
+ * @param modelId [OUT]    inner model id loaded which can be executed
  *
  * @retval ACL_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
@@ -680,12 +680,12 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModelWithMem(uint32_t bundleId, siz
 
 /**
  * @ingroup AscendCL
- * @brief Load  bundle model inner model
+ * @brief Load model by index in bundle model with config
  *
  * @param bundleId [IN]   Bundle model id generated
  * @param index [IN]      Bundle om inner model index
  * @param handle [IN]     pointer to model config handle
- * @param modelId [IN]    inner model id loaded which can be executed
+ * @param modelId [OUT]    inner model id loaded which can be executed
  *
  * @retval ACL_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure

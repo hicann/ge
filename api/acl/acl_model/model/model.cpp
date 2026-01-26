@@ -1824,7 +1824,7 @@ static aclError UnloadModelInner(const uint32_t modelId)
 
 static aclError QueryBundleSubModelInfo(const void *data, size_t modelSize, aclmdlBundleQueryInfo *queryInfo) {
   std::vector<std::pair<size_t, size_t>> subModelOffsetAndSize;
-  size_t varSize = 0;
+  size_t varSize = 0U;
   ACL_REQUIRES_OK(acl::GetBundleNumAndOffset(data, modelSize, varSize, subModelOffsetAndSize));
   queryInfo->varSize = static_cast<size_t>(varSize);
   for (const auto &ele : subModelOffsetAndSize) {
@@ -1871,14 +1871,14 @@ static aclError BundleInitFromMem(std::shared_ptr<uint8_t> model, size_t modelSi
   (void)varWeightSize;
   // get bundle num from file header
   std::vector<std::pair<size_t, size_t>> subModelOffsetAndSize;
-  size_t varSize = 0;
+  size_t varSize = 0U;
   ACL_REQUIRES_OK(acl::GetBundleNumAndOffset(model.get(), modelSize, varSize, subModelOffsetAndSize));
   auto rtSession = acl::AclResourceManager::GetInstance().CreateRtSession();
   ACL_REQUIRES_NOT_NULL(rtSession);
   rtSession->SetExternalVar(varWeightPtr, varWeightSize);
   acl::AclResourceManager::GetInstance().AddExecutor(*bundleId, nullptr, rtSession);
   acl::BundleModelInfo info;
-  info.is_init = true;
+  info.isInit = true;
   info.varSize = varSize;
   info.fromFilePath = modelPath;
   info.bundleModelSize = modelSize;
@@ -1901,7 +1901,7 @@ static aclError BundleLoadFromMem(std::shared_ptr<uint8_t> model, size_t modelSi
   ACL_REQUIRES_OK(BundleInitFromMem(model, modelSize, modelPath, nullptr, 0, bundleId));
   acl::BundleModelInfo info;
   ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(*bundleId, info));
-  info.is_init = false;
+  info.isInit = false;
   const auto loadArgs = ConstructGeModelLoadArg(nullptr, 0, nullptr, 0, info.rtSession.get(), {});
   for (const auto &subInfo : info.subModelInfos) {
     uint32_t currentModelId = 0U;
@@ -1919,7 +1919,7 @@ static aclError BundleLoadFromMem(std::shared_ptr<uint8_t> model, size_t modelSi
   }
   if (!info.fromFilePath.empty()) {
     info.bundleModelData = nullptr; // need reset nullptr when aclmdlBundleLoadFromFile to ensure compatibility
-    info.bundleModelSize = 0;
+    info.bundleModelSize = 0U;
   }
   acl::AclResourceManager::GetInstance().SetBundleInfo(*bundleId, info);
   return ACL_SUCCESS;
@@ -2054,7 +2054,7 @@ aclError aclmdlBundleGetModelIdImpl(uint32_t bundleId, size_t index, uint32_t *m
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
   acl::BundleModelInfo bundleInfos;
   ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
-  if (bundleInfos.is_init) {
+  if (bundleInfos.isInit) {
     ACL_LOG_ERROR("aclmdlBundleGetModelId is supported only aclmdlBundleLoadFromFile or aclmdlBundleLoadFromMem is executed");
     return ACL_ERROR_API_NOT_SUPPORT;
   }
@@ -2186,7 +2186,7 @@ aclError aclmdlBundleLoadModelImpl(uint32_t bundleId, size_t index, uint32_t *mo
 static aclError GetTargetBundleInfo(uint32_t bundleId, acl::BundleModelInfo &bundleInfos) {
   const std::unique_lock<std::mutex> lock(aclmdlBundleMutex);
   ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
-  bool need_load_mem_from_file = !bundleInfos.is_init && !bundleInfos.fromFilePath.empty() &&
+  bool need_load_mem_from_file = !bundleInfos.isInit && !bundleInfos.fromFilePath.empty() &&
                                  (bundleInfos.bundleModelData == nullptr);
   if (need_load_mem_from_file) {
     ACL_LOG_INFO("bundle mem should allocated again when aclmdlBundleLoadFromFile called");

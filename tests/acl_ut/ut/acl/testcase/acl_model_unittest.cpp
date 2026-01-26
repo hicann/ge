@@ -4028,7 +4028,7 @@ TEST_F(UTEST_ACL_Model, TestBundleInfoFromVarSizeOm)
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 3);
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelId.size(), 3);
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelIdSet.size(), 3);
-  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].is_init, false);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].isInit, false);
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].subModelInfos.size(), 3);
   EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 2);
   EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 2);
@@ -4118,10 +4118,10 @@ TEST_F(UTEST_ACL_Model, TestaclmdlBundleQueryInfoFromMem)
   EXPECT_EQ(aclmdlBundleDestroyQueryInfo(query_info), ACL_SUCCESS);
 }
 
-void Verify(uint32_t bundle_id, bool is_init = true) {
+void Verify(uint32_t bundle_id, bool isInit = true) {
   // check bundle info
   size_t modelNum = 0;
-  size_t load_cnt = is_init ? 0 : 3;
+  size_t load_cnt = isInit ? 0 : 3;
 
   auto ret = aclmdlBundleGetModelNum(bundle_id, nullptr);
   EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
@@ -4134,7 +4134,7 @@ void Verify(uint32_t bundle_id, bool is_init = true) {
   uint32_t model_id = 0;
   ret = aclmdlBundleGetModelId(bundle_id, 999, nullptr);
   EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-  if (is_init) {
+  if (isInit) {
     ret = aclmdlBundleGetModelId(bundle_id, 0, &model_id);
     EXPECT_EQ(ret , ACL_ERROR_API_NOT_SUPPORT);
   }
@@ -4152,16 +4152,16 @@ void Verify(uint32_t bundle_id, bool is_init = true) {
   EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
 
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 1);
-  if (is_init) {
+  if (isInit) {
     EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelId.size(), 0);
   } else {
     EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelId.size(), 3);
   }
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelIdSet.size(), load_cnt);
-  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].is_init, is_init);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].isInit, isInit);
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].subModelInfos.size(), 3);
   EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), load_cnt);
-  size_t session_map_size = is_init ? 2 : 3;
+  size_t session_map_size = isInit ? 2 : 3;
   EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), session_map_size);
   EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), session_map_size);
   EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_[bundle_id].get(),

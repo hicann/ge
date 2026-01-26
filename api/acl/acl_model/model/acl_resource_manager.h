@@ -62,7 +62,7 @@ public:
 };
 
 struct BundleModelInfo {
-  bool is_init = false; // aclmdlBundleInit scene means true
+  bool isInit = false; // aclmdlBundleInit scene means true
   std::shared_ptr<gert::RtSession> rtSession;
   size_t varSize = 0U;
   std::string fromFilePath;
