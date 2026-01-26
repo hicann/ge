@@ -31,7 +31,7 @@ std::shared_ptr<ModelRtVarManager> ModelRtVarManager::Instance(const uint64_t se
 }
 
 ge::Status ModelRtVarManager::Init(const uint64_t device_id, const uint64_t logic_var_base,
-                                   const int64_t total_var_size) {
+                                   const int64_t total_var_size, void* external_var_addr, uint64_t external_var_size) {
   if (inited) {
     return ge::SUCCESS;
   }
@@ -42,8 +42,10 @@ ge::Status ModelRtVarManager::Init(const uint64_t device_id, const uint64_t logi
         var_manager->Init(static_cast<int32_t>(ge::SessionVersion::ClOUD_VERSION), session_id_, device_id, 0U));
     var_manager->SetVarMemLogicBase(logic_var_base);
     var_manager->SetVarMemMaxSize(total_var_size);
-    GELOGI("Reinit var manager in session:[%" PRIu64 "], logic_base:[%" PRIu64 "], total_size:[%" PRId64 "].",
-      session_id_, logic_var_base, total_var_size);
+    var_manager->SetExternalVar(external_var_addr, external_var_size);
+    GELOGI("Reinit var manager in session:[%" PRIu64 "], logic_base:[%" PRIu64 "], total_size:[%" PRId64 "], "
+           "external_var_addr %p, external_var_size %lu",
+      session_id_, logic_var_base, total_var_size, external_var_addr, external_var_size);
   }
   if (!var_manager->HasMemoryManager()) {
     var_manager->SetMemManager(&ge::MemManager::Instance());

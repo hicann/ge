@@ -142,7 +142,8 @@ TEST_F(StestFileConstantUtilTransfer, Preprocess_Fileconstant_Op_OK) {
   out1.write((char *)float_buf.get(), 16 * sizeof(float));
   out1.close();
   model.file_id_and_path_map_.insert(std::pair<std::string, std::string>("file", "tmp_weight_file.bin"));
-  auto status = model.PreProcessFileConstants(graph);
+  ModelParam default_parm;
+  auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, SUCCESS);
   ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
             model.runtime_param_.fileconstant_addr_mapping.end());

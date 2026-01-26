@@ -1297,8 +1297,11 @@ graphStatus aclgrphBundleBuildModel(const std::vector<ge::GraphWithOptions> &gra
   }
   GE_ASSERT_SUCCESS(CheckVarDesc(graph_with_options, session_id));
   // gather bundle model
-  GE_ASSERT_SUCCESS(ModelHelper::SaveBundleModelBufferToMem(models, model), "Save models to bundle model failed.");
-
+  const auto &var_manager = VarManagerPool::Instance().GetVarManager(session_id);
+  GE_CHECK_NOTNULL(var_manager);
+  uint64_t var_size = static_cast<uint64_t>(var_manager->GetVarMemSize(RT_MEMORY_HBM));
+  GE_ASSERT_SUCCESS(ModelHelper::SaveBundleModelBufferToMem(models, var_size, model),
+                    "Save models to bundle model failed.");
   return GRAPH_SUCCESS;
 }
 
@@ -1382,21 +1385,30 @@ graphStatus aclgrphBundleSaveModelImpl(const std::string &output_file, const Mod
   size_t sub_model_num = model_header->model_num;
 
   std::vector<ModelBufferData> repacked_buffers;
-  repacked_buffers.resize(sub_model_num);
   std::map<std::string, std::pair<int64_t, GeTensorDesc>> var_name_to_verify_info;
   std::string output_file_name = output_file + ".om";
-
-  const size_t header_size =
-      sizeof(ModelFileHeader) + sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * sub_model_num;
-  GE_ASSERT_TRUE(model.length >= header_size, "Bundle model len is invalid.");
+  GE_ASSERT_TRUE(model.length >= (sizeof(ModelFileHeader) + sizeof(ModelPartitionTable)), "Bundle model len is invalid.");
   auto *partition_table = PtrToPtr<uint8_t, ModelPartitionTable>(model.data.get() + sizeof(ModelFileHeader));
+  const size_t partition_num = partition_table->num;
+  const size_t header_size =
+      sizeof(ModelFileHeader) + sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * partition_num;
 
   size_t current_offset{header_size};
-  for (size_t i = 0UL; i < sub_model_num; ++i) {
+  GE_ASSERT_TRUE(model.length >= current_offset,
+      "Bundle model len is invalid, model length is %lu, current_offset is %zu", model.length, current_offset);
+  size_t other_part_cnt = 0U; // other part is ordered in front of submodel partition
+  for (size_t i = 0UL; i < partition_num; ++i) {
     ModelData sub_model_data;
     sub_model_data.model_data = model.data.get() + current_offset;
     sub_model_data.model_len = partition_table->partition[i].mem_size;
     current_offset += partition_table->partition[i].mem_size;
+    GE_ASSERT_TRUE(model.length >= current_offset,
+        "Bundle model len is invalid, model length is %lu, current_offset is %zu", model.length, current_offset);
+    if (partition_table->partition[i].type != BUNDLE_MODEL_INFO) {
+      GELOGI("current partition %zu, type %d is not bundle sub model", i, partition_table->partition[i].type);
+      ++other_part_cnt;
+      continue;
+    }
     ModelHelper model_helper;
     const ModelFileHeader *sub_model_header = nullptr;
     GE_ASSERT_SUCCESS(model_helper.GetModelFileHead(sub_model_data, sub_model_header),
@@ -1416,25 +1428,37 @@ graphStatus aclgrphBundleSaveModelImpl(const std::string &output_file, const Mod
           "Variable validation failed. Please ensure that the variables has been compiled under the same session.");
       model_helper.GetGeRootModel()->GetRootGraph();
       GELOGD("Load root model successfully.");
+      ModelBufferData cur_buf;
       GE_ASSERT_SUCCESS(
-          model_helper.PackSoToModelData(sub_model_data, output_file + ".om", repacked_buffers[i], false));
+          model_helper.PackSoToModelData(sub_model_data, output_file + ".om", cur_buf, false));
+      repacked_buffers.emplace_back(cur_buf);
       if (model_helper.IsSoStore()) {
         output_file_name = ModelHelper::GetOutputFileName();
       }
     }
   }
+  GE_ASSERT_TRUE((partition_num - other_part_cnt) == sub_model_num, "partition_num %zu, other_part_cnt %zu, sub_model_num %zu",
+                 partition_num, other_part_cnt, sub_model_num);
+  GE_ASSERT_TRUE(repacked_buffers.size() == sub_model_num, "repacked num %zu should be equal to %zu",
+                 repacked_buffers.size(), sub_model_num);
 
   // bundle save
   ModelFileHeader *bundle_header = const_cast<ModelFileHeader *>(model_header);
-  size_t offset{sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * sub_model_num};
-  bundle_header->model_length = header_size;
+  size_t first_sub_model_offset = partition_table->partition[other_part_cnt].mem_offset; // first sub model offset
+  bundle_header->model_length = sizeof(ModelFileHeader) + first_sub_model_offset;
+  size_t offset = first_sub_model_offset;
+  // only update sub model offset partition info
   for (size_t i = 0UL; i < sub_model_num; ++i) {
-    partition_table->partition[i].mem_size = repacked_buffers[i].length;
-    partition_table->partition[i].mem_offset = offset;
+    const size_t sub_model_id = i + other_part_cnt;
+    partition_table->partition[sub_model_id].mem_size = repacked_buffers[i].length;
+    partition_table->partition[sub_model_id].mem_offset = offset;
     bundle_header->model_length += repacked_buffers[i].length;
     offset += repacked_buffers[i].length;
   }
-  GE_ASSERT_SUCCESS(FileSaver::SaveToFile(output_file_name, model.data.get(), header_size));
+  // save head, partition info and other partition mem
+  GE_ASSERT_SUCCESS(FileSaver::SaveToFile(output_file_name, model.data.get(),
+                                          (sizeof(ModelFileHeader) + first_sub_model_offset)));
+  // save repacked sub models mem last
   for (size_t i = 0UL; i < sub_model_num; ++i) {
     GE_ASSERT_SUCCESS(
         FileSaver::SaveToFile(output_file_name, repacked_buffers[i].data.get(), repacked_buffers[i].length, true));

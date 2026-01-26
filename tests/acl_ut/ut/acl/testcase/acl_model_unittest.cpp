@@ -3726,8 +3726,9 @@ std::shared_ptr<uint8_t> ConstructBundleOm(size_t model_num, size_t &size)
   uint8_t *model_data = model_p.get();
   size_t offset = 0;
   ModelFileHeader *header = (ModelFileHeader *)model_data;
-  header->modeltype = 4;
-  header->modeltype = 5;
+  header->modeltype = ge::MODEL_TYPE_BUNDLE_MODEL;
+  header->model_num = model_num;
+  header->length = size;
   offset += sizeof(ModelFileHeader);
   ModelPartitionTable *p = (ModelPartitionTable *)(model_data + offset);
   p->num = 3;
@@ -3736,6 +3737,7 @@ std::shared_ptr<uint8_t> ConstructBundleOm(size_t model_num, size_t &size)
     ModelPartitionMemInfo *part = (ModelPartitionMemInfo *)(model_data + offset);
     part->type = ge::BUNDLE_MODEL_INFO;
     part->mem_size = sizeof(ModelFileHeader) + 10;
+    part->type = ge::BUNDLE_MODEL_INFO;
     offset += sizeof(ModelPartitionMemInfo);
   }
   for (size_t i = 0; i < model_num; ++i) {

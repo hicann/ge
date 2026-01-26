@@ -15,6 +15,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "graph/utils/tensor_adapter.h"
 #include "ge/ge_ir_build.h"
 #include "graph/ops_stub.h"
 #include "graph/ge_global_options.h"
@@ -37,6 +38,12 @@
 #include "faker/aicore_taskdef_faker.h"
 #include "register/optimization_option_registry.h"
 #include "graph/manager/graph_var_manager.h"
+#include "stub/gert_runtime_stub.h"
+#include "graph/operator_factory_impl.h"
+#include "ge_running_env/ge_running_env_faker.h"
+#include "ge_running_env/fake_op.h"
+#include "ge_running_env/fake_graph_optimizer.h"
+#include "ge_running_env/fake_engine.h"
 
 const string AddNYes = "AddNYes";
 const char *const kEnvName = "ASCEND_OPP_PATH";
@@ -52,6 +59,33 @@ using namespace ge;
 
 namespace ge {
   extern graphStatus CheckVarDesc(const vector<ge::GraphWithOptions> &graph_and_options, const uint64_t session_id);
+ge::graphStatus StubInferShape(ge::Operator &op) {
+  auto x_input_desc = op.GetInputDesc(0);
+  auto x_shape = x_input_desc.GetShape().GetDims();
+  auto x_type = x_input_desc.GetDataType();
+  std::vector<std::pair<int64_t, int64_t>> x_shape_range;
+  (void)x_input_desc.GetShapeRange(x_shape_range);
+  TensorDesc op_output_desc = op.GetOutputDesc(0);
+  op_output_desc.SetShape(ge::Shape(x_shape));
+  op_output_desc.SetOriginShape(ge::Shape(x_shape));
+  op_output_desc.SetDataType(x_type);
+  if (!x_shape_range.empty()) {
+    op_output_desc.SetShapeRange(x_shape_range);
+  }
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  return op_desc->UpdateOutputDesc(0, TensorAdapter::TensorDesc2GeTensorDesc(op_output_desc));
+}
+
+ge::graphStatus GetShapeInferShape(ge::Operator &op) {
+  std::cout << "Enter infershape getshape" << std::endl;
+  std::vector<std::string> tiling_inline_engine;
+  tiling_inline_engine.push_back("AIcoreEngine");
+  vector<std::string> export_shape_engine;
+  export_shape_engine.push_back("AIcoreEngine");
+  op.SetAttr("_op_tiling_inline_engine", tiling_inline_engine);
+  op.SetAttr("_op_export_shape_engine", export_shape_engine);
+  return ge::GRAPH_SUCCESS;
+}
 }
 class UtestIrCommon : public testing::Test {
  protected:
@@ -715,6 +749,39 @@ TEST(UtestIrBuild, aclgrphConvertToWeightRefreshableGraphs) {
 }
 
 TEST(UtestIrBuild, check_aclgrphBundle) {
+  std::string path = GetModelPath();
+  path = path.substr(0, path.rfind('/'));
+  path = path.substr(0, path.rfind('/'));
+  path = path.substr(0, path.rfind('/') + 1);
+
+  std::string opp_path = path + "opp/";
+  system(("mkdir -p " + opp_path).c_str());
+  mmSetEnv(kEnvName, opp_path.c_str(), 1);
+
+  std::string scene_path = opp_path + "scene.info";
+  system(("touch " + scene_path).c_str());
+  system(("echo 'os=linux' > " + scene_path).c_str());
+  system(("echo 'arch=x86_64' >> " + scene_path).c_str());
+
+  system("pwd");
+  std::string inner_proto_path = opp_path + kInner + kOpsProtoPath;
+  system(("mkdir -p " + inner_proto_path).c_str());
+  inner_proto_path += kOpsProto;
+  system(("touch " + inner_proto_path).c_str());
+  system(("echo 'ops proto:123 ' > " + inner_proto_path).c_str());
+
+  std::string inner_tiling_path = opp_path + kInner + kOpMasterPath;
+  system(("mkdir -p " + inner_tiling_path).c_str());
+  inner_tiling_path += kOpMaster;
+  system(("touch " + inner_tiling_path).c_str());
+  system(("echo 'op tiling:456 ' > " + inner_tiling_path).c_str());
+
+  std::map<std::string, std::string> global_options;
+  global_options[ge::OPTION_EXEC_HCCL_FLAG] = "0";
+  global_options[ge::OPTION_HOST_ENV_OS] = "linux";
+  global_options[ge::OPTION_HOST_ENV_CPU] = "x86_64";
+  ge::aclgrphBuildInitialize(global_options);
+
   Graph graph = BuildIrConstGraph1();
   WeightRefreshableGraphs split_graphs;
   std::vector<AscendString> lora_names;
@@ -725,15 +792,78 @@ TEST(UtestIrBuild, check_aclgrphBundle) {
 
   std::vector<GraphWithOptions> graph_and_options;
   std::map<AscendString, AscendString> options;
+  //options.insert({AscendString("ge.socVersion"), AscendString("Ascend910A")});
   options.insert({AscendString("input_format"), AscendString("ND")});
   ModelBufferData model;
   ret = aclgrphBundleBuildModel(graph_and_options, model);
   EXPECT_EQ(ret, GRAPH_PARAM_INVALID);
   graph_and_options.emplace_back(GraphWithOptions{split_graphs.infer_graph, options});
   graph_and_options.emplace_back(GraphWithOptions{split_graphs.var_init_graph, options});
-  graph_and_options.emplace_back(GraphWithOptions{split_graphs.var_update_graph, options});
+
+  auto instance_ptr = ge::GELib::GetInstance();
+  EXPECT_NE(instance_ptr, nullptr);
+  //  SchedulerConf conf;
+  SchedulerConf scheduler_conf;
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL"] = std::make_shared<EngineConf>();
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL"]->name = "DNN_VM_GE_LOCAL";
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL"]->id = "DNN_VM_GE_LOCAL";
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL"]->independent = false;
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL"]->attach = true;
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL"]->skip_assign_stream = true;
+
+  scheduler_conf.cal_engines["AIcoreEngine"] = std::make_shared<EngineConf>();
+  scheduler_conf.cal_engines["AIcoreEngine"]->name = "AIcoreEngine";
+  scheduler_conf.cal_engines["AIcoreEngine"]->id = "AIcoreEngine";
+  scheduler_conf.cal_engines["AIcoreEngine"]->independent = false;
+  scheduler_conf.cal_engines["AIcoreEngine"]->attach = false;
+  scheduler_conf.cal_engines["AIcoreEngine"]->skip_assign_stream = false;
+
+  scheduler_conf.cal_engines["DNN_VM_AICPU"] = std::make_shared<EngineConf>();
+  scheduler_conf.cal_engines["DNN_VM_AICPU"]->name = "DNN_VM_AICPU";
+  scheduler_conf.cal_engines["DNN_VM_AICPU"]->id = "DNN_VM_AICPU";
+  scheduler_conf.cal_engines["DNN_VM_AICPU"]->independent = false;
+  scheduler_conf.cal_engines["DNN_VM_AICPU"]->attach = true;
+  scheduler_conf.cal_engines["DNN_VM_AICPU"]->skip_assign_stream = false;
+
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL_OP_STORE"] = std::make_shared<EngineConf>();
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL_OP_STORE"]->name = "DNN_VM_GE_LOCAL_OP_STORE";
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL_OP_STORE"]->id = "DNN_VM_GE_LOCAL_OP_STORE";
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL_OP_STORE"]->independent = false;
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL_OP_STORE"]->attach = true;
+  scheduler_conf.cal_engines["DNN_VM_GE_LOCAL_OP_STORE"]->skip_assign_stream = true;
+
+  instance_ptr->DNNEngineManagerObj().schedulers_["multi_batch"] = scheduler_conf;
+
+  GeRunningEnvFaker ge_env;
+  auto multi_dims = MakeShared<FakeMultiDimsOptimizer>();
+  ge_env.Install(FakeEngine("AIcoreEngine").KernelInfoStore("AiCoreLib").GraphOptimizer("AIcoreEngine").Priority(PriorityEnum::COST_0));
+  ge_env.Install(FakeEngine("VectorEngine").KernelInfoStore("VectorLib").GraphOptimizer("VectorEngine").Priority(PriorityEnum::COST_1));
+  ge_env.Install(FakeEngine("DNN_VM_AICPU").KernelInfoStore("AicpuLib").GraphOptimizer("aicpu_tf_optimizer").Priority(PriorityEnum::COST_3));
+  ge_env.Install(FakeEngine("DNN_VM_AICPU_ASCEND").KernelInfoStore("AicpuAscendLib").GraphOptimizer("aicpu_ascend_optimizer").Priority(PriorityEnum::COST_2));
+  ge_env.Install(FakeEngine("DNN_HCCL").KernelInfoStore("ops_kernel_info_hccl").GraphOptimizer("hccl_graph_optimizer").GraphOptimizer("hvd_graph_optimizer").Priority(PriorityEnum::COST_1));
+  ge_env.Install(FakeEngine("DNN_VM_RTS").KernelInfoStore("RTSLib").GraphOptimizer("DNN_VM_RTS_GRAPH_OPTIMIZER_STORE").Priority(PriorityEnum::COST_1));
+  ge_env.Install(FakeEngine("DNN_VM_GE_LOCAL").KernelInfoStore("DNN_VM_GE_LOCAL_OP_STORE").GraphOptimizer("DNN_VM_HOST_CPU_OPTIMIZER").Priority(PriorityEnum::COST_9));
+  ge_env.Install(FakeEngine("DNN_VM_HOST_CPU").KernelInfoStore("DNN_VM_HOST_CPU_OP_STORE").GraphOptimizer("DNN_VM_HOST_CPU_OPTIMIZER").Priority(PriorityEnum::COST_10));
+  ge_env.Install(FakeEngine("DSAEngine").KernelInfoStore("DSAEngine").Priority(PriorityEnum::COST_1));
+  ge_env.Install(FakeEngine("AIcoreEngine").GraphOptimizer("MultiDims", multi_dims));
+  ge_env.Install(FakeOp(NETOUTPUT).InfoStoreAndBuilder("AicpuLib"));
+  ge_env.Install(FakeOp(CASE).InfoStoreAndBuilder("AiCoreLib"));
+  ge_env.Install(FakeOp(STREAMACTIVE).InfoStoreAndBuilder("RTSLib"));
+  ge_env.Install(FakeOp(SEND).InfoStoreAndBuilder("RTSLib"));
+  ge_env.Install(FakeOp(RECV).InfoStoreAndBuilder("RTSLib"));
+  ge_env.Install(FakeOp(CONSTANT).InfoStoreAndBuilder("AicpuLib"));
+  ge_env.Install(FakeOp(VARIABLE).InfoStoreAndBuilder("AicpuLib"));
+  ge_env.Install(FakeOp(MATMUL).InferShape(StubInferShape).InfoStoreAndBuilder("AiCoreLib"));
+  ge_env.Install(FakeOp(DATA).InferShape(StubInferShape).InfoStoreAndBuilder("AiCoreLib"));
+  ge_env.Install(FakeOp(ADD).InferShape(StubInferShape).InfoStoreAndBuilder("AiCoreLib"));
+  ge_env.Install(FakeOp(ASSIGN).InfoStoreAndBuilder("AiCoreLib"));
+  ge_env.Install(FakeOp(CAST).InfoStoreAndBuilder("AiCoreLib"));
+
   ret = aclgrphBundleBuildModel(graph_and_options, model);
-  EXPECT_NE(ret, GRAPH_SUCCESS);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  ge::aclgrphBuildFinalize();
+  RuntimeStub::Reset();
+  ge_env.Reset();
 }
 
 TEST(UtestIrBuild, check_CheckVarDesc) {
@@ -1552,7 +1682,7 @@ TEST(UtestIrBuild, bundle_save_successfully) {
   model_datas.push_back(buffer);
 
   ModelBufferData bundle_model;
-  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem(model_datas, bundle_model), SUCCESS);
+  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem(model_datas, 2048, bundle_model), SUCCESS);
 
   EXPECT_NE(aclgrphBundleSaveModel(nullptr, bundle_model), SUCCESS);
 
@@ -1654,7 +1784,7 @@ TEST(UtestIrBuild, bundle_save_flow_model_invalid_buffer) {
   std::vector<ModelBufferData> model_datas{model_1, model_2};
 
   ModelBufferData bundle_model;
-  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem(model_datas, bundle_model), SUCCESS);
+  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem(model_datas, 2048, bundle_model), SUCCESS);
 
   std::string output_file = "saved_bundle_flow_model";
   EXPECT_NE(aclgrphBundleSaveModel(output_file.c_str(), bundle_model), SUCCESS);

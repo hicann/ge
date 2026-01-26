@@ -446,6 +446,8 @@ class VarManager {
 
   int64_t GetVarMemSize(const rtMemType_t memory_type) const;
 
+  void SetExternalVar(void *external_var_addr, uint64_t external_var_size);
+
   int64_t GetVarConstPlaceHolderMemSize(const rtMemType_t memory_type) const;
 
   bool IsVarExist(const std::string &var_name, const ge::GeTensorDesc &tensor_desc) const;
@@ -505,6 +507,8 @@ class VarManager {
 
  private:
   std::shared_ptr<MemResource> GetOrCreateMemoryResourceByType(rtMemType_t memory_type);
+  void* external_var_addr_{nullptr};
+  uint64_t external_var_size_{0U};
   int64_t var_malloc_mem_size_ = 0L;
   SessionVersion version_ = SessionVersion::OTHER_VERSION;
   uint64_t session_id_;

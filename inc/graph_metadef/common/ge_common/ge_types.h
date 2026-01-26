@@ -312,11 +312,14 @@ struct ModelQueueArg {
 
 struct ModelParam {
   ModelParam() : priority(0), mem_base(0U), mem_size(0U), weight_base(0U), weight_size(0U), fixed_mem_base(0U),
-                 fixed_mem_size(0U), p2p_fixed_mem_base(0U), p2p_fixed_mem_size(0U), file_constant_mems(nullptr) {}
+                 fixed_mem_size(0U), p2p_fixed_mem_base(0U), p2p_fixed_mem_size(0U), file_constant_mems(nullptr),
+                 external_var_addr_(nullptr), external_var_size_(0) {}
   ModelParam(const int32_t pri, const uintptr_t m_base, const size_t m_len, const uintptr_t w_base, const size_t w_len,
-             const std::vector<FileConstantMem> *const file_constant_mems = nullptr)
+             const std::vector<FileConstantMem> *const file_constant_mems = nullptr,
+             void* external_var_addr= nullptr, uint64_t external_var_size = 0)
       : priority(pri), mem_base(m_base), mem_size(m_len), weight_base(w_base), weight_size(w_len), fixed_mem_base(0U),
-        fixed_mem_size(0U), p2p_fixed_mem_base(0U), p2p_fixed_mem_size(0U), file_constant_mems(file_constant_mems) {}
+        fixed_mem_size(0U), p2p_fixed_mem_base(0U), p2p_fixed_mem_size(0U), file_constant_mems(file_constant_mems),
+        external_var_addr_(external_var_addr), external_var_size_(external_var_size) {}
   virtual ~ModelParam() = default;
 
   int32_t priority;
@@ -329,6 +332,8 @@ struct ModelParam {
   uintptr_t p2p_fixed_mem_base;
   size_t p2p_fixed_mem_size;
   const std::vector<FileConstantMem> *const file_constant_mems;
+  void* external_var_addr_;
+  uint64_t external_var_size_;
 };
 
 // The definition of Model information

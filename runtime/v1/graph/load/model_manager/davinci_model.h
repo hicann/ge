@@ -899,7 +899,7 @@ class DavinciModel {
     return args_manager_.PaRemapped(va, new_pa, len, overlap_range);
   }
 
-  Status RestoreDeviceVarMem(const std::vector<NodePtr> &variable_nodes);
+  Status RestoreDeviceVarMem(const std::vector<NodePtr> &variable_nodes, const ModelParam &param);
 
   bool GetPhysicalMemoryRefreshable() const;
 
@@ -1084,7 +1084,7 @@ class DavinciModel {
   /// @brief Travel all nodes and preprocess fileconstant nodes only in offline training process.
   /// @param [in] compute_graph: ComputeGraph to load.
   /// @return Status
-  Status PreProcessFileConstants(const ComputeGraphPtr &compute_graph);
+  Status PreProcessFileConstants(const ComputeGraphPtr &compute_graph, const ModelParam &param);
 
   /// @ingroup ge
   /// @brief First, retrieve the external weight file name from the FileConstant node.

@@ -891,6 +891,11 @@ ge::Status VarManager::GetVarAddr(const std::string &var_name, const ge::GeTenso
   return GetVarAddr(var_name, tensor_desc, dev_ptr, memory_type);
 }
 
+void VarManager::SetExternalVar(void *external_var_addr, uint64_t external_var_size) {
+  external_var_addr_ = external_var_addr;
+  external_var_size_ = external_var_size;
+}
+
 int64_t VarManager::GetVarMemSize(const rtMemType_t memory_type) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   std::shared_ptr<MemResource> mem_resource = nullptr;
@@ -1358,6 +1363,21 @@ uint8_t *VarManager::GetVarMemoryAddr(const std::string &graph_name,
 
   if (memory_type == RT_MEMORY_RDMA_HBM) {
     return const_cast<uint8_t *>(logic_addr);
+  }
+
+  if ((external_var_addr_ != nullptr) && (memory_type == RT_MEMORY_HBM)) {
+    const uint64_t inner_var_size = static_cast<uint64_t>(GetVarMemSize(RT_MEMORY_HBM));
+    GE_ASSERT_TRUE(external_var_size_ >= inner_var_size, "external var size %ld can not be smaller than %ld",
+                   external_var_size_, inner_var_size);
+    GE_ASSERT_TRUE(PtrToValue(logic_addr) >= var_mem_logic_base_, "logic offset %lu can not be smaller than logic base %lu",
+                   PtrToValue(logic_addr), var_mem_logic_base_);
+    const uint64_t real_offset = PtrToValue(logic_addr) - var_mem_logic_base_;
+    GE_ASSERT_TRUE(real_offset < external_var_size_, "real offset %lu should be smaller than external var size %lu",
+                   real_offset, external_var_size_);
+    uint8_t *ret_p = PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(external_var_addr_) + real_offset));
+    GELOGI("external var scene, real_offset is %lu, logic offset %lu, base %lu, ret_p %p",
+           real_offset, PtrToValue(logic_addr), var_mem_logic_base_, ret_p);
+    return ret_p;
   }
 
   return GetAutoMallocVarAddr(graph_name, logic_addr, memory_type, device_id);

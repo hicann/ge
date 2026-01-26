@@ -303,7 +303,12 @@ ge::graphStatus ModelV2ExecutorBuilder::RestoreDeviceVarMem(ModelV2Executor &exe
   GE_ASSERT_RT_OK(rtGetDevice(&device_id));
   auto rt_var_manager = ModelRtVarManager::Instance(executor.load_session_id_);
   GE_ASSERT_NOTNULL(rt_var_manager);
-  GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id, logic_var_base, total_var_size));
+  void *external_var_addr = nullptr;
+  uint64_t external_var_size = 0;
+  if (session_ != nullptr) {
+    session_->GetExternalVar(external_var_addr, external_var_size);
+  }
+  GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id, logic_var_base, total_var_size, external_var_addr, external_var_size));
   GE_ASSERT_SUCCESS(rt_var_manager->RestoreDeviceVariables(device_variables, graph_id, device_id));
 
   return ge::GRAPH_SUCCESS;

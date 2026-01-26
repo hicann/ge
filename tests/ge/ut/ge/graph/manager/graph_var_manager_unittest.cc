@@ -648,6 +648,50 @@ TEST_F(UtestGraphVarManagerTest, test_init_var_if_has_init_value_match) {
     }
 }
 
+TEST_F(UtestGraphVarManagerTest, test_external_var) {
+  // Initialize VarManager
+  const std::vector<rtMemType_t> memory_types({RT_MEMORY_HBM, RT_MEMORY_P2P_DDR});
+  EXPECT_EQ(MemManager::Instance().Initialize(memory_types), SUCCESS);
+
+  VarManager::Instance(0)->SetMemManager(&MemManager::Instance());
+  EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 0, 0), SUCCESS);
+
+  // Create variable tensor with placement device
+  std::vector<int64_t> var_shape{1, 1, 1, 1, 10};
+  GeShape shape(var_shape);
+  GeTensorDesc tensor_desc(shape);
+  tensor_desc.SetDataType(DT_FLOAT);
+  tensor_desc.SetFormat(FORMAT_NCHW);
+  TensorUtils::SetSize(tensor_desc, 10 * sizeof(float));
+
+  // Create OpDesc
+  OpDescPtr op_desc = std::make_shared<OpDesc>("test_var_match", VARIABLE);
+  op_desc->AddOutputDesc(tensor_desc);
+
+  // Assign variable memory
+  std::string var_name = "test_var_match";
+  Status status = VarManager::Instance(0)->AssignVarMem(var_name, op_desc, tensor_desc, RT_MEMORY_HBM);
+  EXPECT_EQ(status, SUCCESS);
+
+  VarManager::Instance(0)->var_resource_->UpdateDevVarMgrInfo(0);
+  uint8_t* logic_addr = nullptr;
+  status = VarManager::Instance(0)->GetVarAddr(var_name, tensor_desc, logic_addr);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_NE(logic_addr, nullptr);
+  const size_t total_var_size = VarManager::Instance(0)->GetVarMemSize(RT_MEMORY_HBM);
+  void *external_var_addr = nullptr;
+  rtMalloc(&external_var_addr, total_var_size, RT_MEMORY_DEFAULT, GE_MODULE_NAME_U16);
+  EXPECT_NE(external_var_addr, nullptr);
+  VarManager::Instance(0)->SetExternalVar(external_var_addr, total_var_size);
+
+  uint8_t *dev_addr = VarManager::Instance(0)->GetVarMemoryAddr(var_name, logic_addr, RT_MEMORY_HBM, 0);
+  EXPECT_NE(dev_addr, nullptr);
+  const size_t real_offset = PtrToValue(logic_addr) - VarManager::Instance(0)->GetVarMemLogicBase();
+  EXPECT_EQ(dev_addr, (PtrToPtr<void, uint8_t>(external_var_addr) + real_offset));
+  rtFree(external_var_addr);
+  VarManager::Instance(0)->SetExternalVar(nullptr, 0);
+}
+
 TEST_F(UtestGraphVarManagerTest, test_init_var_if_has_init_value_format_mismatch) {
   // Initialize VarManager 
   const std::vector<rtMemType_t> memory_types({RT_MEMORY_HBM, RT_MEMORY_P2P_DDR});

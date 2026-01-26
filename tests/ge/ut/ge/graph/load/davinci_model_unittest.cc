@@ -55,6 +55,7 @@ extern std::string g_runtime_stub_mock;
 
 namespace ge {
 namespace {
+ModelParam default_parm;
 class MockRtExecute : public ge::RuntimeStub {
  public:
   MOCK_METHOD4(rtModelExecuteSync, rtError_t(rtModel_t model, rtStream_t stream, uint32_t flag, int32_t timeout));
@@ -1614,7 +1615,7 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Op_OK) {
   op_desc->AddOutputDesc(tensor_desc);
   op_desc->SetOutputOffset({0});
   graph->AddNode(op_desc);
-  auto status = model.PreProcessFileConstants(graph);
+  auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, SUCCESS);
   ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
             model.runtime_param_.fileconstant_addr_mapping.end());
@@ -1647,12 +1648,12 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_UserDeviceMem) {
   op_desc->SetOutputOffset({0});
   graph->AddNode(op_desc);
 
-  auto status = model.PreProcessFileConstants(graph);
+  auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, SUCCESS);
   model.FreeFileConstantMem();
 
   model.SetFileConstantUserDeviceMem({file_conststant_mem});
-  status = model.PreProcessFileConstants(graph);
+  status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, SUCCESS);
   auto iter = model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0));
   ASSERT_NE(iter, model.runtime_param_.fileconstant_addr_mapping.end());
@@ -1688,7 +1689,7 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Failed_UserDeviceMemSizeInvali
   op_desc->SetOutputOffset({0});
   graph->AddNode(op_desc);
 
-  auto status = model.PreProcessFileConstants(graph);
+  auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_NE(status, SUCCESS);
   free(reinterpret_cast<void*>(model.weights_mem_base_));
 }
@@ -1712,7 +1713,7 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Op_Memory_Allocation_Failed) {
   op_desc->SetOutputOffset({1});
   graph->AddNode(op_desc);
   g_runtime_stub_mock = "rtMalloc";
-  auto status = model.PreProcessFileConstants(graph);
+  auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, ACL_ERROR_GE_MEMORY_ALLOCATION);
 }
 
@@ -1735,7 +1736,7 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Op_Param_Failed) {
   op_desc->AddOutputDesc(tensor_desc);
   op_desc->SetOutputOffset({0, 1});
   graph->AddNode(op_desc);
-  auto status = model.PreProcessFileConstants(graph);
+  auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, PARAM_INVALID);
   free(reinterpret_cast<void*>(model.weights_mem_base_));
 }
@@ -8209,7 +8210,7 @@ TEST_F(UtestDavinciModel, test_restore_variable) {
   std::vector<NodePtr> variable_nodes{node};
   model.runtime_param_.logic_var_base = 137438959572U;
   model.runtime_param_.var_size = 1024U;
-  EXPECT_EQ(model.RestoreDeviceVarMem(variable_nodes), SUCCESS);
+  EXPECT_EQ(model.RestoreDeviceVarMem(variable_nodes, default_parm), SUCCESS);
   VarManager::Instance(model.session_id_)->Destory();
 }
 

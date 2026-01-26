@@ -45,7 +45,7 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
   Status LoadRootModel(const ge::ModelData &model_data);
   static Status GetModelFileHead(const ge::ModelData &model_data, const ModelFileHeader *&file_header);
   static Status SetModelToGeModel(const GeModelPtr &ge_model, const GeModelPtr &first_ge_model, Model &model);
-  static Status SaveBundleModelBufferToMem(const std::vector<ModelBufferData> &model_buffers,
+  static Status SaveBundleModelBufferToMem(const std::vector<ModelBufferData> &model_buffers, uint64_t var_size,
                                            ModelBufferData &output_buffer);
   static std::string GetOutputFileName() {
     return output_file_name_;

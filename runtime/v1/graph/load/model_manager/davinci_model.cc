@@ -1157,14 +1157,14 @@ Status DavinciModel::Init(const ModelParam &param, void *outer_fm_mem) {
   fixed_mem_base_ = mem_base_;
   GetStageTimestampEnd(kInitMdlMem);
 
-  GE_CHK_STATUS_RET(PreProcessFileConstants(compute_graph), "[PreProcess][FileConstant] failed, graph: %s.",
+  GE_CHK_STATUS_RET(PreProcessFileConstants(compute_graph, param), "[PreProcess][FileConstant] failed, graph: %s.",
                     compute_graph->GetName().c_str());
 
   std::vector<NodePtr> variable_nodes;
   GetStageTimestampStart(kInitIoNodes);
   GE_CHK_STATUS_RET(InitIoNodes(compute_graph, variable_nodes), "[Init][InitIoNodes] failed, name: %s", name_.c_str());
   // recover variables
-  GE_ASSERT_SUCCESS(RestoreDeviceVarMem(variable_nodes));
+  GE_ASSERT_SUCCESS(RestoreDeviceVarMem(variable_nodes, param));
 
   GetStageTimestampEnd(kInitIoNodes);
 
@@ -1494,13 +1494,14 @@ Status DavinciModel::UpdateSessionId(const uint64_t session_id) {
   return SUCCESS;
 }
 
-Status DavinciModel::RestoreDeviceVarMem(const std::vector<NodePtr> &variable_nodes) {
+Status DavinciModel::RestoreDeviceVarMem(const std::vector<NodePtr> &variable_nodes, const ModelParam &param) {
   if (variable_nodes.empty() || domi::GetContext().is_online_model) {
     return SUCCESS;
   }
   const auto &rt_var_manager = gert::ModelRtVarManager::Instance(session_id_);
   GE_ASSERT_NOTNULL(rt_var_manager);
-  GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id_, runtime_param_.logic_var_base, runtime_param_.var_size),
+  GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id_, runtime_param_.logic_var_base, runtime_param_.var_size,
+                                         param.external_var_addr_, param.external_var_size_),
                     "Failed to init runtime var_manager.");
   GE_ASSERT_SUCCESS(
       rt_var_manager->RestoreDeviceVariables(variable_nodes, runtime_param_.graph_id, GetDeviceId(), false),
@@ -1543,7 +1544,7 @@ Status DavinciModel::InitIoNodes(const ComputeGraphPtr &compute_graph, std::vect
   return SUCCESS;
 }
 
-Status DavinciModel::PreProcessFileConstants(const ComputeGraphPtr &compute_graph) {
+Status DavinciModel::PreProcessFileConstants(const ComputeGraphPtr &compute_graph, const ModelParam &param) {
   if (!file_constant_weight_dir_.empty()) {
     GE_CHK_STATUS_RET(FileConstantUtils::SetExternalPath(compute_graph, file_constant_weight_dir_),
                       "Failed to set external path:%s.", file_constant_weight_dir_.c_str());
@@ -1559,7 +1560,8 @@ Status DavinciModel::PreProcessFileConstants(const ComputeGraphPtr &compute_grap
     if ((!var_resource_inited) && (!VarManager::Instance(session_id_)->IsVarResourceInited())) {
       const auto &rt_var_manager = gert::ModelRtVarManager::Instance(session_id_);
       GE_ASSERT_NOTNULL(rt_var_manager);
-      GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id_, runtime_param_.logic_var_base, runtime_param_.var_size),
+      GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id_, runtime_param_.logic_var_base, runtime_param_.var_size,
+                                             param.external_var_addr_, param.external_var_size_),
                         "Failed to init runtime var_manager.");
       var_resource_inited = true;
     }

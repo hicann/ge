@@ -1024,10 +1024,15 @@ Status GeExecutor::LoadModelFromDataWithArgs(uint32_t &model_id, const ModelData
     GELOGE(ACL_ERROR_GE_EXEC_NOT_INIT, "[Check][Param] GeExecutor has not inited yet!");
     return ACL_ERROR_GE_EXEC_NOT_INIT;
   }
+  void *external_var_addr = nullptr;
+  uint64_t external_var_size = 0;
+  if (load_arg.rt_session != nullptr) {
+    load_arg.rt_session->GetExternalVar(external_var_addr, external_var_size);
+  }
 
   const ModelParam model_param{model_data.priority, reinterpret_cast<uintptr_t>(load_arg.dev_ptr), load_arg.mem_size,
                                reinterpret_cast<uintptr_t>(load_arg.weight_ptr), load_arg.weight_size,
-                               &load_arg.file_constant_mems};
+                               &load_arg.file_constant_mems, external_var_addr, external_var_size};
   return ModelManager::GetInstance().LoadModelOffline(model_data, model_param, model_id, load_arg.rt_session);
 }
 

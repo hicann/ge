@@ -25,7 +25,8 @@ class ModelRtVarManager : public RtVarManager {
  public:
   static std::shared_ptr<ModelRtVarManager> Instance(const uint64_t session_id);
   explicit ModelRtVarManager(uint64_t session_id) : session_id_(session_id) {}
-  ge::Status Init(const uint64_t device_id, const uint64_t logic_var_base, const int64_t total_var_size);
+  ge::Status Init(const uint64_t device_id, const uint64_t logic_var_base, const int64_t total_var_size,
+                  void* external_var_addr, uint64_t external_var_size);
   bool IsInited() const {
     return inited;
   }

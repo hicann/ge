@@ -908,16 +908,19 @@ Status ModelHelper::SaveOriginalGraphToOmModel(const ge::Graph &graph, const std
   return ((ret == SUCCESS) ? SUCCESS : FAILED);
 }
 
-Status ModelHelper::SaveBundleModelBufferToMem(const std::vector<ModelBufferData> &model_buffers,
+Status ModelHelper::SaveBundleModelBufferToMem(const std::vector<ModelBufferData> &model_buffers, uint64_t var_size,
                                                ModelBufferData &output_buffer) {
   const size_t model_num = model_buffers.size();
+  const size_t var_partition_num = 1U;
+  const size_t var_size_len = sizeof(uint64_t);
+  const size_t mem_info_partition_num = model_num + var_partition_num; // add var partition
   const size_t header_size =
-      sizeof(ModelFileHeader) + sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * model_num;
+      sizeof(ModelFileHeader) + sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * mem_info_partition_num;
   size_t sub_model_size{0UL};
   for (size_t i = 0UL; i < model_num; ++i) {
     sub_model_size += model_buffers[i].length;
   }
-  const size_t total_size = header_size + sub_model_size;
+  const size_t total_size = header_size + var_size_len + sub_model_size;
   auto buff_data = MakeUnique<uint8_t[]>(total_size);
   ModelFileHeader *header = PtrToPtr<uint8_t, ModelFileHeader>(buff_data.get());
   GE_ASSERT_NOTNULL(header);
@@ -926,12 +929,20 @@ Status ModelHelper::SaveBundleModelBufferToMem(const std::vector<ModelBufferData
   header->model_length = total_size;
   ModelPartitionTable *table = PtrToPtr<uint8_t, ModelPartitionTable>(&buff_data[sizeof(ModelFileHeader)]);
   GE_ASSERT_NOTNULL(table);
-  table->num = static_cast<uint32_t>(model_num);
-  size_t offset{sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * model_num};
-  for (size_t i = 0UL; i < model_num; ++i) {
-    table->partition[i].type = BUNDLE_MODEL_INFO;
-    table->partition[i].mem_size = model_buffers[i].length;
-    table->partition[i].mem_offset = offset;
+  table->num = static_cast<uint32_t>(mem_info_partition_num);
+  size_t offset{sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * mem_info_partition_num};
+  // add BUNDLE_MODEL_VAR_INFO part
+  table->partition[0].type = BUNDLE_MODEL_VAR_INFO;
+  table->partition[0].mem_size = sizeof(int64_t);
+  table->partition[0].mem_offset = offset;
+  *reinterpret_cast<uint64_t*>(&buff_data[sizeof(ModelFileHeader) + offset]) = var_size;
+  offset += var_size_len;
+  // add sub model partition
+  for (size_t i = 0U; i < model_num; ++i) {
+    const size_t sub_model_id = i + var_partition_num;
+    table->partition[sub_model_id].type = BUNDLE_MODEL_INFO;
+    table->partition[sub_model_id].mem_size = model_buffers[i].length;
+    table->partition[sub_model_id].mem_offset = offset;
     GE_ASSERT_SUCCESS(
         ge::GeMemcpy(&buff_data[sizeof(ModelFileHeader) + offset], sub_model_size,
         model_buffers[i].data.get(), model_buffers[i].length),
@@ -943,8 +954,7 @@ Status ModelHelper::SaveBundleModelBufferToMem(const std::vector<ModelBufferData
   // save bundle models.
   output_buffer.data.reset(buff_data.release(), std::default_delete<uint8_t[]>());
   output_buffer.length = total_size;
-  GELOGI("Gathering bundle model successfully, total size: %[%zu]", total_size);
-
+  GELOGI("Gathering bundle model successfully, total size: %[%zu], var_size is %lu", total_size, var_size);
   return SUCCESS;
 }
 

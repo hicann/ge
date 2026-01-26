@@ -242,7 +242,7 @@ TEST_F(GeIrBuildTest, test_build_and_bundlesave_flow_model_pp) {
   EXPECT_EQ(aclgrphBuildModel(graph, build_options, model_buffer_data), SUCCESS);
 
   ModelBufferData bundle_buffer;
-  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem({model_buffer_data, model_buffer_data}, bundle_buffer), SUCCESS);
+  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem({model_buffer_data, model_buffer_data}, 2048, bundle_buffer), SUCCESS);
   EXPECT_NE(aclgrphBundleSaveModel(nullptr, bundle_buffer), SUCCESS);
   EXPECT_EQ(aclgrphBundleSaveModel("bundle_flow_model", bundle_buffer), SUCCESS);
   EXPECT_NE(aclgrphSaveModel("./test1", bundle_buffer), SUCCESS); // type not support
@@ -269,7 +269,7 @@ TEST_F(GeIrBuildTest, test_build_and_bundle_save_variable_modle) {
   EXPECT_EQ(aclgrphBuildModel(graph, build_options, model_buffer_data), SUCCESS);
 
   ModelBufferData bundle_buffer;
-  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem({model_buffer_data, model_buffer_data}, bundle_buffer), SUCCESS);
+  EXPECT_EQ(ModelHelper::SaveBundleModelBufferToMem({model_buffer_data, model_buffer_data}, 4096, bundle_buffer), SUCCESS);
   EXPECT_NE(aclgrphBundleSaveModel(nullptr, bundle_buffer), SUCCESS);
   EXPECT_EQ(aclgrphBundleSaveModel("bundle_var_model", bundle_buffer), SUCCESS);
 
@@ -297,7 +297,22 @@ TEST_F(GeIrBuildTest, test_build_and_bundle_save_variable_modle) {
   EXPECT_EQ(bundle_header->model_num, 2U);
   ModelPartitionTable *table = reinterpret_cast<ModelPartitionTable*>(&data_bin[sizeof(ModelFileHeader)]);
   ASSERT_NE(table, nullptr);
-  for (uint32_t i = 0U; i < 2;++i) {
+  EXPECT_TRUE(table->num == 3);
+  size_t offset = sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * table->num;
+  EXPECT_TRUE(table->partition[0].type == BUNDLE_MODEL_VAR_INFO);
+  EXPECT_TRUE(table->partition[0].mem_size == sizeof(int64_t));
+  EXPECT_TRUE(table->partition[0].mem_offset == offset);
+  EXPECT_TRUE(table->partition[1].type == BUNDLE_MODEL_INFO);
+  offset += table->partition[0].mem_size;
+  EXPECT_TRUE(table->partition[1].mem_offset == offset);
+  EXPECT_TRUE(table->partition[2].type == BUNDLE_MODEL_INFO);
+  offset += table->partition[1].mem_size;
+  EXPECT_TRUE(table->partition[2].mem_offset == offset);
+  offset += table->partition[2].mem_size;
+  EXPECT_EQ(offset + sizeof(ModelFileHeader), len);
+  size_t data_offset = sizeof(ModelFileHeader) + sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * 3;
+  EXPECT_EQ(*reinterpret_cast<int64_t *>(data_bin.get() + data_offset), 4096);
+  for (uint32_t i = 1U; i < 3;++i) {
     ModelData sub_model;
     sub_model.model_data = data_bin.get() + sizeof(ModelFileHeader) + table->partition[i].mem_offset;
     sub_model.model_len = table->partition[i].mem_size;
