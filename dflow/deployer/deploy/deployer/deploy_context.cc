@@ -664,10 +664,7 @@ Status DeployContext::SetModelInfo(const DeployState &deploy_state,
     model_info->set_is_dynamic_proxy_controlled(is_dynamic_proxy_controlled);
     model_info->set_is_head(submodel_desc.is_head());
     model_info->set_model_instance_name(submodel_desc.model_instance_name());
-    if (submodel_desc.load_mode() != 0) {
-      GELOGI("Load mode is %d, execute times is %d.", submodel_desc.load_mode(), submodel_desc.execute_times());
-      continue;
-    }
+
     const ExchangeRoute *flow_route = nullptr;
     GE_CHK_STATUS_RET_NOLOG(GetFlowRoute(deploy_state, flow_route));
     GE_CHK_STATUS_RET_NOLOG(GetQueues(*flow_route, submodel_desc, model_input_queues, model_output_queues));

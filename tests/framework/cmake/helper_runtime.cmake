@@ -47,7 +47,6 @@ set(HELPER_RUNTIME_SRC
     ${AIR_CODE_DIR}/dflow/deployer/deploy/abnormal_status_handler/device_abnormal_status_handler.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/executor_manager.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/builtin_executor_client.cc
-    ${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/builtin_thread_client.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/pne_executor_client.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/udf_executor_client.cc
     ${AIR_CODE_DIR}/dflow/deployer/deploy/execfwk/udf_proxy_client.cc

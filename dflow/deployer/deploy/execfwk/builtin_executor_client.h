@@ -61,14 +61,12 @@ class BuiltinExecutorClient : public PneExecutorClient {
  private:
   Status GrantQueues(const deployer::ExecutorRequest_BatchLoadModelMessage &load_model_desc);
   Status GrantDynamicSchedQueues(const deployer::ExecutorRequest_BatchLoadModelMessage &load_model_desc);
-  void ParserLoadWithSyncEvent(const deployer::ExecutorRequest &request);
 
   std::atomic_bool heartbeat_listening_{false};
   pid_t pid_ = -1;
   std::unique_ptr<ExecutorMessageClient> message_client_;
   bool is_host_ = false;
   std::atomic<ProcStatus> sub_proc_stat_;
-  bool load_with_sync_event_ = false;
   int32_t aicpu_pid_ = -1;
   // guard grant_queues_map_
   std::mutex mutex_;

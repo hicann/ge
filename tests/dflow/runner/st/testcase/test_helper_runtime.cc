@@ -97,7 +97,6 @@
 #include "faker/ge_model_builder.h"
 #include "faker/aicore_taskdef_faker.h"
 #include "deploy/flowrm/tsd_client.h"
-#include "deploy/execfwk/builtin_thread_client.h"
 #include "deploy/deployer/deployer_service_impl.h"
 #include "deploy/abnormal_status_handler/device_abnormal_status_handler.h"
 #include "common/env_path.h"
@@ -3870,20 +3869,6 @@ TEST_F(STEST_helper_runtime, TestBuiltinExecutorClient_host) {
   BuiltinExecutorClient client(0);
   EXPECT_EQ(client.Initialize(), SUCCESS);
   EXPECT_EQ(client.GetSubProcStat(), ProcStatus::NORMAL);
-  EXPECT_EQ(client.Finalize(), SUCCESS);
-}
-
-TEST_F(STEST_helper_runtime, TestThreadClient) {
-  auto mock_runtime = std::make_shared<MockRuntime>();
-  RuntimeStub::SetInstance(mock_runtime);
-
-  BuiltinThreadClient client(0, false);
-  EXPECT_EQ(client.Initialize(), SUCCESS);
-  EXPECT_EQ(client.ClearModelRunningData(1, 1, {}), FAILED);
-  deployer::DataFlowExceptionNotifyRequest req_body;
-  EXPECT_EQ(client.DataFlowExceptionNotify(req_body), FAILED);
-  // failed to get model_id
-  EXPECT_EQ(client.UnloadModel(0), FAILED);
   EXPECT_EQ(client.Finalize(), SUCCESS);
 }
 

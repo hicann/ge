@@ -63,15 +63,9 @@ Status FlowModelSender::SerializeModel(const PneModelPtr &model, ModelBufferData
 }
 
 Status FlowModelSender::DeployRemoteVarManager(DeployState &deploy_state) {
-  int32_t local_node_id = ResourceManager::GetInstance().GetLocalNodeId();
   std::map<std::string, std::vector<const DeployPlan::SubmodelInfo *>> model_groups;
   for (const auto &it : deploy_state.GetDeployPlan().GetSubmodels()) {
     const auto &submodel = it.second;
-    if (submodel.device_info.GetNodeId() == local_node_id &&
-        submodel.load_info.process_mode == DeployPlan::ProcessMode::kThread) {
-      // local thread model no need to serialize
-      continue;
-    }
     model_groups[submodel.device_info.GetKey()].emplace_back(&submodel);
   }
   return DeployRemoteVarManager(model_groups);
@@ -780,9 +774,6 @@ Status FlowModelSender::BuildUpdateDeployPlanRequest(
 bool FlowModelSender::CacheLocalModel(const DeployPlan::SubmodelInfo &submodel) {
   int32_t local_node_id = ResourceManager::GetInstance().GetLocalNodeId();
   if (submodel.device_info.GetNodeId() == local_node_id) {
-    if (submodel.load_info.process_mode == DeployPlan::ProcessMode::kThread) {
-      return true;
-    }
     GE_CHECK_NOTNULL(submodel.model);
     // saved model path is empty for cache from old version
     if (!submodel.model->GetSavedModelPath().empty()) {

@@ -124,9 +124,7 @@ void DeployState::AddLocalSubmodelDesc(int32_t device_id, int32_t device_type,
   key.process_id = submodel_desc.process_id();
   key.process_mode = static_cast<DeployProcessMode>(submodel_desc.process_mode());
 
-  key.is_proxy = ((!is_device_soc_) &&
-                  (device_type != CPU) &&
-                  (key.process_mode != DeployProcessMode::kThread));
+  key.is_proxy = ((!is_device_soc_) && (device_type != CPU));
   if ((key.is_proxy) && (key.engine_name == PNE_ID_NPU)) {
     key.is_proxy = false;
     dynamic_proxy_controlled_flags_[submodel_desc.submodel_id()] = submodel_desc.is_dynamic();

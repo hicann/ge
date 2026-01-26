@@ -142,7 +142,6 @@ Status BuiltinExecutorClient::LoadModel(deployer::ExecutorRequest_BatchLoadModel
   GEEVENT("Load model on executor, model_type = %s, pid = %d, graph_id = %u, deployer pid = %d, device_id = %d.",
           PNE_ID_NPU.c_str(), GetPid(), load_model_desc.graph_id(), GetDeployerPid(), GetDeviceId());
   *executor_request.mutable_batch_load_model_message() = load_model_desc;
-  ParserLoadWithSyncEvent(executor_request);
   deployer::ExecutorResponse executor_response;
   constexpr int64_t kTimeoutSec = 8400; // s
   GE_CHK_STATUS_RET(message_client_->SendRequest(executor_request, executor_response, kTimeoutSec),
@@ -172,28 +171,12 @@ Status BuiltinExecutorClient::UpdateProfilingFromExecutor(deployer::ExecutorRequ
   return SUCCESS;
 }
 
-void BuiltinExecutorClient::ParserLoadWithSyncEvent(const deployer::ExecutorRequest &request) {
-  load_with_sync_event_ = false;
-  const auto &message = request.batch_load_model_message();
-  for (const auto &load_model_req : message.models()) {
-    if (load_model_req.load_mode() == static_cast<int32_t>(DeployPlan::LoadMode::kLoadWithSyncEvent)) {
-      GELOGI("Record current mode is load with sync event.");
-      load_with_sync_event_ = true;
-      return;
-    }
-  }
-}
-
 Status BuiltinExecutorClient::UnloadModel(uint32_t model_id) {
   GELOGD("[Unload][Model] begin.");
   deployer::ExecutorRequest executor_request;
   auto exec_req_body = executor_request.mutable_unload_model_message();
   GE_CHECK_NOTNULL(exec_req_body);
   exec_req_body->set_model_id(model_id);
-  if (load_with_sync_event_ && is_host_) {
-    // kill cpu executor process when finalize following ccb conclusion
-    return SUCCESS;
-  }
   deployer::ExecutorResponse executor_response;
   constexpr int64_t kTimeoutSec = 300; // s
   GE_CHK_STATUS_RET(message_client_->SendRequest(executor_request, executor_response, kTimeoutSec),

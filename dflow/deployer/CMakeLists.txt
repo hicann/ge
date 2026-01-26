@@ -143,7 +143,6 @@ set(HELPER_EXEC_FWK_SRC_LIST
         deploy/execfwk/executor_manager.cc
         deploy/execfwk/pne_executor_client.cc
         deploy/execfwk/builtin_executor_client.cc
-        deploy/execfwk/builtin_thread_client.cc
         deploy/execfwk/udf_proxy_client.cc
         deploy/execfwk/udf_executor_client.cc)
 

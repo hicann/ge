@@ -156,15 +156,11 @@ class DeployPlan {
   };
 
   enum class ProcessMode {
-    kProcess,
-    kThread
+    kProcess
   };
 
   enum class LoadMode {
-    kLoadWithQ,
-    kLoadWithEvent,
-    kLoadOnline,
-    kLoadWithSyncEvent
+    kLoadWithQ
   };
 
   struct LoadInfo {

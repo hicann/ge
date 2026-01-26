@@ -67,16 +67,11 @@ TEST_F(FlowModelSenderTest, CacheLocalModel) {
   ResourceManager::GetInstance().local_node_id_ = 0;
   FlowModelSender flow_model_sender;
   DeployPlan::SubmodelInfo model_info;
-  model_info.load_info.process_mode = DeployPlan::ProcessMode::kThread;
-  model_info.device_info = DeployPlan::DeviceInfo(0, 0, 0);
-  auto ret = flow_model_sender.CacheLocalModel(model_info);
-  EXPECT_EQ(ret, true);
-  model_info.load_info.process_mode = DeployPlan::ProcessMode::kProcess;
   auto graph = MakeShared<ComputeGraph>("g1");
   model_info.model = MakeShared<FlowModel>(graph);
   model_info.model->SetModelType(PNE_ID_NPU);
   model_info.model->SetSavedModelPath("/a/b/c");
-  ret = flow_model_sender.CacheLocalModel(model_info);
+  auto ret = flow_model_sender.CacheLocalModel(model_info);
   EXPECT_EQ(ret, true);
 }
 
