@@ -85,3 +85,10 @@ target_compile_definitions(ut_built_in_flow_func PRIVATE
         google=ascend_private
         UDF_TEST
 )
+ 
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+        add_test(NAME ut_built_in_flow_func COMMAND ut_built_in_flow_func --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_built_in_flow_func.xml)
+        set_tests_properties(ut_built_in_flow_func PROPERTIES LABELS "ut;ut_dflow;ut_built_in_flow_func")
+else ()
+        message(STATUS "Detected architecture: ${CMAKE_SYSTEM_PROCESSOR}, mock-cpp is only supported on x86_64, no ut_built_in_flow_func test on this architecture")
+endif ()

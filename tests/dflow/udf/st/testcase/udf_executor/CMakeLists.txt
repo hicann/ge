@@ -89,5 +89,9 @@ target_compile_definitions(st_flow_func_executor PRIVATE
         UDF_TEST
 )
 
-add_test(NAME st_flow_func_executor COMMAND st_flow_func_executor --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/st_flow_func_executor.xml)
-set_tests_properties(st_flow_func_executor PROPERTIES LABELS "st;st_dflow;st_flow_func_executor")
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+        add_test(NAME st_flow_func_executor COMMAND st_flow_func_executor --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/st_flow_func_executor.xml)
+        set_tests_properties(st_flow_func_executor PROPERTIES LABELS "st;st_dflow;st_flow_func_executor")
+else ()
+        message(STATUS "Detected architecture: ${CMAKE_SYSTEM_PROCESSOR}, mock-cpp is only supported on x86_64, no st_flow_func_executor test on this architecture")
+endif ()

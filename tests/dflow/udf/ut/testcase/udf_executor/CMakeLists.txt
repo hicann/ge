@@ -91,3 +91,10 @@ target_compile_definitions(ut_flow_func_executor PRIVATE
         google=ascend_private
         UDF_TEST
 )
+
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+        add_test(NAME ut_flow_func_executor COMMAND ut_flow_func_executor --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_flow_func_executor.xml)
+        set_tests_properties(ut_flow_func_executor PROPERTIES LABELS "ut;ut_dflow;ut_flow_func_executor")
+else ()
+        message(STATUS "Detected architecture: ${CMAKE_SYSTEM_PROCESSOR}, mock-cpp is only supported on x86_64, no ut_flow_func_executor test on this architecture")
+endif ()

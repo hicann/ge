@@ -78,5 +78,9 @@ target_compile_definitions(st_built_in_flow_func PRIVATE
         UDF_TEST
 )
 
-add_test(NAME st_built_in_flow_func COMMAND st_built_in_flow_func --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/st_built_in_flow_func.xml)
-set_tests_properties(st_built_in_flow_func PROPERTIES LABELS "st;st_dflow;st_built_in_flow_func")
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64")
+        add_test(NAME st_built_in_flow_func COMMAND st_built_in_flow_func --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/st_built_in_flow_func.xml)
+        set_tests_properties(st_built_in_flow_func PROPERTIES LABELS "st;st_dflow;st_built_in_flow_func")
+else ()
+        message(STATUS "Detected architecture: ${CMAKE_SYSTEM_PROCESSOR}, mock-cpp is only supported on x86_64, no st_built_in_flow_func test on this architecture")
+endif ()
