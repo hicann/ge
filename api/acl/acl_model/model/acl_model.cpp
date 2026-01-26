@@ -136,6 +136,77 @@ aclError aclmdlBundleGetModelId(uint32_t bundleId, size_t index, uint32_t *model
     return aclmdlBundleGetModelIdImpl(bundleId, index, modelId);
 }
 
+aclmdlBundleQueryInfo *aclmdlBundleCreateQueryInfo()
+{
+    return aclmdlBundleCreateQueryInfoImpl();
+}
+
+aclError aclmdlBundleDestroyQueryInfo(aclmdlBundleQueryInfo *queryInfo)
+{
+  return aclmdlBundleDestroyQueryInfoImpl(queryInfo);
+}
+
+aclError aclmdlBundleQueryInfoFromFile(const char* fileName, aclmdlBundleQueryInfo *queryInfo)
+{
+  return aclmdlBundleQueryInfoFromFileImpl(fileName, queryInfo);
+}
+
+aclError aclmdlBundleQueryInfoFromMem(const void *model, size_t modelSize, aclmdlBundleQueryInfo *queryInfo)
+{
+  return aclmdlBundleQueryInfoFromMemImpl(model, modelSize, queryInfo);
+}
+
+aclError aclmdlBundleGetQueryModelNum(const aclmdlBundleQueryInfo *queryInfo, size_t *modelNum)
+{
+  return aclmdlBundleGetQueryModelNumImpl(queryInfo, modelNum);
+}
+
+aclError aclmdlBundleGetVarWeightSize(const aclmdlBundleQueryInfo *queryInfo, size_t *variableWeightSize)
+{
+  return aclmdlBundleGetVarWeightSizeImpl(queryInfo, variableWeightSize);
+}
+
+aclError aclmdlBundleGetSize(const aclmdlBundleQueryInfo *queryInfo, size_t index,
+                             size_t *workSize, size_t *constWeightSize)
+{
+  return aclmdlBundleGetSizeImpl(queryInfo, index, workSize, constWeightSize);
+}
+
+aclError aclmdlBundleInitFromFile(const char* modelPath, void *varWeightPtr,
+                                  size_t varWeightSize, uint32_t *bundleId)
+{
+  return aclmdlBundleInitFromFileImpl(modelPath, varWeightPtr, varWeightSize, bundleId);
+}
+
+aclError aclmdlBundleInitFromMem(const void* model, size_t modelSize, void *varWeightPtr,
+                                 size_t varWeightSize, uint32_t *bundleId)
+{
+  return aclmdlBundleInitFromMemImpl(model, modelSize, varWeightPtr, varWeightSize, bundleId);
+}
+
+aclError aclmdlBundleLoadModel(uint32_t bundleId, size_t index, uint32_t *modelId)
+{
+  return aclmdlBundleLoadModelImpl(bundleId, index, modelId);
+}
+
+aclError aclmdlBundleLoadModelWithMem(uint32_t bundleId, size_t index, void *workPtr,
+                                      size_t workSize, void *weightPtr,
+                                      size_t weightSize, uint32_t *modelId)
+{
+  return aclmdlBundleLoadModelWithMemImpl(bundleId, index, workPtr, workSize, weightPtr, weightSize, modelId);
+}
+
+aclError aclmdlBundleLoadModelWithConfig(uint32_t bundleId, size_t index,
+                                         aclmdlConfigHandle *handle, uint32_t *modelId)
+{
+  return aclmdlBundleLoadModelWithConfigImpl(bundleId, index, handle, modelId);
+}
+
+aclError aclmdlBundleUnloadModel(uint32_t bundleId, uint32_t modelId)
+{
+  return aclmdlBundleUnloadModelImpl(bundleId, modelId);
+}
+
 aclError aclmdlLoadFromMem(const void *model,  size_t modelSize, uint32_t *modelId)
 {
     return aclmdlLoadFromMemImpl(model, modelSize, modelId);

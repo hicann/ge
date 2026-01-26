@@ -16,6 +16,7 @@
 #include <string>
 #include <set>
 #include "acl/acl_base.h"
+#include "acl/acl_mdl.h"
 #include "common/dynamic_aipp.h"
 #include "mmpa/mmpa_api.h"
 #include "common/ge_common/ge_types.h"
@@ -90,6 +91,13 @@ enum AippMode : int32_t {
     UNDEFINED = 0,
     STATIC_AIPP = 1,
     DYNAMIC_AIPP = 2
+};
+
+struct BundleSubModelInfo {
+  size_t workSize = 0U;
+  size_t weightSize = 0U;
+  size_t offset = 0U;
+  size_t modelSize = 0U;
 };
 }
 
@@ -166,5 +174,10 @@ struct aclmdlConfigHandle {
 struct aclmdlExecConfigHandle {
     int32_t streamSyncTimeout = -1; /**< stream synchronize timeout */
     int32_t eventSyncTimeout = -1; /**< event synchronize timeout */
+};
+
+struct aclmdlBundleQueryInfo {
+  size_t varSize = 0U;
+  std::vector<acl::BundleSubModelInfo> subModelInfos;
 };
 #endif // ACL_MODEL_DESC_INTERNAL_H

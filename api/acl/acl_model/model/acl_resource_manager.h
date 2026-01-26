@@ -19,6 +19,7 @@
 #include <unordered_map>
 #include <atomic>
 #include "acl/acl_base.h"
+#include "model_desc_internal.h"
 #include "graph/ge_attr_value.h"
 #include "mmpa/mmpa_api.h"
 #include "utils/string_utils.h"
@@ -60,8 +61,16 @@ public:
     aclrtAllocatorGetAddrFromBlockFunc getAddrFromBlockFunc;
 };
 
-struct BundleInfo {
-    uint32_t modelId = 0;
+struct BundleModelInfo {
+  bool is_init = false; // aclmdlBundleInit scene means true
+  std::shared_ptr<gert::RtSession> rtSession;
+  size_t varSize = 0U;
+  std::string fromFilePath;
+  std::shared_ptr<uint8_t> bundleModelData;
+  size_t bundleModelSize = 0U;
+  std::vector<BundleSubModelInfo> subModelInfos;
+  std::vector<uint32_t> loadedSubModelId; // aclmdlBundleGetModelId use this when aclmdlBundleLoadFromxx is called
+  std::set<uint32_t> loadedSubModelIdSet;
 };
 
 class ACL_FUNC_VISIBILITY AclResourceManager {
@@ -100,9 +109,13 @@ public:
 
     std::shared_ptr<ge::Allocator> GetDeviceAllocator(const aclrtStream stream, bool createDefaultAllocator = true);
 
-    void AddBundleInfo(const uint32_t bundleId, const std::vector<BundleInfo> &bundleInfos);
+    void AddBundleSubmodelId(const uint32_t bundleId, uint32_t modelId);
 
-    aclError GetBundleInfo(const uint32_t bundleId, std::vector<BundleInfo> &bundleInfos);
+    void DeleteBundleSubmodelId(const uint32_t bundleId, uint32_t modelId);
+
+    aclError SetBundleInfo(const uint32_t bundleId, const BundleModelInfo &bundleInfos);
+
+    aclError GetBundleInfo(const uint32_t bundleId, BundleModelInfo &bundleInfos);
 
     void DeleteBundleInfo(const uint32_t bundleId);
 
@@ -130,7 +143,7 @@ private:
     std::map<const void *, std::pair<ExternalAllocatorDesc, std::shared_ptr<gert::Allocators>>> streamExternalAllocator_;
     std::recursive_mutex streamAllocatorMutex_;
 
-    std::unordered_map<uint32_t, std::vector<BundleInfo>> bundleInfos_;
+    std::unordered_map<uint32_t, BundleModelInfo> bundleInfos_;
     std::unordered_set<uint32_t> bundleInnerIds_;
 };
 }

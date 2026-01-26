@@ -73,6 +73,42 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleGetModelNumImpl(uint32_t bundleId, size
 
 ACL_FUNC_VISIBILITY aclError aclmdlBundleGetModelIdImpl(uint32_t bundleId, size_t index, uint32_t *modelId);
 
+ACL_FUNC_VISIBILITY aclmdlBundleQueryInfo *aclmdlBundleCreateQueryInfoImpl();
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleDestroyQueryInfoImpl(aclmdlBundleQueryInfo *queryInfo);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleQueryInfoFromFileImpl(const char* fileName, aclmdlBundleQueryInfo *queryInfo);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleQueryInfoFromMemImpl(const void *model, size_t modelSize,
+                                                              aclmdlBundleQueryInfo *queryInfo);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleGetQueryModelNumImpl(const aclmdlBundleQueryInfo *queryInfo, size_t *modelNum);
+
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleGetVarWeightSizeImpl(const aclmdlBundleQueryInfo *queryInfo,
+                                                              size_t *variableWeightSize);
+
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleGetSizeImpl(const aclmdlBundleQueryInfo *queryInfo, size_t index,
+                                                    size_t *workSize, size_t *constWeightSize);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleInitFromFileImpl(const char* modelPath, void *varWeightPtr,
+                                                          size_t varWeightSize, uint32_t *bundleId);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleInitFromMemImpl(const void* model, size_t modelSize, void *varWeightPtr,
+                                                          size_t varWeightSize, uint32_t *bundleId);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModelImpl(uint32_t bundleId, size_t index, uint32_t *modelId);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModelWithMemImpl(uint32_t bundleId, size_t index, void *workPtr,
+                                                              size_t workSize, void *weightPtr,
+                                                              size_t weightSize, uint32_t *modelId);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModelWithConfigImpl(uint32_t bundleId, size_t index,
+                                                                aclmdlConfigHandle *handle, uint32_t *modelId);
+
+ACL_FUNC_VISIBILITY aclError aclmdlBundleUnloadModelImpl(uint32_t bundleId, uint32_t modelId);
+
 ACL_FUNC_VISIBILITY aclError aclmdlLoadFromMemImpl(const void *model,  size_t modelSize, uint32_t *modelId);
 
 ACL_FUNC_VISIBILITY aclError aclmdlLoadFromFileWithMemImpl(const char *modelPath,

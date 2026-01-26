@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-#include "acl/acl.h"
+#include "acl_mdl.h"
 #define private public
 #include "model/acl_resource_manager.h"
 #undef private
@@ -3734,13 +3734,62 @@ std::shared_ptr<uint8_t> ConstructBundleOm(size_t model_num, size_t &size)
   offset += sizeof(ModelPartitionTable);
   for (size_t i = 0; i < model_num; ++i) {
     ModelPartitionMemInfo *part = (ModelPartitionMemInfo *)(model_data + offset);
+    part->type = ge::BUNDLE_MODEL_INFO;
     part->mem_size = sizeof(ModelFileHeader) + 10;
     offset += sizeof(ModelPartitionMemInfo);
   }
   for (size_t i = 0; i < model_num; ++i) {
     ModelFileHeader *inner_header = (ModelFileHeader *)(model_data + offset);
     inner_header->version = ge::MODEL_VERSION + 1U;
-    if ( i == 0) {
+    if ( i == 2) {
+      inner_header->model_num = 2U;
+      inner_header->is_unknow_model = 1;
+    } else {
+      inner_header->model_num = 1U;
+      inner_header->is_unknow_model = 0;
+    }
+    offset += sizeof(ModelFileHeader);
+    offset += 10;
+  }
+  return model_p;
+}
+
+std::shared_ptr<uint8_t> ConstructBundleOmWithVarWeight(size_t model_num, size_t &size)
+{
+  // need add var
+  const size_t other_partition_num = 1U;
+  const size_t partition_num = model_num + other_partition_num; // add var partition
+  size = sizeof(ge::ModelFileHeader) + sizeof(ModelPartitionTable) +
+         (sizeof(ModelPartitionMemInfo) * partition_num) + sizeof(int64_t) +((sizeof(ModelFileHeader) + 10) * model_num);
+  std::shared_ptr<uint8_t> model_p(new (std::nothrow) uint8_t[size], std::default_delete<uint8_t[]>());
+  uint8_t *model_data = model_p.get();
+  size_t offset = 0;
+  ModelFileHeader *header = (ModelFileHeader *)model_data;
+  header->modeltype = ge::MODEL_TYPE_BUNDLE_MODEL;
+  header->model_num = model_num;
+  header->length = size;
+  offset += sizeof(ModelFileHeader);
+  ModelPartitionTable *p = (ModelPartitionTable *)(model_data + offset);
+  p->num = partition_num;
+  offset += sizeof(ModelPartitionTable);
+  int var_type = 25;
+  for (size_t i = 0; i < partition_num; ++i) {
+    ModelPartitionMemInfo *part = (ModelPartitionMemInfo *)(model_data + offset);
+    if (i == 0) {
+      part->type = *(ModelPartitionType*)(&var_type);
+      part->mem_size = sizeof(int64_t);
+    } else {
+      part->type = ge::BUNDLE_MODEL_INFO;
+      part->mem_size = sizeof(ModelFileHeader) + 10;
+    }
+    offset += sizeof(ModelPartitionMemInfo);
+  }
+  *(int64_t *)(model_data + offset) = 1024; // varWeight
+  offset += sizeof(int64_t);
+  for (size_t i = 0; i < model_num; ++i) {
+    ModelFileHeader *inner_header = (ModelFileHeader *)(model_data + offset);
+    inner_header->version = ge::MODEL_VERSION + 1U;
+    if ( i == 2) {
       inner_header->model_num = 2U;
       inner_header->is_unknow_model = 1;
     } else {
@@ -3805,6 +3854,19 @@ ge::graphStatus LoadDataFromFileV2Stub(const char *path, ge::ModelData &model_da
     return GRAPH_SUCCESS;
 }
 
+ge::graphStatus LoadDataFromFileV3Stub(const char *path, ge::ModelData &model_data)
+{
+  (void) path;
+  size_t size = 0;
+  auto model_p = ConstructBundleOmWithVarWeight(3, size);
+  // delete is outside
+  auto p_new = new uint8_t[size];
+  memcpy_s(p_new, size, model_p.get(), size);
+  model_data.model_len = size;
+  model_data.model_data = p_new;
+  return GRAPH_SUCCESS;
+}
+
 TEST_F(UTEST_ACL_Model, TestaclmdlBundleLoadFromFile)
 {
     const char *path = "/";
@@ -3851,63 +3913,345 @@ Status LoadModelFromDataWithArgsStub(uint32_t &model_id, const ModelData &model_
 
 TEST_F(UTEST_ACL_Model, TestBundleInfo)
 {
-    AclResourceManager::GetInstance().bundleInfos_.clear();
-    AclResourceManager::GetInstance().bundleInnerIds_.clear();
-    AclResourceManager::GetInstance().executorMap_.clear();
-    AclResourceManager::GetInstance().rtSessionMap_.clear();
-    // load
-    uint32_t bundle_id = 0;
-    size_t size = 0;
-    auto model_p = ConstructBundleOm(3, size);
-    uint8_t * model_data = model_p.get();
-    acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
-            .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
-            .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
-    auto ret = aclmdlBundleLoadFromMem(model_data, size, &bundle_id);
+  AclResourceManager::GetInstance().bundleInfos_.clear();
+  AclResourceManager::GetInstance().bundleInnerIds_.clear();
+  AclResourceManager::GetInstance().executorMap_.clear();
+  AclResourceManager::GetInstance().rtSessionMap_.clear();
+  // load
+  uint32_t bundle_id = 0;
+  size_t size = 0;
+  auto model_p = ConstructBundleOm(3, size);
+  uint8_t * model_data = model_p.get();
+  acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
+      .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
+      .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
+  auto ret = aclmdlBundleLoadFromMem(model_data, size, &bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+
+  // check bundle info
+  size_t modelNum = 0;
+  ret = aclmdlBundleGetModelNum(bundle_id, nullptr);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleGetModelNum((bundle_id + 1), &modelNum);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+  ret = aclmdlBundleGetModelNum(bundle_id, &modelNum);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  EXPECT_EQ(modelNum , 3);
+
+  size_t index = 0;
+  uint32_t model_id = 0;
+  std::vector<uint32_t> model_ids;
+  ret = aclmdlBundleGetModelId(bundle_id, 999, nullptr);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleGetModelId(bundle_id, 999, &model_id);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleGetModelId(bundle_id + 1, index, &model_id);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+  for (size_t i = 0; i < modelNum; ++i) {
+    ret = aclmdlBundleGetModelId(bundle_id, i, &model_id);
     EXPECT_EQ(ret , ACL_SUCCESS);
-
-    // check bundle info
-    size_t modelNum = 0;
-    ret = aclmdlBundleGetModelNum(bundle_id, nullptr);
+    model_ids.emplace_back(model_id);
+  }
+  for (auto id : model_ids) {
+    ret = aclmdlUnload(id);
     EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-    ret = aclmdlBundleGetModelNum((bundle_id + 1), &modelNum);
-    EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
-    ret = aclmdlBundleGetModelNum(bundle_id, &modelNum);
+  }
+
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 1);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 3);
+  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 2);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 2);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_[bundle_id].get(),
+            AclResourceManager::GetInstance().rtSessionMap_[model_ids[2]].get());
+
+  ret = aclmdlBundleUnload(bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 0);
+}
+
+TEST_F(UTEST_ACL_Model, TestBundleInfoFromVarSizeOm)
+{
+  AclResourceManager::GetInstance().bundleInfos_.clear();
+  AclResourceManager::GetInstance().bundleInnerIds_.clear();
+  AclResourceManager::GetInstance().executorMap_.clear();
+  AclResourceManager::GetInstance().rtSessionMap_.clear();
+  // load
+  uint32_t bundle_id = 0;
+  size_t size = 0;
+  auto model_p = ConstructBundleOmWithVarWeight(3, size);
+  uint8_t * model_data = model_p.get();
+  acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
+      .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
+      .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
+  auto ret = aclmdlBundleLoadFromMem(model_data, size, &bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+
+  // check bundle info
+  size_t modelNum = 0;
+  ret = aclmdlBundleGetModelNum(bundle_id, nullptr);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleGetModelNum((bundle_id + 1), &modelNum);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+  ret = aclmdlBundleGetModelNum(bundle_id, &modelNum);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  EXPECT_EQ(modelNum , 3);
+
+  size_t index = 0;
+  uint32_t model_id = 0;
+  std::vector<uint32_t> model_ids;
+  ret = aclmdlBundleGetModelId(bundle_id, 999, nullptr);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleGetModelId(bundle_id, 999, &model_id);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleGetModelId(bundle_id + 1, index, &model_id);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+  for (size_t i = 0; i < modelNum; ++i) {
+    ret = aclmdlBundleGetModelId(bundle_id, i, &model_id);
     EXPECT_EQ(ret , ACL_SUCCESS);
-    EXPECT_EQ(modelNum , 3);
-
-    size_t index = 0;
-    uint32_t model_id = 0;
-    std::vector<uint32_t> model_ids;
-    ret = aclmdlBundleGetModelId(bundle_id, 999, nullptr);
+    model_ids.emplace_back(model_id);
+  }
+  for (auto id : model_ids) {
+    ret = aclmdlUnload(id);
     EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-    ret = aclmdlBundleGetModelId(bundle_id, 999, &model_id);
-    EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-    ret = aclmdlBundleGetModelId(bundle_id + 1, index, &model_id);
-    EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
-    for (size_t i = 0; i < modelNum; ++i) {
-        ret = aclmdlBundleGetModelId(bundle_id, i, &model_id);
-        EXPECT_EQ(ret , ACL_SUCCESS);
-        model_ids.emplace_back(model_id);
-    }
-    for (auto id : model_ids) {
-        ret = aclmdlUnload(id);
-        EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-    }
+  }
 
-    EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 1);
-    EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 3);
-    EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 2);
-    EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 2);
-    EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_[bundle_id].get(),
-              AclResourceManager::GetInstance().rtSessionMap_[model_ids[0]].get());
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 1);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 3);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelId.size(), 3);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelIdSet.size(), 3);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].is_init, false);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].subModelInfos.size(), 3);
+  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 2);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 2);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_[bundle_id].get(),
+            AclResourceManager::GetInstance().rtSessionMap_[model_ids[2]].get());
 
-    ret = aclmdlBundleUnload(bundle_id);
-    EXPECT_EQ(ret , ACL_SUCCESS);
-    EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 0);
-    EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 0);
-    EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 0);
-    EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 0);
+  ret = aclmdlBundleUnload(bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 0);
+}
+
+Status GetMemAndWeightSizeStub(const void *model_data, size_t model_size, size_t &mem_size, size_t &weight_size)
+{
+  (void)model_data;
+  (void)model_size;
+  mem_size = 2048;
+  weight_size = 1024;
+  return SUCCESS;
+}
+
+TEST_F(UTEST_ACL_Model, TestaclmdlBundleQueryInfoFromFile)
+{
+  auto query_info = aclmdlBundleCreateQueryInfo();
+  EXPECT_NE(query_info, nullptr);
+  size_t model_size = 0;
+  auto model_data = ConstructBundleOmWithVarWeight(3, model_size);
+  EXPECT_NE(model_data, nullptr);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadDataFromFileV2(_,_))
+      .WillOnce(Return(ge::GRAPH_FAILED))
+      .WillRepeatedly(Invoke(LoadDataFromFileV3Stub));
+  EXPECT_NE(aclmdlBundleQueryInfoFromFile("./test.om", query_info), ACL_SUCCESS);
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetMemAndWeightSize(_,_,_,_))
+      .WillRepeatedly(Invoke(GetMemAndWeightSizeStub));
+  EXPECT_EQ(aclmdlBundleQueryInfoFromFile("./test.om", query_info), ACL_SUCCESS);
+  size_t model_num = 0;
+  EXPECT_EQ(aclmdlBundleGetQueryModelNum(query_info, &model_num), ACL_SUCCESS);
+  EXPECT_EQ(model_num, 3);
+  size_t var_size = 0;
+  EXPECT_EQ(aclmdlBundleGetVarWeightSize(query_info, &var_size), ACL_SUCCESS);
+  EXPECT_EQ(var_size, 1024);
+  size_t work_size = 99;
+  size_t weight_size = 999;
+  EXPECT_EQ(aclmdlBundleGetSize(query_info, 0, &work_size, &weight_size), ACL_SUCCESS);
+  EXPECT_EQ(work_size, 2048);
+  EXPECT_EQ(weight_size, 1024);
+  EXPECT_EQ(aclmdlBundleGetSize(query_info, 2, &work_size, &weight_size), ACL_SUCCESS);
+  EXPECT_EQ(work_size, 0);
+  EXPECT_EQ(weight_size, 0);
+  EXPECT_EQ(aclmdlBundleGetSize(query_info, 1, &work_size, &weight_size), ACL_SUCCESS);
+  EXPECT_EQ(work_size, 2048);
+  EXPECT_EQ(weight_size, 1024);
+  EXPECT_EQ(aclmdlBundleGetSize(query_info, 10, &work_size, &weight_size), ACL_ERROR_INVALID_PARAM);
+  EXPECT_EQ(aclmdlBundleDestroyQueryInfo(query_info), ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, TestaclmdlBundleQueryInfoFromMem)
+{
+  auto query_info = aclmdlBundleCreateQueryInfo();
+  EXPECT_NE(query_info, nullptr);
+  size_t model_size = 0;
+  auto model_data = ConstructBundleOmWithVarWeight(3, model_size);
+  EXPECT_NE(model_data, nullptr);
+
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetMemAndWeightSize(_,_,_,_))
+      .WillRepeatedly(Invoke(GetMemAndWeightSizeStub));
+  EXPECT_EQ(aclmdlBundleQueryInfoFromMem(model_data.get(), model_size, query_info), ACL_SUCCESS);
+  size_t model_num = 0;
+  EXPECT_EQ(aclmdlBundleGetQueryModelNum(query_info, &model_num), ACL_SUCCESS);
+  EXPECT_EQ(model_num, 3);
+  size_t var_size = 0;
+  EXPECT_EQ(aclmdlBundleGetVarWeightSize(query_info, &var_size), ACL_SUCCESS);
+  EXPECT_EQ(var_size, 1024);
+  size_t work_size = 99;
+  size_t weight_size = 999;
+  EXPECT_EQ(aclmdlBundleGetSize(query_info, 0, &work_size, &weight_size), ACL_SUCCESS);
+  EXPECT_EQ(work_size, 2048);
+  EXPECT_EQ(weight_size, 1024);
+  EXPECT_EQ(aclmdlBundleGetSize(query_info, 2, &work_size, &weight_size), ACL_SUCCESS);
+  EXPECT_EQ(work_size, 0);
+  EXPECT_EQ(weight_size, 0);
+  EXPECT_EQ(aclmdlBundleGetSize(query_info, 1, &work_size, &weight_size), ACL_SUCCESS);
+  EXPECT_EQ(work_size, 2048);
+  EXPECT_EQ(weight_size, 1024);
+  EXPECT_EQ(aclmdlBundleDestroyQueryInfo(query_info), ACL_SUCCESS);
+}
+
+void Verify(uint32_t bundle_id, bool is_init = true) {
+  // check bundle info
+  size_t modelNum = 0;
+  size_t load_cnt = is_init ? 0 : 3;
+
+  auto ret = aclmdlBundleGetModelNum(bundle_id, nullptr);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleGetModelNum((bundle_id + 1), &modelNum);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+  ret = aclmdlBundleGetModelNum(bundle_id, &modelNum);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  EXPECT_EQ(modelNum , 3);
+
+  uint32_t model_id = 0;
+  ret = aclmdlBundleGetModelId(bundle_id, 999, nullptr);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  if (is_init) {
+    ret = aclmdlBundleGetModelId(bundle_id, 0, &model_id);
+    EXPECT_EQ(ret , ACL_ERROR_API_NOT_SUPPORT);
+  }
+
+  EXPECT_EQ(aclmdlBundleLoadModel(bundle_id, 3, &model_id), ACL_ERROR_INVALID_PARAM);
+  uint32_t infer_id_1, infer_id_2, init_id, update_id;
+  EXPECT_EQ(aclmdlBundleLoadModel(bundle_id, 0, &infer_id_1), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlBundleLoadModelWithMem(bundle_id, 0, nullptr, 0, nullptr, 0, &infer_id_2), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlBundleLoadModelWithMem(bundle_id, 1, nullptr, 0, nullptr, 0, &init_id), ACL_SUCCESS);
+  aclmdlConfigHandle handle;
+  EXPECT_EQ(aclmdlBundleLoadModelWithConfig(bundle_id, 2, &handle, &update_id), ACL_SUCCESS);
+  EXPECT_EQ(aclmdlBundleLoadModelWithMem(bundle_id, 3, nullptr, 0, nullptr, 0, &model_id), ACL_ERROR_INVALID_PARAM);
+  load_cnt += 4;
+  ret = aclmdlUnload(infer_id_1);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 1);
+  if (is_init) {
+    EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelId.size(), 0);
+  } else {
+    EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelId.size(), 3);
+  }
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelIdSet.size(), load_cnt);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].is_init, is_init);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].subModelInfos.size(), 3);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), load_cnt);
+  size_t session_map_size = is_init ? 2 : 3;
+  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), session_map_size);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), session_map_size);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_[bundle_id].get(),
+            AclResourceManager::GetInstance().rtSessionMap_[update_id].get());
+
+  EXPECT_EQ(aclmdlBundleUnloadModel(bundle_id, infer_id_1), ACL_SUCCESS);
+  load_cnt--;
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_[bundle_id].loadedSubModelIdSet.size(), load_cnt);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), load_cnt);
+
+  ret = aclmdlBundleUnload(bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 0);
+  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 0);
+}
+
+TEST_F(UTEST_ACL_Model, TestaclmdlBundleLoadSubModelFromFile) {
+  AclResourceManager::GetInstance().bundleInfos_.clear();
+  AclResourceManager::GetInstance().bundleInnerIds_.clear();
+  AclResourceManager::GetInstance().executorMap_.clear();
+  AclResourceManager::GetInstance().rtSessionMap_.clear();
+  // load
+  uint32_t bundle_id = 0;
+  acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
+      .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
+      .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadDataFromFileV2(_,_))
+      .WillRepeatedly(Invoke(LoadDataFromFileV3Stub));
+  auto ret = aclmdlBundleInitFromFile("./fake.om", nullptr, 0, &bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  Verify(bundle_id);
+}
+
+TEST_F(UTEST_ACL_Model, TestaclmdlBundleLoadSubModelFromMem) {
+  AclResourceManager::GetInstance().bundleInfos_.clear();
+  AclResourceManager::GetInstance().bundleInnerIds_.clear();
+  AclResourceManager::GetInstance().executorMap_.clear();
+  AclResourceManager::GetInstance().rtSessionMap_.clear();
+  // load
+  uint32_t bundle_id = 0;
+  size_t size = 0;
+  auto model_p = ConstructBundleOmWithVarWeight(3, size);
+  uint8_t * model_data = model_p.get();
+  acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
+      .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
+      .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
+  auto ret = aclmdlBundleInitFromMem(model_data, size, nullptr, 0, &bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  Verify(bundle_id);
+}
+
+TEST_F(UTEST_ACL_Model, TestaclmdlaclmdlBundleLoadFromFileAndBundleLoadSubModel) {
+  AclResourceManager::GetInstance().bundleInfos_.clear();
+  AclResourceManager::GetInstance().bundleInnerIds_.clear();
+  AclResourceManager::GetInstance().executorMap_.clear();
+  AclResourceManager::GetInstance().rtSessionMap_.clear();
+  // load
+  uint32_t bundle_id = 0;
+  acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
+      .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
+      .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadDataFromFileV2(_,_))
+      .WillRepeatedly(Invoke(LoadDataFromFileV3Stub));
+  auto ret = aclmdlBundleLoadFromFile("./fake.om", &bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  Verify(bundle_id, false);
+}
+
+TEST_F(UTEST_ACL_Model, TestaclmdlaclmdlBundleLoadFromMemAndBundleLoadSubModel) {
+  AclResourceManager::GetInstance().bundleInfos_.clear();
+  AclResourceManager::GetInstance().bundleInnerIds_.clear();
+  AclResourceManager::GetInstance().executorMap_.clear();
+  AclResourceManager::GetInstance().rtSessionMap_.clear();
+  // load
+  uint32_t bundle_id = 0;
+  size_t size = 0;
+  auto model_p = ConstructBundleOmWithVarWeight(3, size);
+  uint8_t * model_data = model_p.get();
+  acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
+      .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
+  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
+      .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
+  auto ret = aclmdlBundleLoadFromMem(model_data, size, &bundle_id);
+  EXPECT_EQ(ret , ACL_SUCCESS);
+  Verify(bundle_id, false);
 }

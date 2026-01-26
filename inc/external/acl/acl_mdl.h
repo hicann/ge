@@ -54,6 +54,7 @@ typedef struct aclmdlAIPP aclmdlAIPP;
 typedef struct aclAippExtendInfo aclAippExtendInfo;
 typedef struct aclmdlConfigHandle aclmdlConfigHandle;
 typedef struct aclmdlExecConfigHandle aclmdlExecConfigHandle;
+typedef struct aclmdlBundleQueryInfo aclmdlBundleQueryInfo;
 
 typedef enum {
     ACL_YUV420SP_U8 = 1,
@@ -451,7 +452,7 @@ ACL_FUNC_VISIBILITY aclError aclmdlLoadFromFile(const char *modelPath, uint32_t 
  * during subsequent operations
  *
  * @param modelPath [IN]   Storage path for offline bundle model file
- * @param bundleId [OUT]   Bundle model id generated after
+ * @param bundleId [OUT]   Bundle model id generated
  *        the system finishes loading the bundle model
  *
  * @retval ACL_SUCCESS The function is successfully executed.
@@ -471,7 +472,7 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadFromFile(const char *modelPath, uin
  *
  * @param model [IN]      Bundle model data stored in memory
  * @param modelSize [IN]  model data size
- * @param bundleId [OUT]  Bundle model id generated after
+ * @param bundleId [OUT]  Bundle model id generated
  *        the system finishes loading the model
  *
  * @retval ACL_SUCCESS The function is successfully executed.
@@ -516,6 +517,193 @@ ACL_FUNC_VISIBILITY aclError aclmdlBundleGetModelNum(uint32_t bundleId, size_t *
  *
  */
 ACL_FUNC_VISIBILITY aclError aclmdlBundleGetModelId(uint32_t bundleId, size_t index, uint32_t *modelId);
+
+/**
+ * @ingroup AscendCL
+ * @brief Create data of type aclmdlBundleQueryInfo
+ *
+ * @retval the aclmdlBundleQueryInfo pointer
+ */
+ACL_FUNC_VISIBILITY aclmdlBundleQueryInfo *aclmdlBundleCreateQueryInfo();
+
+/**
+ * @ingroup AscendCL
+ * @brief destroy data of type aclmdlBundleQueryInfo
+ *
+ * @param modelDesc [IN]   Pointer to aclmdlBundleQueryInfo to be destroyed
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleDestroyQueryInfo(aclmdlBundleQueryInfo *queryInfo);
+
+/**
+ * @ingroup AscendCL
+ * @brief Get the bundle om query info
+ *
+ * @param  fileName [IN]     Model path to get memory information
+ * @param  queryInfo [OUT]   The aclmdlBundleQueryInfo struct which is acquired by aclmdlBundleCreateQueryInfo
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleQueryInfoFromFile(const char* fileName, aclmdlBundleQueryInfo *queryInfo);
+
+/**
+ * @ingroup AscendCL
+ * @brief Get the bundle om query info
+ *
+ * @param  model [IN]        model memory which user manages
+ * @param  modelSize [IN]    model data size
+ * @param  queryInfo [OUT]   The aclmdlBundleQueryInfo struct which is acquired by aclmdlBundleCreateQueryInfo
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleQueryInfoFromMem(const void *model, size_t modelSize,
+                                                          aclmdlBundleQueryInfo *queryInfo);
+
+/**
+ * @ingroup AscendCL
+ * @brief Get the bundle om inner model num
+ *
+ * @param  queryInfo [IN]   The aclmdlBundleQueryInfo struct which is acquired by aclmdlBundleQueryInfoFromXX
+ * @param  modelNum [OUT]   the pointer to model num
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleGetQueryModelNum(const aclmdlBundleQueryInfo *queryInfo, size_t *modelNum);
+
+/**
+ * @ingroup AscendCL
+ * @brief Get the bundle om variable weight size
+ *
+ * @param  queryInfo [IN]   The aclmdlBundleQueryInfo struct which is acquired by aclmdlBundleQueryInfoFromXX
+ * @param  variableWeightSize [OUT]   the pointer to variable weight size
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleGetVarWeightSize(const aclmdlBundleQueryInfo *queryInfo,
+                                                          size_t *variableWeightSize);
+
+/**
+ * @ingroup AscendCL
+ * @brief Get the bundle inner sub om workSize and weightSize
+ *
+ * @param  queryInfo [IN]   The aclmdlBundleQueryInfo struct which is acquired by aclmdlBundleQueryInfoFromXX
+ * @param  index [IN]       The inner model index
+ * @param  workSize [OUT]    The amount of working memory for model executed
+ * @param  constWeightSize [OUT]  The amount of weight memory for model executed
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleGetSize(const aclmdlBundleQueryInfo *queryInfo, size_t index,
+                                                 size_t *workSize, size_t *constWeightSize);
+
+/**
+ * @ingroup AscendCL
+ * @brief init bundle model data from file
+ *
+ * @par Function
+ * After the system finishes loading the bundle model,
+ * the bundle model ID returned is used as a mark to identify the bundle model
+ * during subsequent operations
+ *
+ * @param modelPath [IN]   Storage path for offline bundle model file
+ * @param varWeightPtr [IN]   the pointer to varWeight, can be null
+ * @param varWeightSize [IN]   varWeightSize
+ * @param bundleId [OUT]   Bundle model id generated
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleInitFromFile(const char* modelPath, void *varWeightPtr,
+                                                      size_t varWeightSize, uint32_t *bundleId);
+
+/**
+ * @ingroup AscendCL
+ * @brief init bundle model data from mem
+ *
+ * @par Function
+ * After the system finishes loading the bundle model,
+ * the bundle model ID returned is used as a mark to identify the bundle model
+ * during subsequent operations
+ *
+ * @param  model [IN]        model memory which user manages
+ * @param  modelSize [IN]    model data size
+ * @param varWeightPtr [IN]   the pointer to varWeight, can be null
+ * @param varWeightSize [IN]   varWeightSize
+ * @param bundleId [OUT]   Bundle model id generated
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleInitFromMem(const void* model, size_t modelSize, void *varWeightPtr,
+                                                     size_t varWeightSize, uint32_t *bundleId);
+
+/**
+ * @ingroup AscendCL
+ * @brief Load  bundle model inner model
+ *
+ * @param bundleId [IN]   Bundle model id generated
+ * @param index [IN]      Bundle om inner model index
+ * @param modelId [IN]    inner model id loaded which can be executed
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModel(uint32_t bundleId, size_t index, uint32_t *modelId);
+
+/**
+ * @ingroup AscendCL
+ * @brief Load bundle model inner model with mem
+ *
+ * @param bundleId [IN]   Bundle model id generated
+ * @param index [IN]      Bundle om inner model index
+ * @param workPtr [IN]    A pointer to the working memory
+ *                        required by the model on the Device,can be null
+ * @param workSize [IN]   work memory size
+ * @param weightPtr [IN]  Pointer to model weight memory on Device,can be null
+ * @param weightSize [IN] The amount of weight memory required by the model
+
+ * @param modelId [IN]    inner model id loaded which can be executed
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModelWithMem(uint32_t bundleId, size_t index, void *workPtr,
+                                                          size_t workSize, void *weightPtr,
+                                                          size_t weightSize, uint32_t *modelId);
+
+/**
+ * @ingroup AscendCL
+ * @brief Load  bundle model inner model
+ *
+ * @param bundleId [IN]   Bundle model id generated
+ * @param index [IN]      Bundle om inner model index
+ * @param handle [IN]     pointer to model config handle
+ * @param modelId [IN]    inner model id loaded which can be executed
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleLoadModelWithConfig(uint32_t bundleId, size_t index,
+                                                             aclmdlConfigHandle *handle, uint32_t *modelId);
+
+/**
+ * @ingroup AscendCL
+ * @brief unload bundle inner model with model id
+ *
+ * @param bundleId [IN]   Bundle model id generated
+ * @param  modelId [IN]   inner model id to be unloaded
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlBundleUnloadModel(uint32_t bundleId, uint32_t modelId);
 
 /**
  * @ingroup AscendCL

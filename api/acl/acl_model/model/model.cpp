@@ -56,6 +56,7 @@ constexpr const char_t *MODEL_ID_STR = "modelId";
 constexpr const char_t *OPTION_EXEC_REUSE_ZERO_COPY_MEMORY = "ge.exec.reuseZeroCopyMemory";
 
 std::mutex aclmdlGetOpAttrMutex;
+std::mutex aclmdlBundleMutex;
 
 enum class DimsType : std::uint8_t {
     DIMS_TYPE_V1 = 0,
@@ -438,39 +439,43 @@ static aclError IsSupportRuntimeV2WithModelPath(const char *filePath, bool &isSu
     return ACL_SUCCESS;
 }
 
-    static aclError GetBundleNumAndOffset(const void *const model, const size_t modelSize,
-                                          bool &isBundleOm, std::vector<std::pair<size_t, size_t>> &offsetAndSize)
-    {
-        isBundleOm = false;
-        size_t currentOffset = 0U;
-        if (modelSize < (sizeof(ge::ModelFileHeader) + sizeof(ge::ModelPartitionTable))) {
-            ACL_LOG_ERROR("[Check][Param] Invalid model size, Model data size %zu must be greater than or equal to %zu.",
-                          modelSize, sizeof(ge::ModelFileHeader));
-            return ACL_ERROR_INVALID_PARAM;
-        }
-        const auto *fileHeader = ge::PtrToPtr<void, ge::ModelFileHeader>(model);
-        if (fileHeader->modeltype != ge::MODEL_TYPE_BUNDLE_MODEL) {
-          ACL_LOG_INFO("this is not bundle om");
-          return ACL_SUCCESS;
-        }
-        currentOffset += sizeof(ge::ModelFileHeader);
-        isBundleOm = true;
-        const auto *partitionTable =
-                ge::PtrToPtr<void, ge::ModelPartitionTable>(ge::ValueToPtr(ge::PtrToValue(model) + currentOffset));
-        const size_t partitionTableSize = ge::SizeOfModelPartitionTable(*partitionTable);
-        ACL_LOG_INFO("get offset %zu, partitionTableSize %zu", currentOffset, partitionTableSize);
-
-        ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset, partitionTableSize, currentOffset));
-        ACL_REQUIRES_LE(currentOffset, modelSize);
-        for (size_t i = 0; i < partitionTable->num; ++i) {
-          ACL_LOG_INFO("get %zu om offset %zu, size %zu", i, currentOffset, partitionTable->partition[i].mem_size);
-          offsetAndSize.emplace_back(currentOffset, partitionTable->partition[i].mem_size);
-          ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset,
-                                                     partitionTable->partition[i].mem_size, currentOffset));
-          ACL_REQUIRES_LE(currentOffset, modelSize);
-        }
-        return ACL_SUCCESS;
+static aclError GetBundleNumAndOffset(const void *const model, const size_t modelSize,
+                                      size_t &varSize, std::vector<std::pair<size_t, size_t>> &subModelOffsetAndSize)
+{
+  varSize = 0;
+  size_t currentOffset = 0U;
+  if (modelSize < (sizeof(ge::ModelFileHeader) + sizeof(ge::ModelPartitionTable))) {
+    ACL_LOG_ERROR("[Check][Param] Invalid model size, Model data size %zu must be greater than or equal to %zu.",
+                  modelSize, sizeof(ge::ModelFileHeader));
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  const auto *fileHeader = ge::PtrToPtr<void, ge::ModelFileHeader>(model);
+  if (fileHeader->modeltype != ge::MODEL_TYPE_BUNDLE_MODEL) {
+    ACL_LOG_ERROR("this is not bundle om, please check");
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  currentOffset += sizeof(ge::ModelFileHeader);
+  const auto *partitionTable =
+      ge::PtrToPtr<void, ge::ModelPartitionTable>(ge::ValueToPtr(ge::PtrToValue(model) + currentOffset));
+  const size_t partitionTableSize = ge::SizeOfModelPartitionTable(*partitionTable);
+  ACL_LOG_INFO("get offset %zu, partitionTableSize %zu", currentOffset, partitionTableSize);
+  ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset, partitionTableSize, currentOffset));
+  ACL_REQUIRES_LE(currentOffset, modelSize);
+  for (size_t i = 0; i < partitionTable->num; ++i) {
+    ACL_LOG_INFO("get %zu om offset %zu, size %zu", i, currentOffset, partitionTable->partition[i].mem_size);
+    if (partitionTable->partition[i].type == ge::BUNDLE_MODEL_VAR_INFO) {
+      varSize = *ge::PtrToPtr<void, int64_t>(ge::ValueToPtr(ge::PtrToValue(model) + currentOffset));
+      ACL_LOG_INFO("get var size %zu", varSize);
     }
+    if (partitionTable->partition[i].type == ge::BUNDLE_MODEL_INFO) {
+      subModelOffsetAndSize.emplace_back(currentOffset, partitionTable->partition[i].mem_size);
+    }
+    ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset,
+                                               partitionTable->partition[i].mem_size, currentOffset));
+    ACL_REQUIRES_LE(currentOffset, modelSize);
+  }
+  return ACL_SUCCESS;
+}
 
     static aclError IsSupportRuntimeV2WithModelData(const void *const model, const size_t modelSize,
                                                     bool &isSupportRuntimeV2)
@@ -1817,48 +1822,107 @@ static aclError UnloadModelInner(const uint32_t modelId)
     return ACL_SUCCESS;
 }
 
-static aclError BundleLoadFromMem(const void *model, size_t modelSize,
-                                  const std::string &modelPath, uint32_t *bundleId)
+static aclError QueryBundleSubModelInfo(const void *data, size_t modelSize, aclmdlBundleQueryInfo *queryInfo) {
+  std::vector<std::pair<size_t, size_t>> subModelOffsetAndSize;
+  size_t varSize = 0;
+  ACL_REQUIRES_OK(acl::GetBundleNumAndOffset(data, modelSize, varSize, subModelOffsetAndSize));
+  queryInfo->varSize = static_cast<size_t>(varSize);
+  for (const auto &ele : subModelOffsetAndSize) {
+    acl::BundleSubModelInfo tmpInfo;
+    tmpInfo.offset = ele.first;
+    tmpInfo.modelSize = ele.second;
+    bool isSupportRT2 = false;
+    void *currentModePtr = ge::ValueToPtr(ge::PtrToValue(data) + ele.first);
+    ACL_REQUIRES_OK(acl::IsSupportRuntimeV2WithModelData(currentModePtr, ele.second, isSupportRT2));
+    // only static shape model can query size
+    if (!isSupportRT2) {
+      ge::GeExecutor executor;
+      ACL_REQUIRES_CALL_GE_OK(executor.GetMemAndWeightSize(currentModePtr, ele.second,
+                                                           tmpInfo.workSize, tmpInfo.weightSize), "Query size failed");
+    }
+    ACL_LOG_INFO("get work size %zu, weight size %zu", tmpInfo.workSize, tmpInfo.weightSize);
+    queryInfo->subModelInfos.emplace_back(tmpInfo);
+  }
+  return ACL_SUCCESS;
+}
+
+static aclError LoadBundleSubModelFromMem(const void *const currentModePtr, const size_t modelSize,
+                                          const std::string &modelPath, std::shared_ptr<gert::RtSession> &rtSession,
+                                          const ge::ModelLoadArg &loadArgs, uint32_t &currentModelId,
+                                          const char_t *const weightPath = nullptr, const int32_t priority = 0)
 {
-    // get bundle num from file header
-    bool isBundleOm = false;
-    std::vector<std::pair<size_t, size_t>> offsetAndSize;
-    ACL_REQUIRES_OK(acl::GetBundleNumAndOffset(model, modelSize, isBundleOm, offsetAndSize));
-    if (!isBundleOm) {
-        ACL_LOG_ERROR("this is not bundle om, please check");
-        return ACL_ERROR_INVALID_PARAM;
+  bool isSupportRT2 = false;
+  ACL_REQUIRES_OK(acl::IsSupportRuntimeV2WithModelData(currentModePtr, modelSize, isSupportRT2));
+  aclError ret = ACL_SUCCESS;
+  if (isSupportRT2) {
+    ret = acl::RuntimeV2ModelLoadFromMemWithMem(currentModePtr, modelSize, modelPath,
+                                                &currentModelId, loadArgs.weight_ptr, loadArgs.weight_size,
+                                                weightPath, priority, loadArgs.file_constant_mems, rtSession);
+  } else {
+    ret = acl::ModelLoadFromMemWithMem(currentModePtr, modelSize, modelPath, &currentModelId, loadArgs, weightPath, priority);
+  }
+  return ret;
+}
+
+static aclError BundleInitFromMem(std::shared_ptr<uint8_t> model, size_t modelSize, const std::string &modelPath,
+                                  void *varWeightPtr, size_t varWeightSize, uint32_t *bundleId)
+{
+  (void)varWeightPtr;
+  (void)varWeightSize;
+  // get bundle num from file header
+  std::vector<std::pair<size_t, size_t>> subModelOffsetAndSize;
+  size_t varSize = 0;
+  ACL_REQUIRES_OK(acl::GetBundleNumAndOffset(model.get(), modelSize, varSize, subModelOffsetAndSize));
+  auto rtSession = acl::AclResourceManager::GetInstance().CreateRtSession();
+  ACL_REQUIRES_NOT_NULL(rtSession);
+  rtSession->SetExternalVar(varWeightPtr, varWeightSize);
+  acl::AclResourceManager::GetInstance().AddExecutor(*bundleId, nullptr, rtSession);
+  acl::BundleModelInfo info;
+  info.is_init = true;
+  info.varSize = varSize;
+  info.fromFilePath = modelPath;
+  info.bundleModelSize = modelSize;
+  info.bundleModelData = model;
+  info.rtSession = rtSession;
+  for (const auto &offsetSize : subModelOffsetAndSize) {
+    acl::BundleSubModelInfo subInfo;
+    subInfo.offset = offsetSize.first;
+    subInfo.modelSize = offsetSize.second;
+    info.subModelInfos.emplace_back(subInfo);
+  }
+  acl::AclResourceManager::GetInstance().SetBundleInfo(*bundleId, info);
+  return ACL_SUCCESS;
+}
+
+static aclError BundleLoadFromMem(std::shared_ptr<uint8_t> model, size_t modelSize, const std::string &modelPath,
+                                  uint32_t *bundleId)
+{
+  // BundleLoadFromMem = BundleInitFromMem + load sub model
+  ACL_REQUIRES_OK(BundleInitFromMem(model, modelSize, modelPath, nullptr, 0, bundleId));
+  acl::BundleModelInfo info;
+  ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(*bundleId, info));
+  info.is_init = false;
+  const auto loadArgs = ConstructGeModelLoadArg(nullptr, 0, nullptr, 0, info.rtSession.get(), {});
+  for (const auto &subInfo : info.subModelInfos) {
+    uint32_t currentModelId = 0U;
+    void *currentModePtr = ge::ValueToPtr(ge::PtrToValue(model.get()) + subInfo.offset);
+    aclError ret = LoadBundleSubModelFromMem(currentModePtr, subInfo.modelSize, modelPath, info.rtSession,
+                                             loadArgs, currentModelId);
+    if (ret != ACL_SUCCESS) {
+      for (const auto &ele : info.loadedSubModelIdSet) {
+        (void)UnloadModelInner(ele);
+      }
+      return ret;
     }
-    std::vector<acl::BundleInfo> bundleInfos;
-    auto rtSession = acl::AclResourceManager::GetInstance().CreateRtSession();
-    ACL_REQUIRES_NOT_NULL(rtSession);
-    for (const auto &offsetSize : offsetAndSize) {
-        acl::BundleInfo bundleInfo{};
-        uint32_t currentModelId = 0U;
-        bool isSupportRT2 = false;
-        void *currentModePtr = ge::ValueToPtr(ge::PtrToValue(model) + offsetSize.first);
-        ACL_REQUIRES_OK(acl::IsSupportRuntimeV2WithModelData(currentModePtr, offsetSize.second, isSupportRT2));
-        aclError ret = ACL_SUCCESS;
-        if (isSupportRT2) {
-            ret = acl::RuntimeV2ModelLoadFromMemWithMem(currentModePtr, offsetSize.second, modelPath,
-                                                        &currentModelId, nullptr, 0U, nullptr, 0, {}, rtSession);
-        } else {
-            const auto loadArgs = ConstructGeModelLoadArg(nullptr, 0U, nullptr,
-                0U, rtSession.get(), {});
-            ret = acl::ModelLoadFromMemWithMem(currentModePtr, offsetSize.second, modelPath,
-                                               &currentModelId, loadArgs, nullptr, 0);
-        }
-        if (ret != ACL_SUCCESS) {
-            for (const auto &ele : bundleInfos) {
-                (void)UnloadModelInner(ele.modelId);
-            }
-            return ret;
-        }
-        bundleInfo.modelId = currentModelId;
-        bundleInfos.emplace_back(bundleInfo);
-    }
-    acl::AclResourceManager::GetInstance().AddExecutor(*bundleId, nullptr, rtSession);
-    acl::AclResourceManager::GetInstance().AddBundleInfo(*bundleId, bundleInfos);
-    return ACL_SUCCESS;
+    info.loadedSubModelId.emplace_back(currentModelId); // only BundleLoadFromMem need set
+    info.loadedSubModelIdSet.insert(currentModelId);
+  }
+  if (!info.fromFilePath.empty()) {
+    info.bundleModelData = nullptr; // need reset nullptr when aclmdlBundleLoadFromFile to ensure compatibility
+    info.bundleModelSize = 0;
+  }
+  acl::AclResourceManager::GetInstance().SetBundleInfo(*bundleId, info);
+  return ACL_SUCCESS;
 }
 
 aclError aclmdlBundleLoadFromFileImpl(const char *modelPath, uint32_t *bundleId)
@@ -1874,14 +1938,14 @@ aclError aclmdlBundleLoadFromFileImpl(const char *modelPath, uint32_t *bundleId)
     ge::graphStatus ret = ge::GRAPH_SUCCESS;
     ACL_LOG_INFO("call ge interface gert::LoadDataFromFile");
     ret = gert::LoadDataFromFile(modelPath, modelData);
-    std::shared_ptr<void> data;
-    data.reset(modelData.model_data, [](const void * const p) { delete[] static_cast<const uint8_t *>(p); });
+    std::shared_ptr<uint8_t> data;
+    data.reset(ge::PtrToPtr<void, uint8_t>(modelData.model_data), std::default_delete<uint8_t[]>());
     if (ret != ge::GRAPH_SUCCESS) {
         ACL_LOG_CALL_ERROR("[Load][Model]failed to load model from file by runtime2.0, ge errorCode is %u", ret);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
     }
 
-    ACL_REQUIRES_OK(BundleLoadFromMem(modelData.model_data, modelData.model_len, modelPath, bundleId));
+    ACL_REQUIRES_OK(BundleLoadFromMem(data, modelData.model_len, modelPath, bundleId));
     ACL_LOG_INFO("successfully execute aclmdlBundleLoadFromFile, bundle id is %u", *bundleId);
     return ACL_SUCCESS;
 }
@@ -1894,7 +1958,10 @@ aclError aclmdlBundleLoadFromMemImpl(const void *model,  size_t modelSize, uint3
     ACL_REQUIRES_POSITIVE_WITH_INPUT_REPORT(modelSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(bundleId);
 
-    ACL_REQUIRES_OK(BundleLoadFromMem(model, modelSize, "", bundleId));
+    std::shared_ptr<uint8_t> data;
+    // no delete func
+    data.reset(ge::PtrToPtr<void, uint8_t>(const_cast<void *>(model)), [](const uint8_t* const p) { (void) p; });
+    ACL_REQUIRES_OK(BundleLoadFromMem(data, modelSize, "", bundleId));
 
     ACL_LOG_INFO("execute aclmdlBundleLoadFromMem success, bundleId[%u]", *bundleId);
     return ACL_SUCCESS;
@@ -1974,27 +2041,238 @@ aclError aclmdlLoadFromMemImpl(const void *model, size_t modelSize, uint32_t *mo
 // get some info from bundleId
 aclError aclmdlBundleGetModelNumImpl(uint32_t bundleId, size_t *modelNum)
 {
-    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelNum);
-    std::vector<acl::BundleInfo> bundleInfos;
-    ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
-    *modelNum = bundleInfos.size();
-    ACL_LOG_INFO("get bundleId %u model num %zu", bundleId, *modelNum);
-    return ACL_SUCCESS;
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelNum);
+  acl::BundleModelInfo bundleInfos;
+  ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
+  *modelNum = bundleInfos.subModelInfos.size();
+  ACL_LOG_INFO("get bundleId %u model num %zu", bundleId, *modelNum);
+  return ACL_SUCCESS;
 }
 
 aclError aclmdlBundleGetModelIdImpl(uint32_t bundleId, size_t index, uint32_t *modelId)
 {
-    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
-    std::vector<acl::BundleInfo> bundleInfos;
-    ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
-    if (index >= bundleInfos.size()) {
-      ACL_LOG_ERROR("bundleId %u input index %zu should be smaller than bundle size %zu",
-                    bundleId, index, bundleInfos.size());
-      return ACL_ERROR_INVALID_PARAM;
-    }
-    *modelId = bundleInfos[index].modelId;
-    ACL_LOG_INFO("get bundleId %u index %zu model id %u", bundleId, index, *modelId);
-    return ACL_SUCCESS;
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
+  acl::BundleModelInfo bundleInfos;
+  ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
+  if (bundleInfos.is_init) {
+    ACL_LOG_ERROR("aclmdlBundleGetModelId is supported only aclmdlBundleLoadFromFile or aclmdlBundleLoadFromMem is executed");
+    return ACL_ERROR_API_NOT_SUPPORT;
+  }
+  if (index >= bundleInfos.loadedSubModelId.size()) {
+    ACL_LOG_ERROR("bundleId %u input index %zu should be smaller than bundle size %zu",
+                  bundleId, index, bundleInfos.loadedSubModelId.size());
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *modelId = bundleInfos.loadedSubModelId[index];
+  ACL_LOG_INFO("get bundleId %u index %zu model id %u", bundleId, index, *modelId);
+  return ACL_SUCCESS;
+}
+
+aclmdlBundleQueryInfo *aclmdlBundleCreateQueryInfoImpl() {
+  return new(std::nothrow) aclmdlBundleQueryInfo();
+}
+
+aclError aclmdlBundleDestroyQueryInfoImpl(aclmdlBundleQueryInfo *queryInfo)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(queryInfo);
+  ACL_DELETE_AND_SET_NULL(queryInfo);
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleQueryInfoFromFileImpl(const char* fileName, aclmdlBundleQueryInfo *queryInfo)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(fileName);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(queryInfo);
+  ACL_LOG_INFO("start to execute aclmdlBundleQueryInfoFromFile %s", fileName);
+  // 1. load model data from file
+  ge::ModelData modelData;
+  modelData.om_path = fileName;
+  ge::graphStatus ret = ge::GRAPH_SUCCESS;
+  ACL_LOG_INFO("call ge interface gert::LoadDataFromFile");
+  ret = gert::LoadDataFromFile(fileName, modelData);
+  std::shared_ptr<uint8_t> data;
+  data.reset(ge::PtrToPtr<void, uint8_t>(modelData.model_data), std::default_delete<uint8_t[]>());
+  if (ret != ge::GRAPH_SUCCESS) {
+    ACL_LOG_CALL_ERROR("[Load][Model]failed to load model from file by runtime2.0, ge errorCode is %u", ret);
+    return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
+  }
+  ACL_REQUIRES_OK(QueryBundleSubModelInfo(modelData.model_data, modelData.model_len, queryInfo));
+  ACL_LOG_INFO("end to execute aclmdlBundleQueryInfoFromFile %s", fileName);
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleQueryInfoFromMemImpl(const void *model, size_t modelSize, aclmdlBundleQueryInfo *queryInfo)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(queryInfo);
+  ACL_LOG_INFO("start to execute aclmdlBundleQueryInfoFromMem");
+  ACL_REQUIRES_OK(QueryBundleSubModelInfo(model, modelSize, queryInfo));
+  ACL_LOG_INFO("end to execute aclmdlBundleQueryInfoFromMem");
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleGetQueryModelNumImpl(const aclmdlBundleQueryInfo *queryInfo, size_t *modelNum)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(queryInfo);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelNum);
+  *modelNum = queryInfo->subModelInfos.size();
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleGetVarWeightSizeImpl(const aclmdlBundleQueryInfo *queryInfo, size_t *variableWeightSize)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(queryInfo);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(variableWeightSize);
+  *variableWeightSize = queryInfo->varSize;
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleGetSizeImpl(const aclmdlBundleQueryInfo *queryInfo, size_t index, size_t *workSize,
+                             size_t *constWeightSize)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(queryInfo);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(workSize);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(constWeightSize);
+  if (index >= queryInfo->subModelInfos.size()) {
+    ACL_LOG_ERROR("index %zu should be less than %zu", index, queryInfo->subModelInfos.size());
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  *workSize = queryInfo->subModelInfos[index].workSize;
+  *constWeightSize = queryInfo->subModelInfos[index].weightSize;
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleInitFromFileImpl(const char* modelPath, void *varWeightPtr, size_t varWeightSize,
+                                  uint32_t *bundleId)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelPath);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(bundleId);
+  ACL_LOG_INFO("start to execute aclmdlBundleInitFromFile, model path %s, varWeightSize %zu",
+               modelPath, varWeightSize);
+  ge::ModelData modelData;
+  modelData.om_path = modelPath;
+  ACL_LOG_INFO("call ge interface gert::LoadDataFromFile");
+  ACL_REQUIRES_CALL_GE_OK(gert::LoadDataFromFile(modelPath, modelData), "load data form file %s failed", modelPath);
+  std::shared_ptr<uint8_t> tmpData;
+  tmpData.reset(ge::PtrToPtr<void, uint8_t>(modelData.model_data), std::default_delete<uint8_t[]>());
+  ACL_REQUIRES_NOT_NULL(tmpData);
+  ACL_REQUIRES_OK(BundleInitFromMem(tmpData, modelData.model_len, modelPath, varWeightPtr, varWeightSize, bundleId));
+  ACL_LOG_INFO("end to execute aclmdlBundleInitFromFile, model path %s, varWeightSize %zu, bundleId %u",
+               modelPath, varWeightSize, *bundleId);
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleInitFromMemImpl(const void* model, size_t modelSize, void *varWeightPtr,
+                                 size_t varWeightSize, uint32_t *bundleId)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(model);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(bundleId);
+  ACL_LOG_INFO("start to execute aclmdlBundleInitFromMem, model size %zu, varWeightSize %zu",
+               modelSize, varWeightSize);
+  std::shared_ptr<uint8_t> tmpData;
+  // no delete func
+  tmpData.reset(ge::PtrToPtr<void, uint8_t>(const_cast<void *>(model)), [](const uint8_t* const p) { (void) p; });
+  ACL_REQUIRES_OK(BundleInitFromMem(tmpData, modelSize, "", varWeightPtr, varWeightSize, bundleId));
+  ACL_LOG_INFO("end to execute aclmdlBundleInitFromMem, model size %zu, varWeightSize %zu, bundleId %u",
+               modelSize, varWeightSize, *bundleId);
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleLoadModelImpl(uint32_t bundleId, size_t index, uint32_t *modelId)
+{
+  return aclmdlBundleLoadModelWithMemImpl(bundleId, index, nullptr, 0U, nullptr, 0U, modelId);
+}
+
+static aclError GetTargetBundleInfo(uint32_t bundleId, acl::BundleModelInfo &bundleInfos) {
+  const std::unique_lock<std::mutex> lock(aclmdlBundleMutex);
+  ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
+  bool need_load_mem_from_file = !bundleInfos.is_init && !bundleInfos.fromFilePath.empty() &&
+                                 (bundleInfos.bundleModelData == nullptr);
+  if (need_load_mem_from_file) {
+    ACL_LOG_INFO("bundle mem should allocated again when aclmdlBundleLoadFromFile called");
+    ge::ModelData modelData;
+    modelData.om_path = bundleInfos.fromFilePath;
+    ACL_LOG_INFO("call ge interface gert::LoadDataFromFile");
+    ACL_REQUIRES_CALL_GE_OK(gert::LoadDataFromFile(bundleInfos.fromFilePath.c_str(), modelData),
+                            "load bundle om %s failed", bundleInfos.fromFilePath.c_str());
+    std::shared_ptr<uint8_t> data;
+    data.reset(ge::PtrToPtr<void, uint8_t>(modelData.model_data), std::default_delete<uint8_t[]>());
+    bundleInfos.bundleModelData = data;
+    bundleInfos.bundleModelSize = modelData.model_len;
+    acl::AclResourceManager::GetInstance().SetBundleInfo(bundleId, bundleInfos);
+  }
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleLoadModelWithMemImpl(uint32_t bundleId, size_t index, void *workPtr, size_t workSize, void *weightPtr,
+                                      size_t weightSize, uint32_t *modelId)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
+  ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleLoadModelWithMem);
+  ACL_LOG_INFO("strat to execute aclmdlBundleLoadModelWithMem, bundleId %u, index %zu", bundleId, index);
+  acl::BundleModelInfo bundleInfos;
+  ACL_REQUIRES_OK(GetTargetBundleInfo(bundleId, bundleInfos));
+  if (index >= bundleInfos.subModelInfos.size()) {
+    ACL_LOG_ERROR("index %zu should be smaller than %zu", index, bundleInfos.subModelInfos.size());
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  ACL_REQUIRES_NOT_NULL(bundleInfos.bundleModelData);
+  const size_t offset = bundleInfos.subModelInfos[index].offset;
+  const size_t modelSize = bundleInfos.subModelInfos[index].modelSize;
+  void *currentModePtr = ge::ValueToPtr(ge::PtrToValue(bundleInfos.bundleModelData.get()) + offset);
+  const auto loadArgs = ConstructGeModelLoadArg(workPtr, workSize, weightPtr, weightSize,
+                                                bundleInfos.rtSession.get(), {});
+  ACL_REQUIRES_OK(LoadBundleSubModelFromMem(currentModePtr, modelSize, bundleInfos.fromFilePath,
+                                            bundleInfos.rtSession, loadArgs, *modelId));
+  acl::AclResourceManager::GetInstance().AddBundleSubmodelId(bundleId, *modelId);
+  ACL_LOG_INFO("end to execute aclmdlBundleLoadModelWithMem, bundleId %u, index %zu", bundleId, index);
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleLoadModelWithConfigImpl(uint32_t bundleId, size_t index, aclmdlConfigHandle *handle,
+                                         uint32_t *modelId)
+{
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle);
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(modelId);
+  ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleLoadModelWithConfig);
+  ACL_LOG_INFO("start to execute aclmdlBundleLoadModelWithConfig, bundleId %u, index %zu", bundleId, index);
+  acl::BundleModelInfo bundleInfos;
+  ACL_REQUIRES_OK(GetTargetBundleInfo(bundleId, bundleInfos));
+  if (index >= bundleInfos.subModelInfos.size()) {
+    ACL_LOG_ERROR("index %zu should be smaller than %zu", index, bundleInfos.subModelInfos.size());
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  acl::UpdateGraphOptions(OPTION_EXEC_REUSE_ZERO_COPY_MEMORY, std::to_string(handle->reuseZeroCopy));
+  ACL_REQUIRES_NOT_NULL(bundleInfos.bundleModelData);
+  const size_t offset = bundleInfos.subModelInfos[index].offset;
+  const size_t modelSize = bundleInfos.subModelInfos[index].modelSize;
+  void *currentModePtr = ge::ValueToPtr(ge::PtrToValue(bundleInfos.bundleModelData.get()) + offset);
+  const auto loadArgs = ConstructGeModelLoadArg(handle->workPtr, handle->workSize, handle->weightPtr, handle->weightSize,
+                                                bundleInfos.rtSession.get(), handle->fileConstantMem);
+
+  ACL_REQUIRES_OK(LoadBundleSubModelFromMem(currentModePtr, modelSize, bundleInfos.fromFilePath,
+                                            bundleInfos.rtSession, loadArgs, *modelId, handle->weightPath.c_str(),
+                                            handle->priority));
+  acl::AclResourceManager::GetInstance().AddBundleSubmodelId(bundleId, *modelId);
+  ACL_LOG_INFO("end to execute aclmdlBundleLoadModelWithConfig, bundleId %u, index %zu, model id is %u",
+               bundleId, index, *modelId);
+  return ACL_SUCCESS;
+}
+
+aclError aclmdlBundleUnloadModelImpl(uint32_t bundleId, uint32_t modelId)
+{
+  ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleUnloadModel);
+  ACL_LOG_INFO("start to execute aclmdlBundleUnloadModel bundleId %u, modelId %u", bundleId, modelId);
+  acl::BundleModelInfo bundleInfos;
+  ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
+  if (bundleInfos.loadedSubModelIdSet.find(modelId) == bundleInfos.loadedSubModelIdSet.end()) {
+    ACL_LOG_ERROR("current modelId %u is not bundleId %u sub model", modelId, bundleId);
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  ACL_REQUIRES_OK(UnloadModelInner(modelId));
+  acl::AclResourceManager::GetInstance().DeleteBundleSubmodelId(bundleId, modelId);
+  ACL_LOG_INFO("end to execute aclmdlBundleUnloadModel bundleId %u, modelId %u", bundleId, modelId);
+  return ACL_SUCCESS;
 }
 
 aclError aclmdlLoadFromMemWithMemImpl(const void *model, size_t modelSize,
@@ -2161,15 +2439,15 @@ aclError aclmdlBundleUnloadImpl(uint32_t bundleId)
 {
     ACL_PROFILING_REG(acl::AclProfType::AclmdlBundleUnload);
     ACL_LOG_INFO("start to execute aclmdlBundleUnload %u", bundleId);
-    std::vector<acl::BundleInfo> bundleInfos;
+    acl::BundleModelInfo bundleInfos;
     ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().GetBundleInfo(bundleId, bundleInfos));
     aclError finalRet = ACL_SUCCESS;
-    for (auto &bundleInfo: bundleInfos) {
-        // unload all and check result
-        const auto ret = UnloadModelInner(bundleInfo.modelId);
-        if (ret != ACL_SUCCESS) {
-            finalRet = ret;
-        }
+    for (auto &modelId: bundleInfos.loadedSubModelIdSet) {
+      // unload all and check result
+      const auto ret = UnloadModelInner(modelId);
+      if (ret != ACL_SUCCESS) {
+        finalRet = ret;
+      }
     }
     ACL_REQUIRES_OK(finalRet);
     acl::AclResourceManager::GetInstance().DeleteBundleInfo(bundleId);
@@ -2891,7 +3169,7 @@ aclError aclmdlLoadWithConfigImpl(const aclmdlConfigHandle *handle, uint32_t *mo
             ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle->mdlAddr);
             ACL_REQUIRES_OK(acl::IsSupportRuntimeV2WithModelData(handle->mdlAddr, handle->mdlSize, isSupportRT2));
             if (isSupportRT2) {
-                return acl::RuntimeV2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, "", modelId, nullptr, 0U,
+                return acl::RuntimeV2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, handle->loadPath, modelId, nullptr, 0U,
                                                              handle->weightPath.c_str(), handle->priority,
                                                              file_constant_mems);
             }
@@ -2905,14 +3183,14 @@ aclError aclmdlLoadWithConfigImpl(const aclmdlConfigHandle *handle, uint32_t *mo
             ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(handle->mdlAddr);
             ACL_REQUIRES_OK(acl::IsSupportRuntimeV2WithModelData(handle->mdlAddr, handle->mdlSize, isSupportRT2));
             if (isSupportRT2) {
-                return acl::RuntimeV2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, "", modelId,
+                return acl::RuntimeV2ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, handle->loadPath, modelId,
                                                              handle->weightPtr, handle->weightSize,
-                                                             nullptr, handle->priority, file_constant_mems);
+                                                             handle->weightPath.c_str(), handle->priority, file_constant_mems);
             }
             const auto loadArgs = ConstructGeModelLoadArg(handle->workPtr, handle->workSize, handle->weightPtr,
                 handle->weightSize, nullptr, file_constant_mems);
-            return acl::ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, "", modelId, loadArgs,
-                                                nullptr, handle->priority);
+            return acl::ModelLoadFromMemWithMem(handle->mdlAddr, handle->mdlSize, handle->loadPath, modelId, loadArgs,
+                                                handle->weightPath.c_str(), handle->priority);
         }
         case ACL_MDL_LOAD_FROM_FILE_WITH_Q:
         {

@@ -34,16 +34,31 @@ AclResourceManager::AclResourceManager() {
     GetRuntimeV2Env();
 }
 
-void AclResourceManager::AddBundleInfo(const uint32_t bundleId, const std::vector<BundleInfo> &bundleInfos)
+void AclResourceManager::AddBundleSubmodelId(const uint32_t bundleId, uint32_t modelId)
 {
-    const std::lock_guard<std::mutex> locker(mutex_);
-    bundleInfos_[bundleId] = bundleInfos;
-    for (const auto &info : bundleInfos) {
-        (void)bundleInnerIds_.insert(info.modelId);
-    }
+  const std::lock_guard<std::mutex> locker(mutex_);
+  bundleInfos_[bundleId].loadedSubModelIdSet.insert(modelId);
+  (void)bundleInnerIds_.insert(modelId);
 }
 
-aclError AclResourceManager::GetBundleInfo(const uint32_t bundleId, std::vector<BundleInfo> &bundleInfos)
+aclError AclResourceManager::SetBundleInfo(const uint32_t bundleId, const BundleModelInfo &bundleInfos)
+{
+  const std::lock_guard<std::mutex> locker(mutex_);
+  bundleInfos_[bundleId] = bundleInfos;
+  for (const auto &modelId : bundleInfos.loadedSubModelIdSet) {
+    (void)bundleInnerIds_.insert(modelId);
+  }
+  return ACL_SUCCESS;
+}
+
+void AclResourceManager::DeleteBundleSubmodelId(const uint32_t bundleId, uint32_t modelId)
+{
+  const std::lock_guard<std::mutex> locker(mutex_);
+  bundleInfos_[bundleId].loadedSubModelIdSet.erase(modelId);
+  (void)bundleInnerIds_.erase(modelId);
+}
+
+aclError AclResourceManager::GetBundleInfo(const uint32_t bundleId, BundleModelInfo &bundleInfos)
 {
     const std::lock_guard<std::mutex> locker(mutex_);
     const auto it = bundleInfos_.find(bundleId);
@@ -66,8 +81,8 @@ void AclResourceManager::DeleteBundleInfo(const uint32_t bundleId)
     const std::lock_guard<std::mutex> locker(mutex_);
     const auto it = bundleInfos_.find(bundleId);
     if (it != bundleInfos_.end()) {
-        for (const auto &info : it->second) {
-            (void)bundleInnerIds_.erase(info.modelId);
+        for (const auto &id : it->second.loadedSubModelIdSet) {
+            (void)bundleInnerIds_.erase(id);
         }
         (void)bundleInfos_.erase(it);
     }
