@@ -25,11 +25,14 @@ class ModelBufferSaver {
 public:
     Status SaveCompiledModelToBuffer(
         const ge::GeModelPtr& ge_model,
-        ge::mobile::proto::ModelDef& mobile_model_def,
+        const ge::mobile::proto::ModelDef& mobile_model_def,
         const std::vector<ge::BaseBuffer>& weights_buffer,
         const std::vector<ge::BaseBuffer>& all_compiled_targets,
-        ge::BaseBuffer& weights_info_buffer,
-        ge::BaseBuffer& dst_buffer) const;
+        const ge::BaseBuffer& weights_info_buffer,
+        ge::BaseBuffer& dst_buffer);
+
+private:
+    std::vector<uint8_t> compiled_model_buffer_; 
 };
 
 } // namespace ge

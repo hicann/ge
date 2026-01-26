@@ -93,13 +93,14 @@ uint32_t CompiledTarget::SerializeModelTask(uint8_t* addr, uint32_t space_size, 
     GE_ASSERT_NOTNULL(model_task, "[Mobile] model_task is empty.");
 
 #if GOOGLE_PROTOBUF_VERSION < 3013000
+    GE_ASSERT_TRUE(model_task->ByteSize() <= UINT32_MAX, "[Mobile] overflow, failed.");
     size = static_cast<uint32_t>(model_task->ByteSize());
 #else
     GE_ASSERT_TRUE(model_task->ByteSizeLong() <= UINT32_MAX, "[Mobile] overflow, failed.");
     size = static_cast<uint32_t>(model_task->ByteSizeLong());
 #endif
     GE_ASSERT_TRUE(sizeof(Tlv) <= UINT32_MAX, "[Mobile] overflow, failed.");
-    uint32_t len = size + static_cast<uint32_t>(sizeof(Tlv));
+    const uint32_t len = size + static_cast<uint32_t>(sizeof(Tlv));
     if (len > space_size) {
         GELOGE(ge::FAILED, "[Mobile] spaceSize[need :%d, real = %d] is not enough", len, space_size);
         return 0;
@@ -109,35 +110,41 @@ uint32_t CompiledTarget::SerializeModelTask(uint8_t* addr, uint32_t space_size, 
     Tlv* tlvHead = reinterpret_cast<Tlv*>(addr);
     tlvHead->type = section_type;
     tlvHead->len = len;
-    (void)model_task->SerializePartialToArray(addr + sizeof(Tlv), static_cast<int>(size));
+    (void)model_task->SerializePartialToArray(&addr[sizeof(Tlv)], static_cast<int32_t>(size));
     return len;
 }
 
 uint32_t CompiledTarget::Serialize(ge::BaseBuffer& buffer)
 {
     GELOGI("[Mobile] MobileModel CompiledTarget Serialize.");
-    uint32_t size = static_cast<uint32_t>(GetSize());
+    GE_ASSERT_TRUE(GetSize() <= UINT32_MAX, "[Mobile] overflow, failed.");
+    const uint32_t size = static_cast<uint32_t>(GetSize());
     uint8_t *base_addr = buffer.GetData();
     GE_ASSERT_TRUE((size <= buffer.GetSize()) && (static_cast<std::size_t>(size) >= sizeof(Head)),
         "[Mobile] buffer is no enough");
     GE_ASSERT_NOTNULL(base_addr, "[Mobile] GetData is null.");
 
     Head* head = reinterpret_cast<Head*>(base_addr);
+    GE_ASSERT_TRUE(sections_.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
     FillHead(head, size, static_cast<uint32_t>(sections_.size()));
     uint32_t offset = static_cast<uint32_t>(sizeof(Head));
 
     // add modelTaskDef
-    offset += SerializeModelTask(base_addr + offset, size - offset, SECTION_TYPE_MODELDEF);
+    GE_ASSERT_TRUE(offset < buffer.GetSize(), "[Mobile] overflow, failed.");
+    offset += SerializeModelTask(&base_addr[offset], size - offset, static_cast<uint32_t>(SectionType::SECTION_TYPE_MODELDEF));
 
     Tlv* tlvHead = nullptr;
     for (const SectionHolder& section : sections_) {
+        GE_ASSERT_TRUE(sizeof(Tlv) <= UINT32_MAX, "[Mobile] overflow, failed.");
         if ((offset + sizeof(Tlv) + section.size) <= size) {
-            tlvHead = reinterpret_cast<Tlv *>(base_addr + offset);
+            GE_ASSERT_TRUE(offset < buffer.GetSize(), "[Mobile] overflow, failed.");
+            tlvHead = reinterpret_cast<Tlv *>(&base_addr[offset]);
             tlvHead->type = section.type;
             tlvHead->len = section.size + static_cast<uint32_t>(sizeof(Tlv));
             offset += static_cast<uint32_t>(sizeof(Tlv));
-            auto ret = memcpy_s(base_addr + offset, static_cast<uint32_t>(size - offset), section.data.get(),
-                static_cast<uint32_t>(section.size));
+            GE_ASSERT_TRUE(offset < buffer.GetSize(), "[Mobile] overflow, failed.");
+            const auto ret = memcpy_s(&base_addr[offset], static_cast<size_t>(size - offset),
+                section.data.get(), static_cast<size_t>(section.size));
             if (ret != EOK) {
                 GELOGE(ge::FAILED, "[Mobile] memcpy_s failed.");
                 return ge::FAILED;
@@ -164,31 +171,36 @@ void CompiledTarget::AddModelTaskDef(std::shared_ptr<mobile::proto::ModelTaskDef
 void CompiledTarget::UpdateGraphOpTaskSize(
     ge::mobile::proto::ModelDef& mobile_model_def) const
 {
-    const std::string GRAPH_OP_TYPE = "GraphOp";
-    for (auto i = 0; i < mobile_model_def.graph_size(); i++) {
+    bool is_update = false;
+    auto update_func = [&is_update, this](ge::mobile::proto::OpDef* op) {
+        const std::string GRAPH_OP_TYPE = "GraphOp";
+        if (op->type() != GRAPH_OP_TYPE) {
+            return;
+        }
+        auto* attr = op->mutable_attr();
+        const std::string graphop_task_size_str = "graphop_task_size";
+        (*attr)[graphop_task_size_str].set_i(static_cast<int64_t>(GetSize()));
+        GELOGI("[Mobile] base_addr:  0x%llx", model_task_->base_addr());
+        GELOGI("[Mobile] weight_addr: 0x%llx", model_task_->weight_addr());
+        is_update = true;
+    };
+
+    int graph_size = mobile_model_def.graph_size();
+    for (int i = 0; i < graph_size; i++) {
         auto* g = mobile_model_def.mutable_graph(i);
         GELOGI("[Mobile] subgraph name: %s", g->name().c_str());
-        if (g->name() != "ge_default") {
-            continue;
-        }
-        for (auto j = 0; j < g->op_size(); j++) {
-            auto* op = g->mutable_op(j);
-            if (op->type() != GRAPH_OP_TYPE) {
-                continue;
+        if (g->name() == "ge_default") {
+            for (int j = 0; (j < g->op_size()) && (!is_update); j++) {
+                auto* op = g->mutable_op(j);
+                update_func(op);
             }
-
-            auto* attr = op->mutable_attr();
-            const std::string graphop_task_size_str = "graphop_task_size";
-            (*attr)[graphop_task_size_str].set_i(static_cast<long>(GetSize()));
-
-            GELOGI("[Mobile] base_addr:  0x%llx", model_task_->base_addr());
-            GELOGI("[Mobile] weight_addr: 0x%llx", model_task_->weight_addr());
+        } else {
+            GELOGD("[Mobile] skip.");
         }
-        break;
     }
 }
 
-ge::Status CompiledTarget::UpdateModelModelTaskDef(ge::mobile::proto::ModelDef& mobile_model_def)
+ge::Status CompiledTarget::UpdateModelModelTaskDef(ge::mobile::proto::ModelDef& mobile_model_def) const
 {
     // save subgraph data and netoutput
     for (const auto& g: mobile_model_def.graph()) {
@@ -203,7 +215,8 @@ ge::Status CompiledTarget::UpdateModelModelTaskDef(ge::mobile::proto::ModelDef& 
             }
             GELOGI("[Mobile] op name: %s type: %s", op.name().c_str(), op.type().c_str());
 #if GOOGLE_PROTOBUF_VERSION < 3013000
-            uint32_t buffer_size = static_cast<uint32_t>(op.ByteSize());
+            GE_ASSERT_TRUE(op.ByteSize() <= UINT32_MAX, "[Mobile] overflow, failed.");
+            const uint32_t buffer_size = static_cast<uint32_t>(op.ByteSize());
 #else
             GE_ASSERT_TRUE(op.ByteSizeLong() <= UINT32_MAX, "[Mobile] overflow, failed.");
             uint32_t buffer_size = static_cast<uint32_t>(op.ByteSizeLong());

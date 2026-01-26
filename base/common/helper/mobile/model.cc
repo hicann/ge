@@ -25,7 +25,7 @@ void ConvertToMobileShapeDef(
     }
 }
 
-ge::mobile::proto::DataType ConvertToMobileDataType(const ge::proto::DataType& data_type)
+ge::mobile::proto::DataType ConvertToMobileDataType(const ge::proto::DataType data_type)
 {
     std::map<ge::proto::DataType, ge::mobile::proto::DataType> m = {
         {ge::proto::DataType::DT_UNDEFINED, ge::mobile::proto::DataType::DT_UNDEFINED},
@@ -51,7 +51,7 @@ ge::mobile::proto::DataType ConvertToMobileDataType(const ge::proto::DataType& d
 }
 
 ge::mobile::proto::AttrDef_ListValue::ListValueType ConvertToMobileListValueType(
-    const ge::proto::AttrDef_ListValue::ListValueType& list_value_type)
+    const ge::proto::AttrDef_ListValue::ListValueType list_value_type)
 {
     using AttrDefListValue = ge::proto::AttrDef_ListValue;
     using AttrDefListValueType = AttrDefListValue::ListValueType;

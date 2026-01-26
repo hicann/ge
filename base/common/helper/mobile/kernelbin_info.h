@@ -41,7 +41,7 @@ struct ReCompileInfo {
 
 struct KernelBin {
     KernelInfo kernel_info;
-    void* stub_func;
+    const void* stub_func;
     std::string stub_name;
     ReCompileInfo re_compile_info;
 };
@@ -61,7 +61,7 @@ public:
 private:
     uint32_t GetKernelInfoTlvSize();
 
-    ge::Status SerializeKernelInfo(uint8_t* start_addr, size_t len);
+    ge::Status SerializeKernelInfo(uint8_t* start_addr, size_t addr_len);
 
     ge::Status SerializeBinary(uint8_t* start_addr, size_t len);
 

@@ -13,7 +13,7 @@
 namespace ge {
 
 ge::Status CompiledTargetSaver::SaveToBuffer(
-    ge::CompiledTargetPtr compiled_target,
+    const ge::CompiledTargetPtr compiled_target,
     ge::BaseBuffer& buffer)
 {
     return compiled_target->Serialize(buffer);

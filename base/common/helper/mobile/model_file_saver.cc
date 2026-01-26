@@ -23,10 +23,10 @@ Status ModelFileSaver::SaveWeightBufferToFile(
     GELOGI("[Mobile] save weights list as external data.");
     for (auto it = weights_list_external.cbegin(); it != weights_list_external.cend(); it++) {
         std::string weight_path = std::string(output_weight_dir) + std::string("/") + it->first;
-        uint8_t* weight_addr = const_cast<uint8_t*>(it->second.GetData());
+        const void* weight_addr = it->second.GetData();
         GE_ASSERT_NOTNULL(weight_addr, "[Mobile] weight_addr is nullptr");
-        size_t weight_size = it->second.GetSize();
-        auto ret = FileSaver::SaveToFile(weight_path, reinterpret_cast<void*>(weight_addr), weight_size, false);
+        const size_t weight_size = it->second.GetSize();
+        const auto ret = FileSaver::SaveToFile(weight_path, weight_addr, weight_size, false);
         GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save subgraph weight buffer to file failed.");
     }
     return SUCCESS;
@@ -60,7 +60,6 @@ Status ModelFileSaver::SaveCompiledModelToFile(
         reinterpret_cast<void*>(data),
         buffer.GetSize(), false);
     GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save model buffer to file failed.");
-    delete[] data;
     GELOGI("[Mobile] save compiled model to file success.");
     return SUCCESS;
 }

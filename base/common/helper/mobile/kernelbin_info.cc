@@ -16,7 +16,7 @@
 
 namespace {
 
-const uint32_t MEM_ALIGN_SIZE = 256;
+constexpr uint32_t MEM_ALIGN_SIZE = 256;
 
 struct Tlv {
     uint32_t type;
@@ -38,17 +38,19 @@ uint32_t KernelBinManager::GetBinSectionSize()
     uint32_t size = 0;
     uint32_t kernel_binary_total_size = 0;
     for (auto kernelbin: kernelbin_list_) {
-        uint32_t charLen = kernelbin.stub_name.size() + 1;
-        size += sizeof(Tlv) + sizeof(KernelInfo) + charLen;
-        uint32_t div_value = (kernelbin.kernel_info.kernel_size - 1) / MEM_ALIGN_SIZE + 1;
+        GE_ASSERT_TRUE(kernelbin.stub_name.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
+        const uint32_t charLen = static_cast<uint32_t>(kernelbin.stub_name.size()) + 1U;
+        GE_ASSERT_TRUE((sizeof(Tlv) <= UINT32_MAX) && (sizeof(KernelInfo) <= UINT32_MAX), "[Mobile] overflow, failed.");
+        size += static_cast<uint32_t>(sizeof(Tlv)) + static_cast<uint32_t>(sizeof(KernelInfo)) + charLen;
+        const uint32_t div_value = (kernelbin.kernel_info.kernel_size - 1U) / MEM_ALIGN_SIZE + 1U;
         if (div_value > (UINT32_MAX / MEM_ALIGN_SIZE)) {
-            GE_ASSERT_TRUE("[Mobile] div_value is overflow(>UINT32_MAX), failed.");
+            GELOGW("[Mobile] div_value is overflow(>UINT32_MAX), failed.");
             return UINT32_MAX;
         }
         kernel_binary_total_size += div_value * MEM_ALIGN_SIZE;
     }
     if (sizeof(Tlv) > UINT32_MAX) {
-        GE_ASSERT_TRUE("[Mobile] tlv size is overflow(>UINT32_MAX), failed.");
+        GELOGW("[Mobile] tlv size is overflow(>UINT32_MAX), failed.");
         return UINT32_MAX;
     }
     size = size + static_cast<uint32_t>(sizeof(Tlv)) + kernel_binary_total_size;
@@ -59,42 +61,46 @@ uint32_t KernelBinManager::GetKernelInfoTlvSize()
 {
     uint32_t size = 0;
     for (auto kernelbin: kernelbin_list_) {
-        uint32_t char_len = kernelbin.stub_name.size() + 1;
+        GE_ASSERT_TRUE(kernelbin.stub_name.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
+        const uint32_t char_len = static_cast<uint32_t>(kernelbin.stub_name.size()) + 1U;
+        GE_ASSERT_TRUE((sizeof(Tlv) <= UINT32_MAX) && (sizeof(KernelInfo) <= UINT32_MAX),
+            "[Mobile] overflow, failed.");
         size += sizeof(Tlv) + sizeof(KernelInfo) + char_len;
     }
     return size;
 }
 
-ge::Status KernelBinManager::SerializeKernelInfo(uint8_t* start_addr, size_t len)
+ge::Status KernelBinManager::SerializeKernelInfo(uint8_t* start_addr, size_t addr_len)
 {
-    uint32_t accumulated_len = 0;
+    uint32_t accumulated_len = 0U;
     GE_ASSERT_NOTNULL(start_addr, "[Mobile] start_addr is empty.");
     for (auto kernelbin: kernelbin_list_) {
-        GE_ASSERT_TRUE(accumulated_len < len,
-            "[Mobile] accumulated_len is overflow, failed. accumulated_len: %lu, len: %lu", accumulated_len, len);
+        GE_ASSERT_TRUE(accumulated_len < addr_len,
+            "[Mobile] accumulated_len is overflow, failed. accumulated_len: %lu, len: %lu", accumulated_len, addr_len);
         Tlv* tlv = reinterpret_cast<Tlv*>(&start_addr[accumulated_len]);
-        uint32_t charLen = kernelbin.stub_name.size() + 1;
-        uint32_t len = sizeof(Tlv) + sizeof(KernelInfo) + charLen;
+        GE_ASSERT_TRUE(kernelbin.stub_name.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
+        const uint32_t charLen = static_cast<uint32_t>(kernelbin.stub_name.size()) + 1U;
+        const uint32_t len = sizeof(Tlv) + sizeof(KernelInfo) + charLen;
         tlv->type = static_cast<uint32_t>(BinSectionType::BIN_SECTION_TYPE_KERNEL_INFO);
         tlv->len = len;
-        size_t kernel_info_start_index = accumulated_len + sizeof(Tlv);
-        GE_ASSERT_TRUE(kernel_info_start_index < len,
-            "[Mobile] kernel_info_start_index is overflow, failed. kernel_info_start_index: %lu, len: %lu", kernel_info_start_index, len);
+        const size_t kernel_info_start_index = accumulated_len + sizeof(Tlv);
+        GE_ASSERT_TRUE(kernel_info_start_index < addr_len,
+            "[Mobile] kernel_info_start_index is overflow, failed. kernel_info_start_index: %lu, len: %lu", kernel_info_start_index, addr_len);
         KernelInfo* kernel_info = reinterpret_cast<KernelInfo*>(&start_addr[kernel_info_start_index]);
         kernel_info->func_mode = kernelbin.kernel_info.func_mode;
         kernel_info->magic = kernelbin.kernel_info.magic;
-        uint32_t div_value = (kernelbin.kernel_info.kernel_size - 1) / MEM_ALIGN_SIZE + 1;
+        const uint32_t div_value = (kernelbin.kernel_info.kernel_size - 1U) / MEM_ALIGN_SIZE + 1U;
         GE_ASSERT_TRUE(div_value <= (UINT32_MAX / MEM_ALIGN_SIZE), "[Mobile] div_value is overflow(>UINT32_MAX), failed.");
         kernel_info->kernel_size = div_value * MEM_ALIGN_SIZE;
         kernel_info->kernel_offset = kernelbin.kernel_info.kernel_offset;
-        size_t stub_name_start_index = accumulated_len + sizeof(Tlv) + sizeof(KernelInfo);
-        GE_ASSERT_TRUE(stub_name_start_index < len,
-            "[Mobile] stub_name_start_index is overflow, failed. stub_name_start_index: %lu, len: %lu", stub_name_start_index, len);
-        auto ret = memcpy_s(&start_addr[stub_name_start_index], len - stub_name_start_index, kernelbin.stub_name.c_str(),
+        const size_t stub_name_start_index = accumulated_len + sizeof(Tlv) + sizeof(KernelInfo);
+        GE_ASSERT_TRUE(stub_name_start_index < addr_len,
+            "[Mobile] stub_name_start_index is overflow, failed. stub_name_start_index: %lu, len: %lu", stub_name_start_index, addr_len);
+        const auto ret = memcpy_s(&start_addr[stub_name_start_index], addr_len - stub_name_start_index, kernelbin.stub_name.c_str(),
             kernelbin.stub_name.size());
         GE_ASSERT_TRUE(ret == EOK, "[Mobile] memcpy_s failed.");
         accumulated_len += len;
-        *(start_addr + accumulated_len - 1) = 0;
+        start_addr[accumulated_len - 1U] = 0;
     }
     return ge::SUCCESS;
 }
@@ -109,11 +115,11 @@ ge::Status KernelBinManager::SerializeBinary(uint8_t* start_addr, size_t len)
         GE_ASSERT_NOTNULL(kernelbin.stub_func, "[Mobile] kernel bin stub func is null.");
         GE_ASSERT_TRUE(accumulated_len < len,
             "[Mobile] accumulated_len is overflow, failed. accumulated_len: %lu, len: %lu", accumulated_len, len);
-        void* binary = reinterpret_cast<void*>(&start_addr[accumulated_len]);
-        size_t size = kernelbin.kernel_info.kernel_size;
-        auto ret = memmove_s(binary, len - accumulated_len, kernelbin.stub_func, size);
+        void* binary = static_cast<void*>(&start_addr[accumulated_len]);
+        const size_t size = static_cast<size_t>(kernelbin.kernel_info.kernel_size);
+        const auto ret = memmove_s(binary, static_cast<size_t>(len - accumulated_len), kernelbin.stub_func, size);
         GE_ASSERT_TRUE(ret == EOK, "[Mobile] memcpy_s failed.");
-        uint32_t div_value = (kernelbin.kernel_info.kernel_size - 1) / MEM_ALIGN_SIZE + 1;
+        const uint32_t div_value = (kernelbin.kernel_info.kernel_size - 1U) / MEM_ALIGN_SIZE + 1U;
         GE_ASSERT_TRUE(div_value <= (UINT32_MAX / MEM_ALIGN_SIZE), "[Mobile] div_value is overflow(>UINT32_MAX), failed.");
         accumulated_len += div_value * MEM_ALIGN_SIZE;
     }

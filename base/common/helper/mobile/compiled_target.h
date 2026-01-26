@@ -23,7 +23,7 @@
 
 namespace ge {
 
-enum SectionType {
+enum class SectionType : std::uint8_t {
     SECTION_TYPE_INVAILD = 0,
     SECTION_TYPE_MODELDEF = 1,
     SECTION_TYPE_BIN = 2,
@@ -33,7 +33,7 @@ enum SectionType {
     SECTION_TYPE_EFFICIENT_MODELDEF = 6,
     SECTION_TYPE_GENERIC_MODELDEF = 7,
     SECTION_TYPE_PLACEHOLDER = 8,
-    SECTION_TYPE_MAX,
+    SECTION_TYPE_MAX = 255,
 };
 
 struct SectionHolder {
@@ -63,7 +63,7 @@ public:
 
     uint32_t SerializeModelTask(uint8_t* addr, uint32_t space_size, uint32_t section_type);
 
-    ge::Status UpdateModelModelTaskDef(ge::mobile::proto::ModelDef& mobile_model_def);
+    ge::Status UpdateModelModelTaskDef(ge::mobile::proto::ModelDef& mobile_model_def) const;
 
 private:
     void UpdateGraphOpTaskSize(ge::mobile::proto::ModelDef& mobile_model_def) const;

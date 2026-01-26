@@ -20,10 +20,10 @@ namespace {
 
 using BlockOpsFuncType = std::function<bool(const size_t, const size_t)>;
 
-bool LoopBlockOps(const size_t total_size, BlockOpsFuncType block_ops_func)
+bool LoopBlockOps(const size_t total_size, const BlockOpsFuncType& block_ops_func)
 {
     size_t block_count_max = total_size / SECUREC_MEM_MAX_LEN;
-    size_t rest_size = total_size % SECUREC_MEM_MAX_LEN;
+    const size_t rest_size = total_size % SECUREC_MEM_MAX_LEN;
     if (rest_size > static_cast<size_t>(0)) {
         block_count_max++;
     }
@@ -47,8 +47,8 @@ bool LoopBlockOps(const size_t total_size, BlockOpsFuncType block_ops_func)
 
 namespace ge {
 
-bool LargeMemoryOps::Copy(std::uint8_t* dst_buffer, const size_t dst_size,
-    const std::uint8_t* src_buffer, const size_t src_size)
+bool LargeMemoryOps::Copy(void* dst_buffer, const size_t dst_size,
+    const void* src_buffer, const size_t src_size)
 {
     if (dst_size < src_size) {
         GELOGE(ge::FAILED, "[Mobile] dst_size < src_size failed, dst size: %d, src size: %d.", dst_size, src_size);
@@ -56,16 +56,15 @@ bool LargeMemoryOps::Copy(std::uint8_t* dst_buffer, const size_t dst_size,
     }
     auto memcpy_func =
         [&dst_buffer, &dst_size, &src_buffer](const size_t src_offset, const size_t block_size) {
-            std::uint8_t* dst_buffer_start_addr = dst_buffer + src_offset;
+            void* dst_buffer_start_addr = static_cast<uint8_t*>(dst_buffer) + src_offset;
             const size_t dst_rest_size = dst_size - src_offset;
             if (dst_rest_size < block_size) {
                 GELOGE(ge::FAILED, "[Mobile] dst_rest_size < block_size failed, dst rest size: %d, block size: %d.",
                     dst_rest_size, block_size);
                 return false;
             }
-            const std::uint8_t* src_buffer_start_addr = src_buffer + src_offset;
-            auto ret = memcpy_s(reinterpret_cast<void*>(dst_buffer_start_addr), block_size,
-                reinterpret_cast<const void*>(src_buffer_start_addr), block_size);
+            const void* src_buffer_start_addr = static_cast<const uint8_t*>(src_buffer) + src_offset;
+            const auto ret = memcpy_s(dst_buffer_start_addr, block_size, src_buffer_start_addr, block_size);
             if (ret != EOK) {
                 GELOGE(ge::FAILED, "[Mobile] memcpy_s failed!, ret %d", ret);
                 return false;

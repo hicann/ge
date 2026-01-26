@@ -71,8 +71,8 @@ ge::Status SetGraphOpAttrs(
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_task_offset_str, graphop_task_offset_value);
 
     const std::string graphop_task_size_str = "graphop_task_size";
-    GE_ASSERT_NOTNULL(compiled_targets[0], "[Mobile] compiled_targets[0] is nullptr.");
-    int64_t graphop_task_size_value = static_cast<int64_t>(compiled_targets[0]->GetSize());
+    GE_ASSERT_TRUE(compiled_targets.size() > 0 && compiled_targets[0] != nullptr, "[Mobile] compiled_targets is invalid.");
+    const int64_t graphop_task_size_value = static_cast<int64_t>(compiled_targets[0]->GetSize());
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_task_size_str, graphop_task_size_value);
 
     // weight info
@@ -81,7 +81,8 @@ ge::Status SetGraphOpAttrs(
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_weight_offset_str, graphop_weight_offset_value);
 
     const std::string graphop_weight_size_str = "graphop_weight_size";
-    int64_t graphop_weight_size_value = static_cast<int64_t>(weights_list[0].GetSize());
+    GE_ASSERT_TRUE(weights_list.size() > 0, "[Mobile] weights_list is invalid.");
+    const int64_t graphop_weight_size_value = static_cast<int64_t>(weights_list[0].GetSize());
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_weight_size_str, graphop_weight_size_value);
 
     // in and out and fm info
@@ -105,7 +106,7 @@ ge::Status SetGraphOpAttrs(
 ge::ComputeGraphPtr ConvertComputeGraphToMobile(
     const ge::ComputeGraphPtr& ori_compute_graph,
     const std::vector<ge::BaseBuffer>& weights_list,
-    std::vector<ge::CompiledTargetPtr>& compiled_targets)
+    const std::vector<ge::CompiledTargetPtr>& compiled_targets)
 {
     // copy subgraph from ori graph and set name
     ge::ComputeGraphPtr mobile_subgraph = std::make_shared<ge::ComputeGraph>(ori_compute_graph->GetName());
@@ -254,6 +255,7 @@ namespace ge {
 
 Status CompiledModel::GetCompiledTargetsBuffer(std::vector<ge::BaseBuffer>& all_targets_buffer)
 {
+    compiled_targets_buffer_.clear();
     CompiledTargetSaver saver;
     for (size_t i = 0; i < compiled_targets_.size(); i++) {
         GE_ASSERT_NOTNULL(compiled_targets_[i], "[Mobile] compiled_targets_[%d] is nullptr.", i);
@@ -261,16 +263,12 @@ Status CompiledModel::GetCompiledTargetsBuffer(std::vector<ge::BaseBuffer>& all_
             "[Mobile] update model task def failed.");
         const size_t task_size = compiled_targets_[i]->GetSize();
         GELOGI("[Mobile] task size: %u", task_size);
-        uint8_t* base_ptr = new (std::nothrow) uint8_t[task_size];
-        GE_ASSERT_NOTNULL(base_ptr, "[Mobile] base ptr is nullptr.");
-        ge::ScopeGuard guard([&base_ptr]() {
-            delete[] base_ptr;
-        });
-        ge::BaseBuffer buffer(base_ptr, task_size);
+        compiled_targets_buffer_.emplace_back();
+        compiled_targets_buffer_.back().resize(task_size);
+        ge::BaseBuffer buffer(compiled_targets_buffer_.back().data(), task_size);
         const auto ret = saver.SaveToBuffer(compiled_targets_[i], buffer);
         GE_ASSERT_TRUE((ret == SUCCESS) && (buffer.GetData() != nullptr) && (buffer.GetSize() == task_size),
             "[Mobile] compiled target[%d] save to buffer failed.", i);
-        guard.Dismiss();
         (void)all_targets_buffer.emplace_back(std::move(buffer));
     }
     return SUCCESS;
@@ -286,7 +284,7 @@ Status CompiledModel::SaveToBuffer(
         ge_model_->GetGraph(), weights_list_, compiled_targets_));
 
     // convert to mobile model def
-    const ge::ModelPtr model = std::make_shared<ge::Model>(
+    const auto model = std::make_unique<ge::Model>(
         ge_model_->GetName(),
         ge_model_->GetPlatformVersion());
     GE_ASSERT_NOTNULL(model, "[Mobile] model is nullptr");
@@ -321,8 +319,7 @@ Status CompiledModel::SaveToBuffer(
     (void)weights_info_buffer;
 
     // save to tlv buffer
-    ge::ModelBufferSaver saver;
-    ret = saver.SaveCompiledModelToBuffer(
+    ret = saver_.SaveCompiledModelToBuffer(
         ge_model_,
         mobile_model_def_,
         weights_list_,
@@ -330,13 +327,6 @@ Status CompiledModel::SaveToBuffer(
         weights_info_buffer,
         buffer);
     GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save compiled model to buffer failed.");
-
-    // release targets buffer
-    for (auto& buf: all_targets_buffer) {
-        if ((buf.GetData() != nullptr) && (buf.GetSize() > 0)) {
-            delete[] buf.GetData();
-        }
-    }
     return SUCCESS;
 }
 

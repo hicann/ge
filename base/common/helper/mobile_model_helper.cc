@@ -69,7 +69,8 @@ constexpr int32_t ASCENDC_AI_CORE = 6;
 constexpr int32_t PER_ARG_BYTES = 8;
 constexpr uint32_t MOBILE_RT_DEV_BINARY_MAGIC_ELF = 0x43554245U;
 
-struct ShapeInfo {
+class ShapeInfo {
+public:
     int64_t dim_num;
     std::vector<int64_t> dims;
     int64_t offset;
@@ -85,11 +86,12 @@ struct ShapeInfo {
     }
 };
 
-struct DynamicInputsOutputsShapeInfo {
+class DynamicInputsOutputsShapeInfo {
+public:
     std::vector<std::vector<ShapeInfo>>& dynamic_inputs_shape;
     std::vector<std::vector<ShapeInfo>>& dynamic_outputs_shape;
 
-    const std::vector<ShapeInfo>& GetShapeInfo(const std::string& io_type, uint64_t group_index)
+    const std::vector<ShapeInfo>& GetShapeInfo(const std::string& io_type, uint64_t group_index) const
     {
         static std::vector<ShapeInfo> dynamic_shape_empty;
         if ((io_type == "i" && static_cast<size_t>(group_index) >= dynamic_inputs_shape.size()) ||
@@ -102,8 +104,9 @@ struct DynamicInputsOutputsShapeInfo {
             return dynamic_inputs_shape[group_index];
         } else if (io_type == "o") {
             return dynamic_outputs_shape[group_index];
+        } else {
+            GELOGE(ge::FAILED, "[Mobile] io_type is not support, failed.");
         }
-        GELOGE(ge::FAILED, "[Mobile] io_type is not support, failed.");
         return dynamic_shape_empty;
     }
 };
@@ -115,6 +118,10 @@ uint64_t ConstructSecondaryAddrContext(std::vector<uint8_t>& flowtable, const st
     uint64_t real_size = PER_U64_BYTES;
     // shape info(dim + shape)
     for (const auto& shape_info: shape_infos) {
+        GE_ASSERT_TRUE((static_cast<uint64_t>(shape_info.dim_num) <= UINT64_MAX / PER_U64_BYTES) &&
+            (PER_U64_BYTES <= UINT64_MAX - (static_cast<uint64_t>(shape_info.dim_num) * PER_U64_BYTES)) &&
+            (real_size <= UINT64_MAX - (PER_U64_BYTES + (static_cast<uint64_t>(shape_info.dim_num) * PER_U64_BYTES))),
+            "[Mobile] overflow, failed.");
         real_size += PER_U64_BYTES + static_cast<uint64_t>(shape_info.dim_num) * PER_U64_BYTES;
     }
     // ptr
@@ -154,7 +161,7 @@ uint64_t ConstructSecondaryAddrContext(std::vector<uint8_t>& flowtable, const st
         GELOGI("[Mobile] tlv_index after ptr index: %d , tlv_index: %d", i, tlv_index);
     }
     const uint8_t* tlv_data = reinterpret_cast<uint8_t*>(tlv.data());
-    (void)flowtable.insert(flowtable.end(), tlv_data, tlv_data + real_size);
+    (void)flowtable.insert(flowtable.end(), tlv_data, &tlv_data[real_size]);
     return real_size;
 }
 
@@ -182,7 +189,7 @@ ge::Status GetDynamicInputsInfo(const ge::NodePtr& node,
                 return ge::FAILED;
             }
             ShapeInfo shape_info;
-            shape_info.dim_num = node->GetOpDesc()->GetInputDesc(static_cast<uint32_t>(d)).GetShape().GetDimNum();
+            shape_info.dim_num = static_cast<int64_t>(node->GetOpDesc()->GetInputDesc(static_cast<uint32_t>(d)).GetShape().GetDimNum());
             shape_info.dims = node->GetOpDesc()->GetInputDesc(static_cast<uint32_t>(d)).GetShape().GetDims();
             shape_info.offset = input_offset[static_cast<uint64_t>(d)];
             shape_infos.push_back(shape_info);
@@ -238,7 +245,8 @@ ge::Status GetDynamicOutputsInfo(const ge::NodePtr& node,
     return ge::SUCCESS;
 }
 
-struct KernelArgInfoWithShapeInfo {
+class KernelArgInfoWithShapeInfo {
+public:
     // 'i' is input
     // 'o' is output
     // 'ws' is workspace
@@ -252,8 +260,8 @@ struct KernelArgInfoWithShapeInfo {
     std::set<int32_t> arg_indexes;
     int32_t add;
 
-    KernelArgInfoWithShapeInfo(const std::string& type, const std::string& format, int32_t group_index, int32_t add)
-        : type(type), format(format), group_index(group_index), arg_indexes({}), add(add) {}
+    KernelArgInfoWithShapeInfo(const std::string& type_in, const std::string& format_in, int32_t group_index_in, int32_t add_in)
+        : type(type_in), format(format_in), group_index(group_index_in), arg_indexes({}), add(add_in) {}
 
     std::string ToString() const
     {
@@ -299,7 +307,7 @@ ge::Status ParseArgsFormat(const std::string& args_format,
                 GELOGI("[Mobile] -> [%d]: %s", idx, sm_with_shape_info[idx].str().c_str());
             }
             GE_ASSERT_TRUE(sm_with_shape_info[shape_info_size_needed - 1UL] != "*", "[Mobile] not support desc*.");
-            int group_index = -1;
+            int32_t group_index = -1;
             if (sm_with_shape_info[1] == "i") {
                 group_index = input_group_index++;
             } else if (sm_with_shape_info[1] == "o") {
@@ -377,15 +385,15 @@ ge::Status SetArgsAndFlowTable(const domi::KernelDef& kernel, ge::mobile::proto:
     std::vector<KernelArgInfoWithShapeInfo>& arg_infos_with_shape_info,
     DynamicInputsOutputsShapeInfo& dynamic_inputsoutputs_shapeinfo, bool& is_flowtable)
 {
-    const uint64_t* args_data = reinterpret_cast<uint64_t*>(const_cast<char*>(kernel.args().data()));
+    const uint64_t* args_data = reinterpret_cast<const uint64_t*>(kernel.args().data());
     std::vector<uint8_t> flowtable;
-    uint64_t args[kernel.args_size() / static_cast<uint32_t>(PER_ARG_BYTES)];
-    int args_index_new = 0;
+    std::vector<uint64_t> args(kernel.args_size() / static_cast<uint32_t>(PER_ARG_BYTES));
+    int32_t args_index_new = 0;
     uint64_t offset = 0;
-    int group_index_pre = -1;
+    int32_t group_index_pre = -1;
     std::string io_type_pre = "";
     for (uint32_t i = 0; i < kernel.args_size() / static_cast<uint32_t>(PER_ARG_BYTES); i++) {
-        int arg_infos_with_shape_info_index = -1;
+        int32_t arg_infos_with_shape_info_index = -1;
         GE_ASSERT_TRUE(FindArgInfosWithShapeInfoIndex(static_cast<int32_t>(i), arg_infos_with_shape_info, arg_infos_with_shape_info_index) == ge::SUCCESS,
             "[Mobile] find arg infos with shape info index failed.");
         GELOGI("[Mobile] args index: %d, value: 0x%llx, arg_infos_with_shape_info_index: %d", i, *args_data, arg_infos_with_shape_info_index);
@@ -395,15 +403,15 @@ ge::Status SetArgsAndFlowTable(const domi::KernelDef& kernel, ge::mobile::proto:
             GELOGI("[Mobile] arg_infos_with_shape_info: %s",
                 arg_infos_with_shape_info[static_cast<uint64_t>(arg_infos_with_shape_info_index)].ToString().c_str());
             is_flowtable = true;
-            auto io_type = arg_infos_with_shape_info[static_cast<uint64_t>(arg_infos_with_shape_info_index)].type;
-            int group_index = arg_infos_with_shape_info[static_cast<uint64_t>(arg_infos_with_shape_info_index)].group_index;
+            const auto io_type = arg_infos_with_shape_info[static_cast<uint64_t>(arg_infos_with_shape_info_index)].type;
+            const int32_t group_index = arg_infos_with_shape_info[static_cast<uint64_t>(arg_infos_with_shape_info_index)].group_index;
             if ((group_index_pre == group_index) && (io_type_pre == io_type)) {
                 GELOGI("[Mobile] in same group, group_index_pre: %d, group_index: %d, io_type_pre: %s, io_type: %s.",
                     group_index_pre, group_index, io_type_pre.c_str(), io_type.c_str());
                 args_data++;
                 continue;
             }
-            uint64_t real_size = ConstructSecondaryAddrContext(flowtable,
+            const uint64_t real_size = ConstructSecondaryAddrContext(flowtable,
                 dynamic_inputsoutputs_shapeinfo.GetShapeInfo(io_type, static_cast<uint64_t>(group_index)));
             GELOGI("[Mobile] real_size: %d", real_size);
             args[args_index_new++] = 0x6B6B6B6B00000000UL | offset;
@@ -418,8 +426,8 @@ ge::Status SetArgsAndFlowTable(const domi::KernelDef& kernel, ge::mobile::proto:
     }
     GELOGI("[Mobile] args_index_new: %d", args_index_new);
     mobile_kernel->set_flowtable(static_cast<const void*>(flowtable.data()), flowtable.size());
-    mobile_kernel->set_args(static_cast<const void*>(args), static_cast<uint32_t>(args_index_new * PER_ARG_BYTES));
-    mobile_kernel->set_args_size(args_index_new * PER_ARG_BYTES);
+    mobile_kernel->set_args(static_cast<const void*>(args.data()), static_cast<uint32_t>(args_index_new * PER_ARG_BYTES));
+    mobile_kernel->set_args_size(static_cast<uint32_t>(args_index_new * PER_ARG_BYTES));
     return ge::SUCCESS;
 }
 
@@ -464,19 +472,6 @@ ge::Status ConvertKernelDef(const ge::GeModelPtr& ge_model,
     // set args and flowtable
     GE_ASSERT_TRUE(SetArgsAndFlowTable(kernel, mobile_kernel, arg_infos_with_shape_info,
         dynamic_inputsoutputs_shapeinfo, is_flowtable) == ge::SUCCESS, "[Mobile] get args and flowtable failed.");
-
-    // log debug info
-    const uint64_t* mobile_args_data = reinterpret_cast<uint64_t*>(const_cast<char*>(mobile_kernel->args().data()));
-    for (uint32_t i = 0; i < mobile_kernel->args_size() / static_cast<uint32_t>(PER_ARG_BYTES); i++) {
-        GELOGI("[Mobile] mobile args index: %d, value: 0x%llx", i, *mobile_args_data);
-        mobile_args_data++;
-    }
-    GELOGI("[Mobile] mobile flow table size(bytes): %d", mobile_kernel->flowtable().size());
-    const uint64_t* mobile_flowtable_data = reinterpret_cast<uint64_t*>(const_cast<char*>(mobile_kernel->flowtable().data()));
-    for (uint32_t i = 0; i < mobile_kernel->flowtable().size() / PER_U64_BYTES; i++) {
-        GELOGI("[Mobile] flowtable value: 0x%llx", *mobile_flowtable_data);
-        mobile_flowtable_data++;
-    }
     return ge::SUCCESS;
 }
 
@@ -514,7 +509,7 @@ ge::Status ConvertTaskDef(const ge::GeModelPtr& ge_model,
         mobile_kernel_context->set_args_count(mobile_kernel->args_size() / static_cast<uint32_t>(PER_ARG_BYTES));
 
         // set args offset use args_count
-        std::vector<char> args_offset(mobile_kernel_context->args_count() * sizeof(uint16_t), 0);
+        std::vector<char> args_offset(mobile_kernel_context->args_count() * sizeof(uint16_t), static_cast<char>(0));
         mobile_kernel_context->set_args_offset(args_offset.data(), args_offset.size());
         GELOGI("[Mobile] mobile args_count: %d", mobile_kernel_context->args_count());
     }
@@ -524,16 +519,16 @@ ge::Status ConvertTaskDef(const ge::GeModelPtr& ge_model,
 ge::Status AddCompatibleInfoToCompiledTarget(ge::CompiledTargetPtr& compiled_target)
 {
     ge::CompatibleInfoV2 compatible_info_v2;
-    size_t compatible_info_size = compatible_info_v2.GetSize();
+    const size_t compatible_info_size = compatible_info_v2.GetSize();
     std::unique_ptr<uint8_t[]> compatible_info_data = std::make_unique<uint8_t[]>(compatible_info_size);
     GE_ASSERT_NOTNULL(compatible_info_data, "[Mobile] compatible_info_data is nullptr.");
     ge::BaseBuffer compatible_info_buffer(compatible_info_data.get(), compatible_info_size);
-    auto ret = compatible_info_v2.GetCompatibleInfo(compatible_info_buffer);
+    const auto ret = compatible_info_v2.GetCompatibleInfo(compatible_info_buffer);
     GE_ASSERT_TRUE(ret == ge::SUCCESS, "[Mobile] GetCompatibleInfo failed.");
     GELOGI("[Mobile] compatible_info_buffer size: %d", compatible_info_buffer.GetSize());
 
     ge::SectionHolder compatible_info_section;
-    compatible_info_section.type = ge::SECTION_TYPE_COMPATIBLEV2;
+    compatible_info_section.type = static_cast<uint32_t>(ge::SectionType::SECTION_TYPE_COMPATIBLEV2);
     GE_ASSERT_TRUE(compatible_info_size <= UINT32_MAX, "[Mobile] overflow, failed.");
     compatible_info_section.size = static_cast<uint32_t>(compatible_info_size);
     compatible_info_section.data = std::move(compatible_info_data);
@@ -567,14 +562,15 @@ ge::Status AddKernelBinToManager(const ge::GeModelPtr& ge_model,
         ge::mobile::KernelBin mobile_kernel_bin;
         mobile_kernel_bin.kernel_info.func_mode = 0U;
         mobile_kernel_bin.kernel_info.magic = MOBILE_RT_DEV_BINARY_MAGIC_ELF;
+        GE_ASSERT_TRUE(kernel_bin->GetBinDataSize() <= UINT32_MAX, "[Mobile] overflow, failed.");
         mobile_kernel_bin.kernel_info.kernel_size = static_cast<uint32_t>(kernel_bin->GetBinDataSize());
         mobile_kernel_bin.kernel_info.kernel_offset = 0U;
-        mobile_kernel_bin.stub_func = const_cast<uint8_t*>(kernel_bin->GetBinData());
+        mobile_kernel_bin.stub_func = kernel_bin->GetBinData();
         mobile_kernel_bin.stub_name = kernel_name;
         GELOGI("[Mobile] stub_name: %s", kernel_name.c_str());
         kernelbin_manager.AddKernelBin(mobile_kernel_bin);
         // replace task->kernel->stub_func -> kernel_name
-        for (auto i = 0; i < mobile_model_task_def->task_size(); i++) {
+        for (int i = 0; i < mobile_model_task_def->task_size(); i++) {
             auto* task = mobile_model_task_def->mutable_task(i);
             if (task->kernel().stub_func().find(node_name) != std::string::npos) {
                 GELOGI("[Mobile] instead kernel stub func: %s  to: %s", task->kernel().stub_func().c_str(),
@@ -592,16 +588,16 @@ ge::Status AddKernelBinToManager(const ge::GeModelPtr& ge_model,
 ge::Status AddKernelBinToCompiledTarget(ge::mobile::KernelBinManager& kernelbin_manager,
     ge::CompiledTargetPtr& compiled_target)
 {
-    size_t kernelbin_section_size = kernelbin_manager.GetBinSectionSize();
+    const size_t kernelbin_section_size = kernelbin_manager.GetBinSectionSize();
     std::unique_ptr<uint8_t[]> kernelbin_section_data = std::make_unique<uint8_t[]>(kernelbin_section_size);
     GE_ASSERT_NOTNULL(kernelbin_section_data, "[Mobile] kernelbin_section_data is nullptr.");
     ge::BaseBuffer kernelbin_section_buffer(kernelbin_section_data.get(), kernelbin_section_size);
-    auto ret = kernelbin_manager.SaveKernelBinToBuffer(kernelbin_section_buffer);
+    const auto ret = kernelbin_manager.SaveKernelBinToBuffer(kernelbin_section_buffer);
     GE_ASSERT_TRUE(ret == ge::SUCCESS, "[Mobile] SaveKernelBinToBuffer failed.");
     GELOGI("[Mobile] kernelbin_section_buffer size: %d", kernelbin_section_buffer.GetSize());
 
     ge::SectionHolder kernelbins_section;
-    kernelbins_section.type = ge::SECTION_TYPE_BIN;
+    kernelbins_section.type = static_cast<uint32_t>(ge::SectionType::SECTION_TYPE_BIN);
     GE_ASSERT_TRUE(kernelbin_section_size <= UINT32_MAX, "[Mobile] overflow, failed.");
     kernelbins_section.size = static_cast<uint32_t>(kernelbin_section_size);
     kernelbins_section.data = std::move(kernelbin_section_data);
@@ -634,7 +630,7 @@ ge::CompiledTargetPtr ConstructCompiledTarget(const ge::GeModelPtr& ge_model)
     mobile_model_task_def->set_weight_size(model_task_def->weight_size());
 
     // -> taskdef
-    auto ret = ConvertTaskDef(ge_model, model_task_def, mobile_model_task_def);
+    const auto ret = ConvertTaskDef(ge_model, model_task_def, mobile_model_task_def);
     GE_ASSERT_TRUE(ret == ge::SUCCESS, "[Mobile] convert task def failed.");
 
     // 2G size

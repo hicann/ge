@@ -9,12 +9,15 @@
  */
 
 #include "model_buffer_helper.h"
+
 #include <iostream>
 #include <array>
 #include <vector>
+#include <climits>
 #include <google/protobuf/text_format.h>
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
+
 #include "graph/utils/graph_utils.h"
 #include "common/checker.h"
 #include "graph/model.h"
@@ -113,7 +116,7 @@ struct ModelPartitionTable {
     ModelPartitionMemInfo partition[0];
 };
 
-uint64_t SizeOfModelPartitionTable(const ModelPartitionTable& table)
+uint64_t SizeOfModelPartitionTable(const ModelPartitionTable table)
 {
     return sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * (table.num);
 }
@@ -130,11 +133,80 @@ struct OmFileContext {
     uint64_t model_data_len = 0;
 };
 
+struct ModelBasicInfo {
+    uint32_t model_type = 0;
+    uint32_t version = 0;
+    string name;
+    string framework_version = "";
+    uint64_t graph_hash = 0;
+    int64_t timestamp = 0;
+};
+
+ge::Status SetPlatformVersion(ModelFileHeader& model_header, const std::string& platform_version)
+{
+    GE_ASSERT_TRUE(platform_version.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
+    uint32_t version_size = static_cast<uint32_t>(platform_version.size());
+    version_size = version_size > static_cast<uint32_t>(PLATFORM_VERSION_LEN) - 1U ?
+        static_cast<uint32_t>(PLATFORM_VERSION_LEN) - 1U : version_size;
+    const errno_t ret = memcpy_s(model_header.platform_version.data(), static_cast<size_t>(PLATFORM_VERSION_LEN), platform_version.c_str(), static_cast<size_t>(version_size));
+    if (ret != EOK) {
+        GELOGE(ge::FAILED, "[Mobile] memcpy_s failed!, platform_version save:%s", model_header.platform_version);
+        return ge::FAILED;
+    }
+    return ge::SUCCESS;
+}
+
+ge::Status SetModelName(ModelFileHeader& model_header, const std::string& model_name)
+{
+    GE_ASSERT_TRUE(model_name.size() <= UINT32_MAX, "[Mobile] overflow, failed.");
+    uint32_t name_size = static_cast<uint32_t>(model_name.size());
+    name_size = name_size > static_cast<uint32_t>(MODEL_NAME_LENGTH) - 1U ?
+        static_cast<uint32_t>(MODEL_NAME_LENGTH) - 1U : name_size;
+    const errno_t ret = memcpy_s(model_header.name.data(), static_cast<size_t>(MODEL_NAME_LENGTH), model_name.c_str(), static_cast<size_t>(name_size));
+    if (ret != EOK) {
+        GELOGE(ge::FAILED, "[Mobile] copy model name %s failed!", model_header.name);
+        return ge::FAILED;
+    }
+    return ge::SUCCESS;
+}
+
+ge::Status SetModelLen(ModelFileHeader& model_header, const ModelPartitionTable* partition_table, uint64_t data_len)
+{
+    GE_ASSERT_TRUE(data_len > static_cast<uint64_t>(0),
+        "[Mobile] get model_data_len is <= 0.");
+    GE_ASSERT_NOTNULL(partition_table, "[Mobile] partition_table is nullptr.");
+    const uint64_t table_size = SizeOfModelPartitionTable(*partition_table);
+    const uint64_t total_size = table_size + data_len;
+    if (total_size > UINT32_MAX) {
+        GELOGE(ge::FAILED, "[Mobile] table_size(%lu) + data_len(%lu) > UINT32_MAX:(%u).", table_size, data_len, UINT32_MAX);
+        return ge::FAILED;
+    }
+    model_header.length = static_cast<uint32_t>(total_size);
+    return ge::SUCCESS;
+}
+
 class OmFileSaveHelper {
 public:
-    ModelFileHeader& GetModelFileHeader()
+    const ModelFileHeader& GetModelFileHeader()
     {
         return model_header_;
+    }
+
+    ge::Status UpdateModelFileHeader(
+        const ModelBasicInfo& model_info)
+    {
+        model_header_.model_type = static_cast<uint8_t>(model_info.model_type);
+        model_header_.om_ir_version = model_info.version;
+        auto ret = SetPlatformVersion(model_header_, model_info.framework_version);
+        GE_ASSERT_TRUE(ret == ge::SUCCESS,
+            "[Mobile] set platform version failed.");
+        ret = SetModelName(model_header_, model_info.name);
+        GE_ASSERT_TRUE(ret == ge::SUCCESS,
+            "[Mobile] set model name failed.");
+        ret = SetModelLen(model_header_, GetPartitionTable(), GetModelDataSize());
+        GE_ASSERT_TRUE(ret == ge::SUCCESS,
+            "[Mobile] set model len failed.");
+        return ge::SUCCESS;
     }
 
     uint64_t GetModelDataSize()
@@ -145,6 +217,10 @@ public:
     void AddPartition(const ModelPartition& partition)
     {
         context_.partition_datas.push_back(partition);
+        if (context_.model_data_len > (UINT64_MAX - partition.size)) {
+            GELOGW("[Mobile] overflow failed.");
+            return;
+        }
         context_.model_data_len += partition.size;
     }
 
@@ -153,12 +229,13 @@ public:
         const uint64_t partition_size = context_.partition_datas.size();
         context_.partition_table.clear();
         context_.partition_table.resize(
-            sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * partition_size, 0);
+            sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * partition_size, static_cast<char>(0));
         ModelPartitionTable* partition_table = reinterpret_cast<ModelPartitionTable*>(context_.partition_table.data());
         if (partition_table == nullptr) {
             GELOGE(ge::FAILED, "[Mobile] partition_table is nullptr.");
             return nullptr;
         }
+        GE_ASSERT_TRUE(partition_size <= UINT32_MAX, "[Mobile] overflow, failed.");
         partition_table->num = static_cast<uint32_t>(partition_size);
 
         uint64_t mem_offset = 0;
@@ -182,15 +259,6 @@ public:
 private:
     ModelFileHeader model_header_;
     OmFileContext context_;
-};
-
-struct ModelBasicInfo {
-    uint32_t model_type = 0;
-    uint32_t version = 0;
-    string name;
-    string framework_version = "";
-    uint64_t graph_hash = 0;
-    int64_t timestamp = 0;
 };
 
 void GetModelBasicInfo(
@@ -236,9 +304,11 @@ ge::Status SaveModelPartition(
 
 // serialize graph
 #if GOOGLE_PROTOBUF_VERSION < 3013000
-    uint32_t model_buffer_size = static_cast<uint32_t>(mobile_model_def.ByteSize());
+    GE_ASSERT_TRUE(mobile_model_def.ByteSize() <= UINT32_MAX, "[Mobile] overflow, failed.");
+    const uint32_t model_buffer_size = static_cast<uint32_t>(mobile_model_def.ByteSize());
 #else
-    uint32_t model_buffer_size = static_cast<uint32_t>(mobile_model_def.ByteSizeLong());
+    GE_ASSERT_TRUE(mobile_model_def.ByteSizeLong() <= UINT32_MAX, "[Mobile] overflow, failed.");
+    const uint32_t model_buffer_size = static_cast<uint32_t>(mobile_model_def.ByteSizeLong());
 #endif
     model_buffer = ge::Buffer(static_cast<size_t>(model_buffer_size));
     google::protobuf::io::ArrayOutputStream array_stream(
@@ -269,6 +339,7 @@ ge::Status SaveCompiledPartion(
         "[Mobile] buffer size large than UINT32_MAX failed.");
     ModelPartition partition;
     partition.data = nullptr;
+    GE_ASSERT_TRUE(buffer_size <= UINT32_MAX, "[Mobile] overflow, failed.");
     partition.size = static_cast<uint32_t>(buffer_size) + align_offset;
     partition.type = type;
     om_file_save_helper.AddPartition(partition);
@@ -276,67 +347,11 @@ ge::Status SaveCompiledPartion(
     return ge::SUCCESS;
 }
 
-ge::Status SetPlatformVersion(ModelFileHeader& model_header, const std::string& platform_version)
-{
-    uint32_t version_size = platform_version.size();
-    version_size = version_size > static_cast<uint32_t>(PLATFORM_VERSION_LEN - 1) ?
-        static_cast<uint32_t>(PLATFORM_VERSION_LEN - 1) : version_size;
-    errno_t ret = memcpy_s(model_header.platform_version.data(), static_cast<size_t>(PLATFORM_VERSION_LEN), platform_version.c_str(), static_cast<size_t>(version_size));
-    if (ret != EOK) {
-        GELOGE(ge::FAILED, "[Mobile] memcpy_s failed!, platform_version save:%s", model_header.platform_version);
-        return ge::FAILED;
-    }
-    return ge::SUCCESS;
-}
-
-ge::Status SetModelName(ModelFileHeader& model_header, const std::string& model_name)
-{
-    uint32_t name_size = model_name.size();
-    name_size = name_size > static_cast<uint32_t>(MODEL_NAME_LENGTH - 1) ?
-        static_cast<uint32_t>(MODEL_NAME_LENGTH - 1) : name_size;
-    errno_t ret = memcpy_s(model_header.name.data(), static_cast<size_t>(MODEL_NAME_LENGTH), model_name.c_str(), static_cast<size_t>(name_size));
-    if (ret != EOK) {
-        GELOGE(ge::FAILED, "[Mobile] copy model name %s failed!", model_header.name);
-        return ge::FAILED;
-    }
-    return ge::SUCCESS;
-}
-
-ge::Status SetModelLen(ModelFileHeader& model_header, const ModelPartitionTable* partition_table, uint64_t data_len)
-{
-    GE_ASSERT_TRUE(data_len > static_cast<uint64_t>(0),
-        "[Mobile] get model_data_len is <= 0.");
-    GE_ASSERT_NOTNULL(partition_table, "[Mobile] partition_table is nullptr.");
-    const uint64_t table_size = SizeOfModelPartitionTable(*partition_table);
-    const uint64_t total_size = table_size + data_len;
-    if (total_size > UINT32_MAX) {
-        GELOGE(ge::FAILED, "[Mobile] table_size(%lu) + data_len(%lu) > UINT32_MAX:(%u).", table_size, data_len, UINT32_MAX);
-        return ge::FAILED;
-    }
-    model_header.length = static_cast<uint32_t>(total_size);
-    return ge::SUCCESS;
-}
-
 ge::Status SaveModelFileHeader(
     OmFileSaveHelper& om_file_save_helper,
     const ModelBasicInfo& model_info)
 {
-    ModelFileHeader& model_header = om_file_save_helper.GetModelFileHeader();
-    model_header.model_type = static_cast<uint8_t>(model_info.model_type);
-    model_header.om_ir_version = model_info.version;
-    auto ret = SetPlatformVersion(model_header, model_info.framework_version);
-    GE_ASSERT_TRUE(ret == ge::SUCCESS,
-        "[Mobile] set platform version failed.");
-    ret = SetModelName(model_header, model_info.name);
-    GE_ASSERT_TRUE(ret == ge::SUCCESS,
-        "[Mobile] set model name failed.");
-    ret = SetModelLen(
-        model_header,
-        om_file_save_helper.GetPartitionTable(),
-        om_file_save_helper.GetModelDataSize());
-    GE_ASSERT_TRUE(ret == ge::SUCCESS,
-        "[Mobile] set model len failed.");
-    return ge::SUCCESS;
+    return om_file_save_helper.UpdateModelFileHeader(model_info);
 }
 
 ge::Status CopyDataToBuffer(
@@ -347,8 +362,7 @@ ge::Status CopyDataToBuffer(
     GE_ASSERT_TRUE((out_buffer_size - offset >= size),
         "[Mobile] out_buffer_size - offset >= size, out_buffer_size: %d, offset: %d, size: %d.",
         out_buffer_size, offset, size);
-    const ge::Status ret = ge::LargeMemoryOps::Copy(&out_buffer_ptr[offset], out_buffer_size - offset,
-        reinterpret_cast<const std::uint8_t*>(data), size);
+    auto ret = ge::LargeMemoryOps::Copy(&out_buffer_ptr[offset], out_buffer_size - offset, data, size);
     GE_ASSERT_TRUE(ret, "[Mobile] copy failed.");
     offset += size;
     return ge::SUCCESS;
@@ -360,8 +374,7 @@ ge::Status SetModelHeader(
 {
     GELOGI("[Mobile] SetModelHeader, base_ptr: %p total_size: %d offset: %d model_header size: %d",
         static_cast<void*>(base_ptr), total_size, offset, sizeof(model_header));
-    const ge::Status ret = CopyDataToBuffer(base_ptr, total_size, offset,
-        reinterpret_cast<const void*>(&model_header), sizeof(model_header));
+    const ge::Status ret = CopyDataToBuffer(base_ptr, total_size, offset, &model_header, sizeof(model_header));
     GE_ASSERT_TRUE(ret == ge::SUCCESS, "[Mobile] copy failed.");
     return ge::SUCCESS;
 }
@@ -374,7 +387,7 @@ ge::Status SetModelPartitionTable(
     GELOGI("[Mobile] SetModelPartitionTable, base_ptr: %p total_size: %d offset: %d partition_table size: %d",
         static_cast<void*>(base_ptr), total_size, offset, table_len);
     const ge::Status ret = CopyDataToBuffer(base_ptr, total_size, offset,
-        reinterpret_cast<const void*>(partition_table), table_len);
+        static_cast<const void*>(partition_table), table_len);
     GE_ASSERT_TRUE(ret == ge::SUCCESS, "[Mobile] copy failed.");
     return ge::SUCCESS;
 }
@@ -388,7 +401,7 @@ ge::Status SetModelPartionData(
         if (partition_datas[i].type != ModelPartitionType::MODEL_DEF) {
             continue;
         }
-        if (offset >= total_size || (total_size - offset < partition_datas[i].size)) {
+        if (offset >= total_size || (total_size - offset < static_cast<size_t>(partition_datas[i].size))) {
             GELOGE(ge::FAILED, "[Mobile] save buffer error: type: %u, size: %u, offset: %u, total_size: %u.",
                 partition_datas[i].type,
                 static_cast<uint32_t>(partition_datas[i].size),
@@ -427,7 +440,7 @@ ge::Status SetCompiledPartionData(
             reinterpret_cast<const void*>(compiled_buffers[i].GetData()), compiled_buffer_size);
         GE_ASSERT_TRUE(ret == ge::SUCCESS,
             "[Mobile] copy failed.");
-        align_offset = 0;
+        align_offset = static_cast<size_t>(0);
     }
     return ge::SUCCESS;
 }
@@ -439,21 +452,13 @@ ge::Status CreateCompiledModelBuffer(
     const std::vector<ge::BaseBuffer>& all_compiled_targets,
     const ge::BaseBuffer& weights_info_buffer)
 {
-    ModelFileHeader& model_header = om_file_save_helper.GetModelFileHeader();
-    const size_t total_size = sizeof(ModelFileHeader) + model_header.length;
-    GELOGI("[Mobile] total_size: %d", total_size);
-    auto* base_ptr = new (std::nothrow) uint8_t[total_size]();
+    const size_t total_size = dst_buffer.GetSize();
+    auto* base_ptr = dst_buffer.GetData();
     GE_ASSERT_NOTNULL(base_ptr, "[Mobile] base ptr is nullptr.");
-    ge::Status ret = ge::SUCCESS;
-    ge::ScopeGuard release_buffer([&base_ptr, &ret]() {
-        if ((ret != ge::SUCCESS) && (base_ptr != nullptr)) {
-            delete[] base_ptr;
-            base_ptr = nullptr;
-        }
-    });
 
     size_t offset = 0;
-    ret = SetModelHeader(base_ptr, total_size, offset, model_header);
+    const ModelFileHeader& model_header = om_file_save_helper.GetModelFileHeader();
+    ge::Status ret = SetModelHeader(base_ptr, total_size, offset, model_header);
     GE_ASSERT_TRUE(ret == ge::SUCCESS,
         "[Mobile] set model header failed.");
 
@@ -481,9 +486,6 @@ ge::Status CreateCompiledModelBuffer(
     } else {
         GELOGI("[Mobile] not support save weight info data.");
     }
-
-    dst_buffer.SetData(base_ptr);
-    dst_buffer.SetSize(total_size);
     return ge::SUCCESS;
 }
 
@@ -493,32 +495,25 @@ namespace ge {
 
 Status ModelBufferSaver::SaveCompiledModelToBuffer(
     const ge::GeModelPtr& ge_model,
-    ge::mobile::proto::ModelDef& mobile_model_def,
+    const ge::mobile::proto::ModelDef& mobile_model_def,
     const std::vector<ge::BaseBuffer>& weights_buffer,
     const std::vector<ge::BaseBuffer>& all_compiled_targets,
-    ge::BaseBuffer& weights_info_buffer,
-    ge::BaseBuffer& dst_buffer) const
+    const ge::BaseBuffer& weights_info_buffer,
+    ge::BaseBuffer& dst_buffer)
 {
     GE_ASSERT_NOTNULL(ge_model, "[Mobile] ge_model is nullptr.");
-
     ModelBasicInfo model_info;
     GetModelBasicInfo(ge_model, ModelType::HCS_PARTITION_MODEL, model_info);
 
     OmFileSaveHelper om_file_save_helper;
     uint32_t align_offset = 0;
     ge::Buffer model_buffer;
-    auto ret = SaveModelPartition(
-        om_file_save_helper, model_buffer, ge_model, mobile_model_def, model_info, align_offset);
-    GE_ASSERT_TRUE(ret == SUCCESS,
-        "[Mobile] save model partition failed.");
-
+    auto ret = SaveModelPartition(om_file_save_helper, model_buffer, ge_model, mobile_model_def, model_info, align_offset);
+    GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save model partition failed.");
     ret = SaveCompiledPartion(om_file_save_helper, ModelPartitionType::WEIGHTS_DATA, weights_buffer, align_offset);
-    GE_ASSERT_TRUE(ret == SUCCESS,
-        "[Mobile] save compiled partition WEIGHTS_DATA failed.");
-
+    GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save compiled partition WEIGHTS_DATA failed.");
     ret = SaveCompiledPartion(om_file_save_helper, ModelPartitionType::TASK_INFO, all_compiled_targets, align_offset);
-    GE_ASSERT_TRUE(ret == SUCCESS,
-        "[Mobile] save compiled partition TASK_INFO failed.");
+    GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save compiled partition TASK_INFO failed.");
 
     if (weights_info_buffer.GetSize() != static_cast<size_t>(0)) {
         ret = SaveCompiledPartion(
@@ -530,17 +525,21 @@ Status ModelBufferSaver::SaveCompiledModelToBuffer(
     }
 
     ret = SaveModelFileHeader(om_file_save_helper, model_info);
-    GE_ASSERT_TRUE(ret == SUCCESS,
-        "[Mobile] save model file header failed.");
+    GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] save model file header failed.");
 
+    const ModelFileHeader& model_header = om_file_save_helper.GetModelFileHeader();
+    const size_t total_size = sizeof(ModelFileHeader) + model_header.length;
+    GELOGI("[Mobile] total_size: %d", total_size);
+    compiled_model_buffer_.resize(total_size);
+    dst_buffer.SetData(compiled_model_buffer_.data());
+    dst_buffer.SetSize(total_size);
     ret = CreateCompiledModelBuffer(
         om_file_save_helper,
         dst_buffer,
         weights_buffer,
         all_compiled_targets,
         weights_info_buffer);
-    GE_ASSERT_TRUE(ret == SUCCESS,
-        "[Mobile] create compiled model buffer failed.");
+    GE_ASSERT_TRUE(ret == SUCCESS, "[Mobile] create compiled model buffer failed.");
     return SUCCESS;
 }
 

@@ -19,6 +19,7 @@
 
 #include "base_buffer.h"
 #include "compiled_target.h"
+#include "model_buffer_helper.h"
 #include "ge_common/ge_api_error_codes.h"
 #include "graph/compute_graph.h"
 #include "common/model/ge_model.h"
@@ -52,7 +53,7 @@ public:
         weights_list_ = weights_list;
     }
 
-    inline void AddWeight(ge::BaseBuffer weight_buffer)
+    inline void AddWeight(const ge::BaseBuffer &weight_buffer)
     {
         weights_list_.push_back(weight_buffer);
     }
@@ -75,6 +76,8 @@ private:
     std::vector<ge::BaseBuffer> weights_list_;
     std::vector<ge::CompiledTargetPtr> compiled_targets_;
     ge::mobile::proto::ModelDef mobile_model_def_;
+    std::vector<std::vector<uint8_t>> compiled_targets_buffer_;
+    ge::ModelBufferSaver saver_;
 };
 
 } // namespace ge

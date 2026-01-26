@@ -20,8 +20,8 @@ namespace ge {
 
 class LargeMemoryOps {
 public:
-    static bool Copy(std::uint8_t* dst_buffer, const size_t dst_size,
-        const std::uint8_t* src_buffer, const size_t src_size);
+    static bool Copy(void* dst_buffer, const size_t dst_size,
+        const void* src_buffer, const size_t src_size);
 };
 
 } // namespace ge
