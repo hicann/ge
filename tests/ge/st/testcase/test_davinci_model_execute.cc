@@ -3332,14 +3332,12 @@ TEST_F(DavinciModelTest, davinci_model_error_tracking_test) {
     EXPECT_EQ(model_executor.Initialize({}, 0), SUCCESS);
     model_executor.StartRunThread();
     EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
-    OpDescPtr op_desc = nullptr;
-    ErrorTracking::GetInstance().GetGraphTaskOpdescInfo(0, 0, op_desc);
-    EXPECT_NE(op_desc, nullptr);
+    ErrorTrackingOpInfo op_info;
+    EXPECT_TRUE(ErrorTracking::GetInstance().GetGraphTaskOpdescInfo(0, 0, op_info));
+
     EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
-    op_desc = nullptr;
-    ErrorTracking::GetInstance().GetGraphTaskOpdescInfo(0, 0, op_desc);
-    EXPECT_TRUE(op_desc == nullptr);
-    EXPECT_EQ(model_executor.Finalize(), SUCCESS);
+    EXPECT_FALSE(ErrorTracking::GetInstance().GetGraphTaskOpdescInfo(0, 0, op_info));
+EXPECT_EQ(model_executor.Finalize(), SUCCESS);
   }
   GetThreadLocalContext().SetGraphOption(std::map<std::string, std::string>{{OPTION_EXEC_REUSE_ZERO_COPY_MEMORY, "1"}});
   // Serialization GeModel to memory.
@@ -3390,17 +3388,17 @@ TEST_F(DavinciModelTest, update_task_id_success) {
 
   ErrorTracking::GetInstance().SaveGraphTaskOpdescInfo(add_op, old_task_id, stream_id, model_id);
 
-  auto &task_map = ErrorTracking::GetInstance().graph_task_to_opdesc_[model_id];
+  auto &task_map = ErrorTracking::GetInstance().graph_task_to_op_info_[model_id];
   TaskKey old_key(old_task_id, stream_id);
   EXPECT_NE(task_map.find(old_key), task_map.end());
-  EXPECT_EQ(task_map[old_key]->GetName(), "Add");
+  EXPECT_EQ(task_map[old_key].op_name, "Add");
 
-  ErrorTracking::GetInstance().UpdateTaskId(old_task_id, new_task_id, stream_id, model_id);
+ErrorTracking::GetInstance().UpdateTaskId(old_task_id, new_task_id, stream_id, model_id);
 
   TaskKey new_key(new_task_id, stream_id);
   EXPECT_EQ(task_map.find(old_key), task_map.end());
   EXPECT_NE(task_map.find(new_key), task_map.end());
-  EXPECT_EQ(task_map[new_key]->GetName(), "Add");
+  EXPECT_EQ(task_map[new_key].op_name, "Add");
 }
 
 TEST_F(DavinciModelTest, update_task_id_not_found) {
@@ -3409,7 +3407,7 @@ TEST_F(DavinciModelTest, update_task_id_not_found) {
   uint32_t old_task_id = 999;
   uint32_t new_task_id = 200;
 
-  auto &task_map = ErrorTracking::GetInstance().graph_task_to_opdesc_[model_id];
+  auto &task_map = ErrorTracking::GetInstance().graph_task_to_op_info_[model_id];
   size_t initial_size = task_map.size();
 
   ErrorTracking::GetInstance().UpdateTaskId(old_task_id, new_task_id, stream_id, model_id);
@@ -3424,7 +3422,7 @@ TEST_F(DavinciModelTest, update_task_id_model_not_found) {
   uint32_t old_task_id = 999;
   uint32_t new_task_id = 200;
 
-  auto &task_map = ErrorTracking::GetInstance().graph_task_to_opdesc_[model_id];
+  auto &task_map = ErrorTracking::GetInstance().graph_task_to_op_info_[model_id];
   size_t initial_size = task_map.size();
 
 

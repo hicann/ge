@@ -50,7 +50,7 @@ AttrUtils::SetListStr(add, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, {"op1", "op2", "
   rt_exception_info.streamid = 0;
   rt_exception_info.taskid = 1;
   ErrorTrackingCallback(&rt_exception_info);
-  EXPECT_EQ(ErrorTracking::GetInstance().single_op_task_to_opdesc_.size(), 2UL);
+  EXPECT_EQ(ErrorTracking::GetInstance().single_op_task_to_op_info_.size(), 2UL);
 }
 
 TEST_F(UTEST_error_tracking, SaveOpTaskOpdescInfo_full_test) {
@@ -67,7 +67,7 @@ TEST_F(UTEST_error_tracking, SaveOpTaskOpdescInfo_full_test) {
   AttrUtils::SetListStr(add2, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, {"op1"});
   ErrorTracking::GetInstance().SaveSingleOpTaskOpdescInfo(add3, 3, 0);
 
-  EXPECT_EQ(ErrorTracking::GetInstance().single_op_task_to_opdesc_.size(), 2UL);
+  EXPECT_EQ(ErrorTracking::GetInstance().single_op_task_to_op_info_.size(), 2UL);
 }
 
 TEST_F(UTEST_error_tracking, SaveSingleOpTaskOpdescInfo_key_test) {
@@ -80,9 +80,8 @@ TEST_F(UTEST_error_tracking, SaveSingleOpTaskOpdescInfo_key_test) {
   AttrUtils::SetListStr(add2, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, {"op1"});
   const TaskKey key2(1, 1, 10, 1);
   ErrorTracking::GetInstance().SaveGraphTaskOpdescInfo(add2, key2, 1);
-  OpDescPtr op_desc = nullptr;
-  ErrorTracking::GetInstance().GetGraphTaskOpdescInfo(key1, op_desc);
-  EXPECT_NE(op_desc, nullptr);
+  ErrorTrackingOpInfo op_info;
+  EXPECT_TRUE(ErrorTracking::GetInstance().GetGraphTaskOpdescInfo(key1, op_info));
   rtExceptionInfo rt_exception_info;
   rt_exception_info.streamid = 1;
   rt_exception_info.taskid = 1;
@@ -90,9 +89,9 @@ TEST_F(UTEST_error_tracking, SaveSingleOpTaskOpdescInfo_key_test) {
   rt_exception_info.expandInfo.u.fftsPlusInfo.contextId = 10;
   rt_exception_info.expandInfo.u.fftsPlusInfo.threadId = 1;
   ErrorTrackingCallback(&rt_exception_info);
-  EXPECT_EQ(ErrorTracking::GetInstance().graph_task_to_opdesc_[1].size(), 2UL);
+  EXPECT_EQ(ErrorTracking::GetInstance().graph_task_to_op_info_[1].size(), 2UL);
   ErrorTracking::GetInstance().ClearUnloadedModelOpdescInfo(1);
-  EXPECT_EQ(ErrorTracking::GetInstance().graph_task_to_opdesc_.size(), 0UL);
+  EXPECT_EQ(ErrorTracking::GetInstance().graph_task_to_op_info_.size(), 0UL);
 }
 
 TEST_F(UTEST_error_tracking, overflow_case_test) {
@@ -108,7 +107,7 @@ TEST_F(UTEST_error_tracking, overflow_case_test) {
   rt_exception_info.streamid = 0;
   rt_exception_info.taskid = 1;
   ErrorTrackingCallback(&rt_exception_info);
-  EXPECT_EQ(ErrorTracking::GetInstance().single_op_task_to_opdesc_.size(), 2UL);
+  EXPECT_EQ(ErrorTracking::GetInstance().single_op_task_to_op_info_.size(), 2UL);
 }
 
 TEST_F(UTEST_error_tracking, update_task_id_success) {
@@ -120,17 +119,17 @@ TEST_F(UTEST_error_tracking, update_task_id_success) {
 
   ErrorTracking::GetInstance().SaveGraphTaskOpdescInfo(add_op, old_task_id, stream_id, model_id);
 
-  auto &task_map = ErrorTracking::GetInstance().graph_task_to_opdesc_[model_id];
+  auto &task_map = ErrorTracking::GetInstance().graph_task_to_op_info_[model_id];
   TaskKey old_key(old_task_id, stream_id);
   EXPECT_NE(task_map.find(old_key), task_map.end());
-  EXPECT_EQ(task_map[old_key]->GetName(), "Add");
+  EXPECT_EQ(task_map[old_key].op_name, "Add");
 
   ErrorTracking::GetInstance().UpdateTaskId(old_task_id, new_task_id, stream_id, model_id);
 
   TaskKey new_key(new_task_id, stream_id);
   EXPECT_EQ(task_map.find(old_key), task_map.end());
   EXPECT_NE(task_map.find(new_key), task_map.end());
-  EXPECT_EQ(task_map[new_key]->GetName(), "Add");
+  EXPECT_EQ(task_map[new_key].op_name, "Add");
 }
 
 TEST_F(UTEST_error_tracking, update_task_id_not_found) {
@@ -139,7 +138,7 @@ TEST_F(UTEST_error_tracking, update_task_id_not_found) {
   uint32_t old_task_id = 999;
   uint32_t new_task_id = 200;
 
-  auto &task_map = ErrorTracking::GetInstance().graph_task_to_opdesc_[model_id];
+  auto &task_map = ErrorTracking::GetInstance().graph_task_to_op_info_[model_id];
   size_t initial_size = task_map.size();
 
   ErrorTracking::GetInstance().UpdateTaskId(old_task_id, new_task_id, stream_id, model_id);
@@ -154,7 +153,7 @@ TEST_F(UTEST_error_tracking, update_task_id_model_not_found) {
   uint32_t old_task_id = 999;
   uint32_t new_task_id = 200;
 
-  auto &task_map = ErrorTracking::GetInstance().graph_task_to_opdesc_[model_id];
+  auto &task_map = ErrorTracking::GetInstance().graph_task_to_op_info_[model_id];
   size_t initial_size = task_map.size();
 
 
