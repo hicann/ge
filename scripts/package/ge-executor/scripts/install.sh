@@ -85,7 +85,6 @@ chmod_start() {
     local tmpdir="$1"
     [ -z "$tmpdir" ] && tmpdir="$default_dir"
     chmod_recur "$tmpdir" 750 dir 2> /dev/null
-    chmod_recur "$tmpdir/python" 750 dir 2> /dev/null
 }
  
 # 运行结束授权
@@ -96,17 +95,6 @@ chmod_end() {
     fi
  
     # data dir/file permission
-    chmod_recur "$default_dir/python" 750 dir
-    chmod_recur "$current_install_path/python" 750 dir
- 
-    if [ "$pylocal" = "y" ]; then
-        chmod_recur "$current_install_path/python/site-packages/superkernel" 550 dir
-        chmod_recur "$current_install_path/python/site-packages/superkernel" 550 file
-        chmod_recur "$current_install_path/python/site-packages/superkernel-0.1.0.dist-info" 550 dir
-        chmod_recur "$current_install_path/python/site-packages/superkernel-0.1.0.dist-info" 550 file
-        chmod_recur "$current_install_path/python/site-packages/LICENSE" 440 file
-    fi
- 
     chmod_single_dir "$default_dir/ascend_install.info" 640 file 2> /dev/null
     chmod_single_dir "$default_dir/version.info" 440 file 2> /dev/null
     chmod_single_dir "$default_dir/scene.info" 640 file 2> /dev/null

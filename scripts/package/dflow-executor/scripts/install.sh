@@ -85,7 +85,6 @@ chmod_start() {
     local tmpdir="$1"
     [ -z "$tmpdir" ] && tmpdir="$default_dir"
     chmod_recur "$tmpdir" 750 dir 2> /dev/null
-    chmod_recur "$tmpdir/python" 750 dir 2> /dev/null
 }
  
 # 运行结束授权
