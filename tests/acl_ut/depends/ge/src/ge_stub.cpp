@@ -277,6 +277,10 @@ ge::graphStatus aclStub::LoadDataFromFileV2(const char *path, ge::ModelData &mod
     return GRAPH_SUCCESS;
 }
 
+void gert::RtSession::DestroyResources() const {
+  return;
+}
+
 std::unique_ptr<gert::ModelV2Executor> aclStub::LoadExecutorFromModelData(const ge::ModelData &model_data,
                                                                           ge::graphStatus &error_code)
 {

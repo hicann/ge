@@ -809,7 +809,7 @@ Status ModelManager::DeleteModel(const uint32_t id) {
       return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
     }
   }
-
+  DeleteSharedSessionModel(id);
   return SUCCESS;
 }
 
@@ -844,6 +844,20 @@ std::shared_ptr<hybrid::HybridDavinciModel> ModelManager::GetHybridModel(const u
 
   const auto it = hybrid_model_map_.find(id);
   return (it == hybrid_model_map_.end()) ? nullptr : it->second;
+}
+
+bool ModelManager::IsModelSharedSession(const uint32_t model_id) {
+  const std::lock_guard<std::mutex> lk(model_shared_session_mutex_);
+  return (model_shared_session_.find(model_id) != model_shared_session_.end());
+}
+
+void ModelManager::AddSharedSessionModel(const uint32_t model_id) {
+  const std::lock_guard<std::mutex> lk(model_shared_session_mutex_);
+  model_shared_session_.insert(model_id);
+}
+void ModelManager::DeleteSharedSessionModel(const uint32_t model_id) {
+  const std::lock_guard<std::mutex> lk(model_shared_session_mutex_);
+  (void)model_shared_session_.erase(model_id);
 }
 
 Status ModelManager::Unload(const uint32_t model_id) {
@@ -1491,6 +1505,7 @@ Status ModelManager::LoadModelOffline(const ModelData &model, const ModelParam &
   uint64_t new_session_id;
   if (rt_session != nullptr) {
     new_session_id = rt_session->GetSessionId();
+    AddSharedSessionModel(model_id);
   } else {
     new_session_id = SessionIdManager::GetNextSessionId();
   }

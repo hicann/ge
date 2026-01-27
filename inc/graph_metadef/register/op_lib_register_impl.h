@@ -36,7 +36,7 @@ class OpLibRegistry {
   ~OpLibRegistry();
   void RegisterInitFunc(OpLibRegisterImpl &register_impl);
   graphStatus PreProcessForCustomOp();
-  const char_t* GetCustomOpLibPath() const;
+  const char_t* InitAndGetCustomOpLibPath();
 
  private:
   void ClearHandles();
@@ -49,7 +49,7 @@ class OpLibRegistry {
   std::vector<std::pair<std::string, OpLibRegister::OpLibInitFunc>> vendor_funcs_;
   std::set<std::string> vendor_names_set_;
   std::vector<void *> handles_;
-  bool is_processed_ = false;
+  bool is_init_ = false;
   std::string op_lib_paths_;
 };
 }  // namespace ge

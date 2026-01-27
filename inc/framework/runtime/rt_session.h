@@ -58,6 +58,8 @@ class RtSession {
     external_var_size = external_var_size_;
   }
 
+  void DestroyResources() const;
+
  private:
   uint64_t session_id_;
   RtVarManager *var_manager_{nullptr};

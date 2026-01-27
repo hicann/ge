@@ -707,7 +707,8 @@ Status GeExecutor::UnloadModel(const uint32_t model_id) {
     SessionMemAllocator<ActiveMemoryAllocator>::Instance().RemoveAllocator(session_id, GetContext().DeviceId());
   } else {
     const auto davinci_model = ModelManager::GetInstance().GetModel(model_id);
-    if (davinci_model != nullptr) {
+    // if session is shared, can not destroy resource here
+    if ((davinci_model != nullptr) && (!ModelManager::GetInstance().IsModelSharedSession(model_id))) {
       const uint64_t session_id = davinci_model->GetSessionId();
       VarManagerPool::Instance().RemoveVarManager(session_id);
       gert::RtVarManagerPool::Instance().RemoveRtVarManager(session_id);
@@ -715,7 +716,7 @@ Status GeExecutor::UnloadModel(const uint32_t model_id) {
       SessionMemAllocator<ExpandableActiveMemoryAllocator>::Instance().RemoveAllocator(session_id,
                                                                                        GetContext().DeviceId());
       SessionMemAllocator<FixedBaseExpandableAllocator>::Instance().RemoveAllocator(session_id,
-                                                                                       GetContext().DeviceId());
+                                                                                    GetContext().DeviceId());
       SessionMemAllocator<ActiveMemoryAllocator>::Instance().RemoveAllocator(session_id, GetContext().DeviceId());
     }
   }

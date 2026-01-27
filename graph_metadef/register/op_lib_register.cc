@@ -55,7 +55,12 @@ OpLibRegistry &OpLibRegistry::GetInstance() {
   return instance;
 }
 
-const char_t* OpLibRegistry::GetCustomOpLibPath() const {
+const char_t* OpLibRegistry::InitAndGetCustomOpLibPath() {
+  // in tfa scene, GEInitialize is called after aclGetCustomOpLibPath.
+  // so if is_init_ is false, call PreProcessForCustomOp
+  if (!is_init_) {
+    GE_ASSERT_GRAPH_SUCCESS(PreProcessForCustomOp());
+  }
   GELOGI("get op lib path is %s", op_lib_paths_.c_str());
   return op_lib_paths_.c_str();
 }
@@ -93,7 +98,7 @@ void OpLibRegistry::RegisterInitFunc(OpLibRegisterImpl &register_impl) {
  * @return
  */
 graphStatus OpLibRegistry::PreProcessForCustomOp() {
-  if (is_processed_) {
+  if (is_init_) {
     GELOGD("pre process for custom op has already been called");
     return GRAPH_SUCCESS;
   }
@@ -106,7 +111,7 @@ graphStatus OpLibRegistry::PreProcessForCustomOp() {
   std::vector<std::string> so_real_paths;
   GE_ASSERT_GRAPH_SUCCESS(GetAllCustomOpApiSoPaths(custom_opp_path, so_real_paths));
   GE_ASSERT_GRAPH_SUCCESS(CallInitFunc(custom_opp_path, so_real_paths));
-  is_processed_ = true;
+  is_init_ = true;
   return GRAPH_SUCCESS;
 }
 

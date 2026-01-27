@@ -12,6 +12,6 @@
 #include "op_lib_register_impl.h"
 
 extern "C" const char *aclGetCustomOpLibPath() {
-  return ge::OpLibRegistry::GetInstance().GetCustomOpLibPath();
+  return ge::OpLibRegistry::GetInstance().InitAndGetCustomOpLibPath();
 }
 

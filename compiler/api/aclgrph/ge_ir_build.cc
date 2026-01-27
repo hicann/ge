@@ -409,7 +409,7 @@ class Impl {
                                         const std::vector<ge::NodePtr> &const_nodes, Graph &init_graph) const;
   graphStatus GenerateVariableUpdateGraph(const std::vector<ge::NodePtr> &var_nodes, Graph &update_graph) const;
 
-  NodePtr InsertOp(ComputeGraphPtr &compute_graph, const std::string &node_type,
+  NodePtr InsertOp(const ComputeGraphPtr &compute_graph, const std::string &node_type,
                    const std::string &node_name,
                    const std::vector<GeTensorDesc> &input_list,
                    const std::vector<GeTensorDesc> &output_list) const;
@@ -1030,7 +1030,8 @@ graphStatus Impl::GenerateVariableInferGraph(const ComputeGraphPtr &origin_graph
 
     // construct variable node
     std::string var_name = const_op_desc->GetName() + "_var";
-    auto var_node = InsertOp(infer_compute_graph, ge::VARIABLE, var_name, {const_tensor_desc}, {const_tensor_desc});
+    auto var_node = InsertOp(const_node->GetOwnerComputeGraph(), ge::VARIABLE, var_name,
+                             {const_tensor_desc}, {const_tensor_desc});
     GE_ASSERT_NOTNULL(var_node);
     var_nodes.emplace_back(var_node);
     GELOGI("insert variable node %s success", var_node->GetNamePtr());
@@ -1041,14 +1042,14 @@ graphStatus Impl::GenerateVariableInferGraph(const ComputeGraphPtr &origin_graph
     }
     GE_ASSERT_SUCCESS(GraphUtils::ReplaceNodeAnchors(var_node, const_node, {}, output_map));
     NodeUtils::UnlinkAll(*const_node);
-    GE_ASSERT_SUCCESS(GraphUtils::RemoveNodeWithoutRelink(infer_compute_graph, const_node));
+    GE_ASSERT_SUCCESS(GraphUtils::RemoveNodeWithoutRelink(const_node->GetOwnerComputeGraph(), const_node));
     GELOGI("insert variable node %s replace %s success", var_node->GetNamePtr(), const_node->GetNamePtr());
   }
   infer_graph = GraphUtilsEx::CreateGraphFromComputeGraph(infer_compute_graph);
   return GRAPH_SUCCESS;
 }
 
-NodePtr Impl::InsertOp(ComputeGraphPtr &compute_graph, const string &node_type, const string &node_name,
+NodePtr Impl::InsertOp(const ComputeGraphPtr &compute_graph, const string &node_type, const string &node_name,
                        const vector<GeTensorDesc> &input_list, const vector<GeTensorDesc> &output_list) const {
   auto op_desc = MakeShared<OpDesc>(node_name, node_type);
   GE_ASSERT_NOTNULL(op_desc);

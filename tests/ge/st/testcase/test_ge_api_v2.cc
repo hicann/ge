@@ -1748,9 +1748,11 @@ TEST_F(GeApiV2Test, GetCompileGraphModel_Success_Dynamic) {
   ret = executor->Execute(execute_arg, &inputs[0], inputs.size(), &outputs[0], 1);
   EXPECT_EQ(ret, SUCCESS);
 
-  // 离线场景，模型卸载会触发变量内存的释放
+  // 离线场景，模型卸载不会触发变量内存的释放,需要调用session的DestroyResources函数释放
   EXPECT_TRUE(VarManager::Instance(session_id)->IsVarExist("ge_global_step"));
   EXPECT_EQ(executor->UnLoad(), SUCCESS);
+  EXPECT_TRUE(VarManager::Instance(session_id)->IsVarExist("ge_global_step"));
+  session.DestroyResources();
   EXPECT_FALSE(VarManager::Instance(session_id)->IsVarExist("ge_global_step"));
   rtStreamDestroy(stream);
   ReInitGe();
@@ -1842,14 +1844,15 @@ TEST_F(GeApiV2Test, GetCompileGraphModel_Success_Dynamic_LoadWithoutRtSession) {
   modelData.priority = 1;
   modelData.om_path = "";
   ge::graphStatus ret;
-  LoadExecutorArgs load_executor_args{}; // 这里是与上面用例的区别
+  RtSession session;
+  LoadExecutorArgs load_executor_args{&session, {}}; // 这里是与上面用例的区别
   // ModelV2ExecutorBuilder::RestoreDeviceVarMem发现有变量，且没有设置rt_session，就创建一个有效的session_id
   executor = gert::LoadExecutorFromModelData(modelData, load_executor_args, ret);
   ASSERT_NE(executor, nullptr);
   EXPECT_EQ(ret, SUCCESS);
 
   gert::ModelExecuteArg exe_arg;
-  gert::ModelLoadArg load_arg(nullptr, {}); // 这里是与上面用例的区别
+  gert::ModelLoadArg load_arg(&session, {}); // 这里是与上面用例的区别
   // ModelV2Executor::InitRtVarManager使用内部有效的session id
   ret = executor->Load(exe_arg, load_arg);
   ASSERT_EQ(ret, SUCCESS);

@@ -1637,7 +1637,8 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
     {
       uint32_t model_id = 0U;
       ProfileCommandInit(ge_executor_);
-      gert::RtSession session(199);
+      uint32_t session_id_tmp = 199U;
+      gert::RtSession session(session_id_tmp);
       ge::ModelLoadArg load_arg;
       load_arg.dev_ptr = nullptr;
       load_arg.mem_size = 0;
@@ -1660,6 +1661,9 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
 
       ProfileCommandFini(ge_executor_, model_id);
       EXPECT_EQ(ge_executor_.UnloadModel(model_id), SUCCESS);
+      EXPECT_TRUE(VarManager::Instance(session_id_tmp)->IsVarExist("var1"));
+      session.DestroyResources();
+      EXPECT_FALSE(VarManager::Instance(session_id_tmp)->IsVarExist("var1"));
     }
 
 
@@ -1685,7 +1689,11 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
 
       ProfileCommandFini(ge_executor_, model_id);
       OfflineModelCommand(ge_executor_, model_id);
+      auto davinci_model = ModelManager::GetInstance().GetModel(model_id);
+      EXPECT_NE(davinci_model, nullptr);
+      uint32_t session_id = davinci_model->GetSessionId();
       EXPECT_EQ(ge_executor_.UnloadModel(model_id), SUCCESS);
+      EXPECT_FALSE(VarManager::Instance(session_id)->IsVarExist("var1"));
       setenv("GE_PROFILING_TO_STD_OUT", "1", 1); // Reset for it`s set in main.
     }
 

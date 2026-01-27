@@ -235,6 +235,7 @@ TEST_F(UtestGeExecutor, load_model_from_data_with_Arg) {
   model_data.model_data = (void *) &model_data;
   retStatus = ge_executor.LoadModelFromDataWithArgs(model_id, model_data, arg);
   EXPECT_NE(retStatus, SUCCESS);
+  session.DestroyResources();
 }
 
 TEST_F(UtestGeExecutor, load_model_with_Q) {

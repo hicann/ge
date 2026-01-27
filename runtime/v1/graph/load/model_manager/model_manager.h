@@ -260,6 +260,8 @@ class ModelManager {
   /// @brief Get model according to given id
   std::shared_ptr<DavinciModel> GetModel(const uint32_t id);
 
+  bool IsModelSharedSession(const uint32_t model_id);
+
   Status RecoverAllModel(const int32_t device_id);
 
   std::shared_ptr<hybrid::HybridDavinciModel> GetHybridModel(const uint32_t id);
@@ -402,7 +404,11 @@ class ModelManager {
                                                                               const uint32_t device_id);
   Status LoadBuiltinAicpuSo(const KernelBinPtr &aicpu_kernel, const uint32_t device_id, const std::string &so_name);
   Status LaunchKernelBuiltinAicpuSo(const std::string &kernel_name, const uint32_t device_id);
-
+  void AddSharedSessionModel(const uint32_t model_id);
+  void DeleteSharedSessionModel(const uint32_t model_id);
+  
+  std::mutex model_shared_session_mutex_;
+  std::set<uint32_t> model_shared_session_; // 存在多个模型共享同一份rtSession资源场景，在此记录这些modelID
   std::map<uint32_t, std::shared_ptr<DavinciModel>> model_map_;
   std::map<uint32_t, std::shared_ptr<hybrid::HybridDavinciModel>> hybrid_model_map_;
   std::map<std::string, std::vector<uint64_t>> model_aicpu_kernel_;

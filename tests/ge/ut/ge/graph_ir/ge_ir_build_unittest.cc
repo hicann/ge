@@ -169,6 +169,21 @@ static Graph BuildIrConstGraph1() {
   return GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
 }
 
+static Graph BuildSubGraph() {
+  auto graph = BuildIrConstGraph1();
+  auto builder = ut::GraphBuilder("g1_parent");
+  auto parent_node = builder.AddNode("parent_node", PERFORMANCE_MODE, 0, 1, FORMAT_ND, DT_FLOAT, {4, 4});
+  auto parent_compute_graph = builder.GetGraph();
+  auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(graph);
+
+  parent_node->GetOpDesc()->AddSubgraphName(compute_graph->GetName());
+  parent_node->GetOpDesc()->SetSubgraphInstanceName(0, compute_graph->GetName());
+  compute_graph->SetParentGraph(parent_compute_graph);
+  compute_graph->SetParentNode(parent_node);
+  parent_compute_graph->AddSubGraph(compute_graph);
+  return GraphUtilsEx::CreateGraphFromComputeGraph(parent_compute_graph);
+}
+
 static Graph BuildIrVariableGraph1() {
   auto builder = ut::GraphBuilder("g1");
   auto var1 = builder.AddNode("var1", VARIABLE, 0, 1, FORMAT_ND, DT_FLOAT, {4, 4});
@@ -654,6 +669,17 @@ TEST(UtestIrCommon, check_param_failed) {
   EXPECT_EQ(ret, PARAM_INVALID);
 
   ret = CheckLogParamValidAndSetLogLevel(param_invalid);
+}
+
+TEST(UtestIrBuild, test_subgraph) {
+  auto graph = BuildSubGraph();
+  WeightRefreshableGraphs split_graphs;
+  std::vector<AscendString> lora_names;
+
+  lora_names.emplace_back(AscendString("const1"));
+  lora_names.emplace_back(AscendString("const2"));
+  auto ret = aclgrphConvertToWeightRefreshableGraphs(graph, lora_names, split_graphs);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
 }
 
 TEST(UtestIrBuild, aclgrphConvertToWeightRefreshableGraphs) {

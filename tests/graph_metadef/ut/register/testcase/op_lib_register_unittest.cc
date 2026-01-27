@@ -36,7 +36,7 @@ void ClearCache() {
   OpLibRegistry::GetInstance().vendor_names_set_.clear();
   OpLibRegistry::GetInstance().op_lib_paths_ = "";
   OpLibRegistry::GetInstance().ClearHandles();
-  OpLibRegistry::GetInstance().is_processed_ = false;
+  OpLibRegistry::GetInstance().is_init_ = false;
 }
 
 void CreateVendorSoPath(const std::string &vendor_dir) {
@@ -109,11 +109,9 @@ TEST_F(OpLibRegisterUT, register_direct_link) {
   EXPECT_EQ(OpLibRegistry::GetInstance().vendor_funcs_.size(), 2);
   EXPECT_EQ(OpLibRegistry::GetInstance().vendor_names_set_.size(), 2);
   unsetenv("ASCEND_CUSTOM_OPP_PATH");
-  auto ret = OpLibRegistry::GetInstance().PreProcessForCustomOp();
-  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  std::string custom_path = aclGetCustomOpLibPath();
   std::vector<size_t> expect_vec{1, 2};
   EXPECT_EQ(init_func_vec, expect_vec);
-  std::string custom_path = aclGetCustomOpLibPath();
   EXPECT_EQ("1:2", custom_path);
 }
 
@@ -136,7 +134,7 @@ TEST_F(OpLibRegisterUT, register_direct_link_and_env_priority) {
   std::vector<size_t> expect_vec{1, 2, 3};
   EXPECT_EQ(init_func_vec, expect_vec);
   EXPECT_EQ(OpLibRegistry::GetInstance().handles_.size(), 2);
-  EXPECT_EQ(OpLibRegistry::GetInstance().is_processed_, true);
+  EXPECT_EQ(OpLibRegistry::GetInstance().is_init_, true);
   ret = OpLibRegistry::GetInstance().PreProcessForCustomOp();
   EXPECT_EQ(ret, GRAPH_SUCCESS);
 

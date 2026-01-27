@@ -23,6 +23,7 @@ set(EXECUTOR_SRC_LIST
 
 set(DAVINCI_SRC_LIST
     common/runtime/model_rt_var_manager.cc
+    common/runtime/rt_session.cc
     common/dump/opdebug_register.cc
     common/dump/data_dumper.cc
     common/runtime_api_wrapper.cc

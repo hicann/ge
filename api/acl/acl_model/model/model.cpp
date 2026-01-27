@@ -1784,7 +1784,7 @@ aclError aclmdlSetDatasetTensorDescImpl(aclmdlDataset *dataset, aclTensorDesc *t
     return ACL_SUCCESS;
 }
 
-static aclError UnloadRt2Model(const uint32_t modelId)
+static aclError UnloadRt2Model(const uint32_t modelId, const bool isSessionShared)
 {
     const auto executor = acl::AclResourceManager::GetInstance().GetExecutor(modelId);
     ge::graphStatus ret = ge::GRAPH_SUCCESS;
@@ -1798,14 +1798,19 @@ static aclError UnloadRt2Model(const uint32_t modelId)
         ACL_LOG_CALL_ERROR("[Unload][Model]failed to unload model, modelId is %u, errorCode is %u", modelId, ret);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
     }
+    auto session = acl::AclResourceManager::GetInstance().GetRtSession(modelId);
+    // shared session can not destroy
+    if ((session != nullptr ) && !isSessionShared) {
+      session->DestroyResources();
+    }
     return acl::AclResourceManager::GetInstance().DeleteExecutor(modelId);
 }
 
-static aclError UnloadModelInner(const uint32_t modelId)
+static aclError UnloadModelInner(const uint32_t modelId, const bool isSessionShared = false)
 {
     if ((acl::AclResourceManager::GetInstance().IsRuntimeV2Enable(true)) &&
         (acl::AclResourceManager::GetInstance().GetExecutor(modelId) != nullptr)) {
-        const auto ret = UnloadRt2Model(modelId);
+        const auto ret = UnloadRt2Model(modelId, isSessionShared);
         if (ret != ACL_SUCCESS) {
             ACL_LOG_ERROR("failed to unload model, modelId is %u, errorCode is %u", modelId, ret);
             return ret;
@@ -1867,12 +1872,18 @@ static aclError LoadBundleSubModelFromMem(const void *const currentModePtr, cons
 static aclError BundleInitFromMem(std::shared_ptr<uint8_t> model, size_t modelSize, const std::string &modelPath,
                                   void *varWeightPtr, size_t varWeightSize, uint32_t *bundleId)
 {
-  (void)varWeightPtr;
-  (void)varWeightSize;
   // get bundle num from file header
   std::vector<std::pair<size_t, size_t>> subModelOffsetAndSize;
   size_t varSize = 0U;
   ACL_REQUIRES_OK(acl::GetBundleNumAndOffset(model.get(), modelSize, varSize, subModelOffsetAndSize));
+  if ((varWeightPtr != nullptr) && (varWeightSize < varSize)) {
+    ACL_LOG_ERROR("varWeightSize %zu is invalid, it cannot be smaller than model required size %zu", varWeightSize, varSize);
+    const std::string errMsg = "it cannot be smaller than model required size " + std::to_string(varSize);
+    acl::AclErrorLogManager::ReportInputError(acl::INVALID_PARAM_MSG,
+        std::vector<const char *>({"param", "value", "reason"}),
+        std::vector<const char *>({"varWeightSize", std::to_string(varWeightSize).c_str(), errMsg.c_str()}));
+    return ACL_ERROR_INVALID_PARAM;
+  }
   auto rtSession = acl::AclResourceManager::GetInstance().CreateRtSession();
   ACL_REQUIRES_NOT_NULL(rtSession);
   rtSession->SetExternalVar(varWeightPtr, varWeightSize);
@@ -2269,7 +2280,7 @@ aclError aclmdlBundleUnloadModelImpl(uint32_t bundleId, uint32_t modelId)
     ACL_LOG_ERROR("current modelId %u is not bundleId %u sub model", modelId, bundleId);
     return ACL_ERROR_INVALID_PARAM;
   }
-  ACL_REQUIRES_OK(UnloadModelInner(modelId));
+  ACL_REQUIRES_OK(UnloadModelInner(modelId, true));
   acl::AclResourceManager::GetInstance().DeleteBundleSubmodelId(bundleId, modelId);
   ACL_LOG_INFO("end to execute aclmdlBundleUnloadModel bundleId %u, modelId %u", bundleId, modelId);
   return ACL_SUCCESS;
@@ -2452,6 +2463,9 @@ aclError aclmdlBundleUnloadImpl(uint32_t bundleId)
     ACL_REQUIRES_OK(finalRet);
     acl::AclResourceManager::GetInstance().DeleteBundleInfo(bundleId);
     // release session var manager
+    auto bundleSession = acl::AclResourceManager::GetInstance().GetRtSession(bundleId);
+    ACL_REQUIRES_NOT_NULL(bundleSession);
+    bundleSession->DestroyResources();
     ACL_REQUIRES_OK(acl::AclResourceManager::GetInstance().DeleteExecutor(bundleId));
     ACL_LOG_INFO("end to execute aclmdlBundleUnload %u", bundleId);
     return ACL_SUCCESS;

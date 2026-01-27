@@ -217,12 +217,6 @@ ge::graphStatus ModelV2Executor::UnLoad() {
   GE_ASSERT_SUCCESS(ret, "Failed to unload de-init graph");
   state_ = ExecutorState::kInit;
 
-  if (load_session_id_ != std::numeric_limits<uint64_t>::max()) {
-    gert::RtVarManagerPool::Instance().RemoveRtVarManager(load_session_id_);
-    // 在线场景不会设置load_session_id_
-    ge::VarManagerPool::Instance().RemoveVarManager(load_session_id_);
-  }
-
   // todo:OpImplRegistryHolderManager::GetInstance().UpdateOpImplRegistries();
   return ge::GRAPH_SUCCESS;
 }

@@ -197,10 +197,12 @@ TEST_F(ModelV2ExecutorBuilderUT, BuildVarialbeGraph) {
 
   GertRuntimeStub stub;
   stub.GetKernelStub().AllKernelRegisteredAndSuccess();
-
-  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+  RtSession session;
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model, &session);
   ASSERT_NE(model_executor, nullptr);
-  ASSERT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
+  ModelExecuteArg executor_args;
+  ModelLoadArg load_args(&session, {});
+  ASSERT_EQ(model_executor->Load(executor_args, load_args), ge::GRAPH_SUCCESS);
   auto outputs = FakeTensors({2}, 1);
   auto input0 =
       FakeValue<Tensor>(Tensor{{{256}, {256}}, {ge::FORMAT_ND, ge::FORMAT_ND, {}}, kOnDeviceHbm, ge::DT_FLOAT16, 0});
@@ -230,8 +232,8 @@ TEST_F(ModelV2ExecutorBuilderUT, BuildVarialbeGraph_Failed_SessionIdNotEqual) {
 
   GertRuntimeStub stub;
   stub.GetKernelStub().AllKernelRegisteredAndSuccess();
-
-  auto model_executor = ModelV2Executor::Create(exe_graph, root_model);
+  RtSession session_tmp;
+  auto model_executor = ModelV2Executor::Create(exe_graph, root_model, &session_tmp);
   ASSERT_NE(model_executor, nullptr);
   RtSession session(10010);
   ModelExecuteArg executor_args;

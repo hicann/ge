@@ -358,6 +358,7 @@ set(EXECUTOR_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/runtime/v1/common/profiling/profiling_manager.cc"
     "${AIR_CODE_DIR}/runtime/v1/common/profiling/profiling_init.cc"
     "${AIR_CODE_DIR}/runtime/v1/common/runtime/model_rt_var_manager.cc"
+    "${AIR_CODE_DIR}/runtime/v1/common/runtime/rt_session.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/execute/graph_executor.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/execute/model_executor.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/graph_loader.cc"

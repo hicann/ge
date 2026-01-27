@@ -4214,7 +4214,10 @@ TEST_F(UTEST_ACL_Model, TestaclmdlBundleLoadSubModelFromMem) {
       .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
   EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
       .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
-  auto ret = aclmdlBundleInitFromMem(model_data, size, nullptr, 0, &bundle_id);
+  size_t fakeVarWeight = 100; // om varweight is 1024
+  auto ret = aclmdlBundleInitFromMem(model_data, size, &fakeVarWeight, sizeof(fakeVarWeight), &bundle_id);
+  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+  ret = aclmdlBundleInitFromMem(model_data, size, nullptr, 0, &bundle_id);
   EXPECT_EQ(ret , ACL_SUCCESS);
   Verify(bundle_id);
 }

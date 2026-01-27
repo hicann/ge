@@ -291,13 +291,8 @@ ge::graphStatus ModelV2ExecutorBuilder::RestoreDeviceVarMem(ModelV2Executor &exe
     return ge::GRAPH_SUCCESS;
   }
 
-  // 图中包含变量或者常量，需要变量管理器，需要有效的session_id，如果外部没有传递rt_session，这里创建一个有效session_id.
-  if (session_ == nullptr) {
-    executor.load_session_id_ = ge::SessionIdManager::GetNextSessionId();
-    executor.default_rt_session_.SetSessionId(executor.load_session_id_);
-  } else {
-    executor.load_session_id_ = session_->GetSessionId();
-  }
+  GE_ASSERT_NOTNULL(session_);
+  executor.load_session_id_ = session_->GetSessionId();
   GELOGI("load_session_id_: %lu, session_: %p", executor.load_session_id_, session_);
   int32_t device_id{0};
   GE_ASSERT_RT_OK(rtGetDevice(&device_id));
@@ -305,9 +300,7 @@ ge::graphStatus ModelV2ExecutorBuilder::RestoreDeviceVarMem(ModelV2Executor &exe
   GE_ASSERT_NOTNULL(rt_var_manager);
   void *external_var_addr = nullptr;
   uint64_t external_var_size = 0;
-  if (session_ != nullptr) {
-    session_->GetExternalVar(external_var_addr, external_var_size);
-  }
+  session_->GetExternalVar(external_var_addr, external_var_size);
   GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id, logic_var_base, total_var_size, external_var_addr, external_var_size));
   GE_ASSERT_SUCCESS(rt_var_manager->RestoreDeviceVariables(device_variables, graph_id, device_id));
 
