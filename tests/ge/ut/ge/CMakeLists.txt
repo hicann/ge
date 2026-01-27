@@ -1106,6 +1106,7 @@ set(BASE_COMMON_TEST_FILES
     "common/weight_manager_unittest.cc"
     "common/mobile_model_helper_unittest.cc"
     "common/dump_callback_unittest.cc"
+    "common/error_registry_unittest.cc"
 )
 
 file(GLOB_RECURSE SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS CONFIGURE_DEPENDS "graph/optimize/symbolic/*.cc")

@@ -158,6 +158,7 @@ set(SRC_BASE_LIST
     "common/helper/mobile/model_buffer_helper.cc"
     "common/helper/mobile/model_file_saver.cc"
     "common/helper/mobile/model.cc"
+    "common/error_registry/error_registry.cc"
 )
 
 if (NOT ENABLE_D AND NOT ENABLE_ACL)
