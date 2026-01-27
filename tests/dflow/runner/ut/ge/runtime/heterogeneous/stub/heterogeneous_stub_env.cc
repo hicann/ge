@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "stub/heterogeneous_stub_env.h"
+#include "heterogeneous_stub_env.h"
 #include "common/env_path.h"
 
 #include "deploy/flowrm/flow_route_planner.h"
@@ -26,14 +26,14 @@ void HeterogeneousStubEnv::SetupAIServerEnv() {
 
   for (auto &node : Configurations::GetInstance().GetAllNodeConfigs()) {
     if (!node.is_local) {
-      auto remote_deployer = MakeUnique<MockRemoteDeployer>(node);
+      auto remote_deployer = MakeUnique<stub::MockRemoteDeployer>(node);
       remote_deployer->Initialize();
       deployer_proxy.deployers_.emplace_back(std::move(remote_deployer));
     }
   }
 
   ResourceManager::GetInstance().Initialize();
-  ExecutionRuntime::SetExecutionRuntime(std::make_shared<MockExecutionRuntime>());
+  ExecutionRuntime::SetExecutionRuntime(std::make_shared<stub::MockExecutionRuntime>());
 
   MasterModelDeployer master_model_deployer;
   HcomRankTable rank_table{};
@@ -41,7 +41,7 @@ void HeterogeneousStubEnv::SetupAIServerEnv() {
   DeployContext::LocalContext().GetRankTableBuilder().SetRankTable(rank_table);
   std::string rank_table_str;
   DeployContext::LocalContext().GetRankTableBuilder().GetRankTable(rank_table_str);
-  PneExecutorClientCreatorRegistrar<MockPneExecutorClient> registrar(PNE_ID_NPU);
+  PneExecutorClientCreatorRegistrar<stub::MockPneExecutorClient> registrar(PNE_ID_NPU);
 }
 
 void HeterogeneousStubEnv::LoadAIServerHostConfig(const string &path) {

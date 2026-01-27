@@ -48,7 +48,7 @@ class HeterogeneousExchangeDeployerTest : public testing::Test {
     MOCK_CONST_METHOD1(CreateTag, Status(ExchangeEndpoint & ));
   };
 
-  MockExchangeService mock_exchange_service_;
+  stub::MockExchangeService mock_exchange_service_;
   FlowGwClientManager client_manager_;
 };
 

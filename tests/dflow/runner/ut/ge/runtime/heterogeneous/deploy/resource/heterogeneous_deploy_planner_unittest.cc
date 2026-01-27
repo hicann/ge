@@ -1107,7 +1107,7 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanFor2Models_2PG) {
     client_manager.GetOrCreateClient(0, 0, {0}, false);
     client_manager.GetOrCreateClient(1, 0, {0}, false);
     client_manager.GetOrCreateClient(0, 1, {0}, false);
-    MockExchangeService exchange_service;
+    stub::MockExchangeService exchange_service;
     MockHeterogeneousExchangeDeployer route_deployer(exchange_service, exchange_plan, client_manager);
     ExchangeRoute flow_route;
 
@@ -1199,7 +1199,7 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanFor2Models_Host) {
   client_manager.GetOrCreateClient(0, 0, {0}, false);
   client_manager.GetOrCreateClient(1, 0, {0}, false);
   client_manager.GetOrCreateClient(0, 1, {0}, false);
-  MockExchangeService exchange_service;
+  stub::MockExchangeService exchange_service;
   MockHeterogeneousExchangeDeployer route_deployer(exchange_service, exchange_plan, client_manager);
   ExchangeRoute flow_route;
 

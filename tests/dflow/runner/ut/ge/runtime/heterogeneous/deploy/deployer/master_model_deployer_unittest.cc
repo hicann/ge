@@ -169,7 +169,7 @@ TEST_F(MasterModelDeployerTest, TestDeployModel_Success) {
   mock_handle = (void *) 0x8888;
   EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
   auto &exchange_service =
-      reinterpret_cast<MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
+      reinterpret_cast<stub::MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
   EXPECT_CALL(exchange_service, DoCreateQueue).WillRepeatedly(Return(SUCCESS));
   EXPECT_CALL(exchange_service, DestroyQueue).WillRepeatedly(Return(SUCCESS));
 
@@ -188,7 +188,7 @@ TEST_F(MasterModelDeployerTest, TestDeployModel_Success) {
     return DeployerServiceImpl::GetInstance().Process(deploy_context, request, response);
   };
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Invoke(stub_func));
 
@@ -339,7 +339,7 @@ TEST_F(MasterModelDeployerTest, TestDeployRemoteVarManager) {
   EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
   auto deploy_plan = StubModels::BuildSimpleDeployPlan();
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Return(SUCCESS));
   DeployState deploy_state;
@@ -356,7 +356,7 @@ TEST_F(MasterModelDeployerTest, TestDeployRemoteVarManagerWithFileConstant) {
   (void)system("echo 1 > hello.bin");
   auto deploy_plan = StubModels::BuildSingleModelWithFileConstDeployPlan("hello.bin");
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Return(SUCCESS));
   DeployState deploy_state;
@@ -375,7 +375,7 @@ TEST_F(MasterModelDeployerTest, TestTransferFileConstants) {
   auto &client_manager = DeployContext::LocalContext().GetFlowGwClientManager();
   client_manager.GetOrCreateClient(0, 0, {0}, false);
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Return(SUCCESS));
   (void)system("echo 1 > hello.bin");
@@ -413,7 +413,7 @@ TEST_F(MasterModelDeployerTest, TestCopyOneWeightToTransfer) {
   auto &client_manager = DeployContext::LocalContext().GetFlowGwClientManager();
   client_manager.GetOrCreateClient(0, 0, {0}, false);
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Return(SUCCESS));
   auto op_desc = make_shared<OpDesc>("var_name", FILECONSTANT);
@@ -458,7 +458,7 @@ TEST_F(MasterModelDeployerTest, TestDynamicSchedDeployModel_Success) {
   mock_handle = (void *) 0x8888;
   EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
   auto &exchange_service =
-      reinterpret_cast<MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
+      reinterpret_cast<stub::MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
   EXPECT_CALL(exchange_service, DoCreateQueue).WillRepeatedly(Return(SUCCESS));
   EXPECT_CALL(exchange_service, DestroyQueue).WillRepeatedly(Return(SUCCESS));
 
@@ -478,7 +478,7 @@ TEST_F(MasterModelDeployerTest, TestDynamicSchedDeployModel_Success) {
   };
   
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Invoke(stub_func));
 
@@ -502,7 +502,7 @@ TEST_F(MasterModelDeployerTest, TestExceptionClearDeployModel_Success) {
   mock_handle = (void *) 0x8888;
   EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
   auto &exchange_service =
-      reinterpret_cast<MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
+      reinterpret_cast<stub::MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
   EXPECT_CALL(exchange_service, DoCreateQueue).WillRepeatedly(Return(SUCCESS));
   EXPECT_CALL(exchange_service, DestroyQueue).WillRepeatedly(Return(SUCCESS));
 
@@ -521,7 +521,7 @@ TEST_F(MasterModelDeployerTest, TestExceptionClearDeployModel_Success) {
     return SUCCESS;
   };
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Invoke(stub_func));
 
@@ -549,7 +549,7 @@ TEST_F(MasterModelDeployerTest, TestExceptionClearDeployModelOneModel_Success) {
   mock_handle = (void *) 0x8888;
   EXPECT_EQ(VarManager::Instance(0)->Init(0, 0, 1, 0), SUCCESS);
   auto &exchange_service =
-      reinterpret_cast<MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
+      reinterpret_cast<stub::MockExchangeService &>(ExecutionRuntime::GetInstance()->GetExchangeService());
   EXPECT_CALL(exchange_service, DoCreateQueue).WillRepeatedly(Return(SUCCESS));
   EXPECT_CALL(exchange_service, DestroyQueue).WillRepeatedly(Return(SUCCESS));
 
@@ -568,7 +568,7 @@ TEST_F(MasterModelDeployerTest, TestExceptionClearDeployModelOneModel_Success) {
     return SUCCESS;
   };
   auto &remote_device =
-      reinterpret_cast<MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
+      reinterpret_cast<stub::MockRemoteDeployer &>(*DeployerProxy::GetInstance().deployers_[1]);
   EXPECT_CALL(remote_device, Process)
       .WillRepeatedly(Invoke(stub_func));
 

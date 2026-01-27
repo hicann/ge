@@ -93,6 +93,8 @@ struct MbufStub {
 
 std::mutex mock_mbufs_mu_;
 std::map<void *, std::shared_ptr<MbufStub>> mock_mbufs_;
+
+std::mutex mem_queues_mu_;
 std::map<int32_t, std::map<uint32_t, std::queue<void *>>> mem_queues_;
 }  // namespace
 
@@ -317,6 +319,7 @@ rtError_t RuntimeStub::rtRegTaskFailCallbackByModule(const char *moduleName,
 }
 
 rtError_t RuntimeStub::rtMemQueueDeQueue(int32_t device, uint32_t qid, void **mbuf) {
+  std::unique_lock<std::mutex> lock(mem_queues_mu_);
   if (ge::mem_queues_[device][qid].empty()) {
     return 1;
   }
@@ -359,6 +362,7 @@ rtError_t RuntimeStub::rtMbufCopyBufRef(rtMbufPtr_t mbuf, rtMbufPtr_t *ref_mbuf)
 }
 
 rtError_t RuntimeStub::rtMemQueueEnQueue(int32_t dev_id, uint32_t qid, void *mem_buf) {
+  std::unique_lock<std::mutex> lock(mem_queues_mu_);
   ge::mem_queues_[dev_id][qid].push(mem_buf);
   return 0;
 }
@@ -1664,12 +1668,14 @@ rtError_t rtMemQueueGrant(int32_t devId, uint32_t qid, int32_t pid, rtMemQueueSh
 }
 
 rtError_t rtMemQueueCreate(int32_t device, const rtMemQueueAttr_t *queAttr, uint32_t *qid) {
+  std::unique_lock<std::mutex> lock(ge::mem_queues_mu_);
   *qid = ge::mem_queues_[device].size();
   ge::mem_queues_[device][*qid] = std::queue<void *>{};
   return 0;
 }
 
 rtError_t rtMemQueueDestroy(int32_t device, uint32_t qid) {
+  std::unique_lock<std::mutex> lock(ge::mem_queues_mu_);
   ge::mem_queues_[device].erase(qid);
   return 0;
 }

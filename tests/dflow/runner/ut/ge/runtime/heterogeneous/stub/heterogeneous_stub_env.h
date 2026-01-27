@@ -22,7 +22,7 @@
 #include "deploy/execfwk/builtin_executor_client.h"
 
 namespace ge {
-namespace {
+namespace stub {
 class MockExchangeService : public ExchangeService {
  public:
   Status CreateQueue(int32_t device_id,
