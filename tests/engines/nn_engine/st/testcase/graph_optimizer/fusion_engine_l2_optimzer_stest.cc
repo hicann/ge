@@ -1411,7 +1411,7 @@ TEST_F(l2_optimizer_st, test_conv1_conv2_relu_eltw_relu_conv3_split_batch)
 
     Configuration &config_inst = Configuration::Instance(fe::VECTOR_CORE_NAME);
     map<string, string> options;
-    string soc_version = "Ascend310";
+    string soc_version = "Ascend910B1";
     PlatformUtils::Instance().soc_version_ = soc_version;
     config_inst.Initialize(options);
     //configure.SetNeedL2Fusion(true);

@@ -2731,10 +2731,6 @@ TEST_F(UTEST_FE_TBE_COMPILER, case_update_dtype_by_allow_fp32_to_fp16_failed) {
 }
 
 TEST_F(UTEST_FE_TBE_COMPILER, get_short_soc_version_success) {
-  std::map<std::string, std::string> options;
-  options[ge::SOC_VERSION] = "Ascend310";
-
-  std::string short_soc_version;
   TbeOpStoreAdapterPtr tbe_adapter_ptr = std::make_shared<TbeOpStoreAdapter>(AI_CORE_NAME);
   tbe_adapter_ptr->Initialize(std::map<std::string, std::string>());
 
@@ -2950,6 +2946,7 @@ TEST_F(UTEST_FE_TBE_COMPILER, set_precompile_pattern_case2) {
   op_info.SetOpCoreType("Default");
 
   OpKernelInfoPtr opKernelInfoPtr = std::make_shared<OpKernelInfo>("GatherV2");
+  opKernelInfoPtr->op_str_param_vec_[static_cast<size_t>(OP_KERNEL_STR_PARAM::CoreType)] = "AiCore";
 
   TbeOpStoreAdapter tbe_op_store_adapter(AI_CORE_NAME);
   Status status = tbe_op_store_adapter.SetPreCompilePattern(op_desc, op_info, opKernelInfoPtr);

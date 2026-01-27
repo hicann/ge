@@ -185,6 +185,10 @@ ge::Status SetArgFormatValue(uint32_t args_size_workspace, std::vector<std::vect
             FE_LOGI( "RT_MODEL_TASK_KERNEL sec_ret %d", __LINE__);
             uint8_t sec_ret = 1;
             FE_LOGI( "RT_MODEL_TASK_KERNEL BEGIN MEMCPY");
+            if (args_size_total == 0) {
+                FE_LOGI( "Skip the RT_MODEL_TASK_KERNEL memcpy procedure for args_size_total is 0.");
+                continue;
+            }
             sec_ret = memcpy_s((uint8_t*)all_args_buff_total + args_size_cur, static_cast<size_t>(args_size_total),
                                     kernel_def_tmp->args().data(), static_cast<size_t>(args_size));
             if (sec_ret != 0) {

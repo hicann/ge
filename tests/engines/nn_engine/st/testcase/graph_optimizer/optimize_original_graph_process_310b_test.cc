@@ -30,7 +30,7 @@ class OptimizeOriginalGraphProcess310BTest : public testing::Test {
  protected:
   static void SetUpTestCase() {
     cout << "OptimizeOriginalGraphProcess310BTest TearDown" << endl;
-    InitWithSocVersion("Ascend310B1", "must_keep_origin_dtype");
+    InitWithSocVersion("Ascend910B1", "must_keep_origin_dtype");
     FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
     map<string, string> options;
     EXPECT_EQ(graph_optimizer_ptr->Initialize(options, nullptr), SUCCESS);

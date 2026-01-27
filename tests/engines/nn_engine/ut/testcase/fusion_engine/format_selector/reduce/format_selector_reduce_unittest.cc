@@ -71,7 +71,7 @@ protected:
       store_info.emplace_back(tbe_builtin);
       Configuration::Instance(fe::AI_CORE_NAME).ops_store_info_vector_ = (store_info);
       std::map<std::string, std::string> options;
-      options.emplace(ge::SOC_VERSION, "Ascend910A");
+      options.emplace(ge::SOC_VERSION, "Ascend910B");
       PlatformUtils::Instance().is_init_ = false;
       PlatformUtils::Instance().Initialize(options);
       OpsKernelManager::Instance(AI_CORE_NAME).Finalize();
@@ -156,7 +156,7 @@ TEST_F(FormatDtypeSelectorManagerReduceUTest, op_reduce_selector_5hd_6hd_success
 }
 
 TEST_F(FormatDtypeSelectorManagerReduceUTest, op_reduce_selector_5hd_6hd_ubsize_greater) {
-  PlatformUtils::Instance().soc_version_ = "Ascend910A";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B";
   const OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("reduce1", "ReduceOp");
   vector<int64_t> dim_data1 = {16, 25600, 160, 32};
   vector<int64_t> dim_data2 = {16, 8, 1, 1};
@@ -211,7 +211,7 @@ TEST_F(FormatDtypeSelectorManagerReduceUTest, op_reduce_selector_5hd_6hd_ubsize_
 }
 
 TEST_F(FormatDtypeSelectorManagerReduceUTest, op_reduce_selector_5hd_6hd_ubsize_success) {
-  PlatformUtils::Instance().soc_version_ = "Ascend910A";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B";
   const OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("reduce1", "ReduceOp");
   vector<int64_t> dim_data1 = {16, 32, 256, 16};
   vector<int64_t> dim_data2 = {16, 8, 1, 1};
@@ -273,7 +273,7 @@ TEST_F(FormatDtypeSelectorManagerReduceUTest, op_reduce_selector_5hd_6hd_ubsize_
 }
 
 TEST_F(FormatDtypeSelectorManagerReduceUTest, op_reduce_selector_5hd_6hd_failed1) {
-  PlatformUtils::Instance().soc_version_ = "Ascend910A";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B";
   const OpDescPtr op_desc_ptr = std::make_shared<OpDesc>("reduce1", "ReduceOp");
   vector<int64_t> dim_data1 = {16, 32, 16, 15};
   op_desc_ptr->AddInputDesc("x",

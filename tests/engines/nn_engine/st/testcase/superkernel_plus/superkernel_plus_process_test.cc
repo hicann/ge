@@ -31,7 +31,7 @@ class SuperkernelPlusProcessTest: public testing::Test {
     auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
     gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
     cout << "SuperkernelPlusProcessTest SetUp" << endl;
-    InitWithSocVersion("Ascend035", "force_fp16");
+    InitWithSocVersion("Ascend910B1", "force_fp16");
     FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
     map<string, string> options;
     EXPECT_EQ(graph_optimizer_ptr->Initialize(options, nullptr), SUCCESS);

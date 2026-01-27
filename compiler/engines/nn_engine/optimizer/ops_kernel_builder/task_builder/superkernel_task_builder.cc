@@ -14,7 +14,7 @@
 #include "common/fe_op_info_common.h"
 #include "common/fe_gentask_utils.h"
 #include "common/platform_utils.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "ops_kernel_builder/task_builder/task_builder.h"
 #include "ops_kernel_builder/task_builder/superkernel_args_format_utils.h"
 #include "adapter/common/op_store_adapter_manager.h"

@@ -25,6 +25,9 @@ add_executable(fe_ut
         ${FE_SRC_CC_LIST}
         ${CMAKE_CURRENT_LIST_DIR}/testcase/main.cc
         ${FE_TEST_ROOT_PATH}/graph_constructor/fe_llt_utils.cc
+        ${CMAKE_CURRENT_LIST_DIR}/stub/Python.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/stub/Python_stub.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/stub/te_llt_utils.cc
         ${FE_TEST_ROOT_PATH}/graph_constructor/pass_manager.cc
         ${FE_TEST_ROOT_PATH}/graph_constructor/ub_pass_manager.cc
         ${FE_TEST_ROOT_PATH}/graph_constructor/graph_builder_utils.cc
@@ -171,7 +174,21 @@ add_executable(fe_ut
         ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/cmo/generate_cmo_type_manager_ut.cc
         ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/lx_fusion_optimizer/lx_fusion_optimizer_unit_test.cc
         ${CMAKE_CURRENT_LIST_DIR}/testcase/fusion_engine/trace_handle_manager/trace_handle_manager_unittest.cc
-        )
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/stub/common_stub.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/stub/example_utest_stub.cc 
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/api/fusion_api_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/common/te_config_info_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/cache/te_cache_manager_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/python_adapter/py_object_utils_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/python_adapter/py_decouple_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/python_adapter/py_adapter_manager_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_base.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_test.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_fuzzy_build.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_build_file_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_py_obj_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_binary_ut.cc
+ 	${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_dfx_ut.cc)
         
 
 target_include_directories(fe_ut PRIVATE
@@ -184,6 +201,7 @@ target_include_directories(fe_ut PRIVATE
         ${FE_ROOT_PATH}/opskernel
         ${AIR_CODE_DIR}/compiler/engines/ffts_engine
         ${AIR_CODE_DIR}/compiler/engines/ffts_engine/inc
+        ${AIR_CODE_DIR}/compiler/opcompiler/inc
         ${AIR_CODE_DIR}/tests/engines/nn_engine/depends
         ${AIR_CODE_DIR}/tests/engines/nn_engine/depends/ops_stub
         ${AIR_CODE_DIR}/tests/engines/nn_engine/graph_constructor
@@ -193,6 +211,9 @@ target_include_directories(fe_ut PRIVATE
         ${AIR_CODE_DIR}/inc/framework
         ${GTEST_INCLUDE}
         ${CMAKE_BINARY_DIR}/proto/fe_ut
+        ${AIR_CODE_DIR}/compiler/opcompiler/op_compile_adapter/source
+ 	${AIR_CODE_DIR}/tests/engines/nn_engine/ut/stub
+ 	${AIR_CODE_DIR}/tests/engines/nn_engine/ut/testcase/op_compile_adapter/stub
         ${FE_TEST_ROOT_PATH})
 
 # get sys_version
@@ -217,6 +238,7 @@ target_compile_definitions(fe_ut PRIVATE
 
 target_link_directories(fe_ut PRIVATE
     ${ASCEND_INSTALL_PATH}/lib64
+    ${ASCEND_INSTALL_PATH}/devlib
 )
 
 target_link_libraries(fe_ut PRIVATE
@@ -226,7 +248,7 @@ target_link_libraries(fe_ut PRIVATE
         cce_headers
         msprof_headers
         runtime_headers
-        opcompiler_headers
+        op_compile_adapter_headers
         -Wl,--no-as-needed
         -lrt -ldl -lpthread -lgcov
         $<BUILD_INTERFACE:atrace_headers>
@@ -239,7 +261,6 @@ target_link_libraries(fe_ut PRIVATE
         register
         opp_registry
         op_tiling_rt2_stub
-        ge_runner_pkg
         ge_common_pkg
         ge_compiler_pkg
         runtime_stub_fe
@@ -254,7 +275,10 @@ target_link_libraries(fe_ut PRIVATE
         c_sec_static
         mmpa_stub
         slog_stub
+        unified_dlog
         cann_kb_stub
         easy_graph
         ge_graph_dsl
-        intf_pub)
+        intf_pub
+ 	GTest::gmock
+ 	mockcpp_static)

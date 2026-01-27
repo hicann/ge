@@ -68,7 +68,6 @@ target_link_libraries(fe_benchmark PRIVATE
         benchmark::benchmark
         msprof_headers
         runtime_headers
-        opcompiler_headers
         -Wl,--no-as-needed
         -lrt -ldl -lpthread -lgcov
         graph

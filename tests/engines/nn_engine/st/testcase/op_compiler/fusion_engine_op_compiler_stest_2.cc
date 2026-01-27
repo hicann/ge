@@ -65,7 +65,7 @@ class STEST_FE_TBE_COMPILER : public testing::Test {
  protected:
 
   void SetUp() {
-    PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310");
+    PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B");
     PlatformInfoManager::Instance().opti_compilation_infos_.SetAICoreNum(8);
     fe::OpsKernelManager::Instance(AI_CORE_NAME).is_init_ = true;
 
@@ -78,7 +78,7 @@ class STEST_FE_TBE_COMPILER : public testing::Test {
     ub_fusion_ptr_->SetEngineName(fe::AI_CORE_NAME);
     PlatformInfo platform_info;
     platform_info.ai_core_spec.cube_vector_split = 0;
-    PlatformInfoManager::Instance().platform_info_map_.emplace("Ascend910A", platform_info);
+    PlatformInfoManager::Instance().platform_info_map_.emplace("Ascend910B1", platform_info);
     FEOpsStoreInfo CCE_CUSTOM_OPINFO_STUB{
         0,
         "cce-custom",
@@ -2391,11 +2391,9 @@ TEST_F(STEST_FE_TBE_COMPILER, case_compile_op_multi_slice) {
   CompileInfoParam compile_info(buff_fus_compile_failed_nodes);
   compile_info.fusion_nodes_map = fusion_nodes;
 
-  auto origin_soc_version = PlatformUtils::Instance().GetSocVersion();
-  PlatformUtils::Instance().soc_version_ = "Ascend910B2";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   Status ret = compile_tbe_op.CompileOp(compile_info);
   EXPECT_EQ(fe::FAILED, ret);
-  PlatformUtils::Instance().soc_version_ = origin_soc_version;
 }
 
 TEST_F(STEST_FE_TBE_COMPILER, case_tbe_set_sgt_json_path_fail) {

@@ -42,21 +42,16 @@ target_compile_definitions(op_compile_adapter PRIVATE
 target_link_libraries(op_compile_adapter
     PRIVATE
         intf_pub
-        #slog_headers
         metadef_headers
         msprof_headers
         runtime_headers
-        # tensor_engine_headers
-        # opat_headers
         graph
         register
         static_mmpa
-        # slog
         unified_dlog
         c_sec
         json
         error_manager
-        # cann_kb
         atrace_share
         aicore_utils
     PUBLIC

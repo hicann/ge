@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef TE_FUSION_LOG_H
@@ -18,7 +18,7 @@
 #include "dlog_pub.h"
 #include "securec.h"
 #include "inc/te_fusion_error_code.h"
-#include "common/util/error_manager/error_manager.h"
+#include "base/err_msg.h"
 
 namespace te {
 namespace fusion {
@@ -144,13 +144,13 @@ constexpr const int MAX_LOG_SIZE = 8192;
 
 #define REPORT_TE_INNER_ERROR(format, ...)                              \
     do {                                                                \
-        REPORT_INNER_ERROR(EM_INNER_ERROR, format, ##__VA_ARGS__);      \
+        REPORT_INNER_ERR_MSG(EM_INNER_ERROR, format, ##__VA_ARGS__);      \
         TE_ERRLOGF(format, ##__VA_ARGS__);                              \
     } while (0)
 
 #define REPORT_TE_INNER_WARN(format, ...)                                \
     do {                                                                 \
-        REPORT_INNER_ERROR(EM_INNER_WARNING, format, ##__VA_ARGS__);     \
+        REPORT_INNER_ERR_MSG(EM_INNER_WARNING, format, ##__VA_ARGS__);     \
         TE_WARNLOGF(format, ##__VA_ARGS__);                              \
     } while (0)
 

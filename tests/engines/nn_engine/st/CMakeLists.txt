@@ -167,12 +167,14 @@ target_include_directories(fe_st PRIVATE
         ${FE_ROOT_PATH}/utils
         ${FE_ROOT_PATH}/fusion
         ${FE_ROOT_PATH}/opskernel
+        ${AIR_CODE_DIR}/compiler/opcompiler/op_compile_adapter/source
 
         #ge_compiler_depends
         ${AIR_CODE_DIR}/inc
         ${AIR_CODE_DIR}/inc/external
         ${AIR_CODE_DIR}/inc/framework
         ${AIR_CODE_DIR}/compiler
+        ${AIR_CODE_DIR}/compiler/opcompiler/inc
         ${AIR_CODE_DIR}/base
 
         ${AIR_CODE_DIR}/compiler/engines/ffts_engine
@@ -206,13 +208,14 @@ target_compile_definitions(fe_st PRIVATE
 
 target_link_directories(fe_st PRIVATE
     ${ASCEND_INSTALL_PATH}/lib64
+    ${ASCEND_INSTALL_PATH}/devlib
 )
 
 target_link_libraries(fe_st PRIVATE
         msprof_headers
         cce_headers
         runtime_headers
-        opcompiler_headers
+        op_compile_adapter_headers
         -Wl,--no-as-needed
         -lrt -ldl -lpthread -lgcov
         exe_graph
@@ -225,7 +228,6 @@ target_link_libraries(fe_st PRIVATE
         register
         opp_registry
         op_tiling_rt2_stub
-        ge_runner_pkg
         ge_common_pkg
         ge_compiler_pkg
         runtime_stub_fe
@@ -244,6 +246,7 @@ target_link_libraries(fe_st PRIVATE
         ge_graph_dsl
         mmpa_stub
         slog_stub
+        unified_dlog
         cann_kb_stub
         intf_pub
         )

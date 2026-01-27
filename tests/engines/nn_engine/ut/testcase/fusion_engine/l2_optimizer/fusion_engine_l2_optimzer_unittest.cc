@@ -1857,7 +1857,7 @@ TEST_F(L2FUSION_UT, test_Get_l2_data_alloc_L2_FUSION)
   BuildGraphForL2Fusion1(modelgraph, 1);
   Configuration &config_inst = Configuration::Instance(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config_inst.Initialize(options);
   L2Optimizer l2_opt(fe::AI_CORE_NAME);

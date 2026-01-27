@@ -43,7 +43,7 @@ class PlatformUtilStub {
     chip_info.ddr_write_b_w = 64; // 64 ddr_write_b_w
     chip_info.frequency = 680 * 1000 * 1000; // 680 * 1000 * 1000 frequency
 
-    PlatformUtil::Instance().soc_version_ = "ascend310";
+    PlatformUtil::Instance().soc_version_ = "ascend910B1";
     return;
   }
 };

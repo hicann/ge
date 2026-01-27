@@ -66,6 +66,7 @@ message(STATUS "HI_PYTHON_INC = ${HI_PYTHON_INC}")
 target_include_directories(te_fusion_stub PRIVATE
         ${HI_PYTHON_INC}
         ${AIR_CODE_DIR}/tests/engines/nn_engine/depends
+        ${AIR_CODE_DIR}/compiler/opcompiler/inc
         )
 
 # add it for slog compile at 12.16
@@ -84,9 +85,7 @@ target_link_libraries(te_fusion_stub
         metadef_headers
         c_sec
         json
-        graph
-    PUBLIC
-        opcompiler_headers)
+        graph)
 
 install(TARGETS te_fusion_stub OPTIONAL
         EXPORT te_fusion_stub-targets

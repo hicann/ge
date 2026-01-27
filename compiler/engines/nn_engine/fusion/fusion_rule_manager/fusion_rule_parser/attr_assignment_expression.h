@@ -28,8 +28,7 @@ using FusionRuleAttrValuePtr = std::shared_ptr<FusionRuleAttrValue>;
 class AttrAssignmentExpression {
  public:
   AttrAssignmentExpression()
-      : ATTR("attr"),
-        VALUE("value"),
+      : VALUE("value"),
         EXPR("expr"),
         OPERATOR_ASSIGN("="),
         BOOL_TRUE("true"),
@@ -111,7 +110,7 @@ class AttrAssignmentExpression {
    */
   Status GetStrAndConvert(const nlohmann::json &json_object, std::string &value, FusionRuleAttrValuePtr attr_value) const;
 
-  const std::string ATTR;
+  const std::string ATTR = "attr";
   const std::string VALUE;
   const std::string EXPR;
   const std::string OPERATOR_ASSIGN;

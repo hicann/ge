@@ -879,8 +879,8 @@ TEST_F(UB_FUSION_UT_AUTO_FUSION_PASS_RUNNER, enale_auto_buffer_fusion_01) {
   RegisterBufferFusionFunc(BufferFunc);
   EXPECT_EQ(fe::SUCCESS, fusion_priority_mgr->SortBufferFusion());
   EXPECT_EQ(fe::SUCCESS, fusion_priority_mgr->SortBufferFusion());
-  auto &instance = BufferFusionPassRegistry::GetInstance();
-  instance.~BufferFusionPassRegistry();
+  BufferFusionPassRegistry instance;
+  BufferFusionPassRegistry::GetInstance().impl_.swap(instance.impl_);
   OpsKernelManager::Instance(AI_CORE_NAME).Finalize();
 }
 

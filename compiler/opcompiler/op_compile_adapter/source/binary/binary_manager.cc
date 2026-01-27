@@ -1,12 +1,13 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
+
 #include "binary/binary_manager.h"
 #include <algorithm>
 #include <fstream>
@@ -373,7 +374,11 @@ bool BinaryManager::GetBinaryFileName(const OpBuildTaskPtr &opTask, std::string 
     if (binaryFileRealPath.empty()) {
         TE_DBGLOG("Node(%s) binary file(%s) does not exist, try to find the binary file which assembly by opFile",
                   GetTaskNodeName(opTask).c_str(), binaryFile.c_str());
-        binaryFile = filePath + binaryFileNameByOpFile + ".json";
+        if (opsPathNamePrefix != "") {
+            binaryFile = filePath + opsPathNamePrefix + "/" + binaryFileNameByOpFile + ".json";
+        } else {
+            binaryFile = filePath + binaryFileNameByOpFile + ".json";
+        }
         binaryFileRealPath = RealPath(binaryFile);
         if (binaryFileRealPath.empty()) {
             TE_DBGLOG("Node(%s) binary file(%s) does not exist", GetTaskNodeName(opTask).c_str(), binaryFile.c_str());

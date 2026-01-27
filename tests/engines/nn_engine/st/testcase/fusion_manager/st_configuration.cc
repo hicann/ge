@@ -97,7 +97,7 @@ TEST_F(configuration_st, init_and_finalize)
   map<string, string> options;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   ge::GetThreadLocalContext().SetGraphOption(options);
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   Status status = config.Initialize(options);
   EXPECT_EQ(status, SUCCESS);
@@ -147,7 +147,7 @@ TEST_F(configuration_st, loadconfigfile_success)
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -159,9 +159,9 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_success)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
-  PlatformUtils::Instance().short_soc_version_ = soc_version;
+  PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
   config.Initialize(options);
   config.content_map_.clear();
   config.content_map_.emplace("op.store.tbe-builtin", "2|6|/tests/engines/nn_engine/config/fe_config|/tests/engines/nn_engine/config/fe_config|true|true");
@@ -219,13 +219,15 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_success4)
   string sub_path = "ascend910";
   int32_t pos = op_store_info.cfg_file_path.rfind(sub_path);
   EXPECT_EQ(pos, op_store_info.cfg_file_path.length()-sub_path.length());
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
+  PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
 }
 
 TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed1)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -240,7 +242,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed2)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -255,7 +257,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed3)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -270,7 +272,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed4)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -285,7 +287,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed5)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -300,7 +302,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed6)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -315,7 +317,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed7)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -328,7 +330,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed8)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -343,7 +345,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed9)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -358,7 +360,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed10)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -373,7 +375,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed11)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -388,7 +390,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed12)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -404,7 +406,7 @@ TEST_F(configuration_st, AssembleOpsStoreInfoVector_failed13)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   config.Initialize(options);
   config.content_map_.clear();
@@ -521,7 +523,7 @@ TEST_F(configuration_st, get_opsstoreinfo_vectorcore)
 {
   Configuration config(fe::VECTOR_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   config.Initialize(options);
@@ -553,7 +555,7 @@ TEST_F(configuration_st, getgraphfilepath_vectorcore)
   string graph_file_path;
   Configuration config(fe::VECTOR_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   config.Initialize(options);
@@ -568,7 +570,7 @@ TEST_F(configuration_st, getcustomfilepath_vectorcore)
   string custom_file_path;
   Configuration config(fe::VECTOR_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   config.Initialize(options);
@@ -953,7 +955,7 @@ TEST_F(configuration_st, init_compress_ratio)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   config.Initialize(options);
@@ -973,7 +975,7 @@ TEST_F(configuration_st, init_compress_ratio_1)
 {
   Configuration config(fe::AI_CORE_NAME);
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   options.insert(std::make_pair("ge.customizeDtypes", GetCodeDir() + "/tests/engines/nn_engine/ut/stub/custom.cfg"));
@@ -995,7 +997,7 @@ TEST_F(configuration_st, OpCustomizeDtype_001)
   Configuration config(fe::AI_CORE_NAME);
   config.cust_dtypes_parser_ = std::make_shared<OpCustDtypesConfigParser>();
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   options.insert(std::make_pair("ge.customizeDtypes", GetCodeDir() + "/tests/engines/nn_engine/ut/stub/custom.cfg"));
   ge::GetThreadLocalContext().SetGraphOption(options);
@@ -1018,7 +1020,7 @@ TEST_F(configuration_st, OpCustomizeDtype_002)
   Configuration config(fe::AI_CORE_NAME);
   config.cust_dtypes_parser_ = std::make_shared<OpCustDtypesConfigParser>();
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   options.insert(std::make_pair("ge.customizeDtypes", GetCodeDir() + "/tests/engines/nn_engine/ut/stub/XXX.cfg"));
   Status bres = config.cust_dtypes_parser_->InitializeFromOptions(options);
@@ -1036,7 +1038,7 @@ TEST_F(configuration_st, OpCustomizeDtype_003) {
   map<string, string> options;
   std::string tmp = "";
   std::string str = "gecustomizeDtypes";
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   PlatformUtils::Instance().soc_version_ = soc_version;
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   options.insert(std::make_pair("ge.customizeDtypes", GetCodeDir() + "/tests/engines/nn_engine/ut/stub/asdad"));
@@ -1048,7 +1050,7 @@ TEST_F(configuration_st, OpCustomizeDtype_004)
   Configuration config(fe::AI_CORE_NAME);
   config.cust_dtypes_parser_ = std::make_shared<OpCustDtypesConfigParser>();
   map<string, string> options;
-  string soc_version = "Ascend310";
+  string soc_version = "Ascend910B1";
   options.emplace(ge::PRECISION_MODE, ALLOW_FP32_TO_FP16);
   options.insert(std::make_pair("ge.customizeDtypes", GetCodeDir() + "/tests/engines/nn_engine/ut/stub/custom_fail2.cfg"));
   Status bres = config.cust_dtypes_parser_->InitializeFromOptions(options);
@@ -1227,7 +1229,7 @@ TEST_F(configuration_st, init_env_param_case1) {
 
 TEST_F(configuration_st, init_options_context_case1) {
   Configuration &config = Configuration::Instance(fe::AI_CORE_NAME);
-  PlatformUtils::Instance().soc_version_ = "Ascend310";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   config.hardware_info_map_.clear();
   config.config_str_param_vec_.fill("");
   map<string, string> options;
@@ -1273,7 +1275,7 @@ TEST_F(configuration_st, init_options_context_case1) {
 
 TEST_F(configuration_st, init_options_context_case2) {
   Configuration &config = Configuration::Instance(fe::AI_CORE_NAME);
-  PlatformUtils::Instance().soc_version_ = "Ascend310";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   PlatformUtils::Instance().vir_type_list_ = {2,4,8,16};
   map<string, string> options;
   options.emplace(ge::ENABLE_SMALL_CHANNEL, "1");
@@ -1339,7 +1341,7 @@ TEST_F(configuration_st, init_options_context_case2) {
 
 TEST_F(configuration_st, init_options_context_case3) {
   Configuration &config = Configuration::Instance(fe::AI_CORE_NAME);
-  PlatformUtils::Instance().soc_version_ = "Ascend310";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   PlatformUtils::Instance().vir_type_list_ = {2,4,8,16};
   config.hardware_info_map_.clear();
   config.config_str_param_vec_.fill("");
@@ -1402,7 +1404,7 @@ TEST_F(configuration_st, init_options_context_case3) {
 
 TEST_F(configuration_st, init_options_context_case4) {
   Configuration &config = Configuration::Instance(fe::AI_CORE_NAME);
-  PlatformUtils::Instance().soc_version_ = "Ascend310";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   PlatformUtils::Instance().vir_type_list_ = {2,4,8,16};
   map<string, string> options;
   options.emplace(ge::ENABLE_SMALL_CHANNEL, "1");
@@ -1438,7 +1440,7 @@ TEST_F(configuration_st, init_options_context_case4) {
   std::set<std::string> ret_vec_1 = {"MatMulBiasAddFusionPass", "OneHotFusionPass"};
   EXPECT_EQ(config.GetLicenseFusionDetailInfo(), ret_vec_1);
 
-  PlatformUtils::Instance().soc_version_ = "Ascend910";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   map<string, string> context_map;
   context_map.emplace(ge::OPTION_EXEC_DISABLE_REUSED_MEMORY, "1");
   context_map.emplace(ge::BUFFER_OPTIMIZE, "l1_optimize");
@@ -1472,7 +1474,7 @@ TEST_F(configuration_st, init_options_context_case4) {
 
 TEST_F(configuration_st, init_options_context_case5) {
   Configuration &config = Configuration::Instance(fe::AI_CORE_NAME);
-  PlatformUtils::Instance().soc_version_ = "Ascend310";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   map<string, string> options;
   options.emplace(ge::ENABLE_SMALL_CHANNEL, "12#$");
   Status ret = config.InitConfigParamFromOptions(options);
@@ -1485,7 +1487,7 @@ TEST_F(configuration_st, init_options_context_case5) {
 
 TEST_F(configuration_st, init_options_context_case6) {
   Configuration &config = Configuration::Instance(fe::AI_CORE_NAME);
-  PlatformUtils::Instance().soc_version_ = "Ascend310";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   map<string, string> options;
   options.emplace("ge.experiment.quant_bias_optimize", "xxx");
   Status ret = config.InitConfigParamFromOptions(options);
@@ -1497,7 +1499,7 @@ TEST_F(configuration_st, init_options_context_case6) {
 }
 
 TEST_F(configuration_st, refresh_parameters) {
-  PlatformUtils::Instance().soc_version_ = "Ascend310";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
   ge::GetThreadLocalContext().graph_options_[ge::PRECISION_MODE] = ALLOW_FP32_TO_BF16;
   map<string, string> options;
   options.emplace(ge::PRECISION_MODE, FORCE_FP32);

@@ -1,12 +1,13 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
+
 #ifndef ATC_OPCOMPILER_TE_FUSION_SOURCE_BINARY_FUSION_BINARY_INFO_H_
 #define ATC_OPCOMPILER_TE_FUSION_SOURCE_BINARY_FUSION_BINARY_INFO_H_
 
@@ -58,6 +59,8 @@ public:
     void SetOppBinFlag(bool flag);
 
 private:
+    void GetAllOpsPathNamePrefix(const std::string &binaryConfigJsonPath,
+                                 std::vector<std::string> &binaryConfigPathPrefix);
     void InsertBinaryInfoIntoMap(const std::string opType, const SimpleKeyModeType simpleKeyMode,
                                 const std::string &optionalInputMode, const std::string &dynamicParamMode,
                                 const std::unordered_map<std::string, std::string> &simpleKeyInfoMap);

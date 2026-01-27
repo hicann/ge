@@ -483,17 +483,17 @@ TEST_F(AiKernelLaunchST, test_AiCoreLaunchMixKernelWithHandle_run_success1) {
   ASSERT_EQ(io_addrs[0], 0x11);
 }
 
-// TEST_F(AiKernelLaunchST, test_AiCoreLaunchMixKernelWithFlag_run_success) {
-//   AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}), true);
-//   context.WorkSpace(2);
-//   GertRuntimeStub runtime_stub;
-//   ASSERT_EQ(registry.FindKernelFuncs("LaunchMixKernelWithFlag")->run_func(context.WithFlag(15)), ge::GRAPH_SUCCESS);
-//   auto launch_args = runtime_stub.GetRtsRuntimeStub().PopLaunchArgsBy(context.handle);
-//   ASSERT_NE(launch_args, nullptr);
-//   ASSERT_EQ(launch_args->GetStream(), context.stream);
-//   auto io_addrs = reinterpret_cast<uint64_t *>(launch_args->GetArgsEx()->args);
-//   ASSERT_EQ(io_addrs[0], 0x11);
-// }
+TEST_F(AiKernelLaunchST, test_AiCoreLaunchMixKernelWithFlag_run_success) {
+  AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}), true);
+  context.WorkSpace(2);
+  GertRuntimeStub runtime_stub;
+  ASSERT_EQ(registry.FindKernelFuncs("LaunchMixKernelWithFlag")->run_func(context.WithFlag(15)), ge::GRAPH_SUCCESS);
+  auto launch_args = runtime_stub.GetRtsRuntimeStub().PopLaunchArgsBy(context.handle);
+  ASSERT_NE(launch_args, nullptr);
+  ASSERT_EQ(launch_args->GetStream(), context.stream);
+  auto io_addrs = reinterpret_cast<uint64_t *>(launch_args->GetArgsEx()->args);
+  ASSERT_EQ(io_addrs[0], 0x11);
+}
 
 TEST_F(AiKernelLaunchST, AiCoreLaunchKernelWithHandle_need_overflow_success) {
   AiKernelLaunchContext context(1, 1, 0x11, Shape({2, 2, 3}), true, g_overflow_addr);

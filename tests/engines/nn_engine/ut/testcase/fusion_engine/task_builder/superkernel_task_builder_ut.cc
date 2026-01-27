@@ -46,12 +46,12 @@ protected:
     map<string, string> options;
     OpStoreAdapterManager::Instance(AI_CORE_NAME).Initialize(options);
     fe::PlatformInfoManager::Instance().InitializePlatformInfo();
-    PlatformUtils::Instance().short_soc_version_ = "Ascend910_93";
+    PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
     cout << "SuperkernelTaskBuilderUT SetUp" << endl;
   }
 
   static void TearDownTestCase() {
-    PlatformUtils::Instance().short_soc_version_ = "Ascend310P";
+    PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
     cout << "SuperkernelTaskBuilderUT TearDown" << endl;
   }
 
@@ -724,7 +724,10 @@ TEST_F(SuperkernelTaskBuilderUT, set_arg_format_value_1) {
 
     ge::Status status = fe::SetArgFormatValue(args_size_workspace, sub_tasks,
                          sub_nodes, all_args_buff_total, args_size_total);
+    EXPECT_EQ(status, ge::SUCCESS);
 
+    status = fe::SetArgFormatValue(args_size_workspace, sub_tasks,
+                         sub_nodes, all_args_buff_total, 0);
     EXPECT_EQ(status, ge::SUCCESS);
 }
 }

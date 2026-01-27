@@ -32,8 +32,8 @@ TEST_F(itfhandler_unittest, initialize_and_finalize) {
   map<string, string> options;
   ret = Initialize(options);
   EXPECT_NE(ret, fe::SUCCESS);
-  options.emplace("ge.socVersion", "Ascend910A");
-  EXPECT_EQ(fe::InitPlatformInfo("Ascend910A", true), 0);
+  options.emplace("ge.socVersion", "Ascend910B1");
+  EXPECT_EQ(fe::InitPlatformInfo("Ascend910B1", true), 0);
   options["ge.bufferOptimize"] = "lx_optimize";
   ret = Initialize(options);
   EXPECT_EQ(ret, fe::SUCCESS);
@@ -48,7 +48,7 @@ TEST_F(itfhandler_unittest, GetOpsKernelInfoStores_suc) {
   EXPECT_EQ(ret, fe::SUCCESS);
   map<string, OpsKernelInfoStorePtr> op_kern_infos;
   GetOpsKernelInfoStores(op_kern_infos);
-  EXPECT_EQ(op_kern_infos.size(), 1);
+  EXPECT_EQ(op_kern_infos.size(), 2);
 }
 
 TEST_F(itfhandler_unittest, get_graph_optimizer_objs_success)
@@ -58,5 +58,5 @@ TEST_F(itfhandler_unittest, get_graph_optimizer_objs_success)
   EXPECT_EQ(ret, fe::SUCCESS);
   map<string, GraphOptimizerPtr> graph_optimizers;
   GetGraphOptimizerObjs(graph_optimizers);
-  EXPECT_EQ(graph_optimizers.size(), 1);
+  EXPECT_EQ(graph_optimizers.size(), 2);
 }

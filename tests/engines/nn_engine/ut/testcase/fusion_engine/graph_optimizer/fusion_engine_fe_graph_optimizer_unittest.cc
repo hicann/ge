@@ -291,6 +291,9 @@ protected:
     sub_ops_kernel_ptr->Finalize();
     sub_ops_kernel_ptr.reset();
     ops_info_store->Finalize();
+
+    PlatformUtils::Instance().soc_version_ = "Ascend910B1";
+    PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
   }
   static void CreateConv2dGraph(ComputeGraphPtr graph) {
     OpDescPtr conv2d = std::make_shared<OpDesc>("conv2d", CONV2D);
@@ -2488,7 +2491,8 @@ TEST_F(UTEST_fusion_engine_fe_graph_optimizer, finalize_success2)
 TEST_F(UTEST_fusion_engine_fe_graph_optimizer, finalize_session_info_success1)
 {
   auto fe_graph_optimizer_ptr = std::make_shared<FEGraphOptimizer>(ops_kernel_info_store_ptr_, AI_CORE_NAME);
-  Status status = fe_graph_optimizer_ptr->FinalizeSessionInfo("1_0");
+  auto graph = std::make_shared<ComputeGraph>("test");
+  Status status = fe_graph_optimizer_ptr->FinalizeSessionInfo(*graph);
 
   EXPECT_EQ(fe::SUCCESS, status);
 }

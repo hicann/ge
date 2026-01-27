@@ -93,6 +93,10 @@ class MmpaStub {
     impl_ = impl;
   }
 
+  std::weak_ptr<MmpaStubApi> GetImplWeakPtr() {
+    return impl_;
+  }
+
   MmpaStubApi* GetImpl() {
     return impl_.get();
   }

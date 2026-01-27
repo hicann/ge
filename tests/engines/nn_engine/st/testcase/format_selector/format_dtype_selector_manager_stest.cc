@@ -181,7 +181,7 @@ TEST_F(FormatDtypeSelectorManagerSTest, init_format_success) {
     outputs = op_kernel_info_ptr->GetAllOutputInfo();
     inputs = op_kernel_info_ptr->GetAllInputInfo();
     outputs = op_kernel_info_ptr->GetAllOutputInfo();
-    int format_size = 31;
+    int format_size = 35;
     EXPECT_EQ(format_size - 1, inputs[0]->GetFormat().size());
     EXPECT_EQ(format_size - 1, outputs[0]->GetFormat().size());
 
@@ -270,16 +270,16 @@ TEST_F(FormatDtypeSelectorManagerSTest, op_formatagnostic_selector_query_success
     vector<ge::DataType> data_type_vec = format_dtype_info.data_type_map.at(inputs[0]->GetUniqueName());
     string new_formats_str = GetStrByFormatVec(format_vec);
     string new_data_types_str = GetStrByDataTypeVec(data_type_vec);
-    string expect_format_str = "NC1HWC0_C04,NC1HWC0,C1HWNCoC0,FRACTAL_Z,FRACTAL_NZ,NDC1HWC0,FRACTAL_Z_3D,FRACTAL_Z_3D_TRANSPOSE,FRACTAL_Z_C04,FRACTAL_Z_WINO,C1HWC0,FRACTAL_NZ_C0_8,NCHW,NCHW,NHWC,NHWC,HWCN,HWCN,CHWN,CHWN,NDHWC,NDHWC,NCDHW,NCDHW,DHWCN,DHWCN,DHWNC,DHWNC,ND,ND";
+    string expect_format_str = "NC1HWC0_C04,NC1HWC0,C1HWNCoC0,FRACTAL_Z,FRACTAL_NZ,NDC1HWC0,FRACTAL_Z_3D,FRACTAL_Z_3D_TRANSPOSE,FRACTAL_Z_C04,FRACTAL_Z_WINO,C1HWC0,FRACTAL_NZ_C0_2,FRACTAL_NZ_C0_4,FRACTAL_NZ_C0_8,FRACTAL_NZ_C0_16,FRACTAL_NZ_C0_32,NCHW,NCHW,NHWC,NHWC,HWCN,HWCN,CHWN,CHWN,NDHWC,NDHWC,NCDHW,NCDHW,DHWCN,DHWCN,DHWNC,DHWNC,ND,ND";
     EXPECT_EQ(expect_format_str, new_formats_str);
-    string expect_data_type_str = "DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT";
+    string expect_data_type_str = "DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT,DT_FLOAT16,DT_FLOAT";
     EXPECT_EQ(expect_data_type_str, new_data_types_str);
     format_vec = format_dtype_info.format_map.at(outputs[0]->GetUniqueName());
     data_type_vec = format_dtype_info.data_type_map.at(outputs[0]->GetUniqueName());
     new_formats_str = GetStrByFormatVec(format_vec);
     new_data_types_str = GetStrByDataTypeVec(data_type_vec);
     EXPECT_EQ(expect_format_str, new_formats_str);
-    EXPECT_EQ("DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32",        
+    EXPECT_EQ("DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32,DT_INT8,DT_INT32",        
               new_data_types_str);
 }
 
@@ -340,6 +340,7 @@ TEST_F(FormatDtypeSelectorManagerSTest, ConvertFormatDtype_success)
                                                              sub_format_vec, data_type_vec);
   EXPECT_EQ(status, fe::SUCCESS);
 }
+
 
 TEST_F(FormatDtypeSelectorManagerSTest, op_customize_selector_query_failed)
 {

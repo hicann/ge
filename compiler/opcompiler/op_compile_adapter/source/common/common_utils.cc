@@ -1,14 +1,17 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "common/common_utils.h"
+#include <chrono>
+#include <vector>
+#include <map>
 #include <climits>
 #include <unistd.h>
 #include <fstream>
@@ -24,6 +27,7 @@
 #include <cerrno>
 #include "inc/te_fusion_check.h"
 #include "inc/te_fusion_util_constants.h"
+#include "base/err_msg.h"
 
 namespace te {
 namespace fusion {
@@ -375,7 +379,14 @@ std::string ShapeToString(const std::vector<int64_t> &shapes)
  */
 void TeErrMessageReport(const std::string &errorCode, std::map<std::string, std::string> &mapArgs)
 {
-    int reportRes = ErrorManager::GetInstance().ReportErrMessage(errorCode, mapArgs);
+    std::vector<const char *> keyVec;
+    std::vector<const char *> valueVec;
+    for (const auto &pair : mapArgs) {
+      keyVec.push_back(pair.first.c_str());
+      valueVec.push_back(pair.second.c_str());
+    }
+
+    int reportRes = REPORT_PREDEFINED_ERR_MSG(errorCode.c_str(), keyVec, valueVec);
     TE_FUSION_CHECK(reportRes == -1,
                     {TE_FUSION_LOG_EXEC(TE_FUSION_LOG_WARNING, "Report warning message failed.");
                     });
@@ -383,10 +394,7 @@ void TeErrMessageReport(const std::string &errorCode, std::map<std::string, std:
 
 void TeInnerErrMessageReport(const std::string &errorCode, const std::string &errorMsg)
 {
-    int reportRes = ErrorManager::GetInstance().ReportInterErrMessage(errorCode, errorMsg);
-    TE_FUSION_CHECK(reportRes == -1,
-                    {TE_FUSION_LOG_EXEC(TE_FUSION_LOG_WARNING, "Report warning message failed.");
-                    });
+    REPORT_INNER_ERR_MSG(errorCode.c_str(), errorMsg.c_str());
 }
 
 bool CheckPathValid(const std::string &path, const std::string &pathOwner)
@@ -471,6 +479,24 @@ void AssembleJsonPath(const std::string &opsPathNamePrefix, std::string &jsonFil
     TE_DBGLOG("After revert opsPathNamePrefix is %s, jsonFilePath is %s, binFilePath is %s",
               opsPathNamePrefix.c_str(), jsonFilePath.c_str(),binFilePath.c_str());
     return;
+}
+
+bool compareStrings(const std::string& a, const std::string& b) {
+    if (a.empty()) {
+        return true;
+    }
+    if (b.empty()) {
+        return false;
+    }
+    bool alsOpsLegacy = a.find("ops_legacy") == 0;
+    bool blsOpsLegacy = b.find("ops_legacy") == 0;
+    if (alsOpsLegacy && !blsOpsLegacy) {
+        return true;
+    }
+    if (!alsOpsLegacy && blsOpsLegacy) {
+        return false;
+    }
+    return a.length() < b.length();
 }
 } // namespace fusion
 } // namespace te

@@ -14,31 +14,24 @@ if (ENABLE_LLT_COV)
 endif()
 
 if (NOT DEFINED ASCEND_INSTALL_PATH)
-    message("Find ge_runner in fix path /usr/local/Ascend/compiler/lib64")
-    find_module(ge_runner_pkg libge_runner.so /usr/local/Ascend/compiler/lib64)
+    message("Find ge_compiler in fix path /usr/local/Ascend/cann/lib64")
+    find_module(ge_compiler_pkg libge_compiler.so /usr/local/Ascend/cann/lib64)
 else()
-    message("Find ge_runner in ascend install path ${ASCEND_INSTALL_PATH}/compiler/lib64")
-    find_module(ge_runner_pkg libge_runner.so ${ASCEND_INSTALL_PATH}/compiler/lib64)
+    message("Find ge_compiler in ascend install path ${ASCEND_INSTALL_PATH}/lib64")
+    find_module(ge_compiler_pkg libge_compiler.so ${ASCEND_INSTALL_PATH}/lib64)
 endif()
 
 if (NOT DEFINED ASCEND_INSTALL_PATH)
-    message("Find ge_compiler in fix path /usr/local/Ascend/compiler/lib64")
-    find_module(ge_compiler_pkg libge_compiler.so /usr/local/Ascend/compiler/lib64)
+    message("Find ge_common in fix path /usr/local/Ascend/cann/lib64")
+    find_module(ge_common_pkg libge_common.so /usr/local/Ascend/cann/lib64)
 else()
-    message("Find ge_compiler in ascend install path ${ASCEND_INSTALL_PATH}/compiler/lib64")
-    find_module(ge_compiler_pkg libge_compiler.so ${ASCEND_INSTALL_PATH}/compiler/lib64)
-endif()
-
-if (NOT DEFINED ASCEND_INSTALL_PATH)
-    message("Find ge_common in fix path /usr/local/Ascend/compiler/lib64")
-    find_module(ge_common_pkg libge_common.so /usr/local/Ascend/compiler/lib64)
-else()
-    message("Find ge_common in ascend install path ${ASCEND_INSTALL_PATH}/compiler/lib64")
-    find_module(ge_common_pkg libge_common.so ${ASCEND_INSTALL_PATH}/compiler/lib64)
+    message("Find ge_common in ascend install path ${ASCEND_INSTALL_PATH}/lib64")
+    find_module(ge_common_pkg libge_common.so ${ASCEND_INSTALL_PATH}/lib64)
 endif()
 
 set(FE_ROOT_PATH ${AIR_CODE_DIR}/compiler/engines/nn_engine)
 set(FFTS_ROOT_PATH ${AIR_CODE_DIR}/compiler/engines/ffts_engine)
+set(OP_COMPILE_ADAPTER_ROOT_PATH ${AIR_CODE_DIR}/compiler/opcompiler/op_compile_adapter)
 set(FE_TEST_ROOT_PATH ${CMAKE_CURRENT_LIST_DIR})
 set(FE_SRC_CC_LIST
         ${FE_ROOT_PATH}/utils/common/format/axis_name_util.cc
@@ -291,7 +284,46 @@ set(FE_SRC_CC_LIST
         ${FE_ROOT_PATH}/optimizer/trace_handle_manager/trace_handle_manager.cc
         ${FE_ROOT_PATH}/optimizer/trace_handle_manager/trace_msg/compile_process_trace_msg.cc
         ${FE_ROOT_PATH}/optimizer/trace_handle_manager/trace_msg/long_time_trace_msg.cc
-        ${FFTS_ROOT_PATH}/utils/param_calculate/ffts_param_calculator.cc)
+        ${FFTS_ROOT_PATH}/utils/param_calculate/ffts_param_calculator.cc
+        ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/python_adapter/py_decouple.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/python_adapter/py_object_utils.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/python_adapter/py_wrapper.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/python_adapter/pyobj_assemble_utils.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/python_adapter/python_adapter_manager.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/python_adapter/python_api_call.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/api/fusion_api.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/common_utils.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/compile_result_utils.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/fusion_common.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/signal_manager.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/tbe_op_info.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/tbe_op_info_cache.cc
+ 	  	${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/tbe_op_info_hash.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/te_config_info.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/te_context_utils.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/common/te_file_utils.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/dfxinfo_manager/trace_utils.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/dfxinfo_manager/dfxinfo_manager.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/binary_manager.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/fusion_binary_info.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/fusion_build_binary.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/fusion_fuzzy_build.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/fusion_reuse_binary_check.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/fusion_reuse_single_op_binary.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/generate_simple_key.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/binary/shape_generalization.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/compile/fusion_manager.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/compile/prebuild_manager.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/compile/superkernel_task.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/compile/te_compile_task_cache.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/cache/te_cache_manager.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/cache/te_cache_space_manager.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/cache/te_cache_utils.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/assemble_json/te_attr_utils.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/assemble_json/te_json_assemble.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/assemble_json/te_json_utils.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/assemble_json/te_op_custom_utils.cc
+ 	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/file_handle/te_file_handle.cc)
 
 set(FFTS_SRC_CC_LIST
         ${FFTS_ROOT_PATH}/common/ffts_configuration.cc
@@ -327,6 +359,9 @@ set(FFTS_SRC_CC_LIST
         ${FFTS_ROOT_PATH}/task_builder/thread_ctx/runtime_ops_manual_task_builder.cc
         ${FFTS_ROOT_PATH}/task_builder/thread_ctx/runtime_ops_auto_task_builder.cc
         ${FFTS_ROOT_PATH}/task_builder/mixl2_ctx/mix_l2_task_builder.cc)
+
+include(ut/testcase/op_compile_adapter/cmake/third_party/boost.cmake)
+include(ut/testcase/op_compile_adapter/cmake/third_party/mockcpp.cmake)
 
 add_subdirectory(depends/slog)
 add_subdirectory(depends/mmpa)

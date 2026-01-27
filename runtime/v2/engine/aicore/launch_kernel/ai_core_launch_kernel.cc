@@ -698,6 +698,8 @@ ge::graphStatus AiCoreLaunchKernelWithFlag(KernelContext *context) {
   cfg->schemMode = static_cast<uint8_t>(schedule_mode & k2BitsMask);
   auto args = context->MutableInputPointer<RtKernelLaunchArgsEx>(static_cast<size_t>(InputCommon::kRtArg));
   FE_ASSERT_NOTNULL(args);
+  auto local_mem_size = context->GetInputValue<uint32_t>(static_cast<uint32_t>(InputCommon::kLocalMemSize));
+  cfg->localMemorySize = local_mem_size;
   int32_t addr_start = static_cast<int32_t>(WithArgs::kIoAddrs);
   FE_RETURN_IF_ERROR(UpdateArgs(context, addr_start, *args));
   FE_CHK_RT_RET(rtKernelLaunchWithFlagV2(handle, *block_dim, args->GetBase(), nullptr, stream, 0U, cfg));
@@ -718,6 +720,8 @@ ge::graphStatus AiCoreLaunchMixKernelWithFlag(KernelContext *context) {
   cfg->schemMode = static_cast<uint8_t>(schedule_mode & k2BitsMask);
   auto args = context->MutableInputPointer<RtKernelLaunchArgsEx>(static_cast<size_t>(InputCommon::kRtArg));
   FE_ASSERT_NOTNULL(args);
+  auto local_mem_size = context->GetInputValue<uint32_t>(static_cast<uint32_t>(InputCommon::kLocalMemSize));
+  cfg->localMemorySize = local_mem_size;
   int32_t addr_start = static_cast<int32_t>(WithArgs::kIoAddrs);
   FE_RETURN_IF_ERROR(UpdateArgs(context, addr_start, *args));
   auto ret = ProcMixVectorCoreTask(context, {false, handle, 0U, *block_dim, args->GetBase(), nullptr,
@@ -748,6 +752,8 @@ ge::graphStatus AtomicAiCoreLaunchKernelWithFlag(KernelContext *context) {
   cfg->schemMode = static_cast<uint8_t>(schedule_mode & k2BitsMask);
   auto args = context->MutableInputPointer<RtKernelLaunchArgsEx>(static_cast<size_t>(InputCommon::kRtArg));
   FE_ASSERT_NOTNULL(args);
+  auto local_mem_size = context->GetInputValue<uint32_t>(static_cast<uint32_t>(InputCommon::kLocalMemSize));
+  cfg->localMemorySize = local_mem_size;
   FE_RETURN_IF_ERROR(UpdateAtomicArgs(context, static_cast<int32_t>(WithAtomic::kIoAddrs), *args));
   FE_CHK_RT_RET(rtKernelLaunchWithFlagV2(handle, *block_dim, args->GetBase(), nullptr, stream, 0U, cfg));
   return ge::GRAPH_SUCCESS;

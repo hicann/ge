@@ -1700,8 +1700,8 @@ TEST_F(UBFUSION_ST, converage_09) {
   EXPECT_EQ(fe::SUCCESS, fusion_priority_mgr->SortBufferFusion());
   EXPECT_EQ(fe::SUCCESS, fusion_priority_mgr->SortBufferFusion());
   EXPECT_EQ(fe::SUCCESS, fusion_priority_mgr_vec->SortBufferFusion());
-  auto &instance = BufferFusionPassRegistry::GetInstance();
-  instance.~BufferFusionPassRegistry();
+  BufferFusionPassRegistry instance;
+  BufferFusionPassRegistry::GetInstance().impl_.swap(instance.impl_);
   OpsKernelManager::Instance(AI_CORE_NAME).Finalize();
 }
 

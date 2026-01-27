@@ -1383,8 +1383,8 @@ TEST_F(BufferFusionCycleDetectionSt, testcase_02_2_mixl2) {
   }
   EXPECT_EQ(find, 1);
 
-  fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = "Ascend910A";
-  fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910A");
+  fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = "Ascend910B";
+  fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B");
 }
 
 /* Contains final cycle */

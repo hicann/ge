@@ -66,7 +66,7 @@ TEST_F(UTestFusionConfigParser, fusion_switch_01) {
   bool ret2 = fusionConfigParserPtr->GetFusionSwitchByName("CUSTOM_PASS1", "GraphFusion");
   EXPECT_EQ(ret2, false);
   bool ret3 = fusionConfigParserPtr->GetFusionSwitchByName("CUSTOM_PASS2", "GraphFusion");
-  EXPECT_EQ(ret3, true);
+  EXPECT_EQ(ret3, false);
   bool ret4 = fusionConfigParserPtr->GetFusionSwitchByName("TbeCommonRules2FusionPass", "UBFusion");
   EXPECT_EQ(ret4, true);
   Configuration::Instance(fe::AI_CORE_NAME).config_str_param_vec_[static_cast<size_t>(CONFIG_STR_PARAM::FusionLicense)] = nullStr;
@@ -112,7 +112,7 @@ TEST_F(UTestFusionConfigParser, fusion_switch_03) {
   ret = fusionConfigParserPtr->GetFusionSwitchByName("CUSTOM_PASS1", "GraphFusion");
   EXPECT_EQ(ret, false);
   ret = fusionConfigParserPtr->GetFusionSwitchByName("CUSTOM_PASS2", "GraphFusion");
-  EXPECT_EQ(ret, true);
+  EXPECT_EQ(ret, false);
   ret = fusionConfigParserPtr->GetFusionSwitchByName("TbeCommonRules2FusionPass", "UBFusion");
   EXPECT_EQ(ret, true);
   ret = fusionConfigParserPtr->GetFusionSwitchByName("UB_PASS1", "UBFusion");
@@ -138,7 +138,7 @@ TEST_F(UTestFusionConfigParser, fusion_switch_04) {
   ret = fusionConfigParserPtr->GetFusionSwitchByName("CUSTOM_PASS1", "GraphFusion");
   EXPECT_EQ(ret, false);
   ret = fusionConfigParserPtr->GetFusionSwitchByName("CUSTOM_PASS2", "GraphFusion");
-  EXPECT_EQ(ret, true);
+  EXPECT_EQ(ret, false);
   ret = fusionConfigParserPtr->GetFusionSwitchByName("LayerNormV4FusionPass", "GraphFusion");
   EXPECT_EQ(ret, true);
   
@@ -183,7 +183,7 @@ TEST_F(UTestFusionConfigParser, fusion_switch_05) {
   ret = fusionConfigParserPtr->GetFusionSwitchByName("BUILTIN_PASS1", "GraphFusion", 4, true);
   EXPECT_EQ(ret, true);
   ret = fusionConfigParserPtr->GetFusionSwitchByName("BUILTIN_PASS1", "GraphFusion", 0, true);
-  EXPECT_EQ(ret, false);
+  EXPECT_EQ(ret, true);
 
   ret = fusionConfigParserPtr->GetFusionSwitchByName("CUSTOM_PASS1", "GraphFusion");
   EXPECT_EQ(ret, false);
@@ -280,11 +280,11 @@ TEST_F(UTestFusionConfigParser, fusion_switch_06) {
   EXPECT_EQ(status, SUCCESS);
   vector<string> close_graph_fusion_vec;
   fusionConfigParserPtr->GetFusionPassNameBySwitch("GraphFusion", false, close_graph_fusion_vec);
-  vector<string> expect_graph_fusion_vec = { "BatchMultiClassNonMaxSuppressionEnableSubgraphFusionPass", "BatchMultiClassNonMaxSuppressionInsertNMSBucketizeFusionPass", "BatchMultiClassNonMaxSuppressionRefreshSubgraphConstNodeFusionPass", "BatchNormBnInferOnlyFusionPass", "ConcatCOptimize", "Conv2DBackpropInputTransdataToFixpipeFusionPass", "Conv2DbpFilterMulFusionPass", "ConvToSplitConvDequantConcatFusionPass", "GatherV2ConcatV2FusionPass", "GridSampler2DFusionPass", "MatmulAllReduceAddRmsNormFusionPass", "MatmulNzInNdOutTransdataFusionPass", "MatmulReshapeFusionPass", "MatmulWeightPrefetchFusionPass", "MoeDistributeCombineAddRmsNormFusionPass", "MoeDistributeCombineV2FusionPass", "MoeDistributeDispatchV2FusionPass", "ReduceMeanDTransnodeFusionPass", "SoftmaxSmallOpFusionPass", "SplitConvFusionPass", "StridedSliceConcatFusionPass", "StridedSliceDToSplitFusionPass", "SubMulConcatFusionPass", "TbeMatmulFixPipeFusionPass", "WeightQuantBmmV2WeightPrefetchFusionPass", "ZConcatExt3FusionPass" };
+  vector<string> expect_graph_fusion_vec = {"GroupConv2DFusionPass", "SplitConvFusionPass", "TbeMatmulFixPipeFusionPass"};
   EXPECT_EQ(close_graph_fusion_vec, expect_graph_fusion_vec);
   vector<string> close_ub_fusion_vec;
   fusionConfigParserPtr->GetFusionPassNameBySwitch("UBFusion", false, close_ub_fusion_vec);
-  vector<string> expect_ub_fusion_vec = { "AutoSingleNormFusionPass", "AutoSingleReduceFusionPass", "MatmulToMatMulV3UBFusionPass", "SplitConvFusionPass", "TbeConvDequantSigmoidMulAddFusionPass", "TbeMatmulFixPipeFusionPass" };
+  vector<string> expect_ub_fusion_vec = {"SplitConvFusionPass", "TbeDwFixpipeFusionPass", "TbeMatmulFixPipeFusionPass"};
   EXPECT_EQ(close_ub_fusion_vec, expect_ub_fusion_vec);
 }
 
@@ -297,11 +297,11 @@ TEST_F(UTestFusionConfigParser, fusion_switch_07) {
   EXPECT_EQ(status, SUCCESS);
   vector<string> close_graph_fusion_vec;
   fusionConfigParserPtr->GetFusionPassNameBySwitch("GraphFusion", false, close_graph_fusion_vec);
-  vector<string> expect_graph_fusion_vec = { "BatchMultiClassNonMaxSuppressionEnableSubgraphFusionPass", "BatchMultiClassNonMaxSuppressionInsertNMSBucketizeFusionPass", "BatchMultiClassNonMaxSuppressionRefreshSubgraphConstNodeFusionPass", "BatchNormBnInferOnlyFusionPass", "ConcatCOptimize", "Conv2DBackpropInputTransdataToFixpipeFusionPass", "Conv2DbpFilterMulFusionPass", "ConvToSplitConvDequantConcatFusionPass", "GatherV2ConcatV2FusionPass", "GridSampler2DFusionPass", "MatmulAllReduceAddRmsNormFusionPass", "MatmulNzInNdOutTransdataFusionPass", "MatmulReshapeFusionPass", "MatmulWeightPrefetchFusionPass", "MoeDistributeCombineAddRmsNormFusionPass", "MoeDistributeCombineV2FusionPass", "MoeDistributeDispatchV2FusionPass", "ReduceMeanDTransnodeFusionPass", "SoftmaxSmallOpFusionPass", "SplitConvFusionPass", "StridedSliceConcatFusionPass", "StridedSliceDToSplitFusionPass", "SubMulConcatFusionPass", "WeightQuantBmmV2WeightPrefetchFusionPass", "ZConcatExt3FusionPass" };
+  vector<string> expect_graph_fusion_vec = {"GroupConv2DFusionPass", "SplitConvFusionPass"};
   EXPECT_EQ(close_graph_fusion_vec, expect_graph_fusion_vec);
   vector<string> close_ub_fusion_vec;
   fusionConfigParserPtr->GetFusionPassNameBySwitch("UBFusion", false, close_ub_fusion_vec);
-  vector<string> expect_ub_fusion_vec = { "AutoSingleNormFusionPass", "AutoSingleReduceFusionPass", "MatmulToMatMulV3UBFusionPass", "TbeConvDequantSigmoidMulAddFusionPass", "TbeMatmulFixPipeFusionPass" };
+  vector<string> expect_ub_fusion_vec = {"TbeDxFixpipeFusionPass", "TbeMatmulFixPipeFusionPass"};
   EXPECT_EQ(close_ub_fusion_vec, expect_ub_fusion_vec);
 }
 

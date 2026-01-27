@@ -63,7 +63,7 @@ protected:
         Configuration& config = Configuration::Instance(fe::AI_CORE_NAME);
         config.is_init_ = false;
         map<string, string> options;
-        string soc_version = "Ascend910A";
+        string soc_version = "Ascend910B";
         config.Initialize(options);
 
     }

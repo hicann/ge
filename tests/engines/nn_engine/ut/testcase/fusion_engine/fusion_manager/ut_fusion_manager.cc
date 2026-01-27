@@ -43,9 +43,9 @@ protected:
     uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
     EXPECT_EQ(init_ret, 0);
     fe::PlatformInfoManager::Instance().init_flag_ = true;
-    fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = "Ascend910A";
+    fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = "Ascend910B1";
     fe::PlatformInfoManager::Instance().opti_compilation_infos_.Init();
-    fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910A");
+    fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 
     std::map<string, string> options;
     fe::OpStoreAdapterManager::Instance(fe::AI_CORE_NAME).Initialize(options);
@@ -372,9 +372,9 @@ TEST_F(fusion_manager_unittest, init_platform_info_test)
     PlatFormInfos tmp_platform_infos;
     (void)tmp_platform_infos.Init();
     PlatformInfoManager::Instance().platform_info_map_.emplace("Ascend310", tmp);
-    PlatformInfoManager::Instance().platform_info_map_.emplace("Ascend910A", tmp);
+    PlatformInfoManager::Instance().platform_info_map_.emplace("Ascend910B", tmp);
     PlatformInfoManager::Instance().platform_infos_map_.emplace("Ascend310", tmp_platform_infos);
-    PlatformInfoManager::Instance().platform_infos_map_.emplace("Ascend910A", tmp_platform_infos);
+    PlatformInfoManager::Instance().platform_infos_map_.emplace("Ascend910B", tmp_platform_infos);
 
     PlatformInfoManager::Instance().platform_info_map_.clear();
     PlatformInfoManager::Instance().platform_infos_map_.clear();

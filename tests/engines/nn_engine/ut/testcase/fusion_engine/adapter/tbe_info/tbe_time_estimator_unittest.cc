@@ -38,6 +38,11 @@ class UTestTbeTimeEstimator : public testing::Test
     PlatformUtils::Instance().soc_version_ = soc_version;
     PlatformUtils::Instance().short_soc_version_ = "Ascend310P";
   }
+  static void TearDownTestCase() {
+    PlatformUtils::Instance().soc_version_ = "Ascend910B1";
+    PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
+  }
+
   void SetUp() {
     fe_ops_kernel_info_store_ptr_ = make_shared<fe::FEOpsKernelInfoStore>(AI_CORE_NAME);
     FEOpsStoreInfo tbe_builtin {
@@ -62,7 +67,7 @@ class UTestTbeTimeEstimator : public testing::Test
 
 /* ge.virtual_type is off*/
 TEST_F(UTestTbeTimeEstimator, test_case_01) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {12, 2, 21, 32, 16};

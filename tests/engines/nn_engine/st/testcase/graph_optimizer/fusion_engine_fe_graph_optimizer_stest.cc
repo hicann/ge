@@ -20,6 +20,7 @@
 #include "common/platform_utils.h"
 #include "common/configuration.h"
 #include "common/scope_allocator.h"
+#include "common/constants_define.h"
 #include "graph/ge_tensor.h"
 #include "graph/op_desc.h"
 #include "graph/compute_graph.h"
@@ -227,6 +228,11 @@ protected:
 
     OptimizeUtilitySTStub *optimize_utility_stub = new OptimizeUtilitySTStub();
 
+    Configuration::Instance(AI_CORE_NAME).content_map_[FUSION_CONFIG_BUILT_IN_FILE] =
+        "lib64/plugin/opskernel/fusion_pass/config/fusion_config.json";
+    Configuration::Instance(AI_CORE_NAME).content_map_[CONFIG_KEY_GRAPH_FILE] = 
+        "lib64/plugin/opskernel/fusion_rules/ai_core/built_in_graph_rules.json";
+
     ops_kernel_info_store_ptr_ = std::make_shared<FEOpsKernelInfoStore>(fe::AI_CORE_NAME);
     FusionRuleManagerPtr fusion_rule_mgr_ptr_ = std::make_shared<FusionRuleManager>(ops_kernel_info_store_ptr_);
     FusionPriorityMgrPtr fusion_priority_mgr_ptr_ = std::make_shared<FusionPriorityManager>(
@@ -310,6 +316,9 @@ protected:
     sub_ops_kernel_ptr->Finalize();
     sub_ops_kernel_ptr.reset();
     ops_info_store->Finalize();
+
+    PlatformUtils::Instance().soc_version_ = "Ascend910B1";
+    PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
   }
 
   static void CreateBatchNormGraph(ComputeGraphPtr graph) {
@@ -2447,7 +2456,8 @@ TEST_F(STEST_fusion_engine_fe_graph_optimizer, finalize_success2)
 TEST_F(STEST_fusion_engine_fe_graph_optimizer, finalize_session_info_success1)
 {
   auto fe_graph_optimizer_ptr = std::make_shared<FEGraphOptimizer>(ops_kernel_info_store_ptr_, AI_CORE_NAME);
-  Status status = fe_graph_optimizer_ptr->FinalizeSessionInfo("1_0");
+  auto graph = std::make_shared<ComputeGraph>("test");
+  Status status = fe_graph_optimizer_ptr->FinalizeSessionInfo(*graph);
 
   EXPECT_EQ(fe::SUCCESS, status);
 }

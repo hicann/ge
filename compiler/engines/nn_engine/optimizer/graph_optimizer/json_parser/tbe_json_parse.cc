@@ -485,7 +485,7 @@ Status TbeJsonFileParse::ParseTvmKernelList() {
     FE_LOGD("Op[%s] Set the attribute kernel_list_first", op_desc_->GetName().c_str());
     (void)SetRelatedNodesStr(GetAttrPrefix() + ATTR_NAME_KERNEL_LIST_FIRST_NAME, kernel_list_first);
   } else {
-    FE_LOGD("Op[%s] Del the attribute kernel_list_first", op_desc_->GetName().c_str());
+    FE_LOGD("Op[%s] Delete the attribute kernel_list_first", op_desc_->GetName().c_str());
     (void)ClearRelatedNodesStr(GetAttrPrefix() + ATTR_NAME_KERNEL_LIST_FIRST_NAME);
   }
   return SUCCESS;

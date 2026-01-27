@@ -349,7 +349,7 @@ Status FusionPriorityManager::GetGraphFusionPassInfosByType(const GraphFusionPas
 
     if (!fusion_config_parser_ptr_->GetFusionSwitchByName(iter.first, GRAPH_FUSION, iter.second.attr,
                                                           is_single_op_scene)) {
-      FE_LOGD("The graph fusion pass[%s] switch is off.", iter.first.c_str());
+      FE_LOGD("The graph fusion pass[%s] switch is off, single op scene value is %d.", iter.first.c_str(), is_single_op_scene);
       continue;
     }
     FE_LOGD("Load registered graph fusion pass(switch on): %s", iter.first.c_str());
@@ -423,7 +423,7 @@ Status FusionPriorityManager::GetBufferFusionPassInfosByType(const BufferFusionP
   for (const auto &iter : buffer_fusion_descs) {
     if (!fusion_config_parser_ptr_->GetFusionSwitchByName(iter.first, UB_FUSION, iter.second.attr,
                                                           can_close_buffer_fusion)) {
-      FE_LOGD("The ub fusion pass [%s] switch is off.", iter.first.c_str());
+      FE_LOGD("The ub fusion pass [%s] switch is off, single op scene value is %d.", iter.first.c_str(), can_close_buffer_fusion);
       continue;
     }
     bool is_auto_fusion = IsPassAttrTypeOn(iter.second.attr, PassAttrType::AUTO_FUSION_FLAG);

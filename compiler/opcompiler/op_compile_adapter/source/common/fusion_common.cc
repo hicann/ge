@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "common/fusion_common.h"
@@ -113,6 +113,39 @@ bool SetContextItem(PyObject *pyContextDict, const std::string &optKey, const st
         return false;
     });
     return true;
+}
+
+void GenerateExtraInfoForFusionOpContext(const std::vector<ge::Node *> &oriNodes, PyObject *pyContextDict) {
+    std::string maxCustAicNum = "-1";
+    std::string maxCustAivNum = "-1";
+    for (const auto &node : oriNodes) {
+        const auto opDescPtr = node->GetOpDesc();
+        std::string custAicNum;
+        ge::AttrUtils::GetStr(opDescPtr, kAicCntKeyOp, custAicNum);
+        if (custAicNum != "" && std::stoi(custAicNum) >= 0  && std::stoi(custAicNum) > std::stoi(maxCustAicNum)) {
+            maxCustAicNum = custAicNum;
+        }
+        std::string custAivNum;
+        ge::AttrUtils::GetStr(opDescPtr, kAivCntKeyOp, custAivNum);
+        if (custAivNum != "" && std::stoi(custAivNum) >= 0 && std::stoi(custAivNum) > std::stoi(maxCustAivNum)) {
+            maxCustAivNum = custAivNum;
+        }
+    }
+
+    if (maxCustAicNum == "-1" && maxCustAivNum == "-1") {
+        TE_INFOLOG("Both custAicNum and custAivNum attr are empty, skipping set pyContextDict");
+        return;
+    }
+
+    TE_INFOLOG("maxCustAicNum is [%s], maxCustAivNum is [%s]", maxCustAicNum.c_str(), maxCustAivNum.c_str());
+
+    TE_FUSION_CHECK(!SetContextItem(pyContextDict, kAicCntKeyOp, maxCustAicNum), {
+        TE_ERRLOG("Failed to set context value [%s].", kAicCntKeyOp);
+    });
+
+    TE_FUSION_CHECK(!SetContextItem(pyContextDict, kAivCntKeyOp, maxCustAivNum), {
+        TE_ERRLOG("Failed to set context value [%s].", kAivCntKeyOp);
+    });
 }
 
 void GenerateExtraInfoForContext(const TbeOpInfo &opInfo, const ge::OpDescPtr &opDescPtr, PyObject *pyContextDict)

@@ -20,6 +20,7 @@
 #include "common/platform_utils.h"
 #include "platform_info.h"
 #include "ge/ge_api_types.h"
+#include "te_llt_utils.h"
 #undef private
 #undef protected
 
@@ -28,9 +29,10 @@ using namespace std;
 int main(int argc, char **argv)
 {
   testing::InitGoogleTest(&argc,argv);
+  te::fusion::InitTbe();
   map<string, string> options;
-  options.emplace(ge::SOC_VERSION, "Ascend910A");
-  EXPECT_EQ(fe::InitPlatformInfo("Ascend910A"), 0);
+  options.emplace(ge::SOC_VERSION, "Ascend910B1");
+  EXPECT_EQ(fe::InitPlatformInfo("Ascend910B1"), 0);
   EXPECT_EQ(Initialize(options), fe::SUCCESS);
 
   int ret = RUN_ALL_TESTS();

@@ -60,7 +60,7 @@ class STEST_FUSION_RULE_CYCLE_DETECTION : public testing::Test {
     Configuration::Instance(AI_CORE_NAME).ascend_ops_path_ = "";
     ori_path_ = Configuration::Instance(AI_CORE_NAME).content_map_[path_key_];
     Configuration::Instance(AI_CORE_NAME).content_map_[path_key_] = file_path;
-    ori_path_ = Configuration::Instance(AI_CORE_NAME).content_map_[path_key_built_in_];
+    ori_path_built_in_ = Configuration::Instance(AI_CORE_NAME).content_map_[path_key_built_in_];
     Configuration::Instance(AI_CORE_NAME).content_map_[path_key_built_in_] = file_path;
     frm_->Initialize(AI_CORE_NAME);
   }

@@ -85,6 +85,7 @@ bool WaitAllFinishedStub(uint64_t graphId, vector<te::FinComTask> &tasks) {
     std::string op_type;
     item.second.GetName(name);
     item.second.GetOpType(op_type);
+    task.status = fe::SUCCESS;
     task.teNodeOpDesc = std::make_shared<ge::OpDesc>(name, op_type);
     ge::AttrUtils::SetStr(task.teNodeOpDesc, "json_file_path", json_path);
     ge::AttrUtils::SetStr(task.teNodeOpDesc, COMPILE_INFO_JSON, "compile_info_json");
@@ -633,7 +634,7 @@ TEST_F(STEST_fusion_engine_op_compiler, case_run_compile_process_failed1)
   OpDescPtr bn_op = std::make_shared<OpDesc>("batchnormal", "BatchNorm");
   OpDescPtr relu_op = std::make_shared<OpDesc>("relu", "Activation");
 
-  PlatformUtils::Instance().soc_version_ = "Ascend910A";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
 
   // add descriptor
   vector<int64_t> dims = {288, 32, 16, 16};
@@ -1178,7 +1179,7 @@ TEST_F(STEST_fusion_engine_op_compiler, setcompressweightattr_03)
   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
   NodePtr node = graph->AddNode(op_desc);
 
-  PlatformUtils::Instance().soc_version_ = "Ascend910B2";
+  PlatformUtils::Instance().soc_version_ = "Ascend910B1";
 
   auto op_compiler_ptr = std::make_shared<OpCompiler>("normal compiler", AI_CORE_NAME, nullptr);
   Status status = op_compiler_ptr->SetCompressWeightAttr(node);

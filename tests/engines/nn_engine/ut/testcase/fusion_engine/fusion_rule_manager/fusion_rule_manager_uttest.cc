@@ -13,6 +13,8 @@
 #include "fe_llt_utils.h"
 #define protected public
 #define private public
+#include "common/constants_define.h"
+#include "common/platform_utils.h"
 #include "ops_store/ops_kernel_manager.h"
 #include "fusion_rule_manager/fusion_rule_manager.h"
 #include "adapter/tbe_adapter/tbe_op_store_adapter.h"
@@ -48,6 +50,8 @@ protected:
         OpsKernelManager::Instance(AI_CORE_NAME).Initialize();
         ops_kernel_info_store_ptr_->Initialize(options);
         FusionRuleParserUtils::Instance()->SetEngineName(AI_CORE_NAME);
+        PlatformUtils::Instance().soc_version_ = "Ascend910B1";
+        PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
     }
 
     void TearDown()
@@ -621,7 +625,10 @@ TEST_F(fusion_rule_manager_uttest, test_init_graph_rules_aicore)
     ifs >> ori_json_value;
     CreateFileAndFillContent(fileName, ori_json_value, true);
     Configuration::Instance(engine_name).lib_path_ = current_dir;
-    auto frm = std::make_shared<FusionRuleManager>(ops_kernel_info_store_ptr_);
+
+    Configuration::Instance(engine_name).content_map_[CONFIG_KEY_GRAPH_FILE] = "lib64/plugin/opskernel/fusion_rules/ai_core/built_in_graph_rules.json";
+    FEOpsKernelInfoStorePtr aicore_ops_kernel_info_store_ptr_  = make_shared<fe::FEOpsKernelInfoStore>(engine_name);
+    auto frm = std::make_shared<FusionRuleManager>(aicore_ops_kernel_info_store_ptr_);
     Status ret = frm->InitGraphRules(engine_name);
     EXPECT_EQ(ret, fe::SUCCESS);
     system(("rm -rf " + current_dir + "plugin").c_str());

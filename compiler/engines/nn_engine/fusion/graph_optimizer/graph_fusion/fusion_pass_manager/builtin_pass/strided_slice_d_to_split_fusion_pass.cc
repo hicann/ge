@@ -255,7 +255,8 @@ Status StridedSliceDToSplitFusionPass::UpdateGraph(ge::ComputeGraph &graph, ge::
     FE_CHECK_NOTNULL(out_ahcor);
     auto peer_in_anchors = out_ahcor->GetPeerInDataAnchors();
     if (!peer_in_anchors.empty()) {
-      Relations relations_output = {{static_cast<int32_t>(split_info.split_out_anchor), {strided_slice_d_node, 0, PEER}}};
+      Relations relations_output = {{static_cast<int32_t>(split_info.split_out_anchor),
+                                     {strided_slice_d_node, 0, PEER}}};
       if (fusion_turbo.LinkOutput(relations_output, split_d_node, UPDATE_THIS) != SUCCESS) {
         FE_LOGE("Node[%s]: failed to link output.", split_d_name.c_str());
         return FAILED;

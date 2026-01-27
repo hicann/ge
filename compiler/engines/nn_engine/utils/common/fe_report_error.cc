@@ -34,7 +34,7 @@ void ErrorMessageDetail::ModifyArgsByErrorCode() {
     return;
   }
   auto param_list = kFeErrorParamMap[EM_INPUT_OPTION_INVALID];
-  auto iter = std::find(param_list.begin(), param_list.end(), "parameter1");
+  auto iter = std::find(param_list.begin(), param_list.end(), "parameter");
   size_t index = iter - param_list.begin();
   if (arg_list.size() <= index) {
     return;

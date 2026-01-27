@@ -38,10 +38,7 @@ target_link_libraries(cann_kb_stub
                 intf_pub
                 c_sec
                 air_headers
-                metadef_headers
-        PUBLIC
-                opat_headers
-        )
+                metadef_headers)
 
 set(INSTALL_BASE_DIR "")
 set(INSTALL_INCLUDE_DIR include)

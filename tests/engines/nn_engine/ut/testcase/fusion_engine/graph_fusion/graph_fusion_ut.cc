@@ -68,7 +68,8 @@ class GRAPH_FUSION_UT : public testing::Test {
     Configuration::Instance(AI_CORE_NAME).content_map_[custom_path_key_] = file_path;
     Configuration::Instance(AI_CORE_NAME).content_map_[built_in_path_key_] = file_path;
     Configuration::Instance(AI_CORE_NAME).content_map_[FUSION_CONFIG_BUILT_IN_FILE] =
-        "plugin/opskernel/fe_config/fusion_config.json";
+        "lib64/plugin/opskernel/fusion_pass/config/fusion_config.json";
+
     fusion_rule_mgr_->Initialize(AI_CORE_NAME);
 
     fusion_priority_mgr_ =
@@ -325,6 +326,7 @@ TEST_F(GRAPH_FUSION_UT, PruningPassSuccess) {
   auto node2 = AddOneNode(graph, "relu", RELU);
   ge::GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
 
+  PlatformUtils::Instance().pm_item_vec_[static_cast<size_t>(PlatformUtils::PlatformInfoItem::IsaArchVersion)] = static_cast<int64_t>(ISAArchVersion::EN_ISA_ARCH_V100);
   count= 0;
   EXPECT_EQ(SUCCESS, graph_optimizer_->OptimizeOriginalGraph(*graph));
   EXPECT_EQ(4, count);
@@ -777,19 +779,19 @@ TEST_F(GRAPH_FUSION_UT, converage_20) {
   // for (auto pass : fusion_priority_mgr_->sorted_graph_fusion_map_[hash_key]) {
   //   std::cout << "pass " << pass.name << " is on." << std::endl;
   // }
-  // EXPECT_EQ(fusion_priority_mgr_->sorted_graph_fusion_map_[hash_key].size(), 528);
+  // EXPECT_EQ(fusion_priority_mgr_->sorted_graph_fusion_map_[hash_key].size(), 524);
 
   fusion_priority_mgr_->sorted_graph_fusion_map_.erase(hash_key);
-  soc_version = "Ascend910";
+  soc_version = "Ascend910B";
   PlatformUtils::Instance().short_soc_version_ = soc_version;
   fusion_priority_mgr_->fusion_config_parser_ptr_->ParseSupportFusionPassFile();
   EXPECT_EQ(SUCCESS, fusion_priority_mgr_->SortGraphFusion());
   // for (auto pass : fusion_priority_mgr_->sorted_graph_fusion_map_[hash_key]) {
   //   std::cout << "pass " << pass.name << " is on." << std::endl;
   // }
-  // EXPECT_EQ(fusion_priority_mgr_->sorted_graph_fusion_map_[hash_key].size(), 528);
+  // EXPECT_EQ(fusion_priority_mgr_->sorted_graph_fusion_map_[hash_key].size(), 524);
   fusion_priority_mgr_->sorted_graph_fusion_map_.erase(hash_key);
-  soc_version = "Ascend310";
+  soc_version = "Ascend910B";
   PlatformUtils::Instance().short_soc_version_ = soc_version;
   fusion_priority_mgr_->fusion_config_parser_ptr_->ParseSupportFusionPassFile();
   EXPECT_EQ(SUCCESS, fusion_priority_mgr_->SortGraphFusion());

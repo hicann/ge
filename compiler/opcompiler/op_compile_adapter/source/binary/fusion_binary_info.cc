@@ -1,17 +1,19 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "binary/fusion_binary_info.h"
 #include <fcntl.h>
 #include <fstream>
 #include <cerrno>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <nlohmann/json.hpp>
 #include "inc/te_fusion_log.h"
 #include "inc/te_fusion_util_constants.h"
@@ -32,6 +34,7 @@ constexpr const char *BINARY_INFO_CONFIG_JSON = "binary_info_config.json";
 constexpr const char *RELOCATABLE_KERNEL_INFO_CONFIG_JSON = "relocatable_kernel_info_config.json";
 constexpr const char *FOLDED = "folded_with_desc";
 constexpr const char *UNFOLDED = "unfolded";
+constexpr const int NUM_4 = 4;
 
 static const std::set<std::string> DTYPE_MODE_SET {DTYPE_MODE_NORMAL, DTYPE_MODE_BIT, DTYPE_MODE_BOOL};
 static const std::set<std::string> FROMAT_MODE_SET {FORMAT_MODE_NORMAL, FORMAT_MODE_AGNOSTIC,
@@ -429,11 +432,42 @@ bool BinaryInfoBase::GenerateBinaryInfo(nlohmann::json &binaryInfoConfig)
     return true;
 }
 
+void BinaryInfoBase::GetAllOpsPathNamePrefix(const std::string &binaryConfigJsonPath,
+                                             std::vector<std::string> &binaryConfigPathPrefix) {
+    DIR *dir = nullptr;
+    struct dirent *dirp = nullptr;
+    std::string realBinaryConfigJsonPath = RealPath(binaryConfigJsonPath);
+    if (realBinaryConfigJsonPath.empty()) {
+        TE_WARNLOG("Original dir path %s is invalid.", binaryConfigJsonPath.c_str());
+        return;
+    }
+
+    dir = opendir(realBinaryConfigJsonPath.c_str());
+    if (dir == nullptr) {
+        TE_DBGLOG("Unable to open directory %s.", realBinaryConfigJsonPath.c_str());
+        return;
+    }
+
+    while ((dirp = readdir(dir)) != nullptr) {
+        if (dirp->d_type == DT_DIR) {
+            std::string fileName(dirp->d_name);
+            if (fileName.length() >= NUM_4 && fileName.substr(0, NUM_4) == "ops_") {
+                binaryConfigPathPrefix.emplace_back(fileName);
+            }
+        }
+    }
+    closedir(dir);
+    std::sort(binaryConfigPathPrefix.begin(), binaryConfigPathPrefix.end(), compareStrings);
+}
+
 bool BinaryInfoBase::ParseBinaryInfoFile(const string &binaryConfigPath, const bool &isSuperKernel)
 {
     TE_INFOLOG("start to ParseBinaryInfoFile.");
-    std::vector<std::string> binaryConfigPathPrefix = {"", "ops_legacy", "ops_cv", "ops_nn",
-                                                       "ops_math", "ops_transformer", "ops_oam"};
+    std::vector<std::string> binaryConfigPathPrefix = {""};
+    std::string shortSocVersion = TeConfigInfo::Instance().GetShortSocVersion();
+    std::transform(shortSocVersion.begin(), shortSocVersion.end(), shortSocVersion.begin(), ::tolower);
+    string binaryConfigJsonPath = binaryConfigPath + shortSocVersion;
+    GetAllOpsPathNamePrefix(binaryConfigJsonPath, binaryConfigPathPrefix);
     for (auto &path : binaryConfigPathPrefix) {
         std::string binaryInfoConfigPath;
         nlohmann::json binaryInfoConfig;

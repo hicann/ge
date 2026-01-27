@@ -13,6 +13,18 @@
 #include "mmpa/mmpa_api.h"
 #include "framework/common/taskdown_common.h"
 #include <string>
+#include <atomic>
+
+namespace {
+  std::atomic<bool> g_program_exiting{false};
+  struct ExitGuard {
+    ~ExitGuard() {
+        g_program_exiting.store(true, std::memory_order_relaxed);
+    }
+  };
+  static ExitGuard g_exit_guard; // 静态对象，其析构函数会设置退出标志
+}
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -432,6 +444,14 @@ INT32 mmDlclose(VOID *handle) {
   }
   if (handle == nullptr){
     return 1;
+  }
+  if (handle == (void *)0x8888) {
+    return 0;
+  }
+
+  // 首先检查退出标志
+  if (g_program_exiting.load(std::memory_order_relaxed)) {
+    return 0; // 程序正在退出，安全跳过
   }
 
   return fe::MmpaStub::GetInstance().GetImpl()->DlClose(handle);

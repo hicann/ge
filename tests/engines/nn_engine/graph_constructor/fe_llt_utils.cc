@@ -195,9 +195,9 @@ void CreateFileAndFillContent(const std::string fileName, nlohmann::json json_ob
 
 void CreateAndCopyJsonFile() {
   std::string ascend_opp_path = getenv("ASCEND_OPP_PATH");
-  std::string fusion_config_path = ascend_opp_path + "/../lib64/plugin/opskernel/fusion_pass/config/fusion_config.json";
+  std::string fusion_config_path = ascend_opp_path + "/lib64/plugin/opskernel/fusion_pass/config/fusion_config.json";
   std::cout << "fusion_config_path is " << fusion_config_path.c_str() << std::endl;
-  std::string graph_rule_path = ascend_opp_path + "/../lib64/plugin/opskernel/fusion_rules/ai_core/built_in_graph_rules.json";
+  std::string graph_rule_path = ascend_opp_path + "/lib64/plugin/opskernel/fusion_rules/ai_core/built_in_graph_rules.json";
   std::cout << "graph_rule_path is " << graph_rule_path.c_str() << std::endl;
   char *current_path = new(std::nothrow) char[1024];
   getcwd(current_path, 1024);

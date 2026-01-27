@@ -254,7 +254,7 @@ public:
   }
 protected:
   static void SetUpTestCase() {
-    std::string soc_version = "Ascend310P3";
+    std::string soc_version = "Ascend910B1";
     PlatformInfoManager::Instance().opti_compilation_info_.soc_version = soc_version;
     PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
     PlatformUtils::Instance().soc_version_ = soc_version;
@@ -1716,7 +1716,7 @@ TEST_F(UTEST_fusion_engine_fuzzy_generalize, coverage_increase) {
 }
 
 TEST_F(UTEST_fusion_engine_fuzzy_generalize, further_generalize) {
-  std::string path = GetCurpath() + "../../../../../tests/engines/nn_engine/config/op_impl/built-in/ai_core/tbe/kernel/config/Ascend310/op_info_config.json";
+  std::string path = GetCurpath() + "../../../../../tests/engines/nn_engine/config/op_impl/built-in/ai_core/tbe/kernel/config/Ascend910B/op_info_config.json";
   char resoved_path[500] = {0x00};
   realpath(path.c_str(), resoved_path);
   path = resoved_path;

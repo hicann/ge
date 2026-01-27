@@ -17,6 +17,7 @@
 #include "graph/utils/type_utils_inner.h"
 #include "register/graph_optimizer/fusion_common/unknown_shape_utils.h"
 #include "common/cann_kb_adapter.h"
+#include "common/ge_common/util.h"
 
 namespace {
 constexpr const char* kCannKbOpFormatType = "format_type";

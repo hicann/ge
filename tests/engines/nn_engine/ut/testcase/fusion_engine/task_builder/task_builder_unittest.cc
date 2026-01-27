@@ -41,10 +41,8 @@
 #include "common/util/op_info_util.h"
 #include "fe_llt_utils.h"
 #include "../fe_test_utils.h"
-#include "register/op_ct_impl_registry.h"
 #define protected public
 #define private public
-#include "base/registry/op_impl_space_registry_v2.h"
 #include "ops_kernel_builder/aicore_ops_kernel_builder.h"
 #include "adapter/tbe_adapter/tbe_task_builder_adapter.h"
 #include "adapter/common/op_store_adapter_manager.h"
@@ -572,49 +570,48 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_suc)
   EXPECT_EQ(fe::SUCCESS, ret);
 }
 
-// TEST_F(UTEST_TaskBuilder, op_open_interface_test){
-//   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-//   OpDescPtr src_op = std::make_shared<OpDesc>("FIA", "FIA");
-//   GeTensorDesc src_tensor_desc(GeShape({1, 2, 3, 3, 2}), ge::FORMAT_NC1HWC0, ge::DT_FLOAT16);
-//   src_tensor_desc.SetOriginShape(GeShape({6, 11, 3, 13}));
-//   src_tensor_desc.SetOriginFormat(ge::FORMAT_NHWC);
-//   ge::AttrUtils::SetInt(src_op, fe::FE_IMPLY_TYPE, 6);
-//   ge::AttrUtils::SetStr(src_op, "tvm_magic", "RT_DEV_BINARY_MAGIC_ELF");
-//   src_op->AddOutputDesc(src_tensor_desc);
-//   src_op->AddOutputDesc(src_tensor_desc);
-//   src_op->SetWorkspace({1});
-//   src_op->SetWorkspaceBytes({1});
-//   src_op->AddInputDesc(src_tensor_desc);
-//   (void)ge::AttrUtils::SetStr(src_op, fe::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC");
-//   (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_OUTPUT_INDEX, {1, 0});
-//   (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_WORKSPACE_INDEX, {1});
-//   OpExtGenTaskRegistry::GetInstance().names_to_register_func_.clear();
-//   auto src_node = graph->AddNode(src_op);
-//   SetOpDecSize(src_node);
-//   IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-//   auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-//   auto registry_holder = std::make_shared<gert::OpImplRegistryHolder>();
-//   auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-//   auto &ct_impl = registry_holder->GetTypesToCtImpl();
-//   ct_impl["FIA"] = *funcs;
-//   space_registry->AddRegistry(registry_holder);
-//   gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
-//   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
-//   EXPECT_EQ(fe::SUCCESS, ret);
-//   auto workspace_bytes = src_op->GetWorkspaceBytes();
-//   EXPECT_EQ(workspace_bytes.size(), 1);
-//   EXPECT_EQ(workspace_bytes[0], 22);
-//   std::vector<domi::TaskDef> tasks;
-//   ret = aicore_ops_kernel_builder_ptr->GenerateTask(*src_node, context_, tasks);
-//   EXPECT_EQ(fe::SUCCESS, ret);
-//   workspace_bytes = src_op->GetWorkspaceBytes();
-//   EXPECT_EQ(workspace_bytes.size(), 2);
-//   EXPECT_EQ(workspace_bytes[1], 44);
-//   TbeJsonFileParse json_file_parse(*src_node);
-//   string json_file_path = GetCodeDir() + "/tests/engines/nn_engine/ut/testcase/fusion_engine/ffts/json/te_sigmoid_mix_ratio.json";
-//   ret = json_file_parse.PackageTvmJsonInfo(json_file_path);
-//   json_file_parse.ProcMixCoreType();
-// }
+TEST_F(UTEST_TaskBuilder, op_open_interface_test){
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr src_op = std::make_shared<OpDesc>("FIA", "FIA");
+  GeTensorDesc src_tensor_desc(GeShape({1, 2, 3, 3, 2}), ge::FORMAT_NC1HWC0, ge::DT_FLOAT16);
+  src_tensor_desc.SetOriginShape(GeShape({6, 11, 3, 13}));
+  src_tensor_desc.SetOriginFormat(ge::FORMAT_NHWC);
+  ge::AttrUtils::SetInt(src_op, fe::FE_IMPLY_TYPE, 6);
+  ge::AttrUtils::SetStr(src_op, "tvm_magic", "RT_DEV_BINARY_MAGIC_ELF");
+  src_op->AddOutputDesc(src_tensor_desc);
+  src_op->AddOutputDesc(src_tensor_desc);
+  src_op->SetWorkspace({1});
+  src_op->SetWorkspaceBytes({1});
+  src_op->AddInputDesc(src_tensor_desc);
+  (void)ge::AttrUtils::SetStr(src_op, fe::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC");
+  (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_OUTPUT_INDEX, {1, 0});
+  (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_WORKSPACE_INDEX, {1});
+  OpExtGenTaskRegistry::GetInstance().names_to_register_func_.clear();
+  auto src_node = graph->AddNode(src_op);
+  SetOpDecSize(src_node);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
+  Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
+  EXPECT_EQ(fe::SUCCESS, ret);
+  auto workspace_bytes = src_op->GetWorkspaceBytes();
+  EXPECT_EQ(workspace_bytes.size(), 1);
+  EXPECT_EQ(workspace_bytes[0], 22);
+  std::vector<domi::TaskDef> tasks;
+  ret = aicore_ops_kernel_builder_ptr->GenerateTask(*src_node, context_, tasks);
+  EXPECT_EQ(fe::SUCCESS, ret);
+  workspace_bytes = src_op->GetWorkspaceBytes();
+  EXPECT_EQ(workspace_bytes.size(), 2);
+  EXPECT_EQ(workspace_bytes[1], 44);
+  TbeJsonFileParse json_file_parse(*src_node);
+  string json_file_path = GetCodeDir() + "/tests/engines/nn_engine/ut/testcase/fusion_engine/ffts/json/te_sigmoid_mix_ratio.json";
+  ret = json_file_parse.PackageTvmJsonInfo(json_file_path);
+  json_file_parse.ProcMixCoreType();
+}
 
 TEST_F(UTEST_TaskBuilder, tiling_sink_fail)
 {
@@ -664,13 +661,13 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_calc_param){
   OpExtGenTaskRegistry::GetInstance().names_to_register_func_.clear();
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_func = *funcs;
 
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   bool proc_flag = false;
   Status ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
   proc_flag = false;
@@ -706,18 +703,18 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_gen_task_fail){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_func = *funcs;
 
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
   EXPECT_EQ(fe::SUCCESS, ret);
   auto workspace_bytes = src_op->GetWorkspaceBytes();
   EXPECT_EQ(workspace_bytes.size(), 1);
-  EXPECT_EQ(workspace_bytes[0], 1);
+  EXPECT_EQ(workspace_bytes[0], 22);
   std::vector<domi::TaskDef> tasks;
   ret = aicore_ops_kernel_builder_ptr->GenerateTask(*src_node, context_, tasks);
   EXPECT_NE(tasks.size(), 0);
@@ -773,12 +770,13 @@ TEST_F(UTEST_TaskBuilder, op_gentask_success){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_funcs = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_funcs = *funcs;
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
   EXPECT_EQ(fe::SUCCESS, ret);
   auto workspace_bytes = src_op->GetWorkspaceBytes();
@@ -818,12 +816,13 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_gen_task_310p_suc){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_funcs = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_funcs = *funcs;
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
   EXPECT_EQ(fe::SUCCESS, ret);
   auto workspace_bytes = src_op->GetWorkspaceBytes();
@@ -885,12 +884,13 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_gen_task_310p_oppkernel_path_fail){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_funcs = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_funcs = *funcs;
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
   EXPECT_EQ(fe::SUCCESS, ret);
   auto workspace_bytes = src_op->GetWorkspaceBytes();
@@ -960,12 +960,13 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_gen_task_310p_oppkernel_path){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_funcs = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_funcs = *funcs;
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
   EXPECT_EQ(fe::SUCCESS, ret);
   auto workspace_bytes = src_op->GetWorkspaceBytes();
@@ -1028,12 +1029,13 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_gen_task_310p_add_tiling){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_funcs = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_funcs = *funcs;
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
   EXPECT_EQ(fe::SUCCESS, ret);
   auto workspace_bytes = src_op->GetWorkspaceBytes();
@@ -1096,12 +1098,12 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_gen_task_multi_ops_path){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_funcs = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  auto &ct_impl = registry_holder->GetTypesToCtImpl();
-  *op_funcs = *funcs;
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
 
   (void)ge::AttrUtils::SetStr(src_op, OPS_PATH_NAME_PREFIX, "ops_test");
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
@@ -1592,12 +1594,13 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_for_sk){
 
   auto src_node = graph->AddNode(src_op);
   SetOpDecSize(src_node);
-  IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-  auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-  auto op_impl_funcs = space_registry->CreateOrGetOpImpl("FIA");
-  auto funcs = gert::OpCtImplRegistry::GetInstance().GetOpImpl("FIA");
-  *op_impl_funcs = *funcs;
-  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
   Status ret = aicore_ops_kernel_builder_ptr->CalcExtOpRunningParam(*src_node);
   EXPECT_EQ(fe::SUCCESS, ret);
   auto workspace_bytes = src_op->GetWorkspaceBytes();
@@ -1643,42 +1646,40 @@ TEST_F(UTEST_TaskBuilder, tiling_sink_for_sk){
   EXPECT_NE(ret, fe::FAILED);
 }
 
-// TEST_F(UTEST_TaskBuilder, tiling_sink_calc_param_with_impl_op){
-//   ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
-//   OpDescPtr src_op = std::make_shared<OpDesc>("FIA", "FIA");
-//   GeTensorDesc src_tensor_desc(GeShape({1, 2, 3, 3, 2}), ge::FORMAT_NC1HWC0, ge::DT_FLOAT16);
-//   src_tensor_desc.SetOriginShape(GeShape({6, 11, 3, 13}));
-//   src_tensor_desc.SetOriginFormat(ge::FORMAT_NHWC);
-//   ge::AttrUtils::SetInt(src_op, fe::FE_IMPLY_TYPE, 6);
-//   ge::AttrUtils::SetStr(src_op, "tvm_magic", "RT_DEV_BINARY_MAGIC_ELF");
-//   src_op->AddOutputDesc(src_tensor_desc);
-//   src_op->AddOutputDesc(src_tensor_desc);
-//   src_op->SetWorkspace({1});
-//   src_op->SetWorkspaceBytes({1});
-//   src_op->AddInputDesc(src_tensor_desc);
-//   (void)ge::AttrUtils::SetStr(src_op, fe::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC");
-//   (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_OUTPUT_INDEX, {1, 0});
-//   (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_WORKSPACE_INDEX, {1});
-//   OpExtGenTaskRegistry::GetInstance().names_to_register_func_.clear();
-//   auto src_node = graph->AddNode(src_op);
-//   SetOpDecSize(src_node);
-//   IMPL_OP_CT(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
-//   auto space_registry = std::make_shared<gert::OpImplSpaceRegistryV2>();
-//   auto registry_holder = std::make_shared<gert::OpImplRegistryHolder>();
-//   auto funcs = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->GetOpImpl("FIA");
-//   funcs->version = 2;
-//   auto &types_to_impl = registry_holder->GetTypesToImpl();
-//   types_to_impl["FIA"] = *funcs;
-//   space_registry->AddRegistry(registry_holder);
-//   gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(space_registry);
-//   bool proc_flag = false;
-//   Status ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
-//   proc_flag = false;
-//   IMPL_OP(FIA).TilingInputsDataDependency({1}, {gert::TilingPlacement::TILING_ON_HOST, gert::TilingPlacement::TILING_ON_AICPU});
-//   ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
-//   proc_flag = false;
-//   ge::AttrUtils::SetInt(src_op, fe::FE_IMPLY_TYPE, 2);
-//   ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
-//   proc_flag = true;
-//   ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
-// }
+TEST_F(UTEST_TaskBuilder, tiling_sink_calc_param_with_impl_op){
+  ComputeGraphPtr graph = std::make_shared<ComputeGraph>("test");
+  OpDescPtr src_op = std::make_shared<OpDesc>("FIA", "FIA");
+  GeTensorDesc src_tensor_desc(GeShape({1, 2, 3, 3, 2}), ge::FORMAT_NC1HWC0, ge::DT_FLOAT16);
+  src_tensor_desc.SetOriginShape(GeShape({6, 11, 3, 13}));
+  src_tensor_desc.SetOriginFormat(ge::FORMAT_NHWC);
+  ge::AttrUtils::SetInt(src_op, fe::FE_IMPLY_TYPE, 6);
+  ge::AttrUtils::SetStr(src_op, "tvm_magic", "RT_DEV_BINARY_MAGIC_ELF");
+  src_op->AddOutputDesc(src_tensor_desc);
+  src_op->AddOutputDesc(src_tensor_desc);
+  src_op->SetWorkspace({1});
+  src_op->SetWorkspaceBytes({1});
+  src_op->AddInputDesc(src_tensor_desc);
+  (void)ge::AttrUtils::SetStr(src_op, fe::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC");
+  (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_OUTPUT_INDEX, {1, 0});
+  (void)ge::AttrUtils::SetListInt(src_op, TBE_OP_ATOMIC_WORKSPACE_INDEX, {1});
+  OpExtGenTaskRegistry::GetInstance().names_to_register_func_.clear();
+  auto src_node = graph->AddNode(src_op);
+  SetOpDecSize(src_node);
+
+  IMPL_OP(FIA).CalcOpParam(CalcParamKernelFunc).GenerateTask(GenTaskKernelFunc);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("FIA");
+  op_impl_func->calc_op_param = CalcParamKernelFunc;
+  op_impl_func->gen_task = GenTaskKernelFunc;
+
+  bool proc_flag = false;
+  Status ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
+  proc_flag = false;
+  IMPL_OP(FIA).TilingInputsDataDependency({1}, {gert::TilingPlacement::TILING_ON_HOST, gert::TilingPlacement::TILING_ON_AICPU});
+  ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
+  proc_flag = false;
+  ge::AttrUtils::SetInt(src_op, fe::FE_IMPLY_TYPE, 2);
+  ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
+  proc_flag = true;
+  ret = aicore_ops_kernel_builder_ptr->CalcTilingSinkRunningParam(true, *src_node, proc_flag);
+}
