@@ -158,8 +158,12 @@ ge::Status RtsGraphOptimizer::PorcMemtypeRange(ge::ComputeGraph &graph)
         RTS_LOGE("GetSocVersion failed, graphId=%u.", graph.GetGraphID());
         return FAILED;
     }
-    if ((strncmp(version, "Ascend310P1", strlen("Ascend310P1")) != 0) &&
-        (strncmp(version, "Ascend310P3", strlen("Ascend310P3")) != 0)) {
+    if ((strncmp(version, "Ascend610", strlen("Ascend610")) != 0) &&
+        (strncmp(version, "Ascend310P1", strlen("Ascend310P1")) != 0) &&
+        (strncmp(version, "Ascend310P3", strlen("Ascend310P3")) != 0) &&
+        (strncmp(version, "BS9SX1AA", strlen("BS9SX1AA")) != 0) &&
+        (strncmp(version, "BS9SX1AB", strlen("BS9SX1AB")) != 0) &&
+        (strncmp(version, "BS9SX1AC", strlen("BS9SX1AC")) != 0)) {
         RTS_LOGI("Soc version is [%s], no need to process the condition node", version);
         return SUCCESS;
     }
