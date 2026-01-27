@@ -65,6 +65,5 @@ target_link_libraries(ut_flow_graph PRIVATE
         GTest::gtest GTest::gtest_main -lrt -ldl
 )
 
-
 add_test(NAME ut_flow_graph COMMAND ut_flow_graph --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_flow_graph.xml)
 set_tests_properties(ut_flow_graph PROPERTIES LABELS "ut;ut_dflow;ut_flow_graph")

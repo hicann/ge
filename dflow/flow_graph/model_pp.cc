@@ -10,7 +10,7 @@
 
 #include "data_flow/flow_graph/model_pp.h"
 #include "common/util/mem_utils.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "data_flow_attr_define.h"
 #include "base/err_msg.h"
 

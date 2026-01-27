@@ -10,7 +10,7 @@
 
 #include "data_flow_utils.h"
 #include "mmpa/mmpa_api.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 std::string DataFlowUtils::GetAscendHomePath() {

@@ -109,5 +109,3 @@ add_test(NAME test COMMAND helper_runtime_test)
 
 add_test(NAME helper_runtime_test COMMAND helper_runtime_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/helper_runtime_test.xml)
 set_tests_properties(helper_runtime_test PROPERTIES LABELS "st;st_dflow;helper_runtime_test")
-
-

@@ -18,7 +18,12 @@ set(INC_DIR
         "${CMAKE_CURRENT_LIST_DIR}/common"
         "${CMAKE_BINARY_DIR}/proto/graphengine_protos/"
         )
-add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+
+if(NOT MDC_COMPILE_RUNTIME)
+    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+else()
+    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})
+endif()
 
 file(GLOB LLM_SRC_LIST
         "${CMAKE_CURRENT_LIST_DIR}/api/*.cc"

@@ -10,7 +10,7 @@
 
 #include "data_flow_attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "graph/utils/anchor_utils.h"
 
