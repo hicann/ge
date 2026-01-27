@@ -157,7 +157,7 @@ void CpuSchedModelBuilder::AddModelRepeat(uint32_t stream_id) {
 void CpuSchedModelBuilder::AddQueueOpTask(const char_t *kernel_name, uint32_t queue_id,
                                           uintptr_t mbuf_addr, uint32_t stream_id) {
   auto task_param = reinterpret_cast<QueueOpTaskParam *>(
-      NewTask(kernel_name, sizeof(uint32_t) + sizeof(uintptr_t), stream_id));
+      NewTask(kernel_name, sizeof(QueueOpTaskParam), stream_id));
   task_param->queue_id = queue_id;
   task_param->mbuf_addr = mbuf_addr;
 }
@@ -165,7 +165,7 @@ void CpuSchedModelBuilder::AddQueueOpTask(const char_t *kernel_name, uint32_t qu
 void CpuSchedModelBuilder::AddQueueBuffOpTask(const char_t *kernel_name, const QueueAttrs &queue_attrs,
                                               uintptr_t mbuf_addr, uint32_t stream_id) {
   auto task_param = reinterpret_cast<QueueOpBuffTaskParam *>(
-      NewTask(kernel_name, sizeof(QueueAttrs), stream_id));
+      NewTask(kernel_name, sizeof(QueueOpBuffTaskParam), stream_id));
   task_param->queue_id = queue_attrs.queue_id;
   task_param->device_id = queue_attrs.device_id;
   task_param->mbuf_addr = mbuf_addr;
