@@ -18,6 +18,10 @@
 #endif
 
 #if(NANO_OS_TYPE == LITEOS) //lint !e553
+#if defined(CPU_HIFI3Z) && CPU_HIFI3Z
+#include "mmpa_dsp.h"
+#else
 #include "mmpa_liteos.h"
+#endif
 #endif
 #endif // C_MMPA_MMPA_API_H
