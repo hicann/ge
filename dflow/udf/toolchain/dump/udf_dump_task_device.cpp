@@ -229,16 +229,22 @@ int32_t UdfDumpTaskDevice::ProcessDumpTensor(const std::string &dump_file_path) 
     }
     offset_ += base_dump_data_.ByteSizeLong();
 
-    uint64_t * const path_size_ptr = reinterpret_cast<uint64_t *>(buff_.get() + offset_);
-    *path_size_ptr = dump_file_path.length();
+    const uint64_t dump_file_path_length = dump_file_path.length();
+    // can not change to uint64_t ptr to assign value, as (buff_.get() + offset_) maybe not 8 byte alignment.
+    errno_t ret =
+        memcpy_s(buff_.get() + offset_, buff_size_ - offset_, &dump_file_path_length, sizeof(dump_file_path_length));
+    if (ret != EOK) {
+      UDF_LOG_ERROR("op name[%s], memcpy dump path length failed, buff_size_=%lu, offset_=%lu", op_name_.c_str(),
+                    buff_size_, offset_);
+      return FLOW_FUNC_ERR_PARAM_INVALID;
+    }
     offset_ += sizeof(uint64_t);
-    const errno_t ret = memcpy_s(reinterpret_cast<void *>(buff_.get() + offset_), buff_size_ - offset_,
-                                 dump_file_path.c_str(), dump_file_path.length());
+    ret = memcpy_s(buff_.get() + offset_, buff_size_ - offset_, dump_file_path.c_str(), dump_file_path_length);
     if (ret != EOK) {
         UDF_LOG_ERROR("op name[%s], memcpy dump path failed, path[%s]", op_name_.c_str(), dump_file_path.c_str());
         return FLOW_FUNC_ERR_PARAM_INVALID;
     }
-    offset_ += dump_file_path.length();
+    offset_ += dump_file_path_length;
 
     return DoDumpTensor(dump_file_path);
 }

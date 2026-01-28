@@ -455,9 +455,18 @@ TEST_F(MultiFlowFuncSTest, register_stream_input_func) {
     executor.WaitForStop();
     executor.Destroy();
   });
-  // wait 100ms processor init
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
   auto &processor = executor.func_processors_[0];
+  uint64_t wait_init_in_ms = 0;
+  constexpr uint64_t kMaxWaitInitInMs = 5 * 1000UL;
+  while (processor->status_ < FlowFuncProcessorStatus::kInitFlowFunc) {
+    if (wait_init_in_ms > kMaxWaitInitInMs) {
+      FlowFuncProcessorStatus current_status = processor->status_;
+      ASSERT_GE(current_status, FlowFuncProcessorStatus::kInitFlowFunc);
+    }
+    // wait processor init
+    std::this_thread::sleep_for(std::chrono::milliseconds(kWaitInMsPerTime));
+    wait_init_in_ms += kWaitInMsPerTime;
+  }
   EXPECT_EQ(processor->flow_msg_queues_.size(), 2);
   auto &input_flow_msg_queue = processor->flow_msg_queues_[0];
   auto input_mbuf_flow_msg_queue = std::dynamic_pointer_cast<MbufFlowMsgQueue>(input_flow_msg_queue);

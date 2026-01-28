@@ -33,7 +33,7 @@ Status NPUProcessNodeEngine::BuildGraph(uint32_t graph_id, ComputeGraphPtr &comp
                                         const std::vector<GeTensor> &inputs, PneModelPtr &model) {
   GE_CHECK_NOTNULL(impl_);
   GE_CHK_STATUS_RET(impl_->BuildGraph(graph_id, compute_graph, options, inputs, model),
-                    "Failed to build graph, graph_id=%u, graph_name=%s", compute_graph->GetName().c_str());
+                    "Failed to build graph, graph_id=%u, graph_name=%s", graph_id, compute_graph->GetName().c_str());
 
   if (model != nullptr) {
     std::string logic_dev_id;

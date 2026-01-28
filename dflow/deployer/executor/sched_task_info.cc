@@ -82,7 +82,7 @@ Status SchedTaskModelEnqueue::Init(const uint32_t queue_id, const uint64_t mbuf_
   args_size_ = sizeof(QueueInfoKernelArgs);
   GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
-  QueueInfoKernelArgs queue_info;
+  QueueInfoKernelArgs queue_info{};
   queue_info.queue_id = queue_id;
   queue_info.mbuf_addr = mbuf_addr;
   GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &queue_info, sizeof(queue_info), RT_MEMCPY_HOST_TO_DEVICE));
@@ -436,9 +436,9 @@ Status SchedTaskNotifyWait::Init(const uint32_t notify_id) {
   args_size_ = sizeof(AicpuNotifyKernelArgs);
   GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
-  AicpuNotifyKernelArgs notify_param;
+  AicpuNotifyKernelArgs notify_param{};
   notify_param.notify_id = notify_id;
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &notify_id, sizeof(notify_param), RT_MEMCPY_HOST_TO_DEVICE));
+  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &notify_param, sizeof(notify_param), RT_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 

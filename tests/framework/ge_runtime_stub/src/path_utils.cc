@@ -45,7 +45,7 @@ std::string RealPath(const char_t *path) {
 int32_t CheckAndMkdir(const char_t *tmp_dir_path, mmMode_t mode) {
   if (mmAccess2(tmp_dir_path, M_F_OK) != EN_OK) {
     const int32_t ret = mmMkdir(tmp_dir_path, mode);
-    if (ret != 0) {
+    if (ret != 0 && errno != EEXIST) {
       REPORT_INNER_ERR_MSG("E18888",
                            "Can not create directory %s. Make sure the directory "
                            "exists and writable. errmsg:%s",
