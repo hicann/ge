@@ -65,7 +65,7 @@ if(${TARGET_SYSTEM_NAME} STREQUAL "Linux")
 
     target_compile_definitions(ge_dbg_c PRIVATE
         FUNC_VISIBILITY
-        $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},LiteOS>,OS_TYPE_DEFINE=1,OS_TYPE_DEFINE=0>
+        $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},LiteOS>,NANO_OS_TYPE=1,NANO_OS_TYPE=0>
     )
 
     target_link_libraries(ge_dbg_c PRIVATE
@@ -112,7 +112,7 @@ elseif(${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
 
     target_compile_definitions(ge_dbg_c_static_stub PRIVATE
         FUNC_VISIBILITY
-        $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},LiteOS>,OS_TYPE_DEFINE=1,OS_TYPE_DEFINE=0>
+        $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},LiteOS>,NANO_OS_TYPE=1,NANO_OS_TYPE=0>
     )
 
     target_link_libraries(ge_dbg_c_static_stub PRIVATE
@@ -157,7 +157,7 @@ elseif(${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
 
     target_compile_definitions(ge_dbg_c_static_debug PRIVATE
         FUNC_VISIBILITY
-        $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},LiteOS>,OS_TYPE_DEFINE=1,OS_TYPE_DEFINE=0>
+        $<IF:$<STREQUAL:${TARGET_SYSTEM_NAME},LiteOS>,NANO_OS_TYPE=1,NANO_OS_TYPE=0>
     )
 
     target_link_libraries(ge_dbg_c_static_debug PRIVATE

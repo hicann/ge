@@ -47,12 +47,10 @@ if (${TARGET_SYSTEM_NAME} STREQUAL "Linux")
         if(NOT ENABLE_OPEN_SRC)
             ${TOP_DIR}/inc/external
             ${TOP_DIR}/runtime/src/acl/aclrt_c/common
+            ${TOP_DIR}/runtime/pkg_inc/base
         else()
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${CANN_GE_DIR}/inc>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime/runtime>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/msprof>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/slog>
         endif()
@@ -105,12 +103,10 @@ elseif (${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
         if(NOT ENABLE_OPEN_SRC)
             ${TOP_DIR}/inc/external
             ${TOP_DIR}/runtime/src/acl/aclrt_c/common
+            ${TOP_DIR}/runtime/pkg_inc/base
         else()
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${CANN_GE_DIR}/inc>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime/runtime>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/msprof>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/slog>
         endif()

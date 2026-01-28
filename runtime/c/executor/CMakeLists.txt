@@ -52,7 +52,7 @@ set(COMMON_COMPILE_OPTIONS
 if(${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
     target_compile_definitions(ge_executor_c_static PRIVATE
         FUNC_VISIBILITY
-        OS_TYPE_DEFINE=1
+        NANO_OS_TYPE=1
     )
 
     target_compile_options(ge_executor_c_static PRIVATE
@@ -62,7 +62,7 @@ if(${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
 elseif(${TARGET_SYSTEM_NAME} STREQUAL "Linux")
     target_compile_definitions(ge_executor_c_static PRIVATE
         FUNC_VISIBILITY
-        OS_TYPE_DEFINE=0
+        NANO_OS_TYPE=0
     )
     target_compile_options(ge_executor_c_static PRIVATE
         ${COMMON_COMPILE_OPTIONS}
