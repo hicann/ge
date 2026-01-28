@@ -10,7 +10,6 @@
 
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "framework/common/helper/model_helper.h"
-#include "framework/omg/version.h"
 
 namespace ge {
 

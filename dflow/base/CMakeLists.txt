@@ -34,7 +34,7 @@ add_library(data_flow_base SHARED
     ${DATA_FLOW_BASE_SRC_LIST}
 )
 
-add_dependencies(data_flow_base data_flow_base_proto)
+add_dependencies(data_flow_base data_flow_base_proto graphengine_protos)
 
 target_compile_definitions(data_flow_base PRIVATE
     PROTOBUF_INLINE_NOT_IN_HEADERS=0
@@ -78,6 +78,7 @@ target_link_libraries(data_flow_base PRIVATE
     runtime_headers
     unified_dlog
     c_sec
+    ge_common
     -Wl,--as-needed
     -lrt
     -ldl

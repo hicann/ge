@@ -14,7 +14,6 @@
 #include "dflow/inc/data_flow/model/flow_model.h"
 #include "framework/common/types.h"
 #include "framework/common/helper/om_file_helper.h"
-#include "graph/manager/graph_var_manager.h"
 
 namespace ge {
 class FlowModelOmLoader {

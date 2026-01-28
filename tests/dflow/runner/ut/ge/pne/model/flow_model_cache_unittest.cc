@@ -28,6 +28,7 @@
 #include "dflow/base/model/flow_model_om_loader.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "framework/common/helper/model_save_helper.h"
+#include "graph/manager/graph_var_manager.h"
 
 namespace ge {
 namespace {
