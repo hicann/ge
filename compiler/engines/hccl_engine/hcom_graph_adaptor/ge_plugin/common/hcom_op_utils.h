@@ -70,6 +70,7 @@ constexpr u32 AICORE_MIN_CLEAR_ZEOR_SIZE = 32;
 constexpr u32 TASK_MAX_NUM_DEV_TYPE_V80 = 2042;
 constexpr u32 TASK_MAX_NUM_DEV_TYPE_V71 = 4061;
 constexpr u32 ALLTOALLV_INPUT_VEC_SIZE = 4;
+constexpr u32 V_INPUT_VEC_SIZE = 3;
 
 class HcomOpUtils {
  public:

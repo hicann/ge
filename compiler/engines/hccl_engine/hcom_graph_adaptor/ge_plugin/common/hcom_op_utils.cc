@@ -357,16 +357,13 @@ HcclResult HcomOpUtils::GetAlltoAllCountsDispl(const ge::OpDescPtr &op, std::vec
 HcclResult HcomOpUtils::GetAlltoAllCountsDispl(ge::Node &node, std::vector<int64_t> &sendCounts,
                                                std::vector<int64_t> &sendDispls, std::vector<int64_t> &recvCounts,
                                                std::vector<int64_t> &recvDispls) {
-  // 1、判断是否是const 节点 NodeUtils::IsConst(*really_parent_node))
-  // 是走老流程，不是判断是否是data节点，是去获取对应输入父节点，不是
   auto op = ge::OpDescUtils::CreateOperatorFromNode(node.shared_from_this());
 
   std::vector<ge::ConstGeTensorPtr> alltoallvInputVec;
   const auto &op_desc = ge::OpDescUtils::GetOpDescFromOperator(op);
   ge::AttrUtils::GetListTensor(op_desc, "alltoallvInputVec", alltoallvInputVec);
 
-  u32 vecSize = ALLTOALLV_INPUT_VEC_SIZE;
-  CHK_PRT_RET(alltoallvInputVec.size() != vecSize, HCCL_ERROR("Get AlltoallV input info from Operator invalid."),
+  CHK_PRT_RET(alltoallvInputVec.size() != ALLTOALLV_INPUT_VEC_SIZE, HCCL_ERROR("Get AlltoallV input info from Operator invalid."),
               HCCL_E_PARA);
 
   auto sendCountsTensor = alltoallvInputVec[0U].get();
@@ -385,13 +382,14 @@ HcclResult HcomOpUtils::GetAlltoAllCountsDispl(ge::Node &node, std::vector<int64
 HcclResult HcomOpUtils::GetReduceScatterVCountsDispl(ge::Node &node, std::vector<int64_t> &sendCounts,
                                                      std::vector<int64_t> &sendDispls,
                                                      std::vector<int64_t> &recvCount) {
-  // 1、判断是否是const 节点 NodeUtils::IsConst(*really_parent_node))
-  // 是走老流程，不是判断是否是data节点，是去获取对应输入父节点
   auto op = ge::OpDescUtils::CreateOperatorFromNode(node.shared_from_this());
 
   std::vector<ge::ConstGeTensorPtr> vInputVec;
   const auto &op_desc = ge::OpDescUtils::GetOpDescFromOperator(op);
   ge::AttrUtils::GetListTensor(op_desc, "vInputVec", vInputVec);
+
+  CHK_PRT_RET(vInputVec.size() != V_INPUT_VEC_SIZE, HCCL_ERROR("Get ReduceScatterV input info from Operator invalid."),
+              HCCL_E_PARA);
 
   auto recvCountTensor = vInputVec[0U].get();
   auto sendCountsTensor = vInputVec[1U].get();
@@ -411,6 +409,9 @@ HcclResult HcomOpUtils::GetAllGatherVCountsDispl(ge::Node &node, std::vector<int
   std::vector<ge::ConstGeTensorPtr> vInputVec;
   const auto &op_desc = ge::OpDescUtils::GetOpDescFromOperator(op);
   ge::AttrUtils::GetListTensor(op_desc, "vInputVec", vInputVec);
+
+  CHK_PRT_RET(vInputVec.size() != V_INPUT_VEC_SIZE, HCCL_ERROR("Get AllGatherV input info from Operator invalid."),
+              HCCL_E_PARA);
 
   auto recvCountsTensor = vInputVec[0U].get();
   auto recvDisplsTensor = vInputVec[1U].get();
