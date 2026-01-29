@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef ATT_BASE_ATT_CONST_VALUE_H_
@@ -134,7 +128,6 @@ const std::string kGenExtraInfo = "gen_extra_info";
 const std::string kVariableReplace = "do_variable_replace";
 const std::string kDumpDebugInfo = "dump_debug_info";
 const std::string kGenTilingDataDef = "gen_tiling_data_def";
-const std::string kWithTilingContext = "with_tiling_context";
 const std::string kDefaultFilePath = "./";
 const std::string kDefaultTilingDataTypeName = "TilingData";
 const std::string kIsTrue = "1";
@@ -146,16 +139,11 @@ const std::string kTilingScheduleGroupTailIdentify = "schedule_group_tail";
 const std::string kDefaultTilingDataFileName = "tiling_data.h";
 const std::string kDefaultTilingHeadFileName = "autofuse_tiling_func_common.h";
 const std::string kDefaultTilingFuncFileName = "tiling_func.cpp";
-const std::string kOpenDT = "open_dt";
-const std::string kDTDebug = "dt_debug";
 const std::string kHighPrecision = "high_precision";
 const std::string kDurationLevelName = "duration_level";
 const std::string kDurationLevelDefault = "0";
-const std::string kSocVersion = "soc_version";
 const std::string kRegisterNoDefault = "";
 const std::string kGenConfigType = "solver_type";
-const std::string kDTConfigPath = "dt_config_path";
-const std::string kTilingScenarioType = "tiling_scenario";
 const std::string kAttToolsScenario = "att_tools";
 const std::string kAutofuseScenario = "cann_autofuse";
 const std::string kGenConfigTypeDefault = "UNKNOWN";
@@ -189,7 +177,6 @@ inline const std::string kMoveL0cToL2 = "CopyL0CToL2";
 inline const std::string kMoveL0cToGm = "T_FixPipeTrans";
 inline const std::string kMoveGmToUb = "Load"; // ASCIR
 inline const std::string kMoveUbToGm = "Store"; // ASCIR
-inline const std::string kMoveNddma = "Nddma"; // ASCIR
 // cube
 inline const std::string kComputeCube = "T_Mmad";
 inline const std::string kMatMul = "MatMul";
@@ -303,7 +290,6 @@ inline const std::string kGelu = "Gelu";
 inline const std::string kConcat = "Concat";
 inline const std::string kNop = "Nop";
 inline const std::string kTranspose = "Transpose";
-inline const std::string kNddma = "Nddma";
 inline const std::string kSplit = "Split";
 #define JOIN(a, b) a##b
 #define JOIN_A_B_C(a, b, c) a##b##c

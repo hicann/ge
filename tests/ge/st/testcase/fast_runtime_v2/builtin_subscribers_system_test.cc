@@ -540,7 +540,7 @@ class BuiltinSubscribersST : public bg::BgTest {
                                       reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
               ge::GRAPH_SUCCESS);
 
-    Adx::OperatorInfo info;
+    Adx::OperatorInfoV2 info;
     EXPECT_TRUE(ge::DumpStub::GetInstance().GetOpInfo(0, 1, 0, info));  // deviceId 0, streamId 1, taskId 0
 
     //  check turn off dumper
@@ -1323,7 +1323,7 @@ TEST_F(BuiltinSubscribersST, ExceptionDump_Workspace_Ok) {
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             ge::GRAPH_SUCCESS);
 
-  Adx::OperatorInfo info;
+  Adx::OperatorInfoV2 info;
   EXPECT_TRUE(ge::DumpStub::GetInstance().GetOpInfo(0, 0, 0, info));  // deviceId 0, streamId 0, taskId 0
 
   //  check turn off dumper
@@ -1356,7 +1356,7 @@ TEST_F(BuiltinSubscribersST, ExceptionDump_Host_Ok) {
   reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
   ge::GRAPH_SUCCESS);
 
-  Adx::OperatorInfo info;
+  Adx::OperatorInfoV2 info;
   EXPECT_TRUE(ge::DumpStub::GetInstance().GetOpInfo(0, 0, 0, info));  // deviceId 0, streamId 0, taskId 0
   ge::diagnoseSwitch::DisableDumper();
   rtStreamDestroy(stream);

@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_BINARY_API_CALL_V2_H__
 #define __AUTOFUSE_BINARY_API_CALL_V2_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class BinaryApiCallV2 final : public ApiCall {

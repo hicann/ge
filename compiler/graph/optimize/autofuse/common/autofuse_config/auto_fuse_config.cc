@@ -10,6 +10,8 @@
 
 #include "auto_fuse_config.h"
 #include "auto_fuse_config_parser.h"
+#include "common/ge_common/util.h"
+
 namespace att {
 namespace {
 const int32_t kBaseOfIntegerValue = 10;
@@ -49,12 +51,12 @@ Status AttStrategyConfig::SetEnvVal(std::unordered_map<std::string, std::string>
   constexpr int64_t kMaxUbThreshold = 100;
   constexpr int64_t kMaxCorenumThreshold = 100;
   constexpr int64_t kMaxScheduleResultNum = 100;
-  AutoFuseConfigValue<std::string> tiling_algorithm_config_val(std::string("HighPerf"),
+  AutoFuseConfigValue<std::string> tiling_algorithm_config_val(std::string("AxesReorder"),
     std::vector<std::string>({std::string("AxesReorder"), std::string("HighPerf")}));
   AutoFuseConfigValue<std::string> force_tiling_case_val("", std::vector<std::string>());
   AutoFuseConfigValue<int64_t> force_schedule_result_val(-1L, std::vector<int64_t>({0, kMaxScheduleResultNum}));
   AutoFuseConfigValue<std::string> force_template_op_name_val("", std::vector<std::string>());
-  AutoFuseConfigValue<int64_t> solution_accuracy_level_config_val(0L, std::vector<int64_t>({0, 1}));
+  AutoFuseConfigValue<int64_t> solution_accuracy_level_config_val(1L, std::vector<int64_t>({0, 1}));
   AutoFuseConfigValue<std::string> enable_small_shape_strategy_config_val(
       std::string("false"), std::vector<std::string>({std::string("true"), std::string("false")}));
   AutoFuseConfigValue<std::string> enable_multicore_ub_tradeoff_val(
@@ -143,12 +145,21 @@ Status AttStrategyConfig::Reset() {
 }
 
 Status PgoStrategyConfig::SetEnvVal(std::unordered_map<std::string, std::string> &merged_configs) {
+  constexpr int64_t kMaxPgoStepVal = 1024;
   AutoFuseConfigValue<std::string> enable_autofuse_pgo_val(
       std::string("false"), std::vector<std::string>({std::string("true"), std::string("false")}));
+  AutoFuseConfigValue<std::string> autofuse_pgo_algo_val(
+      std::string("core_select"), std::vector<std::string>({std::string("core_select"), std::string("pruning")}));
+  AutoFuseConfigValue<int64_t> autofuse_pgo_algo_step_max_val( 16L, std::vector<int64_t>({1L, kMaxPgoStepVal}));
 
   // 解析具体的配置
-  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttEnablePGO,
-      enable_autofuse_pgo_val, enable_autofuse_pgo, set_env_enable_autofuse_pgo));
+  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionEnablePGO,
+                    enable_autofuse_pgo_val, enable_autofuse_pgo, set_env_enable_autofuse_pgo));
+  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionEnablePgoOptAlgo,
+                    autofuse_pgo_algo_val, autofuse_pgo_algo_select, set_env_autofuse_pgo_algo_select));
+  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionEnablePgoStepMax,
+                    autofuse_pgo_algo_step_max_val, autofuse_pgo_algo_step_max, set_env_autofuse_pgo_algo_step_max));
+
   return ge::SUCCESS;
 }
 
@@ -156,17 +167,22 @@ Status PgoStrategyConfig::Init() {
   if (!is_first_init) {
     return ge::SUCCESS;
   }
-  ge::AutoFuseEnvConfigParser env_config_parser({kExperimentalAutofusionAttEnablePGO},
-                                                {});
+  ge::AutoFuseEnvConfigParser env_config_parser({kExperimentalAutofusionEnablePGO},
+                                                {kExperimentalAutofusionEnablePgoOptAlgo,
+                                                 kExperimentalAutofusionEnablePgoStepMax});
   std::unordered_map<std::string, std::string> merged_configs;
   auto env_configs = env_config_parser.Parse();
   if (env_configs.empty()) {
     GELOGI("No configs found, use default configs");
     return ge::NOT_CHANGED;
   }
+  // pgo 相关环境变量配置
   GE_ASSERT_SUCCESS(AutofuseEnvParaParse(merged_configs, env_configs));
   GE_ASSERT_SUCCESS(SetEnvVal(merged_configs));
-  GELOGI("Init config [%s=%s]", kExperimentalAutofusionAttEnablePGO, enable_autofuse_pgo.c_str());
+  GELOGI("Init config [%s=%s] [%s=%s] [%s=%ld]", 
+         kExperimentalAutofusionEnablePGO, enable_autofuse_pgo.c_str(),
+         kExperimentalAutofusionEnablePgoOptAlgo, autofuse_pgo_algo_select.c_str(),
+         kExperimentalAutofusionEnablePgoStepMax, autofuse_pgo_algo_step_max);
   is_first_init = false;
   return ge::SUCCESS;
 }

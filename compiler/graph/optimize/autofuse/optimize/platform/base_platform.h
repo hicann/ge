@@ -10,7 +10,9 @@
 #ifndef OPTIMIZE_PLATFORM_BASE_PLATFORM_H
 #define OPTIMIZE_PLATFORM_BASE_PLATFORM_H
 
+#include <set>
 #include "ascendc_ir.h"
+#include "optimize/optimize.h"
 #include "common/base_alignment_strategy.h"
 #include "common/pass_runner.h"
 #include "common/base_template_generator.h"
@@ -38,6 +40,11 @@ class BasePlatform {
   virtual std::unique_ptr<BackendSpec> GetBackendSpec() const = 0;
 
   virtual const PlatformConfig& GetPlatformConfig() const = 0;
+
+  virtual Status GenerateTasks(::ascir::ImplGraph &optimize_graph, const OptimizerOptions &options,
+                               std::vector<ScheduleTask> &tasks) const = 0;
+
+  virtual std::set<std::string> BroadcastTypes() const = 0;
 };
 }  // namespace optimize
 #endif  // OPTIMIZE_PLATFORM_BASE_PLATFORM_H

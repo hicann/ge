@@ -16,7 +16,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/node_utils_ex.h"
 #include "graph/utils/cg_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
@@ -340,7 +340,7 @@ AxisPtr AscGraphImpl::CreateAxis(const std::string &name, Axis::Type type,
   axis->name = name;
   axis->size = size;
   axis->from = from;
-  axis->align = kDefaultAlignVal;
+  axis->align = ge::Symbol(kDefaultAlignVal);
   axis->split_pair_other_id = split_peer;
   axis->allow_oversize_axis = false;
   axis->allow_unaligned_tail = true;
@@ -952,8 +952,8 @@ bool AscGraph::CopyFrom(const ge::AscGraph &graph) {
   return true;
 }
 
-bool AscGraph::CopyAttrFrom(const AscGraph &src_asc_graph) {
-  GE_ASSERT_TRUE(AscGraphImpl::DoCopyAscGraphAttr(src_asc_graph, *this));
+bool AscGraph::CopyAttrFrom(const AscGraph &src_graph) {
+  GE_ASSERT_TRUE(AscGraphImpl::DoCopyAscGraphAttr(src_graph, *this));
   return true;
 }
 
@@ -1361,7 +1361,7 @@ bool AscOpOutput::HasBindToContainer() const {
 }
 
 // 既有动态输出，也有普通的输出，返回错误
-Status GetAndCheckDynamicOutput(const std::vector<std::pair<std::string, ge::IrOutputType>> &ir_outputs, 
+static Status GetAndCheckDynamicOutput(const std::vector<std::pair<std::string, ge::IrOutputType>> &ir_outputs, 
                                 bool &only_has_one_dynamic_output) {
   bool has_dynamic_output = false;
   bool has_com_output = false;
@@ -1445,7 +1445,7 @@ graphStatus AscGraphAttr::SerializeAttr(ascendc_ir::proto::AscGraphAttrGroupsDef
     ax_def->set_axis_type(ax->type);
     ax_def->set_bind_block(ax->bind_block);
     ax_def->set_size(SymbolicUtils::ToString(ax->size));
-    ax_def->set_align(ax->align);
+    ax_def->set_align(SymbolicUtils::ToString(ax->align));
     for (const auto fm : ax->from) {
       ax_def->add_from(fm);
     }
@@ -1477,7 +1477,7 @@ graphStatus AscGraphAttr::DeserializeAttr(const ascendc_ir::proto::AscGraphAttrG
     new_axis->type = static_cast<Axis::Type>(ax.axis_type());
     new_axis->bind_block = ax.bind_block();
     new_axis->size = Expression::Deserialize(ax.size().c_str());
-    new_axis->align = ax.align();
+    new_axis->align = Expression::Deserialize(ax.align().c_str());
     for (const auto &fm : ax.from()) {
       new_axis->from.emplace_back(fm);
     }
@@ -1522,6 +1522,7 @@ graphStatus AscNodeAttr::SerializeAttr(ascendc_ir::proto::AscNodeAttrGroupsDef &
   }
   for (const auto &tmp_buffer : tmp_buffers) {
     auto tmp_buffer_def = asc_node_group.add_tmp_buffers();
+    tmp_buffer_def->set_id(tmp_buffer.id);
     auto buf_desc_def = tmp_buffer_def->mutable_buf_desc();
     buf_desc_def->set_size(SymbolicUtils::ToString(tmp_buffer.buf_desc.size));
     buf_desc_def->set_life_time_axis_id(tmp_buffer.buf_desc.life_time_axis_id);
@@ -1578,6 +1579,7 @@ graphStatus AscNodeAttr::DeserializeAttr(const ascendc_ir::proto::AscNodeAttrGro
     TmpBuffer new_tmp_buffer;
     new_tmp_buffer.buf_desc = new_tmp_buffer_desc;
     new_tmp_buffer.mem = new_mem_attr;
+    new_tmp_buffer.id = tmp_buffer_def.id();
     tmp_buffers.emplace_back(new_tmp_buffer);
   }
   return GRAPH_SUCCESS;

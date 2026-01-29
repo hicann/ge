@@ -19,7 +19,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
 
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "debug/ge_op_types.h"
 #include "graph/operator_factory.h"
 #include "graph/operator_factory_impl.h"
@@ -29,6 +29,7 @@
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_desc_utils_ex.h"
 #include "graph/utils/node_utils_ex.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

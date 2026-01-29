@@ -120,4 +120,51 @@ Status ScheduleGroupGraphPartitioner::AddConnectedNodes(const ge::AscNodePtr &ro
 bool ScheduleGroupGraphPartitioner::CompareByNodeId(const AscNodePtr &lhs, const AscNodePtr &rhs) {
   return lhs->GetOpDesc()->GetId() < rhs->GetOpDesc()->GetId();
 }
+
+Status ScheduleGroupGraphPartitioner::RecordAxisSizes(const std::vector<ge::Expression> &repeats,
+                                                      const std::vector<int64_t> &axis_ids,
+                                                      std::map<ge::AxisId, ge::Expression> &axis_id_to_size) {
+  for (size_t j = 0UL; j < repeats.size(); ++j) {
+    if (ge::SymbolicUtils::StaticCheckEq(repeats[j], ops::One) == ge::TriBool::kFalse) {
+      const auto axis_id = axis_ids[j];
+      if (!axis_id_to_size.emplace(axis_id, repeats[j]).second) {
+        GE_ASSERT_TRUE(ge::SymbolicUtils::StaticCheckEq(repeats[j], axis_id_to_size[axis_id]) == TriBool::kTrue,
+                       "inconsistent axis size, id = %ld, size0 = %s, size1 = %s", axis_id,
+                       SymbolicUtils::ToString(repeats[j]).c_str(),
+                       SymbolicUtils::ToString(axis_id_to_size[axis_id]).c_str());
+      }
+    }
+  }
+  return SUCCESS;
+}
+
+Status ScheduleGroupGraphPartitioner::RefreshAxisSize(const ::ascir::ImplGraph &sub_graph) {
+  GELOGI("RefreshAxisSize start, graph_name = %s", sub_graph.GetName().c_str());
+  const auto graph_attr = ge::AscGraphUtils::GetComputeGraph(sub_graph)->GetOrCreateAttrsGroup<ge::AscGraphAttr>();
+  GE_ASSERT_NOTNULL(graph_attr);
+  std::map<ge::AxisId, ge::Expression> axis_id_to_size;
+  for (const auto &node : sub_graph.GetAllNodes()) {
+    if (ScheduleUtils::IsBuffer(node)) {
+      continue;
+    }
+    for (uint32_t i = 0U; i < node->GetAllOutDataAnchorsSize(); ++i) {
+      const auto &repeats = node->outputs[i].attr.repeats;
+      const auto &axis_ids = node->outputs[i].attr.axis;
+      GE_ASSERT_TRUE(repeats.size() == axis_ids.size(), "node: %s:%u repeats.size() = %zu, but axis_ids.size() = %zu",
+                     node->GetNamePtr(), i, repeats.size(), axis_ids.size());
+      GE_ASSERT_SUCCESS(RecordAxisSizes(repeats, axis_ids, axis_id_to_size));
+    }
+  }
+  for (const auto &axis : graph_attr->axis) {
+    GE_ASSERT_NOTNULL(axis);
+    const auto it = axis_id_to_size.find(axis->id);
+    if ((it != axis_id_to_size.cend()) && (SymbolicUtils::StaticCheckEq(axis->size, it->second) == TriBool::kFalse)) {
+      GELOGI("update axis, id = %ld, name = %s, from %s to %s", axis->id, axis->name.c_str(),
+             SymbolicUtils::ToString(axis->size).c_str(), SymbolicUtils::ToString(it->second).c_str());
+      axis->size = it->second;
+    }
+  }
+  GELOGI("RefreshAxisSize end, graph_name = %s", sub_graph.GetName().c_str());
+  return SUCCESS;
+}
 }  // namespace optimize

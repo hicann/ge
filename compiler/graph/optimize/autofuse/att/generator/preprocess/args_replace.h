@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef ATT_CODE_GEN_PREPROCESS_ARGS_REPLACE_H_
@@ -34,7 +28,7 @@ class ArgsReplacer {
   void GetNewExprInitValue(ExprExprMap &new_expr_init_values);
  private:
   // 按对齐值来做变量替换，如果对齐值为1，那么不需要做变量替换，否则替换为x_div_align*align
-  Expr ReplaceCommonExpr(const Expr &e, uint32_t align, ExprExprMap &new_expr_ori_expr_map,
+  Expr ReplaceCommonExpr(const Expr &e, const Expr &align, ExprExprMap &new_expr_ori_expr_map,
                          ExprExprMap &new_expr_replacements);
 
   bool IsAllFactorReplaced(const ExprExprMap &replaced_vars, std::vector<Expr> &factors) const;

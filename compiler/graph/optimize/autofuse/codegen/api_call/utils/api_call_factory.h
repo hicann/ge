@@ -17,7 +17,7 @@
 #include <map>
 #include <mutex>
 #include <tuple>
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 #include "common_utils.h"
 namespace codegen {
 using ApiCallCreatorFun = std::function<ApiCall*(const std::string&)>;

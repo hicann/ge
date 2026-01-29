@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_COMPARE_V2_API_CALL_H__
 #define __AUTOFUSE_COMPARE_V2_API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class CompareV2ApiCall final : public ApiCall {

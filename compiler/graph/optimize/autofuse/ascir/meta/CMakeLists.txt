@@ -8,6 +8,10 @@ target_compile_definitions(ascir PRIVATE
         google=ascend_private
 )
 
+target_compile_options(ascir PRIVATE 
+    -Wfloat-equal -Wextra -Wall
+)
+
 target_link_libraries(ascir PUBLIC
         graph graph_base
         ascir_ops_headers

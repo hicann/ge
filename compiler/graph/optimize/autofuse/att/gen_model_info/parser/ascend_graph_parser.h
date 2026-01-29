@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef PARSER_ASCEND_GRAPH_PARSER_H_
@@ -76,6 +70,9 @@ private:
   // 设置遍历轴优先级和默认值
   ge::Status SetAxisPriority(const ge::AscGraph &graph);
 
+  // 解析Workspace大小
+  ge::Status ParseWorkspaceNode(const ge::AscNodePtr &ge_node);
+
   // 解析node output tensors
   ge::Status ParserNodeOutputInfos(const ge::AscNodePtr &ge_node, const ge::AscGraph &graph,
                                NodeInfo &node_info);
@@ -112,19 +109,9 @@ private:
 
   ge::Status CheckAxisIdValid(std::vector<int64_t> &axis_ids);
 
-  // 获取node上设置的属性信息
-  ge::Status ParserInputNodeAttr(const std::shared_ptr<ge::AscNode> &node, int32_t &index,
-                           std::vector<std::vector<int64_t>> &axis_continuous_map,
-                           int32_t &format) const;
-
-  // 解析图输入节点dtype、format、axis map信息
-  ge::Status ParserGraphInputInfos(const ge::AscGraph &graph);
   void SaveTmpBufferInfos(const std::string &node_name, std::map<int64_t, Expr> &max_tmp_buffers_map,
                           std::vector<ge::TmpBuffer> &tmp_buffers) const;
   void SetContinuesStrides(TensorPtr &tensor, ge::AscTensorAttr &tensor_attr) const;
-  
-  // 校验axis map信息是否配置正确
-  ge::Status CheckGraphInputInfos();
 
   // 打印tuning space信息
   std::string TuningSpacePrint(const SubAxis &sub_axis) const;
@@ -137,9 +124,6 @@ private:
 
   std::string TuningSpacePrint() const;
 
-  static bool IsLoadNode(const TensorPtr &tensor);
-  static bool IsNddmaNode(const TensorPtr &tensor);
-  static bool IsStoreNode(const TensorPtr &tensor);
   // 非正式方案，正式方案需要由Schedule计算预留大小，待正式方案合入后删除
   ge::Status CalculateReservedUbSize(const ge::AscGraph &graph);
 private:

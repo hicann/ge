@@ -19,6 +19,24 @@
 
 namespace ge {
 namespace asc_adapt {
+// 根据axis在找到做过broadcast后的repeat作为当前broadcast节点的repeat，适配transpose并存场景
+inline Status UpdateToAfterBroadcastRepeats(const std::vector<int64_t> &axis1, std::vector<ge::Expression> &repeats1,
+                                     const std::vector<int64_t> &axis2, const std::vector<ge::Expression> &repeats2) {
+  std::unordered_map<int64_t, ge::Expression> axis2_to_repeats2;
+  for (size_t i = 0; i < axis2.size(); ++i) {
+    axis2_to_repeats2[axis2[i]] = repeats2[i];
+  }
+
+  for (size_t i = 0; i < axis1.size(); ++i) {
+    auto it = axis2_to_repeats2.find(axis1[i]);
+    if (it != axis2_to_repeats2.end()) {
+      // 找到匹配的axis，用repeats2的值覆盖repeats1的值
+      repeats1[i] = it->second;
+    }
+  }
+  return SUCCESS;
+}
+
 inline Status InsertBroadcastBeforeNode(AscGraph &asc_graph, const NodePtr &node, const TensorAttrInfo &temp_cur_attr,
                                         const TensorAttrInfo &temp_peer_out_attr,
                                         const std::pair<int32_t, ViewOpAttrInfo> &input_index_to_view_info) {
@@ -31,10 +49,12 @@ inline Status InsertBroadcastBeforeNode(AscGraph &asc_graph, const NodePtr &node
   GE_ASSERT_SUCCESS(asc_adapt::UpdateTopoId(asc_graph, temp_peer_out_attr.topo_id, broadcast_info.size()));
   auto b_topo_id = temp_peer_out_attr.topo_id + broadcast_info.size();
   const auto b_dtype = temp_peer_out_attr.dtype;
-  const std::vector<int64_t> b_sched_axis = temp_cur_attr.sched_axis;
-  const std::vector<int64_t> b_axis = temp_cur_attr.axis;
-  std::vector<ge::Expression> b_repeats = temp_cur_attr.repeats;
-  std::vector<ge::Expression> b_strides = temp_cur_attr.strides;
+  const std::vector<int64_t> b_sched_axis = temp_peer_out_attr.sched_axis;
+  const std::vector<int64_t> b_axis = temp_peer_out_attr.axis;
+  std::vector<ge::Expression> b_repeats = temp_peer_out_attr.repeats;
+  GE_ASSERT_SUCCESS(UpdateToAfterBroadcastRepeats(b_axis, b_repeats, temp_cur_attr.axis, temp_cur_attr.repeats));
+  std::vector<ge::Expression> b_strides = temp_peer_out_attr.strides;
+  GE_ASSERT_SUCCESS(BackendUtils::UpdateContinueStrides(b_repeats, b_strides));
 
   auto connect_node = static_cast<NodePtr>(node);
   for (auto index = 0U; index < broadcast_info.size(); index++) {
@@ -99,7 +119,7 @@ inline Status OptimizedFallbackPro(AscGraph &asc_graph, [[maybe_unused]] const N
   for (const auto &node : asc_graph.GetAllNodes()) {
     // 1、前面不需要插broadcast的节点类型
     if (node->GetType() == kDataType || node->GetType() == kScalarType || node->GetType() == kLoadType ||
-        node->GetType() == kGatherType || node->GetType() == kOutputType || BackendUtils::IsCubeNodeType(node)) {
+        node->GetType() == kGatherType || node->GetType() == kOutputType || AutofuseUtils::IsCubeNodeType(node)) {
       continue;
     }
     // 2、找到前序节点repeat是1，当前节点repeat不是1的节点（依赖前面broadcast删除；依赖canfuse融合前的补轴）

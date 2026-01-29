@@ -19,6 +19,8 @@ struct GatherSpec {
   bool enable_non_tail_gather;
   bool enable_reduce_gather_fusion;
   bool enable_gather_concat_fusion;
+  bool enable_gather_broadcast_fusion;
+  bool enable_gather_elementwise_forward_fusion;
 };
 
 struct PgoSpec {
@@ -44,7 +46,7 @@ struct BackendSpec {
   SliceSplitSpec slice_split_spec;
   uint32_t max_load_num;
   uint32_t max_input_nums_after_fuse = 8U; // 限制融合后的单个节点输入个数最大值：A2A3=8，A5=14
-  uint32_t transpose_mode; // 0: normal模式（A2/3不走NDDMA模板）; 1: 非normal模式 A5
+  uint32_t transpose_mode; // 0: normal模式; 1: 非normal模式 A5
   uint32_t set_local_memory_size = 8 * 1024;
   uint32_t max_group_num_per_compile_unit = 5;
   PgoSpec pgo_spec;

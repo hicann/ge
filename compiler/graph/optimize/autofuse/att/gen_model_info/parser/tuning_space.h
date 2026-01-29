@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef PARSER_TUNING_SPACE_H_
@@ -25,6 +19,7 @@
 #include "graph/node.h"
 #include "base/model_info.h"
 #include "ascendc_ir/ascendc_ir_core/ascendc_ir_def.h"
+#include "ascendc_ir.h"
 
 namespace att {
 class TilingScheduleConfigTable;
@@ -103,7 +98,7 @@ struct SubAxis {
   bool is_node_innerest_dim = false; // 是否是某个node的最内轴，用于决定轴的搜索优先级
   bool is_concat_vec_axis = false; // 是否是concat node的vectorized轴
   uint32_t data_type_size = 4; // 轴的数据类型大小，默认为4(fp32)
-  uint32_t align = 1U; // 轴对齐要求
+  Expr align = ge::Symbol(1); // 轴对齐要求
   Expr repeat; // 轴大小
   std::pair<int64_t, int64_t> value_range = {-1, -1};
 
@@ -114,7 +109,6 @@ struct SubAxis {
   std::vector<SubAxis *> parent_axis;
 
   std::string basic;
-  std::map<uint32_t, std::vector<int64_t>> axis_continuous_map; // key:对应输入的索引，value：dim索引范围
 };
 
 struct Tensor {
@@ -177,7 +171,7 @@ struct Tensor {
   std::string name; // tensor name = node_name + "_output_" + out_id;
   uint32_t data_type_size; // 数据类型的大小
   int32_t resource_id = -1; // 来源于哪一个container,对应container的containerId
-  std::string owner_node; // 所属的node_name
+  ge::AscNode *owner_node{nullptr}; // 所属的node_name
   std::string node_type; // 就是对应node的type
   std::string data_type; // 数据类型
   std::vector<SubAxis *> dim_info; // 内存大小
@@ -228,11 +222,13 @@ struct Container {
   }
   virtual int64_t GetBufferNum() const = 0;
   std::string name;
-  int32_t container_id{0};
+  int32_t reuse_id{0};
   Expr align;
   std::vector<TensorPtr> allocated_tensors; // queue或者buf分配了哪些tensor
   std::vector<HardwareDef> buf_location; // queue或者buf涉及哪些硬件
   std::vector<std::vector<TensorPtr>> coexist_tensors;  // coexist_tensors表示tensor共存且位于同一scope,比如tbuf做pingpong、tqueue中两个tensor同时存在
+  ge::AllocType alloc_type;
+  int64_t container_id{0};
 };
 using ContainerPtr = std::shared_ptr<Container>;
 
@@ -268,12 +264,13 @@ struct TuningSpace {
   std::vector<ContainerPtr> global_containers; // 所有gm上的信息
   std::vector<SubAxisPtr> sub_axes; // 所有轴信息
   std::vector<NodeInfo> node_infos; // 所有ascir api信息
+  std::map<int64_t, Expr> workspace_size_map;
   std::vector<std::vector<SubAxis *>> block_dims; // block outer轴大小
   std::map<const SubAxis *, std::set<HardwareDef>> related_scopes; // 向量轴涉及多少mem 类型
-  GraphInputInfo graph_input_infos; // graph输入信息
   std::map<int64_t, Expr> tmp_buffer; // 临时空间
   std::map<std::string, uint32_t> reserve_ub; // 预留空间
   Expr builtin_tmp_buffer; // kernel内部申请的tmp buffer（这部分会在计算UB Size的时候使用，但不需要申请TilingData）
+  vector<CacheLineConfig> *cache_line_config{nullptr};
   const TilingScheduleConfigTable *tiling_schedule_config_table{nullptr};
 };
 using TuningSpacePtr = std::shared_ptr<TuningSpace>;

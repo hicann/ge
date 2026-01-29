@@ -1,16 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "base_types_printer.h"
 
@@ -48,6 +43,33 @@ void AnalysisArg(const Expr &arg, const ExprExprMap &container_expr, std::set<st
       arg_names.insert(Str(arg));
     }
   }
+}
+
+const std::string GenWorkspaceRelatedVars(const std::map<int64_t, Expr> &workspace_size_map,
+                                          const ExprExprMap &container_expr) {
+  std::string ret;
+  std::set<std::string> arg_names;
+  ExprExprMap params_map;
+  for (const auto &workspace_size_func : workspace_size_map) {
+    GELOGD("The workspace_size func is [%s].", Str(workspace_size_func.second).c_str());
+    for (const auto &arg : workspace_size_func.second.FreeSymbols()) {
+      AnalysisArg(arg, container_expr, arg_names, params_map);
+    }
+  }
+  for (const auto &arg_name : arg_names) {
+    ret += "    double " + arg_name + " = tiling_data.get_" + arg_name + "();\n";
+  }
+  for (const auto &workspace_size : workspace_size_map) {
+    auto tensor_id = std::to_string(workspace_size.first);
+    ret += "\n    auto it" + tensor_id + " = workspace_map.find(" + tensor_id + ");\n";
+    ret += "    if (it" + tensor_id + " != workspace_map.end()) {\n";
+    ret += "        it" + tensor_id + "->second = Max(it"+ tensor_id + "->second, static_cast<uint64_t>(" +
+        Str(workspace_size.second) + "));\n";
+    ret += "    } else {\n";
+    ret += "        workspace_map[" + tensor_id + "] = static_cast<uint64_t>(" + Str(workspace_size.second) + ");\n";
+    ret += "    }";
+  }
+  return ret;
 }
 
 const std::string GenRelatedVars(const std::vector<Expr> &funcs, const ExprExprMap &container_expr, const std::map<Expr, std::vector<Expr>, ExprCmp> &args) {

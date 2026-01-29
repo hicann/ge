@@ -1,18 +1,12 @@
 /**
-* Copyright (c) Huawei Technologies Co., Ltd. 2025 All rights reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
+ */
 
 #ifndef API_PERF_REGISTER_API_PERF_H_
 #define API_PERF_REGISTER_API_PERF_H_
@@ -27,10 +21,12 @@ struct NodeDetail {
   std::string optype;
   std::vector<std::string> input_dtype{};
   std::vector<std::string> output_dtype{};
-  std::vector<Expr> input_dims{};
-  std::vector<Expr> output_dims{};
+  std::vector<Expr> repeats{}; // 合轴前
+  std::vector<Expr> input_dims{}; // 合轴后
+  std::vector<Expr> output_dims{}; // 合轴后
   Expr gm_stride{CreateExpr(0)};
   Expr ub_stride{CreateExpr(0)};
+  int32_t block_count_idx{0};  // 用于 LoadStoreStrideV2Func，表示发生非连续的轴索引
 
   std::string ToString() const {
     std::string res = name + "[" + optype + "]";
@@ -44,7 +40,7 @@ struct NodeDetail {
     }
     res += "], dim_info[";
     res += GetVecString(input_dims);
-    res += "], gm_stride[" + std::string(gm_stride.Str().get()) + "]";
+    res += "], gm_stride[" + std::string(gm_stride.Str().get());
     res += "], ub_stride[" + std::string(ub_stride.Str().get()) + "]";
     return res;
   }
@@ -53,6 +49,7 @@ using TenaryOpMap = std::map<Expr, TenaryOp, ExprCmp>;
 struct PerfOutputInfo {
   std::map<PipeType, Expr> pipe_res;
   TenaryOpMap tenary_ops;
+  vector<CacheLineConfig> *cache_line_config{nullptr};
   std::string ToString() {
     std::string res;
     auto replace_vars = ConcursiveReplaceVars(tenary_ops);
@@ -64,18 +61,18 @@ struct PerfOutputInfo {
 };
 using MicroPerfFunc = ge::Status (*)(const std::vector<NodePerfInfo> &node_perf_infos, Expr &res);
 using Perf = ge::Status (*)(const std::vector<TensorShapeInfo> &input_shapes,
-                            const std::vector<TensorShapeInfo> &output_shapes, const ge::AscNodePtr &node,
+                            const std::vector<TensorShapeInfo> &output_shapes, const NodeInfo &node,
                             PerfOutputInfo &res);
 using AscendCPerf = ge::Status (*)(const NodeDetail &node_info, PerfOutputInfo &perf);
 class ApiPerf {
  public:
   ApiPerf(const std::string &api_name, Perf perf_func, MicroPerfFunc micro_perf_func, const PerfParamTable *perf_param,
           const TilingScheduleConfigTable *tiling_schedule_config_table)
-      : api_name_(api_name),
-        api_perf_func_(perf_func),
+      : api_perf_func_(perf_func),
         micro_perf_func_(micro_perf_func),
         perf_param_(perf_param),
-        tiling_schedule_config_table_(tiling_schedule_config_table) {}
+        tiling_schedule_config_table_(tiling_schedule_config_table),
+        api_name_(api_name){}
   virtual ~ApiPerf() = default;
   const std::string &GetApiName() const {
     return api_name_;
@@ -103,7 +100,9 @@ class ApiPerf {
 
 inline ge::Status DefaultGetPerf([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                                  [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                                 [[maybe_unused]] const ge::AscNodePtr &node, [[maybe_unused]] PerfOutputInfo &res) {
+                                 [[maybe_unused]] const NodeInfo &node,
+                                 [[maybe_unused]] PerfOutputInfo &res) {
+  (void) res;
   return ge::SUCCESS;
 }
 }  // namespace att

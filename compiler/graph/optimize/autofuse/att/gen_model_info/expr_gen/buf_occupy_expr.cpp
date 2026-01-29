@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "buf_occupy_expr.h"
@@ -89,6 +83,17 @@ ge::Status BufOccupyExpr::GetOccupInContainer(ContainerPtr &container, Expr &occ
       occup_per_tensor = tensor_size_expr;
     }
   }
+  if (container->alloc_type == ge::AllocType::kAllocTypeBuffer) {
+    GELOGD("trying to reuse temp buffer for tbuf %s, id %lld", container->name.c_str(), container->container_id);
+    auto temp_buffer = tuning_space_->tmp_buffer.find(container->container_id);
+    if (temp_buffer != tuning_space_->tmp_buffer.end()) {
+      constexpr int32_t kMinTmpBufferSize = 8 * 1024;
+      auto temp_buffer_size = ge::sym::Max(temp_buffer->second, CreateExpr(kMinTmpBufferSize));
+      occup_per_tensor = ge::sym::Max(occup_per_tensor, temp_buffer_size);
+      GELOGD("reuse temp buffer for tbuf, buf id %lld, result buffer %s", container->container_id, Str(occup_per_tensor).c_str());
+      tuning_space_->tmp_buffer.erase(container->container_id);
+    }
+  }
   // 最大tensor_size * buffer_num
   Expr buffer_num_expr = ArgListManager::GetInstance().GetArgExpr(container->name);
   occup_total = occup_per_tensor;
@@ -109,21 +114,16 @@ ge::Status BufOccupyExpr::GetBufferOccupInContainer(std::unordered_map<HardwareD
     container_exprs[container->name] = container_occup_expr;
     for (const auto &scope : container->buf_location) {
       SummaryBufferOccup(buffer_occup, scope, occup_total);
-      GELOGD("Get scope [%d] occupy : [%s]", static_cast<int32_t>(scope), buffer_occup[scope].Str().get());
+      GELOGD("Get scope [%d] name: [%s] occupy : [%s]", static_cast<int32_t>(scope), container->name.c_str(), buffer_occup[scope].Str().get());
     }
   }
   for (auto &pair : tuning_space_->tmp_buffer) {
-    if (pair.first != -1) {
-      string arg_name = GetTmpBufferName(pair.first);
-      container_exprs[arg_name] = pair.second;
-      SummaryBufferOccup(buffer_occup, HardwareDef::UB, container_exprs[arg_name]);
-      GELOGD("Add temp buffer %s [%s] occupy for UB", arg_name.c_str(), pair.second.Str().get());
-    } else {
-      constexpr int32_t kMinTmpBufferSize = 8 * 1024;
-      container_exprs[kArgsNameTmpBuffer] = ge::sym::Max(pair.second, CreateExpr(kMinTmpBufferSize));
-      SummaryBufferOccup(buffer_occup, HardwareDef::UB, container_exprs[kArgsNameTmpBuffer]);
-      GELOGD("Add temp buffer %s [%s] occupy for UB", kArgsNameTmpBuffer, container_exprs[kArgsNameTmpBuffer].Str().get());
-    }
+    string arg_name = "b" + std::to_string(pair.first) + "_size";
+    constexpr int32_t kMinTmpBufferSize = 8 * 1024;
+    auto temp_buffer_size = ge::sym::Max(pair.second, CreateExpr(kMinTmpBufferSize));
+    container_exprs[arg_name] = temp_buffer_size;
+    SummaryBufferOccup(buffer_occup, HardwareDef::UB, container_exprs[arg_name]);
+    GELOGD("Add temp buffer %s [%s] occupy for UB", arg_name.c_str(), pair.second.Str().get());
   }
   auto builtin_tmp_buffer = ArgListManager::GetInstance().GetArgExpr(kArgsNameBuiltInTmpBuffer);
   SummaryBufferOccup(buffer_occup, HardwareDef::UB, builtin_tmp_buffer);

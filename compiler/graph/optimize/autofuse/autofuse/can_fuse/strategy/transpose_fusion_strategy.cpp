@@ -18,6 +18,17 @@
 #include "backend/backend_spec.h"
 
 namespace ge {
+bool HasLoad(const NodePtr &node) {
+  const auto attr = node->GetOpDesc()->GetAttrsGroup<ge::AutoFuseAttrs>();
+  GE_ASSERT_NOTNULL(attr);
+  for (const auto &subnode : attr->GetAscGraph()->GetAllNodes()) {
+    if (subnode->GetType() == kLoadType) {
+      return  true;
+    }
+  }
+  return false;
+}
+
 bool TransposeFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
   const auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
   GE_ASSERT_NOTNULL(attr1);
@@ -51,9 +62,13 @@ bool TransposeFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2
     if (attr1->HasFuseType(loop::FuseType::kTranspose) && (attr2->GetAllFuseType() == pointwise_type)) {
       return true;
     }
-    // 3、支持transpose前融合elementwise，但elementwise节点不能被多引用
+    // 3、支持transpose前融合elementwise，但elementwise节点不能被多引用，且输入不是纯Scalar
     if (node1->GetOutAllNodes().size() > 1UL) {
       GELOGD("Node1 %s with single output and multiple refs, do not support fuse with Transpose.", node1->GetNamePtr());
+      return false;
+    }
+    if (!HasLoad(node1)) {
+      GELOGD("No LoadType in Node1 %s， do not support fuse with Transpose.", node1->GetNamePtr());
       return false;
     }
     if ((attr1->GetAllFuseType() == pointwise_type) && attr2->HasFuseType(loop::FuseType::kTranspose)) {

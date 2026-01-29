@@ -15,7 +15,15 @@ import os
 import shutil
 import re
 from tbe.common.platform import get_soc_spec
-from tbe.tikcpp import compile_op, get_code_channel, OpInfo
+from tbe.tikcpp import (
+    compile_op,
+    get_code_channel,
+    OpInfo,
+    compile_op_with_customized_config,
+    KernelMetaType,
+    TilingKeyConfig,
+    CustomizedConfig
+)
 from tbe.tikcpp.compile_op import CommonUtility, AscendCLogLevel
 from tbe.common.buildcfg import get_current_build_config
 import tbe.common.context.op_context as op_context
@@ -101,8 +109,10 @@ def _build_options(temp_build_dir, impl_mode):
     options.append("-I" + os.path.join(tikcpp_path, "..", "ascendc"))
     options.append("-I" + os.path.join(tikcpp_path, "..", "ascendc", "include"))
     options.append("-I" + os.path.join(tikcpp_path, "..", "asc", "include", "tiling"))
-    options.append("-I" + os.path.join(tikcpp_path, "..", "ascendc", "act"))
-    options.append("-I" + os.path.join(tikcpp_path, "..", "ascendc", "act", "include"))
+    options.append("-I" + os.path.join(tikcpp_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                       "ascendc", "common"))
+    options.append("-I" + os.path.join(tikcpp_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                       "ascendc", "common", "cmct"))
     options.append("-I" + os.path.join(temp_build_dir))
     if impl_mode == "high_performance":
         options.append("-DHIGH_PERFORMANCE=1")
@@ -125,17 +135,36 @@ def _build_options(temp_build_dir, impl_mode):
     return options
 
 
+def get_customized_tiling_config(tiling_key, kernel_type) -> CustomizedConfig:
+    kernel_type_enum = (
+        KernelMetaType.KERNEL_TYPE_AIV_ONLY
+        if kernel_type == "KERNEL_TYPE_AIV_ONLY"
+        else KernelMetaType.KERNEL_TYPE_MIX_AIV_1_0
+    )
+    tilingkey_config = TilingKeyConfig(
+        kernel_type=kernel_type_enum,
+        tiling_struct_name="AutofuseTilingData",
+    )
+    return CustomizedConfig(
+        default_kernel_type=KernelMetaType.KERNEL_TYPE_AIV_ONLY,
+        default_tiling_struct_name="AutofuseTilingData",
+        tiling_key_infos={str(tiling_key): tilingkey_config}
+    )
+
+
 def ascbc_kernel_compile(
-    *args, 
-    graph_name, 
-    kernel_name, 
-    input_num, 
-    output_num, 
-    temp_build_dir, 
-    impl_mode,
-    use_list_tensor_desc,
-    enable_parallel_compile,
-    tiling_key=-1
+        *args,
+        graph_name,
+        kernel_name,
+        input_num,
+        output_num,
+        temp_build_dir,
+        impl_mode,
+        use_list_tensor_desc,
+        enable_parallel_compile,
+        tiling_key=-1,
+        kernel_type="KERNEL_TYPE_AIV_ONLY",
+        is_cube=True
 ):
     graph_name = camel_to_snake(graph_name)
     args_list = args[0]
@@ -178,12 +207,15 @@ def ascbc_kernel_compile(
     extend_option["enable_no_tiling_func_compile"] = "enable"
 
     if tiling_key > -1:
-        op_context.get_context().add_addition("tiling_key", [str(tiling_key)])
-    compile_op(src, origin_func_name, op_info, _options_, code_channel, '{}', extend_option)
-    kernel_bin_name = kernel_name + ".o"
-    kernel_json_name = kernel_name + ".json"
-    _kernel_bin_file_ = os.path.join(get_current_build_config("kernel_meta_parent_dir"), "kernel_meta",
-                                     kernel_bin_name)
-    _kernel_json_file_ = os.path.join(get_current_build_config("kernel_meta_parent_dir"), "kernel_meta",
-                                      kernel_json_name)
+        if is_cube:
+            extend_option["customized_tiling_key_list"] = [str(tiling_key)]
+            compile_op(src, origin_func_name, op_info, _options_, code_channel, '{}', extend_option)
+        else:
+            compile_op_with_customized_config(src, origin_func_name, op_info, _options_, code_channel, '{}',
+                                              extend_option, get_customized_tiling_config(tiling_key, kernel_type))
+    else:
+        compile_op(src, origin_func_name, op_info, _options_, code_channel, '{}', extend_option)
+    kernel_meta_dir = os.path.join(get_current_build_config("kernel_meta_parent_dir"), "kernel_meta")
+    _kernel_bin_file_ = os.path.join(kernel_meta_dir, f"{kernel_name}.o")
+    _kernel_json_file_ = os.path.join(kernel_meta_dir, f"{kernel_name}.json")
     return _kernel_bin_file_, _kernel_json_file_

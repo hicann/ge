@@ -8,6 +8,7 @@ set(ascendc_api_extend_src
     compare_v2.h
     clipbyvalue.h
     pow.h
+    gelu.h
     where.h
     concat.h
     sigmoid.h

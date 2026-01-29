@@ -31,11 +31,12 @@ Status AscBackendSchedulerAdapter::DoBeforePass(const ComputeGraphPtr &graph) co
   // 由于后端schedule的限制，需要把ascgraph的node的输入输出tensor上loop轴补齐成和graph loop轴一样
   GE_ASSERT_SUCCESS(asc_adapt::CompleteNodeAttrsOnAscGraphForSched(graph));
 
-  // 由于后端schedule的限制，需要还原transpose view, slice和broadcast不需要处理
-  GE_ASSERT_SUCCESS(asc_adapt::OptimizedFallback(graph));
-
   // 为codegen做transpose后移，把transpose数量变为1，codegen暂时只支持一个ascgraph只有一个transpose,反推暂时不插transpose
+  // 需要在broadcast反推前做，load直连store，store有transpose场景，graph轴和load一致时先插broadcast在插transpose轴序有问题
   GE_ASSERT_SUCCESS(asc_adapt::TransposeBackwardForCodegen(graph));
+
+  // 由于后端schedule的限制，需要还原broadcast view
+  GE_ASSERT_SUCCESS(asc_adapt::OptimizedFallback(graph));
 
   // 把fp16和bf16的node改为fp32，以提高精度
   GE_ASSERT_SUCCESS(PrecisionImprover::ImprovePrecisionToFp32(graph));
@@ -57,8 +58,6 @@ Status AscBackendSchedulerAdapter::DoAfterPass(const ComputeGraphPtr &graph) con
   if (asc_adapt::IsGeType()) {
     GE_ASSERT_SUCCESS(asc_adapt::SerilizeAscBackendNode(graph));
   }
-
-  GE_ASSERT_SUCCESS(asc_adapt::DumpCacheGraphByConfigEnv());
   return SUCCESS;
 }
 }  // namespace ge

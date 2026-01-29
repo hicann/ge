@@ -14,8 +14,8 @@
 
 #include "ascir.h"
 #include "ascgen_log.h"
+#include "ascir_ops.h"
 #include "task_generator/schedule_case_generator.h"
-#include "ascir_ops_utils.h"
 
 namespace optimize {
 
@@ -40,12 +40,12 @@ public:
                             std::vector<std::string> &score_functions);
   Status GenerateAllLoadCase(ascir::HintGraph &graph,
                             std::vector<ascir::ImplGraph> &graphs,
-                            std::vector<std::string> &score_functions);
+                            const std::vector<std::string> &score_functions);
 
 private:
   Status GeneratorGeneralTask(ascir::HintGraph &optimize_graph, std::vector<ScheduleTask> &tasks);
   Status GeneratorAllLoadTask(ascir::HintGraph &optimize_graph, std::vector<ScheduleTask> &tasks);
-  Status GeneratorRCoreTask(ascir::HintGraph &optimize_graph, std::vector<ScheduleTask> &tasks);
+  Status GeneratorRCoreTask(ascir::HintGraph &optimize_graph, std::vector<ScheduleTask> &tasks) const;
   Status ReducePartitionPostFusion(ascir::ImplGraph &impl_graph);
   Status PartitionByNode(ge::AscNodePtr &src_node, ge::AscNodePtr &dst_node, ascir::ImplGraph &impl_graph);
   bool IsInputNodePartitioned(const std::shared_ptr<ge::Node>& start, const std::shared_ptr<ge::Node>& node);
@@ -61,6 +61,7 @@ private:
   static bool CanReduceFuse(const ascir::ImplGraph &impl_graph);
   Status ReducePartitionMultipleCitations(ascir::ImplGraph &impl_graph);
   bool FindOutputReduce(const ge::AscNodePtr &node, ge::AscNodePtr &reduce_node);
+  Status PartitionReduce(ge::AscNodePtr &src_node, ascir::ImplGraph &impl_graph);
 
   bool partition_{false};
   std::vector<ge::AscNodePtr> node_order_{};
@@ -84,8 +85,8 @@ private:
   ge::AscNodePtr reduce_node;
   Status CreateVarAxis();
   Status CompleteNodeAttr(ge::AscNodePtr &node, bool before_reduce, const ge::AscTensorDataType& data_type);
-  Status CompletePhaseGraph(ReduceType &phase1graph_reduce);
-  Status PartitionByReduce(ascir::ImplGraph &impl_graph, ReduceType &phase1graph_reduce,
+  Status CompletePhaseGraph(ReduceType &phase2graph_reduce);
+  Status PartitionByReduce(ascir::ImplGraph &impl_graph, ReduceType &phase2graph_reduce,
                            std::vector<ge::AscNodePtr> &node_order);
   Status SetNodeOrder(std::vector<ge::AscNodePtr> &node_order);
 };

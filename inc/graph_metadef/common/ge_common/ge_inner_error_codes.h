@@ -12,112 +12,14 @@
 #ifndef INC_COMMON_GE_INNER_ERROR_CODES_H_
 #define INC_COMMON_GE_INNER_ERROR_CODES_H_
 
-#include <map>
 #include <string>
 #include "external/ge_common/ge_api_error_codes.h"
-
-// Each module defines error codes using the following macros, name can not be modified to (name)
-#define GE_ERRORNO_COMMON(name, value, desc)                                 \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::COMMON_MODULE, name, (value), (desc))
-#define GE_ERRORNO_CLIENT(name, value, desc)                                 \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::CLIENT_MODULE, name, (value), (desc))
-#define GE_ERRORNO_INIT(name, value, desc)                                   \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::INIT_MODULE, name, (value), (desc))
-#define GE_ERRORNO_SESSION(name, value, desc)                                \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::SESSION_MODULE, name, (value), (desc))
-#define GE_ERRORNO_GRAPH(name, value, desc)                                  \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::GRAPH_MODULE, name, (value), (desc))
-#define GE_ERRORNO_ENGINE(name, value, desc)                                 \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::ENGINE_MODULE, name, (value), (desc))
-#define GE_ERRORNO_OPS(name, value, desc)                                    \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::OPS_MODULE, name, (value), (desc))
-#define GE_ERRORNO_PLUGIN(name, value, desc)                                 \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::PLUGIN_MODULE, name, (value), (desc))
-#define GE_ERRORNO_RUNTIME(name, value, desc)                                \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::RUNTIME_MODULE, name, (value), (desc))
-#define GE_ERRORNO_EXECUTOR(name, value, desc)                               \
-  GE_ERRORNO(ge::InnLogRuntime::RT_DEVICE, ge::InnErrorCodeType::ERROR_CODE, \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::EXECUTOR_MODULE, name, (value), (desc))
-#define GE_ERRORNO_GENERATOR(name, value, desc)                              \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::GENERATOR_MODULE, name, (value), (desc))
-
-#define LLM_ERRORNO_COMMON(name, value, desc)                                \
-  GE_ERRORNO(ge::InnLogRuntime::RT_HOST, ge::InnErrorCodeType::ERROR_CODE,   \
-             ge::InnErrorLevel::COMMON_LEVEL, ge::InnSystemIdType::SYSID_GE, \
-             ge::InnSubModuleId::LLM_ENGINE_MODULE, name, (value), (desc))
-
-// Get error code description
-#define GE_GET_ERRORNO_STR(value) ge::StatusFactory::Instance()->GetErrDesc(value)
-
-#define RT_ERROR_TO_GE_STATUS(RT_ERROR) static_cast<ge::Status>(RT_ERROR)
+#include "common/ge_common/error_codes_define.h"
 
 namespace ge {
-// System ID
-enum class InnSystemIdType { SYSID_GE = 8 };
-
-enum class InnLogRuntime {
-  RT_HOST = 0b01,
-  RT_DEVICE = 0b10,
-};
-
-// Sub model
-enum class InnSubModuleId {
-  COMMON_MODULE = 0,
-  CLIENT_MODULE = 1,
-  INIT_MODULE = 2,
-  SESSION_MODULE = 3,
-  GRAPH_MODULE = 4,
-  ENGINE_MODULE = 5,
-  OPS_MODULE = 6,
-  PLUGIN_MODULE = 7,
-  RUNTIME_MODULE = 8,
-  EXECUTOR_MODULE = 9,
-  GENERATOR_MODULE = 10,
-  LLM_ENGINE_MODULE = 11,
-};
-
-// Error code type
-enum class InnErrorCodeType {
-  ERROR_CODE = 0b01,
-  EXCEPTION_CODE = 0b10,
-};
-
-// Error level
-enum class InnErrorLevel {
-  COMMON_LEVEL = 0b000,
-  SUGGESTION_LEVEL = 0b001,
-  MINOR_LEVEL = 0b010,
-  MAJOR_LEVEL = 0b011,
-  CRITICAL_LEVEL = 0b100,
-};
-
 // Common module error code definition
 GE_ERRORNO_COMMON(MEMALLOC_FAILED, 0, "Failed to allocate memory!");  // 1343225856
-GE_ERRORNO_COMMON(PARAM_INVALID, 1, "Parameter invalid!");            // 1343225857
 GE_ERRORNO_COMMON(CCE_FAILED, 2, "Failed to call CCE API!");          // 1343225858
-GE_ERRORNO_COMMON(RT_FAILED, 3, "Failed to call runtime API!");       // 1343225859
-GE_ERRORNO_COMMON(INTERNAL_ERROR, 4, "Internal errors");              // 1343225860
 GE_ERRORNO_COMMON(CSEC_ERROR, 5, "Failed to call libc_sec API!");     // 1343225861
 GE_ERRORNO_COMMON(TEE_ERROR, 6, "Failed to call tee API!");           // 1343225862
 GE_ERRORNO_EXTERNAL(END_OF_SEQUENCE, "End of sequence!");             // 1343225863
@@ -126,8 +28,6 @@ GE_ERRORNO_COMMON(PATH_INVALID, 8, "Path is invalid!");               // 1343225
 // Error code for plugin manager
 GE_ERRORNO_COMMON(GE_PLGMGR_PATH_INVALID, 30, "Path is invalid!");                   // 1343225886
 GE_ERRORNO_COMMON(GE_PLGMGR_SO_NOT_EXIST, 31, "Failed to find any valid so file!");  // 1343225887
-GE_ERRORNO_COMMON(GE_PLGMGR_FUNC_NOT_EXIST, 32, "Failed to find any function!");     // 1343225888
-GE_ERRORNO_COMMON(GE_PLGMGR_INVOKE_FAILED, 33, "Failed to invoke any function!");    // 1343225889
 
 GE_ERRORNO_COMMON(UNSUPPORTED, 100, "Parameter unsupported!");
 
@@ -234,7 +134,6 @@ GE_ERRORNO_GRAPH(GE_GRAPH_NODE_SEARCHER_SET_GRAPH_FINISH_REBUILD_GRAPH_FAILED, 6
                  "Failed set graph finish rebuild in node searcher.");                   // 1343242301
 GE_ERRORNO_GRAPH(GE_GRAPH_VARIABLE_OP_PASS_FAILED, 62, "Failed to run variable pass.");  // 1343242302
 GE_ERRORNO_GRAPH(TO_BE_DELETED, 63, "The node of the graph to be deleted.");             // 1343242303
-GE_ERRORNO_GRAPH(NOT_CHANGED, 64, "The node of the graph no changed.");                  // 1343242304
 GE_ERRORNO_GRAPH(SUSPEND, 65, "The optimize operation is suspended.");                   // 1343242305
 GE_ERRORNO_GRAPH(GE_GRAPH_REPEAT_OPERATION, 66, "Repeat operation is not allowed.");     // 1343242306
 
@@ -336,30 +235,6 @@ GE_ERRORNO_GENERATOR(GE_GENERATOR_GRAPH_MANAGER_ADD_GRAPH_FAILED, 2, "Graph mana
 GE_ERRORNO_GENERATOR(GE_GENERATOR_GRAPH_MANAGER_BUILD_GRAPH_FAILED, 3, "Graph manager build graph failed.");
 GE_ERRORNO_GENERATOR(GE_GENERATOR_GRAPH_MANAGER_FINALIZE_FAILED, 4, "Graph manager finalize failed.");
 GE_ERRORNO_GENERATOR(GE_GENERATOR_GRAPH_MANAGER_SAVE_MODEL_FAILED, 5, "Graph manager save model failed.");
-
-// 分步将错误码移动到air仓llm目录，完成后删除该宏
-#ifndef LLM_ERROR_CODES
-#define LLM_ERROR_CODES
-LLM_ERRORNO_COMMON(LLM_WAIT_PROC_TIMEOUT, 1, "request wait to be processed timeout!");
-LLM_ERRORNO_COMMON(LLM_KV_CACHE_NOT_EXIST, 2, "kv cache not exit!");
-LLM_ERRORNO_COMMON(LLM_REPEAT_REQUEST, 3, "repeat request!");
-LLM_ERRORNO_COMMON(LLM_REQUEST_ALREADY_COMPLETED, 4, "request already complete!");
-LLM_ERRORNO_COMMON(LLM_PARAM_INVALID, 5, "parameter is invalid!");
-LLM_ERRORNO_COMMON(LLM_ENGINE_FINALIZED, 6, "llm engine finalized!");
-LLM_ERRORNO_COMMON(LLM_NOT_YET_LINK, 7, "local cluster is not linked with remote cluster!");
-LLM_ERRORNO_COMMON(LLM_ALREADY_LINK, 8, "local cluster is already linked with remote cluster!");
-LLM_ERRORNO_COMMON(LLM_LINK_FAILED, 9, "local cluster link with remote cluster failed!");
-LLM_ERRORNO_COMMON(LLM_UNLINK_FAILED, 10, "local cluster unlink with remote cluster failed!");
-LLM_ERRORNO_COMMON(LLM_NOTIFY_PROMPT_UNLINK_FAILED, 11, "local cluster notify remote cluster do unlink failed!");
-LLM_ERRORNO_COMMON(LLM_CLUSTER_NUM_EXCEED_LIMIT, 12, "cluster num exceed limit!");
-LLM_ERRORNO_COMMON(LLM_PROCESSING_LINK, 13, "link is current processing, try again later!");
-LLM_ERRORNO_COMMON(LLM_DEVICE_OUT_OF_MEMORY, 14, "device out of memory!");
-LLM_ERRORNO_COMMON(LLM_PREFIX_ALREADY_EXIST, 15, "Prefix has already existed.");
-LLM_ERRORNO_COMMON(LLM_PREFIX_NOT_EXIST, 16, "Prefix does not exist.");
-LLM_ERRORNO_COMMON(LLM_SEQ_LEN_OVER_LIMIT, 17, "Sequence length exceed limit.");
-LLM_ERRORNO_COMMON(LLM_NO_FREE_BLOCK, 18, "No free block.");
-LLM_ERRORNO_COMMON(LLM_BLOCKS_OUT_OF_MEMORY, 19, "Block is out of memory.");
-#endif
 }  // namespace ge
 
 #endif  // INC_COMMON_GE_INNER_ERROR_CODES_H_

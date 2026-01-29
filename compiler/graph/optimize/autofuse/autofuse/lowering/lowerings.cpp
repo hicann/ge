@@ -33,9 +33,8 @@
 namespace ge {
 using namespace autofuse;
 const std::string aiv_cnt_key = "_op_vectorcore_num";
+const size_t kMatmulMinInputNum = 2U;
 namespace {
-static std::map<std::string, std::vector<NodePtr>> node_in_control_to_const;
-static std::map<std::string, std::vector<NodePtr>> node_out_control_to_const;
 
 graphStatus FallbackLowering(const NodePtr &node) {
   for (auto &anchor : node->GetAllInDataAnchors()) {
@@ -62,83 +61,11 @@ graphStatus RealizeInputsAndLowering(const NodePtr &node) {
   return LoweringManager::Lowering(node);
 }
 
-graphStatus RecordControlEdgeRelation(std::map<std::string, std::vector<NodePtr>> &node_to_const,
-                                      const std::string &node_name, const NodePtr &control_node) {
-  auto it = node_to_const.find(node_name);
-  if (it == node_to_const.end()) {
-    node_to_const.insert(std::pair<std::string, std::vector<NodePtr>>(node_name, {control_node}));
-  } else {
-    it->second.emplace_back(control_node);
-  }
-  return GRAPH_SUCCESS;
-}
-
-bool IsNodeInControlValid(const NodePtr &node) {
-  for (auto &in_control_node : node->GetInControlNodes()) {
-    GE_CHECK_NOTNULL(in_control_node);
-    if (OpTypeUtils::IsConstNode(in_control_node->GetType())) {
-      bool is_from_constant_folding = false;
-      (void)ge::AttrUtils::GetBool(
-          in_control_node->GetOpDesc(), "_is_from_constant_folding", is_from_constant_folding);
-      if (is_from_constant_folding) {
-        GELOGD("node:%s has input control edge const/constant nodes:%s, is from constant folding.",
-               node->GetName().c_str(), in_control_node->GetName().c_str());
-        GE_CHK_GRAPH_STATUS_RET(ge::GraphUtils::RemoveEdge(in_control_node->GetOutControlAnchor(),
-                                                           node->GetInControlAnchor()),
-                                "[Remove][ControlEdge] between %s and %s failed",
-                                in_control_node->GetName().c_str(), node->GetName().c_str());
-        GE_ASSERT_GRAPH_SUCCESS(
-            RecordControlEdgeRelation(node_in_control_to_const, node->GetName(), in_control_node));
-      } else {
-        return true;
-      }
-    } else {
-      return true;
-    }
-  }
-  GELOGI("node:%s all input control edges is from constant/const node which is from constant folding",
-         node->GetName().c_str());
-  return false;
-}
-
-bool IsNodeOutControlValid(const NodePtr &node) {
-  for (auto &out_control_node : node->GetOutControlNodes()) {
-    GE_CHECK_NOTNULL(out_control_node);
-    if (OpTypeUtils::IsConstNode(out_control_node->GetType())) {
-      bool is_from_constant_folding = false;
-      (void)ge::AttrUtils::GetBool(
-          out_control_node->GetOpDesc(), "_is_from_constant_folding", is_from_constant_folding);
-      if (is_from_constant_folding) {
-        GELOGD("node:%s has output control edge const/constant nodes:%s, is from constant folding.",
-               node->GetName().c_str(), out_control_node->GetName().c_str());
-        GE_CHK_GRAPH_STATUS_RET(ge::GraphUtils::RemoveEdge(node->GetOutControlAnchor(),
-                                                           out_control_node->GetInControlAnchor()),
-                                "[Remove][ControlEdge] between %s and %s failed",
-                                node->GetName().c_str(), out_control_node->GetName().c_str());
-        GE_ASSERT_GRAPH_SUCCESS(
-            RecordControlEdgeRelation(node_out_control_to_const, node->GetName(), out_control_node));
-      } else {
-        return true;
-      }
-    } else {
-      return true;
-    }
-  }
-  GELOGI("node:%s all out control edges is to constant/const node which is from constant folding",
-         node->GetName().c_str());
-  return false;
-}
-
 bool IsNodeHasControlEdges(const NodePtr &node) {
-  /*
-   * if node has input/output control edge, which is from/to const/constant node.
-   * and const/constant node is from constant folding, consider removing control edge for more fuse chance.
-   */
   if (node->GetOutControlNodes().empty() && node->GetInControlNodes().empty()) {
     return false;
   }
-  bool is_control_edge_unignored = (IsNodeInControlValid(node) || IsNodeOutControlValid(node));
-  return is_control_edge_unignored;
+  return true;
 }
 
 std::string WhyRealizeByNodeCategory(const ge::NodePtr &node) {
@@ -165,8 +92,10 @@ std::string WhyRealizeByKernelBoxCategory(loop::KernelBox &kernel_box, const Low
     return "num readers " + std::to_string(kernel_box.TargetBuffer()->GetPeerInDataNodesSize()) + " exceed limited " +
            std::to_string(config.max_buffer_readers);
   }
+  // 重计算阈值，忽略Slice类型融合
   if (kernelbox_num == 1U &&
-      kernel_box.TargetBuffer()->GetPeerInDataNodesSize() > AutoFuseConfig::LoweringConfig().recomputation_threshold) {
+      kernel_box.TargetBuffer()->GetPeerInDataNodesSize() > AutoFuseConfig::LoweringConfig().recomputation_threshold &&
+      !kernel_box.IsSlice()) {
     return "single anchor readers" + std::to_string(kernel_box.TargetBuffer()->GetPeerInDataNodesSize()) +
            " exceed limited recomputation_threshold " +
            std::to_string(AutoFuseConfig::LoweringConfig().recomputation_threshold) + ", anchor size " +
@@ -244,6 +173,7 @@ bool IsViewNodeShouldLowering(vector<const ge::Node *> origin_nodes) {
 }
 
 std::vector<loop::KernelBox> GetRealizedKernelBoxes(const ge::NodePtr &node, const AscBackendFuseConfig &config) {
+  (void)config;
   std::vector<loop::KernelBox> realized_kernel_boxes;
   if (node->GetAllOutDataAnchorsSize() == 0) {
     GELOGI("Node %s has no kernel box.", node->GetName().c_str());
@@ -268,7 +198,6 @@ std::vector<loop::KernelBox> GetRealizedKernelBoxes(const ge::NodePtr &node, con
       } else {
         GELOGI("Fall back lowering for node scope: %s", kernel_box.DebugString().c_str());
       }
-
     }
   }
   if (realized_kernel_boxes.empty()) {
@@ -282,12 +211,7 @@ std::vector<loop::KernelBox> GetRealizedKernelBoxes(const ge::NodePtr &node, con
     }
     return realized_kernel_boxes;
   }
-
-  GELOGI("All kernel box of node %s is too small:", node->GetName().c_str());
-  for (auto &kernel_box : realized_kernel_boxes) {
-    GELOGI("  kernel box %s num ascend ir nodes %zu < %zu", kernel_box.Name().c_str(),
-           kernel_box.GetAscendIrNodes().size(), config.min_ascend_ir_nodes);
-  }
+  // view op also lowering to ascbc
   return realized_kernel_boxes;
 }
 
@@ -303,30 +227,6 @@ graphStatus MoveControlEdges(const NodePtr &src, const NodePtr &dst) {
            loop::BufferName(n->GetInControlAnchor()).c_str(), loop::BufferName(dst->GetOutControlAnchor()).c_str());
     GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(dst->GetOutControlAnchor(), n->GetInControlAnchor()));
     GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveEdge(src->GetOutControlAnchor(), n->GetInControlAnchor()));
-  }
-  return GRAPH_SUCCESS;
-}
-
-graphStatus RecoverInitControlEdge(std::vector<const ge::Node *> &origin_nodes) {
-  for (const auto &node : origin_nodes) {
-    auto it = node_in_control_to_const.find(node->GetName());
-    if (it != node_in_control_to_const.end()) {
-      for (const auto &const_node : it->second) {
-        GE_CHK_GRAPH_STATUS_RET(ge::GraphUtils::AddEdge(const_node->GetOutControlAnchor(),
-                                                        node->GetInControlAnchor()),
-                                "[Add][ControlEdge] between %s and %s failed",
-                                const_node->GetName().c_str(), node->GetName().c_str());
-      }
-    }
-    it = node_out_control_to_const.find(node->GetName());
-    if (it != node_out_control_to_const.end()) {
-      for (const auto &const_node : it->second) {
-        GE_CHK_GRAPH_STATUS_RET(ge::GraphUtils::AddEdge(node->GetOutControlAnchor(),
-                                                        const_node->GetInControlAnchor()),
-                                "[Add][ControlEdge] between %s and %s failed",
-                                node->GetName().c_str(), const_node->GetName().c_str());
-      }
-    }
   }
   return GRAPH_SUCCESS;
 }
@@ -396,7 +296,6 @@ graphStatus LiftingAscBackendOp(const NodePtr &node) {
       GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(origin_control, peer));
     }
   }
-  GE_ASSERT_GRAPH_SUCCESS(RecoverInitControlEdge(origin_nodes));
   return GRAPH_SUCCESS;
 }
 
@@ -548,7 +447,12 @@ OpDescPtr BuildOpDescForKernelBox(loop::KernelBox &kernel_box, std::vector<const
     GE_WARN_ASSERT(!asc_graph->IsScalarGraph(),
                    "Fall back lowering for node scope: %s. As unsupported scalar AscendC IR graph for kernel box %s",
                    kernel_box.DebugString().c_str(), kernel_box.Name().c_str());
+  } else if (kernel_box.Type() == ge::loop::FuseType::kSliceSplit) {
+    GE_WARN_ASSERT(!asc_graph->IsAscAxisEmpty(),
+                   "Fall back lowering for node scope: %s. As unsupported scalar AscendC IR graph for kernel box %s",
+                   kernel_box.DebugString().c_str(), kernel_box.Name().c_str());
   }
+
   PrintReadableAscGraph(*asc_graph->SharedGraph());
   origin_inputs = asc_graph->GetInputs();
   Operator asc_op;
@@ -616,27 +520,6 @@ std::vector<loop::KernelBox> GetNodeKernelBoxes(const NodePtr &node) {
   return kernel_boxes;
 }
 
-std::set<std::string> ReadListStrEnv(const char *env_name, const char sep = ',') {
-  std::set<std::string> result;
-  const char *env_value = std::getenv(env_name);
-
-  if (env_value == nullptr || env_value[0] == '\0') {
-    return result;
-  }
-
-  std::string env_str(env_value);
-  std::istringstream iss(env_str);
-  std::string token;
-
-  while (std::getline(iss, token, sep)) {
-    if (!token.empty()) {
-      result.insert(token);
-    }
-  }
-
-  return result;
-}
-
 bool IsNodeShouldLowering(const NodePtr &node) {
   std::string super_kernel_scope;
   if (AttrUtils::GetStr(node->GetOpDesc(), "_super_kernel_scope", super_kernel_scope)) {
@@ -648,12 +531,6 @@ bool IsNodeShouldLowering(const NodePtr &node) {
   if ((AttrUtils::GetBool(node->GetOpDesc(), "_disable_autofuse_scope", disable_autofuse_scope))
       && disable_autofuse_scope) {
     GELOGI("Skip lowering node %s, because it is in disable autofuse scope", node->GetName().c_str());
-    return false;
-  }
-
-  const static std::set<std::string> kManulSkipLoweringNodes = ReadListStrEnv("EXPERIMENTAL_SKIP_LOWERING_NODES");
-  if (kManulSkipLoweringNodes.count(node->GetName()) > 0U) {
-    GELOGI("Skip lowering node %s, because it is in skip lowering nodes list", node->GetName().c_str());
     return false;
   }
 
@@ -1055,12 +932,24 @@ bool IsSpecificConditionSkipLifting(const NodePtr &node) {
   return false;
 }
 
-bool IsCubeSkipLifting(const NodePtr &node, const size_t min_compute_nodes, const AutoFuseAttrs *fuse_attrs) {
+bool IsCubeSkipLifting(const NodePtr &node, const size_t min_compute_nodes, const AutoFuseAttrs *fuse_attrs,
+                       bool is_fuse_from_lowering) {
   auto origin_nodes = fuse_attrs->GetOriginNodes();
-  vector<const Node *> compute_ops = GetComputeOps(origin_nodes);
-  if (compute_ops.size() < min_compute_nodes) {
+  vector<const Node *> compute_ops = GetComputeOps(origin_nodes); // GetComputeOps里面融合reshape等节点不会统计成compute节点
+  if (compute_ops.size() < min_compute_nodes && is_fuse_from_lowering) { // 需要is_fuse_from_lowering标记判断是否经过canfuse融合
     return false;
   }
+
+  size_t cube_real_inputs = kMatmulMinInputNum;
+  const auto asc_graph = fuse_attrs->GetAscGraph();
+  GE_ASSERT_NOTNULL(asc_graph);
+  for (const auto &asc_node : asc_graph->GetAllNodes()) {
+    if (!AutofuseUtils::IsCubeNodeType(asc_node)) {
+      continue;
+    }
+    cube_real_inputs = asc_node->GetInNodes().size(); // ascgraph里面的matmul节点，即使输入是某个节点输出的多引用，也有至少两个输入
+  }
+
   const auto &sub_graph = ComGraphMakeShared<ComputeGraph>("matmul_subgraph" + node->GetName());
   GE_ASSERT_NOTNULL(sub_graph);
   for (auto *org_node : compute_ops) {
@@ -1070,8 +959,11 @@ bool IsCubeSkipLifting(const NodePtr &node, const size_t min_compute_nodes, cons
       op_desc->SetName(org_node->GetName());
       auto mm_node = sub_graph->AddNode(op_desc);
       GE_ASSERT_NOTNULL(mm_node);
-      for (auto i = 0U; i < node->GetAllInDataAnchors().size(); i++) {
-        const auto &src_anchor = node->GetInDataAnchor(i);
+      bool is_a_b_same_input = cube_real_inputs > node->GetAllInDataAnchors().size();
+      for (auto i = 0U; i < cube_real_inputs; i++) {
+        // a矩阵、b矩阵同输入存在ascgraph的matmul有两个输入，Ascackend只有一个输入，需多加一个输入再生成kernel函数
+        auto i_node = is_a_b_same_input ? (i == 0U ? 0U : i - 1U) : i;
+        const auto &src_anchor = node->GetInDataAnchor(i_node); // cube垂直向后融合可以保证cube输入在前
         GE_ASSERT_NOTNULL(src_anchor);
         auto peer_anchor = src_anchor->GetPeerOutAnchor();
         GE_ASSERT_NOTNULL(peer_anchor);
@@ -1086,20 +978,6 @@ bool IsCubeSkipLifting(const NodePtr &node, const size_t min_compute_nodes, cons
         GE_ASSERT_NOTNULL(peer_node_out_anchor);
         GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(peer_node_out_anchor, mm_node->GetInDataAnchor(i)));
       }
-
-      const auto &src_out_anchor = node->GetOutDataAnchor(0);
-      GE_ASSERT_NOTNULL(src_out_anchor);
-      auto peer_anchor = src_out_anchor->GetPeerAnchors().at(0);
-      GE_ASSERT_NOTNULL(peer_anchor);
-      auto mm_ori_next_node = peer_anchor->GetOwnerNode();
-
-      const auto &next_op_desc = GraphUtils::CopyOpDesc(mm_ori_next_node->GetOpDesc(), nullptr);
-      GE_ASSERT_NOTNULL(next_op_desc);
-      next_op_desc->SetName(mm_ori_next_node->GetName());
-      auto new_next_node = sub_graph->AddNode(next_op_desc);
-      GE_ASSERT_NOTNULL(new_next_node);
-      GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(mm_node->GetOutDataAnchor(0),
-                                                  new_next_node->GetInDataAnchor(peer_anchor->GetIdx())));
       break;
     }
   }
@@ -1107,19 +985,20 @@ bool IsCubeSkipLifting(const NodePtr &node, const size_t min_compute_nodes, cons
   auto op_desc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
   GE_ASSERT_TRUE(op_desc->SetExtAttr("matmul_subgraph", sub_graph));
-  GELOGD("Skip lifting cube node %s", node->GetName().c_str());
+  GELOGD("Skip lifting cube node %s, cube_real_inputs %zu", node->GetName().c_str(), cube_real_inputs);
   return true;
 }
 
 bool IsSkipLifting(const NodePtr &node, size_t min_compute_nodes) {
   auto fuse_attrs = node->GetOpDesc()->GetAttrsGroup<AutoFuseAttrs>();
   GE_ASSERT_NOTNULL(fuse_attrs);
-  if (!GetInterAttrs(fuse_attrs).is_fuse_from_lowering) {
+  if (fuse_attrs->HasFuseType(loop::FuseType::kCube)) {
+    return IsCubeSkipLifting(node, min_compute_nodes, fuse_attrs, GetInterAttrs(fuse_attrs).is_fuse_from_lowering);
+  }
+  auto &inner_fuse_attr = GetInterAttrs(fuse_attrs);
+  if (inner_fuse_attr.split_global_id == kNonSplitGlobalId && !inner_fuse_attr.is_fuse_from_lowering) {
     GELOGI("Skip lifting node:%s, as it is fused from can_fuse.", node->GetName().c_str());
     return true;
-  }
-  if (fuse_attrs->HasFuseType(loop::FuseType::kCube)) {
-    return IsCubeSkipLifting(node, min_compute_nodes, fuse_attrs);
   }
   if (fuse_attrs->HasFuseType(loop::FuseType::kSplit)) {
     bool need_lifting = false;
@@ -1129,9 +1008,10 @@ bool IsSkipLifting(const NodePtr &node, size_t min_compute_nodes) {
   }
   auto origin_nodes = fuse_attrs->GetOriginNodes();
   vector<const Node*> compute_ops = GetComputeOps(origin_nodes);
-  if (compute_ops.size() >= min_compute_nodes) {
-    GELOGD("Skip lifting node %s as num fused nodes num %zu >= %zu", node->GetName().c_str(),
-           compute_ops.size(), min_compute_nodes);
+  if ((compute_ops.size() >= min_compute_nodes)
+       || ((origin_nodes.size() > 1U) && ((fuse_attrs->HasFuseType(loop::FuseType::kSliceSplit))))) {
+    GELOGD("Skip lifting node %s as num fused nodes num %zu >= %zu or slice fuse other node %zu", node->GetName().c_str(),
+           compute_ops.size(), min_compute_nodes, origin_nodes.size());
     return true;
   }
 

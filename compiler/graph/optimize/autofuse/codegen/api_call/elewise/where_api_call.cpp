@@ -16,8 +16,8 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils//asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
-#include "../utils/api_call_utils.h"
+#include "api_call/utils/api_call_factory.h"
+#include "api_call/utils/api_call_utils.h"
 
 namespace codegen {
 using namespace std;
@@ -44,6 +44,13 @@ Status WhereApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
     static_cast<int32_t>(x3.is_constant),
     static_cast<int32_t>(x3.is_ub_scalar),
     static_cast<int32_t>(x3.need_gen_get_value_of_ub_scalar));
+
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "WhereApiCall cannot find tmp buffer id to use.");
+  id = it->second;
 
   // todo 暂不支持非标量且需要广播的场景
   ApiLoopParams param;
@@ -90,7 +97,7 @@ Status WhereApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
     } else {
       ss << x3 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x3) << "], ";  // 输入3
     }
-    ss << x1.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+    ss << x1.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
   } else {  // 有loop，调用两根轴输入的where接口
     std::stringstream ss1;
     if (x2_is_scalar_scene && x3_is_scalar_scene) {
@@ -117,7 +124,7 @@ Status WhereApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
           << tpipe.tiler.Size(param.input_second_to_last_stride) << ", "
           << "ONE_BLK_SIZE / sizeof(float), "
           << "ONE_BLK_SIZE / sizeof(float), "
-          << tpipe.tmp_buf << ", ONE_BLK_SIZE * 2);" << std::endl;
+          << tpipe.tmp_buf << "_" << std::to_string(id) << ", ONE_BLK_SIZE * 2);" << std::endl;
       if (param.outer_repeats.size() == 1) {
         ss << ss1.str();
       } else {
@@ -154,7 +161,7 @@ Status WhereApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
           << tpipe.tiler.Size(param.input_second_to_last_stride) << ", "
           << "ONE_BLK_SIZE / sizeof(float), "
           << tpipe.tiler.Size(param.output_second_to_last_stride) << ", "
-          << tpipe.tmp_buf << ", ONE_BLK_SIZE);" << std::endl;
+          << tpipe.tmp_buf << "_" << std::to_string(id) << ", ONE_BLK_SIZE);" << std::endl;
       if (param.outer_repeats.size() == 1) {
         ss << ss1.str();
       } else {
@@ -191,7 +198,7 @@ Status WhereApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
           << tpipe.tiler.Size(param.input_second_to_last_stride) << ", "
           << tpipe.tiler.Size(param.output_second_to_last_stride) << ", "
           << "ONE_BLK_SIZE / sizeof(float), "
-          << tpipe.tmp_buf << ", ONE_BLK_SIZE);" << std::endl;
+          << tpipe.tmp_buf << "_" << std::to_string(id) << ", ONE_BLK_SIZE);" << std::endl;
       if (param.outer_repeats.size() == 1) {
         ss << ss1.str();
       } else {
@@ -232,7 +239,7 @@ Status WhereApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
           << tpipe.tiler.Size(param.input_second_to_last_stride) << ", "
           << tpipe.tiler.Size(param.output_second_to_last_stride) << ", "
           << tpipe.tiler.Size(param.output_second_to_last_stride) << ", "
-          << tpipe.tmp_buf << ", 0);" << std::endl;
+          << tpipe.tmp_buf << "_" << std::to_string(id) << ", 0);" << std::endl;
       if (param.outer_repeats.size() == 1) {
         ss << ss1.str();
       } else {

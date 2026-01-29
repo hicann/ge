@@ -76,7 +76,7 @@ ge::Status GetPadTilingCall([[maybe_unused]] const std::string &tiling_data_type
 ge::Status GetPadTilingDefine([[maybe_unused]] const std::string &tiling_data_type,
                               [[maybe_unused]] const ge::AscGraph &graph,
                               [[maybe_unused]] const ge::AscNodePtr &node,
-                              std::string &code_string,
+                              [[maybe_unused]] const std::string &code_string,
                               [[maybe_unused]] uint32_t tiling_case_id) {
   return ge::SUCCESS;
 }

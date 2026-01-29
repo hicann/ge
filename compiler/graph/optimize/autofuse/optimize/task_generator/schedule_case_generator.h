@@ -16,6 +16,7 @@
 #include "ascir_utils.h"
 #include "schedule_group_partitioner.h"
 #include "schedule_task_generator.h"
+#include "schedule_utils.h"
 
 namespace optimize {
 class FusionCaseGenerator {
@@ -30,11 +31,16 @@ class FusionCaseGenerator {
     std::vector<std::string> score_funcs;
     GE_CHK_STATUS_RET(Generate(optimize_graph, optimize_graphs, score_funcs), "GenerateScheduleCases failed");
     score_funcs.resize(optimize_graphs.size());
+    const bool need_update_axis = (ScheduleUtils::FindFirstNodeOfType<ge::ascir_op::Concat>(optimize_graph) != nullptr);
     for (size_t i = 0U; i < optimize_graphs.size(); ++i) {
       const auto &graph = optimize_graphs[i];
       ScheduleTask task{graph, {}, score_funcs[i]};
+      task.has_load_store_conversion = HasLoadStoreConversion();
       GE_CHK_STATUS_RET(ScheduleGroupGraphPartitioner::PartitionByConnectivity(graph, task.grouped_graphs),
                         "Failed to partition graph");
+      if (need_update_axis && task.grouped_graphs.size() > 1) {
+        GE_ASSERT_SUCCESS(UpdateAxisSizes(task.grouped_graphs));
+      }
       tasks.emplace_back(std::move(task));
     }
     return ge::GRAPH_SUCCESS;
@@ -47,6 +53,20 @@ class FusionCaseGenerator {
         ScheduleGroupGraphPartitioner::PartitionByConnectivity(impl_graph, new_schedule_task.grouped_graphs),
         "Failed to partition graph [%s].", impl_graph.GetName().c_str());
     tasks.emplace_back(std::move(new_schedule_task));
+    return ge::SUCCESS;
+  }
+
+  virtual bool HasLoadStoreConversion() const {
+    return false;
+  }
+
+ private:
+  static Status UpdateAxisSizes(std::vector<::ascir::ImplGraph> &grouped_graphs) {
+    for (const auto &subgraph : grouped_graphs) {
+      if (ScheduleUtils::FindFirstNodeOfType<ge::ascir_op::Concat>(subgraph) == nullptr) {
+        GE_ASSERT_SUCCESS(ScheduleGroupGraphPartitioner::RefreshAxisSize(subgraph));
+      }
+    }
     return ge::SUCCESS;
   }
 };

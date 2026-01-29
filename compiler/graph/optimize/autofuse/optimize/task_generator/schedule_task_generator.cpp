@@ -9,30 +9,14 @@
  */
 
 #include "task_generator/schedule_task_generator.h"
-#include "task_generator/concat_schedule_case_generator.h"
-#include "task_generator/transpose_schedule_case_generator.h"
-#include "task_generator/reduce_schedule_case_generator.h"
-#include "task_generator/recompute_case_generator.h"
-#include "task_generator/split_schedule_case_generator.h"
-#include "task_generator/cube_schedule_case_generator.h"
+#include "platform/platform_factory.h"
 
 namespace optimize {
 Status ScheduleTaskGenerator::GenerateTasks(::ascir::ImplGraph &optimize_graph, std::vector<ScheduleTask> &tasks,
-                                            const OptimizerOptions &options) {                                             
-  GE_CHK_STATUS_RET(SplitFusionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
-                    "Failed to generate tasks for split");                                             
-  GE_CHK_STATUS_RET(CubeFusionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
-                    "Failed to generate tasks for cube");
-  GE_CHK_STATUS_RET(ConcatFusionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
-                    "Failed to generate tasks for concat");
-  GE_CHK_STATUS_RET(TransposeFusionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
-                    "Failed to generate tasks for Transpose");
-  GE_CHK_STATUS_RET(ReducePartitionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
-                    "Failed to generate tasks for Reduce");
-  if (tasks.empty()) {
-    GE_CHK_STATUS_RET(RecomputeCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
-                      "Failed to generate recomputation tasks for graph[%s].", optimize_graph.GetName().c_str());
-  }
+                                            const OptimizerOptions &options) {
+  const auto &platform = PlatformFactory::GetInstance().GetPlatform();
+  GE_CHECK_NOTNULL(platform, "Platform is not found.");
+  GE_ASSERT_SUCCESS(platform->GenerateTasks(optimize_graph, options, tasks));
   return ge::SUCCESS;
 }
 }  // namespace optimize

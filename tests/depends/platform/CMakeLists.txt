@@ -13,11 +13,14 @@ file(GLOB_RECURSE SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 
 include_directories(${ASCEND_INSTALL_PATH}/include/platform)
 
+# Only create platform target if it doesn't already exist (e.g., from CANN package)
+if(NOT TARGET platform)
 add_library(platform SHARED ${SRC_FILES})
 target_link_libraries(platform
     PRIVATE
         intf_pub
 )
 target_compile_options(platform PRIVATE -g)
+endif()
 
 stub_module(platform_stub_parser platform)

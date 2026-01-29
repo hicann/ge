@@ -24,9 +24,9 @@ bool FusionStrategy::CanMergeLoop(const NodePtr &node1, const NodePtr &node2) {
   return true;
 }
 
-uint32_t FusionStrategy::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
-  GELOGI("node1 %s(*) and node2 %s(*) priority:%u.", node1->GetNamePtr(), node2->GetNamePtr(), kDefaultFusionPriority);
-  return kDefaultFusionPriority;
+FusionPriority FusionStrategy::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
+  GELOGI("node1 %s(*) and node2 %s(*) priority:%u.", node1->GetNamePtr(), node2->GetNamePtr(), FusionPriority::DEFAULT);
+  return FusionPriority::DEFAULT;
 }
 
 uint64_t FusionStrategy::GetMaxFusionNodesSize(const NodePtr &node1, const NodePtr &node2) {
@@ -57,6 +57,9 @@ bool FusionStrategy::OnlyVerticalMapping(const NodePtr &node1, const NodePtr &no
 bool FusionStrategy::CheckSameSchedAxis(const NodePtr &node1, const NodePtr &node2,
                                         const AxisPairSet &node1_map, const AxisPairSet &node2_map,
                                         const NodeFuseInfo &node_fuse_info) {
+  (void)node1_map;
+  (void)node2_map;
+  (void)node_fuse_info;
   GELOGI("node1 %s(%s) and node2 %s(%s) can fuse by same sched axis.", node1->GetNamePtr(), node1->GetType().c_str(),
          node2->GetNamePtr(), node2->GetType().c_str());
   return true;

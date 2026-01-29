@@ -14,8 +14,8 @@
 #include "ascir_ops.h"
 #include "common_utils.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
-#include "../utils/api_call_factory.h"
-#include "../utils/api_call_utils.h"
+#include "api_call/utils/api_call_factory.h"
+#include "api_call/utils/api_call_utils.h"
 
 namespace reduce_base {
 using namespace codegen;
@@ -67,7 +67,7 @@ void ReduceMergedSizeCodeGen(const TPipe &tpipe, std::stringstream &ss, const Te
   size_t last_not_1_axis_size_index = 0xFFFFFFFF;
   bool isAllAxisReduce = true;
   for (size_t i = 0; i < num_axes; ++i) {
-    isAllAxisReduce &= dst.vectorized_strides[i] == 0;
+    isAllAxisReduce = isAllAxisReduce && (dst.vectorized_strides[i] == 0);
     const auto axis      = tpipe.tiler.GetAxis(src.vectorized_axis[i]);
     const auto axis_size = tpipe.tiler.AxisSize(src.vectorized_axis[i]);
     if (i == num_axes - 1U) {
@@ -108,7 +108,8 @@ void ReduceMergedSizeCodeGen(const TPipe &tpipe, std::stringstream &ss, const Te
 bool IsNeedMultiReduce(const Tiler &tiler, const Tensor &input, const Tensor &output, ascir::AxisId axis_id) {
   int64_t total_count = 0;
   int64_t valid_count = 0;
-  std::function<void(ascir::AxisId)> recursive_functor = [&](ascir::AxisId id) {
+  std::function<void(ascir::AxisId)> recursive_functor = [&tiler, &input, &output, &total_count,
+                                                          &valid_count, &recursive_functor](ascir::AxisId id) {
     Axis axis = tiler.GetAxis(id);
     auto pos = std::find(output.axis.begin(), output.axis.end(), id);
     if (pos != output.axis.end()) {
@@ -138,14 +139,14 @@ bool IsNeedMultiReduce(const Tiler &tiler, const Tensor &input, const Tensor &ou
   return total_count == valid_count;
 }
 
-void ReduceMeanCodeGen(std::string &dtype_name, const TPipe &tpipe, const Tensor &src, const Tensor &dst,
+void ReduceMeanCodeGen(std::string &dtype_name, const TPipe &tpipe, const Tensor &dst,
                        std::stringstream &ss) {
   std::set<ascir::AxisId> r_from_axis;
   for (size_t i = 0; i < dst.axis_strides.size(); i++) {
     if (dst.axis_strides[i] == 0) {  // 如果目标张量的轴步长为0
       auto axis_id = dst.axis[i];  // 获取当前轴ID
       // 定义递归函数用于收集原始轴
-      std::function<void(int)> collect_original_axes = [&](int current_axis_id) {
+      std::function<void(int)> collect_original_axes = [&tpipe, &r_from_axis, &collect_original_axes](int current_axis_id) {
         auto axis = tpipe.tiler.GetAxis(current_axis_id);  // 获取当前轴对象
         if (axis.type == ascir::Axis::Type::kAxisTypeOriginal) {
           r_from_axis.insert(current_axis_id);  // 如果是原始轴则加入集合

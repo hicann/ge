@@ -46,6 +46,7 @@ usage() {
   echo "            =parser       Build ge parser ut"
   echo "            =dflow        Build ge dflow ut"
   echo "        =executor_c       Build executor_c ut"
+  echo "        =autofuse         Build autofuse ut"
   echo "    -s, --st       Build all st"
   echo "        =ge               Build all ge st"
   echo "            =ge_common    Build ge common st"
@@ -55,6 +56,7 @@ usage() {
   echo "            =parser       Build ge parser st"
   echo "            =dflow        Build ge dflow st"
   echo "        =executor_c       Build executor_c st"
+  echo "        =autofuse         Build autofuse st"
   echo "    -h, --help     Print usage"
   echo "    -c, --cov      Build ut/st with coverage tag"
   echo "                   Please ensure that the environment has correctly installed lcov, gcov, and genhtml."
@@ -105,6 +107,7 @@ checkopts() {
   ENABLE_ST_WHOLE_PROCESS="off"
   ENABLE_ACL_UT="off"
   ENABLE_GE_C="off"
+  ENABLE_GE_AUTOFUSE="off"
 
   ENABLE_GE_BENCHMARK="off"
 
@@ -183,6 +186,10 @@ checkopts() {
             ENABLE_GE_C="on"
             shift 2
             ;;
+          "autofuse")
+            ENABLE_GE_AUTOFUSE="on"
+            shift 2
+            ;;
           *)
             usage
             exit 1
@@ -240,6 +247,10 @@ checkopts() {
           "dflow")
             ENABLE_DFLOW="on"
             ENABLE_GE="on"
+            shift 2
+            ;;
+          "autofuse")
+            ENABLE_GE_AUTOFUSE="on"
             shift 2
             ;;
           "executor_c")
@@ -687,7 +698,38 @@ main() {
       fi
     fi
   fi
-  
+
+  # module autofuse
+  if [ "X$ENABLE_GE_AUTOFUSE" == "Xon" ]; then
+    # autofuse ut
+    if [ "X$ENABLE_UT" = "Xon" ]; then
+      set +e
+      bash scripts/test/run_autofuse_test.sh -u -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+      set -e
+
+      # 如果 autofuse UT 失败，打印汇总后立即退出
+      if [ "${test_failed}" -ne 0 ]; then
+        print_all_tests_summary_from_files "${TEST_SUMMARY_FILE}"
+        unset TEST_SUMMARY_FILE
+        exit 1
+      fi
+    fi
+
+    # autofuse st
+    if [ "X$ENABLE_ST" = "Xon" ]; then
+      set +e
+      bash scripts/test/run_autofuse_test.sh -s -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+      set -e
+
+      # 如果 autofuse ST 失败，打印汇总后立即退出
+      if [ "${test_failed}" -ne 0 ]; then
+        print_all_tests_summary_from_files "${TEST_SUMMARY_FILE}"
+        unset TEST_SUMMARY_FILE
+        exit 1
+      fi
+    fi
+  fi
+
   # module executor_c
   if [ "X$ENABLE_GE_C" == "Xon" ]; then
     # executor_c ut

@@ -183,31 +183,36 @@ public:
   ge::Expression Simplify(const ge::Expression &expr);
   void SimplifySymbolCheckInfo();
   ge::Expression EvaluateExpr(const ge::Expression &expr);
-  graphStatus AppendReplacement(const ge::Expression &expr1, const ge::Expression &expr2);
+  graphStatus AppendReplacement(const ge::Expression &target, const ge::Expression &replacement);
   graphStatus AppendSymbolAssertInfo(const ge::Expression &expr,
       const std::string &file = "", const int64_t line = 0L);
   graphStatus AppendSymbolCheckInfo(const ge::Expression &expr,
       const std::string &file = "", const int64_t line = 0L);
   const std::vector<SymbolCheckInfo> GetAllSymbolCheckInfos() const;
   const std::vector<SymbolCheckInfo> GetAllSymbolAssertInfos() const;
-  bool HasSymbolCheckInfo(const ge::Expression &expr) const;
-  bool HasSymbolAssertInfo(const ge::Expression &expr) const;
+  bool HasSymbolCheckInfo(const ge::Expression &e) const;
+  bool HasSymbolAssertInfo(const ge::Expression &e) const;
   TriBool HasSymbolInfo(const ge::Expression &expr) const;
   std::unique_ptr<AttrGroupsBase> Clone() override;
-  void SetGuardDfxContextInfo(const std::string &guard_dfx_info);
-  void ClearGuardDfxContextInfo();
+  void SetGuardDfxContextInfo(const std::string &guard_dfx_info) const ;
+  void ClearGuardDfxContextInfo() const;
+  void ClearSymbolValueInfo() {
+    symbol_to_value_.clear();
+    value_to_symbol_.clear();
+  }
  private:
-  void SimplifySymbolCheckInfo(std::set<SymbolCheckInfo, SymbolCheckInfoKeyLess> &symbol_check_infos);
+  void SimplifySymbolCheckInfo(std::set<SymbolCheckInfo, SymbolCheckInfoKeyLess> &symbol_check_infos) const;
   void AppendInitReplacement(const ge::Expression &expr);
   ge::Expression FindReplacements(const ge::Expression &expr);
   graphStatus MergeReplacement(const ge::Expression &expr1, const ge::Expression &expr2);
-  graphStatus FindRootExpr(const ge::Expression &expr, ge::Expression &root_expr);
+  graphStatus FindRootExpr(const ge::Expression &expr, ge::Expression &root_expr) const;
   graphStatus SerializeSymbolCheckInfos(proto::ShapeEnvAttrGroupsDef *shape_env_group);
   graphStatus MergePath();
   graphStatus SerializeSymbolInfo(proto::ShapeEnvAttrGroupsDef *shape_env_group);
   graphStatus DeserializeSymbolInfo(const proto::ShapeEnvAttrGroupsDef &shape_env_group);
   graphStatus DeserializeSymbolCheckInfos(const proto::ShapeEnvAttrGroupsDef &shape_env_group);
   std::string GetGuardDfxContextInfo() const;
+  bool CheckReplacementCycle(const Expression &expr1, const Expression &expr2) const;
   using UMapExprReplacement = std::unordered_map<ge::Expression, ge::Replacement, ExpressionHash, ExpressionKeyEq>;
   using UMapExprInt = std::unordered_map<ge::Expression, int64_t, ExpressionHash, ExpressionKeyEq>;
   using UMapExprSource= std::unordered_map<ge::Expression, SourcePtr, ExpressionHash, ExpressionKeyEq>;

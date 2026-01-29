@@ -16,7 +16,7 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
+#include "api_call/utils/api_call_factory.h"
 
 namespace codegen {
 using namespace std;
@@ -30,10 +30,18 @@ Status UnaryTmpApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Ax
                                  std::string &result) const {
   auto x = inputs[0].get();
   auto y = outputs[0].get();
+
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "UnaryTmpApiCall cannot find tmp buffer id to use.");
+  id = it->second;
+
   stringstream ss;
   ss << this->api_name_ << "(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], " << x << "["
-     << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << x.actual_size << "," << tpipe.tmp_buf << ");"
-     << std::endl;
+     << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << x.actual_size << "," << tpipe.tmp_buf
+     << "_" << std::to_string(id) << ");" << std::endl;
   result = ss.str();
   return ge::SUCCESS;
 }

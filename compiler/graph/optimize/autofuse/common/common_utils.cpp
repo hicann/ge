@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "common_utils.h"
@@ -118,13 +118,12 @@ ge::Expression GetTensorSize(const ge::AscTensor &tensor) {
   if (tensor.attr.repeats.size() == 0U) {
     return ge::Symbol(0);
   }
-  ge::Expression tensor_size = ge::Symbol(1);
-  for (const auto &repeat : tensor.attr.repeats) {
-    if (repeat.IsConstExpr()) {
-      tensor_size = ge::sym::Mul(tensor_size, repeat);
-    } else {
-      auto repeat_ceiling = ge::sym::Add(repeat, ge::Symbol(1));
-      tensor_size = ge::sym::Mul(tensor_size, repeat_ceiling);
+  ge::Expression tensor_size = ge::Symbol(1); // 当stride全为0时，返回tensorSize为1
+  GE_ASSERT_TRUE(tensor.attr.repeats.size() == tensor.attr.strides.size(),
+                "Check size failed, repeats size is %u, strides size is %u.", tensor.attr.repeats.size(), tensor.attr.strides.size());
+  for (size_t i = 0; i < tensor.attr.repeats.size(); i++) {
+    if (tensor.attr.strides[i] != 0) {
+      tensor_size = ge::sym::Max(tensor_size, tensor.attr.repeats[i] * tensor.attr.strides[i]);
     }
   }
   auto dtype_size = ge::GetSizeByDataType(tensor.attr.dtype);
@@ -132,15 +131,14 @@ ge::Expression GetTensorSize(const ge::AscTensor &tensor) {
   return tensor_size;
 }
 
-ge::Expression CalculateOneWorkspaceSize(const ge::AscNodePtr &ws_node) {
+ge::Expression CalculateOneWorkspaceSize(const ge::AscNodePtr &workspace_nodes) {
   ge::Expression ws_size = ge::Symbol(0);
-  if (ws_node->inputs().size() > 0) {
-    auto in = ws_node->inputs[0U];
-    int64_t tensor_id = in.attr.mem.tensor_id;
+  if (workspace_nodes->inputs().size() > 0) {
+    auto in = workspace_nodes->inputs[0U];
     auto in_size = GetTensorSize(in);
     ws_size = ge::sym::Max(ws_size, in_size);
   }
-  auto out = ws_node->outputs[0U];
+  auto out = workspace_nodes->outputs[0U];
   for (auto &peer_input :  out.anchor.GetPeerInDataAnchors()) {
     auto load_node = std::dynamic_pointer_cast<ge::AscNode>(peer_input->GetOwnerNode());
     auto out_size = GetTensorSize(load_node->outputs[0U]);
@@ -232,11 +230,11 @@ bool IsEmptyTensorSence(const ascir::FusedScheduledResult& fused_schedule_result
   return false;
 }
 
-bool IsSupportBlkTensorInput(const ge::AscNodePtr &node) {
+bool IsSupportBlkTensorInput(const ge::AscNodePtr &next_node) {
   static const std::set<std::string> supported_ops = {
     "Where", "Select", "Eq", "Ne", "Gt", "Lt", "Ge", "Le"
   };
-  return (supported_ops.count(node->GetType()) > 0U);
+  return (supported_ops.count(next_node->GetType()) > 0U);
 }
 
 void MergeBrcAxisRepeats(const std::vector<ge::Expression> &input0_repeats, const std::vector<ge::Expression> &input1_repeats,
@@ -276,8 +274,8 @@ void MergeBrcAxisRepeats(MergeBrcAxisParams &in0, MergeBrcAxisParams &in1) {
   std::vector<size_t> partition = {0};
   for (size_t i = 1UL; i < in0.repeats_no_one.size(); i++) {
     const bool cur_is_same = ExpressEq(in0.repeats_no_one[i], in1.repeats_no_one[i]);
-    const bool i0_can_merge = !(in0.is_axis_brc[i - 1UL] ^ in0.is_axis_brc[i]);
-    const bool i1_can_merge = !(in1.is_axis_brc[i - 1UL] ^ in1.is_axis_brc[i]);
+    const bool i0_can_merge = (in0.is_axis_brc[i - 1UL] == in0.is_axis_brc[i]);
+    const bool i1_can_merge = (in1.is_axis_brc[i - 1UL] == in1.is_axis_brc[i]);
     if (pre_is_same != cur_is_same || !i0_can_merge || !i1_can_merge) {
       partition.push_back(i);
       pre_is_same = cur_is_same;
@@ -593,6 +591,20 @@ bool IsNodeContainsBrcInline(const ge::AscNodePtr &node) {
   return false;
 }
 
+std::vector<ascir::TensorId> GetWorkspaceTensorIdListInOneScheduleResult(const ascir::FusedScheduledResult& fused_schedule_result)
+{
+  std::vector<ascir::TensorId> tensorId;
+  for (auto workspace : fused_schedule_result.workspace_nodes) {
+    GE_ASSERT_NOTNULL(workspace, "fused schedule result workspace node is null");
+    ascir::TensorId tId = workspace->outputs[0].attr.mem.tensor_id;
+    GELOGI("Get workspace tensor id: %ld", tId);
+    auto index = std::find(tensorId.begin(), tensorId.end(), tId);
+    if (index == tensorId.end()) {
+      tensorId.emplace_back(tId);
+    }
+  }
+  return tensorId;
+}
 
 bool IsScalarNextNodeSupportBlkTensor(const ge::AscNodePtr &node) {
   for (auto &out : node->outputs()) {
@@ -609,8 +621,8 @@ bool IsUbScalarLoad(const ge::AscNodePtr &node) {
   return (ge::ops::IsOps<ge::ascir_op::Load>(node)) && (node->outputs().size() == 1);
 }
 
-bool IsLinkToBrdcst(const ascir::NodeView &node) {
-  if (IsOps<Broadcast>(node) || IsOps<Nddma>(node)) {
+bool IsLinkToBrdcst(const ascir::NodeView &node, const std::set<std::string> &brc_types) {
+  if (brc_types.find(node->GetType()) != brc_types.end()) {
     return true;
   }
   if (IsOps<Store>(node) || IsOps<Output>(node) || node->GetOutDataNodesSize() == 0U) {
@@ -623,7 +635,7 @@ bool IsLinkToBrdcst(const ascir::NodeView &node) {
     for (auto &peer_input : out->anchor.GetPeerInDataAnchors()) {
       auto next_node = std::dynamic_pointer_cast<ge::AscNode>(peer_input->GetOwnerNode());
       auto next_node_is_brc_inline = GetBrcInlineIndex(next_node) == peer_input->GetIdx();
-      if (IsOps<Broadcast>(next_node) || next_node_is_brc_inline || IsLinkToBrdcst(next_node)) {
+      if (IsOps<Broadcast>(next_node) || next_node_is_brc_inline || IsLinkToBrdcst(next_node, brc_types)) {
         return true;
       }
     }
@@ -650,7 +662,7 @@ bool IsSingleGroup(const ascir::FusedScheduledResult &fused_schedule_result) {
 bool CanUseTilingKey(const ascir::FusedScheduledResult &fused_schedule_result) {
   for (const auto &schedule_result_list : fused_schedule_result.node_idx_to_scheduled_results) {
     for (const auto &schedule_result : schedule_result_list) {
-      if (schedule_result.enable_group_parallel || schedule_result.schedule_groups.size() > kMaxGroupPerCompileUnit) {
+      if (schedule_result.enable_group_parallel) {
         return false;
       }
     }
@@ -679,6 +691,28 @@ bool IsCubeFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_resu
   return false;
 }
 
+bool IsCubeUBFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result) {
+  for (auto scheduled_results : fused_schedule_result.node_idx_to_scheduled_results) {
+    for (auto scheduled_result : scheduled_results) {
+      if (scheduled_result.cube_type == ascir::CubeTemplateType::kUBFuse) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool IsCubeCommonFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result) {
+  for (auto scheduled_results : fused_schedule_result.node_idx_to_scheduled_results) {
+    for (auto scheduled_result : scheduled_results) {
+      if (scheduled_result.cube_type == ascir::CubeTemplateType::kCommon) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 bool IsCubeType(const ascir::ImplGraph &impl_graph) {
   for (const auto &node : impl_graph.GetAllNodes()) {
     if (node->attr.api.compute_type == ge::ComputeType::kComputeCube) {
@@ -698,33 +732,208 @@ bool IsCubeTypeWithBatch(const ascir::ImplGraph &impl_graph) {
   return false;
 }
 
+bool IsCubeTypeWithBias(const ascir::ImplGraph &impl_graph) {
+  for (const auto &node : impl_graph.GetAllNodes()) {
+    if ((node->GetType() == kMatMulBias) || (node->GetType() == kBatchMatMulBias) ||
+        (node->GetType() == kMatMulOffsetBias) || (node->GetType() == kBatchMatMulOffsetBias)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsCubeTypeWithOffsetW(const ascir::ImplGraph &impl_graph) {
+  for (const auto &node : impl_graph.GetAllNodes()) {
+    if ((node->GetType() == kMatMulOffset) || (node->GetType() == kBatchMatMulOffset) ||
+        (node->GetType() == kMatMulOffsetBias) || (node->GetType() == kBatchMatMulOffsetBias)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsCubeGroupType(const ascir::ScheduleGroup &sched_group) {
+  for (const auto &impl_graph : sched_group.impl_graphs) {
+    if (IsCubeType(impl_graph)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsSatetyResultType(const ascir::ScheduledResult &sched_result) {
+  return sched_result.cube_type == ascir::CubeTemplateType::kCommon;
+}
+
+ge::Status GetMutmulOutputTypeSize(const ascir::NodeView &node, uint32_t &length) {
+  if (node->attr.api.compute_type == ge::ComputeType::kComputeCube) {
+    GE_ASSERT_TRUE(node->outputs().size() > 0U);
+    for (const auto output : node->outputs()) {
+      GE_ASSERT_TRUE(ge::TypeUtils::GetDataTypeLength(output->attr.dtype, length));
+      return ge::SUCCESS;
+    }
+  }
+  return ge::FAILED;
+}
+
+ge::Status GetMutmulInputNum(const ascir::NodeView &node, uint32_t &num) {
+  if (node->attr.api.compute_type == ge::ComputeType::kComputeCube) {
+    num = node->inputs().size();
+    GE_ASSERT_TRUE(num > 1U);
+  }
+  return ge::SUCCESS;
+}
+
 ge::Status ParseMatmulAttr(const ascir::NodeView &node, MatMulAttr &mm_attr_data) {
   if (node->GetType() == kMatMul) {
-    GET_MATMUL_ATTRS(MatMul, mm_attr_data);
+    GET_MATMUL_ATTRS(node, MatMul, mm_attr_data);
   } else if (node->GetType() == kMatMulBias) {
-    GET_MATMUL_ATTRS(MatMulBias, mm_attr_data);
+    GET_MATMUL_ATTRS(node, MatMulBias, mm_attr_data);
     mm_attr_data.is_bias = true;
   } else if (node->GetType() == kMatMulOffset) {
-    GET_MATMUL_ATTRS(MatMulOffset, mm_attr_data);
+    GET_MATMUL_ATTRS(node, MatMulOffset, mm_attr_data);
+    mm_attr_data.is_offset_w = true;
   } else if (node->GetType() == kMatMulOffsetBias) {
-    GET_MATMUL_ATTRS(MatMulOffsetBias, mm_attr_data);
+    GET_MATMUL_ATTRS(node, MatMulOffsetBias, mm_attr_data);
     mm_attr_data.is_bias = true;
+    mm_attr_data.is_offset_w = true;
   } else if (node->GetType() == kBatchMatMul) {
-    GET_BATCH_MATMUL_ATTRS(BatchMatMul, mm_attr_data);
+    GET_BATCH_MATMUL_ATTRS(node, BatchMatMul, mm_attr_data);
     mm_attr_data.is_batch = true;
   } else if (node->GetType() == kBatchMatMulBias) {
-    GET_BATCH_MATMUL_ATTRS(BatchMatMulBias, mm_attr_data);
+    GET_BATCH_MATMUL_ATTRS(node, BatchMatMulBias, mm_attr_data);
     mm_attr_data.is_batch = true;
     mm_attr_data.is_bias = true;
   } else if (node->GetType() == kBatchMatMulOffset) {
-    GET_BATCH_MATMUL_ATTRS(BatchMatMulOffset, mm_attr_data);
+    GET_BATCH_MATMUL_ATTRS(node, BatchMatMulOffset, mm_attr_data);
     mm_attr_data.is_batch = true;
+    mm_attr_data.is_offset_w = true;
   } else if (node->GetType() == kBatchMatMulOffsetBias) {
-    GET_BATCH_MATMUL_ATTRS(BatchMatMulOffsetBias, mm_attr_data);
+    GET_BATCH_MATMUL_ATTRS(node, BatchMatMulOffsetBias, mm_attr_data);
     mm_attr_data.is_batch = true;
     mm_attr_data.is_bias = true;
+    mm_attr_data.is_offset_w = true;
   } else {
     GELOGE(ge::FAILED, "can't parse matmul node attr, type=%s", node->GetType().c_str());
+  }
+  return ge::SUCCESS;
+}
+
+ge::Status UpdateAttGroup(ascir::ScheduledResult &scheduled_result,
+                          std::function<void(ge::AscGraph &)> update_graph_axis) {
+  for (auto &group : scheduled_result.schedule_groups) {
+    std::vector<ge::AscGraph> impl_graphs_tmp;
+    for (auto &impl_graph : group.impl_graphs) {
+      auto new_graph_name = impl_graph.GetName() + "_for_matmul";
+      ge::AscGraph att_graph(new_graph_name.c_str());
+      att_graph.CopyFrom(impl_graph);
+      update_graph_axis(att_graph);
+      impl_graphs_tmp.push_back(std::move(att_graph));
+    }
+    group.impl_graphs.clear();
+    group.impl_graphs = impl_graphs_tmp;
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::Status CreateAttResult(ascir::FusedScheduledResult &elemwise_schedule_result,
+                           std::function<void(ge::AscGraph &)> update_graph_axis) {
+  for (auto &scheduled_results : elemwise_schedule_result.node_idx_to_scheduled_results) {
+    for (auto &scheduled_result : scheduled_results) {
+      GE_ASSERT_SUCCESS(UpdateAttGroup(scheduled_result, update_graph_axis));
+    }
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::Status CreateCVFusionResult(ascir::FusedScheduledResult &elemwise_schedule_result) {
+  if (!IsCubeFusedScheduled(elemwise_schedule_result)) {
+    return ge::SUCCESS;
+  }
+  for (auto &scheduled_results : elemwise_schedule_result.node_idx_to_scheduled_results) {
+    scheduled_results.erase(
+        std::remove_if(scheduled_results.begin(), scheduled_results.end(),
+                       [](const ascir::ScheduledResult &result) { return ascgen_utils::IsSatetyResultType(result); }),
+        scheduled_results.end());
+  }
+  for (auto &scheduled_results : elemwise_schedule_result.node_idx_to_scheduled_results) {
+    for (auto &scheduled_result : scheduled_results) {
+      scheduled_result.schedule_groups.erase(
+          std::remove_if(scheduled_result.schedule_groups.begin(), scheduled_result.schedule_groups.end(),
+                         [](const ascir::ScheduleGroup &group) { return ascgen_utils::IsCubeGroupType(group); }),
+          scheduled_result.schedule_groups.end());
+    }
+  }
+
+  auto update_graph_axis = [](ge::AscGraph &graph) {
+    for (auto &ax : graph.GetAllAxis()) {
+      if (ax == nullptr) {
+        continue;
+      }
+      if (ax->type == ascir::Axis::kAxisTypeTileInner) {
+        GELOGI("Add tile inner axis(%s) symbol align for graph(%s)", ax->name.c_str(), graph.GetName().c_str());
+        ax->align = ge::Symbol("get_g_basen_basem_align()");
+      }
+    }
+  };
+  GE_ASSERT_SUCCESS(CreateAttResult(elemwise_schedule_result, update_graph_axis));
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::Status CreateCVFusionCommonResult(ascir::FusedScheduledResult &elemwise_schedule_result) {
+  if (!IsCubeFusedScheduled(elemwise_schedule_result)) {
+    return ge::SUCCESS;
+  }
+  // 删除UBFuse的ScheduledResult
+  for (auto &scheduled_results : elemwise_schedule_result.node_idx_to_scheduled_results) {
+    scheduled_results.erase(std::remove_if(scheduled_results.begin(), scheduled_results.end(),
+                                           [](const ascir::ScheduledResult &result) {
+                                             return result.cube_type == ascir::CubeTemplateType::kUBFuse;
+                                           }),
+                            scheduled_results.end());
+  }
+  // 删除ScheduleGroup 中Cube AscGraph
+  for (auto &scheduled_results : elemwise_schedule_result.node_idx_to_scheduled_results) {
+    for (auto &scheduled_result : scheduled_results) {
+      scheduled_result.schedule_groups.erase(
+          std::remove_if(scheduled_result.schedule_groups.begin(), scheduled_result.schedule_groups.end(),
+                         [](const ascir::ScheduleGroup &group) { return ascgen_utils::IsCubeGroupType(group); }),
+          scheduled_result.schedule_groups.end());
+    }
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+bool IsCVFusionUBGraph(const ascir::ImplGraph &impl_graph, ascir::CubeTemplateType cv_fusion_type) {
+  if ((!ascgen_utils::IsCubeType(impl_graph)) && (cv_fusion_type == ascir::CubeTemplateType::kUBFuse)) {
+    return true;
+  }
+  return false;
+}
+
+ge::Status FilterCVFusionUBResult(ascir::FusedScheduledResult &ub_schedule_result) {
+  if (!IsCubeFusedScheduled(ub_schedule_result)) {
+    return ge::SUCCESS;
+  }
+  for (auto &scheduled_results : ub_schedule_result.node_idx_to_scheduled_results) {
+    scheduled_results.erase(std::remove_if(scheduled_results.begin(), scheduled_results.end(),
+                                           [](const ascir::ScheduledResult &result) {
+                                             return result.cube_type != ascir::CubeTemplateType::kUBFuse;
+                                           }),
+                            scheduled_results.end());
+  }
+  return ge::SUCCESS;
+}
+
+ge::Status FilterCVFusionCommonResult(ascir::FusedScheduledResult &common_schedule_result) {
+  if (!IsCubeFusedScheduled(common_schedule_result)) {
+    return ge::SUCCESS;
+  }
+  for (auto &scheduled_results : common_schedule_result.node_idx_to_scheduled_results) {
+    scheduled_results.erase(
+        std::remove_if(scheduled_results.begin(), scheduled_results.end(),
+                       [](const ascir::ScheduledResult &result) { return !ascgen_utils::IsSatetyResultType(result); }),
+        scheduled_results.end());
   }
   return ge::SUCCESS;
 }

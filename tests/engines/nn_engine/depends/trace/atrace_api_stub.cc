@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "atrace_pub.h"
+#include "trace/atrace_pub.h"
 #include <map>
 #include <iostream>
 

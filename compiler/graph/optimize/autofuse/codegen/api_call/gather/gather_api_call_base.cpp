@@ -90,11 +90,12 @@ std::string CalGatherOuterAxisOffset(const std::vector<ascir::AxisId> &current_a
 void CollectParamOuterAndInnerAxes(const std::vector<ascir::AxisId> &param_axis, ascir::AxisId gather_axis_id,
                                    std::vector<ascir::AxisId> &param_outer_axes,
                                    std::vector<ascir::AxisId> &param_inner_axes) {
+  const size_t gather_axis_id_t = static_cast<size_t>(gather_axis_id);                          
   for (size_t i = 0; i < param_axis.size(); i++) {
-    if (i < gather_axis_id) {
+    if (i < gather_axis_id_t) {
       param_outer_axes.emplace_back(param_axis[i]);
     }
-    if (i > gather_axis_id) {
+    if (i > gather_axis_id_t) {
       param_inner_axes.emplace_back(param_axis[i]);
     }
   }
@@ -104,8 +105,9 @@ void CollectParamOuterAndInnerAxes(const std::vector<ascir::AxisId> &param_axis,
 std::string CalGatherParamOffset(const std::vector<ascir::AxisId> &param_axis, std::string indices_value,
                                  ascir::AxisId gather_axis_id, const Axis &inner_vectorized_axis, const TPipe &tpipe) {
   stringstream ss;
+  const size_t gather_axis_id_t = static_cast<size_t>(gather_axis_id);  
   for (size_t i = 0; i < param_axis.size(); i++) {
-    if (i == gather_axis_id) {
+    if (i == gather_axis_id_t) {
       ss << indices_value << " * ";
       for (size_t j = i + 1; j < param_axis.size(); j++) {
         ss << tpipe.tiler.GetAxis(param_axis[j]).axis_size << " * ";
@@ -136,8 +138,9 @@ std::string CalGatherIndicesAxesSize(const std::vector<ascir::AxisId> &indices_a
 
 std::string CalGatherOuterSize(const std::vector<ascir::AxisId> &param_axis, ascir::AxisId gather_axis_id, const TPipe &tpipe) {
   stringstream ss;
+  const size_t gather_axis_id_t = static_cast<size_t>(gather_axis_id);  
   for (size_t i = 0; i < param_axis.size(); i++) {
-    if (i < gather_axis_id) {
+    if (i < gather_axis_id_t) {
       ss << tpipe.tiler.GetAxis(param_axis[i]).axis_size << " * ";
     }
     else {
@@ -150,8 +153,9 @@ std::string CalGatherOuterSize(const std::vector<ascir::AxisId> &param_axis, asc
 
 std::string CalGatherInnerSize(const std::vector<ascir::AxisId> &param_axis, ascir::AxisId gather_axis_id, const TPipe &tpipe) {
   stringstream ss;
+  const size_t gather_axis_id_t = static_cast<size_t>(gather_axis_id); 
   for (size_t i = 0; i < param_axis.size(); i++) {
-    if (i > gather_axis_id) {
+    if (i > gather_axis_id_t) {
       ss << tpipe.tiler.GetAxis(param_axis[i]).axis_size << " * ";
     }
   }
@@ -160,7 +164,7 @@ std::string CalGatherInnerSize(const std::vector<ascir::AxisId> &param_axis, asc
   return ss.str();
 }
 
-std::string CalGatherSize(const std::vector<ascir::AxisId> &param_axis, ascir::AxisId gather_axis_id, const TPipe &tpipe) {
+std::string CalGatherSize(const std::vector<ascir::AxisId> &param_axis, const TPipe &tpipe) {
   stringstream ss;
   for (size_t i = 0; i < param_axis.size(); i++) {
     ss << tpipe.tiler.GetAxis(param_axis[i]).axis_size << " * ";

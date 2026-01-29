@@ -83,22 +83,32 @@ Status GatherApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
   DataCopyParams param_x1;
   DataCopyParams param_x2;
   DataCopyParams param;
+
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  if (it != this->tmp_buf_id.end()) {
+    id = it->second;
+  }
+
   std::string x1_offset = tpipe.tiler.Offset(current_axis, x1.axis, x1.axis_strides);
   std::string dst_offset = tpipe.tiler.Offset(current_axis, y.axis, y.axis_strides);
   size_t pos = dst_offset.rfind('+');
   std::string x2_offset = (pos != std::string::npos) ? dst_offset.substr(pos + 1) : dst_offset;
   x2_offset.erase(0, x2_offset.find_first_not_of(" "));
-  if (this->axis + 1 > x1.axis_size.size()) {
+  if (this->axis + 1 > static_cast<int64_t>(x1.axis_size.size())) {
     GELOGE(ge::FAILED, "gather axis(%d) is larger than x1 axis size(%d)", this->axis, x1.axis_size.size());
     return ge::FAILED;
   }
-  if (this->axis + 1 != x1.axis_size.size()) {
+  if (this->axis + 1 != static_cast<int64_t>(x1.axis_size.size())) {
     ss << GenerateNonLastAxisGather(current_axis, inputs, outputs, this->axis, tpipe);
   } else {
+    GE_ASSERT_TRUE(id != -1L, "GatherApiCall cannot find tmp buffer id to use.");
     if (x1.axis_size.size() == 1) {
       ss << this->api_name_ << "(" << y << ", " << x1 << ", " << x2 << "[" << dst_offset << "], "
-         << tpipe.tiler.Size(x1.axis_size[0], true) << ", " << y.actual_size << ", " << tpipe.tmp_buf << ");"
-         << std::endl;
+         << tpipe.tiler.Size(x1.axis_size[0], true) << ", " << y.actual_size << ", " << tpipe.tmp_buf
+         << "_" << std::to_string(id) << ");" << std::endl;
     } else {
       string first_merge_axis = "0";
       string block_inner_axis;
@@ -113,7 +123,8 @@ Status GatherApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
       std::string param_last_axis_size = tpipe.tiler.Size(x1.axis_size[x1.axis_size.size() - 1], true);
       x1_offset = first_merge_axis + " * " + param_last_axis_size;
       ss << this->api_name_ << "(" << y << ", " << x1 << "[" << x1_offset << "], " << x2 << "[" << x2_offset << "], "
-         << param_last_axis_size << ", " << y.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+         << param_last_axis_size << ", " << y.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id)
+         << ");" << std::endl;
     }
   }
   result = ss.str();

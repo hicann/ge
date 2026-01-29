@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "axes_reorder_tiling_code_gen_impl.h"
@@ -25,18 +19,25 @@ ge::Status AxesReorderTilingCodeGenImpl::GenSolverBaseClass() {
   tiling_head_.AddLine(basic_solvers_head);
   std::string basic_solvers_func = SolverPassManager::GenAxesReorderBaseClassesFunc();
   tiling_func_.AddLine(basic_solvers_func);
+  if (config_.enable_autofuse_pgo) {
+    std::string pgo_solver_head = SolverPassManager::GenAxesReorderPgoClassesHead(config_.pgo_step_max);
+    tiling_head_.AddLine(pgo_solver_head);
+    std::string pgo_solver_func = SolverPassManager::GenAxesReorderPgoClassesFunc();
+    tiling_func_.AddLine(pgo_solver_func);
+  }
   return ge::SUCCESS;
 }
 
 ge::Status AxesReorderTilingCodeGenImpl::GenSolverTiling(const ModelInfo &model_info) {
   ArgsManager args_manager(model_info);
-  SolverPassManager solver_pass_manager(args_manager, {args_manager.GetTilingCaseId(), model_info.sub_case_tag}, config_.tiling_data_type_name, false, false);
+  SolverPassManager solver_pass_manager(args_manager, {args_manager.GetTilingCaseId(), model_info.sub_case_tag},
+                                        config_.tiling_data_type_name);
   solver_pass_manager.SetUBThreshold(config_.ub_threshold);
   solver_pass_manager.SetReservedUbSize(model_info.reserved_ub_size);
   solver_pass_manager.SetCoreNumThreshold(config_.corenum_threshold);
-  solver_pass_manager.SetEnableMulticoreUBTradeoff(config_.enable_multicore_ub_tradeoff || model_info.enable_ub_mc_tradeoff);
+  solver_pass_manager.SetEnableMulticoreUBTradeoff(config_.enable_multicore_ub_tradeoff);
   solver_pass_manager.SetEnableAutofusePGO(config_.enable_autofuse_pgo);
-  solver_pass_manager.SetHasHeavyOp(model_info.contains_heavy_op);
+  solver_pass_manager.SetAutofusePGOStepMax(config_.pgo_step_max);
   solver_pass_manager.SetVariableReplace(config_.do_variable_replace);
   solver_pass_manager.SetHighPerfTiling(config_.high_precision);
   tiling_func_.AddLine(solver_pass_manager.GenAxesReorderClass());
@@ -46,13 +47,12 @@ ge::Status AxesReorderTilingCodeGenImpl::GenSolverTiling(const ModelInfo &model_
 ge::Status AxesReorderTilingCodeGenImpl::GenDoTiling(const ModelInfo &model_info) {
   ArgsManager args_manager(model_info);
   SolverPassManager solver_pass_manager(args_manager, {args_manager.GetTilingCaseId(), model_info.sub_case_tag},
-                                        config_.tiling_data_type_name, config_.open_dt, config_.training_phase);
+                                        config_.tiling_data_type_name);
   solver_pass_manager.SetUBThreshold(config_.ub_threshold);
   solver_pass_manager.SetCoreNumThreshold(config_.corenum_threshold);
-  solver_pass_manager.SetEnableMulticoreUBTradeoff(config_.enable_multicore_ub_tradeoff ||
-                                                   model_info.enable_ub_mc_tradeoff);
+  solver_pass_manager.SetEnableMulticoreUBTradeoff(config_.enable_multicore_ub_tradeoff);
   solver_pass_manager.SetEnableAutofusePGO(config_.enable_autofuse_pgo);
-  solver_pass_manager.SetHasHeavyOp(model_info.contains_heavy_op);
+  solver_pass_manager.SetAutofusePGOStepMax(config_.pgo_step_max);
   solver_pass_manager.SetVariableReplace(config_.do_variable_replace);
   solver_pass_manager.SetHighPerfTiling(config_.high_precision);
   GenGetSetTilingImpl(model_info);
@@ -60,17 +60,7 @@ ge::Status AxesReorderTilingCodeGenImpl::GenDoTiling(const ModelInfo &model_info
   solver_pass_manager.SetInputOutputCall(GenLaunchLikeInputOutputDef(false));
   solver_pass_manager.SetIsUniGroup(is_uniq_group_);
   solver_pass_manager.SetTilingDataSubGroupItemName(model_info.schedule_group_ident.GetItemPrefix() + "_tiling_data");
-  const auto codes = solver_pass_manager.GenAxesReorderFunc(arrange_code_);
-  tiling_func_.AddLine(codes.first);
-  tiling_func_.AddLine("  bool DoTiling(" + config_.tiling_data_type_name + " &tiling_data) {");
-  GE_ASSERT_SUCCESS(TilingCodeGenImpl::GenInputSummary(model_info), "Generate input summary failed.");
-  GE_ASSERT_SUCCESS(TilingCodeGenImpl::GenHardwareSummary(model_info), "Generate hardware summary failed.");
-  GE_ASSERT_SUCCESS(TilingCodeGenImpl::GenHardwareJudge(model_info), "Generate hardware judge failed.");
-  tiling_func_.AddLine(codes.second);
-  tiling_func_.AddLine("    return true;");
-  tiling_func_.AddLine("  }");
-  tiling_func_.AddLine("");
-  return ge::SUCCESS;
+  return GenDoTilingCommon(model_info, solver_pass_manager.GenAxesReorderFunc(arrange_code_));
 }
 
 ge::Status AxesReorderTilingCodeGenImpl::GenToolFuncs() {
@@ -90,6 +80,68 @@ ge::Status AxesReorderTilingCodeGenImpl::GenTilingImplPublicFunc() {
   GE_ASSERT_SUCCESS(TilingCodeGenImpl::GenTilingImplPublicFunc(), "Generate tiling public func failed.");
   tiling_func_.AddLine("  virtual void GetTilingData(TilingDataCopy &from_tiling, " + data_type + " &to_tiling) {};");
   tiling_func_.AddLine("  virtual void SetTilingData(" + data_type + " &from_tiling, TilingDataCopy &to_tiling) {};");
+  tiling_func_.AddLine("  virtual void SetWorkspaceSize(" + data_type +
+  " &tiling_data, std::unordered_map<int64_t, uint64_t> &workspace_map) {};");
+  return ge::SUCCESS;
+}
+
+ge::Status AxesReorderTilingCodeGenImpl::GenHardwareCons(const ModelInfo &model_info) {
+  ArgsManager args_manager(model_info);
+  GE_ASSERT_TRUE(args_manager.Process(false), "Args manager process failed.");
+  for (const auto &pair : args_manager.GetTotalHardwareCons(config_.do_variable_replace)) {
+    auto iter = kHardwareNameMap.find(pair.first);
+    if (iter == kHardwareNameMap.end()) {
+      continue;
+    }
+    tiling_func_.AddLine("  int Get" + iter->second + "(" + config_.tiling_data_type_name + "& tiling_data) {");
+    if (iter->second == "ub_size") {
+      tiling_func_.AddLine(std::string("    return AxesReorderSolvercase") + model_info.sub_case_tag +
+          std::to_string(model_info.tiling_case_id) + "::GetTilingDataUbSizeStatic(tiling_data);");
+    } else if (iter->second == "block_dim") {
+      tiling_func_.AddLine(std::string("    return AxesReorderSolvercase") + model_info.sub_case_tag +
+          std::to_string(model_info.tiling_case_id) + "::GetTilingDataBlockDimStatic(tiling_data);");
+    } else {
+      tiling_func_.AddLine(GenBufRelatedVars(pair.second, args_manager.GetContainerMap()));
+    }
+    tiling_func_.AddLine("  }");
+    tiling_func_.AddLine("");
+  }
+  return ge::SUCCESS;
+}
+
+ge::Status AxesReorderTilingCodeGenImpl::GenPipeTypeObj(const ModelInfo &model_info) {
+  (void)model_info;
+  return ge::SUCCESS;
+}
+
+ge::Status AxesReorderTilingCodeGenImpl::GenGetObj(const ModelInfo &model_info) {
+  Expr expression;
+  std::vector<Expr> funcs;
+  Expr expr;
+  std::string codes;
+  ArgsManager args_manager(model_info);
+  GE_ASSERT_TRUE(args_manager.Process(false), "Args manager process failed.");
+  Expr head_cost = args_manager.GetHeadCost();
+  tiling_func_.AddLine("  double GetPerf(" + config_.tiling_data_type_name + "& tiling_data) {");
+  tiling_func_.AddLine("    return AxesReorderSolvercase" + model_info.sub_case_tag + std::to_string(model_info.tiling_case_id) +
+      "::GetTilingDataPerfStatic(PipeType::ALL, tiling_data);");
+  tiling_func_.AddLine("  }");
+  tiling_func_.AddLine("");
+  return ge::SUCCESS;
+}
+
+ge::Status AxesReorderTilingCodeGenImpl::GenExtraSummaryInfo(const ModelInfo &model_info, const ArgsManager &args_manager, std::string &case_info_str) {
+  for (const auto &pair : args_manager.GetObjectFunc()) {
+    auto iter = kPipetypeNameMap.find(pair.first);
+    if (iter != kPipetypeNameMap.end()) {
+      tiling_func_.AddLine("    OP_LOGI(OP_NAME, \"[PROF]The value of " + iter->second + " is %f" + case_info_str +
+          ".\", AxesReorderSolvercase" + model_info.sub_case_tag + std::to_string(model_info.tiling_case_id) +
+          "::GetTilingDataPerfStatic(PipeType::" + iter->second + ", tiling_data));");
+    }
+  }
+  tiling_func_.AddLine("    OP_LOGI(OP_NAME, \"[PROF]The objective value of the tiling data is %f" + case_info_str +
+      ".\", AxesReorderSolvercase" + model_info.sub_case_tag + std::to_string(model_info.tiling_case_id) +
+      "::GetTilingDataPerfStatic(PipeType::ALL, tiling_data));");
   return ge::SUCCESS;
 }
 }

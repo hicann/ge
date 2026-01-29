@@ -178,34 +178,8 @@ static void *GetArgsAddrByIOIndex(const std::map<uint64_t, uint64_t> &relevant_o
   return target_addr;
 }
 
-void InitGertTensor(gert::Tensor &tensor, const GeTensorDescPtr &tensor_desc, const void *addr, size_t size) {
-  tensor.SetDataType(tensor_desc->GetDataType());
-
-  // init shape
-  if (tensor_desc->IsOriginShapeInitialized()) {
-    std::vector<int64_t> dims = tensor_desc->GetOriginShape().GetDims();
-    for (size_t i = 0U; i < dims.size(); i++) {
-      tensor.MutableOriginShape().AppendDim(dims[i]);
-    }
-  }
-
-  std::vector<int64_t> dims = tensor_desc->GetShape().GetDims();
-  for (size_t i = 0U; i < dims.size(); i++) {
-    tensor.MutableStorageShape().AppendDim(dims[i]);
-  }
-
-  // init format
-  tensor.SetStorageFormat(tensor_desc->GetFormat());
-  tensor.SetOriginFormat(tensor_desc->GetOriginFormat());
-  tensor.SetExpandDimsType(gert::ExpandDimsType(tensor_desc->GetExpandDimsRule().c_str()));
-
-  tensor.SetPlacement(gert::TensorPlacement::kOnDeviceHbm);
-  tensor.MutableTensorData().SetAddr(addr, nullptr);
-  tensor.MutableTensorData().SetSize(size);
-}
-
 Status PrepareInputTensor(const OpDescPtr &op, const ExtraOpInfo &extra_op_info,
-                          std::vector<Adx::TensorInfo> &tensor_infos, std::vector<gert::Tensor> &input_tensors) {
+                          std::vector<Adx::TensorInfoV2> &tensor_infos, std::vector<gert::Tensor> &input_tensors) {
   const size_t size = extra_op_info.input_addrs.size();
   input_tensors.resize(size);
   size_t addr_index = 0U;
@@ -232,15 +206,26 @@ Status PrepareInputTensor(const OpDescPtr &op, const ExtraOpInfo &extra_op_info,
       continue;
     }
 
-    auto &tensor = input_tensors[idx];
-    InitGertTensor(tensor, tensor_desc, extra_op_info.input_addrs[idx], static_cast<size_t>(tensor_size));
-
-    Adx::TensorInfo tensor_info;
-    tensor_info.tensor = &tensor;
+    Adx::TensorInfoV2 tensor_info;
+    tensor_info.tensorSize = static_cast<size_t>(tensor_size);
+    tensor_info.format = tensor_desc->GetFormat();
+    tensor_info.dataType = tensor_desc->GetDataType();
+    tensor_info.tensorAddr = static_cast<int64_t *>(extra_op_info.input_addrs[idx]);
+    std::vector<int64_t> dims = tensor_desc->GetShape().GetDims();
+    for (size_t j = 0U; j < dims.size(); j++) {
+      tensor_info.shape.push_back(dims[j]);
+    }
+    tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
+    if (tensor_desc->IsOriginShapeInitialized()) {
+      std::vector<int64_t> origin_dims = tensor_desc->GetOriginShape().GetDims();
+      for (size_t j = 0U; j < origin_dims.size(); j++) {
+        tensor_info.originShape.push_back(origin_dims[j]);
+      }
+    }
     tensor_info.type = Adx::TensorType::INPUT;
     tensor_info.addrType = Adx::AddressType::TRADITIONAL;
     tensor_info.argsOffSet = static_cast<uint32_t>(args_offset);
-    tensor_infos.emplace_back(tensor_info);
+    (void)tensor_infos.emplace_back(tensor_info);
 
     GELOGI("input[%u] addr %p, size %zu, argsOffSet %lu", i, extra_op_info.input_addrs[idx], tensor_size, args_offset);
   }
@@ -248,7 +233,7 @@ Status PrepareInputTensor(const OpDescPtr &op, const ExtraOpInfo &extra_op_info,
 }
 
 Status PrepareOutputTensor(const OpDescPtr &op, const ExtraOpInfo &extra_op_info,
-                           std::vector<Adx::TensorInfo> &tensor_infos, std::vector<gert::Tensor> &output_tensors) {
+                           std::vector<Adx::TensorInfoV2> &tensor_infos, std::vector<gert::Tensor> &output_tensors) {
   const auto input_num = extra_op_info.input_addrs.size();
   const size_t size = extra_op_info.output_addrs.size();
   output_tensors.resize(size);
@@ -271,42 +256,50 @@ Status PrepareOutputTensor(const OpDescPtr &op, const ExtraOpInfo &extra_op_info
       args_offset = iter->second;
     }
 
-    auto &tensor = output_tensors[i];
-    InitGertTensor(tensor, tensor_desc, extra_op_info.output_addrs[i], static_cast<size_t>(tensor_size));
-
-    Adx::TensorInfo tensor_info;
-    tensor_info.tensor = &tensor;
+    Adx::TensorInfoV2 tensor_info;
+    tensor_info.tensorSize = static_cast<size_t>(tensor_size);
+    tensor_info.format = tensor_desc->GetFormat();
+    tensor_info.dataType = tensor_desc->GetDataType();
+    tensor_info.tensorAddr = static_cast<int64_t *>(extra_op_info.output_addrs[i]);
+    tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
+    if (tensor_desc->IsOriginShapeInitialized()) {
+      std::vector<int64_t> origin_dims = tensor_desc->GetOriginShape().GetDims();
+      for (size_t j = 0U; j < origin_dims.size(); j++) {
+        tensor_info.originShape.push_back(origin_dims[j]);
+      }
+    }
+    std::vector<int64_t> dims = tensor_desc->GetShape().GetDims();
+    for (size_t j = 0U; j < dims.size(); j++) {
+      tensor_info.shape.push_back(dims[j]);
+    }
     tensor_info.type = Adx::TensorType::OUTPUT;
     tensor_info.addrType = Adx::AddressType::TRADITIONAL;
     tensor_info.argsOffSet = static_cast<uint32_t>(args_offset);
-    tensor_infos.emplace_back(tensor_info);
+    (void)tensor_infos.emplace_back(tensor_info);
     GELOGI("output[%u] addr %p, size %ld, argsOffSet %lu", i, extra_op_info.output_addrs[i], tensor_size, args_offset);
   }
   return ge::SUCCESS;
 }
 
-Status PrepareWorkspaceTensor(const ExtraOpInfo &extra_op_info, std::vector<Adx::TensorInfo> &tensor_infos,
+Status PrepareWorkspaceTensor(const ExtraOpInfo &extra_op_info, std::vector<Adx::TensorInfoV2> &tensor_infos,
                               std::vector<gert::Tensor> &workspace_tensors) {
-  size_t size = extra_op_info.workspace_info.size();
+  const size_t size = extra_op_info.workspace_info.size();
   workspace_tensors.resize(size);
   for (size_t i = 0U; i < size; ++i) {
     const int64_t workspace_size = extra_op_info.workspace_info[i].second;
     void *workspace_addr = reinterpret_cast<void *>(extra_op_info.workspace_info[i].first);
-    auto &tensor = workspace_tensors[i];
-    tensor.SetDataType(DT_UINT8);
-    tensor.MutableOriginShape().AppendDim(workspace_size);
-    tensor.MutableStorageShape().AppendDim(workspace_size);
-    tensor.SetStorageFormat(ge::FORMAT_ND);
-    tensor.SetOriginFormat(ge::FORMAT_ND);
-    tensor.SetPlacement(gert::TensorPlacement::kOnDeviceHbm);
-    tensor.MutableTensorData().SetAddr(workspace_addr, nullptr);
-    tensor.MutableTensorData().SetSize(workspace_size);
 
-    Adx::TensorInfo tensor_info;
-    tensor_info.tensor = &tensor;
+    Adx::TensorInfoV2 tensor_info;
+    tensor_info.tensorSize = static_cast<size_t>(workspace_size);
+    tensor_info.format = ge::FORMAT_ND;
+    tensor_info.dataType = DT_UINT8;
+    tensor_info.tensorAddr = static_cast<int64_t *>(workspace_addr);
+    tensor_info.placement = gert::TensorPlacement::kOnDeviceHbm;
+    tensor_info.originShape.push_back(workspace_size);
+    tensor_info.shape.push_back(workspace_size);
     tensor_info.type = Adx::TensorType::WORKSPACE;
     tensor_info.addrType = Adx::AddressType::TRADITIONAL;
-    tensor_infos.emplace_back(tensor_info);
+    (void)tensor_infos.emplace_back(tensor_info);
     GELOGI("workspace[%u] addr %p, size %ld", i, workspace_addr, workspace_size);
   }
   return ge::SUCCESS;
@@ -340,8 +333,8 @@ void ExceptionDumper::SaveDumpOpInfoLocal(const OpDescPtr &op, const ExtraOpInfo
     op_desc_info.output_size.assign(extra_op_info.output_sizes.begin(), extra_op_info.output_sizes.end());
   }
   for (size_t i = 0U; i < extra_op_info.workspace_info.size(); ++i) {
-    op_desc_info.space_addrs.emplace_back(reinterpret_cast<void *>(extra_op_info.workspace_info[i].first));
-    op_desc_info.workspace_bytes.emplace_back(extra_op_info.workspace_info[i].second);
+    (void)op_desc_info.space_addrs.emplace_back(reinterpret_cast<void *>(extra_op_info.workspace_info[i].first));
+    (void)op_desc_info.workspace_bytes.emplace_back(extra_op_info.workspace_info[i].second);
   }
   op_desc_info.is_host_args = extra_op_info.is_host_args;
   op_desc_info.args_before_execute = extra_op_info.args_before_execute;
@@ -364,7 +357,7 @@ void ExceptionDumper::SaveDumpOpInfoLocal(const OpDescPtr &op, const ExtraOpInfo
   const std::lock_guard<std::mutex> lock(mutex_);
   ++op_desc_info_idx_;
   if (op_desc_info_.size() < kMaxOpDescInfoNum) {
-    op_desc_info_.emplace_back(std::move(op_desc_info));
+    (void)op_desc_info_.emplace_back(std::move(op_desc_info));
   } else {
     op_desc_info_[op_desc_info_idx_ % kMaxOpDescInfoNum] = op_desc_info;
   }
@@ -383,14 +376,14 @@ void ExceptionDumper::SaveOpInfoToAdump(const OpDescPtr &op, const ExtraOpInfo &
   std::vector<int64_t> workspace_sizes;
   uint32_t context_id = id.context_id;
 
-  // holders keep a tensor used by Adx::TensorInfo
+  // holders keep a tensor used by Adx::TensorInfoV2
   std::vector<gert::Tensor> input_holder;
   std::vector<gert::Tensor> output_holder;
   std::vector<gert::Tensor> workspace_holder;
 
-  std::vector<Adx::TensorInfo> input_tensor_infos;
-  std::vector<Adx::TensorInfo> output_tensor_infos;
-  std::vector<Adx::TensorInfo> workspace_tensor_infos;
+  std::vector<Adx::TensorInfoV2> input_tensor_infos;
+  std::vector<Adx::TensorInfoV2> output_tensor_infos;
+  std::vector<Adx::TensorInfoV2> workspace_tensor_infos;
 
   (void)AttrUtils::GetInt(op, TVM_ATTR_NAME_BLOCKDIM, block_dim);
   (void)AttrUtils::GetStr(op, op->GetName() + "_kernelname", "_kernelname", dev_func);
@@ -398,8 +391,8 @@ void ExceptionDumper::SaveOpInfoToAdump(const OpDescPtr &op, const ExtraOpInfo &
   (void)AttrUtils::GetInt(op, ATTR_NAME_IMPLY_TYPE, imply_type);
 
   for (size_t i = 0U; i < extra_op_info.workspace_info.size(); ++i) {
-    workspace_addrs.emplace_back(reinterpret_cast<void *>(extra_op_info.workspace_info[i].first));
-    workspace_sizes.emplace_back(extra_op_info.workspace_info[i].second);
+    (void)workspace_addrs.emplace_back(reinterpret_cast<void *>(extra_op_info.workspace_info[i].first));
+    (void)workspace_sizes.emplace_back(extra_op_info.workspace_info[i].second);
   }
 
   if (context_id == UINT32_MAX) {
@@ -430,7 +423,7 @@ void ExceptionDumper::SaveOpInfoToAdump(const OpDescPtr &op, const ExtraOpInfo &
     .TersorInfo(workspace_tensor_infos)
     .DeviceInfo(Adx::DEVICE_INFO_NAME_ARGS, reinterpret_cast<void *>(extra_op_info.args), extra_op_info.args_size);
 
-  const Adx::OperatorInfo &info = builder.Build();
+  const Adx::OperatorInfoV2 &info = builder.Build();
   GELOGI(
     "[Add][OpExceptionInfo] op[%s] dev_id: %u, stream_id: %u, task_id: %u, context_id: %u, thread_id: %u, "
     "args: %#lx, args_size: %zu, tiling_key: %u, is_host_args:%d, tensor num: %zu, dynamic %d.",
@@ -438,9 +431,9 @@ void ExceptionDumper::SaveOpInfoToAdump(const OpDescPtr &op, const ExtraOpInfo &
     extra_op_info.args_size, extra_op_info.tiling_key, extra_op_info.is_host_args, info.tensorInfos.size(),
     is_dynamic);
 
-  auto adx_ret = Adx::AdumpAddExceptionOperatorInfo(info);
+  const auto adx_ret = Adx::AdumpAddExceptionOperatorInfoV2(info);
   if (adx_ret != Adx::ADUMP_SUCCESS) {
-    GELOGW("call AdumpAddExceptionOperatorInfo failed, op[%s], dev_id %d, stream_id %u, task_id %u, is_dynamic: %s",
+    GELOGW("call AdumpAddExceptionOperatorInfoV2 failed, op[%s], dev_id %d, stream_id %u, task_id %u, is_dynamic: %s",
            op->GetName().c_str(), id.device_id, id.stream_id, id.task_id, is_dynamic ? "true" : "false");
     return;
   }
@@ -481,15 +474,15 @@ void ExceptionDumper::SaveInputOutputInfo(const bool is_input, const OpDescPtr &
     int64_t tensor_size = 0;
     if (TensorUtils::GetTensorSizeInBytes(*tensor_desc, tensor_size) == SUCCESS) {
       if (is_input) {
-        op_desc_info.input_format.emplace_back(tensor_desc->GetFormat());
-        op_desc_info.input_shape.emplace_back(tensor_desc->GetShape().GetDims());
-        op_desc_info.input_data_type.emplace_back(tensor_desc->GetDataType());
-        op_desc_info.input_size.emplace_back(tensor_size);
+        (void)op_desc_info.input_format.emplace_back(tensor_desc->GetFormat());
+        (void)op_desc_info.input_shape.emplace_back(tensor_desc->GetShape().GetDims());
+        (void)op_desc_info.input_data_type.emplace_back(tensor_desc->GetDataType());
+        (void)op_desc_info.input_size.emplace_back(tensor_size);
       } else {
-        op_desc_info.output_format.emplace_back(tensor_desc->GetFormat());
-        op_desc_info.output_shape.emplace_back(tensor_desc->GetShape().GetDims());
-        op_desc_info.output_data_type.emplace_back(tensor_desc->GetDataType());
-        op_desc_info.output_size.emplace_back(tensor_size);
+        (void)op_desc_info.output_format.emplace_back(tensor_desc->GetFormat());
+        (void)op_desc_info.output_shape.emplace_back(tensor_desc->GetShape().GetDims());
+        (void)op_desc_info.output_data_type.emplace_back(tensor_desc->GetDataType());
+        (void)op_desc_info.output_size.emplace_back(tensor_size);
       }
       GELOGD("[Save][SaveInputOutputInfo] Save dump op info, index %zu, tensor size %ld, input flag %u.", i,
              tensor_size, static_cast<uint32_t>(is_input));
@@ -670,6 +663,7 @@ Status ExceptionDumper::DumpNodeInfo(const OpDescInfo &op_desc_info, const std::
   const uint64_t proto_size = dump_data.ByteSizeLong();
   const std::unique_ptr<char[]> proto_msg = MakeUnique<char[]>(proto_size);
   GE_CHECK_NOTNULL(proto_msg);
+  GE_CHECK_LE(proto_size, static_cast<uint64_t>(std::numeric_limits<int32_t>::max()));
   const bool ret = dump_data.SerializeToArray(proto_msg.get(), static_cast<int32_t>(proto_size));
   if ((!ret) || (proto_size == 0U)) {
     REPORT_INNER_ERR_MSG("E19999", "Serialize proto to std::string fail");

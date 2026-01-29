@@ -155,6 +155,7 @@ set(REGISTER_SRC_FILES
     "${GE_METADEF_DIR}/register/scope/scope_util.cc"
     "${GE_METADEF_DIR}/register/tensor_assign.cpp"
     "${GE_METADEF_DIR}/register/prototype_pass_registry.cc"
+    "${GE_METADEF_DIR}/base/utils/type_utils_inner.cc"
 )
 
 # include directories

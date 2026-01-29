@@ -29,7 +29,7 @@ public:
   uint64_t GetMaxFusionNodesSize(const NodePtr &node1, const NodePtr &node2) override;
 
   // 获取融合对的优先级
-  uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
+  FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
 
   // 检查是否是和node2中的slice节点融合
   bool CanNotMergeSplit(const NodePtr &node1, const NodePtr &node2);

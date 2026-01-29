@@ -16,8 +16,8 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
-#include "../utils/api_call_utils.h"
+#include "api_call/utils/api_call_factory.h"
+#include "api_call/utils/api_call_utils.h"
 
 namespace codegen {
 using namespace std;
@@ -31,9 +31,9 @@ static bool EnableCastMaskModeOptimize(const std::string &input_dtype, const std
       {"uint8_t", "half"},    {"int64_t", "float"},    {"int64_t", "int32_t"}, {"half", "float"},
       {"half", "int32_t"},    {"half", "int16_t"},     {"half", "int8_t"},     {"half", "uint8_t"},
       {"half", "int4_t"},     {"float", "half"},       {"float", "int64_t"},   {"float", "int32_t"},
-      {"float", "int16_t"},   {"float", "bfloat16"},   {"int4_t", "half"},     {"int16_t", "half"},
+      {"float", "int16_t"},   {"float", "bfloat16_t"},   {"int4_t", "half"},     {"int16_t", "half"},
       {"int16_t", "float"},   {"int32_t", "float"},    {"int32_t", "int64_t"}, {"int32_t", "int16_t"},
-      {"int32_t", "half"},    {"bfloat16", "float"}, {"bfloat16", "int32_t"}, {"uint8_t", "float"}, 
+      {"int32_t", "half"},    {"bfloat16_t", "float"}, {"bfloat16_t", "int32_t"}, {"uint8_t", "float"}, 
       {"uint8_t", "int32_t"}, {"uint8_t", "int16_t"}, {"uint8_t", "int8_t"},   {"uint8_t", "int4_t"}, 
       {"int64_t", "half"},    {"half", "int64_t"}};
   std::pair<std::string, std::string> src_cast_dst = {input_dtype, output_dtype};
@@ -66,12 +66,20 @@ Status CastApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId
   GE_ASSERT_TRUE(status, "GenerateVectorizedAxisMergeStatus failed");
   SaveApiLoopAxisParams(merge_info, param);
   stringstream ss;
+
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "CastApiCall cannot find tmp buffer id to use.");
+  id = it->second;
+
   size_t outer_repeats_size = param.outer_repeats.size();
   if (outer_repeats_size == 0U) {
     GELOGD("outer_repeats_size is 0, x_dtype = %s, y_dtype = %s", x_dtype.c_str(), y_dtype.c_str());
     ss << "CastExtend(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], " << x << "["
-       << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << x.actual_size << ", " << tpipe.tmp_buf << ");"
-       << std::endl;
+       << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << x.actual_size << ", " << tpipe.tmp_buf
+        << "_" << std::to_string(id) << ");" << std::endl;
   } else {
     if (EnableCastMaskModeOptimize(x_dtype, y_dtype)) {
       GELOGD("enable cast mask mode optimize, x_dtype = %s, y_dtype = %s", x_dtype.c_str(), y_dtype.c_str());
@@ -94,8 +102,8 @@ Status CastApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId
       ss1 << "CastExtend(" << y << "[" << output_inner_offset << "], " << x << "[" << input_inner_offset << "], "
           << param.outer_repeats[outer_repeats_size - 1] << ", " << tpipe.tiler.ActualSize(param.cal_count) << ", "
           << tpipe.tiler.Size(param.input_second_to_last_stride) << ", "
-          << tpipe.tiler.Size(param.output_second_to_last_stride) << ", " << dtype_size << ", " << tpipe.tmp_buf << ");"
-          << std::endl;
+          << tpipe.tiler.Size(param.output_second_to_last_stride) << ", " << dtype_size << ", " << tpipe.tmp_buf 
+           << "_" << std::to_string(id) << ");" << std::endl;
       if (outer_repeats_size == 1U) {
         ss << ss1.str();
       } else {
@@ -109,7 +117,8 @@ Status CastApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId
       std::string output_inner_offset = CalcInnerOffset(tpipe, param.outputs_strides[0]);
       std::stringstream ss1;
       ss1 << "CastExtend(" << y << "[" << output_inner_offset << "], " << x << "[" << input_inner_offset << "], "
-          << tpipe.tiler.ActualSize(param.cal_count) << ", " << tpipe.tmp_buf << ");" << std::endl;
+          << tpipe.tiler.ActualSize(param.cal_count) << ", " << tpipe.tmp_buf << "_" << std::to_string(id)
+          << ");" << std::endl;
       CreateComputeNodeOuterFor(param.outer_repeats, ss1, ss, 0);
     }
   }

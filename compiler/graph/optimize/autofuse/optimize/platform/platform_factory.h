@@ -12,49 +12,24 @@
 #define OPTIMIZE_PLATFORM_PLATFORM_FACTORY_H
 
 #include <string>
-#include <vector>
 #include <memory>
 #include <unordered_map>
 #include "base_platform.h"
-#include "platform_context.h"
+
 
 namespace optimize {
 using PlatformCreator = std::unique_ptr<BasePlatform> (*)();
 
 class PlatformFactory {
  public:
-  static PlatformFactory &GetInstance() {
-    static PlatformFactory instance;
-    return instance;
-  }
+  static PlatformFactory &GetInstance();
 
   PlatformFactory(const PlatformFactory &) = delete;
   PlatformFactory &operator=(const PlatformFactory &) = delete;
 
-  void RegisterPlatform(const std::string &platform_name, PlatformCreator creator) {
-    if (platform_name_to_creators_.find(platform_name) == platform_name_to_creators_.end()) {
-      platform_name_to_creators_[platform_name] = creator;
-    }
-  }
+  void RegisterPlatform(const std::string &platform_name, PlatformCreator creator);
 
-  BasePlatform *GetPlatform() {
-    ge::PlatformInfo info;
-    GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatform(info), "Failed to get platform info.");
-    GELOGD("Current platform info is %s", info.name.c_str());
-    auto it = platform_name_to_instances_.find(info.name);
-    if (it != platform_name_to_instances_.end()) {
-      return it->second.get();
-    }
-
-    auto creator_it = platform_name_to_creators_.find(info.name);
-    if (creator_it != platform_name_to_creators_.end()) {
-      platform_name_to_instances_[info.name] = creator_it->second();
-      return platform_name_to_instances_[info.name].get();
-    }
-
-    GELOGE(ge::FAILED, "Can't find platform %s", info.name.c_str());
-    return nullptr;
-  }
+  BasePlatform *GetPlatform();
 
  private:
   PlatformFactory() = default;
@@ -65,11 +40,14 @@ class PlatformFactory {
 template <typename T>
 class PlatformRegistrar {
  public:
-  PlatformRegistrar(const std::string &platform_name) {
-    PlatformFactory::GetInstance().RegisterPlatform(
-        platform_name, []() -> std::unique_ptr<BasePlatform> { return std::make_unique<T>(); });
-  }
+  explicit PlatformRegistrar(const std::string &platform_name);
 };
+
+template <typename T>
+PlatformRegistrar<T>::PlatformRegistrar(const std::string &platform_name) {
+  PlatformFactory::GetInstance().RegisterPlatform(
+      platform_name, []() -> std::unique_ptr<BasePlatform> { return std::make_unique<T>(); });
+}
 }  // namespace optimize
 
 #endif

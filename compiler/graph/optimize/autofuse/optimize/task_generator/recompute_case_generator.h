@@ -19,11 +19,11 @@
 namespace optimize {
 class RecomputeCaseGenerator : public FusionCaseGenerator {
  public:
-  Status Generate(ascir::HintGraph &graph, std::vector<ascir::ImplGraph> &graphs,
-                  std::vector<std::string> &score_functions) override {
-    return ge::GRAPH_SUCCESS;
+  Status Generate( [[maybe_unused]]ascir::HintGraph &graph, [[maybe_unused]]std::vector<ascir::ImplGraph> &graphs,
+                   [[maybe_unused]]std::vector<std::string> &score_functions) override {
+   return ge::GRAPH_SUCCESS;
   }
-  Status GeneratorTask(ascir::HintGraph &optimize_graph, std::vector<ScheduleTask> &tasks,
+  Status GeneratorTask(ascir::HintGraph &hint_graph, std::vector<ScheduleTask> &tasks,
                        const OptimizerOptions &options) override;
 
  private:
@@ -44,7 +44,7 @@ class RecomputeCaseGenerator : public FusionCaseGenerator {
   bool IsRecomputableAlwaysBetter() const;
   Status AnalyzeSplittablePath(ascir::HintGraph &hint_graph, const ge::AscNodePtr &potential_store);
   void MergeAllPaths();
-  Status DoTaskGenerator(ascir::HintGraph &hint_graph, std::vector<ScheduleTask> &tasks) const;
+  Status DoTaskGenerator(ascir::ImplGraph &impl_graph, std::vector<ScheduleTask> &tasks) const;
   Status DoGraphSplit(ge::AscGraph &graph) const;
 
   bool is_static_graph_{false};

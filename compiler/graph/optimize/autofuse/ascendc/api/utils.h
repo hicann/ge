@@ -63,7 +63,7 @@ constexpr inline __aicore__ float Rational(float a, float b) {
 }
 
 template <typename T1, typename T2>
-constexpr inline __aicore__ T2 Mod(T1 a, T2 b) {
+inline __aicore__ T2 Mod(T1 a, T2 b) {
   if constexpr (std::is_same<T1, float>::value || std::is_same<T2, float>::value) {
     ASCENDC_ASSERT(((b > 1e-6) || (b < -1e-6)), { KERNEL_LOG(KERNEL_ERROR, "b can't be equal to 0, b is %f!", b); });
     int64_t trunc_num = static_cast<int>(a / b);

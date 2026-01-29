@@ -21,6 +21,7 @@
 #include "utils/auto_fuse_config.h"
 #include "lowering/asc_lowerer/loop_common.h"
 #include "backend/backend_spec.h"
+#include "base/err_msg.h"
 
 namespace ge {
 const string CONCAT = "Concat";
@@ -28,6 +29,7 @@ const string CONCATD = "ConcatD";
 const string CONCATV2D = "ConcatV2D";
 const string CONCATV2 = "ConcatV2";
 
+namespace {
 ge::NodePtr CreateNewConcatD(const ComputeGraphPtr &graph, uint32_t inputcnt_per_concat, NodePtr &concat_end_node,
                                int64_t original_concatdim) {
   std::string new_concatnode_name = "Fusion_" + concat_end_node->GetName();
@@ -84,6 +86,7 @@ bool GetConcatNodeConcatDim(const NodePtr &concat_node, int64_t &node_concat_dim
 
 uint32_t PeerOutNodeFuseParaCal(const NodePtr &concat_node, const NodePtr &peer_out_node, int64_t original_concatdim,
                                 uint32_t &concat_node_flag, std::vector<uint32_t> &concat_node_flagvec) {
+  (void)concat_node;
   int64_t concat_dimvalue = 0;
   uint32_t peerout_node_concatnum = 1;
   if ((CONCATV2 == peer_out_node->GetType()) || (CONCATV2D == peer_out_node->GetType()) ||
@@ -127,7 +130,7 @@ Status ConcatNodeNeedCombineProcess(const NodePtr &in_ower_node, uint32_t &fusio
 void NewConcatNodeUpdateDesc(NodePtr &concat_node, NodePtr &new_concat_node,
                              std::vector<InDataAnchorPtr> &new_concat_in_data_anchors) {
   uint32_t new_node_input_index = 0;
-  for (const auto in_data_anchor : new_concat_in_data_anchors) {
+  for (const auto &in_data_anchor : new_concat_in_data_anchors) {
     auto input_anchor_idx = in_data_anchor->GetIdx();
     auto input_desc_x = in_data_anchor->GetOwnerNode()->GetOpDesc()->GetInputDesc(input_anchor_idx);
     new_concat_node->GetOpDesc()->UpdateInputDesc(new_node_input_index, input_desc_x);
@@ -190,7 +193,7 @@ Status ConcatNodeRealizeCombine(const ComputeGraphPtr &graph, NodePtr &concat_no
 Status ConcatNodeCombine(const ComputeGraphPtr &graph, NodePtr &concat_node) {
   uint32_t fusion_incount_total = 0;
   uint32_t currfuse_concatCnt = 0;
-  NodePtr in_owner_node = NULL;
+  NodePtr in_owner_node = nullptr;
   NodePtr new_concat_node;
   uint32_t concat_node_Flag = 0;
   uint32_t fuse_flag = 0;
@@ -247,7 +250,38 @@ Status ConcatNodeCombine(const ComputeGraphPtr &graph, NodePtr &concat_node) {
   return result;
 }
 
-graphStatus FlattenConcatPass::Run(const ComputeGraphPtr &graph) {
+bool CheckApproxFieldNum(const std::vector<Expression> &output_shape, size_t concat_dim, size_t num_inputs) {
+  // 过多的symbol会导致TilingData大小膨胀，导致编译失败。在有需求削减前，先限制
+  constexpr size_t kMaxFieldNum = 24UL * 1024UL / sizeof(uint32_t);
+  bool can_group_concat = true;
+  for (size_t i = concat_dim; i < output_shape.size(); ++i) {
+    if (!output_shape[i].IsConstExpr()) {
+      can_group_concat = false;
+      GELOGD("dim[%zu] is dynamic, can not group concat to sub concats", i);
+      break;
+    }
+  }
+  bool check_ret = true;
+  if (!can_group_concat) {
+    constexpr size_t kSharedFieldNum = 10;
+    std::set<std::string> free_symbols;
+    for (const auto &output_dim : output_shape) {
+      auto symbols = output_dim.FreeSymbols();
+      for (const auto &symbol : symbols) {
+        free_symbols.insert(SymbolicUtils::ToString(symbol));
+      }
+    }
+    const auto num_free_symbols = free_symbols.size();
+    const auto approx_filed_num = (num_free_symbols + kSharedFieldNum) * num_inputs;
+    check_ret = approx_filed_num <= kMaxFieldNum;
+    GELOGD("num_free_symbols = %zu, concat_output_shape = %s, num_inputs = %zu, check_ret = %d", num_free_symbols,
+           ToString(output_shape).c_str(), num_inputs, static_cast<int32_t>(check_ret));
+  }
+  return check_ret;
+}
+}  // namespace
+
+graphStatus FlattenConcatPass::Run(const ComputeGraphPtr &graph) const {
   if (!autofuse::AutoFuseConfig::LoweringConfig().experimental_lowering_concat) {
     GELOGI("You can enable concat by setting AUTOFUSE_FLAGS=\"--autofuse_enable_pass=concat\" and unsetting AUTOFUS_FLAGS=\"--autofuse_disable_pass=concat\"");
     return ge::GRAPH_SUCCESS;
@@ -289,6 +323,8 @@ graphStatus FlattenConcatPass::CanFlatten(const NodePtr &node, size_t concat_dim
   std::vector<Expression> output_shape;
   GE_WARN_ASSERT(ge::loop::GetBufferShape(node->GetOutDataAnchor(0), output_shape) == ge::GRAPH_SUCCESS);
   GE_WARN_ASSERT(concat_dim < output_shape.size());
+  GE_WARN_ASSERT(CheckApproxFieldNum(output_shape, concat_dim, num_inputs),
+                 "flatten concat will cause too many free symbols, do not flatten concat");
   const auto &concat_dim_size = output_shape[concat_dim];
   // 如果FreeSymbols多，但融合完不超过单算子能处理的上限，也可以融，只是后续不Lowering
   GE_WARN_ASSERT((num_inputs <= max_single_op_input_num) ||

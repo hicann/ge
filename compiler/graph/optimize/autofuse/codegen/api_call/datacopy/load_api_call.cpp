@@ -39,7 +39,7 @@ Status LoadApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId
   const auto &gm = inputs[0].get();
   const auto &ub = outputs[0].get();
   DataCopyParams param;
-  (void)CalculateDmaParams(tpipe, ub, ub, param, true);
+  (void)CalculateDmaParams(tpipe, ub, ub, param);
   std::string gm_offset = ub.is_ub_scalar ? "0" : tpipe.tiler.Offset(current_axis, ub.axis, ub.axis_strides);
   if (param.repeats.size() <= kDmaMaxLen) {
     DmaParams dma_param;

@@ -17,7 +17,7 @@
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "graph/symbolizer/symbolic_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
+#include "api_call/utils/api_call_factory.h"
 
 namespace codegen {
 using namespace std;
@@ -54,6 +54,13 @@ Status BinaryApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
   GE_CHK_STATUS_RET(Tensor::DtypeName(x1.dtype, dtype_name), "Codegen get data type:%d failed",
                     static_cast<int32_t>(x1.dtype));
   const std::string is_scalar_latter = switch_scalar ? "false" : "true";
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  if (it != this->tmp_buf_id.end()) {
+    id = it->second;
+  }
 
   if (x1.IsAnyScalar() && x2.IsAnyScalar()) { // 两个输入都是Scalar
     GE_ASSERT_TRUE(this->api_name_ == "Div" || this->api_name_ == "Sub" ||
@@ -66,12 +73,13 @@ Status BinaryApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
     ss << ");" << std::endl;
   } else if (x1.IsAnyScalar() || x2.IsAnyScalar()) { // 只有1个输入是Scalar
     if (this->api_name_ == "Div" || this->api_name_ == "Sub") {
+      GE_ASSERT_TRUE(id != -1L, "BinaryApiCall cannot find tmp buffer id to use.");
       ss << this->api_name_ << "s<" << dtype_name << ", " << is_scalar_latter << ">" << "("
       << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
       << x1 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x1) << "], "
       << "(" << dtype_name << ")" << x2.GetScalarValue() << ", "
       << x1.actual_size << ", "
-      << tpipe.tmp_buf << ");" << std::endl;
+      << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
     } else if (this->api_name_ == "DivExtend" || this->api_name_ == "SubExtend") {
       ss << this->api_name_ << "s<" << dtype_name << ", " << is_scalar_latter << ">" << "("
       << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
@@ -125,19 +133,19 @@ Status BinaryApiCall::BrcInlineGenerate(const TPipe &tpipe, const std::vector<as
   std::vector<ge::Expression> i0_meger_repeates;
   std::vector<ge::Expression> i1_meger_repeates;
 
-  if (input_idx_2_brc_inline[0]) {
+  if (input_idx_2_brc_inline[0] != 0) {
     MergeBrcAxisRepeats(i0_v_repeates, i1_v_repeates, x2.vectorized_strides, i0_meger_repeates, i1_meger_repeates);
   } else {
     MergeBrcAxisRepeats(i1_v_repeates, i0_v_repeates, x1.vectorized_strides, i1_meger_repeates, i0_meger_repeates);
   }
 
-  auto& meger_shape = input_idx_2_brc_inline[0] ? i1_meger_repeates : i0_meger_repeates;
+  auto& meger_shape = (input_idx_2_brc_inline[0] != 0) ? i1_meger_repeates : i0_meger_repeates;
 
   std::string shape = "{" + tpipe.tiler.ActualSize(meger_shape[0]) + ", " +
                       ge::SymbolicUtils::ToString(meger_shape[1]) + "}";
 
   ge::Expression v_strides;
-  auto& x_in = input_idx_2_brc_inline[0] ? x1 : x2;
+  auto& x_in = (input_idx_2_brc_inline[0] != 0) ? x1 : x2;
   for (size_t i = 0UL; i < x_in.vectorized_axis_pos.size(); ++i) {
     const uint32_t axis_ids = x_in.vectorized_axis_pos[i];
     ge::Expression cur_axis_strides = y.vectorized_strides[i];
@@ -159,8 +167,8 @@ Status BinaryApiCall::BrcInlineGenerate(const TPipe &tpipe, const std::vector<as
     << x1 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x1) << "], "
     << x2 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x2) << "], "
     << tpipe.tiler.ActualSize(meger_shape[0]) << ", " << tpipe.tiler.ActualSize(meger_shape[1])
-    << ", " << (int)(!input_idx_2_brc_inline[0]) << ", " << (int)(!input_idx_2_brc_inline[1])
-    << ", " << tpipe.tiler.ActualSize(v_strides) << ", " << (int)type_size << ", &"
+    << ", " << static_cast<int>(input_idx_2_brc_inline[0] == 0) << ", " << static_cast<int>(input_idx_2_brc_inline[1]==0)
+    << ", " << tpipe.tiler.ActualSize(v_strides) << ", " << static_cast<int>(type_size) << ", &"
     << GetAscendApiName(this->api_name_) << ", &" << GetAscendApiName(this->api_name_) << ");" << std::endl;
   result = ss.str();
   return ge::SUCCESS;

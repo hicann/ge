@@ -1,19 +1,15 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "solver_pass_manager.h"
+#include "graph/symbolizer/symbolic.h"
+#include "graph/symbolizer/symbolic_utils.h"
 
 namespace att {
 bool SolverPassManager::CheckArgExist(const Expr &new_arg, const std::vector<Expr> &args) {
@@ -65,7 +61,7 @@ L0TileSolverGen SolverPassManager::GenL0TileSolverGen() {
   std::map<HardwareDef, Expr> buffer_use_map;
   std::vector<Expr> mc_args;
   ExprExprMap father_args_map, arg_max_value_map;
-  ExprUintMap arg_align_map;
+  ExprExprMap arg_align_map;
   buffer_use_map = args_manager_.GetTotalHardwareCons();
   mc_args = args_manager_.GetSearchableVars(HardwareDef::CORENUM);
   auto search_args = args_manager_.GetSearchableVars();
@@ -74,14 +70,14 @@ L0TileSolverGen SolverPassManager::GenL0TileSolverGen() {
     if (!father_arg.empty()) {
       father_args_map[arg] = father_arg[0];
     }
-    uint32_t align = args_manager_.GetVarAlignValue(arg);
+    Expr align = args_manager_.GetVarAlignValue(arg);
     arg_align_map[arg] = align;
     arg_max_value_map[arg] = args_manager_.GetMaxValue(arg);
   }
   for (auto it : father_args_map) {
     auto father_arg = it.second;
     if (arg_align_map.find(father_arg) == arg_align_map.end()) {
-      uint32_t align = args_manager_.GetVarAlignValue(father_arg);
+      Expr align = args_manager_.GetVarAlignValue(father_arg);
       arg_align_map[father_arg] = align;
     }
   }
@@ -105,15 +101,15 @@ L2TileSolverGen SolverPassManager::GenL2TileSolverGen() {
   std::vector<Expr> input_args = args_manager_.GetInputVars();
   Expr l2_use = buffer_use_map[HardwareDef::L2];
   auto search_args = args_manager_.GetSearchableVars();
-  ExprUintMap arg_align_map;
+  ExprExprMap arg_align_map;
   ExprExprMap arg_max_value_map;
   for (auto arg : search_args) {
-    uint32_t align = args_manager_.GetVarAlignValue(arg);
+    Expr align = args_manager_.GetVarAlignValue(arg);
     arg_align_map[arg] = align;
     arg_max_value_map[arg] = args_manager_.GetMaxValue(arg);
   }
   for (auto arg : l0_args) {
-    uint32_t align = args_manager_.GetVarAlignValue(arg);
+    Expr align = args_manager_.GetVarAlignValue(arg);
     arg_align_map[arg] = align;
     arg_max_value_map[arg] = args_manager_.GetMaxValue(arg);
   }
@@ -129,7 +125,7 @@ L2TileSolverGen SolverPassManager::GenL2TileSolverGen() {
 }
 
 template <typename SolverGenType>
-auto SolverPassManager::GenerateSolverGen(bool open_dt, bool training) -> SolverGenType {
+auto SolverPassManager::GenerateSolverGen() -> SolverGenType {
   ExprExprMap max_value;
   ExprExprMap min_value;
   ExprExprMap init_value;
@@ -144,7 +140,7 @@ auto SolverPassManager::GenerateSolverGen(bool open_dt, bool training) -> Solver
     init_value[arg] = args_manager_.GetDefaultInitValue(arg);
   }
 
-  SolverGenType solver_gen("case" + std::to_string(case_id_), tiling_data_type_, open_dt, training);
+  SolverGenType solver_gen("case" + std::to_string(case_id_), tiling_data_type_);
   solver_gen.SetSearchArgs(search_args);
   solver_gen.SetExprRelation(args_manager_.GetExprRelations(), args_manager_.GetVarsRelations());
   solver_gen.SetHeadCost(args_manager_.GetHeadCost());
@@ -224,20 +220,15 @@ std::pair<std::string, std::string> SolverPassManager::SolverPassFuncGen(SolverT
   } else if (type == SolverType::L2_TILE) {
     codes = L2SolverPassFuncGen();
   } else if (type == SolverType::SEARCH_TILE) {
-    if(!force_search){
-      args_manager_.DoVarsReplace();
-      codes = GenerateSolverPassFunc(GenerateSolverGen<GeneralSolverGen>(open_dt_, training_));
-    }else{
-      args_manager_.DoVarsReplace();
-      codes = GenerateSolverPassFunc(GenerateSolverGen<GoldenSolverGen>(open_dt_, training_));
-    }
+    args_manager_.DoVarsReplace();
+    codes = GenerateSolverPassFunc(GenerateSolverGen<GeneralSolverGen>());
   }
   return codes;
 }
 
 std::pair<std::string, std::string> SolverPassManager::GenFuncPass(bool force_search) {
-  std::string impl_codes = "";
-  std::string invoke_codes = "";
+  std::string impl_codes;
+  std::string invoke_codes;
   std::pair<std::string, std::string> pass_codes;
   args_manager_.Process(false);
   for (uint32_t i = 0; i < static_cast<std::uint32_t>(SolverType::ERROR); i++) {
@@ -275,7 +266,7 @@ std::pair<std::string, std::string> SolverPassManager::L2SolverDtFuncGen() {
 }
 
 std::pair<std::string, std::string> SolverPassManager::GeneralSolverDtFuncGen() {
-  GeneralSolverGen solver_gen = GenerateSolverGen<GeneralSolverGen>(open_dt_, training_);
+  GeneralSolverGen solver_gen = GenerateSolverGen<GeneralSolverGen>();
   std::string impl_codes = solver_gen.GenSolverDTImpl();
   std::string invoke_codes = solver_gen.GenSolverDTInvoke();
   return std::make_pair(impl_codes, invoke_codes);
@@ -294,21 +285,6 @@ std::pair<std::string, std::string> SolverPassManager::SolverDtFuncGen(SolverTyp
     codes = GeneralSolverDtFuncGen();
   }
   return codes;
-}
-
-std::pair<std::string, std::string> SolverPassManager::GenDtPass() {
-  std::string impl_codes = "";
-  std::string invoke_codes = "";
-  std::pair<std::string, std::string> pass_codes;
-  args_manager_.Process(false);
-  for (uint32_t i = 0; i < static_cast<std::uint32_t>(SolverType::ERROR); i++) {
-    SolverType type = static_cast<SolverType>(i);
-    auto codes = SolverDtFuncGen(type);
-    impl_codes += codes.first;
-    invoke_codes += codes.second;
-  }
-  pass_codes = std::make_pair(impl_codes, invoke_codes);
-  return pass_codes;
 }
 
 std::string SolverPassManager::L0SolverPassClassGen() {
@@ -357,7 +333,7 @@ std::string SolverPassManager::SolverPassClassGen(SolverType type) {
 }
 
 std::string SolverPassManager::GenClassPass() {
-  std::string codes = "";
+  std::string codes;
   args_manager_.Process(false);
   for (uint32_t i = 0; i < static_cast<std::uint32_t>(SolverType::ERROR); i++) {
     SolverType type = static_cast<SolverType>(i);
@@ -368,7 +344,7 @@ std::string SolverPassManager::GenClassPass() {
 
 bool SolverPassManager::IsNeedSolver(std::vector<ArgsManager> args_managers, SolverType type) {
   if (type == SolverType::L0_TILE) {
-    for (auto args_manager : args_managers) {
+    for (auto &args_manager : args_managers) {
       std::vector<Expr> l0_args = GetL0Args(args_manager);
       if ((l0_args.size() > 0) && (l0_args.size() <= kMaxL0VarNum)) {
         return true;
@@ -377,7 +353,7 @@ bool SolverPassManager::IsNeedSolver(std::vector<ArgsManager> args_managers, Sol
     return false;
   }
   if (type == SolverType::L2_TILE) {
-    for (auto args_manager : args_managers) {
+    for (auto &args_manager : args_managers) {
       std::vector<Expr> l2_args = args_manager.GetSearchableVars(HardwareDef::L2);
       if (l2_args.size() > 0) {
         return true;
@@ -386,7 +362,7 @@ bool SolverPassManager::IsNeedSolver(std::vector<ArgsManager> args_managers, Sol
     return false;
   }
   if (type == SolverType::SEARCH_TILE) {
-    for (auto args_manager : args_managers) {
+    for (auto &args_manager : args_managers) {
       std::vector<Expr> l0_args = GetL0Args(args_manager);
       std::vector<Expr> l2_args = args_manager.GetSearchableVars(HardwareDef::L2);
       if (l0_args.size() + l2_args.size() < args_manager.GetSearchableVars().size()) {
@@ -398,10 +374,10 @@ bool SolverPassManager::IsNeedSolver(std::vector<ArgsManager> args_managers, Sol
   return false;
 }
 
-ExprUintMap SolverPassManager::GetInputsAlign(bool do_replace) {
-  uint32_t align_value;
+ExprExprMap SolverPassManager::GetInputsAlign(bool do_replace) {
+  Expr align_value;
   std::vector<Expr> ancestors;
-  ExprUintMap input_align;
+  ExprExprMap input_align;
   std::vector<Expr> input_args = args_manager_.GetInputVars();
   std::vector<Expr> search_args;
   if (do_replace) {
@@ -412,14 +388,16 @@ ExprUintMap SolverPassManager::GetInputsAlign(bool do_replace) {
     search_args = args_manager_.GetSearchableVars();
   }
   for (const auto &arg : input_args) {
-    input_align[arg] = 1;
+    input_align[arg] = ge::Symbol(1);
   }
   for (const auto &arg : search_args) {
     ancestors = args_manager_.GetAncestor(arg);
     align_value = args_manager_.GetVarAlignValue(arg);
     for (const auto &ancestor : ancestors) {
       if (input_align.find(ancestor) != input_align.end()) {
-        if (align_value > input_align[ancestor]) {
+        if (!align_value.IsConstExpr() ||
+            (align_value.IsConstExpr() &&
+             ge::SymbolicUtils::StaticCheckGt(align_value, input_align[ancestor]) == ge::TriBool::kTrue)) {
           input_align[ancestor] = align_value;
         }
       }
@@ -428,23 +406,23 @@ ExprUintMap SolverPassManager::GetInputsAlign(bool do_replace) {
   return input_align;
 }
 
-std::string SolverPassManager::GenCommonBaseClassesHead(std::vector<ArgsManager> args_managers, bool open_dt) {
-  std::string base_classes = "";
-  for (uint32_t i = 0; i < static_cast<std::uint32_t>(SolverType::ERROR); i++) {
+std::string SolverPassManager::GenCommonBaseClassesHead(std::vector<ArgsManager> args_managers) {
+  std::string base_classes;
+  for (uint32_t i = 0U; i < static_cast<std::uint32_t>(SolverType::ERROR); i++) {
     SolverType type = static_cast<SolverType>(i);
     if (IsNeedSolver(args_managers, type)) {
-      base_classes += GetSolverHead(type, open_dt);
+      base_classes += GetSolverHead(type);
     }
   }
   return base_classes;
 }
 
-std::string SolverPassManager::GenCommonBaseClassesFunc(std::vector<ArgsManager> args_managers, bool open_dt) {
-  std::string base_classes = "";
+std::string SolverPassManager::GenCommonBaseClassesFunc(std::vector<ArgsManager> args_managers) {
+  std::string base_classes;
   for (uint32_t i = 0U; i < static_cast<std::uint32_t>(SolverType::ERROR); i++) {
     SolverType type = static_cast<SolverType>(i);
     if (IsNeedSolver(args_managers, type)) {
-      base_classes += GetSolverFunc(type, open_dt);
+      base_classes += GetSolverFunc(type);
     }
   }
   return base_classes;
@@ -456,6 +434,14 @@ std::string SolverPassManager::GenAxesReorderBaseClassesHead() {
 
 std::string SolverPassManager::GenAxesReorderBaseClassesFunc() {
   return GetAxesReorderSolverFunc();
+}
+
+std::string SolverPassManager::GenAxesReorderPgoClassesHead(int64_t pgo_step_max) {
+  return GetAxesReorderPgoSolverHead(pgo_step_max);
+}
+
+std::string SolverPassManager::GenAxesReorderPgoClassesFunc() {
+  return GetAxesReorderPgoSolverFunc();
 }
 
 void SolverPassManager::AddConcatInnerDims(const Expr &arg, std::vector<Expr> &concat_inner_dims) {
@@ -481,6 +467,7 @@ void SolverPassManager::InitSolverGen(AxesReorderSolverGen &solver_gen) {
   solver_gen.SetCoreNumThreshold(corenum_threshold_);
   solver_gen.SetEnableMulticoreUBTradeoff(enable_multicore_ub_tradeoff_);
   solver_gen.SetEnableAutofusePGO(enable_autofuse_pgo_);
+  solver_gen.SetAutofusePGOStepMax(pgo_step_max_);
   solver_gen.SetHighPerfTiling(enable_high_perf_);
   solver_gen.Arrange();
   solver_gen.SetInputOutputDef(input_output_def_);
@@ -488,11 +475,16 @@ void SolverPassManager::InitSolverGen(AxesReorderSolverGen &solver_gen) {
   solver_gen.SetTilingDataSubGroupItemName(tiling_data_sub_group_item_name_);
   solver_gen.SetIsUniGroup(is_uniq_group_);
   solver_gen.SetTilingScheduleConfigTable(args_manager_.GetModelInfo().tiling_schedule_config_table);
+  solver_gen.SetCacheLineConfig(&args_manager_.GetModelInfo().cache_line_config);
   solver_gen.SetEnableParallel(args_manager_.GetModelInfo().enable_group_parallel);
+  solver_gen.SetTilingCaseIdent({args_manager_.GetModelInfo().schedule_group_ident,
+                                 args_manager_.GetModelInfo().tiling_case_id,
+                                 args_manager_.GetModelInfo().sub_case_tag});
+  solver_gen.SetModelEnableMulticoreUBTradeoff(args_manager_.GetModelInfo().enable_ub_mc_tradeoff);
 }
 
 AxesReorderSolverGen SolverPassManager::GenAxesReorderGen() {
-  ExprUintMap arg_align_map;
+  ExprExprMap arg_align_map;
   ExprUintMap arg_prompt_align_map;
   ExprUintMap const_vars_map;
   ExprUintMap is_concat_outer_map;

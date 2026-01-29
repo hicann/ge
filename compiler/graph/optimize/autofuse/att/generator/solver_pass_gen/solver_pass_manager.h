@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #ifndef ATT_SOLVER_PASS_MANAGER_H_
 #define ATT_SOLVER_PASS_MANAGER_H_
@@ -23,10 +17,10 @@
 #include "generator/solver_pass/solver.h"
 #include "generator/solver_pass_gen/axes_reorder_solver/axes_reorder_solver_gen.h"
 #include "generator/solver_pass_gen/general_solver/general_solver_gen.h"
-#include "generator/solver_pass_gen/golden_solver/golden_solver_gen.h"
 #include "generator/solver_pass_gen/l0_solver/l0_solver_gen.h"
 #include "generator/solver_pass_gen/l2_solver/l2_solver_gen.h"
 #include "util/base_types_printer.h"
+#include "autofuse_config/auto_fuse_config.h"
 
 namespace att
 {
@@ -37,18 +31,18 @@ namespace att
   class SolverPassManager
   {
   public:
-    SolverPassManager(ArgsManager args_manager, CaseIdInfo case_id_info, const std::string &type_name,
-                    bool open_dt = false, bool training = false)
-        : args_manager_(args_manager), case_id_(case_id_info.case_id), tiling_data_type_(type_name),
-          open_dt_(open_dt), training_(training), sub_case_tag_(case_id_info.sub_case_tag) {}
-    static std::string GenCommonBaseClassesHead(std::vector<ArgsManager> args_managers, bool open_dt=false);
-    static std::string GenCommonBaseClassesFunc(std::vector<ArgsManager> args_managers, bool open_dt=false);
+   SolverPassManager(ArgsManager args_manager, CaseIdInfo case_id_info, const std::string &type_name)
+       : args_manager_(args_manager), case_id_(case_id_info.case_id), sub_case_tag_(case_id_info.sub_case_tag),
+          tiling_data_type_(type_name) {}
+    static std::string GenCommonBaseClassesHead(std::vector<ArgsManager> args_managers);
+    static std::string GenCommonBaseClassesFunc(std::vector<ArgsManager> args_managers);
     std::string GenClassPass();
     std::pair<std::string, std::string> GenFuncPass(bool force_search = false);
-    std::pair<std::string, std::string> GenDtPass();
     
     static std::string GenAxesReorderBaseClassesHead();
     static std::string GenAxesReorderBaseClassesFunc();
+    static std::string GenAxesReorderPgoClassesHead(int64_t pgo_step_max);
+    static std::string GenAxesReorderPgoClassesFunc();
     std::string GenAxesReorderClass();
     std::pair<std::string, std::string> GenAxesReorderFunc(const std::string &arrange_code);
     void SetUBThreshold(double &ub_threshold) {
@@ -65,6 +59,9 @@ namespace att
     }
     void SetEnableAutofusePGO(bool enable_autofuse_pgo) {
       enable_autofuse_pgo_ = enable_autofuse_pgo;
+    }
+    void SetAutofusePGOStepMax(int64_t pgo_step_max) {
+      pgo_step_max_ = pgo_step_max;
     }
     void SetVariableReplace(bool &do_variable_replace) {
       do_variable_replace_ = do_variable_replace;
@@ -95,14 +92,14 @@ namespace att
                              SolverType type);
     static std::string GenBaseClass(SolverType type);
 
-    ExprUintMap GetInputsAlign(bool do_replace);
+    ExprExprMap GetInputsAlign(bool do_replace);
 
     L0TileSolverGen GenL0TileSolverGen();
     L2TileSolverGen GenL2TileSolverGen();
     void InitSolverGen(AxesReorderSolverGen &solver_gen);
     AxesReorderSolverGen GenAxesReorderGen();
     template <typename SolverGenType>
-    SolverGenType GenerateSolverGen(bool open_dt = false, bool training = false);
+    SolverGenType GenerateSolverGen();
 
     std::string SolverPassClassGen(SolverType type);
     std::string L0SolverPassClassGen();
@@ -126,10 +123,9 @@ namespace att
     uint32_t case_id_;
     std::string sub_case_tag_;
     std::string tiling_data_type_;
-    bool open_dt_{false};
-    bool training_{false};
-    bool enable_multicore_ub_tradeoff_{false};
+    bool enable_multicore_ub_tradeoff_{false}; // 表示用户配置是否需要开启多核权衡
     bool enable_autofuse_pgo_{false};
+    int64_t pgo_step_max_{16};
     bool do_variable_replace_{false};
     bool enable_high_perf_{false};
     double ub_threshold_{0.5};

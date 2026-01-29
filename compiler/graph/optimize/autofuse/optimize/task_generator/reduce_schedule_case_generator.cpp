@@ -12,14 +12,13 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/symbolizer/symbolic_utils.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
-#include "ascir_ops_utils.h"
 #include "ascir_ops.h"
 #include "schedule_utils.h"
 #include "ascir_utils.h"
 #include "node_utils.h"
 #include "reduce_schedule_case_generator.h"
 #include "register/op_def_factory.h"
-#include "common/util/error_manager/error_manager.h"
+#include "base/err_msg.h"
 #include "graph/symbolizer/symbolic.h"
 
 namespace optimize {
@@ -86,8 +85,8 @@ bool IsNotPartitionReduce(const ge::AscNodePtr &reduce_node, size_t threshold) {
     if (current_node->GetInDataNodesSize() > 1UL) {
       for (const auto &in_current_node : current_node->GetInDataNodes()) {
         if (visited.find(in_current_node.get()) == visited.end()) {
-          GE_LOGE("Node [%s] has multiple inputs, with input node [%s] not being a post-reduction node.",
-                  current_node->GetNamePtr(), in_current_node->GetNamePtr());
+          GELOGW("Node [%s] has multiple inputs, with input node [%s] not being a post-reduction node.",
+                 current_node->GetNamePtr(), in_current_node->GetNamePtr());
           return false;
         }
       }
@@ -95,8 +94,8 @@ bool IsNotPartitionReduce(const ge::AscNodePtr &reduce_node, size_t threshold) {
 
     node_count += 1UL;
     if (node_count > threshold) {
-      GE_LOGE("The total count of nodes after the reduce node[%s](including the store node) is above the threshold[%zu].",
-              reduce_node->GetNamePtr(), threshold);
+      GELOGW("The total count of nodes after the reduce node[%s](including the store node) is above the threshold[%zu].",
+             reduce_node->GetNamePtr(), threshold);
       return false;
     }
     const auto &asc_current_node = std::dynamic_pointer_cast<ge::AscNode>(current_node);
@@ -105,19 +104,16 @@ bool IsNotPartitionReduce(const ge::AscNodePtr &reduce_node, size_t threshold) {
         asc_current_node->attr.api.type == ge::ApiType::kAPITypeBuffer) {
       continue;
     }
-
-    auto out_asc_node = std::dynamic_pointer_cast<ge::AscNode>(current_node);
-    if (!ScheduleUtils::IsElewise(out_asc_node)) {
-      if (!ScheduleUtils::IsElewise(out_asc_node) && current_node) {
-        GE_LOGE("The node[%s] after the reduce node[%s] is not elewise type.",
-                out_asc_node->GetNamePtr(), reduce_node->GetNamePtr());
+    
+    if (!ScheduleUtils::IsElewise(asc_current_node)) {
+      GELOGW("The node[%s] after the reduce node[%s] is not elewise type.",
+             asc_current_node->GetNamePtr(), reduce_node->GetNamePtr());
       return false;
     }
 
     if (node_count > threshold - 1UL) {
-      GE_LOGE("The count of nodes after the reduce node[%s] is above the threshold[%zu].",
-              reduce_node->GetNamePtr(), threshold - 1UL);
-    }
+      GELOGW("The count of nodes after the reduce node[%s] is above the threshold[%zu].",
+             reduce_node->GetNamePtr(), threshold - 1UL);
       return false;
     }
 
@@ -168,7 +164,7 @@ Status ReducePartitionCaseGenerator::GeneratorAllLoadTask(ascir::HintGraph &opti
 }
 
 Status ReducePartitionCaseGenerator::GeneratorRCoreTask(ascir::HintGraph &optimize_graph,
-                                                        std::vector<ScheduleTask> &tasks) {
+                                                        std::vector<ScheduleTask> &tasks) const {
   std::vector<ScheduleTask> new_tasks;
   for (const auto &task : tasks) {
     if (task.reduce_type != ReduceTemplateType::kCommon) {
@@ -226,9 +222,9 @@ Status ReducePartitionCaseGenerator::GeneratorTask(ascir::HintGraph &optimize_gr
   return ge::GRAPH_SUCCESS;
 }
 
-Status ReducePartitionCaseGenerator::Generate(ascir::HintGraph &graph,
-                                              std::vector<ascir::ImplGraph> &graphs,
-                                              std::vector<std::string> &score_functions) {
+Status ReducePartitionCaseGenerator::Generate([[maybe_unused]] ascir::HintGraph &graph,
+                                              [[maybe_unused]] std::vector<ascir::ImplGraph> &graphs,
+                                              [[maybe_unused]] std::vector<std::string> &score_functions) {
   return ge::GRAPH_SUCCESS;
 }
 
@@ -288,7 +284,8 @@ Status ReducePartitionCaseGenerator::GenerateGeneralCase(ascir::HintGraph &graph
 
 Status ReducePartitionCaseGenerator::GenerateAllLoadCase(ascir::HintGraph &graph,
                                                          std::vector<ascir::ImplGraph> &graphs,
-                                                         std::vector<std::string> &score_functions) {
+                                                         const std::vector<std::string> &score_functions) {
+  (void)score_functions;
   if (!HasReduce(graph)) {
     return ge::GRAPH_SUCCESS;
   }
@@ -341,17 +338,52 @@ bool ReducePartitionCaseGenerator::FindOutputReduce(const ge::AscNodePtr &node, 
   return output_has_reduce;
 }
 
+Status ReducePartitionCaseGenerator::PartitionReduce(ge::AscNodePtr &src_node, ascir::ImplGraph &impl_graph) {
+  partition_ = true;
+  node_order_.emplace_back(src_node);
+  ge::ascir_op::Workspace workspace_pre((src_node->GetName() + "_Workspace").c_str());
+  ge::ascir_op::Workspace workspace_post((src_node->GetName() + "_Workspace").c_str());
+  ge::ascir_op::Load load((src_node->GetName() + "_Load").c_str());
+  ge::ascir_op::Store store((src_node->GetName() + "_Store").c_str());
+  auto workspace_pre_node = impl_graph.AddNode(workspace_pre);
+  auto workspace_post_node = impl_graph.AddNode(workspace_post);
+  auto load_node = impl_graph.AddNode(load);
+  auto store_node = impl_graph.AddNode(store);
+  GE_CHK_STATUS_RET(DoCopyAscNodeTensorAttr(src_node, load_node));
+  GE_CHK_STATUS_RET(DoCopyAscNodeTensorAttr(src_node, store_node));
+  GE_CHK_STATUS_RET(DoCopyWorkspaceTensorAttr(store_node, workspace_pre_node));
+  GE_CHK_STATUS_RET(DoCopyWorkspaceTensorAttr(load_node, workspace_post_node));
+  for (const auto &out_anchor : src_node->GetAllOutDataAnchors()) {
+    GE_CHK_BOOL_EXEC(out_anchor != nullptr,
+                     REPORT_INNER_ERR_MSG("E18888", "out data anchor is null, node:%s.", src_node->GetName().c_str());
+                     return ge::GRAPH_FAILED, "[Check][Param] Out data anchor is null, node:%s",
+                            src_node->GetName().c_str());
+    for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchors()) {
+      GE_CHECK_NOTNULL(peer_in_anchor);
+      auto dst_node = peer_in_anchor->GetOwnerNode();
+      GE_CHECK_NOTNULL(dst_node, "peer node is null, src node: %s", src_node->GetNamePtr());
+      // remove src->dst
+      GE_CHK_STATUS_RET(ge::GraphUtils::RemoveEdge(src_node->GetOutAnchor(out_anchor->GetIdx()),
+                                                   dst_node->GetInAnchor(peer_in_anchor->GetIdx())));
+      GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(load_node->GetOutAnchor(out_anchor->GetIdx()),
+                                                dst_node->GetInAnchor(peer_in_anchor->GetIdx())));
+    }
+  }
+  // add src->store->workspace_pre_node
+  GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(src_node->GetOutAnchor(0UL), store_node->GetInAnchor(0UL)));
+  GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(store_node->GetOutAnchor(0UL), workspace_pre_node->GetInAnchor(0UL)));
+  // add workspace_post_node->load->dst
+  GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(workspace_post_node->GetOutAnchor(0UL), load_node->GetInAnchor(0UL)));
+	  return ge::GRAPH_SUCCESS;
+}
+
 Status ReducePartitionCaseGenerator::ReducePartitionPostFusion(ascir::ImplGraph &impl_graph) {
   for (auto node : impl_graph.GetAllNodes()) {
     if (ScheduleUtils::IsReduce(node)) {
       if (IsNotPartitionReduce(node, NODE_COUNT_AFTER_REDUCE)) {
         continue;
       }
-      for (const auto &out_node : node->GetOutNodes()) {
-        ge::AscNodePtr asc_out_node = std::dynamic_pointer_cast<ge::AscNode>(out_node);
-        GE_CHECK_NOTNULL(asc_out_node);
-        GE_CHK_STATUS_RET(PartitionByNode(node, asc_out_node, impl_graph));
-      }
+      GE_CHK_STATUS_RET(PartitionReduce(node, impl_graph));
     }
   }
   return ge::GRAPH_SUCCESS;
@@ -370,7 +402,7 @@ Status ReducePartitionCaseGenerator::PartitionByNode(ge::AscNodePtr &src_node, g
 
   for (const auto &out_anchor : src_node->GetAllOutDataAnchors()) {
     GE_CHK_BOOL_EXEC(out_anchor != nullptr,
-                     REPORT_INNER_ERROR("E18888", "out data anchor is null, node:%s.", src_node->GetName().c_str());
+                     REPORT_INNER_ERR_MSG("E18888", "out data anchor is null, node:%s.", src_node->GetName().c_str());
                      return ge::GRAPH_FAILED, "[Check][Param] Out data anchor is null, node:%s",
                             src_node->GetName().c_str());
     ge::ascir_op::Workspace workspace_pre(GetNewNodeName(src_node, dst_node, "Workspace", out_anchor->GetIdx()).c_str());
@@ -388,7 +420,7 @@ Status ReducePartitionCaseGenerator::PartitionByNode(ge::AscNodePtr &src_node, g
     for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchors()) {
       GE_CHECK_NOTNULL(peer_in_anchor);
       GE_CHK_BOOL_EXEC(peer_in_anchor->GetOwnerNodeBarePtr() != nullptr,
-                       REPORT_INNER_ERROR("E18888", "Peer in node:%s is null", src_node->GetName().c_str());
+                       REPORT_INNER_ERR_MSG("E18888", "Peer in node:%s is null", src_node->GetName().c_str());
                        return ge::GRAPH_FAILED, "Peer in node:%s is null", src_node->GetName().c_str());
       if (peer_in_anchor->GetOwnerNodeBarePtr()->GetName() == dst_node->GetName()) {
         // remove src->dst
@@ -430,12 +462,12 @@ Status ReducePartitionCaseGenerator::PartitionLoad(ge::AscNodePtr &src_node, ge:
   DoCopyAscNodeTensorAttr(src_node, load_node);
   for (const auto &out_anchor : src_node->GetAllOutDataAnchors()) {
     GE_CHK_BOOL_EXEC(out_anchor != nullptr,
-                     REPORT_INNER_ERROR("E18888", "out data anchor is null, node:%s.", src_node->GetName().c_str());
+                     REPORT_INNER_ERR_MSG("E18888", "out data anchor is null, node:%s.", src_node->GetName().c_str());
                      return ge::GRAPH_FAILED, "[Check][Param] Out data anchor is null, node:%s", src_node->GetName().c_str());
     for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchors()) {
       GE_CHECK_NOTNULL(peer_in_anchor);
       GE_CHK_BOOL_EXEC(peer_in_anchor->GetOwnerNodeBarePtr() != nullptr,
-                       REPORT_INNER_ERROR("E18888", "Peer in node:%s is null", src_node->GetName().c_str());
+                       REPORT_INNER_ERR_MSG("E18888", "Peer in node:%s is null", src_node->GetName().c_str());
                        return ge::GRAPH_FAILED, "Peer in node:%s is null", src_node->GetName().c_str());
       if (peer_in_anchor->GetOwnerNodeBarePtr()->GetName() == dst_node->GetName()) {
         // remove load->dst
@@ -460,12 +492,12 @@ Status ReducePartitionCaseGenerator::PartitionScalar(ge::AscNodePtr &src_node, g
   DoCopyAscNodeTensorAttr(src_node, scalar_node);
   for (const auto &out_anchor : src_node->GetAllOutDataAnchors()) {
     GE_CHK_BOOL_EXEC(out_anchor != nullptr,
-                     REPORT_INNER_ERROR("E18888", "out data anchor is null, node:%s.", src_node->GetName().c_str());
+                     REPORT_INNER_ERR_MSG("E18888", "out data anchor is null, node:%s.", src_node->GetName().c_str());
                      return ge::GRAPH_FAILED, "[Check][Param] Out data anchor is null, node:%s", src_node->GetName().c_str());
     for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchors()) {
       GE_CHECK_NOTNULL(peer_in_anchor);
       GE_CHK_BOOL_EXEC(peer_in_anchor->GetOwnerNodeBarePtr() != nullptr,
-                       REPORT_INNER_ERROR("E18888", "Peer in node:%s is null", src_node->GetName().c_str());
+                       REPORT_INNER_ERR_MSG("E18888", "Peer in node:%s is null", src_node->GetName().c_str());
                        return ge::GRAPH_FAILED, "Peer in node:%s is null", src_node->GetName().c_str());
       if (peer_in_anchor->GetOwnerNodeBarePtr()->GetName() == dst_node->GetName()) {
         // remove src->dst
@@ -709,20 +741,16 @@ Status RMulticorePhase2Graph::PartitionByReduce(ascir::ImplGraph &impl_graph,
   GE_ASSERT_GRAPH_SUCCESS(DoCopyAscNodeTensorAttr(reduce_node, store_node));
   GE_ASSERT_GRAPH_SUCCESS(DoCopyWorkspaceTensorAttr(reduce_node, workspace_pre_node));
   GE_ASSERT_GRAPH_SUCCESS(DoCopyWorkspaceTensorAttr(load_node, workspace_post_node));
-  for (const auto &reduce_out_node : reduce_node->GetOutNodes()) {
-    GE_ASSERT_NOTNULL(reduce_out_node);
-    for (const auto &reduce_out_anchor : reduce_node->GetAllOutDataAnchors()) {
-      GE_ASSERT_NOTNULL(reduce_out_anchor);
-      for (const auto &peer_in_anchor : reduce_out_anchor->GetPeerInDataAnchors()) {
-        GE_ASSERT_NOTNULL(peer_in_anchor);
-        GE_ASSERT_NOTNULL(peer_in_anchor->GetOwnerNodeBarePtr());
-        if (peer_in_anchor->GetOwnerNodeBarePtr()->GetName() == reduce_out_node->GetName()) {
-          GE_CHK_STATUS_RET(ge::GraphUtils::RemoveEdge(reduce_node->GetOutAnchor(reduce_out_anchor->GetIdx()),
-                                                       reduce_out_node->GetInAnchor(peer_in_anchor->GetIdx())));
-          GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(new_reduce_node->GetOutAnchor(reduce_out_anchor->GetIdx()),
-                                                    reduce_out_node->GetInAnchor(peer_in_anchor->GetIdx())));
-        }
-      }
+  for (const auto &reduce_out_anchor : reduce_node->GetAllOutDataAnchors()) {
+    GE_ASSERT_NOTNULL(reduce_out_anchor);
+    for (const auto &peer_in_anchor : reduce_out_anchor->GetPeerInDataAnchors()) {
+      GE_ASSERT_NOTNULL(peer_in_anchor);
+      auto reduce_out_node = peer_in_anchor->GetOwnerNode();
+      GE_ASSERT_NOTNULL(reduce_out_node);
+      GE_CHK_STATUS_RET(ge::GraphUtils::RemoveEdge(reduce_node->GetOutAnchor(reduce_out_anchor->GetIdx()),
+                                                   reduce_out_node->GetInAnchor(peer_in_anchor->GetIdx())));
+      GE_CHK_STATUS_RET(ge::GraphUtils::AddEdge(new_reduce_node->GetOutAnchor(reduce_out_anchor->GetIdx()),
+                                                reduce_out_node->GetInAnchor(peer_in_anchor->GetIdx())));
     }
   }
   // add reduce->store->workspace_pre_node

@@ -45,10 +45,10 @@ bool IsTailAxisTranspose(const ge::AscTensorAttr &attr) {
     GE_ASSERT_TRUE(iter != attr.axis.end(), "Can not find vectorized axis [%ld], axis attr may be invalid.", *id);
     const size_t index = std::distance(attr.axis.begin(), iter);
     // 考虑到通用模板要兼顾reduce的限制, 因此,尾轴为1的非连续load,不会当成DisContinuous处理
-    if (ge::SymbolicUtils::StaticCheckEq(attr.strides[index], ge::sym::kSymbolZero) == ge::kTrue) {
+    if (ge::SymbolicUtils::StaticCheckEq(attr.strides[index], ge::sym::kSymbolZero) == ge::TriBool::kTrue) {
       continue;
     }
-    return ge::SymbolicUtils::StaticCheckNe(attr.strides[index], ge::sym::kSymbolOne) == ge::kTrue;
+    return ge::SymbolicUtils::StaticCheckNe(attr.strides[index], ge::sym::kSymbolOne) == ge::TriBool::kTrue;
   }
   return false;
 }
@@ -98,7 +98,7 @@ bool IsTailAxisTransposeV2(const ge::AscNodePtr &node_load) {
   for (auto id = attr.vectorized_axis.rbegin(); id != attr.vectorized_axis.rend(); ++id) {
     size_t reverse_pos = std::distance(attr.vectorized_axis.rbegin(), id);
     const size_t index = attr.vectorized_axis.size() - reverse_pos - 1;
-    if (ge::SymbolicUtils::StaticCheckEq(attr.vectorized_strides[index], ge::sym::kSymbolZero) == ge::kTrue) {
+    if (ge::SymbolicUtils::StaticCheckEq(attr.vectorized_strides[index], ge::sym::kSymbolZero) == ge::TriBool::kTrue) {
       continue;
     }
     auto iter = std::find(attr.axis.begin(), attr.axis.end(), *id);
@@ -114,7 +114,7 @@ bool IsTailAxisTransposeV2(const ge::AscNodePtr &node_load) {
 
   for (auto id = attr.axis.begin() + last_valid_axis_index + 1; id != attr.axis.end(); ++id) {
     size_t index = std::distance(attr.axis.begin(), id);
-    if (ge::SymbolicUtils::StaticCheckNe(attr.strides[index], ge::sym::kSymbolZero) == ge::kTrue) {
+    if (ge::SymbolicUtils::StaticCheckNe(attr.strides[index], ge::sym::kSymbolZero) == ge::TriBool::kTrue) {
       return true;
     }
   }
@@ -127,28 +127,13 @@ bool IsTailAxisTransposeV2(const ge::AscNodePtr &node_load) {
  */
 
 bool IsLoadNeedAlign(const ge::AscNodePtr &node_load) {
-  const auto &output_attr = node_load->outputs[0].attr;
   if (IsHasReduceNode(node_load) &&
-      (!ScheduleUtils::IsVectorizedAxisContinuousInGM(output_attr) ||
-       IsTailAxisTransposeV2(node_load) ||
+      (IsTailAxisTransposeV2(node_load) ||
        IsTailAxisTranspose(node_load->outputs[0].attr))
      ) {
     return true;
   }
   return false;
-}
-
-/**
- * 功能：将尾轴transpose的load节点替换为nddma节点；
- * 与naddma_template的区别：这里仅处理load，而nddma模板则处理load + brc或load + cast
- */
-Status GenLoadToGenNddmaNode(const ge::AscNodePtr &node_load) {
-  GE_CHECK_NOTNULL(node_load);
-  GE_CHECK_NOTNULL(node_load->GetOpDesc());
-
-  node_load->GetOpDesc()->SetType("Nddma");
-  node_load->attr.type = "Nddma";
-  return ge::SUCCESS;
 }
 
 ge::Status BaseAlignmentStrategy::DefaultAlignmentInferFunc(const ge::AscNodePtr &node) {
@@ -211,7 +196,7 @@ ge::Status BaseAlignmentStrategy::LoadAlignmentInferFunc(const ge::AscNodePtr &n
 }
 
 ge::Status BaseAlignmentStrategy::StoreAlignmentInferFunc(const ge::AscNodePtr &node) {
-  return DefaultAlignmentInferFunc(node); // TO
+  return DefaultAlignmentInferFunc(node);
 }
 
 ge::Status BaseAlignmentStrategy::SplitAlignmentInferFunc(const ge::AscNodePtr &node) {
@@ -270,7 +255,7 @@ ge::Status BaseAlignmentStrategy::AddRemovePadForTailAxisDiscontinuousLoad(ascir
   bool inserted = false;
   for (const auto &node : impl_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
-    if (!ScheduleUtils::IsLoad(node) || !IsNeedDiscontinuousAligned(node->outputs[0].attr)) {
+    if (!ScheduleUtils::IsLoad(node) || !ScheduleUtils::IsNeedDiscontinuousAligned(node->outputs[0].attr)) {
       continue;
     }
     ge::AscNodePtr remove_pad_node = nullptr;
@@ -287,7 +272,7 @@ ge::Status BaseAlignmentStrategy::AddRemovePadForTailAxisDiscontinuousLoad(ascir
 }
 
 ge::Status BaseAlignmentStrategy::CheckIsNoNeedPad(const ge::AscNodePtr &node, ge::AscTensorAttr &out_attr,
-                                                   bool &is_no_need_pad) {
+                                                   bool &is_no_need_pad) const {
   size_t valid_axis_num = 0UL;
   bool tail_axis_aligned = false;
   for (auto axis_it = out_attr.vectorized_axis.rbegin(); axis_it != out_attr.vectorized_axis.rend(); ++axis_it) {
@@ -299,13 +284,14 @@ ge::Status BaseAlignmentStrategy::CheckIsNoNeedPad(const ge::AscNodePtr &node, g
       GE_ASSERT_TRUE(dtype_size > 0, "Node [%s]'s data type size:[%d] is invalid.", node->GetNamePtr(), dtype_size);
       auto repeat = out_attr.repeats[distance];
       auto aligned_repeat = ge::sym::Align(repeat, align_width_ / dtype_size);
-      if (ge::SymbolicUtils::StaticCheckEq(repeat, aligned_repeat) == ge::kTrue) {
+      if (ge::SymbolicUtils::StaticCheckEq(repeat, aligned_repeat) == ge::TriBool::kTrue) {
         tail_axis_aligned = true;
         GELOGD("Tail repeat [%s] is aligned, no need to add pad for node:[%s].",
                ge::SymbolicUtils::ToString(repeat).c_str(), node->GetNamePtr());
         break;
       }
-    } else if (ge::SymbolicUtils::StaticCheckNe(out_attr.strides[distance], ge::sym::kSymbolZero) == ge::kTrue) {
+    } else if (ge::SymbolicUtils::StaticCheckNe(out_attr.strides[distance], ge::sym::kSymbolZero) ==
+               ge::TriBool::kTrue) {
       valid_axis_num++;
     }
   }
@@ -555,10 +541,13 @@ ge::Status BaseAlignmentStrategy::SetVectorizedStridesForTensor(const ge::NodePt
   GE_ASSERT_TRUE(output_attr.axis.size() == output_attr.strides.size(),
                  "Node [%s] output tensor axis and strides size mismatch.", node->GetNamePtr());
 
-  ascir::SizeExpr size_product = ge::sym::kSymbolOne;
-  std::vector<ascir::SizeExpr> vectorized_strides;
   const auto dtype_size = ge::GetSizeByDataType(output_attr.dtype);
   GE_ASSERT_TRUE(dtype_size > 0, "Node [%s] output tensor dtype is invalid.", node->GetNamePtr());
+  const uint32_t align_factor = align_width_ / static_cast<uint32_t>(dtype_size);
+
+  ascir::SizeExpr size_product = ge::sym::kSymbolOne;
+  std::vector<ascir::SizeExpr> vectorized_strides;
+  vectorized_strides.reserve(output_vec_axis.size());
   for (auto axis_it = output_vec_axis.rbegin(); axis_it != output_vec_axis.rend(); ++axis_it) {
     const auto axis = *axis_it;
     auto axis_tensor_iter = std::find(output_attr.axis.begin(), output_attr.axis.end(), axis);
@@ -569,28 +558,24 @@ ge::Status BaseAlignmentStrategy::SetVectorizedStridesForTensor(const ge::NodePt
     const auto &stride = output_attr.strides[axis_index];
     const auto &repeat = output_attr.repeats[axis_index];
 
-    ascir::SizeExpr current_stride;
-    if (axis_it == output_vec_axis.rbegin() && align_type == AlignmentType::kDiscontinuous) {
-      auto aligned_stride = ge::sym::Align(ge::sym::kSymbolOne, align_width_ / dtype_size);
-      // 尾轴且非连续, 尾轴stride对齐到32B
-      if (ascgen_utils::ExpressEq(stride, ge::sym::kSymbolZero)) {
-        current_stride = ge::sym::kSymbolZero;
-      } else {
+    ascir::SizeExpr current_stride = ge::sym::kSymbolZero;
+    const bool is_last_axis = (axis_it == output_vec_axis.rbegin());
+    const bool is_zero_stride =
+        ascgen_utils::ExpressEq(stride, ge::sym::kSymbolZero) || ascgen_utils::ExpressEq(repeat, ge::sym::kSymbolOne);
+    if (is_last_axis && align_type == AlignmentType::kDiscontinuous) {
+      // 尾轴非连续
+      auto aligned_stride = ge::sym::Align(ge::sym::kSymbolOne, align_factor);
+      if (!is_zero_stride) {
         current_stride = aligned_stride;
       }
       size_product = aligned_stride * repeat;
     } else {
-      if (ascgen_utils::ExpressEq(stride, ge::sym::kSymbolZero) || ascgen_utils::ExpressEq(repeat, ge::sym::kSymbolOne)) {
-        current_stride = ge::sym::kSymbolZero;
-      } else {
+      if (!is_zero_stride) {
         current_stride = size_product;
       }
-
-      if (axis_it == output_vec_axis.rbegin() && align_type == AlignmentType::kAligned) {
-        // 尾轴且需要对齐：对齐repeat后更新size_product
-        size_product = size_product * ge::sym::Align(repeat, align_width_ / dtype_size);
-      } else if (!ascgen_utils::ExpressEq(stride, ge::sym::kSymbolZero)) {
-        // 非尾轴或不需要对齐
+      if (is_last_axis && align_type == AlignmentType::kAligned) {
+        size_product = size_product * ge::sym::Align(repeat, align_factor);
+      } else if (!is_zero_stride) {
         size_product = size_product * repeat;
       }
     }

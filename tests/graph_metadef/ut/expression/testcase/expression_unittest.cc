@@ -1363,7 +1363,7 @@ TEST_F(UtestExpression, SimplifyWithDeplicateSym_Succ) {
   SetCurShapeEnvContext(&shape_env);
   Symbol sym0 = shape_env.CreateSymbol(1, MakeShared<GraphInputShapeSourceStub>(0, 0));
   EXPECT_SYMBOL_EQ(sym0, sym::Max(Symbol(0), sym0));
-  EXPECT_EQ(sym0.Simplify(), sym::Max(Symbol(0), sym0));
+  EXPECT_EQ(std::string(sym0.Simplify().Serialize().get()), "s0");
   SetCurShapeEnvContext(nullptr);
 }
 
@@ -1396,8 +1396,7 @@ TEST_F(UtestExpression, SimplifyVariable6_Succ) {
   EXPECT_SYMBOL_EQ(sym::Pow(sym0, Symbol(2)) / sym::Abs(sym1), sym0);
 
   auto expr1 = sym0 + sym1 - (sym2 * sym3);
-  EXPECT_EQ(std::string(expr1.Simplify().Serialize().get()),
-            "(((s0 * s0 * s0 * s0) / ((Abs(s1) * Abs(s1) * Abs(s1)))) + ((s0 * s0) / (Abs(((s0 * s0) / (Abs(s1)))))) - ((s0 * s0) * Ceiling(((s0 * s0 * s0 * s0) / ((Abs(s1) * Abs(s1) * Abs(s1))))) * Min(2, (((s0 * s0) * Ceiling(((s0 * s0 * s0 * s0) / ((Abs(s1) * Abs(s1) * Abs(s1))))) / (Abs(((s0 * s0) / (Abs(s1)))))) + (Ceiling(((s0 * s0 * s0 * s0) / ((Abs(s1) * Abs(s1) * Abs(s1))))) * s3))) / (Abs(((s0 * s0) / (Abs(s1)))))) - (Ceiling(((s0 * s0 * s0 * s0) / ((Abs(s1) * Abs(s1) * Abs(s1))))) * Min(2, (((s0 * s0) * Ceiling(((s0 * s0 * s0 * s0) / ((Abs(s1) * Abs(s1) * Abs(s1))))) / (Abs(((s0 * s0) / (Abs(s1)))))) + (Ceiling(((s0 * s0 * s0 * s0) / ((Abs(s1) * Abs(s1) * Abs(s1))))) * s3))) * Min(2, s2)))");
+  EXPECT_EQ(std::string(expr1.Simplify().Serialize().get()), "((2 * s1) - (Min(2, s2) * s2))");
   SetCurShapeEnvContext(nullptr);
 }
 
@@ -1415,8 +1414,7 @@ TEST_F(UtestExpression, SimplifyVariable7_Succ) {
   EXPECT_SYMBOL_EQ(sym0 * sym::Ceiling(sym1), sym2);
 
   auto expr1 = sym::Pow(sym3, sym0);
-  EXPECT_EQ(std::string(expr1.Simplify().Serialize().get()),
-      "Pow((2 * Ceiling(Min(8, s2)) * Min(8, s2)), Min(8, (Ceiling(Min(8, s2)) * s0)))");
+  EXPECT_EQ(std::string(expr1.Simplify().Serialize().get()), "Pow((2 * s2), Min(8, s2))");
   SetCurShapeEnvContext(nullptr);
 }
 

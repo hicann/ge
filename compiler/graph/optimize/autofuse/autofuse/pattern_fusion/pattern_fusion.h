@@ -11,16 +11,13 @@
 #ifndef AUTOFUSE_PATTERN_FUSION_H_
 #define AUTOFUSE_PATTERN_FUSION_H_
 
-#include <functional>
-#include <memory>
-#include <vector>
 
 #include "graph/node.h"
 
 namespace ge {
 class PatternFusion {
  public:
-  graphStatus RunAllPatternFusion(const ComputeGraphPtr &graph);
+  graphStatus RunAllPatternFusion(const ComputeGraphPtr &graph) const;
 };
 }  // namespace ge
 

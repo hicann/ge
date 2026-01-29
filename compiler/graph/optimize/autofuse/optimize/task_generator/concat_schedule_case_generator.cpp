@@ -42,7 +42,7 @@ Status ConcatFusionCaseGenerator::Generate(ascir::HintGraph &graph,
   auto &concat_node = concat_nodes.front();
   bool is_first_dim = false;
   GE_CHK_STATUS_RET(ScheduleUtils::ResolveDiffDim(concat_node, concat_dim_, is_first_dim), "ResolveConcatDim failed");
-  GE_ASSERT_SUCCESS(SplitDataForDifferentConcatDim(graph, concat_dim_, is_first_dim),
+  GE_ASSERT_SUCCESS(SplitDataForDifferentConcatDim(graph),
                     "Failed to split data for graph:[%s].", graph.GetName().c_str());
   const auto backend_spec = BackendSpec::GetInstance();
   GE_ASSERT_NOTNULL(backend_spec);
@@ -144,15 +144,17 @@ Status ConcatFusionCaseGenerator::GenerateScoreFunctions(const std::vector<ascir
                                                          std::vector<std::string> &score_functions) const {
   GE_CHK_BOOL_RET_STATUS_NOLOG((graphs.size() > 1U), ge::SUCCESS);
   if (support_small_tail_) {
-    score_functions.resize(graphs.size());
-    auto concat_node = FindConcatNodes(graphs.front()).front();
-    GE_CHK_STATUS_RET(ConcatScoreFunctionGenerator(graphs.back(), concat_node, concat_dim)
-                          .Generate(score_functions.front()),
-                      "Failed to generate score func for ub_concat");
-    if (graphs.size() == kTemplateSizeAll) {
-      GE_CHK_STATUS_RET(ConcatScoreFunctionGenerator(graphs.back(), concat_node, concat_dim)
-                            .GenerateForCheckSmallTail(score_functions.back()),
-                        "Failed to generate score func for small_tail_concat");
+    if (!has_recompute_) {
+      score_functions.resize(graphs.size());
+      const auto concat_node = FindConcatNodes(graphs.front()).front();
+      GE_CHK_STATUS_RET(
+          ConcatScoreFunctionGenerator(graphs.back(), concat_node, concat_dim).Generate(score_functions.front()),
+          "Failed to generate score func for ub_concat");
+      if (graphs.size() == kTemplateSizeAll) {
+        GE_CHK_STATUS_RET(ConcatScoreFunctionGenerator(graphs.back(), concat_node, concat_dim)
+                              .GenerateForCheckSmallTail(score_functions.back()),
+                          "Failed to generate score func for small_tail_concat");
+      }
     }
   } else {
     // 没有分组时, 优先UB全载的模板
@@ -202,9 +204,11 @@ Status ConcatFusionCaseGenerator::ConvertSingleInput(ascir::HintGraph &owner_gra
 
 Status ConcatFusionCaseGenerator::ConvertConcatToStores(ascir::HintGraph &owner_graph,
                                                         const ge::AscNodePtr &concat_node) {
+  ConcatGroupPartitioner partitioner(concat_node, concat_dim_);
+  GE_ASSERT_SUCCESS(partitioner.RecomputeDiffAxes());
+  has_recompute_ = partitioner.HasRecompute();
   ConcatDimAxisMap repeat_to_axis_id;
   const auto all_in_data_anchors_count = concat_node->GetAllInDataAnchors().size();  // 只需获取一次大小
-
   for (size_t i = 0UL; i < all_in_data_anchors_count; ++i) {
     const auto in_index = all_in_data_anchors_count - i - 1UL;
     GE_ASSERT_SUCCESS(ConvertSingleInput(owner_graph, concat_node, in_index, i, repeat_to_axis_id),
@@ -265,7 +269,7 @@ Status ConcatFusionCaseGenerator::Prepare(const ge::AscNodePtr &concat_node, siz
 }
 
 Status ConcatFusionCaseGenerator::PropagateAxisChanges(ge::Node *start_node,
-                                                       const std::vector<ascir::AxisId> &new_axis_ids) {
+                                                       const std::vector<ascir::AxisId> &new_axis_ids) const {
   std::set<ge::Node *> visited_nodes;
   std::queue<ge::Node *> node_queue;
 
@@ -406,9 +410,8 @@ Status ConcatFusionCaseGenerator::RemoveUnusedNodes(const ge::AscNodePtr &concat
   return ge::SUCCESS;
 }
 
-Status ConcatFusionCaseGenerator::SplitDataForDifferentConcatDim(ascir::ImplGraph &owner_graph,
-                                                                 size_t concat_dim,
-                                                                 bool is_first_dim_concat) {
+
+Status ConcatFusionCaseGenerator::SplitDataForDifferentConcatDim(ascir::ImplGraph &owner_graph) {
   for (const auto &node : owner_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
     if (!ge::ops::IsOps<ge::ascir_op::Data>(node)) {

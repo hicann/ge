@@ -12,8 +12,6 @@
 #define AUTOFUSE_POST_PROCESS_UTIL_H
 #include "common/checker.h"
 #include "graph/utils/node_utils.h"
-#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
-#include "graph/utils/graph_utils.h"
 #include "utils/autofuse_utils.h"
 #include "utils/autofuse_attrs.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
@@ -105,21 +103,6 @@ inline std::vector<std::string> ReadListStrEnv(const char *env_name, const char 
   return result;
 }
 
-inline Status DumpCacheGraphByConfigEnv() {
-  if (!IsLogEnable(GE_MODULE_NAME, DLOG_DEBUG)) {
-    return SUCCESS;
-  }
-  const static std::vector<std::string> dump_cache_graphs = ReadListStrEnv("EXPERIMENTAL_DUMP_CACHE_GRAPHS");
-  if (dump_cache_graphs.empty()) {
-    return SUCCESS;
-  }
-  for (const auto& node_name : dump_cache_graphs) {
-    GE_ASSERT_SUCCESS(BackendUtils::DumpGraph(node_name, kPostProcessDir, ""));
-    GE_ASSERT_SUCCESS(BackendUtils::DumpGraphAndSubgraphs({node_name}, kPostProcessDir));
-  }
-  return SUCCESS;
-}
-
 // 后处理异常流程dump正在处理的dump图
 inline Status CacheGraphBeforePostProcess(const NodePtr &node, const std::string &proc_name, const ComputeGraphPtr &graph) {
   if (!IsLogEnable(GE_MODULE_NAME, DLOG_DEBUG)) {
@@ -142,7 +125,7 @@ inline Status DumpCacheGraphForExceptionPostProcess(const NodePtr &node, const s
 }
 
 // 后处理异常流程dump正在处理的dump图
-inline Status DumpFusedCacheGraphForExceptionPostProcess(const std::string &fused_graph_name, const std::string &proc_name) {
+inline Status DumpFusedCacheGraphForExceptionPostProcess(const std::string &fused_graph_name) {
   if (!IsLogEnable(GE_MODULE_NAME, DLOG_DEBUG)) {
     return SUCCESS;
   }
@@ -196,7 +179,7 @@ inline Status ProcessAscBackendNodes(const ComputeGraphPtr &ge_or_fused_asc_back
         GELOGE(FAILED, "FusedAscBackend node: %s(%s), post process(%s) failed, start to dump cache graphs;",
                node->GetName().c_str(), node->GetType().c_str(), proc_name.c_str());
         GE_ASSERT_SUCCESS(
-            DumpFusedCacheGraphForExceptionPostProcess((attr->GetFuseComputeGraph())->GetName(), proc_name));
+            DumpFusedCacheGraphForExceptionPostProcess((attr->GetFuseComputeGraph())->GetName()));
         return ret;
       }
     }
@@ -503,7 +486,7 @@ inline bool IsNextCubeNode(const NodePtr &node) {
     GE_ASSERT_NOTNULL(peer_in_anchor);
     const auto peer_in_node = peer_in_anchor->GetOwnerNode();
     GE_ASSERT_NOTNULL(peer_in_node);
-    if (BackendUtils::IsCubeNodeType(peer_in_node)) {
+    if (AutofuseUtils::IsCubeNodeType(peer_in_node)) {
       return true;
     }
   }
@@ -511,7 +494,7 @@ inline bool IsNextCubeNode(const NodePtr &node) {
 }
 
 inline bool IsCubeRelatedAscNode(const NodePtr &node) {
-  if (BackendUtils::IsCubeNodeType(node)) {
+  if (AutofuseUtils::IsCubeNodeType(node)) {
     return true;
   }
   if ((node->GetType() == kLoadType) && IsNextCubeNode(node)) {

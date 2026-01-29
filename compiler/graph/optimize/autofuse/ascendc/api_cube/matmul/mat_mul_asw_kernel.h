@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 /* !
@@ -75,11 +75,13 @@ __aicore__ inline void MatmulAswKernel<A_TYPE, B_TYPE, C_TYPE, BIAS_TYPE, BLOCK_
         static_cast<uint64_t>(block_.matmulTilingData_->tCubeTiling.M) * block_.matmulTilingData_->tCubeTiling.N);
     biasGlobal_.SetGlobalBuffer(reinterpret_cast<__gm__ BiasT *>(biasGM), block_.matmulTilingData_->tCubeTiling.N);
     // 右矩阵UNCACHE
-    if (block_.matmulTilingData_->l2CacheDisable == L2CacheMode::B_L2_CACHE_DISABLE) {
+    if (block_.matmulTilingData_->l2CacheDisable == L2CacheMode::ALL_L2_CACHE_DISABLE ||
+        block_.matmulTilingData_->l2CacheDisable == L2CacheMode::B_L2_CACHE_DISABLE) {
         bGlobal_.SetL2CacheHint(AscendC::CacheMode::CACHE_MODE_DISABLE);
     }
     // 左矩阵UNCACHE
-    if (block_.matmulTilingData_->l2CacheDisable == L2CacheMode::A_L2_CACHE_DISABLE) {
+    if (block_.matmulTilingData_->l2CacheDisable == L2CacheMode::ALL_L2_CACHE_DISABLE ||
+        block_.matmulTilingData_->l2CacheDisable == L2CacheMode::A_L2_CACHE_DISABLE) {
         aGlobal_.SetL2CacheHint(AscendC::CacheMode::CACHE_MODE_DISABLE);
     }
 }

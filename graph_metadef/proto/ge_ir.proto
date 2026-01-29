@@ -226,7 +226,7 @@ message AxisDef {
   int32 axis_type = 3;
   bool bind_block = 4;
   string size = 5; // expression
-  int32 align = 6;
+  string align = 6;
   repeated int64 from = 7;
   int64 split_pair_other_id = 8;
   bool allow_oversize_axis = 9;
@@ -271,6 +271,7 @@ message TmpBufDescDef {
 message TmpBufferGroupDef {
   TmpBufDescDef buf_desc = 1;
   MemAttrDef mem = 2;
+  int64 id = 3;
 }
 
 message AscNodeAttrGroupsDef {

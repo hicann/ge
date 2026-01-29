@@ -2778,8 +2778,8 @@ TEST_F(UtestKernelTaskInfo, KernelTaskInit_SaveExceptionInfo_EnableExceptionDump
 
   const auto &op_info = ge::DumpStub::GetInstance().GetOpInfos()[0];
   auto input_addrs = ModelUtils::GetInputAddrs(model.runtime_param_, op_desc);
-  EXPECT_EQ(op_info.tensorInfos[0].tensor->GetAddr(), input_addrs[0]);
-  EXPECT_EQ(op_info.tensorInfos[1].tensor->GetAddr(), input_addrs[1]);
+  EXPECT_EQ(op_info.tensorInfos[0].tensorAddr, input_addrs[0]);
+  EXPECT_EQ(op_info.tensorInfos[1].tensorAddr, input_addrs[1]);
 
   EXPECT_EQ(exception_dump->op_desc_info_[0].input_addrs[0], input_addrs[0]);
   EXPECT_EQ(exception_dump->op_desc_info_[0].input_addrs[1], input_addrs[1]);

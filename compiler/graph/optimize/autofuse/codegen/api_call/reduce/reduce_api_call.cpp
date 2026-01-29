@@ -18,8 +18,8 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
-#include "../utils/api_call_utils.h"
+#include "api_call/utils/api_call_factory.h"
+#include "api_call/utils/api_call_utils.h"
 
 namespace codegen {
 using namespace std;
@@ -38,6 +38,13 @@ Status ReduceApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
 
   auto x = inputs[0].get();
   auto y = outputs[0].get();
+
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "ReduceApiCall(id) cannot find tmp buffer id to use.");
+  id = it->second;
 
   std::string reduce_pattern;
   GetIsArAndPattern(y, x.isAr, reduce_pattern);
@@ -62,27 +69,32 @@ Status ReduceApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
       ss << "ReduceSumInt32<" << dtype_name << ", " << reduce_pattern << ", false>("
          << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
          << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
-         << tpipe.tmp_buf <<", tmp_reduce_shape, true);" << std::endl;
+         << tpipe.tmp_buf << "_" << std::to_string(id) <<", tmp_reduce_shape, true);" << std::endl;
     } else {
       ss << "Reduce" << new_api_name << "<" << dtype_name << ", " << reduce_pattern << ", false>("
          << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
          << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
-         << tpipe.tmp_buf <<", tmp_reduce_shape, true);" << std::endl;
+         << tpipe.tmp_buf << "_" << std::to_string(id) <<", tmp_reduce_shape, true);" << std::endl;
     }
     if (this->api_name_== "Mean") {
-      ReduceMeanCodeGen(dtype_name, tpipe, x, y, ss);
+      ReduceMeanCodeGen(dtype_name, tpipe, y, ss);
     }
   } else {
+    life_time_axis_id = 0L;
+    int64_t tmp_reduce_id = -1L;
+    auto it = this->tmp_buf_id.find(life_time_axis_id);
+    GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "ReduceApiCall(tmp reduce id) cannot find tmp buffer id to use.");
+    tmp_reduce_id = it->second;
     ss << "LocalTensor<" << dtype_name << "> tmp_reduce;" << std::endl;
-    ss << "tmp_reduce = " << tpipe.tmp_buf << "_0" << ".template ReinterpretCast<" << dtype_name << ">();" << std::endl;
+    ss << "tmp_reduce = " << tpipe.tmp_buf << "_" << std::to_string(tmp_reduce_id) << ".template ReinterpretCast<" << dtype_name << ">();" << std::endl;
     if (new_api_name == "Sum" && dtype_name == "int32_t") {
       ss << "ReduceSumInt32<" << dtype_name << ", " << reduce_pattern << ", false>"
          << "(tmp_reduce[0], " << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
-         << tpipe.tmp_buf << ", tmp_reduce_shape, true);" << std::endl;
+         << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, true);" << std::endl;
     } else {
       ss << "Reduce" << new_api_name << "<" << dtype_name << "," << reduce_pattern << ", false>"
          << "(tmp_reduce[0], " << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
-         << tpipe.tmp_buf << ", tmp_reduce_shape, true);" << std::endl;
+         << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, true);" << std::endl;
     }
     ss << "AscendC::PipeBarrier<PIPE_V>();" << std::endl;
     ss << "uint32_t temp_size = " << KernelUtils::SizeAlign() << "(" << y.actual_size << ", 32/sizeof(" << dtype_name << "));" << std::endl;

@@ -16,7 +16,6 @@
 #include "graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 #include "utils/autofuse_utils.h"
-#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "graph/attribute_group/attr_group_symbolic_desc.h"
 #include "backend_utils.h"
 #include "can_fuse/strategy/fusion_strategy_registry.h"
@@ -125,7 +124,7 @@ Status NodeFuseInfo::GetFuseNodeInput(const NodePtr &node1, const NodePtr &node2
       auto node2_peer_out_anchor = node2_in_anchor->GetPeerOutAnchor();
       GE_ASSERT_NOTNULL(node2_peer_out_anchor);
       // 如果node1和node2的输入来自同一个节点的输出，fuse node只使用node1的，做多引用的合并
-      if (node1_peer_out_anchor == node2_peer_out_anchor && !has_slice_vertical_) {
+      if (node1_peer_out_anchor == node2_peer_out_anchor && CanDoHorizontalMapping()) {
         node2_map[node2_input] = -1;
       }
       // node1是node2的祖先，node2的输入无效
@@ -198,13 +197,23 @@ Status NodeFuseInfo::GetNodeOutputMap(const NodePtr &node1, const NodePtr &node2
     const auto node1_out_anchor = node1->GetOutDataAnchor(static_cast<int32_t>(node1_output));
     GE_ASSERT_NOTNULL(node1_out_anchor);
     const auto &node1_peer_anchors = node1_out_anchor->GetPeerInDataAnchors();
+    bool all_match = true;
     for (const auto &node1_peer_anchor : node1_peer_anchors) {
       const auto &node1_peer_node = node1_peer_anchor->GetOwnerNode();
-      if (node1_peer_node == node2) {
-        if (node1_peer_anchors.size() == 1U) {
-          node_output_map[node1_output] = -1;
-        }
+      if (node1_peer_node != node2) {
+        all_match = false;
+        GELOGI("node1 %s(%s) output %zu peer in anchor %s is not one of in anchors of node2 %s(%s), "
+               "map node1 output %zu to fused node outputs list.", node1->GetName().c_str(), node1->GetType().c_str(), node1_output,
+               loop::BufferName(node1_peer_anchor).c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
+               node1_output);
+        break;
       }
+    }
+    if (!node1_peer_anchors.empty() && all_match) {
+      GELOGI("All of peer in anchors of out anchor %zu of node1 %s(%s) are in anchors of node2 %s(%s), "
+             "do not map node1 output %zu to fused node outputs list.", node1_output, node1->GetName().c_str(),
+             node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(), node1_output);
+      node_output_map[node1_output] = -1;
     }
   }
   return SUCCESS;
@@ -232,6 +241,17 @@ Status NodeFuseInfo::GetNodeOutputIndex(const NodePtr &node, uint32_t &node_out_
   return SUCCESS;
 }
 
+bool HasCubeType(const NodePtr &node1, const NodePtr &node2) {
+  const auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
+  GE_ASSERT_NOTNULL(attr1);
+  const auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
+  GE_ASSERT_NOTNULL(attr2);
+  if (attr1->HasFuseType(loop::FuseType::kCube) || attr2->HasFuseType(loop::FuseType::kCube)) {
+    return true;
+  }
+  return false;
+}
+
 void NodeFuseInfo::RollbackNode2InputMap(int32_t data_input) {
   // node2_input_map_是升序的数组，融合的时候默认是删除node2子图上的节点，回退时只需要回退node2
   GELOGD_IF(open_log_, "origin node2 input map: %s.", AutofuseUtils::VectorToStr(node2_input_map_).c_str());
@@ -257,6 +277,7 @@ Status NodeFuseInfo::UpdateNodeFuseInfo(const NodePtr &node1, const NodePtr &nod
   GE_ASSERT_SUCCESS(GetNodeOutputIndex(node2, node2_out_node_size_, node2_out_data_size_, node2_output_index_));
   GE_ASSERT_SUCCESS(GetSubgraphSameInputIndex(node1, node2, same_input_map_));
   has_slice_vertical_ = BackendUtils::SliceHasSameLoad(node1, node2, same_input_map_);
+  can_do_horizontal_mapping_ = !HasCubeType(node1, node2); // matmul节点同时有水平融合和垂直融合时不做水平融合轴映射
   // 如果两个node毫无关联返回FAILED
   if (same_input_map_.empty() && node1_to_node2_link_map_.empty()) {
     GELOGD_IF(open_log_, "node1 %s(%s) and node2 %s(%s) have no relation.", node1->GetNamePtr(),
@@ -315,75 +336,6 @@ Status AscGraphAxisMapping::GetCurAscNodeAttrs(const NodePtr &parent_node, const
   return SUCCESS;
 }
 
-bool AscGraphAxisMapping::AscNodeInputIsSimplestLoad(const NodePtr &peer_node, const InDataAnchorPtr &in_anchor) const {
-  ComputeGraphPtr graph;
-  GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(peer_node, graph));
-  GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph, peer_node));
-  NodePtr asc_store_node;
-  GE_ASSERT_SUCCESS(BackendUtils::GetPreAscNode(peer_node, in_anchor, asc_store_node));
-  std::vector<NodePtr> load_nodes;
-  auto store_in_anchor = asc_store_node->GetInDataAnchor(0);
-  GE_ASSERT_NOTNULL(store_in_anchor);
-  auto in_anchor_peer = store_in_anchor->GetPeerOutAnchor();
-  GE_ASSERT_NOTNULL(in_anchor_peer);
-  auto store_peer_node = in_anchor_peer->GetOwnerNode();
-  GE_ASSERT_SUCCESS(BackendUtils::FindPrefaceLoadNodes(store_peer_node->GetOutDataAnchor(0), load_nodes));
-  for (const auto &pre_load_node : load_nodes) {
-    const auto &load_in_anchor = pre_load_node->GetInDataAnchor(0);
-    GE_ASSERT_NOTNULL(load_in_anchor);
-    const auto node_out_anchor = load_in_anchor->GetPeerOutAnchor();
-    GE_ASSERT_NOTNULL(node_out_anchor);
-    const auto pre_data_node = node_out_anchor->GetOwnerNode();
-    GE_ASSERT_NOTNULL(pre_data_node);
-    std::vector<ViewOpAttrInfo> attr_infos;
-    if (!BackendUtils::IsSimplestLoad(peer_node, pre_load_node, pre_data_node, attr_infos)) {
-      GELOGD_IF(open_log_, "cur node %s(%s) ascgraph date node %s(%s) have view op.", peer_node->GetNamePtr(),
-                peer_node->GetType().c_str(), pre_data_node->GetNamePtr(), pre_data_node->GetType().c_str());
-      return false;
-    }
-  }
-  return true;
-}
-
-Status AscGraphAxisMapping::GetPreAscBackendNodeAndAnchor(const NodePtr &node, const NodePtr &peer_node,
-                                                          const InDataAnchorPtr &fused_in_anchor, NodePtr &asc_node,
-                                                          InDataAnchorPtr &netoutput_in_anchor) const {
-  ComputeGraphPtr graph;
-  GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(peer_node, graph));
-  auto anchor_index = 0U;
-  auto node_index = 0U;
-  GE_ASSERT_SUCCESS(BackendUtils::GetSubgraphOutputIndex(peer_node, fused_in_anchor, anchor_index, node_index));
-  const auto netoutput = graph->GetOrUpdateNetOutputNode();
-  GE_ASSERT_NOTNULL(netoutput);
-  netoutput_in_anchor = netoutput->GetInDataAnchor(static_cast<int32_t>(anchor_index));
-  GE_ASSERT_NOTNULL(netoutput_in_anchor);
-  const auto &netoutput_peer_out_anchor = netoutput_in_anchor->GetPeerOutAnchor();
-  GE_ASSERT_NOTNULL(netoutput_peer_out_anchor);
-  asc_node = netoutput_peer_out_anchor->GetOwnerNode();
-  GE_ASSERT_NOTNULL(asc_node);
-  GELOGD_IF(open_log_, "get node %s(%s) pre ascbackend node %s(%s).", node->GetNamePtr(), node->GetType().c_str(),
-            asc_node->GetNamePtr(), asc_node->GetType().c_str());
-  return SUCCESS;
-}
-
-bool AscGraphAxisMapping::PreNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index) const {
-  NodePtr peer_node;
-  InDataAnchorPtr in_anchor;
-  GE_ASSERT_SUCCESS(BackendUtils::GetPreNodeAndAnchor(node, index, peer_node, in_anchor));
-  if (peer_node->GetType() == kAscBackendType) {
-    return AscNodeInputIsSimplestLoad(peer_node, in_anchor);
-  } else if (peer_node->GetType() == kFusedAscBackendType) {
-    NodePtr asc_node;
-    InDataAnchorPtr netoutput_in_anchor;
-    GE_ASSERT_SUCCESS(GetPreAscBackendNodeAndAnchor(node, peer_node, in_anchor, asc_node, netoutput_in_anchor));
-    ComputeGraphPtr graph;
-    GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(asc_node, graph));
-    GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph, asc_node));
-    return AscNodeInputIsSimplestLoad(asc_node, netoutput_in_anchor);
-  }
-  return false;
-}
-
 Status AscGraphAxisMapping::GetPreNodeAttrs(const NodePtr &node, const int32_t index, std::vector<ge::Expression> &dims,
                                             std::vector<int64_t> &axis, std::vector<ge::Expression> &repeats) const {
   NodePtr peer_node;
@@ -407,7 +359,7 @@ Status AscGraphAxisMapping::GetPreNodeAttrs(const NodePtr &node, const int32_t i
   } else if (peer_node->GetType() == kFusedAscBackendType) {
     NodePtr asc_node;
     InDataAnchorPtr netoutput_in_anchor;
-    GE_ASSERT_SUCCESS(GetPreAscBackendNodeAndAnchor(node, peer_node, in_anchor, asc_node, netoutput_in_anchor));
+    GE_ASSERT_SUCCESS(BackendUtils::GetPreAscBackendNodeAndAnchor(node, peer_node, in_anchor, asc_node, netoutput_in_anchor));
     ComputeGraphPtr graph;
     GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(asc_node, graph));
     GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph, asc_node));
@@ -438,7 +390,7 @@ Status AscGraphAxisMapping::GetPreNodeAscGraphAttrs(const NodePtr &node, const i
   } else if (peer_node->GetType() == kFusedAscBackendType) {
     NodePtr asc_node;
     InDataAnchorPtr netoutput_in_anchor;
-    GE_ASSERT_SUCCESS(GetPreAscBackendNodeAndAnchor(node, peer_node, in_anchor, asc_node, netoutput_in_anchor));
+    GE_ASSERT_SUCCESS(BackendUtils::GetPreAscBackendNodeAndAnchor(node, peer_node, in_anchor, asc_node, netoutput_in_anchor));
     ComputeGraphPtr graph;
     GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(asc_node, graph));
     ascback_node = asc_node;
@@ -991,7 +943,8 @@ Status AscGraphAxisMapping::ProcessSubGraphVerticalMapInfo(const NodePtr &node1,
     } else {
       std::vector<ViewOpAttrInfo> attr_infos;
       if (!CanLoopMerge(asc_node1, asc_node2)) {
-        auto pre_node_input_is_simplest_load = PreNodeInputIsSimplestLoad(node2, subgraph_link.second);
+        std::vector<ViewOpAttrInfo> pre_attr_infos;
+        auto pre_node_input_is_simplest_load = BackendUtils::PreNodeInputIsSimplestLoad(node2, subgraph_link.second, pre_attr_infos);
         auto cur_node_input_is_simplest_load = BackendUtils::CurNodeInputIsSimplestLoad(node2, subgraph_link.second, attr_infos);
         // 不能循环合并时，如果前序子图没有view、后续子图没有view可以融合(transpose场景)
         if (pre_node_input_is_simplest_load && cur_node_input_is_simplest_load) {
@@ -1007,20 +960,18 @@ Status AscGraphAxisMapping::ProcessSubGraphVerticalMapInfo(const NodePtr &node1,
           return FAILED;
         }
       } else {
-        /*
-         *        node1                         node1                        node1
-         *         /\                            /\                            |
-         *        /  \                          /  \                           |
-         * 原图 node2 node3   -> 场景1：        node2  \             场景2：  FusedAscBackend
-         *       \    /                          \   \
-         *       concat                     FusedAscendBackend
-         * 上面原图里node1的输出多引用，连接了node2和node3，此时有两种融合场景：
-         * 场景1：node3和concat融合，然后node2不能和concat融合，此时需要判断node1和Fused节点是否能融合。如果node1的输出是多引用，同时Fused
-         * 节点中与node1连接的节点中包含view op，那么node1和Fused节点不能融合。
-         * 场景2：node3和node2与concat节点融合了，最后会判断node1和Fused节点是否能融合，这个时候node1和Fused节点只有一条边，fuse_info中没有
-         * 多引用的信息。这个时候不能只用fuse_info.HasMulReference()来判断，还需要判断Fused节点中与node1连接的data节点后面是否有多个节点。
-         * 如果后面有多个节点（> 1U），同时对应节点中也包含view op，那么node1和Fused节点不能融合。
-         */
+        //        node1                         node1                        node1
+        //         /  |                          /   |                         |
+        //        /   |                         /    |                         |
+        // 原图 node2 node3   -> 场景1：        node2 |            场景2：  FusedAscBackend
+        //       |    |                         |    |
+        //       concat                     FusedAscendBackend
+        // 上面原图里node1的输出多引用，连接了node2和node3，此时有两种融合场景：
+        // 场景1：node3和concat融合，然后node2不能和concat融合，此时需要判断node1和Fused节点是否能融合。如果node1的输出是多引用，同时Fused
+        // 节点中与node1连接的节点中包含view op，那么node1和Fused节点不能融合。
+        // 场景2：node3和node2与concat节点融合了，最后会判断node1和Fused节点是否能融合，这个时候node1和Fused节点只有一条边，fuse_info中没有
+        // 多引用的信息。这个时候不能只用fuse_info.HasMulReference()来判断，还需要判断Fused节点中与node1连接的data节点后面是否有多个节点。
+        // 如果后面有多个节点（> 1U），同时对应节点中也包含view op，那么node1和Fused节点不能融合。
         bool has_mul_reference = fuse_info.HasMulReference();
         auto asc_node = node2;
         auto index = subgraph_link.second;
@@ -1068,7 +1019,7 @@ Status AscGraphAxisMapping::CreateSubGraphAxisMapInfo(const NodePtr &node1, cons
       }
     }
   }
-  if (!fuse_info.GetHasSliceVertical() && !is_both_horizontal_and_vertical) {
+  if (fuse_info.CanDoHorizontalMapping() && !is_both_horizontal_and_vertical) {
     // 水平融合轴映射
     if (ProcessSubGraphHorizontalMapInfo(node1, node2, fuse_info) != SUCCESS) {
       return FAILED;

@@ -16,7 +16,7 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
+#include "api_call/utils/api_call_factory.h"
 
 namespace codegen {
 using namespace std;

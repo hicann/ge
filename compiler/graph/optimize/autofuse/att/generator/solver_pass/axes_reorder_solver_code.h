@@ -1,16 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #ifndef ATT_AXES_REORDER_SOLVER_H_
 #define ATT_AXES_REORDER_SOLVER_H_
@@ -95,6 +90,7 @@ inline std::string GenReorderSolverInputDebugString() {
   return R"(
 std::string DebugString() const {
   std::stringstream ss;
+  ss << "result_id: " << result_id << ", group_id: " << group_id << ", case_id: " << case_id << ", sub_case_id: " << sub_case_id;
   ss << "core_num: " << core_num;
   ss << ", ub_size: " << ub_size;
   if (input_vars != nullptr) {
@@ -137,6 +133,10 @@ std::string DebugString() const {
 inline std::string GenAxesReorderSolverInput() {
   std::string codes;
   codes += "struct AxesReorderSolverInput {\n";
+  codes += "  uint32_t result_id = 0u;\n";
+  codes += "  uint32_t group_id = 0u;\n";
+  codes += "  uint32_t case_id = 0u;\n";
+  codes += "  uint32_t sub_case_id = 0u;\n";
   codes += "  uint32_t core_num = 0u;\n";
   codes += "  uint32_t ub_size = 0u;\n";
   codes += "  uint32_t input_vars_size = 0u;\n";
@@ -164,23 +164,8 @@ inline std::string GenDestructor() {
   return codes;
 }
 
-inline std::string GenAxesReorderSolver() {
-  std::string codes;
-  codes += "class AxesReorderSolver {\n";
-  codes += "public:\n";
-  codes += "  explicit AxesReorderSolver(const AxesReorderSolverInput &input) : input_(input) {}\n";
-  codes += GenDestructor();
-  std::string function_define = R"(
-  bool Run(const bool is_trade_off, const bool block_loop_auto_tune, const bool enable_auto_tune);
-  bool PgoSolverGenerateAllTilingData();
-  std::vector<std::vector<uint32_t>> GetTilingDataList() {return availiable_tiling_data_list_;}
-protected:
-  virtual bool CalUsedCoreNum(double &used_core_num) = 0;
-  virtual bool CalRealUsedCoreNum(int64_t &used_core_num) = 0;
-  virtual double GetPerf() = 0;
-  virtual bool SatisfyThresholdUBSize() = 0;
-  AxesReorderSolverInput input_;
-  std::vector<std::vector<uint32_t>> availiable_tiling_data_list_;
+inline std::string GenAxesReorderSolverPrivateFuncDefine() {
+  return R"(
 private:
   inline bool GetTiling(const bool is_tuning, const bool block_loop_auto_tune, const bool enable_workload_balance);
   inline bool GetMaxBlockDimTiling(const uint32_t block_dim);
@@ -194,10 +179,14 @@ private:
   inline void FindBetterSolutionByUpperBlockDim(double next_upper_perf, uint32_t next_upper_block_dim);
   inline void FindBetterSolutionByLowerBlockDim(double next_lower_perf, uint32_t next_lower_block_dim);
   inline bool WorkloadBalance();
+  inline bool IsSatisfyCons(TilingVariable *var, int64_t value, ConstraintType cons_type, double ratio = 1.0);
+  inline bool BinaryFindUpperBoundSatisfiedUBLimit(TilingVariable *var, int64_t lower_bound,
+                                                   int64_t &result);
+  inline bool BinaryFindLowerBoundSatisfiedUBThresholdCond(TilingVariable *var, uint32_t idx, int64_t lower_bound,
+                                                           int64_t &result);
+  inline std::pair<int64_t, int64_t> BinaryFindLowerBoundSatisfiedCoreNum(TilingVariable *var, uint32_t idx,
+                                                                          int64_t lower_bound);
   bool TuneNotailVar(TilingVariable *var);
-  bool SatisfyCons(ConstraintType cons_type);
-  bool SatisfyCons(TilingVariable *var, ConstraintType cons_type);
-  bool SatisfyMCCons();
   bool InitLocalBufferVars();
   bool InitMulticoreVars();
   bool GetMinMulticoreVars();
@@ -207,12 +196,32 @@ private:
   bool BinaryLocalBufTiling();
   void ApplyPromptAlign(TilingVariable *var);
   bool LocalBufTiling(const bool is_tuning, const bool block_loop_auto_tune);
-  void PgoSolverGenerateAllTilingDataInner(const uint32_t index, std::vector<uint32_t> &ans_item,
-                                           std::vector<std::vector<uint32_t>> &ans, int64_t step_max = 16);
+protected:
+  bool SatisfyCons(ConstraintType cons_type);
+  bool SatisfyCons(TilingVariable *var, ConstraintType cons_type, double ratio = 1.0);
+  bool SatisfyMCCons();
+)";
+}
+
+inline std::string GenAxesReorderSolver() {
+  std::string codes;
+  codes += "class AxesReorderSolver {\n";
+  codes += "public:\n";
+  codes += "  explicit AxesReorderSolver(const AxesReorderSolverInput &input) : input_(input) {}\n";
+  codes += GenDestructor();
+  std::string function_define = R"(
+  bool Run(const bool is_trade_off, const bool block_loop_auto_tune, const bool enable_auto_tune);
+protected:
+  virtual bool CalUsedCoreNum(double &used_core_num) = 0;
+  virtual bool CalRealUsedCoreNum(int64_t &used_core_num) = 0;
+  virtual double GetPerf() = 0;
+  virtual bool SatisfyThresholdUBSize() = 0;
+  virtual bool SatisfyUBSizeCacheLine(uint32_t idx) = 0;
+  AxesReorderSolverInput input_;
 )";
   codes += function_define;
-  codes += "};\n";
-  codes += "\n";
+  codes += GenAxesReorderSolverPrivateFuncDefine();
+  codes += "};\n\n";
   return codes;
 }
 
@@ -266,14 +275,27 @@ inline std::string GenInitAllVars() {
 }
 
 inline std::string GenCommonPartOfSatisfyCons() {
-  std::string codes;
-  codes += "    if (cons->type != cons_type) {\n";
-  codes += "      continue;\n";
-  codes += "    }\n";
-  codes += "    if (cons->eval(cons->rel_tiling_vars, cons->rel_in_shapes, cons->rel_hw_spec) > 0) {\n";
-  codes += "      return false;\n";
-  codes += "    }\n";
-  return codes;
+  return R"(    if (cons->type != cons_type) {
+      continue;
+    }
+    if (cons->eval(cons->rel_tiling_vars, cons->rel_in_shapes, static_cast<double>(cons->rel_hw_spec)) > 0) {
+      OP_LOGD(OP_NAME, "Check eval failed, rel_hw_spec:%ld, input:%s", cons->rel_hw_spec, input_.DebugString().c_str());
+      return false;
+    }
+)";
+}
+
+inline std::string GenSatisfyConsByRatio() {
+  return R"(    if (cons->type != cons_type) {
+      continue;
+    }
+    if (cons->eval(cons->rel_tiling_vars, cons->rel_in_shapes,
+        Ceiling(ratio * static_cast<double>(cons->rel_hw_spec))) > 0) {
+      OP_LOGD(OP_NAME, "Check eval failed, rel_hw_spec:%ld, input:%s, ratio:%lf", cons->rel_hw_spec,
+              input_.DebugString().c_str(), ratio);
+      return false;
+    }
+)";
 }
 
 inline std::string GenSatisfyCons() {
@@ -290,24 +312,24 @@ inline std::string GenSatisfyCons() {
   codes += "  }\n";
   codes += "  return true;\n";
   codes += "}\n";
-  codes += "bool AxesReorderSolver::SatisfyCons(TilingVariable *var, ConstraintType cons_type) {\n";
+  codes += "bool AxesReorderSolver::SatisfyCons(TilingVariable *var, ConstraintType cons_type, double ratio) {\n";
   codes += "  uint32_t size = var->rel_cons_size;\n";
   codes += "  auto *cons_list = var->rel_cons;\n";
   codes += "  for (uint32_t i = 0u; i < size; ++i) {\n";
   codes += "    const uint32_t remain = std::min(4u, size - i);\n";
   codes += "    for (uint32_t k =0u; k < remain; ++k) {\n";
   codes += "      auto &cons = cons_list[i+k];\n";
-  codes += GenCommonPartOfSatisfyCons();
-  codes += "    }\n";
-  codes += "  }\n";
-  codes += "  return true;\n";
-  codes += "}\n";
-  codes += "bool AxesReorderSolver::SatisfyMCCons() {\n";
-  codes += "  int64_t used_core_num = 0;\n";
-  codes += "  CalRealUsedCoreNum(used_core_num);\n";
-  codes += "  return used_core_num <= static_cast<int64_t>(input_.core_num); \n";
-  codes += "}\n";
-  codes += "\n";
+  codes += GenSatisfyConsByRatio();
+  codes.append(R"(    }
+  }
+  return true;
+}
+bool AxesReorderSolver::SatisfyMCCons() {
+  int64_t used_core_num = 0;
+  CalRealUsedCoreNum(used_core_num);
+  return used_core_num <= static_cast<int64_t>(input_.core_num);
+}
+)");
   return codes;
 }
 
@@ -505,7 +527,7 @@ inline std::string GenInitLocalMCVars() {
   std::string codes;
   codes += "  if (!InitLocalBufferVars()) {\n";
   codes += "    OP_LOGW(OP_NAME, \"init local buffer failed\");\n";
-  codes += "    return false;\n";  
+  codes += "    return false;\n";
   codes += "  }\n";
   codes += "  if (!InitMulticoreVars()) {\n";
   codes += "    OP_LOGW(OP_NAME, \"multicore tiling failed\");\n";
@@ -518,39 +540,48 @@ inline std::string GenInitLocalMCVars() {
   return codes;
 }
 
-inline std::string GenNaiveMcRelatedVar() {
+inline std::string GenMcRelatedNaiveTiling() {
   return R"(
-        if (var->mc_related && SatisfyThresholdUBSize()) {
-          if (var_tiling_times == 0L) {
-            if (!MulticoreTilingCore(false)) {
-              OP_LOGW(OP_NAME, "Multicore Tiling Calculation failed in the first check, input: %s.",
-                      input_.DebugString().c_str());
-              return false;
-            }
-          }
-          int64_t available_core_num = 0L;
-          // 减少多核轴，核数应该提高，除非是核数超出上限，此时会导致更多地核内循环，会生成劣化解，退出调节
-          if (CalRealUsedCoreNum(available_core_num) && (available_core_num >= max_core_num)) {
-            // 首次出现超出上限，不需要重新调节核内循环或回退解
-            if (var_tiling_times > 0L) {
-              // 尝试调节多核循环，以满足核数上限
-              if (InitMulticoreVars() && MulticoreTilingCore(false) &&
-                  CalRealUsedCoreNum(available_core_num) && (available_core_num <= max_core_num)) {
-                OP_LOGD(OP_NAME, "Multicore tiling calculation success, available_core_num:%ld, max_core_num:%ld",
-                  available_core_num, max_core_num);
-              } else {
-                OP_LOGD(OP_NAME, "Restore input tiling vars as current tiling has more core loop may cause"
-                        " performance issue, available_core_num:%ld, max_core_num:%ld, input: %s.", available_core_num,
-                        max_core_num, input_.DebugString().c_str());
-                RestoreInputTilingVars(tiling_var, nullptr, nullptr);
-              }
-            }
-            break;
-          }
-          var_tiling_times++;
-        } else {
-          break;
+    // 2.1)针对多核相关轴进行二分查找满足UB利用率的值，找到可以取的最小Tile切分大小
+    // 2.2)若非多核相关轴，则按照能够满足UB的最大约束返回(upper_bound_satisfied_ub)
+    if (var->mc_related) {
+      int64_t upper_bound_satisfied_ub_threshold = var->value;
+      int64_t lower_bound_satisfied_ub_threshold = var->align;
+      // 若未找到满足UB利用率的解，则不需要进一步处理
+      if (BinaryFindLowerBoundSatisfiedUBThresholdCond(var, i, var->align, lower_bound_satisfied_ub_threshold)) {
+        lower_bound_satisfied_ub_threshold = CeilDiv(lower_bound_satisfied_ub_threshold, var->align) * var->align;
+        OP_LOGD(OP_NAME, "Found lower_bound_satisfied_ub_threshold:%ld, upper:%ld, lower:%ld, i:%u, input: %s",
+                lower_bound_satisfied_ub_threshold, upper_bound_satisfied_ub_threshold, var->align, i,
+                input_.DebugString().c_str());
+        var->SetValue(upper_bound_satisfied_ub_threshold);
+        // 3.1) 在[var->align,upper_bound_satisfied_ub_threshold]范围内，二分查找满足UB利用率的边界
+        auto satisfied_core_threshold = BinaryFindLowerBoundSatisfiedCoreNum(var, i,
+            lower_bound_satisfied_ub_threshold);
+        auto satisfied_core_threshold_left = satisfied_core_threshold.first;
+        auto satisfied_core_threshold_right = satisfied_core_threshold.second;
+        OP_LOGD(OP_NAME, "Found lower bound satisfied core num:%ld, %ld, var upper:%ld, lower:%ld, i:%u, input: %s",
+                satisfied_core_threshold_left, satisfied_core_threshold_right, upper_bound_satisfied_ub_threshold,
+                var->align, i, input_.DebugString().c_str());
+        // 3.2)先尝试Tile块更大的值，若有解，则更新var
+        int64_t available_core_num_right = 0L;
+        var->SetValue(satisfied_core_threshold_right);
+        if (InitMulticoreVars() && MulticoreTilingCore(false) && CalRealUsedCoreNum(available_core_num_right)) {
+          OP_LOGD(OP_NAME, "Found larger tile size:%ld, available_core_num:%ld, max_core_num:%ld, i:%u",
+                  satisfied_core_threshold_right, available_core_num_right, max_core_num, i);
         }
+        int64_t available_core_num_left = 0L;
+        if ((satisfied_core_threshold_left != satisfied_core_threshold_right) && (satisfied_core_threshold_left > 0L)) {
+          var->SetValue(satisfied_core_threshold_left);
+          if (InitMulticoreVars() && MulticoreTilingCore(false) && CalRealUsedCoreNum(available_core_num_left) &&
+              (available_core_num_left > available_core_num_right)) {
+            OP_LOGD(OP_NAME, "Found smaller tile size:%ld, available_core_num:%ld, max_core_num:%ld, i:%u",
+                    satisfied_core_threshold_left, available_core_num_left, max_core_num, i);
+          } else {
+            var->SetValue(satisfied_core_threshold_right);
+          }
+        }
+      }
+    }
 )";
 }
 
@@ -558,24 +589,26 @@ inline std::string GenNaiveLocalBufTilingImpl() {
   std::string kNaiveLocalBufTilingImpl = R"(
   uint32_t num_vars = input_.local_buffer_vars_size;
   auto *vars = input_.local_buffer_vars;
-  double threshold = input_.corenum_threshold;
-  int64_t max_core_num = static_cast<int64_t>(threshold * static_cast<double>(input_.core_num));
+  int64_t max_core_num = static_cast<int64_t>(input_.corenum_threshold * static_cast<double>(input_.core_num));
+  int64_t last_available_core_num = 0L;
   for (uint32_t i = 0u; i < num_vars; ++i) {
     auto &var = vars[i];
     auto upper_bound = var->upper_bound(var->upper_bound_vars);
     int64_t boundary = CeilDiv(upper_bound, var->align) * var->align;
-    TilingVariable pure_mc_vars[input_.pure_mc_vars_size];
-    int64_t var_tiling_times = 0L;
-    for (int64_t val = boundary; val >= var->align; val -= var->align) {
-      // 保存变量，以在发现劣化解的时候回退解
-      TilingVariable tiling_var[input_.tiling_vars_size];
-      SaveInputTilingVars(tiling_var, nullptr, nullptr);
-      var->SetValue(val);
-      if (SatisfyCons(var, ConstraintType::LOCAL_BUFFER)) {
-)";
-  std::string kNaiveTilingPostProcess = R"(
-      }
+    var->SetValue(boundary);
+    int64_t upper_bound_satisfied_ub = -1L;
+    if (!BinaryFindUpperBoundSatisfiedUBLimit(var, var->align, upper_bound_satisfied_ub)) {
+      OP_LOGW(OP_NAME, "BinaryFindUpperBoundSatisfiedUBLimit failed, upper:%ld, lower:%ld, i:%u, input: %s.",
+              upper_bound, var->align, i, input_.DebugString().c_str());
+      return false;
     }
+    upper_bound_satisfied_ub = CeilDiv(upper_bound_satisfied_ub, var->align) * var->align;
+    OP_LOGD(OP_NAME, "Found upper_bound_satisfied_ub:%ld, upper_bound:%ld, lower_bound:%ld, i:%u, input: %s",
+            upper_bound_satisfied_ub, boundary, var->align, i, input_.DebugString().c_str());
+    var->SetValue(upper_bound_satisfied_ub);
+)";
+    std::string kNaiveLocalBufTilingImplPostProcess = R"(
+    OP_LOGD(OP_NAME, "After local buffer tiling, input:%s", input_.DebugString().c_str());
     if (!TuneNotailVar(var)) {
       OP_LOGW(OP_NAME, "Tune notail var failed");
       return false;
@@ -596,7 +629,7 @@ inline std::string GenNaiveLocalBufTilingImpl() {
   return true;
   }
 )";
-  return kNaiveLocalBufTilingImpl + GenNaiveMcRelatedVar() + kNaiveTilingPostProcess;
+  return kNaiveLocalBufTilingImpl + GenMcRelatedNaiveTiling() + kNaiveLocalBufTilingImplPostProcess;
 }
 
 // 通过双阈值平衡多核占用和ub利用，双阈值分别是ub和多核的占比，默认ub为0.2，多核为0.8，满足如下两条规则，需要停止增大ub
@@ -672,22 +705,19 @@ bool AxesReorderSolver::LocalBufTiling(const bool is_tuning, const bool block_lo
 }
 
 inline std::string GenPgoSolverGenerateAllTilingDataHead() {
-  std::string codes = R"(bool AxesReorderSolver::PgoSolverGenerateAllTilingData() {
+  std::string codes = R"(bool AxesReorderPgoSolver::PgoSolverGenerateAllTilingData() {
   uint32_t index = 0;
   std::vector<uint32_t> ans_item(input_.tiling_vars_size);
   std::vector<std::vector<uint32_t>> ans;
   OP_LOGI(OP_NAME, "Start PgoSolverGenerate AllTilingData");
   int64_t step_max = 16;
-  const char* var = std::getenv("EXPERIMENTAL_AUTOFUSE_PGO_STEP_MAX");
-  if (var != nullptr) {
-      auto step_value = std::stoi(var);
-      if ((step_value % 2) == 0) {
-        step_max = step_value;
-      }
-  };
+  auto step_value = pgo_step_max_;
+  if ((step_value % 2) == 0) {
+    step_max = step_value;
+  }
   PgoSolverGenerateAllTilingDataInner(index, ans_item, ans, step_max);
   availiable_tiling_data_list_ = ans;
-  OP_LOGI(OP_NAME, "Gen PgoSolverGenerate AllTilingData %d.", ans.size());
+  OP_LOGI(OP_NAME, "Gen PgoSolverGenerate AllTilingData %ld.", ans.size());
   return true;
 }
 
@@ -696,7 +726,7 @@ inline std::string GenPgoSolverGenerateAllTilingDataHead() {
 }
 
 inline std::string GenPgoSolverGenerateAllTilingDataBody() {
-  std::string codes = R"(void AxesReorderSolver::PgoSolverGenerateAllTilingDataInner(const uint32_t index, std::vector<uint32_t> &ans_item, std::vector<std::vector<uint32_t>> &ans, int64_t step_max) {
+  std::string codes = R"(void AxesReorderPgoSolver::PgoSolverGenerateAllTilingDataInner(const uint32_t index, std::vector<uint32_t> &ans_item, std::vector<std::vector<uint32_t>> &ans, int64_t step_max) {
   if (index >= input_.tiling_vars_size) {
     if (!SatisfyMCCons()) {
       return;
@@ -1112,24 +1142,76 @@ bool AxesReorderSolver::AutoTuning(const bool is_trade_off) {
   return codes;
 }
 
-inline std::string GenWorkloadBalance() {
+inline std::string GenWorkloadBalancePrepare() {
   return R"(
 inline bool AxesReorderSolver::WorkloadBalance() {
   OP_LOGD(OP_NAME, "Begin to calculate core num for workload balance, input:%s.", input_.DebugString().c_str());
   int64_t used_corenum = 0;
-  CalRealUsedCoreNum(used_corenum);
-  if (used_corenum == 1) {
-    OP_LOGI(OP_NAME, "used_corenum is 1, start to tune corenum_threshold");
-    input_.ub_threshold = 0.0;
-    input_.corenum_threshold = 0.05;
-    if (!GetTiling(false, true, true)) {
-      OP_LOGW(OP_NAME, "Get tiling failed.");
-      return false;
+  (void)CalRealUsedCoreNum(used_corenum);
+  int64_t used_corenum_updated = used_corenum;
+  double tmp_corenum = 0.0;
+  (void)CalUsedCoreNum(tmp_corenum);
+  double diff = static_cast<double>(used_corenum) - tmp_corenum;
+  double initial_diff = static_cast<double>(used_corenum) - tmp_corenum;
+  constexpr double EPS = 1e-6;
+  bool related = false;
+  uint32_t num_vars = input_.local_buffer_vars_size;
+  auto *vars = input_.local_buffer_vars;
+  uint32_t index = num_vars - 1;
+  for (uint32_t i = 0; i < num_vars; i++) {
+    if (vars[i]->mc_related) {
+      related = true;
+      index = i;
+      break;
     }
   }
+  if (!related) {
+    return true;
+  }
+)";
+}
+
+inline std::string GenWorkloadBalance() {
+  std::string kWorkloadBalanceImpl = R"(
+  auto &var = vars[index];
+  double tmp_vars = var->value;
+  OP_LOGD(OP_NAME, "Tmp_vars %f Diff is: %lf, input: %s.", tmp_vars, diff, input_.DebugString().c_str());
+  int64_t left = var->prompt_align;
+  int64_t right = static_cast<double>(tmp_vars);
+  double result = tmp_vars;
+  if (right > left) {
+    int64_t last_mid = -1;
+    while (left <= right) {
+      int64_t mid = left + (right - left) / 2;
+      if (mid == last_mid) break;
+      last_mid = mid;
+      // 对齐到prompt_align的倍数
+      int64_t aligned_mid = mid - Mod(mid, var->prompt_align);
+      if (aligned_mid < var->prompt_align) {
+        left = mid + 1;
+        continue;
+      }
+      // 测试对齐后的值
+      var->SetValue(static_cast<double>(aligned_mid));
+      (void)CalRealUsedCoreNum(used_corenum_updated);
+      if (used_corenum_updated == used_corenum) {
+        result = aligned_mid;   // 满足条件，尝试更小的值
+        right = aligned_mid - 1;
+      } else {
+        left = aligned_mid + 1;  // 不满足条件，尝试更大的值
+      }
+    }
+  }
+  var->SetValue(result);
+  (void)CalUsedCoreNum(tmp_corenum);
+  double fine_diff = static_cast<double>(used_corenum) - tmp_corenum;
+  OP_LOGD(OP_NAME, "Balance work flag = %d, Initial Diff is : %lf, Fine Diff is: %lf, Opt Ratio is: %lf, input: %s.",
+          fabs(initial_diff - fine_diff) >= EPS, initial_diff, fine_diff, initial_diff < EPS ?
+          (initial_diff - fine_diff): ((initial_diff - fine_diff) / initial_diff), input_.DebugString().c_str());
   return true;
 }
 )";
+  return GenWorkloadBalancePrepare() + kWorkloadBalanceImpl;
 }
 
 inline std::string GenObjDrivenOptimize() {
@@ -1165,7 +1247,8 @@ inline std::string GenAxesReorderRun() {
 bool AxesReorderSolver::Run(const bool is_trade_off, const bool is_block_loop_auto_tune, const bool enable_auto_tune) {
   // 初始解默认会占满UB，核数使用较少
   if (!GetTiling(is_trade_off, is_block_loop_auto_tune, false)) {
-    OP_LOGW(OP_NAME, "Get default tiling failed");
+    OP_LOGW(OP_NAME, "Get default tiling failed, is_trade_off:%d, is_block_loop_auto_tune:%d, input: %s.", is_trade_off,
+            is_block_loop_auto_tune, input_.DebugString().c_str());
     return false;
   }
 )";
@@ -1175,8 +1258,8 @@ bool AxesReorderSolver::Run(const bool is_trade_off, const bool is_block_loop_au
   return codes;
 }
 
-inline string GetAxesSolverSolverHead() {
-  string general_solver;
+inline std::string GetAxesSolverSolverHead() {
+  std::string general_solver;
   general_solver += GenConstraintType();
   general_solver += GenStructDef();
   general_solver += GenVariable();
@@ -1187,18 +1270,173 @@ inline string GetAxesSolverSolverHead() {
   return general_solver;
 }
 
-inline string GetAxesSolverSolverFunc() {
-  string general_solver;
+inline std::string GetAxesSolverPgoSolverHead(int64_t pgo_step_max) {
+  std::string codes;
+  codes += "class AxesReorderPgoSolver : public AxesReorderSolver {\n";
+  codes += "public:\n";
+  codes += "  explicit AxesReorderPgoSolver(const AxesReorderSolverInput &input) : AxesReorderSolver(input) {}\n";
+  codes += "  ~AxesReorderPgoSolver() = default;\n";
+  codes += "  bool PgoSolverGenerateAllTilingData();\n";
+  codes += "  std::vector<std::vector<uint32_t>> GetTilingDataList() { return availiable_tiling_data_list_; }\n";
+  codes += "private:\n";
+  codes += "  std::vector<std::vector<uint32_t>> availiable_tiling_data_list_;\n";
+  codes += "  int64_t pgo_step_max_{" + std::to_string(pgo_step_max) + "};\n";
+  codes += "  void PgoSolverGenerateAllTilingDataInner(const uint32_t index, std::vector<uint32_t> &ans_item,\n";
+  codes += "                                           std::vector<std::vector<uint32_t>> &ans, int64_t step_max = 16);\n";
+  codes += "};\n";
+  return codes;
+}
+
+inline std::string GenIsSatisfyCons() {
+  return R"(
+bool AxesReorderSolver::IsSatisfyCons(TilingVariable *var, int64_t val, ConstraintType cons_type, double ratio) {
+  auto old = var->value;
+  var->SetValue(val);
+  bool satisfied = SatisfyCons(var, cons_type, ratio);
+  var->SetValue(old);
+  return satisfied;
+}
+)";
+}
+
+inline std::string GenBinaryFindUpperBoundSatisfiedUBLimit() {
+  return R"(
+bool AxesReorderSolver::BinaryFindUpperBoundSatisfiedUBLimit(TilingVariable *var, int64_t lower_bound,
+                                                             int64_t &result) {
+  OP_LOGD(OP_NAME, "Begin to search ub limit bound, upper_bound:%ld, lower_bound:%ld", var->value, lower_bound);
+  int64_t upper_bound = var->value;
+  if (lower_bound > upper_bound) {
+    OP_LOGW(OP_NAME, "lower_bound >= upper_bound, return false, upper_bound:%ld, lower_bound:%ld", upper_bound,
+            lower_bound);
+    return false;
+  }
+  if (IsSatisfyCons(var, upper_bound, ConstraintType::LOCAL_BUFFER, 1.0)) {
+    result = upper_bound;
+    return true;
+  }
+  int64_t left = lower_bound;
+  int64_t right = upper_bound - var->align;
+  result = lower_bound;
+  while (left <= right) {
+    int64_t mid = left + (right - left) / 2;
+    const bool is_satisfied = IsSatisfyCons(var, mid, ConstraintType::LOCAL_BUFFER, 1.0);
+    if (is_satisfied) {
+      result = mid;
+      left = mid + var->align;
+    } else {
+      right = mid - var->align;
+    }
+    OP_LOGD(OP_NAME, "Search right:%ld, left:%ld, mid:%ld, IsSatisfyCons:%d", right, left, mid, is_satisfied);
+  }
+  var->SetValue(upper_bound);
+  return true;
+}
+)";
+}
+
+inline std::string GenBinaryFindLowerBoundSatisfiedUBThresholdCond() {
+  return R"(
+// 返回值表示是否找到了满足条件的解
+// 该函数功能：检查是否大于UB占有率
+// 1)若最小值大于UB占用率，表示不管什么值都可以满足UB占用率，直接返回最小值
+// 2)若最小值小于等于UB占用率，在[lower_bound + align, upper_bound]范围内二分查找满足UB占用率的最小值
+bool AxesReorderSolver::BinaryFindLowerBoundSatisfiedUBThresholdCond(TilingVariable *var, uint32_t idx,
+                                                                     int64_t lower_bound, int64_t &result) {
+  OP_LOGD(OP_NAME, "Begin to search ub threshold limit bound, upper_bound:%ld, lower_bound:%ld, id:%u",
+          var->value, lower_bound, idx);
+  int64_t upper_bound = var->value;
+  if (upper_bound < lower_bound) {
+    OP_LOGW(OP_NAME, "upper_bound <= lower_bound, return false, upper_bound:%ld, lower_bound:%ld, id:%u",
+            upper_bound, lower_bound, idx);
+    return false;
+  }
+  bool bound_ok = (!IsSatisfyCons(var, lower_bound, ConstraintType::LOCAL_BUFFER, input_.ub_threshold)) &&
+                   SatisfyUBSizeCacheLine(idx);
+  result = lower_bound;
+  if (bound_ok) {
+    OP_LOGD(OP_NAME, "Find ub threshold limit bound success, lower_bound:%ld, id:%u", lower_bound, idx);
+    return true;
+  }
+  int64_t left = lower_bound + var->align;
+  int64_t right = upper_bound;
+  result = upper_bound;
+  while (left <= right) {
+    int64_t mid = left + (right - left) / 2;
+    var->SetValue(mid);
+    bool satisfied_cache_line = SatisfyUBSizeCacheLine(idx);
+    bool satisfied_ub_ratio = !IsSatisfyCons(var, mid, ConstraintType::LOCAL_BUFFER, input_.ub_threshold);
+    if (satisfied_cache_line && satisfied_ub_ratio) {
+      result = mid;
+      right = mid - var->align;
+    } else {
+      left = mid + var->align;
+    }
+    OP_LOGD(OP_NAME, "Search right:%ld, left:%ld, mid:%ld, SatisfyCacheLine:%d, SatisfyUBRatio:%d",
+            right, left, mid, satisfied_cache_line, satisfied_ub_ratio);
+  }
+  var->SetValue(upper_bound);
+  return true;
+}
+)";
+}
+
+inline std::string GenBinaryFindLowerBoundSatisfiedCoreNum() {
+  return R"(
+inline std::pair<int64_t, int64_t> AxesReorderSolver::BinaryFindLowerBoundSatisfiedCoreNum(TilingVariable *var,
+                                                                                           uint32_t idx,
+                                                                                           int64_t lower_bound) {
+  int64_t upper_bound = var->value;
+  if (lower_bound >= upper_bound) {
+    OP_LOGW(OP_NAME, "lower_bound >= upper_bound, return false, upper_bound:%ld, lower_bound:%ld", upper_bound,
+            lower_bound);
+    return {lower_bound, lower_bound};
+  }
+  int64_t available_core_num = 0L;
+  (void)MulticoreTilingCore(false);
+  (void)CalRealUsedCoreNum(available_core_num);
+  int64_t max_core_num = static_cast<int64_t>(input_.corenum_threshold * static_cast<double>(input_.core_num));
+  // 上限Tile已满足条件
+  if (available_core_num >= max_core_num) {
+    return {upper_bound, upper_bound};
+  }
+  int64_t left = lower_bound;
+  int64_t right = upper_bound - var->align;
+  while (left <= right) {
+    int64_t mid = left + (right - left) / 2;
+    var->SetValue(mid);
+    // 分核相关轴增加，一般核数应该减少，所以：
+    // 1)满足核数或不满足cache line，需要往减少核数方向调节，也就是增大分核相关Tile轴，调整下限left
+    // 2)不满足条件需要往增加核数方向调节，也就是减少分核相关轴大小，调整上限right
+    bool satisfied_cache_line = SatisfyUBSizeCacheLine(idx);
+    if (!satisfied_cache_line || ((CalRealUsedCoreNum(available_core_num) && (available_core_num >= max_core_num)))) {
+      left = mid + var->align;
+    } else {
+      right = mid - var->align;
+    }
+    OP_LOGD(OP_NAME, "Search left:%ld, right:%ld, mid:%ld, available_core_num:%ld, max_core_num:%ld, satisfied_cache_line:%d",
+            left, right, mid, available_core_num, max_core_num, satisfied_cache_line);
+  }
+  var->SetValue(upper_bound);
+  return {right, left};
+}
+)";
+}
+
+inline std::string GetAxesSolverSolverFunc() {
+  std::string general_solver;
   general_solver += GenInitAllVars();
   general_solver += GenSatisfyCons();
   general_solver += GenTuneNoTailVar();
   general_solver += GenMutiCoreTilingCore();
   general_solver += GenMulticoreTiling();
   general_solver += GenApplyPromptAlign();
+  general_solver += GenIsSatisfyCons();
+  general_solver += GenBinaryFindUpperBoundSatisfiedUBLimit();
+  general_solver += GenBinaryFindLowerBoundSatisfiedUBThresholdCond();
+  general_solver += GenBinaryFindLowerBoundSatisfiedCoreNum();
   general_solver += GenNaiveLocalBufTiling();
   general_solver += GenBinaryLocalBufTiling();
   general_solver += GenLocalBufTiling();
-  general_solver += GenPgoSolverGenerateAllTilingData();
   general_solver += GenGetTiling();
   general_solver += GenGetMaxBlockDimTiling();
   general_solver += GenFindNextUpperBlockDim();
@@ -1213,7 +1451,14 @@ inline string GetAxesSolverSolverFunc() {
   return general_solver;
 }
 
+inline std::string GetAxesSolverPgoSolverFunc() {
+  std::string pgo_solver;
+  pgo_solver += GenPgoSolverGenerateAllTilingData();
+  return pgo_solver;
+}
+
 inline const std::string AXES_SOLVER_CODE_HEAD = GetAxesSolverSolverHead();
 inline const std::string AXES_SOLVER_CODE_FUNC = GetAxesSolverSolverFunc();
+inline const std::string AXES_SOLVER_PGO_CODE_FUNC = GetAxesSolverPgoSolverFunc();
 }
 #endif

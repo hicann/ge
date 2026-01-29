@@ -32,10 +32,10 @@ class NodeCacheMarker {
   ge::ExecuteCondition DoesNodeNeedCache(const ge::NodePtr &node) const;
   ge::ExecuteCondition DoesInlineNodeNeedCache(const ge::NodePtr &node, int32_t brc_idx) const;
 
-  static void MarkNodeCacheable(const ge::NodePtr &node, ge::ExecuteCondition condition);
+  static void MarkNodeCacheable(const ge::NodePtr &node);
 
-  void MarkNodesCacheableBottomUp(const ge::AscNodePtr &node, ge::ExecuteCondition condition);
-  void MarkNodesCacheableBottomUp(const ge::NodePtr &node, ge::ExecuteCondition condition);
+  void MarkNodesCacheableBottomUp(const ge::AscNodePtr &node, const ge::ExecuteCondition condition);
+  void MarkNodesCacheableBottomUp(const ge::NodePtr &node, const ge::ExecuteCondition condition);
   static void MarkNodesCacheableUpBottom(const ge::NodePtr &node);
 
   ge::Status ReverseDfsCacheNode(const ge::NodePtr &ge_node);

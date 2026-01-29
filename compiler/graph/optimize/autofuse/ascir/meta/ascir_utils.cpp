@@ -402,7 +402,7 @@ static std::stringstream &GraphAxisStr(std::stringstream &ss, const ascir::Graph
       ss << "}";
     }
 
-    ss << ", align: " << axis->align;
+    ss << ", align: " << ge::SymbolicUtils::ToString(axis->align);
     ss << ", allow_oversize_axis: " << axis->allow_oversize_axis;
     ss << ", allow_unaligned_tail: " << axis->allow_unaligned_tail;
 
@@ -455,8 +455,9 @@ static std::stringstream &NodeAttrStr(std::stringstream &ss, const ascir::Graph 
     ss << "      .unit = " << ComputeUnitToStr(node->attr.api.unit) << std::endl;
     const auto &tmp_buffers = node->attr.tmp_buffers;
     for (size_t i = 0UL; i < tmp_buffers.size(); i++) {
-      ss << "      .tmp_buf[" << std::to_string(i)
-         << "] = " << ge::SymbolicUtils::ToString(tmp_buffers[i].buf_desc.size) << std::endl;
+      ss << "      .tmp_buf[" << std::to_string(i) << "]:" << std::endl;
+      ss << "        .size = " << ge::SymbolicUtils::ToString(tmp_buffers[i].buf_desc.size) << std::endl;
+      ss << "        .id = " << to_string(tmp_buffers[i].id) << std::endl;
     }
   }
 
@@ -684,7 +685,7 @@ bool UseSmallTailConcatApi(const ge::AscNode &node, bool *output_need_align) {
                                  "[%s] only support dtype size = 2 or 4, but = %d", node.GetNamePtr(), dtype_size);
   const int32_t kAlignSize = 32 / dtype_size;
   std::vector<int64_t> src_col_sizes;
-  int64_t dst_col_size;
+  int64_t dst_col_size = 0;
   size_t concat_dim;
   GE_CHK_BOOL_RET_SPECIAL_STATUS(!GetConcatDimAndColSizes(node, concat_dim, src_col_sizes, dst_col_size),
                                  false, "do not use small tail concat api");

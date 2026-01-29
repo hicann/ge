@@ -11,7 +11,7 @@
 #ifndef __AUTOFUSE_API_CALL_UTILS_H__
 #define __AUTOFUSE_API_CALL_UTILS_H__
 
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 
@@ -69,7 +69,7 @@ struct VectorizedAxisLoopMergeStatus {
 };
 
 bool CalculateDmaParams(const TPipe &tpipe, const Tensor &gm_tensor, const Tensor &ub_tensor, DataCopyParams &param,
-                        bool copy_in, bool continuous_flag = false);
+                        bool multi_axis_copy = false);
 void SetDmaParams(const TPipe &tpipe, const DataCopyParams &data_copy_param, DmaParams &dma_param, bool copy_in,
                   bool need_swap = false);
 void CreateDmaCall(const TPipe &tpipe, const Tensor &input, const Tensor &output, const string &gm_offset,
@@ -90,6 +90,7 @@ bool GetMaxDtypeSize(const ge::DataType input_data_type, const ge::DataType out_
 bool ShouldIgnoreZeroAxis(const std::vector<Tensor> &inputs, const std::vector<Tensor> &outputs, int64_t cur_index);
 bool IsInputOutputStrideAllZero(const std::vector<Tensor> &inputs, const std::vector<Tensor> &outputs,
                                 int64_t cur_index);
+void GenerateLinkStoreEventCode(const Tensor &ub, const std::string &offset_str, std::stringstream &ss);
 }  // namespace codegen
 
 #endif

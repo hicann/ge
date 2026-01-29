@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_LEAKY_RELU__API_CALL_H__
 #define __AUTOFUSE_LEAKY_RELU__API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class LeakyReluApiCall : public ApiCall {

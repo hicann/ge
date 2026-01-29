@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "l0_solver_gen.h"
 #include "ge_common/ge_api_error_codes.h"
@@ -100,18 +94,18 @@ std::string L0TileSolverGen::GenSolverClassImpl() {
   return ss.str();
 }
 
-ge::Status L0TileSolverGen::GetLargestAlign(const Expr &arg, uint32_t &max_align) {
+ge::Status L0TileSolverGen::GetLargestAlign(const Expr &arg, Expr &max_align) {
   auto iter = father_args_map_.find(arg);
   if (iter != father_args_map_.end()) {
     Expr father_arg = iter->second;
     auto arg_align_iter = arg_align_map_.find(father_arg);
     if (arg_align_iter == arg_align_map_.end()) {
       GELOGE(ge::FAILED, "arg align map does not find arg [%s]", father_arg.Str().get());
-      max_align = 0U;
+      max_align = ge::Symbol(0U);
       return ge::FAILED;
     }
-    uint32_t align = arg_align_iter->second;
-    max_align = std::max(max_align, align);
+    Expr align = arg_align_iter->second;
+    max_align = ge::sym::Max(max_align, align);
     GetLargestAlign(father_arg, max_align);
   }
   return ge::SUCCESS;
@@ -185,30 +179,31 @@ std::string L0TileSolverGen::GenInitTilingData() {
     ss << "    " << l0_arg << ".max_value = tiling_data.get_" << arg_max_value_map_[l0_arg] << "();\n";
     std::string true_or_false = IsBindMulticore(l0_arg) ? "true" : "false";
     ss << "    " << l0_arg << ".bind_multicore = " << true_or_false << ";\n";
-    ss << "    " << l0_arg << ".align = " << std::to_string(arg_align_map_[l0_arg]) << ";\n";
+    ss << "    " << l0_arg << ".align = " << Str(arg_align_map_[l0_arg]) << ";\n";
     if (arg_align_map_.find(l0_arg) == arg_align_map_.end()) {
       GELOGE(ge::FAILED, "Arg align map does not find l0 arg [%s]", l0_arg.Str().get());
       return kSolverGenError;
     }
-    uint32_t max_align = arg_align_map_[l0_arg];
-    if (max_align == 0) {
+    Expr max_align = arg_align_map_[l0_arg];
+    if (max_align.IsConstExpr() && (ge::SymbolicUtils::StaticCheckEq(max_align, ge::Symbol(0)) == ge::TriBool::kTrue)) {
       GELOGE(ge::FAILED, "l0 arg [%s] align is 0", l0_arg.Str().get());
       return kSolverGenError;
     }
     GetLargestAlign(l0_arg, max_align);
-    if (max_align == 0) {
+    if (max_align.IsConstExpr() && (ge::SymbolicUtils::StaticCheckEq(max_align, ge::Symbol(0)) == ge::TriBool::kTrue)) {
       GELOGE(ge::FAILED, "Get largest align failed");
       return kSolverGenError;
     }
     if (CheckIsInnerMost(l0_arg)) {
       ss << "    " << l0_arg << ".is_innermost = true;\n";
       ss << "    " << l0_arg << ".value = 256;\n";
-    } else if (max_align > arg_align_map_[l0_arg]) {
+    } else if (max_align.IsConstExpr() &&
+               (ge::SymbolicUtils::StaticCheckGt(max_align, arg_align_map_[l0_arg]) == ge::TriBool::kTrue)) {
       ss << "    " << l0_arg << ".value = 64;\n";
     } else {
       ss << "    " << l0_arg << ".value = 128;\n";
     }
-    ss << "    " << l0_arg << ".prompt_align = " << std::to_string(max_align) << ";\n";
+    ss << "    " << l0_arg << ".prompt_align = " << Str(max_align) << ";\n";
     ss << "    l0_input.l0_vars[" << std::to_string(i) << "] = " << l0_arg << ";\n";
   }
   return ss.str();

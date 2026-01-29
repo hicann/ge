@@ -16,7 +16,7 @@
 #include <unordered_set>
 
 #include "graph/ref_relation.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "debug/ge_op_types.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
@@ -27,6 +27,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/node_utils_ex.h"
 #include "graph/utils/op_type_utils.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

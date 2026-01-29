@@ -16,8 +16,15 @@ file(GLOB_RECURSE ASC_SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
         "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/can_fuse/*.cpp"
         "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/post_process/*.cpp"
         "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/utils/*.cpp"
-        )
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/common/common_utils.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/common/platform_context.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/common/ascgraph_info_complete.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/common/code_printer.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/common/autofuse_config/*.cpp"
+)
 
+# Only create ascir_ops_header_generator if it doesn't already exist
+if(NOT TARGET ascir_ops_header_generator)
 add_executable(ascir_ops_header_generator
         ${GE_METADEF_DIR}/graph/ascendc_ir/generator/ascir_ops_generator_main.cc
         ${GE_METADEF_DIR}/graph/ascendc_ir/generator/generator.cc
@@ -37,18 +44,19 @@ target_link_libraries(ascir_ops_header_generator PRIVATE
         aihac_ir_register
         PUBLIC
         metadef_headers)
+endif()
 
 file(GLOB ASCIR_SOURCES
-        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/generator/v1/ascir_builtin_ops.cpp"
-        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/generator/v2/ascir_builtin_ops.cpp"
-        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/reg_func/v1/*.cpp"
-        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/reg_func/v2/*.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/generator/ascir_builtin_ops.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/reg_func/*.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/v35/ascir/generator/ascir_builtin_ops.cpp"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/v35/ascir/reg_func/*.cpp"
         "${AIR_CODE_DIR}/tests/graph_metadef/ut/ascendc_ir/stub/*.cc")
 
 add_library(ascir_builtin_ops_stub SHARED ${ASCIR_SOURCES})
 target_include_directories(ascir_builtin_ops_stub PUBLIC
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/reg_func/v1/default_reg_func.h
-        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/reg_func/v1/default_reg_func_v2.h
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/v35/ascir
         ${METADEF_DIR}/inc
         ${METADEF_DIR}/inc/graph
         ${GE_METADEF_DIR}/graph/ascendc_ir/generator
@@ -100,6 +108,7 @@ target_include_directories(aihacb_autofusion_stub PRIVATE
         "src/"
         ${AIR_CODE_DIR}/
         ${AIR_CODE_DIR}/compiler
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/common
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/lowering
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/can_fuse

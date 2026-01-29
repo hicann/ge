@@ -15,19 +15,18 @@ endif ()
 include(ExternalProject)
 
 set(REQ_URL "https://gitcode.com/cann-src-third-party/symengine/releases/download/v0.12.0/symengine-0.12.0.tar.gz")
-
 set(SYMENGINE_CXXFLAGS  "--std=c++14  -O2 -fPIC -fstack-protector-all -Wl,-z,relro,-z,now,-z,noexecstack -s -D_FORTIFY_SOURCE=2 -Wno-maybe-uninitialized -Wno-unused-parameter -D_GLIBCXX_USE_CXX11_ABI=0 -Wl,-Bsymbolic")
 
 ExternalProject_Add(symengine_build
         URL ${REQ_URL}
         TLS_VERIFY OFF
         CONFIGURE_COMMAND ${CMAKE_COMMAND}
-            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             -DINTEGER_CLASS:STRING=boostmp
             -DBUILD_SHARED_LIBS:BOOL=ON
             -DBOOST_ROOT=${CMAKE_INSTALL_PREFIX}/boost
             -DBUILD_TESTS=off
             -DCMAKE_CXX_STANDARD=14
+            -DCMAKE_POLICY_VERSION_MINIMUM=3.5
             -DCMAKE_CXX_EXTENSIONS=OFF
             -DCMAKE_CXX_FLAGS=${SYMENGINE_CXXFLAGS}
             -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX}/symengine

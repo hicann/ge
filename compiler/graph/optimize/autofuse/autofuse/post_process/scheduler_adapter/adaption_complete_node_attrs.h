@@ -70,6 +70,7 @@ inline Status UpdateTensorAttrsIfEmpty(const NodePtr &node, AscTensorAttr *tenso
 
 inline Status UpdateTensorAttrsIfNotEmpty(const NodePtr &node, const std::vector<int64_t> &axis,
                                           const std::vector<Expression> &repeats, AscTensorAttr *tensor_attr) {
+  (void)repeats;
   GELOGD("before update attrs: node %s(%s), axis:%s, repeats:%s stride:%s.", node->GetName().c_str(),
          node->GetType().c_str(), AutofuseUtils::VectorToStr(tensor_attr->axis).c_str(),
          AutofuseUtils::VectorToStr(tensor_attr->repeats).c_str(),

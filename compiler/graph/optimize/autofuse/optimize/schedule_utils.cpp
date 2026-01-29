@@ -404,8 +404,8 @@ static void ReplaceAxisId(const std::unordered_map<int64_t, int64_t> &old_id_to_
 Status ScheduleUtils::GetVectorRepeats(const std::vector<ge::Expression> &repeats, const std::vector<int64_t> &axis,
                                        const std::vector<int64_t> &vector_axis,
                                        std::vector<ge::Expression> &vector_repeats) {
-  GE_ASSERT_EQ(repeats.size(), axis.size());
-  GE_ASSERT_TRUE(vector_axis.size() <= axis.size(), "Vector axis size(%zu) >= axis size(%zu)", vector_axis.size(), axis.size());
+  GE_WARN_ASSERT(repeats.size() == axis.size(), "Repeats size(%zu) != axis size(%zu)", repeats.size(), axis.size());
+  GE_WARN_ASSERT(vector_axis.size() <= axis.size(), "Vector axis size(%zu) >= axis size(%zu)", vector_axis.size(), axis.size());
   if (vector_axis.empty()) {
     return ge::SUCCESS;
   }
@@ -565,12 +565,12 @@ bool ScheduleUtils::IsNormStruct(const ascir::ImplGraph& implGraph) {
         auto [current, distance] = stack.top();
         stack.pop();
 
-        if (ancestors.count(current)) {
+        if (ancestors.count(current) != 0) {
           continue;
         }
         ancestors.insert(current);
 
-        if (!ancestorDistances.count(current) || distance < ancestorDistances[current]) {
+        if ((ancestorDistances.count(current) == 0) || distance < ancestorDistances[current]) {
           ancestorDistances[current] = distance;
         }
 
@@ -587,7 +587,7 @@ bool ScheduleUtils::IsNormStruct(const ascir::ImplGraph& implGraph) {
     for (const auto& potentialAncestor : allAncestors) {
       bool isCommon = true;
       for (const auto& ancestors : parentAncestors) {
-        if (!ancestors.count(potentialAncestor)) {
+        if (ancestors.count(potentialAncestor) == 0) {
           isCommon = false;
           break;
         }
@@ -660,7 +660,7 @@ bool ScheduleUtils::IsReduceArFullLoad(const ascir::ImplGraph& implGraph) {
         auto [current, distance] = stack.top();
         stack.pop();
 
-        if (ancestors.count(current)) {
+        if (ancestors.count(current) != 0) {
           continue;
         }
         ancestors.insert(current);
@@ -740,28 +740,17 @@ Status ScheduleUtils::SwapInputIndex(const ascir::NodeView &node, const int32_t 
 }
 
 Status ScheduleUtils::GetInputForTranspose(ge::AscNode &node, std::vector<ascir::AxisId> &input_axis) {
-  vector<ge::AscNodePtr> node_to_explode;
   const auto begin_node = std::dynamic_pointer_cast<ge::AscNode>(node.shared_from_this());
   GE_ASSERT_NOTNULL(begin_node);
   auto parent_nodes = GetParentNodes(begin_node);
-  node_to_explode.insert(node_to_explode.end(), parent_nodes.begin(), parent_nodes.end());
-  while (node_to_explode.size() > 0UL) {
-    const auto &current_node = node_to_explode.back();
-    node_to_explode.pop_back();
-    if (IsLoad(current_node) || IsTranspose(current_node)) {
-      input_axis = current_node->outputs[0].attr.axis;
-      GELOGD("Found transpose input from %s, the axis is %s.", current_node->GetNamePtr(),
-             ge::ViewMemberToString(input_axis).c_str());
-      return ge::SUCCESS;
-    }
-    parent_nodes = GetParentNodes(current_node);
-    node_to_explode.insert(node_to_explode.end(), parent_nodes.begin(), parent_nodes.end());
-  }
-  GELOGE(ge::FAILED, "Failed to find transpose input for %s.", node.GetName().c_str());
-  return ge::FAILED;
+  GE_ASSERT_TRUE(!parent_nodes.empty(), "The node %s has no parent node.", node.GetNamePtr());
+  input_axis = parent_nodes[0]->outputs[0].attr.axis;
+  GELOGD("Found transpose input from %s, the axis is %s.", parent_nodes[0]->GetNamePtr(),
+         ge::ViewMemberToString(input_axis).c_str());
+  return ge::SUCCESS;
 }
 
-bool IsNeedDiscontinuousAligned(const ge::AscTensorAttr &attr) {
+bool ScheduleUtils::IsNeedDiscontinuousAligned(const ge::AscTensorAttr &attr) {
   for (auto id = attr.vectorized_axis.rbegin(); id != attr.vectorized_axis.rend(); ++id) {
     auto iter = std::find(attr.axis.begin(), attr.axis.end(), *id);
     GE_ASSERT_TRUE(iter != attr.axis.end(), "Can not find vectorized axis [%ld], axis attr may be invalid.", *id);
@@ -771,10 +760,10 @@ bool IsNeedDiscontinuousAligned(const ge::AscTensorAttr &attr) {
         (ge::SymbolicUtils::StaticCheckEq(attr.repeats[index], ge::sym::kSymbolOne) == ge::TriBool::kTrue)) {
       return false;
     }
-    if (ge::SymbolicUtils::StaticCheckEq(attr.strides[index], ge::sym::kSymbolZero) == ge::kTrue) {
+    if (ge::SymbolicUtils::StaticCheckEq(attr.strides[index], ge::sym::kSymbolZero) == ge::TriBool::kTrue) {
       continue;
     }
-    return ge::SymbolicUtils::StaticCheckNe(attr.strides[index], ge::sym::kSymbolOne) == ge::kTrue;
+    return ge::SymbolicUtils::StaticCheckNe(attr.strides[index], ge::sym::kSymbolOne) == ge::TriBool::kTrue;
   }
   return false;
 }
@@ -887,6 +876,23 @@ Status ScheduleUtils::ResolveDiffDim(const ge::AscNodePtr &node, size_t &diff_di
   is_first_dim = (is_first_dim || (diff_dim == 0UL));  // 单输入时，当成首轴转store处理
   GELOGI("node:%s input_shape = %s, output_shape = %s, is_first_dim = %d, diff_dim = %zu", node->GetName().c_str(),
          ge::ToString(input_repeats).c_str(), ge::ToString(output_repeats).c_str(), is_first_dim, diff_dim);
+  return ge::SUCCESS;
+}
+
+Status ScheduleUtils::RecalculateStridesFromRepeats(const std::vector<ge::Expression> &repeats,
+                                                    std::vector<ge::Expression> &strides) {
+  GE_ASSERT_TRUE(!repeats.empty(), "The repeats is empty.");
+  strides.resize(repeats.size());
+  ge::Expression current_stride = ge::sym::kSymbolOne;
+  for (size_t i = repeats.size(); i > 0; --i) {
+    size_t idx = i - 1;
+    if (ge::SymbolicUtils::StaticCheckEq(repeats[i-1], ge::sym::kSymbolOne) == ge::TriBool::kTrue) {
+      strides[idx] = ge::sym::kSymbolZero;
+    } else {
+      strides[idx] = current_stride;
+      current_stride = current_stride * repeats[idx];
+    }
+  }
   return ge::SUCCESS;
 }
 }  // namespace optimize

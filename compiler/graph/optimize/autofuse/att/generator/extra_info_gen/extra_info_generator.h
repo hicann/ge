@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef ATT_EXTRA_INFO_GENERATOR_H_
@@ -45,30 +39,9 @@ class ExtraInfoGenerator {
    */
   ge::Status GetExtraTilingVars(const uint32_t tiling_key, std::set<std::string> &tiling_vars);
 
-  // 用于校验ctx是否满足要求
-  ge::Status GenCtxCheck(const ArgsManager &args_manager, std::vector<std::string> &impl_codes);
-
-  // 用于获取input shape和attr
-  ge::Status GenGetShapeAttr(const ArgsManager &args_manager, std::vector<std::string> &impl_codes);
-  
-  // 用于校验tiling data的数据
-  ge::Status GenCheckFunc(const ArgsManager &args_manager, std::string &impl_code);
-
   // 用于获取buf等额外的tiling数据
   ge::Status GenExtraTilingData(const ArgsManager &args_manager, std::string &impl_code);
-
-  // 用于获取workspace数据
-  ge::Status GenWorkSpacePass(const ModelInfo &model_info, std::string &impl_code);
- 
-  ge::Status WriteInputNumParam(const ArgsManager &args_manager, std::vector<std::string> &def_func) const;
-  ge::Status WriteInputDtypeParam(const ArgsManager &args_manager, std::vector<std::string> &def_func) const;
-  ge::Status WriteInputFormatParam(const ArgsManager &args_manager, std::vector<std::string> &def_func) const;
-  ge::Status WriteInputShapeDimParam(const ArgsManager &args_manager, std::vector<std::string> &def_func) const;
-  ge::Status WriteInputAttrParam(const std::map<uint32_t, std::string> &dtype_info, const ArgsManager &args_manager, std::vector<std::string> &def_func) const;
  private:
-  ge::Status WriteCheckShapeFunc(const ArgsManager &args_manager, std::vector<std::string> &def_func) const;
-  ge::Status WriteCheckCoverFunc(const ArgsManager &args_manager, std::vector<std::string> &def_func) const;
-  ge::Status WriteAssignAttAndOutputSize(const ModelInfo &model_info, std::string &impl_code);
   std::string WriteCoreParamData(const ModelInfo &model_info, const TilingDataGenType tiling_data_gen_type,
                                  std::set<std::string> &tiling_data_vars);
   const ModelInfo *GetModelInfo(const uint32_t tiling_key) const;
@@ -76,14 +49,5 @@ class ExtraInfoGenerator {
   const std::vector<ModelInfo> &model_info_list_;
   const TilingDataGenerator &tiling_data_generator_;
 };
-ge::Status GenDimMap(const std::map<std::string, std::map<uint32_t, std::vector<int64_t>>> &axis_map,
-    std::map<uint32_t, uint32_t> &max_dim, std::map<uint32_t, uint32_t> &min_dim);
-void UpdateMinDim(std::map<uint32_t, uint32_t> &min_dim, uint32_t idx, int32_t value);
-void UpdateDim(std::map<uint32_t, uint32_t> &max_dim, std::map<uint32_t, uint32_t> &min_dim, uint32_t idx, int32_t value, bool update_max);
-bool IsValidVariableName(const std::string& name);
-bool RequireCoverCheck(std::vector<std::vector<int64_t>> intervals);
-bool CheckFullLeftCover(int32_t value, std::vector<std::vector<int64_t>> intervals);
-bool CheckFullRightCover(int32_t value, std::vector<std::vector<int64_t>> intervals);
-std::string GenCheckInputCoverFunc(uint32_t input_idx, std::vector<std::vector<int64_t>> intervals);
 }  // namespace att
 #endif  // ATT_EXRTA_INFO_GENERATOR_H_

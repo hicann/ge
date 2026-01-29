@@ -200,15 +200,12 @@ class AutoFuseConfig {
     if (precision_blacklist != all_flags.end()) {
       improve_precision_blacklist = ReadImprovePrecisionBlacklist(precision_blacklist->second);
     }
-    // remove old env soon
-    this->fusion_strategy_solver_.improve_precision_blacklist =
-        ReadImprovePrecisionBlacklist("EXPERIMENTAL_AUTOFUSE_ENHANCE_PRECISION_BLACKLIST");
     this->fusion_strategy_solver_.improve_precision_blacklist.insert(improve_precision_blacklist.begin(),
                                                                      improve_precision_blacklist.end());
   }
 
   void LoweringEnableConfigUpdate(bool &enableSwitch, const std::string &nodeName,
-                                  const std::unordered_map<std::string, std::string> &all_flags) {
+                                  const std::unordered_map<std::string, std::string> &all_flags) const {
     auto enable_lowering_node_types = all_flags.find("--autofuse_enable_pass");
     if (enable_lowering_node_types != all_flags.end()) {
       std::vector<std::string> autofuse_lowering_node_types = Split(enable_lowering_node_types->second, ',');
@@ -228,7 +225,7 @@ class AutoFuseConfig {
   }
 
   void LoweringRecomputationThresholdConfigUpdate(size_t &recomputation_threshold,
-    const std::unordered_map<std::string, std::string> &all_flags) {
+    const std::unordered_map<std::string, std::string> &all_flags) const {
     constexpr int64_t recomputation_max = 255L;
     auto recomputation_threshold_flag = all_flags.find("--recomputation_threshold");
     if (recomputation_threshold_flag != all_flags.end()) {
@@ -266,19 +263,13 @@ class AutoFuseConfig {
     LoweringEnableConfigUpdate(enable_lowering_matmul, "matmul", all_flags);
     LoweringRecomputationThresholdConfigUpdate(recomputation_threshold, all_flags);
     // remove old env soon
-    this->lowering_strategy_config_.experimental_lowering_concat =
-        enable_lowering_concat || ReadBoolEnv("EXPERIMENTAL_LOWERING_CONCAT", false);
-    this->lowering_strategy_config_.experimental_lowering_split =
-        enable_lowering_split || ReadBoolEnv("EXPERIMENTAL_LOWERING_SPLIT", false);
-    this->lowering_strategy_config_.experimental_lowering_reduce =
-        enable_lowering_reduce || ReadBoolEnv("EXPERIMENTAL_LOWERING_REDUCE", false);
-    this->lowering_strategy_config_.experimental_lowering_slice =
-        enable_lowering_slice || ReadBoolEnv("EXPERIMENTAL_LOWERING_SLICE", false);
-    this->lowering_strategy_config_.experimental_lowering_transpose =
-        enable_lowering_transpose || (std::getenv("ENABLE_LOWER_TRANSPOSE") != nullptr);
+    this->lowering_strategy_config_.experimental_lowering_concat = enable_lowering_concat;
+    this->lowering_strategy_config_.experimental_lowering_split = enable_lowering_split;
+    this->lowering_strategy_config_.experimental_lowering_reduce = enable_lowering_reduce;
+    this->lowering_strategy_config_.experimental_lowering_slice = enable_lowering_slice;
+    this->lowering_strategy_config_.experimental_lowering_transpose = enable_lowering_transpose;
     this->lowering_strategy_config_.experimental_lowering_gather = enable_lowering_gather;
-    this->lowering_strategy_config_.experimental_lowering_matmul =
-        enable_lowering_matmul || (std::getenv("ENABLE_LOWER_MATMUL") != nullptr);
+    this->lowering_strategy_config_.experimental_lowering_matmul = enable_lowering_matmul;
     this->lowering_strategy_config_.recomputation_threshold = recomputation_threshold;
     UpdateImprovePrecisionBlacklist(all_flags);
     return;

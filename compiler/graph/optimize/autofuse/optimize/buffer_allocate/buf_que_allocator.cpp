@@ -325,7 +325,7 @@ Status BufQueAllocator::GetAndSetNodeTempBuffer(const ge::AscNodePtr &node) {
 }
 
 bool BufQueAllocator::IsTensorUsedByOtherUnit(const ge::AscNodePtr &node, const ge::AscTensor *output) {
-  if (IsOps<Load>(node) || IsOps<Gather>(node) || IsOps<Nddma>(node)) {
+  if (ScheduleUtils::IsLoad(node) || IsOps<Gather>(node)) {
     return true;
   }
   for (const auto &input : output->anchor.GetPeerInDataAnchorsPtr()) {
@@ -349,7 +349,8 @@ void BufQueAllocator::SetGlobalMemInfo(const ge::AscTensor &tensor, int64_t tens
 }
 
 void BufQueAllocator::InitTensorReuseInfoAndLifeTime(const ascir::NodeView &node, const ge::AscTensor *output,
-                                                     TensorInfo &tensor_info, bool is_reduce_mem_reuse) const {
+                                                     TensorInfo &tensor_info, bool is_reduce_mem_reuse,
+                                                     bool is_cube_none_db) const {
   bool is_node_cached = ascgen_utils::IsNodeCacheable(node);
   if (output->attr.mem.position == ge::Position::kPositionVecCalc &&
       ascgen_utils::IsScalarInput(output->attr.repeats)) {
@@ -390,6 +391,10 @@ void BufQueAllocator::InitTensorReuseInfoAndLifeTime(const ascir::NodeView &node
     tensor_info.life_end = std::numeric_limits<int64_t>::max();
   }
   // 刷新db信息
+  if (is_cube_none_db) {
+    tensor_info.buf_num = 1;
+    return;
+  }
   if (output->attr.mem.position == ge::Position::kPositionVecIn) {
     tensor_info.buf_num = is_node_cached ? 1 : kDbBufNum;
   } else if (output->attr.mem.position == ge::Position::kPositionVecOut) {
@@ -416,10 +421,10 @@ Status BufQueAllocator::InitTensorMemInfo(ge::AscGraph &graph, const ge::AscTens
 
     const int64_t axis_index = std::distance(axis.begin(), axis_tensor_iter);
     const auto &repeat = repeats[axis_index];
-    if (ge::SymbolicUtils::StaticCheckEq(repeat, graph_axis->size) == ge::kTrue) {
+    if (ge::SymbolicUtils::StaticCheckEq(repeat, graph_axis->size) == ge::TriBool::kTrue) {
       continue;
     }
-    if (ge::SymbolicUtils::StaticCheckEq(repeat, ge::sym::kSymbolOne) != ge::kTrue) {
+    if (ge::SymbolicUtils::StaticCheckEq(repeat, ge::sym::kSymbolOne) != ge::TriBool::kTrue) {
       tensor_info.size_level = MemorySizeLevel::kMedium;
       return ge::SUCCESS;
     }
@@ -433,6 +438,10 @@ Status BufQueAllocator::InitTensorMemInfo(ge::AscGraph &graph, const ge::AscTens
 Status BufQueAllocator::InitTensorInfo(ge::AscGraph &graph, TensorInfoMap &tensor_attr_to_tensor_info,
                                        bool is_reduce_mem_reuse) const {
   bool is_reduce_after = false;
+  bool is_cube_none_db = false;
+  if (graph.GetName().find("non_db") != std::string::npos) {
+    is_cube_none_db = true;
+  }
   for (const auto &node : graph.GetAllNodes()) {
     if (ScheduleUtils::IsBuffer(node) || ScheduleUtils::IsStore(node)) {
       continue;
@@ -452,11 +461,32 @@ Status BufQueAllocator::InitTensorInfo(ge::AscGraph &graph, TensorInfoMap &tenso
         GE_ASSERT_NOTNULL(out_asc_node);
         tensor_info.loop_axes.emplace(out_asc_node->attr.sched.loop_axis);
       }
-      InitTensorReuseInfoAndLifeTime(node, output, tensor_info, !is_reduce_after || is_reduce_mem_reuse);
+      InitTensorReuseInfoAndLifeTime(node, output, tensor_info, !is_reduce_after || is_reduce_mem_reuse, is_cube_none_db);
       GE_ASSERT_SUCCESS(InitTensorMemInfo(graph, output, tensor_info), "Failed to init tensor info for graph [%s].",
                         graph.GetName().c_str());
       GELOGD("[MemReuse] Init node [%s]'s output tensor[%d] [%s].", node->GetNamePtr(), output->anchor.GetIdx(),
              tensor_info.ToString().c_str());
+    }
+  }
+  return ge::SUCCESS;
+}
+
+Status BufQueAllocator::InitNodeTmpBuffInfo(ge::AscGraph &graph, TmpBuffInfoMap &node_attr_to_tensor_info) {
+  for (const auto &node : graph.GetAllNodes()) {
+    GE_ASSERT_NOTNULL(node);
+    if (ScheduleUtils::IsBuffer(node)) {
+      continue;
+    }
+    for (auto &tmp_buff : node->attr.tmp_buffers) {
+      auto &tmp_buff_info = node_attr_to_tensor_info[&tmp_buff];
+      tmp_buff_info.mem_position = ge::Position::kPositionVecCalc;
+      tmp_buff_info.life_start = 0L;
+      tmp_buff_info.life_end = std::numeric_limits<int64_t>::max();
+      tmp_buff_info.group_id = tmp_buff.buf_desc.life_time_axis_id;
+      if (tmp_buff_info.group_id == -1) {
+        tmp_buff_info.life_start = node->GetOpDescBarePtr()->GetId();
+        tmp_buff_info.life_end = node->GetOpDescBarePtr()->GetId();
+      }
     }
   }
   return ge::SUCCESS;
@@ -559,12 +589,14 @@ void BufQueAllocator::InitGroupId(const ge::AscGraph &graph, TensorInfoMap &tens
 Status BufQueAllocator::AllocateWithinGroup(ge::AscGraph &graph, size_t &total_vecin_nums, size_t &total_vecout_nums,
                                             bool is_reduce_mem_reuse) const {
   GE_ASSERT_SUCCESS(SetOutputTensorAttr(graph));
+  TmpBuffInfoMap tmp_buff_attr_to_tensor_info;
   TensorInfoMap tensor_attr_to_tensor_info;
+  GE_ASSERT_SUCCESS(InitNodeTmpBuffInfo(graph, tmp_buff_attr_to_tensor_info));
   GE_ASSERT_SUCCESS(InitTensorInfo(graph, tensor_attr_to_tensor_info, is_reduce_mem_reuse));
   AllocateReuseId(graph, tensor_attr_to_tensor_info);
   InitGroupId(graph, tensor_attr_to_tensor_info);
 
-  MemReuseManager manager = MemReuseManager(tensor_attr_to_tensor_info);
+  MemReuseManager manager = MemReuseManager(tensor_attr_to_tensor_info, tmp_buff_attr_to_tensor_info);
   manager.AllocMemBlocks();
   manager.GetCopyInCopyOutQueNums(total_vecin_nums, total_vecout_nums);
   GELOGD("[MemReuse] graph[%s] has [%zu] copy in ques and [%zu] copy out ques after mem reuse.",
@@ -727,7 +759,7 @@ Status BufQueAllocator::TopoSortByLoadPriority(ge::AscGraph &graph) {
   GE_ASSERT_GRAPH_SUCCESS(ScheduleUtils::TopologicalSorting(graph));
   std::unordered_set<ge::Node *> priority_sequences;
   for (const auto &node : graph.GetAllNodes()) {
-    if (!ScheduleUtils::IsLoad(node) || node->GetOutDataNodes().size() > 1UL) {
+    if (!ScheduleUtils::IsLoad(node) || node->GetOutDataNodesSize() > 1UL) {
       continue;
     }
     auto load_after = node->GetOutDataNodesPtr()[0];

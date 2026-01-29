@@ -73,7 +73,8 @@ inline Status UpdateSplitNodeAttrs(const NodePtr &b_node, const std::vector<int6
   return SUCCESS;
 }
 
-inline Status GetSplitNodeFallbackDtype(AscGraph &asc_graph, const NodePtr &node, TensorAttrInfo &current_node_attr) {
+inline Status GetSplitNodeFallbackDtype(const AscGraph &asc_graph, const NodePtr &node, TensorAttrInfo &current_node_attr) {
+  (void)asc_graph;
   const auto node_opdesc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(node_opdesc);
   const auto node_attr = node_opdesc->GetAttrsGroup<AscNodeAttr>();
@@ -98,8 +99,37 @@ inline Status UpdateSplitNodeSchedInfo(const NodePtr &b_node, const std::vector<
   return SUCCESS;
 }
 
+inline Status GetSplitNodeIndex(NodePtr &node, int64_t &index_value) {
+  auto op_desc = node->GetOpDesc();
+  GE_ASSERT_NOTNULL(op_desc);
+  const auto &ir_attr = op_desc->GetAttrsGroup<AscNodeAttr>();
+  GE_ASSERT_NOTNULL(ir_attr);
+  const auto split_attr = dynamic_cast<ascir_op::Split::AscSplitIrAttrDef *>(ir_attr->ir_attr.get());
+  GE_ASSERT_NOTNULL(split_attr);
+  split_attr->GetIndex(index_value);
+  return SUCCESS;
+}
 
-inline Status CreatNewSplitNodeAndModifyEdge(AscGraph &asc_graph, const NodePtr &load_node, uint32_t out_num) {
+inline Status CheckAscSplitIrAttrValidity(std::vector<NodePtr> nodes_lists) {
+  for (auto node : nodes_lists) {
+    int64_t index_value = -1L;
+    GE_ASSERT_SUCCESS(GetSplitNodeIndex(node, index_value));
+    GE_ASSERT_TRUE(index_value != -1L);
+    GELOGI("split ascir node %s has split_index: %ld", node->GetName().c_str(), index_value);
+  }
+  return SUCCESS;
+}
+
+inline bool SplitIndexCompare(NodePtr &a, NodePtr &b) {
+  ge::GeAttrValue attr_value;
+  int64_t index_value_a = -1L;
+  GetSplitNodeIndex(a, index_value_a);
+  int64_t index_value_b = -1L;
+  GetSplitNodeIndex(b, index_value_b);
+  return index_value_a < index_value_b;
+};
+
+inline Status CreateNewSplitNodeAndModifyEdge(AscGraph &asc_graph, const NodePtr &load_node, uint32_t out_num) {
   int32_t output_index = 0;
   std::vector<NodePtr> new_nodes_lists;
   std::vector<NodePtr> old_nodes_lists;
@@ -113,8 +143,8 @@ inline Status CreatNewSplitNodeAndModifyEdge(AscGraph &asc_graph, const NodePtr 
   const auto load_node_attr = load_node_opdesc->GetAttrsGroup<AscNodeAttr>();
   GE_ASSERT_NOTNULL(load_node_attr);
   new_nodes_lists.push_back(b_node);
-  auto load_outdata_anchor = load_node->GetAllOutDataAnchors().at(0);
-  for (auto peer_in_data_anchor : load_outdata_anchor->GetPeerInDataAnchors()) {
+  auto load_outdata_anchor = load_node->GetAllOutDataAnchorsPtr().at(0);
+  for (auto peer_in_data_anchor : load_outdata_anchor->GetPeerInDataAnchorsPtr()) {
     TensorAttrInfo current_node_attr;
     auto const peer_node = peer_in_data_anchor->GetOwnerNode();
     if (peer_node->GetType() == kSplitType) {
@@ -122,17 +152,9 @@ inline Status CreatNewSplitNodeAndModifyEdge(AscGraph &asc_graph, const NodePtr 
     }
   }
 
-  auto cmp = [](NodePtr &a, NodePtr &b) {
-    ge::GeAttrValue attr_value;
-    int64_t index_value_a = -1;
-    (void)a->GetOpDesc()->GetAttr("index", attr_value);
-    attr_value.GetValue<int64_t>(index_value_a);
-    int64_t index_value_b = -1;
-    (void)b->GetOpDesc()->GetAttr("index", attr_value);
-    attr_value.GetValue<int64_t>(index_value_b);
-    return index_value_a < index_value_b ;
-  };
-  std::sort(old_nodes_lists.begin(), old_nodes_lists.end(),cmp);
+  GE_ASSERT_SUCCESS(CheckAscSplitIrAttrValidity(old_nodes_lists));
+
+  std::sort(old_nodes_lists.begin(), old_nodes_lists.end(), SplitIndexCompare);
 
   for (auto peer_split_node : old_nodes_lists) {
     TensorAttrInfo current_node_attr;
@@ -171,7 +193,7 @@ inline Status SplitCombine(AscGraph &asc_graph, [[maybe_unused]] const NodePtr &
   for (auto &load_node_info : connect_split_load_nodes) {
     GELOGI("split combine node %s connect num is %d.", load_node_info.first->GetName().c_str(), load_node_info.second);
     if (load_node_info.second > 1U) {
-       GE_ASSERT_SUCCESS(CreatNewSplitNodeAndModifyEdge(asc_graph, load_node_info.first, load_node_info.second));
+       GE_ASSERT_SUCCESS(CreateNewSplitNodeAndModifyEdge(asc_graph, load_node_info.first, load_node_info.second));
     }
   }
 

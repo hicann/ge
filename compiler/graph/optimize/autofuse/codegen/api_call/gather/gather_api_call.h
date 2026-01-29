@@ -10,7 +10,7 @@
 
 #ifndef __AUTOFUSE_GATHER_API_CALL_H__
 #define __AUTOFUSE_GATHER_API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class GatherApiCall : public ApiCall {

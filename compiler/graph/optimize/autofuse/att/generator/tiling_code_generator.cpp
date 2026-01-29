@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "tiling_code_generator.h"
@@ -98,9 +92,6 @@ TilingCodeGenImplPtr TilingCodeGenerator::CreateTilingCodeGenImpl(const std::str
   } else if (config.type == TilingImplType::AXES_REORDER) {
     impl = std::shared_ptr<AxesReorderTilingCodeGenImpl>(ge::MakeShared<AxesReorderTilingCodeGenImpl>(
         op_name, config, model_infos, score_funcs, is_uniq_group));
-  } else if (config.type == TilingImplType::GOLDEN) {
-    impl = std::shared_ptr<GoldenTilingCodeGenImpl>(ge::MakeShared<GoldenTilingCodeGenImpl>(
-        op_name, config, model_infos, score_funcs, is_uniq_group));
   }
   return impl;
 }
@@ -153,6 +144,16 @@ inline void SaveVarRelationsInfo(VarRelations &var_relations, size_t asc_graph_i
   var_relations[asc_graph_id][impl_graph_id] = schedule_result_var_relations;
 }
 
+inline ge::Status GetWorkspaceTensorId(TensorIdSet &workspace_tensor_id_set, const TilingModelInfo &groups_tiling_model_info,
+                                       const size_t asc_graph_id, const size_t impl_graph_id) {
+  for (const auto &model_info : groups_tiling_model_info) {
+    for (const auto &pair : model_info.workspace_size_map) {
+      workspace_tensor_id_set[asc_graph_id][impl_graph_id].insert(pair.first);
+    }
+  }
+  return ge::SUCCESS;
+}
+
 ge::Status TilingCodeGenerator::GenTilingCode(const std::string &op_type,
                                               const FusedParsedScheduleResult &fused_parsed_schedule_result,
                                               const TilingCodeGenConfig &config,
@@ -163,11 +164,16 @@ ge::Status TilingCodeGenerator::GenTilingCode(const std::string &op_type,
   VarRelations var_relations;
   EnableGroupParallels enable_group_parallels;
   size_t group_num = 0UL;
+  TensorIdSet workspace_tensor_id_set;
   for (const auto &asc_graph_models : fused_parsed_schedule_result) {
     for (const auto &impl_graph_groups : asc_graph_models.second) {
+      const auto& parsed_result = impl_graph_groups.second;
+      size_t asc_graph_id = parsed_result.asc_graph_id;
+      size_t impl_graph_id = parsed_result.impl_graph_id;
       for (const auto &sub_graphs : impl_graph_groups.second.groups_tiling_model_info) {
         group_num++;
         all_model_infos.insert(all_model_infos.end(), sub_graphs.second.begin(), sub_graphs.second.end());
+        GE_ASSERT_SUCCESS(GetWorkspaceTensorId(workspace_tensor_id_set, sub_graphs.second, asc_graph_id, impl_graph_id));
       }
       schedule_result_score_func[kModelInfoLevel::K_SCHEDULE_RESULT_LEVEL][asc_graph_models.first]
                                 [impl_graph_groups.second.impl_graph_id] = impl_graph_groups.second.score_func;
@@ -197,7 +203,8 @@ ge::Status TilingCodeGenerator::GenTilingCode(const std::string &op_type,
     }
   }
   GenTilingParams params = {op_type, all_model_infos, config, cache_reuse_info};
-  GenTilingTail(params, tiling_res, schedule_result_score_func, var_relations, enable_group_parallels);
+  GenTilingTailExtParams ext_params = {schedule_result_score_func, var_relations, enable_group_parallels, workspace_tensor_id_set};
+  GenTilingTail(params, tiling_res, ext_params);
   return ge::SUCCESS;
 }
 
@@ -205,35 +212,42 @@ ge::Status TilingCodeGenerator::GenTilingHead(const std::string &op_type,
                                           const TilingModelInfo &all_model_infos,
                                           const TilingCodeGenConfig &config,
                                           std::map<std::string, std::string> &tiling_res,
-                                          const EnableGroupParallels &enable_group_parallels) {
+                                          [[maybe_unused]] const EnableGroupParallels &enable_group_parallels) {
   GELOGI("Start to gen tiling head.");
   TilingCodeGenImplPtr impl =
       CreateTilingCodeGenImpl(op_type, config, all_model_infos, {}, IsUniqueGroups(all_model_infos));
   GE_ASSERT_NOTNULL(impl, "Create tiling code gen impl failed, type[%d].", static_cast<int32_t>(config.type));
-  GE_ASSERT_SUCCESS(impl->GenTilingHead(tiling_res), "Gen tiling head impl failed, type[%d].",
+  GE_ASSERT_SUCCESS(impl->GenTilingHead(tiling_res, enable_group_parallels), "Gen tiling head impl failed, type[%d].",
                     static_cast<int32_t>(config.type));
   return ge::SUCCESS;
 }
 
 ge::Status TilingCodeGenerator::GenTilingBody(const GenTilingParams& params, std::map<std::string, std::string> &tiling_res,
                                               const bool is_uniq_group, uint32_t cache_capacity,
-                                              const EnableGroupParallels &enable_group_parallels) {
+                                              [[maybe_unused]] const EnableGroupParallels &enable_group_parallels) {
   GELOGI("Start to gen tiling body.");
   TilingCodeGenImplPtr impl = CreateTilingCodeGenImpl(params.op_type, params.config, params.all_model_infos, {}, is_uniq_group);
   GE_ASSERT_NOTNULL(impl, "Create tiling code gen impl failed, type[%d].", static_cast<int32_t>(params.config.type));
-  GE_ASSERT_SUCCESS(impl->GenTiling(tiling_res, params.cache_reuse_info, cache_capacity), "Gen tiling body impl failed, type[%d].",
+  GE_ASSERT_SUCCESS(impl->GenTiling(tiling_res, params.cache_reuse_info, cache_capacity, enable_group_parallels),
+                    "Gen tiling body impl failed, type[%d].",
                     static_cast<int32_t>(params.config.type));
   return ge::SUCCESS;
 }
 
-ge::Status TilingCodeGenerator::GenTilingTail(const GenTilingParams& params, std::map<std::string, std::string> &tiling_res,
-                                              const ScoreFuncs &score_funcs, VarRelations var_relations,
-                                              const EnableGroupParallels &enable_group_parallels) {
+ge::Status TilingCodeGenerator::GenTilingTail(const GenTilingParams &params, std::map<std::string, std::string> &tiling_res,
+                                              const GenTilingTailExtParams &ext_params) {
   GELOGI("Start to gen tiling tail for %s.", params.op_type.c_str());
   TilingCodeGenImplPtr impl =
-      CreateTilingCodeGenImpl(params.op_type, params.config, params.all_model_infos, score_funcs, IsUniqueGroups(params.all_model_infos));
+      CreateTilingCodeGenImpl(params.op_type, params.config, params.all_model_infos, ext_params.score_funcs,
+                              IsUniqueGroups(params.all_model_infos));
   GE_ASSERT_NOTNULL(impl, "Create tiling code gen impl failed, type[%d].", static_cast<int32_t>(params.config.type));
-  GE_ASSERT_SUCCESS(impl->GenTilingTail(tiling_res, params.cache_reuse_info, var_relations, enable_group_parallels),
+  GenTilingTailImplExtParams impl_ext_params{
+      std::move(params.cache_reuse_info),
+      std::move(ext_params.var_relations),
+      std::move(ext_params.enable_group_parallels),
+      std::move(ext_params.workspace_tensor_id_set)
+  };
+  GE_ASSERT_SUCCESS(impl->GenTilingTail(tiling_res, impl_ext_params),
                     "Gen tiling tail impl failed, type[%d].",
                     static_cast<int32_t>(params.config.type));
   return ge::SUCCESS;

@@ -1,4 +1,6 @@
-# ----------------------------------------------------------------------------
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+# -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
 # CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,7 +8,7 @@
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 
 import os
 import sys
@@ -18,7 +20,8 @@ import platform
 from typing import List
 from tbe.common.platform.platform_info import get_soc_spec
 PYF_PATH = os.path.dirname(os.path.realpath(__file__))
-ASCEND_PATH = os.path.join(PYF_PATH, "..", "..", "..", "..", "latest")
+ASCEND_PATH = os.path.join(PYF_PATH, "..", "..", "..")
+machine = platform.machine()
 if not os.path.exists(ASCEND_PATH):
     ASCEND_PATH = os.getenv("ASCEND_HOME_PATH", ASCEND_PATH)
 
@@ -28,13 +31,25 @@ class ExtractError(Exception):
 class ArgumentError(ExtractError):
     """Argument error."""
 
-def generate_cmake_lists(args: argparse.Namespace):
-    # File Isolation Macro
+
+def get_soc_type(args):
+    """根据 soc_version 返回对应的类型"""
+    if args.soc_version.startswith("Ascend910B"):
+        return "dav-2201"
+    elif args.soc_version.startswith("Ascend910_95"):
+        return "dav-3101"
+    else:
+        raise ValueError(f"Unsupported soc_version: {args.soc_version}")
+
+
+def generate_cmake_base_config(args: argparse.Namespace) -> str:
+    """生成CMake的基础配置部分"""
+    # 包含SOC版本设置、路径配置等基础设置
     source = "cmake_minimum_required(VERSION 3.16.0)\n"
-    source += "project(Ascend_C)\n"
+    source += f"find_package(ASC REQUIRED HINTS {ASCEND_PATH}/{machine}-linux/lib64/cmake)\n"
+    source += "project(Ascend_C LANGUAGES ASC CXX)\n"
     source += "set(CMAKE_CXX_STANDARD 17)\n"
     source += "set(CMAKE_CXX_STANDARD_REQUIRED ON)\n\n"
-    source += f"set(SOC_VERSION ascend910b1 CACHE STRING \"system on chip type\")\n"
 
     # 获取特定环境变量的值
     home_dir = os.environ.get('ASCEND_OPP_PATH')
@@ -43,11 +58,13 @@ def generate_cmake_lists(args: argparse.Namespace):
         print('Error: Please set environment variable ASCEND_HOME_PATH')
         return ''
 
-    source += f"set(ASCEND_CANN_PACKAGE_PATH \"{home_dir}\" CACHE PATH \"ASCEND CANN package installation directory\")\n"
+    source += f"set(ASCEND_CANN_PACKAGE_PATH \"{home_dir}\" "
+    source += "CACHE PATH \"ASCEND CANN package installation directory\")\n"
     source += "set(RUN_MODE \"npu\" CACHE STRING \"run mode: npu\")\n"
 
     source += "set(CMAKE_BUILD_TYPE \"Release\" CACHE STRING \"Build type Release/Debug (default Debug)\" FORCE)\n"
-    source += "set(CMAKE_INSTALL_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/out\" CACHE STRING \"path for install()\" FORCE)\n\n"
+    source += "set(CMAKE_INSTALL_PREFIX \"${CMAKE_CURRENT_LIST_DIR}/out\" CACHE STRING \"path for install()\" FORCE"
+    source += ")\n\n"
 
     source += "if(EXISTS ${ASCEND_CANN_PACKAGE_PATH}/tools/tikcpp/ascendc_kernel_cmake)\n"
     source += "    set(ASCENDC_CMAKE_DIR ${ASCEND_CANN_PACKAGE_PATH}/tools/tikcpp/ascendc_kernel_cmake)\n"
@@ -56,15 +73,19 @@ def generate_cmake_lists(args: argparse.Namespace):
     source += "elseif(EXISTS ${ASCEND_CANN_PACKAGE_PATH}/ascendc_devkit/tikcpp/samples/cmake)\n"
     source += "    set(ASCENDC_CMAKE_DIR ${ASCEND_CANN_PACKAGE_PATH}/ascendc_devkit/tikcpp/samples/cmake)\n"
     source += "else()\n"
-    source += "    message(FATAL_ERROR \"ascendc_kernel_cmake does not exist, please check whether the cann package is installed.\")\n"
+    source += "    message(FATAL_ERROR \"ascendc_kernel_cmake does not exist, "
+    source += "please check whether the cann package is installed.\")\n"
     source += "endif()\n\n"
 
-    # replace __global micro for usr kernel function, and recover after usr kernel function
-    source += "include(${ASCENDC_CMAKE_DIR}/ascendc.cmake)\n\n"
+    return source
 
+
+def generate_target_configurations(args: argparse.Namespace) -> str:
+    """生成CMake的目标配置部分(库和链接设置)"""
     base_file = os.path.basename(args.output_file)
     base_host_files = os.path.basename(args.host_files)
     base_device_files = os.path.basename(args.device_files)
+    soc_version = get_soc_type(args)
 
     print("base_file:", base_file)
     if base_file.endswith('.so'):
@@ -73,7 +94,7 @@ def generate_cmake_lists(args: argparse.Namespace):
     print("base_host_files:", base_host_files)
     print("base_device_files:", base_device_files)
 
-    source += f"ascendc_library({base_file}_kernel STATIC\n"
+    source = f"ascendc_library({base_file}_kernel STATIC\n"
     source += f"    build/device/{base_device_files}\n"
     source += ")\n\n"
 
@@ -81,37 +102,51 @@ def generate_cmake_lists(args: argparse.Namespace):
     source += "  ${CMAKE_CURRENT_SOURCE_DIR}/build/device\n"
     source += ")\n\n"
 
+    source += "set_source_files_properties(\n"
+    source += f"    build/host/{base_host_files}\n"
+    source += "     PROPERTIES LANGUAGE ASC\n"
+    source += ")\n\n"
+
     source += f"add_library({base_file} {args.lib_type}\n"
     source += f"    build/host/{base_host_files}\n"
     source += ")\n\n"
 
     source += f"set_target_properties({base_file} PROPERTIES\n"
-    source += f"     OUTPUT_NAME {base_file}.so\n"
-    source += f"     PREFIX \"\"\n"
-    source += f"     SUFFIX \"\")\n"
-    machine = platform.machine()
+    source += f"    OUTPUT_NAME {base_file}.so\n"
+    source += f"    PREFIX \"\"\n"
+    source += f"    SUFFIX \"\")\n\n"
 
-    source += f"target_link_libraries({base_file} PRIVATE {base_file}_kernel c_sec ascendalog platform tiling_api)\n"
+    source += f"target_link_libraries({base_file} PRIVATE -Wl,--whole-archive {base_file}_kernel"
+    source += f"    -Wl,--no-whole-archive c_sec ascendalog platform tiling_api)\n"
     source += f"target_include_directories({base_file} PRIVATE\n"
     source += "     ${CMAKE_CURRENT_SOURCE_DIR}/build/host\n"
     source += f"    {ASCEND_PATH}/include\n"
+    source += f"    {ASCEND_PATH}/pkg_inc/base\n"
     source += f"    {ASCEND_PATH}/include/experiment\n"
+    source += f"    {ASCEND_PATH}/{machine}-linux/include\n"
     source += f"    {ASCEND_PATH}/{machine}-linux/ascendc/include/highlevel_api/tiling/platform\n"
     source += "    )\n\n"
     source += f"target_compile_options({base_file} PRIVATE\n"
-    source += ("    -O2 -fno-common -Werror -Wextra -Wfloat-equal -fvisibility=default -DLOG_CPP"
-               " -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/=\n")
+    source += f"    $<$<COMPILE_LANGUAGE:ASC>:--npu-arch={soc_version}> -O2 -fno-common -Wextra -Wfloat-equal"
+    source += " -fvisibility=default -DLOG_CPP -ffile-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}/=\n"
     source += ")\n\n"
-    source += f"ascendc_compile_options({base_file}_kernel PRIVATE\n"
-    source += "  -DHAVE_TILING\n"
-    source += "  -DAUTO_FUSE_DEVICE=1\n"
+    source += f"target_compile_options({base_file}_kernel PRIVATE\n"
+    source += "    -DHAVE_TILING\n"
+    source += "    -DAUTO_FUSE_DEVICE=1\n"
+    source += f"    $<$<COMPILE_LANGUAGE:ASC>:--npu-arch={soc_version}>\n"
 
     if args.compile_options is not None:
         source += f"  {args.compile_options}\n"
 
     source += ")\n\n"
 
-    # 返回source
+    return source
+
+
+def generate_cmake_lists(args: argparse.Namespace):
+    """生成完整的CMakeLists.txt内容"""
+    source = generate_cmake_base_config(args)
+    source += generate_target_configurations(args)
     return source
 
 
@@ -137,6 +172,7 @@ def parse_compile_args(argv: List[str]):
     parser.add_argument('--output_path', default='', type=str, help='Output directory.')
     parser.add_argument('--force_unknown', default=False, type=str2bool, help='force unknown shape.')
     parser.add_argument('--config_file', default='', type=str, help='PGO tiling config file after turning.')
+    parser.add_argument('--soc_version', default='Ascend910B', type=str, help='chip soc version.')
 
     return parser.parse_args(argv)
 

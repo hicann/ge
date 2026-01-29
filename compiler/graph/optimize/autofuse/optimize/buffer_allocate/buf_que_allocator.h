@@ -30,10 +30,11 @@ class BufQueAllocator {
   Status SetOutputTensorAttr(const ge::AscGraph &impl_graph) const;
   static void SetGlobalMemInfo(const ge::AscTensor &tensor, int64_t tensor_id);
   void InitTensorReuseInfoAndLifeTime(const ascir::NodeView &node, const ge::AscTensor *output,
-                                      TensorInfo &tensor_info, bool is_reduce_mem_reuse) const;
+                                      TensorInfo &tensor_info, bool is_reduce_mem_reuse, bool is_cube_none_db) const;
   static Status InitTensorMemInfo(ge::AscGraph &graph, const ge::AscTensor *output, TensorInfo &tensor_info);
   Status InitTensorInfo(ge::AscGraph &graph, TensorInfoMap &tensor_attr_to_tensor_info,
                         bool is_reduce_mem_reuse) const;
+  static Status InitNodeTmpBuffInfo(ge::AscGraph &graph, TmpBuffInfoMap &node_attr_to_tensor_info);
   static void AllocateReuseId(const ge::AscGraph &graph, TensorInfoMap &tensor_attr_to_tensor_info);
   static TensorInfo *FindBestInplaceSource(const ge::AscNodePtr &node, const TensorInfo &output_info,
                                            TensorInfoMap &tensor_attr_to_tensor_info);

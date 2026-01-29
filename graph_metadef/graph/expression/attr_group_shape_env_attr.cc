@@ -13,7 +13,7 @@
 #include "graph/detail/attributes_holder.h"
 #include "proto/ge_ir.pb.h"
 #include "graph/expression/expression_impl.h"
-#include "graph/utils/type_utils.h"
+#include "graph/symbolizer/symbolic_utils.h"
 
 namespace ge {
 namespace {
@@ -259,7 +259,7 @@ const std::vector<SymbolCheckInfo> ShapeEnvAttr::GetAllSymbolAssertInfos() const
 };
 
 void ShapeEnvAttr::SimplifySymbolCheckInfo(
-    std::set<SymbolCheckInfo, SymbolCheckInfoKeyLess> &symbol_check_infos) {
+    std::set<SymbolCheckInfo, SymbolCheckInfoKeyLess> &symbol_check_infos) const {
   std::vector<SymbolCheckInfo> simplify_symbol_check_info;
   for (auto &iter : symbol_check_infos) {
     const auto simple_expr = iter.expr.Simplify().CanonicalizeBoolExpr();
@@ -293,7 +293,7 @@ ge::Expression ShapeEnvAttr::Simplify(const ge::Expression &expr) {
   if (!var_replacements.empty()) {
     auto result_expr = expr.Replace(var_replacements);
     GELOGI("Simplify expr: %s to expr: %s",
-        expr.Serialize().get(), result_expr.Serialize().get());
+        SymbolicUtils::ToString(expr).c_str(), SymbolicUtils::ToString(result_expr).c_str());
     GE_ASSERT_NOTNULL(result_expr.impl_);
     return Expression(result_expr.impl_->Simplify());
   }
@@ -326,9 +326,10 @@ void ShapeEnvAttr::AppendInitReplacement(const ge::Expression &expr) {
   }
 }
 
-graphStatus ShapeEnvAttr::FindRootExpr(const ge::Expression &expr, ge::Expression &root_expr) {
+graphStatus ShapeEnvAttr::FindRootExpr(const ge::Expression &expr, ge::Expression &root_expr) const {
   const auto &iter = replacements_.find(expr);
-  GE_ASSERT_TRUE(iter != replacements_.end(), "Can not find replacement of expr: %s", expr.Serialize().get());
+  GE_ASSERT_TRUE(iter != replacements_.end(),
+    "Can not find replacement of expr: %s", SymbolicUtils::ToString(expr).c_str());
   if (iter->second.replace_expr == expr) {
     root_expr = expr;
     return GRAPH_SUCCESS;
@@ -411,23 +412,30 @@ graphStatus ShapeEnvAttr::AppendReplacement(const ge::Expression &target, const 
     if (args.size() == kSizeTwo) {
         expr1 = args[0];
         expr2 = args[1];
-        GELOGD("expr1 %s->%s, expr2 %s->%s", target.Serialize().get(), expr1.Serialize().get(),
-               replacement.Serialize().get(), expr2.Serialize().get());
+        GELOGD("expr1 %s->%s, expr2 %s->%s",
+          SymbolicUtils::ToString(target).c_str(), SymbolicUtils::ToString(expr1).c_str(),
+          SymbolicUtils::ToString(replacement).c_str(), SymbolicUtils::ToString(expr2).c_str());
     }
 
   // 仅支持 符号->常量，符号->表达式，符号->符号 映射
   if (expr1.IsConstExpr()) {
     if (!expr2.IsVariableExpr()) {
       GELOGW("Unsupport append replacement %s to %s",
-          expr1.Serialize().get(), expr2.Serialize().get());
+          SymbolicUtils::ToString(expr1).c_str(), SymbolicUtils::ToString(expr2).c_str());
       return GRAPH_SUCCESS;
     }
   } else if (!expr1.IsVariableExpr()) {
     if (!expr2.IsVariableExpr()) {
       GELOGW("Unsupport append replacement %s to %s",
-          expr1.Serialize().get(), expr2.Serialize().get());
+          SymbolicUtils::ToString(expr1).c_str(), SymbolicUtils::ToString(expr2).c_str());
       return GRAPH_SUCCESS;
     }
+  }
+  // 判断replacement是否成环
+  if (CheckReplacementCycle(expr1, expr2)) {
+    GELOGW("Unsupport append replacement %s to %s, replacement contains the other.",
+      SymbolicUtils::ToString(expr1).c_str(), SymbolicUtils::ToString(expr2).c_str());
+    return GRAPH_SUCCESS;
   }
   AppendInitReplacement(expr1);
   AppendInitReplacement(expr2);
@@ -442,7 +450,7 @@ graphStatus ShapeEnvAttr::AppendReplacement(const ge::Expression &target, const 
 graphStatus ShapeEnvAttr::AppendSymbolAssertInfo(const ge::Expression &expr,
     const std::string &file, const int64_t line) {
   GE_ASSERT_TRUE(expr.IsBooleanExpr(),
-      "Assert expr: %s should be boolean", expr.Serialize().get());
+      "Assert expr: %s should be boolean", SymbolicUtils::ToString(expr).c_str());
   if (!expr.IsConstExpr()) {
     (void)symbol_assert_infos_.emplace(SymbolCheckInfo(expr.CanonicalizeBoolExpr(), file, line, GetGuardDfxContextInfo()));
   }
@@ -452,22 +460,51 @@ graphStatus ShapeEnvAttr::AppendSymbolAssertInfo(const ge::Expression &expr,
 graphStatus ShapeEnvAttr::AppendSymbolCheckInfo(const ge::Expression &expr,
     const std::string &file, const int64_t line) {
   GE_ASSERT_TRUE(expr.IsBooleanExpr(),
-      "Check expr: %s should be boolean", expr.Serialize().get());
+      "Check expr: %s should be boolean", SymbolicUtils::ToString(expr).c_str());
   if (!expr.IsConstExpr()) {
     (void)symbol_check_infos_.emplace(SymbolCheckInfo(expr.CanonicalizeBoolExpr(), file, line, GetGuardDfxContextInfo()));
   }
   return GRAPH_SUCCESS;
 }
 
-void ShapeEnvAttr::SetGuardDfxContextInfo(const std::string &guard_dfx_info) {
+void ShapeEnvAttr::SetGuardDfxContextInfo(const std::string &guard_dfx_info) const {
   guard_dfx_info_ = guard_dfx_info;
 }
 
-void ShapeEnvAttr::ClearGuardDfxContextInfo() {
+void ShapeEnvAttr::ClearGuardDfxContextInfo() const {
   guard_dfx_info_.clear();
 }
 
 std::string ShapeEnvAttr::GetGuardDfxContextInfo() const {
   return guard_dfx_info_;
 }
+
+bool ShapeEnvAttr::CheckReplacementCycle(const Expression &expr1, const Expression &expr2) const {
+  Expression root_expr1;
+  if (replacements_.find(expr1) == replacements_.end()) {
+    root_expr1 = expr1;
+  } else {
+    GE_ASSERT_SUCCESS(FindRootExpr(expr1, root_expr1));
+  }
+  Expression root_expr2;
+  if (replacements_.find(expr2) == replacements_.end()) {
+    root_expr2 = expr2;
+  } else {
+    GE_ASSERT_SUCCESS(FindRootExpr(expr2, root_expr2));
+  }
+
+  /*
+   * *判断exp1和expr2是否相互包含,
+   * 1) 先判断原表达式是否包含, 例如expr1: s0 + s1, expr2: s1, 则expr1包含expr2
+   * 2) 然后判断化简后是否包含, 例如已有replacement: s1 == s2, expr1: s0 + s1, expr2: s2
+   *    则expr1化简后为s0 + s2, 包含expr2
+   */
+  if (root_expr2.IsVariableExpr()) {
+    return root_expr1.ContainVar(root_expr2) || root_expr1.Simplify().ContainVar(root_expr2);
+  } else if (root_expr1.IsVariableExpr()) {
+    return root_expr2.ContainVar(root_expr1) || root_expr2.Simplify().ContainVar(root_expr1);
+  }
+  return false;
+}
+
 } // namespace ge

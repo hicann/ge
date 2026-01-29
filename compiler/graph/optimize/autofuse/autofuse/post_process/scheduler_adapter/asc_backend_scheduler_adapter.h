@@ -13,7 +13,6 @@
 
 #include "ge_common/ge_api_types.h"
 #include "graph/compute_graph.h"
-#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "adaption_improve_precision.h"
 
 namespace ge {

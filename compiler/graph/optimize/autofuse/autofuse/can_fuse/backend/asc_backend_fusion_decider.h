@@ -49,7 +49,7 @@ class AscBackendFusionDecider : public FusionDecider {
   NodePtr Fuse(const NodePtr &node1, const NodePtr &node2, const CounterPtr &counter) override;
 
   // 获取融合对的优先级
-  uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
+  FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
 
  protected:
   /**
@@ -214,7 +214,7 @@ class AscBackendFusionDecider : public FusionDecider {
    * @param node2 第二个节点指针
    * @return 如果可以融合返回 true，否则返回 false
    */
-  bool CanFuse(const NodePtr &node1, const NodePtr &node2) const;
+  bool CanFuse(const NodePtr &node1, const NodePtr &node2) const override;
 
   /**
    * 该函数创建一个新的AscBackendNode子图，并将指定的 AscBackend 节点移动到该子图中,
@@ -353,14 +353,14 @@ class AscBackendSubGraphFusionDecider : public AscBackendFusionDecider {
   NodePtr Fuse(const NodePtr &node1, const NodePtr &node2, const CounterPtr &counter) override;
 
   // 获取融合对的优先级
-  uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override {
+  FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override {
     (void)node1;
     (void)node2;
-    return 0U;
+    return FusionPriority::HIGH;
   }
 
  private:
-  bool CanFuse(const NodePtr &node1, const NodePtr &node2) const;
+  bool CanFuse(const NodePtr &node1, const NodePtr &node2) const override;
 };
 }  // namespace ge
 

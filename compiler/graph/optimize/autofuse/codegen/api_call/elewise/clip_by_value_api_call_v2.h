@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_CLIP_BY_VALUE_API_CALL_V2_H__
 #define __AUTOFUSE_CLIP_BY_VALUE_API_CALL_V2_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class ClipByValueApiCallV2 final : public ApiCall {

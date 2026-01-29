@@ -13,6 +13,9 @@
 
 #include <vector>
 #include <map>
+
+#include <stdint.h>
+
 enum class AutoFuseTransposeType : uint8_t {
   TRANSPOSE_ND2ND_ONLY = 0,
   TRANSPOSE_ND2ND_102 = 1,

@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "ascend_graph_parser.h"
@@ -24,6 +18,7 @@
 #include "common/util/mem_utils.h"
 #include "base/att_const_values.h"
 #include "util/thread_local_context.h"
+#include "att_utils.h"
 #include "ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "base_types_printer.h"
 #include "common_utils.h"
@@ -57,7 +52,6 @@ AxisPosition ConvertAxisType(const ge::Axis::Type &type) {
   return kAxisTypeMap.at(type);
 }
 
-// 当前所有形态的MemHardware转换关系是确定的，若未来需要按照形态区分，需要根据soc_version进行判断
 ge::Status GetPhyType(const ge::Position pos, ge::MemHardware &phy_type) {
   static const std::map<ge::Position, ge::MemHardware> kDefPosToPhy = {
       {ge::Position::kPositionGM, ge::MemHardware::kMemHardwareGM},
@@ -131,11 +125,11 @@ void AscendGraphParser::SaveTmpBufferInfos(const std::string &node_name,
                                            std::vector<ge::TmpBuffer> &tmp_buffers) const {
   std::map<int64_t, Expr> node_tmp_buffers_map;
   for (const auto &buffer : tmp_buffers) {
-    GELOGD("Save tmp buffer [%ld, %s] for node %s.", buffer.buf_desc.life_time_axis_id,
+    GELOGD("Save tmp buffer [%ld, %s] for node %s.", buffer.id,
            buffer.buf_desc.size.Str().get(), node_name.c_str());
-    const auto &iter = node_tmp_buffers_map.find(buffer.buf_desc.life_time_axis_id);
+    const auto &iter = node_tmp_buffers_map.find(buffer.id);
     if (iter == node_tmp_buffers_map.cend()) {
-      node_tmp_buffers_map[buffer.buf_desc.life_time_axis_id] = buffer.buf_desc.size;
+      node_tmp_buffers_map[buffer.id] = buffer.buf_desc.size;
     } else {
       iter->second = iter->second + buffer.buf_desc.size;
     }
@@ -173,7 +167,7 @@ ge::Status AscendGraphParser::ParserSchedInfo(const ge::AscGraph &graph) {
       GE_ASSERT_SUCCESS(CheckAxisIdValid(axis_id), "Invaild axis id [%ld]", axis_id);
       if (axes_info_[axis_id]->type == ge::Axis::kAxisTypeBlockOuter) {
         block_dim.emplace_back(axis_id);
-        loop_inside_flag = (axis_id == node->attr.sched.loop_axis) ? true : loop_inside_flag;
+        loop_inside_flag = (axis_id == node->attr.sched.loop_axis) || loop_inside_flag;
         continue;
       }
       if (!loop_inside_flag) {
@@ -284,7 +278,7 @@ ge::Status AscendGraphParser::ConstructQueueContainer(const ge::AscTensorAttr &a
     std::string name = user_set_name.empty() ? "q" + std::to_string(ascir_tensor_info.que.id) + "_size" : user_set_name;
     auto queue_ptr = ge::MakeShared<Queue>(name);
     GE_ASSERT_NOTNULL(queue_ptr, "Create queue failed.");
-    queue_ptr->container_id = ascir_tensor_info.que.id;
+    queue_ptr->reuse_id = ascir_tensor_info.que.id;
     queue_ptr->buffer_num = ascir_tensor_info.que.buf_num;
 
     if (ascir_tensor_info.mem.hardware == ge::MemHardware::kMemHardwareGM) {
@@ -304,7 +298,7 @@ ge::Status AscendGraphParser::ConstructBufferContainer(const ge::AscTensorAttr &
     std::string name = user_set_name.empty() ? "b" + std::to_string(ascir_tensor_info.buf.id) + "_size" : user_set_name;
     auto buf_ptr = ge::MakeShared<Buf>(name);
     GE_ASSERT_NOTNULL(buf_ptr, "Create buffer failed.");
-    buf_ptr->container_id = ascir_tensor_info.buf.id;
+    buf_ptr->reuse_id = ascir_tensor_info.buf.id;
     if (ascir_tensor_info.mem.hardware == ge::MemHardware::kMemHardwareGM) {
       buf_ptr->buf_location.emplace_back(HardwareDef::GM);
     } else {
@@ -324,7 +318,7 @@ ge::Status AscendGraphParser::ConstructGlobalContainer(const ge::AscTensorAttr &
     std::string name = "GlobalContainer-GM";
     auto container_ptr = ge::MakeShared<GlobalCache>(name);
     GE_ASSERT_NOTNULL(container_ptr, "Create global cache failed.");
-    container_ptr->container_id = ascir_tensor_info.mem.reuse_id;
+    container_ptr->reuse_id = ascir_tensor_info.mem.reuse_id;
     container_ptr->buf_location.emplace_back(location);
     global_containers_[location] = container_ptr;
   }
@@ -337,6 +331,7 @@ ge::Status AscendGraphParser::ParseTensorMemInfo(const ge::AscTensorAttr &ascir_
   if (ascir_tensor_info.mem.alloc_type == ge::AllocType::kAllocTypeQueue) {
     GE_ASSERT_SUCCESS(ConstructQueueContainer(ascir_tensor_info), "Construct queue failed.");
     container = queue_containers_[ascir_tensor_info.que.id];
+    container->alloc_type = ge::AllocType::kAllocTypeQueue;
     container->allocated_tensors.emplace_back(tensor);
     auto tqueue = static_cast<Queue *>(container.get());
     tqueue->buffer_num =
@@ -344,7 +339,9 @@ ge::Status AscendGraphParser::ParseTensorMemInfo(const ge::AscTensorAttr &ascir_
   } else if (ascir_tensor_info.mem.alloc_type == ge::AllocType::kAllocTypeBuffer) {
     GE_ASSERT_SUCCESS(ConstructBufferContainer(ascir_tensor_info), "Construct buffer failed.");
     container = buf_containers_[ascir_tensor_info.buf.id];
+    container->alloc_type = ge::AllocType::kAllocTypeBuffer;
     container->allocated_tensors.emplace_back(tensor);
+    container->container_id = ascir_tensor_info.buf.id;
   } else if (ascir_tensor_info.mem.alloc_type == ge::AllocType::kAllocTypeGlobal) {
     if (node_type == kWorkspaceWithInput || node_type == kWorkspace) {
       GE_ASSERT_TRUE(ascir_tensor_info.mem.hardware == ge::MemHardware::kMemHardwareGM,
@@ -429,28 +426,6 @@ void AscendGraphParser::SetContinuesStrides(TensorPtr &tensor, ge::AscTensorAttr
     }
     tensor->stride = new_stride;
   }
-  return;
-}
-
-bool AscendGraphParser::IsLoadNode(const TensorPtr &tensor) {
-  if (tensor->node_type == kLoad) {
-    return true;
-  }
-  return false;
-}
-
-bool AscendGraphParser::IsNddmaNode(const TensorPtr &tensor) {
-  if (tensor->node_type == kNddma) {
-    return true;
-  }
-  return false;
-}
-
-bool AscendGraphParser::IsStoreNode(const TensorPtr &tensor) {
-  if (tensor->node_type == kStore) {
-    return true;
-  }
-  return false;
 }
 
 ge::Status AscendGraphParser::ParseTensorDims(TensorPtr &tensor, ge::AscTensorAttr &tensor_attr) {
@@ -473,7 +448,7 @@ ge::Status AscendGraphParser::ParseTensorDims(TensorPtr &tensor, ge::AscTensorAt
     auto vectorized_stride = tensor_attr.vectorized_strides[vec_cur_idx];
     tensor->repeat.emplace_back(axis_repeat);
     tensor->stride.emplace_back(vectorized_stride);
-    if (IsLoadNode(tensor) || IsStoreNode(tensor) || IsNddmaNode(tensor)) {
+    if (AttUtils::IsLoadStoreNode(tensor->owner_node)) {
       tensor->gm_stride.emplace_back(axis_stride);
     }
     tensor->dim_info.emplace_back(sub_axes_info_[axis_id].get());
@@ -522,22 +497,23 @@ ge::Status AscendGraphParser::SetAxisPriority(const ge::AscGraph &graph) {
   for (auto &node : tuning_space_->node_infos) {
     auto dim_size = 0U;
     for (auto &input : node.inputs) {
-      GE_ASSERT_NOTNULL(input, "Get input failed.");
+      GE_ASSERT_NOTNULL(input, "Get input failed, node name is %s.", node.name.c_str());
       if (input->dim_info.size() > dim_size) {
         dims = input->dim_info;
       }
     }
     for (auto &output : node.outputs) {
-      GE_ASSERT_NOTNULL(output, "Get output failed.");
+      GE_ASSERT_NOTNULL(output, "Get output failed, node name is %s.", node.name.c_str());
       if (output->dim_info.size() > dim_size) {
         dims = output->dim_info;
       }
     }
-    if (dims.size() > 0U) {
-      // 最后一个向量轴
+    // 对多个Node均会设置最内轴，可能会存在多个最内轴(比如Transpose的场景，Load和Store有不同的最内轴)
+    if (!dims.empty()) {
+      // 最后一个向量轴为最内轴
       auto &innerest_dim = dims.back();
       innerest_dim->is_node_innerest_dim = true;
-      GELOGD("Update innerest_dim[%s] is_node_innerest_dim is true", innerest_dim->name.c_str());
+      GELOGD("Update innerest_dim[%s] for node %s.", innerest_dim->name.c_str(), node.name.c_str());
     }
   }
 
@@ -595,6 +571,20 @@ std::vector<int64_t> GetNodeVectorizedAxis(const ge::AscNodePtr &ge_node, int64_
   return total_vectorized_axis;
 }
 
+ge::Status AscendGraphParser::ParseWorkspaceNode(const ge::AscNodePtr &ge_node) {
+  if (ge_node->GetType() == kWorkspace) {
+    auto ws_size = ascgen_utils::CalculateOneWorkspaceSize(ge_node);
+    int64_t tensor_id = ge_node->outputs[0u].attr.mem.tensor_id;
+    auto &max_workspace_sizes = tuning_space_->workspace_size_map;
+    if (max_workspace_sizes.find(tensor_id) == max_workspace_sizes.end()) {
+      max_workspace_sizes[tensor_id] = ws_size;
+    } else {
+      max_workspace_sizes[tensor_id] = ge::sym::Max(max_workspace_sizes[tensor_id], ws_size);
+    }
+  }
+  return ge::SUCCESS;
+}
+
 ge::Status AscendGraphParser::ParserNodeOutputInfos(const ge::AscNodePtr &ge_node, const ge::AscGraph &graph,
                                                     NodeInfo &node_info) {
   uint32_t depth = 0U;
@@ -616,7 +606,7 @@ ge::Status AscendGraphParser::ParserNodeOutputInfos(const ge::AscNodePtr &ge_nod
     GELOGD("Get node [%s] output[%zu] output datatype [%s] name[%s]", node_info.name.c_str(), out_id,
            BaseTypeUtils::DtypeToStr(data_type).c_str(), tensor->name.c_str());
 
-    tensor->owner_node = ge_node->GetName();
+    tensor->owner_node = ge_node.get();
     tensor->data_type = BaseTypeUtils::DtypeToStr(data_type);
     tensor->data_type_size = ge::GetSizeByDataType(data_type);
     if (output_tensor.mem.hardware == ge::MemHardware::kMemHardwareGM) {
@@ -682,7 +672,7 @@ ge::Status AscendGraphParser::ParserNodeInputInfos(const ge::AscNodePtr &ge_node
     GE_ASSERT_NOTNULL(tensor, "Create tensor failed.");
     tensor->name = ge_node->GetName() + kInputNamePrefix + std::to_string(in_id);
     auto data_type = ge_node->inputs[in_id].attr.dtype;
-    tensor->owner_node = ge_node->GetName();
+    tensor->owner_node = ge_node.get();
     tensor->data_type = BaseTypeUtils::DtypeToStr(data_type);
     tensor->data_type_size = ge::GetSizeByDataType(data_type);
     GELOGD("Get node [%s] input[%zu] datatype [%s] name[%s]", node_info.name.c_str(), in_id,
@@ -705,7 +695,7 @@ ge::Status AscendGraphParser::ParserNodeInputInfos(const ge::AscNodePtr &ge_node
 }
 
 void AscendGraphParser::UpdateContainer(ContainerPtr &container, const int32_t new_id) {
-  auto &ori_id = container->container_id;
+  auto &ori_id = container->reuse_id;
   if (combined_tensors_.find(container) != combined_tensors_.end()) {
     for (auto &tensors : combined_tensors_[container]) {
       std::vector<TensorPtr> tensor_list;
@@ -767,6 +757,7 @@ ge::Status AscendGraphParser::ConvertNodeInfos(const ge::AscNodePtr &ge_node, co
   }
   node_info.trans_config = "";
   int64_t loop_axis = attrs.loop_axis_id;
+  GE_ASSERT_SUCCESS(ParseWorkspaceNode(ge_node), "Parser workspace node info failed.");
   GE_ASSERT_SUCCESS(ParserNodeOutputInfos(ge_node, graph, node_info), "Parser node output info failed.");
   GE_ASSERT_SUCCESS(ParserNodeInputInfos(ge_node, graph, node_info), "Parser node input info failed.");
   for (const auto &axis_info : attrs.sched_axis_info) {
@@ -855,89 +846,6 @@ void AscendGraphParser::ParserOptionalInfos(const ge::AscGraph &graph) const {
   (void)graph;
 }
 
-ge::Status AscendGraphParser::CheckGraphInputInfos() {
-  uint32_t axis_map_num = 0U;
-  uint32_t origin_var_axis_num = 0U;
-  for (auto &pair : sub_axes_info_) {
-    if ((pair.second->axis_type == AxisPosition::ORIGIN) &&
-        (!pair.second->repeat.IsConstExpr())) {
-      origin_var_axis_num++;
-      if (!pair.second->axis_continuous_map.empty()) {
-        axis_map_num++;
-      } else {
-        GELOGI("Axis [%s] not set input map info.", pair.second->name.c_str());
-      }
-    }
-  }
-  GE_ASSERT_TRUE((axis_map_num == 0U) || (axis_map_num == origin_var_axis_num), "Some axis not set input map info.");
-  return ge::SUCCESS;
-}
-
-ge::Status AscendGraphParser::ParserInputNodeAttr(const std::shared_ptr<ge::AscNode> &node, int32_t &index,
-                                              std::vector<std::vector<int64_t>> &axis_continuous_map, int32_t &format) const {
-  ge::GeAttrValue attr_value;
-  int64_t index_value = -1;
-  (void)node->GetOpDesc()->GetAttr("index", attr_value);
-  attr_value.GetValue<int64_t>(index_value);
-  index = static_cast<int32_t>(index_value);
-  (void)node->GetOpDesc()->GetAttr("axis_continuous_map", attr_value);
-  attr_value.GetValue<std::vector<std::vector<int64_t>>>(axis_continuous_map);
-  int64_t format_value = -1;
-  (void)node->GetOpDesc()->GetAttr("format", attr_value);
-  attr_value.GetValue<int64_t>(format_value);
-  format = static_cast<int32_t>(format_value);
-  GELOGI("Input node [%s] index [%d], format [%d].", node->GetName().c_str(), index, format);
-  return ge::SUCCESS;
-}
-
-ge::Status AscendGraphParser::ParserGraphInputInfos(const ge::AscGraph &graph) {
-  for (const auto &node : graph.GetInputNodes()) {
-    GE_ASSERT_NOTNULL(node, "Get graph node failed.");
-    GELOGI("Start parse input nodes of graph %s", graph.GetName().c_str());
-    GE_ASSERT_TRUE(node->outputs().size() == 1U, "Input node [%s] output only one.", node->GetName().c_str());
-    int32_t index = -1;
-    std::vector<std::vector<int64_t>> axis_continuous_map;
-    int32_t format = -1;
-    GE_ASSERT_SUCCESS(ParserInputNodeAttr(node, index, axis_continuous_map, format), "parser input node %s failed",
-                       node->GetNamePtr());
-    if (axis_continuous_map.empty()) {
-      continue;
-    }
-    GE_ASSERT_TRUE(index >= 0, "Get input %s index %d failed, please set input index in ascend graph",
-                   node->GetNamePtr(), index);
-    auto &input_atts = tuning_space_->graph_input_infos.input_atts;
-    GE_ASSERT_TRUE(input_atts.find(index) == input_atts.end(), "Input node [%s] have same index [%d].",
-                   node->GetName().c_str(), index);
-    auto &output_tensor = node->outputs[0U].attr;
-    auto sched_axis = node->attr.sched.axis;
-    if (sched_axis.empty()) {  // 输入节点没有切分的场景
-      sched_axis = output_tensor.axis;
-    }
-    GE_ASSERT_TRUE(sched_axis.size() == axis_continuous_map.size(),
-                   "Input node [%s] axis size %zu not same continuous map size %zu.", node->GetName().c_str(),
-                   sched_axis.size(), axis_continuous_map.size());
-    InputTensor tensor_info{};
-    tensor_info.data_type = static_cast<int32_t>(output_tensor.dtype);
-    tensor_info.format = format;
-    input_atts[static_cast<uint32_t>(index)] = tensor_info;
-    for (auto idx = 0U; idx < sched_axis.size(); idx++) {
-      auto axis_id = sched_axis[idx];
-      GE_ASSERT_SUCCESS(CheckAxisIdValid(axis_id), "Invaild axis id [%ld]", axis_id);
-      GE_ASSERT_TRUE(sub_axes_info_[axis_id]->axis_type == AxisPosition::ORIGIN,
-                     "Input node [%s] axis must is original.", node->GetName().c_str());
-      // 范围值最多不能超过两个
-      GE_ASSERT_TRUE(axis_continuous_map[idx].size() <= 2U, "Input node [%s] axis [%s] map setting error.",
-                     node->GetName().c_str(), sub_axes_info_[axis_id]->name.c_str());
-      if ((axis_continuous_map[idx].size() == 1U) &&
-          (axis_continuous_map[idx][0] == std::numeric_limits<int64_t>::max())) {
-        continue;
-      }
-      sub_axes_info_[axis_id]->axis_continuous_map[static_cast<uint32_t>(index)] = axis_continuous_map[idx];
-    }
-  }
-  return ge::SUCCESS;
-}
-
 ge::Status AscendGraphParser::CalculateReservedUbSize(const ge::AscGraph &graph) {
   constexpr int32_t kSimtDcacheSize = 32 * 1024;
   tuning_space_->reserve_ub["ascendc"] = ascgen_utils::CalcReservedTmpBufSizeForAscGraph(graph);
@@ -970,8 +878,6 @@ ge::Status AscendGraphParser::ConvertToTuningSpace(const ge::AscGraph &graph) {
   AssembleTensorInfos();
   SetAxisPriority(graph);
   ParserOptionalInfos(graph);
-  GE_ASSERT_SUCCESS(ParserGraphInputInfos(graph), "Parser graph input info failed.");
-  GE_ASSERT_SUCCESS(CheckGraphInputInfos(), "Graph input info setting failed.");
   for (auto &pair : sub_axes_info_) {
     GELOGI("Axis id[%lu], info [%s]", pair.first, pair.second->ToString().c_str());
     tuning_space_->sub_axes.emplace_back(std::move(pair.second));
@@ -1077,8 +983,10 @@ std::string AscendGraphParser::TuningSpacePrint(const SubAxis &sub_axis) const {
   oss << "is_split: " << std::boolalpha << sub_axis.is_split << ", ";
   oss << "is_node_innerest_dim: " << std::boolalpha << sub_axis.is_node_innerest_dim << ", ";
   oss << "is_last: " << std::boolalpha << sub_axis.is_last << ", ";
-  oss << "align: " << sub_axis.align << ", ";
-  oss << "repeat: " << ((IsValid(sub_axis.repeat)) ? Str(sub_axis.repeat) : "") << ",";
+  auto align = IsValid(sub_axis.align) ? Str(sub_axis.align) : "";
+  oss << "align: " << align << ", ";
+  auto repeat = IsValid(sub_axis.repeat) ? Str(sub_axis.repeat) : "";
+  oss << "repeat: " << repeat << ",";
   oss << ", orig_axis_name: ";
   for (auto &name : sub_axis.orig_axis_name) {
     oss << name << ",";
@@ -1096,6 +1004,7 @@ std::string AscendGraphParser::TuningSpacePrint(const Container &container) cons
   oss << "Container{\n";
   oss << "name: \"" << container.name << "\", ";
   oss << "buffer_num: \"" << container.GetBufferNum() << "\", ";
+  oss << "reuse_id: " << container.reuse_id << ", ";
   oss << "container_id: " << container.container_id << ", ";
   if (!container.allocated_tensors.empty()) {
     oss << "allocated_tensors: {";

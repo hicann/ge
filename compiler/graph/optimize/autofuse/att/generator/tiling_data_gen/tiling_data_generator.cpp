@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "tiling_data_generator.h"
@@ -23,6 +17,8 @@
 #include "code_printer.h"
 #include "generator_utils/tilingdata_gen_utils.h"
 #include "generator/preprocess/ast_optimizer.h"
+#include "graph/symbolizer/symbolic.h"
+#include "graph/symbolizer/symbolic_utils.h"
 
 namespace att {
 namespace {
@@ -215,13 +211,16 @@ ge::Status AxesTilingDataGen::AddAxesAlignedSize() {
     // note: all axis aligned is set by user, get_{axis} must be valid
     const auto &axis_size_var = std::dynamic_pointer_cast<SymVarInfo>(axis->size);
     if ((axis->axis_pos == AxisPosition::ORIGIN) && (axis_size_var != nullptr) &&
-        (axis_size_var->align > kNotAlignedSize)) {
+        (!axis_size_var->align.IsConstExpr() ||
+         (axis_size_var->align.IsConstExpr() &&
+          (ge::SymbolicUtils::StaticCheckGt(axis_size_var->align, ge::Symbol(kNotAlignedSize)) ==
+           ge::TriBool::kTrue)))) {
       std::string axis_size_name;
       // axes_aligned_size = (axes_size - 1) / ALIGN_SIZE * ALIGN_SIZE + ALIGN_SIZE, origin axis use SizeVar name
-      const auto align_expr = StrAlign(Str(axis->size->symbol_expr), std::to_string(axis_size_var->align));
+      const auto align_expr = StrAlign(Str(axis->size->symbol_expr), Str(axis_size_var->align));
       GE_ASSERT_SUCCESS(SetAxisArgExpr(axis->name, {TilingDataType::AXIS_ALIGNED_SIZE,
-                                                     GetAxisAlignedSizeName(axis->name), align_expr}),
-                         "Set aligned size of axis[%s] failed.", axis->name.c_str());
+                                                    GetAxisAlignedSizeName(axis->name), align_expr}),
+                        "Set aligned size of axis[%s] failed.", axis->name.c_str());
     }
   }
   return ge::SUCCESS;

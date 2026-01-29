@@ -49,10 +49,6 @@ class ScheduleUtils {
     return node->attr.api.compute_type == ge::ComputeType::kComputeLoad;
   }
 
-  static bool IsNddma(const ge::AscNodePtr &node) {
-    return IsLoad(node) && node->attr.type == "Nddma";
-  }
-
   static bool IsStore(const ge::AscNodePtr &node) {
     return node->attr.api.compute_type == ge::ComputeType::kComputeStore;
   }
@@ -284,8 +280,8 @@ class ScheduleUtils {
                                   const std::vector<ge::Expression> &out_repeats);
 
   static bool GetTailAxisDataSize(const ge::AscNodePtr &node, uint32_t &size);
-  static bool IsTailAxisLessThan(const ge::AscNodePtr &node, uint32_t value);
-  static bool IsTailAxisAlignedBy(const ge::AscNodePtr &node, uint32_t align_bytes=32);
+  static bool IsTailAxisLessThan(const ge::AscNodePtr &node, const uint32_t value);
+  static bool IsTailAxisAlignedBy(const ge::AscNodePtr &node, const uint32_t align_bytes=32);
 
   static bool IsStaticShape(const ascir::NodeView &node);
 
@@ -309,8 +305,8 @@ class ScheduleUtils {
   static void NormalizeAxisIds(const ge::AscGraph &graph);
 
   static Status GetVectorRepeats(const std::vector<ge::Expression> &repeats, const std::vector<int64_t> &axis,
-                                 const std::vector<int64_t> &vector_axis, std::vector<ge::Expression> &vec_repeats);
-  static Status GetNodeInputVectorRepeats(const ascir::NodeView &node, std::vector<ge::Expression> &vec_repeats);
+                                 const std::vector<int64_t> &vector_axis, std::vector<ge::Expression> &vector_repeats);
+  static Status GetNodeInputVectorRepeats(const ascir::NodeView &node, std::vector<ge::Expression> &vector_repeats);
   static Status GetNodeOutVectorRepeats(const ascir::NodeView &node, std::vector<ge::Expression> &vec_repeats);
   static Status GetConcatDim(const ge::AscNodePtr &node, size_t &concat_dim);
 
@@ -338,11 +334,13 @@ class ScheduleUtils {
   static bool FindContinuesBroadcastNode(const ascir::NodeView &node, vector<ge::AscNodePtr> &continues_brc_nodes);
 
   static Status AddRemovePadAfter(ge::AscGraph &graph, const ge::AscNodePtr &node, ge::AscNodePtr &remove_pad_node,
-    int32_t idx=0);
+    const int32_t idx = 0);
   static bool IsOutNodeWithMultiInputs(const ge::AscNodePtr &node);
   static Status ResolveDiffDim(const ge::AscNodePtr &node, size_t &diff_dim, bool &is_first_dim);
+  static Status RecalculateStridesFromRepeats(const std::vector<ge::Expression> &repeats,
+                                       std::vector<ge::Expression> &strides);
+  static bool IsNeedDiscontinuousAligned(const ge::AscTensorAttr &attr);
 };
-bool IsNeedDiscontinuousAligned(const ge::AscTensorAttr &attr);
 }  // namespace optimize
 
 #endif  // OPTIMIZE_SCHEDULE_UTILS_H_

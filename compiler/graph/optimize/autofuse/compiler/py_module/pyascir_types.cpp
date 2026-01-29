@@ -78,10 +78,10 @@ bool CollectInputDtypes(const ge::AscNodePtr &node, std::vector<ge::DataType> &i
   const auto &ir_inputs = op_desc->GetIrInputs();
   std::map<size_t, std::pair<size_t, size_t>> ir_input_2_range;
   PY_ASSERT_GRAPH_SUCCESS(ge::OpDescUtils::GetIrInputRawDescRange(op_desc, ir_input_2_range),
-                          "op %s %s has invalid ir desc", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+                          "Op %s %s has invalid ir desc", op_desc->GetNamePtr(), op_desc->GetTypePtr());
 
-  size_t index = 0;
-  for (size_t ir_input_index = 0; ir_input_index < ir_inputs.size(); ++ir_input_index) {
+  size_t index = 0UL;
+  for (size_t ir_input_index = 0UL; ir_input_index < ir_inputs.size(); ++ir_input_index) {
     const auto &range_iter = ir_input_2_range.find(ir_input_index);
     PY_ASSERT(range_iter != ir_input_2_range.end(), "Invalid ir_input_index: %zu", ir_input_index);
 
@@ -138,7 +138,7 @@ bool DoInference(const ge::AscNodePtr &node, InferDtypeFunc infer_func, const st
   auto op_desc = node->GetOpDesc();
   PY_ASSERT_NOTNULL(op_desc, "op_desc is null!");
   PY_ASSERT_EQ(output_dtyps.size(), op_desc->GetOutputsSize());
-  for (size_t i = 0; i < output_dtyps.size(); ++i) {
+  for (size_t i = 0UL; i < output_dtyps.size(); ++i) {
     op_desc->MutableOutputDesc(i)->SetDataType(output_dtyps[i]);
   }
   return true;
@@ -218,9 +218,7 @@ int SizeExpr::Init(PyObject *self_pyobject, const ge::Expression &expr) {
 
 PyObject *SizeExpr::FromSizeExpr(const ge::Expression &expr) {
   auto size = New(&SizeExpr::type, nullptr, nullptr);
-  if (size == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(size);
   Init(size, expr);
   Py_IncRef(size);
   return size;
@@ -239,39 +237,51 @@ const ge::Expression SizeExpr::AsSizeExpr(PyObject *obj) {
 
 PyObject *SizeExpr::Add(PyObject *self, PyObject *args) {
   ge::Expression left = SizeExpr::AsSizeExpr(self);
+  PY_ASSERT_TRUE(left.IsValid(), "left operand of add is not a valid SizeExpr");
   ge::Expression right = SizeExpr::AsSizeExpr(args);
-  if (!left.IsValid() || !right.IsValid()) {
-    return nullptr;
-  }
+  PY_ASSERT_TRUE(right.IsValid(), "right operand of add is not a valid SizeExpr");
   return FromSizeExpr(left + right);
 }
 
 PyObject *SizeExpr::Div(PyObject *self, PyObject *args) {
   ge::Expression left = SizeExpr::AsSizeExpr(self);
+  PY_ASSERT_TRUE(left.IsValid(), "left operand of div is not a valid SizeExpr");
   ge::Expression right = SizeExpr::AsSizeExpr(args);
-  if (!left.IsValid() || !right.IsValid()) {
-    return nullptr;
-  }
+  PY_ASSERT_TRUE(right.IsValid(), "right operand of div is not a valid SizeExpr");
   return FromSizeExpr(left / right);
 }
 
 PyObject *SizeExpr::Mul(PyObject *self, PyObject *args) {
   ge::Expression left = SizeExpr::AsSizeExpr(self);
+  PY_ASSERT_TRUE(left.IsValid(), "left operand of mul is not a valid SizeExpr");
   ge::Expression right = SizeExpr::AsSizeExpr(args);
-  if (!left.IsValid() || !right.IsValid()) {
-    return nullptr;
-  }
+  PY_ASSERT_TRUE(right.IsValid(), "right operand of mul is not a valid SizeExpr");
   return FromSizeExpr(left * right);
 }
 
 PyObject *SizeExpr::Pow(PyObject *self, PyObject *args, PyObject *modulo) {
   (void)modulo;
   ge::Expression left = SizeExpr::AsSizeExpr(self);
+  PY_ASSERT_TRUE(left.IsValid(), "left operand of pow is not a valid SizeExpr");
   ge::Expression right = SizeExpr::AsSizeExpr(args);
-  if (!left.IsValid() || !right.IsValid()) {
-    return nullptr;
-  }
+  PY_ASSERT_TRUE(right.IsValid(), "right operand of pow is not a valid SizeExpr");
   return FromSizeExpr(ge::sym::Pow(left, right));
+}
+
+PyObject *SizeExpr::Remainder(PyObject *self, PyObject *args) {
+  ge::Expression left = SizeExpr::AsSizeExpr(self);
+  PY_ASSERT_TRUE(left.IsValid(), "left operand of remainder is not a valid SizeExpr");
+  ge::Expression right = SizeExpr::AsSizeExpr(args);
+  PY_ASSERT_TRUE(right.IsValid(), "right operand of remainder is not a valid SizeExpr");
+  return FromSizeExpr(ge::sym::Mod(left, right));
+}
+
+PyObject *SizeExpr::FloorDiv(PyObject *self, PyObject *args) {
+  ge::Expression left = SizeExpr::AsSizeExpr(self);
+  PY_ASSERT_TRUE(left.IsValid(), "left operand of floor division is not a valid SizeExpr");
+  ge::Expression right = SizeExpr::AsSizeExpr(args);
+  PY_ASSERT_TRUE(right.IsValid(), "right operand of floor division is not a valid SizeExpr");
+  return FromSizeExpr(ge::sym::Floor(left / right));
 }
 
 PyObject *SizeExpr::Compare(PyObject *self, PyObject *other, int op) {
@@ -365,9 +375,7 @@ PyObject *Operator::New(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
   (void)args;
   (void)kwargs;
   auto self = reinterpret_cast<Operator::Object *>(type->tp_alloc(type, 0));
-  if (self == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(self);
 
   self->name = nullptr;
   self->type = nullptr;
@@ -411,9 +419,7 @@ PyObject *HintGraph::New(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
   (void)args;
   (void)kwargs;
   auto self = reinterpret_cast<HintGraph::Object *>(type->tp_alloc(type, 0));
-  if (self == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(self);
 
   self->name = nullptr;
   self->graph = nullptr;
@@ -449,9 +455,7 @@ PyObject *HintGraph::CreateSize(PyObject *self_pyobject, PyObject *args) {
   }
 
   auto new_size_pyobject = SizeExpr::New(&SizeExpr::type, nullptr, nullptr);
-  if (new_size_pyobject == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(new_size_pyobject);
   SizeExpr::Init(new_size_pyobject, expression);
 
   Py_INCREF(new_size_pyobject);
@@ -468,9 +472,7 @@ PyObject *HintGraph::CreateAxis(PyObject *self_pyobject, PyObject *args, PyObjec
   auto self = reinterpret_cast<HintGraph::Object *>(self_pyobject);
   auto new_axis = self->graph->CreateAxis(name, SizeExpr::AsSizeExpr(size));
   auto axis_object = Axis::New(&Axis::type, nullptr, nullptr);
-  if (axis_object == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(axis_object);
   Axis::Init(axis_object, new_axis.id, new_axis.size, new_axis.name.c_str(), new_axis.type);
   Py_INCREF(axis_object);
   return axis_object;
@@ -509,7 +511,7 @@ void UpdateEquivalentAxes(const std::map<ge::AxisId, vector<ge::AxisId>> &axis_m
       vector<ge::AxisId> updated_tensor_axis;
       vector<ge::Expression> updated_strides;
       vector<ge::Expression> updated_repeats;
-      for (int i = 0; i < tensor_axis.size(); i++) {
+      for (size_t i = 0UL; i < tensor_axis.size(); i++) {
         auto axis = tensor_axis[i];
         auto stride = strides[i];
         auto repeat = repeats[i];
@@ -518,7 +520,7 @@ void UpdateEquivalentAxes(const std::map<ge::AxisId, vector<ge::AxisId>> &axis_m
           if (axis_map.at(axis).size() == 1) {
             updated_repeats.emplace_back(repeat);
           }
-          for (int j = 0; j < axis_map.at(axis).size(); j++) {
+          for (size_t j = 0UL; j < axis_map.at(axis).size(); j++) {
             auto map_axis_id = axis_map.at(axis)[j];
             updated_tensor_axis.emplace_back(map_axis_id);
             if (axis_map.at(axis).size() > 1) {
@@ -526,7 +528,7 @@ void UpdateEquivalentAxes(const std::map<ge::AxisId, vector<ge::AxisId>> &axis_m
             }
 
             auto new_stride = stride;
-            for (int n = j + 1; n < axis_map.at(axis).size(); n++) {
+            for (size_t n = j + 1UL; n < axis_map.at(axis).size(); n++) {
               auto axis_id = axis_map.at(axis)[n];
               new_stride = new_stride * GetAxisSize(all_axis, axis_id);
             }
@@ -568,9 +570,8 @@ PyObject *HintGraph::SetAxisMap(PyObject *self_pyobject, PyObject *args) {
     }
   }
   auto self = reinterpret_cast<HintGraph::Object *>(self_pyobject);
-  if (self->graph == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(self);
+  PY_ASSERT_NOTNULL(self->graph);
   UpdateEquivalentAxes(axis_map, *self->graph);
   Py_RETURN_NONE;
 }
@@ -701,11 +702,7 @@ PyObject *HintComputeGraph::New(PyTypeObject *type, PyObject *args, PyObject *kw
   (void)args;
   (void)kwargs;
   auto self = reinterpret_cast<HintComputeGraph::Object *>(type->tp_alloc(type, 0));
-  if (self == nullptr) {
-    GELOGE(ge::FAILED, "HintComputeGraph alloc fail");
-    return nullptr;
-  }
-
+  PY_ASSERT_NOTNULL(self);
   self->compute_graph = nullptr;
   return reinterpret_cast<PyObject *>(self);
 }
@@ -822,6 +819,50 @@ PyTypeObject ShapeInfo::type = {PyVarObject_HEAD_INIT(nullptr, 0)};
 
 /** FusedScheduledResult */
 namespace pyascir {
+static bool ProcessImplGraphs(PyObject *result_dict, const std::vector<ge::AscGraph> &impl_graphs) {
+  for (auto &impl_graph : impl_graphs) {
+    for (auto node : impl_graph.GetAllNodes()) {
+      if (node->attr.api.compute_type != ge::ComputeType::kComputeCube) {
+        continue;
+      }
+      ascgen_utils::MatMulAttr mm_attr_data;
+      PY_ASSERT_GRAPH_SUCCESS(ascgen_utils::ParseMatmulAttr(node, mm_attr_data));
+      uint32_t length = 0U;
+      PY_ASSERT_GRAPH_SUCCESS(ascgen_utils::GetMutmulOutputTypeSize(node, length));
+      PyObject *attr_dict = PyDict_New();
+      PY_ASSERT_NOTNULL(attr_dict, "attr_dict is not ready");
+
+      // 创建守卫，确保在发生异常时释放attr_dict
+      GE_DISMISSABLE_GUARD(attr_dict_guard, [attr_dict]() { Py_DECREF(attr_dict); });
+
+      PyDict_SetItemString(attr_dict, "has_relu", (mm_attr_data.has_relu != 0) ? Py_True : Py_False);
+      PyDict_SetItemString(attr_dict, "is_batch", mm_attr_data.is_batch ? Py_True : Py_False);
+      PyDict_SetItemString(attr_dict, "transpose_x1",
+                           ((mm_attr_data.transpose_x1 != 0) || (mm_attr_data.adj_x1 != 0)) ? Py_True : Py_False);
+      PyDict_SetItemString(attr_dict, "transpose_x2",
+                           ((mm_attr_data.transpose_x2 != 0) || (mm_attr_data.adj_x2 != 0)) ? Py_True : Py_False);
+      SET_DICT_LONG(attr_dict, "offset_x", mm_attr_data.offset_x);
+      if (mm_attr_data.is_batch) {
+        PyDict_SetItemString(attr_dict, "enable_hf32", mm_attr_data.enable_hf32 != 0 ? Py_True : Py_False);
+      } else {
+        SET_DICT_LONG(attr_dict, "enable_hf32", mm_attr_data.enable_hf32);
+      }
+      SET_DICT_LONG(attr_dict, "type_size", length);
+      uint32_t mm_input_num = 0U;
+      PY_ASSERT_GRAPH_SUCCESS(ascgen_utils::GetMutmulInputNum(node, mm_input_num));
+      SET_DICT_LONG(attr_dict, "input_num", mm_input_num);
+      // 将属性字典添加到结果中
+      PyDict_SetItemString(result_dict, "cube_attributes", attr_dict);
+
+      GE_DISMISS_GUARD(attr_dict_guard);
+      Py_DECREF(attr_dict);
+      // 如果只需要第一个cube节点，可以break，后续要处理多个cube节点时，删除这里
+      return true;
+    }
+  }
+  return false;
+}
+
 void FusedScheduledResult::Dealloc(PyObject *self_pyobject) {
   Py_TYPE(self_pyobject)->tp_free(self_pyobject);
 }
@@ -830,9 +871,7 @@ PyObject *FusedScheduledResult::New(PyTypeObject *type, PyObject *args, PyObject
   (void)args;
   (void)kwargs;
   auto self = reinterpret_cast<FusedScheduledResult::Object *>(type->tp_alloc(type, 0));
-  if (self == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(self);
 
   return reinterpret_cast<PyObject *>(self);
 }
@@ -866,7 +905,6 @@ PyObject *FusedScheduledResult::IsCubeType(PyObject *self_pyobject) {
   if (self == nullptr) {
     return Py_False;
   }
-  int64_t output_num = self->fused_schedule_result.output_nodes.size();
   for (auto scheduled_results : self->fused_schedule_result.node_idx_to_scheduled_results) {
     for (auto scheduled_result : scheduled_results) {
       if (scheduled_result.cube_type != ascir::CubeTemplateType::kDefault) {
@@ -880,50 +918,27 @@ PyObject *FusedScheduledResult::IsCubeType(PyObject *self_pyobject) {
 PyObject *FusedScheduledResult::GetCubeAttributes(PyObject *self_pyobject) {
   auto self = reinterpret_cast<FusedScheduledResult::Object *>(self_pyobject);
   PY_ASSERT_NOTNULL(self, "self_pyobject is not ready");
-
   PyObject *result_dict = PyDict_New();
   PY_ASSERT_NOTNULL(result_dict, "result_dict is not ready");
 
-  bool found_cube = false;
+  // 创建守卫，确保在发生异常时释放result_dict
+  GE_DISMISSABLE_GUARD(result_dict_guard, [result_dict]() { Py_DECREF(result_dict); });
+
   for (auto &scheduled_results : self->fused_schedule_result.node_idx_to_scheduled_results) {
     for (auto &scheduled_result : scheduled_results) {
-      if (scheduled_result.cube_type != ascir::CubeTemplateType::kDefault) {
-        for (auto &schedule_group : scheduled_result.schedule_groups) {
-          for (auto &impl_graph : schedule_group.impl_graphs) {
-            for (auto node : impl_graph.GetAllNodes()) {
-              if (node->attr.api.compute_type != ge::ComputeType::kComputeCube) {
-                continue;
-              }
-              ascgen_utils::MatMulAttr mm_attr_data;
-              PY_ASSERT_GRAPH_SUCCESS(ascgen_utils::ParseMatmulAttr(node, mm_attr_data));
-              found_cube = true;
-              PyObject *attr_dict = PyDict_New();
-              PY_ASSERT_NOTNULL(attr_dict, "attr_dict is not ready");
-              PyDict_SetItemString(attr_dict, "is_batch", mm_attr_data.is_batch ? Py_True : Py_False);
-              PyDict_SetItemString(attr_dict, "transpose_x1",
-                  ((mm_attr_data.transpose_x1 != 0) || (mm_attr_data.adj_x1 != 0)) ? Py_True : Py_False);
-              PyDict_SetItemString(attr_dict, "transpose_x2",
-                  ((mm_attr_data.transpose_x2 != 0) || (mm_attr_data.adj_x2 != 0)) ? Py_True : Py_False);
-              PyObject *offset_x = PyLong_FromLong(mm_attr_data.offset_x);
-              PY_ASSERT_NOTNULL(offset_x, "offset_x is not ready");
-              PyDict_SetItemString(attr_dict, "offset_x", offset_x);
-              Py_DECREF(offset_x);
-              PyDict_SetItemString(attr_dict, "enable_hf32", mm_attr_data.enable_hf32 != 0 ? Py_True : Py_False);
-              // 将属性字典添加到结果中
-              PyDict_SetItemString(result_dict, "cube_attributes", attr_dict);
-              Py_DECREF(attr_dict);
-              // 如果只需要第一个cube节点，可以break，后续要处理多个cube节点时，删除这里
-              break;
-            }
-          }
+      if (scheduled_result.cube_type == ascir::CubeTemplateType::kDefault) {
+        continue;
+      }
+      for (auto &schedule_group : scheduled_result.schedule_groups) {
+        if (ProcessImplGraphs(result_dict, schedule_group.impl_graphs)) {
+          GE_DISMISS_GUARD(result_dict_guard);
+          return result_dict;
         }
       }
     }
-    if (found_cube) {
-      break;
-    }
   }
 
+  GE_DISMISS_GUARD(result_dict_guard);
   return result_dict;
 }
 
@@ -990,6 +1005,8 @@ void pyascir_types_type_init() {
   SizeExpr::NumberMethods.nb_multiply = SizeExpr::Mul;
   SizeExpr::NumberMethods.nb_power = SizeExpr::Pow;
   SizeExpr::NumberMethods.nb_true_divide = SizeExpr::Div;
+  SizeExpr::NumberMethods.nb_remainder = SizeExpr::Remainder;
+  SizeExpr::NumberMethods.nb_floor_divide = SizeExpr::FloorDiv;
   // SizeExpr::type
   SizeExpr::type.tp_name = "SizeExpr";
   SizeExpr::type.tp_basicsize = sizeof(SizeExpr::Object);

@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef EXPR_GEN_PIPE_PERF_EXPR_H_
@@ -40,7 +34,7 @@ private:
                              std::vector<TensorShapeInfo> &output_dims, std::map<Expr, TenaryOp, ExprCmp> &tenary_ops,
                              bool tail_shape = false) const;
   // 将NodeInfo转换为性能公式使用的NodePerfInfo
-  ge::Status ConvertToPerfInfo(const std::vector<NodeInfo> &node_infos, std::vector<NodePerfInfo> &node_perf_infos);
+  ge::Status ConvertToPerfInfo(const std::vector<NodeInfo> &node_infos, std::vector<NodePerfInfo> &node_perf_infos) const;
 
   // 获取node 性能计算表达式
   ge::Status GetNodePerf(const NodeInfo &node, std::map<PipeType, Expr> &node_perf,
@@ -58,6 +52,7 @@ private:
                          const std::map<PipeType, Expr> &node_perf, const std::map<PipeType, Expr> &node_tail_perf,
                          std::map<PipeType, Expr> &pipe_costs) const;
 
+  Perf UpdateTilingScheduleConfigTable(const NodeInfo &node, bool tail_shape, PerfOutputInfo &perf_res) const;
   ge::Status UpdatePipeHead(std::map<PipeType, Expr> &pipe_costs, std::map<Expr, TenaryOp, ExprCmp> &tenary_ops);
   TuningSpacePtr tuning_space_;
 };

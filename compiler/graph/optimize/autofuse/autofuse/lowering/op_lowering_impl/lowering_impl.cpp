@@ -49,6 +49,8 @@ constexpr int help_min_precision = 50;
 constexpr double pow_base_two = 2.0;
 constexpr size_t kMaxConcatDynInputNum = 32UL;
 constexpr size_t kTileToConcatMaxMultiple = 6UL;
+const std::vector<std::string> reduce_types = {"ReduceMean", "ReduceMax", "ReduceMin", "ReduceSum", "ReduceProd",
+                                               "ReduceMeanD", "ReduceMaxD", "ReduceMinD", "ReduceSumD", "ReduceProdD"};
 using Permutation = std::vector<int64_t>;
 const std::set<Permutation> SUPPORTED_TWO_PERMS = {
     {1,0}
@@ -369,6 +371,129 @@ loop::LoopVar CalculateOneOrZero(const loop::LoopVar &input, DataType dtype, con
   result = loop::Mul(result, help_rec_sec);
   return result;
 }
+
+graphStatus ParseSplitNodeAndValidate(const NodePtr &split_node, InDataAnchorPtr &in_data_anchor, int64_t &split_dim, vector<ge::Expression> &x_dims) {
+  const auto desc = split_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(desc);
+  int32_t input_idx = desc->GetInputIndexByName("x");
+  GE_ASSERT_TRUE(input_idx != -1);
+  in_data_anchor = split_node->GetInDataAnchor(input_idx);
+  GE_ASSERT_NOTNULL(in_data_anchor);
+  GE_WARN_ASSERT_GRAPH_SUCCESS(loop::GetBufferShape(in_data_anchor, x_dims));
+  GE_ASSERT_TRUE(!x_dims.empty());
+  vector<int64_t> split_dim_list = {};
+  GE_WARN_ASSERT_GRAPH_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(split_node, split_dim_list, "split_dim", "split_dim"),
+                          "Skip lowering node %s, as: Failed to get split_dim.", split_node->GetNamePtr());
+  GE_ASSERT_TRUE(!split_dim_list.empty());
+  split_dim = split_dim_list[0];
+  GE_ASSERT_TRUE((split_dim < static_cast<int64_t>(x_dims.size())) && (split_dim >= -static_cast<int64_t>(x_dims.size())),
+                 "Split dim %ld must in rank range[-%zu, %zu).", split_dim, x_dims.size(), x_dims.size());
+  if (split_dim < 0) {
+    split_dim += static_cast<int64_t>(x_dims.size());
+  }
+  GE_ASSERT_NOTNULL(in_data_anchor);
+  GE_ASSERT_TRUE((split_dim >= 0L) && (!x_dims.empty()) && (x_dims.size() > static_cast<size_t>(split_dim)));
+  return GRAPH_SUCCESS;
+}
+
+graphStatus ComputeSplitSplits(const NodePtr &node, const Expression &x_dim, vector<Expression> &size_splits) {
+  vector<int64_t> num_split_list = {};
+  GE_ASSERT_GRAPH_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node, num_split_list, "num_split", "num_split"),
+                 "Skip lowering node %s, as: Failed to get num_split.", node->GetNamePtr());
+  GE_ASSERT(!num_split_list.empty());
+
+  vector<int64_t> size_splits_list = {};
+  if (node->GetType() == AF_SPLITVD || node->GetType() == AF_SPLITV) {
+    GE_ASSERT_GRAPH_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node, size_splits_list, "size_splits", "size_splits"),
+                   "Skip lowering node %s, as: Failed to get size_splits .", node->GetNamePtr());
+    GE_ASSERT(!size_splits_list.empty());
+    for (size_t i = 0U; i < size_splits_list.size(); ++i) {
+      size_splits.push_back(Symbol(size_splits_list[i]));
+    }
+  } else {
+    GE_ASSERT_TRUE(num_split_list[0] > 0L);
+    size_splits.assign(num_split_list[0], x_dim / Symbol(num_split_list[0]));
+  }
+  return GRAPH_SUCCESS;
+}
+
+bool CheckEndDimHasOne(const NodePtr &node) {
+  for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
+    std::vector<Expression> output_dims;
+    GE_ASSERT_GRAPH_SUCCESS(loop::GetBufferShape(out_anchor, output_dims));
+    if (!output_dims.empty()) {
+      auto index = output_dims.size() - 1;
+      if (SymbolicUtils::StaticCheckEq(output_dims[index], Symbol(1)) == TriBool::kTrue) {
+        GELOGI("output end dim has 1, not lowering.");
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+graphStatus LowerSplitToStridedSlices(const NodePtr &node, const vector<Expression> &x_dims,
+                                     int64_t &split_dim, const InDataAnchorPtr &x_anchor) {
+  GELOGI("lowering split node %s as StridedSlices", node->GetName().c_str());
+  vector<Expression> start;
+  vector<Expression> stride;
+  vector<Expression> size_splits;
+  for (size_t i = 0; i < x_dims.size(); ++i) {
+    stride.push_back(Symbol(1));
+    start.push_back(Symbol(0));
+  }
+  if (split_dim < 0) {
+    split_dim += static_cast<int64_t>(x_dims.size());
+  }
+  GE_ASSERT_TRUE(split_dim >= 0L);
+  GE_WARN_ASSERT_GRAPH_SUCCESS(ComputeSplitSplits(node, x_dims[split_dim], size_splits));
+
+  if (CheckEndDimHasOne(node)) {
+    return GRAPH_FAILED;
+  }
+  Expression offset = Symbol(0);
+  int32_t index = 0;
+  string not_lowering_reason;
+  for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
+    start[split_dim] = offset;
+    auto split_lowering = loop::StoreStridedSlice(out_anchor, x_anchor, start, stride, x_dims, not_lowering_reason);
+    if (!not_lowering_reason.empty()) {
+      GELOGI("Skip lowering node %s, as: %s", node->GetNamePtr(), not_lowering_reason.c_str());
+      loop::StoreExtern(out_anchor);
+      continue;
+    }
+    loop::Store(out_anchor, split_lowering);
+    offset = offset + size_splits[index++];
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus LowerSplitToNormalSplit(const NodePtr &node, std::vector<ge::Expression> &x_dims, int64_t split_dim, const InDataAnchorPtr &x_anchor) {
+  GELOGI("split node %s do normal split lowering.", node->GetName().c_str());
+
+  if ((node->GetAllOutDataAnchorsSize() > loop::StoreSplitOp::kSplitCanFuseMaxOutput)
+      || ((x_dims.size() != 1U) && (static_cast<uint32_t>(split_dim) == (x_dims.size() - 1))
+          && (CheckEndDimHasOne(node) == true) && (node->GetAllOutDataAnchorsSize() > loop::StoreSplitOp::kSplitCanLowerEndDimMaxOutput))) {
+    GELOGI("Skip lowering node %s(%s), as: split node %s has output size %zu > %zu",
+           node->GetName().c_str(), node->GetType().c_str(), node->GetName().c_str(), node->GetAllOutDataAnchorsSize(),
+           loop::StoreSplitOp::kSplitCanFuseMaxOutput);
+    return GRAPH_FAILED;
+  }
+
+  vector<OutDataAnchorPtr> outputs;
+  for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
+    outputs.emplace_back(out_anchor);
+  }
+
+  string not_lowering_reason;
+  auto split = loop::StoreSplit(outputs, x_anchor, static_cast<size_t>(split_dim), not_lowering_reason);
+  if (!not_lowering_reason.empty()) {
+    GELOGI("Skip lowering node %s, as: %s", node->GetNamePtr(), not_lowering_reason.c_str());
+    loop::StoreExtern(node->GetOutDataAnchor(0));
+  }
+
+  return GRAPH_SUCCESS;
+}
 }  // namespace
 
 
@@ -584,112 +709,22 @@ graphStatus LowerStridedSlice(const NodePtr &node) {
   return GRAPH_SUCCESS;
 }
 
-bool CheckEndDimHasOne(const NodePtr &node) {
-  for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
-    std::vector<Expression> output_dims;
-    GE_WARN_ASSERT_GRAPH_SUCCESS(loop::GetBufferShape(out_anchor, output_dims));
-    if (!output_dims.empty()) {
-      auto index = output_dims.size() - 1;
-      if (SymbolicUtils::StaticCheckEq(output_dims[index], Symbol(1)) == TriBool::kTrue) {
-        GELOGI("output end dim has 1, not lowering.");
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-graphStatus ComputeSplitSplits(const NodePtr &node, Expression &x_dim, vector<Expression> &size_splits) {
-  vector<int64_t> num_split_list = {};
-  GE_WARN_ASSERT(AutofuseUtils::GetListIntByInputOrAttr(node, num_split_list, "num_split", "num_split") == GRAPH_SUCCESS,
-                 "Skip lowering node %s, as: Failed to get num_split.", node->GetNamePtr());
-  GE_ASSERT(!num_split_list.empty());
-
-  vector<int64_t> size_splits_list = {};
-  if (node->GetType() == AF_SPLITVD || node->GetType() == AF_SPLITV) {
-    GE_WARN_ASSERT(AutofuseUtils::GetListIntByInputOrAttr(node, size_splits_list, "size_splits", "size_splits") == GRAPH_SUCCESS,
-                   "Skip lowering node %s, as: Failed to get size_splits .", node->GetNamePtr());
-    GE_ASSERT(!size_splits_list.empty());
-    for (size_t i = 0; i < size_splits_list.size(); ++i) {
-      size_splits.push_back(Symbol(size_splits_list[i]));
-    }
-  } else {
-    size_splits.assign(num_split_list[0], x_dim / Symbol(num_split_list[0]));
-  }
-  return GRAPH_SUCCESS;
-}
-
 graphStatus LowerSplit(const NodePtr &node) {
   GELOGI("LowerSplit start lowering node %s.", node->GetNamePtr());
   string not_lowering_reason;
-  auto lowering_node_type = node->GetType();
-  auto desc = node->GetOpDesc();
-  GE_ASSERT_NOTNULL(desc);
-  int32_t input_idx = desc->GetInputIndexByName("x");
-  GE_ASSERT_TRUE(input_idx != -1);
-  const auto x_anchor = node->GetInDataAnchor(input_idx);
-  GE_ASSERT_NOTNULL(x_anchor);
+  int64_t split_dim = 0L;
+  InDataAnchorPtr x_anchor;
   vector<ge::Expression> x_dims;
-  GE_WARN_ASSERT_GRAPH_SUCCESS(loop::GetBufferShape(x_anchor, x_dims));
-  GE_ASSERT(!x_dims.empty());
-  vector<int64_t> split_dim_list = {};
-  GE_WARN_ASSERT(AutofuseUtils::GetListIntByInputOrAttr(node, split_dim_list, "split_dim", "split_dim") == GRAPH_SUCCESS,
-                 "Skip lowering node %s, as: Failed to get split_dim.", node->GetNamePtr());
-  GE_ASSERT(!split_dim_list.empty());
-  auto split_dim = split_dim_list[0];
-  GE_ASSERT_TRUE(split_dim < static_cast<int64_t>(x_dims.size()) && split_dim >= -static_cast<int64_t>(x_dims.size()),
-                 "Split dim %ld must in rank range[-%zu, %zu).", split_dim, x_dims.size(), x_dims.size());
-
+  GE_WARN_ASSERT_GRAPH_SUCCESS(ParseSplitNodeAndValidate(node, x_anchor, split_dim, x_dims));
   const auto backend_spec = optimize::BackendSpec::GetInstance();
-  if (!backend_spec->slice_split_spec.split_lowered_to_split) {
-    vector<Expression> start;
-    vector<Expression> stride;
-    vector<Expression> size_splits;
-    GELOGI("lowering split node %s as StridedSlices", node->GetName().c_str());
-    for (size_t i = 0; i < x_dims.size(); ++i) {
-      stride.push_back(Symbol(1));
-      start.push_back(Symbol(0));
-    }
-    if (split_dim < 0) {
-      split_dim += static_cast<int64_t>(x_dims.size());
-    }
-    GE_WARN_ASSERT_GRAPH_SUCCESS(ComputeSplitSplits(node, x_dims[split_dim], size_splits));
-
-    if (CheckEndDimHasOne(node)) {
-      return GRAPH_FAILED;
-    }
-    Expression offset = Symbol(0);
-    int32_t index = 0;
-    for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
-      start[split_dim] = offset;
-      auto split_lowering = loop::StoreStridedSlice(out_anchor, x_anchor, start, stride, x_dims, not_lowering_reason);
-      if (!not_lowering_reason.empty()) {
-        GELOGI("Skip lowering node %s, as: %s", node->GetNamePtr(), not_lowering_reason.c_str());
-        loop::StoreExtern(out_anchor);
-        continue;
-      }
-      loop::Store(out_anchor, split_lowering);
-      offset = offset + size_splits[index++];
-    }
-  } else {
-    vector<OutDataAnchorPtr> outputs;
-    GELOGI("split node %s do normal split lowering.", node->GetName().c_str());
-    if (node->GetAllOutDataAnchorsSize() > loop::StoreSplitOp::kSplitCanFuseMaxOutput) {
-      GELOGI("Skip lowering node %s(%s), as: split node %s has output size %zu > %zu",
-             node->GetName().c_str(), node->GetType().c_str(), node->GetName().c_str(), node->GetAllOutDataAnchorsSize(),
-             loop::StoreSplitOp::kSplitCanFuseMaxOutput);
-      return GRAPH_FAILED;
-    }
-    for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
-      outputs.emplace_back(out_anchor);
-    }
-    auto split = loop::StoreSplit(outputs, x_anchor, static_cast<size_t>(split_dim), not_lowering_reason);
-    if (!not_lowering_reason.empty()) {
-      GELOGI("Skip lowering node %s, as: %s", node->GetNamePtr(), not_lowering_reason.c_str());
-      loop::StoreExtern(node->GetOutDataAnchor(0));
-    }
+  if (split_dim < 0) {
+    split_dim += static_cast<int64_t>(x_dims.size());
   }
-  return GRAPH_SUCCESS;
+
+  if (!backend_spec->slice_split_spec.split_lowered_to_split) {
+    return LowerSplitToStridedSlices(node, x_dims, split_dim, x_anchor);
+  }
+  return LowerSplitToNormalSplit(node, x_dims, split_dim, x_anchor);
 }
 
 graphStatus LowerGather(const NodePtr &node) {
@@ -945,16 +980,19 @@ graphStatus InnerLowerMatMul(const NodePtr &node, bool is_batch) {
   (void)AttrUtils::GetBool(node->GetOpDesc(), "transpose_x1", matmul_attr.transpose_x1);
   (void)AttrUtils::GetBool(node->GetOpDesc(), "transpose_x2", matmul_attr.transpose_x2);
   (void)AttrUtils::GetInt(node->GetOpDesc(), "offset_x", matmul_attr.offset_x);
-  (void)AttrUtils::GetBool(node->GetOpDesc(), "enable_hf32", matmul_attr.enable_hf32);
   (void)AttrUtils::GetBool(node->GetOpDesc(), "adj_x1", matmul_attr.adj_x1);
   (void)AttrUtils::GetBool(node->GetOpDesc(), "adj_x2", matmul_attr.adj_x2);
 
   if (is_batch) {
+    bool enable_hf32 = false;
+    (void)AttrUtils::GetBool(node->GetOpDesc(), "enable_hf32", enable_hf32);
+    matmul_attr.enable_hf32 = static_cast<int64_t>(enable_hf32);
     if (TryLowerBatchMatMulToVector(node, matmul_attr) == GRAPH_SUCCESS) {
       GELOGI("batch matmul lowrring to elemwise.");
       return GRAPH_SUCCESS;
     }
   } else {
+    (void)AttrUtils::GetInt(node->GetOpDesc(), "opImplMode", matmul_attr.enable_hf32);
     if (TryLowerMatMulToVector(node, matmul_attr) == GRAPH_SUCCESS) {
       GELOGI("matmul lowrring to elemwise.");
       return GRAPH_SUCCESS;
@@ -994,7 +1032,7 @@ graphStatus InnerLowerMatMul(const NodePtr &node, bool is_batch) {
     inputs.emplace_back(in_anchor);
   }
   GELOGI(
-      "matmul input info, is_batch=%d, transpose_x1=%d, transpose_x2=%d, offset_x=%ld, enable_hf32=%d, adj_x1=%d, "
+      "matmul input info, is_batch=%d, transpose_x1=%d, transpose_x2=%d, offset_x=%ld, enable_hf32=%ld, adj_x1=%d, "
       "adj_x2=%d, input num=%zu, has_bias=%d, "
       "has_offset_w=%d.",
       matmul_attr.is_batch, matmul_attr.transpose_x1, matmul_attr.transpose_x2, matmul_attr.offset_x,
@@ -1016,7 +1054,6 @@ REGISTER_POINTWISE_LOWER(Abs, loop::Abs);
 REGISTER_POINTWISE_LOWER(Add, loop::Add);
 REGISTER_POINTWISE_LOWER(AddV2, loop::Add);
 REGISTER_POINTWISE_LOWER(BitwiseAnd, loop::BitwiseAnd);
-REGISTER_POINTWISE_LOWER(ClipByValue, loop::ClipByValue);
 REGISTER_POINTWISE_LOWER(Div, loop::Div);
 REGISTER_POINTWISE_LOWER(Equal, loop::Eq);
 REGISTER_POINTWISE_LOWER(Erf, loop::Erf);
@@ -1089,6 +1126,18 @@ REGISTER_LOWERING_WITH_EXISTED(BatchMatMul, BatchLowerMatMul);
 REGISTER_LOWERING_WITH_EXISTED(BatchMatMulV2, BatchLowerMatMul);
 REGISTER_LOWERING_WITH_EXISTED(BatchMatMulV3, BatchLowerMatMul);
 
+REGISTER_LOWERING(ClipByValue) {
+  auto x = node->GetInDataAnchor(0);
+  GE_ASSERT_NOTNULL(x);
+  auto y = node->GetInDataAnchor(1);
+  GE_ASSERT_NOTNULL(y);
+  auto z = node->GetInDataAnchor(2);
+  GE_ASSERT_NOTNULL(z);
+  auto minimum = loop::Minimum(loop::Load(x), loop::Load(z));
+  (void)loop::Store(node->GetOutDataAnchor(0), loop::Maximum(minimum, loop::Load(y)));
+  return GRAPH_SUCCESS;
+}
+
 REGISTER_LOWERING(BiasAdd) {
   std::vector<Expression> dims;
   GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
@@ -1121,6 +1170,14 @@ REGISTER_LOWERING(BiasAdd) {
 }
 
 REGISTER_LOWERING(ZerosLike) {
+  GE_WARN_ASSERT(node->GetOutNodesSize() == 1U,
+                 "Skip lowering node:%s, as: node single out anchor has multi-reference",
+                 node->GetName().c_str());
+  auto after_node = node->GetOutNodes().at(0);
+  GE_ASSERT_NOTNULL(after_node);
+  GE_WARN_ASSERT(find(reduce_types.begin(), reduce_types.end(), after_node->GetType()) == reduce_types.end(),
+                 "Skip lowering node:%s, as: After node is reduce type, fuse them is meaningless",
+                 node->GetName().c_str());
   GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
   auto src = node->GetInDataAnchor(0)->GetPeerOutAnchor();
   GE_ASSERT_NOTNULL(src);
@@ -1145,9 +1202,16 @@ REGISTER_LOWERING(SigmoidGrad) {
   GE_ASSERT_NOTNULL(x);
   auto y = node->GetInDataAnchor(1);
   GE_ASSERT_NOTNULL(y);
-  auto mul_x = loop::Mul(loop::Load(x), loop::Load(x));
-  auto sub_x = loop::Sub(loop::Load(x), mul_x);
-  loop::Store(node->GetOutDataAnchor(0), loop::Mul(sub_x, loop::Load(y)));
+  auto src = x->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(src);
+  GE_ASSERT_NOTNULL(src->GetOwnerNode());
+  GE_ASSERT_NOTNULL(src->GetOwnerNode()->GetOpDesc());
+  auto desc = src->GetOwnerNode()->GetOpDesc()->GetOutputDescPtr(src->GetIdx());
+  GE_ASSERT_NOTNULL(desc);
+  auto dtype = desc->GetDataType();
+  auto sub_x = loop::Sub(loop::Scalar("1", dtype), loop::Load(x));
+  auto mul_x = loop::Mul(loop::Load(x), sub_x);
+  (void)loop::Store(node->GetOutDataAnchor(0), loop::Mul(mul_x, loop::Load(y)));
   return GRAPH_SUCCESS;
 }
 
@@ -1872,7 +1936,7 @@ graphStatus CalculateApplyAdamDScalarStr(const NodePtr &node, string &sub_beta1,
             return "";
           }
           tensor_type result =
-              lr * (std::sqrt(static_cast<tensor_type>(1) - beta2_power)) / (static_cast<tensor_type>(1) - beta1_power);
+              static_cast<tensor_type>(lr * (std::sqrt(static_cast<tensor_type>(1) - beta2_power)) / (static_cast<tensor_type>(1) - beta1_power));
           return std::to_string(result);
         },
         scalar_tensors[0], scalar_tensors[1], scalar_tensors[beta2_power_idx]);
@@ -2206,6 +2270,35 @@ REGISTER_LOWERING(Axpy) {
   GE_ASSERT_NOTNULL(op_desc);
   AttrUtils::GetFloat(op_desc, "alpha", alpha);
   loop::Store(node->GetOutDataAnchor(0), loop::Axpy(x1, x2, alpha));
+  return GRAPH_SUCCESS;
+}
+
+REGISTER_LOWERING(Log1p) {
+  GE_ASSERT_NOTNULL(node->GetInDataAnchor(0));
+  auto src = node->GetInDataAnchor(0)->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(src);
+  GE_ASSERT_NOTNULL(src->GetOwnerNode());
+  GE_ASSERT_NOTNULL(src->GetOwnerNode()->GetOpDesc());
+  auto desc = src->GetOwnerNode()->GetOpDesc()->GetOutputDescPtr(src->GetIdx());
+  GE_ASSERT_NOTNULL(desc);
+  auto dtype = desc->GetDataType();
+  GE_WARN_ASSERT((dtype == DT_FLOAT) || (dtype == DT_FLOAT16),
+                 "Skip lowering node %s, as: dtype only support FLOAT16 and FLOAT.", node->GetNamePtr());
+  std::vector<Expression> dims;
+  GE_WARN_ASSERT(loop::GetBufferShape(src, dims) == GRAPH_SUCCESS,
+                 "Skip lowering node %s, as: Failed to get input shape.", node->GetNamePtr());
+  auto x = loop::Load(node->GetInDataAnchor(0));
+  auto one = ScalarBroadcast2Size("1.0", dtype, dims.size());
+  auto neg_one = ScalarBroadcast2Size("-1.0", dtype, dims.size());
+  auto inf = ScalarBroadcast2Size("inf", dtype, dims.size());
+  auto input_add_one = loop::Add(x, one);
+  auto input_mid = loop::Add(input_add_one, neg_one);
+  input_mid = loop::Div(x, input_mid);
+  auto output = loop::Ln(input_add_one);
+  output = loop::Mul(output, input_mid);
+  output = loop::Where(loop::Ne(input_add_one, one), output, x);
+  output = loop::Where(loop::Ne(input_add_one, inf), output, input_mid);
+  loop::Store(node->GetOutDataAnchor(0), output);
   return GRAPH_SUCCESS;
 }
 }

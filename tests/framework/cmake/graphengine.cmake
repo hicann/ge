@@ -59,6 +59,7 @@ file(GLOB_RECURSE METADEF_SRCS CONFIGURE_DEPENDS
     "${GE_METADEF_DIR}/ops/*.cc"
     "${GE_METADEF_DIR}/third_party/transformer/src/*.cc"
     "${GE_METADEF_DIR}/ops/op_imp.cpp"
+    "${GE_METADEF_DIR}/base/*.cc"
 )
 
 file(GLOB_RECURSE ASCIR_EXCLUDE_SOURCE CONFIGURE_DEPENDS

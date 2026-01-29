@@ -22,7 +22,7 @@ DumpStub &DumpStub::GetInstance() {
   return dump_stub;
 }
 
-void DumpStub::AddOpInfo(const Adx::OperatorInfo &info) {
+void DumpStub::AddOpInfo(const Adx::OperatorInfoV2 &info) {
   std::lock_guard<std::mutex> lk(mu_);
   dump_op_infos_.emplace_back(info);
   dump_op_tensors_.emplace_back(std::vector<gert::Tensor>());
@@ -32,14 +32,11 @@ void DumpStub::AddOpInfo(const Adx::OperatorInfo &info) {
 
   for (size_t i = 0; i < op_info.tensorInfos.size(); ++i) {
     auto &tensor = tensors[i];
-    auto tensor_ptr = op_info.tensorInfos[i].tensor;
-    tensor.GetShape() = tensor_ptr->GetShape();
-    tensor.SetDataType(tensor_ptr->GetDataType());
-    tensor.MutableFormat() = tensor_ptr->GetFormat();
-    tensor.SetPlacement(tensor_ptr->GetPlacement());
-    tensor.MutableTensorData().SetAddr(tensor_ptr->GetAddr(), nullptr);
-    tensor.MutableTensorData().SetSize(tensor_ptr->GetSize());
-    op_info.tensorInfos[i].tensor = &tensors[i];
+    auto &tensor_info = op_info.tensorInfos[i];
+    tensor.SetDataType(static_cast<ge::DataType>(tensor_info.dataType));
+    tensor.SetPlacement(static_cast<gert::TensorPlacement>(tensor_info.placement));
+    tensor.MutableTensorData().SetAddr(tensor_info.tensorAddr, nullptr);
+    tensor.MutableTensorData().SetSize(tensor_info.tensorSize);
   }
 }
 
@@ -62,7 +59,7 @@ int32_t DumpStub::SetDumpConfig(Adx::DumpType dump_type, const Adx::DumpConfig &
   return 0;
 }
 
-std::string AdxGetAdditionalInfo(const Adx::OperatorInfo &info, const std::string key) {
+std::string AdxGetAdditionalInfo(const Adx::OperatorInfoV2 &info, const std::string key) {
   const auto &iter = info.additionalInfo.find(key);
   if (iter != info.additionalInfo.end()) {
     return iter->second;
@@ -70,11 +67,11 @@ std::string AdxGetAdditionalInfo(const Adx::OperatorInfo &info, const std::strin
   return "";
 }
 
-std::string AdxGetTilingKey(const Adx::OperatorInfo &info) {
+std::string AdxGetTilingKey(const Adx::OperatorInfoV2 &info) {
   return AdxGetAdditionalInfo(info, Adx::DUMP_ADDITIONAL_TILING_KEY);
 }
 
-bool AdxGetArgsInfo(const Adx::OperatorInfo &info, void *&addr, uint64_t &length) {
+bool AdxGetArgsInfo(const Adx::OperatorInfoV2 &info, void *&addr, uint64_t &length) {
   if (info.deviceInfos.size() == 0) {
     return false;
   }
@@ -89,13 +86,13 @@ bool AdxGetArgsInfo(const Adx::OperatorInfo &info, void *&addr, uint64_t &length
   return false;
 }
 
-bool AdxGetWorkspaceInfo(const Adx::OperatorInfo &info, uint32_t index, void *&addr, uint64_t &length) {
+bool AdxGetWorkspaceInfo(const Adx::OperatorInfoV2 &info, uint32_t index, void *&addr, uint64_t &length) {
   uint32_t i = 0;
   for (const auto &tensorInfo : info.tensorInfos) {
     if (tensorInfo.type == Adx::TensorType::WORKSPACE) {
       if (i == index) {
-        addr = tensorInfo.tensor->GetAddr();
-        length = tensorInfo.tensor->GetSize();
+        addr = tensorInfo.tensorAddr;
+        length = tensorInfo.tensorSize;
         return true;
       }
       ++i;
@@ -146,9 +143,9 @@ uint64_t AdumpGetDumpSwitch(const Adx::DumpType dumpType) {
   return ge::DumpStub::GetInstance().GetEnableFlag();
 }
 
-int32_t AdumpAddExceptionOperatorInfo(const OperatorInfo &opInfo) {
+int32_t AdumpAddExceptionOperatorInfoV2(const OperatorInfoV2 &opInfo) {
   ge::DumpStub::GetInstance().AddOpInfo(opInfo);
-  return ge::DumpStub::GetInstance().GetFuncRet("AdumpAddExceptionOperatorInfo", 0);
+  return ge::DumpStub::GetInstance().GetFuncRet("AdumpAddExceptionOperatorInfoV2", 0);
 }
 
 int32_t AdumpDelExceptionOperatorInfo(uint32_t deviceId, uint32_t streamId) {

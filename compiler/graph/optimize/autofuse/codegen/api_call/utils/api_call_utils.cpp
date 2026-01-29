@@ -69,7 +69,7 @@ const Tensor &GetBaseTensor(const std::vector<Tensor> &inputs, const std::vector
   return outputs[0];
 }
 }  // namespace
-static void SetDataCopyParams(const MergeInfo &merge_info, DataCopyParams &param, bool copy_in, bool continuous_flag = false) {
+static void SetDataCopyParams(const MergeInfo &merge_info, DataCopyParams &param, bool multi_axis_copy = false) {
   auto merge_repeats = merge_info.merge_repeats;
   auto merge_repeats_str = merge_info.merge_repeats_str;
   auto merge_gm_strides = merge_info.merge_gm_strides;
@@ -78,19 +78,21 @@ static void SetDataCopyParams(const MergeInfo &merge_info, DataCopyParams &param
   param.repeats_str.assign(merge_repeats_str.begin(), merge_repeats_str.end());
   param.gm_strides.assign(merge_gm_strides.begin(), merge_gm_strides.end());
   param.ub_strides.assign(merge_ub_strides.begin(), merge_ub_strides.end());
-  if (param.repeats.size() == 0 ||
-      ((copy_in || continuous_flag) &&
-       ge::SymbolicUtils::StaticCheckEq(merge_gm_strides.back(), ge::sym::kSymbolOne) != ge::TriBool::kTrue &&
-       ge::SymbolicUtils::StaticCheckEq(merge_gm_strides.back(), ge::sym::kSymbolZero) != ge::TriBool::kTrue) ||
-      (!copy_in &&
-       ge::SymbolicUtils::StaticCheckEq(merge_ub_strides.back(), ge::sym::kSymbolOne) != ge::TriBool::kTrue &&
-       ge::SymbolicUtils::StaticCheckEq(merge_ub_strides.back(), ge::sym::kSymbolZero) != ge::TriBool::kTrue)) {
-    // 对应的场景为:gm上是一唯shape,但gm上stride不为1
-    param.repeats_str.emplace_back("1");
-    param.repeats.emplace_back(ge::sym::kSymbolOne);
-    param.gm_strides.emplace_back(ge::sym::kSymbolOne);
-    param.ub_strides.emplace_back(ge::sym::kSymbolOne);
+  if (multi_axis_copy) {
+    return;
   }
+  if (param.repeats.size() != 0 &&
+      (ge::SymbolicUtils::StaticCheckEq(merge_ub_strides.back(), ge::sym::kSymbolOne) == ge::TriBool::kTrue ||
+       ge::SymbolicUtils::StaticCheckEq(merge_ub_strides.back(), ge::sym::kSymbolZero) == ge::TriBool::kTrue) &&
+      (ge::SymbolicUtils::StaticCheckEq(merge_gm_strides.back(), ge::sym::kSymbolOne) == ge::TriBool::kTrue ||
+       ge::SymbolicUtils::StaticCheckEq(merge_gm_strides.back(), ge::sym::kSymbolZero) == ge::TriBool::kTrue)) {
+    // 对应的场景为: ub和gm的尾轴stride都等于1或者0，这种情况不需要补轴。
+    return;
+  }
+  param.repeats_str.emplace_back("1");
+  param.repeats.emplace_back(ge::sym::kSymbolOne);
+  param.gm_strides.emplace_back(ge::sym::kSymbolOne);
+  param.ub_strides.emplace_back(ge::sym::kSymbolOne);
 }
 
 static void UpdateCalculatedDmaStatus(const TPipe &tpipe, const Tensor &gm_tensor, const Tensor &ub_tensor, int64_t idx,
@@ -120,8 +122,8 @@ void CreateOuterFor(const TPipe &tpipe, const std::vector<ascir::SizeExpr> &oute
   ss << "}" << std::endl;
 }
 
-bool CalculateDmaParams(const TPipe &tpipe, const Tensor &gm_tensor, const Tensor &ub_tensor,
-                        DataCopyParams &param, bool copy_in, bool continuous_flag) {
+bool CalculateDmaParams(const TPipe &tpipe, const Tensor &gm_tensor, const Tensor &ub_tensor, DataCopyParams &param,
+                        bool multi_axis_copy) {
   if (gm_tensor.axis.size() < ub_tensor.vectorized_axis.size()) {
     return false;
   }
@@ -185,13 +187,13 @@ bool CalculateDmaParams(const TPipe &tpipe, const Tensor &gm_tensor, const Tenso
   std::reverse(merge_info.merge_repeats.begin(), merge_info.merge_repeats.end());
   std::reverse(merge_info.merge_gm_strides.begin(), merge_info.merge_gm_strides.end());
   std::reverse(merge_info.merge_ub_strides.begin(), merge_info.merge_ub_strides.end());
-  SetDataCopyParams(merge_info, param, copy_in, continuous_flag);
+  SetDataCopyParams(merge_info, param, multi_axis_copy);
   return true;
 }
 
 void SetDmaParams(const TPipe &tpipe, const DataCopyParams &data_copy_param, DmaParams &dma_param, bool copy_in,
                   bool need_swap) {
-  int64_t total_len = data_copy_param.repeats.size();
+  size_t total_len = data_copy_param.repeats.size();
   if (total_len <= kDmaMaxLen && need_swap) {
     GELOGI("Can't swap data copy outer_for.");
     return;
@@ -498,6 +500,22 @@ bool GetMaxDtypeSize(const ge::DataType input_data_type, const ge::DataType out_
   }
   dtype_size = std::to_string(max_dtype_size);
   return true;
+}
+
+void GenerateLinkStoreEventCode(const Tensor& ub, const std::string& offset_str, std::stringstream& ss) {
+  std::hash<std::string> hasher;
+  [[maybe_unused]] size_t hasher_value = hasher(offset_str);
+  
+  std::stringstream ss_event_id;
+  std::stringstream ss_sync_flag_id;
+  ss_event_id << ub << "_e_mte3_2_mte2_" << offset_str;
+  ss_sync_flag_id << ub << "_s_mte3_2_mte2_" << offset_str;
+  
+  ss << "auto " << ss_event_id.str() << " = tpipe.AllocEventID<HardEvent::MTE3_MTE2>();" << std::endl;
+  ss << "TQueSync<PIPE_MTE3, PIPE_MTE2> " << ss_sync_flag_id.str() << ";" << std::endl;
+  ss << ss_sync_flag_id.str() << ".SetFlag(" << ss_event_id.str() << ");" << std::endl;
+  ss << ss_sync_flag_id.str() << ".WaitFlag(" << ss_event_id.str() << ");" << std::endl;
+  ss << "tpipe.ReleaseEventID<HardEvent::MTE3_MTE2>(" << ss_event_id.str() << ");" << std::endl;
 }
 
 }  // namespace codegen

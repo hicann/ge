@@ -107,6 +107,7 @@ struct CalcTmpBufSizeFunc {
 
 class AscIrCodegen {
  public:
+  virtual ~AscIrCodegen() = default;
   virtual std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) {
     (void) node;
     return std::vector<std::unique_ptr<ge::TmpBufDesc>>();
@@ -127,21 +128,6 @@ class AscIrCodegen {
   // 返回api的名称
   virtual std::string GetApiName() const {
     return "";
-  }
-
-  // 返回api call类的名称
-  virtual std::string GetMicroApiCallName() const {
-    return "";
-  }
-
-  // 返回api的名称
-  virtual std::string GetMicroApiName() const {
-    return "";
-  }
-
-  // 微指令api包含的微指令的条数, 如果支持vector function, 该接口返回值才有意义
-  virtual uint32_t GetMicroInstNum() const {
-    return 1U;
   }
 
   // 返回需要加载的头文件
@@ -176,10 +162,25 @@ class AscIrCodegen {
   virtual std::vector<std::string> IncludeApiHeaderFiles() const {
     return {"kernel_operator.h"};
   }
+
+  // 如果需要插入cast节点，返回cast的目的类型
+  virtual std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
+    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+    }
+    for (size_t i = 0; i < node_outputs().size(); i++) {
+      conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+    }
+    return conversion_dtype;
+  }
 };
 
 class AscIrAtt {
  public:
+  virtual ~AscIrAtt() = default;
   // 最内轴建议对齐值（默认32B对齐）
   virtual uint32_t GetInnerDimPromptAlignSize() const {
     return 32U;
@@ -190,8 +191,7 @@ class AscIrAtt {
   }
   // 返回ASCIR API接口性能公式函数(不同硬件的ASCIR实现存在差异，性能公式形式存在差异)
   virtual void *GetApiPerf() const = 0;
-  // 返回MicroApi性能函数公式(不同硬件的ASCIR的vf function实现存在差异)
-  virtual void *GetMicroApiPerf() const = 0;
+
   // 返回AscendCApi的性能公式(不同硬件的性能公式参数存在差异)
   virtual void *GetAscendCApiPerfTable() const = 0;
 };
@@ -257,12 +257,12 @@ class AscIrDef {
   void AddSocImplV2(const std::vector<std::string> &soc_versions, const AscIrImplV2 &impl) const;
   void AppendSocImpl(const AscIrDef &ir_def) const;
   size_t GetSocImplSize() const;
-  void SetComputeType(ComputeType compute_type) const;
-  ge::ComputeType GetComputeType() const;
   CodeGenerator infer_data_type_generator{nullptr};
   CodeGenerator infer_view_generator{nullptr};
   std::unique_ptr<AscIrAtt> GetAscIrAttImpl(const std::string &soc_version);
   std::unique_ptr<AscIrCodegen> GetAscIrCodegenImpl(const std::string &soc_version);
+  void SetComputeType(ComputeType compute_type) const;
+  ge::ComputeType GetComputeType() const;
 
  private:
   friend class AscirRegister;

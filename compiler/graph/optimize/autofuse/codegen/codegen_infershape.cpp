@@ -31,6 +31,8 @@ namespace {
 #define Abs(a) (std::abs(a))
 #define Rational(a, b) (static_cast<double>(a) / static_cast<double>(b))
 
+const double kThreshold = 0.00001;
+
 template <typename Ta, typename Tb>
 auto Mod(Ta left, Tb right) -> decltype(left % right) {
   return left % right;
@@ -81,12 +83,16 @@ std::string InfershapeGen::GenInferShapeFunc(const std::vector<std::vector<std::
     printer.AddLine(blank_space + "context->GetOutputShape(" + std::to_string(i) + ")->SetDimNum(0);");
     for (const auto &sym_expr : symbol_shape_str[i]) {
       std::string append_dim_code = blank_space + "context->GetOutputShape(" + std::to_string(i) + ")->AppendDim(";
+      // 如果表达式中包含Rational, 结果可能是浮点数, 强转成整形会舍去小数部分导致结果错误, 因此要进行四舍五入处理
+      // 然后对损失的小数部分做校验, 小于设定的阈值才认为计算成功
       if (sym_expr.find("Rational") != std::string::npos) {
         std::string expr_value_name = "expr_value_" + std::to_string(expr_value_num);
         std::string round_value_name = "round_value_" + std::to_string(expr_value_num);
+        printer.AddLine(blank_space+ "// 表达式中包含Rational, 结果可能是浮点数, 强转成整形会舍去小数部分导致结果错误, 因此要进行四舍五入处理");
         printer.AddLine(blank_space + "double " + expr_value_name +  " = " + sym_expr + ";");
         printer.AddLine(blank_space + "int64_t " + round_value_name + " = std::round(" + expr_value_name + ");");
-        printer.AddLine(blank_space + "if ((fabs(" + expr_value_name + " - static_cast<double>(" + round_value_name + ")) > std::numeric_limits<double>::epsilon())) {");
+        printer.AddLine(blank_space + "// 对损失的小数部分做校验, 小于设定的阈值才认为计算成功");
+        printer.AddLine(blank_space + "if ((fabs(" + expr_value_name + " - static_cast<double>(" + round_value_name + ")) > kThreshold)) {");
         printer.AddLine(blank_space + "  return ge::GRAPH_FAILED;");
         printer.AddLine(blank_space + "}");
         append_dim_code += (round_value_name +");");

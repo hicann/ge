@@ -1,10 +1,17 @@
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
-add_compile_options(-D_GLIBCXX_USE_CXX11_ABI=0)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-all -Wl,-z,now")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-all -Wl,-z,now")
 
+if(NOT MDC_COMPILE_RUNTIME)
+    add_compile_options(-D_GLIBCXX_USE_CXX11_ABI=0)
+else()
+    add_compile_options(-D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})
+endif()
+
 if (EXISTS "${CMAKE_SOURCE_DIR}/.dev_env")
+    # 存在`.dev_env`文件说明是蓝区开发环境，并且调用了`prepare_dev_env.sh`完成了开发环境准备
+    # 除了设置好`.dev_env`中有的环境变量外，还会设置其他几个蓝区开发的必要变量
     if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.dev_env")
         set(ENABLE_OPEN_SRC True)
         # Read the file into a list of lines
@@ -41,7 +48,8 @@ if (ENABLE_OPEN_SRC)
     endif ()
 
     if (NOT EXISTS "${ASCEND_3RD_LIB_PATH}")
-        message(FATAL_ERROR "Error: Directory \"${ASCEND_3RD_LIB_PATH}\" does not exist!\n")
+        message(FATAL_ERROR "Error: Directory \"${ASCEND_3RD_LIB_PATH}\" does not exist!\n"
+                "Please using build_third_party.sh compile first.")
     endif ()
 else ()
     set(GE_METADEF_DIR ${TOP_DIR}/air/graph_metadef)
@@ -145,6 +153,9 @@ add_subdirectory(optimize)
 add_subdirectory(att)
 add_subdirectory(codegen)
 add_subdirectory(common)
+if (IS_DIRECTORY "${CODE_ROOT_DIR}/v35")
+    add_subdirectory(v35)
+endif()
 # 判断 RUN_TEST 未定义或值不为 1
 if(NOT DEFINED RUN_TEST OR NOT RUN_TEST EQUAL 1)
 add_subdirectory(compiler)
@@ -161,9 +172,9 @@ target_compile_options(aihac_codegen PRIVATE
     -O2
     -fPIC
     -fno-common
-    #-Wfloat-equal
-    #-Werror
-    #-Wextra
+    -Wfloat-equal
+    -Wextra
+    -Wall
 )
 
 target_link_options(aihac_codegen PRIVATE
@@ -183,7 +194,6 @@ target_link_libraries(aihac_codegen PUBLIC
     aihac_symbolizer
     $<BUILD_INTERFACE:ge_log_utils>
     $<BUILD_INTERFACE:ascendc_api_extend>
-    $<BUILD_INTERFACE:ascendc_api_regbase_extend>
     $<BUILD_INTERFACE:ascendc_api_cube_extend>
     error_manager
     c_sec

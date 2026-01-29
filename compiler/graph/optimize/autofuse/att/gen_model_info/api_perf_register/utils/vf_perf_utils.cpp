@@ -1,17 +1,11 @@
 /**
-* Copyright (c) Huawei Technologies Co., Ltd. 2025 All rights reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "vf_perf_utils.h"
 #include <numeric>
@@ -34,7 +28,7 @@ bool IsLoadStoreVfApi(const std::string &micro_api_type) {
 }
 
 // 获取vf api的基础latency和throughput
-ge::Status GetRegBasePerf(const NodePerfInfo &node_info, const uint32_t micro_api_len, Expr &latency, Expr &throughput) {
+ge::Status GetVFNodePerf(const NodePerfInfo &node_info, const uint32_t micro_api_len, Expr &latency, Expr &throughput) {
   GE_ASSERT_SUCCESS(VfPerfUtils::GetVfInstructPerf(node_info.optype, node_info.input_dtype, latency, throughput));
   Expr dim_product = std::accumulate(node_info.dims.begin(), node_info.dims.end(), CreateExpr(1),
                                      [](const Expr &a, const Expr &b) { return a * b; });
@@ -62,11 +56,11 @@ const PerfParamTable *GetParamPerfTable() {
 }
 }  // namespace
 
-ge::Status VfPerfUtils::GetVfInstructPerf(const std::string &vf_instruct_type, const std::string &data_type, Expr &latency,
+ge::Status VfPerfUtils::GetVfInstructPerf(const std::string &micro_api_type, const std::string &data_type, Expr &latency,
                                         Expr &throughput) {
   const auto param_table = GetParamPerfTable();
   GE_ASSERT_NOTNULL(param_table);
-  const auto &api_perf_table = param_table->GetVfInstructPerfTable(vf_instruct_type);
+  const auto &api_perf_table = param_table->GetVfInstructPerfTable(micro_api_type);
   for (const auto &api_perf : api_perf_table) {
     if (std::count(api_perf.support_data_types.begin(), api_perf.support_data_types.end(), data_type) > 0) {
       latency = CreateExpr(api_perf.latency);
@@ -78,7 +72,7 @@ ge::Status VfPerfUtils::GetVfInstructPerf(const std::string &vf_instruct_type, c
 }
 
 ge::Status VfPerfUtils::AddVfInstructPerf(const std::string &vf_instruct_type, const std::string &data_type,
-                                          Expr &max_latency, Expr &all_vf_instruct_cost, Expr repeat_time) {
+                                          Expr &latency, Expr &throughput, Expr repeat_time) {
   const auto param_table = GetParamPerfTable();
   GE_ASSERT_NOTNULL(param_table);
   const auto &api_perf_table = param_table->GetVfInstructPerfTable(vf_instruct_type);
@@ -88,8 +82,8 @@ ge::Status VfPerfUtils::AddVfInstructPerf(const std::string &vf_instruct_type, c
       GELOGD("Found perf of vf instruct [%s]: latency is {%d}, throughput is {%d}, repeat_time is [%s].",
              vf_instruct_type.c_str(), api_perf.latency, api_perf.throughput,
              ge::SymbolicUtils::ToString(repeat_time).c_str());
-      max_latency = ge::sym::Max(CreateExpr(api_perf.latency), max_latency);
-      all_vf_instruct_cost = all_vf_instruct_cost + CreateExpr(api_perf.throughput) * repeat_time;
+      latency = ge::sym::Max(CreateExpr(api_perf.latency), latency);
+      throughput = throughput + CreateExpr(api_perf.throughput) * repeat_time;
       break;
     }
   }
@@ -124,7 +118,7 @@ ge::Status VfPerfUtils::GetVectorFunctionPerf(const std::vector<NodePerfInfo> &n
       continue;
     }
     // 在vf function内的必须支持vector, 待校验
-    GE_ASSERT_SUCCESS(GetRegBasePerf(node_info, micro_api_len, latency, throughput));
+    GE_ASSERT_SUCCESS(GetVFNodePerf(node_info, micro_api_len, latency, throughput));
     // 每个op的latency相加, throughput求最大值
     all_micro_api_cost = ge::sym::Add(all_micro_api_cost, throughput);
     max_latency = ge::sym::Max(max_latency, latency);

@@ -35,14 +35,10 @@ const std::string kFusedAscBackendType = "FusedAscBackend";
 const std::string kConcatType = "Concat";
 const std::string kGatherType = "Gather";
 const std::string kReluType = "Relu";
-const std::string kMatMul = "MatMul";
-const std::string kMatMulBias = "MatMulBias";
-const std::string kMatMulOffset = "MatMulOffset";
-const std::string kMatMulOffsetBias = "MatMulOffsetBias";
-const std::string kBatchMatMul = "BatchMatMul";
-const std::string kBatchMatMulBias = "BatchMatMulBias";
-const std::string kBatchMatMulOffset = "BatchMatMulOffset";
-const std::string kBatchMatMulOffsetBias = "BatchMatMulOffsetBias";
+const std::string kExpandDimsType = "ExpandDims";
+const std::string kReshapeType = "Reshape";
+const std::string kSqueezeType = "Squeeze";
+const std::string kUnsqueezeType = "Unsqueeze";
 const ge::Expression kSymbolZero = ge::Symbol(0);
 const ge::Expression kSymbolOne = ge::Symbol(1);
 
@@ -677,6 +673,34 @@ class BackendUtils {
                                std::vector<std::pair<int32_t, int32_t>> &same_input_map_);
   static bool IsSameBroadCastInfo(std::vector<ViewOpAttrInfo> &attr_infos1, std::vector<ViewOpAttrInfo> &attr_infos2);
   static bool IsNodeAllInputsAreSimplestLoad(const NodePtr &node);
+  static Status UpdateContinueStrides(const std::vector<ge::Expression> &repeats,
+                                      std::vector<ge::Expression> &strides);
+
+  /**
+   * 该函数用于判断指定节点的输入是否为最简单的 Load 操作。它会遍历输入节点的上游节点，
+   * 检查是否存在简单的 Load 操作，并确保这些操作没有引入额外的视图操作。
+   *
+   * @param peer_node 输入节点的指针（输入参数），表示需要检查的节点。
+   * @param in_anchor 输入节点的输入数据锚点指针（输入参数），表示需要检查的输入端。
+   * @return 如果输入节点的输入是最简单的 Load 操作，则返回 true；否则返回 false。
+   */
+  static bool AscNodeInputIsSimplestLoad(const NodePtr &peer_node, const InDataAnchorPtr &in_anchor,
+                                         std::vector<ViewOpAttrInfo> &attr_infos);
+
+  /**
+   * 该函数用于获取指定节点的前置 AscBackend 节点及其对应的输入锚点。
+   * 它首先通过融合节点的输入锚点找到子图的输出索引，然后根据索引获取网络输出节点及其输入锚点，
+   * 最后通过输出锚点的对等输出锚点获取前置的 AscBackend 节点。
+   *
+   * @param node 当前节点的指针，表示需要获取前置节点的节点
+   * @param fused_in_anchor 融合节点的输入锚点指针，用于定位子图的输出索引
+   * @param asc_node 用于存储前置 AscBackend 节点的引用，函数执行成功后将更新此参数
+   * @param netoutput_in_anchor 用于存储网络输出节点输入锚点的引用，函数执行成功后将更新此参数
+   * @return 如果函数执行成功，返回 SUCCESS；否则返回相应的错误状态
+   */
+  static Status GetPreAscBackendNodeAndAnchor(const NodePtr &node, const NodePtr &peer_node,
+                                              const InDataAnchorPtr &fused_in_anchor, NodePtr &asc_node,
+                                              InDataAnchorPtr &netoutput_in_anchor);
 
   /**
    * 该函数用于检查当前节点的输入是否为最简单的Load操作。
@@ -688,6 +712,15 @@ class BackendUtils {
    * @return 如果输入节点是最简单的Load操作，则返回true；否则返回false
    */
   static bool CurNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index, std::vector<ViewOpAttrInfo> &attr_infos);
+
+  /**
+   * 该函数用于判断指定节点的前置节点的输入是否为纯粹的load操作。
+   *
+   * @param node 当前节点的指针
+   * @param index 当前节点的输入锚点的索引
+   * @return 如果前置节点的输入是最简形式的加载操作，则返回 true；否则返回 false
+   */
+  static bool PreNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index, std::vector<ViewOpAttrInfo> &attr_infos);
 
   /*
    * 该函数用于将origin_node中的AscNodeAttr和AscTensorAttr进行备份，将其依次放在backup_node_attr_and_tensor_attr中
@@ -769,8 +802,6 @@ class BackendUtils {
   // Dump当前图及子图
   static Status DumpGraphAndSubgraphs(const std::vector<std::string> &target_graphs, const std::string &path);
 
-  static bool IsCubeNodeType(const NodePtr &node);
-
   static bool IsCubeAscNode(const NodePtr &asc_node);
 
   // 获取AscBackend节点对应Ascgraph中除data, load, store, output节点之外的节点数
@@ -781,6 +812,10 @@ class BackendUtils {
 
   // 此函数用于处理Mul有一个输入是scalar的场景，这个时候Mul节点只有一个输入anchor
   static bool HasScalarInAscgraph(const NodePtr &node);
+  // 判断node的ascgraph是否有某些节点type
+  static bool HasTypesInAscgraph(const NodePtr &node, const std::vector<std::string> &target_types);
+  // 判断node的ascgraph是否除了data load store output只有某些节点type
+  static bool OnlyHasTypesInAscgraph(const NodePtr &node, const std::vector<std::string> &target_types);
 
  private:
   static Status BackSteppingViewOpBroadcast(TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr,

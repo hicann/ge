@@ -39,7 +39,8 @@ struct ScheduleTask {
   std::string score_func;
   std::map<size_t, std::vector<size_t>> groups_relations_in{};
   ReduceTemplateType reduce_type{ReduceTemplateType::kDefault};
-  ascir::CubeTemplateType cube_type{ascir::CubeTemplateType::kDefault};
+  ::ascir::CubeTemplateType cube_type{::ascir::CubeTemplateType::kDefault};
+  bool has_load_store_conversion{false};
 };
 
 class Optimizer {
@@ -49,11 +50,11 @@ class Optimizer {
   /***
    *对fused_graph做前处理、auto schedule、内存分配
    */
-  Status Optimize(const ge::ComputeGraphPtr &fused_graph, ascir::FusedScheduledResult &fused_scheduled_result);
+  Status Optimize(const ge::ComputeGraphPtr &fused_graph, ::ascir::FusedScheduledResult &fused_scheduled_result);
   /***
    *对hint_graph做前处理、auto schedule、内存分配
    */
-  Status Optimize(ge::AscGraph &hint_graph, ascir::FusedScheduledResult &fused_scheduled_result);
+  Status Optimize(ge::AscGraph &hint_graph, ::ascir::FusedScheduledResult &fused_scheduled_result);
 
   void SetOptimizerOptions(const OptimizerOptions &options) {
     options_ = options;
@@ -66,7 +67,7 @@ class Optimizer {
    * @param scheduled_results 单张ascgraph的schedule返回值
    * @return
    */
-  Status OptimizeForHintGraph(ge::AscGraph &hint_graph, std::vector<ascir::ScheduledResult> &scheduled_results) const;
+  Status OptimizeForHintGraph(ge::AscGraph &hint_graph, std::vector<::ascir::ScheduledResult> &scheduled_results) const;
   /**
    * 对单张图做优化以及schedule
    * @param fused_graph 带ascgraph或者ascbackend节点的计算图
@@ -74,32 +75,33 @@ class Optimizer {
    * @return
    */
   Status OptimizeFusedAscBackend(const ge::ComputeGraphPtr &fused_graph,
-                                 ascir::FusedScheduledResult &fused_scheduled_result) const;
+                                 ::ascir::FusedScheduledResult &fused_scheduled_result) const;
 
   /**
    * Buf/Que 分配
    * @param [in] graph 原始图
    * @param [in,out] impl_graphs schedule后的图，同时也将内存分配设置到这些图上
    */
-  Status BufQueAlloc(const ascir::HintGraph &graph, std::vector<ascir::ImplGraph> &impl_graphs) const;
-  Status BufQueAlloc(const ascir::HintGraph &graph, ascir::ImplGraph &impl_graph) const;
+  Status BufQueAlloc(const ::ascir::HintGraph &graph, std::vector<::ascir::ImplGraph> &impl_graphs) const;
+  Status BufQueAlloc(const ::ascir::HintGraph &graph, ::ascir::ImplGraph &impl_graph) const;
 
-  Status GraphPass(ascir::ImplGraph &impl_graph) const;
-  static Status RemoveAllZeroStrideLoopAxis(ascir::ImplGraph &owner_graph);
-  static Status MergeContinuousAxis(ascir::ImplGraph &impl_graph);
+  Status GraphPass(::ascir::ImplGraph &impl_graph) const;
+  static Status RemoveAllZeroStrideLoopAxis(::ascir::ImplGraph &owner_graph);
+  static Status MergeContinuousAxis(::ascir::ImplGraph &impl_graph,
+                                    ::ascir::CubeTemplateType cube_type = ::ascir::CubeTemplateType::kDefault);
   // 一些算子再内存是连续的，但是合轴时需要当成非连续去处理
-  static Status GetNonContinuousAxisPairBySpecialRule(ascir::ImplGraph &impl_graph,
+  static Status GetNonContinuousAxisPairBySpecialRule(::ascir::ImplGraph &impl_graph,
                                                       std::set<std::pair<int64_t, int64_t>> &non_continuous_pair);
   static bool IsReduceFirstStage(size_t index, ScheduleTask &schedule_task) ;
   void RefreshGroupRelation(size_t index, std::map<std::string, ge::Expression> &var_relations,
-                            ScheduleTask &schedule_task, ascir::ScheduledResult &schedule_result) const;
-  static Status InitializeScheduledResults(std::vector<ascir::ScheduledResult> &scheduled_results_cur,
+                            ScheduleTask &schedule_task, ::ascir::ScheduledResult &schedule_result) const;
+  static Status InitializeScheduledResults(std::vector<::ascir::ScheduledResult> &scheduled_results_cur,
                                            ScheduleTask &schedule_task);
-  Status AutoScheduler(ascir::HintGraph &hint_graph, ScheduleTask &schedule_task,
-                       std::vector<ascir::ScheduledResult> &scheduled_results) const;
-  static void TryEnableGroupParallel(ascir::FusedScheduledResult &fused_scheduled_result);
+  Status AutoScheduler(const ::ascir::HintGraph &hint_graph, ScheduleTask &schedule_task,
+                       std::vector<::ascir::ScheduledResult> &scheduled_results) const;
+  static void TryEnableGroupParallel(::ascir::FusedScheduledResult &fused_scheduled_result);
   static Status LoadOpSeqAdjust(const ge::AscGraph &impl_graph);
-  static void ExecSeqAdvancedOfLoad(const ascir::FusedScheduledResult &fused_scheduled_result);
+  static void ExecSeqAdvancedOfLoad(const ::ascir::FusedScheduledResult &fused_scheduled_result);
   OptimizerOptions options_;
 };
 }  // namespace optimize

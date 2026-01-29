@@ -11,7 +11,7 @@
 #ifndef ASCGEN_GATHER_API_CALL_BASE_H
 #define ASCGEN_GATHER_API_CALL_BASE_H
 #include <sstream>
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace gather_base {
 using namespace codegen;
@@ -32,6 +32,6 @@ std::string CalGatherParamOffset(const std::vector<ascir::AxisId> &param_axis, s
 std::string CalGatherIndicesAxesSize(const std::vector<ascir::AxisId> &indices_axes, const TPipe &tpipe);
 std::string CalGatherOuterSize(const std::vector<ascir::AxisId> &param_axis, ascir::AxisId gather_axis_id, const TPipe &tpipe);
 std::string CalGatherInnerSize(const std::vector<ascir::AxisId> &param_axis, ascir::AxisId gather_axis_id, const TPipe &tpipe);
-std::string CalGatherSize(const std::vector<ascir::AxisId> &param_axis, ascir::AxisId gather_axis_id, const TPipe &tpipe);
+std::string CalGatherSize(const std::vector<ascir::AxisId> &param_axis, const TPipe &tpipe);
 }  // namespace codegen
 #endif  // ASCGEN_GATHER_API_CALL_BASE_H

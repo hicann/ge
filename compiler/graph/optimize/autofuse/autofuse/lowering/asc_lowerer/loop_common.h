@@ -17,6 +17,7 @@
 
 #include "common/checker.h"
 #include "graph/node.h"
+#include "graph/ge_tensor.h"
 #include "graph/symbolizer/symbolic.h"
 #include "graph/attribute_group/attr_group_symbolic_desc.h"
 #include "graph/utils/type_utils.h"
@@ -268,7 +269,7 @@ inline std::string StrJoin(const std::vector<ge::DataType> &vec, const std::stri
 }
 
 std::string BufferName(const AnchorPtr &buffer);
-std::string BufferName(const Anchor *buffer);
+std::string BufferName(const Anchor *anchor);
 graphStatus GetBufferShape(const OutDataAnchorPtr &buffer, std::vector<Expression> &dims);
 graphStatus GetBufferShape(const InDataAnchorPtr &buffer, std::vector<Expression> &dims);
 graphStatus GetBufferShape(const OutDataAnchor *buffer, std::vector<Expression> &dims);

@@ -95,6 +95,15 @@ constexpr std::int32_t ASCCOMMON_ERR = 1;
 #define PY_ASSERT_NOTNULL(v, ...) PY_ASSERT(((v) != nullptr), __VA_ARGS__)
 #define PY_ASSERT_SUCCESS(v, ...) PY_ASSERT(((v) == ge::SUCCESS), __VA_ARGS__)
 #define PY_ASSERT_GRAPH_SUCCESS(v, ...) PY_ASSERT(((v) == ge::GRAPH_SUCCESS), __VA_ARGS__)
+#define PY_ASSERT_TRUE(exp, msg) \
+  do { \
+    if (!(exp)) { \
+      PyErr_Clear(); \
+      PyErr_Format(PyExc_TypeError, "%s", msg); \
+      GELOGE(ge::FAILED, "%s", msg); \
+      return nullptr; \
+    } \
+  } while (false)
 #ifdef __cplusplus
 }
 #endif

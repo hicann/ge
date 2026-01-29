@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #ifndef ATT_GEN_TILING_IMPL_H_
 #define ATT_GEN_TILING_IMPL_H_
@@ -33,7 +27,6 @@ extern "C" {
  * 高阶api tiling等) "dump_debug_info": Value为落盘路径。落盘路径不为空则表示将中间关键信息落盘,
  * 默认空;(debug信息包括tuningspace,modelinfo, tilingfunc等信息)
  *        "gen_tiling_data_def":"0"不生成tilingdata的声明。"1"表示生成tilingdata的声明。默认"1"。
- *        "with_tiling_context":"0"生成的接口入参无TilingContext, "1"表示生成的接口入参有TilingContext。默认"0"。
  * @return 是否成功
  */
 bool GenTilingImpl(const std::string &op_name, const std::vector<ge::AscGraph> &graphs,

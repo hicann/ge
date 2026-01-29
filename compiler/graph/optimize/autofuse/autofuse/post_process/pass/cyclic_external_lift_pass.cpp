@@ -12,7 +12,7 @@
 #include <string>
 #include <set>
 #include "ge_common/ge_api_types.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "graph/utils/node_utils.h"
 #include "utils/autofuse_utils.h"
@@ -20,6 +20,7 @@
 #include "graph/utils/graph_utils.h"
 #include "post_process/post_process_util.h"
 #include "post_process/scheduler_adapter/adaption_fallback_load.h"
+#include "post_process/scheduler_adapter/adaption_optimized_fallback.h"
 
 namespace ge {
 namespace {
@@ -103,6 +104,24 @@ Status GetViewOpSpecialIndex(const AscGraph &graph, const std::vector<Expression
   return SUCCESS;
 }
 
+bool IsDtypeNotSupport(const AscGraph &graph, DataType &output_dtype) {
+  bool is_not_support = false;
+  for (const auto &node : graph.GetAllNodes()) {
+    if (node->GetType() != kStoreType) {
+      continue;
+    }
+    std::vector<DataType> input_dtypes;
+    std::vector<DataType> expect_output_dtypes;
+    GeTensorDescPtr output_tensor_desc;
+    GE_ASSERT_SUCCESS(asc_adapt::GetOutputTensorDesc(node, output_tensor_desc));
+    output_dtype = output_tensor_desc->GetDataType();
+    expect_output_dtypes.push_back(output_dtype);
+    input_dtypes.push_back(output_dtype);
+    is_not_support = ge::ascir::CommonInferDtype(kBroadcastType, input_dtypes, expect_output_dtypes) != SUCCESS;
+  }
+  return is_not_support;
+}
+
 Status DelBroadcastInfo(const AscGraph &graph, const std::set<size_t> &axis_index) {
   // 删除broadcast node
   std::vector<NodePtr> del_nodes;
@@ -143,27 +162,19 @@ Status InsertBroadcastNode(AscGraph &graph, std::set<int64_t> &broadcast_axis) {
     if (node->GetType() != kStoreType) {
       continue;
     }
-    NodePtr peer_node;
-    GE_ASSERT_SUCCESS(asc_adapt::GetPeerOutNode(node, peer_node, 0));
-
-    asc_adapt::TensorInfo tensor_info;
-    GE_ASSERT_SUCCESS(asc_adapt::GetTensorInfo(peer_node, tensor_info));
-
-    // store前插入broadcast 需要使用ascgraph上的repeats
-    tensor_info.strides.clear();
-    tensor_info.repeats.clear();
-    asc_adapt::TensorInfo graph_tensor_info;
-    GE_ASSERT_SUCCESS(asc_adapt::GetTensorInfoFromAscgraph(graph_tensor_info, graph));
-    tensor_info.strides = graph_tensor_info.strides;
-    tensor_info.repeats = graph_tensor_info.repeats;
-    const auto peer_node_opdesc = peer_node->GetOpDesc();
-    GE_ASSERT_NOTNULL(peer_node_opdesc);
-    GE_ASSERT_SUCCESS(asc_adapt::UpdateTopoId(graph, peer_node, broadcast_info.size()));
-    tensor_info.current_topo_id = peer_node_opdesc->GetId() + broadcast_info.size();
-    tensor_info.broadcast_info = broadcast_info;
-
-    auto connect_node = static_cast<NodePtr>(node);
-    GE_ASSERT_SUCCESS(asc_adapt::CreateAndUpdateBroadcastNodeInfo(graph, node, connect_node, tensor_info));
+    if (!broadcast_info.empty()) {
+      ViewOpAttrInfo attr_info;
+      attr_info.broadcast_info = broadcast_info;
+      NodePtr peer_node;
+      GE_ASSERT_SUCCESS(asc_adapt::GetPeerOutNode(node, peer_node, 0));
+      TensorAttrInfo temp_cur_attr;
+      GE_ASSERT_SUCCESS(BackendUtils::GetNodeTensorAttrInfo(node, temp_cur_attr));
+      TensorAttrInfo temp_peer_out_attr;
+      GE_ASSERT_SUCCESS(BackendUtils::GetNodeTensorAttrInfo(peer_node, temp_peer_out_attr));
+      std::pair<int32_t, ViewOpAttrInfo> input_index_to_view_info(0, attr_info);
+      GE_ASSERT_SUCCESS(asc_adapt::InsertBroadcastBeforeNode(graph, node, temp_cur_attr, temp_peer_out_attr,
+                                                             input_index_to_view_info));
+    }
   }
   return SUCCESS;
 }
@@ -241,6 +252,14 @@ Status CyclicExternalLift(AscGraph &graph, [[maybe_unused]] const NodePtr &asc_n
   // 搬运类算子轴在Broadcast轴中无法循环外提
   if (!special_index.empty() && (*special_index.begin() <= *axis_index.rbegin())) {
     GELOGI("Graph %s have some view op axis in broadcast axis.", graph.GetName().c_str());
+    return SUCCESS;
+  }
+
+  DataType output_dtype;
+  if (IsDtypeNotSupport(graph, output_dtype)) {
+    // Broadcast不支持的dtype不进行外提
+    GELOGI("Graph %s can not do cyclic external lift with dtype(%s)", graph.GetName().c_str(),
+           TypeUtils::DataTypeToSerialString(output_dtype).c_str());
     return SUCCESS;
   }
 

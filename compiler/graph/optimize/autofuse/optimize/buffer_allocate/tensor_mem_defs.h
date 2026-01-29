@@ -69,7 +69,7 @@ struct TensorGroup {
   bool group_is_can_reuse_others;
 };
 
-enum class MemoryType { kCopyIn, kCopyOut, kCalc };
+enum class MemoryType { kCopyIn, kCopyOut, kCalc, kTmpBuff, kLoopTmpBuff};
 struct MemoryBlock {
   int64_t id;
   MemoryType mem_type;
@@ -78,5 +78,6 @@ struct MemoryBlock {
 };
 
 using TensorInfoMap = std::map<ge::AscTensorAttr *, TensorInfo>;
+using TmpBuffInfoMap = std::map<ge::TmpBuffer *, TensorInfo>;
 }  // namespace optimize
 #endif  // OPTIMIZE_BUFFER_ALLOCATE_TENSOR_MEM_DEFS_H_

@@ -20,7 +20,7 @@
 namespace ge {
 class FlattenConcatPass {
  public:
-  graphStatus Run(const ComputeGraphPtr &graph);
+  graphStatus Run(const ComputeGraphPtr &graph) const;
   static graphStatus CanFlatten(const NodePtr &node, size_t concat_dim, size_t num_inputs);
 };
 }  // namespace ge

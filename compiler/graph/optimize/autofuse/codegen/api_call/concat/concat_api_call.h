@@ -11,7 +11,7 @@
 #ifndef __AUTOFUSE_CONCAT_API_CALL_H__
 #define __AUTOFUSE_CONCAT_API_CALL_H__
 
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class ConcatApiCall : public ApiCall {
@@ -82,8 +82,7 @@ class ConcatApiCall : public ApiCall {
   Status CalcTiling(size_t concat_dim,
                     const std::vector<std::reference_wrapper<const Tensor>> &inputs,
                     ConcatTiling &tiling) const;
-  static Status CalcTilingForInputs(size_t concat_dim,
-                                    const std::vector<std::reference_wrapper<const Tensor>> &inputs,
+  static Status CalcTilingForInputs(const std::vector<std::reference_wrapper<const Tensor>> &inputs,
                                     size_t block_size,
                                     ConcatTiling &concat_tiling);
   static void DefineConcatTiling(const ConcatTiling &tiling, std::stringstream &ss);

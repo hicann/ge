@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "gen_model_info.h"
@@ -114,7 +108,7 @@ void to_json(nlohmann::json &j, const SymInfoPtr &arg) {
     const_value = const_arg->const_value;
   }
 
-  uint32_t align = kDefaultAlignValue;
+  Expr align = ge::Symbol(kDefaultAlignValue);
   std::vector<HardwareDef> related_scope;
   Expr max_value = ge::sym::kSymbolZero;
   auto var_arg = std::dynamic_pointer_cast<SymVarInfo>(arg);
@@ -253,7 +247,7 @@ void ProcessTilingR(std::vector<ModelInfo> &model_info_list, const ModelInfo &mo
 void ProcessGraphOriginalSizeVar(const ge::AscGraph &graph, ModelInfo &model_info) {
   optimize::SizeVarSet var_set;
   model_info.sizes.clear();
-  optimize::AscGraphInfoComplete::AppendOriginalSizeVar(const_cast<ge::AscGraph &>(graph), var_set);
+  optimize::AscGraphInfoComplete::AppendOriginalSizeVar(graph, var_set);
   for (const auto &var : var_set) {
     model_info.sizes.emplace_back(var);
   }
@@ -285,24 +279,18 @@ ge::Status GenerateModelInfo(const std::vector<ge::AscGraph> &graph_list, std::v
     std::vector<AttAxisPtr> tiling_R_arg_list;
     TuningSpacePtr tuning_space = ge::MakeShared<TuningSpace>();
     GE_ASSERT_NOTNULL(tuning_space, "Make tuning space failed.");
+    tuning_space->cache_line_config = &model_info.cache_line_config;
     GetThreadLocalContext().SetOption(options);
     GE_ASSERT_SUCCESS(GenerateModelInfo(graph, model_info, tuning_space, tiling_key), "General model info failed.");
     if (IsAxesReorderAlgorithm()) {
       ArgListReorder arg_list_reorder(tuning_space);
       GE_ASSERT_SUCCESS(arg_list_reorder.SortArgList(model_info.arg_list, tiling_R_arg_list), "Sort arg list failed.");
     }
-    const auto iter1 = options.find(kTilingScenarioType);
-    const auto iter2 = options.find(kGenExtraInfo);
-    const auto iter3 = options.find(kTilingDataTypeName);
-    const bool is_att_tools = (iter1 != options.cend()) && (iter1->second == kAttToolsScenario);
-    const bool is_gen_extra_info = (iter2 != options.cend()) && (iter2->second == kIsTrue);
-    const std::string tiling_data_type = (iter3 != options.cend()) ? iter3->second : "";
-    if (is_gen_extra_info || (!is_att_tools)) {
-      TilingScenarioType type = is_att_tools ? TilingScenarioType::ATT_TOOLS : TilingScenarioType::CANN_AUTOFUSED;
-      ApiTilingParams params{graph, tiling_data_type, type};
-      GE_ASSERT_SUCCESS(GetApiTilingInfo(model_info.tiling_case_id, params, model_info.node_name_to_api_code),
-                        "Generate api tiling info failed.");
-    }
+    const auto iter = options.find(kTilingDataTypeName);
+    const std::string tiling_data_type = (iter != options.cend()) ? iter->second : "";
+    ApiTilingParams params{graph, tiling_data_type};
+    GE_ASSERT_SUCCESS(GetApiTilingInfo(model_info.tiling_case_id, params, model_info.node_name_to_api_code),
+                      "Generate api tiling info failed.");
     // 获取所有的原始size_var
     ProcessGraphOriginalSizeVar(graph, model_info);
     ProcessTilingR(model_info_list, model_info, tiling_R_arg_list);

@@ -124,7 +124,12 @@ Status TransposeApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::A
   GE_CHK_STATUS_RET(Tensor::DtypeName(y.dtype, dtype_name), "Codegen get data type:%d failed",
                     static_cast<int32_t>(y.dtype));
   GELOGI("Tensor::DtypeName(y.dtype) == %s", dtype_name.c_str());
-
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "TransposeApiCall cannot find tmp buffer id to use.");
+  id = it->second;
   /* 将permute转化为transposeType */
   stringstream ss;
 
@@ -134,8 +139,8 @@ Status TransposeApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::A
   std::vector<std::string> transTypeValue = {"TRANSPOSE_ND2ND_ONLY", "TRANSPOSE_ND2ND_102", "TRANSPOSE_ND2ND_0213",
                                              "TRANSPOSE_ND2ND_2103", "TRANSPOSE_ND2ND_021", "TRANSPOSE_ND2ND_210",
                                              "TRANSPOSE_ND2ND_0321", "TRANSPOSE_INVALID"};
-  GE_ASSERT_TRUE((uint8_t)transpose_type < transTypeValue.size());
-  ss << "AutoFuseTransposeType transposeType = AutoFuseTransposeType::" << transTypeValue[(uint8_t)transpose_type]
+  GE_ASSERT_TRUE(static_cast<uint8_t>(transpose_type) < transTypeValue.size());
+  ss << "AutoFuseTransposeType transposeType = AutoFuseTransposeType::" << transTypeValue[static_cast<uint8_t>(transpose_type)]
      << ";" << std::endl;
 
   /* 获取TilingData */
@@ -144,7 +149,7 @@ Status TransposeApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::A
   ss << "auto apiTilingData = " << apiTilingDataString << ";" << std::endl;
   ss << "codegen::ConfusionTranspose<" << dtype_name << ">" << "(" << y << "["
      << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], " << x << "["
-     << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << tpipe.tmp_buf << ", "
+     << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << tpipe.tmp_buf << "_" << std::to_string(id) << ", "
      << "transposeType, apiTilingData);" << std::endl;
   ss << "AscendC::PipeBarrier<PIPE_ALL>();" << std::endl;
 

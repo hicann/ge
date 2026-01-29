@@ -68,17 +68,17 @@ class AscBackendTorchFusionDecider : public AscBackendFusionDecider {
   NodePtr Fuse(const NodePtr &node1, const NodePtr &node2, const CounterPtr &counter) override;
 
   // 获取融合对的优先级
-  uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override {
+  FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override {
     (void)node1;
     (void)node2;
-    return 0U;
+    return FusionPriority::HIGH;
   }
 
  private:
-  bool CanFuse(const NodePtr &node1, const NodePtr &node2);
+  bool CanFuse(const NodePtr &node1, const NodePtr &node2) const override;
   Status UnifySubgraphAxis(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info,
-                           AxisMapInfo &map_info);
-  bool CheckFusionStrategy(const NodePtr &node1, const NodePtr &node2);
+                           AxisMapInfo &map_info) const;
+  bool CheckFusionStrategy(const NodePtr &node1, const NodePtr &node2) const;
 };
 }  // namespace ge
 

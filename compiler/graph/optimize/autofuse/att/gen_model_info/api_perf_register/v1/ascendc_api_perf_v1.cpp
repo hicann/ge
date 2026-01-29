@@ -1,17 +1,11 @@
 /**
-* Copyright (c) Huawei Technologies Co., Ltd. 2025 All rights reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include <string>
@@ -87,10 +81,11 @@ ge::Status GetStorePerf(const NodeDetail &node_info, Expr &res_normal, Expr &res
   Expr res_stride;
   Expr res_continuous;
   GE_ASSERT_SUCCESS(GetPerf(
-      {kMoveUbToGm, node_info.input_dtype[0], node_info.output_dtype[0], node_info.input_dims, node_info.gm_stride},
+      {kMoveUbToGm, node_info.input_dtype[0], node_info.output_dtype[0], node_info.input_dims, node_info.gm_stride,
+       node_info.block_count_idx},
       res_continuous));
   GE_ASSERT_SUCCESS(GetPerf({kMoveUbToGm + "Stride", node_info.input_dtype[0], node_info.output_dtype[0],
-                             node_info.input_dims, node_info.gm_stride},
+                             node_info.input_dims, node_info.gm_stride, node_info.block_count_idx},
                             res_stride));
   GE_ASSERT_SUCCESS(GetPerf({kMoveUbToGm + "LargeBlk", node_info.input_dtype[0], node_info.output_dtype[0],
                              node_info.input_dims, node_info.gm_stride},
@@ -115,14 +110,14 @@ ge::Status LoadPerf(const NodeDetail &node_info, PerfOutputInfo &perf) {
   Expr res_small_blk;
   Expr res_ub_stride;
   Expr data_size;
-  int32_t use_case;
+  int32_t use_case = 0;
   GELOGD("Dma with Load: %s", node_info.ToString().c_str());
   GE_ASSERT_SUCCESS(GetPerf({kMoveGmToUb, node_info.input_dtype[0],node_info.output_dtype[0],
                              node_info.input_dims, CreateExpr(0)}, res_continuous));
   GE_ASSERT_SUCCESS(GetPerf({kMoveGmToUb + "Stride", node_info.input_dtype[0], node_info.output_dtype[0],
-                             node_info.input_dims, node_info.gm_stride}, res_stride));
+                             node_info.input_dims, node_info.gm_stride, node_info.block_count_idx}, res_stride));
   GE_ASSERT_SUCCESS(GetPerf({kMoveGmToUb + "UbStride", node_info.input_dtype[0], node_info.output_dtype[0],
-                             node_info.input_dims, CreateExpr(0)}, res_ub_stride));
+                             node_info.input_dims, CreateExpr(0), node_info.block_count_idx}, res_ub_stride));
   GE_ASSERT_SUCCESS(GetPerf({kMoveGmToUb + "SmallBlk", node_info.input_dtype[0], node_info.output_dtype[0],
                              node_info.input_dims, CreateExpr(0)}, res_small_blk));
   GE_ASSERT_SUCCESS(GetLoadCase(node_info, data_size, use_case));

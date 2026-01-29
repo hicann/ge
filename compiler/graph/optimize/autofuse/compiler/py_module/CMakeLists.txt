@@ -3,7 +3,7 @@ Python3_add_library(pyautofuse MODULE
         pyautofuse.cpp
 )
 
-target_compile_options(pyautofuse PRIVATE -Wno-error=variadic-macros)
+target_compile_options(pyautofuse PRIVATE -Wno-error=variadic-macros -Wall)
 
 target_include_directories(pyautofuse PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/../../

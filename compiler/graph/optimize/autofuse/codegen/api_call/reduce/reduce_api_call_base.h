@@ -11,7 +11,7 @@
 #define __AUTOFUSE_REDUCE_API_CALL_BASE_H__
 
 #include <sstream>
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace reduce_base {
 using namespace codegen;
@@ -27,7 +27,7 @@ void GetIsArAndPattern(const Tensor &y, bool &isAr, std::string &reduce_pattern)
 void ReduceMergedSizeCodeGen(const TPipe &tpipe, std::stringstream &ss, const Tensor &src, const Tensor &dst,
                              bool is_tail = false);
 bool IsNeedMultiReduce(const Tiler &tiler, const Tensor &input, const Tensor &output, ascir::AxisId axis_id);
-void ReduceMeanCodeGen(std::string &dtype_name, const TPipe &tpipe, const Tensor &src, const Tensor &dst,
+void ReduceMeanCodeGen(std::string &dtype_name, const TPipe &tpipe, const Tensor &dst,
                        std::stringstream &ss);
 void ReduceInitCodeGen(const Tensor &x, const Tensor &y, const int &type_value,
                        std::stringstream &ss, const TPipe &tpipe);

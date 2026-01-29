@@ -20,6 +20,7 @@
 namespace att {
 const std::string AddAnotationBlock(std::string strs, std::string indent = "");
 const std::string AddAnotationLine(std::string strs, std::string indent = "");
+const std::string GenWorkspaceRelatedVars(const std::map<int64_t, Expr> &workspace_size_map, const ExprExprMap &container_expr);
 const std::string GenRelatedVars(const std::vector<Expr> &funcs, const ExprExprMap &container_expr, const std::map<Expr, std::vector<Expr>, ExprCmp> &args);
 const std::string GenBufRelatedVars(const Expr &func, const ExprExprMap &container_expr);
 const std::map<HardwareDef, std::string> kHardwareNameMap = {
@@ -61,33 +62,9 @@ const std::map<PipeType, std::string> kPipetypeNameMap = {
   {PipeType::PIPE_NONE, "PIPE_NONE"}
 };
 
-const std::map<SocVersion, std::map<std::string, uint64_t>> kHardwareDefaultSizeMap = {
-  {SocVersion::ASCEND910B2, {{"hbm_size", 1024 * 1024 * 1024},
-                             {"l1_size", 512 * 1024},
-                             {"l2_size", 180 * 1024 * 1024},
-                             {"l0a_size", 64 * 1024},
-                             {"l0b_size", 64 * 1024},
-                             {"l0c_size", 128 * 1024},
-                             {"ub_size", 192 * 1024},
-                             {"btbuf_size", 1 * 1024},
-                             {"block_dim", 48},
-                             {"Hardware_unknow", 0}}},
-  {SocVersion::ASCEND910B4, {{"hbm_size", 1024 * 1024 * 1024},
-                             {"l1_size", 512 * 1024},
-                             {"l2_size", 180 * 1024 * 1024},
-                             {"l0a_size", 64 * 1024},
-                             {"l0b_size", 64 * 1024},
-                             {"l0c_size", 128 * 1024},
-                             {"ub_size", 192 * 1024},
-                             {"btbuf_size", 1 * 1024},
-                             {"block_dim", 40},
-                             {"Hardware_unknow", 0}}},
-};
-
-
 class BaseTypeUtils {
  public:
-  static std::string DumpHardware(HardwareDef hardware);
+  static std::string DumpHardware(const HardwareDef hardware);
   static std::string DtypeToStr(ge::DataType dtype);
 }; 
 }  // namespace att

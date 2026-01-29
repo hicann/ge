@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2025 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef ATT_CODE_GEN_PREPROCESS_AST_OPTIMIZER_H_
@@ -26,9 +20,8 @@
 #include <fstream>
 #include <set>
 #include <functional>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
-using namespace std;
 namespace att {
 // AST节点类型
 enum class NodeType : uint8_t{ 
@@ -40,14 +33,14 @@ enum class NodeType : uint8_t{
 
 // AST节点数据结构
 struct ASTNode {
-  string expr;
-  string op;
+  std::string expr;
   NodeType type;
-  vector<shared_ptr<ASTNode>> children;
-  string hash;
-  string temp_var;
+  std::string op;
+  std::vector<std::shared_ptr<ASTNode>> children;
+  std::string hash;
+  std::string temp_var;
 
-  ASTNode(string e, NodeType t, string o = "", vector<shared_ptr<ASTNode>> &&c = {}) : expr(e), type(t), op(o), children(move(c)) {
+  ASTNode(std::string e, NodeType t, std::string o = "", std::vector<std::shared_ptr<ASTNode>> &&c = {}) : expr(e), type(t), op(o), children(std::move(c)) {
     GenerateHash();
   }
 
@@ -63,7 +56,7 @@ struct ASTNode {
 
   // 生成操作符或函数节点的hash
   void GenerateOperatorHash() {
-    stringstream ss;
+    std::stringstream ss;
     size_t children_size = children.size();
     ss << op << "(";
     for (size_t i = 0u; i < children_size; ++i) {
@@ -89,30 +82,30 @@ struct ASTNode {
   }
 };
 
-using ASTPtr = shared_ptr<ASTNode>;
+using ASTPtr = std::shared_ptr<ASTNode>;
 
 // AST解析模块，功能包含词法分析和语法分析，最终生成AST
 class Parser {
  public:
-  explicit Parser(const string &e) : expr_(e) {}
+  explicit Parser(const std::string &e) : expr_(e) {}
   ~Parser() = default;
   ASTPtr Parse();
 
  private:
-  string Peek(size_t offset = 0) {
+  std::string Peek(size_t offset = 0) {
     return (pos_ + offset) < tokens_.size() ? tokens_[pos_ + offset] : "";
   }
   void Consume() {
     ++pos_;
   }
-  vector<string> Tokenize(const string &s);
-  ASTPtr ParseFunction(const string &func);
+  std::vector<std::string> Tokenize(const std::string &s) const;
+  ASTPtr ParseFunction(const std::string &func);
   ASTPtr ParsePrimary();
   ASTPtr ParseTerm();
   ASTPtr ParseExpr();
 
-  string expr_;
-  vector<string> tokens_;
+  std::string expr_;
+  std::vector<std::string> tokens_;
   size_t pos_ = 0;
 };
 
@@ -121,33 +114,33 @@ class Optimizer {
  public:
   Optimizer() = default;
   ~Optimizer() = default;
-  string GenerateCode();
+  std::string GenerateCode(const std::string &indent = "    ");
   void Optimize(ASTPtr &root);
-  string RebuildExpr(const ASTNode &node, int iter);
+  std::string RebuildExpr(const ASTNode &node, int iter);
 
  private:
   void Traverse(ASTNode *node);
-  unordered_map<string, string> expr_map_;
-  vector<ASTNode> temp_order_;
-  set<string> visited_;
+  std::unordered_map<std::string, std::string> expr_map_;
+  std::vector<ASTNode> temp_order_;
+  std::set<std::string> visited_;
   int32_t temp_count_ = 0;
 };
 
 // AST可视化模块
 class ASTVisualizer {
  public:
-  void InitDotFile(const string &filename) {
+  void InitDotFile(const std::string &filename) {
     dot_file_.open(filename + ".dot");
     dot_file_ << "digraph AST {\n";
     dot_file_ << "node [shape=box, fontname=\"Courier\"];\n";
   }
-  void GenerateDotImage(const string &filename) {
+  void GenerateDotImage(const std::string &filename) {
     dot_file_ << "}\n";
     dot_file_.close();
     system(("dot -Tpng " + filename + ".dot -o " + filename + ".png").c_str());
   }
 
-  void Visualize(ASTPtr &root, const string &filename = "ast") {
+  void Visualize(ASTPtr &root, const std::string &filename = "ast") {
     if (!root) {
       return;
     }
@@ -157,15 +150,15 @@ class ASTVisualizer {
   }
 
  private:
-  ofstream dot_file_;
-  unordered_map<ASTNode *, string> node_ids_;
+  std::ofstream dot_file_;
+  std::unordered_map<ASTNode *, std::string> node_ids_;
   uint32_t node_counter_ = 0u;
 
-  string GenerateNodeId() {
-    return "node_" + to_string(node_counter_++);
+  std::string GenerateNodeId() {
+    return "node_" + std::to_string(node_counter_++);
   }
 
-  string GetNodeId(ASTNode *node) {
+  std::string GetNodeId(ASTNode *node) {
     if (!node) {
       return "null_node";
     }
@@ -175,8 +168,8 @@ class ASTVisualizer {
     return node_ids_[node];
   }
 
-  string GetNodeLabel(ASTNode *node) {
-    string label;
+  std::string GetNodeLabel(const ASTNode *node) const {
+    std::string label;
     switch (node->type) {
       case NodeType::OPERATOR:
         label = node->op;
@@ -197,7 +190,7 @@ class ASTVisualizer {
     return label;
   }
 
-  string GetNodeColor(ASTNode *node) {
+  std::string GetNodeColor(const ASTNode *node) const {
     switch (node->type) {
       case NodeType::OPERATOR:
         return "lightblue";
@@ -216,9 +209,9 @@ class ASTVisualizer {
     if (!node) {
       return;
     }
-    string node_id = GetNodeId(node);
-    string label = GetNodeLabel(node);
-    string color = GetNodeColor(node);
+    std::string node_id = GetNodeId(node);
+    std::string label = GetNodeLabel(node);
+    std::string color = GetNodeColor(node);
     dot_file_ << node_id << " [label=\"" << label << "\", style=filled, color=" << color << "];\n";
   }
 

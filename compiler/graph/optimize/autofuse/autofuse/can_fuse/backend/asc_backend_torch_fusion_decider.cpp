@@ -7,6 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+
 #include "asc_backend_torch_fusion_decider.h"
 #include "common/checker.h"
 #include "fusion_decider_registry.h"
@@ -414,7 +415,7 @@ Status TryMergeSubgraph(const NodePtr &node1, const NodePtr &node2, const NodeFu
 }  // namespace
 
 Status AscBackendTorchFusionDecider::UnifySubgraphAxis(const NodePtr &node1, const NodePtr &node2,
-                                                       const NodeFuseInfo &fuse_info, AxisMapInfo &map_info) {
+                                                       const NodeFuseInfo &fuse_info, AxisMapInfo &map_info) const {
   std::vector<int64_t> node1_axis;
   std::vector<ge::Expression> node1_size;
   std::vector<int64_t> node2_axis;
@@ -422,21 +423,20 @@ Status AscBackendTorchFusionDecider::UnifySubgraphAxis(const NodePtr &node1, con
 
   // 映射只需要选择一个链接关系，优先垂直
   if (!fuse_info.GetNode1ToNode2LinkMap().empty()) {
-    for (const auto &subgraph_link : fuse_info.GetNode1ToNode2LinkMap()) {
-      GE_ASSERT_SUCCESS(GetPreNodeAttrs(node2, subgraph_link.second, node1_axis, node1_size));
-      GELOGD("get node %s(%s) pre store info: index=%d, repeats=%s, axis=%s.", node2->GetNamePtr(),
-             node2->GetType().c_str(), subgraph_link.second, AutofuseUtils::VectorToStr(node1_size).c_str(),
-             AutofuseUtils::VectorToStr(node1_axis).c_str());
-      GE_ASSERT_SUCCESS(GetGraphAxis(node1, node1_axis, map_info.node1_axis));
-      GE_ASSERT_SUCCESS(GetCurAscNodeAttrs(node2, subgraph_link.second, node2_axis, node2_size));
-      GELOGD("get node %s(%s) cur load info: index=%d, repeats=%s, axis=%s.", node2->GetNamePtr(),
-             node2->GetType().c_str(), subgraph_link.second, AutofuseUtils::VectorToStr(node2_size).c_str(),
-             AutofuseUtils::VectorToStr(node2_axis).c_str());
-      GE_ASSERT_SUCCESS(GetGraphAxis(node2, node2_axis, map_info.node2_axis));
-      break;
-    }
+    const auto &subgraph_link = fuse_info.GetNode1ToNode2LinkMap().front();
+    GE_ASSERT_SUCCESS(GetPreNodeAttrs(node2, subgraph_link.second, node1_axis, node1_size));
+    GELOGD("get node %s(%s) pre store info: index=%d, repeats=%s, axis=%s.", node2->GetNamePtr(),
+            node2->GetType().c_str(), subgraph_link.second, AutofuseUtils::VectorToStr(node1_size).c_str(),
+            AutofuseUtils::VectorToStr(node1_axis).c_str());
+    GE_ASSERT_SUCCESS(GetGraphAxis(node1, node1_axis, map_info.node1_axis));
+    GE_ASSERT_SUCCESS(GetCurAscNodeAttrs(node2, subgraph_link.second, node2_axis, node2_size));
+    GELOGD("get node %s(%s) cur load info: index=%d, repeats=%s, axis=%s.", node2->GetNamePtr(),
+            node2->GetType().c_str(), subgraph_link.second, AutofuseUtils::VectorToStr(node2_size).c_str(),
+            AutofuseUtils::VectorToStr(node2_axis).c_str());
+    GE_ASSERT_SUCCESS(GetGraphAxis(node2, node2_axis, map_info.node2_axis));
   } else {
-    for (const auto &same_input : fuse_info.GetSameInputMap()) {
+    if (!fuse_info.GetSameInputMap().empty()) {
+      const auto &same_input = fuse_info.GetSameInputMap().front();
       GE_ASSERT_SUCCESS(GetCurAscNodeAttrs(node1, same_input.first, node1_axis, node1_size));
       GELOGD("get node %s(%s) cur load info: index=%d, repeats=%s, axis=%s.", node1->GetNamePtr(),
              node1->GetType().c_str(), same_input.first, AutofuseUtils::VectorToStr(node1_size).c_str(),
@@ -447,7 +447,6 @@ Status AscBackendTorchFusionDecider::UnifySubgraphAxis(const NodePtr &node1, con
              node2->GetType().c_str(), same_input.second, AutofuseUtils::VectorToStr(node2_size).c_str(),
              AutofuseUtils::VectorToStr(node2_axis).c_str());
       GE_ASSERT_SUCCESS(GetGraphAxis(node2, node2_axis, map_info.node2_axis));
-      break;
     }
   }
 
@@ -462,10 +461,10 @@ Status AscBackendTorchFusionDecider::UnifySubgraphAxis(const NodePtr &node1, con
   return SUCCESS;
 }
 
-bool AscBackendTorchFusionDecider::CheckFusionStrategy(const NodePtr &node1, const NodePtr &node2) {
+bool AscBackendTorchFusionDecider::CheckFusionStrategy(const NodePtr &node1, const NodePtr &node2) const {
   ComputeGraphPtr graph1;
   ComputeGraphPtr graph2;
-  static std::set<std::string> dumped_nodes;  // 存放已经dump过的node，如果node已经dump过了，就不再重复dump这个node的图
+  thread_local static std::set<std::string> dumped_nodes;  // 存放已经dump过的node，如果node已经dump过了，就不再重复dump这个node的图
   GELOGI("AscBackendGraphFuse:can fuse check, node: %s(%s) and node: %s(%s).", node1->GetNamePtr(),
          node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str());
 
@@ -510,7 +509,7 @@ bool AscBackendTorchFusionDecider::CheckFusionStrategy(const NodePtr &node1, con
   return true;
 }
 
-bool AscBackendTorchFusionDecider::CanFuse(const NodePtr &node1, const NodePtr &node2) {
+bool AscBackendTorchFusionDecider::CanFuse(const NodePtr &node1, const NodePtr &node2) const {
   // 检查基础融合策略
   if (!CheckFusionStrategy(node1, node2)) {
     return false;

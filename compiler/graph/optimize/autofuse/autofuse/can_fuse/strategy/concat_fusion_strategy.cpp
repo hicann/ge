@@ -10,6 +10,8 @@
 
 #include "concat_fusion_strategy.h"
 
+#include <queue>
+
 #include "backend/backend_spec.h"
 #include "can_fuse/backend/backend_utils.h"
 #include "utils/autofuse_attrs.h"
@@ -22,7 +24,7 @@ namespace ge {
 namespace {
 constexpr int32_t kConcatAlgTranspose = 0;
 }  // namespace
-using namespace autofuse;;
+using namespace autofuse;
 bool ConcatFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
   const auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
   GE_ASSERT_NOTNULL(attr1);
@@ -107,20 +109,20 @@ bool ConcatFusionStrategy::CanMergeLoop(const NodePtr &node1, const NodePtr &nod
   return true;
 }
 
-uint32_t ConcatFusionStrategy::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
+FusionPriority ConcatFusionStrategy::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
   auto attr = BackendUtils::GetNodeAutoFuseAttr(node2);
   GE_ASSERT_NOTNULL(attr);
-  uint32_t fusion_priority = kDefaultFusionPriority;
+  FusionPriority fusion_priority = FusionPriority::DEFAULT;
   // 首轮融合才要处理，只有AscBackend场景
   if (attr->GetFuseType() == loop::FuseType::kConcat) {
-    fusion_priority = kHighFusionPriority;
+    fusion_priority = FusionPriority::HIGH;
     GELOGI("node1 %s(*) and node2 %s(Concat) priority:%u.", node1->GetNamePtr(), node2->GetNamePtr(),
            fusion_priority);
   } else {
     auto attr = BackendUtils::GetNodeAutoFuseAttr(node1);
     GE_ASSERT_NOTNULL(attr);
     if (attr->GetFuseType() == loop::FuseType::kConcat) {
-      fusion_priority = kHighFusionPriority;
+      fusion_priority = FusionPriority::HIGH;
       GELOGI("node1 %s(Concat) and node2 %s(*) priority:%u.", node1->GetNamePtr(), node2->GetNamePtr(),
              fusion_priority);
     }
@@ -259,30 +261,52 @@ Status ConcatFusionStrategy::CanFuseBackward(const NodePtr &node1, const NodePtr
   return SUCCESS;
 }
 
-Status ConcatFusionStrategy::CanFuseSplit(const NodePtr &node1, const NodePtr &node2) {
-  auto concat_node = FindConcatNode(node2);
-  GE_ASSERT_NOTNULL(concat_node);
-  if (IsConcatOrSplitFirstDim(concat_node)) {
-    GELOGD("[%s] concat on first dim, can fuse split", concat_node->GetNamePtr());
-    return SUCCESS;
-  }
+bool ConcatFusionStrategy::IsFirstDimSplit(const NodePtr &node) {
+  // 检查是否为首轴split
   ComputeGraphPtr subgraph;
-  GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(node1, subgraph));
+  GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(node, subgraph));
   for (const auto &n : subgraph->GetAllNodes()) {
     if (n->GetType() == kSplitType) {
       auto split_node = std::dynamic_pointer_cast<AscNode>(n);
       GE_ASSERT_NOTNULL(split_node);
       if (!IsConcatOrSplitFirstDim(split_node)) {
-        GELOGI(
-            "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][neither Concat nor Split is operating on "
-            "the first dim]",
-            node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str(),
-            ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseConcatBackward));
-        return NOT_CHANGED;
+        return false;
       }
     }
   }
-  GELOGD("[%s] split on first dim, can fuse split", concat_node->GetNamePtr());
+  return true;
+}
+
+bool ConcatFusionStrategy::IsFirstDimConcat(const NodePtr &node) {
+  const auto concat_node = FindConcatNode(node);
+  GE_ASSERT_NOTNULL(concat_node);
+  return IsConcatOrSplitFirstDim(concat_node);
+}
+
+Status ConcatFusionStrategy::CanFuseSplit(const NodePtr &node1, const NodePtr &node2) {
+  // 首轴split将被转为load, 可以与concat融合
+  GE_CHK_BOOL_RET_SPECIAL_STATUS(IsFirstDimSplit(node1), SUCCESS, "[%s] split on first dim, can fuse split",
+                                 node1->GetNamePtr());
+
+  // split与concat都非首轴，不能融合
+  GE_CHK_BOOL_RET_SPECIAL_STATUS(
+      (!IsFirstDimConcat(node2)), NOT_CHANGED,
+      "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][neither Concat nor Split is operating on "
+      "the first dim]",
+      node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str(),
+      ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseConcatBackward));
+
+  // 首轴concat时, 防止Split作为后融合算子的输入
+  if (node2->GetType() == kFusedAscBackendType) {
+    bool can_fuse = false;
+    GE_ASSERT_SUCCESS(IsSplitLinkToBackwardFusionNode(node1, node2, can_fuse));
+    GE_CHK_BOOL_RET_SPECIAL_STATUS((!can_fuse), NOT_CHANGED,
+                                   "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is "
+                                   "[non-first-dim Split links to backward fusion node]",
+                                   node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(),
+                                   node2->GetType().c_str());
+  }
+  GELOGD("[%s] concat on first dim, can fuse split", node2->GetNamePtr());
   return SUCCESS;
 }
 
@@ -317,12 +341,12 @@ bool ConcatFusionStrategy::IsConcatOrSplitFirstDim(const AscNodePtr &concat_node
   size_t concat_dim = 0UL;
   bool is_first_dim = false;
   for (size_t i = 0U; i < input_repeats.size(); ++i) {
-    if (SymbolicUtils::StaticCheckEq(input_repeats[i], output_repeats[i]) != kTrue) {
+    if (SymbolicUtils::StaticCheckEq(input_repeats[i], output_repeats[i]) != ge::TriBool::kTrue) {
       concat_dim = i;
       is_first_dim = (non_one_count == 0);
       break;
     }
-    if (SymbolicUtils::StaticCheckEq(input_repeats[i], ge::Symbol(1)) != kTrue) {
+    if (SymbolicUtils::StaticCheckEq(input_repeats[i], ge::Symbol(1)) != ge::TriBool::kTrue) {
       ++non_one_count;
     }
   }
@@ -331,6 +355,70 @@ bool ConcatFusionStrategy::IsConcatOrSplitFirstDim(const AscNodePtr &concat_node
          concat_node->GetName().c_str(), ToString(input_repeats).c_str(), ToString(output_repeats).c_str(),
          is_first_dim, concat_dim);
   return is_first_dim;
+}
+
+Status ConcatFusionStrategy::IsSplitLinkToBackwardFusionNode(const NodePtr &split_node, const NodePtr &concat_node,
+                                                             bool &can_fuse) {
+  std::set<int32_t> backward_fusion_input_indices;
+  GE_ASSERT_SUCCESS(CollectBackwardFusionRelatedInputs(concat_node, backward_fusion_input_indices));
+  std::vector<NodePtr> data_nodes;
+  for (const auto &out_node_and_in_anchor : split_node->GetOutDataNodesAndAnchors()) {
+    if (out_node_and_in_anchor.first == concat_node) {
+      const auto input_index = out_node_and_in_anchor.second->GetIdx();
+      if (backward_fusion_input_indices.find(input_index) != backward_fusion_input_indices.end()) {
+        GELOGI("split linked to backward related input index: %d", input_index);
+        return SUCCESS;
+      }
+    }
+  }
+  can_fuse = true;
+  return SUCCESS;
+}
+
+Status ConcatFusionStrategy::CollectBackwardFusionRelatedInputs(const NodePtr &fused_node, std::set<int32_t> &indices) {
+  const auto attr = fused_node->GetOpDescBarePtr()->GetAttrsGroup<AutoFuseAttrs>();
+  GE_ASSERT_NOTNULL(attr);
+  const auto &fused_graph = attr->GetFuseComputeGraph();
+  std::set<NodePtr> backward_fusion_nodes;
+  GE_ASSERT_NOTNULL(fused_graph);
+  NodePtr concat_asc_backend_node;
+  for (const auto &node : fused_graph->GetAllNodes()) {
+    GE_ASSERT_NOTNULL(node->GetOpDescBarePtr());
+    const auto sub_attr = node->GetOpDescBarePtr()->GetAttrsGroup<AutoFuseAttrs>();
+    if ((sub_attr != nullptr) && (sub_attr->GetFuseType() == loop::FuseType::kConcat)) {
+      concat_asc_backend_node = node;
+      break;
+    }
+  }
+
+  std::queue<ge::NodePtr> queue;
+  std::set<Node *> visited_nodes;
+  visited_nodes.emplace(concat_asc_backend_node.get());
+  for (const auto &out_node : concat_asc_backend_node->GetOutDataNodes()) {
+    if ((out_node->GetType() == kAscBackendType) && visited_nodes.emplace(out_node.get()).second) {
+      queue.push(out_node);
+    }
+  }
+  while (!queue.empty()) {
+    const auto &node = queue.front();
+    queue.pop();
+    for (const auto &out_node : node->GetOutDataNodes()) {
+      if (visited_nodes.emplace(out_node.get()).second) {
+        queue.push(out_node);
+      }
+    }
+    for (const auto &in_node : node->GetInDataNodes()) {
+      if (in_node->GetType() == kDataType) {
+        int32_t index = -1;
+        GE_ASSERT_TRUE(AttrUtils::GetInt(in_node->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, index));
+        indices.emplace(index);
+      }
+      if (visited_nodes.emplace(in_node.get()).second) {
+        queue.push(in_node);
+      }
+    }
+  }
+  return SUCCESS;
 }
 
 REGISTER_FUSION_STRATEGY(ConcatFusionStrategy, loop::FuseType::kConcat);

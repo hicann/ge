@@ -854,6 +854,7 @@ private:
 class StoreSplitOp : public LoopOp {
 public:
   constexpr static size_t kSplitCanFuseMaxOutput = 512U;
+  constexpr static size_t kSplitCanLowerEndDimMaxOutput = 48U;
   struct StoreSplitDesc {
     // 成员变量
     OutDataAnchorPtr output_;
@@ -1050,6 +1051,7 @@ class StoreMatMulOp : public LoopOp {
 
   [[nodiscard]] bool InferDataType(const std::vector<DataType> &input_dtypes,
                                    std::vector<DataType> &expect_output_dtypes) const override {
+    (void)input_dtypes;
     expect_output_dtypes.emplace_back(attrs_.output_dtype);
     return true;
   }

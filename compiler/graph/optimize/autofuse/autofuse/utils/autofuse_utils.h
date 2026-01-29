@@ -31,6 +31,14 @@ const std::string AF_SPLITD = "SplitD";
 const std::string AF_SPLITV = "SplitV";
 const std::string AF_SPLITVD = "SplitVD";
 const std::set<string> SPLIT_TYPES{AF_SPLIT, AF_SPLITD, AF_SPLITVD, AF_SPLITV};
+const std::string kMatMul = "MatMul";
+const std::string kMatMulBias = "MatMulBias";
+const std::string kMatMulOffset = "MatMulOffset";
+const std::string kMatMulOffsetBias = "MatMulOffsetBias";
+const std::string kBatchMatMul = "BatchMatMul";
+const std::string kBatchMatMulBias = "BatchMatMulBias";
+const std::string kBatchMatMulOffset = "BatchMatMulOffset";
+const std::string kBatchMatMulOffsetBias = "BatchMatMulOffsetBias";
 
 class AutofuseUtils {
  public:
@@ -128,6 +136,7 @@ class AutofuseUtils {
 
   static bool CheckAndMulDetect(const std::vector<Expression> &long_dims, const std::vector<Expression> &short_dims,
                                 size_t &sort_idx, std::vector<size_t> &mul_idx);
+  static bool IsCubeNodeType(const NodePtr &node);
   static graphStatus GetListIntFromInput(const NodePtr &node, std::vector<int64_t> &value_vec,
                                          const std::string &input = "");
 
@@ -141,11 +150,11 @@ class AutofuseUtils {
   static NodePtr ConvertAscBackendNodeToAscGraphNode(const ComputeGraphPtr compute_graph, const NodePtr &node);
 
   static Status SerializeAndPackComputeGraph(const ComputeGraphPtr &compute_graph, const NodePtr &node,
-                                             std::string &output);
+                                             std::string &output, bool isHash = false);
 
   static Status GetNodeOutputIndex(const NodePtr &node, std::vector<uint32_t> &node_output_index);
 
-  static Status RenameInputAndOutputForGraph(ComputeGraphPtr &compute_graph, const NodePtr &node);
+  static Status RenameInputAndOutputForGraph(ComputeGraphPtr &graph, const NodePtr &node);
 };
 }  // namespace ge
 

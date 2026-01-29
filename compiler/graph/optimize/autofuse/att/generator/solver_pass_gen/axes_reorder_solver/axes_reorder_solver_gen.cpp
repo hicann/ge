@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "axes_reorder_solver_gen.h"
 #include "autofuse_config/auto_fuse_config.h"
@@ -32,7 +26,7 @@ bool CheckExist(const std::vector<Expr> &args, const Expr &check_arg) {
   return false;
 }
 
-void AxesReorderSolverGen::SetInputAlign(const ExprUintMap &input_align) {
+void AxesReorderSolverGen::SetInputAlign(const ExprExprMap &input_align) {
   for (const auto &pair : input_align) {
     input_align_[pair.first] = pair.second;
   }
@@ -278,7 +272,7 @@ std::pair<std::string, std::string> AxesReorderSolverGen::GenOriginBufExpr(const
       ast_expr_map.emplace(Str(arg), *ast.get());
     }
   }
-  std::string tmp_vars = ast_optimizer.GenerateCode();
+  std::string tmp_vars = ast_optimizer.GenerateCode(indent);
   tmp_def += tmp_vars;
   for (const auto &pair : ast_expr_map) {
     std::string return_expr = ast_optimizer.RebuildExpr(pair.second, 1);
@@ -287,15 +281,13 @@ std::pair<std::string, std::string> AxesReorderSolverGen::GenOriginBufExpr(const
   Parser parser(Str(expr));
   ASTPtr ast = parser.Parse();
   ast_optimizer.Optimize(ast);
-  std::string func_tmp_vars = ast_optimizer.GenerateCode();
+  std::string func_tmp_vars = ast_optimizer.GenerateCode(indent);
   tmp_def += func_tmp_vars;
   std::string func_return_expr = ast_optimizer.RebuildExpr(*ast.get(), 1);
   return std::make_pair(tmp_def, func_return_expr);
 }
 
 std::string AxesReorderSolverGen::GenObjFunc() {
-  Expr expr;
-  Expr expression;
   std::string codes;
   std::string pipe_obj;
   std::vector<Expr> funcs;
@@ -320,24 +312,7 @@ std::string AxesReorderSolverGen::GenObjFunc() {
     codes += "  double " + Str(local_buffer_tiling_vars_[i]) + " = static_cast<double>(input_.local_buffer_vars["
         + std::to_string(i) + "]->value);\n";
   }
-  for (const auto &pair : pipe_2_obj_map_) {
-    auto iter = kPipetypeNameMap.find(pair.first);
-    if (iter != kPipetypeNameMap.end()) {
-      funcs.emplace_back(pair.second);
-      expression = CreateExpr(iter->second.c_str());
-      pipe_obj += "  double " + Str(expression) + " = " + GetSmoothString(Str(pair.second.Replace(replace_vars_))) + ";\n";
-      expr = (!IsValid(expr)) ? expression : ge::sym::Max(expr, expression);
-    }
-  }
-  funcs.emplace_back(head_cost_);
-  codes += GenOriginExpr(funcs, "  ");
-  codes += pipe_obj;
-  if (!IsValid(expr)) {
-    codes += "  return 0;\n";
-  } else {
-    expr = ge::sym::Add(expr, head_cost_);
-    codes += "  return " + GetSmoothString(Str(expr)) + ";\n";
-  }
+  codes += "  return GetPerfStatic(PipeType::ALL, " + GenGetObjStaticInputParam(true) + ");\n";
   codes += "}\n";
   codes += "\n";
   return codes;
@@ -377,12 +352,208 @@ bool AxesReorderSolverGen::NeedUBMultiCoreBalance() {
   return need_ub_mc_balance;
 }
 
+inline void GetExprFromParamList(const std::set<std::string> &param_set, std::string &codes) {
+  size_t index = 0UL;
+  for (const auto &param : param_set) {
+    if (index > 0UL) {
+      codes += ", ";
+    }
+    codes += param;
+    ++index;
+  }
+}
+
+std::string AxesReorderSolverGen::GenGetStaticInputParam(const HardwareDef &hardware_type, bool no_type) const {
+  std::string codes;
+  std::set<std::string> param_set;
+  std::string type_prefix = "double ";
+  if (no_type) {
+    type_prefix = "";
+  }
+  auto iter = hardware_use_map_.find(hardware_type);
+  if (iter != hardware_use_map_.end()){
+    std::vector<Expr> all_args;
+    GetRelatedArgs(iter->second, all_args);
+    for (const auto& arg : all_args) {
+      if (arg.IsConstExpr()) {
+        continue;
+      }
+      param_set.insert(type_prefix + Str(arg));
+    }
+  }
+  GetExprFromParamList(param_set, codes);
+  return codes;
+}
+
+std::string AxesReorderSolverGen::GenGetUbSizeStaticFunc() {
+  std::string codes;
+  codes += "int64_t AxesReorderSolver" + tiling_case_id_ + "::GetUbSizeStatic(" + GenGetStaticInputParam(HardwareDef::UB) + ") {\n";
+  bool ub_exist = false;
+  auto ub_iter = hardware_use_map_.find(HardwareDef::UB);
+  if (ub_iter != hardware_use_map_.end()) {
+    auto tmp_func_pair = GenOriginBufExpr(ub_iter->second, "  ");
+    std::string tmp_def = tmp_func_pair.first;
+    std::string func_return_expr = tmp_func_pair.second;
+    codes += tmp_def;
+    codes += "  int64_t ub_size = " + func_return_expr + ";\n";
+    ub_exist = true;
+  }
+  if (!ub_exist) {
+    codes += "  return 0;\n";
+  } else {
+    codes += "  return ub_size;\n";
+  }
+  codes += "}\n";
+  codes += "\n";
+  return codes;
+}
+
+std::string AxesReorderSolverGen::GenGetTilingDataUbSizeStaticFunc() {
+  std::string codes;
+  codes += "int AxesReorderSolver" + tiling_case_id_ + "::GetTilingDataUbSizeStatic(" + type_name_ + "& tiling_data) {\n";
+  for (size_t i = 0UL; i < input_args_.size(); ++i) {
+    codes += "  double " + Str(input_args_[i]) + " = tiling_data.get_" + Str(input_args_[i]) + "();\n";
+  }
+  for (size_t i = 0UL; i < local_buffer_tiling_vars_.size(); ++i) {
+    codes += "  double " + Str(local_buffer_tiling_vars_[i]) + " = tiling_data.get_" + Str(local_buffer_tiling_vars_[i]) + "();\n";
+  }
+  codes += "  return GetUbSizeStatic(" + GenGetStaticInputParam(HardwareDef::UB, true) + ");\n";
+  codes += "}\n";
+  codes += "\n";
+  return codes;
+}
+
+std::string AxesReorderSolverGen::GenGetBlockDimStatic(Expr &corenum_cons) {
+  std::string codes;
+  codes += "int AxesReorderSolver" + tiling_case_id_ + "::GetBlockDimStatic(" + GenGetStaticInputParam(HardwareDef::CORENUM) + ") {\n";
+  codes += "  return " + Str(corenum_cons) + ";\n";
+  codes += "}\n";
+  codes += "\n";
+  return codes;
+}
+
+std::string AxesReorderSolverGen::GenGetTilingDataBlockDimStatic(Expr &corenum_cons) {
+  std::string codes;
+  codes += "int AxesReorderSolver" + tiling_case_id_ + "::GetTilingDataBlockDimStatic(" + type_name_ + "& tiling_data) {\n";
+  std::vector<Expr> all_args;
+  GetRelatedArgs(corenum_cons, all_args);
+  for (size_t i = 0UL; i < input_args_.size(); ++i) {
+    if (CheckExist(all_args, input_args_[i])) {
+      codes += "  double " + Str(input_args_[i]) + " = tiling_data.get_" + Str(input_args_[i]) + "();\n";
+    }
+  }
+  for (size_t i = 0UL; i < mc_args_.size(); ++i) {
+    if (CheckExist(all_args, mc_args_[i])) {
+      codes += "  double " + Str(mc_args_[i]) + " = tiling_data.get_" + Str(mc_args_[i]) + "();\n";
+    }
+  }
+  for (size_t i = 0UL; i < local_buffer_tiling_vars_.size(); ++i) {
+    if (CheckExist(all_args, local_buffer_tiling_vars_[i])) {
+      codes += "  double " + Str(local_buffer_tiling_vars_[i]) + " = tiling_data.get_" + Str(local_buffer_tiling_vars_[i]) + "();\n";
+    }
+  }
+  codes += "  return GetBlockDimStatic(" + GenGetStaticInputParam(HardwareDef::CORENUM, true) + ");\n";
+  codes += "}\n";
+  codes += "\n";
+  return codes;
+}
+
+std::string AxesReorderSolverGen::GenGetObjStaticInputParam(bool no_type) {
+  std::string codes;
+  std::set<std::string> param_set;
+  if (no_type) {
+    param_set.insert("block_dim");
+  } else {
+    param_set.insert("double block_dim");
+  }
+  std::string type_prefix = "double ";
+  if (no_type) {
+    type_prefix = "";
+  }
+  for (const auto &arg : input_args_) {
+    std::string arg_str = Str(arg);
+    if (arg_str == "block_dim") {
+      continue;
+    }
+    std::string param = type_prefix + arg_str;
+    param_set.insert(param);
+  }
+  for (const auto &arg : mc_args_) {
+    std::string param = type_prefix + Str(arg);
+    param_set.insert(param);
+  }
+  for (const auto &var : local_buffer_tiling_vars_) {
+    std::string param = type_prefix + Str(var);
+    param_set.insert(param);
+  }
+  GetExprFromParamList(param_set, codes);
+  return codes;
+}
+
+std::string AxesReorderSolverGen::GenGetObjStaticFunc() {
+  Expr expr;
+  Expr expression;
+  std::string codes;
+  std::string pipe_obj;
+  std::vector<Expr> funcs;
+  codes += "double AxesReorderSolver" + tiling_case_id_ + "::GetPerfStatic(const PipeType &pipe_type, " +
+           GenGetObjStaticInputParam() + ") {\n";
+  for (const auto &pair : pipe_2_obj_map_) {
+    auto iter = kPipetypeNameMap.find(pair.first);
+    if (iter != kPipetypeNameMap.end()) {
+      funcs.emplace_back(pair.second);
+      expression = CreateExpr(iter->second.c_str());
+      pipe_obj +=
+          "  double " + Str(expression) + " = " + GetSmoothString(Str(pair.second.Replace(replace_vars_))) + ";\n";
+      expr = (!IsValid(expr)) ? expression : ge::sym::Max(expr, expression);
+      pipe_obj += "  if (pipe_type == PipeType::" + Str(expression) + ") {\n    return " + Str(expression) + ";\n  }\n";
+    }
+  }
+  funcs.emplace_back(head_cost_);
+  codes += GenOriginExpr(funcs, "  ");
+  codes += pipe_obj;
+  if (!IsValid(expr)) {
+    codes += "  return 0;\n";
+  } else {
+    expr = ge::sym::Add(expr, head_cost_);
+    codes += "  return " + GetSmoothString(Str(expr)) + ";\n";
+  }
+  codes += "}\n";
+  codes += "\n";
+  return codes;
+}
+
+std::string AxesReorderSolverGen::GenGetTilingDataObjStaticFunc() {
+  std::string codes;
+  codes += "double AxesReorderSolver" + tiling_case_id_ + "::GetTilingDataPerfStatic(const PipeType &pipe_type, " + type_name_ + "& tiling_data) {\n";
+  bool input_contain_block_dim = false;
+  for (size_t i = 0UL; i < input_args_.size(); ++i) {
+    if (Str(input_args_[i]) == "block_dim") {
+      input_contain_block_dim = true;
+    }
+    codes += "  double " + Str(input_args_[i]) + " = tiling_data.get_" + Str(input_args_[i]) + "();\n";
+  }
+  if (!input_contain_block_dim) {
+    codes += "  double block_dim = tiling_data.get_block_dim();\n";
+  }
+  for (size_t i = 0UL; i < mc_args_.size(); ++i) {
+    codes += "  double " + Str(mc_args_[i]) + " = tiling_data.get_" + Str(mc_args_[i]) + "();\n";
+  }
+  for (size_t i = 0UL; i < local_buffer_tiling_vars_.size(); ++i) {
+    codes += "  double " + Str(local_buffer_tiling_vars_[i]) + " = tiling_data.get_" + Str(local_buffer_tiling_vars_[i]) + "();\n";
+  }
+  codes += "  return GetPerfStatic(pipe_type, " + GenGetObjStaticInputParam(true) + ");\n";
+  codes += "}\n";
+  codes += "\n";
+  return codes;
+}
+
 std::string AxesReorderSolverGen::GenUBThresholdFunc() {
   std::string codes;
-  codes += "  bool AxesReorderSolver" + tiling_case_id_ + "::SatisfyThresholdUBSize() {\n";
+  codes += "bool AxesReorderSolver" + tiling_case_id_ + "::SatisfyThresholdUBSize() {\n";
   if (!NeedUBMultiCoreBalance()) {
-    codes += "    return false;\n";
-    codes += "  }\n";
+    codes += "  return false;\n";
+    codes += "}\n";
     return codes;
   }
   for (uint32_t i = 0u; i < input_args_.size(); ++i) {
@@ -393,52 +564,89 @@ std::string AxesReorderSolverGen::GenUBThresholdFunc() {
     codes += "  double " + Str(local_buffer_tiling_vars_[i]) + " = static_cast<double>(input_.local_buffer_vars["
         + std::to_string(i) + "]->value);\n";
   }
-  bool ub_exist = false;
-  for (const auto &pair : hardware_use_map_) {
-    if (pair.first != HardwareDef::UB) {
-      continue;
-    }
-    auto tmp_func_pair = GenOriginBufExpr(pair.second, "  ");
-    std::string tmp_def = tmp_func_pair.first;
-    std::string func_return_expr = tmp_func_pair.second;
-    codes += tmp_def;
-    codes += "  uint32_t ub_size = " + func_return_expr + ";\n";
-    ub_exist = true; 
-    break;
-  }
-  if (!ub_exist) {
-    codes += "    return false;\n";
-  } else {
-    codes += "    return (ub_size - " + Str(reserved_ub_size_) + ") > static_cast<uint32_t>(input_.ub_threshold * input_.ub_size);\n";
-  }
-  codes += "  }\n";
+  codes += "  uint32_t ub_size = GetUbSizeStatic(" + GenGetStaticInputParam(HardwareDef::UB, true) + ");\n";
+  codes += "  return (ub_size - " + Str(reserved_ub_size_) + ") > static_cast<uint32_t>(input_.ub_threshold * input_.ub_size);\n";
+  codes += "}\n";
   codes += "\n";
   return codes;
 }
 
-std::string AxesReorderSolverGen::GenPgoSolverClassImpl(const std::string& className) const {
+std::string AxesReorderSolverGen::GenUBSizeCacheLineFunc() {
   std::string codes;
-  codes += "class " + className +" : public AxesReorderSolver(input) {\n" ;
-  codes += " public:\n" ;
-  codes += " explicit PGOSearchAxesSolver(const AxesReorderSolverInput &input) : AxesReorderSolver(input) {}\n";
-  codes += " ~PGOSearchAxesSolver() = default;\n" ;
-  codes += " bool Run()\n";
-  codes += " std::vector<std::vector<uint32_t>> GetTilingDataList();\n";
-  codes += " std::vector<AutofuseTilingData> tiling_data_list;\n";
-  codes += " bool CalUsedCoreNum(double &used_core_num) override;\n";
-  codes += " bool CalRealUsedCoreNum(int64_t &used_core_num) override;\n";
-  codes += " double GetPerf() override; \n";
-  codes += "private:\n";
-  codes += " void PgoSolverGenerateAllTilingData();\n";
-  codes += " std::vector<std::vector<uint32_t>> availiable_tiling_data_list_;\n";
+  codes += "bool AxesReorderSolver" + tiling_case_id_ + "::SatisfyUBSizeCacheLine(uint32_t idx) {\n";
+  if (!NeedUBMultiCoreBalance()) {
+    codes += "  return false;\n";
+    codes += "}\n";
+    return codes;
+  }
+  if (enable_multicore_ub_tradeoff_) {
+    codes += "  // enable multicore ub tradeoff by config\n";
+    codes += "  return true;\n";
+    codes += "}\n";
+    return codes;
+  }
+  for (size_t i = 0u; i < input_args_.size(); ++i) {
+    codes += "  double " + Str(input_args_[i]) + " = static_cast<double>(input_.input_vars[" + std::to_string(i) +
+             "]->value);\n";
+  }
+  codes += "  double* sizes[" + std::to_string(local_buffer_tiling_vars_.size()) + "];\n";
+  for (size_t i = 0u; i < local_buffer_tiling_vars_.size(); ++i) {
+    codes += "  double " + Str(local_buffer_tiling_vars_[i]) + " = static_cast<double>(0xffff);\n";
+    codes += "  sizes[" + std::to_string(i) + "] = &" + Str(local_buffer_tiling_vars_[i]) + ";\n";
+  }
+  codes += "  *sizes[idx] = static_cast<double>(input_.local_buffer_vars[idx]->value);\n\n";
+  if (cache_line_config_ != nullptr) {
+    for (const auto &c : *cache_line_config_) {
+      if (c.cache_line_size > 0) {
+        GELOGD("GetCacheLineCont for %s", c.ToString().c_str());
+        codes += "  // check node " + c.node_name + "\n";
+        codes += "  if (" + Str(c.cache_line_expr) + " < " + std::to_string(c.cache_line_size) + ") {\n";
+        codes += "      OP_LOGD(OP_NAME, \"" + c.node_name + " condition not satisfy UB size cache line\");\n";
+        codes += "      return false;\n";
+        codes += "  }\n";
+      }
+    }
+  }
+
+  codes += "  OP_LOGD(OP_NAME, \"condition satisfy UB size cache line\");\n";
+  codes += "  return true;\n";
+  codes += "}\n";
+  codes += "\n";
   return codes;
 }
 
-std::string AxesReorderSolverGen::GenRunImpl(const std::string& className) const {
+std::string AxesReorderSolverGen::GenCoreNumFunc() {
   std::string codes;
-  codes += className + "::Run() { \n";
-  codes += " PgoSolverGenerateAllTilingData();\n";
+  const std::string solver_class_name = "AxesReorderSolver" + tiling_case_id_;
+  const bool has_core_num = (hardware_use_map_.find(HardwareDef::CORENUM) != hardware_use_map_.end());
+  Expr corenum_cons;
+  std::string related_vars_code;
+  if (has_core_num) {
+    corenum_cons = hardware_use_map_[HardwareDef::CORENUM];
+    related_vars_code = ObtainRelatedVars(corenum_cons);
+  }
+  codes += "bool " + solver_class_name + "::CalUsedCoreNum(double &used_core_num) {\n";
+  if (has_core_num) {
+    codes += related_vars_code;
+    codes += "  used_core_num = " + GetSmoothString(Str(corenum_cons)) + ";\n";
+  }
+  codes += "  return true;\n";
   codes += "}\n";
+  codes += "\n";
+  codes += "bool " + solver_class_name + "::CalRealUsedCoreNum(int64_t &used_core_num) {\n";
+  if (has_core_num) {
+    codes += related_vars_code;
+    codes += "  used_core_num = GetBlockDimStatic(" + GenGetStaticInputParam(HardwareDef::CORENUM, true) + ");\n";
+    codes += "  return true;\n";
+    codes += "};\n";
+    codes += "\n";
+    codes += GenGetBlockDimStatic(corenum_cons);
+    codes += GenGetTilingDataBlockDimStatic(corenum_cons);
+  } else {
+    codes += "  return true;\n";
+    codes += "};\n";
+    codes += "\n";
+  }
   return codes;
 }
 
@@ -451,27 +659,27 @@ std::string AxesReorderSolverGen::GenSolverClassImpl() {
   codes += "  bool CalUsedCoreNum(double &used_core_num) override;\n";
   codes += "  bool CalRealUsedCoreNum(int64_t &used_corenum) override;\n";
   codes += "  bool SatisfyThresholdUBSize() override;\n";
+  codes += "  bool SatisfyUBSizeCacheLine(uint32_t idx) override;\n";
   codes += "  double GetPerf() override;\n";
+  if (hardware_use_map_.find(HardwareDef::CORENUM) != hardware_use_map_.end()) {
+    Expr corenum_cons = hardware_use_map_[HardwareDef::CORENUM];
+    codes += "  static int GetBlockDimStatic(" + GenGetStaticInputParam(HardwareDef::CORENUM) + ");\n";
+    codes += "  static int GetTilingDataBlockDimStatic(" + type_name_ + "& tiling_data);\n";
+  }
+  codes += "  static double GetPerfStatic(const PipeType &pipe_type, " + GenGetObjStaticInputParam() + ");\n";
+  codes += "  static double GetTilingDataPerfStatic(const PipeType &pipe_type, " + type_name_ + "& tiling_data);\n";
+  codes += "  static int64_t GetUbSizeStatic(" + GenGetStaticInputParam(HardwareDef::UB) + ");\n";
+  codes += "  static int GetTilingDataUbSizeStatic(" + type_name_ + "& tiling_data);\n";
   codes += "};\n";
   codes += "\n";
+  codes += GenGetObjStaticFunc();
+  codes += GenGetTilingDataObjStaticFunc();
   codes += GenObjFunc();
+  codes += GenGetUbSizeStaticFunc();
+  codes += GenGetTilingDataUbSizeStaticFunc();
   codes += GenUBThresholdFunc();
-  codes += "bool AxesReorderSolver" + tiling_case_id_ + "::CalUsedCoreNum(double &used_core_num) {\n";
-  if (hardware_use_map_.find(HardwareDef::CORENUM) != hardware_use_map_.end()) {
-    Expr corenum_cons = hardware_use_map_[HardwareDef::CORENUM];
-    codes += ObtainRelatedVars(corenum_cons);
-    codes += "  used_core_num = " + GetSmoothString(Str(corenum_cons)) + ";\n";
-  }
-  codes += "  return true;\n";
-  codes += "}\n";
-  codes += "bool AxesReorderSolver" + tiling_case_id_ + "::CalRealUsedCoreNum(int64_t &used_core_num) {\n";
-  if (hardware_use_map_.find(HardwareDef::CORENUM) != hardware_use_map_.end()) {
-    Expr corenum_cons = hardware_use_map_[HardwareDef::CORENUM];
-    codes += ObtainRelatedVars(corenum_cons);
-    codes += "  used_core_num = " + Str(corenum_cons) + ";\n";
-  }
-  codes += "  return true;\n";
-  codes += "};\n";
+  codes += GenUBSizeCacheLineFunc();
+  codes += GenCoreNumFunc();
   if (enable_autofuse_pgo_) {
     codes += GenPGOSolverClassImpl();
   }
@@ -480,13 +688,14 @@ std::string AxesReorderSolverGen::GenSolverClassImpl() {
 
 std::string AxesReorderSolverGen::GenPGOSolverClassImpl() {
   std::string codes;
-  codes += "class PGOSolver" + tiling_case_id_ + " : public AxesReorderSolver {\n";
+  codes += "class PGOSolver" + tiling_case_id_ + " : public AxesReorderPgoSolver {\n";
   codes += " public:\n";
-  codes += "  explicit PGOSolver" + tiling_case_id_ + "(const AxesReorderSolverInput input) : AxesReorderSolver(input) {}\n";
+  codes += "  explicit PGOSolver" + tiling_case_id_ + "(const AxesReorderSolverInput input) : AxesReorderPgoSolver(input) {}\n";
   codes += "  ~PGOSolver" + tiling_case_id_ + "() = default;\n";
   codes += "  bool CalUsedCoreNum(double &used_core_num) override;\n";
   codes += "  bool CalRealUsedCoreNum(int64_t &used_corenum) override;\n";
   codes += "  bool SatisfyThresholdUBSize() override {return false;};\n";
+  codes += "  bool SatisfyUBSizeCacheLine(uint32_t idx) override {return false;};\n";
   codes += "  double GetPerf() override {return 0;};\n";
   codes += "};\n";
   codes += "\n";
@@ -514,9 +723,13 @@ std::string AxesReorderSolverGen::InitiateArgs() {
   for (const auto &arg : input_args_) {
     std::string arg_string = arg.Str().get();
     strs += "    Variable " + arg_string + ";\n";
-    if (IsValid(arg) && input_align_[arg] != 1) {
-      std::string input_align = std::to_string(std::max(1u, input_align_[arg]));
-      strs += "    " + arg_string + ".value = (tiling_data.get_" + arg_string + "() + " + input_align + " - 1) / " + input_align + " * " + input_align + ";\n";
+    auto input_align_expr = input_align_[arg];
+    if (IsValid(arg) && (!input_align_expr.IsConstExpr() ||
+                         (input_align_expr.IsConstExpr() &&
+                          ge::SymbolicUtils::StaticCheckNe(input_align_expr, ge::Symbol(1)) == ge::TriBool::kTrue))) {
+      std::string input_align = "std::max(1, " + Str(input_align_expr) + ")";
+      strs += "    " + arg_string + ".value = (tiling_data.get_" + arg_string + "() + " + input_align + " - 1) / " +
+              input_align + " * " + input_align + ";\n";
     } else {
       strs += "    " + arg_string + ".value = tiling_data.get_" + arg_string + "();\n";
     }
@@ -527,6 +740,19 @@ std::string AxesReorderSolverGen::InitiateArgs() {
   for (const auto &local_arg : local_buffer_tiling_vars_) {
     strs += "    TilingVariable " + Str(local_arg) + ";\n";
   }
+  return strs;
+}
+
+std::string AxesReorderSolverGen::GenConsUbFunc(uint32_t cons_idx, const std::vector<Expr> &rel_tiling_vars,
+                                                const std::vector<Expr> &rel_cons_vars) const {
+  std::string strs = "";
+  strs += "    auto cons" + std::to_string(cons_idx) + "Eval = [](TilingVariable **rel_tiling_vars, "
+                                                       "Variable **rel_in_shapes, int64_t rel_hw_spec) {\n";
+  strs += SetRelatedVars(rel_tiling_vars, rel_cons_vars);
+  strs += "      int64_t value = AxesReorderSolver" + tiling_case_id_ + "::GetUbSizeStatic(" +
+      GenGetStaticInputParam(HardwareDef::UB, true) + ") - rel_hw_spec;\n";
+  strs += "      return value;\n";
+  strs += "    };\n";
   return strs;
 }
 
@@ -546,7 +772,7 @@ std::string AxesReorderSolverGen::GenConsFunc(uint32_t cons_idx, ConsType cons_t
     strs += "      int64_t value = " + func_return_expr + "- rel_hw_spec;\n";
   } else if (cons_type == ConsType::CUT) {
     strs += GenOriginExpr({cons}, "      ");
-    strs += "      int64_t value = " + Str(cons) + ";\n"; 
+    strs += "      int64_t value = " + Str(cons) + ";\n";
   }
   strs += "      return value;\n";  
   strs += "    };\n"; 
@@ -560,7 +786,11 @@ std::string AxesReorderSolverGen::InitiateBufferConsArgs(uint32_t cons_idx, Hard
   auto rel_vars = SortConsArgs(cons, is_mc_mixed);
   strs += "    int64_t " + hardware_name + " = tiling_data.get_" + hardware_name + "();\n";
   strs += "    Constraint cons" + std::to_string(cons_idx) + ";\n";
-  strs += GenConsFunc(cons_idx, ConsType::BUFFER, cons, rel_vars.first, rel_vars.second);
+  if (hardware == HardwareDef::UB) {
+    strs += GenConsUbFunc(cons_idx, rel_vars.first, rel_vars.second);
+  } else {
+    strs += GenConsFunc(cons_idx, ConsType::BUFFER, cons, rel_vars.first, rel_vars.second);
+  }
   strs += GenRelatedVars(cons_idx, rel_vars.first, rel_vars.second);
   strs += "    cons" + std::to_string(cons_idx) + ".rel_hw_spec = " + hardware_name + ";\n";
   strs += "    cons" + std::to_string(cons_idx) + ".type = ConstraintType::LOCAL_BUFFER;\n";
@@ -723,6 +953,11 @@ std::string AxesReorderSolverGen::GenInput(const TradeOffConfig &trade_off_confi
   strs += SetTilingVars(VarsType::PUREMC);
   strs += SetTilingVars(VarsType::LOCALBUFFER);
   strs += "    input.core_num = corenum_;\n";
+  strs += "    input.result_id = " + std::to_string(tiling_case_ident_.schedule_group_ident.impl_graph_id) + ";\n";
+  strs += "    input.group_id = " + std::to_string(tiling_case_ident_.schedule_group_ident.group_id) + ";\n";
+  strs += "    input.case_id = " + std::to_string(tiling_case_ident_.tiling_case_id) + ";\n";
+  std::string sub_case_str = tiling_case_ident_.sub_case_tag.empty() ? "0" : "1";
+  strs += "    input.sub_case_id = " + sub_case_str + ";\n";
   std::string ub_threshold_str;
   std::string core_num_threshold_str;
   // 用户通过环境变量配置使能
@@ -730,15 +965,12 @@ std::string AxesReorderSolverGen::GenInput(const TradeOffConfig &trade_off_confi
       "GenInput got enable_multicore_ub_tradeoff=%d, config.default_enable=%d， ub_threshold=%lf, "
       "core_num_threshold=%lf.",
       enable_multicore_ub_tradeoff_, trade_off_config.default_enable, ub_threshold_, corenum_threshold_);
-  if (enable_multicore_ub_tradeoff_) {
-    ub_threshold_str = std::to_string(ub_threshold_);
-    core_num_threshold_str = std::to_string(corenum_threshold_);
-  } else if (trade_off_config.default_enable) {
-    // 不同原型通过不同配置使能
+  if (!enable_multicore_ub_tradeoff_ && trade_off_config.default_enable) {
+    // 不同原型配置可能不同
     ub_threshold_str = std::to_string(trade_off_config.ub_ratio);
     core_num_threshold_str = std::to_string(trade_off_config.core_num_ratio);
   } else {
-    // 若所有条件不满足，保持与"启用多核权衡"相同的默认行为（原逻辑隐含的默认）
+    // 存在2种场景：1) 用户未使能，默认配置 2) 用户使能，用用户配置
     ub_threshold_str = std::to_string(ub_threshold_);
     core_num_threshold_str = std::to_string(corenum_threshold_);
   }
@@ -801,7 +1033,7 @@ std::string AxesReorderSolverGen::GenInputInfo(std::vector<Expr> &all_cons, std:
     const auto align = arg_align_map_[local_var];
     const auto prompt_align = arg_prompt_align_map_[local_var];
     const auto data_type_size = data_type_size_map_[local_var];
-    strs += "    " + Str(local_var) + ".align = " + std::to_string(std::max(1u, align)) + ";\n";
+    strs += "    " + Str(local_var) + ".align = std::max(1, " + Str(align) + ");\n";
     if (data_type_size > 0U) {
       strs += "    " + Str(local_var) + ".data_type_size = " + std::to_string(data_type_size) + ";\n";
     }
@@ -836,30 +1068,12 @@ std::string AxesReorderSolverGen::GenSetTiling() {
   return strs;
 }
 
-std::string AxesReorderSolverGen::GenPgoBatchCallback() const {
-  std::string code;
-  code +=
-  "    PgoConfig::Instance().batch_callback(" + input_output_call_ + "stream, workspaceSize, &sub_tiling_data_list);\n";
-  code += "    for (auto tiling_perf : sub_tiling_data_list) {\n";
-  code += "      tiling_data_list.push_back(tiling_perf);\n";
-  code += "      if (costValue > tiling_perf.best_perf) {\n";
-  code += "        best_tiling_data = tiling_perf.tiling_data;\n";
-  code += "        costValue = tiling_perf.best_perf;\n";
-  code += "      }\n";
-  code += "    }\n";
-  code += "    *autofuse_tiling_data = best_tiling_data;\n";
-  return code;
-}
-
 std::string AxesReorderSolverGen::GenPgoSetTiling() {
   std::string code;
   std::string filed_name = tiling_data_sub_group_item_name_;
   code += "    auto tiling_data_tmp = solver.GetTilingDataList();\n";
-  code += "    double costValue = DBL_MAX;\n";
-  code += "    AutofuseTilingData best_tiling_data = *autofuse_tiling_data;\n";
-  code += "    std::cerr << \" solver num: \" << tiling_data_tmp.size() << std::endl;\n";
-  code += "    std::vector<AutofuseTilingDataPerf> sub_tiling_data_list;\n";
   code += "    OP_LOGD(OP_NAME, \"[PGO]before filter solver: %u\", tiling_data_tmp.size());\n";
+  code += "    uint32_t solver_count = 0;\n";
   code += "    for (const auto &item : tiling_data_tmp) {\n";
   code += "      " + type_name_ + " new_auto_tiling = tiling_data;\n";
   for (size_t i = 0u; i < local_buffer_tiling_vars_.size(); ++i) {
@@ -869,9 +1083,10 @@ std::string AxesReorderSolverGen::GenPgoSetTiling() {
     code += "      new_auto_tiling.set_" + Str(mc_args_[i]) + "(item[" +
             std::to_string(i + local_buffer_tiling_vars_.size()) + "]);\n";
   }
+  code += "      SetWorkspaceSize(new_auto_tiling, workspace_map);\n";
+  code += "      DoApiTiling(new_auto_tiling);\n";
   code += "      GeneralTiling(new_auto_tiling);\n";
   code += GenPgoSetMaxBlockDim();
-  code += "      double costValueTmp = DBL_MAX;\n";
   code += "      if (!is_filter(new_auto_tiling)) { \n";
   code += "          continue;\n";
   code += "      }\n";
@@ -880,28 +1095,20 @@ std::string AxesReorderSolverGen::GenPgoSetTiling() {
   } else {
     code += "      *autofuse_tiling_data = new_auto_tiling;\n";
   }
-  code += arrange_code_;
-  code += "      uint32_t workspaceTmpSize = GetWorkspaceSize(*autofuse_tiling_data);\n";
-  code += "      workspaceTmpSize += 16 * 1024 * 1024;\n";
-  code += "      if (workspaceTmpSize > workspaceSize) {\n";
-  code += "        workspaceSize = workspaceTmpSize;\n";
-  code += "      }\n";
   code += "      AutofuseTilingDataPerf tiling_perf;\n";
   code += "      tiling_perf.tiling_data = *autofuse_tiling_data;\n";
-  code += "      tiling_perf.best_perf = costValueTmp;\n";
-  code += "      sub_tiling_data_list.push_back(tiling_perf);\n";
+  code += "      tiling_perf.best_perf = DBL_MAX;\n";
+  code += "      tiling_data_list.push_back(tiling_perf);\n";
+  code += "      solver_count++;\n";
   code += "    }\n";
-  code += "    OP_LOGD(OP_NAME, \"[PGO]after filter solver: %u\", sub_tiling_data_list.size());\n";
-  code += GenPgoBatchCallback();
-  code += "    OP_LOGI(OP_NAME, \"Get best tiling data, cost time: %f\", costValue);\n";
-  code += "    OP_LOGI(OP_NAME, \"tiling_data_list %d\", tiling_data_list.size());\n";
+  code += "    OP_LOGD(OP_NAME, \"[PGO]after filter solver: %u\", solver_count);\n";
   return code;
 }
 
 std::string AxesReorderSolverGen::GenPgoSetMaxBlockDim() const {
   std::string code;
   code += "      if (!block_dim_vec.empty()) {\n";
-  code += "        uint32_t temp_block_dim = 0;\n";
+  code += "        uint32_t temp_block_dim = new_auto_tiling.get_block_dim();\n";
   code += "        for (auto block_dim : block_dim_vec) {\n";
   code += "          if (block_dim != nullptr) {\n";
   code += "            if (*block_dim > temp_block_dim) {\n";
@@ -937,19 +1144,18 @@ std::string AxesReorderSolverGen::GenSolverFuncImpl() {
   codes += InitiateArgs();
   codes += GenInputInfo(all_cons, local_buffer_cons, mc_mixed_cons);
   auto trade_off_config = ((tiling_schedule_config_table_ != nullptr) && !enable_group_parallel_)
-                              ? tiling_schedule_config_table_->GetTradeOffConfig()
-                              : TradeOffConfig();
+                           ? tiling_schedule_config_table_->GetTradeOffConfig() : TradeOffConfig();
   codes += GenInput(trade_off_config, all_cons);
   codes += "    " + class_name + " solver(input);\n";
-  const ge::char_t *high_perf_val = enable_high_perf_ ? "true" : "false";
+  // 仅当使能高性能tiling模式并且未使能分组并行时才使能高性能tiling模式(分组并行会影响性能估值)
+  const ge::char_t *high_perf_val = (enable_high_perf_ && (!enable_group_parallel_)) ? "true" : "false";
   bool hit_pattern = NeedUBMultiCoreBalance();
   // 是否开启性能公式权衡核内循环数，vec重型算子/使能多核权衡时不使能该功能
-  // 使能PGO时再修改对应代码
-  // 仅显式指定为0时为剪枝算法，默认为控核
   if (enable_autofuse_pgo_) {
     codes += "    if (PgoConfig::Instance().need_change_solver_run == 1) {\n";
-    codes += "      input.ub_threshold = 0;\n";
-    codes += "      input.corenum_threshold = 1;\n";
+    codes += "      input.ub_threshold = PgoConfig::Instance().pgo_ub_threshold_list[PgoConfig::Instance().pgo_threshold_index];\n";
+    codes += "      input.corenum_threshold = PgoConfig::Instance().pgo_corenum_threshold_list[PgoConfig::Instance().pgo_threshold_index];\n";
+    codes += "      " + class_name + " solver(input);\n";
     codes += "      if (!solver.Run(true, false, " + std::string(high_perf_val) + ")) { \n";
     codes += "        return false;\n";
     codes += "      }\n";
@@ -957,14 +1163,15 @@ std::string AxesReorderSolverGen::GenSolverFuncImpl() {
   }
   const auto enable_block_loop_trade_off_by_perf = IsEnableBlockLoopTradeOffByPerf();
   const std::string enable_multicore_ub_tradeoff =
-      ((enable_multicore_ub_tradeoff_ || trade_off_config.default_enable) && hit_pattern) ? "true" : "false";
+      ((enable_multicore_ub_tradeoff_ || trade_off_config.default_enable || model_enable_multicore_ub_tradeoff_) &&
+       hit_pattern) ? "true" : "false";
   codes += "    if (!solver.Run(" + enable_multicore_ub_tradeoff + ", " + enable_block_loop_trade_off_by_perf + ", " +
            high_perf_val + ")) {\n";
   GELOGD(
       "Gen solver func, high_perf_val: %s, hit_pattern: %d, high_perf_: %d, multicore_ub_tradeoff:%d, "
-      "parallel enable flag:%d, enable_block_loop_trade_off_by_perf:%s",
-      high_perf_val, hit_pattern, enable_high_perf_, enable_multicore_ub_tradeoff_, enable_group_parallel_,
-      enable_block_loop_trade_off_by_perf.c_str());
+      "trade_off_config:%s, parallel enable flag:%d, enable_block_loop_trade_off_by_perf:%s",
+      high_perf_val, hit_pattern, enable_high_perf_, enable_multicore_ub_tradeoff_,
+      trade_off_config.DebugString().c_str(), enable_group_parallel_, enable_block_loop_trade_off_by_perf.c_str());
   // 使能高性能tiling模式并且命中ub多核可调优patterns
   codes += "      return false;\n";
   codes += "    }\n";
@@ -1032,8 +1239,9 @@ std::string AxesReorderSolverGen::GenPGOSolverFuncImpl() {
   std::string class_name = "PGOSolver" + tiling_case_id_;
   codes += "  bool ExecutePGOSolver(" + type_name_ +
            "& tiling_data, std::vector<AutofuseTilingDataPerf>& tiling_data_list, AutofuseTilingData* "
-           "autofuse_tiling_data, " +
-           input_output_def_ + "void* stream, uint32_t workspaceSize, std::vector<uint32_t*> block_dim_vec={}) {\n";
+           "autofuse_tiling_data, " + input_output_def_ +
+           "void* stream, std::unordered_map<int64_t, uint64_t> &workspace_map, " +
+           "std::vector<uint32_t*> block_dim_vec={}) {\n";
   codes += InitiateArgs();
   codes += GenInputInfo(all_cons, local_buffer_cons, mc_mixed_cons);
   codes += GenInput(TradeOffConfig(), all_cons);
@@ -1050,16 +1258,6 @@ std::string AxesReorderSolverGen::GenPGOSolverFuncImpl() {
 std::string AxesReorderSolverGen::GenSolverFuncInvoke() {
   std::string strs = "";
   strs += "    if (!ExecuteAxesReorderSolver(tiling_data)) {\n";
-  strs += "      OP_LOGW(OP_NAME, \"Failed to execute axes reorder solver for tilingCaseId " + tiling_case_id_ + ".\");\n";
-  strs += "      return false;\n";
-  strs += "    }\n";
-  strs += "    OP_LOGD(OP_NAME, \"Execute axes reorder solver for tilingCaseId " + tiling_case_id_ + " successfully.\");\n";
-  return strs;
-}
-
-std::string AxesReorderSolverGen::GenPGOSolverFuncInvoke() {
-  std::string strs = "";
-  strs += "    if (!ExecutePGOSolver(tiling_data, tiling_data_list)) {\n";
   strs += "      OP_LOGW(OP_NAME, \"Failed to execute axes reorder solver for tilingCaseId " + tiling_case_id_ + ".\");\n";
   strs += "      return false;\n";
   strs += "    }\n";

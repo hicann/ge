@@ -14,18 +14,19 @@
 #include <memory>
 #include <vector>
 
-#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "lowering/asc_lowerer/loop_common.h"
 #include "can_fuse/backend/fusion_decider.h"
 #include "autoschedule/axis_group.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
+#include "graph/attribute_group/attr_group_base.h"
 
 #include "ascir_ops.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
 
 namespace ge {
 const std::string kSplitTypeStub = "Split";
+constexpr int64_t kNonSplitGlobalId = -1L;
 struct AutofuseInnerAttrs {
   std::vector<const ge::Node *> origin_nodes;       // Asc节点对应的原始节点，用于Dfx打印、获取融合前ComputeGraph片段等
   std::vector<ge::OutDataAnchor *> output_buffers;  // Asc节点负责写入的原始输出anchor，用于lifting
@@ -42,7 +43,7 @@ struct AutofuseInnerAttrs {
   std::vector<std::pair<std::string, int32_t>> origin_input_names_;   // 融合节点与原始ge节点的输入映射关系
   int32_t vector_core_num;  // user set vector vore num scope
   size_t reduce_fused_elementwise_node_num = 0U;  // reduce节点向后融合的elementwise节点数量
-  int64_t split_global_id = -1; // split op 在 lowering 之前的全局编号
+  int64_t split_global_id = kNonSplitGlobalId; // split op 在 lowering 之前的全局编号，不是split节点的话，这个编号为-1
   bool is_fuse_from_lowering = false;  // 标识融合节点来自lowering还是can_fuse
 
   bool IsReduction() const {
@@ -58,6 +59,7 @@ class AutoFuseAttrs : public ge::AttrGroupsBase {
  public:
   AutoFuseAttrs() = default;
   AutoFuseAttrs(const AutoFuseAttrs &other) : fuse_type_(other.fuse_type_), asc_graph_(other.asc_graph_) {}
+  AutoFuseAttrs& operator=(const AutoFuseAttrs &other) = delete;
   [[nodiscard]] const std::shared_ptr<AscGraph> &GetAscGraph() const {
     return asc_graph_;
   }

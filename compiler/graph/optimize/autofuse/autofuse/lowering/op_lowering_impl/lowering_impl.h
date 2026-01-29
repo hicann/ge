@@ -12,7 +12,6 @@
 #define AUTOFUSE_LOWERING_IMPL_H_
 
 #include <functional>
-#include <memory>
 #include <vector>
 
 #include "graph/node.h"

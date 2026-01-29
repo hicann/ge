@@ -16,7 +16,7 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
+#include "api_call/utils/api_call_factory.h"
 
 namespace codegen {
 using namespace std;
@@ -66,6 +66,14 @@ Status ClipByValueApiCall::Generate(const TPipe &tpipe, const std::vector<ascir:
   std::string x3_scalar =
       x3.need_gen_get_value_of_ub_scalar ? ("(" + x3_dtype_name + ")" + x3.ub_scalar_name) : x3.Str();
 
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  if (it != this->tmp_buf_id.end()) {
+    id = it->second;
+  }
+
   stringstream ss;
   ss << this->api_name_ << "(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], ";  // 输出
   if (x1_is_scalar_scene) {
@@ -84,7 +92,8 @@ Status ClipByValueApiCall::Generate(const TPipe &tpipe, const std::vector<ascir:
     ss << x3 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x3) << "]";  // 输入3
   }
   if (!(x1_is_scalar_scene && x2_is_scalar_scene && x3_is_scalar_scene)) {
-    ss << ", " << x1.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+    GE_ASSERT_TRUE(id != -1L, "ClipByValueApiCall cannot find tmp buffer id to use.");
+    ss << ", " << x1.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
   } else {
     ss << ");" << std::endl;
   }

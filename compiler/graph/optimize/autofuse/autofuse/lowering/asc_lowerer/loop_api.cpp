@@ -375,7 +375,7 @@ bool IsNumber(const std::string& s) {
 }
 
 LoopVar Scalar(std::string face, ge::DataType dtype) {
-  GE_WARN_ASSERT(IsNumber(face), "Scalar face %s is not a number", face.c_str());
+  GE_WARN_ASSERT(IsNumber(face) || face == "inf", "Scalar face %s is not a number or inf", face.c_str());
   return LoopVar(std::make_shared<ScalarOp>(std::move(face), dtype));
 }
 
@@ -414,6 +414,37 @@ LoopVar Broadcast(const LoopVar &op, std::vector<Expression> src, std::vector<Ex
 LoopVar Permute(const LoopVar &op, std::vector<size_t> order) {
   GE_WARN_ASSERT(op.IsValid());
   return LoopVar(std::make_shared<PermuteOp>(op.Op(), std::move(order)));
+}
+
+bool IsStaticShape(std::vector<Expression> output_dims) {
+  for (const auto &exp : output_dims) {
+    if (!exp.IsConstExpr()) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool IsSameBatchSize(const std::vector<std::vector<Expression>> &input_dims) {
+  if (input_dims.size() < 2U) {
+    return false;
+  }
+  // 前两个是matmul的输入矩阵
+  const auto &input1 = input_dims[0];
+  const auto &input2 = input_dims[1];
+  Expression batch_size1 = Symbol(1);
+  Expression batch_size2 = Symbol(1);
+  // 两个矩阵的 batch size 必须相同才lowering
+  for (size_t i = 0U; i < input1.size() - 2U; i++) {
+    batch_size1 = batch_size1 * input1[i];
+  }
+  for (size_t i = 0U; i < input2.size() - 2U; ++i) {
+    batch_size2 = batch_size2 * input2[i];
+  }
+  if (ge::SymbolicUtils::StaticCheckEq(batch_size1, batch_size2) != ge::TriBool::kTrue) {
+    return false;
+  }
+  return true;
 }
 
 KernelBox StoreMatMul(const ge::OutDataAnchorPtr &dst, const std::vector<ge::InDataAnchorPtr> &inputs,
@@ -457,6 +488,15 @@ KernelBox StoreMatMul(const ge::OutDataAnchorPtr &dst, const std::vector<ge::InD
       }
     }
   }
+  if (!IsSameBatchSize(input_dims)) {
+    GELOGI("Drop lower result of %s as it has different batch size", BufferName(dst).c_str());
+    return StoreExtern(dst);
+  }
+
+  if (!IsStaticShape(dims)) {
+    GELOGI("Drop lower result of %s as it is not static shape", BufferName(dst).c_str());
+    return StoreExtern(dst);
+  }
 
   auto loop_var = LoopVar(std::make_shared<StoreMatMulOp>(dst.get(), input_buffers, matmul_attr, dims, input_dims));
   return SetLoopKernel(dst, loop_var).Realize();
@@ -480,7 +520,7 @@ bool CheckAndGetDims(const std::vector<Expression> &long_dims, const std::vector
     string longdim_str;
     for (size_t i = dims_idx; i < long_dims.size(); i++) {
       longdim_str += " " + SymbolicUtils::ToString(long_dims[i]);
-      if (SymbolicUtils::StaticCheckEq(long_dims[i], short_dim) == kTrue && !is_exist[i]) {
+      if (SymbolicUtils::StaticCheckEq(long_dims[i], short_dim) == ge::TriBool::kTrue && !is_exist[i]) {
         is_find = true;
         is_exist[i] = true;
         dims_idx = i;
@@ -546,15 +586,10 @@ bool IsInvalidTranspose(const std::vector<ge::Expression> &dims,
                         const std::vector<int64_t> &perm,
                         std::vector<int64_t> &squeeze_axis) {
   GE_ASSERT_TRUE(dims.size() == perm.size(), "dims and perm dimensions are not equal.");
-  // 1.过滤掉参与转置且dim为的轴
+  // 1.过滤掉dim为1的轴
   std::vector<size_t> filtered_input_axis;
   std::vector<size_t> filtered_output_axis;
   for (size_t i = 0U; i < perm.size(); ++i) {
-    if (perm[i] == static_cast<int>(i)) {
-      filtered_input_axis.push_back(i);
-      filtered_output_axis.push_back(perm[i]);
-      continue;
-    }
     auto in_dim_hint = -1;
     GE_ASSERT_TRUE(dims[i].GetHint(in_dim_hint), "Failed to get int value, expr = %s",
                    ge::SymbolicUtils::ToString(dims[i]).c_str());
@@ -741,8 +776,7 @@ std::vector<LoopVar> StoreSplit(const std::vector<OutDataAnchorPtr> &outputs, co
     }
     output_dims.emplace_back(outputx_dims);
   }
-  char soc_version[128U] = {};
-  (void)rtGetSocVersion(soc_version, 128U);
+  char soc_version[128] = {};
   GELOGI("soc_version: %s", soc_version);
   size_t idx = 0U;
   std::vector<LoopVar> ret;

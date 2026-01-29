@@ -15,8 +15,12 @@
 #include "autofuse_frame/autofuse_frames.h"
 
 namespace ge {
-constexpr uint32_t kHighFusionPriority = 0U;
-constexpr uint32_t kDefaultFusionPriority = 1U;
+enum class FusionPriority: uint32_t {
+  HIGHEST = 0U, // CanFuse阶段需要保证Split之间完成融合后再进行Split与其它类型节点间的融合
+  HIGH = 1U,
+  DEFAULT = 2U,
+  LOW = 3U
+};
 
 class FusionDecider {
  public:
@@ -34,13 +38,20 @@ class FusionDecider {
   virtual bool CanFuseHorizontal(const NodePtr &node1, const NodePtr &node2)  = 0;
 
   // 获取融合对的优先级
-  virtual uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) = 0;
+  virtual FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) = 0;
 
   // todo: 融合两个节点, 有没有必要用户写，后续流程串起来再看
   virtual NodePtr Fuse(const NodePtr &node1, const NodePtr &node2, const CounterPtr &counter) {
     (void)node1;
     (void)node2;
+    (void)counter;
     return nullptr;
+  }
+
+  virtual bool CanFuse(const NodePtr &node1, const NodePtr &node2) const {
+    (void)node1;
+    (void)node2;
+    return true;
   }
 };
 }  // namespace ge

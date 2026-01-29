@@ -38,7 +38,7 @@ class AutoSchedule {
  private:
   void GenTilingCase(std::vector<TilingCase> &tiling_cases);
   Status PruneTilingCase(std::vector<TilingCase> &tiling_cases) const;
-  Status SelectLoopAxis(ascir::ImplGraph &impl_graph) const;
+  Status SelectLoopAxis(ascir::ImplGraph &impl_graph, bool is_reduce_fullload) const;
 
   ascir::ImplGraph &graph_;
   std::vector<AutoScheduleOutput> &schd_outputs_;

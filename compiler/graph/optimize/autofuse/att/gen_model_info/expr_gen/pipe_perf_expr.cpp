@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "pipe_perf_expr.h"
@@ -257,7 +251,7 @@ ge::Status PipePerfExpr::GetTensorShapes(const NodeInfo &node, std::vector<Tenso
 }
 
 ge::Status PipePerfExpr::ConvertToPerfInfo(const std::vector<NodeInfo> &node_infos,
-                                           std::vector<NodePerfInfo> &node_perf_infos) {
+                                           std::vector<NodePerfInfo> &node_perf_infos) const {
   std::vector<TensorShapeInfo> inputs;
   std::vector<TensorShapeInfo> outputs;
   std::map<Expr, TenaryOp, ExprCmp> tenary_ops;  // 当前暂不使用
@@ -276,6 +270,34 @@ ge::Status PipePerfExpr::ConvertToPerfInfo(const std::vector<NodeInfo> &node_inf
     node_perf_infos.emplace_back(node_perf);
   }
   return ge::SUCCESS;
+}
+
+Perf PipePerfExpr::UpdateTilingScheduleConfigTable(const NodeInfo &node, bool tail_shape, PerfOutputInfo &perf_res) const {
+  Perf perf_func = nullptr;
+  const auto api_perf = GetApiPerf(node.node_type);
+  if (api_perf != nullptr) {
+    perf_func = api_perf->GetPerfFunc();
+    perf_res.cache_line_config = tuning_space_->cache_line_config;
+    if (tuning_space_->tiling_schedule_config_table == nullptr ||
+        (api_perf->GetTilingScheduleConfigTable() != nullptr &&
+         api_perf->GetTilingScheduleConfigTable()->GetConfigPriority() >
+             tuning_space_->tiling_schedule_config_table->GetConfigPriority())) {
+      GELOGD(
+          "Replace node [%s] type [%s] tiling schedule config table with api perf tiling schedule config table, "
+          "default_enable = %d, core_num_ratio = %lf, ub_ratio = %lf.",
+          node.name.c_str(), node.node_type.c_str(),
+          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().default_enable,
+          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().core_num_ratio,
+          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().ub_ratio);
+      tuning_space_->tiling_schedule_config_table = api_perf->GetTilingScheduleConfigTable();
+    }
+  }
+  // tail_shape场景：仅整块需要进行cache line检查，尾块大小一定是小于整块的，不需要进行cache line大小检查
+  if (tail_shape || tuning_space_->tiling_schedule_config_table == nullptr ||
+      !tuning_space_->tiling_schedule_config_table->IsEnableCacheLineCheck()) {
+    perf_res.cache_line_config = nullptr;
+  }
+  return perf_func;
 }
 
 ge::Status PipePerfExpr::GetNodePerf(const NodeInfo &node, std::map<PipeType, Expr> &node_perf,
@@ -297,24 +319,8 @@ ge::Status PipePerfExpr::GetNodePerf(const NodeInfo &node, std::map<PipeType, Ex
     GELOGD("node[%s, %s] output[%zu] %s shape: {%s}", node.name.c_str(), node.node_type.c_str(), i,
            tail_annotation.c_str(), outputs[i].GetDimExpr().c_str());
   }
-  Perf perf_func = nullptr;
-  const auto api_perf = GetApiPerf(node_type);
-  if (api_perf != nullptr) {
-    perf_func = api_perf->GetPerfFunc();
-    if (tuning_space_->tiling_schedule_config_table == nullptr ||
-        (api_perf->GetTilingScheduleConfigTable() != nullptr &&
-         api_perf->GetTilingScheduleConfigTable()->GetConfigPriority() >
-             tuning_space_->tiling_schedule_config_table->GetConfigPriority())) {
-      GELOGD(
-          "Replace node [%s] type [%s] tiling schedule config table with api perf tiling schedule config table, "
-          "default_enable = %d, core_num_ratio = %lf, ub_ratio = %lf.",
-          node.name.c_str(), node_type.c_str(),
-          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().default_enable,
-          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().core_num_ratio,
-          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().ub_ratio);
-      tuning_space_->tiling_schedule_config_table = api_perf->GetTilingScheduleConfigTable();
-    }
-  }
+  PerfOutputInfo perf_res;
+  Perf perf_func = UpdateTilingScheduleConfigTable(node, tail_shape, perf_res);
   // 获取pipe的兜底性能
   if (perf_func == nullptr) {
     GELOGD("Get node [%s] type [%s] perf func failed, node_unit = %s.", node.name.c_str(), node_type.c_str(),
@@ -323,10 +329,11 @@ ge::Status PipePerfExpr::GetNodePerf(const NodeInfo &node, std::map<PipeType, Ex
   }
   GE_ASSERT_NOTNULL(perf_func, "Get node type [%s] perf func failed, node unit[%s].", node_type.c_str(),
                     node_unit.c_str());
-  PerfOutputInfo perf_res;
-  if (perf_func(inputs, outputs, node.node_ptr, perf_res) != ge::SUCCESS) {
+
+  if (perf_func(inputs, outputs, node, perf_res) != ge::SUCCESS) {
     node_perf.clear();
   }
+  GELOGD("node[%s, %s] perf res: {%s}", node.name.c_str(), node.node_type.c_str(), perf_res.ToString().c_str());
   GE_ASSERT_SUCCESS(UpdatePerfRes(node, perf_res, node_perf, tenary_ops, tail_shape));
   return ge::SUCCESS;
 }

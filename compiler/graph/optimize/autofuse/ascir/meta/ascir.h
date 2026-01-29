@@ -12,10 +12,8 @@
 
 #include "graph/graph.h"
 
-#include "compute_graph.h"
 #include "graph_utils_ex.h"
-#include "op_desc_utils.h"
-#include "ascendc_ir_core/ascendc_ir.h"
+#include "ascendc_ir.h"
 
 //using namespace ge::ascir_op;
 

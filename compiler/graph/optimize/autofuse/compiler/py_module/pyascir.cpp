@@ -22,7 +22,6 @@
 #include "autofuse/can_fuse/backend/backend_utils.h"
 
 #include "ascendc_ir.h"
-#include "ascendc_ir_def.h"
 #include "ascir_ops.h"
 #include "ascir_utils.h"
 #include "graph/symbolizer/symbolic.h"
@@ -114,20 +113,20 @@ struct AscGraph : public ge::Operator {
 }  // namespace geir_op
 template <typename GraphObj>
 bool CountInputsOutputs(GraphObj *graph, size_t &input_size, std::set<int64_t> &outputs) {
-  for (const auto node : graph->GetAllNodes()) {
+  for (const auto &node : graph->GetAllNodes()) {
     PY_ASSERT_NOTNULL(node);
     if (node->GetType() == kDataOpType) {
       ++input_size;
     }
     if (node->GetType() == kOutputOpType) {
       int64_t index{-1};
-      PY_ASSERT_NOTNULL(node->attr.ir_attr, "Op %s %s must set ir_attr for index", node->GetNamePtr(),
+      PY_ASSERT_NOTNULL(node->attr.ir_attr, "Op %s %s must set ir_attr for index.", node->GetNamePtr(),
                         node->GetTypePtr());
       auto ir_attr_of_output = node->attr.ir_attr->template DownCastTo<ge::ascir_op::Output::AscOutputIrAttrDef>();
-      PY_ASSERT_NOTNULL(ir_attr_of_output, "Op %s %s must set ir_attr for index", node->GetNamePtr(),
+      PY_ASSERT_NOTNULL(ir_attr_of_output, "Op %s %s must set ir_attr for index.", node->GetNamePtr(),
                         node->GetTypePtr());
-      PY_ASSERT_GRAPH_SUCCESS(ir_attr_of_output->GetIndex(index), "Op %s %s get ir_attr for index failed",
-                              node->GetNamePtr(), node->GetTypePtr());
+      PY_ASSERT_GRAPH_SUCCESS(ir_attr_of_output->GetIndex(index), "Op %s %s get ir_attr for index %ld failed.",
+                              node->GetNamePtr(), node->GetTypePtr(), index);
       outputs.insert(index);
     }
   }
@@ -250,9 +249,7 @@ PyObject *ApiInfo::get(PyObject *self, void *closure) {
 
 PyObject *ApiInfo::FromAscNode(ge::AscNodeAttr &node_attr) {
   auto hint_type = ge::PtrToPtr<PyObject, ApiInfo::Object>(ApiInfo::type.tp_alloc(&ApiInfo::type, 0));
-  if (hint_type == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(hint_type);
   hint_type->api_info = &node_attr.api;
   auto hint_py_obj = ge::PtrToPtr<ApiInfo::Object, PyObject>(hint_type);
   Py_IncRef(hint_py_obj);
@@ -286,10 +283,8 @@ void SchedInfo::Dealloc(PyObject *self) {
 PyObject *SchedInfo::get_axis(PyObject *self, void *closure) {
   (void)closure;
   auto sched_info = ge::PtrToPtr<PyObject, SchedInfo::Object>(self);
-  if (sched_info->sched_info == nullptr) {
-    PyErr_SetString(PyExc_ValueError, "sched attr has not been inited.");
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(sched_info);
+  PY_ASSERT_NOTNULL(sched_info->sched_info, "sched attr has not been inited.");
   auto axis = sched_info->sched_info->axis;
   auto list = PyList_New(axis.size());
   for (size_t i = 0UL; i < axis.size(); ++i) {
@@ -325,9 +320,7 @@ int SchedInfo::set_axis(PyObject *self, PyObject *value, void *closure) {
 
 PyObject *SchedInfo::FromAscNode(ge::AscNodeAttr &node_attr) {
   auto sched_info = ge::PtrToPtr<PyObject, SchedInfo::Object>(SchedInfo::type.tp_alloc(&SchedInfo::type, 0));
-  if (sched_info == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(sched_info);
   sched_info->sched_info = &node_attr.sched;
   auto sched_py_obj = ge::PtrToPtr<SchedInfo::Object, PyObject>(sched_info);
   Py_IncRef(sched_py_obj);
@@ -394,9 +387,7 @@ PyObject *IrAttr<OpType>::FromAscNode(ge::AscNodeAttr &node_attr, const char *op
     return nullptr;
   }
   auto ir_attr = ge::PtrToPtr<PyObject, IrAttr::Object>(type.tp_alloc(&type, 0));
-  if (ir_attr == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(ir_attr);
 
   if (node_attr.ir_attr == nullptr) {
     Py_DECREF(ir_attr);
@@ -444,9 +435,7 @@ void AscNodeAttr::Dealloc(PyObject *self) {
 template <typename OpType>
 PyObject *AscNodeAttr::FromAscNode(ge::AscNodeAttr &node_attr, const char *op_type) {
   auto attr = ge::PtrToPtr<PyObject, AscNodeAttr::Object>(AscNodeAttr::type.tp_alloc(&AscNodeAttr::type, 0));
-  if (attr == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(attr);
 
   attr->api = ApiInfo::FromAscNode(node_attr);
   attr->sched = SchedInfo::FromAscNode(node_attr);
@@ -530,10 +519,7 @@ int OpsOperatorOutput::SetDtype(PyObject *self, PyObject *value, void *closure) 
 PyObject *OpsOperatorOutput::GetDtype(PyObject *self, void *closure) {
   (void)closure;
   auto self_ = ge::PtrToPtr<PyObject, OpsOperatorOutput::Object>(self);
-  if (self_->attr_holder == nullptr) {
-    PyErr_SetString(PyExc_ValueError, "tensor attr has not been inited.");
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(self_->attr_holder, "tensor attr has not been inited.");
   auto dtype = self_->attr_holder->dtype;
 
   return PyLong_FromLong(static_cast<ge::DataType>(dtype));
@@ -542,10 +528,7 @@ PyObject *OpsOperatorOutput::GetDtype(PyObject *self, void *closure) {
 PyObject *OpsOperatorOutput::GetAxis(PyObject *self, void *closure) {
   (void)closure;
   auto operator_output = ge::PtrToPtr<PyObject, OpsOperatorOutput::Object>(self);
-  if (operator_output->attr_holder == nullptr) {
-    PyErr_SetString(PyExc_ValueError, "tensor attr has not been inited.");
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(operator_output->attr_holder, "tensor attr has not been inited.");
   auto axis = operator_output->attr_holder->axis;
   auto list = PyList_New(axis.size());
   for (size_t i = 0UL; i < axis.size(); ++i) {
@@ -582,10 +565,7 @@ int OpsOperatorOutput::SetAxis(PyObject *self, PyObject *value, void *closure) {
 PyObject *OpsOperatorOutput::GetStrides(PyObject *self, void *closure) {
   (void)closure;
   auto operator_output = ge::PtrToPtr<PyObject, OpsOperatorOutput::Object>(self);
-  if (operator_output->attr_holder == nullptr) {
-    PyErr_SetString(PyExc_ValueError, "tensor attr has not been inited.");
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(operator_output->attr_holder, "tensor attr has not been inited.");
   auto strides = operator_output->attr_holder->strides;
   auto list = PyList_New(strides.size());
   for (size_t i = 0UL; i < strides.size(); ++i) {
@@ -618,10 +598,7 @@ int OpsOperatorOutput::SetStrides(PyObject *self, PyObject *value, void *closure
 PyObject *OpsOperatorOutput::GetRepeats(PyObject *self, void *closure) {
   (void)closure;
   auto operator_output = ge::PtrToPtr<PyObject, OpsOperatorOutput::Object>(self);
-  if (operator_output->attr_holder == nullptr) {
-    PyErr_SetString(PyExc_ValueError, "tensor attr has not been inited.");
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(operator_output->attr_holder, "tensor attr has not been inited.");
   auto repeats = operator_output->attr_holder->repeats;
   auto list = PyList_New(repeats.size());
   for (size_t i = 0UL; i < repeats.size(); ++i) {
@@ -658,9 +635,7 @@ PyObject *OpsOperatorOutput::FromOp(int index, ge::Operator *op, ge::AscTensorAt
                                     bool is_dynamic_ouptut) {
   auto self =
       ge::PtrToPtr<PyObject, OpsOperatorOutput::Object>(OpsOperatorOutput::type.tp_alloc(&OpsOperatorOutput::type, 0));
-  if (self == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(self);
 
   auto op_desc = ge::OpDescUtils::GetOpDescFromOperator(*op);
   auto output_desc = op_desc->MutableOutputDesc(index);
@@ -738,9 +713,7 @@ class OpsOperator {
 
   static PyObject *OpsOperator_new(PyTypeObject *type, PyObject *args, PyObject *kwargs) {
     auto self = ge::PtrToPtr<PyObject, Object>(Operator::New(type, args, kwargs));
-    if (self == nullptr) {
-      return nullptr;
-    }
+  	PY_ASSERT_NOTNULL(self);
 
     self->attr = Py_None;
     self->input_output_num = 0;
@@ -790,7 +763,7 @@ class OpsOperator {
     for (size_t i = 0UL; i < op->GetOutputsSize(); ++i) {
       PY_ASSERT(i < ops_type.output_defs.size());
       PY_ASSERT(ops_type.output_defs[i].second != ge::kIrOutputDynamic,
-                "%s %s output idx %zu is dynamic but is not inited", name_ptr, op_type.GetString(), i);
+                "Op %s's %s output idx %zu is dynamic but is not inited", name_ptr, op_type.GetString(), i);
       auto attr_group = ge::AscTensorAttr::GetTensorAttrPtr(op, i);
       PY_ASSERT_NOTNULL(attr_group);
       auto output = OpsOperatorOutput::FromOp(i, op, *attr_group);
@@ -1264,6 +1237,35 @@ static PyObject *UtilsDumpGraph(PyObject *self_pyobject, PyObject *args) {
   Py_RETURN_NONE;
 }
 namespace {
+// Template function for binary operations on SizeExpr (Max, Min, Mod, etc.)
+template <ge::Expression (*BinaryOp)(const ge::Expression&, const ge::Expression&)>
+static PyObject *SizeExpr_BinaryOp(PyObject *self, PyObject *args) {
+  (void)self;
+  PyObject *left;
+  PyObject *right;
+  if (PyArg_ParseTuple(args, "OO", &left, &right) == 0) {
+    return nullptr;
+  }
+  ge::Expression left_expr = pyascir::SizeExpr::AsSizeExpr(left);
+  PY_ASSERT_TRUE(left_expr.IsValid(), "left operand of binary operation is not a valid SizeExpr");
+  ge::Expression right_expr = pyascir::SizeExpr::AsSizeExpr(right);
+  PY_ASSERT_TRUE(right_expr.IsValid(), "right operand of binary operation is not a valid SizeExpr");
+  return pyascir::SizeExpr::FromSizeExpr(BinaryOp(left_expr, right_expr));
+}
+
+// Global Max, Min and Mod functions for SizeExpr
+static PyObject *SizeExprMax(PyObject *self, PyObject *args) {
+  return SizeExpr_BinaryOp<ge::sym::Max>(self, args);
+}
+
+static PyObject *SizeExprMin(PyObject *self, PyObject *args) {
+  return SizeExpr_BinaryOp<ge::sym::Min>(self, args);
+}
+
+static PyObject *SizeExprMod(PyObject *self, PyObject *args) {
+  return SizeExpr_BinaryOp<ge::sym::Mod>(self, args);
+}
+
 PyMethodDef UtilsMethods[] = {
     {"debug_str", UtilsDebugStr, METH_VARARGS, "Get graph debug string"},
     {"dump", UtilsDumpGraph, METH_VARARGS, "Dump graph"},
@@ -1271,6 +1273,12 @@ PyMethodDef UtilsMethods[] = {
     {"duration_record", reinterpret_cast<PyCFunction>(pyascir::UtilsDurationRecord), METH_VARARGS, "duration record"},
     {"report_durations", reinterpret_cast<PyCFunction>(pyascir::UtilsReportDurations), METH_VARARGS,
      "report durations"},
+    {NULL}};
+
+PyMethodDef AscirMethods[] = {
+    {"Max", SizeExprMax, METH_VARARGS, "Return the maximum of two SizeExpr values"},
+    {"Min", SizeExprMin, METH_VARARGS, "Return the minimum of two SizeExpr values"},
+    {"Mod", SizeExprMod, METH_VARARGS, "Return the modulo of two SizeExpr values"},
     {NULL}};
 }
 
@@ -1290,6 +1298,7 @@ static PyModuleDef AscirModule = {
     "ascir",
     "AscendC IR",
     -1,
+    AscirMethods,
 };
 
 static PyModuleDef DtypesModule = {
@@ -1383,14 +1392,10 @@ PyMODINIT_FUNC PyInit_ascir(void) {
   pyascir_types_type_init();
 
   PyObject *ascir_module = PyModule_Create(&AscirModule);
-  if (ascir_module == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(ascir_module);
 
   PyObject *dtypes_module = PyModule_Create(&DtypesModule);
-  if (dtypes_module == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(dtypes_module);
 
   for (auto entry : dtype_entries) {
     PyModule_AddObject(dtypes_module, entry.py_name, PyLong_FromLong(entry.dtype_value));
@@ -1402,16 +1407,13 @@ PyMODINIT_FUNC PyInit_ascir(void) {
   }
 
   static auto utils_module = PyModule_Create(&UtilsModule);
-  if (utils_module == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(utils_module);
 
   PyModule_AddObject(ascir_module, "utils", utils_module);
 
   static auto ops_module = PyModule_Create(&OpsModule);
-  if (ops_module == nullptr) {
-    return nullptr;
-  }
+  PY_ASSERT_NOTNULL(ops_module);
+
   kOpsOperators.emplace_back(pyascir::OpsOperator<geir_op::AscBackend>::CreateTypeObject());
   kOpsOperators.emplace_back(pyascir::OpsOperator<geir_op::AscGraph>::CreateTypeObject());
   for (auto &type : kOpsOperators) {

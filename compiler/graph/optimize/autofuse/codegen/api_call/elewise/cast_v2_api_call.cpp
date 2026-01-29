@@ -16,8 +16,8 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
-#include "../utils/api_call_utils.h"
+#include "api_call/utils/api_call_factory.h"
+#include "api_call/utils/api_call_utils.h"
 
 namespace codegen {
 using namespace std;
@@ -31,11 +31,13 @@ static bool EnableCastMaskModeOptimize(const std::string &input_dtype, const std
       {"uint8_t", "half"},    {"int64_t", "float"},    {"int64_t", "int32_t"}, {"half", "float"},
       {"half", "int32_t"},    {"half", "int16_t"},     {"half", "int8_t"},     {"half", "uint8_t"},
       {"half", "int4_t"},     {"float", "half"},       {"float", "int64_t"},   {"float", "int32_t"},
-      {"float", "int16_t"},   {"float", "bfloat16"},   {"int4_t", "half"},     {"int16_t", "half"},
+      {"float", "int16_t"},   {"float", "bfloat16_t"},   {"int4_t", "half"},     {"int16_t", "half"},
       {"int16_t", "float"},   {"int32_t", "float"},    {"int32_t", "int64_t"}, {"int32_t", "int16_t"},
-      {"int32_t", "half"},    {"bfloat16", "float"}, {"bfloat16", "int32_t"}, {"uint8_t", "float"}, 
+      {"int32_t", "half"},    {"bfloat16_t", "float"}, {"bfloat16_t", "int32_t"}, {"uint8_t", "float"}, 
       {"uint8_t", "int32_t"}, {"uint8_t", "int16_t"}, {"uint8_t", "int8_t"},   {"uint8_t", "int4_t"}, 
-      {"int64_t", "half"},    {"half", "int64_t"}};
+      {"int64_t", "half"},    {"half", "int64_t"},    {"int64_t", "uint8_t"},  {"int8_t", "uint8_t"},
+      {"int16_t", "uint16_t"}, {"uint16_t", "int16_t"}, {"int32_t", "uint32_t"}, {"uint32_t", "int32_t"},
+      {"int64_t", "uint64_t"}, {"uint64_t", "int64_t"}, {"int64_t", "half"}};
   std::pair<std::string, std::string> src_cast_dst = {input_dtype, output_dtype};
   GELOGD("current cast from %s to %s", input_dtype.c_str(), output_dtype.c_str());
   return std::find(src_cast_dst_lists.begin(), src_cast_dst_lists.end(), src_cast_dst) != src_cast_dst_lists.end();

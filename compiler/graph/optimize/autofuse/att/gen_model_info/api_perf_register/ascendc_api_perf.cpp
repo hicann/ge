@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "ascendc_api_perf.h"
@@ -83,22 +77,6 @@ ge::Status LoadPerf(const NodeDetail &node_info, PerfOutputInfo &perf) {
   const auto load_perf_func = GetAscendCPerfFunc(kLoad + registered_key_name);
   GE_ASSERT_NOTNULL(load_perf_func);
   return load_perf_func(node_info, perf);
-}
-
-ge::Status NddmaPerf(const NodeDetail &node_info, PerfOutputInfo &perf) {
-  std::string registered_key_name;
-  GE_ASSERT_SUCCESS(GetApiRegisterVerName(registered_key_name));
-  const auto nddma_perf_func = GetAscendCPerfFunc(kNddma + registered_key_name);
-  GE_ASSERT_NOTNULL(nddma_perf_func);
-  return nddma_perf_func(node_info, perf);
-}
-
-ge::Status StorePerf(const NodeDetail &node_info, PerfOutputInfo &perf) {
-  std::string registered_key_name;
-  GE_ASSERT_SUCCESS(GetApiRegisterVerName(registered_key_name));
-  const auto store_perf_func = GetAscendCPerfFunc(kStore + registered_key_name);
-  GE_ASSERT_NOTNULL(store_perf_func);
-  return store_perf_func(node_info, perf);
 }
 
 /*
@@ -741,7 +719,7 @@ ge::Status WholeReduceMinPerf(const NodeDetail &node_info, PerfOutputInfo &perf)
 
 ge::Status VectorCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                          [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                         [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                         [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
   auto dims =
       input_shapes[0].dims.size() >= output_shapes[0].dims.size() ? input_shapes[0].dims : output_shapes[0].dims;
@@ -765,7 +743,7 @@ ge::Status VectorCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &in
 
 ge::Status MatmulCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                          [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                         [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                         [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(input_shapes.size() >= 2U && !output_shapes.empty());
   auto a_shape = input_shapes[0].dims;
   auto b_shape = input_shapes[1].dims;
@@ -810,7 +788,7 @@ ge::Status MatmulCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &in
 
 ge::Status AndApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                   [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                  [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                  [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::AndPerf(node_info, perf_res));
@@ -819,7 +797,7 @@ ge::Status AndApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sha
 
 ge::Status AddsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                    [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                   [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                   [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::AddsPerf(node_info, perf_res));
@@ -828,7 +806,7 @@ ge::Status AddsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sh
 
 ge::Status BlockReduceMaxApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                              [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                             [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                             [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::BlockReduceMaxPerf(node_info, perf_res));
@@ -837,7 +815,7 @@ ge::Status BlockReduceMaxApi([[maybe_unused]] const std::vector<TensorShapeInfo>
 
 ge::Status BlockReduceMinApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                              [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                             [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                             [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::BlockReduceMinPerf(node_info, perf_res));
@@ -846,7 +824,7 @@ ge::Status BlockReduceMinApi([[maybe_unused]] const std::vector<TensorShapeInfo>
 
 ge::Status BrcbApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                    [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                   [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                   [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::BrcbPerf(node_info, perf_res));
@@ -855,7 +833,7 @@ ge::Status BrcbApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sh
 
 ge::Status CompareScalarEQApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                               [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                              [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                              [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::CompareScalarEQPerf(node_info, perf_res));
@@ -864,7 +842,7 @@ ge::Status CompareScalarEQApi([[maybe_unused]] const std::vector<TensorShapeInfo
 
 ge::Status CompareScalarGEApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                               [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                              [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                              [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::CompareScalarGEPerf(node_info, perf_res));
@@ -873,7 +851,7 @@ ge::Status CompareScalarGEApi([[maybe_unused]] const std::vector<TensorShapeInfo
 
 ge::Status CompareScalarGTApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                               [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                              [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                              [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::CompareScalarGTPerf(node_info, perf_res));
@@ -882,7 +860,7 @@ ge::Status CompareScalarGTApi([[maybe_unused]] const std::vector<TensorShapeInfo
 
 ge::Status CompareScalarLEApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                               [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                              [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                              [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::CompareScalarLEPerf(node_info, perf_res));
@@ -891,7 +869,7 @@ ge::Status CompareScalarLEApi([[maybe_unused]] const std::vector<TensorShapeInfo
 
 ge::Status CompareScalarNEApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                               [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                              [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                              [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::CompareScalarNEPerf(node_info, perf_res));
@@ -900,7 +878,7 @@ ge::Status CompareScalarNEApi([[maybe_unused]] const std::vector<TensorShapeInfo
 
 ge::Status CompareScalarLTApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                               [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                              [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                              [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::CompareScalarLTPerf(node_info, perf_res));
@@ -909,7 +887,7 @@ ge::Status CompareScalarLTApi([[maybe_unused]] const std::vector<TensorShapeInfo
 
 ge::Status PowerApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                               [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                              [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                              [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::PowerPerf(node_info, perf_res));
@@ -918,7 +896,7 @@ ge::Status PowerApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_s
 
 ge::Status PairReduceSumApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                     [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                    [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                    [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::PairReduceSumPerf(node_info, perf_res));
@@ -927,7 +905,7 @@ ge::Status PairReduceSumApi([[maybe_unused]] const std::vector<TensorShapeInfo> 
 
 ge::Status DuplicateApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                         [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                        [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                        [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::DuplicatePerf(node_info, perf_res));
@@ -936,7 +914,7 @@ ge::Status DuplicateApi([[maybe_unused]] const std::vector<TensorShapeInfo> &inp
 
 ge::Status DropoutCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                           [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                          [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                          [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   (void)output_shapes;
   Expr dim_product;
   Expr t = CreateExpr(50.05f);
@@ -952,7 +930,7 @@ ge::Status DropoutCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &i
 
 ge::Status DefaultMTE1Api([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                           [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                          [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                          [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
   perf_res.pipe_res[PipeType::AICORE_MTE1] = ge::sym::kSymbolOne;
   return ge::SUCCESS;
@@ -960,7 +938,7 @@ ge::Status DefaultMTE1Api([[maybe_unused]] const std::vector<TensorShapeInfo> &i
 
 ge::Status DefaultMTE2Api([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                           [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                          [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                          [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
   perf_res.pipe_res[PipeType::AICORE_MTE2] = ge::sym::kSymbolOne;
   return ge::SUCCESS;
@@ -968,7 +946,7 @@ ge::Status DefaultMTE2Api([[maybe_unused]] const std::vector<TensorShapeInfo> &i
 
 ge::Status DefaultMTE3Api([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                           [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                          [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                          [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
   perf_res.pipe_res[PipeType::AICORE_MTE3] = ge::sym::kSymbolOne;
   return ge::SUCCESS;
@@ -976,7 +954,7 @@ ge::Status DefaultMTE3Api([[maybe_unused]] const std::vector<TensorShapeInfo> &i
 
 ge::Status DefaultVECApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                          [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                         [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                         [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
   perf_res.pipe_res[PipeType::AIV_VEC] = ge::sym::kSymbolOne;
   return ge::SUCCESS;
@@ -984,7 +962,7 @@ ge::Status DefaultVECApi([[maybe_unused]] const std::vector<TensorShapeInfo> &in
 
 ge::Status DefaultCUBEApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                           [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                          [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                          [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
   perf_res.pipe_res[PipeType::AICORE_CUBE] = ge::sym::kSymbolOne;
   return ge::SUCCESS;
@@ -992,7 +970,7 @@ ge::Status DefaultCUBEApi([[maybe_unused]] const std::vector<TensorShapeInfo> &i
 
 ge::Status WholeReduceMaxApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                              [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                             [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                             [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::WholeReduceMaxPerf(node_info, perf_res));
@@ -1001,7 +979,7 @@ ge::Status WholeReduceMaxApi([[maybe_unused]] const std::vector<TensorShapeInfo>
 
 ge::Status WholeReduceMinApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                              [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                             [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                             [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::WholeReduceMinPerf(node_info, perf_res));
@@ -1010,7 +988,7 @@ ge::Status WholeReduceMinApi([[maybe_unused]] const std::vector<TensorShapeInfo>
 
 ge::Status WholeReduceSumApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                              [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                             [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                             [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::WholeReduceSumPerf(node_info, perf_res));
@@ -1019,7 +997,7 @@ ge::Status WholeReduceSumApi([[maybe_unused]] const std::vector<TensorShapeInfo>
 
 ge::Status CubeCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                        [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                       [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                       [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   GE_ASSERT_TRUE(input_shapes.size() >= 2U && !output_shapes.empty());
   auto a_shape = input_shapes[0].dims;
   auto b_shape = input_shapes[1].dims;
@@ -1040,7 +1018,7 @@ ge::Status CubeCompute([[maybe_unused]] const std::vector<TensorShapeInfo> &inpu
 }
 
 ge::Status GatherMaskApi(const std::vector<TensorShapeInfo> &input_shapes,
-                         const std::vector<TensorShapeInfo> &output_shapes, [[maybe_unused]] const ge::AscNodePtr &node,
+                         const std::vector<TensorShapeInfo> &output_shapes, [[maybe_unused]] const NodeInfo &node,
                          PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
@@ -1050,7 +1028,7 @@ ge::Status GatherMaskApi(const std::vector<TensorShapeInfo> &input_shapes,
 
 ge::Status MaxsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                    [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                   [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                   [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::MaxsPerf(node_info, perf_res));
@@ -1059,7 +1037,7 @@ ge::Status MaxsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sh
 
 ge::Status MinsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                    [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                   [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                   [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::MinsPerf(node_info, perf_res));
@@ -1068,7 +1046,7 @@ ge::Status MinsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sh
 
 ge::Status MulsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                    [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                   [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                   [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::MulsPerf(node_info, perf_res));
@@ -1077,7 +1055,7 @@ ge::Status MulsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sh
 
 ge::Status MulApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                   [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                  [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                  [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::MulPerf(node_info, perf_res));
@@ -1086,7 +1064,7 @@ ge::Status MulApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sha
 
 ge::Status OrApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                  [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                 [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                 [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::OrPerf(node_info, perf_res));
@@ -1098,7 +1076,7 @@ SetVectorMaskApi与shape无关，性能为0
 */
 ge::Status SetVectorMaskApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                             [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                            [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                            [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   (void)input_shapes;
   (void)output_shapes;
   perf_res.pipe_res[PipeType::AIV_VEC] = ge::sym::kSymbolZero;
@@ -1107,7 +1085,7 @@ ge::Status SetVectorMaskApi([[maybe_unused]] const std::vector<TensorShapeInfo> 
 
 ge::Status SigmoidApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                       [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
-                      [[maybe_unused]] const ge::AscNodePtr &node, PerfOutputInfo &perf_res) {
+                      [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   NodeDetail node_info;
   GE_ASSERT_SUCCESS(SetNodeDetail(input_shapes, output_shapes, node_info));
   GE_ASSERT_SUCCESS(ascendcperf::SigmoidPerf(node_info, perf_res));

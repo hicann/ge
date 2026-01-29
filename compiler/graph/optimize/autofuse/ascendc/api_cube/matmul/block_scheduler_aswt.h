@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 /* !
@@ -13,14 +13,13 @@
  * \brief
  */
 
-#ifndef ACT_BLOCK_SCHEDULER_ASWT_BUILTIN_H
-#define ACT_BLOCK_SCHEDULER_ASWT_BUILTIN_H
+#ifndef CMCT_BLOCK_SCHEDULER_ASWT_BUILTIN_H
+#define CMCT_BLOCK_SCHEDULER_ASWT_BUILTIN_H
 
-#include "include/matmul/block/block_scheduler_utils.h"
-#include "include/matmul/block/block_scheduler_policy.h"
-#include "include/utils/status_utils.h"
+#include "cmct/block/block_scheduler_policy.h"
+#include "cmct/block/block_scheduler_utils.h"
 
-namespace Act {
+namespace Cmct {
 namespace Gemm {
 namespace Block {
 constexpr uint16_t A_FULL_LOAD_MODE = 1;
@@ -65,7 +64,9 @@ public:
     uint8_t l1BuferNum_{0};
     uint8_t l0cDB_{1};
     uint8_t ubDB_{1};
-    L2CacheMode l2CacheDisable_;
+    L2CacheMode l2CacheDisable_{L2CacheMode::L2_CACHE_DEFAULT};
+    int64_t sliceM_{1};
+    int64_t srcNdStride_{1};
     int64_t mL1NormCnt_{0};
     int64_t mL1TailSplitCnt_{1};
     int64_t mL1TailMain_{0};
@@ -122,6 +123,8 @@ public:
         nL1TailMain_ = nL1TailSplitCnt_ == 1 ? tailL1N_ : params.tilingData->nTailMain;
         nL1TailLast_ = tailL1N_ - (nL1TailSplitCnt_ - 1) * nL1TailMain_;
         l2CacheDisable_ = params.tilingData->l2CacheDisable;
+        sliceM_ = params.tilingData->sliceM;
+        srcNdStride_ = params.tilingData->srcNdStride;
         if (batch_ == 1) {
             mTailCnt_ = params.tilingData->mTailCnt;
             nTailCnt_ = params.tilingData->nTailCnt;
@@ -164,12 +167,19 @@ public:
 
     __aicore__ inline bool GetAL2CacheDisable()
     {
-        return (l2CacheDisable_ == L2CacheMode::A_L2_CACHE_DISABLE);
+        return (l2CacheDisable_ == L2CacheMode::ALL_L2_CACHE_DISABLE ||
+                l2CacheDisable_ == L2CacheMode::A_L2_CACHE_DISABLE);
     }
 
     __aicore__ inline bool GetBL2CacheDisable()
     {
-        return (l2CacheDisable_ == L2CacheMode::B_L2_CACHE_DISABLE);
+        return (l2CacheDisable_ == L2CacheMode::ALL_L2_CACHE_DISABLE ||
+                l2CacheDisable_ == L2CacheMode::B_L2_CACHE_DISABLE);
+    }
+
+    __aicore__ inline Shape<int64_t, int64_t> GetSliceParams()
+    {
+        return {sliceM_, srcNdStride_};
     }
 
     __aicore__ inline Shape<int64_t, int64_t, int64_t, int64_t> GetTileL1Shape() {
@@ -231,7 +241,7 @@ public:
             blkM = mTileIdx_ == (mTileNum_ - 1) ? mL1TailLast_ : mL1TailMain_;
         }
         int64_t mL0 = blkM;
-        int64_t nL0 = blkN; 
+        int64_t nL0 = blkN;
         if (tileIdx / blockNum_ != (perCoreBlockNum_ - 1) || tailCnt_ == 1) {
             // mL1, nL1, k, batch, mL0, nL0
             mL0 = AscendC::Std::min(AscendC::Std::min(baseM_, blkM), blkM - mOffset);
@@ -264,13 +274,16 @@ public:
         }
         int64_t mOffset = mTileIdx_ * mL1_ + mSplitOffset_;
         int64_t nOffset = nTileIdx_ * nL1_ + nSplitOffset_;
+        int64_t ndNum = mL1_ > sliceM_? mL1_ / sliceM_ : 1;
+        int64_t mOffsetNonContiguous = mTileIdx_ * (ndNum * (srcNdStride_ / k_)) + mSplitOffset_;
         if (mTileIdx_ > mL1NormCnt_) {
             mOffset = mL1NormCnt_ * mL1_ + (mTileIdx_ - mL1NormCnt_) * mL1TailMain_ + mSplitOffset_;
         }
         if (nTileIdx_ > nL1NormCnt_) {
             nOffset = nL1NormCnt_ * nL1_ + (nTileIdx_ - nL1NormCnt_) * nL1TailMain_ + nSplitOffset_;
         }
-        return {mOffset, nOffset, 0, batchIdx};
+        // 当前不切k, 使用kOffset传递非连续场景mOffset
+        return {mOffset, nOffset, mOffsetNonContiguous, batchIdx};
     }
 
 private:
@@ -311,7 +324,7 @@ struct BlockSchedulerSelector<
     ProblemShape_,
     L1TileShape_,
     L0TileShape_,
-    Act::Gemm::BuiltInAswtScheduler<>,
+    Cmct::Gemm::BuiltInAswtScheduler<>,
     TransA_,
     TransB_
 > {
@@ -328,7 +341,7 @@ struct BlockSchedulerSelector<
     ProblemShape_,
     L1TileShape_,
     L0TileShape_,
-    Act::Gemm::BuiltInAswtScheduler<B_FULL_LOAD_MODE>,
+    Cmct::Gemm::BuiltInAswtScheduler<B_FULL_LOAD_MODE>,
     TransA_,
     TransB_
 > {
@@ -345,7 +358,7 @@ struct BlockSchedulerSelector<
     ProblemShape_,
     L1TileShape_,
     L0TileShape_,
-    Act::Gemm::BuiltInAswtScheduler<A_FULL_LOAD_MODE>,
+    Cmct::Gemm::BuiltInAswtScheduler<A_FULL_LOAD_MODE>,
     TransA_,
     TransB_
 > {
@@ -354,5 +367,5 @@ struct BlockSchedulerSelector<
 
 } // namespace Block
 } // namespace Gemm
-} // namespace Act
+} // namespace Cmct
 #endif

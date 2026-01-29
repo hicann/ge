@@ -17,7 +17,6 @@
 
 #include "common/checker.h"
 #include "graph/compute_graph.h"
-#include "ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "graph/ascendc_ir/ascir_register.h"
 namespace ge::ascir {
 // c++中的node name可能有/等python中无法作为对象名的非法字符，所以用这个类来根据type生成全局唯一的名字
@@ -74,7 +73,7 @@ class PythonCodeDumper {
 class PythonCodeDumperFused {
  public:
   static void GenerateHeader(std::ofstream &output_file);
-  void GenerateGraphInstance(const ComputeGraph &compute_graph, std::ofstream &output_file);
+  void GenerateGraphInstance(const ComputeGraph &compute_graph, std::ofstream &output_file) const;
   Status DumpAscGraphNode(const NodePtr &node, std::ofstream &output_file);
   Status Dump(const ComputeGraph &graph, const std::string &out_file_path);
   void GenerateFooter(std::ofstream &output_file) const;

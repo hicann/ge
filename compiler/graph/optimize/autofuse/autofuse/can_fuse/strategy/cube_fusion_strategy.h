@@ -27,7 +27,9 @@ class CubeFusionStrategy : public FusionStrategy {
   bool CanFuse(const NodePtr &node1, const NodePtr &node2) override;
 
   // 获取融合对的优先级
-  uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
+  FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
+
+  uint64_t GetMaxFusionNodesSize(const NodePtr &node1, const NodePtr &node2) override;
 };
 }  // namespace ge
 

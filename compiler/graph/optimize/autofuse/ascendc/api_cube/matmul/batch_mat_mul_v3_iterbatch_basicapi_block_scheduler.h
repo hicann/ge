@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 /* !
@@ -16,11 +16,10 @@
 #ifndef BATCH_MAT_MUL_V3_ITERBATCH_BASICAPI_BLOCK_SCHEDULER_H
 #define BATCH_MAT_MUL_V3_ITERBATCH_BASICAPI_BLOCK_SCHEDULER_H
 
-#include "include/matmul/block/block_scheduler_utils.h"
-#include "include/matmul/block/block_scheduler_policy.h"
-#include "include/utils/status_utils.h"
+#include "cmct/block/block_scheduler_utils.h"
+#include "cmct/block/block_scheduler_policy.h"
 
-namespace Act {
+namespace Cmct {
 namespace Gemm {
 namespace Block {
 
@@ -41,6 +40,8 @@ public:
     int64_t baseN_{16};
     int64_t baseK_{16};
     int64_t isHf32_{0};
+    int64_t innerBatch_{0};
+    L2CacheMode l2CacheDisable_{L2CacheMode::L2_CACHE_DEFAULT};
 
     using BlockShape = Shape<int64_t, int64_t, int64_t, int64_t>;
     using BlockCoord = Coord<int64_t, int64_t, int64_t, int64_t>;
@@ -64,11 +65,18 @@ public:
         baseN_ = params.tilingData->baseN;
         baseK_ = params.tilingData->baseK;
         isHf32_ = params.tilingData->isHf32;
+        innerBatch_ = params.tilingData->innerBatch;
+        l2CacheDisable_ = params.tilingData->l2CacheDisable;
     }
 
     __aicore__ inline int64_t GetTileNum()
     {
         return MMV3DivCeil(b_, iterBatchL1_);
+    }
+
+    __aicore__ inline int64_t GetInnerBatch()
+    {
+        return innerBatch_;
     }
 
     __aicore__ inline Shape<int64_t, int64_t, int64_t, int64_t> GetIterBatchTuple()
@@ -106,6 +114,18 @@ public:
     {
         return {0, 0, 0, tileIdx * iterBatchL1_};
     }
+
+    __aicore__ inline bool GetAL2CacheDisable()
+    {
+        return (l2CacheDisable_ == L2CacheMode::ALL_L2_CACHE_DISABLE ||
+                l2CacheDisable_ == L2CacheMode::A_L2_CACHE_DISABLE);
+    }
+
+    __aicore__ inline bool GetBL2CacheDisable()
+    {
+        return (l2CacheDisable_ == L2CacheMode::ALL_L2_CACHE_DISABLE ||
+                l2CacheDisable_ == L2CacheMode::B_L2_CACHE_DISABLE);
+    }
 };
 
 template <
@@ -118,7 +138,7 @@ struct BlockSchedulerSelector<
     ProblemShape_,
     L1TileShape_,
     L0TileShape_,
-    Act::Gemm::BuiltInIterBatchScheduler,
+    Cmct::Gemm::BuiltInIterBatchScheduler,
     TransA_,
     TransB_
 > {
@@ -127,5 +147,5 @@ struct BlockSchedulerSelector<
 
 } // namespace Block
 } // namespace Gemm
-} // namespace Act
+} // namespace Cmct
 #endif

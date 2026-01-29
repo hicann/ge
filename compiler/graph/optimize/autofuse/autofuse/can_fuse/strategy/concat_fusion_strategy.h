@@ -30,7 +30,7 @@ class ConcatFusionStrategy : public FusionStrategy {
   bool CanMergeLoop(const NodePtr &node1, const NodePtr &node2) override;
 
   // 获取融合对的优先级
-  uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
+  FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
 
   // 获取融合节点里原始节点最大个数限制
   uint64_t GetMaxFusionNodesSize(const NodePtr &node1, const NodePtr &node2) override;
@@ -44,9 +44,13 @@ class ConcatFusionStrategy : public FusionStrategy {
 
  private:
   static Status CanFuseBackward(const NodePtr &node1, const NodePtr &node2, const AutoFuseAttrs *attr2);
+  static bool IsFirstDimSplit(const NodePtr &node);
+  static bool IsFirstDimConcat(const NodePtr &node);
   static Status CanFuseSplit(const NodePtr &node1, const NodePtr &node2);
   static AscNodePtr FindConcatNode(const NodePtr &backend_node);
   static bool IsConcatOrSplitFirstDim(const AscNodePtr &concat_node);
+  static Status IsSplitLinkToBackwardFusionNode(const NodePtr &split_node, const NodePtr &concat_node, bool &can_fuse);
+  static Status CollectBackwardFusionRelatedInputs(const NodePtr &fused_node, std::set<int32_t> &indices);
 };
 }  // namespace ge
 

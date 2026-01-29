@@ -1240,7 +1240,7 @@ TEST_F(UtestSingleOp, TbeTask_SaveExceptionDumpInfo_EnableExceptionDump) {
   task->UpdateArgTable(param);
   gert::GlobalDumper::GetInstance()->MutableExceptionDumper()->Clear();
   ge::DumpStub::GetInstance().ClearOpInfos();
-  ge::DumpStub::GetInstance().SetFuncRet("AdumpAddExceptionOperatorInfo", -1);
+  ge::DumpStub::GetInstance().SetFuncRet("AdumpAddExceptionOperatorInfoV2", -1);
   ge::diagnoseSwitch::EnableExceptionDump();
   dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
   EXPECT_EQ(task->SaveExceptionDumpInfo(), SUCCESS);
@@ -1257,11 +1257,11 @@ TEST_F(UtestSingleOp, TbeTask_SaveExceptionDumpInfo_EnableExceptionDump) {
   uintptr_t *arg_base = nullptr;
   size_t arg_num = 0UL;
   task->GetIoAddr(arg_base, arg_num);
-  EXPECT_EQ(op_info.tensorInfos[0].tensor->GetAddr(), reinterpret_cast<void *>(*arg_base));
+  EXPECT_EQ(op_info.tensorInfos[0].tensorAddr, reinterpret_cast<void *>(*arg_base));
   ++arg_base;
-  EXPECT_EQ(op_info.tensorInfos[1].tensor->GetAddr(), reinterpret_cast<void *>(*arg_base));
+  EXPECT_EQ(op_info.tensorInfos[1].tensorAddr, reinterpret_cast<void *>(*arg_base));
   ++arg_base;
-  EXPECT_EQ(op_info.tensorInfos[2].tensor->GetAddr(), reinterpret_cast<void *>(*arg_base));
+  EXPECT_EQ(op_info.tensorInfos[2].tensorAddr, reinterpret_cast<void *>(*arg_base));
 
   delete task;
   dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
@@ -1314,11 +1314,9 @@ TEST_F(UtestSingleOp, AiCpuTask_SaveExceptionDumpInfo_EnableExceptionDump) {
   uintptr_t *arg_base = nullptr;
   size_t arg_num = 0UL;
   task->GetIoAddr(arg_base, arg_num);
-  EXPECT_EQ(op_info.tensorInfos[0].tensor->GetAddr(), reinterpret_cast<void *>(*arg_base));
+  EXPECT_EQ(op_info.tensorInfos[0].tensorAddr, reinterpret_cast<void *>(*arg_base));
   ++arg_base;
-  EXPECT_EQ(op_info.tensorInfos[1].tensor->GetAddr(), reinterpret_cast<void *>(*arg_base));
-  ++arg_base;
-  EXPECT_EQ(op_info.tensorInfos[2].tensor->GetAddr(), reinterpret_cast<void *>(*arg_base));
+  EXPECT_EQ(op_info.tensorInfos[1].tensorAddr, reinterpret_cast<void *>(*arg_base));
 
   delete[] ptr1;
   delete[] ptr2;

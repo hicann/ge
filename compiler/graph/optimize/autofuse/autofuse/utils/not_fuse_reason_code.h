@@ -39,6 +39,7 @@ enum class NotFuseReason : uint32_t {
   kGatherNodeAxisSizeNotEqual,
   kGatherNextNodeIsPointWiseAndInputHasViewOp,
   kGatherNextNodeIsReduceAndInputHasViewOp,
+  kGatherNextNodeIsConcatAndInputHasViewOp,
   kReduceCanNotFuseHorizontal,
   kTransposeCanNotFuseWithNotPointWise,
   kSliceHasOnlyHorizontalLink,
@@ -54,7 +55,13 @@ enum class NotFuseReason : uint32_t {
   kElementwiseOnlyOneInDataAnchorButOtherInputIsScalar,
   kSplitCanNotFuseSplitHorizontal,
   kSplitCanNotFuseReduction,
-  kSplitCanNotFuseHorizontal
+  kSplitCanNotFuseHorizontal,
+  kCubeCanNotFuseForward,
+  kCubeCanNotFuseWithViewElementwise,
+  kCubeCanNotFuseWithUnsupportedType,
+  kCubeCanNotFuseWithNotComputeNode,
+  kCubeCanNotFuseInThisChip,
+  kFusedSliceHasViewOp
 };
 
 inline const char* NotFuseReasonCode(NotFuseReason reason) noexcept {
@@ -139,6 +146,20 @@ inline const char* NotFuseReasonCode(NotFuseReason reason) noexcept {
       return "NF1039";
     case NotFuseReason::kGatherNextNodeIsReduceAndInputHasViewOp:
       return "NF1040";
+    case NotFuseReason::kGatherNextNodeIsConcatAndInputHasViewOp:
+      return "NF1041";
+    case NotFuseReason::kCubeCanNotFuseForward:
+      return "NF1042";
+    case NotFuseReason::kCubeCanNotFuseWithViewElementwise:
+      return "NF1043";
+    case NotFuseReason::kCubeCanNotFuseWithUnsupportedType:
+      return "NF1044";
+    case NotFuseReason::kCubeCanNotFuseWithNotComputeNode:
+      return "NF1045";
+    case NotFuseReason::kCubeCanNotFuseInThisChip:
+      return "NF1046";
+    case NotFuseReason::kFusedSliceHasViewOp:
+      return "NF1047";
   }
   return "NF9999";  // unknown
 }

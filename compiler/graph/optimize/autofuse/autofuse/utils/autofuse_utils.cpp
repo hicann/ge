@@ -19,7 +19,6 @@
 #include "utils/node_utils.h"
 #include "can_fuse/backend/backend_utils.h"
 #include "graph/detail/model_serialize_imp.h"
-#include "attribute_group/attr_group_symbolic_desc.h"
 #include "attribute_group/attr_group_shape_env.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/file_utils.h"
@@ -192,7 +191,7 @@ void AutofuseUtils::DumpGraphToOnnxLevel1(const ge::ComputeGraph &compute_graph,
 }
 
 int64_t AutofuseUtils::GenUniqueNumber() {
-  static int64_t number = 0;
+  thread_local static int64_t number = 0;
   return number++;
 }
 
@@ -296,12 +295,12 @@ Status AutofuseUtils::SerilizeAscBackend(ge::Node *node_ptr, std::string &output
     compute_graph->Dump();
   }
   // 序列化并打包compute graph, output symbol shape and symbol source info
-  GE_ASSERT_SUCCESS(SerializeAndPackComputeGraph(compute_graph, node, output));
+  GE_ASSERT_SUCCESS(SerializeAndPackComputeGraph(compute_graph, node, output, isHash));
   return SUCCESS;
 }
 
 Status AutofuseUtils::SerializeAndPackComputeGraph(const ComputeGraphPtr &compute_graph,
-                                                   const NodePtr &node, std::string &output) {
+                                                   const NodePtr &node, std::string &output, bool isHash) {
   nlohmann::json symbol_info;
   auto root_graph = GraphUtils::FindRootGraph(node->GetOwnerComputeGraph());
   GE_ASSERT_NOTNULL(root_graph);
@@ -310,6 +309,10 @@ Status AutofuseUtils::SerializeAndPackComputeGraph(const ComputeGraphPtr &comput
   auto sub_graph_env_attr = compute_graph->GetOrCreateAttrsGroup<ge::ShapeEnvAttr>();
   GE_ASSERT_NOTNULL(sub_graph_env_attr);
   *sub_graph_env_attr = *shape_env_attr;
+  if (isHash) {
+    // hash场景删除symbolic_to_value及value_to_symbol字符
+    sub_graph_env_attr->ClearSymbolValueInfo();
+  }
   // 序列化compute graph
   proto::GraphDef graph_proto;
   const ModelSerializeImp serialize_imp;
@@ -362,6 +365,7 @@ Status AutofuseUtils::GetNodeOutputIndex(const NodePtr &node, std::vector<uint32
 }
 
 Status ReplaceNodeNameWithType(NodePtr &node, const ComputeGraphPtr &graph, const CounterPtr &counter) {
+  (void)graph;
   std::string new_name;
   std::string delimiter = "/";
   new_name += node->GetOwnerComputeGraph()->GetName() + delimiter;
@@ -531,11 +535,30 @@ Status AutofuseUtils::DelOneNodeInGraph(const ComputeGraphPtr &graph, const Node
   return SUCCESS;
 }
 
-Status AutofuseUtils::RemoveUnusefulCastPattern(const ComputeGraphPtr &graph) {
 /**
-
 找到图中级联的无意义的cast节点，删除
+1.dtype无变化
+2.级联cast
 */
+Status AutofuseUtils::RemoveUnusefulCastPattern(const ComputeGraphPtr &graph) {
+  auto direct_nodes = graph->GetDirectNode();
+  for (auto it = direct_nodes.rbegin(); it != direct_nodes.rend(); ++it) {
+    ge::NodePtr &node = *it;
+    GE_ASSERT_NOTNULL(node);
+    auto op_type = node->GetOpDescBarePtr()->GetType();
+    if (op_type != "Cast") {
+      continue;
+    }
+    const auto &input_desc = node->GetOpDescBarePtr()->GetInputDesc(0U);
+    const auto &output_desc = node->GetOpDescBarePtr()->GetOutputDesc(0U);
+    if (input_desc.GetDataType() == output_desc.GetDataType()) {
+      GE_ASSERT_SUCCESS(GraphUtils::IsolateNode(node, {0}), "Failed to delete single useless Reshape node: %s",
+                        node->GetNamePtr());
+      GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveJustNode(graph, node), "[Remove][JustNode] failed, graph:%s, node:%s.",
+                              graph->GetName().c_str(), node->GetNamePtr());
+      GELOGD("Success to delete single useless Cast node: %s", node->GetName().c_str());
+    }
+  }
   for (ge::NodePtr &node : graph->GetDirectNode()) {
     auto op_type = node->GetOpDesc()->GetType();
     if ((op_type == "Cast") && (node->GetOutNodesSize() == 1U)) {
@@ -566,9 +589,9 @@ bool AutofuseUtils::CheckAndMulDetect(const std::vector<Expression> &long_dims,
   Expression total = Symbol(1);
   for (size_t i = 0U; i < short_dims.size(); ++i) {
     while (dims_idx < long_dims.size()) {
-      if (((i < short_dims.size()) && (SymbolicUtils::StaticCheckEq(short_dims[i], long_dims[dims_idx]) == kTrue)) &&
-          (SymbolicUtils::StaticCheckEq(total, Symbol(1)) == kTrue ||
-           SymbolicUtils::StaticCheckEq(total, short_dims[sort_idx]) == kTrue)) {
+      if (((i < short_dims.size()) && (SymbolicUtils::StaticCheckEq(short_dims[i], long_dims[dims_idx]) == ge::TriBool::kTrue)) &&
+          (SymbolicUtils::StaticCheckEq(total, Symbol(1)) == ge::TriBool::kTrue ||
+           SymbolicUtils::StaticCheckEq(total, short_dims[sort_idx]) == ge::TriBool::kTrue)) {
         ++dims_idx;
         break;
       }
@@ -576,14 +599,14 @@ bool AutofuseUtils::CheckAndMulDetect(const std::vector<Expression> &long_dims,
         sort_idx = i;
         ++i;
       } else if (((dims_idx > 0U) && (mul_idx[mul_idx.size() - 1] != dims_idx - 1)) ||
-                 SymbolicUtils::StaticCheckEq(long_dims[dims_idx], Symbol(1)) == kTrue) {
+                 SymbolicUtils::StaticCheckEq(long_dims[dims_idx], Symbol(1)) == ge::TriBool::kTrue) {
         return false;
       }
       mul_idx.push_back(dims_idx);
       total = total * long_dims[dims_idx];
       auto chk = SymbolicUtils::StaticCheckGt(total, short_dims[sort_idx]);
       auto chk_is_one = SymbolicUtils::StaticCheckEq(Symbol(1), long_dims[dims_idx]);
-      if (chk == kTrue || chk == kUnknown || chk_is_one == kTrue) {
+      if (chk == ge::TriBool::kTrue || chk == ge::TriBool::kUnknown || chk_is_one == ge::TriBool::kTrue) {
         return false;
       }
 
@@ -594,7 +617,23 @@ bool AutofuseUtils::CheckAndMulDetect(const std::vector<Expression> &long_dims,
     return false;
   }
 
-  return SymbolicUtils::StaticCheckEq(total, short_dims[sort_idx]) == kTrue;
+  return SymbolicUtils::StaticCheckEq(total, short_dims[sort_idx]) == ge::TriBool::kTrue;
+}
+
+bool AutofuseUtils::IsCubeNodeType(const NodePtr &node) {
+  static const std::unordered_map<std::string, std::string> kCubeTypeList = {
+      {kMatMul, kMatMul},
+      {kMatMulBias, kMatMulBias},
+      {kMatMulOffset, kMatMulOffset},
+      {kMatMulOffsetBias, kMatMulOffsetBias},
+      {kBatchMatMul, kBatchMatMul},
+      {kBatchMatMulBias, kBatchMatMulBias},
+      {kBatchMatMulOffset, kBatchMatMulOffset},
+      {kBatchMatMulOffsetBias, kBatchMatMulOffsetBias}};
+
+  auto node_type = node->GetType();
+  auto it = kCubeTypeList.find(node_type);
+  return (it != kCubeTypeList.end());
 }
 
 graphStatus AutofuseUtils::GetListIntFromInput(const NodePtr &node, std::vector<int64_t> &value_vec,

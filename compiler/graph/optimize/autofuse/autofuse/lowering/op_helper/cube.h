@@ -11,8 +11,8 @@
 #ifndef AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_CUBE_H_
 #define AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_CUBE_H_
 
-#include "graph/graph.h"
-#include "graph/node.h"
+#include <cstdint>
+#include "graph/types.h"
 
 namespace ge {
 struct MatMulAttr {
@@ -20,7 +20,7 @@ struct MatMulAttr {
   ge::DataType output_dtype{ge::DataType::DT_MAX};
   bool transpose_x1{false};
   bool transpose_x2{false};
-  bool enable_hf32{false};
+  int64_t enable_hf32{0x1};
   bool has_bias{false};
   bool has_offset_w{false};
   bool adj_x1{false};

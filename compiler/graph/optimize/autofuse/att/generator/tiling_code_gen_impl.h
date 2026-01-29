@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef ATT_TILING_CODE_GEN_IMPL_H_
@@ -29,6 +23,24 @@
 #include "gen_model_info/api_tiling_gen/gen_api_tiling.h"
 
 namespace att {
+struct GenTilingTailImplExtParams {
+  std::unordered_map<std::string, std::string> cache_reuse_info = {};
+  VarRelations var_relations = {};
+  EnableGroupParallels enable_group_parallels = {};
+  TensorIdSet workspace_tensor_id_set = {};
+
+  GenTilingTailImplExtParams() = default;
+  GenTilingTailImplExtParams(
+      std::unordered_map<std::string, std::string> cache_reuse_info_,
+      VarRelations var_relations_,
+      EnableGroupParallels enable_group_parallels_,
+      TensorIdSet workspace_tensor_id_set_
+  ) : cache_reuse_info(std::move(cache_reuse_info_)),
+      var_relations(std::move(var_relations_)),
+      enable_group_parallels(std::move(enable_group_parallels_)),
+      workspace_tensor_id_set(std::move(workspace_tensor_id_set_)) {}
+};
+
 class TilingCodeGenImpl {
   // asc_graph_id->impl_graph_id->schedule_result_id->(score_func_name, score_func_impl)
   using AscGraphNamepspaceMap = std::map<size_t, std::map<size_t, std::pair<std::string, std::string>>>;
@@ -40,15 +52,13 @@ class TilingCodeGenImpl {
   virtual ~TilingCodeGenImpl() = default;
   
   ge::Status GenTilingHead(std::map<std::string, std::string> &tiling_res,
-                          const EnableGroupParallels &enable_group_parrallels = {});
+                          const EnableGroupParallels &enable_group_parallels = {});
   ge::Status GenTilingTail(std::map<std::string, std::string> &tiling_res,
-                           const std::unordered_map<std::string, std::string>& cache_reuse_info = {},
-                           VarRelations var_relations = {},
-                           const EnableGroupParallels &enable_group_parallels = {});
+                           GenTilingTailImplExtParams ext_params = {});
   ge::Status GenTiling(std::map<std::string, std::string> &tiling_res,
                        std::unordered_map<std::string, std::string> cache_reuse_info = {},
                        uint32_t cache_capacity = 0,
-                       const EnableGroupParallels &enable_group_parrallels = {});
+                       const EnableGroupParallels &enable_group_parallels = {});
 
  protected:
   // 用于判断求解器是否有效
@@ -68,44 +78,47 @@ class TilingCodeGenImpl {
                                FusedGraphNamespaceMap &namespace_map);
   // 生成sche group的tiling函数初始化部分
   ge::Status GenGetTilingForAllInitLines(bool pgo = false);
-  ge::Status GenGetResultSummary(
-      const size_t asc_graph_id,
-      const std::map<size_t, std::map<size_t, std::pair<std::string, std::string>>> &namespace_map);
+  ge::Status GenGetResultSummary(const size_t asc_graph_id);
   // 生成sche group的tiling函数，不支持工具场景
   ge::Status GenGetTilingForScheduleResult();
+  ge::Status GenGetTilingForAllSchedulesResults(const uint32_t asc_graph_id,
+                                                const AscGraphNamepspaceMap &asc_graph_map);
   ge::Status GenFusedScheduleResultsGetTilingDefine(const FusedGraphNamespaceMap &namespace_map);
   ge::Status GenEnableGroupParallelFunctions(const FusedGraphNamespaceMap &namespace_map);
   ge::Status GenEnableGroupParallelInvoke(size_t asc_graph_id, const AscGraphNamepspaceMap &asc_graph_namespace_map);
-  ge::Status GenEnableGroupParallelPgoInvoke(const std::string &tiling_name, const std::string &access,
+  ge::Status GenEnableGroupParallelPgoInvoke(const std::string &tiling_name, bool is_pointer,
                                              const std::string &indent, std::string &invoke_code);
   ge::Status GenPGOFusedScheduleResultsGetTilingDefine(const FusedGraphNamespaceMap &namespace_map);
   ge::Status GenPGOByCoreNumFusedScheduleResultsGetTilingDefine(const FusedGraphNamespaceMap &namespace_map);
   ge::Status GenPGOByCoreNumSearchTilingKeyCollectTilingData(FusedGraphNamespaceMap namespace_map);
-  void GenGetScoreFuncs(const size_t asc_graph_id,
-                        const std::map<size_t, std::map<size_t, std::pair<std::string, std::string>>> &namespace_map);
+  void GenGetScoreFuncs(const size_t asc_graph_id, const AscGraphNamepspaceMap &namespace_map);
   ge::Status GenPGOGetTilingForAll();
-  void GenGetScoreFuncsCalling(
-      const size_t asc_graph_id,
-      const std::map<size_t, std::map<size_t, std::pair<std::string, std::string>>> &namespace_map);
+  void GenGetScoreFuncsCalling(const size_t asc_graph_id, const AscGraphNamepspaceMap &namespace_map);
   // 生成sche group的cache初始化部分
   void GenCacheInit();
   void GenSetHardwareCodes(const std::string& group_prefix, const std::set<std::string>& hardware_names);
+  ge::Status GenScheduleGroupDoTiling(std::string &check_cond, const std::string &hardware_param,
+                                      const std::string &schedule_result_prefix);
   void GenGetScheduleResultTail(const std::map<size_t, std::pair<std::string, std::string>> &graph_info);
-  void GenGetScheduleResult(const size_t asc_graph_id, const size_t impl_graph_id,
-                            const std::map<size_t, std::pair<std::string, std::string>> &graph_info,
-                            const std::map<std::string, std::set<std::string>> &hardware_map,
-                            const std::map<size_t, std::map<size_t, std::map<std::string, ge::Expression>>> &var_relation);
+  void GenUpdateWorkspace(const size_t asc_graph_id, const size_t impl_graph_id);
+  ge::Status GenGetScheduleResult(
+      const size_t asc_graph_id, const size_t impl_graph_id,
+      const std::map<size_t, std::pair<std::string, std::string>> &graph_info,
+      const std::map<std::string, std::set<std::string>> &hardware_map);
+  ge::Status GenUpdatePerf(const size_t asc_graph_id, const size_t impl_graph_id,
+                           const std::vector<std::string> &groups_perf,
+                           const std::vector<std::string> &groups_block_num,
+                           const std::vector<std::string> &assign_max_block_num);
   void GenGetMaxScoreIndex(const AscGraphNamepspaceMap &namespace_map);
 
-  void ProcessGroupInfo(const std::map<size_t, std::pair<std::string, std::string>> &graph_info,
-                            const std::map<std::string, std::set<std::string>> &hardware_map,
-                            std::string &check_cond, std::string &cal_perf, std::vector<std::string> &block_num);
-  void GenPGOGetScheduleResult(const size_t impl_graph_id,
-                            const std::map<size_t, std::pair<std::string, std::string>> &graph_info,
-                            const std::map<std::string, std::set<std::string>> &hardware_map);
   void GenScheduleResultGetTilingCalling(const std::string &index, const std::string &ident = "");
   void GenGetAllSchedulesResults(const AscGraphNamepspaceMap &namespace_map);
-  void GenPGOGetScheduleResult(const size_t asc_graph_id, const size_t impl_graph_id,
+  void GenPGOUpdateTilingInfo(const size_t asc_graph_id, const size_t impl_graph_id);
+  ge::Status GenPGOGetScheduleResultPerGroup(const size_t asc_graph_id, const size_t impl_graph_id,
+                                             const std::map<size_t, std::pair<std::string, std::string>> &graph_info,
+                                             const std::pair<size_t, std::pair<std::string, std::string>> &group_info,
+                                             const std::map<std::string, std::set<std::string>> &hardware_map);
+  ge::Status GenPGOGetScheduleResult(const size_t asc_graph_id, const size_t impl_graph_id,
                             const std::map<size_t, std::pair<std::string, std::string>> &graph_info,
                             const std::map<std::string, std::set<std::string>> &hardware_map);
   void GenPGOGetAllSchedulesResults(const size_t asc_graph_id, const AscGraphNamepspaceMap &namespace_map);
@@ -115,34 +128,29 @@ class TilingCodeGenImpl {
                                         const std::map<size_t, std::map<size_t, std::map<std::string, ge::Expression>>> &var_relation);
   std::string GenLaunchLikeInputOutputDef(bool is_define = true);
   ge::Status GenCastReuseTilingDataCode(const ReuseScheduleGroupInfo &reuse_info, const ReuseScheduleGroupInfo &info);
+  bool IsScheduleResultEnableParallel(const size_t asc_graph_id, const size_t impl_graph_id) const;
+  bool GenUpdateCurPerfAndBlockByGroupIfNeeded(const size_t asc_graph_id, const AscGraphNamepspaceMap &asc_graph_map) const;
   // -----------------------小shape优化相关---------------------------
   bool HitSmallShapePattern(ArgsManager &args_manager) const;
   // 生成TilingCaseNum获取接口函数
   ge::Status GenGetTilingOptionRange();
   // 生成GetTiling的PGO接口函数
   ge::Status GenGetTilingWithOption();
-  ge::Status GenGetTilingWithCaseId(bool no_cache = false);
+  ge::Status GenGetTilingWithCaseId(bool is_tail = false);
 
-  // 构造公用的check函数
-  ge::Status GenPublicCheck();
-  // 对tiling context作校验
-  ge::Status GenCheckInputVars();
-  // 由tiling context生成tiling data信息
-  ge::Status GenGetShapeAttrsInfo(const ModelInfo &model_info);
-  // 生成输入判断合法性的逻辑
-  ge::Status GenCheckIsCapable(const ModelInfo &model_info);
   // 生成硬件信息的日志语句
   ge::Status GenHardwareSummary(const ModelInfo &model_info);
   // 生成硬件信息的判断语句
   ge::Status GenHardwareJudge(const ModelInfo &model_info);
   // 生成输入信息的日志语句
   ge::Status GenInputSummary(const ModelInfo &model_info);
-  // 生成目标函数
-  ge::Status GenGetObj(const ModelInfo &model_info);
   // 生成score函数
   ge::Status GenCalcScore(const ModelInfo &model_info);
   // 生成score计算相关变量
-  ge::Status GenCalcScoreVars();
+  void GenCalcScoreVarsDefine();
+  // 生成所有tiling case的score计算逻辑
+  ge::Status GenAllSameScoreTilingCases(std::map<std::string, std::vector<const ModelInfo *>> &same_args_name_to_graphs,
+                                        const std::vector<std::string> &ordered_assemble_args_name);
   // 生成ub/corenum相关的tiling的上限值
   void InitTilingUpperBound(const std::vector<Expr> &hardware_args, const ArgsManager &args_manager, 
     const HardwareDef &hardware_def, std::map<std::string, bool> &visited);
@@ -152,6 +160,7 @@ class TilingCodeGenImpl {
   // 生成由solver_pass_gen构造的求解器子类
   virtual ge::Status GenSolverTiling(const ModelInfo &model_info) = 0;
   // 调用求解器的函数
+  virtual ge::Status GenDoTilingCommon(const ModelInfo &model_info, const std::pair<std::string, std::string> &codes);
   virtual ge::Status GenDoTiling(const ModelInfo &model_info) = 0;
   // 获取tiling data拷贝
   virtual ge::Status GenGetTilingDataFromCopy();
@@ -176,8 +185,6 @@ class TilingCodeGenImpl {
   virtual ge::Status GenGetTilingbyCaseId();
   virtual ge::Status GenPGODefaultTiling();
   virtual ge::Status GenPGOTilingCase(const ModelInfo& model_info);
-  virtual ge::Status GenPGOEvaluatePerf(const std::string& tiling_id_str);
-  virtual ge::Status GenPGOFinalize();
   virtual ge::Status GenPGOGetTilingbyCaseId();
   virtual ge::Status GenerateInputParamsAndTiling();
   virtual ge::Status GenPGOByCoreNumSearchTilingKeySingleGroup();
@@ -208,13 +215,17 @@ class TilingCodeGenImpl {
   // 生成基于基本tiling参数计算其他参数的逻辑，如外轴大小等
   virtual ge::Status GenExtraTilingData(const ModelInfo &model_info);
   // 生成tiling评估打印
-  virtual ge::Status GenExtraSummaryInfo(const ArgsManager &args_manager, std::string &case_info_str);
+  virtual ge::Status GenExtraSummaryInfo(const ModelInfo &model_info, const ArgsManager &args_manager, std::string &case_info_str);
   // 生成不同pipe的obj
   virtual ge::Status GenPipeTypeObj(const ModelInfo &model_info);
   //该函数用于生成memory tiling的相关参数
   virtual ge::Status GenMemoryParamCode(const ModelInfo &model_info);
   virtual ge::Status GenExtraTilingFuncImpl(const ModelInfo &model_info);
   virtual ge::Status GenExtraTilingFuncInvoke(const ModelInfo &model_info);
+  // 生成硬件占用的评估函数
+  virtual ge::Status GenHardwareCons(const ModelInfo &model_info);
+  // 生成目标函数
+  virtual ge::Status GenGetObj(const ModelInfo &model_info);
 
   ge::CodePrinter tiling_data_;
   ge::CodePrinter tiling_func_;
@@ -232,6 +243,7 @@ class TilingCodeGenImpl {
   std::unordered_map<std::string, std::string> cache_reuse_info_{};
   VarRelations var_relations_{};
   EnableGroupParallels enable_group_parallels_{};
+  TensorIdSet workspace_tensor_id_set_{};
   uint32_t cache_capacity_{0};
   bool with_reuse_info_{false};
   std::string arrange_code_;
@@ -262,27 +274,12 @@ class TilingCodeGenImpl {
   ge::Status GenGetTiling();
   ge::Status GenTilingImplBaseClass();
 
-  //  -----------------------以下函数生成固定的check函数------------------------
-  ge::Status UpdateAttInfo(std::map<uint32_t, std::string> &dtype_map);
-  ge::Status GenCheckNumFunc();
-  ge::Status GenCheckDtypeFunc();
-  ge::Status GenCheckFormatFunc();
-  ge::Status GenCheckShapeDimFunc();
-  ge::Status GenCheckAttr();
-  ge::Status GenCheckParams(const ModelInfo &model_info);
-  
   // 生成公共框架代码，不同类型的求解器可以自行构建基类及求解器信息
   ge::Status GenCommonFrameWork();
   // 生成公共框架结构体定义，不同类型求解均需要使用
   ge::Status GenCommonStruct();
   ge::Status GenUsedTilingOption();
-  // 由tilingcontext获取硬件参数
-  ge::Status GenGetPlatformInfo();
 
-  // 生成硬件只占用的评估函数
-  ge::Status GenHardwareCons(const ModelInfo &model_info);
-  // 生成workspace的大小回填
-  ge::Status GenGetWorkspaceSize(const ModelInfo &model_info);
   // 生成性能评估函数
   ge::Status GenEvalFunc(const ModelInfo &model_info);
   // 生成TilingSummary函数
@@ -311,12 +308,8 @@ class TilingCodeGenImpl {
   void GenTilingHeadMultiGroup();
 
   // -----------------------生成固定的入口函数---------------------------
-  ge::Status GenGetTilingHeadImpl();
   ge::Status GenGetTilingImpl();
   ge::Status GenIsStaticShape();
-  ge::Status GenCtxGetTilingImpl();
-  ge::Status GenPostTilingImpl();
-  ge::Status GenParseInfo();
   ge::Status GenTilingFuncCallEntrance();
   ge::Status GenGeneralTiling(const ModelInfo &model_info);
   

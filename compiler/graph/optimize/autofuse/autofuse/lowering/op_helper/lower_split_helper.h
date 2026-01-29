@@ -13,13 +13,13 @@
 #define AUTOFUSE_LOWER_SPLIT_HELPER_H
 #include "graph/node.h"
 #include "graph/compute_graph.h"
+#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "lowering/asc_lowerer/loop_api.h"
-#include "ascendc_ir.h"
 
 namespace ge {
 class LowerSplitHelper {
  public:
-  explicit LowerSplitHelper(NodePtr fused_asc_backend_node);
+  explicit LowerSplitHelper(NodePtr asc_backend_node);
   graphStatus NeedLifting(bool &need_lifting);
  private:
   enum class SplitCase : int32_t {
@@ -33,7 +33,7 @@ class LowerSplitHelper {
   graphStatus InitAndCheck();
   static void FindSplitNodes(const AscGraph &asc_graph, std::vector<AscNodePtr> &split_nodes);
 
-  graphStatus ParseSplitNode();
+  graphStatus ParseSplitNode(bool &found);
   graphStatus ParseSplitCase();
 
   ComputeGraphPtr graph_;

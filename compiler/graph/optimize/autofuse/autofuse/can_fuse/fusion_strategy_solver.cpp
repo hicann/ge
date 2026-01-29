@@ -564,11 +564,11 @@ NodePairList FusionStrategySolver::GetPossibleFusionsWithPrioritySort(const uint
   if (possible_fusions.empty()) {
     return possible_fusions;
   }
-  std::map<uint32_t, NodePairList> possible_fusions_group_by_priority;
+  std::map<FusionPriority, NodePairList> possible_fusions_group_by_priority;
   for (const auto &node_pair : possible_fusions) {
     const auto &node1 = node_pair.first;
     const auto &node2 = node_pair.second;
-    uint32_t fusion_pair_priority = GetBackEnd(graph)->GetFusionPairPriority(node1->GetOrgNode(), node2->GetOrgNode());
+    FusionPriority fusion_pair_priority = GetBackEnd(graph)->GetFusionPairPriority(node1->GetOrgNode(), node2->GetOrgNode());
     possible_fusions_group_by_priority[fusion_pair_priority].emplace_back(std::move(node_pair));
   }
 

@@ -22,46 +22,43 @@ bool SplitFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
   const auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
   GE_ASSERT_NOTNULL(attr2);
 
-  if ((attr1->HasFuseType(loop::FuseType::kSplit) && attr2->HasFuseType(loop::FuseType::kReduction))
-      || (attr1->HasFuseType(loop::FuseType::kReduction) && attr2->HasFuseType(loop::FuseType::kSplit))) {
-    GELOGI(
-        "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][split cannot fuse reduction]", node1->GetNamePtr(), node1->GetType().c_str(),
-        node2->GetNamePtr(), node2->GetType().c_str(),
-        ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseReduction));
+  if (attr1->HasFuseType(loop::FuseType::kSplit) && attr2->HasFuseType(loop::FuseType::kSplit)) {
+    GELOGI("node1 %s(%s) has split global id %d, node2 %s(%s) has split global id %d.",
+           node1->GetName().c_str(), node1->GetType().c_str(), attr1->GetSplitGlobalId(),
+           node2->GetName().c_str(), node2->GetType().c_str(), attr2->GetSplitGlobalId());
+    // 不同的Ascend IR split在Canfuse阶段不相融
+    if (attr1->GetSplitGlobalId() != attr2->GetSplitGlobalId()) {
+      GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 and node2 are horizontal fuse, "
+             "node1 is split, node2 is split, and they are different split nodes before lowering.]",
+             node1->GetName().c_str(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
+             ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseSplitHorizontal));
+      return false;
+    }
+    // 前端必须保证同一个Ascend IR split lowering成的N个split AscBackend在canfuse阶段融合到同一个AscBackend内
+    return true;
+  }
+  // split不与reduction融合
+  if ((attr1->HasFuseType(loop::FuseType::kSplit) && attr2->HasFuseType(loop::FuseType::kReduction)) ||
+      (attr1->HasFuseType(loop::FuseType::kReduction) && attr2->HasFuseType(loop::FuseType::kSplit))) {
+    GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][split cannot fuse reduction]",
+           node1->GetName().c_str(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
+           ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseReduction));
     return false;
   }
-
-  if (BackendUtils::IsVertical(node1, node2)) {
+  if (BackendUtils::IsVertical(node1, node2) && attr2->HasFuseType(loop::FuseType::kSplit)) {
     // node2 为 Split 类型时，不支持向前融合
-    if (attr2->HasFuseType(loop::FuseType::kSplit)) {
-      GELOGI(
-          "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 and node2 are vertical fuse, "
-          "and node2 is split, split can not fuse forward]", node1->GetNamePtr(), node1->GetType().c_str(),
-          node2->GetNamePtr(), node2->GetType().c_str(),
-          ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseForward));
-      return false;
-    }
-  } else {
-    if (attr1->HasFuseType(loop::FuseType::kSplit) &&
-      attr2->HasFuseType(loop::FuseType::kSplit)) {
-      GELOGI("node1 %s(%s) has split global id %d, node2 %s(%s) has split global id %d.",
-             node1->GetNamePtr(), node1->GetType().c_str(), attr1->GetSplitGlobalId(),
-             node2->GetNamePtr(), node2->GetType().c_str(), attr2->GetSplitGlobalId());
-      if (attr1->GetSplitGlobalId() != attr2->GetSplitGlobalId()) {
-        GELOGI(
-            "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 and node2 are horizontal fuse, "
-            "node1 is split, node2 is split, and they are different split nodes before lowering.]",
-            node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str(),
-            ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseSplitHorizontal));
-        return false;
-      }
-    } else {
-      GELOGI(
-          "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][split cannot fuse other node horizontal.]",
-          node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str(),
-          ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseHorizontal));
-      return false;
-    }
+    GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 and node2 are vertical fuse, "
+           "and node2 is split, split can not fuse forward]", node1->GetName().c_str(), node1->GetType().c_str(),
+           node2->GetName().c_str(), node2->GetType().c_str(),
+           ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseForward));
+    return false;
+  }
+  // split不做水平融合
+  if (BackendUtils::IsHorizontal(node1, node2)) {
+    GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][split cannot fuse other node horizontal.]",
+           node1->GetName().c_str(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
+           ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseHorizontal));
+    return false;
   }
   return true;
 }
@@ -85,28 +82,21 @@ uint64_t SplitFusionStrategy::GetMaxFusionNodesSize(const NodePtr &node1, const 
       max_fusion_size = std::numeric_limits<uint64_t>::max();
     }
   }
-  GELOGI("node1 %s(*) and node2 %s(*) max_fusion_nodes_size: %lu.", node1->GetNamePtr(), node2->GetNamePtr(),
+  GELOGI("node1 %s(*) and node2 %s(*) max_fusion_nodes_size: %lu.", node1->GetName().c_str(), node2->GetName().c_str(),
          max_fusion_size);
   return max_fusion_size;
 }
 
-uint32_t SplitFusionStrategy::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
-  auto attr = BackendUtils::GetNodeAutoFuseAttr(node2);
-  GE_ASSERT_NOTNULL(attr);
-  uint32_t fusion_priority = kDefaultFusionPriority;
-  // 首轮融合才要处理，只有AscBackend场景
-  if (attr->GetFuseType() == loop::FuseType::kSplit) {
-    fusion_priority = kHighFusionPriority;
-    GELOGI("node1 %s(*) and node2 %s(Concat) priority:%u.", node1->GetNamePtr(), node2->GetNamePtr(),
-           fusion_priority);
-  } else {
-    auto attr = BackendUtils::GetNodeAutoFuseAttr(node1);
-    GE_ASSERT_NOTNULL(attr);
-    if (attr->GetFuseType() == loop::FuseType::kSplit) {
-      fusion_priority = kHighFusionPriority;
-      GELOGI("node1 %s(Concat) and node2 %s(*) priority:%u.", node1->GetNamePtr(), node2->GetNamePtr(),
-             fusion_priority);
-    }
+FusionPriority SplitFusionStrategy::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
+  const auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
+  GE_ASSERT_NOTNULL(attr1);
+  const auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
+  GE_ASSERT_NOTNULL(attr2);
+  auto fusion_priority = FusionPriority::DEFAULT;
+  if ((attr1->GetFuseType() == loop::FuseType::kSplit) && (attr2->GetFuseType() == loop::FuseType::kSplit)) {
+    fusion_priority = FusionPriority::HIGHEST;
+    GELOGI("node1 %s(%s) and node2 %s(%s) priority:%u.", node1->GetName().c_str(), node1->GetType().c_str(),
+      node2->GetName().c_str(), node2->GetType().c_str(), fusion_priority);
   }
   return fusion_priority;
 }

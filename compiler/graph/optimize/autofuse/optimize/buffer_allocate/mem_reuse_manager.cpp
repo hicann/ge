@@ -65,6 +65,7 @@ void MemReuseManager::MergeTensorByGroupId(std::vector<TensorGroup> &copy_in_gro
            group.merged_life_start, group.merged_life_end, static_cast<int32_t>(group.max_size_level));
   }
   for (auto &[key, group] : temp_groups) {
+    (void)key;
     switch (group.mem_position) {
       case ge::Position::kPositionVecIn:
         copy_in_groups.push_back(std::move(group));
@@ -83,9 +84,11 @@ void MemReuseManager::AllocMemBlocks() {
   std::vector<TensorGroup> copy_in_groups;
   std::vector<TensorGroup> copy_out_groups;
   std::vector<TensorGroup> calc_groups;
+  std::map<ge::TmpBuffer *, std::vector<TensorGroup>> tmp_buff_to_groups;
   MergeTensorByGroupId(copy_in_groups, copy_out_groups, calc_groups);
   AllocForTQue(MemoryType::kCopyIn, copy_in_groups);
   AllocForTQue(MemoryType::kCopyOut, copy_out_groups);
+  AllocTmpBuff(tmp_buff_to_groups);
   AllocForCalc(calc_groups);
   // 根据复用关系刷新tque/tbuf
   for (const auto &iter : type_blocks_) {
@@ -102,10 +105,10 @@ void MemReuseManager::GetCopyInCopyOutQueNums(size_t &vecin_num, size_t &vecout_
 
 void MemReuseManager::CreateMemBlockByType(const TensorGroup *tensor, MemoryType mem_type) {
   MemoryBlock new_block;
-  if (mem_type == MemoryType::kCalc || mem_type == MemoryType::kCopyIn) {
-    new_block.id = static_cast<int64_t>(type_blocks_[mem_type].size());
+  if (mem_type == MemoryType::kCopyOut || mem_type == MemoryType::kCopyIn) {
+    new_block.id = que_id_++;
   } else {
-    new_block.id = static_cast<int64_t>(type_blocks_[MemoryType::kCopyIn].size() + type_blocks_[mem_type].size());
+    new_block.id = buf_id_++;
   }
   new_block.mem_type = mem_type;
   new_block.max_size_level = tensor->max_size_level;
@@ -137,6 +140,25 @@ void MemReuseManager::FindCandidateQueBlockWithSizeCheck(MemoryType mem_type, co
       });
     }
     if (is_reuse_ok && is_size_ok) {
+      candidate_blocks.push_back(&block);
+    }
+  }
+}
+
+void MemReuseManager::FindCandidateTmpBuffBlockWithSizeCheck(const TensorGroup &tensor_group,
+                                                             std::vector<MemoryBlock *> &candidate_blocks) {
+  if (!tensor_group.group_is_can_reuse_others && !tensor_group.group_is_reusable) {
+    return;
+  }
+  for (auto &block : type_blocks_[MemoryType::kTmpBuff]) {
+    std::sort(block.tensor_groups.begin(), block.tensor_groups.end(),
+              [](const TensorGroup *a, const TensorGroup *b) { return a->max_size_level < b->max_size_level; });
+    bool is_reuse_ok =
+        std::all_of(block.tensor_groups.begin(), block.tensor_groups.end(), [&tensor_group](const TensorGroup *info) {
+        return (!IsLifetimeOverlap(tensor_group.merged_life_start, tensor_group.merged_life_end,
+                                  info->merged_life_start, info->merged_life_end));
+        });
+    if (is_reuse_ok) {
       candidate_blocks.push_back(&block);
     }
   }
@@ -226,17 +248,20 @@ void MemReuseManager::AllocForCalc(std::vector<TensorGroup> &calc_groups) {
 
     // 尝试找到合适的分组
     std::vector<MemoryBlock *> candidate_blocks;
-    FindCandidateQueBlockWithSizeCheck(MemoryType::kCopyIn, tensor_group, candidate_blocks);
-    FindCandidateQueBlockWithSizeCheck(MemoryType::kCopyOut, tensor_group, candidate_blocks);
-    // vecout 暂不支持
-    for (auto &block : type_blocks_[MemoryType::kCalc]) {
-      bool is_reuse_ok =
-          std::all_of(block.tensor_groups.begin(), block.tensor_groups.end(), [&tensor_group](const TensorGroup *info) {
-            return !IsLifetimeOverlap(tensor_group.merged_life_start, tensor_group.merged_life_end,
-                                      info->merged_life_start, info->merged_life_end);
-          });
-      if (is_reuse_ok) {
-        candidate_blocks.push_back(&block);
+    FindCandidateTmpBuffBlockWithSizeCheck(tensor_group, candidate_blocks);
+    if (candidate_blocks.empty()) {
+      FindCandidateQueBlockWithSizeCheck(MemoryType::kCopyIn, tensor_group, candidate_blocks);
+      FindCandidateQueBlockWithSizeCheck(MemoryType::kCopyOut, tensor_group, candidate_blocks);
+      // vecout 暂不支持
+      for (auto &block : type_blocks_[MemoryType::kCalc]) {
+        bool is_reuse_ok =
+            std::all_of(block.tensor_groups.begin(), block.tensor_groups.end(), [&tensor_group](const TensorGroup *info) {
+              return !IsLifetimeOverlap(tensor_group.merged_life_start, tensor_group.merged_life_end,
+                                        info->merged_life_start, info->merged_life_end);
+            });
+        if (is_reuse_ok) {
+          candidate_blocks.push_back(&block);
+        }
       }
     }
 
@@ -263,19 +288,67 @@ void MemReuseManager::AllocForCalc(std::vector<TensorGroup> &calc_groups) {
 }
 
 void MemReuseManager::SetQueBufIdToTensorAttr(const MemoryBlock &block) {
-  bool use_buf_id = block.mem_type == MemoryType::kCalc;
   for (auto tensor_group : block.tensor_groups) {
     for (auto tensor_info : tensor_group->grouped_tensors) {
-      if (use_buf_id) {
+      if (block.mem_type == MemoryType::kCopyIn || block.mem_type == MemoryType::kCopyOut) {
+        tensor_info->output_tensor_attr->mem.alloc_type = ge::AllocType::kAllocTypeQueue;
+        tensor_info->output_tensor_attr->que.id = block.id;
+        tensor_info->output_tensor_attr->que.depth = 2; // 队列深度为2
+        tensor_info->output_tensor_attr->que.buf_num = tensor_info->buf_num;
+        continue;
+      }
+      if (tensor_info->output_tensor_attr != nullptr) {
         tensor_info->output_tensor_attr->mem.alloc_type = ge::AllocType::kAllocTypeBuffer;
         tensor_info->output_tensor_attr->buf.id = block.id;
         tensor_info->output_tensor_attr->mem.reuse_id = ge::kIdNone;
+      }
+    }
+  }
+}
+
+void MemReuseManager::AllocTmpBuff(std::map<ge::TmpBuffer *, std::vector<TensorGroup>> &tmp_buff_to_groups) {
+  for (auto &info : tmp_buf_attr_to_tensor_info_) {
+    auto cur_tensor = &info.second;
+    TensorGroup group;
+    group.group_id = cur_tensor->group_id;
+    group.grouped_tensors = {cur_tensor};
+    group.merged_life_start = cur_tensor->life_start;
+    group.merged_life_end = cur_tensor->life_end;
+    group.max_size_level = cur_tensor->size_level;
+    group.mem_position = cur_tensor->mem_position;
+    group.group_is_can_reuse_others = cur_tensor->is_can_reuse_others;
+    group.group_is_reusable = cur_tensor->is_reusable;
+    tmp_buff_to_groups[info.first].push_back(std::move(group));
+  }
+  for (const auto &info : tmp_buff_to_groups) {
+    // 不能复用别人的tensor，直接创建新块
+    auto tmp_buff = info.first;
+    tmp_buff->mem.alloc_type = ge::AllocType::kAllocTypeBuffer;
+    for (const auto &group : info.second) {
+      if (group.group_id != -1) {
+        tmp_buff->id = buf_id_;
+        CreateMemBlockByType(&group, MemoryType::kLoopTmpBuff);
         continue;
       }
-      tensor_info->output_tensor_attr->mem.alloc_type = ge::AllocType::kAllocTypeQueue;
-      tensor_info->output_tensor_attr->que.id = block.id;
-      tensor_info->output_tensor_attr->que.depth = 2;
-      tensor_info->output_tensor_attr->que.buf_num = tensor_info->buf_num;
+
+      if (type_blocks_[MemoryType::kTmpBuff].empty()) {
+        tmp_buff->id = buf_id_;
+        CreateMemBlockByType(&group, MemoryType::kTmpBuff);
+        continue;
+      }
+      // 更新内存块信息
+      std::vector<MemoryBlock *> candidate_blocks;
+      FindCandidateTmpBuffBlockWithSizeCheck(group, candidate_blocks);
+      if (candidate_blocks.empty()) {
+        tmp_buff->id = buf_id_;
+        CreateMemBlockByType(&group, MemoryType::kTmpBuff);
+        continue;
+      }
+
+      tmp_buff->id = candidate_blocks[0]->id;
+      candidate_blocks[0]->tensor_groups.push_back(&group);
+      GELOGD("[MemReuse] reuse mem block with type[%d] id[%d] for group[%ld].",
+             static_cast<int>(candidate_blocks[0]->mem_type), candidate_blocks[0]->id, group.group_id);
     }
   }
 }

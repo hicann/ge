@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "pyascir_common_utils.h"
@@ -46,14 +46,15 @@ bool ShapeInfoDeserialize(const std::string to_be_deserialized, PyObject *py_obj
 
 bool OutputSymbolShapeDeserialize(PyObject *output_shape_obj, std::vector<std::vector<std::string>> &output_shape) {
   std::vector<std::string> inner_vec;
-  for (size_t i = 0U; i < PyList_Size(output_shape_obj); i++) {
+  size_t output_shape_obj_size = PyList_Size(output_shape_obj);
+  for (size_t i = 0UL; i < output_shape_obj_size; i++) {
     PyObject *inner_list = PyList_GetItem(output_shape_obj, i);
     if (PyList_Check(inner_list) == kPythonFail) {
       ERROR_PRINT("OutputSymbolShape inner error, expected a list of lists");
       return false;
     }
     size_t inner_size = PyList_Size(inner_list);
-    for (size_t j = 0U; j < inner_size; j++) {
+    for (size_t j = 0UL; j < inner_size; j++) {
       PyObject *item = PyList_GetItem(inner_list, j);
       if (PyUnicode_Check(item) == kPythonFail) {
         ERROR_PRINT("OutputSymbolShape inner error, expected a unicode string");

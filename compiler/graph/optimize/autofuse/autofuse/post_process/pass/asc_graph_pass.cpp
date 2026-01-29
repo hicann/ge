@@ -20,8 +20,6 @@ Status AscGraphPass::Run(const ComputeGraphPtr &graph) const {
   GE_ASSERT_SUCCESS(broadcast_backward_pass_.Run(graph));
   // CSE PASS
   GE_ASSERT_SUCCESS(cse_pass_.Run(graph));
-  // relu optimize
-  GE_ASSERT_SUCCESS(cube_fixpip_pass_.Run(graph));
   GELOGI("Graph %s asc graph pass.", graph->GetName().c_str());
   return SUCCESS;
 }

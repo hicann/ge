@@ -21,15 +21,20 @@ class AscIrLowerer {
  public:
   explicit AscIrLowerer(CounterPtr counter = nullptr) : counter_(counter) {}
   graphStatus Lowering(const ComputeGraphPtr &graph);
-  graphStatus Lifting(const ComputeGraphPtr &graph) const;
+  graphStatus Lifting(const ComputeGraphPtr &graph);
 
  private:
   bool do_lowered_ = false;
   graphStatus RemoveDirectNodeUnusedEdges(const ComputeGraphPtr &graph);
   graphStatus PruneUnusedNodesAfterLifting(const ge::ComputeGraphPtr &graph) const;
   graphStatus DfxForAscBackendOp(const ComputeGraphPtr &graph) const;
+
+  graphStatus ProcessControlEdge(const ComputeGraphPtr &graph);
+  graphStatus RecoverInitControlEdge(const ComputeGraphPtr &graph);
   std::set<NodePtr> replaced_nodes_;
   CounterPtr counter_ = nullptr;
+  std::map<std::string, std::vector<NodePtr>> node_in_control_to_const_;
+  std::map<std::string, std::vector<NodePtr>> node_out_control_to_const_;
 };
 }  // namespace ge
 

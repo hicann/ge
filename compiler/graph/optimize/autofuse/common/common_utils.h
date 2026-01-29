@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef __COMMON_UTILS_H__
@@ -45,6 +45,7 @@ namespace ascgen_utils {
     int64_t has_relu{0};
     bool is_batch{false};
     bool is_bias{false};
+    bool is_offset_w{false};
     std::string output_dtype;
     std::string input_dtype;
     std::string m;
@@ -52,7 +53,7 @@ namespace ascgen_utils {
     std::string k;
   };
 
-#define GET_MATMUL_ATTRS(AttrType, AttrData) \
+#define GET_MATMUL_ATTRS(Node, AttrType, AttrData) \
     auto mm_attr = node->attr.ir_attr->DownCastTo<ge::ascir_op::AttrType::Asc##AttrType##IrAttrDef>(); \
     GE_ASSERT_NOTNULL(mm_attr); \
     GE_ASSERT_SUCCESS(mm_attr->GetHas_relu(AttrData.has_relu)); \
@@ -61,7 +62,7 @@ namespace ascgen_utils {
     GE_ASSERT_SUCCESS(mm_attr->GetTranspose_x1(AttrData.transpose_x1)); \
     GE_ASSERT_SUCCESS(mm_attr->GetTranspose_x2(AttrData.transpose_x2));
 
-#define GET_BATCH_MATMUL_ATTRS(AttrType, AttrData) \
+#define GET_BATCH_MATMUL_ATTRS(Node, AttrType, AttrData) \
     auto mm_attr = node->attr.ir_attr->DownCastTo<ge::ascir_op::AttrType::Asc##AttrType##IrAttrDef>(); \
     GE_ASSERT_NOTNULL(mm_attr); \
     GE_ASSERT_SUCCESS(mm_attr->GetHas_relu(AttrData.has_relu)); \
@@ -111,8 +112,9 @@ namespace ascgen_utils {
   }
   ge::Expression GetTensorSize(const ge::AscTensor &tensor);
   ge::Expression CalculateOneWorkspaceSize(const ge::AscNodePtr &workspace_nodes);
-  ge::Expression CalculateWorkspaceSize(const std::vector<ge::AscNodePtr> &workspace_node);
+  ge::Expression CalculateWorkspaceSize(const std::vector<ge::AscNodePtr> &workspace_nodes);
   ge::Expression CalcExtraTmpBufForAscGraph(const ascir::ImplGraph &graph);
+  std::vector<ascir::TensorId> GetWorkspaceTensorIdListInOneScheduleResult(const ascir::FusedScheduledResult& fused_schedule_result);
 
   ge::Status GetApiTilingTypeName(const ascir::NodeView& node, std::string& type_name);
   ge::Status GetApiTilingFieldName(const ascir::NodeView& node, std::string& field_name);
@@ -140,7 +142,7 @@ namespace ascgen_utils {
                                   const ge::AscTensor &input1, std::vector<uint8_t> &input_idx_2_brc_inline);
   bool IsSupportBlkTensorInput(const ge::AscNodePtr &next_node);
   int32_t GetBrcInlineIndex(const ge::AscNodePtr &node);
-  bool IsLinkToBrdcst(const ascir::NodeView &node);
+  bool IsLinkToBrdcst(const ascir::NodeView &node, const std::set<std::string> &brc_types);
 
   std::string FormatExpression(const std::string &expression);
   template<typename T>
@@ -167,7 +169,7 @@ namespace ascgen_utils {
   bool IsNodeContainsBrcInline(const ge::AscNodePtr &node);
 
   inline bool ExpressEq(const ge::Expression &e1, const ge::Expression &e2) {
-    return ge::SymbolicUtils::StaticCheckEq(e1, e2) == ge::kTrue;
+    return ge::SymbolicUtils::StaticCheckEq(e1, e2) == ge::TriBool::kTrue;
   }
 
   ge::ExecuteCondition GetNodeExecCondition(const ge::NodePtr &node);
@@ -176,9 +178,22 @@ namespace ascgen_utils {
   bool CanUseTilingKey(const ascir::FusedScheduledResult &fused_schedule_result);
   bool IsJustCubeFixpip(const ascir::FusedScheduledResult &fused_schedule_result);
   bool IsCubeFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
+  bool IsCubeUBFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
+  bool IsCubeCommonFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
   bool IsCubeType(const ascir::ImplGraph &impl_graph);
   bool IsCubeTypeWithBatch(const ascir::ImplGraph &impl_graph);
+  bool IsCubeTypeWithBias(const ascir::ImplGraph &impl_graph);
+  bool IsCubeTypeWithOffsetW(const ascir::ImplGraph &impl_graph);
   ge::Status ParseMatmulAttr(const ascir::NodeView &node, MatMulAttr &mm_attr_data);
+  bool IsCubeGroupType(const ascir::ScheduleGroup &sched_group);
+  bool IsSatetyResultType(const ascir::ScheduledResult &sched_result);
+  ge::Status GetMutmulOutputTypeSize(const ascir::NodeView &node, uint32_t &length);
+  ge::Status GetMutmulInputNum(const ascir::NodeView &node, uint32_t &num);
+  ge::Status CreateCVFusionResult(ascir::FusedScheduledResult &elemwise_schedule_result);
+  ge::Status CreateCVFusionCommonResult(ascir::FusedScheduledResult &elemwise_schedule_result);
+  bool IsCVFusionUBGraph(const ascir::ImplGraph &impl_graph, ascir::CubeTemplateType cv_fusion_type);
+  ge::Status FilterCVFusionUBResult(ascir::FusedScheduledResult &ub_schedule_result);
+  ge::Status FilterCVFusionCommonResult(ascir::FusedScheduledResult &common_schedule_result);
 }  // namespace ascgen_utils
 
 #endif

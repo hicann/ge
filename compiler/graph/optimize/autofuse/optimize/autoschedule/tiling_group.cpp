@@ -63,7 +63,7 @@ int32_t GenAscGraphAxisGroup(const ge::AscGraph &graph, AxisGroup &axes_group) {
   return ge::SUCCESS;
 }
 
-bool CanMergeAxisGroup(const AxisGroup &lhs, const AxisGroup &rhs, AxisGroup &merged_group, bool  is_ge_call) {
+bool CanMergeAxisGroup(const AxisGroup &lhs, const AxisGroup &rhs, AxisGroup &merged_group, bool is_ge_call) {
   merged_group = lhs;
   AxisGroup new_rhs = rhs;
   auto ret = TilingGroup::MergeAxesGroup(merged_group, new_rhs, true, is_ge_call);
@@ -111,6 +111,7 @@ static bool CheckYAndR(const std::vector<ascir::AxisId> &cur_y_group, const std:
 }
 
 static bool MergeYAndY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_ge_call;
   if (lhs_group.y_group.size() != rhs_group.y_group.size()) {
     return false;
   }
@@ -129,6 +130,7 @@ static bool MergeYAndY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is
 }
 
 static bool MergeYAndR(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_ge_call;
   if (!CheckYAndR(lhs_group.y_group, rhs_group.r_group, is_canfuse_call)) {
     return false;
   }
@@ -137,10 +139,13 @@ static bool MergeYAndR(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is
 }
 
 static bool MergeRAndY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_ge_call;
   return CheckYAndR(rhs_group.y_group, lhs_group.r_group, is_canfuse_call);
 }
 
 static bool MergeYAndXY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_canfuse_call;
+  (void)is_ge_call;
   std::set<int64_t> lhs(lhs_group.y_group.begin(), lhs_group.y_group.end());
   std::set<int64_t> rhs(rhs_group.y_group.begin(), rhs_group.y_group.end());
   rhs.insert(rhs_group.x_group.begin(), rhs_group.x_group.end());
@@ -152,6 +157,8 @@ static bool MergeYAndXY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool i
 }
 
 static bool MergeXYAndY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_canfuse_call;
+  (void)is_ge_call;
   std::set<int64_t> lhs(lhs_group.y_group.begin(), lhs_group.y_group.end());
   lhs.insert(lhs_group.x_group.begin(), lhs_group.x_group.end());
   std::set<int64_t> rhs(rhs_group.y_group.begin(), rhs_group.y_group.end());
@@ -162,6 +169,7 @@ static bool MergeXYAndY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool i
 }
 
 static bool MergeYAndYR(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_ge_call;
   if (!CheckYAndYR(lhs_group.y_group, rhs_group.y_group, rhs_group.r_group, rhs_group.axes_order, is_canfuse_call)) {
     return false;
   }
@@ -170,10 +178,12 @@ static bool MergeYAndYR(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool i
 }
 
 static bool MergeYRAndY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_ge_call;
   return CheckYAndYR(rhs_group.y_group, lhs_group.y_group, lhs_group.r_group, lhs_group.axes_order, is_canfuse_call);
 }
 
 static bool MergeYRAndYR(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
+  (void)is_ge_call;
   if (is_ge_call && is_canfuse_call) {
     return false;
   }

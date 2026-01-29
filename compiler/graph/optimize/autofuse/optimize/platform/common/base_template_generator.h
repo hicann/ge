@@ -13,7 +13,7 @@
 
 #include "ascendc_ir.h"
 #include "base_template.h"
-#include "autoschedule/autoschedule_defs.h"
+#include "optimize/autoschedule/autoschedule_defs.h"
 
 namespace optimize {
 class BaseTemplateGenerator {
@@ -31,7 +31,7 @@ class BaseTemplateGenerator {
                                        std::vector<autoschedule::AutoScheduleOutput> &tiling_cases);
 
   virtual std::vector<autoschedule::AutoScheduleOutput> GetBasedCasesByGenMode(
-      GenerationMode mode, const std::vector<autoschedule::AutoScheduleOutput> &tiling_cases,
+      const GenerationMode mode, const std::vector<autoschedule::AutoScheduleOutput> &tiling_cases,
       const std::vector<autoschedule::AutoScheduleOutput> &generated_cases);
 
   BaseTemplateGenerator(const BaseTemplateGenerator &) = delete;

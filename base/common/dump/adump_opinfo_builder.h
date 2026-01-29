@@ -36,9 +36,9 @@ class AdumpOpInfoBuilder {
     return *this;
   }
 
-  AdumpOpInfoBuilder &TersorInfo(std::vector<Adx::TensorInfo> &infos) {
+  AdumpOpInfoBuilder &TersorInfo(std::vector<Adx::TensorInfoV2> &infos) {
     for (auto &iter : infos) {
-      info_.tensorInfos.emplace_back(iter);
+      (void)info_.tensorInfos.emplace_back(iter);
     }
     return *this;
   }
@@ -54,17 +54,17 @@ class AdumpOpInfoBuilder {
       device_info.name = name;
       device_info.addr = addr;
       device_info.length = length;
-      info_.deviceInfos.emplace_back(device_info);
+      (void)info_.deviceInfos.emplace_back(device_info);
     }
     return *this;
   }
 
-  const Adx::OperatorInfo &Build() const {
+  const Adx::OperatorInfoV2 &Build() const {
     return info_;
   }
 
  private:
-  Adx::OperatorInfo info_{};
+  Adx::OperatorInfoV2 info_{};
 };
 }  // namespace ge
 #endif

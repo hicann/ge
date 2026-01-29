@@ -16,14 +16,13 @@
 #include "graph/debug/ge_util.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/node_utils.h"
-#include "graph/utils/op_desc_utils.h"
 #include "register/shape_inference.h"
 #include "utils/cg_utils.h"
 #include "utils/auto_fuse_config.h"
 #include "utils/autofuse_utils.h"
 #include "lowering/asc_lowerer/loop_common.h"
+#include "base/err_msg.h"
 
 namespace ge {
 constexpr int32_t kSplitVDataInputIndex = 0U;
@@ -253,16 +252,8 @@ NodePtr CreateNewConstantNode(const ComputeGraphPtr &graph, const std::string &n
   return new_const_node;
 }
 
-graphStatus CreateConstDataNodesWithOldSplitNode(const ComputeGraphPtr &graph, std::vector<int64_t> &list_size_splits,
-                                                 const NodePtr &old_split_node, const NodePtr &new_split_node) {
-  GE_ASSERT_TRUE(new_split_node->GetAllInDataAnchorsSize() > kSplitVSplitDimInputIndex);
-  auto splitv_op_desc = new_split_node->GetOpDesc();
-  GE_ASSERT_NOTNULL(splitv_op_desc);
-  GE_ASSERT_NOTNULL(old_split_node);
-  auto old_split_op_desc = old_split_node->GetOpDesc();
-  GE_ASSERT_NOTNULL(old_split_op_desc);
-  Format format;
-  DataType dtype;
+// 提取常量节点数据格式信息
+graphStatus ExtractConstantNodeFormatInfo(const NodePtr &old_split_node, Format &format, DataType &dtype) {
   if (old_split_node->GetType() == AF_SPLITV) {
     const auto op = ge::OpDescUtils::CreateOperatorFromNode(old_split_node);
     ge::Tensor val_tensor;
@@ -274,58 +265,137 @@ graphStatus CreateConstDataNodesWithOldSplitNode(const ComputeGraphPtr &graph, s
     format = FORMAT_ND;
     dtype = DT_INT32;
   }
+  return GRAPH_SUCCESS;
+}
+
+// 创建并连接size_splits常量节点
+graphStatus CreateAndConnectSizeSplitsNode(const ComputeGraphPtr &graph, std::vector<int64_t> &list_size_splits,
+                                           const NodePtr &new_split_node, const Format format, const DataType dtype) {
   const std::string size_splits_node_name = "SizeSplitsOf" + new_split_node->GetName();
-  auto new_size_split_node = CreateNewConstantNode(graph, size_splits_node_name, list_size_splits, format, dtype);
+  const auto new_size_split_node = CreateNewConstantNode(graph, size_splits_node_name, list_size_splits, format, dtype);
   GE_ASSERT_NOTNULL(new_size_split_node);
   GE_ASSERT_TRUE(new_size_split_node->GetAllOutDataAnchorsSize() > 0U);
-  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(new_size_split_node->GetOutDataAnchor(0U), new_split_node->GetInDataAnchor(kSplitVSizeSplitsInputIndex)));
+
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(new_size_split_node->GetOutDataAnchor(0U),
+                                              new_split_node->GetInDataAnchor(kSplitVSizeSplitsInputIndex)));
+
   GELOGD("add edge for new size split const data node %s and new split node %s, in data anchor is %d",
          new_size_split_node->GetName().c_str(), new_split_node->GetName().c_str(), kSplitVSizeSplitsInputIndex);
-  auto size_split_op_desc = new_size_split_node->GetOpDesc();
+
+  const auto size_split_op_desc = new_size_split_node->GetOpDesc();
   GE_ASSERT_NOTNULL(size_split_op_desc);
   const auto tensor_desc = size_split_op_desc->GetOutputDesc(0U);
+  const auto splitv_op_desc = new_split_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(splitv_op_desc);
   GE_ASSERT_GRAPH_SUCCESS(splitv_op_desc->UpdateInputDesc(kSplitVSizeSplitsInputIndex, tensor_desc));
 
+  return GRAPH_SUCCESS;
+}
+
+// 处理主输入数据连接
+graphStatus HandleMainInputConnection(const NodePtr &old_split_node, const NodePtr &new_split_node) {
+  const auto old_split_op_desc = old_split_node->GetOpDesc();
   const auto input_data_index = old_split_op_desc->GetInputIndexByName("x");
   GE_ASSERT_TRUE(input_data_index >= 0);
+
   auto in_data_anchor = old_split_node->GetInDataAnchor(input_data_index);
   auto in_data_anchor_peer_out_anchor = in_data_anchor->GetPeerOutAnchor();
   GE_ASSERT_NOTNULL(in_data_anchor_peer_out_anchor);
-  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(in_data_anchor_peer_out_anchor, new_split_node->GetInDataAnchor(kSplitVDataInputIndex)));
+
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(in_data_anchor_peer_out_anchor,
+                                             new_split_node->GetInDataAnchor(kSplitVDataInputIndex)));
   GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveEdge(in_data_anchor_peer_out_anchor, in_data_anchor));
+
+  return GRAPH_SUCCESS;
+}
+
+// 处理split_dim输入连接（针对SplitV/Split节点）
+graphStatus HandleSplitDimConnectionForSplitV(const NodePtr &old_split_node, const NodePtr &new_split_node) {
+  auto old_split_op_desc = old_split_node->GetOpDesc();
+  const auto split_dim_input_index = old_split_op_desc->GetInputIndexByName("split_dim");
+  GE_ASSERT_TRUE(split_dim_input_index >= 0);
+
+  auto in_data_anchor_split_dim = old_split_node->GetInDataAnchor(split_dim_input_index);
+  auto split_dim_peer_out_anchor = in_data_anchor_split_dim->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(split_dim_peer_out_anchor);
+
+  auto peer_out_split_dim_const_data_node = split_dim_peer_out_anchor->GetOwnerNode();
+  GE_ASSERT_NOTNULL(peer_out_split_dim_const_data_node);
+
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(split_dim_peer_out_anchor,
+                                             new_split_node->GetInDataAnchor(kSplitVSplitDimInputIndex)));
+
+  auto split_dim_op_desc = peer_out_split_dim_const_data_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(split_dim_op_desc);
+  GE_ASSERT_TRUE(split_dim_op_desc->GetAllOutputsDescSize() > 0U);
+
+  auto tensor_desc_dim = split_dim_op_desc->GetOutputDesc(0U);
+  auto new_split_node_op_desc = new_split_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(new_split_node_op_desc);
+  GE_ASSERT_GRAPH_SUCCESS(new_split_node_op_desc->UpdateInputDesc(kSplitVSplitDimInputIndex, tensor_desc_dim));
+
+  GELOGD("add edge for split dim const data node and new split node %s, in data anchor is %d",
+         new_split_node->GetName().c_str(), kSplitVSplitDimInputIndex);
+
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveEdge(split_dim_peer_out_anchor, in_data_anchor_split_dim));
+
+  return GRAPH_SUCCESS;
+}
+
+// 处理split_dim输入连接（针对SplitD节点）
+graphStatus HandleSplitDimConnectionForSplitD(const NodePtr &old_split_node,
+                                              const ComputeGraphPtr &graph,
+                                              const NodePtr &new_split_node) {
+  auto old_split_op_desc = old_split_node->GetOpDesc();
+  AnyValue split_dim_data;
+  old_split_op_desc->GetAttr("split_dim", split_dim_data);
+  int64_t split_dim_raw_data = -1L;
+  GE_ASSERT_GRAPH_SUCCESS(split_dim_data.GetValue<int64_t>(split_dim_raw_data));
+  GE_ASSERT_TRUE(split_dim_raw_data >= 0L);
+
+  std::vector<int64_t> list_split_dim = {split_dim_raw_data};
+  const std::string split_num_node_name = "SplitNumOf" + new_split_node->GetName();
+  auto new_split_dim_node = CreateNewConstantNode(graph, split_num_node_name, list_split_dim);
+  GE_ASSERT_NOTNULL(new_split_dim_node);
+  GE_ASSERT_TRUE(new_split_dim_node->GetAllOutDataAnchorsSize() > 0U);
+
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(new_split_dim_node->GetOutDataAnchor(0U),
+                                             new_split_node->GetInDataAnchor(kSplitVSplitDimInputIndex)));
+
+  return GRAPH_SUCCESS;
+}
+
+// 主函数重构
+graphStatus CreateConstDataNodesWithOldSplitNode(const ComputeGraphPtr &graph,
+                                                 std::vector<int64_t> &list_size_splits,
+                                                 const NodePtr &old_split_node,
+                                                 const NodePtr &new_split_node) {
+  GE_ASSERT_TRUE(new_split_node->GetAllInDataAnchorsSize() > kSplitVSplitDimInputIndex);
+  auto splitv_op_desc = new_split_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(splitv_op_desc);
+  GE_ASSERT_NOTNULL(old_split_node);
+  auto old_split_op_desc = old_split_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(old_split_op_desc);
+
+  // 提取格式信息
+  Format format;
+  DataType dtype;
+  GE_ASSERT_SUCCESS(ExtractConstantNodeFormatInfo(old_split_node, format, dtype));
+
+  // 创建并连接size_splits节点
+  GE_ASSERT_SUCCESS(CreateAndConnectSizeSplitsNode(graph, list_size_splits, new_split_node, format, dtype));
+
+  // 处理主输入连接
+  GE_ASSERT_SUCCESS(HandleMainInputConnection(old_split_node, new_split_node));
+
+  // 根据节点类型处理split_dim连接
   if (old_split_node->GetType() == AF_SPLITV || old_split_node->GetType() == AF_SPLIT) {
-    const auto split_dim_input_index = old_split_op_desc->GetInputIndexByName("split_dim");
-    GE_ASSERT_TRUE(split_dim_input_index >= 0);
-    auto in_data_anchor_split_dim = old_split_node->GetInDataAnchor(split_dim_input_index);
-    auto split_dim_peer_out_anchor = in_data_anchor_split_dim->GetPeerOutAnchor();
-    GE_ASSERT_NOTNULL(split_dim_peer_out_anchor);
-    auto peer_out_split_dim_const_data_node = split_dim_peer_out_anchor->GetOwnerNode();
-    GE_ASSERT_NOTNULL(peer_out_split_dim_const_data_node);
-    GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(split_dim_peer_out_anchor, new_split_node->GetInDataAnchor(kSplitVSplitDimInputIndex)));
-    auto split_dim_op_desc = peer_out_split_dim_const_data_node->GetOpDesc();
-    GE_ASSERT_NOTNULL(split_dim_op_desc);
-    GE_ASSERT_TRUE(split_dim_op_desc->GetAllOutputsDescSize() > 0U);
-    auto tensor_desc_dim = split_dim_op_desc->GetOutputDesc(0U);
-    auto new_split_node_op_desc = new_split_node->GetOpDesc();
-    GE_ASSERT_NOTNULL(new_split_node_op_desc);
-    GE_ASSERT_GRAPH_SUCCESS(new_split_node_op_desc->UpdateInputDesc(kSplitVSplitDimInputIndex, tensor_desc_dim));
-    GELOGD("add edge for split dim const data node %s and new split node %s, in data anchor is %d",
-           new_size_split_node->GetName().c_str(), new_split_node->GetName().c_str(), kSplitVSplitDimInputIndex);
-    GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveEdge(split_dim_peer_out_anchor, in_data_anchor_split_dim));
+    GE_ASSERT_SUCCESS(HandleSplitDimConnectionForSplitV(old_split_node, new_split_node));
   } else {
     // SplitD模板
-    AnyValue split_dim_data;
-    old_split_op_desc->GetAttr("split_dim", split_dim_data);
-    int64_t split_dim_raw_data = -1L;
-    GE_ASSERT_GRAPH_SUCCESS(split_dim_data.GetValue<int64_t>(split_dim_raw_data));
-    GE_ASSERT_TRUE(split_dim_raw_data >= 0L);
-    std::vector<int64_t> list_split_dim = {split_dim_raw_data};
-    const std::string split_num_node_name = "SplitNumOf" + new_split_node->GetName();
-    auto new_split_dim_node = CreateNewConstantNode(graph, split_num_node_name, list_split_dim);
-    GE_ASSERT_NOTNULL(new_split_dim_node);
-    GE_ASSERT_TRUE(new_split_dim_node->GetAllOutDataAnchorsSize() > 0U);
-    GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(new_split_dim_node->GetOutDataAnchor(0U), new_split_node->GetInDataAnchor(kSplitVSplitDimInputIndex)));
+    GE_ASSERT_SUCCESS(HandleSplitDimConnectionForSplitD(old_split_node, graph, new_split_node));
   }
+
   return GRAPH_SUCCESS;
 }
 
@@ -392,25 +462,23 @@ graphStatus SplitNodeRealizeCombine(const ComputeGraphPtr &graph, NodePtr &split
 graphStatus SplitNodeCombine(const ComputeGraphPtr &graph, NodePtr &split_node) {
   uint32_t fusion_out_count_total = 0;
   uint32_t cur_fuse_split_cnt = 0;
-  NodePtr out_owner_node = NULL;
+  NodePtr out_owner_node = nullptr;
   uint32_t split_node_flag = 0;
   uint32_t fuse_flag = 0;
   int64_t original_split_dim = 0;
-  int32_t output_index_temp;
   std::vector<int32_t> output_indices;
   std::vector<uint32_t> split_node_flag_vec;
-  uint32_t outdata_anchor_size = split_node->GetAllOutDataAnchorsSize();
+  const uint32_t out_data_anchor_size = split_node->GetAllOutDataAnchorsSize();
   std::vector<NodePtr> cycle_nodes_lists;
-
+  const auto split_op_desc = split_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(split_op_desc);
   if (!GetSplitNodeSplitDim(split_node, original_split_dim)) {
     return GRAPH_SUCCESS;
   }
 
-  for (uint32_t index = 0; index < outdata_anchor_size; index++) {
-    output_index_temp = split_node->GetOpDesc()->GetOutputIndexByName("y" + std::to_string(index));
-    if (output_index_temp == (-1)) {
-      break;
-    }
+  for (uint32_t index = 0; index < out_data_anchor_size; index++) {
+    int32_t output_index_temp = split_op_desc->GetOutputIndexByName("y" + std::to_string(index));
+    GE_ASSERT_TRUE(output_index_temp >= 0);
     output_indices.push_back(output_index_temp);
   }
 
@@ -435,7 +503,7 @@ graphStatus SplitNodeCombine(const ComputeGraphPtr &graph, NodePtr &split_node) 
   if (static_cast<int>(fuse_flag) == 0 ||
       FlattenSplitPass::CanFlatten(split_node, original_split_dim, fusion_out_count_total) != ge::GRAPH_SUCCESS) {
     return GRAPH_SUCCESS;
-      }
+  }
   /** 判断融合节点是否成环**/
   cycle_nodes_lists.push_back(split_node);
   const CycleDetectorSharedPtr cycle_detector = GraphUtils::CreateSharedCycleDetector(graph);
@@ -482,13 +550,8 @@ graphStatus FlattenSplitPass::Run(const ComputeGraphPtr &graph) {
 }
 
 graphStatus FlattenSplitPass::CanFlatten(const NodePtr &node, const size_t split_dim, const size_t num_outputs) {
-  constexpr size_t kMaxFusedOutputNum = 800;
   constexpr size_t kMaxSingleOpOutputNum = 63;
   constexpr size_t kMaxFreeSymbols = 16; // 过多的symbol会导致TilingData大小膨胀，导致编译失败。在有需求削减前，先限制
-  GE_CHK_BOOL_RET_SPECIAL_STATUS(num_outputs > kMaxFusedOutputNum,
-                                 ge::GRAPH_FAILED,
-                                 "number of outputs(%zu) exceeds max output num(%zu), do not flatten split",
-                                 num_outputs, kMaxFusedOutputNum);
   Expression split_dim_size;
   for (auto anchor: node->GetAllOutDataAnchors()) {
     std::vector<Expression> output_shape;

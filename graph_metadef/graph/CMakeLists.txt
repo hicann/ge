@@ -88,6 +88,7 @@ set(GRAPH_BASE_SOURCE_LIST
     "normal_graph/tensor.cc"
     "utils/readable_dump.cc"
     "utils/tensor_value_utils.cc"
+    "${GE_METADEF_DIR}/base/utils/type_utils_inner.cc"
 )
 
 SET(GRAPH_SOURCE_LIST
@@ -126,6 +127,7 @@ SET(GRAPH_SOURCE_LIST
     "${GE_METADEF_DIR}/third_party/transformer/src/transfer_range_according_to_format.cc"
     "${GE_METADEF_DIR}/third_party/transformer/src/transfer_shape_utils.cc"
     "${GE_METADEF_DIR}/ops/op_imp.cpp"
+    "${GE_METADEF_DIR}/base/utils/type_utils_inner.cc"
 )
 
 SET(FAST_GRAPH_SOURCE_LIST
@@ -155,6 +157,7 @@ target_compile_definitions(graph_base PRIVATE
 )
 
 target_include_directories(graph_base PRIVATE
+    ${AIR_CODE_DIR}/inc/graph_metadef
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/metadef_protos

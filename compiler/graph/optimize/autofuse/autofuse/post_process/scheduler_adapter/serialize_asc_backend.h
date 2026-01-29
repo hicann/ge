@@ -14,6 +14,7 @@
 #include "utils/autofuse_utils.h"
 #include "graph/utils/hash_utils.h"
 #include "autofuser.h"
+#include "can_fuse/backend/backend_utils.h"
 
 namespace ge {
 namespace asc_adapt {

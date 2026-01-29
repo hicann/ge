@@ -7,6 +7,7 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+
 #ifndef __ASCENDC_API_CAST_H__
 #define __ASCENDC_API_CAST_H__
 
@@ -18,7 +19,7 @@ inline __aicore__ AscendC::RoundMode GetRoundMode() {
   // 整形转整形：CAST_NONE
   // 整形转浮点：CAST_NONE
   if constexpr (AscendC::IsSameType<InT, float>::value) {
-    if constexpr (AscendC::IsSameType<OutT, half>::value) {
+    if constexpr (AscendC::SupportType<OutT, half, bfloat16_t>()) {
       return AscendC::RoundMode::CAST_RINT;
     }
     if constexpr (AscendC::SupportType<OutT, int64_t, int32_t, int16_t>()) {

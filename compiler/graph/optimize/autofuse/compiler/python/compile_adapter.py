@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 # ----------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
@@ -68,15 +70,16 @@ def get_debug_flag():
 
 
 def get_pgo_topn():
+    default_topn = 5
     dfx_dict = get_dfx_env_result()
-    topn_str = dfx_dict.get('autofuse_pgo_topn', "5")
+    topn_str = dfx_dict.get('autofuse_pgo_topn', str(default_topn))
     try:
         topn = int(topn_str)
         if topn < 0:
-            return 5
+            return default_topn
         return topn
     except ValueError:
-        return 5
+        return default_topn
 
 
 def get_pgo_env_flag():
@@ -155,7 +158,7 @@ def pgo_get_top_result(search_path, top_n=5):
         lines = [line.strip() for line in file if line.strip()]
 
     if not lines:
-        return [], None
+        return None, None, None
 
     origin_line = lines[-1]
     solution_set_line = lines[:-1]

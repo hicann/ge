@@ -28,6 +28,7 @@
 #include "util/mem_utils.h"
 #include "optimize/graph_pass/pass_runner_handler.h"
 #include "graph/symbolizer/symbolic_utils.h"
+#include "optimize/graph_completeness/dtype_consistency.h"
 
 using namespace ascir;
 using namespace optimize;
@@ -98,11 +99,14 @@ std::vector<std::vector<int64_t>> MergeContinuousPairs(const std::vector<std::pa
 
 std::unordered_set<size_t> IdentifyZeroStrideAxisIndices(const ascir::ImplGraph &owner_graph) {
   std::vector<bool> is_zero_stride_axis;
+  bool include_reduce = false;
   for (const auto &node : owner_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
-    if (!ScheduleUtils::IsBuffer(node)) {
+    if (!ScheduleUtils::IsBuffer(node) && is_zero_stride_axis.empty()) {
       is_zero_stride_axis.resize(node->attr.sched.axis.size(), true);
-      break;
+    }
+    if (ScheduleUtils::IsReduce(node)) {
+      include_reduce = true;
     }
   }
 
@@ -112,8 +116,11 @@ std::unordered_set<size_t> IdentifyZeroStrideAxisIndices(const ascir::ImplGraph 
       continue;
     }
 
+    // 当前节点包含_keep_first_axis属性且为true，或者图上包含reduce节点时，需要保留首轴
     bool keep_first_axis = false;
     (void) ge::AttrUtils::GetBool(node->GetOpDesc(), "_keep_first_axis", keep_first_axis);
+    keep_first_axis = keep_first_axis || include_reduce;
+
     const auto &loop_axes = node->attr.sched.axis;
     for (size_t loop_idx = 0UL; loop_idx < loop_axes.size(); ++loop_idx) {
       bool has_non_zero_stride = false;
@@ -223,15 +230,16 @@ Status SearchNodesNeedForward(const ge::AscGraph &impl_graph, std::map<int64_t, 
       num_of_load_need_adjust++;
       continue;
     }
-    // 记录需要调序的data和load节点：1. 非首load 2. 未被共复用 3. 和首load有公共计算节点 4. 输出节点为非多输入节点
+    // 记录需要调序的input(data/workspace)和load节点：1. 非首load 2. 未被共复用 3. 和首load有公共计算节点 4. 输出节点为非多输入节点
     if (first_load_id != kInvalidNodeId && ge::ops::IsOps<Load>(node) && node->GetOpDesc()->GetId() > first_load_id &&
         loads_with_same_queid[node->outputs[0].attr.que.id].size() == 1UL &&
         HasSameComputeNode(dir_father_nodes, node->GetOpDesc()->GetId(), first_load_id)) {
       for (const auto &in_node : node->GetInAllNodes()) {
         GE_CHECK_NOTNULL(in_node);
         GE_CHECK_NOTNULL(in_node->GetOpDesc());
-        if (ge::ops::IsOps<Data>(in_node) && in_node->GetOpDesc()->GetId() > first_load_id) {
-          GELOGD("Data node %s is after first load, needs to be advanced.", in_node->GetNamePtr());
+        if (ScheduleUtils::IsBuffer(std::dynamic_pointer_cast<ge::AscNode>(in_node)) &&
+            in_node->GetOpDesc()->GetId() > first_load_id) {
+          GELOGD("Input node %s is after first load, needs to be advanced.", in_node->GetNamePtr());
           need_forward_nodes_id.insert(std::make_pair(in_node->GetOpDesc()->GetId(), index_data_and_load++));
         }
       }
@@ -274,12 +282,21 @@ Status DoSeqAdjustment(const ge::AscGraph &impl_graph, const std::map<int64_t, i
   return ge::SUCCESS;
 }
 
-ge::Status RegisterScoreFuncInScheduleGroup(const autoschedule::AutoScheduleOutput &schedule_output, ScheduleGroup &schedule_group){
-  if (!schedule_output.score_func.empty()) {
-    GELOGD("The score func of template [%s] is [%s].", schedule_output.scheduled_graph.GetName().c_str(),
-           schedule_output.score_func.c_str());
+void RegisterScoreFuncInScheduleGroup([[maybe_unused]] const autoschedule::AutoScheduleOutput &schedule_output,
+                                      [[maybe_unused]] ScheduleGroup &schedule_group,
+                                      const bool should_skip_registry = true) {
+  if (schedule_output.score_func.empty()) {
+    return;
   }
-  return ge::SUCCESS;
+
+  if (should_skip_registry) {
+    GELOGD("Not a valid case, skip register template score func of graph [%s].", schedule_output.scheduled_graph.GetName().c_str());
+    return;
+  }
+
+  schedule_group.graph_name_to_score_funcs[schedule_output.scheduled_graph.GetName()] = schedule_output.score_func;
+  GELOGD("The score func of template [%s] is [%s].", schedule_output.scheduled_graph.GetName().c_str(),
+         schedule_output.score_func.c_str());
 }
 
 ge::Status CopyAndReNameImplGraphs(const std::vector<autoschedule::AutoScheduleOutput> &schedule_outputs,
@@ -295,7 +312,7 @@ ge::Status CopyAndReNameImplGraphs(const std::vector<autoschedule::AutoScheduleO
       GE_ASSERT_NOTNULL(cur_owner);
       cur_owner->SetName(result.scheduled_graph.GetName() + "_" + std::to_string(i));
       cur_group.impl_graphs.push_back(std::move(copied_graph));
-      GE_ASSERT_SUCCESS(RegisterScoreFuncInScheduleGroup(result, cur_group));
+      RegisterScoreFuncInScheduleGroup(result, cur_group);
     }
     cur_result.schedule_groups.emplace_back(std::move(cur_group));
   }
@@ -556,7 +573,7 @@ Status Optimizer::RemoveAllZeroStrideLoopAxis(ascir::ImplGraph &owner_graph) {
   return ge::SUCCESS;
 }
 
-Status Optimizer::MergeContinuousAxis(ascir::ImplGraph &impl_graph) {
+Status Optimizer::MergeContinuousAxis(ascir::ImplGraph &impl_graph, ascir::CubeTemplateType cube_type) {
   auto all_axis = impl_graph.GetAllAxis();
   if (all_axis.size() <= 1UL) {
     return ge::SUCCESS;
@@ -628,11 +645,14 @@ Status Optimizer::MergeContinuousAxis(ascir::ImplGraph &impl_graph) {
   int64_t attr_axis = -1;
   int64_t param_size = -1;
   bool has_gather = ScheduleUtils::GetGatherParams(impl_graph, attr_axis, param_size);
-  if (!has_gather) {
+  if ((!has_gather) && (cube_type != ascir::CubeTemplateType::kUBFuse)) {
     // 此处合轴后的轴可以认为是original的
     for (const auto &axis : new_merged_axes) {
       axis->type = ge::Axis::Type::kAxisTypeOriginal;
       axis->from.clear();
+    }
+    if (cube_type == ascir::CubeTemplateType::kUBFuse) {
+      return ge::GRAPH_SUCCESS;
     }
     GE_ASSERT_SUCCESS(ScheduleUtils::RemoveUnusedAxes(impl_graph), "Failed to remove unused axes");
   }
@@ -651,6 +671,10 @@ Status Optimizer::OptimizeForHintGraph(ge::AscGraph &hint_graph,
   GE_CHK_STATUS_RET(AscGraphInfoComplete::CompleteApiInfo(hint_graph), "CompleteApiInfo failed");
   ascir::ImplGraph optimize_graph(hint_graph.GetName().c_str());
   GE_ASSERT_TRUE(optimize_graph.CopyFrom(hint_graph));
+
+  // dtype 兜底处理：针对算子实际支持的 dtype 与注册不一致的情况，插入必要的 Cast
+  GE_CHK_STATUS_RET(DtypeConsistency::EnsureDtypeConsistency(optimize_graph), "Failed to ensure dtype consistency");
+  ascir::utils::DumpGraph(optimize_graph, "AfterDtypeConsistency");
 
   GE_CHK_STATUS_RET(GraphPass(optimize_graph), "Run graph passes failed");
 
@@ -740,7 +764,7 @@ void Optimizer::RefreshGroupRelation(size_t index, std::map<std::string, ge::Exp
   }
 }
 
-Status ProcessCubeSchedules(std::vector<ascir::ScheduledResult> &scheduled_results_cur, ascir::ImplGraph &grouped_graph) {
+static Status ProcessCubeSchedules(std::vector<ascir::ScheduledResult> &scheduled_results_cur, ascir::ImplGraph &grouped_graph) {
   ascir::Graph optimize_graph(ascgen_utils::GenValidName(grouped_graph.GetName()).c_str());
   GE_ASSERT_TRUE(optimize_graph.CopyFrom(grouped_graph));
   ScheduleGroup schedule_group{{optimize_graph}, {}};
@@ -749,13 +773,18 @@ Status ProcessCubeSchedules(std::vector<ascir::ScheduledResult> &scheduled_resul
   return ge::SUCCESS;
 }
 
-Status ProcessNonReduceSchedules(const std::vector<autoschedule::AutoScheduleOutput> &schedule_outputs,
-                                 std::vector<ascir::ScheduledResult> &scheduled_results_cur) {
+static Status ProcessNonReduceSchedules(const std::vector<autoschedule::AutoScheduleOutput> &schedule_outputs,
+                                        std::vector<ascir::ScheduledResult> &scheduled_results_cur,
+                                        ScheduleTask &schedule_task) {
   ScheduleGroup schedule_group;
   schedule_group.impl_graphs.reserve(schedule_outputs.size());
   for (const auto &schedule_output : schedule_outputs) {
     schedule_group.impl_graphs.emplace_back(schedule_output.scheduled_graph);
-    GE_ASSERT_SUCCESS(RegisterScoreFuncInScheduleGroup(schedule_output, schedule_group));
+    // 目前仅对elewise+brc/单group/单result开放nddma模板打分
+    // transpose/split有场景触发转为Load/Store
+    bool skip_template_score_func_registry = schedule_task.grouped_graphs.size() > 1UL ||
+                                             scheduled_results_cur.size() > 1UL || schedule_task.has_load_store_conversion;
+    RegisterScoreFuncInScheduleGroup(schedule_output, schedule_group, skip_template_score_func_registry);
   }
   for (auto &res : scheduled_results_cur) {
     res.schedule_groups.emplace_back(schedule_group);
@@ -773,7 +802,7 @@ Status Optimizer::InitializeScheduledResults(std::vector<ascir::ScheduledResult>
   return ge::SUCCESS;
 }
 
-Status Optimizer::AutoScheduler(HintGraph &hint_graph, ScheduleTask &schedule_task,
+Status Optimizer::AutoScheduler([[maybe_unused]]const HintGraph &hint_graph, ScheduleTask &schedule_task,
                                 std::vector<ascir::ScheduledResult> &scheduled_results) const {
   size_t index = 0;
   std::vector<ascir::ScheduledResult> scheduled_results_cur;
@@ -783,7 +812,8 @@ Status Optimizer::AutoScheduler(HintGraph &hint_graph, ScheduleTask &schedule_ta
     GE_CHK_STATUS_RET(AscGraphInfoComplete::CompleteApiInfo(grouped_graph), "CompleteApiInfo failed");
     if (CanDoReMergeAxis(grouped_graph)) {
       GE_ASSERT_SUCCESS(RemoveAllZeroStrideLoopAxis(grouped_graph), "Remove All zero stride axis failed.");
-      GE_ASSERT_SUCCESS(MergeContinuousAxis(grouped_graph), "Merge continuous axes failed.");
+      GE_ASSERT_SUCCESS(MergeContinuousAxis(grouped_graph, schedule_task.cube_type),
+                        "Merge continuous axes failed.");
     }
     ascir::utils::DumpGraph(grouped_graph, "BeforeAutoSchedule");
     GELOGI("AutoScheduler start: %s", grouped_graph.GetName().c_str());
@@ -809,14 +839,15 @@ Status Optimizer::AutoScheduler(HintGraph &hint_graph, ScheduleTask &schedule_ta
           scheduled_results_tmp.emplace_back(d);
           d.schedule_groups.pop_back();
         }
-        GE_ASSERT_SUCCESS(RegisterScoreFuncInScheduleGroup(schedule_output, schedule_group));
+        RegisterScoreFuncInScheduleGroup(schedule_output, schedule_group);
       }
       scheduled_results_tmp.swap(scheduled_results_cur);
     } else {
       if (schedule_task.reduce_type == ReduceTemplateType::kRCore) {
         GE_ASSERT_SUCCESS(CopyAndReNameImplGraphs(schedule_outputs, scheduled_results_cur));
       } else {
-        GE_ASSERT_SUCCESS(ProcessNonReduceSchedules(schedule_outputs, scheduled_results_cur));
+        GE_ASSERT_SUCCESS(
+            ProcessNonReduceSchedules(schedule_outputs, scheduled_results_cur, schedule_task));
       }
     }
     index++;
@@ -826,8 +857,12 @@ Status Optimizer::AutoScheduler(HintGraph &hint_graph, ScheduleTask &schedule_ta
 }
 
 void Optimizer::TryEnableGroupParallel(FusedScheduledResult &fused_scheduled_result) {
-  if (fused_scheduled_result.node_idx_to_scheduled_results.size() == 1UL) {
+  if (fused_scheduled_result.node_idx_to_scheduled_results.size() == 1UL && fused_scheduled_result.workspace_nodes.empty()) { // 有workspace表示有依赖，不能使能enable_group_parallel
     for (auto &schedule_result : fused_scheduled_result.node_idx_to_scheduled_results.front()) {
+      if (schedule_result.cube_type == CubeTemplateType::kCommon) {
+        schedule_result.enable_group_parallel = false;
+        return;
+      }
       schedule_result.enable_group_parallel =
           schedule_result.schedule_groups.size() > 1UL && schedule_result.var_relations.empty();
     }

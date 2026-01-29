@@ -60,7 +60,7 @@ struct SizeVar {
   Type type;
 
   // [HI] TODO 这里只能使用Symbol创建，不允许使用Expression
-  explicit SizeVar(ge::Expression expr_other) : expr(std::move(expr_other)) {}
+  explicit SizeVar(ge::Expression expr_other) : type(kSizeTypeVar), expr(std::move(expr_other)) {}
 
   // [HI] 符号，expr中的符号名图内唯一，符号名被用于全图的表达式
   ge::Expression expr;
@@ -93,7 +93,7 @@ struct Axis {
   ge::Expression size;
 
   // [I] TODO 轴的对齐要求，详细说明不同的值分别是什么含义
-  int32_t align{-1};
+  ge::Expression align{ge::Symbol(-1)};
 
   // [I] 当轴为被切分轴时，
   std::vector<int64_t> from;
@@ -209,6 +209,11 @@ class AscIrAttrDefBase {
     static_assert(std::is_base_of<AscIrAttrDefBase, T>::value, "Template parameter must be derived from IrAttrDefBase");
     return reinterpret_cast<T *>(this);
   }
+  template<typename T>
+  const T *DownCastTo() const {
+    static_assert(std::is_base_of<AscIrAttrDefBase, T>::value, "Template parameter must be derived from IrAttrDefBase");
+    return reinterpret_cast<const T *>(this);
+  }
  protected:
   AttrStore::CustomDefinedAttrStore attr_store_;
 };
@@ -279,6 +284,7 @@ struct TmpBufDesc {
 struct TmpBuffer {
   TmpBufDesc buf_desc;
   MemAttr mem{};
+  int64_t id = kIdNone;
 };
 
 

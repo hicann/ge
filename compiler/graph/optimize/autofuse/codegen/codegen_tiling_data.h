@@ -21,9 +21,11 @@ class TilingData {
  public:
   explicit TilingData(const std::string &kernel, const std::string &name_class = "TilingData");
   std::string Generate(const ascir::FusedScheduledResult& fused_schedule_result);
+  std::string GenCVConstTilingData(const std::string &tiling_data_struct_name, bool is_inductor_scene);
   std::string GenerateConst(const ascir::FusedScheduledResult& fused_schedule_result, bool is_inductor_scene = true);
   static void GetTqueAndTbufId(const ge::AscGraph& graph, std::set<int64_t>& q_ids, std::set<int64_t>& b_ids);
-  static void GetTmpBufName(const ge::AscGraph& graph, std::set<std::string>& tmp_tbuf_names);
+  static void GetTmpBufName(const ge::AscGraph& graph, std::set<int64_t>& b_ids);
+  static ge::Status GetApiTilingDataName(const ascir::NodeView& node, std::vector<std::string>& api_tiling_data_names);
  protected:
   std::string class_name;
   std::string kernel_name;
@@ -50,15 +52,16 @@ class TilingData {
                                             const ascir::NodeView& node);
   void ConstTilingDataFieldPopBack();
 
-  std::string GenGenTilingDataFieldConstDefFunc();
-  std::string GenGenTilingDataFieldConstValueFunc();
+  std::string GenGenTilingDataFieldConstDefFunc() const;
+  std::string GenGenTilingDataFieldConstValueFunc() const;
+  ge::Status ProcessCubeFusionResult(ascir::FusedScheduledResult &schedule_result);
 
    std::string GenTingDataField(std::string field_name);
    std::string GetNameOfGenTilingDataFieldConstDefFunc(const std::string field_name);
    std::string GetNameOfGenTilingDataFieldConstDefFuncSimple(const std::string field_name);
    std::string GetNameOfGenTilingDataFieldConstValueFuncSimple(const std::string field_name);
 
-   std::string GenStringReplaceFunc();
+   std::string GenStringReplaceFunc() const;
    std::string GenConstGenResultReplace();
 
    std::string GenTilingDataFieldConstDefFunc(std::string &dtype, std::string &filed_name);
@@ -72,7 +75,7 @@ class TilingData {
 
    std::string DataFieldConstDefine(const std::string& buf_name);
 
-   void GenTqueTbufTmpBufFunc(const std::set<int64_t>& q_ids, const std::set<int64_t>& b_ids, const std::set<std::string>& tmp_tbuf_names, std::stringstream& ss);
+   void GenTqueTbufTmpBufFunc(const std::set<int64_t>& q_ids, const std::set<int64_t>& b_ids, std::stringstream& ss);
 
    std::vector<std::string> const_tiling_data_field;
    std::stringstream pre_var_ss;

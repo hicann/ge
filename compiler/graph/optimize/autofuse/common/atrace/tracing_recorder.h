@@ -19,7 +19,7 @@ namespace ge {
 constexpr int64_t kInvalidHandle = -1;
 class TracingRecorder {
  public:
-  explicit TracingRecorder(TracingModule module);
+  explicit TracingRecorder(const TracingModule module);
   ~TracingRecorder();
   // 记录message的经历的时间
   void RecordDuration(const std::vector<std::string> &tracing_msg, uint64_t start, uint64_t duration);

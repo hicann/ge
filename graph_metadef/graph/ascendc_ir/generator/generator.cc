@@ -142,8 +142,8 @@ void GenConstructorDef(const AscIrDef &def, const std::string &attr_class, std::
   ss << " {" << std::endl;
   GenIrInputAndOutputDef(def, ss);
   GenOutTensorInitDef(def, ss);
-  ss << "    this->attr.api.compute_type =  static_cast<ge::ComputeType>(" << static_cast<int32_t>(def.GetComputeType())
-     << ");" << std::endl;
+  ss << "    this->attr.api.compute_type =  static_cast<ge::ComputeType>("
+     << static_cast<int32_t>(def.GetComputeType()) << ");" << std::endl;
   if (need_graph) {
     ss << "    graph.AddNode(*this) ;" << std::endl << "  }" << std::endl;
   } else {
@@ -1193,7 +1193,11 @@ class InferDtypeWithNoCheckCodeGenerator {
   Status Generate(std::stringstream &ss) const {
     GenerateFunctionSignature(ss);
     if (is_ordered_dtype_infer_ || is_soc_ordered_dtype_infer_) {
+      ss << "    (void)input_dtypes;" << std::endl;
+      ss << "    (void)expect_output_dtypes;" << std::endl;
       ss << "    // 输入输出存在关联, 无法进行推导" << std::endl;
+      ss << "    (void)input_dtypes;" << std::endl;
+      ss << "    (void)expect_output_dtypes;" << std::endl;
       ss << "    GELOGW(\"Node type %s is not supported to infernocheck for dtype.\", Type);" << std::endl;
       ss << "    return ge::FAILED;" << std::endl;
       ss << "  };" << std::endl << std::endl;

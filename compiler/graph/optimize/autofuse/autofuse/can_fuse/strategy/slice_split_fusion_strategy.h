@@ -24,9 +24,6 @@ public:
 
   // 检查两个节点是否可以融合
   bool CanFuse(const NodePtr &node1, const NodePtr &node2) override;
-
-  // 检查是否是和node2中的slice节点融合
-  bool CanNotMergeSlice(const NodePtr &node1, const NodePtr &node2);
 };
 }
 #endif //SLICE_SPLIT_FUSION_STRATEGY_H

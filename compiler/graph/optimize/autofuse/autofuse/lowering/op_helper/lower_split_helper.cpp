@@ -45,8 +45,8 @@ void LowerSplitHelper::FindSplitNodes(const AscGraph &asc_graph, std::vector<Asc
   }
 }
 
-graphStatus LowerSplitHelper::ParseSplitNode() {
-  bool found = false;
+graphStatus LowerSplitHelper::ParseSplitNode(bool &found) {
+  found = false;
   for (auto split_node : split_nodes_) {
     output_shapes_.emplace_back(split_node->outputs[0].attr.repeats);
   }
@@ -61,11 +61,12 @@ graphStatus LowerSplitHelper::ParseSplitNode() {
       break;
     }
   }
-  GE_ASSERT_TRUE(found,
-                 "[%s] failed to find split dim, input_shape = %s, output_shapes[0] = %s",
-                 asc_backend_node_->GetNamePtr(),
-                 ToString(input_shape_).c_str(),
-                 ToString(output_shapes_.front()).c_str());
+  if (!found) {
+    GELOGI("[%s] split dim not found, input_shape = %s, output_shapes[0] = %s",
+           asc_backend_node_->GetNamePtr(),
+           ToString(input_shape_).c_str(),
+           ToString(output_shapes_.front()).c_str());
+  }
   return GRAPH_SUCCESS;
 }
 
@@ -86,7 +87,7 @@ graphStatus LowerSplitHelper::ParseSplitCase() {
   GE_ASSERT_NOTNULL(asc_backend_node_);
   GELOGD("node: %s(%s), in anchor size: %d, out anchor size: %d", asc_backend_node_->GetNamePtr(),
          asc_backend_node_->GetTypePtr(), asc_backend_node_->GetAllInDataAnchorsSize(), asc_backend_node_->GetAllOutDataAnchorsSize());
-  for (const auto split_node : split_nodes_) {
+  for (const auto &split_node : split_nodes_) {
     auto out_anchor = split_node->GetOutDataAnchor(0);
     if (out_anchor != nullptr) {
       GE_ASSERT_TRUE(static_cast<size_t>(out_anchor->GetIdx()) < output_shapes_.size());
@@ -163,8 +164,9 @@ graphStatus LowerSplitHelper::CheckFuseRatio(bool &need_lifting) {
   GE_CHK_BOOL_RET_SPECIAL_STATUS(asc_backend_node_->GetAllOutDataAnchorsSize() > kMaxOutputNum, GRAPH_SUCCESS,
                                  "num_outputs = %zu, do not lifting",
                                  asc_backend_node_->GetAllOutDataAnchorsSize());
-  GE_CHK_BOOL_RET_SPECIAL_STATUS(asc_backend_node_->GetOutDataNodesSize() == 1U, GRAPH_SUCCESS, "single output");
-  GE_ASSERT_SUCCESS(ParseSplitNode());
+  bool found_split_dim = false;
+  GE_ASSERT_SUCCESS(ParseSplitNode(found_split_dim));
+  GE_CHK_BOOL_RET_SPECIAL_STATUS(!found_split_dim, GRAPH_SUCCESS, "split dim not found");
   // 暂不处理split_dim后为动态shape的场景
   GE_ASSERT_TRUE(split_dim_< input_shape_.size());
   GE_CHK_BOOL_RET_SPECIAL_STATUS(!input_shape_[split_dim_].IsConstExpr(),
@@ -179,16 +181,6 @@ graphStatus LowerSplitHelper::CheckFuseRatio(bool &need_lifting) {
   auto buffer_ratio = static_cast<float64_t>(total_fused_dim_size_) / static_cast<float64_t>(input_dim_size_);
   auto threshold = kCaseToRatio.at(case_);
   need_lifting = buffer_ratio < threshold;
-  std::stringstream ss;
-  ss << "splits: [";
-  for (auto n : split_nodes_) {
-    ss << n->GetName() << ", ";
-  }
-  ss<< "]";
-  GELOGI("AscBackend: %s, %s, case = %s, ratio = %ld/%ld = %.15f, threshold = %f, need_lifting = %d",
-         asc_backend_node_->GetNamePtr(), ss.str().c_str(),
-         kCaseToName.at(case_).c_str(), total_fused_dim_size_, input_dim_size_,
-         buffer_ratio, threshold, need_lifting);
   return GRAPH_SUCCESS;
 }
 }  // namespace ge

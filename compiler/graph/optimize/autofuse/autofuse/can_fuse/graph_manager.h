@@ -25,7 +25,7 @@ class FusionGraphManager {
  public:
   // 获取单例实例
   static FusionGraphManager &GetInstance() {
-    static FusionGraphManager instance;
+    thread_local static FusionGraphManager instance;
     return instance;
   }
 

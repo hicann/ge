@@ -221,6 +221,7 @@ CseVar LoadOp::Compute(const LoopCtx &ctx) const {
 
 bool LoadOp::InferDataType(const std::vector<DataType> &input_dtypes,
                            std::vector<DataType> &expect_output_dtypes) const {
+  (void)input_dtypes;
   DataType data_type;
   if (GetBufferDataType(dst_, data_type) != GRAPH_SUCCESS) {
     return false;
@@ -235,6 +236,7 @@ bool LoadOp::InferDataType(const std::vector<DataType> &input_dtypes,
 }
 
 CseVar LoadGatherOp::Compute(const LoopCtx &ctx) const {
+  (void)ctx;
   std::vector<Expression> params_repeats = ginputs_[0].input_dim;
   std::vector<Expression> params_strides = ContiguousStrides(params_repeats);
 
@@ -254,6 +256,7 @@ CseVar LoadGatherOp::Compute(const LoopCtx &ctx) const {
 
 bool LoadGatherOp::InferDataType(const std::vector<DataType> &input_dtypes,
                                  std::vector<DataType> &expect_output_dtypes) const {
+  (void)input_dtypes;
   vector<DataType> data_types;
   for (const auto &input : ginputs_) {
     DataType data_type;

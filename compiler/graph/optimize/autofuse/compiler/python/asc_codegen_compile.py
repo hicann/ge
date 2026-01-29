@@ -35,12 +35,22 @@ from tbe.tikcpp import OpInfo
 PYF_PATH = os.path.dirname(os.path.realpath(__file__))
 ASCEND_PATH = os.path.join(PYF_PATH, "..", "..", "..")
 timestamp_list = []
+CV_COMMON_MIX_WHITE_LIST = [
+    4096, 4097, 4112, 4113, 4160, 4161, 4176, 4177,
+    1114113, 1114129, 1114177, 1114193,
+    2162689, 2162705, 2162753, 2162769,
+    4194304, 4194305, 4194320, 4194321, 4194368, 4194369, 4194384, 4194385,
+    4198400, 4198401, 4198416, 4198417, 4198464, 4198465, 4198480, 4198481,
+    8388608, 8388609, 8388624, 8388625, 8388672, 8388673, 8388688, 8388689
+]
 
 
 def generate_cmake_lists(asc_graph_name, kernel_name, host_build_dir, is_last_compile, is_static_shape):
     source = f"################ {kernel_name}.so ################\n"
 
     machine = platform.machine()
+    source += "cmake_minimum_required(VERSION 3.16.0)\n"
+    source += "project(asc_codegen)\n"
     source += f"set(CMAKE_CXX_STANDARD 17)\n"
     source += f"link_directories({ASCEND_PATH}/{machine}-linux/lib64/\n"
     source += f")\n\n"
@@ -63,12 +73,13 @@ def generate_cmake_lists(asc_graph_name, kernel_name, host_build_dir, is_last_co
 
     source += ")\n\n"
     source += f"message(STATUS \"Using environment variable ASCEND_INSTALL_PATH: {ASCEND_PATH}\")\n"
-    source += (f"target_link_libraries({kernel_name} PRIVATE  c_sec ascendalog platform"
+    source += (f"target_link_libraries({kernel_name} PRIVATE c_sec ascendalog platform error_manager"
                f" tiling_api graph_base register)\n")
     source += f"target_include_directories({kernel_name} PRIVATE\n"
     source += f"    {ASCEND_PATH}/include\n"
     source += f"    {ASCEND_PATH}/pkg_inc/base\n"
     source += f"    {ASCEND_PATH}/include/experiment\n"
+    source += f"    {ASCEND_PATH}/{machine}-linux/include\n"
     source += f"    {ASCEND_PATH}/{machine}-linux/ascendc/include/highlevel_api/tiling/platform\n"
     source += f"    {ASCEND_PATH}/{machine}-linux/ascendc/include/highlevel_api\n"
     source += "    )\n\n"
@@ -96,7 +107,7 @@ def ascbc_host_compile(graph_name, kernel_name, host_build_dir, is_last_compile,
     cmake_ret = subprocess.run(cmake_command, capture_output=True, text=True)
     if cmake_ret.returncode != 0:
         os.chdir(ori_directory)
-        CommonUtility.print_compile_log("", f"camke fail: {cmake_ret.stderr}", AscendCLogLevel.LOG_ERROR)
+        CommonUtility.print_compile_log("", f"cmake fail: {cmake_ret.stderr}", AscendCLogLevel.LOG_ERROR)
         error_msg = f"execute cmake failed with return code {cmake_ret.returncode}\n"
         error_msg += f"Standard Output:\n{cmake_ret.stdout}\n"
         error_msg += f"Standard Error:\n{cmake_ret.stderr}\n"
@@ -226,10 +237,13 @@ def ascendc_clean(temp_dir):
     os.chdir(src_directory)
 
 
-def static_shape_kernel_proc(kernel_src, temp_dir, kernel_type):
+def static_shape_kernel_proc(kernel_src, temp_dir, kernel_type, use_cv_common=None):
     import re
     base_device_files = os.path.basename(kernel_src)
-    kernel_file = os.path.join(temp_dir, "device", base_device_files)
+    if use_cv_common and use_cv_common[0]:
+        kernel_file = os.path.join(temp_dir, "device", "cv_common", base_device_files)
+    else:
+        kernel_file = os.path.join(temp_dir, "device", base_device_files)
 
     with open(kernel_file, 'r', encoding='utf-8') as file:
         code = file.read()
@@ -245,9 +259,13 @@ def static_shape_kernel_proc(kernel_src, temp_dir, kernel_type):
         file.write(code)
 
 
-def static_shape_compile(kernel_name, temp_dir, graph_name):
+def static_shape_compile(kernel_name, temp_dir, graph_name, tiling_key_list=None, kernel_type_list=None,
+                         use_cv_common=None):
     ori_directory = os.getcwd()
-    host_build_dir = os.path.join(temp_dir, "host")
+    if use_cv_common and use_cv_common[0]:
+        host_build_dir = os.path.join(temp_dir, "host", "cv_common")
+    else:
+        host_build_dir = os.path.join(temp_dir, "host")
     ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True)
 
     kernel_src = graph_name + "_op_kernel.cpp"
@@ -268,13 +286,31 @@ def static_shape_compile(kernel_name, temp_dir, graph_name):
                                     ctypes.c_int(int(get_soc_spec('ub_size'))))
 
     const_tiling_data = result.decode('utf-8')
-    tiling_data = os.path.join(temp_dir, "device", "autofuse_tiling_data.h")
-    tiling_data_bak = os.path.join(temp_dir, "device", "autofuse_tiling_data_bak.h")
+    if hasattr(lib, 'GetCVUBFusionStageSizeName'):
+        stage_size_name = get_cv_ub_fusion_stage_size_name(kernel_name=kernel_name, temp_dir=temp_dir,
+                                                            graph_name=graph_name)
+        const_tiling_data = const_tiling_data + f"\n#define STAGE_SIZE_NAME " + stage_size_name + "\n"
+
+    if use_cv_common and use_cv_common[0]:
+        tiling_data = os.path.join(temp_dir, "device", "cv_common", "autofuse_tiling_data.h")
+        tiling_data_bak = os.path.join(temp_dir, "device", "cv_common", "autofuse_tiling_data_bak.h")
+    else:
+        tiling_data = os.path.join(temp_dir, "device", "autofuse_tiling_data.h")
+        tiling_data_bak = os.path.join(temp_dir, "device", "autofuse_tiling_data_bak.h")
+
     # 备份原tilingdata文件
     shutil.copy(tiling_data, tiling_data_bak)
     with open(tiling_data, "w") as file:
         file.write(const_tiling_data)
 
+    # 静态shape可以在编译期间获取tiling_key
+    tiling_key = None
+    if hasattr(lib, 'GetTilingKeyForStatic'):
+        lib.GetTilingKeyForStatic.argtypes = []
+        lib.GetTilingKeyForStatic.restype = ctypes.c_int64  # int64_t对应c_int64
+        tiling_key = lib.GetTilingKeyForStatic()
+    if (tiling_key_list is not None and tiling_key is not None):
+        tiling_key_list[0] = tiling_key
     # 静态shape可以在编译期间获取kernel_type
     kernel_type = None
     if hasattr(lib, 'GetTilingKeyKernelTypeForStatic'):
@@ -282,9 +318,79 @@ def static_shape_compile(kernel_name, temp_dir, graph_name):
         lib.GetTilingKeyKernelTypeForStatic.restype = ctypes.c_char_p
         kernel_type_result = lib.GetTilingKeyKernelTypeForStatic()
         kernel_type = kernel_type_result.decode('utf-8')
-
+    if (kernel_type_list is not None and kernel_type is not None):
+        kernel_type_list[0] = kernel_type
     # 修改kernel文件
-    static_shape_kernel_proc(kernel_src, temp_dir, kernel_type)
+    static_shape_kernel_proc(kernel_src, temp_dir, kernel_type, use_cv_common=use_cv_common)
+
+
+def static_shape_cv_compile(kernel_name, temp_dir, graph_name):
+    host_build_dir = os.path.join(temp_dir, "host")
+    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True)
+    host_so = os.path.join(host_build_dir, f"lib{kernel_name}.so")
+    pgo_config_path = os.path.abspath(
+        os.path.join(temp_dir, "..", "..", "pgo", f"{graph_name}_config.txt")
+    )
+
+    import ctypes
+    lib = ctypes.CDLL(host_so)
+    CommonUtility.print_compile_log("", f"static shape cv compile", AscendCLogLevel.LOG_INFO)
+    ascendc_clean(temp_dir)
+    result = -1
+    if hasattr(lib, 'GenCVFusionTilingKey'):
+        result = lib.GenCVFusionTilingKey(ctypes.c_char_p(pgo_config_path.encode('utf-8')),
+                                          ctypes.c_int(int(get_soc_spec('vector_core_cnt'))),
+                                          ctypes.c_int(int(get_soc_spec('ub_size'))))
+    return result
+
+
+def get_cv_ub_fusion_stage_size_name(kernel_name, temp_dir, graph_name):
+    host_build_dir = os.path.join(temp_dir, "host")
+    host_so = os.path.join(host_build_dir, f"lib{kernel_name}.so")
+    pgo_config_path = os.path.abspath(
+        os.path.join(temp_dir, "..", "..", "pgo", f"{graph_name}_config.txt")
+    )
+
+    import ctypes
+    lib = ctypes.CDLL(host_so)
+    CommonUtility.print_compile_log("", f"get cv ub fusion stage size", AscendCLogLevel.LOG_INFO)
+    ascendc_clean(temp_dir)
+    lib.GetCVUBFusionStageSizeName.argtypes = []
+    lib.GetCVUBFusionStageSizeName.restype = ctypes.c_char_p
+    result = lib.GetCVUBFusionStageSizeName()
+    stage_size_name = result.decode('utf-8')
+    return stage_size_name
+
+
+def static_shape_cv_common_compile(kernel_name, temp_dir, graph_name):
+    host_build_dir = os.path.join(temp_dir, "host", "cv_common")
+    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True)
+    host_so = os.path.join(host_build_dir, f"lib{kernel_name}.so")
+    pgo_config_path = os.path.abspath(
+        os.path.join(temp_dir, "..", "..", "pgo", f"{graph_name}_config.txt")
+    )
+
+    import ctypes
+    lib = ctypes.CDLL(host_so)
+    CommonUtility.print_compile_log("", f"static shape cv compile", AscendCLogLevel.LOG_INFO)
+    ascendc_clean(temp_dir)
+    vec_block_dim = -1
+    wss = -1
+    if hasattr(lib, 'GenTilingDataValueBlockDimAndWss'):
+        # 创建变量接收返回值
+        workspace_size = ctypes.c_uint32()
+        block_dim = ctypes.c_uint32()
+        ret = lib.GenTilingDataValueBlockDimAndWss(ctypes.c_char_p(pgo_config_path.encode('utf-8')),
+                                                   ctypes.c_uint32(int(get_soc_spec('vector_core_cnt'))),
+                                                   ctypes.c_uint32(int(get_soc_spec('ub_size'))),
+                                                   ctypes.byref(workspace_size),
+                                                   ctypes.byref(block_dim))
+
+        if ret != -1:
+            vec_block_dim = block_dim.value
+            wss = workspace_size.value
+    return vec_block_dim, wss
+
 
 def is_static_compile(params, tiling_func_srcs):
     import re
@@ -302,46 +408,107 @@ def is_static_compile(params, tiling_func_srcs):
     return static_shape
 
 
-def generate_device_and_host_code(graph_name, temp_dir, params, code_gen, pgo_dir):
-    #生成device代码
+def get_pgo_dir(temp_dir):
+    # 获取pgo缓存路径
+    pgo_dir = os.path.abspath(os.path.join(temp_dir, "..", "..", "pgo"))
+    return pgo_dir
+
+
+# 处理tiling数据字典
+def _process_tiling_data_dict(tiling_dict, kernel_build_dir, host_build_dir):
+    for key, tiling_data_src in tiling_dict.items():
+        if key == "common":
+            cv_common_dir = os.path.join(kernel_build_dir, "cv_common")
+            generate_file(cv_common_dir, "autofuse_tiling_data.h", tiling_data_src)
+            host_cv_common_dir = os.path.join(host_build_dir, "cv_common")
+            generate_file(host_cv_common_dir, "autofuse_tiling_data.h", tiling_data_src)
+        else:
+            generate_file(kernel_build_dir, "autofuse_tiling_data.h", tiling_data_src)
+            generate_file(host_build_dir, "autofuse_tiling_data.h", tiling_data_src)
+
+
+# 处理kernel字典
+def _process_kernel_dict(kernel_dict, graph_name, kernel_build_dir):
+    ret_op_kernel_src = None
+    for key, op_kernel_src in kernel_dict.items():
+        if key == "common":
+            cv_common_dir = os.path.join(kernel_build_dir, "cv_common")
+            generate_file(cv_common_dir, f"{graph_name}_op_kernel.cpp", op_kernel_src)
+        else:
+            generate_file(kernel_build_dir, f"{graph_name}_op_kernel.cpp", op_kernel_src)
+            ret_op_kernel_src = op_kernel_src
+    return ret_op_kernel_src
+
+
+# 处理tiling函数和infershape文件
+def _process_tiling_funcs_and_infershape(tiling_func_srcs, graph_name, host_build_dir, infershape_src):
+    ret_tiling_func_srcs = None
+    common_template_processed = False
+
+    for template_key, template_dict in tiling_func_srcs.items():
+        if template_key == "common":
+            template_dir = os.path.join(host_build_dir, "cv_common")
+            # 生成cv_common目录下的infershape文件
+            generate_file(template_dir, graph_name + "_infershape.cpp", infershape_src)
+            common_template_processed = True
+        else:
+            template_dir = host_build_dir
+            ret_tiling_func_srcs = template_dict
+
+        for key, value in template_dict.items():
+            if key == "TilingHead":
+                generate_file(template_dir, "autofuse_tiling_func_common.h", value)
+            elif "TilingData" not in key:
+                generate_file(template_dir, graph_name + "_tiling_func_" + key + ".cpp", value)
+
+    # 确保始终生成host_build_dir目录下的infershape文件
+    if not common_template_processed or ret_tiling_func_srcs is not None:
+        generate_file(host_build_dir, graph_name + "_infershape.cpp", infershape_src)
+
+    return ret_tiling_func_srcs
+
+
+def generate_device_and_host_code(graph_name, temp_dir, params, code_gen):
+    # 生成device代码
     timestamp_set(True, graph_name, "GenDevice")
     schedule_results = params['schedule_results']
     vector_core_num = "0" if params['vector_core_num'] is None else str(params['vector_core_num'])
-    tiling_data_src, op_kernel_src = code_gen.device_code_generator(schedule_results)
+    tiling_dict, kernel_dict = code_gen.device_code_generator(schedule_results)
     kernel_build_dir = os.path.join(temp_dir, "device")
-    generate_file(kernel_build_dir, "autofuse_tiling_data.h", tiling_data_src)
-    generate_file(kernel_build_dir, graph_name + "_op_kernel.cpp", op_kernel_src)
+    pgo_dir = get_pgo_dir(temp_dir)
+    host_build_dir = os.path.join(temp_dir, "host")
+
+    # 处理tiling数据字典
+    _process_tiling_data_dict(tiling_dict, kernel_build_dir, host_build_dir)
+
+    # 处理kernel字典，获取返回的op_kernel_src
+    ret_op_kernel_src = _process_kernel_dict(kernel_dict, graph_name, kernel_build_dir)
     timestamp_set(False, graph_name, "GenDevice")
 
-    #生成host代码
+    # 生成host代码
     if not check_keys_in_dict(params, ['output_symbol_shape']):
         CommonUtility.print_compile_log("", f"output_symbol_shape is not exist", AscendCLogLevel.LOG_ERROR)
         raise Exception("An error occurred autofuse compile for check extra_params")
-    # output_symbol_shape stub
     CommonUtility.print_compile_log("", f"params output_symbol_shape : {params['output_symbol_shape']}",
                                     AscendCLogLevel.LOG_INFO)
     timestamp_set(True, graph_name, "GenHost")
     shape_info = params.get('symbol_source_info')
     output_symbol = json.loads(params.get('output_symbol_shape'))
-    tiling_func_srcs, infershape_src =\
+    tiling_func_srcs, infershape_src = \
         code_gen.host_code_generator(
-        schedule_results,
-        shape_info,
-        output_symbol,
-        pgo_dir,
-        vector_core_num)
-    host_build_dir = os.path.join(temp_dir, "host")
-    generate_file(host_build_dir, "autofuse_tiling_data.h", tiling_data_src)
+            schedule_results,
+            shape_info,
+            output_symbol,
+            pgo_dir,
+            vector_core_num)
 
-    for key, value in tiling_func_srcs.items():
-        if key == "TilingHead":
-            generate_file(host_build_dir, "autofuse_tiling_func_common.h", value)
-        elif "TilingData" not in key:
-            generate_file(host_build_dir, graph_name + "_tiling_func_" + key + ".cpp", value)
-    generate_file(host_build_dir, graph_name + "_infershape.cpp", infershape_src)
+    # 处理tiling函数和infershape文件
+    ret_tiling_func_srcs = _process_tiling_funcs_and_infershape(tiling_func_srcs, graph_name, host_build_dir,
+                                                                infershape_src)
+
     timestamp_set(False, graph_name, "GenHost")
 
-    return op_kernel_src, tiling_func_srcs
+    return ret_op_kernel_src, ret_tiling_func_srcs
 
 
 def pgo_kernel_compile(*args, temp_dir, params, op_kernel_src, code_gen):
@@ -354,20 +521,57 @@ def pgo_kernel_compile(*args, temp_dir, params, op_kernel_src, code_gen):
     host_build_dir = os.path.join(temp_dir, "host")
     use_list_tensor_desc = op_kernel_src.find('kernel_operator_list_tensor_intf.h') > 0
     enable_parallel_compile = op_kernel_src.rfind('void fake_tiling_ids()') > 0
-    pgo_dir = os.path.abspath(os.path.join(temp_dir, "..", "..", "pgo"))
+    pgo_dir = get_pgo_dir(temp_dir)
     graph_name = gen_valid_name(schedule_results.get_name())
     graph_name = camel_to_snake(graph_name)
 
-    kernel_file, json_file = ascbc_kernel_compile(args, graph_name=graph_name, kernel_name=kernel_name,
-        input_num=input_num, output_num=output_num, temp_build_dir=kernel_build_dir,
-        impl_mode=params.get('impl_mode'), use_list_tensor_desc=use_list_tensor_desc,
-        enable_parallel_compile=enable_parallel_compile)
+    kernel_file_path = None
+    json_file_path = None
+    target_lib_path = None
+
+    try:
+        kernel_file, json_file = ascbc_kernel_compile(args, graph_name=graph_name, kernel_name=kernel_name,
+            input_num=input_num, output_num=output_num, temp_build_dir=kernel_build_dir,
+            impl_mode=params.get('impl_mode'), use_list_tensor_desc=use_list_tensor_desc,
+            enable_parallel_compile=enable_parallel_compile)
+        kernel_file_path = os.path.join(pgo_dir, os.path.basename(kernel_file))
+        json_file_path = os.path.join(pgo_dir, os.path.basename(json_file))
+        shutil.copy(kernel_file, kernel_file_path)
+        shutil.copy(json_file, json_file_path)
+    except Exception as e:
+        msg = f"pgo kernel compile for {kernel_name} failed: {str(e)}. skip pgo tune."
+        CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_ERROR)
+        return False, []
     get_kernel_src = code_gen.get_kernel_and_json_generator(kernel_file, json_file)
     generate_file(host_build_dir, graph_name + "_get_kernel.cpp", get_kernel_src)
     ascbc_host_compile(graph_name, kernel_name, host_build_dir, True, False)
     source_lib_path = os.path.join(host_build_dir, f"lib{kernel_name}.so")
     target_lib_path = os.path.join(pgo_dir, f"lib{graph_name}.so")
     shutil.copy(source_lib_path, target_lib_path)
+    return True, [kernel_file_path, json_file_path, target_lib_path]
+
+
+def pgo_cleanup_kernel_and_json(pgo_temp_files, config_path=None):
+    """清理PGO流程中生成的其他中间文件"""
+    if config_path is not None:
+        if os.path.exists(config_path):
+            os.remove(config_path)
+
+    from autofuse.compile_adapter import get_debug_flag
+    compile_debug = get_debug_flag()
+    if compile_debug:
+        return
+    if not pgo_temp_files:
+        return
+    for item in pgo_temp_files:
+        if not item:
+            continue
+        try:
+            if os.path.exists(item):
+                os.remove(item)
+                logger.info("[PGO] cleanup file: %s", item)
+        except Exception as e:
+            logger.warn("[PGO] cleanup file failed: %s, err: %s", item, str(e))
 
 
 def check_dir_permissions(path):
@@ -415,46 +619,60 @@ def replace_kernel(kernel_build_dir, graph_name):
 def generate_pgo_code(params, code_gen, pgo_dir, host_build_dir):
     """生成PGO代码"""
     schedule_results = params['schedule_results']
-    device_id = params['device_id']
-    device_id = "0" if device_id is None or not device_id.isdigit() else device_id
     graph_name = gen_valid_name(schedule_results.get_name())
     graph_name = camel_to_snake(graph_name)
-    soc_vector_core_cnt = int(get_soc_spec('vector_core_cnt'))
-    param_vector_core_num = soc_vector_core_cnt if params['vector_core_num'] is None else int(params['vector_core_num'])
-    vector_core_num = str(min(param_vector_core_num, soc_vector_core_cnt))
-    msg = f"[PGO] device_id:{device_id}, graph_name:{graph_name}, vector_core_num:{vector_core_num}"
-    CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_DEBUG)
 
-    pgo_src = code_gen.pgo_code_generator(schedule_results, pgo_dir, vector_core_num, str(get_soc_spec('ub_size')), device_id)
+    pgo_src = code_gen.pgo_code_generator(schedule_results, pgo_dir)
     generate_file(host_build_dir, graph_name + "_pgo.cpp", pgo_src)
 
 
-def build_pgo_compile_command(source_file, output_file):
+def pgo_get_mspti_config():
+    """获取PGO依赖的mspti相关配置"""
+    mspti_dir = os.path.join(ASCEND_PATH, "tools", "mspti")
+    mspti_lib64_dir = os.path.join(mspti_dir, "lib64")
+    mspti_so = os.path.join(mspti_lib64_dir, "libmspti.so")
+    libprof_common_so = os.path.join(mspti_lib64_dir, "libprof_common.so")
+
+    if not os.path.exists(mspti_so):
+        return None
+
+    has_prof_common = os.path.exists(libprof_common_so)
+    preload_so_paths = [libprof_common_so, mspti_so] if has_prof_common else [mspti_so]
+
+    link_flags = [f"-L{mspti_lib64_dir}", "-lmspti"]
+    if has_prof_common:
+        link_flags.append("-lprof_common")
+
+    return mspti_dir, preload_so_paths, link_flags
+
+
+def build_pgo_compile_command(source_file, output_file, mspti_dir, mspti_link_flags):
     """构建PGO编译命令"""
-    mspti_dir = f"{ASCEND_PATH}/tools/mspti"
+    machine = platform.machine()
     base_cmd = ["g++", "-std=c++17", "-O2", "-fPIC"]
     includes = [
         f"-I{ASCEND_PATH}/include/",
         f"-I{ASCEND_PATH}/pkg_inc/base",
         f"-I{ASCEND_PATH}/include/experiment/runtime",
         f"-I{ASCEND_PATH}/include/experiment/msprof",
+        f"-I{ASCEND_PATH}/{machine}-linux/include/toolchain",
         f"-I{mspti_dir}/include"
     ]
     libs = [
-        f"-L{ASCEND_PATH}/lib64", "-lascendcl", "-lruntime",
-        f"-L{mspti_dir}/lib64", "-lmspti",
+        f"-L{ASCEND_PATH}/lib64", "-lascendcl", "-lruntime", "-lunified_dlog",
+        *mspti_link_flags,
         "-ldl"
     ]
     cmd = base_cmd + [source_file, "-o", output_file] + includes + libs
     return cmd
 
 
-def pgo_compile(graph_name, host_build_dir):
+def pgo_compile(graph_name, host_build_dir, mspti_dir, mspti_link_flags):
     """编译PGO代码"""
     pgo_source_file = os.path.join(host_build_dir, f"{graph_name}_pgo.cpp")
     output_file = os.path.join(host_build_dir, "pgo")
 
-    cmd = build_pgo_compile_command(pgo_source_file, output_file)
+    cmd = build_pgo_compile_command(pgo_source_file, output_file, mspti_dir, mspti_link_flags)
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         msg = "cmd = " + ' '.join(cmd) + "\n"
@@ -465,31 +683,37 @@ def pgo_compile(graph_name, host_build_dir):
     return output_file
 
 
-def pgo_program_exec(temp_dir, exec_type=0):
+def pgo_program_exec(temp_dir, exec_type=0, *, pgo_exec_params, mspti_so_list):
     """执行PGO, 0表示首次动态调优，1表示二次调优"""
     host_build_dir = os.path.join(temp_dir, "host")
     pgo_file = os.path.join(host_build_dir, "pgo")
-    mspti_dir = f"{ASCEND_PATH}/tools/mspti"
+    device_id = pgo_exec_params.get("device_id")
+    aiv_num = pgo_exec_params.get("aiv_num")
+    ub_size = pgo_exec_params.get("ub_size")
+    kernel_name = pgo_exec_params.get("kernel_name")
     try:
-        logger.debug("start pgo exec")
+        graph_so = f"{ASCEND_PATH}/lib64/libgraph.so"
+        ld_preload_items = [graph_so] + mspti_so_list
+        existing_ld_preload = os.environ.get("LD_PRELOAD")
+        if existing_ld_preload:
+            ld_preload_items.append(existing_ld_preload)
+        ld_preload = ":".join([p for p in ld_preload_items if p])
         result = subprocess.run(
             [
                 pgo_file,
-                str(exec_type)
+                str(exec_type),
+                str(device_id),
+                str(aiv_num),
+                str(ub_size),
+                str(kernel_name),
             ],
             text=True,
-            stderr=subprocess.PIPE,
             env={
-                "LD_PRELOAD": mspti_dir + "/lib64/libmspti.so",
-                **dict(os.environ)
+                **dict(os.environ),
+                "LD_PRELOAD": ld_preload,
             },
-            timeout=600 # 暂定，设置超时时间为600秒
+            timeout=1800 # 暂定，设置超时时间为1800秒，防止大解集case提前退出
         )
-        # pgo目前仍有部分日志通过stderr输出，后续统一整改为slog
-        if result.stderr:
-            for line in result.stderr.splitlines():
-                logger.debug(line)
-        logger.debug("end pgo exec")
         if result.returncode != 0:
             msg = f"pgo exec fail, return code: {result.returncode}\n"
             # 执行失败时，回退原始解，不打断模型正常执行流程
@@ -501,21 +725,43 @@ def pgo_program_exec(temp_dir, exec_type=0):
         return False
 
 
-def pgo_second_optimization(*args, temp_dir, params, op_kernel_src, code_gen):
+def get_pgo_exec_params(*args, params):
+    """提取PGO执行所需的基础参数。
+
+    Returns:
+        dict: {"device_id": str, "aiv_num": str, "ub_size": str, "kernel_name": str}
+    """
+    device_id = params.get('device_id')
+    device_id = "0" if device_id is None or not str(device_id).isdigit() else str(device_id)
+
+    soc_vector_core_cnt = int(get_soc_spec('vector_core_cnt'))
+    param_vector_core_num = soc_vector_core_cnt if params['vector_core_num'] is None else int(params['vector_core_num'])
+    aiv_num = str(min(param_vector_core_num, soc_vector_core_cnt))
+    ub_size = str(get_soc_spec('ub_size'))
+    kernel_name = args[-1]
+
+    return {
+        "device_id": device_id,
+        "aiv_num": aiv_num,
+        "ub_size": ub_size,
+        "kernel_name": kernel_name,
+    }
+
+
+def pgo_second_optimization(*args, temp_dir, params, op_kernel_src, mspti_so_list):
     """静态tiling的二次调优"""
     from autofuse.compile_adapter import pgo_get_top_result, pgo_write_config, pgo_generate_config
 
-    kernel_name = args[-1]
+    pgo_exec_params = get_pgo_exec_params(*args, params=params)
+    kernel_name = pgo_exec_params["kernel_name"]
     schedule_results = params['schedule_results']
-    graph_name = gen_valid_name(schedule_results.get_name())
-    graph_name = camel_to_snake(graph_name)
+    graph_name = camel_to_snake(gen_valid_name(schedule_results.get_name()))
     input_num = schedule_results.get_input_num()
     output_num = schedule_results.get_output_num()
     use_list_tensor_desc = op_kernel_src.find('kernel_operator_list_tensor_intf.h') > 0
     enable_parallel_compile = op_kernel_src.rfind('void fake_tiling_ids()') > 0
     kernel_build_dir = os.path.join(temp_dir, "device")
-    host_build_dir = os.path.join(temp_dir, "host")
-    pgo_dir = os.path.abspath(os.path.join(temp_dir, "..", "..", "pgo"))
+    pgo_dir = get_pgo_dir(temp_dir)
     config_path = os.path.join(pgo_dir, f"{graph_name}_config.txt")
     search_path = os.path.join(pgo_dir, f"{graph_name}_search.txt")
     top_n = get_pgo_topn()
@@ -525,21 +771,24 @@ def pgo_second_optimization(*args, temp_dir, params, op_kernel_src, code_gen):
         return False
 
     def comile_and_exec(config_line):
+        tiling_key_list, kernel_type_list = [-1], ["KERNEL_TYPE_AIV_ONLY"]
         pgo_write_config(config_path, config_line)
-        static_shape_compile(kernel_name=kernel_name, temp_dir=temp_dir, graph_name=graph_name)
-        kernel_file, json_file = ascbc_kernel_compile(args, graph_name=graph_name, kernel_name=kernel_name,
-            input_num=input_num, output_num=output_num, temp_build_dir=kernel_build_dir,
-            impl_mode=params.get('impl_mode'), use_list_tensor_desc=use_list_tensor_desc,
-            enable_parallel_compile=enable_parallel_compile)
-        get_kernel_src = code_gen.get_kernel_and_json_generator(kernel_file, json_file)
-        generate_file(host_build_dir, graph_name + "_get_kernel.cpp", get_kernel_src)
-        ascbc_host_compile(graph_name, kernel_name, host_build_dir, True, True)
+        static_shape_compile(kernel_name=kernel_name, temp_dir=temp_dir, graph_name=graph_name,
+                             tiling_key_list=tiling_key_list, kernel_type_list=kernel_type_list)
+        try:
+            kernel_file, json_file = ascbc_kernel_compile(args, graph_name=graph_name, kernel_name=kernel_name,
+                input_num=input_num, output_num=output_num, temp_build_dir=kernel_build_dir,
+                impl_mode=params.get('impl_mode'), use_list_tensor_desc=use_list_tensor_desc,
+                enable_parallel_compile=enable_parallel_compile, tiling_key=tiling_key_list[0],
+                kernel_type=kernel_type_list[0], is_cube=False)
+            shutil.copy(kernel_file, os.path.join(pgo_dir, os.path.basename(kernel_file)))
+            shutil.copy(json_file, os.path.join(pgo_dir, os.path.basename(json_file)))
+        except Exception as e:
+            logger.error("[pgo] kernel compile for %s failed: %s. revert pgo tune.", kernel_name, str(e))
+            return False
 
-        source_lib_path = os.path.join(host_build_dir, f"lib{kernel_name}.so")
-        target_lib_path = os.path.join(pgo_dir, f"lib{graph_name}.so")
-        shutil.copy(source_lib_path, target_lib_path)
-
-        result = pgo_program_exec(temp_dir=temp_dir, exec_type=1)
+        result = pgo_program_exec(temp_dir=temp_dir, exec_type=1, mspti_so_list=mspti_so_list,
+                      pgo_exec_params=pgo_exec_params)
         return result
 
     for line in top_lines:
@@ -552,105 +801,394 @@ def pgo_second_optimization(*args, temp_dir, params, op_kernel_src, code_gen):
         return False
 
     pgo_generate_config(search_path, config_path, top_n)
+    return True
 
 
 def asc_pgo_exec(*args, temp_dir, params, op_kernel_src, code_gen):
     """执行PGO"""
     schedule_results = params['schedule_results']
-    graph_name = gen_valid_name(schedule_results.get_name())
-    graph_name = camel_to_snake(graph_name)
-    pgo_dir = os.path.abspath(os.path.join(temp_dir, "..", "..", "pgo"))
-    host_build_dir = os.path.join(temp_dir, "host")
+    graph_name = camel_to_snake(gen_valid_name(schedule_results.get_name()))
+    logger.info(f"[PGO] Start PGO tuning for graph: {graph_name}")
+    mspti_cfg = pgo_get_mspti_config()
+    if mspti_cfg is None:
+        logger.warn("[PGO] libmspti.so not installed, skip pgo tuning")
+        return
+    mspti_dir, mspti_so_list, mspti_link_flags = mspti_cfg
+
+    pgo_dir = get_pgo_dir(temp_dir)
     os.makedirs(pgo_dir, exist_ok=True)
+    host_build_dir = os.path.join(temp_dir, "host")
+
+    pgo_temp_files = []
 
     config_path = os.path.join(pgo_dir, f"{graph_name}_config.txt")
     if os.path.exists(config_path):
-        CommonUtility.print_compile_log("", f"{config_path} exist, skip pgo tuning", AscendCLogLevel.LOG_DEBUG)
+        logger.info(f"[PGO] {config_path} exist, skip pgo tuning")
         return
 
     timestamp_set(True, graph_name, "CompileKernelForPGO")
-    pgo_kernel_compile(*args, temp_dir=temp_dir, params=params, op_kernel_src=op_kernel_src, code_gen=code_gen)
-    timestamp_set(False, graph_name, "CompileKernelForPGO", True)
+    result, pgo_temp_files = pgo_kernel_compile(*args, temp_dir=temp_dir, params=params, op_kernel_src=op_kernel_src,
+                                                code_gen=code_gen)
+    timestamp_set(False, graph_name, "CompileKernelForPGO")
+    if result is False:
+        pgo_cleanup_kernel_and_json(pgo_temp_files)
+        return
 
     timestamp_set(True, graph_name, "GenerateForPGO")
     generate_pgo_code(params=params, code_gen=code_gen, pgo_dir=pgo_dir, host_build_dir=host_build_dir)
-    timestamp_set(False, graph_name, "GenerateForPGO", True)
+    timestamp_set(False, graph_name, "GenerateForPGO")
 
     timestamp_set(True, graph_name, "CompilePGO")
-    output = pgo_compile(graph_name=graph_name, host_build_dir=host_build_dir)
-    timestamp_set(False, graph_name, "CompilePGO", True)
-
+    output = pgo_compile(graph_name=graph_name, host_build_dir=host_build_dir,
+                         mspti_dir=mspti_dir, mspti_link_flags=mspti_link_flags)
+    timestamp_set(False, graph_name, "CompilePGO")
     if output is None:
+        pgo_cleanup_kernel_and_json(pgo_temp_files)
         return
+
     timestamp_set(True, graph_name, "RunForPGO")
-    result = pgo_program_exec(temp_dir=temp_dir)
-    timestamp_set(False, graph_name, "RunForPGO", True)
+    pgo_exec_params = get_pgo_exec_params(*args, params=params)
+    result = pgo_program_exec(temp_dir=temp_dir, exec_type=0, mspti_so_list=mspti_so_list,
+                              pgo_exec_params=pgo_exec_params)
+    timestamp_set(False, graph_name, "RunForPGO")
     if result is False:
-        if os.path.exists(config_path):
-            os.remove(config_path)
+        pgo_cleanup_kernel_and_json(pgo_temp_files, config_path=config_path)
         return
 
     timestamp_set(True, graph_name, "SecondOptimizeForPGO")
-    result = pgo_second_optimization(*args, temp_dir=temp_dir, params=params, op_kernel_src=op_kernel_src, code_gen=code_gen)
-    timestamp_set(False, graph_name, "SecondOptimizeForPGO", True)
+    result = pgo_second_optimization(*args, temp_dir=temp_dir, params=params, op_kernel_src=op_kernel_src,
+                                     mspti_so_list=mspti_so_list)
+    timestamp_set(False, graph_name, "SecondOptimizeForPGO")
     if result is False:
-        if os.path.exists(config_path):
-            os.remove(config_path)
+        pgo_cleanup_kernel_and_json(pgo_temp_files, config_path=config_path)
         return
 
-def _build_args(args_list, input_num, output_num):
+    pgo_cleanup_kernel_and_json(pgo_temp_files)
+
+
+def _build_args(args_list, input_num, mm_attr1, mm_attr2):
     _inputs_ = []
-    _outputs_ = []
     _origin_inputs_ = []
     _origin_outputs_ = []
+    _m = 0
+    _n = 0
+    logger.info("CV fusion op, matmul input(%s)", input_num)
     # 遍历args中的每个元素
-    for i, arg in enumerate(args_list[:(input_num + output_num)]):
-        if i < input_num:
-            msg = "Processing input " + str(i) + ":" + str(arg)
-            CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_INFO)
-            _origin_inputs_.append(arg)
-            if arg is not None:
-                if isinstance(arg, (list, tuple)):
-                    if len(arg) == 0:
-                        continue
-                    _inputs_.append(arg[0])
-                else:
-                    _inputs_.append(arg)
+    for i, arg in enumerate(args_list[:input_num]):
+        if i >= input_num:
+            continue
+        msg = "Processing input " + str(i) + ":" + str(arg)
+        logger.info("CV fusion op, matmul input info: %s", msg)
+        CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_INFO)
+        _origin_inputs_.append(arg)
+        if arg is not None:
+            if isinstance(arg, (list, tuple)) and len(arg) != 0:
+                _inputs_.append(arg[0])
             else:
                 _inputs_.append(arg)
-            _inputs_[-1]["param_name"] = "input" + str(i)
-            shape = _inputs_[-1]["shape"]
-            _inputs_[-1]["shape"] = shape
-            _inputs_[-1]["ori_shape"] = shape
         else:
-            msg = "Processing output " + str(i - input_num) + ":" + str(arg)
-            CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_INFO)
-            _origin_outputs_.append(arg)
-            if arg is not None:
-                if isinstance(arg, (list, tuple)):
-                    if len(arg) == 0:
-                        continue
-                    _outputs_.append(arg[0])
-                else:
-                    _outputs_.append(arg)
+            _inputs_.append(arg)
+        _inputs_[-1]["param_name"] = "input" + str(i)
+        shape = _inputs_[-1]["shape"]
+        _inputs_[-1]["shape"] = shape
+        _inputs_[-1]["ori_shape"] = shape
+        if i == 0:
+            if mm_attr1['value']: # a矩阵是否有transpose
+                _m = shape[-1]
             else:
-                _outputs_.append(arg)
-            _outputs_[-1]["param_name"] = "output" + str(i - input_num)
-            shape = _outputs_[-1]["shape"]
-            _outputs_[-1]["shape"] = shape
-            _outputs_[-1]["ori_shape"] = shape
-    return _origin_inputs_, _origin_outputs_, _inputs_, _outputs_
+                _m = shape[-2]
+        if i == 1:
+            if mm_attr2['value']: # b矩阵是否有transpose
+                _n = shape[-2]
+            else:
+                _n = shape[-1]
+
+    msg = "Processing output " + ":" + str(args_list[-2])
+    logger.info("CV fusion op, matmul output info: %s", msg)
+    CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_INFO)
+    _origin_outputs_.append(args_list[-2])
+    _origin_outputs_[-1]["param_name"] = "output0"
+    shape = _origin_outputs_[-1]["shape"]
+    write_shape = list(shape)
+    write_shape[-1] = _n
+    write_shape[-2] = _m
+    _origin_outputs_[-1]["shape"] = tuple(write_shape)
+    _origin_outputs_[-1]["dtype"] = _inputs_[-1]["dtype"]
+    _origin_outputs_[-1]["ori_shape"] = tuple(write_shape)
+    logger.info("CV fusion op, m=%s, n=%s new matmul output info: %s", _m, _n, str(_origin_outputs_[-1]))
+    return _origin_inputs_, _origin_outputs_, _inputs_
+
+
+def generate_matmul_tiling(temp_dir):
+    class_body = """#ifndef __OP_KERNEL_MATMUL_TILING_DATA_H__
+#define __OP_KERNEL_MATMUL_TILING_DATA_H__
+
+#include "kernel_tiling/kernel_tiling.h"
+
+#ifndef __CCE_AICORE__
+#include <cstdint>
+#endif
+
+constexpr uint64_t TILINGDATA_OFFSET = 512;
+constexpr uint64_t TILINGDATA_SPLIT_NUM = 2;
+
+enum class L2CacheMode : std::uint32_t
+{
+    L2_CACHE_DEFAULT = 0x00,
+    A_L2_CACHE_DISABLE = 0x01,
+    B_L2_CACHE_DISABLE = 0x02,
+    ALL_L2_CACHE_DISABLE = 0x03,
+};
+
+#pragma pack(push, 8)
+struct MatMulV3TilingData {
+    TCubeTiling tCubeTiling;
+    // aswt滑窗最后一轮m或n方向的切分次数
+    uint32_t mTailCnt = 0;
+    uint32_t nTailCnt = 0;
+    // streamk 根据核数计算的k方向切分次数
+    uint32_t kTailCnt = 0;
+    // 负载均衡时，若一边需要均衡，则对应尾块均衡合并后的块数
+    // -----------------------------------N=4673------------------------------------
+    // -------------------------------------------nTailMain=240--nBaseTailSplitCnt=8
+    // --------------------------------------------|-v------nBaseTail=1857----------
+    // |256|256|256|256|256|256|256|256|256|256|256|240|240|240|240|240|240|240|177|
+    uint32_t mBaseTailSplitCnt = 1;
+    uint32_t nBaseTailSplitCnt = 1;
+    uint32_t mTailMain = 0;
+    uint32_t nTailMain = 0;
+    uint32_t isHf32 = 0;
+    uint32_t aswWindowLen = 0;
+    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct MatMulV3TilingDataCopy {
+    MatMulV3TilingData matMulTilingData;
+    uint8_t reserved[TILINGDATA_OFFSET] = {};  // 申请一个空的512B大小的空间，用于tiling分块
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct BatchMatMulV3TilingData {
+    MatMulV3TilingData matMulTilingData;
+    uint32_t aBatchDimAll = 1;
+    uint32_t bBatchDimAll = 1;
+    uint32_t cBatchDimAll = 1;
+    uint32_t biasBatchDimAll = 1;
+    uint32_t aBatchDim0 = 1;
+    uint32_t bBatchDim0 = 1;
+    uint32_t cBatchDim0 = 1;
+    uint32_t aBatchDim1 = 1;
+    uint32_t bBatchDim1 = 1;
+    uint32_t cBatchDim1 = 1;
+    uint32_t aBatchDim2 = 1;
+    uint32_t bBatchDim2 = 1;
+    uint32_t cBatchDim2 = 1;
+    uint32_t aBatchDim3 = 1;
+    uint32_t bBatchDim3 = 1;
+    uint32_t cBatchDim3 = 1;
+    uint32_t iterBatch = 1;
+    uint32_t batchOutNum = 1;
+    uint32_t batchSplitFactor = 1;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct MatMulV3BasicTilingData {
+    uint32_t usedCoreNum = 0;
+    uint32_t m = 0;
+    uint32_t n = 0;
+    uint32_t k = 0;
+    uint32_t mL1 = 0;
+    uint32_t nL1 = 0;
+    uint32_t kL1 = 0;
+    uint32_t baseM = 0;
+    uint32_t baseN = 0;
+    uint32_t baseK = 0;
+    uint32_t skSingleCoreK = 0;
+    uint32_t mTailCnt = 0;
+    uint32_t nTailCnt = 0;
+    uint32_t mBaseTailSplitCnt = 1;
+    uint32_t nBaseTailSplitCnt = 1;
+    uint32_t mTailMain = 1;
+    uint32_t nTailMain = 1;
+    uint8_t isHf32 = 0;
+    uint8_t l1BufferNum = 0;
+    uint8_t l0cDB = 1; // 默认不开db为1
+    uint8_t ubDB = 1; // ub默认不开db为1
+    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT; // L2Cache默认使能
+    uint32_t sliceM;  // 非连续场景m轴
+    uint32_t srcNdStride; // 非连续场景m轴stride
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct BatchMatMulV3BasicTilingData {
+    MatMulV3BasicTilingData matMulTilingData;
+    uint32_t batchDimAll = 1;
+    uint32_t reserved = 0;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct BatchMatMulV3IterBatchBasicTilingData {
+    uint32_t m = 1;
+    uint32_t n = 1;
+    uint32_t k = 1;
+    uint32_t b = 1;
+    uint32_t iterBatchL1 = 1;
+    uint32_t iterBatchL0 = 1;
+    uint32_t isHf32 = 0;
+    uint32_t baseM = 16;
+    uint32_t baseN = 16;
+    uint32_t baseK = 16;
+    uint32_t innerBatch = 0; // 非连续场景B2内轴
+    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct BatchMatMulV3MergeBatchBasicTilingData {
+    uint32_t m = 1;
+    uint32_t n = 1;
+    uint32_t k = 1;
+    uint32_t b = 1;
+    uint32_t batchAL1 = 1;
+    uint32_t batchBL1 = 1;
+    uint32_t batchL0 = 1;
+    uint32_t kL1 = 1;
+    uint32_t baseK = 16;
+    uint32_t isHf32 = 0;
+    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct BatchMatMulToMulBasicTilingData{
+    uint32_t m = 1;
+    uint32_t n = 1;
+    uint32_t b = 1;
+    uint32_t usedCoreNum = 1;
+    uint32_t singleCoreBatch = 1;
+    uint32_t batchNum = 1;
+    uint32_t batchNumLastRound = 1;
+    uint32_t batchNumLastRoundTail = 1;
+    uint32_t lastCoreNum = 1;
+    uint32_t alignNum = 1;
+};
+#pragma pack(pop)
+
+#pragma pack(push, 8)
+struct MatMulV3KEqZeroBasicTilingData {
+    uint64_t totalDataAmount = 1;
+    uint64_t aivNum = 1;
+};
+#pragma pack(pop)
+#endif // __OP_KERNEL_MATMUL_TILING_DATA_H__
+"""
+
+    # 在host目录下生成文件
+    generate_file(os.path.join(temp_dir, "host"), "matmul_tiling_data.h", class_body)
+    # 在device目录下生成文件
+    generate_file(os.path.join(temp_dir, "device"), "matmul_tiling_data.h", class_body)
+    # 在host/cv_common目录下生成文件
+    generate_file(os.path.join(temp_dir, "host", "cv_common"), "matmul_tiling_data.h", class_body)
+    # 在device/cv_common目录下生成文件
+    generate_file(os.path.join(temp_dir, "device", "cv_common"), "matmul_tiling_data.h", class_body)
+
+
+def _process_tiling_info(is_batch, compile_info, origin_inputs, origin_outputs, attrs, tiling_key_list):
+    tiling_info = TilingInfo()
+    op_type = "BatchMatMulV3" if is_batch else "MatMulV3"
+    tiling_data_type = f"{op_type}TilingData"
+
+    run_info = do_op_tiling(op_type, compile_info, origin_inputs, origin_outputs, None, None, attrs)
+    tiling_info.tiling_data = run_info["tiling_data"]
+    tiling_info.tiling_key = run_info['tiling_key']
+    tiling_key_list[0] = tiling_info.tiling_key
+    cube_block_dim = run_info['block_dim']
+    tiling_info.file_content = gen_static_shape_v2(op_type, tiling_data_type, run_info["tiling_data"])
+
+    return tiling_info, cube_block_dim
+
+
+def create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
+    cube_output_type_size, is_batch, cube_block_dim, use_cv_common = cube_info[:4]
+    generate_matmul_tiling(temp_dir)
+
+    # 根据is_batch设置结构体名称和数据访问路径
+    struct_name = "BatchMatMulV3BasicTilingData" if is_batch else "MatMulV3BasicTilingData"
+    data_prefix = "tmpTilingData.matMulTilingData" if is_batch else "tmpTilingData"
+
+    # 生成host端tiling数据
+    host_tiling_data = f"""
+#include "matmul_tiling_data.h"
+GET_TILING_DATA_WITH_STRUCT({struct_name}, tmpTilingData, tmpTilingGM);
+"""
+
+    # 构建class_body，使用data_prefix处理不同的数据访问路径
+    class_body = f"const int32_t cube_output_type_size = {cube_output_type_size};\n"
+    class_body += f"const int32_t ub_align_value = 32 / cube_output_type_size;\n"
+    class_body += f"const int32_t basen_align = ({data_prefix}.baseN + ub_align_value - 1) " \
+                  f"/ ub_align_value * ub_align_value;\n"
+    class_body += f"const int32_t basen_basem_align = ({data_prefix}.baseM * basen_align) / 2 + basen_align;\n"
+    class_body += f"int32_t get_g_basen_basem_align();\n"
+    class_body += f"void set_g_basen_basem_align(int32_t value);\n"
+
+    # 写入host端文件
+    host_tiling_content = tiling_info.file_content + host_tiling_data + class_body
+    generate_file(os.path.join(temp_dir, "host"), "autofuse_cube_tiling_data.h", host_tiling_content)
+    generate_file(os.path.join(temp_dir, "host", "cv_common"), "autofuse_cube_tiling_data.h", host_tiling_content)
+
+    tiling_key = static_shape_cv_compile(kernel_name=kernel_name, temp_dir=temp_dir,
+                                                        graph_name=graph_name)
+    device_tiling_data = "\n#include \"matmul_tiling_data.h\"\n"
+    logger.info("CV fusion op, get vector tilingkey(%s)", tiling_key)
+    use_cv_common = use_cv_common or [False]
+
+    if (tiling_key == -1 or tiling_info.tiling_key != 1):
+        if tiling_info.tiling_key in CV_COMMON_MIX_WHITE_LIST:
+            tiling_info.file_content += "\n#define CV_SAFETY_FUSION_MIX_MODE 1\n"
+        logger.info("CV fusion op, entering safety fusion mode. vector_tiling_key=%s, is_batch=%s, cube_tiling_key=%s",
+                    tiling_key, is_batch, tiling_info.tiling_key)
+        tiling_info.file_content += "\n#define CV_SAFETY_FUSION 1\n"
+        use_cv_common[0] = True
+        vec_block_dim, wss = static_shape_cv_common_compile(kernel_name=kernel_name, temp_dir=temp_dir,
+                                                            graph_name=graph_name)
+        logger.info("CV fusion op, CV_AIC_NUM=[%s] CV_AIV_NUM=[%s] CV_VEC_WSS=[%s]", str(cube_block_dim),
+                    str(vec_block_dim), str(wss))
+        for name, value in [("CV_AIC_NUM", cube_block_dim), ("CV_AIV_NUM", vec_block_dim), ("CV_VEC_WSS", wss)]:
+            if value >= 0:
+                tiling_info.file_content += f"\n#define {name} {value}\n"
+    else:
+        tiling_info.file_content += "\n#define CV_UB_FUSION 1\n"
+        if (tiling_key == 0):
+            logger.info("CV fusion op, entering UB fusion mode with no db.")
+            tiling_info.file_content += "\n#define CV_UB_NO_DB 1\n"
+        else:  # tiling_key 为1表示UB复用循环模板(非全载模板)
+            logger.info("CV fusion op, entering UB fusion mode with db.")
+            tiling_info.file_content += "\n#define CV_UB_DB 1\n"
+
+    # 写入device端文件
+    tiling_info.file_content += device_tiling_data
+    device_tiling_content = tiling_info.file_content
+    generate_file(os.path.join(temp_dir, "device"), "autofuse_cube_tiling_data.h", device_tiling_content)
+    generate_file(os.path.join(temp_dir, "device", "cv_common"), "autofuse_cube_tiling_data.h",
+                  device_tiling_content)
 
 def ascbc_cube_kernel_tiling_pro(
     *args,
     temp_dir,
-    graph_name, 
-    kernel_name, 
-    input_num, 
-    output_num, 
+    graph_name,
+    kernel_name,
+    input_num,
+    output_num,
     use_list_tensor_desc,
     cube_attrs,
-    tiling_key_list
+    tiling_key_list,
+    use_cv_common=None
 ):
     graph_name = camel_to_snake(graph_name)
     args_list = args[0]
@@ -661,9 +1199,6 @@ def ascbc_cube_kernel_tiling_pro(
         input_num = 1
         output_num = 1
 
-    _origin_inputs_, _origin_outputs_, _inputs_, _outputs_ = \
-        _build_args(args_list, input_num=input_num, output_num=output_num)
-
     if cube_attrs is None:
         logger.error("kernel_name=[%s] can't find cube attrs", kernel_name)
         return
@@ -671,10 +1206,20 @@ def ascbc_cube_kernel_tiling_pro(
     if not cube_attributes:
         logger.error("kernel_name=[%s] can't find cube attributes", kernel_name)
         return None
+
+    is_batch = cube_attributes.get("is_batch", False)
+
     mm_attr1 = {"name" : "transpose_x1", "dtype" : "bool", "value" : cube_attributes.get("transpose_x1", False)}
     mm_attr2 = {"name" : "transpose_x2", "dtype" : "bool", "value" : cube_attributes.get("transpose_x2", False)}
     mm_attr3 = {"name" : "offset_x", "dtype" : "int", "value" : cube_attributes.get("offset_x", 0)}
-    mm_attr4 = {"name" : "enable_hf32", "dtype" : "bool", "value" : cube_attributes.get("enable_hf32", False)}
+    if is_batch:
+        mm_attr4 = {"name": "enable_hf32", "dtype": "bool", "value": cube_attributes.get("enable_hf32", False)}
+    else:
+        mm_attr4 = {"name": "opImplMode", "dtype": "int", "value": cube_attributes.get("enable_hf32", 0x1)}
+
+    mm_input_num = cube_attributes.get("input_num", 0)
+    _origin_inputs_, _origin_outputs_, _inputs_ = \
+        _build_args(args_list, input_num=mm_input_num, mm_attr1=mm_attr1, mm_attr2=mm_attr2)
 
     attrs = [mm_attr1, mm_attr2, mm_attr3, mm_attr4]
     tiling_info = TilingInfo()
@@ -684,88 +1229,26 @@ def ascbc_cube_kernel_tiling_pro(
     compile_info = context.get_compile_info()
     tiling_config = {"name" : "ascendc_op_para_size", "dtype" : "int", "value" : 2 * 1024 * 1024}
     attrs.append(tiling_config)
-    if cube_attributes.get("is_batch", False):
-        run_info = do_op_tiling("BatchMatMulV3", compile_info, _origin_inputs_, _origin_outputs_, None, None, attrs)
-        tiling_info.tiling_data = run_info["tiling_data"]
-        tiling_info.tiling_key = run_info['tiling_key']
-        tiling_key_list[0] = tiling_info.tiling_key
-        tiling_info.file_content = gen_static_shape_v2(
-            "BatchMatMulV3", "BatchMatMulV3TilingData", run_info["tiling_data"])
-    else:
-        run_info = do_op_tiling("MatMulV3", compile_info, _origin_inputs_, _origin_outputs_, None, None, attrs)
-        tiling_info.tiling_data = run_info["tiling_data"]
-        tiling_info.tiling_key = run_info['tiling_key']
-        tiling_key_list[0] = tiling_info.tiling_key
-        tiling_info.file_content = gen_static_shape_v2(
-            "MatMulV3", "MatMulV3TilingData", run_info["tiling_data"])
+    is_batch = cube_attributes.get("is_batch", False)
+    tiling_info, cube_block_dim = _process_tiling_info(is_batch, compile_info, _origin_inputs_, _origin_outputs_, attrs,
+                                                       tiling_key_list)
 
     logger.info("kernel_name=[%s], cube tiling_key[%s], tiling_data=[%s], tiling_file_context=[%s]", kernel_name, str(
         tiling_info.tiling_key), str(tiling_info.tiling_data), str(tiling_info.file_content))
-    
-    tiling_data = os.path.join(temp_dir, "device", "autofuse_cube_tiling_data.h")
-    with open(tiling_data, "w") as file:
-        file.write(tiling_info.file_content)
+    cube_output_type_size = cube_attributes.get("type_size", 4)
+    cube_info = [cube_output_type_size, is_batch, cube_block_dim, use_cv_common]
+    create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube_info)
 
-def asc_graph_compile(*args, temp_dir, params):
-    """入口为asc graph场景"""
-    #获取ascgraph信息
-    schedule_results = params['schedule_results']
-    graph_name = gen_valid_name(schedule_results.get_name())
-    graph_name = camel_to_snake(graph_name)
-    input_num = schedule_results.get_input_num()
-    output_num = schedule_results.get_output_num()
-    is_cube = schedule_results.is_cube_type()
-    tiling_key_list = [-1]
-    cube_attrs = schedule_results.get_cube_attributes()
-    kernel_name = args[-1]
-    vector_core_num = params['vector_core_num']
-    msg = f"graph_name:{graph_name}, input_num:{input_num}, output_num:{output_num}," \
-          f"kernel_name:{kernel_name}, vector_core_num:{vector_core_num}, is_cube:{is_cube}"
-    CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_DEBUG)
-    graph_name = camel_to_snake(graph_name)
-    code_gen = CodeGen()
 
-    kernel_build_dir = os.path.join(temp_dir, "device")
-    os.makedirs(kernel_build_dir, exist_ok=True)
-    host_build_dir = os.path.join(temp_dir, "host")
-    os.makedirs(host_build_dir, exist_ok=True)
-    pgo_dir = os.path.abspath(os.path.join(temp_dir, "..", "..", "pgo"))
-    os.makedirs(pgo_dir, exist_ok=True)
-
-    #生成device和host代码
-    op_kernel_src, tiling_func_srcs = generate_device_and_host_code(graph_name=graph_name, temp_dir=temp_dir,
-        params=params, code_gen=code_gen, pgo_dir=pgo_dir)
-    static_compile_flag = is_static_compile(params, tiling_func_srcs)
-
-    use_list_tensor_desc = op_kernel_src.find('kernel_operator_list_tensor_intf.h') > 0
-    enable_parallel_compile = op_kernel_src.rfind('void fake_tiling_ids()') > 0
-
-    if (is_cube and static_compile_flag):
-        ascbc_cube_kernel_tiling_pro(args, temp_dir=temp_dir, graph_name=graph_name, kernel_name=kernel_name,
-            input_num=input_num, output_num=output_num,
-            use_list_tensor_desc=use_list_tensor_desc, cube_attrs=cube_attrs, tiling_key_list=tiling_key_list)
-    else:
-        # 静态shape场景编译host so，并修改kernel代码和tiling_data代码
-        if static_compile_flag:
-            #PGO需要使用非const tiling编译的kernel进行调优
-            pgo_env = get_pgo_env_flag()
-            if pgo_env:
-                asc_pgo_exec(*args, temp_dir=temp_dir, params=params, op_kernel_src=op_kernel_src, code_gen=code_gen)
-            timestamp_set(True, graph_name, "CompileHost")
-            static_shape_compile(kernel_name=kernel_name, temp_dir=temp_dir, graph_name=graph_name)
-            timestamp_set(False, graph_name, "CompileHost")
-    replace_kernel(kernel_build_dir=kernel_build_dir, graph_name=graph_name)
-
-    # 编译device代码
-    timestamp_set(True, graph_name, "CompileDevice")
-    kernel_file, json_file = ascbc_kernel_compile(args, graph_name=graph_name, kernel_name=kernel_name,
-                                                  input_num=input_num, output_num=output_num,
-                                                  temp_build_dir=kernel_build_dir,
-                                                  impl_mode=params.get('impl_mode'),
-                                                  use_list_tensor_desc=use_list_tensor_desc,
-                                                  enable_parallel_compile=enable_parallel_compile, tiling_key=tiling_key_list[0])
-    timestamp_set(False, graph_name, "CompileDevice")
-
+def asc_graph_compile_post(
+    host_build_dir,
+    code_gen,
+    graph_name,
+    kernel_file,
+    json_file,
+    kernel_name,
+    static_compile_flag
+):
     # 生成get_kernel.cpp代码
     timestamp_set(True, graph_name, "GenGetKernel")
     get_kernel_src = code_gen.get_kernel_and_json_generator(kernel_file, json_file)
@@ -784,6 +1267,101 @@ def asc_graph_compile(*args, temp_dir, params):
     modify_json_file(json_file, host_so)
     if os.path.exists(kernel_file):
         os.remove(kernel_file)
+
+
+def get_graph_basic_info(params, args) -> tuple:
+    schedule_results = params['schedule_results']
+    graph_name = camel_to_snake(gen_valid_name(schedule_results.get_name()))
+    input_num = schedule_results.get_input_num()
+    output_num = schedule_results.get_output_num()
+    is_cube = schedule_results.is_cube_type()
+    cube_attrs = schedule_results.get_cube_attributes()
+    kernel_name = args[-1]
+    vector_core_num = params['vector_core_num']
+    msg = (
+        f"graph_name:{graph_name}, input_num:{input_num}, output_num:{output_num},"
+        f"kernel_name:{kernel_name}, vector_core_num:{vector_core_num}, is_cube:{is_cube}"
+    )
+    CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_DEBUG)
+    return graph_name, input_num, output_num, is_cube, cube_attrs
+
+
+def create_compile_dirs(temp_dir) -> tuple:
+    """创建device/host/pgo目录"""
+    kernel_build_dir = os.path.join(temp_dir, "device")
+    host_build_dir = os.path.join(temp_dir, "host")
+    for dir_path in [kernel_build_dir, host_build_dir]:
+        os.makedirs(dir_path, exist_ok=True)
+    return kernel_build_dir, host_build_dir
+
+
+def copy_so_and_modify_json(host_build_dir, kernel_name, json_file):
+    host_so = os.path.join(host_build_dir, f"lib{kernel_name}.so")
+    kernel_meta_dir = get_current_build_config("kernel_meta_parent_dir")
+    shutil.copy(host_so, os.path.join(kernel_meta_dir, "kernel_meta"))
+    modify_json_file(json_file, host_so)
+
+
+def asc_graph_compile(*args, temp_dir, params):
+    """入口为asc graph场景"""
+    # 获取ascgraph信息
+    graph_name, input_num, output_num, is_cube, cube_attrs = get_graph_basic_info(params, args)
+    tiling_key_list, kernel_type_list = [-1], ["KERNEL_TYPE_AIV_ONLY"]
+    kernel_build_dir, host_build_dir = create_compile_dirs(temp_dir)
+    kernel_name = args[-1]
+    code_gen = CodeGen()
+
+    # 生成device和host代码
+    op_kernel_src, tiling_func_srcs = generate_device_and_host_code(
+        graph_name=graph_name, temp_dir=temp_dir, params=params, code_gen=code_gen)
+    static_compile_flag = is_static_compile(params, tiling_func_srcs)
+    use_list_tensor_desc = op_kernel_src.find('kernel_operator_list_tensor_intf.h') > 0
+    enable_parallel_compile = op_kernel_src.rfind('void fake_tiling_ids()') > 0
+    use_cv_common = [False]
+
+    # 处理cube/静态编译分支
+    if is_cube and static_compile_flag:
+        ascbc_cube_kernel_tiling_pro(args, temp_dir=temp_dir, graph_name=graph_name, kernel_name=kernel_name,
+                                     input_num=input_num, output_num=output_num,
+                                     use_list_tensor_desc=use_list_tensor_desc, cube_attrs=cube_attrs,
+                                     tiling_key_list=tiling_key_list, use_cv_common=use_cv_common)
+        static_shape_compile(kernel_name=kernel_name, temp_dir=temp_dir, graph_name=graph_name,
+                             tiling_key_list=tiling_key_list, kernel_type_list=kernel_type_list,
+                             use_cv_common=use_cv_common)
+    elif static_compile_flag:
+        #PGO需要使用非const tiling编译的kernel进行调优
+        pgo_env = get_pgo_env_flag()
+        # 使能并行编译时，生成的模板较多，此时pgo生成解集超大，暂不放开，避免影响pgo整体调优能力
+        # tensorlist场景pgo暂不支持，待适配后放开
+        if pgo_env and not enable_parallel_compile and not use_list_tensor_desc:
+            asc_pgo_exec(*args, temp_dir=temp_dir, params=params, op_kernel_src=op_kernel_src, code_gen=CodeGen())
+        timestamp_set(True, graph_name, "CompileHost")
+        static_shape_compile(kernel_name=kernel_name, temp_dir=temp_dir, graph_name=graph_name,
+                             tiling_key_list=tiling_key_list, kernel_type_list=kernel_type_list)
+        timestamp_set(False, graph_name, "CompileHost")
+
+    # 编译device代码
+    if use_cv_common and use_cv_common[0]:
+        kernel_build_dir = os.path.join(temp_dir, "device", "cv_common")
+    else:
+        kernel_build_dir = os.path.join(temp_dir, "device")
+    replace_kernel(kernel_build_dir=kernel_build_dir, graph_name=graph_name)
+    timestamp_set(True, graph_name, "CompileDevice")
+    kernel_file, json_file = ascbc_kernel_compile(args, graph_name=graph_name, kernel_name=kernel_name,
+                                                  input_num=input_num, output_num=output_num,
+                                                  temp_build_dir=kernel_build_dir, impl_mode=params.get('impl_mode'),
+                                                  use_list_tensor_desc=use_list_tensor_desc,
+                                                  enable_parallel_compile=enable_parallel_compile,
+                                                  tiling_key=tiling_key_list[0], kernel_type=kernel_type_list[0],
+                                                  is_cube=is_cube)
+    timestamp_set(False, graph_name, "CompileDevice")
+    if use_cv_common and use_cv_common[0]:
+        host_build_dir = os.path.join(temp_dir, "host", "cv_common")
+    else:
+        host_build_dir = os.path.join(temp_dir, "host")
+    asc_graph_compile_post(host_build_dir, code_gen, graph_name, kernel_file,
+                           json_file, kernel_name, static_compile_flag)
+
 
 def compute_graph_compile(*args, temp_dir, params, vector_core_num, device_id):
     """入口为compute graph场景"""
@@ -868,9 +1446,11 @@ def asc_codegen_compile(*args, **kwargs):
             CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_INFO)
             asc_codegen_compile_with_tmpdir(*args, temp_dir=temp_dir, **kwargs)
     else:
+        os.environ['ASCEND_OP_COMPILE_SAVE_KERNEL_META'] = '1'
         temp_dir = tempfile.mkdtemp(prefix=kernel_name, dir=kernel_meta_dir)
         msg = f"kernel name:{kernel_name}, kernel_meta_dir:{kernel_meta_dir}, tmp:{temp_dir}"
         CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_INFO)
         asc_codegen_compile_with_tmpdir(*args, temp_dir=temp_dir, **kwargs)
+        os.environ.pop('ASCEND_OP_COMPILE_SAVE_KERNEL_META')
 
     CommonUtility.print_compile_log("", "asc_codegen_compile finish", AscendCLogLevel.LOG_INFO)

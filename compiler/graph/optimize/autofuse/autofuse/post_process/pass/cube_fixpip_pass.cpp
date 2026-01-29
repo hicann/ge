@@ -12,13 +12,14 @@
 #include <string>
 #include <set>
 #include "ge_common/ge_api_types.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "graph/utils/node_utils.h"
 #include "utils/autofuse_utils.h"
 #include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "graph/utils/graph_utils.h"
 #include "post_process/post_process_util.h"
+#include "utils/autofuse_utils.h"
 
 namespace ge {
 namespace {
@@ -72,7 +73,7 @@ Status CubeFixpip(AscGraph &graph, const NodePtr &asc_node) {
   }
 
   for (const auto &node : graph.GetAllNodes()) {
-    if (BackendUtils::IsCubeNodeType(node)) {
+    if (AutofuseUtils::IsCubeNodeType(node)) {
       std::vector<NodePtr> peer_in_nodes;
       GE_ASSERT_SUCCESS(asc_adapt::GetPeerInNodes(node, peer_in_nodes, 0));
 
@@ -98,6 +99,7 @@ Status CubeFixpip(AscGraph &graph, const NodePtr &asc_node) {
 }
 
 Status CubeFixpipPass::Run(const ComputeGraphPtr &graph) const {
+  // 代码预埋，act支持所有模板的fixpip能力后，开启此功能,后面要fixpip能力要注意act是否支持fixpip+后融合elemetnwise混合
   GE_ASSERT_SUCCESS(asc_adapt::ProcessAscBackendNodes(graph, CubeFixpip, "cube_fixpip_pass"));
   GELOGI("Graph %s completed CubeFixpipPass successfully.", graph->GetName().c_str());
   return SUCCESS;

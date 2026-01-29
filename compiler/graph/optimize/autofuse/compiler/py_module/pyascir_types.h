@@ -43,6 +43,8 @@ class SizeExpr {
   static PyObject *Mul(PyObject *self, PyObject *args);
   static PyObject *Div(PyObject *self, PyObject *args);
   static PyObject *Pow(PyObject *self, PyObject *args, PyObject *modulo);
+  static PyObject *Remainder(PyObject *self, PyObject *args);
+  static PyObject *FloorDiv(PyObject *self, PyObject *args);
   static PyObject *Compare(PyObject *self, PyObject *other, int op);
 };
 
@@ -183,6 +185,13 @@ class FusedScheduledResult {
   static PyObject* IsCubeType(PyObject *self_pyobject);
   static PyObject* GetCubeAttributes(PyObject *self_pyobject);
 };
+
+#define SET_DICT_LONG(dict, key, value) do { \
+    PyObject *tmp = PyLong_FromLong(value); \
+    PY_ASSERT_NOTNULL(tmp, key " is not ready"); \
+    PyDict_SetItemString(dict, key, tmp); \
+    Py_DECREF(tmp); \
+} while(0)
 }
 
 #endif

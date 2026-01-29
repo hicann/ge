@@ -30,8 +30,7 @@
     export IOB_ID=10087
     export ASCEND_DEVICE_ID=0
     export RANK_ID=0
-       
-    export EXPERIMENTAL_ENABLE_AUTOFUSE=1 # 打开自动融合
+
    ```
 2. 执行用例
    python3 test.py

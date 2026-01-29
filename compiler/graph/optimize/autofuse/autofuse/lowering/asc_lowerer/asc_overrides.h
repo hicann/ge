@@ -17,8 +17,10 @@
 #include <vector>
 #include <thread>
 
+#include "ascendc_ir.h"
 #include "common/checker.h"
-#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
+#include "graph/ascendc_ir/ascendc_ir_check.h"
+#include "graph/expression/const_values.h"
 #include "graph/node.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/symbolizer/symbolic_utils.h"
@@ -40,15 +42,15 @@ namespace loop {
     GET_IR_ATTR(OpType, Obj.Src())->SetAdj_x1(static_cast<int64_t>(Attr.adj_x1)); \
     GET_IR_ATTR(OpType, Obj.Src())->SetAdj_x2(static_cast<int64_t>(Attr.adj_x2)); \
     GET_IR_ATTR(OpType, Obj.Src())->SetOffset_x(Attr.offset_x); \
-    GET_IR_ATTR(OpType, Obj.Src())->SetEnable_hf32(static_cast<int64_t>(Attr.enable_hf32)); \
+    GET_IR_ATTR(OpType, Obj.Src())->SetEnable_hf32(Attr.enable_hf32); \
     GET_IR_ATTR(OpType, Obj.Src())->SetHas_relu(0);
 
 #define SET_MATMUL_ATTRS(OpType, Obj, Attr) \
     GE_WARN_ASSERT(Obj.Src() != nullptr); \
-    GET_IR_ATTR(OpType, Obj.Src())->SetTranspose_x1(static_cast<int64_t>(matmul_attr.transpose_x1)); \
-    GET_IR_ATTR(OpType, Obj.Src())->SetTranspose_x2(static_cast<int64_t>(matmul_attr.transpose_x2)); \
+    GET_IR_ATTR(OpType, (Obj).Src())->SetTranspose_x1(static_cast<int64_t>((Attr).transpose_x1)); \
+    GET_IR_ATTR(OpType, (Obj).Src())->SetTranspose_x2(static_cast<int64_t>((Attr).transpose_x2)); \
     GET_IR_ATTR(OpType, Obj.Src())->SetOffset_x(Attr.offset_x); \
-    GET_IR_ATTR(OpType, Obj.Src())->SetEnable_hf32(static_cast<int64_t>(Attr.enable_hf32)); \
+    GET_IR_ATTR(OpType, Obj.Src())->SetEnable_hf32(Attr.enable_hf32); \
     GET_IR_ATTR(OpType, Obj.Src())->SetHas_relu(0);
 
 template <typename T>
@@ -204,6 +206,10 @@ class AscOverrides final : public OpOverrides {
             }));
   }
 
+  [[nodiscard]] bool IsAscAxisEmpty() const {
+    return asc_axis_.empty();
+  }
+
   [[nodiscard]] std::vector<const ge::OutDataAnchor *> GetInputs() const override {
     return inputs_;
   }
@@ -306,7 +312,7 @@ class AscOverrides final : public OpOverrides {
     const auto node = MakeRawNode<ascir_op::Split>(ToVector(src), {},{},{1});
     GET_IR_ATTR(Split, node)->SetIndex(output_idx);
     GET_IR_ATTR(Split, node)->SetGid(global_id);
-    GELOGD("node: %s(%s), output index: %d, global id: %d", node->GetType().c_str(),node->GetName().c_str(), output_idx, global_id);
+    GELOGI("ascir node: %s(%s), output index: %zu, global id: %zu", node->GetType().c_str(),node->GetName().c_str(), output_idx, global_id);
     GE_WARN_ASSERT(node != nullptr);
     CseVar ret;
 
@@ -925,7 +931,7 @@ class AscOverrides final : public OpOverrides {
   }
 
   template <typename T>
-  CseVar AscOp(const std::vector<CseVar> &vars) {
+  CseVar AscOp(const std::vector<CseVar> &vars) const {
     auto cse_key = CseKey<T>(vars);
     auto cached_var = LookUp(cse_key);
     if (cached_var.IsValid()) {
@@ -936,7 +942,7 @@ class AscOverrides final : public OpOverrides {
   }
 
   template <typename T, size_t NUM_OUTPUTS, typename... Args>
-  std::vector<CseVar> MultiOutAscOp(Args... args) {
+  std::vector<CseVar> MultiOutAscOp(Args... args) const {
     auto cse_key = CseKey<T>(args...);
     auto cached_pack_var = LookUpMultiOut<NUM_OUTPUTS>(cse_key);
     if (!cached_pack_var.empty()) {

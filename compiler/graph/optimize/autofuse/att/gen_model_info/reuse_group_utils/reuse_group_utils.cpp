@@ -1,17 +1,11 @@
 /**
-* Copyright (c) Huawei Technologies Co., Ltd. 2025 All rights reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "reuse_group_utils.h"
 #include <vector>
@@ -136,7 +130,6 @@ ge::Status ReuseGroupUtils::InitReuseScheduleGroup(const ScheduleGroupIdent &gro
   std::set<std::string> input_var_names;
   std::vector<std::string> ordered_var_names;
   // 记录输入轴的顺序，保证输入轴的顺序一致
-  size_t index = 0UL;
   for (const auto &model_info : group_tiling_model_info) {
     att::ArgsManager args_manager(model_info);
     GE_ASSERT_TRUE(args_manager.Process(false), "Args manager process failed.");
@@ -155,7 +148,7 @@ ge::Status ReuseGroupUtils::InitReuseScheduleGroup(const ScheduleGroupIdent &gro
   }
   for (auto &model_info : group_tiling_model_info) {
     for (const auto &arg : model_info.arg_list) {
-      const auto iter = input_var_names.find(arg->size->symbol_expr.Serialize().get());
+      input_var_names.find(arg->size->symbol_expr.Serialize().get());
       if (arg->axis_pos == AxisPosition::INNER) {
         const auto &exp = arg->size->symbol_expr.Serialize();
         GE_ASSERT_NOTNULL(exp.get());

@@ -1,17 +1,11 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "gen_tiling_impl.h"
 #include "base/att_const_values.h"
@@ -24,13 +18,13 @@
 #include "util/option_register.h"
 #include "reuse_group_utils/reuse_group_utils.h"
 #include "common/scope_tracing_recorder.h"
+#include "common_utils.h"
 
 namespace att {
 namespace {
 constexpr uint32_t kPercentageDivisor = 100;
 TilingImplType GetTilingAlgorithm(const std::string &algorithm_name) {
   static const std::map<std::string, TilingImplType> kAttTilingAlgorithmMap = {
-      {"Golden", TilingImplType::GOLDEN},
       {"AxesReorder", TilingImplType::AXES_REORDER},
       {"HighPerf", TilingImplType::HIGH_PERF},
   };
@@ -41,23 +35,14 @@ TilingImplType GetTilingAlgorithm(const std::string &algorithm_name) {
   return TilingImplType::AXES_REORDER;
 }
 
-SocVersion GetSocVersion(const std::string &sov_version) {
-  static const std::map<std::string, SocVersion> kSocVersionMap = {
-      {"Ascend910B4", SocVersion::ASCEND910B4},
-  };
-  const auto iter = kSocVersionMap.find(sov_version);
-  if (iter != kSocVersionMap.cend()) {
-    return iter->second;
-  }
-  return SocVersion::ASCEND910B2;
-}
-
-void PgoEnvConfigInit(TilingCodeGenConfig &generator_config)
-{
+void PgoEnvConfigInit(TilingCodeGenConfig &generator_config) {
   const auto res_pgo = AutoFuseConfig::MutablePgoStrategyConfig().Init();
   if (res_pgo == ge::SUCCESS) {
     if (AutoFuseConfig::GetPgoStrategyConfig().set_env_enable_autofuse_pgo) {
       generator_config.enable_autofuse_pgo = (AutoFuseConfig::GetPgoStrategyConfig().enable_autofuse_pgo == "true");
+    }
+    if (AutoFuseConfig::GetPgoStrategyConfig().set_env_autofuse_pgo_algo_step_max) {
+      generator_config.pgo_step_max = AutoFuseConfig::GetPgoStrategyConfig().autofuse_pgo_algo_step_max;
     }
   }
 }
@@ -124,22 +109,12 @@ string GetOptionValue(const std::map<std::string, std::string> &options, const s
 
 void InitializeConfig(TilingCodeGenConfig &generator_config, const std::map<std::string, std::string> &options) {
   generator_config.type = GetTilingAlgorithm(GetOptionValue(options, kGenConfigType));
-  generator_config.scenario_type = TilingScenarioType::ATT_TOOLS;
   generator_config.path = GetOptionValue(options, kOutputFilePath);
   generator_config.tiling_data_type_name = GetOptionValue(options, kTilingDataTypeName);
   generator_config.gen_tiling_data = (GetOptionValue(options, kGenTilingDataDef) == kIsTrue);
-  generator_config.with_tiling_ctx = (GetOptionValue(options, kWithTilingContext) == kIsTrue);
-  generator_config.debug_mode = (GetOptionValue(options, kDTDebug) == kIsTrue);
   generator_config.high_precision = (GetOptionValue(options, kHighPrecision) == kIsTrue);
   generator_config.gen_extra_infos = (GetOptionValue(options, kGenExtraInfo) == kIsTrue);
   generator_config.do_variable_replace = (GetOptionValue(options, kVariableReplace) == kIsTrue);
-  if (GetOptionValue(options, kOpenDT) == kIsTrue) {
-    generator_config.open_dt = true;
-    generator_config.training_phase = true;
-    generator_config.with_tiling_ctx = false;
-    generator_config.gen_extra_infos = false;
-    generator_config.soc_version = GetSocVersion(GetOptionValue(options, kSocVersion));
-  }
 }
 }
 
@@ -204,12 +179,12 @@ bool GenTilingImplAutoFuseV3(const std::string &op_name, const ascir::FusedSched
   }
   TilingCodeGenConfig generator_config;
   generator_config.type = GetTilingAlgorithm(options[kGenConfigType]);
-  generator_config.scenario_type = TilingScenarioType::CANN_AUTOFUSED;
   generator_config.tiling_data_type_name = options[kTilingDataTypeName];
   generator_config.gen_tiling_data = false;
   generator_config.gen_extra_infos = false;
   generator_config.is_autofuse = true;
   generator_config.is_inductor_scene = is_inductor_scene;
+  generator_config.is_cube = ascgen_utils::IsCubeFusedScheduled(fused_schedule_result);
   InitializeConfigByEnvOrIni(generator_config);
   TilingCodeGenerator generator;
   FusedParsedScheduleResult fused_parsed_schedule_result;

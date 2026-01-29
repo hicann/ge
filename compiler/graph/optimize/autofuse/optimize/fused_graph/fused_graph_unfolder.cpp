@@ -623,7 +623,7 @@ Status FusedGraphUnfolder::DoAxisMappingForConstPostAscGraph(const ge::AscGraph 
   const size_t new_size = new_loop_axes.size();
   for (size_t new_idx = 0UL; new_idx < new_size; ++new_idx) {
     if (old_idx < old_size &&
-        ge::SymbolicUtils::StaticCheckEq(new_loop_axes[new_idx]->size, old_axis[old_idx]->size) == ge::kTrue) {
+        ge::SymbolicUtils::StaticCheckEq(new_loop_axes[new_idx]->size, old_axis[old_idx]->size) == ge::TriBool::kTrue) {
       new_idx_to_old_idx.emplace(new_idx, old_idx);
       old_idx++;
     }

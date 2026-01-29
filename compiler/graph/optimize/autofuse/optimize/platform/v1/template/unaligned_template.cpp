@@ -89,7 +89,8 @@ Status UnalignedTemplate::ReverseDfsUnAlignNode(ge::AscGraph &impl_graph, const 
  *
  * 处理逻辑如下：先找到所有的output节点，然后倒序遍历，逐节点还原vector_strides，若遇到brc则停止，并在其后插入RemovePad节点。
  */
-ge::Status UnalignedTemplate::Generate(const ge::AscGraph &origin_graph, const ge::AscGraph &based_case,
+ge::Status UnalignedTemplate::Generate(const ge::AscGraph &origin_graph,
+                                       [[maybe_unused]] const ge::AscGraph &based_case,
                                        ge::AscGraph &new_case) {
   if (!ScheduleUtils::NotNeedAlignVectorStride(origin_graph)) {
     GELOGD("Not need to generate unaligned template for TilingCase: %s", origin_graph.GetName().c_str());
@@ -128,7 +129,8 @@ ge::Status UnalignedTemplate::Generate(const ge::AscGraph &origin_graph, const g
   return ge::SUCCESS;
 }
 
-bool UnalignedTemplate::NeedDropBasedCase(const ge::AscGraph &origin_graph, const ge::AscGraph &based_case,
+bool UnalignedTemplate::NeedDropBasedCase([[maybe_unused]] const ge::AscGraph &origin_graph,
+                                          [[maybe_unused]] const ge::AscGraph &based_case, 
                                           const ge::AscGraph &new_case) {
   // 场景1：有Concat节点并且没有RemovePad节点，此时一定是Concat小尾轴场景，所以一定走非对齐模板
   const auto has_concat_node = ScheduleUtils::FindFirstNodeOfType<ge::ascir_op::Concat>(new_case) != nullptr;

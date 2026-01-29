@@ -16,8 +16,8 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
-#include "../utils/api_call_utils.h"
+#include "api_call/utils/api_call_factory.h"
+#include "api_call/utils/api_call_utils.h"
 
 namespace codegen {
 using namespace std;
@@ -50,6 +50,13 @@ Status CompareApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axi
   std::vector<Tensor> ub_inputs;
   std::vector<Tensor> ub_outputs;
 
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "CompareApiCall cannot find tmp buffer id to use.");
+  id = it->second;
+
   // 如果第2个输入是ub_scalar场景, 初始化x2为ub_scalar对应的变量
   std::string dtype_name;
   GE_CHK_STATUS_RET(Tensor::DtypeName(x2.dtype, dtype_name), "Codegen get data type:%d failed",
@@ -71,7 +78,7 @@ Status CompareApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axi
     if (outer_repeats_size == 0U) {
       ss << "CompareScalarExtend" << "(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
          << x1 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x1) << "], " << x2_scalar << ", "
-         << "CMPMODE::" << this->api_name_ << ", " << x1.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+         << "CMPMODE::" << this->api_name_ << ", " << x1.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
     } else {
       std::stringstream ss1;
       size_t input0_strides_size = param.inputs_strides[0].size();
@@ -89,7 +96,7 @@ Status CompareApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axi
           << output_inner_offset << "], " << x1 << "[" << input0_inner_offset << "], " <<
           scalar_local_blk_tensor_name_x2 << "[0], " << param.outer_repeats[outer_repeats_size - 1] << ", "
           << tpipe.tiler.ActualSize(param.cal_count) << ", " << tpipe.tiler.Size(param.input_second_to_last_stride)
-          << ", " << tpipe.tiler.Size(param.output_second_to_last_stride) << ", " << tpipe.tmp_buf << ");"
+          << ", " << tpipe.tiler.Size(param.output_second_to_last_stride) << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");"
           << std::endl;
       CreateComputeNodeOuterForIfRequired(outer_repeats_size, param, ss1, ss);
     }
@@ -105,7 +112,7 @@ Status CompareApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axi
       ss << "CompareExtend" << "(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], " << x1
          << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x1) << "], " << x2 << "["
          << tpipe.tiler.TensorVectorizedOffset(current_axis, x2) << "], "
-         << "CMPMODE::" << this->api_name_ << ", " << x1.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+         << "CMPMODE::" << this->api_name_ << ", " << x1.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
     } else {
       size_t input0_strides_size = param.inputs_strides[0].size();
       std::vector<ascir::SizeExpr> inner0_input_strides(param.inputs_strides[0].begin(),
@@ -128,7 +135,7 @@ Status CompareApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axi
           << output_inner_offset << "], " << x1 << "[" << input0_inner_offset << "], " << x2 << "["
           << input1_inner_offset << "], " << param.outer_repeats[outer_repeats_size - 1] << ", "
           << tpipe.tiler.ActualSize(param.cal_count) << ", " << tpipe.tiler.Size(param.input_second_to_last_stride)
-          << ", " << tpipe.tiler.Size(param.output_second_to_last_stride) << ", " << tpipe.tmp_buf << ");"
+          << ", " << tpipe.tiler.Size(param.output_second_to_last_stride) << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");"
           << std::endl;
       CreateComputeNodeOuterForIfRequired(outer_repeats_size, param, ss1, ss);
     }

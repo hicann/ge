@@ -12,6 +12,13 @@
 #include "alignment_strategy.h"
 #include "pass_runner_v1.h"
 #include "template_generator_v1.h"
+#include "task_generator/schedule_task_generator.h"
+#include "task_generator/concat_schedule_case_generator.h"
+#include "task_generator/transpose_schedule_case_generator.h"
+#include "task_generator/reduce_schedule_case_generator.h"
+#include "task_generator/recompute_case_generator.h"
+#include "task_generator/split_schedule_case_generator.h"
+
 namespace optimize {
 constexpr size_t kMaxVecQueNum = 4UL;
 
@@ -19,7 +26,7 @@ PlatformV1::PlatformV1() {
   config_.max_que_num = kMaxVecQueNum;
 }
 
-ge::Status PlatformV1::PartitionSubFunctions(ge::AscGraph &impl_graph) {
+ge::Status PlatformV1::PartitionSubFunctions([[maybe_unused]] ge::AscGraph &impl_graph) {
   return ge::SUCCESS;
 }
 
@@ -42,7 +49,7 @@ std::unique_ptr<BackendSpec> PlatformV1::GetBackendSpec() const {
   auto ret = ge::ComGraphMakeUnique<BackendSpec>();
   ret->concat_max_input_num = kConcatMaxInputNum;
   ret->concat_alg = kConcatAlgTranspose;
-  ret->gather_spec = {false, false, false};
+  ret->gather_spec = {false, false, false, false, false};
   ret->slice_split_spec.split_lowered_to_split = false;
   ret->slice_split_spec.slice_fuse_with_end_dim_1 = false;
   ret->slice_split_spec.enable_split_flatten = false;
@@ -51,9 +58,11 @@ std::unique_ptr<BackendSpec> PlatformV1::GetBackendSpec() const {
   ret->enable_matmul_lowering_to_matmul = false;
   GELOGD(
       "platform_v1, enable_non_tail_gather = %d, enable_reduce_gather_fusion = %d, "
-      "enable_gather_concat_fusion = %d, max load_num = %u, max input num = %u",
+      "enable_gather_concat_fusion = %d, enable_gather_broadcast_fusion = %d, "
+      "enable_gather_elementwise_forward_fusion = %d, max load_num = %u, max input num = %u",
       ret->gather_spec.enable_non_tail_gather, ret->gather_spec.enable_reduce_gather_fusion,
-      ret->gather_spec.enable_gather_concat_fusion, ret->max_load_num, ret->max_input_nums_after_fuse);
+      ret->gather_spec.enable_gather_concat_fusion, ret->gather_spec.enable_gather_broadcast_fusion,
+      ret->gather_spec.enable_gather_elementwise_forward_fusion, ret->max_load_num, ret->max_input_nums_after_fuse);
   ret->transpose_mode = static_cast<uint32_t>(TransposeMode::TRANSPOSE_MODE_NORMAL);
   ret->set_local_memory_size = 0;
   ret->pgo_spec = {true};
@@ -62,6 +71,27 @@ std::unique_ptr<BackendSpec> PlatformV1::GetBackendSpec() const {
 
 const PlatformConfig &PlatformV1::GetPlatformConfig() const {
   return config_;
+}
+
+Status PlatformV1::GenerateTasks(ascir::ImplGraph &optimize_graph, const OptimizerOptions &options,
+                                 std::vector<ScheduleTask> &tasks) const {
+  GE_CHK_STATUS_RET(SplitFusionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
+                    "Failed to generate tasks for split");
+  GE_CHK_STATUS_RET(ConcatFusionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
+                    "Failed to generate tasks for concat");
+  GE_CHK_STATUS_RET(TransposeFusionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
+                    "Failed to generate tasks for Transpose");
+  GE_CHK_STATUS_RET(ReducePartitionCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
+                    "Failed to generate tasks for Reduce");
+  if (tasks.empty()) {
+    GE_CHK_STATUS_RET(RecomputeCaseGenerator().GeneratorTask(optimize_graph, tasks, options),
+                      "Failed to generate recomputation tasks for graph[%s].", optimize_graph.GetName().c_str());
+  }
+  return ge::SUCCESS;
+}
+
+std::set<std::string> PlatformV1::BroadcastTypes() const {
+  return {ge::ascir_op::Broadcast::Type};
 }
 
 #define REGISTER_PLATFORM_V1(platform_name, suffix) \

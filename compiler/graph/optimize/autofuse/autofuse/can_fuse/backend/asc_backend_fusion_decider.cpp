@@ -22,7 +22,6 @@
 #include "graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "utils/auto_fuse_config.h"
 #include "utils/not_fuse_reason_code.h"
 
@@ -302,7 +301,7 @@ ComputeGraphPtr AscBackendFusionDecider::MergeAscGraphByLoop(const ComputeGraphP
   std::vector<NodePtr> del_data_nodes;
   std::vector<NodePtr> del_output_and_store_nodes;
   // 获取两个节点相同的输入节点信息, 把子图2上的data合入到子图1上
-  if (!node_fuse_info.GetHasSliceVertical()) {
+  if (node_fuse_info.CanDoHorizontalMapping()) {
     for (const auto &same_input : node_fuse_info.GetSameInputMap()) {
       GE_ASSERT_TRUE(static_cast<size_t>(same_input.first) < subgraph1_input_nodes.size(), "size %zu VS size %zu",
                      static_cast<size_t>(same_input.first), subgraph1_input_nodes.size());
@@ -630,7 +629,7 @@ Status AscBackendFusionDecider::MergeSubGraph(const ComputeGraphPtr &subgraph1, 
     GE_ASSERT_NOTNULL(subgraph1->AddNode(node));
   }
   std::vector<NodePtr> del_data_nodes;
-  if (!node_fuse_info.GetHasSliceVertical()) {
+  if (node_fuse_info.CanDoHorizontalMapping()) {
     // 获取两个节点相同的输入节点信息, 把子图2上的data合入到子图1上
     for (const auto &same_input : node_fuse_info.GetSameInputMap()) {
       GE_ASSERT_TRUE(static_cast<size_t>(same_input.first) < subgraph1_input_nodes.size(), "size %zu VS size %zu",
@@ -727,7 +726,7 @@ Status AscBackendFusionDecider::GetAllFusePossibilityNodes(const ComputeGraphPtr
   auto subgraph2_netoutput = subgraph2->GetOrUpdateNetOutputNode();
   GE_ASSERT_NOTNULL(subgraph2_netoutput);
 
-  if(!node_fuse_info.GetHasSliceVertical()) {
+  if(node_fuse_info.CanDoHorizontalMapping()) {
     for (const auto &same_input : node_fuse_info.GetSameInputMap()) {
       GE_ASSERT_TRUE(static_cast<size_t>(same_input.first) < subgraph1_input_nodes.size(), "size %zu VS size %zu",
                      static_cast<size_t>(same_input.first), subgraph1_input_nodes.size());
@@ -965,7 +964,7 @@ NodePtr AscBackendFusionDecider::Fuse(const NodePtr &node1, const NodePtr &node2
 bool AscBackendFusionDecider::CanFuse(const NodePtr &node1, const NodePtr &node2) const {
   ComputeGraphPtr graph1;
   ComputeGraphPtr graph2;
-  static std::set<std::string> has_been_dumped_nodes;  // 存放已经dump过的node，如果node已经dump过了，就不再重复dump这个node的图
+  thread_local static std::set<std::string> has_been_dumped_nodes;  // 存放已经dump过的node，如果node已经dump过了，就不再重复dump这个node的图
   GELOGI("AscBackendGraphFuse:can fuse check before, node: %s(%s) and node: %s(%s).", node1->GetNamePtr(),
          node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str());
   // 黑名单的node不可融合
@@ -1085,15 +1084,17 @@ bool AscBackendFusionDecider::CanFuse(const NodePtr &node1, const NodePtr &node2
   return true;
 }
 
-uint32_t AscBackendFusionDecider::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
+FusionPriority AscBackendFusionDecider::GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) {
   const auto fuse_type = BackendUtils::GetAllFuseType(node1, node2);
   for (const auto fusion_strategy : FusionStrategyRegistry::Instance().Get(fuse_type)) {
-    if ((fusion_strategy != nullptr)
-        && (fusion_strategy->GetFusionPairPriority(node1, node2) == kHighFusionPriority)) {
-      return kHighFusionPriority;
+    if (fusion_strategy != nullptr) {
+      const auto priority = fusion_strategy->GetFusionPairPriority(node1, node2);
+      if (priority != FusionPriority::DEFAULT) {
+        return priority;
+      }
     }
   }
-  return kDefaultFusionPriority;
+  return FusionPriority::DEFAULT;
 }
 
 Status AscBackendFusionDecider::GetPossibleFuseNodePairFromSubgraph(

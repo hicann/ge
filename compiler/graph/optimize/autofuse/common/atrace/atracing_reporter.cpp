@@ -11,7 +11,7 @@
 #include "atrace_pub.h"
 #include "graph/def_types.h"
 namespace ge {
-Status AtracingReporter::Report() {
+Status AtracingReporter::Report() const {
   if ((tracing_record_ == nullptr) || (handle_ < 0)) {
     GELOGW("Report failed as handle or record is invalid");
     return FAILED;

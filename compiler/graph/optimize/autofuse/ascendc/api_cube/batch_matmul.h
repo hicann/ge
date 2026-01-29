@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 /* !
@@ -16,6 +16,7 @@
 
 using namespace AscendC;
 using namespace matmul;
+// 此处和act模板代码有差异，注意不要 DTYPE_BIAS
 
 #if defined(FORMAT_X1) && FORMAT_X1 == FORMAT_FRACTAL_NZ
 constexpr CubeFormat format_x1 = CubeFormat::NZ;
@@ -68,10 +69,10 @@ constexpr CubeFormat format_y = CubeFormat::ND;
             op.Process();                                                                                             \
         }                                                                                                             \
     } while (0)
-
+// 此处和act模板代码有差异，注意保留GET_TILING_DATA_WITH_STRUCT 
 #define BMMV3_IMPL_CLASS_TRANS(transA, transB, templateClass, ...)                                                  \
     do {                                                                                                            \
-        GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3TilingData, tilingData, tilingGM);     \
+        GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3TilingData, tilingData, tilingGM);                                 \
         using cType = MatmulType<AscendC::TPosition::GM, format_y, DTYPE_Y, false, LayoutMode::NORMAL>;             \
         using biasType = MatmulType<AscendC::TPosition::GM, CubeFormat::ND, DTYPE_BIAS, false, LayoutMode::NORMAL>; \
         TPipe pipe;                                                                                                 \
@@ -115,7 +116,7 @@ constexpr CubeFormat format_y = CubeFormat::ND;
             op.Process();                                                                                             \
         }                                                                                                             \
     } while (0)
-
+// 此处和act模板代码有差异，注意保留GET_TILING_DATA_WITH_STRUCT 
 #define BMMV3_IMPL_CLASS_COMMON_TRNAS(transA, transB, templateClass, ...)                \
     do {                                                                                 \
         GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3TilingData, tilingData, tilingGM);      \
@@ -132,7 +133,12 @@ template <class DTYPE_X1, class DTYPE_X2, class DTYPE_Y, class DTYPE_BIAS, // �
     int8_t BATCH_API_LEVEL, int8_t BATCH_A_TRANS, int8_t BATCH_B_TRANS, int8_t BATCH_ITER_MODEL, int8_t BMODEL,
     int8_t BATCH_FULL_LOAD, int8_t BATCH_L0C2OUT_MODEL>
 __global__ __aicore__ void batch_mat_mul_v3(
+#ifdef CV_UB_FUSION
+    GM_ADDR aGM, GM_ADDR bGM, GM_ADDR biasGM, GM_ADDR offsetWGM, GM_ADDR cGM, GM_ADDR workspaceGM, GM_ADDR tilingGM,
+    Block::AutoFusionVector::Params *param)
+#else
     GM_ADDR aGM, GM_ADDR bGM, GM_ADDR biasGM, GM_ADDR offsetWGM, GM_ADDR cGM, GM_ADDR workspaceGM, GM_ADDR tilingGM)
+#endif
 {
     __gm__ uint8_t* user = GetUserWorkspace(workspaceGM);
 
@@ -145,7 +151,10 @@ __global__ __aicore__ void batch_mat_mul_v3(
 #endif
 
     REGISTER_TILING_DEFAULT(BatchMatMulV3TilingData);
+#if (defined(CV_UB_FUSION) || defined(CV_SAFETY_FUSION))
+#else
     KERNEL_TASK_TYPE_DEFAULT(KERNEL_TYPE_AIC_ONLY);
+#endif
 
     if constexpr (
         BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
@@ -153,19 +162,6 @@ __global__ __aicore__ void batch_mat_mul_v3(
         BMMV3_IMPL_CLASS_COMMON_TRNAS(
             aTran, bTran, BatchMatMulV3Advanced::BatchMatMulAswKernel, BatchMatMulV3Advanced::BatchMatMulAswBlock,
             MM_CFG_NO_PRELOAD);
-    } else if constexpr (
-        BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_DOUBLE_ASWT &&
-        BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD && BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY &&
-        BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
-        BMMV3_IMPL_CLASS_COMMON_TRNAS(
-            aTran, bTran, BatchMatMulV3Advanced::BatchMatMulAswKernel, BatchMatMulV3Advanced::BatchMatMulDaswBlock,
-            MM_CFG_NO_PRELOAD);
-    } else if constexpr (
-        BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
-        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_ITER_BATCH_BATCH_BIAS) {
-        BMMV3_IMPL_CLASS_TRANS(
-            aTran, bTran, BatchMatMulV3Advanced::BatchMatMulMultiBatchKernel,
-            BatchMatMulV3Advanced::BatchMatMulMultiBatchBaseBlock, MM_CFG_MULTI_BATCH_OUT_BATCH_BIAS);
     } else if constexpr (
         BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
         BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_ITER_BATCH_SINGLE_BIAS) {
@@ -175,9 +171,22 @@ __global__ __aicore__ void batch_mat_mul_v3(
 #if !(defined(__NPU_ARCH__) && (__NPU_ARCH__ == 5102))
     } else if constexpr (
         BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
-        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_ITER_BATCH_BATCH_BIAS) {
+        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_ITER_BATCH_SINGLE_BIAS) {
         GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3IterBatchBasicTilingData, tilingData, tilingGM);
         BatchMatMulActIterBatchKernel<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor>(
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
+        BATCH_L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE && BATCH_ITER_MODEL == MAT_MUL_ITER_BATCH_SINGLE_BIAS) {
+        GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3IterBatchBasicTilingData, tilingData, tilingGM);
+        BatchMatMulActIterBatchKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, MatMulL0C2Out::ND_FIXPIPE_1_2>(
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+    } else if constexpr (
+        BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
+        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_MERGE_BATCH) {
+        GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3MergeBatchBasicTilingData, tilingData, tilingGM);
+        BatchMatMulActMergeBatchKernel<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor>(
             aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
     } else if constexpr (
         BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
@@ -192,46 +201,39 @@ __global__ __aicore__ void batch_mat_mul_v3(
         GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3BasicTilingData, tilingData, tilingGM);
         MatmulV3Advanced::MatMulActKernel<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor,
             0, IS_ENABLE_RELU>(
+#ifdef CV_UB_FUSION
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData.matMulTilingData, param, tilingData.batchDimAll);
+#else
             aGM, bGM, biasGM, cGM, workspaceGM, tilingData.matMulTilingData, tilingData.batchDimAll);
+#endif
+    } else if constexpr (
+        BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_A_FULL_LOAD &&
+        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
+        GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3BasicTilingData, tilingData, tilingGM);
+        MatmulV3Advanced::MatMulActKernel<
+            DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, A_FULL_LOAD_MODE, IS_ENABLE_RELU>(
+#ifdef CV_UB_FUSION
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData.matMulTilingData, param, tilingData.batchDimAll);
+#else
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData.matMulTilingData, tilingData.batchDimAll);
+#endif
     } else if constexpr (
         BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_B_FULL_LOAD &&
         BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
         GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3BasicTilingData, tilingData, tilingGM);
         MatmulV3Advanced::MatMulActKernel<
             DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, B_FULL_LOAD_MODE, IS_ENABLE_RELU>(
+#ifdef CV_UB_FUSION
+            aGM, bGM, biasGM, cGM, workspaceGM, tilingData.matMulTilingData, param, tilingData.batchDimAll);
+#else
             aGM, bGM, biasGM, cGM, workspaceGM, tilingData.matMulTilingData, tilingData.batchDimAll);
+#endif
     } else if constexpr (
         BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_K_EQUAL_ZERO && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
         BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
         TPipe pipe;
         GET_TILING_DATA_WITH_STRUCT(MatMulV3KEqZeroBasicTilingData, tilingData, tilingGM);
         MatmulV3Advanced::MatMulInputKEqZeroClearOutput<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS>(biasGM, cGM, tilingData); // 此处自动融合和act有差异，多模版代码：<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS>
-    } else if constexpr (
-        BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_A_FULL_LOAD &&
-        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
-        BMMV3_IMPL_CLASS_COMMON_TRNAS(
-            aTran, bTran, BatchMatMulV3Advanced::BatchMatMulAswAL1FullLoadKernel,
-            BatchMatMulV3Advanced::BatchMatMulAswBlock, MM_CFG_NO_PRELOAD);
-    } else if constexpr (
-        BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_DOUBLE_ASWT &&
-        BATCH_FULL_LOAD == MAT_MUL_A_FULL_LOAD && BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY &&
-        BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
-        BMMV3_IMPL_CLASS_COMMON_TRNAS(
-            aTran, bTran, BatchMatMulV3Advanced::BatchMatMulAswAL1FullLoadKernel,
-            BatchMatMulV3Advanced::BatchMatMulDaswBlock, MM_CFG_NO_PRELOAD);
-    } else if constexpr (
-        BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_B_FULL_LOAD &&
-        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
-        BMMV3_IMPL_CLASS_COMMON_TRNAS(
-            aTran, bTran, BatchMatMulV3Advanced::BatchMatMulAswBL1FullLoadKernel,
-            BatchMatMulV3Advanced::BatchMatMulAswBlock, MM_CFG_NO_PRELOAD);
-    } else if constexpr (
-        BATCH_API_LEVEL == MAT_MUL_HIGH_LEVEL && BMODEL == MAT_MUL_DOUBLE_ASWT &&
-        BATCH_FULL_LOAD == MAT_MUL_B_FULL_LOAD && BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY &&
-        BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
-        BMMV3_IMPL_CLASS_COMMON_TRNAS(
-            aTran, bTran, BatchMatMulV3Advanced::BatchMatMulAswBL1FullLoadKernel,
-            BatchMatMulV3Advanced::BatchMatMulDaswBlock, MM_CFG_NO_PRELOAD);
 #endif
     }
 }

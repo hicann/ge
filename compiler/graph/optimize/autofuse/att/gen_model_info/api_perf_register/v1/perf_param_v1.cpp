@@ -1,17 +1,11 @@
 /**
-* Copyright (c) Huawei Technologies Co., Ltd. 2025 All rights reserved.
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "perf_param_v1.h"
@@ -69,8 +63,8 @@ Expr PerfParamTableV1::GetMTE2PipeHead(const std::vector<NodeInfo> &node_infos, 
   }
   return mte2_pipe_head;
 }
-// 暂时通过extern的方式，待注册机制Ready，通过AscIrAtt类注册
-const std::string kParamV1Info = R"(
+
+static const std::string kParamV1Info = R"(
 {
     "Abs": {
         "model_type": "SimpleLinear",
@@ -569,12 +563,6 @@ const std::string *PerfParamTableV1::GetAscendCApiPerfTable() const {
 PipeHeadPerfFunc PerfParamTableV1::GetPipeHeadPerfFunc(PipeType pipe_type) const {
   auto it = pipes_head_perf.find(pipe_type);
   if (it == pipes_head_perf.end()) {
-    static auto default_func = [](const std::vector<NodeInfo> &node_infos,
-                                  std::map<Expr, TenaryOp, ExprCmp> &tenary_ops) -> Expr {
-      (void)node_infos;
-      (void)tenary_ops;
-      return CreateExpr(0);
-    };
     return &PerfParamTableV1::GetMTE2PipeHead;
   }
   return it->second;

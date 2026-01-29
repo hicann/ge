@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_UNARY_API_TMP_V2_CALL_H__
 #define __AUTOFUSE_UNARY_API_TMP_V2_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class UnaryApiTmpV2Call : public ApiCall {

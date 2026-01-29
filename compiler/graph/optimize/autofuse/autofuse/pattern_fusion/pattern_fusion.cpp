@@ -10,19 +10,26 @@
 
 #include "utils/auto_fuse_config.h"
 #include "utils/autofuse_attrs.h"
-#include "utils/auto_fuse_config.h"
 
+#include "decompose_large_const_pass.h"
 #include "flatten_concat_pass.h"
 #include "flatten_split_pass.h"
+#include "cascade_reshape_remove_pass.h"
+#include "redundant_slice_remove_pass.h"
+#include "gather_forward_fusion_pass.h"
+#include "pad_slice_optimize_pass.h"
 #include "pattern_fusion.h"
 
 namespace ge {
 
-graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph) {
-  FlattenConcatPass multiConcatConnect;
-  GE_ASSERT_GRAPH_SUCCESS(multiConcatConnect.Run(graph));
-  FlattenSplitPass multiSplitConnect;
-  GE_ASSERT_GRAPH_SUCCESS(multiSplitConnect.Run(graph));
+graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph) const {
+  GE_ASSERT_GRAPH_SUCCESS(PadSliceOptimizePass().Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(RedundantSliceRemovePass().Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(CascadeReshapeRemovePass().Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(FlattenConcatPass().Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(FlattenSplitPass().Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(GatherForwardFusionPass().Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(DecomposeLargeConstPass::Run(graph));
   return GRAPH_SUCCESS;
 }
 }  // namespace ge

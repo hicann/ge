@@ -19,15 +19,18 @@ class TransposeFusionCaseGenerator : public FusionCaseGenerator {
  public:
   Status Generate(ascir::HintGraph &graph, std::vector<ascir::ImplGraph> &graphs,
                   std::vector<std::string> &score_functions) override;
+  bool HasLoadStoreConversion() const override {
+    return true;
+  }
 
  private:
   static std::vector<ge::AscNodePtr> FindTransposeNodes(const ascir::HintGraph &owner_graph);
-  Status TransposeNodeInputsAndOutputsCheck(const ge::AscNodePtr &transpose_node);
+  Status TransposeNodeInputsAndOutputsCheck(const ge::AscNodePtr &transpose_node) const;
   void UpdateAxisByPath(::ascir::ImplGraph &owner_graph, const ge::NodePtr &input_node,
                         std::set<ge::Node *> &visited_nodes, const std::vector<int64_t> &reordered_axis,
-                        const std::vector<int64_t> &reordered_sched_axis);
-  void UpdateAxis(ascir::HintGraph &graph, const ge::AscNodePtr &transpose_node);
-  Status TransposeConvertProcess(ascir::HintGraph &graph, const ge::AscNodePtr &transpose_node);
+                        const std::vector<int64_t> &reordered_sched_axis) const;
+  void UpdateAxis(ascir::HintGraph &graph, const ge::AscNodePtr &transpose_node) const;
+  Status TransposeConvertProcess(ascir::HintGraph &graph, const ge::AscNodePtr &transpose_node) const;
   static Status GenerateScoreFuncForUbReorder(const ascir::HintGraph &graph,
                                       const ge::AscNodePtr &transpose_node,
                                       std::string &score_func);
@@ -42,7 +45,7 @@ public:
 private:
   Status ParseRepeat();
   Status GetScoreByExpr(int32_t &score) const;
-  void GenerateReturnValue(int32_t score);
+  void GenerateReturnValue(const int32_t score);
 
   const ascir::HintGraph *graph_;
   ge::AscNodePtr transpose_node_;

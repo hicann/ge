@@ -21,10 +21,10 @@ class TracingRecorderManager {
   // msgs:事件名(主事件名/子事件名)
   // start:开始时间
   // duration:经历时间
-  void RecordDuration(TracingModule module, const std::string &msg, uint64_t start, uint64_t duration);
-  void RecordDuration(TracingModule module, const std::vector<std::string> &msgs, uint64_t start, uint64_t duration);
+  void RecordDuration(const TracingModule module, const std::string &msg, uint64_t start, uint64_t duration) const;
+  void RecordDuration(TracingModule module, const std::vector<std::string> &msgs, uint64_t start, uint64_t duration) const;
   // 上报Tracing日志(落盘)
-  Status Report(TracingModule module);
+  Status Report(const TracingModule module) const;
   TracingRecorderManager(const TracingRecorderManager &) = delete;
   TracingRecorderManager(TracingRecorderManager &&) = delete;
   TracingRecorderManager &operator=(const TracingRecorderManager &) = delete;

@@ -25,11 +25,15 @@ class GatherFusionStrategy : public FusionStrategy {
 
   // 检查两个节点是否可以融合
   bool CanFuse(const NodePtr &node1, const NodePtr &node2) override;
-  static bool CheckGatherReduceFuse(const NodePtr &node1, const NodePtr &node2, bool enableGatherReduce);
-
+  static bool CheckGatherReduceFuse(const NodePtr &node1, const NodePtr &node2, const bool enable_gather_reduce,
+                                    const bool enable_gather_broadcast);
+  static bool CheckGatherElemwiseFuse(const NodePtr &node1, const NodePtr &node2, const bool enable_gather_broadcast);
+  static bool CheckGatherConcatFuse(const NodePtr &node1, const NodePtr &node2, const bool enable_gather_concat,
+                                    bool enable_gather_broadcast);
   // 获取融合对的优先级
-  uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
+  FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2) override;
   static bool CheckGatherFuseAxis(const NodePtr &node1, const NodePtr &node2);
+  static bool CheckGatherWithView(const NodePtr &node1, const NodePtr &node2, const bool enable_gather_broadcast);
 
  private:
   static bool IsForwardFuseGather(const NodePtr &node1, const NodePtr &node2);

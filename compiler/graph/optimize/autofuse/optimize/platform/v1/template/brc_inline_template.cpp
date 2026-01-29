@@ -9,9 +9,6 @@
  */
 
 #include "brc_inline_template.h"
-#include <algorithm>
-#include <cstddef>
-#include <numeric>
 #include <sstream>
 #include <string>
 #include <queue>
@@ -58,6 +55,8 @@ bool BrcInlineTemplate::IsNodeSupportBrcInline(const ge::NodePtr &node) {
  */
 ge::Status BrcInlineTemplate::Generate(const ge::AscGraph &origin_graph, const ge::AscGraph &based_case,
                                        ge::AscGraph &new_case) {
+  (void)origin_graph;
+  (void)based_case;
   int32_t brc_inlined_count = 0;
   for (const auto &node : new_case.GetAllNodes()) {
     GE_WARN_ASSERT(!ScheduleUtils::IsReduce(node), "Brc inline not support Reduce(%s) now.", node->GetNamePtr());
@@ -78,6 +77,8 @@ ge::Status BrcInlineTemplate::Generate(const ge::AscGraph &origin_graph, const g
 
 bool BrcInlineTemplate::NeedDropBasedCase(const ge::AscGraph &origin_graph, const ge::AscGraph &based_case,
                                          const ge::AscGraph &new_case) {
+  (void)based_case;
+  (void)new_case;
   return ScheduleUtils::IsStaticGraph(origin_graph);
 }
 

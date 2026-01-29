@@ -80,6 +80,9 @@ struct NodeFuseInfo {
   bool GetHasSliceVertical() const {
     return has_slice_vertical_;
   }
+  bool CanDoHorizontalMapping() const {
+    return can_do_horizontal_mapping_ && (!has_slice_vertical_);
+  }
   bool IsSingleReference(int32_t index) const {
     auto it = std::find_if(is_single_reference_.begin(), is_single_reference_.end(),
                            [&index](const std::pair<int32_t, bool> &p) { return p.first == index; });
@@ -134,6 +137,7 @@ struct NodeFuseInfo {
     node1_pre_nodes_.clear();
     node2_pre_nodes_.clear();
     has_slice_vertical_ = false;
+    can_do_horizontal_mapping_ = true;
   }
 
   /**
@@ -248,6 +252,7 @@ struct NodeFuseInfo {
   std::vector<std::pair<ge::NodePtr, int32_t>> node1_pre_nodes_;
   std::vector<std::pair<ge::NodePtr, int32_t>> node2_pre_nodes_;
   bool has_slice_vertical_{false};  // slice节点需要判断初始状态是否同时可以水平融合和垂直融合
+  bool can_do_horizontal_mapping_{true}; // matmul节点同时有水平融合和垂直融合时不做水平融合轴映射为false，其他节点默认true
   bool open_log_;  // 是否打印轴映射日志，true表示打印，false表示不打印
 };
 
@@ -451,25 +456,6 @@ class AscGraphAxisMapping {
   bool CanLoopMerge(const NodePtr &node1, const NodePtr &node2);
 
   /**
-   * 该函数用于判断指定节点的输入是否为最简单的 Load 操作。它会遍历输入节点的上游节点，
-   * 检查是否存在简单的 Load 操作，并确保这些操作没有引入额外的视图操作。
-   *
-   * @param peer_node 输入节点的指针（输入参数），表示需要检查的节点。
-   * @param in_anchor 输入节点的输入数据锚点指针（输入参数），表示需要检查的输入端。
-   * @return 如果输入节点的输入是最简单的 Load 操作，则返回 true；否则返回 false。
-   */
-  bool AscNodeInputIsSimplestLoad(const NodePtr &peer_node, const InDataAnchorPtr &in_anchor) const;
-
-  /**
-   * 该函数用于判断指定节点的前置节点的输入是否为纯粹的load操作。
-   *
-   * @param node 当前节点的指针
-   * @param index 当前节点的输入锚点的索引
-   * @return 如果前置节点的输入是最简形式的加载操作，则返回 true；否则返回 false
-   */
-  bool PreNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index) const;
-
-  /**
    * 该函数用于获取两个子图的水平映射信息，并判断它们是否可以进行轴映射。
    * 它会分别获取两个节点的当前轴信息和图形轴信息，并调用 CanAxisMap 函数判断轴信息是否可以映射。
    * 如果轴映射成功，则进一步判断是否可以进行循环合并。
@@ -493,21 +479,6 @@ class AscGraphAxisMapping {
    */
   Status ProcessSubGraphVerticalMapInfo(const NodePtr &node1, const NodePtr &node2, const NodeFuseInfo &fuse_info,
                                         AxisPairSet &node1_map, AxisPairSet &node2_map);
-
-  /**
-   * 该函数用于获取指定节点的前置 AscBackend 节点及其对应的输入锚点。
-   * 它首先通过融合节点的输入锚点找到子图的输出索引，然后根据索引获取网络输出节点及其输入锚点，
-   * 最后通过输出锚点的对等输出锚点获取前置的 AscBackend 节点。
-   *
-   * @param node 当前节点的指针，表示需要获取前置节点的节点
-   * @param fused_in_anchor 融合节点的输入锚点指针，用于定位子图的输出索引
-   * @param asc_node 用于存储前置 AscBackend 节点的引用，函数执行成功后将更新此参数
-   * @param netoutput_in_anchor 用于存储网络输出节点输入锚点的引用，函数执行成功后将更新此参数
-   * @return 如果函数执行成功，返回 SUCCESS；否则返回相应的错误状态
-   */
-  Status GetPreAscBackendNodeAndAnchor(const NodePtr &node, const NodePtr &peer_node,
-                                       const InDataAnchorPtr &fused_in_anchor, NodePtr &asc_node,
-                                       InDataAnchorPtr &netoutput_in_anchor) const;
 
   /**
    * 该函数用于检查两个子图的水平轴映射关系，确保它们的节点轴和调度轴能够正确映射。

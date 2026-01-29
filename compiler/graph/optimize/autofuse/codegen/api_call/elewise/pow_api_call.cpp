@@ -16,7 +16,7 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils//asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
+#include "api_call/utils/api_call_factory.h"
 
 namespace codegen {
 using namespace std;
@@ -31,6 +31,14 @@ Status PowApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId>
   const auto &x1 = inputs[0].get();
   const auto &x2 = inputs[1].get();
   const auto &y = outputs[0].get();
+
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "PowApiCall cannot find tmp buffer id to use.");
+  id = it->second;
+
   GELOGD("x1, is_constant:%d, is_ub_scalar:%d, need_gen_get_value_of_ub_scalar:%d",
          static_cast<int32_t>(x1.is_constant), static_cast<int32_t>(x1.is_ub_scalar),
          static_cast<int32_t>(x1.need_gen_get_value_of_ub_scalar));
@@ -58,7 +66,8 @@ Status PowApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId>
 
   ss << this->api_name_ << "(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], ";  // 输出
   if (x1_is_scalar_scene && x2_is_scalar_scene) {
-    ss << x1_scalar << ", " << x2_scalar << ", " << y.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+    ss << x1_scalar << ", " << x2_scalar << ", " << y.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id)
+       << ");" << std::endl;
   } else {
     if (x1_is_scalar_scene) {
       ss << x1_scalar << ", ";  // 输入1
@@ -72,10 +81,10 @@ Status PowApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId>
     }
     if (x1_is_scalar_scene) {
       // x1为scalar, cnt为x2.actual_size
-      ss << x2.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+      ss << x2.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
     } else {
       // x2为scalar或都为tensor的场景, cnt以x1.actual_size为准
-      ss << x1.actual_size << ", " << tpipe.tmp_buf << ");" << std::endl;
+      ss << x1.actual_size << ", " << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
     }
   }
   result = ss.str();

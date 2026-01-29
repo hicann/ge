@@ -129,7 +129,7 @@ ge::Status AlignmentStrategy::EleWiseAlignmentInferFunc(const ge::AscNodePtr &no
 ge::Status AlignmentStrategy::LoadAlignmentInferFunc(const ge::AscNodePtr &node) {
   const auto &output_attr = node->outputs[0].attr;
   // 尾轴非连续,引入尾轴离散
-  if (IsNeedDiscontinuousAligned(output_attr)) {
+  if (ScheduleUtils::IsNeedDiscontinuousAligned(output_attr)) {
     GELOGD("Node[%s] is last axis discontinuous writing, input tensor needs to be aligned.", node->GetNamePtr());
     tensor_to_align_type_[&output_attr] = {AlignmentType::kDiscontinuous};
   } else if (!ScheduleUtils::IsVectorizedAxisContinuousInGM(output_attr) || IsLoadNeedAlignForReduce(node)) {
@@ -148,8 +148,12 @@ ge::Status AlignmentStrategy::StoreAlignmentInferFunc(const ge::AscNodePtr &node
   const auto &output_attr = node->outputs[0].attr;
   AlignmentType input_align = tensor_to_align_type_[&node->inputs[0].attr].align_type;
   tensor_to_align_type_[&output_attr] = {input_align};
-  if (!ScheduleUtils::IsVectorizedAxisContinuousInGM(output_attr) &&
-      (input_align == AlignmentType::kNotAligned || input_align == AlignmentType::kFixedNotAligned)) {
+  if (ScheduleUtils::IsNeedDiscontinuousAligned(output_attr)) {
+    GELOGD("Node[%s] is last axis discontinuous writing, input tensor needs to be aligned.", node->GetNamePtr());
+    tensor_to_align_type_[&output_attr] = {AlignmentType::kDiscontinuous};
+    GE_ASSERT_SUCCESS(BackPropagateAlignment(node, AlignmentType::kDiscontinuous));
+  } else if (!ScheduleUtils::IsVectorizedAxisContinuousInGM(output_attr) &&
+             (input_align == AlignmentType::kNotAligned || input_align == AlignmentType::kFixedNotAligned)) {
     GELOGD("Node[%s] is discontinuous writing, input tensor needs to be aligned.", node->GetNamePtr());
     tensor_to_align_type_[&output_attr] = {AlignmentType::kAligned};
     GE_ASSERT_SUCCESS(BackPropagateAlignment(node));

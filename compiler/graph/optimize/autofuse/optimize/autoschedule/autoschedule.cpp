@@ -87,7 +87,7 @@ bool IsNotLoopAxis(ascir::ImplGraph &impl_graph, int64_t axis, std::vector<int64
 }  // namespace
 
 namespace optimize::autoschedule {
-Status AutoSchedule::SelectLoopAxis(ascir::ImplGraph &impl_graph) const {
+Status AutoSchedule::SelectLoopAxis(ascir::ImplGraph &impl_graph, bool is_reduce_fullload) const {
   bool has_reduce = false;
   for (auto node : impl_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
@@ -95,7 +95,7 @@ Status AutoSchedule::SelectLoopAxis(ascir::ImplGraph &impl_graph) const {
     if (node->attr.api.type != ge::ApiType::kAPITypeCompute) {
       continue;
     }
-    if (ScheduleUtils::IsReduce(node)) {
+    if (ScheduleUtils::IsReduce(node) && !is_reduce_fullload) {
       has_reduce = true;
     }
     auto axis = node->attr.sched.axis;
@@ -133,7 +133,7 @@ void AutoSchedule::GenTilingCase(std::vector<TilingCase> &tiling_cases) {
     }
     return;
   }
-  auto append_reduce_case = [&tiling_cases](const TilingCase &base_case, auto reduce_id) {
+  auto append_reduce_case = [&tiling_cases](const TilingCase &base_case) {
     auto reduce_case = base_case;
     reduce_case.block_tiling_id = 1;
     reduce_case.reduce_is_block = true;
@@ -168,7 +168,7 @@ void AutoSchedule::GenTilingCase(std::vector<TilingCase> &tiling_cases) {
         set_tiling_id(tiling_case.ub_tiling_id_r, r_id);
         tiling_case.block_tiling_id = 0;
         if (is_reduce_first_stage_ && r_id != kDefaultAxisId) {
-          append_reduce_case(tiling_case, r_id);
+          append_reduce_case(tiling_case);
         } else {
           tiling_cases.push_back(tiling_case);
         }
@@ -242,7 +242,7 @@ Status AutoSchedule::DoAutoSchedule() {
       output.var_relations_["A_org_size"] = tiling_case.a_org_size;
     }
 
-    GE_CHK_STATUS_RET(SelectLoopAxis(output.scheduled_graph),
+    GE_CHK_STATUS_RET(SelectLoopAxis(output.scheduled_graph, is_reduce_full_load),
                       "Failed to select loop axis for tiling case %zu in graph: [%s]", index, graph_name.c_str());
 
     schd_outputs_.emplace_back(output);
@@ -250,6 +250,18 @@ Status AutoSchedule::DoAutoSchedule() {
   // 多模板
   GE_CHK_STATUS_RET(TemplateGeneratorHandler::GenerateTemplates(graph_, schd_outputs_),
                     "Failed to generate templates for graph: [%s]", graph_.GetName().c_str());
+  if (cube_template_ == ascir::CubeTemplateType::kUBFuse) {
+    std::vector<AutoScheduleOutput> schd_outputs_non_db;
+    for (const auto &schd_output : schd_outputs_) {
+      auto graph_name = schd_output.scheduled_graph.GetName() + "_non_db";
+      AutoScheduleOutput output_non_db(graph_name.c_str());
+      output_non_db.scheduled_graph.CopyFrom(schd_output.scheduled_graph);
+      output_non_db.var_relations_ = schd_output.var_relations_;
+      output_non_db.score_func = schd_output.score_func;
+      schd_outputs_non_db.emplace_back(output_non_db);
+    }
+    schd_outputs_.insert(schd_outputs_.begin(), schd_outputs_non_db.begin(), schd_outputs_non_db.end());
+  }
   return ge::SUCCESS;
 }
 }  // namespace optimize::autoschedule

@@ -47,6 +47,10 @@ bool IsUltraLowToLowPrecision(DataType peer_output_dtype, DataType output_dtype)
   return IsUltraLowPrecisionDataType(peer_output_dtype) && IsLowPrecisionDataType(output_dtype);
 }
 
+[[maybe_unused]]bool IsLowToUltraLowPrecision(DataType peer_output_dtype, DataType output_dtype) {
+  return IsLowPrecisionDataType(peer_output_dtype) && IsUltraLowPrecisionDataType(output_dtype);
+}
+
 bool IsFloatToUltraLowPrecision(DataType peer_output_dtype, DataType output_dtype) {
   return IsFloatDataType(peer_output_dtype) && IsUltraLowPrecisionDataType(output_dtype);
 }
@@ -64,6 +68,9 @@ bool IsNodeTypeInPeerInNodes(const std::string &node_type, const std::vector<Nod
 // 判断是否需要删除节点
 bool ShouldDeleteCastNode(const NodePtr &node, const std::vector<NodePtr> &peer_in_nodes, const NodePtr &peer_out_node,
                           DataType peer_output_dtype, DataType output_dtype) {
+  (void)node;
+  (void)peer_in_nodes;
+  (void)peer_out_node;
   // 如果此cast实现的是fp32和fp16或者bf16之间的转换，则需要删除
   return IsFloatDataType(output_dtype) && IsFloatDataType(peer_output_dtype);
 }
@@ -177,7 +184,8 @@ Status UpdateNodeInfo(const AscGraph &asc_graph, const NodePtr &c_node, const No
   return SUCCESS;
 }
 
-Status UpdateCastNodeTensorInfo(const NodePtr &c_node, const NodePtr &node, bool is_increase_precision) {
+Status UpdateCastNodeTensorInfo(const NodePtr &c_node, const NodePtr &node, const NodePtr &next_node,
+                                bool is_increase_precision) {
   const auto node_opdesc = node->GetOpDesc();
   GE_ASSERT_NOTNULL(node_opdesc);
   const auto output_tensor_desc = node_opdesc->MutableOutputDesc(0);
@@ -189,11 +197,20 @@ Status UpdateCastNodeTensorInfo(const NodePtr &c_node, const NodePtr &node, bool
   GE_ASSERT_NOTNULL(c_output_tensor_desc);
   const auto c_o_attr = c_output_tensor_desc->GetOrCreateAttrsGroup<AscTensorAttr>();
   GE_ASSERT_NOTNULL(c_o_attr);
+  if (is_increase_precision) {
+    c_output_tensor_desc->SetDataType(DT_FLOAT);
+  } else {
+    const auto next_node_opdesc = next_node->GetOpDesc();
+    GE_ASSERT_NOTNULL(next_node_opdesc);
+    const auto next_output_tensor_desc = next_node_opdesc->MutableOutputDesc(0);
+    GE_ASSERT_NOTNULL(next_output_tensor_desc);
+    c_output_tensor_desc->SetDataType(IsLowPrecisionDataType(next_output_tensor_desc->GetDataType())
+                                      ? next_output_tensor_desc->GetDataType()
+                                      : DT_FLOAT16);
+  }
 
   const auto output_attr = output_tensor_desc->GetAttrsGroup<AscTensorAttr>();
   GE_ASSERT_NOTNULL(output_attr);
-  c_output_tensor_desc->SetDataType(is_increase_precision ? DT_FLOAT :
-      (IsLowPrecisionDataType(output_tensor_desc->GetDataType()) ? output_tensor_desc->GetDataType() : DT_FLOAT16));
   c_o_attr->axis = output_attr->axis;
   c_o_attr->repeats = output_attr->repeats;
   c_o_attr->strides = output_attr->strides;
@@ -220,7 +237,7 @@ Status InsertCastToDecreasePrecision(AscGraph &asc_graph, const NodePtr &store_n
   // 给cast补tensor info要根据前驱节点来补，如果根据后面的store节点来补，后驱节点是slice场景会出错
   NodePtr peer_out_node;
   GE_ASSERT_SUCCESS(asc_adapt::GetPeerOutNode(c_node, peer_out_node, 0));
-  GE_ASSERT_SUCCESS(UpdateCastNodeTensorInfo(c_node, peer_out_node, false));
+  GE_ASSERT_SUCCESS(UpdateCastNodeTensorInfo(c_node, peer_out_node, store_node, false));
   GE_ASSERT_SUCCESS(UpdateNodeInfo(asc_graph, c_node, store_node));
   return SUCCESS;
 }
@@ -260,7 +277,7 @@ Status InsertCastBeforeNode(AscGraph &asc_graph, const NodePtr &other_node, bool
     // 给cast补tensor info要根据前驱节点来补，如果根据后面的节点来补，后驱节点是减少轴的view算子会出错
     NodePtr peer_out_node;
     GE_ASSERT_SUCCESS(asc_adapt::GetPeerOutNode(c_node, peer_out_node, 0));
-    GE_ASSERT_SUCCESS(UpdateCastNodeTensorInfo(c_node, peer_out_node, is_increase_precision));
+    GE_ASSERT_SUCCESS(UpdateCastNodeTensorInfo(c_node, peer_out_node, other_node, is_increase_precision));
     GE_ASSERT_SUCCESS(UpdateNodeInfo(asc_graph, c_node, other_node));
   }
   return SUCCESS;
@@ -279,7 +296,7 @@ Status InsertCastToIncreasePrecision(AscGraph &asc_graph, const NodePtr &load_no
   auto c_node = CreateCastNode(asc_graph, load_node);
   GE_ASSERT_NOTNULL(c_node);
   GE_ASSERT_SUCCESS(InsertNodeAfterLoadNode(load_node, c_node));
-  GE_ASSERT_SUCCESS(UpdateCastNodeTensorInfo(c_node, load_node, true));
+  GE_ASSERT_SUCCESS(UpdateCastNodeTensorInfo(c_node, load_node, nullptr, true));
   GE_ASSERT_SUCCESS(UpdateCastNodeInfo(c_node, load_node));
   return SUCCESS;
 }

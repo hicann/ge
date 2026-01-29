@@ -15,10 +15,8 @@
 #include <queue>
 #include "ascir.h"
 #include "ascendc_ir/ascendc_ir_core/ascendc_ir.h"
-#include "schedule_utils.h"
-#include "ascir_utils.h"
+#include "optimize/schedule_utils.h"
 #include "graph/utils/graph_utils.h"
-#include "ascir_ops_utils.h"
 #include "symbolizer/symbolic_utils.h"
 
 namespace optimize {
@@ -50,7 +48,7 @@ class BaseAlignmentStrategy {
 
   // 只允许load出现尾轴非连续
   ge::Status AlignVectorizedStrides(ascir::ImplGraph &impl_graph);
-  static ge::Status SetVectorizedStridesForTensor(const ge::NodePtr &node, ge::AscTensorAttr &output_attr, AlignmentType align_type);
+  static ge::Status SetVectorizedStridesForTensor(const ge::NodePtr &node, ge::AscTensorAttr &output_attr, const AlignmentType align_type);
 
  protected:
   virtual AlignmentType GetDefaultAlignmentType() = 0;
@@ -78,7 +76,7 @@ class BaseAlignmentStrategy {
                                   std::queue<ge::Node *> &node_queue);
 
   static ge::Status AddRemovePadForTailAxisDiscontinuousLoad(ascir::ImplGraph &impl_graph);
-  ge::Status CheckIsNoNeedPad(const ge::AscNodePtr &node, ge::AscTensorAttr &out_attr, bool &is_no_need_pad);
+  ge::Status CheckIsNoNeedPad(const ge::AscNodePtr &node, ge::AscTensorAttr &out_attr, bool &is_no_need_pad) const;
   ge::Status AddPadForAlignmentConflictNode(ascir::ImplGraph &impl_graph);
   // 多输入elewise,有一个fix,需要向上传递fix状态,防止输入链路上被后续节点刷成align
   ge::Status BackPropagateFixUnAlignType(const ge::AscNodePtr &node);
@@ -90,7 +88,5 @@ class BaseAlignmentStrategy {
 
 bool IsLoadNeedAlignForReduce(const ge::AscNodePtr &node);
 bool IsLoadNeedAlign(const ge::AscNodePtr &node_load);
-Status GenLoadToGenNddmaNode(const ge::AscNodePtr &node_load);
-
 }  // namespace optimize
 #endif  // OPTIMIZE_PLATFORM_COMMON_BASE_ALIGNMENT_STRATEGY_H

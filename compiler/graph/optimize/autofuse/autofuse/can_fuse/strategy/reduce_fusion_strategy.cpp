@@ -52,31 +52,6 @@ bool ReduceFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
           node2->GetType().c_str(), ge::NotFuseReasonCode(ge::NotFuseReason::kReduceCanOnlyBackwardFuse3Elementwise));
       return false;
     }
-    // 与reduce后融合的elementwise节点，它的输入有多个的话则不能融合
-    if (node2->GetAllInDataAnchorsSize() > 1U && !BackendUtils::IsAllInputFromSameNode(node2)) {
-      GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][In reduce fusion occasion, the elementwise "
-          "node has more than one input, and all inputs from same node]", node1->GetNamePtr(), node2->GetType().c_str(),
-          node2->GetNamePtr(), node2->GetType().c_str(), ge::NotFuseReasonCode(ge::NotFuseReason::kElementwiseHasMoreThanOneInput));
-      return false;
-    }
-    //          data    data
-    //           |       |
-    //          load    load
-    //            \     /
-    //              Mul    scalar
-    //               |       |
-    //             reduce broadcast
-    //               \       /
-    //                  Mul
-    // 上面图中的场景就是下面的Mul是一个elementwise节点，其中一个输入是scalar，但是在lowering阶段，scalar这条边去掉了，所以Mul的输入anchor
-    // 只有1个，但是实际上在ascgraph中是有2个，这种场景也不融合。
-    if (node2->GetAllInDataAnchorsSize() == 1U && BackendUtils::HasScalarInAscgraph(node2)) {
-      GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][In reduce fusion occasion, the elementwise "
-          "node only one input anchor, but it has two inputs in ascgraph, the other one input is scalar]",
-          node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str(),
-          ge::NotFuseReasonCode(ge::NotFuseReason::kElementwiseOnlyOneInDataAnchorButOtherInputIsScalar));
-      return false;
-    }
   }
   return true;
 }

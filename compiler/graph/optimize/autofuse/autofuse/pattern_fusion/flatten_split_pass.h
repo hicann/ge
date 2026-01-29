@@ -21,7 +21,7 @@ namespace ge {
 class FlattenSplitPass {
  public:
   static graphStatus Run(const ComputeGraphPtr &graph);
-  static graphStatus CanFlatten(const NodePtr &node, size_t split_dim, size_t num_outputs);
+  static graphStatus CanFlatten(const NodePtr &node, const size_t split_dim, const size_t num_outputs);
 };
 }  // namespace ge
 

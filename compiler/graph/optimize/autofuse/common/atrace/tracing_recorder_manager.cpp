@@ -18,12 +18,12 @@ TracingRecorderManager &TracingRecorderManager::Instance() {
 }
 
 void TracingRecorderManager::RecordDuration(const TracingModule module, const std::string &msg, uint64_t start,
-                                            uint64_t duration) {
+                                            uint64_t duration) const {
   RecordDuration(module, std::vector<std::string>{msg}, start, duration);
 }
 
 void TracingRecorderManager::RecordDuration(TracingModule module, const std::vector<std::string> &msgs,
-                                            uint64_t start, uint64_t duration) {
+                                            uint64_t start, uint64_t duration) const {
   auto tracing_recorder = GetTracingRecorder(module);
   if (tracing_recorder == nullptr) {
     GELOGW("Can not find tracing recorder of module[%u]", module);
@@ -32,7 +32,7 @@ void TracingRecorderManager::RecordDuration(TracingModule module, const std::vec
   tracing_recorder->RecordDuration(msgs, start, duration);
 }
 
-Status TracingRecorderManager::Report(const TracingModule module) {
+Status TracingRecorderManager::Report(const TracingModule module) const {
   auto tracing_recorder = GetTracingRecorder(module);
   GE_ASSERT_NOTNULL(tracing_recorder);
   tracing_recorder->Report();

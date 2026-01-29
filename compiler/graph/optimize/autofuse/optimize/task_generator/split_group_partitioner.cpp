@@ -17,7 +17,6 @@
 #include "graph/utils/graph_utils.h"
 
 #include "ascir_ops.h"
-#include "ascir/meta/ascir_ops_utils.h"
 #include "platform/platform_factory.h"
 
 namespace optimize {
@@ -54,7 +53,7 @@ Status SplitGroupPartitioner::Initialize() {
   return ge::SUCCESS;
 }
 
-Status SplitGroupPartitioner::PartitionGroups(std::vector<SplitGroup> &groups) {
+Status SplitGroupPartitioner::PartitionGroups([[maybe_unused]]const std::vector<SplitGroup> &groups) {
   GE_ASSERT_SUCCESS(Initialize());
   return ge::SUCCESS;
 }

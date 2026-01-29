@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "generator/preprocess/args_manager.h"
@@ -97,7 +91,7 @@ VarInfo &ArgsManager::SetSizeInfo(VarInfo &info, const SymVarInfoPtr &var_info, 
       max_value = arg_axis->orig_axis[i]->size->symbol_expr;
     }
     if (!IsValid(max_value)) {
-      max_value = CreateExpr(info.align);
+      max_value = info.align;
     }
     info.max_value = max_value;
   }
@@ -114,9 +108,9 @@ VarInfo &ArgsManager::SetInitSize(VarInfo &info, const bool is_last) {
   if (is_last) {
     info.init_value = info.max_value;
   } else {
-    info.init_value = CreateExpr(info.align);
+    info.init_value = info.align;
   }
-  info.min_value = CreateExpr(info.align);
+  info.min_value = info.align;
   if (!IsValid(info.init_value)) {
     GELOGW("null init value.");
   }
@@ -287,7 +281,7 @@ bool ArgsManager::SetNewVarInfoAttrs(const Expr &old_var, const ExprExprMap &rep
                                      const ExprExprMap ori_to_new_vars_map,
                                      const ExprExprMap local_new_expr_replacements, VarInfo &new_var_info) {
   GE_ASSERT_TRUE(ori_to_new_vars_map.find(old_var) != ori_to_new_vars_map.cend(), "CreateExpr replacement loss");
-  new_var_info.align = kDefaultAlign;
+  new_var_info.align = ge::Symbol(kDefaultAlign);
   auto new_var = ori_to_new_vars_map.at(old_var);
   new_var_info.replacement.orig_expr = old_var;
   new_var_info.cut_leq_cons.clear();
@@ -373,10 +367,10 @@ void ArgsManager::SetOrigExprs() {
     tenary_op_[pair.first] = pair.second.DeepCopy();
   }
   for (const auto &var_info : vars_infos_) {
-    if (var_info.second.is_input_var == false) {
+    if (!var_info.second.is_input_var) {
       ori_var_init_values_[var_info.first] = GetDefaultInitValue(var_info.first);
       ori_var_max_values_[var_info.first] = GetMaxValue(var_info.first);
-      ori_var_align_values_[var_info.first] = CreateExpr(var_info.second.align);
+      ori_var_align_values_[var_info.first] = var_info.second.align;
     }
   }
   for (const auto &leq_exprs : model_info_.leq_exprs) {
@@ -561,10 +555,10 @@ Expr ArgsManager::GetDefaultInitValue(const Expr &var) const {
   return ge::sym::kSymbolOne;
 }
 
-uint32_t ArgsManager::GetVarAlignValue(const Expr &var) const {
+Expr ArgsManager::GetVarAlignValue(const Expr &var) const {
   if (vars_infos_.find(var) == vars_infos_.end()) {
     GELOGE(ge::FAILED, "CreateExpr : [%s] is not defined", var.Str().get());
-    return 0u;
+    return ge::Symbol(0U);
   }
   return vars_infos_.at(var).align;
 }
@@ -640,14 +634,6 @@ uint32_t ArgsManager::GetTilingCaseId() const {
   return tiling_case_id;
 }
 
-const std::map<uint32_t, Optional> &ArgsManager::GetOptionalAtts() const {
-  return model_info_.graph_input_infos.optional_atts;
-}
-
-const std::map<uint32_t, InputTensor> &ArgsManager::GetInputAtts() const {
-  return model_info_.graph_input_infos.input_atts;
-}
-
 const ExprExprMap &ArgsManager::GetContainerMap() const {
   return model_info_.variable_expr_map;
 }
@@ -677,34 +663,6 @@ Expr ArgsManager::GetHeadCost() const {
   }
   GELOGW("CoreNum is not found, HeadCost is zero.");
   return CreateExpr(0);
-}
-
-std::map<std::string, std::map<uint32_t, std::vector<int64_t>>> ArgsManager::GetAxisMap() const {
-  std::map<std::string, std::map<uint32_t, std::vector<int64_t>>> ret;
-  for (const auto &arg_axis : model_info_.arg_list) {
-    std::map<uint32_t, std::vector<int64_t>> valid_axis_map;
-    for (const auto &pair : arg_axis->axis_continuous_map) {
-      if (pair.second.size() == 1 && pair.second[0] == INT64_MAX) {
-        continue;
-      }
-      valid_axis_map[pair.first] = pair.second;
-    }
-    ret[Str(arg_axis->size->symbol_expr)] = valid_axis_map;
-  }
-  return ret;
-}
-
-std::map<uint32_t, std::vector<std::vector<int64_t>>> ArgsManager::GetAxisContinousMap() const {
-  std::map<uint32_t, std::vector<std::vector<int64_t>>> ret;
-  for (const auto &arg_axis : model_info_.arg_list) {
-    for (const auto &pair : arg_axis->axis_continuous_map) {
-      if (pair.second[0] == INT64_MAX) {
-        continue;
-      }
-      ret[pair.first].emplace_back(pair.second);
-    }
-  }
-  return ret;
 }
 
 ExprUintMap ArgsManager::GetAxesPriority() const {

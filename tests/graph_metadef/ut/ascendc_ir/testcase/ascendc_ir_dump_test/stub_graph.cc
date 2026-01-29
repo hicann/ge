@@ -389,7 +389,7 @@ void FaAfterScheduler(ge::AscGraph &graph) {
   std::tuple<ge::AxisPtr, ge::AxisPtr> split = graph.TileSplit(s1);
   auto s1T = *(std::get<0>(split));
   auto s1t = *(std::get<1>(split));
-  graph.FindAxis(s1t.id)->align = 128;
+  graph.FindAxis(s1t.id)->align = Symbol(128);
   auto mcAxis = *graph.MergeAxis({b, n, g, s1T.id});
   split = graph.BlockSplit(mcAxis.id);
   auto mcAxisB = *(std::get<0>(split));
@@ -398,7 +398,7 @@ void FaAfterScheduler(ge::AscGraph &graph) {
   split = graph.TileSplit(s2);
   auto s2T = *(std::get<0>(split));
   auto s2t = *(std::get<1>(split));
-  graph.FindAxis(s2t.id)->align = 256;
+  graph.FindAxis(s2t.id)->align = Symbol(256);
 
   split = graph.TileSplit(s1t.id);
   auto s1tT = *(std::get<0>(split));

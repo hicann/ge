@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 /*!
@@ -24,13 +24,12 @@
 
 #define MAT_MUL_FOR_BATCH 0
 #define MAT_MUL_ITER_BATCH_SINGLE_BIAS 1
-#define MAT_MUL_ITER_BATCH_BATCH_BIAS 2
-#define MAT_MUL_BATCH_MATMUL_TO_MUL 3
+#define MAT_MUL_BATCH_MATMUL_TO_MUL 2
+#define MAT_MUL_MERGE_BATCH 3
 
 #define MAT_MUL_BASIC 0
 #define MAT_MUL_STREAM_K 1
-#define MAT_MUL_DOUBLE_ASWT 2
-#define MAT_MUL_K_EQUAL_ZERO 3
+#define MAT_MUL_K_EQUAL_ZERO 2
 
 #define MAT_MUL_NO_FULL_LOAD 0
 #define MAT_MUL_A_FULL_LOAD 1
@@ -61,17 +60,16 @@ enum class MatMulV3ApiLevel : std::uint8_t
 
 enum class MatMulV3BatchModel : std::uint8_t
 {
-    BATH_MODEL = MAT_MUL_FOR_BATCH,
+    BATCH_MODEL = MAT_MUL_FOR_BATCH,
     SINGLE_BIAS_MODEL = MAT_MUL_ITER_BATCH_SINGLE_BIAS,
-    MULTI_BATCH_MODEL = MAT_MUL_ITER_BATCH_BATCH_BIAS,
-    BATCH_MATMUL_TO_MUL = MAT_MUL_BATCH_MATMUL_TO_MUL
+    BATCH_MATMUL_TO_MUL = MAT_MUL_BATCH_MATMUL_TO_MUL,
+    MERGE_BATCH_MODEL = MAT_MUL_MERGE_BATCH
 };
 
 enum class MatMulV3Model : std::uint8_t
 {
     BASIC = MAT_MUL_BASIC,
     STREAM_K = MAT_MUL_STREAM_K,
-    DOUBLE_ASWT = MAT_MUL_DOUBLE_ASWT,
     K_EQUAL_ZERO = MAT_MUL_K_EQUAL_ZERO
 };
 

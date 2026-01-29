@@ -21,10 +21,10 @@
 
 namespace ge {
 
-std::string AdxGetAdditionalInfo(const Adx::OperatorInfo &info, const std::string key);
-std::string AdxGetTilingKey(const Adx::OperatorInfo &info);
-bool AdxGetArgsInfo(const Adx::OperatorInfo &info, void *&addr, uint64_t &length);
-bool AdxGetWorkspaceInfo(const Adx::OperatorInfo &info, uint32_t index, void *&addr, uint64_t &length);
+std::string AdxGetAdditionalInfo(const Adx::OperatorInfoV2 &info, const std::string key);
+std::string AdxGetTilingKey(const Adx::OperatorInfoV2 &info);
+bool AdxGetArgsInfo(const Adx::OperatorInfoV2 &info, void *&addr, uint64_t &length);
+bool AdxGetWorkspaceInfo(const Adx::OperatorInfoV2 &info, uint32_t index, void *&addr, uint64_t &length);
 
 class DumpStub {
  public:
@@ -88,14 +88,14 @@ class DumpStub {
     return units_static_;
   }
 
-  void AddOpInfo(const Adx::OperatorInfo &op_info);
+  void AddOpInfo(const Adx::OperatorInfoV2 &op_info);
 
-  const std::vector<Adx::OperatorInfo> &GetOpInfos() {
+  const std::vector<Adx::OperatorInfoV2> &GetOpInfos() {
     std::lock_guard<std::mutex> lk(mu_);
     return dump_op_infos_;
   }
 
-  bool GetOpInfo(uint32_t device_id, uint32_t stream_id, uint32_t task_id, Adx::OperatorInfo &info) {
+  bool GetOpInfo(uint32_t device_id, uint32_t stream_id, uint32_t task_id, Adx::OperatorInfoV2 &info) {
     std::lock_guard<std::mutex> lk(mu_);
     for (const auto &op_info : dump_op_infos_) {
       if ((op_info.deviceId == device_id) && (op_info.streamId == stream_id) && (op_info.taskId == task_id)) {
@@ -190,7 +190,7 @@ class DumpStub {
   std::vector<std::vector<uint64_t>> units_;
   std::vector<std::vector<uint64_t>> units_dynamic_;
   std::vector<std::vector<uint64_t>> units_static_;
-  std::vector<Adx::OperatorInfo> dump_op_infos_;            // for exception dump
+  std::vector<Adx::OperatorInfoV2> dump_op_infos_;            // for exception dump
   std::vector<std::vector<gert::Tensor>> dump_op_tensors_;  // for exception dump
   std::map<std::string, int32_t> stub_func_ret_;
   std::map<Adx::DumpType, Adx::DumpConfig> dump_configs_;

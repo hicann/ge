@@ -61,33 +61,45 @@ Status ConcatApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
   std::string dtype_name;
   GE_CHK_STATUS_RET(Tensor::DtypeName(y.dtype, dtype_name), "Codegen get data type:%d failed",
                     static_cast<int32_t>(y.dtype));
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  if (it != this->tmp_buf_id.end()) {
+    id = it->second;
+  }
 
   // 调用api
   ConcatTiling concat_tiling;
   GE_ASSERT_SUCCESS(InitializeTiling(concat_dim, inputs, y, concat_tiling));
   std::stringstream ss;
   if (use_concat_small_tail_api_) {
+    GE_ASSERT_TRUE(id != -1L, "ConcatApiCall cannot find tmp buffer id to use.");
     if (concat_tiling.dst_col_size_expr.IsConstExpr()) {
       GE_ASSERT_SUCCESS(CalcTiling(concat_dim, inputs, concat_tiling));
       DefineInputList(concat_tiling, dtype_name, inputs, ss);
       GE_ASSERT_SUCCESS(DefineConcatContext(concat_tiling, dtype_name, tpipe.tiler, ss));
       DefineConcatTiling(concat_tiling, ss);
-      ss << "ConcatExtendV2(concat_context, tiling, " << y << ", " << tpipe.tmp_buf << ");" << std::endl;
+      ss << "ConcatExtendV2(concat_context, tiling, " << y << ", " << tpipe.tmp_buf << "_" << std::to_string(id)
+         << ");" << std::endl;
     } else {
       DefineInputList(concat_tiling, dtype_name, inputs, ss);
       GE_ASSERT_SUCCESS(DefineConcatContext(concat_tiling, dtype_name, tpipe.tiler, ss));
       DefineConcatShape(concat_tiling, tpipe.tiler, ss);
-      ss << "ConcatExtendV2Dyn(concat_context, concat_shape, " << y << ", " << tpipe.tmp_buf << ");" << std::endl;
+      ss << "ConcatExtendV2Dyn(concat_context, concat_shape, " << y << ", " << tpipe.tmp_buf << "_" << std::to_string(id) 
+         << ");" << std::endl;
     }
   } else {
     if (IsAllAligned(concat_tiling, concat_tiling.src_col_actual_size_exprs)) {
       GE_ASSERT_SUCCESS(GenerateForAllAligned(inputs, y, concat_tiling, tpipe.tiler, ss));
     } else {
+      GE_ASSERT_TRUE(id != -1L, "ConcatApiCall cannot find tmp buffer id to use.");
       // 生成concat dim
       ss << "uint32_t concat_dim = " << concat_dim << ";" << std::endl;
       GenConcatParams(inputs, y, tpipe.tiler, dtype_name, ss);
       ss << "ConcatExtend<" << dtype_name << ", " << y.vectorized_axis.size() << ", " << std::to_string(inputs.size())
-         << ">(dst_params, srcs_params, concat_dim, " << tpipe.tmp_buf << ");" << std::endl;
+         << ">(dst_params, srcs_params, concat_dim, " << tpipe.tmp_buf << "_" << std::to_string(id)
+         << ");" << std::endl;
     }
   }
   result = ss.str();
@@ -240,7 +252,7 @@ Status ConcatApiCall::InitializeTiling(size_t concat_dim, const vector<std::refe
   return ge::SUCCESS;
 }
 
-Status ConcatApiCall::CalcTiling(size_t concat_dim, const vector<std::reference_wrapper<const Tensor>> &inputs,
+Status ConcatApiCall::CalcTiling([[maybe_unused]] size_t concat_dim, const vector<std::reference_wrapper<const Tensor>> &inputs,
                                  ConcatApiCall::ConcatTiling &tiling) const {
   const uint32_t kScaleToB16 = tiling.data_type_size / sizeof(uint16_t);
   const uint32_t kEltNumPerBlock = kAddrListSize * kDataBlockSize / tiling.data_type_size;
@@ -267,13 +279,13 @@ Status ConcatApiCall::CalcTiling(size_t concat_dim, const vector<std::reference_
   tiling.first_copy_repeat_times = tiling.max_repeat_times * kAddrListSize / kScaleToB16 / tiling.gcd;
   tiling.last_trans_repeat_times = tiling.max_repeat_times * (tiling.dst_col_size / tiling.gcd);
   tiling.per_repeat_size = (tiling.dst_col_size / tiling.gcd) * kEltNumPerBlock;
-  CalcTilingForInputs(concat_dim, inputs, kEltNumPerBlock, tiling);
+  CalcTilingForInputs(inputs, kEltNumPerBlock, tiling);
   GELOGI("ConcatTiling: gcd=%u, tmp_buf_size=%u, max_repeat_times=%u, max_element_num=%u, max_orig_row_num=%u",
          tiling.gcd, tiling.tmp_buf_size, tiling.max_repeat_times, tiling.max_element_num, tiling.max_orig_row_num);
   return ge::SUCCESS;
 }
 
-Status ConcatApiCall::CalcTilingForInputs(size_t concat_dim, const vector<std::reference_wrapper<const Tensor>> &inputs,
+Status ConcatApiCall::CalcTilingForInputs(const vector<std::reference_wrapper<const Tensor>> &inputs,
                                           size_t block_size, ConcatApiCall::ConcatTiling &concat_tiling) {
   uint32_t buffer_offset = 0;
   for (size_t input_index = 0; input_index < inputs.size(); ++input_index) {

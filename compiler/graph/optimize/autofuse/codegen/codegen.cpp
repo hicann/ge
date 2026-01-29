@@ -30,10 +30,13 @@ constexpr size_t kKernelMaxIoNum = 190U;
 const std::string kKernelTaskTypeAIVOnly = "KERNEL_TYPE_AIV_ONLY";
 const std::string kKernelTaskTypeMixAIVOneZero = "KERNEL_TYPE_MIX_AIV_1_0";
 const std::string kKernelTaskTypeAICOnly = "KERNEL_TYPE_AIC_ONLY";
+const std::string kKernelTaskTypeMixAICOneTwo = "KERNEL_TYPE_MIX_AIC_1_2";
 
 std::string GetKernelTaskType(const ascir::FusedScheduledResult &schedule_results) {
   if (ascgen_utils::IsJustCubeFixpip(schedule_results)) {
     return kKernelTaskTypeAICOnly;
+  } else if (ascgen_utils::IsCubeFusedScheduled(schedule_results)) {
+    return kKernelTaskTypeMixAICOneTwo;
   }
   return schedule_results.workspace_nodes.size() != 0 ? kKernelTaskTypeMixAIVOneZero : kKernelTaskTypeAIVOnly;
 }
@@ -104,6 +107,7 @@ Status Codegen::GenerateForInductor(const ascir::FusedScheduledResult &fused_sch
   result.tiling_data = GenerateTilingData(fused_schedule_result);
   auto tiling_file_name_to_content = GenerateTilingForInductor(fused_schedule_result);
   for (const auto &[key, value] : tiling_file_name_to_content) {
+    (void)key;
     GE_CHK_BOOL_RET_STATUS(value != ascgen_utils::INVALID_TILING, ge::FAILED, "tilings(%s) is invalid",
                            value.c_str());
   }
@@ -117,6 +121,7 @@ Status Codegen::Generate(const std::map<std::string, std::string> &shape_info,
   result.tiling_data = GenerateTilingData(fused_schedule_result);
   auto tiling_file_name_to_content = GenerateTiling(fused_schedule_result, shape_info, "", "0");
   for (const auto &[key, value] : tiling_file_name_to_content) {
+    (void)key;
     GE_CHK_BOOL_RET_STATUS(value != ascgen_utils::INVALID_TILING, ge::FAILED, "tilings(%s) is invalid",
                            value.c_str());
   }
@@ -149,9 +154,8 @@ std::string Codegen::GenerateInferShape(const std::vector<std::vector<std::strin
   return gen.GenInferShapeFunc(symbol_shape_str, shape_info);
 }
 
-std::string Codegen::GeneratorPgo(const ascir::FusedScheduledResult &fused_schedule_result, const std::string &pgo_dir,
-                                  const std::string &vector_core_num, const std::string &ub_size, const std::string &device_id) const {
-  return this->tiling_lib_.GenerateForPgo(fused_schedule_result, pgo_dir, vector_core_num, ub_size, device_id);
+std::string Codegen::GeneratorPgo(const ascir::FusedScheduledResult &fused_schedule_result, const std::string &pgo_dir) const {
+  return this->tiling_lib_.GenerateForPgo(fused_schedule_result, pgo_dir);
 }
 
 Status Codegen::GenerateKernel(const ascir::FusedScheduledResult &fused_schedule_result, std::string &result,
@@ -169,8 +173,14 @@ Status Codegen::GenerateKernel(const ascir::FusedScheduledResult &fused_schedule
          static_cast<int32_t>(use_list_tensor));
   std::stringstream ss;
   std::string kernel_task_type = GetKernelTaskType(fused_schedule_result);
-  ss << Kernel::IncludeAndDefines(fused_schedule_result, kernel_task_type, use_list_tensor);
-  return Kernel::GenKernelFuncByTilingKey(fused_schedule_result, ss, result, use_list_tensor, config);
+  ss << Kernel::IncludeAndDefines(fused_schedule_result, kernel_task_type, use_list_tensor, is_inductor);
+  GE_CHK_STATUS_RET(Kernel::GenKernelFuncByTilingKey(fused_schedule_result, ss, use_list_tensor, config,
+                    kernel_task_type), "Generate kernel func by tiling_key failed.");
+  if (is_inductor) {
+    ss << Kernel::GenKernelFuncCallForInductor(fused_schedule_result);
+  }
+  result = ss.str();
+  return ge::SUCCESS;
 }
 
 std::string Codegen::GenGetKernelAndJson(const std::string &kernel_path, const std::string &json_path) const {

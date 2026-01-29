@@ -32,7 +32,7 @@ class FusionStrategy {
   virtual bool CanMergeLoop(const NodePtr &node1, const NodePtr &node2);
 
   // 获取融合对的优先级
-  virtual uint32_t GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2);
+  virtual FusionPriority GetFusionPairPriority(const NodePtr &node1, const NodePtr &node2);
 
   // 获取融合节点里原始节点最大个数限制
   virtual uint64_t GetMaxFusionNodesSize(const NodePtr &node1, const NodePtr &node2);

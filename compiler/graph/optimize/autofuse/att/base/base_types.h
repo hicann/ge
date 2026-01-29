@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #ifndef ATT_BASIC_BASIC_TYPE_H_
@@ -75,12 +69,6 @@ enum class AxisPosition {
   POSERR = std::numeric_limits<int32_t>::max()
 };
 
-enum class SocVersion {
-  ASCEND910B2 = 0,
-  ASCEND910B4,
-  UNKNOWN = -1
-};
-
 enum class TilingDataType {
   // Axis params
   AXIS_ALIGNED_SIZE = 0,
@@ -95,18 +83,6 @@ enum class TilingDataType {
   TENSOR_SIZE,
   TILING_DATA_TYPE_ALL,
   TILING_DATA_TYPE_ERR = std::numeric_limits<int32_t>::max(),
-};
-
-enum class TilingScenarioType : int32_t {
-  ATT_TOOLS,
-  CANN_AUTOFUSED,
-  SCENARIO_INVALID,
-};
-
-enum class MicroApiType : int32_t {
-  MICRO_API_ADD = 0,
-  MICRO_API_SUB,
-  MICRO_API_INVALID,
 };
 
 struct AxisTilingData {
@@ -218,7 +194,11 @@ template <typename T>
 inline std::string DebugString(const std::vector<T> &strs) {
   std::string s = "[";
   for (auto &str : strs) {
-    s += str;
+    if constexpr (std::is_integral_v<T>) {
+      s.append(std::to_string(str));
+    } else if constexpr (std::is_same_v<T, std::string>) {
+      s.append(str);
+    }
     s += ",";
   }
   s += "]";

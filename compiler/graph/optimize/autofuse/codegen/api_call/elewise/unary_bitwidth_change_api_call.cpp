@@ -16,8 +16,8 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
-#include "../utils/api_call_utils.h"
+#include "api_call/utils/api_call_factory.h"
+#include "api_call/utils/api_call_utils.h"
 
 namespace codegen {
 using namespace std;
@@ -35,6 +35,13 @@ Status UnaryBitWidthChangeApiCall::Generate(const TPipe &tpipe,
   GE_ASSERT_TRUE((x.dtype != y.dtype), "cast s_dtype:%d, y.dtype:%d", static_cast<int32_t>(x.dtype),
                  static_cast<int32_t>(y.dtype));
 
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  GE_ASSERT_TRUE(it != this->tmp_buf_id.end(), "UnaryBitWidthChangeApiCall cannot find tmp buffer id to use.");
+  id = it->second;
+
   ApiLoopParams param;
   VectorizedAxisLoopMergeStatus merge_info;
   std::vector<Tensor> ub_inputs;
@@ -47,14 +54,14 @@ Status UnaryBitWidthChangeApiCall::Generate(const TPipe &tpipe,
   stringstream ss;
   if (param.outer_repeats.size() == 0) {
     ss << this->api_name_ << "(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], " << x << "["
-       << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << x.actual_size << " ," << tpipe.tmp_buf << ");"
-       << std::endl;
+       << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << x.actual_size << " ," << tpipe.tmp_buf
+       << "_" << std::to_string(id) << ");" << std::endl;
   } else {
     std::string input_inner_offset = CalcInnerOffset(tpipe, param.inputs_strides[0]);
     std::string output_inner_offset = CalcInnerOffset(tpipe, param.outputs_strides[0]);
     std::stringstream ss1;
     ss1 << this->api_name_ << "(" << y << "[" << output_inner_offset << "], " << x << "[" << input_inner_offset << "], "
-        << tpipe.tiler.ActualSize(param.cal_count) << " ," << tpipe.tmp_buf << ");" << std::endl;
+        << tpipe.tiler.ActualSize(param.cal_count) << " ," << tpipe.tmp_buf << "_" << std::to_string(id) << ");" << std::endl;
     CreateComputeNodeOuterFor(param.outer_repeats, ss1, ss, 0);
   }
 

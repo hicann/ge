@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_REDUCE_API_CALL_H__
 #define __AUTOFUSE_REDUCE_API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class ReduceApiCall : public ApiCall {

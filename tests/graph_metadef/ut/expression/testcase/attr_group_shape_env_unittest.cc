@@ -403,5 +403,33 @@ TEST_F(AttributeGroupShapeEnvUt, Get_Deserialize_Guard_Has_New_Dfx_Info_When_Set
   EXPECT_EQ("node name:Add", assert_infos[0].dfx_info);
   SetCurShapeEnvContext(nullptr);
 }
+
+TEST_F(AttributeGroupShapeEnvUt, CheckReplacementCycleTest) {
+  ShapeEnvAttr shape_env;
+  SetCurShapeEnvContext(&shape_env);
+  Symbol s0 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  Symbol s1 = shape_env.CreateSymbol(0, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  Symbol s2 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 1));
+
+  auto replacements = shape_env.replacements_;
+  // 1、 repalcement直接包含key, s0 + s1表达式中包含s0, 不能加入replacement
+  EXPECT_EQ(EXPECT_SYMBOL_EQ(s0 + s1, s0), true);
+  if (shape_env.replacements_.find(s0) != shape_env.replacements_.end()) {
+    EXPECT_NE(replacements[s0].replace_expr, (s0 + s1));
+  }
+  // 2、 化简后replace包含key, s0 + s1 化简后是s2 + s1包含s2, 不能加入replacement
+  EXPECT_EQ(EXPECT_SYMBOL_EQ(s0, s2), true);
+  EXPECT_EQ(EXPECT_SYMBOL_EQ(s0 + s1, s2), true);
+  if (shape_env.replacements_.find(s2) != shape_env.replacements_.end()) {
+    EXPECT_NE(replacements[s2].replace_expr, (s0 + s1));
+  }
+  // 3、 root_expr包含不能替换, s0的root_expr是s2, s2 + s1包含s2, 不能加入replacement
+  EXPECT_EQ(EXPECT_SYMBOL_EQ(s1 + s2, s0), true);
+  if (shape_env.replacements_.find(s2) != shape_env.replacements_.end()) {
+    EXPECT_NE(replacements[s2].replace_expr, (s1 + s2));
+  }
+
+  SetCurShapeEnvContext(nullptr);
+}
 }
 }  // namespace ge

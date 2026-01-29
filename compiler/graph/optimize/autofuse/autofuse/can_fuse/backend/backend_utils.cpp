@@ -100,23 +100,6 @@ Status SwapTensorInfo(const std::vector<std::pair<int64_t, int64_t>> &transpose_
   return SUCCESS;
 }
 
-Status UpdateContinueStrides(const std::vector<ge::Expression> &repeats, std::vector<ge::Expression> &strides) {
-  auto size = repeats.size();
-  if (size > 0U) {
-    strides[size - 1U] = kSymbolOne;
-    for (auto index = 0U; index < size - 1U; index++) {
-      auto sub_index = size - 1U - index;
-      strides[sub_index - 1U] = repeats[sub_index] * strides[sub_index];
-    }
-    for (auto index = 0U; index < size - 1U; index++) {
-      if (repeats[index] == kSymbolOne) {
-        strides[index] = kSymbolZero;
-      }
-    }
-  }
-  return SUCCESS;
-}
-
 bool CheckValidTranspose(const ComputeGraphPtr &graph, const std::vector<std::pair<int64_t, int64_t>> &transpose_info) {
   auto graph_attr = graph->GetAttrsGroup<AscGraphAttr>();
   GE_ASSERT_NOTNULL(graph_attr);
@@ -151,6 +134,23 @@ Status GetCurAscLoadNode(const ComputeGraphPtr &graph, const int32_t index, Node
   return SUCCESS;
 }
 }  // namespace
+
+Status BackendUtils::UpdateContinueStrides(const std::vector<ge::Expression> &repeats, std::vector<ge::Expression> &strides) {
+  auto size = repeats.size();
+  if (size > 0U) {
+    strides[size - 1U] = kSymbolOne;
+    for (auto index = 0U; index < size - 1U; index++) {
+      auto sub_index = size - 1U - index;
+      strides[sub_index - 1U] = repeats[sub_index] * strides[sub_index];
+    }
+    for (auto index = 0U; index < size - 1U; index++) {
+      if (repeats[index] == kSymbolOne) {
+        strides[index] = kSymbolZero;
+      }
+    }
+  }
+  return SUCCESS;
+}
 
 Status BackendUtils::SwapGraphAxis(const std::vector<std::pair<int64_t, int64_t>> &transpose_info,
                                    std::vector<AxisPtr> &axis) {
@@ -2694,6 +2694,76 @@ bool BackendUtils::CurNodeInputIsSimplestLoad(const NodePtr &node, const int32_t
   return false;
 }
 
+bool BackendUtils::AscNodeInputIsSimplestLoad(const NodePtr &peer_node, const InDataAnchorPtr &in_anchor,
+                                              std::vector<ViewOpAttrInfo> &attr_infos) {
+  ComputeGraphPtr graph;
+  GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(peer_node, graph));
+  GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph, peer_node));
+  NodePtr asc_store_node;
+  GE_ASSERT_SUCCESS(BackendUtils::GetPreAscNode(peer_node, in_anchor, asc_store_node));
+  std::vector<NodePtr> load_nodes;
+  auto store_in_anchor = asc_store_node->GetInDataAnchor(0);
+  GE_ASSERT_NOTNULL(store_in_anchor);
+  auto in_anchor_peer = store_in_anchor->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(in_anchor_peer);
+  auto store_peer_node = in_anchor_peer->GetOwnerNode();
+  GE_ASSERT_SUCCESS(BackendUtils::FindPrefaceLoadNodes(store_peer_node->GetOutDataAnchor(0), load_nodes));
+  for (const auto &pre_load_node : load_nodes) {
+    const auto &load_in_anchor = pre_load_node->GetInDataAnchor(0);
+    GE_ASSERT_NOTNULL(load_in_anchor);
+    const auto node_out_anchor = load_in_anchor->GetPeerOutAnchor();
+    GE_ASSERT_NOTNULL(node_out_anchor);
+    const auto pre_data_node = node_out_anchor->GetOwnerNode();
+    GE_ASSERT_NOTNULL(pre_data_node);
+    if (!IsSimplestLoad(peer_node, pre_load_node, pre_data_node, attr_infos)) {
+      GELOGD("cur node %s(%s) ascgraph date node %s(%s) have view op.", peer_node->GetNamePtr(),
+                peer_node->GetType().c_str(), pre_data_node->GetNamePtr(), pre_data_node->GetType().c_str());
+      return false;
+    }
+  }
+  return true;
+}
+
+Status BackendUtils::GetPreAscBackendNodeAndAnchor(const NodePtr &node, const NodePtr &peer_node,
+                                                   const InDataAnchorPtr &fused_in_anchor, NodePtr &asc_node,
+                                                   InDataAnchorPtr &netoutput_in_anchor) {
+  ComputeGraphPtr graph;
+  GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(peer_node, graph));
+  auto anchor_index = 0U;
+  auto node_index = 0U;
+  GE_ASSERT_SUCCESS(BackendUtils::GetSubgraphOutputIndex(peer_node, fused_in_anchor, anchor_index, node_index));
+  const auto netoutput = graph->GetOrUpdateNetOutputNode();
+  GE_ASSERT_NOTNULL(netoutput);
+  netoutput_in_anchor = netoutput->GetInDataAnchor(static_cast<int32_t>(anchor_index));
+  GE_ASSERT_NOTNULL(netoutput_in_anchor);
+  const auto &netoutput_peer_out_anchor = netoutput_in_anchor->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(netoutput_peer_out_anchor);
+  asc_node = netoutput_peer_out_anchor->GetOwnerNode();
+  GE_ASSERT_NOTNULL(asc_node);
+  GELOGD("get node %s(%s) pre ascbackend node %s(%s).", node->GetNamePtr(), node->GetType().c_str(),
+            asc_node->GetNamePtr(), asc_node->GetType().c_str());
+  return SUCCESS;
+}
+
+bool BackendUtils::PreNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index,
+                                              std::vector<ViewOpAttrInfo> &attr_infos) {
+  NodePtr peer_node;
+  InDataAnchorPtr in_anchor;
+  GE_ASSERT_SUCCESS(BackendUtils::GetPreNodeAndAnchor(node, index, peer_node, in_anchor));
+  if (peer_node->GetType() == kAscBackendType) {
+    return BackendUtils::AscNodeInputIsSimplestLoad(peer_node, in_anchor, attr_infos);
+  } else if (peer_node->GetType() == kFusedAscBackendType) {
+    NodePtr asc_node;
+    InDataAnchorPtr netoutput_in_anchor;
+    GE_ASSERT_SUCCESS(BackendUtils::GetPreAscBackendNodeAndAnchor(node, peer_node, in_anchor, asc_node, netoutput_in_anchor));
+    ComputeGraphPtr graph;
+    GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(asc_node, graph));
+    GE_ASSERT_SUCCESS(BackendUtils::UpdateSubgraphOutputAttr(graph, asc_node));
+    return BackendUtils::AscNodeInputIsSimplestLoad(asc_node, netoutput_in_anchor, attr_infos);
+  }
+  return false;
+}
+
 Status BackendUtils::BackupNodeAscTensorAttrAndAscNodeAttr(const NodePtr &origin_node,
                                                            NodeAttrPair &backup_node_attr_and_tensor_attr) {
   auto origin_op_desc = origin_node->GetOpDesc();
@@ -2876,22 +2946,6 @@ Status BackendUtils::DumpGraphAndSubgraphs(const std::vector<std::string> &targe
   return SUCCESS;
 }
 
-bool BackendUtils::IsCubeNodeType(const NodePtr &node) {
-  static const std::unordered_map<std::string, std::string> kCubeTypeList = {
-      {kMatMul, kMatMul},
-      {kMatMulBias, kMatMulBias},
-      {kMatMulOffset, kMatMulOffset},
-      {kMatMulOffsetBias, kMatMulOffsetBias},
-      {kBatchMatMul, kBatchMatMul},
-      {kBatchMatMulBias, kBatchMatMulBias},
-      {kBatchMatMulOffset, kBatchMatMulOffset},
-      {kBatchMatMulOffsetBias, kBatchMatMulOffsetBias}};
-
-  auto node_type = node->GetType();
-  auto it = kCubeTypeList.find(node_type);
-  return (it != kCubeTypeList.end());
-}
-
 bool BackendUtils::IsCubeAscNode(const NodePtr &asc_node) {
   const auto &op_desc = asc_node->GetOpDesc();
   GE_ASSERT_NOTNULL(op_desc);
@@ -2942,5 +2996,41 @@ bool BackendUtils::HasScalarInAscgraph(const NodePtr &node) {
     }
   }
   return false;
+}
+
+bool BackendUtils::HasTypesInAscgraph(const NodePtr &node, const std::vector<std::string> &target_types) {
+  if (!target_types.empty()) {
+    std::unordered_set<std::string> target_type_set(target_types.begin(), target_types.end());
+    ComputeGraphPtr graph;
+    GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(node, graph));
+    for (const auto &sub_node : graph->GetAllNodes()) {
+      const std::string &node_type = sub_node->GetType();
+      if (target_type_set.count(node_type) > 0) {
+        GELOGD("node %s(%s) ascgraph has target type node: %s", node->GetNamePtr(), node->GetType().c_str(),
+               node_type.c_str());
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool BackendUtils::OnlyHasTypesInAscgraph(const NodePtr &node, const std::vector<std::string> &target_types) {
+  if (!target_types.empty()) {
+    std::vector<std::string> all_types = {kDataType, kLoadType, kStoreType, kOutputType};
+    all_types.insert(all_types.end(), target_types.begin(), target_types.end());
+    std::unordered_set<std::string> target_type_set(all_types.begin(), all_types.end());
+
+    ComputeGraphPtr graph;
+    GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(node, graph));
+    for (const auto &sub_node : graph->GetAllNodes()) {
+      const std::string &node_type = sub_node->GetType();
+      if (target_type_set.count(node_type) == 0) {
+        GELOGD("node %s(%s) ascgraph has unexpected type: %s", node->GetNamePtr(), node->GetType().c_str(), node_type.c_str());
+        return false;
+      }
+    }
+  }
+  return true;
 }
 }  // namespace ge

@@ -22,15 +22,17 @@
 namespace att {
 using char_t = char;
 // AUTOFUSE_FLAGS
+constexpr char_t kExperimentalAutofusionEnablePGO[] = "autofuse_enable_pgo";
+// AUTOFUSE_DFX_FLAGS
 constexpr char_t kExperimentalAutofusionAttTilingAlgorithm[] = "autofuse_att_algorithm";
 constexpr char_t kExperimentalAutofusionAttEnableSmallShapeStrategy[] = "att_enable_small_shape_strategy";//bool
 constexpr char_t kExperimentalAutofusionAttUbThreshold[] = "att_ub_threshold";
 constexpr char_t kExperimentalAutofusionAttCorenumThreshold[] = "att_corenum_threshold";
 constexpr char_t kExperimentalAutofusionAttEnableMulticoreUBTradeoff[] = "att_enable_multicore_ub_tradeoff";//bool
-constexpr char_t kExperimentalAutofusionAttEnablePGO[] = "autofuse_enable_pgo";
-// AUTOFUSE_DFX_FLAGS
 constexpr char_t kExperimentalAutofusionAttProfiling[] = "att_profiling";//bool
 constexpr char_t kExperimentalAutofusionAttSolutionAccuracyLevel[] = "att_accuracy_level";
+constexpr char_t kExperimentalAutofusionEnablePgoOptAlgo[] = "autofuse_pgo_algo";
+constexpr char_t kExperimentalAutofusionEnablePgoStepMax[] = "autofuse_pgo_step_max";
 // 用于强制模板选择，不对外开放
 constexpr char_t kExperimentalAutofusionAttScheduleResult[] = "force_schedule_result";
 constexpr char_t kExperimentalAutofusionAttTilingCase[] = "force_tiling_case";
@@ -146,7 +148,11 @@ class PgoStrategyConfig : AutoFuseConfigBase {
   Status Init() override;
 
   std::string enable_autofuse_pgo{"false"}; // 是否开启pgo(false:不开启，true:开启)
+  std::string autofuse_pgo_algo_select{"core_select"}; // pgo 调优算法(core_select:控核，pruning:剪枝)
+  int64_t autofuse_pgo_algo_step_max{16};
   bool set_env_enable_autofuse_pgo{false};
+  bool set_env_autofuse_pgo_algo_select{false};
+  bool set_env_autofuse_pgo_algo_step_max{false};
   bool is_first_init{true};
 };
 

@@ -31,6 +31,8 @@ class ConcatGroupPartitioner {
 
   bool HasRecompute() const;
 
+  Status RecomputeDiffAxes();
+
  private:
   Status Initialize();
   Status IndexIo(std::set<size_t> &multi_ref_input_indices) const;
@@ -42,7 +44,7 @@ class ConcatGroupPartitioner {
   void MergeSmallGroups(std::vector<ConcatGroup> &groups);
   [[nodiscard]] bool CanMerge(const ConcatGroup &lhs, const ConcatGroup &rhs) const;
   void ConvertToDefaultIfTooSmall();
-  void UpdateStatus(size_t index, int64_t size);
+  void UpdateStatus(int64_t size);
   [[nodiscard]] bool NeedSubmit(size_t i, int64_t size, uint32_t new_group_type);
   static std::string GroupTypeToString(uint32_t group_type);
   static bool IsAligned(uint32_t group_type);
@@ -52,12 +54,14 @@ class ConcatGroupPartitioner {
   ge::Status RecomputeNodesCrossGroups(const std::vector<ConcatGroup> &groups, bool &has_recompute) const;
   ge::Status FindFirstMultiOutputAnchors(const ge::InDataAnchorPtr &in_anchor, int32_t end_index,
                                          ge::InDataAnchorPtr &to_split) const;
-  ge::Status CheckIsAncestorOfConcat(const ge::OutDataAnchorPtr &out_anchor, int32_t start_index, bool &need_split) const;
+  ge::Status CheckIsAncestorOfConcat(const ge::OutDataAnchorPtr &out_anchor, int32_t start_index,
+                                     const ge::Expression &concat_dim_size, bool &need_split) const;
   ge::Status RecomputeInNodes(const ge::InDataAnchorPtr &in_anchor, size_t index,
                               std::map<std::string, ge::AscNodePtr> &name_to_new_nodes) const;
   Status ParseConcatNode();
   Status TryOptimizeGroupSize();
   uint32_t MaxInputNumPerGroup() const;
+  bool NeedSplit(const ge::InDataAnchorPtr &in_anchor, int32_t start_index, const ge::Expression &cur_dim_size) const;
 
   static constexpr uint32_t kGroupTypeDefault = 0x1;
   static constexpr uint32_t kGroupTypeAligned = 0x10;
@@ -92,6 +96,7 @@ class ConcatGroupPartitioner {
   int64_t known_rows_ = 1L;
   int64_t total_rows_ = 0L;
   int64_t default_cols_per_group_ = 0L;
+  bool single_group_mode_ = false;
   bool has_recompute_ = false;
 };
 }  // namespace optimize

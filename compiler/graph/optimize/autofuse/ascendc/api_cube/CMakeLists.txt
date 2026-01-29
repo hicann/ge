@@ -6,7 +6,6 @@ set(ascendc_api_cube_src
     matmul/mat_mul_tiling_data.h
     matmul/batch_mat_mul_v3_tiling_key.h
     matmul/mat_mul_asw_block.h
-    matmul/mat_mul_dasw_block.h
     matmul/mat_mul_asw_kernel.h
     matmul/mat_mul_stream_k_block.h
     matmul/mat_mul_stream_k_kernel.h
@@ -17,21 +16,22 @@ set(ascendc_api_cube_src
     matmul/mat_mul_fixpipe_opti.h
     matmul/block_scheduler_aswt.h
     matmul/block_scheduler_streamk.h
-    matmul/mat_mul_fixpipe_opti_basic_act.h
+    matmul/mat_mul_fixpipe_opti_basic_cmct.h
     matmul/batch_mat_mul_v3_matmul2mul_block_scheduler.h
-    matmul/batch_mat_mul_v3_matmul2mul_act.h
-    matmul/mat_mul_pingpong_basic_act.h
+    matmul/batch_mat_mul_v3_mergebatch_basicapi_block_scheduler.h
+    matmul/batch_mat_mul_v3_mergebatch_basicapi_cmct.h
+    matmul/batch_mat_mul_v3_matmul2mul_cmct.h
+    matmul/mat_mul_pingpong_basic_cmct.h
     matmul/mat_mul_input_k_eq_zero_clear_output.h
-    matmul/mat_mul_streamk_basic_act.h
+    matmul/mat_mul_streamk_basic_cmct.h
     matmul/batch_mat_mul_v3_asw_kernel_advanced.h
     matmul/batch_mat_mul_v3_asw_block_advanced.h
-    matmul/batch_mat_mul_v3_dasw_block_advanced.h
     matmul/batch_mat_mul_v3_asw_al1_full_load_kernel_advanced.h
     matmul/batch_mat_mul_v3_asw_bl1_full_load_kernel_advanced.h
     matmul/batch_mat_mul_v3_iterbatch_block_advanced.h
     matmul/batch_mat_mul_v3_iterbatch_kernel_advanced.h
     matmul/batch_mat_mul_v3_iterbatch_basicapi_block_scheduler.h
-    matmul/batch_mat_mul_v3_iterbatch_basicapi_act.h
+    matmul/batch_mat_mul_v3_iterbatch_basicapi_cmct.h
     batch_matmul.h
     )
 

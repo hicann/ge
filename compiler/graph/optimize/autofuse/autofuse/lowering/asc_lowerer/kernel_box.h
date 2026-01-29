@@ -144,7 +144,7 @@ struct KernelBoxMeta {
 
  private:
   std::shared_ptr<ExtraKernelBoxMeta> extra;
-  bool InferDataType(const LoopOp *op, std::map<const LoopOp *, DataType> &op_2_dtype) {
+  bool InferDataType(const LoopOp *op, std::map<const LoopOp *, DataType> &op_2_dtype) const {
     std::vector<DataType> input_dtypes;
     std::vector<DataType> expect_output_dtypes;
     if (LoopOp::GetLoopOpsDataType(op->Inputs(), op_2_dtype, input_dtypes) != SUCCESS) {
@@ -222,6 +222,10 @@ class KernelBox {
   bool IsCube() const {
     return (meta_ != nullptr) && (meta_->type == FuseType::kCube);
   }
+
+  bool IsSlice() const {
+    return (meta_ != nullptr) && (meta_->type == FuseType::kSliceSplit);
+}
 
   bool IsSupport() const {
     return meta_ != nullptr && meta_->is_support;

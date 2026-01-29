@@ -53,7 +53,7 @@ Status StoreApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
   const auto &ub = inputs[0].get();
   DataCopyParams param;
 
-  bool status = CalculateDmaParams(tpipe, gm, gm, param, false);
+  bool status = CalculateDmaParams(tpipe, gm, gm, param);
   GE_ASSERT_TRUE(status, "CalculateDmaParams failed");
   std::string gm_offset = tpipe.tiler.Offset(current_axis, gm.axis, gm.axis_strides);
   if (param.repeats.size() <= kDmaMaxLen) {
@@ -69,17 +69,7 @@ Status StoreApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisI
   if (IsUnitLastRead(*(this->inputs[0])) && ub.is_load_link_store_and_vec) {
     std::string offset = offset_.Str().get();
     offset = GenValidName(offset);
-    std::hash<std::string> hasher;
-    size_t hasher_value = hasher(offset);
-    std::stringstream ss_event_id;
-    std::stringstream ss_sync_flag_id;
-    ss_event_id << ub << "_e_mte3_2_mte2_" << offset;
-    ss_sync_flag_id << ub << "_s_mte3_2_mte2_" << offset;
-    ss << "auto " << ss_event_id.str() << " = tpipe.AllocEventID<HardEvent::MTE3_MTE2>();" << std::endl;
-    ss << "TQueSync<PIPE_MTE3, PIPE_MTE2> " << ss_sync_flag_id.str() << ";" << std::endl;
-    ss << ss_sync_flag_id.str() << ".SetFlag(" << ss_event_id.str() << ");" << std::endl;
-    ss << ss_sync_flag_id.str() << ".WaitFlag(" << ss_event_id.str() << ");" << std::endl;
-    ss << "tpipe.ReleaseEventID<HardEvent::MTE3_MTE2>(" << ss_event_id.str() << ");" << std::endl;
+    GenerateLinkStoreEventCode(ub, offset, ss);
   }
 
   result = ss.str();

@@ -30,6 +30,8 @@ if (ENABLE_OPEN_SRC)
 else ()
         target_include_directories(aihac_autofusion PRIVATE
                ${CMAKE_CURRENT_SOURCE_DIR}
+               ${TOP_DIR}/air/inc
+               ${TOP_DIR}/air/inc/graph_metadef
         )
 endif ()
 
@@ -40,6 +42,7 @@ target_compile_options(aihac_autofusion PRIVATE
         -fno-common
         -Wextra
         -Wfloat-equal
+        -Wall
 )
 
 target_link_options(aihac_autofusion PRIVATE

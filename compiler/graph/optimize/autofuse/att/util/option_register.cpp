@@ -1,12 +1,13 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
+
 #include "option_register.h"
 #include "common/checker.h"
 #include "base/att_const_values.h"
@@ -30,24 +31,17 @@ bool RegisterOptionsAndInitInnerOptions(std::map<std::string, std::string> &inne
   // RegisterOption( option名称， option默认值（空字符串视为无默认值）， 校验函数 ）
   // bool类型
   option_register.RegisterOption(kGenTilingDataDef, kIsTrue, ValidateBoolOption);
-  option_register.RegisterOption(kOpenDT, kIsFalse, ValidateBoolOption);
-  option_register.RegisterOption(kDTDebug, kIsFalse, ValidateBoolOption);
-  option_register.RegisterOption(kWithTilingContext, kIsFalse, ValidateBoolOption);
   option_register.RegisterOption(kHighPrecision, kIsFalse, ValidateBoolOption);
   option_register.RegisterOption(kGenExtraInfo, kIsFalse, ValidateBoolOption);
   // 路径信息
   option_register.RegisterOption(kDumpDebugInfo, kRegisterNoDefault, ValidatePathOption);
   option_register.RegisterOption(kOutputFilePath, kDefaultFilePath, ValidatePathOption);
-  option_register.RegisterOption(kDTConfigPath, kRegisterNoDefault, ValidatePathOption);
   // 命名信息
   option_register.RegisterOption(kTilingDataTypeName, graphs_name + "TilingData", ValidateIdentifierName);
-  // 版本号
-  option_register.RegisterOption(kSocVersion, kRegisterNoDefault, ValidateNotEmptyOption);
   // DurationLevel
   option_register.RegisterOption(kDurationLevelName, kDurationLevelDefault, ValidateNotNegativeNumber);
   // SolverType
   option_register.RegisterOption(kGenConfigType, kGenConfigTypeDefault, ValidateNotValidType);
-  option_register.RegisterOption(kTilingScenarioType, kAttToolsScenario, ValidateAttScenarioType);
   // 之后删除的预留信息，变量替换
   option_register.RegisterOption(kVariableReplace, kIsTrue, ValidateBoolOption);
   return option_register.ValidateAndInitInnerOptions(inner_options, options);
@@ -128,14 +122,7 @@ bool ValidateNotNegativeNumber(const std::string &value) {
 }
 
 bool ValidateNotValidType(const std::string &value) {
-  if (value != "HighPerf" && value != "AxesReorder" && value != "Golden") {
-    return false;
-  }
-  return true;
-}
-
-bool ValidateAttScenarioType(const std::string &value) {
-  if ((value != kAttToolsScenario) && (value != kAutofuseScenario)) {
+  if (value != "HighPerf" && value != "AxesReorder") {
     return false;
   }
   return true;

@@ -8,11 +8,12 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 include(${CODE_ROOT_DIR}/att/cmake/generate_raw_string_header.cmake)
-# 调用函数生成头文件
 generate_raw_string_header(
     ge_log_utils            # 目标名称
     ge_log_utils_src.h      # 输出文件名
-    ${CODE_ROOT_DIR}/att/util/log/ge_log.h  # 输入文件
+    ${CODE_ROOT_DIR}/att/util/common_dfx.h  # 输入文件
+    "#define UTILS_COMMON_DFX_H_"  # 起始标记
+    "#endif"                 # 结束标记
 )
 
 file(GLOB_RECURSE ATT_SRCS CONFIGURE_DEPENDS

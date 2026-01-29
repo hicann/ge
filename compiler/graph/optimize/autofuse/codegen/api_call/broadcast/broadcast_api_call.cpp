@@ -182,7 +182,7 @@ static void BroadcastAllCommonAxis(const TPipe &tpipe, const std::vector<ascir::
 }
 
 static void BroadcastOneAxis(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis, const Tensor &input,
-                             const Tensor &output,
+                             const Tensor &output, const int64_t tmp_buf_id,
                              const std::vector<std::pair<bool, std::vector<uint32_t>>> &merge_groups,
                              std::string &result) {
   std::vector<std::string> src_size = {"0", "0", "0"};
@@ -194,13 +194,13 @@ static void BroadcastOneAxis(const TPipe &tpipe, const std::vector<ascir::AxisId
   ss << "Broadcast(" << output << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, output) << "], " << input
      << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, input) << "], " << src_size[kAxisIndex0] << ", "
      << src_size[kAxisIndex1] << ", " << src_size[kAxisIndex2] << ", " << dst_size[kAxisIndex0] << ", "
-     << dst_size[kAxisIndex1] << ", " << dst_size[kAxisIndex2] << ", " << tpipe.tmp_buf << ", " << last_dim_stride
-     << ");" << std::endl;
+     << dst_size[kAxisIndex1] << ", " << dst_size[kAxisIndex2] << ", " << tpipe.tmp_buf << "_"
+     << std::to_string(tmp_buf_id) << ", " << last_dim_stride << ");" << std::endl;
   result = ss.str();
 }
 
 static void BroadcastTwoAxis(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis, const Tensor &input,
-                             const Tensor &output,
+                             const Tensor &output, const int64_t tmp_buf_id,
                              const std::vector<std::pair<bool, std::vector<uint32_t>>> &merge_groups,
                              std::string &result) {
   const auto vectorize_axis_size = merge_groups.size();
@@ -218,7 +218,8 @@ static void BroadcastTwoAxis(const TPipe &tpipe, const std::vector<ascir::AxisId
      << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, input) << "], " << src_size[kAxisIndex0] << ", "
      << src_size[kAxisIndex1] << ", " << src_size[kAxisIndex2] << ", " << src_size[kAxisIndex3] << ", "
      << dst_size[kAxisIndex0] << ", " << dst_size[kAxisIndex1] << ", " << dst_size[kAxisIndex2] << ", "
-     << dst_size[kAxisIndex3] << ", " << tpipe.tmp_buf << ", " << last_dim_stride << ");" << std::endl;
+     << dst_size[kAxisIndex3] << ", " << tpipe.tmp_buf << "_" << std::to_string(tmp_buf_id) << ", "
+     << last_dim_stride << ");" << std::endl;
   result = ss.str();
 }
 
@@ -238,11 +239,11 @@ bool IsBroadcastConstantTensor(const Tensor &tensor) {
 }
 
 void BroadcastScalar(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis, const Tensor &in,
-                     const Tensor &out, std::string &result, bool need_tmp_buf) {
+                     const Tensor &out, const int64_t tmp_buf_id, std::string &result, bool need_tmp_buf) {
   std::stringstream ss;
   std::string int64_tmp_buf;
   if ((in.dtype == ge::DT_INT64 || in.dtype == ge::DT_UINT64) && need_tmp_buf) {
-    int64_tmp_buf = ", " + tpipe.tmp_buf.name;
+    int64_tmp_buf = ", " + tpipe.tmp_buf.name + "_" + std::to_string(tmp_buf_id);
   }
   if (in.is_constant) {
     ss << "Duplicate(" << out << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, out) << "], " << in.name
@@ -276,10 +277,18 @@ Status BroadcastApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::A
                                   std::string &result) const {
   const auto &x = inputs[0].get();
   const auto &y = outputs[0].get();
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  if (it != this->tmp_buf_id.end()) {
+    id = it->second;
+  }
 
   // 处理scalar broadcast场景
   if (IsBroadcastConstantTensor(x)) {
-    BroadcastScalar(tpipe, current_axis, x, y, result);
+    GE_ASSERT_TRUE(id != -1L, "BroadcastApiCall cannot find tmp buffer id to use.");
+    BroadcastScalar(tpipe, current_axis, x, y, id, result);
     return ge::SUCCESS;
   }
 
@@ -299,13 +308,15 @@ Status BroadcastApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::A
   }
 
   if (broadcast_num == static_cast<uint32_t>(1)) {
-    BroadcastOneAxis(tpipe, current_axis, x, y, merge_groups, result);
+    GE_ASSERT_TRUE(id != -1L, "BroadcastApiCall cannot find tmp buffer id to use.");
+    BroadcastOneAxis(tpipe, current_axis, x, y, id, merge_groups, result);
     return ge::SUCCESS;
   }
 
   if (broadcast_num == kDoubleAxisSize &&
       (merge_groups.size() == kAxisSizeThree || merge_groups.size() == kAxisSizeFour)) {
-    BroadcastTwoAxis(tpipe, current_axis, x, y, merge_groups, result);
+    GE_ASSERT_TRUE(id != -1L, "BroadcastApiCall cannot find tmp buffer id to use.");
+    BroadcastTwoAxis(tpipe, current_axis, x, y, id, merge_groups, result);
     return ge::SUCCESS;
   }
 

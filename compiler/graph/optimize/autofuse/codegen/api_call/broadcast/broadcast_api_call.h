@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_BROADCAST_API_CALL_H__
 #define __AUTOFUSE_BROADCAST_API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class BroadcastApiCall final : public ApiCall {
@@ -24,6 +24,6 @@ class BroadcastApiCall final : public ApiCall {
 
 bool IsBroadcastConstantTensor(const Tensor &tensor);
 void BroadcastScalar(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis, const Tensor &in,
-                     const Tensor &out, std::string &result, bool need_tmp_buf = true);
+                     const Tensor &out, const int64_t tmp_buf_id, std::string &result, bool need_tmp_buf = true);
 }  // namespace codegen
 #endif  // __AUTOFUSE_BROADCAST_API_CALL_H__

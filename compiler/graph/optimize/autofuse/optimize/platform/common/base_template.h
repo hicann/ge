@@ -12,8 +12,8 @@
 #define OPTIMIZE_PLATFORM_COMMON_BASE_TEMPLATE_H
 
 #include "ascendc_ir.h"
-#include "schedule_utils.h"
-#include "common_utils.h"
+#include "optimize/schedule_utils.h"
+#include "common/common_utils.h"
 
 namespace optimize {
 
@@ -39,7 +39,7 @@ class BaseTemplate {
   virtual bool NeedDropBasedCase(const ge::AscGraph &origin_graph, const ge::AscGraph &based_case,
                                  const ge::AscGraph &new_case) = 0;
 
-  virtual std::string GetScoreFunc(const ge::AscGraph &origin_graph, const ge::AscGraph &base_graph) {
+  virtual std::string GetScoreFunc([[maybe_unused]]const ge::AscGraph &origin_graph, [[maybe_unused]]const ge::AscGraph &base_graph) {
     return "";
   }
 

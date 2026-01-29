@@ -37,7 +37,7 @@ std::vector<ge::AscNodePtr> TransposeFusionCaseGenerator::FindTransposeNodes(con
   return transpose_nodes;
 }
 
-Status TransposeFusionCaseGenerator::TransposeNodeInputsAndOutputsCheck(const ge::AscNodePtr &transpose_node) {
+Status TransposeFusionCaseGenerator::TransposeNodeInputsAndOutputsCheck(const ge::AscNodePtr &transpose_node) const {
   const auto &transpose_in_data_nodes = transpose_node->GetInDataNodes();
   GE_ASSERT_TRUE(transpose_in_data_nodes.size() == 1UL, "%zu nodes links to transpose node:%s",
                  transpose_in_data_nodes.size(), transpose_node->GetNamePtr());
@@ -47,7 +47,7 @@ Status TransposeFusionCaseGenerator::TransposeNodeInputsAndOutputsCheck(const ge
 void TransposeFusionCaseGenerator::UpdateAxisByPath(::ascir::ImplGraph &owner_graph, const ge::NodePtr &input_node,
                                                     std::set<ge::Node *> &visited_nodes,
                                                     const std::vector<int64_t> &reordered_axis,
-                                                    const std::vector<int64_t> &reordered_sched_axis) {
+                                                    const std::vector<int64_t> &reordered_sched_axis) const {
   std::queue<ge::NodePtr> path_nodes;
   path_nodes.emplace(input_node);
   while (!path_nodes.empty()) {
@@ -68,7 +68,7 @@ void TransposeFusionCaseGenerator::UpdateAxisByPath(::ascir::ImplGraph &owner_gr
   }
 }
 
-void TransposeFusionCaseGenerator::UpdateAxis(ascir::HintGraph &graph, const ge::AscNodePtr &transpose_node) {
+void TransposeFusionCaseGenerator::UpdateAxis(ascir::HintGraph &graph, const ge::AscNodePtr &transpose_node) const {
   std::vector<std::pair<int64_t, int64_t>> transpose_info;
   const auto &reordered_axis = transpose_node->outputs[0].attr.axis;
   const auto &reordered_sched_axis = transpose_node->attr.sched.axis;
@@ -77,7 +77,7 @@ void TransposeFusionCaseGenerator::UpdateAxis(ascir::HintGraph &graph, const ge:
 }
 
 Status TransposeFusionCaseGenerator::TransposeConvertProcess(ascir::HintGraph &graph,
-                                                             const ge::AscNodePtr &transpose_node) {
+                                                             const ge::AscNodePtr &transpose_node) const {
   GE_CHK_STATUS_RET(TransposeNodeInputsAndOutputsCheck(transpose_node), "TransposeNode Check failed");
   UpdateAxis(graph, transpose_node);
 

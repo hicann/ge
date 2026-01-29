@@ -1,24 +1,18 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2025 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "ast_optimizer.h"
 
 namespace att {
 // 表达式涉及的函数
-const vector<string> functions_set = {"Ceiling", "Min", "Max", "Rational", "Floor", "Log", "Pow", "Mod"};
+const std::vector<std::string> functions_set = {"Ceiling", "Min", "Max", "Rational", "Floor", "Log", "Pow", "Mod"};
 
 // 判断字符是否是数字或相关符号
 bool IsNumberChar(char c) {
@@ -26,8 +20,8 @@ bool IsNumberChar(char c) {
 }
 
 // 处理负数
-void HandleNegativeNumber(const string &s, size_t &i, vector<string> &tokens) {
-  string num;
+void HandleNegativeNumber(const std::string &s, size_t &i, std::vector<std::string> &tokens) {
+  std::string num;
   num += s[i++];
   while (i < s.size() && IsNumberChar(s[i])) {
     num += s[i++];
@@ -36,8 +30,8 @@ void HandleNegativeNumber(const string &s, size_t &i, vector<string> &tokens) {
 }
 
 // 处理非负数字
-void HandleNumber(const string &s, size_t &i, vector<string> &tokens) {
-  string num;
+void HandleNumber(const std::string &s, size_t &i, std::vector<std::string> &tokens) {
+  std::string num;
   while (i < s.size() && IsNumberChar(s[i])) {
     num += s[i++];
   }
@@ -45,8 +39,8 @@ void HandleNumber(const string &s, size_t &i, vector<string> &tokens) {
 }
 
 // 处理变量
-void HandleIdentifier(const string &s, size_t &i, vector<string> &tokens) {
-  string token;
+void HandleIdentifier(const std::string &s, size_t &i, std::vector<std::string> &tokens) {
+  std::string token;
   while (i < s.size() && (isalnum(s[i]) || s[i] == '_')) {
     token += s[i++];
   }
@@ -54,8 +48,8 @@ void HandleIdentifier(const string &s, size_t &i, vector<string> &tokens) {
 }
 
 // 词法分析器
-vector<string> Parser::Tokenize(const string &s) {
-  vector<string> tokens;
+std::vector<std::string> Parser::Tokenize(const std::string &s) const {
+  std::vector<std::string> tokens;
   for (size_t i = 0; i < s.size();) {
     if (isspace(s[i])) {
       ++i;
@@ -63,7 +57,7 @@ vector<string> Parser::Tokenize(const string &s) {
     }
     // 处理负数
     if ((s[i] == '-') && ((i == 0u) || tokens.empty() || (tokens.back() == "(") || (tokens.back() == ",")
-              || (string("+-*/(").find(tokens.back()[0]) != string::npos))) {
+              || (std::string("+-*/(").find(tokens.back()[0]) != std::string::npos))) {
       HandleNegativeNumber(s, i, tokens);
     }
     // 处理非负数字
@@ -74,17 +68,17 @@ vector<string> Parser::Tokenize(const string &s) {
     else if (isalpha(s[i]) || s[i] == '_') {
       HandleIdentifier(s, i, tokens);
     } else {
-      tokens.push_back(string(1, s[i++]));
+      tokens.push_back(std::string(1, s[i++]));
     }
   }
   return tokens;
 }
 
-ASTPtr Parser::ParseFunction(const string &func) {
+ASTPtr Parser::ParseFunction(const std::string &func) {
   // consume两次，第一次是函数名，第二次是(
   Consume();
   Consume();
-  vector<ASTPtr> args;
+  std::vector<ASTPtr> args;
   while (Peek() != ")") {
     args.push_back(ParseExpr());
     if (Peek() == ",") {
@@ -92,11 +86,11 @@ ASTPtr Parser::ParseFunction(const string &func) {
     }
   }
   Consume();
-  return make_shared<ASTNode>(func, NodeType::FUNCTION, func, move(args));
+  return std::make_shared<ASTNode>(func, NodeType::FUNCTION, func, std::move(args));
 }
 
 ASTPtr Parser::ParsePrimary() {
-  string token = Peek();
+  std::string token = Peek();
   if (token == "(") {
     Consume();
     auto node = ParseExpr();
@@ -111,27 +105,27 @@ ASTPtr Parser::ParsePrimary() {
     return ParseFunction(token);
   }
   if ((token[0] == '-' && token.size() > 1u && (isdigit(token[1]) || token[1] == '.')) || isdigit(token[0]) ||
-      token.find('.') != string::npos || token.find('/') != string::npos) {
+      token.find('.') != std::string::npos || token.find('/') != std::string::npos) {
     Consume();
-    return make_shared<ASTNode>(token, NodeType::NUMBER);
+    return std::make_shared<ASTNode>(token, NodeType::NUMBER);
   }
-  if (isdigit(token[0]) || token.find('.') != string::npos || token.find('/') != string::npos) {
+  if (isdigit(token[0]) || token.find('.') != std::string::npos || token.find('/') != std::string::npos) {
     Consume();
-    return make_shared<ASTNode>(token, NodeType::NUMBER);
+    return std::make_shared<ASTNode>(token, NodeType::NUMBER);
   }
   if (isalpha(token[0])) {
     Consume();
-    return make_shared<ASTNode>(token, NodeType::VARIABLE);
+    return std::make_shared<ASTNode>(token, NodeType::VARIABLE);
   }
   GELOGD("error: invalid expression: '%s'", token.c_str());
   return nullptr;
 }
 
-ASTPtr CreateBinaryOpNode(ASTPtr &&lhs, const string &op, ASTPtr &&rhs) {
-  vector<ASTPtr> children;
-  children.push_back(move(lhs));
-  children.push_back(move(rhs));
-  return make_shared<ASTNode>("", NodeType::OPERATOR, op, move(children));
+ASTPtr CreateBinaryOpNode(ASTPtr &&lhs, const std::string &op, ASTPtr &&rhs) {
+  std::vector<ASTPtr> children;
+  children.push_back(std::move(lhs));
+  children.push_back(std::move(rhs));
+  return std::make_shared<ASTNode>("", NodeType::OPERATOR, op, std::move(children));
 }
 
 ASTPtr Parser::ParseExpr() {
@@ -141,13 +135,13 @@ ASTPtr Parser::ParseExpr() {
   }
   // 处理不带括号的连加连减
   while ((Peek() == "+") || (Peek() == "-")) {
-    string op = Peek();
+    std::string op = Peek();
     Consume();
     ASTPtr rhs = ParseTerm();
     if (!rhs) {
       return nullptr;
     }
-    lhs = CreateBinaryOpNode(move(lhs), op, move(rhs));
+    lhs = CreateBinaryOpNode(std::move(lhs), op, std::move(rhs));
   }
   return lhs;
 }
@@ -159,13 +153,13 @@ ASTPtr Parser::ParseTerm() {
   }
   // 处理不带括号的连乘连除
   while ((Peek() == "*") || (Peek() == "/")) {
-    string op = Peek();
+    std::string op = Peek();
     Consume();
     ASTPtr rhs = ParsePrimary();
     if (!rhs) {
       return nullptr;
     }
-    lhs = CreateBinaryOpNode(move(lhs), op, move(rhs));
+    lhs = CreateBinaryOpNode(std::move(lhs), op, std::move(rhs));
   }
   return lhs;
 }
@@ -180,14 +174,14 @@ ASTPtr Parser::Parse() {
 }
 
 // 处理操作符或函数节点
-void ProcessOperatorOrFunction(ASTNode *node, unordered_map<string, string> &expr_map_, vector<ASTNode> &temp_order_,
+void ProcessOperatorOrFunction(ASTNode *node, std::unordered_map<std::string, std::string> &expr_map_, std::vector<ASTNode> &temp_order_,
                                int32_t &temp_count_) {
   auto it = expr_map_.find(node->hash);
   if (it != expr_map_.end()) {
     node->temp_var = it->second;  // 复用已有变量名
   } else {
     // 分配新变量名并记录
-    node->temp_var = "temp" + to_string(temp_count_++);
+    node->temp_var = "temp" + std::to_string(temp_count_++);
     expr_map_[node->hash] = node->temp_var;
     temp_order_.push_back(*node);
   }
@@ -209,8 +203,8 @@ void Optimizer::Traverse(ASTNode *node) {
   }
 }
 
-string RebuildFunctionCall(const ASTNode &node, int iter, function<string(const ASTNode &, int)> rebuild_expr) {
-  stringstream ss;
+std::string RebuildFunctionCall(const ASTNode &node, int iter, std::function<std::string(const ASTNode &, int)> rebuild_expr) {
+  std::stringstream ss;
   ss << node.op << "(";
   for (size_t i = 0; i < node.children.size(); ++i) {
     if (i > 0u) {
@@ -222,7 +216,7 @@ string RebuildFunctionCall(const ASTNode &node, int iter, function<string(const 
   return ss.str();
 }
 
-string RebuildBinaryOperation(const ASTNode &node, int iter, function<string(const ASTNode &, int)> rebuild_expr) {
+std::string RebuildBinaryOperation(const ASTNode &node, int iter, std::function<std::string(const ASTNode &, int)> rebuild_expr) {
   if (node.children.size() != 2u) {
     return node.expr;
   }
@@ -230,7 +224,7 @@ string RebuildBinaryOperation(const ASTNode &node, int iter, function<string(con
               rebuild_expr(*node.children[1].get(), iter + 1) + ")";
 }
 
-string Optimizer::RebuildExpr(const ASTNode &node, int iter) {
+std::string Optimizer::RebuildExpr(const ASTNode &node, int iter) {
   // 复用已有变量名
   if (!node.temp_var.empty() && (iter != 0)) {
     return node.temp_var;
@@ -247,8 +241,8 @@ string Optimizer::RebuildExpr(const ASTNode &node, int iter) {
       return node.expr;
   }
 }
-string Optimizer::GenerateCode() {
-  stringstream ss;
+std::string Optimizer::GenerateCode(const std::string &indent) {
+  std::stringstream ss;
   if (temp_order_.empty()) {
     return "";
   }
@@ -257,7 +251,7 @@ string Optimizer::GenerateCode() {
     if (visited_.find(node.hash) != visited_.end()) {
       continue;
     }
-    ss << "    auto " << node.temp_var << " = " << RebuildExpr(node, 0) << ";\n";
+    ss << indent << "auto " << node.temp_var << " = " << RebuildExpr(node, 0) << ";\n";
     visited_.insert(node.hash);
   }
   return ss.str();

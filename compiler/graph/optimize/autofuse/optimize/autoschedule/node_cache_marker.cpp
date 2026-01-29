@@ -17,7 +17,7 @@
 
 namespace optimize::autoschedule {
 // 获取对端节点的输出attr，作为当前节点的输入attr
-ge::Status NodeCacheMarker::GetAscNodeInputAttr(const ge::NodePtr &node, const int32_t idx, ge::AscTensorAttr &attr) {
+ge::Status NodeCacheMarker::GetAscNodeInputAttr(const ge::NodePtr &node, int32_t idx, ge::AscTensorAttr &attr) {
   const auto &asc_node = std::dynamic_pointer_cast<ge::AscNode>(node);
   GE_ASSERT_NOTNULL(asc_node);
   GE_ASSERT_TRUE(static_cast<uint32_t>(idx) < asc_node->GetAllInDataAnchorsSize());
@@ -129,7 +129,7 @@ ge::ExecuteCondition NodeCacheMarker::DoesNodeNeedCache(const ge::NodePtr &node)
   return DoesNodeNeedCache(asc_node);
 }
 
-ge::ExecuteCondition NodeCacheMarker::DoesInlineNodeNeedCache(const ge::NodePtr &node, const int32_t brc_idx) const {
+ge::ExecuteCondition NodeCacheMarker::DoesInlineNodeNeedCache(const ge::NodePtr &node, int32_t brc_idx) const {
   ge::AscTensorAttr in_attr;
   GE_ASSERT_SUCCESS(GetAscNodeInputAttr(node, brc_idx, in_attr));
   ge::AscTensorAttr out_attr;
@@ -142,7 +142,7 @@ ge::ExecuteCondition NodeCacheMarker::DoesInlineNodeNeedCache(const ge::NodePtr 
   return DoesNodeNeedCache(in_axis, out_axis, in_repeats, out_repeats);
 }
 
-void NodeCacheMarker::MarkNodeCacheable(const ge::NodePtr &node, const ge::ExecuteCondition condition) {
+void NodeCacheMarker::MarkNodeCacheable(const ge::NodePtr &node) {
   const auto &asc_node = std::dynamic_pointer_cast<ge::AscNode>(node);
   if (asc_node != nullptr) {
     // 由于引入精度问题，暂时关闭，待后续找到具体片段后再定位
@@ -153,7 +153,7 @@ void NodeCacheMarker::MarkNodeCacheable(const ge::NodePtr &node, const ge::Execu
 /**
  * 把node及node的所有父节点标记为可缓存
  */
-void NodeCacheMarker::MarkNodesCacheableBottomUp(const ge::AscNodePtr &node, const ge::ExecuteCondition condition) {
+void NodeCacheMarker::MarkNodesCacheableBottomUp(const ge::AscNodePtr &node, [[maybe_unused]] const ge::ExecuteCondition condition) {
   std::queue<ge::NodePtr> queue;
   queue.push(node);
   while (!queue.empty()) {
@@ -164,7 +164,7 @@ void NodeCacheMarker::MarkNodesCacheableBottomUp(const ge::AscNodePtr &node, con
       AddToCacheStartSet(tmp_node);
       continue;
     }
-    MarkNodeCacheable(tmp_node, condition);
+    MarkNodeCacheable(tmp_node);
     for (const auto &in_node : tmp_node->GetInDataNodes()) {
       queue.push(in_node);
     }
@@ -183,7 +183,7 @@ void NodeCacheMarker::MarkNodesCacheableUpBottom(const ge::NodePtr &node) {
   queue.push(node);
   while (!queue.empty()) {
     const auto &tmp_node = queue.front();
-    const auto exec_condition = ascgen_utils::GetNodeExecCondition(tmp_node);
+    [[maybe_unused]] const auto exec_condition = ascgen_utils::GetNodeExecCondition(tmp_node);
     queue.pop();
     for (const auto &out_node : tmp_node->GetOutDataNodes()) {
       // 若子节点为多输入，则不会缓存
@@ -193,7 +193,7 @@ void NodeCacheMarker::MarkNodesCacheableUpBottom(const ge::NodePtr &node) {
       }
       // 否则，若没有标记缓存，则将其标记为缓存，并加入队列继续遍历子节点
       if (!ascgen_utils::IsNodeCacheable(out_node)) {
-        MarkNodeCacheable(out_node, exec_condition);
+        MarkNodeCacheable(out_node);
       }
       queue.push(out_node);
     }
@@ -215,7 +215,7 @@ ge::Status NodeCacheMarker::ReverseDfsCacheNode(const ge::NodePtr &ge_node) {
   if (ScheduleUtils::IsBroadcast(node)) {
     const auto condition = DoesNodeNeedCache(node);
     if (condition != ge::ExecuteCondition::kNoCache) {
-      MarkNodeCacheable(node, condition);
+      MarkNodeCacheable(node);
       MarkNodesCacheableBottomUp(node, condition);
       GELOGD("Graph(%s) Broadcast(%s) supports brc cache.", graph_.GetName().c_str(), node->GetNamePtr());
       return ge::SUCCESS;

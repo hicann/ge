@@ -23,10 +23,14 @@ bool CompareByOrderInTensorAxis(const int64_t &lhs, const int64_t &rhs, const st
 
 bool IsRedundantBroadcast(const ascir::ImplGraph &impl_graph, const ge::AscNodePtr &brc_node,
                           const ge::AscNodePtr &pre_node, const uint32_t pre_node_out_index) {
+  if (optimize::ScheduleUtils::IsIOBuffer(pre_node)) {
+    return false;
+  }
   std::vector<ge::Expression> in_vec_repeats;
   const auto &in_attr = pre_node->outputs[pre_node_out_index].attr;
   GE_WARN_ASSERT(optimize::ScheduleUtils::GetVectorRepeats(in_attr.repeats, in_attr.axis, in_attr.vectorized_axis,
-                                                           in_vec_repeats) == ge::SUCCESS);
+                                                           in_vec_repeats) == ge::SUCCESS,
+                 "%s[%s] GetVectorRepeats failed", pre_node->GetTypePtr(), pre_node->GetNamePtr());
   std::vector<ge::Expression> out_vec_repeats;
   GE_WARN_ASSERT(optimize::ScheduleUtils::GetNodeOutVectorRepeats(brc_node, out_vec_repeats) == ge::SUCCESS);
 

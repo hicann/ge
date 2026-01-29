@@ -35,7 +35,9 @@ Status SplitFusionCaseGenerator::Generate(ascir::HintGraph &graph, std::vector<a
   if (split_nodes.empty()) {
     return ge::SUCCESS;
   }
+
   auto split_node = split_nodes.front();
+  split_node_ = split_node;  
   bool is_first_dim = false;
   size_t split_dim = 0;
   GE_CHK_STATUS_RET(ResolveSplitDim(split_node, split_dim, is_first_dim), "ResolveSplitDim failed");
@@ -129,8 +131,10 @@ Status SplitFusionCaseGenerator::ConvertSplitToLoads(ascir::HintGraph &owner_gra
   return ge::SUCCESS;
 }
 
-Status SplitFusionCaseGenerator::SplitSplits(ascir::HintGraph &owner_graph, const ge::AscNodePtr &split_node,
-                                             size_t split_dim, bool &split) {
+Status SplitFusionCaseGenerator::SplitSplits(const ascir::HintGraph &owner_graph, const ge::AscNodePtr &split_node,
+                                             size_t split_dim, const bool &split) {
+  (void)owner_graph;
+  (void)split;
   GE_CHK_STATUS_RET(Prepare(split_node, split_dim), "Prepare failed");
   std::vector<SplitGroupPartitioner::SplitGroup> groups;
   SplitGroupPartitioner partitioner(split_node, split_dim);
@@ -186,10 +190,10 @@ Status SplitFusionCaseGenerator::ReplaceWithLoad(::ascir::ImplGraph &owner_graph
   auto load_attr = ori_load_node_->GetOpDesc()->GetOrCreateAttrsGroup<ge::AscNodeAttr>();
   GE_CHECK_NOTNULL(load_attr, "Node attr is null, node = %s", ori_load_node_->GetNamePtr());
   load_op.attr = *load_attr;
-  load_op.attr.sched.axis = peer_in_node->attr.sched.axis;
+  load_op.attr.sched.axis = split_node->attr.sched.axis;
   const auto &output_tensor_attr = ori_load_node_->outputs[0];
   load_op.y.dtype = static_cast<ge::DataType>(output_tensor_attr.attr.dtype);
-  *load_op.y.axis = peer_in_node->attr.sched.axis;
+  *load_op.y.axis = split_node->outputs[out_index].attr.axis;
   *load_op.y.strides = output_tensor_attr.attr.strides;
   *load_op.y.repeats = split_node->outputs[out_index].attr.repeats;
   auto load_node = owner_graph.AddNode(load_op);
@@ -214,13 +218,15 @@ Status SplitFusionCaseGenerator::ReplaceWithLoad(::ascir::ImplGraph &owner_graph
   /*  根据oriload节点查找data节点，连边 */
   GE_CHK_STATUS_RET(SplitDataForConvertLoad(owner_graph, split_node, split_out_anchor, load_node), "Failed to SplitData");
   std::vector<ge::AscNodePtr> nodes;
-  GE_CHK_STATUS_RET(CollectBackwardNodes(load_node, nodes), "Failed to SplitData");
-  GE_CHK_STATUS_RET(SplitOutReplaceAxis(owner_graph, nodes, split_node, load_node, out_index), "Failed to replace axis");
+  ge::AscNodePtr broadcast_node;
+  GE_CHK_STATUS_RET(CollectBackwardNodes(load_node, nodes, broadcast_node), "Failed to SplitData");
+  GE_CHK_STATUS_RET(SplitOutReplaceAxis(owner_graph, nodes, load_node, out_index, broadcast_node), "Failed to replace axis");
   return ge::SUCCESS;
 }
 
 ge::Status SplitFusionCaseGenerator::SplitDataForConvertLoad(ascir::ImplGraph &owner_graph, const ge::AscNodePtr &split_node,
                                                          const ge::OutDataAnchorPtr &split_out_anchor, ge::AscNodePtr &new_load_node) {
+  (void)split_node;
   const auto out_index = split_out_anchor->GetIdx();
   std::string node_name = ori_in_data_node_->GetName() + std::string("_splitforconvertload") + std::to_string(out_index);
   ge::ascir_op::Data data(node_name.c_str());
@@ -236,32 +242,55 @@ ge::Status SplitFusionCaseGenerator::SplitDataForConvertLoad(ascir::ImplGraph &o
   return ge::SUCCESS;
 }
 
+void SplitFusionCaseGenerator::IsBroadcastNode(const ge::NodePtr &origin_node, ge::AscNodePtr &broadcast_node, bool &has_broadcast_node) const {
+  auto asc_node = std::dynamic_pointer_cast<ge::AscNode>(origin_node);
+  if (ge::ops::IsOps<ge::ascir_op::Broadcast>(asc_node)) {
+    broadcast_node = asc_node;
+    has_broadcast_node = true;
+  }
+  return;
+}
+
 ge::Status SplitFusionCaseGenerator::CollectBackwardNodes(const ge::AscNodePtr &load_node,
-                                                           std::vector<ge::AscNodePtr> &nodes) {
+                                                           std::vector<ge::AscNodePtr> &nodes,
+                                                          ge::AscNodePtr &broadcast_node) const {
   std::set<ge::Node *> visited_nodes{load_node.get()};
   std::queue<ge::NodePtr> next_nodes;
+  bool has_broadcast_node = false;
   for (const auto &out_data_node : load_node->GetOutDataNodes()) {
     if (visited_nodes.emplace(out_data_node.get()).second) {
       next_nodes.push(out_data_node);
+      IsBroadcastNode(out_data_node, broadcast_node, has_broadcast_node);
     }
   }
-  while (!next_nodes.empty()) {
-    auto &top = next_nodes.front();
-    auto asc_node = std::dynamic_pointer_cast<ge::AscNode>(top);
-    GE_ASSERT_NOTNULL(asc_node);
-    nodes.emplace_back(asc_node);
-    for (const auto &in_node : top->GetInDataNodes()) {
-      if (visited_nodes.emplace(in_node.get()).second) {
-        next_nodes.emplace(in_node);
+  if (has_broadcast_node == false) {
+    while (!next_nodes.empty()) {
+      auto &top = next_nodes.front();
+      auto asc_node = std::dynamic_pointer_cast<ge::AscNode>(top);
+      GE_ASSERT_NOTNULL(asc_node);
+      nodes.emplace_back(asc_node);
+      for (const auto &in_node : top->GetInDataNodes()) {
+        if (visited_nodes.emplace(in_node.get()).second) {
+          next_nodes.emplace(in_node);
+          IsBroadcastNode(in_node, broadcast_node, has_broadcast_node);
+        }
       }
-    }
-    for (const auto &out_node : top->GetOutDataNodes()) {
-      if (visited_nodes.emplace(out_node.get()).second) {
-        next_nodes.emplace(out_node);
+      if (has_broadcast_node == true) {
+        break;
       }
+      for (const auto &out_node : top->GetOutDataNodes()) {
+        if (visited_nodes.emplace(out_node.get()).second) {
+          next_nodes.emplace(out_node);
+          IsBroadcastNode(out_node, broadcast_node, has_broadcast_node);
+        }
+      }
+      if (has_broadcast_node == true) {
+        break;
+      }
+      next_nodes.pop();
     }
-    next_nodes.pop();
   }
+
   std::sort(nodes.begin(), nodes.end(), [](const ge::AscNodePtr &lhs, const ge::AscNodePtr &rhs) -> bool {
     return lhs->GetOpDesc()->GetId() < rhs->GetOpDesc()->GetId();
   });
@@ -270,13 +299,21 @@ ge::Status SplitFusionCaseGenerator::CollectBackwardNodes(const ge::AscNodePtr &
 
 ge::Status SplitFusionCaseGenerator::SplitOutReplaceAxis(ascir::ImplGraph &owner_graph,
                                                   std::vector<ge::AscNodePtr> &nodes,
-                                                  const ge::AscNodePtr &split_node,
                                                   const ge::AscNodePtr &load_node_new,
-                                                  int32_t out_index) {
-  ascir::Axis split_axis = *(owner_graph.GetAllAxis().at(split_axis_id_));
-  const auto &output_repeats = split_node->outputs[out_index].attr.repeats;
-  auto new_split_axis = owner_graph.CreateAxis(split_axis.name + "_ss_" + std::to_string(out_index),
-                                                output_repeats[split_dim_]);
+                                                  int32_t out_index,
+                                                  ge::AscNodePtr &broadcast_node) {
+  ascir::Axis split_axis;
+  ascir::Axis new_split_axis;
+  split_axis = *(owner_graph.GetAllAxis().at(split_axis_id_));
+  if (broadcast_node == nullptr) {
+    const auto &output_repeats = split_node_->outputs[out_index].attr.repeats;
+    new_split_axis = owner_graph.CreateAxis(split_axis.name + "_ss_" + std::to_string(out_index),
+                                                  output_repeats[split_dim_]);
+  } else {
+    auto broadcast_axisid = broadcast_node->attr.sched.axis[split_dim_];
+    new_split_axis = *(owner_graph.GetAllAxis().at(broadcast_axisid));
+  }
+
   GELOGD("New axis %s, size = %s", new_split_axis.name.c_str(),
          ge::SymbolicUtils::ToString(new_split_axis.size).c_str());
   owner_graph.TryApplyAxisReplace(load_node_new, split_axis, new_split_axis);

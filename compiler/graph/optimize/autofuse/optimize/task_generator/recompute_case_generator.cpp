@@ -57,6 +57,7 @@ size_t CountComputeNodes(const std::unordered_set<ge::Node *> &nodes) {
 namespace optimize {
 Status RecomputeCaseGenerator::GeneratorTask(ascir::HintGraph &hint_graph, std::vector<ScheduleTask> &tasks,
                                              const OptimizerOptions &options) {
+  (void)options;                                            
   auto graph_axis = hint_graph.GetAllAxis();
   is_static_graph_ = std::all_of(graph_axis.begin(), graph_axis.end(),
                                  [](const ge::AxisPtr &axis) { return axis->size.IsConstExpr(); });
@@ -158,7 +159,7 @@ void RecomputeCaseGenerator::MergeAllPaths() {
   while (it != result_.merged_recompute_nodes.end()) {
     bool is_all_in_path = true;
     for (const auto &out_node : (*it)->GetOutDataNodes()) {
-      if (!result_.merged_path_nodes.count(out_node.get()) ||
+      if (result_.merged_path_nodes.count(out_node.get()) == 0 ||
           result_.merged_recompute_nodes.count(out_node.get()) > 0UL) {
         is_all_in_path = false;
         break;
@@ -247,7 +248,7 @@ Status RecomputeCaseGenerator::DoGraphSplit(ge::AscGraph &graph) const {
   return ge::SUCCESS;
 }
 
-bool RecomputeCaseGenerator::IsRecomputableNode(ascir::HintGraph &hint_graph, ge::AscNode *const node) const {
+bool RecomputeCaseGenerator::IsRecomputableNode(ascir::HintGraph &hint_graph, ge::AscNode *node) const {
   if (node->attr.api.type == ge::ApiType::kAPITypeBuffer) {
     return true;
   }

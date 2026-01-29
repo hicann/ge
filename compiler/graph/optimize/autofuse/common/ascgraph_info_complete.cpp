@@ -34,63 +34,51 @@ void InsertFreeSymbolsIntoVarSet(const ge::Expression &exp, SizeVarSet &size_var
 }
 
 void CompleteDataApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeInvalid;
   node->attr.api.type = ge::ApiType::kAPITypeBuffer;
   node->attr.api.unit = ge::ComputeUnit::kUnitNone;
 }
 
 void CompleteLoadApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeLoad;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitMTE2;
 }
 
 void CompleteStoreApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeStore;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitMTE2;
 }
 
 void CompleteElewiseApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeElewise;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitVector;
 }
 
 void CompleteBroadcastApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeBroadcast;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitVector;
 }
 
 void CompleteReduceApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeReduce;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitVector;
 }
 
 void CompleteConcatApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeConcat;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitVector;
 }
 
 void CompleteSplitApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeSplit;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitVector;
 }
 
 void CompleteGatherApiInfo(ge::AscNodePtr &node) {
-  if (node->attr.api.compute_type >= ge::ComputeType::kComputeInvalid) {
-    node->attr.api.compute_type = ge::ComputeType::kComputeGather;
-  }
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitMTE2;
 }
 
 void CompleteCubeApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeCube;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitCube;
 }
@@ -102,66 +90,86 @@ struct Completer {
 };
 
 void CompleteTransposeApiInfo(ge::AscNodePtr &node) {
-  node->attr.api.compute_type = ge::ComputeType::kComputeTranspose;
   node->attr.api.type = ge::ApiType::kAPITypeCompute;
   node->attr.api.unit = ge::ComputeUnit::kUnitVector;
 }
 
-static const std::map<std::string, Completer> kOpTypeToCompleter = {
-    {Workspace::Type, {&CompleteDataApiInfo}},      {Data::Type, {&CompleteDataApiInfo}},
-    {Scalar::Type, {&CompleteDataApiInfo}},         {Output::Type, {&CompleteDataApiInfo}},
-    {IndexExpr::Type, {&CompleteDataApiInfo}},      {Nddma::Type, {&CompleteLoadApiInfo}},
+static const std::map<std::string, ge::ComputeType> kOpTypeToComputeType = {
+    {Workspace::Type, ge::ComputeType::kComputeInvalid},      {Data::Type, ge::ComputeType::kComputeInvalid},
+    {Scalar::Type, ge::ComputeType::kComputeInvalid},         {Output::Type, ge::ComputeType::kComputeInvalid},
+    {IndexExpr::Type, ge::ComputeType::kComputeInvalid},
 
-    {Load::Type, {&CompleteLoadApiInfo}},           {Store::Type, {&CompleteStoreApiInfo}},
+    {Load::Type, ge::ComputeType::kComputeLoad},           {Store::Type, ge::ComputeType::kComputeStore},
 
-    {Sum::Type, {&CompleteReduceApiInfo}},          {Max::Type, {&CompleteReduceApiInfo}},
-    {Mean::Type, {&CompleteReduceApiInfo}},         {Min::Type, {&CompleteReduceApiInfo}},
-    {Prod::Type, {&CompleteReduceApiInfo}},         {All::Type, {&CompleteReduceApiInfo}},
-    {Any::Type, {&CompleteReduceApiInfo}},
+    {Sum::Type, ge::ComputeType::kComputeReduce},          {Max::Type, ge::ComputeType::kComputeReduce},
+    {Mean::Type, ge::ComputeType::kComputeReduce},         {Min::Type, ge::ComputeType::kComputeReduce},
+    {Prod::Type, ge::ComputeType::kComputeReduce},         {All::Type, ge::ComputeType::kComputeReduce},
+    {Any::Type, ge::ComputeType::kComputeReduce},
 
-    {Broadcast::Type, {&CompleteBroadcastApiInfo}},
-    {RemovePad::Type, {&CompleteElewiseApiInfo}},
-    {Pad::Type, {&CompleteElewiseApiInfo}},
+    {Broadcast::Type, ge::ComputeType::kComputeBroadcast},
+    {RemovePad::Type, ge::ComputeType::kComputeElewise},
+    {Pad::Type, ge::ComputeType::kComputeElewise},
 
-    {Cast::Type, {&CompleteElewiseApiInfo}},        {Abs::Type, {&CompleteElewiseApiInfo}},
-    {Neg::Type, {&CompleteElewiseApiInfo}},         {Exp::Type, {&CompleteElewiseApiInfo}},
-    {Sqrt::Type, {&CompleteElewiseApiInfo}},        {Rsqrt::Type, {&CompleteElewiseApiInfo}},
-    {Relu::Type, {&CompleteElewiseApiInfo}},        {Reciprocal::Type, {&CompleteElewiseApiInfo}},
-    {Erf::Type, {&CompleteElewiseApiInfo}},         {Sign::Type, {&CompleteElewiseApiInfo}},
-    {Tanh::Type, {&CompleteElewiseApiInfo}},        {Isnan::Type, {&CompleteElewiseApiInfo}},
-    {IsFinite::Type, {&CompleteElewiseApiInfo}},    {Ln::Type, {&CompleteElewiseApiInfo}},
-    {LogicalNot::Type, {&CompleteElewiseApiInfo}},
+    {Cast::Type, ge::ComputeType::kComputeElewise},        {Abs::Type, ge::ComputeType::kComputeElewise},
+    {Neg::Type, ge::ComputeType::kComputeElewise},         {Exp::Type, ge::ComputeType::kComputeElewise},
+    {Sqrt::Type, ge::ComputeType::kComputeElewise},        {Rsqrt::Type, ge::ComputeType::kComputeElewise},
+    {Relu::Type, ge::ComputeType::kComputeElewise},        {Reciprocal::Type, ge::ComputeType::kComputeElewise},
+    {Erf::Type, ge::ComputeType::kComputeElewise},         {Sign::Type, ge::ComputeType::kComputeElewise},
+    {Tanh::Type, ge::ComputeType::kComputeElewise},        {Isnan::Type, ge::ComputeType::kComputeElewise},
+    {IsFinite::Type, ge::ComputeType::kComputeElewise},    {Ln::Type, ge::ComputeType::kComputeElewise},
+    {LogicalNot::Type, ge::ComputeType::kComputeElewise},
 
-    {Add::Type, {&CompleteElewiseApiInfo}},         {Sub::Type, {&CompleteElewiseApiInfo}},
-    {Mul::Type, {&CompleteElewiseApiInfo}},         {Div::Type, {&CompleteElewiseApiInfo}},
-    {TrueDiv::Type, {&CompleteElewiseApiInfo}},     {Minimum::Type, {&CompleteElewiseApiInfo}},
-    {Maximum::Type, {&CompleteElewiseApiInfo}},     {LogicalOr::Type, {&CompleteElewiseApiInfo}},
-    {LogicalAnd::Type, {&CompleteElewiseApiInfo}},
+    {Add::Type, ge::ComputeType::kComputeElewise},         {Sub::Type, ge::ComputeType::kComputeElewise},
+    {Mul::Type, ge::ComputeType::kComputeElewise},         {Div::Type, ge::ComputeType::kComputeElewise},
+    {TrueDiv::Type, ge::ComputeType::kComputeElewise},     {Minimum::Type, ge::ComputeType::kComputeElewise},
+    {Maximum::Type, ge::ComputeType::kComputeElewise},     {LogicalOr::Type, ge::ComputeType::kComputeElewise},
+    {LogicalAnd::Type, ge::ComputeType::kComputeElewise},
 
-    {Ge::Type, {&CompleteElewiseApiInfo}},          {Eq::Type, {&CompleteElewiseApiInfo}},
-    {Ne::Type, {&CompleteElewiseApiInfo}},          {Gt::Type, {&CompleteElewiseApiInfo}},
-    {Le::Type, {&CompleteElewiseApiInfo}},          {Lt::Type, {&CompleteElewiseApiInfo}},
-    {Broadcast::Type, {&CompleteElewiseApiInfo}},   {Sigmoid::Type, {&CompleteElewiseApiInfo}},
-    {Concat::Type, {&CompleteConcatApiInfo}},       {Gather::Type, {&CompleteGatherApiInfo}},
+    {Ge::Type, ge::ComputeType::kComputeElewise},          {Eq::Type, ge::ComputeType::kComputeElewise},
+    {Ne::Type, ge::ComputeType::kComputeElewise},          {Gt::Type, ge::ComputeType::kComputeElewise},
+    {Le::Type, ge::ComputeType::kComputeElewise},          {Lt::Type, ge::ComputeType::kComputeElewise},
+    {Broadcast::Type, ge::ComputeType::kComputeElewise},   {Sigmoid::Type, ge::ComputeType::kComputeElewise},
+    {Concat::Type, ge::ComputeType::kComputeConcat},       {Gather::Type, ge::ComputeType::kComputeGather},
 
-    {Where::Type, {&CompleteElewiseApiInfo}},       {Select::Type, {&CompleteElewiseApiInfo}},
-    {ClipByValue::Type, {&CompleteElewiseApiInfo}}, {Pow::Type, {&CompleteElewiseApiInfo}},
-    {Transpose::Type, {&CompleteTransposeApiInfo}},
-    {BitwiseAnd::Type, {&CompleteElewiseApiInfo}},  {LeakyRelu::Type, {&CompleteElewiseApiInfo}},
-    {FloorDiv::Type, {&CompleteElewiseApiInfo}},    {Gelu::Type, {&CompleteElewiseApiInfo}},
-    {Axpy::Type, {&CompleteElewiseApiInfo}},
-    {Split::Type, {&CompleteSplitApiInfo}},
-    {MatMul::Type, {&CompleteCubeApiInfo}},         {MatMulBias::Type, {&CompleteCubeApiInfo}},
-    {MatMulOffset::Type, {&CompleteCubeApiInfo}},   {MatMulOffsetBias::Type, {&CompleteCubeApiInfo}},
-    {BatchMatMul::Type, {&CompleteCubeApiInfo}},    {BatchMatMulBias::Type, {&CompleteCubeApiInfo}},
-    {BatchMatMulOffset::Type, {&CompleteCubeApiInfo}},
-    {BatchMatMulOffsetBias::Type, {&CompleteCubeApiInfo}},
+    {Where::Type, ge::ComputeType::kComputeElewise},       {Select::Type, ge::ComputeType::kComputeElewise},
+    {ClipByValue::Type, ge::ComputeType::kComputeElewise}, {Pow::Type, ge::ComputeType::kComputeElewise},
+    {Transpose::Type, ge::ComputeType::kComputeTranspose},
+    {BitwiseAnd::Type, ge::ComputeType::kComputeElewise},  {LeakyRelu::Type, ge::ComputeType::kComputeElewise},
+    {FloorDiv::Type, ge::ComputeType::kComputeElewise},    {Gelu::Type, ge::ComputeType::kComputeElewise},
+    {Axpy::Type, ge::ComputeType::kComputeElewise},
+    {Split::Type, ge::ComputeType::kComputeSplit},
+    {MatMul::Type, ge::ComputeType::kComputeCube},         {MatMulBias::Type, ge::ComputeType::kComputeCube},
+    {MatMulOffset::Type, ge::ComputeType::kComputeCube},   {MatMulOffsetBias::Type, ge::ComputeType::kComputeCube},
+    {BatchMatMul::Type, ge::ComputeType::kComputeCube},    {BatchMatMulBias::Type, ge::ComputeType::kComputeCube},
+    {BatchMatMulOffset::Type, ge::ComputeType::kComputeCube},
+    {BatchMatMulOffsetBias::Type, ge::ComputeType::kComputeCube},
+};
+
+static const std::map<ge::ComputeType, Completer> kComputeTypeToCompleter = {
+    {ge::ComputeType::kComputeInvalid, {&CompleteDataApiInfo}},
+    {ge::ComputeType::kComputeLoad, {&CompleteLoadApiInfo}},
+    {ge::ComputeType::kComputeStore, {&CompleteStoreApiInfo}},
+    {ge::ComputeType::kComputeReduce, {&CompleteReduceApiInfo}},
+    {ge::ComputeType::kComputeBroadcast, {&CompleteBroadcastApiInfo}},
+    {ge::ComputeType::kComputeElewise, {&CompleteElewiseApiInfo}},
+    {ge::ComputeType::kComputeConcat, {&CompleteConcatApiInfo}},
+    {ge::ComputeType::kComputeGather, {&CompleteGatherApiInfo}},
+    {ge::ComputeType::kComputeTranspose, {&CompleteTransposeApiInfo}},
+    {ge::ComputeType::kComputeSplit, {&CompleteSplitApiInfo}},
+    {ge::ComputeType::kComputeCube, {&CompleteCubeApiInfo}},
 };
 
 Status AscGraphInfoComplete::CompleteApiInfo(const ge::AscGraph &optimize_graph) {
   for (auto node : optimize_graph.GetAllNodes()) {
-    auto it = kOpTypeToCompleter.find(node->GetType());
-    GE_ASSERT_TRUE((it != kOpTypeToCompleter.end()), "CompleteApiInfo unsupported node name:[%s], type: [%s].",
+    auto node_compute_type = &node->attr.api.compute_type;
+    if (*node_compute_type >= ge::ComputeType::kComputeInvalid) {
+      auto item = kOpTypeToComputeType.find(node->GetType());
+      GE_ASSERT_TRUE((item != kOpTypeToComputeType.end()), "Failed get node compute type, node name:[%s], type: [%s].",
+                     node->GetNamePtr(), node->GetTypePtr());
+      *node_compute_type = item->second;
+    }
+    auto it = kComputeTypeToCompleter.find(*node_compute_type);
+    GE_ASSERT_TRUE((it != kComputeTypeToCompleter.end()), "CompleteApiInfo unsupported node name:[%s], type: [%s].",
                    node->GetNamePtr(), node->GetTypePtr());
     it->second.complete_api_info(node);
   }
@@ -175,7 +183,8 @@ void AscGraphInfoComplete::AppendOriginalSizeVar(const ge::AscGraph &graph, Size
   }
   auto all_nodes = graph.GetAllNodes();
   for (const auto &node : all_nodes) {
-    if (!ge::ops::IsOps<Store>(node) && !ge::ops::IsOps<Load>(node) && !ge::ops::IsOps<Gather>(node)) {
+    if (!ge::ops::IsOps<Nddma>(node) && !ge::ops::IsOps<Store>(node) && !ge::ops::IsOps<Load>(node) &&
+        !ge::ops::IsOps<Gather>(node)) {
       continue;
     }
 

@@ -1,20 +1,16 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "general_solver_gen.h"
+#include "graph/symbolizer/symbolic.h"
+#include "graph/symbolizer/symbolic_utils.h"
 
 namespace att {
 
@@ -37,7 +33,7 @@ void GeneralSolverGen::SetSearchArgs(const std::vector<Expr> &search_args) {
 void GeneralSolverGen::SetInputArgs(const std::vector<Expr> &input_args) {
   for (const auto &arg : input_args) {
     input_args_.emplace_back(arg);
-    input_align_[arg] = 1;
+    input_align_[arg] = ge::Symbol(1);
   }
 }
 
@@ -53,7 +49,7 @@ void GeneralSolverGen::SetConstArgs(const ExprUintMap &const_args) {
   }
 }
 
-void GeneralSolverGen::SetInputAlign(const ExprUintMap &input_align) {
+void GeneralSolverGen::SetInputAlign(const ExprExprMap &input_align) {
   for (const auto &pair : input_align) {
     input_align_[pair.first] = pair.second;
   }
@@ -337,10 +333,14 @@ std::string GeneralSolverGen::InitiateArgs(std::vector<Expr> args) const {
 std::string GeneralSolverGen::GenAlignInput(const Expr arg, const std::string indent) {
   std::string codes = "";
   std::string input_align;
-  if (IsValid(arg) && input_align_[arg] != 1) {
-    input_align = std::to_string(input_align_[arg]);
+  auto input_align_expr = input_align_[arg];
+
+  if (IsValid(arg) && (!input_align_expr.IsConstExpr() ||
+                       (input_align_expr.IsConstExpr() &&
+                        ge::SymbolicUtils::StaticCheckNe(input_align_expr, ge::Symbol(1)) == ge::TriBool::kTrue))) {
+    input_align = Str(input_align_expr);
     codes += indent + Str(arg) + " = ((" + Str(arg) + " + " + input_align + " - 1) / " + input_align + ") * " +
-        input_align + ";\n";
+             input_align + ";\n";
   }
   return codes;
 }
@@ -893,7 +893,7 @@ std::string GeneralSolverGen::InitiateValue() {
 
 bool GeneralSolverGen::CheckUseful(Expr arg) {
   bool used = false;
-  for (const auto pair : min_value_) {
+  for (const auto &pair : min_value_) {
     if (pair.second.ContainVar(arg)) {
       used = true;
     }

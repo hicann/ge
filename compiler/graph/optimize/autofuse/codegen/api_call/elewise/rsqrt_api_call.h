@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_RSQRT_API_CALL_H__
 #define __AUTOFUSE_RSQRT_API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class RsqrtApiCall final : public ApiCall {

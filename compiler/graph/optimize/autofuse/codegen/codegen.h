@@ -34,27 +34,26 @@ struct CodegenOptions {
 class Codegen {
  public:
   explicit Codegen(const CodegenOptions& options);
-  Status Generate(const ascir::FusedScheduledResult& fused_schedule_result, CodegenResult &result) const;
+  Status Generate(const ::ascir::FusedScheduledResult& fused_schedule_result, CodegenResult &result) const;
   Status Generate(const std::map<std::string, std::string> &shape_info,
-                  const ascir::FusedScheduledResult& fused_schedule_result, CodegenResult &result) const;
-  Status GenerateForInductor(const ascir::FusedScheduledResult& fused_schedule_result, CodegenResult &result) const;
+                  const ::ascir::FusedScheduledResult& fused_schedule_result, CodegenResult &result) const;
+  Status GenerateForInductor(const ::ascir::FusedScheduledResult& fused_schedule_result, CodegenResult &result) const;
 
-  std::string GenerateTilingData(const ascir::FusedScheduledResult& fused_schedule_result) const;
+  std::string GenerateTilingData(const ::ascir::FusedScheduledResult& fused_schedule_result) const;
 
-  std::map<std::string, std::string> GenerateTiling(const ascir::FusedScheduledResult &fused_schedule_result,
+  std::map<std::string, std::string> GenerateTiling(const ::ascir::FusedScheduledResult &fused_schedule_result,
                                                     const std::map<std::string, std::string> &shape_info, const std::string& pgo_dir,
                                                     const std::string &core_num) const;
   std::map<std::string, std::string> GenerateTilingForInductor(
-      const ascir::FusedScheduledResult &fused_schedule_result) const;
+      const ::ascir::FusedScheduledResult &fused_schedule_result) const;
 
-  Status GenerateKernel(const ascir::FusedScheduledResult& fused_schedule_result, std::string &result,
+  Status GenerateKernel(const ::ascir::FusedScheduledResult& fused_schedule_result, std::string &result,
                         bool is_inductor = false) const;
   std::string GenGetKernelAndJson(const std::string& kernel_path, const std::string& json_path) const;
   std::string GenerateInferShape(const std::vector<std::vector<std::string>> &symbol_shape_str,
                                  const std::map<std::string, std::string> &shape_info) const;
 
-  std::string GeneratorPgo(const ascir::FusedScheduledResult &fused_schedule_result, const std::string &pgo_dir,
-                           const std::string &vector_core_num, const std::string &ub_size, const std::string &device_id) const;
+  std::string GeneratorPgo(const ::ascir::FusedScheduledResult &fused_schedule_result, const std::string &pgo_dir) const;
 
  private:
   TilingLib tiling_lib_;

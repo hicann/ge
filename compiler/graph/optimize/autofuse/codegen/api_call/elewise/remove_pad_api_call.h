@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_REMOVE_PAD_API_CALL_H__
 #define __AUTOFUSE_REMOVE_PAD_API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 
 namespace codegen {
 class RemovePadApiCall final : public ApiCall {

@@ -1,17 +1,11 @@
 /**
- * Copyright (C) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed unde the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the license is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 #ifndef ATT_AXES_REORDER_SOLVER_GEN_H_
 #define ATT_AXES_REORDER_SOLVER_GEN_H_
@@ -24,6 +18,7 @@
 #include "util/base_types_printer.h"
 #include "generator/solver_pass_gen/solver_gen.h"
 #include "gen_model_info/api_perf_register/perf_param.h"
+#include "autofuse_config/auto_fuse_config.h"
 namespace att {
   enum class ConsType
   {
@@ -57,7 +52,6 @@ namespace att {
     std::string GenSolverFuncInvoke() override;
     std::string GenPGOSolverClassImpl();
     std::string GenPGOSolverFuncImpl();
-    std::string GenPGOSolverFuncInvoke();
 
     void SetInputArgs(const std::vector<Expr> &input_args) { input_args_ = input_args; }
     void SetConstArgs(const ExprUintMap &const_vars) {
@@ -71,7 +65,7 @@ namespace att {
     void SetBufferUseAlg(const std::map<HardwareDef, Expr> &hardware_use_map) {
       hardware_use_map_ = hardware_use_map;
     }
-    void SetArgAlignMap(const ExprUintMap &arg_align_map) {
+    void SetArgAlignMap(const ExprExprMap &arg_align_map) {
       arg_align_map_ = arg_align_map;
     }
     void SetArgPromptAlignMap(const ExprUintMap &arg_prompt_align_map) {
@@ -80,7 +74,7 @@ namespace att {
     void SetArgDataTypeSizeMap(const ExprUintMap &data_type_size_map) {
       data_type_size_map_ = data_type_size_map;
     }
-    void SetInputAlign(const ExprUintMap &input_align);
+    void SetInputAlign(const ExprExprMap &input_align);
     void SetTotalCutCons(const std::vector<Expr> &total_cut_cons) { total_cut_cons_ = total_cut_cons; }
     void SetFromAxesMap(const std::map<Expr, std::vector<Expr>, ExprCmp> &from_axes_map) { from_axes_map_ = from_axes_map; }
     void SetVarPriority(const ExprUintMap &priority) { priority_map_ = priority; }
@@ -116,8 +110,14 @@ namespace att {
     void SetEnableMulticoreUBTradeoff(const bool enable_multicore_ub_tradeoff) {
       enable_multicore_ub_tradeoff_ = enable_multicore_ub_tradeoff;
     }
+    void SetModelEnableMulticoreUBTradeoff(bool model_enable_multicore_ub_tradeoff) {
+      model_enable_multicore_ub_tradeoff_ = model_enable_multicore_ub_tradeoff;
+    }
     void SetEnableAutofusePGO(bool enable_autofuse_pgo) {
       enable_autofuse_pgo_ = enable_autofuse_pgo;
+    }
+    void SetAutofusePGOStepMax(int64_t pgo_step_max) {
+      pgo_step_max_ = pgo_step_max;
     }
     void SetHighPerfTiling(const bool enable_high_perf) {
       enable_high_perf_ = enable_high_perf;
@@ -143,10 +143,15 @@ namespace att {
     void SetTilingScheduleConfigTable(const TilingScheduleConfigTable *tiling_schedule_config_table) {
       tiling_schedule_config_table_ = tiling_schedule_config_table;
     }
+    void SetCacheLineConfig(const vector<CacheLineConfig> *cache_line_config) {
+      cache_line_config_ = cache_line_config;      
+    }
     void SetEnableParallel(bool enable_parallel) {
       enable_group_parallel_ = enable_parallel;
     }
-
+    void SetTilingCaseIdent(TilingCaseIdent tiling_case_ident) {
+      tiling_case_ident_ = tiling_case_ident;
+    }
   private:
     static bool VarCmp(Expr &a, Expr &b);
     void ReorderVars();
@@ -154,15 +159,25 @@ namespace att {
     void GetLocalBufferTilingVars();
     void GetRelatedArgs(const Expr &expr, std::vector<Expr> &related_args) const;
     bool NeedUBMultiCoreBalance();
+    std::string GenGetStaticInputParam(const HardwareDef &hardware_type, bool no_type = false) const;
+    std::string GenGetObjStaticInputParam(bool no_type = false);
+    std::string GenGetObjStaticFunc();
+    std::string GenGetTilingDataObjStaticFunc();
     std::string GenObjFunc();
+    std::string GenGetUbSizeStaticFunc();
+    std::string GenGetTilingDataUbSizeStaticFunc();
+    std::string GenGetBlockDimStatic(Expr &corenum_cons);
+    std::string GenGetTilingDataBlockDimStatic(Expr &corenum_cons);
     std::string GenUBThresholdFunc();
-    std::string GenPgoSolverClassImpl(const std::string& className) const;
-    std::string GenRunImpl(const std::string& className) const;
+    std::string GenUBSizeCacheLineFunc();
+    std::string GenCoreNumFunc();
     std::pair<std::vector<Expr>, std::vector<Expr>> SortConsArgs(const Expr &expr, bool &is_mc_mixed);
     std::string ObtainRelatedVars(Expr &expr);
     std::string InitiateArgs();
     std::string InitiateBufferConsArgs(uint32_t cons_idx, HardwareDef hardware, const Expr &cons);
     std::string InitiateCutConsArgs(uint32_t cons_idx, const Expr &cons, bool &is_mc_mixed);
+    std::string GenConsUbFunc(uint32_t cons_idx, const std::vector<Expr> &rel_tiling_vars,
+                              const std::vector<Expr> &rel_cons_vars) const;
     std::string GenConsFunc(uint32_t cons_idx, ConsType cons_type, const Expr &cons,
                             const std::vector<Expr> &rel_tiling_vars, const std::vector<Expr> &rel_cons_vars) const;
     std::string SetVarCons(const Expr &arg, const std::vector<Expr> &all_cons) const;
@@ -179,7 +194,6 @@ namespace att {
     std::string GenOriginExpr(const std::vector<Expr> &exprs, const std::string &indent) const;
     std::pair<std::string, std::string> GenOriginBufExpr(const Expr &expr, const std::string &indent) const;
     std::string GenPgoSetTiling();
-    std::string GenPgoBatchCallback() const;
     std::string GenPgoSetMaxBlockDim() const;
     std::vector<uint32_t> GetArgRelateCons(const Expr &arg, const std::vector<Expr> &all_cons) const;
     std::string IsEnableBlockLoopTradeOffByPerf() const;
@@ -188,9 +202,9 @@ namespace att {
     std::vector<Expr> const_args_;
     std::vector<Expr> total_cut_cons_;
     std::vector<Expr> local_buffer_tiling_vars_;
-    ExprUintMap input_align_;
+    ExprExprMap input_align_;
     ExprUintMap const_vars_map_;
-    ExprUintMap arg_align_map_;
+    ExprExprMap arg_align_map_;
     ExprUintMap arg_prompt_align_map_;
     ExprUintMap data_type_size_map_;
     ExprExprMap container_expr_;
@@ -210,7 +224,9 @@ namespace att {
     Expr reserved_ub_size_{CreateExpr(0)};
     double corenum_threshold_{0.4};
     bool enable_multicore_ub_tradeoff_{false};
+    bool model_enable_multicore_ub_tradeoff_{false};
     bool enable_autofuse_pgo_{false};
+    int64_t pgo_step_max_{16};
     bool enable_high_perf_{false};
     std::string input_output_def_;
     std::string input_output_call_;
@@ -218,7 +234,9 @@ namespace att {
     bool is_uniq_group_{true};  // 表示是否是唯一的ScheduleGroup，大部分场景不会切分成多个ScheduleGroup，所以默认为true
     std::string arrange_code_;
     const TilingScheduleConfigTable *tiling_schedule_config_table_{nullptr};
+    const vector<CacheLineConfig> *cache_line_config_ {nullptr};
     bool enable_group_parallel_{false};
+    TilingCaseIdent tiling_case_ident_{ScheduleGroupIdent{}, 0U, ""};
   };
   bool CheckExist(const std::vector<Expr> &args, const Expr &check_arg);
   std::string SetRelatedVars(const std::vector<Expr> &rel_tiling_vars, const std::vector<Expr> &rel_cons_vars);

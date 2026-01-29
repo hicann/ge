@@ -17,8 +17,9 @@
 namespace optimize {
 class MemReuseManager {
  public:
-  explicit MemReuseManager(TensorInfoMap &tensor_attr_to_tensor_info)
-      : tensor_attr_to_tensor_info_(tensor_attr_to_tensor_info) {}
+  explicit MemReuseManager(TensorInfoMap &tensor_attr_to_tensor_info, TmpBuffInfoMap &tmp_buf_attr_to_tensor_info)
+      : tensor_attr_to_tensor_info_(tensor_attr_to_tensor_info),
+        tmp_buf_attr_to_tensor_info_(tmp_buf_attr_to_tensor_info) {}
   void AllocMemBlocks();
   void GetCopyInCopyOutQueNums(size_t &vecin_num, size_t &vecout_num);
 
@@ -34,10 +35,16 @@ class MemReuseManager {
   void FindCandidateQueBlockWithSizeCheck(MemoryType mem_type, const TensorGroup &tensor_group,
                                           std::vector<MemoryBlock *> &candidate_blocks);
   static void SetQueBufIdToTensorAttr(const MemoryBlock &block);
+  void AllocTmpBuff(std::map<ge::TmpBuffer *, std::vector<TensorGroup>> &tmp_buff_to_groups);
+  void FindCandidateTmpBuffBlockWithSizeCheck(const TensorGroup &tensor_group,
+                                              std::vector<MemoryBlock *> &candidate_blocks);
   // 按类型分组的内存块
   std::unordered_map<MemoryType, std::vector<MemoryBlock>> type_blocks_;
 
   TensorInfoMap &tensor_attr_to_tensor_info_;
+  TmpBuffInfoMap &tmp_buf_attr_to_tensor_info_;
+  int64_t buf_id_ = 0;
+  int64_t que_id_ = 0;
 };
 }  // namespace optimize
 

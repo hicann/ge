@@ -483,7 +483,7 @@ Status PythonCodeDumperFused::GenerateDataEdgeCode(const Node::Vistor<std::pair<
   return SUCCESS;
 }
 
-void PythonCodeDumperFused::GenerateGraphInstance(const ComputeGraph &compute_graph, std::ofstream &output_file) {
+void PythonCodeDumperFused::GenerateGraphInstance(const ComputeGraph &compute_graph, std::ofstream &output_file) const {
   output_file << "graph = ascir.FusedGraph(" << "\"" << compute_graph.GetName() << "\"" << ")\n";
 }
 

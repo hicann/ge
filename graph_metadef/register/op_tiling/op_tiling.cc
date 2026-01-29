@@ -11,8 +11,9 @@
 #include "register/op_tiling.h"
 
 #include <nlohmann/json.hpp>
+#include <securec.h>
 #include "graph/operator.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/node_utils.h"

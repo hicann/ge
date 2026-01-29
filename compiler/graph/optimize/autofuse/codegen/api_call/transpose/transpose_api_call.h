@@ -9,7 +9,7 @@
  */
 #ifndef __AUTOFUSE_TRANSPOSE__API_CALL_H__
 #define __AUTOFUSE_TRANSPOSE__API_CALL_H__
-#include "../codegen_kernel.h"
+#include "codegen_kernel.h"
 #include "transpose_base_type.h"
 
 namespace codegen {

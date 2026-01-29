@@ -26,7 +26,7 @@ class SplitGroupPartitioner {
 
   SplitGroupPartitioner(ge::AscNodePtr split_node, size_t split_dim);
 
-  Status PartitionGroups(std::vector<SplitGroup> &groups);
+  Status PartitionGroups(const std::vector<SplitGroup> &groups);
 
  private:
   Status Initialize();

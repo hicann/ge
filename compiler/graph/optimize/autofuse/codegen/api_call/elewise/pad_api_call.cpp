@@ -16,7 +16,7 @@
 #include "common/ge_common/debug/log.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
-#include "../utils/api_call_factory.h"
+#include "api_call/utils/api_call_factory.h"
 
 namespace codegen {
 using namespace std;
@@ -30,6 +30,14 @@ Status PadApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId>
                             std::string &result) const {
   auto x = inputs[0].get();
   auto y = outputs[0].get();
+
+  // 获取tmp_buf复用TBuf的id
+  int64_t life_time_axis_id = -1L;
+  int64_t id = -1L;
+  auto it = this->tmp_buf_id.find(life_time_axis_id);
+  if (it != this->tmp_buf_id.end()) {
+    id = it->second;
+  }
 
   stringstream ss;
   stringstream axis_size_product;
@@ -49,6 +57,7 @@ Status PadApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId>
   std::string apiTilingDataString = "t->" + this->api_tiling_data_field + "_" + std::to_string(tiling_case_id);
   auto axis_pos = y.vectorized_axis_pos[axis_num - 1];
   if (tpipe.tiler.Size(y.vectorized_strides[axis_num - 2]) != tpipe.tiler.ActualSize(y.axis_size[axis_pos])) {
+     GE_ASSERT_TRUE(id != -1L, "PadApiCall cannot find tmp buffer id to use.");
     ss << "if (" << tpipe.tiler.Size(y.vectorized_strides[axis_num - 2]) << " != " << tpipe.tiler.ActualSize(y.axis_size[axis_pos]) << ") {" // 2表示倒数第二个维度
       << std::endl;
     ss << "AscendC::PadParams padParams = {0, static_cast<uint16_t>("
@@ -57,7 +66,8 @@ Status PadApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId>
     ss << "PadTiling apiTilingData = " << apiTilingDataString << ";"
       << std::endl;
     ss << "AscendC::Pad(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], " << x << "["
-      << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << "padParams, " << tpipe.tmp_buf << ", " << "apiTilingData);"
+      << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << "padParams, " << tpipe.tmp_buf  << "_" << std::to_string(id)
+      << ", " << "apiTilingData);"
       << std::endl;
     ss << "} else {"
       << std::endl;
@@ -70,8 +80,6 @@ Status PadApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId>
   } else {
     ss << "AscendC::DataCopy(" << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], " << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], " << blk_align << "(" << axis_size_product.str() << "));" << std::endl;
   }
-  
-
   result = ss.str();
   return ge::SUCCESS;
 }

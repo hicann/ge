@@ -25,6 +25,10 @@ class PlatformV1 : public BasePlatform {
   std::unique_ptr<BackendSpec> GetBackendSpec() const override;
   const PlatformConfig &GetPlatformConfig() const override;
 
+  Status GenerateTasks(::ascir::ImplGraph &optimize_graph, const OptimizerOptions &options,
+                       std::vector<ScheduleTask> &tasks) const override;
+  std::set<std::string> BroadcastTypes() const override;
+
  private:
   PlatformConfig config_;
 };

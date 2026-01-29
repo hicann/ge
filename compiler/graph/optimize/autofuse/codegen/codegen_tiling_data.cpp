@@ -38,7 +38,7 @@ std::string codegen::TilingData::common_tiling_filed = { // 非const模式
     "  TILING_DATA_FIELD_DEF_T(uint32_t, ub_size);\n"
     "  TILING_DATA_FIELD_DEF_T(uint32_t, hbm_size);"};
 
-std::string codegen::TilingData::GenGenTilingDataFieldConstDefFunc() {
+std::string codegen::TilingData::GenGenTilingDataFieldConstDefFunc() const {
   std::stringstream ss;
   ss << "std::string GenTilingDataFieldConstDefFunc(const std::string &f_name, uint32_t value) {" << std::endl;
   ss << "  std::stringstream ss_mid;" << std::endl;
@@ -50,7 +50,7 @@ std::string codegen::TilingData::GenGenTilingDataFieldConstDefFunc() {
   return ss.str();
 }
 
-std::string codegen::TilingData::GenGenTilingDataFieldConstValueFunc() {
+std::string codegen::TilingData::GenGenTilingDataFieldConstValueFunc() const {
   std::stringstream ss;
   ss << "std::string GenTilingDataFieldConstValueFunc(uint32_t value) {" << std::endl;
   ss << "  std::stringstream ss_mid;" << std::endl;
@@ -61,20 +61,27 @@ std::string codegen::TilingData::GenGenTilingDataFieldConstValueFunc() {
   return ss.str();
 }
 
-
 std::string codegen::TilingData::GetCommonTilingField(bool is_group,
                                                       const ascir::FusedScheduledResult& fused_schedule_result) {
   std::stringstream ss;
+  std::vector<ascir::TensorId> workspace_tensor_id = GetWorkspaceTensorIdListInOneScheduleResult(fused_schedule_result);
+  std::vector<std::string> common_tiling_fileds = {"block_dim", "corenum", "ub_size", "hbm_size"};
+  for (auto tId : workspace_tensor_id) {
+    common_tiling_fileds.push_back("workspace" + std::to_string(tId));
+  }
   if (!const_mode_) {
     // 非const模式
     ss << common_tiling_filed << std::endl;
+    for (auto tId : workspace_tensor_id) {
+      ss << "  TILING_DATA_FIELD_DEF_T(uint32_t, workspace" << std::to_string(tId) << ");" << std::endl;
+    }
     if (is_group || ((fused_schedule_result.node_idx_to_scheduled_results.size() == 1) &&
         (fused_schedule_result.node_idx_to_scheduled_results[0].size() == 1) &&
         (fused_schedule_result.node_idx_to_scheduled_results[0][0].schedule_groups.size() == 1))) {
       ss << "  TILING_DATA_FIELD_DEF_T(uint32_t, tiling_key);";
       return ss.str();
     }
-    for (int i = 0;i < fused_schedule_result.node_idx_to_scheduled_results.size();i++){
+    for (size_t i = 0U;i < fused_schedule_result.node_idx_to_scheduled_results.size();i++) {
       ss << "  TILING_DATA_FIELD_DEF_T(uint32_t, " << "graph" << std::to_string(i) << "_tiling_key);";
       if (i < (fused_schedule_result.node_idx_to_scheduled_results.size() - 1U)) {
         ss << std::endl;
@@ -84,13 +91,12 @@ std::string codegen::TilingData::GetCommonTilingField(bool is_group,
   }
 
   // const模式
-  std::vector<std::string> common_tiling_fileds = {"block_dim", "corenum", "ub_size", "hbm_size"};
   if (is_group || ((fused_schedule_result.node_idx_to_scheduled_results.size() == 1) &&
         (fused_schedule_result.node_idx_to_scheduled_results[0].size() == 1) &&
         (fused_schedule_result.node_idx_to_scheduled_results[0][0].schedule_groups.size() == 1))) {
     common_tiling_fileds.push_back("tiling_key");
   } else {
-    for (int i = 0;i < fused_schedule_result.node_idx_to_scheduled_results.size();i++){
+    for (size_t i = 0U;i < fused_schedule_result.node_idx_to_scheduled_results.size();i++) {
       common_tiling_fileds.push_back("graph" + std::to_string(i) + "_tiling_key");
     }
   }
@@ -118,6 +124,15 @@ std::string codegen::TilingData::pgo_perf_struct = {
     "  double best_perf;\n"
     "};\n"};
 
+ge::Status codegen::TilingData::ProcessCubeFusionResult(ascir::FusedScheduledResult &schedule_result) {
+  if (ascgen_utils::IsCubeUBFusedScheduled(schedule_result)) {
+    GE_ASSERT_SUCCESS(ascgen_utils::CreateCVFusionResult(schedule_result));
+  } else if (ascgen_utils::IsCubeCommonFusedScheduled(schedule_result)) {
+    GE_ASSERT_SUCCESS(ascgen_utils::CreateCVFusionCommonResult(schedule_result));
+  }
+  return ge::SUCCESS;
+}
+
 std::string codegen::TilingData::Generate(const ascir::FusedScheduledResult& fused_schedule_result) {
   std::stringstream ss;
   std::stringstream ss1;    // ss1 是最外层的tilingData结构体定义
@@ -125,43 +140,52 @@ std::string codegen::TilingData::Generate(const ascir::FusedScheduledResult& fus
 
   ss << "#ifndef __" << this->kernel_name << "_Tiling_Data_H__" << std::endl;
   ss << "#define __" << this->kernel_name << "_Tiling_Data_H__" << std::endl;
-  ss << macros_and_includes;
-  ss << std::endl;
+  ss << macros_and_includes << std::endl;
 
-  ss1 << this->ClassBegin(this->kernel_name, this->class_name) << std::endl;
-  ss1 << GetCommonTilingField(false, fused_schedule_result) << std::endl;
-
-  if ((fused_schedule_result.node_idx_to_scheduled_results.size() == 1) &&
-      (fused_schedule_result.node_idx_to_scheduled_results[0].size() == 1) &&
-      (fused_schedule_result.node_idx_to_scheduled_results[0][0].schedule_groups.size() == 1)) {
+  auto generate_footer = [this, &ss, &ss1, &ss2]() {
+    ss1 << this->ClassEnd() << std::endl << std::endl;
+    ss << ss2.str() << ss1.str();
+    std::string input_type = this->kernel_name + this->class_name;
+    if (input_type != "AutofuseTilingData") {
+      ss << "using AutofuseTilingData = " << input_type << ";" << std::endl;
+    }
+    ss << pgo_perf_struct;
+    ss << "#endif" << std::endl;
+  };
+  if (ascgen_utils::IsJustCubeFixpip(fused_schedule_result)) {
+    GE_ASSERT(fused_schedule_result.node_idx_to_scheduled_results.size() == 1U, "Cube Fixpip results just one.");
+    GE_ASSERT(fused_schedule_result.node_idx_to_scheduled_results[0].size() == 1U,
+              "Cube Fixpip scheduled_results just one.");
+    GE_ASSERT(fused_schedule_result.node_idx_to_scheduled_results[0][0].schedule_groups.size() == 1U,
+              "Cube Fixpip schedule groups just one.");
+    ss1 << this->ClassBegin(this->kernel_name, this->class_name) << std::endl;
+    ss1 << GetCommonTilingField(false, fused_schedule_result) << std::endl;
     this->ProcessSingleGroup(fused_schedule_result.node_idx_to_scheduled_results[0][0].schedule_groups[0], ss1);
     GELOGI("TilingCaseId:ProcessSingleGroup\n");
+    generate_footer();
+    return ss.str();
+  }
+  ascir::FusedScheduledResult elemwise_schedule_result = fused_schedule_result;
+  GE_ASSERT_SUCCESS(ProcessCubeFusionResult(elemwise_schedule_result));
+
+  ss1 << this->ClassBegin(this->kernel_name, this->class_name) << std::endl;
+  ss1 << GetCommonTilingField(false, elemwise_schedule_result) << std::endl;
+
+  if ((elemwise_schedule_result.node_idx_to_scheduled_results.size() == 1U) &&
+      (elemwise_schedule_result.node_idx_to_scheduled_results[0].size() == 1U) &&
+      (elemwise_schedule_result.node_idx_to_scheduled_results[0][0].schedule_groups.size() == 1U)) {
+    this->ProcessSingleGroup(elemwise_schedule_result.node_idx_to_scheduled_results[0][0].schedule_groups[0], ss1);
+    GELOGI("TilingCaseId:ProcessSingleGroup\n");
   } else {
-    for (size_t i = 0;i < fused_schedule_result.node_idx_to_scheduled_results.size();i++) {
-      auto scheduled_results = fused_schedule_result.node_idx_to_scheduled_results[i];
-      uint64_t results_size = scheduled_results.size();
-      for (uint64_t j = 0; j < results_size; j++) {
-        uint64_t group_size = scheduled_results[j].schedule_groups.size();
+    for (size_t i = 0U; i < elemwise_schedule_result.node_idx_to_scheduled_results.size(); i++) {
+      auto scheduled_results = elemwise_schedule_result.node_idx_to_scheduled_results[i];
+      for (size_t j = 0U; j < scheduled_results.size(); j++) {
         this->ProcessMultiGroup(j, i, scheduled_results[j].schedule_groups, ss1, ss2);
         GELOGI("TilingCaseId:ProcessMultiGroup\n");
       }
     }
   }
-
-  ss1 << this->ClassEnd() << std::endl;
-  ss1 << std::endl;
-
-  ss << ss2.str();
-  ss << ss1.str();
-
-  std::string input_type = this->kernel_name + this->class_name;
-  if(input_type != "AutofuseTilingData") {
-    ss << "using AutofuseTilingData = " << input_type << ";" << std::endl;
-  }
-  ss << pgo_perf_struct;
-
-  ss << "#endif" << std::endl;
-
+  generate_footer();
   return ss.str();
 }
 
@@ -211,15 +235,13 @@ std::string codegen::TilingData::ClassRegister() {
   return ss.str();
 }
 
-
-std::string codegen::TilingData::ConstApiTilingDataFiledDefine(std::string &type_name, std::string &field_name,
-                                                               const ascir::NodeView& node) {
+ge::Status codegen::TilingData::GetApiTilingDataName(const ascir::NodeView& node, std::vector<std::string>& api_tiling_data_names) {
   // transpose api tiling data包含的字段：
   // param0, param1, param2, ... param17
-  std::vector<std::string> transpose_params = {"param0", "param1", "param2", "param3", "param4", "param5", "param6", "param7",
+  const std::vector<std::string> transpose_params = {"param0", "param1", "param2", "param3", "param4", "param5", "param6", "param7",
                                                "param8", "param9", "param10", "param11", "param12", "param13",
                                                "param14", "param15", "param16", "param17"};
-  std::vector<std::string> pad_params = {"srcHeight", "srcWidth", "srcOriWidth", "widthWithoutLastBlock", "blocksPerRow",
+  const std::vector<std::string> pad_params = {"srcHeight", "srcWidth", "srcOriWidth", "widthWithoutLastBlock", "blocksPerRow",
                                          "heightTiling", "heightFractal", "heightFractalTail", "mainLoopOffset",
                                          "tailBlockOffset", "tmpBuffer1BlockNum", "tmpBuffer1RowNum",
                                          "tmpBuffer2Offset", "widthTiling", "widthFractal", "widthFractalTail",
@@ -228,14 +250,26 @@ std::string codegen::TilingData::ConstApiTilingDataFiledDefine(std::string &type
                                          "brcbFractalTailRepeatTimes", "brcbFractalTailRepeatTimesTail", "reserved"};
   std::map<std::string, std::vector<std::string>> node_with_api_tiling = {{"Transpose", transpose_params},
                                                                           {"Pad", pad_params}};
-  if (node_with_api_tiling.find(node->GetType()) == node_with_api_tiling.end()) {
+  auto it = node_with_api_tiling.find(node->GetType());
+  if (it == node_with_api_tiling.end()) {
     GELOGE(ge::FAILED, "not supported const api tilingdata node type:%s.", node->GetType().c_str());
+    return ge::FAILED;
+  }
+
+  api_tiling_data_names.assign(it->second.begin(), it->second.end());
+  return ge::SUCCESS;
+}
+
+std::string codegen::TilingData::ConstApiTilingDataFiledDefine(std::string &type_name, std::string &field_name,
+                                                               const ascir::NodeView& node) {
+  std::vector<std::string> node_with_api_tiling;
+  if (GetApiTilingDataName(node, node_with_api_tiling) != ge::SUCCESS) {
     return "";
   }
 
   std::stringstream ss;
   bool is_first = true;
-  for (auto &param : node_with_api_tiling[node->GetType()]) {
+  for (auto &param : node_with_api_tiling) {
     std::string param_func_str = GetNameOfGenTilingDataFieldConstDefFunc(param);
     std::string param_func_str_simple = GetNameOfGenTilingDataFieldConstValueFuncSimple(param);
     std::string param_def = param_func_str + "_field_def";
@@ -293,44 +327,20 @@ void codegen::TilingData::GetTqueAndTbufId(const ge::AscGraph& graph, std::set<i
   }
 }
 
-void codegen::TilingData::GetTmpBufName(const ge::AscGraph& graph, std::set<std::string>& tmp_tbuf_names) {
-  std::unordered_map<int64_t, ge::Expression> max_size;
+void codegen::TilingData::GetTmpBufName(const ge::AscGraph& graph, std::set<int64_t>& b_ids) {
   for (auto node : graph.GetAllNodes()) {
-    std::unordered_map<int64_t, ge::Expression> sum_size;
     for (auto &tmp_buffer : node->attr.tmp_buffers) {
       GELOGD("Get tmp buffer [%ld, %s] for node %s.", tmp_buffer.buf_desc.life_time_axis_id,
              tmp_buffer.buf_desc.size.Str().get(), node->GetNamePtr());
-      auto it = sum_size.find(tmp_buffer.buf_desc.life_time_axis_id);
-      if (it == sum_size.end()) {
-        sum_size[tmp_buffer.buf_desc.life_time_axis_id] = tmp_buffer.buf_desc.size;
-      } else {
-        sum_size[tmp_buffer.buf_desc.life_time_axis_id] =
-          sum_size[tmp_buffer.buf_desc.life_time_axis_id] + tmp_buffer.buf_desc.size;
+      if (tmp_buffer.id == -1L) {
+        continue;
       }
-    }
-    for (const auto& size : sum_size) {
-      auto it = max_size.find(size.first);
-      if (it == max_size.end()) {
-        max_size[size.first] = ge::Symbol(0);
-      }
-      max_size[size.first] = ge::sym::Max(max_size[size.first], size.second);
-    }
-  }
-
-  for (const auto& size : max_size) {
-    std::string tmp_tbuf_name;
-    if (size.first == -1) {
-      tmp_tbuf_name = "tmp_tbuf";
-    } else {
-      tmp_tbuf_name = "tmp_tbuf_" + std::to_string(size.first);
-    }
-    if (tmp_tbuf_names.find(tmp_tbuf_name) == tmp_tbuf_names.end()) {
-      tmp_tbuf_names.insert(tmp_tbuf_name);
+      b_ids.insert(tmp_buffer.id);
     }
   }
 }
 
-void codegen::TilingData::GenTqueTbufTmpBufFunc(const std::set<int64_t>& q_ids, const std::set<int64_t>& b_ids, const std::set<std::string>& tmp_tbuf_names, std::stringstream& ss) {
+void codegen::TilingData::GenTqueTbufTmpBufFunc(const std::set<int64_t>& q_ids, const std::set<int64_t>& b_ids, std::stringstream& ss) {
   for (const auto& q_id : q_ids) {
     if (q_id < 0) {
       continue;
@@ -345,18 +355,13 @@ void codegen::TilingData::GenTqueTbufTmpBufFunc(const std::set<int64_t>& q_ids, 
     std::string field_def = const_mode_ ? this->TqueOrTbufDataFieldConstDefine(b_id, "b") : this->TqueOrTbufDataFieldDefine(b_id, "b");
     ss << "  " << field_def << std::endl;
   }
-  for (const auto& tmp_tbuf_name : tmp_tbuf_names) {
-    std::string field_def = const_mode_ ? this->TmpBufDataFieldConstDefine(tmp_tbuf_name) : this->TmpBufDataFieldDefine(tmp_tbuf_name);
-    ss << "  " << field_def << std::endl;
-  }
 }
 
 void codegen::TilingData::ProcessSingleGroup(const ascir::ScheduleGroup &schedule_group, std::stringstream &ss) {
   std::unordered_set<std::string> size_var_names;
   std::set<int64_t> q_ids;
   std::set<int64_t> b_ids;
-  std::set<std::string> tmp_tbuf_names;
-  for (int i = 0; i < schedule_group.impl_graphs.size(); i++) {
+  for (size_t i = 0U; i < schedule_group.impl_graphs.size(); i++) {
     auto &graph = schedule_group.impl_graphs[i];
     for (auto size : graph.GetAllSizeVar()) {
       if (size->expr.IsConstExpr()) {
@@ -369,11 +374,11 @@ void codegen::TilingData::ProcessSingleGroup(const ascir::ScheduleGroup &schedul
       }
     }
     GetTqueAndTbufId(graph, q_ids, b_ids);
-    GetTmpBufName(graph, tmp_tbuf_names);
+    GetTmpBufName(graph, b_ids);
     AddApiTilingData(graph, ss, i);
     GELOGI("TilingCaseId:ProcessSingleGroup, tilingcaseNum:%d\n", schedule_group.impl_graphs.size());
   }
-  GenTqueTbufTmpBufFunc(q_ids, b_ids, tmp_tbuf_names, ss);
+  GenTqueTbufTmpBufFunc(q_ids, b_ids, ss);
   return;
 }
 
@@ -395,7 +400,6 @@ void codegen::TilingData::ProcessMultiGroup(uint64_t pos, const int graph_id,
 
     std::set<int64_t> q_ids;
     std::set<int64_t> b_ids;
-    std::set<std::string> tmp_tbuf_names;
     for (uint32_t j = 0; j <  schedule_groups[i].impl_graphs.size(); j++) {
       auto &graph =  schedule_groups[i].impl_graphs[j];
       for (auto size : graph.GetAllSizeVar()) {
@@ -409,11 +413,11 @@ void codegen::TilingData::ProcessMultiGroup(uint64_t pos, const int graph_id,
         }
       }
       GetTqueAndTbufId(graph, q_ids, b_ids);
-      GetTmpBufName(graph, tmp_tbuf_names);
+      GetTmpBufName(graph, b_ids);
       AddApiTilingData(graph, ss2 , j);
       GELOGI("TilingCaseId:ProcessMultiGroup, i_%d, i_num:%d, j_%d, j_num:%d\n", i, schedule_groups.size(), j, schedule_groups[i].impl_graphs.size());
     }
-    GenTqueTbufTmpBufFunc(q_ids, b_ids, tmp_tbuf_names, ss2);
+    GenTqueTbufTmpBufFunc(q_ids, b_ids, ss2);
     ss2 << this->ClassEnd() << std::endl;
     ConstTilingDataFieldPopBack();
     ss2 << std::endl;
@@ -421,7 +425,7 @@ void codegen::TilingData::ProcessMultiGroup(uint64_t pos, const int graph_id,
   return;
 }
 
-std::string codegen::TilingData::GenStringReplaceFunc() {
+std::string codegen::TilingData::GenStringReplaceFunc() const {
   std::stringstream ss;
   ss << "void replaceSubstring(std::string& ori_str, ";
   ss << "const std::string& old_sub_str, ";
@@ -454,6 +458,29 @@ void codegen::TilingData::ConstTilingDataFieldPopBack() {
   }
 }
 
+std::string codegen::TilingData::GenCVConstTilingData(const std::string &tiling_data_struct_name,
+    bool is_inductor_scene) {
+  std::stringstream ss;
+  ss << "  set_g_basen_basem_align(basen_basem_align);" << std::endl;
+  ss << "  OP_LOGI(OP_NAME, \"basen_align=%d, basen_basem_align=%d, set_g_basen_basem_align=%d\", ";
+  ss << "basen_align, basen_basem_align, get_g_basen_basem_align());" << std::endl;
+  ss << "  auto ret = AutofuseTilingWithConfig(config_file, &" << tiling_data_struct_name;
+  ss << ", &workspace_size, &block_dim, ";
+  ss << (is_inductor_scene ? "nullptr, 0);" : "&limit, 0);") << std::endl;
+  ss << "  if (ret == -1) {" << std::endl;
+  ss << "    uint32_t basen_basem_align_tmp = (uint32_t)basen_basem_align;" << std::endl;
+  ss << "    // ub_size必大于 basen_basem_align_tmp" << std::endl;
+  ss << "    limit.ub_size = limit.ub_size - basen_basem_align_tmp * cube_output_type_size;" << std::endl;
+  ss << "    set_g_basen_basem_align(1);" << std::endl;
+  ss << "    OP_LOGI(OP_NAME, \"set_g_basen_basem_align=%d, ub_size=%u\", get_g_basen_basem_align(), ub_size);"
+      << std::endl;
+  ss << "    (void)AutofuseTilingWithConfig(config_file, &" << tiling_data_struct_name;
+  ss << ", &workspace_size, &block_dim, ";
+  ss << (is_inductor_scene ? "nullptr, 1);" : "&limit, 1);") << std::endl;
+  ss << "  }" << std::endl;
+  return ss.str();
+}
+
 // GenerateConst生成的信息放在tiling func .cpp中
 std::string codegen::TilingData::GenerateConst(const ascir::FusedScheduledResult& fused_schedule_result,
                                                bool is_inductor_scene) {
@@ -473,17 +500,23 @@ std::string codegen::TilingData::GenerateConst(const ascir::FusedScheduledResult
   global_pre_def_ss << "AutofuseTilingData " << tiling_data_struct_name << ";" << std::endl << std::endl;;
   global_pre_def_ss << GenStringReplaceFunc() << std::endl;  // 生成一个字符串替换接口
 
-  const_gen_ss << "extern \"C\" const char* GenConstTilingData(char* config_file, int aiv_num, int ub_size) {" << std::endl;
+  const_gen_ss << "extern \"C\" const char* GenConstTilingData(char* config_file, int aiv_num, int ub_size) {"
+      << std::endl;
   const_gen_ss << "  uint32_t workspace_size;" << std::endl;
   const_gen_ss << "  uint32_t block_dim;" << std::endl;
   const_gen_ss << "  ResLimit limit;" << std::endl;
   const_gen_ss << "  limit.aiv_num = aiv_num;" << std::endl;
   const_gen_ss << "  limit.ub_size = ub_size - 256;" << std::endl;
-  const_gen_ss << "  (void)PgoAutofuseTiling(config_file, &" << tiling_data_struct_name;
-  if (is_inductor_scene) {
-    const_gen_ss << ", &workspace_size, &block_dim, nullptr);" << std::endl;
+
+  if (IsCubeFusedScheduled(fused_schedule_result)) {
+    const_gen_ss << GenCVConstTilingData(tiling_data_struct_name, is_inductor_scene);
   } else {
-    const_gen_ss << ", &workspace_size, &block_dim, &limit);" << std::endl;
+    const_gen_ss << "  (void)AutofuseTilingWithConfig(config_file, &" << tiling_data_struct_name;
+    if (is_inductor_scene) {
+      const_gen_ss << ", &workspace_size, &block_dim, nullptr);" << std::endl;
+    } else {
+      const_gen_ss << ", &workspace_size, &block_dim, &limit);" << std::endl;
+    }
   }
 
   pre_func_ss << GenGenTilingDataFieldConstDefFunc() << std::endl;

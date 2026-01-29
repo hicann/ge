@@ -1,20 +1,15 @@
 /**
- * Copyright (c) Huawei Technologies Co., Ltd. 2024 All rights reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "generate_tiling_expr.h"
+#include <algorithm>
 #include "arg_list_manager.h"
 #include "buf_occupy_expr.h"
 #include "pipe_perf_expr.h"
@@ -56,20 +51,8 @@ ge::Status GenerateTilingExpr::GetReservedUbSize(Expr &reserved_ub_size) {
   return ge::SUCCESS;
 }
 
-ge::Status GenerateTilingExpr::GetWorkSpaceSize(Expr &workspace_size, std::map<HardwareDef, Expr> &hardware_cons) {
-  Expr block_dim;
-  auto iter = hardware_cons.find(HardwareDef::CORENUM);
-  if (iter != hardware_cons.end()) {
-    block_dim = iter->second;
-  }
-  GE_ASSERT_TRUE(IsValid(block_dim), "Get block dim failed while calc workspace.");
-  BufOccupEvaluatorExprPtr buf_evaluator = ge::MakeShared<BufOccupyExpr>(tuning_space_);
-  GE_ASSERT_NOTNULL(buf_evaluator, "Create buff evaluator expr failed.");
-  GE_ASSERT_SUCCESS(buf_evaluator->GetTotalGlobalOccup(workspace_size), "Collect buf constraints failed.");
-  if (!IsValid(workspace_size)) {
-    return ge::SUCCESS;
-  }
-  workspace_size = ge::sym::Mul(block_dim, workspace_size);
+ge::Status GenerateTilingExpr::GetWorkSpaceSize(std::map<int64_t, Expr> &workspace_size_map) {
+  workspace_size_map = tuning_space_->workspace_size_map;
   return ge::SUCCESS;
 }
 
@@ -107,7 +90,6 @@ ge::Status GenerateTilingExpr::MakeArg(const SubAxis *sub_axis,
   arg_info->is_node_innerest_dim = sub_axis->is_node_innerest_dim;
   arg_info->bind_multicore = sub_axis->is_bind_multi_core;
   arg_info->is_last = sub_axis->is_last;
-  arg_info->axis_continuous_map = sub_axis->axis_continuous_map;
   arg_info->is_concat_outer_dim = sub_axis->is_concat_vec_axis && !sub_axis->is_node_innerest_dim;
   arg_info->is_concat_inner_dim = sub_axis->is_concat_vec_axis && sub_axis->is_node_innerest_dim;
 
@@ -264,19 +246,18 @@ bool NeedUBMCTradeoff(TensorPtr tensor) {
 
 void GenerateTilingExpr::UpdateNeedUBMCTradeoff(ModelInfo &model_info) {
   for (auto &node_info : tuning_space_->node_infos) {
-    for (auto &output_tensor : node_info.outputs) {
-      if (NeedUBMCTradeoff(output_tensor)) {
-        GELOGD("tilingcaseid [%d] need ub mc tradeoff", model_info.tiling_case_id);
-        model_info.enable_ub_mc_tradeoff = true;
-        return;
-      }
-    }
-    for (auto &input_tensor : node_info.inputs) {
-      if (NeedUBMCTradeoff(input_tensor)) {
-        GELOGD("tilingcaseid [%d] need ub mc tradeoff", model_info.tiling_case_id);
-        model_info.enable_ub_mc_tradeoff = true;
-        return;
-      }
+    const bool need_tradeoff_by_output =
+        std::any_of(node_info.outputs.begin(), node_info.outputs.end(),
+                    [](auto &output_tensor) { return NeedUBMCTradeoff(output_tensor); });
+    const bool need_tradeoff_by_input = std::any_of(node_info.inputs.begin(), node_info.inputs.end(),
+                                                    [](auto &input_tensor) { return NeedUBMCTradeoff(input_tensor); });
+    if (need_tradeoff_by_output || need_tradeoff_by_input) {
+      GELOGI(
+          "model [%s] case [%d] need ub mc tradeoff, output tensor need tradeoff: %d, input tensor need tradeoff: %d",
+          model_info.schedule_group_ident.GetGroupPrefixSnakeCase().c_str(), model_info.tiling_case_id,
+          need_tradeoff_by_output, need_tradeoff_by_input);
+      model_info.enable_ub_mc_tradeoff = true;
+      return;
     }
   }
 }
@@ -302,7 +283,7 @@ ge::Status GenerateTilingExpr::Generate(ModelInfo &model_info) {
   model_info.tiling_schedule_config_table = tuning_space_->tiling_schedule_config_table;
   GELOGD("Get perf objects success.");
 
-  GE_ASSERT_SUCCESS(GetWorkSpaceSize(model_info.workspace_size, model_info.hardware_cons),
+  GE_ASSERT_SUCCESS(GetWorkSpaceSize(model_info.workspace_size_map),
                      "Get workspace size failed.");
   GELOGD("Get workspace size success.");
 
@@ -315,9 +296,7 @@ ge::Status GenerateTilingExpr::Generate(ModelInfo &model_info) {
 
   if (!model_info.enable_group_parallel) {
     UpdateNeedUBMCTradeoff(model_info);
-    GELOGD("Get need ub mc tradeoff success.");
   }
-  model_info.graph_input_infos = tuning_space_->graph_input_infos;
   return ge::SUCCESS;
 }
 
