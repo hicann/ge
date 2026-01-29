@@ -121,7 +121,6 @@
 
 执行成功后，在屏幕上的关键提示信息示例如下，提示信息中的index表示类别标识、value表示该分类的最大置信度，这些值可能会根据版本、环境有所不同，请以实际情况为准：
 
-        ```
         [INFO] acl init success
         [INFO] open device 0 success
         [INFO] create context success
@@ -129,7 +128,7 @@
         [INFO] load model ../model/resnet50.om success
         [INFO] start to process file:../data/dog1_1024_683.bin
         [INFO] model execute success
-        [INFO] top 1: index[162] value[xxxxxx]
+        [INFO] top 1: index[161] value[xxxxxx]
         [INFO] top 2: index[xxx] value[xxxxxx]
         [INFO] top 3: index[xxx] value[xxxxxx]
         [INFO] top 4: index[xxx] value[xxxxxx]
@@ -144,10 +143,9 @@
         [INFO] top 5: index[xxx] value[xxxxxx]
         [INFO] output data success
         [INFO] SAMPLE PASSED
-        ```
 
-        >**说明：** 
-        >类别标签和类别的对应关系与训练模型时使用的数据集有关，本样例使用的模型是基于imagenet数据集进行训练的，您可以在互联网上查阅imagenet数据集的标签及类别的对应关系。
-        >当前屏显信息中的类别标识与类别的对应关系如下：
-        >"161": \["basset", "basset hound"\]、
-        >"267": \["standard poodle"\]。
+**说明：**
+类别标签和类别的对应关系与训练模型时使用的数据集有关，本样例使用的模型是基于imagenet数据集进行训练的，您可以在互联网上查阅imagenet数据集的标签及类别的对应关系。
+当前屏显信息中的类别标识与类别的对应关系如下：
+"161": \["basset", "basset hound"\]、
+"267": \["standard poodle"\]。
