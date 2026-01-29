@@ -258,7 +258,7 @@ generate_package()
   tar -zcf ge_executor_lib.tar runtime
 }
 
-if [[ "X$ENABLE_GE_C_UT" = "Xoff" ]] ; then
+if [[ "X$ENABLE_GE_C_UT" = "Xoff" ]] && [[ "X$ENABLE_GE_C_ST" = "Xoff" ]]; then
   generate_package
 else
   cd "${OUTPUT_PATH}"
