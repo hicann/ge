@@ -42,11 +42,25 @@
 #include <graph/manager/graph_manager.h>
 #include <graph/optimize/symbolic/shape_env_guarder.h>
 #include "graph/optimize/autofuse/autofuse_optimize.h"
+#include "depends/runtime/src/runtime_stub.h"
 
 namespace ge {
+
+class RuntimeMock : public RuntimeStub {
+ public:
+  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) {
+    (void)label;
+    (void)key;
+    (void)strcpy_s(val, maxLen, "fake"); // fake
+    return RT_ERROR_NONE;
+  }
+};
+
+
 class SymbolizeValueST : public testing::Test {
  public:
   void SetUp() override {
+    RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
     gert::LoadDefaultSpaceRegistry();
     MM_SYS_GET_ENV(MM_ENV_ASCEND_OPP_PATH, ori_opp_path_env_);
     MM_SYS_GET_ENV(MM_ENV_LD_LIBRARY_PATH, ori_ld_path_env_);
@@ -64,6 +78,7 @@ class SymbolizeValueST : public testing::Test {
     GetThreadLocalContext().GetOo().Initialize(options, OptionRegistry::GetInstance().GetRegisteredOptTable());
   }
   void TearDown() override {
+    RuntimeStub::Reset();
     unsetenv("AUTOFUSE_FLAGS");
     if (ori_ld_path_env_ != nullptr) {
       MM_SYS_SET_ENV(MM_ENV_ASCEND_OPP_PATH, ori_opp_path_env_, 1, ret_);

@@ -9,7 +9,7 @@
  */
 
 #include <fstream>
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "code_printer.h"
 
 namespace ge {

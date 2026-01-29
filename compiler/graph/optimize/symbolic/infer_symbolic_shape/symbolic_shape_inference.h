@@ -12,6 +12,9 @@
 #define AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_SYMBOLIC_INFER_SYMBOLIC_SHAPE_SYMBOLIC_SHAPE_INFERENCE_H_
 
 #include "ge_common/ge_api_types.h"
+#include "graph/ge_tensor.h"
+#include "graph/gnode.h"
+#include "graph/node.h"
 #include "register/op_impl_kernel_registry.h"
 #include "graph/optimize/symbolic/symbolic_kernel_factory.h"
 #include "symbolic_shape_symbolizer.h"

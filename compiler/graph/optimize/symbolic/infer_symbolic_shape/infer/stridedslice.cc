@@ -140,7 +140,8 @@ std::pair<int64_t, int64_t> GetEllipsisMaskRange(const StridedSliceAttr &strided
   const int64_t ellipsis_mask_num = input_size + bit_count - slice_dim_num + 1;
   int64_t pos = 0L;
   for (; pos < slice_dim_num; pos++) {
-    if ((strided_slice_attr.ellipsis_mask & (1 << pos)) > 0) {
+    if ((static_cast<uint64_t>(strided_slice_attr.ellipsis_mask) &
+        (1UL << static_cast<uint64_t>(pos))) > 0) {
       break;
     }
   }

@@ -21,6 +21,32 @@ constexpr size_t kDimsInputIndex = 0UL;
 constexpr size_t kValueInputIndex = 1UL;
 constexpr size_t kOutputIndex = 0UL;
 constexpr size_t kMaxSupportDim = 25UL;
+constexpr int64_t kMaxSupportOutputSize = 1024L;
+
+bool GetElementNum(const std::vector<ge::Expression> &dims_symbols, int64_t &element_num,
+                   const gert::InferSymbolComputeContext *context) {
+  for (const auto &dim_sym : dims_symbols) {
+    int64_t dim_value = 0L;
+    if (!dim_sym.GetConstValue(dim_value)) {
+      GELOGW("SymbolicKernel compute unsupported, reason: get dim sym const value failed, node %s[%s].",
+             context->GetNodeName(), context->GetNodeType());
+      return false;
+    }
+    if (ge::MulOverflow(element_num, dim_value, element_num)) {
+      GELOGW("SymbolicKernel compute unsupported, reason: output element num over flow, node %s[%s].",
+             context->GetNodeName(), context->GetNodeType());
+      return false;
+    }
+  }
+
+  if (element_num > kMaxSupportOutputSize) {
+    GELOGW("SymbolicKernel compute unsupported, reason: output element num[%lld] is over limit [%lld], node %s[%s].",
+           element_num, kMaxSupportOutputSize, context->GetNodeName(), context->GetNodeType());
+    return false;
+  }
+  GELOGD("Node: %s value element: %lld", context->GetNodeName(), element_num);
+  return true;
+}
 }  // namespace
 
 static graphStatus FillSymbolicKernelCompute(gert::InferSymbolComputeContext *context) {
@@ -55,16 +81,9 @@ static graphStatus FillSymbolicKernelCompute(gert::InferSymbolComputeContext *co
   symbolic_tensor->MutableOriginSymbolShape().MutableDims() = *dims_symbols;
   // 获取value个数
   int64_t element_num = 1L;
-  for (const auto &dim_sym : *dims_symbols) {
-    int64_t dim_value = 0L;
-    if (!dim_sym.GetConstValue(dim_value)) {
-      GELOGW("SymbolicKernel compute unsupported, reason: get dim sym const value failed, node %s[%s].",
-             context->GetNodeName(), context->GetNodeType());
-      return UNSUPPORTED;
-    }
-    element_num *= dim_value;
+  if (!GetElementNum(*dims_symbols, element_num, context)) {
+    return UNSUPPORTED;
   }
-  GELOGD("Node: %s value element: %lld", context->GetNodeName(), element_num);
 
   // 获取value的值
   auto value_input_tensor = context->GetInputSymbolTensor(kValueInputIndex);

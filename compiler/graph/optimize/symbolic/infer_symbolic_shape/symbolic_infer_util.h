@@ -14,6 +14,7 @@
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
 #include "common/checker.h"
 #include "op_impl_infer_symbol_shape.h"
+#include "framework/common/util.h"
 
 namespace ge {
 const Expression kSymbolZero{Symbol(0)};

@@ -118,7 +118,7 @@ graphStatus CreateExpression(const ge::DataType dtype, const uint8_t *ptr, size_
   return ge::GRAPH_SUCCESS;
 }
 
-bool SupportSymbolizeValue(const char *op_type, const GeTensorDescPtr tensor_desc) {
+bool SupportSymbolizeValue(const char *op_type, const GeTensorDescPtr &tensor_desc) {
   GE_ASSERT_NOTNULL(op_type);
   GE_ASSERT_NOTNULL(tensor_desc);
   GELOGI("Max symbolic value size %lld is supported", kMaxSymbolicValueSize);
@@ -156,7 +156,7 @@ std::unique_ptr<gert::SymbolTensor> GetInputSymbolTensorHolderCompute(const Oper
       }
     }
 
-    if (SupportSymbolizeValue(op_desc->GetTypePtr(), input_desc)) {
+    if (attr != nullptr && SupportSymbolizeValue(op_desc->GetTypePtr(), input_desc)) {
       auto symbolic_value = ge::ComGraphMakeUnique<std::vector<ge::Expression>>();
       GE_ASSERT_NOTNULL(symbolic_value);
       if (CreateExpression(tensor.GetDataType(), tensor.GetData(), size, *symbolic_value.get()) == GRAPH_SUCCESS) {

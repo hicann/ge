@@ -164,7 +164,7 @@ Status GenErrorInfos(CodePrinter &printer, const std::vector<SymbolCheckInfo> &s
   return SUCCESS;
 }
 
-Status GenGetErrorMsg(CodePrinter &printer, ge::ShapeEnvAttr *shape_env_attr) {
+Status GenGetErrorMsg(CodePrinter &printer, const ge::ShapeEnvAttr *shape_env_attr) {
   GE_ASSERT_NOTNULL(shape_env_attr);
   printer.AddLine(k2Space + "std::vector<std::string> err_msgs;");
   auto err_size = shape_env_attr->GetAllSymbolCheckInfos().size() + shape_env_attr->GetAllSymbolAssertInfos().size();
@@ -253,7 +253,8 @@ graphStatus CompileGuardCheckFunc(const CodePrinter &printer, const ComputeGraph
   // 1. dump code to file
   char_t file_path[kMaxFileNameLen] = {"\0"};
   auto src_fd = static_cast<int32_t>(syscall(__NR_memfd_create, kSymbolCheckFileName.c_str(), 0));
-  mmWrite(src_fd, const_cast<char_t *>(printer.GetOutputStr().c_str()), printer.GetOutputStr().size());
+  std::string output_str = printer.GetOutputStr();
+  mmWrite(src_fd, &output_str[0], output_str.size());
   (void)lseek(static_cast<int32_t>(src_fd), 0, SEEK_SET);
   auto ret = snprintf_s(file_path, kMaxFileNameLen, kMaxFileNameLen - 1U, "/proc/self/fd/%d", src_fd);
   GE_ASSERT_TRUE(ret >= 0, "snprintf_s failed, ret: %d", ret);

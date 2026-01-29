@@ -443,8 +443,8 @@ TEST_F(SymbolicShapeInferenceST, test_pad_with_symbols_value_but_error_shape) {
   const auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data_0", nullptr);
   ASSERT_EQ(EsSetSymbolShape(data0, std::vector<const char *>({"s0", "s1", "s2"}).data(), 3), 0);
 
-  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1};
-  std::vector<int64_t> const_dim = {2, 3}; // error shape， paddings 的shape应该是{3, 2} 对应 {inputDimNum ,2}
+  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1, 1, 1};
+  std::vector<int64_t> const_dim = {2, 4}; // // paddings.size != data0.dims * 2 校验报错
   auto const0 = EsCreateConstInt32(graph_, const_data0.data(), const_dim.data(), const_dim.size());
 
   const auto pad = EsPad(data0, const0);
@@ -456,6 +456,25 @@ TEST_F(SymbolicShapeInferenceST, test_pad_with_symbols_value_but_error_shape) {
 
   const SymbolicShapeInference ssi;
   ASSERT_EQ(ssi.Infer(cg), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferenceST, test_pad_with_vector) {
+  const auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data_0", nullptr);
+  ASSERT_EQ(EsSetSymbolShape(data0, std::vector<const char *>({"s0", "s1", "s2"}).data(), 3), 0);
+
+  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1};
+  std::vector<int64_t> const_dim = {6};
+  auto const0 = EsCreateConstInt32(graph_, const_data0.data(), const_dim.data(), const_dim.size());
+
+  const auto pad = EsPad(data0, const0);
+
+  ASSERT_EQ(EsSetGraphOutput(pad, 0), 0);
+  const auto graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph_)));
+  const auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  const SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
 }
 
 TEST_F(SymbolicShapeInferenceST, GatherV2_get_input_failed) {

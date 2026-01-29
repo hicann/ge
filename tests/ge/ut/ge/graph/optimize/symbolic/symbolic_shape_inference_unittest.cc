@@ -7,7 +7,6 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-
 #include <memory>
 #include <utility>
 #include <gtest/gtest.h>
@@ -477,8 +476,8 @@ TEST_F(SymbolicShapeInferenceUT, test_pad_with_symbols_value_but_error_shape) {
   const auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data_0", nullptr);
   ASSERT_EQ(EsSetSymbolShape(data0, std::vector<const char *>({"s0", "s1", "s2"}).data(), 3), 0);
 
-  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1};
-  std::vector<int64_t> const_dim = {2, 3};  // error shape， paddings 的shape应该是{3, 2} 对应 {inputDimNum, 2}
+  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1, 1, 1};
+  std::vector<int64_t> const_dim = {2, 4}; // paddings.size != data0.dims * 2 校验报错
   auto const0 = EsCreateConstInt32(graph_, const_data0.data(), const_dim.data(), const_dim.size());
 
   const auto pad = EsPad(data0, const0);
@@ -490,6 +489,25 @@ TEST_F(SymbolicShapeInferenceUT, test_pad_with_symbols_value_but_error_shape) {
 
   const SymbolicShapeInference ssi;
   ASSERT_EQ(ssi.Infer(cg), ge::PARAM_INVALID);
+}
+
+TEST_F(SymbolicShapeInferenceUT, test_pad_with_vector) {
+  const auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data_0", nullptr);
+  ASSERT_EQ(EsSetSymbolShape(data0, std::vector<const char *>({"s0", "s1", "s2"}).data(), 3), 0);
+
+  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1};
+  std::vector<int64_t> const_dim = {6};
+  auto const0 = EsCreateConstInt32(graph_, const_data0.data(), const_dim.data(), const_dim.size());
+
+  const auto pad = EsPad(data0, const0);
+
+  ASSERT_EQ(EsSetGraphOutput(pad, 0), 0);
+  const auto graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph_)));
+  const auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  const SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
 }
 
 TEST_F(SymbolicShapeInferenceUT, test_unsupport_subgraph) {
@@ -511,15 +529,12 @@ TEST_F(SymbolicShapeInferenceUT, test_unsupport_subgraph) {
   const SymbolicShapeInference ssi;
   ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
 }
-// todo test
-/*
+
 TEST_F(SymbolicShapeInferenceUT, test_abnormal_reshape) {
-  int32_t ret_{EN_ERROR};
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
   setenv("ASCEND_OPP_PATH", (ascend_install_path + "/opp").c_str(), 1);
   setenv("LD_LIBRARY_PATH", (ascend_install_path + "/runtime/lib64").c_str(), 1);
-  MM_SYS_SET_ENV(MM_ENV_EXPERIMENTAL_ENABLE_AUTOFUSE, "1", true, ret_);
-  MM_SYS_SET_ENV(MM_ENV_AUTOFUSE_FLAGS, "1", true, ret_);
+  setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
 
   auto reshape = OP_CFG(RESHAPE).InCnt(1).OutCnt(1).OutNames({"y"}).Build("reshape1");
   GeTensorDesc in_desc(GeShape({1, 2, 3, 4}), FORMAT_ND, DT_FLOAT);
@@ -560,11 +575,9 @@ TEST_F(SymbolicShapeInferenceUT, test_abnormal_reshape) {
   auto attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
   ASSERT_NE(attr, nullptr);
   EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(1), Symbol(24)}));
-  MM_SYS_UNSET_ENV(MM_ENV_EXPERIMENTAL_ENABLE_AUTOFUSE, ret_);
   unsetenv("ASCEND_OPP_PATH");
   unsetenv("LD_LIBRARY_PATH");
 }
-*/
 
 //         ┌────────┐  (0,0)
 //         │ data_0 │ ────────

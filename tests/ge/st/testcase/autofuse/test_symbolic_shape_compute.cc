@@ -1188,6 +1188,38 @@ TEST_F(SymbolicShapeComputeST, test_fill_with_const) {
 }
 
 // ┌────────┐  (0,0)   ┌──────────┐  (0,0)   ┌─────────────┐
+// │const_0 │ ───────> │   fill   │ ───────> │ Node_Output │
+// └────────┘          └──────────┘          └─────────────┘
+//                        ∧
+//                        │ (0,1)
+//                        │
+// ┌────────┐  (0,0)      |
+// │const_1 │ ————————————
+// └────────┘
+TEST_F(SymbolicShapeComputeST, test_fill_output_size_exceed) {
+  auto const0 = EsCreateScalarInt64(graph_, 2);
+  std::vector<int64_t> const_data = {2, 4, 1024};
+  auto const1 = EsCreateVectorInt64(graph_, const_data.data(), 3);
+  auto fill = EsFill(const1, const0);
+  ASSERT_EQ(EsSetGraphOutput(fill, 0), 0);
+  auto graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+  auto fill_node = cg->FindFirstNodeMatchType(FILL);
+  ASSERT_NE(fill_node, nullptr);
+  auto op_desc = fill_node->GetOpDesc();
+  op_desc->MutableInputDesc(0)->SetShape(GeShape({3}));
+  op_desc->MutableInputDesc(1)->SetShape(GeShape());
+
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(cg), ge::SUCCESS);
+  auto attr = op_desc->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+  ASSERT_NE(attr, nullptr);
+  EXPECT_EQ(attr->symbolic_tensor.GetOriginSymbolShape(), gert::SymbolShape({Symbol(2), Symbol(4), Symbol(1024)}));
+  EXPECT_EQ(attr->symbolic_tensor.GetSymbolicValue(), nullptr);
+}
+
+// ┌────────┐  (0,0)   ┌──────────┐  (0,0)   ┌─────────────┐
 // │const_0 │ ───────> │ fill     │ ───────> │ Node_Output │
 // └────────┘          └──────────┘          └─────────────┘
 //                       ∧
@@ -2952,8 +2984,8 @@ TEST_F(SymbolicShapeComputeST, test_pad_with_symbols_value_but_error_shape) {
   const auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data_0", nullptr);
   ASSERT_EQ(EsSetSymbolShape(data0, std::vector<const char *>({"s0", "s1", "s2"}).data(), 3), 0);
 
-  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1};
-  std::vector<int64_t> const_dim = {2, 3};  // error shape， paddings 的shape应该是{3, 2} 对应 {inputDimNum ,2}
+  std::vector<int32_t> const_data0 = {1, 2, 2, 1, 1, 1, 1, 1};
+  std::vector<int64_t> const_dim = {2, 4};  // // paddings.size != data0.dims * 2 校验报错
   auto const0 = EsCreateConstInt32(graph_, const_data0.data(), const_dim.data(), const_dim.size());
 
   const auto pad = EsPad(data0, const0);
@@ -3122,8 +3154,7 @@ TEST_F(SymbolicShapeComputeST, test_unsqueeze_hostcompute_without_symbolic_value
 //      │ data_3 │ ——————————————
 //      └────────┘
 
-// todo test
-/*
+
 TEST_F(SymbolicShapeComputeST, test_stridedslice_infershape) {
   const auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data_0", nullptr);
 
@@ -3180,7 +3211,7 @@ TEST_F(SymbolicShapeComputeST, test_stridedslice_infershape) {
   ASSERT_EQ(out_shape.GetDim(4), Symbol("s4"));
   ASSERT_EQ(out_shape.GetDim(5), Symbol(1));
 }
-*/
+
 /**
  *      Data0    Data1
  *        |    /   |

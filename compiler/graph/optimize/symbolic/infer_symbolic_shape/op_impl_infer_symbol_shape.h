@@ -18,7 +18,7 @@ namespace gert {
 class OpImplInferSymbolShape {
  public:
   OpImplInferSymbolShape() = default;
-  explicit OpImplInferSymbolShape(const ge::char_t *op_type) : op_type(op_type) {}
+  explicit OpImplInferSymbolShape(const ge::char_t *op_type_param) : op_type(op_type_param) {}
   OpImplInferSymbolShape &InferSymbolShape(OpImplKernelRegistry::InferSymbolShapeKernelFunc func);
   OpImplRegisterV2::OpType op_type;
 };

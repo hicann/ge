@@ -10,8 +10,8 @@
 #include "shape_env_guarder.h"
 
 namespace ge {
-ShapeEnvGuarder::ShapeEnvGuarder(ShapeEnvAttr *shape_env_context) {
-  origin_context_ = GetCurShapeEnvContext();
+ShapeEnvGuarder::ShapeEnvGuarder(ShapeEnvAttr *shape_env_context) : 
+                                 origin_context_(GetCurShapeEnvContext()) {
   SetCurShapeEnvContext(shape_env_context);
 }
 ShapeEnvGuarder::~ShapeEnvGuarder() {

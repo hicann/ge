@@ -18,7 +18,8 @@
 
 namespace ge {
 namespace {
-constexpr size_t kPadDimNum = 2U;
+// 要求paddings的长度是input_dim的两倍
+constexpr size_t kPadSizeParam = 2U;
 /**
  * Pad算子 算子的符号化shape推导
  * 【算子功能】对张量进行填充
@@ -46,19 +47,9 @@ graphStatus InferShape4Pad(gert::InferSymbolShapeContext *context) {
   const auto paddings_size = paddings_tensor->GetSymbolicValue()->size();
   GE_ASSERT(paddings_size > 0, "Invalid paddings, must be non-empty!");
 
-  // paddings的shape必须是[inShapeDimNum,2]
-  const auto paddings_shape = paddings_tensor->GetOriginSymbolShape();
-  GE_ASSERT(paddings_shape.GetDim(0).IsConstExpr());
-  int64_t paddings_dim_0 = -1;
-  paddings_shape.GetDim(0).GetConstValue(paddings_dim_0);
-  GE_ASSERT(paddings_dim_0 == static_cast<int64_t>(in_shape->GetDimNum()),
-            "Paddings failed, as paddings dim0 %ld not equals to in shape dim num %u", paddings_dim_0,
+  GE_ASSERT(paddings_size == in_shape->GetDimNum() * kPadSizeParam,
+            "Paddings failed, padding size[%u] must be twice of the input rank[%u].", paddings_size,
             in_shape->GetDimNum());
-
-  GE_ASSERT(paddings_shape.GetDim(1).IsConstExpr());
-  int64_t paddings_dim_1 = -1;
-  paddings_shape.GetDim(1).GetConstValue(paddings_dim_1);
-  GE_ASSERT(paddings_dim_1 == kPadDimNum, "Padding failed, as paddings dim1 %ld not equals to 2", paddings_dim_1);
 
   const auto out_shape = context->GetOutputSymbolShape(0);
   GE_ASSERT_NOTNULL(out_shape);
@@ -66,7 +57,7 @@ graphStatus InferShape4Pad(gert::InferSymbolShapeContext *context) {
   out_shape->Clear();
   auto paddings = *paddings_tensor->GetSymbolicValue();
   for (size_t i = 0; i < in_shape->GetDimNum(); ++i) {
-    const auto dim = in_shape->GetDim(i) + paddings[kPadDimNum * i] + paddings[kPadDimNum * i + 1];
+    const auto dim = in_shape->GetDim(i) + paddings[kPadSizeParam * i] + paddings[kPadSizeParam * i + 1];
     out_shape->AppendDim(dim);
   }
 

@@ -94,7 +94,7 @@ graphStatus InferShape4ConcatV2Common(gert::InferSymbolShapeContext *context, in
   return GRAPH_SUCCESS;
 }
 
-graphStatus GetConcatDimValue(gert::InferSymbolShapeContext *context, size_t dim_index, int64_t &concat_dim) {
+graphStatus GetConcatDimValue(const gert::InferSymbolShapeContext *context, size_t dim_index, int64_t &concat_dim) {
   auto concat_dim_tensor = context->GetInputSymbolTensor(dim_index);
   GE_UNSUPPORTED_IF_NULL(concat_dim_tensor);
   auto concat_dim_value = concat_dim_tensor->GetSymbolicValue();
