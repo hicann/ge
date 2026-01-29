@@ -189,6 +189,12 @@ custom_uninstall() {
         whl_uninstall_package "${DATAFLOW_NAME}" "${WHL_INSTALL_DIR_PATH}"
         whl_uninstall_package "${LLM_DATADIST_NAME}" "${WHL_INSTALL_DIR_PATH}"
         whl_uninstall_package "${GE_PY_NAME}" "${WHL_INSTALL_DIR_PATH}"
+
+        # maybe __pycache__ left in dir
+        rm -fr "${WHL_INSTALL_DIR_PATH}/llm_datadist_v1" 2> /dev/null
+        rm -fr "${WHL_INSTALL_DIR_PATH}/dataflow" 2> /dev/null
+        rm -fr "${WHL_INSTALL_DIR_PATH}/ge_py" 2> /dev/null
+
         log "INFO" "ge-compiler tool uninstalled successfully!"
     fi
 
