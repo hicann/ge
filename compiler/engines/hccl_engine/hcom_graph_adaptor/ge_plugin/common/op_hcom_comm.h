@@ -60,7 +60,8 @@ const std::map<HcclDataType, std::string> HCOM_DATA_TYPE_STR_MAP{
     {HcclDataType::HCCL_DATA_TYPE_FP32, "float32"},  {HcclDataType::HCCL_DATA_TYPE_UINT8, "uint8"},
     {HcclDataType::HCCL_DATA_TYPE_UINT16, "uint16"}, {HcclDataType::HCCL_DATA_TYPE_UINT32, "uint32"},
     {HcclDataType::HCCL_DATA_TYPE_FP64, "float64"},  {HcclDataType::HCCL_DATA_TYPE_BFP16, "bfloat16"},
-    {HcclDataType::HCCL_DATA_TYPE_INT128, "int128"}, {HcclDataType::HCCL_DATA_TYPE_RESERVED, "reserved"}};
+    {HcclDataType::HCCL_DATA_TYPE_INT128, "int128"}, {HcclDataType::HCCL_DATA_TYPE_FP8E4M3, "fp8e4m3"},
+ 	  {HcclDataType::HCCL_DATA_TYPE_FP8E5M2, "fp8e5m2"}, {HcclDataType::HCCL_DATA_TYPE_RESERVED, "reserved"}};
 
 const std::map<HcclReduceOp, std::string> HCOM_REDUCE_OP_STR_MAP{{HcclReduceOp::HCCL_REDUCE_SUM, "sum"},
                                                                  {HcclReduceOp::HCCL_REDUCE_PROD, "prod"},

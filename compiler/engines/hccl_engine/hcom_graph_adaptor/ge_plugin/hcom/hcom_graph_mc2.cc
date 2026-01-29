@@ -134,11 +134,6 @@ void *HcomGetContextV2(const rtStream_t stream, const void *tilingData, const ch
   CHK_PRT_RET(!ge::HcomTopoInfo::Instance().TryGetGroupTopoInfo(groupName, topoInfo),
               HCCL_ERROR("Failed to get topo info for group %s.", groupName), nullptr);
 
-  rtStream_t opstream;
-  ret = HcomGetAicpuOpStreamNotify(groupName, &opstream, 1, &topoInfo.notify_handle);
-  CHK_PRT_RET(ret != HCCL_SUCCESS,
-              HCCL_ERROR("Failed to get Aicpu Op Stream Notify, errNo[0x%016llx].", HCCL_ERROR_CODE(ret)), nullptr);
-
   HCCL_INFO("Set notify %p to group %s.", topoInfo.notify_handle, groupName);
   ge::HcomTopoInfo::Instance().SetGroupTopoInfo(groupName, topoInfo);
 
