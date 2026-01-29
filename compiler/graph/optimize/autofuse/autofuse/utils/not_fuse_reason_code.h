@@ -61,7 +61,9 @@ enum class NotFuseReason : uint32_t {
   kCubeCanNotFuseWithUnsupportedType,
   kCubeCanNotFuseWithNotComputeNode,
   kCubeCanNotFuseInThisChip,
-  kFusedSliceHasViewOp
+  kFusedSliceHasViewOp,
+  kCubeCanNotFuseWithNotElementwise,
+  kCubeCanNotFuseHoriZontal
 };
 
 inline const char* NotFuseReasonCode(NotFuseReason reason) noexcept {
@@ -160,6 +162,10 @@ inline const char* NotFuseReasonCode(NotFuseReason reason) noexcept {
       return "NF1046";
     case NotFuseReason::kFusedSliceHasViewOp:
       return "NF1047";
+    case NotFuseReason::kCubeCanNotFuseWithNotElementwise:
+      return "NF1048";
+    case NotFuseReason::kCubeCanNotFuseHoriZontal:
+      return "NF1049";
   }
   return "NF9999";  // unknown
 }

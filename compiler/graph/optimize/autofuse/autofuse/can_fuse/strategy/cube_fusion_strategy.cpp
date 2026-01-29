@@ -60,6 +60,11 @@ bool CanFuseWithElementwise(const NodePtr &node1, const NodePtr &node2) {
     }
     return true;
   }
+  GELOGI(
+      "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is[%s] [node1 is Cube, node2 is Pointwise but "
+      "node1 and node2 is not vertical relation].",
+      node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str(),
+      ge::NotFuseReasonCode(ge::NotFuseReason::kCubeCanNotFuseHoriZontal));
   return false;
 }
 bool CubeFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
@@ -93,6 +98,9 @@ bool CubeFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
     }
   }
 
+  GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is[%s] [node1 is Cube, node2 is not Pointwise].",
+          node1->GetNamePtr(), node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str(),
+          ge::NotFuseReasonCode(ge::NotFuseReason::kCubeCanNotFuseWithNotElementwise));
   return false;
 }
 
