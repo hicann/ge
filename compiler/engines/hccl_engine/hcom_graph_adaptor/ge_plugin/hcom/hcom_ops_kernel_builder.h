@@ -66,6 +66,8 @@ class HcomOpsKernelBuilder : public HCCLOpsKernelBuilder {
   HcclResult GetNeedMapRankFromDesc(const ge::OpDescPtr &op, bool &needMapRank);
   HcclResult GenerateTaskPrivateDef(const ge::Node &node, HCCL_KERNEL_INFO_PRIVATE_DEF &privateDefBuf,
                                     domi::TaskDef &taskDef, const std::string sCollectiveType);
+  HcclResult JudgeIsAivMode(ge::Node &node, std::string sGroup, std::string sCollectiveType, bool& ifAiv);
+  HcclResult GetCountsFromOpDesc(const ge::Node &node, void*& counts, HcclCMDType opType);
   HcclResult SetAttachedStreamInfoList(ge::Node &node, const std::string &group);  // 设置附属从流信息
   HcclResult TaskDefSetBlockDim(const ge::Node &node, domi::TaskDef &taskDef, const std::string sCollectiveType, const u32 aivCoreLimit);
 };

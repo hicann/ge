@@ -257,7 +257,33 @@ ge::Status HcomOpsKernelBuilder::GenerateTask(const ge::Node &node, ge::RunConte
   return ge::SUCCESS;
 }
 
- HcclResult HcomOpsKernelBuilder::TaskDefSetBlockDim(const ge::Node &node, domi::TaskDef &taskDef,
+HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void*& counts, HcclCMDType opType)
+{
+  if (opType == HcclCMDType::HCCL_CMD_ALLGATHER_V) {
+    std::vector<int64_t> sendCounts;
+    std::vector<int64_t> recvCounts;
+    std::vector<int64_t> recvDispls;
+    HcomOpUtils::GetAllGatherVCountsDispl(const_cast<ge::Node&>(node), sendCounts, recvCounts, recvDispls);
+    counts = recvCounts.data();
+    if (counts == nullptr){
+      HCCL_ERROR("[TaskDefSetBlockDim], counts is nullptr");
+      return HCCL_E_PTR;
+    }
+  } else if (opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
+    std::vector<int64_t> sendCounts;
+    std::vector<int64_t> sendDispls;
+    std::vector<int64_t> recvCount;
+    HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node&>(node), sendCounts, sendDispls, recvCount);
+    counts = sendCounts.data();
+    if (counts == nullptr){
+      HCCL_ERROR("[TaskDefSetBlockDim], counts is nullptr");
+      return HCCL_E_PTR;
+    }
+  }
+  return HCCL_SUCCESS;
+}
+
+HcclResult HcomOpsKernelBuilder::TaskDefSetBlockDim(const ge::Node &node, domi::TaskDef &taskDef,
  	     const std::string sCollectiveType, const u32 aivCoreLimit)
 {
   // 离线模式不设置核数
@@ -298,27 +324,7 @@ ge::Status HcomOpsKernelBuilder::GenerateTask(const ge::Node &node, ge::RunConte
   }
 
   void* counts = nullptr;
-  if (opType == HcclCMDType::HCCL_CMD_ALLGATHER_V) {
-      std::vector<int64_t> sendCounts;
-      std::vector<int64_t> recvCounts;
-      std::vector<int64_t> recvDispls;
-      HcomOpUtils::GetAllGatherVCountsDispl(const_cast<ge::Node&>(node), sendCounts, recvCounts, recvDispls);
-      counts = recvCounts.data();
-      if (counts == nullptr){
-        HCCL_ERROR("[TaskDefSetBlockDim], counts is nullptr");
-        return HCCL_E_PTR;
-      }
-  } else if (opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
-      std::vector<int64_t> sendCounts;
-      std::vector<int64_t> sendDispls;
-      std::vector<int64_t> recvCount;
-      HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node&>(node), sendCounts, sendDispls, recvCount);
-      counts = sendCounts.data();
-      if (counts == nullptr){
-        HCCL_ERROR("[TaskDefSetBlockDim], counts is nullptr");
-        return HCCL_E_PTR;
-      }
-  }
+  CHK_RET(GetCountsFromOpDesc(node, counts, opType));
 
   CHK_RET(HcomSelectAlg(comm, group.c_str(), count, counts, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
 
@@ -451,6 +457,44 @@ HcclResult HcomOpsKernelBuilder::HcomCalcOpRunningParam(ge::Node &node) {
   return HCCL_SUCCESS;
 }
 
+HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, std::string sGroup, std::string sCollectiveType, bool& ifAiv)
+{
+  auto const opDescPtr = node.GetOpDesc();
+  int64_t hcomComm = 0;
+  CHK_RET(GetCommFromOpDesc(opDescPtr, hcomComm, sGroup));
+
+  u32 rankSize = 0;
+  CHK_RET(HcomGetRankSize(sGroup.c_str(), &rankSize));
+  u64 count = 0;
+  HcclDataType dataType = HCCL_DATA_TYPE_RESERVED;
+  // 获取准确的 datatype
+  HcclResult ret = HcomOpUtils::ConversionOpDataType(opDescPtr, sCollectiveType, dataType);
+  CHK_PRT_RET(
+      ret != HCCL_SUCCESS,
+      HCCL_ERROR("[%s][Get][OpWorkspaceMemSize]op[%s]: get data type failed. ret[%d]", __func__, sCollectiveType.c_str(), ret), ret);
+
+  // 获取 opType
+  auto iter = HCCL_OPTYPE_NAME_MAP.find(sCollectiveType);
+  HcclCMDType opType = (iter != HCCL_OPTYPE_NAME_MAP.end()) ? iter->second : HcclCMDType::HCCL_CMD_INVALID;
+  HcclReduceOp reduction = HcclReduceOp::HCCL_REDUCE_SUM;
+  if (opType == HcclCMDType::HCCL_CMD_ALLREDUCE || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER) {
+    CHK_RET(HcomOpUtils::GetReduction(opDescPtr, reduction));
+  }
+
+  char algName[ALG_NAME_MAX_LEN];
+  u32 aivCoreLimit;
+  void* counts;
+  // 获取 aivCoreLimit
+  CHK_RET(HcomOpUtils::GetAivCoreLimit(opDescPtr, sCollectiveType, aivCoreLimit));
+  // 获取 counts
+  CHK_RET(GetCountsFromOpDesc(node, counts, opType));
+  // 判断是否走 Aiv
+  CHK_RET(HcomSelectAlg(hcomComm, sGroup.c_str(), count, counts, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
+  HCCL_INFO("[%s] hcomComm[%d], group[%s], count[%u], dataType[%u], reduction[%u], opType[%u], ifAiv[%d], algName[%s]",
+            __func__, hcomComm, sGroup.c_str(), count, dataType, reduction, opType, ifAiv, algName);
+  return HCCL_SUCCESS;
+}
+
 HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const string &group)
 {
   const uint32_t STREAM_CONFIG_NAME = 0;
@@ -470,12 +514,13 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
   bool required = true;
   std::vector<ge::GeAttrValue::NAMED_ATTRS> attachedStreamInfo;
 
-  // 添加附属从流暂时规避superKernel场景 
-  std::string superKernel;
-  auto const opDesc = node.GetOpDesc();
-  CHK_RET(GetSuperKernelFromDesc(opDesc, superKernel));
-  HCCL_INFO("%s SPK, superkernel is %s", __func__, superKernel.c_str());
-  if (superKernel == "") {
+  // 判断是否是 AIV 展开模式
+  bool ifAiv = false;
+  CHK_PRT(JudgeIsAivMode(node, group, node.GetOpDesc()->GetType(), ifAiv));
+  HCCL_INFO("%s JudgeIsAivMode ifAiv[%d] should not set attach stream info", __func__, ifAiv);
+  // AIV 模式不设置从流信息
+  if (!ifAiv) {
+    const auto opDesc = node.GetOpDesc();
     (void)ge::AttrUtils::SetInt(opDesc, ge::ATTR_NAME_HCCL_ATTACHED_TASK_NUM, STREAM_ATTACHED_TASK_NUM);
     HCCL_INFO("%s HcclOp set STREAM_ATTACHED_TASK_NUM[%u]", __func__, STREAM_ATTACHED_TASK_NUM);  // 从流设置 task_num
     for (auto& config : streamConfigs) {
