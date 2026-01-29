@@ -55,8 +55,8 @@ find_path(hccl_PKG_INCLUDE_DIR
         NO_CMAKE_SYSTEM_PATH
         NO_CMAKE_FIND_ROOT_PATH)
 
-find_library(hccl_fwk_SHARED_LIBRARY
-        NAMES libhccl_fwk.so
+find_library(hcomm_SHARED_LIBRARY
+        NAMES libhcomm.so
         PATH_SUFFIXES lib64
         NO_CMAKE_SYSTEM_PATH
         NO_CMAKE_FIND_ROOT_PATH)
@@ -68,20 +68,20 @@ find_package_handle_standard_args(hccl
     REQUIRED_VARS
         hccl_INCLUDE_DIR
         hccl_PKG_INCLUDE_DIR
-        hccl_fwk_SHARED_LIBRARY
+        hcomm_SHARED_LIBRARY
 )
 
 if(hccl_FOUND)
     include(CMakePrintHelpers)
     message(STATUS "Variables in hccl module:")
     cmake_print_variables(hccl_INCLUDE_DIR)
-    cmake_print_variables(hccl_fwk_SHARED_LIBRARY)
+    cmake_print_variables(hcomm_SHARED_LIBRARY)
 
-    add_library(hccl_fwk SHARED IMPORTED)
-    set_target_properties(hccl_fwk PROPERTIES
+    add_library(hcomm SHARED IMPORTED)
+    set_target_properties(hcomm PROPERTIES
         INTERFACE_LINK_LIBRARIES "hccl_headers"
         IMPORTED_LINK_DEPENDENT_LIBRARIES "c_sec;unified_dlog;acl_rt;hccl_alg;hccl_plf"
-        IMPORTED_LOCATION "${hccl_fwk_SHARED_LIBRARY}"
+        IMPORTED_LOCATION "${hcomm_SHARED_LIBRARY}"
     )
 
     add_library(hccl_headers INTERFACE IMPORTED)

@@ -252,7 +252,7 @@ if(BUILD_OPEN_PROJECT)
         gert
         platform
         error_manager
-        hccl_fwk
+        hcomm
         -Wl,--as-needed
         -lpthread
     )
@@ -270,7 +270,7 @@ if(BUILD_OPEN_PROJECT)
         gert
         platform
         error_manager
-        hccl_fwk
+        hcomm
         -Wl,--as-needed
         -lpthread
     )
@@ -288,7 +288,7 @@ if(BUILD_OPEN_PROJECT)
         gert
         platform
         error_manager
-        hccl_fwk
+        hcomm
         -Wl,--as-needed
         -lpthread
     )
@@ -306,7 +306,7 @@ if(BUILD_OPEN_PROJECT)
         gert
         platform
         error_manager
-        hccl_fwk
+        hcomm
         -Wl,--as-needed
         -lpthread
     )

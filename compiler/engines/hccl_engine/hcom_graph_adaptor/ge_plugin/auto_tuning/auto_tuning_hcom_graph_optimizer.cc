@@ -16,7 +16,6 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "mmpa/mmpa_api.h"
-
 #include "auto_tuning_hcom_all_reduce_fusion.h"
 #include "auto_tuning_hcom_ops_kernel_info_store.h"
 #include "auto_tuning_hcom_ops_kernel_builder.h"
