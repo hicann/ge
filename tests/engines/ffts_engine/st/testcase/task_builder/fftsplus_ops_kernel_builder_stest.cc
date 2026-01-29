@@ -14,13 +14,11 @@
 #include <algorithm>
 #include <list>
 #include "ffts_llt_utils.h"
-#include "register/op_ct_impl_registry.h"
 #define private public
 #include "base/registry/op_impl_space_registry_v2.h"
 #undef private
 #define private public
 #define protected public
-#include "base/registry/op_impl_space_registry_v2.h"
 #include "common/aicore_util_attr_define.h"
 #include "common/sgt_slice_type.h"
 #include "common/fe_gentask_utils.h"

@@ -11,11 +11,13 @@
 #include <gtest/gtest.h>
 #include <nlohmann/json.hpp>
 #include "fe_llt_utils.h"
+#include "te_llt_utils.h"
 
 using namespace std;
 
 int main(int argc, char **argv)
 {
+  te::fusion::InitTbe();
   fe::InitPlatformInfo("Ascend910B1");
   testing::InitGoogleTest(&argc,argv);
   EXPECT_EQ(fe::InitPlatformInfo("Ascend910B1"), 0);

@@ -216,17 +216,6 @@ target_include_directories(fe_ut PRIVATE
  	${AIR_CODE_DIR}/tests/engines/nn_engine/ut/testcase/op_compile_adapter/stub
         ${FE_TEST_ROOT_PATH})
 
-# get sys_version
-execute_process(COMMAND grep -Po "^\\d+\\.\\d+" ${TOP_DIR}/build/product/onetrack/sys_version/sys_version.conf
-    OUTPUT_VARIABLE SYS_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-message(STATUS "SYS_VERSION=${SYS_VERSION}")
-
-target_compile_definitions(fe_ut PRIVATE
-        OPP_PKG_VERSION=\"${SYS_VERSION}\"
-        )
-
 target_compile_options(fe_ut PRIVATE
         $<$<STREQUAL:${ENABLE_ASAN},true>:-fsanitize=address -fsanitize-recover=address,all -fno-omit-frame-pointer -g>
         -D__OPTIMIZER_KT_TEST__

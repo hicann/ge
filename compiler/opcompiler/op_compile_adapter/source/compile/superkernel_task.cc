@@ -246,6 +246,7 @@ bool SuperKernelTaskManager::SuperKernelTask(OpBuildTaskPtr &opTask)
     PyLockGIL pyLockGIL;
     skOptions["op_debug_dir"] = TeConfigInfo::Instance().GetKernelMetaParentDir();
     skOptions["device_id"] = TeConfigInfo::Instance().GetDeviceId();
+    skOptions["soc_version"] = TeConfigInfo::Instance().GetShortSocVersion();
     PyObject *optionValues = PyObjectUtils::GenSuperKernelOptionsInfo(skOptions);
     TE_FUSION_CHECK(optionValues == nullptr, {
         TE_ERRLOG("Failed to generate fusion options info.");

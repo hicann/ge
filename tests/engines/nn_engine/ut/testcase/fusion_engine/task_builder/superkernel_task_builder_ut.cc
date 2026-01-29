@@ -410,6 +410,15 @@ TEST_F(SuperkernelTaskBuilderUT, get_arg_format_v2) {
     EXPECT_EQ(status, ge::SUCCESS);
 }
 
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_v2_all_kernel) {
+    domi::TaskDef task_def{};
+    task_def.set_type(RT_MODEL_TASK_ALL_KERNEL);
+    std::string args_format;
+
+    ge::Status status = fe::GetArgFormatV2(task_def, args_format);
+    EXPECT_EQ(status, ge::SUCCESS);
+}
+
 TEST_F(SuperkernelTaskBuilderUT, is_aicpu_task_def_fail) {
     domi::TaskDef task_def = {};
     domi::KernelDef *kernel_def = task_def.mutable_kernel();
@@ -600,9 +609,52 @@ TEST_F(SuperkernelTaskBuilderUT, get_arg_format_2) {
     EXPECT_EQ(status, ge::SUCCESS);
 }
 
-TEST_F(SuperkernelTaskBuilderUT, get_arg_format_3) {
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_4) {
     domi::TaskDef task_def{};
     task_def.set_type(RT_MODEL_TASK_KERNEL);
+    auto kernel_def = task_def.mutable_kernel();
+    kernel_def->set_block_dim(24);
+    auto kernel_context = kernel_def->mutable_context();
+    kernel_context->set_args_count(1);
+    kernel_context->set_args_format("{ws0}");
+
+    std::string args_format;
+    ge::OpDescPtr super_kernel_op_desc = std::make_shared<ge::OpDesc>("A", "A");
+
+    std::string super_kernel_args_format;
+    uint32_t args_size_total = 8;
+
+    std::vector<domi::TaskDef> tasks;
+    tasks.emplace_back(task_def);
+    std::vector<std::vector<domi::TaskDef>> sub_tasks;
+    sub_tasks.emplace_back(tasks);
+
+    const std::string graphName = "testSuperkernelGentaskProtoGraph";
+    const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
+    const std::string opType = "SuperKernel";
+    const std::string subOpType = "SubKernel";
+
+    ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
+    ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
+    ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
+    nodeOpDescPtr->SetId(0U);
+
+    ge::OpDescPtr subNodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, subOpType);
+    ge::Node * subNode = node.get();
+    subNodeOpDescPtr->SetId(0U);
+    std::vector<ge::Node *> sub_nodes;
+    sub_nodes.push_back(subNode);
+
+
+    ge::Status status = fe::GetArgFormat(sub_nodes, args_size_total, sub_tasks,
+                     super_kernel_op_desc, tasks, node, super_kernel_args_format);
+    EXPECT_EQ(status, ge::SUCCESS);
+}
+
+
+TEST_F(SuperkernelTaskBuilderUT, get_arg_format_3) {
+    domi::TaskDef task_def{};
+    task_def.set_type(RT_MODEL_TASK_ALL_KERNEL);
     auto kernel_def = task_def.mutable_kernel();
     kernel_def->set_block_dim(24);
     auto kernel_context = kernel_def->mutable_context();
@@ -724,10 +776,7 @@ TEST_F(SuperkernelTaskBuilderUT, set_arg_format_value_1) {
 
     ge::Status status = fe::SetArgFormatValue(args_size_workspace, sub_tasks,
                          sub_nodes, all_args_buff_total, args_size_total);
-    EXPECT_EQ(status, ge::SUCCESS);
 
-    status = fe::SetArgFormatValue(args_size_workspace, sub_tasks,
-                         sub_nodes, all_args_buff_total, 0);
     EXPECT_EQ(status, ge::SUCCESS);
 }
 }

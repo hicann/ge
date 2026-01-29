@@ -122,16 +122,8 @@ target_include_directories(ffts_ut PRIVATE
         ${GTEST_INCLUDE}
         ${CMAKE_BINARY_DIR}/proto/ffts_ut)
 
-# get sys_version
-execute_process(COMMAND grep -Po "^\\d+\\.\\d+" ${TOP_DIR}/build/product/onetrack/sys_version/sys_version.conf
-    OUTPUT_VARIABLE SYS_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-message(STATUS "SYS_VERSION=${SYS_VERSION}")
-
 target_compile_definitions(ffts_ut PRIVATE
         $<$<STREQUAL:${BUILD_OPEN_PROJECT},True>:ONLY_COMPILE_BLUE>
-        OPP_PKG_VERSION=\"${SYS_VERSION}\"
         )
 
 target_compile_options(ffts_ut PRIVATE
@@ -141,6 +133,7 @@ target_compile_options(ffts_ut PRIVATE
 
 target_link_directories(ffts_ut PRIVATE
     ${ASCEND_INSTALL_PATH}/lib64
+#     ${ASCEND_INSTALL_PATH}/devlib
 )
 
 target_link_libraries(ffts_ut PRIVATE
@@ -148,7 +141,6 @@ target_link_libraries(ffts_ut PRIVATE
         slog_headers
         msprof_headers
         runtime_headers
-        static_mmpa
         air_headers
         -Wl,--no-as-needed
         -lrt -ldl -lpthread -lgcov
@@ -166,4 +158,7 @@ target_link_libraries(ffts_ut PRIVATE
         GTest::gtest
         GTest::gtest_main
         c_sec_static
-        cce_headers)
+        cce_headers
+        unified_dlog
+        ascendalog
+        mmpa)

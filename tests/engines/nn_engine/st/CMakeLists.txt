@@ -146,6 +146,26 @@ set(FE_NORMAL_ST_SRC_CC_LIST
         ${CMAKE_CURRENT_LIST_DIR}/testcase/trace_handle_manager/trace_handle_manager_st.cc
         )
 
+
+set(TEFUSION_ST_TEST_LIST
+        ${CMAKE_CURRENT_LIST_DIR}/stub/Python.cc
+        ${CMAKE_CURRENT_LIST_DIR}/stub/Python_stub.cc
+        ${CMAKE_CURRENT_LIST_DIR}/stub/te_llt_utils.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/stub/common_stub.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/stub/example_stest_stub.cc
+
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/api/fusion_api_st.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/cache/te_cache_manager_st.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/common/te_config_info_st.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_base.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_binary_st.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_build_file_st.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_dfx_st.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_fuzzy_build.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_py_obj_st.cc
+        ${CMAKE_CURRENT_LIST_DIR}/testcase/op_compile_adapter/testcase/te_fusion_test.cc
+        )
+
 # compile for fe_st
 add_executable(fe_st
         ${PROTO_HDRS}
@@ -157,11 +177,13 @@ add_executable(fe_st
         ${FE_TEST_ROOT_PATH}/graph_constructor/ub_pass_manager.cc
         ${FE_TEST_ROOT_PATH}/graph_constructor/graph_builder_utils.cc
         ${FE_TEST_ROOT_PATH}/graph_constructor/graph_constructor.cc
+        ${TEFUSION_ST_TEST_LIST}
         ${CMAKE_CURRENT_LIST_DIR}/testcase/main.cc)
 
 target_include_directories(fe_st PRIVATE
         ${CMAKE_CURRENT_LIST_DIR}
         ${FE_ROOT_PATH}/executor
+        ${ASCEND_INSTALL_PATH}/include
         ${FE_ROOT_PATH}/inc
         ${FE_ROOT_PATH}/optimizer
         ${FE_ROOT_PATH}/utils
@@ -185,17 +207,9 @@ target_include_directories(fe_st PRIVATE
         ${GTEST_INCLUDE}
         ${CMAKE_BINARY_DIR}/proto/fe_st
         ${FE_TEST_ROOT_PATH}
-        )
-
-# get sys_version
-execute_process(COMMAND grep -Po "^\\d+\\.\\d+" ${TOP_DIR}/build/product/onetrack/sys_version/sys_version.conf
-    OUTPUT_VARIABLE SYS_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-message(STATUS "SYS_VERSION=${SYS_VERSION}")
-
-target_compile_definitions(fe_st PRIVATE
-        OPP_PKG_VERSION=\"${SYS_VERSION}\"
+        ${AIR_CODE_DIR}/compiler/opcompiler/op_compile_adapter/source
+        ${AIR_CODE_DIR}/tests/engines/nn_engine/st/stub
+        ${AIR_CODE_DIR}/tests/engines/nn_engine/st/testcase/op_compile_adapter/stub
         )
 
 target_compile_options(fe_st PRIVATE
@@ -241,10 +255,12 @@ target_link_libraries(fe_st PRIVATE
         GTest::gtest_main
         GTest::gmock
         GTest::gmock_main
+        mockcpp_static
         c_sec_static
         easy_graph
         ge_graph_dsl
         mmpa_stub
+        op_compile_adapter_headers
         slog_stub
         unified_dlog
         cann_kb_stub

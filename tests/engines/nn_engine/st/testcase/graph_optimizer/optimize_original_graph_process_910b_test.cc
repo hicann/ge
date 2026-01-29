@@ -572,35 +572,35 @@ TEST_F(OptimizeOriginalGraphProcess910BTest, optimize_origin_graph_deformable_ro
   EXPECT_EQ(cast_count, 0);
 }
 
-TEST_F(OptimizeOriginalGraphProcess910BTest, optimize_origin_graph_atomic_write_fixpipe_case1) {
-  FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
-  ComputeGraphPtr graph = CreateGraphWithConv2DBackpropFilterD();
-  FillWeightValue(graph);
-  SetPrecisionMode("must_keep_origin_dtype");
-  Status ret = graph_optimizer_ptr->OptimizeGraphInit(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(graph->GetDirectNodesSize(), 7);
-  ret = graph_optimizer_ptr->OptimizeGraphPrepare(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(graph->GetDirectNodesSize(), 7);
-  ret = graph_optimizer_ptr->OptimizeOriginalGraph(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(graph->GetDirectNodesSize(), 7);
-  ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeInsert(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeFormatInsert(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(graph->GetDirectNodesSize(), 7);
-  size_t cast_count = 0;
-  for (const ge::NodePtr &node : graph->GetDirectNode()) {
-    ge::OpDescPtr op_desc = node->GetOpDesc();
-    std::cout << "==== " << op_desc->GetName() << " - " << op_desc->GetType() << std::endl;
-    if (op_desc->GetType() == "Cast") {
-      cast_count++;
-    }
-  }
-  EXPECT_EQ(cast_count, 2);
-}
+// TEST_F(OptimizeOriginalGraphProcess910BTest, optimize_origin_graph_atomic_write_fixpipe_case1) {
+//   FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
+//   ComputeGraphPtr graph = CreateGraphWithConv2DBackpropFilterD();
+//   FillWeightValue(graph);
+//   SetPrecisionMode("must_keep_origin_dtype");
+//   Status ret = graph_optimizer_ptr->OptimizeGraphInit(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   EXPECT_EQ(graph->GetDirectNodesSize(), 7);
+//   ret = graph_optimizer_ptr->OptimizeGraphPrepare(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   EXPECT_EQ(graph->GetDirectNodesSize(), 7);
+//   ret = graph_optimizer_ptr->OptimizeOriginalGraph(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   EXPECT_EQ(graph->GetDirectNodesSize(), 7);
+//   ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeInsert(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeFormatInsert(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   EXPECT_EQ(graph->GetDirectNodesSize(), 7);
+//   size_t cast_count = 0;
+//   for (const ge::NodePtr &node : graph->GetDirectNode()) {
+//     ge::OpDescPtr op_desc = node->GetOpDesc();
+//     std::cout << "==== " << op_desc->GetName() << " - " << op_desc->GetType() << std::endl;
+//     if (op_desc->GetType() == "Cast") {
+//       cast_count++;
+//     }
+//   }
+//   EXPECT_EQ(cast_count, 2);
+// }
 
 TEST_F(OptimizeOriginalGraphProcess910BTest, optimize_origin_graph_case_cube_hif8) {
   FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;

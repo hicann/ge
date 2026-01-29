@@ -17,7 +17,6 @@
 #include "ops_kernel_builder/aicore_ops_kernel_builder.h"
 #include "graph/utils/tensor_utils.h"
 #include "ops_kernel_builder/task_builder/superkernel_task_builder.h"
-#include "ops_kernel_builder/task_builder/superkernel_args_format_utils.h"
 #include "graph/ge_context.h"
 #include "graph/ge_local_context.h"
 #include "register/op_ext_gentask_registry.h"
@@ -281,94 +280,5 @@ TEST_F(SuperkernelTaskBuilderST, superkernel_plus_reuse_binary_not_tiling_sink_f
     }
   }
   ge::GetThreadLocalContext().SetGraphOption(options_bk);
-}
-
-TEST_F(SuperkernelTaskBuilderST, set_arg_format_value) {
-    domi::TaskDef task_def{};
-    task_def.set_type(RT_MODEL_TASK_KERNEL);
-    auto kernel_def = task_def.mutable_kernel();
-    kernel_def->set_block_dim(24);
-    auto kernel_context = kernel_def->mutable_context();
-    kernel_context->set_args_count(1);
-    kernel_context->set_args_format("{ws0}");
-
-    std::vector<domi::TaskDef> tasks;
-    tasks.emplace_back(task_def);
-    std::vector<std::vector<domi::TaskDef>> sub_tasks;
-    sub_tasks.emplace_back(tasks);
-
-    uint32_t args_size_total = 512;
-
-    const std::string graphName = "testSuperkernelGentaskProtoGraph";
-    const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
-    const std::string opType = "SuperKernel";
-    const std::string subOpType = "SubKernel";
-
-    ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
-    ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
-    ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
-    nodeOpDescPtr->SetId(0U);
-
-    ge::OpDescPtr subNodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, subOpType);
-    ge::Node * subNode = node.get();
-    subNodeOpDescPtr->SetId(0U);
-    std::vector<ge::Node *> sub_nodes;
-    sub_nodes.push_back(subNode);
-
-    uint32_t args_size_workspace = 8;
-
-    void *all_args_buff_total = (void *)malloc(args_size_total);
-
-    ge::Status status = fe::SetArgFormatValue(args_size_workspace, sub_tasks,
-                         sub_nodes, all_args_buff_total, args_size_total);
-
-    EXPECT_EQ(status, ge::SUCCESS);
-}
-
-TEST_F(SuperkernelTaskBuilderST, set_arg_format_value_1) {
-    domi::TaskDef task_def{};
-    task_def.set_type(RT_MODEL_TASK_KERNEL);
-    auto kernel_def = task_def.mutable_kernel();
-    kernel_def->set_block_dim(24);
-    auto kernel_context = kernel_def->mutable_context();
-    kernel_context->set_args_count(1);
-    kernel_context->set_args_format("{ws0}");
-
-    std::vector<domi::TaskDef> tasks;
-    tasks.emplace_back(task_def);
-    std::vector<std::vector<domi::TaskDef>> sub_tasks;
-    sub_tasks.emplace_back(tasks);
-
-    uint32_t args_size_total = 512;
-
-    const std::string graphName = "testSuperkernelGentaskProtoGraph";
-    const std::string opDescName = "testSuperkernelGentaskProtoOpDesc";
-    const std::string opType = "SuperKernel";
-    const std::string subOpType = "SubKernel";
-
-    ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>(graphName);
-    ge::OpDescPtr nodeOpDescPtr = std::make_shared<ge::OpDesc>(opDescName, opType);
-    nodeOpDescPtr->SetId(0U);
-    std::vector<uint32_t> sk_send_event_ids = {1};
-    std::vector<uint32_t> sk_rcv_event_ids = {1};
-    (void)ge::AttrUtils::SetListInt(nodeOpDescPtr, "_sk_send_event_ids", sk_send_event_ids);
-    (void)ge::AttrUtils::SetListInt(nodeOpDescPtr, "_sk_rcv_event_ids", sk_rcv_event_ids);
-    ge::NodePtr node = graph->AddNode(nodeOpDescPtr);
-
-    ge::Node * subNode = node.get();
-    std::vector<ge::Node *> sub_nodes;
-    sub_nodes.push_back(subNode);
-
-    uint32_t args_size_workspace = 8;
-
-    void *all_args_buff_total = (void *)malloc(args_size_total);
-
-    ge::Status status = fe::SetArgFormatValue(args_size_workspace, sub_tasks,
-                         sub_nodes, all_args_buff_total, args_size_total);
-    EXPECT_EQ(status, ge::SUCCESS);
-
-    status = fe::SetArgFormatValue(args_size_workspace, sub_tasks,
-                         sub_nodes, all_args_buff_total, 0);
-    EXPECT_EQ(status, ge::SUCCESS);
 }
 }

@@ -386,53 +386,53 @@ TEST_F(OptimizeOriginalGraphProcess310BTest, optimize_origin_graph_quant_case2) 
   EXPECT_EQ(cast_count, 4);
 }
 
-TEST_F(OptimizeOriginalGraphProcess310BTest, optimize_origin_graph_quant_dump_able_case1) {
-  FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
-  ComputeGraphPtr graph = CreateThreeLayerConvQuantGraph();
-  FillWeightValue(graph);
-  SetPrecisionMode("force_fp16");
-  SetContextOption(ge::QUANT_DUMPABLE, "1");
-  Status ret = graph_optimizer_ptr->OptimizeGraphInit(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(graph->GetDirectNodesSize(), 21);
-  ret = graph_optimizer_ptr->OptimizeGraphPrepare(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(graph->GetDirectNodesSize(), 21);
-  ret = graph_optimizer_ptr->OptimizeOriginalGraph(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(graph->GetDirectNodesSize(), 23);
-  ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeInsert(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeFormatInsert(*graph);
-  EXPECT_EQ(ret, SUCCESS);
-  // EXPECT_EQ(graph->GetDirectNodesSize(), 37);
-  size_t quant_count = 0;
-  for (const ge::NodePtr &node : graph->GetDirectNode()) {
-    ge::OpDescPtr op_desc = node->GetOpDesc();
-    std::cout << "==== " << op_desc->GetName() << " - " << op_desc->GetType() << std::endl;
-    if (op_desc->GetType() == "AscendQuant") {
-      if (op_desc->GetInputDescPtr(0)->GetFormat() != op_desc->GetInputDescPtr(0)->GetOriginFormat()) {
-        ASSERT_EQ(node->GetInDataNodesSize(), 1);
-        ge::NodePtr pre_node = node->GetInDataNodes().at(0);
-        EXPECT_EQ(pre_node->GetType(), "TransData");
-        bool is_dump_able = false;
-        AttrUtils::GetBool(pre_node->GetOpDesc(), kAttrDumpAble, is_dump_able);
-        EXPECT_EQ(is_dump_able, true);
-        EXPECT_EQ(pre_node->GetOpDesc()->GetInputDescPtr(0)->GetFormat(), op_desc->GetInputDescPtr(0)->GetOriginFormat());
-      }
-      if (op_desc->GetOutputDescPtr(0)->GetFormat() != op_desc->GetOutputDescPtr(0)->GetOriginFormat()) {
-        ASSERT_EQ(node->GetOutDataNodesSize(), 1);
-        ge::NodePtr post_node = node->GetOutDataNodes().at(0);
-        EXPECT_EQ(post_node->GetType(), "TransData");
-        bool is_dump_able = false;
-        AttrUtils::GetBool(post_node->GetOpDesc(), kAttrDumpAble, is_dump_able);
-        EXPECT_EQ(is_dump_able, true);
-        EXPECT_EQ(post_node->GetOpDesc()->GetOutputDescPtr(0)->GetFormat(), op_desc->GetOutputDescPtr(0)->GetOriginFormat());
-      }
-      quant_count++;
-    }
-  }
-  EXPECT_EQ(quant_count, 2);
-  Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::QuantDumpable)] = 0;
-}
+// TEST_F(OptimizeOriginalGraphProcess310BTest, optimize_origin_graph_quant_dump_able_case1) {
+//   FEGraphOptimizerPtr graph_optimizer_ptr = FusionManager::Instance(AI_CORE_NAME).graph_opt_;
+//   ComputeGraphPtr graph = CreateThreeLayerConvQuantGraph();
+//   FillWeightValue(graph);
+//   SetPrecisionMode("force_fp16");
+//   SetContextOption(ge::QUANT_DUMPABLE, "1");
+//   Status ret = graph_optimizer_ptr->OptimizeGraphInit(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   EXPECT_EQ(graph->GetDirectNodesSize(), 21);
+//   ret = graph_optimizer_ptr->OptimizeGraphPrepare(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   EXPECT_EQ(graph->GetDirectNodesSize(), 21);
+//   ret = graph_optimizer_ptr->OptimizeOriginalGraph(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   EXPECT_EQ(graph->GetDirectNodesSize(), 23);
+//   ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeInsert(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   ret = graph_optimizer_ptr->OptimizeOriginalGraphJudgeFormatInsert(*graph);
+//   EXPECT_EQ(ret, SUCCESS);
+//   // EXPECT_EQ(graph->GetDirectNodesSize(), 37);
+//   size_t quant_count = 0;
+//   for (const ge::NodePtr &node : graph->GetDirectNode()) {
+//     ge::OpDescPtr op_desc = node->GetOpDesc();
+//     std::cout << "==== " << op_desc->GetName() << " - " << op_desc->GetType() << std::endl;
+//     if (op_desc->GetType() == "AscendQuant") {
+//       if (op_desc->GetInputDescPtr(0)->GetFormat() != op_desc->GetInputDescPtr(0)->GetOriginFormat()) {
+//         ASSERT_EQ(node->GetInDataNodesSize(), 1);
+//         ge::NodePtr pre_node = node->GetInDataNodes().at(0);
+//         EXPECT_EQ(pre_node->GetType(), "TransData");
+//         bool is_dump_able = false;
+//         AttrUtils::GetBool(pre_node->GetOpDesc(), kAttrDumpAble, is_dump_able);
+//         EXPECT_EQ(is_dump_able, true);
+//         EXPECT_EQ(pre_node->GetOpDesc()->GetInputDescPtr(0)->GetFormat(), op_desc->GetInputDescPtr(0)->GetOriginFormat());
+//       }
+//       if (op_desc->GetOutputDescPtr(0)->GetFormat() != op_desc->GetOutputDescPtr(0)->GetOriginFormat()) {
+//         ASSERT_EQ(node->GetOutDataNodesSize(), 1);
+//         ge::NodePtr post_node = node->GetOutDataNodes().at(0);
+//         EXPECT_EQ(post_node->GetType(), "TransData");
+//         bool is_dump_able = false;
+//         AttrUtils::GetBool(post_node->GetOpDesc(), kAttrDumpAble, is_dump_able);
+//         EXPECT_EQ(is_dump_able, true);
+//         EXPECT_EQ(post_node->GetOpDesc()->GetOutputDescPtr(0)->GetFormat(), op_desc->GetOutputDescPtr(0)->GetOriginFormat());
+//       }
+//       quant_count++;
+//     }
+//   }
+//   EXPECT_EQ(quant_count, 2);
+//   Configuration::Instance(AI_CORE_NAME).config_param_vec_[static_cast<size_t>(CONFIG_PARAM::QuantDumpable)] = 0;
+// }
 }

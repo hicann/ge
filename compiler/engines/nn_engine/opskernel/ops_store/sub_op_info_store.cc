@@ -67,10 +67,6 @@ Status SubOpInfoStore::Initialize(const std::string &engine_name) {
 }
 
 void SubOpInfoStore::SplitOpStoreJson(const std::string& json_file_path, std::string& ops_path_name_prefix) {
-  size_t vector_core_pos = json_file_path.find("ai_core");
-  if (vector_core_pos == std::string::npos) {
-    return;
-  }
   size_t last_under_score = json_file_path.find_last_of('-');
   if (last_under_score == std::string::npos) {
     return;

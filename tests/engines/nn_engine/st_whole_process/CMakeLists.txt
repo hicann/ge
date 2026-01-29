@@ -77,17 +77,6 @@ target_include_directories(fe_st_whole_process PRIVATE
         ${FE_TEST_ROOT_PATH}
         )
 
-# get sys_version
-execute_process(COMMAND grep -Po "^\\d+\\.\\d+" ${TOP_DIR}/build/product/onetrack/sys_version/sys_version.conf
-    OUTPUT_VARIABLE SYS_VERSION
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-)
-message(STATUS "SYS_VERSION=${SYS_VERSION}")
-
-target_compile_definitions(fe_st_whole_process PRIVATE
-        OPP_PKG_VERSION=\"${SYS_VERSION}\"
-        )
-
 target_compile_options(fe_st_whole_process PRIVATE
         -D__OPTIMIZER_KT_TEST__
         -DDAVINCI_CLOUD
