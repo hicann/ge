@@ -12,6 +12,7 @@
 #include "common/checker.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/ge_context.h"
+#include "api/aclgrph/option_utils.h"
 
 namespace ge {
 namespace {
@@ -84,6 +85,14 @@ Status UserHybridGraphManager::AddGraph(uint32_t user_graph_id, const Graph &gra
                                         const std::map<std::string, std::string> &options) {
   if (!IsHybridMode(options)) {
     return user_graph_manager_.AddGraph(user_graph_id, graph, options);
+  }
+  if (EnableSliceSchedule()) {
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"experimental_enable_jit_executor_v2", "true",
+            "experimental_enable_jit_executor_v2 and compile_hybrid_mode feature cannot be enabled at the same time."}));
+    GELOGE(PARAM_INVALID, "experimental_enable_jit_executor_v2 and compile_hybrid_mode feature cannot be enabled at the same time.");
+    return PARAM_INVALID;
   }
   AscendString graph_name;
   GE_ASSERT_SUCCESS(graph.GetName(graph_name));

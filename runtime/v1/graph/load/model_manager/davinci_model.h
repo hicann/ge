@@ -818,6 +818,10 @@ class DavinciModel {
     is_async_mode_ = is_async_mode;
   }
 
+  void SetClearDfxCacheFlagAfterInit(const bool clear_cache);
+
+  bool NeedClearDfxCacheFlagAfterInit() const;
+
   rtStream_t GetModelExecuteStream() const {
     return rt_model_stream_;
   }
@@ -1411,6 +1415,7 @@ class DavinciModel {
 
   std::map<int64_t, OpDescPtr> op_list_;  // release after DavinciModel::Init
   std::map<int64_t, std::shared_ptr<Operator>> operator_list_;
+  bool need_clear_dfx_cache_{false}; // clear profiling and dump cache after DavinciModel::Init
 
   uintptr_t global_step_addr_{0U};
   uintptr_t loop_per_iter_addr_{0U};

@@ -64,6 +64,42 @@ namespace {
         return ACL_SUCCESS;
     }
 
+    aclError CheckMdlLoadWithoutGraph(const void *const attrValue, const size_t valueSize)
+    {
+      ACL_LOG_INFO("start to execute CheckMdlLoadWithoutGraph.");
+      if (valueSize != sizeof(int32_t)) {
+        ACL_LOG_ERROR("valueSize[%zu] is invalid, it should be %zu", valueSize, sizeof(int32_t));
+        const std::string errMsg = "it should be " + std::to_string(sizeof(int32_t));
+        acl::AclErrorLogManager::ReportInputError(
+            acl::INVALID_PARAM_MSG,
+            std::vector<const char *>({"param", "value", "reason"}),
+            std::vector<const char *>({"valueSize", std::to_string(valueSize).c_str(), errMsg.c_str()}));
+        return ACL_ERROR_INVALID_PARAM;
+      }
+      const int32_t flag = *static_cast<const int32_t *>(attrValue);
+      if ((flag != 0) && (flag != 1)) {
+        ACL_LOG_ERROR("ACL_MDL_WITHOUT_GRAPH_INT32 value [%d] is invalid, it should be in [0, 1]", flag);
+        const std::string errMsg = "it should be in [0, 1]";
+        acl::AclErrorLogManager::ReportInputError(
+            acl::INVALID_PARAM_MSG,
+            std::vector<const char *>({"param", "value", "reason"}),
+            std::vector<const char *>({"ACL_MDL_WITHOUT_GRAPH_INT32", std::to_string(flag).c_str(), errMsg.c_str()}));
+        return ACL_ERROR_INVALID_PARAM;
+      }
+      ACL_LOG_INFO("successfully execute CheckMdlLoadPriority");
+      return ACL_SUCCESS;
+    }
+
+    aclError SetMdlLoadWithoutGraph(aclmdlConfigHandle *const handle, const void *const attrValue)
+    {
+      ACL_LOG_INFO("start to execute SetMdlLoadWithoutGraph.");
+      const int32_t flag = *static_cast<const int32_t *>(attrValue);
+      handle->withoutGraph = (flag != 0);
+      (void)handle->attrState.insert(ACL_MDL_WITHOUT_GRAPH_INT32);
+      ACL_LOG_INFO("successfully execute SetMdlLoadWithoutGraph, flag is %d", flag);
+      return ACL_SUCCESS;
+    }
+
     aclError CheckMdlLoadType(const void *const attrValue, const size_t valueSize)
     {
         ACL_LOG_INFO("start to execute CheckMdlLoadType.");
@@ -322,7 +358,8 @@ namespace {
         {ACL_MDL_WEIGHT_ADDR_PTR, {&CheckMdlLoadPtrAttr, &SetMdlLoadWeightPtr}},
         {ACL_MDL_WORKSPACE_ADDR_PTR, {&CheckMdlLoadPtrAttr, &SetMdlLoadWorkPtr}},
         {ACL_MDL_WORKSPACE_MEM_OPTIMIZE, {&CheckMdlLoadReuseZeroCopy, &SetMdlLoadReuseZeroCopy}},
-        {ACL_MDL_WEIGHT_PATH_PTR, {&CheckMdlLoadPtrAttrEx, &SetMdlWeightPath}}
+        {ACL_MDL_WEIGHT_PATH_PTR, {&CheckMdlLoadPtrAttrEx, &SetMdlWeightPath}},
+        {ACL_MDL_WITHOUT_GRAPH_INT32, {&CheckMdlLoadWithoutGraph, &SetMdlLoadWithoutGraph}}
     };
 
     using CheckMdlExecConfigFunc = aclError (*)(const void *const, const size_t);

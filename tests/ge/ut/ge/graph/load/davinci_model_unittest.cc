@@ -2853,6 +2853,47 @@ TEST_F(UtestDavinciModel, NnExecuteWithGertTensor_ReportProfiling_ProfilingOn) {
   ge::diagnoseSwitch::DisableProfiling();
 }
 
+TEST_F(UtestDavinciModel, test_clear_dfx_cache) {
+  ge::diagnoseSwitch::DisableProfiling();
+  ge::diagnoseSwitch::EnableProfiling({gert::ProfilingType::kTaskTime});
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::DumpType>({gert::DumpType::kExceptionDump}));
+  {
+    DavinciModel model(0, nullptr);
+    BuildDavinciModel(model);
+    model.SetClearDfxCacheFlagAfterInit(true);
+    EXPECT_EQ(model.Init(), SUCCESS);
+    EXPECT_TRUE(model.node_basic_infos_.empty());
+    EXPECT_FALSE(model.exception_dumper_.op_desc_info_.empty());
+  }
+  {
+    DavinciModel model(0, nullptr);
+    BuildDavinciModel(model);
+    model.SetClearDfxCacheFlagAfterInit(false);
+    EXPECT_EQ(model.Init(), SUCCESS);
+    EXPECT_FALSE(model.node_basic_infos_.empty());
+    EXPECT_FALSE(model.exception_dumper_.op_desc_info_.empty());
+  }
+  ge::diagnoseSwitch::DisableProfiling();
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(0);
+  {
+    DavinciModel model(0, nullptr);
+    BuildDavinciModel(model);
+    model.SetClearDfxCacheFlagAfterInit(true);
+    EXPECT_EQ(model.Init(), SUCCESS);
+    EXPECT_TRUE(model.node_basic_infos_.empty());
+    EXPECT_TRUE(model.exception_dumper_.op_desc_info_.empty());
+  }
+  {
+    DavinciModel model(0, nullptr);
+    BuildDavinciModel(model);
+    model.SetClearDfxCacheFlagAfterInit(false);
+    EXPECT_EQ(model.Init(), SUCCESS);
+    EXPECT_FALSE(model.node_basic_infos_.empty());
+    EXPECT_FALSE(model.exception_dumper_.op_desc_info_.empty());
+  }
+}
+
 TEST_F(UtestDavinciModel, NnExecute_multi_batch) {
   DavinciModel model(0, nullptr);
   ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");

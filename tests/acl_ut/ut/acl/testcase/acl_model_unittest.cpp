@@ -2347,10 +2347,28 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_ExternalAddress)
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
         .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
     acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+    handle->attrState.insert(ACL_MDL_WITHOUT_GRAPH_INT32);
+    ret = aclmdlLoadWithConfig(handle, &modelId);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    handle->attrState.erase(ACL_MDL_WITHOUT_GRAPH_INT32);
     ret = aclmdlLoadWithConfig(handle, &modelId);
     EXPECT_EQ(ret, ACL_SUCCESS);
     acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = false;
     aclmdlDestroyConfigHandle(handle);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlConfigAttr_without_graph)
+{
+  auto handle = aclmdlCreateConfigHandle();
+  EXPECT_NE(handle, nullptr);
+  int32_t without_graph = 2;
+  auto ret = aclmdlSetConfigOpt(handle, ACL_MDL_WITHOUT_GRAPH_INT32, &without_graph, sizeof(without_graph));
+  EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+  without_graph = 1;
+  ret = aclmdlSetConfigOpt(handle, ACL_MDL_WITHOUT_GRAPH_INT32, &without_graph, sizeof(without_graph));
+  EXPECT_EQ(ret, ACL_SUCCESS);
+  aclmdlDestroyConfigHandle(handle);
+  handle = nullptr;
 }
 
 TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig)

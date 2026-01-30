@@ -1033,7 +1033,8 @@ Status GeExecutor::LoadModelFromDataWithArgs(uint32_t &model_id, const ModelData
 
   const ModelParam model_param{model_data.priority, reinterpret_cast<uintptr_t>(load_arg.dev_ptr), load_arg.mem_size,
                                reinterpret_cast<uintptr_t>(load_arg.weight_ptr), load_arg.weight_size,
-                               &load_arg.file_constant_mems, external_var_addr, external_var_size};
+                               &load_arg.file_constant_mems, external_var_addr, external_var_size,
+                               load_arg.need_clear_dfx_cache};
   return ModelManager::GetInstance().LoadModelOffline(model_data, model_param, model_id, load_arg.rt_session);
 }
 

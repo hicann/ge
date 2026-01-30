@@ -1537,7 +1537,6 @@ Status ModelManager::LoadModelOffline(const ModelData &model, const ModelParam &
   GE_CHECK_NOTNULL(davinci_model);
   davinci_model->Assign(ge_model);
   davinci_model->SetId(model_id);
-
   davinci_model->SetDeviceId(static_cast<uint32_t>(device_id));
   davinci_model->SetOmName(model.om_name);
   const auto &ge_root_model = model_helper.GetGeRootModel();
@@ -1548,6 +1547,7 @@ Status ModelManager::LoadModelOffline(const ModelData &model, const ModelParam &
   if (model_param.file_constant_mems != nullptr) {
     davinci_model->SetFileConstantUserDeviceMem(*model_param.file_constant_mems);
   }
+  davinci_model->SetClearDfxCacheFlagAfterInit(model_param.need_clear_dfx_cache_);
 
   GE_CHK_STATUS_RET(davinci_model->UpdateSessionId(new_session_id), "Update SessionId failed");
   GE_CHK_STATUS_RET(davinci_model->InitSpaceRegistry(model_helper.GetGeRootModel()), "Get space registry failed!");
@@ -1561,7 +1561,6 @@ Status ModelManager::LoadModelOffline(const ModelData &model, const ModelParam &
 
   InsertModel(model_id, davinci_model);
   GELOGI("Parse model %u success.", model_id);
-
   return SUCCESS;
 }
 
@@ -1590,6 +1589,7 @@ Status ModelManager::LoadModelWithQ(uint32_t &model_id, const ModelData &model_d
     model_queue_param.output_queues_attrs[index].queue_id = arg.output_queue_ids[index];
   }
   model_queue_param.file_constant_mems = &arg.file_constant_mems;
+  model_queue_param.need_clear_dfx_cache = arg.need_clear_dfx_cache;
 
   return LoadModelWithQueueParam(model_id, model_helper.GetGeRootModel(), model_queue_param, model_data.priority);
 }
@@ -1670,6 +1670,7 @@ Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id,
   if (model_queue_param.file_constant_mems != nullptr) {
     davinci_model->SetFileConstantUserDeviceMem(*model_queue_param.file_constant_mems);
   }
+  davinci_model->SetClearDfxCacheFlagAfterInit(model_queue_param.need_clear_dfx_cache);
 
   GE_CHK_STATUS_RET(davinci_model->InitSpaceRegistry(root_model), "Get space registry failed!");
   ret = davinci_model->Init();

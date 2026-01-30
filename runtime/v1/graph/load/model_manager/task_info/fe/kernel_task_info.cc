@@ -511,6 +511,9 @@ Status KernelTaskInfo::Distribute() {
 
   if (!domi::GetContext().is_online_model) {
     op_desc_.reset(); // Release OpDesc after Distribute.
+    operator_.reset();
+    super_kernel_op_desc_.reset();
+    sk_sub_operator_.reset();
   }
 
   return SUCCESS;

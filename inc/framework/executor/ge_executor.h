@@ -50,6 +50,7 @@ struct ModelLoadArg {
   size_t weight_size;
   gert::RtSession *rt_session = nullptr;
   std::vector<FileConstantMem> file_constant_mems;
+  bool need_clear_dfx_cache{false};
 };
 
 class GE_FUNC_VISIBILITY GeExecutor {

@@ -188,6 +188,8 @@ Status SuperKernelV2TaskInfo::Distribute() {
 
   if (!domi::GetContext().is_online_model) {
     op_desc_.reset(); // Release OpDesc after Distribute.
+    sub_node_op_desc_list_.clear();
+    operator_.reset();
   }
 
   return SUCCESS;

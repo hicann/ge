@@ -38,11 +38,16 @@
 #include "register/node_converter_registry.h"
 #include "register/kernel_registry.h"
 #include "graph/utils/tensor_adapter.h"
+#include "api/aclgrph/option_utils.h"
 
 using namespace std;
 using namespace testing;
 
 namespace ge {
+bool EnableSliceSchedule() { // 桩函数
+  return ((ge::GetAutofuseFlagValue(kAutoFuseEnableOption) == "true") &&
+          (ge::GetAutofuseFlagValue(kSliceScheduleOption) == "true"));;
+}
 namespace{
 class MockExchangeService : public ExchangeService {
  public:
@@ -1250,6 +1255,9 @@ TEST_F(OnlineInferTest, online_infer_hybrid_mode) {
   Session session(empty_options);
   map<AscendString, AscendString> options = {{"ge.compileHybridMode", "1"},
       {"ge.inputShape", "data0:-1,3,3;data1:-1,3,3"}, {"ge.dynamicDims", "1,1;10,10"}, {"ge.dynamicNodeType", "1"}};
+  setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
+  EXPECT_EQ(session.AddGraph(10, graph, options), FAILED);
+  unsetenv("AUTOFUSE_FLAGS");
   auto ret = session.AddGraph(10, graph, options);
   EXPECT_EQ(ret, SUCCESS);
   // build input tensor

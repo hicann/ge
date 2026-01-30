@@ -492,6 +492,11 @@ void DavinciModel::Shrink() {
   op_list_.clear();
   operator_list_.clear();
   ClearTaskAddrs();
+  // some profiling is reported in init, so clear its cache here
+  if (need_clear_dfx_cache_) {
+    GELOGI("clear profiling cache");
+    ClearProfilingDataCache();
+  }
 }
 
 Status DavinciModel::InitWeightMem(const uintptr_t mem_ptr, const uintptr_t weight_ptr, const size_t weight_size) {
@@ -1101,7 +1106,6 @@ Status DavinciModel::Init(const ModelParam &param, void *outer_fm_mem) {
   const ComputeGraphPtr compute_graph = ge_model_->GetGraph();
   GE_CHK_BOOL_RET_STATUS(compute_graph != nullptr, INTERNAL_ERROR, "[Get][ComputeGraph] failed, ret is nullptr.");
   isGraphLevelSat_ = GetContext().IsGraphLevelSat();
-
   // Initializing runtime_param_
   runtime_param_.fixed_mem_base = param.fixed_mem_base; // memory type hbm
   runtime_param_.fixed_mem_size = param.fixed_mem_size; // memory type hbm
@@ -4265,6 +4269,15 @@ Status DavinciModel::ReportProfilingData(const uint32_t graph_id) {
   return ret;
 }
 
+void DavinciModel::SetClearDfxCacheFlagAfterInit(const bool clear_cache) {
+  GELOGI("set clear_cache %d", static_cast<int32_t>(clear_cache));
+  need_clear_dfx_cache_ = clear_cache;
+}
+
+bool DavinciModel::NeedClearDfxCacheFlagAfterInit() const {
+  return need_clear_dfx_cache_;
+}
+
 bool DavinciModel::HasZeroCopyAddr(const OpDescPtr &op_desc) const {
   const auto input_addrs = ModelUtils::GetInputAddrsValue(runtime_param_, op_desc);
   const auto output_addrs = ModelUtils::GetOutputAddrsValue(runtime_param_, op_desc);
@@ -6129,9 +6142,16 @@ void DavinciModel::SaveDfxInfo(const uint32_t op_idx, const domi::TaskDef &task_
   }
 
   // save task info for exception dump
-  SaveExceptionDumpInfo(op_desc, task_info);
+  if ((gert::GlobalDumper::GetInstance()->IsEnable(gert::DumpType::kExceptionDump)) || !need_clear_dfx_cache_) {
+    GELOGI("save exception info");
+    SaveExceptionDumpInfo(op_desc, task_info);
+  }
+
   // save task info for profiling
-  SaveProfilingTaskDescInfo(op_desc, task_info, task_def);
+  if ((gert::GlobalProfilingWrapper::GetInstance()->IsEnabled(gert::ProfilingType::kTaskTime)) || !need_clear_dfx_cache_) {
+    GELOGI("save profiling info");
+    SaveProfilingTaskDescInfo(op_desc, task_info, task_def);
+  }
 }
 
 bool DavinciModel::ModelNeedDump() const {

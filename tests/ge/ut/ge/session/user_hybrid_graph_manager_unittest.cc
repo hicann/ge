@@ -30,6 +30,7 @@
 #include "ge_running_env/dir_env.h"
 #include "faker/space_registry_faker.h"
 #include "ge/ge_api.h"
+#include "api/aclgrph/option_utils.h"
 #include "compiler/api/gelib/gelib.h"
 #include "session/session_manager.h"
 
@@ -59,6 +60,10 @@ REGISTER_KERNEL(Execute_).RunFunc(StubKernel);
 }
 
 namespace ge {
+bool EnableSliceSchedule() { // 桩函数
+  return ((ge::GetAutofuseFlagValue(kAutoFuseEnableOption) == "true") &&
+          (ge::GetAutofuseFlagValue(kSliceScheduleOption) == "true"));;
+}
 ge::graphStatus StubInferShape(ge::Operator &op) {
   auto x_input_desc = op.GetInputDesc(0);
   auto x_shape = x_input_desc.GetShape().GetDims();
@@ -115,6 +120,9 @@ TEST_F(UserHybridGraphManagerlUT, AddGraph_RemoveGraph_Success) {
   options["ge.dynamicNodeType"] = "1";
   options["ge.compileHybridMode"] = "1";
   options[OPTION_GRAPH_KEY] = "./cache";
+  setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
+  EXPECT_EQ(user_hybrid_graph_manager.AddGraph(user_graph_id, graph, options), PARAM_INVALID);
+  unsetenv("AUTOFUSE_FLAGS");
   EXPECT_EQ(user_hybrid_graph_manager.AddGraph(user_graph_id, graph, options), SUCCESS);
   EXPECT_EQ(user_hybrid_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 

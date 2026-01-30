@@ -151,7 +151,8 @@ struct aclmdlConfigHandle {
           inputQNum(0U),
           outputQ(nullptr),
           outputQNum(0U),
-          reuseZeroCopy(0U) {}
+          reuseZeroCopy(0U),
+          withoutGraph(false) {}
     int32_t priority;
     size_t mdlLoadType;
     std::string loadPath;
@@ -167,6 +168,7 @@ struct aclmdlConfigHandle {
     size_t outputQNum;
     size_t reuseZeroCopy;
     std::string weightPath;
+    bool withoutGraph;
     std::set<aclmdlConfigAttr> attrState;
     std::vector<ge::FileConstantMem> fileConstantMem;
 };
