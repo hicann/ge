@@ -71,6 +71,23 @@ std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKern
     {"AllReduceMeshAivFor91093Executor", {"/hccl_sk_ar_deter",  "sk_allreduce_deter"}},
 };
  
+std::map<std::string, std::pair<std::string, std::string>> AivAlltoAllSuperKernelMapV2 = {
+    {"AivAlltoAllMesh1D", {"/hccl_a2a_superkernel_mesh_1d",  "sk_alltoall_mesh_1d"}},
+};
+
+std::map<std::string, std::pair<std::string, std::string>> AivAllGatherSuperKernelMapV2 = {
+    {"AivAllGatherMesh1D", {"/hccl_ag_superkernel_mesh_1d",  "sk_allgather_mesh_1d"}},
+};
+ 
+std::map<std::string, std::pair<std::string, std::string>> AivReduceScatterSuperKernelMapV2 = {
+    {"AivReduceScatterMesh1D", {"/hccl_rs_superkernel_mesh_1d",  "sk_reducescatter_mesh_1d"}},
+};
+
+std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKernelMapV2 = {
+    {"AivAllReduceMesh1DOneShot", {"/hccl_ar_superkernel_mesh_1d_oneshot",  "sk_allreduce_mesh_1d_oneshot"}},
+    {"AivAllReduceMesh1DTwoShot", {"/hccl_ar_superkernel_mesh_1d_twoshot",  "sk_allreduce_mesh_1d_twoshot"}},
+};
+
 std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>> AivSuperKernelMap = {
     {HcclCMDType::HCCL_CMD_ALLTOALL, AivAlltoAllSuperKernelMap},
     {HcclCMDType::HCCL_CMD_ALLGATHER, AivAllGatherSuperKernelMap},
@@ -81,6 +98,13 @@ std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>
 std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>> AivSuperKernelDeterMap = {
     {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, AivReduceScatterSuperKernelDeterMap},
     {HcclCMDType::HCCL_CMD_ALLREDUCE, AivAllReduceSuperKernelDeterMap},
+};
+
+std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>> AivSuperKernelMapV2 = {
+    {HcclCMDType::HCCL_CMD_ALLTOALL, AivAlltoAllSuperKernelMapV2},
+    {HcclCMDType::HCCL_CMD_ALLGATHER, AivAllGatherSuperKernelMapV2},
+    {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, AivReduceScatterSuperKernelMapV2},
+    {HcclCMDType::HCCL_CMD_ALLREDUCE, AivAllReduceSuperKernelMapV2},
 };
 
 ge::Status HcomGraphOptimizer::Initialize(const std::map<std::string, std::string> &options,
@@ -797,12 +821,35 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
     if (!ifAiv) {
       HCCL_INFO("no support aiv, del superKernelScope attr");
       opDescPtr->DelAttr("_super_kernel_scope");
+      continue;
+    }
+
+    /* 将算子的superKernelScope属性设置为AIV */
+    ge::AttrUtils::SetBool(opDescPtr, "_hccl", true);
+    std::string binPath{};
+    std::string funcName{};
+    CHK_RET(SKGetAlgPath(opType, binPath));
+
+    std::string socVersion{};
+    if (ge::GetThreadLocalContext().GetOption(ge::SOC_VERSION, socVersion) != ge::GRAPH_SUCCESS) {
+      HCCL_ERROR("[HcomGraphOptimizer][SetSuperKernelScopeAttr] get soc version failed");
+      return HCCL_E_NOT_FOUND;
+    }
+
+    if (socVersion.find("Ascend910_95") != std::string::npos) {
+      auto itMap = AivSuperKernelMapV2.find(opType);
+      auto it = (itMap->second).find(algName);
+      if (it != (itMap->second).end()) {
+        std::string binFilePath = binPath + it->second.first + "_" + GetDataTypeEnumStr(dataType) + ".o";
+        ge::AttrUtils::SetStr(opDescPtr, "bin_file_path", binFilePath);
+        ge::AttrUtils::SetStr(opDescPtr, "hcom_bin_file_path", binFilePath);
+        funcName = it->second.second;
+        ge::AttrUtils::SetStr(opDescPtr, "hcom_func_name", funcName + "_" + GetDataTypeEnumStr(dataType));
+      } else {
+        HCCL_WARNING("no support alg, del superKernelScope attr");
+      opDescPtr->DelAttr("_super_kernel_scope");
+      }
     } else {
-      /* 将算子的superKernelScope属性设置为AIV */
-      ge::AttrUtils::SetBool(opDescPtr, "_hccl", true);
-      std::string binPath;
-      std::string funcName;
-      CHK_RET(SKGetAlgPath(opType, binPath));
       bool isDeterOptype = (opType == HCCL_CMD_ALLREDUCE || opType == HCCL_CMD_REDUCE_SCATTER);
       u8 deterministic = DETERMINISTIC_DISABLE;
       CHK_RET(GetDeterministic(deterministic));
@@ -841,15 +888,17 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
             opDescPtr->DelAttr("_super_kernel_scope");
         }
       }
-
+    }
     // 将BlockDim包装成Hcom层接口，层层下发参数，到Hccl communictor里计算结果并返回到这一层。
-    u32 blockDim;
+    u32 blockDim{};
     CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, 0, dataType, aivCoreLimit, algName, &blockDim));
     ge::AttrUtils::SetInt(opDescPtr, "hcom_block_dim", blockDim);
 
     HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] rankSize[%u] aivCoreLimit[%u] blockDim[%u]",
         rankSize, aivCoreLimit, blockDim);
-    }
+    
+    HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] Support SPK Optype[%s] funcName[%s]",
+        sCollectiveType.c_str(), funcName.c_str());  
   }
 
   return HCCL_SUCCESS;

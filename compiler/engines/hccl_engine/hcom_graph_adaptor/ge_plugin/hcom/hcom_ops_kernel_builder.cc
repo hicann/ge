@@ -887,12 +887,16 @@ HcclResult HcomOpsKernelBuilder::GetCountFromOpDesc(const ge::OpDescPtr &op, con
                                ", input index : %llu",
                                HCOM_ERROR_CODE(HCCL_E_PARA), sCollectiveType.c_str(), i),
                     HCCL_E_PARA);
-        CHK_PRT_RET(((u64)inputSize > INVALID_U64 - alignSize),
+        if (inputSize == -1) {
+          blockSize = 0;
+        } else {
+          CHK_PRT_RET(((u64)inputSize > INVALID_U64 - alignSize),
                     HCCL_ERROR("op[%s] input size[%llu] is "
                                "overflow.",
                                sCollectiveType.c_str(), (u64)inputSize),
                     HCCL_E_PARA);
-        blockSize = ((u64)inputSize + alignSize - 1) / alignSize * alignSize;
+          blockSize = ((u64)inputSize + alignSize - 1) / alignSize * alignSize;
+        }
       }
       totalSize = totalSize + blockSize;
     }

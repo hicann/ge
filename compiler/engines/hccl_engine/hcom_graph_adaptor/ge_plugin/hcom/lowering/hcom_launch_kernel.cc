@@ -707,7 +707,64 @@ HcclResult HcomLaunchAllToAllKernel(const HcomOpInputStruct *inputStruct, std::v
   return HCCL_SUCCESS;
 }
 
+#ifndef OPEN_BUILD_PROJECT
+HcclResult HcomSendKernelV2(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
+  std::shared_ptr<HcclComm> hcclComm;
+  void *hcclCommPtr = hcclComm.get();
+  CHK_RET(HcomGetCommHandleByGroup(launchArgs.opAttr.group, &hcclCommPtr));
+  CHK_PRT_RET((launchArgs.inputNum < 1), HCCL_ERROR("HcomSend input num[%u] is invalid.", launchArgs.inputNum),
+              HCCL_E_PARA);
+
+  // host内存
+  u32 shapeCount = 1 + launchArgs.inputShapes[0].GetDimNum();
+  std::vector<int64_t> sendInfo(shapeCount, 0);
+  sendInfo[0] = shapeCount - 1;
+  for (u32 i = 1; i < sendInfo.size(); i++) {
+    sendInfo[i] = launchArgs.inputShapes[0].GetDim(i - 1);
+  }
+
+  // dev内存
+  auto deleter = [](void *dst) {
+    if (dst != nullptr) {
+      CHK_PRT(hrtFree(dst));
+      dst = nullptr;
+    }
+  };
+
+  void *sendShapeMemPtr = nullptr;
+  u32 shapeSize = sizeof(int64_t) * shapeCount;
+  u32 totalSize = sizeof(int64_t) * SHAPE_INFO_COUNT;
+  CHK_RET(hrtMalloc(&sendShapeMemPtr, totalSize));
+  std::unique_ptr<void, decltype(deleter)> sendShapeMemPtrUnique(sendShapeMemPtr, deleter);
+
+  // host2dev拷贝
+  CHK_RET(hrtMemSyncCopy(sendShapeMemPtr, shapeSize, sendInfo.data(), shapeSize,
+                         HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_HOST_TO_DEVICE));
+
+  // send
+  CHK_RET(HcceSend(sendShapeMemPtr, SHAPE_INFO_COUNT, HCCL_DATA_TYPE_INT64, launchArgs.opAttr.op.send.destRank,
+                   hcclCommPtr, launchArgs.stream));
+
+  CHK_RET(hcclStreamSynchronize(launchArgs.stream));
+
+  uint64_t count = 0;
+  CHK_RET(GetSendCountByShapeAlign(launchArgs.inputShapes[0], launchArgs.opAttr.dataType, count));
+
+  inputStruct->launchArgs = launchArgs;
+  inputStruct->hcclCommPtr = hcclCommPtr;
+  inputStruct->count = count;
+
+  return HCCL_SUCCESS;
+}
+#endif
+
 HcclResult HcomSendKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *inputStruct) {
+#ifndef OPEN_BUILD_PROJECT
+  DevType devType = HcomGetDeviceType();
+  if (devType == DevType::DEV_TYPE_910_95) {
+    return HcomSendKernelV2(launchArgs, inputStruct);
+  }
+#endif
   HcclComm commHandle = nullptr;
   CHK_RET(HcomGetCommHandleByGroup(launchArgs.opAttr.group, &commHandle));
   CHK_PRT_RET((launchArgs.inputNum < 1), HCCL_ERROR("HcomSend input num[%u] is invalid.", launchArgs.inputNum),
@@ -755,8 +812,27 @@ HcclResult HcomSendKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *input
   return HCCL_SUCCESS;
 }
 
+#ifndef OPEN_BUILD_PROJECT
+HcclResult HcomLaunchSendKernelV2(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
+                                std::vector<void *> &outputAddrs) {
+  HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
+  void* hcclCommPtr = inputStruct->hcclCommPtr;
+
+  CHK_RET(HcceSend(inputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType, launchArgs.opAttr.op.send.destRank,
+                   hcclCommPtr, launchArgs.stream));
+  return HCCL_SUCCESS;
+}
+#endif
+
 HcclResult HcomLaunchSendKernel(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
                                 std::vector<void *> &outputAddrs) {
+#ifndef OPEN_BUILD_PROJECT
+  DevType devType = HcomGetDeviceType();
+  if (devType == DevType::DEV_TYPE_910_95) {
+    return HcomLaunchSendKernelV2(inputStruct, inputAddrs, outputAddrs);
+  }
+#endif
+
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
   HcclComm hcclComm = inputStruct->hcclComm;
 
@@ -1026,7 +1102,51 @@ HcclResult GetRecvOpLaunchArgs(gert::KernelContext *context, HcomOpLaunchArgs &a
   return HCCL_SUCCESS;
 }
 
+#ifndef OPEN_BUILD_PROJECT
+ge::graphStatus HcomGetRecvBeforeKernelV2(HcomOpLaunchArgs &args, std::vector<int64_t> &recvShape) {
+  // 获取通信域资源
+  std::shared_ptr<HcclComm> hcclComm;
+  void *hcclCommPtr = hcclComm.get();
+  if (HcomGetCommHandleByGroup(args.opAttr.group, &hcclCommPtr) != HCCL_SUCCESS) {
+    HCCL_ERROR("LaunchHcomKernel: get hcom comm handle failed. group:%s", args.opAttr.group);
+    return ge::GRAPH_FAILED;
+  }
+
+  // 1、create device mem
+  auto deleter = [](void *dst) {
+    if (dst != nullptr) {
+      CHK_PRT(hrtFree(dst));
+      dst = nullptr;
+    }
+  };
+
+  void *recvShapeMemPtr = nullptr;
+  u32 recvShapeSize = sizeof(int64_t) * SHAPE_INFO_COUNT;
+  CHK_RET(hrtMalloc(&recvShapeMemPtr, recvShapeSize));
+  std::unique_ptr<void, decltype(deleter)> recvShapeMemPtrUnique(recvShapeMemPtr, deleter);
+
+  // 2、recv
+  CHK_RET(HcceRecv(recvShapeMemPtr, SHAPE_INFO_COUNT, HCCL_DATA_TYPE_INT64, args.opAttr.op.recv.srcRank, hcclCommPtr,
+                   args.stream));
+  CHK_RET(hcclStreamSynchronize(args.stream));
+
+  // 3、DevtoHost
+  CHK_RET(hrtMemSyncCopy(recvShape.data(), recvShape.size(), recvShapeMemPtr, recvShapeSize,
+                         HcclRtMemcpyKind::HCCL_RT_MEMCPY_KIND_DEVICE_TO_HOST));
+
+  HCCL_INFO("HcomGetRecvBeforeKernelV2 get dynamic recv shape DONE and dim is [%lld]", recvShape[0]);
+
+  return ge::GRAPH_SUCCESS;
+}
+#endif
+
 ge::graphStatus HcomGetRecvBeforeKernel(HcomOpLaunchArgs &args, std::vector<int64_t> &recvShape) {
+#ifndef OPEN_BUILD_PROJECT
+  DevType devType = HcomGetDeviceType();
+  if (devType == DevType::DEV_TYPE_910_95) {
+    return HcomGetRecvBeforeKernelV2(args, recvShape);
+  }
+#endif
   // 获取通信域资源
   HcclComm commHandle = nullptr;
   if (HcomGetCommHandleByGroup(args.opAttr.group, &commHandle)) {
@@ -1062,7 +1182,108 @@ ge::graphStatus HcomGetRecvBeforeKernel(HcomOpLaunchArgs &args, std::vector<int6
   return ge::GRAPH_SUCCESS;
 }
 
+#ifndef OPEN_BUILD_PROJECT
+ge::graphStatus LaunchRecvKernelV2(gert::KernelContext *context) {
+  uint64_t tensorSize = 0;
+  std::vector<int64_t> recvShape(sizeof(int64_t) * SHAPE_INFO_COUNT, 0);
+
+  HcomSetLaunchKernelMode(true);
+
+  // 获取算子输入输出资源
+  HcomOpLaunchArgs launchArgs;
+  if (GetRecvOpLaunchArgs(context, launchArgs) != HCCL_SUCCESS) {
+    HCCL_ERROR("LaunchRecvKernelV2: get hcom op launch launchArgs failed.");
+    return ge::GRAPH_FAILED;
+  }
+
+  // 获取通信域资源
+  std::shared_ptr<HcclComm> hcclComm;
+  void *hcclCommPtr = hcclComm.get();
+  CHK_RET(HcomGetCommHandleByGroup(launchArgs.opAttr.group, &hcclCommPtr));
+
+  CHK_RET(HcomCreateCommCCLbuffer(launchArgs.opAttr.group));
+  
+  // 设置单算子mode
+  HcclWorkflowMode lastWorkflowMode = HcomGetWorkflowMode();
+  if (HcomSetWorkflowMode(HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) != HCCL_SUCCESS) {
+    HCCL_ERROR("LaunchRecvKernelV2: config opbase mode failed");
+    return ge::GRAPH_FAILED;
+  }
+  HcomSetLaunchKernelMode(true);
+
+  if (HcomGetRecvBeforeKernel(launchArgs, recvShape) != ge::GRAPH_SUCCESS) {
+    HCCL_ERROR("LaunchRecvKernelV2: get recvShape fail");
+    return ge::GRAPH_FAILED;
+  }
+
+  // 1. create && append outputshape
+  auto outputShape = context->GetOutputPointer<gert::StorageShape>(0U);
+  if (outputShape == nullptr) {
+    return ge::GRAPH_FAILED;
+  }
+  const uint32_t dimNum = recvShape[0];  // recvshape n维的长度
+  if (dimNum > gert::Shape::kMaxDimNum || dimNum <= 0) {
+    HCCL_ERROR("dimNum=[%u] is greater than MaxDimNum[%zu] or less than or equal to 0", dimNum,
+               gert::Shape::kMaxDimNum);
+    return ge::GRAPH_FAILED;
+  }
+  gert::Shape &originShape = outputShape->MutableOriginShape();
+  gert::Shape &storageShape = outputShape->MutableStorageShape();
+  originShape.SetDimNum(0);
+  storageShape.SetDimNum(0);
+  for (size_t i = 1U; i <= dimNum; ++i) {
+    originShape.AppendDim(static_cast<int64_t>(recvShape[i]));
+    storageShape.AppendDim(static_cast<int64_t>(recvShape[i]));
+  }
+
+  // 2. create tensor_data
+  ge::DataType geDataType = context->GetInputValue<ge::DataType>(static_cast<int32_t>(RecvOpLaunchInput::DATATYPE));
+  ge::graphStatus getSizeRet = CalcAlignedSizeByShape(originShape, geDataType, tensorSize);
+  if (getSizeRet != ge::GRAPH_SUCCESS) {
+    HCCL_ERROR("LaunchRecvKernelV2: get tensor size failed");
+    return ge::GRAPH_FAILED;
+  }
+
+  auto gertAllocator =
+      context->GetInputValue<gert::GertAllocator *>(static_cast<int32_t>(RecvOpLaunchInput::ALLOCATOR));
+  if (gertAllocator == nullptr) {
+    HCCL_ERROR("LaunchRecvKernelV2: get gertAllocator failed");
+    return ge::GRAPH_FAILED;
+  }
+
+  auto outputTensorData = context->GetOutputPointer<gert::GertTensorData>(1U);
+
+  *outputTensorData = gertAllocator->MallocTensorData(tensorSize);
+
+  HcomSetLaunchKernelMode(false);
+
+  // 调用算子kernel，实现算子下发
+  uint64_t recvCount = (tensorSize - 32) / SIZE_TABLE[launchArgs.opAttr.dataType];
+  if (HcceRecv(outputTensorData->GetAddr(), recvCount, launchArgs.opAttr.dataType, launchArgs.opAttr.op.recv.srcRank,
+               hcclCommPtr, launchArgs.stream) != HCCL_SUCCESS) {
+    HcomSetLaunchKernelMode(false);
+    return ge::GRAPH_FAILED;
+  }
+
+  HcomSetLaunchKernelMode(false);
+  HCCL_INFO("LaunchRecvKernelV2 dispatch hcclrecv DONE");
+
+  // workflowmode状态回置
+  if (HcomSetWorkflowMode(lastWorkflowMode) != HCCL_SUCCESS) {
+    return ge::GRAPH_FAILED;
+  }
+  HCCL_INFO("LaunchRecvKernelV2 dispatch DONE");
+  return ge::GRAPH_SUCCESS;
+}
+#endif
+
 ge::graphStatus LaunchRecvKernel(gert::KernelContext *context) {
+#ifndef OPEN_BUILD_PROJECT
+  DevType devType = HcomGetDeviceType();
+  if (devType == DevType::DEV_TYPE_910_95) {
+    return LaunchRecvKernelV2(context);
+  }
+#endif
   uint64_t tensorSize = 0;
   std::vector<int64_t> recvShape(sizeof(int64_t) * SHAPE_INFO_COUNT, 0);
 

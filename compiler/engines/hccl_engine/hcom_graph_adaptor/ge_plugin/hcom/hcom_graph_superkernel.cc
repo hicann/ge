@@ -53,6 +53,7 @@ bool GetGraphIdFromDesc(const ge::OpDescPtr &op, int32_t &graphId) {
   }
   return bRet;
 }
+
 ge::graphStatus HcomGetSuperKernelHiddenInputs(const ge::OpDescPtr &opdesc, std::vector<void *> &contexts) {
   HCCL_INFO("[HcomGetSuperKernelHiddenInputs]Hcomm create com resource of op %s.", opdesc->GetName().c_str());
 
