@@ -165,45 +165,15 @@ uint32_t ConcatFusionStrategy::GetMaxFusionNodeInputSize(const NodePtr &node1, c
 bool ConcatFusionStrategy::CheckSameSchedAxis(const NodePtr &node1, const NodePtr &node2,
                                               const AxisPairSet &node1_map, const AxisPairSet &node2_map,
                                               const NodeFuseInfo &node_fuse_info) {
+  (void) node1_map;
+  (void) node2_map;
+  (void) node_fuse_info;
   // 此时node1和node2有水平融合，如果：
   // 1.node1和node2只有水平融合，这种场景就不融合
   if (!BackendUtils::IsVertical(node1, node2) && !BackendUtils::IsVertical(node2, node1)) {
     GELOGD("node1 %s(%s) and node2 %s(%s) only horizontal fuse, can not fuse.", node1->GetNamePtr(),
            node1->GetType().c_str(), node2->GetNamePtr(), node2->GetType().c_str());
     return false;
-  }
-  // 2.node1和node2既有水平融合也有垂直融合，需要进行以下判断
-  for (const auto &same_input_map : node_fuse_info.GetSameInputMap()) {
-    AxisIdAndSizePair node1_axis_id_and_size_pair_list;
-    GE_ASSERT_SUCCESS(BackendUtils::GetScheduleAxisInfo(node1, same_input_map.first, node1_map,
-                                                        node1_axis_id_and_size_pair_list));
-    AxisIdAndSizePair node2_axis_id_and_size_pair_list;
-    GE_ASSERT_SUCCESS(BackendUtils::GetScheduleAxisInfo(node2, same_input_map.second, node2_map,
-                                                        node2_axis_id_and_size_pair_list));
-    // 判断两个节点的循环轴和轴的大小是否相同
-    if (node1_axis_id_and_size_pair_list.size() != node2_axis_id_and_size_pair_list.size()) {
-      GELOGD(
-          "node1 %s(%s) node1_axis_id_and_size_pair_list size: %zu and node2 %s(%s) node2_axis_id_and_size_pair_list "
-          "size: %zu are not equal, can not fuse.", node1->GetNamePtr(), node1->GetType().c_str(),
-          node1_axis_id_and_size_pair_list.size(), node2->GetNamePtr(), node2->GetType().c_str(),
-          node2_axis_id_and_size_pair_list.size());
-      return false;
-    }
-
-    for (auto i = 0U; i < node1_axis_id_and_size_pair_list.size(); ++i) {
-      const auto node1_axis_id_and_size_pair = node1_axis_id_and_size_pair_list[i];
-      const auto node2_axis_id_and_size_pair = node2_axis_id_and_size_pair_list[i];
-      if (node1_axis_id_and_size_pair.first != node2_axis_id_and_size_pair.first ||
-          node1_axis_id_and_size_pair.second != node2_axis_id_and_size_pair.second) {
-        GELOGD(
-            "node1 %s(%s) axis id(%ld) and size(%s) and node2 %s(%s) axis id(%ld) and size(%s) are not equal, "
-            "can not fuse.", node1->GetNamePtr(), node1->GetType().c_str(), node1_axis_id_and_size_pair.first,
-            std::string(node1_axis_id_and_size_pair.second.Str().get()).c_str(), node2->GetNamePtr(),
-            node2->GetType().c_str(), node2_axis_id_and_size_pair.first,
-            std::string(node2_axis_id_and_size_pair.second.Str().get()).c_str());
-        return false;
-      }
-    }
   }
   return true;
 }

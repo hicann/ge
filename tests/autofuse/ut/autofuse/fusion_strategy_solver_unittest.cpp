@@ -3423,7 +3423,7 @@ TEST_F(UtestFusionStrategySolver, Concat_Can_Fuse_By_Same_Sched_Info_Both_Horizo
   EXPECT_TRUE(CheckFuseNodes(graph, expect_nodes));
 }
 
-TEST_F(UtestFusionStrategySolver, Concat_Can_Not_Fuse_By_Different_Sched_Info_Both_Horizontal_And_Vertical) {
+TEST_F(UtestFusionStrategySolver, Concat_Can_Fuse_By_Different_Sched_Info_Both_Horizontal_And_Vertical) {
   auto data1 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {1,2,3,4}).InCnt(0).OutCnt(1).InNames({"x"})
                    .OutNames({"y"}).Build("data1");
   auto data2 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {1,2,3,4}).InCnt(0).OutCnt(1).InNames({"x"})
@@ -3454,7 +3454,7 @@ TEST_F(UtestFusionStrategySolver, Concat_Can_Not_Fuse_By_Different_Sched_Info_Bo
   NodeFuseInfo node_fuse_info;
   EXPECT_EQ(node_fuse_info.UpdateNodeFuseInfo(node1, node2), SUCCESS);
   EXPECT_EQ(BackendUtils::CheckSameSchedAxis(node1, node2, graph_axis_map.GetNode1AxisMap(),
-                                             graph_axis_map.GetNode2AxisMap(), node_fuse_info), false);
+                                             graph_axis_map.GetNode2AxisMap(), node_fuse_info), true);
 }
 
 TEST_F(UtestFusionStrategySolver, Node_PeerIn_Anchor_Has_No_PeerOut_Anchor_Link) {
