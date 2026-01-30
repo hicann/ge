@@ -54,6 +54,7 @@
 #include "parser/common/auto_mapping_subgraph_io_index_func.h"
 #include "graph/def_types.h"
 #include "common/checker.h"
+#include "common/string_util.h"
 
 using ge::OpParserFactory;
 using ge::Pb2Json;
