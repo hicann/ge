@@ -71,7 +71,7 @@ REG_ASC_IR(Workspace)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::WorkspaceAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::WorkspaceAscIrCodegenImplV2>(),
                             {{"T", TensorType{DT_INT8, DT_UINT8, DT_INT16, DT_UINT16, DT_INT32, DT_UINT32, DT_INT64,
-                                              DT_UINT64, DT_FLOAT16, DT_FLOAT}}}});
+                                              DT_UINT64, DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
 
 REG_ASC_IR(Load)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::LoadAscIrAttImplV2>(),

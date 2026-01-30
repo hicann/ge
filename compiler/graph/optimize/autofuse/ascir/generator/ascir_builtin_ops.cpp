@@ -89,7 +89,7 @@ REG_ASC_IR(Workspace)
     .Impl(v1_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::WorkspaceAscIrAttImpl>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::WorkspaceAscIrCodegenImpl>(),
                             {{"T", TensorType{DT_INT8, DT_UINT8, DT_INT16, DT_UINT16, DT_INT32, DT_UINT32, DT_INT64,
-                                              DT_UINT64, DT_FLOAT16, DT_FLOAT}}}});
+                                              DT_UINT64, DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
 
 REG_ASC_IR(Load)
     .Input("x", "T")
@@ -101,7 +101,7 @@ REG_ASC_IR(Load)
     .Impl(v1_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::LoadAscIrAttImpl>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::LoadAscIrCodegenImpl>(),
                             {{"T", TensorType{DT_INT8, DT_UINT8, DT_INT16, DT_UINT16, DT_INT32, DT_UINT32, DT_FLOAT16,
-                                              DT_FLOAT, DT_INT64}}}});
+                                              DT_FLOAT, DT_INT64, DT_BF16}}}});
 
 REG_ASC_IR(Store)
     .Input("x", "T")
@@ -113,7 +113,7 @@ REG_ASC_IR(Store)
     .Impl(v1_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::StoreAscIrAttImpl>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::StoreAscIrCodegenImpl>(),
                             {{"T", TensorType{DT_INT8, DT_UINT8, DT_INT16, DT_UINT16, DT_INT32, DT_UINT32, DT_FLOAT16,
-                                              DT_FLOAT, DT_INT64}}}});
+                                              DT_FLOAT, DT_INT64, DT_BF16}}}});
 
 // todo: Broadcast DT_INT64 后面根据需要放开
 REG_ASC_IR(Broadcast)

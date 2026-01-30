@@ -36,6 +36,8 @@ def get_soc_type(args):
     """根据 soc_version 返回对应的类型"""
     if args.soc_version.startswith("Ascend910B"):
         return "dav-2201"
+    elif args.soc_version.startswith("Ascend910_93"):
+        return "dav-2201"
     elif args.soc_version.startswith("Ascend910_95"):
         return "dav-3101"
     else:

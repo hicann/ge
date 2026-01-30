@@ -31,6 +31,7 @@ def parse_compile_args(argv: List[str]):
     parser.add_argument('--output_path', default='', type=str, help='Output directory.')
     parser.add_argument('--force_unknown', default=False, type=str2bool, help='force unknown shape.')
     parser.add_argument('--config_file', default='', type=str, help='PGO tiling config file after turning.')
+    parser.add_argument('--soc_version', default='Ascend910B', type=str, help='chip soc version.')
     return parser.parse_args(argv)
 
 def generate_file(dst_dir, file_name, text):

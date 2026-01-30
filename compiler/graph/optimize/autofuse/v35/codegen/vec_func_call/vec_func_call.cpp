@@ -322,6 +322,8 @@ Status VfCall::GenerateFuncDefinition(const TPipe &tpipe, const Tiler &tiler, st
   bool status = GenerateVectorizedAxisMergeStatus(this->ub_inputs_, this->ub_outputs_, merge_info, tpipe);
   GE_ASSERT_TRUE(status, "GenerateVectorizedAxisMergeStatus failed");
 
+  ss << "#if defined(__DAV_C310__) || (defined(__NPU_ARCH__) && (__NPU_ARCH__ == 5102 || __NPU_ARCH__ == 3101))"
+     << std::endl;
   ss << "\ninline __aicore__ void " << this->vf_call_name_ << "(";
   CreateVFCallDimAndStrideParmas(this->ub_inputs_, this->scalar_inputs_, this->ub_outputs_, merge_info, ss);
   ss << ")" << std::endl;
@@ -370,6 +372,7 @@ Status VfCall::GenerateFuncDefinition(const TPipe &tpipe, const Tiler &tiler, st
   params << std::endl << loop_size << std::endl;
   vf_body << std::endl << loop_body << std::endl;
   GetVFCallFuncBody(params.str(), vf_body.str(), ss);
+  ss << "#endif" << std::endl;
 
   return ge::SUCCESS;
 }
@@ -385,6 +388,8 @@ Status VfCall::Generate(const TPipe &tpipe, [[maybe_unused]] const std::vector<a
 
   std::stringstream ss;
   size_t loop_num = merge_info.merge_repeats_str.size();
+  ss << "#if defined(__DAV_C310__) || (defined(__NPU_ARCH__) && (__NPU_ARCH__ == 5102 || __NPU_ARCH__ == 3101))"
+     << std::endl;
   if (loop_num <= kVFMaxLoop) {
     std::vector<std::string> inputs_ub_offsets = {};
     std::vector<std::string> outputs_ub_offsets = {};
@@ -394,6 +399,7 @@ Status VfCall::Generate(const TPipe &tpipe, [[maybe_unused]] const std::vector<a
     CreateOuterForVFCall(tpipe, this->vf_call_name_, this->ub_inputs_, this->ub_outputs_, this->scalar_inputs_,
                          merge_info, ss);
   }
+  ss << "#endif" << std::endl;
   result = ss.str();
   return ge::SUCCESS;
 }
