@@ -190,7 +190,6 @@ static void from_json(const nlohmann::json &j, NodeConfig &node_config) {
   host_cpu.support_hcom = false;
   host_cpu.phy_device_id = 0;
   node_config.device_list.emplace_back(host_cpu);
-  node_config.is_device_soc = false;
 }
 
 static void from_json(const nlohmann::json &j, DeviceConfig &device_config) {

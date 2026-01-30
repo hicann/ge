@@ -224,8 +224,6 @@ Status DeployContext::ProcessSharedContent(const deployer::SharedContentDescRequ
     GELOGD("Dequeue shared content buffer size[%lu] of total size[%lu] from queue[%u] in device id[%d]", buffer_size,
            total_size, deq_attr.queue_id, deq_attr.device_id);
     GE_CHECK_LE(offset, total_size);
-    void *buffer_data = nullptr;
-    GE_CHK_STATUS_RET_NOLOG(RtsApiUtils::MbufGetBufferAddr(m_buf, &buffer_data));
     GELOGD("Process shared content dequeue successfully, size = %lu, current/total = %zu/%zu",
            buffer_size, offset, total_size);
 
@@ -233,13 +231,12 @@ Status DeployContext::ProcessSharedContent(const deployer::SharedContentDescRequ
       auto var_manager = GetVarManager(device_id, session_id);
       GE_CHECK_NOTNULL(var_manager);
       uint32_t transfer_queue_id = 0U;
-      if (!Configurations::GetInstance().GetHostInformation().node_config.is_device_soc) {
-        GE_CHK_STATUS_RET(GetOrCreateTransferQueue(device_id, transfer_queue_id), "Failed to get transfer queue");
-        GELOGD("No device soc scenerio enqueue to queue[%u] in device[%d]", transfer_queue_id, device_id);
-        exchange_service.EnqueueMbuf(device_id, transfer_queue_id, m_buf, kDequeueTimeout);
-      }
-      GE_CHK_STATUS_RET_NOLOG(var_manager->ProcessSharedContent(content_desc, buffer_data,
-                                                                buffer_size, data_offset, transfer_queue_id));
+      GE_CHK_STATUS_RET(GetOrCreateTransferQueue(device_id, transfer_queue_id), "Failed to get transfer queue");
+      GELOGD("enqueue to queue[%u] in device[%d]", transfer_queue_id, device_id);
+      exchange_service.EnqueueMbuf(device_id, transfer_queue_id, m_buf, kDequeueTimeout);
+
+      GE_CHK_STATUS_RET_NOLOG(
+          var_manager->ProcessSharedContent(content_desc, buffer_size, data_offset, transfer_queue_id));
     }
     data_offset += buffer_size;
     GELOGD("Process shared content successfully, size = %lu, current/total = %lu/%lu",
@@ -374,12 +371,11 @@ Status DeployContext::VarManagersPreAlloc(DeployState &deploy_state) {
       alloc_var_managers.emplace(var_it->second.get());
     }
   }
-  auto is_device_soc = deploy_state.IsDeviceSoc();
   ThreadPool pool("ge_dpl_avm", alloc_var_managers.size(), false);
   std::vector<std::future<Status>> fut_rets;
   for (auto var_manager_ptr : alloc_var_managers) {
-    auto fut = pool.commit([this, is_device_soc, var_manager_ptr]() -> Status {
-      GE_CHK_STATUS_RET(VarManagerPreAlloc(is_device_soc, *var_manager_ptr), "Failed to pre alloc var manager.");
+    auto fut = pool.commit([this, var_manager_ptr]() -> Status {
+      GE_CHK_STATUS_RET(VarManagerPreAlloc(*var_manager_ptr), "Failed to pre alloc var manager.");
       return SUCCESS;
     });
     fut_rets.emplace_back(std::move(fut));
@@ -392,7 +388,7 @@ Status DeployContext::VarManagersPreAlloc(DeployState &deploy_state) {
   return SUCCESS;
 }
 
-Status DeployContext::VarManagerPreAlloc(bool is_device_soc, DeployerVarManager &var_manager) const {
+Status DeployContext::VarManagerPreAlloc(DeployerVarManager &var_manager) const {
   auto &var_manager_info = var_manager.MutableVarManagerInfo();
   auto var_resource = var_manager_info.mutable_var_resource();
   auto var_addr_mgr_map = var_resource->mutable_var_dev_addr_mgr_map();
@@ -404,7 +400,7 @@ Status DeployContext::VarManagerPreAlloc(bool is_device_soc, DeployerVarManager 
     GE_CHK_BOOL_RET_STATUS(total_size > 0, PARAM_INVALID, "Tensor size is empty");
     void *dev_addr = nullptr;
     GE_CHK_STATUS_RET(var_manager.GetVarMemAddr(var_addr_mgr.first,
-        static_cast<uint64_t>(total_size), &dev_addr, is_device_soc),
+        static_cast<uint64_t>(total_size), &dev_addr, false),
         "[GetVarMemAddr]Get or Malloc shared memory failed");
     var_addr_mgr.second.set_dev_addr(PtrToValue(dev_addr));
   }

@@ -517,13 +517,4 @@ Status CompileConfigJson::GetResourceTypeFromNumaConfig(std::set<std::string> &r
   }
   return SUCCESS;
 }
-
-bool CompileConfigJson::IsDeviceSoc() {
-  std::string resource_path;
-  (void)ge::GetContext().GetOption(RESOURCE_CONFIG_PATH, resource_path);
-  // depend on Configurations is_device_soc policy.
-  const char_t *env = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_RESOURCE_CONFIG_PATH, env);
-  return env == nullptr && resource_path.empty();
-}
 }  // namespace ge

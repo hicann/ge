@@ -124,8 +124,9 @@ void DeployState::AddLocalSubmodelDesc(int32_t device_id, int32_t device_type,
   key.process_id = submodel_desc.process_id();
   key.process_mode = static_cast<DeployProcessMode>(submodel_desc.process_mode());
 
-  key.is_proxy = ((!is_device_soc_) && (device_type != CPU));
-  if ((key.is_proxy) && (key.engine_name == PNE_ID_NPU)) {
+  key.is_proxy = device_type != CPU;
+  // 当前只有udf存在 proxy场景
+  if ((key.is_proxy) && (key.engine_name != PNE_ID_UDF)) {
     key.is_proxy = false;
     dynamic_proxy_controlled_flags_[submodel_desc.submodel_id()] = submodel_desc.is_dynamic();
   } else {
@@ -168,10 +169,6 @@ const std::string &DeployState::GetHcomRoleTable() const {
 
 void DeployState::SetHcomRoleTable(const std::string &hcom_role_table) {
   hcom_role_table_ = hcom_role_table;
-}
-
-void DeployState::SetDeviceSoc(bool is_device_soc) {
-  is_device_soc_ = is_device_soc;
 }
 
 void DeployState::SetOptions(const deployer::Options &options) {

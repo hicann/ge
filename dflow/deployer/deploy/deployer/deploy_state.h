@@ -88,11 +88,6 @@ class DeployState {
 
   std::string GetRelativeWorkingDir() const;
 
-  void SetDeviceSoc(bool is_device_soc);
-  bool IsDeviceSoc() const {
-    return is_device_soc_;
-  }
-
   bool GetDynamicProxyControlledFlag(const uint32_t submodel_id) const;
 
   void SetOptions(const deployer::Options &options);
@@ -130,7 +125,6 @@ class DeployState {
   std::string hcom_role_table_;
   mutable std::map<std::string, uint32_t> submodel_ids_;
   std::map<std::pair<int32_t, int32_t>, std::vector<HcomCommGroup>> local_comm_groups_;
-  bool is_device_soc_ = true;
   std::map<std::string, std::string> global_options_;
   std::map<std::string, std::string> session_options_;
   std::map<std::string, std::string> graph_options_;

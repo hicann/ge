@@ -1058,6 +1058,6 @@ TEST_F(DeployContextTest, VarManagerPreAllocSuccess) {
   var_resource_info->mutable_var_dev_addr_mgr_map()->insert({0, var_dev_addr_mgr});
   DeployerVarManager var_manager;
   EXPECT_EQ(var_manager.Initialize(var_manager_info), SUCCESS);
-  EXPECT_EQ(context.VarManagerPreAlloc(true, var_manager), SUCCESS);
+  EXPECT_EQ(context.VarManagerPreAlloc(var_manager), SUCCESS);
 }
 }  // namespace ge

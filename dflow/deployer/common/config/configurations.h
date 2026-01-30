@@ -36,7 +36,6 @@ struct NodeConfig {
   std::string ipaddr;
   int32_t port = -1;
   bool is_local = false;
-  bool is_device_soc = true;
   std::vector<DeviceConfig> device_list;
   std::string resource_type;
   std::string deploy_res_path;

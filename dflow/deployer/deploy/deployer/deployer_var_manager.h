@@ -28,7 +28,6 @@ class DeployerVarManager {
   Status Initialize(deployer::VarManagerInfo var_manager_info);
 
   Status ProcessSharedContent(const deployer::SharedContentDescription &shared_content_desc,
-                              const void *data,
                               const size_t size,
                               const size_t offset,
                               const uint32_t queue_id);

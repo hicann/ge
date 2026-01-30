@@ -184,7 +184,7 @@ class DeployContext {
                       const ExecutorManager::ExecutorKey &key,
                       deployer::ExecutorRequest_BatchLoadModelMessage &request);
   Status VarManagersPreAlloc(DeployState &deploy_state);
-  Status VarManagerPreAlloc(bool is_device_soc, DeployerVarManager &var_manager) const;
+  Status VarManagerPreAlloc(DeployerVarManager &var_manager) const;
   Status PrepareStateWorkingDir(const DeployState &deploy_state) const;
   Status SyncVarManagers(PneExecutorClient &executor_client, const DeployState &deploy_state);
   Status DoLoadSubmodels(const DeployState &deploy_state,

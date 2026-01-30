@@ -101,7 +101,6 @@ Status FlowModelSender::GetAllRelatedVarManager(
     std::map<int32_t, std::set<int32_t>> &device_ids) {
   const auto node_id = device_info.GetNodeId();
   int32_t local_node_id = ResourceManager::GetInstance().GetLocalNodeId();
-  const auto &node_config = Configurations::GetInstance().GetLocalNode();
   for (const auto &submodel : submodels) {
     auto model = submodel->model;
     if (model == nullptr) {
@@ -114,7 +113,7 @@ Status FlowModelSender::GetAllRelatedVarManager(
     // static graph in non soc device no need to transfer fileconst, load on host thread
     auto root_graph = model->GetRootGraph();
     GE_CHECK_NOTNULL(root_graph);
-    if ((node_id != local_node_id) || (node_config.is_device_soc)) {
+    if (node_id != local_node_id) {
       for (const auto &node : root_graph->GetAllNodes()) {
         if (node->GetType() == FILECONSTANT) {
           node_need_transfer_memory[node_id][session][node->GetOpDesc()].emplace(device_info.GetDeviceId());
@@ -928,7 +927,7 @@ Status FlowModelSender::TransferPreDeploy(const SendInfo &send_info,
   const auto &node_config = Configurations::GetInstance().GetLocalNode();
   DeployPlan::DeviceInfo local_device(CPU, local_node_id, 0);
   // AI server head device is arbitary npu device.
-  if (!node_config.is_device_soc && send_info.node_id != local_node_id) {
+  if (send_info.node_id != local_node_id) {
     for (const auto &device_config : node_config.device_list) {
       if (device_config.device_type == NPU) {
         local_device = DeployPlan::DeviceInfo(NPU, local_node_id, device_config.device_id);

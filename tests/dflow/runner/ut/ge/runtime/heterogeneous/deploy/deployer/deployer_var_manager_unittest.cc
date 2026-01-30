@@ -34,7 +34,6 @@ TEST_F(DeployerVarManagerTest, TestInitilizeFinalize) {
   var_info.set_session_id(1);
   ASSERT_EQ(deployer_var_manager.Initialize(var_info), SUCCESS);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
   rtMbufPtr_t mbuf;
   rtMbufAlloc(&mbuf, 1);
   deployer_var_manager.var_mbuf_vec_.emplace_back(mbuf);
@@ -49,13 +48,11 @@ TEST_F(DeployerVarManagerTest, TestInitilizeFinalizeRemoteDevice) {
   var_info.set_session_id(1);
   ASSERT_EQ(deployer_var_manager.Initialize(var_info), SUCCESS);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   rtMbufPtr_t mbuf;
   rtMbufAlloc(&mbuf, 1);
   deployer_var_manager.var_mbuf_vec_.emplace_back(mbuf);
   // Finalize will call ProxyEventManager::FreeMbuf
   deployer_var_manager.Finalize();
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
   rtMbufFree(mbuf);
 }
 
@@ -66,17 +63,14 @@ TEST_F(DeployerVarManagerTest, TestProcessVarManager) {
   var_info.set_session_id(1);
   ASSERT_EQ(deployer_var_manager.Initialize(var_info), SUCCESS);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   deployer::SharedContentDescription shared_content_desc;
   shared_content_desc.set_session_id(1);
   shared_content_desc.set_node_name("node");
   shared_content_desc.set_om_content("hello");
   shared_content_desc.set_total_length(4);
   shared_content_desc.set_current_offset(0);
-  std::string data = "data";
-  ASSERT_EQ(deployer_var_manager.ProcessSharedContent(shared_content_desc, &data, 4, 0, 0), SUCCESS);
+  ASSERT_EQ(deployer_var_manager.ProcessSharedContent(shared_content_desc, 4, 0, 0), SUCCESS);
 
   deployer_var_manager.Finalize();
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
 }
 }  // namespace ge

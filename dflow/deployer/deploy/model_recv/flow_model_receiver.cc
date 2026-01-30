@@ -35,8 +35,6 @@ Status FlowModelReceiver::UpdateDeployPlan(const deployer::UpdateDeployPlanReque
   deploy_state.SetHcomRankTable(request.hcom_rank_table());
   deploy_state.SetHcomRoleTable(request.hcom_role_table());
   deploy_state.SetOptions(request.options());
-  const auto &node_config = Configurations::GetInstance().GetLocalNode();
-  deploy_state.SetDeviceSoc(node_config.is_device_soc);
   GE_CHECK_LE(request.submodel_descs_size(), kMaxSubmodelDescSize);
   GE_CHECK_GE(request.device_id(), 0);
   for (auto &submodel_desc : request.submodel_descs()) {

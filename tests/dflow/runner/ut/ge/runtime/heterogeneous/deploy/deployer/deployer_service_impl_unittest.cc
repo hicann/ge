@@ -277,11 +277,6 @@ TEST_F(DeployerServiceImplTest, UpdateDeployPlan) {
   submodel_desc2->set_engine_name(PNE_ID_NPU);
   submodel_desc2->set_rank_id("0");
 
-  auto node_config_bk = Configurations::GetInstance().GetLocalNode();
-  auto node_config_new = node_config_bk;
-  node_config_new.is_device_soc = false;
-  Configurations::GetInstance().information_.node_config = node_config_new;
-
   DeployContext context;
   deployer::DeployerResponse response;
   DeployerServiceImpl::UpdateDeployPlanProcess(context, request, response);

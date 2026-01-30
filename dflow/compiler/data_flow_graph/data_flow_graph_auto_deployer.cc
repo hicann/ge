@@ -204,11 +204,10 @@ Status DataFlowGraphAutoDeployer::SelectResourceType(const std::vector<std::stri
     GELOGE(FAILED, "runnable resource info is empty, can not select.");
     return FAILED;
   }
-  bool is_server_heavy_load = is_heavy_load && !CompileConfigJson::IsDeviceSoc();
   // if no logic device id is specified, ascend is preferred.
   if (logic_device_id.empty()) {
     // server heavy load must assign device id.
-    if (is_server_heavy_load) {
+    if (is_heavy_load) {
       GELOGE(FAILED, "heavy load must assign logic device id.");
       return FAILED;
     }
@@ -222,14 +221,8 @@ Status DataFlowGraphAutoDeployer::SelectResourceType(const std::vector<std::stri
     return SUCCESS;
   }
 
-  // head node select not ascend type, other node select ascend type.
-  bool is_head_node = (logic_device_id.find("-1") != std::string::npos);
-  if (is_head_node && (!CompileConfigJson::IsDeviceSoc())) {
-    GELOGE(FAILED, "cannot assign host node directly on server, logic_device_id=%s.", logic_device_id.c_str());
-    return FAILED;
-  }
   for (const auto &type : runnable_resources_type) {
-    if (is_head_node || is_server_heavy_load) {
+    if (is_heavy_load) {
       if (type != kResourceTypeAscend) {
         resources_type = type;
         break;
@@ -380,7 +373,7 @@ Status DataFlowGraphAutoDeployer::ExpandToSingleLogicDevice(const std::string &l
 
 Status DataFlowGraphAutoDeployer::CheckAndExpandLogicDeviceIds(const std::string &logic_device_id_list,
                                                                std::vector<std::string> &expand_logic_device_id_list) {
-  std::regex no_range_config_regex(R"((0:0:-1(:0)?)|((\d{1,5}:){2,3}\d{1,5},)*(\d{1,5}:){2,3}\d{1,5})");
+  std::regex no_range_config_regex(R"(((\d{1,5}:){2,3}\d{1,5},)*(\d{1,5}:){2,3}\d{1,5})");
   if (logic_device_id_list.find("~") == std::string::npos) {
     if (!std::regex_match(logic_device_id_list, no_range_config_regex)) {
       GELOGE(FAILED, "config logic_device_list[%s] is invalid", logic_device_id_list.c_str());
@@ -659,7 +652,7 @@ Status DataFlowGraphAutoDeployer::CheckAndProcessMemCfg(
   for (const auto &orig_logic_device_id : logic_dev_ids) {
     const auto logic_dev_id_list = StringUtils::Split(orig_logic_device_id, ',');
     for (const auto &logic_device_id : logic_dev_id_list) {
-      if ((logic_device_id.find("-1") == std::string::npos) && (device_id_to_mem_cfg.count(logic_device_id) == 0UL)) {
+      if (device_id_to_mem_cfg.count(logic_device_id) == 0UL) {
         GELOGE(FAILED, "Logic device id %s need memory config.", logic_device_id.c_str());
         return FAILED;
       }

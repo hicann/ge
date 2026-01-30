@@ -46,18 +46,13 @@ Status DeployerVarManager::Initialize(deployer::VarManagerInfo var_manager_info)
 void DeployerVarManager::Finalize() {
   for (auto &it_mbuf : var_mbuf_vec_) {
     if (it_mbuf != nullptr) {
-      if (Configurations::GetInstance().GetHostInformation().node_config.is_device_soc) {
-        rtMbufFree(it_mbuf);
-      } else {
-        (void) ProxyEventManager::FreeMbuf(var_manager_info_.device_id(), it_mbuf);
-      }
+      (void) ProxyEventManager::FreeMbuf(var_manager_info_.device_id(), it_mbuf);
       it_mbuf = nullptr;
     }
   }
 }
 
 Status DeployerVarManager::ProcessSharedContent(const deployer::SharedContentDescription &shared_content_desc,
-                                                const void *data,
                                                 const size_t size,
                                                 const size_t offset,
                                                 const uint32_t queue_id) {
@@ -67,25 +62,17 @@ Status DeployerVarManager::ProcessSharedContent(const deployer::SharedContentDes
   const auto &node_name = shared_content_desc.node_name();
   GELOGD("Begin to copy shared content to memory, var is %s, offset = %lu", node_name.c_str(), current_offset);
 
-  uint64_t dst_max = std::min(var_mem_size_ - current_offset, SECUREC_MEM_MAX_LEN);
   void *var_dev_addr = nullptr;
   GE_CHECK_LE(shared_content_desc.current_offset(), UINT64_MAX - var_manager_info_.var_mem_logic_base());
   uint64_t logic_addr = shared_content_desc.current_offset() + var_manager_info_.var_mem_logic_base();
   GE_CHK_STATUS_RET(GetVarMemAddr(logic_addr, total_length, &var_dev_addr),
       "[GetVarMemAddr]Get or Malloc shared memory failed");
   var_dev_addr = static_cast<void *>(static_cast<uint8_t *>(var_dev_addr) + offset + kAlignSize);
-  dst_max = std::min(total_length - offset, SECUREC_MEM_MAX_LEN);
   GELOGD("copy from queue id[%d] to device[%d]", queue_id, var_manager_info_.device_id());
-  if (Configurations::GetInstance().GetHostInformation().node_config.is_device_soc) {
-    GE_CHK_BOOL_RET_STATUS(memcpy_s(var_dev_addr, dst_max, data, size) == EOK,
-                           FAILED, "Failed to copy shared content [%s]", node_name.c_str());
-  } else {
-    GE_CHK_STATUS_RET(ProxyEventManager::CopyQMbuf(var_manager_info_.device_id(),
-                                                   PtrToValue(var_dev_addr),
-                                                   size,
-                                                   queue_id),
-                      "Failed to copy q mbuf to device.");
-  }
+  GE_CHK_STATUS_RET(
+      ProxyEventManager::CopyQMbuf(var_manager_info_.device_id(), PtrToValue(var_dev_addr), size, queue_id),
+      "Failed to copy q mbuf to device.");
+
   auto current_size = offset + size;
   if (current_size >= total_length) {
     GE_CHECK_LE(shared_content_descs_.size() + 1U, kMaxSharedContentSize);
@@ -158,27 +145,9 @@ uint64_t DeployerVarManager::GetVarMemSize() const {
 }
 
 Status DeployerVarManager::MallocVarMem(const uint64_t var_size, const uint32_t device_id, void **dev_addr) {
-  if (!Configurations::GetInstance().GetHostInformation().node_config.is_device_soc) {
-    GE_CHK_STATUS_RET(ProxyEventManager::AllocMbuf(device_id, var_size, &var_mbuf_, dev_addr),
-                      "Failed to alloc mbuf in device, device_id = %u.", device_id);
-    var_mbuf_vec_.push_back(var_mbuf_);
-    GEEVENT("Alloc var memory successfully, device_id = %u, size = %lu", device_id, var_size);
-    return SUCCESS;
-  }
-  GEEVENT("Malloc var memory start, device_id = %u, size = %lu", device_id, var_size);
-  rtError_t rt_ret = RT_ERROR_NONE;
-  std::thread malloc_thd([this, &var_size, &device_id, &rt_ret]() {
-    SET_THREAD_NAME(pthread_self(), "ge_dpl_vmlc");
-    BindCpuUtils::BindCore(device_id * kCoreNumPerDevice);
-    rt_ret = rtMbufAlloc(&var_mbuf_, var_size);
-  });
-  malloc_thd.join();
-  if (rt_ret != RT_ERROR_NONE) {
-    GELOGE(RT_FAILED, "Failed to alloc mbuf, device_id = %u, size = %lu", device_id, var_size);
-    return RT_FAILED;
-  }
+  GE_CHK_STATUS_RET(ProxyEventManager::AllocMbuf(device_id, var_size, &var_mbuf_, dev_addr),
+                    "Failed to alloc mbuf in device, device_id = %u.", device_id);
   var_mbuf_vec_.push_back(var_mbuf_);
-  GE_CHK_RT_RET(rtMbufGetBuffAddr(var_mbuf_, dev_addr));
   GEEVENT("Alloc var memory successfully, device_id = %u, size = %lu", device_id, var_size);
   return SUCCESS;
 }

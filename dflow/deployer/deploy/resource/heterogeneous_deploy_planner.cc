@@ -197,8 +197,7 @@ Status HeterogeneousDeployPlanner::GetLogicalDeviceId(const PneModel &pne_model,
   GE_CHK_STATUS_RET_NOLOG(ParseLogicalDeviceIds(logical_device_id_str, logical_device_ids));
 
   // heavy load UDF not in soc must assign logic device.
-  if (logical_device_ids.empty() && (pne_model.GetModelType() == PNE_ID_UDF) &&
-      !Configurations::GetInstance().GetHostInformation().node_config.is_device_soc) {
+  if (logical_device_ids.empty() && (pne_model.GetModelType() == PNE_ID_UDF)) {
     const auto deploy_resource = pne_model.GetDeployResource();
     if ((deploy_resource != nullptr)) {
       GE_CHK_BOOL_RET_STATUS(!(deploy_resource->is_heavy_load), FAILED,
@@ -312,8 +311,8 @@ Status HeterogeneousDeployPlanner::AssignDevices(const std::string &model_name,
       GELOGE(PARAM_INVALID, "Failed to assign physical device for %s", logical_device_id.c_str());
       return PARAM_INVALID;
     }
-    // UDF heavy load need deploy on host(when not soc)
-    if (is_heavy_load && !Configurations::GetInstance().GetHostInformation().node_config.is_device_soc) {
+    // UDF heavy load need deploy on host
+    if (is_heavy_load) {
       const auto &proxy_device_info = it->second;
       if (proxy_device_info.GetType() != NPU) {
         GELOGE(PARAM_INVALID, "heavy load model[%s] assign physical device[%s] is not NPU, device desc = %s",

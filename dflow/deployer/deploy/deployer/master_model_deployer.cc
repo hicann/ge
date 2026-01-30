@@ -320,7 +320,6 @@ Status MasterModelDeployer::DeployStateUpdate(DeployState &deploy_state, uint32_
   deploy_state.SetRootModelId(root_model_id);
   deploy_state.SetGraphId(flow_model->GetRootGraph()->GetGraphID());
   deploy_state.SetSessionId(GetContext().SessionId());
-  deploy_state.SetDeviceSoc(Configurations::GetInstance().GetLocalNode().is_device_soc);
   bool is_dynamic_sched = false;
   (void)AttrUtils::GetBool(flow_model->GetRootGraph(), ATTR_NAME_DATA_FLOW_DYNAMIC_SCHEDULE_CFG, is_dynamic_sched);
   deploy_state.SetIsDynamicSched(is_dynamic_sched);

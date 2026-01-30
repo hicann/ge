@@ -295,7 +295,6 @@ TEST_F(UdfExecutorClientTest, LoadModel_success_host_failed) {
 }
 
 TEST_F(UdfExecutorClientTest, LoadModel_success_host_heavy_load) {
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   MockUdfExecutorClient client(0);
   deployer::ExecutorRequest_BatchLoadModelMessage load_model_desc;
   auto model = load_model_desc.add_models();

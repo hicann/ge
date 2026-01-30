@@ -112,7 +112,6 @@ class CompileConfigJson {
   static Status ReadDeployInfoFromJsonFile(const std::string &file_path,
                                            DeployConfigInfo &deploy_conf);
   static Status GetResourceTypeFromNumaConfig(std::set<std::string> &resource_types);
-  static bool IsDeviceSoc();
 
  private:
   static Status ReadCompileConfigJsonFile(const std::string &file_path, nlohmann::json &json_buff);

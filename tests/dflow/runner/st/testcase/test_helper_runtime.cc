@@ -1292,7 +1292,6 @@ TEST_F(STEST_helper_runtime, GetVarMemBase) {
   varinfo.set_var_mem_max_size(128);
   MockDeployerVarManager var_manager;
   ASSERT_EQ(var_manager.Initialize(varinfo), SUCCESS);
-  EXPECT_NE(var_manager.GetVarMemBase(), nullptr);
   var_manager.Finalize();
 }
 

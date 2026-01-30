@@ -138,10 +138,8 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildTransferInfo) {
   ASSERT_EQ(HeterogeneousDeployPlanner().BuildTransferPlan(local_device, {}, deploy_plan), SUCCESS);
   ASSERT_EQ(deploy_plan.GetQueueInfoList().size(), 0);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   ASSERT_EQ(HeterogeneousDeployPlanner().BuildTransferPlan(local_device, {local_device}, deploy_plan), SUCCESS);
   ASSERT_EQ(deploy_plan.GetQueueInfoList().size(), 1);
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithProxy) {
@@ -189,7 +187,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildServerDynamicSchedDeployPlanWith
                                                    DeployPlan::DeviceInfo{0, 0, 0},
                                                    DeployPlan::DeviceInfo{0, 1, 0},
                                                    DeployPlan::DeviceInfo{0, 1, 1}};
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   BuildDeviceInfos(node_list, true);
   auto ret = HeterogeneousDeployPlanner(flow_model, node_list).BuildPlan(deploy_plan);
   ASSERT_EQ(ret, SUCCESS);
@@ -869,62 +866,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForSingleModel_2PG) {
   ASSERT_EQ(deploy_plan.GetGroups().size(), 9);
 }
 
-/**
- *  NetOutput
- *      |
- *      |
- *     XXXX
- *     /  \
- *    |    |
- *  data1  data2
- */
-TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForSingleModel_DeployResource) {
-  auto flow_model = StubModels::BuildFlowModel(StubModels::BuildSinglePartitionedCallGraph());
-  ASSERT_TRUE(flow_model != nullptr);
-  auto deploy_resource_ptr = std::make_shared<ModelDeployResource>();
-  ASSERT_TRUE(deploy_resource_ptr != nullptr);
-  ModelDeployResource &deploy_resource = *deploy_resource_ptr;
-  deploy_resource.resource_type = "X86_64";
-  const auto &root_model = flow_model->GetSubmodels().begin()->second;
-  root_model->SetModelType(PNE_ID_UDF);
-  root_model->SetDeployResource(deploy_resource_ptr);
-
-  DeviceInfo local_device(0, CPU, 0);
-  local_device.SetResourceType("X86_64");
-
-  DeviceInfo remote_device_0(0, NPU, 0);
-  remote_device_0.SetResourceType("Aarch64");
-
-  DeviceInfo remote_device_1(0, NPU, 1);
-  remote_device_1.SetResourceType("Aarch64");
-  std::vector<DeviceInfo> device_info_list = std::move(ResourceManager::GetInstance().device_info_list_);
-  std::map<int32_t, std::map<int32_t, std::map<DeviceType, const DeviceInfo *>>> device_info_map = std::move(
-    ResourceManager::GetInstance().device_info_map_);
-  ResourceManager::GetInstance().device_info_list_.emplace_back(local_device);
-  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_0);
-  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_1);
-  ResourceManager::GetInstance().device_info_map_[0][0][CPU] = &local_device;
-  ResourceManager::GetInstance().device_info_map_[1][0][NPU] = &remote_device_0;
-  ResourceManager::GetInstance().device_info_map_[1][1][NPU] = &remote_device_1;
-
-  std::vector<DeployPlan::DeviceInfo> device_list{DeployPlan::DeviceInfo{1, 0, 0},
-                                                  DeployPlan::DeviceInfo{0, 1, 0},
-                                                  DeployPlan::DeviceInfo{0, 1, 1}};
-  HeterogeneousDeployPlanner planner(flow_model, device_list);
-  DeployPlan deploy_plan;
-  BuildDeviceInfos(device_list);
-
-  // backup
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
-  auto ret = planner.BuildPlan(deploy_plan);
-  ASSERT_EQ(ret, SUCCESS);
-  ASSERT_EQ(planner.model_relation_.submodel_endpoint_infos.size(), 1);
-  ResourceManager::GetInstance().device_info_list_ = std::move(device_info_list);
-  ResourceManager::GetInstance().device_info_map_ = std::move(device_info_map);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
-}
-
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForSingleModel_DeployResource_not_soc) {
   auto flow_model = StubModels::BuildFlowModel(StubModels::BuildSinglePartitionedCallGraph());
   ASSERT_TRUE(flow_model != nullptr);
@@ -961,14 +902,10 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForSingleModel_DeployResourc
   DeployPlan deploy_plan;
   BuildDeviceInfos(device_list);
 
-  // backup
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   auto ret = planner.BuildPlan(deploy_plan);
   ASSERT_NE(ret, SUCCESS);
   ResourceManager::GetInstance().device_info_list_ = std::move(device_info_list);
   ResourceManager::GetInstance().device_info_map_ = std::move(device_info_map);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
 }
 
 /**
@@ -1600,12 +1537,10 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf) {
   DeviceInfo remote_device_1(0, NPU, 1);
   remote_device_1.SetResourceType("Ascend");
   // backup
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
   std::vector<DeviceInfo> device_info_list = std::move(ResourceManager::GetInstance().device_info_list_);
   std::map<int32_t, std::map<int32_t, std::map<DeviceType, const DeviceInfo *>>> device_info_map = std::move(
     ResourceManager::GetInstance().device_info_map_);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   ResourceManager::GetInstance().device_info_list_.emplace_back(local_device);
   ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_0);
   ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_1);
@@ -1633,7 +1568,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf) {
   // recover
   ResourceManager::GetInstance().device_info_list_ = std::move(device_info_list);
   ResourceManager::GetInstance().device_info_map_ = std::move(device_info_map);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf_cannot_assign_host) {
@@ -1658,12 +1592,10 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf_cannot_assig
   DeviceInfo remote_device_1(0, NPU, 1);
   remote_device_1.SetResourceType("Ascend");
   // backup
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
   std::vector<DeviceInfo> device_info_list = std::move(ResourceManager::GetInstance().device_info_list_);
   std::map<int32_t, std::map<int32_t, std::map<DeviceType, const DeviceInfo *>>> device_info_map = std::move(
     ResourceManager::GetInstance().device_info_map_);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   ResourceManager::GetInstance().device_info_list_.emplace_back(local_device);
   ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_0);
   ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_1);
@@ -1682,7 +1614,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf_cannot_assig
   // recover
   ResourceManager::GetInstance().device_info_list_ = std::move(device_info_list);
   ResourceManager::GetInstance().device_info_map_ = std::move(device_info_map);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf_without_logic_deviceId) {
@@ -1706,12 +1637,10 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf_without_logi
   DeviceInfo remote_device_1(0, NPU, 1);
   remote_device_1.SetResourceType("Ascend");
   // backup
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
   std::vector<DeviceInfo> device_info_list = std::move(ResourceManager::GetInstance().device_info_list_);
   std::map<int32_t, std::map<int32_t, std::map<DeviceType, const DeviceInfo *>>> device_info_map = std::move(
     ResourceManager::GetInstance().device_info_map_);
 
-  Configurations::GetInstance().information_.node_config.is_device_soc = false;
   ResourceManager::GetInstance().device_info_list_.emplace_back(local_device);
   ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_0);
   ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_1);
@@ -1730,7 +1659,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildPlanForHeavyLoadUdf_without_logi
   // recover
   ResourceManager::GetInstance().device_info_list_ = std::move(device_info_list);
   ResourceManager::GetInstance().device_info_map_ = std::move(device_info_map);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDynamicSchedDeployPlanWithProxy) {
@@ -1844,8 +1772,6 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgw) {
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgw2) {
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
   auto flow_model = StubModels::BuildFlowModel(StubModels::BuildSeriesPartitionedCallGraph());
   ASSERT_TRUE(flow_model != nullptr);
   EXPECT_EQ(flow_model->GetSubmodels().size(), 2);
@@ -1859,10 +1785,31 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgw2) {
   ASSERT_EQ(model_relation->submodel_endpoint_infos.find("subgraph-2")->second.input_endpoint_names.size(), 1);
   ASSERT_EQ(model_relation->submodel_endpoint_infos.find("subgraph-2")->second.output_endpoint_names.size(), 1);
 
+  DeviceInfo local_device(0, CPU, 0);
+  local_device.SetResourceType("X86");
+
+  DeviceInfo remote_device_0(0, NPU, 0);
+  remote_device_0.SetResourceType("Ascend");
+
+  DeviceInfo remote_device_1(0, NPU, 1);
+  remote_device_1.SetResourceType("Ascend");
+  // backup
+  std::vector<DeviceInfo> backup_device_info_list = std::move(ResourceManager::GetInstance().device_info_list_);
+  std::map<int32_t, std::map<int32_t, std::map<DeviceType, const DeviceInfo *>>> backup_device_info_map =
+      std::move(ResourceManager::GetInstance().device_info_map_);
+
+  ResourceManager::GetInstance().device_info_list_.emplace_back(local_device);
+  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_0);
+  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_1);
+  ResourceManager::GetInstance().device_info_map_[0][0][CPU] = &local_device;
+  ResourceManager::GetInstance().device_info_map_[0][0][NPU] = &remote_device_0;
+  ResourceManager::GetInstance().device_info_map_[0][1][NPU] = &remote_device_1;
+
   auto deploy_resource_ptr = std::make_shared<ModelDeployResource>();
   ASSERT_TRUE(deploy_resource_ptr != nullptr);
   ModelDeployResource &deploy_resource = *deploy_resource_ptr;
   deploy_resource.is_heavy_load = true;
+  deploy_resource.resource_type = "X86";
 
   auto model_iter = flow_model->GetSubmodels().begin();
   auto &udf_model = model_iter->second;
@@ -1879,12 +1826,12 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgw2) {
   BuildDeviceInfos(double_device_with_cpu_list, true, true);
   auto ret = HeterogeneousDeployPlanner(flow_model, double_device_with_cpu_list).BuildPlan(deploy_plan);
   ASSERT_EQ(ret, SUCCESS);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
+
+  ResourceManager::GetInstance().device_info_list_ = std::move(backup_device_info_list);
+  ResourceManager::GetInstance().device_info_map_ = std::move(backup_device_info_map);
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgw3) {
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
   auto flow_model = StubModels::BuildFlowModel(StubModels::BuildSeriesPartitionedCallGraph());
   ASSERT_TRUE(flow_model != nullptr);
   EXPECT_EQ(flow_model->GetSubmodels().size(), 2);
@@ -1898,10 +1845,31 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgw3) {
   ASSERT_EQ(model_relation->submodel_endpoint_infos.find("subgraph-2")->second.input_endpoint_names.size(), 1);
   ASSERT_EQ(model_relation->submodel_endpoint_infos.find("subgraph-2")->second.output_endpoint_names.size(), 1);
 
+  DeviceInfo local_device(0, CPU, 0);
+  local_device.SetResourceType("X86");
+
+  DeviceInfo remote_device_0(0, NPU, 0);
+  remote_device_0.SetResourceType("Ascend");
+
+  DeviceInfo remote_device_1(0, NPU, 1);
+  remote_device_1.SetResourceType("Ascend");
+  // backup
+  std::vector<DeviceInfo> backup_device_info_list = std::move(ResourceManager::GetInstance().device_info_list_);
+  std::map<int32_t, std::map<int32_t, std::map<DeviceType, const DeviceInfo *>>> backup_device_info_map =
+      std::move(ResourceManager::GetInstance().device_info_map_);
+
+  ResourceManager::GetInstance().device_info_list_.emplace_back(local_device);
+  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_0);
+  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_1);
+  ResourceManager::GetInstance().device_info_map_[0][0][CPU] = &local_device;
+  ResourceManager::GetInstance().device_info_map_[0][0][NPU] = &remote_device_0;
+  ResourceManager::GetInstance().device_info_map_[0][1][NPU] = &remote_device_1;
+
   auto deploy_resource_ptr = std::make_shared<ModelDeployResource>();
   ASSERT_TRUE(deploy_resource_ptr != nullptr);
   ModelDeployResource &deploy_resource = *deploy_resource_ptr;
   deploy_resource.is_heavy_load = true;
+  deploy_resource.resource_type = "X86";
 
   auto model_iter = flow_model->GetSubmodels().begin();
   auto &udf_model = model_iter->second;
@@ -1917,12 +1885,11 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgw3) {
   BuildDeviceInfos(four_device_with_cpu_list, true, true);
   auto ret = HeterogeneousDeployPlanner(flow_model, four_device_with_cpu_list).BuildPlan(deploy_plan);
   ASSERT_EQ(ret, SUCCESS);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
+  ResourceManager::GetInstance().device_info_list_ = std::move(backup_device_info_list);
+  ResourceManager::GetInstance().device_info_map_ = std::move(backup_device_info_map);
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgwBothHeavy) {
-  bool back_is_device_soc = Configurations::GetInstance().information_.node_config.is_device_soc;
-  Configurations::GetInstance().information_.node_config.is_device_soc = true;
   auto flow_model = StubModels::BuildFlowModel(StubModels::BuildSeriesPartitionedCallGraph());
   ASSERT_TRUE(flow_model != nullptr);
   EXPECT_EQ(flow_model->GetSubmodels().size(), 2);
@@ -1936,10 +1903,31 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgwBothHeav
   ASSERT_EQ(model_relation->submodel_endpoint_infos.find("subgraph-2")->second.input_endpoint_names.size(), 1);
   ASSERT_EQ(model_relation->submodel_endpoint_infos.find("subgraph-2")->second.output_endpoint_names.size(), 1);
 
+  DeviceInfo local_device(0, CPU, 0);
+  local_device.SetResourceType("X86");
+
+  DeviceInfo remote_device_0(0, NPU, 0);
+  remote_device_0.SetResourceType("Ascend");
+
+  DeviceInfo remote_device_1(0, NPU, 1);
+  remote_device_1.SetResourceType("Ascend");
+  // backup
+  std::vector<DeviceInfo> backup_device_info_list = std::move(ResourceManager::GetInstance().device_info_list_);
+  std::map<int32_t, std::map<int32_t, std::map<DeviceType, const DeviceInfo *>>> backup_device_info_map =
+      std::move(ResourceManager::GetInstance().device_info_map_);
+
+  ResourceManager::GetInstance().device_info_list_.emplace_back(local_device);
+  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_0);
+  ResourceManager::GetInstance().device_info_list_.emplace_back(remote_device_1);
+  ResourceManager::GetInstance().device_info_map_[0][0][CPU] = &local_device;
+  ResourceManager::GetInstance().device_info_map_[0][0][NPU] = &remote_device_0;
+  ResourceManager::GetInstance().device_info_map_[0][1][NPU] = &remote_device_1;
+
   auto deploy_resource_ptr = std::make_shared<ModelDeployResource>();
   ASSERT_TRUE(deploy_resource_ptr != nullptr);
   ModelDeployResource &deploy_resource = *deploy_resource_ptr;
   deploy_resource.is_heavy_load = true;
+  deploy_resource.resource_type = "X86";
 
   auto model_iter = flow_model->GetSubmodels().begin();
   auto &udf_model = model_iter->second;
@@ -1957,7 +1945,8 @@ TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgwBothHeav
   BuildDeviceInfos(four_device_with_cpu_list, true, true);
   auto ret = HeterogeneousDeployPlanner(flow_model, four_device_with_cpu_list).BuildPlan(deploy_plan);
   ASSERT_EQ(ret, SUCCESS);
-  Configurations::GetInstance().information_.node_config.is_device_soc = back_is_device_soc;
+  ResourceManager::GetInstance().device_info_list_ = std::move(backup_device_info_list);
+  ResourceManager::GetInstance().device_info_map_ = std::move(backup_device_info_map);
 }
 
 TEST_F(HeterogeneousDeployPlannerTest, TestBuildDeployPlanWithHostFlowgwReuseQueue) {

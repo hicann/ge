@@ -60,7 +60,7 @@ Graph BuildDataFlowGraphWithHostUdfCallNn(const std::string &name, const std::st
   return flow_graph.ToGeGraph();
 }
 
-void BuilGraphProcessPoint(dataflow::ProcessPoint &pp0, const std::string name) {
+void BuilGraphProcessPoint(dataflow::ProcessPoint &pp0, const std::string &name) {
   pp0.set_name(name);
   pp0.set_type(dataflow::ProcessPoint_ProcessPointType_GRAPH);
   std::string pp0_config_file = "./pp0_config.json";
@@ -653,75 +653,6 @@ TEST_F(DataFlowGraphAutoDeployerTest, DataFlowGraphAutoDeployer_with_redundant_d
   EXPECT_EQ(redundant_logic_device_id, "0:0:2:0");
 }
 
-
-TEST_F(DataFlowGraphAutoDeployerTest, DataFlowGraphAutoDeployer_host_udf_call_nn) {
-  constexpr const char *cfg_file_name = "./deploy_info.json";
-  {
-    std::ofstream json_file(cfg_file_name);
-    std::string content = R"(
-      {
-        "batch_deploy_info": [
-          {
-            "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1:0"
-          }
-        ]
-      })";
-    json_file << content << std::endl;
-  }
-  constexpr const char *udf_pp_name = "udf_pp";
-  constexpr const char *udf_pp_config = "./host_udf_config.json";
-  {
-    nlohmann::json host_udf_cfg_json = {{"workspace", "./temp"},
-                                        {"target_bin", "libtest.so"},
-                                        {"input_num", 2},
-                                        {"output_num", 2},
-                                        {"cmakelist_path", "CMakeLists.txt"},
-                                        {"func_list", {{{"func_name", "func1"}}}}};
-    std::ofstream json_file(udf_pp_config);
-    json_file << host_udf_cfg_json << std::endl;
-  }
-  constexpr const char *invoked_graph_pp_name = "invoked_graph_pp";
-  constexpr const char *invoked_graph_pp_config = "./graph_pp_config.json";
-  {
-    nlohmann::json pp1_cfg_json = {{"inputs_tensor_desc",
-                                    {{{"shape", {1, 2, 3}}, {"data_type", "DT_INT32"}, {"format", "ND"}},
-                                     {{"shape", {1, 2, 3}}, {"data_type", "DT_INT32"}}}}};
-    std::ofstream json_file(invoked_graph_pp_config);
-    json_file << pp1_cfg_json << std::endl;
-  }
-
-  auto root_graph = BuildDataFlowGraphWithHostUdfCallNn("host_call_nn", udf_pp_name, udf_pp_config,
-                                                        invoked_graph_pp_name, invoked_graph_pp_config);
-  auto compute_graph = GraphUtilsEx::GetComputeGraph(root_graph);
-  (void)AttrUtils::SetStr(compute_graph, ATTR_NAME_SESSION_GRAPH_ID, "xxxx");
-  DataFlowGraph data_flow_graph(compute_graph);
-
-  EXPECT_EQ(data_flow_graph.Initialize(), SUCCESS);
-
-  std::map<std::string, std::string> graph_options = {{"ge.experiment.data_flow_deploy_info_path", cfg_file_name}};
-  GetThreadLocalContext().SetGraphOption(graph_options);
-  std::string cfg_path = kDeployInfoFilePrefix + cfg_file_name;
-  EXPECT_EQ(DataFlowGraphAutoDeployer::AutoDeployDataFlowGraph(data_flow_graph, cfg_path), SUCCESS);
-  EXPECT_EQ(DataFlowGraphAutoDeployer::UpdateFlowFuncDeployInfo(data_flow_graph), SUCCESS);
-  const auto &subgraph_map = data_flow_graph.GetAllSubgraphs();
-  ASSERT_EQ(subgraph_map.size(), 2);
-  for (const auto &subgraph_iter : subgraph_map) {
-    const auto &subgraph = subgraph_iter.second;
-    std::string logic_device_id;
-    EXPECT_TRUE(AttrUtils::GetStr(subgraph, ATTR_NAME_LOGIC_DEV_ID, logic_device_id));
-    if (subgraph_iter.first == udf_pp_name) {
-      EXPECT_EQ(logic_device_id, "0:0:-1:0");
-    } else {
-      EXPECT_EQ(logic_device_id, "0:0:0:0");
-    }
-  }
-
-  remove(cfg_file_name);
-  remove(udf_pp_config);
-  remove(invoked_graph_pp_config);
-}
-
 TEST_F(DataFlowGraphAutoDeployerTest, DataFlowGraphAutoDeployer_server_udf_call_nn_heavy_load) {
   setenv("RESOURCE_CONFIG_PATH", "./stub_resource_config_path.json", 0);
   constexpr const char *cfg_file_name = "./deploy_info.json";
@@ -783,64 +714,6 @@ TEST_F(DataFlowGraphAutoDeployerTest, DataFlowGraphAutoDeployer_server_udf_call_
     // heavy load compile logic device is npu, will be change when deploy
     EXPECT_EQ(logic_device_id, "0:0:1:0");
   }
-
-  remove(cfg_file_name);
-  remove(udf_pp_config);
-  remove(invoked_graph_pp_config);
-  unsetenv("RESOURCE_CONFIG_PATH");
-}
-
-TEST_F(DataFlowGraphAutoDeployerTest, DataFlowGraphAutoDeployer_server_udf_call_nn_heavy_load_assign_host) {
-  setenv("RESOURCE_CONFIG_PATH", "./stub_resource_config_path.json", 0);
-  constexpr const char *cfg_file_name = "./deploy_info.json";
-  {
-    std::ofstream json_file(cfg_file_name);
-    std::string content = R"(
-      {
-        "batch_deploy_info": [
-          {
-            "flow_node_list":["node0"],
-            "logic_device_list":"0:0:-1:0"
-          }
-        ]
-      })";
-    json_file << content << std::endl;
-  }
-  constexpr const char *udf_pp_name = "udf_pp";
-  constexpr const char *udf_pp_config = "./host_udf_config.json";
-  {
-    nlohmann::json host_udf_cfg_json = {{"workspace", "./temp"},
-                                        {"target_bin", "libtest.so"},
-                                        {"input_num", 2},
-                                        {"output_num", 2},
-                                        {"heavy_load", true},
-                                        {"cmakelist_path", "CMakeLists.txt"},
-                                        {"func_list", {{{"func_name", "func1"}}}}};
-    std::ofstream json_file(udf_pp_config);
-    json_file << host_udf_cfg_json << std::endl;
-  }
-  constexpr const char *invoked_graph_pp_name = "invoked_graph_pp";
-  constexpr const char *invoked_graph_pp_config = "./graph_pp_config.json";
-  {
-    nlohmann::json pp1_cfg_json = {{"inputs_tensor_desc",
-                                    {{{"shape", {1, 2, 3}}, {"data_type", "DT_INT32"}, {"format", "ND"}},
-                                     {{"shape", {1, 2, 3}}, {"data_type", "DT_INT32"}}}}};
-    std::ofstream json_file(invoked_graph_pp_config);
-    json_file << pp1_cfg_json << std::endl;
-  }
-
-  auto root_graph = BuildDataFlowGraphWithHostUdfCallNn("host_call_nn", udf_pp_name, udf_pp_config,
-                                                        invoked_graph_pp_name, invoked_graph_pp_config);
-  auto compute_graph = GraphUtilsEx::GetComputeGraph(root_graph);
-  (void)AttrUtils::SetStr(compute_graph, ATTR_NAME_SESSION_GRAPH_ID, "xxxx");
-  DataFlowGraph data_flow_graph(compute_graph);
-
-  EXPECT_EQ(data_flow_graph.Initialize(), SUCCESS);
-
-  std::map<std::string, std::string> graph_options = {{"ge.experiment.data_flow_deploy_info_path", cfg_file_name}};
-  GetThreadLocalContext().SetGraphOption(graph_options);
-  std::string cfg_path = kDeployInfoFilePrefix + cfg_file_name;
-  EXPECT_NE(DataFlowGraphAutoDeployer::AutoDeployDataFlowGraph(data_flow_graph, cfg_path), SUCCESS);
 
   remove(cfg_file_name);
   remove(udf_pp_config);
@@ -1313,6 +1186,31 @@ TEST_F(DataFlowGraphAutoDeployerTest, DataFlowGraphAutoDeployer_batch_deploy_con
   GetThreadLocalContext().SetGraphOption(graph_options);
   std::string cfg_path = kDeployInfoFilePrefix + cfg_file_name;
   EXPECT_EQ(DataFlowGraphAutoDeployer::AutoDeployDataFlowGraph(data_flow_graph, cfg_path), SUCCESS);
+  remove(cfg_file_name);
+}
+
+TEST_F(DataFlowGraphAutoDeployerTest, DataFlowGraphAutoDeployer_num_invalid) {
+  constexpr const char *cfg_file_name = "./deploy_info.json";
+  std::ofstream json_file(cfg_file_name);
+  std::string content = R"(
+      {
+        "batch_deploy_info": [
+          {
+            "flow_node_list":["node0", "node1"],
+            "logic_device_list":"0:-1:0"
+          }
+        ]
+      })";
+  json_file << content << std::endl;
+  json_file.close();
+  auto root_graph = std::make_shared<ComputeGraph>("test-graph");
+  DataFlowGraph data_flow_graph(root_graph);
+
+  std::map<std::string, std::string> graph_options = {{"ge.experiment.data_flow_deploy_info_path", cfg_file_name}};
+  GetThreadLocalContext().SetGraphOption(graph_options);
+  std::string cfg_path = kDeployInfoFilePrefix + cfg_file_name;
+  // not support -1
+  EXPECT_NE(DataFlowGraphAutoDeployer::AutoDeployDataFlowGraph(data_flow_graph, cfg_path), SUCCESS);
   remove(cfg_file_name);
 }
 
