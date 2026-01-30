@@ -307,6 +307,7 @@ set(COMPILER_SRC_LIST
     "graph/passes/standard_optimize/constant_folding/potential_const_taken_effect_pass.cc"
     "graph/passes/feature/recompute_pass.cc"
     "graph/passes/feature/auto_fuse_pass.cc"
+    "graph/passes/feature/algebraic_simplification_pass.cc"
     "graph/passes/variable_optimize/split_variable_into_subgraph_pass.cc"
     "graph/passes/memory_optimize/concat_notask_pass.cc"
     "graph/optimize/mem_layout_conflict_optimize/mem_layout_conflict_util.cc"

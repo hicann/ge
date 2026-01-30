@@ -335,4 +335,11 @@ graphStatus FlattenConcatPass::CanFlatten(const NodePtr &node, size_t concat_dim
          backend_spec->concat_alg, num_inputs, max_single_op_input_num);
   return ge::GRAPH_SUCCESS;
 }
+
+graphStatus FlattenConcatPass::ResolveConcatDim(const NodePtr &concat_node, size_t &concat_dim) {
+  int64_t dim;
+  GE_WARN_ASSERT(GetConcatNodeConcatDim(concat_node, dim));
+  concat_dim = static_cast<size_t>(dim);
+  return GRAPH_SUCCESS;
+}
 }  // namespace ge

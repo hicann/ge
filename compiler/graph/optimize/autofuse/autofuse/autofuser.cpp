@@ -120,7 +120,7 @@ ge::Status Autofuser::Fuse(const ge::ComputeGraphPtr &graph) const {
 
   GE_ASSERT_SUCCESS(AutofuseUtils::RemoveUnusefulCastPattern(graph));
   ge::PatternFusion patter_fusion;
-  GE_ASSERT_SUCCESS(patter_fusion.RunAllPatternFusion(graph));
+  GE_ASSERT_SUCCESS(patter_fusion.RunAllPatternFusion(graph, graph_passes_));
   GE_DUMP(graph, "AutoFuser_AfterPatternFusion");
 
   GE_ASSERT_GRAPH_SUCCESS(graph->TopologicalSorting());
@@ -175,6 +175,10 @@ ge::Status Autofuser::FuseLite(const ge::ComputeGraphPtr &graph) const {
   return ge::SUCCESS;
 }
 
+void Autofuser::SetGraphPasses(const GraphPasses &graph_passes) {
+  graph_passes_ = graph_passes;
+}
+
 extern "C" {
 ge::Status LoweringAndCanFuse(const ge::ComputeGraphPtr &graph) {
   AutofuserOptions options;
@@ -182,9 +186,11 @@ ge::Status LoweringAndCanFuse(const ge::ComputeGraphPtr &graph) {
   return autofuser.Fuse(graph);
 }
 
-ge::Status LoweringAndCanFuseWithCounter(const ge::ComputeGraphPtr &graph, CounterPtr counter) {
+ge::Status LoweringAndCanFuseWithCounter(const ge::ComputeGraphPtr &graph, CounterPtr counter,
+                                         const GraphPasses &graph_passes) {
   AutofuserOptions options;
   Autofuser autofuser(options, counter);
+  autofuser.SetGraphPasses(graph_passes);
   return autofuser.Fuse(graph);
 }
 }

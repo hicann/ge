@@ -669,6 +669,7 @@ set(GRAPH_PASS_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/compiler/graph/passes/variable_optimize/split_variable_into_subgraph_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/memory_optimize/concat_notask_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/feature/auto_fuse_pass.cc"
+    "${AIR_CODE_DIR}/compiler/graph/passes/feature/algebraic_simplification_pass.cc"
 )
 
 set(KERNEL_SRC_FILES
@@ -976,6 +977,7 @@ set(PASS_TEST_FILES
     "graph/passes/split_variable_into_subgraph_pass_unittest.cc"
     "graph/passes/concat_notask_pass_unittest.cc"
     "graph/passes/auto_fuse_pass_unittest.cc"
+    "graph/passes/algebraic_simplification_pass_unittest.cc"
     "fusion/pattern_unittest.cc"
     "fusion/fusion_utils_unittest.cc"
     "fusion/subgraph_boundary_unittest.cc"

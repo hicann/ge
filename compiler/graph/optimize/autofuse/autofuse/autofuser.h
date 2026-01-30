@@ -31,9 +31,11 @@ class Autofuser {
   Autofuser() = delete;
   ge::Status Fuse(const ge::ComputeGraphPtr &graph) const;
   ge::Status FuseLite(const ge::ComputeGraphPtr &graph) const;
+  void SetGraphPasses(const GraphPasses &graph_passes);
 
  private:
   AutofuserOptions options_;
+  GraphPasses graph_passes_;
   CounterPtr counter_ = nullptr;
 };
 

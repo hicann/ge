@@ -9,12 +9,13 @@
  */
 
 #include "graph/passes/feature/auto_fuse_pass.h"
+
+#include "op_desc_utils.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_inference.h"
 #include "graph/optimize/symbolic/codegen/guard_codegen.h"
 #include "common/checker.h"
 #include "ge_common/ge_api_error_codes.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/symbolizer/symbolic.h"
 #include "graph/ge_context.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_type_utils.h"
@@ -27,6 +28,10 @@
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
 #include "common/plugin/ge_make_unique_util.h"
+#include "graph/passes/base_pass.h"
+#include "algebraic_simplification_pass.h"
+#include "graph/passes/standard_optimize/prune_pass.h"
+#include "graph/passes/standard_optimize/constant_folding/constant_folding_pass.h"
 
 namespace ge {
 namespace {
@@ -58,25 +63,38 @@ class AutofuseCounter : public Counter {
 }  // namespace
 
 Status AutoFusePass::Run(ComputeGraphPtr graph) {
+  GE_DUMP(graph, "AutoFuser_BeforeAutoFuse");
+  GE_TRACE_START(PreProcess);
+  GE_ASSERT_SUCCESS(PreProcess(graph));
+  GE_COMPILE_TRACE_TIMESTAMP_END(PreProcess, "AutoFusePass::PreProcess::" + graph->GetName());
   SymbolicShapeInference symbolic_shape_inference;
   GE_TRACE_START(Infer);
   GE_ASSERT_SUCCESS(symbolic_shape_inference.Infer(graph));
   GE_COMPILE_TRACE_TIMESTAMP_END(Infer, "SymbolicShapeInference::Infer::" + graph->GetName());
+  GE_DUMP(graph, "AutoFuser_AfterPreprocess");
 
   auto root_graph = ge::GraphUtils::FindRootGraph(graph);
   GE_ASSERT_NOTNULL(root_graph);
   // 设置context
   ShapeEnvGuarder guarder(root_graph->GetAttrsGroup<ShapeEnvAttr>());
 
-  GE_DUMP(graph, "AutoFuser_BeforeAutoFuse");
   auto autofuse_counter = MakeUnique<AutofuseCounter>();
   GE_ASSERT_NOTNULL(autofuse_counter);
-  GE_ASSERT_SUCCESS(LoweringAndCanFuseWithCounter(graph, autofuse_counter.get()));
+
+  GraphPasses graph_passes;
+  graph_passes.prune_graph_func = [](const ComputeGraphPtr &graph) -> Status { return PrunePass().Run(graph); };
+  graph_passes.constant_folding_func = [](NodePtr &node) -> Status { return ConstantFoldingPass().Run(node); };
+  GE_ASSERT_SUCCESS(LoweringAndCanFuseWithCounter(graph, autofuse_counter.get(), graph_passes));
 
   GE_ASSERT_SUCCESS(MarkEngineAttrForAutofuseNode(graph));
   // todo: inner attrs 生命周期在自动融合结束时结束，外部只能看到公开的属性
   GE_DUMP(graph, "AutoFuser_AfterAllFuse");
 
+  return SUCCESS;
+}
+
+Status AutoFusePass::PreProcess(const ComputeGraphPtr &graph) {
+  GE_ASSERT_SUCCESS(AlgebraicSimplificationPass::Run(graph));
   return SUCCESS;
 }
 

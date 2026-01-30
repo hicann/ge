@@ -17,6 +17,9 @@
  class AutoFusePass : public GraphPass {
   public:
    Status Run(ComputeGraphPtr graph);
+
+  private:
+   static Status PreProcess(const ComputeGraphPtr &graph);
  };
  }  // namespace ge
  #endif  // GE_GRAPH_PASSES_AUTO_FUSE_PASS_H_

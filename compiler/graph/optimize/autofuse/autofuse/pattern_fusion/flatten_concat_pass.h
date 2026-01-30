@@ -22,6 +22,7 @@ class FlattenConcatPass {
  public:
   graphStatus Run(const ComputeGraphPtr &graph) const;
   static graphStatus CanFlatten(const NodePtr &node, size_t concat_dim, size_t num_inputs);
+  static graphStatus ResolveConcatDim(const NodePtr &concat_node, size_t &concat_dim);
 };
 }  // namespace ge
 

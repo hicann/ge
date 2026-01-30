@@ -18,11 +18,12 @@
 #include "redundant_slice_remove_pass.h"
 #include "gather_forward_fusion_pass.h"
 #include "pad_slice_optimize_pass.h"
+#include "concat_slice_simplification_pass.h"
 #include "pattern_fusion.h"
 
 namespace ge {
-
-graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph) const {
+graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph, const GraphPasses &graph_passes) const {
+  GE_ASSERT_GRAPH_SUCCESS(ConcatSliceSimplificationPass().Run(graph, graph_passes));
   GE_ASSERT_GRAPH_SUCCESS(PadSliceOptimizePass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(RedundantSliceRemovePass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(CascadeReshapeRemovePass().Run(graph));

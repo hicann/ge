@@ -13,11 +13,12 @@
 
 
 #include "graph/node.h"
+#include "autofuse_frame/autofuse_frames.h"
 
 namespace ge {
 class PatternFusion {
  public:
-  graphStatus RunAllPatternFusion(const ComputeGraphPtr &graph) const;
+  graphStatus RunAllPatternFusion(const ComputeGraphPtr &graph, const GraphPasses &graph_passes = {}) const;
 };
 }  // namespace ge
 

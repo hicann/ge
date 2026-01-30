@@ -17,11 +17,17 @@
 #include "graph/gnode.h"
 
 namespace ge {
+struct GraphPasses {
+  std::function<Status(const ComputeGraphPtr &)> prune_graph_func;
+  std::function<Status(NodePtr &)> constant_folding_func;
+};
+
 extern "C" {
 class Counter;
 using CounterPtr = Counter*;
 ge::Status LoweringAndCanFuse(const ge::ComputeGraphPtr &graph);
-ge::Status LoweringAndCanFuseWithCounter(const ge::ComputeGraphPtr &graph, CounterPtr counter);
+ge::Status LoweringAndCanFuseWithCounter(const ge::ComputeGraphPtr &graph, CounterPtr counter,
+                                         const GraphPasses &graph_passes = {});
 }
 class Counter {
  public:

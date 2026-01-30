@@ -534,7 +534,7 @@ Status ConcatGroupPartitioner::TryOptimizeGroupSize() {
 
 uint32_t ConcatGroupPartitioner::MaxInputNumPerGroup() const {
   constexpr uint32_t kLargeInputNum = 512;
-  constexpr uint32_t kMaxInputNum = 36U;
+  constexpr uint32_t kMaxInputNum = 32U;
   const auto min_group_size = concat_by_transpose_ ? 32U : 16U;
   const uint32_t max_input_num = (concat_dim_sizes_.size() >= kLargeInputNum) ? kMaxInputNum : min_group_size;
   return max_input_num;
