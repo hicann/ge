@@ -14,7 +14,7 @@
 #include <sys/prctl.h>
 #include <signal.h>
 #include "common/debug/ge_log.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "common/debug/log.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
 #include "graph/utils/file_utils.h"

@@ -14,7 +14,7 @@
 #include "ge/ge_api_error_codes.h"
 #include "base/err_msg.h"
 #include "common/util.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "common/config/configurations.h"
 #include "daemon/daemon_client_manager.h"
 #include "common/utils/rts_api_utils.h"

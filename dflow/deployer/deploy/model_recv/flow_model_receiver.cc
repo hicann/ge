@@ -13,7 +13,7 @@
 #include <cstring>
 #include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 
 namespace ge {
 namespace {

@@ -18,7 +18,7 @@
 #include "common/config/configurations.h"
 #include "common/mem_grp/memory_group_manager.h"
 #include "common/subprocess/subprocess_manager.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "common/data_flow/event/proxy_event_manager.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "mmpa/mmpa_api.h"

@@ -11,7 +11,7 @@
 #include "deploy/resource/resource_manager.h"
 #include "deploy/deployer/deployer_proxy.h"
 #include "common/debug/log.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "graph/ge_context.h"
 #include "deploy/resource/resource_allocator.h"
 

@@ -12,7 +12,7 @@
 #include "common/config/json_parser.h"
 #include "common/debug/log.h"
 #include "common/config/config_parser.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "common/checker.h"
 #include "framework/common/ge_types.h"
 #include "graph/ge_context.h"

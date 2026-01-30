@@ -23,7 +23,7 @@
 #include "deploy/deployer/deployer_proxy.h"
 #include "deploy/flowrm/flow_route_planner.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "deploy/resource/resource_manager.h"
 #include "deploy/flowrm/flow_route_manager.h"
 #include "deploy/resource/heterogeneous_deploy_planner.h"

@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_RUNTIME_HETEROGENEOUS_COMMON_UTILS_OS_UTILS_H_
-#define AIR_RUNTIME_HETEROGENEOUS_COMMON_UTILS_OS_UTILS_H_
+#ifndef AIR_DFLOW_BASE_UTILS_PROCESS_UTILS_H_
+#define AIR_DFLOW_BASE_UTILS_PROCESS_UTILS_H_
 
 #include <sys/types.h>
 #include "mmpa/mmpa_api.h"
@@ -36,4 +36,4 @@ class ProcessUtils {
 };
 }  // namespace ge
 
-#endif  // AIR_RUNTIME_HETEROGENEOUS_COMMON_UTILS_OS_UTILS_H_
+#endif  // AIR_DFLOW_BASE_UTILS_PROCESS_UTILS_H_

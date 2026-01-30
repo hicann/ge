@@ -28,7 +28,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/file_utils.h"
 #include "udf_attr_utils.h"
-#include "system_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "graph/utils/op_type_utils.h"
 #include "mmpa/mmpa_api.h"
 
@@ -547,7 +547,7 @@ rm -rf "$release_dir"/"$normalize_name".om
 Status UdfModelBuilder::PackReleaseWithHash(const std::string &release_pkg_path, const std::string &normalize_name) {
   std::string pack_cmd;
   GenerateTarCmd(release_pkg_path, normalize_name, true, pack_cmd);
-  GE_CHK_STATUS_RET(SystemUtils::System(pack_cmd), "Failed to execute cmd[%s].", pack_cmd.c_str());
+  GE_CHK_STATUS_RET(ProcessUtils::System(pack_cmd), "Failed to execute cmd[%s].", pack_cmd.c_str());
   // release.tar.gz include a dir udf_resource
   GELOGI("pack release with hash successfully, release_pkg_path=%s", release_pkg_path.c_str());
   return SUCCESS;
@@ -556,7 +556,7 @@ Status UdfModelBuilder::PackReleaseWithHash(const std::string &release_pkg_path,
 Status UdfModelBuilder::PackReleaseWithoutHash(const std::string &release_pkg_path, const std::string &normalize_name) {
   std::string pack_cmd;
   GenerateTarCmd(release_pkg_path, normalize_name, false, pack_cmd);
-  GE_CHK_STATUS_RET(SystemUtils::System(pack_cmd), "Failed to execute cmd[%s].", pack_cmd.c_str());
+  GE_CHK_STATUS_RET(ProcessUtils::System(pack_cmd), "Failed to execute cmd[%s].", pack_cmd.c_str());
   GELOGI("pack release without hash successfully, release_pkg_path=%s", release_pkg_path.c_str());
   return SUCCESS;
 }

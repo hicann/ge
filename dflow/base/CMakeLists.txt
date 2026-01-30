@@ -18,6 +18,7 @@ protobuf_generate(data_flow_base_proto PROTO_SRCS PROTO_HDRS ${proto_src_files} 
 set(DATA_FLOW_BASE_SRC_LIST
     ${PROTO_SRCS}
     utils/data_flow_utils.cc
+    utils/process_utils.cc
     model/flow_model.cc
     model/pne_model.cc
     model/flow_model_om_loader.cc

@@ -12,7 +12,7 @@
 #include "common/debug/log.h"
 #include "common/checker.h"
 #include "deploy/flowrm/tsd_client.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
 #include "common/mem_grp/memory_group_manager.h"
 #include "toolchain/prof_api.h"

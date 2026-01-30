@@ -10,7 +10,6 @@
 
 set(UDF_COMPILER_SRC_LIST
     "udf_attr_utils.cc"
-    "system_utils.cc"
     "udf_model_builder.cc"
     "udf_model.cc"
     "udf_process_node_engine.cc"

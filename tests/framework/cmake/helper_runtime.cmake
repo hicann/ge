@@ -85,7 +85,6 @@ set(HELPER_RUNTIME_SRC
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/caas_dataflow_auth_stub.cc
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/re_mem_group_st_stub.cc
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/process_utils_stub.cc
-    ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/system_utils_stub.cc
 )
 
 set(GRPC_RELATED_SRC

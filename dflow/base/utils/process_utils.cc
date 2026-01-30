@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/utils/process_utils.h"
+#include "process_utils.h"
 
 #include "base/err_msg.h"
 
@@ -19,11 +19,9 @@
 #include <regex>
 #include <arpa/inet.h>
 #include <net/if.h>
-#include <sys/ioctl.h>
 #include <sys/socket.h>
 #include "common/checker.h"
 #include "common/debug/ge_log.h"
-#include "common/debug/log.h"
 #include "common/ge_common/util.h"
 
 namespace ge {

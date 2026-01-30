@@ -20,7 +20,7 @@
 #include "common/profiling/profiling_manager.h"
 #include "common/profiling/profiling_init.h"
 #include "common/utils/bind_cpu_utils.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "common/utils/memory_statistic_manager.h"
 #include "common/config/device_debug_config.h"
 #include "common/profiling/command_handle.h"

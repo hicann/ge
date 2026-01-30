@@ -344,7 +344,6 @@ set(COMPILER_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/dflow/compiler/pne/udf/udf_attr_utils.cc"
     "${AIR_CODE_DIR}/dflow/compiler/pne/udf/udf_model.cc"
     "${AIR_CODE_DIR}/dflow/compiler/pne/udf/udf_model_builder.cc"
-    "${AIR_CODE_DIR}/tests/depends/helper_runtime/src/system_utils_stub.cc"
     "${SYMBOL_SHAPE_INFER_FUNCS_SRCS}"
     "${DATA_FLOW_GRAPH_SRC_FILES}"
     "${COMPILER_LINKED_PROTO_SRCS}"

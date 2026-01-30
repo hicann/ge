@@ -18,7 +18,7 @@
 #include "securec.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "common/config/configurations.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "deploy/execfwk/udf_executor_client.h"
 #include "deploy/deployer/heterogeneous_model_deployer.h"
 #include "deploy/abnormal_status_handler/device_abnormal_status_handler.h"

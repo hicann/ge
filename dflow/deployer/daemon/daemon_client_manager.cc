@@ -15,7 +15,7 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/util.h"
 #include "common/config/configurations.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 
 namespace ge {

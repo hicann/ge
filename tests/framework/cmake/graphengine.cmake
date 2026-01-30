@@ -129,7 +129,6 @@ file(GLOB_RECURSE GE_SRCS CONFIGURE_DEPENDS
     "${AIR_CODE_DIR}/dflow/compiler/pne/udf/*.cc"
     "${AIR_CODE_DIR}/dflow/compiler/session/*.cc"
     "${AIR_CODE_DIR}/dflow/executor/*.cc"
-    "${AIR_CODE_DIR}/tests/depends/helper_runtime/src/system_utils_stub.cc"
     "${AIR_CODE_DIR}/runtime/v1/*.cc"
     "${AIR_CODE_DIR}/api/session/*.cc"
 )

@@ -648,6 +648,14 @@ INT32 mmUmask(INT32 pmode) {
   return 0;
 }
 
+mmSockHandle mmSocket(INT32 sockFamily, INT32 type, INT32 protocol) {
+  return EN_ERROR;
+}
+
+INT32 mmIoctl(mmProcess fd, INT32 ioctlCode, mmIoctlBuf *bufPtr) {
+  return 0;
+}
+
 ge::MmpaStub& ge::MmpaStub::GetInstance() {
   static ge::MmpaStub instance;
   return instance;

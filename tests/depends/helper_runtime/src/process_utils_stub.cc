@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include <unistd.h>
 #include <cstdlib>
 #include <regex>

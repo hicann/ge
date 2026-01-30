@@ -15,7 +15,7 @@
 #include "common/mem_grp/memory_group_manager.h"
 #include "common/subprocess/subprocess_manager.h"
 #include "common/utils/rts_api_utils.h"
-#include "common/utils/process_utils.h"
+#include "dflow/base/utils/process_utils.h"
 #include "common/utils/bind_cpu_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
