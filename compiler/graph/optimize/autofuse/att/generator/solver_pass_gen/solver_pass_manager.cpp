@@ -195,8 +195,8 @@ std::pair<std::string, std::string> SolverPassManager::L2SolverPassFuncGen() {
 
 template<typename SpecificSolverGen>
 std::pair<std::string, std::string> SolverPassManager::GenerateSolverPassFunc(SpecificSolverGen solver_gen) {
-  std::string impl_codes = "";
-  std::string invoke_codes = "";
+  std::string impl_codes;
+  std::string invoke_codes;
   std::pair<std::string, std::string> codes;
   std::vector<Expr> l0_args = GetL0Args(args_manager_);
   std::vector<Expr> l2_args = args_manager_.GetSearchableVars(HardwareDef::L2);
@@ -428,12 +428,12 @@ std::string SolverPassManager::GenCommonBaseClassesFunc(std::vector<ArgsManager>
   return base_classes;
 }
 
-std::string SolverPassManager::GenAxesReorderBaseClassesHead() {
-  return GetAxesReorderSolverHead();
+std::string SolverPassManager::GenAxesReorderBaseClassesHead(bool enable_equal_order_tiling) {
+  return GetAxesReorderSolverHead(enable_equal_order_tiling);
 }
 
-std::string SolverPassManager::GenAxesReorderBaseClassesFunc() {
-  return GetAxesReorderSolverFunc();
+std::string SolverPassManager::GenAxesReorderBaseClassesFunc(bool enable_equal_order_tiling) {
+  return GetAxesReorderSolverFunc(enable_equal_order_tiling);
 }
 
 std::string SolverPassManager::GenAxesReorderPgoClassesHead(int64_t pgo_step_max) {
@@ -469,11 +469,12 @@ void SolverPassManager::InitSolverGen(AxesReorderSolverGen &solver_gen) {
   solver_gen.SetEnableAutofusePGO(enable_autofuse_pgo_);
   solver_gen.SetAutofusePGOStepMax(pgo_step_max_);
   solver_gen.SetHighPerfTiling(enable_high_perf_);
+  solver_gen.SetEnableEqualOrder(enable_equal_order_);
   solver_gen.Arrange();
-  solver_gen.SetInputOutputDef(input_output_def_);
-  solver_gen.SetInputOutputCall(input_output_call_);
-  solver_gen.SetTilingDataSubGroupItemName(tiling_data_sub_group_item_name_);
-  solver_gen.SetIsUniGroup(is_uniq_group_);
+  solver_gen.SetInputOutputDef(GetInputOutputDef());
+  solver_gen.SetInputOutputCall(GetInputOutputCall());
+  solver_gen.SetTilingDataSubGroupItemName(GetTilingDataSubGroupItemName());
+  solver_gen.SetIsUniGroup(GetIsUniGroup());
   solver_gen.SetTilingScheduleConfigTable(args_manager_.GetModelInfo().tiling_schedule_config_table);
   solver_gen.SetCacheLineConfig(&args_manager_.GetModelInfo().cache_line_config);
   solver_gen.SetEnableParallel(args_manager_.GetModelInfo().enable_group_parallel);
@@ -481,6 +482,7 @@ void SolverPassManager::InitSolverGen(AxesReorderSolverGen &solver_gen) {
                                  args_manager_.GetModelInfo().tiling_case_id,
                                  args_manager_.GetModelInfo().sub_case_tag});
   solver_gen.SetModelEnableMulticoreUBTradeoff(args_manager_.GetModelInfo().enable_ub_mc_tradeoff);
+  GELOGD("[DFX]Set %s to axes reorder solver gen", DebugString().c_str());
 }
 
 AxesReorderSolverGen SolverPassManager::GenAxesReorderGen() {

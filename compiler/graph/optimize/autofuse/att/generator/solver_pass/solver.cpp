@@ -34,12 +34,12 @@ std::string GetSolverFunc(SolverType type) {
   return "";
 }
 
-std::string GetAxesReorderSolverHead() {
-  return AXES_SOLVER_CODE_HEAD;
+std::string GetAxesReorderSolverHead(bool enable_equal_order_tiling) {
+  return GetAxesSolverSolverHead(enable_equal_order_tiling);
 }
 
-std::string GetAxesReorderSolverFunc() {
-  return AXES_SOLVER_CODE_FUNC;
+std::string GetAxesReorderSolverFunc(bool enable_equal_order_tiling) {
+  return GetAxesSolverSolverFunc(enable_equal_order_tiling);
 }
 
 std::string GetAxesReorderPgoSolverHead(int64_t pgo_step_max) {

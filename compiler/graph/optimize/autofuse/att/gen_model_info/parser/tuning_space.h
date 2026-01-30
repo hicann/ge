@@ -272,6 +272,7 @@ struct TuningSpace {
   Expr builtin_tmp_buffer; // kernel内部申请的tmp buffer（这部分会在计算UB Size的时候使用，但不需要申请TilingData）
   vector<CacheLineConfig> *cache_line_config{nullptr};
   const TilingScheduleConfigTable *tiling_schedule_config_table{nullptr};
+  const ge::AscGraph *asc_graph{nullptr};
 };
 using TuningSpacePtr = std::shared_ptr<TuningSpace>;
 } // namespace att

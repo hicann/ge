@@ -140,7 +140,7 @@ Status AttStrategyConfig::Init() {
 }
 
 Status AttStrategyConfig::Reset() {
-  initialized_ = false;
+  *this = AttStrategyConfig();
   return ge::SUCCESS;
 }
 

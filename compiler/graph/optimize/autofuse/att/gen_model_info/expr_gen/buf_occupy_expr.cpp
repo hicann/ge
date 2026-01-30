@@ -100,7 +100,7 @@ ge::Status BufOccupyExpr::GetOccupInContainer(ContainerPtr &container, Expr &occ
   if (IsValid(buffer_num_expr)) {
     occup_total = ge::sym::Mul(occup_per_tensor, buffer_num_expr);
   }
-  GELOGD("Get container [%s] occupy : occup_per_tensor[%s], occup_total[%s]", container->name.c_str(),
+  GELOGD("[DFX]Get container [%s] occupy : occup_per_tensor[%s], occup_total[%s]", container->name.c_str(),
          occup_per_tensor.Str().get(), occup_total.Str().get());
   return ge::SUCCESS;
 }

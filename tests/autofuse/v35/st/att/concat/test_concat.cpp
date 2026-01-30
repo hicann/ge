@@ -140,8 +140,6 @@ Status BuildConcatGroupAscendGraphS0WithVectorFunc(ge::AscGraph &graph) {
 Status BuildConcatGroupAscendGraphS0WithVectorFuncV1(ge::AscGraph &graph) {
   auto S0 = ge::Symbol("S0");
   auto z0 = graph.CreateAxis("z0", S0);
-//  auto [z0B, z0b] = graph.BlockSplit(z0.id);
-//  auto [z0bT, z0bt] = graph.TileSplit(z0b->id);
   auto [z0T, z0t] = graph.TileSplit(z0.id);
   auto [z0TB, z0Tb] = graph.BlockSplit(z0T->id);
   auto data1 = graph.CreateContiguousData("input1", DT_FLOAT, {z0});

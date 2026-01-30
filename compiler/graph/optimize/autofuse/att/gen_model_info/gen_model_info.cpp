@@ -41,7 +41,7 @@ const std::string kModelInfoFilePath = "./";
 
 ge::Status GenerateModelInfo(const ge::AscGraph &graph, ModelInfo &model_info, TuningSpacePtr &tuning_space,
                              const uint32_t tiling_case_id) {
-  GELOGI("Begin to generate model info for graph %s of tiling case id %u", graph.GetName().c_str(), tiling_case_id);
+  GELOGI("[DFX]Begin to generate model info for graph %s of tiling case id %u", graph.GetName().c_str(), tiling_case_id);
   DURATION_GUARD(DurationType::DURATION_GEN_MODEL_INFO);
   model_info.tiling_case_id = tiling_case_id;
   // step1: get tuningspace from compute graph
@@ -67,7 +67,7 @@ ge::Status GenerateModelInfo(const ge::AscGraph &graph, ModelInfo &model_info, T
       att_config.config_value.insert(config);
     }
   }
-  GELOGD("Exe passes success.");
+  GELOGI("[DFX]End to generate model info for graph %s of tiling case id %u", graph.GetName().c_str(), tiling_case_id);
   return ge::SUCCESS;
 }
 
@@ -343,6 +343,51 @@ ge::Status GetAllSubImplGraphs(const ascir::FusedScheduledResult &schedule_resul
   return ge::SUCCESS;
 }
 
+namespace {
+ge::Status ProcessAndSetScheduleGroupInfo(
+    const std::vector<std::vector<ge::AscGraph>> &schedule_groups,
+    const std::map<std::string, std::string> &all_graph_score_funcs,
+    const ascir::FusedScheduledResult &schedule_results,
+    const std::map<std::string, std::string> &options,
+    att::ParsedScheduleResult &out_schedule_groups,
+    size_t asc_graph_id, size_t impl_graph_id) {
+  // 第三层表示schedule_group_id
+  for (size_t schedule_group_id = 0UL; schedule_group_id < schedule_groups.size(); schedule_group_id++) {
+    auto &model_info_list = out_schedule_groups.groups_tiling_model_info[schedule_group_id];
+    GELOGI(
+        "[DFX]Begin to gen model info for asc graph %zu, schedule result %zu, schedule group %zu, tiling_case size "
+        "%zu, graph name %s.",
+        asc_graph_id, impl_graph_id, schedule_group_id, schedule_groups[schedule_group_id].size(),
+        !schedule_groups[schedule_group_id].empty() ? schedule_groups[schedule_group_id][0].GetName().c_str()
+                                                    : "null");
+    GE_ASSERT_SUCCESS(GenerateModelInfo(schedule_groups[schedule_group_id], model_info_list, options,
+                                        out_schedule_groups.enable_group_parallel),
+                      "Get model info failed, impl graph id = %ld, group id = %ld.", impl_graph_id,
+                      schedule_group_id);
+    for (auto &model_info : model_info_list) {
+      model_info.schedule_group_ident.asc_graph_id = asc_graph_id;
+      model_info.schedule_group_ident.impl_graph_id = impl_graph_id;
+      model_info.schedule_group_ident.group_id = schedule_group_id;
+      model_info.input_nodes = schedule_results.input_nodes;
+      model_info.output_nodes = schedule_results.output_nodes;
+      auto it = all_graph_score_funcs.find(model_info.graph_name);
+      if (it != all_graph_score_funcs.end()) {
+        model_info.score_func = it->second;
+      }
+    }
+    const auto &ident = model_info_list[0].schedule_group_ident;
+    GELOGI("[DFX]End to gen model info for %s tiling_case size %zu, graph name %s.", ident.GetItemPrefix().c_str(),
+           schedule_groups[schedule_group_id].size(),
+           !schedule_groups[schedule_group_id].empty() ? schedule_groups[schedule_group_id][0].GetName().c_str()
+                                                       : "null");
+    GE_ASSERT_SUCCESS(ReuseGroupUtils::InitReuseScheduleGroup(ident, model_info_list),
+                      "Init reuse schedule group failed, impl_graph_id[%zu], group_ident[%s].", impl_graph_id,
+                      ident.GetItemPrefix().c_str());
+  }
+  return ge::SUCCESS;
+}
+}
+
 ge::Status GetModelInfoMap(const ascir::FusedScheduledResult &schedule_results,
                            const std::map<std::string, std::string> &options,
                            FusedParsedScheduleResult &out_all_model_infos) {
@@ -367,33 +412,8 @@ ge::Status GetModelInfoMap(const ascir::FusedScheduledResult &schedule_results,
       out_schedule_groups.asc_graph_id = asc_graph_id;
       out_schedule_groups.impl_graph_id = impl_graph_id;
       out_schedule_groups.var_relations = schedule_results.node_idx_to_scheduled_results[asc_graph_id][impl_graph_id].var_relations;
-      // 第三层表示schedule_group_id
-      for (size_t schedule_group_id = 0UL; schedule_group_id < schedule_groups.size(); schedule_group_id++) {
-        auto &model_info_list = out_schedule_groups.groups_tiling_model_info[schedule_group_id];
-        GELOGI(
-            "Begin to gen model info for asc graph %zu, schedule result %zu, schedule group %zu, tiling_case size %zu, "
-            "graph name %s.",
-            asc_graph_id, impl_graph_id, schedule_group_id, schedule_groups[schedule_group_id].size(),
-            !schedule_groups[schedule_group_id].empty() ? schedule_groups[schedule_group_id][0].GetName().c_str()
-                                                        : "null");
-        GE_ASSERT_SUCCESS(GenerateModelInfo(schedule_groups[schedule_group_id], model_info_list, options,
-                                            out_schedule_groups.enable_group_parallel),
-                          "Get model info failed, impl graph id = %ld, group id = %ld.", impl_graph_id,
-                          schedule_group_id);
-        for (auto &model_info : model_info_list) {
-          model_info.schedule_group_ident.asc_graph_id = asc_graph_id;
-          model_info.schedule_group_ident.impl_graph_id = impl_graph_id;
-          model_info.schedule_group_ident.group_id = schedule_group_id;
-          model_info.input_nodes = schedule_results.input_nodes;
-          model_info.output_nodes = schedule_results.output_nodes;
-          model_info.score_func = all_graph_score_funcs[model_info.graph_name];
-        }
-        const auto &ident = model_info_list[0].schedule_group_ident;
-        GELOGD("Group identifier prefix: [%s].", ident.GetItemPrefix().c_str());
-        GE_ASSERT_SUCCESS(ReuseGroupUtils::InitReuseScheduleGroup(ident, model_info_list),
-                          "Init reuse schedule group failed, impl_graph_id[%zu], group_ident[%s].", impl_graph_id, 
-                          ident.GetItemPrefix().c_str());
-      }
+      GE_ASSERT_SUCCESS(ProcessAndSetScheduleGroupInfo(schedule_groups, all_graph_score_funcs, schedule_results,
+                                                       options, out_schedule_groups, asc_graph_id, impl_graph_id));
     }
   }
   // 合并所有可以复用的group

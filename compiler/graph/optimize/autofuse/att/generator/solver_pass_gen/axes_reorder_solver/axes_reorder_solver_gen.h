@@ -19,29 +19,28 @@
 #include "generator/solver_pass_gen/solver_gen.h"
 #include "gen_model_info/api_perf_register/perf_param.h"
 #include "autofuse_config/auto_fuse_config.h"
+#include "generator/solver_pass_gen/input_output_setters.h"
+#include "generator/solver_pass_gen/input_output_setters_mixin.h"
+
 namespace att {
-  enum class ConsType
-  {
+  enum class ConsType {
     BUFFER = 0,
     CUT = 1,
     MCMIXED = 2,
     ALL = 3,
   };
 
-  enum class InputType
-  {
+  enum class InputType {
     INPUT = 0,
     TILING = 1,
   };
 
-  enum class VarsType
-  {
+  enum class VarsType {
     PUREMC = 0,
     LOCALBUFFER = 1,
   };
 
-  class AxesReorderSolverGen : public SolverGen
-  {
+  class AxesReorderSolverGen : public SolverGen, public InputOutputSettersMixin<AxesReorderSolverGen> {
   public:
     explicit AxesReorderSolverGen(const std::string &tiling_case_id, const std::string &type_name)
         : SolverGen(tiling_case_id, type_name) {}
@@ -122,20 +121,11 @@ namespace att {
     void SetHighPerfTiling(const bool enable_high_perf) {
       enable_high_perf_ = enable_high_perf;
     }
+    void SetEnableEqualOrder(const bool enable_equal_order) {
+      enable_equal_order_ = enable_equal_order;
+    }
     void SetSearchArgs(const std::vector<Expr> &search_args) {
       search_args_ = search_args;
-    }
-    void SetInputOutputDef(std::string input_output_def) {
-      input_output_def_ = input_output_def;
-    }
-    void SetInputOutputCall(std::string input_output_call) {
-      input_output_call_ = input_output_call;
-    }
-    void SetTilingDataSubGroupItemName(std::string item_name) {
-      tiling_data_sub_group_item_name_ = item_name;
-    }
-    void SetIsUniGroup(bool is_uniq_group) {
-      is_uniq_group_ = is_uniq_group;
     }
     void SetArrangeCode(const std::string &arrange_code) {
       arrange_code_ = arrange_code;
@@ -152,6 +142,7 @@ namespace att {
     void SetTilingCaseIdent(TilingCaseIdent tiling_case_ident) {
       tiling_case_ident_ = tiling_case_ident;
     }
+
   private:
     static bool VarCmp(Expr &a, Expr &b);
     void ReorderVars();
@@ -228,10 +219,7 @@ namespace att {
     bool enable_autofuse_pgo_{false};
     int64_t pgo_step_max_{16};
     bool enable_high_perf_{false};
-    std::string input_output_def_;
-    std::string input_output_call_;
-    std::string tiling_data_sub_group_item_name_;
-    bool is_uniq_group_{true};  // 表示是否是唯一的ScheduleGroup，大部分场景不会切分成多个ScheduleGroup，所以默认为true
+    bool enable_equal_order_{false};
     std::string arrange_code_;
     const TilingScheduleConfigTable *tiling_schedule_config_table_{nullptr};
     const vector<CacheLineConfig> *cache_line_config_ {nullptr};

@@ -206,6 +206,7 @@ file(GLOB SOURCES
     ${ATT_DIR}/generator/*.cpp
     ${ATT_DIR}/generator/preprocess/*.cpp
     ${ATT_DIR}/generator/solver_pass/*.cpp
+    ${ATT_DIR}/generator/solver_pass/axes_reorder_solver_code/*.cpp
     ${ATT_DIR}/generator/solver_pass_gen/*.cpp
     ${ATT_DIR}/generator/solver_pass_gen/axes_reorder_solver/*.cpp
     ${ATT_DIR}/generator/solver_pass_gen/general_solver/*.cpp
@@ -251,6 +252,7 @@ target_include_directories(att PRIVATE
         ${ATT_DIR}/common_utils
         ${ATT_DIR}/generator
         ${ATT_DIR}/generator/preprocess
+        ${ATT_DIR}/generator/solver_pass
         ${ATT_DIR}/generator/solver_pass_gen
         ${ATT_DIR}/ascir
         ${ATT_DIR}/ascir/generator

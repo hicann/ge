@@ -18,8 +18,8 @@
 namespace att {
 std::string GetSolverHead(SolverType type);
 std::string GetSolverFunc(SolverType type);
-std::string GetAxesReorderSolverHead();
-std::string GetAxesReorderSolverFunc();
+std::string GetAxesReorderSolverHead(bool enable_equal_order_tiling = false);
+std::string GetAxesReorderSolverFunc(bool enable_equal_order_tiling = false);
 std::string GetAxesReorderPgoSolverHead(int64_t pgo_step_max);
 std::string GetAxesReorderPgoSolverFunc();
 }

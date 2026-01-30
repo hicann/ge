@@ -461,7 +461,7 @@ ge::Status AscendGraphParser::ParseTensorDims(TensorPtr &tensor, ge::AscTensorAt
   SetContinuesStrides(tensor, tensor_attr);
   GE_ASSERT_TRUE(tensor->stride.size() == tensor->dim_info.size(), "Tenosr [%s] stride num[%lu] not equal to dim info num[%lu].", tensor->name.c_str(),
             tensor->stride.size(), tensor->dim_info.size());
-  GELOGD("parse tensor %s(%s): repeats [%s], gm_stride [%s], stride [%s]", tensor->name.c_str(),
+  GELOGD("[DFX]parse tensor %s(%s): repeats [%s], gm_stride [%s], stride [%s]", tensor->name.c_str(),
          tensor->node_type.c_str(), GetVecString(tensor->repeat).c_str(), GetVecString(tensor->gm_stride).c_str(),
          GetVecString(tensor->stride).c_str());
   return ge::SUCCESS;
@@ -787,7 +787,7 @@ ge::Status AscendGraphParser::ConvertNodeInfos(const ge::AscNodePtr &ge_node, co
   node_info.sub_nodes_infos = vector_function_graph_parser.GetNodesInfos();
   // 解析ge_node, 设置到node_info中的sub_nodes_infos
   tuning_space_->node_infos.push_back(node_info);
-  GELOGD("Parse %s, use_cache_flag %d", node_info.DebugString().c_str(), use_cache_flag);
+  GELOGD("[DFX]Parse %s, use_cache_flag %d", node_info.DebugString().c_str(), use_cache_flag);
   return ge::SUCCESS;
 }
 
@@ -882,6 +882,7 @@ ge::Status AscendGraphParser::ConvertToTuningSpace(const ge::AscGraph &graph) {
     GELOGI("Axis id[%lu], info [%s]", pair.first, pair.second->ToString().c_str());
     tuning_space_->sub_axes.emplace_back(std::move(pair.second));
   }
+  tuning_space_->asc_graph = &graph;
   return ge::SUCCESS;
 }
 

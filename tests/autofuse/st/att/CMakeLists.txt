@@ -65,6 +65,7 @@ target_include_directories(att_st PRIVATE
         ${ATT_DIR}/common_utils
         ${ATT_DIR}/generator
         ${ATT_DIR}/generator/preprocess
+        ${ATT_DIR}/generator/solver_pass
         ${ATT_DIR}/generator/solver_pass_gen
         ${ATT_DIR}/gen_model_info
         ${ATT_DIR}/sample/depends/fake

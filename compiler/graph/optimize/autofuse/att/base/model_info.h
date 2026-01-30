@@ -223,6 +223,7 @@ struct ModelInfo {
   std::vector<Expr> sizes{}; // 图原始Sizes信息
   vector<CacheLineConfig> cache_line_config; // ub->gm/gm->ub节点的cache配置信息
   const TilingScheduleConfigTable *tiling_schedule_config_table{nullptr};
+  bool is_enable_equal_order_tiling{false}; // 使能等order tiling算法
 };
 
 using TilingModelInfo = std::vector<ModelInfo>;

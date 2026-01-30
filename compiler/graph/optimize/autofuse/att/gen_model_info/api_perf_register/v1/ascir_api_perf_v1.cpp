@@ -46,7 +46,9 @@ ge::Status CopyPerf(const std::string &op_type, uint32_t data_type_size, const s
                     const Expr &dim_product, Expr &res) {
   GE_ASSERT_TRUE(!dims.empty());
   Expr data_size = Mul(dim_product, CreateExpr(data_type_size));
-  auto cycles = Div(data_size, kBandwidthMap.at(op_type));
+  auto it = kBandwidthMap.find(op_type);
+  GE_ASSERT_TRUE(it != kBandwidthMap.end(), "Op_type[%s] not found in kBandwidthMap", op_type.c_str());
+  auto cycles = Div(data_size, it->second);
   Expr dens = Sub(Mul(dims.back(), kInitA), kInitB);
   if (dens == 0) {
     dens = CreateExpr(1);
@@ -68,7 +70,9 @@ ge::Status MoveGmtoL1Api([[maybe_unused]] const std::vector<TensorShapeInfo> &in
   Expr dim_product = accumulate(dims.begin(), dims.end(), CreateExpr(1), [](Expr a, Expr b) { return Mul(a, b); });
   GE_ASSERT_TRUE(!dims.empty());
   Expr data_size = Mul(dim_product, CreateExpr(data_type_size));
-  auto cycles = Div(data_size, kBandwidthMap.at(kMoveGmToL1));
+  auto it = kBandwidthMap.find(kMoveGmToL1);
+  GE_ASSERT_TRUE(it != kBandwidthMap.end(), "kMoveGmToL1 not found in kBandwidthMap");
+  auto cycles = Div(data_size, it->second);
   cycles = Add(cycles, kNd2NzStartCost);
   Expr dens = Sub(Mul(dims.back(), kInitA), kInitB);
   if (dens == 0) {
@@ -97,7 +101,9 @@ ge::Status MovefromL1Perf(const std::string &op_type, uint32_t data_type_size, c
   GE_ASSERT_TRUE(!dims.empty());
   Expr dim_product = accumulate(dims.begin(), dims.end(), CreateExpr(1), [](Expr a, Expr b) { return Mul(a, b); });
   Expr data_size = Mul(dim_product, CreateExpr(data_type_size));
-  auto cycles = Div(data_size, kBandwidthMap.at(op_type));
+  auto it = kBandwidthMap.find(op_type);
+  GE_ASSERT_TRUE(it != kBandwidthMap.end(), "Op_type[%s] not found in kBandwidthMap", op_type.c_str());
+  auto cycles = Div(data_size, it->second);
   cycles = Add(cycles, kMte1StartCost);
   Expr dens = Sub(Mul(dims.back(), kInitA), kInitB);
   if (dens == 0) {

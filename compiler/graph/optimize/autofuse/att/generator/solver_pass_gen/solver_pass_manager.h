@@ -21,6 +21,8 @@
 #include "generator/solver_pass_gen/l2_solver/l2_solver_gen.h"
 #include "util/base_types_printer.h"
 #include "autofuse_config/auto_fuse_config.h"
+#include "generator/solver_pass_gen/input_output_setters.h"
+#include "generator/solver_pass_gen/input_output_setters_mixin.h"
 
 namespace att
 {
@@ -28,7 +30,8 @@ namespace att
     uint32_t case_id;
     std::string sub_case_tag = "";
   };
-  class SolverPassManager
+
+  class SolverPassManager : public InputOutputSettersMixin<SolverPassManager>
   {
   public:
    SolverPassManager(ArgsManager args_manager, CaseIdInfo case_id_info, const std::string &type_name)
@@ -38,9 +41,9 @@ namespace att
     static std::string GenCommonBaseClassesFunc(std::vector<ArgsManager> args_managers);
     std::string GenClassPass();
     std::pair<std::string, std::string> GenFuncPass(bool force_search = false);
-    
-    static std::string GenAxesReorderBaseClassesHead();
-    static std::string GenAxesReorderBaseClassesFunc();
+
+    static std::string GenAxesReorderBaseClassesHead(bool enable_equal_order_tiling);
+    static std::string GenAxesReorderBaseClassesFunc(bool enable_equal_order_tiling);
     static std::string GenAxesReorderPgoClassesHead(int64_t pgo_step_max);
     static std::string GenAxesReorderPgoClassesFunc();
     std::string GenAxesReorderClass();
@@ -69,21 +72,10 @@ namespace att
     void SetHighPerfTiling(bool enable_high_perf) {
       enable_high_perf_ = enable_high_perf;
     }
-    void SetInputOutputDef(std::string input_output_def) {
-      input_output_def_ = input_output_def;
+    void SetEnableEqualOrder(bool enable_equal_order) {
+      enable_equal_order_ = enable_equal_order;
     }
-    void SetInputOutputCall(std::string input_output_call) {
-      input_output_call_ = input_output_call;
-    }
-    void SetTilingDataSubGroupItemName(std::string item_name) {
-      tiling_data_sub_group_item_name_ = item_name;
-    }
-    void SetIsUniGroup(bool is_uniq_group) {
-      is_uniq_group_ = is_uniq_group;
-    }
-    void SetHasHeavyOp(bool has_heavy_op) {
-      has_heavy_op_ = has_heavy_op;
-    }
+
   private:
     // solver pass
     static bool CheckArgExist(const Expr &new_arg, const std::vector<Expr> &args);
@@ -118,6 +110,22 @@ namespace att
     std::pair<std::string, std::string> GeneralSolverDtFuncGen();
 
     void AddConcatInnerDims(const Expr &arg, std::vector<Expr> &concat_inner_dims);
+    std::string DebugString() const {
+      std::stringstream ss;
+      ss << "EnableTradeOff: " << enable_multicore_ub_tradeoff_
+         << " EnableAutofusePGO: " << enable_autofuse_pgo_
+         << " PGO Step Max: " << pgo_step_max_
+         << " HighPerfTiling: " << enable_high_perf_
+         << " EnableEqualOrder: " << enable_equal_order_
+         << " ReservedUbSize: " << reserved_ub_size_.Serialize().get()
+         << " CoreNumThreshold: " << corenum_threshold_
+         << " UBThreshold: " << ub_threshold_
+         << " TilingDataSubName: " << GetTilingDataSubGroupItemName()
+         << " CaseId: " << case_id_
+         << " SubCaseTag: " << sub_case_tag_
+         << std::endl;
+      return ss.str();
+    }
 
     ArgsManager args_manager_;
     uint32_t case_id_;
@@ -128,14 +136,10 @@ namespace att
     int64_t pgo_step_max_{16};
     bool do_variable_replace_{false};
     bool enable_high_perf_{false};
+    bool enable_equal_order_{false};
     double ub_threshold_{0.5};
     Expr reserved_ub_size_{CreateExpr(0)};
     double corenum_threshold_{0.4};
-    std::string input_output_def_;
-    std::string input_output_call_;
-    std::string tiling_data_sub_group_item_name_;
-    bool is_uniq_group_{true};  // 表示是否是唯一的ScheduleGroup，大部分场景不会切分成多个ScheduleGroup，所以默认为true
-    bool has_heavy_op_{false};
   };
 } // namespace att
 #endif

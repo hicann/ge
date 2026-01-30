@@ -36,4 +36,26 @@ bool AttUtils::IsStoreNode(ge::AscNode *node) {
 bool AttUtils::IsLoadStoreNode(ge::AscNode *node) {
   return IsLoadNode(node) || IsStoreNode(node);
 }
+
+bool AttUtils::IsTileSplitAxis(const AttAxisPtr &axis) {
+  return (axis->axis_pos == AxisPosition::INNER) && (!axis->bind_multicore);
+}
+
+bool AttUtils::GetLastTileSplitAxisName(ge::AscNode &node, const ge::AscGraph &graph, std::string &axis_name) {
+  if (node.outputs().empty()) {
+    return false;
+  }
+  const auto &node_attr = node.outputs[0].attr;
+  if (node_attr.axis.empty()) {
+    return false;
+  }
+  const auto &last_axis_id = node_attr.axis.back();
+  for (const auto &axis : graph.GetAllAxis()) {
+    if (axis->id == last_axis_id) {
+      axis_name = axis->name;
+      return true;
+    }
+  }
+  return false;
+}
 }  // namespace att

@@ -1137,6 +1137,7 @@ static TilingOption tiling_option_default{};
  ge::Status TilingCodeGenImpl::GenCommonFrameWork() {
    GE_ASSERT_SUCCESS(GenToolFuncs(), "Generate tool funcs failed.");
    GE_ASSERT_SUCCESS(GenCommonStruct());
+   GE_ASSERT_TRUE(!tiling_model_info_.empty(), "Tiling model info should not be empty.");
    GE_ASSERT_SUCCESS(GenSolverBaseClass(), "Generate base class failed.");
    return ge::SUCCESS;
  }

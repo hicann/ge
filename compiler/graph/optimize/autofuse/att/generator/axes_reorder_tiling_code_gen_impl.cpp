@@ -12,12 +12,54 @@
 #include "args_manager.h"
 #include "solver_pass_manager.h"
 #include "common/checker.h"
+#include <map>
+#include <vector>
+#include "base/model_info.h"
+#include "att_utils.h"
 
 namespace att {
+namespace  {
+constexpr int32_t kMaxEqualOrderAxesCount = 2;
+bool IsEnableEqualOrderTiling(const ModelInfo &model_info) {
+  std::map<size_t, std::vector<std::string>> order_to_axes;
+  for (const auto &arg : model_info.arg_list) {
+    if (AttUtils::IsTileSplitAxis(arg)) {
+      order_to_axes[arg->order].push_back(arg->name);
+    }
+  }
+
+  for (const auto &pair : order_to_axes) {
+    const std::vector<std::string> &axes = pair.second;
+    size_t count = axes.size();
+    GE_WARN_ASSERT(
+        count <= kMaxEqualOrderAxesCount,
+        "[DFX]Equal order tiling algorithm does not support more than %d split axes with same order value, count[%zu]",
+        kMaxEqualOrderAxesCount,
+        count);
+    if (count >= kMaxEqualOrderAxesCount) {
+      GELOGI("[DFX]Equal order tiling algorithm enabled for axes: %s, model: %s", DebugString(axes).c_str(),
+             model_info.graph_name.c_str());
+      return true;
+    }
+  }
+  GELOGI("[DFX]Equal order tiling algorithm disabled for model: %s", model_info.graph_name.c_str());
+  return false;
+}
+
+bool IsAnyModelEnableEqualOrderTiling(const TilingModelInfo &model_info) {
+  for (const auto &info : model_info) {
+    if (IsEnableEqualOrderTiling(info)) {
+      return true;
+    }
+  }
+  return false;
+}
+}
 ge::Status AxesReorderTilingCodeGenImpl::GenSolverBaseClass() {
-  std::string basic_solvers_head = SolverPassManager::GenAxesReorderBaseClassesHead();
+  const bool is_enable_equal_order_tiling = IsAnyModelEnableEqualOrderTiling(tiling_model_info_);
+  std::string basic_solvers_head = SolverPassManager::GenAxesReorderBaseClassesHead(is_enable_equal_order_tiling);
   tiling_head_.AddLine(basic_solvers_head);
-  std::string basic_solvers_func = SolverPassManager::GenAxesReorderBaseClassesFunc();
+  std::string basic_solvers_func = SolverPassManager::GenAxesReorderBaseClassesFunc(is_enable_equal_order_tiling);
   tiling_func_.AddLine(basic_solvers_func);
   if (config_.enable_autofuse_pgo) {
     std::string pgo_solver_head = SolverPassManager::GenAxesReorderPgoClassesHead(config_.pgo_step_max);
@@ -55,6 +97,8 @@ ge::Status AxesReorderTilingCodeGenImpl::GenDoTiling(const ModelInfo &model_info
   solver_pass_manager.SetAutofusePGOStepMax(config_.pgo_step_max);
   solver_pass_manager.SetVariableReplace(config_.do_variable_replace);
   solver_pass_manager.SetHighPerfTiling(config_.high_precision);
+  solver_pass_manager.SetEnableEqualOrder(IsEnableEqualOrderTiling(model_info));
+
   GenGetSetTilingImpl(model_info);
   solver_pass_manager.SetInputOutputDef(GenLaunchLikeInputOutputDef());
   solver_pass_manager.SetInputOutputCall(GenLaunchLikeInputOutputDef(false));
@@ -130,7 +174,9 @@ ge::Status AxesReorderTilingCodeGenImpl::GenGetObj(const ModelInfo &model_info) 
   return ge::SUCCESS;
 }
 
-ge::Status AxesReorderTilingCodeGenImpl::GenExtraSummaryInfo(const ModelInfo &model_info, const ArgsManager &args_manager, std::string &case_info_str) {
+ge::Status AxesReorderTilingCodeGenImpl::GenExtraSummaryInfo(const ModelInfo &model_info,
+                                                             const ArgsManager &args_manager,
+                                                             std::string &case_info_str) {
   for (const auto &pair : args_manager.GetObjectFunc()) {
     auto iter = kPipetypeNameMap.find(pair.first);
     if (iter != kPipetypeNameMap.end()) {

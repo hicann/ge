@@ -18,7 +18,6 @@ const std::vector<std::string> kDefaultNodeWhiteList = {
 };
 }
 
-
 // 初始化arglist的优先级连边图
 // 初始化排序原则：父轴的优先级必须大于子轴，举例说明:
 // z0t->z0tt, z0t是z0tt的父轴，存在约束z0tt<=z0t，如果子轴优先级高于父轴，
@@ -134,10 +133,6 @@ void ArgListReorder::RecordSpecialArgs(const NodeInfo &node, const TensorPtr &te
   if (dim->is_node_innerest_dim) {
     GELOGD("find innermost dim axis %s from node %s", dim->name.c_str(), node.name.c_str());
     innermost_dim_map_.insert({dim->name, true});
-    if (AttUtils::IsLoadStoreNode(node.node_ptr.get())) {
-      load_store_inner_most_dims_.insert(dim->name);
-      GELOGD("Found Tile split axis %s in load/store node", dim->name.c_str());
-    }
   }
 }
 
@@ -156,6 +151,14 @@ void ArgListReorder::FindSpecialArgs() {
     for (const auto &tensor : input_tensors) {
       for (size_t i = 0; i < tensor->dim_info.size(); i++) {
         RecordSpecialArgs(node, tensor, i, output_tensors, reduce_axis_ori_axes_set);
+      }
+      auto asc_node = node.node_ptr;
+      auto graph = tuning_space_->asc_graph;
+      std::string last_dim_name;
+      if (AttUtils::IsLoadStoreNode(asc_node.get()) && (asc_node != nullptr) && (graph != nullptr) &&
+          (AttUtils::GetLastTileSplitAxisName(*asc_node, *graph, last_dim_name))) {
+        load_store_inner_most_dims_.insert(last_dim_name);
+        GELOGD("[DFX]Found Tile split axis %s in load/store node", last_dim_name.c_str());
       }
     }
     tiling_R_ = tiling_R_ || IsReduceAxisBlockSplit(tuning_space_->sub_axes, reduce_axis_ori_axes_set);
@@ -278,9 +281,12 @@ void ArgListReorder::MakeSureLoadStoreInnerestSameOrder(const std::vector<AttAxi
   // 处理Load/Store的同等切分优先级
   size_t min_order = SIZE_MAX;
   std::vector<AttAxisPtr> args_to_make_same_order;
+  std::string args_name;
   for (const auto &arg : arg_list) {
-    if ((load_store_inner_most_dims_.find(arg->name) != load_store_inner_most_dims_.cend()) &&
-        (!arg->bind_multicore && (arg->axis_pos == AxisPosition::INNER))) {
+    const bool is_load_store = (load_store_inner_most_dims_.find(arg->name) != load_store_inner_most_dims_.cend());
+    GELOGD("[DFX]arg name %s, axis_pos %d, order %d, bind_multicore %d, is_load_store %d", arg->name.c_str(),
+           arg->axis_pos, arg->order, arg->bind_multicore, is_load_store);
+    if (is_load_store && (!arg->bind_multicore && (arg->axis_pos == AxisPosition::INNER))) {
       args_to_make_same_order.emplace_back(arg);
       if (min_order > arg->order) {
         min_order = arg->order;
@@ -288,6 +294,7 @@ void ArgListReorder::MakeSureLoadStoreInnerestSameOrder(const std::vector<AttAxi
     }
   }
   for (auto &arg : args_to_make_same_order) {
+    GELOGD("[DFX]Set arg %s order to %zu", arg->name.c_str(), min_order);
     arg->order = min_order;
   }
 }

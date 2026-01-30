@@ -538,7 +538,10 @@ ge::Status GetPerf(const NodePerfInfo &node_perf_info, Expr &res) {
   auto op_model = opt_type_param.value();
   const auto &model_type_param = op_model.find("model_type");
   std::string model_type = model_type_param.value();
-  auto model_params = op_model.at("model_params");
+  auto model_params_it = op_model.find("model_params");
+  GE_ASSERT_TRUE(model_params_it != op_model.end(), "model_params not found in op_model for optype[%s]!",
+                 optype.c_str());
+  auto model_params = model_params_it.value();
   std::string dtype = input_dtype + "to" + output_dtype;
   if (model_params.find(dtype) == model_params.end()) {
     GELOGW("Dtype[%s] is not registered for optype[%s]!", dtype.c_str(), optype.c_str());

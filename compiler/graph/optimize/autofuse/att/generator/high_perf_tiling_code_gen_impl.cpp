@@ -44,8 +44,8 @@ ge::Status HighPerfTilingCodeGenImpl::GenToolFuncs() {
 
 ge::Status HighPerfTilingCodeGenImpl::GenSolverBaseClass() {
   std::vector<ArgsManager> total_models;
-  for (const auto &model_info : tiling_model_info_) {
-    ArgsManager args_manager(model_info);
+  for (const auto &model_info_iter : tiling_model_info_) {
+    ArgsManager args_manager(model_info_iter);
     GE_ASSERT_TRUE(args_manager.Process(false), "Args manager process failed.");
     total_models.emplace_back(args_manager);
   }

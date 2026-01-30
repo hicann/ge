@@ -50,6 +50,7 @@ class TestApiTilingGen : public ::testing::Test {
     // before the destructor).
     system("rm -f *.log");
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
+    unsetenv("AUTOFUSE_DFX_FLAGS");
   }
 };
 
@@ -1439,7 +1440,7 @@ TEST_F(TestApiTilingGen, gen_schedule_group_reduce_tile_r_force_r) {
   EXPECT_EQ(ConstructTilingRCase(), ge::SUCCESS);
   // 若优先切R则A为100，R为216，否则切A的话，at为16， rt为1024
   EXPECT_EQ(IsFileContainsString("softmax_tiling.log", "get_at_size = 100"), true);
-  EXPECT_EQ(IsFileContainsString("softmax_tiling.log", "get_rt_size = 214"), true);
+  EXPECT_EQ(IsFileContainsString("softmax_tiling.log", "get_rt_size = 205"), true);
   unsetenv("AUTOFUSE_DFX_FLAGS");
 }
 

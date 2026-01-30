@@ -299,7 +299,12 @@ bool ArgsManager::SetNewVarInfoAttrs(const Expr &old_var, const ExprExprMap &rep
   for (auto &init_value : ori_var_init_values_) {
     GELOGD("ori_var: %s, ori_init_value: %s", init_value.first.Str().get(), init_value.second.Str().get());
   }
-  new_var_info.max_value = GetNewExprMaxValueReplaced(old_var, local_new_expr_replacements.at(new_var));
+  auto it = local_new_expr_replacements.find(new_var);
+  if (it != local_new_expr_replacements.end()) {
+    new_var_info.max_value = GetNewExprMaxValueReplaced(old_var, it->second);
+  } else {
+    new_var_info.max_value = GetMaxValue(old_var);
+  }
   if (vars_infos_[old_var].init_value == vars_infos_[old_var].max_value) {
     new_var_info.init_value = new_var_info.max_value;
   } else {

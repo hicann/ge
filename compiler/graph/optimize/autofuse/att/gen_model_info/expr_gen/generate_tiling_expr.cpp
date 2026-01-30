@@ -32,7 +32,7 @@ ge::Status UpdateLastTileAxisPromptAlign(const SubAxis *sub_axis, const AttAxis 
 }
 }
 ge::Status GenerateTilingExpr::GetBufConstraint(std::map<HardwareDef, Expr> &hardware_cons,
-                                            std::map<std::string, Expr> &container_exprs) {
+                                                std::map<std::string, Expr> &container_exprs) {
   std::unordered_map<HardwareDef, Expr> buffer_occupy;
   BufOccupEvaluatorExprPtr buf_evaluator = ge::MakeShared<BufOccupyExpr>(tuning_space_);
   GE_ASSERT_NOTNULL(buf_evaluator, "Create buff evaluator expr failed.");
@@ -40,6 +40,7 @@ ge::Status GenerateTilingExpr::GetBufConstraint(std::map<HardwareDef, Expr> &har
                      "Collect buf constraints failed.");
   for (const auto &buff : buffer_occupy) {
     hardware_cons[buff.first] = buff.second;
+    GELOGD("[DFX]Add buf constraint: %d = %s", buff.first, buff.second.Serialize().get());
   }
   return ge::SUCCESS;
 }
@@ -79,6 +80,7 @@ ge::Status GenerateTilingExpr::GetCoreConstraint(std::map<HardwareDef, Expr> &ha
     block_dim_max_expr = ge::sym::Max(block_dim_expr, block_dim_max_expr);
   }
   hardware_cons[HardwareDef::CORENUM] = block_dim_max_expr;
+  GELOGD("[DFX]Add core constraint: %d = %s", HardwareDef::CORENUM, block_dim_max_expr.Serialize().get());
   return ge::SUCCESS;
 }
 

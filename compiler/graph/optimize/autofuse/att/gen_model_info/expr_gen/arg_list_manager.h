@@ -26,15 +26,13 @@ inline std::string GetTmpBufferName(int32_t index) {
 
 class ArgListManager {
 public:
-  static ArgListManager& GetInstance()
-  {
+  static ArgListManager &GetInstance() {
     static ArgListManager arg_list_mgr;
     return arg_list_mgr;
   }
 
   // 按照目标名保存表达式
-  ge::Status SetArgExpr(const std::string &name, const Expr &expr)
-  {
+  ge::Status SetArgExpr(const std::string &name, const Expr &expr) {
     if (arg_list_map_.find(name) == arg_list_map_.end()) {
       arg_list_map_[name] = expr;
     }
@@ -42,14 +40,12 @@ public:
   }
 
   // 添加表达式
-  ge::Status AddArgExpr(const std::string &name, const Expr &size)
-  {
+  ge::Status AddArgExpr(const std::string &name, const Expr &size) {
     return SetArgExpr(name, size);
   }
 
   // 根据name查找表达式
-  Expr GetArgExpr(const std::string &name)
-  {
+  Expr GetArgExpr(const std::string &name) {
     if (arg_list_map_.find(name) != arg_list_map_.end()) {
       return arg_list_map_[name];
     }
@@ -57,8 +53,7 @@ public:
     return res;
   }
   
-  Expr GetArgExpr(const std::vector<std::string> &names)
-  {
+  Expr GetArgExpr(const std::vector<std::string> &names) {
     Expr cur_var = CreateExpr(1U);
     for (auto &name : names) {
       if (arg_list_map_.find(name) == arg_list_map_.end()) {
@@ -71,8 +66,7 @@ public:
   }
 
   // 获取所有表达式
-  void GetArgList(std::vector<Expr> &arg_list)
-  {
+  void GetArgList(std::vector<Expr> &arg_list) {
     for (const auto &arg : arg_list_map_) {
       if(arg.second.IsValid()) {
         arg_list.emplace_back(arg.second);
@@ -80,8 +74,7 @@ public:
     }
   }
 
-  ge::Status GetArgList(const std::vector<std::string> &names, std::vector<Expr> &arg_list)
-  {
+  ge::Status GetArgList(const std::vector<std::string> &names, std::vector<Expr> &arg_list) {
     arg_list.clear();
     for (const auto &name : names) {
       if (arg_list_map_.find(name) == arg_list_map_.end()) {
