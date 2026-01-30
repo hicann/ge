@@ -549,6 +549,11 @@ HcclResult HcclGetNetLayers(HcclComm comm, uint32_t **netLayers, uint32_t *netLa
     return HCCL_SUCCESS;
 }
 
+aclError aclsysGetVersionStr(CHAR *pkgName, char *versionStr)
+{
+ 	return RT_ERROR_NONE;
+}
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus

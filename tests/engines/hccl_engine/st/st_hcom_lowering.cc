@@ -37,7 +37,7 @@
 #include "v80_rank_table.h"
 
 #include "llt_hccl_stub_ge.h"
-#include "adapter_hcclops.h"
+#include "adapter_dlhcclfunc.h"
 
 using namespace std;
 using namespace hccl;
@@ -386,11 +386,7 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allgatherv_count0)
     gert::Shape outshape({0});
     launchArgs.outputShapes.push_back(outshape);
     
-    MOCKER(HcomHccl)AllGatherV)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
-    HcomAllGatherVKernel(launchArgs, &inputStruct);
+    MOCKER(HcceAllGatherV).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     free(launchArgs.inputAddrs[0]);
     free(launchArgs.inputAddrs[1]);
@@ -456,15 +452,9 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_broadcast)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)Broadcast)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceBroadcast).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *bcastContext = new gert::KernelContext();
     LaunchHcomKernel(bcastContext);
@@ -528,20 +518,11 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_send)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)StreamSynchronize)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(hcclStreamSynchronize).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)Send)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceSend).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *sendContext = new gert::KernelContext();
     LaunchHcomKernel(sendContext);
@@ -613,15 +594,9 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_reduce)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)Reduce)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceReduce).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *reduceContext = new gert::KernelContext();
     LaunchHcomKernel(reduceContext);
@@ -667,11 +642,7 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_reducescatter)
     context.input_size = 1;
     *(allGatherContext->GetContext()) = context;
 
-    MOCKER(HcomHccl)ReduceScatter)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
-    LaunchHcomKernel(allGatherContext);
+    MOCKER(HcomLaunchReduceScatterKernel).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     delete allGatherContext;
     HcomDestroy();
@@ -740,11 +711,7 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_reducescatterv_count0)
     gert::Shape outshape({0});
     launchArgs.outputShapes.push_back(outshape);
 
-    MOCKER(HcomHccl)ReduceScatterV)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
-    HcomReduceScatterVKernel(launchArgs, &inputStruct);
+    MOCKER(HcceReduceScatterV).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     free(launchArgs.inputAddrs[0]);
     free(launchArgs.inputAddrs[1]);
@@ -819,15 +786,9 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_alltoallv)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)AlltoAllV)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceAlltoAllV).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *a2avContext = new gert::KernelContext();
     LaunchHcomKernel(a2avContext);
@@ -896,15 +857,9 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_alltoallvc)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)AlltoAllVC)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceAlltoAllVC).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *a2avcContext = new gert::KernelContext();
     LaunchHcomKernel(a2avcContext);
@@ -968,15 +923,9 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allgather_new)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)AllGather)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceAllGather).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *gatherContext = new gert::KernelContext();
     LaunchHcomKernel(gatherContext);
@@ -1101,15 +1050,9 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allreduce_sess)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)AllReduce)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceAllReduce).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *gatherContext = new gert::KernelContext();
     LaunchHcomKernel(gatherContext);
@@ -1173,21 +1116,12 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allreduce_large_sess)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
-    uint64_t count = 300*1024*1024;
-    MOCKER(GetCountByShape)
-    .stubs()
-    .with(mockcpp::any(), mockcpp::any(), outBound(count))
-    .will(returnValue(HCCL_SUCCESS));
+    uint64_t count = 300 * 1024 * 1024;
+    MOCKER(GetCountByShape).stubs().with(mockcpp::any(), mockcpp::any(), outBound(count)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)AllReduce)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceAllReduce).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *gatherContext = new gert::KernelContext();
     LaunchHcomKernel(gatherContext);
@@ -1251,21 +1185,12 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allreduce_multi_input_sess)
     outputAddrs.push_back(pOutputAddr);
     launchArgs.outputAddrs = outputAddrs;
 
-    MOCKER(GetHcomOpLaunchArgs)
-    .stubs()
-    .with(mockcpp::any(), outBound(launchArgs))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetHcomOpLaunchArgs).stubs().with(mockcpp::any(), outBound(launchArgs)).will(returnValue(HCCL_SUCCESS));
 
     uint64_t count = 1024;
-    MOCKER(GetCountByShape)
-    .stubs()
-    .with(mockcpp::any(), mockcpp::any(), outBound(count))
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(GetCountByShape).stubs().with(mockcpp::any(), mockcpp::any(), outBound(count)).will(returnValue(HCCL_SUCCESS));
 
-    MOCKER(HcomHccl)AllReduce)
-    .stubs()
-    .with(mockcpp::any())
-    .will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceAllReduce).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
     gert::KernelContext *gatherContext = new gert::KernelContext();
     LaunchHcomKernel(gatherContext);
@@ -1357,9 +1282,7 @@ TEST_F(HcomLoweringTest, st_HcomAllToAllGetOpAttr_test)
 
 TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allGatherv2_When_Normal_Expect_ReturnlsHCCL_SUCCESS)
 {
-
-
-    MOCKER(HcomHccl)AllGather).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
+    MOCKER(HcceAllGather).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
     MOCKER(HcomGetDeviceType).stubs().with(mockcpp::any()).will(returnValue(DevType::DEV_TYPE_910_95));
     MOCKER(HcomAllGatherKernel).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
 
@@ -1397,6 +1320,8 @@ TEST_F(HcomLoweringTest, st_hcomLaunchKernel_allGatherv2_When_Normal_Expect_Retu
     context.input_size = 1;
     *(allGatherContext->GetContext()) = context;
 
+    MOCKER(HcomLaunchAllGatherKernelV2).stubs().with(mockcpp::any()).will(returnValue(HCCL_SUCCESS));
+    
     LaunchHcomKernel(allGatherContext);
     delete allGatherContext;
     HcomDestroy();

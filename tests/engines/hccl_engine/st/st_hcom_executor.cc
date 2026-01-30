@@ -30,8 +30,8 @@
 #include "common/ge_common/ge_types.h"
 #include "v80_rank_table.h"
 #include "llt_hccl_stub_hccl.h"
-#include "dlhcclops_function.h"
-#include "adapter_hcclops.h"
+#include "dlhccl_function.h"
+#include "adapter_dlhcclfunc.h"
 
 using namespace std;
 using namespace hccl;

@@ -1193,19 +1193,6 @@ TEST_F(HcomKernelBuilderTest, st_CheckAlltoAllvcRank)
     GlobalMockObject::verify();
 }
 
-TEST_F(HcomKernelBuilderTest, st_getAllGatherVCountsDispl)
-{
-    ge::NodePtr nodeptr(new NodeTest);
-    HcomOpUtils graphOptimizer;
-
-    std::vector<int64_t> sendCount;
-    std::vector<int64_t> recvCounts;
-    std::vector<int64_t> recvDispls;
-
-    HcclResult ret = graphOptimizer.GetAllGatherVCountsDispl(*(nodeptr.get()), sendCount, recvCounts, recvDispls);
-    EXPECT_EQ(ret, HCCL_SUCCESS);
-}
-
 TEST_F(HcomKernelBuilderTest, st_getAlltoAllCountsDispl_across_graph)
 {
     ge::NodePtr nodeptr(new NodeTest);

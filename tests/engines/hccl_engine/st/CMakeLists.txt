@@ -106,6 +106,7 @@ set(src_path
     ${AIR_CODE_DIR}/inc/framework
     ${AIR_CODE_DIR}/inc/graph_metadef
     ${AIR_CODE_DIR}/inc/graph_metadef/register
+    ${AIR_CODE_DIR}/inc/graph_metadef/graph
     ${AIR_CODE_DIR}/inc/graph_metadef/exe_graph
     ${AIR_CODE_DIR}/inc/graph_metadef/exe_graph/lowering
     ${AIR_CODE_DIR}/inc/graph_metadef/external/hcom
@@ -180,9 +181,15 @@ target_link_options(hccl_engine_stest PRIVATE
     -Wl,-rpath,${AIR_CODE_DIR}/build/graph_metadef/graph
 )
 
+target_link_directories(hcce_st_llt PRIVATE
+ 	${ASCEND_INSTALL_PATH}/lib64
+)
+
 target_link_directories(hccl_engine_stest PRIVATE
     ${ASCEND_INSTALL_PATH}/lib64
 )
+
+find_library(REGISTER_LIB NAMES libregister.so PATH_SUFFIXES lib64)
 
 find_library(LIBRARY_MOCKCPP libmockcpp.a ${AIR_CODE_DIR}/tests/engines/hccl_engine/third_party/mockcpp/mockcpp-2.7/build)
 
@@ -194,8 +201,8 @@ target_link_libraries(hcce_st_llt PRIVATE
     GTest::gtest GTest::gtest_main GTest::gmock
     ${LIBRARY_MOCKCPP}
     error_manager
-    graph
-    graph_base
+    hcomm
+ 	${REGISTER_LIB}
     metadef
     ascend_protobuf
     opp_registry
@@ -223,8 +230,8 @@ target_link_libraries(hccl_engine_stest PRIVATE
     graph_base
     metadef
     ascend_protobuf
-    register
-    opp_registry
+    hcomm
+ 	${REGISTER_LIB}
     hcce_st_llt
     c_sec
     platform

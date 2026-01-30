@@ -2452,10 +2452,10 @@ TEST_F(HcomKernelInfoTest, st_SaveReduceDumpTask)
     dumpInfo.task_id = 1;
     dumpInfo.stream_id = 1;
     dumpInfo.sub_task_type = 1;
-    dumpInfo.outpst_addr = (void *)0x05;
-    dumpInfo.outpst_size = 8;
-    dumpInfo.inpst_addr = (void *)0x06;
-    dumpInfo.inpst_size = 8;
+    dumpInfo.output_addr = (void *)0x05;
+    dumpInfo.output_size = 8;
+    dumpInfo.input_addr = (void *)0x06;
+    dumpInfo.input_size = 8;
     dumpInfoVec.push_back(dumpInfo);
     HcclResult ret = infoStore.SaveReduceDumpTask(task.kernelHcclInfo[0].hccl_dump_info, dumpInfoVec);
     GlobalMockObject::verify();

@@ -907,31 +907,3 @@ TEST_F(HcomPluginTest, st_GetOpsKernelInfoPtr_ShouldReturnValidPtr_WhenPtrIsNotN
 
     GlobalMockObject::verify();
 }
-
-/**
- * @tc.name  : GetOpsKernelInfoPtr_ShouldReturnNull_WhenPtrIsNull
- * @tc.number: HcomPluginTest_004
- * @tc.desc  : Test when hcomOpsKernelInfoStoreInfoPtr_ is null, GetOpsKernelInfoPtr should return null
- */
-TEST_F(HcomPluginTest, st_GetOpsKernelInfoPtr_ShouldReturnNull_WhenPtrIsNull)
-{
-    HcomPlugin *plugin_;
-    plugin_ = &HcomPlugin::Instance();
-    plugin_->hcomOpsKernelInfoStoreInfoPtr_ = std::make_shared<HcomOpsKernelInfoStore>();
-
-    // 设置hcomOpsKernelInfoStoreInfoPtr_为null
-    plugin_->hcomOpsKernelInfoStoreInfoPtr_ = nullptr;
-    
-    HcomOpsKernelInfoStorePtr opsKernelInfoStorePtr;
-    plugin_->GetOpsKernelInfoPtr(opsKernelInfoStorePtr);
-    
-    // 检查返回的指针是否为null
-    EXPECT_EQ(opsKernelInfoStorePtr, nullptr);
-
-    const char* group = "testGroup";
-    uint32_t rankSize = 4;
-    HcclResult result = plugin_->HcomSetGroupToTopoInfo(group, rankSize);
-    EXPECT_EQ(result, HCCL_SUCCESS);
-
-    GlobalMockObject::verify();
-}

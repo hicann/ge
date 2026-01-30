@@ -44,14 +44,6 @@ using std::list;
 
 #include "llt_hccl_stub.h"
 
-typedef enum {
-    COMM_TOPO_RESERVED = -1,  ///< 保留拓扑
-    COMM_TOPO_1DMESH = 0,     ///< 1DMesh互联拓扑
-    COMM_TOPO_2DMESH = 1,     ///< 2DMesh互联拓扑
-    COMM_TOPO_CLOS = 2,       ///< CLOS互联拓扑
-    COMM_TOPO_910A3 = 3,      ///< 910A3互联拓扑
-} CommTopo;
-
 typedef enum tagDrvError {
     DRV_ERROR_NONE = 0,                /**< success */
     DRV_ERROR_NO_DEVICE = 1,           /**< no valid device */

@@ -37,7 +37,7 @@
 #include "v80_rank_table.h"
 
 #include "llt_hccl_stub_ge.h"
-#include "adapter_hcclops.h"
+#include "adapter_dlhcclfunc.h"
 
 using namespace std;
 using namespace hccl;
