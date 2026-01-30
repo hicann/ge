@@ -37,19 +37,19 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
   
   **配套 ARM 构建镜像地址**：`swr.cn-north-4.myhuaweicloud.com/ci_cann/ubuntu20.04.05_arm:lv1_latest`
 
-  以下是推荐的使用方式，可供参考:
+  以下是推荐的使用方式，可供参考(如果使用root用户安装，请将命令中的sudo删除):
 
   ```shell
   image=${根据本地机器架构类型从上面选择配套的构建镜像地址}
 
   # 1. 拉取配套构建镜像
-  docker pull ${image}
+  sudo docker pull ${image}
   # 2. 创建容器
-  docker run --name env_for_ge_build --cap-add SYS_PTRACE -d -it ${image} /bin/bash
+  sudo docker run --name env_for_ge_build --cap-add SYS_PTRACE -d -it ${image} /bin/bash
   # 3. 启动容器
-  docker start env_for_ge_build
+  sudo docker start env_for_ge_build
   # 4. 进入容器
-  docker exec -it env_for_ge_build /bin/bash
+  sudo docker exec -it env_for_ge_build /bin/bash
   ```
   完成后可以进入[安装软件包](#2-安装软件包)章节。
 
@@ -61,13 +61,11 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 
 #### 步骤一：安装社区版CANN Toolkit包
 
-根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，下载链接为[toolkit x86_64包](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1/x86_64/Ascend-cann-toolkit_8.5.0-beta.1_linux-x86_64.run)、[toolkit aarch64包](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1/aarch64/Ascend-cann-toolkit_8.5.0-beta.1_linux-aarch64.run)。
+根据实际环境，下载对应`Ascend-cann-toolkit_${cann_version}_linux-${arch}.run`包，请选择最新版本，[下载链接](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/)。
 
   ```bash
-  # 确保安装包具有可执行权限
-  chmod +x Ascend-cann-toolkit_${cann_version}_linux-${arch}.run 
   # 安装命令(其中--install-path为可选)
-  ./Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --install-path=${install_path}
+  bash Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --install-path=${install_path}
   ```
 
 -   `${cann_version}`：表示CANN包版本号。
