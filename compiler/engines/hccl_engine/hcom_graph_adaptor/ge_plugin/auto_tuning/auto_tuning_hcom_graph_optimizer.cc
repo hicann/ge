@@ -226,7 +226,7 @@ ge::Status AutoTuningHcomGraphOptimizer::OptimizeOriginalGraph(ge::ComputeGraph 
 }
 
 ge::Status AutoTuningHcomGraphOptimizer::OptimizeFusedGraph(ge::ComputeGraph &graph) {
-  for (auto nodePtr : graph.GetAllNodes()) {
+  for (auto nodePtr : graph.GetDirectNode()) {
     if (!nodePtr) {
       HCCL_WARNING("null node exists.");
       continue;
