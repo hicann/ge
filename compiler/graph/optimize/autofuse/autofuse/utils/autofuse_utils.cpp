@@ -688,4 +688,16 @@ graphStatus AutofuseUtils::GetListIntByInputOrAttr(const NodePtr &node, std::vec
   return GetListIntFromInput(node, value_vec, input);
 }
 
+static std::vector<std::string> view_type = {"ExpandDims", "Reshape", "Squeeze", "Unsqueeze"};
+std::vector<const ge::Node *> AutofuseUtils::GetComputeOps(const std::vector<const ge::Node *> &nodes) {
+  std::vector<const ge::Node *> compute_ops;
+  for (auto &node : nodes) {
+    GELOGD("check %s(%s) ComputeOps", node->GetType().c_str(), node->GetName().c_str());
+    if (find(view_type.begin(), view_type.end(), node->GetType()) == view_type.end()) {
+      compute_ops.emplace_back(node);
+    }
+  }
+  return compute_ops;
+}
+
 }  // namespace ge

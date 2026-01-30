@@ -146,6 +146,8 @@ class AutofuseUtils {
   static graphStatus GetListIntByInputOrAttr(const NodePtr &node, std::vector<int64_t> &value_vec,
                                              const std::string &input = "", const std::string &attr = "");
 
+  static std::vector<const ge::Node *> GetComputeOps(const std::vector<const ge::Node *> &nodes);
+
  private:
   static NodePtr ConvertAscBackendNodeToAscGraphNode(const ComputeGraphPtr compute_graph, const NodePtr &node);
 

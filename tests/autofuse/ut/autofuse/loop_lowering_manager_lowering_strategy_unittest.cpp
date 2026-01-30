@@ -21,6 +21,7 @@
 #include "lowering/asc_lowerer/loop_api.h"
 #include "lowering/asc_ir_lowerer.h"
 #include "lowering/lowerings.h"
+#include "lowering/liftings.h"
 #include "lowering/op_lowering_impl/lowering_impl.h"
 #include "utils/autofuse_attrs.h"
 #include "utils/auto_fuse_config.h"
@@ -812,7 +813,7 @@ tmp0 = ge.Data(data0, [])
 tmp1 = ge.AscBackend(autofuse_pointwise_0_Abs, [tmp0])
 tmp2 = ge.NetOutput(NetOutput, [tmp1])
 )");
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
   EXPECT_EQ(ReadableComputeGraph(cg), R"(ComputeGraph(graph)
 tmp0 = ge.Data(data0, [])
 tmp1 = ge.Abs(Abs_0, [tmp0])
@@ -869,7 +870,7 @@ tmp0 = ge.Data(data0, [])
 tmp1 = ge.AscBackend(autofuse_reduce_0_ReduceSumD, [tmp0])
 tmp2 = ge.NetOutput(NetOutput, [tmp1])
 )");
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
   EXPECT_EQ(ReadableComputeGraph(cg), R"(ComputeGraph(graph)
 tmp0 = ge.Data(data0, [])
 tmp1 = ge.ReduceSumD(ReduceSumD_0, [tmp0])
@@ -899,7 +900,7 @@ tmp1 = ge.AscBackend(autofuse_pointwise_0_Abs, [tmp0])
 tmp2 = ge.AscBackend(autofuse_pointwise_1_ZeroLikeStub, [], [autofuse_pointwise_0_Abs])
 tmp3 = ge.NetOutput(NetOutput, [tmp2])
 )");
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
   cg->FindFirstNodeMatchType("ZeroLikeStub")->GetOpDesc()->SetType("ZerosLike");
   EXPECT_EQ(ReadableComputeGraph(cg), R"(ComputeGraph(graph)
 tmp0 = ge.Data(data0, [])
@@ -933,7 +934,7 @@ tmp1 = ge.AscBackend(autofuse_pointwise_0_Abs, [tmp0])
 tmp2 = ge.AscBackend(autofuse_pointwise_1_ZeroLikeStub_Abs, [], [autofuse_pointwise_0_Abs])
 tmp3 = ge.NetOutput(NetOutput, [tmp2])
 )");
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
   EXPECT_EQ(ReadableComputeGraph(cg), R"(ComputeGraph(graph)
 tmp0 = ge.Data(data0, [])
 tmp1 = ge.Abs(Abs_0, [tmp0])
@@ -970,7 +971,7 @@ tmp2 = ge.AscBackend(autofuse_pointwise_1_Abs, [tmp1])
 tmp3 = ge.AscBackend(autofuse_pointwise_2_Abs, [tmp2])
 tmp4 = ge.NetOutput(NetOutput, [tmp3])
 )");
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
   EXPECT_EQ(ReadableComputeGraph(cg), R"(ComputeGraph(graph)
 tmp0 = ge.Data(data0, [])
 tmp1 = ge.Abs(Abs_0, [tmp0])
@@ -1002,7 +1003,7 @@ tmp1 = ge.AscBackend(autofuse_pointwise_0_DynamicQuantStub, [tmp0])
 tmp2 = ge.AscBackend(autofuse_pointwise_1_DynamicQuantStub, [tmp0])
 [tmp3, tmp4] = ge.NetOutput(NetOutput, [tmp1, tmp2])
 )");
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
   cg->FindFirstNodeMatchType("DynamicQuantStub")->GetOpDesc()->SetType("DynamicQuant");
   EXPECT_EQ(ReadableComputeGraph(cg), R"(ComputeGraph(graph)
 tmp0 = ge.Data(data0, [])
@@ -1035,7 +1036,7 @@ tmp1 = ge.AscBackend(autofuse_pointwise_0_DynamicQuantStub, [tmp0])
 tmp2 = ge.AscBackend(autofuse_pointwise_1_DynamicQuantStub_Abs, [tmp0])
 [tmp3, tmp4] = ge.NetOutput(NetOutput, [tmp1, tmp2])
 )");
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
   cg->FindFirstNodeMatchType("DynamicQuantStub")->GetOpDesc()->SetType("DynamicQuant");
   EXPECT_EQ(ReadableComputeGraph(cg), R"(ComputeGraph(graph)
 tmp0 = ge.Data(data0, [])
@@ -1097,7 +1098,7 @@ TEST_F(LoopGraphLoweringStrategyUT, SkipRealizeAsControlEdgesFromCFCase1) {
   LoweringConfig config;
   ASSERT_EQ(LoweringManager::LoweringGraph(cg, config), GRAPH_SUCCESS);
   ASSERT_EQ(LoweringManager::FusedLoopToAscBackendOp(cg), GRAPH_SUCCESS);
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
 }
 
 TEST_F(LoopGraphLoweringStrategyUT, SkipRealizeAsControlEdgesFromCFCase2) {
@@ -1130,7 +1131,7 @@ TEST_F(LoopGraphLoweringStrategyUT, SkipRealizeAsControlEdgesFromCFCase2) {
   LoweringConfig config;
   ASSERT_EQ(LoweringManager::LoweringGraph(cg, config), GRAPH_SUCCESS);
   ASSERT_EQ(LoweringManager::FusedLoopToAscBackendOp(cg), GRAPH_SUCCESS);
-  ASSERT_EQ(LoweringManager::LiftingOneNodeAscBackendOp(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(LiftingManager::LiftingGraph(cg), GRAPH_SUCCESS);
 }
 
 TEST_F(LoopGraphLoweringStrategyUT, TriggerRealizeAsHeavyOps) {

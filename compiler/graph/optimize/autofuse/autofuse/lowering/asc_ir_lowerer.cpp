@@ -10,6 +10,7 @@
 
 #include "asc_ir_lowerer.h"
 #include "lowerings.h"
+#include "liftings.h"
 #include "backend/backend_spec.h"
 #include "utils/auto_fuse_config.h"
 #include "graph/utils/op_type_utils.h"
@@ -156,7 +157,7 @@ graphStatus AscIrLowerer::Lifting(const ComputeGraphPtr &graph) {
     return GRAPH_SUCCESS;
   }
   GE_ASSERT_GRAPH_SUCCESS(LowerConcatHelper::LiftingPoorPerfFusedAscBackendOps(graph));
-  GE_ASSERT_GRAPH_SUCCESS(LoweringManager::LiftingOneNodeAscBackendOp(graph));
+  GE_ASSERT_GRAPH_SUCCESS(LiftingManager::LiftingGraph(graph));
   GE_ASSERT_GRAPH_SUCCESS(DfxForAscBackendOp(graph));
   GE_ASSERT_SUCCESS(PruneUnusedNodesAfterLifting(graph), "Failed to prune unused nodes in graph %s",
                     graph->GetName().c_str());

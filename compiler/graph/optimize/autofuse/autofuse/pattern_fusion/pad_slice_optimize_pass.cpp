@@ -20,12 +20,13 @@
 
 namespace ge {
 namespace {
-constexpr uint32_t kNum0 = 0;
-constexpr uint32_t kNum1 = 1;
 constexpr int32_t kNeedRemovePadPattern = 1;
 // not support now
 constexpr int32_t kNeedRemovePadSlicePattern = 2;
 constexpr int32_t kPaddingsDim2 = 2;
+const char *const kPadType = "Pad";
+const char *const kSliceType = "Slice";
+const char *const kPaddings = "paddings";
 
 graphStatus GetListPaddings(const NodePtr &node, std::vector<int64_t> &value_vec, const std::string &input) {
   const auto op = ge::OpDescUtils::CreateOperatorFromNode(node);
@@ -33,10 +34,10 @@ graphStatus GetListPaddings(const NodePtr &node, std::vector<int64_t> &value_vec
   GE_ASSERT_SUCCESS(op.GetInputConstData(input.c_str(), val_tensor));
   const auto dims = val_tensor.GetTensorDesc().GetShape().GetDims();
   GE_ASSERT_TRUE((dims.size() == 2U) || (dims.size() == 1U), "Input paddings tensor must be 1-D/2-D.");
-  auto dims_len = dims.at(0);
+  auto dims_len = dims.at(0U);
   if (dims.size() == 2U) {
-    const auto dim_0 = dims.at(0);
-    const auto dim_1 = dims.at(1);
+    const auto dim_0 = dims.at(0U);
+    const auto dim_1 = dims.at(1U);
     GE_ASSERT_TRUE(dim_0 > 0L, "Paddings dim0 must be positive.");
     GE_ASSERT_TRUE(dim_1 > 0L, "Paddings dim1 must be positive.");
     dims_len = dim_0 * dim_1;
@@ -73,8 +74,8 @@ graphStatus ParsingPadNode(const NodePtr &node, std::vector<int64_t> &pad_input_
   auto pad_op_desc = node->GetOpDesc();
   pad_input_shape = pad_op_desc->GetInputDescPtr(0U)->GetShape().GetDims();
 
-  vector<int64_t> paddings = {};
-  GE_ASSERT_SUCCESS(GetListPaddings(node, paddings, "paddings"));
+  std::vector<int64_t> paddings = {};
+  GE_ASSERT_SUCCESS(GetListPaddings(node, paddings, kPaddings));
   GE_ASSERT_TRUE((paddings.size() % kPaddingsDim2 == 0), "Paddings dim must be 2-D.");
   paddings_value = VectorTransToPair(paddings);
   return GRAPH_SUCCESS;
@@ -91,26 +92,26 @@ bool IsAllEqual(const std::vector<std::vector<int32_t>> &vec, int32_t target_val
   return !vec.empty();
 }
 
-bool IsPatternMatchRequirements(std::vector<int64_t> &begins_value, std::vector<int64_t> &sizes_value,
+bool IsPatternMatchRequirements(std::vector<int64_t> &offsets_value, std::vector<int64_t> &sizes_value,
                                 std::vector<int64_t> &pad_input_shape,
                                 std::vector<std::vector<int64_t>> &paddings_value,
                                 std::vector<std::vector<int32_t>> &all_results) {
-  std::vector<int32_t> results(begins_value.size(), 0);
-  for (size_t idx = 0U; idx < begins_value.size(); ++idx) {
-    if ((begins_value.at(idx) >= paddings_value[idx][0]) &&
-        (begins_value.at(idx) < paddings_value[idx][0] + pad_input_shape.at(idx)) &&
-        (sizes_value.at(idx) <= (paddings_value[idx][0] + pad_input_shape.at(idx) - (begins_value.at(idx))))) {
+  std::vector<int32_t> results(offsets_value.size(), 0);
+  for (size_t idx = 0U; idx < offsets_value.size(); ++idx) {
+    if ((offsets_value.at(idx) >= paddings_value[idx][0]) &&
+        (offsets_value.at(idx) < paddings_value[idx][0] + pad_input_shape.at(idx)) &&
+        (sizes_value.at(idx) <= (paddings_value[idx][0] + pad_input_shape.at(idx) - (offsets_value.at(idx))))) {
       results[idx] = kNeedRemovePadPattern;
-    } else if (((begins_value.at(idx) < paddings_value[idx][0]) &&
-                (sizes_value.at(idx) <= (paddings_value[idx][0] - begins_value.at(idx)))) ||
-               ((begins_value.at(idx) >= (paddings_value[idx][0] + pad_input_shape.at(idx))) &&
+    } else if (((offsets_value.at(idx) < paddings_value[idx][0]) &&
+                (sizes_value.at(idx) <= (paddings_value[idx][0] - offsets_value.at(idx)))) ||
+               ((offsets_value.at(idx) >= (paddings_value[idx][0] + pad_input_shape.at(idx))) &&
                 (sizes_value.at(idx) <= paddings_value[idx][1]))) {
       results[idx] = kNeedRemovePadSlicePattern;
     } else {
       GELOGI(
           "Index is %zu, begin value is %ld, size value is %ld, pad input shape value is %ld,"
           "paddings value dim0 is %ld,dim1 is %ld",
-          idx, begins_value.at(idx), sizes_value.at(idx), pad_input_shape.at(idx), paddings_value[idx][0],
+          idx, offsets_value.at(idx), sizes_value.at(idx), pad_input_shape.at(idx), paddings_value[idx][0],
           paddings_value[idx][1]);
       all_results.push_back(results);
       return false;
@@ -123,19 +124,30 @@ bool IsPatternMatchRequirements(std::vector<int64_t> &begins_value, std::vector<
 graphStatus CheckSliceMatchRequirements(const NodePtr &node_after_pad, std::vector<int64_t> &pad_input_shape,
                                         std::vector<std::vector<int64_t>> &paddings_value,
                                         std::vector<std::vector<int32_t>> &all_results, bool &need_skip) {
-  if (node_after_pad->GetType() == "Slice") {
-    std::vector<int64_t> begins_value;
+  if (node_after_pad->GetType() == kSliceType) {
+    const auto &src_anchor = node_after_pad->GetInDataAnchor(1U);
+    GE_ASSERT_NOTNULL(src_anchor);
+    auto peer_anchor = src_anchor->GetPeerOutAnchor();
+    GE_ASSERT_NOTNULL(peer_anchor);
+    auto peer_node = peer_anchor->GetOwnerNode();
+    GE_ASSERT_NOTNULL(peer_node);
+    if (!OpTypeUtils::IsConstNode(peer_node->GetType())) {
+      GELOGI("abnormal slice node %s, offsets input is not const, skip process", node_after_pad->GetNamePtr());
+      need_skip = true;
+      return GRAPH_SUCCESS;
+    }
+    std::vector<int64_t> offsets_value;
     std::vector<int64_t> sizes_value;
-    GE_ASSERT_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node_after_pad, begins_value, "offsets", "offsets"));
+    GE_ASSERT_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node_after_pad, offsets_value, "offsets", "offsets"));
     GE_ASSERT_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node_after_pad, sizes_value, "size", "size"));
-    GE_ASSERT_TRUE(begins_value.size() == sizes_value.size(),
+    GE_ASSERT_TRUE(offsets_value.size() == sizes_value.size(),
                    "begin_value size must be equal as size_value size");
-    GE_ASSERT_TRUE(begins_value.size() == pad_input_shape.size(),
+    GE_ASSERT_TRUE(offsets_value.size() == pad_input_shape.size(),
                    "begin_value size must be equal as pad_input_shape size");
-    GE_ASSERT_TRUE(begins_value.size() == paddings_value.size(),
+    GE_ASSERT_TRUE(offsets_value.size() == paddings_value.size(),
                    "begin_value size must be equal as paddings_value dim0 size");
     bool is_requirement_matched =
-        IsPatternMatchRequirements(begins_value, sizes_value, pad_input_shape, paddings_value, all_results);
+        IsPatternMatchRequirements(offsets_value, sizes_value, pad_input_shape, paddings_value, all_results);
     if (!is_requirement_matched) {
       GELOGI("Requirement one is not matched, skip this pad node.");
       need_skip = true;
@@ -146,6 +158,47 @@ graphStatus CheckSliceMatchRequirements(const NodePtr &node_after_pad, std::vect
   }
   return GRAPH_SUCCESS;
 }
+
+graphStatus ExtractConstNodeDtype(const NodePtr &slice_node, DataType &dtype) {
+  if (slice_node->GetType() == kSliceType) {
+    const auto op = ge::OpDescUtils::CreateOperatorFromNode(slice_node);
+    ge::Tensor val_tensor;
+    GE_ASSERT_SUCCESS(op.GetInputConstData("offsets", val_tensor));
+    const auto tensor_desc = val_tensor.GetTensorDesc();
+    dtype = tensor_desc.GetDataType();
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus RefreshOffsetsValue(const NodePtr &slice_node, std::vector<int64_t> &before_paddings_value,
+                                DataType dtype) {
+  std::vector<int64_t> offsets_value;
+  GE_ASSERT_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(slice_node, offsets_value, "offsets", "offsets"));
+  GE_ASSERT_TRUE((offsets_value.size() == before_paddings_value.size()),
+                 "offsets_value and before_paddings_value size is different.");
+  std::vector<int64_t> new_offsets_value;
+  for (size_t i = 0U; i < offsets_value.size(); i++) {
+    GELOGI("value is %ld, new_offsets_value is %ld", offsets_value[i], offsets_value[i] - before_paddings_value[i]);
+    new_offsets_value.emplace_back(offsets_value[i] - before_paddings_value[i]);
+  }
+
+  auto offsets_const_node = slice_node->GetInDataNodes().at(1U);
+  const auto tensor_desc = offsets_const_node->GetOpDesc()->MutableOutputDesc(0U);
+
+  GeTensorPtr tensor = nullptr;
+  if (dtype == DT_INT32) {
+    std::vector<int32_t> reformated_offsets(new_offsets_value.begin(), new_offsets_value.end());
+    tensor = ComGraphMakeShared<GeTensor>(*tensor_desc, reinterpret_cast<uint8_t *>(reformated_offsets.data()),
+                                          sizeof(int32_t) * new_offsets_value.size());
+  } else if (dtype == DT_INT64) {
+    tensor = ComGraphMakeShared<GeTensor>(*tensor_desc, reinterpret_cast<uint8_t *>(new_offsets_value.data()),
+                                          sizeof(int64_t) * new_offsets_value.size());
+  }
+  GE_ASSERT_NOTNULL(tensor);
+  GE_ASSERT_TRUE(AttrUtils::SetTensor(offsets_const_node->GetOpDesc(), "value", tensor));
+  GELOGI("Success to refresh input offsets constant node for slice node %s", slice_node->GetNamePtr());
+  return GRAPH_SUCCESS;
+}
 }
 
 graphStatus PadSliceOptimizePass::Run(const ComputeGraphPtr &graph) {
@@ -153,15 +206,15 @@ graphStatus PadSliceOptimizePass::Run(const ComputeGraphPtr &graph) {
   GELOGD("PadAndSliceOptimizePass::main func begin.");
 
   for (auto &node : graph->GetDirectNode()) {
-    if (node->GetType() == "Pad") {
+    if (node->GetType() == kPadType) {
       auto output_size = node->GetOutDataNodesSize();
-      if ((output_size > kNum1) || !node->GetOutControlNodes().empty() || !node->GetInControlNodes().empty()) {
+      if (!node->GetOutControlNodes().empty() || !node->GetInControlNodes().empty()) {
         return GRAPH_SUCCESS;
       }
       GELOGI("Pad node %s has %zu output nodes", node->GetNamePtr(), output_size);
       const auto op = ge::OpDescUtils::CreateOperatorFromNode(node);
       Tensor val_tensor;
-      if (op.GetInputConstData("paddings", val_tensor) != GRAPH_SUCCESS) {
+      if (op.GetInputConstData(kPaddings, val_tensor) != GRAPH_SUCCESS) {
         GELOGI("Pad node op desc is abnormal, skip optimize");
         return GRAPH_SUCCESS;
       }
@@ -187,43 +240,29 @@ graphStatus PadSliceOptimizePass::Run(const ComputeGraphPtr &graph) {
   return GRAPH_SUCCESS;
 }
 
-graphStatus PadSliceOptimizePass::PostProcess(const ComputeGraphPtr &graph, const NodePtr &node) {
+graphStatus PadSliceOptimizePass::PostProcess(const ComputeGraphPtr &graph, const NodePtr &node) const {
   auto output_size = node->GetOutDataNodesSize();
-  GE_ASSERT_TRUE(output_size >= kNum1, "output_size must be greater equal than 1");
+  GE_ASSERT_TRUE(output_size >= 1U, "output_size must be greater equal than 1");
   GELOGI("Pad node %s has %zu output nodes", node->GetNamePtr(), output_size);
-  vector<int64_t> paddings = {};
-  GE_ASSERT_SUCCESS(GetListPaddings(node, paddings, "paddings"));
+  std::vector<int64_t> paddings = {};
+  GE_ASSERT_SUCCESS(GetListPaddings(node, paddings, kPaddings));
   GE_ASSERT_TRUE(paddings.size() >= kPaddingsDim2, "paddings size must be greater than 2");
-  vector<int64_t> paddings_front_value = {};
+  std::vector<int64_t> before_paddings_value = {};
   for (size_t index = 0U; index < paddings.size(); index += kPaddingsDim2) {
     GELOGI("value is %ld", paddings[index]);
-    paddings_front_value.emplace_back(paddings[index]);
+    before_paddings_value.emplace_back(paddings[index]);
   }
 
   for (size_t out_idx = 0U; out_idx < output_size; ++out_idx) {
     auto node_after_pad = node->GetOutNodes().at(out_idx);
     GE_CHECK_NOTNULL(node_after_pad);
+
+    DataType offsets_dtype = DT_INT32;
+    GE_ASSERT_SUCCESS(ExtractConstNodeDtype(node_after_pad, offsets_dtype));
     auto op_desc = node_after_pad->GetOpDesc();
     GE_CHECK_NOTNULL(op_desc);
-    *op_desc->MutableInputDesc(kNum0) = node->GetOpDesc()->GetInputDesc(kNum0);
-    std::vector<int64_t> begins_value;
-    GE_ASSERT_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node_after_pad, begins_value, "offsets", "offsets"));
-    GE_ASSERT_TRUE((begins_value.size() == paddings_front_value.size()),
-                   "begins_value and paddings_front_value size is different.");
-    std::vector<int64_t> new_begins_value;
-    for (size_t i = 0U; i < begins_value.size(); i++) {
-      GELOGI("value is %ld", begins_value[i]);
-      new_begins_value.emplace_back(begins_value[i] - paddings_front_value[i]);
-    }
-
-    auto const_begin_node = node_after_pad->GetInDataNodes().at(kNum1);
-    const auto tensor_desc = const_begin_node->GetOpDesc()->MutableOutputDesc(0U);
-    GeTensorPtr tensor =
-        ComGraphMakeShared<GeTensor>(*tensor_desc, reinterpret_cast<uint8_t *>(new_begins_value.data()),
-                                     sizeof(int64_t) * new_begins_value.size());
-    GE_ASSERT_NOTNULL(tensor);
-    GE_ASSERT_TRUE(AttrUtils::SetTensor(const_begin_node->GetOpDesc(), "value", tensor));
-    GELOGI("Success to refresh constant begin node for slice node", node_after_pad->GetNamePtr());
+    *op_desc->MutableInputDesc(0U) = node->GetOpDesc()->GetInputDesc(0U);
+    GE_ASSERT_SUCCESS(RefreshOffsetsValue(node_after_pad, before_paddings_value, offsets_dtype));
   }
   GE_ASSERT_SUCCESS(AutofuseUtils::DelOneNodeInGraph(graph, node));
   GELOGI("Success to delete pad node %s", node->GetNamePtr());

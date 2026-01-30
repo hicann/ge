@@ -12,17 +12,15 @@
 #ifndef CANN_GRAPH_ENGINE_PAD_SLICE_OPTIMIZE_PASS_H
 #define CANN_GRAPH_ENGINE_PAD_SLICE_OPTIMIZE_PASS_H
 
-#include <functional>
-#include <memory>
-#include <vector>
-
 #include "graph/node.h"
+#include "ge_error_codes.h"
+#include "gnode.h"
 
 namespace ge {
 class PadSliceOptimizePass {
  public:
   graphStatus Run(const ComputeGraphPtr &graph);
-  graphStatus PostProcess(const ComputeGraphPtr &graph, const NodePtr &node);
+  graphStatus PostProcess(const ComputeGraphPtr &graph, const NodePtr &node) const;
 };
 }
 #endif  // CANN_GRAPH_ENGINE_PAD_SLICE_OPTIMIZE_PASS_H
