@@ -80,7 +80,7 @@ TEST_F(AutoFuseConfigTest, SetCorenumThresholdInvalidDefault) {
   setenv("AUTOFUSE_DFX_FLAGS", "--att_corenum_threshold=150", 1);
   ASSERT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.Init(), SUCCESS);
   // default is 0.8
-  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.corenum_threshold, 80);
+  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.corenum_threshold, 40);
   unsetenv("AUTOFUSE_DFX_FLAGS");
 }
 } //namespace

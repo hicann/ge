@@ -9,24 +9,42 @@
  */
 
 #include "auto_fuse_config.h"
+#include <regex>
 #include "auto_fuse_config_parser.h"
-#include "common/ge_common/util.h"
 
 namespace att {
 namespace {
 const int32_t kBaseOfIntegerValue = 10;
+// 辅助函数：解析 int64_t 配置值
+inline bool ParseInt64Config(const std::string &val_str, AutoFuseConfigValue<int64_t> &config_val,
+                             int64_t &result_val, bool &is_set) {
+  static const std::regex int_regex(R"(^[+-]?\d+$)");
+  if (!std::regex_match(val_str, int_regex)) {
+    return false;
+  }
+  try {
+    auto set_val = std::stoll(val_str);
+    GE_ASSERT_SUCCESS(config_val.SetVal(set_val));
+    result_val = config_val.GetVal();
+    is_set = true;
+    return true;
+  } catch (const std::out_of_range &) {
+    return false;
+  }
+}
+
 template <typename T>
 inline Status TrySetVal(const std::unordered_map<std::string, std::string> &config, const std::string &key,
                         AutoFuseConfigValue<T> &config_val, T &result_val, bool &is_set) {
-  if (config.find(key) != config.end()) {
-    // 分离整数和字符串类型的处理
-    if constexpr (std::is_same_v<T, int64_t>) {
-      auto set_val = std::strtol(config.at(key).c_str(), nullptr, kBaseOfIntegerValue);
-      GE_ASSERT_SUCCESS(config_val.SetVal(static_cast<int64_t>(set_val)));
-    } else if constexpr (std::is_same_v<T, std::string>) {
-      const auto &set_val = config.at(key);
-      GE_ASSERT_SUCCESS(config_val.SetVal(set_val));
-    }
+  if (config.find(key) == config.end()) {
+    return ge::SUCCESS;
+  }
+  const std::string &val_str = config.at(key);
+
+  if constexpr (std::is_same_v<T, int64_t>) {
+    ParseInt64Config(val_str, config_val, result_val, is_set);
+  } else if constexpr (std::is_same_v<T, std::string>) {
+    GE_ASSERT_SUCCESS(config_val.SetVal(val_str));
     result_val = config_val.GetVal();
     is_set = true;
   }
@@ -51,8 +69,8 @@ Status AttStrategyConfig::SetEnvVal(std::unordered_map<std::string, std::string>
   constexpr int64_t kMaxUbThreshold = 100;
   constexpr int64_t kMaxCorenumThreshold = 100;
   constexpr int64_t kMaxScheduleResultNum = 100;
-  AutoFuseConfigValue<std::string> tiling_algorithm_config_val(std::string("AxesReorder"),
-    std::vector<std::string>({std::string("AxesReorder"), std::string("HighPerf")}));
+  AutoFuseConfigValue<std::string> tiling_algorithm_config_val(
+      std::string("AxesReorder"), std::vector<std::string>({std::string("AxesReorder"), std::string("HighPerf")}));
   AutoFuseConfigValue<std::string> force_tiling_case_val("", std::vector<std::string>());
   AutoFuseConfigValue<int64_t> force_schedule_result_val(-1L, std::vector<int64_t>({0, kMaxScheduleResultNum}));
   AutoFuseConfigValue<std::string> force_template_op_name_val("", std::vector<std::string>());
@@ -62,22 +80,26 @@ Status AttStrategyConfig::SetEnvVal(std::unordered_map<std::string, std::string>
   AutoFuseConfigValue<std::string> enable_multicore_ub_tradeoff_val(
       std::string("false"), std::vector<std::string>({std::string("true"), std::string("false")}));
   AutoFuseConfigValue<int64_t> ub_threshold_config_val(20L, std::vector<int64_t>({0, kMaxUbThreshold}));
-  AutoFuseConfigValue<int64_t> corenum_threshold_config_val(80L, std::vector<int64_t>({0, kMaxCorenumThreshold}));
+  AutoFuseConfigValue<int64_t> corenum_threshold_config_val(40L, std::vector<int64_t>({0, kMaxCorenumThreshold}));
   AutoFuseConfigValue<std::string> att_profiling_val(
       std::string("false"), std::vector<std::string>({std::string("true"), std::string("false")}));
 
   // 解析具体的配置
-  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttTilingAlgorithm, tiling_algorithm_config_val, tiling_algorithm, set_env_tiling_algorithm));
+  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttTilingAlgorithm, tiling_algorithm_config_val,
+                              tiling_algorithm, set_env_tiling_algorithm));
   GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttSolutionAccuracyLevel,
-    solution_accuracy_level_config_val, solution_accuracy_level, set_env_solution_accuracy_level));
+                              solution_accuracy_level_config_val, solution_accuracy_level,
+                              set_env_solution_accuracy_level));
   GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttEnableSmallShapeStrategy,
-    enable_small_shape_strategy_config_val, enable_small_shape_strategy, set_env_enable_small_shape_strategy));
-  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttUbThreshold,
-      ub_threshold_config_val, ub_threshold, set_env_ub_threshold));
-  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttCorenumThreshold,
-      corenum_threshold_config_val, corenum_threshold, set_env_corenum_threshold));
+                              enable_small_shape_strategy_config_val, enable_small_shape_strategy,
+                              set_env_enable_small_shape_strategy));
+  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttUbThreshold, ub_threshold_config_val,
+                              ub_threshold, set_env_ub_threshold));
+  GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttCorenumThreshold, corenum_threshold_config_val,
+                              corenum_threshold, set_env_corenum_threshold));
   GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttEnableMulticoreUBTradeoff,
-      enable_multicore_ub_tradeoff_val, enable_multicore_ub_tradeoff, set_env_enable_multicore_ub_tradeoff));
+                              enable_multicore_ub_tradeoff_val, enable_multicore_ub_tradeoff,
+                              set_env_enable_multicore_ub_tradeoff));
   GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttProfiling, att_profiling_val, att_profiling,
                               set_env_att_profiling));
   GE_ASSERT_SUCCESS(TrySetVal(merged_configs, kExperimentalAutofusionAttScheduleResult, force_schedule_result_val,

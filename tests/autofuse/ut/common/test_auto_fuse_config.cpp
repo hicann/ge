@@ -81,8 +81,16 @@ TEST_F(AutoFuseConfigTest, SetCorenumThresholdValid) {
 TEST_F(AutoFuseConfigTest, SetCorenumThresholdInvalidDefault) {
   setenv("AUTOFUSE_DFX_FLAGS", "--att_corenum_threshold=150", 1);
   ASSERT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.Init(), SUCCESS);
-  // default is 0.8
-  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.corenum_threshold, 80);
+  // default is 0.4
+  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.corenum_threshold, 40);
+  unsetenv("AUTOFUSE_DFX_FLAGS");
+}
+
+TEST_F(AutoFuseConfigTest, SetCorenumThresholdInvalidCharNumDefault) {
+  setenv("AUTOFUSE_DFX_FLAGS", "--att_corenum_threshold=true111", 1);
+  ASSERT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.Init(), SUCCESS);
+  // default is 0.4
+  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.corenum_threshold, 40);
   unsetenv("AUTOFUSE_DFX_FLAGS");
 }
 
@@ -171,4 +179,41 @@ TEST_F(AutoFuseConfigTest, GetForceGroupTilingCase) {
   EXPECT_EQ(group_tiling_case, expect2);
 }
 
+// Test for out_of_range exception in ParseInt64Config when value exceeds int64_t range
+TEST_F(AutoFuseConfigTest, SetSolutionAccuracyLevelOutOfRangePositive) {
+  // int64_t max is 9223372036854775807, this value exceeds it
+  setenv("AUTOFUSE_DFX_FLAGS", "--att_accuracy_level=9999999999999999999999999999999999999999999999999999999999999999", 1);
+  ASSERT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.Init(), SUCCESS);
+  // default is 1
+  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.solution_accuracy_level, 1);
+  unsetenv("AUTOFUSE_DFX_FLAGS");
+}
+
+// Test for out_of_range exception in ParseInt64Config when value is below int64_t range
+TEST_F(AutoFuseConfigTest, SetSolutionAccuracyLevelOutOfRangeNegative) {
+  // int64_t min is -9223372036854775808, this value is below it
+  setenv("AUTOFUSE_DFX_FLAGS", "--att_accuracy_level=-9999999999999999999999999999999999999999999999999999999999999999", 1);
+  ASSERT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.Init(), SUCCESS);
+  // default is 1
+  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.solution_accuracy_level, 1);
+  unsetenv("AUTOFUSE_DFX_FLAGS");
+}
+
+// Test for out_of_range exception in ParseInt64Config for ub_threshold
+TEST_F(AutoFuseConfigTest, SetUbThresholdOutOfRange) {
+  setenv("AUTOFUSE_DFX_FLAGS", "--att_ub_threshold=9999999999999999999999999999999999999999999999999999999999999999", 1);
+  ASSERT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.Init(), SUCCESS);
+  // default is 20
+  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.ub_threshold, 20);
+  unsetenv("AUTOFUSE_DFX_FLAGS");
+}
+
+// Test for out_of_range exception in ParseInt64Config for corenum_threshold
+TEST_F(AutoFuseConfigTest, SetCorenumThresholdOutOfRange) {
+  setenv("AUTOFUSE_DFX_FLAGS", "--att_corenum_threshold=9999999999999999999999999999999999999999999999999999999999999999", 1);
+  ASSERT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.Init(), SUCCESS);
+  // default is 40
+  EXPECT_EQ(att::AutoFuseConfig::Instance().att_strategy_config_.corenum_threshold, 40);
+  unsetenv("AUTOFUSE_DFX_FLAGS");
+}
 } //namespace
