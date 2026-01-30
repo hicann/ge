@@ -43,7 +43,7 @@ bool OpJsonBinHandler::IsSupportBinHandle()
         return;
       }
 
-      if ((strncmp(soc_version, "Ascend910_95", (sizeof("Ascend910_95") - 1UL)) == 0)
+      if ((strncmp(soc_version, "Ascend950", (sizeof("Ascend950") - 1UL)) == 0)
         || (strncmp(soc_version, "Ascend910_96", (sizeof("Ascend910_96") - 1UL)) == 0)) {
         is_support_ = false;
       }
