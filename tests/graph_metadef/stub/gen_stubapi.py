@@ -82,6 +82,14 @@ RETURN_STATEMENTS = {
     'std::vector<ScalarVar>& OpParamDef::': '    return this->impl_->init_value_list;',
     'OpAttrDef& OpAttrDef::': '    return *this;',
     'OpDef& OpDef::': '    return *this;',
+    'OpAICPUDef& OpAICPUDef::': '    return *this;',
+    'std::vector<ge::AscendString>& OpAICPUDef::': '    return this->impl_->cfg_keys;',
+    'std::map<ge::AscendString, ge::AscendString>& OpAICPUDef::': '    return this->impl_->cfg_info;',
+    'ge::AscendString& OpAICPUDef::': '    return this->impl_->cfg_info[key];',
+    'OpHostCPUDef& OpHostCPUDef::': '    return *this;',
+    'std::vector<ge::AscendString>& OpHostCPUDef::': '    return this->impl_->cfg_keys;',
+    'std::map<ge::AscendString, ge::AscendString>& OpHostCPUDef::': '    return this->impl_->cfg_info;',
+    'ge::AscendString& OpHostCPUDef::': '    return this->impl_->cfg_info[key];',
     'OpMC2Def& OpMC2Def::': '    return *this;',
     'OpParamDef& OpParamDef::': '    return *this;',
     'OpMC2Def& OpDef::': '    return this->impl_->op_mc2;',
@@ -92,6 +100,8 @@ RETURN_STATEMENTS = {
     'std::map<ge::AscendString, OpAICoreConfig>& OpAICoreDef::': '   return this->impl_->aicore_configs;',
     'OpAICoreDef& OpAICoreDef::': '    return *this;',
     'OpAICoreDef& OpDef::': '    return this->impl_->op_aicore;',
+    'OpAICPUDef& OpDef::': '    return this->impl_->op_aicpu;',
+    'OpHostCPUDef& OpDef::': '    return this->impl_->op_hostcpu;',
     'gert::OpImplKernelRegistry::TilingKernelFunc&': '    return this->impl_->tiling_func;',
     'OpParamDef& OpAICoreConfig::': '    static OpParamDef def("");\n    return def;',
     'std::vector<OpParamDef>& OpAICoreConfig::': '    static std::vector<OpParamDef> vec;\n    return vec;',
@@ -787,8 +797,8 @@ class H2CC(object):
             logging.info('declaration class:[%s]', class_name)
             # the class definition already exists
             if class_name in ['Graph', 'GNode', 'OpParamDefImpl', 'OpParamTrunk', 'OpAttrDefImpl',
-                              'OpAICoreConfigImpl', 'OpAICoreDefImpl', 'OpMC2DefImpl', 'OpDefImpl',
-                              'Operator', 'GeTensorSerializeUtils', 'OpImplSpaceRegistryV2']:
+                              'OpAICoreConfigImpl', 'OpAICoreDefImpl', 'OpAICPUDefImpl', 'OpHostCPUDefImpl', 'OpMC2DefImpl',
+                              'OpDefImpl', 'Operator', 'GeTensorSerializeUtils', 'OpImplSpaceRegistryV2']:
                 return 'pass'
             context = "class %s {\n"\
                       "  public:\n" \

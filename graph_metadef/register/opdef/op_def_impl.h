@@ -132,6 +132,18 @@ public:
   std::map<ge::AscendString, OpAICoreConfig> aicore_configs = {};
 };
 
+class OpAICPUDefImpl {
+public:
+  std::vector<ge::AscendString> cfg_keys;
+  std::map<ge::AscendString, ge::AscendString> cfg_info;
+};
+
+class OpHostCPUDefImpl {
+public:
+  std::vector<ge::AscendString> cfg_keys;
+  std::map<ge::AscendString, ge::AscendString> cfg_info;
+};
+
 class OpMC2DefImpl {
 public:
   std::vector<ge::AscendString> group_list = {};
@@ -146,6 +158,8 @@ public:
   OpParamTrunk op_params;
   std::vector<OpAttrDef> attrs;
   OpAICoreDef op_aicore;
+  OpAICPUDef op_aicpu;
+  OpHostCPUDef op_hostcpu;
   ge::AscendString op_type;
   ge::AscendString category = "op_proto";
   std::map<ops::CommentSection, std::vector<ge::AscendString>> comment_map = {

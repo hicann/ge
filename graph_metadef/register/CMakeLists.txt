@@ -67,6 +67,8 @@ set(SRC_LIST
     "opdef/op_def_attr.cc"
     "opdef/op_def_param.cc"
     "opdef/op_def_aicore.cc"
+    "opdef/op_def_aicpu.cc"
+    "opdef/op_def_hostcpu.cc"
     "opdef/op_def_factory.cc"
     "opdef/op_def_mc2.cc"
     "opdef/op_config_registry.cc"

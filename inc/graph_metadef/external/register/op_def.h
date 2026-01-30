@@ -41,6 +41,7 @@ class AclnnOpGenerator;
 class Generator;
 class OpProtoGenerator;
 class GeneratorFactory;
+class CPUCfgGenerator;
 class CfgGenerator;
 class OpParamTrunk;
 
@@ -214,6 +215,7 @@ private:
   friend class OpProtoGenerator;
   friend class GeneratorFactory;
   friend class CfgGenerator;
+  friend class CPUCfgGenerator;
   friend class OpParamTrunk;
   friend class OpDef;
 
@@ -256,6 +258,70 @@ private:
   InitValueNum &GetInitValue(void);
   std::vector<ScalarVar> &GetInitValueList(void);
   std::unique_ptr<OpParamDefImpl> impl_;
+};
+
+class OpAICPUDefImpl;
+class OpAICPUDef {
+public:
+  OpAICPUDef();
+  OpAICPUDef(const OpAICPUDef &aicpu_def);
+  ~OpAICPUDef();
+  OpAICPUDef &operator=(const OpAICPUDef &aicpu_def);
+  OpAICPUDef &Engine(const char *value);
+  OpAICPUDef &FlagPartial(bool flag);
+  OpAICPUDef &ComputeCost(const char *value);
+  OpAICPUDef &FlagAsync(bool flag);
+  OpAICPUDef &OpKernelLib(const char *value);
+  OpAICPUDef &KernelSo(const char *value);
+  OpAICPUDef &FunctionName(const char *value);
+  OpAICPUDef &UserDefined(bool flag);
+
+  OpAICPUDef &ExtendCfgInfo(const char *key, const char *value);
+
+private:
+  friend class Generator;
+  friend class GeneratorFactory;
+  friend class CPUCfgGenerator;
+  friend class OpDef;
+
+  std::vector<ge::AscendString> &GetCfgKeys(void);
+  std::map<ge::AscendString, ge::AscendString> &GetCfgInfo(void);
+  ge::AscendString &GetConfigValue(const char *key);
+  void AddCfgItem(const char *key, const char *value);
+
+  std::unique_ptr<OpAICPUDefImpl> impl_;
+};
+
+class OpHostCPUDefImpl;
+class OpHostCPUDef {
+public:
+  OpHostCPUDef();
+  OpHostCPUDef(const OpHostCPUDef &hostcpu_def);
+  ~OpHostCPUDef();
+  OpHostCPUDef &operator=(const OpHostCPUDef &hostcpu_def);
+  OpHostCPUDef &Engine(const char *value);
+  OpHostCPUDef &FlagPartial(bool flag);
+  OpHostCPUDef &ComputeCost(const char *value);
+  OpHostCPUDef &FlagAsync(bool flag);
+  OpHostCPUDef &OpKernelLib(const char *value);
+  OpHostCPUDef &KernelSo(const char *value);
+  OpHostCPUDef &FunctionName(const char *value);
+  OpHostCPUDef &UserDefined(bool flag);
+
+  OpHostCPUDef &ExtendCfgInfo(const char *key, const char *value);
+
+private:
+  friend class Generator;
+  friend class GeneratorFactory;
+  friend class CPUCfgGenerator;
+  friend class OpDef;
+
+  std::vector<ge::AscendString> &GetCfgKeys(void);
+  std::map<ge::AscendString, ge::AscendString> &GetCfgInfo(void);
+  ge::AscendString &GetConfigValue(const char *key);
+  void AddCfgItem(const char *key, const char *value);
+
+  std::unique_ptr<OpHostCPUDefImpl> impl_;
 };
 
 class OpAttrDefImpl;
@@ -428,6 +494,8 @@ public:
   gert::OpImplRegisterV2::InferShapeRangeKernelFunc &GetInferShapeRange(void);
   gert::OpImplRegisterV2::InferDataTypeKernelFunc &GetInferDataType(void);
   OpAICoreDef &AICore(void);
+  OpAICPUDef &AICPU(void);
+  OpHostCPUDef &HostCPU(void);
   OpMC2Def &MC2(void);
   OpDef &FormatMatchMode(FormatCheckOption option);
   OpDef &EnableFallBack(void);
@@ -435,6 +503,7 @@ public:
 private:
   friend class AclnnFallBackGenerator;
   friend class AclnnOpGenerator;
+  friend class CPUCfgGenerator;
   friend class Generator;
   friend class OpProtoGenerator;
   friend class GeneratorFactory;

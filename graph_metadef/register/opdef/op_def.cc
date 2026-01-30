@@ -36,6 +36,8 @@ OpDef::OpDef(const OpDef &op_def) : impl_(new(std::nothrow) OpDefImpl) {
   this->impl_->op_params = op_def.impl_->op_params;
   this->impl_->attrs = op_def.impl_->attrs;
   this->impl_->op_aicore = op_def.impl_->op_aicore;
+  this->impl_->op_aicpu = op_def.impl_->op_aicpu;
+  this->impl_->op_hostcpu = op_def.impl_->op_hostcpu;
   this->impl_->has_workspace = op_def.impl_->has_workspace;
   this->impl_->infer_shape = op_def.impl_->infer_shape;
   this->impl_->infer_shape_range = op_def.impl_->infer_shape_range;
@@ -500,6 +502,14 @@ std::vector<OpParamDef> OpDef::GetMergeOutputs(OpAICoreConfig &aicore_config) {
 
 OpAICoreDef &OpDef::AICore(void) {
   return this->impl_->op_aicore;
+}
+
+OpAICPUDef &OpDef::AICPU(void) {
+  return this->impl_->op_aicpu;
+}
+
+OpHostCPUDef &OpDef::HostCPU(void) {
+  return this->impl_->op_hostcpu;
 }
 
 OpMC2Def &OpDef::MC2(void) {

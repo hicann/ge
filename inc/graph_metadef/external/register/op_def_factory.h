@@ -30,6 +30,7 @@ private:
   friend class Generator;
   friend class OpProtoGenerator;
   friend class GeneratorFactory;
+  friend class CPUCfgGenerator;
   friend class CfgGenerator;
   friend class optiling::DeviceOpImplRegister;
 
