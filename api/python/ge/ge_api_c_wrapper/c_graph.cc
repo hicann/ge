@@ -76,14 +76,14 @@ graphStatus GeApiWrapper_Graph_Dump_To_Onnx(Graph *graph, const char *path, cons
   return ge::GRAPH_SUCCESS;
 }
 
-graphStatus GeApiWrapper_Graph_Dump_To_File(Graph *graph, int32_t format, const char *suffix) {
+graphStatus GeApiWrapper_Graph_Dump_To_File(const Graph *graph, int32_t format, const char *suffix) {
   GE_ASSERT_NOTNULL(graph);
   GE_ASSERT_NOTNULL(suffix);
   AscendString suffix_str(suffix);
   return graph->DumpToFile(static_cast<ge::Graph::DumpFormat>(format), suffix_str);
 }
 
-const char *GeApiWrapper_Graph_Dump_To_Stream(Graph *graph, int32_t format) {
+const char *GeApiWrapper_Graph_Dump_To_Stream(const Graph *graph, int32_t format) {
   GE_ASSERT_NOTNULL(graph);
   std::ostringstream oss;
   GE_ASSERT_GRAPH_SUCCESS(graph->Dump(static_cast<ge::Graph::DumpFormat>(format), oss));
@@ -91,7 +91,7 @@ const char *GeApiWrapper_Graph_Dump_To_Stream(Graph *graph, int32_t format) {
   return ge::c_wrapper::MallocCopyString(dump_result.c_str());
 }
 
-graphStatus GeApiWrapper_Graph_SaveToAir(Graph *graph, const char_t *file_name) {
+graphStatus GeApiWrapper_Graph_SaveToAir(const Graph *graph, const char_t *file_name) {
   GE_ASSERT_NOTNULL(graph);
   GE_ASSERT_NOTNULL(file_name);
   return graph->SaveToFile(file_name);
@@ -103,7 +103,7 @@ graphStatus GeApiWrapper_Graph_LoadFromAir(Graph *graph, const char_t *file_name
   return graph->LoadFromFile(file_name);
 }
 
-GNode **GeApiWrapper_Graph_GetDirectNode(Graph *graph, size_t *node_num) {
+GNode **GeApiWrapper_Graph_GetDirectNode(const Graph *graph, size_t *node_num) {
   GE_ASSERT_NOTNULL(graph);
   GE_ASSERT_NOTNULL(node_num);
   return VecGNodesToArray(graph->GetDirectNode(), node_num);
@@ -131,7 +131,7 @@ graphStatus GeApiWrapper_Graph_RemoveNode(Graph *graph, GNode &node) {
   return graph->RemoveNode(node);
 }
 
-graphStatus GeApiWrapper_Graph_FindNodeByName(Graph *graph, const char *name, GNode **node) {
+graphStatus GeApiWrapper_Graph_FindNodeByName(const Graph *graph, const char *name, GNode **node) {
   GE_ASSERT_NOTNULL(graph);
   GE_ASSERT_NOTNULL(name);
   AscendString node_name(name);

@@ -457,8 +457,10 @@ Status CheckNegativeCountOfOptions(const std::vector<std::vector<int64_t>> &shap
     }
     for (size_t i = 0; i < shapes.size(); ++i) {
       if (shapes.at(i).size() != negative_count) {
-        REPORT_INNER_ERR_MSG("E19999", "gear num of dynamic_dims is %zu should be equal to num:%zu from option, "
-                           "check invalid", shapes.at(i).size(), negative_count);
+        REPORT_PREDEFINED_ERR_MSG(
+            "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+            std::vector<const char *>({"dynamic_dims's per dims count", std::to_string(shapes.at(i).size()).c_str(),
+                                       "dynamic_dims's per dims count should be equal to input_shape's dim size."}));
         GELOGE(PARAM_INVALID, "[Check][Param] gear num of dynamic_dims is %zu should be equal to num:%zu from option",
                shapes.at(i).size(), negative_count);
         return PARAM_INVALID;
@@ -723,7 +725,7 @@ bool CheckDynamicImageSizeShape(const std::vector<int64_t> &shape, const std::st
     height = shape[NHWC_DIM_H];
     width = shape[NHWC_DIM_W];
   } else {
-    std::string reason = "when set --dynamic_image_size, input format only support NCHW and NHWC";
+    std::string reason = "When --dynamic_image_size is set, the input format only supports NCHW or NHWC.";
     REPORT_PREDEFINED_ERR_MSG("E10003", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({"input_format", input_format.c_str(), reason.c_str()}));
     GELOGE(ge::PARAM_INVALID, "when set --dynamic_image_size, input format only support NCHW and NHWC.");

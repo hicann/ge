@@ -163,4 +163,24 @@ protected:
 using OpDescPtr = std::shared_ptr<OpDesc>;
 }
 
+
+// namespace ge {
+
+// class GeShapeImpl {
+//     using DimsType = SmallVector<int64_t, kDefaultDimsNum>;
+// public:
+//     GeShapeImpl() = default;
+//     explicit GeShapeImpl(const std::vector<int64_t> &dims);
+//     int64_t GetDim(const size_t idx) const;
+
+// private:
+//     DimsType dims_;
+//     friend class GeTensorDesc;
+// };
+// using GeShapeImplPtr = std::shared_ptr<GeShapeImpl>;
+
+// class TensorDataImpl;
+
+// }
+
 #endif

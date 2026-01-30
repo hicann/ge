@@ -24,6 +24,7 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "graph/node.h"
+#include "graph/def_types.h"
 #include "runtime/mem.h"
 #include "runtime/mem_allocator.h"
 #include "graph/manager/mem_manager.h"

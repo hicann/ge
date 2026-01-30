@@ -10,7 +10,7 @@
 
 #include "hcom/hcom_topo_info.h"
 
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 namespace ge {
 Status HcomTopoInfo::SetGroupTopoInfo(const char_t *group, const HcomTopoInfo::TopoInfo &info) {
   if (group == nullptr) {

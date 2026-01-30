@@ -71,6 +71,7 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
   // for soft sync op
   Status GetHardwareInfo(std::map<std::string, std::string> &options) const;
   Status HandleDeviceInfo(fe::PlatFormInfos &platform_infos) const;
+  Status HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::PlatformInfo &origin_platform_info) const;
   static Status InitRuntimePlatform();
 
   Status InitRuntimeAndGetDevicePlatformInfos(int32_t device_id, const std::string &soc_version,fe::PlatFormInfos &platform_infos_device) const;
@@ -90,8 +91,6 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
                          int32_t &virtual_type, std::map<std::string, std::string> &options) const;
   Status SetPlatformInfos(const std::string &soc_version, const fe::PlatformInfo &platform_info,
                           fe::PlatFormInfos &platform_infos) const;
-
-  Status GetDefaultPlatformInfo(fe::PlatformInfo &platform_info, const std::string &soc_version) const;
 
   Status UpdatePlatfromInfoWithOption(std::map<std::string, std::string> &options, const uint32_t ai_core_cnt_ini,
                           const uint32_t vector_core_cnt_ini, fe::PlatformInfo &platform_info) const;

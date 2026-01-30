@@ -41,6 +41,7 @@
 #include "common/platform_info_util.h"
 #include <api/gelib/gelib.h>
 #include "common/memory/tensor_trans_utils.h"
+#include "register/core_num_utils.h"
 
 namespace ge {
 void CopyGeOutputsMemToUserOutputs(const rtStream_t stream, const std::vector<GeTensor> &ge_outputs,
@@ -75,8 +76,11 @@ Status CheckReuseMemoryOption(const std::map<std::string, std::string> &options)
     } else {
       GELOGE(PARAM_INVALID, "[CheckReuse][MemoryOption]option %s=%s is invalid",
              OPTION_EXEC_DISABLE_REUSED_MEMORY, iter->second.c_str());
-      REPORT_INNER_ERR_MSG("E19999", "CheckReuseMemoryOption failed because option %s=%s is invalid.",
-                         OPTION_EXEC_DISABLE_REUSED_MEMORY, iter->second.c_str());
+      const auto readable_name = ge::GetContext().GetReadableName(OPTION_EXEC_DISABLE_REUSED_MEMORY);
+      std::string reason = readable_name + " only support 0 or 1";
+      REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+          std::vector<const char *>({readable_name.c_str(), iter->second.c_str(), reason.c_str()}));
       return FAILED;
     }
   }
@@ -86,11 +90,11 @@ Status CheckReuseMemoryOption(const std::map<std::string, std::string> &options)
 Status CheckAutoTuneMode(const std::map<std::string, std::string> &options) {
   auto option_key = options.find("ge.autoTuneMode");
   if (option_key != options.end() && !option_key->second.empty()) {
-    REPORT_INNER_ERR_MSG(
-        "E19999",
-        "Check parameter's options[%s] unsupport, The Auto Tune function has been discarded. Please use the "
-        "AOE tool for tuning.",
-        option_key->first.c_str());
+    const auto readable_name = ge::GetContext().GetReadableName("ge.autoTuneMode");
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({readable_name.c_str(), option_key->second.c_str(),
+                                   "The Auto Tune function has been discarded. Please use the AOE tool for tuning."}));
     GELOGE(
         FAILED,
         "[Check][Param]Options[%s] unsupport, The Auto Tune function has been discarded. Please use the AOE tool for "
@@ -130,50 +134,6 @@ void SetSessionDeviceId() {
   }
 }
 
-Status CheckCompiledFlag(const GraphManager &graph_manager, uint32_t graph_id, bool expect_flag) {
-  GraphNodePtr graph_node = nullptr;
-  const auto ret = graph_manager.GetGraphNode(graph_id, graph_node);
-  const auto check_ret = (ret == SUCCESS) && (graph_node != nullptr);
-  GE_CHK_BOOL_RET_STATUS(check_ret, GE_GRAPH_GRAPH_NOT_EXIST,
-      "Graph:%u does not exist in graph_map, check invalid", graph_id);
-
-  if (graph_node->GetCompiledFlag() != expect_flag) {
-    const auto error_code = expect_flag ? GE_GRAPH_NOT_BUILT : UNSUPPORTED;
-    const auto error_msg = expect_flag ?
-        "Graph needs to be compiled first, graph_id=" + std::to_string(graph_id) :
-        "Incompatible with API CompileGraph, graph_id=" + std::to_string(graph_id);
-    GELOGE(error_code, "%s", error_msg.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "%s", error_msg.c_str());
-    return error_code;
-  }
-  return SUCCESS;
-}
-
-Status SetCompiledFlag(const GraphManager &graph_manager, uint32_t graph_id, bool flag) {
-  GraphNodePtr graph_node = nullptr;
-  const auto ret = graph_manager.GetGraphNode(graph_id, graph_node);
-  const auto check_ret = (ret == SUCCESS) && (graph_node != nullptr);
-  GE_CHK_BOOL_RET_STATUS(check_ret, GE_GRAPH_GRAPH_NOT_EXIST,
-      "Graph:%u does not exist in graph_map, check invalid", graph_id);
-  graph_node->SetCompiledFlag(flag);
-  return SUCCESS;
-}
-
-void RunGraphAsyncCallback(ge::Status ret, uint64_t session_id, uint32_t graph_id, std::vector<gert::Tensor> &outputs,
-                           ge::RunAsyncCallback callback) {
-  if ((ret != ge::SUCCESS) && (ret != ge::END_OF_SEQUENCE)) {
-    GELOGE(ret, "Run graph async failed, error code:%u, session_id:%lu, graph_id:%u", ret, session_id, graph_id);
-    REPORT_INNER_ERR_MSG("E19999", "Run graph async failed, error code:%u, session_id:%lu, graph_id:%u", ret,
-                         session_id, graph_id);
-  }
-  if (callback != nullptr) {
-    std::vector<ge::Tensor> ge_tensors;
-    (void) ge::TensorTransUtils::GertTensors2Tensors(outputs, ge_tensors);
-    callback(ret, ge_tensors);
-  }
-  GELOGI("run graph async finished, session_id: %lu, graph_id: %u, result=%u", session_id, graph_id, ret);
-}
-
 }
 
 static std::mutex mutex_;  // BuildGraph and RunGraph use
@@ -200,7 +160,15 @@ Status InnerSession::Initialize() {
     GELOGW("[InnerSession:%lu] session already initialize.", session_id_);
     return SUCCESS;
   }
-  GE_CHK_STATUS_RET(PlatformInfoUtil::parseAicoreNumOption(options_));
+  user_graphs_manager_ = MakeShared<UserGraphsManager>(graph_manager_);
+  if (user_graphs_manager_ == nullptr) {
+    return MEMALLOC_FAILED;
+  }
+  user_hybrid_graph_manager_ = MakeShared<UserHybridGraphManager>(*user_graphs_manager_);
+  if (user_hybrid_graph_manager_ == nullptr) {
+    return MEMALLOC_FAILED;
+  }
+  GE_CHK_STATUS_RET(CoreNumUtils::ParseAicoreNumFromOption(options_));
 
   const std::map<std::string, std::string>::const_iterator it = options_.find(ge::SOC_VERSION);
   if (it == options_.cend()) {
@@ -244,8 +212,8 @@ Status InnerSession::Initialize() {
   GE_ASSERT_SUCCESS(CheckOptionValidValues(all_options, TILING_SCHEDULE_OPTIMIZE, kStateOptions));
   GE_ASSERT_GRAPH_SUCCESS(CheckOptimizationOptionValid(all_options));
 
-  UpdateThreadContext(std::map<std::string, std::string>{});
-
+  UpdateGlobalSessionContext();
+  GetThreadLocalContext().SetGraphOption({});
   SetSessionDeviceId();
   GE_CHK_STATUS_RET(rtSetDevice(static_cast<int32_t>(GetContext().DeviceId())), "Set device failed.");
 
@@ -265,13 +233,17 @@ Status InnerSession::Initialize() {
   }
 
   GE_ASSERT_SUCCESS(InitializeVarManager());
+  is_initialized_ = true;
+  return SUCCESS;
+}
+
+Status InnerSession::CreateDFlowSessionIfNeed() {
   if (ExecutionRuntimeUtils::IsHeterogeneous()) {
     dflow_session_impl_ = MakeShared<DFlowSessionImpl>(session_id_, options_);
     GE_CHECK_NOTNULL(dflow_session_impl_, ", make DFlowSessionImpl failed");
     GE_ASSERT_SUCCESS(dflow_session_impl_->Initialize(options_));
     GELOGI("Session[%lu] will be implemented using dflow session", session_id_);
   }
-  is_initialized_ = true;
   return SUCCESS;
 }
 
@@ -281,10 +253,17 @@ Status InnerSession::Finalize() {
     GELOGW("[InnerSession:%lu] session does not initialize.", session_id_);
     return SUCCESS;
   }
-  UpdateThreadContext(std::map<std::string, std::string>{});
+  UpdateGlobalSessionContext();
+  GetThreadLocalContext().SetGraphOption({});
   if (dflow_session_impl_ != nullptr) {
     // must call before rtDeviceReset.
     GE_CHK_STATUS_RET(dflow_session_impl_->Finalize(), "[Finalize][DflowSession] failed.");
+  }
+  if (user_hybrid_graph_manager_ != nullptr) {
+    user_hybrid_graph_manager_->Finalize();
+  }
+  if (user_graphs_manager_ != nullptr) {
+    user_graphs_manager_->Finalize();
   }
   Status ret = InnerFinalize();
   if (ret != SUCCESS) {
@@ -371,11 +350,11 @@ Status InnerSession::AddGraph(uint32_t graph_id, const Graph &graph,
 
   auto iter = options.find("ge.autoTuneMode");
   if ((iter != options.end()) && (!iter->second.empty())) {
-    REPORT_INNER_ERR_MSG(
-        "E19999",
-        "Check parameter's options[%s] unsupport, The Auto Tune function has been discarded. Please use the "
-        "AOE tool for tuning.",
-        iter->first.c_str());
+    const auto readable_name = ge::GetContext().GetReadableName("ge.autoTuneMode");
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({readable_name.c_str(), iter->second.c_str(),
+                                   "The Auto Tune function has been discarded. Please use the AOE tool for tuning."}));
     GELOGE(
         FAILED,
         "[Check][Param]Options[%s] unsupport, The Auto Tune function has been discarded. Please use the AOE tool for "
@@ -383,25 +362,11 @@ Status InnerSession::AddGraph(uint32_t graph_id, const Graph &graph,
         iter->first.c_str());
     return FAILED;
   }
-  auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
-  GE_CHECK_NOTNULL(compute_graph);
-  std::string session_graph_id = std::to_string(session_id_) + "_" + std::to_string(graph_id);
-  if (!AttrUtils::SetStr(*compute_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id)) {
-    GELOGW("Set graph session_graph_id attr failed.");
-  } else {
-    GELOGD("Set graph session_graph_id attr to [%s]", session_graph_id.c_str());
-  }
-  for (auto sub_graph : compute_graph->GetAllSubgraphs()) {
-    (void)AttrUtils::SetStr(*sub_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id);
-  }
-  UpdateThreadContext(options);
+  GE_ASSERT_SUCCESS(SetSessionGraphId(graph, session_id_, graph_id));
+  UpdateGlobalSessionContext();
 
-  if (dflow_session_impl_ != nullptr) {
-    GE_CHK_STATUS_RET(dflow_session_impl_->AddGraph(graph_id, graph, options), "Dflow add graph failed.");
-    GELOGI("Add graph to dflow session success, graph_id=%u");
-    return SUCCESS;
-  }
-  Status ret = graph_manager_.AddGraph(graph_id, graph, options, domi::GetContext());
+  GE_ASSERT_NOTNULL(user_hybrid_graph_manager_);
+  Status ret = user_hybrid_graph_manager_->AddGraph(graph_id, graph, options);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Add][Graph] failed, InnerSession:%lu graphid: %u.", session_id_, graph_id);
     REPORT_INNER_ERR_MSG("E19999", "GraphManager AddGraph failed, InnerSession:%lu graphid: %u.", session_id_, graph_id);
@@ -415,71 +380,10 @@ Status InnerSession::AddGraph(uint32_t graph_id, const Graph &graph,
   return SUCCESS;
 }
 
-Status InnerSession::GetOmeContextByGraphId(const GraphId &graph_id, OmeContext &ome_context) const {
-  GraphNodePtr graph_node = nullptr;
-  GE_ASSERT_SUCCESS(graph_manager_.GetGraphNode(graph_id, graph_node));
-  GE_ASSERT_NOTNULL(graph_node, "graph_node is nullptr, graph_id:%u.", graph_id);
-  ome_context = graph_node->GetOmeContext();
-  return SUCCESS;
-}
-
-Status InnerSession::LoadGraph(const uint32_t graph_id,
-                               const std::map<AscendString, AscendString> &options, void *stream) {
-  GELOGI("[InnerSession] Load graph by graph_id=%u, stream = %p", graph_id, stream);
-  GraphNodePtr graph_node = nullptr;
-  GE_ASSERT_SUCCESS(graph_manager_.GetGraphNode(graph_id, graph_node), "get graph failed, graph_id:%u.", graph_id);
-  GE_ASSERT_NOTNULL(graph_node, "graph_node is nullptr, graph_id:%u.", graph_id);
-
-  if (graph_node->GetRunFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph_id:%u, check invalid", graph_id);
-    GELOGE(GE_GRAPH_ALREADY_RUNNING, "[Get][RunFlag] graph already running, graph id = %u", graph_id);
-    return GE_GRAPH_ALREADY_RUNNING;
-  }
-
-  if (!graph_node->GetCompiledFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph must be compiled before loaded, graph_id = %u", graph_id);
-    GELOGE(GE_GRAPH_NOT_BUILT, "[Check][CompileFlag] Graph must be compiled before loaded, graph_id = %u", graph_id);
-    return GE_GRAPH_NOT_BUILT;
-  }
-
-  if (graph_node->GetLoadFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph has been loaded, graph_id = %u", graph_id);
-    GELOGE(GE_GRAPH_REPEAT_OPERATION, "[Check][LoadFlag] Graph has been loaded, graph_id = %u", graph_id);
-    return GE_GRAPH_REPEAT_OPERATION;
-  }
-
-  auto &graph_options = const_cast<std::map<std::string, std::string>&>(graph_node->GetOptions());
-  for (const auto &iter : options) {
-    GELOGI("Get option key[%s] value[%s].", iter.first.GetString(), iter.second.GetString());
-    if (graph_options.find(iter.first.GetString()) == graph_options.end()) {
-      (void)graph_options.emplace(iter.first.GetString(), iter.second.GetString());
-    }
-  }
-
-  GeRootModelPtr ge_root_model = graph_node->GetGeRootModel();
-  GE_CHECK_NOTNULL(ge_root_model);
-  UpdateThreadContext(graph_options);
-  const auto ret = graph_manager_.LoadGraph(graph_id, ge_root_model, graph_node, stream);
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[Load][Graph] Failed, graph_id:%u.", graph_node->GetGraphId());
-    for (const auto &iter : options) {
-      (void)graph_options.erase(iter.first.GetString());
-    }
-    return ret;
-  }
-
-  graph_node->SetLoadFlag(true);
-  return SUCCESS;
-}
-
-Status InnerSession::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
-                                      const std::map<std::string, std::string> &options) {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  std::lock_guard<std::mutex> lock(resource_mutex_);
+Status InnerSession::SetSessionGraphId(const Graph &graph, uint64_t session_id, uint32_t graph_id) {
   auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
   GE_CHECK_NOTNULL(compute_graph);
-  std::string session_graph_id = std::to_string(session_id_) + "_" + std::to_string(graph_id);
+  std::string session_graph_id = std::to_string(session_id) + "_" + std::to_string(graph_id);
   if (!AttrUtils::SetStr(*compute_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id)) {
     GELOGW("Set graph session_graph_id attr failed.");
   } else {
@@ -488,7 +392,27 @@ Status InnerSession::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
   for (auto sub_graph : compute_graph->GetAllSubgraphs()) {
     (void)AttrUtils::SetStr(*sub_graph, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id);
   }
-  UpdateThreadContext(options);
+  return SUCCESS;
+}
+
+Status InnerSession::LoadGraph(const uint32_t graph_id,
+                               const std::map<AscendString, AscendString> &options, void *stream) {
+  GELOGI("[InnerSession] Load graph by graph_id=%u, stream = %p", graph_id, stream);
+  UpdateGlobalSessionContext();
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  const auto ret = user_graphs_manager_->LoadGraph(graph_id, options, stream);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Load][Graph] Failed, graph_id:%u.", graph_id);
+    return ret;
+  }
+  return SUCCESS;
+}
+
+Status InnerSession::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
+                                      const std::map<std::string, std::string> &options) {
+  std::lock_guard<std::mutex> lock(resource_mutex_);
+  GE_ASSERT_SUCCESS(SetSessionGraphId(graph, session_id_, graph_id));
+  UpdateGlobalSessionContext();
   Status ret = graph_manager_.AddGraphWithCopy(graph_id, graph, options, domi::GetContext());
   if (ret != SUCCESS) {
     GELOGE(ret, "[Add][Graph] failed, InnerSession:%lu graphid: %u.", session_id_, graph_id);
@@ -503,62 +427,9 @@ Status InnerSession::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
 
 Status InnerSession::RunGraph(uint32_t graph_id, const std::vector<Tensor> &inputs, std::vector<Tensor> &outputs) {
   GELOGI("[InnerSession:%lu] Run graph on session, graph_id=%u.", session_id_, graph_id);
-  if (dflow_session_impl_ != nullptr) {
-    GE_CHK_STATUS_RET(dflow_session_impl_->RunGraph(graph_id, inputs, outputs),
-                      "run graph in dflow session failed, graph_id=%u.", graph_id);
-    return SUCCESS;
-  }
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, false);
-  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Incompatible with API CompileGraph, graph_id=%u", graph_id);
-
-  if (mutex_.try_lock()) {
-    std::lock_guard<std::mutex> lock(mutex_, std::adopt_lock);
-    UpdateThreadContext(graph_id);
-
-    // find graph
-    GraphNodePtr graph_node = nullptr;
-    GE_ASSERT_SUCCESS(graph_manager_.GetGraphNode(graph_id, graph_node));
-    GE_ASSERT_NOTNULL(graph_node);
-    if (graph_node->GetRunFlag()) {
-      REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph_id:%u, check invalid",
-        graph_id);
-      GELOGE(GE_GRAPH_ALREADY_RUNNING, "[Get][RunFlag] graph already running, graph id = %u", graph_id);
-      return GE_GRAPH_ALREADY_RUNNING;
-    }
-    graph_manager_.UpdateLocalOmgContext(graph_id);
-
-    // set graph's run flag
-    graph_node->SetRunFlag(true);
-    GE_ASSERT_SUCCESS(graph_manager_.TranFrameOp(graph_node));
-
-    GeRootModelPtr ge_root_model = nullptr;
-    std::vector<GeTensor> ge_inputs;
-    for (auto &item : inputs) {
-      ge_inputs.emplace_back(TensorAdapter::AsGeTensor(item));
-    }
-    auto ret = graph_manager_.StartForRunGraph(graph_node, ge_inputs, ge_root_model, session_id_);
-    if (ret != SUCCESS) {
-      GELOGE(ret, "[Call][StartForRunGraph] failed, session_id:%lu", session_id_);
-      graph_node->SetRunFlag(false);
-      return ret;
-    }
-
-    std::vector<gert::Tensor> tensors_view;
-    GE_ASSERT_SUCCESS(TensorTransUtils::AsTensorsView(inputs, tensors_view));
-    std::vector<gert::Tensor> gert_outputs;
-    ret = graph_manager_.RunGraph(graph_id, tensors_view, gert_outputs);
-    domi::GetContext().out_nodes_map.clear();
-    domi::GetContext().user_out_nodes.clear();
-    if (ret != SUCCESS) {
-      GELOGE(ret, "[Run][Graph]failed, InnerSession:%lu graph_id=%u.", session_id_, graph_id);
-      REPORT_INNER_ERR_MSG("E19999",
-                        "GraphManager RunGraph failed, InnerSession:%lu graph_id=%u.", session_id_, graph_id);
-      return ret;
-    }
-    outputs.clear();
-    GE_ASSERT_SUCCESS(TensorTransUtils::GertTensors2Tensors(gert_outputs, outputs));
-    GELOGI("[InnerSession:%lu] run graph success, graph_id=%u.", session_id_, graph_id);
-    return SUCCESS;
+  if (std::unique_lock<std::mutex> lock{mutex_, std::try_to_lock}) {
+    UpdateGlobalSessionContext();
+    return graph_manager_.RunGraph(graph_id, inputs, outputs, GetSessionId());
   } else {
     GELOGE(GE_SESS_ALREADY_RUNNING, "[Run][Graph]failed, InnerSession:%lu, graph_id=%u.", session_id_, graph_id);
     REPORT_INNER_ERR_MSG("E19999",
@@ -568,31 +439,19 @@ Status InnerSession::RunGraph(uint32_t graph_id, const std::vector<Tensor> &inpu
   }
 }
 
-void InnerSession::UpdateThreadContextOptimize(uint32_t graph_id) {
-  auto options = graph_manager_.GetGraphOptions(graph_id);
-  if (options == nullptr) {
-    GELOGW("graph level options is null.");
-    GetThreadLocalContext().SetGraphOption(std::map<std::string, std::string>{});
+Status InnerSession::RunGraph(uint32_t graph_id, const std::vector<gert::Tensor> &inputs,
+                               std::vector<gert::Tensor> &outputs) {
+  GELOGI("[InnerSession:%lu] Run graph on session, graph_id=%u.", session_id_, graph_id);
+  if (std::unique_lock<std::mutex> lock{mutex_, std::try_to_lock}) {
+    UpdateGlobalSessionContext();
+    return graph_manager_.RunGraph(graph_id, inputs, outputs);
   } else {
-    GetThreadLocalContext().SetGraphOption(*options);
+    GELOGE(GE_SESS_ALREADY_RUNNING, "[Run][Graph]failed, InnerSession:%lu, graph_id=%u.", session_id_, graph_id);
+    REPORT_INNER_ERR_MSG("E19999",
+                       "RunGraph failed because mutex try_lock false, InnerSession:%lu, graph_id=%u.",
+                       session_id_, graph_id);
+    return GE_SESS_ALREADY_RUNNING;
   }
-
-  auto &global_options_mutex = GetGlobalOptionsMutex();
-  const std::lock_guard<std::mutex> lock(global_options_mutex);
-  const auto &global_options = GetMutableGlobalOptions();
-  GetThreadLocalContext().SetGlobalOption(global_options);
-  auto it = global_options.find(ge::SOC_VERSION);
-  if (it != global_options.end()) {
-    const rtError_t rt_ret = rtSetSocVersion(it->second.c_str());
-    if (rt_ret != RT_ERROR_NONE) {
-      GELOGW("Set soc version %s failed. ret:0x%X", it->second.c_str(), rt_ret);
-    }
-    GELOGI("Set soc version %s success.", it->second.c_str());
-  }
-
-  GetThreadLocalContext().SetSessionOption(options_);
-  GetContext().SetSessionId(session_id_);
-  SetTrainFlagOption();
 }
 
 Status InnerSession::ExecuteGraphWithStreamAsync(uint32_t graph_id, const rtStream_t stream,
@@ -603,10 +462,8 @@ Status InnerSession::ExecuteGraphWithStreamAsync(uint32_t graph_id, const rtStre
           "stream = %p, input size = %zu, output size = %zu",
           session_id_, graph_id, stream, inputs.size(), outputs.size());
   }
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  std::lock_guard<std::mutex> lock(build_run_mutex_);
-  const Status res = graph_manager_.ExecuteGraphWithStreamAsync(graph_id, stream, inputs, outputs);
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  const Status res = user_graphs_manager_->ExecuteGraphWithStreamAsync(graph_id, stream, inputs, outputs, session_id_);
   if (res != SUCCESS) {
     GELOGE(res, "[Execute][GraphWithStreamAsync]failed,"
             "session id = %lu, graph id = %u, stream = %p.", session_id_, graph_id, stream);
@@ -630,10 +487,7 @@ Status InnerSession::RunGraphWithStreamAsync(uint32_t graph_id, rtStream_t strea
           "stream = %p, input size = %zu, output size = %zu",
           session_id_, graph_id, stream, inputs.size(), outputs.size());
   }
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  std::lock_guard<std::mutex> lock(build_run_mutex_);
-  UpdateThreadContext(graph_id);
+  UpdateGlobalSessionContext();
   std::vector<GeTensor> ge_inputs;
   ge_inputs.reserve(inputs.size());
   for (auto &item : inputs) {
@@ -645,8 +499,6 @@ Status InnerSession::RunGraphWithStreamAsync(uint32_t graph_id, rtStream_t strea
     ge_outputs.emplace_back(TensorAdapter::AsGeTensorShared(item));
   }
   const Status res = graph_manager_.RunGraphWithStreamAsync(graph_id, stream, session_id_, ge_inputs, ge_outputs);
-  domi::GetContext().out_nodes_map.clear();
-  domi::GetContext().user_out_nodes.clear();
   if (res != SUCCESS) {
     GELOGE(res, "[Run][GraphWithStreamAsync]failed,"
             "session id = %lu, graph id = %u, stream = %p.", session_id_, graph_id, stream);
@@ -666,15 +518,12 @@ Status InnerSession::RunGraphWithStreamAsync(uint32_t graph_id, rtStream_t strea
 
 Status InnerSession::RemoveGraph(uint32_t graph_id) {
   std::lock_guard<std::mutex> lock(resource_mutex_);
-  if (dflow_session_impl_ != nullptr) {
-    GE_CHK_STATUS_RET(dflow_session_impl_->RemoveGraph(graph_id), "Remove graph from dflow session failed.");
-    return SUCCESS;
-  }
   const auto device_id = GetContext().DeviceId();
   GELOGD("Remove device id %u", device_id);
   (void)ProfilingInit::Instance().UnsetDeviceIdByModelId(graph_id, device_id);
-  UpdateThreadContext(graph_id);
-  const Status ret = graph_manager_.RemoveGraph(graph_id);
+  UpdateGlobalSessionContext();
+  GE_ASSERT_NOTNULL(user_hybrid_graph_manager_);
+  const Status ret = user_hybrid_graph_manager_->RemoveGraph(graph_id);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Remove][Graph] failed, InnerSession:%lu, graph_id=%u.", session_id_, graph_id);
     REPORT_INNER_ERR_MSG("E19999",
@@ -688,10 +537,9 @@ Status InnerSession::RemoveGraph(uint32_t graph_id) {
 Status InnerSession::RegisterCallBackFunc(
     const std::string &key,
     const std::function<Status(uint32_t, const std::map<std::string, ge::Tensor> &)> &callback) {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
   std::lock_guard<std::mutex> lock(resource_mutex_);
-  UpdateThreadContext(std::map<std::string, std::string>{});
+  UpdateGlobalSessionContext();
+  GetThreadLocalContext().SetGraphOption({});
   auto callback_func = [callback] (uint32_t graph_id, const std::map<AscendString, gert::Tensor>& params_list) {
     std::map<std::string, ge::Tensor> para_map;
     for (const auto &item : params_list) {
@@ -720,10 +568,9 @@ Status InnerSession::RegisterCallBackFunc(
 Status InnerSession::RegisterCallBackFunc(
     const std::string &key,
     const std::function<Status(uint32_t, const std::map<AscendString, ge::Tensor> &)> &callback) {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
   std::lock_guard<std::mutex> lock(resource_mutex_);
-  UpdateThreadContext(std::map<std::string, std::string>{});
+  UpdateGlobalSessionContext();
+  GetThreadLocalContext().SetGraphOption({});
   auto callback_func = [callback] (uint32_t graph_id, const std::map<AscendString, gert::Tensor>& params_list) {
     std::map<AscendString, ge::Tensor> para_map;
     for (const auto &item : params_list) {
@@ -749,6 +596,25 @@ Status InnerSession::RegisterCallBackFunc(
   return SUCCESS;
 }
 
+Status InnerSession::RegisterCallBackFunc(
+    const std::string &key,
+    const std::function<Status(uint32_t, const std::map<AscendString, gert::Tensor> &)> &callback) {
+  std::lock_guard<std::mutex> lock(resource_mutex_);
+  UpdateGlobalSessionContext();
+  GetThreadLocalContext().SetGraphOption({});
+  const Status ret = graph_manager_.RegisterCallBackFunc(key, callback);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Register][CallBackFunc] failed, InnerSession:%lu register %s.", session_id_, key.c_str());
+    REPORT_INNER_ERR_MSG("E19999",
+                      "GraphManager RegisterCallBackFunc failed, InnerSession:%lu register %s.",
+                      session_id_, key.c_str());
+    return ret;
+  }
+
+  GELOGI("[InnerSession:%lu] register %s callback function success.", session_id_, key.c_str());
+  return SUCCESS;
+}
+
 Status InnerSession::BuildGraph(uint32_t graph_id, const std::vector<InputTensorInfo> &inputs) {
   GELOGI("[InnerSession:%lu] Build graph on session, graph_id=%u.", session_id_, graph_id);
   std::vector<ge::GeTensor> ge_inputs;
@@ -762,17 +628,9 @@ Status InnerSession::BuildGraph(uint32_t graph_id, const std::vector<InputTensor
     input_tensor_desc.SetDataType(static_cast<ge::DataType>(input.data_type));
     ge_inputs.emplace_back(input_tensor_desc);
   }
-  Status ret = SUCCESS;
-  if (dflow_session_impl_ != nullptr) {
-    GELOGI("Build graph in dflow session.");
-    ret = dflow_session_impl_->BuildGraph(graph_id, ge_inputs);
-  } else {
-    UpdateThreadContext(graph_id);
-    const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, false);
-    GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Incompatible with API CompileGraph, graph_id=%u", graph_id);
-    GeRootModelPtr ge_root_model = nullptr;
-    ret = graph_manager_.BuildGraph(graph_id, ge_inputs, ge_root_model, session_id_, true);
-  }
+  UpdateGlobalSessionContext();
+  GeRootModelPtr ge_root_model = nullptr;
+  Status ret = graph_manager_.BuildGraph(graph_id, ge_inputs, ge_root_model, session_id_, true);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Build][Graph] failed, InnerSession:%lu graph_id=%u.", session_id_, graph_id);
     REPORT_INNER_ERR_MSG("E19999",
@@ -790,17 +648,10 @@ Status InnerSession::BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor>
   for (const auto &input : inputs) {
     ge_inputs.emplace_back(TensorAdapter::AsGeTensor(input));
   }
-  Status ret = SUCCESS;
-  if (dflow_session_impl_ != nullptr) {
-    GELOGI("Build graph in dflow session.");
-    ret = dflow_session_impl_->BuildGraph(graph_id, ge_inputs);
-  } else {
-    const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, false);
-    GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Check compiled flag failed, graph_id=%u", graph_id);
-    UpdateThreadContext(graph_id);
-    GeRootModelPtr ge_root_model = nullptr;
-    ret = graph_manager_.BuildGraph(graph_id, ge_inputs, ge_root_model, session_id_, true);
-  }
+  UpdateGlobalSessionContext();
+  GE_ASSERT_NOTNULL(user_hybrid_graph_manager_);
+  GeRootModelPtr ge_root_model = nullptr;
+  Status ret = user_hybrid_graph_manager_->BuildGraph(graph_id, ge_inputs, session_id_);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Build][Graph] failed, InnerSession:%lu graph_id=%u.", session_id_, graph_id);
     REPORT_INNER_ERR_MSG("E19999",
@@ -811,30 +662,13 @@ Status InnerSession::BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor>
   return ret;
 }
 
-Status InnerSession::RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tensor> &inputs,
-                                   RunAsyncCallback callback) {
+Status InnerSession::RunGraphAsync(uint32_t graph_id, std::vector<gert::Tensor> &&inputs,
+                                   const RunAsyncCallbackV2 &callback) {
   GELOGI("[InnerSession:%lu] run graph on session, graph_id=%u.", session_id_, graph_id);
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  UpdateThreadContext(graph_id);
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, false);
-  if (check_ret != SUCCESS) {
-    if (callback != nullptr) {
-      std::vector<ge::Tensor> outputs;
-      callback(check_ret, outputs);
-    }
-    GELOGE(check_ret, "Incompatible with API CompileGraph, graph_id=%u", graph_id);
-    REPORT_INNER_ERR_MSG("E19999", "Incompatible with API CompileGraph, graph_id=%u", graph_id);
-    return check_ret;
-  }
-  const uint64_t session_id = session_id_;
-  auto callback_wrapper = [session_id, graph_id, callback](Status ret, std::vector<gert::Tensor> &outputs) -> void {
-    RunGraphAsyncCallback(ret, session_id, graph_id, outputs, callback);
-  };
+  UpdateGlobalSessionContext();
 
-  std::vector<gert::Tensor> tensors_view;
-  GE_ASSERT_SUCCESS(ge::TensorTransUtils::AsTensorsView(inputs, tensors_view));
-  Status ret = graph_manager_.RunGraphAsync(graph_id, std::move(tensors_view), session_id_, callback_wrapper);
+  GE_ASSERT_NOTNULL(user_hybrid_graph_manager_);
+  Status ret = user_hybrid_graph_manager_->RunGraphAsync(graph_id, std::move(inputs), session_id_, callback);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Run][GraphAsync]failed, InnerSession:%lu graph_id=%u.", session_id_, graph_id);
     REPORT_INNER_ERR_MSG("E19999",
@@ -846,11 +680,6 @@ Status InnerSession::RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tens
 }
 
 const GraphManager &InnerSession::getGraphManagerObj() const { return graph_manager_; }
-
-void InnerSession::UpdateThreadContext(const std::map<std::string, std::string> &options) const {
-  UpdateGlobalSessionContext();
-  GetThreadLocalContext().SetGraphOption(options);
-}
 
 void InnerSession::UpdateGlobalSessionContext() const {
   {
@@ -864,19 +693,9 @@ void InnerSession::UpdateGlobalSessionContext() const {
   SetRtSocVersion();
 }
 
-void InnerSession::UpdateThreadContext(uint32_t graph_id) {
-  auto options = graph_manager_.GetGraphOptions(graph_id);
-  if (options == nullptr) {
-    GELOGW("graph level options is null.");
-    UpdateThreadContext(std::map<std::string, std::string>{});
-  } else {
-    UpdateThreadContext(*options);
-  }
-}
-
 bool InnerSession::IsGraphNeedRebuild(uint32_t graph_id) {
-  UpdateThreadContext(graph_id);
-  return graph_manager_.IsGraphNeedRebuild(graph_id);
+  GE_ASSERT_NOTNULL(user_hybrid_graph_manager_);
+  return user_hybrid_graph_manager_->IsGraphNeedRebuild(graph_id);
 }
 
 Status InnerSession::GetAllVariables(std::map<std::string, GeTensorDesc> &all_variables) {
@@ -957,66 +776,24 @@ void InnerSession::SetTrainFlagOption() {
   GELOGI("train flag is %d in session", train_flag);
 }
 
-Status InnerSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                       const std::vector<Tensor> &inputs, const DataFlowInfo &info, int32_t timeout) {
-  GE_CHECK_NOTNULL(dflow_session_impl_);
-  return dflow_session_impl_->FeedDataFlowGraph(graph_id, indexes, inputs, info, timeout);
-}
-
-Status InnerSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                       const std::vector<FlowMsgPtr> &inputs, int32_t timeout) {
-  GE_CHECK_NOTNULL(dflow_session_impl_);
-  return dflow_session_impl_->FeedDataFlowGraph(graph_id, indexes, inputs, timeout);
-}
-
-Status InnerSession::FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_data_list, const uint32_t index,
-                                 const DataFlowInfo &info, int32_t timeout) const {
-  GE_CHECK_NOTNULL(dflow_session_impl_);
-  return dflow_session_impl_->FeedRawData(graph_id, raw_data_list, index, info, timeout);
-}
-
-Status InnerSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                        std::vector<Tensor> &outputs, DataFlowInfo &info, int32_t timeout) {
-  GE_CHECK_NOTNULL(dflow_session_impl_);
-  return dflow_session_impl_->FetchDataFlowGraph(graph_id, indexes, outputs, info, timeout);
-}
-
-Status InnerSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                        std::vector<FlowMsgPtr> &outputs, int32_t timeout) {
-  GE_CHECK_NOTNULL(dflow_session_impl_);
-  return dflow_session_impl_->FetchDataFlowGraph(graph_id, indexes, outputs, timeout);
-}
-
-
-Status InnerSession::CompileGraph(uint32_t graph_id) {
-  if (dflow_session_impl_ != nullptr) {
-    GE_CHK_STATUS_RET(dflow_session_impl_->CompileGraph(graph_id, {}), "Dflow compile graph failed, graph_id=%u.",
-                      graph_id);
-  } else {
-    UpdateThreadContext(graph_id);
-    const auto ret = graph_manager_.CompileGraph(graph_id, session_id_);
-    GE_CHK_STATUS_RET(ret, "[Compile][Graph]Failed, InnerSession:%lu, graph_id:%u.", session_id_, graph_id);
-    GE_ASSERT_SUCCESS(SetCompiledFlag(graph_manager_, graph_id, true));
-  }
-  GELOGI("[InnerSession:%lu]Compile graph success, graph_id:%u.", session_id_, graph_id);
+Status InnerSession::CompileGraph(uint32_t graph_id, const vector<ge::Tensor> &inputs) {
+  UpdateGlobalSessionContext();
+  const auto ret = graph_manager_.CompileGraph(graph_id, session_id_, inputs);
+  GE_CHK_STATUS_RET(ret, "[Compile][Graph]Failed, InnerSession:%lu, graph_id:%u, inputs size:%zu.",
+                    session_id_, graph_id, inputs.size());
+  GELOGI("[InnerSession:%lu]Compile graph success, session_id:%lu, graph_id:%u, inputs size:%zu.",
+         session_id_, graph_id, inputs.size());
   return SUCCESS;
 }
 
 Status InnerSession::GetCompiledGraphSummary(uint32_t graph_id, CompiledGraphSummaryPtr &summary) {
-  UpdateThreadContext(graph_id);
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, true);
-  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Graph needs to be compiled first, graph_id=%u", graph_id);
-
-  return graph_manager_.GetCompiledGraphSummary(graph_id, summary);
+  UpdateGlobalSessionContext();
+  GE_ASSERT_NOTNULL(user_graphs_manager_);
+  return user_graphs_manager_->GetCompiledGraphSummary(graph_id, summary);
 }
 
 Status InnerSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  UpdateThreadContext(graph_id);
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, true);
-  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Graph needs to be compiled first, graph_id=%u", graph_id);
-
+  UpdateGlobalSessionContext();
   const auto ret = graph_manager_.SetConstMemoryBase(graph_id, memory, size);
   GE_CHK_STATUS_RET(ret, "[Set][Memory]Failed, InnerSession:%lu, graph_id:%u, memory:%p, size:%zu.",
                     session_id_, graph_id, memory, size);
@@ -1026,13 +803,7 @@ Status InnerSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *cons
 }
 
 Status InnerSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  UpdateThreadContext(graph_id);
-
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, true);
-  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Graph needs to be compiled first, graph_id=%u", graph_id);
-
+  UpdateGlobalSessionContext();
   const auto ret = graph_manager_.UpdateFeatureMemoryBase(graph_id, memory, size);
   GE_CHK_STATUS_RET(ret, "[Update][Memory]Failed, InnerSession:%lu, graph_id:%u, memory:%p, size:%zu.",
                     session_id_, graph_id, memory, size);
@@ -1043,13 +814,7 @@ Status InnerSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void 
 
 Status InnerSession::SetGraphFixedFeatureMemoryBase(uint32_t graph_id, MemoryType type, const void *const memory,
                                                     size_t size) {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  UpdateThreadContext(graph_id);
-
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, true);
-  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Graph needs to be compiled first, graph_id=%u", graph_id);
-
+  UpdateGlobalSessionContext();
   const auto ret = graph_manager_.SetFixedFeatureMemoryBase(graph_id, type, memory, size);
   GE_CHK_STATUS_RET(ret, "[Set][Memory]Failed, InnerSession:%lu, graph_id:%u, type:%d, memory:%p, size:%zu.",
                     session_id_, graph_id, type, memory, size);
@@ -1057,13 +822,7 @@ Status InnerSession::SetGraphFixedFeatureMemoryBase(uint32_t graph_id, MemoryTyp
 }
 
 Status InnerSession::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
-  UpdateThreadContext(graph_id);
-
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, true);
-  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Graph needs to be compiled first, graph_id=%u", graph_id);
-
+  UpdateGlobalSessionContext();
   const auto ret = graph_manager_.UpdateRefreshableFeatureMemoryBase(graph_id, memory, size);
   GE_CHK_STATUS_RET(ret, "[Update][Memory]Failed, InnerSession:%lu, graph_id:%u, memory:%p, size:%zu.",
                     session_id_, graph_id, memory, size);
@@ -1076,30 +835,20 @@ Status InnerSession::RegisterExternalAllocator(const void *const stream, Allocat
   GE_ASSERT_NOTNULL(stream, "stream is nullptr, session_id:%u.", session_id_);
   GE_ASSERT_NOTNULL(allocator, "allocator is nullptr, session_id:%u.", session_id_);
 
-  GELOGI("[InnerSession:%lu]Register external allocator success, stream:%p, allocator:%p.",
-         session_id_, stream, allocator.get());
-  ExternalAllocatorManager::SetExternalAllocator(stream, allocator);
-  return SUCCESS;
+  return graph_manager_.RegisterExternalAllocator(stream, allocator);
 }
 
 Status InnerSession::UnregisterExternalAllocator(const void * const stream) const {
   GE_ASSERT_NOTNULL(stream, "stream is nullptr, session_id:%u.", session_id_);
-
-  GELOGI("[InnerSession:%lu]Unregister external allocator success, stream:%p.", session_id_, stream);
-  ExternalAllocatorManager::DeleteExternalAllocator(stream);
-  return SUCCESS;
+  return graph_manager_.UnregisterExternalAllocator(stream);
 }
 
 Status InnerSession::PaRemapped(const uint64_t va, const uint64_t new_pa, const uint64_t len) const {
-  GE_CHK_BOOL_RET_STATUS(dflow_session_impl_ == nullptr, UNSUPPORTED,
-                         "Dflow session does not support current function, pls check.");
   const auto &ordered_graph_ids = graph_manager_.GetOrderedGraphIds();
   GE_ASSERT_TRUE(!(ordered_graph_ids.empty()), "[PaRemapped][Graph]there is no graph, InnerSession:%ld", session_id_);
   Status ret;
   std::vector<std::pair<uint64_t, uint64_t>> cross_ranges;
   for (const GraphId graph_id : ordered_graph_ids) {
-    const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, true);
-    GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Graph needs to be compiled first, graph_id=%u", graph_id);
     ret = graph_manager_.PaRemapped(graph_id, va, new_pa, len, cross_ranges);
     if (ret == FAILED) {
       GELOGW("[PaRemapped] va[%lu] pa[%lu] can not remap, graph id:%u.", va, new_pa, graph_id);
@@ -1142,21 +891,41 @@ Status InnerSession::CheckPaRemappedResult(const uint64_t va, const uint64_t len
 Status InnerSession::ForkGraph(uint32_t origin_graph_id, uint32_t forked_graph_id) {
   return graph_manager_.ForkGraph(origin_graph_id, forked_graph_id);
 }
-Status InnerSession::CompileGraph(uint32_t graph_id, const vector<ge::Tensor> &inputs) {
-  GELOGI("[InnerSession:%lu] CompileGraph on session, graph_id=%u.", session_id_, graph_id);
-  UpdateThreadContext(graph_id);
-  const auto check_ret = CheckCompiledFlag(graph_manager_, graph_id, false);
-  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret, "Incompatible with API CompileGraph, graph_id=%u", graph_id);
 
-  std::vector<ge::GeTensor> ge_inputs;
-  for (const auto &input : inputs) {
-    ge_inputs.emplace_back(TensorAdapter::AsGeTensor(input));
-  }
-  GeRootModelPtr ge_root_model = nullptr;
-  const Status ret = graph_manager_.BuildGraphWithoutLoad(graph_id, ge_inputs, ge_root_model, session_id_, true);
-  GE_ASSERT_SUCCESS(ret, "[CompileGraph] failed, InnerSession:%lu graph_id=%u.", session_id_, graph_id);
-  GE_ASSERT_SUCCESS(SetCompiledFlag(graph_manager_, graph_id, true));
-  GELOGI("[InnerSession:%lu] CompileGraph success, graph_id=%u.", session_id_, graph_id);
-  return ret;
+Status InnerSession::GetCompiledFlag(uint32_t graph_id, bool &flag) const {
+  flag = false;
+  GE_ASSERT_NOTNULL(user_hybrid_graph_manager_);
+  return user_hybrid_graph_manager_->GetCompiledFlag(graph_id, flag);
+}
+
+Status InnerSession::SetCompiledFlag(uint32_t graph_id, bool flag) {
+  GE_ASSERT_NOTNULL(user_hybrid_graph_manager_);
+  return user_hybrid_graph_manager_->SetCompiledFlag(graph_id, flag);
+}
+
+std::shared_ptr<DFlowSessionImpl> InnerSession::GetDFlowSession() const {
+  return dflow_session_impl_;
+}
+
+Status InnerSession::GetRunGraphMode(uint32_t graph_id, RunGraphMode &mode) const {
+  return graph_manager_.GetRunGraphMode(graph_id, mode);
+}
+
+Status InnerSession::SetRunGraphMode(uint32_t graph_id, const RunGraphMode &mode) {
+  return graph_manager_.SetRunGraphMode(graph_id, mode);
+}
+
+Status InnerSession::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_buffer) {
+  GELOGI("Start to get the compiled model. graph_id: %u.", graph_id);
+  UpdateGlobalSessionContext();
+  return graph_manager_.GetCompiledModel(graph_id, model_buffer);
+}
+
+bool InnerSession::GetBuildFlag(uint32_t graph_id) const {
+  return graph_manager_.GetBuildFlag(graph_id);
+}
+
+bool InnerSession::GetLoadFlag(uint32_t graph_id) const {
+  return graph_manager_.GetLoadFlag(graph_id);
 }
 }  // namespace ge

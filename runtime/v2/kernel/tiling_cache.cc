@@ -10,7 +10,7 @@
 
 #include "tiling_cache.h"
 
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/hash_utils.h"
 #include "exe_graph/lowering/data_dependent_interpreter.h"
 #include "mmpa/mmpa_api.h"
@@ -224,25 +224,8 @@ bool TilingCacheManager::Exist(const TilingCacheKey &key) const {
   return cache_strategy_->Exist(key);
 }
 
-bool TilingCacheUtils::IsTilingCacheEnabled() {
-  // 等环境默认打开后，缓存为局部静态常量，默认关闭阶段UT没法改开关
-  const char *enable_tiling_cache_env = nullptr;
-  MM_SYS_GET_ENV(MM_ENV_ENABLE_TILING_CACHE, enable_tiling_cache_env);
-  if (enable_tiling_cache_env != nullptr) {
-    if (strcmp(enable_tiling_cache_env, "0") == 0) {
-      GELOGD("[TilingCache]Disable CacheableTiling, ENABLE_TILING_CACHE = %s", enable_tiling_cache_env);
-      return false;
-    }
-  }
-  GELOGD("[TilingCache]Enable CacheableTiling");
-  return true;
-}
-
 bool TilingCacheUtils::IsOpSupportTilingCache(const ge::NodePtr &node, LoweringGlobalData &global_data,
                                               size_t &data_dependency) {
-  if (!IsTilingCacheEnabled()) {
-    return false;
-  }
   data_dependency = 0U;
   GE_ASSERT_NOTNULL(node);
   GE_ASSERT_NOTNULL(node->GetOpDesc());

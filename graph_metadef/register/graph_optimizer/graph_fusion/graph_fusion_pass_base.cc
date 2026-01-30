@@ -12,7 +12,7 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "register/graph_optimizer/fusion_common/fusion_statistic_recorder.h"
 #include "register/graph_optimizer/fusion_common/graph_pass_util.h"
 #include "register/graph_optimizer/graph_fusion/pattern_fusion_base_pass_impl.h"

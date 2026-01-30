@@ -19,7 +19,6 @@
 #include "ge/ge_api_error_codes.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "base/err_msg.h"
-#include "util/mem_utils.h"
 
 namespace ge {
 namespace formats {

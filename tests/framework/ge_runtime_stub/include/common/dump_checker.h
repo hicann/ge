@@ -21,6 +21,7 @@
 #include "aicpu/aicpu_schedule/aicpusd_info.h"
 #include "common/checker.h"
 #include "stub/runtime_stub_impl.h"
+#include "stub/acl_runtime_stub_impl.h"
 
 using OpMappingInfo = toolkit::aicpu::dump::OpMappingInfo;
 using DumpTask = toolkit::aicpu::dump::Task;
@@ -464,6 +465,91 @@ class DumpCheckRuntimeStub : public gert::RuntimeStubImpl {
     }
     delete[](uint8_t *) dev_ptr;
     return RT_ERROR_NONE;
+  }
+  DumpChecker &GetDumpChecker() {
+    return dump_checker_;
+  }
+
+ private:
+  DumpChecker dump_checker_;
+};
+
+class DumpCheckAclRuntimeStub : public gert::AclRuntimeStubImpl {
+ public:
+  rtError_t rtDatadumpInfoLoad(const void *dump_info, uint32_t length) {
+    GE_ASSERT_NOTNULL(dump_info);
+    const char_t *opMappingInfoStr = static_cast<const char_t *>(dump_info);
+    return dump_checker_.LoadOpMappingInfo(opMappingInfoStr, length, true);
+  }
+
+  rtError_t rtCpuKernelLaunchWithFlag(const void *so_name, const void *kernel_name, uint32_t block_dim,
+                                      const rtArgsEx_t *args, rtSmDesc_t *smDesc, rtStream_t stream, uint32_t flags) {
+    std::string kernel(reinterpret_cast<const char *>(kernel_name));
+    if (kernel != "DumpDataInfo") {
+      if (std::string(__FUNCTION__) == g_runtime_stub_mock) {
+        return -1;
+      }
+      if (kernel == "CheckKernelSupported") {
+        const auto *ptr = reinterpret_cast<const CheckKernelSupportedConfig *>(args->args);
+        *(reinterpret_cast<int32_t *>(reinterpret_cast<uintptr_t>(ptr->checkResultAddr))) = 0;
+      }
+      return RT_ERROR_NONE;
+    }
+    GE_ASSERT_NOTNULL(args->args);
+    size_t args_pos = sizeof(aicpu::AicpuParamHead);
+    auto proto_arg = *reinterpret_cast<const uint64_t *>(reinterpret_cast<const uint8_t *>(args->args) + args_pos);
+    args_pos += sizeof(uint64_t);
+    auto size_arg = *reinterpret_cast<const uint64_t *>(reinterpret_cast<const uint8_t *>(args->args) + args_pos);
+    auto proto_mem = reinterpret_cast<void *>(proto_arg);
+    auto proto_size = *reinterpret_cast<uint64_t *>(size_arg);
+
+    char opMappingInfoStr[proto_size + 1];
+    opMappingInfoStr[proto_size] = '\0';
+    (void)memcpy_s(opMappingInfoStr, proto_size + 1, proto_mem, proto_size);
+    GE_ASSERT_SUCCESS(dump_checker_.CheckStreamIdAndTaskId(opMappingInfoStr, proto_size));
+    return dump_checker_.LoadOpMappingInfo(opMappingInfoStr, proto_size, false);
+  }
+
+  rtError_t rtGeneralCtrl(uintptr_t *ctrl, uint32_t num, uint32_t type) {
+    GELOGI("Enter rtGeneralCtrl.");
+    if (type == RT_GNL_CTRL_TYPE_FFTS_PLUS_FLAG) {
+      rtFftsPlusTaskInfo_t *task_info = PtrToPtr<void, rtFftsPlusTaskInfo_t>(ValueToPtr(*ctrl));
+      const char_t *opMappingInfoStr = static_cast<const char_t *>(task_info->fftsPlusDumpInfo.loadDumpInfo);
+      uint32_t length = task_info->fftsPlusDumpInfo.loadDumpInfolen;
+      GE_ASSERT_SUCCESS(dump_checker_.LoadOpMappingInfo(opMappingInfoStr, length, true));
+
+      opMappingInfoStr = static_cast<const char_t *>(task_info->fftsPlusDumpInfo.unloadDumpInfo);
+      length = task_info->fftsPlusDumpInfo.unloadDumpInfolen;
+      GE_ASSERT_SUCCESS(dump_checker_.CheckStreamIdAndTaskId(opMappingInfoStr, length));
+      GE_ASSERT_SUCCESS(dump_checker_.LoadOpMappingInfo(opMappingInfoStr, length));
+    }
+    return RT_ERROR_NONE;
+  }
+
+  aclError aclrtMemcpy(void *dst, size_t dest_max, const void *src, size_t count, aclrtMemcpyKind kind) override {
+    if (count == 0) {
+      return ACL_SUCCESS;
+    }
+    return memcpy_s(dst, dest_max, src, count);
+  }
+
+  aclError aclrtMalloc(void **dev_ptr, size_t size, aclrtMemMallocPolicy policy) override {
+    *dev_ptr = new uint8_t[size];
+    memset_s(*dev_ptr, size, 0, size);
+    return ACL_SUCCESS;
+  }
+
+  aclError aclrtFree(void *dev_ptr) override {
+    if (dev_ptr == nullptr) {
+      return ACL_SUCCESS;
+    }
+    // RT2 frees step_id_addr before unloading DatadumpInfo.
+    if (dev_ptr == dump_checker_.step_id_addr_) {
+      GELOGI("step_id_addr_ about to be freed, with value[%u]", *dump_checker_.step_id_addr_);
+      dump_checker_.step_id_addr_ = nullptr;
+    }
+    delete[] (uint8_t *)dev_ptr;
+    return ACL_SUCCESS;
   }
 
   DumpChecker &GetDumpChecker() {

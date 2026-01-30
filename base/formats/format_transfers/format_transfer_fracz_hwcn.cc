@@ -14,6 +14,7 @@
 
 #include <memory>
 
+#include "common/ge_common/util.h"
 #include "formats/utils/formats_definitions.h"
 #include "formats/utils/formats_trans_utils.h"
 #include "framework/common/debug/ge_log.h"

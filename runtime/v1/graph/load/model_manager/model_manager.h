@@ -29,6 +29,7 @@
 #include "framework/common/ge_inner_error_codes.h"
 #include "framework/common/helper/model_helper.h"
 #include "framework/common/helper/om_file_helper.h"
+#include "framework/common/ge_types.h"
 #include "graph/model.h"
 #include "graph/manager/graph_manager_utils.h"
 #include "graph/load/model_manager/davinci_model.h"
@@ -129,13 +130,10 @@ class ModelManager {
   /// @return MODEL_NOT_READY  model not ready
   /// @return PUSH_DATA_FAILED push data into model queue failed
   /// @author
-  Status SyncExecuteModel(const InputData &input_data, OutputData &output_data,
-                          std::vector<GeTensor> &output_tensor);
   Status SyncExecuteModel(const uint32_t model_id, const std::vector<gert::Tensor> &inputs,
                           std::vector<gert::Tensor> &outputs);
 
   Status DataInputTensor(const uint32_t model_id, const std::shared_ptr<RunArgs> &args);
-  Status DataInputTensor(const uint32_t model_id, const std::shared_ptr<RunArgsV2> &args);
   /// @ingroup domi_ome
   /// @brief model start to run
   Status Start(const uint32_t model_id);
@@ -178,9 +176,6 @@ class ModelManager {
   Status ExecuteModelWithStreamAsync(const uint32_t model_id, const GraphNodePtr &graph_node,
                                      const std::vector<GeTensor> &input_tensor, std::vector<GeTensor> &output_tensor,
                                      const rtStream_t stream = nullptr);
-
-  Status SyncExecuteHybridModel(const uint32_t model_id, const std::vector<GeTensor> &inputs,
-    std::vector<GeTensor> &outputs);
 
   Status SyncExecuteHybridModel(const uint32_t model_id, const std::vector<gert::Tensor> &inputs,
                                 std::vector<gert::Tensor> &outputs);
@@ -321,12 +316,8 @@ class ModelManager {
   uint32_t GetRunningFlag(const uint32_t model_id);
   uint32_t GetDataInputerSize(const uint32_t model_id);
 
-  Status SetCallback(const uint32_t model_id, const GeRootModelPtr &ge_root_model, const RunAsyncCallback &callback);
-
   Status SetCallbackHybridLoad(const uint32_t model_id, const GeRootModelPtr &ge_root_model,
-                               const RunAsyncCallback &callback);
-  Status SetCallbackHybridLoad(const uint32_t model_id, const GeRootModelPtr &ge_root_model,
-                                 const RunAsyncCallbackV2 &callback);
+                               const RunAsyncCallbackV2 &callback);
   Status ModelSubscribe(const uint32_t graph_id);
 
   Status UpdateFeatureMemoryBase(const uint32_t model_id, const uintptr_t mem_base, const size_t size);
@@ -342,7 +333,7 @@ class ModelManager {
   std::string GetCustTilingDeviceUniqueSoName(const uint32_t model_id, const std::string &so_name);
   KernelBinPtr GetCustTilingDeviceSoBin(const std::string &unique_so_name);
   KernelBinPtr GetBuiltinTilingDeviceSoBin(const std::string &so_name);
-  std::string GetBuiltinTilingDeviceSoName(const std::string &so_name);
+  std::string GetBuiltinTilingDeviceSoName(const std::string &so_name) const;
   Status LoadCustAicpuSoAndUpdateSoName(const uint32_t model_id, std::string &so_name);
   Status LoadBuiltinAicpuSoAndUpdateSoName(const uint32_t device_id, std::string &so_name);
   Status LaunchBuiltinAicpuSo(const uint32_t device_id);
@@ -352,7 +343,14 @@ class ModelManager {
   static uint8_t *MallocWeightsMem(const std::string &weights_mem_id, const uint32_t device_id,
                                    const size_t weights_size);
   static Status FreeWeightsMem(const std::string &weights_mem_id, const uint32_t device_id, uint8_t *weights_mem_base);
-
+  rtBinHandle GetPlatformBinHandle() const {
+    return platform_bin_handle_;
+  }
+  void SetPlatformBinHandle(const rtBinHandle &bin_handle) {
+    if (platform_bin_handle_ == nullptr) {
+      platform_bin_handle_ = bin_handle;
+    }
+  }
  private:
   /// @ingroup domi_ome
   /// @brief constructor
@@ -396,8 +394,6 @@ class ModelManager {
   void GenDataInputOutputData(const uint32_t model_id, const std::vector<Tensor> &inputs, InputData &input_data,
                               OutputData &output_data);
 
-  Status DataInputTensorHybrid(const uint32_t model_id, std::shared_ptr<hybrid::HybridDavinciModel> hybrid_model,
-                               const std::shared_ptr<RunArgs> &args);
   Status ExternalAllocatorMalloc(const GraphId graph_id, const uint32_t model_id, const GraphNodePtr &graph_node,
                                  const rtStream_t stream);
   const std::map<std::string, AICPUKernelHolder> CollectWorkingBuiltinAicpuSo(const std::string &kernel_name,
@@ -406,13 +402,13 @@ class ModelManager {
   Status LaunchKernelBuiltinAicpuSo(const std::string &kernel_name, const uint32_t device_id);
   void AddSharedSessionModel(const uint32_t model_id);
   void DeleteSharedSessionModel(const uint32_t model_id);
-  
+
   std::mutex model_shared_session_mutex_;
   std::set<uint32_t> model_shared_session_; // 存在多个模型共享同一份rtSession资源场景，在此记录这些modelID
   std::map<uint32_t, std::shared_ptr<DavinciModel>> model_map_;
   std::map<uint32_t, std::shared_ptr<hybrid::HybridDavinciModel>> hybrid_model_map_;
   std::map<std::string, std::vector<uint64_t>> model_aicpu_kernel_;
-  uint32_t max_model_id_ = 0U;
+  std::atomic<uint32_t> max_model_id_ = 1U;
   std::recursive_mutex map_mutex_;
   std::map<uint64_t, std::set<uint32_t>> sess_id_to_device_ids_;
   std::mutex cust_aicpu_mutex_;
@@ -432,7 +428,7 @@ class ModelManager {
   std::string trigger_file_name_;
   bool is_dump_registered_ = false;
   std::mutex dump_regis_mutex_;
-
+  rtBinHandle platform_bin_handle_{nullptr};
   std::mutex op_master_device_mutex_;
   std::unordered_map<std::string, OpSoBinPtr> built_in_op_master_so_names_to_bin_;
   std::unordered_map<std::string, OpSoBinPtr> cust_op_master_so_names_to_bin_;

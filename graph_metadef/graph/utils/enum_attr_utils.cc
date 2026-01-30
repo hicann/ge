@@ -121,7 +121,8 @@ void EnumAttrUtils::Encode(const uint32_t src, string &dst) {
 void EnumAttrUtils::Decode(const string &src, size_t &dst) {
   // 解码从第2位开始，第一位是标志符'\0'
   for (size_t i = 1U; i < src.size(); i++) {
-    dst += static_cast<size_t>(src[i] - 1) * static_cast<size_t>(pow(kMaxValueOfEachDigit, (i - 1U)));
+    dst += (static_cast<size_t>(static_cast<uint8_t>(src[i])) - 1UL) * 
+            static_cast<size_t>(pow(kMaxValueOfEachDigit, (i - 1U)));
   }
 }
 

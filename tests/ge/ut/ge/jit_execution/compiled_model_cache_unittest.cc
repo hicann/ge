@@ -24,6 +24,8 @@
 #include "dflow/compiler/model/flow_model_cache.h"
 #include "slice_result_mocker.h"
 #include "api/gelib/gelib.h"
+#include "common/mem_conflict_share_graph.h"
+#include "graph/execute/model_executor.h"
 #undef private
 #undef protected
 
@@ -76,12 +78,13 @@ protected:
 };
 
 TEST_F(CompiledModelCacheUT, check_add_gep_graph_key) {
-  uint64_t session_id = 0;
-  InnerSession session(session_id, {});
-  EXPECT_EQ(session.Initialize(), ge::SUCCESS);
-  CompileContext context(session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  CompileContext context(graph_manager);
 
-  CompiledModelCache cmc(user_graph_id_, context, session);
+  CompiledModelCache cmc(user_graph_id_, context, graph_manager);
   const auto ep = new ExecutionPoint(1, nullptr, nullptr);
   const auto gep0 = new GuardedExecutionPoint(ep);
   const auto *gep1 = new GuardedExecutionPoint(ep);
@@ -89,28 +92,29 @@ TEST_F(CompiledModelCacheUT, check_add_gep_graph_key) {
   EXPECT_EQ(gep_util.AddGuardedExecutionPointGraphKey(cache_dir_, user_graph_key_, gep0), ge::SUCCESS);
   EXPECT_EQ(gep_util.AddGuardedExecutionPointGraphKey(cache_dir_, user_graph_key_, gep1), ge::SUCCESS);
 
-  EXPECT_EQ(session.Finalize(), ge::SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), ge::SUCCESS);
   delete ep;
   delete gep0;
   delete gep1;
 }
 
 TEST_F(CompiledModelCacheUT, check_get_gep_graph_key) {
-  uint64_t session_id = 0;
-  InnerSession session(session_id, {});
-  EXPECT_EQ(session.Initialize(), ge::SUCCESS);
-  CompileContext context(session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  CompileContext context(graph_manager);
 
   int64_t slice_graph_id = 1;
   std::string gep_graph_key_prefix_gt = user_graph_key_ + "_" + std::to_string(slice_graph_id) + "_";
   auto graph = std::unique_ptr<EsbGraph, void (*)(EsbGraph *)>(EsCreateGraph("Hello"), EsDestroyGraph);
   const auto ge_graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph.get())));
 
-  EXPECT_EQ(session.AddGraph(user_graph_id_,
+  EXPECT_EQ(graph_manager.AddGraph(user_graph_id_,
     *ge_graph, {{"ge.graph_key", user_graph_key_},
-    {"ge.graph_compiler_cache_dir", cache_dir_}}), ge::SUCCESS);
+    {"ge.graph_compiler_cache_dir", cache_dir_}}, OmgContext()), ge::SUCCESS);
 
-  CompiledModelCache cmc(user_graph_id_, context, session);
+  CompiledModelCache cmc(user_graph_id_, context, graph_manager);
 
   auto ep = new ExecutionPoint(slice_graph_id, nullptr, nullptr);
   auto gep0 = new GuardedExecutionPoint(ep);
@@ -120,28 +124,29 @@ TEST_F(CompiledModelCacheUT, check_get_gep_graph_key) {
   std::string gep_graph_key;
   EXPECT_EQ(gep_util.GetGuardedExecutionPointGraphKey(gep0, gep_graph_key), ge::SUCCESS);
   EXPECT_EQ(gep_graph_key.rfind(gep_graph_key_prefix_gt, 0), 0);
-  EXPECT_EQ(session.Finalize(), ge::SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), ge::SUCCESS);
 
   delete ep;
   delete gep0;
 }
 
 TEST_F(CompiledModelCacheUT, check_emplace_gep_option) {
-  uint64_t session_id = 0;
-  InnerSession session(session_id, {});
-  EXPECT_EQ(session.Initialize(), ge::SUCCESS);
-  CompileContext context(session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  CompileContext context(graph_manager);
 
   constexpr int64_t slice_graph_id = 1;
   const std::string gep_graph_key_prefix_gt = user_graph_key_ + "_" + std::to_string(slice_graph_id) + "_";
   const auto graph = std::unique_ptr<EsbGraph, void (*)(EsbGraph *)>(EsCreateGraph("Hello"), EsDestroyGraph);
   const auto ge_graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph.get())));
 
-  EXPECT_EQ(session.AddGraph(user_graph_id_, *ge_graph,
+  EXPECT_EQ(graph_manager.AddGraph(user_graph_id_, *ge_graph,
     {{"ge.graph_key", user_graph_key_},
-    {"ge.graph_compiler_cache_dir", cache_dir_}}), ge::SUCCESS);
+    {"ge.graph_compiler_cache_dir", cache_dir_}}, OmgContext()), ge::SUCCESS);
 
-  CompiledModelCache cmc(user_graph_id_, context, session);
+  CompiledModelCache cmc(user_graph_id_, context, graph_manager);
 
   ExecutionPoint *ep = new ExecutionPoint(slice_graph_id, nullptr, nullptr);
   GuardedExecutionPoint *gep0 = new GuardedExecutionPoint(ep);
@@ -158,7 +163,7 @@ TEST_F(CompiledModelCacheUT, check_emplace_gep_option) {
 
   delete ep;
   delete gep0;
-  EXPECT_EQ(session.Finalize(), ge::SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), ge::SUCCESS);
 }
 
 /*
@@ -167,8 +172,6 @@ TEST_F(CompiledModelCacheUT, check_emplace_gep_option) {
  */
 TEST_F(CompiledModelCacheUT, check_restore_cache) {
   /* initialize the ids, graph_keys and dirs */
-  constexpr uint64_t session_id = 0;
-
   /* generate the mock user_graph */
   auto user_graph_ptr = JitShareGraph::AllNormalNodes();
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(*user_graph_ptr);
@@ -176,12 +179,14 @@ TEST_F(CompiledModelCacheUT, check_restore_cache) {
   if (compute_graph == nullptr) {
     printf("compute_graph == nullptr 1 \n");
   }
+  OptionSetter option_setter(global_options_);
   /* init the CMC and start the test */
-  InnerSession session(session_id, global_options_);
-  EXPECT_EQ(session.Initialize(), ge::SUCCESS);
-
-  CompileContext context(session);
-  CompiledModelCache cmc(user_graph_id_, context, session);
+  ModelExecutor model_executor;
+  model_executor.Initialize(global_options_, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize(global_options_, &model_executor), SUCCESS);
+  CompileContext context(graph_manager);
+  CompiledModelCache cmc(user_graph_id_, context, graph_manager);
 
   /* construct the cache data structure for testing */
   SliceResultMocker mocker(user_graph_key_, 2, {3, 4});
@@ -192,13 +197,13 @@ TEST_F(CompiledModelCacheUT, check_restore_cache) {
   EXPECT_EQ(cmc.SaveCache(order), ge::SUCCESS);
 
   ExecutionOrder order_restore(UserGraph{user_graph_id_, compute_graph});
-  CompiledModelCache cmc_restore(user_graph_id_, context, session);
+  CompiledModelCache cmc_restore(user_graph_id_, context, graph_manager);
   EXPECT_EQ(cmc_restore.RestoreCache(order_restore), ge::SUCCESS);
 
   /* check whether the GuardFunc is correctly loaded */
   mocker.CheckMemObjResult(order_restore, cmc_restore);
 
-  EXPECT_EQ(session.Finalize(), ge::SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), ge::SUCCESS);
 }
 
 TEST_F(CompiledModelCacheUT, check_restore_execution_order_dir_not_exist) {

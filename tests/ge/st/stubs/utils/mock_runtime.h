@@ -41,8 +41,6 @@ class MockRuntime : public RuntimeStub {
                                                     const uint32_t flag, rtKernelDetailInfo_t *kernelInfo));
   MOCK_METHOD3(rtsBinaryLoadFromFile, int32_t(const char * const binPath, const rtLoadBinaryConfig_t *const optionalCfg,
                                              rtBinHandle *binHandle));
-  MOCK_METHOD3(rtsFuncGetByName, int32_t(const rtBinHandle binHandle, const char *kernelName,
-                                         rtFuncHandle *funcHandle));
   MOCK_METHOD5(rtsLaunchCpuKernel, int32_t(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t st,
                                            const rtKernelLaunchCfg_t *cfg, rtCpuKernelArgs_t *argsInfo));
 

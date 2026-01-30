@@ -18,7 +18,6 @@
 #include <vector>
 #include <list>
 #include <deque>
-#include "detail/attributes_holder.h"
 #include "graph/ge_attr_value.h"
 #include "graph/anchor.h"
 #include "graph/node.h"
@@ -300,10 +299,10 @@ class ComputeGraph : public std::enable_shared_from_this<ComputeGraph>, public A
   ConstProtoAttrMap &GetAttrMap() const override;
 
  private:
-  graphStatus DFSTopologicalSorting(std::vector<NodePtr> &node_vec, std::map<NodePtr, uint32_t> &map_in_edge_num,
-                                    std::vector<NodePtr> &stack, const bool reverse);
-  graphStatus BFSTopologicalSorting(std::vector<NodePtr> &node_vec, std::map<NodePtr, uint32_t> &map_in_edge_num,
-                                    std::deque<NodePtr> &stack);
+  graphStatus DFSTopologicalSorting(std::vector<NodePtr> &node_vec, const std::map<NodePtr, uint32_t> &map_in_edge_num,
+                                    const std::vector<NodePtr> &stack, const bool reverse);
+  graphStatus BFSTopologicalSorting(std::vector<NodePtr> &node_vec, const std::map<NodePtr, uint32_t> &map_in_edge_num,
+                                    const std::deque<NodePtr> &stack);
   graphStatus CollectBreadthOutNode(const NodePtr &node, std::map<NodePtr, uint32_t> &map_in_edge_num,
                                     std::map<string, NodePtr> &breadth_node_map);
 

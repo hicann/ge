@@ -289,9 +289,9 @@ class PatternMatcherImpl {
   }
   bool MatchBranchByOutTensor(const NodePtr &t_out_node, const OutDataAnchorPtr &p_out_anchor, MatchResult &match_ret) const;
   std::vector<MatchCoordinate> GetMatchCoordinatesByIdx(const ge::ComputeGraphPtr &t_graph, const NodePtr &p_output_node,
-                                                        size_t p_output_idx) const;
+                                                        const size_t p_output_idx) const;
   std::vector<MatchCoordinateSeq> GetAllMatchCoordinates(const ComputeGraphPtr &t_graph,
-                                                         const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors);
+                                                         const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors) const;
   Status InitNodeMatchers();
   const std::unique_ptr<NodeMatcher> &GetNodeMatcher(const NodePtr &node) const;
   bool has_inited = false;
@@ -308,7 +308,7 @@ class PatternMatcherImpl {
 };
 
 std::vector<MatchCoordinateSeq> PatternMatcherImpl::GetAllMatchCoordinates(
-    const ComputeGraphPtr &t_graph, const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors) {
+    const ComputeGraphPtr &t_graph, const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors) const {
   std::vector<MatchCoordinateSeq> t_idx_2_out_nodes;
   for (size_t i = 0U; i < p_idx_2_out_anchors.size(); ++i) {
     auto idx_of_output = i;

@@ -18,16 +18,16 @@ bool IsPassAttrTypeOn(PassAttr pass_attr, PassAttrType attr_type) {
 void RegPassCompileLevel(const std::string &pass_name, PassAttr pass_attr) {
   std::vector<ge::OoLevel> levels;
   if (IsPassAttrTypeOn(pass_attr, PassAttrType::COMPILE_O0)) {
-    levels.emplace_back(ge::OoLevel::kO0);
+    (void)levels.emplace_back(ge::OoLevel::kO0);
   }
   if (IsPassAttrTypeOn(pass_attr, PassAttrType::COMPILE_O1)) {
-    levels.emplace_back(ge::OoLevel::kO1);
+    (void)levels.emplace_back(ge::OoLevel::kO1);
   }
   if (IsPassAttrTypeOn(pass_attr, PassAttrType::COMPILE_O2)) {
-    levels.emplace_back(ge::OoLevel::kO2);
+    (void)levels.emplace_back(ge::OoLevel::kO2);
   }
   if (IsPassAttrTypeOn(pass_attr, PassAttrType::COMPILE_O3)) {
-    levels.emplace_back(ge::OoLevel::kO3);
+    (void)levels.emplace_back(ge::OoLevel::kO3);
   }
   if (levels.empty()) {
     return;

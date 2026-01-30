@@ -12,6 +12,7 @@
 #define AIR_CXX_RUNTIME_V2_KERNEL_MEMORY_MEMORY_KERNEL_H_
 #include "graph/types.h"
 #include "exe_graph/runtime/tensor.h"
+#include "exe_graph/runtime/kernel_context.h"
 namespace gert {
 namespace kernel {
 enum class AllocHbmMemInputs {
@@ -103,6 +104,9 @@ enum class AllocFixedFeatureMemoryInputs {
 enum class FreeFixedFeatureMemoryInputs {
   kGertTensorData
 };
-}
+ge::graphStatus FreeHbmMemHoldAddr(KernelContext *context);
+ge::graphStatus FreeBatchHbmHoldAddr(KernelContext *context);
+ge::graphStatus FreeMemoryHoldAddr(KernelContext *context);
+} // kernel
 }
 #endif  // AIR_CXX_RUNTIME_V2_KERNEL_MEMORY_MEMORY_KERNEL_H_

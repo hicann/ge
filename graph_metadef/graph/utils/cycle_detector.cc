@@ -9,7 +9,7 @@
  */
 
 #include "graph/utils/cycle_detector.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 
 namespace ge {

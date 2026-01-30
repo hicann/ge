@@ -62,4 +62,10 @@ Chain* KernelContext::GetOutput(size_t i)
     return nullptr;
 }
 
+#if 0
+template<>
+gert::ContinuousVector* KernelContext::GetOutputPointer<gert::ContinuousVector>(size_t i) {
+    return reinterpret_cast<gert::ContinuousVector*>(0);
+}
+#endif
 }

@@ -32,13 +32,10 @@
 namespace gert {
 class TilingCacheSt : public testing::Test {
  public:
-  void SetUp() override {
-    setenv("ENABLE_TILING_CACHE", "1", 1);
-  }
+  void SetUp() override {}
 
   void TearDown() override {
     tiling_func_call_times.store(0UL);
-    unsetenv("ENABLE_TILING_CACHE");
   }
 
  public:

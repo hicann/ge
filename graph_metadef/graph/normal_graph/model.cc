@@ -20,7 +20,7 @@
 #include <iomanip>
 #include "graph/debug/ge_attr_define.h"
 #include "graph/debug/ge_util.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/model_serialize.h"
 #include "graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"

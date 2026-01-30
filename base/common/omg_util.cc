@@ -28,14 +28,15 @@ Status GetOriginalType(const ge::NodePtr &node, std::string &type) {
   type = node->GetType();
   GE_IF_BOOL_EXEC(type != FRAMEWORKOP, return SUCCESS);
   GE_CHECK_NOTNULL(node->GetOpDesc());
-  const bool ret = ge::AttrUtils::GetStr(node->GetOpDesc(), ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, type);
-  if (!ret) {
+  const std::string* type_ptr = ge::AttrUtils::GetStr(node->GetOpDesc(), ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE);
+  if (type_ptr == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "Get Attr:%s fail from op:%s(%s)", ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE.c_str(),
                        node->GetName().c_str(), node->GetType().c_str());
     GELOGE(INTERNAL_ERROR, "[Get][Attr] %s fail from op:%s(%s)", ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE.c_str(),
            node->GetName().c_str(), node->GetType().c_str());
     return INTERNAL_ERROR;
   }
+  type = *type_ptr;
   GELOGD("Get FrameWorkOp original type [%s]", type.c_str());
   return SUCCESS;
 }

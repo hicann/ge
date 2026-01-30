@@ -13,6 +13,8 @@
 #include <memory>
 #include "cache_strategy.h"
 #include "graph/types.h"
+#include "graph/node.h"
+#include "exe_graph/runtime/tensor.h"
 #include "exe_graph/runtime/shape.h"
 #include "lowering/lowering_global_data.h"
 
@@ -106,7 +108,6 @@ class TilingCacheManager {
 class TilingCacheUtils {
  public:
   static constexpr size_t kByteBitCount = 8U;
-  static bool IsTilingCacheEnabled();
   static bool IsOpSupportTilingCache(const ge::NodePtr &node, LoweringGlobalData &global_data, size_t &data_dependency);
 };
 }  // namespace gert

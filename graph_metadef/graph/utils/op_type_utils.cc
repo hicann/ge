@@ -132,14 +132,15 @@ graphStatus OpTypeUtils::GetOriginalType(const ge::OpDescPtr &op_desc, std::stri
   GE_CHECK_NOTNULL(op_desc);
   type = op_desc->GetType();
   GE_IF_BOOL_EXEC(type != FRAMEWORKOP, return GRAPH_SUCCESS);
-  const bool ret = ge::AttrUtils::GetStr(op_desc, ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, type);
-  if (!ret) {
+  const std::string *orig_type_ptr = ge::AttrUtils::GetStr(op_desc, ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE);
+  if (orig_type_ptr == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "Get Attr:%s fail from op:%s(%s)", ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE.c_str(),
                          op_desc->GetName().c_str(), op_desc->GetType().c_str());
     GELOGE(INTERNAL_ERROR, "[Get][Attr] %s fail from op:%s(%s)", ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE.c_str(),
            op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return INTERNAL_ERROR;
   }
+  type = *orig_type_ptr;
   GELOGD("Get FrameWorkOp original type [%s]", type.c_str());
   return GRAPH_SUCCESS;
 }

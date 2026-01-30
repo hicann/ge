@@ -11,7 +11,6 @@
 #ifndef GE_COMMON_FORMATS_FORMAT_TRANSFERS_FORMAT_TRANSFER_TRANSPOSE_H_
 #define GE_COMMON_FORMATS_FORMAT_TRANSFERS_FORMAT_TRANSFER_TRANSPOSE_H_
 
-#include <map>
 #include <vector>
 
 #include "formats/register_format_transfer.h"

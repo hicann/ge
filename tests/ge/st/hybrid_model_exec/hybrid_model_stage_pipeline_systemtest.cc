@@ -48,6 +48,20 @@ using namespace ge::hybrid;
 namespace {
 std::map<int, int> global_counters;
 std::map<std::string, std::vector<int32_t>> global_vs;
+std::vector<gert::Tensor> InputData2GertTensors(const InputData &input_data) {
+  std::vector<gert::Tensor> input_tensors;
+  for (size_t i = 0; i < input_data.blobs.size(); ++i) {
+    gert::Tensor tensor;
+    tensor.MutableTensorData().SetAddr(input_data.blobs[i].data, nullptr);
+    tensor.MutableTensorData().SetSize(input_data.blobs[i].length);
+    tensor.MutableStorageShape().SetDimNum(input_data.shapes[i].size());
+    for (size_t j = 0U; j < input_data.shapes[i].size(); ++j) {
+      tensor.MutableStorageShape().SetDim(0, input_data.shapes[i][j]);
+    }
+    input_tensors.emplace_back(std::move(tensor));
+  }
+  return input_tensors;
+}
 }  // namespace
 
 int FetchAddGlobal(int key) {
@@ -77,19 +91,13 @@ std::map<std::string, std::vector<int32_t>> FetchClearGlobalValues() {
 }
 
 class Listener : public ModelListener {
-  using Done = std::function<void(uint32_t, uint32_t, uint32_t, std::vector<ge::Tensor> &)>;
+  using Done = std::function<void(uint32_t, uint32_t, uint32_t, std::vector<gert::Tensor> &)>;
 
  public:
   explicit Listener(Done done) : done_(done) {}
   Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
-                       std::vector<ge::Tensor> &outputs) override {
-    done_(model_id, data_index, result_code, outputs);
-    return SUCCESS;
-  }
-  Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
                        std::vector<gert::Tensor> &outputs) override {
-    std::vector<ge::Tensor> ge_outputs;
-    done_(model_id, data_index, result_code, ge_outputs);
+    done_(model_id, data_index, result_code, outputs);
     return SUCCESS;
   }
   Done done_;
@@ -249,15 +257,14 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2stage_no_pipe) {
   InputData inputs;
   inputs.blobs.emplace_back(ge::DataBuffer(&feed, sizeof(feed)));
   inputs.shapes.emplace_back(std::vector<int64_t>{1});
-  OutputData outputs;
-  std::shared_ptr<InputDataWrapper> wrapper;
+  std::shared_ptr<RunArgs> args;
 
   bool reached = false;
   int32_t result = 0;
   std::shared_ptr<ModelListener> listener = std::make_shared<Listener>(
-      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<ge::Tensor> &outputs) {
-        if (wrapper->GetOutput()->blobs.size() == 1U && wrapper->GetOutput()->blobs.front().data != nullptr) {
-          result = *static_cast<int32_t *>(wrapper->GetOutput()->blobs.front().data);
+      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<gert::Tensor> &outputs) {
+        if (!outputs.empty()) {
+          result = *static_cast<int32_t *>(outputs[0].GetAddr());
         }
         reached = true;
       });
@@ -265,8 +272,9 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2stage_no_pipe) {
   executor.Start(listener);
 
   for (int32_t i = 0U; i < 3; i++) {
-    wrapper = std::make_shared<InputDataWrapper>(inputs, outputs);
-    executor.EnqueueData(wrapper);
+    args = std::make_shared<RunArgs>();
+    args->input_tensor = std::move(InputData2GertTensors(inputs));
+    executor.EnqueueData(args);
 
     size_t kMaxWaitSeconds = 5U;
     for (size_t seconds_wait = 0U; seconds_wait < kMaxWaitSeconds; seconds_wait++) {
@@ -338,14 +346,14 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2stage_pipeline_100_steps) {
   inputs.blobs.emplace_back(ge::DataBuffer(&feed, sizeof(feed)));
   inputs.shapes.emplace_back(std::vector<int64_t>{1});
   OutputData outputs;
-  std::shared_ptr<InputDataWrapper> wrapper;
+  std::shared_ptr<RunArgs> args;
 
   bool reached = false;
   int32_t result = 0;
   std::shared_ptr<ModelListener> listener = std::make_shared<Listener>(
-      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<ge::Tensor> &outputs) {
-        if (wrapper->GetOutput()->blobs.size() == 1U && wrapper->GetOutput()->blobs.front().data != nullptr) {
-          result = *static_cast<int32_t *>(wrapper->GetOutput()->blobs.front().data);
+      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<gert::Tensor> &outputs) {
+        if (!outputs.empty()) {
+          result = *static_cast<int32_t *>(outputs[0].GetAddr());
         }
         reached = true;
       });
@@ -353,8 +361,9 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2stage_pipeline_100_steps) {
   executor.Start(listener);
 
   for (int32_t i = 0U; i < 3; i++) {
-    wrapper = std::make_shared<InputDataWrapper>(inputs, outputs);
-    executor.EnqueueData(wrapper);
+    args = std::make_shared<RunArgs>();
+    args->input_tensor = std::move(InputData2GertTensors(inputs));
+    executor.EnqueueData(args);
 
     size_t kMaxWaitSeconds = 5U;
     for (size_t seconds_wait = 0U; seconds_wait < kMaxWaitSeconds; seconds_wait++) {
@@ -442,27 +451,24 @@ TEST_F(StestHybridRt2PipelineExecutor, test_1to2_stage_pipeline_100_steps) {
   inputs.blobs.emplace_back(ge::DataBuffer(&feed, sizeof(feed)));
   inputs.shapes.emplace_back(std::vector<int64_t>{1});
   OutputData outputs;
-  std::shared_ptr<InputDataWrapper> wrapper;
+  std::shared_ptr<RunArgs> args;
 
   bool reached = false;
   int32_t result[2] = {0, 0};
   std::shared_ptr<ModelListener> listener = std::make_shared<Listener>(
-      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<ge::Tensor> &outputs) {
-        if (wrapper->GetOutput()->blobs.size() == 2U) {
-          for (size_t i = 0U; i < wrapper->GetOutput()->blobs.size(); i++) {
-            if (wrapper->GetOutput()->blobs[i].data != nullptr) {
-              result[i] = *static_cast<int32_t *>(wrapper->GetOutput()->blobs.front().data);
-            }
+      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<gert::Tensor> &outputs) {
+          for (size_t i = 0U; i < outputs.size(); i++) {
+            result[i] = *static_cast<int32_t *>(outputs[i].GetAddr());
           }
-        }
         reached = true;
       });
 
   executor.Start(listener);
 
   for (int32_t i = 0U; i < 3; i++) {
-    wrapper = std::make_shared<InputDataWrapper>(inputs, outputs);
-    executor.EnqueueData(wrapper);
+    args = std::make_shared<RunArgs>();
+    args->input_tensor = std::move(InputData2GertTensors(inputs));
+    executor.EnqueueData(args);
 
     size_t kMaxWaitSeconds = 5U;
     for (size_t seconds_wait = 0U; seconds_wait < kMaxWaitSeconds; seconds_wait++) {
@@ -559,19 +565,14 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2to1_stage_pipeline_100_steps) {
   inputs.blobs.emplace_back(ge::DataBuffer(&feed2, sizeof(feed2)));
   inputs.shapes.emplace_back(std::vector<int64_t>{1});
   OutputData outputs;
-  std::shared_ptr<InputDataWrapper> wrapper;
+  std::shared_ptr<RunArgs> args;
 
   bool reached = false;
   int32_t result[2] = {1, 1};
   std::shared_ptr<ModelListener> listener = std::make_shared<Listener>(
-      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<ge::Tensor> &outputs) {
-        GELOGE(ge::FAILED, "Num outputs is %zu, result status is %u", wrapper->GetOutput()->blobs.size(), result_code);
-        if (wrapper->GetOutput()->blobs.size() == 2U) {
-          for (size_t i = 0U; i < wrapper->GetOutput()->blobs.size(); i++) {
-            if (wrapper->GetOutput()->blobs[i].data != nullptr) {
-              result[i] = *static_cast<int32_t *>(wrapper->GetOutput()->blobs[i].data);
-            }
-          }
+      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<gert::Tensor> &outputs) {
+        for (size_t i = 0U; i < outputs.size(); i++) {
+          result[i] = *static_cast<int32_t *>(outputs[i].GetAddr());
         }
         reached = true;
       });
@@ -579,8 +580,9 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2to1_stage_pipeline_100_steps) {
   executor.Start(listener);
 
   for (int32_t i = 0U; i < 3; i++) {
-    wrapper = std::make_shared<InputDataWrapper>(inputs, outputs);
-    executor.EnqueueData(wrapper);
+    args = std::make_shared<RunArgs>();
+    args->input_tensor = std::move(InputData2GertTensors(inputs));
+    executor.EnqueueData(args);
 
     size_t kMaxWaitSeconds = 5U;
     for (size_t seconds_wait = 0U; seconds_wait < kMaxWaitSeconds; seconds_wait++) {
@@ -666,15 +668,15 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2stage_input_1toN_pipeline_100_steps
   inputs.blobs.emplace_back(ge::DataBuffer(&feed, sizeof(feed)));
   inputs.shapes.emplace_back(std::vector<int64_t>{1});
   OutputData outputs;
-  std::shared_ptr<InputDataWrapper> wrapper;
+  std::shared_ptr<RunArgs> args;
 
   bool reached = false;
   std::vector<int32_t> result;
   std::shared_ptr<ModelListener> listener = std::make_shared<Listener>(
-      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<ge::Tensor> &outputs) {
+      [&](uint32_t model_id, uint32_t data_index, uint32_t result_code, std::vector<gert::Tensor> &outputs) {
         result.clear();
-        for (auto &blob : wrapper->GetOutput()->blobs) {
-          result.push_back(*static_cast<int32_t *>(blob.data));
+        for (size_t i = 0U; i < outputs.size(); i++) {
+          result.emplace_back(*static_cast<int32_t *>(outputs[i].GetAddr()));
         }
         reached = true;
       });
@@ -682,8 +684,9 @@ TEST_F(StestHybridRt2PipelineExecutor, test_2stage_input_1toN_pipeline_100_steps
   executor.Start(listener);
 
   for (int32_t i = 0U; i < 3; i++) {
-    wrapper = std::make_shared<InputDataWrapper>(inputs, outputs);
-    executor.EnqueueData(wrapper);
+    args = std::make_shared<RunArgs>();
+    args->input_tensor = std::move(InputData2GertTensors(inputs));
+    executor.EnqueueData(args);
 
     size_t kMaxWaitSeconds = 5U;
     for (size_t seconds_wait = 0U; seconds_wait < kMaxWaitSeconds; seconds_wait++) {

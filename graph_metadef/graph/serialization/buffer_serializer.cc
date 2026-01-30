@@ -12,7 +12,7 @@
 #include <string>
 #include "proto/ge_ir.pb.h"
 #include "graph/buffer.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 graphStatus BufferSerializer::Serialize(const AnyValue &av, proto::AttrDef &def) {

@@ -12,7 +12,7 @@
 #define INC_REGISTER_GRAPH_OPTIMIZER_FUSION_COMMON_FUSION_TURBO_UTILS_H
 #include <array>
 #include "graph/utils/op_desc_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 #define FUSION_TURBO_NOTNULL(val, ret)                       \
   do {                                                  \

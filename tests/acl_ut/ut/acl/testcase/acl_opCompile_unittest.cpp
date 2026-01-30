@@ -25,6 +25,7 @@
 #include "single_op/compile/op_compile_service.h"
 #include "model/acl_resource_manager.h"
 #include "utils/array_utils.h"
+#include "utils/string_utils.h"
 #include "acl_stub.h"
 
 #undef private
@@ -42,6 +43,30 @@ using namespace acl;
 using namespace ge;
 
 using OpDescPtr = std::shared_ptr<OpDesc>;
+
+namespace {
+rtError_t  JitEnableFakeFunc(const char *label, const char *key, char *value, const uint32_t maxLen) {
+  (void)label;
+  (void)key;
+  (void)strcpy_s(value, maxLen, "1001");
+  return RT_ERROR_NONE;
+}
+
+aclError GeFinalizeCallbackFunc() {
+    return ACL_SUCCESS;
+}
+
+aclError GeFinalizeCallbackFuncFailed() {
+    return ACL_ERROR_INVALID_PARAM;
+}
+}
+
+namespace acl {
+    extern GeFinalizeCallback GetGeFinalizeCallback();
+    extern void SetGeFinalizeCallback(const GeFinalizeCallback func);
+    extern aclError AclOpCompilerFinalizeCallbackFunc(void *userData);
+}
+
 class UTEST_ACL_OpCompiler : public testing::Test {
 public:
     void SetUp() override
@@ -335,7 +360,7 @@ TEST_F(UTEST_ACL_OpCompiler, aclSetCompileoptTest1)
     std::map<std::string, std::string> currentOptions;
     acl::OpCompileProcessor::GetInstance().GetGlobalCompileOpts(currentOptions);
     std::string shape_generalized = "ge.shape_generalized";
-    std::string Valuestr = 
+    std::string Valuestr =
         currentOptions.find(shape_generalized) != currentOptions.cend() ? currentOptions[shape_generalized] : "";
     EXPECT_EQ(Valuestr, "1");
     EXPECT_EQ(GetGlobalJitCompileFlag(), 0);
@@ -395,8 +420,6 @@ TEST_F(UTEST_ACL_OpCompiler, aclGetCompileopt_Ok)
 TEST_F(UTEST_ACL_OpCompiler, aclGetCompileoptLengthCheckFailed)
 {
     char value;
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocName())
-        .WillOnce(Return("Ascend910B1"));
     EXPECT_EQ(aclGetCompileopt(ACL_OP_JIT_COMPILE, &value, 1), ACL_ERROR_FAILURE);
 }
 
@@ -404,6 +427,22 @@ TEST_F(UTEST_ACL_OpCompiler, aclGetCompileoptNotSupportFailed)
 {
     char value;
     EXPECT_EQ(aclGetCompileopt(ACL_AICORE_NUM, &value, 256), ACL_ERROR_API_NOT_SUPPORT);
+}
+
+TEST_F(UTEST_ACL_OpCompiler, aclGetCompileopt_Ok_GetJitCompileDefaultValue)
+{
+    std::vector<char> value(256);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetSocSpec(_, _, _, _))
+        .WillOnce(Return(-1))
+        .WillOnce(Invoke(JitEnableFakeFunc));
+    // 第一次rtGetSocSpec失败, 返回disable
+    EXPECT_EQ(aclGetCompileopt(ACL_OP_JIT_COMPILE, value.data(), 256), ACL_SUCCESS);
+    EXPECT_EQ(std::string(value.data()), "disable");
+
+    // 第二次获取到arch=1001, 默认开启enbale
+    value.clear();
+    EXPECT_EQ(aclGetCompileopt(ACL_OP_JIT_COMPILE, value.data(), 256), ACL_SUCCESS);
+    EXPECT_EQ(std::string(value.data()), "enable");
 }
 
 TEST_F(UTEST_ACL_OpCompiler, aclGetCompileoptTestDisable)
@@ -511,8 +550,6 @@ TEST_F(UTEST_ACL_OpCompiler, aclopCompile_Check_JitCompileDefaultValue)
     .WillRepeatedly(Return(ge::SUCCESS));
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Ge_Generator_Finalize())
     .WillRepeatedly(Return(ge::SUCCESS));
-    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtGetSocName())
-    .WillOnce(Return(("Ascend910B1")));
 
     aclError ret = aclopCompile(opType, numInputs, inputDesc,
                                 numOutputs, outputDesc, &attr, engineType, compileFlag,
@@ -908,4 +945,16 @@ TEST_F(UTEST_ACL_OpCompiler, aclopCompile)
     aclDestroyTensorDesc(inputDesc[0]);
     aclDestroyTensorDesc(inputDesc[1]);
     aclDestroyTensorDesc(outputDesc[0]);
+}
+
+TEST_F(UTEST_ACL_OpCompiler, aclInitCallbackTest)
+{
+    SetGeFinalizeCallback(nullptr);
+    EXPECT_EQ(AclOpCompilerFinalizeCallbackFunc(nullptr), ACL_SUCCESS);
+
+    SetGeFinalizeCallback(GeFinalizeCallbackFunc);
+    EXPECT_EQ(AclOpCompilerFinalizeCallbackFunc(nullptr), ACL_SUCCESS);
+
+    SetGeFinalizeCallback(GeFinalizeCallbackFuncFailed);
+    EXPECT_EQ(AclOpCompilerFinalizeCallbackFunc(nullptr), ACL_SUCCESS);
 }

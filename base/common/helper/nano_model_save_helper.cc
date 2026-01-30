@@ -34,10 +34,10 @@ Status NanoModelSaveHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_mode
   GE_ASSERT_TRUE(!(output_file.empty()), "[Save][Model] GraphBuilder SaveModel received invalid file name prefix");
 
   if (is_unknown_shape) {
-    REPORT_PREDEFINED_ERR_MSG(
+    (void)REPORT_PREDEFINED_ERR_MSG(
         "E10055", std::vector<const char *>({"reason"}),
         std::vector<const char *>(
-            {"Dynamic shape is not supported when the ATC tool is used for model conversion on a nano chip."}));
+            {"Dynamic shape is not supported when the ATC tool is used for model conversion on a nano chip"}));
     GELOGE(FAILED, "[Save][Model] Unknown shape not support.");
     return PARAM_INVALID;
   }
@@ -80,7 +80,7 @@ Status NanoModelSaveHelper::SaveToExeOmModel(const GeModelPtr &ge_model, const s
     return FAILED;
   }
 
-  const std::shared_ptr<NanoDavinciModel> nano_davinci_model = MakeShared<NanoDavinciModel>();
+  const std::unique_ptr<NanoDavinciModel> nano_davinci_model = ge::MakeUnique<NanoDavinciModel>();
   GE_ASSERT_NOTNULL(nano_davinci_model, "New NanoDavinciModel fail");
   std::shared_ptr<OmFileSaveHelper> om_file_save_helper = ge::MakeShared<OmFileSaveHelper>();
   GE_CHECK_NOTNULL(om_file_save_helper);
@@ -144,7 +144,7 @@ Status NanoModelSaveHelper::SaveAllModelPartiton(std::shared_ptr<OmFileSaveHelpe
 
 Status NanoModelSaveHelper::SaveStaticTaskDesc(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                                const GeModelPtr &ge_model, const size_t model_index) {
-  const std::shared_ptr<NanoTaskDescPartition> static_task_desc = ge::MakeShared<NanoTaskDescPartition>();
+  const std::unique_ptr<NanoTaskDescPartition> static_task_desc = ge::MakeUnique<NanoTaskDescPartition>();
   GE_ASSERT_NOTNULL(static_task_desc, "[Create][NanoTaskDescPartition]Static failed, it is nullptr, model %s",
                     ge_model->GetName().c_str());
 
@@ -165,7 +165,7 @@ Status NanoModelSaveHelper::SaveStaticTaskDesc(std::shared_ptr<OmFileSaveHelper>
 
 Status NanoModelSaveHelper::SaveDynamicTaskDesc(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                                 const GeModelPtr &ge_model, const size_t model_index) {
-  const std::shared_ptr<NanoTaskDescPartition> dynamic_task_desc = ge::MakeShared<NanoTaskDescPartition>();
+  const std::unique_ptr<NanoTaskDescPartition> dynamic_task_desc = ge::MakeUnique<NanoTaskDescPartition>();
   GE_ASSERT_NOTNULL(dynamic_task_desc, "[Create][NanoTaskDescPartition]Dynamic failed, it is nullptr, model %s",
                     ge_model->GetName().c_str());
 
@@ -186,7 +186,7 @@ Status NanoModelSaveHelper::SaveDynamicTaskDesc(std::shared_ptr<OmFileSaveHelper
 
 Status NanoModelSaveHelper::SaveTaskParam(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                           const GeModelPtr &ge_model, const size_t model_index) {
-  const std::shared_ptr<NanoTaskDescPartition> task_param = ge::MakeShared<NanoTaskDescPartition>();
+  const std::unique_ptr<NanoTaskDescPartition> task_param = ge::MakeUnique<NanoTaskDescPartition>();
   GE_ASSERT_NOTNULL(task_param, "[Create][NanoTaskDescPartition]task_param failed, it is nullptr, model %s",
                     ge_model->GetName().c_str());
 
@@ -228,7 +228,7 @@ Status NanoModelSaveHelper::SaveModelWeights(std::shared_ptr<OmFileSaveHelper> &
 
 Status NanoModelSaveHelper::SaveModelDesc(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                           const GeModelPtr &ge_model, const size_t model_index) {
-  const std::shared_ptr<ModelDescPartition> model_desc = ge::MakeShared<ModelDescPartition>();
+  const std::unique_ptr<ModelDescPartition> model_desc = ge::MakeUnique<ModelDescPartition>();
   GE_ASSERT_NOTNULL(model_desc, "ModelDescPartition failed, it is nullptr, model %s", ge_model->GetName().c_str());
 
   Status ret = model_desc->Init(ge_model);
@@ -260,7 +260,7 @@ Status NanoModelSaveHelper::SaveModelTbeKernel(std::shared_ptr<OmFileSaveHelper>
 
 Status NanoModelSaveHelper::SaveModelDescExtend(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                                 const GeModelPtr &ge_model, const size_t model_index) {
-  const std::shared_ptr<ModelDescExtendPartition> model_desc_extend = ge::MakeShared<ModelDescExtendPartition>();
+  const std::unique_ptr<ModelDescExtendPartition> model_desc_extend = ge::MakeUnique<ModelDescExtendPartition>();
   GE_ASSERT_NOTNULL(model_desc_extend, "ModelDescExtendPartition failed, it is nullptr, model %s",
                     ge_model->GetName().c_str());
 

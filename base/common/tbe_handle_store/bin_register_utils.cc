@@ -24,22 +24,21 @@ namespace ge {
 namespace {
 ge::Status GetDevBinFromOpDesc(const OpDesc &op_desc, const TBEKernelPtr &tbe_kernel, rtDevBinary_t &binary,
                                const std::string &kTvmMagicName) {
-  std::string json_string;
-  GE_IF_BOOL_EXEC(AttrUtils::GetStr(op_desc, kTvmMagicName, json_string),
-                  GELOGI("Get json_string of tvm_magic from op_desc."));
-  if (json_string == "RT_DEV_BINARY_MAGIC_ELF_AICPU") {
+  const std::string *json_string = AttrUtils::GetStr(op_desc, kTvmMagicName);
+  GE_ASSERT_NOTNULL(json_string, "Get json_string of tvm_magic from op_desc is null.");
+  if (*json_string == "RT_DEV_BINARY_MAGIC_ELF_AICPU") {
     binary.magic = RT_DEV_BINARY_MAGIC_ELF_AICPU;
-  } else if (json_string == "RT_DEV_BINARY_MAGIC_ELF") {
+  } else if (*json_string == "RT_DEV_BINARY_MAGIC_ELF") {
     binary.magic = RT_DEV_BINARY_MAGIC_ELF;
-  } else if (json_string == "RT_DEV_BINARY_MAGIC_ELF_AIVEC") {
+  } else if (*json_string == "RT_DEV_BINARY_MAGIC_ELF_AIVEC") {
     binary.magic = RT_DEV_BINARY_MAGIC_ELF_AIVEC;
-  } else if (json_string == "RT_DEV_BINARY_MAGIC_ELF_AICUBE") {
+  } else if (*json_string == "RT_DEV_BINARY_MAGIC_ELF_AICUBE") {
     binary.magic = RT_DEV_BINARY_MAGIC_ELF_AICUBE;
   } else {
     GELOGE(PARAM_INVALID, "[Check][JsonStr]Attr:%s in op:%s(%s), value:%s check invalid", TVM_ATTR_NAME_MAGIC.c_str(),
-           op_desc.GetName().c_str(), op_desc.GetType().c_str(), json_string.c_str());
+           op_desc.GetName().c_str(), op_desc.GetType().c_str(), json_string->c_str());
     REPORT_INNER_ERR_MSG("E19999", "Attr:%s in op:%s(%s), value:%s check invalid", TVM_ATTR_NAME_MAGIC.c_str(),
-                       op_desc.GetName().c_str(), op_desc.GetType().c_str(), json_string.c_str());
+                       op_desc.GetName().c_str(), op_desc.GetType().c_str(), json_string->c_str());
     return PARAM_INVALID;
   }
   binary.version = 0U;

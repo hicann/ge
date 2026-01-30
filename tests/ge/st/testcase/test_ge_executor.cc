@@ -12,6 +12,7 @@
 #include "init_ge.h"
 #include "utils/bench_env.h"
 #include "ge_graph_dsl/graph_dsl.h"
+#include <cstdlib>
 
 #include "macro_utils/dt_public_scope.h"
 #include "ge/ut/ge/test_tools_task_info.h"
@@ -39,6 +40,7 @@
 #include "stub/gert_runtime_stub.h"
 #include "framework/runtime/model_rt_var_manager.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 
 using namespace std;
 using namespace testing;
@@ -261,7 +263,8 @@ void BuildHcclSampleGraphWithQos(ComputeGraphPtr &graph, uint32_t &mem_offset) {
 void BuildSampleGraph(ComputeGraphPtr &graph, uint32_t &mem_offset) {
   DEF_GRAPH(g1) {
     const auto active_s = OP_CFG(STREAMACTIVE).Attr(ATTR_NAME_ACTIVE_STREAM_LIST, std::vector<int64_t>{1});
-    const auto less_node = OP_CFG(LESS).Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC");
+    const auto less_node = OP_CFG(LESS).Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC")
+                               .Attr(ATTR_NAME_KERNEL_BIN_ID, "_less_fake_kernel_bin_id");
     CHAIN(NODE("_arg_0", DATA)->NODE("HcomAllreduce", HCOMALLREDUCE)->NODE("Less", less_node));
     CHAIN(NODE("_arg_1", DATA)->NODE("Less")->NODE("Less_Cast", CAST)->CTRL_EDGE()->NODE("Less_StreamActive", active_s));
     CHAIN(NODE("_arg_2", DATA)->NODE("mul", MUL)->EDGE(0, 1)->NODE("add_n", ADDN)->NODE(NODE_NAME_NET_OUTPUT, NETOUTPUT));
@@ -482,7 +485,7 @@ void BuildGraphModel(ComputeGraphPtr &graph, GeModelPtr &ge_model, uint32_t mem_
   InitKernelTaskDef(graph, *model_task_def, "shape");
 
   InitKernelTaskDef_TE(graph, *model_task_def, "Less", tbe_kernel_store);
-  InitKernelTaskDef_CUSTOM(graph, *model_task_def, "Less_Cast");
+  InitKernelTaskDef_TE(graph, *model_task_def, "Less_Cast", tbe_kernel_store);
   InitKernelTaskDef_CUST_CPU(graph, *model_task_def, "mul", cpu_kernel_store);
 
   InitStreamActiveDef(graph, *model_task_def, "Less_StreamActive");
@@ -908,25 +911,18 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
   GeModelPtr ge_model;
   BuildGraphModel(graph, ge_model, mem_offset);
   EXPECT_NE(ge_model, nullptr);
-  int64_t value_0 = 127;
-  int64_t value_1 = 100;
-  int64_t value_2 = 258;
-  int64_t value_3 = 512;
-  // Tensor for input.
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  Tensor tensor_2(tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  Tensor tensor_3(tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
-  const std::vector<Tensor> input_tensors{ tensor_0, tensor_1, tensor_2, tensor_3 };
+  std::vector<gert::Tensor> input_tensors(4);
+  TensorCheckUtils::ConstructGertTensor(input_tensors[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(input_tensors[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(input_tensors[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(input_tensors[3], {1}, DT_INT64, FORMAT_ND);
 
   // Tensor for input.
-  GeTensorDesc sync_tensor_desc(GeShape(), FORMAT_ND, DT_INT64);
-  GeTensor sync_tensor_0(sync_tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  GeTensor sync_tensor_1(sync_tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  GeTensor sync_tensor_2(sync_tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  GeTensor sync_tensor_3(sync_tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
-  const std::vector<GeTensor> sync_inputs{ sync_tensor_0, sync_tensor_1, sync_tensor_2, sync_tensor_3 };
+  std::vector<gert::Tensor> sync_inputs(4);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[3], {1}, DT_INT64, FORMAT_ND);
 
   std::vector<uint32_t> model_ids;
   DumpCommandInit(ge_executor_);
@@ -945,14 +941,14 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    std::vector<Tensor> run_outputs;
-    const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+    std::vector<gert::Tensor> run_outputs;
+    const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       run_outputs.swap(outputs);
       model_run_cv.notify_one();
     };
-    // RunArgs of Graph.
+    // RunArgsV2 of Graph.
     GEThreadLocalContext context;
     context.SetGraphOption({{OPTION_EXEC_DYNAMIC_EXECUTE_MODE, "lazy_recompile"},
                             {OPTION_EXEC_ENABLE_COPY_OUTPUT_ADDR, "1"},
@@ -966,7 +962,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     arg->graph_id = graph->GetGraphID();
     arg->session_id = graph->GetSessionID();
     arg->error_context = error_context;
-    arg->input_tensor = input_tensors;
+    arg->input_tensor = std::move(input_tensors);
     arg->context = context;
     arg->callback = callback;
     // Load and execute.
@@ -1017,7 +1013,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     model_executor.StartRunThread();
 
     // Execute Synchronous
-    std::vector<GeTensor> sync_outputs;
+    std::vector<gert::Tensor> sync_outputs;
     EXPECT_EQ(model_executor.RunGraph(graph_node, graph->GetGraphID(), sync_inputs, sync_outputs), SUCCESS);
     EXPECT_EQ(sync_outputs.size(), 1U);
     model_ids.emplace_back(ge_root_model->GetModelId());
@@ -1046,6 +1042,18 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_EVENT_NUM, 960));
     EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 32));
 
+    int64_t value_0 = 127;
+    int64_t value_1 = 100;
+    int64_t value_2 = 258;
+    int64_t value_3 = 512;
+    // Tensor for input.
+    GeTensorDesc sync_tensor_desc(GeShape(), FORMAT_ND, DT_INT64);
+    GeTensor sync_tensor_0(sync_tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
+    GeTensor sync_tensor_1(sync_tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
+    GeTensor sync_tensor_2(sync_tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
+    GeTensor sync_tensor_3(sync_tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
+    const std::vector<GeTensor> sync_inputs{ sync_tensor_0, sync_tensor_1, sync_tensor_2, sync_tensor_3 };
+
     GeTensorDesc output_desc(GeShape({2, 4, 8, 2}), FORMAT_FRACTAL_Z, DT_FLOAT);
     std::vector<uint8_t> arg_3(512, 0);  // mem_offset += (2 * 4 * 8 * 2 * sizeof(float));
     GeTensor nn_tensor_21(output_desc, arg_3.data(), arg_3.size());
@@ -1066,6 +1074,11 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph->GetGraphID()), SUCCESS);
     EXPECT_EQ(model_executor.Finalize(), SUCCESS);
   }
+  std::vector<gert::Tensor> input_tensors2(4);
+  TensorCheckUtils::ConstructGertTensor(input_tensors2[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(input_tensors2[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(input_tensors2[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(input_tensors2[3], {1}, DT_INT64, FORMAT_ND);
 
   EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_EVENT_NUM, 32));
   EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 32));
@@ -1098,15 +1111,15 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    std::vector<Tensor> run_outputs;
-    const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+    std::vector<gert::Tensor> run_outputs;
+    const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       run_outputs.swap(outputs);
       model_run_cv.notify_one();
     };
 
-    // RunArgs of Graph.
+    // RunArgsV2 of Graph.
     GEThreadLocalContext context;
     error_message::ErrorManagerContext error_context;
     graph_node->Lock();
@@ -1117,7 +1130,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory) {
     arg->graph_id = graph->GetGraphID();
     arg->session_id = graph->GetSessionID();
     arg->error_context = error_context;
-    arg->input_tensor = input_tensors;
+    arg->input_tensor = std::move(input_tensors2);
     arg->context = context;
     arg->callback = callback;
     // Load and execute.
@@ -1352,15 +1365,10 @@ TEST_F(GeExecutorTest, sample_davinci_model_invalid_input) {
   BuildGraphModel(graph, ge_model, mem_offset);
   EXPECT_NE(ge_model, nullptr);
 
-  int64_t value_0 = 127;
-  int64_t value_1 = 100;
-  int64_t value_2 = 258;
-  // Tensor for input.
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  Tensor tensor_2(tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  const std::vector<Tensor> input_tensors{ tensor_0, tensor_1, tensor_2};
+  std::vector<gert::Tensor> inputs(3);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[2], {1}, DT_INT64, FORMAT_ND);
 
   std::vector<uint32_t> model_ids;
   DumpCommandInit(ge_executor_);
@@ -1369,7 +1377,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_invalid_input) {
   {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -1379,14 +1387,12 @@ TEST_F(GeExecutorTest, sample_davinci_model_invalid_input) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    std::vector<Tensor> run_outputs;
-    const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+    const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
-      run_outputs.swap(outputs);
       model_run_cv.notify_one();
     };
-    // RunArgs of Graph.
+    // RunArgsV2 of Graph.
     GEThreadLocalContext context;
     context.SetGraphOption({{OPTION_EXEC_DYNAMIC_EXECUTE_MODE, "lazy_recompile"},
                             {OPTION_EXEC_ENABLE_COPY_OUTPUT_ADDR, "1"}});
@@ -1399,7 +1405,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_invalid_input) {
     arg->graph_id = graph->GetGraphID();
     arg->session_id = graph->GetSessionID();
     arg->error_context = error_context;
-    arg->input_tensor = input_tensors;
+    arg->input_tensor = std::move(inputs);
     arg->context = context;
     arg->callback = callback;
     // Load and execute.
@@ -1428,7 +1434,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_invalid_input) {
 }
 
 TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
-
+  dlog_setlevel(-1, 0, 1);
   {
     auto mock_runtime = std::make_shared<MockMemRuntime>();
     ge::RuntimeStub::SetInstance(mock_runtime);
@@ -1451,26 +1457,23 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
   BuildGraphModel(graph, ge_model, mem_offset);
   EXPECT_NE(ge_model, nullptr);
 
+  std::vector<gert::Tensor> inputs(4);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[3], {1}, DT_INT64, FORMAT_ND);
+
+  // Tensor for input.
+  std::vector<gert::Tensor> sync_inputs(4);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[3], {1}, DT_INT64, FORMAT_ND);
+
   int64_t value_0 = 127;
   int64_t value_1 = 100;
   int64_t value_2 = 258;
   int64_t value_3 = 512;
-  // Tensor for input.
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  Tensor tensor_2(tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  Tensor tensor_3(tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
-  const std::vector<Tensor> input_tensors{ tensor_0, tensor_1, tensor_2, tensor_3 };
-
-  // Tensor for input.
-  GeTensorDesc sync_tensor_desc(GeShape(), FORMAT_ND, DT_INT64);
-  GeTensor sync_tensor_0(sync_tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  GeTensor sync_tensor_1(sync_tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  GeTensor sync_tensor_2(sync_tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  GeTensor sync_tensor_3(sync_tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
-  const std::vector<GeTensor> sync_inputs{ sync_tensor_0, sync_tensor_1, sync_tensor_2, sync_tensor_3 };
-
   RunModelData run_input_data;
   run_input_data.blobs.emplace_back(DataBuffer{&value_0, sizeof(value_0), false, 0});
   run_input_data.blobs.emplace_back(DataBuffer{&value_1, sizeof(value_1), false, 0});
@@ -1502,7 +1505,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
     model_ids.emplace_back(ge_root_model->GetModelId());
 
     // Execute Synchronous
-    std::vector<GeTensor> sync_outputs;
+    std::vector<gert::Tensor> sync_outputs;
     EXPECT_EQ(model_executor.RunGraph(graph_node, graph->GetGraphID(), sync_inputs, sync_outputs), SUCCESS);
     EXPECT_EQ(sync_outputs.size(), 1U);
 
@@ -1514,7 +1517,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
   {
     // Test LoadModelOnline: RunAsyncListener
     const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -1527,15 +1530,15 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    std::vector<Tensor> run_outputs;
-    const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+    std::vector<gert::Tensor> run_outputs;
+    const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       run_outputs.swap(outputs);
       model_run_cv.notify_one();
     };
 
-    // RunArgs of Graph.
+    // RunArgsV2 of Graph.
     GEThreadLocalContext context;
     error_message::ErrorManagerContext error_context;
     graph_node->Lock();
@@ -1546,7 +1549,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
     arg->graph_id = graph->GetGraphID();
     arg->session_id = graph->GetSessionID();
     arg->error_context = error_context;
-    arg->input_tensor = input_tensors;
+    arg->input_tensor = std::move(inputs);
     arg->context = context;
     arg->callback = callback;
     // Load and execute.
@@ -1744,6 +1747,8 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
   for (const auto &id : model_ids) {
     EXPECT_EQ(ge_executor_.UnloadModel(id), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
   }
+
+  dlog_setlevel(-1, 3, 0);
 }
 
 /**
@@ -2056,25 +2061,19 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
   BuildGraphModel(graph, ge_model, mem_offset);
   EXPECT_NE(ge_model, nullptr);
 
-  int64_t value_0 = 127;
-  int64_t value_1 = 100;
-  int64_t value_2 = 258;
-  int64_t value_3 = 512;
   // Tensor for input.
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  Tensor tensor_2(tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  Tensor tensor_3(tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
-  const std::vector<Tensor> input_tensors{ tensor_0, tensor_1, tensor_2, tensor_3 };
+  std::vector<gert::Tensor> inputs(4);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[3], {1}, DT_INT64, FORMAT_ND);
 
   // Tensor for input.
-  GeTensorDesc sync_tensor_desc(GeShape(), FORMAT_ND, DT_INT64);
-  GeTensor sync_tensor_0(sync_tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  GeTensor sync_tensor_1(sync_tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  GeTensor sync_tensor_2(sync_tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  GeTensor sync_tensor_3(sync_tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
-  const std::vector<GeTensor> sync_inputs{ sync_tensor_0, sync_tensor_1, sync_tensor_2, sync_tensor_3 };
+  std::vector<gert::Tensor> sync_inputs(4);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(sync_inputs[3], {1}, DT_INT64, FORMAT_ND);
 
   std::vector<uint32_t> model_ids;
   DumpCommandInit(ge_executor_);
@@ -2092,15 +2091,15 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    std::vector<Tensor> run_outputs;
-    const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+    std::vector<gert::Tensor> run_outputs;
+    const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       run_outputs.swap(outputs);
       model_run_cv.notify_one();
     };
 
-    // RunArgs of Graph.
+    // RunArgsV2 of Graph.
     GEThreadLocalContext context;
     context.SetGraphOption({{OPTION_EXEC_DYNAMIC_EXECUTE_MODE, "lazy_recompile"},
                             {OPTION_EXEC_ENABLE_COPY_OUTPUT_ADDR, "1"}});
@@ -2113,7 +2112,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     arg->graph_id = graph->GetGraphID();
     arg->session_id = graph->GetSessionID();
     arg->error_context = error_context;
-    arg->input_tensor = input_tensors;
+    arg->input_tensor = std::move(inputs);
     arg->context = context;
     arg->callback = callback;
     // Load and execute.
@@ -2161,7 +2160,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     model_executor.StartRunThread();
 
     // Execute Synchronous
-    std::vector<GeTensor> sync_outputs;
+    std::vector<gert::Tensor> sync_outputs;
     EXPECT_EQ(model_executor.RunGraph(graph_node, graph->GetGraphID(), sync_inputs, sync_outputs), SUCCESS);
     EXPECT_EQ(sync_outputs.size(), 1U);
     model_ids.emplace_back(ge_root_model->GetModelId());
@@ -2177,10 +2176,22 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     EXPECT_EQ(model_executor.Finalize(), SUCCESS);
   }
 
+
+  int64_t value_0 = 127;
+  int64_t value_1 = 100;
+  int64_t value_2 = 258;
+  int64_t value_3 = 512;
+
+  GeTensorDesc sync_tensor_desc(GeShape(), FORMAT_ND, DT_INT64);
+  GeTensor sync_tensor_0(sync_tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
+  GeTensor sync_tensor_1(sync_tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
+  GeTensor sync_tensor_2(sync_tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
+  GeTensor sync_tensor_3(sync_tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
+  const std::vector<GeTensor> ge_sync_inputs{ sync_tensor_0, sync_tensor_1, sync_tensor_2, sync_tensor_3 };
   {
     // Test LoadModelOnline: RunGraphWithStream
     const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     ge_root_model->SetIsSpecificStream(true); // For not start DavinciModel thread.
@@ -2203,7 +2214,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
 
     // NnExecute with stream.
     rtStream_t run_stream = &model_executor;
-    EXPECT_EQ(model_executor.RunGraphWithStream(graph_node, graph->GetGraphID(), run_stream, sync_inputs, nn_outputs), SUCCESS);
+    EXPECT_EQ(model_executor.RunGraphWithStream(graph_node, graph->GetGraphID(), run_stream, ge_sync_inputs, nn_outputs), SUCCESS);
     model_ids.emplace_back(ge_root_model->GetModelId());
 
     // Unload model of graph(leave as max event model for follow test).
@@ -2211,12 +2222,17 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     EXPECT_EQ(model_executor.Finalize(), SUCCESS);
   }
 
+  std::vector<gert::Tensor> inputs2(4);
+  TensorCheckUtils::ConstructGertTensor(inputs2[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs2[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs2[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs2[3], {1}, DT_INT64, FORMAT_ND);
   EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_EVENT_NUM, 32));
   EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 32));
   {
     // Test LoadModelOnline: for SuperKernel
     const auto ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
+    EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
     const auto graph_node = MakeShared<GraphNode>(graph->GetGraphID());
     ge_root_model->SetSubgraphInstanceNameToModel(graph->GetName(), ge_model);
     graph_node->SetGeRootModel(ge_root_model);;
@@ -2234,15 +2250,15 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    std::vector<Tensor> run_outputs;
-    const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+    std::vector<gert::Tensor> run_outputs;
+    const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       run_outputs.swap(outputs);
       model_run_cv.notify_one();
     };
 
-    // RunArgs of Graph.
+    // RunArgsV2 of Graph.
     GEThreadLocalContext context;
     error_message::ErrorManagerContext error_context;
     graph_node->Lock();
@@ -2253,7 +2269,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_static_memory_with_qos) {
     arg->graph_id = graph->GetGraphID();
     arg->session_id = graph->GetSessionID();
     arg->error_context = error_context;
-    arg->input_tensor = input_tensors;
+    arg->input_tensor = std::move(inputs2);
     arg->context = context;
     arg->callback = callback;
     // Load and execute.
@@ -2287,11 +2303,9 @@ TEST_F(GeExecutorTest, run_with_fail) {
   DavinciModel model(0, nullptr);
   model.SetId(1);
 
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
-  model.data_inputer_.Push(data);
-  model.data_inputer_.Push(data);
+  auto data = MakeShared<RunArgs>();
+  model.Push(data);
+  model.Push(data);
   domi::ModelTaskDef model_task_def;
   domi::TaskDef *task = model_task_def.add_task();
   task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_PROFILER_TRACE));
@@ -2319,9 +2333,6 @@ TEST_F(GeExecutorTest, run_with_task_2_iterator) {
   class DModelListener : public ModelListener {
    public:
     DModelListener(){};
-    uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<Tensor> &outputs) {
-      return 0;
-    }
     uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<gert::Tensor> &outputs) {
       return 0;
     }
@@ -2354,11 +2365,9 @@ TEST_F(GeExecutorTest, run_with_task_2_iterator) {
     EXPECT_EQ(model.Init(param1), SUCCESS);
     model.isGraphLevelSat_ = true;
 
-    InputData input_data;
-    OutputData output_data;
-    auto data = MakeShared<InputDataWrapper>(input_data, output_data);
-    model.data_inputer_.Push(data);
-    model.data_inputer_.Push(data);
+    auto data = MakeShared<RunArgs>();
+    model.Push(data);
+    model.Push(data);
     domi::ModelTaskDef model_task_def;
     domi::TaskDef *task = model_task_def.add_task();
     task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_PROFILER_TRACE));
@@ -2388,9 +2397,6 @@ TEST_F(GeExecutorTest, run_with_task_0_iterator) {
   class DModelListener : public ModelListener {
    public:
     DModelListener(){};
-    uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<Tensor> &outputs) {
-      return 0;
-    }
     uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<gert::Tensor> &outputs) {
       return 0;
     }
@@ -2423,9 +2429,6 @@ TEST_F(GeExecutorTest, run_with_task_0_iterator) {
     model.Assign(ge_model);
     model.isGraphLevelSat_ = true;
 
-    InputData input_data;
-    OutputData output_data;
-    auto data = MakeShared<InputDataWrapper>(input_data, output_data);
     domi::ModelTaskDef model_task_def;
     domi::TaskDef *task = model_task_def.add_task();
     task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_PROFILER_TRACE));
@@ -2501,6 +2504,75 @@ TEST_F(GeExecutorTest, testConstructActiveMemBaseAddrs) {
     model.logical_mem_allocations_.emplace_back(mem_allocation0);
 
     EXPECT_EQ(model.Init(), SUCCESS);
+  }
+  graph_options[STATIC_MEMORY_POLICY] = "";
+  graph_options[AICORE_NUM] = "";
+  graph_options[kVectorcoreNum] = "";
+  graph_options[OPTION_EXEC_REUSE_ZERO_COPY_MEMORY] = "";
+  GetThreadLocalContext().SetGraphOption(graph_options);
+}
+
+TEST_F(GeExecutorTest, testHWQ) {
+  const char *const kVectorcoreNum = "ge.vectorcoreNum";
+  std::map<std::string, std::string> graph_options;
+  graph_options[STATIC_MEMORY_POLICY] = "4";
+  graph_options[AICORE_NUM] = "2";
+  graph_options[kVectorcoreNum] = "2";
+  graph_options[OPTION_EXEC_REUSE_ZERO_COPY_MEMORY] = "1";
+  GetThreadLocalContext().SetGraphOption(graph_options);
+  {
+    setenv("HW_QUEUE", "true", 1);
+    ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+    GeModelPtr ge_model = MakeShared<GeModel>();
+    ge_model->SetGraph(graph);
+
+    EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 5120));
+    EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, 1024));
+    std::vector<std::vector<int64_t>> sub_memory_infos;
+    sub_memory_infos.push_back({RT_MEMORY_HBM, 0, 1024, 1});
+    sub_memory_infos.push_back({RT_MEMORY_HBM, 1024, 1024, 1});
+    sub_memory_infos.push_back({RT_MEMORY_HBM, 2048, 1024});
+    sub_memory_infos.push_back({RT_MEMORY_HBM, 3072, 1024});
+    sub_memory_infos.push_back({RT_MEMORY_HBM, 4096, 1024});
+    (void) AttrUtils::SetListListInt(ge_model, ATTR_MODEL_SUB_MEMORY_INFO, sub_memory_infos);
+    const auto model_def = MakeShared<domi::ModelTaskDef>();
+    ge_model->SetModelTaskDef(model_def);
+    DavinciModel model(0, nullptr);
+    model.SetId(1);
+    model.Assign(ge_model);
+    model.isGraphLevelSat_ = true;
+
+    domi::ModelTaskDef model_task_def;
+    domi::TaskDef *task = model_task_def.add_task();
+    task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_PROFILER_TRACE));
+    rtStream_t stream = nullptr;
+    model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+    model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0);
+    model.stream_list_ = { stream };
+    TaskInfoPtr task_info = MakeShared<ProfilerTraceTaskInfo>();
+    model.task_list_.push_back(task_info);
+
+    MemAllocation mem_allocation0 = {};
+    mem_allocation0.data_size = 25600U + 32U; // random value for test
+    mem_allocation0.tensor_size = 25600U; // random value for test
+    mem_allocation0.logical_addr = 30902000U; // random value for test
+    mem_allocation0.type = MemAllocation::Type::INPUT;
+    model.logical_mem_allocations_.emplace_back(mem_allocation0);
+    QueueAttrs inputQueue1 = {0, 0, 0, 0U};
+    QueueAttrs outputQueue1 = {1, 0, 0, 0U};
+    model.input_queue_attrs_.emplace_back(inputQueue1);
+    model.output_queue_attrs_.emplace_back(outputQueue1);
+    ZeroCopyOffset zero_copy_offset;
+    std::map<uintptr_t, std::vector<uintptr_t>> virtual_addr_out_data;
+    virtual_addr_out_data[0x1111].emplace_back(0x1111111);
+    zero_copy_offset.outside_addrs_.emplace_back(virtual_addr_out_data);
+    model.input_data_info_[0] = zero_copy_offset;
+    model.output_data_info_[0] = zero_copy_offset;
+    SetMemQueueEntityType(1);
+    EXPECT_EQ(model.SetQueueType(), SUCCESS);
+    EXPECT_EQ(model.Init(), SUCCESS);
+    unsetenv("HW_QUEUE");
+    SetMemQueueEntityType(0);
   }
   graph_options[STATIC_MEMORY_POLICY] = "";
   graph_options[AICORE_NUM] = "";

@@ -91,7 +91,7 @@ class ShapeInferenceRule : public InferenceRule {
   // 编译后的二进制以属性的方式保存在节点上，用于RT2执行时加载
   static ge::graphStatus CompileJsonString(const std::string &json_str, std::vector<uint8_t> &binary);
   static ShapeInferenceRule FromCompiledBinary(const std::vector<uint8_t> &binary);
-  static ShapeInferenceRule FromCompiledBinary(const uint8_t *binary, size_t size);
+  static ShapeInferenceRule FromCompiledBinary(const uint8_t *binary, const size_t size);
 
   ge::graphStatus InferOnRuntime(gert::InferShapeContext *infer_shape_ctx) const;
   ge::graphStatus InferOnCompile(gert::InferShapeContext *infer_shape_ctx) const;

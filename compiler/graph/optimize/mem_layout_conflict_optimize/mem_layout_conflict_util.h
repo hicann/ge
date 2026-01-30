@@ -92,6 +92,7 @@ struct MemLayoutConflictUtil {
   static Status IsNoPaddingContinuousNodeConflict(const CheckFuncContext &context, bool &has_conflict);
   static Status IsContinuousOutAndInConflict(const CheckFuncContext &context, bool &has_conflict);
   static std::vector<OutDataAnchorPtr> GetAllRealInPeer(const NodePtr &node);
+  static bool AllRealInputsAreTheSameOutAnchor(const NodePtr &node);
   static bool IsRefFromVar(const OutDataAnchorPtr &out_anchor, NodePtr &src_node,
                            const SymbolToAnchors &symbol_to_anchors,
                            const AnchorToSymbol &anchor_to_symbol);

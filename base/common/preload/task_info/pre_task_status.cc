@@ -24,7 +24,7 @@ ge::char_t *CreateMessage(const ge::char_t * const format, va_list arg) {
 
   GE_ASSERT_TRUE(!(len < 0));
 
-  auto task_msg = std::unique_ptr<ge::char_t[]>(new (std::nothrow) ge::char_t[len + 1]);
+  auto task_msg = std::unique_ptr<ge::char_t[]>(new (std::nothrow) ge::char_t[static_cast<size_t>(len) + 1U]);
   GE_ASSERT_TRUE(!(task_msg == nullptr));
 
   const auto ret = vsnprintf_s(task_msg.get(), len + 1, len, format, arg);

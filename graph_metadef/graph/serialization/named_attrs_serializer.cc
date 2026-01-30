@@ -9,7 +9,7 @@
  */
 
 #include "named_attrs_serializer.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/utils/attr_utils.h"
 

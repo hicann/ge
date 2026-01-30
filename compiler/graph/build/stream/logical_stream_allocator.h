@@ -132,7 +132,7 @@ class UpdateForParallelGroupPass : public LogicalStreamPass {
 
  private:
   Status UpdateStreamIdFromPreNode(const NodePtr &cur_node,
-                                   const std::unordered_map<ge::NodePtr, ge::NodePtr> &total_pld_to_end);
+                                   const std::unordered_map<ge::NodePtr, ge::NodePtr> &total_pld_to_end) const;
 };
 
 // Update stream by mde group

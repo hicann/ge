@@ -17,6 +17,7 @@
 #include "ge/ut/ge/test_tools_task_info.h"
 #include "framework/executor/ge_executor.h"
 #include "graph/execute/model_executor.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "mmpa/mmpa_api.h"
 
 using namespace std;
@@ -247,18 +248,15 @@ static Status DynamicStackExecute(ComputeGraphPtr &graph, const GeModelPtr &ge_m
   model_executor.StartRunThread();
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
-  std::vector<Tensor> input_tensors;
+  std::vector<gert::Tensor> input_tensors(input_num);
   for (int32_t i = 0; i < input_num; ++i) {
-    int64_t value = 100 + i;
-    TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-    Tensor tensor(tensor_desc, (uint8_t *)&value, sizeof(value));
-    input_tensors.emplace_back(std::move(tensor));
+    TensorCheckUtils::ConstructGertTensor(input_tensors[i], {}, DT_INT64, FORMAT_ND);
   }
 
   std::mutex run_mutex;
   std::condition_variable model_run_cv;
   Status run_status = SUCCESS;
-  const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+  const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     std::unique_lock<std::mutex> lock(run_mutex);
     run_status = status;
     if (check_output) {
@@ -279,7 +277,7 @@ static Status DynamicStackExecute(ComputeGraphPtr &graph, const GeModelPtr &ge_m
   arg->graph_id = graph_id;
   arg->session_id = 2001;
   arg->error_context = error_context;
-  arg->input_tensor = input_tensors;
+  arg->input_tensor = std::move(input_tensors);
   arg->context = context;
   arg->callback = callback;
   EXPECT_EQ(model_executor.PushRunArgs(arg), SUCCESS);

@@ -48,9 +48,12 @@
 #include "common/platform_info_util.h"
 #include "hcom/hcom_topo_info.h"
 #include "common/memory/tensor_trans_utils.h"
-#include "external/hcom/hcom_topo_info.h"
 #include "runtime/rts/rts_stream.h"
 #include "runtime/rts/rts_kernel.h"
+#include "platform/soc_spec.h"
+#include "common/kernel_handles_manager/kernel_handle_utils.h"
+#include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
+#include "common/opskernel/ops_kernel_info_types.h"
 
 namespace ge {
 namespace {
@@ -80,7 +83,7 @@ constexpr int32_t kDynamicOutInfoMinSize = 2; // 0 is output index, 1 is branch 
 constexpr int32_t kBase = 10;
 constexpr int32_t kDefaultTimeout = -1;
 const std::string kGetDynamicDimsName = "ascend_mbatch_get_dynamic_dims_node";
-const std::string kAddrRefreshOpPath = "/UpdateModelParam";
+const std::string kAddrRefreshOpPath = "/UpdateModelParam_dav";
 const std::string kMultiBatchNodePostfix = "_ascend_mbatch_batch_";
 const std::string kAddrRefreshOpBinId = "UpdateModelParam";
 const std::string kAicpuCustLoadPlatformInfo = "LoadCustPlatform";
@@ -152,6 +155,7 @@ const std::map<ModelTaskType, MsprofGeTaskType> model_task_type_to_task_types {
     {ModelTaskType::MODEL_TASK_HCCL, MSPROF_GE_TASK_TYPE_HCCL},
     {ModelTaskType::MODEL_TASK_ALL_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
     {ModelTaskType::MODEL_TASK_SUPER_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
+    {ModelTaskType::MODEL_TASK_FUSION_KERNEL, MSPROF_GE_TASK_TYPE_AI_CORE},
     {ModelTaskType::MODEL_TASK_KERNEL_LAUNCH_V2, MSPROF_GE_TASK_TYPE_AI_CORE}
 };
 
@@ -417,7 +421,6 @@ void DavinciModel::DestroyResources() {
       rt_model_handle_ = nullptr;
     }
   }
-
   model_kernel_handles_manager_.ClearAllHandle();
   bin_kernel_handle_.CleanTbeHandle();
   aicpu_resources_.ReleaseResources();
@@ -437,8 +440,8 @@ void DavinciModel::DestroyResources() {
   }
 
   for (auto &it : cust_platform_infos_addr_to_launch_) {
-    if (it.second != nullptr) {
-      it.second = nullptr;
+    if (it.second.first != nullptr) {
+      it.second.first = nullptr;
     }
   }
 
@@ -509,9 +512,8 @@ Status DavinciModel::InitWeightMem(const uintptr_t mem_ptr, const uintptr_t weig
 
   const auto weights_size = ge_model_->GetWeightSize();
   if ((weight_ptr != 0U) && (weight_size < weights_size)) {
-    const std::string reason = "The model[" + std::to_string(model_id_) + "](" + name_ +
-                               ") need weight size: " + std::to_string(weights_size) +
-                               ", but the user input is: " + std::to_string(weight_size);
+    const std::string reason = "The weight size of model " + name_ + " is " + std::to_string(weights_size) +
+                               ", but the input size set by user is " + std::to_string(weight_size);
     const std::vector<const char_t *> key{"reason"};
     const std::vector<const char_t *> val{reason.c_str()};
     REPORT_PREDEFINED_ERR_MSG("E13025", key, val);
@@ -687,7 +689,8 @@ Status DavinciModel::InitRuntimeParams() {
 ///
 Status DavinciModel::BindModelStream() {
   // Stream not in active_stream_indication_ is active stream.
-  if ((!input_queue_attrs_.empty()) || (!output_queue_attrs_.empty())) {
+  bool is_software_queue = !is_hw_q_ && ((!input_queue_attrs_.empty()) || (!output_queue_attrs_.empty()));
+  if (is_software_queue) {
     for (size_t i = 0UL; i < stream_list_.size(); ++i) {
       if (active_stream_indication_.count(static_cast<uint32_t>(i)) == 0U) {
         active_stream_list_.push_back(stream_list_[i]);
@@ -825,10 +828,8 @@ Status DavinciModel::DoTaskSink() {
 
   GE_CHK_STATUS_RET(LoadWithQueue(), "[Init][LoadWithQueue] failed, model_id: %u.", model_id_);
 
-  auto &model_mgr = ModelManager::GetInstance();
-  GE_CHK_STATUS_RET(model_mgr.LaunchCustAicpuSo(), "[Launch][CustAicpuSo] failed, model_id: %u.", model_id_);
-
   GE_CHK_STATUS_RET(LaunchCustPlatformInfos(), "[Launch][CustPlatform] failed, model_id: %u.", model_id_);
+  auto &model_mgr = ModelManager::GetInstance();
   GE_CHK_STATUS_RET(model_mgr.LaunchBuiltinAicpuSo(device_id_),
                     "[Launch][BuiltinAicpuSo] failed, model_id: %u.", model_id_);
   GE_CHK_STATUS_RET(model_mgr.CheckAicpuOpList(ge_model_), "[Check][AicpuOpList] failed, model_id: %u.", model_id_);
@@ -842,6 +843,8 @@ Status DavinciModel::DoTaskSink() {
   GE_CHK_STATUS_RET(UpdateStaticModelArgsByFm());
 
   GE_CHK_RT_RET(rtModelLoadComplete(rt_model_handle_));
+
+  GE_CHK_STATUS_RET(LoadWithHardwareQueue(), "[Init][LoadWithHardwareQueue] failed, model_id: %u.", model_id_);
 
   GE_ASSERT_SUCCESS(SetCopyOnlyOutput());
 
@@ -959,7 +962,7 @@ void DavinciModel::SetStaticModelShapeConfig() {
   }
 }
 
-std::string DavinciModel::FindKernelInPath(const std::string& path, const std::string& short_soc_version) {
+std::string DavinciModel::FindKernelInPath(const std::string& path, const std::string& npu_arch) const {
   std::regex pattern(R"((?:.*/)?(cann-[^/]+/lib64|runtime/lib64)(?:/.*)?)", std::regex::icase);
   std::smatch match;
   if (!std::regex_match(path, match, pattern)) {
@@ -976,7 +979,7 @@ std::string DavinciModel::FindKernelInPath(const std::string& path, const std::s
     matched_dir.pop_back();
   }
 
-  std::string full_path = matched_dir + kAddrRefreshOpPath + "_" + short_soc_version + ".o";
+  std::string full_path = matched_dir + kAddrRefreshOpPath + "_" + npu_arch + ".o";
   std::ifstream file(full_path.c_str());
   if (!file.good()) {
     GELOGW("Addr refresh kernel file not found at: %s", full_path.c_str());
@@ -986,7 +989,7 @@ std::string DavinciModel::FindKernelInPath(const std::string& path, const std::s
   return full_path;
 }
 
-std::string DavinciModel::FindAddrRefreshKernelFile(const std::string& short_soc_version) {
+std::string DavinciModel::FindAddrRefreshKernelFile(const std::string& npu_arch) const {
   const char_t* lib_path = nullptr;
   MM_SYS_GET_ENV(MM_ENV_LD_LIBRARY_PATH, lib_path);
 
@@ -1011,7 +1014,7 @@ std::string DavinciModel::FindAddrRefreshKernelFile(const std::string& short_soc
   }
 
   for (const auto& path : search_paths) {
-    std::string found_file = FindKernelInPath(path, short_soc_version);
+    std::string found_file = FindKernelInPath(path, npu_arch);
     if (!found_file.empty()) {
       return found_file;
     }
@@ -1058,17 +1061,15 @@ Status DavinciModel::InitAddrRefreshKernelBin() {
     return SUCCESS;
   }
 
-  std::string soc_version;
-  (void)ge::GetContext().GetOption(ge::SOC_VERSION, soc_version);
-  std::string short_soc_version = ge::PlatformInfoUtil::ParseShortSocVersion(soc_version);
-  if (short_soc_version != "ascend910b" && short_soc_version != "ascend910_93") {
-    GELOGW("Short soc version does not support addrs refresh op. short soc_version is %s.",
-            short_soc_version.c_str());
+  std::string npu_arch;
+  (void)PlatformInfoUtil::GetSocSpec("version", "NpuArch", npu_arch);
+  GELOGI("Current NpuArch is [%s]", npu_arch.c_str());
+  if (npu_arch != NPUARCH_TO_STR(NpuArch::DAV_2201)) {
+    GELOGW("Npu arch [%s] does not support address-refresh op", npu_arch.c_str());
     return SUCCESS;
   }
 
-  short_soc_version = (short_soc_version == "ascend910b") ? "ascend910B" : short_soc_version;
-  std::string kernel_file_path = FindAddrRefreshKernelFile(short_soc_version);
+  std::string kernel_file_path = FindAddrRefreshKernelFile(npu_arch);
   if (kernel_file_path.empty()) {
     return SUCCESS;
   }
@@ -1406,7 +1407,10 @@ Status DavinciModel::InitRuntimeResource() {
   GE_ASSERT_NOTNULL(graph);
   std::map<int64_t, int64_t> stream_id_to_logic_stream_id;
   std::string split_stream_2_logical_stream_str;
-  (void)AttrUtils::GetStr(graph, "_split_logic_stream_2_origin_logic_stream", split_stream_2_logical_stream_str);
+  const std::string *split_stream_2_logical_stream_str_ptr = AttrUtils::GetStr(graph, "_split_logic_stream_2_origin_logic_stream");
+  if (split_stream_2_logical_stream_str_ptr != nullptr) {
+    split_stream_2_logical_stream_str = *split_stream_2_logical_stream_str_ptr;
+  }
   GE_ASSERT_SUCCESS(
       TransStrToMap(split_stream_2_logical_stream_str, split_logic_stream_2_origin_logic_stream_));
   const std::set<int64_t> huge_streams(huge_stream_list.begin(), huge_stream_list.end());
@@ -1548,36 +1552,242 @@ Status DavinciModel::InitIoNodes(const ComputeGraphPtr &compute_graph, std::vect
   return SUCCESS;
 }
 
-Status DavinciModel::PreProcessFileConstants(const ComputeGraphPtr &compute_graph, const ModelParam &param) {
-  if (!file_constant_weight_dir_.empty()) {
-    GE_CHK_STATUS_RET(FileConstantUtils::SetExternalPath(compute_graph, file_constant_weight_dir_),
-                      "Failed to set external path:%s.", file_constant_weight_dir_.c_str());
+Status DavinciModel::SetExternalPath(const ComputeGraphPtr &compute_graph) {
+  if (file_constant_weight_dir_.empty()) {
+    return SUCCESS;
   }
+  GE_CHK_STATUS_RET(FileConstantUtils::SetExternalPath(compute_graph, file_constant_weight_dir_),
+                    "Failed to set external path:%s.", file_constant_weight_dir_.c_str());
+  return SUCCESS;
+}
+
+Status DavinciModel::InitVarResourceIfNeeded(const ModelParam &param, bool &var_resource_inited) {
   GE_CHECK_NOTNULL(VarManager::Instance(session_id_));
-  bool var_resource_inited = false;
-  const auto &nodes = compute_graph->GetAllNodes();
-  for (size_t i = 0UL; i < nodes.size(); ++i) {
-    const auto &op_desc = nodes.at(i)->GetOpDesc();
-    if (op_desc->GetType() != FILECONSTANT) {
-      continue;
-    }
-    if ((!var_resource_inited) && (!VarManager::Instance(session_id_)->IsVarResourceInited())) {
-      const auto &rt_var_manager = gert::ModelRtVarManager::Instance(session_id_);
-      GE_ASSERT_NOTNULL(rt_var_manager);
-      GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id_, runtime_param_.logic_var_base, runtime_param_.var_size,
-                                             param.external_var_addr_, param.external_var_size_),
-                        "Failed to init runtime var_manager.");
-      var_resource_inited = true;
-    }
-    if (VarManager::Instance(session_id_)->IsVarExist(op_desc->GetName(), op_desc->GetOutputDesc(0U))) {
-      continue;
-    }
+  if (var_resource_inited || VarManager::Instance(session_id_)->IsVarResourceInited()) {
+    return SUCCESS;
+  }
+
+  const auto &rt_var_manager = gert::ModelRtVarManager::Instance(session_id_);
+  GE_ASSERT_NOTNULL(rt_var_manager);
+  GE_ASSERT_SUCCESS(rt_var_manager->Init(device_id_, runtime_param_.logic_var_base, runtime_param_.var_size,
+                                         param.external_var_addr_, param.external_var_size_),
+                    "Failed to init runtime var_manager.");
+  var_resource_inited = true;
+  return SUCCESS;
+}
+
+Status DavinciModel::ProcessFileConstantNode(const NodePtr &node, const ModelParam &param, bool &var_resource_inited,
+                                             bool &is_weight_combined, std::string &combined_weight_file,
+                                             std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size) {
+  GE_CHECK_NOTNULL(node);
+  const auto &op_desc = node->GetOpDesc();
+  GE_CHECK_NOTNULL(op_desc);
+  if (op_desc->GetType() != FILECONSTANT) {
+    return SUCCESS;
+  }
+
+  if (!var_resource_inited) {
+    GE_CHK_STATUS_RET(InitVarResourceIfNeeded(param, var_resource_inited));
+  }
+
+  if (VarManager::Instance(session_id_)->IsVarExist(op_desc->GetName(), op_desc->GetOutputDesc(0U))) {
+    return SUCCESS;
+  }
+
+  const std::vector<int64_t> v_output_offset = op_desc->GetOutputOffset();
+  if (v_output_offset.size() != 1U) {
+    GELOGE(PARAM_INVALID, "FileConstant %s output offsets invalid: v_output_offset size = %zu, expect 1.",
+           op_desc->GetNamePtr(), v_output_offset.size());
+    return PARAM_INVALID;
+  }
+
+  const auto &tensor_desc = op_desc->GetOutputDescPtr(0U);
+  GE_CHECK_NOTNULL(tensor_desc);
+  int64_t weights_size = 0;
+  GE_CHK_STATUS_RET(TensorUtils::GetTensorSizeInBytes(*tensor_desc, weights_size),
+                    "Failed to get file constant tensor size, node: %s.", op_desc->GetNamePtr());
+
+  const auto v_output_size = ModelUtils::GetOutputSize(op_desc);
+  if (v_output_size.empty()) {
+    GELOGE(PARAM_INVALID, "Output size is empty");
+    return PARAM_INVALID;
+  }
+
+  std::string file_path;
+  size_t offset = 0U;
+  size_t length = 0U;
+  GE_CHK_STATUS_RET(FileConstantUtils::GetFilePath(op_desc, file_id_and_path_map_, file_path, offset, length),
+                    "Failed to get file path.");
+  if (combined_weight_file.empty()) {
+    combined_weight_file = file_path;
+    is_weight_combined = true;
+  } else if (!combined_weight_file.empty() && combined_weight_file != file_path) {
+    is_weight_combined = false;
+  }
+
+  const int64_t alloc_size = std::max(v_output_size[0], std::max(weights_size, static_cast<int64_t>(length)));
+  GELOGD("FileConstant weight size is:%" PRId64 " output size:%zu alloc_size:%" PRId64 "",
+         std::max(weights_size, static_cast<int64_t>(length)), v_output_size[0], alloc_size);
+  node_to_offset_and_size[node] = std::make_pair(offset, alloc_size);
+
+  return SUCCESS;
+}
+
+Status DavinciModel::AllocateCombinedWeightMemory(const std::string &combined_weight_file,
+                                                  const void *&real_dev_addr,
+                                                  int64_t &file_size,
+                                                  bool &is_user_mem) {
+  // 获取归一权重文件名用于查找用户内存
+  std::string file_constant_file_name;
+  std::string file_dir;
+  SplitFilePath(combined_weight_file, file_dir, file_constant_file_name);
+  (void)file_dir;
+
+  // 查询用户是否为归一权重文件提供了内存
+  const auto user_device_mem = GetFileConstantUserDeviceMem(file_constant_file_name);
+  if (user_device_mem != nullptr) {
+    // 用户提供了内存，使用用户内存
+    GE_ASSERT_NOTNULL(user_device_mem->device_mem,
+                      "Error: The address set by the user via aclmdlSetExternalWeightAddress"
+                      " for the file %s is a null pointer.", file_constant_file_name.c_str());
+    file_size = user_device_mem->mem_size;
+    real_dev_addr = user_device_mem->device_mem;
+    is_user_mem = true;
+    GELOGI("GE found user device memory from file: %s, addr: %p", file_constant_file_name.c_str(), real_dev_addr);
+    return SUCCESS;
+  }
+
+  // 用户未提供内存，GE自行分配
+  const std::string real_path = RealPath(combined_weight_file.c_str());
+  std::ifstream ifs(real_path, std::ifstream::binary);
+  if (!ifs.is_open()) {
+    GELOGE(FAILED, "[Open][File] %s failed.", real_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({real_path.c_str(), "Open file failed"}));
+    return FAILED;
+  }
+  ifs.seekg(0, std::ios::end);
+  file_size = static_cast<int64_t>(ifs.tellg());
+  ifs.seekg(0, std::ios::beg);
+  real_dev_addr = MallocFileConstantMem(static_cast<size_t>(file_size));
+  if (real_dev_addr == nullptr) {
+    REPORT_INNER_ERR_MSG("E19999", "MallocFileConstantMem fail, weights_size:%" PRId64 ", model_id:%u, check invalid",
+                         file_size, model_id_);
+    GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "[Alloc][Memory] for weight failed. size:%" PRId64 ", model_id:%u",
+           file_size, model_id_);
+    return ACL_ERROR_GE_MEMORY_ALLOCATION;
+  }
+  dev_mem_statistic_.alloc_size += file_size;
+  is_user_mem = false;
+  GELOGI("GE allocated device memory for combined weights, addr: %p, size: %" PRId64, real_dev_addr, file_size);
+
+  size_t left_size = file_size;
+  Status ret = FileConstantUtils::CopyOneWeightFromFileWithFilehandler(real_dev_addr, real_path, 0, file_size, left_size, ifs);
+  ifs.close();
+  if (ret != SUCCESS) {
+    // 复制失败，需要释放已分配的内存
+    auto &mem_instance = MemManager::Instance().MemInstance(RT_MEMORY_HBM);
+    GE_CHK_STATUS(mem_instance.FreeMemory(const_cast<void*>(real_dev_addr), device_id_),
+                  "Failed to free memory after copy failure");
+    dev_mem_statistic_.alloc_size -= file_size;  // 从统计中移除
+    GELOGE(ret, "copy weight from file[%s] to addr[%p] failed, file size[%" PRId64 "]", real_path.c_str(), real_dev_addr, file_size);
+    return ret;
+  }
+
+  return SUCCESS;
+}
+
+Status DavinciModel::MapNodeAddressesToCombinedWeight(const std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size,
+                                                      const void *base_addr,
+                                                      int64_t file_size,
+                                                      const std::string &file_path) {
+  for (const auto &item : node_to_offset_and_size) {
+    const auto &op_desc = item.first->GetOpDesc();
     const std::vector<int64_t> v_output_offset = op_desc->GetOutputOffset();
     if (v_output_offset.size() != 1U) {
       GELOGE(PARAM_INVALID, "FileConstant %s output offsets invalid: v_output_offset size = %zu, expect 1.",
-        op_desc->GetNamePtr(), v_output_offset.size());
+             op_desc->GetNamePtr(), v_output_offset.size());
       return PARAM_INVALID;
     }
+    int64_t weights_size;
+    int64_t weights_offset = item.second.first;
+    const auto &tensor_desc = op_desc->GetOutputDescPtr(0U);
+    GE_CHK_STATUS_RET(TensorUtils::GetTensorSizeInBytes(*tensor_desc, weights_size),
+                      "Failed to get file constant tensor size, node: %s.", op_desc->GetNamePtr());
+    bool not_exceeds = (file_size >= weights_offset) && (file_size - weights_offset >= weights_size);
+    GE_CHK_BOOL_RET_STATUS(not_exceeds, PARAM_INVALID,
+                          "Weight offset[%" PRId64 "], size[%" PRId64 "] exceeds the file size[%" PRId64 "] for file: %s.",
+                          weights_offset, weights_size, file_size, file_path.c_str());
+    runtime_param_.fileconstant_addr_mapping[v_output_offset[0]] = reinterpret_cast<uintptr_t>(base_addr) + weights_offset;
+    VarManager::Instance(session_id_)->SetVarIsReady(op_desc->GetName(), *tensor_desc, device_id_);
+    GELOGI("FileConstant node %s malloc device memory (addr: %p, offset: %" PRId64 ")",
+           op_desc->GetNamePtr(), runtime_param_.fileconstant_addr_mapping[v_output_offset[0]], v_output_offset[0]);
+  }
+  return SUCCESS;
+}
+
+Status DavinciModel::HandleCombinedWeights(const std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size,
+                                           const std::string &combined_weight_file) {
+  GELOGI("Handle combined weights in file[%s].", combined_weight_file.c_str());
+  if (node_to_offset_and_size.empty()) {
+    GELOGI("There is no node need alloc memory.");
+    return SUCCESS;
+  }
+
+  const void *real_dev_addr = nullptr;
+  bool is_user_mem = false;
+  int64_t file_size = 0;
+  Status ret = AllocateCombinedWeightMemory(combined_weight_file, real_dev_addr, file_size, is_user_mem);
+  GE_CHK_STATUS_RET(ret, "Failed to allocate combined weight memory for file: %s", combined_weight_file.c_str());
+
+  std::string file_constant_file_name;
+  std::string file_dir;
+  SplitFilePath(combined_weight_file, file_dir, file_constant_file_name);
+
+  ret = MapNodeAddressesToCombinedWeight(node_to_offset_and_size, real_dev_addr, file_size, file_constant_file_name);
+  if (ret != SUCCESS) {
+    if (!is_user_mem && real_dev_addr != nullptr) {
+      // 复制失败，需要释放已分配的内存
+      auto &mem_instance = MemManager::Instance().MemInstance(RT_MEMORY_HBM);
+      (void)mem_instance.FreeMemory(const_cast<void*>(real_dev_addr), device_id_);
+      dev_mem_statistic_.alloc_size -= file_size;  // 从统计中移除
+    }
+    GELOGE(ret, "Failed to map node addresses to combined weight for file: %s", combined_weight_file.c_str());
+    return ret;
+  }
+
+  auto device_id = device_id_;
+  if (is_user_mem) {
+    external_weight_combined_mem_addr_ = std::unique_ptr<void, std::function<void(void*)>>(
+      const_cast<void*>(real_dev_addr),
+      [file_constant_file_name](void* ptr) {
+        GELOGI("User-managed combined weight memory at %p for file %s, no need to free by GE.",
+               ptr, file_constant_file_name.c_str());
+      });
+  } else {
+    external_weight_combined_mem_addr_ = std::unique_ptr<void, std::function<void(void*)>>(
+      const_cast<void*>(real_dev_addr),
+      [device_id](void* ptr) {
+        if (ptr != nullptr) {
+          auto &mem_instance = MemManager::Instance().MemInstance(RT_MEMORY_HBM);
+          (void)mem_instance.FreeMemory(ptr, device_id);
+          GELOGI("Freed GE-managed combined weight memory at %p", ptr);
+        }
+      });
+  }
+  return SUCCESS;
+}
+
+Status DavinciModel::HandleIndividualWeights(const std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size) {
+  for (const auto &item : node_to_offset_and_size) {
+    const auto &op_desc = item.first->GetOpDesc();
+    const std::vector<int64_t> v_output_offset = op_desc->GetOutputOffset();
+    if (v_output_offset.size() != 1U) {
+      GELOGE(PARAM_INVALID, "FileConstant %s output offsets invalid: v_output_offset size = %zu, expect 1.",
+             op_desc->GetNamePtr(), v_output_offset.size());
+      return PARAM_INVALID;
+    }
+    const int64_t orig_output_offset = v_output_offset[0];
     const auto &tensor_desc = op_desc->GetOutputDescPtr(0U);
     GE_CHECK_NOTNULL(tensor_desc);
     int64_t weights_size = 0;
@@ -1586,23 +1796,16 @@ Status DavinciModel::PreProcessFileConstants(const ComputeGraphPtr &compute_grap
     void *user_device_mem = nullptr;
     GE_ASSERT_SUCCESS(GetUserDeviceMemForFileConstant(op_desc, weights_size, user_device_mem),
                       "node %s get user address failed", op_desc->GetName().c_str());
+
     if (user_device_mem != nullptr) {
-      const int64_t orig_output_offset = v_output_offset[0];
-      runtime_param_.fileconstant_addr_mapping[orig_output_offset] = reinterpret_cast<uintptr_t>(user_device_mem);
+      runtime_param_.fileconstant_addr_mapping[v_output_offset[0]] = reinterpret_cast<uintptr_t>(user_device_mem);
       VarManager::Instance(session_id_)->SetVarIsReady(op_desc->GetName(), *tensor_desc, device_id_);
       GELOGI("FileConstant node %s found user device memory (addr:%p, logic addr:%" PRId64 "), no need to copy weight,"
-             " set var ready", op_desc->GetNamePtr(), user_device_mem, orig_output_offset);
+             " set var ready", op_desc->GetNamePtr(), user_device_mem, v_output_offset[0]);
       continue;
     }
 
-    const auto v_output_size = ModelUtils::GetOutputSize(op_desc);
-    if (v_output_size.empty()) {
-      GELOGE(PARAM_INVALID, "Output size is empty");
-      return PARAM_INVALID;
-    }
-    const int64_t alloc_size = v_output_size[0] > weights_size ? v_output_size[0] : weights_size;
-    GELOGD("FileConstant weight size is:%" PRId64 " output size:%zu alloc_size:%" PRId64 "",
-           weights_size, v_output_size[0], alloc_size);
+    const auto alloc_size = item.second.second;
     const uintptr_t real_dev_addr =
         static_cast<uintptr_t>(PtrToValue(MallocFileConstantMem(static_cast<size_t>(alloc_size))));
     if (real_dev_addr == 0U) {
@@ -1613,11 +1816,34 @@ Status DavinciModel::PreProcessFileConstants(const ComputeGraphPtr &compute_grap
       return ACL_ERROR_GE_MEMORY_ALLOCATION;
     }
     dev_mem_statistic_.alloc_size += static_cast<uint64_t>(alloc_size);
-    const int64_t orig_output_offset = v_output_offset[0];
     runtime_param_.fileconstant_addr_mapping[orig_output_offset] = real_dev_addr;
     GELOGI("FileConstant node %s malloc device memory (addr: %p, offset: %" PRId64 ")",
            op_desc->GetNamePtr(), real_dev_addr, orig_output_offset);
   }
+
+  return SUCCESS;
+}
+
+Status DavinciModel::PreProcessFileConstants(const ComputeGraphPtr &compute_graph, const ModelParam &param) {
+  GE_CHK_STATUS_RET(SetExternalPath(compute_graph));
+
+  bool var_resource_inited = false;
+  const auto &nodes = compute_graph->GetAllNodes();
+  bool is_weight_combined = false;
+  std::string combined_weight_file;
+  std::map<NodePtr, std::pair<size_t, int64_t>> node_to_offset_and_size;
+
+  for (size_t i = 0UL; i < nodes.size(); ++i) {
+    GE_CHK_STATUS_RET(ProcessFileConstantNode(nodes.at(i), param, var_resource_inited, is_weight_combined,
+                      combined_weight_file, node_to_offset_and_size));
+  }
+
+  if (is_weight_combined) {
+    GE_CHK_STATUS_RET(HandleCombinedWeights(node_to_offset_and_size, combined_weight_file));
+  } else {
+    GE_CHK_STATUS_RET(HandleIndividualWeights(node_to_offset_and_size));
+  }
+
   return SUCCESS;
 }
 
@@ -1651,13 +1877,18 @@ Status DavinciModel::GetUserDeviceMemForFileConstant(const OpDescPtr &op_desc, s
   // which is a rarely used pattern.
   GE_CHECK_GE(user_device_mem->mem_size, offset);
   if (user_device_mem->mem_size - offset < weights_size) {
-    REPORT_INNER_ERR_MSG("E19999", "[Check][Param] The device memory size set by the user via "
+    std::string reason =
+        "The device memory size set by the user via "
         "aclmdlSetExternalWeightAddress for the external weight file is insufficient. "
-        "Required: %zu bytes, Provided: %zu bytes. External weight - Shape: [%s], Data type: [%s], Offset: [%zu], "
-        "File name: [%s], Node name: [%s].", weights_size, user_device_mem->mem_size - offset,
-        tensor_desc->GetShape().ToString().c_str(),
-        TypeUtils::DataTypeToSerialString(tensor_desc->GetDataType()).c_str(), offset, file_constant_file_name.c_str(),
-        op_desc->GetNamePtr());
+        "Required: " +
+        std::to_string(weights_size) + " bytes, Provided: " + std::to_string(user_device_mem->mem_size - offset) +
+        " bytes. External weight - Shape: [" + tensor_desc->GetShape().ToString().c_str() + "], Data type: [" +
+        TypeUtils::DataTypeToSerialString(tensor_desc->GetDataType()).c_str() + "], Offset: [" +
+        std::to_string(offset) + "], File name: [" + file_constant_file_name + "], Node name: [" +
+        op_desc->GetNamePtr() + "].";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"aclmdlSetExternalWeightAddress",
+                                                         std::to_string(weights_size).c_str(), reason.c_str()}));
 
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
            "[Check][Param] The device memory size set by the user via "
@@ -1717,7 +1948,8 @@ Status DavinciModel::InitNodes(const ComputeGraphPtr &compute_graph) {
   for (const auto &node : compute_graph->GetAllNodes()) {
     const auto &op_desc = node->GetOpDesc();
     GE_CHECK_NOTNULL(op_desc);
-
+    ge_model_->GetCustAICPUKernelStore().LoadCustAICPUKernelBinToOpDesc(op_desc);
+    ge_model_->GetTBEKernelStore().LoadTBEKernelBinToOpDesc(op_desc);
     if (op_desc->GetOpKernelLibName() == ge::kEngineNameHccl) {
       has_hccl_task_ = true;
       hccl_ops.emplace_back(std::make_pair(op_desc->GetName(), op_desc->GetType()));
@@ -1762,6 +1994,13 @@ Status DavinciModel::InitNodes(const ComputeGraphPtr &compute_graph) {
 
     // FILECONSTANT/CONSTANTOP节点先on-thread处理
     if ((op_type == FILECONSTANT) || (op_type == CONSTANTOP)) {
+      const auto &tensor_desc = op_desc->GetOutputDescPtr(0U);
+      GE_CHECK_NOTNULL(tensor_desc);
+      GE_CHECK_NOTNULL(VarManager::Instance(session_id_));
+      if (op_type == FILECONSTANT && VarManager::Instance(session_id_)->IsVarReady(node->GetName(), *tensor_desc, device_id_)) {
+        GELOGD("file constant op:%s is ready", node->GetName().c_str());
+        continue;
+      }
       nodes_init_by_thread.emplace_back(node);
       continue;
     }
@@ -1783,10 +2022,28 @@ Status DavinciModel::InitNodes(const ComputeGraphPtr &compute_graph) {
 
     GE_CHK_STATUS_RET(InitNoTaskAndDumpNeededNode(op_desc), "Init no task and dump needed node: %s failed.",
                       op_desc->GetName().c_str());
-
     GE_TIMESTAMP_RESTART(InitTbeHandle);
-    GE_CHK_STATUS_RET(InitTbeHandle(op_desc), "[Init][TbeHandle] failed. op: %s", op_desc->GetName().c_str());
+    // 临时修改 ffts+ 是日落特性，走老的注册流程，特性下线后删除
+    bool is_ffts = false;
+    (void)AttrUtils::GetBool(op_desc, "_mix_with_enhanced_kernel", is_ffts);
+    if (is_ffts) {
+      GE_CHK_STATUS_RET(InitTbeHandle(op_desc), "[Init][TbeHandle] failed. op: %s", op_desc->GetName().c_str());
+    }
     GE_TIMESTAMP_ADD(InitTbeHandle);
+  }
+
+  // 临时修改 由于fusionTask暂时不支持aclrtlaunch接口需要使用InitTbeHandle做初始化，aclrtlaunch接口支持后删除
+  const auto &model_task_def = ge_model_->GetModelTaskDefPtr();
+  if (model_task_def != nullptr) {
+    for (int32_t task_index = 0; task_index < model_task_def->task_size(); ++task_index) {
+      const auto &task_def = model_task_def->task(task_index);
+      if (task_def.type() == static_cast<uint32_t>(ModelTaskType::MODEL_TASK_FUSION_KERNEL)) {
+        auto op_desc = GetOpByIndex(task_def.fusion_task().op_index());
+        GE_CHECK_NOTNULL(op_desc);
+        GE_CHK_STATUS_RET(InitTbeHandle(op_desc), "[Init][TbeFusionTaskHandle] failed. op: %s",
+                          op_desc->GetName().c_str());
+      }
+    }
   }
 
   if (!nodes_init_by_thread.empty()) {
@@ -2958,6 +3215,47 @@ Status DavinciModel::SetQueIds(const std::vector<QueueAttrs> &input_queue_attrs,
   return SUCCESS;
 }
 
+Status DavinciModel::SetQueueType() {
+    std::vector<QueueAttrs> all_queues;
+    all_queues.reserve(input_queue_attrs_.size() + output_queue_attrs_.size());
+    std::copy(input_queue_attrs_.begin(), input_queue_attrs_.end(), std::back_inserter(all_queues));
+    std::copy(output_queue_attrs_.begin(), output_queue_attrs_.end(), std::back_inserter(all_queues));
+
+    if (all_queues.empty()) {
+        GELOGD("No queues to check, return success directly.");
+        return SUCCESS;
+    }
+
+    uint32_t first_entity_type = 0;
+    uint32_t out_len = sizeof(uint32_t);
+    GE_CHK_RT_RET(rtMemQueueQuery(device_id_, RT_MQ_QUERY_QUES_ATTR_ENTITY_TYPE,
+                                  &all_queues[0].queue_id, sizeof(uint32_t),
+                                  &first_entity_type, &out_len));
+    bool first_is_hwq = (first_entity_type != 0);
+    for (size_t i = 1; i < all_queues.size(); ++i) {
+        uint32_t current_entity_type = 0;
+        GE_CHK_RT_RET(rtMemQueueQuery(device_id_, RT_MQ_QUERY_QUES_ATTR_ENTITY_TYPE,
+                                      &all_queues[i].queue_id, sizeof(uint32_t),
+                                      &current_entity_type, &out_len));
+        bool current_is_hwq = (current_entity_type != 0);
+
+        // 类型不一致则打印错误日志并返回失败
+        if (current_is_hwq != first_is_hwq) {
+            GELOGE(ACL_ERROR_GE_EXEC_MODEL_QUEUE_ID_INVALID, "Queue types are not consistent. "
+                  "Entity type of queue (ID: %u) is %u, but entity type of queue (ID: %u) is %u.",
+                  all_queues[0].queue_id,
+                  first_entity_type,
+                  all_queues[i].queue_id,
+                  current_entity_type);
+            return ACL_ERROR_GE_EXEC_MODEL_QUEUE_ID_INVALID;
+        }
+    }
+    is_hw_q_ = first_is_hwq;
+    GELOGI("All %zu queues are %s queue.",  all_queues.size(), is_hw_q_ ? "hardware" : "software");
+
+    return SUCCESS;
+}
+
 void DavinciModel::SetStatusQueue(const QueueAttrs &status_output_queue) {
   status_output_queue_ = status_output_queue;
 }
@@ -2986,6 +3284,10 @@ void DavinciModel::SetInputFusionOffsets(const std::vector<int32_t> &fusion_offs
 /// @return: 0 for success / others for failed
 ///
 Status DavinciModel::LoadWithQueue() {
+  if (is_hw_q_) {
+    GELOGI("This is hardware queue.");
+    return SUCCESS;
+  }
   if (input_queue_attrs_.empty() && output_queue_attrs_.empty()) {
     return SUCCESS;
   }
@@ -3078,6 +3380,108 @@ Status DavinciModel::LoadWithQueue() {
   }
   GE_CHK_STATUS_RET(CpuModelRepeat(), "[Call][CpuModelRepeat] failed, model_id: %u", model_id_);
 
+  return SUCCESS;
+}
+
+Status DavinciModel::LaunchDqsTask(rtDqsTaskType task_type, void* cfg) {
+  rtDqsTaskCfg_t task_cfg {};
+  task_cfg.type = task_type;
+  task_cfg.cfg = cfg;
+  GE_ASSERT_RT_OK(rtLaunchDqsTask(rt_entry_stream_, &task_cfg));
+  return SUCCESS;
+}
+
+Status DavinciModel::LoadWithHardwareQueue() {
+  if (!is_hw_q_) {
+    return SUCCESS;
+  }
+  GELOGI("this is hardware queue, use runtime api");
+  // create control stream
+  GE_ASSERT_SUCCESS(reusable_stream_allocator_->GetOrCreateRtStream(rt_entry_stream_, runtime_model_id_, priority_,
+                                                                    RT_STREAM_DQS_CTRL));
+  // single input or multi input
+  rtDqsSchedConfig_t cfg {};
+  cfg.type = static_cast<uint8_t>(RT_DQS_SCHED_TYPE_NN);
+  cfg.reserve = 0;
+  cfg.inputQueueNum = input_queue_attrs_.size();
+  cfg.outputQueueNum = output_queue_attrs_.size();
+  for (size_t i = 0; i < input_queue_attrs_.size(); ++i) {
+    GELOGI("input %zu queue id is %u", i, input_queue_attrs_[i].queue_id);
+    cfg.inputQueueIds[i] = input_queue_attrs_[i].queue_id;
+  }
+  for (size_t i = 0; i < output_queue_attrs_.size(); ++i) {
+    GELOGI("output %zu queue id is %u", i, output_queue_attrs_[i].queue_id);
+    cfg.outputQueueIds[i] = output_queue_attrs_[i].queue_id;
+  }
+
+  GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_SCHED_CONFIG, &cfg));
+  GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_NOTIFY_WAIT));
+  GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_DEQUEUE));
+
+  GE_ASSERT_SUCCESS(LaunchInputZeroCpyCfg());
+  GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_PREPARE_OUT));
+  GE_ASSERT_SUCCESS(LaunchOutputZeroCpyCfg());
+
+  GE_ASSERT_RT_OK(rtModelExecute(rt_model_handle_, rt_entry_stream_, 0));
+  GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_FREE));
+  GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_ENQUEUE));
+  GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_SCHED_END));
+  return SUCCESS;
+}
+
+Status DavinciModel::GetZcpyReplaceAddrsMap(const std::map<uint32_t, ZeroCopyOffset> &outside_addrs,
+    std::map<size_t, std::vector<uint64_t>> &replace_addrs_map) {
+  for (const auto &addrs : outside_addrs) {
+    const size_t data_idx = addrs.first;
+    const auto &addrrs_mapping_list = addrs.second.GetOutsideAddrs();
+    GE_ASSERT_TRUE(!addrrs_mapping_list.empty());
+    for (size_t count = 0U; count < addrrs_mapping_list.size(); ++count) {
+      for (const auto &virtual_args : addrrs_mapping_list[count]) {
+        for (size_t i = 0U; i < virtual_args.second.size(); ++i) {
+          const uintptr_t virtual_addr = virtual_args.second[i];
+          replace_addrs_map[data_idx].emplace_back(virtual_addr);
+          GELOGI("Index[%zu] addr %p will be repalced", data_idx, ValueToPtr(virtual_addr));
+        }
+      }
+    }
+  }
+  return SUCCESS;
+}
+
+Status DavinciModel::LaunchInputZeroCpyCfg() {
+  std::map<size_t, std::vector<uint64_t>> replace_addrs_map;
+  GE_ASSERT_SUCCESS(GetZcpyReplaceAddrsMap(input_data_info_, replace_addrs_map));
+  for (auto &ele : replace_addrs_map) {
+    const size_t input_id = ele.first;
+    GE_ASSERT_TRUE(input_id < input_queue_attrs_.size());
+    rtDqsZeroCopyCfg_t input_zcpy_cfg {};
+    input_zcpy_cfg.copyType = RT_DQS_ZERO_COPY_INPUT;
+    input_zcpy_cfg.queueId = input_queue_attrs_[input_id].queue_id;
+    input_zcpy_cfg.count = ele.second.size();
+    input_zcpy_cfg.dest = ele.second.data();
+    std::vector<uint64_t> offset(input_zcpy_cfg.count, 0);
+    input_zcpy_cfg.offset = offset.data();
+    GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_ZERO_COPY, &input_zcpy_cfg));
+  }
+  return SUCCESS;
+}
+
+Status DavinciModel::LaunchOutputZeroCpyCfg() {
+  const auto zero_copy_addrs = FilterZeroCopyAddrs();
+  std::map<size_t, std::vector<uint64_t>> replace_addrs_map;
+  GE_ASSERT_SUCCESS(GetZcpyReplaceAddrsMap(zero_copy_addrs, replace_addrs_map));
+  for (auto &ele : replace_addrs_map) {
+    const size_t output_id = ele.first;
+    GE_ASSERT_TRUE(output_id < output_queue_attrs_.size());
+    rtDqsZeroCopyCfg_t output_zcpy_cfg {};
+    output_zcpy_cfg.copyType = RT_DQS_ZERO_COPY_OUTPUT;
+    output_zcpy_cfg.queueId = output_queue_attrs_[output_id].queue_id;
+    output_zcpy_cfg.count = ele.second.size();
+    output_zcpy_cfg.dest = ele.second.data();
+    std::vector<uint64_t> offset(output_zcpy_cfg.count, 0);
+    output_zcpy_cfg.offset = offset.data();
+    GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_ZERO_COPY, &output_zcpy_cfg));
+  }
   return SUCCESS;
 }
 
@@ -4004,7 +4408,8 @@ static Status CopyInputForNoTiling(const InputData &input_data, const size_t dat
     tensor_desc.shape[i + 1U] = shape[i];
   }
   // fill actual shape and copy to tensor_desc addr
-  GE_CHK_RT_RET(rtMemcpy(mem_addr, sizeof(RuntimeTensorDesc), &tensor_desc, sizeof(RuntimeTensorDesc),
+  GE_CHK_RT_RET(
+      rtMemcpy(mem_addr, sizeof(RuntimeTensorDesc), &tensor_desc, sizeof(RuntimeTensorDesc),
       RT_MEMCPY_HOST_TO_DEVICE));
   mem_addr = ValueToPtr(tensor_desc.data_addr);
   GELOGD("copy tensor desc for no tiling, data_addr:%p, dim:%" PRId64, mem_addr, tensor_desc.shape[0]);
@@ -4030,7 +4435,7 @@ Status DavinciModel::CopyInputData(const InputData &input_data) {
     const size_t data_idx = data_info.first;
     if (data_idx >= blobs.size()) {
       const std::string reason = "The required input " + std::to_string(data_idx) +
-                                 " is not provided by user, total input data num is " + std::to_string(blobs.size());
+                                 " is not provided by user, while the total input data num is " + std::to_string(blobs.size());
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
       GELOGE(FAILED, "[Check][Param] Blobs not match: blobs=%zu, model input num=%zu, required index=%u, op_name(%s)",
@@ -4090,7 +4495,7 @@ Status DavinciModel::CopyInputDataWithMergeH2D(const InputData &input_data) {
     const size_t data_idx = data_info.first;
     if (data_idx >= blobs.size()) {
       const std::string reason = "The required input " + std::to_string(data_idx) +
-                                 " is not provided by user, total input data num is " + std::to_string(blobs.size());
+                                 " is not provided by user, while the total input data num is " + std::to_string(blobs.size());
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                 std::vector<const char_t *>({reason.c_str()}));
       GELOGE(FAILED, "[Check][Param] Blobs not match: blobs=%zu, model input num=%zu, required index=%zu, op_name(%s)",
@@ -4891,49 +5296,6 @@ void DavinciModel::UpdateOutputTensorShape(std::vector<GeTensor> &output_tensor)
     }
   }
 }
-// 待删除，勿新增功能
-Status DavinciModel::GenOutputTensorInfo(OutputData &output_data, std::vector<Tensor> &outputs) {
-  if (!output_data.blobs.empty()) {
-    GELOGI("No need to generate output tensor info, model id:%u", model_id_);
-    return SUCCESS;
-  }
-
-  std::vector<int64_t> output_size_info;
-  std::vector<std::vector<int64_t>> output_shape_info;
-  const size_t output_num = output_buffer_size_.size();
-  for (size_t i = 0U; i < output_num; ++i) {
-    if (output_no_tiling_flag_[i] && (output_data_info_.find(static_cast<uint32_t>(i)) == output_data_info_.end())) {
-      GELOGW("output_data_info_[%zu] is empty.", i);
-      continue;
-    }
-
-    std::vector<int64_t> output_shape;
-    int64_t output_size = output_buffer_size_[i];
-    GE_CHK_STATUS_RET_NOLOG(BuildOutputShapeInfo(i, output_shape, output_size));
-
-    GELOGI("Output size is %" PRId64 ", output shape is %s.", output_size, ToString(output_shape).c_str());
-    output_size_info.push_back(output_size);
-    output_shape_info.push_back(output_shape);
-  }
-
-  GELOGI("Output blobs size:%zu, model id:%u", output_size_info.size(), model_id_);
-  for (size_t i = 0U; i < output_size_info.size(); ++i) {
-    const auto output_buffer = MakeShared<AlignedPtr>(output_size_info[i], kMemAlignment);
-    GE_CHECK_NOTNULL(output_buffer);
-    const GeTensorDesc tensor_desc(GeShape(output_shape_info[i]), FORMAT_ND, DT_FLOAT);
-    GeTensor ge_tensor(tensor_desc);
-    ge_tensor.SetData(output_buffer, static_cast<size_t>(output_size_info[i]));
-    Tensor out_tensor = TensorAdapter::AsTensor(ge_tensor);
-
-    void *const data_ptr = output_buffer->MutableGet();
-    output_data.blobs.push_back({data_ptr, static_cast<uint64_t>(output_size_info[i])});
-    outputs.emplace_back(std::move(out_tensor));
-    GELOGD("Output index:%zu, output dims is %s, data length:%" PRIu64 ".",
-           i, ToString(output_shape_info[i]).c_str(), output_size_info[i]);
-  }
-
-  return SUCCESS;
-}
 
 Status DavinciModel::GenOutputTensorInfo(OutputData &output_data, std::vector<gert::Tensor> &outputs) {
   if (!output_data.blobs.empty()) {
@@ -4978,7 +5340,7 @@ Status DavinciModel::GenOutputTensorInfo(OutputData &output_data, std::vector<ge
 
   return SUCCESS;
 }
-// 待删除，勿新增功能
+
 ///
 /// @ingroup ge
 /// @brief send Output Op result to upper layer
@@ -4991,49 +5353,6 @@ Status DavinciModel::GenOutputTensorInfo(OutputData &output_data, std::vector<ge
 /// @author
 ///
 void DavinciModel::AssembleListenerOutput(const std::shared_ptr<RunArgs> &args, const uint32_t data_id,
-                                          std::vector<Tensor> &outputs, OutputData &output_data) {
-  if (listener_ == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "listener_ is nullptr, check invalid.");
-    GELOGE(PARAM_INVALID, "listener_ is nullptr, check invalid, model id: %u", model_id_);
-    return;
-  }
-
-  output_data.index = data_id;
-  output_data.model_id = model_id_;
-
-  if (is_getnext_sink_dynamic_) {
-    GELOGD("Reinit cur dynamic dims when getnext sink dynamic.");
-    cur_dynamic_dims_.clear();
-    cur_dynamic_dims_.resize(shape_of_cur_dynamic_dims_);
-    const auto ret = rtMemcpy(cur_dynamic_dims_.data(), shape_of_cur_dynamic_dims_ * sizeof(int32_t),
-                              netoutput_last_input_addr_, static_cast<uint64_t>(netoutput_last_input_size_),
-                              RT_MEMCPY_DEVICE_TO_HOST);
-    GE_CHK_RT_EXEC(ret, return);
-  }
-
-  GELOGD("Cur dynamic dims is %s.", ToString(cur_dynamic_dims_).c_str());
-  if (GenOutputTensorInfo(output_data, outputs) != SUCCESS) {
-    return;
-  }
-
-  if (CopyOutputDataLegacy(output_data) != SUCCESS) {
-    OnComputeDoneWithResultCallback(args, data_id, INTERNAL_ERROR, outputs);
-    return;
-  }
-}
-
-///
-/// @ingroup ge
-/// @brief send Output Op result to upper layer
-/// @already malloced in ModelLoad, no need to malloc again
-/// @param [in] data_id: the index of output_data
-/// @param [in] rslt_flg: result flag
-/// @param [in] seq_end_flag: sequence end flag
-/// @param [out] output_data: real user output_data
-/// @return Status result
-/// @author
-///
-void DavinciModel::AssembleListenerOutput(const std::shared_ptr<RunArgsV2> &args, const uint32_t data_id,
                                           std::vector<gert::Tensor> &outputs) {
   if (listener_ == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "listener_ is nullptr, check invalid.");
@@ -5060,23 +5379,8 @@ void DavinciModel::AssembleListenerOutput(const std::shared_ptr<RunArgsV2> &args
     OnComputeDoneWithResultCallback(args, data_id, INTERNAL_ERROR, outputs);
   }
 }
-// 待删除，勿新增功能
-void DavinciModel::ReturnSequenceResult(const std::shared_ptr<RunArgs> &args, const uint32_t data_id,
-                                        OutputData &output_data, bool seq_end_flag) {
-  std::vector<Tensor> outputs;
-  if (!seq_end_flag || !has_output_node_) {
-    OnComputeDoneWithResultCallback(args, data_id, INTERNAL_ERROR, outputs);
-  } else {
-    AssembleListenerOutput(args, data_id, outputs, output_data);
-    GELOGW("End of sequence, model id: %u", model_id_);
-    OnComputeDoneWithResultCallback(args, data_id, END_OF_SEQUENCE, outputs);
-    if (!outputs.empty()) {
-      output_data.blobs.clear();
-    }
-  }
-}
 
-void DavinciModel::ReturnSequenceResult(const std::shared_ptr<RunArgsV2> &args, const uint32_t data_id,
+void DavinciModel::ReturnSequenceResult(const std::shared_ptr<RunArgs> &args, const uint32_t data_id,
   bool seq_end_flag) {
   std::vector<gert::Tensor> outputs;
   OutputData output_data;
@@ -5088,26 +5392,8 @@ void DavinciModel::ReturnSequenceResult(const std::shared_ptr<RunArgsV2> &args, 
     OnComputeDoneWithResultCallback(args, data_id, END_OF_SEQUENCE, outputs);
   }
 }
-// 待删除，勿新增功能
-void DavinciModel::OnComputeDoneWithResultCallback(const std::shared_ptr<RunArgs> &args, const uint32_t data_id,
-                                                   uint32_t result, std::vector<Tensor> &outputs) {
-  // 静态shape和动态shape都启用了扩展模式
-  std::shared_ptr<ActiveMemoryAllocator> mem_allocator = nullptr;
-  if (support_extend_memory_full_) {
-    mem_allocator =
-        SessionMemAllocator<ActiveMemoryAllocator>::Instance().GetMemAllocator(session_id_, GetDeviceId());
-    if (mem_allocator != nullptr) {
-      mem_allocator->Recycle(active_memorys_);
-    }
-  }
-  if (args != nullptr) {
-    args->callback(result, outputs);
-  } else {
-    OnComputeDoneWithResult(data_id, result, outputs);
-  }
-}
 
-void DavinciModel::OnComputeDoneWithResultCallback(const std::shared_ptr<RunArgsV2> &args, const uint32_t data_id,
+void DavinciModel::OnComputeDoneWithResultCallback(const std::shared_ptr<RunArgs> &args, const uint32_t data_id,
                                                    uint32_t result, std::vector<gert::Tensor> &outputs) {
   // 静态shape和动态shape都启用了扩展模式
   std::shared_ptr<ActiveMemoryAllocator> mem_allocator = nullptr;
@@ -5123,17 +5409,6 @@ void DavinciModel::OnComputeDoneWithResultCallback(const std::shared_ptr<RunArgs
   } else {
     OnComputeDoneWithResult(data_id, result, outputs);
   }
-}
-// 待删除，勿新增功能
-void DavinciModel::OnComputeDoneWithResult(const uint32_t data_id, uint32_t result, std::vector<Tensor> &outputs) {
-  if (listener_ == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "listener_ is nullptr, check invalid.");
-    GELOGE(PARAM_INVALID, "[Check][Param]listener_ is nullptr, check invalid.");
-    return;
-  }
-
-  GE_CHK_STATUS(listener_->OnComputeDone(model_id_, data_id, result, outputs),
-                "[Call][OnComputeDone] failed, model_id:%u, data_id:%u.", model_id_, data_id);
 }
 
 void DavinciModel::OnComputeDoneWithResult(const uint32_t data_id, uint32_t result,
@@ -5177,7 +5452,7 @@ void DavinciModel::ConstructActiveMemBaseAddrs() {
            allocation_ids_to_active_base_addr_[i]);
   }
 }
-// 待删除，勿新增功能
+
 void DavinciModel::Run() {
   SET_THREAD_NAME(pthread_self(), "ge_davidmdlrun");
   const uint32_t run_dev_id = device_id_;
@@ -5199,160 +5474,9 @@ void DavinciModel::Run() {
     // Model hasn't truly started running before received data
     const bool is_prof_enabled = gert::GlobalProfilingWrapper::GetInstance()->IsEnabled(gert::ProfilingType::kTaskTime);
     SetRunningFlag(false);
-    std::vector<Tensor> outputs;
-    std::shared_ptr<InputDataWrapper> data_wrapper;
-    Status ret = data_inputer_.Pop(data_wrapper);
-    const bool close_terminated = (data_wrapper == nullptr) || (ret != SUCCESS) || (!run_flg_);
-    if (close_terminated) {
-      GELOGW("data_wrapper is null or data queue closed, exit!");
-      break;
-    }
-
-    if (!copy_host_input_indexes_.empty()) {
-      GELOGW("ge.exec.hostInputIndexes does not support RunGraphAsync!");
-    }
-
-    SetRunningFlag(true);
-    InputData current_data = data_wrapper->GetInput();
-    std::shared_ptr<RunArgs> args = data_wrapper->GetRunArgs();
-    if (args != nullptr) {
-      const std::vector<Tensor> &inputs = args->input_tensor;
-      current_data.blobs.reserve(inputs.size());
-      current_data.shapes.reserve(inputs.size());
-      for (size_t i = 0U; i < inputs.size(); ++i) {
-        const TensorDesc &tensor_desc = inputs[i].GetTensorDesc();
-        current_data.shapes.emplace_back(tensor_desc.GetShape().GetDims());
-        DataBuffer data_blob;
-        data_blob.data = ValueToPtr(PtrToValue(inputs[i].GetData()));
-        data_blob.length = inputs[i].GetSize();
-        data_blob.placement = static_cast<uint32_t>(tensor_desc.GetPlacement());
-        current_data.blobs.push_back(data_blob);
-      }
-    }
-    if (MallocPhysicalMemory() != SUCCESS) {
-      OnComputeDoneWithResultCallback(args, current_data.index, INTERNAL_ERROR, outputs);
-      return;
-    }
-
-    // 当前流程模型的所有输入都走强制拷贝, 此处只需刷新1次就可以
-    args_manager_.InitDfxStage1Begin();
-    if (!is_first_time_model_execute_) {
-      // 首次刷新为all-one-time
-      uint32_t ret_up = kUpdatePolicyAllOneTime;
-      ConstructActiveMemBaseAddrs();
-      if (rt_model_stream_!=nullptr) {
-        GELOGW("model stream is null");
-      }
-      if (args_manager_.UpdateForExecute(ret_up, rt_model_stream_) != SUCCESS) {
-        GELOGE(FAILED, "UpdateForExecute, model_id:%u.", model_id_);
-        OnComputeDoneWithResultCallback(args, current_data.index, INTERNAL_ERROR, outputs);
-        return;
-      }
-      is_first_time_model_execute_ = true;
-    }
-    args_manager_.InitDfxStatsticsEnd();
-    args_manager_.PrintDfxStatistics();
-
-    // Model run indeedly start after received data.
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_PRE_PROC_START));
-    GELOGI("Model thread Run begin, model id:%u, data index:%u.", model_id_, current_data.index);
-    ret = HandleInputData(current_data);
-    if (ret != SUCCESS) {
-      GELOGE(FAILED, "[Call][HandleInputData] handle input data failed, model_id:%u.", model_id_);
-      OnComputeDoneWithResultCallback(args, current_data.index, INTERNAL_ERROR, outputs);
-      continue;
-    }
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_PRE_PROC_END));
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_START));
-    GE_TIMESTAMP_START(rtModelExecute);
-    GELOGI("rtModelExecute start, model id:%u.", model_id_);
-    CANN_PROFILING_STEP_TRACE(model_id_, iterator_count_, 0U, rt_model_stream_);
-    auto rt_ret = rtModelExecute(rt_model_handle_, rt_model_stream_, 0U);
-    if (rt_ret != RT_ERROR_NONE) {
-      OnComputeDoneWithResultCallback(args, current_data.index, INTERNAL_ERROR, outputs);
-      continue;
-    }
-    GELOGI("rtModelExecute end, model id:%u.", model_id_);
-    CANN_PROFILING_STEP_TRACE(model_id_, iterator_count_, 1U, rt_model_stream_);
-    GE_IF_BOOL_EXEC(is_first_execute_, GE_TIMESTAMP_EVENT_END(rtModelExecute, "rtModelExecute"));
-    iterator_count_++;
-
-    // release input memory on model exec
-    if (args != nullptr) {
-      args->input_tensor.clear();
-    }
-
-    GE_TIMESTAMP_START(rtStreamSynchronizeWithTimeout);
-    GELOGI("rtStreamSynchronizeWithTimeout start, model id:%u.", model_id_);
-    rt_ret = rtStreamSynchronizeWithTimeout(rt_model_stream_, stream_sync_timeout_);
-    if (rt_ret == ACL_ERROR_RT_SOCKET_CLOSE) {
-      GELOGI("connect lost to model exec, befause socket closed, model_id:%u", model_id_);
-      ModelManager::GetInstance().SetSocketCloseStatus(true);
-    }
-    if (rt_ret == ACL_ERROR_RT_STREAM_SYNC_TIMEOUT) {
-      is_stream_sync_timeout_ = true;
-      GE_LOGW_IF(rtModelAbort(rt_model_handle_) != RT_ERROR_NONE, "Abort model failed!");
-      REPORT_INNER_ERR_MSG("E19999", "rtStreamSynchronizeWithTimeout failed, stream synchronize timeout:%dms, ret:%d.",
-                        stream_sync_timeout_, rt_ret);
-      GELOGE(FAILED, "[Invoke][rtStreamSynchronizeWithTimeout] failed, timeout:%dms, ret:%d.", stream_sync_timeout_,
-             rt_ret);
-      OnComputeDoneWithResultCallback(args, current_data.index, INTERNAL_ERROR, outputs);
-      return;
-    }
-    const bool model_abort = ((rt_ret == kSinkModelAbortNormal) || (rt_ret == kSinkModelAbortNormalNew));
-    if ((!model_abort) && (rt_ret != RT_ERROR_NONE)) {
-      const bool seq_end_flag = ((rt_ret == kSinkModelEndOfSequence) || (rt_ret == kSinkModelEndOfSequenceNew));
-      GELOGI("seq_end_flg: %d", static_cast<int32_t>(seq_end_flag));
-      ReturnSequenceResult(args, current_data.index, *data_wrapper->GetOutput(), seq_end_flag);
-      continue;
-    }
-    GELOGI("rtStreamSynchronizeWithTimeout end, model id:%u, status:%s.", model_id_, model_abort ? "abort" : "normal");
-    GE_IF_BOOL_EXEC(is_first_execute_,
-                    GE_TIMESTAMP_EVENT_END(rtStreamSynchronizeWithTimeout, "Wait for rtStreamSynchronizeWithTimeout"));
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_INFER_END));
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_AFTER_PROC_START));
-    GE_TIMESTAMP_START(ReturnResult);
-    if (has_output_node_) {
-      AssembleListenerOutput(args, current_data.index, outputs, *data_wrapper->GetOutput());
-    }
-    GE_IF_BOOL_EXEC(is_first_execute_, GE_TIMESTAMP_EVENT_END(ReturnResult, "CopyDataFromDeviceToHost"));
-    GE_IF_BOOL_EXEC(is_prof_enabled, SetProfileTime(ModelProcStage::MODEL_AFTER_PROC_END));
-    GE_IF_BOOL_EXEC(is_prof_enabled, SinkTimeProfile(current_data.index, iterator_count_ - 1UL));
-    OnComputeDoneWithResultCallback(args, current_data.index, SUCCESS, outputs);
-    if (!outputs.empty()) {
-      (*data_wrapper->GetOutput()).blobs.clear();
-    }
-    is_first_execute_ = false;
-    // model run finished
-    GELOGI("run iterator count is %" PRIu64 ", model_id:%u", iterator_count_, model_id_);
-  }
-  GELOGI("Model run end, model id:%u", model_id_);
-}
-
-void DavinciModel::RunV2() {
-  SET_THREAD_NAME(pthread_self(), "ge_davidmdlrun");
-  const uint32_t run_dev_id = device_id_;
-  error_message::SetErrMgrContext(error_message::GetErrMgrContext());
-
-  GELOGI("Model Run thread start, model_id:%u.", model_id_);
-  ModelUtils::SetDevice(run_dev_id);
-
-  // set graphLevelSat
-  if (isGraphLevelSat_) {
-    (void)ge::rtSetStreamTag(rt_model_stream_, model_id_);
-  }
-  // DeviceReset before thread run finished!
-  GE_MAKE_GUARD(reset_device, [run_dev_id]() {
-    GE_CHK_STATUS(ModelUtils::ResetDevice(run_dev_id));
-  });
-
-  while (run_flg_) {
-    // Model hasn't truly started running before received data
-    const bool is_prof_enabled = gert::GlobalProfilingWrapper::GetInstance()->IsEnabled(gert::ProfilingType::kTaskTime);
-    SetRunningFlag(false);
     std::vector<gert::Tensor> outputs;
-    std::shared_ptr<RunArgsV2> args;
-    Status ret = data_inputer_v2_.Pop(args);
+    std::shared_ptr<RunArgs> args;
+    Status ret = data_inputer_.Pop(args);
     const bool close_terminated = (args == nullptr) || (ret != SUCCESS) ||
       (!run_flg_);
     if (close_terminated) {
@@ -5481,12 +5605,8 @@ Status DavinciModel::DestroyThread() {
   run_flg_ = false;
 
   data_inputer_.Stop();
-  data_inputer_v2_.Stop();
   if (thread_id_.joinable()) {
     thread_id_.join();
-  }
-  if (thread_id_v2_.joinable()) {
-    thread_id_v2_.join();
   }
 
   return SUCCESS;
@@ -5514,7 +5634,6 @@ Status DavinciModel::ModelRunStart() {
   GE_CHK_RT_RET(rtStreamSetMode(rt_model_stream_, kStopOnFailure));
   error_context_ = error_message::GetErrMgrContext();
   thread_id_ = std::thread(&DavinciModel::Run, this);
-  thread_id_v2_ = std::thread(&DavinciModel::RunV2, this);
 
   GELOGI("model thread create success, model id:%u.", model_id_);
   return SUCCESS;
@@ -5835,7 +5954,8 @@ uint32_t DavinciModel::GetBlockDim(const ModelTaskType type, const domi::TaskDef
   bool is_tiling_depend = false;
   ccKernelType kernel_type = ge::ccKernelType::INVALID;
 
-  if ((type == ModelTaskType::MODEL_TASK_KERNEL) || (type == ModelTaskType::MODEL_TASK_VECTOR_KERNEL) || (type == ModelTaskType::MODEL_TASK_SUPER_KERNEL)) {
+  if ((type == ModelTaskType::MODEL_TASK_KERNEL) || (type == ModelTaskType::MODEL_TASK_VECTOR_KERNEL) ||
+      (type == ModelTaskType::MODEL_TASK_SUPER_KERNEL)) {
     const auto &context = task_def.kernel().context();
     kernel_type = static_cast<ccKernelType>(context.kernel_type());
     block_dim = task_def.kernel().block_dim();
@@ -6341,15 +6461,9 @@ bool DavinciModel::CheckUserAndModelSize(const int64_t size, const int64_t op_si
   // The input and model input size can not be exactly equal because user input is not definite.
   if ((size + kDataMemAlignSizeCompare) < op_size) {
     std::string model_id_type_str = model_io_type;
-    const std::string reason = "The " + model_id_type_str +
-                         " memory provided by the user, plus " +
-                         std::to_string(kDataMemAlignSizeCompare) +
-                         " bytes for data alignment, "
-                         "is smaller than op_size in the model, "
-                         "which is an illegal behavior. " +
-                         model_id_type_str+ " size=" +
-                         std::to_string(size) +
-                         ", op_size=" + std::to_string(op_size);
+    const std::string reason = "The input memory size set by the user is invalid.The provided " + std::to_string(size) +
+                                " bytes of buffer size plus the aligned " + std::to_string(kDataMemAlignSizeCompare) +
+                                " bytes is less than the tensor size " + std::to_string(op_size) + " bytes required by the model";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Param] %s size:%" PRId64 " "
@@ -6643,9 +6757,11 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(std::vector<std::pair<ui
       } else {
         // 支持零拷贝，但用户给的host内存，要校验fm内存有没有申请零拷贝段
         if (mem_base_size_ < TotalMemSize()) {
-          const std::string reason = std::string("When zero copy memory is reused(ge.exec.reuseZeroCopyMemory=1), ") +
-              "all model inputs and outputs must reside in device memory, but " +
-              std::string(is_input ? "input[":"output[") + std::to_string(io_idx) + "] placement is host.";
+          const std::string reason = "Zero-copy memory reuse mode is enabled, requiring all I/O tensors to be allocated in device memory, but " +
+                                      std::string(is_input ? "input " : "output ") + std::to_string(io_idx) +
+                                      " is located in host memory, and the model's reusable device memory is insufficient(available: " +
+                                      std::to_string(mem_base_size_) + ", required: " + std::to_string(TotalMemSize()) + ")";
+
           REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                     std::vector<const char_t *>({reason.c_str()}));
           GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6729,9 +6845,10 @@ Status DavinciModel::ConstructZeroCopyIoActiveBaseAddrs(const std::vector<std::p
       } else {
         // 支持零拷贝，但用户给的host内存，要校验fm内存有没有申请零拷贝段
         if (mem_base_size_ < TotalMemSize()) {
-          const std::string reason = std::string("When zero copy memory is reused(ge.exec.reuseZeroCopyMemory=1), ") +
-              "all model inputs and outputs must reside in device memory, but " +
-              std::string(is_input ? "input[":"output[") + std::to_string(io_idx) + "] placement is host.";
+          const std::string reason = "Zero-copy memory reuse mode is enabled, requiring all I/O tensors to be allocated in device memory, but " +
+                                      std::string(is_input ? "input " : "output ") + std::to_string(io_idx) +
+                                      " is located in host memory, and the model's reusable device memory is insufficient(available: " +
+                                      std::to_string(mem_base_size_) + ", required: " + std::to_string(TotalMemSize()) + ")";
           REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                     std::vector<const char_t *>({reason.c_str()}));
           GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6790,7 +6907,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
       input_data.blobs.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() != output_index_to_allocation_ids_.size() &&
       output_data.blobs.size() != 0)) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6803,7 +6920,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
 
   if ((input_data.blobs.size() == 0 && input_tensor.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() == 0 && output_tensor.size() != output_index_to_allocation_ids_.size())) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6846,7 +6963,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
       input_data.blobs.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() != output_index_to_allocation_ids_.size() &&
       output_data.blobs.size() != 0)) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -6859,7 +6976,7 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
 
   if ((input_data.blobs.size() == 0 && input_tensor.size() != input_index_to_allocation_ids_.size()) ||
       (output_data.blobs.size() == 0 && output_tensor.size() != output_index_to_allocation_ids_.size())) {
-    const std::string reason = "The number of IO tensor from user and the number of tensor in the model are not equal.";
+    const std::string reason = "The number of inputs or outputs provided by the user is inconsistent with that required by the model";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
@@ -7011,7 +7128,7 @@ void DavinciModel::SetLogicalOutsideAddrs(const std::map<uintptr_t, std::set<siz
 
 ///
 /// @ingroup ge
-/// @brief Get DataInputer
+/// @brief set model id
 /// @return model ID
 ///
 void DavinciModel::SetId(const uint32_t model_id) {
@@ -7118,7 +7235,7 @@ Status DavinciModel::InitFileConstant(const NodePtr &node) {
   size_t left_size = static_cast<size_t>(weight_size);
   const auto &external_weight_manager = ExternalWeightManagerPool::Instance().GetManager(GetContext().SessionId());
   GE_CHECK_NOTNULL(external_weight_manager);
-  if (!external_weight_manager->CheckAndSetWeightLoaded(file_path, device_id_)) {
+  if (!external_weight_manager->CheckAndSetWeightLoaded(file_path + ":" + std::to_string(offset), device_id_)) {
     const size_t file_length = (length == 0U ? static_cast<size_t>(weight_size) : length);
     GE_CHK_STATUS_RET(
         FileConstantUtils::CopyOneWeightFromFile(v_output_addr[0U], file_path, offset, file_length, left_size),
@@ -7201,8 +7318,8 @@ Status DavinciModel::InitTbeHandle(const OpDescPtr &op_desc) {
 }
 
 Status DavinciModel::GetAddrAndPrefCnt(const OpDescPtr &op_desc, const std::string &kernel_name,
-                                       const std::string &prefix,
-                                       std::vector<std::pair<void *, uint32_t>> &addr_pref_cnt) const {
+    const std::string &prefix,
+    std::vector<std::pair<void *, uint32_t>> &addr_pref_cnt) const {
   addr_pref_cnt.clear();
   return bin_kernel_handle_.GetAddrAndPrefCnt(op_desc, kernel_name, prefix, addr_pref_cnt);
 }
@@ -7818,9 +7935,19 @@ void DavinciModel::FreeFileConstantMem() {
     GELOGI("Need not to free fileconstant memory.");
     return;
   }
+
+  // 外置权重归一场景：智能指针会在析构函数中自动释放内存（通过自定义deleter）
+  if (external_weight_combined_mem_addr_ != nullptr) {
+    GELOGI("Combined external weight memory will be automatically freed by smart pointer.");
+    return;
+  }
+
+  // 非归一场景：遍历各个FileConstant节点，检查是否为用户内存，仅释放GE分配的内存
   auto &mem_instance = MemManager::Instance().MemInstance(RT_MEMORY_HBM);
   for (const auto &addr_pair : runtime_param_.fileconstant_addr_mapping) {
     if (IsUserDeviceMemForFileConstant(addr_pair.second)) {
+      // 用户管理的内存，跳过释放
+      GELOGI("Skipping user-managed FileConstant memory at addr:0x%" PRIx64, addr_pair.second);
       continue;
     }
     if (addr_pair.second != 0UL) {
@@ -7953,12 +8080,6 @@ Status DavinciModel::InitL1DataDumperArgs() {
     // set addr for l1 data dump
     data_dumper_.SetL1FusionAddr(static_cast<uintptr_t>(PtrToValue(l1_fusion_addr_)));
   }
-  return SUCCESS;
-}
-
-Status DavinciModel::SetRunAsyncListenerCallback(const RunAsyncCallback &callback) {
-  GE_CHECK_NOTNULL(listener_);
-  listener_->SetCallback(callback);
   return SUCCESS;
 }
 
@@ -8169,11 +8290,9 @@ Status DavinciModel::GetCurDynamicDims(const std::vector<std::vector<int64_t>> &
 
   const auto &user_input_dims = run_context_.user_input_dims;
   if (user_real_input_dims.size() != user_input_dims.size()) {
-    const std::string reason = "The number of tensor from user is not equal to the number of tensor in the graph."
-                         " tensor in graph=" +
-                         std::to_string(user_input_dims.size()) +
-                         ", tensor from user=" +
-                         std::to_string(user_real_input_dims.size());
+    const std::string reason = "The number of tensors " + std::to_string(user_input_dims.size()) +
+                               " configured by the user is not equal to number of tensors " +
+                               std::to_string(user_real_input_dims.size()) + " in the graph";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
     GELOGE(INTERNAL_ERROR, "[Check][Param] The input count of user:%zu should be equal to the data count of graph:%zu",
@@ -8205,7 +8324,7 @@ Status DavinciModel::GetCurDynamicDims(const std::vector<std::vector<int64_t>> &
     }
   }
 
-  const std::string reason = "Dynamic dims of user tensor does not exist in options. dims=" + ToString(cur_dynamic_dims);
+  const std::string reason = "The input tensor dimension " + ToString(cur_dynamic_dims) + " is not in the dynamic dimension list configured by dynamic_dims";
   REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
                                std::vector<const char_t *>({reason.c_str()}));
   GELOGE(INTERNAL_ERROR, "[Check][Param] Cur dynamic dims is %s, does not exist in options.",
@@ -8634,7 +8753,7 @@ bool DavinciModel::UpdateCoreCountWithOpDesc(const NodePtr &node, fe::PlatFormIn
 //  |platform_infos|serialized_proto|launch_args|
 // 如果是通过 LaunchPlatformInfos 接口过来的，plat_form_info_ptr默认为platform_infos_，如果配置了算子级核数，platform_infos为装载了核数信息的temp_info
 // 如果是通过 LoadCustPlatformInfos 接口过来的，plat_form_info_ptr为platform_infos_，因此本接口内要判断是否配置了算子级核数
-Status DavinciModel::LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_ptr, size_t &copy_size, void *&dev_addr,
+Status DavinciModel::LoadPlatformInfos(const fe::PlatFormInfos *const plat_form_info_ptr, size_t &copy_size, void *&dev_addr,
                                        bool is_custom, const NodePtr &node) {
   fe::PlatFormInfos platform_infos_to_load = *plat_form_info_ptr;
 
@@ -8643,7 +8762,6 @@ Status DavinciModel::LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_p
   if (is_custom) {
     auto it = cust_platform_infos_addr_.find(addr_key);
     if (it != cust_platform_infos_addr_.end()) {
-      GELOGD("Found existing custom platform infos address [%p] for [%s]", it->second, addr_key.c_str());
       dev_addr = it->second;
       return SUCCESS;
     }
@@ -8652,10 +8770,9 @@ Status DavinciModel::LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_p
       GE_ASSERT_TRUE(UpdateCoreCountWithOpDesc(node, platform_infos_to_load));
     }
 
-    it = cust_platform_infos_addr_to_launch_.find(addr_key);
-    if (it != cust_platform_infos_addr_to_launch_.end()) {
-      GELOGD("Found existing custom platform infos address to launch [%p] for [%s]", it->second, addr_key.c_str());
-      dev_addr = it->second;
+    auto it_to_launch = cust_platform_infos_addr_to_launch_.find(addr_key);
+    if (it_to_launch != cust_platform_infos_addr_to_launch_.end()) {
+      dev_addr = it_to_launch->second.first;
       return SUCCESS;
     }
   }
@@ -8688,13 +8805,14 @@ Status DavinciModel::LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_p
   GE_CHK_RT_RET(rtMemcpy(dev_addr, total_size, host_addr.get(), total_size, RT_MEMCPY_HOST_TO_DEVICE));
   GELOGD("load platform_infos_addr = %p", dev_addr);
   if (is_custom) {
-    cust_platform_infos_addr_to_launch_[addr_key] = dev_addr;
+    cust_platform_infos_addr_to_launch_[addr_key] = std::make_pair(dev_addr, copy_size);
   }
   return SUCCESS;
 }
 
 Status DavinciModel::LoadCustPlatformInfos(void *&cust_platform_infos_addr, const NodePtr &node) {
-  GE_CHK_STATUS_RET(LoadPlatformInfos(&platform_infos_, cust_platform_copy_size_, cust_platform_infos_addr, true, node),
+  size_t copy_size = 0U;
+  GE_CHK_STATUS_RET(LoadPlatformInfos(&platform_infos_, copy_size, cust_platform_infos_addr, true, node),
                     "Failed to load platform infos");
   GELOGI("Succeed to load cust platform infos.");
   return SUCCESS;
@@ -8731,7 +8849,7 @@ Status DavinciModel::LaunchFromPlatformSo(const std::string &platform_so_path) {
 
   for (const auto &it : cust_platform_infos_addr_to_launch_) {
     const std::string &addr_key = it.first;
-    auto cust_platform_infos_addr = it.second;
+    auto cust_platform_infos_addr = it.second.first;
     GELOGI("Launch custom platform infos: addr_key[%s], addr[%p].", addr_key.c_str(), cust_platform_infos_addr);
     rtStream_t stream = nullptr;
     const std::function<void()> callback = [&stream]() {
@@ -8748,7 +8866,7 @@ Status DavinciModel::LaunchFromPlatformSo(const std::string &platform_so_path) {
     LaunchKernelConfig launch_config;
     launch_param.launch_config = launch_config;
     LoadCustPlatformInfosArgs load_args = {};
-    load_args.args = PtrToValue(cust_platform_infos_addr) + cust_platform_copy_size_;
+    load_args.args = PtrToValue(cust_platform_infos_addr) + it.second.second;
     load_args.args_size = static_cast<uint64_t>(sizeof(PlatformInfosLaunchArgs));
     GELOGD("Load cust platform infos args is %lu, args size is %lu", load_args.args, load_args.args_size);
     launch_param.args = static_cast<void *>(&load_args);
@@ -8766,15 +8884,15 @@ Status DavinciModel::LaunchFromPlatformSo(const std::string &platform_so_path) {
 
 Status DavinciModel::LaunchFromOpMasterSo() {
   GELOGI("Launch cust platform infos from op master so.");
-  std::string so_name;
-  auto &model_mgr = ModelManager::GetInstance();
-  GE_CHK_STATUS_RET(model_mgr.GetPlatformInfosSoName(so_name), "Failed to get platform infos so");
-  GE_ASSERT_TRUE(!so_name.empty(), "do not find so for launching custom platform infos.");
+  rtBinHandle platform_bin_handle = ModelManager::GetInstance().GetPlatformBinHandle();
+  GE_ASSERT_NOTNULL(platform_bin_handle, "Failed to get platform infos bin handle");
+  rtFuncHandle platform_func_handle = KernelHandleUtils::GetCustAicpuFuncHandle(platform_bin_handle,
+      "CustPlatformInfo", kAicpuCustLoadPlatformInfo);
+  GE_ASSERT_NOTNULL(platform_func_handle);
   for (const auto &it : cust_platform_infos_addr_to_launch_) {
     const std::string &addr_key = it.first;
-    auto cust_platform_infos_addr = it.second;
+    auto cust_platform_infos_addr = it.second.first;
     GELOGI("Launch custom platform infos: addr_key[%s], addr[%p].", addr_key.c_str(), cust_platform_infos_addr);
-
     rtStream_t stream = nullptr;
     const std::function<void()> callback = [&stream]() {
       if (stream != nullptr) {
@@ -8784,19 +8902,19 @@ Status DavinciModel::LaunchFromOpMasterSo() {
     GE_MAKE_GUARD(release, callback);
     GE_CHK_RT_RET(rtStreamCreate(&stream, 0));
     LoadCustPlatformInfosArgs load_args = {};
-    load_args.args = PtrToValue(cust_platform_infos_addr) + cust_platform_copy_size_;
+    load_args.args = PtrToValue(cust_platform_infos_addr) + it.second.second;
     load_args.args_size = static_cast<uint64_t>(sizeof(PlatformInfosLaunchArgs));
     GELOGD("Load cust platform infos args is %lu, args size is %lu", load_args.args, load_args.args_size);
-
-    rtArgsEx_t args_info = {};
-    args_info.args = static_cast<void *>(&load_args);
-    args_info.argsSize = static_cast<uint32_t>(sizeof(LoadCustPlatformInfosArgs));
-    args_info.isNoNeedH2DCopy = 0U;
-    GE_CHK_RT_RET(rtCpuKernelLaunchWithFlag(so_name.c_str(), kAicpuCustLoadPlatformInfo.c_str(), 1U, &args_info, nullptr,
-        stream, RT_KERNEL_CUSTOM_AICPU));
-    GELOGI("Launch custom platform infos: so_name[%s], kernel_name[%s], stream[%" PRIu64 "].", so_name.c_str(),
-    kAicpuCustLoadPlatformInfo.c_str(), PtrToValue(stream));
+    LaunchKernelParam launch_kernel_param;
+    launch_kernel_param.args = static_cast<void *>(&load_args);
+    launch_kernel_param.args_size = static_cast<uint32_t>(sizeof(LoadCustPlatformInfosArgs));
+    launch_kernel_param.block_dim = 1U;
+    launch_kernel_param.stream = stream;
+    launch_kernel_param.is_host_args = true;
+    GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(platform_func_handle, launch_kernel_param));
     cust_platform_infos_addr_[addr_key] = cust_platform_infos_addr;
+    GELOGI("Launch custom platform infos: kernel_name[%s], stream[%" PRIu64 "].",
+        kAicpuCustLoadPlatformInfo.c_str(), PtrToValue(stream));
     GE_CHK_RT_RET(rtStreamSynchronize(stream));
     GELOGI("Succeed to launch custom platform infos task.");
   }

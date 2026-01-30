@@ -25,15 +25,15 @@ else()
 endif()
 
 if(protobuf_grpc_FOUND)
-    message(STATUS "[grpc] protobuf_grpc found, skip compiling..")
+    message(STATUS "[grpc] protobuf_grpc found, skip compiling.")
 else()
-    message(STATUS "[grpc] protobuf_grpc not found, finding binary file..")
+    message(STATUS "[grpc] protobuf_grpc not found, finding binary file.")
 
     set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/grpc/grpc-1.60.0.tar.gz")
     # 初始化可选参数列表
     set(GRPC_EXTRA_ARGS "")
     if(EXISTS ${REQ_URL})
-        message(STATUS "[grpc] ${REQ_URL} found, start compile.")
+        message(STATUS "[grpc] ${REQ_URL} found.")
     else()
         message(STATUS "[grpc] ${REQ_URL} not found, need download.")
         set(REQ_URL "https://gitcode.com/cann-src-third-party/grpc/releases/download/v1.60.0/grpc-1.60.0.tar.gz")
@@ -42,7 +42,7 @@ else()
         )
     endif()
     
-    set(GRPC_CXX_FLAGS "-Wl,-z,relro,-z,now,-z,noexecstack -D_FORTIFY_SOURCE=2 -O2 -fstack-protector-all -s -D_GLIBCXX_USE_CXX11_ABI=0")
+    set(GRPC_CXX_FLAGS "-Wl,-z,relro,-z,now,-z,noexecstack -D_FORTIFY_SOURCE=2 -O2 -fstack-protector-all -s -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI}")
     ExternalProject_Add(grpc_build
                         URL ${REQ_URL}
                         TLS_VERIFY OFF
@@ -54,7 +54,6 @@ else()
                         CONFIGURE_COMMAND ${CMAKE_COMMAND}
                             # zlib
                             -DgRPC_ZLIB_PROVIDER=module
-                            -DZLIB_ROOT=${CMAKE_BINARY_DIR}/zlib_bin_build-prefix/src/zlib_bin_build
                             # cares
                             -DgRPC_CARES_PROVIDER=module
                             -DCARES_ROOT_DIR=${CMAKE_BINARY_DIR}/cares_build-prefix/src/cares_build

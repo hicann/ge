@@ -22,7 +22,6 @@
 #include "common/checker.h"
 #include "expand_dimension.h"
 #include "transfer_shape_according_to_format.h"
-#include "attribute_group/attr_group_base.h"
 
 namespace {
 const int64_t UNKNOWN_DIM_SIZE = -1;

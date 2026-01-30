@@ -253,7 +253,6 @@ Status NodeDoneCallback::OnNodeDone() {
     GE_CHK_STATUS_RET(SaveDumpOpInfo(), "[Save][DumpOpInfo] Failed to dump op info.");
   }
 
-
   // release workspace
   context_->ReleaseWorkspace();
   // release inputs

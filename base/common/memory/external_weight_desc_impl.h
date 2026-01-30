@@ -12,6 +12,7 @@
 #define GE_COMMON_MEMORY__EXTERNAL_WEIGHT_DESC_IMPL_H
 
 #include "ge/ge_external_weight_desc.h"
+#include "graph/ascend_string.h"
 
 namespace ge {
 class ExternalWeightDesc::ExternalWeightDescData {
@@ -28,10 +29,9 @@ class ExternalWeightDesc::ExternalWeightDescData {
 
   AscendString GetId() const;
 
- private:
-  friend class ExternalWeightDesc::Builder;
   void SetLocationSizeOffsetId(const AscendString &location, const size_t size, const size_t offset, const AscendString &id);
 
+ private:
   AscendString location_;
   size_t size_;
   size_t offset_;

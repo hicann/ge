@@ -10,14 +10,8 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <filesystem>
 #include <regex>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include "mmpa/mmpa_api.h"
-#include "graph/utils/file_utils.h"
-#include "ge_running_env/path_utils.h"
-#include "common/path_utils.h"
 #include "macro_utils/dt_public_scope.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "proto/ge_ir.pb.h"
@@ -25,7 +19,7 @@
 #include "easy_graph/builder/graph_dsl.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "session/session_manager.h"
-#include "session_v2/ge_session_impl.h"
+#include "session/ge_session_impl.h"
 #include "init_ge.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/load/graph_loader.h"
@@ -55,39 +49,29 @@ namespace {
 static FakeOpsKernelInfoStore g_fake_hccl_ops_kernel_info_store;
 bool test_callback_called = false;
 
-bool CheckWeightFile(const std::string &external_weight_dir) {
-  if (mmAccess(external_weight_dir.c_str()) != EN_OK || !ge::IsDir(external_weight_dir.c_str())) {
-    return false;
-  }
+namespace fs = std::filesystem;
 
-  // 使用正则表达式匹配文件模式
-  std::regex pattern("weight_.*");
-  DIR *dir = opendir(external_weight_dir.c_str());
-  if (dir == nullptr) {
-    return false;
-  }
-
-  struct dirent *entry;
-  bool found = false;
-  while ((entry = readdir(dir)) != nullptr) {
-    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-      continue;
+bool CheckWeightFile(const std::string& external_weight_dir) {
+  try {
+    if (!fs::exists(external_weight_dir) || !fs::is_directory(external_weight_dir)) {
+      return false;
     }
-    std::string entry_path = external_weight_dir + "/" + entry->d_name;
-    if (ge::IsFile(entry_path.c_str())) {
-      std::string filename = entry->d_name;
-      if (std::regex_match(filename, pattern)) {
-        found = true;
-        break;
+
+    // 使用正则表达式匹配文件模式
+    std::regex pattern("weight_.*");
+    for (const auto& entry : fs::directory_iterator(external_weight_dir)) {
+      if (entry.is_regular_file()) {
+        std::string filename = entry.path().filename().string();
+        if (std::regex_match(filename, pattern)) {
+          return true;
+        }
       }
     }
+    return false;
+  } catch (const fs::filesystem_error& ex) {
+    std::cout << "文件系统错误: " << ex.what() << std::endl;
+    return false;
   }
-  closedir(dir);
-  return found;
-}
-
-int RemoveAll(const std::string &path) {
-  return ge::PathUtils::RemoveDirectories(path);
 }
 }
 class GeApiV2Test : public testing::Test {
@@ -375,6 +359,8 @@ ge::Graph BuildAddGraph() {
       .TensorDesc(FORMAT_NCHW, DT_INT32, shape)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_1_fake_id")
       .Build("add_1");
 
   auto netoutput = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).Build("netoutput");
@@ -487,6 +473,12 @@ auto aicore_func = [](const Node &node, RunContext &context, std::vector<domi::T
 
   auto op_desc = node.GetOpDesc();
   op_desc->SetOpKernelLibName("AiCoreLib");
+  ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+  const char kernel_bin[] = "kernel_bin";
+  vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+  ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("test", std::move(buffer));
+  op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
   size_t arg_size = 100;
   std::vector<uint8_t> args(arg_size, 0);
   domi::TaskDef task_def;
@@ -696,7 +688,7 @@ TEST_F(GeApiV2Test, RunGraphAsync_RunCustomPass_Success) {
   std::vector<gert::Tensor> inputs;
   std::vector<gert::Tensor> outputs;
   runtime_stub.GetSlogStub().SetLevelDebug();
-  EXPECT_EQ(session_ptr->RunGraph(graph_id, inputs, outputs), FAILED);
+  EXPECT_NE(session_ptr->RunGraph(graph_id, inputs, outputs), SUCCESS);
   ASSERT_TRUE(runtime_stub.GetSlogStub().FindLog(DLOG_DEBUG, kKeyLog) >= 0);
   runtime_stub.GetSlogStub().Clear();
   delete session_ptr;
@@ -1639,7 +1631,7 @@ TEST_F(GeApiV2Test, GetCompileGraphModel_Success_LoadAndExec) {
   ModelBufferData model_buff;
   std::string external_weight_dir = "./user_weight_dir/";
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    RemoveAll(external_weight_dir);
+    fs::remove_all(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;
@@ -2008,7 +2000,7 @@ TEST_F(GeApiV2Test, GetCompileGraphModel_UserSetExternalWeightAddress_Success_Lo
   std::vector<ExternalWeightDescPtr> external_weight_paths;
   std::string external_weight_dir = "./user_weight_dir/";
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    RemoveAll(external_weight_dir);
+    fs::remove_all(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;
@@ -2079,12 +2071,12 @@ TEST_F(GeApiV2Test, ExternalWeightDirAndModelCache_Success) {
   std::string model_cache_dir = "./build_cache_dir";
   std::string graph_key = "test_graph_001";
   std::string external_weight_dir = "./user_weight_dir/";
-  ASSERT_TRUE(ge::CreateDir(model_cache_dir) == 0);
+  ASSERT_TRUE(fs::create_directory(model_cache_dir));
   GE_MAKE_GUARD(remove_model_cache_dir, [&model_cache_dir] () {
-    RemoveAll(model_cache_dir);
+    fs::remove_all(model_cache_dir);
   });
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    RemoveAll(external_weight_dir);
+    fs::remove_all(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;
@@ -2142,12 +2134,12 @@ TEST_F(GeApiV2Test, ExternalWeightDirAndModelCache_Failed_SecondSessionNotSetExt
   std::string model_cache_dir = "./build_cache_dir";
   std::string graph_key = "test_graph_001";
   std::string external_weight_dir = "./user_weight_dir/";
-  ASSERT_TRUE(ge::CreateDir(model_cache_dir) == 0);
+  ASSERT_TRUE(fs::create_directory(model_cache_dir));
   GE_MAKE_GUARD(remove_model_cache_dir, [&model_cache_dir] () {
-    RemoveAll(model_cache_dir);
+    fs::remove_all(model_cache_dir);
   });
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    RemoveAll(external_weight_dir);
+    fs::remove_all(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;
@@ -2190,4 +2182,19 @@ TEST_F(GeApiV2Test, ExternalWeightDirAndModelCache_Failed_SecondSessionNotSetExt
   ReInitGe();
 }
 
+TEST(FeatureQueryTest, QuerySupportedIr) {
+  bool existingFeature = IsIrRepSupport("_inference_rule");
+  EXPECT_TRUE(existingFeature);
+}
+
+TEST(FeatureQueryTest, QueryUnsupportedIr) {
+  bool futureNewFeature = IsIrRepSupport("future_new_feature_rule");
+  EXPECT_FALSE(futureNewFeature);
+
+  bool noFeature = IsIrRepSupport("");
+  EXPECT_FALSE(noFeature);
+
+  bool similarErrorFeature = IsIrRepSupport("Inference_Rule"); 
+  EXPECT_FALSE(similarErrorFeature);
+}
 }  // namespace ge

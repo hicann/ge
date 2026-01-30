@@ -228,16 +228,6 @@ static ge::GeTensorPtr GenerateWeightTensor(const WeightInfo &w_info) {
   return w;
 }
 
-static inline ge::NodePtr GetPeerOutNode(const ge::NodePtr &node,
-                                         const int32_t index) {
-  const auto in_anchor = node->GetInDataAnchor(index);
-  FUSION_TURBO_NOTNULL(in_anchor, nullptr);
-  const auto peer_anchor = in_anchor->GetPeerOutAnchor();
-  FUSION_TURBO_NOTNULL(peer_anchor, nullptr);
-  auto peer_node = peer_anchor->GetOwnerNode();
-  return peer_node;
-}
-
 static void UpdateTensor(const ge::GeTensorDescPtr &tensor, const WeightInfo &w_info) {
   if (tensor == nullptr) {
     return;
@@ -396,7 +386,7 @@ ge::NodePtr FusionTurbo::AddWeight(const ge::NodePtr &node,
     GELOGE(FAILED, "[FusionTurbo][AddWeight]Failed to generate weight for node %s.", node->GetName().c_str());
     return nullptr;
   }
-  weights.emplace_back(w);
+  (void)weights.emplace_back(w);
   if (ge::OpDescUtils::SetWeights(node, weights) != ge::GRAPH_SUCCESS) {
     return nullptr;
   }
@@ -421,7 +411,7 @@ std::vector<ge::NodePtr> FusionTurbo::AddWeights(const ge::NodePtr &node,
       GELOGE(FAILED, "[FusionTurbo][AddWeights]Failed to generate weight for node %s.", node->GetName().c_str());
       return ret;
     }
-    weights.emplace_back(w);
+    (void)weights.emplace_back(w);
   }
   if (ge::OpDescUtils::SetWeights(node, weights) != ge::GRAPH_SUCCESS) {
     return ret;
@@ -432,7 +422,7 @@ std::vector<ge::NodePtr> FusionTurbo::AddWeights(const ge::NodePtr &node,
   GELOGD("in_size %zu, w_info size %zu", in_size, w_infos.size());
   for (size_t i = in_size - w_infos.size(); i < in_size; i++) {
     auto peer_node = GetPeerOutNode(node, static_cast<int32_t>(i));
-    ret.emplace_back(peer_node);
+    (void)ret.emplace_back(peer_node);
   }
   return ret;
 }
@@ -485,7 +475,7 @@ ge::OpDescPtr FusionTurbo::CreateOpDesc(const string &op_name,
       }
     }
 
-    index = 0;
+    index = 0U;
     const auto &ir_outputs = op_desc->GetIrOutputs();
     for (auto &ir_output : ir_outputs) {
       if (ir_output.second == ge::kIrOutputDynamic) {
@@ -797,7 +787,7 @@ std::vector<ge::NodePtr> FusionTurbo::GetPeerInNodes(const ge::NodePtr &node, co
   FUSION_TURBO_NOTNULL(output_anchor, ret);
   const auto peer_in_anchors = output_anchor->GetPeerInDataAnchors();
   for (const auto& ele : peer_in_anchors) {
-    ret.emplace_back(ele->GetOwnerNode());
+    (void)ret.emplace_back(ele->GetOwnerNode());
   }
 
   return ret;

@@ -9,7 +9,7 @@
  */
 
 #include "tiling_dfx.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/args_format_desc.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/attr_utils.h"
@@ -18,7 +18,6 @@
 #include "register/op_tiling/op_tiling_constants.h"
 #include "exe_graph/runtime/tiling_data.h"
 #include "graph/utils/op_desc_utils.h"
-#include "graph/types.h"
 
 namespace optiling {
 
@@ -39,7 +38,7 @@ ge::Status TilingDfx::GetArgsSizeWithArgsFormat(const ge::OpDescPtr &op_desc,
         size_t arg_size = 0UL;
         GE_ASSERT_GRAPH_SUCCESS(ge::ArgsFormatDesc::GetArgSize(op_desc, arg_descs[idx], arg_size)); // max dim的大小是25还是16
         GE_ASSERT_TRUE(arg_size > 0UL);
-        args_size_list.emplace_back(static_cast<int64_t>(arg_size));
+        (void)args_size_list.emplace_back(static_cast<int64_t>(arg_size));
         break;
       }
       case ge::AddrType::OUTPUT_DESC: {
@@ -49,21 +48,21 @@ ge::Status TilingDfx::GetArgsSizeWithArgsFormat(const ge::OpDescPtr &op_desc,
         size_t arg_size = 0UL;
         GE_ASSERT_GRAPH_SUCCESS(ge::ArgsFormatDesc::GetArgSize(op_desc, arg_descs[idx], arg_size));
         GE_ASSERT_TRUE(arg_size > 0UL);
-        args_size_list.emplace_back(static_cast<int64_t>(arg_size));
+        (void)args_size_list.emplace_back(static_cast<int64_t>(arg_size));
         break;
       }
       case ge::AddrType::INPUT_INSTANCE: {
         const size_t instance_index = static_cast<size_t>(arg_descs[idx].ir_idx);
         ArgsIndexToIoIndex args_idx_to_io_idx = {ArgsRole::kInput, args_size_list.size(), instance_index};
-        args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
-        args_size_list.emplace_back(0);
+        (void)args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
+        (void)args_size_list.emplace_back(0);
         break;
       }
       case ge::AddrType::OUTPUT_INSTANCE: {
         const size_t instance_index = static_cast<size_t>(arg_descs[idx].ir_idx);
         ArgsIndexToIoIndex args_idx_to_io_idx = {ArgsRole::kOutput, args_size_list.size(), instance_index};
-        args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
-        args_size_list.emplace_back(0);
+        (void)args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
+        (void)args_size_list.emplace_back(0);
         break;
       }
       case ge::AddrType::INPUT: {
@@ -73,15 +72,15 @@ ge::Status TilingDfx::GetArgsSizeWithArgsFormat(const ge::OpDescPtr &op_desc,
         const auto &range_pair = iter->second;
         if (range_pair.second == 0UL) {
           // optional input placeholder
-          args_size_list.emplace_back(0);
+          (void)args_size_list.emplace_back(0);
           break;
         }
-
         size_t begin_idx = range_pair.first;
-        for (size_t i = 0UL; i < range_pair.second; ++i) {
+        size_t loop_times = range_pair.second;
+        while (loop_times-- > 0UL) {
           ArgsIndexToIoIndex args_idx_to_io_idx = {ArgsRole::kInput, args_size_list.size(), begin_idx};
-          args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
-          args_size_list.emplace_back(0);
+          (void)args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
+          (void)args_size_list.emplace_back(0);
           ++begin_idx;
         }
         break;
@@ -93,10 +92,11 @@ ge::Status TilingDfx::GetArgsSizeWithArgsFormat(const ge::OpDescPtr &op_desc,
 
         const auto &range_pair = iter->second;
         size_t begin_idx = range_pair.first;
-        for (size_t i = 0UL; i < range_pair.second; ++i) {
+        size_t loop_times = range_pair.second;
+        while (loop_times-- > 0UL) {
           ArgsIndexToIoIndex args_idx_to_io_idx = {ArgsRole::kOutput, args_size_list.size(), begin_idx};
-          args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
-          args_size_list.emplace_back(0);
+          (void)args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
+          (void)args_size_list.emplace_back(0);
           ++begin_idx;
         }
         break;
@@ -105,7 +105,7 @@ ge::Status TilingDfx::GetArgsSizeWithArgsFormat(const ge::OpDescPtr &op_desc,
         break;
       case ge::AddrType::HIDDEN_INPUT:
       case ge::AddrType::PLACEHOLDER:
-        args_size_list.emplace_back(0); // 占位
+        (void)args_size_list.emplace_back(0); // 占位
         break;
       default:
         // iow之后的地址格式不再解析：TILING,OVERFLOW_ADDR,TILING_FFTS,TILING_CONTEXT
@@ -128,12 +128,12 @@ ge::Status TilingDfx::GetArgsSizeWithoutArgsFormat(size_t input_size,
 
   for (size_t index = 0U; index < input_size; index++) {
     ArgsIndexToIoIndex args_idx_to_io_idx = {ArgsRole::kInput, index, index};
-    args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
+    (void)args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
   }
 
   for (size_t index = 0U; index < output_size; index++) {
     ArgsIndexToIoIndex args_idx_to_io_idx = {ArgsRole::kOutput, input_size + index, index};
-    args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
+    (void)args_index_to_io_index.emplace_back(std::move(args_idx_to_io_idx));
   }
 
   return ge::SUCCESS;

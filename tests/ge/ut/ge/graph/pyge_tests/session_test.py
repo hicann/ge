@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# -------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
@@ -143,3 +144,8 @@ class TestSession:
         config = {"ge.exec.deviceId":"2", "ge.graphRunMode":"0"}
         ret = ge_api.ge_initialize(config)
         assert ret == 0
+
+
+
+
+

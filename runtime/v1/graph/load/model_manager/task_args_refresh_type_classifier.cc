@@ -222,14 +222,14 @@ class FixedAddrInferrer {
         GE_ASSERT_NOTNULL(anchor);
         const auto peer_anchor = anchor->GetPeerOutAnchor();
         GE_ASSERT_NOTNULL(peer_anchor);
-        const auto peer_node = peer_anchor->GetOwnerNode();
+        const auto peer_node = peer_anchor->GetOwnerNodeBarePtr();
         GE_ASSERT_NOTNULL(peer_node);
         GE_ASSERT_TRUE((TaskArgsRefreshTypeClassifier::IsIdentityLikeType(peer_node->GetType())),
                        "Failed to find peers by graph for node %s input index %zu, only support peer node type "
                        "%s, but get %s(%s)",
                        node->GetName().c_str(), addr_desc.iow_index, IDENTITY, peer_node->GetType().c_str(),
                        peer_node->GetName().c_str());
-        peers.emplace_back(FixedAddrPeerNodeDesc{peer_node->GetOpDesc()->GetId(), peer_node.get(),
+        peers.emplace_back(FixedAddrPeerNodeDesc{peer_node->GetOpDesc()->GetId(), peer_node,
                                                  static_cast<size_t>(peer_anchor->GetIdx()),
                                                  TaskArgsRefreshTypeClassifier::kOutput});
         break;
@@ -237,21 +237,21 @@ class FixedAddrInferrer {
       case TaskArgsRefreshTypeClassifier::kOutput: {
         const auto anchor = node->GetOutDataAnchor(static_cast<int32_t>(addr_desc.iow_index));
         GE_ASSERT_NOTNULL(anchor);
-        const auto peer_anchors = anchor->GetPeerInDataAnchors();
+        const auto peer_anchors = anchor->GetPeerInDataAnchorsPtr();
         // 在历史版本中，编译时会识别fixed地址，并在fixed地址anchor对端插入一个Identity算子，
         // 此机制可以屏蔽图上多变的符号与anchor的对应关系，使得加载时一个fixed地址仅影响到对端的唯一算子(Identity)的唯一anchor，
         // 在一定中程度上降低了加载时代码复杂度。在这种场景下，通过拓扑的识别方式，也不需要重建符号表，
         // 因此，在基于拓扑的识别方式中，需要做强校验（要求对端只有一个算子，且必须是Identity）。
         // 在新版本中，编译时会将同一符号的anchor作为属性记录在op上，通过属性的查找方式，不再受此限制
         for (const auto &peer_anchor : peer_anchors) {
-          const auto peer_node = peer_anchor->GetOwnerNode();
+          const auto peer_node = peer_anchor->GetOwnerNodeBarePtr();
           GE_ASSERT_NOTNULL(peer_node);
           GE_ASSERT_TRUE((TaskArgsRefreshTypeClassifier::IsIdentityLikeType(peer_node->GetType())),
                          "Failed to find peers by graph for node %s output index %zu, only support peer node type "
                          "%s, but get %s(%s)",
                          node->GetName().c_str(), addr_desc.iow_index, IDENTITY, peer_node->GetType().c_str(),
                          peer_node->GetName().c_str());
-          peers.emplace_back(FixedAddrPeerNodeDesc{peer_node->GetOpDesc()->GetId(), peer_node.get(),
+          peers.emplace_back(FixedAddrPeerNodeDesc{peer_node->GetOpDesc()->GetId(), peer_node,
                                                    static_cast<size_t>(peer_anchor->GetIdx()),
                                                    TaskArgsRefreshTypeClassifier::kInput});
         }

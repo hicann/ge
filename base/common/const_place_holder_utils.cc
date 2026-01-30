@@ -43,7 +43,7 @@ ge::Status GetConstPlaceHolderAddr(const OpDescPtr &op_desc, uint8_t* &dev_addre
 
   int64_t device_addr = 0L;
   GE_ASSERT_TRUE(ge::AttrUtils::GetInt(op_desc, "addr", device_addr));
-  dev_address = reinterpret_cast<uint8_t *>(device_addr);
+  dev_address = reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(device_addr));
   GE_ASSERT_TRUE(dev_address != nullptr, "GetConstPlaceHolderAttr dev_address ptr is null.");
   GELOGI("Get op %s addr, dev addr is %p.", op_desc->GetName().c_str(), dev_address);
   return SUCCESS;

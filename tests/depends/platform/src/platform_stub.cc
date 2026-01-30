@@ -159,6 +159,10 @@ bool fe::PlatFormInfos::GetPlatformResWithLock(std::string const &label,
 bool fe::PlatFormInfos::GetPlatformResWithLock(const string &label, const string &key, string &val) {
   if (label == "DtypeMKN" && key == "Default") {
     val = "16,16,16";
+  } else if (label == "version" && key == "Short_SoC_Version") {
+    val = "Ascend910B";
+  } else if (label == "version" && key == "NpuArch") {
+    val = "2201";
   } else {
     val = "0";
   }

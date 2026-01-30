@@ -20,7 +20,7 @@
 #include "mmpa/mmpa_api.h"
 #include "graph/debug/ge_attr_define.h"
 #include "proto/ge_ir.pb.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/utils/file_utils.h"
 #include "graph/detail/model_serialize_imp.h"

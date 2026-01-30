@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -31,6 +31,8 @@
 #include "register/op_tiling_registry.h"
 #include "adump_pub.h"
 #include "register/op_tiling/op_tiling_constants.h"
+#include "common/kernel_handles_manager/kernel_handle_utils.h"
+#include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 
 namespace ge {
 namespace {
@@ -318,6 +320,102 @@ void KernelTaskInfo::UpdateIoAndWorkspaceAddrs(const IowAddrs &iow_addrs) {
   }
 }
 
+rtBinHandle KernelTaskInfo::GetBinHandle(const domi::TaskDef &task_def) const {
+  if (IsAllKernel(task_type_) || ModelUtils::IsAICoreKernel(kernel_type_)) {
+    auto kernel_handles_manager = davinci_model_->GetKernelHandlesManager(KernelHandleType::kAicore);
+    GE_ASSERT_NOTNULL(kernel_handles_manager);
+    KernelRegisterInfo register_info;
+    GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructAicoreRegisterInfo(op_desc_,
+        is_separately_clean_task_, davinci_model_->GetModelId(), register_info));
+    const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+    return kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
+  }
+  if (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL) {
+    auto kernel_handles_manager = davinci_model_->GetKernelHandlesManager(KernelHandleType::kCustAicpu);
+    GE_ASSERT_NOTNULL(kernel_handles_manager);
+    KernelRegisterInfo register_info;
+    GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructTilingDeviceRegisterInfo(task_def.kernel().so_name(),
+        davinci_model_->GetModelId(), register_info));
+    const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+    auto tiling_device_bin_handle = kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
+    ModelManager::GetInstance().SetPlatformBinHandle(tiling_device_bin_handle);
+    return tiling_device_bin_handle;
+  }
+  if (kernel_type_ == ccKernelType::CUST_AI_CPU) {
+    auto kernel_handles_manager = davinci_model_->GetKernelHandlesManager(KernelHandleType::kCustAicpu);
+    GE_ASSERT_NOTNULL(kernel_handles_manager);
+    KernelRegisterInfo register_info;
+    GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructCustAicpuRegisterInfo(op_desc_, register_info));
+    const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+    return kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
+  }
+  if ((kernel_type_ == ccKernelType::AI_CPU_KFC) || (kernel_type_ == ccKernelType::AI_CPU)) {
+    auto kernel_handles_manager = davinci_model_->GetKernelHandlesManager(KernelHandleType::kAicpu);
+    GE_ASSERT_NOTNULL(kernel_handles_manager);
+    KernelRegisterInfo register_info;
+    const std::string op_kernel_lib = (kernel_type_ == ccKernelType::AI_CPU_KFC) ? "KFCKernel" : "AICPUKernel";
+    GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructAicpuRegisterInfo(op_desc_->GetType(),
+        task_def.kernel().so_name(), task_def.kernel().kernel_name(), op_kernel_lib, register_info));
+    const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+    return kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
+  }
+  GELOGW("[%s][%s] task type: %u, kernel type: %u is not support bin handle.",
+      op_desc_->GetNamePtr(), op_desc_->GetTypePtr(), task_type_, kernel_type_);
+  return nullptr;
+}
+
+void KernelTaskInfo::SetExceptionCallback(rtBinHandle bin_handle) {
+  const auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry(
+    static_cast<gert::OppImplVersionTag>(op_desc_->GetOppImplVersion()));
+  if (space_registry == nullptr) {
+    GELOGW("GetSpaceRegistry returned nullptr for node %s", op_desc_->GetNamePtr());
+    return;
+  }
+  const auto op_impl = space_registry->GetOpImpl(op_desc_->GetType().c_str());
+  if (op_impl != nullptr) {
+    auto exception_func = op_impl->exception_func;
+    if (exception_func != nullptr) {
+      GE_CHK_RT_EXEC(rtBinarySetExceptionCallback(bin_handle, reinterpret_cast<rtOpExceptionCallback>(exception_func), nullptr), return);
+      GELOGI("Set exception callback for node %s.", op_desc_->GetNamePtr());
+    } else {
+      GELOGW("No exception callback found for node %s.", op_desc_->GetNamePtr());
+    }
+  } else {
+    GELOGW("Failed to get op registry func node %s.", op_desc_->GetNamePtr());
+  }
+}
+
+rtFuncHandle KernelTaskInfo::GetFuncHandle(const domi::TaskDef &task_def) {
+  auto bin_handle = GetBinHandle(task_def);
+  GE_ASSERT_NOTNULL(bin_handle);
+  GE_ASSERT_NOTNULL(op_desc_);
+  SetExceptionCallback(bin_handle);
+  if (IsAllKernel(task_type_)) {
+    return KernelHandleUtils::GetFuncHandle(bin_handle, tiling_key_);
+  }
+  if (kernel_type_ == ccKernelType::CUST_AI_CPU) {
+    return KernelHandleUtils::GetCustAicpuFuncHandle(bin_handle,
+        op_desc_->GetType(), task_def.kernel().kernel_name());
+  }
+  if (ModelUtils::IsAICoreKernel(kernel_type_)) {
+    std::string attr_kernel_name;
+    if (is_separately_clean_task_) {
+      attr_kernel_name = kAtomicPrefix + op_desc_->GetName() + "_kernelname";
+    } else {
+      attr_kernel_name = op_desc_->GetName() + "_kernelname";
+    }
+    std::string kernel_name;
+    (void)AttrUtils::GetStr(op_desc_, attr_kernel_name, "_kernelname", kernel_name);
+    GELOGD("[%s][%s] get kernel name: %s from attr: %s.", op_desc_->GetNamePtr(), op_desc_->GetTypePtr(),
+        kernel_name.c_str(), attr_kernel_name.c_str());
+    return KernelHandleUtils::GetFuncHandle(bin_handle, kernel_name);
+  }
+  if ((kernel_type_ == ccKernelType::AI_CPU_KFC) || (kernel_type_ == ccKernelType::AI_CPU)) {
+    return KernelHandleUtils::GetFuncHandle(bin_handle, op_desc_->GetType());
+  }
+  return nullptr;
+}
+
 Status KernelTaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *const davinci_model,
                             const PisToArgs &args, const PisToPersistentWorkspace &persistent_workspace,
                             const IowAddrs &iow_addrs) {
@@ -332,7 +430,14 @@ Status KernelTaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *const d
   } else {
     GE_CHK_STATUS_RET_NOLOG(InitKernel(task_def, args));
   }
-
+  // om兼容场景，新流程已经归一到custaicpu
+  if ((task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL) && (kernel_type_ == ccKernelType::AI_CPU)) {
+    GELOGI("[%s][%s] Tiling device built in kernel no need init func handle",
+        op_desc_->GetNamePtr(), op_desc_->GetTypePtr());
+  } else {
+    func_handle_ = GetFuncHandle(task_def);
+    GE_ASSERT_NOTNULL(func_handle_);
+  }
   io_addr_mem_types_.resize(io_addrs_.size(), static_cast<uint64_t>(MemoryAppType::kMemoryTypeFix));
   GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(davinci_model_->GetLogicalMemAllocation(), io_addrs_,
       io_addr_mem_types_, {op_desc_->GetName(), op_desc_->GetType()}));
@@ -364,6 +469,7 @@ Status KernelTaskInfo::InitKernel(const domi::TaskDef &task_def, const PisToArgs
   // Old model will not take this value, its default value is 0,need to convert to the real default value 1.
   block_dim_ = (kernel_def.block_dim() == 0U) ? 1U : kernel_def.block_dim();
   cfg_.blockDimOffset = kernel_def.block_dim_offset();
+  is_block_task_prefetch_ = kernel_def.is_block_task_prefetch();
   is_separately_clean_task_ = IsSeparatelyCleanTask(op_desc_, kernel_def.kernel_name());
 
   is_addrs_folded_ = IsWspAddrFolded(op_desc_);
@@ -408,6 +514,7 @@ Status KernelTaskInfo::InitKernelWithHandle(const domi::TaskDef &task_def, const
   // Old model will not take this value, its default value is 0,need to convert to the real default value 1.
   block_dim_ = (kernel_def.block_dim() == 0U) ? 1U : kernel_def.block_dim();
   cfg_.blockDimOffset = kernel_def.block_dim_offset();
+  is_block_task_prefetch_ = kernel_def.is_block_task_prefetch();
   GE_CHK_STATUS_RET_NOLOG(InitKernelByContext(task_def, context, args));
 
   if (!ModelUtils::IsAICoreKernel(kernel_type_)) {
@@ -467,55 +574,99 @@ void KernelTaskInfo::UpdateTaskId() {
   }
 }
 
+Status KernelTaskInfo::DistributeTask() {
+  // call rtKernelLaunch for current task
+  const string op_name = op_desc_->GetName();
+  GELOGD("Start to launch kernel of %s.", op_name.c_str());
+  SetTaskTag(op_name.c_str());
+  LaunchKernelParam launch_kernel_param;
+  launch_kernel_param.args = args_;
+  launch_kernel_param.args_size =
+      customized_args_info_.customized_aligned ? customized_args_info_.kernel_def_args_size : args_size_;
+  // aicore算子设置成block_dim，其他类型的算子设置为1
+  if (IsAllKernel(task_type_) || ModelUtils::IsAICoreKernel(kernel_type_)) {
+    launch_kernel_param.block_dim = block_dim_;
+    GE_ASSERT_SUCCESS(ReportL0ExceptionDumpInfo(op_desc_, l0_dump_list_), "[%s] report l0 exception dump addr failed",
+                      op_desc_->GetNamePtr());
+  } else {
+    launch_kernel_param.block_dim = 1U;
+  }
+  launch_kernel_param.stream = stream_;
+  launch_kernel_param.launch_config.schedule_mode = cfg_.schemMode;
+  launch_kernel_param.launch_config.local_memory_size = local_memory_size_;
+  launch_kernel_param.launch_config.block_dim_offset = cfg_.blockDimOffset;
+  launch_kernel_param.launch_config.is_block_task_prefetch = is_block_task_prefetch_;
+  launch_kernel_param.launch_config.is_data_dump = is_data_dump_;
+  if ((task_type_ == ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL) || (task_type_ == ModelTaskType::MODEL_TASK_VECTOR_KERNEL)) {
+    launch_kernel_param.launch_config.engine_type = RT_ENGINE_TYPE_AIV;
+  }
+  bool op_exec_never_timeout = false;
+  if (AttrUtils::GetBool(op_desc_, public_attr::OP_EXEC_NEVER_TIMEOUT, op_exec_never_timeout)
+      && op_exec_never_timeout) {
+    launch_kernel_param.launch_config.time_out = op_exec_never_timeout;
+    GELOGI("op %s type %s set never timeout", op_name.c_str(), op_desc_->GetTypePtr());
+  }
+  GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(func_handle_, launch_kernel_param));
+  // set for task_id_
+  UpdateTaskId();
+  if (IsAllKernel(task_type_) || ModelUtils::IsAICoreKernel(kernel_type_)) {
+    std::shared_ptr<TilingContextAddr> default_ctx_ptr = nullptr;
+    std::shared_ptr<TilingContextAddr> tiling_context_addr = op_desc_->TryGetExtAttr(kTilingContextAddrs, default_ctx_ptr);
+    if (tiling_context_addr != nullptr) {
+      auto sink_info = MakeShared<TilingSinkTaskInfo>();
+      GE_ASSERT_NOTNULL(sink_info);
+      sink_info->task_id = task_id_;
+      sink_info->ffts_task_handle = nullptr;
+      sink_info->stream = stream_;
+      GE_ASSERT_TRUE(op_desc_->SetExtAttr(kTilingSinkTaskInfo, sink_info));
+      is_support_redistribute_ = false;
+      GELOGW("Redistribute is not supported in tiling, is_support_redistribute_ set to false");
+      return SUCCESS;
+    }
+  }
+  is_support_redistribute_ = true;
+  return SUCCESS;
+}
+
 Status KernelTaskInfo::Distribute() {
   GE_ASSERT_NOTNULL(op_desc_);
   GELOGI("KernelTaskInfo Distribute Start, op: %s", op_desc_->GetName().c_str());
   const TaskProfGuarder prof_guarder(this);
-  const bool is_aicpu = (kernel_type_ == ccKernelType::AI_CPU) || (kernel_type_ == ccKernelType::CUST_AI_CPU);
-  if (is_aicpu) {
-    // Use the 5th and 6th bits of dump_flag_ indicate the value of topic_type.
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx00xxxx: DEVICE_ONLY
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx01xxxx: DEVICE_FIRST
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx10xxxx: HOST_ONLY
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx11xxxx: HOST_FIRST
-    dump_flag_ = dump_flag_ | static_cast<uint32_t>(deploy_type_flag_);
-    // Use the 9th-11th bits of dump_flag_ indicate the value of qos. 12th indicate qos on/off
-    // xxxxxxxx xxxxxxxx xxxx0000 xxxxxxxx: qos off
-    // xxxxxxxx xxxxxxxx xxxx1000 xxxxxxxx: qos on, level=0(min level)
-    // xxxxxxxx xxxxxxxx xxxx1111 xxxxxxxx: qos on, level=7(max level)
-    dump_flag_ = dump_flag_ | qos_level_flag_;
-    GELOGI("distribute task info kernel_type: %d, flag: %u", static_cast<int32_t>(kernel_type_), dump_flag_);
-    GE_RETURN_IF_ERROR(AssembleKernelNamesAndLaunch());
-    call_save_dump_ = true;
-  } else if (kernel_type_ == ccKernelType::AI_CPU_KFC) {
-    GE_CHK_STATUS_RET(LaunchAicpuKernelWithArgs(), "Launch aicpu kernel with args failed, op:[%s].",
-                      op_desc_->GetNamePtr());
-    call_save_dump_ = true;
+  const bool is_built_tiling_device = (kernel_type_ == ccKernelType::AI_CPU)
+      && (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL);
+  if (is_built_tiling_device) {
+    // Use the 5th and 6th bits of dump_flag_ indicate the value of topic_type.	
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx00xxxx: DEVICE_ONLY	
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx01xxxx: DEVICE_FIRST	
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx10xxxx: HOST_ONLY	
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx11xxxx: HOST_FIRST	
+    dump_flag_ = dump_flag_ | static_cast<uint32_t>(deploy_type_flag_);	
+    // Use the 9th-11th bits of dump_flag_ indicate the value of qos. 12th indicate qos on/off	
+    // xxxxxxxx xxxxxxxx xxxx0000 xxxxxxxx: qos off	
+    // xxxxxxxx xxxxxxxx xxxx1000 xxxxxxxx: qos on, level=0(min level)	
+    // xxxxxxxx xxxxxxxx xxxx1111 xxxxxxxx: qos on, level=7(max level)	
+    dump_flag_ = dump_flag_ | qos_level_flag_;	
+    GELOGI("distribute task info kernel_type: %d, flag: %u", static_cast<int32_t>(kernel_type_), dump_flag_);	
+    GE_RETURN_IF_ERROR(AssembleKernelNamesAndLaunch());	
   } else {
-    GE_CHK_STATUS_RET(DistributeAicoreTask(), "Launch kernel of aicore task failed.");
-    call_save_dump_ = true;
+    GE_ASSERT_SUCCESS(DistributeTask());
   }
-
-  // set for task_id_
-  UpdateTaskId();
+  call_save_dump_ = true;
   if (is_blocking_aicpu_op_) {
     if (DistributeWaitTaskForAicpuBlockingOp() != SUCCESS) {
       GELOGE(FAILED, "[Call][DistributeWaitTaskForAicpuBlockingOp] Call DistributeWaitTaskForAicpuBlockingOp failed");
       return FAILED;
     }
   }
-
   GELOGI("KernelTaskInfo Distribute Success, op: %s, taskid: %d, stubfunc: %p, blockdim: %d, "
          "streamid: %u, stream: %p, dump_flag: %u",
          op_desc_->GetName().c_str(), task_id_, stub_func_, block_dim_, stream_id_, stream_, dump_flag_);
-
   if (!domi::GetContext().is_online_model) {
     op_desc_.reset(); // Release OpDesc after Distribute.
     operator_.reset();
     super_kernel_op_desc_.reset();
     sk_sub_operator_.reset();
   }
-
   return SUCCESS;
 }
 
@@ -941,8 +1092,8 @@ Status KernelTaskInfo::AssembleShapeInfoAddrs(const std::vector<ArgDesc> &dynami
     GE_ASSERT(level2_addr_idx[i] < io_addrs_.size());
     // addr to ptr offset
     io_addrs_[level2_addr_idx[i]] = PtrToValue(args_) + static_cast<uint64_t>(ptr_offset_idx * sizeof(uint64_t));
-    GELOGD("Set ptr_offset idx:[%zu], addr:[%" PRIx64 "] value:[%" PRIx64 "]",
-      ptr_offset_idx, io_addrs_[level2_addr_idx[i]], io_addrs_[ptr_offset_idx]);
+    GELOGD("Set ptr_offset idx:[%zu], addr:[%" PRIx64 "] io index:[%zu]",
+      ptr_offset_idx, io_addrs_[level2_addr_idx[i]], level2_addr_idx[i]);
     // copy shape_infos
     (void)io_addrs_.insert(io_addrs_.cend(), shape_info.cbegin(), shape_info.cend());
     (void)io_addr_mem_types_.insert(io_addr_mem_types_.cend(), shape_info.size(), kAbsoluteMemType);
@@ -975,12 +1126,11 @@ Status KernelTaskInfo::AssembleShapeInfoAddrs(const std::vector<ArgDesc> &dynami
       // misra
     }
   }
-
   return SUCCESS;
 }
 
 Status KernelTaskInfo::GetTilingSinkAtomicIndex(bool &is_args_exception_enable, uint64_t &atomic_index) {
-  if (!(Adx::AdumpGetDumpSwitch(Adx::DumpType::ARGS_EXCEPTION))) {
+  if (Adx::AdumpGetDumpSwitch(Adx::DumpType::ARGS_EXCEPTION) == 0) {
     GELOGI("args exception is not enable");
     return SUCCESS;
   }
@@ -1835,12 +1985,6 @@ Status KernelTaskInfo::InitArgsAddr(const std::vector<uint64_t> &tensor_device_a
 Status KernelTaskInfo::InitTVMTask(const domi::KernelDefWithHandle &kernel_def) {
   GELOGD("Do InitTVMTask with handle of %s.", op_desc_->GetName().c_str());
   GE_CHK_STATUS_RET_NOLOG(InitTVMContext(kernel_def.context()));
-
-  std::string prefix = is_separately_clean_task_ ? kAtomicPrefix : "";
-  std::string kernel_handle_name = davinci_model_->GetBinHandleKey(*op_desc_, prefix, is_separately_clean_task_);
-  GE_ASSERT_TRUE(TBEHandleStore::GetInstance().FindTBEHandle(kernel_handle_name, handle_),
-                 "Kernel bin is not found for op :[%s] with  name:[%s]", op_desc_->GetNamePtr(),
-                 kernel_handle_name.c_str());
   node_info_ = kernel_def.node_info() + "/";
   cfg_.schemMode = static_cast<uint8_t>(kernel_def.schedule_mode() & k2BitsMask);
   GELOGD("OpName: %s set schedule mode from kernel def: %u",
@@ -1851,24 +1995,6 @@ Status KernelTaskInfo::InitTVMTask(const domi::KernelDefWithHandle &kernel_def) 
 Status KernelTaskInfo::InitTVMTask(const domi::KernelDef &kernel_def) {
   GELOGD("Do InitTVMTask of %s.", op_desc_->GetName().c_str());
   GE_CHK_STATUS_RET_NOLOG(InitTVMContext(kernel_def.context()));
-  // get bin_file_key
-  std::string prefix = "";
-  if (is_separately_clean_task_) {
-    prefix = kAtomicPrefix;
-  }
-
-  const std::string bin_handle_key = davinci_model_->GetBinHandleKey(*op_desc_, prefix, is_separately_clean_task_);
-  void *tmp_stub_func = nullptr;
-  const rtError_t rt_ret = rtGetFunctionByName(bin_handle_key.c_str(), &tmp_stub_func);
-  if (rt_ret != RT_ERROR_NONE) {
-    REPORT_INNER_ERR_MSG("E19999", "Call rtGetFunctionByName failed op:%s(%s), bin_file_key:%s, ret:%d",
-                      op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), bin_handle_key.c_str(), rt_ret);
-    GELOGE(RT_FAILED, "[Execute][RtGetFunctionByName] failed for op:%s(%s), bin_file_key:%s",
-           op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), bin_handle_key.c_str());
-    return RT_ERROR_TO_GE_STATUS(rt_ret);
-  }
-  stub_func_ = tmp_stub_func;
-
   GELOGI("io_addrs_size:%zu, args_size:%zu", io_addrs_.size(), kernel_def.args().size() / kAddressLen);
   if ((io_addrs_.size() * kAddressLen) < kernel_def.args().size()) {
     const size_t offset = io_addrs_.size() * kAddressLen;
@@ -1894,19 +2020,6 @@ bool KernelTaskInfo::HasOverflowAddr(const OpDescPtr &op_desc) const {
 
 Status KernelTaskInfo::InitTVMTask() {
   GE_CHECK_NOTNULL(davinci_model_);
-  // get bin_file_key
-  std::string prefix = is_separately_clean_task_ ? kAtomicPrefix : "";
-  // Update Stub
-  // When training, when the the second call to DavinciModel::init() comes here, stub_func_ is already valid,
-  // and does not need to be modified.
-  // When inferencing, stub_func_ is different from dynamic-registration to runtime, and needs to be modified.
-  const std::string bin_handle_key = davinci_model_->GetBinHandleKey(*op_desc_, prefix, is_separately_clean_task_);
-  const rtError_t rt_ret = rtQueryFunctionRegistered(bin_handle_key.c_str());
-  if (rt_ret != RT_ERROR_NONE) {
-    // why?
-    stub_func_ = bin_handle_key.c_str();
-  }
-
   if (is_separately_clean_task_) {
     UpdateAtomicCleanArgs(input_data_addrs_, output_data_addrs_, workspace_addrs_);
   }
@@ -2089,9 +2202,6 @@ Status KernelTaskInfo::InitPreprocessTask(const OpDescPtr &op_desc) {
   if (kernel_type_ == ccKernelType::CUST_AI_CPU) {
     const bool has_space_type = SetHasMemoryLog();
     GELOGD("op[%s] has_space_type[%u]", op_desc->GetName().c_str(), static_cast<uint32_t>(has_space_type));
-    GE_ASSERT_SUCCESS(
-        ModelManager::GetInstance().LoadCustAicpuSoAndUpdateSoName(davinci_model_->GetModelId(), so_name_),
-        "[OpMasterDevice][Custom]Load so failed for node: %s", op_desc->GetNamePtr());
   } else if (kernel_type_ == ccKernelType::AI_CPU) {
     GE_ASSERT_SUCCESS(
         ModelManager::GetInstance().LoadBuiltinAicpuSoAndUpdateSoName(davinci_model_->GetDeviceId(), so_name_),
@@ -2234,6 +2344,7 @@ void KernelTaskInfo::InitFusionDumpInfo(const OpDescPtr &op_desc, const domi::Ta
     GELOGD("Op %s init dump flag", op_desc->GetName().c_str());
     dump_flag_ = IsL1OrUBFusionOp(op_desc) ? static_cast<uint32_t>(RT_FUSION_KERNEL_DUMPFLAG)
                                        : static_cast<uint32_t>(RT_KERNEL_DUMPFLAG);
+    is_data_dump_ = true;
   }
 }
 

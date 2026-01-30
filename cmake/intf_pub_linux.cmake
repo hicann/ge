@@ -26,8 +26,8 @@ target_compile_options(intf_pub_base INTERFACE
 )
 
 target_compile_definitions(intf_pub_base INTERFACE
-    $<$<STREQUAL:${PRODUCT_SIDE},device>:_GLIBCXX_USE_CXX11_ABI=1>
-    $<$<NOT:$<STREQUAL:${PRODUCT_SIDE},device>>:_GLIBCXX_USE_CXX11_ABI=0>
+    $<$<OR:$<STREQUAL:${PRODUCT_SIDE},device>,$<BOOL:${MDC_COMPILE_RUNTIME}>>:_GLIBCXX_USE_CXX11_ABI=1>
+    $<$<AND:$<NOT:$<STREQUAL:${PRODUCT_SIDE},device>>,$<NOT:$<BOOL:${MDC_COMPILE_RUNTIME}>>>:_GLIBCXX_USE_CXX11_ABI=0>
     $<$<CONFIG:Release>:CFG_BUILD_NDEBUG>
     $<$<CONFIG:Debug>:CFG_BUILD_DEBUG>
     LINUX=0

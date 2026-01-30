@@ -18,9 +18,11 @@
 #include <functional>
 #include <iostream>
 
+#include "ge_common/ge_api_error_codes.h"
 #include "graph/def_types.h"
 #include "utils/extern_math_util.h"
 #include "common/ge_common/debug/log.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 constexpr uint32_t kDiv16RightShiftBits = 4U;

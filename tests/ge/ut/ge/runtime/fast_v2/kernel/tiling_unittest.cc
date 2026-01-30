@@ -28,7 +28,6 @@
 #include "stub/gert_runtime_stub.h"
 #include "common/op_tiling/tiling_dfx.h"
 #include "depends/profiler/src/dump_stub.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace gert {
 namespace {

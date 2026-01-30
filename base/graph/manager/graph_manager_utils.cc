@@ -28,10 +28,10 @@ constexpr size_t kIndexOfFrozenDataLen = 2UL;
 Status IsDigitStrings(const std::vector<std::string> &input_vec) {
   for (const auto &input : input_vec) {
     for (const char ch : input) {
-      if (ch != ' ' && (static_cast<bool>(isdigit(static_cast<int32_t>(ch))) == false)) {
-        REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+      if (ch != ' ' && (static_cast<bool>(isdigit(static_cast<unsigned char>(ch))) == false)) {
+        (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
                            std::vector<const char_t *>({kFrozenInputIndexes, input.c_str(),
-                           " param index is not digit."}));
+                           "The frozen input index is not a digit."}));
         return GE_GRAPH_OPTIONS_INVALID;
       }
     }
@@ -39,7 +39,7 @@ Status IsDigitStrings(const std::vector<std::string> &input_vec) {
   return SUCCESS;
 }
 }
-const char_t *GetRunGraphModeStr(const RunGraphMode &mode) {
+const char_t *GetRunGraphModeStr(RunGraphMode mode) {
   static constexpr const char_t *run_graph_mode_str[] = {"RunGraph", "RunGraphAsync", "RunGraphWithStreamAsync",
     "InitRunGraphMode"};
 
@@ -181,22 +181,6 @@ SubGraphInfo::~SubGraphInfo() = default;
 GraphModelListener::GraphModelListener() : ModelListener() {}
 
 Status GraphModelListener::OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,
-                                         std::vector<ge::Tensor> &outputs) {
-  (void)outputs;
-  GELOGI(
-      "[GraphManager] graph compute call back, model_id:%u, task_id:%u, "
-      "resultCode:%u.",
-      model_id, data_index, result_code);
-
-  const std::lock_guard<std::mutex> lock(mutex_);
-  result_code_ = result_code;
-  is_finished_ = true;
-  condition_.notify_all();
-
-  return SUCCESS;
-}
-
-Status GraphModelListener::OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,
                                          std::vector<gert::Tensor> &outputs) {
   (void)outputs;
   GELOGI(
@@ -236,28 +220,8 @@ Status GraphModelListener::ResetResult() {
   return SUCCESS;
 }
 
-void RunAsyncListener::SetCallback(const RunAsyncCallback &callback) {
-  auto callback_wrapper = [callback](uint32_t result_code, std::vector<gert::Tensor> &outputs) {
-    std::vector<ge::Tensor> ge_outputs;
-    (void)TensorTransUtils::GertTensors2Tensors(outputs, ge_outputs);
-    callback(result_code, ge_outputs);
-  };
-  SetCallback(callback_wrapper);
-}
-
 void RunAsyncListener::SetCallback(const RunAsyncCallbackV2 &callback) {
   (void)sem_v2_.Push(callback);
-}
-
-Status RunAsyncListener::OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,
-                                       std::vector<ge::Tensor> &outputs) {
-  GELOGI("[GraphManager] run graph async call back, modelId:%u, taskId:%u, resultCode:%u.",
-         model_id, data_index, result_code);
-  RunAsyncCallback callback;
-  (void)sem_.Pop(callback, 0U); // pop with no wait
-  GE_CHECK_NOTNULL(callback);
-  callback(result_code, outputs);
-  return SUCCESS;
 }
 
 Status RunAsyncListener::OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,

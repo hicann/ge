@@ -153,9 +153,8 @@ ValueHolderPtr CreateArgsInfoDesc(const ge::NodePtr &compute_node, const T &kern
   const size_t args_info_num = (received_args_info_num == 0U) ? node_io_num : received_args_info_num;
   std::vector<ArgsInfo> args_infos(args_info_num);
   GE_ASSERT_SUCCESS(GetOrCreateArgsInfos(args_infos, received_args_info_num, kernel_def, compute_node));
-  std::string dy_mode;
-  (void)ge::AttrUtils::GetStr(compute_node->GetOpDescBarePtr(), kAttrDynamicParamMode, dy_mode);
-  bool is_folded_desc = (dy_mode == kFoldedWithDesc);
+  const std::string *dy_mode_ptr = ge::AttrUtils::GetStr(compute_node->GetOpDescBarePtr(), kAttrDynamicParamMode);
+  bool is_folded_desc = (dy_mode_ptr != nullptr) && (*dy_mode_ptr == kFoldedWithDesc);
   if (is_folded_desc) {
     GE_ASSERT_GRAPH_SUCCESS(ProcFoldedDescArgs(compute_node, args_infos));
   }

@@ -16,7 +16,7 @@ add_library(acl_mdl_impl SHARED
     model/model_config.cpp
     model/acl_resource_manager.cpp
     model/init_callback_register.cpp
-    types/acl_model_tensor_desc_internal.cpp
+    types/tensor_desc_internal.cpp
     ../common/json_parser.cpp
     ../common/log_inner.cpp
     ../utils/string_utils.cpp

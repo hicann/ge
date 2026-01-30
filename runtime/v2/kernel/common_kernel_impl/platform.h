@@ -26,6 +26,16 @@ enum class CoreTypeIndex {
   // add new core type here
   kOtherType
 };
+
+struct CoreNumInfos {
+  int32_t soc_aicore_num;
+  int32_t soc_vec_core_num;
+  int32_t global_aicore_num;
+  int32_t global_vec_core_num;
+  int32_t op_aicore_num;
+  int32_t op_vec_core_num;
+};
+
 ge::graphStatus GetPlatformInfo(KernelContext *context);
 ge::graphStatus AppendCoreTypeToPlatform(KernelContext *context);
 }  // namespace kernel

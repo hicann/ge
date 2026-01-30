@@ -14,6 +14,8 @@
 #include "graph/detail/model_serialize_imp.h"
 #include "proto/ge_ir.pb.h"
 #include "common/util/mem_utils.h"
+#include "common/ge_common/util.h"
+
 namespace gert {
 namespace kernel {
 class KernelCompatibleUtils {

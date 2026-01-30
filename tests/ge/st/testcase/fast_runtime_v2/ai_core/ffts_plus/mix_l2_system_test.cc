@@ -63,7 +63,6 @@
 #include "register/op_tiling/op_tiling_constants.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "../aicore_exe_graph_check.h"
-#include "register/op_impl_registry_holder_manager.h"
 using namespace std;
 using namespace testing;
 using namespace ge;

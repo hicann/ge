@@ -13,7 +13,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/yuv_subformat.h"
 #include <iostream>
 using namespace std;

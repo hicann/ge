@@ -14,8 +14,13 @@
 
 namespace gert {
 namespace bg {
-ValueHolderPtr GetPlatformInfo(LoweringGlobalData *global_data);
-ValueHolderPtr AppendCoreTypeToPlatform(const ge::NodePtr &node, LoweringGlobalData *global_data);
+std::vector<ValueHolderPtr> GetPlatformInfo(LoweringGlobalData *global_data);
+std::vector<ValueHolderPtr> AppendCoreTypeToPlatform(const ge::NodePtr &node, LoweringGlobalData *global_data);
+enum class AssemblePlatformInfoIndex : size_t {
+  kPlatformInfo,
+  kCoreNumInfos,
+  kNums
+};
 }  // namespace bg
 }  // namespace gert
 #endif  // AIR_CXX_RUNTIME_V2_GRAPH_BUILDER_BG_PLATFORM_H_

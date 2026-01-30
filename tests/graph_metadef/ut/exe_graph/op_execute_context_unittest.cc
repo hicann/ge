@@ -66,6 +66,7 @@ TEST_F(OpExecuteContextUT, GetInputTest) {
   execute_option.deterministic = 1;
   execute_option.precision_mode = 1;
   AllocatorFaker gert_allocator;
+  int64_t core_num = 4;
   auto op_execute_holder = OpExecuteContextFaker()
       .IrInstanceNum({1, 2, 1, 0, 1})
       .IrOutputInstanceNum({2, 1})
@@ -83,6 +84,10 @@ TEST_F(OpExecuteContextUT, GetInputTest) {
       .Allocate(&gert_allocator)
       .Stream(rt_stream)
       .ExecuteOption(&execute_option)
+      .OpAicoreNum(&core_num)
+      .OpVecCoreNum(&core_num)
+      .GlobalAicoreNum(&core_num)
+      .GlobalVecCoreNum(&core_num)
       .Build();
   auto context = op_execute_holder.GetContext<OpExecuteContext>();
 
@@ -170,6 +175,7 @@ TEST_F(OpExecuteContextUT, MallocFreeWorkSpaceOk) {
   auto output_block_memory = std::make_shared<std::vector<gert::GertMemBlock *>>();
   ASSERT_NE(output_block_memory, nullptr);
   output_block_memory->reserve(1UL);
+  int64_t core_num = 4;
   auto op_execute_holder = OpExecuteContextFaker()
       .IrInstanceNum({1, 1})
       .IrOutputInstanceNum({1})
@@ -181,6 +187,10 @@ TEST_F(OpExecuteContextUT, MallocFreeWorkSpaceOk) {
       .OutputTensor({&out_tensor_1})
       .OutputMem(output_block_memory)
       .Allocate(&gert_allocator)
+      .OpAicoreNum(&core_num)
+      .OpVecCoreNum(&core_num)
+      .GlobalAicoreNum(&core_num)
+      .GlobalVecCoreNum(&core_num)
       .Build();
   auto context = op_execute_holder.GetContext<OpExecuteContext>();
   ASSERT_NE(context, nullptr);

@@ -57,18 +57,24 @@ class AtcFileFactory {
 };
 
 std::string AtcFileFactory::GetFileRealName(const std::string &file_name) {
-  std::string pwd = FILE_SESSION_PATH;
+  std::string pwd = __FILE__;
+  std::size_t idx = pwd.find_last_of("/");
+  pwd = pwd.substr(0, idx);
   return pwd + "/" + file_name;
 }
 
 std::string AtcFileFactory::Generatefile1(const std::string &file_type, const std::string &file_name) {
-  std::string pwd = FILE_SESSION_PATH;
+  std::string pwd = __FILE__;
+  std::size_t idx = pwd.find_last_of("/");
+  pwd = pwd.substr(0, idx);
   std::string om_file = pwd + "/" + file_name;
   return file_type + om_file;
 }
 
 std::string AtcFileFactory::GenerateModel(const std::string &file_type, const std::string &file_name, bool with_fusion) {
-  std::string pwd = FILE_SESSION_PATH;
+  std::string pwd = __FILE__;
+  std::size_t idx = pwd.find_last_of("/");
+  pwd = pwd.substr(0, idx);
   const std::string om_file = pwd + "/" + file_name;
   Model model("model_name", "custom version3.0");
   {
@@ -1428,6 +1434,24 @@ TEST_F(UtestMain, GeFlags_export_compile_stat_valid) {
   GetThreadLocalContext().GetOo().Initialize({}, OptionRegistry::GetInstance().GetRegisteredOptTable());
 }
 
+// 校验输入hint shape的index校验失败
+TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_dynamic_shape_index_invalid) {
+  setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+  std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--input_hint_shape=-1:[2]",
+                  "--soc_version=\"Ascend310\"",
+                  "--input_format=NCHW"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
+  unsetenv("AUTOFUSE_FLAGS");
+}
+
 // test input hint shape symbolic failed scenario
 TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_dynamic_shape_symbolic_failed) {
   setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
@@ -1439,6 +1463,26 @@ TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_dynamic_shape_symbolic
                   const_cast<char *>(output_arg.c_str()),
                   "--input_shape=Placeholder:-1;Placeholder_1:-1",
                   "--input_hint_shape=0:[2];1:[3]",
+                  "--soc_version=\"Ascend310\"",
+                  "--input_format=NCHW"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
+  unsetenv("AUTOFUSE_FLAGS");
+}
+
+// test input hint shape and input dynamic param failed
+TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_hint_shape_with_dyna_param_failed) {
+  setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+  std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--input_shape=Placeholder:-1;Placeholder_1:-1",
+                  "--input_hint_shape=0:[3];1:[3]",
+                  "--dynamic_dims=2;4;8;16",
                   "--soc_version=\"Ascend310\"",
                   "--input_format=NCHW"};
   int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);

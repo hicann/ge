@@ -63,6 +63,7 @@ protected:
         // 单例测试，需要恢复初始状态
         acl::AclResourceManager::GetInstance().streamExternalAllocator_.clear();
         acl::AclResourceManager::GetInstance().streamDefaultAllocator_.clear();
+        Mock::VerifyAndClear((void *)(&MockFunctionTest::aclStubInstance()));
     }
 };
 
@@ -1024,142 +1025,31 @@ TEST(UTEST_ACL_Resource_Manager, TestStream) {
     instance.CleanAllocators(stream2);
 }
 
-/// TODO: move to runtime-dev
-///TEST(UTEST_ACL_Resource_Manager, TestContext) {
-//     AclResourceManager &instance = AclResourceManager::GetInstance();
-//     EXPECT_NE(&instance, nullptr);
+TEST(UTEST_ACL_Resource_Manager, TestDestroyStream)
+{
+    AclResourceManager &instance = AclResourceManager::GetInstance();
+    EXPECT_NE(&instance, nullptr);
 
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_succ));
+    const aclrtStream stream1 = (void *)0x2022;
+    instance.CleanAllocators(stream1);
 
-//     // stream is nullptr, curr context error, pri context error
-//     const aclrtStream stream = nullptr;
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-//             .WillRepeatedly(Return(1));
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetPriCtxByDeviceId(_,_))
-//             .WillRepeatedly(Return(1));
-//     gert::Allocators *ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, nullptr);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtCtxGetCurrentDefaultStream(_))
+            .WillRepeatedly(Return(ACL_RT_SUCCESS));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
+            .WillRepeatedly(Invoke(CreateAllocators_succ));
 
-//     // stream is nullptr, curr context error, pri context is nullptr
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-//             .WillRepeatedly(Return(1));
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetPriCtxByDeviceId(_,_))
-//             .WillRepeatedly(Invoke(rtGetPriCtxByDeviceId_invoke));
-//     g_priCtx = nullptr;
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, nullptr);
+    gert::Allocators *ptr = instance.GetAllocators(stream1, true).get();
+    EXPECT_NE(ptr, nullptr);
 
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
-//         .WillRepeatedly(Return(ACL_ERROR_INVALID_PARAM));
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, nullptr);
-    
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrentDefaultStream(_))
-//         .WillRepeatedly(Return(ACL_RT_SUCCESS));
-//     // stream is nullptr, curr context error, pri context is not nullptr
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-//             .WillRepeatedly(Return(1));
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetPriCtxByDeviceId(_,_))
-//             .WillRepeatedly(Invoke(rtGetPriCtxByDeviceId_invoke));
-//     g_priCtx = (void *)0xbb;
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, nullptr);
+    aclrtDestroyStream(stream1);
+    instance.HandleReleaseSourceByStream(stream1, ACL_RT_STREAM_STATE_DESTROY_PRE, nullptr);
 
-//     // clean by pri context
-//     gert::Allocators *lastPtr = ptr;
-//     instance.CleanAllocators(g_priCtx);
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_fail));
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, lastPtr); // new value
-//     instance.CleanAllocators(g_priCtx);
-
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_succ));
-
-//     // stream is nullptr, curr context is nullptr, pri context is nullptr
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-//             .WillRepeatedly(Invoke(rtCtxGetCurrent_invoke));
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetPriCtxByDeviceId(_,_))
-//             .WillRepeatedly(Invoke(rtGetPriCtxByDeviceId_invoke));
-//     g_currCtx = nullptr;
-//     g_priCtx = nullptr;
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, nullptr);
-
-//     // stream is nullptr, curr context is not nullptr
-//     g_currCtx = (void *)0xaa;
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, nullptr); // new value
-//     lastPtr = ptr;
-
-//     // incorrect clean
-//     instance.CleanAllocators(g_priCtx);
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_fail));
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, lastPtr);
-//     // correct clean
-//     instance.CleanAllocators(g_currCtx);
-//     ptr = instance.GetAllocators(stream);
-//     EXPECT_EQ(ptr, nullptr);
-//     instance.CleanAllocators(g_currCtx);
-// }
-
-/// TODO: move to runtime-dev
-///TEST(UTEST_ACL_Resource_Manager, TestDestroyStream)
-// {
-//     AclResourceManager &instance = AclResourceManager::GetInstance();
-//     EXPECT_NE(&instance, nullptr);
-
-//     const aclrtStream stream1 = (void *)0x2022;
-//     instance.CleanAllocators(stream1);
-
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_succ));
-
-//     gert::Allocators *ptr = instance.GetAllocators(stream1);
-//     EXPECT_NE(ptr, nullptr);
-
-//     aclrtDestroyStream(stream1);
-//     instance.HandleReleaseSourceByStream(stream1, false);
-
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_fail));
-//     ptr = instance.GetAllocators(stream1);
-//     EXPECT_EQ(ptr, nullptr);
-//     instance.CleanAllocators(stream1);
-// }
-
-/// TODO: move to runtime-dev
-///TEST(UTEST_ACL_Resource_Manager, TestDestroyContext)
-// {
-//     AclResourceManager &instance = AclResourceManager::GetInstance();
-//     EXPECT_NE(&instance, nullptr);
-
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_succ));
-//     // stream is nullptr, curr context is not nullptr
-//     const aclrtStream stream = nullptr;
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtCtxGetCurrent(_))
-//             .WillRepeatedly(Invoke(rtCtxGetCurrent_invoke));
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), rtGetPriCtxByDeviceId(_,_))
-//             .WillRepeatedly(Invoke(rtGetPriCtxByDeviceId_invoke));
-//     g_currCtx = (void *)0xaa;
-//     g_priCtx = nullptr;
-//     void *ptr = instance.GetAllocators(stream).get();
-//     EXPECT_EQ(ptr, nullptr);
-
-//     // destroy context
-//     aclrtDestroyContext(g_currCtx);
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_fail));
-//     ptr = instance.GetAllocators(stream).get();
-//     EXPECT_EQ(ptr, nullptr); // new value
-
-//     instance.CleanAllocators(g_currCtx);
-// }
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtAllocatorGetByStream(_,_,_,_,_,_,_))
+            .WillRepeatedly(Return(ACL_ERROR_FAILURE));
+    ptr = instance.GetAllocators(stream1, false).get();
+    EXPECT_EQ(ptr, nullptr);
+    instance.CleanAllocators(stream1);
+}
 
 TEST(UTEST_ACL_Resource_Manager, TestResetDevice)
 {
@@ -1183,75 +1073,37 @@ TEST(UTEST_ACL_Resource_Manager, TestResetDevice)
     instance.CleanAllocators(g_priCtx);
 }
 
-/// TODO: split to runtime-dev and ge.
-// TEST(UTEST_ACL_Resource_Manager, GetExternalAllocatorsSuccess)
-// {
-//     AclResourceManager &instance = AclResourceManager::GetInstance();
-//     EXPECT_NE(&instance, nullptr);
+TEST(UTEST_ACL_Resource_Manager, GetExternalAllocatorsSuccess)
+{
+    AclResourceManager &instance = AclResourceManager::GetInstance();
+    EXPECT_NE(&instance, nullptr);
 
-//     // second call GetExternalAllocators, CreateDefaultAllocator succ
-//     EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
-//             .WillRepeatedly(Invoke(CreateAllocators_succ));
-
-//     // create external allocator
-//     aclrtStream stream = (aclrtStream)0x10;
-//     ExternalAllocatorDesc allocatorDesc;
-//     allocatorDesc.obj = (void *)0x10;
-//     allocatorDesc.allocFunc = (aclrtAllocatorAllocFunc)0x20;
-//     allocatorDesc.freeFunc = (aclrtAllocatorFreeFunc)0x30;
-//     allocatorDesc.allocAdviseFunc = (aclrtAllocatorAllocAdviseFunc)0x40;
-//     allocatorDesc.getAddrFromBlockFunc = (aclrtAllocatorGetAddrFromBlockFunc)0x50;
-//     auto ret = aclrtAllocatorRegister(stream, static_cast<aclrtAllocatorDesc>(&allocatorDesc));
-//     EXPECT_EQ(ret, ACL_SUCCESS);
-
-//     aclrtAllocatorDesc aclrtDesc;
-//     aclrtAllocatorGetByStream(stream, &aclrtDesc, nullptr, nullptr, nullptr, nullptr, nullptr);
-//     ExternalAllocatorDesc *allocatorDesc1 = static_cast<ExternalAllocatorDesc *>(aclrtDesc);
-//     EXPECT_EQ(allocatorDesc.obj, allocatorDesc1->obj);
-//     EXPECT_EQ(allocatorDesc.allocFunc, allocatorDesc1->allocFunc);
-//     EXPECT_EQ(allocatorDesc.freeFunc, allocatorDesc1->freeFunc);
-//     EXPECT_EQ(allocatorDesc.allocAdviseFunc, allocatorDesc1->allocAdviseFunc);
-//     EXPECT_EQ(allocatorDesc.getAddrFromBlockFunc, allocatorDesc1->getAddrFromBlockFunc);
-
-//     ret = aclrtAllocatorUnregister(stream);
-//     EXPECT_EQ(ret, ACL_SUCCESS);
-//     instance.HandleReleaseSourceByStream(stream, false);
-
-//     // The following test code is used to test the logic of allocator update when the
-//     // internal allocator and external allocator are used in different orders.
-//     // The "old_desc_exist" indicates the allocator description cached by GE in the
-//     // past, while "new_desc_exist" refers to the latest externally registered allocator
-//     // description.
-//     // !old_desc_exist && new_desc_exist.
-//     gert::Allocators *allocatorPtr = instance.GetAllocators(stream).get();
-//     EXPECT_NE(allocatorPtr, nullptr);
-//     aclrtStream streamNew = (aclrtStream)0x20;
-//     ExternalAllocatorDesc allocatorDescNew;
-//     allocatorDescNew.obj = (void *)0x10;
-//     allocatorDescNew.allocFunc = (aclrtAllocatorAllocFunc)0x20;
-//     allocatorDescNew.freeFunc = (aclrtAllocatorFreeFunc)0x30;
-//     allocatorDescNew.allocAdviseFunc = (aclrtAllocatorAllocAdviseFunc)0x40;
-//     allocatorDescNew.getAddrFromBlockFunc = (aclrtAllocatorGetAddrFromBlockFunc)0x50;
-//     ret = aclrtAllocatorRegister(streamNew, static_cast<aclrtAllocatorDesc>(&allocatorDescNew));
-//     EXPECT_EQ(ret, ACL_SUCCESS);
-//     gert::Allocators *allocatorPtr1 = instance.GetAllocators(streamNew).get();
-//     EXPECT_NE(allocatorPtr1, nullptr);
-//     // old_desc_exist && new_desc_exist.
-//     gert::Allocators *allocatorPtr2 = instance.GetAllocators(streamNew).get();
-//     EXPECT_EQ(allocatorPtr1, allocatorPtr2);
-//     ret = aclrtAllocatorUnregister(streamNew);
-//     EXPECT_EQ(ret, ACL_SUCCESS);
-//     allocatorDescNew.obj = (void *)0x110;
-//     ret = aclrtAllocatorRegister(streamNew, static_cast<aclrtAllocatorDesc>(&allocatorDescNew));
-//     EXPECT_EQ(ret, ACL_SUCCESS);
-//     gert::Allocators *allocatorPtr3 = instance.GetAllocators(streamNew).get();
-//     EXPECT_NE(allocatorPtr1, allocatorPtr3);
-//     // old_desc_exist && !new_desc_exist
-//     ret = aclrtAllocatorUnregister(streamNew);
-//     EXPECT_EQ(ret, ACL_SUCCESS);
-//     gert::Allocators *allocatorPtr4 = instance.GetAllocators(streamNew).get();
-//     EXPECT_NE(allocatorPtr3, allocatorPtr4);
-// }
+    aclrtStream stream = (aclrtStream)0x10;
+    // The following test code is used to test the logic of allocator update when the
+    // internal allocator and external allocator are used in different orders.
+    // The "old_desc_exist" indicates the allocator description cached by GE in the
+    // past, while "new_desc_exist" refers to the latest externally registered allocator
+    // description.
+    // !old_desc_exist && new_desc_exist.
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtAllocatorGetByStream(_,_,_,_,_,_,_))
+            .WillRepeatedly(Return(ACL_SUCCESS));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
+            .WillRepeatedly(Invoke(CreateAllocators_succ));
+    gert::Allocators *allocatorPtr = instance.GetAllocators(stream).get();
+    EXPECT_NE(allocatorPtr, nullptr);
+    // old_desc_exist && new_desc_exist.
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtAllocatorGetByStream(_,_,_,_,_,_,_))
+            .WillRepeatedly(Return(ACL_SUCCESS));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
+            .WillRepeatedly(Invoke(CreateAllocators_succ));
+    gert::Allocators *allocatorPtr1 = instance.GetAllocators(stream).get();
+    EXPECT_NE(allocatorPtr1, nullptr);
+    // old_desc_exist && !new_desc_exist
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtAllocatorGetByStream(_,_,_,_,_,_,_))
+            .WillRepeatedly(Return(ACL_ERROR_FAILURE));
+    gert::Allocators *allocatorPtr2 = instance.GetAllocators(stream).get();
+    EXPECT_NE(allocatorPtr2, nullptr);
+}
 
 TEST(UTEST_ACL_Resource_Manager, RegisterModelTest_ShaperangeIndexOutDimIndex)
 {
@@ -1329,7 +1181,17 @@ TEST(UTEST_ACL_Resource_Manager, RegisterModelTest_SameDynamicCache)
     EXPECT_EQ(acquireModelDef->opModelId, 9999);
 }
 
-/// TODO: GetAllocators
+TEST(UTEST_ACL_Resource_Manager, GetAllocators_Fail_HostAllocatorIsNull)
+{
+    auto &instance = AclResourceManager::GetInstance();
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), Create(_))
+        .WillOnce(Invoke(CreateAllocators_succ))
+        .WillRepeatedly(Invoke(CreateAllocators_fail));
+    aclrtStream stream = (aclrtStream)0x2233;
+    auto allocators = instance.GetAllocators(stream, true);
+    EXPECT_EQ(allocators, nullptr);
+}
+
 TEST(UTEST_ACL_Resource_Manager, GetAllocators_Fail_DeviceAllocatorIsNull)
 {
     auto &instance = AclResourceManager::GetInstance();

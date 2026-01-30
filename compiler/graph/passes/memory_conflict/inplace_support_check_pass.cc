@@ -13,6 +13,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/debug/ge_attr_define.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

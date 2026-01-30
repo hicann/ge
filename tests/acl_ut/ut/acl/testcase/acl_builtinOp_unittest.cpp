@@ -24,7 +24,9 @@ protected:
     virtual void SetUp() {
         MockFunctionTest::aclStubInstance().ResetToDefaultMock();
     }
-    virtual void TearDown() {}
+    virtual void TearDown() {
+        Mock::VerifyAndClear((void *)(&MockFunctionTest::aclStubInstance()));
+    }
 
 };
 

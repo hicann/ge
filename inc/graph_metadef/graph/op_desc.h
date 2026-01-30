@@ -11,8 +11,6 @@
 #ifndef INC_GRAPH_OP_DESC_H_
 #define INC_GRAPH_OP_DESC_H_
 
-#include <unordered_set>
-#include "detail/attributes_holder.h"
 #include "graph/range_vistor.h"
 #include "graph/ge_tensor.h"
 #include "graph/opp_impl_version.h"

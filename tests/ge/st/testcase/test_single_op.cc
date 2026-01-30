@@ -61,7 +61,6 @@
 #include "session/inner_session.h"
 #include "common/dump/dump_manager.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 USING_FAKE_NS
 namespace ge {
@@ -1407,6 +1406,10 @@ TEST_F(SingleOpTest, TestOpManyAttrs) {
 
 TEST_F(SingleOpTest, TestOpUnregstAttrs) {
   EXPECT_NE(CompileSingleOpByAtc("st_run_data/json/single_op/op_unregst_oppath_attrs.json"), SUCCESS);
+}
+
+TEST_F(SingleOpTest, TestLongNameSingleOp) {
+  EXPECT_EQ(CompileSingleOpByAtc("st_run_data/json/single_op/long_name.json"), SUCCESS);
 }
 
 /**

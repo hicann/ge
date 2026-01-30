@@ -111,6 +111,7 @@ enum class ScalarType : uint32_t {
 enum class HcclServerType : uint32_t {
   AICPU = 0,
   AICORE = 1,
+  CCU = 2,
   MAX
 };
 
@@ -444,10 +445,9 @@ private:
   friend class OpParamTrunk;
   friend class OpDef;
 
-  bool GetZeroEleOutputLaunchFlag(void);
   std::map<ge::AscendString, OpAICoreConfig> &GetAICoreConfigs(void);
   void Log(const char *op_type, const char *info) const;
-
+  bool GetZeroEleOutputLaunchFlag(void);
   std::unique_ptr<OpAICoreDefImpl> impl_;
 };
 

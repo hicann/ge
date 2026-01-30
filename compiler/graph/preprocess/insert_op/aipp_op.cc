@@ -130,23 +130,24 @@ Status GetDataDimN(const ge::NodePtr &data_node, ge::Format format, int64_t &bat
         batch = shape[NHWC_DIM_N];
         return SUCCESS;
       default:
-        REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-                           std::vector<const char_t *>({
-                               ((data_node->GetName() + " format").c_str(),
-                               TypeUtils::FormatToSerialString(format)).c_str(),
-                               ("only format " + TypeUtils::FormatToSerialString(FORMAT_NCHW) + " and " +
-                               TypeUtils::FormatToSerialString(FORMAT_NHWC) +
-                               " supported which dynamic aipp is linked").c_str()}));
+        REPORT_PREDEFINED_ERR_MSG(
+            "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+            std::vector<const char_t *>(
+                {((data_node->GetName() + " format").c_str(), TypeUtils::FormatToSerialString(format)).c_str(),
+                 ("Only format " + TypeUtils::FormatToSerialString(FORMAT_NCHW) + " and " +
+                  TypeUtils::FormatToSerialString(FORMAT_NHWC) + " are supported when dynamic AIPP is linked.")
+                     .c_str()}));
         GELOGE(PARAM_INVALID, "[Check][Param] Not support data format:%s, node:%s",
                TypeUtils::FormatToSerialString(format).c_str(), data_node->GetName().c_str());
         return PARAM_INVALID;
     }
   }
-  std::string errormsg = "its shape size must be in range[3,4] which dynamic aipp is linked, "
-                    "maybe this input is not suitable for dynamic aipp";
+  std::string reason =
+      "Its shape size must be in the range[3,4] when dynamic AIPP is linked. "
+      "The input may not be suitable for dynamic AIPP.";
   REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                             std::vector<const char *>({(data_node->GetName() + " shape size").c_str(),
-                                                       to_string(shape.size()).c_str(), errormsg.c_str()}));
+                                                       to_string(shape.size()).c_str(), reason.c_str()}));
   GELOGE(PARAM_INVALID, "[Check][Param] The shape size of this node [%s] "
          "which linked dynamic aipp must be in range[3, 4], but is %zu",
          data_node->GetName().c_str(), shape.size());
@@ -592,7 +593,7 @@ Status AippOp::ConvertRelatedInputNameToRank() {
   }
   if (!convert_flag) {
     std::string error_msg = "related_input_name " + related_input_name + "convert rank failed, Please ensure it is"
-                            " caffe scene or related_input_name in aipp config is the top name of data node.";
+                            " caffe scene or related_input_name in aipp config is the top name of data node";
     GELOGE(PARAM_INVALID, "[Check][InputParam]%s", error_msg.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10052", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({error_msg.c_str()}));
@@ -1172,10 +1173,10 @@ Status AippOp::CreateAippData(const NodePtr &aipp_node) {
     std::string format_str = TypeUtils::FormatToSerialString(ori_data_format);
     GELOGE(PARAM_INVALID, "[Check][Param] when dynamic aipp, input_format must be NCHW or NHWC, but [%s] format is %s",
            data_node->GetName().c_str(), format_str.c_str());
-    std::string reason = "format must be NCHW or NHWC in dynamic aipp process";
+    std::string reason = "The format must be NCHW or NHWC in the dynamic AIPP scenario";
     REPORT_PREDEFINED_ERR_MSG(
-        "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-        std::vector<const char *>({data_node->GetName().c_str(), ("format " + format_str).c_str(), reason.c_str()}));
+        "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
+        std::vector<const char *>({data_node->GetName().c_str(), "format", format_str.c_str(), reason.c_str()}));
     return PARAM_INVALID;
   }
 

@@ -59,8 +59,11 @@ GraphAndIoNum BuildGraph_HcclAdd() {
                                      .Attr(HCOM_ATTR_ROOT_RANK, 0)
                                      .Build("_all_reduce_0");
   auto add_0 = OP_CFG(ADD).InCnt(2).OutCnt(1)
+                          .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_0_fake_id")
                           .TensorDesc(FORMAT_NCHW, DT_FLOAT, {kTensorDim}).Build("_add_0");
-  auto output_0 = OP_CFG(NETOUTPUT).Build("_output_0");
+  auto output_0 = OP_CFG(NETOUTPUT)
+                      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_output_0_fake_id")
+                      .Build("_output_0");
   DEF_GRAPH(hccl_add) {
     CHAIN(NODE(data_0)->EDGE(0, 0)->NODE(hcom_0));
     CHAIN(NODE(data_1)->EDGE(0, 1)->NODE(hcom_0));

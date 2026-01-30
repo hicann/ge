@@ -39,6 +39,7 @@
 #include "graph/utils/math_util.h"
 #include "ge_context.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "register/core_num_utils.h"
 
 namespace {
 constexpr uint32_t kOriginalOmPartitionNum = 1U;
@@ -59,15 +60,14 @@ const std::string kAicCntKey = "ai_core_cnt";
 const std::string kVecCoreCntKey = "vector_core_cnt";
 const std::string kEnumNameCubeNum = "cube_num";
 const std::string kEnumNameVectorNum = "vector_num";
-constexpr const char_t* kSoSuffix = ".so";
-constexpr const char_t* kRt2SoSuffix = "rt2.0.so";
-constexpr const char_t* kRtSoSuffix = "rt.so";
-constexpr const char_t* kLegacySoSuffix = "_legacy.so";
-constexpr const char_t* kCompilerVersion = "compiler_version=";
-constexpr const char_t* kOppVersion = "Version=";
-constexpr const char_t* kVersionInfo = "/version.info";
-constexpr const char_t* kHardwareInfo = "ge.hardwareInfo";
-constexpr const char_t* kVectorcoreNum = "ge.vectorcoreNum";
+const std::string kSoSuffix = ".so";
+const std::string kRt2SoSuffix = "rt2.0.so";
+const std::string kRtSoSuffix = "rt.so";
+const std::string kLegacySoSuffix = "_legacy.so";
+const std::string kCompilerVersion = "compiler_version=";
+const std::string kOppVersion = "Version=";
+const std::string kVersionInfo = "/version.info";
+const std::string kHardwareInfo = "ge.hardwareInfo";
 }
 
 namespace ge {
@@ -136,7 +136,7 @@ Status ModelHelper::SaveModelPartition(std::shared_ptr<OmFileSaveHelper> &om_fil
       if (item_type_map.find(type) != item_type_map.end()) {
         item = item_type_map[type];
       }
-      REPORT_PREDEFINED_ERR_MSG(
+      (void)REPORT_PREDEFINED_ERR_MSG(
           "E13023", std::vector<const char *>({"size", "item", "maxsize"}),
           std::vector<const char *>({std::to_string(size).c_str(), item.c_str(), std::to_string(UINT32_MAX).c_str()}));
     }
@@ -285,7 +285,7 @@ Status ModelHelper::SaveModelCustAICPU(std::shared_ptr<OmFileSaveHelper> &om_fil
 
 Status ModelHelper::SaveModelIntroduction(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                           const GeModelPtr &ge_model, const bool is_dynamic) const {
-  std::shared_ptr<ModelIntroduction> modelIntroduction = ge::MakeShared<ModelIntroduction>();
+  std::unique_ptr<ModelIntroduction> modelIntroduction = ge::MakeUnique<ModelIntroduction>();
   GE_IF_BOOL_EXEC(modelIntroduction == nullptr,
                   REPORT_INNER_ERR_MSG("E19999", "ModelIntroduction failed, it is nullptr, model %s",
                   ge_model->GetName().c_str());
@@ -418,7 +418,7 @@ Status ModelHelper::LoadAndStoreOppSo(const string &path, bool is_split, bool is
   const bool is_built_in_path = (path.find(kInner) != std::string::npos);
   std::vector<std::string> op_so_list;
   if ((!is_sub_pkg) && is_built_in_path) {
-    const char_t *so_buff = is_split ? kRtSoSuffix : kRt2SoSuffix;
+    const std::string so_buff = is_split ? kRtSoSuffix : kRt2SoSuffix;
     ge::PluginManager::GetFileListWithSuffix(path, so_buff, op_so_list);
   } else {
     ge::PluginManager::GetFileListWithSuffix(path, kSoSuffix, op_so_list);
@@ -764,7 +764,7 @@ Status ModelHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_model, const
   std::vector<std::string> model_names{ge_root_model->GetRootGraph()->GetName()};
   for (auto &item : name_to_ge_model) {
     if (item.first != model_names.front()) {
-      model_names.emplace_back(item.first);
+      (void)model_names.emplace_back(item.first);
     }
   }
 
@@ -845,7 +845,7 @@ Status ModelHelper::SaveOriginalGraphToOmModel(const ge::Graph &graph, const std
   }
   GE_DUMP(compute_graph, "OriginalGraph");
   // Model
-  const ModelPtr model_ptr = ge::MakeShared<ge::Model>();
+  const ModelPtr model_ptr = ge::MakeUnique<ge::Model>();
   GE_CHECK_NOTNULL_EXEC(model_ptr, return MEMALLOC_FAILED);
   const std::string original_model_name = compute_graph->GetName() + "_original";
   model_ptr->SetName(original_model_name);
@@ -867,7 +867,7 @@ Status ModelHelper::SaveOriginalGraphToOmModel(const ge::Graph &graph, const std
                       model_ptr->GetName().c_str());
     return FAILED;
   }
-  const std::shared_ptr<OmFileSaveHelper> om_file_save_helper = ge::MakeShared<OmFileSaveHelper>();
+  const std::unique_ptr<OmFileSaveHelper> om_file_save_helper = ge::MakeUnique<OmFileSaveHelper>();
   GE_CHECK_NOTNULL_EXEC(om_file_save_helper, return MEMALLOC_FAILED);
   ModelPartition partition_model;
   partition_model.data = model_buffer.GetData();
@@ -911,8 +911,8 @@ Status ModelHelper::SaveOriginalGraphToOmModel(const ge::Graph &graph, const std
 Status ModelHelper::SaveBundleModelBufferToMem(const std::vector<ModelBufferData> &model_buffers, uint64_t var_size,
                                                ModelBufferData &output_buffer) {
   const size_t model_num = model_buffers.size();
-  const size_t var_partition_num = 1U;
-  const size_t var_size_len = sizeof(uint64_t);
+  constexpr size_t var_partition_num = 1U;
+  constexpr size_t var_size_len = sizeof(uint64_t);
   const size_t mem_info_partition_num = model_num + var_partition_num; // add var partition
   const size_t header_size =
       sizeof(ModelFileHeader) + sizeof(ModelPartitionTable) + sizeof(ModelPartitionMemInfo) * mem_info_partition_num;
@@ -1047,14 +1047,16 @@ Status ModelHelper::LoadPartInfoFromModel(const ge::ModelData &model_data, Model
 
 Status ModelHelper::GetModelFileHead(const ge::ModelData &model_data, const ModelFileHeader *&file_header) {
   if (model_data.model_data == nullptr) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char*>({"parameter", "value", "reason"}),
-                       std::vector<const char*>({"om", model_data.om_name.c_str(), "model data can not be nullptr"}));
+    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char*>({"parameter", "value", "reason"}),
+                       std::vector<const char*>({"om", model_data.om_name.c_str(), "Model data cannot be nullptr."}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Param] Invalid model. Model data can not be nullptr.");
     return ACL_ERROR_GE_PARAM_INVALID;
   }
   if (model_data.model_len < sizeof(ModelFileHeader)) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                              std::vector<const char *>({"om", model_data.om_name.c_str(), "invalid om file"}));
+    std::string reason = "Invalid om file. The model data size " + std::to_string(model_data.model_len) +
+                         " is smaller than " + std::to_string(sizeof(ModelFileHeader)) + ".";
+    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"om", model_data.om_name.c_str(), reason.c_str()}));
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID,
            "[Check][Param] Invalid model. Model data size %" PRIu64 " must be greater than or equal to %zu.",
            model_data.model_len, sizeof(ModelFileHeader));
@@ -1424,7 +1426,7 @@ Status ModelHelper::LoadOpSoBin(const OmFileLoadHelper &om_load_helper,
       std::map<std::string, ge::OpSoBinPtr> bin_file_buffer;
       auto all_so_bin = ge_root_model->GetAllSoBin();
       auto new_end = std::remove_if(all_so_bin.begin(), all_so_bin.end(),
-        [&](const OpSoBinPtr& op_so_bin_ptr) {
+        [&bin_file_buffer, &root_graph](const OpSoBinPtr& op_so_bin_ptr) {
           if (op_so_bin_ptr != nullptr && op_so_bin_ptr->GetSoBinType() == SoBinType::kAutofuse) {
             std::string so_path = op_so_bin_ptr->GetVendorName() + "/" + op_so_bin_ptr->GetSoName();
             bin_file_buffer[so_path] = op_so_bin_ptr;
@@ -1434,7 +1436,7 @@ Status ModelHelper::LoadOpSoBin(const OmFileLoadHelper &om_load_helper,
           }
           return false;
       });
-      all_so_bin.erase(new_end, all_so_bin.end()); // 防止后续缓存落盘时重复保存AutofuseSo
+      (void)all_so_bin.erase(new_end, all_so_bin.end()); // 防止后续缓存落盘时重复保存AutofuseSo
       SaveOpSoInfo(ge_root_model);
       GELOGD("Load so bin store success");
     } else {
@@ -1555,7 +1557,7 @@ Status ModelHelper::GetHardwareInfo(std::map<std::string, std::string> &options)
                   << ";l2_size:" << std::to_string(platform_info.soc_info.l2_size)
                   << ";memory_size:" << std::to_string(platform_info.soc_info.memory_size);
   (void)options.emplace(std::make_pair(kHardwareInfo, platform_option.str()));
-  GELOGI("Soc_version: %s, set attr %s, value: %s.", soc_version.c_str(), kHardwareInfo, platform_option.str().c_str());
+  GELOGI("Soc_version: %s, set attr %s, value: %s.", soc_version.c_str(), kHardwareInfo.c_str(), platform_option.str().c_str());
 
   if (virtual_type > 0) {
     (void)options.emplace(std::make_pair(VIRTUAL_TYPE, std::to_string(virtual_type)));
@@ -1604,13 +1606,18 @@ Status ModelHelper::InitRuntimeAndGetDevicePlatformInfos(int32_t device_id, cons
       "[Init][PlatformInfo]init runtime platform info failed, SocVersion = %s", soc_version.c_str());
 
   // 获取指定 device 的 platform info
-  GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(device_id, platform_infos_device) == 0,
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(static_cast<uint32_t>(device_id), platform_infos_device) == 0,
      "Get runtime platformInfos by device failed, deviceId = %d", device_id);
 
   return SUCCESS;
 }
 
 Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos) const {
+  fe::PlatformInfo platform_info;
+  return HandleDeviceInfo(platform_infos, platform_info);
+}
+
+Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::PlatformInfo &origin_platform_info) const {
   GELOGD("Begin to handle device info.");
   int32_t device_id = -1;
   GE_CHK_RT_RET(rtGetDevice(&device_id));
@@ -1618,13 +1625,15 @@ Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos) const {
   char_t soc_version[kSocVersionLen] = {0};
   GE_CHK_RT_RET(rtGetSocVersion(soc_version, kSocVersionLen));
 
+  GE_ASSERT_SUCCESS(CoreNumUtils::GetGeDefaultPlatformInfo(soc_version, origin_platform_info));
+
   fe::PlatformInfo platform_info;
   int32_t virtual_type = 0;
   GE_CHK_STATUS_RET(GetPlatformInfo(device_id, soc_version, platform_info, virtual_type), "Get platform info failed.");
 
   GE_CHK_STATUS_RET(SetPlatformInfos(soc_version, platform_info, platform_infos), "Set platform infos failed.");
 
-  GELOGD("Succeed to handle device info, device id: %d, soc_version: %s, virtual_type: %d.", device_id, soc_version,
+  GELOGD("Succeed to handle device info, device id: %d, soc_version: %s, virtual_type: %d.", device_id, static_cast<char_t*>(soc_version),
          virtual_type);
   return SUCCESS;
 }
@@ -1639,19 +1648,17 @@ Status ModelHelper::GetPlatformInfo(int32_t device_id, const std::string &soc_ve
                                     fe::PlatformInfo &platform_info, int32_t &virtual_type,
                                     std::map<std::string, std::string> &options) const {
 #ifdef __GNUC__
-  if (GetDefaultPlatformInfo(platform_info, soc_version) != SUCCESS) {
-    return FAILED;
-  }
+  GE_ASSERT_SUCCESS(CoreNumUtils::GetGeDefaultPlatformInfo(soc_version, platform_info));
 #endif
 
   const uint32_t aicore_cnt_ini = platform_info.soc_info.ai_core_cnt;
   const uint32_t vec_core_cnt_ini = platform_info.soc_info.vector_core_cnt;
 
   fe::PlatFormInfos platformInfos_device;
-  GE_CHK_STATUS_RET(InitRuntimeAndGetDevicePlatformInfos(device_id, soc_version, platformInfos_device) != SUCCESS);
+  GE_CHK_STATUS_RET(InitRuntimeAndGetDevicePlatformInfos(device_id, soc_version, platformInfos_device));
 
   GE_CHK_STATUS_RET(UpdatePlatfromInfoWithRuntime(device_id, aicore_cnt_ini, vec_core_cnt_ini, platform_info,
-    virtual_type) != SUCCESS);
+    virtual_type));
 
   GE_CHK_STATUS_RET(UpdatePlatfromInfoWithDevice(platformInfos_device, aicore_cnt_ini, vec_core_cnt_ini, platform_info));
 
@@ -1664,26 +1671,12 @@ Status ModelHelper::GetPlatformInfo(int32_t device_id, const std::string &soc_ve
   return SUCCESS;
 }
 
-Status ModelHelper::GetDefaultPlatformInfo(fe::PlatformInfo &platform_info, const std::string &soc_version) const {
-  if (fe::PlatformInfoManager::GeInstance().InitializePlatformInfo() != 0U) {
-    GELOGE(FAILED, "Initialize platform info failed.");
-    return FAILED;
-  }
-
-  fe::OptionalInfo optional_info;
-  if (fe::PlatformInfoManager::GeInstance().GetPlatformInfo(soc_version, platform_info, optional_info) != 0U) {
-    GELOGE(FAILED, "Unable to get platform info.");
-    return FAILED;
-  }
-  return SUCCESS;
-}
-
 Status ModelHelper::UpdatePlatfromInfoWithOption(std::map<std::string, std::string> &options, const uint32_t ai_core_cnt_ini,
   const uint32_t vector_core_cnt_ini, fe::PlatformInfo &platform_info) const {
   // 用从option/context获取到的核数刷新platform info
   GE_CHK_STATUS_RET(UpdateCoreCountWithOption(AICORE_NUM, AICORE_NUM, ai_core_cnt_ini,
     platform_info.soc_info.ai_core_cnt, options));
-  GE_CHK_STATUS_RET(UpdateCoreCountWithOption(kVectorcoreNum, kVectorcoreNum, vector_core_cnt_ini,
+  GE_CHK_STATUS_RET(UpdateCoreCountWithOption(kVectorCoreNum, kVectorCoreNum, vector_core_cnt_ini,
     platform_info.soc_info.vector_core_cnt, options));
   return SUCCESS;
 }
@@ -1728,7 +1721,7 @@ Status ModelHelper::UpdatePlatfromInfoWithRuntime(const int32_t device_id, const
   // 用从rts获取到的核数刷新platform info
   UpdateCoreCountWithRuntime(AICORE_NUM, ai_core_cnt_ini, aic_core_cnt,
     platform_info.soc_info.ai_core_cnt);
-  UpdateCoreCountWithRuntime(kVectorcoreNum, vector_core_cnt_ini, vector_core_cnt,
+  UpdateCoreCountWithRuntime(kVectorCoreNum, vector_core_cnt_ini, vector_core_cnt,
     platform_info.soc_info.vector_core_cnt);
 
    size_t free_mem = 0U;
@@ -1768,10 +1761,11 @@ Status ModelHelper::SetPlatformInfos(const std::string &soc_version, const fe::P
          platform_info.soc_info.l2_size, platform_info.soc_info.memory_size);
 
   platform_infos.SetPlatformResWithLock("SoCInfo", res);
-  if (fe::PlatformInfoManager::GeInstance().UpdatePlatformInfos(soc_version, platform_infos) != 0U) {
-    GELOGE(FAILED, "Update platform infos failed.");
-    return FAILED;
-  }
+
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().UpdatePlatformInfos(soc_version, platform_infos) == 0U, "Update platform infos of GeInstance failed.");
+
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::Instance().InitializePlatformInfo() == 0U, "Initialize platform info of Instance failed.");
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::Instance().UpdatePlatformInfos(soc_version, platform_infos) == 0U, "Update platform infos of Instance failed.");
 #endif
   return SUCCESS;
 }
@@ -1851,24 +1845,9 @@ Status ModelHelper::UpdateCoreCountWithOption(const std::string &key, const std:
     GELOGI("%s in ThreadLocalContext, value: [%s].", context_key.c_str(), core_num_str.c_str());
   }
 
-  int32_t core_num = 0;
+  int32_t core_num = -1;
   if (!core_num_str.empty()) {
-    GE_CHK_STATUS_RET(CheckCoreNumValidAndConvertToInt32(ge::GetContext().GetReadableName(AICORE_NUM), core_num_str, core_num));
-  }
-
-  // 如果options中的值大于core_num_ini， 非法，直接报错
-  if (static_cast<uint32_t>(core_num) > core_num_ini) {
-    GELOGE(ge::PARAM_INVALID, "The value [%d] of [%s] in options is invalid."
-                              "Current system maximum core count is [%u], the value should not be greater than it.",
-           core_num, ge::GetContext().GetReadableName(AICORE_NUM).c_str(), core_num_ini);
-
-    std::stringstream reason;
-    reason << "The value [" << core_num << "] of [" << ge::GetContext().GetReadableName(AICORE_NUM) << "] in options is invalid."
-           << "Current system maximum core count is [" << core_num_ini << "], the value should not be greater than it.";
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>(
-                           {ge::GetContext().GetReadableName(AICORE_NUM).c_str(), std::to_string(core_num).c_str(), reason.str().c_str()}));
-    return ge::PARAM_INVALID;
+    GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(ge::GetContext().GetReadableName(AICORE_NUM), core_num_str, 0, core_num_ini, core_num));
   }
 
   if (core_num > 0) {
@@ -1880,13 +1859,12 @@ Status ModelHelper::UpdateCoreCountWithOption(const std::string &key, const std:
 
 Status ModelHelper::UpdateCoreCountWithDevice(const std::string &key, uint32_t core_num_ini,
                                             const std::string &core_num_str, uint32_t &platform_info_count) const {
-  int32_t core_num = 0;
+  int32_t core_num = -1;
   if (!core_num_str.empty()) {
-    GE_CHK_STATUS_RET(CheckCoreNumValidAndConvertToInt32(AICORE_NUM, core_num_str, core_num));
+    GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(ge::GetContext().GetReadableName(AICORE_NUM), core_num_str, 0, core_num_ini, core_num));
   }
 
-  // rtsSetDeviceResLimit接口中value的类型是uint_32，所以不会出现小于0的情况，同时rts加了大于实际核数就报错的判断，因此这里不再做检查
-  if (core_num > 0 && static_cast<uint32_t>(core_num) < core_num_ini) {
+  if (core_num > 0) {
     GELOGI("Change %s from platform %u to device %d.", key.c_str(), core_num_ini, core_num);
     platform_info_count = static_cast<uint32_t>(core_num);
   }
@@ -1982,7 +1960,7 @@ Status ModelHelper::RecordOffsetsRefreshInfo(const ComputeGraphPtr &graph,
       if ((var_node == nullptr) || (var_node == node)) {
         continue;
       }
-      inputs_need_refresh[var_node][node].emplace_back(i, inner_offset);
+      (void)inputs_need_refresh[var_node][node].emplace_back(i, inner_offset);
       GELOGI("Find node:%s input offset:%zu use var:%s offset:%ld", node->GetName().c_str(), i,
              var_node->GetName().c_str(), offset);
     }
@@ -2001,7 +1979,7 @@ Status ModelHelper::RecordOffsetsRefreshInfo(const ComputeGraphPtr &graph,
       if ((var_node == nullptr) || (var_node == node)) {
         continue;
       }
-      outputs_need_refresh[var_node][node].emplace_back(i, inner_offset);
+      (void)outputs_need_refresh[var_node][node].emplace_back(i, inner_offset);
       GELOGI("Find node:%s output offset:%zu use var:%s offset:%ld", node->GetName().c_str(), i,
              var_node->GetName().c_str(), offset);
     }
@@ -2109,9 +2087,13 @@ Status ModelHelper::UpdateSessionGraphId(const ComputeGraphPtr &graph,
                                          bool &refreshed) {
   GE_CHECK_NOTNULL(graph);
   std::string value;
-  if (AttrUtils::GetStr(*graph, ATTR_NAME_SESSION_GRAPH_ID, value) && (value == session_graph_id)) {
-    GELOGD("graph[%s] session graph id is same, no need update.", graph->GetName().c_str());
-    return SUCCESS;
+  const std::string* value_ptr = AttrUtils::GetStr(*graph, ATTR_NAME_SESSION_GRAPH_ID);
+  if (value_ptr != nullptr) {
+    value = *value_ptr;
+    if (value == session_graph_id) {
+      GELOGD("graph[%s] session graph id is same, no need update.", graph->GetName().c_str());
+      return SUCCESS;
+    }
   }
   refreshed = true;
   GELOGI("need update graph[%s] session graph id from %s to %s.", graph->GetName().c_str(), value.c_str(),
@@ -2122,10 +2104,9 @@ Status ModelHelper::UpdateSessionGraphId(const ComputeGraphPtr &graph,
   for (const auto &node : graph->GetDirectNode()) {
     const auto &opdesc = node->GetOpDesc();
     GE_CHECK_NOTNULL(opdesc);
-    std::string op_session_graph_id;
-    bool get_success = AttrUtils::GetStr(opdesc, ATTR_NAME_SESSION_GRAPH_ID, op_session_graph_id);
+    const std::string* op_session_graph_id = AttrUtils::GetStr(opdesc, ATTR_NAME_SESSION_GRAPH_ID);
     // some op save session graph id in opdesc
-    if (get_success && (op_session_graph_id != session_graph_id)) {
+    if (op_session_graph_id != nullptr && (*op_session_graph_id != session_graph_id)) {
       GE_CHK_BOOL_RET_STATUS(AttrUtils::SetStr(opdesc, ATTR_NAME_SESSION_GRAPH_ID, session_graph_id), FAILED,
                              "Set ATTR_NAME_SESSION_GRAPH_ID[%s] failed for op:%s", session_graph_id.c_str(),
                              opdesc->GetName().c_str());

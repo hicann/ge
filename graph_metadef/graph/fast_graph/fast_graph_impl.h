@@ -16,7 +16,7 @@
 #include "quick_list.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/debug/ge_op_types.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/ge_context.h"
 #include "graph/utils/ge_ir_utils.h"
 #include "common/ge_common/ge_types.h"

@@ -20,6 +20,7 @@
 #include "graph/utils/node_utils.h"
 #include "base/err_msg.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -121,7 +122,10 @@ Status NanoDbgData::AddDbgOp(const domi::TaskDef &task_def) {
   (void)AttrUtils::GetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, dbg_op.original_op_names);
   // no need to care return value of AttrUtils and use default value when return failed
   (void)AttrUtils::GetBool(op_desc, ATTR_NAME_DATA_DUMP_IS_MULTIOP, dbg_op.datadump_is_multiop);
-  (void)AttrUtils::GetStr(op_desc, "_L1_fusion_sub_graph_no", dbg_op.L1_fusion_sub_graph_no);
+  const std::string* L1_fusion_sub_graph_no_ptr = AttrUtils::GetStr(op_desc, "_L1_fusion_sub_graph_no");
+  if (L1_fusion_sub_graph_no_ptr != nullptr) {
+    dbg_op.L1_fusion_sub_graph_no = *L1_fusion_sub_graph_no_ptr;
+  }
 
   GE_CHK_STATUS_RET(AddDbgInput(op_desc, dbg_op, op_index), "[Add][DbgInput] failed");
   GE_CHK_STATUS_RET(AddDbgBuffer(dbg_op), "[Add][DbgBuffer] for input failed");
@@ -129,7 +133,7 @@ Status NanoDbgData::AddDbgOp(const domi::TaskDef &task_def) {
   GE_CHK_STATUS_RET(AddDbgBuffer(dbg_op), "[Add][DbgBuffer] for output failed");
   GE_CHK_STATUS_RET(AddDbgWorkspace(op_desc, dbg_op), "[Add][DbgWorkspace] failed");
   GE_CHK_STATUS_RET(AddDbgMemInfo(op_desc, dbg_op), "[Add][DbgMemInfo] failed");
-  op_list_.emplace_back(dbg_op);
+  (void)op_list_.emplace_back(dbg_op);
   return SUCCESS;
 }
 
@@ -168,7 +172,7 @@ Status NanoDbgData::GenDbgInput(const GeTensorDesc &tensor_desc, NanoDbgInputDes
 Status NanoDbgData::AddDbgInput(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg_op, const uint32_t &op_index) {
   std::vector<int64_t> v_memory_type;
   const bool has_mem_type_attr = ge::AttrUtils::GetListInt(op_desc, ATTR_NAME_INPUT_MEM_TYPE_LIST, v_memory_type);
-  const auto &input_descs = op_desc->GetAllInputsDesc();
+  const auto &input_descs = op_desc->GetAllInputsDescPtr();
   auto const addrs_type = input_mem_types_.find(static_cast<int64_t>(op_index));
   GE_ASSERT_TRUE(addrs_type != input_mem_types_.end(),
                  "op[%s] lost input addr type info", op_desc->GetName().c_str());
@@ -197,7 +201,7 @@ Status NanoDbgData::AddDbgInput(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg_op,
     NanoDbgInputDesc dbg_input = {};
     dbg_input.addr_type = static_cast<toolkit::aicpu::dump::AddressType>(addrs_type->second[i]);
     dbg_input.addr = static_cast<uint64_t>(v_input_offset.at(i));
-    GE_CHK_STATUS_RET(GenDbgInput(input_descs.at(i), dbg_input), "[GenDbgInput] Gen failed.");
+    GE_CHK_STATUS_RET(GenDbgInput(*input_descs.at(i), dbg_input), "[GenDbgInput] Gen failed.");
 
     std::vector<uint64_t> task_addr_offset;
     task_addr_offset = op_desc->TryGetExtAttr("task_addr_offset", task_addr_offset);
@@ -206,7 +210,7 @@ Status NanoDbgData::AddDbgInput(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg_op,
     }
     GELOGI("set op[%s] input info, addr type[%u], offset[%lu]", op_desc->GetName().c_str(), dbg_input.addr_type,
            dbg_input.addr);
-    dbg_op.input_list.emplace_back(dbg_input);
+    (void)dbg_op.input_list.emplace_back(dbg_input);
   }
   return SUCCESS;
 }
@@ -225,11 +229,12 @@ Status NanoDbgData::GenDbgOutput(const GeTensorDesc &tensor_desc, NanoDbgOutputD
 
   GELOGD("Get output size in dump is %ld", output_size);
   dbg_output.size = static_cast<uint64_t>(output_size);
-  std::string origin_name;
   int32_t origin_output_index = -1;
-  (void)AttrUtils::GetStr(tensor_desc, ATTR_NAME_DATA_DUMP_ORIGIN_NAME, origin_name);
+  const std::string* origin_name_ptr = AttrUtils::GetStr(tensor_desc, ATTR_NAME_DATA_DUMP_ORIGIN_NAME);
+  if (origin_name_ptr != nullptr) {
+    dbg_output.original_name = *origin_name_ptr;
+  }
   (void)AttrUtils::GetInt(tensor_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OUTPUT_INDEX, origin_output_index);
-  dbg_output.original_name = origin_name;
   dbg_output.original_index = origin_output_index;
   dbg_output.original_data_type = static_cast<int32_t>(tensor_desc.GetOriginDataType());
   dbg_output.original_format = GetPrimaryFormat(static_cast<int32_t>(tensor_desc.GetOriginFormat()));
@@ -250,7 +255,7 @@ Status NanoDbgData::GenDbgOutput(const GeTensorDesc &tensor_desc, NanoDbgOutputD
 Status NanoDbgData::AddDbgOutput(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg_op, const uint32_t &op_index) {
   std::vector<int64_t> v_memory_type;
   const bool has_mem_type_attr = ge::AttrUtils::GetListInt(op_desc, ATTR_NAME_OUTPUT_MEM_TYPE_LIST, v_memory_type);
-  const auto &output_descs = op_desc->GetAllOutputsDesc();
+  const auto &output_descs = op_desc->GetAllOutputsDescPtr();
   auto const addrs_type = output_mem_types_.find(static_cast<int64_t>(op_index));
   GE_ASSERT_TRUE(addrs_type != output_mem_types_.end(),
                  "op[%s] lost output addr type info", op_desc->GetName().c_str());
@@ -272,7 +277,7 @@ Status NanoDbgData::AddDbgOutput(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg_op
       GELOGI("[L1Fusion] AddDbgOutput[%s] output[%zu] is l1 addr, skip dump", op_desc->GetName().c_str(), i);
       continue;
     }
-    const auto &output_tensor = output_descs.at(i);
+    const auto &output_tensor = *output_descs.at(i);
     int32_t calc_type = 0;
     const bool has_calc_type = ge::AttrUtils::GetInt(output_tensor, ATTR_NAME_MEMORY_SIZE_CALC_TYPE, calc_type);
     if (has_calc_type && (calc_type == static_cast<int32_t>(ge::MemorySizeCalcType::ALWAYS_EMPTY))) {
@@ -296,7 +301,7 @@ Status NanoDbgData::AddDbgOutput(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg_op
     }
     GELOGI("set op[%s] output info, addr type[%u], offset[%lu]", op_desc->GetName().c_str(), dbg_output.addr_type,
            dbg_output.addr);
-    dbg_op.output_list.emplace_back(dbg_output);
+    (void)dbg_op.output_list.emplace_back(dbg_output);
   }
   return SUCCESS;
 }
@@ -317,7 +322,7 @@ Status NanoDbgData::AddDbgWorkspace(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg
     NanoDbgWorkspaceDesc dbg_workspace = {};
     dbg_workspace.size = static_cast<uint64_t>(v_workspace_size[i]);
     dbg_workspace.type = toolkit::aicpu::dump::Workspace::LOG;
-    dbg_op.workspace_list.emplace_back(dbg_workspace);
+    (void)dbg_op.workspace_list.emplace_back(dbg_workspace);
   }
   return SUCCESS;
 }
@@ -327,7 +332,7 @@ Status NanoDbgData::AddDbgBuffer(NanoDbgOpDesc &dbg_op) {
     NanoDbgBufferDesc dbg_buffer = {};
     dbg_buffer.type = toolkit::aicpu::dump::BufferType::L1;
     dbg_buffer.size = kDumpL1FusionOpMByteSize;
-    dbg_op.buffer_list.emplace_back(dbg_buffer);
+    (void)dbg_op.buffer_list.emplace_back(dbg_buffer);
     GELOGI("Generate op buffer success");
     need_generate_op_buffer_ = false;
   }
@@ -348,7 +353,7 @@ Status NanoDbgData::AddDbgMemInfo(const OpDescPtr &op_desc, NanoDbgOpDesc &dbg_o
   dbg_mem.weight_mem_size = static_cast<uint64_t>(std::accumulate(weight_size.begin(), weight_size.end(), 0LL));
   dbg_mem.total_mem_size =
       dbg_mem.input_mem_size + dbg_mem.output_mem_size + dbg_mem.workspace_mem_size + dbg_mem.weight_mem_size;
-  dbg_op.mem_info_list.emplace_back(dbg_mem);
+  (void)dbg_op.mem_info_list.emplace_back(dbg_mem);
   return SUCCESS;
 }
 
@@ -383,15 +388,15 @@ void NanoDbgData::GenMemType(const int64_t id, const ge::NodePtr &node) {
   }
   size = node->GetAllOutDataAnchorsSize();
   for (size_t i = 0UL; i < size; i++) {
-    const auto out_anchor = node->GetOutDataAnchor(i);
-    const auto output_desc_ptr = op_desc->GetOutputDescPtr(i);
+    const auto out_anchor = node->GetOutDataAnchor(static_cast<int32_t>(i));
+    const auto output_desc_ptr = op_desc->GetOutputDescPtr(static_cast<uint32_t>(i));
     if ((out_anchor != nullptr) && (output_desc_ptr != nullptr)) {
-      if (out_anchor->GetPeerInDataAnchors().empty()) {
+      if (out_anchor->GetPeerInDataAnchorsPtr().empty()) {
         GELOGD("GenMemType for node[%s], id[%d], size[%zu] output index[%zu] suspended", node->GetName().c_str(), id, size, i);
         output_mem_types_[id].push_back(-1);
         continue;
       }
-      for (const auto &in_anchor : out_anchor->GetPeerInDataAnchors()) {
+      for (const auto &in_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
         if (in_anchor == nullptr) {
           continue;
         }

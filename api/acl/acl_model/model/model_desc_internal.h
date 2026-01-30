@@ -125,12 +125,9 @@ struct aclmdlDataset {
 };
 
 struct aclmdlAIPP {
-    aclmdlAIPP()
-        : batchSize(0U) {}
-    ~aclmdlAIPP() = default;
-    uint64_t batchSize;
+    uint64_t batchSize = 0U;
     std::vector<kAippDynamicBatchPara> aippBatchPara;
-    kAippDynamicPara aippParms;
+    kAippDynamicPara aippParms{};
 };
 
 struct aclAippExtendInfo {

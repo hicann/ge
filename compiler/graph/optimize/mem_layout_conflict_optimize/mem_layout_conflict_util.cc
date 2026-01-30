@@ -899,6 +899,38 @@ std::vector<OutDataAnchorPtr> MemLayoutConflictUtil::GetAllRealInPeer(const Node
   }
   return peer_out_anchors;
 };
+
+/*
+ *  PhonyConcat 的所有输入是同一个anchor
+ *              data
+ *               /\
+ *  assign_slice0 assign_slice1 (inplace)
+ *             \   /
+ *          PhonyConcat
+ */
+bool MemLayoutConflictUtil::AllRealInputsAreTheSameOutAnchor(const NodePtr &node) {
+  GE_ASSERT_NOTNULL(node);
+  const auto real_peer_out_anchors = MemLayoutConflictUtil::GetAllRealInPeer(node);
+  if (real_peer_out_anchors.empty()) {
+    return false;
+  }
+  OutDataAnchor *first_anchor = nullptr;
+  bool only_one_out_anchor = true;
+  for (const auto &real_peer_out_anchor : real_peer_out_anchors) {
+    if (first_anchor == nullptr) {
+      first_anchor = real_peer_out_anchor.get();
+    } else if (first_anchor != real_peer_out_anchor.get()) {
+      only_one_out_anchor = false;
+      break;
+    }
+  }
+  if (only_one_out_anchor) {
+    GELOGI("[MemConflict] node[%s][%s] all real inputs are the same anchor[%s]", node->GetNamePtr(), node->GetTypePtr(),
+      CheckerLog::ToStr(real_peer_out_anchors[0U]).c_str());
+    return true;
+  }
+  return false;
+}
 /*
  * 1 anchor1, anchor2, anchorN代表任意节点的anchor，结尾数字相同表示是同一个anchor。
  * 2 node_a连续输出， 和node_b需要连续输入

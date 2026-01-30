@@ -236,6 +236,7 @@ class AiCoreTaskDefBuilder {
     op_desc->SetOpKernelLibName("AIcoreEngine");
 
     AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_kernel_bin_id");
     std::vector<char> atomic_kernel(128);
     std::vector<char> relu_kernel(256);
     op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, std::make_shared<OpKernelBin>("relu_xxx", std::move(relu_kernel)));

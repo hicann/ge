@@ -16,6 +16,7 @@ add_custom_target(
              ${CMAKE_CURRENT_BINARY_DIR}/op_executor_stub.cpp
              ${CMAKE_CURRENT_BINARY_DIR}/mdl_stub.cpp
 )
+
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cblas_stub.cpp
         ${CMAKE_CURRENT_BINARY_DIR}/op_compiler_stub.cpp
@@ -39,6 +40,7 @@ add_custom_command(
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external/acl
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external/acl
 )
+
 #----------------------------------------------------------------------------------------------------------------#
 ############ stub/libacl_cblas.so ############
 add_library(stub_acl_cblas SHARED
@@ -73,12 +75,14 @@ target_link_libraries(stub_acl_cblas PRIVATE
 add_library(stub_acl_op_compiler SHARED
     ${CMAKE_CURRENT_BINARY_DIR}/op_compiler_stub.cpp
 )
+
 target_include_directories(stub_acl_op_compiler PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external/acl
     ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
 )
+
 target_compile_definitions(stub_acl_op_compiler PRIVATE
     _FORTIFY_SOURCE=2
 )
@@ -100,12 +104,14 @@ target_link_libraries(stub_acl_op_compiler PRIVATE
 add_library(stub_acl_op_executor SHARED
     ${CMAKE_CURRENT_BINARY_DIR}/op_executor_stub.cpp
 )
+
 target_include_directories(stub_acl_op_executor PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external/acl
     ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
 )
+
 target_compile_definitions(stub_acl_op_executor PRIVATE
     _FORTIFY_SOURCE=2
 )
@@ -127,11 +133,17 @@ target_link_libraries(stub_acl_op_executor PRIVATE
 add_library(stub_acl_mdl SHARED
     ${CMAKE_CURRENT_BINARY_DIR}/mdl_stub.cpp
 )
+
 target_include_directories(stub_acl_mdl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external/acl
     ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
+)
+
+target_include_directories(stub_acl_mdl PRIVATE
+    ${CMAKE_CURRENT_LIST_DIR}/../include/external
+    ${CMAKE_CURRENT_LIST_DIR}/../include/external/acl
 )
 target_compile_definitions(stub_acl_mdl PRIVATE
     _FORTIFY_SOURCE=2

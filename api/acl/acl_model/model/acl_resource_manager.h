@@ -22,7 +22,6 @@
 #include "model_desc_internal.h"
 #include "graph/ge_attr_value.h"
 #include "mmpa/mmpa_api.h"
-#include "utils/string_utils.h"
 #include "framework/runtime/mem_allocator.h"
 #include "framework/runtime/model_v2_executor.h"
 #include "framework/runtime/stream_executor.h"
@@ -35,19 +34,18 @@ class ExternalAllocatorDesc {
 public:
     ExternalAllocatorDesc(): obj(nullptr), allocFunc(nullptr), freeFunc(nullptr), allocAdviseFunc(nullptr), getAddrFromBlockFunc(nullptr) {}
     ExternalAllocatorDesc(aclrtAllocator allocator,
-                     aclrtAllocatorAllocFunc allocFunc,
-                     aclrtAllocatorFreeFunc freeFunc,
-                     aclrtAllocatorAllocAdviseFunc allocAdviseFunc,
-                     aclrtAllocatorGetAddrFromBlockFunc getAddrFromBlockFunc)
-    {
-        this->obj = allocator;
-        this->allocFunc = allocFunc;
-        this->freeFunc = freeFunc;
-        this->allocAdviseFunc = allocAdviseFunc;
-        this->getAddrFromBlockFunc = getAddrFromBlockFunc;
-    }
+                     aclrtAllocatorAllocFunc allocFunction,
+                     aclrtAllocatorFreeFunc freeFunction,
+                     aclrtAllocatorAllocAdviseFunc allocAdviseFunction,
+                     aclrtAllocatorGetAddrFromBlockFunc getAddrFromBlockFunction) :
+                     obj(allocator),
+                     allocFunc(allocFunction),
+                     freeFunc(freeFunction),
+                     allocAdviseFunc(allocAdviseFunction),
+                     getAddrFromBlockFunc(getAddrFromBlockFunction) {}
     ~ExternalAllocatorDesc() {}
-    bool operator==(const ExternalAllocatorDesc &allocatorDesc) {
+    bool operator==(const ExternalAllocatorDesc &allocatorDesc) const
+    {
         return obj == allocatorDesc.obj &&
                 allocFunc == allocatorDesc.allocFunc &&
                 freeFunc == allocatorDesc.freeFunc &&
@@ -66,7 +64,7 @@ struct BundleModelInfo {
   std::shared_ptr<gert::RtSession> rtSession;
   size_t varSize = 0U;
   std::string fromFilePath;
-  std::shared_ptr<uint8_t> bundleModelData;
+  std::shared_ptr<const uint8_t> bundleModelData;
   size_t bundleModelSize = 0U;
   std::vector<BundleSubModelInfo> subModelInfos;
   std::vector<uint32_t> loadedSubModelId; // aclmdlBundleGetModelId use this when aclmdlBundleLoadFromxx is called

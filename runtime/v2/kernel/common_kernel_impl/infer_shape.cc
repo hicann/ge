@@ -65,14 +65,73 @@ std::string PrintInputSymbolInfo(const KernelContext *context) {
   GE_ASSERT_NOTNULL(input_symbol_info_func);
   // 使用所有符号的数量预估字符串数量："s1234: 1234,"，每个符号预估长度约12，所以总长度是12乘以符号数量加上一个\0
   size_t size = 12 * all_sym_num + 1;
-  char out_symbol_info[size];
-  if (input_symbol_info_func(context, out_symbol_info, size) != ge::GRAPH_SUCCESS) {
+  std::vector<char> out_symbol_info(size); 
+  if (input_symbol_info_func(context, out_symbol_info.data(), size) != ge::GRAPH_SUCCESS) {
     return "Symbolic infos: Get symbol info failed.";
   }
   if (out_symbol_info[0] == '\0') {
     return "Symbolic infos: no symbol.";
   }
-  return ("Symbolic infos: " + std::string(out_symbol_info));
+  return ("Symbolic infos: " + std::string(out_symbol_info.data()));
+}
+ge::graphStatus InferShapeByRule(KernelContext *context) {
+  const auto ctx = reinterpret_cast<ExtendedKernelContext *>(context);
+  const auto input_num = context->GetInputNum();
+  GE_ASSERT(input_num > 0U);
+  const auto compute_node_info = ctx->GetComputeNodeInfo();
+  GE_ASSERT_NOTNULL(compute_node_info);
+
+  const auto *rule = context->GetInputValue<std::shared_ptr<ge::ShapeInferenceRule> *>(input_num - 1);
+  GE_ASSERT_NOTNULL(rule);
+  GE_ASSERT_NOTNULL(*rule);
+  GE_ASSERT_EQ((*rule)->Error(), "");
+  auto ret = (*rule)->InferOnRuntime(reinterpret_cast<InferShapeContext *>(context));
+  if (ret != ge::GRAPH_SUCCESS) {
+    KLOGE("Failed infer shape for node %s(%s)", ctx->GetNodeName(), ctx->GetNodeType());
+    return ret;
+  }
+  ret = TransformAllOutputsShape(compute_node_info, context);
+  if (ret != ge::GRAPH_SUCCESS) {
+    KLOGE("Failed transfer shape format for node %s(%s)", ctx->GetNodeName(), ctx->GetNodeType());
+    return ret;
+  }
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus LoadShapeRuleFromJson(KernelContext *context) {
+  const auto input_num = context->GetInputNum();
+  GE_ASSERT_EQ(input_num, 1U);
+
+  auto *handle = context->GetOutputPointer<std::shared_ptr<ge::ShapeInferenceRule>>(0);
+  GE_ASSERT_NOTNULL(handle);
+
+  auto *rule_json = context->GetInputValue<const char *>(0);
+  GE_ASSERT_NOTNULL(rule_json);
+  KLOGD("Load shape inference rule from json: %s", rule_json);
+  auto rule = ge::ShapeInferenceRule::FromJsonString(rule_json);
+
+  handle->swap(rule);
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus LoadShapeRuleFromBinary(KernelContext *context) {
+  const auto input_num = context->GetInputNum();
+  GE_ASSERT_EQ(input_num, 3U);
+
+  auto *handle = context->GetOutputPointer<std::shared_ptr<ge::ShapeInferenceRule>>(0);
+  GE_ASSERT_NOTNULL(handle);
+
+  auto *compiled_rule = context->GetInputValue<const uint8_t *>(0);
+  const auto compiled_rule_size = context->GetInputValue<const size_t>(1);
+  GE_ASSERT_NOTNULL(compiled_rule);
+  auto *rule_json = context->GetInputValue<const char *>(2);
+  GE_ASSERT_NOTNULL(rule_json);
+  KLOGD("Load shape inference rule from binary, size %zu of json: %s", compiled_rule_size, rule_json);
+  auto rule = std::make_shared<ge::ShapeInferenceRule>(
+      ge::ShapeInferenceRule::FromCompiledBinary(compiled_rule, compiled_rule_size));
+
+  handle->swap(rule);
+  return ge::GRAPH_SUCCESS;
 }
 } // namespace
 
@@ -221,66 +280,6 @@ ge::graphStatus InferShape(KernelContext *context) {
 
 REGISTER_KERNEL(InferShape).RunFunc(InferShape).OutputsCreator(BuildInferShapeOutputs)
     .TracePrinter(InferShapeKernelTrace);
-
-ge::graphStatus InferShapeByRule(KernelContext *context) {
-  const auto ctx = reinterpret_cast<ExtendedKernelContext *>(context);
-  const auto input_num = context->GetInputNum();
-  GE_ASSERT(input_num > 0U);
-  const auto compute_node_info = ctx->GetComputeNodeInfo();
-  GE_ASSERT_NOTNULL(compute_node_info);
-
-  const auto *rule = context->GetInputValue<std::shared_ptr<ge::ShapeInferenceRule> *>(input_num - 1);
-  GE_ASSERT_NOTNULL(rule);
-  GE_ASSERT_NOTNULL(*rule);
-  GE_ASSERT_EQ((*rule)->Error(), "");
-  auto ret = (*rule)->InferOnRuntime(reinterpret_cast<InferShapeContext *>(context));
-  if (ret != ge::GRAPH_SUCCESS) {
-    KLOGE("Failed infer shape for node %s(%s)", ctx->GetNodeName(), ctx->GetNodeType());
-    return ret;
-  }
-  ret = TransformAllOutputsShape(compute_node_info, context);
-  if (ret != ge::GRAPH_SUCCESS) {
-    KLOGE("Failed transfer shape format for node %s(%s)", ctx->GetNodeName(), ctx->GetNodeType());
-    return ret;
-  }
-  return ge::GRAPH_SUCCESS;
-}
-
-ge::graphStatus LoadShapeRuleFromBinary(KernelContext *context) {
-  const auto input_num = context->GetInputNum();
-  GE_ASSERT_EQ(input_num, 3U);
-
-  auto *handle = context->GetOutputPointer<std::shared_ptr<ge::ShapeInferenceRule>>(0);
-  GE_ASSERT_NOTNULL(handle);
-
-  auto *compiled_rule = context->GetInputValue<const uint8_t *>(0);
-  const auto compiled_rule_size = context->GetInputValue<const size_t>(1);
-  GE_ASSERT_NOTNULL(compiled_rule);
-  auto *rule_json = context->GetInputValue<const char *>(2);
-  GE_ASSERT_NOTNULL(rule_json);
-  KLOGD("Load shape inference rule from binary, size %zu of json: %s", compiled_rule_size, rule_json);
-  auto rule = std::make_shared<ge::ShapeInferenceRule>(
-      ge::ShapeInferenceRule::FromCompiledBinary(compiled_rule, compiled_rule_size));
-
-  handle->swap(rule);
-  return ge::GRAPH_SUCCESS;
-}
-
-ge::graphStatus LoadShapeRuleFromJson(KernelContext *context) {
-  const auto input_num = context->GetInputNum();
-  GE_ASSERT_EQ(input_num, 1U);
-
-  auto *handle = context->GetOutputPointer<std::shared_ptr<ge::ShapeInferenceRule>>(0);
-  GE_ASSERT_NOTNULL(handle);
-
-  auto *rule_json = context->GetInputValue<const char *>(0);
-  GE_ASSERT_NOTNULL(rule_json);
-  KLOGD("Load shape inference rule from json: %s", rule_json);
-  auto rule = ge::ShapeInferenceRule::FromJsonString(rule_json);
-
-  handle->swap(rule);
-  return ge::GRAPH_SUCCESS;
-}
 
 inline ge::graphStatus BuildLoadShapeRuleOutputs(const ge::FastNode *node, KernelContext *context) {
   static_cast<void>(node);

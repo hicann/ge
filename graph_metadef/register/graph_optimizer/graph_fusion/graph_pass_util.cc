@@ -10,7 +10,7 @@
 
 #include "register/graph_optimizer/fusion_common/graph_pass_util.h"
 #include <set>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "register/graph_optimizer/fusion_common/fusion_turbo_utils.h"
 #include "mmpa/mmpa_api.h"
 

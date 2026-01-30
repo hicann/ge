@@ -10,7 +10,7 @@
 
 #include "register/hidden_input_func_registry.h"
 #include <iostream>
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 namespace ge {
 GetHiddenAddr HiddenInputFuncRegistry::FindHiddenInputFunc(const HiddenInputType input_type) {
   const auto &iter = type_to_funcs_.find(input_type);

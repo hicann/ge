@@ -11,8 +11,6 @@
 #ifndef GRAPHENGINE_TESTS_UT_GE_RUNTIME_DEPLOY_STUB_MODELS_H_
 #define GRAPHENGINE_TESTS_UT_GE_RUNTIME_DEPLOY_STUB_MODELS_H_
 
-#include <gtest/gtest.h>
-
 #include "ge/ge_ir_build.h"
 #include "graph/compute_graph.h"
 #include "common/model/ge_root_model.h"
@@ -90,6 +88,7 @@ class StubModels {
   static GeRootModelPtr BuildGeRootModel(ComputeGraphPtr root_graph);
   static PneModelPtr BuildRootModel(ComputeGraphPtr root_graph, bool pipeline_partitioned = true);
   static FlowModelPtr BuildFlowModel(ComputeGraphPtr root_graph, bool pipeline_partitioned = true);
+  static Status SaveGeRootModelToModelData(const GeRootModelPtr &ge_root_model, ModelData &model_data, ModelBufferData &model_buffer_data);
 
   static void BuildModel(Graph &graph, ModelBufferData &model_buffer_data);
 

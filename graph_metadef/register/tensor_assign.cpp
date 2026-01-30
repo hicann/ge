@@ -13,7 +13,7 @@
 #include <map>
 #include <memory>
 #include "securec.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"

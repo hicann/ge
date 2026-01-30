@@ -28,6 +28,7 @@
 #include "common/checker.h"
 #include "debug/ge_op_types.h"
 #include "mmpa/mmpa_api.h"
+#include "graph/custom_op_factory.h"
 
 namespace ge {
 namespace {
@@ -49,6 +50,29 @@ bool EnableIgnoreInferError() {
   std::string env_str_value = std::string(env_value);
   GELOGI("Got value of env[IGNORE_INFER_ERROR] is [%s].", env_str_value.c_str());
   return !env_str_value.empty();
+}
+graphStatus InferCustomOpShape(const OpDescPtr &op_desc) {
+  GE_ASSERT_NOTNULL(op_desc);
+  GELOGI("[%s][%s] Infer Custom op shape.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+  for (size_t index = 0UL; index < op_desc->GetOutputsSize(); index++) {
+    auto output_tensor = op_desc->MutableOutputDesc(index);
+    GE_ASSERT_NOTNULL(output_tensor);
+    if (output_tensor->IsOriginShapeInitialized()) {
+      // 继承框架的Shape
+      output_tensor->SetShape(output_tensor->GetOriginShape());
+      output_tensor->SetDataType(output_tensor->GetOriginDataType());
+      output_tensor->SetFormat(output_tensor->GetOriginFormat());
+    } else {
+      // 否则刷新shape为-2, 此处后续可以调用用户注册的datatype推导函数推到datatype
+      output_tensor->SetShape(GeShape(UNKNOWN_RANK));
+      output_tensor->SetOriginShape(GeShape(UNKNOWN_RANK));
+      output_tensor->SetDataType(DT_UNDEFINED);
+      output_tensor->SetOriginDataType(DT_UNDEFINED);
+      output_tensor->SetFormat(FORMAT_ND);
+      output_tensor->SetOriginFormat(FORMAT_ND);
+    }
+  }
+  return GRAPH_SUCCESS;
 }
 }
 
@@ -124,6 +148,8 @@ graphStatus OpDescUtilsEx::CallInferFunc(const OpDescPtr &op_desc, Operator &op)
     // 这里暂时为了v1动态shape执行时保留该错误码，后续整改
     GELOGD("Node %s(%s) no io or no prototype so does not need infer.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
     ret = GRAPH_PARAM_INVALID;
+  } else if (CustomOpFactory::IsExistOp(op_desc->GetTypePtr())) {
+    ret = InferCustomOpShape(op_desc);
   } else {
     // priority of use infer func v1
     // when v2 func is ready, remove v1 func, it will automatically follow the V2 process

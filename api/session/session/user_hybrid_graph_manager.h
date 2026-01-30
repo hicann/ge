@@ -32,10 +32,13 @@ class UserHybridGraphManager {
  public:
   explicit UserHybridGraphManager(UserGraphsManager &user_graph_manager) : user_graph_manager_(user_graph_manager) {}
   Status AddGraph(uint32_t user_graph_id, const Graph &graph, const std::map<std::string, std::string> &options);
-  Status BuildGraph(uint32_t user_graph_id, const std::vector<ge::Tensor> &inputs);
-  Status RunGraphAsync(uint32_t user_graph_id, const std::vector<Tensor> &inputs, const RunAsyncCallback &callback);
+  Status BuildGraph(uint32_t user_graph_id, const std::vector<GeTensor> &inputs, uint64_t session_id);
+  Status RunGraphAsync(uint32_t user_graph_id, std::vector<gert::Tensor> &&inputs, uint64_t session_id,
+      const RunAsyncCallbackV2 &callback);
   Status RemoveGraph(uint32_t user_graph_id);
   bool IsGraphNeedRebuild(uint32_t user_graph_id);
+  Status GetCompiledFlag(uint32_t user_graph_id, bool &flag);
+  Status SetCompiledFlag(uint32_t user_graph_id, bool flag);
   Status Finalize();
  private:
   bool IsHybridMode(const std::map<std::string, std::string> &options) const;
@@ -46,7 +49,7 @@ class UserHybridGraphManager {
   void SetDynamicGearInfo(const uint32_t graph_id, const HybridDynamicDimsInfo &dynamic_dims_info);
   Status GetDynamicGearInfo(const uint32_t graph_id, HybridDynamicDimsInfo &dynamic_dims_info);
   Status SelectExecuteGraph(const uint32_t dynamic_gear_graph_id, const uint32_t dynamic_shape_graph_id,
-                            const std::vector<Tensor> &inputs, uint32_t &select_graph_id);
+                            const std::vector<gert::Tensor> &inputs, uint32_t &select_graph_id);
 
  private:
   UserGraphsManager &user_graph_manager_;
@@ -56,6 +59,7 @@ class UserHybridGraphManager {
   std::map<uint32_t, HybridDynamicDimsInfo> dynamic_dims_info_map_;
   uint32_t inner_graph_id_cnt_{0U};
 };
+using UserHybridGraphManagerPtr = std::shared_ptr<UserHybridGraphManager>;
 } // ge
 
 #endif  // USER_HYBRID_GRAPH_MANAGER_H

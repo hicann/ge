@@ -15,6 +15,8 @@
 #include "ge/ge_allocator.h"
 #include "exe_graph/runtime/gert_mem_block.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
+#include "exe_graph/runtime/gert_tensor_data.h"
+
 namespace gert {
 class GertMemBlockFaker : public GertMemBlock {
   public:
@@ -27,8 +29,17 @@ class GertMemBlockFaker : public GertMemBlock {
     addr_ = nullptr;
   }
   void *GetAddr() override { return addr_; }
+
+  void AddCount() {
+    use_count_++;
+  }
+
   private:
   void *addr_;
+  size_t use_count_=0u;
+};
+class GertTensorDataFaker : public GertTensorData {
+
 };
 class AllocatorFaker : public GertAllocator {
  public:
@@ -37,9 +48,8 @@ class AllocatorFaker : public GertAllocator {
   GertMemBlock *Malloc(size_t size) override;
   void Free(GertMemBlock *block) override;
 
-  GertTensorData MallocTensorData(size_t size) override {
-    return GertTensorData();
-  }
+  GertTensorData MallocTensorData(size_t size) override;
+
   TensorData MallocTensorDataFromL1(size_t size) override {
     return TensorData();
   }

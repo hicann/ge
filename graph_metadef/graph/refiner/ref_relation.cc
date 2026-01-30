@@ -16,10 +16,11 @@
 
 #include "common/util/mem_utils.h"
 #include "common/checker.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "debug/ge_op_types.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/def_types.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -190,7 +191,7 @@ graphStatus RefRelations::Impl::BuildRefRelationsForWhile(
   if (netoutput == nullptr) {
     return GRAPH_SUCCESS;
   }
-  for (const auto &in_anchor : netoutput->GetAllInDataAnchors()) {
+  for (const auto &in_anchor : netoutput->GetAllInDataAnchorsPtr()) {
     const auto peer_out_data_anchor = in_anchor->GetPeerOutAnchor();
     if (peer_out_data_anchor == nullptr) {
       continue;
@@ -330,7 +331,7 @@ graphStatus RefRelations::Impl::ProcessSubgraphNetoutput(
     const auto op_desc = sub_netoutput_node->GetOpDesc();
     GE_CHECK_NOTNULL(op_desc);
 
-    for (const auto &in_data_anchor : sub_netoutput_node->GetAllInDataAnchors()) {
+    for (const auto &in_data_anchor : sub_netoutput_node->GetAllInDataAnchorsPtr()) {
       const auto in_desc = op_desc->MutableInputDesc(static_cast<uint32_t>(in_data_anchor->GetIdx()));
       if (in_desc == nullptr) {
         REPORT_INNER_ERR_MSG("E18888", "Invalid NetOutput node [%s] idx [%d], no tensor on it",
@@ -357,7 +358,7 @@ graphStatus RefRelations::Impl::ProcessSubgraphNetoutput(
     const auto op_desc = sub_netoutput_node->GetOpDesc();
     GE_CHECK_NOTNULL(op_desc);
 
-    for (const auto &in_data_anchor : sub_netoutput_node->GetAllInDataAnchors()) {
+    for (const auto &in_data_anchor : sub_netoutput_node->GetAllInDataAnchorsPtr()) {
       const auto in_desc = op_desc->MutableInputDesc(static_cast<uint32_t>(in_data_anchor->GetIdx()));
       int32_t ref_o;
       if (AttrUtils::GetInt(in_desc, kRefIdx, ref_o)) {

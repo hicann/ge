@@ -9,7 +9,7 @@
  */
 
 #include "platform_context.h"
-#include "runtime/dev.h"
+#include "runtime/base.h"
 #include "common/checker.h"
 
 namespace {
@@ -27,8 +27,8 @@ ge::Status PlatformContext::Initialize() {
     return ge::SUCCESS;
   }
   char soc_version[kSocStrMaxLen] = {};
-  auto res = rtGetSocVersion(soc_version, kSocStrMaxLen);
-  GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get soc version str.");
+  auto res = rtGetSocSpec("version", "NpuArch", soc_version, kSocStrMaxLen);
+  GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");
   GELOGD("Init platform context under [%s].", soc_version);
   current_platform_.name = std::string(soc_version);
   initialized_ = true;

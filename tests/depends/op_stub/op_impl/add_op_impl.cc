@@ -29,6 +29,7 @@ ge::graphStatus InferShapeForAdd(InferShapeContext *context) {
   auto output_shape = context->GetOutputShape(0);
   if (input_shape_0.GetDimNum() != input_shape_1.GetDimNum()) {
     auto min_num = std::min(input_shape_0.GetDimNum(), input_shape_1.GetDimNum());
+    auto max_num = std::max(input_shape_0.GetDimNum(), input_shape_1.GetDimNum());
     if (min_num != 1) {
       GELOGE(ge::PARAM_INVALID, "Add param invalid, input_shape_0.GetDimNum() is %zu,  input_shape_1.GetDimNum() is %zu",
              input_shape_0.GetDimNum(), input_shape_1.GetDimNum());

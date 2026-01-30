@@ -22,7 +22,7 @@ namespace ge {
 class ModelDataInfo : public AttrHolder {
  public:
   ModelDataInfo() = default;
-  ~ModelDataInfo() = default;
+  ~ModelDataInfo() override = default;
   ModelDataInfo(const ModelDataInfo &) = delete;
   ModelDataInfo &operator=(const ModelDataInfo &) = delete;
   size_t GetGraphMemorySize() const { return graph_memory_size_; }

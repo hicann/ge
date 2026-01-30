@@ -159,7 +159,6 @@ class AutofuseNodeUT : public bg::BgTestAutoCreate3StageFrame {
 };
 
 TEST_F(AutofuseNodeUT, autofuse_convert_test) {
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   auto graph = BuildAutofuseGraph();
   auto root_model = GeModelBuilder(graph).BuildGeRootModel();
   auto global_data = GlobalDataFaker(root_model).FakeWithHandleAiCore("AscBackend", false).Build();
@@ -195,7 +194,6 @@ TEST_F(AutofuseNodeUT, autofuse_convert_test) {
   ASSERT_EQ(autofuse_ret.order_holders.size(), 1);
 
   // cacheable tiling cache
-  setenv("ENABLE_TILING_CACHE", "1", 1);
   auto fused_graph_node1 = graph->FindNode("fused_graph1");
   autofuse_ret = LoweringAutofuseNode(fused_graph_node1, add_input);
   ASSERT_TRUE(autofuse_ret.result.IsSuccess());
@@ -232,16 +230,15 @@ TEST_F(AutofuseNodeUT, autofuse_convert_test) {
       tiling_parse_node++;
     }
   }
-  // 两个asc节点一个开起来缓存，一个未开，两个节点infershapekey相同可以merge，所以lowring后以下节点个数都是1个
-  ASSERT_EQ(sym_tiling_node, 1);
-  ASSERT_EQ(cacheable_sym_tiling_node, 1);
-  ASSERT_EQ(pre_tiling_cache_node, 1);
-  ASSERT_EQ(get_tiling_cache_key_node, 1);
-  ASSERT_EQ(infer_shape_node, 1);
-  ASSERT_EQ(tiling_parse_node, 2);
+  // 两个asc节点一个开起来缓存，两个节点infershapekey相同可以merge
+  EXPECT_EQ(sym_tiling_node, 0);
+  EXPECT_EQ(cacheable_sym_tiling_node, 2);
+  EXPECT_EQ(pre_tiling_cache_node, 2);
+  EXPECT_EQ(get_tiling_cache_key_node, 2);
+  EXPECT_EQ(infer_shape_node, 1);
+  EXPECT_EQ(tiling_parse_node, 2);
   DumpGraph(execute_graph.get(), "GeneralAutofuseExe");
   gert::GlobalDumper::GetInstance()->SetEnableFlags(0UL);
-  unsetenv("ENABLE_TILING_CACHE");
 }
 
 TEST_F(AutofuseNodeUT, symtiling_kernel_test) {
@@ -448,7 +445,6 @@ TEST_F(AutofuseNodeUT, infer_trace_symbol_info_test4) {
 }
 
 TEST_F(AutofuseNodeUT, autofuse_so_offline_test) {
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   auto graph = BuildAutofuseGraph();
   auto fused_graph_node = graph->FindNode("fused_graph");
   auto op_desc = fused_graph_node->GetOpDesc();
@@ -511,13 +507,11 @@ TEST_F(AutofuseNodeUT, autofuse_so_offline_test) {
   auto context = context_holder.GetKernelContext();
   ASSERT_EQ(kernel::GetAutofuseFuncsKernel(context), GRAPH_SUCCESS);
 
-  unsetenv("ENABLE_TILING_CACHE");
   (void)ge::AttrUtils::SetStr(fused_graph_node->GetOpDesc(), "bin_file_path", autofuse_stub_so);
   graph->DelExtAttr("bin_file_buffer");
 }
 
 TEST_F(AutofuseNodeUT, autofuse_so_offline_no_bin_file_path_test) {
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   auto graph = ShareGraph::AutoFuseNodeGraph();
   (void)ge::AttrUtils::SetInt(graph, "_all_symbol_num", 8);
   auto fused_graph_node = graph->FindNode("fused_graph");
@@ -549,12 +543,10 @@ TEST_F(AutofuseNodeUT, autofuse_so_offline_no_bin_file_path_test) {
   auto autofuse_ret = LoweringAutofuseNode(fused_graph_node, add_input);
   ASSERT_FALSE(autofuse_ret.result.IsSuccess());
 
-  unsetenv("ENABLE_TILING_CACHE");
   graph->DelExtAttr("bin_file_buffer");
 }
 
 TEST_F(AutofuseNodeUT, autofuse_so_offline_no_bin_file_buffer_test) {
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   auto graph = BuildAutofuseGraph();
   auto fused_graph_node = graph->FindNode("fused_graph");
   auto op_desc = fused_graph_node->GetOpDesc();
@@ -609,7 +601,6 @@ TEST_F(AutofuseNodeUT, autofuse_so_offline_no_bin_file_buffer_test) {
   auto autofuse_ret = LoweringAutofuseNode(fused_graph_node, add_input);
   ASSERT_FALSE(autofuse_ret.result.IsSuccess());
 
-  unsetenv("ENABLE_TILING_CACHE");
   graph->DelExtAttr("bin_file_buffer");
 }
 }

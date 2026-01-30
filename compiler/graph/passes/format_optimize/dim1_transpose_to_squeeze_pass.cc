@@ -86,7 +86,7 @@ Status Dim1TransposeToSqueezePass::Run(NodePtr &node) {
 
 OpDescPtr Dim1TransposeToSqueezePass::CreateOpDescPtr(const NodePtr &node, const string &op_type,
                                                       const GeTensorDesc &input_desc_x, const GeTensorDesc &output_desc,
-                                                      const std::vector<int64_t> &axis_value_vec) {
+                                                      const std::vector<int64_t> &axis_value_vec) const {
   const auto compute_graph = node->GetOwnerComputeGraph();
   const string origin_node_name = node->GetName();
   GE_ASSERT_NOTNULL(compute_graph);
@@ -226,7 +226,7 @@ bool Dim1TransposeToSqueezePass::IsUselessTransposeBySymbolicShape(const GeTenso
 Status Dim1TransposeToSqueezePass::SetShapeForSymbolic(const GeTensorDescPtr &input_x_desc,
                                                        const std::vector<int64_t> &shape_index,
                                                        const GeTensorDescPtr &tensor,
-                                                       std::vector<int64_t> &squeeze_output_shape) {
+                                                       std::vector<int64_t> &squeeze_output_shape) const {
   const auto attr = input_x_desc->GetAttrsGroup<SymbolicDescAttr>();
   GE_ASSERT_NOTNULL(attr);
   const auto data_symbol_shape = attr->symbolic_tensor.GetOriginSymbolShape();
@@ -248,7 +248,7 @@ bool IsAllMinusOne(const std::vector<int64_t> &dims) {
   });
 }
 
-bool Dim1TransposeToSqueezePass::ShouldIgnoreOp(const NodePtr &node) {
+bool Dim1TransposeToSqueezePass::ShouldIgnoreOp(const NodePtr &node) const {
   // 非transpose/transposeD算子，不作处理 或
   // nano芯片上会拦截消除transpose后输入直接送给输出（无task）的场景，因此对于nano芯片暂时不做该PASS
   int64_t block_size = GetBlockSize();
@@ -283,7 +283,7 @@ bool Dim1TransposeToSqueezePass::ShouldIgnoreOp(const NodePtr &node) {
   return false;
 }
 
-int64_t Dim1TransposeToSqueezePass::GetBlockSize() {
+int64_t Dim1TransposeToSqueezePass::GetBlockSize() const {
   // get ub size for the current device
   fe::PlatformInfo platform_info;
   fe::OptionalInfo opti_compilation_info;

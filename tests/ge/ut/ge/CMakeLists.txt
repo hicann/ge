@@ -136,6 +136,11 @@ set(COMMON_SRC_FILES
     "${AIR_CODE_DIR}/base/common/tbe_handle_store/bin_register_utils.cc"
     "${AIR_CODE_DIR}/base/common/tbe_handle_store/tbe_handle_store.cc"
     "${AIR_CODE_DIR}/base/common/tbe_handle_store/tbe_kernel_store.cc"
+    "${AIR_CODE_DIR}/base/common/kernel_handles_manager/aicore_kernel_handles_manager.cc"
+    "${AIR_CODE_DIR}/base/common/kernel_handles_manager/aicpu_kernel_handles_manager.cc"
+    "${AIR_CODE_DIR}/base/common/kernel_handles_manager/cust_aicpu_kernel_handles_manager.cc"
+    "${AIR_CODE_DIR}/base/common/kernel_handles_manager/kernel_handles_manager.cc"
+    "${AIR_CODE_DIR}/base/common/kernel_handles_manager/kernel_handle_utils.cc"
     "${AIR_CODE_DIR}/base/common/thread_pool.cc"
     "${AIR_CODE_DIR}/base/common/op/transop_util.cc"
     "${AIR_CODE_DIR}/base/common/types.cc"
@@ -414,7 +419,6 @@ set(GRAPH_DAVINCI_MODEL_SRC_FILES
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/cpu_queue_schedule.cc"
     "${AIR_CODE_DIR}/runtime/v1/common/dump/data_dumper.cc"
     "${AIR_CODE_DIR}/runtime/v1/common/runtime_api_wrapper.cc"
-    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/data_inputer.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/davinci_model.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/memory_block_manager.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/reusable_stream_allocator.cc"
@@ -429,12 +433,8 @@ set(GRAPH_DAVINCI_MODEL_SRC_FILES
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/zero_copy_offset.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/tbe_kernel_handle.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/args_format/args_format_utils.cc"
-    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/kernel_handles_manager/aicore_kernel_handles_manager.cc"
-    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/kernel_handles_manager/aicpu_kernel_handles_manager.cc"
-    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/kernel_handles_manager/cust_aicpu_kernel_handles_manager.cc"
-    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/kernel_handles_manager/kernel_handles_manager.cc"
-    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/model_kernel_handles_manager.cc"
-    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/kernel_handles_manager/kernel_handle_utils.cc"
+    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/kernel/model_kernel_handles_manager.cc"
+    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/kernel/kernel_register_info_builder.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/fe/cmo_barrier_task_info.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/fe/cmo_task_info.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/rts/cmo_addr_task_info.cc"
@@ -459,6 +459,7 @@ set(GRAPH_DAVINCI_MODEL_SRC_FILES
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/hccl/hccl_util.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/aicpu/kernel_ex_task_info.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/fe/kernel_task_info.cc"
+    "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/fe/fusion_task_info.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/fe/super_kernel_task_info.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/fe/update_pc_task_info.cc"
     "${AIR_CODE_DIR}/runtime/v1/graph/load/model_manager/task_info/rts/nop_task_info.cc"
@@ -492,11 +493,9 @@ set(GRAPH_BUILD_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/api/session/common/plugin/tbe_plugin_manager.cc"
     "${AIR_CODE_DIR}/api/session/session/inner_session.cc"
     "${AIR_CODE_DIR}/api/session/session/user_hybrid_graph_manager.cc"
-    "${AIR_CODE_DIR}/api/session/session_v2/inner_ge_session.cc"
-    "${AIR_CODE_DIR}/api/session/session_v2/ge_session_impl.cc"
+    "${AIR_CODE_DIR}/api/session/session/ge_session_impl.cc"
     "${AIR_CODE_DIR}/dflow/compiler/session/dflow_session_impl.cc"
     "${AIR_CODE_DIR}/api/session/session/session_manager.cc"
-    "${AIR_CODE_DIR}/api/session/session_v2/ge_session_manager.cc"
     "${AIR_CODE_DIR}/dflow/compiler/session/dflow_session_manager.cc"
     "${AIR_CODE_DIR}/dflow/compiler/pne/process_node_engine_manager.cc"
     "${AIR_CODE_DIR}/base/exec_runtime/execution_runtime_utils.cc"
@@ -551,6 +550,7 @@ set(GRAPH_PASS_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/compiler/graph/passes/format_optimize/transop_without_reshape_fusion_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/format_optimize/transop_nearby_allreduce_fusion_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/standard_optimize/same_transdata_breadth_fusion_pass.cc"
+    "${AIR_CODE_DIR}/compiler/graph/passes/standard_optimize/tensor_move_delete_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/feature/compile_nodes_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/control_flow_and_stream/flow_ctrl_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/feature/parallel_group_pass.cc"
@@ -913,6 +913,7 @@ set(PASS_TEST_FILES
     "graph/passes/stop_gradient_pass_unittest.cc"
     "graph/passes/prevent_gradient_pass_unittest.cc"
     "graph/passes/identity_pass_unittest.cc"
+    "graph/passes/tensor_move_delete_pass_unittest.cc"
     "graph/passes/global_step_insert_pass_unittest.cc"
     "graph/passes/placeholder_with_default_pass_unittest.cc"
     "graph/passes/snapshot_pass_unittest.cc"
@@ -1151,6 +1152,7 @@ set(MULTI_PARTS_TEST_FILES
     "common/platform_info_util_unittest.cc"
     "common/dnnengines_unittest.cc"
     "common/engine_manage_unittest.cc"
+    "graph_ir/ge_custom_op_factory_unittest.cc"
     "graph_ir/ge_operator_factory_unittest.cc"
     "graph_ir/ge_ir_build_unittest.cc"
     "graph/transop_util_unittest.cc"
@@ -1214,8 +1216,6 @@ set(MULTI_PARTS_TEST_FILES
     "session/session_manager_unittest.cc"
     "session_v2/ge_api_v2_unittest.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/checker/tensor_check_utils.cc"
-    "session_v2/inner_ge_session_unittest.cc"
-    "session_v2/ge_session_manager_unittest.cc"
     "common/error_tracking_unittest.cc")
 
 set(GE_OPT_INFO_TEST_FILES
@@ -1286,6 +1286,7 @@ set(LABEL_MAKER_TEST_FILES
 
 set(MANUAL_TEST_FILES
     "graph/build/memory_assigner_manual_test.cc"
+    "${AIR_CODE_DIR}/tests/autofuse/ut/autofuse/fusion_strategy_solver_manual_test.cpp"
 )
 
 set(SYMBOL_SHAPE_INFER_FILE
@@ -1637,9 +1638,6 @@ target_compile_options(ut_libge_multiparts_utest PRIVATE ${AIR_COMMON_COMPILE_OP
 
 target_compile_definitions(ut_libge_multiparts_utest PRIVATE
     google=ascend_private
-    FILE_SESSION_PATH="${CMAKE_CURRENT_SOURCE_DIR}/session/"
-    FILE_SESSION_V2_PATH="${CMAKE_CURRENT_SOURCE_DIR}/session_v2/"
-    FILE_GRAPHIR_PATH="${CMAKE_CURRENT_SOURCE_DIR}/graph_ir/"
 )
 
 target_include_directories(ut_libge_multiparts_utest PRIVATE
@@ -1671,7 +1669,7 @@ target_link_libraries(ut_libge_multiparts_utest
 set_target_properties(ut_libge_multiparts_utest PROPERTIES CXX_STANDARD 17)
 
 add_test(NAME ut_libge_multiparts_utest COMMAND ut_libge_multiparts_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_multiparts_utest.xml)
-set_tests_properties(ut_libge_multiparts_utest PROPERTIES LABELS "ut;ge_common;ut_libge_multiparts_utest")
+set_tests_properties(ut_libge_multiparts_utest PROPERTIES LABELS "ut;ge_common;ut_libge_multiparts_utest" DEPENDS ut_libge_others_utest)
 
 # ut_libge_symbol_infer_utest
 add_executable(ut_libge_symbol_infer_utest
@@ -1716,7 +1714,7 @@ target_link_libraries(ut_libge_symbol_infer_utest
 )
 
 add_test(NAME ut_libge_symbol_infer_utest COMMAND ut_libge_symbol_infer_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_symbol_infer_utest.xml)
-set_tests_properties(ut_libge_symbol_infer_utest PROPERTIES LABELS "ut;ge_common;ut_libge_symbol_infer_utest")
+set_tests_properties(ut_libge_symbol_infer_utest PROPERTIES LABELS "ut;ge_common;ut_libge_symbol_infer_utest" DEPENDS ut_libge_multiparts_utest)
 
 # libge_common_utest
 add_executable(ut_libge_common_utest
@@ -1736,7 +1734,6 @@ target_compile_definitions(ut_libge_common_utest PRIVATE
     google=ascend_private
     AIR_CODE_DIR=\"${AIR_CODE_DIR}\"
     CMAKE_BINARY_DIR=\"${CMAKE_BINARY_DIR}\"
-    FILE_COMMON_PATH="${CMAKE_CURRENT_SOURCE_DIR}/common/"
 )
 
 target_link_options(ut_libge_common_utest PRIVATE
@@ -1816,7 +1813,7 @@ target_link_libraries(ut_libge_others_utest
 )
 
 add_test(NAME ut_libge_others_utest COMMAND ut_libge_others_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_others_utest.xml)
-set_tests_properties(ut_libge_others_utest PROPERTIES LABELS "ut;ge_common;ut_libge_others_utest"  DEPENDS ut_libge_distinct_load_utest)
+set_tests_properties(ut_libge_others_utest PROPERTIES LABELS "ut;ge_common;ut_libge_others_utest" DEPENDS ut_libge_distinct_load_utest)
 
 # libge_label_maker_utest
 add_executable(ut_libge_label_maker_utest
@@ -1915,8 +1912,6 @@ target_compile_options(ut_libge_distinct_load_utest PRIVATE ${AIR_COMMON_COMPILE
 target_compile_definitions(ut_libge_distinct_load_utest PRIVATE
     google=ascend_private
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
-    FILE_GRAPH_LOAD_PATH="${CMAKE_CURRENT_SOURCE_DIR}/graph/load/"
-    FILE_GENERATOR_PATH="${CMAKE_CURRENT_SOURCE_DIR}/generator/"
 )
 
 target_include_directories(ut_libge_distinct_load_utest PRIVATE
@@ -2001,6 +1996,7 @@ target_link_libraries(ge_manual_test
         -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
         )
 
+
 file(GLOB_RECURSE JIT_EXECUTION_TEST_FILES CONFIGURE_DEPENDS "${AIR_CODE_DIR}/tests/ge/ut/ge/jit_execution/*.cc")
 file(GLOB_RECURSE JIT_EXECUTION_UTIL_SRC_FILES CONFIGURE_DEPENDS "graph/passes/graph_builder_utils.cc")
 
@@ -2010,6 +2006,7 @@ add_executable(ut_jit_execution
         ${JIT_EXECUTION_TEST_FILES}
         ${JIT_EXECUTION_UTIL_SRC_FILES}
         "${SYMBOL_SHAPE_INFER_FUNCS_SRCS}"
+        "${AIR_CODE_DIR}/tests/graph_metadef/depends/checker/tensor_check_utils.cc"
         )
 
 target_compile_options(ut_jit_execution PRIVATE ${AIR_COMMON_COMPILE_OPTION}
@@ -2057,7 +2054,7 @@ target_link_options(ut_jit_execution PRIVATE
         )
 
 add_test(NAME ut_jit_execution COMMAND ut_jit_execution --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_jit_execution.xml)
-set_tests_properties(ut_jit_execution PROPERTIES LABELS "ut;ge_common")
+set_tests_properties(ut_jit_execution PROPERTIES LABELS "ut;ge_common" DEPENDS ut_libge_multiparts_utest)
 add_test(NAME ut_jit_execution_st COMMAND ut_jit_execution --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_jit_execution.xml)
 set_tests_properties(ut_jit_execution_st PROPERTIES LABELS "st;st_hetero")
 
@@ -2095,7 +2092,7 @@ target_link_libraries(ut_eager_style_builder
         )
 
 add_test(NAME ut_eager_style_builder COMMAND ut_eager_style_builder --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_eager_style_builder.xml)
-set_tests_properties(ut_eager_style_builder PROPERTIES LABELS "ut;ge_common")
+set_tests_properties(ut_eager_style_builder PROPERTIES LABELS "ut;ge_common" DEPENDS ut_libge_multiparts_utest)
 add_test(NAME ut_eager_style_builder_st COMMAND ut_eager_style_builder --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_eager_style_builder.xml)
 set_tests_properties(ut_eager_style_builder_st PROPERTIES LABELS "st;st_hetero")
 

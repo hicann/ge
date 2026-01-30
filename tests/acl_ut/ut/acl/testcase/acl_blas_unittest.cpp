@@ -228,4 +228,10 @@ TEST_F(UTEST_ACL_BlasApiTest, TestGemmEx)
                             matrixB, -1, ACL_INT8, betaHalf,
                             matrixC, -1, ACL_FLOAT16, ACL_COMPUTE_HIGH_PRECISION, stream),
             ACL_ERROR_OP_NOT_FOUND);
+
+    ASSERT_EQ(aclblasGemmEx(ACL_TRANS_NZ_T, ACL_TRANS_N, ACL_TRANS_N, m, n, k,
+                            alphaHalf, matrixA, -1, ACL_FLOAT16,
+                            matrixB, -1, ACL_FLOAT16, betaHalf,
+                            matrixC, -1, ACL_FLOAT16, ACL_COMPUTE_HIGH_PRECISION, stream),
+              ACL_ERROR_INVALID_PARAM);
 }

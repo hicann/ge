@@ -9,7 +9,7 @@
  */
 
 #include "graph/fast_graph/execute_graph.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/ge_common/ge_types.h"
 #include "fast_graph/fast_graph_impl.h"
 #include "graph/utils/fast_node_utils.h"

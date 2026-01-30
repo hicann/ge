@@ -102,7 +102,7 @@ class StreamAllocationSummary::StreamAllocationSummaryImpl {
   Status CollectStreamInfosFromUnKnownGraph(const ComputeGraphPtr graph,
                                             std::vector<LogicalStreamAllocationInfo> &logical_stream_infos);
   Status CollectCustomStreamInfo(const ComputeGraphPtr graph,
-                                 std::map<int64_t, LogicalStreamAllocationInfo> &logical_stream_id_to_stream_info);
+                                 std::map<int64_t, LogicalStreamAllocationInfo> &logical_stream_id_to_stream_info) const;
 
  private:
   std::map<AscendString, AscendString> graph_to_stream_graph_;

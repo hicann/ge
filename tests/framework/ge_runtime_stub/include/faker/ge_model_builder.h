@@ -57,6 +57,7 @@ struct GeModelBuilder{
   ge::GeRootModelPtr BuildGeRootModel();
   ModelResult BuildDetail();
   void AddCustAicpuKernelStore(const std::string &name);
+  void AddTbeKernelStore();
 
  private:
   void BuildCommon();
@@ -65,7 +66,7 @@ struct GeModelBuilder{
   void SetTaskDef(TaskDefFaker& task_def, int64_t node_id);
   void FakeTbeBinToNodes();
   ge::TBEKernelStore BuildKernelStoreFromNodes() const;
-  void AddTbeKernelStore();
+  ge::CustAICPUKernelStore BuildCustAicpuKernelStoreFromNodes() const;
   void AddTbeKernelStoreFromNodes();
 
  private:

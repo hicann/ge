@@ -34,7 +34,9 @@ using namespace acl;
 
 class OpModelParserTest : public testing::Test {
 protected:
-    void SetUp() {}
+    void SetUp() {
+        MockFunctionTest::aclStubInstance().ResetToDefaultMock();
+    }
     void TearDown() {
         Mock::VerifyAndClear((void *)(&MockFunctionTest::aclStubInstance()));
     }
@@ -113,6 +115,14 @@ bool GetBool_invoke(ge::AttrUtils::ConstAttrHolderAdapter obj, const string &nam
     return true;
 }
 
+bool GetBool_invoke1(ge::AttrUtils::ConstAttrHolderAdapter obj, const string &name, bool &value)
+{
+    (void) obj;
+    (void) name;
+    value = true;
+    return true;
+}
+
 TEST_F(OpModelParserTest, TestToModelConfig)
 {
     OpModelDef opModelDef;
@@ -120,7 +130,7 @@ TEST_F(OpModelParserTest, TestToModelConfig)
     ASSERT_EQ(OpModelParser::ToModelConfig(geModel, opModelDef), ACL_ERROR_MODEL_MISSING_ATTR);
 }
 
-TEST_F(OpModelParserTest, ParseGeTensorDescTest)
+TEST_F(OpModelParserTest, ParseGeTensorDescTest1)
 {
     vector<ge::GeTensorDesc> geTensorDescList;
     vector<aclTensorDesc> output;
@@ -130,6 +140,27 @@ TEST_F(OpModelParserTest, ParseGeTensorDescTest)
 
     ge::GeTensorDesc desc;
     geTensorDescList.emplace_back(desc);
+    OpModelParser::ParseGeTensorDesc(geTensorDescList, output, opName);
+    EXPECT_EQ(output.size(), 1);
+    opName = "Add";
+    EXPECT_EQ(OpModelParser::ParseGeTensorDesc(geTensorDescList, output, opName), ACL_SUCCESS);
+}
+
+TEST_F(OpModelParserTest, ParseGeTensorDescTest2)
+{
+    vector<ge::GeTensorDesc> geTensorDescList;
+    vector<aclTensorDesc> output;
+    string opName = "TransData";
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), HasAttr(_, _))
+        .WillRepeatedly(Return(true));
+    OpModelParser::ParseGeTensorDesc(geTensorDescList, output, opName);
+    EXPECT_EQ(output.size(), 0);
+
+    ge::GeTensorDesc desc;
+    geTensorDescList.emplace_back(desc);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetBool(_, _, _))
+        .WillOnce(Invoke(GetBool_invoke1))
+        .WillRepeatedly(Return(true));
     OpModelParser::ParseGeTensorDesc(geTensorDescList, output, opName);
     EXPECT_EQ(output.size(), 1);
     opName = "Add";
@@ -152,6 +183,23 @@ TEST_F(OpModelParserTest, TestParseOpAttrsWithSingleOpScene)
     aclopAttr attr;
     OpModelParser::ParseOpAttrs(model, attr);
 }
+
+bool GetInt_invoke(ge::AttrUtils::ConstAttrHolderAdapter obj, const string &name, int32_t& value)
+{
+    (void) obj;
+    (void) name;
+    value = 1;
+    return true;
+}
+
+bool GetListNamedAttrs_invoke(ge::AttrUtils::ConstAttrHolderAdapter obj, const string &name, vector<ge::GeAttrValue::NAMED_ATTRS> &value)
+{
+    (void) obj;
+    (void) name;
+    value = g_value;
+    return true;
+}
+
 
 TEST_F(OpModelParserTest, TestParseOpModel)
 {
@@ -181,14 +229,16 @@ TEST_F(OpModelParserTest, TestParseOpModel)
     ASSERT_NE(OpModelParser::ParseOpModel(opModel, opModelDef), ACL_SUCCESS);
     ASSERT_NE(OpModelParser::ParseOpModel(opModel, opModelDef), ACL_SUCCESS);
     ASSERT_EQ(OpModelParser::ParseOpModel(opModel, opModelDef), ACL_SUCCESS);
-}
 
-bool GetInt_invoke(ge::AttrUtils::ConstAttrHolderAdapter obj, const string &name, int32_t& value)
-{
-    (void) obj;
-    (void) name;
-    value = 1;
-    return true;
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetInt(_, _, _))
+        .WillRepeatedly(Invoke(GetInt_invoke));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetBool(_, _, _))
+        .WillRepeatedly(Invoke(GetBool_invoke1));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetListNamedAttrs(_, _, _))
+        .WillRepeatedly(Invoke(GetListNamedAttrs_invoke));
+    opModelDef.inputDescArr.emplace_back();
+    opModelDef.outputDescArr.emplace_back();
+    ASSERT_EQ(OpModelParser::ParseOpModel(opModel, opModelDef), ACL_ERROR_PARSE_MODEL);
 }
 
 TEST_F(OpModelParserTest, TestToModelConfig1)
@@ -199,14 +249,6 @@ TEST_F(OpModelParserTest, TestToModelConfig1)
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetInt(_, _, _))
         .WillRepeatedly(Invoke(GetInt_invoke));
     OpModelParser::ToModelConfig(geModel, opModelDef);
-}
-
-bool GetListNamedAttrs_invoke(ge::AttrUtils::ConstAttrHolderAdapter obj, const string &name, vector<ge::GeAttrValue::NAMED_ATTRS> &value)
-{
-    (void) obj;
-    (void) name;
-    value = g_value;
-    return true;
 }
 
 TEST_F(OpModelParserTest, TestToModelConfig2)
@@ -235,5 +277,24 @@ TEST_F(OpModelParserTest, TestToModelConfig3)
 
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), HasAttr(_, _))
         .WillRepeatedly(Return(true));
+    OpModelParser::ToModelConfig(geModel, opModelDef);
+}
+
+
+TEST_F(OpModelParserTest, TestToModelConfig4)
+{
+    OpModelDef opModelDef;
+    ge::Model geModel;
+
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetListTensor(_, _, _))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), HasAttr(_, _))
+        .WillRepeatedly(Return(true));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetInt(_, _, _))
+        .WillRepeatedly(Invoke(GetInt_invoke));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetListNamedAttrs(_, _, _))
+        .WillRepeatedly(Invoke(GetListNamedAttrs_invoke));
+    opModelDef.inputDescArr.emplace_back();
+    opModelDef.outputDescArr.emplace_back();
     OpModelParser::ToModelConfig(geModel, opModelDef);
 }

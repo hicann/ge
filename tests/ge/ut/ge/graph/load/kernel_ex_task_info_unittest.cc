@@ -578,6 +578,7 @@ TEST_F(UtestKernelExTaskInfo, blocking_aicpu_op) {
   kernel_ex_task_info.davinci_model_ = &davinci_model;
   EXPECT_EQ(kernel_ex_task_info.InitTaskExtInfo(kernel_ex_def.kernel_ext_info(), op_desc), SUCCESS);
   domi::GetContext().is_online_model = true;
+  kernel_ex_task_info.func_handle_ = (void *)0x12000;
   EXPECT_EQ(kernel_ex_task_info.Distribute(), SUCCESS);
   EXPECT_TRUE(kernel_ex_task_info.IsSupportReDistribute());
   EXPECT_EQ(kernel_ex_task_info.Distribute(), SUCCESS);
@@ -620,6 +621,7 @@ TEST_F(UtestKernelExTaskInfo, blocking_aicpu_op_fail_01) {
   EXPECT_EQ(kernel_ex_task_info.InitTaskExtInfo(kernel_ex_def.kernel_ext_info(), op_desc), SUCCESS);
 
   kernel_ex_task_info.is_blocking_aicpu_op_ = true;
+  kernel_ex_task_info.func_handle_ = (void *)0x12000;
   EXPECT_EQ(kernel_ex_task_info.Distribute(), FAILED);
   kernel_ex_task_info.Release();
 }
@@ -652,7 +654,7 @@ TEST_F(UtestKernelExTaskInfo, blocking_aicpu_op_fail_02) {
   kernel_ex_task_info.op_desc_ = op_desc;
   DavinciModel davinci_model(0, nullptr);
   kernel_ex_task_info.davinci_model_ = &davinci_model;
-
+  kernel_ex_task_info.func_handle_ = (void *)0x12000;
   RTS_STUB_RETURN_VALUE(rtGetDevice, rtError_t, 0x78000001);
   EXPECT_EQ(kernel_ex_task_info.InitTaskExtInfo(kernel_ex_def.kernel_ext_info(), op_desc), FAILED);
 

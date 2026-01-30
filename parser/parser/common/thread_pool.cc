@@ -14,7 +14,6 @@
 #include <functional>
 #include <stdexcept>
 
-#include "register/register_types.h"
 #include "graph/ge_context.h"
 #include "mmpa/mmpa_api.h"
 

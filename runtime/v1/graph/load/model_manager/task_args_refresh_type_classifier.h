@@ -17,6 +17,7 @@
 #include "task_node_map.h"
 #include "task_info/task_info.h"
 #include "common/types.h"
+#include "graph/small_vector.h"
 
 namespace ge {
 class TaskArgsRefreshTypeClassifier {

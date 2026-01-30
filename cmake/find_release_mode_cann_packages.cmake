@@ -22,18 +22,12 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
     find_package_if_target_not_exists(cce MODULE REQUIRED)
     find_package_if_target_not_exists(platform MODULE REQUIRED)
     find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
-    if(NOT (DEFINED BUILD_COMPONENT OR ENABLE_LLT_PKG))
-        find_package_if_target_not_exists(graph_tuner MODULE REQUIRED)
-        find_package_if_target_not_exists(opat MODULE REQUIRED)
-        find_package_if_target_not_exists(runtime_static MODULE REQUIRED)
-    endif()
-
     find_package_if_target_not_exists(atrace MODULE REQUIRED)
     find_package_if_target_not_exists(ascendcl MODULE REQUIRED)
 
+
    # 使用medadef发布包编译
    find_package(metadef MODULE REQUIRED)
-
     set(METADEF_DIR ${CMAKE_CURRENT_LIST_DIR}/../base/metadef)
     set(PARSER_DIR ${CMAKE_CURRENT_LIST_DIR}/parser)
 endif ()

@@ -260,6 +260,7 @@ set(PARSER_SRC_FILES
     "${PARSER_DIR}/parser/tensorflow/tensorflow_merge_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_no_op_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_parser.cc"
+    "${PARSER_DIR}/parser/tensorflow/tensorflow_custom_op_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_ref_switch_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_reshape_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_shape_n_parser.cc"
@@ -316,6 +317,7 @@ target_link_libraries(ut_parser_common PRIVATE
     slog_headers
     ut_parser_proto ut_parser_graph c_sec
     ascend_protobuf
+    -lstdc++fs
     json
     mmpa_headers
     opp_registry
@@ -334,9 +336,6 @@ target_compile_options(ut_parser PRIVATE
 
 target_compile_definitions(ut_parser PRIVATE
     google=ascend_private
-    FILE_ONNX_PATH="${CMAKE_CURRENT_SOURCE_DIR}/testcase/onnx_parser_testcase"
-    FILE_CAFFE_PATH="${CMAKE_CURRENT_SOURCE_DIR}/testcase/caffe_parser_testcase"
-    FILE_TENSORFLOW_PATH="${CMAKE_CURRENT_SOURCE_DIR}/testcase/tensorflow_parser_testcase"
 )
 
 target_link_libraries(ut_parser
@@ -348,7 +347,7 @@ target_link_libraries(ut_parser
     runtime_headers
     msprof_headers
     ut_parser_proto
-    metadef
+    metadef -lstdc++fs
     -Wl,--whole-archive ut_parser_common -Wl,--no-whole-archive
     attr_util_stub ut_parser_graph ut_parser_register error_manager parser_mmpa_stub platform_stub_parser
     GTest::gtest GTest::gtest_main parser_slog_stub ascend_protobuf c_sec json -lrt -ldl -lgcov

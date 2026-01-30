@@ -14,19 +14,25 @@
 #include "common/platform_info_util.h"
 #include "depends/runtime/src/runtime_stub.h"
 
+#include <ge_common/ge_api_error_codes.h>
+
 namespace ge {
 namespace {
 class MockRuntime : public RuntimeStub {
  public:
-  rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
-    char soc_version[] = "Ascend910B1";
-    strncpy(version, soc_version, 12U);
-    return RT_ERROR_NONE;
+  rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen) override {
+    (void)label;
+    (void)key;
+    (void)strncpy_s(value, maxLen, "2102", maxLen);
+    return 0;
   }
 };
 class MockRuntimeFail : public RuntimeStub {
  public:
   rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
+    return 1;
+  }
+  rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen) override {
     return 1;
   }
 };
@@ -40,26 +46,30 @@ class UtestPlatformInfoUtil : public testing::Test {
   }
 };
 
-TEST_F(UtestPlatformInfoUtil, GetJitCompileDefaultValue) {
+TEST_F(UtestPlatformInfoUtil, GetJitCompileDefaultValue_Ok_EnableByDefault) {
   ge::RuntimeStub stub;
-  auto mock_runtime = std::shared_ptr<MockRuntime>(new MockRuntime());
+  auto mock_runtime = std::make_shared<MockRuntime>();
   stub.SetInstance(mock_runtime);
 
   auto jit_compile = ge::PlatformInfoUtil::GetJitCompileDefaultValue();
-  ASSERT_STREQ(jit_compile.c_str(), "2");
+  ASSERT_STREQ(jit_compile.c_str(), "1");
   stub.Reset();
 }
 
-TEST_F(UtestPlatformInfoUtil, ParseInvalidShortSocVersion) {
-  std::string invalid_soc_version = "invalid_version";
-  std::string invalid_init_soc_version = "invalid_init_version";
-  std::string test_instance_constant_soc_version = "test_instance_constant_soc_version";
-  auto short_soc_version = ge::PlatformInfoUtil::ParseShortSocVersion(invalid_soc_version);
-  ASSERT_STREQ(short_soc_version.c_str(), "");
-  short_soc_version = ge::PlatformInfoUtil::ParseShortSocVersion(invalid_init_soc_version);
-  ASSERT_STREQ(short_soc_version.c_str(), "");
-  short_soc_version = ge::PlatformInfoUtil::ParseShortSocVersion(test_instance_constant_soc_version);
-  ASSERT_STREQ(short_soc_version.c_str(), "ascend910b");
+TEST_F(UtestPlatformInfoUtil, GetSocSpecFromPlatform) {
+  ge::RuntimeStub stub;
+  auto mock_runtime = std::make_shared<MockRuntimeFail>();
+  stub.SetInstance(mock_runtime);
+  std::string value;
+  auto ret = ge::PlatformInfoUtil::GetSocSpec("", "", value);
+  EXPECT_NE(ret, SUCCESS);
+  ASSERT_STREQ(value.c_str(), "");
+  stub.Reset();
+
+  ret = ge::PlatformInfoUtil::GetSocSpec("version", "NpuArch", value);
+  EXPECT_EQ(ret, SUCCESS);
+  ASSERT_STREQ(value.c_str(), "2201");
+  
 }
 
 TEST_F(UtestPlatformInfoUtil, GetJitCompileDefaultValueGetSocVersionFailed) {

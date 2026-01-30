@@ -9,7 +9,7 @@
  */
 
 #include "register/op_check_register.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace optiling {
 std::map<ge::AscendString, std::map<ge::AscendString, OP_CHECK_FUNC>>

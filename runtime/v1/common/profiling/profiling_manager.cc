@@ -135,8 +135,6 @@ Status ProfilingManager::ProfFinalize() {
   index_id_ = std::numeric_limits<int64_t>::max();
 
   ProfilingProperties::Instance().ClearProperties();
-
-
   ProfilingProperties::Instance().CleanSubscribeInfo();
   ProfilingProperties::Instance().ClearDeviceIdMap();
   device_id_.clear();

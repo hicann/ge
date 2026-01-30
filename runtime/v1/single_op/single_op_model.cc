@@ -725,7 +725,7 @@ Status SingleOpModel::BuildTaskListForDynamicOp(StreamResource &stream_resource,
   }
 
   GE_CHECK_NOTNULL(node);
-  for (const auto &in_data_anchor : node->GetAllInDataAnchors()) {
+  for (const auto &in_data_anchor : node->GetAllInDataAnchorsPtr()) {
     GE_CHECK_NOTNULL(in_data_anchor);
     const auto out_data_anchor = in_data_anchor->GetPeerOutAnchor();
     if (out_data_anchor == nullptr) {
@@ -849,9 +849,9 @@ Status SingleOpModel::BuildDynamicOp(StreamResource &resource, DynamicSingleOpIm
   model_params_.graph_is_dynamic = true;
   GE_CHK_STATUS_RET(ParseTasks(), "[Parse][Tasks] failed.");
 
-  std::string single_op_type;
-  if (AttrUtils::GetStr(root_ge_model_, kAttrNameSingleOpType, single_op_type)) {
-    ProfilingManager::Instance().RegisterElement(single_op.profiling_node_type_index_, single_op_type);
+  const std::string* single_op_type = AttrUtils::GetStr(root_ge_model_, kAttrNameSingleOpType);
+  if (single_op_type != nullptr) {
+    ProfilingManager::Instance().RegisterElement(single_op.profiling_node_type_index_, *single_op_type);
   } else {
     single_op.profiling_node_type_index_ = -1;
     GELOGW("Can not find single op type from GeModel");
@@ -912,7 +912,7 @@ Status SingleOpModel::SetHostMemNode(std::vector<NodePtr> &node_with_hostmem) {
     const int32_t idx = node_map.first;
     const auto out_anchor = node->GetOutDataAnchor(0);
     GE_CHECK_NOTNULL(out_anchor);
-    const auto in_anchors = out_anchor->GetPeerInDataAnchors();
+    const auto in_anchors = out_anchor->GetPeerInDataAnchorsPtr();
 
     for (const auto &anchor : in_anchors) {
       GE_CHECK_NOTNULL(anchor);

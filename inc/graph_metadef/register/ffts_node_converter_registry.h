@@ -18,6 +18,7 @@
 #include "graph/node.h"
 #include "exe_graph/lowering/dev_mem_value_holder.h"
 #include "exe_graph/lowering/lowering_global_data.h"
+#include "exe_graph/lowering/value_holder.h"
 
 namespace gert {
 using FFTSPreThreadFunc = std::function<ge::graphStatus(const ge::ComputeGraphPtr &sub_graph,

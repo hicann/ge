@@ -100,10 +100,6 @@ class DModelListener : public ModelListener {
  public:
   DModelListener(){};
   uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t resultCode,
-                         std::vector<ge::Tensor> &outputs) {
-    return 0;
-  }
-  uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t resultCode,
                          std::vector<gert::Tensor> &outputs) {
     return 0;
   }
@@ -1212,7 +1208,7 @@ TEST_F(UtestGeHybrid, TestHybridDavinciModelMethods) {
   std::vector<std::vector<int64_t>> batch_info;
   int32_t dynamic_type = 0;
   ASSERT_EQ(model->GetDynamicBatchInfo(batch_info, dynamic_type), SUCCESS);
-  RunAsyncCallback callback = nullptr;
+  RunAsyncCallbackV2 callback = nullptr;
   ASSERT_EQ(model->SetRunAsyncListenerCallback(callback), PARAM_INVALID);
   std::vector<std::string> user_input_shape_order{"test"};
   model->GetUserDesignateShapeOrder(user_input_shape_order);

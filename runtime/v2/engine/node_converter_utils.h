@@ -15,9 +15,9 @@
 #include "proto/task.pb.h"
 #include "graph/op_desc.h"
 #include "graph/ge_tensor.h"
+#include "graph/compute_graph.h"
 #include "exe_graph/lowering/value_holder.h"
 #include "exe_graph/lowering/lowering_global_data.h"
-#include "graph/compute_graph.h"
 
 namespace gert {
 enum class TaskDefType{

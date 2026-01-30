@@ -320,11 +320,6 @@ class DModelListener : public ge::ModelListener {
   DModelListener() {
   };
   Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t resultCode,
-                       std::vector<ge::Tensor> &outputs) {
-    GELOGI("In Call back. OnComputeDone");
-    return SUCCESS;
-  }
-  Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t resultCode,
                        std::vector<gert::Tensor> &outputs) {
     GELOGI("In Call back. OnComputeDone");
     return SUCCESS;

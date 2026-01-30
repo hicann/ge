@@ -88,7 +88,7 @@ aclError aclopSetAttrListDataTypeImpl(aclopAttr *attr, const char *attrName, int
 aclError aclopSetAttrListBoolImpl(aclopAttr *attr, const char *attrName, int numValues, const uint8_t *values)
 {
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(attr);
-    const auto *const boolValues = reinterpret_cast<const bool *>(values);
+    const auto *const boolValues = static_cast<const bool *>(static_cast<const void *>(values));
     return attr->SetAttr(attrName, numValues, boolValues);
 }
 

@@ -53,11 +53,14 @@ void ExecutorSubscribersScheduler::Init(const std::shared_ptr<const SubscriberEx
     return GlobalProfilingWrapper::GetInstance()->IsEnabled(ProfilingType::kGeHost);
   };
   AddBuiltIn<GeHostProfiler>(BuiltInSubscriberType::kGeProfiling, 0UL, extend_info, kMainExeGraph, is_ge_prof_enabled);
-  const auto is_dump_enabled = []() -> bool { return (GlobalDumper::GetInstance()->IsEnableSubscribeDump()); };
-  AddBuiltIn<ExecutorDumper>(BuiltInSubscriberType::kDumper, 0UL, extend_info, kMainExeGraph, is_dump_enabled);
 
+  // 如果在打印 kernel trace 前其他 subscriber 下发了 Task (例如 kDumper), 那么 kernel trace 中的 task_id 会不准确
+  // 未来新增 subscriber, 请把会额外下发 task的 subscriber 放在 kTracer 之后
   const auto is_tracer_enabled = []() -> bool { return GlobalTracer::GetInstance()->GetEnableFlags() != 0UL; };
   AddBuiltIn<ExecutorTracer>(BuiltInSubscriberType::kTracer, 0UL, extend_info, kSubExeGraphTypeEnd, is_tracer_enabled);
+
+  const auto is_dump_enabled = []() -> bool { return (GlobalDumper::GetInstance()->IsEnableSubscribeDump()); };
+  AddBuiltIn<ExecutorDumper>(BuiltInSubscriberType::kDumper, 0UL, extend_info, kMainExeGraph, is_dump_enabled);
 
   const auto is_cann_profiler_enabled = []() -> bool {
     return GlobalProfilingWrapper::GetInstance()->IsEnabled(ProfilingType::kTaskTime);

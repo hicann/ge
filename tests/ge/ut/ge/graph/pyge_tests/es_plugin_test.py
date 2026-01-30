@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# -------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
@@ -156,10 +157,12 @@ class TestPluginLoader:
         mock_ep = Mock()
         type(mock_ep).name = None
         mock_iter.return_value = [mock_ep]
-        with patch('ge.es._plugin_loader.LOG') as mock_log:
+        with patch('ge.es._plugin_loader.debug_print') as mock_debug_print:
             plugins = load_all_plugins()
             assert isinstance(plugins, dict)
-            mock_log.warning.assert_called()
+            mock_debug_print.assert_called()
+            # 检查是否调用了 WARNING 级别的日志
+            assert any(call[0][0] == 'WARNING' for call in mock_debug_print.call_args_list)
 
     @patch('ge.es._plugin_loader._iter_plugin_entry_points')
     def test_load_all_plugins_attribute_error(self, mock_iter):
@@ -168,10 +171,12 @@ class TestPluginLoader:
         mock_ep.name = "test_plugin"
         mock_ep.load.side_effect = AttributeError("test error")
         mock_iter.return_value = [mock_ep]
-        with patch('ge.es._plugin_loader.LOG') as mock_log:
+        with patch('ge.es._plugin_loader.debug_print') as mock_debug_print:
             plugins = load_all_plugins()
             assert isinstance(plugins, dict)
-            mock_log.error.assert_called()
+            mock_debug_print.assert_called()
+            # 检查是否调用了 ERROR 级别的日志
+            assert any(call[0][0] == 'ERROR' for call in mock_debug_print.call_args_list)
 
     @patch('ge.es._plugin_loader._iter_plugin_entry_points')
     def test_load_all_plugins_import_error(self, mock_iter):
@@ -180,10 +185,12 @@ class TestPluginLoader:
         mock_ep.name = "test_plugin"
         mock_ep.load.side_effect = ImportError("test import error")
         mock_iter.return_value = [mock_ep]
-        with patch('ge.es._plugin_loader.LOG') as mock_log:
+        with patch('ge.es._plugin_loader.debug_print') as mock_debug_print:
             plugins = load_all_plugins()
             assert isinstance(plugins, dict)
-            mock_log.error.assert_called()
+            mock_debug_print.assert_called()
+            # 检查是否调用了 ERROR 级别的日志
+            assert any(call[0][0] == 'ERROR' for call in mock_debug_print.call_args_list)
 
     @patch('ge.es._plugin_loader._iter_plugin_entry_points')
     def test_load_all_plugins_general_exception(self, mock_iter):
@@ -192,25 +199,12 @@ class TestPluginLoader:
         mock_ep.name = "test_plugin"
         mock_ep.load.side_effect = ValueError("test value error")
         mock_iter.return_value = [mock_ep]
-        with patch('ge.es._plugin_loader.LOG') as mock_log:
+        with patch('ge.es._plugin_loader.debug_print') as mock_debug_print:
             plugins = load_all_plugins()
             assert isinstance(plugins, dict)
-            mock_log.error.assert_called()
-
-    @patch('ge.es._plugin_loader._iter_plugin_entry_points')
-    def test_load_all_plugins_with_is_ops_loaded(self, mock_iter):
-        """测试 load_all_plugins() 处理带 is_ops_loaded 的插件"""
-        mock_ep = Mock()
-        mock_ep.name = "test_plugin"
-        mock_module = types.ModuleType("test_module")
-        mock_module.__name__ = "test_module"
-        mock_module.is_ops_loaded = lambda: True
-        mock_ep.load.return_value = mock_module
-        mock_iter.return_value = [mock_ep]
-        with patch('ge.es._plugin_loader.LOG') as mock_log:
-            plugins = load_all_plugins()
-            assert isinstance(plugins, dict)
-            mock_log.info.assert_called()
+            mock_debug_print.assert_called()
+            # 检查是否调用了 ERROR 级别的日志
+            assert any(call[0][0] == 'ERROR' for call in mock_debug_print.call_args_list)
 
     @patch('ge.es._plugin_loader._iter_plugin_entry_points')
     def test_load_all_plugins_success(self, mock_iter):
@@ -221,11 +215,13 @@ class TestPluginLoader:
         mock_module.__name__ = "test_module"
         mock_ep.load.return_value = mock_module
         mock_iter.return_value = [mock_ep]
-        with patch('ge.es._plugin_loader.LOG') as mock_log:
+        with patch('ge.es._plugin_loader.debug_print') as mock_debug_print:
             with patch('sys.modules', {}):
                 plugins = load_all_plugins()
                 assert isinstance(plugins, dict)
                 assert "test_plugin" in plugins
                 assert plugins["test_plugin"] is mock_module
-                mock_log.info.assert_called()
+                mock_debug_print.assert_called()
+                # 检查是否调用了 INFO 级别的日志
+                assert any(call[0][0] == 'INFO' for call in mock_debug_print.call_args_list)
 

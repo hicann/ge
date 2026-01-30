@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -107,18 +107,17 @@ Status TBEHandleStore::StoreTBEHandle(const std::string &name, void *handle, con
 /// @ingroup ge
 /// @brief get unique id in handle map
 /// @param [in] handle: TBE handle addr to store.
+/// @param [in] kernel: kernel name to store.
+/// @param [inserted] kernel: inserted flag.
 /// @return the addr of unique id
 ///
-void *TBEHandleStore::GetUniqueIdPtr(void *const handle) {
+void *TBEHandleStore::GetUniqueIdPtr(void *const handle, const std::string &kernel, bool &inserted) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
-  const auto it = handle_to_unique_ids_.find(handle);
-  if (it == handle_to_unique_ids_.end()) {
-    handle_to_unique_ids_[handle].push_back(0);
-    return &handle_to_unique_ids_[handle].back();
-  } else {
-    it->second.push_back(0);
-    return &it->second.back();
-  }
+  std::unordered_map<std::string, std::list<uint8_t>>& inner = handle_to_kernel_to_unique_id_[handle];
+  std::pair<std::unordered_map<std::string, std::list<uint8_t>>::iterator, bool> ret =
+    inner.insert(std::make_pair(kernel, std::list<uint8_t>{0}));
+  inserted = ret.second;
+  return &(ret.first->second.back());
 }
 
 ///
@@ -158,7 +157,7 @@ void TBEHandleStore::EraseTBEHandle(const std::map<std::string, uint32_t> &names
     if (info->used_num() > item.second) {
       info->used_dec(item.second);
     } else {
-      (void)handle_to_unique_ids_.erase(info->handle());
+      (void)handle_to_kernel_to_unique_id_.erase(info->handle());
       (void)bin_key_to_handle_.erase(it);
     }
   }

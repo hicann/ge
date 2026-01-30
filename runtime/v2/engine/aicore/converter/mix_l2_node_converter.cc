@@ -518,7 +518,8 @@ ge::Status LoweringMixL2PreProc(const ge::NodePtr &node, const LowerInput &lower
   std::shared_ptr<optiling::utils::OpRunInfo> tiling_info = nullptr;
   tiling_info = node->GetOpDesc()->TryGetExtAttr(ge::ATTR_NAME_OP_RUN_INFO, tiling_info);
   if (is_unknown || sta_tiling_depend) {
-    auto platform_info = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
+    auto platform_info = bg::AppendCoreTypeToPlatform(
+        node, lower_input.global_data)[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)];
     proc_args.tiling_ret = bg::TilingLegacy(node, lower_input.input_shapes, proc_args.output_shapes, platform_info,
                                             *lower_input.global_data);
     CHECK_HOLDERS_ALL_OK_RET(proc_args.tiling_ret, static_cast<size_t>(TilingContext::kOutputNum), return ge::FAILED);

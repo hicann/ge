@@ -10,7 +10,7 @@
 
 #include "graph/detail/attributes_holder.h"
 
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/ge_attr_value.h"
 #include "proto/ge_ir.pb.h"

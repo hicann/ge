@@ -9,10 +9,11 @@
 # -----------------------------------------------------------------------------------------------------------
 
 if (NOT DEFINED GE_METADEF_INC_DIR)
-    # 开发编译兼容处理
+    # 开发环境编译兼容处理
     set(METADEF_DIR ${TOP_DIR}/metadef)
     set(GE_METADEF_DIR ${TOP_DIR}/air/graph_metadef)
     set(GE_METADEF_INC_DIR ${TOP_DIR}/air/inc/graph_metadef)
+    set(AIR_CODE_DIR ${TOP_DIR}/air)
 else ()
     add_library(metadef_headers INTERFACE)
 endif ()
@@ -22,6 +23,7 @@ target_include_directories(metadef_headers INTERFACE
     $<BUILD_INTERFACE:${METADEF_DIR}/inc/external>
     $<BUILD_INTERFACE:${METADEF_DIR}/inc/external/base>
     $<BUILD_INTERFACE:${METADEF_DIR}/inc/external/exe_graph>
+    $<BUILD_INTERFACE:${METADEF_DIR}/inc/external/exe_graph/runtime>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/graph>
     $<BUILD_INTERFACE:${ASCEND_INSTALL_PATH}/pkg_inc>
@@ -39,10 +41,10 @@ target_include_directories(metadef_headers INTERFACE
     $<BUILD_INTERFACE:${ASCEND_INSTALL_PATH}/include/experiment/metadef>
     $<BUILD_INTERFACE:${ASCEND_INSTALL_PATH}/include/register>
     $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc>
-    $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc/graph_metadef>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/common>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/exe_graph>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/external>
+    $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/external/graph>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/external/exe_graph>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/external/op_common>
     $<BUILD_INTERFACE:${GE_METADEF_INC_DIR}/graph/utils>
@@ -69,7 +71,6 @@ if (ENABLE_OPEN_SRC)
             $<BUILD_INTERFACE:${AIR_CODE_DIR}/base/metadef/pkg_inc/common>
             $<BUILD_INTERFACE:${AIR_CODE_DIR}/base/metadef/pkg_inc/graph/utils>
             $<BUILD_INTERFACE:${AIR_CODE_DIR}/base/metadef/pkg_inc/common/ge_common>
-            $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc/graph_metadef>
             )
 endif ()
 

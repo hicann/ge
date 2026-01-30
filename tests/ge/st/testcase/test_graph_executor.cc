@@ -43,11 +43,50 @@
 #include "macro_utils/dt_public_unscope.h"
 #include "exe_graph/runtime/tensor.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "ge_running_env/ge_running_env_faker.h"
+#include "ge_running_env/fake_op.h"
+#include "utils/mock_ops_kernel_builder.h"
+
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 
 using namespace std;
 using namespace testing;
 
 namespace ge {
+namespace {
+static void MockGenerateTask() {
+  auto aicore_func = [](const ge::Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
+    auto op_desc = node.GetOpDesc();
+    op_desc->SetOpKernelLibName("AIcoreEngine");
+    ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+    const char tbeBin[] = "tbe_bin";
+    vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+    ge::OpKernelBinPtr tbeKernelPtr = std::make_shared<ge::OpKernelBin>("test_tvm", std::move(buffer));
+    op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
+    size_t arg_size = 100;
+    std::vector<uint8_t> args(arg_size, 0);
+    domi::TaskDef task_def;
+    task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL));
+    auto kernel_info = task_def.mutable_kernel();
+    kernel_info->set_args(args.data(), args.size());
+    kernel_info->set_args_size(arg_size);
+    kernel_info->mutable_context()->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE));
+    kernel_info->set_kernel_name(node.GetName());
+    kernel_info->set_block_dim(1);
+    uint16_t args_offset[2] = {0};
+    kernel_info->mutable_context()->set_args_offset(args_offset, 2 * sizeof(uint16_t));
+    kernel_info->mutable_context()->set_op_index(node.GetOpDesc()->GetId());
+
+    tasks.emplace_back(task_def);
+    return SUCCESS;
+  };
+
+  MockForGenerateTask("AiCoreLib", aicore_func);
+  MockForGenerateTask("AIcoreEngine", aicore_func);
+}
+}
+
 class StestGraphExecutor : public testing::Test {
  protected:
   void SetUp() {
@@ -55,6 +94,7 @@ class StestGraphExecutor : public testing::Test {
     unsetenv("FMK_DUMP_PATH");
     unsetenv("FMK_USE_FUSION");
     unsetenv("DAVINCI_TIMESTAT_ENABLE");
+    MockGenerateTask();
   }
 
   void TearDown() {
@@ -103,6 +143,13 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi) {
     op_desc->SetOutputOffset({1024});
     NodePtr node = graph->AddNode(op_desc);  // op_index = 1
     EXPECT_TRUE(AttrUtils::SetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, std::vector<std::string>{"dump"}));
+
+    AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+    const char tbeBin[] = "tbe_bin";
+    vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+    OpKernelBinPtr tbeKernelPtr = std::make_shared<OpKernelBin>("teslt_tvm", std::move(buffer));
+    op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
 
     domi::TaskDef *task_def = model_task_def->add_task();
     task_def->set_stream_id(0);
@@ -161,7 +208,7 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi) {
     EXPECT_EQ(model->task_list_.size(), 2);
 
     OutputData output_data;
-    vector<Tensor> outputs;
+    vector<gert::Tensor> outputs;
     EXPECT_EQ(model->GenOutputTensorInfo(output_data, outputs), SUCCESS);
     ModelManager::GetInstance().InsertModel(0U, model);
   }
@@ -178,7 +225,7 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi) {
     EXPECT_EQ(model->task_list_.size(), 2);
 
     OutputData output_data;
-    vector<Tensor> outputs;
+    vector<gert::Tensor> outputs;
     EXPECT_EQ(model->GenOutputTensorInfo(output_data, outputs), SUCCESS);
     ModelManager::GetInstance().InsertModel(1U, model);
   }
@@ -200,15 +247,9 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi) {
   }
 
   GraphExecutor graph_executer;
-  InputOutputDescInfo desc0;
-  std::vector<InputOutputDescInfo> output_desc{desc0};
-  GeTensorDesc td(GeShape({4, 4}), FORMAT_NCHW, DT_FLOAT);
-  GeTensor ge_tensor(td);
-  vector<uint8_t> data(512, 0);
-  ge_tensor.SetData(data);
-  std::vector<GeTensor> input_tensor;
-  input_tensor.push_back(std::move(ge_tensor));
-  std::vector<GeTensor> output_tensor;
+  std::vector<gert::Tensor> input_tensor(1);
+  TensorCheckUtils::ConstructGertTensor(input_tensor[0], {128}, DT_FLOAT, FORMAT_NCHW);
+  std::vector<gert::Tensor> output_tensor;
 
   {
     const auto ge_root_model = MakeShared<GeRootModel>();
@@ -218,12 +259,13 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi) {
     EXPECT_EQ(graph_executer.ExecuteGraph(0, ge_root_model, input_tensor, output_tensor), SUCCESS);
   }
 
+  std::vector<gert::Tensor> output_tensor_pro;
   {
     graph->DelAttr(ATTR_NAME_DEPLOY_INFO);
     const auto ge_root_model = MakeShared<GeRootModel>();
     EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
     ge_root_model->SetModelId(1);
-    EXPECT_EQ(graph_executer.ExecuteGraph(0, ge_root_model, input_tensor, output_tensor), SUCCESS);
+    EXPECT_EQ(graph_executer.ExecuteGraph(0, ge_root_model, input_tensor, output_tensor_pro), SUCCESS);
   }
 
   EXPECT_EQ(ModelManager::GetInstance().DeleteModel(0U), SUCCESS);
@@ -301,6 +343,15 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi_atomic_memset) {
   data_node->GetOpDesc()->SetInputOffset({1024});
   data_node->GetOpDesc()->SetOutputOffset({1024});
   auto atomic_node = root_graph->FindFirstNodeMatchType("AtomicNode");
+  const char tbeBin[] = "tbe_bin";
+  vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+  OpKernelBinPtr tbeKernelPtr = std::make_shared<OpKernelBin>("test_tvm", std::move(buffer));
+  ge::AttrUtils::SetStr(atomic_node->GetOpDesc(), ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  ge::AttrUtils::SetStr(atomic_node->GetOpDesc(), ge::ATTR_NAME_KERNEL_BIN_ID, "_atomic_node_1_fake_id");
+  atomic_node->GetOpDesc()->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
+  ge::AttrUtils::SetStr(memset_node->GetOpDesc(), ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  ge::AttrUtils::SetStr(memset_node->GetOpDesc(), ge::ATTR_NAME_KERNEL_BIN_ID, "_memset_node_1_fake_id");
+  memset_node->GetOpDesc()->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
   ge::AttrUtils::SetBool(atomic_node->GetOpDesc()->MutableOutputDesc(0), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, true);
   auto netoutput = root_graph->FindFirstNodeMatchType(NETOUTPUT);
   ge::AttrUtils::SetBool(netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, true);
@@ -328,7 +379,7 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi_atomic_memset) {
   EXPECT_EQ(model->task_list_.size(), 2);
 
   OutputData output_data;
-  vector<Tensor> outputs;
+  vector<gert::Tensor> outputs;
   EXPECT_EQ(model->GenOutputTensorInfo(output_data, outputs), SUCCESS);
 
   void *goverflow_addr = nullptr;
@@ -338,15 +389,9 @@ TEST_F(StestGraphExecutor, execute_graph_sync_multi_atomic_memset) {
   ModelManager::GetInstance().InsertModel(0U, model);
 
   GraphExecutor graph_executer;
-  InputOutputDescInfo desc0;
-  std::vector<InputOutputDescInfo> output_desc{desc0};
-  GeTensorDesc td(GeShape({4, 4}), FORMAT_NCHW, DT_FLOAT);
-  GeTensor ge_tensor(td);
-  vector<uint8_t> data(512, 0);
-  ge_tensor.SetData(data);
-  std::vector<GeTensor> input_tensor;
-  input_tensor.push_back(std::move(ge_tensor));
-  std::vector<GeTensor> output_tensor;
+  std::vector<gert::Tensor> input_tensor(1);
+  TensorCheckUtils::ConstructGertTensor(input_tensor[0], {4, 4}, DT_FLOAT, FORMAT_NCHW);
+  std::vector<gert::Tensor> output_tensor;
 
   const auto ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
@@ -405,6 +450,15 @@ TEST_F(StestGraphExecutor, execute_graph_async_with_gert_tensor_multi_atomic_mem
   data_node->GetOpDesc()->SetInputOffset({1024});
   data_node->GetOpDesc()->SetOutputOffset({1024});
   auto atomic_node = root_graph->FindFirstNodeMatchType("AtomicNode");
+  const char tbeBin[] = "tbe_bin";
+  vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+  OpKernelBinPtr tbeKernelPtr = std::make_shared<OpKernelBin>("test_tvm", std::move(buffer));
+  ge::AttrUtils::SetStr(atomic_node->GetOpDesc(), ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  ge::AttrUtils::SetStr(atomic_node->GetOpDesc(), ge::ATTR_NAME_KERNEL_BIN_ID, "_atomic_node_1_fake_id");
+  atomic_node->GetOpDesc()->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
+  ge::AttrUtils::SetStr(memset_node->GetOpDesc(), ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  ge::AttrUtils::SetStr(memset_node->GetOpDesc(), ge::ATTR_NAME_KERNEL_BIN_ID, "_memset_node_1_fake_id");
+  memset_node->GetOpDesc()->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
   ge::AttrUtils::SetBool(atomic_node->GetOpDesc()->MutableOutputDesc(0), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, true);
   auto netoutput = root_graph->FindFirstNodeMatchType(NETOUTPUT);
   ge::AttrUtils::SetBool(netoutput->GetOpDesc()->MutableInputDesc(0), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, true);
@@ -432,7 +486,7 @@ TEST_F(StestGraphExecutor, execute_graph_async_with_gert_tensor_multi_atomic_mem
   EXPECT_EQ(model->task_list_.size(), 2);
 
   OutputData output_data;
-  vector<Tensor> outputs;
+  vector<gert::Tensor> outputs;
   EXPECT_EQ(model->GenOutputTensorInfo(output_data, outputs), SUCCESS);
 
   void *goverflow_addr = nullptr;
@@ -501,7 +555,12 @@ TEST_F(StestGraphExecutor, execute_graph_async_multi) {
     op_desc->SetOutputOffset({1024});
     NodePtr node = graph->AddNode(op_desc);  // op_index = 1
     EXPECT_TRUE(AttrUtils::SetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, std::vector<std::string>{"dump"}));
-
+    std::vector<char> kernel_bin(64, '\0');
+    TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+    EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+    EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+    AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_square_123");
     domi::TaskDef *task_def = model_task_def->add_task();
     task_def->set_stream_id(0);
     task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL));
@@ -559,7 +618,7 @@ TEST_F(StestGraphExecutor, execute_graph_async_multi) {
     EXPECT_EQ(model->task_list_.size(), 2);
 
     OutputData output_data;
-    vector<Tensor> outputs;
+    vector<gert::Tensor> outputs;
     EXPECT_EQ(model->GenOutputTensorInfo(output_data, outputs), SUCCESS);
     ModelManager::GetInstance().InsertModel(0, model);
   }
@@ -577,7 +636,7 @@ TEST_F(StestGraphExecutor, execute_graph_async_multi) {
     EXPECT_EQ(model->task_list_.size(), 2);
 
     OutputData output_data;
-    vector<Tensor> outputs;
+    vector<gert::Tensor> outputs;
     EXPECT_EQ(model->GenOutputTensorInfo(output_data, outputs), SUCCESS);
     ModelManager::GetInstance().InsertModel(1, model);
   }

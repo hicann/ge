@@ -165,7 +165,7 @@ class CachingAllocator {
   /// @brief print the memory info in pool
   /// @param [in] log level
   /// @return void
-  void PrintStatics(const GeLogLevel geLogLevel = GeLogLevel::kInfo);
+  void PrintStatics(const GeLogLevel ge_log_level = GeLogLevel::kInfo);
 
  private:
   rtMemType_t memory_type_;

@@ -63,7 +63,7 @@ void GetL0TensorSize(const ge::OpDescPtr &op_desc, std::vector<uint64_t> &tensor
 }  // namespace
 
 namespace ge {
-bool OpNeedAssertOrPrintf(const OpDescPtr &op_desc) {
+static bool OpNeedAssertOrPrintf(const OpDescPtr &op_desc) {
   const std::string kOpDfxOptions = "_op_dfx_options";
   const std::string kOpDfxAssert = "assert";
   const std::string kOpDfxPrintf = "printf";

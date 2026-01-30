@@ -16,7 +16,6 @@
 #include "common/omg_util.h"
 #include "common/checker.h"
 #include "graph/utils/node_utils.h"
-#include "graph/utils/attr_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/debug/ge_attr_define.h"

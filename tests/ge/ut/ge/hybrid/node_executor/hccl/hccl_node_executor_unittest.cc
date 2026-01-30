@@ -36,8 +36,8 @@ class UtestHcclNodeExecutor : public testing::Test {
  protected:
   void SetUp() {
     EnvPath ep;
-	  hccl_so_path_ = PathUtils::Join({ep.GetOrCreateCaseTmpPath("UtestHcclNodeExecutor"), kHcclSoPath});
-	  auto hccl_so_src_path = PathUtils::Join({ep.GetBinRootPath(), "tests", "depends", "hccl", kHcclSoPath});
+    hccl_so_path_ = PathUtils::Join({ep.GetOrCreateCaseTmpPath("UtestHcclNodeExecutor"), kHcclSoPath});
+    auto hccl_so_src_path = PathUtils::Join({ep.GetBinRootPath(), "tests", "depends", "hccl", kHcclSoPath});
     system(("cp -rf " + hccl_so_src_path + " " + hccl_so_path_).c_str());
   }
   void TearDown() {
@@ -168,7 +168,10 @@ TEST_F(UtestHcclNodeExecutor, gatheralltoallv_execute) {
   ge::AttrUtils::SetDataType(node->GetOpDesc(), HCOM_ATTR_DATA_TYPE, DT_STRING);
   ASSERT_NE(task->ExecuteAsync(*node_state->GetTaskContext(), done), SUCCESS);
 
-	mmDlclose(handle);
+  if (handle != nullptr) {
+    dlclose(handle);
+  }
+
   ASSERT_NE(task->ExecuteAsync(*node_state->GetTaskContext(), done), SUCCESS);
 }
 
@@ -300,7 +303,9 @@ TEST_F(UtestHcclNodeExecutor, alltoallvc_execute) {
   ge::AttrUtils::SetDataType(node->GetOpDesc(), HCOM_ATTR_DATA_TYPE, DT_STRING);
   ASSERT_EQ(task->ExecuteAsync(*node_state->GetTaskContext(), done), SUCCESS);
 
-  mmDlclose(handle);
+  if (handle != nullptr) {
+    dlclose(handle);
+  }
 
   ASSERT_EQ(task->ExecuteAsync(*node_state->GetTaskContext(), done), SUCCESS);
 }

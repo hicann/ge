@@ -30,10 +30,18 @@ class EnginePlacer {
  public:
   explicit EnginePlacer(const ComputeGraphPtr &graph) : compute_graph_(graph) {}
   EnginePlacer() : compute_graph_(nullptr), node_atomic_engine_map_{}, node_composite_engine_map_{} {};
-  EnginePlacer &operator=(const EnginePlacer &obj) {
+  EnginePlacer(const EnginePlacer &obj) {
     compute_graph_ = obj.compute_graph_;
     node_atomic_engine_map_ = obj.node_atomic_engine_map_;
-    node_composite_engine_map_ = obj.node_atomic_engine_map_;
+    node_composite_engine_map_ = obj.node_composite_engine_map_; 
+  }
+  EnginePlacer &operator=(const EnginePlacer &obj) {
+    if (this == &obj) {
+      return *this;
+    }
+    compute_graph_ = obj.compute_graph_;
+    node_atomic_engine_map_ = obj.node_atomic_engine_map_;
+    node_composite_engine_map_ = obj.node_composite_engine_map_;
     return *this;
   }
   ~EnginePlacer() = default;

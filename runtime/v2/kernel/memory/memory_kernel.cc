@@ -32,6 +32,7 @@
 #include "exe_graph/runtime/tensor_data_utils.h"
 #include "common/model/external_allocator_manager.h"
 #include "graph/manager/active_memory_allocator.h"
+#include "common/ge_common/util.h"
 
 namespace gert {
 namespace kernel {

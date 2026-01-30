@@ -201,7 +201,7 @@ CompliantNodeBuilder &CompliantNodeBuilder::InstanceOutputStorageShape(const cha
   impl_->InstanceOutputStorageShape(name, shape);
   return *this;
 }
-CompliantNodeBuilder &CompliantNodeBuilder::InstanceOutputDataType(const char_t *name, const ge::DataType data_type) {
+CompliantNodeBuilder &CompliantNodeBuilder::InstanceOutputDataType(const char_t *name, ge::DataType data_type) {
   impl_->InstanceOutputDataType(name, data_type);
   return *this;
 }

@@ -61,6 +61,7 @@ checkopts()
   ENABLE_FFTS_LLT="off"
   ENABLE_AICPU_LLT="off"
   ENABLE_DVPP_LLT="off"
+  NABLE_RTS_LLT="off"
   ENABLE_HCCE_LLT="off"
   ENABLE_LLT_COV="off"
   PLATFORM="all"
@@ -100,6 +101,8 @@ checkopts()
       e)
         ENGINE_DT="on"
         ENABLE_HCCE_LLT="on"
+        ENABLE_PKG="on"
+        ENABLE_LLT_PKG="on"
         CMAKE_BUILD_TYPE="Release"
         ;;
       r)
@@ -238,15 +241,13 @@ download_mockcpp()
  
 build_mockcpp() 
 {   
-
     cd "${MOCKCPP_BUILD_DIR}"
     echo "Info compiler mockcpp"
-  
+
     sed -i 's/^	print sys\.argv\[0\], getUsageString(longOpts)$/	print(sys.argv[0], getUsageString(longOpts))/g' "${MOCKCPP_DIR}/mockcpp/mockcpp-2.7/src/get_long_opt.py"
     sed -i 's/^	except getopt.GetoptError, err:$/	except getopt.GetoptError as err:/g' "${MOCKCPP_DIR}/mockcpp/mockcpp-2.7/src/get_long_opt.py"
     sed -i 's/^	print >> sys.stderr, str(err)$/	print(str(err), file=sys.stderr)/g' "${MOCKCPP_DIR}/mockcpp/mockcpp-2.7/src/get_long_opt.py"
 
- 
     cmake "${MOCKCPP_DIR}/mockcpp/mockcpp-2.7" \
           || {
         echo "ERROR: CMake configure failed"
@@ -306,6 +307,8 @@ build_air()
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
         -D ENABLE_ASAN=${ENABLE_ASAN} \
         -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+        -D ENABLE_PKG=${ENABLE_PKG} \
+        -D ENABLE_LLT_PKG=${ENABLE_LLT_PKG} \
         ..
   if [ "X$ENABLE_AICPU_LLT" = "Xon" ] || [ "X$ENABLE_FE_LLT" = "Xon" ] || [ "X$ENABLE_FFTS_LLT" = "Xon" ] || [ "X$ENABLE_DVPP_LLT" = "Xon" ] || [ "X$ENABLE_RTS_LLT" = "Xon" ] || [ "X$ENABLE_HCCE_LLT" = "Xon" ];then
     make ${VERBOSE} select_targets -j${THREAD_NUM}
@@ -740,7 +743,7 @@ main() {
   build_air || { echo "AIR build failed."; exit 1; }
   echo "---------------- AIR build finished ----------------"
 
-  if [[ "X$ENABLE_FE_LLT" = "Xoff" ]] && [[ "X$ENABLE_AICPU_LLT" = "Xoff" ]] && [[ "X$ENABLE_DVPP_LLT" = "Xoff" ]] && [[ "X$ENABLE_RTS_LLT" = "Xoff" ]] && [[ "X$ENABLE_FFTS_LLT" = "Xoff" ]] && [[ "X$ENABLE_HCCE_LLT" = "Xoff" ]]; then
+  if [[ "X$ENABLE_FE_LLT" = "Xoff" ]] && [[ "X$ENABLE_AICPU_LLT" = "Xoff" ]] && [[ "X$ENABLE_DVPP_LLT" = "Xoff" ]]  && [[ "X$ENABLE_RTS_LLT" = "Xoff" ]] && [[ "X$ENABLE_FFTS_LLT" = "Xoff" ]] && [[ "X$ENABLE_HCCE_LLT" = "Xoff" ]]; then
     generate_package
   else
     echo "....---> beforerun_llt_with_cov"

@@ -1884,11 +1884,13 @@ Status HybridModelBuilder::IdentifyVariableOutputs(NodeItem &node_item, const Co
     }
 
     std::string ref_var_name;
-    (void)AttrUtils::GetStr(node->GetOpDescBarePtr(), REF_VAR_SRC_VAR_NAME, ref_var_name);
+    const std::string* ref_var_name_str =  AttrUtils::GetStr(node->GetOpDescBarePtr(), REF_VAR_SRC_VAR_NAME);
+    if (ref_var_name_str != nullptr) {
+      ref_var_name = *ref_var_name_str;
+    }
     if (ref_var_name.empty()) {
       continue;
     }
-
     GELOGD("Data node ref to variable: %s", ref_var_name.c_str());
     NodePtr src_node;
     auto var_node = hybrid_model_.GetVariableNode(ref_var_name);
@@ -2992,7 +2994,7 @@ Status HybridModelBuilder::RecoverShapeConsistency(const ComputeGraph &root_grap
 
       const auto &output_anchor = node->GetOutDataAnchor(output_index);
       GE_CHECK_NOTNULL(output_anchor);
-      for (const auto &in_data_anchor : output_anchor->GetPeerInDataAnchors()) {
+      for (const auto &in_data_anchor : output_anchor->GetPeerInDataAnchorsPtr()) {
         const auto &peer_node = in_data_anchor->GetOwnerNodeBarePtr();
         GE_CHECK_NOTNULL(peer_node);
         const auto &peer_op_desc = peer_node->GetOpDescBarePtr();

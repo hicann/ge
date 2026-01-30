@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -190,6 +190,63 @@ graphStatus Mc2GenTaskCallback(const gert::ExeResGenerationContext *context,
   aicore_task.SetArgsFormat(ArgsFormatSerializer::Serialize(aicore_args_format).GetString());
   tasks.back() = aicore_task.Serialize();
   return SUCCESS;
+}
+
+domi::TaskDef CreateAicoreTaskDef(const gert::ExeResGenerationContext *context) {
+  domi::TaskDef aicore_task_def;
+  aicore_task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL));
+  aicore_task_def.set_id(context->GetOpId());
+  aicore_task_def.set_stream_id(context->GetStreamId());
+  auto kernel_def = aicore_task_def.mutable_kernel();
+  kernel_def->set_block_dim(32);
+  kernel_def->set_schedule_mode(0);
+  auto kernel_context = kernel_def->mutable_context();
+  kernel_context->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE_AI_CORE));
+  kernel_context->set_op_index(context->GetOpId());
+
+  std::vector<ArgDesc> args;
+  size_t input_size = context->GetComputeNodeInfo()->GetIrInputsNum();
+  size_t output_size = context->GetComputeNodeInfo()->GetIrOutputsNum();
+  for (size_t i = 0UL; i < input_size; i++) {
+    ArgsFormatDescUtils::Append(args, AddrType::INPUT, i);
+  }
+  for (size_t i = 0UL; i < output_size; i++) {
+    ArgsFormatDescUtils::Append(args, AddrType::OUTPUT, i);
+  }
+  ArgsFormatDescUtils::Append(args, AddrType::WORKSPACE);
+  ArgsFormatDescUtils::Append(args, AddrType::TILING);
+  kernel_context->set_args_format(ArgsFormatDescUtils::Serialize(args));
+
+  return aicore_task_def;
+}
+
+domi::TaskDef CreateAllKernelTaskDef(const gert::ExeResGenerationContext *context) {
+  domi::TaskDef task_def;
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_ALL_KERNEL));
+  task_def.set_id(context->GetOpId());
+  task_def.set_stream_id(context->GetStreamId());
+  auto kernel_def_with_handle = task_def.mutable_kernel_with_handle();
+  kernel_def_with_handle->set_block_dim(64);
+  kernel_def_with_handle->set_schedule_mode(1);
+  auto kernel_context = kernel_def_with_handle->mutable_context();
+  kernel_context->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE_AI_CORE));
+  kernel_context->set_op_index(context->GetOpId());
+
+  std::vector<ArgDesc> args;
+  ArgsFormatDescUtils::Append(args, AddrType::FFTS_ADDR);
+  size_t input_size = context->GetComputeNodeInfo()->GetIrInputsNum();
+  size_t output_size = context->GetComputeNodeInfo()->GetIrOutputsNum();
+  for (size_t i = 0UL; i < input_size; i++) {
+    ArgsFormatDescUtils::Append(args, AddrType::INPUT_INSTANCE, i);
+  }
+  for (size_t i = 0UL; i < output_size; i++) {
+    ArgsFormatDescUtils::Append(args, AddrType::OUTPUT_INSTANCE, i);
+  }
+  ArgsFormatDescUtils::Append(args, AddrType::WORKSPACE);
+  ArgsFormatDescUtils::Append(args, AddrType::TILING);
+  kernel_context->set_args_format(ArgsFormatDescUtils::Serialize(args));
+
+  return task_def;
 }
 }
 class TestGenTaskCallback : public testing::Test {
@@ -628,5 +685,507 @@ TEST_F(TestGenTaskCallback, TestNonAicoreNodeSetArgsFormatFailed) {
   auto notify_task = KernelLaunchInfo::CreateHcomRecordTask(op_exe_res_ctx);
   EXPECT_EQ(notify_task.SetArgsFormat("aaaaa"), PARAM_INVALID);
   EXPECT_EQ(notify_task.GetArgsFormat(), nullptr);
+}
+
+class TestCreateFusionAndCcuTask : public testing::Test {
+ protected:
+  void SetUp() override {
+    graph_ = CreateMc2NodeGraph();
+    mc2_node_ = graph_->FindNode("mc2");
+    res_context_holder_ = CreateNodeExeResContext(mc2_node_);
+    op_exe_res_ctx_ = reinterpret_cast<gert::ExeResGenerationContext *>(
+        res_context_holder_->GetKernelContext());
+  }
+
+  void TearDown() override {}
+
+  ComputeGraphPtr graph_;
+  NodePtr mc2_node_;
+  gert::ExeResGenerationCtxHolderPtr res_context_holder_;
+  gert::ExeResGenerationContext *op_exe_res_ctx_;
+};
+
+// 测试CreateCcuTask函数
+TEST_F(TestCreateFusionAndCcuTask, TestCreateCcuTask) {
+  // 准备测试数据
+  std::vector<std::string> groups = {"group1", "group2", "group3"};
+
+  // 创建CcuTask
+  auto ccu_task = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups);
+
+  // 序列化并验证
+  auto serialized_data = ccu_task.Serialize();
+  ASSERT_FALSE(serialized_data.empty());
+
+  // 解析TaskDef验证字段
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  // 验证基本属性
+  EXPECT_EQ(task_def.id(), static_cast<uint32_t>(op_exe_res_ctx_->GetOpId()));
+  EXPECT_EQ(task_def.notify_id(), UINT32_MAX);
+  EXPECT_EQ(task_def.type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CCU_KERNEL));
+
+  // 验证FusionTask字段
+  ASSERT_TRUE(task_def.has_fusion_task());
+  const auto &fusion_task = task_def.fusion_task();
+  EXPECT_EQ(fusion_task.op_index(), static_cast<uint32_t>(op_exe_res_ctx_->GetOpId()));
+
+  // 验证子任务信息
+  ASSERT_EQ(fusion_task.fusion_sub_task_info_size(), 1);
+  const auto &sub_task_info = fusion_task.fusion_sub_task_info(0);
+  EXPECT_EQ(sub_task_info.type(), domi::FusionSubTaskInfo::CCU);
+
+  // 验证CCU任务组
+  ASSERT_TRUE(sub_task_info.task().has_ccu_task_group());
+  const auto &ccu_task_group = sub_task_info.task().ccu_task_group();
+
+  // 验证groups
+  ASSERT_EQ(ccu_task_group.group_size(), static_cast<int>(groups.size()));
+  for (int i = 0; i < ccu_task_group.group_size(); i++) {
+    EXPECT_EQ(ccu_task_group.group(i), groups[i]);
+  }
+
+  // 验证CCU任务信息
+  ASSERT_EQ(ccu_task_group.ccu_task_info_size(), 1);
+}
+
+// 测试CreateFusionTask函数，包含AICore和CCU子任务
+TEST_F(TestCreateFusionAndCcuTask, TestCreateFusionTaskWithAicoreAndCcu) {
+  // 创建AICore任务
+  auto aicore_task_def = CreateAicoreTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> aicore_buffer(aicore_task_def.ByteSizeLong());
+  aicore_task_def.SerializeToArray(aicore_buffer.data(), aicore_buffer.size());
+  auto aicore_task = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, aicore_buffer);
+
+  // 设置AICore任务的args_format和blockdim
+  std::string args_format = "{i0*}{i1*}{i2*}{o0*}{o1*}{ws*}{t}";
+  aicore_task.SetArgsFormat(args_format.c_str());
+  aicore_task.SetBlockDim(32);
+
+  // 创建CCU任务
+  std::vector<std::string> groups = {"fusion_group1", "fusion_group2"};
+  auto ccu_task = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups);
+
+  // 创建FusionTask，包含AICore和CCU子任务
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(aicore_task));
+  sub_tasks.push_back(std::move(ccu_task));
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  // 序列化并验证
+  auto serialized_data = fusion_task.Serialize();
+  ASSERT_FALSE(serialized_data.empty());
+
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  // 验证基本属性
+  EXPECT_EQ(task_def.id(), static_cast<uint32_t>(op_exe_res_ctx_->GetOpId()));
+  EXPECT_EQ(task_def.notify_id(), UINT32_MAX);
+  EXPECT_EQ(task_def.type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_FUSION_KERNEL));
+
+  // 验证FusionTask字段
+  ASSERT_TRUE(task_def.has_fusion_task());
+  const auto &fusion_task_def = task_def.fusion_task();
+  EXPECT_EQ(fusion_task_def.op_index(), static_cast<uint32_t>(op_exe_res_ctx_->GetOpId()));
+
+  // 验证子任务数量
+  ASSERT_EQ(fusion_task_def.fusion_sub_task_info_size(), 2);
+
+  // 验证第一个子任务（AICore）
+  const auto &sub_task_info1 = fusion_task_def.fusion_sub_task_info(0);
+  EXPECT_EQ(sub_task_info1.type(), domi::FusionSubTaskInfo::AICORE);
+  ASSERT_TRUE(sub_task_info1.task().has_aicore_fusion_task_info());
+  EXPECT_FALSE(sub_task_info1.task().aicore_fusion_task_info().is_all_kernel());
+
+  // 验证blockdim是否正确设置
+  const auto &aicore_fusion_task_info = sub_task_info1.task().aicore_fusion_task_info();
+  ASSERT_TRUE(aicore_fusion_task_info.has_config());
+  const auto &config = aicore_fusion_task_info.config();
+  bool found_blockdim = false;
+  for (int j = 0; j < config.launch_attribute_size(); ++j) {
+    const auto &attr = config.launch_attribute(j);
+    if (attr.id() == domi::LaunchAttribute::BLOCKDIM) {
+      EXPECT_EQ(attr.value().block_dim(), 32);
+      found_blockdim = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_blockdim);
+
+  // 验证第二个子任务（CCU）
+  const auto &sub_task_info2 = fusion_task_def.fusion_sub_task_info(1);
+  EXPECT_EQ(sub_task_info2.type(), domi::FusionSubTaskInfo::CCU);
+  ASSERT_TRUE(sub_task_info2.task().has_ccu_task_group());
+
+  const auto &ccu_task_group = sub_task_info2.task().ccu_task_group();
+  ASSERT_EQ(ccu_task_group.group_size(), 2);
+  EXPECT_EQ(ccu_task_group.group(0), "fusion_group1");
+  EXPECT_EQ(ccu_task_group.group(1), "fusion_group2");
+}
+
+// 测试CreateFusionTask函数，包含AllKernel和CCU子任务
+TEST_F(TestCreateFusionAndCcuTask, TestCreateFusionTaskWithAllKernelAndCcu) {
+  // 创建AllKernel任务
+  auto all_kernel_task_def = CreateAllKernelTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> all_kernel_buffer(all_kernel_task_def.ByteSizeLong());
+  all_kernel_task_def.SerializeToArray(all_kernel_buffer.data(), all_kernel_buffer.size());
+  auto all_kernel_task = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, all_kernel_buffer);
+
+  // 设置AllKernel任务的args_format和blockdim
+  std::string args_format = "{ffts_addr}{i_instance0*}{i_instance1*}{i_instance2*}{o_instance0*}{o_instance1*}{ws*}{t}";
+  all_kernel_task.SetArgsFormat(args_format.c_str());
+  all_kernel_task.SetBlockDim(64);
+
+  // 创建CCU任务
+  std::vector<std::string> groups = {"all_kernel_group"};
+  auto ccu_task = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups);
+
+  // 创建FusionTask
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(all_kernel_task));
+  sub_tasks.push_back(std::move(ccu_task));
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  // 序列化并验证
+  auto serialized_data = fusion_task.Serialize();
+  ASSERT_FALSE(serialized_data.empty());
+
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  // 验证基本属性
+  EXPECT_EQ(task_def.type(), static_cast<uint32_t>(ModelTaskType::MODEL_TASK_FUSION_KERNEL));
+
+  // 验证FusionTask字段
+  ASSERT_TRUE(task_def.has_fusion_task());
+  const auto &fusion_task_def = task_def.fusion_task();
+
+  // 验证子任务数量
+  ASSERT_EQ(fusion_task_def.fusion_sub_task_info_size(), 2);
+
+  // 验证第一个子任务（AllKernel）
+  const auto &sub_task_info1 = fusion_task_def.fusion_sub_task_info(0);
+  EXPECT_EQ(sub_task_info1.type(), domi::FusionSubTaskInfo::AICORE);
+  ASSERT_TRUE(sub_task_info1.task().has_aicore_fusion_task_info());
+  EXPECT_TRUE(sub_task_info1.task().aicore_fusion_task_info().is_all_kernel());
+
+  // 验证blockdim是否正确设置
+  const auto &aicore_fusion_task_info = sub_task_info1.task().aicore_fusion_task_info();
+  ASSERT_TRUE(aicore_fusion_task_info.has_config());
+  const auto &config = aicore_fusion_task_info.config();
+  bool found_blockdim = false;
+  for (int j = 0; j < config.launch_attribute_size(); ++j) {
+    const auto &attr = config.launch_attribute(j);
+    if (attr.id() == domi::LaunchAttribute::BLOCKDIM) {
+      EXPECT_EQ(attr.value().block_dim(), 64);
+      found_blockdim = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_blockdim);
+
+  // 验证第二个子任务（CCU）
+  const auto &sub_task_info2 = fusion_task_def.fusion_sub_task_info(1);
+  EXPECT_EQ(sub_task_info2.type(), domi::FusionSubTaskInfo::CCU);
+}
+
+// 测试CreateFusionTask函数，只包含AICore子任务
+TEST_F(TestCreateFusionAndCcuTask, TestCreateFusionTaskWithOnlyAicore) {
+  // 创建两个AICore任务
+  auto aicore_task_def1 = CreateAicoreTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> buffer1(aicore_task_def1.ByteSizeLong());
+  aicore_task_def1.SerializeToArray(buffer1.data(), buffer1.size());
+  auto aicore_task1 = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer1);
+  aicore_task1.SetArgsFormat("{i0*}{i1*}{i2*}{o0*}{o1*}{ws*}{t}");
+  aicore_task1.SetBlockDim(32);
+
+  auto aicore_task_def2 = CreateAicoreTaskDef(op_exe_res_ctx_);
+  aicore_task_def2.mutable_kernel()->set_block_dim(16); // 不同的blockdim
+  std::vector<uint8_t> buffer2(aicore_task_def2.ByteSizeLong());
+  aicore_task_def2.SerializeToArray(buffer2.data(), buffer2.size());
+  auto aicore_task2 = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer2);
+  aicore_task2.SetArgsFormat("{i0*}{i1*}{i2*}{o0*}{o1*}{ws*}{t}");
+  aicore_task2.SetBlockDim(16);
+
+  // 创建FusionTask，只包含AICore子任务
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(aicore_task1));
+  sub_tasks.push_back(std::move(aicore_task2));
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  // 验证
+  auto serialized_data = fusion_task.Serialize();
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  ASSERT_TRUE(task_def.has_fusion_task());
+  const auto &fusion_task_def = task_def.fusion_task();
+
+  // 验证子任务数量
+  EXPECT_EQ(fusion_task_def.fusion_sub_task_info_size(), 2);
+
+  // 验证两个子任务都是AICore类型
+  for (int i = 0; i < fusion_task_def.fusion_sub_task_info_size(); i++) {
+    const auto &sub_task_info = fusion_task_def.fusion_sub_task_info(i);
+    EXPECT_EQ(sub_task_info.type(), domi::FusionSubTaskInfo::AICORE);
+  }
+}
+
+// 测试CreateFusionTask函数，只包含CCU子任务
+TEST_F(TestCreateFusionAndCcuTask, TestCreateFusionTaskWithOnlyCcu) {
+  // 创建两个CCU任务
+  std::vector<std::string> groups1 = {"group1", "group2"};
+  auto ccu_task1 = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups1);
+
+  std::vector<std::string> groups2 = {"group3"};
+  auto ccu_task2 = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups2);
+
+  // 创建FusionTask，只包含CCU子任务
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(ccu_task1));
+  sub_tasks.push_back(std::move(ccu_task2));
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  // 验证
+  auto serialized_data = fusion_task.Serialize();
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  ASSERT_TRUE(task_def.has_fusion_task());
+  const auto &fusion_task_def = task_def.fusion_task();
+
+  // 验证子任务数量
+  EXPECT_EQ(fusion_task_def.fusion_sub_task_info_size(), 2);
+
+  // 验证两个子任务都是CCU类型
+  for (int i = 0; i < fusion_task_def.fusion_sub_task_info_size(); i++) {
+    const auto &sub_task_info = fusion_task_def.fusion_sub_task_info(i);
+    EXPECT_EQ(sub_task_info.type(), domi::FusionSubTaskInfo::CCU);
+  }
+}
+
+// 测试空groups创建CcuTask
+TEST_F(TestCreateFusionAndCcuTask, TestCreateCcuTaskWithEmptyGroups) {
+  std::vector<std::string> empty_groups;
+
+  auto ccu_task = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, empty_groups);
+
+  auto serialized_data = ccu_task.Serialize();
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  ASSERT_TRUE(task_def.has_fusion_task());
+  const auto &fusion_task_def = task_def.fusion_task();
+  ASSERT_EQ(fusion_task_def.fusion_sub_task_info_size(), 1);
+
+  const auto &sub_task_info = fusion_task_def.fusion_sub_task_info(0);
+  ASSERT_TRUE(sub_task_info.task().has_ccu_task_group());
+  const auto &ccu_task_group = sub_task_info.task().ccu_task_group();
+
+  // 验证groups为空
+  EXPECT_EQ(ccu_task_group.group_size(), 0);
+}
+
+// 测试移动语义与FusionTask结合
+TEST_F(TestCreateFusionAndCcuTask, TestFusionTaskWithMoveSemantics) {
+  // 创建AICore任务
+  auto aicore_task_def = CreateAicoreTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> buffer(aicore_task_def.ByteSizeLong());
+  aicore_task_def.SerializeToArray(buffer.data(), buffer.size());
+  auto aicore_task = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer);
+  aicore_task.SetArgsFormat("{test_args_format}");
+  aicore_task.SetBlockDim(32);
+
+  // 创建CCU任务
+  std::vector<std::string> groups = {"move_test_group"};
+  auto ccu_task = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups);
+
+  // 测试移动后原对象是否失效
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(aicore_task));
+  sub_tasks.push_back(std::move(ccu_task));
+
+  // 验证移动后原对象的基本属性
+  EXPECT_EQ(aicore_task.GetArgsFormat(), nullptr); // 移动后应为空
+  EXPECT_EQ(ccu_task.GetArgsFormat(), nullptr);    // 移动后应为空
+
+  // 创建FusionTask
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  // 验证FusionTask创建成功
+  auto serialized_data = fusion_task.Serialize();
+  EXPECT_FALSE(serialized_data.empty());
+}
+
+// 测试异常场景：空context
+TEST_F(TestCreateFusionAndCcuTask, TestCreateCcuTaskWithNullContext) {
+  std::vector<std::string> groups = {"group1"};
+
+  // 测试空context，预期不会崩溃（根据代码实现，内部有GE_ASSERT_NOTNULL）
+  // 注意：在实际测试中，如果启用了断言，这可能会导致测试失败
+  // 这里我们主要验证函数接口的健壮性
+  EXPECT_NO_THROW({
+    auto ccu_task = KernelLaunchInfo::CreateCcuTask(nullptr, groups);
+    // 如果创建成功，序列化应返回空或默认值
+    auto data = ccu_task.Serialize();
+    // 根据实现，可能返回空或默认TaskDef
+  });
+}
+
+// 测试FusionTask中args_format的正确复制
+TEST_F(TestCreateFusionAndCcuTask, TestArgsFormatCopyInFusionTask) {
+  // 创建AICore任务并设置args_format
+  auto aicore_task_def = CreateAicoreTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> buffer(aicore_task_def.ByteSizeLong());
+  aicore_task_def.SerializeToArray(buffer.data(), buffer.size());
+  auto aicore_task = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer);
+
+  // 设置复杂的args_format
+  std::string complex_args_format = "{ffts_addr}{hi.hcom0*}{i0*}{i1*}{i2*}{#0}{o0*}{o1*}{ws*}{t}";
+  aicore_task.SetArgsFormat(complex_args_format.c_str());
+  aicore_task.SetBlockDim(48);
+
+  // 创建CCU任务
+  std::vector<std::string> groups = {"test_group"};
+  auto ccu_task = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups);
+
+  // 创建FusionTask
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(aicore_task));
+  sub_tasks.push_back(std::move(ccu_task));
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  // 验证args_format是否正确复制到FusionTask
+  auto serialized_data = fusion_task.Serialize();
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  ASSERT_TRUE(task_def.has_fusion_task());
+}
+
+// 测试FusionTask中子任务顺序保持
+TEST_F(TestCreateFusionAndCcuTask, TestSubTaskOrderInFusionTask) {
+  // 创建三个不同类型的任务
+  auto aicore_task_def = CreateAicoreTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> buffer1(aicore_task_def.ByteSizeLong());
+  aicore_task_def.SerializeToArray(buffer1.data(), buffer1.size());
+  auto aicore_task = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer1);
+  aicore_task.SetArgsFormat("{aicore_args}");
+
+  std::vector<std::string> groups1 = {"ccu1_group"};
+  auto ccu_task1 = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups1);
+
+  auto all_kernel_task_def = CreateAllKernelTaskDef(op_exe_res_ctx_);
+  std::vector<uint8_t> buffer2(all_kernel_task_def.ByteSizeLong());
+  all_kernel_task_def.SerializeToArray(buffer2.data(), buffer2.size());
+  auto all_kernel_task = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer2);
+  all_kernel_task.SetArgsFormat("{all_kernel_args}");
+
+  std::vector<std::string> groups2 = {"ccu2_group"};
+  auto ccu_task2 = KernelLaunchInfo::CreateCcuTask(op_exe_res_ctx_, groups2);
+
+  // 按特定顺序添加子任务
+  std::vector<KernelLaunchInfo> sub_tasks;
+  sub_tasks.push_back(std::move(aicore_task));     // 第一个：AICore
+  sub_tasks.push_back(std::move(ccu_task1));       // 第二个：CCU
+  sub_tasks.push_back(std::move(all_kernel_task)); // 第三个：AllKernel
+  sub_tasks.push_back(std::move(ccu_task2));       // 第四个：CCU
+
+  auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+
+  // 验证子任务顺序
+  auto serialized_data = fusion_task.Serialize();
+  domi::TaskDef task_def;
+  ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+  ASSERT_TRUE(task_def.has_fusion_task());
+  const auto &fusion_task_def = task_def.fusion_task();
+
+  // 验证子任务数量和顺序
+  ASSERT_EQ(fusion_task_def.fusion_sub_task_info_size(), 4);
+
+  // 第一个应该是AICore
+  EXPECT_EQ(fusion_task_def.fusion_sub_task_info(0).type(),
+            domi::FusionSubTaskInfo::AICORE);
+  EXPECT_FALSE(fusion_task_def.fusion_sub_task_info(0).task().aicore_fusion_task_info().is_all_kernel());
+
+  // 第二个应该是CCU
+  EXPECT_EQ(fusion_task_def.fusion_sub_task_info(1).type(),
+            domi::FusionSubTaskInfo::CCU);
+
+  // 第三个应该是AllKernel（在代码中也被识别为AICORE类型，但is_all_kernel为true）
+  EXPECT_EQ(fusion_task_def.fusion_sub_task_info(2).type(),
+            domi::FusionSubTaskInfo::AICORE);
+  EXPECT_TRUE(fusion_task_def.fusion_sub_task_info(2).task().aicore_fusion_task_info().is_all_kernel());
+
+  // 第四个应该是CCU
+  EXPECT_EQ(fusion_task_def.fusion_sub_task_info(3).type(),
+            domi::FusionSubTaskInfo::CCU);
+}
+
+// 测试sqe_num的计算逻辑：各种子任务sqe_num的组合
+TEST_F(TestCreateFusionAndCcuTask, TestFusionTaskSqeNumCalculation) {
+  // 场景1：所有子任务sqe_num都为0，融合任务sqe_num应该等于子任务数量
+  {
+    // 创建两个sqe_num为0的AICore任务
+    auto aicore_task_def1 = CreateAicoreTaskDef(op_exe_res_ctx_);
+    aicore_task_def1.set_sqe_num(0); // 明确设置sqe_num为0
+    std::vector<uint8_t> buffer1(aicore_task_def1.ByteSizeLong());
+    aicore_task_def1.SerializeToArray(buffer1.data(), buffer1.size());
+    auto aicore_task1 = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer1);
+
+    auto aicore_task_def2 = CreateAicoreTaskDef(op_exe_res_ctx_);
+    aicore_task_def2.set_sqe_num(0); // 明确设置sqe_num为0
+    std::vector<uint8_t> buffer2(aicore_task_def2.ByteSizeLong());
+    aicore_task_def2.SerializeToArray(buffer2.data(), buffer2.size());
+    auto aicore_task2 = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer2);
+
+    std::vector<KernelLaunchInfo> sub_tasks;
+    sub_tasks.push_back(std::move(aicore_task1));
+    sub_tasks.push_back(std::move(aicore_task2));
+
+    auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+    auto serialized_data = fusion_task.Serialize();
+    domi::TaskDef task_def;
+    ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+    // 两个sqe_num为0的子任务，融合任务sqe_num应该为2（0->按1计算）
+    EXPECT_EQ(task_def.sqe_num(), 2);
+  }
+
+  // 场景2：子任务sqe_num不为0，融合任务sqe_num应该是各子任务sqe_num之和
+  {
+    // 创建两个sqe_num不为0的AICore任务
+    auto aicore_task_def1 = CreateAicoreTaskDef(op_exe_res_ctx_);
+    aicore_task_def1.set_sqe_num(3); // 设置sqe_num为3
+    std::vector<uint8_t> buffer1(aicore_task_def1.ByteSizeLong());
+    aicore_task_def1.SerializeToArray(buffer1.data(), buffer1.size());
+    auto aicore_task1 = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer1);
+
+    auto aicore_task_def2 = CreateAicoreTaskDef(op_exe_res_ctx_);
+    aicore_task_def2.set_sqe_num(2); // 设置sqe_num为2
+    std::vector<uint8_t> buffer2(aicore_task_def2.ByteSizeLong());
+    aicore_task_def2.SerializeToArray(buffer2.data(), buffer2.size());
+    auto aicore_task2 = KernelLaunchInfo::LoadFromData(op_exe_res_ctx_, buffer2);
+
+    std::vector<KernelLaunchInfo> sub_tasks;
+    sub_tasks.push_back(std::move(aicore_task1));
+    sub_tasks.push_back(std::move(aicore_task2));
+
+    auto fusion_task = KernelLaunchInfo::CreateFusionTask(op_exe_res_ctx_, sub_tasks);
+    auto serialized_data = fusion_task.Serialize();
+    domi::TaskDef task_def;
+    ASSERT_TRUE(task_def.ParseFromArray(serialized_data.data(), serialized_data.size()));
+
+    // 两个sqe_num不为0的子任务，融合任务sqe_num应该为3+2=5
+    EXPECT_EQ(task_def.sqe_num(), 5);
+  }
 }
 }

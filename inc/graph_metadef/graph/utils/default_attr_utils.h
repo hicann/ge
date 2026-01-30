@@ -122,7 +122,13 @@ class AttrString {
   }
   GetFunc(Int, int64_t);
   GetFunc(Float, float);
-  GetFunc(Str, std::string);
+  static std::string GetStr(const OpDescPtr &op_desc, const std::string &attr_name, const bool skip_empty) {
+    const std::string *ptr = AttrUtils::GetStr(op_desc, attr_name); 
+    if (ptr == nullptr) {
+      throw std::runtime_error("Failed to get default value of attr: " + attr_name);
+    }
+    return ToString(*ptr, skip_empty);
+  }
   GetFunc(Bool, bool);
   GetFunc(DataType, ge::DataType);
   GetFunc(Tensor, ge::ConstGeTensorPtr);

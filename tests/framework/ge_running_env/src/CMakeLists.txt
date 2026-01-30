@@ -17,6 +17,7 @@ target_include_directories(ge_running_env
         PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${AIR_CODE_DIR}
+        ${AIR_CODE_DIR}/inc/graph_metadef
         )
 
 target_compile_definitions(ge_running_env PRIVATE

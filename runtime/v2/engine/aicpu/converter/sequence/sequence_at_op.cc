@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 
@@ -28,51 +28,10 @@ namespace {
   constexpr size_t kOutputTensorIndex = 3U;
 }
 namespace gert {
-ge::graphStatus SequenceAtDoCompute(KernelContext *context) {
-  GELOGD("SequenceAtDoCompute begin");
+ge::graphStatus SequenceAtDoComputeExtend(KernelContext *context, const uint64_t handle,
+                                          const int64_t index) {
   uint64_t session_id = context->GetInputValue<size_t>(kSessionIdIndex);
   uint64_t container_id = context->GetInputValue<size_t>(kContainerIdIndex);
-  auto input_handle = context->GetInputPointer<TensorData>(kHandleIndex);
-  if (input_handle == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "[Check][Op]Failed to get input handle.");
-    REPORT_INNER_ERR_MSG("E39999", "Failed to get input handle.");
-    return ge::PARAM_INVALID;
-  }
-  auto handle = *(static_cast<uint64_t*>(input_handle->GetAddr()));
-  
-  auto index_data = context->GetInputPointer<TensorData>(kDataIndex);
-  if (index_data == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "Failed to get input index.");
-    REPORT_INNER_ERR_MSG("E39999", "Failed to get input index.");
-    return ge::PARAM_INVALID;
-  }
-
-  auto extend_ctx = reinterpret_cast<ExtendedKernelContext*>(context);
-  auto index_desc = extend_ctx->GetInputDesc(kIndexDescIndex);
-  if (index_desc == nullptr) {
-    GELOGE(ge::PARAM_INVALID, "index_desc is nullptr");
-    REPORT_INNER_ERR_MSG("E39999", "index_desc is nullptr");
-    return ge::PARAM_INVALID;
-  }
-
-  auto index_type = index_desc->GetDataType();
-  GELOGE(ge::PARAM_INVALID, "Invalid index type:%u", index_type);
-  int64_t index = 0;
-  switch (index_type) {
-    case ge::DT_INT32:
-      index = static_cast<int64_t>(*(static_cast<int32_t*>(index_data->GetAddr())));
-      break;
-    case ge::DT_INT64:
-      index = *(static_cast<int64_t*>(index_data->GetAddr()));;
-      break;
-    default:
-      GELOGE(ge::PARAM_INVALID, 
-            "Sequence SequenceAt input index data type should be DT_INT32 or "
-            "DT_INT64, [%u] not support.", index_type);
-      REPORT_INNER_ERR_MSG("E39999", "Sequence SequenceAt input index data type should be DT_INT32 "
-                         "or DT_INT64, [%u] not support.", index_type);
-      return ge::PARAM_INVALID;
-  }
   GELOGD("SequenceAt session = %llu, container = %llu", session_id, container_id);
   GELOGD("SequenceAt handle = %llu, index = %lld", handle, index);
   ResourceMgrPtr out_rm;
@@ -112,6 +71,53 @@ ge::graphStatus SequenceAtDoCompute(KernelContext *context) {
          output_tensor_data_type, output_tensor->GetSize());
   GELOGD("SequenceAtDoCompute end");
   return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus SequenceAtDoCompute(KernelContext *context) {
+  GELOGD("SequenceAtDoCompute begin");
+
+  auto input_handle = context->GetInputPointer<TensorData>(kHandleIndex);
+  if (input_handle == nullptr) {
+    GELOGE(ge::PARAM_INVALID, "[Check][Op]Failed to get input handle.");
+    REPORT_INNER_ERR_MSG("E39999", "Failed to get input handle.");
+    return ge::PARAM_INVALID;
+  }
+  auto handle = *(static_cast<uint64_t*>(input_handle->GetAddr()));
+  
+  auto index_data = context->GetInputPointer<TensorData>(kDataIndex);
+  if (index_data == nullptr) {
+    GELOGE(ge::PARAM_INVALID, "Failed to get input index.");
+    REPORT_INNER_ERR_MSG("E39999", "Failed to get input index.");
+    return ge::PARAM_INVALID;
+  }
+
+  auto extend_ctx = reinterpret_cast<ExtendedKernelContext*>(context);
+  auto index_desc = extend_ctx->GetInputDesc(kIndexDescIndex);
+  if (index_desc == nullptr) {
+    GELOGE(ge::PARAM_INVALID, "index_desc is nullptr");
+    REPORT_INNER_ERR_MSG("E39999", "index_desc is nullptr");
+    return ge::PARAM_INVALID;
+  }
+
+  auto index_type = index_desc->GetDataType();
+  int64_t index = 0;
+  switch (index_type) {
+    case ge::DT_INT32:
+      index = static_cast<int64_t>(*(static_cast<int32_t*>(index_data->GetAddr())));
+      break;
+    case ge::DT_INT64:
+      index = *(static_cast<int64_t*>(index_data->GetAddr()));;
+      break;
+    default:
+      GELOGE(ge::PARAM_INVALID, 
+            "Sequence SequenceAt input index data type should be DT_INT32 or "
+            "DT_INT64, [%u] not support.", index_type);
+      REPORT_INNER_ERR_MSG("E39999", "Sequence SequenceAt input index data type should be DT_INT32 "
+                         "or DT_INT64, [%u] not support.", index_type);
+      return ge::PARAM_INVALID;
+  }
+
+  return SequenceAtDoComputeExtend(context, handle, index);
 }
 
 ge::graphStatus CreateBuildTensorOutputs(const ge::FastNode *node, KernelContext *context) {

@@ -12,7 +12,7 @@
 
 #include <cstring>
 #include <securec.h>
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/math_util.h"
 #include "graph/def_types.h"
 #include "graph/types.h"

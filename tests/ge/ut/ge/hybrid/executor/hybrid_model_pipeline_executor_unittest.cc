@@ -17,7 +17,22 @@
 
 namespace ge {
 using namespace hybrid;
-
+namespace {
+std::vector<gert::Tensor> InputData2GertTensors(const InputData &input_data) {
+  std::vector<gert::Tensor> input_tensors;
+  for (size_t i = 0; i < input_data.blobs.size(); ++i) {
+    gert::Tensor tensor;
+    tensor.MutableTensorData().SetSize(input_data.blobs[i].length);
+    tensor.MutableTensorData().SetAddr(input_data.blobs[i].data, nullptr);
+    tensor.MutableStorageShape().SetDimNum(input_data.shapes[i].size());
+    for (size_t j = 0; j < input_data.shapes[i].size(); ++j) {
+      tensor.MutableStorageShape().SetDim(0, input_data.shapes[i][j]);
+    }
+    input_tensors.emplace_back(std::move(tensor));
+  }
+  return input_tensors;
+}
+}
 class UtestStageExecutor : public testing::Test {
  protected:
   void SetUp() {}
@@ -90,7 +105,7 @@ TEST_F(UtestStageExecutor, execute_online_success) {
   unique_ptr<uint8_t[]> data_buf(new (std::nothrow) uint8_t[3072]);
   input_data.blobs.push_back(DataBuffer(data_buf.get(), 3072, false));
   input_data.shapes.push_back({1, 16, 16, 3});
-  OutputData output_data;
-  EXPECT_EQ(pip_executor.ExecuteOnlineModel(input_data, &output_data, nullptr), SUCCESS);
+  auto gert_inputs = InputData2GertTensors(input_data);
+  EXPECT_EQ(pip_executor.ExecuteOnlineModel(gert_inputs, nullptr), SUCCESS);
 }
 } // namespace ge

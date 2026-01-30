@@ -366,7 +366,7 @@ aclError aclopSetKernelArgsImpl(aclopKernelDesc *kernelDesc,
                   blockDim, argSize);
     kernelDesc->kernelId = std::string(kernelId);
     kernelDesc->blockDim = blockDim;
-    kernelDesc->extendArgs = std::string(reinterpret_cast<const char *>(args), static_cast<size_t>(argSize));
+    kernelDesc->extendArgs = std::string(static_cast<const char *>(args), static_cast<size_t>(argSize));
 
     return ACL_SUCCESS;
 }

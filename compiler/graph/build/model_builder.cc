@@ -484,8 +484,7 @@ Status ModelBuilder::InitL1FusionOption() {
     std::string virtual_type = "0";
     ret = ge::GetContext().GetOption(VIRTUAL_TYPE, virtual_type);
     if ((ret == GRAPH_SUCCESS) && (virtual_type == "1")) {
-        std::string situation = "Enabling L1_fusion, ";
-        situation += "which is not supported in scenarios where computational power is divided";
+        std::string situation = "L1_fusion is not supported in the virtual instance scenario";
         REPORT_PREDEFINED_ERR_MSG("E13024", std::vector<const char_t *>({"value", "env", "situation"}),
                                    std::vector<const char_t *>({virtual_type.c_str(), "VIRTUAL_TYPE", situation.c_str()}));
         GELOGE(FAILED, "BuildModelDef fail because l1fusion enable and virtual type is %s.", virtual_type.c_str());
@@ -868,7 +867,7 @@ Status ModelBuilder::SaveCustAiCpuKernel(const OpDescPtr &op_desc, std::set<std:
   if (aicpu_name_set.count(cust_aicpu_kernel->GetName()) > 0) {
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
                        std::vector<const char_t *>({cust_aicpu_kernel->GetName().c_str(), op_desc->GetName().c_str(),
-                                                "aicpu_kernel_name can't be the same"}));
+                                                "Parameter aicpu_kernel_name must be unique."}));
     GELOGE(FAILED, "[Check][Param] aicpu_kernel name %s can't be the same, judge for op:%s(%s)",
            cust_aicpu_kernel->GetName().c_str(), op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return FAILED;
@@ -1347,7 +1346,7 @@ Status ModelBuilder::AssignStreamForDynamicShapeGraph(ComputeGraphPtr &compute_g
     REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({ge::GetContext().GetReadableName("ge.autoMultistreamParallelMode").c_str(), "cv",
-                                   "dynamic multi stream and cv parallel could not both enable."}));
+                                   "Dynamic multi-stream and CV parallel could not both enabled."}));
     GELOGE(FAILED, "dynamic multi stream and cv parallel could not both enable");
     return FAILED;
   }

@@ -272,6 +272,23 @@ TEST_F(GraphConstructionTest, Test_attrs) {
   EXPECT_EQ(v.at(0), "test_str_1");
   EXPECT_EQ(v.at(1), "test_str_2");
 }
+// 测试可选输入未连边的场景
+TEST_F(GraphConstructionTest, Test_optional_input_not_connected) {
+  auto input_tensor = graph_builder_->CreateInput(0);
+  auto graph = graph_builder_->BuildAndReset({phony_3opi_1o(input_tensor, nullptr, input_tensor)});
+  EXPECT_NE(graph, nullptr);
+  for (const auto &node : graph->GetAllNodes()) {
+    ge::AscendString type;
+    EXPECT_EQ(node.GetType(type), GRAPH_SUCCESS);
+    if (type == "phony_3opi_1o") {
+      EXPECT_NE(node.GetInDataNodesAndPortIndexs(0).first, nullptr);
+      EXPECT_EQ(node.GetInDataNodesAndPortIndexs(1).first, nullptr);
+      EXPECT_NE(node.GetInDataNodesAndPortIndexs(2).first, nullptr);
+      // 非法的index
+      EXPECT_EQ(node.GetInDataNodesAndPortIndexs(3).first, nullptr);
+    }
+  }
+}
 
 std::unique_ptr<Graph> BuildWhileCondGraph(std::unique_ptr<es::EsGraphBuilder> while_graph_builder) {
   auto while_cond_input = while_graph_builder->CreateInput(0, "input_0", ge::DT_INT32, ge::FORMAT_NCHW, {2, 2});

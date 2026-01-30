@@ -49,7 +49,6 @@
 #include "graph/model.h"
 #include "graph/node.h"
 #include "graph/op_desc.h"
-#include "graph/utils/attr_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "memory_app_type_classifier.h"
 #include "mmpa/mmpa_api.h"

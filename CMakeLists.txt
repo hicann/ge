@@ -14,6 +14,8 @@ project(CANN-GRAPH-ENGINE)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(BASE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
+# 存在`.dev_env`文件说明是蓝区开发环境，并且调用了`prepare_dev_env.sh`完成了开发环境准备
+# 除了设置好`.dev_env`中有的环境变量外，还会设置其他几个蓝区开发的必要变量
 if(EXISTS "${CMAKE_SOURCE_DIR}/.dev_env")
     set(ENABLE_OPEN_SRC True)
     set(ENABLE_GE_UT ON)
@@ -91,6 +93,32 @@ if (NOT DEFINED CMAKE_PREFIX_PATH)
     )
 endif()
 
+include(CMakePrintHelpers)
+message(STATUS "Variables in air project:")
+cmake_print_variables(ASCEND_INSTALL_PATH)
+cmake_print_variables(ASCEND_3RD_LIB_PATH)
+cmake_print_variables(CMAKE_BUILD_TYPE)
+cmake_print_variables(CMAKE_INSTALL_PREFIX)
+cmake_print_variables(CMAKE_PREFIX_PATH)
+cmake_print_variables(CMAKE_MODULE_PATH)
+cmake_print_variables(BUILD_COMPONENT)
+cmake_print_variables(ENABLE_BUILD_DEVICE USE_CXX11_ABI CMAKE_TOOLCHAIN_FILE)
+if(ENABLE_BUILD_DEVICE)
+    # 非MDC编译流程
+    set(USE_CXX11_ABI 0)
+else()
+    if(CMAKE_TOOLCHAIN_FILE STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/cmake/llvm_toolchain.cmake")
+        # MDC编译运行态
+        message("[MDC compile] MDC compile runtime state.")
+        add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})
+        set(MDC_COMPILE_RUNTIME ON)
+    else()
+        # MDC编译开发态
+        message("[MDC compile] MDC compile develop state.")
+        set(USE_CXX11_ABI 0)
+    endif()
+endif()
+
 if (ENABLE_ACL_UT)
     set(METADEF_DIR ${CMAKE_CURRENT_LIST_DIR}/base/metadef)
 
@@ -106,16 +134,6 @@ if (ENABLE_OPEN_SRC AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     set(CMAKE_INSTALL_PREFIX ${CMAKE_CURRENT_SOURCE_DIR}/output CACHE PATH "cmake default install path" FORCE)
 endif ()
 
-include(CMakePrintHelpers)
-message(STATUS "Variables in air project:")
-cmake_print_variables(ASCEND_INSTALL_PATH)
-cmake_print_variables(ASCEND_3RD_LIB_PATH)
-cmake_print_variables(CMAKE_BUILD_TYPE)
-cmake_print_variables(CMAKE_INSTALL_PREFIX)
-cmake_print_variables(CMAKE_PREFIX_PATH)
-cmake_print_variables(CMAKE_MODULE_PATH)
-cmake_print_variables(BUILD_COMPONENT)
-
 # 新开关适配，完成后删除原开关，从外部传入
 if (ENABLE_TEST)
     enable_testing()
@@ -129,9 +147,29 @@ if (ENABLE_GE_C_LLT)
 endif ()
 
 cmake_print_variables(ENABLE_OPEN_SRC ENABLE_TEST ENABLE_GE_BENCHMARK ENABLE_GE_ST ENABLE_GE_UT MINDSPORE_MODE PLATFORM
-        BUILD_METADEF ENABLE_GE_DT ENABLE_RT2_UT ENABLE_PYTHON_UT ENABLE_PARSER_UT ENABLE_DFLOW_UT ENABLE_GE_C_LLT GE_C_DT ENABLE_TEST_C)
+        BUILD_METADEF ENABLE_GE_DT ENABLE_RT2_UT ENABLE_PYTHON_UT ENABLE_PARSER_UT ENABLE_DFLOW_UT)
 cmake_print_variables(BUILD_OPEN_PROJECT ENABLE_LLT_COV ENABLE_FE_LLT ENABLE_FFTS_LLT ENABLE_AICPU_LLT ENABLE_DVPP_LLT
         ENABLE_HCCE_LLT ENABLE_RTS_LLT ENABLE_UT ENABLE_ST, HI_PYTHON)
+
+# 针对 Clang 编译器，关闭特定警告（避免 -Werror 触发编译错误）
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(STATUS "Add compile option for Clang.")
+    
+    add_compile_options(-Wno-error=unknown-warning-option)
+    
+    add_compile_options(-Wno-unused)
+    add_compile_options(-Wno-unused-private-field)
+    
+    add_compile_options(-Wno-inconsistent-missing-override)
+    add_compile_options(-Wno-vla)
+    
+    add_compile_options(-Wno-error=inconsistent-missing-override)
+    add_compile_options(-Wno-error=vla)
+    add_compile_options(-Wno-error=unused)
+    add_compile_options(-Wno-error=unused-private-field)
+
+    add_compile_options(-Wno-error)
+endif()
 
 set(CMAKE_VERBOSE_MAKEFILE True)
 
@@ -183,7 +221,6 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
     set(TARGET_SYSTEM_NAME "Linux")
     set(OP_PROTO_DIR ${AIR_CODE_DIR}/tests/depends/op_stub/op_proto/inc)
     set(METADEF_DIR ${AIR_CODE_DIR}/base/metadef)
-
     set(GE_METADEF_DIR ${AIR_CODE_DIR}/graph_metadef)
     set(GE_METADEF_INC_DIR ${AIR_CODE_DIR}/inc/graph_metadef)
 
@@ -197,7 +234,6 @@ else ()
     set(METADEF_DIR ${TOP_DIR}/metadef)
     set(OP_PROTO_DIR ${TOP_DIR}/asl/ops/cann/ops/built-in/op_proto/inc)
     set(ASCGEN_DIR ${TOP_DIR}/air/compiler/graph/optimize/autofuse)
-
     set(GE_METADEF_DIR ${AIR_CODE_DIR}/graph_metadef)
     set(GE_METADEF_INC_DIR ${AIR_CODE_DIR}/inc/graph_metadef)
 endif ()
@@ -288,6 +324,7 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
 
     if (ENABLE_GE_BENCHMARK)
         add_dependencies(select_targets ge_runtime_benchmark)
+
     elseif (ENABLE_GE_ST OR ENABLE_RT2_ST OR ENABLE_RT3_ST OR ENABLE_PYTHON_ST OR ENABLE_PARSER_ST OR ENABLE_DFLOW_ST)
         if (ENABLE_RT2_ST)
             add_dependencies(select_targets hybrid_model_async_exec_test
@@ -341,7 +378,8 @@ if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR ENABLE_GE_DT)
                     ut_jit_execution
                     ut_eager_style_builder
                     graphtuner_executor
-                    ut_sc_check)
+                    ut_sc_check
+                    ge_manual_test)
         endif ()
 
         if (ENABLE_RT2_UT)
@@ -406,6 +444,7 @@ if (NOT BUILD_OPEN_PROJECT)
         install(TARGETS gert ge_common ge_common_base ge_executor_shared davinci_executor hybrid_executor ge_runner
                 ge_runner_v2 dflow_runner data_flow_base
                 ge_compiler aicore_utils slice air_headers
+                # 开发环境某些没有下载parser目录
                 # _caffe_parser fmk_onnx_parser fmk_parser parser_common
                 EXPORT air-targets
                 LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} OPTIONAL COMPONENT opensdk
@@ -492,39 +531,43 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
     )
 
     if(BUILD_PKG_COMPONENT)
-        add_custom_target(ge-compiler)
-        add_dependencies(ge-compiler parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
-                slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion dflow_runner
-                eager_style_graph_builder_base eager_style_graph_builder_base_static gen_esb aihac_ir
-                aihac_ir_register aihac_symbolizer pyautofuse ge_python llm_datadist_python_v1 dataflow_python
-                hcom_gradient_split_tune hcom_graph_adaptor hcom_opskernel_builder hcom_gradtune_opskernel_builder)
-        add_dependencies(ge-compiler fmk_parser ge_compiler fmk_onnx_parser ge_runner)
-        add_dependencies(ge-compiler engine)
-        add_dependencies(ge-compiler aicpu_ascend_engine aicpu_tf_engine dvpp_engine fe ffts ge_local_engine ge_local_opskernel_builder
-                host_cpu_opskernel_builder host_cpu_engine)
-        add_dependencies(ge-compiler cpu_compiler udf_compiler)
-        add_dependencies(ge-compiler atc_atc.bin)
-        add_dependencies(ge-compiler fwk_atc.bin)
-        add_dependencies(ge-compiler compress compress_static compressweight compressweight_static rts_engine switch_by_index)
-        add_dependencies(ge-compiler acl_op_compiler)
-        add_dependencies(ge-compiler fmk_onnx_parser_stub fmk_parser_stub atc_stub_ge_compiler fwk_stub_ge_runner fwk_stub_ge_runner_v2
-                stub_acl_op_compiler)
+        if (NOT MDC_COMPILE_RUNTIME)
+            add_custom_target(ge-compiler)
+            add_dependencies(ge-compiler parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler
+                    fmk_onnx_parser opskernel ge_runner slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion
+                    dflow_runner eager_style_graph_builder_base eager_style_graph_builder_base_static gen_esb aihac_ir aihac_ir_register
+                    aihac_symbolizer pyautofuse ge_python llm_datadist_python_v1 dataflow_python)
+            add_dependencies(ge-compiler hcom_gradient_split_tune hcom_graph_adaptor hcom_opskernel_builder hcom_gradtune_opskernel_builder)
+            add_dependencies(ge-compiler aicpu_ascend_engine aicpu_tf_engine dvpp_engine fe ffts ge_local_engine ge_local_opskernel_builder
+                    host_cpu_opskernel_builder host_cpu_engine engine)
+            add_dependencies(ge-compiler cpu_compiler udf_compiler)
+            add_dependencies(ge-compiler atc_atc.bin fwk_atc.bin)
+            add_dependencies(ge-compiler compress compress_static compressweight compressweight_static rts_engine switch_by_index)
+            add_dependencies(ge-compiler acl_op_compiler)
+            add_dependencies(ge-compiler fmk_onnx_parser_stub fmk_parser_stub atc_stub_ge_compiler fwk_stub_ge_runner fwk_stub_ge_runner_v2
+                    stub_acl_op_compiler)
 
-        add_custom_target(ge-executor)
-        add_dependencies(ge-executor ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
-                graph npu_sched_model_loader lowering register_static graph_base model_deployer data_flow_base hcom_executor)
-        add_dependencies(ge-executor ge_common gert graph register hybrid_executor lowering)
-        add_dependencies(ge-executor ge_common gert graph register hybrid_executor lowering register_static)
-        add_dependencies(ge-executor graph register lowering)
-        add_dependencies(ge-executor acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas)
-        add_dependencies(ge-executor runtime_update_model_param_ascend910B runtime_update_model_param_ascend910_93)
-        add_dependencies(ge-executor ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register stub_acl_mdl
-                stub_acl_cblas stub_acl_op_executor)
+            add_custom_target(ge-executor)
+            add_dependencies(ge-executor ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
+                    graph npu_sched_model_loader lowering register_static graph_base model_deployer data_flow_base hcom_executor)
+            add_dependencies(ge-executor acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas)
+            add_dependencies(ge-executor runtime_update_model_param_dav_2201)
+            add_dependencies(ge-executor ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register stub_acl_mdl
+                    stub_acl_cblas stub_acl_op_executor)
+        else()
+            # MDC 运行态编译
+            message("[MDC compile] MDC compile target set.")
+            add_custom_target(ge-compiler)
+            add_dependencies(ge-compiler flow_graph)
 
-        add_custom_target(dflow-executor)
-        add_dependencies(dflow-executor deployer_daemon npu_executor_main host_cpu_executor_main udf_dump
-                reader_writer udf_profiling flow_func built_in_flowfunc udf_executor)
-        if (DEFINED ENV{TOOLCHAIN_DIR})
+            add_custom_target(ge-executor)
+            add_dependencies(ge-executor ge_common ge_common_base davinci_executor hybrid_executor gert register graph graph_base acl_cblas)
+        endif ()
+
+        add_custom_target(dflow-executor)	 
+        add_dependencies(dflow-executor deployer_daemon npu_executor_main host_cpu_executor_main udf_dump	 
+                reader_writer udf_profiling flow_func built_in_flowfunc udf_executor) 
+        if (DEFINED ENV{TOOLCHAIN_DIR} AND ENABLE_BUILD_DEVICE)
             message(STATUS $ENV{TOOLCHAIN_DIR})
             set(TOOLCHAIN_DIR $ENV{TOOLCHAIN_DIR})
             set(CHILD_INSTALL_DIR ${CMAKE_BINARY_DIR}/device_install)
@@ -557,7 +600,7 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
         else ()
             message(WARNING "ENV TOOLCHAIN_DIR is not defined, can't build udf device pkg!!!")
         endif ()
-
+        
         include(cmake/package.cmake)
     endif()
 endif()

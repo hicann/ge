@@ -12,13 +12,13 @@
 #define ACL_TYPES_OP_ATTR_H_
 
 #include "graph/op_desc.h"
-#include "graph/utils/attr_utils.h"
 #include "common/log_inner.h"
 #include "utils/array_utils.h"
 
 struct ACL_FUNC_VISIBILITY aclopAttr {
     aclopAttr() = default;
     aclopAttr(const aclopAttr &opAttr);
+    aclopAttr& operator=(const aclopAttr &opAttr) = delete;
 
     ~aclopAttr() = default;
 

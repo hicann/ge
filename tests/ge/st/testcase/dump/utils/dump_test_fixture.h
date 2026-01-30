@@ -83,7 +83,7 @@ protected:
     checker_ = &dump_checker_stub->GetDumpChecker();
 
     // Reset at each iteration for the convenience of ModelId checking.
-    ModelManager::GetInstance().max_model_id_ = 0;
+    ModelManager::GetInstance().max_model_id_ = 1;
     MockGenerateTask();
   }
   void TearDown() override {

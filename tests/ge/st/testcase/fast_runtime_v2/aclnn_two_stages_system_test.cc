@@ -30,7 +30,6 @@
 #include "dump/utils/dump_session_wrapper.h"
 #include "lowering/graph_converter.h"
 #include "graph/operator_reg.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 using namespace ge;
 namespace gert {
@@ -375,7 +374,7 @@ TEST_F(AclnnTwoStagesSt, MultiThreadExecutor_Ok_OnlyTwoStagesAclnnOps) {
   EXPECT_EQ(AclnnTwoStagesSt::execute_op_launch_call_times, 2UL);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpPrepare"), 2);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpLaunch"), 2);
-  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildAclnnOpFwkData"), 0);
+  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildDualStageAclnnOpFwkData"), 0);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "FreeMemory"), 0);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "FreeMemoryHoldAddr"), 2);
 
@@ -426,7 +425,7 @@ TEST_F(AclnnTwoStagesSt, PriorityTopologicalExecute_Ok_OnlyTwoStagesAclnnOps) {
   EXPECT_EQ(AclnnTwoStagesSt::execute_op_launch_call_times, 2UL);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpPrepare"), 2);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpLaunch"), 2);
-  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildAclnnOpFwkData"), 0);
+  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildDualStageAclnnOpFwkData"), 0);
 
   runtime_stub.Clear();
   rtStreamDestroy(stream);
@@ -474,8 +473,8 @@ TEST_F(AclnnTwoStagesSt, MultiThreadExecutor_Ok_HybridAclnnOps) {
   EXPECT_EQ(AclnnTwoStagesSt::execute_op_func_call_times, 1UL);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpPrepare"), 1);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpLaunch"), 1);
-  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Mul", "ExecuteOpFunc"), 1);
-  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildAclnnOpFwkData"), 0);
+  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Mul", "ExecuteOpFunc"), 1);  //
+  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildDualStageAclnnOpFwkData"), 0);
 
   runtime_stub.Clear();
   rtStreamDestroy(stream);
@@ -523,7 +522,7 @@ TEST_F(AclnnTwoStagesSt, PriorityTopologicalExecute_Ok_HybridAclnnOps) {
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpPrepare"), 1);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "ExecuteOpLaunch"), 1);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Mul", "ExecuteOpFunc"), 1);
-  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildAclnnOpFwkData"), 0);
+  EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("Add", "BuildDualStageAclnnOpFwkData"), 0);
 
   runtime_stub.Clear();
   rtStreamDestroy(stream);

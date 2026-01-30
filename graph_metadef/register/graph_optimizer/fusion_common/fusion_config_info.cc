@@ -10,7 +10,7 @@
 
 #include "register/graph_optimizer/fusion_common/fusion_config_info.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace fe {
 FusionConfigInfo& FusionConfigInfo::Instance() {

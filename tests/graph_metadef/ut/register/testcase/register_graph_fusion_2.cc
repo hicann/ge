@@ -17,7 +17,7 @@
 #include "register/graph_optimizer/graph_fusion/fusion_pass_manager/fusion_pass_registry.h"
 #include "register/graph_optimizer/graph_fusion/graph_fusion_pass_base.h"
 #include "register/graph_optimizer/fusion_common/pattern_fusion_base_pass.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 /**
  *      Input                            Input
  *        |                                |

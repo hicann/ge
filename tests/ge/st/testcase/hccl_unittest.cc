@@ -8,7 +8,16 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include <vector>
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
+#include <functional>
+#include <memory>
+#include <hccl/hccl_types.h>
+#define private public
+#include "graph/load/model_manager/task_info/hccl/hccl_util.h"
+#undef private
+
 
 namespace ge {
 class UtestHccl: public testing::Test {

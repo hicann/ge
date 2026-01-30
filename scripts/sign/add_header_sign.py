@@ -1,6 +1,6 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
 # CANN Open Software License Agreement Version 2.0 (the "License").
@@ -8,7 +8,7 @@
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 
 """
 #
@@ -24,7 +24,7 @@
 #            PRODUCT_NAME：待扫描的产品名
 #            CHIP_NAME：芯片名称
 #            signature_tag：是否需要数字签名
-#            签名步骤 1、加esbc头; 2、生成ini文件; 3、进行签名（参数控制，暂不启动）; 4、签名结果写入文件头  
+#            蓝区签名步骤 1、加esbc头; 2、生成ini文件; 3、进行签名（参数控制，暂不启动）; 4、签名结果写入文件头  
 # 返回值    ：0:成功，-1:失败
 # 修改历史  ：
 # 日期    ：2025年11月25日
@@ -295,6 +295,7 @@ def build_sign(item_size_set, sign_file_dir, sign_tool_path, sign_tmp_path, root
         # 临时目录下ini文件完整路径，实际前面生成ini文件时，已经生成到对应的目录下
         file_sign_des = "{}.ini".format(os.path.join(sign_path, os.path.basename(file)))
         print(file_sign_des)
+        # 蓝区签名平台，命令不一样
         if not cmd:
             cmd = "{} {} {} {}".format(os.environ["HI_PYTHON"], sign_tool_path, root_dir, file_sign_des)
         else:

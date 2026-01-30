@@ -53,7 +53,6 @@
 #include "register/op_compile_info_base.h"
 #include "faker/space_registry_faker.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace gert {
 class CannProfilerUT : public bg::BgTest {

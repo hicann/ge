@@ -328,8 +328,7 @@ static Status ParseParamByOpFuncStub(const ge::Operator &op_src, ge::Operator& o
   return SUCCESS;
 }
 
-static Status ParseSubgraphPostFnIfStub(const AscendString& subgraph_name, const ge::Graph& graph) {
-  (void)subgraph_name;
+static Status ParseSubgraphPostFnIfStub(const std::string& subgraph_name, const ge::Graph& graph) {
   domi::AutoMappingSubgraphIOIndexFunc auto_mapping_subgraph_index_func =
       domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
   if (auto_mapping_subgraph_index_func == nullptr) {
@@ -389,11 +388,11 @@ REGISTER_CUSTOM_OP("Conv2D")
 
 REGISTER_CUSTOM_OP("If")
   .FrameworkType(domi::ONNX)
-  .OriginOpType({AscendString("ai.onnx::9::If"),
-                 AscendString("ai.onnx::10::If"),
-                 AscendString("ai.onnx::11::If"),
-                 AscendString("ai.onnx::12::If"),
-                 AscendString("ai.onnx::13::If")})
+  .OriginOpType({"ai.onnx::9::If",
+                 "ai.onnx::10::If",
+                 "ai.onnx::11::If",
+                 "ai.onnx::12::If",
+                 "ai.onnx::13::If"})
   .ParseParamsFn(ParseParamsStub)
   .ParseParamsByOperatorFn(ParseParamByOpFuncStub)
   .ParseSubgraphPostFn(ParseSubgraphPostFnIfStub);
@@ -416,7 +415,7 @@ REGISTER_CUSTOM_OP("Add")
 
 REGISTER_CUSTOM_OP("PartitionedCall")
     .FrameworkType(domi::ONNX)
-    .OriginOpType("ai.onnx::9::Clip")
+    .OriginOpType({"ai.onnx::9::Clip"})
     .ParseParamsFn(ParseParamsClipV9Stub)
     .ParseOpToGraphFn(ParseOpToGraphClipV9Stub);
 

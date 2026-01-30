@@ -24,6 +24,9 @@
 #include "ge/ge_allocator.h"
 
 #include "dflow/compiler/session/dflow_session_impl.h"
+#include "jit_execution/user_graphs_manager.h"
+#include "user_hybrid_graph_manager.h"
+
 namespace ge {
 class InnerSession {
  public:
@@ -32,7 +35,8 @@ class InnerSession {
   ~InnerSession() = default;
 
   Status Initialize();
-
+  // only ge_api.cc call
+  Status CreateDFlowSessionIfNeed();
   Status AddGraph(uint32_t graph_id, const Graph &graph);
 
   Status AddGraph(uint32_t graph_id, const Graph &graph, const std::map<std::string, std::string> &options);
@@ -44,10 +48,10 @@ class InnerSession {
 
   Status RunGraph(uint32_t graph_id, const std::vector<Tensor> &inputs, std::vector<Tensor> &outputs);
 
+  Status RunGraph(uint32_t graph_id, const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs);
+
   Status RunGraphWithStreamAsync(uint32_t graph_id, rtStream_t stream, const std::vector<Tensor> &inputs,
                                  std::vector<Tensor> &outputs);
-
-  void UpdateThreadContextOptimize(uint32_t graph_id);
 
   Status ExecuteGraphWithStreamAsync(uint32_t graph_id, const rtStream_t stream,
                                      const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs);
@@ -58,7 +62,7 @@ class InnerSession {
 
   Status BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inputs);
 
-  Status RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tensor> &inputs, RunAsyncCallback callback);
+  Status RunGraphAsync(uint32_t graph_id, std::vector<gert::Tensor> &&inputs, const RunAsyncCallbackV2 &callback);
 
   Status Finalize();
 
@@ -77,6 +81,10 @@ class InnerSession {
     const std::string &key,
     const std::function<Status(uint32_t, const std::map<AscendString, ge::Tensor> &)> &callback);
 
+  Status RegisterCallBackFunc(
+    const std::string &key,
+    const std::function<Status(uint32_t, const std::map<AscendString, gert::Tensor> &)> &callback);
+
   const GraphManager &getGraphManagerObj() const;
 
   bool IsGraphNeedRebuild(uint32_t graph_id);
@@ -87,24 +95,9 @@ class InnerSession {
 
   static void SetRtSocVersion();
 
-  Status FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes, const std::vector<Tensor> &inputs,
-                           const DataFlowInfo &info, int32_t timeout);
+  static Status SetSessionGraphId(const Graph &graph, uint64_t session_id, uint32_t graph_id);
 
-  Status FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes, std::vector<Tensor> &outputs,
-                            DataFlowInfo &info, int32_t timeout);
-
-  Status FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                           const std::vector<FlowMsgPtr> &inputs, int32_t timeout);
-
-  Status FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                            std::vector<FlowMsgPtr> &outputs, int32_t timeout);
-
-  Status FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_data_list, const uint32_t index,
-                     const DataFlowInfo &info, int32_t timeout) const;
-
-  Status CompileGraph(uint32_t graph_id);
-
-  Status CompileGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inputs);
+  Status CompileGraph(uint32_t graph_id, const vector<ge::Tensor> &inputs);
 
   Status GetCompiledGraphSummary(uint32_t graph_id, CompiledGraphSummaryPtr &summary);
 
@@ -128,13 +121,29 @@ class InnerSession {
    * 当原始图被卸载的时候，fork图也会被卸载
    */
   Status ForkGraph(uint32_t origin_graph_id, uint32_t forked_graph_id);
+
   uint64_t GetSessionId() const {
     return session_id_;
   }
-  void UpdateThreadContext(const std::map<std::string, std::string> &options) const;
-  void UpdateThreadContext(uint32_t graph_id);
+
   void UpdateGlobalSessionContext() const;
-  Status GetOmeContextByGraphId(const GraphId &graph_id, OmeContext &ome_context) const;
+
+  Status GetCompiledFlag(uint32_t graph_id, bool &flag) const;
+
+  Status SetCompiledFlag(uint32_t graph_id, bool flag);
+
+  // Get and Set dflow_session_impl_
+  std::shared_ptr<DFlowSessionImpl> GetDFlowSession() const;
+
+  Status GetRunGraphMode(uint32_t graph_id, RunGraphMode &mode) const;
+
+  Status SetRunGraphMode(uint32_t graph_id, const RunGraphMode &mode);
+
+  Status GetCompiledModel(uint32_t graph_id, ModelBufferData &model_buffer);
+
+  bool GetBuildFlag(uint32_t graph_id) const;
+
+  bool GetLoadFlag(uint32_t graph_id) const;
 
  private:
   Status InnerInitialize();
@@ -147,17 +156,19 @@ class InnerSession {
   uint64_t session_id_;
   uint8_t logLevel_ = DLOG_DEBUG;
   std::map<std::string, std::string> options_;
+  // 在UserGraphsManager/UserHybridGraphManager场景中，用户持有的graph_id不能直接传递给graph_manager_,容易犯错
   GraphManager graph_manager_;
   ModelExecutor model_executor_;
   std::mutex resource_mutex_;  // AddGraph, RemoveGraph and Finalize use
-  std::mutex build_run_mutex_;  // BuildGraph and RunGraph use
   Status CheckPaRemappedResult(const uint64_t va, const uint64_t len,
                                std::vector<std::pair<uint64_t, uint64_t>> &cross_ranges) const;
   Status InitializeVarManager();
   static bool is_dump_server_inited_;
   std::shared_ptr<DFlowSessionImpl> dflow_session_impl_;
+  UserGraphsManagerPtr user_graphs_manager_{nullptr};
+  UserHybridGraphManagerPtr user_hybrid_graph_manager_{nullptr};
 };
-
+using SessionPtr = std::shared_ptr<InnerSession>;
 void CopyGeOutputsMemToUserOutputs(const rtStream_t stream, const std::vector<GeTensor> &ge_outputs,
                                    std::vector<Tensor> &outputs);
 }  // namespace ge

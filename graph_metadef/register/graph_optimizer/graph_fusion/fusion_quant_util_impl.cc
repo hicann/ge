@@ -13,7 +13,7 @@
 #include "common/ge_common/util.h"
 #include "graph/anchor.h"
 #include "graph/compute_graph.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/ge_local_context.h"
 #include "graph/node.h"
 #include "graph/utils/graph_utils.h"
@@ -151,21 +151,21 @@ bool QuantUtilImpl::NeedBiasInput(const ge::InDataAnchorPtr &bias) {
 
 Status QuantUtilImpl::PadShapeTo4Dim(const ge::Format &filter_format, const std::vector<int64_t> &filter_dims,
                                      std::vector<int64_t> &filter_dims4_d) {
-  size_t size_of_filter = filter_dims.size();
+  const size_t size_of_filter = filter_dims.size();
   GELOGD("Size of filter is %zu bytes", size_of_filter);
   for (size_t i = 0; i <= BIAS_OPT_OP_OFFSET_IDX; i++) {
     if (i < size_of_filter) {
       GELOGD("dim [%zu] is %ld", i, filter_dims.at(i));
-      filter_dims4_d.emplace_back(filter_dims.at(i));
+      (void)filter_dims4_d.emplace_back(filter_dims.at(i));
     } else {
       if (filter_format == ge::Format::FORMAT_NCHW) {
-        filter_dims4_d.emplace_back(1);
+        (void)filter_dims4_d.emplace_back(1);
       } else if (filter_format == ge::Format::FORMAT_HWCN) {
         (void)filter_dims4_d.insert(filter_dims4_d.cbegin(), 1);
       } else if (filter_format == ge::Format::FORMAT_NHWC) {
         (void)filter_dims4_d.insert(filter_dims4_d.cbegin() + 1, 1);
       } else if (filter_format == ge::Format::FORMAT_ND) {
-        filter_dims4_d.emplace_back(0);
+        (void)filter_dims4_d.emplace_back(0);
       } else {
         GELOGE(ge::FAILED, "[GraphOpt][Quant][PadShpTo4Dim] format %s can not pad shape.",
                ge::TypeUtils::FormatToSerialString(filter_format).c_str());
@@ -235,12 +235,12 @@ Status QuantUtilImpl::GetCoValueByWeight(ge::NodePtr &cube_node, size_t idx, std
       && kNeedAddBiasWithWeightNd.count(cube_node->GetType()) != 0) {
     auto filter_dims = filter_shape.GetDims();
     if (filter_dims.size() == 2) {  // current only support 2D weight
-      bias_shape.emplace_back(filter_dims[1]);
+      (void)bias_shape.emplace_back(filter_dims[1]);
     }
 
     if (filter_dims.size() == kAicVersionSize) {
-      bias_shape.emplace_back(filter_dims[0]);
-      bias_shape.emplace_back(filter_dims[IDX_2]);
+      (void)bias_shape.emplace_back(filter_dims[0]);
+      (void)bias_shape.emplace_back(filter_dims[IDX_2]);
     }
     return SUCCESS;
   }
@@ -269,7 +269,7 @@ Status QuantUtilImpl::GetCoValueByWeight(ge::NodePtr &cube_node, size_t idx, std
     if (CheckInt64MulOverflow(filter_dims4_d[static_cast<size_t>(index_co)], groups) != SUCCESS) {
       return FAILED;
     }
-    bias_shape.emplace_back(filter_dims4_d[static_cast<size_t>(index_co)] * groups);
+    (void)bias_shape.emplace_back(filter_dims4_d[static_cast<size_t>(index_co)] * groups);
   }
   return SUCCESS;
 }
@@ -502,7 +502,7 @@ Status QuantUtilImpl::SetQuantScaleAndOffset(const ge::NodePtr &quant_node, cons
 
 // 改图，区分有没有quant_offset 和 quant_scale输入的场景
 Status QuantUtilImpl::LinkBiasOptimizeHostOp(const ge::NodePtr &quant_node, const ge::NodePtr &weight_const_node,
-                                             const BiasOptimizeEdges &param, ge::NodePtr &host_op_node) {
+                                             const BiasOptimizeEdges &param, const ge::NodePtr &host_op_node) {
   // input index  bias:dequant_scale:weight:quant_offset:quant_scale
   // bias need delete ori link
   auto bias_peer_out_anchor = param.cube_bias->GetPeerOutAnchor();
@@ -646,7 +646,7 @@ Status QuantUtilImpl::CreateBiasOptimizeHostCpuOp(std::shared_ptr<ge::ComputeGra
   if (bias_optimizer_node == nullptr) {
     return FAILED;
   }
-  fusion_nodes.emplace_back(bias_optimizer_node);
+  (void)fusion_nodes.emplace_back(bias_optimizer_node);
 
   // modify host op edge
   if (SUCCESS != LinkBiasOptimizeHostOp(quant_node, weight_const_node, param, bias_optimizer_node)) {
@@ -800,7 +800,7 @@ Status QuantUtilImpl::InsertFixpipeDequantScaleConvert(ge::InDataAnchorPtr deq_s
   return SUCCESS;
 }
 
-Status QuantUtilImpl::InsertFixpipeDequantScaleConvert(ge::InDataAnchorPtr &deq_scale,
+Status QuantUtilImpl::InsertFixpipeDequantScaleConvert(const ge::InDataAnchorPtr &deq_scale,
                                                        ge::InDataAnchorPtr &quant_offset,
                                                        std::vector<ge::NodePtr> &fusion_nodes) {
   GELOGD("Begin to do InsertFixpipeDequantScaleConvert");
@@ -864,7 +864,7 @@ bool QuantUtilImpl::IsSupportFixpipe() {
   return is_support_fixpipe;
 }
 
-ge::GeTensorPtr QuantUtilImpl::GetTensorByAnchor(ge::InDataAnchorPtr &anchor) {
+ge::GeTensorPtr QuantUtilImpl::GetTensorByAnchor(const ge::InDataAnchorPtr &anchor) {
   auto peer_anchor = anchor->GetPeerOutAnchor();
   if (peer_anchor == nullptr) {
     GELOGW("Peer_anchor is nullptr.");
@@ -954,7 +954,7 @@ Status QuantUtilImpl::UpdateScalarInput(const float *quant_scale_data, const flo
   return SUCCESS;
 }
 
-Status QuantUtilImpl::CreateQuantOp(ge::NodePtr &cube_node, ge::InDataAnchorPtr &quant_scale,
+Status QuantUtilImpl::CreateQuantOp(const ge::NodePtr &cube_node, const ge::InDataAnchorPtr &quant_scale,
                                     ge::GeTensorDescPtr scale_tensor_desc, ge::GeTensorPtr quant_op_tensor,
                                     std::vector<ge::NodePtr> &fusion_nodes) {
   std::string quant_op_name = cube_node->GetName() + "_quant_op_" + std::to_string(GetQuantOpAtomicId());
@@ -991,7 +991,7 @@ Status QuantUtilImpl::CreateQuantOp(ge::NodePtr &cube_node, ge::InDataAnchorPtr 
   ge::NodePtr quant_scale_peer_node = quant_scale_peer_anchor->GetOwnerNode();
   FE_PARAM_CHECK_NOTNULL(quant_scale_peer_node);
   (void)compute_graph->RemoveNode(quant_scale_peer_node);
-  fusion_nodes.emplace_back(quant_op);
+  (void)fusion_nodes.emplace_back(quant_op);
   return SUCCESS;
 }
 
@@ -1186,7 +1186,7 @@ Status QuantUtilImpl::CreateRequantHostCpuOp(ge::InDataAnchorPtr &req_scale, ge:
            cube_node->GetType().c_str());
     return FAILED;
   }
-  fusion_nodes.emplace_back(req_op);
+  (void)fusion_nodes.emplace_back(req_op);
   return SUCCESS;
 }
 

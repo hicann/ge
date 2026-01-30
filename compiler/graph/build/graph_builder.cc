@@ -362,7 +362,6 @@ Status GraphBuilder::BuildForKnownShapeGraph(ComputeGraphPtr &comp_graph,
                     "ReGetTaskInfo fail, Graph[%s].", comp_graph->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(ReGetTaskInfo, "GraphBuilder::ReGetTaskInfo");
 
-
   ge_model_ptr = MakeShared<ge::GeModel>();
   if (ge_model_ptr == nullptr) {
     return MEMALLOC_FAILED;
@@ -481,7 +480,6 @@ Status GraphBuilder::BuildForUnknownShapeGraph(ComputeGraphPtr &comp_graph, GeMo
   GE_ASSERT_SUCCESS(ReGetTaskInfo(comp_graph, session_id, *model_ptr),
                     "[Get][ReGetTaskInfo] fail, Graph[%s].", comp_graph->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(ReGetTaskInfo, "GraphBuilder::ReGetTaskInfo");
-
 
   ge_model_ptr = MakeShared<ge::GeModel>();
   GE_CHK_BOOL_RET_STATUS(ge_model_ptr != nullptr, MEMALLOC_FAILED, "[Make][GeModel] nullptr failed");
@@ -1154,7 +1152,7 @@ Status GraphBuilder::SecondPartition(const ge::ComputeGraphPtr &comp_graph) {
   GE_TRACE_START(GraphPartition2);
   // 二拆是流分配的入口，需要在此之前，将user stream label转储
   GE_ASSERT_SUCCESS(StreamUtils::TransUserStreamLabel(comp_graph));
-  auto ret = graph_partitioner_.Partition(comp_graph, EnginePartitioner::kSecondPartitioning);
+  auto ret = graph_partitioner_.Partition(comp_graph, EnginePartitioner::Mode::kSecondPartitioning);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Call][Partition] for Graph Failed");
     return ret;
@@ -1219,12 +1217,12 @@ Status GraphBuilder::AddOutputMemTypeForNode(const NodePtr &node) const {
 Status GraphBuilder::BuildForEvaluate(ComputeGraphPtr &compute_graph, ModelDataInfo &model) {
   GELOGI("Begin to build for evaluate graph:%s.", compute_graph->GetName().c_str());
   GE_TRACE_START(GraphPartition);
-  Status ret = graph_partitioner_.Partition(compute_graph, EnginePartitioner::kAtomicEnginePartitioning);
+  Status ret = graph_partitioner_.Partition(compute_graph, EnginePartitioner::Mode::kAtomicEnginePartitioning);
   GE_CHK_STATUS_RET(ret, "[Call][Partition] for Graph[%s] Failed", compute_graph->GetName().c_str());
 
   ge::ComputeGraphPtr merged_compute_graph;
   ret = graph_partitioner_.MergeAfterSubGraphOptimization(merged_compute_graph, compute_graph,
-                                                          EnginePartitioner::kAtomicEnginePartitioning);
+                                                          EnginePartitioner::Mode::kAtomicEnginePartitioning);
   GE_CHK_STATUS_RET(ret, "[Call][MergeAfterSubGraphOptimization] for Graph[%s] Failed",
                     merged_compute_graph->GetName().c_str());
 

@@ -28,7 +28,7 @@ const int32_t kSupportEmptyTensorRank = 1;
 const std::set<DataType> concatv2_supported_type = {DT_INT32, DT_FLOAT};
 
 template <typename T>
-void GetOutputData(std::vector<T> &y_data, int64_t loop, size_t &input_size,
+void GetOutputData(std::vector<T> &y_data, int64_t loop, size_t input_size,
                    const std::vector<ConstGeTensorPtr> &input) {
   for (int64_t i = 0; i < loop; i++) {
     for (size_t k = 0; k < input_size; k++) {

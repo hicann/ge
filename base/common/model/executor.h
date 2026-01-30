@@ -24,16 +24,6 @@ struct RunArgs {
   GraphId graph_id;
   uint64_t session_id;
   error_message::ErrorManagerContext error_context;
-  std::vector<ge::Tensor> input_tensor;
-  GEThreadLocalContext context;
-  RunAsyncCallback callback;
-};
-
-struct RunArgsV2 {
-  GraphNodePtr graph_node;
-  GraphId graph_id;
-  uint64_t session_id;
-  error_message::ErrorManagerContext error_context;
   std::vector<gert::Tensor> input_tensor;
   GEThreadLocalContext context;
   RunAsyncCallbackV2 callback;
@@ -72,26 +62,6 @@ class Executor {
    * @return Status result of function
    */
   virtual Status PushRunArgs(const std::shared_ptr<RunArgs> &args) = 0;
-
-  /**
-   * @ingroup ge
-   * @brief Push model execution params to queue.
-   * @param [in] RunArgs of for model execution.
-   * @return Status result of function
-   */
-  virtual Status PushRunArgs(const std::shared_ptr<RunArgsV2> &args) = 0;
-
-  /**
-   * @ingroup ge
-   * @brief Run graph for synchronize model.
-   * @param [in] graph_node: node of graph.
-   * @param [in] graph_id: graph identifier.
-   * @param [in] inputs: input data for the graph running.
-   * @param [out] outputs: output data of the graph running
-   * @return Status result of function
-   */
-  virtual Status RunGraph(const GraphNodePtr &graph_node, const GraphId graph_id,
-                          const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) = 0;
 
   /**
    * @ingroup ge

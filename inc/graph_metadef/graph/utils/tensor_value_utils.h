@@ -29,6 +29,9 @@ static constexpr uint16_t kFp16ManMask = 0x03FFU;
 static constexpr int16_t kFp16ExpBias = 15;
 static constexpr int16_t kFp32ExpBias = 127;
 static constexpr uint16_t kFp16ManHideBit = 0x0400U;
+static constexpr int16_t kFp16FractionMove = 13;
+static constexpr int16_t kFp32FractionMove = 23;
+static constexpr int16_t kFp32Fraction = 31;
 
 // Union for type punning to avoid strict aliasing violation
 union Fp32Bits {
@@ -38,7 +41,7 @@ union Fp32Bits {
 
 class TensorValueUtils {
   public:
-    static std::string ConvertTensorValue(const Tensor &tensor, DataType value_type, const std::string &sep = ",", bool is_mid_skipped = true);
+    static std::string ConvertTensorValue(const Tensor &tensor, DataType value_type, const std::string &sep = ",", const bool is_mid_skipped = true);
 };
 }  // namespace ge
 #endif  // INC_GRAPH_UTILS_TENSOR_VALUE_UTILS_H_

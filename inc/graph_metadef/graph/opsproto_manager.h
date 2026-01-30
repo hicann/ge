@@ -25,9 +25,10 @@ class OpsProtoManager {
 
   bool Initialize(const std::map<std::string, std::string> &options);
   void Finalize();
+  void LoadOpsProtoPluginSo(const std::string &path);
 
  private:
-  void LoadOpsProtoPluginSo(const std::string &path);
+  void LoadBuiltinOpsPluginSo(const std::string &path_list);
 
   std::string pluginPath_;
   std::vector<void *> handles_;

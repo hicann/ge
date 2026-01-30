@@ -36,6 +36,8 @@
 #include "ge_graph_dsl/graph_dsl.h"
 #include "common/global_variables/diagnose_switch.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "graph/utils/attr_utils.h"
+
 
 namespace ge {
 namespace {
@@ -72,6 +74,12 @@ void MockGenerateTask() {
   auto aicore_func = [](const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
     auto op_desc = node.GetOpDesc();
     op_desc->SetOpKernelLibName("AIcoreEngine");
+    ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+    const char tbeBin[] = "tbe_bin";
+    vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+    ge::OpKernelBinPtr tbeKernelPtr = std::make_shared<ge::OpKernelBin>("test_tvm", std::move(buffer));
+    op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
     size_t arg_size = 100;
     std::vector<uint8_t> args(arg_size, 0);
     domi::TaskDef task_def;
@@ -706,7 +714,7 @@ TEST_F(ExternalAllocatorGraphTest, host_input_with_kernel_bin_success) {
   char_t *kEnvAutoUseUcMemory = "LD_LIBRARY_PATH";
   (void)mmSetEnv(kEnvAutoUseUcMemory, new_ld_library_path.c_str(), 1);
   std::string base_path = "runtime/lib64";
-  std::string save_path = base_path + "/UpdateModelParam_ascend910B.o";
+  std::string save_path = base_path + "/UpdateModelParam_dav_2201.o";
   DEF_GRAPH(g1) {
       CHAIN(NODE("cons1", "Const")->NODE("add1", "Add")->NODE("NetOutput", "NetOutput"));
     };
@@ -789,7 +797,7 @@ TEST_F(ExternalAllocatorGraphTest, host_input_with_kernel_bin_pcie_success) {
   char_t *kEnvAutoUseUcMemory = "LD_LIBRARY_PATH";
   (void)mmSetEnv(kEnvAutoUseUcMemory, new_ld_library_path.c_str(), 1);
   std::string base_path = "runtime/lib64";
-  std::string save_path = base_path + "/UpdateModelParam_ascend910B.o";
+  std::string save_path = base_path + "/UpdateModelParam_dav_2201.o";
   DEF_GRAPH(g1) {
       CHAIN(NODE("cons1", "Const")->NODE("add1", "Add")->NODE("NetOutput", "NetOutput"));
     };
@@ -901,7 +909,7 @@ TEST_F(ExternalAllocatorGraphTest, malloc_const_feature_addr_refresh_op_success_
   char_t *kEnvAutoUseUcMemory = "LD_LIBRARY_PATH";
   (void)mmSetEnv(kEnvAutoUseUcMemory, new_ld_library_path.c_str(), 1);
   std::string base_path = "runtime/lib64";
-  std::string save_path = base_path + "/UpdateModelParam_ascend910B.o";
+  std::string save_path = base_path + "/UpdateModelParam_dav_2201.o";
   DEF_GRAPH(g1) {
       CHAIN(NODE("cons1", "Const")->NODE("add1", "Add")->NODE("NetOutput", "NetOutput"));
     };
@@ -1003,7 +1011,7 @@ TEST_F(ExternalAllocatorGraphTest, malloc_const_feature_addr_refresh_op_success_
   char_t *kEnvAutoUseUcMemory = "LD_LIBRARY_PATH";
   (void)mmSetEnv(kEnvAutoUseUcMemory, new_ld_library_path.c_str(), 1);
   std::string base_path = "runtime/lib64";
-  std::string save_path = base_path + "/UpdateModelParam_ascend910B.o";
+  std::string save_path = base_path + "/UpdateModelParam_dav_2201.o";
   DEF_GRAPH(g1) {
       CHAIN(NODE("cons1", "Const")->NODE("add1", "Add")->NODE("NetOutput", "NetOutput"));
     };

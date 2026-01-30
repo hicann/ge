@@ -13,7 +13,6 @@
 
 #include "framework/common/debug/log.h"
 #include "graph/passes/base_pass.h"
-#include "graph/utils/attr_utils.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
 
 namespace ge {
@@ -31,13 +30,13 @@ class Dim1TransposeToSqueezePass : public BaseNodePass {
   Status Run(NodePtr &node) override;
 
  private:
-  int64_t GetBlockSize();
-  bool ShouldIgnoreOp(const NodePtr &node);
+  int64_t GetBlockSize() const;
+  bool ShouldIgnoreOp(const NodePtr &node) const;
   Status ReplaceTransposeToSqueeze(const GeTensorDescPtr &tensor, const std::vector<int64_t> &squeeze_axis,
                                    const std::vector<int64_t> &unsqueeze_axis, NodePtr &transpose_node);
   Status DeleteTranspose(NodePtr &node);
   OpDescPtr CreateOpDescPtr(const NodePtr &node, const string &op_type, const GeTensorDesc &input_desc_x,
-                            const GeTensorDesc &output_desc, const std::vector<int64_t> &axis_value_vec);
+                            const GeTensorDesc &output_desc, const std::vector<int64_t> &axis_value_vec) const;
   static bool IsUselessTransposeByShape(const GeTensorDescPtr &input_x_desc, const std::vector<int64_t> &perm,
                                         std::vector<int64_t> &squeeze_axis, std::vector<int64_t> &unsqueeze_axis,
                                         std::vector<int64_t> &shape);
@@ -46,7 +45,7 @@ class Dim1TransposeToSqueezePass : public BaseNodePass {
                                                 std::vector<int64_t> &unsqueeze_axis,
                                                 std::vector<int64_t> &shape_index);
   Status SetShapeForSymbolic(const GeTensorDescPtr &input_x_desc, const std::vector<int64_t> &shape_index,
-                             const GeTensorDescPtr &tensor, std::vector<int64_t> &squeeze_output_shape);
+                             const GeTensorDescPtr &tensor, std::vector<int64_t> &squeeze_output_shape) const;
 };
 }  // namespace ge
 

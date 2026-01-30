@@ -25,11 +25,16 @@ void from_json(const nlohmann::json &j, FileConstantMeta &meta) {
   if (hash_to_weight_file != j.end()) {
     meta.hash_to_weight_file = hash_to_weight_file->get<std::map<std::string, std::string>>();
   }
+  const auto hash_to_weight_offset = j.find("hash_to_weight_offset");
+  if (hash_to_weight_offset != j.end()) {
+    meta.hash_to_weight_offset = hash_to_weight_offset->get<std::map<std::string, size_t>>();
+  }
 }
 
 void to_json(nlohmann::json &j, const FileConstantMeta &meta) {
   j = nlohmann::json();
   j["hash_to_weight_file"] = meta.hash_to_weight_file;
+  j["hash_to_weight_offset"] = meta.hash_to_weight_offset;
 }
 
 ExternalWeightManager::ExternalWeightManager(const uint64_t session_id) : session_id_(session_id) {

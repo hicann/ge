@@ -18,6 +18,11 @@
 #include "types/acl_op.h"
 #include "utils/array_utils.h"
 #include "acl/acl_rt.h"
+#include "platform/platform_info.h"
+#include "platform/soc_spec.h"
+#include "runtime/base.h"
+
+#define NPUARCH_TO_STR(arch) std::to_string(static_cast<uint32_t>(arch))
 
 namespace {
 constexpr size_t COMPILE_OPT_SIZE = 256U;
@@ -37,6 +42,13 @@ std::map<aclCompileOpt, std::string> compileOptMap = {{ACL_PRECISION_MODE, ge::P
                                                       {ACL_OP_PRECISION_MODE, "ge.exec.op_precision_mode"},
                                                       {ACL_ALLOW_HF32, "ge.exec.allow_hf32"},
                                                       {ACL_OP_DEBUG_OPTION, "op_debug_option"}};
+
+// A set of NPU architecture IDs for which JIT compilation is enabled by default.
+const std::set<std::string> kJitCompileEnabledByArch = {
+    NPUARCH_TO_STR(NpuArch::DAV_1001), NPUARCH_TO_STR(NpuArch::DAV_2002), NPUARCH_TO_STR(NpuArch::DAV_2102),
+    NPUARCH_TO_STR(NpuArch::DAV_3002), NPUARCH_TO_STR(NpuArch::DAV_3004), NPUARCH_TO_STR(NpuArch::DAV_3505),
+    NPUARCH_TO_STR(NpuArch::DAV_3102), NPUARCH_TO_STR(NpuArch::DAV_5102),
+};
 
 aclError CheckInput(const char *opType, const int32_t numInputs, const aclTensorDesc *const inputDesc[],
                     const aclDataBuffer *const inputs[], const int32_t numOutputs,
@@ -105,20 +117,26 @@ aclError CopyOptValue(char *value, size_t length, const std::string &str)
         ACL_LOG_INNER_ERROR("[Copy][Str]call strncpy_s failed, length: %zu, src size: %zu", length, str.size());
         return ACL_ERROR_FAILURE;
     }
-    *(value + str.size()) = '\0';
     return ACL_SUCCESS;
 }
 
-std::string GetDefaultJitCompileValue(const std::string &version)
+std::string GetDefaultJitCompileValue()
 {
-    static const std::set<std::string> kDisabledVersion = {"Ascend910B1", "Ascend910B2",   "Ascend910B3",
-                                                           "Ascend910B4", "Ascend910B4-1", "Ascend910B2C"};
-    static const std::string kDisabledShortVersion = "Ascend910_9";
-    std::string opt_value = "enable";
-    if ((kDisabledVersion.find(version) != kDisabledVersion.end()) || (version.find(kDisabledShortVersion) == 0UL)) {
-        opt_value = "disable";
+    std::string jit_compile_value = "disable";
+    constexpr uint32_t kMaxValueLen = 16U;
+    char npuArch[kMaxValueLen] = {0};
+
+    const auto ret = rtGetSocSpec("version", "NpuArch", npuArch, kMaxValueLen);
+    if (ret != RT_ERROR_NONE) {
+        ACL_LOG_WARN("Cannot get NpuArch, using jit_compile = [%s]", jit_compile_value.c_str());
+        return jit_compile_value;
     }
-    return opt_value;
+
+    if (kJitCompileEnabledByArch.find(npuArch) != kJitCompileEnabledByArch.end()) {
+        jit_compile_value = "enable";
+    }
+    ACL_LOG_INFO("Current NpuArch is [%s], using default jit_compile = [%s]", npuArch, jit_compile_value.c_str());
+    return jit_compile_value;
 }
 }  // namespace
 
@@ -302,12 +320,7 @@ aclError aclGetCompileopt(aclCompileOpt opt, char *value, size_t length)
         return CopyOptValue(value, length, optValue);
     }
     if (opt == ACL_OP_JIT_COMPILE) {
-        const char *socName = aclrtGetSocName();
-        std::string socVersion;
-        if (socName != nullptr) {
-            socVersion = std::string(socName);
-        }
-        return CopyOptValue(value, length, GetDefaultJitCompileValue(socVersion));
+        return CopyOptValue(value, length, GetDefaultJitCompileValue());
     }
     return ACL_ERROR_API_NOT_SUPPORT;
 }

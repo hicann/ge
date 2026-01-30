@@ -8,6 +8,9 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#ifndef METADEF_CXX_ASCENDC_IR_DUMP_UTILS_H
+#define METADEF_CXX_ASCENDC_IR_DUMP_UTILS_H
+
 #include <string>
 #include <iostream>
 #include <fstream>
@@ -27,7 +30,7 @@ class DumpAscirGraph {
   static std::stringstream &MemAttrStr(std::stringstream &ss, AscTensorAttr *attr);
   static std::stringstream &MemQueueAttrStr(std::stringstream &ss, AscTensorAttr *attr);
   static std::stringstream &MemBufAttrStr(std::stringstream &ss, AscTensorAttr *attr);
-  static std::stringstream &MemOptAttrStr(std::stringstream &ss, AscTensorAttr *attr);
+  static std::stringstream &MemOptAttrStr(std::stringstream &ss, const AscTensorAttr *attr);
   static std::stringstream &NodesStr(std::stringstream &ss, ge::AscNodeVisitor &nodes);
   static std::string ApiTypeToString(ge::ApiType type);
   static std::string ComputUnitToString(ge::ComputeUnit unit);
@@ -37,3 +40,5 @@ class DumpAscirGraph {
   static std::string HardwareToString(ge::MemHardware hardware);
 };
 } // namespace ge
+
+#endif  // METADEF_CXX_ASCENDC_IR_DUMP_UTILS_H

@@ -9,22 +9,22 @@
  */
 
 #include "aipp_param_check.h"
+#include <string>
 #include "utils/math_utils.h"
+#include "platform/soc_spec.h"
+
+#define NPUARCH_TO_STR(arch) std::to_string(static_cast<uint32_t>(arch))
 
 namespace {
+    constexpr int32_t MIN_ALIGNMENT_YUV = 2;
     constexpr uint32_t TWO_CHANNEL = 2U;
     constexpr uint32_t THREE_CHANNEL = 3U;
     constexpr uint32_t FOUR_CHANNEL = 4U;
     constexpr uint32_t MULTIPLE = 16U;
-    std::set<std::string> ascend310pSocVersionSet = {"Ascend310P1", "Ascend310P3", "Ascend310P5", "Ascend310P7"};
-    bool IsAscend310pSocVersion(const std::string &sovVersion)
-    {
-        return ascend310pSocVersionSet.count(sovVersion) > 0;
-    }
 }
 
 namespace acl {
-static aclError AippInputFormatCheck(const enum CceAippInputFormat inputFormat, const std::string &socVersion)
+static aclError AippInputFormatCheck(const enum CceAippInputFormat inputFormat, const std::string &npuArch)
 {
     bool flag = false;
     if (inputFormat < CCE_YUV420SP_U8) {
@@ -33,25 +33,18 @@ static aclError AippInputFormatCheck(const enum CceAippInputFormat inputFormat, 
         return ACL_ERROR_INVALID_PARAM;
     }
 
-    if ((strncmp(socVersion.c_str(), "Ascend910", (sizeof("Ascend910") - 1UL)) == 0) ||
-        (strncmp(socVersion.c_str(), "Ascend310B", (sizeof("Ascend310B") - 1UL)) == 0)) {
+    if (npuArch == NPUARCH_TO_STR(NpuArch::DAV_1001) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_3002) ||
+        npuArch == NPUARCH_TO_STR(NpuArch::DAV_2002) || npuArch == NPUARCH_TO_STR(NpuArch::DAV_2201) ||
+        npuArch == NPUARCH_TO_STR(NpuArch::DAV_3510)) {
         flag = ((inputFormat != CCE_YUV420SP_U8) && (inputFormat != CCE_XRGB8888_U8) &&
                (inputFormat != CCE_RGB888_U8) && (inputFormat != CCE_YUV400_U8));
         if (flag) {
-            ACL_LOG_INNER_ERROR("[Check][InputFormat]%s only support YUV420SP_U8, XRGB8888_U8, "
-                "RGB888_U8, YUV400_U8, cceInputFormat = %d", socVersion.c_str(), static_cast<int32_t>(inputFormat));
-            return ACL_ERROR_INVALID_PARAM;
-        }
-    } else if (IsAscend310pSocVersion(socVersion)) {
-        flag = ((inputFormat != CCE_YUV420SP_U8) && (inputFormat != CCE_XRGB8888_U8) &&
-                (inputFormat != CCE_RGB888_U8) && (inputFormat != CCE_YUV400_U8));
-        if (flag) {
-            ACL_LOG_INNER_ERROR("[Check][InputFormat]%s only support YUV420SP_U8, XRGB8888_U8, RGB888_U8,YUV400_U8, "
-                "cce_inputFormat = %d", socVersion.c_str(), static_cast<int32_t>(inputFormat));
+            ACL_LOG_INNER_ERROR("[Check][InputFormat]arch[%s] only support YUV420SP_U8, XRGB8888_U8, "
+                "RGB888_U8, YUV400_U8, cceInputFormat = %d", npuArch.c_str(), static_cast<int32_t>(inputFormat));
             return ACL_ERROR_INVALID_PARAM;
         }
     } else {
-        ACL_LOG_INNER_ERROR("[Check][Aipp]dynamic aipp not support %s", socVersion.c_str());
+        ACL_LOG_INNER_ERROR("[Check][Aipp]dynamic aipp not support arch[%s]", npuArch.c_str());
         return ACL_ERROR_INVALID_PARAM;
     }
     return ACL_SUCCESS;
@@ -86,6 +79,7 @@ static aclError AippSrcImageSizeCheck(const enum CceAippInputFormat inputFormat,
             return ACL_ERROR_INVALID_PARAM;
         }
     }
+
     return ACL_SUCCESS;
 }
 
@@ -200,7 +194,7 @@ static aclError AippCropSizeCheck(const aclmdlAIPP *const aippParmsSet, const si
         static_cast<enum CceAippInputFormat>(aippParmsSet->aippParms.inputFormat);
     if (inputFormat == CCE_YUV420SP_U8) {
         // determine whether it is even
-        if (((cropStartPosW % 2) != 0) || ((cropStartPosH % 2) != 0)) {
+        if (((cropStartPosW % MIN_ALIGNMENT_YUV) != 0) || ((cropStartPosH % MIN_ALIGNMENT_YUV) != 0)) {
             ACL_LOG_INNER_ERROR("[Check][Params]cropStartPosW[%d], cropStartPosH[%d] must be even for YUV420SP_U8!",
                 cropStartPosW, cropStartPosH);
             return ACL_ERROR_INVALID_PARAM;
@@ -208,7 +202,7 @@ static aclError AippCropSizeCheck(const aclmdlAIPP *const aippParmsSet, const si
     }
     if ((inputFormat == CCE_YUV422SP_U8) || (inputFormat == CCE_YUYV_U8)) {
         // determine whether it is even
-        if ((cropStartPosW % 2) != 0) {
+        if ((cropStartPosW % MIN_ALIGNMENT_YUV) != 0) {
             ACL_LOG_INNER_ERROR("[Check][Params]cropStartPosW[%d] must be even for YUV422SP_U8 and YUYV_U8!",
                 cropStartPosW);
             return ACL_ERROR_INVALID_PARAM;
@@ -219,7 +213,7 @@ static aclError AippCropSizeCheck(const aclmdlAIPP *const aippParmsSet, const si
 }
 
 
-aclError GetAippOutputHW(const aclmdlAIPP *const aippParmsSet, const size_t batchIndex, const std::string &socVersion,
+aclError GetAippOutputHW(const aclmdlAIPP *const aippParmsSet, const size_t batchIndex, const std::string &npuArch,
                          int32_t &aippOutputW, int32_t &aippOutputH)
 {
     if (aippParmsSet->aippBatchPara.empty()) {
@@ -251,12 +245,13 @@ aclError GetAippOutputHW(const aclmdlAIPP *const aippParmsSet, const size_t batc
 	    + aippParmsSet->aippBatchPara[batchIndex].paddingSizeRight;
 	aippOutputH += aippParmsSet->aippBatchPara[batchIndex].paddingSizeTop
 	    + aippParmsSet->aippBatchPara[batchIndex].paddingSizeBottom;
-        const bool flag = (IsAscend310pSocVersion(socVersion)) ||
-            (strncmp(socVersion.c_str(), "Ascend910", (sizeof("Ascend910") - 1UL)) == 0);
+        const bool flag =
+            (npuArch == NPUARCH_TO_STR(NpuArch::DAV_1001)) || (npuArch == NPUARCH_TO_STR(NpuArch::DAV_2002)) ||
+            (npuArch == NPUARCH_TO_STR(NpuArch::DAV_2201)) || (npuArch == NPUARCH_TO_STR(NpuArch::DAV_3510));
         if (flag) {
             ACL_CHECK_WITH_INNER_MESSAGE_AND_RETURN(aippOutputW <= 1080, ACL_ERROR_INVALID_PARAM,
-	              "[Check][Params]after padding, aipp output W[%d] should be less than or equal to 1080 for %s",
-	              aippOutputW, socVersion.c_str());
+	              "[Check][Params]after padding, aipp output W[%d] should be less than or equal to 1080 for arch[%s]",
+	              aippOutputW, npuArch.c_str());
         } else {
             ACL_LOG_INFO("no need to check aipp output width.");
         }
@@ -265,7 +260,7 @@ aclError GetAippOutputHW(const aclmdlAIPP *const aippParmsSet, const size_t batc
     return ACL_SUCCESS;
 }
 
-static aclError AippDynamicBatchParaCheck(const aclmdlAIPP *const aippParmsSet, const std::string &socVersion)
+static aclError AippDynamicBatchParaCheck(const aclmdlAIPP *const aippParmsSet, const std::string &npuArch)
 {
     int8_t scfSwitch = 0;
     int8_t cropSwitch = 0;
@@ -274,7 +269,7 @@ static aclError AippDynamicBatchParaCheck(const aclmdlAIPP *const aippParmsSet, 
     int32_t aippFirstOutputW = 0;
     int32_t aippFirstOutputH = 0;
 
-    aclError result = GetAippOutputHW(aippParmsSet, 0UL, socVersion, aippFirstOutputW, aippFirstOutputH);
+    aclError result = GetAippOutputHW(aippParmsSet, 0UL, npuArch, aippFirstOutputW, aippFirstOutputH);
     if (result != ACL_SUCCESS) {
         return result;
     }
@@ -297,7 +292,7 @@ static aclError AippDynamicBatchParaCheck(const aclmdlAIPP *const aippParmsSet, 
             }
         }
 
-        result = GetAippOutputHW(aippParmsSet, static_cast<size_t>(i), socVersion, aippBatchOutputW, aippBatchOutputH);
+        result = GetAippOutputHW(aippParmsSet, static_cast<size_t>(i), npuArch, aippBatchOutputW, aippBatchOutputH);
         if (result != ACL_SUCCESS) {
             return result;
         }
@@ -315,14 +310,14 @@ static aclError AippDynamicBatchParaCheck(const aclmdlAIPP *const aippParmsSet, 
     return ACL_SUCCESS;
 }
 
-aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string &socVersion)
+aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string &npuArch)
 {
     ACL_LOG_INFO("start to execute aclAippParamsCheck");
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(aippParmsSet);
 
     const enum CceAippInputFormat inputFormat =
         static_cast<enum CceAippInputFormat>(aippParmsSet->aippParms.inputFormat);
-    aclError result = AippInputFormatCheck(inputFormat, socVersion);
+    aclError result = AippInputFormatCheck(inputFormat, npuArch);
     if (result != ACL_SUCCESS) {
         return result;
     }
@@ -346,7 +341,7 @@ aclError AippParamsCheck(const aclmdlAIPP *const aippParmsSet, const std::string
         return result;
     }
 
-    result = AippDynamicBatchParaCheck(aippParmsSet, socVersion);
+    result = AippDynamicBatchParaCheck(aippParmsSet, npuArch);
     if (result != ACL_SUCCESS) {
         return result;
     }

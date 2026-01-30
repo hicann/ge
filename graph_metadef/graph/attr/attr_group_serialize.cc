@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "attribute_group/attr_group_serialize.h"
 #include "attribute_group/attr_group_serializer_registry.h"
 #include "common/checker.h"

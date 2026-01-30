@@ -295,13 +295,17 @@ class OpExecuteContextFaker {
   OpExecuteContextFaker &Stream(void *stream);
   OpExecuteContextFaker &ExecuteOption(void *execute_option);
   OpExecuteContextFaker &ExecuteFunc(void *execute_func);
+  OpExecuteContextFaker &OpAicoreNum(int64_t *op_aicore_num);
+  OpExecuteContextFaker &OpVecCoreNum(int64_t *op_vec_core_num);
+  OpExecuteContextFaker &GlobalAicoreNum(int64_t *global_aicore_num);
+  OpExecuteContextFaker &GlobalVecCoreNum(int64_t *global_vec_core_num);
   FakeKernelContextHolder Build();
 
  private:
   void UpdateInputs();
   void UpdateOutputs();
  private:
-  enum InputsAppend {kAllocate, kStream, kExecuteOption, kExecuteFunc, kEnd};
+  enum InputsAppend {kAllocate, kStream, kExecuteOption, kExecuteFunc, kOpAicoreNum, kOpVecCoreNum, kGlobalAicoreNum, kGlobalVecCoreNum, kEnd};
 
   KernelRunContextFaker base_faker_;
   std::vector<gert::Tensor *> input_tensor_;
@@ -311,6 +315,10 @@ class OpExecuteContextFaker {
   void *stream_ = nullptr;
   void *execute_option_ = nullptr;
   void *execute_func_ = nullptr;
+  int64_t *op_aicore_num_ = nullptr;
+  int64_t *op_vec_core_num_ = nullptr;
+  int64_t *global_aicore_num_ = nullptr;
+  int64_t *global_vec_core_num_ = nullptr;
 };
 
 class OpExecutePrepareContextFaker {
@@ -411,6 +419,59 @@ class OpExecuteLaunchContextFaker {
 
 struct DummyOpApiParams {
   uint8_t *dummy_data;
+};
+
+
+class EagerOpExecutionContextFaker {
+ public:
+  EagerOpExecutionContextFaker &NodeIoNum(size_t input_num, size_t output_num);
+  EagerOpExecutionContextFaker &IrInputNum(size_t input_num) {
+    base_faker_.IrInputNum(input_num);
+    return *this;
+  }
+  EagerOpExecutionContextFaker &IrInstanceNum(std::vector<uint32_t> instance_num) {
+    base_faker_.IrInstanceNum(std::move(instance_num));
+    return *this;
+  }
+  EagerOpExecutionContextFaker &IrOutputInstanceNum(std::vector<uint32_t> output_instance_num) {
+    base_faker_.IrOutputInstanceNum(std::move(output_instance_num));
+    return *this;
+  }
+  EagerOpExecutionContextFaker &NodeInputTd(int32_t index, ge::DataType dt,
+                                            ge::Format origin_format, ge::Format storage_format) {
+    base_faker_.NodeInputTd(index, dt, origin_format, storage_format);
+    return *this;
+  }
+  EagerOpExecutionContextFaker &NodeOutputTd(int32_t index, ge::DataType dt, ge::Format origin_format,
+                                             ge::Format storage_format) {
+    base_faker_.NodeOutputTd(index, dt, origin_format, storage_format);
+    return *this;
+  }
+  EagerOpExecutionContextFaker &NodeAttrs(std::vector<std::pair<std::string, ge::AnyValue>> keys_to_value) {
+    base_faker_.NodeAttrs(std::move(keys_to_value));
+    return *this;
+  }
+  EagerOpExecutionContextFaker &InputTensor(std::vector<gert::Tensor *> input_tensor);
+  EagerOpExecutionContextFaker &OutputTensor(std::vector<gert::Tensor *> output_tensor);
+  EagerOpExecutionContextFaker &OutputMem(std::shared_ptr<std::vector<gert::GertMemBlock *>> &output_block_memory);
+  EagerOpExecutionContextFaker &Allocator(void *allocator);
+  EagerOpExecutionContextFaker &Stream(void *stream);
+  EagerOpExecutionContextFaker &ExecuteFunc(void *execute_func);
+  FakeKernelContextHolder Build();
+
+ private:
+  void UpdateInputs();
+  void UpdateOutputs();
+ private:
+  enum InputsAppend {kAllocator, kStream, kExecuteFunc, kEnd};
+
+  KernelRunContextFaker base_faker_;
+  std::vector<gert::Tensor *> input_tensor_;
+  std::vector<gert::Tensor *> output_tensor_;
+  std::shared_ptr<std::vector<gert::GertMemBlock *>> output_block_memory_;
+  void *allocator_ = nullptr;
+  void *stream_ = nullptr;
+  void *execute_func_ = nullptr;
 };
 }  // namespace gert
 #endif  //AIR_CXX_TESTS_UT_GE_RUNTIME_V2_FAKER_KERNEL_RUN_CONTEXT_FACKER_H_

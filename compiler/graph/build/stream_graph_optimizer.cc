@@ -14,7 +14,6 @@
 
 #include "framework/common/util.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/utils/node_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "api/gelib/gelib.h"
 

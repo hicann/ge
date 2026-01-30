@@ -26,6 +26,7 @@
 #include "graph/utils/op_type_utils.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "subscriber/profiler/dfx_extend_info.h"
+#include "common/ge_common/util.h"
 
 namespace gert {
 namespace {
@@ -97,7 +98,10 @@ void GetCMOAttrs(const ge::OpDesc *const op_desc, std::vector<std::vector<uint32
     std::string cmo_context_name_tmp;
     uint32_t cmo_context_type_tmp;
     (void)ge::AttrUtils::GetListInt(op_desc, ctx_id_attr, cmo_context_ids_tmp);
-    (void)ge::AttrUtils::GetStr(op_desc, name_attr, cmo_context_name_tmp);
+    const auto *cmo_name_ptr = ge::AttrUtils::GetStr(op_desc, name_attr);
+    if (cmo_name_ptr != nullptr) {
+      cmo_context_name_tmp = *cmo_name_ptr;
+    }
     (void)ge::AttrUtils::GetInt(op_desc, type_attr, cmo_context_type_tmp);
 
     cmo_context_ids.push_back(cmo_context_ids_tmp);

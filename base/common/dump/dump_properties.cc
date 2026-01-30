@@ -32,6 +32,7 @@ const std::string kDumpStatusOpen = "on";
 constexpr uint32_t kAicoreOverflow = 0x1U; // (0x1U << 0U)
 constexpr uint32_t kAtomicOverflow = 0x2U; // (0x1U << 1U)
 constexpr uint32_t kAllOverflow = kAicoreOverflow | kAtomicOverflow;
+constexpr size_t kMaxErrorStrLength = 128U;
 }  // namespace
 namespace ge {
 StepCheckErrorCode DumpProperties::CheckDumpStepInner(const std::string &dump_step) const {
@@ -69,29 +70,29 @@ Status DumpProperties::CheckDumpStep(const std::string &dump_step) const {
   Status ret;
   switch (error_code) {
     case StepCheckErrorCode::kTooManySets:
-      REPORT_PREDEFINED_ERR_MSG(
+      (void)REPORT_PREDEFINED_ERR_MSG(
           "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
           std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpStep").c_str(), dump_step.c_str(),
-                                    "is not supported, only support dump <= 100 sets of data."}));
+                                    "The number of collection ranges cannot exceed 100."}));
       GELOGE(PARAM_INVALID, "[Check][Param] get dump_step value:%s, "
                             "dump_step only support dump <= 100 sets of data.", dump_step.c_str());
       ret = PARAM_INVALID;
       break;
     case StepCheckErrorCode::kIncorrectFormat:
-      REPORT_PREDEFINED_ERR_MSG(
+      (void)REPORT_PREDEFINED_ERR_MSG(
           "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
           std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpStep").c_str(), dump_step.c_str(),
-                                    "is not supported, correct example:'0|5|10|50-100'."}));
+                                    "Incorrect parameter format. Valid format: '0|5|10|50-100'."}));
       GELOGE(PARAM_INVALID, "[Check][Param] get dump_step value:%s, dump_step std::string style is error, "
              "correct example:'0|5|10|50-100'.", dump_step.c_str());
       ret = PARAM_INVALID;
       break;
     case StepCheckErrorCode::kReverseStep:
-      REPORT_PREDEFINED_ERR_MSG(
+      (void)REPORT_PREDEFINED_ERR_MSG(
           "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
           std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpStep").c_str(), dump_step.c_str(),
-                                    "is not supported, in range steps, the first step is >= second step,"
-                                    " correct example:'0|5|10-20'."}));
+                                     "In range steps, the first step must be greater than or equal to the second step. "
+                                     "Valid format: '0|5|10-20'."}));
       GELOGE(PARAM_INVALID, "[Check][Param] get dump_step value:%s, in range steps, the first step is >= second step, "
              "correct example:'0|5|10-20'.", dump_step.c_str());
       ret = PARAM_INVALID;
@@ -107,10 +108,10 @@ Status DumpProperties::CheckDumpMode(const std::string &dump_mode) const {
   const std::set<std::string> dump_mode_list = {"input", "output", "all"};
   const auto iter = dump_mode_list.find(dump_mode);
   if (iter == dump_mode_list.end()) {
-    REPORT_PREDEFINED_ERR_MSG(
+    (void)REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpMode").c_str(), dump_mode.c_str(),
-                                  "is not supported, should be one of the following:[input, output, all]"}));
+                                  "The dump mode must be selected from [input, output, all]."}));
     GELOGE(PARAM_INVALID, "[Check][Param] the dump_debug_mode:%s, is is not supported,"
            "should be one of the following:[input, output, all].", dump_mode.c_str());
     return PARAM_INVALID;
@@ -120,25 +121,40 @@ Status DumpProperties::CheckDumpMode(const std::string &dump_mode) const {
 
 Status DumpProperties::CheckDumpPathValid(const std::string &input) const {
   if (mmIsDir(input.c_str()) != EN_OK) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str(), input.c_str(),
-                                                 "is not a directory."}));
+    char_t err_buf[kMaxErrorStrLength + 1U] = {};
+    const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
+    std::string reason =
+        "The parameter value is not a directory. [Errno " + std::to_string(mmGetErrorCode()) + "] " + err_msg + ".";
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>(
+            {ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str(), input.c_str(), reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] the path:%s, is not directory.", input.c_str());
     return PARAM_INVALID;
   }
-  char_t trusted_path[MMPA_MAX_PATH] = {};
-  if (mmRealPath(input.c_str(), &trusted_path[0], MMPA_MAX_PATH) != EN_OK) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str(), input.c_str(),
-                                                 "dumpPath invalid."}));
+  std::array<char_t, MMPA_MAX_PATH> trusted_path = {};
+  if (mmRealPath(input.c_str(), trusted_path.data(), MMPA_MAX_PATH) != EN_OK) {
+    char_t err_buf[kMaxErrorStrLength + 1U] = {};
+    const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
+    std::string reason =
+        "The parameter value is invalid. [Errno " + std::to_string(mmGetErrorCode()) + "] " + err_msg + ".";
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>(
+            {ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str(), input.c_str(), reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] the dumpPath:%s, is invalid.", input.c_str());
     return PARAM_INVALID;
   }
   constexpr int32_t access_flag = static_cast<int32_t>(static_cast<uint32_t>(M_R_OK) | static_cast<uint32_t>(M_W_OK));
-  if (mmAccess2(&trusted_path[0], access_flag) != EN_OK) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str(), input.c_str(),
-                                                 "does't have read, write permissions."}));
+  if (mmAccess2(trusted_path.data(), access_flag) != EN_OK) {
+    char_t err_buf[kMaxErrorStrLength + 1U] = {};
+    const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
+    std::string reason =
+        "No access permission for the path. [Errno " + std::to_string(mmGetErrorCode()) + "] " + err_msg + ".";
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>(
+            {ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str(), input.c_str(), reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] the path:%s, does't have read, write permissions.", input.c_str());
     return PARAM_INVALID;
   }
@@ -149,9 +165,9 @@ Status DumpProperties::CheckEnableDump(const std::string &input) const {
   std::set<std::string> enable_dump_option_list = {"1", "0"};
   const auto it = enable_dump_option_list.find(input);
   if (it == enable_dump_option_list.end()) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                        std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.enableDump").c_str(), input.c_str(),
-                                                 "only support 1 or 0."}));
+                                                 "The value must be 1 or 0."}));
     GELOGE(PARAM_INVALID, "[Check][Param] Not support ge.exec.enableDump or ge.exec.enableDumpDebug format:%s, "
            "only support 1 or 0.", input.c_str());
     return PARAM_INVALID;
@@ -216,7 +232,7 @@ Status DumpProperties::InitByOptions() {
     enable_dump_debug_ = enable_dump_debug;
   }
   if ((enable_dump_ == kEnableFlag) && (enable_dump_debug_ == kEnableFlag)) {
-    REPORT_PREDEFINED_ERR_MSG(
+    (void)REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>(
             {(ge::GetContext().GetReadableName("ge.exec.enableDump") + " and " +
@@ -237,9 +253,9 @@ Status DumpProperties::InitByOptions() {
       GELOGI("Get dump path %s successfully", dump_path.c_str());
       SetDumpPath(dump_path);
     } else {
-      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                         std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str(), dump_path.c_str(),
-                                                   "ge.exec.dumpPath is not set."}));
+      (void)REPORT_PREDEFINED_ERR_MSG(
+          "E10058", std::vector<const char *>({"parameter"}),
+          std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpPath").c_str()}));
       GELOGE(FAILED, "[Check][dump_path] failed. Dump path is not set.");
       return FAILED;
     }
@@ -378,7 +394,7 @@ bool DumpProperties::IsNeedDump(const std::string &model, const std::string &om_
 // wrapper for IsNeedDump with dfx(log)
 bool DumpProperties::IsLayerNeedDump(const std::string &model, const std::string &om_name,
                                      const std::string &op_name) const {
-  bool need_dump = IsNeedDump(model, om_name, op_name);
+  const bool need_dump = IsNeedDump(model, om_name, op_name);
   GELOGI("model[%s] om name[%s] op %s dump flag is %d", model.c_str(), om_name.c_str(), op_name.c_str(),
          static_cast<int32_t>(need_dump));
   return need_dump;
@@ -468,8 +484,8 @@ void DumpProperties::SetModelBlacklist(const std::string& model_name,
                    new_op_blacklist.output_indices.size());
         } else {
             OpBlacklist& existing_op_blacklist = existing_blacklist.dump_optype_blacklist[op_type];
-            size_t old_input_size = existing_op_blacklist.input_indices.size();
-            size_t old_output_size = existing_op_blacklist.output_indices.size();
+            const size_t old_input_size = existing_op_blacklist.input_indices.size();
+            const size_t old_output_size = existing_op_blacklist.output_indices.size();
 
             existing_op_blacklist.input_indices.insert(new_op_blacklist.input_indices.begin(), new_op_blacklist.input_indices.end());
             existing_op_blacklist.output_indices.insert(new_op_blacklist.output_indices.begin(), new_op_blacklist.output_indices.end());
@@ -496,8 +512,8 @@ void DumpProperties::SetModelBlacklist(const std::string& model_name,
                    new_op_blacklist.output_indices.size());
         } else {
             OpBlacklist& existing_op_blacklist = existing_blacklist.dump_opname_blacklist[op_name];
-            size_t old_input_size = existing_op_blacklist.input_indices.size();
-            size_t old_output_size = existing_op_blacklist.output_indices.size();
+            const size_t old_input_size = existing_op_blacklist.input_indices.size();
+            const size_t old_output_size = existing_op_blacklist.output_indices.size();
 
             existing_op_blacklist.input_indices.insert(new_op_blacklist.input_indices.begin(), new_op_blacklist.input_indices.end());
             existing_op_blacklist.output_indices.insert(new_op_blacklist.output_indices.begin(), new_op_blacklist.output_indices.end());
@@ -523,45 +539,59 @@ bool DumpProperties::IsInputInOpNameBlacklist(const std::string &model_name,
         return false;
     }
 
-    auto op_it = model_it->second.dump_opname_blacklist.find(op_name);
-    if (op_it == model_it->second.dump_opname_blacklist.end()) return false;
+    auto op_input_it = model_it->second.dump_opname_blacklist.find(op_name);
+    if (op_input_it == model_it->second.dump_opname_blacklist.end()) {
+      return false;
+    }
 
-    return op_it->second.input_indices.count(index) > 0;
+    return op_input_it->second.input_indices.count(index) > 0;
 }
 bool DumpProperties::IsOutputInOpNameBlacklist(const std::string &model_name,
                                              const std::string &op_name,
                                              const uint32_t index) const {
     auto model_it = model_dump_blacklist_map_.find(model_name);
-    if (model_it == model_dump_blacklist_map_.end()) return false;
+    if (model_it == model_dump_blacklist_map_.end()) {
+      return false;
+    }
 
-    auto op_it = model_it->second.dump_opname_blacklist.find(op_name);
-    if (op_it == model_it->second.dump_opname_blacklist.end()) return false;
+    auto op_output_it = model_it->second.dump_opname_blacklist.find(op_name);
+    if (op_output_it == model_it->second.dump_opname_blacklist.end()) {
+      return false;
+    }
 
-    return op_it->second.output_indices.count(index) > 0;
+    return op_output_it->second.output_indices.count(index) > 0;
 }
 
 bool DumpProperties::IsInputInOpTypeBlacklist(const std::string &model_name,
                                             const std::string &op_type,
                                             const uint32_t index) const {
     auto model_it = model_dump_blacklist_map_.find(model_name);
-    if (model_it == model_dump_blacklist_map_.end()) return false;
+    if (model_it == model_dump_blacklist_map_.end()) {
+      return false;
+    }
 
-    auto op_it = model_it->second.dump_optype_blacklist.find(op_type);
-    if (op_it == model_it->second.dump_optype_blacklist.end()) return false;
+    auto op_input_it = model_it->second.dump_optype_blacklist.find(op_type);
+    if (op_input_it == model_it->second.dump_optype_blacklist.end()) {
+      return false;
+    }
 
-    return op_it->second.input_indices.count(index) > 0;
+    return op_input_it->second.input_indices.count(index) > 0;
 }
 
 bool DumpProperties::IsOutputInOpTypeBlacklist(const std::string &model_name,
                                              const std::string &op_type,
                                              const uint32_t index) const {
     auto model_it = model_dump_blacklist_map_.find(model_name);
-    if (model_it == model_dump_blacklist_map_.end()) return false;
+    if (model_it == model_dump_blacklist_map_.end()) {
+      return false;
+    }
 
-    auto op_it = model_it->second.dump_optype_blacklist.find(op_type);
-    if (op_it == model_it->second.dump_optype_blacklist.end()) return false;
+    auto op_output_it = model_it->second.dump_optype_blacklist.find(op_type);
+    if (op_output_it == model_it->second.dump_optype_blacklist.end()) {
+      return false;
+    }
 
-    return op_it->second.output_indices.count(index) > 0;
+    return op_output_it->second.output_indices.count(index) > 0;
 }
 
 void DumpProperties::SetDumpStatus(const std::string &status) {
@@ -636,9 +666,10 @@ Status DumpProperties::SetDumpDebugOptions() {
       is_train_op_debug_ = true;
       op_debug_mode_ = kAllOverflow;
     } else {
-      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                         std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpDebugMode").c_str(),
-                                                   dump_debug_mode.c_str(), "ge.exec.dumpDebugMode is invalid."}));
+      (void)REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+          std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpDebugMode").c_str(),
+                                     dump_debug_mode.c_str(), "The current value is not within the valid range."}));
       GELOGE(PARAM_INVALID, "[Set][DumpDebugOptions] failed, ge.exec.dumpDebugMode is invalid.");
       return PARAM_INVALID;
     }
@@ -691,10 +722,12 @@ DumpProcState DumpProperties::DumpProcFsmTransition(DumpProcState current, DumpP
       {DumpProcState::kError, DumpProcState::kError, DumpProcState::kError}
   }};
 
-  auto st = static_cast<std::size_t>(current);
-  auto ev = static_cast<std::size_t>(evt);
+  const auto st = static_cast<std::size_t>(current);
+  const auto ev = static_cast<std::size_t>(evt);
 
-  if (st >= N_STATES || ev >= N_EVENTS) return DumpProcState::kError;
+  if (st >= N_STATES || ev >= N_EVENTS) {
+    return DumpProcState::kError;
+  }
   return kTable[st][ev];
 }
 
@@ -706,6 +739,8 @@ std::string DumpProperties::GetDumpOpRangeModelName(const std::string &model, co
     model_name = om_name;
   } else if ((model_iter != model_dump_op_ranges_map_.end())) {
     model_name = model;
+  } else {
+    // do nothing
   }
   return model_name;
 }
@@ -729,6 +764,8 @@ DumpProcEvent DumpProperties::GetOpProcEvent(const std::string &op_name,
     return DumpProcEvent::kRangeStart;
   } else if (op_name == range.second) {
     return DumpProcEvent::kRangeEnd;
+  } else {
+    // do nothing
   }
 
   return DumpProcEvent::kOutOfRange;
@@ -753,8 +790,8 @@ Status DumpProperties::SetDumpFsmState(const std::string &model,
   }
 
   for (size_t index = 0U; index < range_iter->second.size(); index++) {
-    DumpProcEvent event = GetOpProcEvent(op_name, range_iter->second[index]);
-    DumpProcState cur_state = dump_fsm_state[index];
+    const DumpProcEvent event = GetOpProcEvent(op_name, range_iter->second[index]);
+    const DumpProcState cur_state = dump_fsm_state[index];
     if (cur_state == DumpProcState::kError) { // kError之后need dump op的范围不会再增加
       continue;
     }
@@ -765,7 +802,7 @@ Status DumpProperties::SetDumpFsmState(const std::string &model,
         static_cast<int32_t>(cur_state), static_cast<int32_t>(event),
         static_cast<int32_t>(next_state), index, is_update_dump_op_range);
       if (is_update_dump_op_range) {
-        dump_op_in_range.insert(op_name);
+        (void)dump_op_in_range.insert(op_name);
       }
     } else if (next_state == DumpProcState::kError) {
       GELOGW("Model name[%s] opname range[%s, %s] range id[%zu] is invalid.",

@@ -260,6 +260,8 @@ class ModelUtils {
 
  private:
   static std::string GetOpMasterDeviceCustKey(const uint32_t &model_id, const std::string &so_path);
+
+ private:
   static Status CreateOmOppDir(std::string &opp_dir);
   static Status RmOmOppDir(const std::string &opp_dir);
   static Status SaveToFile(const std::shared_ptr<ge::OpSoBin> &so_bin, const std::string &opp_path);

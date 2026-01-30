@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
 # CANN Open Software License Agreement Version 2.0 (the "License").
@@ -8,7 +8,7 @@
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 
 import os
 import shutil
@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, NamedTuple, Optional, Tuple, Union
 
 from .utils.comm_log import CommLog
 from .utils.pkg_utils import CompressError
+
 
 class PackageName:
     """包名。"""
@@ -146,7 +147,7 @@ def compose_makeself_command(params: MakeselfPkgParams) -> str:
         ],
         get_cleanup_commands(),
         [params.package_name, params.comments]
-        )
+       )
     
     command = ' '.join(commands)
     return command
@@ -159,8 +160,8 @@ def create_makeself_pkg_params_factory(source_target: str,
     """创建Makeself打包参数工厂。"""
 
     def create_makeself_pkg_params(makeself_dir: str,
-                                package_attr: Dict,
-                                independent_pkg=False) -> MakeselfPkgParams:
+                                  package_attr: Dict,
+                                  independent_pkg=False) -> MakeselfPkgParams:
         """创建Makeself打包参数。"""
         cleanup = package_attr.get('cleanup')
 
@@ -190,6 +191,7 @@ def create_makeself_pkg_params_factory(source_target: str,
         return params
     return create_makeself_pkg_params
 
+
 def create_run_package_command(params: MakeselfPkgParams
                                ) -> Tuple[Optional[str], Optional[str]]:
     """
@@ -198,9 +200,10 @@ def create_run_package_command(params: MakeselfPkgParams
     """
     return compose_makeself_command(params), None
 
+
 def exec_pack_cmd(delivery_dir: str,
-                  pack_cmd: str,
-                  package_name: str) -> str: 
+                 pack_cmd: str,
+                 package_name: str) -> str: 
     """执行打包命令"""
     if delivery_dir:
         cmd = f'cd {delivery_dir} && {pack_cmd}'

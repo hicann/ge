@@ -50,6 +50,20 @@ LowerResult LoweringFooWithStreamSync(const ge::NodePtr &node, const LowerInput 
   return {HyperStatus::Success(), {compute_holder}, {lower_input.input_shapes[0]}, output_addrs};
 }
 
+std::vector<gert::Tensor> InputData2GertTensors(const InputData &input_data) {
+  std::vector<gert::Tensor> input_tensors;
+  for (size_t i = 0U; i < input_data.blobs.size(); ++i) {
+    gert::Tensor tensor;
+    tensor.MutableTensorData().SetSize(input_data.blobs[i].length);
+    tensor.MutableTensorData().SetAddr(input_data.blobs[i].data, nullptr);
+    tensor.MutableStorageShape().SetDimNum(input_data.shapes[i].size());
+    for (size_t j = 0U; j < input_data.shapes[i].size(); ++j) {
+      tensor.MutableStorageShape().SetDim(0, input_data.shapes[i][j]);
+    }
+    input_tensors.emplace_back(std::move(tensor));
+  }
+  return input_tensors;
+}
 void TestHybridModelExecuteWithIterationLoop() {
   auto graph = ShareGraph::SimpleFooGraph();
   graph->SetNeedIteration(true);
@@ -255,12 +269,9 @@ class UtestHybridRt2Executor : public testing::Test {
  protected:
   void SetUp() {
     RTS_STUB_SETUP();
-    dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
   }
   void TearDown() {
-    unsetenv("ENABLE_RUNTIME_V2");
     RTS_STUB_TEARDOWN();
-    dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
   }
  public:
   static void TestRunCtxInitWithTwoFileConstants(const std::vector<std::string> &location_config,
@@ -332,11 +343,6 @@ class Listener : public ModelListener {
  public:
   Listener(std::function<void()> done) : done_(done) {}
   Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
-                       std::vector<ge::Tensor> &outputs) override {
-    done_();
-    return SUCCESS;
-  }
-  Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
                        std::vector<gert::Tensor> &outputs) override {
     done_();
     return SUCCESS;
@@ -376,9 +382,9 @@ void HybridRt2ExecutorRunImpl() {
   InputData inputs;
   inputs.blobs.resize(executor_rt_v2->num_inputs_);
   inputs.shapes.resize(executor_rt_v2->num_inputs_);
-  OutputData outputs;
-  auto wrapper = std::make_shared<InputDataWrapper>(inputs, outputs);
-  executor.EnqueueData(wrapper);
+  auto data = std::make_shared<RunArgs>();
+  data->input_tensor = std::move(InputData2GertTensors(inputs));
+  executor.EnqueueData(data);
 
   size_t kMaxWaitSeconds = 5U;
   for (size_t seconds_wait = 0U; seconds_wait < kMaxWaitSeconds; seconds_wait++) {
@@ -1512,7 +1518,6 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynam
   graph->TopologicalSorting();
   GeModelBuilder builder(graph);
   auto ge_root_model = builder.BuildGeRootModel();
-  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
   HybridModel hybrid_model(ge_root_model);
   hybrid_model.root_graph_item_.reset(new GraphItem);
   hybrid_model.root_graph_ = ge_root_model->GetRootGraph();
@@ -1607,7 +1612,6 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynam
   }
   // 内存合理释放
   EXPECT_NE(dynamic_cast<ExternalAllocatorUtStub *>(external_allocator.get())->GetFreeCnt(), 0);
-  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
   RuntimeStub::Reset();
   ExternalAllocatorManager::DeleteExternalAllocator(stream);
 }
@@ -1773,61 +1777,6 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_host_
   RuntimeStub::Reset();
 }
 
-TEST_F(UtestHybridRt2Executor, ExecuteOnlineModel_RecycleAfterExecute) {
-  auto graph = ShareGraph::AicoreGraph();
-  graph->TopologicalSorting();
-  GeModelBuilder builder(graph);
-  auto ge_root_model = builder.BuildGeRootModel();
-
-  HybridModel hybrid_model(ge_root_model);
-  hybrid_model.root_graph_item_.reset(new GraphItem);
-  hybrid_model.root_graph_ = ge_root_model->GetRootGraph();
-  EXPECT_EQ(hybrid_model.Init(), SUCCESS);
-  EXPECT_TRUE(hybrid_model.execute_by_rt_v2_);
-  rtStream_t stream = (void *)0x01;
-  HybridModelRtV2Executor executor_rt_v2(&hybrid_model, 0, stream);
-  auto ret = executor_rt_v2.Init();
-  ASSERT_EQ(ret, SUCCESS);
-  executor_rt_v2.run_ctx_.host_exec_flag_ = false;
-
-  unique_ptr<uint8_t[]> data_buf(new (std::nothrow) uint8_t[512]);
-  std::vector<GeTensor> input_tensors;
-  std::vector<GeTensor> output_tensors(1U);
-
-  auto scalar_host_tensor = GeTensor(GeTensorDesc(GeShape(), FORMAT_NCHW, DT_FLOAT), data_buf.get(), 4);
-  scalar_host_tensor.MutableTensorDesc().SetOriginShape(GeShape());
-  scalar_host_tensor.MutableTensorDesc().SetPlacement(Placement::kPlacementHost);
-
-  auto list_scalar_host_tensor = GeTensor(GeTensorDesc(GeShape({128}), FORMAT_NCHW, DT_FLOAT), data_buf.get(), 512);
-  list_scalar_host_tensor.MutableTensorDesc().SetOriginShape(GeShape({128}));
-  list_scalar_host_tensor.MutableTensorDesc().SetPlacement(Placement::kPlacementHost);
-
-  auto nd_host_tensor = GeTensor(GeTensorDesc(GeShape({1, 1, 1, 128}), FORMAT_NCHW, DT_FLOAT), data_buf.get(), 512);
-  nd_host_tensor.MutableTensorDesc().SetOriginShape(GeShape({1, 1, 1, 128}));
-  nd_host_tensor.MutableTensorDesc().SetPlacement(Placement::kPlacementHost);
-
-  InputData inputs;
-  inputs.blobs.push_back(DataBuffer(data_buf.get(), 512, false));
-  inputs.blobs.push_back(DataBuffer(data_buf.get(), 512, false));
-  inputs.shapes.push_back({});
-  inputs.shapes.push_back({});
-
-  OutputData output_data;
-
-  input_tensors.resize(2U, scalar_host_tensor);
-  output_tensors[0].SetData(nullptr, 0U);
-  GertRuntimeStub runtime_stub;
-  // 通过info日志检查执行过程的正确性
-  dlog_setlevel(GE_MODULE_NAME, 1, 0);
-  runtime_stub.GetSlogStub().Clear();
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
-  auto find_log = runtime_stub.GetSlogStub().FindInfoLogRegex("rts_allocator_.* Free:Free block device_id:0 theory_size_:0 theory_min_size_");
-  EXPECT_TRUE(find_log > 0);
-  dlog_setlevel(GE_MODULE_NAME, 3, 0);
-  EXPECT_EQ(ret, SUCCESS);
-  RuntimeStub::Reset();
-}
-
 TEST_F(UtestHybridRt2Executor, ExecuteOnlineModel_RecycleAfterExecute_GertTensor) {
   auto graph = ShareGraph::AicoreGraph();
   graph->TopologicalSorting();
@@ -1896,13 +1845,8 @@ TEST_F(UtestHybridRt2Executor, Execute_Success_SkipBatchMemcpyWhenSizeIsZero) {
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-  std::vector<GeTensor> input_tensors(2U, empty_tensor);
-  std::vector<GeTensor> output_tensors(1U);
-  output_tensors[0].SetData(nullptr, 0U);
-
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
-
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(ret, SUCCESS);
   RuntimeStub::Reset();
   ge::GetThreadLocalContext().SetSessionOption(options);
@@ -1948,16 +1892,16 @@ TEST_F(UtestHybridRt2Executor, HandleResult_RecycleWhenEOS) {
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-
   input_tensors.resize(2U, scalar_host_tensor);
   output_tensors[0].SetData(nullptr, 0U);
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(ret, SUCCESS);
-  HybridModelExecutor::ExecuteArgs args;
-  args.ctrl_args.stream = stream;
-  args.ctrl_args.is_eos = true;
-  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, nullptr, nullptr);
+  HybridModelExecutor::CtrlArgs args;
+  args.stream = stream;
+  args.is_eos = true;
+  std::vector<gert::Tensor> gert_outputs;
+  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, gert_outputs, nullptr);
   EXPECT_EQ(ret, END_OF_SEQUENCE);
   RuntimeStub::Reset();
 }
@@ -2007,17 +1951,15 @@ TEST_F(UtestHybridRt2Executor, HandleResult_BatchH2d_RecycleWhenEOS) {
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-
-  input_tensors.resize(2U, scalar_host_tensor);
-  output_tensors[0].SetData(nullptr, 0U);
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(ret, SUCCESS);
   EXPECT_EQ(RuntimeStub::GetInstance()->input_mem_copy_batch_count_, 2);
-  HybridModelExecutor::ExecuteArgs args;
-  args.ctrl_args.stream = stream;
-  args.ctrl_args.is_eos = true;
-  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, nullptr, nullptr);
+  HybridModelExecutor::CtrlArgs args;
+  args.stream = stream;
+  args.is_eos = true;
+  std::vector<gert::Tensor> gert_outputs;
+  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, gert_outputs, nullptr);
   EXPECT_EQ(ret, END_OF_SEQUENCE);
   RuntimeStub::Reset();
 
@@ -2070,18 +2012,18 @@ TEST_F(UtestHybridRt2Executor, HandleResult_BatchH2dButNotSupport_RecycleWhenEOS
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-
   input_tensors.resize(2U, scalar_host_tensor);
   output_tensors[0].SetData(nullptr, 0U);
   RTS_STUB_RETURN_VALUE(rtsMemcpyBatch, rtError_t, ACL_ERROR_RT_FEATURE_NOT_SUPPORT);
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(RuntimeStub::GetInstance()->input_mem_copy_batch_count_, 0);
   EXPECT_EQ(ret, SUCCESS);
-  HybridModelExecutor::ExecuteArgs args;
-  args.ctrl_args.stream = stream;
-  args.ctrl_args.is_eos = true;
-  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, nullptr, nullptr);
+  HybridModelExecutor::CtrlArgs args;
+  args.stream = stream;
+  args.is_eos = true;
+  std::vector<gert::Tensor> gert_outputs;
+  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, gert_outputs, nullptr);
   EXPECT_EQ(ret, END_OF_SEQUENCE);
   RuntimeStub::Reset();
 
@@ -2134,12 +2076,11 @@ TEST_F(UtestHybridRt2Executor, HandleResult_BatchH2dButFailed_RecycleWhenEOS) {
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-
   input_tensors.resize(2U, scalar_host_tensor);
   output_tensors[0].SetData(nullptr, 0U);
   RTS_STUB_RETURN_VALUE(rtsMemcpyBatch, rtError_t, -1);
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(RuntimeStub::GetInstance()->input_mem_copy_batch_count_, 0);
   EXPECT_NE(ret, SUCCESS);
 
@@ -2193,13 +2134,12 @@ TEST_F(UtestHybridRt2Executor, HandleResult_BatchH2dFallbackButFailed_RecycleWhe
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-
   input_tensors.resize(2U, scalar_host_tensor);
   output_tensors[0].SetData(nullptr, 0U);
   RTS_STUB_RETURN_VALUE(rtsMemcpyBatch, rtError_t, ACL_ERROR_RT_FEATURE_NOT_SUPPORT);
   RTS_STUB_RETURN_VALUE(rtMemcpy, rtError_t, -1);
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(RuntimeStub::GetInstance()->input_mem_copy_batch_count_, 0);
   EXPECT_NE(ret, SUCCESS);
 
@@ -2325,15 +2265,15 @@ TEST_F(UtestHybridRt2Executor, HandleResult_RecycleWhenError) {
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-
   input_tensors.resize(2U, scalar_host_tensor);
   output_tensors[0].SetData(nullptr, 0U);
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(ret, SUCCESS);
-  HybridModelExecutor::ExecuteArgs args;
-  args.ctrl_args.stream = stream;
-  ret = executor_rt_v2.HandleResult(FAILED, 0, args, nullptr, nullptr);
+  HybridModelExecutor::CtrlArgs args;
+  args.stream = stream;
+  std::vector<gert::Tensor> gert_outputs;
+  ret = executor_rt_v2.HandleResult(FAILED, 0, args, gert_outputs, nullptr);
   EXPECT_EQ(ret, INTERNAL_ERROR);
   RuntimeStub::Reset();
 }
@@ -2377,17 +2317,15 @@ TEST_F(UtestHybridRt2Executor, HandleResult_RecycleWhenCopyOutputsError) {
   inputs.shapes.push_back({});
   inputs.shapes.push_back({});
 
-  OutputData output_data;
-
   input_tensors.resize(2U, scalar_host_tensor);
   output_tensors[0].SetData(nullptr, 0U);
-  ret = executor_rt_v2.ExecuteOnlineModel(inputs, &output_data, nullptr);
+  auto gert_inputs = InputData2GertTensors(inputs);
+  ret = executor_rt_v2.ExecuteOnlineModel(gert_inputs, nullptr);
   EXPECT_EQ(ret, SUCCESS);
-  HybridModelExecutor::ExecuteArgs args;
-  args.ctrl_args.stream = stream;
-  auto tensor_buffer = TensorBuffer::Create((void *const)(nullptr), 2);
-  args.outputs.push_back(TensorValue(shared_ptr<TensorBuffer>(tensor_buffer.release())));
-  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, &output_data, nullptr);
+  HybridModelExecutor::CtrlArgs args;
+  args.stream = stream;
+  std::vector<gert::Tensor> gert_outputs(1);
+  ret = executor_rt_v2.HandleResult(SUCCESS, 0, args, gert_outputs, nullptr);
   EXPECT_EQ(ret, INTERNAL_ERROR);
   RuntimeStub::Reset();
 }

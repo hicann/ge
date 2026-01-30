@@ -78,32 +78,4 @@ TEST_F(Utest_SessionManager, GetSession_not_exits) {
   SessionPtr session = sm->GetSession(session_id);
   EXPECT_EQ(session, nullptr);
 }
-
-TEST_F(Utest_SessionManager, GetUserGraphsManager_fail_not_init) {
-  SessionId session_id = 0;
-  auto sm = std::make_shared<SessionManager>();
-  sm->init_flag_ = false;
-  auto session = sm->GetUserGraphsManager(session_id);
-  EXPECT_EQ(session, nullptr);
-
-}
-
-TEST_F(Utest_SessionManager, GetUserHybridGraphsManager_fail_not_init) {
-  SessionId session_id = 0;
-  auto sm = std::make_shared<SessionManager>();
-  sm->init_flag_ = false;
-  auto manager = sm->GetUserHybridGraphManager(session_id);
-  EXPECT_EQ(manager, nullptr);
-  sm->init_flag_ = true;
-  manager = sm->GetUserHybridGraphManager(session_id);
-  EXPECT_EQ(manager, nullptr);
-}
-
-TEST_F(Utest_SessionManager, GetUserGraphsManager_fail_not_exits) {
-  SessionId session_id = 0;
-  auto sm = std::make_shared<SessionManager>();
-  sm->init_flag_ = true;
-  auto session = sm->GetUserGraphsManager(session_id);
-  EXPECT_EQ(session, nullptr);
-}
 }  // namespace ge

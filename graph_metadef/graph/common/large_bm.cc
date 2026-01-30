@@ -9,7 +9,7 @@
  */
 
 #include "common/large_bm.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 constexpr size_t kBitsEachValue = 64UL;
@@ -19,7 +19,7 @@ constexpr size_t AlignBitSize(size_t bit_size) {
 }
 
 constexpr size_t AlignArraySize(size_t bit_size) {
-  return AlignBitSize(bit_size) >> 6;
+  return AlignBitSize(bit_size) >> 6; // shifting right by 6 bits
 }
 
 void LargeBitmap::ResizeBits(size_t new_size) {

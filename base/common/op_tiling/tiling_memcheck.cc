@@ -9,7 +9,7 @@
  */
 
 #include "tiling_memcheck.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/args_format_desc.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/attr_utils.h"
@@ -34,7 +34,7 @@ ge::graphStatus AppendInputSizeAndDfxShapeInfo(const ge::OpDescPtr &op_desc,
     GE_ASSERT_SUCCESS(ge::TensorUtils::GetSize(*tensor, tensor_size));
     GELOGI("Append input tensor size, node[%s], index: %zu, tensor size: %lld",
         op_desc->GetNamePtr(), index, tensor_size);
-    tiling_vec.emplace_back(tensor_size);
+    (void)tiling_vec.emplace_back(tensor_size);
     index++;
   }
   return ge::SUCCESS;
@@ -48,7 +48,7 @@ ge::graphStatus AppendOutputSizeAndDfxShapeInfo(const ge::OpDescPtr &op_desc,
     GE_ASSERT_SUCCESS(ge::TensorUtils::GetSize(tensor, tensor_size));
     GELOGI("Append output tensor size, node[%s], index: %zu, tensor size: %lld",
         op_desc->GetNamePtr(), i, tensor_size);
-    tiling_vec.emplace_back(tensor_size);
+    (void)tiling_vec.emplace_back(tensor_size);
   }
   return ge::SUCCESS;
 }
@@ -68,7 +68,7 @@ ge::graphStatus AppendInputSizeAndDfxShapeInfo(const ge::OpDescPtr &op_desc,
         GELOGI("Append input args size, node[%s], ir_idx:%d, arg_size:%zu input num:%zu",
             op_desc->GetNamePtr(), arg_desc.ir_idx, arg_size, ir_range.second);
         GE_ASSERT_TRUE(arg_size > 0UL);
-        tiling_vec.emplace_back(static_cast<int64_t>(arg_size));
+        (void)tiling_vec.emplace_back(static_cast<int64_t>(arg_size));
         index += ir_range.second;
         break;
       }
@@ -77,7 +77,7 @@ ge::graphStatus AppendInputSizeAndDfxShapeInfo(const ge::OpDescPtr &op_desc,
         if (ir_range.second == 0UL) {
           GELOGI("Append empty optional input tensor size, node[%s], ir_idx:%d",
               op_desc->GetNamePtr(), arg_desc.ir_idx);
-          tiling_vec.emplace_back(0L);
+          (void)tiling_vec.emplace_back(0L);
           continue;
         }
         const auto tensor = input_descs.at(index);
@@ -86,7 +86,7 @@ ge::graphStatus AppendInputSizeAndDfxShapeInfo(const ge::OpDescPtr &op_desc,
         GE_ASSERT_SUCCESS(ge::TensorUtils::GetSize(*tensor, tensor_size));
         GELOGI("Append input tensor size, node[%s], ir_idx:%d, index: %zu, tensor size: %lld",
             op_desc->GetNamePtr(), arg_desc.ir_idx, index, tensor_size);
-        tiling_vec.emplace_back(tensor_size);
+        (void)tiling_vec.emplace_back(tensor_size);
         index++;
         break;
       }
@@ -99,13 +99,13 @@ ge::graphStatus AppendInputSizeAndDfxShapeInfo(const ge::OpDescPtr &op_desc,
         GE_ASSERT_SUCCESS(ge::TensorUtils::GetSize(*tensor, tensor_size));
         GELOGI("Append input tensor size, node[%s], instance_idx:%d, tensor size: %lld", op_desc->GetNamePtr(),
                arg_desc.ir_idx, tensor_size);
-        tiling_vec.emplace_back(tensor_size);
+        (void)tiling_vec.emplace_back(tensor_size);
         break;
       }
       case ge::AddrType::HIDDEN_INPUT: {
         constexpr const int64_t hidden_input_size = 32L; // HiddenInput固定拼入32字节跳过校验
         GELOGI("Append hidden input size, node[%s], size: %lld", op_desc->GetNamePtr(), hidden_input_size);
-        tiling_vec.emplace_back(hidden_input_size);
+        (void)tiling_vec.emplace_back(hidden_input_size);
         break;
       }
       default: // workspace tiling等无需处理
@@ -131,7 +131,7 @@ ge::graphStatus AppendOutputSizeAndDfxShapeInfo(
         GELOGI("Append output args size, node[%s], ir_idx:%d, arg_size:%zu output num:%zu",
               op_desc->GetNamePtr(), arg_desc.ir_idx, arg_size, ir_range.second);
         GE_ASSERT_TRUE(arg_size > 0UL);
-        tiling_vec.emplace_back(static_cast<int64_t>(arg_size));
+        (void)tiling_vec.emplace_back(static_cast<int64_t>(arg_size));
         index += ir_range.second;
         break;
       }
@@ -141,7 +141,7 @@ ge::graphStatus AppendOutputSizeAndDfxShapeInfo(
         GE_ASSERT_SUCCESS(ge::TensorUtils::GetSize(tensor, tensor_size));
         GELOGI("Append output tensor size, node[%s], ir_idx:%d, index: %zu, tensor size: %lld",
             op_desc->GetNamePtr(), arg_desc.ir_idx, index, tensor_size);
-        tiling_vec.emplace_back(tensor_size);
+        (void)tiling_vec.emplace_back(tensor_size);
         index++;
         break;
       }
@@ -151,7 +151,7 @@ ge::graphStatus AppendOutputSizeAndDfxShapeInfo(
         GE_ASSERT_SUCCESS(ge::TensorUtils::GetSize(tensor, tensor_size));
         GELOGI("Append output tensor size, node[%s], instance_idx:%d, tensor size: %lld", op_desc->GetNamePtr(),
                arg_desc.ir_idx, tensor_size);
-        tiling_vec.emplace_back(tensor_size);
+        (void)tiling_vec.emplace_back(tensor_size);
         break;
       }
       default:  // workspace tiling等无需处理
@@ -227,8 +227,8 @@ ge::graphStatus TilingMemCheck::ConstructMemCheckInfo(const ge::OpDescPtr &op_de
     GE_ASSERT_SUCCESS(memcheck_data->Append(tiling_vec.data(), tiling_vec.size()));
   }
   // append total size
-  GE_ASSERT_SUCCESS(memcheck_data->Append(static_cast<int64_t>(memcheck_data->GetDataSize()
-      + tiling_data_size)));
+  const int64_t current_data_size = static_cast<int64_t>(memcheck_data->GetDataSize());
+  GE_ASSERT_SUCCESS(memcheck_data->Append(current_data_size + tiling_data_size));
   GELOGI("Op name[%s] memcheck info size: %lld", op_desc->GetNamePtr(), memcheck_data->GetDataSize());
   memcheck_info = std::string(reinterpret_cast<ge::char_t *>(memcheck_data->GetData()), memcheck_data->GetDataSize());
   return ge::GRAPH_SUCCESS;

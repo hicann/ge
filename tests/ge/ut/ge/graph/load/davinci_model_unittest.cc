@@ -48,6 +48,7 @@
 #include "runtime_stub.h"
 #include "common/tbe_handle_store/tbe_handle_store.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "ge_runtime_stub/include/common/env_path.h"
 
 using namespace std;
 
@@ -129,7 +130,7 @@ void TestNnExecute() {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -298,7 +299,7 @@ void TestNnExecuteWithHostPlsModelIo() {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -377,7 +378,7 @@ void TestNnExecuteWithHostPlsModelIo_ZeroCopyReuse() {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -457,6 +458,12 @@ void BuildDavinciModel(DavinciModel &model){
   op_kernel->AddOutputDesc(tensor);
   op_kernel->SetInputOffset({1024});
   op_kernel->SetOutputOffset({1024});
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_kernel->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_kernel->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_kernel, op_kernel->GetName() + "_kernelname", op_kernel->GetName()));
+  AttrUtils::SetStr(op_kernel, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_kernel, ATTR_NAME_KERNEL_BIN_ID, "te_square_123");
   NodePtr node_kernel = graph->AddNode(op_kernel);  // op_index = 1
 
   OpDescPtr op_memcpy = CreateOpDesc("memcpy", MEMCPYASYNC);
@@ -672,10 +679,6 @@ class DModelListener : public ModelListener {
  public:
   DModelListener(){};
   ~DModelListener() = default;
-  uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<Tensor> &outputs) {
-    complete_flag_ = true;
-    return 0;
-  }
   uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<gert::Tensor> &outputs) {
     complete_flag_ = true;
     return 0;
@@ -695,6 +698,10 @@ class UtestDavinciModel : public testing::Test {
     g_runtime_stub_mock.clear();
     RuntimeStub::GetInstance()->input_mem_copy_batch_count_ = 0;
     RTS_STUB_SETUP();
+    const ::testing::TestInfo *test_info = ::testing::UnitTest::GetInstance()->current_test_info();
+    test_case_name =  test_info->test_case_name();
+    test_work_dir = EnvPath().GetOrCreateCaseTmpPath(test_case_name);
+
   }
 
   void TearDown() {
@@ -704,7 +711,11 @@ class UtestDavinciModel : public testing::Test {
     ProfilingTestUtil::Instance().Clear();
     RuntimeStub::GetInstance()->input_mem_copy_batch_count_ = 0;
     RTS_STUB_TEARDOWN();
+    EnvPath().RemoveRfCaseTmpPath(test_case_name);
   }
+protected:
+  std::string test_case_name;
+  std::string test_work_dir;
 };
 
 TEST_F(UtestDavinciModel, davinci_init_with_sub_memory_info) {
@@ -831,6 +842,7 @@ TEST_F(UtestDavinciModel, davinci_init_success) {
     EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
     EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
     AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_add_n_123");
     EXPECT_TRUE(AttrUtils::SetListStr(op_desc, ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, std::vector<std::string>{"dump"}));
 
     auto &task_def = *model_def->add_task();
@@ -861,17 +873,16 @@ TEST_F(UtestDavinciModel, davinci_init_success) {
     task_def.set_stream_id(op_desc->GetStreamId());
 
     auto &kernel_def = *task_def.mutable_kernel();
+    kernel_def.set_stub_func("stub_func");
+    kernel_def.set_args_size(64);
+    string args(64, '1');
+    kernel_def.set_args(args.data(), 64);
+
     auto &context = *kernel_def.mutable_context();
-
-    const std::vector<uint64_t> args_info(5, 0);
-    kernel_def.set_args(args_info.data(), args_info.size() * sizeof(uint64_t));
-    kernel_def.set_args_size(args_info.size() * sizeof(uint64_t));
-
     context.set_op_index(op_desc->GetId());
-    context.set_kernel_type(static_cast<uint32_t>(ccKernelType::CUSTOMIZED));
-    const std::vector<uint16_t> args_offset{0 * 8, 1 * 8, 2 * 8, 3 * 8, 4 * 8};
-    context.set_args_count(args_offset.size());
-    context.set_args_offset(args_offset.data(), args_offset.size() * sizeof(uint16_t));
+    context.set_kernel_type(static_cast<uint32_t>(ccKernelType::AI_CPU));
+    uint16_t args_offset[9] = {0};
+    context.set_args_offset(args_offset, 9 * sizeof(uint16_t));
   }
 
   {
@@ -1095,7 +1106,7 @@ TEST_F(UtestDavinciModel, davinci_init_success) {
     EXPECT_EQ(model.task_list_.size(), model_def->task_size());
 
     OutputData output_data;
-    std::vector<Tensor> outputs;
+    std::vector<gert::Tensor> outputs;
     EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
     EXPECT_EQ(output_data.blobs.size(), 1);
     EXPECT_EQ(outputs.size(), 1);
@@ -1121,7 +1132,7 @@ TEST_F(UtestDavinciModel, davinci_init_success) {
     EXPECT_EQ(model.task_list_.size(), model_def->task_size());
 
     OutputData output_data;
-    std::vector<Tensor> outputs;
+    std::vector<gert::Tensor> outputs;
     EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
     EXPECT_EQ(output_data.blobs.size(), 1);
     EXPECT_EQ(outputs.size(), 1);
@@ -1532,8 +1543,8 @@ TEST_F(UtestDavinciModel, Init_variable_op) {
   model.is_async_mode_ = true;
   EXPECT_EQ(model.UpdateStepInfoWithStream(), SUCCESS);
 
-  std::vector<Tensor> outputs;
-  model.AssembleListenerOutput(nullptr, 1, outputs, output_data);
+  std::vector<gert::Tensor> outputs;
+  model.AssembleListenerOutput(nullptr, 1, outputs);
   free(reinterpret_cast<void *>(model.runtime_param_.mem_base));
   model.runtime_param_.mem_base = 0;
 }
@@ -1542,6 +1553,7 @@ TEST_F(UtestDavinciModel, Init_hcom_op) {
   DavinciModel model(0, nullptr);
   model.runtime_param_.mem_base = 0x08000000;
   model.runtime_param_.mem_size = 5120000;
+
   ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
 
   ge::GeTensorDesc tensor_desc(ge::GeShape({1, 3, 2, 2}), FORMAT_NCHW, ge::DT_FLOAT);
@@ -1549,6 +1561,10 @@ TEST_F(UtestDavinciModel, Init_hcom_op) {
   op_desc->AddInputDesc(tensor_desc);
   op_desc->SetOpKernelLibName(ge::kEngineNameHccl);
   graph->AddNode(op_desc);
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  model.Assign(ge_model);
 
   EXPECT_EQ(model.InitNodes(graph), SUCCESS);
   EXPECT_EQ(model.HasHcclTask(), true);
@@ -1601,7 +1617,7 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Op_OK) {
   model.session_id_ = 2;
   model.runtime_param_.mem_size = 51200;
   model.weights_mem_base_ = reinterpret_cast<uintptr_t>(malloc(model.runtime_param_.mem_size));
-  model.file_constant_weight_dir_ = "./weight/";
+  model.file_constant_weight_dir_ = "./";
   ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
 
   OpDescPtr op_desc = CreateOpDesc("FileConstant", FILECONSTANT);
@@ -1615,11 +1631,21 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Op_OK) {
   op_desc->AddOutputDesc(tensor_desc);
   op_desc->SetOutputOffset({0});
   graph->AddNode(op_desc);
+
+  std::unique_ptr<float[]> float_buf(new float[512 / sizeof(float)]);
+  std::string file_name = "tmp_weight_file.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 512);
+  out1.close();
+
+  model.file_id_and_path_map_.insert(std::pair<std::string, std::string>("file", "tmp_weight_file.bin"));
   auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, SUCCESS);
   ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
             model.runtime_param_.fileconstant_addr_mapping.end());
   free(reinterpret_cast<void*>(model.weights_mem_base_));
+  (void)remove("tmp_weight_file.bin");
 }
 
 TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_UserDeviceMem) {
@@ -1636,7 +1662,7 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_UserDeviceMem) {
   ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
 
   OpDescPtr op_desc = CreateOpDesc("FileConstant", FILECONSTANT);
-  AttrUtils::SetStr(op_desc, ATTR_NAME_FILE_PATH, "/home/weight_2132345.bin");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_FILE_PATH, "./weight_2132345.bin");
   std::vector<int64_t> shape = {2,2,2,2};
 
   EXPECT_TRUE(AttrUtils::SetDataType(op_desc, "dtype", DT_INT32));
@@ -1648,9 +1674,17 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_UserDeviceMem) {
   op_desc->SetOutputOffset({0});
   graph->AddNode(op_desc);
 
+  std::unique_ptr<float[]> float_buf(new float[512 / sizeof(float)]);
+  std::string file_name = "weight_2132345.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 512);
+  out1.close();
+
   auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, SUCCESS);
   model.FreeFileConstantMem();
+  (void)remove("weight_2132345.bin");
 
   model.SetFileConstantUserDeviceMem({file_conststant_mem});
   status = model.PreProcessFileConstants(graph, default_parm);
@@ -1659,6 +1693,74 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_UserDeviceMem) {
   ASSERT_NE(iter, model.runtime_param_.fileconstant_addr_mapping.end());
 
   EXPECT_EQ(iter->second, reinterpret_cast<uintptr_t>(user_mem));
+  free(reinterpret_cast<void*>(model.weights_mem_base_));
+}
+
+TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_UserDeviceMem_HandleIndividualWeights) {
+  DavinciModel model(0, g_local_call_back);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.session_id_ = 2;
+  model.runtime_param_.mem_size = 51200;
+  model.weights_mem_base_ = reinterpret_cast<uintptr_t>(malloc(model.runtime_param_.mem_size));
+  model.file_constant_weight_dir_ = "./weight/";
+  const size_t mem_size = 64U;
+  uint8_t user_mem_1[mem_size];
+  uint8_t user_mem_2[mem_size];
+  FileConstantMem file_conststant_mem1{"weight_21323451.bin", user_mem_1, mem_size};
+  FileConstantMem file_conststant_mem2{"weight_21323452.bin", user_mem_2, mem_size};
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+
+  OpDescPtr op_desc = CreateOpDesc("FileConstant", FILECONSTANT);
+  AttrUtils::SetStr(op_desc, ATTR_NAME_FILE_PATH, "./weight_21323451.bin");
+  std::vector<int64_t> shape = {2,2,2,2};
+
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_FILE_CONSTANT_ID, "file"));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "shape", shape));
+  GeTensorDesc tensor_desc(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 128);
+  op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({0});
+  graph->AddNode(op_desc);
+
+  OpDescPtr op_desc2 = CreateOpDesc("FileConstant", FILECONSTANT);
+  AttrUtils::SetStr(op_desc2, ATTR_NAME_FILE_PATH, "./weight_21323452.bin");
+
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc2, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc2, ATTR_NAME_FILE_CONSTANT_ID, "file"));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc2, "shape", shape));
+  GeTensorDesc tensor_desc2(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc2, 128);
+  op_desc2->AddOutputDesc(tensor_desc2);
+  op_desc2->SetOutputOffset({1});
+  graph->AddNode(op_desc2);
+
+  std::unique_ptr<float[]> float_buf(new float[512 / sizeof(float)]);
+  std::string file_name = "weight_21323451.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 512);
+  out1.close();
+  file_name = "weight_21323452.bin";
+  std::ofstream out2(file_name, std::ios::binary);
+  EXPECT_TRUE(out2.is_open());
+  out2.write((char *)float_buf.get(), 512);
+  out2.close();
+
+  (void)remove("weight_21323451.bin");
+  (void)remove("weight_21323452.bin");
+
+  model.SetFileConstantUserDeviceMem({file_conststant_mem1, file_conststant_mem2});
+  auto status  = model.PreProcessFileConstants(graph, default_parm);
+  EXPECT_EQ(status, SUCCESS);
+  auto iter = model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0));
+  ASSERT_NE(iter, model.runtime_param_.fileconstant_addr_mapping.end());
+  auto iter1 = model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(1));
+  ASSERT_NE(iter1, model.runtime_param_.fileconstant_addr_mapping.end());
+
+  EXPECT_EQ(iter->second, reinterpret_cast<uintptr_t>(user_mem_1));
+  EXPECT_EQ(iter1->second, reinterpret_cast<uintptr_t>(user_mem_2));
   free(reinterpret_cast<void*>(model.weights_mem_base_));
 }
 
@@ -1694,6 +1796,125 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Failed_UserDeviceMemSizeInvali
   free(reinterpret_cast<void*>(model.weights_mem_base_));
 }
 
+TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_WeightCombined) {
+  DavinciModel model(0, g_local_call_back);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.session_id_ = 2;
+  model.runtime_param_.mem_size = 51200;
+  model.weights_mem_base_ = reinterpret_cast<uintptr_t>(malloc(model.runtime_param_.mem_size));
+  model.file_constant_weight_dir_ = "./";
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+
+  OpDescPtr op_desc = CreateOpDesc("FileConstant0", FILECONSTANT);
+  std::vector<int64_t> shape = {2,2,2,2};
+
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_FILE_CONSTANT_ID, "file"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_OFFSET, 0));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_LOCATION, "weight_combined_2132345.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_LENGTH, 768));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "shape", shape));
+  GeTensorDesc tensor_desc(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 768);
+  op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({0});
+
+  OpDescPtr op_desc1 = CreateOpDesc("FileConstant1", FILECONSTANT);
+
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc1, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc1, ATTR_NAME_FILE_CONSTANT_ID, "file"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_OFFSET, 1024));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc1, ATTR_NAME_LOCATION, "weight_combined_2132345.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_LENGTH, 1024));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc1, "shape", shape));
+  GeTensorDesc tensor_desc1(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc1, 1024);
+  op_desc1->AddOutputDesc(tensor_desc1);
+  op_desc1->SetOutputOffset({1});
+  graph->AddNode(op_desc);
+  graph->AddNode(op_desc1);
+
+  std::unique_ptr<float[]> float_buf(new float[2048 / sizeof(float)]);
+  std::string file_name = "weight_combined_2132345.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 2048);
+  out1.close();
+
+  auto status = model.PreProcessFileConstants(graph, default_parm);
+  EXPECT_EQ(status, SUCCESS);
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(1)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  free(reinterpret_cast<void*>(model.weights_mem_base_));
+  (void)remove("weight_combined_2132345.bin");
+}
+
+TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Success_IndividualWeights) {
+  DavinciModel model(0, g_local_call_back);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.session_id_ = 2;
+  model.runtime_param_.mem_size = 51200;
+  model.weights_mem_base_ = reinterpret_cast<uintptr_t>(malloc(model.runtime_param_.mem_size));
+  model.file_constant_weight_dir_ = "./";
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+
+  OpDescPtr op_desc = CreateOpDesc("FileConstant0", FILECONSTANT);
+  std::vector<int64_t> shape = {2,2,2,2};
+
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_FILE_CONSTANT_ID, "file"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_OFFSET, 0));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_LOCATION, "weight_combined_1.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_LENGTH, 768));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "shape", shape));
+  GeTensorDesc tensor_desc(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 768);
+  op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({0});
+
+  OpDescPtr op_desc1 = CreateOpDesc("FileConstant1", FILECONSTANT);
+
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc1, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc1, ATTR_NAME_FILE_CONSTANT_ID, "file"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_OFFSET, 1024));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc1, ATTR_NAME_LOCATION, "weight_combined_2.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_LENGTH, 1024));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc1, "shape", shape));
+  GeTensorDesc tensor_desc1(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc1, 1024);
+  op_desc1->AddOutputDesc(tensor_desc1);
+  op_desc1->SetOutputOffset({1});
+  graph->AddNode(op_desc);
+  graph->AddNode(op_desc1);
+
+  std::unique_ptr<float[]> float_buf(new float[1024 / sizeof(float)]);
+  std::string file_name = "weight_combined_1.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 1024);
+  out1.close();
+
+  file_name = "weight_combined_2.bin";
+  std::ofstream out2(file_name, std::ios::binary);
+  EXPECT_TRUE(out2.is_open());
+  out2.write((char *)float_buf.get(), 1024);
+  out2.close();
+
+  auto status = model.PreProcessFileConstants(graph, default_parm);
+  EXPECT_EQ(status, SUCCESS);
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(1)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  free(reinterpret_cast<void*>(model.weights_mem_base_));
+  (void)remove("weight_combined_1.bin");
+  (void)remove("weight_combined_2.bin");
+}
+
 TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Op_Memory_Allocation_Failed) {
   DavinciModel model(0, g_local_call_back);
   model.ge_model_ = MakeShared<GeModel>();
@@ -1712,6 +1933,15 @@ TEST_F(UtestDavinciModel, Preprocess_Fileconstant_Op_Memory_Allocation_Failed) {
   op_desc->AddOutputDesc(tensor_desc);
   op_desc->SetOutputOffset({1});
   graph->AddNode(op_desc);
+
+  std::unique_ptr<float[]> float_buf(new float[512 / sizeof(float)]);
+  std::string file_name = "tmp_weight_file.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 512);
+  out1.close();
+
+  model.file_id_and_path_map_.insert(std::pair<std::string, std::string>("file", "tmp_weight_file.bin"));
   g_runtime_stub_mock = "rtMalloc";
   auto status = model.PreProcessFileConstants(graph, default_parm);
   EXPECT_EQ(status, ACL_ERROR_GE_MEMORY_ALLOCATION);
@@ -1773,28 +2003,21 @@ TEST_F(UtestDavinciModel, output_no_tiling_data) {
   EXPECT_EQ(model.InitIoNodes(graph, variable_nodes), SUCCESS);
   EXPECT_TRUE(variable_nodes.empty());
 
-  OutputData output_data;
   RuntimeTensorDesc *addr = reinterpret_cast<RuntimeTensorDesc *>(model.output_data_info_[0].GetBasicAddr());
   addr->shape[0] = 2;
   addr->shape[1] = 5;
   addr->shape[2] = 2;
   model.is_async_mode_ = true;
-  std::vector<Tensor> outputs;
-  model.AssembleListenerOutput(nullptr, 1, outputs, output_data);
+  std::vector<gert::Tensor> outputs;
+  model.AssembleListenerOutput(nullptr, 1, outputs);
 
   model.is_online_infer_dynamic_ = true;
 
   model.has_output_node_ = false;
-  model.ReturnSequenceResult(nullptr, 1, output_data, false);
+  model.ReturnSequenceResult(nullptr, 1, false);
 
-  DataBuffer data_buff;
-  uint8_t buff[128];
-  data_buff.data = buff;
-  data_buff.length = 128;
-  output_data.blobs.push_back(data_buff);
   model.has_output_node_ = true;
-  OutputData output_data_empty;
-  model.ReturnSequenceResult(nullptr, 1, output_data_empty, true);
+  model.ReturnSequenceResult(nullptr, 1, true);
 
   free(reinterpret_cast<uint8_t *>(model.runtime_param_.mem_base));
   model.runtime_param_.mem_base = 0U;
@@ -2588,6 +2811,37 @@ TEST_F(UtestDavinciModel, LoadWithQueue_ControlOutputWithDummyQ) {
   rtStreamDestroy(active_stream);
 }
 
+TEST_F(UtestDavinciModel, LoadWithQueue_HWQ_ReportStatus_succ) {
+  DavinciModel model(0, nullptr);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.is_hw_q_ = true;
+  QueueAttrs inputQueue1 = {0, 0, 0, 0U};
+  QueueAttrs outputQueue1 = {1, 0, 0, 0U};
+  model.input_queue_attrs_.emplace_back(inputQueue1);
+  model.output_queue_attrs_.emplace_back(outputQueue1);
+  rtStream_t active_stream = nullptr;
+  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+  rtStreamCreate(&active_stream, 0);
+  model.active_stream_list_ = {active_stream};
+  ge::ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
+  model.need_report_status_ = true;
+  ZeroCopyOffset zero_copy_offset;
+  std::map<uintptr_t, std::vector<uintptr_t>> virtual_addr_out_data;
+  virtual_addr_out_data[0x1111].emplace_back(0x1111111);
+  zero_copy_offset.outside_addrs_.emplace_back(virtual_addr_out_data);
+  model.input_data_info_[0] = zero_copy_offset;
+  model.output_data_info_[0] = zero_copy_offset;
+  ModelQueueParam queue_param;
+  queue_param.need_check_inputs = true;
+  queue_param.need_model_config = true;
+  queue_param.mark_dump_step = true;
+  queue_param.io_with_tensor_desc = true;
+  queue_param.copy_inputs_for_non_zero_copy = true;
+  model.SetModelQueueParam(queue_param);
+  EXPECT_EQ(model.LoadWithHardwareQueue(), SUCCESS);
+  rtStreamDestroy(active_stream);
+}
+
 TEST_F(UtestDavinciModel, CpuModelDequeue_WithInputAlignAttrs) {
   DavinciModel model(0, nullptr);
   model.ge_model_ = MakeShared<GeModel>();
@@ -2963,7 +3217,7 @@ TEST_F(UtestDavinciModel, NnExecute_multi_batch) {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -2981,7 +3235,9 @@ TEST_F(UtestDavinciModel, NnExecute_multi_batch) {
   InputData input_data_empty;
   OutputData output_data_empty;
   for (auto &item : outputs) {
-    output_tensor.emplace_back(TensorAdapter::AsGeTensorShared(item));
+    GeTensor ge_tensor;
+    TensorTransUtils::GertTensor2GeTensor(item, ge_tensor);
+    output_tensor.emplace_back(std::move(ge_tensor));
   }
   input_tensor = output_tensor;
   EXPECT_EQ(model.NnExecute(stream, false, input_data_empty, output_data_empty,
@@ -3084,7 +3340,7 @@ TEST_F(UtestDavinciModel, NnExecute_multi_batch_with_gerttensor) {
                             (void *) data_buf_3.get()};
   EXPECT_EQ(model.NnExecute(stream, true, input_tensor, output_tensor), INTERNAL_ERROR);
 
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -3447,13 +3703,15 @@ TEST_F(UtestDavinciModel, test_GetGeTensorBlobs) {
   model.is_getnext_sink_dynamic_ = false;
 
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   ProfilingManager::Instance().device_id_.emplace_back(0);
   model.task_list_.resize(1);
   std::vector<GeTensor> output_tensor = {};
   for (auto &item : outputs) {
-    output_tensor.emplace_back(TensorAdapter::AsGeTensorShared(item));
+    GeTensor ge_tensor;
+    TensorTransUtils::GertTensor2GeTensor(item, ge_tensor);
+    output_tensor.emplace_back(std::move(ge_tensor));
   }
   InputData result_data;
   model.GetGeTensorBlobs(result_data, output_tensor);
@@ -3516,9 +3774,8 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test) {
   model.Assign(ge_model);
   dlog_setlevel(0, 0, 0);
   std::string soc_version = "Ascend910B1";
-  std::string short_soc_version = "ascend910B";
-  std::string lib_path = "runtime/lib64";
-  std::string lib_path_cann = "cann-8.5.0/lib64";
+  std::string lib_path = PathUtils::Join({test_work_dir, "runtime/lib64"});
+  std::string lib_path_cann = PathUtils::Join({test_work_dir, "cann-8.5.0/lib64"});
   std::string lib_path_null = "";
   std::string lib_path_error = "runtime/lib64/UpdateModelParam";
   // set extend size static memory option
@@ -3539,7 +3796,7 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test) {
   setenv("LD_LIBRARY_PATH", path_error, 1);
   EXPECT_EQ(model.InitAddrRefreshKernelBin(), SUCCESS);
   setenv("LD_LIBRARY_PATH", path_cann, 1);
-  std::string save_path_cann = lib_path_cann + "/UpdateModelParam_ascend910B.o";
+  std::string save_path_cann = lib_path_cann + "/UpdateModelParam_dav_2201.o";
     DEF_GRAPH(g2) {
       CHAIN(NODE("cons2", "Const")->NODE("add2", "Add")->NODE("NetOutput", "NetOutput"));
     };
@@ -3556,7 +3813,7 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test) {
   TBEHandleStore::GetInstance().bin_key_to_handle_.clear();
 
   setenv("LD_LIBRARY_PATH", path, 1);
-  std::string save_path = lib_path + "/UpdateModelParam_ascend910B.o";
+  std::string save_path = lib_path + "/UpdateModelParam_dav_2201.o";
   DEF_GRAPH(g1) {
       CHAIN(NODE("cons1", "Const")->NODE("add1", "Add")->NODE("NetOutput", "NetOutput"));
     };
@@ -3628,8 +3885,7 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test_OverflowDump_Enabled) {
   model.Assign(ge_model);
   dlog_setlevel(0, 0, 0);
   std::string soc_version = "Ascend910B1";
-  std::string short_soc_version = "ascend910B";
-  std::string lib_path = "runtime/lib64";
+  std::string lib_path = PathUtils::Join({test_work_dir, "runtime/lib64"});
   // set extend size static memory option
   std::map<std::string, std::string> graph_options;
   graph_options.emplace(make_pair(ge::SOC_VERSION, soc_version));
@@ -3637,7 +3893,7 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test_OverflowDump_Enabled) {
   char *path = (char *)lib_path.c_str();
   GetThreadLocalContext().SetGraphOption(graph_options);
   setenv("LD_LIBRARY_PATH", path, 1);
-  std::string save_path = lib_path + "/UpdateModelParam_ascend910B.o";
+  std::string save_path = lib_path + "/UpdateModelParam_dav_2201.o";
   DEF_GRAPH(g1) {
       CHAIN(NODE("cons1", "Const")->NODE("add1", "Add")->NODE("NetOutput", "NetOutput"));
     };
@@ -3796,31 +4052,6 @@ TEST_F(UtestDavinciModel, get_total_memsize_exclude_zero_copy) {
   EXPECT_EQ(total_useful_size, 512);
 }
 
-// test InitTbeHandle
-TEST_F(UtestDavinciModel, init_tbe_handle) {
-  DavinciModel model(0, nullptr);
-  model.ge_model_ = MakeShared<GeModel>();
-  OpDescPtr op_desc = CreateOpDesc("data", DATA);
-  // !IsTbeTask, success.
-  EXPECT_EQ(model.InitTbeHandle(op_desc), SUCCESS);
-
-  // without kernel
-  AttrUtils::SetInt(op_desc, ATTR_NAME_IMPLY_TYPE, static_cast<uint32_t>(domi::ImplyType::TVM));
-  EXPECT_NE(model.InitTbeHandle(op_desc), SUCCESS);
-
-  std::vector<char> buffer;
-  string key = op_desc->GetName();
-  TBEKernelPtr tbe_kernel_ptr = MakeShared<OpKernelBin>(key, std::move(buffer));
-  op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, tbe_kernel_ptr);
-  string attr_kernel_name = op_desc->GetName() + "_kernelname";
-  string kernel_name = "kernel_name";
-  AttrUtils::SetStr(op_desc, attr_kernel_name, kernel_name);
-  EXPECT_EQ(model.InitTbeHandle(op_desc), SUCCESS);
-  // all kernel
-  AttrUtils::SetBool(op_desc, "_kernel_list_first_name", true);
-  EXPECT_EQ(model.InitTbeHandle(op_desc), SUCCESS);
-}
-
 TEST_F(UtestDavinciModel, init_tbe_handle_offline) {
   DavinciModel model(0, nullptr);
   model.ge_model_ = MakeShared<GeModel>();
@@ -3866,11 +4097,9 @@ TEST_F(UtestDavinciModel, run_with_task) {
   model.isGraphLevelSat_ = true;
   (void)model.copy_host_input_indexes_.insert(0U);
 
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
-  model.data_inputer_.Push(data);
-  model.data_inputer_.Push(data);
+  auto args = MakeShared<RunArgs>();
+  model.data_inputer_.Push(args);
+  model.data_inputer_.Push(args);
   domi::ModelTaskDef model_task_def;
   domi::TaskDef *task = model_task_def.add_task();
   task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_PROFILER_TRACE));
@@ -3906,10 +4135,10 @@ TEST_F(UtestDavinciModel, RunWithTask_GertTensor) {
   (void)model.copy_host_input_indexes_.insert(0U);
 
   std::vector<gert::Tensor> inputs(1);
-  auto args = std::make_shared<RunArgsV2>();
+  auto args = std::make_shared<RunArgs>();
   args->input_tensor = std::move(inputs);
-  model.data_inputer_v2_.Push(args);
-  model.data_inputer_v2_.Push(args);
+  model.data_inputer_.Push(args);
+  model.data_inputer_.Push(args);
   domi::ModelTaskDef model_task_def;
   domi::TaskDef *task = model_task_def.add_task();
   task->set_type(RT_MODEL_TASK_PROFILER_TRACE);
@@ -3943,9 +4172,7 @@ TEST_F(UtestDavinciModel, run_with_task_UpdateForExecute_failed) {
   model.SetId(1);
   model.isGraphLevelSat_ = true;
 
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
+  auto data = MakeShared<RunArgs>();
   model.data_inputer_.Push(data);
   model.data_inputer_.Push(data);
   shared_ptr<DModelListener> listener = make_shared<DModelListener>();
@@ -3984,9 +4211,7 @@ TEST_F(UtestDavinciModel, run_with_task_MallocPhysicalMemory_fail) {
   model.SetId(1);
   model.isGraphLevelSat_ = true;
   model.support_extend_memory_full_ = true;
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
+  auto data = MakeShared<RunArgs>();
   model.data_inputer_.Push(data);
   shared_ptr<DModelListener> listener(new DModelListener());
   model.listener_ = listener;
@@ -4027,9 +4252,7 @@ TEST_F(UtestDavinciModel, run_with_task_handle_input_data_fail) {
   model.SetId(1);
   model.isGraphLevelSat_ = true;
 
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
+  auto data = MakeShared<RunArgs>();
   model.data_inputer_.Push(data);
   domi::ModelTaskDef model_task_def;
   domi::TaskDef *task = model_task_def.add_task();
@@ -4121,9 +4344,7 @@ TEST_F(UtestDavinciModel, run_with_task_model_execute_fail) {
   model.SetId(1);
   model.isGraphLevelSat_ = true;
 
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
+  auto data = MakeShared<RunArgs>();
   model.data_inputer_.Push(data);
   domi::ModelTaskDef model_task_def;
   domi::TaskDef *task = model_task_def.add_task();
@@ -4325,34 +4546,6 @@ TEST_F(UtestDavinciModel, test_task_distribute_ffts_plus) {
   model.mdl_prof_.task_type_to_distribute_num[0] = 1;
   EXPECT_EQ(model.DistributeTask(*model_task_def), SUCCESS);
   model.PrintfModelProfOfModelLoad();
-}
-// test InitTbeHandle
-TEST_F(UtestDavinciModel, init_mix_tbe_handle) {
-  DavinciModel model(0, nullptr);
-  model.ge_model_ = MakeShared<GeModel>();
-  OpDescPtr op_desc = CreateOpDesc("data", DATA);
-  // !IsTbeTask, success.
-  AttrUtils::SetInt(op_desc, ATTR_NAME_IMPLY_TYPE, static_cast<uint32_t>(domi::ImplyType::TVM));
-  // without kernel
-  (void) AttrUtils::SetStr(op_desc, ATTR_NAME_CUBE_VECTOR_CORE_TYPE, std::string("MIX_AIC"));
-  AttrUtils::SetStr(op_desc, std::string("_mix_aic") + ATTR_NAME_TBE_KERNEL_NAME, "Conv2d");
-
-  std::vector<std::string> name_prefix = {"_mix_aic"};
-  AttrUtils::SetListStr(op_desc, ATTR_NAME_KERNEL_NAMES_PREFIX, name_prefix);
-
-  std::vector<char> test_bin(64, '\0');
-  ge::TBEKernelPtr test_kernel = MakeShared<ge::OpKernelBin>("_mix_aictbeKernel", std::move(test_bin));
-  model.ge_model_->GetTBEKernelStore().AddTBEKernel(test_kernel);
-
-  std::string atomic_kernel_name;
-  (void)AttrUtils::SetStr(op_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "mix_atomic");
-  std::vector<char> atomic_bin(64, '\0');
-  ge::TBEKernelPtr atomic_kernel = MakeShared<ge::OpKernelBin>("_mix_aictbeKernel", std::move(atomic_bin));
-  model.ge_model_->GetTBEKernelStore().AddTBEKernel(atomic_kernel);
-
-  EXPECT_NE(model.InitTbeHandle(op_desc), SUCCESS);
-  AttrUtils::SetStr(op_desc, "_mix_aic_kernel_list_first_name", "aic");
-  EXPECT_NE(model.InitTbeHandle(op_desc), SUCCESS);
 }
 
 TEST_F(UtestDavinciModel, TestAllocateResources) {
@@ -6006,9 +6199,7 @@ TEST_F(UtestDavinciModel, run_with_task_fail) {
   DavinciModel model(0, nullptr);
   model.SetId(1);
 
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
+  auto data = MakeShared<RunArgs>();
   model.data_inputer_.Push(data);
   domi::ModelTaskDef model_task_def;
   domi::TaskDef *task = model_task_def.add_task();
@@ -6120,7 +6311,7 @@ TEST_F(UtestDavinciModel, NnExecute_update_step) {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -6212,7 +6403,7 @@ TEST_F(UtestDavinciModel, NnExecute_set_timeout_when_execute_without_stream) {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -6308,7 +6499,7 @@ TEST_F(UtestDavinciModel, NnExecute_set_timeout_when_execute_with_stream) {
   rtStream_t stream = (void*)0x01;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -6753,7 +6944,7 @@ TEST_F(UtestDavinciModel, NnExecute_FmMemoryRefreshOk) {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -6786,7 +6977,7 @@ TEST_F(UtestDavinciModel, NnExecute_FmMemoryRefresh_CopyOutput) {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -6818,12 +7009,14 @@ TEST_F(UtestDavinciModel, NnExecute_FmMemoryRefresh_CopyOutputWithEmptyDataBuffe
 
 //  model.task_list_.resize(1);
   model.SetFeatureBaseRefreshable(true);
-  vector<Tensor> outputs;
+  vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   vector<GeTensor> input_tensor;
   vector<GeTensor> output_tensor;
   for (auto &item : outputs) {
-    output_tensor.emplace_back(TensorAdapter::AsGeTensorShared(item));
+    GeTensor ge_tensor;
+    TensorTransUtils::GertTensor2GeTensor(item, ge_tensor);
+    output_tensor.emplace_back(std::move(ge_tensor));
   }
   input_tensor = output_tensor;
   EXPECT_EQ(model.NnExecute(stream, false, input_data, empty_output_data,
@@ -6846,7 +7039,7 @@ TEST_F(UtestDavinciModel, NnExecute_FmMemoryRefresh_CopyOutputWithGertTensor) {
 
 //  model.task_list_.resize(1);
   model.SetFeatureBaseRefreshable(true);
-  vector<Tensor> outputs;
+  vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   vector<gert::Tensor> input_tensor;
   vector<gert::Tensor> output_tensor;
@@ -6983,7 +7176,7 @@ TEST_F(UtestDavinciModel, NnExecute_ffts_zcpy) {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -7089,7 +7282,7 @@ TEST_F(UtestDavinciModel, NnExecute_ffts_no_zcpy) {
   rtStream_t stream = nullptr;
   InputData input_data;
   OutputData output_data;
-  std::vector<Tensor> outputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model.GenOutputTensorInfo(output_data, outputs), SUCCESS);
   EXPECT_EQ(output_data.blobs.size(), 1);
   EXPECT_EQ(output_data.blobs[0].length, 512);
@@ -8406,9 +8599,6 @@ TEST_F(UtestDavinciModel, run_with_task_no_data) {
     model.SetId(1);
     model.isGraphLevelSat_ = true;
 
-    InputData input_data;
-    OutputData output_data;
-    auto data = MakeShared<InputDataWrapper>(input_data, output_data);
     domi::ModelTaskDef model_task_def;
     domi::TaskDef *task = model_task_def.add_task();
     task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_PROFILER_TRACE));

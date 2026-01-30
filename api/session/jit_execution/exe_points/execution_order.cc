@@ -13,6 +13,7 @@
 #include "common/checker.h"
 #include "api/session/jit_execution/utils/jit_infer_utils.h"
 #include "api/session/jit_execution/utils/partitioner/binary_partitioner.h"
+#include "common/memory/tensor_trans_utils.h"
 #include "graph/utils/tensor_adapter.h"
 #include "graph/utils/type_utils.h"
 
@@ -119,10 +120,7 @@ Status ExecutionOrder::ConstructInputTensors(const ComputeGraphPtr &compute_grap
             PtrToValue(inputs_temp.back().GetData().GetData()),
             inputs_temp.back().GetData().GetSize());
   }
-  graph_inputs_.reserve(inputs_temp.size());
-  for (const auto &input : inputs_temp) {
-    graph_inputs_.emplace_back(TensorAdapter::AsTensor(input));
-  }
+  GE_ASSERT_SUCCESS(TensorTransUtils::GeTensors2GertTensors(inputs_temp, graph_inputs_));
   GE_ASSERT_SUCCESS(NormalizeOutputs(compute_graph));
   return SUCCESS;
 }
@@ -150,7 +148,7 @@ Status ExecutionOrder::NormalizeOutputs(const ComputeGraphPtr &compute_graph) co
   return SUCCESS;
 }
 
-std::vector<Tensor> ExecutionOrder::GetInputTensors(bool &is_unknown_input_shape) {
+const std::vector<gert::Tensor> &ExecutionOrder::GetInputTensors(bool &is_unknown_input_shape) {
   if (graph_inputs_.size() == 0) {
     (void)ConstructInputTensors(user_graph_.compute_graph);
   }

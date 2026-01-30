@@ -123,6 +123,7 @@ class SuperKernelV2TaskInfo : public TaskInfo {
   Status AppendInputOutputAddr(size_t node_idx, size_t ir_idx, bool is_input);
   void InsertL0DumpList(size_t node_idx, size_t io_idx, bool is_input);
   void InsertCustToRelevantOffset(size_t node_idx, size_t io_idx, bool is_input);
+  rtFuncHandle GetFuncHandle();
   rtArgsEx_t args_ex_{};
   const void *stub_func_{nullptr};
   void *args_{nullptr};
@@ -163,6 +164,9 @@ class SuperKernelV2TaskInfo : public TaskInfo {
   std::map<SubNodeIoIndex, size_t> sub_node_io_idx_to_super_kernel_io_idx_;
   std::map<uint64_t, uint64_t> cust_to_relevant_offset_;
   std::vector<uint64_t> l0_dump_list_;
+  rtFuncHandle func_handle_{nullptr};
+  bool is_block_task_prefetch_{false};
+  bool is_data_dump_{false};
 };
 }  // namespace ge
 #endif  // GE_GRAPH_LOAD_NEW_MODEL_MANAGER_TASK_INFO_SUPER__KERNEL_TASK_INFO_H_

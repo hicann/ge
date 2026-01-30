@@ -10,39 +10,40 @@
 
 #ifndef METADEF_INC_BASE_ATTR_ATTRS_TO_BUFFER_H_
 #define METADEF_INC_BASE_ATTR_ATTRS_TO_BUFFER_H_
-#include "exe_graph/runtime/runtime_attrs.h"
-#include "exe_graph/runtime/continuous_vector.h"
-#include "base/runtime/runtime_attrs_def.h"
 #include <cstring>
 #include <securec.h>
-#include "common/ge_common/debug/ge_log.h"
-#include "graph/utils/math_util.h"
-#include "graph/def_types.h"
-#include "graph/types.h"
+#include "base/runtime/runtime_attrs_def.h"
 #include "common/checker.h"
+#include "framework/common/debug/ge_log.h"
+#include "exe_graph/runtime/continuous_vector.h"
+#include "exe_graph/runtime/runtime_attrs.h"
+#include "graph/any_value.h"
+#include "graph/def_types.h"
 #include "graph/debug/ge_util.h"
+#include "graph/types.h"
+#include "graph/utils/math_util.h"
 
 namespace gert {
 namespace bg {
 
-template<typename T, typename std::enable_if<std::is_fundamental<T>::value, int>::type = 0>
+template<typename T, typename std::enable_if<std::is_fundamental<T>::value, int32_t>::type = 0>
 bool AppendFundAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto val = attr.Get<T>();
   GE_ASSERT_NOTNULL(val);
   std::vector<uint8_t> runtime_attr(sizeof(*val));
   GE_ASSERT_EOK(memcpy_s(runtime_attr.data(), sizeof(*val), val, sizeof(*val)));
-  attrs.emplace_back(std::move(runtime_attr));
+  (void)attrs.emplace_back(std::move(runtime_attr));
   return true;
 }
-bool AppendStrAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
+inline bool AppendStrAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto str = attr.Get<std::string>();
   GE_ASSERT_NOTNULL(str);
-  std::vector<uint8_t> runtime_attr(str->size() + 1);
-  GE_ASSERT_EOK(strcpy_s(ge::PtrToPtr<uint8_t, ge::char_t>(runtime_attr.data()), str->size() + 1, str->c_str()));
-  attrs.emplace_back(std::move(runtime_attr));
+  std::vector<uint8_t> runtime_attr(str->size() + static_cast<size_t>(1));
+  GE_ASSERT_EOK(strcpy_s(ge::PtrToPtr<uint8_t, ge::char_t>(runtime_attr.data()), str->size() + static_cast<size_t>(1), str->c_str()));
+  (void)attrs.emplace_back(std::move(runtime_attr));
   return true;
 }
-template<typename T, typename std::enable_if<std::is_fundamental<T>::value, int>::type = 0>
+template<typename T, typename std::enable_if<std::is_fundamental<T>::value, int32_t>::type = 0>
 bool AppendVectorAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto val = attr.Get<std::vector<T>>();
   GE_ASSERT_NOTNULL(val);
@@ -58,22 +59,22 @@ bool AppendVectorAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>
   auto cv = new (buf.data()) ContinuousVector();
   GE_ASSERT_NOTNULL(cv);
   cv->Init(val->size());
-  cv->SetSize(val->size());
+  (void)cv->SetSize(val->size());
 
-  size_t copy_size = val->size() * sizeof(T);
   if (!val->empty()) {
+    const size_t copy_size = val->size() * sizeof(T);
     GE_ASSERT_EOK(memcpy_s(cv->MutableData(), cv->GetCapacity() * sizeof(T), val->data(), copy_size));
   }
-  attrs.emplace_back(std::move(buf));
+  (void)attrs.emplace_back(std::move(buf));
   return true;
 }
 
-bool AppendVectorBoolAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
+inline bool AppendVectorBoolAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto val_bool_list = attr.Get<std::vector<bool>>();
   GE_ASSERT_NOTNULL(val_bool_list);
   std::vector<uint8_t> val_uint8_list;
   for (size_t i = 0U; i < val_bool_list->size(); ++i) {
-    val_uint8_list.emplace_back(static_cast<uint8_t>(val_bool_list->at(i)));
+    (void)val_uint8_list.emplace_back(static_cast<uint8_t>(val_bool_list->at(i)));
   }
   size_t total_size;
   if (ge::MulOverflow(val_uint8_list.size(), sizeof(uint8_t), total_size)) {
@@ -87,17 +88,17 @@ bool AppendVectorBoolAttr(const ge::AnyValue &attr, std::vector<std::vector<uint
   auto cv = new (buf.data()) ContinuousVector();
   GE_ASSERT_NOTNULL(cv);
   cv->Init(val_uint8_list.size());
-  cv->SetSize(val_uint8_list.size());
+  (void)cv->SetSize(val_uint8_list.size());
 
-  size_t copy_size = val_uint8_list.size() * sizeof(uint8_t);
   if (!val_uint8_list.empty()) {
+    const size_t copy_size = val_uint8_list.size() * sizeof(uint8_t);
     GE_ASSERT_EOK(memcpy_s(cv->MutableData(), cv->GetCapacity() * sizeof(uint8_t), val_uint8_list.data(), copy_size));
   }
-  attrs.emplace_back(std::move(buf));
+  (void)attrs.emplace_back(std::move(buf));
   return true;
 }
 
-template<typename T, typename std::enable_if<std::is_fundamental<T>::value, int>::type = 0>
+template<typename T, typename std::enable_if<std::is_fundamental<T>::value, int32_t>::type = 0>
 bool AppendVectorVectorAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto vector_vector_list = attr.Get<std::vector<std::vector<T>>>();
   GE_ASSERT_NOTNULL(vector_vector_list);
@@ -129,18 +130,18 @@ bool AppendVectorVectorAttr(const ge::AnyValue &attr, std::vector<std::vector<ui
     }
   }
 
-  attrs.emplace_back(std::move(buf));
+  (void)attrs.emplace_back(std::move(buf));
   return true;
 }
-bool AppendDataTypeAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
+inline bool AppendDataTypeAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto val = attr.Get<ge::DataType>();
   GE_ASSERT_NOTNULL(val);
   std::vector<uint8_t> runtime_attr(sizeof(*val));
   GE_ASSERT_EOK(memcpy_s(runtime_attr.data(), sizeof(*val), val, sizeof(*val)));
-  attrs.emplace_back(std::move(runtime_attr));
+  (void)attrs.emplace_back(std::move(runtime_attr));
   return true;
 }
-bool AppendVectorDataTypeAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
+inline bool AppendVectorDataTypeAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto val = attr.Get<std::vector<ge::DataType>>();
   GE_ASSERT_NOTNULL(val);
   size_t total_size = 0U;
@@ -153,22 +154,22 @@ bool AppendVectorDataTypeAttr(const ge::AnyValue &attr, std::vector<std::vector<
   auto cv = new (buf.data()) ContinuousVector();
   GE_ASSERT_NOTNULL(cv);
   cv->Init(val->size());
-  cv->SetSize(val->size());
+  (void)cv->SetSize(val->size());
 
-  size_t copy_size = val->size() * sizeof(ge::DataType);
   if (!val->empty()) {
+    const size_t copy_size = val->size() * sizeof(ge::DataType);
     GE_ASSERT_EOK(memcpy_s(cv->MutableData(), cv->GetCapacity() * sizeof(ge::DataType), val->data(), copy_size));
   }
-  attrs.emplace_back(std::move(buf));
+  (void)attrs.emplace_back(std::move(buf));
   return true;
 }
-bool AppendVectorStrAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
+inline bool AppendVectorStrAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   auto val = attr.Get<std::vector<std::string>>();
   GE_ASSERT_NOTNULL(val);
 
   size_t total_str_size = 0U;
   for (size_t i = 0U; i < (*val).size(); ++i) {
-    const size_t ele_str_size = (*val)[i].size() + 1;
+    const size_t ele_str_size = (*val)[i].size() + static_cast<size_t>(1);
     if (ge::AddOverflow(total_str_size, ele_str_size, total_str_size)) {
       GELOGW("Add over flow ele str size %zu, total_str_size %zu.", ele_str_size, total_str_size);
       return false;
@@ -184,19 +185,20 @@ bool AppendVectorStrAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8
   auto cv = new (buf.data()) ContinuousVector();
   GE_ASSERT_NOTNULL(cv);
   cv->Init(val->size());
-  cv->SetSize(val->size());
+  (void)cv->SetSize(val->size());
   size_t offset = 0U;
   for (size_t i = 0U; i < val->size(); ++i) {
     const size_t ele_str_size = (*val)[i].size() + 1U;
-    GE_ASSERT_EOK(strcpy_s(ge::PtrToPtr<uint8_t, char>(ge::PtrToPtr<void, uint8_t>(cv->MutableData()) + offset),
+    GE_ASSERT_EOK(strcpy_s(ge::PtrToPtr<uint8_t, char>(ge::PtrAdd(ge::PtrToPtr<void, uint8_t>(cv->MutableData()), 
+                          std::numeric_limits<size_t>::max(), offset)),
                            total_str_size, (*val)[i].c_str()));
     offset += ele_str_size;
   }
-  attrs.emplace_back(std::move(buf));
+  (void)attrs.emplace_back(std::move(buf));
   return true;
 }
 
-bool AppendAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
+inline bool AppendAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &attrs) {
   switch (attr.GetValueType()) {
     case ge::AnyValue::VT_FLOAT:
       return AppendFundAttr<float>(attr, attrs);
@@ -228,7 +230,7 @@ bool AppendAttr(const ge::AnyValue &attr, std::vector<std::vector<uint8_t>> &att
   }
 }
 
-std::unique_ptr<uint8_t[]> CreateAttrBuffer(const std::vector<std::vector<uint8_t>> &attrs, size_t &total_size) {
+inline std::unique_ptr<uint8_t[]> CreateAttrBuffer(const std::vector<std::vector<uint8_t>> &attrs, size_t &total_size) {
   total_size = sizeof(RuntimeAttrsDef);
   size_t offset_size = 0U;
   if (ge::MulOverflow(sizeof(size_t), attrs.size(), offset_size)) {
@@ -257,7 +259,8 @@ std::unique_ptr<uint8_t[]> CreateAttrBuffer(const std::vector<std::vector<uint8_
   for (size_t i = 0; i < attrs.size(); ++i) {
     attr_def->offset[i] = current_offset;
     const auto ret =
-        ge::GeMemcpy(attr_pos + current_offset, total_size - current_offset, attrs[i].data(), attrs[i].size());
+        ge::GeMemcpy(ge::PtrAdd(attr_pos, std::numeric_limits<size_t>::max(), current_offset), 
+        total_size - current_offset, attrs[i].data(), attrs[i].size());
     GE_ASSERT_TRUE((ret == ge::SUCCESS), "memcpy_s failed, copy size is %zu, dst size is %zu", attrs[i].size(),
                    total_size - current_offset);
     current_offset += attrs[i].size();
@@ -265,10 +268,10 @@ std::unique_ptr<uint8_t[]> CreateAttrBuffer(const std::vector<std::vector<uint8_
   return attr_holder;
 }
 
-std::unique_ptr<uint8_t[]> CreateAttrBufferWithAttrs(const std::vector<ge::AnyValue> &attrs, size_t &size) {
+inline std::unique_ptr<uint8_t[]> CreateAttrBufferWithAttrs(const std::vector<ge::AnyValue> &attrs, size_t &size) {
   std::vector<std::vector<uint8_t>> runtime_attrs;
   for (auto &attr : attrs) {
-    AppendAttr(attr, runtime_attrs);
+    (void)AppendAttr(attr, runtime_attrs);
   }
   return CreateAttrBuffer(runtime_attrs, size);
 }

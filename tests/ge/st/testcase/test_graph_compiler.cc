@@ -1031,7 +1031,8 @@ Graph BuildGraphWithHcclNode() {
   EXPECT_TRUE(allgather_node4 != nullptr);
   TensorUtils::SetSize(*allgather_node4->GetOpDesc()->MutableOutputDesc(0), 1536);
 
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 Graph BuildRWGraph() {
@@ -1061,7 +1062,8 @@ Graph BuildRWGraph2() {
     CHAIN(NODE("const1", const1)->EDGE(0, 1)->NODE("assgin_var"));
     CHAIN(NODE("read_var")->CTRL_EDGE()->NODE("assgin_var"));  // read then write
   };
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 Graph BuildWRGraph1() {
@@ -1090,7 +1092,8 @@ Graph BuildWRGraph1() {
     CHAIN(NODE(var1)->EDGE(0, 0)->NODE("assgin_var", ASSIGNVARIABLEOP)->CTRL_EDGE()->NODE("read_var"));
     CHAIN(NODE("const1", const1)->EDGE(0, 1)->NODE("assgin_var"));
   };
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 Graph BuildWRGraph2() {
@@ -1124,7 +1127,8 @@ Graph BuildWRGraph2() {
               ->NODE("read_var"));
     CHAIN(NODE("const1", const1)->EDGE(0, 1)->NODE("assgin_var"));
   };
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 class RuntimeMock910A : public RuntimeStub {
@@ -1139,6 +1143,12 @@ class RuntimeMock910B1 : public RuntimeStub {
  public:
   rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) {
     (void)strcpy_s(version, maxLen, "Ascend910B1");
+    return RT_ERROR_NONE;
+  }
+  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) {
+    (void)label;
+    (void)key;
+    (void)strcpy_s(val, maxLen, "2201");
     return RT_ERROR_NONE;
   }
 };
@@ -1171,6 +1181,12 @@ static void MockGenerateTask() {
   auto aicore_func = [](const ge::Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
     auto op_desc = node.GetOpDesc();
     op_desc->SetOpKernelLibName("AIcoreEngine");
+    ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+    const char tbeBin[] = "tbe_bin";
+    vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+    ge::OpKernelBinPtr tbeKernelPtr = std::make_shared<ge::OpKernelBin>("test_tvm", std::move(buffer));
+    op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
     size_t arg_size = 100;
     std::vector<uint8_t> args(arg_size, 0);
     domi::TaskDef task_def;
@@ -1956,7 +1972,8 @@ TEST_F(GraphCompilerTest, test_ffts_inner_no_reuse_plus) {
   EXPECT_NE(dsp_graph_call_0, nullptr);
   std::vector<domi::TaskDef> task_def_list_per_node;
   EXPECT_NE(task_generate.GenerateTaskForFftsNode(dsp_graph_call_0.get(), "test", task_def_list_per_node,
-                                                  GetThreadLocalContext(), error_message::GetErrMgrContext()), SUCCESS);
+                                                  GetThreadLocalContext(), error_message::GetErrMgrContext(), 0),
+            SUCCESS);
 }
 
 static void BuildContainUnSupportZerocopyNodeGraph(ComputeGraphPtr &root_graph, const std::string &name) {
@@ -5677,15 +5694,6 @@ TEST_F(GraphCompilerTest, hccl_sequence_adjust_succ) {
   session.AddGraph(1, graph, options);
   auto ret = session.CompileGraph(1, {});
   EXPECT_EQ(ret, SUCCESS);
-  uint64_t var_size = 0;
-  std::map<uint32_t, std::vector<uint64_t>> graphs_mem_info;
-  EXPECT_EQ(GetSessionMemInfo(session.GetSessionId(), var_size, graphs_mem_info), SUCCESS);
-  EXPECT_TRUE(var_size == 0);
-  for (auto item : graphs_mem_info) {
-    for (auto mem : item.second) {
-      EXPECT_NE(mem, 0);
-    }
-  }
 
   CHECK_GRAPH(PreRunAfterBuild) {
     auto allreduce2 = graph->FindNode("allreduce2");

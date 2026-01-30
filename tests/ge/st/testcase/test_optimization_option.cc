@@ -551,4 +551,50 @@ TEST_F(OptimizationOptionSt, CompileWithO1_Ok_DynamicDimensionCompatibility) {
     EXPECT_EQ(graph->GetDirectNodesSize(), 8);
   };
 }
+
+/*
+ * 用例描述: 使用graph级别接口和ge.outputDatatype指定整网输出类型成功编译图
+
+ *
+ * 测试步骤：
+ * 1. ir构造计算图
+ * 2. 设option参数:
+ *    OPTION_GRAPH_RUN_MODE=0
+ *    OUTPUT_TYPE="INT8"
+ * 3. 模型编译
+ *
+ * 预期结果：
+ * 1. 模型执行成功
+ * 2. dump的buid图中NetOutput节点类型为DT_INT8
+ */
+TEST_F(OptimizationOptionSt, CompileWithO1_Ok_SetDataTypeOption) {
+  ge_env.Reset()
+      .Install(FakeEngine("AIcoreEngine").KernelInfoStore("AIcoreEngine"))
+      .Install(FakeOp(DATA).InfoStoreAndBuilder("AIcoreEngine").InferShape(InferShapeForElementwiseOp))
+      .Install(FakeOp(CONSTANT).InfoStoreAndBuilder("AIcoreEngine").InferShape(InferShapeForElementwiseOp))
+      .Install(FakeOp(SHAPE).InfoStoreAndBuilder("AIcoreEngine").InferShape(InferShapeFuncForShape))
+      .Install(FakeOp(RESHAPE).InfoStoreAndBuilder("AIcoreEngine"))
+      .Install(FakeOp(RELU).InfoStoreAndBuilder("AIcoreEngine").InferShape(InferShapeForElementwiseOp))
+      .Install(FakeOp(NETOUTPUT).InfoStoreAndBuilder("AIcoreEngine").InferShape(InferShapeForElementwiseOp));
+
+  auto graph = CreateGraphWithReshape();
+  DUMP_GRAPH_WHEN("Build");
+  std::map<AscendString, AscendString> options;
+  options.emplace(ge::OPTION_GRAPH_RUN_MODE, "0");
+  Session session(options);
+  std::map<ge::AscendString, ge::AscendString> build_options = {
+    {ge::AscendString(ge::ir_option::OUTPUT_TYPE), ge::AscendString("INT8")}
+  };
+  auto ret = session.AddGraph(1, graph, build_options);
+  EXPECT_EQ(ret, SUCCESS);
+  std::vector<InputTensorInfo> inputs;
+  ret = session.BuildGraph(1, inputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  CHECK_GRAPH(Build) {
+    auto net_out_node = graph->FindNode("net_output");
+    auto output_desc = net_out_node->GetOpDesc();
+    EXPECT_EQ(output_desc->MutableInputDesc(0)->GetDataType(), DT_INT8);
+  };
+}
 }  // namespace ge

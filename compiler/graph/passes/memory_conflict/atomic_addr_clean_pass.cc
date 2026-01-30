@@ -27,7 +27,6 @@
 #include "api/gelib/gelib.h"
 #include "graph/ge_context.h"
 #include "graph/common/trans_op_creator.h"
-#include "checker.h"
 
 namespace {
 constexpr const char *kCleanSeparately = "1";

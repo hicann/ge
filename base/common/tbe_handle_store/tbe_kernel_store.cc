@@ -52,8 +52,14 @@ void TBEKernelStore::LoadTBEKernelBinToOpDesc(const std::shared_ptr<ge::OpDesc> 
     if (!atomic_kernel_name.empty()) {
       GELOGI("Get atomic kernel name is %s.", atomic_kernel_name.c_str());
       const auto atomic_kernel_bin = FindKernel(atomic_kernel_name);
-      GE_IF_BOOL_EXEC(!op_desc->SetExtAttr(EXT_ATTR_ATOMIC_TBE_KERNEL, atomic_kernel_bin),
-                      GELOGW("LoadKernelTBEBinToOpDesc: SetExtAttr for atomic kernel_bin failed");)
+      if (atomic_kernel_bin != nullptr) {
+        GE_IF_BOOL_EXEC(!op_desc->SetExtAttr(EXT_ATTR_ATOMIC_TBE_KERNEL, atomic_kernel_bin),
+                        GELOGW("LoadKernelTBEBinToOpDesc: SetExtAttr for atomic kernel_bin failed");)
+        std::string atomic_kernel_bin_attr_name = "_atomic" + std::string(OP_EXTATTR_NAME_TBE_KERNEL);
+        GE_IF_BOOL_EXEC(!op_desc->SetExtAttr(atomic_kernel_bin_attr_name, atomic_kernel_bin),
+                        GELOGW("LoadKernelTBEBinToOpDesc: SetExtAttr for atomic kernel_bin failed");)
+        GELOGI("Load atomic tbe kernel:%s, %zu", atomic_kernel_bin->GetName().c_str(), atomic_kernel_bin->GetBinDataSize());
+      }
     }
   }
 }

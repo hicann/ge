@@ -66,7 +66,7 @@ Status ModelSaver::SaveJsonToFile(const char_t *const file_path, const Json &mod
   if ((fd == EN_ERROR) || (fd == EN_INVALID_PARAM)) {
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrStrLength);
     std::string reason = "[Error " + std::to_string(mmGetErrorCode()) + "] " + err_msg;
-    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
                               std::vector<const char *>({file_path, reason.c_str()}));
     GELOGE(FAILED, "[Open][File]Failed, file %s, errmsg %s", file_path, reason.c_str());
     return FAILED;
@@ -78,7 +78,7 @@ Status ModelSaver::SaveJsonToFile(const char_t *const file_path, const Json &mod
   if ((mmpa_ret == EN_ERROR) || (mmpa_ret == EN_INVALID_PARAM)) {
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrStrLength);
     std::string reason = "[Error " + std::to_string(mmGetErrorCode()) + "] " + err_msg;
-    REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
                               std::vector<const char *>({file_path, reason.c_str()}));
     // Need to both print the error info of mmWrite and mmClose, so return ret after mmClose
     GELOGE(FAILED, "[Write][Data]To file %s failed. errno %ld, errmsg %s",

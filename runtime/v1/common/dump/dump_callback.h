@@ -91,7 +91,7 @@ public:
     static bool ParseDumpConfig(const char* dumpData, int32_t size, DumpConfig& dumpConfig);
 
 private:
-    static bool CheckDumpSceneSwitch(const nlohmann::json &js, std::string &dumpScene);
+    static bool CheckDumpSceneSwitch(const nlohmann::json &jsDumpConfig, std::string &dumpScene);
     static bool CheckDumpPath(const nlohmann::json &jsDumpConfig);
     static bool CheckDumpStep(const nlohmann::json &jsDumpConfig);
     static bool CheckDumplist(const nlohmann::json &jsDumpConfig, const std::string& dumpLevel);
@@ -130,7 +130,7 @@ private:
 class DumpCallbackManager {
 public:
     static DumpCallbackManager& GetInstance();
-    bool RegisterDumpCallbacks(uint32_t module_id);
+    bool RegisterDumpCallbacks(uint32_t module_id) const;
 
 private:
     DumpCallbackManager() = default;

@@ -13,13 +13,12 @@
 
 #include <vector>
 #include "graph/types.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "proto/tensorflow/attr_value.pb.h"
 #include "proto/tensorflow/node_def.pb.h"
 #include "graph/ge_tensor.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
-#include "graph/debug/ge_log.h"
 #include "register/tensor_assign.h"
 
 namespace ge {

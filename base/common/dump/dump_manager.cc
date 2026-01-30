@@ -21,6 +21,7 @@
 #include "common/checker.h"
 #include <regex>
 #include "base/err_msg.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -251,7 +252,10 @@ uint32_t DumpManager::ExtractNumber(const std::string& s) const {
     uint32_t num = 0;
     std::smatch match;
     if (std::regex_search(s, match, num_pattern)) {
-      num = static_cast<uint32_t>(std::stoul(match.str()));
+      const size_t value = std::stoul(match.str());
+      if (value <= (std::numeric_limits<uint32_t>::max())) {
+        num = static_cast<uint32_t>(value);
+      }
       return num;
     }
     return num;
@@ -268,9 +272,11 @@ void DumpManager::ExtractBlacklist(const std::vector<DumpBlacklist>& blacklists,
         continue;
       }
       if (pos.find("input") == 0) {
-        bl.input_indices.insert(ExtractNumber(pos));
+        (void)bl.input_indices.insert(ExtractNumber(pos));
       } else if (pos.find("output") == 0) {
-        bl.output_indices.insert(ExtractNumber(pos));
+        (void)bl.output_indices.insert(ExtractNumber(pos));
+      } else {
+        // do nothing
       }
     }
 
@@ -334,7 +340,9 @@ Status DumpManager::SetNormalDumpConf(const DumpConfig &dump_config, DumpPropert
     if ((dump_op_switch == kDumpoff) && (dump_config.dump_list.empty())) {
       (void)infer_dump_properties_map_.emplace(kInferSessionId, dump_properties);
       GELOGE(PARAM_INVALID, "[Check][DumpList]Invalid, dump_op_switch is %s", dump_op_switch.c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Dump list check invalid, dump_op_switch is %s", dump_op_switch.c_str());
+      (void)REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+          std::vector<const char *>({"dump_list", "", "Dump list is empty."}));
       return PARAM_INVALID;
     }
 
@@ -360,9 +368,9 @@ Status DumpManager::SetNormalDumpConf(const DumpConfig &dump_config, DumpPropert
         dump_properties.SetDumpData(dump_config.dump_data);
       } else {
         GELOGE(PARAM_INVALID, "[Check][DumpData]Invalid, dump_data is %s", dump_config.dump_data.c_str());
-        REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                                   std::vector<const ge::char_t *>({"--dump_data", dump_config.dump_data.c_str(),
-                                                                   "The value must be tensor or stats"}));
+                                                                   "The value must be tensor or stats."}));
         return PARAM_INVALID;
       }
     }
@@ -376,7 +384,9 @@ Status DumpManager::SetDumpPath(const DumpConfig &dump_config, DumpProperties &d
   std::string dump_path = dump_config.dump_path;
   if (dump_path.empty()) {
     GELOGE(PARAM_INVALID, "[Check][DumpPath]It is empty.");
-    REPORT_INNER_ERR_MSG("E19999", "Dump path check is empty.");
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"dump_path", "", "Dump path is empty."}));
     return PARAM_INVALID;
   }
   if (dump_path[dump_path.size() - 1U] != '/') {
@@ -472,7 +482,7 @@ void DumpManager::RemoveDumpProperties(uint64_t session_id) {
     GELOGI("Remove dump properties set by acl, session id:%lu", session_id);
   }
 
-  if (dump_properties_map_.empty() && Adx::AdumpGetDumpSwitch(Adx::DumpType::OPERATOR)) {
+  if (dump_properties_map_.empty() && (Adx::AdumpGetDumpSwitch(Adx::DumpType::OPERATOR)) != 0) {
     Adx::DumpConfig config;
     config.dumpStatus = "off";
     const auto adx_ret = Adx::AdumpSetDumpConfig(Adx::DumpType::OPERATOR, config);

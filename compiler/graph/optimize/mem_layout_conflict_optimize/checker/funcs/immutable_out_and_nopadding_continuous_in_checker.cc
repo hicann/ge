@@ -22,6 +22,18 @@ Status ImmutableOutputAndNoPaddingContinuousInputChecker(CheckFuncContext &conte
     continuous_node = context.node_a;
   }
 
+  /*
+   *  PhonyConcat 的所有输入是同一个anchor，不需要插入identity
+   *            variable
+   *               /\
+   *  assign_slice0 assign_slice1 (inplace)
+   *             \   /
+   *          PhonyConcat
+   */
+  if (MemLayoutConflictUtil::AllRealInputsAreTheSameOutAnchor(continuous_node.node_)) {
+    return SUCCESS;
+  }
+
   context.result.insert(continuous_node.node_->GetInDataAnchor(continuous_node.index_));
   GE_MEM_LAYOUT_CONFLICT_LOGI(context, continuous_node);
   return SUCCESS;

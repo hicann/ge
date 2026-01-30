@@ -86,6 +86,7 @@ file(GLOB_RECURSE LOCAL_ENGINE_SRC CONFIGURE_DEPENDS
 
 list(REMOVE_ITEM LOCAL_ENGINE_SRC
     "${AIR_CODE_DIR}/base/host_cpu_engine/host_cpu_engine.cc"
+    "${AIR_CODE_DIR}/compiler/engines/local_engine/ops_kernel_store/ge_local_ops_kernel_builder.cc"
 )
 
 file(GLOB_RECURSE NN_ENGINE_SRC CONFIGURE_DEPENDS
@@ -120,6 +121,7 @@ file(GLOB_RECURSE GE_SRCS CONFIGURE_DEPENDS
     "${AIR_CODE_DIR}/compiler/api/aclgrph/*.cc"
     "${AIR_CODE_DIR}/api/atc/*.cc"
     "${AIR_CODE_DIR}/compiler/engines/manager/opskernel_manager/*.cc"
+    "${AIR_CODE_DIR}/compiler/engines/custom_engine/*.cc"
     "${AIR_CODE_DIR}/compiler/plugin/*.cc"
     "${AIR_CODE_DIR}/dflow/compiler/model/*.cc"
     "${AIR_CODE_DIR}/dflow/compiler/pne/npu/*.cc"
@@ -383,8 +385,9 @@ target_link_libraries(graphengine PUBLIC
     ${STUB_LIBS}
     metadef_graph
     crypto_static
-    aihacb_autofusion_stub
-    data_flow_base)
+    data_flow_base
+    aihacb_autofusion_stub -lstdc++fs
+)
 
 add_dependencies(graphengine local_engine nnengine engine_conf_json optimizer_priority_pbtxt)
 

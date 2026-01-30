@@ -404,14 +404,14 @@ Status NodeStreamUpdatePass::Run(ComputeGraphPtr graph, const std::vector<Subgra
 }
 
 Status UpdateForParallelGroupPass::UpdateStreamIdFromPreNode(
-    const NodePtr &cur_node, const std::unordered_map<ge::NodePtr, ge::NodePtr> &total_pld_to_end) {
+    const NodePtr &cur_node, const std::unordered_map<ge::NodePtr, ge::NodePtr> &total_pld_to_end) const {
   // 在给hcom分配新的流之前，考虑是否可以复用前面的流。
   //   要求：
   //      (1) 当前算子仅有一个输入
   //      (2) 输入算子的streamid != -1
   GELOGD("cur_node:%s.", cur_node->GetName().c_str());
   const OpDescPtr &cur_op_desc = cur_node->GetOpDesc();
-  if (cur_node->GetInDataNodes().size() == 1UL) {
+  if (cur_node->GetInDataNodesSize() == 1UL) {
     auto pre_node = cur_node->GetInDataNodes().at(0UL);
     GE_CHECK_NOTNULL(pre_node);
     if (pre_node->GetType() == PLACEHOLDER) {

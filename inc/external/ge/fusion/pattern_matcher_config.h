@@ -10,6 +10,9 @@
 
 #ifndef CANN_GRAPH_ENGINE_PATTERN_MATCHER_CONFIG_H
 #define CANN_GRAPH_ENGINE_PATTERN_MATCHER_CONFIG_H
+
+#include <memory>
+
 namespace ge {
 namespace fusion {
 /**

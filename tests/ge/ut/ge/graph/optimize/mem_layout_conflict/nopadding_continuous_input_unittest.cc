@@ -186,4 +186,50 @@ TEST_F(UtestMemLayoutConflictNoPaddingContinuousIn,
   ASSERT_EQ(mem_check_pass.Run(graph), GRAPH_SUCCESS);
   EXPECT_EQ(mem_check::ResultChecker::CheckIdentityNum(graph, 0U), GRAPH_SUCCESS);
 }
+
+/*
+ *              data
+ *               /\
+ *  assign_slice0 assign_slice1 (inplace)
+ *             \   /
+ *              pc
+ *              |
+ *              b
+ *  aot调优会导致这种结构，data只有一个输出，但是assign_slice1会设置input offset，GE也做了配合，
+ *  最终结果是data的输出内存分为2半，一半给assign_slice0，一半给assign_slice1. 后面再通过PhonyConcat节点合并。
+ *  因此PhonyConcat的输入虽然是用户输入，但是所有输入都是同一个Data节点，可以不插入identity.
+ *
+ *  另外，GE会校验PhonyConcat的输入节点有没有打_reuse_input_on_dim_index属性，中间插入的identity没有这个属性，会校验报错。
+ *  更重要的是，输入节点可能在一块大的内存中会跳写，若后面跟着identity，就无法分配大的连续内存了。
+ */
+TEST_F(UtestMemLayoutConflictNoPaddingContinuousIn,
+       BuildNoPaddingContinuousInWithSameAnchor_NotInsertIdentity) {
+  auto graph = MemConflictShareGraph::BuildNoPaddingContinuousInWithSameAnchorData();
+  MemLayoutConflictOptimizer mem_check_pass;
+  ASSERT_EQ(mem_check_pass.Run(graph), GRAPH_SUCCESS);
+  EXPECT_EQ(mem_check::ResultChecker::CheckIdentityNum(graph, 0U), GRAPH_SUCCESS);
+}
+
+/*
+ *              var
+ *               /\
+ *  assign_slice0 assign_slice1 (inplace)
+ *             \   /
+ *              pc
+ *              |
+ *              b
+ *  aot调优会导致这种结构，var只有一个输出，但是assign_slice1会设置input offset，GE也做了配合，
+ *  最终结果是var的输出内存分为2半，一半给assign_slice0，一半给assign_slice1. 后面再通过PhonyConcat节点合并。
+ *  因此PhonyConcat的输入虽然是用户输入，但是所有输入都是同一个var节点，可以不插入identity.
+ *
+ *  另外，GE会校验PhonyConcat的输入节点有没有打_reuse_input_on_dim_index属性，中间插入的identity没有这个属性，会校验报错。
+ *  更重要的是，输入节点可能在一块大的内存中会跳写，若后面跟着identity，就无法分配大的连续内存了。
+ */
+TEST_F(UtestMemLayoutConflictNoPaddingContinuousIn,
+       BuildNoPaddingContinuousInWithSameAnchorVariable_NotInsertIdentity) {
+  auto graph = MemConflictShareGraph::BuildNoPaddingContinuousInWithSameAnchorVariable();
+  MemLayoutConflictOptimizer mem_check_pass;
+  ASSERT_EQ(mem_check_pass.Run(graph), GRAPH_SUCCESS);
+  EXPECT_EQ(mem_check::ResultChecker::CheckIdentityNum(graph, 0U), GRAPH_SUCCESS);
+}
 } // namespace ge

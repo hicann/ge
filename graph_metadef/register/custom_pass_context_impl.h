@@ -13,6 +13,7 @@
 #include "common/checker.h"
 #include "graph/utils/node_adapter.h"
 #include "graph/ascend_string.h"
+#include "graph/ge_context.h"
 namespace ge {
 class StreamPassContextImpl {
  public:
@@ -71,6 +72,13 @@ class CustomPassContextImpl {
 
   AscendString GetErrorMessage() const {
     return error_message_;
+  }
+
+  graphStatus GetOptionValue(const AscendString &option_key, AscendString &option_value) const {
+    std::string option_value_str;
+    const auto ret = GetContext().GetOption(option_key.GetString(), option_value_str);
+    option_value = AscendString(option_value_str.c_str());
+    return ret;
   }
 
  private:

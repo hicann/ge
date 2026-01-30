@@ -17,18 +17,19 @@ namespace {
 constexpr const char_t *GROUP_POLICY = "group";
 }
 Status NotifyWaitTaskInfo::SetNotifyHandleByEngine(const std::string &custom_group_name) {
-  std::string group_name;
+  const std::string *group_name_ptr = nullptr;
   if (custom_group_name.empty()) {
-    GE_ASSERT_TRUE(AttrUtils::GetStr(op_desc_, GROUP_POLICY, group_name));
+    group_name_ptr = AttrUtils::GetStr(op_desc_, GROUP_POLICY);
+    GE_ASSERT_NOTNULL(group_name_ptr);
   } else {
-    GE_ASSERT_TRUE(AttrUtils::GetStr(op_desc_, custom_group_name.c_str(), group_name),
-                   "find no %s attr", custom_group_name.c_str());
+    group_name_ptr = AttrUtils::GetStr(op_desc_, custom_group_name.c_str());
+    GE_ASSERT_NOTNULL(group_name_ptr, "find no %s attr", custom_group_name.c_str());
   }
   std::vector<void *> context_addrs;
   GE_ASSERT_SUCCESS(ArgsFormatUtils::GetHcomHiddenInputs(op_desc_, *davinci_model_, context_addrs));
-  GE_ASSERT_SUCCESS(HcomTopoInfo::Instance().GetGroupNotifyHandle(group_name.c_str(), notify_));
+  GE_ASSERT_SUCCESS(HcomTopoInfo::Instance().GetGroupNotifyHandle(group_name_ptr->c_str(), notify_));
   GELOGI("Get notify %p for %s %s with stream %p and group %s successfully.", notify_, op_desc_->GetNamePtr(),
-         op_desc_->GetTypePtr(), stream_, group_name.c_str());
+         op_desc_->GetTypePtr(), stream_, group_name_ptr->c_str());
   return SUCCESS;
 }
 

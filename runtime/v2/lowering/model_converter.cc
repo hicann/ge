@@ -62,7 +62,6 @@ ge::graphStatus GetNonRootModelResourceNum(const std::map<std::string, ge::GeMod
   }
   return ge::GRAPH_SUCCESS;
 }
-
 ge::graphStatus LoadSgtKernelBinToOpDesc(const ge::NodePtr &node, const ge::ComputeGraphPtr &graph,
                                          const ge::GeModelPtr &ge_model, const ge::ModelTaskType task_type) {
   if (task_type != ge::ModelTaskType::MODEL_TASK_FFTS_PLUS) {

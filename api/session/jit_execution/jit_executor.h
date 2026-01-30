@@ -21,24 +21,31 @@
 #include "exe_points/execution_order.h"
 #include "cache/compiled_model_cache.h"
 #include "compile_context.h"
-#include "api/session/session/inner_session.h"
 #include "graph/utils/tensor_adapter.h"
 #include "graph/utils/type_utils.h"
 
 namespace ge {
 struct UserGraphExecution {
-  UserGraphExecution(uint32_t graph_id, const std::vector<Tensor> &inputs, const RunAsyncCallback &callback_func)
-      : user_graph_id(graph_id), external_inputs(inputs), callback(callback_func) {
-    rt_inputs.resize(external_inputs.size());
-    inputs_memblocks.resize(external_inputs.size());
+  UserGraphExecution(uint32_t graph_id, const std::vector<gert::Tensor> &inputs,
+    const RunAsyncCallbackV2 &callback_func, uint64_t session_id_param)
+      : user_graph_id(graph_id), callback(callback_func), session_id(session_id_param), external_rt_inputs(&inputs) {
+    inputs_memblocks.resize(inputs.size());
+  }
+  // for RunGraphAsync
+  UserGraphExecution(uint32_t graph_id, std::vector<gert::Tensor> &&inputs,
+    const RunAsyncCallbackV2 &callback_func, uint64_t session_id_param)
+      : user_graph_id(graph_id), callback(callback_func), session_id(session_id_param),
+    input_tensors_holder(std::move(inputs)), external_rt_inputs(&input_tensors_holder) {
+    inputs_memblocks.resize(input_tensors_holder.size());
   }
   ~UserGraphExecution() = default;
   uint32_t user_graph_id;
-  std::vector<Tensor> external_inputs;
-  std::vector<gert::Tensor> rt_inputs;
   std::vector<MemBlock *> inputs_memblocks;
-  RunAsyncCallback callback{nullptr};
+  RunAsyncCallbackV2 callback{nullptr};
   void *stream{nullptr};
+  uint64_t session_id;
+  // 仅RunGraphAsync，inputs需要保存在input_tensors_holder中
+  std::vector<gert::Tensor> input_tensors_holder;
   const std::vector<gert::Tensor> *external_rt_inputs{nullptr};
   std::vector<gert::Tensor> *rt_outputs{nullptr};
   std::map<AscendString, AscendString> load_options;
@@ -57,7 +64,7 @@ std::vector<std::pair<K, V>> SortMapByValue(const std::map<K, V> &input_map, boo
 
 class JitExecutor {
  public:
-  static std::unique_ptr<JitExecutor> Create(InnerSession &inner_session, UserGraphExecutionQueue &task_queue,
+  static std::unique_ptr<JitExecutor> Create(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue,
                                              ExecutionOrder &order, CompileContext &compile_context,
                                              CompiledModelCache &cmc, std::mutex &mutex);
 
@@ -67,17 +74,17 @@ class JitExecutor {
 
   bool IsUserGraphNeedRebuild();
 
-  Status CompileGraph(UserGraphExecution &task);
+  Status CompileGraph(UserGraphExecution &task, uint64_t session_id);
 
   Status LoadGraph(UserGraphExecution &task);
 
   Status Execute(UserGraphExecution &&task);
  private:
-  JitExecutor(InnerSession &inner_session, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
+  JitExecutor(GraphManager &graph_manager, UserGraphExecutionQueue &task_queue, ExecutionOrder &order,
               CompileContext &compile_context, CompiledModelCache &cmc, std::mutex &mutex);
   Status CompileAndLoad(const std::vector<gert::Tensor> &inputs, GuardedExecutionPoint *gep, uint32_t &instance_id,
-                        rtStream_t stream, const std::map<AscendString, AscendString> &load_options);
-  Status Compile(const std::vector<ge::Tensor> &inputs, GuardedExecutionPoint *gep);
+      const rtStream_t stream, const std::map<AscendString, AscendString> &load_options, uint64_t session_id);
+  Status Compile(const std::vector<ge::Tensor> &inputs, GuardedExecutionPoint *gep, uint64_t session_id);
   Status ProcessAndExecuteGraphAsync(UserGraphExecution &task, rtStream_t const stream,
                                      const std::vector<gert::Tensor> &inputs,
                                      std::vector<gert::Tensor> &outputs, ExecutionPoint *ep,
@@ -89,7 +96,7 @@ class JitExecutor {
   Status MallocOutputsForStatic(uint32_t guarded_ep_instance_id, const GuardedExecutionPoint *gep,
                                 std::vector<gert::Tensor> &outputs);
  private:
-  InnerSession &inner_session_;
+  GraphManager &graph_manager_;
   UserGraphExecutionQueue &task_queue_;
   ExecutionOrder &order_;
   CompileContext &compile_context_;

@@ -127,13 +127,13 @@ AscirRegister &AscirRegister::ApiTilingDataType(const std::string &tiling_data_n
   return *this;
 }
 
-AscirRegister &AscirRegister::Impl(const std::vector<std::string> &soc_versions, const AscIrImpl &impl) {
-  ir_def_.AddSocImpl(soc_versions, impl);
+AscirRegister &AscirRegister::Impl(const std::vector<std::string> &soc_version, const AscIrImpl &impl) {
+  ir_def_.AddSocImpl(soc_version, impl);
   return *this;
 }
 
-AscirRegister &AscirRegister::Impl(const std::vector<std::string> &soc_versions, const AscIrImplV2 &impl) {
-  ir_def_.AddSocImplV2(soc_versions, impl);
+AscirRegister &AscirRegister::Impl(const std::vector<std::string> &soc_version, const AscIrImplV2 &impl) {
+  ir_def_.AddSocImplV2(soc_version, impl);
   return *this;
 }
 
@@ -175,13 +175,13 @@ AscirRegister &AscirRegister::Attr<ge::Expression>(ge::AscendString &&name) {
   return Attr(name.GetString(), "ge::Expression", "ge::Expression");
 }
 
-AscirRegister &AscirRegister::Comment(const string &comment) {
-  ir_def_.SetComment(comment);
+AscirRegister &AscirRegister::ComputeType(ge::ComputeType compute_type) {
+  ir_def_.SetComputeType(compute_type);
   return *this;
 }
 
-AscirRegister &AscirRegister::ComputeType(ge::ComputeType compute_type) {
-  ir_def_.SetComputeType(compute_type);
+AscirRegister &AscirRegister::Comment(const string &comment) {
+  ir_def_.SetComment(comment);
   return *this;
 }
 }  // namespace ascir

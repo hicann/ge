@@ -46,12 +46,12 @@
 #include "runtime/v2/core/debug/kernel_tracing.h"
 #include "session/session_manager.h"
 #include "session/session_utils.h"
-#include "plog.h"
 #include "common/checker.h"
 #include "framework/runtime/subscriber/global_profiler.h"
 #include "common/option_supportion_checker.h"
 #include "base/err_msg.h"
 #include "base/err_mgr.h"
+#include "common/memory/tensor_trans_utils.h"
 
 namespace {
 constexpr int32_t kMaxStrLen = 128;
@@ -81,15 +81,17 @@ std::map<ge::DataType, size_t> CONST_OPDATA_TYPE_SIZE_MAP = {
 };
 
 // dfx for RunGraphAsync, log error on error return
-void RunGraphAsyncCallback(ge::Status ret, uint64_t session_id, uint32_t graph_id, std::vector<ge::Tensor> &outputs,
-                           ge::RunAsyncCallback callback) {
+void RunGraphAsyncCallback(ge::Status ret, uint64_t session_id, uint32_t graph_id, std::vector<gert::Tensor> &outputs,
+                           const ge::RunAsyncCallback &callback) {
   if ((ret != ge::SUCCESS) && (ret != ge::END_OF_SEQUENCE)) {
     GELOGE(ret, "Run graph async failed, error code:%u, session_id:%lu, graph_id:%u", ret, session_id, graph_id);
     REPORT_INNER_ERR_MSG("E19999", "Run graph async failed, error code:%u, session_id:%lu, graph_id:%u", ret, session_id,
                        graph_id);
   }
   if (callback != nullptr) {
-    callback(ret, outputs);
+    std::vector<ge::Tensor> ge_tensors;
+    (void) ge::TensorTransUtils::GertTensors2Tensors(outputs, ge_tensors);
+    callback(ret, ge_tensors);
   }
   GELOGI("run graph async finished, session_id: %lu, graph_id: %u, result=%u", session_id, graph_id, ret);
 }
@@ -104,37 +106,62 @@ ge::SessionManager *GetSessionManager() {
 
 namespace ge {
 namespace {
-  void ConstructSession(const std::map<std::string, std::string> &options, SessionId &session_id) {
-    GELOGT(TRACE_INIT, "Session Constructor start");
-    // check init status
-    session_id = 0U;
-    if (!IsGEInitialize()) {
-      GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitialize call before.");
-      REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitialize call before.");
-      return;
-    }
-    // call Initialize
-    if (GEAPICheckSupportedSessionOptions(options) != SUCCESS) {
-      GELOGW("[Check][Param] Check supported options failed.");
-    }
-    if (CheckAllowParallelCompile(options) != SUCCESS) {
-      return;
-    }
-    uint64_t tmp_session_id = 0UL;
-    const Status ret = g_session_manager->CreateSession(options, tmp_session_id);
-    // failed guarder, should call GE_DISMISS_GUARD if success
-    GE_DISMISSABLE_GUARD(create_failed,
-                         ([tmp_session_id]() {g_session_manager->DestroySession(tmp_session_id);}));
-    if (ret != SUCCESS) {
-      GELOGE(ret, "Construct session failed, error code:%u.", ret);
-      REPORT_INNER_ERR_MSG("E19999", "Construct session failed, error code:%u.", ret);
-      return;
-    }
-
-    session_id = tmp_session_id;
-    GE_DISMISS_GUARD(create_failed);
-    GELOGT(TRACE_STOP, "Session construct finished, session id is %lu", session_id);
+void ConstructSession(const std::map<std::string, std::string> &options, SessionId &session_id) {
+  GELOGT(TRACE_INIT, "Session Constructor start");
+  // check init status
+  session_id = 0U;
+  if (!IsGEInitialize()) {
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitialize call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitialize call before.");
+    return;
   }
+  // call Initialize
+  if (GEAPICheckSupportedSessionOptions(options) != SUCCESS) {
+    GELOGW("[Check][Param] Check supported options failed.");
+  }
+  if (CheckAllowParallelCompile(options) != SUCCESS) {
+    return;
+  }
+  uint64_t tmp_session_id = 0UL;
+  Status ret = g_session_manager->CreateSession(options, tmp_session_id);
+  // failed guarder, should call GE_DISMISS_GUARD if success
+  GE_DISMISSABLE_GUARD(create_failed,
+                       ([tmp_session_id]() {g_session_manager->DestroySession(tmp_session_id);}));
+  if (ret != SUCCESS) {
+    GELOGE(ret, "Construct session failed, error code:%u.", ret);
+    REPORT_INNER_ERR_MSG("E19999", "Construct session failed, error code:%u.", ret);
+    return;
+  }
+
+  session_id = tmp_session_id;
+
+  auto inner_session = g_session_manager->GetSession(session_id);
+  ret = inner_session->CreateDFlowSessionIfNeed();
+  if (ret != SUCCESS) {
+    GELOGE(ret, "Construct session failed, error code:%u.", ret);
+    REPORT_INNER_ERR_MSG("E19999", "Construct session failed, error code:%u.", ret);
+    return;
+  }
+
+  GE_DISMISS_GUARD(create_failed);
+  GELOGT(TRACE_STOP, "Session construct finished, session id is %lu", session_id);
+}
+
+Status CheckCompiledFlag(const SessionPtr &inner_session, uint32_t graph_id, bool expect_flag) {
+  bool flag = false;
+  GE_ASSERT_SUCCESS(inner_session->GetCompiledFlag(graph_id, flag),
+    "get compiled flag failed. session_id:%llu, graph_id:%u", inner_session->GetSessionId(), graph_id);
+  if (flag != expect_flag) {
+    const auto error_code = expect_flag ? GE_GRAPH_NOT_BUILT : UNSUPPORTED;
+    const auto error_msg = expect_flag ?
+        "Graph needs to be compiled first, graph_id=" + std::to_string(graph_id) :
+        "Incompatible with API CompileGraph, graph_id=" + std::to_string(graph_id);
+    GELOGE(error_code, "%s", error_msg.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "%s", error_msg.c_str());
+    return error_code;
+  }
+  return SUCCESS;
+}
 } // namespace
 size_t SessionUtils::NumSessions() {
   std::lock_guard<std::mutex> lock(g_ge_release_mutex);
@@ -295,15 +322,25 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<s
 
   GELOGD("Adding graph to session, graph_id: %u", graph_id);
 
-  Status ret = FAILED;
-  const UserHybridGraphManagerPtr user_hybrid_graph_manager = g_session_manager->GetUserHybridGraphManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_hybrid_graph_manager != nullptr, FAILED, "Add graph failed, session_id:%lu.", sessionId_);
-  const bool is_enable_slice_schedule = EnableSliceSchedule();
-  ret = user_hybrid_graph_manager->AddGraph(graph_id, graph, options);
+  auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Add graph failed, session_id:%lu.", sessionId_);
+
+  // Check if dflow session is enabled
+  const auto dflow_session = inner_session->GetDFlowSession();
+  Status ret;
+  if (dflow_session != nullptr) {
+    GE_ASSERT_SUCCESS(InnerSession::SetSessionGraphId(graph, sessionId_, graph_id),
+                      "Set session graph id failed.");
+    inner_session->UpdateGlobalSessionContext();
+    ret = dflow_session->AddGraph(graph_id, graph, options);
+    GELOGI("Add graph to dflow session success, graph_id=%u", graph_id);
+  } else {
+    ret = inner_session->AddGraph(graph_id, graph, options);
+  }
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Add graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          sessionId_, graph_id);
 
-  GELOGD("AddGraph finished in Session, graph_id: %u, is_enable_slice_schedule:%u", graph_id, is_enable_slice_schedule);
+  GELOGD("AddGraph finished in Session, graph_id: %u", graph_id);
   return ret;
 }
 
@@ -336,15 +373,24 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<A
     GELOGW("[Check][Param] Check supported options failed.");
   }
   GELOGD("Adding graph to session");
-  Status ret = FAILED;
-  auto isEnableSliceSchedule = EnableSliceSchedule();
-  const UserHybridGraphManagerPtr user_hybrid_graph_manager = g_session_manager->GetUserHybridGraphManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_hybrid_graph_manager != nullptr, FAILED, "Add graph failed, session_id:%lu.", sessionId_);
-  ret = user_hybrid_graph_manager->AddGraph(graph_id, graph, str_options);
+  auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Add graph failed, session_id:%lu.", sessionId_);
+  // Check if dflow session is enabled
+  const auto dflow_session = inner_session->GetDFlowSession();
+  Status ret;
+  if (dflow_session != nullptr) {
+    GE_ASSERT_SUCCESS(InnerSession::SetSessionGraphId(graph, sessionId_, graph_id),
+                      "Set session graph id failed.");
+    inner_session->UpdateGlobalSessionContext();
+    ret = dflow_session->AddGraph(graph_id, graph, str_options);
+    GELOGI("Add graph to dflow session success, graph_id=%u", graph_id);
+  } else {
+    ret = inner_session->AddGraph(graph_id, graph, str_options);
+  }
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Add graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          sessionId_, graph_id);
 
-  GELOGD("AddGraph finished in Session, graph_id: %u, isEnableSliceSchedule:%u", graph_id, isEnableSliceSchedule);
+  GELOGD("AddGraph finished in Session, graph_id: %u", graph_id);
   return SUCCESS;
 }
 
@@ -379,6 +425,11 @@ Status Session::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
     GELOGW("[Check][Param] Check supported options failed.");
   }
 
+  // Check if dflow session is enabled (not supported for AddGraphWithCopy)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
   GELOGD("Adding graph to session");
   const Status ret = inner_session->AddGraphWithCopy(graph_id, graph, str_options);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Add graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
@@ -395,20 +446,27 @@ Status Session::RemoveGraph(uint32_t graph_id) {
     REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
     return FAILED;
   }
-  
+
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kRemoveGraph);
   GELOGT(TRACE_INIT, "Session RemoveGraph start, graph_id: %u", graph_id);
 
   // call RemoveGraph
-  Status ret = FAILED;
-  auto isEnableSliceSchedule = EnableSliceSchedule();
-  const UserHybridGraphManagerPtr user_hybrid_graph_manager = g_session_manager->GetUserHybridGraphManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_hybrid_graph_manager != nullptr, FAILED, "Remove graph failed, session_id:%lu.", sessionId_);
-  ret = user_hybrid_graph_manager->RemoveGraph(graph_id);
+  auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Remove graph failed, session_id:%lu.", sessionId_);
+
+  // Check if dflow session is enabled
+  const auto dflow_session = inner_session->GetDFlowSession();
+  Status ret;
+  if (dflow_session != nullptr) {
+    inner_session->UpdateGlobalSessionContext();
+    ret = dflow_session->RemoveGraph(graph_id);
+  } else {
+    ret = inner_session->RemoveGraph(graph_id);
+  }
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Remove graph failed, error code:%u, session_id:%lu, graph_id:%u.",
                          ret, sessionId_, graph_id);
 
-  GELOGT(TRACE_STOP, "Session RemoveGraph finished, graph_id: %u, isEnableSliceSchedule:%u", graph_id, isEnableSliceSchedule);
+  GELOGT(TRACE_STOP, "Session RemoveGraph finished, graph_id: %u", graph_id);
   return ret;
 }
 
@@ -470,13 +528,21 @@ Status Session::RunGraph(uint32_t graph_id, const std::vector<Tensor> &inputs, s
 
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Run graph failed, session_id:%lu.", sessionId_);
-
   GELOGI("Session RunGraph start, session_id: %lu, graph_id: %u, input size %zu, output size %zu",
          sessionId_, graph_id, inputs.size(), outputs.size());
 
-
-  // call RunGraph
-  Status ret = inner_session->RunGraph(graph_id, inputs, outputs);
+  // Check if dflow session is enabled
+  const auto dflow_session = inner_session->GetDFlowSession();
+  Status ret;
+  if (dflow_session != nullptr) {
+    inner_session->UpdateGlobalSessionContext();
+    ret = dflow_session->RunGraph(graph_id, inputs, outputs);
+  } else {
+    const auto check_ret = CheckCompiledFlag(inner_session, graph_id, false);
+    GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret,
+      "Run graph failed, incompatible with API CompileGraph, graph_id=%u", graph_id);
+    ret = inner_session->RunGraph(graph_id, inputs, outputs);
+  }
   // check return status
   const bool need_convert_error_code = (ret == RT_ERROR_TO_GE_STATUS(ACL_ERROR_RT_QUEUE_EMPTY));
   ret = need_convert_error_code ? ACL_ERROR_GE_MODEL_EXECUTE_TIMEOUT : ret;
@@ -507,12 +573,14 @@ Status Session::RunGraphWithStreamAsync(uint32_t graph_id, void *stream, const s
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Run graph with stream async failed, session_id:%lu.",
                          sessionId_);
 
-
+  // Check if dflow session is enabled (not supported for RunGraphWithStreamAsync)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
   const Status ret = inner_session->RunGraphWithStreamAsync(graph_id, stream, inputs, outputs);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED,
                          "Run graph with stream async failed, error code:%u, session_id:%lu, graph_id:%u, stream:%p.",
                          ret, sessionId_, graph_id, stream);
-
   GELOGI("Session run graph with stream async finished.");
   return SUCCESS;
 }
@@ -526,16 +594,19 @@ Status Session::ExecuteGraphWithStreamAsync(uint32_t graph_id, void *stream, con
     return FAILED;
   }
 
-  Status ret = FAILED;
-  auto is_enable_slice_schedule = EnableSliceSchedule();
-  const UserGraphsManagerPtr user_graphs_manager = g_session_manager->GetUserGraphsManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_graphs_manager != nullptr, FAILED, "Execute graph with stream async failed, session_id:%lu.",
+  const auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Execute graph with stream async failed, session_id:%lu.",
                          sessionId_);
-  ret = user_graphs_manager->ExecuteGraphWithStreamAsync(graph_id, stream, inputs, outputs);
+
+  // Check if dflow session is enabled (not supported for ExecuteGraphWithStreamAsync)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
+  const auto ret = inner_session->ExecuteGraphWithStreamAsync(graph_id, stream, inputs, outputs);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED,
                          "Execute graph with stream async failed, error code:%u, session_id:%lu, graph_id:%u, "
-                         "stream:%p, is_enable_slice_schedule:%d",
-                         ret, sessionId_, graph_id, stream, is_enable_slice_schedule);
+                         "stream:%p", ret, sessionId_, graph_id, stream);
   return SUCCESS;
 }
 
@@ -549,6 +620,11 @@ Status Session::RegisterCallBackFunc(const std::string &key, const pCallBackFunc
 
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
+
+  // Check if dflow session is enabled (not supported for RegisterCallBackFunc)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
 
   return inner_session->RegisterCallBackFunc(key, callback);
 }
@@ -568,6 +644,11 @@ Status Session::RegisterCallBackFunc(const char *key, const session::pCallBackFu
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
+  // Check if dflow session is enabled (not supported for RegisterCallBackFunc)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
   return inner_session->RegisterCallBackFunc(str_key, callback);
 }
 
@@ -581,11 +662,33 @@ Status Session::BuildGraph(uint32_t graph_id, const std::vector<InputTensorInfo>
 
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Build graph failed, session_id:%lu.", sessionId_);
-
   GELOGT(TRACE_INIT, "start to build graph, session_id: %lu, graph_id: %u, input size %zu",
          sessionId_, graph_id, inputs.size());
 
-  const Status ret = inner_session->BuildGraph(graph_id, inputs);
+  // Check if dflow session is enabled
+  const auto dflow_session = inner_session->GetDFlowSession();
+  Status ret;
+  if (dflow_session != nullptr) {
+    inner_session->UpdateGlobalSessionContext();
+    GELOGI("Build graph in dflow session.");
+    std::vector<ge::GeTensor> ge_inputs;
+    for (auto const &input : inputs) {
+      std::vector<int64_t> input_dims;
+      (void)std::transform(input.dims.begin(), input.dims.end(), std::back_inserter(input_dims),
+                           [](int64_t x) -> int64_t { return x; });
+      GeShape input_shape(input_dims);
+      GeTensorDesc input_tensor_desc;
+      input_tensor_desc.SetShape(input_shape);
+      input_tensor_desc.SetDataType(static_cast<ge::DataType>(input.data_type));
+      ge_inputs.emplace_back(input_tensor_desc);
+    }
+    ret = dflow_session->BuildGraph(graph_id, ge_inputs);
+  } else {
+    const auto check_ret = CheckCompiledFlag(inner_session, graph_id, false);
+    GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret,
+      "Build graph failed, incompatible with API CompileGraph, graph_id=%u", graph_id);
+    ret = inner_session->BuildGraph(graph_id, inputs);
+  }
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Build graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          sessionId_, graph_id);
   return SUCCESS;
@@ -601,16 +704,14 @@ Status Session::LoadGraph(const uint32_t graph_id, const std::map<AscendString, 
     return FAILED;
   }
 
-  Status ret = FAILED;
-  const UserGraphsManagerPtr user_graphs_manager = g_session_manager->GetUserGraphsManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_graphs_manager != nullptr, FAILED, "Load graph failed, session_id:%lu.", sessionId_);
-  auto is_enable_slice_schedule = EnableSliceSchedule();
-  ret = user_graphs_manager->LoadGraph(graph_id, options, stream);
+  const auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Load graph failed, session_id:%lu.", sessionId_);
+  const auto check_ret = CheckCompiledFlag(inner_session, graph_id, true);
+  GE_ASSERT_SUCCESS(check_ret, "Load graph failed, graph needs to be compiled first, graph_id=%u", graph_id);
 
-  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED,
-                         "Load graph failed, error code:%u, session_id:%lu, graph_id:%u, is_enable_slice_schedule:%d",
-                         ret, sessionId_, graph_id, is_enable_slice_schedule);
-
+  const auto ret = inner_session->LoadGraph(graph_id, options, stream);
+  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Load graph failed, error code:%u, session_id:%lu, graph_id:%u",
+                         ret, sessionId_, graph_id);
   return ret;
 }
 
@@ -626,14 +727,29 @@ Status Session::BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inp
   GELOGT(TRACE_INIT, "start to build graph, session_id: %lu, graph_id: %u, input size %zu",
          sessionId_, graph_id, inputs.size());
 
-  Status ret = FAILED;
-  auto isEnableSliceSchedule = EnableSliceSchedule();
-  const UserHybridGraphManagerPtr user_hybrid_graph_manager = g_session_manager->GetUserHybridGraphManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_hybrid_graph_manager != nullptr, FAILED, "Build graph failed, session_id:%lu.", sessionId_);
-  ret = user_hybrid_graph_manager->BuildGraph(graph_id, inputs);
+  auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Build graph failed, session_id:%lu.", sessionId_);
+
+  // Check if dflow session is enabled
+  const auto dflow_session = inner_session->GetDFlowSession();
+  Status ret;
+  if (dflow_session != nullptr) {
+    inner_session->UpdateGlobalSessionContext();
+    GELOGI("Build graph in dflow session.");
+    std::vector<ge::GeTensor> ge_inputs;
+    for (const auto &input : inputs) {
+      ge_inputs.emplace_back(TensorAdapter::AsGeTensor(input));
+    }
+    ret = dflow_session->BuildGraph(graph_id, ge_inputs);
+  } else {
+    const auto check_ret = CheckCompiledFlag(inner_session, graph_id, false);
+    GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret,
+      "Build graph failed, check compiled flag failed, graph_id=%u", graph_id);
+    ret = inner_session->BuildGraph(graph_id, inputs);
+  }
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Build graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          sessionId_, graph_id);
-  GELOGD("BuildGraph finished in Session, graph_id: %u, isEnableSliceSchedule:%u", graph_id, isEnableSliceSchedule);
+  GELOGD("BuildGraph finished in Session, graph_id: %u", graph_id);
   return SUCCESS;
 }
 
@@ -653,18 +769,36 @@ Status Session::RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tensor> &
       " graph_id: %u", graph_id);
 
   const uint64_t session_id = sessionId_;
-  auto callback_wrapper = [session_id, graph_id, callback](Status ret, std::vector<ge::Tensor> &outputs) -> void {
+  auto callback_wrapper = [session_id, graph_id, callback](Status ret, std::vector<gert::Tensor> &outputs) -> void {
     RunGraphAsyncCallback(ret, session_id, graph_id, outputs, callback);
   };
 
   Status ret = FAILED;
-  auto isEnableSliceSchedule = EnableSliceSchedule();
-  const UserHybridGraphManagerPtr user_hybrid_graph_manager = g_session_manager->GetUserHybridGraphManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_hybrid_graph_manager != nullptr, FAILED, "Run graph async failed, session_id:%lu.", sessionId_);
-  ret = user_hybrid_graph_manager->RunGraphAsync(graph_id, inputs, callback_wrapper);
+  auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Run graph async failed, session_id:%lu.", sessionId_);
+
+  // Check if dflow session is enabled (not supported for RunGraphAsync)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
+  const auto check_ret = CheckCompiledFlag(inner_session, graph_id, false);
+  if (check_ret != SUCCESS) {
+    if (callback != nullptr) {
+      std::vector<ge::Tensor> outputs;
+      callback(check_ret, outputs);
+    }
+    GELOGE(check_ret, "Run graph async failed, incompatible with API CompileGraph, graph_id=%u", graph_id);
+    REPORT_INNER_ERR_MSG("E19999", "Run graph async failed, incompatible with API CompileGraph, graph_id=%u", graph_id);
+    return check_ret;
+  }
+
+  std::vector<gert::Tensor> tensors_view;
+  GE_ASSERT_SUCCESS(TensorTransUtils::AsTensorsView(inputs, tensors_view));
+  ret = inner_session->RunGraphAsync(graph_id, std::move(tensors_view), callback_wrapper);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph async failed, error code:%u, session_id:%lu, graph_id:%u.",
                          ret, sessionId_, graph_id);
-  GELOGD("RunGraphAsync finished in Session, graph_id: %u, isEnableSliceSchedule:%u", graph_id, isEnableSliceSchedule);
+  GELOGD("RunGraphAsync finished in Session, graph_id: %u", graph_id);
   return SUCCESS;
 }
 
@@ -719,10 +853,9 @@ bool Session::IsGraphNeedRebuild(uint32_t graph_id) {
     REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
     return false;
   }
-
-  const UserHybridGraphManagerPtr user_hybrid_graph_manager = g_session_manager->GetUserHybridGraphManager(sessionId_);
-  GE_CHK_BOOL_RET_STATUS(user_hybrid_graph_manager != nullptr, FAILED, "Add graph failed, session_id:%lu.", sessionId_);
-  return user_hybrid_graph_manager->IsGraphNeedRebuild(graph_id);
+  auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Add graph failed, session_id:%lu.", sessionId_);
+  return inner_session->IsGraphNeedRebuild(graph_id);
 }
 
 uint64_t Session::GetSessionId() const {
@@ -745,9 +878,10 @@ Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t>
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
-
   GELOGI("Feed data flow graph, graph_id: %u, timeout: %d ms", graph_id, timeout);
-  const Status ret = inner_session->FeedDataFlowGraph(graph_id, indexes, inputs, info, timeout);
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHECK_NOTNULL(dflow_session, "dflow session is nullptr");
+  const Status ret = dflow_session->FeedDataFlowGraph(graph_id, indexes, inputs, info, timeout);
   if (ret != SUCCESS && ret != ACL_ERROR_GE_REDEPLOYING && ret != ACL_ERROR_GE_SUBHEALTHY) {
     GELOGE(ret, "[Feed][Data]Failed, error code:%u, session_id:%lu, graph_id:%u.", ret, sessionId_, graph_id);
     REPORT_INNER_ERR_MSG("E19999", "Feed data flow graph failed , error code:%u, session_id:%lu, graph_id:%u", ret,
@@ -769,9 +903,10 @@ Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t>
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
-
   GELOGI("Feed flow msg, graph_id: %u, timeout: %d ms", graph_id, timeout);
-  const Status ret = inner_session->FeedDataFlowGraph(graph_id, indexes, inputs, timeout);
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHECK_NOTNULL(dflow_session, "dflow session is nullptr");
+  const Status ret = dflow_session->FeedDataFlowGraph(graph_id, indexes, inputs, timeout);
   const auto status = ret > kExternalErrorCodeMaxValue ? FAILED : ret;
   GE_CHK_BOOL_RET_STATUS((ret == SUCCESS || ret == ACL_ERROR_GE_REDEPLOYING || ret == ACL_ERROR_GE_SUBHEALTHY),
                          status, "[Feed][FlowMsg]Failed, error code:%u, session_id:%lu, graph_id:%u.",
@@ -790,9 +925,10 @@ Status Session::FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_d
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
-
   GELOGI("Feed raw data to data flow graph, graph_id: %u, timeout: %d ms", graph_id, timeout);
-  const Status ret = inner_session->FeedRawData(graph_id, raw_data_list, index, info, timeout);
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHECK_NOTNULL(dflow_session, "dflow session is nullptr");
+  const Status ret = dflow_session->FeedRawData(graph_id, raw_data_list, index, info, timeout);
   if (ret != SUCCESS && ret != ACL_ERROR_GE_REDEPLOYING && ret != ACL_ERROR_GE_SUBHEALTHY) {
     GELOGE(ret, "[Feed][Data]Failed, error code:%u, session_id:%lu, graph_id:%u.", ret, sessionId_, graph_id);
     REPORT_INNER_ERR_MSG("E19999", "Feed data flow graph failed , error code:%u, session_id:%lu, graph_id:%u", ret,
@@ -818,9 +954,10 @@ Status Session::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
-
   GELOGI("Fetch data flow graph, graph_id: %u, timeout: %d ms", graph_id, timeout);
-  Status ret = inner_session->FetchDataFlowGraph(graph_id, indexes, outputs, info, timeout);
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHECK_NOTNULL(dflow_session, "dflow session is nullptr");
+  Status ret = dflow_session->FetchDataFlowGraph(graph_id, indexes, outputs, info, timeout);
   const bool need_convert_error_code = ((ret == RT_ERROR_TO_GE_STATUS(ACL_ERROR_RT_QUEUE_EMPTY)) && timeout != 0);
   ret = need_convert_error_code ? ACL_ERROR_GE_MODEL_EXECUTE_TIMEOUT : ret;
   if (ret != SUCCESS && ret != ACL_ERROR_GE_REDEPLOYING && ret != ACL_ERROR_GE_SUBHEALTHY) {
@@ -844,9 +981,10 @@ Status Session::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
-
   GELOGI("Fetch flow msg, graph_id: %u, timeout: %d ms", graph_id, timeout);
-  Status ret = inner_session->FetchDataFlowGraph(graph_id, indexes, outputs, timeout);
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHECK_NOTNULL(dflow_session, "dflow session is nullptr");
+  Status ret = dflow_session->FetchDataFlowGraph(graph_id, indexes, outputs, timeout);
   const bool need_convert_error_code = ((ret == RT_ERROR_TO_GE_STATUS(ACL_ERROR_RT_QUEUE_EMPTY)) && timeout != 0);
   ret = need_convert_error_code ? ACL_ERROR_GE_MODEL_EXECUTE_TIMEOUT : ret;
   const auto status = ret > kExternalErrorCodeMaxValue ? FAILED : ret;
@@ -860,32 +998,39 @@ Status Session::CompileGraph(uint32_t graph_id) {
   GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
   GELOGT(TRACE_INIT, "Start to compile graph, graph_id: %u", graph_id);
 
-  Status ret = FAILED;
-  auto is_enable_slice_schedule = EnableSliceSchedule();
-  const UserGraphsManagerPtr user_graphs_manager = g_session_manager->GetUserGraphsManager(sessionId_);
-  GE_ASSERT_NOTNULL(user_graphs_manager, "[Get][User Graph]Failed, session_id:%lu.", sessionId_);
-  ret = user_graphs_manager->CompileGraph(graph_id);
+  const auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
-  GE_ASSERT_SUCCESS(
-      ret,
-      "[Compile][Graph]Compile graph failed, error code:%u, session_id:%lu, graph_id:%u, is_enable_slice_schedule:%d",
-      ret, sessionId_, graph_id, is_enable_slice_schedule);
+  // Check if dflow session is enabled
+  const auto dflow_session = inner_session->GetDFlowSession();
+  Status ret;
+  if (dflow_session != nullptr) {
+    inner_session->UpdateGlobalSessionContext();
+    ret = dflow_session->CompileGraph(graph_id, {});
+    GE_ASSERT_SUCCESS(ret, "[Compile][Graph]Compile graph failed, error code:%u, session_id:%lu, graph_id:%u",
+        ret, sessionId_, graph_id);
+  } else {
+    ret = inner_session->CompileGraph(graph_id, {});
+    GE_ASSERT_SUCCESS(ret, "[Compile][Graph]Compile graph failed, error code:%u, session_id:%lu, graph_id:%u",
+        ret, sessionId_, graph_id);
+    GE_ASSERT_SUCCESS(inner_session->SetCompiledFlag(graph_id, true),
+        "[Compile][Graph]Compile graph failed, set compiled flag failed, session_id:%lu, graph_id:%u",
+        sessionId_, graph_id);
+  }
   GELOGT(TRACE_STOP, "Compile graph success, graph_id: %u.", graph_id);
+  GELOGI("Compile graph success, graph_id: %u.", graph_id);
   return SUCCESS;
 }
 
 CompiledGraphSummaryPtr Session::GetCompiledGraphSummary(uint32_t graph_id) {
   GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
   CompiledGraphSummaryPtr summary = nullptr;
-  Status ret = FAILED;
-  
-  const UserGraphsManagerPtr user_graphs_manager = g_session_manager->GetUserGraphsManager(sessionId_);
-  GE_ASSERT_NOTNULL(user_graphs_manager, "[Get][User Graph]Failed, session_id:%lu.", sessionId_);
-  auto is_enable_slice_schedule = EnableSliceSchedule();
-  ret = user_graphs_manager->GetCompiledGraphSummary(graph_id, summary);
-  GE_ASSERT_SUCCESS(ret,
-                    "[Get][Summary]Failed, error code:%u, session_id:%lu, graph_id:%u, is_enable_slice_schedule:%d",
-                    ret, sessionId_, graph_id, is_enable_slice_schedule);
+  const auto inner_session = g_session_manager->GetSession(sessionId_);
+  GE_ASSERT_NOTNULL(inner_session, "[Get][User Graph]Failed, session_id:%lu.", sessionId_);
+  const auto check_ret = CheckCompiledFlag(inner_session, graph_id, true);
+  GE_ASSERT_SUCCESS(check_ret, "[Get][Summary]Failed, graph needs to be compiled first, graph_id=%u", graph_id);
+  auto ret = inner_session->GetCompiledGraphSummary(graph_id, summary);
+  GE_ASSERT_SUCCESS(ret, "[Get][Summary]Failed, error code:%u, session_id:%lu, graph_id:%u", ret, sessionId_, graph_id);
   return summary;
 }
 
@@ -900,8 +1045,16 @@ Status Session::SetGraphConstMemoryBase(uint32_t graph_id, const void *const mem
   }
 
   const auto inner_session = g_session_manager->GetSession(sessionId_);
-  GE_ASSERT_NOTNULL(inner_session, "[Get][Session]Failed, session_id:%lu.", sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
+  // Check if dflow session is enabled (not supported for SetGraphConstMemoryBase)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
+  const auto check_ret = CheckCompiledFlag(inner_session, graph_id, true);
+  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret,
+    "[Set][Memory]Failed, graph needs to be compiled first, graph_id=%u", graph_id);
 
   const auto ret = inner_session->SetGraphConstMemoryBase(graph_id, memory, size);
   GE_ASSERT_SUCCESS(ret, "[Set][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, memory:%p, size:%zu",
@@ -919,8 +1072,16 @@ Status Session::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *cons
     return UNSUPPORTED;
   }
   const auto inner_session = g_session_manager->GetSession(sessionId_);
-  GE_ASSERT_NOTNULL(inner_session, "[Get][Session]Failed, session_id:%lu.", sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
+  // Check if dflow session is enabled (not supported for UpdateGraphFeatureMemoryBase)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
+  const auto check_ret = CheckCompiledFlag(inner_session, graph_id, true);
+  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret,
+    "[Update][Memory]Failed, graph needs to be compiled first, graph_id=%u", graph_id);
 
   const auto ret = inner_session->UpdateGraphFeatureMemoryBase(graph_id, memory, size);
   GE_ASSERT_SUCCESS(ret, "[Update][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, memory:%p, size:%zu",
@@ -943,8 +1104,16 @@ Status Session::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, Memory
     return UNSUPPORTED;
   }
   const auto inner_session = g_session_manager->GetSession(sessionId_);
-  GE_ASSERT_NOTNULL(inner_session, "[Get][Session]Failed, session_id:%lu.", sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
+  // Check if dflow session is enabled (not supported for SetGraphFixedFeatureMemoryBaseWithType)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
+  const auto check_ret = CheckCompiledFlag(inner_session, graph_id, true);
+  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret,
+    "[Set][Memory]Failed, graph needs to be compiled first, graph_id=%u", graph_id);
 
   const auto ret = inner_session->SetGraphFixedFeatureMemoryBase(graph_id, type, memory, size);
   GE_ASSERT_SUCCESS(ret, "[Set][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, type:%d,"
@@ -962,8 +1131,16 @@ Status Session::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, const
     return UNSUPPORTED;
   }
   const auto inner_session = g_session_manager->GetSession(sessionId_);
-  GE_ASSERT_NOTNULL(inner_session, "[Get][Session]Failed, session_id:%lu.", sessionId_);
+  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%lu.", sessionId_);
 
+  // Check if dflow session is enabled (not supported for UpdateGraphRefreshableFeatureMemoryBase)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
+  const auto check_ret = CheckCompiledFlag(inner_session, graph_id, true);
+  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, check_ret,
+    "[Update][Memory]Failed, graph needs to be compiled first, graph_id=%u", graph_id);
 
   const auto ret = inner_session->UpdateGraphRefreshableFeatureMemoryBase(graph_id, memory, size);
   GE_ASSERT_SUCCESS(ret, "[Update][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, memory:%p, size:%zu",
@@ -1011,6 +1188,12 @@ Status Session::PaRemapped(const uint64_t va, const uint64_t new_pa, const uint6
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, INTERNAL_ERROR, "[Get][Session] failed, session_id:%lu.",
                          sessionId_);
+
+  // Check if dflow session is enabled (not supported for PaRemapped)
+  const auto dflow_session = inner_session->GetDFlowSession();
+  GE_CHK_BOOL_RET_STATUS(dflow_session == nullptr, UNSUPPORTED,
+                         "Dflow session does not support current function, pls check.");
+
   return inner_session->PaRemapped(va, new_pa, len);
 }
 }  // namespace ge

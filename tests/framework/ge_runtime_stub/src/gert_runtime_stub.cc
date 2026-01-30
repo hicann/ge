@@ -20,11 +20,16 @@
 #include "register/kernel_registry.h"
 
 namespace gert {
-GertRuntimeStub::GertRuntimeStub(std::unique_ptr<RuntimeStubImpl> rts_runtime_impl, const bool reset_slog_stub)
+GertRuntimeStub::GertRuntimeStub(std::unique_ptr<RuntimeStubImpl> rts_runtime_impl, const bool reset_slog_stub,
+                                 std::unique_ptr<AclRuntimeStubImpl> acl_runtime_impl)
     : rts_runtime_stub_(std::move(rts_runtime_impl)),
+      acl_runtime_stub_(std::move(acl_runtime_impl)),
       need_reset_slog_stub_(reset_slog_stub),
       slog_stub_(std::make_shared<SlogStubImpl>()) {
   ge::RuntimeStub::Install(rts_runtime_stub_.get());
+  if (acl_runtime_stub_ != nullptr) {
+    ge::AclRuntimeStub::Install(acl_runtime_stub_.get());
+  }
   if (need_reset_slog_stub_) {
     ge::SlogStub::SetInstance(slog_stub_);
   }
@@ -37,6 +42,9 @@ GertRuntimeStub::~GertRuntimeStub() {
   }
   Clear();
   ge::RuntimeStub::UnInstall(rts_runtime_stub_.get());
+  if (acl_runtime_stub_ != nullptr) {
+    ge::AclRuntimeStub::UnInstall(acl_runtime_stub_.get());
+  }
 }
 
 bool GertRuntimeStub::CheckLaunchWhenStubTiling() {
@@ -44,6 +52,15 @@ bool GertRuntimeStub::CheckLaunchWhenStubTiling() {
     for (auto launch_arg : iter.second) {
       if (*launch_arg->GetArgsTilingData<uint64_t>() != 100) {
         return false;
+      }
+    }
+  }
+  if (acl_runtime_stub_ != nullptr) {
+    for (auto &iter : acl_runtime_stub_->GetLaunchWithHandleArgs()) {
+      for (auto launch_arg : iter.second) {
+        if (*launch_arg->GetArgsTilingData<uint64_t>() != 100) {
+          return false;
+        }
       }
     }
   }

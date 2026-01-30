@@ -23,6 +23,7 @@
 #include "common/pre_checker.h"
 #include "common/util.h"
 #include "parser/tensorflow_parser.h"
+#include "parser/tensorflow/tensorflow_custom_op_parser.h"
 #include "ut/parser/parser_ut_utils.h"
 #include "graph/model.h"
 #include "graph/utils/graph_utils_ex.h"
@@ -70,6 +71,8 @@
 #include "graph/ge_tensor.h"
 #include "depends/mmpa/src/parser_mmpa_stub.h"
 #include "common/plugin/plugin_manager.h"
+#include <experimental/filesystem>
+#include "common/types_map.h"
 
 using namespace std;
 using namespace domi::tensorflow;
@@ -79,7 +82,7 @@ using namespace std;
 using namespace google::protobuf;
 
 static const string GRAPH_DEFAULT_NAME = "default";
-
+namespace fs = std::experimental::filesystem;
 namespace ge {
 struct DelTransposeInfo {
   domi::tensorflow::NodeDef *node_def;     // transpose
@@ -94,7 +97,7 @@ class MockMmpa : public MmpaStubApi {
   INT32 mmDladdr(VOID *addr, mmDlInfo *info)
   {
     if (dl_flag == 0) {
-      std::string file_path = FILE_TENSORFLOW_PATH;
+      std::string file_path = __FILE__;
       info->dli_fname = (file_path + "libregister.so").c_str();
       return 1;
     }
@@ -151,6 +154,18 @@ class UtestTensorflowParser : public testing::Test {
 
  public:
   void RegisterCustomOp();
+};
+
+class UtestTensorflowCustomOpParser : public testing::Test {
+protected:
+  void SetUp() {
+    ParerUTestsUtils::ClearParserInnerCtx();
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  }
+
+  void TearDown() {
+    MmpaStub::GetInstance().Reset();
+  }
 };
 
 class TestOperator : public ParserOperator
@@ -312,6 +327,88 @@ namespace {
     return nodeDef;
   }
 
+  NodeDef *InitNodeDefWithOpDefAttr() {
+    auto *node = new domi::tensorflow::NodeDef();
+    node->set_name("node_with_opdef");
+    node->set_op("MyCustomOp");
+    auto *attr_map = node->mutable_attr();
+    domi::tensorflow::OpDef opdef;
+    opdef.set_name("MyGreatOp");
+    auto *in = opdef.add_input_arg();
+    in->set_name("x");
+    in->set_type(domi::tensorflow::DT_FLOAT);
+
+    auto *out = opdef.add_output_arg();
+    out->set_name("y");
+    out->set_type(domi::tensorflow::DT_FLOAT);
+
+    std::string blob;
+    if (!opdef.SerializeToString(&blob)) {
+      delete node;
+      return nullptr;
+    }
+    domi::tensorflow::AttrValue opdef_attr;
+    opdef_attr.set_s(blob);
+    (*attr_map)[ge::ATTR_NAME_FRAMEWORK_OP_DEF] = opdef_attr;
+    return node;
+  }
+
+  NodeDef *InitNodeDefWithOutOpDefAttr() {
+    auto *node = new domi::tensorflow::NodeDef();
+    node->set_name("node_with_opdef");
+    node->set_op("MyCustomOp");
+    return node;
+  }
+
+  domi::tensorflow::OpDef MakeDynamicInputOpDef_NumberAttr() {
+    domi::tensorflow::OpDef opdef;
+    opdef.set_name("MyGreatOpDynamic");
+
+    auto *in = opdef.add_input_arg();
+    in->set_name("x");
+    in->set_number_attr("N");
+    in->set_type_attr("T");
+
+    auto *out = opdef.add_output_arg();
+    out->set_name("y");
+    out->set_type_attr("T");
+
+    auto *attr_n = opdef.add_attr();
+    attr_n->set_name("N");
+    attr_n->set_type("int");
+
+    auto *attr_t = opdef.add_attr();
+    attr_t->set_name("T");
+    attr_t->set_type("type");
+    return opdef;
+  }
+
+domi::tensorflow::OpDef MakeListOpDef_TypeListAttr() {
+    domi::tensorflow::OpDef opdef;
+    opdef.set_name("MyGreatOpDynamicTypeList");
+
+    // input: x 是 list（N 个），类型 T
+    auto *in = opdef.add_input_arg();
+    in->set_name("x");
+    in->set_number_attr("N");
+    in->set_type_attr("T");
+
+    auto *out = opdef.add_output_arg();
+    out->set_name("y");
+    out->set_type_list_attr("Tout");
+
+    auto *attr_n = opdef.add_attr();
+    attr_n->set_name("N");
+    attr_n->set_type("int");
+    auto *attr_t = opdef.add_attr();
+    attr_t->set_name("T");
+    attr_t->set_type("type");
+
+    auto *attr_tout = opdef.add_attr();
+    attr_tout->set_name("Tout");
+    attr_tout->set_type("list(type)");
+    return opdef;
+  }
   NodeDef * initOpNodeDef_VariableV2() {
     NodeDef * nodeDef = new NodeDef();
     nodeDef->set_op("VariableV2");
@@ -545,7 +642,7 @@ namespace {
     fusion_rlt->InsertOutputs("scope_node_n", {1});  // scope output 1
 
     fusion_rlt->SetType(ge::kScopeToMultiNodes);
-    fusion_rlt->SetName(fusion_op_name.c_str());
+    fusion_rlt->SetName(fusion_op_name);
     fusion_rlt->SetDescription("Description for fusion node");
 
     // Add inner nodes in sequence.
@@ -1064,8 +1161,9 @@ void CreateGraphDef(domi::tensorflow::GraphDef &graph_def) {
 TEST_F(UtestTensorflowParser, tensorflow_parser_success) {
   RegisterCustomOp();
 
-  std::string case_dir = FILE_TENSORFLOW_PATH;
+  std::string case_dir = __FILE__;
   ParserOperator unused("Add");
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/tensorflow_model/tf_add.pb";
   std::map<ge::AscendString, ge::AscendString> parser_params = {
       {ge::AscendString(ge::ir_option::INPUT_DATA_NAMES), ge::AscendString("Placeholder,Placeholder_1")},
@@ -1086,8 +1184,9 @@ TEST_F(UtestTensorflowParser, tensorflow_parser_success) {
 TEST_F(UtestTensorflowParser, tensorflow_parser_input_data_names_failed) {
   RegisterCustomOp();
 
-  std::string case_dir = FILE_TENSORFLOW_PATH;
+  std::string case_dir = __FILE__;
   ParserOperator unused("Add");
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/tensorflow_model/tf_add.pb";
   std::map<ge::AscendString, ge::AscendString> parser_params = {
     {ge::AscendString(ge::ir_option::INPUT_DATA_NAMES), ge::AscendString("Placeholder_1,Placeholder_2")},
@@ -1099,7 +1198,9 @@ TEST_F(UtestTensorflowParser, tensorflow_parser_input_data_names_failed) {
 
 TEST_F(UtestTensorflowParser, tensorflow_model_Failed) {
   ge::Graph graph;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
 
   std::string modelFile = caseDir + "/tensorflow_model/model.pb";
   auto status = ge::aclgrphParseTensorFlow(modelFile.c_str(), graph);
@@ -1112,7 +1213,9 @@ TEST_F(UtestTensorflowParser, tensorflow_model_Failed) {
 
 TEST_F(UtestTensorflowParser, tensorflow_model_not_exist) {
   ge::Graph graph;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
 
   // model file is not exist
   std::string modelFile = caseDir + "/tensorflow_model/conv2d_explicit1_pad.pb";
@@ -1121,11 +1224,13 @@ TEST_F(UtestTensorflowParser, tensorflow_model_not_exist) {
 }
 
 TEST_F(UtestTensorflowParser, parser_tensorflow_model) {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   const char *model_file = modelFile.c_str();
   std::string op_name = "ge_ascend_irgraph";
-  ge::Graph graph(op_name.c_str());
+  ge::Graph graph(op_name);
 
   std::map<ge::AscendString, ge::AscendString> parser_options = {
     {ge::AscendString(ge::ir_option::INPUT_FORMAT), ge::AscendString("NHWC")},
@@ -1139,7 +1244,7 @@ TEST_F(UtestTensorflowParser, parser_tensorflow_model) {
   std::map<AscendString, AscendString> out_nodes_with_node_and_index = {
     {AscendString(ge::ir_option::OUT_NODES), AscendString("Placeholder:0;Placeholder_1:1")}};
   ParerUTestsUtils::ClearParserInnerCtx();
-  (void)acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
+  auto ret = acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
   ret_graph = ge::aclgrphParseTensorFlow(model_file, graph);
   EXPECT_EQ(ret_graph, domi::FAILED);
 
@@ -1148,7 +1253,7 @@ TEST_F(UtestTensorflowParser, parser_tensorflow_model) {
   model_file = modelFile.c_str();
   out_nodes_with_node_and_index = {{AscendString(ge::ir_option::OUT_NODES), AscendString("x:0;y:0")}};
   ParerUTestsUtils::ClearParserInnerCtx();
-  (void)acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
+  ret = acl_graph_parse_util.ParseParamsBeforeGraph(out_nodes_with_node_and_index, graph_name);
   ret_graph = ge::aclgrphParseTensorFlow(model_file, graph);
   EXPECT_EQ(ret_graph, domi::SUCCESS);
 }
@@ -1305,7 +1410,9 @@ TEST_F(UtestTensorflowParser, optimize_snapshot) {
 TEST_F(UtestTensorflowParser, tensorflow_parser_to_json)
 {
   TensorFlowModelParser modelParser;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   std::string jsonFile = caseDir + "/tensorflow_model/test.json";
   const char *model_file = modelFile.c_str();
@@ -1317,7 +1424,9 @@ TEST_F(UtestTensorflowParser, tensorflow_parser_to_json)
 TEST_F(UtestTensorflowParser, tensorflow_parserfrommemory_failed)
 {
   TensorFlowModelParser modelParser;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   uint32_t size = 1;
   ge::Graph graph;
@@ -1334,7 +1443,9 @@ TEST_F(UtestTensorflowParser, tensorflow_parserfrommemory_failed)
 
 TEST_F(UtestTensorflowParser, modelparser_parsefrommemory_success)
 {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   const char* tmp_tf_pb_model = modelFile.c_str();
   ge::Graph graph;
@@ -1346,14 +1457,16 @@ TEST_F(UtestTensorflowParser, modelparser_parsefrommemory_success)
   TensorFlowModelParser modelParser;
   MemBuffer* memBuffer = MemBufferFromFile(tmp_tf_pb_model);
   PreChecker::Instance().HasError() == false;
-  (void)modelParser.ParseFromMemory((char*)memBuffer->data, memBuffer->size, compute_graph);
+  ret = modelParser.ParseFromMemory((char*)memBuffer->data, memBuffer->size, compute_graph);
   free(memBuffer->data);
   delete memBuffer;
 }
 
 TEST_F(UtestTensorflowParser, weightsparser_parsefrommemory_success)
 {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   const char* tmp_tf_pb_model = modelFile.c_str();
   ge::Graph graph;
@@ -1372,7 +1485,9 @@ TEST_F(UtestTensorflowParser, weightsparser_parsefrommemory_success)
 
 ge::AscendString getGraphCallbackV3(const ge::AscendString &subgraph_name)
 {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string subgraph_name_str = caseDir + "/origin_models/tf_add.pb";
   ge::AscendString subgraph_name_ascend_string = ge::AscendString(subgraph_name_str.c_str());
   return subgraph_name_ascend_string;
@@ -1380,7 +1495,9 @@ ge::AscendString getGraphCallbackV3(const ge::AscendString &subgraph_name)
 
 TEST_F(UtestTensorflowParser, parser_ParseProtoWithSubgraphV2)
 {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string root_proto = caseDir + "/tensorflow_model/tf_add.pb";
   ge::AscendString root_proto_str(root_proto.c_str());
   ge::Graph graph;
@@ -1399,8 +1516,8 @@ TEST_F(UtestTensorflowParser, parser_ParseProtoWithSubgraphWithConstValue)
   ge::ComputeGraphPtr root_graph = std::make_shared<ge::ComputeGraph>("ge_default");
   domi::tensorflow::GraphDef graph_def;
   auto const1 = graph_def.add_node();
-  (void)graph_def.add_node();
-  (void)graph_def.add_node();
+  auto const2 = graph_def.add_node();
+  auto add = graph_def.add_node();
   const1->set_name("const1");
   const1->set_op("Const");
   std::string root_proto = graph_def.SerializeAsString();
@@ -1440,7 +1557,9 @@ TEST_F(UtestTensorflowParser, parser_ConvertToGeDataType)
 
 TEST_F(UtestTensorflowParser, tensorflow_ParserProto_failed)
 {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   const std::string root_proto = caseDir + "/tensorflow_model/avgpool3dgrad.pb.txt";
   domi::tensorflow::GraphDef graphDef;
   ge::Graph graph;
@@ -1469,7 +1588,9 @@ std::unique_ptr<google::protobuf::Message> getGraphCallback(const google::protob
 
 TEST_F(UtestTensorflowParser, tensorflow_parserAllGraph_failed)
 {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   const std::string root_proto = caseDir + "/tensorflow_model/conv2d.pb";
   domi::tensorflow::GraphDef graphDef;
   CreateGraphDef(graphDef);
@@ -1618,9 +1739,7 @@ TEST_F(UtestTensorflowParser, parse_AutoMappingByOp) {
 
   status = domi::AutoMappingByOpFn(op, op_dest);
   EXPECT_EQ(domi::SUCCESS, status);
-  AscendString name;
-  op_dest.GetName(name);
-  EXPECT_EQ(VALUE_NAME, name.GetString());
+  EXPECT_EQ(VALUE_NAME, op_dest.GetName());
 
   value_string = "";
   ge::AttrUtils::GetStr(op_desc_dest, KEY_STRING, value_string);
@@ -1663,7 +1782,9 @@ TEST_F(UtestTensorflowParser, parse_ParseNodeDef)
 TEST_F(UtestTensorflowParser, parse_AddFmkNode)
 {
   TensorFlowModelParser modelParser;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   ge::Graph graph;
   string graph_name;
@@ -1731,10 +1852,12 @@ TEST_F(UtestTensorflowParser, parse_AddFmkNode)
 TEST_F(UtestTensorflowParser, parse_AddScopeInnerNode)
 {
   TensorFlowModelParser modelParser;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tf_add.pb";
   std::string op_name = "ge_ascend_irgraph";
-  ge::Graph graph(op_name.c_str());
+  ge::Graph graph(op_name);
   ge::ComputeGraphPtr compute_graph = ge::GraphUtilsEx::GetComputeGraph(graph);
   std::map<ge::AscendString, ge::AscendString> parser_params = {
     {AscendString(ge::ir_option::OUT_NODES), AscendString("Placeholder:0;Placeholder_1:0")}};
@@ -1762,8 +1885,10 @@ TEST_F(UtestTensorflowParser, parse_AddScopeInnerNode)
 TEST_F(UtestTensorflowParser, dyncmic_rnn_scope_pass_plugin_test) {
   ge::Graph graph;
 
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/tensor_array.pb";
   std::map<ge::AscendString, ge::AscendString> params;
   string key ="enable_scope_fusion_passes";
@@ -1775,8 +1900,10 @@ TEST_F(UtestTensorflowParser, dyncmic_rnn_scope_pass_plugin_test) {
 
 TEST_F(UtestTensorflowParser, avgpool3dgrad_plugin_test_format_NDHWC) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/avgpool3dgrad_case_1.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1784,8 +1911,10 @@ TEST_F(UtestTensorflowParser, avgpool3dgrad_plugin_test_format_NDHWC) {
 
 TEST_F(UtestTensorflowParser, tensorflow_merge_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/merge.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_NE(status, SUCCESS);
@@ -1793,8 +1922,10 @@ TEST_F(UtestTensorflowParser, tensorflow_merge_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_no_op_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_no_op.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1802,8 +1933,10 @@ TEST_F(UtestTensorflowParser, tensorflow_no_op_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_identity_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_identity.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1811,8 +1944,10 @@ TEST_F(UtestTensorflowParser, tensorflow_identity_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_constant_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_constant.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1834,8 +1969,10 @@ TEST_F(UtestTensorflowParser, tensorflow_constant_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_reshpae_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_reshape.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1858,8 +1995,10 @@ TEST_F(UtestTensorflowParser, tensorflow_reshpae_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_squeeze_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_sequeeze.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1939,8 +2078,10 @@ TEST_F(UtestTensorflowParser, tensorflow_squeeze_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_fill_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_fill.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1948,8 +2089,10 @@ TEST_F(UtestTensorflowParser, tensorflow_fill_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_shape_n_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_shape_n.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1957,8 +2100,10 @@ TEST_F(UtestTensorflowParser, tensorflow_shape_n_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_switch_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_switch.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -1977,8 +2122,10 @@ TEST_F(UtestTensorflowParser, tensorflow_switch_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_enter_test) {
   ge::Graph graph;
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_enter.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -2040,7 +2187,9 @@ TEST_F(UtestTensorflowParser, tensorflow_enter_test) {
 
 TEST_F(UtestTensorflowParser, tensorflow_VariableV2_test) {
   ge::Graph graph;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/tensorflow_model/test_VariableV2.pb";
   auto status = aclgrphParseTensorFlow(modelFile.c_str(), graph);
   EXPECT_EQ(status, SUCCESS);
@@ -2549,7 +2698,7 @@ TEST_F(UtestTensorflowParser, tensorflow_DefunToPartitionedCall_parser_test)
   node_def->set_name("ShapeN");
   ge::OpDescPtr op = make_shared<ge::OpDesc>("ShapeN", ge::parser::PARTITIONEDCALL);
   Status ret = parser.DefunToPartitionedCall(node_def, op);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, PARAM_INVALID);
 
   static const string KEY_SHAPE_LIST = "key_shape_list";
   static const string KEY_TENSOR_LIST = "key_tensor_list";
@@ -2608,7 +2757,7 @@ TEST_F(UtestTensorflowParser, tensorflow_TransNodeToOpDesc_parser_test)
   std::string op_type = "ge::parser::DATA";
   ge::OpDescPtr op = make_shared<ge::OpDesc>("constant", ge::parser::CONSTANT);
   Status ret = parser.TransNodeToOpDesc(node_def, op, op_type);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, PARAM_INVALID);
 }
 
 domi::Status fusion_parse_param_by_op(const std::vector<ge::Operator> &op_src, ge::Operator &op) {
@@ -2665,9 +2814,8 @@ TEST_F(UtestTensorflowParser, Tensorflow_recordFusionResult_parser_test)
   fusion_scope_rlt->Init();
   fusion_scope_rlt->SetName("OP");
   auto &impl_scope_graph = scope_graph->impl_;
-  AscendString scope_name;
-  fusion_scope_rlt->Name(scope_name);
-  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name.GetString(), fusion_scope_rlt));
+  std::string scope_name = fusion_scope_rlt->Name();
+  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name, fusion_scope_rlt));
   std::vector<ge::OperatorPtr> nodes;
   ge::OperatorPtr op = ge::parser::MakeShared<ge::Operator>("op_name", "op_type");
   if (op == nullptr) {
@@ -3041,7 +3189,9 @@ TEST_F(UtestTensorflowParser, tensorflow_AddControlEdgeAfterRemoveInputs_test)
 
 
 TEST_F(UtestTensorflowParser, tensorflow_optimizer_snapshot_no_retval_test) {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   const std::string root_proto = caseDir + "/tensorflow_model/test_snapshot.pb";
   domi::tensorflow::GraphDef graphDef;
 
@@ -3194,8 +3344,10 @@ TEST_F(UtestTensorflowParser, tensorflow_GraphDefOptimizeDestroyTemporaryVariabl
 
 TEST_F(UtestTensorflowParser, tensorflow_GetFunctionProto_test)
 {
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string file = caseDir + "/tensorflow_model/test_enter.pb";
   domi::tensorflow::GraphDefLibrary graph_def_library;
   TensorFlowModelParser model_parser;
@@ -3415,9 +3567,7 @@ TEST_F(UtestTensorflowParser, OptimizeConstNodes4CustomOp_success)
 
   REGISTER_CUSTOM_OP("BatchNormGrad")
       .FrameworkType(domi::TENSORFLOW)
-      .OriginOpType({AscendString("FusedBatchNormGradV3"),
-        AscendString("FusedBatchNormGradV2"),
-        AscendString("FusedBatchNormGrad")})
+      .OriginOpType({"FusedBatchNormGradV3", "FusedBatchNormGradV2", "FusedBatchNormGrad"})
       .ParseParamsFn(AutoMappingFn)
       .DelInputWithOriginalType(5, "FusedBatchNormGradV3")
       .ImplyType(ImplyType::TVM);
@@ -3461,9 +3611,8 @@ TEST_F(UtestTensorflowParser, tensorflow_AddFusionInnerNodeDef_test)
   fusion_scope_rlt->Init();
   fusion_scope_rlt->SetName("FusionCustom");
   auto &impl_scope_graph = scope_graph->impl_;
-  AscendString scope_name;
-  fusion_scope_rlt->Name(scope_name);
-  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name.GetString(), fusion_scope_rlt));
+  std::string scope_name = fusion_scope_rlt->Name();
+  impl_scope_graph->fusion_results_.insert(std::make_pair(scope_name, fusion_scope_rlt));
   std::string fusion_op_name = "FusionCustom";
   GenOriginNodeDef(&model_parser, op_node_name_list);
   GenFusionScopesResult(scope_graph, fusion_scope_rlt, fusion_op_name);
@@ -3697,8 +3846,10 @@ TEST_F(UtestTensorflowParser, input_proto_real_path_success) {
   ret = proto_file_parser.WriteProtoFile(caffe_proto_path, custom_proto_path);
   EXPECT_EQ(ret, FAILED);
 
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string proto_file = caseDir + "/tensorflow_model/caffe.proto";
   caffe_proto_path = proto_file.c_str();
   ret = proto_file_parser.CombineProtoFile(caffe_proto_path, caffe_proto_path, fusion_proto_file);
@@ -3727,8 +3878,8 @@ TEST_F(UtestTensorflowParser, input_proto_real_path_success) {
 }
 
 TEST_F(UtestTensorflowParser, ProtoFileParser_CombineProtoFileMultiCustomProto_not_exists) {
-  std::string proto_dir = FILE_TENSORFLOW_PATH;
-  proto_dir = proto_dir + "proto_dir/";
+  std::string proto_dir = __FILE__;
+  proto_dir = proto_dir.substr(0, proto_dir.rfind("/") + 1) + "proto_dir/";
 
   std::string caffe_proto_path = proto_dir + "not_exists_dir/caffe.proto";
   std::string custom_proto_path = proto_dir + "not_exists_dir/custom.proto";
@@ -3741,8 +3892,8 @@ TEST_F(UtestTensorflowParser, ProtoFileParser_CombineProtoFileMultiCustomProto_n
 }
 
 TEST_F(UtestTensorflowParser, ProtoFileParser_CombineProtoFileMultiCustomProto_exists_01) {
-  std::string proto_dir = FILE_TENSORFLOW_PATH;
-  proto_dir = proto_dir + "proto_dir/";
+  std::string proto_dir = __FILE__;
+  proto_dir = proto_dir.substr(0, proto_dir.rfind("/") + 1) + "proto_dir/";
   system(("mkdir -p " + proto_dir).c_str());
 
   // init caffe proto file
@@ -3810,8 +3961,8 @@ message LayerParameter {
 }
 
 TEST_F(UtestTensorflowParser, ProtoFileParser_CombineProtoFileMultiCustomProto_exists_02) {
-  std::string proto_dir = FILE_TENSORFLOW_PATH;
-  proto_dir = proto_dir + "proto_dir/";
+  std::string proto_dir = __FILE__;
+  proto_dir = proto_dir.substr(0, proto_dir.rfind("/") + 1) + "proto_dir/";
   system(("mkdir -p " + proto_dir).c_str());
 
   // init caffe proto file
@@ -3899,8 +4050,8 @@ message LayerParameter {
 }
 
 TEST_F(UtestTensorflowParser, ProtoFileParser_CombineProtoFileMultiCustomProto_exists_03) {
-  std::string proto_dir = FILE_TENSORFLOW_PATH;
-  proto_dir = proto_dir + "proto_dir/";
+  std::string proto_dir = __FILE__;
+  proto_dir = proto_dir.substr(0, proto_dir.rfind("/") + 1) + "proto_dir/";
   system(("mkdir -p " + proto_dir).c_str());
 
   // init caffe proto file
@@ -3988,8 +4139,8 @@ message LayerParameter {
 }
 
 TEST_F(UtestTensorflowParser, ProtoFileParser_CombineProtoFileMultiCustomProto_exists_04) {
-  std::string proto_dir = FILE_TENSORFLOW_PATH;
-  proto_dir = proto_dir + "proto_dir/";
+  std::string proto_dir = __FILE__;
+  proto_dir = proto_dir.substr(0, proto_dir.rfind("/") + 1) + "proto_dir/";
   system(("mkdir -p " + proto_dir).c_str());
 
   // init caffe proto file
@@ -4077,8 +4228,10 @@ TEST_F(UtestTensorflowParser, tensorflow_tbe_tfplugin_loader_test)
   pluginLoad.handles_vec_.push_back(p);
   pluginLoad.ClearHandles_();
 
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string proto_file = caseDir + "/tensorflow_model/";
   std::string path = proto_file;
   std::string caffe_parser_path = path;
@@ -4185,8 +4338,10 @@ TEST_F(UtestTensorflowParser, tensorflow_ModelSaver_test)
   ret = ge::parser::ModelSaver::SaveJsonToFile(file_path, model);
   EXPECT_EQ(ret, FAILED);
 
-  std::cout << FILE_TENSORFLOW_PATH << std::endl;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::cout << __FILE__ << std::endl;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string proto_file = caseDir + "/tensorflow_model/caffe.proto";
   file_path = proto_file.c_str();
   ret = ge::parser::ModelSaver::SaveJsonToFile(file_path, model);
@@ -4486,7 +4641,9 @@ TEST_F(UtestTensorflowParser, parser_UpdateGraph_test)
 }
 
 TEST_F(UtestTensorflowParser, tensorflow_optimizer_fmk_fusion_op_) {
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   const std::string root_proto = caseDir + "/origin_models/getnext_dynamic_fusion.pbtxt";
   domi::tensorflow::GraphDef graphDef;
 
@@ -4662,7 +4819,9 @@ TEST_F(UtestTensorflowParser, parser_UppdateInputMap_test)
   ret = tensorflow_parser.UppdateOutputMap(scope_graph, info, fusion_op_node_context, normal_op_node_context);
 
   TensorFlowWeightsParser weights_parser;
-  std::string caseDir = FILE_TENSORFLOW_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string proto_file = caseDir + "/ /tf_add.pb";
   const char *file = proto_file.c_str();
   ge::Graph graphs;
@@ -5105,8 +5264,8 @@ TEST_F(UtestTensorflowParser, AddDumpOriginName_test)
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_01) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -5124,8 +5283,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_01) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_02) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -5140,8 +5299,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_02) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_03) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -5156,8 +5315,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_03) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_04) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -5172,8 +5331,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_04) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_05) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -5191,8 +5350,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_getopp_plugin_vendors_05) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_01) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5207,8 +5366,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_01) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_02) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5231,8 +5390,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_02) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_03) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5253,8 +5412,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_03) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_04) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath(custom_opp_path);
@@ -5281,8 +5440,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_04) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_05) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath("");
@@ -5308,8 +5467,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_05) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_06) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_02 = opp_path + "custom_opp_path_02";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
@@ -5339,8 +5498,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_06) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_07) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath(custom_opp_path);
@@ -5363,8 +5522,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_07) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_08) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_invalid_01 = opp_path + "custom_opp_path_invalid_01";
   std::string custom_opp_path_empty = "";
@@ -5399,8 +5558,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_08) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_09) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_02 = opp_path + "custom_opp_path_02";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
@@ -5433,8 +5592,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetOpsProtoPath_09) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_01) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5446,8 +5605,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_01) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_02) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5468,8 +5627,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_02) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_03) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5488,8 +5647,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_03) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_04) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath(custom_opp_path);
@@ -5514,8 +5673,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_04) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_05) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath("");
@@ -5539,8 +5698,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_05) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_06) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_02 = opp_path + "custom_opp_path_02";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
@@ -5568,8 +5727,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_06) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_07) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath(custom_opp_path);
@@ -5590,8 +5749,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_07) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_08) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_invalid_01 = opp_path + "custom_opp_path_invalid_01";
   std::string custom_opp_path_empty = "";
@@ -5624,8 +5783,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_08) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_09) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_02 = opp_path + "custom_opp_path_02";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
@@ -5656,8 +5815,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomOpPath_09) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_01) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5675,8 +5834,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_01) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_02) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5698,8 +5857,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_02) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_03) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in";
@@ -5719,8 +5878,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_03) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_04) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath(custom_opp_path);
@@ -5746,8 +5905,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_04) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_05) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath("");
@@ -5772,8 +5931,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_05) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_06) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_02 = opp_path + "custom_opp_path_02";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
@@ -5802,8 +5961,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_06) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_07) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path = opp_path + "custom_opp_path";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
   PluginManager::SetCustomOpLibPath(custom_opp_path);
@@ -5825,8 +5984,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_07) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_08) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_invalid_01 = opp_path + "custom_opp_path_invalid_01";
   std::string custom_opp_path_empty = "";
@@ -5860,8 +6019,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_08) {
 }
 
 TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_09) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   std::string custom_opp_path_01 = opp_path + "custom_opp_path_01";
   std::string custom_opp_path_02 = opp_path + "custom_opp_path_02";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
@@ -5893,8 +6052,8 @@ TEST_F(UtestTensorflowParser, test_plugin_manager_GetCustomCaffeProtoPath_09) {
 }
 
 /*TEST_F(UtestTensorflowParser, test_plugin_manager_LoadPluginSo) {
-  std::string opp_path = FILE_TENSORFLOW_PATH;
-  opp_path = opp_path + "opp_path/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "opp_path/";
   setenv("ASCEND_OPP_PATH", opp_path.c_str(), 1);
 
   std::string path_builtin = opp_path + "built-in/framework/tensorflow/";
@@ -5928,4 +6087,289 @@ TEST_F(UtestTensorflowParser, test_ParseOpAttributes) {
   EXPECT_EQ(AttrUtils::GetBool(op_desc, ATTR_NAME_DO_NOT_CONSTANT_FOLDING, ret2), true);
   EXPECT_EQ(ret2, true);
 }
+
+TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegCustomOpString_with_dynamic_input)
+{
+  domi::tensorflow::OpDef op_def = MakeDynamicInputOpDef_NumberAttr();
+  domi::tensorflow::NodeDef node_def;
+  node_def.set_name("MyGreatOpDynamic");
+  node_def.set_op("MyGreatOpDynamic");
+  std::string reg_custom_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegCustomOpString(op_def, node_def, reg_custom_op);
+  EXPECT_NE(reg_custom_op.find(".FrameworkType(TENSORFLOW)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::TVM)"), std::string::npos);
+}
+
+TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegOpString_with_dynamic_input_list)
+{
+  domi::tensorflow::OpDef op_def = MakeListOpDef_TypeListAttr();
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegOpString(op_def, reg_op);
+  EXPECT_NE(reg_op.find("REG_OP(MyGreatOpDynamicTypeList)"), std::string::npos);
+  EXPECT_NE(reg_op.find("INPUT(x, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OUTPUT(y, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OP_END_FACTORY_REG(MyGreatOpDynamicTypeList)"), std::string::npos);
+}
+
+TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegCustomOpString_with_dynamic_input_list)
+{
+  domi::tensorflow::OpDef opDef = MakeDynamicInputOpDef_NumberAttr();
+  domi::tensorflow::NodeDef node_def;
+  node_def.set_name("MyGreatOpDynamic");
+  node_def.set_op("MyGreatOpDynamic");
+  std::string reg_custom_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegCustomOpString(opDef, node_def, reg_custom_op);
+  EXPECT_NE(reg_custom_op.find(".FrameworkType(TENSORFLOW)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ParseParamsFn(AutoMappingFnCustomDynamic_MyGreatOpDynamic)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::TVM)"), std::string::npos);
+}
+
+TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegOpStringTest) {
+  domi::tensorflow::OpDef op_def = MakeDynamicInputOpDef_NumberAttr();
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegOpString(op_def, reg_op);
+  EXPECT_NE(reg_op.find("REG_OP(MyGreatOpDynamic)"), std::string::npos);
+  EXPECT_NE(reg_op.find("INPUT(x, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OUTPUT(y, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OP_END_FACTORY_REG(MyGreatOpDynamic)"), std::string::npos);
+}
+
+TEST_F(UtestTensorflowCustomOpParser, test_BuildCustomOpStrings) {
+  std::string all_reg_op;
+  TensorFlowCustomOpParser parser;
+  NodeDef* node_def = InitNodeDefWithOpDefAttr();
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  custom_nodes_map[node_def->name()] = node_def;
+  parser.BuildCustomOpStrings(custom_nodes_map, all_reg_op);
+  EXPECT_NE(all_reg_op.find("REG_OP(MyGreatOp)"), std::string::npos);
+  EXPECT_NE(all_reg_op.find("INPUT(x, TensorType({DT_FLOAT}))"), std::string::npos);
+  EXPECT_NE(all_reg_op.find("FrameworkType(TENSORFLOW)"), std::string::npos);
+  EXPECT_NE(all_reg_op.find("#endif  // OP_REG_CUSTOM_H"), std::string::npos);
+}
+
+TEST_F(UtestTensorflowCustomOpParser, test_BuildCustomOpStrings_failed) {
+  std::string all_reg_op;
+  TensorFlowCustomOpParser parser;
+  NodeDef* node_def = InitNodeDefWithOutOpDefAttr();
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  custom_nodes_map[node_def->name()] = node_def;
+  Status ret_status = parser.BuildCustomOpStrings(custom_nodes_map, all_reg_op);
+  EXPECT_NE(ret_status, SUCCESS);
+}
+
+TEST_F(UtestTensorflowCustomOpParser, ParseCustomOp_NormalCase_ReturnSuccess) {
+  NodeDef* node_def = InitNodeDefWithOpDefAttr();
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  custom_nodes_map[node_def->name()] = node_def;
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.ParseCustomOp(custom_nodes_map);
+  EXPECT_NE(ret_status, FAILED);
+  delete node_def;
+  custom_nodes_map.clear();
+}
+
+TEST_F(UtestTensorflowCustomOpParser, DeleteTmpDirectoryContents_DirExists_ReturnSuccess) {
+  fs::path test_dir = fs::temp_directory_path() / "test_tmp_dir_exists";
+  fs::create_directories(test_dir);
+  fs::path test_file = test_dir / "test_file.txt";
+  std::ofstream(test_file).put('a');
+  fs::path sub_dir = test_dir / "sub_dir";
+  fs::create_directory(sub_dir);
+  EXPECT_TRUE(fs::exists(test_dir));
+  EXPECT_TRUE(fs::exists(test_file));
+  EXPECT_TRUE(fs::exists(sub_dir));
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.DeleteTmpDirectoryContents(test_dir);
+
+  EXPECT_EQ(ret_status, SUCCESS);
+  EXPECT_FALSE(fs::exists(test_dir));
+  if (fs::exists(test_dir)) {
+    fs::remove_all(test_dir);
+  }
+}
+
+TEST_F(UtestTensorflowCustomOpParser, DeleteTmpDirectoryContents_DirNotExists_ReturnSuccess) {
+  fs::path non_exist_dir = fs::temp_directory_path() / "test_tmp_dir_not_exist";
+  if (fs::exists(non_exist_dir)) {
+    fs::remove_all(non_exist_dir);
+  }
+  EXPECT_FALSE(fs::exists(non_exist_dir));
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.DeleteTmpDirectoryContents(non_exist_dir);
+  EXPECT_EQ(ret_status, SUCCESS);
+  EXPECT_FALSE(fs::exists(non_exist_dir));
+  if (fs::exists(non_exist_dir)) {
+    fs::remove_all(non_exist_dir);
+  }
+}
+
+TEST_F(UtestTensorflowCustomOpParser, RegisteredTfaOps) {
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.RegisteredTfaOps();
+  EXPECT_EQ(ret_status, SUCCESS);
+}
+
+TEST_F(UtestTensorflowCustomOpParser, ListArg_ExceptionScenarios) {
+  domi::tensorflow::OpDef op_def;
+  op_def.set_name("ExceptionOp");
+  auto* empty_name_arg = op_def.add_input_arg();
+  empty_name_arg->set_name("");
+  auto* list_input_arg = op_def.add_input_arg();
+  list_input_arg->set_name("x");
+  list_input_arg->set_number_attr("N");
+  auto* invalid_dynamic_arg = op_def.add_output_arg();
+  invalid_dynamic_arg->set_name("y");
+  auto* not_found_attr_arg = op_def.add_output_arg();
+  not_found_attr_arg->set_name("z");
+  not_found_attr_arg->set_type_attr("UNKNOWN_ATTR");
+  auto* no_allowed_attr = op_def.add_attr();
+  no_allowed_attr->set_name("T");
+  no_allowed_attr->set_type("type"); // 无allowed_values
+  auto* no_allowed_arg = op_def.add_output_arg();
+  no_allowed_arg->set_name("w");
+  no_allowed_arg->set_type_attr("T");
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegOpString(op_def, reg_op);
+  EXPECT_NE(reg_op.find("    .DYNAMIC_INPUT(x, TensorType({DT_UNDEFINED}))"), std::string::npos);
+  EXPECT_EQ(reg_op.find(".INPUT(, "), std::string::npos);
+}
+
+
+TEST_F(UtestTensorflowCustomOpParser, FullCoverage_AllBranches) {
+  domi::tensorflow::OpDef op_def;
+  op_def.set_name("FullCoverageOp");
+
+  auto* fixed_input = op_def.add_input_arg();
+  fixed_input->set_name("fixed_in");
+  fixed_input->set_type(domi::tensorflow::DT_BOOL);
+
+  auto* list_input = op_def.add_input_arg();
+  list_input->set_name("list_in");
+  list_input->set_type_list_attr("TList");
+
+  auto* dynamic_output = op_def.add_output_arg();
+  dynamic_output->set_name("dynamic_out");
+  dynamic_output->set_type_attr("T");
+
+  auto* attr_int = op_def.add_attr();
+  attr_int->set_name("num");
+  attr_int->set_type("int");
+  attr_int->mutable_default_value()->set_i(5);
+
+  auto* attr_type = op_def.add_attr();
+  attr_type->set_name("T");
+  attr_type->set_type("type");
+  auto* allowed = attr_type->mutable_allowed_values();
+  allowed->mutable_list()->add_type(domi::tensorflow::DT_FLOAT);
+  allowed->mutable_list()->add_type(domi::tensorflow::DT_INT32);
+  attr_type->mutable_default_value()->set_type(domi::tensorflow::DT_FLOAT);
+
+  auto* attr_list_int = op_def.add_attr();
+  attr_list_int->set_name("dims");
+  attr_list_int->set_type("list(int)");
+  auto* list_val = attr_list_int->mutable_default_value()->mutable_list();
+  list_val->add_i(1);
+  list_val->add_i(2);
+
+  auto* attr_unknown = op_def.add_attr();
+  attr_unknown->set_name("extra");
+  attr_unknown->set_type("string");
+  attr_unknown->mutable_default_value()->set_s("extra_val");
+
+  auto* attr_shape = op_def.add_attr();
+  attr_shape->set_name("input_shape");
+  attr_shape->set_type("shape");
+  auto* shape_val = attr_shape->mutable_default_value()->mutable_shape();
+  auto* dim1 = shape_val->add_dim();
+  dim1->set_size(32);
+  auto* dim2 = shape_val->add_dim();
+  dim2->set_size(64);
+  auto* dim3 = shape_val->add_dim();
+  dim3->set_size(-1);
+
+  auto* attr_list_string = op_def.add_attr();
+  attr_list_string->set_name("feature_names");
+  attr_list_string->set_type("list(string)");
+  auto* list_string_val = attr_list_string->mutable_default_value()->mutable_list();
+
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  Status status = parser.ConstructRegOpString(op_def, reg_op);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_NE(reg_op.find("    .INPUT(fixed_in, TensorType({DT_BOOL}))\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .DYNAMIC_INPUT(list_in, TensorType::ALL())\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .OUTPUT(dynamic_out, TensorType({DT_FLOAT, DT_INT32}))\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .ATTR(num, Int, 5)\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .ATTR(dims, IntList, {1, 2})\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .ATTR(extra, String, \"extra_val\")\n"), std::string::npos);
+}
+
+TEST_F(UtestTensorflowParser, FullKeyValuesCheck) {
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_INVALID],      "DT_UNDEFINED");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_FLOAT],        "DT_FLOAT");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_HALF],         "DT_FLOAT16");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_DOUBLE],       "DT_DOUBLE");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_BOOL],         "DT_BOOL");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_STRING],       "DT_STRING");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_INT8],         "DT_INT8");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_INT16],        "DT_INT16");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_INT32],        "DT_INT32");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_INT64],        "DT_INT64");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_UINT8],        "DT_UINT8");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_UINT16],       "DT_UINT16");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_UINT32],       "DT_UINT32");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_UINT64],       "DT_UINT64");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_RESOURCE],     "DT_RESOURCE");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_VARIANT],      "DT_VARIANT");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_COMPLEX64],    "DT_COMPLEX64");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_COMPLEX128],   "DT_COMPLEX128");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_QINT8],        "DT_QINT8");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_QINT16],       "DT_QINT16");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_QINT32],       "DT_QINT32");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_QUINT8],       "DT_QUINT8");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP[domi::tensorflow::DT_QUINT16],      "DT_QUINT16");
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP.size(), 23);
+  domi::tensorflow::DataType invalid_dt = static_cast<domi::tensorflow::DataType>(999);
+  EXPECT_EQ(TF_DATATYPE_TO_GE_SYMBOL_MAP.find(invalid_dt), TF_DATATYPE_TO_GE_SYMBOL_MAP.end());
+}
+
+TEST_F(UtestTensorflowParser, FullKeyValuesCheck_attr_type_map_test) {
+  EXPECT_EQ(attr_type_map["int"].first, "Int");
+  EXPECT_EQ(attr_type_map["int"].second, "0");
+  EXPECT_EQ(attr_type_map["float"].first, "Float");
+  EXPECT_EQ(attr_type_map["float"].second, "0.0");
+  EXPECT_EQ(attr_type_map["bool"].first, "Bool");
+  EXPECT_EQ(attr_type_map["bool"].second, "false");
+  EXPECT_EQ(attr_type_map["string"].first, "String");
+  EXPECT_EQ(attr_type_map["string"].second, "\"\"");
+  EXPECT_EQ(attr_type_map["type"].first, "DataType");
+  EXPECT_EQ(attr_type_map["type"].second, "DT_FLOAT"); // 默认值
+  EXPECT_EQ(attr_type_map["shape"].first, "Shape");
+  EXPECT_EQ(attr_type_map["shape"].second, "\"[]\"");
+  EXPECT_EQ(attr_type_map["list(int)"].first, "IntList");
+  EXPECT_EQ(attr_type_map["list(int)"].second, "{}");
+  EXPECT_EQ(attr_type_map["list(float)"].first, "FloatList");
+  EXPECT_EQ(attr_type_map["list(float)"].second, "{}");
+  EXPECT_EQ(attr_type_map["list(bool)"].first, "BoolList");
+  EXPECT_EQ(attr_type_map["list(bool)"].second, "{}");
+  EXPECT_EQ(attr_type_map["list(string)"].first, "StringList");
+  EXPECT_EQ(attr_type_map["list(string)"].second, "{}");
+  EXPECT_EQ(attr_type_map["list(type)"].first, "DataTypeList");
+  EXPECT_EQ(attr_type_map["list(type)"].second, "{DT_FLOAT}");
+  EXPECT_EQ(attr_type_map["list(shape)"].first, "ShapeList");
+  EXPECT_EQ(attr_type_map["list(shape)"].second, "{}");
+  EXPECT_EQ(attr_type_map["func"].first, "Func");
+  EXPECT_EQ(attr_type_map["func"].second, "\"\"");
+  EXPECT_EQ(attr_type_map["tensor"].first, "Tensor");
+  EXPECT_EQ(attr_type_map["tensor"].second, "\"\"");
+  EXPECT_EQ(attr_type_map.size(), 14);
+  EXPECT_EQ(attr_type_map.find("invalid_type"), attr_type_map.end());
+  EXPECT_EQ(attr_type_map.find("list(double)"), attr_type_map.end());
+}
+
 } // namespace ge

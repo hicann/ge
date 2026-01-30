@@ -484,7 +484,7 @@ static bool GetInputData(const aclDataBuffer *const dataBuffer, const aclDataTyp
         case ACL_FLOAT16:
             for (size_t i = 0U; i < (dataBuffer->length / sizeof(aclFloat16)); ++i) {
                 inputFloatData.push_back(
-                    Fp16ToFloat(*(reinterpret_cast<const aclFloat16 *>(dataBuffer->data) + i)));
+                    Fp16ToFloat(*(static_cast<const aclFloat16 *>(dataBuffer->data) + i)));
             }
             break;
         case ACL_INT8:
@@ -611,13 +611,13 @@ static bool IsSameValue(const std::map<AttrRangeType, ge::GeAttrValue> &value1,
         return true;
     }
     if ((it1 != value1.end()) && (it2 != value2.end())) {
-        const auto geTensor1 = const_cast<ge::GeAttrValue *>(&(it1->second))->MutableGet<ge::GeTensor>();
-        const auto geTensor2 = const_cast<ge::GeAttrValue *>(&(it2->second))->MutableGet<ge::GeTensor>();
+        const auto geTensor1 = (&(it1->second))->Get<ge::GeTensor>();
+        const auto geTensor2 = (&(it2->second))->Get<ge::GeTensor>();
         if ((geTensor1 != nullptr) && (geTensor2 != nullptr)) {
-            void *const geDataPtr1 = reinterpret_cast<void *>(geTensor1->MutableData().data());
-            void *const geDataPtr2 = reinterpret_cast<void *>(geTensor2->MutableData().data());
-            const size_t dataSize1 = geTensor1->MutableData().size();
-            const size_t dataSize2 = geTensor2->MutableData().size();
+            const void *const geDataPtr1 = static_cast<const void *>(geTensor1->GetData().data());
+            const void *const geDataPtr2 = static_cast<const void *>(geTensor2->GetData().data());
+            const size_t dataSize1 = geTensor1->GetData().size();
+            const size_t dataSize2 = geTensor2->GetData().size();
             if ((dataSize1 == dataSize2) && (memcmp(geDataPtr1, geDataPtr2, dataSize1) == 0)) {
                 return true;
             }

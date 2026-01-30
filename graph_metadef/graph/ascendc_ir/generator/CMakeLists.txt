@@ -47,6 +47,7 @@ target_link_libraries(ascir_generate PRIVATE
         metadef_headers)
 
 add_executable(ascir_ops_header_generator ascir_ops_generator_main.cc)
+target_compile_options(ascir_ops_header_generator PRIVATE -Wextra -Wfloat-equal)
 target_compile_definitions(ascir_ops_header_generator PRIVATE
         $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
 )

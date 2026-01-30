@@ -29,6 +29,7 @@ struct FileConstantInfo {
 
 struct FileConstantMeta {
   std::map<std::string, std::string> hash_to_weight_file;
+  std::map<std::string, size_t> hash_to_weight_offset;
 };
 
 void from_json(const nlohmann::json &j, FileConstantMeta &meta);

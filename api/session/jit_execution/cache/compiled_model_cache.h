@@ -10,14 +10,12 @@
 
 #ifndef COMPILED_MODEL_CACHE_H
 #define COMPILED_MODEL_CACHE_H
-#include <vector>
 #include <mutex>
 #include <fstream>
 #include "api/session/jit_execution/exe_points/execution_order.h"
 #include "api/session/jit_execution/compile_context.h"
 #include "api/session/jit_execution/utils/compiled_model_cache_util.h"
 #include "api/session/jit_execution/utils/execution_order_util.h"
-#include "api/session/session/inner_session.h"
 
 namespace ge {
 
@@ -29,7 +27,7 @@ class CompiledModelCache {
  public:
   CompiledModelCache() = delete;
 
-  CompiledModelCache(uint32_t user_graph_id, CompileContext &context, InnerSession &inner_session);
+  CompiledModelCache(uint32_t user_graph_id, CompileContext &context, GraphManager &graph_manager);
 
   CompiledModelCache(const CompiledModelCache &) = delete;
 
@@ -53,7 +51,7 @@ class CompiledModelCache {
 
   CompileContext &compile_context_;
 
-  InnerSession &inner_session_;
+  GraphManager &graph_manager_;
 
   std::string user_graph_key_;
 

@@ -40,7 +40,7 @@
 #include "init_ge.h"
 #include "common/ge_common/scope_guard.h"
 #include "common/error_tracking/error_tracking.h"
-#include "register/op_impl_registry_holder_manager.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 
 using namespace std;
 using namespace testing;
@@ -166,7 +166,8 @@ static void BuildFftsDynamicGraph(ComputeGraphPtr &root_graph, ComputeGraphPtr &
                   const auto data_2 = OP_CFG(DATA).Attr(ATTR_NAME_PARENT_NODE_INDEX, 2);
                   const auto conv_0 = OP_CFG(CONV2D).Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC")
                       .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::TVM))
-                      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+                      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                      .Attr("_mix_with_enhanced_kernel", true);
                   const auto relu_0 = OP_CFG(RELU).Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "MIX_AIV")
                       .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::TVM))
                       .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
@@ -351,7 +352,8 @@ static void BuildFftsPlusGraph(ComputeGraphPtr &root_graph, ComputeGraphPtr &fft
                   auto conv_0 = OP_CFG(CONV2D)
                       .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::TVM))
                       .Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC")
-                      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+                      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                      .Attr("_mix_with_enhanced_kernel", true);
                   auto relu_0 = OP_CFG(RELU).Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::AI_CPU));
                   auto add_0 = OP_CFG(ADD).Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::AI_CPU)).Attr("_is_blocking_op", true);
                   CHAIN(NODE("sgt_graph/_arg_0", data_0)
@@ -424,11 +426,9 @@ static void RunDynamicStaticFftsPlusGraph(const ComputeGraphPtr &root_graph,
   std::mutex run_mutex;
   std::condition_variable model_run_cv;
   Status run_status = FAILED;
-  std::vector<Tensor> output_tensors;
-  const auto call_back = [&](Status status, std::vector<Tensor> &outputs) {
+  const auto call_back = [&](Status status, std::vector<gert::Tensor> &outputs) {
     std::unique_lock<std::mutex> lock(run_mutex);
     run_status = status;
-    output_tensors.swap(outputs);
     model_run_cv.notify_one();
   };
 
@@ -461,12 +461,9 @@ static void RunDynamicStaticFftsPlusGraph(const ComputeGraphPtr &root_graph,
   model_executor.StartRunThread();
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
   // Execute for Dynamic Graph.
-  int64_t value_0 = 110;
-  int64_t value_1 = 110;
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  const std::vector<Tensor> input_tensors{tensor_0, tensor_1};
+  std::vector<gert::Tensor> inputs(2);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
 
   GEThreadLocalContext context;
   error_message::ErrorManagerContext error_context;
@@ -477,7 +474,7 @@ static void RunDynamicStaticFftsPlusGraph(const ComputeGraphPtr &root_graph,
   arg->graph_id = graph_id;
   arg->session_id = 2001;
   arg->error_context = error_context;
-  arg->input_tensor = input_tensors;
+  arg->input_tensor = std::move(inputs);
   arg->context = context;
   arg->callback = call_back;
   EXPECT_EQ(model_executor.PushRunArgs(arg), SUCCESS);
@@ -1012,66 +1009,6 @@ TEST_F(FftsPlusTest, ffts_plus_graph_manual_load_success) {
   ASSERT_EQ(model_executor.Finalize(), SUCCESS);
 
   DumpManager::GetInstance().RemoveDumpProperties(session_id);
-}
-
-TEST_F(FftsPlusTest, FftsPlusGraphLoad_SaveFftsProfileInfo) {
-  ComputeGraphPtr root_graph;
-  ComputeGraphPtr ffts_plus_graph;
-  TBEKernelStore tbe_kernel_store;
-  BuildFftsPlusGraph(root_graph, ffts_plus_graph, &tbe_kernel_store);
-
-  // Build FftsTaskDef.
-  std::shared_ptr<domi::ModelTaskDef> model_task_def= MakeShared<domi::ModelTaskDef>();
-  auto &task_def = *model_task_def->add_task();
-  InitFftsplusTaskDef(ffts_plus_graph, task_def);
-  auto &ffts_plus_task_def = *task_def.mutable_ffts_plus_task();
-  auto &aic_ctx_def = *ffts_plus_task_def.add_ffts_plus_ctx();
-  InitFftsPlusAicCtxDef(ffts_plus_graph, aic_ctx_def, "sgt_graph/Conv2D");
-  aic_ctx_def.set_uniq_ctx_name("testtesttest1");
-  auto &aicpu_ctx_def = *ffts_plus_task_def.add_ffts_plus_ctx();
-  InitFftsPlusAicpuCtxDef(ffts_plus_graph, aicpu_ctx_def, "sgt_graph/Add");
-  aicpu_ctx_def.set_uniq_ctx_name("testtesttest2");
-  auto &aicpu_ctx_def_relu = *ffts_plus_task_def.add_ffts_plus_ctx();
-  InitFftsPlusAicpuFwkCtxDef(ffts_plus_graph, aicpu_ctx_def_relu, "sgt_graph/Relu");
-  aicpu_ctx_def_relu.set_uniq_ctx_name("testtesttest3");
-  ffts_plus_task_def.set_addr_size(1000);
-
-  const auto aic_node = ffts_plus_graph->FindNode("sgt_graph/Conv2D");
-  EXPECT_NE(aic_node, nullptr);
-  (void)ge::AttrUtils::SetListInt(aic_node->GetOpDescBarePtr()->MutableInputDesc(0), gert::kTensorCtxId, {1});
-  (void)ge::AttrUtils::SetListInt(aic_node->GetOpDescBarePtr()->MutableOutputDesc(0), gert::kTensorCtxId, {2});
-
-  // Build GeModel.
-  GeModelPtr ge_model = std::make_shared<GeModel>();
-  ge_model->SetName(root_graph->GetName());
-  ge_model->SetModelTaskDef(model_task_def);
-  ge_model->SetGraph(root_graph);
-  ge_model->SetTBEKernelStore(tbe_kernel_store);
-  AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 10240);
-  AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-  AttrUtils::SetInt(ge_model, ATTR_MODEL_VAR_SIZE, 5120);
-  RTS_STUB_RETURN_VALUE(rtQueryFunctionRegistered, rtError_t, 0x78000001);
-  RTS_STUB_RETURN_VALUE(rtQueryFunctionRegistered, rtError_t, 0x78000001);
-
-  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
-  ge_root_model->Initialize(root_graph);
-  ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
-
-  GraphId graph_id = 1001;
-  GraphNodePtr graph_node = MakeShared<GraphNode>(graph_id);
-  graph_node->SetGeRootModel(ge_root_model);;
-  graph_node->SetLoadFlag(true);
-  graph_node->SetAsync(true);
-
-  // Test for Load.
-  ModelExecutor model_executor;
-  ASSERT_EQ(model_executor.Initialize({}, 0), SUCCESS);
-  model_executor.StartRunThread();
-  EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
-  const auto davinci_model = ModelManager::GetInstance().GetModel(ge_root_model->GetModelId());
-  EXPECT_EQ(davinci_model->node_basic_infos_.size(), 4);
-  EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
-  ASSERT_EQ(model_executor.Finalize(), SUCCESS);
 }
 
 TEST_F(FftsPlusTest, ffts_plus_graph_load_success_with_tiling_data) {

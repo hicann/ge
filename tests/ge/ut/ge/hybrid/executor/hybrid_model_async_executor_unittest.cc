@@ -51,11 +51,6 @@ class Listener : public ModelListener {
  public:
   Listener(std::function<void()> done) : done_(done) {}
   Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
-                       std::vector<ge::Tensor> &outputs) override {
-    done_();
-    return SUCCESS;
-  }
-  Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
                        std::vector<gert::Tensor> &outputs) override {
     done_();
     return SUCCESS;
@@ -70,6 +65,20 @@ static ge::OpDescPtr CreateOpDesc(const std::string &name, const std::string &ty
   op_desc->AddOutputDesc("output", ge_tensor_desc);
 
   return op_desc;
+}
+std::vector<gert::Tensor> InputData2GertTensors(const InputData &input_data) {
+  std::vector<gert::Tensor> inputs;
+  for (size_t i = 0; i < input_data.blobs.size(); ++i) {
+    gert::Tensor tensor;
+    for (size_t j = 0U; j < input_data.shapes[i].size(); ++j) {
+      tensor.MutableStorageShape().SetDim(0, input_data.shapes[i][j]);
+    }
+    tensor.MutableTensorData().SetAddr(input_data.blobs[i].data, nullptr);
+    tensor.MutableTensorData().SetSize(input_data.blobs[i].length);
+    tensor.MutableStorageShape().SetDimNum(input_data.shapes[i].size());
+    inputs.emplace_back(std::move(tensor));
+  }
+  return inputs;
 }
 }  // namespace
 class UtestHybridModelAsyncExecutor : public testing::Test {
@@ -107,11 +116,18 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_execute_by_runGraph_with_rtv1) {
   auto ge_tensor = GeTensor(*tensor_desc, tensor_data.data(), sizeof(uint8_t) * tensor_data.size());
   inputs.push_back(ge_tensor);
   std::vector<GeTensor> outputs;
-  ASSERT_EQ(executor.Execute(inputs, outputs), SUCCESS);
+  std::vector<gert::Tensor> gert_inputs;
+  TensorTransUtils::GeTensors2GertTensors(inputs, gert_inputs);
+  std::vector<gert::Tensor> gert_outputs;
+  ASSERT_EQ(executor.Execute(gert_inputs, gert_outputs), SUCCESS);
 
+  HybridModelAsyncExecutor executor2(&hybrid_model);
+  executor2.SetDeviceId(0U);
+  executor2.SetModelId(1U);
+  ASSERT_EQ(executor2.Init(), SUCCESS);
   // ExecuteWithStreamAsync not support rt1 with dynamic model
   rtStream_t stream = (void*)0x01;
-  ASSERT_NE(executor.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
+  ASSERT_NE(executor2.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
 }
 
 TEST_F(UtestHybridModelAsyncExecutor, Test_execute_by_executeGraph_with_rtv1) {
@@ -160,11 +176,18 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_execute_by_runGraph_with_rtv1_with_ge
   auto ge_tensor = GeTensor(*tensor_desc, tensor_data.data(), sizeof(uint8_t) * tensor_data.size());
   inputs.push_back(ge_tensor);
   std::vector<GeTensor> outputs;
-  ASSERT_EQ(executor.Execute(inputs, outputs), SUCCESS);
+  std::vector<gert::Tensor> gert_inputs_pro;
+  TensorTransUtils::GeTensors2GertTensors(inputs, gert_inputs_pro);
+  std::vector<gert::Tensor> gert_outputs_pro;
+  ASSERT_EQ(executor.Execute(gert_inputs_pro, gert_outputs_pro), SUCCESS);
 
+  HybridModelAsyncExecutor executor2(&hybrid_model);
+  executor2.SetDeviceId(0U);
+  executor2.SetModelId(1U);
+  ASSERT_EQ(executor2.Init(), SUCCESS);
   // ExecuteWithStreamAsync not support rt1 with dynamic model
   rtStream_t stream = (void*)0x01;
-  ASSERT_NE(executor.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
+  ASSERT_NE(executor2.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
   std::vector<gert::Tensor> gert_inputs;
   gert_inputs.resize(1);
   gert_inputs[0] = {{{-1, 16, 16, 3}, {-1, 16, 16, 3}},                // shape
@@ -210,7 +233,11 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_execute_by_runGraph_with_rtv2) {
   ge_tensor.MutableTensorDesc().SetPlacement(Placement::kPlacementDevice);
   inputs.push_back(ge_tensor);
   std::vector<GeTensor> outputs;
-  ASSERT_EQ(executor.Execute(inputs, outputs), SUCCESS);
+  std::vector<gert::Tensor> gert_inputs_pro;
+  TensorTransUtils::GeTensors2GertTensors(inputs, gert_inputs_pro);
+  std::vector<gert::Tensor> gert_outputs_pro;
+  ASSERT_EQ(executor.Execute(gert_inputs_pro, gert_outputs_pro), SUCCESS);
+  EXPECT_EQ(executor.Init(stream), SUCCESS);
   ASSERT_EQ(executor.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
   unsetenv("ENABLE_RUNTIME_V2");
 }
@@ -259,10 +286,14 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_multiStream_execute_by_runGraph_with_
     inputs.push_back(ge_tensor);
     inputs.push_back(ge_tensor);
     std::vector<GeTensor> outputs;
-    ASSERT_EQ(executor.Execute(inputs, outputs), SUCCESS);
-    ASSERT_EQ(executor.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
+    std::vector<gert::Tensor> gert_inputs_pro;
+    TensorTransUtils::GeTensors2GertTensors(inputs, gert_inputs_pro);
+    std::vector<gert::Tensor> gert_outputs_pro;
+    ASSERT_EQ(executor.Execute(gert_inputs_pro, gert_outputs_pro), SUCCESS);
     auto all_rt_streams = runtime_stub.GetRtsRuntimeStub().GetAllRtStreams();
     ASSERT_EQ(all_rt_streams.size(), stream_num - 1); // // total require 1 sub stream when executing
+    EXPECT_EQ(executor.Init(stream), SUCCESS);
+    ASSERT_EQ(executor.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
   }
   unsetenv("ENABLE_RUNTIME_V2");
   runtime_stub.Clear();
@@ -314,10 +345,14 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_multiStream_execute_by_runGraph_with_
     inputs.push_back(ge_tensor);
     inputs.push_back(ge_tensor);
     std::vector<GeTensor> outputs;
-    ASSERT_EQ(executor.Execute(inputs, outputs), SUCCESS);
-    ASSERT_EQ(executor.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
+    std::vector<gert::Tensor> gert_inputs_pro;
+    TensorTransUtils::GeTensors2GertTensors(inputs, gert_inputs_pro);
+    std::vector<gert::Tensor> gert_outputs_pro;
+    ASSERT_EQ(executor.Execute(gert_inputs_pro, gert_outputs_pro), SUCCESS);
+    EXPECT_EQ(executor.Init(stream), SUCCESS);
     auto all_rt_streams = runtime_stub.GetRtsRuntimeStub().GetAllRtStreams();
     ASSERT_EQ(all_rt_streams.size(), 0); // execute on 1 streams, use external stream, no need create streams
+    ASSERT_EQ(executor.ExecuteWithStreamAsync(inputs, outputs, stream), SUCCESS);
   }
   unsetenv("ENABLE_RUNTIME_V2");
   unsetenv("MOCK_AVAIL_STREAM_NUM");
@@ -429,10 +464,9 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_online_execute_with_blockingOp) {
   InputData input_data;
   input_data.blobs.push_back(DataBuffer(data_buf.get(), 3072, false));
   input_data.shapes.push_back({1, 16, 16, 3});
-  HybridModelExecutor::ExecuteArgs args;
 
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
+  auto data = std::make_shared<RunArgs>();
+  data->input_tensor = std::move(InputData2GertTensors(input_data));
   ASSERT_EQ(executor.Stop(), SUCCESS);
   ASSERT_EQ(executor.Init(), SUCCESS);
   ASSERT_EQ(executor.Start(listener), SUCCESS);
@@ -467,10 +501,8 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_online_execute_rtv1) {
   InputData input_data;
   input_data.blobs.push_back(DataBuffer(data_buf.get(), 3072, false));
   input_data.shapes.push_back({1, 16, 16, 3});
-  HybridModelExecutor::ExecuteArgs args;
-
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
+  auto data = std::make_shared<RunArgs>();
+  data->input_tensor = std::move(InputData2GertTensors(input_data));
   domi::GetContext().is_online_model = true;
   ASSERT_EQ(executor.Init(), SUCCESS);
   EXPECT_NE(executor.GeContext(), nullptr);
@@ -522,8 +554,8 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_online_execute_rtv2) {
   unique_ptr<uint8_t[]> data_buf(new (std::nothrow) uint8_t[3072]);
   inputs.blobs.push_back(DataBuffer(data_buf.get(), 3072, false));
   inputs.shapes.push_back({1, 16, 16, 3});
-  OutputData outputs;
-  auto wrapper = std::make_shared<InputDataWrapper>(inputs, outputs);
+  auto wrapper = std::make_shared<RunArgs>();
+  wrapper->input_tensor = std::move(InputData2GertTensors(inputs));
   executor.EnqueueData(wrapper);
 
   size_t kMaxWaitSeconds = 5U;
@@ -614,5 +646,36 @@ TEST_F(UtestHybridModelAsyncExecutor, Test_AbnormalMaxGraphParallelModelNum_fail
   domi::GetContext().is_online_model = false;
   options.clear();
   ge::GetThreadLocalContext().SetGraphOption(options);
+}
+
+TEST_F(UtestHybridModelAsyncExecutor, TestExecutor_Ok_TwoModelUseDifferentStream) {
+  auto graph = ShareGraph::SimpleFooGraph();
+  for (auto &node : graph->GetAllNodes()) {
+    if (node->GetType() == "Foo") {
+      MockLessImportantNodeKernel(node);
+    }
+  }
+
+  graph->TopologicalSorting();
+  GeModelBuilder builder(graph);
+  auto ge_root_model = builder.BuildGeRootModel();
+
+  HybridModel hybrid_model(ge_root_model);
+  EXPECT_EQ(hybrid_model.Init(), SUCCESS);
+
+  domi::GetContext().is_online_model = true;
+
+  HybridModelAsyncExecutor executor(&hybrid_model);
+  executor.SetModelId(0);
+  EXPECT_EQ(executor.Init(), SUCCESS);
+
+  HybridModelAsyncExecutor executor_1(&hybrid_model);
+  executor_1.SetModelId(1);
+  EXPECT_EQ(executor_1.Init(), SUCCESS);
+  // 为model_0和model_1分别创建默认流
+  EXPECT_TRUE(HybridModelAsyncExecutor::default_stream_by_dev_.count(std::make_pair(0, 0)) > 0);
+  EXPECT_TRUE(HybridModelAsyncExecutor::default_stream_by_dev_.count(std::make_pair(0, 1)) > 0);
+
+  domi::GetContext().is_online_model = false;
 }
 }  // namespace ge

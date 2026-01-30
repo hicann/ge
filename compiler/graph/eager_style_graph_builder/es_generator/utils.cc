@@ -8,6 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "utils.h"
+ #include <cstring>
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/default_attr_utils.h"
@@ -99,7 +100,7 @@ void WriteOut(const char *file_path, const std::stringstream &ss) {
   }
 }
 
-void GenCommentsIfNeeded(const OpDescPtr &op, std::stringstream &h_stream, const bool support_tensor_like) {
+void GenCommentsIfNeeded(const OpDescPtr &op, std::stringstream &h_stream, bool support_tensor_like) {
   std::vector<std::string> subgraphs_name;
   for (const auto &ir_subgraph : op->GetOrderedSubgraphIrNames()) {
     subgraphs_name.emplace_back(ir_subgraph.first);
@@ -151,21 +152,21 @@ void GenCommentsIfNeeded(const OpDescPtr &op, std::stringstream &h_stream, const
   }
 }
 
-void GenTensorLikeInputComments(const OpDescPtr &op, std::stringstream &comment_stream) {
+void GenTensorLikeInputComments(const OpDescPtr &op, std::stringstream &h_stream) {
   for (const auto &in : op->GetIrInputs()) {
     if (in.second == kIrInputDynamic) {
       return;
     }
   }
   if (IsOpInputsAllOptional(op->GetIrInputs())) {
-    comment_stream << " * @note at least one of the following input arguments should be EsTensorHolder object"
+    h_stream << " * @note at least one of the following input arguments should be EsTensorHolder object"
                    << " or owner_builder should be provided:" << std::endl;
   } else {
-    comment_stream << " * @note at least one of the following input arguments should be EsTensorHolder object:"
+    h_stream << " * @note at least one of the following input arguments should be EsTensorHolder object:"
                    << std::endl;
   }
   for (const auto &in : op->GetIrInputs()) {
-    comment_stream << " *   " << InName(in.first) << std::endl;
+    h_stream << " *   " << InName(in.first) << std::endl;
   }
 }
 

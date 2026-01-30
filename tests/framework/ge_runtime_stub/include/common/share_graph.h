@@ -21,6 +21,7 @@
 
 namespace gert {
 struct ShareGraph {
+  static ge::ComputeGraphPtr BuildCustomOpGraph();
   static ge::ComputeGraphPtr AicoreGraph();
   static ge::ComputeGraphPtr AicoreGraphTwoAdd();
   static ge::ComputeGraphPtr AtcNanoGraph();
@@ -62,6 +63,7 @@ struct ShareGraph {
   static ge::ComputeGraphPtr SimpleFooGraph();
   static ge::ComputeGraphPtr SimpleVariableGraph(const std::string &var_name = "variable");
   static ge::ComputeGraphPtr AutoFuseNodeGraph();
+  static ge::ComputeGraphPtr AutofusePartitioncallGraph();
   static ge::ComputeGraphPtr SimpleVariableAddGraph();
   static ge::ComputeGraphPtr BuildNeedInsertCastGraphWithSubgraph();
   static ge::ComputeGraphPtr ReshapeAbnormalGraph();

@@ -20,8 +20,11 @@ class PlatformInfoUtil {
  public:
   static std::string GetJitCompileDefaultValue();
   static size_t GetMemorySize();
+  static Status GetSocSpec(const std::string &label, const std::string &key, std::string &value_str);
   static std::string ParseShortSocVersion(const std::string &soc_version);
-  static Status parseAicoreNumOption(std::map<std::string, std::string> &options);
 };
 } // namespace ge
+
+#define NPUARCH_TO_STR(arch) std::to_string(static_cast<uint32_t>(arch))
+
 #endif  // GE_GRAPH_COMMON_PLATFORM_INFO_UTIL_H_

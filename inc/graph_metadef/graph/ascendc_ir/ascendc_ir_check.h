@@ -9,7 +9,7 @@
  */
 #ifndef METADEF_CXX_INC_GRAPH_ASCENDC_IR_ASCENDC_IR_CHECK_H_
 #define METADEF_CXX_INC_GRAPH_ASCENDC_IR_ASCENDC_IR_CHECK_H_
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 
 namespace ge {

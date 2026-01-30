@@ -10,7 +10,7 @@
 
 #include "exe_graph/lowering/bg_kernel_context_extend.h"
 
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 
 #include "exe_graph/lowering/bg_ir_attrs.h"

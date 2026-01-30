@@ -10,7 +10,7 @@
 
 #include "autofuse_node_converter.h"
 
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/op_desc_utils.h"
@@ -180,16 +180,15 @@ LowerResult LoweringAutofuseNode(const ge::NodePtr &node, const LowerInput &lowe
   const auto input_data_shape_handlers = GetOrCreateInputFeeds(global_data, node->GetOwnerComputeGraph());
   auto output_shapes = bg::InferStorageShape(node, input_data_shape_handlers, *global_data);
   auto output_sizes = bg::CalcTensorSize(node, output_shapes);
-  auto output_addrs = bg::AllocOutputMemory(kOnDeviceHbm, node, output_sizes,
-                                            lower_input.input_addrs, *(global_data));
+  auto output_addrs = bg::AllocOutputMemory(kOnDeviceHbm, node, output_sizes, lower_input.input_addrs, *(global_data));
   // tiling
-  auto platform_info = bg::AppendCoreTypeToPlatform(node, global_data);
+  auto platform_info = bg::AppendCoreTypeToPlatform(
+      node, global_data)[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)];
   auto launch_arg = bg::AllocRtArg(node, task_def->kernel_with_handle(), bg::kMaxTilingSize);
   CONVERTER_CHECK_HOLDERS_ALL_OK(launch_arg, static_cast<size_t>(AllocLaunchArgOutputs::kNum));
-  auto tiling_results = bg::Tiling(node, input_data_shape_handlers, output_shapes,
-                                   {platform_info,
-                                    *global_data,
-                                    launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
+  auto tiling_results =
+      bg::Tiling(node, input_data_shape_handlers, output_shapes,
+                 {platform_info, *global_data, launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
   CONVERTER_CHECK_HOLDERS_ALL_OK(tiling_results, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
 
   // launch

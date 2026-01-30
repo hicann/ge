@@ -9,7 +9,7 @@
  */
 
 #include "graph/operator_factory_impl.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 Operator OperatorFactory::CreateOperator(const std::string &operator_name, const std::string &operator_type) {

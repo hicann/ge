@@ -233,9 +233,9 @@ bool DumpConfigValidator::CheckDumpPath(const nlohmann::json &jsDumpConfig) {
     }
 
     if (config.dump_path.length() > MAX_DUMP_PATH_LENGTH) {
-        GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpPath]the length[%zu] of dump_path is larger than MAX_DUMP_PATH_LENGTH[%d]",
+        GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpPath]the length[%zu] of dump_path is larger than MAX_DUMP_PATH_LENGTH[%u]",
                config.dump_path.length(), MAX_DUMP_PATH_LENGTH);
-        REPORT_INNER_ERR_MSG("E19999", "the length[%zu] of dump_path is larger than MAX_DUMP_PATH_LENGTH[%d]",
+        REPORT_INNER_ERR_MSG("E19999", "the length[%zu] of dump_path is larger than MAX_DUMP_PATH_LENGTH[%u]",
                             config.dump_path.length(), MAX_DUMP_PATH_LENGTH);
         return false;
     }
@@ -448,9 +448,9 @@ bool DumpConfigValidator::IsDumpPathValid(const std::string& dumpPath) {
     }
 
     if (dumpPath.length() > MAX_DUMP_PATH_LENGTH) {
-        GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpPath]dump_path length %zu exceeds maximum %d",
+        GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpPath]dump_path length %zu exceeds maximum %u",
                dumpPath.length(), MAX_DUMP_PATH_LENGTH);
-        REPORT_INNER_ERR_MSG("E19999", "dump_path length %zu exceeds maximum %d",
+        REPORT_INNER_ERR_MSG("E19999", "dump_path length %zu exceeds maximum %u",
                             dumpPath.length(), MAX_DUMP_PATH_LENGTH);
         return false;
     }
@@ -692,6 +692,9 @@ void DumpConfigValidator::ParseComplexConfigs(const nlohmann::json& dumpJson, Du
     if (dumpJson.contains(GE_DUMP_LIST) && dumpJson[GE_DUMP_LIST].is_array()) {
         ParseModelDumpConfigList(dumpJson[GE_DUMP_LIST], dumpConfig.dump_list);
     }
+    dumpConfig.dump_status = ((dumpConfig.dump_level == GE_DUMP_LEVEL_OP) ||
+                            (dumpConfig.dump_level == GE_DUMP_LEVEL_ALL))
+                            ? GE_DUMP_STATUS_ON : GE_DUMP_STATUS_OFF;
 }
 
 void DumpConfigValidator::ParseStringArray(const nlohmann::json& jsonArray,
@@ -786,7 +789,7 @@ DumpCallbackManager& DumpCallbackManager::GetInstance() {
     return instance;
 }
 
-bool DumpCallbackManager::RegisterDumpCallbacks(uint32_t module_id) {
+bool DumpCallbackManager::RegisterDumpCallbacks(uint32_t module_id) const {
     int32_t result = Adx::AdumpRegisterCallback(
         module_id,
         reinterpret_cast<Adx::AdumpCallback>(EnableDumpCallback),
@@ -809,8 +812,8 @@ int32_t DumpCallbackManager::EnableDumpCallback(uint64_t dumpSwitch, const char*
         GELOGI("Enable dump callback processed successfully");
         return ADUMP_SUCCESS;
     } else {
-        GELOGE(ret, "[Handle][EnableDump]Enable dump callback failed, ret=%d", ret);
-        REPORT_INNER_ERR_MSG("E19999", "Enable dump callback failed, ret=%d", ret);
+        GELOGE(ret, "[Handle][EnableDump]Enable dump callback failed, ret=%u", ret);
+        REPORT_INNER_ERR_MSG("E19999", "Enable dump callback failed, ret=%u", ret);
         return -1;
     }
 }
@@ -824,19 +827,17 @@ int32_t DumpCallbackManager::DisableDumpCallback(uint64_t dumpSwitch, const char
         GELOGI("Disable dump callback processed successfully");
         return ADUMP_SUCCESS;
     } else {
-        GELOGE(ret, "[Handle][DisableDump]Disable dump callback failed, ret=%d", ret);
-        REPORT_INNER_ERR_MSG("E19999", "Disable dump callback failed, ret=%d", ret);
+        GELOGE(ret, "[Handle][DisableDump]Disable dump callback failed, ret=%u", ret);
+        REPORT_INNER_ERR_MSG("E19999", "Disable dump callback failed, ret=%u", ret);
         return -1;
     }
 }
 
 Status DumpCallbackManager::HandleEnableDump(const char* dumpData, int32_t size) {
     if (dumpData == nullptr || size <= 0) {
-        GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Handle][EnableDump]Invalid dump data in enable callback: data=%p, size=%d",
+        GELOGW("[Handle][EnableDump]Invalid dump data in enable callback: data=%p, size=%d",
                dumpData, size);
-        REPORT_INNER_ERR_MSG("E19999", "Invalid dump data in enable callback: data=%p, size=%d",
-                            dumpData, size);
-        return FAILED;
+        return SUCCESS;
     }
 
     DumpConfig dumpConfig;
@@ -854,7 +855,6 @@ Status DumpCallbackManager::HandleEnableDump(const char* dumpData, int32_t size)
         else if (dumpConfig.dump_debug == GE_DUMP_STATUS_ON) {
             result = HandleDumpDebugConfig(dumpConfig);
         }
-
         if (result != SUCCESS) {
             return result;
         }
@@ -864,8 +864,8 @@ Status DumpCallbackManager::HandleEnableDump(const char* dumpData, int32_t size)
             GELOGI("Enable dump configuration successfully");
             return SUCCESS;
         } else {
-            GELOGE(geRet, "[Handle][EnableDump]Enable dump configuration failed, ret=%d", geRet);
-            REPORT_INNER_ERR_MSG("E19999", "Enable dump configuration failed, ret=%d", geRet);
+            GELOGE(geRet, "[Handle][EnableDump]Enable dump configuration failed, ret=%u", geRet);
+            REPORT_INNER_ERR_MSG("E19999", "Enable dump configuration failed, ret=%u", geRet);
             return geRet;
         }
     } else {
@@ -886,8 +886,8 @@ Status DumpCallbackManager::HandleDisableDump() {
         GELOGI("Disable dump configuration successfully");
         return SUCCESS;
     } else {
-        GELOGE(geRet, "[Handle][DisableDump]Disable dump configuration failed, ret=%d", geRet);
-        REPORT_INNER_ERR_MSG("E19999", "Disable dump configuration failed, ret=%d", geRet);
+        GELOGE(geRet, "[Handle][DisableDump]Disable dump configuration failed, ret=%u", geRet);
+        REPORT_INNER_ERR_MSG("E19999", "Disable dump configuration failed, ret=%u", geRet);
         return geRet;
     }
 }

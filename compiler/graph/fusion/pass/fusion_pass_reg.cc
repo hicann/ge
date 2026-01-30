@@ -48,8 +48,8 @@ class FusionPassRegistrationDataImpl {
 
  private:
   AscendString pass_name_;
-  CreateFusionPassFn create_pass_func_;
-  CustomPassStage stage_;
+  CreateFusionPassFn create_pass_func_{};
+  CustomPassStage stage_{};
 };
 
 FusionPassRegistrationData::FusionPassRegistrationData(const AscendString &pass_name) {

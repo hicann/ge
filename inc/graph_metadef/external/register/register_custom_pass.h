@@ -75,11 +75,20 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY PassReceiver {
 class CustomPassContext {
  public:
   CustomPassContext();
-  virtual ~CustomPassContext() = default;
+  virtual ~CustomPassContext();
 
   void SetErrorMessage(const AscendString &error_message);
 
   AscendString GetErrorMessage() const;
+
+  /**
+   * 通过option的key，从上下文中获取option的值
+   * 若option key不存在，返回失败
+   * @param option_key
+   * @param option_value 出参
+   * @return graphStatus
+   */
+  graphStatus GetOptionValue(const AscendString &option_key, AscendString &option_value) const;
 
  private:
   std::unique_ptr<CustomPassContextImpl> impl_;

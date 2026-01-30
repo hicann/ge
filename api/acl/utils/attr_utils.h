@@ -17,7 +17,6 @@
 
 #include "acl/acl_base.h"
 #include "graph/op_desc.h"
-#include "graph/utils/attr_utils.h"
 #include "utils/string_utils.h"
 #include "types/op_attr.h"
 #include "types/acl_op.h"

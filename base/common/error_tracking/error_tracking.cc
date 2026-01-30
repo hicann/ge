@@ -30,6 +30,7 @@ void GetOpOriginName(const ge::OpDescPtr &op_desc, std::string &origin_op_name) 
     origin_op_name = origin_op_name.substr(0U, origin_op_name.length() - 1U);
   }
 }
+
 }
 namespace ge {
 constexpr uint32_t kMaxGraphOpDescInfoNum = 2048U * 2048U;
@@ -72,13 +73,13 @@ bool ErrorTracking::GetSingleOpTaskOpdescInfo(const uint32_t task_id, const uint
 
 bool ErrorTracking::GetTaskOpdescInfo(const TaskKey &key, const std::map<TaskKey, ErrorTrackingOpInfo> &map,
                                       ErrorTrackingOpInfo &op_info) {
-  const std::lock_guard<std::mutex> lk(mutex_);
-  auto iter = map.find(key);
-  if (iter != map.end()) {
-    op_info = iter->second;
-    return true;
-  }
-  return false;
+    const std::lock_guard<std::mutex> lk(mutex_);
+    auto iter = map.find(key);
+    if (iter != map.end()) {
+      op_info = iter->second;
+      return true;
+    }
+    return false;
 }
 
 bool ErrorTracking::GetTaskOpdescInfo(const TaskKey &key,
@@ -97,37 +98,37 @@ bool ErrorTracking::GetTaskOpdescInfo(const TaskKey &key,
 }
 
 void ErrorTracking::SaveGraphTaskOpdescInfo(const OpDescPtr &op, const uint32_t task_id, const uint32_t stream_id,
-                                            const uint32_t model) {
-  TaskKey key(task_id, stream_id);
-  const std::lock_guard<std::mutex> lk(mutex_);
-  AddTaskOpdescInfo(op, key, graph_task_to_op_info_[model], kMaxGraphOpDescInfoNum);
+  const uint32_t model) {
+    TaskKey key(task_id, stream_id);
+    const std::lock_guard<std::mutex> lk(mutex_);
+    AddTaskOpdescInfo(op, key, graph_task_to_op_info_[model], kMaxGraphOpDescInfoNum);
 }
 
 void ErrorTracking::UpdateTaskId(const uint32_t old_task_id, const uint32_t new_task_id, const uint32_t stream_id, const uint32_t model) {
-  TaskKey old_key(old_task_id, stream_id);
-  TaskKey new_key(new_task_id, stream_id);
+    TaskKey old_key(old_task_id, stream_id);
+    TaskKey new_key(new_task_id, stream_id);
 
-  const std::lock_guard<std::mutex> lk(mutex_);
+    const std::lock_guard<std::mutex> lk(mutex_);
 
-  auto model_it = graph_task_to_op_info_.find(model);
-  if (model_it == graph_task_to_op_info_.end()) {
-    GELOGW("[Update][TaskId] failed, model %u not found", model);
-    return;
-  }
+    auto model_it = graph_task_to_op_info_.find(model);
+    if (model_it == graph_task_to_op_info_.end()) {
+        GELOGW("[Update][TaskId] failed, model %u not found", model);
+        return;
+    }
 
-  auto &task_map = model_it->second;
-  auto it = task_map.find(old_key);
-  if (it != task_map.end()) {
-    const std::string opname = it->second.op_name;
-    GELOGD("Update task id, old: %u -> new: %u, stream_id: %u, model: %u, opname: %s",
-           old_task_id, new_task_id, stream_id, model, opname.c_str());
+    auto &task_map = model_it->second;
+    auto it = task_map.find(old_key);
+    if (it != task_map.end()) {
+        const std::string opname = it->second.op_name;
+        GELOGD("Update task id, old: %u -> new: %u, stream_id: %u, model: %u, opname: %s",
+               old_task_id, new_task_id, stream_id, model, opname.c_str());
 
-    ErrorTrackingOpInfo op_info = it->second;
-    (void)task_map.erase(it);
-    task_map[new_key] = op_info;
-  } else {
-    GELOGW("Failed to update task id, old task id %u not found in model %u", old_task_id, model);
-  }
+        ErrorTrackingOpInfo op_info = it->second;
+        (void)task_map.erase(it);
+        task_map[new_key] = op_info;
+    } else {
+        GELOGW("Failed to update task id, old task id %u not found in model %u", old_task_id, model);
+    }
 }
 
 void ErrorTracking::SaveGraphTaskOpdescInfo(const OpDescPtr &op, const TaskKey &key, const uint32_t model) {
@@ -154,7 +155,7 @@ void ErrorTrackingCallback(rtExceptionInfo *const exception_data) {
     return;
   }
   if ((exception_data->retcode == ACL_ERROR_RT_AICORE_OVER_FLOW) ||
-      (exception_data->retcode == ACL_ERROR_RT_AIVEC_OVER_FLOW) || (exception_data->retcode == ACL_ERROR_RT_OVER_FLOW)) {
+    (exception_data->retcode == ACL_ERROR_RT_AIVEC_OVER_FLOW) || (exception_data->retcode == ACL_ERROR_RT_OVER_FLOW)) {
     return;
   }
   GELOGI("ErrorTracking callbak in, task_id %u, stream_id %u.", exception_data->taskid, exception_data->streamid);
@@ -175,9 +176,9 @@ void ErrorTrackingCallback(rtExceptionInfo *const exception_data) {
     GELOGE(FAILED, "Error happened, origin_op_name [%s], op_name [%s], task_id %u, stream_id %u.",
            op_info.op_origin_name.c_str(), op_info.op_name.c_str(), exception_data->taskid, exception_data->streamid);
     REPORT_INNER_ERR_MSG("E18888", "Op execute failed. origin_op_name [%s], op_name [%s], "
-                                   "error_info: task_id %u, stream_id %u, tid %u, device_id %u, retcode 0x%x",
-                         op_info.op_origin_name.c_str(), op_info.op_name.c_str(), exception_data->taskid, exception_data->streamid,
-                         exception_data->tid, exception_data->deviceid, exception_data->retcode);
+      "error_info: task_id %u, stream_id %u, tid %u, device_id %u, retcode 0x%x",
+      op_info.op_origin_name.c_str(), op_info.op_name.c_str(), exception_data->taskid, exception_data->streamid,
+      exception_data->tid, exception_data->deviceid, exception_data->retcode);
   }
 }
 

@@ -213,6 +213,7 @@ public:
                                          const void *devFunc, uint32_t funcMode);
     virtual rtError_t rtDevBinaryRegister(const rtDevBinary_t *bin, void **handle);
     virtual rtError_t rtDevBinaryUnRegister(void *handle);
+    virtual rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen);
 
     // prof function
     virtual int32_t MsprofFinalize();
@@ -443,6 +444,7 @@ public:
                                                const void *devFunc, uint32_t funcMode));
     MOCK_METHOD1(rtDevBinaryUnRegister, rtError_t(void *handle));
     MOCK_METHOD2(rtDevBinaryRegister, rtError_t(const rtDevBinary_t *bin, void **handle));
+    MOCK_METHOD4(rtGetSocSpec, rtError_t(const char *label, const char *key, char *value, const uint32_t maxLen));
 
     // prof function stub
     MOCK_METHOD0(MsprofFinalize, int32_t());

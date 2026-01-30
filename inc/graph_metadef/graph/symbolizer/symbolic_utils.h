@@ -14,7 +14,7 @@
 #include <string>
 namespace ge {
 class Expression;
-enum TriBool { kFalse = 0, kTrue = 1, kUnknown = -1 };
+enum class TriBool : int8_t { kFalse = 0, kTrue = 1, kUnknown = -1 };
 
 class SymbolicUtils {
  public:

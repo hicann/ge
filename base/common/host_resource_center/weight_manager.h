@@ -17,7 +17,7 @@
 namespace ge {
 class WeightResource : public HostResource {
  public:
-  explicit WeightResource(ConstGeTensorPtr &weight) : weight_(weight) {}
+  explicit WeightResource(const ConstGeTensorPtr &weight) : HostResource(), weight_(weight) {}
   const GeTensor *GetWeight() const {
     return weight_.get();
   }

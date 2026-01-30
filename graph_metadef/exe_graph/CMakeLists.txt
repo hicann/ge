@@ -27,6 +27,7 @@ set(LOWERING_SRCS
     lowering/lowering_global_data.cc
     lowering/value_holder.cc
     lowering/value_holder_utils.cc
+    runtime/eager_op_execution_context.cc #todo temp
 )
 
 ######### liblowering.so #############

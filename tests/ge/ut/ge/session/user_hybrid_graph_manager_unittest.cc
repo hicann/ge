@@ -14,6 +14,7 @@
 #undef private
 #include "ge_graph_dsl/graph_dsl.h"
 #include "common/share_graph.h"
+#include "common/memory/tensor_trans_utils.h"
 #include "eager_style_graph_builder/all_ops_cpp.h"
 #include "eager_style_graph_builder/esb_graph.h"
 #include "eager_style_graph_builder/compliant_op_desc_builder.h"
@@ -106,9 +107,11 @@ class UserHybridGraphManagerlUT : public testing::Test {
 
 TEST_F(UserHybridGraphManagerlUT, AddGraph_RemoveGraph_Success) {
   uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, session_id);
+  GraphManager graph_manager;
+  graph_manager.Initialize({}, &model_executor);
+  UserGraphsManager user_graph_manager(graph_manager);
   UserHybridGraphManager user_hybrid_graph_manager(user_graph_manager);
 
   uint32_t user_graph_id = 0u;
@@ -128,13 +131,16 @@ TEST_F(UserHybridGraphManagerlUT, AddGraph_RemoveGraph_Success) {
 
   EXPECT_EQ(user_hybrid_graph_manager.Finalize(), SUCCESS);
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
 TEST_F(UserHybridGraphManagerlUT, SelectExecuteGraph_MatchDynamicGear) {
   uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, session_id);
+  GraphManager graph_manager;
+  graph_manager.Initialize({}, &model_executor);
+  UserGraphsManager user_graph_manager(graph_manager);
   UserHybridGraphManager user_hybrid_graph_manager(user_graph_manager);
 
   const uint32_t graph_id = 0;
@@ -152,42 +158,32 @@ TEST_F(UserHybridGraphManagerlUT, SelectExecuteGraph_MatchDynamicGear) {
   EXPECT_TRUE(user_hybrid_graph_manager.TryGetDynamicGraphId(graph_id, dynamic_gear_graph_id, dynamic_shape_graph_id));
   user_hybrid_graph_manager.SetDynamicGearInfo(dynamic_gear_graph_id, dynamic_dims_info);
 
-  std::vector<ge::Tensor> inputs;
+  std::vector<gert::Tensor> inputs;
   uint32_t selected_graph_id = 0U;
   ASSERT_NE(user_hybrid_graph_manager.SelectExecuteGraph(dynamic_gear_graph_id, dynamic_shape_graph_id,
                                                          inputs, selected_graph_id), SUCCESS);
-  inputs.emplace_back(Tensor());
-  inputs.emplace_back(Tensor());
-  inputs.emplace_back(Tensor());
+  inputs.resize(3);
   ASSERT_NE(user_hybrid_graph_manager.SelectExecuteGraph(dynamic_gear_graph_id, dynamic_shape_graph_id,
                                                          inputs, selected_graph_id), SUCCESS);
 
   inputs.clear();
-  std::vector<int64_t> shape_1{4,3,4,224};
-  Shape input_shape_1(shape_1);
-  ge::TensorDesc tensor_desc_1(input_shape_1);
-
-  std::vector<int64_t> shape_2{1, 3, 224, 224};
-  Shape input_shape_2(shape_2);
-  ge::TensorDesc tensor_desc_2(input_shape_2);
-
-  std::vector<int64_t> shape_3{3,3,4,224};
-  Shape input_shape_3(shape_3);
-  ge::TensorDesc tensor_desc_3(input_shape_3);
-
-  inputs.emplace_back(Tensor(tensor_desc_1));
-  inputs.emplace_back(Tensor(tensor_desc_2));
-  inputs.emplace_back(Tensor(tensor_desc_3));
-
+  std::vector<gert::Tensor> ge_inputs(3);
+  ge_inputs[0].MutableStorageShape() = {4,3,4,224};
+  ge_inputs[1].MutableStorageShape() = {1, 3, 224, 224};
+  ge_inputs[2].MutableStorageShape() = {3,3,4,224};
   ASSERT_EQ(user_hybrid_graph_manager.SelectExecuteGraph(dynamic_gear_graph_id, dynamic_shape_graph_id,
-                                                         inputs, selected_graph_id), SUCCESS);
+                                                         ge_inputs, selected_graph_id), SUCCESS);
   ASSERT_TRUE(selected_graph_id == dynamic_gear_graph_id);
+  graph_manager.Finalize();
 }
 
 TEST_F(UserHybridGraphManagerlUT, SelectExecuteGraph_MatchDynamicShape) {
   uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, session_id);
+  GraphManager graph_manager;
+  graph_manager.Initialize({}, &model_executor);
+  UserGraphsManager user_graph_manager(graph_manager);
   UserHybridGraphManager user_hybrid_graph_manager(user_graph_manager);
 
   const uint32_t graph_id = 0;
@@ -205,27 +201,15 @@ TEST_F(UserHybridGraphManagerlUT, SelectExecuteGraph_MatchDynamicShape) {
   EXPECT_TRUE(user_hybrid_graph_manager.TryGetDynamicGraphId(graph_id, dynamic_gear_graph_id, dynamic_shape_graph_id));
   user_hybrid_graph_manager.SetDynamicGearInfo(dynamic_gear_graph_id, dynamic_dims_info);
 
-  std::vector<ge::Tensor> inputs;
-  std::vector<int64_t> shape_1{3,3,3,224};
-  Shape input_shape_1(shape_1);
-  ge::TensorDesc tensor_desc_1(input_shape_1);
-
-  std::vector<int64_t> shape_2{1, 3, 224, 224};
-  Shape input_shape_2(shape_2);
-  ge::TensorDesc tensor_desc_2(input_shape_2);
-
-  std::vector<int64_t> shape_3{3,3,3,224};
-  Shape input_shape_3(shape_3);
-  ge::TensorDesc tensor_desc_3(input_shape_3);
-
-  inputs.emplace_back(Tensor(tensor_desc_1));
-  inputs.emplace_back(Tensor(tensor_desc_2));
-  inputs.emplace_back(Tensor(tensor_desc_3));
-
+  std::vector<gert::Tensor> inputs(3);
+  inputs[0].MutableStorageShape() = {3,3,3,224};
+  inputs[1].MutableStorageShape() = {1, 3, 224, 224};
+  inputs[2].MutableStorageShape() = {3,3,3,224};
   uint32_t selected_graph_id = 0U;
   ASSERT_EQ(user_hybrid_graph_manager.SelectExecuteGraph(dynamic_gear_graph_id, dynamic_shape_graph_id,
                                                          inputs, selected_graph_id), SUCCESS);
   ASSERT_TRUE(selected_graph_id == dynamic_shape_graph_id);
+  graph_manager.Finalize();
 }
 
 TEST_F(UserHybridGraphManagerlUT, RunGraphAsyncTest) {

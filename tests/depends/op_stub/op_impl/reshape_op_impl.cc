@@ -42,6 +42,8 @@ ge::graphStatus ReshapeInferShapeImpl(const T *reshape_dims, const Shape &x_shap
     output_shape.SetDim(unknown_dim_idx, x_shape_size / output_shapesize);
     return ge::GRAPH_SUCCESS;
   }
+  GELOGE(ge::FAILED, "unknown_dim_idx[%zu], output_shapesize[%lld], x_shape_size[%lld]",
+    unknown_dim_idx, output_shapesize, x_shape_size);
   return ge::GRAPH_FAILED;
 }
 ge::graphStatus InferShapeForReshape(InferShapeContext *context) {
@@ -49,23 +51,26 @@ ge::graphStatus InferShapeForReshape(InferShapeContext *context) {
   auto shape_tensor = context->GetInputTensor(1);
   auto output_shape = context->GetOutputShape(0);
   if (x_shape == nullptr || shape_tensor == nullptr || output_shape == nullptr) {
-    // log error
+    GELOGE(ge::FAILED, "x_shape or shape_tensor or output_shape is null.");
     return ge::GRAPH_FAILED;
   }
 
   auto reshape_size = static_cast<int32_t>(shape_tensor->GetShapeSize());
   if (reshape_size < 1) {
+    GELOGE(ge::FAILED, "reshape_size[%d] < 1", reshape_size);
     return ge::GRAPH_FAILED;
   }
   if (shape_tensor->GetDataType() == ge::DT_INT32) {
     auto reshape_data = shape_tensor->GetData<int32_t>();
     if (reshape_data == nullptr) {
+      GELOGE(ge::FAILED, "reshape_data is null, data type is DT_INT32");
       return ge::GRAPH_FAILED;
     }
     return ReshapeInferShapeImpl<int32_t>(reshape_data, *x_shape, *output_shape, reshape_size);
   } else {
     auto reshape_data = shape_tensor->GetData<int64_t>();
     if (reshape_data == nullptr) {
+      GELOGE(ge::FAILED, "reshape_data is null, data type is DT_INT64");
       return ge::GRAPH_FAILED;
     }
     return ReshapeInferShapeImpl<int64_t>(reshape_data, *x_shape, *output_shape, reshape_size);

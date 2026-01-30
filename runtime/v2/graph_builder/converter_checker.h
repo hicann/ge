@@ -18,6 +18,8 @@
 #include "common/checker.h"
 #include "exe_graph/lowering/dev_mem_value_holder.h"
 #include "base/err_msg.h"
+#include "common/hyper_status.h"
+#include "exe_graph/lowering/value_holder.h"
 
 namespace gert {
 LowerResult CreateErrorLowerResult(const char *error_msg, ...);

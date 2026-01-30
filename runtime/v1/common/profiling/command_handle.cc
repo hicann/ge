@@ -226,7 +226,7 @@ rtError_t HandleCtrlSwitch(const MsprofCommandHandle &prof_command_handle) {
     GELOGE(ret, "[Check][Param]graph_id:%u not not found", graph_id);
     REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
-        std::vector<const char_t *>({std::to_string(graph_id).c_str(), "GraphToModelMap", "graph_id does not exist!"}));
+        std::vector<const char_t *>({std::to_string(graph_id).c_str(), "GraphToModelMap", "Graph_id does not exist."}));
     return RT_ERROR;
   }
   return ExecuteCommand(type, prof_command_handle, prof_params);

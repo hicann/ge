@@ -22,7 +22,7 @@
 #include "op_desc_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/operator_reg.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "utils/inference_rule.h"
 #include "graph_metadef/depends/faker/kernel_run_context_faker.h"
 #include "base/registry/op_impl_space_registry_v2.h"

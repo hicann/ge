@@ -23,6 +23,11 @@
 #include "nlohmann/json.hpp"
 
 namespace ge {
+// external_weight option values
+constexpr const char *kExternalWeightDisabled = "0";           // 禁用外置权重
+constexpr const char *kExternalWeightEnabled = "1";            // 启用外置权重，每个权重单独导出
+constexpr const char *kExternalWeightCombined = "2";           // 启用外置权重，所有权重合并导出到同一文件
+
 using ConstNodeWeightHashMap = std::unordered_map<NodePtr, std::pair<GeTensorPtr, std::string>>;
 
 struct FileIdToFilePath {
@@ -50,6 +55,9 @@ class FileConstantUtils {
   /// @param [out] file_id_to_path_map
   /// @return Status
   static Status GetFileIdToPathMapFromOption(std::map<std::string, std::string> &file_id_to_path_map);
+  static Status CopyOneWeightFromFileWithFilehandler(const void *const curr_dev_ptr, const std::string &file_path,
+                                                     const size_t offset, const size_t file_constant_size,
+                                                     size_t &left_size, std::ifstream &ifs);
 
   /// @brief load one weight from file to device memory
   /// @param [in] fileconstant memory addr on device
@@ -121,8 +129,9 @@ class FileConstantUtils {
 
   /// @brief convert all const nodes to fileconstant nodes in graph
   /// @param [in] compute_graph
+  /// @param [in] all_in_one
   /// @return Status
-  static Status ConvertConstToFileConst(const ComputeGraphPtr &compute_graph);
+  static Status ConvertConstToFileConst(const ComputeGraphPtr &compute_graph, bool all_in_one = false);
 
   /// @brief convert single const to fileconstant
   /// @param [in] const node
@@ -166,11 +175,12 @@ class FileConstantUtils {
   /// @brief convert const to fileconstant
   /// @param [in] const_to_weight_hash_map
   /// @param [in] external_weight_dir
+  /// @param [in] graph_name
   /// @param [in] meta
+  /// @param [in] all_in_one
   /// @return Status
   static Status ConvertToFileConstants(const ConstNodeWeightHashMap &const_to_weight_hash_map,
-                                       const std::string &weight_dir, FileConstantMeta &meta);
-
+                                       const std::string &weight_dir, FileConstantMeta &meta, const bool all_in_one=false);
   /// @brief save all const weight to file with multi threads
   /// @param [in] const_to_weight_hash_map
   /// @param [in] external_weight_dir
@@ -178,6 +188,36 @@ class FileConstantUtils {
   /// @return Status
   static Status SaveWeightToFileWithReuse(const ConstNodeWeightHashMap &const_to_weight_hash_map,
                                           const std::string &weight_dir, FileConstantMeta &meta);
+  /// @brief save all const weight to one file
+  /// @param [in] const_to_weight_hash_map
+  /// @param [in] external_weight_dir
+  /// @param [in] graph_name
+  /// @param [in] meta
+  /// @return Status
+  static Status SaveWeightToOneFileWithReuse(const ConstNodeWeightHashMap &const_to_weight_hash_map,
+                                          const std::string &weight_dir, FileConstantMeta &meta);
+  /// @brief save weights and update metadata
+  /// @param [in] const_to_weight_hash_map
+  /// @param [in,out] meta
+  /// @param [in,out] ofs
+  /// @param [in] weight_path
+  /// @param [in,out] offset
+  /// @param [out] new_weights_written
+  /// @param [out] reused_weights_count
+  /// @return Status
+  static Status SaveWeightsAndMetadata(const ConstNodeWeightHashMap &const_to_weight_hash_map,
+                                       FileConstantMeta &meta, std::ofstream &ofs,
+                                       const std::string &weight_path, size_t &offset,
+                                       size_t &new_weights_written, size_t &reused_weights_count);
+
+  /// @brief write weight data with padding to align 512 bytes
+  /// @param [in,out] ofs
+  /// @param [in] weight_data_ptr
+  /// @param [in] size
+  /// @param [in,out] offset
+  /// @return Status
+  static Status WriteWeightWithPadding(std::ofstream &ofs, const uint8_t *weight_data_ptr,
+                                       const size_t size, size_t &offset);
 
   /// @brief change all fileconstant nodes attr location in graph
   /// @param [in] compute_graph

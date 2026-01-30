@@ -154,6 +154,8 @@ TEST_F(UtestCompileNodesPass, no_kernel_info_fail) {
   EXPECT_NE(peer_node_, nullptr);
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
 
@@ -172,6 +174,8 @@ TEST_F(UtestCompileNodesPass, supported_fail) {
   EXPECT_NE(peer_node_, nullptr);
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
 
@@ -192,6 +196,8 @@ TEST_F(UtestCompileNodesPass, supported_succ_2) {
   EXPECT_NE(peer_node_, nullptr);
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicpu_tf_kernel", opkernel));
 
@@ -215,6 +221,8 @@ TEST_F(UtestCompileNodesPass, unsupported_reason_fail) {
   EXPECT_NE(peer_node_, nullptr);
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
   auto opkernel2 = std::make_shared<TestOpsKernelInfoStore>();
@@ -237,6 +245,8 @@ TEST_F(UtestCompileNodesPass, unsupported_reasons_fail) {
   EXPECT_NE(peer_node_, nullptr);
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
   auto opkernel2 = std::make_shared<TestOpsKernelInfoStore>();
@@ -266,6 +276,8 @@ TEST_F(UtestCompileNodesPass, compile_nodes_succ) {
   EXPECT_EQ(pass_.CompileNodes(instance, kernel_to_compile_nodes), GE_GRAPH_PARAM_NULLPTR);
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
 

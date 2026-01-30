@@ -14,6 +14,7 @@
 #include "common/model/ge_root_model.h"
 #include "common/ge_visibility.h"
 #include "runtime/gert_api.h"
+#include "common/opskernel/ops_kernel_info_types.h"
 
 namespace gert {
 using OpImplSpaceRegistryArrayV2Ptr = std::shared_ptr<OpImplSpaceRegistryV2Array>;
@@ -82,10 +83,10 @@ class VISIBILITY_EXPORT ModelConverter {
  public:
   struct Args {
     Args() = default;
-    Args(const LoweringOption &option, StreamAllocator *const stream_allocator, EventAllocator *const event_allocator,
-         NotifyAllocator *const notify_allocator, const std::vector<ge::FileConstantMem> *const file_constant_mems)
-        : option(option), stream_allocator(stream_allocator), event_allocator(event_allocator),
-          notify_allocator(notify_allocator), file_constant_mems(file_constant_mems){}
+    Args(const LoweringOption &opt, StreamAllocator *const strm_alloc, EventAllocator *const evnt_alloc,
+         NotifyAllocator *const noti_alloc, const std::vector<ge::FileConstantMem> *const file_const_mems)
+        : option(opt), stream_allocator(strm_alloc), event_allocator(evnt_alloc),
+          notify_allocator(noti_alloc), file_constant_mems(file_const_mems){}
     LoweringOption option{};
     StreamAllocator *const stream_allocator = nullptr;
     EventAllocator *const event_allocator = nullptr;
@@ -104,5 +105,7 @@ class VISIBILITY_EXPORT ModelConverter {
                                   EventAllocator *const event_allocator, NotifyAllocator *const notify_allocator);
   ModelDescHolder model_desc_holder_;
 };
-}
+ge::graphStatus LoadSgtKernelBinToOpDesc(const ge::NodePtr &node, const ge::ComputeGraphPtr &graph,
+                                         const ge::GeModelPtr &ge_model, const ge::ModelTaskType task_type);
+} // gert
 #endif  // AIR_CXX_RUNTIME_V2_LOWERING_MODEL_CONVERTER_H_

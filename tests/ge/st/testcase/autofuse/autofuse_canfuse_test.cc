@@ -120,7 +120,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_1) {
   InputTensorInfo input{0, {2, 2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -178,7 +178,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_2) {
   std::vector<InputTensorInfo> inputs{input};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
   session.BuildGraph(1, inputs);
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -236,7 +236,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion) {
   InputTensorInfo input2{0, {2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -294,7 +294,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_horizontal_fusion_2) {
   InputTensorInfo input3{0, {2, 2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2, input3};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -412,7 +412,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_horizontal_fusion) {
   InputTensorInfo input3{0, {2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2, input3};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -472,7 +472,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_horizontal_fusion_1) {
   InputTensorInfo input2{0, {2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -633,7 +633,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_bro_vertical_fusion) {
   InputTensorInfo input2{0, {2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -693,7 +693,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_ele_vertical_fusion) {
   InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -752,7 +752,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_vertical_fusion) {
   InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
     node_types_to_count0.emplace("Data", 1);
@@ -812,7 +812,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_bro_vertical_fusion) {
   InputTensorInfo input2{0, {2, 2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1, input2};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -875,7 +875,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_red_vertical_fusion) {
   std::vector<InputTensorInfo> inputs{input1};
   DUMP_GRAPH_WHEN("After_AutoFusePass");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -937,7 +937,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_ele_vertical_fusion) {
   std::vector<InputTensorInfo> inputs{input1, input2};
   DUMP_GRAPH_WHEN("After_AutoFusePass");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -1001,7 +1001,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_red_vertical_fusion) {
   std::vector<InputTensorInfo> inputs{input1, input2};
   DUMP_GRAPH_WHEN("After_AutoFusePass");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -1066,7 +1066,7 @@ TEST_F(TestCanfusePass, test_canfuse_bro_and_bro_vertical_fusion) {
   std::vector<InputTensorInfo> inputs{input1, input2, input3};
   DUMP_GRAPH_WHEN("After_AutoFusePass");
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;
@@ -1187,7 +1187,7 @@ TEST_F(TestCanfusePass, test_canfuse_red_and_red_vertical_fusion_2) {
   InputTensorInfo input1{0, {2, 2, 2}, nullptr, 0};
   std::vector<InputTensorInfo> inputs{input1};
   // 当前测试框架还不支持 BuildGraph 接口端到端编译、加载, 仅测试编译流程
-  EXPECT_NE(session.BuildGraph(1, inputs), SUCCESS);
+  EXPECT_EQ(session.BuildGraph(1, inputs), SUCCESS);
 
   CHECK_GRAPH(After_AutoFusePass) {
     std::map<std::string, size_t> node_types_to_count0;

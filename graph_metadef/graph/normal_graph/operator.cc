@@ -16,7 +16,7 @@
 #include <queue>
 #include <set>
 #include "graph/operator_factory.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "debug/ge_op_types.h"
 #include "graph/debug/ge_util.h"
 #include "graph/attr_value.h"
@@ -2035,18 +2035,18 @@ graphStatus Operator::GetOutputAttr(const char_t *dst_name, const char_t *name, 
     return GRAPH_FAILED;
   }
   const std::string op_name = name;
-  std::string op_attr_value;
   auto tensor = operator_impl_->MutableOutputDesc(dst_name);
   if (tensor == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "Get output[%s] of op[%s] failed, check invalid", dst_name, op_name.c_str());
     GELOGE(GRAPH_FAILED, "[Check][Param] Get output[%s] of op[%s] failed, check invalid", dst_name, op_name.c_str());
     return GRAPH_FAILED;
   }
-  if (!AttrUtils::GetStr(tensor, op_name, op_attr_value)) {
+  const std::string *op_attr_value_ptr = AttrUtils::GetStr(tensor, op_name);
+  if (op_attr_value_ptr == nullptr) {
     GELOGW("[Get][Attr] Get output[%s] attr name %s unsuccessful", dst_name, op_name.c_str());
     return GRAPH_FAILED;
   }
-  attr_value = AscendString(op_attr_value.c_str());
+  attr_value = AscendString(op_attr_value_ptr->c_str());
   return GRAPH_SUCCESS;
 }
 
@@ -2062,18 +2062,18 @@ graphStatus Operator::GetInputAttr(const char_t *dst_name, const char_t *name, A
     return GRAPH_FAILED;
   }
   const std::string op_name = name;
-  std::string op_attr_value;
   auto tensor = operator_impl_->MutableInputDesc(dst_name);
   if (tensor == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "Get input[%s] of op[%s] failed, check invalid", dst_name, op_name.c_str());
     GELOGE(GRAPH_FAILED, "[Check][Param] Get input[%s] of op[%s] failed, check invalid", dst_name, op_name.c_str());
     return GRAPH_FAILED;
   }
-  if (!AttrUtils::GetStr(tensor, op_name, op_attr_value)) {
+  const std::string *op_attr_value_ptr = AttrUtils::GetStr(tensor, op_name);
+  if (op_attr_value_ptr == nullptr) {
     GELOGW("[Get][Attr] Get input[%s] attr name %s unsuccessful", dst_name, op_name.c_str());
     return GRAPH_FAILED;
   }
-  attr_value = AscendString(op_attr_value.c_str());
+  attr_value = AscendString(op_attr_value_ptr->c_str());
   return GRAPH_SUCCESS;
 }
 
@@ -2089,18 +2089,18 @@ graphStatus Operator::GetInputAttr(const int32_t index, const char_t *name, Asce
     return GRAPH_FAILED;
   }
   const std::string op_name = name;
-  std::string op_attr_value;
   auto tensor = operator_impl_->MutableInputDesc(index);
   if (tensor == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "Get input[%d] of op[%s] failed, check invalid", index, op_name.c_str());
     GELOGE(GRAPH_FAILED, "[Check][Param] Get input[%d] of op[%s] failed, check invalid", index, op_name.c_str());
     return GRAPH_FAILED;
   }
-  if (!AttrUtils::GetStr(tensor, op_name, op_attr_value)) {
+  const std::string *op_attr_value_ptr = AttrUtils::GetStr(tensor, op_name);
+  if (op_attr_value_ptr == nullptr) {
     GELOGW("[Get][Attr] Get input[%d] attr name %s unsuccessful", index, op_name.c_str());
     return GRAPH_FAILED;
   }
-  attr_value = AscendString(op_attr_value.c_str());
+  attr_value = AscendString(op_attr_value_ptr->c_str());
   return GRAPH_SUCCESS;
 }
 
@@ -2116,18 +2116,18 @@ graphStatus Operator::GetOutputAttr(const int32_t index, const char_t *name, Asc
     return GRAPH_FAILED;
   }
   const std::string op_name = name;
-  std::string op_attr_value;
   auto tensor = operator_impl_->MutableOutputDesc(index);
   if (tensor == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "Get output[%d] of op[%s] failed, check invalid", index, op_name.c_str());
     GELOGE(GRAPH_FAILED, "[Check][Param] Get output[%d] of op[%s] failed, check invalid", index, op_name.c_str());
     return GRAPH_FAILED;
   }
-  if (!AttrUtils::GetStr(tensor, op_name, op_attr_value)) {
+  const std::string *op_attr_value_ptr = AttrUtils::GetStr(tensor, op_name);
+  if (op_attr_value_ptr == nullptr) {
     GELOGW("[Get][Attr] Get output[%d] attr name %s unsuccessful", index, op_name.c_str());
     return GRAPH_FAILED;
   }
-  attr_value = AscendString(op_attr_value.c_str());
+  attr_value = AscendString(op_attr_value_ptr->c_str());
   return GRAPH_SUCCESS;
 }
 
@@ -2162,12 +2162,12 @@ graphStatus Operator::GetAttr(const char_t *name, AscendString &attr_value) cons
     return GRAPH_FAILED;
   }
   const std::string op_name = name;
-  std::string op_attr_value;
-  if (!AttrUtils::GetStr(operator_impl_->GetOpDescImpl(), op_name, op_attr_value)) {
+  const std::string *op_attr_value_ptr = AttrUtils::GetStr(operator_impl_->GetOpDescImpl(), op_name);
+  if (op_attr_value_ptr == nullptr) {
     GELOGW("[Get][Attr] Get attr name %s unsuccessful", op_name.c_str());
     return GRAPH_FAILED;
   }
-  attr_value = AscendString(op_attr_value.c_str());
+  attr_value = AscendString(op_attr_value_ptr->c_str());
   return GRAPH_SUCCESS;
 }
 

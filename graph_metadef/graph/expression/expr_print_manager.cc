@@ -46,7 +46,7 @@ const std::string kPrintDelim = ", ";
 const std::string kPrintBracket_L = "(";
 const std::string kPrintBracket_R = ")";
 const size_t kRelationArgsNum = 2UL;
-}
+
 
 std::string PrintArgs(const std::vector<SymEngineExprPtr> &args,
                       const std::string &delim, StrType type) {
@@ -272,4 +272,5 @@ std::string DefaultLessThanPrinter(const std::vector<SymEngineExprPtr> &args, St
       kPrintDelim + ExpressionImpl::SymExprToExpressionImplRef(args[1]).Str(type) + kPrintBracket_R;
 }
 REGISTER_EXPR_DEFAULT_PRINTER(kOpLe, DefaultLessThanPrinter);
+}
 }  // namespace ge

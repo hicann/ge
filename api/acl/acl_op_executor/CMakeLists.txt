@@ -46,7 +46,6 @@ target_include_directories(acl_op_executor_impl PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../common
     ${CMAKE_CURRENT_LIST_DIR}/../util
 
-    #TODO from acl_mdl
     ${CMAKE_CURRENT_LIST_DIR}/../acl_model
 
     ${AIR_CODE_DIR}/inc

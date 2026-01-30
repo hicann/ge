@@ -9,6 +9,7 @@
  */
 
 #include "common/tbe_handle_store/cust_aicpu_kernel_store.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 void CustAICPUKernelStore::AddCustAICPUKernel(const CustAICPUKernelPtr &kernel) {

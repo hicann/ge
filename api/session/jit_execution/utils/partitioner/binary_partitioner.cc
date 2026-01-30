@@ -9,7 +9,7 @@
  */
 
 #include "binary_partitioner.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "graph/utils/op_type_utils.h"
 

@@ -372,8 +372,6 @@ TEST_F(UtestNanoModelSaveHelper, GenSwitchByIndexExeom)
 
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
   setenv("LD_LIBRARY_PATH", (ascend_install_path + "/fwkacllib/lib64").c_str(), 1);
-  int32_t ret2;
-  MM_SYS_SET_ENV(MM_ENV_ASCEND_HOME_PATH, ascend_install_path.c_str(), 1, ret2);
   auto label_switch = OP_CFG(LABELSWITCHBYINDEX).Attr(ATTR_NAME_LABEL_SWITCH_LIST, std::vector<uint32_t>{0, 1});
   auto label_set_l0 = OP_CFG(LABELSET).Attr(ATTR_NAME_LABEL_SWITCH_INDEX, 0);
   auto label_set_l1 = OP_CFG(LABELSET).Attr(ATTR_NAME_LABEL_SWITCH_INDEX, 1);
@@ -550,9 +548,6 @@ TEST_F(UtestNanoModelSaveHelper, GenLabelGotoExExeom)
    *          AddN
    */
   auto ascend_install_path = EnvPath().GetAscendInstallPath();
-  setenv("LD_LIBRARY_PATH", (ascend_install_path + "/fwkacllib/lib64").c_str(), 1);
-  int32_t ret2;
-  MM_SYS_SET_ENV(MM_ENV_ASCEND_HOME_PATH, ascend_install_path.c_str(), 1, ret2);
   setenv("LD_LIBRARY_PATH", (ascend_install_path + "/fwkacllib/lib64").c_str(), 1);
   auto label_set_l2 = OP_CFG(LABELSET).Attr(ATTR_NAME_LABEL_SWITCH_INDEX, 2);
   auto label_gotoex = OP_CFG(LABELGOTOEX).Attr(ATTR_NAME_LABEL_SWITCH_INDEX, 2);

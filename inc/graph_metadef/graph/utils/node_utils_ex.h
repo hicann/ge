@@ -13,6 +13,7 @@
 
 #include "graph/node.h"
 #include "graph/op_desc.h"
+#include "graph/ge_error_codes.h"
 
 namespace ge {
 class NodeUtilsEx {

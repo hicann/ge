@@ -41,12 +41,9 @@ class GraphExecutor {
   virtual ~GraphExecutor() = default;
 
   Status ExecuteGraph(const GraphId graph_id, const GeRootModelPtr &ge_root_model,
-                      const std::vector<GeTensor> &input_tensor, std::vector<GeTensor> &output_tensor);
-  Status ExecuteGraph(const GraphId graph_id, const GeRootModelPtr &ge_root_model,
-                      const std::vector<gert::Tensor> &input_tensor, std::vector<gert::Tensor> &output_tensor);
+                      const std::vector<gert::Tensor> &input_tensor, std::vector<gert::Tensor> &output_tensor) const;
 
-  Status ExecuteGraphAsync(const GeRootModelPtr &ge_root_model, const std::shared_ptr<RunArgs> &args);
-  Status ExecuteGraphAsync(const GeRootModelPtr &ge_root_model, const std::shared_ptr<RunArgsV2> &args);
+  Status ExecuteGraphAsync(const GeRootModelPtr &ge_root_model, const std::shared_ptr<RunArgs> &args) const;
   Status ExecuteGraphWithStream(rtStream_t const stream, const GraphNodePtr &graph_node,
                                 const GeRootModelPtr &ge_root_model,
                                 const std::vector<GeTensor> &input_tensor,
@@ -113,23 +110,14 @@ class GraphExecutor {
   static uint32_t GetExecuteModelId(const GeRootModelPtr &ge_root_model);
 
  private:
-  Status PrepareInputOutputData(const std::vector<GeTensor> &input_tensor, InputData &graph_input_data,
-                                std::vector<GeTensor> &output_tensor, OutputData &graph_output_data,
-                                const std::vector<InputOutputDescInfo> &output_desc) const;
   Status PrepareOutput(const std::vector<InputOutputDescInfo> &output_desc,
     std::vector<gert::Tensor> &output_tensor) const;
-
-  Status SyncExecuteModel(const uint32_t model_id, const std::vector<GeTensor> &input_tensor,
-                          std::vector<GeTensor> &output_tensor, const error_message::ErrorManagerContext &error_context) const;
 
   Status SyncExecuteModel(const uint32_t model_id, const std::vector<gert::Tensor> &input_tensor,
                           std::vector<gert::Tensor> &output_tensor,
                           const error_message::ErrorManagerContext &error_context) const;
   Status AsyncExecuteModelArgsPtr(const GeRootModelPtr &ge_root_model, const uint32_t model_id,
                                   const std::shared_ptr<RunArgs> &args,
-                                  const error_message::ErrorManagerContext &error_context) const;
-  Status AsyncExecuteModelArgsPtr(const GeRootModelPtr &ge_root_model, const uint32_t model_id,
-                                  const std::shared_ptr<RunArgsV2> &args,
                                   const error_message::ErrorManagerContext &error_context) const;
 };
 

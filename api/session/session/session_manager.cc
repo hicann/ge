@@ -16,6 +16,7 @@
 #include "graph/ge_context.h"
 #include "graph/manager/util/rt_context_util.h"
 #include "graph/manager/session_id_manager.h"
+#include "common/memory/tensor_trans_utils.h"
 
 namespace ge {
 Status SessionManager::Initialize() {
@@ -32,15 +33,7 @@ Status SessionManager::Finalize() {
     GELOGW("Session Manager has not been initialized.");
     return SUCCESS;
   }
-  const std::lock_guard<std::mutex> lock(mutex_);
-  for (auto iter = user_hybrid_graph_manager_map_.cbegin(); iter != user_hybrid_graph_manager_map_.cend(); ++iter) {
-    (void)iter->second->Finalize();
-  }
-  user_hybrid_graph_manager_map_.clear();
-  for (auto iter = user_graphs_manager_map_.cbegin(); iter != user_graphs_manager_map_.cend(); ++iter) {
-    (void)iter->second->Finalize();
-  }
-  user_graphs_manager_map_.clear();
+  const std::unique_lock<std::shared_mutex> lock(mutex_);
   for (auto iter = session_manager_map_.cbegin(); iter != session_manager_map_.cend(); ++iter) {
     (void)iter->second->Finalize();
   }
@@ -65,12 +58,12 @@ Status SessionManager::CreateSession(const std::map<std::string, std::string> &o
   }
 
   for (const auto &item : options) {
-    GELOGI("GE option: %s, value: %s.", item.first.c_str(), item.second.c_str());
+    GELOGI("GE option: %s, value: [%s].", item.first.c_str(), item.second.c_str());
   }
 
   SessionId next_session_id = 0;
 
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::unique_lock<std::shared_mutex> lock(mutex_);
   const auto nextSessionIdRet = GetNextSessionId(next_session_id);
   if (nextSessionIdRet != SUCCESS) {
     return nextSessionIdRet;
@@ -80,23 +73,13 @@ Status SessionManager::CreateSession(const std::map<std::string, std::string> &o
   if (sessionPtr == nullptr) {
     return MEMALLOC_FAILED;
   }
-  UserGraphsManagerPtr userGraphsManagerPtr = MakeShared<UserGraphsManager>(*sessionPtr);
-  if (userGraphsManagerPtr == nullptr) {
-    return MEMALLOC_FAILED;
-  }
-  UserHybridGraphManagerPtr user_hybrid_graph_manager_ptr = MakeShared<UserHybridGraphManager>(*userGraphsManagerPtr);
-  if (user_hybrid_graph_manager_ptr == nullptr) {
-    return MEMALLOC_FAILED;
-  }
+
   Status ret = sessionPtr->Initialize();
   if (ret != SUCCESS) {
     return ret;
   }
 
   (void)session_manager_map_.emplace(std::pair<SessionId, SessionPtr>(next_session_id, sessionPtr));
-  (void)user_graphs_manager_map_.emplace(std::pair<SessionId, UserGraphsManagerPtr>(next_session_id, userGraphsManagerPtr));
-  (void)user_hybrid_graph_manager_map_.emplace(std::pair<SessionId, UserHybridGraphManagerPtr>
-      (next_session_id, user_hybrid_graph_manager_ptr));
   session_id = next_session_id;
 
   // create a context
@@ -110,12 +93,7 @@ Status SessionManager::DestroySession(SessionId session_id) {
     GELOGW("[Destroy][Session]Session manager is not initialized, session_id:%lu.", session_id);
     return SUCCESS;
   }
-  const std::lock_guard<std::mutex> lock(mutex_);
-  (void)user_hybrid_graph_manager_map_.erase(session_id);
-  const auto iter = user_graphs_manager_map_.find(session_id);
-  if (iter != user_graphs_manager_map_.cend()) {
-    (void)user_graphs_manager_map_.erase(session_id);
-  }
+  const std::unique_lock<std::shared_mutex> lock(mutex_);
   const auto it = session_manager_map_.find(session_id);
   if (it == session_manager_map_.end()) {
     return GE_SESSION_NOT_EXIST;
@@ -140,45 +118,11 @@ SessionPtr SessionManager::GetSession(SessionId session_id) {
     REPORT_INNER_ERR_MSG("E19999", "GetSession fail for Session manager is not initialized, session_id:%lu.", session_id);
     return nullptr;
   }
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::shared_lock<std::shared_mutex> lock(mutex_);
   const auto it = session_manager_map_.find(session_id);
   if (it == session_manager_map_.end()) {
     GELOGE(GE_SESSION_NOT_EXIST, "[Find][InnerSession] fail for %lu does not exist", session_id);
     REPORT_INNER_ERR_MSG("E19999", "GetSession fail for InnerSession does not exist, session_id:%lu.", session_id);
-    return nullptr;
-  }
-  return it->second;
-}
-
-UserHybridGraphManagerPtr SessionManager::GetUserHybridGraphManager(SessionId session_id) {
-  if (!init_flag_) {
-    GELOGE(GE_SESSION_MANAGER_NOT_INIT, "[Get][UserHybridGraphManager]fail for Session manager is not initialized, session_id:%lu.",
-           session_id);
-    REPORT_INNER_ERR_MSG("E19999", "GetUserHybridGraphManager fail for Session manager is not initialized, session_id:%lu.", session_id);
-    return nullptr;
-  }
-  const std::lock_guard<std::mutex> lock(mutex_);
-  const auto it = user_hybrid_graph_manager_map_.find(session_id);
-  if (it == user_hybrid_graph_manager_map_.cend()) {
-    GELOGE(GE_SESSION_NOT_EXIST, "[Find][UserHybridGraphManager] fail for %lu does not exist", session_id);
-    REPORT_INNER_ERR_MSG("E19999", "GetUserHybridGraphManager fail for UserHybridGraphManager does not exist, session_id:%lu.", session_id);
-    return nullptr;
-  }
-  return it->second;
-}
-
-UserGraphsManagerPtr SessionManager::GetUserGraphsManager(SessionId session_id) {
-  if (!init_flag_) {
-    GELOGE(GE_SESSION_MANAGER_NOT_INIT, "[Get][UserGraphsManager]fail for Session manager is not initialized, session_id:%lu.",
-           session_id);
-    REPORT_INNER_ERR_MSG("E19999", "GetUserGraphsManager fail for Session manager is not initialized, session_id:%lu.", session_id);
-    return nullptr;
-  }
-  const std::lock_guard<std::mutex> lock(mutex_);
-  const auto it = user_graphs_manager_map_.find(session_id);
-  if (it == user_graphs_manager_map_.cend()) {
-    GELOGE(GE_SESSION_NOT_EXIST, "[Find][UserGraphsManager] fail for %lu does not exist", session_id);
-    REPORT_INNER_ERR_MSG("E19999", "GetUserGraphsManager fail for UserGraphsManager does not exist, session_id:%lu.", session_id);
     return nullptr;
   }
   return it->second;
@@ -254,7 +198,7 @@ Status SessionManager::GetVariables(SessionId session_id, const std::vector<std:
 }
 
 size_t SessionManager::NumSessions() {
-  const std::lock_guard<std::mutex> lock(mutex_);
+  const std::shared_lock<std::shared_mutex> lock(mutex_);
   return session_manager_map_.size();
 }
 }  // namespace ge

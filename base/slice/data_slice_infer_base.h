@@ -12,9 +12,7 @@
 #define SLICE_DATASLICE_DATA_SLICE_INFER_BASE_H_
 
 #include <vector>
-#include "graph/ge_error_codes.h"
 #include "graph/operator.h"
-#include "graph/types.h"
 #include "ge/ge_api_types.h"
 #include "graph/axis_type_info.h"
 namespace ge {

@@ -13,6 +13,7 @@
 #include "runtime/rt_model.h"
 #include "runtime/stream.h"
 #include "common/math/math_util.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

@@ -1131,7 +1131,7 @@ TEST_F(UtestGraphPartition, partition_vector_engine_graph_test) {
   aic1->GetOpDesc()->SetOpEngineName("AIcoreEngine");
   aic2->GetOpDesc()->SetOpEngineName("AIcoreEngine");
   root_graph->TopologicalSorting();
-  auto ret = EnginePartitioner.Initialize(root_graph);
+  auto ret = EnginePartitioner.Initialize(root_graph, EnginePartitioner::Mode::kSecondPartitioning);
   ASSERT_EQ(ret, SUCCESS);
 }
 
@@ -1205,7 +1205,7 @@ TEST_F(UtestGraphPartition, DataShouldClearUserStreamLabel) {
   AttrUtils::SetStr(data->GetOpDesc(), public_attr::USER_STREAM_LABEL, "label1");
   AttrUtils::SetStr(relu->GetOpDesc(), public_attr::USER_STREAM_LABEL, "label1");
 
-  EnginePartitioner.Initialize(graph);
+  EnginePartitioner.Initialize(graph, EnginePartitioner::Mode::kSecondPartitioning);
 
   std::string user_stream_label;
   AttrUtils::GetStr(data->GetOpDesc(), public_attr::USER_STREAM_LABEL, user_stream_label);

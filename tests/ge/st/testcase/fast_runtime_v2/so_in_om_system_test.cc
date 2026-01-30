@@ -27,7 +27,7 @@
 #include "common/plugin/plugin_manager.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "common/env_path.h"
-#include "register/op_impl_registry_holder_manager.h"
+#include "common/ge_common/util.h"
 
 using namespace ge;
 
@@ -525,10 +525,7 @@ TEST_F(SoInOmST, OmSoLoad_0003) {
       .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
       .FakeTbeBin({"Add"})
       .BuildGeRootModel();
-  auto &ge_models = ge_root_model->GetSubgraphInstanceNameToModel();
-  for (auto &name_to_ge_model : ge_models) {
-    ge::AttrUtils::SetStr(name_to_ge_model.second, ge::ATTR_MODEL_HOST_ENV_OS, "failed_linux");
-  }
+
   auto model_data =
       ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShapeSoInOmFile(CreateOpmasterSo1EnvInfoFunc, opp_path);
   GE_MAKE_GUARD(release_model_data, [&model_data] {
@@ -588,10 +585,7 @@ TEST_F(SoInOmST, OmSoLoad_0004) {
       .AddTaskDef("Add", AiCoreTaskDefFaker("AddStubBin").WithHandle())
       .FakeTbeBin({"Add"})
       .BuildGeRootModel();
-  auto &ge_models = ge_root_model->GetSubgraphInstanceNameToModel();
-  for (auto &name_to_ge_model : ge_models) {
-    ge::AttrUtils::SetStr(name_to_ge_model.second, ge::ATTR_MODEL_HOST_ENV_OS, "failed_linux");
-  }
+
   auto model_data =
       ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShapeSoInOmFile(CreateOpmasterSo1EnvInfoFunc, opp_path);
   GE_MAKE_GUARD(release_model_data, [&model_data] {

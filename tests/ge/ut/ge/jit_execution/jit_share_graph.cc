@@ -28,8 +28,9 @@ void JitShareGraph::AddCompileResult(const ge::NodePtr &node, bool atomic, const
   AttrUtils::SetStr(node->GetOpDesc(), TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC");
   AttrUtils::SetStr(node->GetOpDesc(), TVM_ATTR_NAME_METADATA, "FakeMeta");
   AttrUtils::SetStr(node->GetOpDesc(), node->GetName() + "_kernelname", "FakeKernelName");
+  AttrUtils::SetStr(node->GetOpDesc(), ATTR_NAME_KERNEL_BIN_ID, "te_fake_node_123");
   node->GetOpDesc()->SetWorkspaceBytes({20});
-
+  AttrUtils::SetStr(node->GetOpDesc(), "_kernel_bin_id", "te_" + node->GetType() + "_12345");
   if (atomic) {
     AttrUtils::SetStr(node->GetOpDesc(), "_atomic_compile_info_json", "{}");
     AttrUtils::SetInt(node->GetOpDesc(), "atomic_op_para_size", 2048);
@@ -39,6 +40,7 @@ void JitShareGraph::AddCompileResult(const ge::NodePtr &node, bool atomic, const
     node->GetOpDesc()->SetExtAttr(EXT_ATTR_ATOMIC_TBE_KERNEL, atomic_bin);
     AttrUtils::SetStr(node->GetOpDesc(), ATOMIC_ATTR_TVM_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC");
     AttrUtils::SetStr(node->GetOpDesc(), ATOMIC_ATTR_TVM_METADATA, "FakeAtomicMeta");
+    AttrUtils::SetStr(node->GetOpDesc(), "_memset_kernel_bin_id", "te_fake_atomic_1234");
     AttrUtils::SetStr(node->GetOpDesc(), node->GetName() + "_atomic_kernelname", "FakeAtomicKernelName");
   }
 }

@@ -123,7 +123,8 @@ RunCfg CollectRunConfig(const ge::NodePtr &node, const LowerInput &lower_input, 
   run_cfg.tiling_input_launch_arg = launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)];
   (void)ge::AttrUtils::GetBool(op_desc, ge::ATTR_NAME_DYNAMIC_TILING_DEPEND_OP, sta_tiling_depend);
   if (op_desc->HasAttr(kStaticToDynamicSoftSyncOp) || sta_tiling_depend) {
-    auto platform_info = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
+    const auto platform_info = bg::AppendCoreTypeToPlatform(
+        node, lower_input.global_data)[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)];
     auto tiling_ret = bg::Tiling(
         node, lower_input.input_shapes, output_shapes,
         {platform_info, *(lower_input.global_data), launch_arg[static_cast<size_t>(AllocLaunchArgOutputs::kRtArg)]});
@@ -776,7 +777,8 @@ static std::vector<bg::DevMemValueHolderPtr> LoweringWithHandleProc(const ge::No
                                                              std::vector<bg::ValueHolderPtr> &output_shapes) {
   // 2. tiling
   std::vector<bg::DevMemValueHolderPtr> output_addrs;
-  auto platform_info = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
+  auto platform_info = bg::AppendCoreTypeToPlatform(
+      node, lower_input.global_data)[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)];
   if (!NodeSupportRollback(node)) {
     proc_arg.tiling_ret = bg::Tiling(node, lower_input.input_shapes, output_shapes,
                                      {platform_info, *(lower_input.global_data),
@@ -960,7 +962,8 @@ static std::vector<bg::DevMemValueHolderPtr> LoweringWithFlagProc(const ge::Node
                                                            std::vector<bg::ValueHolderPtr> &output_shapes) {
   // 2. tiling
   std::vector<bg::DevMemValueHolderPtr> output_addrs;
-  auto platform_info = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
+  auto platform_info = bg::AppendCoreTypeToPlatform(
+      node, lower_input.global_data)[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)];
   if (!NodeSupportRollback(node)) {
     proc_arg.tiling_ret = WithFlagTilingProc(node, lower_input, output_shapes, platform_info, proc_arg);
     output_addrs = AicoreProcWithFlag(node, lower_input, output_shapes, proc_arg);

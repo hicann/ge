@@ -44,7 +44,6 @@ class HybridModelAsyncExecutor {
                  std::vector<GeTensorDesc> &output_desc,
                  rtStream_t stream = nullptr);
 
-  Status Execute(const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs);
   Status Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs);
 
   Status ExecuteWithStreamAsync(const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs,
@@ -62,10 +61,9 @@ class HybridModelAsyncExecutor {
 
   Status Stop();
 
-  Status EnqueueData(const std::shared_ptr<InputDataWrapper> &data);
-  Status EnqueueData(const std::shared_ptr<RunArgsV2> &args);
+  Status EnqueueData(const std::shared_ptr<RunArgs> &args);
 
-  uint32_t GetDataInputerSize() const { return data_inputer_->Size() + data_inputer_v2_->Size(); }
+  uint32_t GetDataInputerSize() const { return data_inputer_->Size(); }
 
   bool GetRunningFlag() const { return running_flag_; }
 
@@ -77,13 +75,12 @@ class HybridModelAsyncExecutor {
 
  private:
   Status RunInternal();
-  Status RunInternalV2();
 
   Status BuildExecutor();
 
   DefaultStreamGuarder &GetDefaultStreamGuarder() const;
 
-  static std::map<uint32_t, DefaultStreamGuarder> default_stream_by_dev_;
+  static std::map<std::pair<uint32_t, uint32_t>, DefaultStreamGuarder> default_stream_by_dev_;
   static std::mutex mu_for_guarder_;
 
   HybridModel *model_;
@@ -93,10 +90,8 @@ class HybridModelAsyncExecutor {
   // check whether model is running with data
   bool running_flag_ = false;
   std::unique_ptr<DataInputer> data_inputer_;
-  std::unique_ptr<DataInputerV2> data_inputer_v2_;
   std::unique_ptr<HybridModelExecutor> executor_;
   std::future<Status> future_;
-  std::future<Status> future_v2_;
 
   rtStream_t stream_ = nullptr;
   bool owner_stream_ = false;

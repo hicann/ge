@@ -397,6 +397,27 @@ int64_t ExeResGenerationContext::GetOpId() const {
   return node_ptr->GetOpDesc()->GetId();
 }
 
+// GetInputConstData is inaccurate(do not judge subgraph), need change new interface form GE later.
+bool OpCheckContext::IsConstInput(const ge::AscendString &name) const {
+  auto node_ptr = MutableInputPointer<ge::Node>(0);
+  GE_ASSERT_NOTNULL(node_ptr);
+  auto op_desc = node_ptr->GetOpDesc();
+  GE_ASSERT_NOTNULL(op_desc);
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(node_ptr->shared_from_this());
+  const auto index = op_desc->GetInputIndexByName(name.GetString());
+  if (index < 0) {
+    GE_LOGE("Op[%s][%s] get invalid index[%d] by ir name[%s].", node_ptr->GetNamePtr(), node_ptr->GetTypePtr(), index,
+            name.GetString());
+    REPORT_INNER_ERR_MSG("E29999", "Node[%s][%s] get invalid index[%d] by ir name[%s].", node_ptr->GetNamePtr(),
+                         node_ptr->GetTypePtr(), index, name.GetString());
+    return false;
+  }
+  const bool ret = (op_desc->GetInputDesc(static_cast<uint32_t>(index)).IsValid() == ge::GRAPH_SUCCESS) &&
+      (ge::OpDescUtils::GetInputConstData(op, static_cast<uint32_t>(index)) != nullptr);
+  GELOGD("Node[%s] input[%d] is const flag:%d.", op_desc->GetNamePtr(), index, ret);
+  return ret;
+}
+
 const StorageShape* OpCheckContext::GetInputShape(int64_t index) const {
   auto node_ptr = MutableInputPointer<ge::Node>(0);
   GE_ASSERT_NOTNULL(node_ptr);

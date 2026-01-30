@@ -1801,7 +1801,7 @@ void MixL2OpTask::GetTilingKeyAndData(uint32_t &tiling_key, std::string &tiling_
   if (tiling_info != nullptr) {
     tiling_key = static_cast<uint32_t>(tiling_info->GetTilingKey());
     const size_t tiling_data_size = tiling_info->GetAllTilingData().str().size();
-    const size_t tiling_data_addr_idx = op_desc->GetAllInputsDesc().size() + op_desc->GetWorkspaceBytes().size() +
+    const size_t tiling_data_addr_idx = op_desc->GetAllInputsDescPtr().size() + op_desc->GetWorkspaceBytes().size() +
                                         static_cast<size_t>(op_desc->GetAllOutputsDescSize()) + args_addr_base_idx_;
     if (tiling_data_addr_idx >= host_args_.size()) {
       return;

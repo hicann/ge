@@ -33,7 +33,6 @@
 #include "common/profiling/profiling_manager.h"
 #include "ge/ge_api_types.h"
 #include "utils/utils.h"
-#include "rt_error_codes.h"
 #include "core/utils/tensor_utils.h"
 #include "common/global_variables/diagnose_switch.h"
 #include "runtime/subscriber/built_in_subscriber_definitions.h"
@@ -41,6 +40,7 @@
 #include "common/model/external_allocator_manager.h"
 #include "graph/manager/active_memory_allocator.h"
 #include "acl/acl_rt.h"
+#include "register/core_num_utils.h"
 
 namespace ge {
 namespace hybrid {
@@ -84,8 +84,11 @@ bool IsVarPlacedOnRdma(const NodePtr &node) {
 }
 
 bool IsVarPlacedOnHost(const NodePtr &node) {
-  std::string placement;
-  return AttrUtils::GetStr(node->GetOpDesc(), ATTR_VARIABLE_PLACEMENT, placement) && (placement == "host");
+  const std::string *placement = AttrUtils::GetStr(node->GetOpDesc(), ATTR_VARIABLE_PLACEMENT);
+  if ((placement == nullptr) || placement->empty()) {
+    return false;
+  }
+  return *placement == "host";
 }
 
 void CollectGraphVarMgrNodes(const ge::ComputeGraphPtr &graph, VarMgrNodes &var_mgr_nodes) {
@@ -437,7 +440,7 @@ ge::Status GraphVarVisitor::LoadFileConstantToAddr(const ge::OpDescPtr &op_desc,
                     "Failed to get file path.");
   const auto &external_weight_manager = ExternalWeightManagerPool::Instance().GetManager(session_id_);
   GE_ASSERT_NOTNULL(external_weight_manager);
-  if (!external_weight_manager->CheckAndSetWeightLoaded(file_path, device_id_)) {
+  if (!external_weight_manager->CheckAndSetWeightLoaded(file_path + ":" + std::to_string(offset), device_id_)) {
     int64_t weight_size = 0;
     GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorSizeInBytes(var_instance.desc, weight_size),
                             "Failed to get file constant size by tensor desc.");
@@ -510,7 +513,7 @@ Status GraphVarVisitor::LoadFileConstantToDevice(const ExternalWeightManagerPtr 
 
   for (auto &helper : node_infos) {
     // different graphs' nodes may use same files
-    if (manager->CheckAndSetWeightLoaded(helper.file_path, device_id)) {
+    if (manager->CheckAndSetWeightLoaded(helper.file_path + ":" + std::to_string(helper.offset), device_id)) {
       GELOGD("File constant [%s], file path [%s] weight size [%ld] has been loaded to addr [%p], no need to reload.",
              helper.node_name.c_str(), helper.file_path.c_str(), helper.file_length, helper.dev_addr);
       continue;
@@ -731,9 +734,8 @@ Status HybridModelRtV2Executor::InitCtx() {
 }
 
 Status HybridModelRtV2Executor::LoadGuardFunc(const ge::ComputeGraphPtr &graph) {
-  std::string buffer;
-  AttrUtils::GetStr(graph, kGuardCheckSoDataResult, buffer);
-  if (buffer.empty()) {
+  const std::string *buffer = AttrUtils::GetStr(graph, kGuardCheckSoDataResult);
+  if ((buffer == nullptr) || buffer->empty()) {
     return ge::SUCCESS;
   }
   GELOGI("Start load guard check func");
@@ -742,7 +744,7 @@ Status HybridModelRtV2Executor::LoadGuardFunc(const ge::ComputeGraphPtr &graph) 
         static_cast<int32_t>(syscall(__NR_memfd_create, kGuardCheckSoName.c_str(), 0));
   }
   const auto write_count = mmWrite(guard_check_info_.guard_so_fd,
-      const_cast<char_t *>(buffer.c_str()), buffer.size());
+      const_cast<char_t *>(buffer->c_str()), buffer->size());
   GE_ASSERT_TRUE(((write_count != EN_INVALID_PARAM) && (write_count != EN_ERROR)),
       "Write data failed, errno: %lld", write_count);
   (void)lseek(static_cast<int32_t>(guard_check_info_.guard_so_fd), 0, SEEK_SET);
@@ -853,22 +855,6 @@ Status HybridModelRtV2Executor::Init(CallbackManager *const callback_manager) {
   return ge::SUCCESS;
 }
 
-Status HybridModelRtV2Executor::ExecuteOnlineModel(const InputData &input_data, OutputData *const output_data,
-                                                   std::shared_ptr<ModelListener> listener) {
-  GELOGI("HybridModel will execute in rt2.0 mode");
-  HybridModelExecutor::ExecuteArgs args;
-  GE_TIMESTAMP_START(Execute);
-  auto execute_status = Execute(input_data, args);
-  GE_TIMESTAMP_END(Execute, "HybridModelRtV2Executor::Execute");
-  iterator_count_++;
-  GELOGI("run iterator count is %lu, model_id: %u", iterator_count_, model_->GetModelId());
-  ge::ScopeGuard guarder([this]() { StepDone(); });
-  GE_TIMESTAMP_START(HandleResult);
-  execute_status = HandleResult(execute_status, input_data.index, args, output_data, listener);
-  GE_TIMESTAMP_END(HandleResult, "HybridModelRtV2Executor::HandleResult");
-  return execute_status;
-}
-
 Status HybridModelRtV2Executor::ExecuteOnlineModel(const std::vector<gert::Tensor> &inputs,
                                                    std::shared_ptr<ModelListener> listener) {
   GELOGI("HybridModel will execute in rt2.0 mode");
@@ -884,42 +870,6 @@ Status HybridModelRtV2Executor::ExecuteOnlineModel(const std::vector<gert::Tenso
   execute_status = HandleResult(execute_status, 0U, ctr_args, outputs, listener);
   GE_TIMESTAMP_END(HandleResult, "HybridModelRtV2Executor::HandleResult");
   return execute_status;
-}
-
-Status HybridModelRtV2Executor::HandleResult(const Status exec_ret,
-                                             const uint32_t data_id,
-                                             HybridModelExecutor::ExecuteArgs &args,
-                                             OutputData *const output_data,
-                                             std::shared_ptr<ModelListener> listener) const {
-  GELOGI("Start to handle result. model id = %u, data index = %u, execution ret = %u", model_id_, data_id, exec_ret);
-  std::vector<ge::Tensor> output_tensor_info_list;
-  if (args.ctrl_args.is_eos) {
-    RecycleOutputs(args, stream_);
-    GELOGI("End of sequence, model id = %u.", model_id_);
-    GE_CHK_STATUS_RET_NOLOG(OnComputeDone(data_id, END_OF_SEQUENCE, output_tensor_info_list, listener));
-    return SUCCESS;
-  }
-
-  if (exec_ret != SUCCESS) {
-    RecycleOutputs(args, stream_);
-    GELOGE(exec_ret, "[Check][Param:Status] failed to execute graph. model_id = %u", model_id_);
-    REPORT_INNER_ERR_MSG("E19999", "failed to execute graph. model_id = %u", model_id_);
-    return OnComputeDone(data_id, INTERNAL_ERROR, output_tensor_info_list, listener);
-  }
-
-  GE_CHECK_NOTNULL(output_data);
-  const auto ret = CopyOutputs(args, output_data, output_tensor_info_list);
-  if (ret != SUCCESS) {
-    RecycleOutputs(args, stream_);
-    (void)OnComputeDone(data_id, INTERNAL_ERROR, output_tensor_info_list, listener);
-    return INTERNAL_ERROR;
-  }
-  if (output_tensor_info_list.empty() ||
-      (output_tensor_info_list.front().GetPlacement() != ge::Placement::kPlacementDevice)) {
-    RecycleOutputs(args, stream_);
-  }
-  GELOGI("Executed graph successfully, model id = %u, data_index = %u.", model_id_, data_id);
-  return OnComputeDone(data_id, SUCCESS, output_tensor_info_list, listener);
 }
 
 Status HybridModelRtV2Executor::HandleResult(const Status exec_ret,
@@ -953,19 +903,6 @@ Status HybridModelRtV2Executor::HandleResult(const Status exec_ret,
   RecycleOutputs(outputs, stream_);
   GELOGI("Executed graph successfully, model id = %u, data_index = %u.", model_id_, data_id);
   return OnComputeDone(data_id, SUCCESS, host_outputs, listener);
-}
-
-/*
- * 为什么调用StepDone？
- * StepDone中遍历rt_outputs_，释放内存。
- * args.outputs中金保留了内存指针，不负责释放内存，因此依赖调用StepDone主动遍历rt_outputs_释放内存。
- */
-Status HybridModelRtV2Executor::RecycleOutputs(HybridModelExecutor::ExecuteArgs &args, const rtStream_t stream) const {
-  GELOGI("recycle outputs. graph %s, stream: %p", name_.c_str(), stream);
-  args.outputs.clear();
-  StepDone();
-  GE_ASSERT_SUCCESS(AllocatorRecycle(stream_));
-  return SUCCESS;
 }
 
 /*
@@ -1090,17 +1027,21 @@ static Status InputTensorValidate(const std::vector<gert::Tensor> &inputs, size_
 Status HybridModelRtV2Executor::TryUpdateStreamCoreLimits(const rtStream_t stream) {
   bool update_stream_core_num = false;
   if (!run_ctx_.aicore_num_str_.empty()) {
-    int32_t aicore_num = 0;
-    GE_CHK_STATUS_RET(CheckCoreNumValidAndConvertToInt32(AICORE_NUM, run_ctx_.aicore_num_str_, aicore_num));
-    GE_CHK_RT_RET(rtsSetStreamResLimit(stream, RT_DEV_RES_CUBE_CORE, static_cast<uint32_t>(aicore_num)));
-    update_stream_core_num = true;
+    int32_t aicore_num = -1;
+    GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(ge::GetContext().GetReadableName(AICORE_NUM), run_ctx_.aicore_num_str_, 0, INT32_MAX, aicore_num));
+    if (aicore_num > 0) {
+      GE_CHK_RT_RET(rtsSetStreamResLimit(stream, RT_DEV_RES_CUBE_CORE, static_cast<uint32_t>(aicore_num)));
+      update_stream_core_num = true;
+    }
   }
 
   if (!run_ctx_.vectorcore_num_str_.empty()) {
-    int32_t vectorcore_num = 0;
-    GE_CHK_STATUS_RET(CheckCoreNumValidAndConvertToInt32(kVectorcoreNum, run_ctx_.vectorcore_num_str_, vectorcore_num));
-    GE_CHK_RT_RET(rtsSetStreamResLimit(stream, RT_DEV_RES_VECTOR_CORE, static_cast<uint32_t>(vectorcore_num)));
-    update_stream_core_num = true;
+    int32_t vectorcore_num = -1;
+    GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(ge::GetContext().GetReadableName(kVectorcoreNum), run_ctx_.vectorcore_num_str_, 0, INT32_MAX, vectorcore_num));
+    if (vectorcore_num > 0) {
+      GE_CHK_RT_RET(rtsSetStreamResLimit(stream, RT_DEV_RES_VECTOR_CORE, static_cast<uint32_t>(vectorcore_num)));
+      update_stream_core_num = true;
+    }
   }
 
   if (update_stream_core_num) {

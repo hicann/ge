@@ -41,6 +41,12 @@ static void MockGenerateTask() {
   auto aicore_func = [](const ge::Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
     auto op_desc = node.GetOpDesc();
     op_desc->SetOpKernelLibName("AiCoreLib");
+    ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+    const char tbeBin[] = "tbe_bin";
+    vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+    ge::OpKernelBinPtr tbeKernelPtr = std::make_shared<ge::OpKernelBin>("test_tvm", std::move(buffer));
+    op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr);
     size_t arg_size = 100;
     std::vector<uint8_t> args(arg_size, 0);
     domi::TaskDef task_def;

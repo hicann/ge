@@ -14,7 +14,7 @@
 #include <map>
 #include <sstream>
 #include "common/checker.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/op_desc.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/tensor_utils.h"

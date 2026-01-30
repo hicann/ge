@@ -9,6 +9,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
+# 开发环境构建代码适配
 set -e
 
 TOP_DIR="$1"
@@ -32,8 +33,18 @@ copy_dir_files() {
   if [ -d ${src_dir} ]; then
     if [ -d ${dst_dir} ]; then
       mv ${dst_dir}/CMakeLists.txt ${dst_dir}/CMakeLists.txt_bak
+      mv ${dst_dir}/graph/debug/ge_util.h ${dst_dir}/graph/debug/ge_util.h_bak
+      mv ${dst_dir}/base/attr/attrs_to_buffer.h ${dst_dir}/base/attr/attrs_to_buffer.h_bak
+      mv ${dst_dir}/common/ge_common/util.h ${dst_dir}/common/ge_common/util.h_bak
+      mv ${dst_dir}/common/plugin/plugin_manager.h ${dst_dir}/common/plugin/plugin_manager.h_bak
+
       cp -rf ${src_dir}/* ${dst_dir}
+
       mv ${dst_dir}/CMakeLists.txt_bak ${dst_dir}/CMakeLists.txt
+      mv ${dst_dir}/graph/debug/ge_util.h_bak ${dst_dir}/graph/debug/ge_util.h
+      mv ${dst_dir}/base/attr/attrs_to_buffer.h_bak ${dst_dir}/base/attr/attrs_to_buffer.h
+      mv ${dst_dir}/common/ge_common/util.h_bak ${dst_dir}/common/ge_common/util.h
+      mv ${dst_dir}/common/plugin/plugin_manager.h_bak ${dst_dir}/common/plugin/plugin_manager.h
     fi
   fi
 }

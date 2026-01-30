@@ -78,7 +78,24 @@ class GeneratorManager {
   std::vector<std::unique_ptr<ICodeGenerator>> generators_;
   std::unique_ptr<UtilsGenerator> utils_generator_;
 };
-
+void GeneratePerOpFiles(const std::string &output_dir, GeneratorManager &manager);
+void GenEsImpl(const std::string &output_dir, const std::string &module_name, const std::string &h_guard_prefix, const std::string &exclude_ops_str);
+void Gen(GeneratorManager &manager, std::vector<std::string> &exclude_ops);
+void GenUnsupportedOpsInfo(GeneratorManager &manager,
+                           const std::unordered_map<std::string, std::vector<std::string>> &unsupported_reasons_to_ops);
+void GenerateAggregateFiles(const std::string &output_dir, GeneratorManager &manager);
+void GeneratePerUtilFiles(const std::string &output_dir, GeneratorManager &manager);
+void ProcessOutputDirectory(std::string &output_dir);
+void ExecuteCodeGeneration(const std::string &output_dir, GeneratorManager &manager,
+                           std::vector<std::string> &exclude_ops);
+void GenAllOps(GeneratorManager &manager,
+               std::unordered_map<std::string, std::vector<std::string>> &unsupported_reasons_to_ops,
+               std::vector<std::string> &exclude_ops, size_t &supported_num);
+void DisplayGenerationParameters(const std::string &module_name, const std::string &h_guard_prefix);
+std::unique_ptr<GeneratorManager> InitializeGenerators(const std::string &module_name, const std::string &guard_prefix);
+std::unique_ptr<GeneratorManager> CreateGenerators(const std::string &module_name, const std::string &guard_prefix);
+void GenerateAggregateHeaders(GeneratorManager &manager);
+std::vector<std::string> ParseExcludeGenOps(const std::string &exclude_ops_str);
 }  // namespace es
 }  // namespace ge
 

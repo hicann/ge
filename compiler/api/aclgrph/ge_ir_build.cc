@@ -303,8 +303,9 @@ static graphStatus aclgrphBuildInitializeImpl(std::map<std::string, std::string>
 
   auto iter = global_options.find("ge.autoTuneMode");
   if (iter != global_options.end() && !iter->second.empty()) {
-    const std::string reason = "Check parameter's options unsupport, The Auto Tune function has been discarded. "
-                               "Please use the AOE tool for tuning.";
+    const std::string reason =
+        "The configured value is not supported. The Auto Tune function has been deprecated. "
+        "Please use the AOE tool for tuning";
     REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({reason.c_str()}));
     GELOGE(GRAPH_FAILED,
@@ -523,8 +524,7 @@ graphStatus Impl::CheckDataOpAttrIndexValid(const Graph &graph, const std::strin
   if (!IsAttrIndexSetByUser(compute_graph, data_num, attr_index)) {
     if (index_input_shape_range_flag) {
       std::string situation = "Data op index";
-      std::string reason = "it must be set by user, total data op num[" + std::to_string(data_num) + "], "
-                           "when set input shape range by index.";
+      std::string reason = "When setting the input shape range by index, you must set the index attribute of all DATA operators";
       REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"situation", "reason"}),
                                 std::vector<const char_t *>({situation.c_str(), reason.c_str()}));
       GELOGE(GRAPH_FAILED, "[Check][AttrIndex] Data op index is not set, total data op num[%ld], "
@@ -540,8 +540,7 @@ graphStatus Impl::CheckDataOpAttrIndexValid(const Graph &graph, const std::strin
       omg_context_.user_attr_index_valid = false;
       if (index_input_shape_range_flag) {
         std::string situation = "Data op index[" + std::to_string(i) + "]";
-        std::string reason = "it must be set by user, total data op num[" + std::to_string(data_num) + "], "
-                             "when set input shape range by index";
+        std::string reason = "When setting the input shape range by index, you must set the index attribute of all DATA operators";
         REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"situation", "reason"}),
                                   std::vector<const char_t *>({situation.c_str(), reason.c_str()}));
         GELOGE(GRAPH_FAILED, "[Check][AttrIndex] Attr index [%ld] is not set, total data op num[%ld], "
@@ -627,7 +626,7 @@ graphStatus Impl::CheckBuildModeAndBuildStep() {
   if (it != options_.end() && !(it->second.empty())) {
     if (build_mode_options.find(it->second) == build_mode_options.end()) {
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-          std::vector<const char_t *>({BUILD_MODE, it->second.c_str(), "value is unsupported. Please check!"}));
+          std::vector<const char_t *>({BUILD_MODE, it->second.c_str(), "The current value is not within the valid range."}));
       GELOGE(GRAPH_PARAM_INVALID, "[Check][BuildMode]:%s is unsupported. Please check!", it->second.c_str());
       return GRAPH_PARAM_INVALID;
     }
@@ -637,14 +636,16 @@ graphStatus Impl::CheckBuildModeAndBuildStep() {
   if (it != options_.end() && !(it->second.empty())) {
     if (build_step_options.find(it->second) == build_step_options.end()) {
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-          std::vector<const char_t *>({BUILD_STEP, it->second.c_str(), "value is unsupported. Please check!"}));
+          std::vector<const char_t *>({BUILD_STEP, it->second.c_str(), "The current value is not within the valid range."}));
       GELOGE(GRAPH_PARAM_INVALID, "[Check][BuildStep]:%s is unsupported. Please check!", it->second.c_str());
       return GRAPH_PARAM_INVALID;
     }
   } else {
     if (build_mode == BUILD_MODE_TUNING) {
-      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-          std::vector<const char_t *>({BUILD_STEP, "null", "tuning must specify build step. Please check!"}));
+      REPORT_PREDEFINED_ERR_MSG(
+          "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+          std::vector<const char_t *>(
+              {BUILD_STEP, "null", "If the build mode is set to TUNING, the build step must be specified."}));
       GELOGE(GRAPH_PARAM_INVALID, "[Check][BUILD_STEP] tuning must specify build step. Please check!");
       return GRAPH_PARAM_INVALID;
     }
@@ -698,7 +699,8 @@ graphStatus Impl::CheckOptions(const std::map<std::string, std::string> &options
   it = options_.find(ge::ir_option::OP_PRECISION_MODE);
   if (it != options_.end() && !it->second.empty() && !ge::CheckInputPathValid(it->second)) {
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-        std::vector<const char_t *>({ge::ir_option::OP_PRECISION_MODE, it->second.c_str(), "path is not found"}));
+                              std::vector<const char_t *>({ge::ir_option::OP_PRECISION_MODE, it->second.c_str(),
+                                                           "Path defined by op precision mode is not found."}));
     GELOGE(GRAPH_PARAM_INVALID, "[Check][OP_PRECISION_MODE] %s not found", it->second.c_str());
     return GRAPH_PARAM_INVALID;
   }
@@ -740,6 +742,7 @@ graphStatus Impl::Init(const Graph &graph, const std::map<std::string, std::stri
     return ret;
   }
   std::string input_shape = GetParam(ge::ir_option::INPUT_SHAPE);
+  std::string input_hint_shape = GetParam(ge::ir_option::INPUT_HINT_SHAPE);
   std::string input_format = GetParam(ge::ir_option::INPUT_FORMAT);
   std::string input_shape_range = GetParam(ge::INPUT_SHAPE_RANGE);
   std::string dynamic_batch_size = GetParam(ge::ir_option::DYNAMIC_BATCH_SIZE);
@@ -764,6 +767,13 @@ graphStatus Impl::Init(const Graph &graph, const std::map<std::string, std::stri
                         : options_[ge::ir_option::LOG_LEVEL];
   GE_CHK_BOOL_RET_STATUS_NOLOG(ge::CheckLogParamValidAndSetLogLevel(log) == 0, GRAPH_PARAM_INVALID);
   options_[ge::ir_option::LOG_LEVEL] = log;
+
+  auto ret_status = CheckHintShapeConflictWithDynamicParam(input_hint_shape, dynamic_batch_size,
+                                                           dynamic_image_size, dynamic_dims);
+  if (ret_status != ge::SUCCESS) {
+    GELOGE(GRAPH_PARAM_INVALID, "[Check][inputHintShape] failed!");
+    return GRAPH_PARAM_INVALID;
+  }
 
   auto status = CheckDynamicInputParamValid(dynamic_batch_size, dynamic_image_size, dynamic_dims, input_shape,
                                             input_shape_range, input_format, is_dynamic_input_);
@@ -904,8 +914,9 @@ graphStatus Impl::SetInputs(std::vector<ge::GeTensor> &inputs, const std::vector
 graphStatus Impl::CheckAutoTuneMode(const std::map<std::string, std::string> &options) const {
   auto iter = options.find("ge.autoTuneMode");
   if ((iter != options.end()) && (!iter->second.empty())) {
-    const std::string reason = "Check parameter's options unsupport, The Auto Tune function has been discarded. "
-                               "Please use the AOE tool for tuning.";
+    const std::string reason =
+        "The configured value is not supported. The Auto Tune function has been deprecated. "
+        "Please use the AOE tool for tuning";
     REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({reason.c_str()}));
     GELOGE(
@@ -1677,7 +1688,7 @@ static std::string AttrTypeToSerialString(aclgrphAttrType attr_type) {
   if (it != kAttrTypeToStringMap.end()) {
     return it->second;
   } else {
-    const std::string reason = "attr_type not suppor. ";
+    const std::string reason = "aclgrphAttrType " + std::to_string(attr_type) + " is not supported";
     REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({reason.c_str()}));
     GELOGE(GRAPH_FAILED, "[Check][AclgrphAttrType] attr_type not support %u", attr_type);

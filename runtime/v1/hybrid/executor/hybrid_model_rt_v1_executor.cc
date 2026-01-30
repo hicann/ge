@@ -145,19 +145,6 @@ Status HybridModelRtV1Executor::PreRun(const InputData &current_data, HybridMode
   return SUCCESS;
 }
 
-Status HybridModelRtV1Executor::ExecuteOnlineModel(const InputData &input_data, OutputData *const output_data,
-                                                   std::shared_ptr<ModelListener> listener) {
-  RT2_PROFILING_SCOPE_CONST(gert::profiling::kUnknownName, gert::profiling::kModelExecute);
-  RECORD_MODEL_EXECUTION_EVENT(&context_, "[RunInternal] [iteration = %d] Start", iterator_count_);
-  HybridModelExecutor::ExecuteArgs args;
-  auto ret = ProcessOnlineModel(input_data, args);
-  RECORD_MODEL_EXECUTION_EVENT(&context_, "[RunInternal] [iteration = %d] End", iterator_count_);
-  iterator_count_++;
-  GELOGI("run iterator count is %lu, model_id:%u", iterator_count_, model_->GetModelId());
-  ret = HandleResult(ret, input_data.index, args, output_data, listener);
-  return ret;
-}
-
 Status HybridModelRtV1Executor::ExecuteOnlineModel(const std::vector<gert::Tensor> &inputs,
     std::shared_ptr<ModelListener> listener) {
   RT2_PROFILING_SCOPE_CONST(gert::profiling::kUnknownName, gert::profiling::kModelExecute);

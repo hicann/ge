@@ -61,10 +61,6 @@ class HybridDavinciModel::Impl {
     return executor_.Execute(inputs, input_desc, outputs, output_desc, main_stream);
   }
 
-  Status Execute(const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) {
-    return executor_.Execute(inputs, outputs);
-  }
-
   Status Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) {
     return executor_.Execute(inputs, outputs);
   }
@@ -88,11 +84,7 @@ class HybridDavinciModel::Impl {
     return executor_.Stop();
   }
 
-  Status EnqueueData(const std::shared_ptr<InputDataWrapper> &data) {
-    return executor_.EnqueueData(data);
-  }
-
-  Status EnqueueData(const std::shared_ptr<RunArgsV2> &args) {
+  Status EnqueueData(const std::shared_ptr<RunArgs> &args) {
     return executor_.EnqueueData(args);
   }
 
@@ -165,12 +157,6 @@ class HybridDavinciModel::Impl {
 
   bool GetRunningFlag() const { return executor_.GetRunningFlag(); }
 
-  Status SetRunAsyncListenerCallback(const RunAsyncCallback &callback) const {
-    const auto listener = dynamic_cast<RunAsyncListener *>(listener_.get());
-    GE_CHECK_NOTNULL(listener);
-    listener->SetCallback(callback);
-    return SUCCESS;
-  }
   Status SetRunAsyncListenerCallback(const RunAsyncCallbackV2 &callback) const {
     const auto listener = dynamic_cast<RunAsyncListener *>(listener_.get());
     GE_CHECK_NOTNULL(listener);
@@ -232,11 +218,6 @@ Status HybridDavinciModel::Execute(const std::vector<DataBuffer> &inputs,
   return impl_->Execute(inputs, input_desc, outputs, output_desc, stream);
 }
 
-Status HybridDavinciModel::Execute(const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) {
-  GE_CHECK_NOTNULL(impl_);
-  return impl_->Execute(inputs, outputs);
-}
-
 Status HybridDavinciModel::Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) {
   GE_CHECK_NOTNULL(impl_);
   return impl_->Execute(inputs, outputs);
@@ -265,12 +246,7 @@ Status HybridDavinciModel::ModelRunStop() {
   return impl_->ModelRunStop();
 }
 
-Status HybridDavinciModel::EnqueueData(const shared_ptr<InputDataWrapper> &data) {
-  GE_CHECK_NOTNULL(impl_);
-  return impl_->EnqueueData(data);
-}
-
-Status HybridDavinciModel::EnqueueData(const shared_ptr<RunArgsV2> &args) {
+Status HybridDavinciModel::EnqueueData(const shared_ptr<RunArgs> &args) {
   GE_CHECK_NOTNULL(impl_);
   return impl_->EnqueueData(args);
 }
@@ -372,11 +348,6 @@ bool HybridDavinciModel::GetRunningFlag() const {
     return false;
   }
   return impl_->GetRunningFlag();
-}
-
-Status HybridDavinciModel::SetRunAsyncListenerCallback(const RunAsyncCallback &callback) {
-  GE_CHECK_NOTNULL(impl_);
-  return impl_->SetRunAsyncListenerCallback(callback);
 }
 
 Status HybridDavinciModel::SetRunAsyncListenerCallback(

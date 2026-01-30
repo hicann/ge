@@ -97,16 +97,5 @@ std::set<std::string> PlatformV1::BroadcastTypes() const {
 #define REGISTER_PLATFORM_V1(platform_name, suffix) \
   static PlatformRegistrar<PlatformV1> registrar_##suffix(platform_name)
 
-REGISTER_PLATFORM_V1("Ascend910B1", b1);
-REGISTER_PLATFORM_V1("Ascend910B2", b2);
-REGISTER_PLATFORM_V1("Ascend910B2C", b2c);
-REGISTER_PLATFORM_V1("Ascend910B3", b3);
-REGISTER_PLATFORM_V1("Ascend910B4", b4);
-REGISTER_PLATFORM_V1("Ascend910B4-1", b41);
-REGISTER_PLATFORM_V1("Ascend910_9391", 9391);
-REGISTER_PLATFORM_V1("Ascend910_9381", 9381);
-REGISTER_PLATFORM_V1("Ascend910_9372", 9372);
-REGISTER_PLATFORM_V1("Ascend910_9392", 9392);
-REGISTER_PLATFORM_V1("Ascend910_9382", 9382);
-REGISTER_PLATFORM_V1("Ascend910_9362", 9362);
+REGISTER_PLATFORM_V1("2201", v1);
 }  // namespace optimize

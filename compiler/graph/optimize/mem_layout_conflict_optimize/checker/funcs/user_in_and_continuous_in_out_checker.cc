@@ -16,12 +16,14 @@
 
 namespace ge {
 Status UserInputAndContinuousInputOutputChecker(CheckFuncContext &context) {
+  // refdata-assign-PhonyConcat这种结构，在assign后面插入，保证refdata能被assign更新
   bool done = false;
   GE_ASSERT_SUCCESS(MemLayoutConflictUtil::AssignVarInsertIdentity(context,
                                                                    ANCHOR_ATTR_USER_MEMORY_INPUT, done));
   if (done) {
     return SUCCESS;
   }
+  // 默认情况是在data后面插入identity
   auto user_in_node_index_io = context.node_a;
   if (OpTypeUtils::IsDataNode(context.node_b.node_->GetType())) {
     user_in_node_index_io = context.node_b;
@@ -30,6 +32,25 @@ Status UserInputAndContinuousInputOutputChecker(CheckFuncContext &context) {
   context.result.insert(user_in_node_index_io.node_->GetOutAnchor(user_in_node_index_io.index_));
   GE_MEM_LAYOUT_CONFLICT_LOGI(context, user_in_node_index_io);
   return SUCCESS;
+}
+
+Status UserInputAndNoPaddingContinuousInputChecker(CheckFuncContext &context) {
+  auto pc = context.node_a;
+  if (MemLayoutConflictUtil::IsContainTargetType(context.type_b, ANCHOR_ATTR_NOPADDING_CONTINUOUS_INPUT)) {
+    pc = context.node_b;
+  }
+  /*
+   *  PhonyConcat 的所有输入是同一个anchor，不需要插入identity
+   *              data
+   *               /\
+   *  assign_slice0 assign_slice1 (inplace)
+   *             \   /
+   *          PhonyConcat
+   */
+  if (MemLayoutConflictUtil::AllRealInputsAreTheSameOutAnchor(pc.node_)) {
+    return SUCCESS;
+  }
+  return UserInputAndContinuousInputOutputChecker(context);
 }
 
 /**
@@ -63,5 +84,5 @@ REGISTER_FUNC(ANCHOR_ATTR_USER_MEMORY_INPUT, ANCHOR_ATTR_NOPADDING_CONTINUOUS_OU
 REGISTER_FUNC(ANCHOR_ATTR_USER_MEMORY_INPUT, ANCHOR_ATTR_CONTINUOUS_INPUT,
               UserInputAndContinuousInputOutputChecker);
 REGISTER_FUNC(ANCHOR_ATTR_USER_MEMORY_INPUT, ANCHOR_ATTR_NOPADDING_CONTINUOUS_INPUT,
-              UserInputAndContinuousInputOutputChecker);
+              UserInputAndNoPaddingContinuousInputChecker);
 }  // namespace ge

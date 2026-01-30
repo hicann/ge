@@ -144,7 +144,7 @@ TEST_F(CustomStreamPassUT, PureKnownShape_SimpleCase) {
  // 二拆
  EnginePartitioner partitioner;
  AttrUtils::SetStr(compute_graph, ATTR_NAME_SESSION_GRAPH_ID, "0"); // parttion required
- EXPECT_EQ(partitioner.Partition(compute_graph, EnginePartitioner::kSecondPartitioning), SUCCESS);
+ EXPECT_EQ(partitioner.Partition(compute_graph, EnginePartitioner::Mode::kSecondPartitioning), SUCCESS);
  const auto &graph_2_subgraphlist = partitioner.GetSubGraphMap();
  EXPECT_EQ(graph_2_subgraphlist.size(), 1);
 
@@ -180,7 +180,7 @@ TEST_F(CustomStreamPassUT, PureKnownShape_SimpleCase) {
  // 二拆
  EnginePartitioner partitioner;
  AttrUtils::SetStr(compute_graph, ATTR_NAME_SESSION_GRAPH_ID, "0"); // parttion required
- EXPECT_EQ(partitioner.Partition(compute_graph, EnginePartitioner::kSecondPartitioning), SUCCESS);
+ EXPECT_EQ(partitioner.Partition(compute_graph, EnginePartitioner::Mode::kSecondPartitioning), SUCCESS);
  const auto &graph_2_subgraphlist = partitioner.GetSubGraphMap();
  EXPECT_EQ(graph_2_subgraphlist.size(), 1);
 
@@ -226,7 +226,7 @@ TEST_F(CustomStreamPassUT, PureKnownShape_SimpleCase) {
  // 二拆
  EnginePartitioner partitioner;
  AttrUtils::SetStr(compute_graph, ATTR_NAME_SESSION_GRAPH_ID, "0"); // parttion required
- EXPECT_EQ(partitioner.Partition(compute_graph, EnginePartitioner::kSecondPartitioning), SUCCESS);
+ EXPECT_EQ(partitioner.Partition(compute_graph, EnginePartitioner::Mode::kSecondPartitioning), SUCCESS);
  const auto &graph_2_subgraphlist = partitioner.GetSubGraphMap();
 
  std::map<std::string, int32_t> max_parallel_num;

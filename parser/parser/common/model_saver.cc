@@ -53,7 +53,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY Status ModelSaver::SaveJsonToFi
 
   char real_path[PATH_MAX] = {0};
   if (strlen(file_path) >= PATH_MAX) {
-    REPORT_INNER_ERR_MSG("E19999", "file path %s is too long!", file_path);
+    REPORT_PREDEFINED_ERR_MSG("E13002", std::vector<const char *>({"filepath", "size"}),
+                              std::vector<const char *>({file_path, std::to_string(PATH_MAX).c_str()}));
     GELOGE(FAILED, "[Check][Param] file path %s is too long!", file_path);
     return FAILED;
   }

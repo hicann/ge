@@ -12,21 +12,21 @@
 #include "framework/common/debug/ge_log.h"
 
 namespace ge {
-std::mutex ExternalAllocatorManager::stream_to_external_allocator_Mutex_;
+std::shared_mutex ExternalAllocatorManager::stream_to_external_allocator_Mutex_;
 std::map<const void *const, AllocatorPtr> ExternalAllocatorManager::stream_to_external_allocator_;
 
 void ExternalAllocatorManager::SetExternalAllocator(const void *const stream, AllocatorPtr allocator) {
-  const std::unique_lock<std::mutex> lk(stream_to_external_allocator_Mutex_);
+  const std::unique_lock<std::shared_mutex> lk(stream_to_external_allocator_Mutex_);
   stream_to_external_allocator_[stream] = allocator;
 }
 
 void ExternalAllocatorManager::DeleteExternalAllocator(const void *const stream) {
-  const std::unique_lock<std::mutex> lk(stream_to_external_allocator_Mutex_);
+  const std::unique_lock<std::shared_mutex> lk(stream_to_external_allocator_Mutex_);
   (void)stream_to_external_allocator_.erase(stream);
 }
 
 AllocatorPtr ExternalAllocatorManager::GetExternalAllocator(const void *const stream) {
-  const std::unique_lock<std::mutex> lk(stream_to_external_allocator_Mutex_);
+  const std::shared_lock<std::shared_mutex> lk(stream_to_external_allocator_Mutex_);
   const auto iter = stream_to_external_allocator_.find(stream);
   if (iter != stream_to_external_allocator_.end()) {
     GELOGI("Get external allocator success, stream:%p, allocator:%p.", stream, iter->second.get());

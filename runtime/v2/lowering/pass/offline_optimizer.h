@@ -21,6 +21,7 @@
 #include "trust_out_tensor.h"
 #include "graph/fast_graph/execute_graph.h"
 #include "utils/utils.h"
+#include "exe_graph/lowering/lowering_global_data.h"
 namespace gert {
 namespace bg {
 class OfflineOptimizer {

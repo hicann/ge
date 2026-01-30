@@ -248,7 +248,7 @@ ge::graphStatus SplitTensorForOutputData(KernelContext *context) {
   if (tensor == nullptr || tensor->GetAddr() == nullptr) {
     GELOGE(ge::PARAM_INVALID,
            "In the `always_zero_copy` mode, the output tensor and tensor data must be allocated by the called");
-    const std::string reason = "The output tensor and tensor data must be allocated by the called";
+    const std::string reason = "The output tensor and its address must be allocated and passed by the caller";
     const std::vector<std::string> key{"reason"};
     const std::vector<std::string> val{reason};
     REPORT_PREDEFINED_ERR_MSG("E13031", std::vector<const ge::char_t *>({"reason"}),
@@ -263,9 +263,9 @@ ge::graphStatus SplitTensorForOutputData(KernelContext *context) {
     GELOGE(ge::PARAM_INVALID,
            "The output tensor memory size[%zu] is smaller than the actual size[%" PRId64 "] required by tensor.",
            tensor->GetSize(), storage_shape_size);
-    const std::string reason = "The output tensor memory size[" + std::to_string(tensor->GetSize()) +
-                               "] is smaller than the actual size[" + std::to_string(storage_shape_size) +
-                               "] required by tensor";
+    const std::string reason = "The output tensor memory size " + std::to_string(tensor->GetSize()) +
+                               " is smaller than the actual size " + std::to_string(storage_shape_size) +
+                               " required by tensor";
     const std::vector<std::string> key{"reason"};
     const std::vector<std::string> val{reason};
     REPORT_PREDEFINED_ERR_MSG("E13031", std::vector<const ge::char_t *>({"reason"}),

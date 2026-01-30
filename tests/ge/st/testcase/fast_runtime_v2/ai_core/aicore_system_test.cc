@@ -666,7 +666,6 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeBase) {
   GertRuntimeStub stub;
   stub.GetSlogStub().SetLevelInfo();
 
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   // 1、构图
   std::string cmake_binary_dir = CMAKE_BINARY_DIR;
   std::string autofuse_stub_so_path = cmake_binary_dir + "/tests/depends/op_stub/libautofuse_stub.so";
@@ -712,13 +711,11 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeBase) {
   }
   ASSERT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
   rtStreamDestroy(stream);
-  unsetenv("ENABLE_TILING_CACHE");
 }
 
 TEST_F(AICoreLoweringST, TestAutofuseNodeWithTilingCacheAndInferMerge) {
   GertRuntimeStub stub;
   stub.GetSlogStub().SetLevelInfo();
-  setenv("ENABLE_TILING_CACHE", "1", 1);
 
   std::string cmake_binary_dir = CMAKE_BINARY_DIR;
   std::string autofuse_stub_so_path = cmake_binary_dir + "/tests/depends/op_stub/libautofuse_stub.so";
@@ -771,13 +768,11 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeWithTilingCacheAndInferMerge) {
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("AscBackend", "GetSymbolTilingCacheKey"), 4);
   EXPECT_EQ(ess->GetExecuteCountByNodeTypeAndKernelType("AscBackend", "InferShape"), 2);
   rtStreamDestroy(stream);
-  unsetenv("ENABLE_TILING_CACHE");
   stub.GetSlogStub().SetLevel(DLOG_ERROR);
   stub.GetSlogStub().Clear();
 }
 
 TEST_F(AICoreLoweringST, TestAutofuseNodeTilingParse) {
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   // 1、构图
   std::string cmake_binary_dir = CMAKE_BINARY_DIR;
   std::string autofuse_stub_so_path = cmake_binary_dir + "/tests/depends/op_stub/libautofuse_stub.so";
@@ -825,11 +820,9 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeTilingParse) {
   }
   ASSERT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
   rtStreamDestroy(stream);
-  unsetenv("ENABLE_TILING_CACHE");
 }
 
 TEST_F(AICoreLoweringST, TestAutofuseNodeDlopenAutofuseSoNodeCheck) {
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   // 1、构图
   std::string cmake_binary_dir = CMAKE_BINARY_DIR;
   std::string autofuse_stub_so_path = cmake_binary_dir + "/tests/depends/op_stub/libautofuse_stub.so";
@@ -877,7 +870,6 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeDlopenAutofuseSoNodeCheck) {
   }
   ASSERT_EQ(model_executor->UnLoad(), ge::GRAPH_SUCCESS);
   rtStreamDestroy(stream);
-  unsetenv("ENABLE_TILING_CACHE");
 }
 
 TEST_F(AICoreLoweringST, AutofuseInferKernelTraceTest) {

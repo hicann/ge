@@ -20,6 +20,7 @@ set(SRC_LIST
     "tensorflow/tensorflow_merge_parser.cc"
     "tensorflow/tensorflow_no_op_parser.cc"
     "tensorflow/tensorflow_parser.cc"
+    "tensorflow/tensorflow_custom_op_parser.cc"
     "tensorflow/tensorflow_ref_switch_parser.cc"
     "tensorflow/tensorflow_reshape_parser.cc"
     "tensorflow/tensorflow_shape_n_parser.cc"
@@ -86,6 +87,7 @@ target_link_libraries(fmk_parser
         intf_pub
         air_headers
         json
+        -lstdc++fs
     PUBLIC
         static_mmpa
         -Wl,--no-as-needed

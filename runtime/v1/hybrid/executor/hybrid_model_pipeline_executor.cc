@@ -335,19 +335,6 @@ Status HybridModelPipelineExecutor::PreRun(const InputData &current_data, Hybrid
   return SUCCESS;
 }
 
-Status HybridModelPipelineExecutor::ExecuteOnlineModel(const InputData &input_data, OutputData *const output_data,
-                                                       std::shared_ptr<ModelListener> listener) {
-  PROFILING_SCOPE_CONST(-1, profiling::kModelExecute);
-  RECORD_MODEL_EXECUTION_EVENT(&context_, "[RunInternal] [iteration = %d] Start", iterator_count_);
-  HybridModelExecutor::ExecuteArgs args;
-  auto ret = ProcessOnlineModel(input_data, args);
-  RECORD_MODEL_EXECUTION_EVENT(&context_, "[RunInternal] [iteration = %d] End", iterator_count_);
-  iterator_count_++;
-  GELOGI("run iterator count is %lu, model_id:%u", iterator_count_, model_->GetModelId());
-  ret = HandleResult(ret, input_data.index, args, output_data, listener);
-  return ret;
-}
-
 Status HybridModelPipelineExecutor::ExecuteOnlineModel(const std::vector<gert::Tensor> &inputs,
     std::shared_ptr<ModelListener> listener) {
   PROFILING_SCOPE_CONST(-1, profiling::kModelExecute);
@@ -378,13 +365,6 @@ Status HybridModelPipelineExecutor::ProcessOnlineModel(const InputData &input_da
     args.ctrl_args.num_loops = static_cast<int32_t>(strtol(iter_per_run, nullptr, kDefaultLoopCount));
   }
   return Execute(args);
-}
-
-Status HybridModelPipelineExecutor::Execute(const InputData &input_data, ExecuteArgs &args) {
-  (void)input_data;
-  (void)args;
-  GELOGE(FAILED, "Pipeline executor not support upper interface RunGraph");
-  return FAILED;
 }
 
 Status HybridModelPipelineExecutor::Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs,

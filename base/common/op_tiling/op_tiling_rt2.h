@@ -25,8 +25,6 @@ using OutputsConvertorFun = std::function<ge::graphStatus(gert::KernelContext *k
 using ParseContextHolderPtr = std::shared_ptr<gert::KernelContextHolder>;
 bool EnableRt2Tiling(const ge::OpDescPtr &op_desc);
 bool EnableAtomicRt2Tiling(const ge::OpDescPtr &op_desc);
-ge::graphStatus UpdateCoreCountWithOpDesc(std::map<std::string, std::string>& res, const std::string& key_ini,
-                               const std::string& key_op, const ge::OpDesc::OpDescPtr &op_desc);
 ge::graphStatus RtParseAndTiling(const ge::Operator &op, const char_t * const compile_info,
                                  const fe::PlatFormInfos &platform_infos, const OutputsConvertorFun &callback,
                                  const gert::OpImplSpaceRegistryV2Ptr &space_registry);
@@ -41,7 +39,7 @@ ge::graphStatus SoftSyncOpRtParseAndTiling(const ge::Operator &op, fe::PlatFormI
                                            const gert::OpImplSpaceRegistryV2Ptr &space_registry);
 ge::graphStatus FftsRtParseAndTiling(const ge::Operator &op, const fe::PlatFormInfos &platform_infos,
                                      std::vector<OpRunInfoV2> &op_run_infos);
-constexpr char_t OP_TILING_PARSE_RESULT[] = "tiling_parse_result";
+const std::string OP_TILING_PARSE_RESULT = "tiling_parse_result";
 }  // namespace optiling
 
 #endif  // GE_COMMON_TILING_OP_TILING_RT2_H_

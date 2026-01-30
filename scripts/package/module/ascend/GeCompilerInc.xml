@@ -23,7 +23,6 @@
     </dir_info>
     <file_info value="include" copy_type="source" dst_path="include/ge" install_path="$(TARGET_ENV)/include/ge" install_type="devel" install_mod="440">
         <file value="ge_api_error_codes.h"/>
-        <file value="ge_error_codes.h"/>
         <file value="ge_ir_build.h"/>
         <file value="ge_utils.h"/>
     </file_info>
@@ -46,9 +45,6 @@
     <file_info value="include" copy_type="source" dst_path="include/ge/cmake" install_path="$(TARGET_ENV)/include/ge/cmake" install_type="devel" install_mod="440">
         <file value="FindGenerateEsPackage.cmake"/>
         <file value="generate_es_package.cmake"/>
-    </file_info>
-    <file_info value="include" copy_type="source" dst_path="include/acl/error_codes" install_path="$(TARGET_ENV)/include/acl/error_codes" install_type="devel" install_mod="440">
-        <file value="ge_error_codes.h"/>
     </file_info>
     <file_info value="include" copy_type="source" dst_path="include/acl" install_path="$(TARGET_ENV)/include/acl" install_type="devel" install_mod="440">
         <file value="acl_op_compiler.h"/>

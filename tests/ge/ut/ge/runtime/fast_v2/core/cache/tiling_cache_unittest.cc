@@ -187,7 +187,6 @@ TEST_F(TilingCacheUt, TilingCache_Ok_AddTensorDataToHashBuffer) {
 }
 
 TEST_F(TilingCacheUt, TilingCache_Ok_CheckDataDependentOperator) {
-  setenv("ENABLE_TILING_CACHE", "1", 1);
   IMPL_OP(DDIT02).InputsDataDependency({0, 2});
   gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
   bg::ValueHolder::PushGraphFrame();
@@ -219,11 +218,9 @@ TEST_F(TilingCacheUt, TilingCache_Ok_CheckDataDependentOperator) {
   EXPECT_EQ(data_dependency, 5U);
 
   while (bg::ValueHolder::PopGraphFrame() != nullptr) {}
-  unsetenv("ENABLE_TILING_CACHE");
 }
 
 TEST_F(TilingCacheUt, TilingCache_Ok_CheckDataDependentOperatorOutOfRange) {
-  setenv("ENABLE_TILING_CACHE", "1", 1);
   IMPL_OP(DDIT02).InputsDataDependency({0, 64});
   bg::ValueHolder::PushGraphFrame();
 
@@ -251,6 +248,5 @@ TEST_F(TilingCacheUt, TilingCache_Ok_CheckDataDependentOperatorOutOfRange) {
 
   while (bg::ValueHolder::PopGraphFrame() != nullptr) {
   }
-  unsetenv("ENABLE_TILING_CACHE");
 }
 }

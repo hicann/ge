@@ -139,7 +139,7 @@ TEST_F(TestOptimizerV2, platform_reg_test) {
   ge::AscGraph graph("tmp");
   ge::PlatformInfo info;
   ge::PlatformContext::GetInstance().GetCurrentPlatform(info);
-  EXPECT_EQ(info.name, "Ascend910_9591");
+  EXPECT_EQ(info.name, "3510");
   const auto platform_v2 = optimize::PlatformFactory::GetInstance().GetPlatform();
   EXPECT_NE(platform_v2, nullptr);
   EXPECT_EQ(platform_v2->PartitionSubFunctions(graph), ge::SUCCESS);

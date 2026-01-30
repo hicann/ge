@@ -320,7 +320,8 @@ TEST_F(UtestModelHelper, SoBinSaveToOmRootModel)
   ge_model->SetGraph(graph);
   FillModelTaskDef(ge_model);
 
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -405,7 +406,8 @@ TEST_F(UtestModelHelper, RepackSoToOm)
     context->set_args_offset(args_offset, 9 * sizeof(uint16_t));
   }
 
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -597,7 +599,8 @@ TEST_F(UtestModelHelper, SoBinSaveToOmModel)
     context->set_args_offset(args_offset, 9 * sizeof(uint16_t));
   }
 
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -734,7 +737,8 @@ TEST_F(UtestModelHelper, LoadOpSoBinDataFail)
 }
 
 TEST_F(UtestModelHelper, GetBinDataSuccess) {
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";
@@ -796,7 +800,8 @@ TEST_F(UtestModelHelper, SoBinSaveToOmModel_CPU_OS_EMPTY)
     context->set_args_offset(args_offset, 9 * sizeof(uint16_t));
   }
 
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
   std::string inner_proto_path = opp_path + kInner + kOpsProtoPath;
@@ -862,7 +867,8 @@ TEST_F(UtestModelHelper, SoBinSaveToOmRootModelErrByFileNameTooLong)
     context->set_args_offset(args_offset, 9 * sizeof(uint16_t));
   }
 
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
   std::string inner_proto_path = opp_path + kInner + kOpsProtoPath;
@@ -901,7 +907,8 @@ TEST_F(UtestModelHelper, SoBinSaveToOmRootModelErrByFileNameTooLong)
 
 TEST_F(UtestModelHelper, GetSoBinData_fail)
 {
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   opp_path += "/temp/";
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
@@ -997,8 +1004,8 @@ TEST_F(UtestModelHelper, GetSoBinData_upgraded_opp_success) {
 }
 
 TEST_F(UtestModelHelper, SaveOpMasterDevice_BuiltIn_Success) {
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
-  opp_path = opp_path + "/test_tmp/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "/test_tmp/";
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
   std::string inner_op_master = opp_path + "built_in/op_master_device/lib/";
   system(("mkdir -p " + inner_op_master).c_str());
@@ -1033,8 +1040,8 @@ TEST_F(UtestModelHelper, SaveOpMasterDevice_BuiltIn_Success) {
 }
 
 TEST_F(UtestModelHelper, SaveOpMasterDevice_WithSpaceRegistry_Success) {
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
-  opp_path = opp_path + "/test_tmp/";
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "/test_tmp/";
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
   std::string inner_op_master = opp_path + "built_in/op_master_device/lib/";
   system(("mkdir -p " + inner_op_master).c_str());
@@ -1115,6 +1122,69 @@ TEST_F(UtestModelHelper, UpdateSessionGraphId) {
   auto graph = gert::ShareGraph::BuildWithKnownSubgraphWithTwoConst();
   auto ret = model_helper.UpdateSessionGraphId(graph, "1", refreshed);
   EXPECT_EQ(ret, SUCCESS);
+}
+
+TEST_F(UtestModelHelper, SaveAndLoadOfflineAutofuseSo) {
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "/test_tmp/";
+  mmSetEnv(kEnvName, opp_path.c_str(), 1);
+  std::string inner_op_master = opp_path + "built_in/op_master_device/lib/";
+  system(("mkdir -p " + inner_op_master).c_str());
+  inner_op_master += "Ascend-V7.6-libopmaster.so";
+  system(("touch " + inner_op_master).c_str());
+  system(("echo 'Ascend-V7.6-libopmaster' > " + inner_op_master).c_str());
+
+  ModelBufferData model;
+  ModelHelper model_helper;
+  model_helper.SetSaveMode(true);
+  GeRootModelPtr ge_root_model =
+      ConstructGeRootModel(false, ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL, ccKernelType::AI_CPU, inner_op_master);
+
+  auto ge_root_graph = ge_root_model->GetRootGraph();
+
+  OpDescBuilder op_desc_builder("test", "AscBackend");
+  const auto &op_desc = op_desc_builder.Build();
+  auto node = ge_root_graph->AddNode(op_desc);
+  node->SetOwnerComputeGraph(ge_root_graph);
+  auto autofuse_stub_so = __FILE__;
+  std::cout << "bin path: " << autofuse_stub_so << std::endl;
+  auto nodes = ge_root_graph->GetAllNodesPtr();
+  for (auto n : nodes) {
+    cout << n->GetName() << endl;
+    (void)ge::AttrUtils::SetStr(n->GetOpDesc(), "bin_file_path", autofuse_stub_so);
+  }
+
+  EXPECT_EQ(ge_root_model->CheckAndSetNeedSoInOM(), SUCCESS);
+  EXPECT_EQ(ge_root_model->GetSoInOmFlag(), 0x6000);
+
+  std::string output_file = opp_path + "/output.om";
+  EXPECT_EQ(model_helper.SaveToOmRootModel(ge_root_model, output_file, model, false), SUCCESS);
+
+  ge::ModelParserBase base;
+  ge::ModelData model_data;
+  EXPECT_EQ(base.LoadFromFile(output_file.c_str(), -1, model_data), SUCCESS);
+  EXPECT_EQ(model_helper.LoadRootModel(model_data), SUCCESS);
+  if (model_data.model_data != nullptr) {
+    delete[] reinterpret_cast<char_t *>(model_data.model_data);
+  }
+
+  OmFileLoadHelper load_helper;
+  load_helper.is_inited_ = true;
+  OmFileContext cur_ctx;
+  ModelPartition so_patition;
+  so_patition.type = ModelPartitionType::SO_BINS;
+  auto so_data = std::unique_ptr<char[]>(new(std::nothrow) char[20]);
+  so_patition.data = reinterpret_cast<uint8_t*>(so_data.get());
+  so_patition.size = 20;
+  cur_ctx.partition_datas_.push_back(so_patition);
+  load_helper.model_contexts_.push_back(cur_ctx);
+  EXPECT_EQ(model_helper.LoadOpSoBin(load_helper, ge_root_model), SUCCESS);
+
+  const auto &root_model = model_helper.GetGeRootModel();
+  const auto &so_list = root_model->GetAllSoBin();
+  EXPECT_EQ(so_list.size(), 2UL);
+  EXPECT_EQ(so_list[0UL]->GetSoBinType(), SoBinType::kOpMasterDevice);
+  system(("rm -rf " + opp_path).c_str());
 }
 
 TEST_F(UtestModelHelper, SaveToOm_for_SubPkg_Opp) {

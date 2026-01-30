@@ -94,7 +94,7 @@ Status Message2Operator::ParseField(const google::protobuf::Reflection *reflecti
     }
     default: {
       REPORT_PREDEFINED_ERR_MSG("E11032", std::vector<const char *>({"message_type", "name", "reason"}),
-                         std::vector<const char *>({"model", field->name().c_str(), "Unsupported field type"}));
+                                std::vector<const char *>({"model", field->name().c_str(), "Unsupported field type"}));
       GELOGE(FAILED, "[Check][FieldType]Unsupported field type, name: %s.", field->name().c_str());
       return FAILED;
     }
@@ -154,7 +154,7 @@ Status Message2Operator::ParseRepeatedField(const google::protobuf::Reflection *
     }
     default: {
       REPORT_PREDEFINED_ERR_MSG("E11032", std::vector<const char *>({"message_type", "name", "reason"}),
-                         std::vector<const char *>({"model", field->name().c_str(), "Unsupported field type"}));
+                                std::vector<const char *>({"model", field->name().c_str(), "Unsupported field type"}));
       GELOGE(FAILED, "[Check][FieldType]Unsupported field type, name: %s.", field->name().c_str());
       return FAILED;
     }

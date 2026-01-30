@@ -17,7 +17,7 @@
 
 #include "register/register_custom_pass.h"
 #include "register/custom_pass_context_impl.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "register/custom_pass_helper.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "graph/common/share_graph.h"

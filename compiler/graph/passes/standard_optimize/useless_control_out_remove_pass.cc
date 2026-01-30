@@ -14,6 +14,7 @@
 #include "graph/utils/graph_utils.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 Status UselessControlOutRemovePass::Run(NodePtr &node) {

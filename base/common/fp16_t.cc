@@ -42,10 +42,8 @@ static bool Fp16IsRoundOne(const uint64_t man, const uint16_t trunc_len) {
   const bool last_bit = ((man & mask0) > 0UL);
   bool trunc_high = false;
   bool trunc_left = false;
-  if (g_round_mode == TagFp16RoundMode::kRoundToNearest) {
-    trunc_high = ((man & mask1) > 0UL);
-    trunc_left = ((man & mask2) > 0UL);
-  }
+  trunc_high = ((man & mask1) > 0UL);
+  trunc_left = ((man & mask2) > 0UL);
   return (trunc_high && (trunc_left || last_bit));
 }
 /// @ingroup fp16_t public method

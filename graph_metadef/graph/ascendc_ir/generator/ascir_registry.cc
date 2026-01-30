@@ -55,12 +55,12 @@ struct AscIrDefImpl {
   // TODO 整改后删除
   IRDataTypeSymbolStore dtype_symbol_store;
   std::string comment;
-  ge::ComputeType compute_type = ge::ComputeType::kComputeInvalid;
   CalcTmpBufSizeFunc calc_tmp_buf_size_func;
   std::string tiling_data_name;
   std::map<std::string, AscIrImpl> soc_2_impl_;
   std::map<std::string, AscIrImplV2> soc_2_impl_v2_;
   std::map<std::string, IRDataTypeSymbolStore>  soc_2_dtype_sym_store_;
+  ge::ComputeType compute_type = ge::ComputeType::kComputeInvalid;
 };
 
 AscIrDef::AscIrDef() {
@@ -183,14 +183,6 @@ const std::string &AscIrDef::GetComment() const {
   return impl_->comment;
 }
 
-void AscIrDef::SetComputeType(ge::ComputeType compute_type) const {
-  impl_->compute_type = compute_type;
-}
-
-ge::ComputeType AscIrDef::GetComputeType() const {
-  return impl_->compute_type;
-}
-
 const std::string &AscIrDef::GetFilePath() const {
   return impl_->file_path;
 }
@@ -290,6 +282,14 @@ std::unique_ptr<AscIrAtt> AscirRegistry::GetIrAttImpl(const std::string &soc_ver
 std::unique_ptr<AscIrCodegen> AscirRegistry::GetIrCodegenImpl(const std::string &soc_version, const std::string &type) {
   auto iter = types_to_ascir_.find(type);
   return (iter == types_to_ascir_.end()) ? nullptr : types_to_ascir_[type].GetAscIrCodegenImpl(soc_version);
+}
+
+void AscIrDef::SetComputeType(ge::ComputeType compute_type) const {
+  impl_->compute_type = compute_type;
+}
+
+ge::ComputeType AscIrDef::GetComputeType() const {
+  return impl_->compute_type;
 }
 
 void AscirRegistry::ClearAll() {

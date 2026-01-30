@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -218,6 +218,7 @@ class RuntimeStub {
   virtual rtError_t rtMbufAlloc(rtMbufPtr_t *mbuf, uint64_t size);
   virtual rtError_t rtMbufFree(rtMbufPtr_t mbuf);
   virtual rtError_t rtGetSocVersion(char *version, const uint32_t maxLen);
+  virtual rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen);
   virtual rtError_t rtDeviceReset(int32_t device);
   virtual rtError_t rtModelCheckCompatibility(const char_t *OmSoCVersion, const char_t *OMArchVersion);
 
@@ -261,6 +262,7 @@ class RuntimeStub {
   virtual rtError_t rtStreamDestroyForce(rtStream_t stream);
   virtual rtError_t rtStreamDestroy(rtStream_t stream);
   virtual rtError_t rtStreamSetMode(rtStream_t stm, const uint64_t stmMode);
+  virtual rtError_t rtBinarySetExceptionCallback(rtBinHandle binHandle, rtOpExceptionCallback exceptionFunc, void *userData);
   virtual rtError_t rtEventCreateWithFlag(rtEvent_t *event, uint32_t flag) {
     return RT_ERROR_NONE;
   }
@@ -343,16 +345,12 @@ class RuntimeStub {
     return RT_ERROR_NONE;
   }
 
-  virtual rtError_t rtsLaunchKernelWithHostArgs(rtFuncHandle funcHandle, uint32_t blockDim, rtStream_t stm,
-                                                rtKernelLaunchCfg_t *cfg, void *hostArgs, uint32_t argsSize,
-                                                rtPlaceHolderInfo_t *placeHolderArray, uint32_t placeHolderNum) {
-    return RT_ERROR_NONE;
-  }
-
   virtual rtError_t rtGetDevice(int32_t *deviceId);
 
   virtual rtError_t rtsFuncGetByEntry(const rtBinHandle binHandle, const uint64_t funcEntry,
       rtFuncHandle *funcHandle) {
+    rtFuncHandle tmp_funcHandle = nullptr;
+    *funcHandle = &tmp_funcHandle;
     return RT_ERROR_NONE;
   }
 
@@ -362,6 +360,12 @@ class RuntimeStub {
 
   virtual rtError_t rtsLaunchKernelWithDevArgs(rtFuncHandle funcHandle, uint32_t blockDim, rtStream_t stm,
       rtKernelLaunchCfg_t *cfg, const void *args, uint32_t argsSize, void *reserve) {
+    return RT_ERROR_NONE;
+  }
+
+  virtual rtError_t rtsLaunchKernelWithHostArgs(rtFuncHandle funcHandle, uint32_t blockDim,
+      rtStream_t stm, rtKernelLaunchCfg_t * cfg, void * hostArgs, uint32_t argsSize,
+      rtPlaceHolderInfo_t * placeHolderArray, uint32_t placeHolderNum) {
     return RT_ERROR_NONE;
   }
 
@@ -398,6 +402,9 @@ private:
 extern "C" {
 #endif
 void rtStubTearDown();
+
+// Control rtMemQueueQuery return value for testing
+void SetMemQueueEntityType(uint32_t type);
 
 #define RTS_STUB_SETUP()    \
 do {                        \

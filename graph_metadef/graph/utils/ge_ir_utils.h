@@ -16,7 +16,6 @@
 #include <google/protobuf/stubs/port.h>
 
 #include <graph/anchor.h>
-#include <graph/debug/ge_log.h>
 #include <graph/debug/ge_util.h>
 #include <graph/detail/attributes_holder.h>
 #include <graph/ge_tensor.h>
@@ -35,7 +34,7 @@
 #include <utility>
 #include <vector>
 #include "nlohmann/json.hpp"
-
+#include "framework/common/debug/ge_log.h"
 #include "proto/ge_ir.pb.h"
 #include "proto/onnx/ge_onnx.pb.h"
 

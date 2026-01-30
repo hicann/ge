@@ -78,7 +78,10 @@ Status TbeTaskBuilder::DoRegisterBinary(const OpKernelBin &kernel_bin, void **co
 
 Status TbeTaskBuilder::DoRegisterMeta(void *const bin_handle) const {
   std::string meta_data;
-  (void)AttrUtils::GetStr(op_desc_, GetKeyForTvmMetaData(), meta_data);
+  const std::string* meta_data_ptr = AttrUtils::GetStr(op_desc_, GetKeyForTvmMetaData());
+  if (meta_data_ptr != nullptr) {
+    meta_data = *meta_data_ptr;
+  }
   GELOGI("TBE: meta data: %s", meta_data.c_str());
   if (!meta_data.empty()) {
     const auto rt_ret = rtMetadataRegister(bin_handle, meta_data.c_str());
@@ -525,7 +528,7 @@ Status MixL2TaskBuilder::InitTilingDataAddrToArgs(MixL2OpTask &task) const {
     return SUCCESS;
   }
 
-  const size_t tiling_data_idx = op_desc_->GetAllInputsDesc().size() + op_desc_->GetWorkspaceBytes().size() +
+  const size_t tiling_data_idx = op_desc_->GetAllInputsDescPtr().size() + op_desc_->GetWorkspaceBytes().size() +
                                  static_cast<size_t>(op_desc_->GetAllOutputsDescSize());
   GE_CHECK_GE(task.host_args_.size(), (task.args_addr_base_idx_ + tiling_data_idx + 1U));
   GE_CHK_RT_RET(rtMemcpy(&task.host_args_[task.args_addr_base_idx_ + tiling_data_idx], sizeof(uintptr_t),
@@ -538,7 +541,10 @@ Status MixL2TaskBuilder::InitMixKernelArgs(MixL2OpTask &task, const size_t addr_
                                            SingleOpModelParam &param) {
   // Register kernel
   std::string core_type;
-  (void)AttrUtils::GetStr(op_desc_, ATTR_NAME_CUBE_VECTOR_CORE_TYPE, core_type);
+  const std::string* core_type_ptr = AttrUtils::GetStr(op_desc_, ATTR_NAME_CUBE_VECTOR_CORE_TYPE);
+  if (core_type_ptr != nullptr) {
+    core_type = *core_type_ptr;
+  }
   if (kTbeCoreTypeMix.count(core_type) > 0U) {
     (void)AttrUtils::GetListStr(op_desc_, ATTR_NAME_KERNEL_NAMES_PREFIX, task.names_prefix_);
     for (const auto &prefix : task.names_prefix_) {

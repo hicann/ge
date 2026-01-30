@@ -87,7 +87,7 @@ struct EsCTensorHolder::EsCTensorHolderImpl {
   }
 
  private:
-  ge::GeTensorDescPtr GetInnerTd(const ge::GNode &node, int32_t output_index) {
+  ge::GeTensorDescPtr GetInnerTd(const ge::GNode &node, int32_t output_index) const {
     auto ge_node = ge::NodeAdapter::GNode2Node(node);
     GE_ASSERT_NOTNULL(ge_node);
     auto op_desc = ge_node->GetOpDesc();

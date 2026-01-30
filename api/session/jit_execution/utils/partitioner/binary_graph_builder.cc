@@ -11,7 +11,7 @@
 #include "binary_graph_builder.h"
 
 #include "graph/utils/graph_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/checker.h"
@@ -21,7 +21,7 @@
 
 namespace ge {
 
-ComputeGraphPtr BinaryGraphBuilder::BuildGraph(const std::vector<NodePtr> &nodes, const std::string &name) {
+ComputeGraphPtr BinaryGraphBuilder::BuildGraph(const std::vector<NodePtr> &nodes, const std::string &name) const {
   if (nodes.empty()) {
     GELOGE(ge::FAILED, "nodes is empty, no need to build graph:%s", name.c_str());
     return nullptr;
@@ -73,7 +73,7 @@ void BinaryGraphBuilder::RefreshNodeName(const ComputeGraphPtr &graph, const std
   }
 }
 
-Status BinaryGraphBuilder::GetIOMapping(BinaryGraphIOLinkage &io_link) {
+Status BinaryGraphBuilder::GetIOMapping(BinaryGraphIOLinkage &io_link) const {
   GE_ASSERT_SUCCESS(GetIONodeMapping(io_link), "GetIOMapping failed! sliced graph:%s, remaining graph:%s",
                     io_link.sliced_graph->GetName().c_str(), io_link.remaining_graph->GetName().c_str());
 
@@ -82,14 +82,14 @@ Status BinaryGraphBuilder::GetIOMapping(BinaryGraphIOLinkage &io_link) {
   return GRAPH_SUCCESS;
 }
 
-Status BinaryGraphBuilder::GetIONodeMapping(BinaryGraphIOLinkage &io_link) {
+Status BinaryGraphBuilder::GetIONodeMapping(BinaryGraphIOLinkage &io_link) const {
   for (const auto &node : io_link.infered_nodes) {
     std::list<std::pair<std::string, uint32_t>> peer_data;
     for (const auto &out_data_anchor : node->GetAllOutDataAnchors()) {
       peer_data.clear();
-      const auto &peer_in_anchors = out_data_anchor->GetPeerInDataAnchors();
+      const auto &peer_in_anchors = out_data_anchor->GetPeerInDataAnchorsPtr();
       (void)std::for_each(peer_in_anchors.begin(), peer_in_anchors.end(),
-                          [io_link, &peer_data](const InDataAnchorPtr &peer_in_anchor) {
+                          [io_link, &peer_data](const InDataAnchor *peer_in_anchor) {
                             if (std::count(io_link.infered_nodes.begin(), io_link.infered_nodes.end(),
                                 peer_in_anchor->GetOwnerNode()) == 0) {
                               peer_data.emplace_back(peer_in_anchor->GetOwnerNode()->GetName(), peer_in_anchor->GetIdx());
@@ -115,7 +115,7 @@ Status BinaryGraphBuilder::GetIONodeMapping(BinaryGraphIOLinkage &io_link) {
 Status BinaryGraphBuilder::GetIOIdxMapping(BinaryGraphIOLinkage &io_link) const {
   auto netout_node = io_link.sliced_graph->GetOrUpdateNetOutputNode();
   GE_ASSERT_NOTNULL(netout_node);
-  for (const auto &in_data_anchor : netout_node->GetAllInDataAnchors()) {
+  for (const auto &in_data_anchor : netout_node->GetAllInDataAnchorsPtr()) {
     const auto out_idx = in_data_anchor->GetIdx();
     auto out_data_anchor = in_data_anchor->GetPeerOutAnchor();
     GE_ASSERT_NOTNULL(out_data_anchor, 
@@ -174,7 +174,7 @@ bool BinaryGraphBuilder::CheckPeerNodeIsValid(const std::list<std::pair<std::str
   return true;
 }
 
-Status BinaryGraphBuilder::ReplaceInputNode(BinaryGraphIOLinkage &io_link) {
+Status BinaryGraphBuilder::ReplaceInputNode(BinaryGraphIOLinkage &io_link) const {
   auto netout_node = io_link.sliced_graph->GetOrUpdateNetOutputNode();
   GE_ASSERT_NOTNULL(netout_node);
   auto in_data_nodes = io_link.remaining_graph->GetInputNodes();
@@ -221,7 +221,7 @@ OpDescPtr BinaryGraphBuilder::MakeNetOutputDesc(const BinaryGraphIOLinkage &io_l
   GE_ASSERT_NOTNULL(net_output_desc);
   auto netout_node = io_link.sliced_graph->GetOrUpdateNetOutputNode();
   GE_ASSERT_NOTNULL(netout_node);
-  for (const auto &in_data_anchor : netout_node->GetAllInDataAnchors()) {
+  for (const auto &in_data_anchor : netout_node->GetAllInDataAnchorsPtr()) {
     auto peer_out_anchor = in_data_anchor->GetPeerOutAnchor();
     GE_ASSERT_NOTNULL(peer_out_anchor, "GetPeerOutAnchor failed! out_node_idx:%d does not exist", in_data_anchor->GetIdx());
     auto out_node = peer_out_anchor->GetOwnerNode();
@@ -269,7 +269,7 @@ Status BinaryGraphBuilder::RemoveOutputNode(const BinaryGraphIOLinkage &io_link,
   return GRAPH_SUCCESS;
 }
 
-Status BinaryGraphBuilder::MergeSameInputNode(BinaryGraphIOLinkage &io_link) {
+Status BinaryGraphBuilder::MergeSameInputNode(BinaryGraphIOLinkage &io_link) const {
   std::unordered_map<int64_t, std::vector<int64_t>> out_2_in_map;
   (void)std::for_each(io_link.out_idx_2_in_idxs.begin(), io_link.out_idx_2_in_idxs.end(),
                       [&out_2_in_map](const std::pair<int64_t, int64_t> &idx_pair) {
@@ -303,8 +303,8 @@ Status BinaryGraphBuilder::SetInputNodeDesc(const BinaryGraphIOLinkage &io_link)
   auto in_data_nodes = io_link.remaining_graph->GetInputNodes();
   for (const auto &in_data_node : in_data_nodes) {
     GE_ASSERT_NOTNULL(in_data_node->GetOutDataAnchor(0));
-    auto peer_in_anchors = in_data_node->GetOutDataAnchor(0)->GetPeerInDataAnchors();
-    auto in_node = peer_in_anchors.at(0)->GetOwnerNode();
+    auto peer_in_anchors = in_data_node->GetOutDataAnchor(0)->GetPeerInDataAnchorsPtr();
+    auto in_node = peer_in_anchors.at(0)->GetOwnerNodeBarePtr();
     auto in_node_desc = in_node->GetOpDesc()->GetInputDesc(static_cast<uint32_t>(peer_in_anchors.at(0)->GetIdx()));
     auto op_desc = in_data_node->GetOpDesc();
     GE_ASSERT_SUCCESS(op_desc->UpdateInputDesc(0U, in_node_desc),

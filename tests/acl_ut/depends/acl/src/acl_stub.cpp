@@ -342,6 +342,10 @@ void MockFunctionTest::ResetToDefaultMock() {
         .WillByDefault([this](void *dst, size_t destMax, const void *src, size_t count, aclrtMemcpyKind kind) {
           return aclStub::aclrtMemcpy(dst, destMax, src, count, kind);
         });
+    ON_CALL(*this, aclrtCtxGetCurrentDefaultStream)
+        .WillByDefault([this](aclrtStream *stream) {
+          return aclStub::aclrtCtxGetCurrentDefaultStream(stream);
+        });
 }
 
 aclError aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag)

@@ -17,7 +17,6 @@
 #include "register/op_impl_registry.h"
 #include "mmpa/mmpa_api.h"
 #include "faker/space_registry_faker.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace gert {
 namespace kernel {

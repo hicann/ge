@@ -123,8 +123,6 @@ class HybridModelRtV2Executor : public HybridModelExecutor {
       (void)mmClose(guard_check_info_.guard_so_fd);
     }
   }
-  Status ExecuteOnlineModel(const InputData &input_data, OutputData *const output_data,
-                            std::shared_ptr<ModelListener> listener) override;
   Status ExecuteOnlineModel(const std::vector<gert::Tensor> &inputs,
                             std::shared_ptr<ModelListener> listener) override;
   Status Init(CallbackManager *const callback_manager = nullptr) override;
@@ -132,7 +130,7 @@ class HybridModelRtV2Executor : public HybridModelExecutor {
                                 const rtStream_t stream = nullptr) override;
   Status ExecuteWithStreamAsync(const std::vector<gert::Tensor> &inputs,
                                 std::vector<gert::Tensor> &outputs, const rtStream_t stream) override;
-  Status Execute(const InputData &input_data, ExecuteArgs &args) override;
+  Status Execute(const InputData &input_data, ExecuteArgs &args);
   Status Execute(ExecuteArgs &args) override;
   Status Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs,
     CtrlArgs &ctrl_args) override;
@@ -146,9 +144,6 @@ class HybridModelRtV2Executor : public HybridModelExecutor {
   GraphExecutionContext* GetContext() override {
     return &context_;
   }
-  Status HandleResult(const Status exec_ret,
-                      const uint32_t data_id, HybridModelExecutor::ExecuteArgs &args,
-                      OutputData *const output_data, std::shared_ptr<ModelListener> listener) const override;
   Status HandleResult(const Status exec_ret, const uint32_t data_id, HybridModelExecutor::CtrlArgs &ctrl_args,
     std::vector<gert::Tensor> &outputs, std::shared_ptr<ModelListener> listener) const override;
  private:
@@ -159,7 +154,6 @@ class HybridModelRtV2Executor : public HybridModelExecutor {
   Status InitCtx();
   Status CheckInputIsOnDevice();
   Status AllocatorRecycle(const rtStream_t stream) const;
-  Status RecycleOutputs(HybridModelExecutor::ExecuteArgs &args, const rtStream_t stream) const;
   Status RecycleOutputs(std::vector<gert::Tensor> &outputs, const rtStream_t stream) const;
   Status TryUpdateStreamCoreLimits(const rtStream_t stream);
 

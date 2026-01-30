@@ -16,7 +16,6 @@
 #include "framework/common/debug/log.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/ge_inner_error_codes.h"
-#include "graph/utils/attr_utils.h"
 #include "host_kernels/kernel.h"
 
 namespace ge {

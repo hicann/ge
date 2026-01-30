@@ -13,7 +13,7 @@
 #include "../node_checker_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "ge_common/ge_api_error_codes.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/node_utils.h"
 #include "graph/build/memory/block_mem_assigner.h"
 #include "graph/utils/tensor_utils.h"

@@ -103,11 +103,6 @@ class Listener : public ModelListener {
  public:
   Listener(std::function<void()> done) : done_(done) {}
   Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
-                       std::vector<ge::Tensor> &outputs) override {
-    done_();
-    return SUCCESS;
-  }
-  Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
                        std::vector<gert::Tensor> &outputs) override {
     done_();
     return SUCCESS;

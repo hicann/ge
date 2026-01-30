@@ -11,10 +11,11 @@
 #include <algorithm>
 #include <memory>
 
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "guard_cache.h"
 #include "execution_point.h"
 #include "common/ge_common/util.h"
+#include "common/checker.h"
 #include "base/err_msg.h"
 
 

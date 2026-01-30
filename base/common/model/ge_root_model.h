@@ -14,6 +14,7 @@
 #include <mutex>
 #include <map>
 #include <sstream>
+#include "framework/common/ge_types.h"
 #include "ge/ge_graph_compile_summary.h"
 #include "ge/ge_allocator.h"
 #include "graph/compute_graph.h"
@@ -63,7 +64,7 @@ struct FixedFeatureMemory {
     model_id_ = model_id;
     const std::lock_guard<std::mutex> lock(model_ids_mutex_);
     // cached for removement
-    model_ids_.emplace_back(model_id);
+    (void)model_ids_.emplace_back(model_id);
   }
 
   uint32_t GetModelId() const { return model_id_; }

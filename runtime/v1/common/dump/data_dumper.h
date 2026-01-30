@@ -179,9 +179,9 @@ class DataDumper {
   void SetOpDebugIdToAicpu(const uint32_t task_id, const uint32_t stream_id, const void *const op_debug_addr,
                            toolkit::aicpu::dump::OpMappingInfo &op_mapping_info) const;
   Status ExecuteUnLoadDumpInfo(const toolkit::aicpu::dump::OpMappingInfo &op_mapping_info);
-  Status GenerateInput(toolkit::aicpu::dump::Input &input, const OpDesc::Vistor<GeTensorDesc> &tensor_descs,
+  Status GenerateInput(toolkit::aicpu::dump::Input &input, const OpDesc::Vistor<GeTensorDescPtr> &tensor_descs,
                        const uintptr_t addr, const size_t index, const uint64_t offset = 0U);
-  Status GenerateOutput(toolkit::aicpu::dump::Output &output, const OpDesc::Vistor<GeTensorDesc> &tensor_descs,
+  Status GenerateOutput(toolkit::aicpu::dump::Output &output, const OpDesc::Vistor<GeTensorDescPtr> &tensor_descs,
                         const uintptr_t addr, const size_t index, const uint64_t offset = 0U);
   void GenerateOpBuffer(const uint64_t size, toolkit::aicpu::dump::Task &task);
   uint64_t GetOffset(const InnerDumpInfo &inner_dump_info, const size_t i, const size_t input_size) const;

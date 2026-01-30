@@ -17,9 +17,7 @@ namespace ge {
 namespace ascir {
 EXPORT_GENERATOR()
 
-const std::vector<std::string> v1_soc_versions{"Ascend910B1",    "Ascend910B2",    "Ascend910B2C",   "Ascend910B3",
-                                                "Ascend910B4",    "Ascend910B4-1",  "Ascend910_9391", "Ascend910_9381",
-                                                "Ascend910_9372", "Ascend910_9392", "Ascend910_9382", "Ascend910_9362"};
+const std::vector<std::string> v1_soc_versions{"2201"};
 
 REG_ASC_IR(Data)
     .Inputs({})

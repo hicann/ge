@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 
 #include "register/ops_kernel_builder_registry.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 class UtestOpsKernelBuilderRegistry : public testing::Test { 

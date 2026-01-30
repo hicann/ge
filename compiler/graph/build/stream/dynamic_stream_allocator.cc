@@ -85,8 +85,8 @@ Status DynamicStreamAllocator::GetAcParallelEnableConfig() {
   const std::set<std::string> options = {"", "0", "1"};
   if (options.count(ac_parallel_enable) <= 0U) {
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-                       std::vector<const char_t *>(
-                           {"ac_parallel_enable", ac_parallel_enable.c_str(), "value only can be empty, 0 and 1."}));
+                              std::vector<const char_t *>({"ac_parallel_enable", ac_parallel_enable.c_str(),
+                                                           "The value can only be empty, 0 and 1."}));
     GELOGE(PARAM_INVALID, "[Check][Param] ac_parallel_enable: %s is invalid, only can be empty, 0 and 1.",
            ac_parallel_enable.c_str());
     return PARAM_INVALID;

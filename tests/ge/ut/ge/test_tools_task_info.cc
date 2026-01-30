@@ -345,6 +345,8 @@ void InitKernelTaskDef_TE(const ComputeGraphPtr &graph, domi::ModelTaskDef &mode
   TBEKernelPtr kernel_handle = MakeShared<ge::OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
   EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
   EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF"));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "xxx_fake_id"));
   kernel_store.AddTBEKernel(kernel_handle);
 
   auto &task_def = *model_def.add_task();
@@ -469,13 +471,21 @@ void InitKernelTaskDef_Atomic(const ComputeGraphPtr &graph, domi::ModelTaskDef &
 
   std::vector<char> kernel_bin(64, '\0');
   TBEKernelPtr kernel_handle = MakeShared<ge::OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF"));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id"));
   EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
   EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  EXPECT_TRUE(op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, std::string("_atomic") + TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF"));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, std::string("_memset_kernel_bin_id"), "fake_kernel_bin_id"));
   EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_atomic_kernelname", "kernel_atomic"));
-  EXPECT_TRUE(AttrUtils::SetStr(op_desc, "_atomi"+ATTR_NAME_TBE_KERNEL_NAME, "atomic_kernel_bin"));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, "_atomic"+ATTR_NAME_TBE_KERNEL_NAME, "atomic_kernel_bin"));
   EXPECT_TRUE(AttrUtils::SetBool(op_desc, "need_gentask_atomic", true));
   std::vector<char> atomic_kernel_bin(32, '\0');
   TBEKernelPtr atomic_kernel = MakeShared<ge::OpKernelBin>("atomic_kernel_bin", std::move(atomic_kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr("_atomic"+std::string(ge::OP_EXTATTR_NAME_TBE_KERNEL), atomic_kernel));
+
   kernel_store.AddTBEKernel(kernel_handle);
   kernel_store.AddTBEKernel(atomic_kernel);
 
@@ -656,6 +666,8 @@ void InitKernelTaskDef_CUST_CPU(const ComputeGraphPtr &graph, domi::ModelTaskDef
   const auto kernel_handle = MakeShared<ge::OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
   EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, kernel_handle));
   EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF"));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "xx_fake_id"));
   kernel_store.AddCustAICPUKernel(kernel_handle);
 
   domi::TaskDef &task_def = *model_def.add_task();

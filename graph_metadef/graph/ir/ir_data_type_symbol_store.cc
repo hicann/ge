@@ -9,7 +9,7 @@
  */
 
 #include "graph/ir/ir_data_type_symbol_store.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
 #include "common/util/mem_utils.h"
 #include "common/checker.h"
@@ -199,7 +199,7 @@ graphStatus IRDataTypeSymbolStore::GetPromoteIrInputList(std::vector<std::vector
 }
 
 SymDtype *IRDataTypeSymbolStore::DeclareSymbol(const string &sym_id, const OrderedTensorTypeList &types) {
-  GELOGI("Bind symbol %s with ordered list-dtypes %s", sym_id.c_str(), types.ToString().c_str());
+  GELOGD("Bind symbol %s with ordered list-dtypes %s", sym_id.c_str(), types.ToString().c_str());
   auto *sym = GetOrCreateSymbol(sym_id);
   GE_ASSERT_NOTNULL(sym);
   GE_ASSERT_TRUE(named_syms_.emplace(sym_id, sym).second, "Symbol %s has been declared", sym_id.c_str());

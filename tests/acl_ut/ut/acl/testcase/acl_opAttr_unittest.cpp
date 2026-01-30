@@ -212,6 +212,76 @@ TEST_F(UTEST_ACL_OpAttr, ValueRangeCheckTest1)
     EXPECT_EQ(aclDestroyDataBuffer(dataBuffer), ACL_SUCCESS);
 }
 
+TEST_F(UTEST_ACL_OpAttr, ValueRangeCheckTest2)
+{
+    ge::GeAttrValue tensorValue;
+    ge::GeTensor geTensor;
+
+    tensorValue.SetValue<ge::GeTensor>(geTensor);
+    std::map<AttrRangeType, ge::GeAttrValue> attrMap;
+    attrMap[AttrRangeType::VALUE_TYPE] = tensorValue;
+
+    uint16_t *data[8] = {0};
+    aclDataBuffer *dataBuffer = aclCreateDataBuffer(reinterpret_cast<void *>(data), 8);
+    auto ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer, ACL_UINT16);
+    EXPECT_EQ(ret, true);
+    dataBuffer->length = 10;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer, ACL_UINT16);
+    EXPECT_EQ(ret, false);
+    dataBuffer->data = nullptr;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer, ACL_UINT16);
+    EXPECT_EQ(ret, true);
+    EXPECT_EQ(aclDestroyDataBuffer(dataBuffer), ACL_SUCCESS);
+
+    int32_t *data1[8] = {0};
+    aclDataBuffer *dataBuffer1 = aclCreateDataBuffer(reinterpret_cast<void *>(data1), 8);
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer1, ACL_INT32);
+    EXPECT_EQ(ret, true);
+    dataBuffer1->length = 10;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer1, ACL_INT32);
+    EXPECT_EQ(ret, false);
+    dataBuffer1->data = nullptr;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer1, ACL_INT32);
+    EXPECT_EQ(ret, true);
+    EXPECT_EQ(aclDestroyDataBuffer(dataBuffer1), ACL_SUCCESS);
+
+    uint32_t *data2[8] = {0};
+    aclDataBuffer *dataBuffer2 = aclCreateDataBuffer(reinterpret_cast<void *>(data2), 8);
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer2, ACL_UINT32);
+    EXPECT_EQ(ret, true);
+    dataBuffer2->length = 10;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer2, ACL_UINT32);
+    EXPECT_EQ(ret, false);
+    dataBuffer2->data = nullptr;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer2, ACL_UINT32);
+    EXPECT_EQ(ret, true);
+    EXPECT_EQ(aclDestroyDataBuffer(dataBuffer2), ACL_SUCCESS);
+
+    int64_t *data3[8] = {0};
+    aclDataBuffer *dataBuffer3 = aclCreateDataBuffer(reinterpret_cast<void *>(data3), 8);
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer3, ACL_INT64);
+    EXPECT_EQ(ret, true);
+    dataBuffer3->length = 10;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer3, ACL_INT64);
+    EXPECT_EQ(ret, false);
+    dataBuffer3->data = nullptr;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer3, ACL_INT64);
+    EXPECT_EQ(ret, true);
+    EXPECT_EQ(aclDestroyDataBuffer(dataBuffer3), ACL_SUCCESS);
+
+    uint64_t *data4[8] = {0};
+    aclDataBuffer *dataBuffer4 = aclCreateDataBuffer(reinterpret_cast<void *>(data4), 8);
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer4, ACL_UINT64);
+    EXPECT_EQ(ret, true);
+    dataBuffer4->length = 10;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer4, ACL_UINT64);
+    EXPECT_EQ(ret, false);
+    dataBuffer4->data = nullptr;
+    ret = acl::attr_utils::ValueRangeCheck(attrMap, dataBuffer4, ACL_UINT64);
+    EXPECT_EQ(ret, true);
+    EXPECT_EQ(aclDestroyDataBuffer(dataBuffer4), ACL_SUCCESS);
+}
+
 TEST_F(UTEST_ACL_OpAttr, GeAttrValueToDigestTest)
 {
     size_t digest = 0;

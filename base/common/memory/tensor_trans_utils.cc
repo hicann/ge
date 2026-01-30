@@ -48,15 +48,14 @@ std::string GeTensorDescToString(const GeTensorDesc &tensor_desc) {
 }
 template <class T>
 class TensorWrapper {
-  static_assert(std::is_same_v<T, ge::Tensor> || std::is_same_v<T, ge::GeTensor>,
-                "T must be either ge::Tensor or ge::GeTensor");
+  static_assert(std::is_same_v<T, ge::GeTensor>, "T must be ge::GeTensor");
 public:
-  explicit TensorWrapper(std::shared_ptr<T> tensor) : tensor_(std::move(tensor)), count_(1U) {}
+  explicit TensorWrapper(std::shared_ptr<T> tensor) : tensor_(std::move(tensor)) {}
 
   [[nodiscard]] const std::shared_ptr<T> &GetTensor() const { return tensor_; }
 
   // executor not support multi thread, so same addr can not exist in different threads
-  static graphStatus Manager(gert::TensorAddress addr, gert::TensorOperateType operate_type, void **out) {
+  static graphStatus Manager(gert::TensorAddress const addr, gert::TensorOperateType operate_type, void **out) {
     GE_ASSERT_NOTNULL(addr);
     if (operate_type == gert::TensorOperateType::kFreeTensor) {
       auto tensor_wrapper = reinterpret_cast<TensorWrapper<T> *>(addr);
@@ -76,7 +75,7 @@ public:
     }
     if (operate_type == gert::TensorOperateType::kPlusShareCount) {
       auto tensor_wrapper = reinterpret_cast<TensorWrapper<T> *>(addr);
-      tensor_wrapper->AddCount();
+      (void)tensor_wrapper->AddCount();
       return GRAPH_SUCCESS;
     }
     GELOGE(ge::PARAM_INVALID, "Unexpected operate type %d", static_cast<int32_t>(operate_type));
@@ -90,23 +89,29 @@ public:
     }
   }
   size_t AddCount() {
-    return ++count_;
+    if (count_ < std::numeric_limits<size_t>::max()) {
+      ++count_;
+    }
+    return count_;
   }
   size_t SubCount() {
-    return --count_;
+    if (count_ > 0) {
+      --count_;
+    }
+    return count_;
   }
   size_t GetCount() const {
     return count_;
   }
 private:
   std::shared_ptr<T> tensor_;
-  size_t count_;
+  size_t count_ = 1U;
 };
 
 std::vector<int64_t> GetDimsFromGertShape(const gert::Shape &gert_shape) {
   std::vector<int64_t> dims;
   for (size_t i = 0U; i < gert_shape.GetDimNum(); ++i) {
-    dims.emplace_back(gert_shape.GetDim(i));
+    (void)dims.emplace_back(gert_shape.GetDim(i));
   }
   return dims;
 }
@@ -196,33 +201,40 @@ std::vector<int64_t> TensorTransUtils::GetDimsFromGertShape(const gert::Shape &g
   std::vector<int64_t> dims;
   dims.reserve(gert_shape.GetDimNum());
   for (size_t i = 0U; i < gert_shape.GetDimNum(); ++i) {
-    dims.emplace_back(gert_shape.GetDim(i));
+    (void)dims.emplace_back(gert_shape.GetDim(i));
   }
   return dims;
 }
 
-Status TensorTransUtils::TransHostTensorsToDeviceGertTensors(Allocator *allocator, const std::vector<Tensor> &src_tensors, std::vector<gert::Tensor> &dst_tensors,
-                                                             std::vector<MemBlock *> &inputs_memblocks, bool enable_input_batch_cpy) {
+Status TensorTransUtils::TransHostGertTensorsToDevice(Allocator *allocator,
+    const std::vector<gert::Tensor> &src_tensors, std::vector<gert::Tensor> &dst_tensors,
+    std::vector<MemBlock *> &inputs_memblocks, bool enable_input_batch_cpy) {
   MemcpyBatchParam memcpy_batch_param;
   int32_t device_id = -1;
   (void)rtGetDevice(&device_id);
   memcpy_batch_param.device_id = device_id;
   size_t attr_idx = 0;
+  GE_ASSERT_TRUE(dst_tensors.empty(), "dst_tensors is not empty");
+  dst_tensors.resize(src_tensors.size());
   for (size_t i = 0U; i < src_tensors.size(); ++i) {
     size_t aligned_size = 0U;
-    GE_ASSERT_SUCCESS(TensorTransUtils::FillRtTensorDesc(src_tensors[i], dst_tensors[i]));
+    dst_tensors[i].MutableFormat() = src_tensors[i].GetFormat();
+    dst_tensors[i].MutableOriginShape() = src_tensors[i].GetOriginShape();
+    dst_tensors[i].MutableStorageShape() = src_tensors[i].GetStorageShape();
+    dst_tensors[i].SetDataType(src_tensors[i].GetDataType());
+    dst_tensors[i].SetPlacement(gert::TensorPlacement::kOnDeviceHbm);
     GE_ASSERT_SUCCESS(TensorTransUtils::AllocDeviceMemory(
         allocator, src_tensors[i].GetSize(), dst_tensors[i], inputs_memblocks[i], aligned_size));
 
     const size_t src_size = src_tensors[i].GetSize();
-    const void *host_addr = reinterpret_cast<const void *>(src_tensors[i].GetData());
+    const void *host_addr = src_tensors[i].GetAddr();
     if (src_size <= 0U) {
-      continue;;
+      continue;
     }
 
     if (enable_input_batch_cpy) {
       // rts 底层需要 void*, 不会修改，所以 const_cast 是安全的
-      MemcpyParam memcpy_param {dst_tensors[i].GetAddr(),aligned_size, const_cast<void *>(host_addr), src_size, attr_idx++}; // NOLINT(*)
+      MemcpyParam memcpy_param {dst_tensors[i].GetAddr(), aligned_size, const_cast<void *>(host_addr), src_size, attr_idx++}; // NOLINT(*)
       AddMemcpyBatchParam(memcpy_param, memcpy_batch_param);
     } else {
       GE_ASSERT_RT_OK(rtMemcpy(dst_tensors[i].GetAddr(), aligned_size, host_addr, src_size,
@@ -356,12 +368,12 @@ Status TensorTransUtils::TransRtTensorToTensor(const std::vector<gert::Tensor> &
 // gert::Tensor -> GeTensor
 Status TensorTransUtils::GertTensor2GeTensor(const gert::Tensor &gert_tensor, GeTensor &ge_tensor) {
   ge_tensor.SetTensorDesc(GetInnerTensorDescFromGertTensor(gert_tensor));
-  auto output_holder = ge::MakeShared<gert::TensorData>();
-  GE_ASSERT_NOTNULL(output_holder);
-  GE_ASSERT_SUCCESS(output_holder->ShareFrom(gert_tensor.GetTensorData()));
-  const auto deleter = [output_holder](uint8_t *data) {
+  auto tensor_data_holder = ge::MakeShared<gert::TensorData>();
+  GE_ASSERT_NOTNULL(tensor_data_holder);
+  GE_ASSERT_SUCCESS(tensor_data_holder->ShareFrom(gert_tensor.GetTensorData()));
+  const auto deleter = [tensor_data_holder](const uint8_t *data) {
     (void) data;
-    output_holder->Free();
+    tensor_data_holder->Free();
   };
   const uint8_t *const addr = ge::PtrToPtr<void, uint8_t>(gert_tensor.GetAddr());
   GE_ASSERT_GRAPH_SUCCESS(
@@ -372,21 +384,22 @@ Status TensorTransUtils::GertTensor2GeTensor(const gert::Tensor &gert_tensor, Ge
 Status TensorTransUtils::GertTensors2GeTensors(const std::vector<gert::Tensor> &gert_tensors,
   std::vector<GeTensor> &ge_tensors) {
   GE_ASSERT_TRUE(ge_tensors.empty());
+  ge_tensors.reserve(gert_tensors.size());
   for (const auto &gert_tensor : gert_tensors) {
     GeTensor ge_tensor;
     GE_ASSERT_SUCCESS(GertTensor2GeTensor(gert_tensor, ge_tensor));
-    ge_tensors.emplace_back(std::move(ge_tensor));
+    (void)ge_tensors.emplace_back(std::move(ge_tensor));
   }
   return SUCCESS;
 }
 
 // gert::Tensor -> Tensor
 Status TensorTransUtils::GertTensor2Tensor(const gert::Tensor &gert_tensor, Tensor &ge_tensor) {
-  ge_tensor.SetTensorDesc(GetTensorDescFromGertTensor(gert_tensor));
+  (void)ge_tensor.SetTensorDesc(GetTensorDescFromGertTensor(gert_tensor));
   auto output_holder = ge::MakeShared<gert::TensorData>();
   GE_ASSERT_NOTNULL(output_holder);
   GE_ASSERT_SUCCESS(output_holder->ShareFrom(gert_tensor.GetTensorData()));
-  const auto deleter = [output_holder](uint8_t *data) {
+  const auto deleter = [output_holder](const uint8_t *const data) {
     (void) data;
     output_holder->Free();
   };
@@ -432,7 +445,7 @@ Status TensorTransUtils::GeTensor2GertTensor(const GeTensor &ge_tensor, gert::Te
   GE_ASSERT_NOTNULL(tensor_wrapper);
   GE_DISMISSABLE_GUARD(free_if_failed, [tensor_wrapper] () { delete tensor_wrapper;});
   GE_ASSERT_GRAPH_SUCCESS(gert_tensor.MutableTensorData().SetAddr(reinterpret_cast<void *>(tensor_wrapper),
-    TensorWrapper<GeTensor>::Manager));
+    &TensorWrapper<GeTensor>::Manager));
   gert_tensor.MutableTensorData().SetSize(ge_tensor.GetData().size());
   GE_DISMISS_GUARD(free_if_failed);
   return SUCCESS;
@@ -487,23 +500,58 @@ Status TensorTransUtils::AsTensorsView(const std::vector<Tensor> &ge_tensors,
   return SUCCESS;
 }
 
-Status TensorTransUtils::TransGertTensorToHost(const gert::Tensor &device_tensor, gert::Tensor &host_tensor) {
-  GeTensor ge_tensor;
-  const auto aligned_ptr = MakeShared<AlignedPtr>(device_tensor.GetSize(), kValAlignment);
-  GE_CHECK_NOTNULL(aligned_ptr);
-  auto data_buf = aligned_ptr->MutableGet();
-  GE_CHECK_NOTNULL(data_buf);
-  GE_CHK_RT_RET(rtMemcpy(data_buf, static_cast<uint64_t>(device_tensor.GetSize()), device_tensor.GetAddr(),
-                         static_cast<uint64_t>(device_tensor.GetSize()), RT_MEMCPY_DEVICE_TO_HOST));
-  ge_tensor.SetData(aligned_ptr, device_tensor.GetSize());
-  GE_ASSERT_SUCCESS(GeTensor2GertTensor(ge_tensor, host_tensor));
-
+Status TensorTransUtils::TransGertTensorToHost(const gert::Tensor &src_tensor, gert::Tensor &dst_tensor) {
   // shape, format, data type
-  host_tensor.MutableFormat() = device_tensor.GetFormat();
-  host_tensor.SetDataType(device_tensor.GetDataType());
-  host_tensor.MutableOriginShape() = device_tensor.GetOriginShape();
-  host_tensor.MutableStorageShape() = device_tensor.GetStorageShape();
-  host_tensor.MutableTensorData().SetPlacement(gert::TensorPlacement::kOnHost);
+  dst_tensor.MutableFormat() = src_tensor.GetFormat();
+  dst_tensor.SetDataType(src_tensor.GetDataType());
+  dst_tensor.MutableOriginShape() = src_tensor.GetOriginShape();
+  dst_tensor.MutableStorageShape() = src_tensor.GetStorageShape();
+  dst_tensor.MutableTensorData().SetPlacement(gert::TensorPlacement::kOnHost);
+
+  const auto shape = ContructGeShapeFromRtShape(src_tensor.GetShape().GetStorageShape());
+  int64_t output_size = -1;
+  if (src_tensor.GetDataType() == DT_STRING) {
+    output_size = static_cast<int64_t>(src_tensor.GetSize());
+  } else {
+    GE_ASSERT_SUCCESS((TensorUtils::CalcTensorMemSize(shape, src_tensor.GetFormat().GetStorageFormat(),
+      src_tensor.GetDataType(), output_size)));
+  }
+  GE_CHECK_GE(output_size, 0L);
+  if (output_size > 0L) {
+    auto aligned_ptr = MakeShared<AlignedPtr>(output_size, kValAlignment);
+    GE_CHECK_NOTNULL(aligned_ptr);
+    auto data_buf = aligned_ptr->MutableGet();
+    GE_CHECK_NOTNULL(data_buf);
+    GE_CHK_RT_RET(rtMemcpy(data_buf, static_cast<uint64_t>(output_size), src_tensor.GetAddr(),
+                           static_cast<uint64_t>(output_size), RT_MEMCPY_DEVICE_TO_HOST));
+
+    // 创建 GeTensor 来持有数据，并使用 TensorWrapper 管理生命周期
+    auto ge_tensor = ge::MakeShared<GeTensor>();
+    GE_ASSERT_NOTNULL(ge_tensor);
+    ge_tensor->SetData(aligned_ptr, static_cast<size_t>(output_size));
+
+    auto tensor_wrapper = new (std::nothrow) TensorWrapper<GeTensor>(ge_tensor);
+    GE_ASSERT_NOTNULL(tensor_wrapper);
+    GE_DISMISSABLE_GUARD(free_if_failed, [tensor_wrapper]() { delete tensor_wrapper; });
+    GE_ASSERT_GRAPH_SUCCESS(dst_tensor.MutableTensorData().SetAddr(reinterpret_cast<void *>(tensor_wrapper),
+      &TensorWrapper<GeTensor>::Manager));
+    dst_tensor.MutableTensorData().SetSize(static_cast<size_t>(output_size));
+    GE_DISMISS_GUARD(free_if_failed);
+  } else {
+    dst_tensor.MutableTensorData().SetAddr(nullptr, nullptr);
+    dst_tensor.MutableTensorData().SetSize(0);
+  }
+  return SUCCESS;
+}
+
+Status TensorTransUtils::TransGertTensorsToHost(const std::vector<gert::Tensor> &device_tensors,
+    std::vector<gert::Tensor> &host_tensors) {
+  host_tensors.reserve(device_tensors.size());
+  for (const auto &src : device_tensors) {
+    gert::Tensor dst;
+    GE_ASSERT_SUCCESS(TransGertTensorToHost(src, dst));
+    host_tensors.emplace_back(std::move(dst));
+  }
   return SUCCESS;
 }
 
@@ -512,8 +560,8 @@ std::vector<gert::Tensor> TensorTransUtils::ShareFromGertTenosrs(const std::vect
   ret.reserve(gert_tensors.size());
   for (const auto &tensor : gert_tensors) {
     gert::Tensor ret_tensor(tensor.GetShape(), tensor.GetFormat(), tensor.GetDataType());
-    ret_tensor.MutableTensorData().ShareFrom(tensor.GetTensorData());
-    ret.emplace_back(std::move(ret_tensor));
+    (void)ret_tensor.MutableTensorData().ShareFrom(tensor.GetTensorData());
+    (void)ret.emplace_back(std::move(ret_tensor));
   }
   return ret;
 }
@@ -524,14 +572,14 @@ void TensorTransUtils::AddMemcpyBatchParam(const MemcpyParam &param, MemcpyBatch
   // 仅支持H2D
   attr.srcLoc.type = RT_MEMORY_LOC_HOST;
   attr.dstLoc.type = RT_MEMORY_LOC_DEVICE;
-  attr.dstLoc.id = memcpy_batch_params.device_id;
+  attr.dstLoc.id = static_cast<uint32_t>(memcpy_batch_params.device_id);
 
-  memcpy_batch_params.dsts.emplace_back(param.dst);
-  memcpy_batch_params.dst_aligned_sizes.emplace_back(param.dst_aligned_size);
-  memcpy_batch_params.srcs.emplace_back(param.src);
-  memcpy_batch_params.src_sizes.emplace_back(param.src_size);
-  memcpy_batch_params.attrs.emplace_back(attr);
-  memcpy_batch_params.attr_idxs.emplace_back(param.idx);
+  (void)memcpy_batch_params.dsts.emplace_back(param.dst);
+  (void)memcpy_batch_params.dst_aligned_sizes.emplace_back(param.dst_aligned_size);
+  (void)memcpy_batch_params.srcs.emplace_back(param.src);
+  (void)memcpy_batch_params.src_sizes.emplace_back(param.src_size);
+  (void)memcpy_batch_params.attrs.emplace_back(attr);
+  (void)memcpy_batch_params.attr_idxs.emplace_back(param.idx);
 }
 
 Status TensorTransUtils::TryBatchMemcpy(MemcpyBatchParam &args) {
@@ -542,10 +590,10 @@ Status TensorTransUtils::TryBatchMemcpy(MemcpyBatchParam &args) {
   if (args.dsts.size() == 1) {
     GELOGW("The switch of input_batch_cpy is open but only one input remains, not enable batch memcpy");
     GE_ASSERT_TRUE(args.dst_aligned_sizes.size() == 1);
-    return rtMemcpy(args.dsts[0],args.dst_aligned_sizes[0], args.srcs[0], args.src_sizes[0], RT_MEMCPY_HOST_TO_DEVICE);
+    return static_cast<Status>(rtMemcpy(args.dsts[0],args.dst_aligned_sizes[0], args.srcs[0], args.src_sizes[0], RT_MEMCPY_HOST_TO_DEVICE));
   }
-  size_t fail_idx = -1;
-  rtError_t ret =
+  size_t fail_idx = std::numeric_limits<size_t>::max();
+  const rtError_t ret =
       rtsMemcpyBatch(const_cast<void **>(args.dsts.data()), const_cast<void **>(args.srcs.data()),
                      args.src_sizes.data(), args.srcs.size(), args.attrs.data(),
                      args.attr_idxs.data(), args.attrs.size(), &fail_idx);

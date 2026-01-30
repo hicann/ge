@@ -10,7 +10,7 @@
 
 #include "llm_ge_api.h"
 #include "llm_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/mem_utils.h"
 #include "common/llm_inner_types.h"
 #include "cache_engine_stubs.h"

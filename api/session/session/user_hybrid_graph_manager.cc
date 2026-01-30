@@ -10,6 +10,7 @@
 
 #include "user_hybrid_graph_manager.h"
 #include "common/checker.h"
+#include "common/memory/tensor_trans_utils.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/ge_context.h"
 #include "api/aclgrph/option_utils.h"
@@ -17,19 +18,22 @@
 namespace ge {
 namespace {
   const std::string kEnableExternalWeight = "1";
-
-  void SetDefaultExternalWeight(const uint32_t user_graph_id, const std::map<std::string, std::string> &origin_options,
+  const std::string kEnableAllowMultiParaCompile = "1";
+  void SetDefaultExternalWeightAndMultiParaCompile(const uint32_t user_graph_id, const std::map<std::string, std::string> &origin_options,
                                 std::map<std::string, std::string> &options_out) {
     std::string external_weight_val;
     (void)GetContext().GetOption(EXTERNAL_WEIGHT, external_weight_val);
     GELOGI("get external weight %s in context", external_weight_val.c_str());
     options_out = origin_options;
     auto it = options_out.find(EXTERNAL_WEIGHT);
-    const bool has_set_external_weight = !external_weight_val.empty() || (it != options_out.end() && !it->second.empty());
+    const bool has_set_external_weight =
+        !external_weight_val.empty() || (it != options_out.end() && !it->second.empty());
     if (!has_set_external_weight) {
       GELOGI("set default external weight in hybrid mode in graph %u", user_graph_id);
       options_out[EXTERNAL_WEIGHT] = kEnableExternalWeight;
     }
+    // 需要多线程并发编译多张图，ge.AllowMultiGraphParallelCompile 必须为 true
+    options_out[OPTION_ALLOW_MULTI_GRAPH_PARALLEL_COMPILE] = kEnableAllowMultiParaCompile;
   }
 
 void SetDynamicShapeOptions(const std::map<std::string, std::string> &origin_options,
@@ -107,7 +111,7 @@ Status UserHybridGraphManager::AddGraph(uint32_t user_graph_id, const Graph &gra
   uint32_t dynamic_shape_graph_id = 0;
   GE_ASSERT_TRUE(TryGetDynamicGraphId(user_graph_id, dynamic_gear_graph_id, dynamic_shape_graph_id));
   std::map<std::string, std::string> dynamic_gear_options;
-  SetDefaultExternalWeight(user_graph_id, options, dynamic_gear_options);
+  SetDefaultExternalWeightAndMultiParaCompile(user_graph_id, options, dynamic_gear_options);
   GE_ASSERT_SUCCESS(user_graph_manager_.AddGraph(dynamic_gear_graph_id, graph, dynamic_gear_options));
   std::map<std::string, std::string> dynamic_shape_options;
   SetDynamicShapeOptions(dynamic_gear_options, dynamic_shape_options);
@@ -147,16 +151,34 @@ void UserHybridGraphManager::SetDynamicGearInfo(const uint32_t graph_id, const H
   }
 }
 
-Status UserHybridGraphManager::BuildGraph(uint32_t user_graph_id, const std::vector<ge::Tensor> &inputs) {
+Status UserHybridGraphManager::BuildGraph(uint32_t user_graph_id, const std::vector<GeTensor> &inputs,
+    uint64_t session_id) {
   uint32_t dynamic_gear_graph_id = 0;
   uint32_t dynamic_shape_graph_id = 0;
   if (!TryGetDynamicGraphId(user_graph_id, dynamic_gear_graph_id, dynamic_shape_graph_id)) {
-    return user_graph_manager_.BuildGraph(user_graph_id, inputs);
+    return user_graph_manager_.BuildGraph(user_graph_id, inputs, session_id);
   }
-  GE_ASSERT_SUCCESS(user_graph_manager_.BuildGraph(dynamic_gear_graph_id, inputs));
-  GE_ASSERT_SUCCESS(RecordDynamicGearInfo(dynamic_gear_graph_id));
-  GE_ASSERT_SUCCESS(user_graph_manager_.BuildGraph(dynamic_shape_graph_id, inputs));
-  return SUCCESS;
+  const uint32_t kHybridThreadNum = 2;
+  ThreadPool thread_pool("ge_hybrid_compile_mode", kHybridThreadNum);
+  auto fut1 = thread_pool.commit([dynamic_gear_graph_id, this, &inputs, session_id]() -> Status {
+    GE_ASSERT_SUCCESS(user_graph_manager_.BuildGraph(dynamic_gear_graph_id, inputs, session_id));
+    GE_ASSERT_SUCCESS(RecordDynamicGearInfo(dynamic_gear_graph_id));
+    return SUCCESS;
+  });
+  GE_ASSERT_TRUE(fut1.valid(), "create multi hybrid compile dynamic gear graph thread fail,graph_id = %u",
+                 user_graph_id);
+  auto fut2 = thread_pool.commit([dynamic_shape_graph_id, this, &inputs, session_id]() -> Status {
+    GE_ASSERT_SUCCESS(user_graph_manager_.BuildGraph(dynamic_shape_graph_id, inputs, session_id));
+    return SUCCESS;
+  });
+  GE_ASSERT_TRUE(fut2.valid(), "create multi hybrid compile dynamic shape graph thread fail,graph_id = %u",
+                 user_graph_id);
+  Status ret = SUCCESS;
+  ret = fut1.get();
+  GE_ASSERT_SUCCESS(ret, "Failed to compile dynamic gear graph,graph_id = %u", user_graph_id);
+  ret = fut2.get();
+  GE_ASSERT_SUCCESS(ret, "Failed to compile dynamic shape graph,graph_id = %u", user_graph_id);
+  return ret;
 }
 
 Status UserHybridGraphManager::GetDynamicGearInfo(const uint32_t graph_id, HybridDynamicDimsInfo &dynamic_dims_info) {
@@ -168,15 +190,17 @@ Status UserHybridGraphManager::GetDynamicGearInfo(const uint32_t graph_id, Hybri
 }
 
 Status UserHybridGraphManager::SelectExecuteGraph(const uint32_t dynamic_gear_graph_id,
-    const uint32_t dynamic_shape_graph_id, const std::vector<Tensor> &inputs, uint32_t &select_graph_id) {
+    const uint32_t dynamic_shape_graph_id, const std::vector<gert::Tensor> &inputs, uint32_t &select_graph_id) {
   select_graph_id = dynamic_shape_graph_id;
   HybridDynamicDimsInfo dynamic_dims_info;
-  GE_ASSERT_SUCCESS(GetDynamicGearInfo(dynamic_gear_graph_id, dynamic_dims_info), "can not get %u dynamic dims", dynamic_gear_graph_id);
+  GE_ASSERT_SUCCESS(GetDynamicGearInfo(dynamic_gear_graph_id, dynamic_dims_info),
+    "can not get %u dynamic dims", dynamic_gear_graph_id);
   std::vector<std::vector<int64_t>> cur_shapes;
   for (size_t i = 0U; i < inputs.size(); ++i) {
-    const auto &tensor_desc = inputs[i].GetTensorDesc();
-    auto cur_shape = tensor_desc.GetShape().GetDims();
-    GELOGI("get graph id %u current index %zu, input shape is %s", dynamic_gear_graph_id, i, ToString(cur_shape).c_str());
+    const auto &input_shape = inputs[i].GetStorageShape();
+    auto cur_shape = TensorTransUtils::GetDimsFromGertShape(input_shape);
+    GELOGI("get graph id %u current index %zu, input shape is %s", dynamic_gear_graph_id, i,
+      ToString(cur_shape).c_str());
     cur_shapes.emplace_back(std::move(cur_shape));
   }
 
@@ -209,16 +233,16 @@ Status UserHybridGraphManager::SelectExecuteGraph(const uint32_t dynamic_gear_gr
   return SUCCESS;
 }
 
-Status UserHybridGraphManager::RunGraphAsync(uint32_t user_graph_id, const std::vector<Tensor> &inputs,
-                                              const RunAsyncCallback &callback) {
+Status UserHybridGraphManager::RunGraphAsync(uint32_t user_graph_id, std::vector<gert::Tensor> &&inputs,
+    uint64_t session_id, const RunAsyncCallbackV2 &callback) {
   uint32_t dynamic_gear_graph_id = 0;
   uint32_t dynamic_shape_graph_id = 0;
   if (!TryGetDynamicGraphId(user_graph_id, dynamic_gear_graph_id, dynamic_shape_graph_id)) {
-    return user_graph_manager_.RunGraphAsync(user_graph_id, inputs, callback);
+    return user_graph_manager_.RunGraphAsync(user_graph_id, std::move(inputs), session_id, callback);
   }
   uint32_t selected_graph_id = 0U;
   GE_ASSERT_SUCCESS(SelectExecuteGraph(dynamic_gear_graph_id, dynamic_shape_graph_id, inputs, selected_graph_id));
-  GE_ASSERT_SUCCESS(user_graph_manager_.RunGraphAsync(selected_graph_id, inputs, callback));
+  GE_ASSERT_SUCCESS(user_graph_manager_.RunGraphAsync(selected_graph_id, std::move(inputs), session_id, callback));
   return SUCCESS;
 }
 
@@ -251,6 +275,26 @@ bool UserHybridGraphManager::IsGraphNeedRebuild(uint32_t user_graph_id) {
 
   return user_graph_manager_.IsGraphNeedRebuild(dynamic_gear_graph_id) ||
          user_graph_manager_.IsGraphNeedRebuild(dynamic_shape_graph_id);
+}
+
+Status UserHybridGraphManager::GetCompiledFlag(uint32_t user_graph_id, bool &flag) {
+  uint32_t dynamic_gear_graph_id = 0;
+  uint32_t dynamic_shape_graph_id = 0;
+  if (!TryGetDynamicGraphId(user_graph_id, dynamic_gear_graph_id, dynamic_shape_graph_id)) {
+    return user_graph_manager_.GetCompiledFlag(user_graph_id, flag);
+  }
+  return user_graph_manager_.GetCompiledFlag(dynamic_gear_graph_id, flag);
+}
+
+Status UserHybridGraphManager::SetCompiledFlag(uint32_t user_graph_id, bool flag) {
+  uint32_t dynamic_gear_graph_id = 0;
+  uint32_t dynamic_shape_graph_id = 0;
+  if (!TryGetDynamicGraphId(user_graph_id, dynamic_gear_graph_id, dynamic_shape_graph_id)) {
+    return user_graph_manager_.SetCompiledFlag(user_graph_id, flag);
+  }
+  GE_ASSERT_SUCCESS(user_graph_manager_.SetCompiledFlag(dynamic_gear_graph_id, flag));
+  GE_ASSERT_SUCCESS(user_graph_manager_.SetCompiledFlag(dynamic_shape_graph_id, flag));
+  return SUCCESS;
 }
 
 Status UserHybridGraphManager::Finalize() {

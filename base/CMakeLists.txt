@@ -97,6 +97,11 @@ set(SRC_BASE_LIST
     "common/helper/model_saver.cc"
     "common/op/ge_op_utils.cc"
     "common/tbe_handle_store/tbe_kernel_store.cc"
+    "common/kernel_handles_manager/aicore_kernel_handles_manager.cc"
+    "common/kernel_handles_manager/aicpu_kernel_handles_manager.cc"
+    "common/kernel_handles_manager/cust_aicpu_kernel_handles_manager.cc"
+    "common/kernel_handles_manager/kernel_handles_manager.cc"
+    "common/kernel_handles_manager/kernel_handle_utils.cc"
     "common/thread_pool.cc"
     "common/types.cc"
     "common/util.cc"
@@ -253,6 +258,7 @@ target_include_directories(ge_common_base PRIVATE
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/framework
+    ${AIR_CODE_DIR}/inc/graph_metadef
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${ASCEND_INSTALL_PATH}/include/graph
@@ -515,12 +521,22 @@ list(TRANSFORM STUB_HEADER_LIST
     OUTPUT_VARIABLE STUB_SRC_LIST
 )
 
-add_custom_command(
-    OUTPUT ${STUB_SRC_LIST}
-    COMMAND echo "Generating ge_common_stub files."
-            && ${HI_PYTHON} ${GE_METADEF_DIR}/../tests/graph_metadef/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
-            && echo "Generating stub files end."
-)
+if(NOT BUILD_PKG_COMPONENT)
+    # TODO:待整包下线后删除
+    add_custom_command(
+        OUTPUT ${STUB_SRC_LIST}
+        COMMAND echo "Generating ge_common_stub files."
+                && ${HI_PYTHON} ${METADEF_DIR}/tests/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
+                && echo "Generating stub files end."
+    )
+else()
+    add_custom_command(
+        OUTPUT ${STUB_SRC_LIST}
+        COMMAND echo "Generating ge_common_stub files."
+                && ${HI_PYTHON} ${GE_METADEF_DIR}/../tests/graph_metadef/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
+                && echo "Generating stub files end."
+    )
+endif()
 
 add_custom_target(stub_ge_common DEPENDS ${STUB_SRC_LIST})
 

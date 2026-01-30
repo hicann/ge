@@ -35,6 +35,7 @@ public:
  }
 
  virtual rtError_t rtGetSocVersion(char *version, const uint32_t maxLen);
+ virtual rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen);
 
 private:
  static std::mutex mutex_;
@@ -46,6 +47,13 @@ class RuntimeStubV2Common : public RuntimeStub {
  public:
   rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
     (void)strcpy_s(version, maxLen, "Ascend910_9591");
+    return RT_ERROR_NONE;
+  }
+
+  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) override {
+    (void)label;
+    (void)key;
+    (void)strcpy_s(val, maxLen, "3510");
     return RT_ERROR_NONE;
   }
 };

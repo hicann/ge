@@ -26,6 +26,7 @@ public:
     compute_node_extend_holder_ = std::move(holder.compute_node_extend_holder_);
     buffer_pool_ = holder.buffer_pool_;
     context_ = holder.context_;
+    holder.context_ = nullptr;
   }
 
   KernelContextHolder &operator=(KernelContextHolder &&holder) {
@@ -34,6 +35,7 @@ public:
     compute_node_extend_holder_ = std::move(holder.compute_node_extend_holder_);
     buffer_pool_ = holder.buffer_pool_;
     context_ = holder.context_;
+    holder.context_ = nullptr;
     return *this;
   }
 

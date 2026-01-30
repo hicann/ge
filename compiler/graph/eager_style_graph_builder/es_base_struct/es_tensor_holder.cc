@@ -38,15 +38,18 @@
 extern "C" {
 #endif
 
+namespace {
 // 使用宏定义生成所有操作符的弱符号函数
 DEFINE_WEAK_OP_FUNCTION(Add)
 DEFINE_WEAK_OP_FUNCTION(Sub)
 DEFINE_WEAK_OP_FUNCTION(Mul)
 DEFINE_WEAK_OP_FUNCTION(Div)
+} // namespace
 
 #ifdef __cplusplus
 }
 #endif
+
 
 namespace ge::es {
 int32_t EsTensorHolder::GetProducerOutIndex() const {

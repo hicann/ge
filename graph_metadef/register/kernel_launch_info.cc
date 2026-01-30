@@ -59,6 +59,25 @@ KernelLaunchInfo KernelLaunchInfo::CreateHcomWaitTask(const gert::ExeResGenerati
     const char *group_name) {
   return KernelLaunchInfo(KernelLaunchInfoImpl::CreateHcomWaitTask(context, group_name));
 }
+KernelLaunchInfo KernelLaunchInfo::CreateFusionTask(
+    const gert::ExeResGenerationContext *context,
+    const std::vector<KernelLaunchInfo>& sub_tasks) {
+    std::vector<const KernelLaunchInfoImpl*> sub_tasks_ref;
+    sub_tasks_ref.reserve(sub_tasks.size());
+
+    for (const auto &task : sub_tasks) {
+        if (task.impl_) {
+            sub_tasks_ref.emplace_back(task.impl_.get());
+        }
+    }
+
+    return KernelLaunchInfo(
+        KernelLaunchInfoImpl::CreateFusionTask(context, sub_tasks_ref));
+}
+KernelLaunchInfo KernelLaunchInfo::CreateCcuTask(const gert::ExeResGenerationContext *context,
+    const std::vector<std::string>& groups) {
+  return KernelLaunchInfo(KernelLaunchInfoImpl::CreateCcuTask(context, groups));
+}
 std::vector<uint8_t> KernelLaunchInfo::Serialize() {
   if (impl_ != nullptr) {
     return impl_->Serialize();

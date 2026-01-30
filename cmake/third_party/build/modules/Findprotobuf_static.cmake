@@ -48,7 +48,7 @@ else()
 endif()
 
 if(protobuf_static_FOUND AND NOT FORCE_REBUILD_CANN_3RD)
-    message(STATUS "[protobuf static] protobuf_static found, skip compiling..")
+    message(STATUS "[protobuf static] protobuf_static found, skip compiling.")
 else()
     message(STATUS "[protobuf static] protobuf_static_FOUND:${protobuf_static_FOUND}, FORCE_REBUILD_CANN_3RD:${FORCE_REBUILD_CANN_3RD}")
 
@@ -57,9 +57,9 @@ else()
     # 初始化可选参数列表
     set(PROTOBUF_EXTRA_ARGS "")
     if(EXISTS ${REQ_URL})
-        message(STATUS "[protobuf static] ${REQ_URL} found, start compile.")
+        message(STATUS "[protobuf static] ${REQ_URL} found.")
     elseif(EXISTS ${REQ_URL_BACK})
-        message(STATUS "[protobuf static] ${REQ_URL_BACK} found, start compile.")
+        message(STATUS "[protobuf static] ${REQ_URL_BACK} found.")
         set(REQ_URL ${REQ_URL_BACK})
     else()
         message(STATUS "[protobuf static] ${REQ_URL} not found, need download.")
@@ -69,7 +69,7 @@ else()
         )
     endif()
     
-    set(protobuf_CXXFLAGS "-Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=0 -O2")
+    set(protobuf_CXXFLAGS "-Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI} -O2")
 
     ExternalProject_Add(protobuf_static_build
                         URL ${REQ_URL}

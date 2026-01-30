@@ -271,7 +271,7 @@ std::map<size_t, std::pair<size_t, size_t>> ReadableDump::GetIrGraphDescRange(co
       }
       continue;
     }
-
+    
     // 动态子图：IR 名称需要添加索引
     std::set<uint32_t> indexes;
     for (size_t n = 0U;; n++) {
@@ -299,7 +299,7 @@ std::map<size_t, std::pair<size_t, size_t>> ReadableDump::GetIrGraphDescRange(co
 }
 
 void ReadableDump::CollectSubgraphIfNeeded(std::vector<ComputeGraphPtr> &subgraphs_to_dump,
-                                           const std::string &instance_name, DumpContext &ctx) {
+                                           const std::string &instance_name,DumpContext &ctx) {
   if (instance_name.empty()) {
     return;
   }

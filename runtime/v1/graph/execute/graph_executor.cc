@@ -34,44 +34,6 @@ Status GraphExecutor::SetDynamicSize(const uint32_t model_id, const std::vector<
   return SUCCESS;
 }
 
-Status GraphExecutor::PrepareInputOutputData(const std::vector<GeTensor> &input_tensor, InputData &graph_input_data,
-                                             std::vector<GeTensor> &output_tensor, OutputData &graph_output_data,
-                                             const std::vector<InputOutputDescInfo> &output_desc) const {
-  // Preprocessing input data
-  graph_input_data.index = 0U;
-  graph_input_data.timeout = 0U;
-  graph_input_data.timestamp = 0U;
-
-  for (auto &tensor : input_tensor) {
-    DataBuffer buffer;
-    buffer.data = const_cast<uint8_t *>(tensor.GetData().GetData());
-    buffer.length = tensor.GetData().size();
-    buffer.placement = static_cast<uint32_t>(tensor.GetTensorDesc().GetPlacement());
-    graph_input_data.blobs.push_back(std::move(buffer));
-    graph_input_data.shapes.emplace_back(tensor.GetTensorDesc().GetShape().GetDims());
-  }
-
-  output_tensor.resize(output_desc.size());
-  for (size_t i = 0UL; i < output_desc.size(); ++i) {
-    output_tensor[i].MutableTensorDesc().SetShape(GeShape(output_desc[i].shape_info.dims));
-    output_tensor[i].MutableTensorDesc().SetDataType(static_cast<DataType>(output_desc[i].data_type));
-    if (output_tensor[i].GetTensorDesc().GetPlacement() == kPlacementDevice) {
-      GE_ASSERT_TRUE(output_tensor[i].GetData().GetData() != nullptr);
-    } else {
-      const auto aligned_ptr = MakeShared<AlignedPtr>(output_desc[i].size, kMemAlignment);
-      GE_ASSERT_NOTNULL(aligned_ptr);
-      (void)output_tensor[i].SetData(aligned_ptr, output_desc[i].size);
-    }
-
-    DataBuffer buffer;
-    buffer.data = output_tensor[i].MutableData().GetData();
-    buffer.length = output_tensor[i].GetData().size();
-    buffer.placement = output_tensor[i].GetTensorDesc().GetPlacement();
-    graph_output_data.blobs.push_back(std::move(buffer));
-  }
-  return SUCCESS;
-}
-
 Status GraphExecutor::PrepareOutput(const std::vector<InputOutputDescInfo> &output_desc,
   std::vector<gert::Tensor> &output_tensor) const {
   for (size_t i = 0UL; i < output_desc.size(); ++i) {
@@ -87,42 +49,6 @@ Status GraphExecutor::PrepareOutput(const std::vector<InputOutputDescInfo> &outp
     GE_ASSERT_SUCCESS(TensorTransUtils::GeTensor2GertTensor(ge_tensor, gert_tensor));
     output_tensor.emplace_back(std::move(gert_tensor));
   }
-  return SUCCESS;
-}
-
-Status GraphExecutor::SyncExecuteModel(const uint32_t model_id, const std::vector<GeTensor> &input_tensor,
-                                       std::vector<GeTensor> &output_tensor,
-                                       const error_message::ErrorManagerContext &error_context) const {
-  error_message::SetErrMgrContext(error_context);
-  if (ModelManager::GetInstance().IsDynamicShape(model_id)) {
-    GELOGI("[ExecuteGraph] SyncExecuteModel via dynamic shape model executor, modelId=%u", model_id);
-    return ModelManager::GetInstance().SyncExecuteHybridModel(model_id, input_tensor, output_tensor);
-  }
-
-  // Prepare input and output
-  std::vector<InputOutputDescInfo> inputs_desc;
-  std::vector<InputOutputDescInfo> output_desc;
-
-  GELOGI("[ExecuteGraph] GetInputOutputDescInfo via new ome begin, modelId=%u.", model_id);
-  Status ret = GetInputOutputDescInfo(model_id, inputs_desc, output_desc);
-  if (ret != SUCCESS) {
-    GELOGE(GE_GRAPH_GET_IN_OUT_FAILED, "[Get][InputOutputDescInfo] failed, modelId=%u.", model_id);
-    return GE_GRAPH_GET_IN_OUT_FAILED;
-  }
-
-  InputData input_data;
-  OutputData output_data;
-  input_data.model_id = model_id;
-  ret = PrepareInputOutputData(input_tensor, input_data, output_tensor, output_data, output_desc);
-  if (ret != SUCCESS) {
-    GELOGE(GE_GRAPH_PREPARE_FAILED, "[Prepare][InputData] failed, modelId=%u.", model_id);
-    return GE_GRAPH_PREPARE_FAILED;
-  }
-  // Run mode synchronize
-  GELOGI("[ExecuteGraph] SyncExecuteModel via new ome begin.");
-  GE_CHK_STATUS_RET_NOLOG(ModelManager::GetInstance().SyncExecuteModel(input_data, output_data, output_tensor));
-  GELOGI("[GraphExecutor] execute model success, modelId=%u.", model_id);
-
   return SUCCESS;
 }
 
@@ -160,22 +86,8 @@ Status GraphExecutor::SyncExecuteModel(const uint32_t model_id, const std::vecto
 }
 
 Status GraphExecutor::ExecuteGraph(const GraphId graph_id, const GeRootModelPtr &ge_root_model,
-                                   const std::vector<GeTensor> &input_tensor, std::vector<GeTensor> &output_tensor) {
-  GE_CHECK_NOTNULL(ge_root_model);
-  GE_CHK_STATUS_RET_NOLOG(ModelManager::GetInstance().ModelSubscribe(graph_id));
-  Status ret = SUCCESS;
-  ret = SyncExecuteModel(ge_root_model->GetModelId(), input_tensor, output_tensor,
-                         error_message::GetErrMgrContext());
-  if (ret != SUCCESS) {
-    GELOGE(GE_GRAPH_SYNC_MODEL_FAILED, "[SyncExecute][Model] Error! graph id:%u", graph_id);
-    return GE_GRAPH_SYNC_MODEL_FAILED;
-  }
-  return SUCCESS;
-}
-
-Status GraphExecutor::ExecuteGraph(const GraphId graph_id, const GeRootModelPtr &ge_root_model,
                                    const std::vector<gert::Tensor> &input_tensor,
-                                   std::vector<gert::Tensor> &output_tensor) {
+                                   std::vector<gert::Tensor> &output_tensor) const {
   GE_CHECK_NOTNULL(ge_root_model);
   GE_CHK_STATUS_RET_NOLOG(ModelManager::GetInstance().ModelSubscribe(graph_id));
   Status ret = SUCCESS;
@@ -188,24 +100,7 @@ Status GraphExecutor::ExecuteGraph(const GraphId graph_id, const GeRootModelPtr 
   return SUCCESS;
 }
 
-Status GraphExecutor::ExecuteGraphAsync(const GeRootModelPtr &ge_root_model, const std::shared_ptr<RunArgsV2> &args) {
-  GraphId graph_id = args->graph_id;
-  GELOGI("[GraphExecutor] Start to async execute graph, graph_id=%u", graph_id);
-  GE_CHECK_NOTNULL(ge_root_model);
-  GE_CHK_STATUS_RET_NOLOG(ModelManager::GetInstance().ModelSubscribe(graph_id));
-  Status ret = SUCCESS;
-  ret = AsyncExecuteModelArgsPtr(ge_root_model, GetExecuteModelId(ge_root_model), args,
-                                 error_message::GetErrMgrContext());
-  if (ret != SUCCESS) {
-    GELOGE(GE_GRAPH_SYNC_MODEL_FAILED, "[AsyncExecute][Model] Error! graph id:%u", graph_id);
-    return GE_GRAPH_SYNC_MODEL_FAILED;
-  }
-
-  GELOGI("[GraphExecutor] Async execute graph success, graph_id=%u", graph_id);
-  return SUCCESS;
-}
-
-Status GraphExecutor::ExecuteGraphAsync(const GeRootModelPtr &ge_root_model, const std::shared_ptr<RunArgs> &args) {
+Status GraphExecutor::ExecuteGraphAsync(const GeRootModelPtr &ge_root_model, const std::shared_ptr<RunArgs> &args) const {
   GraphId graph_id = args->graph_id;
   GELOGI("[GraphExecutor] Start to async execute graph, graph_id=%u", graph_id);
   GE_CHECK_NOTNULL(ge_root_model);
@@ -273,41 +168,6 @@ uint32_t GraphExecutor::GetExecuteModelId(const GeRootModelPtr &ge_root_model) {
     }
   }
   return ret_model_id;
-}
-
-Status GraphExecutor::AsyncExecuteModelArgsPtr(const GeRootModelPtr &ge_root_model, const uint32_t model_id,
-                                               const std::shared_ptr<RunArgsV2> &args,
-                                               const error_message::ErrorManagerContext &error_context) const {
-  error_message::SetErrMgrContext(error_context);
-  if (model_id == kInvalidModelId) {
-    GELOGE(INTERNAL_ERROR, "No valid model id.");
-    return INTERNAL_ERROR;
-  }
-  try {
-    GELOGI("RunAsync begin.model_id %u", model_id);
-    if (ModelManager::GetInstance().SetCallbackHybridLoad(model_id, ge_root_model, args->callback) != SUCCESS) {
-      GELOGE(FAILED, "[Set][CallBack] for model fail, model_id %u", model_id);
-      return FAILED;
-    }
-
-    const auto ret = ModelManager::GetInstance().DataInputTensor(model_id, args);
-    if (ret != SUCCESS) {
-      GELOGE(ret, "[Call][DataInputTensor] RunAsync: DataInput fail, model_id %u", model_id);
-      return ret;
-    }
-
-    GELOGI("RunAsync success.");
-  } catch (std::bad_alloc &) {
-    REPORT_INNER_ERR_MSG("E19999", "Bad memory allocation exception occur failed, model_id %u", model_id);
-    GELOGE(MEMALLOC_FAILED, "[Run][Async] failed, bad memory allocation occur, model_id %u", model_id);
-    return MEMALLOC_FAILED;
-  } catch (...) {
-    REPORT_INNER_ERR_MSG("E19999", "Some exceptions occur failed, model_id %u", model_id);
-    GELOGE(FAILED, "[Run][Async] failed, some exceptions occur, model_id %u", model_id);
-    return FAILED;
-  }
-
-  return SUCCESS;
 }
 
 Status GraphExecutor::AsyncExecuteModelArgsPtr(const GeRootModelPtr &ge_root_model, const uint32_t model_id,

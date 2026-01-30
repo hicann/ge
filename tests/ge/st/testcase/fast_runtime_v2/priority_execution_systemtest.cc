@@ -26,6 +26,8 @@
 #include "stub/gert_runtime_stub.h"
 #include "check/memory_allocation_checker.h"
 #include "check/executor_statistician.h"
+#include "graph/debug/ge_attr_define.h"
+
 namespace gert {
 namespace {
 const char *const TransDataStubName = "TransDataStubBin";
@@ -365,8 +367,8 @@ TEST_F(PriorityExecutionST, Check_Priority_With_Aicpu_MemCpy_success) {
 TEST_F(PriorityExecutionST, Check_Priority_With_DavinciModelExecute_success) {
   auto graph = ShareGraph::BuildDynamicAndStaticGraph();
   graph->TopologicalSorting();
-  auto ge_root_model = GeModelBuilder(graph).BuildGeRootModel();
-
+  auto ge_model_builder = GeModelBuilder(graph);
+  auto ge_root_model = ge_model_builder.BuildGeRootModel();
   auto exe_graph = ModelConverter().ConvertGeModelToExecuteGraph(ge_root_model);
   ASSERT_NE(exe_graph, nullptr);
 
@@ -475,6 +477,17 @@ TEST_F(PriorityExecutionST, LoadFromOm_Check_Priority_With_DavinciModelExecute_s
   auto ge_root_model = model_helper.GetGeRootModel();
   ASSERT_NE(ge_root_model, nullptr);
   auto root_graph = ge_root_model->GetRootGraph();
+
+  for (auto node : root_graph->GetAllNodes()) {
+    if (node->GetName() == "add") {
+      auto op_desc = node->GetOpDesc();
+      // cust aicpu kernel
+      const char kernel_bin[] = "test";
+      vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+      ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("add", std::move(buffer));
+      op_desc->SetExtAttr(ge::OP_EXTATTR_CUSTAICPU_KERNEL, kernel_bin_ptr);
+    }
+  }
 
   ge::NodePtr unknown_op_node = root_graph->FindNode("unknown_op");
   ASSERT_NE(unknown_op_node, nullptr);

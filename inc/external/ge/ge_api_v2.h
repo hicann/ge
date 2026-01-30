@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  *
  * Migration Guide: ge_api.h -> ge_api_v2.h
  *
@@ -286,7 +286,17 @@ class GE_FUNC_VISIBILITY GeSession {
   std::shared_ptr<Impl> impl_;
 };
 }  // namespace ge
+
+/// Support annotating GE nodes with the inference_rule attribute.
+/// Inference logic for a node’s output shape and dtype
+#define INFERENCE_RULE "_inference_rule"
+
 extern "C" {
+/// GE enhances its compilation capability by extending the IR representation
+/// or by introducing new compiler options. 
+/// Add feature capability query support between APP and GE. 
+bool IsIrRepSupport(const char *rep);
+
 ge::Status GetRegisteredIrDef(const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs);

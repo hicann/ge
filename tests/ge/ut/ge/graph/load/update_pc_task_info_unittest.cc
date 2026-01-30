@@ -33,8 +33,12 @@ TEST_F(UtestUpdatePcTaskInfo, init_update_pc_mxil2_success) {
 
   uint8_t handle[100];
   (void)AttrUtils::SetStr(op_desc, "_mix_aic" + ATTR_NAME_TBE_KERNEL_NAME, "mix_aic_kernel");
-
+  (void)AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
   AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "00_0_kernel");
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle);
+
   std::vector<std::string> name_prefix = {"_mix_aic"};
   AttrUtils::SetListStr(op_desc, ATTR_NAME_KERNEL_NAMES_PREFIX, name_prefix);
 
@@ -94,6 +98,10 @@ TEST_F(UtestUpdatePcTaskInfo, init_update_pc_custom_success) {
 
   uint8_t handle[100];
   AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "00_0_kernel");
+  (void)AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle);
   std::string kernel_handle_name = davinci_model.GetBinHandleKey(*op_desc, "", false);
   TBEHandleStore::GetInstance().StoreTBEHandle(kernel_handle_name, handle, nullptr);
 

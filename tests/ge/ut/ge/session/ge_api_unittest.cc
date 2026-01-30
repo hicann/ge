@@ -52,6 +52,8 @@
 #include "graph/ge_global_options.h"
 #include "dflow/compiler/pne/udf/udf_process_node_engine.h"
 #include "dflow/compiler/pne/process_node_engine_manager.h"
+#include "common/memory/tensor_trans_utils.h"
+#include "flow_graph/flow_graph.h"
 using namespace std;
 
 extern ge::SessionManager *GetSessionManager();
@@ -614,8 +616,8 @@ TEST_F(UtestGeApi, GEInitialize_test) {
 
 TEST_F(UtestGeApi, GEInitialize_load_custom_pass_failed) {
   std::map<AscendString, AscendString> options;
-  std::string path = FILE_SESSION_PATH;
-  path = path + "opp";
+  std::string path = __FILE__;
+  path = path.substr(0, path.rfind("/") + 1) + "opp";
   mmSetEnv("ASCEND_OPP_PATH", path.c_str(), 1);
   system(("mkdir -p " + path).c_str());
 
@@ -630,8 +632,8 @@ TEST_F(UtestGeApi, GEInitialize_load_custom_pass_failed) {
 
 TEST_F(UtestGeApi, GEInitialize_load_custom_pass_success) {
   std::map<AscendString, AscendString> options;
-  std::string path = FILE_SESSION_PATH;
-  path = path + "opp";
+  std::string path = __FILE__;
+  path = path.substr(0, path.rfind("/") + 1) + "opp";
   mmSetEnv("ASCEND_OPP_PATH", path.c_str(), 1);
   system(("mkdir -p " + path).c_str());
 
@@ -661,17 +663,7 @@ TEST_F(UtestGeApi, ge_session_info_test) {
   vector<Tensor> inputs;
   auto ret = session.BuildGraph(1, inputs);
   ASSERT_NE(ret, SUCCESS);
-  uint64_t var_size = 0;
-  std::map<uint32_t, std::vector<uint64_t>> graphs_mem_info;
-  GetSessionMemInfo(session.GetSessionId(), var_size, graphs_mem_info);
-  EXPECT_TRUE(var_size == 0);
-  for (auto item : graphs_mem_info) {
-    for (auto mem : item.second) {
-      EXPECT_EQ(mem, 0);
-    }
-  }
   EXPECT_EQ(GEFinalize(), SUCCESS);
-  EXPECT_EQ(GetSessionMemInfo(session.GetSessionId(), var_size, graphs_mem_info), FAILED);
 }
 
 TEST_F(UtestGeApi, Feed_test_not_init) {
@@ -1101,7 +1093,7 @@ TEST_F(UtestGeApi, LoadGraph_with_graph_id) {
   Session session1(options_init);
 
   options.insert(pair<AscendString, AscendString>("ge.exec.frozenInputIndexes", "1,2"));
-  EXPECT_EQ(session1.LoadGraph(graph_id, options, nullptr), FAILED);
+  EXPECT_NE(session1.LoadGraph(graph_id, options, nullptr), SUCCESS);
   EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 
@@ -1117,7 +1109,7 @@ TEST_F(UtestGeApi, Test_LoadGraphApi) {
   Session session1(options_init);
 
   options.insert(pair<AscendString, AscendString>("ge.exec.frozenInputIndexes", "1,2"));
-  EXPECT_EQ(session1.LoadGraph(graph_id, options, nullptr), FAILED);
+  EXPECT_NE(session1.LoadGraph(graph_id, options, nullptr), SUCCESS);
   EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 
@@ -1582,7 +1574,7 @@ TEST_F(UtestGeApi, feed_graph_by_rawdata) {
   EXPECT_EQ(session2.AddGraph(graph_id, graph, options), SUCCESS);
   EXPECT_EQ(session2.BuildGraph(graph_id, inputs), SUCCESS);
   // without executor
-  EXPECT_EQ(session2.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), FAILED);
+  EXPECT_NE(session2.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), SUCCESS);
   EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 

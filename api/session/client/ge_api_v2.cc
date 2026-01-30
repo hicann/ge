@@ -43,8 +43,8 @@
 #include "proto/ge_api.pb.h"
 #include "register/op_registry.h"
 #include "runtime/v2/core/debug/kernel_tracing.h"
-#include "session_v2/ge_session_manager.h"
-#include "session_v2/ge_session_impl.h"
+#include "session/session_manager.h"
+#include "session/ge_session_impl.h"
 #include "plog.h"
 #include "common/checker.h"
 #include "framework/runtime/subscriber/global_profiler.h"
@@ -106,11 +106,6 @@ void ShutDownProfiling() {
 
 static std::atomic_bool g_ge_initialized{false};
 static std::mutex g_ge_release_mutex;  // GEFinalize and ~GeSession use
-static std::shared_ptr<ge::GeSessionManager> g_ge_session_manager;
-
-ge::GeSessionManager *GetGeSessionManager() {
-  return g_ge_session_manager.get();
-}
 
 namespace ge {
 namespace {
@@ -130,18 +125,19 @@ void ConstructSession(const std::map<std::string, std::string> &options, Session
   if (CheckAllowParallelCompile(options) != SUCCESS) {
     return;
   }
-  uint64_t tmp_session_id = 0UL;
-  const Status ret = g_ge_session_manager->CreateSession(options, tmp_session_id);
-  // failed guarder, should call GE_DISMISS_GUARD if success
-  GE_DISMISSABLE_GUARD(create_failed, ([tmp_session_id]() { g_ge_session_manager->DestroySession(tmp_session_id); }));
-  if (ret != SUCCESS) {
-    GELOGE(ret, "Construct session failed, error code:%u.", ret);
-    REPORT_INNER_ERR_MSG("E19999", "Construct session failed, error code:%u.", ret);
-    return;
+}
+
+Status CheckRunGraphMode(const RunGraphMode &cur_mode, uint32_t graph_id, const RunGraphMode &expect_mode) {
+  if ((cur_mode != RunGraphMode::kRunGraphModeEnd) && (cur_mode != expect_mode)) {
+    GELOGE(UNSUPPORTED, "Failed to execute %s for graph[%u] because %s was already called."
+        " These execution methods are mutually exclusive and cannot be mixed.",
+        GetRunGraphModeStr(expect_mode), graph_id, GetRunGraphModeStr(cur_mode));
+    REPORT_INNER_ERR_MSG("E19999", "Failed to execute %s for graph[%u] because %s was already called."
+        " These execution methods are mutually exclusive and cannot be mixed.",
+        GetRunGraphModeStr(expect_mode), graph_id, GetRunGraphModeStr(cur_mode));
+    return UNSUPPORTED;
   }
-  session_id = tmp_session_id;
-  GE_DISMISS_GUARD(create_failed);
-  GELOGT(TRACE_STOP, "GeSession construct finished, session id is %lu", session_id);
+  return SUCCESS;
 }
 }  // namespace
 
@@ -181,7 +177,7 @@ static Status CheckOptionsValid(const std::map<std::string, std::string> &option
   return SUCCESS;
 }
 
-Status InitializeExecutionRuntime(const std::map<std::string, std::string> &options) {
+static Status InitializeExecutionRuntime(const std::map<std::string, std::string> &options) {
   if (ExecutionRuntime::GetInstance() == nullptr) {
     if (ExecutionRuntimeUtils::IsHeterogeneous()) {
       GE_CHK_STATUS_RET_NOLOG(ExecutionRuntime::InitHeterogeneousRuntime(options));
@@ -272,12 +268,6 @@ static Status GEInitializeImpl(const std::map<std::string, std::string> &options
   // 8. init session manager
   GELOGI("GeSessionManager initial.");
   GE_TIMESTAMP_START(GeSessionManagerInitialize);
-  g_ge_session_manager = MakeShared<ge::GeSessionManager>();
-  if (g_ge_session_manager == nullptr) {
-    GELOGE(GE_CLI_INIT_FAILED, "[Init][Create]GeSessionManager failed");
-    return FAILED;
-  }
-  ret = g_ge_session_manager->Initialize();
   GE_TIMESTAMP_EVENT_END(GeSessionManagerInitialize, "InnerInitialize::GeSessionManagerInitialize");
   if (ret != SUCCESS) {
     GELOGE(ret, "[Init][GeSessionManager] GE session manager initial failed.");
@@ -313,7 +303,9 @@ Status GEInitializeV2(const std::map<AscendString, AscendString> &options) {
   for (const auto &option_item : options) {
     if (option_item.first.GetLength() == 0) {
       GELOGE(FAILED, "[Check][Param] GEInitialize failed, option key is empty.");
-      REPORT_INNER_ERR_MSG("E19999", "Check parameter's options invalid, option key is empty.");
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                std::vector<const char *>({option_item.first.GetString(),
+                                                           option_item.second.GetString(), "parameter is empty"}));
       return FAILED;
     }
     const std::string &key = std::string(option_item.first.GetString(), option_item.first.GetLength());
@@ -349,9 +341,6 @@ Status GEFinalizeV2() {
   GELOGT(TRACE_INIT, "GEFinalize start");
 
   GELOGI("GeSessionManager finalization.");
-  if (g_ge_session_manager != nullptr) {
-    (void)g_ge_session_manager->Finalize();  // always success.
-  }
   ShutDownProfiling();
 
   (void)CustomPassHelper::Instance().Unload();
@@ -399,26 +388,29 @@ ge::AscendString GEGetWarningMsgV3() {
   return ge::AscendString(error_message::GetErrMgrWarningMessage().get());
 }
 
-GeSession::GeSession(const std::map<AscendString, AscendString> &options) : impl_(std::make_shared<GeSession::Impl>()) {
+GeSession::GeSession(const std::map<AscendString, AscendString> &options) {
   std::map<std::string, std::string> str_options;
   for (auto &option_item : options) {
     if (option_item.first.GetLength() == 0) {
       GELOGE(FAILED, "Construct session failed, option key is empty.");
-      REPORT_INNER_ERR_MSG("E19999", "Construct session failed, option key is empty.");
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                std::vector<const char *>({option_item.first.GetString(),
+                                                           option_item.second.GetString(), "parameter is empty"}));
       return;
     }
     const std::string &key = option_item.first.GetString();
     const std::string &val = option_item.second.GetString();
     str_options[key] = val;
   }
+  ge::SessionId session_id;
+  impl_ = std::make_shared<GeSession::Impl>(str_options);
   if (impl_ == nullptr) {
     GELOGE(FAILED, "GeSession failed, impl_ is null.");
     REPORT_INNER_ERR_MSG("E19999", "GeSession failed, impl_ is null.");
     return;
   }
-  ge::SessionId session_id;
+  session_id = impl_->GetSessionId();
   ConstructSession(str_options, session_id);
-  impl_->SetSessionId(session_id);
 }
 
 // session destructor
@@ -436,7 +428,8 @@ GeSession::~GeSession() {
     const uint64_t session_id = GetSessionId();
     // call DestroySession
     GELOGT(TRACE_RUNNING, "GeSession id is %lu", session_id);
-    ret = g_ge_session_manager->DestroySession(session_id);
+    RtContextUtil::GetInstance().DestroyRtContexts(session_id);
+    impl_ = nullptr;
   } catch (std::exception &e) {
     (void)e;
     GELOGE(GE_CLI_SESS_DESTROY_FAILED, "[Destructor][GeSession]Failed: an exception occurred");
@@ -464,8 +457,6 @@ Status GeSession::AddGraph(uint32_t graph_id, const Graph &graph, const std::map
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Add graph failed, session_id:%lu.", GetSessionId());
 
   AscendString graph_name;
   GE_ASSERT_SUCCESS(graph.GetName(graph_name), "Add graph failed, get graph name failed.");
@@ -476,7 +467,9 @@ Status GeSession::AddGraph(uint32_t graph_id, const Graph &graph, const std::map
   for (auto &option_item : options) {
     if (option_item.first.GetLength() == 0) {
       GELOGE(FAILED, "Add graph failed, option key is empty.");
-      REPORT_INNER_ERR_MSG("E19999", "Add graph failed, option key is empty.");
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                std::vector<const char *>({option_item.first.GetString(),
+                                                           option_item.second.GetString(), "parameter is empty"}));
       return FAILED;
     }
 
@@ -489,7 +482,7 @@ Status GeSession::AddGraph(uint32_t graph_id, const Graph &graph, const std::map
     GELOGW("[Check][Param] Check supported options failed.");
   }
   GELOGD("Adding graph to session");
-  Status ret = inner_session->AddGraph(graph_id, graph, str_options);
+  Status ret = impl_->AddGraph(graph_id, graph, str_options);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Add graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          GetSessionId(), graph_id);
 
@@ -511,8 +504,6 @@ Status GeSession::AddGraphClone(uint32_t graph_id, const Graph &graph,
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Add graph failed, session_id:%lu.", GetSessionId());
 
   AscendString graph_name;
   GE_ASSERT_SUCCESS(graph.GetName(graph_name), "Add graph failed, get graph name failed.");
@@ -529,7 +520,7 @@ Status GeSession::AddGraphClone(uint32_t graph_id, const Graph &graph,
   }
 
   GELOGD("Adding graph to session");
-  const Status ret = inner_session->AddGraphWithCopy(graph_id, graph, str_options);
+  const Status ret = impl_->AddGraphWithCopy(graph_id, graph, str_options);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Add graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          GetSessionId(), graph_id);
 
@@ -546,14 +537,12 @@ Status GeSession::RemoveGraph(uint32_t graph_id) {
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Remove graph failed, session_id:%lu.", GetSessionId());
 
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kRemoveGraph);
   GELOGT(TRACE_INIT, "GeSession RemoveGraph start, graph_id: %u", graph_id);
 
   // call RemoveGraph
-  Status ret = inner_session->RemoveGraph(graph_id);
+  Status ret = impl_->RemoveGraph(graph_id);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Remove graph failed, error code:%u, session_id:%lu, graph_id:%u.",
                          ret, GetSessionId(), graph_id);
 
@@ -624,13 +613,25 @@ Status GeSession::RunGraph(uint32_t graph_id, const std::vector<gert::Tensor> &i
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Run graph failed, session_id:%lu.", GetSessionId());
-
+  RunGraphMode cur_mode = RunGraphMode::kRunGraphModeEnd;
+  GE_ASSERT_SUCCESS(impl_->GetRunGraphMode(graph_id, cur_mode), "Run graph async failed, get run graph mode failed. graph_id: %u", graph_id);
+  auto ret = CheckRunGraphMode(cur_mode, graph_id, RunGraphMode::kRunGraph);
+  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Run graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
+                         GetSessionId(), graph_id);
+  if (!impl_->GetLoadFlag(graph_id)) {
+    GELOGI("Graph is not loaded, start to load graph, session_id:%lu, graph_id:%u", GetSessionId(), graph_id);
+    ret = LoadGraph(graph_id, {}, nullptr);
+    GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Run graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
+                           GetSessionId(), graph_id);
+    GELOGI("Graph loaded successfully, continue to run graph, session_id:%lu, graph_id:%u", GetSessionId(), graph_id);
+  }
   GELOGI("GeSession RunGraph start, session_id: %lu, graph_id: %u, input size %zu, output size %zu", GetSessionId(),
          graph_id, inputs.size(), outputs.size());
   outputs.clear();
-  Status ret = inner_session->RunGraph(graph_id, inputs, outputs);
+  ret = impl_->RunGraph(graph_id, inputs, outputs);
+  const auto set_result = impl_->SetRunGraphMode(graph_id, RunGraphMode::kRunGraph);
+  GE_CHK_BOOL_RET_STATUS(set_result == SUCCESS, set_result,
+    "Run graph failed, set run graph mode failed, session_id:%lu, graph_id:%u.", GetSessionId(), graph_id);
   // check return status
   const bool need_convert_error_code = (ret == RT_ERROR_TO_GE_STATUS(ACL_ERROR_RT_QUEUE_EMPTY));
   ret = need_convert_error_code ? ACL_ERROR_GE_MODEL_EXECUTE_TIMEOUT : ret;
@@ -657,15 +658,24 @@ Status GeSession::RunGraphWithStreamAsync(uint32_t graph_id, void *stream, const
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Execute graph with stream async failed, session_id:%lu.",
-                         GetSessionId());
-
-  Status ret = inner_session->RunGraphWithStreamAsync(graph_id, stream, inputs, outputs);
-  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED,
-                         "Run graph with stream async failed, error code:%u,"
-                         " session_id:%lu, graph_id:%u, stream:%p.",
-                         ret, GetSessionId(), graph_id, stream);
+  RunGraphMode cur_mode = RunGraphMode::kRunGraphModeEnd;
+  GE_ASSERT_SUCCESS(impl_->GetRunGraphMode(graph_id, cur_mode), "Run graph with stream async failed, get run graph mode failed. graph_id: %u", graph_id);
+  auto ret = CheckRunGraphMode(cur_mode, graph_id, RunGraphMode::kRunGraphWithStreamAsync);
+  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph with stream async failed, error code:%u,"
+        " session_id:%lu, graph_id:%u, stream:%p.", ret, GetSessionId(), graph_id, stream);
+  if (!impl_->GetLoadFlag(graph_id)) {
+    GELOGI("Graph is not loaded, start to load graph, session_id:%lu, graph_id:%u", GetSessionId(), graph_id);
+    ret = LoadGraph(graph_id, {}, stream);
+    GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph with stream async failed, error code:%u,"
+        " session_id:%lu, graph_id:%u, stream:%p.", ret, GetSessionId(), graph_id, stream);
+    GELOGI("Graph loaded successfully, continue to run graph, session_id:%lu, graph_id:%u", GetSessionId(), graph_id);
+  }
+  ret = impl_->RunGraphWithStreamAsync(graph_id, stream, inputs, outputs);
+  const auto set_result = impl_->SetRunGraphMode(graph_id, RunGraphMode::kRunGraphWithStreamAsync);
+  GE_CHK_BOOL_RET_STATUS(set_result == SUCCESS, set_result, "Run graph with stream async failed,"
+      " set run graph mode failed, session_id:%lu, graph_id:%u.", GetSessionId(), graph_id);
+  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph with stream async failed, error code:%u,"
+      " session_id:%lu, graph_id:%u, stream:%p.", ret, GetSessionId(), graph_id, stream);
   return SUCCESS;
 }
 
@@ -682,9 +692,7 @@ Status GeSession::RegisterCallBackFunc(const char *key, const RunCallback &callb
     str_key = key;
   }
 
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][GeSession] failed, session_id:%lu.", GetSessionId());
-  return inner_session->RegisterCallBackFunc(str_key, callback);
+  return impl_->RegisterCallBackFunc(str_key, callback);
 }
 
 Status GeSession::LoadGraph(const uint32_t graph_id, const std::map<AscendString, AscendString> &options,
@@ -697,14 +705,19 @@ Status GeSession::LoadGraph(const uint32_t graph_id, const std::map<AscendString
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Load graph failed, session_id:%lu.", GetSessionId());
-
-  Status ret = inner_session->LoadGraph(graph_id, options, stream);
+  if (!impl_->GetBuildFlag(graph_id)) {
+    GELOGI("Graph is not compiled, start to compile graph, session_id:%lu, graph_id:%u", GetSessionId(), graph_id);
+    const auto ret = impl_->CompileGraph(graph_id, {});
+    GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+                         "Load graph failed, error code:%u, session_id:%lu, graph_id:%u.",
+                         ret, GetSessionId(), graph_id);
+    GELOGI("Graph compiled successfully, continue to load graph, session_id:%lu, graph_id:%u",
+      GetSessionId(), graph_id);
+  }
+  Status ret = impl_->LoadGraph(graph_id, options, stream);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED,
                          "Load graph failed, error code:%u, session_id:%lu, graph_id:%u.",
                          ret, GetSessionId(), graph_id);
-
   return ret;
 }
 
@@ -718,9 +731,18 @@ Status GeSession::RunGraphAsync(uint32_t graph_id, const std::vector<gert::Tenso
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Run graph async failed, session_id:%lu.", GetSessionId());
-
+  RunGraphMode cur_mode = RunGraphMode::kRunGraphModeEnd;
+  GE_ASSERT_SUCCESS(impl_->GetRunGraphMode(graph_id, cur_mode), "Run graph async failed, get run graph mode failed. graph_id: %u", graph_id);
+  auto ret = CheckRunGraphMode(cur_mode, graph_id, RunGraphMode::kRunGraphAsync);
+  if (ret != SUCCESS) {
+    if (callback != nullptr) {
+      std::vector<gert::Tensor> outputs;
+      callback(ret, outputs);
+    }
+    REPORT_INNER_ERR_MSG("E19999", "Run graph async failed, check run graph mode failed, graph_id:%u", graph_id);
+    GELOGE(ret, "Run graph async failed, check run graph mode failed, graph_id:%u", graph_id);
+    return ret;
+  }
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kRunGraphAsync);
   GELOGI("start to run graph async, session_id: %lu, graph_id: %u, input size %zu", GetSessionId(), graph_id,
          inputs.size());
@@ -729,7 +751,11 @@ Status GeSession::RunGraphAsync(uint32_t graph_id, const std::vector<gert::Tenso
       "The callback function will not be checked. Please ensure that the implementation of the function is trusted,"
       " graph_id: %u", graph_id);
 
-  Status ret = inner_session->RunGraphAsync(graph_id, inputs, callback);
+  auto inputs_share = TensorTransUtils::ShareFromGertTenosrs(inputs);
+  ret = impl_->RunGraphAsync(graph_id, std::move(inputs_share), callback);
+  const auto set_result = impl_->SetRunGraphMode(graph_id, RunGraphMode::kRunGraphAsync);
+  GE_CHK_BOOL_RET_STATUS(set_result == SUCCESS, set_result, "Run graph async failed,"
+    " set run graph mode failed, session_id:%lu, graph_id:%u.", GetSessionId(), graph_id);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph async failed, error code:%u, session_id:%lu, graph_id:%u.",
                          ret, GetSessionId(), graph_id);
   GELOGD("RunGraphAsync finished in GeSession, graph_id: %u,", graph_id);
@@ -745,12 +771,7 @@ bool GeSession::IsGraphNeedRebuild(uint32_t graph_id) {
   }
 
   GE_ASSERT_NOTNULL(impl_, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  if (inner_session == nullptr) {
-    GELOGE(FAILED, "[Get][GeSession] failed, session_id:%lu.", GetSessionId());
-    return true;
-  }
-  return inner_session->IsGraphNeedRebuild(graph_id);
+  return impl_->IsGraphNeedRebuild(graph_id);
 }
 
 uint64_t GeSession::GetSessionId() const {
@@ -768,13 +789,11 @@ Status GeSession::CompileGraph(uint32_t graph_id) {
 Status GeSession::CompileGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inputs) {
   GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const auto inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_ASSERT_NOTNULL(inner_session, "[Get][GeSession]Failed, session_id:%lu.", GetSessionId());
 
   GELOGT(TRACE_INIT, "Start to compile graph, session_id:%lu, graph_id:%u, inputs size:%zu",
          GetSessionId(), graph_id, inputs.size());
 
-  Status ret = inner_session->CompileGraph(graph_id, inputs);
+  Status ret = impl_->CompileGraph(graph_id, inputs);
   GE_ASSERT_SUCCESS(ret, "[Compile][Graph]Compile graph failed, error code:%u, session_id:%lu, graph_id:%u.",
       ret, GetSessionId(), graph_id);
   GELOGT(TRACE_STOP, "Compile graph success, session_id:%lu, graph_id:%u, inputs size:%zu",
@@ -785,11 +804,9 @@ Status GeSession::CompileGraph(uint32_t graph_id, const std::vector<ge::Tensor> 
 CompiledGraphSummaryPtr GeSession::GetCompiledGraphSummary(uint32_t graph_id) {
   GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
   GE_ASSERT_NOTNULL(impl_, "GeSession construction incomplete (null impl pointer)");
-  const auto inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_ASSERT_NOTNULL(inner_session, "[Get][GeSession]Failed, session_id:%lu.", GetSessionId());
 
   CompiledGraphSummaryPtr summary = nullptr;
-  Status ret = inner_session->GetCompiledGraphSummary(graph_id, summary);
+  Status ret = impl_->GetCompiledGraphSummary(graph_id, summary);
   GE_ASSERT_SUCCESS(ret, "[Get][Summary]Failed, error code:%u, session_id:%lu, graph_id:%u.",
                     ret, GetSessionId(), graph_id);
   return summary;
@@ -810,10 +827,7 @@ Status GeSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *const m
     return UNSUPPORTED;
   }
 
-  const auto inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_ASSERT_NOTNULL(inner_session, "[Get][GeSession]Failed, session_id:%lu.", GetSessionId());
-
-  const auto ret = inner_session->SetGraphConstMemoryBase(graph_id, memory, size);
+  const auto ret = impl_->SetGraphConstMemoryBase(graph_id, memory, size);
   GE_ASSERT_SUCCESS(ret, "[Set][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, memory:%p, size:%zu", ret,
                     GetSessionId(), graph_id, memory, size);
   return SUCCESS;
@@ -833,10 +847,8 @@ Status GeSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *co
                          GetSessionId(), graph_id, memory, size);
     return UNSUPPORTED;
   }
-  const auto inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_ASSERT_NOTNULL(inner_session, "[Get][GeSession]Failed, session_id:%lu.", GetSessionId());
 
-  const auto ret = inner_session->UpdateGraphFeatureMemoryBase(graph_id, memory, size);
+  const auto ret = impl_->UpdateGraphFeatureMemoryBase(graph_id, memory, size);
   GE_ASSERT_SUCCESS(ret, "[Update][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, memory:%p, size:%zu", ret,
                     GetSessionId(), graph_id, memory, size);
   return SUCCESS;
@@ -857,10 +869,8 @@ Status GeSession::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, Memo
                          GetSessionId(), graph_id, memory, size);
     return UNSUPPORTED;
   }
-  const auto inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_ASSERT_NOTNULL(inner_session, "[Get][GeSession]Failed, session_id:%lu.", GetSessionId());
 
-  const auto ret = inner_session->SetGraphFixedFeatureMemoryBase(graph_id, type, memory, size);
+  const auto ret = impl_->SetGraphFixedFeatureMemoryBase(graph_id, type, memory, size);
   GE_ASSERT_SUCCESS(ret,
                     "[Set][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, type:%d,"
                     " memory:%p, size:%zu",
@@ -882,10 +892,8 @@ Status GeSession::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, con
                          GetSessionId(), graph_id, memory, size);
     return UNSUPPORTED;
   }
-  const auto inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_ASSERT_NOTNULL(inner_session, "[Get][GeSession]Failed, session_id:%lu.", GetSessionId());
 
-  const auto ret = inner_session->UpdateGraphRefreshableFeatureMemoryBase(graph_id, memory, size);
+  const auto ret = impl_->UpdateGraphRefreshableFeatureMemoryBase(graph_id, memory, size);
   GE_ASSERT_SUCCESS(ret, "[Update][Memory]Failed, error code:%u, session_id:%lu, graph_id:%u, memory:%p, size:%zu", ret,
                     GetSessionId(), graph_id, memory, size);
   return SUCCESS;
@@ -894,40 +902,16 @@ Status GeSession::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, con
 Status GeSession::RegisterExternalAllocator(const void *const stream, AllocatorPtr allocator) const {
   GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][GeSession] failed, session_id:%lu.", GetSessionId());
 
-  GE_CHK_STATUS_RET(inner_session->RegisterExternalAllocator(stream, allocator), "register external allocator failed");
+  GE_CHK_STATUS_RET(impl_->RegisterExternalAllocator(stream, allocator), "register external allocator failed");
   return SUCCESS;
 }
 
 Status GeSession::UnregisterExternalAllocator(const void *const stream) const {
   GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][GeSession] failed, session_id:%lu.", GetSessionId());
 
-  GE_CHK_STATUS_RET(inner_session->UnregisterExternalAllocator(stream), "unregister external allocator failed");
-  return SUCCESS;
-}
-
-Status GetSessionMemInfo(const uint64_t session_id, uint64_t &var_size,
-                         std::map<uint32_t, std::vector<uint64_t>> &graphs_mem_info) {
-  if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
-    return FAILED;
-  }
-
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(session_id);
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][GeSession] failed, session_id:%lu.", session_id);
-
-  auto &graph_manager = inner_session->getGraphManagerObj();
-  GE_CHK_STATUS_RET(graph_manager.GetGraphsMemInfo(graphs_mem_info), "Get graphs memory info failed");
-  const auto &var_manager = ge::VarManager::Instance(session_id);
-  GE_CHECK_NOTNULL(var_manager);
-  var_size = static_cast<uint64_t>(var_manager->GetVarMemSize(RT_MEMORY_HBM));
-  GELOGD("GeSession memory info:var_size:%lu", var_size);
+  GE_CHK_STATUS_RET(impl_->UnregisterExternalAllocator(stream), "unregister external allocator failed");
   return SUCCESS;
 }
 
@@ -938,13 +922,16 @@ Status GeSession::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_buf
     return FAILED;
   }
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
-  const InnerGeSessionPtr inner_session = g_ge_session_manager->GetSession(GetSessionId());
-  GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][GeSession] failed, session_id:%lu.", GetSessionId());
-  return inner_session->GetCompiledModel(graph_id, model_buffer);
+  return impl_->GetCompiledModel(graph_id, model_buffer);
 }
 }  // namespace ge
 
 extern "C" {
+std::set<std::string> kSupportedFeatures = {INFERENCE_RULE};
+bool IsIrRepSupport(const char *rep) {
+  return kSupportedFeatures.count(rep) > 0;
+}
+
 ge::Status GetRegisteredIrDef(const char *op_type, std::vector<std::pair<ge::AscendString, ge::AscendString>> &inputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &outputs,
                               std::vector<std::pair<ge::AscendString, ge::AscendString>> &attrs) {

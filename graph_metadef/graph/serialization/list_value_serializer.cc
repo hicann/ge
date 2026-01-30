@@ -13,7 +13,7 @@
 #include <string>
 #include <functional>
 
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/types.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_util.h"

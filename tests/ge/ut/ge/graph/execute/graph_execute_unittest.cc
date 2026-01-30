@@ -20,6 +20,7 @@
 #include "graph/normal_graph/compute_graph_impl.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 
 using namespace std;
 using namespace testing;
@@ -73,23 +74,21 @@ TEST_F(UtestGraphExecuteTest, get_execute_model_id_2) {
   shared_ptr<DavinciModel> davinci_model1 = MakeShared<DavinciModel>(1, nullptr);
   davinci_model1->SetId(1);
 
-  InputData input_data;
-  OutputData output_data;
-  auto data = MakeShared<InputDataWrapper>(input_data, output_data);
-  davinci_model1->data_inputer_.Push(data);
-  davinci_model1->data_inputer_.Push(data);
+  auto data = MakeShared<RunArgs>();
+  davinci_model1->Push(data);
+  davinci_model1->Push(data);
   ModelManager::GetInstance().InsertModel(1, davinci_model1);
   // model 2 with 3 load
   shared_ptr<DavinciModel> davinci_model2 = MakeShared<DavinciModel>(1, nullptr);
   davinci_model2->SetId(2);
-  davinci_model2->data_inputer_.Push(data);
-  davinci_model2->data_inputer_.Push(data);
-  davinci_model2->data_inputer_.Push(data);
+  davinci_model2->Push(data);
+  davinci_model2->Push(data);
+  davinci_model2->Push(data);
   ModelManager::GetInstance().InsertModel(2, davinci_model2);
   // model 3 witH 1 load
   shared_ptr<DavinciModel> davinci_model3 = MakeShared<DavinciModel>(1, nullptr);
   davinci_model3->SetId(3);
-  davinci_model3->data_inputer_.Push(data);
+  davinci_model3->Push(data);
   ModelManager::GetInstance().InsertModel(3, davinci_model3);
 
   ge_root_model->SetModelId(1);
@@ -102,22 +101,6 @@ TEST_F(UtestGraphExecuteTest, get_execute_model_id_2) {
   EXPECT_EQ(ModelManager::GetInstance().DeleteModel(1U), SUCCESS);
   EXPECT_EQ(ModelManager::GetInstance().DeleteModel(2U), SUCCESS);
   EXPECT_EQ(ModelManager::GetInstance().DeleteModel(3U), SUCCESS);
-}
-
-TEST_F(UtestGraphExecuteTest, test_set_callback) {
-  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test");
-  // is_unknown_shape_graph_ = false
-  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  RunAsyncCallback callback = [](Status, std::vector<ge::Tensor> &) {};
-
-  auto listener = MakeShared<RunAsyncListener>();
-  shared_ptr<DavinciModel> davinci_model1 = MakeShared<DavinciModel>(1, listener);
-  davinci_model1->SetId(1);
-  ModelManager::GetInstance().InsertModel(1, davinci_model1);
-  auto status = ModelManager::GetInstance().SetCallback(1, ge_root_model, callback);
-  EXPECT_EQ(status, SUCCESS);
-  EXPECT_EQ(ModelManager::GetInstance().DeleteModel(1U), SUCCESS);
 }
 
 TEST_F(UtestGraphExecuteTest, test_without_subscribe) {
@@ -269,31 +252,11 @@ TEST_F(UtestGraphExecuteTest, GetOpDescInfo) {
   EXPECT_EQ(ret, GRAPH_FAILED);
 }
 
-
-TEST_F(UtestGraphExecuteTest, PrepareInputData_Invalid) {
-  GraphExecutor executor;
-  GeTensorDesc td(GeShape(), FORMAT_NCHW, DT_FLOAT);
-  GeTensor ge_tensor(td);
-  std::vector<GeTensor> input_tensor;
-  std::vector<GeTensor> output_tensor;
-  input_tensor.emplace_back(ge_tensor);
-  InputData graph_input_data;
-  OutputData graph_output_data;
-  std::vector<InputOutputDescInfo> output_desc;
-
-  auto ret = executor.PrepareInputOutputData(input_tensor, graph_input_data, output_tensor,
-                                             graph_output_data, output_desc);
-
-  EXPECT_EQ(ret, SUCCESS);
-}
-
 TEST_F(UtestGraphExecuteTest, SyncExecuteModel_Invalid) {
   GraphExecutor executor;
-  GeTensorDesc td(GeShape(), FORMAT_NCHW, DT_FLOAT);
-  GeTensor ge_tensor(td);
-  std::vector<GeTensor> input_tensor;
-  input_tensor.emplace_back(ge_tensor);
-  std::vector<GeTensor> output_tensor;
+  std::vector<gert::Tensor> input_tensor(1);
+  TensorCheckUtils::ConstructGertTensor(input_tensor[0], {});
+  std::vector<gert::Tensor> output_tensor;
   uint32_t model_id = 2001U;
   error_message::ErrorManagerContext error_context;
   auto hybrid_model = hybrid::HybridDavinciModel::Create(std::make_shared<GeRootModel>());
@@ -327,11 +290,8 @@ TEST_F(UtestGraphExecuteTest, SyncExecuteModelGertTensor_Invalid) {
 
 TEST_F(UtestGraphExecuteTest, ExecuteGraph_Invalid) {
   GraphExecutor executor;
-  GeTensorDesc td(GeShape(), FORMAT_NCHW, DT_FLOAT);
-  GeTensor ge_tensor(td);
-  std::vector<GeTensor> input_tensor;
-  input_tensor.emplace_back(ge_tensor);
-  std::vector<GeTensor> output_tensor;
+  std::vector<gert::Tensor> input_tensor(1);
+  std::vector<gert::Tensor> output_tensor;
 
   GraphId graph_id = 0;
   ComputeGraphPtr graph = MakeShared<ComputeGraph>("test");
@@ -342,33 +302,13 @@ TEST_F(UtestGraphExecuteTest, ExecuteGraph_Invalid) {
   EXPECT_EQ(ret, GE_GRAPH_SYNC_MODEL_FAILED);
 }
 
-TEST_F(UtestGraphExecuteTest, SetCallback_Invalid) {
-  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test");
-  graph->SetGraphUnknownFlag(true);
-  // is_unknown_shape_graph_ = true
-  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
-  EXPECT_EQ(ge_root_model->Initialize(graph), SUCCESS);
-  RunAsyncCallback callback = [](Status, std::vector<ge::Tensor> &) {};
-
-  auto listener = MakeShared<RunAsyncListener>();
-  shared_ptr<DavinciModel> davinci_model1 = MakeShared<DavinciModel>(1, listener);
-  davinci_model1->SetId(1);
-  ModelManager::GetInstance().InsertModel(1, davinci_model1);
-  auto ret = ModelManager::GetInstance().SetCallback(1, ge_root_model, callback);
-  EXPECT_EQ(ret, PARAM_INVALID);
-  EXPECT_EQ(ModelManager::GetInstance().DeleteModel(1U), SUCCESS);
-}
-
 TEST_F(UtestGraphExecuteTest, GetModelByID_Invalid) {
   EXPECT_EQ(ModelManager::GetInstance().GetModel(UINT32_MAX), nullptr);
 }
 
 TEST_F(UtestGraphExecuteTest, ExecuteGraphAsync_Invalid3) {
   GraphExecutor executor;
-  TensorDesc td(Shape(), FORMAT_NCHW, DT_FLOAT);
-  Tensor tensor(td);
-  std::vector<Tensor> input_tensor;
-  input_tensor.emplace_back(tensor);
+  std::vector<gert::Tensor> input_tensor(1);
   RunAsyncCallback callback;
 
   GraphId graph_id = 0;
@@ -391,9 +331,9 @@ TEST_F(UtestGraphExecuteTest, ExecuteGraphAsync_Invalid3) {
   arg->session_id = session_id;
   arg->error_context = error_context;
   arg->context = context;
-  arg->input_tensor = input_tensor;
+  arg->input_tensor = std::move(input_tensor);
   arg->graph_node = graph_node;
-  arg->callback = [&](Status status, std::vector<Tensor> &outputs) {};
+  arg->callback = [&](Status status, std::vector<gert::Tensor> &outputs) {};
 
   {
     auto ret = executor.ExecuteGraphAsync(ge_root_model, arg);
@@ -428,14 +368,15 @@ TEST_F(UtestGraphExecuteTest, ExecuteGraphAsync_GertTensor_Invalid3) {
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGraph(graph_ptr);
 
-  std::shared_ptr<RunArgsV2> arg;
-  arg = std::make_shared<RunArgsV2>();
+  std::vector<gert::Tensor> inputs(1);
+  std::shared_ptr<RunArgs> arg;
+  arg = std::make_shared<RunArgs>();
   ASSERT_TRUE(arg != nullptr);
   arg->graph_id = graph_id;
   arg->session_id = session_id;
   arg->error_context = error_context;
   arg->context = context;
-  arg->input_tensor.resize(1);
+  arg->input_tensor = std::move(inputs);
   arg->graph_node = graph_node;
   arg->callback = [&](Status status, std::vector<gert::Tensor> &outputs) {};
 

@@ -12,6 +12,7 @@
 #include "common/checker.h"
 #include "framework/common/helper/model_helper.h"
 #include "register/kernel_registry.h"
+#include "register/core_num_utils.h"
 
 namespace gert {
 namespace kernel {
@@ -25,50 +26,57 @@ constexpr char_t const *kAicCntKeyIni = "ai_core_cnt";
 constexpr char_t const *kCubeCntKeyIni = "cube_core_cnt";
 constexpr char_t const *kAivCntKeyIni = "vector_core_cnt";
 constexpr char_t const *kSocInfo = "SoCInfo";
+constexpr char_t const *kAiCoreNum = "_op_aicore_num";
+constexpr char_t const *kVectorCoreNum = "_op_vectorcore_num";
 }  // namespace
 ge::graphStatus GetPlatformInfo(KernelContext *context) {
   auto platform_holder = context->GetOutputPointer<fe::PlatFormInfos>(0);
   GE_ASSERT_NOTNULL(platform_holder);
   ge::ModelHelper model_helper;
-  return model_helper.HandleDeviceInfo(*platform_holder);
+  fe::PlatformInfo platform_info;
+  GE_ASSERT_SUCCESS(model_helper.HandleDeviceInfo(*platform_holder, platform_info));
+  auto core_num_infos_holder = context->GetOutputPointer<CoreNumInfos>(1);
+  GE_ASSERT_NOTNULL(core_num_infos_holder);
+  core_num_infos_holder->soc_aicore_num = static_cast<int32_t>(platform_info.soc_info.ai_core_cnt);
+  core_num_infos_holder->soc_vec_core_num = static_cast<int32_t>(platform_info.soc_info.vector_core_cnt);
+  core_num_infos_holder->global_aicore_num = static_cast<int32_t>(platform_holder->GetCoreNumByType("AiCore"));
+  core_num_infos_holder->global_vec_core_num = static_cast<int32_t>(platform_holder->GetCoreNumByType("VectorCore"));
+  return ge::GRAPH_SUCCESS;
 }
 
 ge::graphStatus BuildPlatformOutputs(const ge::FastNode *node, KernelContext *context) {
   (void)node;
+
   auto platform_chain = context->GetOutput(0);
   GE_ASSERT_NOTNULL(platform_chain);
   auto platform_info = new (std::nothrow) fe::PlatFormInfos();
   platform_chain->SetWithDefaultDeleter(platform_info);
+
+  auto core_num_infos_chain = context->GetOutput(1);
+  GE_ASSERT_NOTNULL(core_num_infos_chain);
+  auto core_num_infos = new (std::nothrow) CoreNumInfos();
+  core_num_infos_chain->SetWithDefaultDeleter(core_num_infos);
 
   return ge::GRAPH_SUCCESS;
 }
 
 REGISTER_KERNEL(GetPlatformInfo).RunFunc(GetPlatformInfo).OutputsCreator(BuildPlatformOutputs);
 
-void UpdateCoreCount(std::map<std::string, std::string>& res, const std::string& key_ini,
-                     const int32_t core_num_holder) {
-  auto it = res.find(key_ini);
-  if (it != res.end()) {
-    int32_t core_num_ini = std::stoi(it->second);
-    if (core_num_holder > 0 && core_num_holder < core_num_ini) {
-      GELOGD("Change %s from platform %ld to op_desc %ld.", key_ini.c_str(), core_num_ini, core_num_holder);
-      res[key_ini] = std::to_string(core_num_holder);
-    }
-  }
-}
-
 ge::graphStatus AppendCoreTypeToPlatform(KernelContext *context) {
   auto platform_holder = context->GetInputValue<fe::PlatFormInfos *>(0);
   GE_ASSERT_NOTNULL(platform_holder);
+  auto core_type_holder = context->GetInputPointer<CoreTypeIndex>(1);
+  GE_ASSERT_NOTNULL(core_type_holder);
+  const auto op_ai_core_num_holder = context->GetInputValue<int32_t>(2);
+  const auto op_vector_core_num_holder = context->GetInputValue<int32_t>(3);
+  const auto core_num_infos_holder = context->GetInputValue<CoreNumInfos *>(4);
+
+  // 用coreType和算子级核数刷新第一个输出：PlatformInfos
   auto out_platform_holder = context->GetOutputPointer<fe::PlatFormInfos>(0);
   GE_ASSERT_NOTNULL(out_platform_holder);
   *out_platform_holder = *platform_holder;
-
   std::map<std::string, std::string> res;
-  out_platform_holder->GetPlatformResWithLock(kSocInfo, res);
-
-  auto core_type_holder = context->GetInputPointer<CoreTypeIndex>(1);
-  GE_ASSERT_NOTNULL(core_type_holder);
+  (void)out_platform_holder->GetPlatformResWithLock(kSocInfo, res);
   const auto iter = kCoreTypeReflection.find(*core_type_holder);
   if (iter != kCoreTypeReflection.end()) {
     out_platform_holder->SetCoreNumByCoreType(iter->second);
@@ -77,17 +85,29 @@ ge::graphStatus AppendCoreTypeToPlatform(KernelContext *context) {
     out_platform_holder->SetCoreNumByCoreType(kDefaultCoreType);
     GELOGD("Set core type to %s.", kDefaultCoreType);
   }
-
-  int32_t ai_core_num_holder = context->GetInputValue<int32_t>(2);
-  int32_t vector_core_num_holder = context->GetInputValue<int32_t>(3);
-  UpdateCoreCount(res, kAicCntKeyIni, ai_core_num_holder);
-  UpdateCoreCount(res, kAivCntKeyIni, vector_core_num_holder);
-  // .ini文件中ai_core_cnt和cube_core_cnt是相同的，直接赋值
-  res[kCubeCntKeyIni] = res[kAicCntKeyIni];
-  for (auto &item : res) {
-    GELOGI("Set platform res %s: %s.", item.first.c_str(), item.second.c_str());
+  bool is_op_core_num_set = false;
+  if (op_ai_core_num_holder > 0) {
+    GE_ASSERT_SUCCESS(ge::CoreNumUtils::UpdateCoreCountWithOpDesc(kAiCoreNum, std::to_string(op_ai_core_num_holder),
+                                                    core_num_infos_holder->soc_aicore_num, kAicCntKeyIni, res));
+    // .ini文件中ai_core_cnt和cube_core_cnt是相同的，直接赋值
+    res[kCubeCntKeyIni] = res[kAicCntKeyIni];
+    is_op_core_num_set = true;
   }
-  out_platform_holder->SetPlatformResWithLock(kSocInfo, res);
+  if (op_vector_core_num_holder > 0) {
+    GE_ASSERT_SUCCESS(ge::CoreNumUtils::UpdateCoreCountWithOpDesc(kVectorCoreNum, std::to_string(op_vector_core_num_holder),
+                                                    core_num_infos_holder->soc_vec_core_num, kAivCntKeyIni, res));
+    is_op_core_num_set = true;
+  }
+  if (is_op_core_num_set) {
+    out_platform_holder->SetPlatformResWithLock(kSocInfo, res);
+  }
+
+  // 用算子级核数填充第二个输出：CoreNumInfos
+  auto out_core_num_infos_holder = context->GetOutputPointer<CoreNumInfos>(1);
+  GE_ASSERT_NOTNULL(out_core_num_infos_holder);
+  *out_core_num_infos_holder = *core_num_infos_holder;
+  out_core_num_infos_holder->op_aicore_num = op_ai_core_num_holder;
+  out_core_num_infos_holder->op_vec_core_num = op_vector_core_num_holder;
 
   return ge::GRAPH_SUCCESS;
 }

@@ -12,8 +12,7 @@
 #include <google/protobuf/message.h>
 #include "graph/debug/ge_util.h"
 #include "graph/debug/ge_op_types.h"
-#include "common/ge_common/debug/ge_log.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
@@ -66,7 +65,7 @@ std::set<std::string> GetSubgraphAttrNames(const ge::Operator &op) {
   (void) op.GetSubgraphNames(subgraph_names);
   std::vector<std::string> subgraph_name_strings;
   for (const auto &subgraph_name : subgraph_names) {
-    subgraph_name_strings.emplace_back(subgraph_name.GetString());
+    (void) subgraph_name_strings.emplace_back(subgraph_name.GetString());
   }
   return std::set<std::string>(subgraph_name_strings.begin(), subgraph_name_strings.end());
 }
@@ -399,12 +398,12 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY Status AutoMappingByOpFnDynamic
 
     if (dynamic_type == kInput) {
       (void)op_desc_dst->AddInputDescMiddle(port_name, tensor_num, static_cast<size_t>(insert_index));
-      (void)ge::AttrUtils::SetInt(op_desc_dst, DYNAMIC_INPUT_TD_NUM(port_name), static_cast<const int64_t>(tensor_num));
+      (void)ge::AttrUtils::SetInt(op_desc_dst, DYNAMIC_INPUT_TD_NUM(port_name), static_cast<int64_t>(tensor_num));
       GELOGI("Op[%s] add dynamic input[%u]", op_desc_dst->GetName().c_str(), tensor_num);
     } else if (dynamic_type == kOutput) {
       (void)op_desc_dst->AddOutputDescMiddle(port_name, tensor_num, static_cast<size_t>(insert_index));
       (void)ge::AttrUtils::SetInt(op_desc_dst, DYNAMIC_OUTPUT_TD_NUM(port_name),
-                                  static_cast<const int64_t>(tensor_num));
+                                  static_cast<int64_t>(tensor_num));
       GELOGI("Op[%s] add dynamic output[%u]", op_desc_dst->GetName().c_str(), tensor_num);
     } else {
       GELOGW("Do not add input or output desc with dynamic type :[%d].", static_cast<int32_t>(dynamic_type));

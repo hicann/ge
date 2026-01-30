@@ -9,11 +9,13 @@
  */
 #include <gtest/gtest.h>
 #include <fstream>
+#include <experimental/filesystem>
 #include "common/summary_checker.h"
 #include "common/topo_checker.h"
 #include "utils/graph_utils_ex.h"
 #include "es_graph_builder.h"
 #include "es_c_graph_builder.h"
+#include "es_c_tensor_holder.h"
 #include "esb_funcs.h"
 #include "c_types.h"
 #include "common/fp16_t.h"
@@ -21,11 +23,7 @@
 #include "compliant_node_builder.h"
 
 using namespace ge::es;
-
-std::string GetTempDirectory() {
-  return "/tmp";
-}
-
+namespace fs = std::experimental::filesystem;
 namespace {
 // 检查默认的Tensor格式
 auto check = [](EsTensorHolder &t) {
@@ -37,35 +35,37 @@ auto check = [](EsTensorHolder &t) {
   EXPECT_EQ(td1.GetShape().GetDims(), std::vector<int64_t>());
   EXPECT_EQ(td1.GetOriginShape().GetDims(), std::vector<int64_t>());
 };
-} // namespace
+}  // namespace
 class EsGraphBuilderLLT : public ::testing::Test {
-  protected:
-    void SetUp() override {
-    }
-    void TearDown() override {
+ protected:
+  void SetUp() override {}
+  void TearDown() override {}
+
+  void CreateTmpFileDir() {
+    temp_dir = fs::temp_directory_path() / "binary_file_test";
+    fs::create_directories(temp_dir);
+    file_path = temp_dir / "test_binary.bin";
+  }
+
+  void CleanTmpFileDir() {
+    if (fs::exists(file_path)) {
+      fs::remove(file_path);
     }
 
-    void CreateTmpFileDir() {
-      temp_dir = GetTempDirectory() + "/binary_file_test";
-      file_path = temp_dir + "/test_binary.bin";
-      std::string command = "mkdir -p " + temp_dir;
-      (void) std::system(command.c_str());
+    if (fs::exists(temp_dir) && fs::is_empty(temp_dir)) {
+      fs::remove(temp_dir);
     }
+  }
 
-    void CleanTmpFileDir() {
-      std::string command = "rm -rf " + temp_dir;
-      (void) std::system(command.c_str());
-    }
+  void CreateBinaryFile(const std::vector<char> &data) {
+    std::ofstream file(file_path, std::ios::binary);
+    EXPECT_TRUE(file.is_open()) << "Failed to create file: " << file_path;
+    file.write(data.data(), data.size());
+    file.close();
+  }
 
-    void CreateBinaryFile(const std::vector<char> &data) {
-      std::ofstream file(file_path, std::ios::binary);
-      EXPECT_TRUE(file.is_open()) << "Failed to create file: " << file_path;
-      file.write(data.data(), data.size());
-      file.close();
-    }
-
-    std::string temp_dir;
-    std::string file_path;
+  fs::path temp_dir;
+  fs::path file_path;
 };
 
 TEST_F(EsGraphBuilderLLT, CreateTensorFromFileTest) {
@@ -73,6 +73,7 @@ TEST_F(EsGraphBuilderLLT, CreateTensorFromFileTest) {
   CleanTmpFileDir();
   CreateTmpFileDir();
   CreateBinaryFile(test_data);
+  EXPECT_TRUE(fs::exists(file_path));
 
   std::vector<int64_t> dims = {1};
   auto tensor = CreateTensorFromFile<int64_t>(file_path.c_str(), dims, ge::DT_INT64, ge::FORMAT_ALL);

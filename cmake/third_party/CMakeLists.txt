@@ -22,7 +22,25 @@ include(CMakePackageConfigHelpers)
 message(STATUS "[Third part build] Variables for third_party packages:")
 cmake_print_variables(CMAKE_THIRD_PARTY_LIB_DIR)
 cmake_print_variables(CMAKE_BUILD_COMPONENT)
+cmake_print_variables(ENABLE_BUILD_DEVICE)
+cmake_print_variables(USE_CXX11_ABI)
+cmake_print_variables(CMAKE_TOOLCHAIN_FILE)
 cmake_print_variables(CMAKE_MODULE_PATH)
+
+if(ENABLE_BUILD_DEVICE)
+    # 非MDC编译流程
+    set(USE_CXX11_ABI 0)
+else()
+    if(CMAKE_TOOLCHAIN_FILE STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/cmake/llvm_toolchain.cmake")
+        # MDC编译运行态
+        message("[MDC compile] Thirdparty build, MDC compile runtime state.")
+        add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})
+    else()
+        # MDC编译开发态
+        message("[MDC compile] Thirdparty build, MDC compile develop state.")
+        set(USE_CXX11_ABI 0)
+    endif()
+endif()
 
 set(INSTALL_BASE_DIR "")
 set(INSTALL_LIBRARY_DIR lib)

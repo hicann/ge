@@ -103,7 +103,7 @@ void GenEsImpl(const std::string &output_dir, const std::string &module_name, co
 /**
  * 显示程序标题和版本信息
  */
-void DisplayProgramHeader() {
+static void DisplayProgramHeader() {
   std::cout << "==========================================" << std::endl;
   std::cout << "ES Graph Builder Code Generator v1.0" << std::endl;
   std::cout << "Copyright (c) 2025 Huawei Technologies Co., Ltd." << std::endl;
@@ -119,7 +119,7 @@ void DisplayProgramHeader() {
  * @param h_guard_prefix 输出参数，保护宏前缀
  * @return 是否解析成功
  */
-bool ParseCommandLineArgs(int argc, char *argv[], std::string &output_dir, std::string &module_name,
+static bool ParseCommandLineArgs(int argc, char *argv[], std::string &output_dir, std::string &module_name,
                           std::string &h_guard_prefix, std::string &exclude_ops) {
   // 使用cmd_flag_info库解析参数
   ge::flgs::SetUsageMessage(R"(
@@ -162,7 +162,7 @@ Environment variables required:
  * 检查必需的环境变量
  * @return 环境变量检查是否通过
  */
-bool CheckEnvironmentVariables() {
+static bool CheckEnvironmentVariables() {
   const char *opp_path = std::getenv("ASCEND_OPP_PATH");
   if (!opp_path) {
     std::cerr << "\nError: Environment variable ASCEND_OPP_PATH is not set!" << std::endl;
@@ -193,7 +193,7 @@ bool CheckEnvironmentVariables() {
  * @param h_guard_prefix 保护宏前缀
  * @return 是否成功
  */
-bool ExecuteCodeGeneration(const std::string &output_dir, const std::string &module_name,
+static bool ExecuteCodeGeneration(const std::string &output_dir, const std::string &module_name,
                            const std::string &h_guard_prefix, const std::string &exclude_ops_str) {
   try {
     GenEsImpl(output_dir, module_name, h_guard_prefix, exclude_ops_str);

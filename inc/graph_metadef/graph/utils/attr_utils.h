@@ -12,6 +12,7 @@
 #define INC_GRAPH_UTILS_ATTR_UTILS_H_
 
 #include "graph/detail/attributes_holder.h"
+#include "graph/attr_store.h"
 #include "graph/ge_attr_value.h"
 #include "graph/op_desc.h"
 

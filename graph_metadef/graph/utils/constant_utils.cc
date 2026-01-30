@@ -14,7 +14,7 @@
 #include "graph/utils/file_utils.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/debug/ge_attr_define.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/tensor_adapter.h"
@@ -176,7 +176,10 @@ bool ConstantUtils::GetWeightFromFile(const OpDescPtr &op_desc, ConstGeTensorPtr
   int64_t weight_size = 0;
   GE_ASSERT_SUCCESS(TensorUtils::GetTensorSizeInBytes(*output_desc, weight_size), "Failed to get weight size");
   std::string file_path;
-  (void)AttrUtils::GetStr(op_desc, ATTR_NAME_LOCATION, file_path);
+  const std::string *location_ptr = AttrUtils::GetStr(op_desc, ATTR_NAME_LOCATION);
+  if (location_ptr != nullptr) {
+    file_path = *location_ptr;
+  }
   int64_t attr_offset = 0;
   (void)AttrUtils::GetInt(op_desc, ATTR_NAME_OFFSET, attr_offset);
   const auto offset = static_cast<size_t>(attr_offset);
@@ -184,7 +187,10 @@ bool ConstantUtils::GetWeightFromFile(const OpDescPtr &op_desc, ConstGeTensorPtr
   (void)AttrUtils::GetInt(op_desc, ATTR_NAME_LENGTH, attr_length);
   const auto length = static_cast<size_t>(attr_length);
   if (file_path.empty()) {
-    (void)AttrUtils::GetStr(op_desc, ATTR_NAME_FILE_PATH, file_path);
+    const std::string *path_ptr = AttrUtils::GetStr(op_desc, ATTR_NAME_FILE_PATH);
+    if (path_ptr != nullptr) {
+      file_path = *path_ptr;
+    }
     if (file_path.empty()) {
       GELOGW("Failed to get file constant weight path, node:%s", op_desc->GetName().c_str());
       return false;

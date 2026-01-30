@@ -18,6 +18,7 @@ target_include_directories(mmpa_stub2 PRIVATE
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/framework
+    ${AIR_CODE_DIR}/tests/depends/mmpa/src
 )
 target_link_libraries(mmpa_stub2
     PRIVATE

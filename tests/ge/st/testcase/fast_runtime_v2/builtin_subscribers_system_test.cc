@@ -64,7 +64,6 @@
 #include "framework/ge_runtime_stub/include/common/dump_checker.h"
 #include "framework/runtime/gert_const_types.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace gert {
 namespace {

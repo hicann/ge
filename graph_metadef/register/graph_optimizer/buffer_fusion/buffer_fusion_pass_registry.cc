@@ -14,7 +14,7 @@
 #include <mutex>
 #include <utility>
 #include <vector>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace fe {
 class BufferFusionPassRegistry::BufferFusionPassRegistryImpl {

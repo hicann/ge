@@ -9,8 +9,8 @@
  */
 
 #include <gtest/gtest.h>
-#include "graph/load/model_manager/model_kernel_handles_manager.h"
-#include "graph/load/model_manager/kernel_handles_manager/kernel_handle_utils.h"
+#include "graph/load/model_manager/kernel/model_kernel_handles_manager.h"
+#include "common/kernel_handles_manager/kernel_handle_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/op_kernel_bin.h"
 #include "framework/common/types.h"
@@ -18,9 +18,9 @@
 #include "graph/load/model_manager/model_manager.h"
 
 #define private public
-#include "graph/load/model_manager/kernel_handles_manager/aicore_kernel_handles_manager.h"
-#include "graph/load/model_manager/kernel_handles_manager/aicpu_kernel_handles_manager.h"
-#include "graph/load/model_manager/kernel_handles_manager/cust_aicpu_kernel_handles_manager.h"
+#include "common/kernel_handles_manager/aicore_kernel_handles_manager.h"
+#include "common/kernel_handles_manager/aicpu_kernel_handles_manager.h"
+#include "common/kernel_handles_manager/cust_aicpu_kernel_handles_manager.h"
 #undef private
 
 namespace ge {
@@ -53,28 +53,32 @@ TEST_F(KernelManagerUtest, test_aicore_kernel_register) {
   EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 1);
   EXPECT_NE(aicore_kernel_handle->GetOrRegisterKernel(register_info, aicore_key), nullptr);
   EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_.size(), 1);
-  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[aicore_key], 1);
+  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[aicore_key], 2);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 1);
-  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 1);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 2);
 
   // 不同模型中的handle注册
   ModelKernelHandlesManager kernel_manager_2;
   auto aicore_kernel_handle_2 = kernel_manager_2.GetKernelHandle(KernelHandleType::kAicore);
   std::string aicore_key_2 = aicore_kernel_handle->GenerateKey(register_info);
   EXPECT_EQ(aicore_key_2, aicore_key);
-  EXPECT_EQ(aicore_kernel_handle_2->RegisterKernel(register_info, aicore_key_2), SUCCESS);
+  EXPECT_NE(aicore_kernel_handle_2->GetOrRegisterKernel(register_info, aicore_key_2), nullptr);
   EXPECT_EQ(aicore_kernel_handle_2->local_refer_cnt_.size(), 1);
   EXPECT_EQ(aicore_kernel_handle_2->local_refer_cnt_[aicore_key], 1);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 1);
-  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 2);
-  auto bin_handle = aicore_kernel_handle->FindKernel(aicore_key);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 3);
+  auto bin_handle = aicore_kernel_handle_2->GetOrRegisterKernel(register_info, aicore_key);
+  EXPECT_EQ(aicore_kernel_handle_2->local_refer_cnt_.size(), 1);
+  EXPECT_EQ(aicore_kernel_handle_2->local_refer_cnt_[aicore_key], 2);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 1);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 4);
   EXPECT_NE(bin_handle, nullptr);
   auto func_handle = KernelHandleUtils::GetFuncHandle(bin_handle, "te_relu_123456");
   EXPECT_NE(func_handle, nullptr);
   // 卸载一个模型
   EXPECT_EQ(kernel_manager.ClearAllHandle(), SUCCESS);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 1);
-  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 1);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 2);
   EXPECT_EQ(kernel_manager_2.ClearAllHandle(), SUCCESS);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 0);
 }
@@ -98,26 +102,38 @@ TEST_F(KernelManagerUtest, test_aicore_kernel_with_atomic_register_and_get_func)
 
   std::string aicore_key = aicore_kernel_handle->GenerateKey(aic_register_info);
   EXPECT_EQ(aicore_key, "te_relu_123456_AicoreKernel");
-  EXPECT_EQ(aicore_kernel_handle->RegisterKernel(aic_register_info, aicore_key), SUCCESS);
+  EXPECT_NE(aicore_kernel_handle->GetOrRegisterKernel(aic_register_info, aicore_key), nullptr);
   EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_.size(), 1);
   EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[aicore_key], 1);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 1);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 1);
   std::string atomic_key = aicore_kernel_handle->GenerateKey(memset_register_info);
   EXPECT_EQ(atomic_key, "te_memset_123456_AicoreKernel");
-  EXPECT_EQ(aicore_kernel_handle->RegisterKernel(memset_register_info, atomic_key), SUCCESS);
+  EXPECT_NE(aicore_kernel_handle->GetOrRegisterKernel(memset_register_info, atomic_key), nullptr);
   EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_.size(), 2);
   EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[aicore_key], 1);
   EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[atomic_key], 1);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 2);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 1);
   EXPECT_EQ(KernelHandlesManager::global_bin_store_[atomic_key].refer_cnt, 1);
-  auto aicore_bin_handle = aicore_kernel_handle->FindKernel(aicore_key);
+  auto aicore_bin_handle = aicore_kernel_handle->GetOrRegisterKernel(aic_register_info, aicore_key);
   EXPECT_NE(aicore_bin_handle, nullptr);
+  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_.size(), 2);
+  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[aicore_key], 2);
+  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[atomic_key], 1);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 2);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 2);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[atomic_key].refer_cnt, 1);
   auto aicore_func_handle = KernelHandleUtils::GetFuncHandle(aicore_bin_handle, 0);
   EXPECT_NE(aicore_func_handle, nullptr);
-  auto atomic_bin_handle = aicore_kernel_handle->FindKernel(atomic_key);
+  auto atomic_bin_handle = aicore_kernel_handle->GetOrRegisterKernel(memset_register_info, atomic_key);
   EXPECT_NE(atomic_bin_handle, nullptr);
+  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_.size(), 2);
+  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[aicore_key], 2);
+  EXPECT_EQ(aicore_kernel_handle->local_refer_cnt_[atomic_key], 2);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_.size(), 2);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[aicore_key].refer_cnt, 2);
+  EXPECT_EQ(KernelHandlesManager::global_bin_store_[atomic_key].refer_cnt, 2);
   auto atomic_func_handle = KernelHandleUtils::GetFuncHandle(atomic_bin_handle, "te_memset_123456");
   EXPECT_NE(atomic_func_handle, nullptr);
   EXPECT_EQ(kernel_manager.ClearAllHandle(), SUCCESS);
@@ -145,23 +161,23 @@ TEST_F(KernelManagerUtest, test_aicpu_kernel_register_and_get_func) {
   std::string kfc_key = aicpu_kernel_handle->GenerateKey(kfc_register_info);
   EXPECT_EQ(kfc_key, "MC2_libccl_kernels.so_AicpuKernel");
 
-  EXPECT_EQ(aicpu_kernel_handle->RegisterKernel(cpu_register_info, aicpu_key), SUCCESS);
-  EXPECT_EQ(aicpu_kernel_handle->RegisterKernel(tf_register_info, tf_key), SUCCESS);
-  EXPECT_EQ(aicpu_kernel_handle->RegisterKernel(kfc_register_info, kfc_key), SUCCESS);
+  EXPECT_NE(aicpu_kernel_handle->GetOrRegisterKernel(cpu_register_info, aicpu_key), nullptr);
+  EXPECT_NE(aicpu_kernel_handle->GetOrRegisterKernel(tf_register_info, tf_key), nullptr);
+  EXPECT_NE(aicpu_kernel_handle->GetOrRegisterKernel(kfc_register_info, kfc_key), nullptr);
   EXPECT_EQ(aicpu_kernel_handle->local_refer_cnt_.size(), 3);
   EXPECT_EQ(aicpu_kernel_handle->local_refer_cnt_[aicpu_key], 1);
   EXPECT_EQ(aicpu_kernel_handle->local_refer_cnt_[tf_key], 1);
   EXPECT_EQ(aicpu_kernel_handle->local_refer_cnt_[kfc_key], 1);
 
-  auto aicpu_bin_handle = aicpu_kernel_handle->FindKernel(aicpu_key);
+  auto aicpu_bin_handle = aicpu_kernel_handle->GetOrRegisterKernel(cpu_register_info, aicpu_key);
   EXPECT_NE(aicpu_bin_handle, nullptr);
   auto aicpu_func_handle = KernelHandleUtils::GetFuncHandle(aicpu_bin_handle, "Relu");
   EXPECT_NE(aicpu_func_handle, nullptr);
-  auto tf_bin_handle = aicpu_kernel_handle->FindKernel(tf_key);
+  auto tf_bin_handle = aicpu_kernel_handle->GetOrRegisterKernel(tf_register_info, tf_key);
   EXPECT_NE(tf_bin_handle, nullptr);
   auto tf_func_handle = KernelHandleUtils::GetFuncHandle(tf_bin_handle, "Add");
   EXPECT_NE(tf_func_handle, nullptr);
-  auto kfc_bin_handle = aicpu_kernel_handle->FindKernel(kfc_key);
+  auto kfc_bin_handle = aicpu_kernel_handle->GetOrRegisterKernel(kfc_register_info, kfc_key);
   EXPECT_NE(kfc_bin_handle, nullptr);
   auto kfc_func_handle = KernelHandleUtils::GetFuncHandle(kfc_bin_handle, "MC2");
   EXPECT_NE(kfc_func_handle, nullptr);
@@ -203,30 +219,30 @@ TEST_F(KernelManagerUtest, test_cust_aicpu_kernel_register_and_get_func) {
   std::string cust_aicpu_key3 = cust_aicpu_kernel_handle->GenerateKey(cust_cpu_register_info3);
   EXPECT_NE(cust_aicpu_key3, cust_aicpu_key0);
 
-  EXPECT_EQ(cust_aicpu_kernel_handle->RegisterKernel(cust_cpu_register_info0, cust_aicpu_key0), SUCCESS);
-  EXPECT_EQ(cust_aicpu_kernel_handle->RegisterKernel(cust_cpu_register_info1, cust_aicpu_key1), SUCCESS);
-  EXPECT_EQ(cust_aicpu_kernel_handle->RegisterKernel(cust_cpu_register_info2, cust_aicpu_key2), SUCCESS);
-  EXPECT_EQ(cust_aicpu_kernel_handle->RegisterKernel(cust_cpu_register_info3, cust_aicpu_key3), SUCCESS);
+  EXPECT_NE(cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info0, cust_aicpu_key0), nullptr);
+  EXPECT_NE(cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info1, cust_aicpu_key1), nullptr);
+  EXPECT_NE(cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info2, cust_aicpu_key2), nullptr);
+  EXPECT_NE(cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info3, cust_aicpu_key3), nullptr);
   EXPECT_EQ(cust_aicpu_kernel_handle->local_refer_cnt_.size(), 2);
   EXPECT_EQ(cust_aicpu_kernel_handle->local_refer_cnt_[cust_aicpu_key0], 3);
   EXPECT_EQ(cust_aicpu_kernel_handle->local_refer_cnt_[cust_aicpu_key3], 1);
 
-  auto cust_aicpu_bin_handle0 = cust_aicpu_kernel_handle->FindKernel(cust_aicpu_key0);
+  auto cust_aicpu_bin_handle0 = cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info0, cust_aicpu_key0);
   EXPECT_NE(cust_aicpu_bin_handle0, nullptr);
   auto cust_aicpu_func_handle0 = KernelHandleUtils::GetCustAicpuFuncHandle(cust_aicpu_bin_handle0,
       "Relu", "RunCpuKernels");
   EXPECT_NE(cust_aicpu_func_handle0, nullptr);
-  auto cust_aicpu_bin_handle1 = cust_aicpu_kernel_handle->FindKernel(cust_aicpu_key1);
+  auto cust_aicpu_bin_handle1 = cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info1, cust_aicpu_key1);
   EXPECT_NE(cust_aicpu_bin_handle1, nullptr);
   auto cust_aicpu_func_handle1 = KernelHandleUtils::GetCustAicpuFuncHandle(cust_aicpu_bin_handle1,
       "Relu", "RunCpuKernels");
   EXPECT_NE(cust_aicpu_func_handle1, nullptr);
-  auto cust_aicpu_bin_handle2 = cust_aicpu_kernel_handle->FindKernel(cust_aicpu_key2);
+  auto cust_aicpu_bin_handle2 = cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info2, cust_aicpu_key2);
   EXPECT_NE(cust_aicpu_bin_handle2, nullptr);
   auto cust_aicpu_func_handle2 = KernelHandleUtils::GetCustAicpuFuncHandle(cust_aicpu_bin_handle2,
       "Relu", "RunCpuKernels");
   EXPECT_NE(cust_aicpu_func_handle2, nullptr);
-  auto cust_aicpu_bin_handle3 = cust_aicpu_kernel_handle->FindKernel(cust_aicpu_key3);
+  auto cust_aicpu_bin_handle3 = cust_aicpu_kernel_handle->GetOrRegisterKernel(cust_cpu_register_info3, cust_aicpu_key3);
   EXPECT_NE(cust_aicpu_bin_handle3, nullptr);
   auto cust_aicpu_func_handle3 = KernelHandleUtils::GetCustAicpuFuncHandle(cust_aicpu_bin_handle3,
       "Add", "RunCpuKernels");

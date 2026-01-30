@@ -21,6 +21,7 @@
 #include "graph/def_types.h"
 #include "common/math/math_util.h"
 #include "base/err_msg.h"
+#include "common/ge_common/util.h"
 
 namespace {
 constexpr int64_t kMaxFileSizeLimit = INT64_MAX;
@@ -33,10 +34,10 @@ namespace ge {
 Status ModelParserBase::LoadFromFile(const char_t *const model_path, const int32_t priority, ModelData &model_data) {
   const std::string real_path = RealPath(model_path);
   if (real_path.empty()) {
-    char_t err_buf[kMaxErrorStringLen + 1U] = {};
-    const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStringLen);
+    std::array<char_t, kMaxErrorStringLen + 1U> err_buf = {};
+    const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), err_buf.data(), kMaxErrorStringLen);
     std::string reason = "[Error " + std::to_string(mmGetErrorCode()) + "] " + err_msg;
-    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
                        std::vector<const char *>({model_path, reason.c_str()}));
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Check][Param]Model file path %s is invalid",
            model_path);
@@ -45,7 +46,7 @@ Status ModelParserBase::LoadFromFile(const char_t *const model_path, const int32
 
   const int64_t length = GetFileLength(model_path);
   if (length == -1) {
-    REPORT_PREDEFINED_ERR_MSG("E13015", std::vector<const char *>({"file", "size", "maxsize"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E13015", std::vector<const char *>({"file", "size", "maxsize"}),
       std::vector<const char *>({model_path, std::to_string(length).c_str(), std::to_string(kMaxFileSizeLimit).c_str()}));
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Check][Param]File [%s] size %lld is out if range (0, %lld].",
            model_path, length, kMaxFileSizeLimit);
@@ -96,13 +97,15 @@ Status ModelParserBase::ParseModelContent(const ModelData &model, uint8_t *&mode
 
   // Model length too small
   GE_CHK_BOOL_EXEC(model.model_len >= sizeof(ModelFileHeader),
-                   REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                                      std::vector<const char *>({"om", model.om_name.c_str(), "invalid om file"}));
-                   GELOGE(ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID,
-                          "[Check][Param] Invalid model. Model data size %" PRIu64 " must be "
-                          "greater than or equal to %zu.",
-                          model.model_len, sizeof(ModelFileHeader));
-                   return ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID);
+      std::string reason = "Invalid om file. The model data size " + std::to_string(model.model_len) +
+                           " is smaller than " + std::to_string(sizeof(ModelFileHeader)) + ".";
+      (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                      std::vector<const char *>({"om", model.om_name.c_str(), reason.c_str()}));
+      GELOGE(ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID,
+             "[Check][Param] Invalid model. Model data size %" PRIu64 " must be "
+             "greater than or equal to %zu.",
+             model.model_len, sizeof(ModelFileHeader));
+      return ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID);
   // Get file header
   const auto file_header = static_cast<ModelFileHeader *>(model.model_data);
   // Determine whether the file length and magic number match
@@ -110,8 +113,8 @@ Status ModelParserBase::ParseModelContent(const ModelData &model, uint8_t *&mode
       (file_header->model_length == 0UL) ? static_cast<uint64_t>(file_header->length) : file_header->model_length;
   GE_CHK_BOOL_EXEC((model_len == (model.model_len - sizeof(ModelFileHeader))) &&
                    (file_header->magic == MODEL_FILE_MAGIC_NUM),
-                   REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-                                      std::vector<const char_t *>({"om", model.om_name.c_str(), "invalid om file"}));
+                   (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+                                      std::vector<const char_t *>({"om", model.om_name.c_str(), "Invalid om file."}));
                    GELOGE(ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID,
                           "[Check][Param] Invalid model, file_header->(model)length[%" PRIu64 "]"
                           " + sizeof(ModelFileHeader)[%zu] != model->model_len[%" PRIu64 "]"
@@ -150,7 +153,7 @@ static Status GenInOutTensorDesc(const uint8_t * const data, size_t &offset,
     (void)i;
     int64_t dim = *PtrToPtr<void, const int64_t>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
     offset += sizeof(int64_t);
-    desc.dims.emplace_back(dim);
+    (void)desc.dims.emplace_back(dim);
   }
   GE_ASSERT_SUCCESS(CheckUint64AddOverflow(offset, static_cast<uint64_t>(tensor_base_info.dimsV2_len)),
                  "[Check][Param] offset:%lu is beyond the UINT64_MAX, info size %u",
@@ -160,7 +163,7 @@ static Status GenInOutTensorDesc(const uint8_t * const data, size_t &offset,
     (void)i;
     int64_t dim = *PtrToPtr<void, const int64_t>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
     offset += sizeof(int64_t);
-    desc.dimsV2.emplace_back(dim);
+    (void)desc.dimsV2.emplace_back(dim);
   }
   GE_ASSERT_SUCCESS(CheckUint64AddOverflow(offset, static_cast<uint64_t>(tensor_base_info.shape_range_len)),
                  "[Check][Param] offset:%lu is beyond the UINT64_MAX, info size %u",
@@ -174,7 +177,7 @@ static Status GenInOutTensorDesc(const uint8_t * const data, size_t &offset,
     int64_t range_right =
                     *PtrToPtr<void, const int64_t>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
     offset += sizeof(int64_t);
-    desc.shape_ranges.emplace_back(std::make_pair(range_left, range_right));
+    (void)desc.shape_ranges.emplace_back(std::make_pair(range_left, range_right));
   }
   return SUCCESS;
 }
@@ -208,9 +211,9 @@ static Status GetModelInOutDesc(const uint8_t * const data, const size_t size, c
     GE_ASSERT_SUCCESS(GenInOutTensorDesc(data, offset, tensor_base_info, desc, size),
                        "GenInOutTensorDesc failed");
     if (is_input) {
-      info.input_desc.emplace_back(std::move(desc));
+      (void)info.input_desc.emplace_back(std::move(desc));
     } else {
-      info.output_desc.emplace_back(std::move(desc));
+      (void)info.output_desc.emplace_back(std::move(desc));
     }
   }
   return SUCCESS;
@@ -240,7 +243,7 @@ Status ModelParserBase::GetDynamicBatch(const uint8_t * const data, const size_t
     const uint64_t batch =
                       *PtrToPtr<void, const uint64_t>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
     GELOGD("current i is %u, batch is %lu", i, batch);
-    info.dynamic_batch.emplace_back(batch);
+    (void)info.dynamic_batch.emplace_back(batch);
     offset += sizeof(uint64_t);
   }
   return SUCCESS;
@@ -265,7 +268,7 @@ static Status GetListListIntInfo(const uint8_t * const data, const size_t size,
     (void)i;
     const uint32_t part_vec_num =
                         *PtrToPtr<void, const uint32_t>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
-    second_vec.emplace_back(part_vec_num);
+    (void)second_vec.emplace_back(part_vec_num);
     offset += sizeof(uint32_t);
   }
   for (uint32_t i = 0U; i < num; ++i) {
@@ -278,9 +281,9 @@ static Status GetListListIntInfo(const uint8_t * const data, const size_t size,
       GE_CHECK_LE((offset + sizeof(uint64_t)), size);
       uint64_t dim = *PtrToPtr<void, const uint64_t>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
       offset += sizeof(uint64_t);
-      tmp_vec.emplace_back(dim);
+      (void)tmp_vec.emplace_back(dim);
     }
-    list_list_val.emplace_back(std::move(tmp_vec));
+    (void)list_list_val.emplace_back(std::move(tmp_vec));
   }
   return SUCCESS;
 }
@@ -311,7 +314,7 @@ static Status GetListStrInfo(const uint8_t * const data, const size_t size, std:
   for (size_t i = 0U; i < static_cast<size_t>(num); ++i) {
     const uint32_t part_vec_num =
                         *PtrToPtr<void, const uint32_t>(ValueToPtr(PtrToValue(data) + static_cast<uint64_t>(offset)));
-    second_vec.emplace_back(part_vec_num);
+    (void)second_vec.emplace_back(part_vec_num);
     GELOGD("current i is %zu, strlen is %u", i, part_vec_num);
     offset += sizeof(uint32_t);
   }
@@ -324,7 +327,7 @@ static Status GetListStrInfo(const uint8_t * const data, const size_t size, std:
                         static_cast<size_t>(second_vec[i]));
     GELOGD("current i is %zu, str is %s", i, tmp_vec.c_str());
     offset += second_vec[i];
-    list_str.emplace_back(std::move(tmp_vec));
+    (void)list_str.emplace_back(std::move(tmp_vec));
   }
   return SUCCESS;
 }

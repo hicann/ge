@@ -142,8 +142,12 @@ Status AippUtils::SetAippInfoAndTypeFromOpDesc(const std::map<std::string, uint3
   GE_CHECK_NOTNULL(op_desc);
   NamedAttrs aipp_attr;
   const bool get_attr_aipp = AttrUtils::GetNamedAttrs(op_desc, ATTR_NAME_AIPP, aipp_attr);
-  std::string data_mode;
-  const bool get_attr_mode = AttrUtils::GetStr(op_desc, ATTR_DATA_RELATED_AIPP_MODE, data_mode);
+  const std::string *data_mode_ptr = AttrUtils::GetStr(op_desc, ATTR_DATA_RELATED_AIPP_MODE);
+  const bool get_attr_mode = (data_mode_ptr != nullptr);
+  std::string data_mode = "";
+  if (get_attr_mode) {
+    data_mode = *data_mode_ptr;
+  }
   if ((!get_attr_aipp) && (!get_attr_mode)) {
     GELOGD("There is not AIPP related with op:%s, index:%u.", op_desc->GetName().c_str(), index);
     return SUCCESS;
@@ -216,19 +220,18 @@ Status AippUtils::SetAippTypeImpl(const std::map<std::string, uint32_t> &data_in
 
   size_t aipp_data_index = kInvalidIdx;
   if (aipp_type == DATA_WITH_DYNAMIC_AIPP) {
-    std::string releated_name;
-    const bool ret = AttrUtils::GetStr(op_desc, ATTR_DATA_AIPP_DATA_NAME_MAP, releated_name);
-    if (!ret) {
+    const std::string *releated_name = AttrUtils::GetStr(op_desc, ATTR_DATA_AIPP_DATA_NAME_MAP);
+    if (releated_name == nullptr) {
       REPORT_INNER_ERR_MSG("E19999", "Failed to get attr:%s, op:%s, type:%s.", ATTR_DATA_AIPP_DATA_NAME_MAP.c_str(),
-                         op_desc->GetName().c_str(), op_desc->GetType().c_str());
+                           op_desc->GetName().c_str(), op_desc->GetType().c_str());
       GELOGE(INTERNAL_ERROR, "[Get][Attr]Failed to get attr:%s, op:%s, type:%s.", ATTR_DATA_AIPP_DATA_NAME_MAP.c_str(),
              op_desc->GetName().c_str(), op_desc->GetType().c_str());
       return INTERNAL_ERROR;
     }
-    const auto iter = data_index_map.find(releated_name);
+    const auto iter = data_index_map.find(*releated_name);
     if (iter != data_index_map.end()) {
       aipp_data_index = iter->second;
-      GELOGI("Find AippData:%s of index:%zu for op:%s, index:%u", releated_name.c_str(), aipp_data_index,
+      GELOGI("Find AippData:%s of index:%zu for op:%s, index:%u", releated_name->c_str(), aipp_data_index,
              op_desc->GetName().c_str(), index);
     } else {
       REPORT_INNER_ERR_MSG("E19999", "Can not find AippData node for index:%u, op:%s", index, op_desc->GetName().c_str());

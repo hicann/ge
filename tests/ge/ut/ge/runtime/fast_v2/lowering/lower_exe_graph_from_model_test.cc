@@ -25,6 +25,7 @@
 #include "faker/aicpu_taskdef_faker.h"
 #include "graph/utils/graph_dump_utils.h"
 #include "graph/utils/execute_graph_utils.h"
+#include "common/ge_common/util.h"
 
 namespace gert {
 class LowerExeGraphFromModelUT : public testing::Test {

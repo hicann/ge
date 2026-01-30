@@ -19,20 +19,24 @@ inline bool IsVariable(const std::string &node_type) {
 }
 }
 void GraphRebuildStateCtrl::AddGraph(uint32_t graph_id, const ComputeGraphPtr &compute_graph) {
-  std::lock_guard<std::mutex> lock(mutex_);
   if (compute_graph == nullptr) {
     GELOGE(PARAM_INVALID, "[Check][Param] Failed to add graph %u, the compute graph is null", graph_id);
     return;
   }
   // add variable in cur graph
-  auto &var_names = graph_ids_to_resource_names_[graph_id];
+  std::set<std::string> tmp_var_names;
   for (auto &node : compute_graph->GetAllNodes()) {
     auto node_type = node->GetType();
     if (IsVariable(node_type)) {
       GELOGD("Add graph %u contains variable op, name: %s", graph_id, node->GetName().c_str());
-      var_names.insert(node->GetName());
+      tmp_var_names.insert(node->GetName());
     }
   }
+
+  std::lock_guard<std::mutex> lock(mutex_);
+  auto &var_names = graph_ids_to_resource_names_[graph_id];
+  var_names = std::move(tmp_var_names);
+
   GELOGD("Add graph %u, var count %zu", graph_id, var_names.size());
 }
 

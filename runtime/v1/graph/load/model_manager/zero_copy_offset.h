@@ -16,11 +16,11 @@
 #include <string>
 #include <vector>
 
-#include "graph/utils/attr_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/load/model_manager/task_info/task_info.h"
 #include "ge/ge_api_error_codes.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/op_desc.h"
 
 namespace ge {
 class ZeroCopyOffset {

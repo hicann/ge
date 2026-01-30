@@ -78,8 +78,11 @@ inline GraphAndIoNum BuildGraph_OneAdd(bool dynamic) {
   auto data_1 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 1)
                             .TensorDesc(FORMAT_ND, DT_FLOAT, {dim}).Build("_data_1");
   auto add_0 = OP_CFG(ADD).InCnt(2).OutCnt(1)
+                          .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_0_fake_id")
                           .TensorDesc(FORMAT_ND, DT_FLOAT, {dim}).Build("_add_0");
-  auto output_0 = OP_CFG(NETOUTPUT).Build("_output_0");
+  auto output_0 = OP_CFG(NETOUTPUT)
+                      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_output_0_fake_id")
+                      .Build("_output_0");
   DEF_GRAPH(one_add) {
     CHAIN(NODE(data_0)->EDGE(0, 0)->NODE(add_0));
     CHAIN(NODE(data_1)->EDGE(0, 1)->NODE(add_0));

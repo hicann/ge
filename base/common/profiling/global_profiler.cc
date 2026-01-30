@@ -434,7 +434,7 @@ void GlobalProfilingWrapper::BuildContextIdInfo(const uint64_t prof_time, const 
     info.op_name = op_name;
     reinterpret_cast<MsprofContextIdInfo *>(info.context_id_info.data)->opName = op_name_hash;
     BuildSingleContextIdInfo(prof_time, context_ids, i, kMaxContextIdNum, info.context_id_info);
-    infos.emplace_back(info);
+    (void)infos.emplace_back(info);
   }
 
   const size_t remain_index = context_ids.size() % kMaxContextIdNum;
@@ -442,7 +442,7 @@ void GlobalProfilingWrapper::BuildContextIdInfo(const uint64_t prof_time, const 
   info.op_name = op_name;
   reinterpret_cast<MsprofContextIdInfo *>(info.context_id_info.data)->opName = op_name_hash;
   BuildSingleContextIdInfo(prof_time, context_ids, index, remain_index, info.context_id_info);
-  infos.emplace_back(info);
+  (void)infos.emplace_back(info);
 }
 
 void GlobalProfilingWrapper::BuildSingleContextIdInfo(const uint64_t prof_time, const vector<uint32_t> &context_ids,
@@ -628,7 +628,7 @@ void GlobalProfilingWrapper::BuildFusionOpInfo(const ProfFusionMemSize &mem_size
           MsprofGetHashId(origin_op_names[origin_op_index].c_str(), origin_op_names[origin_op_index].length());
       reinterpret_cast<ProfFusionOpInfo *>(info.data)->fusionOpId[j] = origin_op_name;
     }
-    infos.emplace_back(info);
+    (void)infos.emplace_back(info);
   }
 
   const size_t remain_index = origin_op_names.size() % static_cast<size_t>(MSPROF_GE_FUSION_OP_NUM);
@@ -648,7 +648,7 @@ void GlobalProfilingWrapper::BuildFusionOpInfo(const ProfFusionMemSize &mem_size
         MsprofGetHashId(origin_op_names[origin_op_index].c_str(), origin_op_names[origin_op_index].length());
     reinterpret_cast<ProfFusionOpInfo *>(info.data)->fusionOpId[k] = origin_op_name;
   }
-  infos.emplace_back(info);
+  (void)infos.emplace_back(info);
 }
 
 static ge::Status ReportOneLogicStreamInfo(const std::pair<uint32_t, std::set<uint32_t>> &ids_pair,
@@ -747,9 +747,9 @@ void GlobalProfilingWrapper::IncProfModelId() {
 void ProfilerRegistry::SaveRegistryType(const std::string &type, const bool launch_flag) {
   const std::lock_guard<std::mutex> lk(mutex_);
   if (launch_flag) {
-    register_prof_launch_type_.emplace_back(type);
+    (void)register_prof_launch_type_.emplace_back(type);
   } else {
-    register_prof_non_launch_type_.emplace_back(type);
+    (void)register_prof_non_launch_type_.emplace_back(type);
   }
 }
 

@@ -18,6 +18,7 @@
 #include "graph/def_types.h"
 #include "common/debug/log.h"
 #include "common/math/math_util.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -430,8 +431,8 @@ void CachingAllocator::FreeBlockBins() {
   }
 }
 
-void CachingAllocator::PrintStatics(const GeLogLevel geLoglevel) {
-  int32_t level = static_cast<int32_t>(geLoglevel);
+void CachingAllocator::PrintStatics(const GeLogLevel ge_log_level) {
+  int32_t level = static_cast<int32_t>(ge_log_level);
   if (!IsLogEnable(GE_MODULE_NAME, level)) {
     return;
   }

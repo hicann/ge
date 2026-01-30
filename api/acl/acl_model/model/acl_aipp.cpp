@@ -28,6 +28,7 @@
 #include "framework/runtime/model_v2_executor.h"
 #include "utils/math_utils.h"
 #include "acl_model_impl.h"
+#include "runtime/base.h"
 
 namespace {
 constexpr int16_t FP16_MAX_EXP = 0x001F;
@@ -63,14 +64,16 @@ constexpr float32_t MIN_CHN_MAX = 255.0F;
 constexpr float32_t VR_CHN_MIN = -65504.0F;
 constexpr float32_t VR_CHN_MAX = 65504.0F;
 constexpr size_t STATIC_BATCH_INFO_SIZE = 1U;
+constexpr uint32_t MAX_NPU_ARCH_LEN = 32U;
 
-static std::string GetSocName()
+static std::string GetNpuArch()
 {
-  const char *socName = aclrtGetSocName();
-  if (socName == nullptr) {
+  char npuArch[MAX_NPU_ARCH_LEN] = {0};
+  const auto ret = rtGetSocSpec("version", "NpuArch", npuArch, sizeof(npuArch));
+  if (ret != RT_ERROR_NONE) {
     return "";
   }
-  return std::string(socName);
+  return std::string(npuArch);
 }
 
 static bool IsRoundOne(const uint64_t man, const uint16_t truncLen)
@@ -427,7 +430,7 @@ static aclError GetAndCheckAippOutputShape(const uint32_t modelId, const aclmdlD
     int64_t mdlOriH = 0;
     int64_t mdlOriW = 0;
     int64_t mdlOriN = 0;
-    const aclError result = acl::GetAippOutputHW(aippParmsSet, 0U, GetSocName(), aippOutputW, aippOutputH);
+    const aclError result = acl::GetAippOutputHW(aippParmsSet, 0U, GetNpuArch(), aippOutputW, aippOutputH);
     if (result != ACL_SUCCESS) {
         return result;
     }
@@ -493,7 +496,7 @@ static aclError GetAndCheckAippParams(const uint32_t modelId, const aclmdlDesc &
     } else {
         ACL_LOG_INFO("current used model is old");
     }
-    return acl::AippParamsCheck(aippParmsSet, GetSocName());
+    return acl::AippParamsCheck(aippParmsSet, GetNpuArch());
 }
 
 static aclError VerifyIndex(const uint32_t modelId, const size_t idx,  aclmdlDesc *const modelDesc)
@@ -809,13 +812,6 @@ aclmdlAIPP *aclmdlCreateAIPPImpl(uint64_t batchSize)
         aippParmsSet = new(std::nothrow) aclmdlAIPP();
         if (aippParmsSet == nullptr) {
             ACL_LOG_INNER_ERROR("[Check][ParmsSet]new aclmdlAIPP fail");
-            return nullptr;
-        }
-
-        const auto ret = memset_s(aippParmsSet, sizeof(aclmdlAIPP), 0, sizeof(aclmdlAIPP));
-        if (ret != EOK) {
-            ACL_LOG_INNER_ERROR("[Set][Mem]memset failed, result[%d]", ret);
-            ACL_DELETE(aippParmsSet);
             return nullptr;
         }
 

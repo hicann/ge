@@ -9,7 +9,7 @@
  */
 
 #include "graph/attr_store.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 const AttrId constInvalidAttrId = GetAttrId(0xffffffffU, 0U);

@@ -15,7 +15,6 @@
 #include "graph/def_types.h"
 #include "api/gelib/gelib.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
-#include "runtime/rt_model.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 
 namespace ge {

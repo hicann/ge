@@ -10,7 +10,7 @@
 
 #include "transformer_utils.h"
 
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
@@ -132,7 +132,10 @@ bool NodeShapeTransUtils::UpdateFormatAndShape() {
 
     // FE set and Ge get for PadDimention
     std::string infer_reshape_type;
-    (void) AttrUtils::GetStr(*tensor_desc_input, ATTR_NAME_RESHAPE_INFER_TYPE, infer_reshape_type);
+    const std::string *infer_reshape_type_ptr = AttrUtils::GetStr(*tensor_desc_input, ATTR_NAME_RESHAPE_INFER_TYPE);
+    if (infer_reshape_type_ptr != nullptr) {
+      infer_reshape_type = *infer_reshape_type_ptr;
+    }
     const bool is_success = transformer::ExpandDimension(op_desc_->GetType(), ori_format, curr_format, i,
                                                          infer_reshape_type, ori_shape);
     if (!is_success) {
@@ -185,7 +188,10 @@ bool NodeShapeTransUtils::UpdateFormatAndShape() {
 
     // FE set and Ge get for PadDimention
     std::string infer_reshape_type;
-    (void) AttrUtils::GetStr(*tensor_desc_output, ATTR_NAME_RESHAPE_INFER_TYPE, infer_reshape_type);
+    const std::string *infer_reshape_type_ptr = AttrUtils::GetStr(*tensor_desc_output, ATTR_NAME_RESHAPE_INFER_TYPE);
+    if (infer_reshape_type_ptr != nullptr) {
+      infer_reshape_type = *infer_reshape_type_ptr;
+    }
     const bool is_success = transformer::ExpandDimension(op_desc_->GetType(), curr_format, saved_format, i,
                                                          infer_reshape_type, ori_shape);
     if (!is_success) {

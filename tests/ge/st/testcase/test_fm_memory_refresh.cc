@@ -44,7 +44,6 @@
 #include "hcom/hcom_topo_info.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 extern ge::SessionManager *GetSessionManager();
 namespace ge {
@@ -85,6 +84,12 @@ void MockGenerateTask() {
 
     auto op_desc = node.GetOpDesc();
     op_desc->SetOpKernelLibName("AiCoreLib");
+    ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+    const char kernel_bin[] = "kernel_bin";
+    vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+    ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("test", std::move(buffer));
+    op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
     size_t arg_size = 100;
     std::vector<uint8_t> args(arg_size, 0);
     domi::TaskDef task_def;
@@ -771,6 +776,7 @@ TEST_F(FmMemoryRefreshTest, AtomicNodeConnectNetoutput_ZeroCopy) {
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
 
+
   auto graph = ShareGraph::BuildAtomicNodeConnectNetoutput();
   uint32_t graph_id = 1;
   session.AddGraph(graph_id, graph);
@@ -877,6 +883,7 @@ TEST_F(FmMemoryRefreshTest, DavinciModelGetRefreshableOption_Success_WhenStaticM
   std::map<std::string, std::string> options;
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
+
 
   /*
    * 用例设置了GE_USE_STATIC_MEMORY环境变量，需要在用例结束后取消设置。如果不加大括号，那么会先执行取消设置，再执行到Session析构，
@@ -1051,7 +1058,6 @@ TEST_F(FmMemoryRefreshTest, fm_memory_refresh_with_check_tensor_size) {
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
-
   auto graph = ShareGraph::BuildSwitchMergeGraph();
   uint32_t graph_id = 1;
   session.AddGraph(graph_id, graph);
@@ -1298,8 +1304,10 @@ TEST_F(FmMemoryRefreshTest, repeated_set_const_base_failed) {
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   Session session(options);
 
+
   auto graph = ShareGraph::BuildSwitchMergeGraph();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+
   auto add_node = compute_graph->FindNode("add_1");
   ASSERT_NE(add_node, nullptr);
   ge::AttrUtils::SetBool(add_node->GetOpDesc(), ATTR_NAME_IS_FIXED_ADDR_PRIOR, true);
@@ -1353,6 +1361,8 @@ TEST_F(FmMemoryRefreshTest, unrefreshable_graph_update_fm_failed) {
   std::map<AscendString, AscendString> options1;
   options1.emplace(ge::OPTION_CONST_LIFECYCLE, "graph");
   Session session1(options1);
+
+
   auto graph = ShareGraph::BuildSwitchMergeGraph();
   uint32_t graph_id = 0;
   EXPECT_EQ(session1.AddGraph(graph_id, graph, options1), SUCCESS);
@@ -1496,7 +1506,6 @@ TEST_F(FmMemoryRefreshTest, fm_memory_refresh_with_inputs_nozerocopy) {
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
-
   auto graph = ShareGraph::BuildHcomGraph();
   uint32_t graph_id = 1;
   session.AddGraph(graph_id, graph);
@@ -2793,11 +2802,12 @@ class MockIoMemReuse {
       return GRAPH_SUCCESS;
     };
     auto ge_env = GeRunningEnvFaker();
-    // auto fake_aicore_memset_optimizer = MakeShared<FakeAicoreMemSetOptimizer>();
-    //ge_env.Reset()
-    // ge_env.Install(FakeOp(ADD).InfoStoreAndBuilder("AIcoreEngine").InferShape(infer_fun));
     auto ops_kernel_builder = MakeShared<FakeAicoreLibOpsKernelBuilder>("AiCoreLib");
     auto aicore_engine_builder = MakeShared<FakeAicoreLibOpsKernelBuilder>("AIcoreEngine");
+    const char tbeBin[] = "tbe_bin";
+    vector<char> buffer(tbeBin, tbeBin + strlen(tbeBin));
+    OpKernelBinPtr tbeKernelPtr = std::make_shared<OpKernelBin>("test_tvm", std::move(buffer));
+
     ge_env.Reset()
          .Install(FakeEngine("DNN_VM_GE_LOCAL").KernelInfoStore("DNN_VM_GE_LOCAL_OP_STORE"))
          .Install(FakeEngine("AIcoreEngine")
@@ -2815,7 +2825,11 @@ class MockIoMemReuse {
          .Install(FakeOp(CONSTANT).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
          .Install(FakeOp("Identity").InfoStoreAndBuilder("AiCoreLib"))
          .Install(FakeOp(NETOUTPUT).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
-         .Install(FakeOp(ADD).InfoStoreAndBuilder("AiCoreLib").InferShape(infer_fun));
+         .Install(FakeOp(ADD).InfoStoreAndBuilder("AiCoreLib").InferShape(infer_fun)
+                  .AttrsDef(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                  .AttrsDef(ATTR_NAME_KERNEL_BIN_ID, "_mem_fake_id")
+                  .ExtAttrsDef(OP_EXTATTR_NAME_TBE_KERNEL, tbeKernelPtr));
+
   }
 
   virtual ~MockIoMemReuse() {
@@ -3028,26 +3042,31 @@ Graph BuildIoReuseMemGraph3() {
   auto add_1 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_1_fake_id")
       .Build("add_1");
 
   auto add_2 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_2_fake_id")
       .Build("add_2");
 
   auto add_3 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_3_fake_id")
       .Build("add_3");
 
   auto add_4 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_4_fake_id")
       .Build("add_4");
 
   auto add_5 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_5_fake_id")
       .Build("add_5");
 
   std::vector<int64_t> cons_shape{2, 2, 2, 2};
@@ -3084,13 +3103,14 @@ Graph BuildIoReuseMemGraph3() {
 // add2 add4生命周期重叠，都能复用data1, 复用地址相对于data1其实地址的偏移不一样
 TEST_F(FmMemoryRefreshTest, data_input_output_reuse_mem_03) {
   GertRuntimeStub runtime_stub;
-  MockIoMemReuse  mock_io_reuse_mem;
 
   std::map<AscendString, AscendString> options;
   options.emplace(ge::OPTION_CONST_LIFECYCLE, "graph");
   options.emplace("ge.exec.hostSchedulingMaxThreshold", "0");
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
+
+  MockIoMemReuse  mock_io_reuse_mem;
 
   auto graph = BuildIoReuseMemGraph3();
 
@@ -3278,26 +3298,31 @@ Graph BuildIoReuseMemGraph4() {
   auto add_1 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_1_fake_id")
       .Build("add_1");
 
   auto add_2 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_2_fake_id")
       .Build("add_2");
 
   auto add_3 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_3_fake_id")
       .Build("add_3");
 
   auto add_4 = OP_CFG(ADD)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_4_fake_id")
       .Build("add_4");
 
   auto mul_1 = OP_CFG(MUL)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_mul_1_fake_id")
       .Build("mul_1");
 
   std::vector<int64_t> cons_shape{2, 2, 2, 2};
@@ -3728,7 +3753,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_single_execution) {
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
-
   auto graph = ShareGraph::BuildSwitchMergeGraphWithMultiAddNodes();
   uint32_t graph_id = 1;
   session.AddGraph(graph_id, graph);
@@ -3833,6 +3857,7 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_fm_unchanged_and_multiple_execution
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
 
+
   auto graph = ShareGraph::BuildSwitchMergeGraphWithMultiAddNodes();
   uint32_t graph_id = 1;
   session.AddGraph(graph_id, graph);
@@ -3922,7 +3947,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_fm_changed_and_multiple_executions)
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
-
   auto graph = ShareGraph::BuildSwitchMergeGraphWithMultiAddNodes();
   uint32_t graph_id = 1;
   session.AddGraph(graph_id, graph);
@@ -4307,7 +4331,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_aicpu_op_single_execution) {
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
-
   auto graph = ShareGraph::BuildSwitchMergeGraphWithNeg();
   uint32_t graph_id = 1;
   session.AddGraph(graph_id, graph);
@@ -4453,7 +4476,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_dsa_op_single_execution) {
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
   Session session(options);
-
   auto compute_graph = ShareGraph::BuildAddAndDsaRandomNormalKnownGraph();
   auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
 
@@ -5160,7 +5182,8 @@ Graph BuildTsMemGraph() {
     //ADD_OUTPUT(id_1, 0);
   };
 
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 /*
@@ -5179,7 +5202,6 @@ Graph BuildTsMemGraph() {
  */
 TEST_F(FmMemoryRefreshTest, memcpy_dst_is_ts_mem) {
   GertRuntimeStub runtime_stub;
-  //MockIoMemReuse  mock_io_reuse_mem;
   MockForGenerateTask("RTSLib", GenerateTaskForMemCopyAyncTsMemory);
 
   std::map<AscendString, AscendString> options;
@@ -7884,8 +7906,12 @@ Graph BuildHcomGraph4() {
                     .Attr(ATTR_NAME_INPUT_MEM_TYPE_LIST, memtype_list)
                     .Attr(ATTR_NAME_OUTPUT_MEM_TYPE_LIST, memtype_list)
                     .Build("hcom_1");
-  auto add = OP_CFG(ADD).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(2).OutCnt(1).Build("add");
-  auto add_2 = OP_CFG(ADD).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(2).OutCnt(1).Build("add_2");
+  auto add = OP_CFG(ADD).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(2).OutCnt(1)
+                 .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                 .Build("add");
+  auto add_2 = OP_CFG(ADD).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(2).OutCnt(1)
+                   .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                   .Build("add_2");
 
   DEF_GRAPH(g1) {
     CHAIN(NODE(data_1)->EDGE(0, 0)->NODE(add)->EDGE(0, 0)->NODE(add_2)->EDGE(0, 0)->NODE("output_1", "NetOutput"));
@@ -8019,6 +8045,7 @@ Graph BuildHcomGraph3() {
                              .InCnt(1)
                              .OutCnt(1)
                              .InputAttr(0, ATTR_NAME_PARENT_NODE_INDEX, 0)
+                             .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
                              .Build("sub_1_netoutput");
   sub_1_netoutput->SetInputOffset({0});
 
@@ -8220,13 +8247,15 @@ TEST_F(FmMemoryRefreshTest, set_fixed_fm_memory_dynamic_0001) {
 Graph BuildDataNetoutputGraph() {
   auto data_0 = OP_CFG(DATA).InCnt(1).OutCnt(1).Attr(ATTR_NAME_INDEX, 0)
                 .TensorDesc(FORMAT_NCHW, DT_FLOAT, {64}).Build("_data_0");
-  auto output_0 = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).Build("_output_0");
+  auto output_0 = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1)
+                      .Build("_output_0");
 
   DEF_GRAPH(simple_d2o) {
     CHAIN(NODE(data_0)->NODE(output_0));
   };
 
-  return ToGeGraph(simple_d2o);
+  auto graph = ToGeGraph(simple_d2o);
+  return graph;
 }
 
 Status GenerateTaskForMemcpyAddrAsync(const Node &node, RunContext &run_context,
@@ -8362,7 +8391,6 @@ TEST_F(FmMemoryRefreshTest, memcpy_async_addr_david_update_io) {
 
 
 TEST_F(FmMemoryRefreshTest, hcom_all_to_all_test) {
-  // MockIoMemReuse  mock hccl task;
   MockForGenerateTask("ops_kernel_info_hccl", GenerateTaskForHcomAllToAll);
   std::map<AscendString, AscendString> options;
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");

@@ -15,7 +15,7 @@
 #include "graph/ge_tensor.h"
 #include "graph/def_types.h"
 #include "common/checker.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "register/register_error_codes.h"
 #include "utils/extern_math_util.h"
 #include "proto/tensorflow/tensor.pb.h"
@@ -86,7 +86,7 @@ class TensorAssign {
       GELOGE(FAILED, "complex value should be an integer multiple of 2.");
       return FAILED;
     }
-    const std::unique_ptr<T[]> addr(new (std::nothrow) T[count]());  // Zero init default value
+    const std::unique_ptr<T[]> addr(new (std::nothrow) T[static_cast<size_t>(count)]());  // Zero init default value
     GE_CHECK_NOTNULL(addr);
     if (val_size == 0) {
       (void)weight->SetData(ge::PtrToPtr<T, uint8_t>(addr.get()), static_cast<size_t>(count) * sizeof(T));

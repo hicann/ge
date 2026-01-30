@@ -59,7 +59,7 @@ class ThreadPool {
     std::future<retType> future = task->get_future();
     {
       const std::lock_guard<std::mutex> lock{m_lock_};
-      tasks_.emplace([task]() { (*task)(); });
+      (void)tasks_.emplace([task]() { (*task)(); });
     }
     cond_var_.notify_one();
     GELOGD("commit run task end");

@@ -10,6 +10,7 @@
 
 #include "aclnn_node_converter.h"
 
+#include "common/ge_common/util.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "exe_graph/lowering/lowering_definitions.h"
 #include "graph/ge_local_context.h"
@@ -193,6 +194,15 @@ bg::ValueHolderPtr OpExecute(const ge::NodePtr &node, const LowerInput &lower_in
   op_exe_inputs.emplace_back(lower_input.global_data->GetStream());
   op_exe_inputs.emplace_back(execute_option_holder);
   op_exe_inputs.emplace_back(op_exe_func);
+
+  auto assembled_platform_info_holders = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
+  GE_ASSERT(assembled_platform_info_holders.size() == static_cast<size_t>(bg::AssemblePlatformInfoIndex::kNums));
+
+  auto aclnn_op_fwk_data_holder = bg::ValueHolder::CreateSingleDataOutput(
+      "BuildSingleStageAclnnOpFwkData", {
+          assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kCoreNumInfos)]
+      });
+  op_exe_inputs.emplace_back(aclnn_op_fwk_data_holder);
   return bg::ValueHolder::CreateSingleDataOutput("ExecuteOpFunc", op_exe_inputs);
 }
 
@@ -210,18 +220,25 @@ bg::ValueHolderPtr Op2PhaseExecute(const ge::NodePtr &node, const LowerInput &lo
   GE_ASSERT_EQ(op_exe_funcs.size(), 2U);  // Prepare & Launch func
 
   // platform info
-  auto platform_info_holder = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
-
-  // Assemble fwk data
+  auto assembled_platform_info_holders = bg::AppendCoreTypeToPlatform(node, lower_input.global_data);
+  GE_ASSERT(assembled_platform_info_holders.size() == static_cast<size_t>(bg::AssemblePlatformInfoIndex::kNums));
   auto aclnn_op_fwk_data_holder = bg::ValueHolder::CreateSingleDataOutput(
-      "BuildAclnnOpFwkData", {op_exe_funcs[0], op_exe_funcs[1], platform_info_holder});
+      "BuildDualStageAclnnOpFwkData", {
+          op_exe_funcs[0],
+          op_exe_funcs[1],
+          assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)],
+          assembled_platform_info_holders[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kCoreNumInfos)]
+      });
+
+  // stream，不能放在fwk_data中，否则会导致CEM失效
+  const auto stream = lower_input.global_data->GetStream();
 
   // Create op execute prepare
   std::vector<bg::ValueHolderPtr> op_exe_prepare_inputs;
   (void)op_exe_prepare_inputs.insert(op_exe_prepare_inputs.end(), op_exe_tensors.begin(), op_exe_tensors.end());
   op_exe_prepare_inputs.emplace_back(execute_option_holder);
   op_exe_prepare_inputs.emplace_back(aclnn_op_fwk_data_holder);
-
+  op_exe_prepare_inputs.emplace_back(stream);
   auto execute_op_prepare = bg::ValueHolder::CreateDataOutput("ExecuteOpPrepare", op_exe_prepare_inputs,
                                                               2U);  // op param & workspace size
 

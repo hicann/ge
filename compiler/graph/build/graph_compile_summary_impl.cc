@@ -12,7 +12,6 @@
 
 #include <memory>
 #include <set>
-#include "attr_utils.h"
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/file_constant_utils.h"
@@ -24,7 +23,6 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/operator_reg.h"
-#include "util/mem_utils.h"
 #include "framework/common/types.h"
 #include "graph/utils/type_utils.h"
 #include "stream/stream_info.h"
@@ -570,7 +568,8 @@ const std::map<AscendString, std::vector<LogicalStreamAllocationInfo>>
   return graph_to_logical_stream_infos_;
 }
 
-Status StreamAllocationSummary::StreamAllocationSummaryImpl::CollectCustomStreamInfo(const ge::ComputeGraphPtr graph, std::map<int64_t, ge::LogicalStreamAllocationInfo> &logical_stream_id_to_stream_info) {
+Status StreamAllocationSummary::StreamAllocationSummaryImpl::CollectCustomStreamInfo(const ge::ComputeGraphPtr graph,
+  std::map<int64_t, ge::LogicalStreamAllocationInfo> &logical_stream_id_to_stream_info) const {
   std::string vec_str;
   std::vector<int64_t> custom_logical_stream_ids;
   if (AttrUtils::GetStr(graph, "_custom_logical_stream_ids", vec_str)) {

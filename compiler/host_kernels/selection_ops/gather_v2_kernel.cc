@@ -293,7 +293,7 @@ Status GatherV2Kernel::SaveIndicesByDataType(ConstGeTensorPtr indices_tensor_ptr
   return SUCCESS;
 }
 Status GatherV2Kernel::Check(const OpDescPtr &op_desc_ptr, const std::vector<ConstGeTensorPtr> &input,
-                             std::vector<GeTensorPtr> &v_output) const {
+                             const std::vector<GeTensorPtr> &v_output) const {
   (void)v_output;
   if (op_desc_ptr == nullptr) {
     GELOGW("input opdesc is nullptr.");

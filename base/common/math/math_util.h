@@ -967,13 +967,11 @@ inline bool IsEqualWith(const T &a, const T &b) {
   return a == b;
 }
 
-template <>
-inline bool IsEqualWith<float>(const float &a, const float &b) {
+inline bool IsEqualWith(const float &a, const float &b) {
   return std::fabs(a - b) < 1e-6;
 }
 
-template <>
-inline bool IsEqualWith<double>(const double &a, const double &b) {
+inline bool IsEqualWith(const double &a, const double &b) {
   return std::fabs(a - b) < 1e-9;
 }
 

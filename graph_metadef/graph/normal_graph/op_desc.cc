@@ -1548,8 +1548,10 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY void OpDesc::SetOpKernelLibName(c
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY std::string OpDesc::GetOpKernelLibName() const {
   std::string op_kernel_lib_name = impl_->GetOpKernelLibName();
   if (op_kernel_lib_name.empty()) {
-    (void)AttrUtils::GetStr(this, ATTR_NAME_OP_KERNEL_LIB_NAME,
-                            op_kernel_lib_name);
+    const std::string *str_ptr = AttrUtils::GetStr(this, ATTR_NAME_OP_KERNEL_LIB_NAME);
+    if (str_ptr != nullptr) {
+      op_kernel_lib_name = *str_ptr;
+    }
   }
   return op_kernel_lib_name;
 }

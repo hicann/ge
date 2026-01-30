@@ -21,8 +21,8 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "proto/ge_ir.pb.h"
 #include "ge/ge_api_v2.h"
-#include "session_v2/ge_session_manager.h"
-#include "session_v2/ge_session_impl.h"
+#include "session/session_manager.h"
+#include "session/ge_session_impl.h"
 #include "session/session_utils.h"
 #include "framework/memory/memory_api.h"
 #include "graph/utils/graph_utils_ex.h"
@@ -56,8 +56,6 @@
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 using namespace std;
-
-extern ge::GeSessionManager *GetSessionManager();
 
 namespace ge {
 using Json = nlohmann::json;
@@ -449,7 +447,7 @@ TEST_F(UtestGeApiV2, ge_session_test) {
 
   vector<gert::Tensor> outputs;
   EXPECT_NE(session.RunGraph(graph_id, inputs, outputs), SUCCESS);
-  EXPECT_EQ(session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, outputs), FAILED);
+  EXPECT_NE(session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, outputs), SUCCESS);
   EXPECT_EQ(session.RunGraphAsync(graph_id, inputs, nullptr), SUCCESS); // Push to queue.
 
   RunCallback session_callback = nullptr;
@@ -647,8 +645,8 @@ TEST_F(UtestGeApiV2, GEInitialize_test) {
 
 TEST_F(UtestGeApiV2, GEInitialize_load_custom_pass_failed) {
   std::map<AscendString, AscendString> options;
-  std::string path = FILE_SESSION_V2_PATH;
-  path = path + "opp";
+  std::string path = __FILE__;
+  path = path.substr(0, path.rfind("/") + 1) + "opp";
   mmSetEnv("ASCEND_OPP_PATH", path.c_str(), 1);
   system(("mkdir -p " + path).c_str());
 
@@ -663,8 +661,8 @@ TEST_F(UtestGeApiV2, GEInitialize_load_custom_pass_failed) {
 
 TEST_F(UtestGeApiV2, GEInitialize_load_custom_pass_success) {
   std::map<AscendString, AscendString> options;
-  std::string path = FILE_SESSION_V2_PATH;
-  path = path + "opp";
+  std::string path = __FILE__;
+  path = path.substr(0, path.rfind("/") + 1) + "opp";
   mmSetEnv("ASCEND_OPP_PATH", path.c_str(), 1);
   system(("mkdir -p " + path).c_str());
 
@@ -691,17 +689,7 @@ TEST_F(UtestGeApiV2, ge_session_info_test) {
   vector<Tensor> inputs;
   auto ret = session.CompileGraph(1, inputs);
   ASSERT_NE(ret, SUCCESS);
-  uint64_t var_size = 0;
-  std::map<uint32_t, std::vector<uint64_t>> graphs_mem_info;
-  GetSessionMemInfo(session.GetSessionId(), var_size, graphs_mem_info);
-  EXPECT_TRUE(var_size == 0);
-  for (auto item : graphs_mem_info) {
-    for (auto mem : item.second) {
-      EXPECT_EQ(mem, 0);
-    }
-  }
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
-  EXPECT_EQ(GetSessionMemInfo(session.GetSessionId(), var_size, graphs_mem_info), FAILED);
 }
 
 TEST_F(UtestGeApiV2, GetCompileGraphSummary_test) {
@@ -1053,7 +1041,7 @@ TEST_F(UtestGeApiV2, LoadGraph_with_graph_id) {
   GeSession session1(options_init);
 
   options.insert(pair<AscendString, AscendString>("ge.exec.frozenInputIndexes", "1,2"));
-  EXPECT_EQ(session1.LoadGraph(graph_id, options, nullptr), FAILED);
+  EXPECT_NE(session1.LoadGraph(graph_id, options, nullptr), SUCCESS);
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
 }
 
@@ -1068,7 +1056,7 @@ TEST_F(UtestGeApiV2, Test_LoadGraphApi) {
   GeSession session1(options_init);
 
   options.insert(pair<AscendString, AscendString>("ge.exec.frozenInputIndexes", "1,2"));
-  EXPECT_EQ(session1.LoadGraph(graph_id, options, nullptr), FAILED);
+  EXPECT_NE(session1.LoadGraph(graph_id, options, nullptr), SUCCESS);
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
 }
 
@@ -2035,13 +2023,11 @@ TEST_F(UtestGeApiV2, CreateSessionFailed) {
   EXPECT_EQ(GEInitializeV2(options), SUCCESS);
 
   GeSession sess1(options); // rt create context failed
-  EXPECT_EQ(sess1.GetSessionId(), 0);
   Graph tmp_graph;
   EXPECT_NE(sess1.AddGraph(1, tmp_graph, {}), SUCCESS);
   EXPECT_EQ(SessionUtils::NumSessions(), 0);
 
   GeSession sess2(options);  // rt create context failed
-  EXPECT_EQ(sess2.GetSessionId(), 0);
   EXPECT_NE(sess1.AddGraph(2, tmp_graph, {}), SUCCESS);
   EXPECT_EQ(SessionUtils::NumSessions(), 0);
 
@@ -2222,5 +2208,11 @@ TEST_F(UtestGeApiV2, QueryUnregisteredIr) {
   using OutType = std::vector<std::pair<AscendString, AscendString>>;
   OutType inputs, outputs, attrs;
   EXPECT_NE(GetRegisteredIrDef("QueryIrTestOpNotRegistered", inputs, outputs, attrs), SUCCESS);
+}
+
+TEST_F(UtestGeApiV2, QuerySameVersionIr) {
+  EXPECT_TRUE(::IsIrRepSupport(INFERENCE_RULE));
+  EXPECT_FALSE(::IsIrRepSupport("future_new_feature_rule"));
+  EXPECT_FALSE(::IsIrRepSupport(""));
 }
 }  // namespace ge

@@ -1,16 +1,20 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "parser/tensorflow/tensorflow_parser.h"
 #include <algorithm>
+#include <fstream>
 #include <iostream>
+#include <regex>
+#include <dlfcn.h>
+#include <memory>
 #include <mutex>
 #include "ge/ge_api_types.h"
 #include "parser/common/convert/pb2json.h"
@@ -29,6 +33,8 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/type_utils.h"
 #include "iterator_fusion_pass.h"
+#include "tensorflow_custom_op_parser.h"
+#include "type_utils_inner.h"
 #include "base/err_msg.h"
 #include "omg/parser/op_parser.h"
 #include "omg/parser/parser_factory.h"
@@ -55,6 +61,11 @@
 #include "graph/def_types.h"
 #include "common/checker.h"
 #include "common/string_util.h"
+#include "common/op_registration_tbe.h"
+#include "graph/custom_op_factory.h"
+#include "graph/opsproto_manager.h"
+#include <experimental/filesystem>
+#include "common/types_map.h"
 
 using ge::OpParserFactory;
 using ge::Pb2Json;
@@ -86,6 +97,7 @@ using ge::parser::ThreadPool;
 using ge::parser::fp16_t;
 using ge::parser::ModelSaver;
 
+namespace fs = std::experimental::filesystem;
 namespace ge {
 graphStatus aclgrphParseTensorFlow(const char *model_file, ge::Graph &graph) {
   PARSER_TIMESTAMP_START(aclgrphParseTensorFlow);
@@ -236,6 +248,7 @@ const char *const kDpop = "DPOP";
 const char *const kFuncDefLibraryFilePath = "graph_def_library.pbtxt";
 const char *const kAttrNameIsScopeInnerNode = "_is_scope_inner_node";
 const char *const kExternalModel = "_external_model";
+const std::regex kSafePathRegex(R"(^(?!.*\.{2})[A-Za-z0-9./+\-_]+$)"); // 允许字母、数字、_ / . -, 但禁止..
 struct ParseArg {
   const google::protobuf::Message *proto;
   std::string function_name;
@@ -395,17 +408,7 @@ Status TensorFlowModelParser::DefunToPartitionedCall(const domi::tensorflow::Nod
                                                      ge::OpDescPtr &op) const {
   const string op_name = node_def->name();
   domi::tensorflow::AttrValue attr_call_inference;
-  if (!ge::TensorFlowUtil::FindAttrValue(node_def, "_disable_call_shape_inference", attr_call_inference)) {
-    REPORT_PREDEFINED_ERR_MSG(
-        "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-        std::vector<const char *>({node_def->name().c_str(), "attr [_disable_call_shape_inference]",
-         "may has no ir definition, if it is not a common decorate function operator"}));
-    GELOGE(FAILED,
-           "Op %s has no ir definition, or has no attr [_disable_call_shape_inference] "
-           "if it is a common decorate function operator.",
-           op_name.c_str());
-    return FAILED;
-  }
+  GE_ASSERT_TRUE(ge::TensorFlowUtil::FindAttrValue(node_def, "_disable_call_shape_inference", attr_call_inference));
 
   op = ge::parser::MakeShared<ge::OpDesc>(op_name, ge::parser::PARTITIONEDCALL);
   GE_CHECK_NOTNULL(op);
@@ -691,11 +694,12 @@ Status TensorFlowModelParser::CheckoutInputNum(ge::OpDescPtr &op_desc, const dom
   size_t factory_input_size = op_desc->GetInputsSize();
   if (input_tensor_num != factory_input_size) {
     REPORT_PREDEFINED_ERR_MSG(
-        "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-        std::vector<const char *>(
-            {op_desc->GetName().c_str(),
-             ("input number of tensorflow[" + std::to_string(input_tensor_num) + "]").c_str(),
-             ("should be equal to factory size[" + std::to_string(factory_input_size) + "]").c_str()}));
+        "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
+        std::vector<const char *>({op_desc->GetName().c_str(), "input number", std::to_string(input_tensor_num).c_str(),
+                                   ("The number of TensorFlow input tensors " + std::to_string(input_tensor_num) +
+                                    " is inconsistent with the number of inputs " + std::to_string(factory_input_size) +
+                                    " defined by the operator")
+                                       .c_str()}));
     GELOGE(FAILED, "op [%s], type[%s], The input number of tensorflow[%zu] should be equal to factory size[%zu]",
            op_desc->GetName().c_str(), op_desc->GetType().c_str(), input_tensor_num, factory_input_size);
     return FAILED;
@@ -963,7 +967,6 @@ Status TensorFlowModelParser::CheckOpType(const domi::tensorflow::NodeDef *node_
  * @return ge::DataType
  */
 ge::DataType TensorFlowModelParser::ConvertToGeDataType(const uint32_t type) {
-
   ge::DataType data_type = domi::TensorAssign::ConvertTensorflowDataType(type);
   return data_type;
 }
@@ -1709,7 +1712,7 @@ Status TensorFlowModelParser::GeStoi(const string &input_node_name, const string
     return INTERNAL_ERROR;
   } catch (...) {
     REPORT_PREDEFINED_ERR_MSG(
-        "E10015", std::vector<const char *>({"parameter", "value"}),
+        "E10014", std::vector<const char *>({"parameter", "value"}),
         std::vector<const char *>({("input_node_name(" + input_node_name + ")").c_str(), index_str.c_str()}));
     GELOGE(INTERNAL_ERROR, "stl[stoi] input_node_name[%s] indexstr[%s] is bad argument!", input_node_name.c_str(),
            index_str.c_str());
@@ -2319,6 +2322,14 @@ Status TensorFlowModelParser::ParseProto(const google::protobuf::Message *proto,
   vector<string> op_node_name_list;
   bool isDatasetInit = false;
   PARSER_TIMESTAMP_START(AddFmkNodeDefToMap);
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  for (int i = 0; i < graph_def->node_size(); i++) {
+    const domi::tensorflow::NodeDef *node_def = graph_def->mutable_node(i);
+    if (ge::CustomOpFactory::IsExistOp(node_def->name().c_str())) {
+      custom_nodes_map[node_def->name()] = node_def;
+    }
+  }
+  GE_ASSERT_SUCCESS(TensorFlowCustomOpParser::ParseCustomOp(custom_nodes_map));
   for (int i = 0; i < graph_def->node_size(); i++) {
     const domi::tensorflow::NodeDef *node_def = graph_def->mutable_node(i);
     if (node_def->op() == ge::parser::IDENTITY && node_def->input_size() == 0) {

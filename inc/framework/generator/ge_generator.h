@@ -49,7 +49,7 @@ class GE_FUNC_VISIBILITY GeGenerator {
   Status Finalize();
   Status GenerateOfflineModel(const Graph &graph, const std::string &file_name_prefix,
                               const std::vector<GeTensor> &inputs = std::vector<GeTensor>(),
-                              OfflineModelFormat om_format = OM_FORMAT_DEFAULT);
+                              OfflineModelFormat om_format = OfflineModelFormat::OM_FORMAT_DEFAULT);
 
   Status GenerateOnlineModel(const Graph &graph, const std::vector<GeTensor> &inputs, ge::ModelBufferData &model);
 
@@ -115,7 +115,7 @@ class GE_FUNC_VISIBILITY GeGenerator {
   Status GenerateModel(const Graph &graph, const std::string &file_name_prefix,
                        const std::vector<GeTensor> &inputs,
                        ge::ModelBufferData &model, bool is_offline = true,
-                       OfflineModelFormat om_format = OM_FORMAT_DEFAULT);
+                       OfflineModelFormat om_format = OfflineModelFormat::OM_FORMAT_DEFAULT);
   Status BuildSingleOp(OpDescPtr &op_desc, const std::vector<GeTensor> &inputs, const std::vector<GeTensor> &outputs,
                        const std::string &model_file_name, OpEngineType engine_type, ModelBufferData &model_buff,
                        ComputeGraphPtr &comp_graph, bool is_offline = true, int32_t compile_flag = 0,

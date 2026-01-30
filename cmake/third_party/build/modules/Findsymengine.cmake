@@ -17,6 +17,7 @@ include(ExternalProject)
 set(LIB_FILE "${CMAKE_THIRD_PARTY_LIB_DIR}/symengine/lib") # 编译之后才会有的文件，用于判断是否已经编译
 set(MOD_FILE "${CMAKE_THIRD_PARTY_LIB_DIR}/symengine/symengine/mod.cpp") # 打上patch之后才会有的文件，用于判断是否打了patch
 set(CMAKE_FILE "${CMAKE_THIRD_PARTY_LIB_DIR}/symengine/CMakeLists.txt") # 用于判断是否已下载并解压
+set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/symengine/symengine-0.12.0.tar.gz")
 set(SYMENGINE_EXTRA_ARGS "")
 if(EXISTS ${LIB_FILE})
     message(STATUS "[symengine] ${LIB_FILE} found, symengine is ready after compile.")
@@ -28,8 +29,14 @@ else()
         list(APPEND SYMENGINE_EXTRA_ARGS
             PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_LIST_DIR}/patch/symengine_add_mod.patch
         )
+    elseif(EXISTS ${REQ_URL})
+        message(STATUS "[symengine] ${REQ_URL} found.")
+        list(APPEND SYMENGINE_EXTRA_ARGS
+            URL ${REQ_URL}
+            PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_LIST_DIR}/patch/symengine_add_mod.patch
+        )
     else()
-        message(STATUS "[symengine] symengine is not downloaded, need download.")
+        message(STATUS "[symengine] symengine not found, need download.")
         set(REQ_URL "https://gitcode.com/cann-src-third-party/symengine/releases/download/v0.12.0/symengine-0.12.0.tar.gz")
         list(APPEND SYMENGINE_EXTRA_ARGS
             URL ${REQ_URL}
@@ -37,11 +44,12 @@ else()
             PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_LIST_DIR}/patch/symengine_add_mod.patch
         )
     endif()
-    set(SYMENGINE_CXXFLAGS "-fPIC -D_GLIBCXX_USE_CXX11_ABI=0")
+    set(SYMENGINE_CXXFLAGS "-fPIC -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI}")
 
     ExternalProject_Add(symengine_build
             SOURCE_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/symengine
             ${SYMENGINE_EXTRA_ARGS}
+            TLS_VERIFY OFF
             CONFIGURE_COMMAND ${CMAKE_COMMAND}
                 -DINTEGER_CLASS:STRING=boostmp
                 -DBUILD_SHARED_LIBS:BOOL=OFF
@@ -60,7 +68,8 @@ else()
             BUILD_COMMAND $(MAKE)
             INSTALL_COMMAND $(MAKE) install
             EXCLUDE_FROM_ALL TRUE
-            TLS_VERIFY OFF
             )
-    add_dependencies(symengine_build boost_build)
+    if(NOT BOOST_FOUND)
+        add_dependencies(symengine_build boost_build)
+    endif()
 endif()

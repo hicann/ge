@@ -33,7 +33,7 @@ class GatherV2Kernel : public Kernel {
   template <typename T>
   Status GenData(const int64_t data_num, ConstGeTensorPtr tensor_x, int64_t axis, GeTensorPtr output);
   Status Check(const OpDescPtr &op_desc_ptr, const std::vector<ConstGeTensorPtr> &input,
-               std::vector<GeTensorPtr> &v_output) const;
+               const std::vector<GeTensorPtr> &v_output) const;
   Status CalcStride(std::vector<int64_t> &stride, std::vector<int64_t> dims) const;
   Status SaveIndicesByDataType(ConstGeTensorPtr indices_tensor_ptr, const GeShape &x_shape, GeShape &indices_shape,
                                DataType indices_data_type, size_t axis);

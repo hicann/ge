@@ -12,7 +12,9 @@
 #define GE_HYBRID_EXECUTOR_NODE_DONE_MANAGER_H_
 
 #include <condition_variable>
+#include <unordered_map>
 #include "graph/node.h"
+#include "graph/types.h"
 
 namespace ge {
 namespace hybrid {

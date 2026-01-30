@@ -17,6 +17,8 @@
 #include "graph/ascend_string.h"
 #include "graph/utils/math_util.h"
 #include "common/checker.h"
+#include "ge/ge_api.h"
+#include "ge/eager_style_graph_builder/c/esb_funcs.h"
 
 namespace ge {
 namespace c_wrapper {
@@ -147,6 +149,9 @@ inline const char *AscendStringToChar(const AscendString &s) {
 }  // namespace ge
 
 #ifdef __cplusplus
+#ifndef char_t
+using char_t = char;
+#endif
 extern "C" {
 #endif
 ge::graphStatus GeApiWrapper_AttrValue_SetBool(void *av, bool value);
@@ -202,12 +207,42 @@ ge::graphStatus GeApiWrapper_GNode_GetAttr(const ge::GNode *node, const char *ke
 ge::graphStatus GeApiWrapper_GNode_SetOutputAttr(ge::GNode *node, const char *attr_name, uint32_t output_index,
                                                  const void *attr_value);
 void GeApiWrapper_GNode_FreeIntArray(int32_t *arrs);
+ge::Status GeApiWrapper_GEFinalize();
+ge::Status GeApiWrapper_GEInitialize(char **keys, char **values, int size);
+ge::graphStatus GeApiWrapper_Graph_LoadFromAir(ge::Graph *graph, const char_t *file_name);
+ge::graphStatus GeApiWrapper_Graph_AddControlEdge(ge::Graph *graph, ge::GNode &src_node, ge::GNode &dst_node);
+ge::graphStatus GeApiWrapper_Graph_SetAttr(ge::Graph *graph, const char *key, const void *attr_value);
+ge::graphStatus GeApiWrapper_Graph_RemoveNode(ge::Graph *graph, ge::GNode &node);
+ge::graphStatus GeApiWrapper_Graph_Dump_To_File(const ge::Graph *graph, int32_t format, const char *suffix);
+const char *GeApiWrapper_Graph_Dump_To_Stream(const ge::Graph *graph, int32_t format);
+ge::graphStatus GeApiWrapper_Graph_FindNodeByName(const ge::Graph *graph, const char *name, ge::GNode **node);
+const char *GeApiWrapper_Graph_GetName(const ge::Graph *graph);
+ge::Graph *GeApiWrapper_Graph_CreateGraph(const char *name);
+ge::graphStatus GeApiWrapper_Graph_SaveToAir(const ge::Graph *graph, const char_t *file_name);
+ge::graphStatus GeApiWrapper_Graph_RemoveEdge(ge::Graph *graph, ge::GNode &src_node, const int32_t src_port_index,
+                                              ge::GNode &dst_node, const int32_t dst_port_index);
+ge::graphStatus GeApiWrapper_Graph_GetAttr(const ge::Graph *graph, const char *key, void *attr_value);
+void GeApiWrapper_Graph_DestroyGraph(const ge::Graph *graph);
 void GeApiWrapper_Graph_FreeGraphArray(ge::Graph **graphs);
+ge::graphStatus GeApiWrapper_Graph_AddDataEdge(ge::Graph *graph, ge::GNode &src_node, const int32_t src_port_index,
+                                               ge::GNode &dst_node, const int32_t dst_port_index);
+ge::GNode **GeApiWrapper_Graph_GetAllNodes(const ge::Graph *graph, size_t *node_num);
+ge::GNode **GeApiWrapper_Graph_GetDirectNode(const ge::Graph *graph, size_t *node_num);
+ge::graphStatus GeApiWrapper_Graph_Dump_To_Onnx(ge::Graph *graph, const char *path, const char *suffix);
 ge::Graph **GeApiWrapper_Graph_GetAllSubgraphs(const ge::Graph *graph, size_t *subgraph_num);
 ge::Graph *GeApiWrapper_Graph_GetSubGraph(const ge::Graph *graph, const char *name);
 ge::graphStatus GeApiWrapper_Graph_AddSubGraph(ge::Graph *graph, const ge::Graph *subgraph);
 ge::graphStatus GeApiWrapper_Graph_RemoveSubgraph(ge::Graph *graph, const char *name);
-
+ge::Session *GeApiWrapper_Session_CreateSession();
+ge::Tensor** GeApiWrapper_Session_RunGraph(ge::Session *session, uint32_t graph_id, void **inputs, int input_count, size_t *tensor_num);
+ge::Status GeApiWrapper_Session_AddGraph(ge::Session *session, uint32_t graph_id, ge::Graph *graph);
+void GeApiWrapper_Session_DestroySession(const ge::Session *session);
+ge::Format GeApiWrapper_Tensor_GetFormat(EsCTensor *tensor);
+EsCTensor *GeApiWrapper_Tensor_CreateTensor();
+void GeApiWrapper_Tensor_DestroyEsCTensor(EsCTensor *tensor);
+ge::graphStatus GeApiWrapper_Tensor_SetFormat(EsCTensor *tensor, const ge::Format &format);
+ge::DataType GeApiWrapper_Tensor_GetDataType(EsCTensor *tensor);
+ge::graphStatus GeApiWrapper_Tensor_SetDataType(EsCTensor *tensor, const ge::DataType &dtype);
 #ifdef __cplusplus
 }
 #endif

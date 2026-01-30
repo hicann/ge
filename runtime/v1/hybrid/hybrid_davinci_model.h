@@ -38,8 +38,6 @@ class HybridDavinciModel {
                          std::vector<GeTensorDesc> &output_desc,
                          const rtStream_t stream);
 
-  Status Execute(const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs);
-
   Status Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs);
 
   Status ExecuteWithStreamAsync(const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs,
@@ -52,8 +50,7 @@ class HybridDavinciModel {
 
   Status ModelRunStop();
 
-  Status EnqueueData(const std::shared_ptr<InputDataWrapper> &data);
-  Status EnqueueData(const std::shared_ptr<RunArgsV2> &args);
+  Status EnqueueData(const std::shared_ptr<RunArgs> &args);
 
   void SetListener(const shared_ptr<ModelListener> &listener);
 
@@ -89,8 +86,6 @@ class HybridDavinciModel {
   uint32_t GetDataInputerSize() const;
 
   bool GetRunningFlag() const;
-
-  Status SetRunAsyncListenerCallback(const RunAsyncCallback &callback);
 
   Status SetRunAsyncListenerCallback(const RunAsyncCallbackV2 &callback);
 

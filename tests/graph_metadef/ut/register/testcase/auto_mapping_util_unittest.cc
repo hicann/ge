@@ -15,8 +15,7 @@
 #include <google/protobuf/message.h>
 #include "graph/debug/ge_util.h"
 #include "graph/debug/ge_op_types.h"
-#include "common/ge_common/debug/ge_log.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"

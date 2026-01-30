@@ -11,7 +11,7 @@
 #include "register/op_kernel_registry.h"
 #include <mutex>
 #include <map>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "common/ge_common/ge_inner_error_codes.h"
 

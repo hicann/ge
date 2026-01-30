@@ -11,7 +11,7 @@
 #include "exe_graph/runtime/tiling_data.h"
 #include "common/util/tiling_utils.h"
 #include "faker/kernel_run_context_faker.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include <gtest/gtest.h>
 namespace gert {
 class TilingDataUT : public testing::Test {};

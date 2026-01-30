@@ -82,9 +82,10 @@ void TensorCheckUtils::ConstructGertTensor(gert::Tensor &gert_tensor, const std:
   gert_tensor.MutableStorageShape() = dims;
   gert_tensor.SetStorageFormat(format);
   gert_tensor.SetOriginFormat(format);
-  const auto buffer_size = GetSizeInBytes(gert_tensor.GetShapeSize(), data_type);
+  const auto tensor_size = GetSizeInBytes(gert_tensor.GetShapeSize(), data_type);
+  const auto buffer_size = (tensor_size + 32U - 1U) / 32U * 32U; // 32B aligned
   auto mem_block = g_stub_allocator.Malloc(buffer_size);
-  gert::TensorData tensor_data(mem_block, StubMemBlockManager, buffer_size, placement);
+  gert::TensorData tensor_data(mem_block, StubMemBlockManager, tensor_size, placement);
   gert_tensor.SetData(std::move(tensor_data));
 
   auto addr = PtrToPtr<void, uint8_t>(gert_tensor.GetAddr());

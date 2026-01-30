@@ -75,18 +75,27 @@ else()
 
     # 初始化可选参数列表
     set(OPENSSL_EXTRA_ARGS "")
+    set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/openssl/openssl-openssl-3.0.9.tar.gz")
     if(EXISTS "${CMAKE_THIRD_PARTY_LIB_DIR}/openssl/tools")
-        message(STATUS "[openssl] ${CMAKE_THIRD_PARTY_LIB_DIR}/openssl/tools found, start compile.")
+        message(STATUS "[openssl] ${CMAKE_THIRD_PARTY_LIB_DIR}/openssl/tools found.")
+        list(APPEND OPENSSL_EXTRA_ARGS
+            SOURCE_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/openssl
+        )
+    elseif(EXISTS ${REQ_URL})
+        message(STATUS "[openssl] ${REQ_URL} found.")
+        list(APPEND OPENSSL_EXTRA_ARGS
+            URL ${REQ_URL}
+        )
     else()
-        message(STATUS "[openssl] ${CMAKE_THIRD_PARTY_LIB_DIR}/openssl/tools not found, need download.")
+        message(FATAL_ERROR "[openssl] ${REQ_URL} not found, need download.")
         list(APPEND OPENSSL_EXTRA_ARGS
             URL "https://gitcode.com/cann-src-third-party/openssl/releases/download/openssl-3.0.9/openssl-openssl-3.0.9.tar.gz"
+            DOWNLOAD_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/openssl
         )
     endif()
     
     ExternalProject_Add(openssl_build
                         ${OPENSSL_EXTRA_ARGS}
-                        SOURCE_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/openssl
                         TLS_VERIFY OFF
                         CONFIGURE_COMMAND
                             <SOURCE_DIR>/Configure

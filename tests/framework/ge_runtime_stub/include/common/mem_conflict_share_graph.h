@@ -164,6 +164,8 @@ struct MemConflictShareGraph {
   static ComputeGraphPtr BuildNoPaddingContinuousInAndNoPaddingContinuousOutByRefGraph();
   static ComputeGraphPtr BuildNoPaddingContinuousInAndNoPaddingContinuousOutConnectGraph();
   static ComputeGraphPtr BuildNoPaddingContinuousInAndRtsSpecailInByRefAndOutAnchorSuspendedGraph();
+  static ComputeGraphPtr BuildNoPaddingContinuousInWithSameAnchorData();
+  static ComputeGraphPtr BuildNoPaddingContinuousInWithSameAnchorVariable();
 
   static ComputeGraphPtr BuildNoPaddingContinuousOutAndNoPaddingContinuousOutGraph();
   static ComputeGraphPtr BuildNoPaddingContinuousOutAndNormalOutGraph();

@@ -109,11 +109,12 @@ bg::ValueHolderPtr BuildAtomCompileInfo(const ge::NodePtr &node, const std::stri
                                         LoweringGlobalData &global_data) {
   const auto op_desc = node->GetOpDescBarePtr();
   GE_ASSERT_NOTNULL(op_desc);
-  std::string op_compile_info_json;
-  if (!ge::AttrUtils::GetStr(op_desc, json_key, op_compile_info_json)) {
+  const std::string *json_ptr = ge::AttrUtils::GetStr(op_desc, json_key);
+  if (json_ptr == nullptr) {
     GELOGE(ge::FAILED, "Op[%s] does not have attr[%s].", op_desc->GetName().c_str(), json_key.c_str());
     return nullptr;
   }
+  std::string op_compile_info_json = *json_ptr;
   if (AssembleCompileInfoJson(op_desc, op_compile_info_json) != ge::SUCCESS) {
     GELOGE(ge::FAILED, "Failed to assemble compile info json for op[%s, %s].", op_desc->GetName().c_str(),
            op_desc->GetType().c_str());
@@ -132,7 +133,8 @@ bg::ValueHolderPtr BuildAtomCompileInfo(const ge::NodePtr &node, const std::stri
   const auto space_registry_addr = global_data.GetSpaceRegistryV2(static_cast<gert::OppImplVersionTag>(opp_impl_version));
   GE_ASSERT_NOTNULL(space_registry_addr);
   const auto &space_registry = bg::ValueHolder::CreateConst(&space_registry_addr, sizeof(void *), false);
-  const auto &platform_info = bg::AppendCoreTypeToPlatform(node, &global_data);
+  const auto platform_info = bg::AppendCoreTypeToPlatform(
+      node, &global_data)[static_cast<size_t>(bg::AssemblePlatformInfoIndex::kPlatformInfo)];
   return bg::ValueHolder::CreateSingleDataOutput("TilingParse",
                                                  {json_holder, platform_info, node_type_holder, space_registry});
 }
@@ -611,23 +613,17 @@ std::vector<ValueHolderPtr> Tiling(const ge::NodePtr &node, const std::vector<Va
   }
   // do symbol tiling
   if (NeedSymbolTiling(node)) {
-    GELOGD("Node %s type %s only support symbol tiling. Try turns to tiling on symbol.",
-           node->GetNamePtr(), node->GetTypePtr());
+    GELOGD("Node %s type %s only support symbol tiling. Try turns to tiling on symbol.", node->GetNamePtr(),
+           node->GetTypePtr());
     auto inputs_holders = BuildCommonSymbolTilingInputs(node, lower_inputs, input_shapes);
     GE_ASSERT_TRUE(!inputs_holders.empty());
-    if (TilingCacheUtils::IsTilingCacheEnabled()) {
-      auto get_tiling_cache_key_holder = BuildSymbolTilingCacheKey(input_shapes, node, lower_inputs);
-      GE_ASSERT_NOTNULL(get_tiling_cache_key_holder);
-      inputs_holders.emplace_back(get_tiling_cache_key_holder);
-      GE_ASSERT_SUCCESS(BuildCacheableTilingFwkDataInputs(
-          node, lower_inputs, 0U, "BuildSymbolTilingCacheKey", inputs_holders));
-      GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, inputs_holders));
-      return bg::ValueHolder::CreateDataOutput("CacheableTiling", inputs_holders, tiling_output_num);
-    } else {
-      GE_ASSERT_SUCCESS(BuildTilingFwkDataInputs(node, lower_inputs, inputs_holders));
-      GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, inputs_holders));
-      return ValueHolder::CreateDataOutput("Tiling", inputs_holders, tiling_output_num);
-    }
+    auto get_tiling_cache_key_holder = BuildSymbolTilingCacheKey(input_shapes, node, lower_inputs);
+    GE_ASSERT_NOTNULL(get_tiling_cache_key_holder);
+    inputs_holders.emplace_back(get_tiling_cache_key_holder);
+    GE_ASSERT_SUCCESS(
+        BuildCacheableTilingFwkDataInputs(node, lower_inputs, 0U, "BuildSymbolTilingCacheKey", inputs_holders));
+    GE_ASSERT_SUCCESS(BuildTilingDeterministicInput(node, lower_inputs.global_data, inputs_holders));
+    return bg::ValueHolder::CreateDataOutput("CacheableTiling", inputs_holders, tiling_output_num);
   }
   GE_ASSERT_NOTNULL(node);
   GE_ASSERT_NOTNULL(node->GetOpDesc());

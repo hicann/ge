@@ -12,6 +12,7 @@
 #include "common/memory/tensor_trans_utils.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "ge_context.h"
+#include "formats/utils/formats_trans_utils.h"
 
 #define JIT_CTRL_ASSERT(exp, ...)               \
   do {                                          \
@@ -31,16 +32,18 @@ namespace ge {
 namespace {
 std::string UserGraphExecutionToString(const std::unique_ptr<UserGraphExecution> &task) {
   std::stringstream ss;
-  ss << "ExeTask inputs_size: [" << task->rt_inputs.size() << "],";
-  for (size_t i = 0U; i < task->external_inputs.size(); ++i) {
-    auto ge_tensor = TensorAdapter::AsGeTensor(task->external_inputs[i]);
-    ss << i << ":[";
-    ss << "shape:[" << ge_tensor.GetTensorDesc().GetShape().ToString() << "],";
-    ss << "origin_shape:[" << ge_tensor.GetTensorDesc().GetOriginShape().ToString() << "],";
-    ss << "format:[" << TypeUtils::FormatToSerialString(ge_tensor.GetTensorDesc().GetFormat()) << "],";
-    ss << "origin_format:[" << TypeUtils::FormatToSerialString(ge_tensor.GetTensorDesc().GetOriginFormat()) << "],";
-    ss << "dtype:[" << TypeUtils::DataTypeToSerialString(ge_tensor.GetTensorDesc().GetDataType()) << "]";
-    ss << "]";
+  if ((task != nullptr) && (task->external_rt_inputs != nullptr)) {
+    ss << "ExeTask inputs_size: [" << task->external_rt_inputs->size() << "],";
+    for (size_t i = 0U; i < task->external_rt_inputs->size(); ++i) {
+      const auto &gert_tensor = task->external_rt_inputs->at(i);
+      ss << i << ":[";
+      ss << "shape:[" << formats::GertShapeToString(gert_tensor.GetStorageShape()) << "],";
+      ss << "origin_shape:[" << formats::GertShapeToString(gert_tensor.GetOriginShape()) << "],";
+      ss << "format:[" << TypeUtils::FormatToSerialString(gert_tensor.GetStorageFormat()) << "],";
+      ss << "origin_format:[" << TypeUtils::FormatToSerialString(gert_tensor.GetOriginFormat()) << "],";
+      ss << "dtype:[" << TypeUtils::DataTypeToSerialString(gert_tensor.GetDataType()) << "]";
+      ss << "]";
+    }
   }
   return ss.str();
 }
@@ -114,9 +117,8 @@ Status UserGraphControl::Finalize() {
 }
 
 Status UserGraphControl::AddGraphInstance() {
-  auto jit_executor = JitExecutor::Create(inner_session_, executions_, order_, compile_context_, cmc_, compile_mutex_);
-  JIT_CTRL_ASSERT_NOTNULL(jit_executor, "[Session:%lu][UserGraph:%u]Failed to create jit executor instance.",
-                          inner_session_.GetSessionId(), user_graph_id_);
+  auto jit_executor = JitExecutor::Create(graph_manager_, executions_, order_, compile_context_, cmc_, compile_mutex_);
+  JIT_CTRL_ASSERT_NOTNULL(jit_executor, "[UserGraph:%u]Failed to create jit executor instance.", user_graph_id_);
   JIT_CTRL_ASSERT_SUCCESS(jit_executor_pool_.AddJitExecutor(jit_executor));
   const auto size = jit_executor_pool_.Size();
   GELOGD("[AddGraphInstance]Add new jit executor for graph[%u], total instance is %zu.", user_graph_id_,
@@ -140,7 +142,7 @@ std::map<AscendString, AscendString> UserGraphControl::GetLoadOptions() const {
   return load_options_;
 }
 
-Status UserGraphControl::CompileCompleteGraph() {
+Status UserGraphControl::CompileCompleteGraph(uint64_t session_id) {
   auto iter = user_graph_id_to_ins_id.find(user_graph_id_);
   uint32_t instance_id = 0;
   if (iter == user_graph_id_to_ins_id.end()) {
@@ -149,13 +151,13 @@ Status UserGraphControl::CompileCompleteGraph() {
     GE_ASSERT_NOTNULL(new_graph);
     GE_ASSERT_SUCCESS(GraphUtils::CopyComputeGraph(order_.GetUserGraph().compute_graph, new_graph));
     Graph graph_to_add = GraphUtilsEx::CreateGraphFromComputeGraph(new_graph);
-    GE_ASSERT_SUCCESS(inner_session_.AddGraph(instance_id, graph_to_add));
+    GE_ASSERT_SUCCESS(graph_manager_.AddGraph(instance_id, graph_to_add, {}, domi::GetContext()));
     user_graph_id_to_ins_id.emplace(user_graph_id_, instance_id);
   } else {
     instance_id = iter->second;
   }
   GELOGD("CompileGraph by inner session user_graph_id:%u instance_id:%u.", user_graph_id_, instance_id);
-  return inner_session_.CompileGraph(instance_id);
+  return graph_manager_.CompileGraph(instance_id, session_id, {});
 }
 
 /*
@@ -165,25 +167,25 @@ Status UserGraphControl::CompileCompleteGraph() {
  * 2、对于图的data节点为动态tensor：a.不会切图的情况下，生成对于的ins id直接进行整图编译，不进入jit流程(因为通过动态tensor构造的hint产生的符号以及guard没有意义，后面执行时还是要根据input重编译，因此也不需要进入jit流程)
  *                                b.会切图的情况下，生成对于的ins id直接进行整图编译，不进入jit流程
  */
-Status UserGraphControl::CompileGraph() {
+Status UserGraphControl::CompileGraph(uint64_t session_id) {
   bool is_unknown_input_shape{false};
-  auto inputs = order_.GetInputTensors(is_unknown_input_shape);
+  const auto &inputs = order_.GetInputTensors(is_unknown_input_shape);
   if (is_unknown_input_shape) {
     GELOGI("CompileGraph dynamic graph %u need compile whole graph not by JIT.", user_graph_id_);
-    GE_ASSERT_SUCCESS(CompileCompleteGraph());
+    GE_ASSERT_SUCCESS(CompileCompleteGraph(session_id));
     return SUCCESS;
   }
-  auto compile_task = MakeUnique<UserGraphExecution>(user_graph_id_, std::move(inputs), nullptr);
+  auto compile_task = MakeUnique<UserGraphExecution>(user_graph_id_, inputs, nullptr, session_id);
   GE_ASSERT_NOTNULL(compile_task);
 
   GELOGI("CompileGraph USER_GRAPH[%u] with %s", user_graph_id_, UserGraphExecutionToString(compile_task).c_str());
   auto jit_executor = jit_executor_pool_.GetIdleExecutor();
   JIT_CTRL_ASSERT_NOTNULL(jit_executor);
-  auto ret = jit_executor->CompileGraph(*compile_task);
+  auto ret = jit_executor->CompileGraph(*compile_task, session_id);
   jit_executor_pool_.BackToIdle(jit_executor);
   if (ret == ge::GE_GRAPH_NOT_BUILT) {
     GELOGI("CompileGraph graph %u need compile whole graph not by JIT.", user_graph_id_);
-    GE_ASSERT_SUCCESS(CompileCompleteGraph());
+    GE_ASSERT_SUCCESS(CompileCompleteGraph(session_id));
   }
   return SUCCESS;
 }
@@ -192,25 +194,19 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
   CompiledGraphSummaryPtr ret{nullptr};
   auto iter = user_graph_id_to_ins_id.find(user_graph_id_);
   if (iter != user_graph_id_to_ins_id.end()) {
-    GE_ASSERT_SUCCESS(inner_session_.GetCompiledGraphSummary(iter->second, ret));
+    GE_ASSERT_SUCCESS(graph_manager_.GetCompiledGraphSummary(iter->second, ret));
     return ret;
   }
 
   bool is_unknown_input_shape{false};
-  auto inputs = order_.GetInputTensors(is_unknown_input_shape);
+  const auto &inputs = order_.GetInputTensors(is_unknown_input_shape);
   if (is_unknown_input_shape) {
     GELOGI("dynamic graph %u skip.", user_graph_id_);
     return nullptr;
   }
 
   GELOGI("GetCompiledGraphSummary USER_GRAPH[%u]", user_graph_id_);
-  std::vector<gert::Tensor> rt_inputs;
-  rt_inputs.resize(inputs.size());
-  for (size_t i = 0U; i < inputs.size(); ++i) {
-    GE_ASSERT_SUCCESS(TensorTransUtils::TransTensorToGertTensor(inputs[i], rt_inputs[i]));
-  }
-  ExecutionPoint *ep;
-  ep = order_.GetFirstPoint();
+  ExecutionPoint *ep = order_.GetFirstPoint();
   if (ep == nullptr) {
     GELOGI("CompiledGraph is not exist. USER_GRAPH[%u]", user_graph_id_);
     return nullptr;
@@ -221,7 +217,7 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
     return nullptr;
   }
 
-  auto gep = ep->FindGuarded(rt_inputs);
+  auto gep = ep->FindGuarded(inputs);
   if (gep == nullptr || !gep->Compiled()) {
     GELOGD("Guarde is not exist or Compiled");
     return nullptr;
@@ -234,13 +230,13 @@ CompiledGraphSummaryPtr UserGraphControl::GetCompiledGraphSummary() {
 
 Status UserGraphControl::LoadGraph(const std::map<AscendString, AscendString> &options, void *stream) {
   bool is_unknown_input_shape{false};
-  auto inputs = order_.GetInputTensors(is_unknown_input_shape);
+  const auto &inputs = order_.GetInputTensors(is_unknown_input_shape);
   if (is_unknown_input_shape) {
     GELOGI("CompileGraph dynamic graph %u skip.", user_graph_id_);
     SetLoadOptions(options);
     return SUCCESS;
   }
-  auto load_task = MakeUnique<UserGraphExecution>(user_graph_id_, std::move(inputs), nullptr);
+  auto load_task = MakeUnique<UserGraphExecution>(user_graph_id_, inputs, nullptr, INVALID_SESSION_ID);
   GE_ASSERT_NOTNULL(load_task);
   load_task->stream = stream;
   load_task->load_options = options;
@@ -305,6 +301,15 @@ void UserGraphControl::ExecuteUserGraph() {
     jit_futures_.emplace(std::move(fut));
   }
 }
+
+bool UserGraphControl::GetCompiledFlag() const {
+  return compiled_flag_;
+}
+
+void UserGraphControl::SetCompiledFlag(bool flag) {
+  compiled_flag_ = flag;
+}
+
 bool UserGraphControl::IsUserGraphNeedRebuild() {
   const auto is_need_rebuild = jit_executor_pool_.IsGraphNeedRebuild();
   GELOGI("Graph instance id %u need rebuild : %d", user_graph_id_, is_need_rebuild);

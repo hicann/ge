@@ -425,7 +425,7 @@ class GeGenerator::Impl {
   Status SaveModel(const std::string &file_name_prefix, GeModelPtr &model, ModelBufferData &model_buff) const;
 
   Status SaveRootModel(const std::string &file_name_prefix, const GeRootModelPtr &ge_root_model,
-                       ModelBufferData &model_buff, OfflineModelFormat om_format = OM_FORMAT_DEFAULT) const;
+                       ModelBufferData &model_buff, OfflineModelFormat om_format = OfflineModelFormat::OM_FORMAT_DEFAULT) const;
   Status SaveParams(GeModelPtr &ge_model, const std::string &type, const std::map<std::string, GeAttrValue> &attrs,
                     const std::vector<GeTensor> &inputs, const std::vector<GeTensor> &outputs);
 
@@ -834,7 +834,7 @@ Status GeGenerator::CheckForSingleOp(const OpDescPtr &op_desc, const std::vector
     REPORT_PREDEFINED_ERR_MSG("E14001", std::vector<const char *>({"opname", "optype", "value", "reason"}),
         std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(),
         ("inputs size" + FmtToStr(op_desc->GetAllInputsSize())).c_str(),
-        ("tensor size is " + FmtToStr(inputs.size())).c_str()}));
+        ("Input size is not equal to tensor size " + FmtToStr(inputs.size())).c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] Tensor size: %zu, op:%s(%s) Inputs size: %zu, not equal",
            inputs.size(), op_desc->GetName().c_str(), op_desc->GetType().c_str(), op_desc->GetAllInputsSize());
     return PARAM_INVALID;
@@ -843,7 +843,7 @@ Status GeGenerator::CheckForSingleOp(const OpDescPtr &op_desc, const std::vector
     REPORT_PREDEFINED_ERR_MSG("E14001", std::vector<const char *>({"opname", "optype", "value", "reason"}),
         std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(),
         ("outputs size" + FmtToStr(op_desc->GetOutputsSize())).c_str(),
-        ("tensor size is " + FmtToStr(outputs.size())).c_str()}));
+        ("Input size is not equal to tensor size " + FmtToStr(outputs.size())).c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] Tensor size: %zu, op:%s(%s) Outputs size: %zu, not equal",
            outputs.size(), op_desc->GetName().c_str(), op_desc->GetType().c_str(), op_desc->GetOutputsSize());
     return PARAM_INVALID;
@@ -1386,7 +1386,7 @@ Status GeGenerator::CheckEngineTypeSupport(const NodePtr &node, OpEngineType eng
     REPORT_PREDEFINED_ERR_MSG(
         "E14001", std::vector<const char *>({"opname", "optype", "value", "reason"}),
         std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(),
-        "engine type", "it only support default/AIcoreEngine/VectorEngine"}));
+        "engine type", "It only supports default/AIcoreEngine/VectorEngine"}));
     GELOGE(FAILED,
            "[Check][Param] value:%d not support, "
            "only support default/AIcoreEngine/VectorEngine now",
@@ -1409,9 +1409,9 @@ Status GeGenerator::CheckEngineTypeSupport(const NodePtr &node, OpEngineType eng
   auto &ops_kernel_manager = instance_ptr->OpsKernelManagerObj();
   const auto &op_infos = ops_kernel_manager.GetOpsKernelInfo(op_desc->GetType());
   if (op_infos.empty()) {
-    REPORT_PREDEFINED_ERR_MSG(
-        "E14001", std::vector<const char *>({"opname", "optype", "value", "reason"}),
-        std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(), "optype", "it can not find"}));
+    REPORT_PREDEFINED_ERR_MSG("E14001", std::vector<const char *>({"opname", "optype", "value", "reason"}),
+                              std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(),
+                                                         "optype", "This optype is not registed"}));
     GELOGE(FAILED, "[Get][OpInfo] by op type %s failed.", op_desc->GetType().c_str());
     return FAILED;
   }
@@ -1423,10 +1423,10 @@ Status GeGenerator::CheckEngineTypeSupport(const NodePtr &node, OpEngineType eng
     }
   }
   if (kernel_name.empty()) {
-    REPORT_PREDEFINED_ERR_MSG(
-        "E14001", std::vector<const char *>({"opname", "optype", "value", "reason"}),
-        std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(),
-        ("engine name" + FmtToStr(op_engine_name)).c_str(), "it can not find"}));
+    REPORT_PREDEFINED_ERR_MSG("E14001", std::vector<const char *>({"opname", "optype", "value", "reason"}),
+                              std::vector<const char *>({op_desc->GetName().c_str(), op_desc->GetType().c_str(),
+                                                         ("engine name" + FmtToStr(op_engine_name)).c_str(),
+                                                         "This optype is not registed"}));
     GELOGE(FAILED, "[Check][Param] Can not find ops kernel, engine name:%s. op:%s(%s)", op_engine_name.c_str(),
            op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return FAILED;
@@ -1531,7 +1531,7 @@ Status GeGenerator::Impl::SaveRootModel(const std::string &file_name_prefix, con
   SetHostEnvOsCpuInfo(ge_root_model, *(model_root.get()));
   if (IsMobile()) {
     GELOGI("[Mobile] set om_format to OM_FORMAT_MOBILE.");
-    om_format = OM_FORMAT_MOBILE;
+    om_format = OfflineModelFormat::OM_FORMAT_MOBILE;
   }
   const auto model_save_helper = ModelSaveHelperFactory::Instance().Create(om_format);
   GE_CHECK_NOTNULL(model_save_helper);

@@ -9,7 +9,7 @@
  */
 
 #include "register/graph_optimizer/fusion_common/unknown_shape_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 namespace fe {
 const std::string ATTR_NAME_UNKNOWN_SHAPE_OP = "_unknown_shape";
 bool UnknownShapeUtils::IsUnKnownShapeTensor(const ge::OpDesc &op_desc) {

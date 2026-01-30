@@ -173,6 +173,52 @@ class InputHandler {
     oss << "convert_to_tensor_holder(" << var_name << ", " << PyGenConstants::kOwnerGraphBuilder << ")";
     return oss.str();
   }
+
+  static void GenOwnerGraphBuilder(const std::pair<std::string, IrInputType> &input_info, std::stringstream &ss) {
+    const std::string &input_name = InName(input_info.first);
+    const IrInputType &input_type = input_info.second;
+
+    if (input_type == kIrInputRequired || input_type == kIrInputOptional) {
+      // 必需/可选输入，直接返回
+      ss << input_name << ".get_owner_builder()";
+      return;
+    }
+    if (input_type == kIrInputDynamic) {
+      // 动态输入，使用列表的第一个元素
+      ss << input_name << "[0].get_owner_builder()";
+      return;
+    }
+    throw std::runtime_error("GetOwnerGraphBuilder: input type: " + std::to_string(input_type) + " is not valid");
+  }
+
+  static void GenOwnerGraphBuilder(const std::vector<std::pair<std::string, IrInputType>> &input_infos,
+                                   std::stringstream &ss) {
+    ss << "resolve_builder(";
+    bool first = true;
+
+    for (const auto &input : input_infos) {
+      if (!first) {
+        ss << ", ";
+      }
+      first = false;
+
+      const std::string &input_name = InName(input.first);
+      const IrInputType &input_type = input.second;
+
+      if (input_type == kIrInputRequired || input_type == kIrInputOptional) {
+        ss << input_name;
+      } else if (input_type == kIrInputDynamic) {
+        // 动态输入，如果列表不为空，展开列表；如果为空，展开 [None]
+        ss << "*(" << input_name << " if " << input_name << " else [None])";
+      } else {
+        throw std::runtime_error("GetOwnerGraphBuilder: input type: " + std::to_string(input_type) + " is not valid");
+      }
+    }
+    if (IsOpInputsAllOptional(input_infos)) {
+      ss << ", "<< PyGenConstants::kOwnerBuilder;
+    }
+    ss << ")" << std::endl;
+  }
 };
 
 // ==================== 动态输出处理工具 ====================
@@ -555,7 +601,10 @@ class StringConverter {
   }
 
   static void ReplaceString(std::string& str, const char *from, const char *to) {
-    if (!from || !*from) return;  // 避免空指针或空字符串
+    // 避免空指针或空字符串
+    if (from == nullptr || *from == '\0') {
+      return;
+    }
     std::string from_str(from);
     std::string to_str(to);
 
@@ -566,50 +615,6 @@ class StringConverter {
     }
   }
 };
-
-static void GenOwnerGraphBuilder(const std::pair<std::string, IrInputType> &input_info, std::stringstream &ss) {
-  const std::string &input_name = InName(input_info.first);
-  const IrInputType &input_type = input_info.second;
-
-  if (input_type == kIrInputRequired || input_type == kIrInputOptional) {
-    // 必需/可选输入，直接返回
-    ss << input_name << ".get_owner_builder()";
-    return;
-  }
-  if (input_type == kIrInputDynamic) {
-    // 动态输入，使用列表的第一个元素
-    ss << input_name << "[0].get_owner_builder()";
-    return;
-  }
-  throw std::runtime_error("GetOwnerGraphBuilder: input type: " + std::to_string(input_type) + " is not valid");
-}
-
-static void GenOwnerGraphBuilder(const std::vector<std::pair<std::string, IrInputType>> &input_infos,
-                                 std::stringstream &ss) {
-  ss << "resolve_builder(";
-  bool first = true;
-
-  for (const auto &input : input_infos) {
-    if (!first) ss << ", ";
-    first = false;
-
-    const std::string &input_name = InName(input.first);
-    const IrInputType &input_type = input.second;
-
-    if (input_type == kIrInputRequired || input_type == kIrInputOptional) {
-      ss << input_name;
-    } else if (input_type == kIrInputDynamic) {
-      // 动态输入，如果列表不为空，展开列表；如果为空，展开 [None]
-      ss << "*(" << input_name << " if " << input_name << " else [None])";
-    } else {
-      throw std::runtime_error("GetOwnerGraphBuilder: input type: " + std::to_string(input_type) + " is not valid");
-    }
-  }
-  if (IsOpInputsAllOptional(input_infos)) {
-    ss << ", "<< PyGenConstants::kOwnerBuilder;
-  }
-  ss << ")" << std::endl;
-}
 }  // namespace es
 }  // namespace ge
 

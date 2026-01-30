@@ -13,7 +13,7 @@
 #include "common/checker.h"
 
 #include "register/custom_pass_helper.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "common/plugin/plugin_manager.h"
 #include "register/custom_pass_context_impl.h"
@@ -44,9 +44,8 @@ Status RunAllocateStreamPass(const PassRegistrationData &reg_data, const GraphPt
     GE_LOGE("[Check][Param] It is required CustomAllocateStreamPassFunc of [%s] at stage[%s] but got nullptr.",
             reg_data.GetPassName().c_str(), CustomPassStageToString(reg_data.GetStage()).c_str());
     std::stringstream reason;
-    reason << "It is required CustomAllocateStreamPassFunc in stage " << CustomPassStageToString(reg_data.GetStage()) <<
-        ", but got nullptr";
-    REPORT_PREDEFINED_ERR_MSG("E13030", std::vector<const char_t *>({"passname", "reason"}),
+    reason << "Custom stream allocation pass function is required in stage " << CustomPassStageToString(reg_data.GetStage()) << ", but got nullptr";
+    (void) REPORT_PREDEFINED_ERR_MSG("E13030", std::vector<const char_t *>({"passname", "reason"}),
                               std::vector<const char_t *>({reg_data.GetPassName().c_str(), reason.str().c_str()}));
     return FAILED;
   }
@@ -65,7 +64,7 @@ Status RunAllocateStreamPass(const PassRegistrationData &reg_data, const GraphPt
   if (ret != SUCCESS) {
     GE_LOGE("Execution of custom pass [%s] failed! Reason: %s.", reg_data.GetPassName().c_str(),
             custom_pass_context.GetErrorMessage().GetString());
-    REPORT_PREDEFINED_ERR_MSG(
+    (void) REPORT_PREDEFINED_ERR_MSG(
         "E13028", std::vector<const char_t *>({"passname", "retcode", "reason"}),
         std::vector<const char_t *>({reg_data.GetPassName().c_str(), std::to_string(ret).c_str(),
                                      std::string(custom_pass_context.GetErrorMessage().GetString()).c_str()}));
@@ -85,7 +84,7 @@ Status RunCustomPass(const PassRegistrationData &reg_data, GraphPtr &graph, Cust
   if (ret != SUCCESS) {
     GE_LOGE("Execution of custom pass [%s] failed! Reason: %s.", reg_data.GetPassName().c_str(),
             custom_pass_context.GetErrorMessage().GetString());
-    REPORT_PREDEFINED_ERR_MSG(
+    (void) REPORT_PREDEFINED_ERR_MSG(
         "E13028", std::vector<const char_t *>({"passname", "retcode", "reason"}),
         std::vector<const char_t *>({reg_data.GetPassName().c_str(), std::to_string(ret).c_str(),
                                      std::string(custom_pass_context.GetErrorMessage().GetString()).c_str()}));
@@ -180,6 +179,8 @@ CustomPassContext::CustomPassContext() {
   }
 }
 
+CustomPassContext::~CustomPassContext() = default;
+
 void CustomPassContext::SetErrorMessage(const AscendString &error_message) {
   if (impl_ != nullptr) {
     impl_->SetErrorMessage(error_message);
@@ -191,6 +192,11 @@ AscendString CustomPassContext::GetErrorMessage() const {
     return impl_->GetErrorMessage();
   }
   return "";
+}
+
+graphStatus CustomPassContext::GetOptionValue(const AscendString &option_key, AscendString &option_value) const {
+  GE_ASSERT_NOTNULL(impl_);
+  return impl_->GetOptionValue(option_key, option_value);
 }
 
 StreamPassContext::StreamPassContext(int64_t current_max_stream_id) {
@@ -254,13 +260,13 @@ Status CustomPassHelper::Load() {
     void *handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
     if (handle == nullptr) {
       const char* error = dlerror();
-      REPORT_PREDEFINED_ERR_MSG(
+      (void) REPORT_PREDEFINED_ERR_MSG(
           "E13029", std::vector<const char_t *>({"passlibname", "reason"}),
           std::vector<const char_t *>({so_file.c_str(), error}));
       GELOGE(ge::FAILED, "Failed to load %s: %s", so_file.c_str(), error);
       return ge::FAILED;
     }
-    handles_.emplace_back(handle);
+    (void) handles_.emplace_back(handle);
     GELOGI("Load custom pass lib %s success", so_file.c_str());
   }
   return ge::SUCCESS;

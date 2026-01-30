@@ -13,7 +13,6 @@
 #include <fstream>
 #include <sstream>
 #include <regex>
-#include <sys/stat.h>
 #include "mmpa/mmpa_api.h"
 
 namespace acl {

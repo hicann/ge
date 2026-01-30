@@ -34,7 +34,6 @@
 #include "register/node_converter_registry.h"
 #include "graph_builder/bg_infer_shape.h"
 #include "ge_local_context.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 using namespace gert;
 namespace ge {

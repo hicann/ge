@@ -215,6 +215,8 @@ TEST_F(UtestGraphPassesAtomicAddrCleanPass, GraphAtomicMix) {
   GraphUtils::AddEdge(node0->GetOutDataAnchor(0), node2->GetInDataAnchor(1));
   GraphUtils::AddEdge(node2->GetOutDataAnchor(0), net_output->GetInDataAnchor(0));
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
   auto ret = atomic_clean_pass_.Run(graph_);
@@ -257,6 +259,8 @@ TEST_F(UtestGraphPassesAtomicAddrCleanPass, TransDataRefFromVariable_NeedCleanSe
   GraphUtils::AddEdge(transdata1->GetOutDataAnchor(0), assign->GetInDataAnchor(1));
   GraphUtils::AddEdge(transdata2->GetOutDataAnchor(0), net_output->GetInDataAnchor(0));
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
   auto ret = atomic_clean_pass_.Run(graph_);
@@ -487,6 +491,8 @@ TEST_F(UtestGraphPassesAtomicAddrCleanPass, GraphWithOneTBEAtomicNodeWithUnknowS
   graph_->SetGraphUnknownFlag(true);
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
 
@@ -598,6 +604,8 @@ TEST_F(UtestGraphPassesAtomicAddrCleanPass, GraphWithOneTBEAtomicNodeWithUnknowS
   Op2_subgraph_desc->MutableOutputDesc(0)->SetShape(GeShape(dims));
 
   std::shared_ptr<GELib> instancePtr = ge::GELib::GetInstance();
+  std::shared_ptr<OpsKernelManager> opsKernelManager =
+      std::make_shared<OpsKernelManager>(instancePtr->OpsKernelManagerObj());
   auto opkernel = std::make_shared<TestOpsKernelInfoStore>();
   instancePtr->OpsKernelManagerObj().ops_kernel_store_.insert(std::make_pair("aicore_kernel", opkernel));
   auto ret = atomic_clean_pass_.Run(graph_);

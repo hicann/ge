@@ -480,7 +480,6 @@ Status ModelManager::KernelLaunchEx(const aicpu::FWKAdapter::FWKOperateType op_t
   GE_CHK_RT_RET(rtStreamCreate(&stream, 0));
   GE_CHK_RT_RET(rtKernelLaunchEx(device_base, op_kernel_size, 0U, stream));
   GE_CHK_RT_RET(rtStreamSynchronize(stream));
-
   return SUCCESS;
 }
 
@@ -872,24 +871,6 @@ Status ModelManager::Unload(const uint32_t model_id) {
   return SUCCESS;
 }
 
-Status ModelManager::SyncExecuteModel(const InputData &input_data, OutputData &output_data,
-                                      std::vector<GeTensor> &output_tensor) {
-  GELOGI("SyncExecuteModel execute in, model_id:[%u].", input_data.model_id);
-  const auto &model = GetModel(input_data.model_id);
-  GE_CHECK_NOTNULL(model);
-  const auto device_id = model->GetDeviceId();
-  GE_CHK_RT_RET(rtSetDevice(static_cast<int32_t>(device_id)));
-  GE_MAKE_GUARD(reset_device, [device_id]() {
-    GE_CHK_RT(rtDeviceReset(static_cast<int32_t>(device_id)));
-  });
-  GE_CHK_STATUS_RET(model->NnExecute(nullptr, false, input_data, output_data,
-                    {}, output_tensor));
-  GELOGI("Execute model %u success, device id is %d.", input_data.model_id, device_id);
-  model->UpdateOutputTensorShape(output_tensor);
-  GELOGI("UpdateOutputTensorShape for model:[%u] success.", input_data.model_id);
-  return SUCCESS;
-}
-
 Status ModelManager::SyncExecuteModel(const uint32_t model_id, const std::vector<gert::Tensor> &inputs,
                                       std::vector<gert::Tensor> &outputs) {
   GELOGI("SyncExecuteModel execute in, model_id:[%u].", model_id);
@@ -906,27 +887,6 @@ Status ModelManager::SyncExecuteModel(const uint32_t model_id, const std::vector
   return SUCCESS;
 }
 
-void ModelManager::GenDataInputOutputData(const uint32_t model_id, const std::vector<Tensor> &inputs,
-                                          InputData &input_data, OutputData &output_data) {
-  input_data.model_id = model_id;
-  input_data.timeout = 0U;
-  input_data.timestamp = 0U;
-  input_data.index = 0U;
-  input_data.blobs.reserve(inputs.size());
-  for (size_t i = 0U; i < inputs.size(); ++i) {
-    const TensorDesc &tensor_desc = inputs[i].GetTensorDesc();
-    input_data.shapes.emplace_back(tensor_desc.GetShape().GetDims());
-    DataBuffer data_blob;
-    data_blob.data = ValueToPtr(PtrToValue(inputs[i].GetData()));
-    data_blob.length = inputs[i].GetSize();
-    data_blob.placement = static_cast<uint32_t>(tensor_desc.GetPlacement());
-    input_data.blobs.push_back(data_blob);
-  }
-  output_data.model_id = model_id;
-  output_data.index = 0U;
-  return;
-}
-
 ///
 /// @ingroup domi_ome
 /// @brief load Input and output TensorInfo for Model
@@ -934,39 +894,6 @@ void ModelManager::GenDataInputOutputData(const uint32_t model_id, const std::ve
 /// @author
 ///
 Status ModelManager::DataInputTensor(const uint32_t model_id, const std::shared_ptr<RunArgs> &args) {
-  const auto &model = GetModel(model_id);
-  const auto &hybrid_model = GetHybridModel(model_id);
-  if (hybrid_model != nullptr) {
-    return DataInputTensorHybrid(model_id, hybrid_model, args);
-  }
-  GE_CHECK_NOTNULL(model);
-
-  auto data_wrap = MakeShared<InputDataWrapper>(args);
-  GE_CHECK_NOTNULL(data_wrap);
-  InputData &input_data = data_wrap->GetInput();
-  input_data.model_id = model_id;
-  input_data.timeout = 0U;
-  input_data.timestamp = 0U;
-  input_data.index = 0U;
-
-  OutputData *output_data = data_wrap->GetOutput();
-  output_data->model_id = model_id;
-  output_data->index = 0U;
-
-  GE_CHK_STATUS_EXEC(model->Push(data_wrap), return domi::DATA_QUEUE_ISFULL,
-                     "[Call][Push] Data queue is full, please call again later, model_id:%u", model_id);
-
-  GELOGD("Data input success, model_id:%u", model_id);
-  return SUCCESS;
-}
-
-///
-/// @ingroup domi_ome
-/// @brief load Input and output TensorInfo for Model
-/// @return Status run result
-/// @author
-///
-Status ModelManager::DataInputTensor(const uint32_t model_id, const std::shared_ptr<RunArgsV2> &args) {
   const auto &hybrid_model = GetHybridModel(model_id);
   if (hybrid_model != nullptr) {
     GE_CHECK_NOTNULL(args);
@@ -980,19 +907,6 @@ Status ModelManager::DataInputTensor(const uint32_t model_id, const std::shared_
                      "[Call][Push] Data queue is full, please call again later, model_id:%u", model_id);
 
   GELOGD("Data input success, model_id:%u", model_id);
-  return SUCCESS;
-}
-
-Status ModelManager::DataInputTensorHybrid(const uint32_t model_id,
-  std::shared_ptr<hybrid::HybridDavinciModel> hybrid_model, const std::shared_ptr<RunArgs> &args) {
-  InputData input_data;
-  OutputData output_data;
-  const std::vector<Tensor> &inputs = args->input_tensor;
-  GenDataInputOutputData(model_id, inputs, input_data, output_data);
-  const auto data_wrap = MakeShared<InputDataWrapper>(input_data, output_data);
-  GE_CHECK_NOTNULL(data_wrap);
-  GE_CHK_STATUS_RET(hybrid_model->EnqueueData(data_wrap),
-                    "[Enqueue][Data] Data queue is full, please call again later, model_id:%u", model_id);
   return SUCCESS;
 }
 
@@ -1656,7 +1570,7 @@ Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id,
     GELOGE(ret, "[Set][Ids] for model queue failed, ret:%d, model_id:%u.", ret, model_id);
     return ret;
   }
-
+  GE_CHK_STATUS_RET(davinci_model->SetQueueType(), "Set queue type failed!");
   // set dynamic sched info
   davinci_model->SetNeedModelConfig(model_queue_param.need_model_config);
   davinci_model->SetModelUuid(model_queue_param.model_uuid);
@@ -2190,22 +2104,22 @@ KernelBinPtr ModelManager::GetCustTilingDeviceSoBin(const std::string &unique_so
   return MakeShared<OpKernelBin>(unique_so_name, std::vector<char_t>(data, data + op_so_bin->GetBinDataSize()));
 }
 
-std::string ModelManager::GetBuiltinTilingDeviceSoName(const std::string &so_name) {
+std::string ModelManager::GetBuiltinTilingDeviceSoName(const std::string &so_name) const {
   const auto &pos = so_name.find_last_of("/");
   GE_ASSERT_TRUE(pos != std::string::npos);
   return so_name.substr(pos + 1UL);
 }
 
-KernelBinPtr ModelManager::GetBuiltinTilingDeviceSoBin(const std::string &unique_so_name) {
+KernelBinPtr ModelManager::GetBuiltinTilingDeviceSoBin(const std::string &so_name) {
   OpSoBinPtr op_so_bin = nullptr;
   {
     const std::lock_guard<std::mutex> lk(op_master_device_mutex_);
-    op_so_bin = built_in_op_master_so_names_to_bin_[unique_so_name];
+    op_so_bin = built_in_op_master_so_names_to_bin_[so_name];
   }
-  GE_ASSERT_NOTNULL(op_so_bin, "find so name %s of built_in op_master_so failed", unique_so_name.c_str());
+  GE_ASSERT_NOTNULL(op_so_bin, "find so name %s of built_in op_master_so failed", so_name.c_str());
   const auto data = reinterpret_cast<char_t *>(op_so_bin->MutableBinData());
   GE_ASSERT_NOTNULL(data);
-  return MakeShared<OpKernelBin>(unique_so_name, std::vector<char_t>(data, data + op_so_bin->GetBinDataSize()));
+  return MakeShared<OpKernelBin>(so_name, std::vector<char_t>(data, data + op_so_bin->GetBinDataSize()));
 }
 
 Status ModelManager::LoadCustAicpuSoAndUpdateSoName(const uint32_t model_id, std::string &so_name) {
@@ -2372,7 +2286,8 @@ Status ModelManager::GetModelMemAndWeightSize(const ModelData &model, size_t &me
   // avoid simulated mode for static model
   const auto root_partition_table = *(reinterpret_cast<ModelPartitionTable *>(model_data));
   if ((!is_dynamic_model) && (root_partition_table.num == 1U)) {
-    const std::string reason = "The model cannot be executed. For static models, table number must be greater than 1.";
+    const std::string reason =
+        "The model cannot be executed. For static models, the table number must be greater than 1.";
     REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char_t *>({"reason"}),
                               std::vector<const char_t *>({reason.c_str()}));
     GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Param] om model is error, please use executable om model");
@@ -2419,9 +2334,7 @@ Status ModelManager::GetModelMemAndWeightSize(const ModelData &model, size_t &me
 }
 
 void ModelManager::GenModelId(uint32_t &id) {
-  const std::lock_guard<std::recursive_mutex> lk(map_mutex_);
-  ++max_model_id_;
-  id = max_model_id_;
+  id = max_model_id_.fetch_add(1);
 }
 
 Status ModelManager::GetOrigInputInfo(const uint32_t model_id, const uint32_t index,
@@ -2446,22 +2359,6 @@ Status ModelManager::GetAllAippInputOutputDims(const uint32_t model_id, const ui
 bool ModelManager::IsDynamicShape(const uint32_t model_id) {
   const auto &model = GetHybridModel(model_id);
   return model != nullptr;
-}
-
-Status ModelManager::SyncExecuteHybridModel(const uint32_t model_id, const std::vector<GeTensor> &inputs,
-                                      std::vector<GeTensor> &outputs) {
-  const auto &model = GetHybridModel(model_id);
-  if (model == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "partition_table num in model_data is 1, check invalid");
-    GELOGE(FAILED, "[Check][Param] Hybrid model not found. model id = %u.", model_id);
-    return FAILED;
-  }
-  const auto device_id = model->GetDeviceId();
-  GE_CHK_RT_RET(rtSetDevice(static_cast<int32_t>(device_id)));
-  GE_MAKE_GUARD(reset_device, [device_id]() {
-    GE_CHK_RT(rtDeviceReset(static_cast<int32_t>(device_id)));
-  });
-  return model->Execute(inputs, outputs);
 }
 
 Status ModelManager::SyncExecuteHybridModel(const uint32_t model_id, const std::vector<gert::Tensor> &inputs,
@@ -2685,30 +2582,6 @@ uint32_t ModelManager::GetDataInputerSize(const uint32_t model_id) {
 
   const auto davinci_model = GetModel(model_id);
   return (davinci_model != nullptr) ? davinci_model->GetDataInputerSize() : 0U;
-}
-
-Status ModelManager::SetCallback(const uint32_t model_id, const GeRootModelPtr &ge_root_model,
-                                 const RunAsyncCallback &callback) {
-  if (IsNeedHybridLoad(*ge_root_model)) {
-    const auto model = GetHybridModel(model_id);
-    GE_CHECK_NOTNULL(model);
-    return model->SetRunAsyncListenerCallback(callback);
-  } else {
-    const auto model = GetModel(model_id);
-    GE_CHECK_NOTNULL(model);
-    return model->SetRunAsyncListenerCallback(callback);
-  }
-  return SUCCESS;
-}
-
-Status ModelManager::SetCallbackHybridLoad(const uint32_t model_id, const GeRootModelPtr &ge_root_model,
-                                           const RunAsyncCallback &callback) {
-  if (IsNeedHybridLoad(*ge_root_model)) {
-    const auto model = GetHybridModel(model_id);
-    GE_CHECK_NOTNULL(model);
-    return model->SetRunAsyncListenerCallback(callback);
-  }
-  return SUCCESS;
 }
 
 Status ModelManager::SetCallbackHybridLoad(const uint32_t model_id, const GeRootModelPtr &ge_root_model,

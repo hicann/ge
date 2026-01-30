@@ -19,7 +19,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/debug/ge_op_types.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/utils/recover_ir_utils.h"
@@ -393,7 +393,7 @@ graphStatus RecoverIrUtils::RecoverIrInputAndOutput(const OpDescPtr &desc, IrDef
   return ge::GRAPH_SUCCESS;
 }
 
-graphStatus RecoverNodeIrDefinitions(const ge::NodePtr &node, std::string &op_type, IrDefinition &ir_def) {
+static graphStatus RecoverNodeIrDefinitions(const ge::NodePtr &node, std::string &op_type, IrDefinition &ir_def) {
   return RecoverIrUtils::RecoverOpDescIrDefinition(node->GetOpDesc(), op_type, ir_def);
 }
 graphStatus RecoverIrUtils::RecoverOpDescIrDefinition(const ge::OpDescPtr &desc, const std::string &op_type) {

@@ -17,8 +17,8 @@
 #include "graph/utils/file_utils.h"
 
 namespace ge {
-CompiledModelCache::CompiledModelCache(uint32_t user_graph_id, CompileContext &context, InnerSession &inner_session) : user_graph_id_(user_graph_id),
-       compile_context_(context), inner_session_(inner_session)	{
+CompiledModelCache::CompiledModelCache(uint32_t user_graph_id, CompileContext &context, GraphManager &graph_manager) : user_graph_id_(user_graph_id),
+       compile_context_(context), graph_manager_(graph_manager)	{
   user_graph_key_ = ModelCache::GetGraphKeyFromContext();
   if (user_graph_key_.empty()) {
     GELOGI("The user_graph_key is not set in the options, cmc will not restore or save cache.");

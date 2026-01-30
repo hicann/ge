@@ -14,9 +14,10 @@
 
 #include "register/register_custom_pass.h"
 #include "register/custom_pass_context_impl.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "register/custom_pass_helper.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "graph/ge_local_context.h"
 
 namespace ge {
 namespace {
@@ -87,7 +88,8 @@ TEST_F(UtestRegisterPass, CustomPassHelperRunTest) {
   ge::PassReceiver pass_receiver(pass_data);
   CustomPassHelper cust_helper;
   auto graph = std::make_shared<Graph>("test");
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   bool ret = cust_helper.Run(graph, custom_pass_context);
   EXPECT_EQ(ret, SUCCESS);
 
@@ -101,7 +103,8 @@ TEST_F(UtestRegisterPass, CustomPassHelperRunTest) {
 
 TEST_F(UtestRegisterPass, CustomPassHelperRunTest_Failed) {
   CustomPassHelper cust_helper;
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   PassRegistrationData pass_data2("registry2");
   pass_data2.CustomPassFn(MyCustomPass);
   cust_helper.registration_datas_.emplace_back(pass_data2);
@@ -112,7 +115,8 @@ TEST_F(UtestRegisterPass, CustomPassHelperRunTest_Failed) {
 
 TEST_F(UtestRegisterPass, CustomPassHelperRunTest_Success) {
   CustomPassHelper cust_helper;
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   PassRegistrationData pass_data2("registry2");
   pass_data2.CustomPassFn(MyCustomPass);
   cust_helper.registration_datas_.emplace_back(pass_data2);
@@ -235,7 +239,8 @@ TEST_F(UtestRegisterPass, CustomPassStage_AndRun_Success) {
   CustomPassHelper::Instance().Unload();
   CustomPassHelper::Instance().Insert(pass_reg_data);
   auto graph = std::make_shared<Graph>("test2");
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   EXPECT_EQ(CustomPassHelper::Instance().Run(graph, custom_pass_context), SUCCESS);
   EXPECT_EQ(pass_reg_data.GetStage(), CustomPassStage::kAfterInferShape);
 }
@@ -252,7 +257,8 @@ TEST_F(UtestRegisterPass, ConstGraphCustomPass_AndRun_SUCCESS) {
   CustomPassHelper::Instance().Unload();
   CustomPassHelper::Instance().Insert(pass_reg_data);
   auto graph = std::make_shared<Graph>("test2");
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   EXPECT_NE(CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
   EXPECT_EQ(pass_reg_data.GetStage(), CustomPassStage::kAfterAssignLogicStream);
 }
@@ -264,7 +270,8 @@ TEST_F(UtestRegisterPass, ConstGraphCustomPass_AndRun_Failed_RegisterWrongFunc) 
   CustomPassHelper::Instance().Unload();
   CustomPassHelper::Instance().Insert(pass_reg_data);
   auto graph = std::make_shared<Graph>("test2");
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   EXPECT_NE(CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
   EXPECT_EQ(pass_reg_data.GetStage(), CustomPassStage::kAfterAssignLogicStream);
 }
@@ -275,7 +282,8 @@ TEST_F(UtestRegisterPass, ConstGraphCustomPass_AndRun_Failed_FuncReturnError) {
   CustomPassHelper::Instance().Unload();
   CustomPassHelper::Instance().Insert(pass_reg_data);
   auto graph = std::make_shared<Graph>("error_graph");
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+  
   EXPECT_NE(CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterAssignLogicStream), SUCCESS);
   EXPECT_EQ(pass_reg_data.GetStage(), CustomPassStage::kAfterAssignLogicStream);
 }
@@ -286,7 +294,8 @@ TEST_F(UtestRegisterPass, ConstGraph_AfterBuiltinFusionCustomPass_AndRun_SUCCESS
   CustomPassHelper::Instance().Unload();
   CustomPassHelper::Instance().Insert(pass_reg_data);
   auto graph = std::make_shared<Graph>("test2");
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   EXPECT_EQ(CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterBuiltinFusionPass), SUCCESS);
   EXPECT_EQ(pass_reg_data.GetStage(), CustomPassStage::kAfterBuiltinFusionPass);
 }
@@ -297,8 +306,29 @@ TEST_F(UtestRegisterPass, ConstGraph_AfterBuiltinFusionCustomPass_AndRun_Failed_
   CustomPassHelper::Instance().Unload();
   CustomPassHelper::Instance().Insert(pass_reg_data);
   auto graph = std::make_shared<Graph>("error_graph");
-  CustomPassContext custom_pass_context;
+  auto custom_pass_context = CustomPassContext();
+
   EXPECT_NE(CustomPassHelper::Instance().Run(graph, custom_pass_context, CustomPassStage::kAfterBuiltinFusionPass), SUCCESS);
   EXPECT_EQ(pass_reg_data.GetStage(), CustomPassStage::kAfterBuiltinFusionPass);
+}
+
+TEST_F(UtestRegisterPass, CustomPassContext_GetOptionValue) {
+  std::map<std::string, std::string> options_map = {{ge::OPTION_GRAPH_RUN_MODE, "train"}};
+  auto option_bak = GetThreadLocalContext().GetAllGraphOptions();
+  GetThreadLocalContext().SetGraphOption(options_map);
+  auto custom_pass = CustomPassContext();
+  AscendString graph_run_mode;
+  auto ret = custom_pass.GetOptionValue(ge::OPTION_GRAPH_RUN_MODE, graph_run_mode);
+  EXPECT_EQ(ret, GRAPH_SUCCESS);
+  EXPECT_STREQ(graph_run_mode.GetString(), "train");
+  GetThreadLocalContext().SetGraphOption(option_bak);
+}
+
+TEST_F(UtestRegisterPass, CustomPassContext_GetOptionValue_Failed) {
+  auto custom_pass = CustomPassContext();
+  AscendString graph_run_mode;
+  auto ret = custom_pass.GetOptionValue("not_exist", graph_run_mode);
+  EXPECT_NE(ret, GRAPH_SUCCESS);
+  EXPECT_STREQ(graph_run_mode.GetString(), "");
 }
 } // namespace ge

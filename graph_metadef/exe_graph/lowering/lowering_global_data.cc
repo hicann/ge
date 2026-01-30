@@ -12,7 +12,6 @@
 #include <memory>
 #include "common/checker.h"
 #include "exe_graph/lowering/frame_selector.h"
-#include "runtime/allocator.h"
 #include "graph/fast_graph/execute_graph.h"
 
 namespace gert {

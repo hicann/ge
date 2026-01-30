@@ -51,8 +51,9 @@
 #include "reusable_stream_allocator.h"
 #include "memory_block_manager.h"
 #include "common/memory/tensor_trans_utils.h"
-#include "model_kernel_handles_manager.h"
-#include "graph/load/model_manager/kernel_handles_manager/kernel_handle_utils.h"
+#include "graph/load/model_manager/kernel/model_kernel_handles_manager.h"
+#include "common/kernel_handles_manager/kernel_handle_utils.h"
+#include "runtime/rts/rts_dqs.h"
 
 namespace ge {
 enum class ModelProcStage : uint32_t {
@@ -173,7 +174,7 @@ class DavinciModel {
   bool CheckModelNoInputAndOutput() const;
 
   /// @ingroup ge
-  /// @brief DavinciModel initialization, including Stream, ccHandle, Event, DataInputer, etc
+  /// @brief DavinciModel initialization, including Stream, ccHandle, Event, etc
   /// @return execute result
   /// @author
   Status Init(const ModelParam &param = {}, void *outer_fm_mem = nullptr);
@@ -185,6 +186,8 @@ class DavinciModel {
   /// @return: 0 for success / others for fail
   Status SetQueIds(const std::vector<QueueAttrs> &input_queue_attrs,
                    const std::vector<QueueAttrs> &output_queue_attrs);
+
+  Status SetQueueType();
 
   void SetStatusQueue(const QueueAttrs &status_output_queue);
 
@@ -204,12 +207,12 @@ class DavinciModel {
   void SetInputFusionOffsets(const std::vector<int32_t> &fusion_offsets);
 
   /// @ingroup ge
-  /// @brief Get DataInputer
+  /// @brief get model id
   /// @return model ID
   uint32_t Id() const { return model_id_; }
 
   /// @ingroup ge
-  /// @brief Get DataInputer
+  /// @brief set model id
   /// @return model ID
   void SetId(const uint32_t model_id);
 
@@ -226,7 +229,6 @@ class DavinciModel {
   void SetRunContext(const OmeContext &context) { run_context_ = context; }
 
   void Run();
-  void RunV2();
 
   void *GetOverflowAddr() const {
     return globalworkspace_overflow_addr_;
@@ -312,19 +314,12 @@ class DavinciModel {
   /// @ingroup ge
   /// @brief get Push Data to Queue
   /// @return 0 for success / others for fail
-  Status Push(const std::shared_ptr<InputDataWrapper> &data) {
-    return data_inputer_.Push(data);
-  }
-
-  /// @ingroup ge
-  /// @brief get Push Data to Queue
-  /// @return 0 for success / others for fail
-  Status Push(const std::shared_ptr<RunArgsV2> &args) {
-    return data_inputer_v2_.Push(args);
+  Status Push(const std::shared_ptr<RunArgs> &args) {
+    return data_inputer_.Push(args);
   }
 
   uint32_t GetDataInputerSize() {
-    return data_inputer_.Size() + data_inputer_v2_.Size();
+    return data_inputer_.Size();
   }
 
   // get model priority
@@ -480,21 +475,14 @@ class DavinciModel {
   void GetUniqueId(const OpDescPtr &op_desc, std::string &unique_identification) const;
 
   void AssembleListenerOutput(const std::shared_ptr<RunArgs> &args, const uint32_t data_id,
-                              std::vector<Tensor> &outputs, OutputData &output_data);
-  void AssembleListenerOutput(const std::shared_ptr<RunArgsV2> &args, const uint32_t data_id,
                               std::vector<gert::Tensor> &outputs);
 
-  void OnComputeDoneWithResult(const uint32_t data_id, uint32_t result, std::vector<Tensor> &outputs);
   void OnComputeDoneWithResult(const uint32_t data_id, uint32_t result, std::vector<gert::Tensor> &outputs);
   void OnComputeDoneWithResultCallback(const std::shared_ptr<RunArgs> &args, const uint32_t data_id, uint32_t result,
-                                       std::vector<Tensor> &outputs);
-  void OnComputeDoneWithResultCallback(const std::shared_ptr<RunArgsV2> &args, const uint32_t data_id, uint32_t result,
                                        std::vector<gert::Tensor> &outputs);
   Status UpdateHbmFmMemBasesWithInnerMemory(uint8_t *mem_base, const size_t mem_size,
                                             const size_t data_size);
-  void ReturnSequenceResult(const std::shared_ptr<RunArgs> &args, const uint32_t data_id, OutputData &output_data,
-                            bool seq_end_flag);
-  void ReturnSequenceResult(const std::shared_ptr<RunArgsV2> &args, const uint32_t data_id, bool seq_end_flag);
+  void ReturnSequenceResult(const std::shared_ptr<RunArgs> &args, const uint32_t data_id, bool seq_end_flag);
 
   Status ModelRunStart();
 
@@ -689,7 +677,7 @@ class DavinciModel {
   bool IsDumpLayerOpModelEnable() const {
     return GetDumpProperties().IsDumpLayerOpModelEnable();
   }
-  KernelHandlesManagerPtr GetKernelHandlesManager(KernelHandleType kernel_type) {
+  KernelHandlesManagerPtr GetKernelHandlesManager(KernelHandleType kernel_type) const {
     return model_kernel_handles_manager_.GetKernelHandle(kernel_type);
   }
   bool ModelNeedDump() const;
@@ -789,7 +777,6 @@ class DavinciModel {
 
   bool GetRunningFlag() const { return running_flg_; }
   void SetRunningFlag(const bool flag) { running_flg_ = flag; }
-  Status SetRunAsyncListenerCallback(const RunAsyncCallback &callback);
 
   bool GetAiCpuCustFlag() const { return aicpu_flg_; }
   void SetAiCpuCustFlag(const bool flag) { aicpu_flg_ = flag; }
@@ -890,7 +877,7 @@ class DavinciModel {
   bool IsStaticAddrFixed() const {
     return is_static_model_addr_fixed_;
   }
-  Status LoadPlatformInfos(fe::PlatFormInfos *const plat_form_info_ptr, size_t &copy_size, void *&dev_addr,
+  Status LoadPlatformInfos(const fe::PlatFormInfos *const plat_form_info_ptr, size_t &copy_size, void *&dev_addr,
                            bool is_custom = false, const NodePtr &node = nullptr);
   Status LoadCustPlatformInfos(void *&cust_platform_infos_addr, const NodePtr &node);
   Status LaunchFromPlatformSo(const std::string &platform_so_path);
@@ -953,11 +940,11 @@ class DavinciModel {
   // 纯静态图GE实际分配的内存大小
   std::vector<std::pair<uint8_t *, size_t>> active_memorys_;
 
+  bool is_hw_q_{false};
   bool is_inner_mem_base_{false};
   bool is_inner_weight_base_{false};
   // input data manager
   DataInputer data_inputer_;
-  DataInputerV2 data_inputer_v2_;
   uint64_t load_begin_time_{0U};
   uint64_t load_end_time_{0U};
   uint64_t execute_start_time_{0UL};
@@ -966,7 +953,7 @@ class DavinciModel {
   MsprofApi output_data_pre_{};
   MsprofEvent model_load_event_{};
   int32_t dataInputTid{0};
-  bool enable_input_batch_cpy_;
+  bool enable_input_batch_cpy_{false};
 
   Status InitRuntimeResource();
   Status InitSupplyResource();
@@ -1090,6 +1077,25 @@ class DavinciModel {
   /// @return Status
   Status PreProcessFileConstants(const ComputeGraphPtr &compute_graph, const ModelParam &param);
 
+ private:
+  Status SetExternalPath(const ComputeGraphPtr &compute_graph);
+  Status InitVarResourceIfNeeded(const ModelParam &param, bool &var_resource_inited);
+  Status ProcessFileConstantNode(const NodePtr &node, const ModelParam &param, bool &var_resource_inited,
+                                 bool &is_weight_combined, std::string &combined_weight_file,
+                                 std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size);
+  Status AllocateCombinedWeightMemory(const std::string &combined_weight_file,
+                                      const void *&real_dev_addr,
+                                      int64_t &file_size,
+                                      bool &is_user_mem);
+  Status MapNodeAddressesToCombinedWeight(const std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size,
+                                         const void *base_addr,
+                                         int64_t file_size,
+                                         const std::string &file_path);
+
+  Status HandleCombinedWeights(const std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size,
+                               const std::string &combined_weight_file);
+  Status HandleIndividualWeights(const std::map<NodePtr, std::pair<size_t, int64_t>> &node_to_offset_and_size);
+
   /// @ingroup ge
   /// @brief First, retrieve the external weight file name from the FileConstant node.
   /// Then, use this file name to check if the user has set a corresponding device address.
@@ -1181,6 +1187,17 @@ class DavinciModel {
   /// @brief ACL, Load task list with queue entrance.
   /// @return: 0 for success / others for fail
   Status LoadWithQueue();
+
+  Status LaunchDqsTask(rtDqsTaskType task_type, void* cfg = nullptr);
+
+  Status LoadWithHardwareQueue();
+
+  Status GetZcpyReplaceAddrsMap(const std::map<uint32_t, ZeroCopyOffset> &outside_addrs,
+                                std::map<size_t, std::vector<uint64_t>> &replace_addrs_map);
+
+  Status LaunchInputZeroCpyCfg();
+
+  Status LaunchOutputZeroCpyCfg();
 
   /// @ingroup ge
   /// @brief ACL, Bind Data Op addr to input queue.
@@ -1293,7 +1310,6 @@ class DavinciModel {
   Status DisableZeroCopyNode(const OpDescPtr &op_desc);
 
   Status InitOutputTensorInfo(const OpDescPtr &op_desc);
-  Status GenOutputTensorInfo(OutputData &output_data, std::vector<Tensor> &outputs);
   Status GenOutputTensorInfo(OutputData &output_data, std::vector<gert::Tensor> &outputs);
   Status BuildOutputShapeInfo(const size_t output_idx, std::vector<int64_t> &output_shape, int64_t &output_size);
 
@@ -1384,14 +1400,13 @@ class DavinciModel {
   void InitExceptionDumpInfo(const OpDescPtr &op_desc, uintptr_t args, size_t arg_size,
                              const std::map<uint64_t, uint64_t> &cust_to_relevant_offset,
                              ExtraOpInfo &extra_dump_info) const;
-
   uint32_t GetGraphId() const;
   std::string GetWeightsMemId() const;
   Status ParseHostInputIndexOption(const size_t input_num);
 
-  std::string FindAddrRefreshKernelFile(const std::string& short_soc_version);
+  std::string FindAddrRefreshKernelFile(const std::string& npu_arch) const;
   Status LoadAndRegisterAddrRefreshKernel(const std::string& file_path);
-  std::string FindKernelInPath(const std::string& path, const std::string& short_soc_version);
+  std::string FindKernelInPath(const std::string& path, const std::string& npu_arch) const;
 
   bool is_weight_mem_has_inited_{false};
   bool is_feature_map_mem_has_inited_{false};
@@ -1409,6 +1424,10 @@ class DavinciModel {
 
   // user set FileConstant device memory, key is file name
   std::map<std::string, FileConstantMem> file_constant_user_device_mems_;
+
+  // 使用智能指针管理外置权重的归一内存，通过自定义deleter实现自动释放
+  // 若用户提供了内存，则deleter为空操作；否则deleter调用MemManager::FreeMemory
+  std::unique_ptr<void, std::function<void(void*)>> external_weight_combined_mem_addr_;
 
   uint32_t version_{0U};
   GeModelPtr ge_model_;  // release after DavinciModel::Init
@@ -1433,7 +1452,6 @@ class DavinciModel {
   std::vector<int64_t> output_memory_size_list_;
 
   std::thread thread_id_;
-  std::thread thread_id_v2_;
 
   std::shared_ptr<ModelListener> listener_;
 
@@ -1719,13 +1737,11 @@ class DavinciModel {
 
   std::map<std::string, void *> platform_infos_addr_;
   std::map<std::string, void *> cust_platform_infos_addr_; // 已经launch的缓存
-  std::map<std::string, void *> cust_platform_infos_addr_to_launch_; // 已申请内存，待launch的缓存
+  std::map<std::string, std::pair<void *, size_t>> cust_platform_infos_addr_to_launch_; // 已申请内存，待launch的缓存
   bool is_dump_to_std_enable_ = false;
   std::unordered_set<uint32_t> frozen_input_indexes_;
 
   uint64_t no_frozen_input_allocation_base_id_{0U};
-
-  size_t cust_platform_copy_size_ = 0U;
 
   struct ModelDevMemStatistic {
     uint64_t alloc_size;

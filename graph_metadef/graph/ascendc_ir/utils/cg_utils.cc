@@ -12,7 +12,7 @@
 #include "graph/utils/node_utils_ex.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "ascendc_ir/core/ascendc_ir_impl.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 namespace ge {
 namespace ascir {
 namespace cg {

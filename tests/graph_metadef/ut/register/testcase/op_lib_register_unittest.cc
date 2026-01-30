@@ -12,8 +12,9 @@
 #include "register/register_base.h"
 
 #include <gtest/gtest.h>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "depends/mmpa/src/mmpa_stub.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {

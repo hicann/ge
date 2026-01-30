@@ -10,8 +10,6 @@
 
 #include "common/context/local_context.h"
 
-#include "framework/common/debug/ge_log.h"
-
 namespace ge {
 namespace {
 thread_local OmgContext *omg_context = nullptr;

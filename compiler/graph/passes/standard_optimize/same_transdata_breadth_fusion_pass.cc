@@ -56,31 +56,31 @@ bool IsTransOp(const NodePtr &node) {
          node->GetType() == RESHAPE || node->GetType() == TRANSDATA;
 }
 
-std::unordered_map<std::string, LinkNodeType> kNodeTypeMap = {
-    {NETOUTPUT, LinkNodeType::kNetOutput},
-    {DATA, LinkNodeType::kData},
-    {TRANSDATA, LinkNodeType::kTransdata},
-    {CAST, LinkNodeType::kCast}
+std::unordered_map<std::string, NodeType> kNodeTypeMap = {
+    {NETOUTPUT, NodeType::kNetOutput},
+    {DATA, NodeType::kData},
+    {TRANSDATA, NodeType::kTransdata},
+    {CAST, NodeType::kCast}
 };
 
-LinkNodeType GetNodeType(const NodePtr &node) {
+NodeType GetNodeType(const NodePtr &node) {
   const auto type = node->GetType();
   const auto iter = kNodeTypeMap.find(type);
   if (iter != kNodeTypeMap.end()) {
     return iter->second;
   }
   if (!node->GetOpDescBarePtr()->GetSubgraphInstanceNames().empty()) {
-    return LinkNodeType::kWrapperNode;
+    return NodeType::kWrapperNode;
   }
-  return LinkNodeType::kOthers;
+  return NodeType::kOthers;
 }
 
 bool IsWrapperNode(const OpDescPtr &op_desc) {
   return !op_desc->GetSubgraphInstanceNames().empty();
 }
 
-void PrintPaths(const TransPaths &paths) {
-  GELOGI("TransPaths size: %zu", paths.size());
+void PrintPaths(const Paths &paths) {
+  GELOGI("Paths size: %zu", paths.size());
   for (size_t i = 0U; i < paths.size(); ++i) {
     if (!paths[i].empty()) {
       std::stringstream ss;
@@ -103,7 +103,7 @@ void PrintPaths(const TransPaths &paths) {
   }
 }
 
-void PrintFusedTransdata(const std::vector<TransPaths> &same_transdata_paths_groups) {
+void PrintFusedTransdata(const std::vector<Paths> &same_transdata_paths_groups) {
   for (const auto &same_transdata_paths : same_transdata_paths_groups) {
     std::stringstream ss;
     auto iter = same_transdata_paths.begin();
@@ -120,7 +120,7 @@ void PrintFusedTransdata(const std::vector<TransPaths> &same_transdata_paths_gro
 
 // avoid scene 1: A->Cast->TransData while A's DataType is not supported by TransData
 // avoid scene 2: A->Cast->TransData while the output format of TransData is not supported by Cast
-graphStatus CheckOpSupported(const TransPath &path, const PathLinkNode &link_node, bool &is_supported) {
+graphStatus CheckOpSupported(const Path &path, const LinkNode &link_node, bool &is_supported) {
   if (path.empty()) {
     is_supported = true;
     return GRAPH_SUCCESS;
@@ -187,14 +187,14 @@ graphStatus CheckOpSupported(const TransPath &path, const PathLinkNode &link_nod
   return GRAPH_SUCCESS;
 }
 
-std::set<std::string> GetInControlIdentityNodes(const TransPath &path, const PathLinkNode &transdata_link_node) {
+std::set<std::string> GetInControlIdentityNodes(const Path &path, const LinkNode &transdata_link_node) {
   std::set<std::string> in_node_names;
   const auto &transdata_node = transdata_link_node.in_anchor->GetOwnerNode();
   for (const auto &in_node : transdata_node->GetInControlNodes()) {
     in_node_names.insert(in_node->GetName());
   }
   for (const auto &link_node : path) {
-    if (link_node.node_type == LinkNodeType::kTransdata) {
+    if (link_node.node_type == NodeType::kTransdata) {
       break;
     }
     const auto node = link_node.in_anchor->GetOwnerNode();
@@ -296,7 +296,7 @@ NodePtr CreateDataNode(ComputeGraphPtr &sub_graph, const size_t parent_index) {
 }
 
 // 找到topoid最小的那个，否则有可能成环
-size_t GetKeepTransdataPathIndex(const TransPaths &paths_group) {
+size_t GetKeepTransdataPathIndex(const Paths &paths_group) {
   size_t keep_transdata_path_index = 0U;
 
   for (size_t i = 1U; i < paths_group.size(); ++i) {
@@ -341,8 +341,7 @@ graphStatus ConnetToFusedAnchors(std::vector<InDataAnchorPtr> &fused_anchors, co
   return GRAPH_SUCCESS;
 }
 
-bool IsAllNodeInPathsWithSameTransdata(const std::set<InDataAnchorPtr> &allowed_set,
-  std::queue<TransPath> &path_queue) {
+bool IsAllNodeInPathsWithSameTransdata(const std::set<InDataAnchorPtr> &allowed_set, std::queue<Path> &path_queue) {
   while (!path_queue.empty()) {
     const auto &path = path_queue.front();
     for (const auto &node : path) {
@@ -469,7 +468,7 @@ graphStatus SameTransdataBreadthFusionPass::DoRun(ComputeGraphPtr graph) {
 }
 
 graphStatus SameTransdataBreadthFusionPass::RunForNode(OutDataAnchorPtr &head_out_anchor) {
-  TransPaths paths;
+  Paths paths;
   GE_ASSERT_SUCCESS(GetPathsToTransdata(head_out_anchor, paths));
   if (paths.size() <= 1U) {
     return GRAPH_SUCCESS;
@@ -480,10 +479,10 @@ graphStatus SameTransdataBreadthFusionPass::RunForNode(OutDataAnchorPtr &head_ou
 }
 
 graphStatus SameTransdataBreadthFusionPass::GetPathsToTransdata(const OutDataAnchorPtr &head_out_anchor,
-                                                                TransPaths &paths) const {
-  std::queue<TransPath> path_queue;
+                                                                Paths &paths) const {
+  std::queue<Path> path_queue;
   bool is_supported = false;
-  GE_ASSERT_SUCCESS(GetRealInAnchors(head_out_anchor, head_out_anchor, path_queue, TransPath()));
+  GE_ASSERT_SUCCESS(GetRealInAnchors(head_out_anchor, head_out_anchor, path_queue, Path()));
   while (!path_queue.empty()) {
     auto cur_path = path_queue.front(); // copy
     path_queue.pop();
@@ -491,24 +490,24 @@ graphStatus SameTransdataBreadthFusionPass::GetPathsToTransdata(const OutDataAnc
     const auto &link_node = cur_path.back();
     const auto &owner_node = link_node.in_anchor->GetOwnerNode();
     switch (link_node.node_type) {
-      case LinkNodeType::kTransdata :
+      case NodeType::kTransdata :
         GE_ASSERT_SUCCESS(CheckOpSupported(cur_path, link_node, is_supported));
         if ((owner_node->GetOutDataNodesSize() != 0U) && is_supported) {
           // 这里保证path的最后一个节点一定是transdata
           paths.emplace_back(std::move(cur_path));
         }
         break;
-      case LinkNodeType::kCast:
+      case NodeType::kCast:
         // path中在transdata前面如果有其他节点的话，这里保证一定是cast
         for (const auto &cast_out_anchor : owner_node->GetAllOutDataAnchors()) {
           GE_ASSERT_SUCCESS(GetRealInAnchors(cast_out_anchor, cast_out_anchor, path_queue, cur_path));
         }
         break;
-      case LinkNodeType::kOthers:
+      case NodeType::kOthers:
         break;
-      case LinkNodeType::kData:
-      case LinkNodeType::kNetOutput:
-      case LinkNodeType::kWrapperNode:
+      case NodeType::kData:
+      case NodeType::kNetOutput:
+      case NodeType::kWrapperNode:
         GELOGE(FAILED, "type: %s node name: %s should not be here.",
                owner_node->GetTypePtr(), owner_node->GetNamePtr());
         return GRAPH_FAILED;
@@ -519,8 +518,8 @@ graphStatus SameTransdataBreadthFusionPass::GetPathsToTransdata(const OutDataAnc
 
 graphStatus SameTransdataBreadthFusionPass::GetRealInAnchors(const OutDataAnchorPtr &real_out_anchor,
                                                              const OutDataAnchorPtr &out_anchor,
-                                                             std::queue<TransPath> &path_queue,
-                                                             const TransPath &path) const {
+                                                             std::queue<Path> &path_queue,
+                                                             const Path &path) const {
   std::stack<OutDataAnchorPtr> out_anchor_stack;
   out_anchor_stack.push(out_anchor);
   while (!out_anchor_stack.empty()) {
@@ -534,8 +533,8 @@ graphStatus SameTransdataBreadthFusionPass::GetRealInAnchors(const OutDataAnchor
         } else if (next_node->GetType() == NETOUTPUT) {
           GE_ASSERT_SUCCESS(GetRealInAnchorsForNetOutput(real_out_anchor, in_anchor, path, out_anchor_stack));
         } else {
-          TransPath new_path(path);
-          new_path.emplace_back(PathLinkNode{in_anchor, real_out_anchor, GetNodeType(next_node)});
+          Path new_path(path);
+          new_path.emplace_back(LinkNode{in_anchor, real_out_anchor, GetNodeType(next_node)});
           path_queue.push(std::move(new_path));
         }
       }
@@ -579,7 +578,7 @@ graphStatus SameTransdataBreadthFusionPass::GetSubgraphDataOutAnchor(const Compu
 }
 
 graphStatus SameTransdataBreadthFusionPass::GetRealInAnchorsForNetOutput(
-    const OutDataAnchorPtr &real_out_anchor, const InDataAnchorPtr &in_anchor, const TransPath &path,
+    const OutDataAnchorPtr &real_out_anchor, const InDataAnchorPtr &in_anchor, const Path &path,
     std::stack<OutDataAnchorPtr> &out_anchor_stack) const {
   const auto &netoutput = in_anchor->GetOwnerNode();
   const auto &op_desc = netoutput->GetOpDesc();
@@ -618,8 +617,8 @@ graphStatus SameTransdataBreadthFusionPass::GetRealInAnchorsForNetOutput(
   return GRAPH_SUCCESS;
 }
 
-graphStatus SameTransdataBreadthFusionPass::FuseTransdata(TransPaths &paths) {
-  std::vector<TransPaths> same_transdata_paths_groups;
+graphStatus SameTransdataBreadthFusionPass::FuseTransdata(Paths &paths) {
+  std::vector<Paths> same_transdata_paths_groups;
   GE_ASSERT_SUCCESS(GetSameTransdataPath(paths, same_transdata_paths_groups));
 
   auto iter = same_transdata_paths_groups.begin();
@@ -648,22 +647,22 @@ graphStatus SameTransdataBreadthFusionPass::FuseTransdata(TransPaths &paths) {
   return GRAPH_SUCCESS;
 }
 
-graphStatus SameTransdataBreadthFusionPass::GetSameTransdataPath(TransPaths &paths,
-    std::vector<TransPaths> &same_transdata_paths_groups) {
+graphStatus SameTransdataBreadthFusionPass::GetSameTransdataPath(Paths &paths,
+                                                                 std::vector<Paths> &same_transdata_paths_groups) {
   while (paths.size() > 1U) {
     auto iter = paths.begin();
-    TransPaths same_transdata_paths;
+    Paths same_transdata_paths;
     same_transdata_paths.emplace_back(std::move(*iter));
     const auto &first_path = same_transdata_paths.front();
 
     iter = paths.erase(iter);
-    PathLinkNode first_transdata = first_path.back();
+    LinkNode first_transdata = first_path.back();
     CompareInfo first_info;
     GE_ASSERT_SUCCESS(GetCompareInfo(first_path, first_transdata, first_info));
 
     while (iter != paths.end()) {
       auto &another_path = *iter;
-      PathLinkNode another_transdata = another_path.back();
+      LinkNode another_transdata = another_path.back();
       CompareInfo another_info;
       GE_ASSERT_SUCCESS(GetCompareInfo(another_path, another_transdata, another_info));
       if (IsSame(first_info, another_info)) {
@@ -704,7 +703,7 @@ graphStatus SameTransdataBreadthFusionPass::GetSameTransdataPath(TransPaths &pat
  *        +------+
  *   add new path from op to transdata3
  */
-graphStatus SameTransdataBreadthFusionPass::AddNewPathToTransdataForDiffGraph(TransPaths &paths_group) {
+graphStatus SameTransdataBreadthFusionPass::AddNewPathToTransdataForDiffGraph(Paths &paths_group) {
   auto head_out_anchor = paths_group[0].front().real_peer_out_anchor;
   std::set<InDataAnchorPtr> allowed_in_anchors;
   for (const auto &cur_path : paths_group) {
@@ -728,7 +727,7 @@ graphStatus SameTransdataBreadthFusionPass::AddNewPath(OutDataAnchorPtr &out_anc
       const auto head_next = peer_in_anchor->GetOwnerNode();
       GE_ASSERT_NOTNULL(head_next->GetOpDescBarePtr());
       const auto head_next_type = GetNodeType(head_next);
-      if ((head_next_type != LinkNodeType::kWrapperNode) && (head_next_type != LinkNodeType::kNetOutput)) {
+      if ((head_next_type != NodeType::kWrapperNode) && (head_next_type != NodeType::kNetOutput)) {
         if (allowed_in_anchors.find(peer_in_anchor) != allowed_in_anchors.end()) {
           GE_ASSERT_SUCCESS(peer_in_anchor->Unlink(peer_in_anchor->GetPeerOutAnchor()));
           GE_ASSERT_SUCCESS(cur_new_out_anchor->LinkTo(peer_in_anchor));
@@ -763,7 +762,7 @@ graphStatus SameTransdataBreadthFusionPass::AddNewPath(OutDataAnchorPtr &out_anc
       auto new_in_anchor = head_next->GetInDataAnchor(input_size);
       GE_ASSERT_SUCCESS(cur_new_out_anchor->LinkTo(new_in_anchor));
 
-      if (head_next_type == LinkNodeType::kWrapperNode) {
+      if (head_next_type == NodeType::kWrapperNode) {
         GE_ASSERT_SUCCESS(AddNewInputForWrapper(peer_in_anchor, fused_anchors, out_anchor_pair_stack));
       } else {
         GE_ASSERT_SUCCESS(AddNewInputForNetOutput(peer_in_anchor, fused_anchors, out_anchor_pair_stack));
@@ -857,7 +856,7 @@ void SameTransdataBreadthFusionPass::UpdateGraphNode(const ComputeGraphPtr &sub_
 }
 
 // cast的输出都是相同的transdata，如果不满足这一点，删掉这个path
-graphStatus SameTransdataBreadthFusionPass::RemoveUnSupportedPath(TransPaths &paths_with_same_transdata) const {
+graphStatus SameTransdataBreadthFusionPass::RemoveUnSupportedPath(Paths &paths_with_same_transdata) const {
   std::set<InDataAnchorPtr> allowed_set;
   for (const auto &path : paths_with_same_transdata) {
     for (const auto &node : path) {
@@ -866,12 +865,12 @@ graphStatus SameTransdataBreadthFusionPass::RemoveUnSupportedPath(TransPaths &pa
   }
   auto path_iter = paths_with_same_transdata.begin();
   while (path_iter != paths_with_same_transdata.end()) {
-    std::queue<TransPath> path_queue;
+    std::queue<Path> path_queue;
     // path最后一个节点是transdata，前面如果有节点的话，一定都是cast节点。获取所有cast节点的real in anchor
     for (size_t i = 0U; i < path_iter->size() - 1U; ++i) {
       const auto &cast_node = path_iter->at(i);
       for (auto &out_data_anchor : cast_node.in_anchor->GetOwnerNodeBarePtr()->GetAllOutDataAnchors()) {
-        GE_ASSERT_SUCCESS(GetRealInAnchors(out_data_anchor, out_data_anchor, path_queue, TransPath()));
+        GE_ASSERT_SUCCESS(GetRealInAnchors(out_data_anchor, out_data_anchor, path_queue, Path()));
       }
     }
     if (!IsAllNodeInPathsWithSameTransdata(allowed_set, path_queue)) {
@@ -885,7 +884,7 @@ graphStatus SameTransdataBreadthFusionPass::RemoveUnSupportedPath(TransPaths &pa
   return GRAPH_SUCCESS;
 }
 
-graphStatus SameTransdataBreadthFusionPass::GetCompareInfo(const TransPath &path, const PathLinkNode &link_node,
+graphStatus SameTransdataBreadthFusionPass::GetCompareInfo(const Path &path, const LinkNode &link_node,
                                                            CompareInfo &info) {
   const auto &node = link_node.in_anchor->GetOwnerNode();
   const auto &iter = node_to_info_map_.find(node);
@@ -907,7 +906,7 @@ graphStatus SameTransdataBreadthFusionPass::GetCompareInfo(const TransPath &path
   return GRAPH_SUCCESS;
 }
 
-graphStatus SameTransdataBreadthFusionPass::UpdateTensorDesc(const TransPaths &paths_group,
+graphStatus SameTransdataBreadthFusionPass::UpdateTensorDesc(const Paths &paths_group,
                                                              size_t keep_transdata_path_index) {
   const auto trans = paths_group[keep_transdata_path_index].back().in_anchor->GetOwnerNodeBarePtr();
   const auto head_out_anchor = paths_group[keep_transdata_path_index].front().real_peer_out_anchor;
@@ -936,8 +935,8 @@ graphStatus SameTransdataBreadthFusionPass::UpdateTensorDesc(const TransPaths &p
 }
 
 graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForDiffGraph(
-    const GeTensorDesc &trans_out_tensor_desc, const PathLinkNode &link_node) {
-  std::stack<PathLinkNode> link_node_stack;
+    const GeTensorDesc &trans_out_tensor_desc, const LinkNode &link_node) {
+  std::stack<LinkNode> link_node_stack;
   link_node_stack.push(link_node);
   while (!link_node_stack.empty()) {
     const auto cur_link_node = link_node_stack.top();
@@ -945,12 +944,12 @@ graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForDiffGraph(
     const auto &pre_node = cur_link_node.in_anchor->GetPeerOutAnchor()->GetOwnerNode();
     GE_ASSERT_NOTNULL(pre_node->GetOpDescBarePtr());
     const auto pre_node_type = GetNodeType(pre_node);
-    GE_ASSERT_TRUE((pre_node_type == LinkNodeType::kData) || (pre_node_type == LinkNodeType::kWrapperNode),
+    GE_ASSERT_TRUE((pre_node_type == NodeType::kData) || (pre_node_type == NodeType::kWrapperNode),
                    "current node %s must connect to Data or Wrapper, but pre_node %s node type is %u",
                    cur_link_node.in_anchor->GetOwnerNodeBarePtr()->GetNamePtr(), pre_node->GetNamePtr(),
                    static_cast<uint32_t>(pre_node_type));
 
-    if (pre_node_type == LinkNodeType::kData) {
+    if (pre_node_type == NodeType::kData) {
       GE_ASSERT_SUCCESS(UpdateTensorDescForConnectData(trans_out_tensor_desc, cur_link_node, link_node_stack));
     } else {
       GE_ASSERT_SUCCESS(UpdateTensorDescForConnectWrapper(trans_out_tensor_desc, cur_link_node, link_node_stack));
@@ -961,8 +960,7 @@ graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForDiffGraph(
 }
 
 graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForConnectData(
-    const GeTensorDesc &trans_out_tensor_desc, const PathLinkNode &link_node,
-    std::stack<PathLinkNode> &link_node_stack) const {
+    const GeTensorDesc &trans_out_tensor_desc, const LinkNode &link_node, std::stack<LinkNode> &link_node_stack) const {
   const auto &owner_node = link_node.in_anchor->GetOwnerNode();
   const auto owner_graph = owner_node->GetOwnerComputeGraphBarePtr();
   GE_ASSERT_NOTNULL(owner_graph->GetParentNode());
@@ -990,7 +988,7 @@ graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForConnectData(
   const auto peer_out_anchor = wrapper_in_anchor->GetPeerOutAnchor();
   GE_ASSERT_NOTNULL(peer_out_anchor);
   if (peer_out_anchor != link_node.real_peer_out_anchor) {
-    const PathLinkNode new_link_node{wrapper_in_anchor, link_node.real_peer_out_anchor, LinkNodeType::kWrapperNode};
+    const LinkNode new_link_node{wrapper_in_anchor, link_node.real_peer_out_anchor, NodeType::kWrapperNode};
     link_node_stack.push(new_link_node);
   }
 
@@ -1009,8 +1007,7 @@ graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForConnectData(
 }
 
 graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForConnectWrapper(
-    const GeTensorDesc &trans_out_tensor_desc, const PathLinkNode &link_node,
-    std::stack<PathLinkNode> &link_node_stack) {
+    const GeTensorDesc &trans_out_tensor_desc, const LinkNode &link_node, std::stack<LinkNode> &link_node_stack) {
   GE_ASSERT_NOTNULL(link_node.in_anchor->GetPeerOutAnchor());
   const auto &wrapper_node = link_node.in_anchor->GetPeerOutAnchor()->GetOwnerNode();
   const auto &wrapper_op_desc = wrapper_node->GetOpDesc();
@@ -1059,14 +1056,14 @@ graphStatus SameTransdataBreadthFusionPass::UpdateTensorDescForConnectWrapper(
     const auto peer_out_anchor = netoutput_in_anchor->GetPeerOutAnchor();
     GE_ASSERT_NOTNULL(peer_out_anchor);
     if (peer_out_anchor != link_node.real_peer_out_anchor) {
-      const PathLinkNode new_link_node{netoutput_in_anchor, link_node.real_peer_out_anchor, LinkNodeType::kNetOutput};
+      const LinkNode new_link_node{netoutput_in_anchor, link_node.real_peer_out_anchor, NodeType::kNetOutput};
       link_node_stack.push(new_link_node);
     }
   }
   return GRAPH_SUCCESS;
 }
 
-graphStatus SameTransdataBreadthFusionPass::ExtractTransdata(const TransPaths &paths_group,
+graphStatus SameTransdataBreadthFusionPass::ExtractTransdata(const Paths &paths_group,
                                                              size_t keep_transdata_path_index) const {
   const auto &path = paths_group[keep_transdata_path_index];
   auto trans_in_anchor = path.back().in_anchor;
@@ -1097,7 +1094,7 @@ graphStatus SameTransdataBreadthFusionPass::ExtractTransdata(const TransPaths &p
   return GRAPH_SUCCESS;
 }
 
-graphStatus SameTransdataBreadthFusionPass::LinkHeadToTransdata(const TransPaths &paths_group,
+graphStatus SameTransdataBreadthFusionPass::LinkHeadToTransdata(const Paths &paths_group,
                                                                 size_t keep_transdata_path_index) const {
   const auto &path = paths_group[keep_transdata_path_index];
   const auto head_out_anchor = path.front().real_peer_out_anchor;
@@ -1115,7 +1112,7 @@ graphStatus SameTransdataBreadthFusionPass::LinkHeadToTransdata(const TransPaths
     const auto head_next = peer_in_anchor->GetOwnerNode();
     GE_ASSERT_NOTNULL(head_next->GetOpDescBarePtr());
     const auto head_next_type = GetNodeType(head_next);
-    if ((head_next_type != LinkNodeType::kWrapperNode) && (head_next_type != LinkNodeType::kNetOutput)) {
+    if ((head_next_type != NodeType::kWrapperNode) && (head_next_type != NodeType::kNetOutput)) {
       if (allowed_in_anchors.find(peer_in_anchor) != allowed_in_anchors.end()) {
         peer_in_anchor->UnlinkAll();
         if (peer_in_anchor->GetOwnerNode() != trans) {
@@ -1145,14 +1142,14 @@ graphStatus SameTransdataBreadthFusionPass::LinkHeadToTransdata(const TransPaths
 
 graphStatus SameTransdataBreadthFusionPass::CollectFusedInAnchors(
     const InDataAnchorPtr &in_anchor, const std::set<InDataAnchorPtr> &allowed_in_anchors,
-    const LinkNodeType head_next_type, std::vector<InDataAnchorPtr> &fused_anchors,
+    const NodeType head_next_type, std::vector<InDataAnchorPtr> &fused_anchors,
     std::vector<InDataAnchorPtr> &not_fused_anchors) const {
-  std::queue<TransPath> path_queue;
+  std::queue<Path> path_queue;
   std::stack<OutDataAnchorPtr> out_anchor_stack;
-  if (head_next_type == LinkNodeType::kWrapperNode) {
+  if (head_next_type == NodeType::kWrapperNode) {
     GE_ASSERT_SUCCESS(GetRealInAnchorsForWrapperNode(in_anchor, out_anchor_stack));
   } else {
-    GE_ASSERT_SUCCESS(GetRealInAnchorsForNetOutput(nullptr, in_anchor, TransPath(), out_anchor_stack));
+    GE_ASSERT_SUCCESS(GetRealInAnchorsForNetOutput(nullptr, in_anchor, Path(), out_anchor_stack));
   }
   while (!out_anchor_stack.empty()) {
     const auto cur_out_anchor = out_anchor_stack.top();
@@ -1165,7 +1162,7 @@ graphStatus SameTransdataBreadthFusionPass::CollectFusedInAnchors(
           continue;
         }
         if (next_node->GetType() == NETOUTPUT) {
-          GE_ASSERT_SUCCESS(GetRealInAnchorsForNetOutput(nullptr, cur_in_anchor, TransPath(), out_anchor_stack));
+          GE_ASSERT_SUCCESS(GetRealInAnchorsForNetOutput(nullptr, cur_in_anchor, Path(), out_anchor_stack));
           continue;
         }
         if (allowed_in_anchors.find(cur_in_anchor) == allowed_in_anchors.end()) {
@@ -1179,7 +1176,7 @@ graphStatus SameTransdataBreadthFusionPass::CollectFusedInAnchors(
   return GRAPH_SUCCESS;
 }
 
-graphStatus SameTransdataBreadthFusionPass::DeleteTransdata(const TransPath &path) const {
+graphStatus SameTransdataBreadthFusionPass::DeleteTransdata(const Path &path) const {
   auto trans_in_anchor = path.back().in_anchor;
   auto trans = trans_in_anchor->GetOwnerNode();
   auto trans_out_anchor = path.back().in_anchor->GetPeerOutAnchor();

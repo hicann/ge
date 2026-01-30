@@ -33,8 +33,8 @@ TransOpUtil::TransOpUtil() {
   }
 
   // floating point to int cause precisoin loss
-  for (auto f_type : {DT_FLOAT, DT_FLOAT16, DT_DOUBLE, DT_BF16}) {
-    for (auto i_type : {DT_INT32, DT_INT64}) {
+  for (const auto f_type : {DT_FLOAT, DT_FLOAT16, DT_DOUBLE, DT_BF16}) {
+    for (const auto i_type : {DT_INT32, DT_INT64}) {
       (void)precision_loss_table_.Add(f_type, i_type, true);
     }
   }

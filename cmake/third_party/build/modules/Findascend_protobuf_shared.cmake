@@ -32,18 +32,18 @@ else()
 endif()
 
 if(ascend_protobuf_shared_FOUND)
-    message(STATUS "[ascend protobuf shared] ascend_protobuf_shared found, skip compiling..")
+    message(STATUS "[ascend protobuf shared] ascend_protobuf_shared found, skip compiling.")
 else()
-    message(STATUS "[ascend protobuf shared] ascend protobuf shared not found, finding binary file..")
+    message(STATUS "[ascend protobuf shared] ascend protobuf shared not found, finding binary file.")
 
     set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/protobuf/protobuf-all-25.1.tar.gz")
     set(REQ_URL_BACK "${CMAKE_THIRD_PARTY_LIB_DIR}/protobuf/protobuf-25.1.tar.gz")
     # 初始化可选参数列表
     set(PROTOBUF_EXTRA_ARGS "")
     if(EXISTS ${REQ_URL})
-        message(STATUS "[ascend protobuf shared] ${REQ_URL} found, start compile.")
+        message(STATUS "[ascend protobuf shared] ${REQ_URL} found.")
     elseif(EXISTS ${REQ_URL_BACK})
-        message(STATUS "[ascend protobuf shared] ${REQ_URL_BACK} found, start compile.")
+        message(STATUS "[ascend protobuf shared] ${REQ_URL_BACK} found.")
         set(REQ_URL ${REQ_URL_BACK})
     else()
         message(STATUS "[ascend protobuf shared] ${REQ_URL} not found, need download.")
@@ -53,7 +53,7 @@ else()
         )
     endif()
     
-    set(protobuf_CXXFLAGS "-Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -s -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=0 -O2 -Dgoogle=ascend_private -Wl,-Bsymbolic")
+    set(protobuf_CXXFLAGS "-Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -s -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI} -O2 -Dgoogle=ascend_private -Wl,-Bsymbolic")
     set(protobuf_LDFLAGS "-Wl,-z,relro,-z,now,-z,noexecstack")
 
     ExternalProject_Add(ascend_protobuf_build

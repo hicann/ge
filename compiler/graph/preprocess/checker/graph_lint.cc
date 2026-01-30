@@ -9,7 +9,7 @@
  */
 
 #include "graph_lint.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/omg_util.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
 #include "graph/utils/graph_utils.h"

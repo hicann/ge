@@ -37,13 +37,13 @@
 
 namespace {
 constexpr uint32_t kAiCpuLoadFlag = 1U;
-constexpr ge::char_t const *kDumpModeOutput = "output";
-constexpr ge::char_t const *kDumpModeInput = "input";
-constexpr ge::char_t const *kDumpModeAll = "all";
-constexpr ge::char_t const *kDumpKernelsDumpOp = "DumpDataInfo";
+const std::string kDumpModeOutput = "output";
+const std::string kDumpModeInput = "input";
+const std::string kDumpModeAll = "all";
+const std::string kDumpKernelsDumpOp = "DumpDataInfo";
 constexpr uint32_t k16BitsMask = 0x0000FFFFU;  // 16 bits, 1111,1111,1111,1111
 constexpr int32_t k16BitWidth = 16;
-constexpr ge::char_t const *kDumpDataDefaultValue = "stats";
+const std::string kDumpDataDefaultValue = "stats";
 constexpr uint32_t kInputBitsMask = 0x01U;
 constexpr uint32_t kOutputBitsMask = 0x02U;
 }  // namespace
@@ -134,7 +134,7 @@ toolkit::aicpu::dump::AddressType DumpOp::GetAddrType(const toolkit::aicpu::dump
 
 Status DumpOp::DumpOutput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_desc,
                           const std::vector<uintptr_t> &addrs, bool ffts_flag) const {
-  const auto &output_descs = op_desc->GetAllOutputsDesc();
+  const auto &output_descs = op_desc->GetAllOutputsDescPtr();
   const std::string dump_model_name = dynamic_model_name_;
   const std::string dump_om_name = dynamic_om_name_;
   GELOGI("Start to dump output in Launch dump op, model name %s, size %u, ffts flag %d.", dump_model_name.c_str(), output_descs.size(),
@@ -142,16 +142,16 @@ Status DumpOp::DumpOutput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_
   for (size_t i = 0UL; i < output_descs.size(); ++i) {
     const std::string op_name = op_desc->GetName();
     const std::string op_type = op_desc->GetType();
-    if (dump_properties_.IsOutputInOpNameBlacklist(dump_model_name, op_name, i) ||
-      dump_properties_.IsOutputInOpNameBlacklist(dump_om_name, op_name, i) ||
-      dump_properties_.IsOutputInOpNameBlacklist(DUMP_LAYER_OP_MODEL, op_name, i)) {
+    if (dump_properties_.IsOutputInOpNameBlacklist(dump_model_name, op_name, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsOutputInOpNameBlacklist(dump_om_name, op_name, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsOutputInOpNameBlacklist(DUMP_LAYER_OP_MODEL, op_name, static_cast<uint32_t>(i))) {
       GELOGI("[Dumper] Node name %s, Node type: %s, output index %zu is in opname-blacklist, skip to dump this output.",
          op_name.c_str(), op_type.c_str(), i);
       continue;
     }
-    if (dump_properties_.IsOutputInOpTypeBlacklist(dump_model_name, op_type, i) ||
-      dump_properties_.IsOutputInOpTypeBlacklist(dump_om_name, op_type, i) ||
-      dump_properties_.IsOutputInOpTypeBlacklist(DUMP_LAYER_OP_MODEL, op_type, i)) {
+    if (dump_properties_.IsOutputInOpTypeBlacklist(dump_model_name, op_type, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsOutputInOpTypeBlacklist(dump_om_name, op_type, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsOutputInOpTypeBlacklist(DUMP_LAYER_OP_MODEL, op_type, static_cast<uint32_t>(i))) {
       GELOGI("[Dumper] Node name %s, Node type: %s, output index %zu is in optype-blacklist, skip to dump this output.",
          op_name.c_str(), op_type.c_str(), i);
       continue;
@@ -162,18 +162,18 @@ Status DumpOp::DumpOutput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_
       continue;
     }
     GELOGD("Get op[%s:%s] output_desc[shape:%s, original shape:%s]", op_desc->GetNamePtr(), op_desc->GetTypePtr(),
-           output_descs.at(i).GetShape().ToString().c_str(), output_descs.at(i).GetOriginShape().ToString().c_str());
+           output_descs.at(i)->GetShape().ToString().c_str(), output_descs.at(i)->GetOriginShape().ToString().c_str());
     toolkit::aicpu::dump::Output output;
-    output.set_data_type(static_cast<int32_t>(DataTypeUtil::GetIrDataType(output_descs.at(i).GetDataType())));
-    output.set_format(static_cast<int32_t>(output_descs.at(i).GetFormat()));
-    for (const int64_t dim : output_descs.at(i).GetShape().GetDims()) {
+    output.set_data_type(static_cast<int32_t>(DataTypeUtil::GetIrDataType(output_descs.at(i)->GetDataType())));
+    output.set_format(static_cast<int32_t>(output_descs.at(i)->GetFormat()));
+    for (const int64_t dim : output_descs.at(i)->GetShape().GetDims()) {
       output.mutable_shape()->add_dim(static_cast<uint64_t>(dim));
     }
-    for (const int64_t dim : output_descs.at(i).GetOriginShape().GetDims()) {
+    for (const int64_t dim : output_descs.at(i)->GetOriginShape().GetDims()) {
       output.mutable_origin_shape()->add_dim(static_cast<uint64_t>(dim));
     }
     int64_t output_size = 0;
-    if (TensorUtils::GetTensorSizeInBytes(output_descs.at(i), output_size) != SUCCESS) {
+    if (TensorUtils::GetTensorSizeInBytes(*output_descs.at(i), output_size) != SUCCESS) {
       GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "[Get][TensorSize]Failed, output %zu, node %s(%s),",
              i, op_desc->GetName().c_str(), op_desc->GetType().c_str());
       REPORT_INNER_ERR_MSG("E19999", "Get output %zu tensor size of node %s(%s) failed",
@@ -185,7 +185,7 @@ Status DumpOp::DumpOutput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_
     output.set_size(static_cast<uint64_t>(output_size));
     output.set_address(static_cast<uint64_t>(addrs[i]));
     output.set_offset(std::numeric_limits<uint64_t>::max());
-    output.set_addr_type(GetAddrType(task, output_descs.at(i)));
+    output.set_addr_type(GetAddrType(task, *output_descs.at(i)));
     task.mutable_output()->Add(std::move(output));
   }
   return SUCCESS;
@@ -202,16 +202,16 @@ Status DumpOp::DumpInput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_d
     const std::string op_name = op_desc->GetName();
     const std::string op_type = op_desc->GetType();
     GELOGI("[Dumper] Node name %s, node type %s input_descs idx %zu", op_name.c_str(), op_type.c_str(), i);
-    if (dump_properties_.IsInputInOpNameBlacklist(dump_model_name, op_name, i) ||
-      dump_properties_.IsInputInOpNameBlacklist(dump_om_name, op_name, i) ||
-      dump_properties_.IsInputInOpNameBlacklist(DUMP_LAYER_OP_MODEL, op_name, i)) {
+    if (dump_properties_.IsInputInOpNameBlacklist(dump_model_name, op_name, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsInputInOpNameBlacklist(dump_om_name, op_name, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsInputInOpNameBlacklist(DUMP_LAYER_OP_MODEL, op_name, static_cast<uint32_t>(i))) {
       GELOGI("[Dumper] Node name %s, Node type: %s, input index %zu is in opname-blacklist, skip to dump this input.",
          op_name.c_str(), op_type.c_str(), i);
       continue;
     }
-    if (dump_properties_.IsInputInOpTypeBlacklist(dump_model_name, op_type, i) ||
-      dump_properties_.IsInputInOpTypeBlacklist(dump_om_name, op_type, i) ||
-      dump_properties_.IsInputInOpTypeBlacklist(DUMP_LAYER_OP_MODEL, op_type, i)) {
+    if (dump_properties_.IsInputInOpTypeBlacklist(dump_model_name, op_type, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsInputInOpTypeBlacklist(dump_om_name, op_type, static_cast<uint32_t>(i)) ||
+      dump_properties_.IsInputInOpTypeBlacklist(DUMP_LAYER_OP_MODEL, op_type, static_cast<uint32_t>(i))) {
       GELOGI("[Dumper] Node name %s, Node type: %s, input index %zu is in optype-blacklist, skip to dump this input.",
          op_name.c_str(), op_type.c_str(), i);
       continue;
@@ -339,7 +339,7 @@ Status DumpOp::ExecutorDumpOp(bool need_device_args) {
     args_for_launch.isNoNeedH2DCopy = 0U;
   }
   args_for_launch.argsSize = args_size;
-  const rtError_t rt_ret = rtCpuKernelLaunchWithFlag(nullptr, kDumpKernelsDumpOp, 1U,
+  const rtError_t rt_ret = rtCpuKernelLaunchWithFlag(nullptr, kDumpKernelsDumpOp.c_str(), 1U,
                                                      &args_for_launch, nullptr, stream_, RT_KERNEL_DEFAULT);
   if (rt_ret != RT_ERROR_NONE) {
     GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][rtCpuKernelLaunch]Failed, ret %d", rt_ret);
@@ -500,18 +500,18 @@ Status DumpOp::BuildFftsSubOpTask(toolkit::aicpu::dump::OpMappingInfo &op_mappin
              op_desc->GetName().c_str(), context.context_id, context.thread_id, context.input.size(),
              context.output.size(), dbg_ss.str().c_str());
     }
-    std::string ffts_str;
-    if (AttrUtils::GetStr(op_desc, ffts::kAttrSgtJsonInfo, ffts_str) && (!ffts_str.empty())) {
+    const std::string* ffts_str = AttrUtils::GetStr(*op_desc, ffts::kAttrSgtJsonInfo);
+    if (ffts_str != nullptr && !ffts_str->empty()) {
       toolkit::aicpu::dump::OpAttr op_attr;
       op_attr.set_name(ffts::kAttrSgtJsonInfo);
-      op_attr.set_value(ffts_str);
+      op_attr.set_value(*ffts_str);
       task.mutable_attr()->Add(std::move(op_attr));
-      GELOGI("Add sgt json attr %s in op %s.", ffts_str.c_str(), op_desc->GetName().c_str());
+      GELOGI("Add sgt json attr %s in op %s.", ffts_str->c_str(), op_desc->GetName().c_str());
     }
 
     op_desc_ = op_desc;
     const std::vector<uintptr_t> input_addrs(op_desc->GetAllInputsSize());
-    const std::vector<uintptr_t> output_addrs(op_desc->GetAllOutputsDesc().size());
+    const std::vector<uintptr_t> output_addrs(op_desc->GetAllOutputsDescPtr().size());
     if ((dump_mode_bits & kInputBitsMask) != 0U) {
       GE_CHK_STATUS_RET(DumpInput(task, op_desc, input_addrs, true), "Dump Input failed, node %s(%s)",
                         op_desc_->GetName().c_str(), op_desc_->GetType().c_str());
@@ -649,7 +649,9 @@ Status DumpOp::LaunchDumpOp(const bool is_single_op_dump, bool need_device_args)
          dump_path.c_str());
   if ((task_id_ == 0U) || (stream_id_ == 0U)) {
     GE_CHK_RT(rtsGetThreadLastTaskId(&task_id_));
-    GE_CHK_RT(rtsStreamGetId(stream_, reinterpret_cast<int32_t*>(&stream_id_)));
+    int32_t temp_stream_id;
+    GE_CHK_RT(rtsStreamGetId(stream_, &temp_stream_id));
+    stream_id_ = static_cast<uint32_t>(temp_stream_id);
   }
   int32_t bit_width;
   GE_CHK_RT(rtsDeviceGetCapability(device_id, RT_FEATURE_SYSTEM_TASKID_BIT_WIDTH, &bit_width));
@@ -658,6 +660,10 @@ Status DumpOp::LaunchDumpOp(const bool is_single_op_dump, bool need_device_args)
   }
   toolkit::aicpu::dump::Task task;
   DumpTask(task, task_id_);
+  return ExecuteDump(task, need_device_args);
+}
+
+Status DumpOp::ExecuteDump(toolkit::aicpu::dump::Task &task, bool need_device_args) {
   const Status status = LaunchDump(task);
   if (status != SUCCESS) {
     return status;

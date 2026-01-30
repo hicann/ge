@@ -27,6 +27,8 @@
 #include "graph/utils/node_utils_ex.h"
 #include "graph/utils/node_utils.h"
 #include "runtime/kernel.h"
+#include "common/kernel_handles_manager/kernel_handle_utils.h"
+#include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 
 namespace {
 const std::string kLocalMemorySize = "local_memory_size";
@@ -131,6 +133,23 @@ Status SuperKernelV2TaskInfo::ParseTaskRunParam(const domi::TaskDef &task_def, D
   return SUCCESS;
 }
 
+rtFuncHandle SuperKernelV2TaskInfo::GetFuncHandle() {
+  auto kernel_handles_manager = davinci_model_->GetKernelHandlesManager(KernelHandleType::kAicore);
+  GE_ASSERT_NOTNULL(kernel_handles_manager);
+  KernelRegisterInfo register_info;
+  GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructAicoreRegisterInfo(op_desc_, false, davinci_model_->GetModelId(), register_info));
+  const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+  auto bin_handle = kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
+  GE_ASSERT_NOTNULL(bin_handle);
+  GE_ASSERT_NOTNULL(op_desc_);
+  std::string attr_kernel_name = op_desc_->GetName() + "_kernelname";
+  std::string kernel_name;
+  (void)AttrUtils::GetStr(op_desc_, attr_kernel_name, "_kernelname", kernel_name);
+  GELOGD("[%s][%s] get kernel name: %s from attr: %s.", op_desc_->GetNamePtr(), op_desc_->GetTypePtr(),
+      kernel_name.c_str(), attr_kernel_name.c_str());
+  return KernelHandleUtils::GetFuncHandle(bin_handle, kernel_name);
+}
+
 Status SuperKernelV2TaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *const davinci_model,
                                  const PisToArgs &args, const PisToPersistentWorkspace &persistent_workspace,
                                  const IowAddrs &iow_addrs) {
@@ -144,7 +163,8 @@ Status SuperKernelV2TaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *
 
   GE_ASSERT_SUCCESS(UpdateIoAndWorkspaceAddrs(iow_addrs));
   GE_CHK_STATUS_RET_NOLOG(InitKernel(task_def, args));
-
+  func_handle_ = GetFuncHandle();
+  GE_ASSERT_NOTNULL(func_handle_);
   io_addr_mem_types_.resize(io_addrs_.size(), static_cast<uint64_t>(MemoryAppType::kMemoryTypeFix));
   GE_ASSERT_SUCCESS(args_io_addrs_updater_.Init(davinci_model_->GetLogicalMemAllocation(), io_addrs_,
       io_addr_mem_types_, {op_desc_->GetName(), op_desc_->GetType()}));
@@ -172,9 +192,18 @@ Status SuperKernelV2TaskInfo::Distribute() {
   args_ex_.isNoNeedH2DCopy = 1U;
   cfg_.dumpflag = dump_flag_;
   cfg_.localMemorySize = local_memory_size_;
-
-  GE_CHK_RT_RET(rtKernelLaunchWithFlagV2(stub_func_, block_dim_, &args_ex_, PtrToPtr<void, rtSmDesc_t>(sm_desc_),
-                                             stream_, dump_flag_, &cfg_));
+  
+  LaunchKernelParam launch_kernel_param;
+  launch_kernel_param.args = args_;
+  launch_kernel_param.args_size = args_size_;
+  launch_kernel_param.block_dim = block_dim_;
+  launch_kernel_param.stream = stream_;
+  launch_kernel_param.launch_config.schedule_mode = cfg_.schemMode;
+  launch_kernel_param.launch_config.local_memory_size = local_memory_size_;
+  launch_kernel_param.launch_config.block_dim_offset = cfg_.blockDimOffset;
+  launch_kernel_param.launch_config.is_block_task_prefetch = is_block_task_prefetch_;
+  launch_kernel_param.launch_config.is_data_dump = is_data_dump_;
+  GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(func_handle_, launch_kernel_param));
   call_save_dump_ = true;
 
   // set for task_id_
@@ -917,20 +946,6 @@ Status SuperKernelV2TaskInfo::InitTask(const domi::KernelDef &kernel_def) {
   GELOGD("Do InitTask of %s.", op_desc_->GetName().c_str());
   GE_CHK_STATUS_RET_NOLOG(InitContext(kernel_def.context()));
 
-  // get bin_file_key
-  std::string prefix = "";
-  const std::string bin_handle_key = davinci_model_->GetBinHandleKey(*op_desc_, prefix, false);
-  void *tmp_stub_func = nullptr;
-  const rtError_t rt_ret = rtGetFunctionByName(bin_handle_key.c_str(), &tmp_stub_func);
-  if (rt_ret != RT_ERROR_NONE) {
-    REPORT_INNER_ERR_MSG("E19999", "Call rtGetFunctionByName failed op:%s(%s), bin_file:%s, ret:%d",
-                      op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), bin_handle_key.c_str(), rt_ret);
-    GELOGE(RT_FAILED, "[Execute][RtGetFunctionByName] failed for op:%s(%s), bin_file:%s",
-           op_desc_->GetName().c_str(), op_desc_->GetType().c_str(), bin_handle_key.c_str());
-    return RT_ERROR_TO_GE_STATUS(rt_ret);
-  }
-  stub_func_ = tmp_stub_func;
-
   cfg_.schemMode = static_cast<uint8_t>(kernel_def.schedule_mode() & k2BitsMask);
   GELOGD("OpName: %s set schedule mode from kernel def: %u",
       op_desc_->GetName().c_str(), static_cast<uint32_t>(cfg_.schemMode));
@@ -943,8 +958,8 @@ Status SuperKernelV2TaskInfo::InitKernel(const domi::TaskDef &task_def, const Pi
   GELOGD("SuperKernelV2TaskInfo init start, kernel_type: %d.", static_cast<int32_t>(kernel_type_));
   GE_CHECK_NOTNULL(op_desc_);
   (void)AttrUtils::GetInt(op_desc_, kLocalMemorySize, local_memory_size_);
-
   const domi::KernelDef &kernel_def = task_def.kernel();
+  is_block_task_prefetch_ = kernel_def.is_block_task_prefetch();
   const domi::KernelContext &context = kernel_def.context();
   if (context.origin_op_index_size() > CC_FUSION_OP_MAX) {
     REPORT_INNER_ERR_MSG("E19999", "origin_op_index_size:%d is more than CC_FUSION_OP_MAX(%d), op:%s(%s), check invalid",
@@ -957,7 +972,6 @@ Status SuperKernelV2TaskInfo::InitKernel(const domi::TaskDef &task_def, const Pi
   // Old model will not take this value, its default value is 0,need to convert to the real default value 1.
   block_dim_ = (kernel_def.block_dim() == 0U) ? 1U : kernel_def.block_dim();
   cfg_.blockDimOffset = kernel_def.block_dim_offset();
-
   operator_ = davinci_model_->GetOperatorByIndex(context.op_index());
   GE_CHECK_NOTNULL(operator_);
 
@@ -974,6 +988,7 @@ Status SuperKernelV2TaskInfo::InitKernel(const domi::TaskDef &task_def, const Pi
     GELOGI("Op %s need dump or print in task info", op_desc_->GetName().c_str());
     dump_args_ = PtrAdd(PtrToPtr<void, uint8_t>(args_), static_cast<size_t>(args_size_), io_addr_offset_);
     dump_flag_ = RT_KERNEL_DUMPFLAG;
+    is_data_dump_ = true;
   }
   return ret;
 }

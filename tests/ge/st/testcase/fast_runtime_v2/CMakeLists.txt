@@ -10,6 +10,12 @@
 # -----------------------------------------------------------------------------------------------------------
 
 file(GLOB_RECURSE RUNTIME2_TEST_SRCS CONFIGURE_DEPENDS "*.cc" )
+
+list(REMOVE_ITEM RUNTIME2_TEST_SRCS
+        "${AIR_CODE_DIR}/tests/ge/st/testcase/fast_runtime_v2/dvpp/dvpp_rtkernel/dvpp_rtkernel_unittest.cc"
+        "${AIR_CODE_DIR}/tests/ge/st/testcase/fast_runtime_v2/dvpp/dvpp_rtkernel/stub_dvpp_context.cc"
+)
+
 add_executable(st_fast_runtime2_test
         "${AIR_CODE_DIR}/tests/depends/graph_tuner/rt2_src/graph_tunner_rt2_stub.cc"
         "${AIR_CODE_DIR}/tests/ge/ut/ge/ffts_plus_proto_tools.cc"
@@ -77,6 +83,7 @@ target_link_libraries(st_fast_runtime2_test PRIVATE
         rt2_registry_static
         gert_op_impl_static
         ge_runtime_stub
+        ascendcl_stub
         -Wl,--no-whole-archive
       )
 

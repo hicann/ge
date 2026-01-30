@@ -56,7 +56,7 @@ std::vector<bg::ValueHolderPtr> NodeConverterUtils::CreateOutputShapes(
   return outputs;
 }
 
-bg::ValueHolderPtr CreateShapeTensor(StorageShape &shape, const ge::ConstGeTensorDescPtr &output_desc) {
+static bg::ValueHolderPtr CreateShapeTensor(StorageShape &shape, const ge::ConstGeTensorDescPtr &output_desc) {
   StorageFormat storage_format;
   storage_format.SetOriginFormat(output_desc->GetOriginFormat());
   storage_format.SetStorageFormat(output_desc->GetFormat());

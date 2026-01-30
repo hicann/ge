@@ -18,6 +18,8 @@
 #include "graph/types.h"
 #include "exe_graph/lowering/dev_mem_value_holder.h"
 #include "exe_graph/lowering/lowering_global_data.h"
+#include "common/hyper_status.h"
+#include "exe_graph/lowering/value_holder.h"
 
 namespace gert {
 struct LowerInput {

@@ -8,12 +8,13 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "host_kernels/elewise_calculation_ops/add_kernel.h"
+#include <type_traits>
 #include "common/math/math_util.h"
 #include "common/b_cast.h"
 #include "graph/utils/type_utils.h"
 #include "host_kernels/kernel_factory.h"
 #include "common/checker.h"
+#include "host_kernels/elewise_calculation_ops/add_kernel.h"
 
 namespace ge {
 namespace {
@@ -27,52 +28,71 @@ const size_t kAddOutputSize = 1;
   case (DTYPE):                                         \
     ret = BCastAdd<TYPE>(op_desc_ptr, input, v_output); \
     break
+
+// Helper struct to separate Integer and Floating-point
+template <typename T, bool IsInger = std::is_integral<T>::value>
+struct OverflowCheckHelper {
+  static Status Check(const T &x, const T &y, DataType data_type) {
+    switch (data_type) {
+      case DT_FLOAT16:
+      case DT_COMPLEX32:
+        FMK_FP16_ADDCHECK(x, y)
+        break;
+      case DT_FLOAT:
+      case DT_COMPLEX64:
+        FMK_FLOAT_ADDCHECK(x, y)
+        break;
+      case DT_DOUBLE:
+      case DT_COMPLEX128:
+        FMK_DOUBLE_ADDCHECK(x, y)
+        break;
+      default:
+        break;
+    }
+    return SUCCESS;
+  }
+};
+
+// Specialization for Integral types
+template <typename T>
+struct OverflowCheckHelper<T, true> {
+  static Status Check(const T &x, const T &y, DataType data_type) {
+    switch (data_type) {
+      case DT_INT32:
+        FMK_INT32_ADDCHECK(x, y)
+        break;
+      case DT_INT16:
+        FMK_INT16_ADDCHECK(x, y)
+        break;
+      case DT_INT8:
+        FMK_INT8_ADDCHECK(x, y)
+        break;
+      case DT_INT64:
+        FMK_INT64_ADDCHECK(x, y)
+        break;
+      case DT_UINT64:
+        FMK_UINT64_ADDCHECK(x, y)
+        break;
+      case DT_UINT32:
+        FMK_UINT32_ADDCHECK(x, y)
+        break;
+      case DT_UINT16:
+        FMK_UINT16_ADDCHECK(x, y)
+        break;
+      case DT_UINT8:
+        FMK_UINT8_ADDCHECK(x, y)
+        break;
+      default:
+        break;
+    }
+    return SUCCESS;
+  }
+};
 }  // namespace
 
 template <typename T>
 Status AddKernel::OverflowCheck(const T &x, const T &y, DataType data_type) const {
-  switch (data_type) {
-    case DT_INT8:
-      FMK_INT8_ADDCHECK(x, y)
-      break;
-    case DT_INT16:
-      FMK_INT16_ADDCHECK(x, y)
-      break;
-    case DT_INT32:
-      FMK_INT32_ADDCHECK(x, y)
-      break;
-    case DT_INT64:
-      FMK_INT64_ADDCHECK(x, y)
-      break;
-    case DT_UINT8:
-      FMK_UINT8_ADDCHECK(x, y)
-      break;
-    case DT_UINT16:
-      FMK_UINT16_ADDCHECK(x, y)
-      break;
-    case DT_UINT32:
-      FMK_UINT32_ADDCHECK(x, y)
-      break;
-    case DT_UINT64:
-      FMK_UINT64_ADDCHECK(x, y)
-      break;
-    case DT_FLOAT16:
-    case DT_COMPLEX32:
-      FMK_FP16_ADDCHECK(x, y)
-      break;
-    case DT_FLOAT:
-    case DT_COMPLEX64:
-      FMK_FLOAT_ADDCHECK(x, y)
-      break;
-    case DT_DOUBLE:
-    case DT_COMPLEX128:
-      FMK_DOUBLE_ADDCHECK(x, y)
-      break;
-    default:
-      break;
-  }
-
-  return SUCCESS;
+  return OverflowCheckHelper<T>::Check(x, y, data_type);
 }
 
 template <typename InT>

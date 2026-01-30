@@ -33,7 +33,7 @@ class HybridDavinciModelTest : public testing::Test {
 
 namespace {
 
-void ListenerCallback(Status status, std::vector<ge::Tensor> &tensors){
+void ListenerCallback(Status status, std::vector<gert::Tensor> &tensors){
   return;
 }
 
@@ -70,8 +70,8 @@ TEST_F(HybridDavinciModelTest, HybridDavinciModel_Null) {
   EXPECT_EQ(mod->ModelRunStop(), PARAM_INVALID);
   EXPECT_EQ(mod->GetDataInputerSize(), PARAM_INVALID);
   EXPECT_EQ(mod->GetGlobalStepAddr(), 0UL);
-  std::vector<GeTensor> inputs;
-  std::vector<GeTensor> outputs;
+  std::vector<gert::Tensor> inputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(mod->Execute(inputs, outputs), PARAM_INVALID);
   EXPECT_EQ(mod->ExecuteWithStreamAsync(inputs, outputs), PARAM_INVALID);
   std::vector<InputOutputDescInfo> input_desc;

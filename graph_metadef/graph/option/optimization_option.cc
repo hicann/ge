@@ -9,7 +9,7 @@
  */
 
 #include "graph/option/optimization_option.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
 #include "common/checker.h"
 #include "graph/ge_local_context.h"
@@ -84,7 +84,7 @@ graphStatus OptimizationOption::IsOoLevelValid(const std::string &oo_level) {
   const auto &oo_level_iter = kOptValToLevels.find(oo_level);
   if (oo_level_iter == kOptValToLevels.end()) {
     ReportParamInvalid(GetThreadLocalContext().GetReadableName(OO_LEVEL), oo_level,
-                       "The optimization option level is unsupported.");
+                       "The value must be O1 or O3.");
     return GRAPH_PARAM_INVALID;
   }
   return GRAPH_SUCCESS;

@@ -12,7 +12,7 @@
 
 #include <cmath>
 
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/type_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/debug/ge_attr_define.h"
@@ -37,7 +37,7 @@ const uint32_t kDimSizeC1hwncoc0 = 6U;
 const int64_t kDataMemAlignSize = 32;
 const int64_t kNum2 = 2;
 
-const char_t *const kShapeRangeInvalid = "format of shape range is invalid";
+const char_t *const kShapeRangeInvalid = "The format of the shape range is invalid";
 const char_t *const kShapeRangeSample = "\"[1~20,3,3~6,-1]\"";
 }  // namespace
 

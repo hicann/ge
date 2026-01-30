@@ -11,7 +11,7 @@
 #include "graph/utils/node_utils.h"
 #include <stack>
 #include <securec.h>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/graph_utils.h"
@@ -46,6 +46,16 @@ const char_t *const kPartSrcGraph = "part_src_graph";
 
 namespace {
 constexpr int32_t kInvalidIndex = -1;
+
+const std::unordered_set<std::string> kMultiBranchControlFlowOps = [] {
+  std::unordered_set<std::string> s;
+  s.insert(kIfOpTypes.begin(), kIfOpTypes.end());
+  s.insert(kWhileOpTypes.begin(), kWhileOpTypes.end());
+  s.insert(kForOpTypes.begin(), kForOpTypes.end());
+  s.insert(kSwitchOpTypes.begin(), kSwitchOpTypes.end());
+  return s;
+}();
+
 bool OpShapeIsUnknown(const OpDescPtr &desc) {
   for (const auto &ptr : desc->GetAllInputsDescPtr()) {
     const auto ge_shape = ptr->GetShape();
@@ -483,7 +493,10 @@ std::string NodeUtils::GetNodeType(const Node &node) {
   }
 
   std::string type;
-  (void) AttrUtils::GetStr(node.GetOpDesc(), ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE, type);
+  const std::string *type_str = AttrUtils::GetStr(node.GetOpDesc(), ATTR_NAME_FRAMEWORK_ORIGINAL_TYPE);
+  if (type_str != nullptr) {
+    type = *type_str;
+  }
   return type;
 }
 
@@ -688,7 +701,7 @@ NodePtr NodeUtils::GetParentInput(const Node &node) {
   const ComputeGraphPtr &graph = node.GetOwnerComputeGraph();
   GE_CHECK_NOTNULL_EXEC(graph, return nullptr);
 
-  const NodePtr &parent_node = graph->GetParentNode();
+  const Node *parent_node = graph->GetParentNodeBarePtr();
   if (parent_node == nullptr) {
     GELOGW("Node {%s %s} has attr %s but has no parent node.",
            node.GetNamePtr(),
@@ -718,6 +731,58 @@ NodePtr NodeUtils::GetParentInput(const Node &node) {
 NodePtr NodeUtils::GetParentInput(const NodePtr &node) {
   return (node == nullptr) ? node : GetParentInput(*node);
 }
+
+bool NodeUtils::IsWrapperNode(const NodePtr &node) {
+  if (node == nullptr) {
+    return false;
+  }
+  const auto op_desc = node->GetOpDesc();
+  if (op_desc == nullptr) {
+    return false;
+  }
+  return !op_desc->GetSubgraphInstanceNames().empty();
+}
+
+NodePtr NodeUtils::GetParentNode(const Node &node) {
+  const ComputeGraphPtr &graph = node.GetOwnerComputeGraph();
+  GE_ASSERT_NOTNULL(graph, "Owner compute graph is null for DATA node: %s", node.GetNamePtr());
+  NodePtr parent_node = graph->GetParentNode();
+  return parent_node;
+}
+
+NodePtr NodeUtils::GetParentNode(const NodePtr &node) {
+  return (node == nullptr) ? node : GetParentNode(*node);
+}
+
+InDataAnchorPtr NodeUtils::GetParentInDataAnchor(const NodePtr &node) {
+  if (node == nullptr) {
+    return nullptr;
+  }
+
+  // 1. 获取映射索引
+  uint32_t parent_index = 0U;
+  if (!AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, parent_index)) {
+    return nullptr;
+  }
+
+  // 2. 获取父图 Wrapper 节点
+  const auto &graph = node->GetOwnerComputeGraph();
+  if (graph == nullptr) {
+    return nullptr;
+  }
+
+  const auto parent_node = graph->GetParentNode();
+  if (parent_node == nullptr) {
+    // 可能是根图，没有父节点
+    return nullptr;
+  }
+
+  // 3. 获取 Wrapper 对应的输入锚点
+  const auto parent_in_anchor = parent_node->GetInDataAnchor(static_cast<int32_t>(parent_index));
+
+  return parent_in_anchor;
+}
+
 NodeToOutAnchor NodeUtils::GetParentInputAndAnchor(const NodePtr &node) {
   uint32_t parent_index = 0U;
   if (!AttrUtils::GetInt(node->GetOpDesc(), ATTR_NAME_PARENT_NODE_INDEX, parent_index)) {
@@ -730,7 +795,7 @@ NodeToOutAnchor NodeUtils::GetParentInputAndAnchor(const NodePtr &node) {
     return {nullptr, nullptr};
   }
 
-  const NodePtr &parent_node = graph->GetParentNode();
+  const Node *parent_node = graph->GetParentNodeBarePtr();
   if (parent_node == nullptr) {
     return {nullptr, nullptr};
   }
@@ -797,7 +862,7 @@ bool NodeUtils::IsWhileVaryingInput(const ge::NodePtr &node) {
     return false;  // not input_node for subgraph
   }
 
-  const NodePtr &parent_node = node->GetOwnerComputeGraph()->GetParentNode();
+  const Node *parent_node = node->GetOwnerComputeGraph()->GetParentNodeBarePtr();
   if (parent_node == nullptr) {
     return false;  // root graph
   }
@@ -1004,7 +1069,7 @@ NodePtr NodeUtils::GetInNodeCrossSubgraph(const NodePtr &node) {
     }
 
     const auto owner_graph = input_node->GetOwnerComputeGraph();
-    const auto parent_node = owner_graph->GetParentNode();
+    const auto parent_node = owner_graph->GetParentNodeBarePtr();
     if ((parent_node == nullptr) || (kWhileOpTypes.count(parent_node->GetType()) > 0UL)) {
       return input_node;  // not in subgraph or while subgraph.
     }
@@ -1094,7 +1159,7 @@ graphStatus NodeUtils::GetInNodeCrossPartionedCallNode(const NodePtr &node, uint
     const auto sub_graph_netoutput = sub_graph->GetOrUpdateNetOutputNode();
     GE_CHECK_NOTNULL(sub_graph_netoutput);
 
-    for (const auto &in_data_anchor : sub_graph_netoutput->GetAllInDataAnchors()) {
+    for (const auto &in_data_anchor : sub_graph_netoutput->GetAllInDataAnchorsPtr()) {
       const auto in_desc =
           sub_graph_netoutput->GetOpDesc()->MutableInputDesc(static_cast<uint32_t>(in_data_anchor->GetIdx()));
       GE_CHECK_NOTNULL(in_desc);
@@ -1117,16 +1182,42 @@ graphStatus NodeUtils::GetInNodeCrossPartionedCallNode(const NodePtr &node, uint
   return GRAPH_SUCCESS;
 }
 
+bool NodeUtils::IsNodeInRootGraph(const NodePtr &node) {
+  GE_ASSERT_NOTNULL(node);  
+
+  const auto owner_graph = node->GetOwnerComputeGraph();
+  GE_ASSERT_NOTNULL(owner_graph);
+
+  const auto root_graph = ge::GraphUtils::FindRootGraph(owner_graph);
+  GE_ASSERT_NOTNULL(root_graph);
+
+  if (owner_graph == root_graph) {
+    GELOGD("Node [%s] is in root graph [%s].", node->GetName().c_str(), root_graph->GetName().c_str());
+    return true;
+  }
+  GELOGD("Node [%s] is in sub graph [%s], root graph is [%s].", node->GetName().c_str(),
+         owner_graph->GetName().c_str(), root_graph->GetName().c_str());
+  return false;
+}
+
+bool NodeUtils::IsMultiBranchControlFlowOp(const NodePtr &node) {
+  if (node == nullptr) {
+    return false;
+  }
+  const std::string &type = node->GetType();
+  return kMultiBranchControlFlowOps.count(type) > 0;
+}
+
 graphStatus NodeUtils::SetNodeParallelGroup(Node &node, const char_t *const group_name) {
   if (group_name == nullptr) {
     GE_LOGE("[Check][Parameter]Get nullptr when set parallel group on node:%s", node.GetName().c_str());
     REPORT_INNER_ERR_MSG("E18888", "Get nullptr when set parallel group on node:%s", node.GetName().c_str());
     return GRAPH_FAILED;
   }
-  std::string current_group;
+  const std::string *current_group = AttrUtils::GetStr(node.GetOpDesc(), ATTR_NAME_PARALLEL_GROUP);
   const std::string new_group(group_name);
-  if (AttrUtils::GetStr(node.GetOpDesc(), ATTR_NAME_PARALLEL_GROUP, current_group)) {
-    if (new_group != current_group) {
+  if (current_group != nullptr) {
+    if (new_group != *current_group) {
       GE_LOGE("[Compare][Attr]Failed to set parallel group name %s on node %s, group conflict with existing %s",
               new_group.c_str(), node.GetName().c_str(), group_name);
       REPORT_INNER_ERR_MSG("E18888", "Failed to set parallel group name %s on node %s, group conflict with existing %s",
@@ -1276,7 +1367,7 @@ std::vector<NodePtr> NodeUtils::GetOutDataNodes(const Node &node, const NodeFilt
   std::vector<NodePtr> out_data_nodes;
   for (const auto &out_anchor : node.impl_->out_data_anchors_) {
     GE_ASSERT_NOTNULL(out_anchor);
-    for (const auto &in_anchor : out_anchor->GetPeerInDataAnchors()) {
+    for (const auto &in_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
       GE_ASSERT_NOTNULL(in_anchor);
       const auto out_data_node = in_anchor->GetOwnerNode();
       if ((node_filter == nullptr) || node_filter(*out_data_node)) {

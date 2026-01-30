@@ -40,8 +40,8 @@ TEST_F(UtestOmg, ParseSingleOpListTest_01) {
 }
 
 TEST_F(UtestOmg, ParseSingleOpListTest_02) {
-  std::string file = FILE_SESSION_PATH;
-  file = file + "Add_int32_1.json";
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "Add_int32_1.json";
   stringstream sstream;
   sstream << R"(cat - << EOF > )" << file;
   sstream << R"(
@@ -128,8 +128,8 @@ TEST_F(UtestOmg, ParseSingleOpListTest_02) {
 }
 
 TEST_F(UtestOmg, ParseSingleOpListTest_03) {
-  std::string file = FILE_SESSION_PATH;
-  file = file + "Add_int32_1.json";
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "Add_int32_1.json";
   stringstream sstream;
   sstream << R"(cat - << EOF > )" << file;
   sstream << R"(
@@ -174,8 +174,8 @@ TEST_F(UtestOmg, ParseSingleOpListTest_03) {
 }
 
 TEST_F(UtestOmg, ParseSingleOpListTest_04) {
-  std::string file = FILE_SESSION_PATH;
-  file = file + "Add_int32_1.json";
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "Add_int32_1.json";
   stringstream sstream;
   sstream << R"(cat - << EOF > )" << file;
   sstream << R"(
@@ -220,8 +220,8 @@ TEST_F(UtestOmg, ParseSingleOpListTest_04) {
 }
 
 TEST_F(UtestOmg, ParseSingleOpListTest_05) {
-  std::string file = FILE_SESSION_PATH;
-  file = file + "Add_int32_1.json";
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "Add_int32_1.json";
   stringstream sstream;
   sstream << R"(cat - << EOF > )" << file;
   sstream << R"(
@@ -266,8 +266,8 @@ TEST_F(UtestOmg, ParseSingleOpListTest_05) {
 }
 
 TEST_F(UtestOmg, ParseSingleOpListTest_06) {
-  std::string file = FILE_SESSION_PATH;
-  file = file + "Add_int32_1.json";
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "Add_int32_1.json";
   stringstream sstream;
   sstream << R"(cat - << EOF > )" << file;
   sstream << R"(
@@ -312,8 +312,8 @@ TEST_F(UtestOmg, ParseSingleOpListTest_06) {
 }
 
 TEST_F(UtestOmg, ParseSingleOpListTest_07) {
-  std::string file = FILE_SESSION_PATH;
-  file = file + "Add_int32_1.json";
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "Add_int32_1.json";
   stringstream sstream;
   sstream << R"(cat - << EOF > )" << file;
   sstream << R"(
@@ -358,8 +358,8 @@ TEST_F(UtestOmg, ParseSingleOpListTest_07) {
 }
 
 TEST_F(UtestOmg, ParseSingleOpListTest_08) {
-  std::string file = FILE_SESSION_PATH;
-  file = file + "Add_int32_1.json";
+  std::string file = __FILE__;
+  file = file.substr(0, file.rfind("/") + 1) + "Add_int32_1.json";
   stringstream sstream;
   sstream << R"(cat - << EOF > )" << file;
   sstream << R"(

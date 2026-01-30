@@ -14,27 +14,27 @@
 #include "ge/ge_api_types.h"
 #include "exe_graph/runtime/tensor.h"
 #include "graph/compute_graph.h"
-#include "api/session/session/inner_session.h"
+#include "graph/manager/graph_manager.h"
 namespace ge {
-using SessionPtr = std::shared_ptr<InnerSession>;
 class CompileContext {
 public:
-  explicit CompileContext(InnerSession &inner_session) : inner_session_(inner_session) {}
+  explicit CompileContext(GraphManager &graph_manager) : graph_manager_(graph_manager) {}
   uint32_t GenNewGraphId() {
     return inner_ge_graph_id_generator_++;
   }
   Status Compile(uint32_t graph_id, const ComputeGraphPtr &graph, const std::vector<gert::Tensor> &inputs,
-                 const std::map<std::string, std::string> &options);
-  Status Compile(uint32_t graph_id, const ComputeGraphPtr &graph, const std::vector<ge::Tensor> &inputs);
+                 const std::map<std::string, std::string> &options, uint64_t session_id);
+  Status Compile(uint32_t graph_id, const ComputeGraphPtr &graph, const std::vector<ge::Tensor> &inputs,
+    uint64_t session_id);
   Status Fork(uint32_t origin_graph_id, uint32_t forked_graph_id);
-  Status Load(uint32_t graph_id,  rtStream_t stream);
+  Status Load(uint32_t graph_id,  const rtStream_t stream) const;
   Status Load(uint32_t graph_id, const std::map<AscendString, AscendString> &options,
-              rtStream_t stream);
+              const rtStream_t stream);
   bool IsGraphNeedRebuild(uint32_t graph_id);
   Status GetCompiledGraphSummary(uint32_t graph_id, CompiledGraphSummaryPtr &summary) const;
 
  private:
-  InnerSession &inner_session_;
+  GraphManager &graph_manager_;
   uint32_t inner_ge_graph_id_generator_{0};
 };
 

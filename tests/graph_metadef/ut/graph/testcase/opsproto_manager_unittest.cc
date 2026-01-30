@@ -47,15 +47,15 @@ TEST_F(OpsprotoManagerUt, Instance_Initialize_Finalize) {
   EXPECT_EQ(opspm->is_init_, false);
 }
 
-TEST_F(OpsprotoManagerUt, LoadOpsProtoPluginSo) {
+TEST_F(OpsprotoManagerUt, LoadBuiltinOpsPluginSo) {
   OpsProtoManager *opspm = OpsProtoManager::Instance();
-  opspm->LoadOpsProtoPluginSo("");
-  opspm->LoadOpsProtoPluginSo("./protobuf_build-prefix/src/protobuf_build-build/");
+  opspm->LoadBuiltinOpsPluginSo("");
+  opspm->LoadBuiltinOpsPluginSo("./protobuf_build-prefix/src/protobuf_build-build/");
 
   EXPECT_EQ(opspm->handles_.size(), 0);
 }
 
-TEST_F(OpsprotoManagerUt, LoadOpsProtoPluginSo_Exclude_rt) {
+TEST_F(OpsprotoManagerUt, LoadBuiltinOpsPluginSo_Exclude_rt) {
   std::string path = __FILE__;
   PluginManager manager;
   std::string host_env_os;
@@ -67,6 +67,31 @@ TEST_F(OpsprotoManagerUt, LoadOpsProtoPluginSo_Exclude_rt) {
   system(("touch " + path + "/lib/"+ host_env_os + "/" + host_env_cpu + "/libopsproto_rt2.0.so").c_str());
   system(("touch " + path + "/lib/"+ host_env_os + "/" + host_env_cpu + "/libopsproto_rt.so").c_str());
 
+  OpsProtoManager::Instance()->handles_.clear();
+  OpsProtoManager::Instance()->LoadBuiltinOpsPluginSo(path);
+  ASSERT_EQ(OpsProtoManager::Instance()->handles_.size(), 1);
+  system(("rm -rf " + path).c_str());
+}
+
+TEST_F(OpsprotoManagerUt, LoadOpsCustomSo_Exclude_rt) {
+  std::string path = __FILE__;
+  path = "";
+  OpsProtoManager::Instance()->handles_.clear();
+  OpsProtoManager::Instance()->LoadOpsProtoPluginSo(path);
+  ASSERT_EQ(OpsProtoManager::Instance()->handles_.size(), 0);
+  system(("rm -rf " + path).c_str());
+}
+
+TEST_F(OpsprotoManagerUt, LoadOpsCustomSo_Path_invalid) {
+  std::string path = __FILE__;
+  PluginManager manager;
+  std::string host_env_os;
+  std::string host_env_cpu;
+  manager.GetCurEnvPackageOsAndCpuType(host_env_os, host_env_cpu);
+  path = path.substr(0, path.rfind("/") + 1) + "opp_test/";
+  system(("mkdir -p " + path + "/lib/" + host_env_os + "/" + host_env_cpu).c_str());
+  system(("touch " + path + "/lib/"+ host_env_os + "/" + host_env_cpu + "/libopsproto.so").c_str());
+  path = path + + "/lib/"+ host_env_os + "/" + host_env_cpu + "/libopsproto.so";
   OpsProtoManager::Instance()->handles_.clear();
   OpsProtoManager::Instance()->LoadOpsProtoPluginSo(path);
   ASSERT_EQ(OpsProtoManager::Instance()->handles_.size(), 1);

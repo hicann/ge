@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -19,6 +19,8 @@
 #include "graph/load/model_manager/task_info/fe/kernel_task_info.h"
 #include "graph/load/model_manager/task_info/fe/super_kernel_task_info.h"
 #include "graph/load/model_manager/task_info/hccl/hccl_task_info.h"
+#include "graph/load/model_manager/task_info/hccl/hccl_util.h"
+#include "graph/load/model_manager/task_info/fe/fusion_task_info.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "ge/ut/ge/ffts_plus_proto_tools.h"
 #include "framework/common/types.h"
@@ -39,13 +41,16 @@
 #include "graph/manager/mem_manager.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace ge {
 namespace {
 const std::string kAttrNameAtomicWspMode = "wspMode";
 const std::string kWspFoldedMode = "folded";
 constexpr uint32_t kUBAlignedLen = 32UL;
+
+HcclResult InitializeHeterogeneousRuntime(const std::string &group, void *tilingData, void *ccuTaskGroup) {
+  return HCCL_SUCCESS;
+}
 }
 class UtestKernelTaskInfo : public testing::Test {
  protected:
@@ -194,7 +199,12 @@ TEST_F(UtestKernelTaskInfo, init_task_tvm) {
   op_desc->SetOutputOffset({8});
   op_desc->SetWorkspace({1308});   // offset
   op_desc->SetWorkspaceBytes({150});    // length
-
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
   {
     KernelTaskInfo kernel_task_info;
     TaskRunParam task_run_param = {};
@@ -267,7 +277,12 @@ TEST_F(UtestKernelTaskInfo, init_task_tvm_zero_copy_var_input) {
   op_desc->SetOutputOffset({8});
   op_desc->SetWorkspace({1308});   // offset
   op_desc->SetWorkspaceBytes({150});    // length
-
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
   {
     KernelTaskInfo kernel_task_info;
     TaskRunParam task_run_param = {};
@@ -333,6 +348,13 @@ TEST_F(UtestKernelTaskInfo, init_task_tvm_and_memset) {
   op_desc->SetWorkspaceBytes({150});    // length
   model.op_list_[op_desc->GetId()] = op_desc;
   model.operator_list_[op_desc->GetId()] = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromOpDesc(op_desc));
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
+
   // add task2
   auto memset_op = CreateOpDesc("memset", MEMSET);
   domi::TaskDef &memset_task_def = *model_task_def.add_task();
@@ -350,6 +372,11 @@ TEST_F(UtestKernelTaskInfo, init_task_tvm_and_memset) {
   EXPECT_EQ(ge::AttrUtils::SetStr(memset_op, kAttrNameAtomicWspMode, kWspFoldedMode), true);
   model.op_list_[memset_op->GetId()] = memset_op;
   model.operator_list_[memset_op->GetId()] = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromOpDesc(memset_op));
+  TBEKernelPtr memset_kernel_handle = MakeShared<OpKernelBin>(memset_op->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(memset_op->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, memset_kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(memset_op, memset_op->GetName() + "_kernelname", memset_op->GetName()));
+  AttrUtils::SetStr(memset_op, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(memset_op, ATTR_NAME_KERNEL_BIN_ID, "te_memset_123");
 
   {
     KernelTaskInfo kernel_task_info;
@@ -417,6 +444,12 @@ TEST_F(UtestKernelTaskInfo, init_task_tvm_known) {
   model.operator_list_[op_desc->GetId()] = operator_info;
   op_desc->SetWorkspace({1308});   // offset
   op_desc->SetWorkspaceBytes({150});    // length
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
 
   KernelTaskInfo kernel_task_info;
   TaskRunParam task_run_param = {};
@@ -637,145 +670,6 @@ TEST_F(UtestKernelTaskInfo, init_aicpu_custom_task_failed3) {
 
   kernel_def->clear_context();
   task_def.clear_kernel();
-}
-
-// test InitAICPUCustomTask failed
-TEST_F(UtestKernelTaskInfo, init_task_customized) {
-  DavinciModel model(0, nullptr);
-
-  rtStream_t stream = nullptr;
-  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
-  model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0);
-  model.stream_list_ = { stream };
-  const auto op_desc = CreateOpDesc("FrameworkOp", "FrameworkOp");
-  op_desc->SetId(0);
-  model.op_list_[op_desc->GetId()] = op_desc;
-  const auto operator_info = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromOpDesc(op_desc));
-  model.operator_list_[op_desc->GetId()] = operator_info;
-
-  MemAllocation fm_mem_allocation = {0, 0U, 2048U, ge::MemAllocation::Type::FEATURE_MAP, 0U};
-  model.logical_mem_allocations_.emplace_back(fm_mem_allocation);
-
-  const char task[] = "opattr";
-  AttrUtils::SetBytes(op_desc, ATTR_NAME_OPATTR, Buffer::CopyFrom((uint8_t *)task, sizeof(task)));
-
-  domi::ModelTaskDef model_task_def;
-  domi::TaskDef &task_def = *model_task_def.add_task();
-  domi::KernelDef &kernel_def = *task_def.mutable_kernel();
-  domi::KernelContext &context = *kernel_def.mutable_context();
-  context.set_kernel_type(static_cast<uint32_t>(ccKernelType::CUSTOMIZED));
-  context.set_op_index(op_desc->GetId());
-
-  const std::vector<uint16_t> args_offset{0 * 8, 1 * 8, 2 * 8, 3 * 8, 4 * 8};
-  context.set_args_offset(args_offset.data(), 4 * sizeof(uint16_t));
-  {
-    // context.args_offset().size() / sizeof(uint16_t) < kCustomAicpuArgsLen
-    KernelTaskInfo kernel_task_info;
-    kernel_task_info.davinci_model_ = &model;
-    EXPECT_EQ(kernel_task_info.InitAICPUCustomTask(op_desc, kernel_def), PARAM_INVALID);
-    EXPECT_EQ(kernel_task_info.Release(), SUCCESS);
-  }
-
-  context.set_args_count(5);
-  context.set_args_offset(args_offset.data(), args_offset.size() * sizeof(uint16_t));
-  {
-    // kernel_def.args().size() < (static_cast<size_t>(ctx_.argsOffset[static_cast<size_t>(i)]) + sizeof(uint64_t))
-    KernelTaskInfo kernel_task_info;
-    kernel_task_info.davinci_model_ = &model;
-    EXPECT_EQ(kernel_task_info.InitAICPUCustomTask(op_desc, kernel_def), FAILED);
-    EXPECT_EQ(kernel_task_info.Release(), SUCCESS);
-  }
-
-  const std::vector<uint64_t> args_info(5, 0);
-  kernel_def.set_args(args_info.data(), args_info.size() * sizeof(uint64_t));
-  kernel_def.set_args_size(args_info.size() * sizeof(uint64_t));
-
-  {
-    KernelTaskInfo kernel_task_info;
-    TaskRunParam task_run_param = {};
-    EXPECT_EQ(kernel_task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
-    PisToArgs args;
-    args[0].dev_addr = (uint64_t)malloc(1024);
-    int64_t host_data[1024] = {0};
-    args[0].len = 1024;
-    args[0].host_addr = host_data;
-    // uint64_t *args = ge::ValueToPtr(args[0].dev_addr);
-    const PisToPersistentWorkspace persistant_workspace = {};
-    IowAddrs iow_addrs = {std::move(task_run_param.parsed_input_addrs), std::move(task_run_param.parsed_output_addrs),
-                          std::move(task_run_param.parsed_workspace_addrs)};
-    EXPECT_EQ(kernel_task_info.Init(task_def, &model, args, persistant_workspace, iow_addrs), SUCCESS);
-    const uint64_t *args_values = reinterpret_cast<const uint64_t *>(kernel_task_info.io_addrs_.data());
-    EXPECT_EQ(args_values[0], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.input_descs));
-    EXPECT_EQ(args_values[1], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.input_addrs));
-    EXPECT_EQ(args_values[2], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.output_descs));
-    EXPECT_EQ(args_values[3], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.output_addrs));
-    EXPECT_EQ(args_values[4], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.attr_handle));
-    EXPECT_EQ(kernel_task_info.Release(), SUCCESS);
-    EXPECT_EQ(kernel_task_info.UpdateDumpInfos(args[0].host_addr, 1024), SUCCESS);
-    free(ValueToPtr(args[0].dev_addr));
-  }
-
-  kernel_def.clear_context();
-  task_def.clear_kernel();
-}
-
-TEST_F(UtestKernelTaskInfo, init_task_customized_known) {
-  DavinciModel model(0, nullptr);
-  model.SetFeatureBaseRefreshable(true);
-
-  rtStream_t stream = nullptr;
-  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
-  model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0);
-  model.stream_list_ = { stream };
-  const auto op_desc = CreateOpDesc("FrameworkOp", "FrameworkOp");
-  op_desc->SetId(0);
-  model.op_list_[op_desc->GetId()] = op_desc;
-  const auto operator_info = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromOpDesc(op_desc));
-  model.operator_list_[op_desc->GetId()] = operator_info;
-  MemAllocation fm_mem_allocation = {0, 0U, 2048U, ge::MemAllocation::Type::FEATURE_MAP, 0U};
-  model.logical_mem_allocations_.emplace_back(fm_mem_allocation);
-
-  const char task[] = "opattr";
-  AttrUtils::SetBytes(op_desc, ATTR_NAME_OPATTR, Buffer::CopyFrom((uint8_t *)task, sizeof(task)));
-
-  domi::ModelTaskDef model_task_def;
-  domi::TaskDef &task_def = *model_task_def.add_task();
-  domi::KernelDef &kernel_def = *task_def.mutable_kernel();
-  domi::KernelContext &context = *kernel_def.mutable_context();
-  context.set_kernel_type(static_cast<uint32_t>(ccKernelType::CUSTOMIZED));
-  context.set_op_index(op_desc->GetId());
-
-  const std::vector<uint16_t> args_offset{0 * 8, 1 * 8, 2 * 8, 3 * 8, 4 * 8};
-  context.set_args_count(args_offset.size());
-  context.set_args_offset(args_offset.data(), args_offset.size() * sizeof(uint16_t));
-
-  const std::vector<uint64_t> args_info(5, 0);
-  kernel_def.set_args(args_info.data(), args_info.size() * sizeof(uint64_t));
-  kernel_def.set_args_size(args_info.size() * sizeof(uint64_t));
-
-  KernelTaskInfo kernel_task_info;
-  TaskRunParam task_run_param = {};
-  EXPECT_EQ(kernel_task_info.ParseTaskRunParam(task_def, &model, task_run_param), SUCCESS);
-  PisToArgs args;
-  args[0].dev_addr = (uint64_t)malloc(1024);
-  // uint64_t *args = ge::ValueToPtr(args[0].dev_addr);
-  const PisToPersistentWorkspace persistant_workspace = {};
-  IowAddrs iow_addrs = {std::move(task_run_param.parsed_input_addrs), std::move(task_run_param.parsed_output_addrs),
-                        std::move(task_run_param.parsed_workspace_addrs)};
-  {
-    EXPECT_EQ(kernel_task_info.Init(task_def, &model, args, persistant_workspace, iow_addrs), SUCCESS);
-    const uint64_t *args_values = reinterpret_cast<const uint64_t *>(kernel_task_info.io_addrs_.data());
-    EXPECT_EQ(args_values[0], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.input_descs));
-    EXPECT_EQ(args_values[1], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.input_addrs));
-    EXPECT_EQ(args_values[2], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.output_descs));
-    EXPECT_EQ(args_values[3], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.output_addrs));
-    EXPECT_EQ(args_values[4], reinterpret_cast<uint64_t>(kernel_task_info.custom_info_.attr_handle));
-    EXPECT_EQ(kernel_task_info.Release(), SUCCESS);
-  }
-
-  kernel_def.clear_context();
-  task_def.clear_kernel();
-  free(ValueToPtr(args[0].dev_addr));
 }
 
 TEST_F(UtestKernelTaskInfo, init_kernel_taskInfo_with_aicpu_kernel_type) {
@@ -1077,7 +971,7 @@ TEST_F(UtestKernelTaskInfo, distribute_success) {
   model.operator_list_[op_desc->GetId()] = operator_info;
   kernel_task_info.operator_ = operator_info;
   kernel_task_info.op_desc_ = op_desc;
-
+  kernel_task_info.func_handle_ = (void *)0x12000;
   domi::TaskDef task_def;
   // rtModelGetTaskId -> RT_ERROR_INVALID_VALUE
   rtModel_t rt_model_handle = (rtModel_t *)0x12345678;
@@ -1370,6 +1264,10 @@ TEST_F(UtestKernelTaskInfo, kernel_task_info_calculate_args_aicpu) {
 
 TEST_F(UtestKernelTaskInfo, int_task_cust_aicpu) {
   const auto op_desc = CreateOpDesc("FrameworkOp", "FrameworkOp", 2, 2);
+  const char cust_aicpu_bin[] = "cust_framework_kernel_bin_001";
+  vector<char> buffer(cust_aicpu_bin, cust_aicpu_bin + strlen(cust_aicpu_bin));
+  const auto kernel_handle = std::make_shared<OpKernelBin>(op_desc->GetName(), std::move(buffer));
+  op_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, kernel_handle);
   op_desc->SetId(0);
   const auto model_task_def = MakeShared<domi::ModelTaskDef>();
 
@@ -1448,6 +1346,10 @@ TEST_F(UtestKernelTaskInfo, int_task_cust_aicpu) {
 
 TEST_F(UtestKernelTaskInfo, int_task_cust_aicpu_known) {
   const auto op_desc = CreateOpDesc("FrameworkOp", "FrameworkOp", 2, 2);
+  const char cust_aicpu_bin[] = "cust_framework_kernel_bin_001";
+  vector<char> buffer(cust_aicpu_bin, cust_aicpu_bin + strlen(cust_aicpu_bin));
+  const auto kernel_handle = std::make_shared<OpKernelBin>(op_desc->GetName(), std::move(buffer));
+  op_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, kernel_handle);
   op_desc->SetId(0);
   AttrUtils::SetInt(op_desc, "op_para_size", 16);
   const auto model_task_def = MakeShared<domi::ModelTaskDef>();
@@ -1678,6 +1580,7 @@ TEST_F(UtestKernelTaskInfo, blocking_aicpu_op) {
   kernel_task_info.op_desc_ = op_desc;
   kernel_task_info.davinci_model_ = &davinci_model;
   kernel_task_info.operator_ = operator_info;
+  kernel_task_info.func_handle_ = (void *)0x12000;
   EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), SUCCESS);
   EXPECT_EQ(kernel_task_info.Distribute(), SUCCESS);
   kernel_task_info.Release();
@@ -1717,6 +1620,7 @@ TEST_F(UtestKernelTaskInfo, blocking_aicpu_op_fail_01) {
   kernel_task_info.davinci_model_ = &davinci_model;
   kernel_task_info.op_desc_ = op_desc;
   kernel_task_info.operator_ = operator_info;
+  kernel_task_info.func_handle_ = (void *)0x12000;
   EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), SUCCESS);
 
   kernel_task_info.is_blocking_aicpu_op_ = true;
@@ -1755,6 +1659,7 @@ TEST_F(UtestKernelTaskInfo, blocking_aicpu_op_fail_02) {
   kernel_task_info.davinci_model_ = &davinci_model;
   kernel_task_info.op_desc_ = op_desc;
   kernel_task_info.operator_ = operator_info;
+  kernel_task_info.func_handle_ = (void *)0x12000;
   RTS_STUB_RETURN_VALUE(rtGetDevice, rtError_t, 0x78000001);
   EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), FAILED);
 
@@ -2261,9 +2166,807 @@ TEST_F(UtestKernelTaskInfo, mc2_static_bin_reuse) {
   dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
 }
 
+TEST_F(UtestKernelTaskInfo, mc2_fusion_task_static_bin_reuse_with_sub_aicore_ccu) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+  auto hcom_hidden_funcs = [](const ge::OpDescPtr &op_desc, std::vector<void *> &addrs) {
+    addrs.push_back(reinterpret_cast<void *>(0xf1));
+    return ge::GRAPH_SUCCESS;
+  };
+  REG_HIDDEN_INPUTS_FUNC(HiddenInputsType::HCOM, hcom_hidden_funcs);
+
+  HcclDllHcomMgr mgr = HcclDllHcomMgr::GetInstance();
+  HcclDllHcomMgr::GetInstance().hccl_HcomGetCcuTaskInfo_func = &InitializeHeterogeneousRuntime;
+
+  gert::SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+  auto space_registry_array = gert::OpImplSpaceRegistryV2Array();
+  space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp)) =
+      gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto space_registry = space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp));
+  auto funcs = space_registry->CreateOrGetOpImpl("MatmulAllReduce");
+  funcs->tiling = StubTiling;
+  funcs->tiling_parse = StubTilingParse;
+  funcs->compile_info_creator = CompileInfoCreator;
+  funcs->compile_info_deleter = nullptr;
+
+  DavinciModel model(0, nullptr);
+  model.SetSpaceRegistries(ge::MakeShared<gert::OpImplSpaceRegistryV2Array>(space_registry_array));
+  model.SetFeatureBaseRefreshable(true);
+  model.runtime_param_.mem_size = 10000UL;
+  std::vector<uint8_t> memory_holder(model.runtime_param_.mem_size);
+  model.runtime_param_.mem_base = reinterpret_cast<uintptr_t>(memory_holder.data());
+  MemAllocation fm_mem_allocation = {0, static_cast<uint64_t>(model.runtime_param_.mem_base),
+                                     6300, ge::MemAllocation::Type::FEATURE_MAP, 0U};
+  model.logical_mem_allocations_.emplace_back(fm_mem_allocation);
+
+  MemAllocation io_mem_allocation = {1, static_cast<uint64_t>(model.runtime_param_.mem_base) + 6300,
+                                     model.runtime_param_.mem_size - 6300, ge::MemAllocation::Type::OUTPUT, 0U};
+
+  model.logical_mem_allocations_.emplace_back(io_mem_allocation);
+
+  ASSERT_EQ(rtMalloc(&model.globalworkspace_overflow_addr_, static_cast<uint64_t>(16), RT_MEMORY_HBM, GE_MODULE_NAME_U16),
+            SUCCESS);
+  ModelHelper model_helper;
+  model_helper.HandleDeviceInfo(model.platform_infos_);
+  model.platform_infos_.core_num_ = 0U;
+  const auto op_desc = CreateOpDesc("mc2", "MatmulAllReduce", 5, 5);
+  EXPECT_NE(op_desc, nullptr);
+  op_desc->SetId(0);
+
+  std::string kernel_handle_name = model.GetBinHandleKey(*op_desc, "", false);
+  TBEHandleStore::GetInstance().StoreTBEHandle(kernel_handle_name, nullptr, nullptr);
+
+  GeShape shape0({8});
+  GeTensorDesc desc0(shape0);
+  TensorUtils::SetSize(desc0, 32);
+  op_desc->UpdateInputDesc(0, desc0);
+  op_desc->UpdateInputDesc(1, desc0);
+  op_desc->UpdateOutputDesc(0, desc0);
+  op_desc->UpdateOutputDesc(1, desc0);
+
+  GeShape shape1({4, 4, 4, 4});
+  GeTensorDesc desc1(shape1);
+  TensorUtils::SetSize(desc1, 1024);
+  op_desc->UpdateInputDesc(2, desc1);
+  op_desc->UpdateInputDesc(3, desc1);
+  op_desc->UpdateInputDesc(4, desc1);
+  op_desc->UpdateOutputDesc(2, desc1);
+  op_desc->UpdateOutputDesc(3, desc1);
+  op_desc->UpdateOutputDesc(4, desc1);
+
+  // ir_def
+  // 实际连边的顺序
+  op_desc->MutableAllInputName() = {{"x1", 0}, {"bias", 1}, {"k0", 2}, {"k1", 3}, {"a", 4}};
+  op_desc->MutableAllOutputName() = {{"y", 0}, {"gather_out", 1}, {"z0", 2}, {"z1", 3}, {"m", 4}};
+
+  // ir的顺序为添加顺序
+  op_desc->AppendIrInput("x1", IrInputType::kIrInputRequired);
+  op_desc->AppendIrInput("x2", IrInputType::kIrInputOptional);
+  op_desc->AppendIrInput("bias", IrInputType::kIrInputRequired);
+  op_desc->AppendIrInput("k", IrInputType::kIrInputDynamic);
+  op_desc->AppendIrInput("a", IrInputType::kIrInputRequired);
+
+  op_desc->AppendIrOutput("y", IrOutputType::kIrOutputRequired);
+  op_desc->AppendIrOutput("gather_out", IrOutputType::kIrOutputRequired);
+  op_desc->AppendIrOutput("z", IrOutputType::kIrOutputDynamic);
+  op_desc->AppendIrOutput("m", IrOutputType::kIrOutputRequired);
+
+  op_desc->MutableInputDesc(1) = nullptr;
+  AttrUtils::SetInt(op_desc, ATTR_NAME_ATTACHED_STREAM_ID, 0);
+  AttrUtils::SetInt(op_desc, RECV_ATTR_NOTIFY_ID, 0);
+
+  std::shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  // add aicpu task
+  op_desc->SetInputOffset({1000, 3000, 4100, 4200, 6400});
+  op_desc->SetOutputOffset({5000, 6000, 6100, 6200, 6300});
+  op_desc->SetWorkspace({7000});
+  op_desc->SetWorkspaceBytes({512});
+
+  (void)AttrUtils::SetInt(op_desc, GLOBALWORKSPACE_TYPE, 1);
+  (void)AttrUtils::SetStr(op_desc, HCOM_ATTR_GROUP, "test");
+
+  auto run_info = std::make_shared<optiling::utils::OpRunInfo>(0, false, 0);
+  run_info->AddTilingData("11111111");
+  run_info->SetTilingKey(0x1234);
+  run_info->AddWorkspace(512);
+  op_desc->SetExtAttr(ATTR_NAME_OP_RUN_INFO, run_info);
+  (void)ge::AttrUtils::SetBool(op_desc, "_memcheck", true);
+
+  auto &fusion_task = *model_task_def->add_task();
+  fusion_task.set_type(static_cast<int32_t>(ge::ModelTaskType::MODEL_TASK_FUSION_KERNEL));
+  auto fusion = fusion_task.mutable_fusion_task();
+  fusion->set_args_format("{ffts_addr}{i0}{i2}{}{i_desc3}{i_instance4}{o0}{o1}{o_desc2}{o_instance4}{hi.hcom0*}{ws*}{overflow_addr}{ws0}{t}{#123}{tiling_context}{*op_type}");
+  fusion->set_op_index(op_desc->GetId());;
+  fusion->set_kfc_args_format_offset(13);;
+
+  // 1.1 AICORE 子任务
+  auto* sub1 = fusion->add_fusion_sub_task_info();
+  sub1->set_type(domi::FusionSubTaskInfo::AICORE);
+  auto* aicore = sub1->mutable_task()->mutable_aicore_fusion_task_info();
+
+  // 1.1.1 KernelContext
+  auto* ctx = aicore->mutable_context();
+  ctx->set_kernel_type(11);
+
+  // 1.1.2 args 二进制
+  aicore->set_is_all_kernel(true);
+
+  // 1.1.3 LaunchConfig → LaunchAttribute
+  auto* cfg = aicore->mutable_config();
+  auto* attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::BLOCKDIM);
+  attr->mutable_value()->set_block_dim(256);
+
+  attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::BLOCKDIM_OFFSET);
+  attr->mutable_value()->set_block_dim_offset(1);
+
+  attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::SCHEMMODE);
+  attr->mutable_value()->set_schem_model(1);
+
+  // 1.2 CCU 子任务
+  auto* sub2 = fusion->add_fusion_sub_task_info();
+  sub2->set_type(domi::FusionSubTaskInfo::CCU);
+  sub2->mutable_task()->mutable_ccu_task_group()->add_group("group");
+
+  rtStream_t stream1 = nullptr;
+  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream1, 0, 0, 0);
+  rtStream_t stream2 = nullptr;
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream2, 0, 0, 0);
+  model.stream_list_ = {stream1, stream2};
+
+  rtNotify_t rt_notify = nullptr;
+  rtNotifyCreate(0, &rt_notify);
+  model.notify_list_ = {rt_notify};
+
+  model.op_list_[op_desc->GetId()] = op_desc;
+  auto graph = std::make_shared<ComputeGraph>("tmp");
+  model.ge_model_ = MakeShared<GeModel>();
+  model.ge_model_->SetGraph(graph);
+  auto node = graph->AddNode(op_desc);
+  auto operator_info = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromNode(node));
+  EXPECT_NE(operator_info, nullptr);
+  model.operator_list_[op_desc->GetId()] = operator_info;
+
+  // for SetTvmTaskZeroCopy
+  ZeroCopyOffset zero_copy_offset;
+  std::vector<uint64_t> tensor_addrs;
+  EXPECT_EQ(zero_copy_offset.SetOutputOutsideAddrs(6300, false, reinterpret_cast<uintptr_t>(memory_holder.data()) + 6300, tensor_addrs), SUCCESS);
+  model.output_data_info_[4] = zero_copy_offset;
+
+  ZeroCopyOffset zero_copy_offset1;
+  EXPECT_EQ(zero_copy_offset1.SetInputOutsideAddrs(6400, reinterpret_cast<uintptr_t>(memory_holder.data()) + 6400, false, model.real_virtual_addrs_), SUCCESS);
+  model.input_data_info_[4] = zero_copy_offset1;
+
+  // aicpu kernel
+  std::vector<char> kernel_bin(128, '0');
+  const auto aicpu_bin = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  // model.ge_model_->cust_aicpu_kernal_store_.AddKernel(aicpu_bin);
+
+  DumpStub::GetInstance().Clear();
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::DumpType>({gert::DumpType::kLiteExceptionDump}));
+
+  model.is_op_debug_reg_ = true;
+
+  FusionTaskInfo fusion_task_info;
+  fusion_task_info.davinci_model_ = &model;
+  fusion_task_info.op_desc_ = op_desc;
+  TaskRunParam task_run_param = {};
+  EXPECT_EQ(fusion_task_info.ParseTaskRunParam(fusion_task, &model, task_run_param), SUCCESS);
+  PisToArgs args;
+  args[0].dev_addr = (uint64_t)malloc(1024);
+  uint8_t host_data[2048] = {0};
+  args[0].len = 2048;
+  args[0].host_addr = host_data;
+  PisToPersistentWorkspace persistant_workspace;
+  int64_t persist_dev[512] = {0};
+  persistant_workspace[0].dev_addr = reinterpret_cast<uint64_t>(persist_dev);
+  persistant_workspace[0].len = 512;
+  IowAddrs iow_addrs = {std::move(task_run_param.parsed_input_addrs), std::move(task_run_param.parsed_output_addrs),
+                        std::move(task_run_param.parsed_workspace_addrs)};
+  EXPECT_EQ(fusion_task_info.Init(fusion_task, &model, args, persistant_workspace, iow_addrs), SUCCESS);
+
+  // rt_sub_task_ 校验
+  EXPECT_EQ(fusion_task_info.rt_fusion_task_.subTask[0].type, 2);
+  EXPECT_EQ(fusion_task_info.rt_fusion_task_.subTask[0].task.aicoreInfo.tilingKey, 0x1234);
+  EXPECT_EQ(fusion_task_info.rt_fusion_task_.subTask[0].task.aicoreInfo.config->numAttrs, 4); // 包含dump
+  EXPECT_EQ(fusion_task_info.rt_fusion_task_.subTask[1].type, 3);
+
+  // io_addr校验
+  EXPECT_EQ(fusion_task_info.io_addrs_.size(), 41);
+  uint64_t fm_base = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(memory_holder.data()));
+
+  EXPECT_EQ(fusion_task_info.io_addrs_[0], fm_base + 1000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[1], fm_base + 3000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[3], args[0].dev_addr + 15 * sizeof(uint64_t));
+  EXPECT_EQ(fusion_task_info.io_addrs_[4], fm_base + 6400);
+  EXPECT_EQ(fusion_task_info.io_addrs_[5], fm_base + 5000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[6], fm_base + 6000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[7], args[0].dev_addr + 28 * sizeof(uint64_t));
+  EXPECT_EQ(fusion_task_info.io_addrs_[8], fm_base + 6300);
+  EXPECT_EQ(fusion_task_info.io_addrs_[9], 0xf1);
+  EXPECT_EQ(fusion_task_info.io_addrs_[10], fm_base + 7000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[12], fm_base + 7000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[14], 123);
+  EXPECT_EQ(fusion_task_info.io_addrs_[15], 0x58);
+  EXPECT_EQ(fusion_task_info.io_addrs_[16], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[17], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[18], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[19], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[20], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[21], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[22], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[23], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[24], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[25], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[26], fm_base + 4100);
+  EXPECT_EQ(fusion_task_info.io_addrs_[27], fm_base + 4200);
+  EXPECT_EQ(fusion_task_info.io_addrs_[28], 0x58);
+  EXPECT_EQ(fusion_task_info.io_addrs_[29], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[30], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[31], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[32], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[33], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[34], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[35], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[36], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[37], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[38], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[39], fm_base + 6100);
+  EXPECT_EQ(fusion_task_info.io_addrs_[40], fm_base + 6200);
+
+  // l0 excetion dump校验； 旧的l0 exception dump 流程未校验，待补充
+  // iow的长度
+  auto units = ge::DumpStub::GetInstance().GetStaticUnits();
+  ASSERT_EQ(units.size(), 1);
+  ASSERT_EQ(units[0].size(), 23);
+  EXPECT_EQ(units[0][0], 32);    // i0
+  EXPECT_EQ(units[0][1], 32);    // i1
+  EXPECT_EQ(units[0][2], 0);     // hold
+  EXPECT_EQ(units[0][3], 112);   // idesc1
+  EXPECT_EQ(units[0][4], 1024);    // i4
+  EXPECT_EQ(units[0][5], 32);    // o0
+  EXPECT_EQ(units[0][6], 32);    // o1
+  EXPECT_EQ(units[0][7], 112);   // 0desc1
+  EXPECT_EQ(units[0][8], 1024);    // o4
+  EXPECT_EQ(units[0][9], 0);     // hcom
+  EXPECT_EQ(units[0][10], 512);   // ws
+  EXPECT_EQ(units[0][11], 1);     // i1 dim
+  EXPECT_EQ(units[0][12], 8);    //
+  EXPECT_EQ(units[0][13], 1);    // i2 dim
+  EXPECT_EQ(units[0][14], 8);    //
+  EXPECT_EQ(units[0][16], 4);    //
+  EXPECT_EQ(units[0][17], 4);    //
+  EXPECT_EQ(units[0][18], 4);    //
+  EXPECT_EQ(units[0][19], 4);    //
+  EXPECT_EQ(units[0][20], 0);    // o1
+  EXPECT_EQ(units[0][21], 0);    // o2
+  EXPECT_EQ(units[0][22], 0);    // o3
+
+  ge::DumpStub::GetInstance().Clear();
+
+  // data dump 输入输出在args table表中的偏移
+  auto cust_to_relevant = fusion_task_info.cust_to_relevant_offset_;
+  std::map<uint64_t, uint64_t> golden = { {0, 0}, {1, 1}, {2, 26}, {3, 27}, {4, 4}, {5, 5}, {6, 6}, {7, 39}, {8, 40}, {9, 8}};
+  EXPECT_EQ(golden, cust_to_relevant);
+
+  EXPECT_EQ(fusion_task_info.Distribute(), SUCCESS);
+  // rt_args_ex_ 校验
+  EXPECT_EQ(fusion_task_info.rt_args_ex_.argsSize, 44 * sizeof(uint64_t) + 15 * sizeof(uint64_t)); // 按照args table 表最大来赋值，ws* 16 uint32_t
+
+  EXPECT_EQ(fusion_task_info.Release(), SUCCESS);
+
+  ExtraOpInfo extra_dump_info{};
+  fusion_task_info.GetTilingKeyAndData(extra_dump_info.tiling_key, extra_dump_info.tiling_data);
+  EXPECT_EQ(extra_dump_info.tiling_key, 0x1234);
+  // EXPECT_EQ(extra_dump_info.tiling_data, "11111111");
+
+  std::vector<TaskArgsRefreshInfo> infos;
+  EXPECT_EQ(fusion_task_info.GetTaskArgsRefreshInfos(infos), SUCCESS);
+
+  fusion_task_info.PostProcess(fusion_task);
+  EXPECT_EQ(fusion_task_info.ParseOpIndex(fusion_task), 0);
+
+  HiddenInputsFuncRegistry::GetInstance().type_to_funcs_.clear();
+  free((void*)args[0].dev_addr);
+  rtFree((void*)model.globalworkspace_overflow_addr_);
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+TEST_F(UtestKernelTaskInfo, mc2_fusion_task_static_bin_reuse_with_sub_aicore_aicpu) {
+  auto hcom_hidden_funcs = [](const ge::OpDescPtr &op_desc, std::vector<void *> &addrs) {
+    addrs.push_back(reinterpret_cast<void *>(0xf1));
+    return ge::GRAPH_SUCCESS;
+  };
+  REG_HIDDEN_INPUTS_FUNC(HiddenInputsType::HCOM, hcom_hidden_funcs);
+
+  HcclDllHcomMgr mgr = HcclDllHcomMgr::GetInstance();
+  HcclDllHcomMgr::GetInstance().hccl_HcomGetCcuTaskInfo_func = &InitializeHeterogeneousRuntime;
+
+  gert::SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+  auto space_registry_array = gert::OpImplSpaceRegistryV2Array();
+  space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp)) =
+      gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto space_registry = space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp));
+  auto funcs = space_registry->CreateOrGetOpImpl("MatmulAllReduce");
+  funcs->tiling = StubTiling;
+  funcs->tiling_parse = StubTilingParse;
+  funcs->compile_info_creator = CompileInfoCreator;
+  funcs->compile_info_deleter = nullptr;
+
+  DavinciModel model(0, nullptr);
+  model.SetSpaceRegistries(ge::MakeShared<gert::OpImplSpaceRegistryV2Array>(space_registry_array));
+  model.SetFeatureBaseRefreshable(true);
+  model.runtime_param_.mem_size = 10000UL;
+  std::vector<uint8_t> memory_holder(model.runtime_param_.mem_size);
+  model.runtime_param_.mem_base = reinterpret_cast<uintptr_t>(memory_holder.data());
+  MemAllocation fm_mem_allocation = {0, static_cast<uint64_t>(model.runtime_param_.mem_base),
+                                     6300, ge::MemAllocation::Type::FEATURE_MAP, 0U};
+  model.logical_mem_allocations_.emplace_back(fm_mem_allocation);
+
+  MemAllocation io_mem_allocation = {1, static_cast<uint64_t>(model.runtime_param_.mem_base) + 6300,
+                                     model.runtime_param_.mem_size - 6300, ge::MemAllocation::Type::OUTPUT, 0U};
+
+  model.logical_mem_allocations_.emplace_back(io_mem_allocation);
+
+  ASSERT_EQ(rtMalloc(&model.globalworkspace_overflow_addr_, static_cast<uint64_t>(16), RT_MEMORY_HBM, GE_MODULE_NAME_U16),
+            SUCCESS);
+  ModelHelper model_helper;
+  model_helper.HandleDeviceInfo(model.platform_infos_);
+  model.platform_infos_.core_num_ = 0U;
+  const auto op_desc = CreateOpDesc("mc2", "MatmulAllReduce", 5, 5);
+  EXPECT_NE(op_desc, nullptr);
+  op_desc->SetId(0);
+
+  std::string kernel_handle_name = model.GetBinHandleKey(*op_desc, "", false);
+  TBEHandleStore::GetInstance().StoreTBEHandle(kernel_handle_name, nullptr, nullptr);
+
+  GeShape shape0({8});
+  GeTensorDesc desc0(shape0);
+  TensorUtils::SetSize(desc0, 32);
+  op_desc->UpdateInputDesc(0, desc0);
+  op_desc->UpdateInputDesc(1, desc0);
+  op_desc->UpdateOutputDesc(0, desc0);
+  op_desc->UpdateOutputDesc(1, desc0);
+
+  GeShape shape1({4, 4, 4, 4});
+  GeTensorDesc desc1(shape1);
+  TensorUtils::SetSize(desc1, 1024);
+  op_desc->UpdateInputDesc(2, desc1);
+  op_desc->UpdateInputDesc(3, desc1);
+  op_desc->UpdateInputDesc(4, desc1);
+  op_desc->UpdateOutputDesc(2, desc1);
+  op_desc->UpdateOutputDesc(3, desc1);
+  op_desc->UpdateOutputDesc(4, desc1);
+
+  // ir_def
+  // 实际连边的顺序
+  op_desc->MutableAllInputName() = {{"x1", 0}, {"bias", 1}, {"k0", 2}, {"k1", 3}, {"a", 4}};
+  op_desc->MutableAllOutputName() = {{"y", 0}, {"gather_out", 1}, {"z0", 2}, {"z1", 3}, {"m", 4}};
+
+  // ir的顺序为添加顺序
+  op_desc->AppendIrInput("x1", IrInputType::kIrInputRequired);
+  op_desc->AppendIrInput("x2", IrInputType::kIrInputOptional);
+  op_desc->AppendIrInput("bias", IrInputType::kIrInputRequired);
+  op_desc->AppendIrInput("k", IrInputType::kIrInputDynamic);
+  op_desc->AppendIrInput("a", IrInputType::kIrInputRequired);
+
+  op_desc->AppendIrOutput("y", IrOutputType::kIrOutputRequired);
+  op_desc->AppendIrOutput("gather_out", IrOutputType::kIrOutputRequired);
+  op_desc->AppendIrOutput("z", IrOutputType::kIrOutputDynamic);
+  op_desc->AppendIrOutput("m", IrOutputType::kIrOutputRequired);
+
+  op_desc->MutableInputDesc(1) = nullptr;
+  AttrUtils::SetInt(op_desc, ATTR_NAME_ATTACHED_STREAM_ID, 0);
+  AttrUtils::SetInt(op_desc, RECV_ATTR_NOTIFY_ID, 0);
+
+  std::shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  // add aicpu task
+  op_desc->SetInputOffset({1000, 3000, 4100, 4200, 6400});
+  op_desc->SetOutputOffset({5000, 6000, 6100, 6200, 6300});
+  op_desc->SetWorkspace({7000});
+  op_desc->SetWorkspaceBytes({512});
+
+  (void)AttrUtils::SetInt(op_desc, GLOBALWORKSPACE_TYPE, 1);
+  (void)AttrUtils::SetStr(op_desc, HCOM_ATTR_GROUP, "test");
+
+  auto run_info = std::make_shared<optiling::utils::OpRunInfo>(0, false, 0);
+  run_info->AddTilingData("11111111");
+  run_info->SetTilingKey(0x1234);
+  run_info->AddWorkspace(512);
+  op_desc->SetExtAttr(ATTR_NAME_OP_RUN_INFO, run_info);
+  (void)ge::AttrUtils::SetBool(op_desc, "_memcheck", true);
+
+  auto &fusion_task = *model_task_def->add_task();
+  fusion_task.set_type(static_cast<int32_t>(ge::ModelTaskType::MODEL_TASK_FUSION_KERNEL));
+  auto fusion = fusion_task.mutable_fusion_task();
+  fusion->set_args_format("{ffts_addr}{i0}{i2}{}{i_desc3}{i_instance4}{o0}{o1}{o_desc2}{o_instance4}{hi.hcom0*}{ws*}{overflow_addr}{ws0}{t}{#123}{tiling_context}{*op_type}");
+  fusion->set_op_index(op_desc->GetId());;
+  fusion->set_kfc_args_format_offset(13);;
+
+  // 1.1 AICORE 子任务
+  auto* sub1 = fusion->add_fusion_sub_task_info();
+  sub1->set_type(domi::FusionSubTaskInfo::AICORE);
+  auto* aicore = sub1->mutable_task()->mutable_aicore_fusion_task_info();
+
+  // 1.1.1 KernelContext
+  auto* ctx = aicore->mutable_context();
+  ctx->set_kernel_type(11);
+
+  // 1.1.2 args 二进制
+  aicore->set_is_all_kernel(true);
+
+  // 1.1.3 LaunchConfig → LaunchAttribute
+  auto* cfg = aicore->mutable_config();
+  auto* attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::BLOCKDIM);
+  attr->mutable_value()->set_block_dim(256);
+
+  attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::BLOCKDIM_OFFSET);
+  attr->mutable_value()->set_block_dim_offset(1);
+
+  attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::SCHEMMODE);
+  attr->mutable_value()->set_schem_model(1);
+
+  // 1.3 aicpu 子任务 覆盖异常分支
+  auto* sub3 = fusion->add_fusion_sub_task_info();
+  sub3->set_type(domi::FusionSubTaskInfo::AICPU);
+
+  rtStream_t stream1 = nullptr;
+  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream1, 0, 0, 0);
+  rtStream_t stream2 = nullptr;
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream2, 0, 0, 0);
+  model.stream_list_ = {stream1, stream2};
+
+  rtNotify_t rt_notify = nullptr;
+  rtNotifyCreate(0, &rt_notify);
+  model.notify_list_ = {rt_notify};
+
+  model.op_list_[op_desc->GetId()] = op_desc;
+  auto graph = std::make_shared<ComputeGraph>("tmp");
+  model.ge_model_ = MakeShared<GeModel>();
+  model.ge_model_->SetGraph(graph);
+  auto node = graph->AddNode(op_desc);
+  auto operator_info = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromNode(node));
+  EXPECT_NE(operator_info, nullptr);
+  model.operator_list_[op_desc->GetId()] = operator_info;
+
+  // for SetTvmTaskZeroCopy
+  ZeroCopyOffset zero_copy_offset;
+  std::vector<uint64_t> tensor_addrs;
+  EXPECT_EQ(zero_copy_offset.SetOutputOutsideAddrs(6300, false, reinterpret_cast<uintptr_t>(memory_holder.data()) + 6300, tensor_addrs), SUCCESS);
+  model.output_data_info_[4] = zero_copy_offset;
+
+  ZeroCopyOffset zero_copy_offset1;
+  EXPECT_EQ(zero_copy_offset1.SetInputOutsideAddrs(6400, reinterpret_cast<uintptr_t>(memory_holder.data()) + 6400, false, model.real_virtual_addrs_), SUCCESS);
+  model.input_data_info_[4] = zero_copy_offset1;
+
+  // aicpu kernel
+  std::vector<char> kernel_bin(128, '0');
+  const auto aicpu_bin = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  // model.ge_model_->cust_aicpu_kernal_store_.AddKernel(aicpu_bin);
+
+  DumpStub::GetInstance().Clear();
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::DumpType>({gert::DumpType::kLiteExceptionDump}));
+
+  model.is_op_debug_reg_ = true;
+
+  FusionTaskInfo fusion_task_info;
+  fusion_task_info.davinci_model_ = &model;
+  fusion_task_info.op_desc_ = op_desc;
+  TaskRunParam task_run_param = {};
+  EXPECT_EQ(fusion_task_info.ParseTaskRunParam(fusion_task, &model, task_run_param), SUCCESS);
+  PisToArgs args;
+  args[0].dev_addr = (uint64_t)malloc(1024);
+  uint8_t host_data[2048] = {0};
+  args[0].len = 2048;
+  args[0].host_addr = host_data;
+  PisToPersistentWorkspace persistant_workspace;
+  int64_t persist_dev[512] = {0};
+  persistant_workspace[0].dev_addr = reinterpret_cast<uint64_t>(persist_dev);
+  persistant_workspace[0].len = 512;
+  IowAddrs iow_addrs = {std::move(task_run_param.parsed_input_addrs), std::move(task_run_param.parsed_output_addrs),
+                        std::move(task_run_param.parsed_workspace_addrs)};
+  EXPECT_EQ(fusion_task_info.Init(fusion_task, &model, args, persistant_workspace, iow_addrs), SUCCESS);
+
+  HiddenInputsFuncRegistry::GetInstance().type_to_funcs_.clear();
+  free((void*)args[0].dev_addr);
+  rtFree((void*)model.globalworkspace_overflow_addr_);
+}
+
+TEST_F(UtestKernelTaskInfo, mc2_fusion_task_stubfunc_with_sub_aicore_ccu) {
+  auto hcom_hidden_funcs = [](const ge::OpDescPtr &op_desc, std::vector<void *> &addrs) {
+    addrs.push_back(reinterpret_cast<void *>(0xf1));
+    return ge::GRAPH_SUCCESS;
+  };
+  REG_HIDDEN_INPUTS_FUNC(HiddenInputsType::HCOM, hcom_hidden_funcs);
+
+  HcclDllHcomMgr mgr = HcclDllHcomMgr::GetInstance();
+  HcclDllHcomMgr::GetInstance().hccl_HcomGetCcuTaskInfo_func = &InitializeHeterogeneousRuntime;
+
+  gert::SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+  auto space_registry_array = gert::OpImplSpaceRegistryV2Array();
+  space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp)) =
+      gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto space_registry = space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp));
+  auto funcs = space_registry->CreateOrGetOpImpl("MatmulAllReduce");
+  funcs->tiling = StubTiling;
+  funcs->tiling_parse = StubTilingParse;
+  funcs->compile_info_creator = CompileInfoCreator;
+  funcs->compile_info_deleter = nullptr;
+
+  DavinciModel model(0, nullptr);
+  model.SetSpaceRegistries(ge::MakeShared<gert::OpImplSpaceRegistryV2Array>(space_registry_array));
+  model.SetFeatureBaseRefreshable(true);
+  model.runtime_param_.mem_size = 10000UL;
+  std::vector<uint8_t> memory_holder(model.runtime_param_.mem_size);
+  model.runtime_param_.mem_base = reinterpret_cast<uintptr_t>(memory_holder.data());
+  MemAllocation fm_mem_allocation = {0, static_cast<uint64_t>(model.runtime_param_.mem_base),
+                                     model.runtime_param_.mem_size, ge::MemAllocation::Type::FEATURE_MAP, 0U};
+  model.logical_mem_allocations_.emplace_back(fm_mem_allocation);
+  ASSERT_EQ(rtMalloc(&model.globalworkspace_overflow_addr_, static_cast<uint64_t>(16), RT_MEMORY_HBM, GE_MODULE_NAME_U16),
+            SUCCESS);
+  ModelHelper model_helper;
+  model_helper.HandleDeviceInfo(model.platform_infos_);
+  model.platform_infos_.core_num_ = 0U;
+  const auto op_desc = CreateOpDesc("mc2", "MatmulAllReduce", 5, 5);
+  EXPECT_NE(op_desc, nullptr);
+  op_desc->SetId(0);
+
+  std::string kernel_handle_name = model.GetBinHandleKey(*op_desc, "", false);
+  TBEHandleStore::GetInstance().StoreTBEHandle(kernel_handle_name, nullptr, nullptr);
+
+  GeShape shape0({8});
+  GeTensorDesc desc0(shape0);
+  TensorUtils::SetSize(desc0, 32);
+  op_desc->UpdateInputDesc(0, desc0);
+  op_desc->UpdateInputDesc(1, desc0);
+  op_desc->UpdateOutputDesc(0, desc0);
+  op_desc->UpdateOutputDesc(1, desc0);
+
+  GeShape shape1({4, 4, 4, 4});
+  GeTensorDesc desc1(shape1);
+  TensorUtils::SetSize(desc1, 1024);
+  op_desc->UpdateInputDesc(2, desc1);
+  op_desc->UpdateInputDesc(3, desc1);
+  op_desc->UpdateInputDesc(4, desc1);
+  op_desc->UpdateOutputDesc(2, desc1);
+  op_desc->UpdateOutputDesc(3, desc1);
+  op_desc->UpdateOutputDesc(4, desc1);
+
+  // ir_def
+  // 实际连边的顺序
+  op_desc->MutableAllInputName() = {{"x1", 0}, {"bias", 1}, {"k0", 2}, {"k1", 3}, {"a", 4}};
+  op_desc->MutableAllOutputName() = {{"y", 0}, {"gather_out", 1}, {"z0", 2}, {"z1", 3}, {"m", 4}};
+
+  // ir的顺序为添加顺序
+  op_desc->AppendIrInput("x1", IrInputType::kIrInputRequired);
+  op_desc->AppendIrInput("x2", IrInputType::kIrInputOptional);
+  op_desc->AppendIrInput("bias", IrInputType::kIrInputRequired);
+  op_desc->AppendIrInput("k", IrInputType::kIrInputDynamic);
+  op_desc->AppendIrInput("a", IrInputType::kIrInputRequired);
+
+  op_desc->AppendIrOutput("y", IrOutputType::kIrOutputRequired);
+  op_desc->AppendIrOutput("gather_out", IrOutputType::kIrOutputRequired);
+  op_desc->AppendIrOutput("z", IrOutputType::kIrOutputDynamic);
+  op_desc->AppendIrOutput("m", IrOutputType::kIrOutputRequired);
+
+  op_desc->MutableInputDesc(1) = nullptr;
+  AttrUtils::SetInt(op_desc, ATTR_NAME_ATTACHED_STREAM_ID, 0);
+  AttrUtils::SetInt(op_desc, RECV_ATTR_NOTIFY_ID, 0);
+
+  std::shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  // add aicpu task
+  op_desc->SetInputOffset({1000, 3000, 4100, 4200, 4300});
+  op_desc->SetOutputOffset({5000, 6000, 6100, 6200, 6300});
+  op_desc->SetWorkspace({7000});
+  op_desc->SetWorkspaceBytes({512});
+  (void)AttrUtils::SetInt(op_desc, GLOBALWORKSPACE_TYPE, 1);
+  (void)AttrUtils::SetStr(op_desc, HCOM_ATTR_GROUP, "test");
+
+  auto run_info = std::make_shared<optiling::utils::OpRunInfo>(0, false, 0);
+  run_info->AddTilingData("11111111");
+  run_info->SetTilingKey(0x1234);
+  run_info->AddWorkspace(512);
+  op_desc->SetExtAttr(ATTR_NAME_OP_RUN_INFO, run_info);
+  (void)ge::AttrUtils::SetBool(op_desc, "_memcheck", true);
+
+  auto &fusion_task = *model_task_def->add_task();
+  fusion_task.set_type(static_cast<int32_t>(ge::ModelTaskType::MODEL_TASK_FUSION_KERNEL));
+  auto fusion = fusion_task.mutable_fusion_task();
+  fusion->set_args_format("{i0}{i2}{}{i_desc3}{i_instance4}{o0}{o1}{o_desc2}{o_instance4}{hi.hcom0*}{ws*}{overflow_addr}{ws0}{t}{#123}");
+  fusion->set_op_index(op_desc->GetId());;
+  fusion->set_kfc_args_format_offset(12);;
+
+  // 1.1 AICORE 子任务
+  auto* sub1 = fusion->add_fusion_sub_task_info();
+  sub1->set_type(domi::FusionSubTaskInfo::AICORE);
+  auto* aicore = sub1->mutable_task()->mutable_aicore_fusion_task_info();
+
+  // 1.1.1 KernelContext
+  auto* ctx = aicore->mutable_context();
+  ctx->set_kernel_type(11);
+
+  // 1.1.2 args 二进制
+  aicore->set_is_all_kernel(false);
+
+  // 1.1.3 LaunchConfig → LaunchAttribute
+  auto* cfg = aicore->mutable_config();
+  auto* attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::BLOCKDIM);
+  attr->mutable_value()->set_block_dim(256);
+
+  attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::BLOCKDIM_OFFSET);
+  attr->mutable_value()->set_block_dim_offset(1);
+
+  attr = cfg->add_launch_attribute();
+  attr->set_id(domi::LaunchAttribute::SCHEMMODE);
+  attr->mutable_value()->set_schem_model(1);
+
+  // 1.2 CCU 子任务
+  auto* sub3 = fusion->add_fusion_sub_task_info();
+  sub3->set_type(domi::FusionSubTaskInfo::CCU);
+  sub3->mutable_task()->mutable_ccu_task_group()->add_group("group");
+
+  rtStream_t stream1 = nullptr;
+  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream1, 0, 0, 0);
+  rtStream_t stream2 = nullptr;
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream2, 0, 0, 0);
+  model.stream_list_ = {stream1, stream2};
+
+  rtNotify_t rt_notify = nullptr;
+  rtNotifyCreate(0, &rt_notify);
+  model.notify_list_ = {rt_notify};
+
+  model.op_list_[op_desc->GetId()] = op_desc;
+  auto graph = std::make_shared<ComputeGraph>("tmp");
+  model.ge_model_ = MakeShared<GeModel>();
+  model.ge_model_->SetGraph(graph);
+  auto node = graph->AddNode(op_desc);
+  auto operator_info = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromNode(node));
+  EXPECT_NE(operator_info, nullptr);
+  model.operator_list_[op_desc->GetId()] = operator_info;
+
+  // aicpu kernel
+  std::vector<char> kernel_bin(128, '0');
+  const auto aicpu_bin = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  // model.ge_model_->cust_aicpu_kernal_store_.AddKernel(aicpu_bin);
+
+  DumpStub::GetInstance().Clear();
+  gert::GlobalDumper::GetInstance()->SetEnableFlags(
+      gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::DumpType>({gert::DumpType::kLiteExceptionDump}));
+
+  FusionTaskInfo fusion_task_info;
+  fusion_task_info.davinci_model_ = &model;
+  fusion_task_info.op_desc_ = op_desc;
+  TaskRunParam task_run_param = {};
+  EXPECT_EQ(fusion_task_info.ParseTaskRunParam(fusion_task, &model, task_run_param), SUCCESS);
+  PisToArgs args;
+  args[0].dev_addr = (uint64_t)malloc(1024);
+  uint8_t host_data[2048] = {0};
+  args[0].len = 2048;
+  args[0].host_addr = host_data;
+  PisToPersistentWorkspace persistant_workspace;
+  int64_t persist_dev[512] = {0};
+  persistant_workspace[0].dev_addr = reinterpret_cast<uint64_t>(persist_dev);
+  persistant_workspace[0].len = 512;
+  IowAddrs iow_addrs = {std::move(task_run_param.parsed_input_addrs), std::move(task_run_param.parsed_output_addrs),
+                        std::move(task_run_param.parsed_workspace_addrs)};
+  EXPECT_EQ(fusion_task_info.Init(fusion_task, &model, args, persistant_workspace, iow_addrs), SUCCESS);
+
+  // rt_sub_task_ 校验
+  EXPECT_EQ(fusion_task_info.rt_fusion_task_.subTask[0].type, 2);
+  EXPECT_NE(fusion_task_info.rt_fusion_task_.subTask[0].task.aicoreInfo.stubFunc, nullptr);
+  EXPECT_EQ(fusion_task_info.rt_fusion_task_.subTask[0].task.aicoreInfo.config->numAttrs, 4); // 包含dump
+  EXPECT_EQ(fusion_task_info.rt_fusion_task_.subTask[1].type, 3);
+
+  // io_addr校验
+  EXPECT_EQ(fusion_task_info.io_addrs_.size(), 41);
+  uint64_t fm_base = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(memory_holder.data()));
+
+  EXPECT_EQ(fusion_task_info.io_addrs_[0], fm_base + 1000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[1], fm_base + 3000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[3], args[0].dev_addr + 15 * sizeof(uint64_t));
+  EXPECT_EQ(fusion_task_info.io_addrs_[4], fm_base + 4300);
+  EXPECT_EQ(fusion_task_info.io_addrs_[5], fm_base + 5000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[6], fm_base + 6000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[7], args[0].dev_addr + 28 * sizeof(uint64_t));
+  EXPECT_EQ(fusion_task_info.io_addrs_[8], fm_base + 6300);
+  EXPECT_EQ(fusion_task_info.io_addrs_[9], 0xf1);
+  EXPECT_EQ(fusion_task_info.io_addrs_[10], fm_base + 7000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[12], fm_base + 7000);
+  EXPECT_EQ(fusion_task_info.io_addrs_[14], 123);
+  EXPECT_EQ(fusion_task_info.io_addrs_[15], 0x58);
+  EXPECT_EQ(fusion_task_info.io_addrs_[16], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[17], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[18], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[19], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[20], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[21], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[22], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[23], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[24], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[25], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[26], fm_base + 4100);
+  EXPECT_EQ(fusion_task_info.io_addrs_[27], fm_base + 4200);
+  EXPECT_EQ(fusion_task_info.io_addrs_[28], 0x58);
+  EXPECT_EQ(fusion_task_info.io_addrs_[29], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[30], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[31], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[32], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[33], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[34], 0x100000004);
+  EXPECT_EQ(fusion_task_info.io_addrs_[35], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[36], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[37], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[38], 0x4);
+  EXPECT_EQ(fusion_task_info.io_addrs_[39], fm_base + 6100);
+  EXPECT_EQ(fusion_task_info.io_addrs_[40], fm_base + 6200);
+
+  // l0 excetion dump校验； 旧的l0 exception dump 流程未校验，待补充
+  // iow的长度
+  auto units = ge::DumpStub::GetInstance().GetStaticUnits();
+  ASSERT_EQ(units.size(), 1);
+  ASSERT_EQ(units[0].size(), 23);
+  EXPECT_EQ(units[0][0], 32);    // i0
+  EXPECT_EQ(units[0][1], 32);    // i1
+  EXPECT_EQ(units[0][2], 0);     // hold
+  EXPECT_EQ(units[0][3], 112);   // idesc1
+  EXPECT_EQ(units[0][4], 1024);    // i4
+  EXPECT_EQ(units[0][5], 32);    // o0
+  EXPECT_EQ(units[0][6], 32);    // o1
+  EXPECT_EQ(units[0][7], 112);   // 0desc1
+  EXPECT_EQ(units[0][8], 1024);    // o4
+  EXPECT_EQ(units[0][9], 0);     // hcom
+  EXPECT_EQ(units[0][10], 512);   // ws
+  EXPECT_EQ(units[0][11], 1);     // i1 dim
+  EXPECT_EQ(units[0][12], 8);    //
+  EXPECT_EQ(units[0][13], 1);    // i2 dim
+  EXPECT_EQ(units[0][14], 8);    //
+  EXPECT_EQ(units[0][16], 4);    //
+  EXPECT_EQ(units[0][17], 4);    //
+  EXPECT_EQ(units[0][18], 4);    //
+  EXPECT_EQ(units[0][19], 4);    //
+  EXPECT_EQ(units[0][20], 0);    // o1
+  EXPECT_EQ(units[0][21], 0);    // o2
+  EXPECT_EQ(units[0][22], 0);    // o3
+
+  ge::DumpStub::GetInstance().Clear();
+
+  // data dump 输入输出在args table表中的偏移
+  auto cust_to_relevant = fusion_task_info.cust_to_relevant_offset_;
+  std::map<uint64_t, uint64_t> golden = { {0, 0}, {1, 1}, {2, 26}, {3, 27}, {4, 4}, {5, 5}, {6, 6}, {7, 39}, {8, 40}, {9, 8}};
+  EXPECT_EQ(golden, cust_to_relevant);
+
+
+  EXPECT_EQ(fusion_task_info.Distribute(), SUCCESS);
+  // rt_args_ex_ 校验
+  EXPECT_EQ(fusion_task_info.rt_args_ex_.argsSize, 41 * sizeof(uint64_t) + 15 * sizeof(uint64_t)); // ws* 16 uint32_t
+
+  HiddenInputsFuncRegistry::GetInstance().type_to_funcs_.clear();
+  free((void*)args[0].dev_addr);
+  rtFree((void*)model.globalworkspace_overflow_addr_);
+}
+
+
 TEST_F(UtestKernelTaskInfo, No_soft_sync_op_with_2_tasks) {
   DavinciModel model(0, nullptr);
   auto op_desc = CreateOpDesc("relu", RELU);
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
+
   op_desc->SetId(0);
   rtStream_t stream = nullptr;
   model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
@@ -2738,6 +3441,13 @@ TEST_F(UtestKernelTaskInfo, KernelTaskInit_SaveExceptionInfo_EnableExceptionDump
   model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0);
   model.stream_list_.push_back(stream);
   const auto op_desc = CreateOpDesc("relu", RELU, 2, 1);
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
+
   op_desc->SetInputOffset({10,10});
   domi::ModelTaskDef model_task_def;
   domi::TaskDef &task_def = *model_task_def.add_task();
@@ -2822,6 +3532,13 @@ TEST_F(UtestKernelTaskInfo, KernelTaskInit_SaveExceptionInfo_WithoutEnableExcept
   model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0);
   model.stream_list_.push_back(stream);
   const auto op_desc = CreateOpDesc("relu", RELU, 2, 1);
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
+
   op_desc->SetInputOffset({10,10});
   domi::ModelTaskDef model_task_def;
   domi::TaskDef &task_def = *model_task_def.add_task();
@@ -3182,7 +3899,8 @@ TEST_F(UtestKernelTaskInfo, super_kernel_with_args_format_graph_load_and_success
     auto skt_node = OP_CFG("super_kernel")
                    .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::TVM))
                    .Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIV")
-                   .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+                   .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                   .Attr(ATTR_NAME_KERNEL_BIN_ID, "te_superkernel_123");
 
     CHAIN(NODE("_arg_0", data_0)->EDGE(0, 0)->NODE("super_kernel", skt_node));
     CHAIN(NODE("_arg_1", data_1)->EDGE(0, 1)->NODE("super_kernel", skt_node));
@@ -3258,7 +3976,7 @@ TEST_F(UtestKernelTaskInfo, super_kernel_with_args_format_graph_load_and_success
   std::vector<char> test_bin(64, '\0');
   ge::TBEKernelPtr test_kernel = MakeShared<ge::OpKernelBin>("_aivtbeKernel_test", std::move(test_bin));
   (void)AttrUtils::SetStr(super_node->GetOpDesc(), ATTR_NAME_TBE_KERNEL_NAME, test_kernel->GetName());
-
+  (void)super_node->GetOpDesc()->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, test_kernel);
   std::shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
   auto &skt_task = *model_task_def->add_task();
 
@@ -3870,6 +4588,12 @@ TEST_F(UtestKernelTaskInfo, mix_ifa_with_args_format_graph_load_and_success) {
   std::vector<char> test_bin(64, '\0');
   ge::TBEKernelPtr test_kernel = MakeShared<ge::OpKernelBin>("_aivtbeKernel_test", std::move(test_bin));
   (void)AttrUtils::SetStr(ifa_node->GetOpDesc(), ATTR_NAME_TBE_KERNEL_NAME, test_kernel->GetName());
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(op_desc->GetName(), std::move(kernel_bin));
+  EXPECT_TRUE(op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName()));
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "te_ifa_123");
 
   std::shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
 
@@ -4966,5 +5690,112 @@ TEST_F(UtestKernelTaskInfo, InitPreprocessTask_Success) {
   kernel_task_info.kernel_type_ = ccKernelType::CUST_AI_CPU;
   kernel_task_info.op_desc_ = CreateOpDesc("relu", RELU);
   EXPECT_EQ(kernel_task_info.InitPreprocessTask(kernel_task_info.op_desc_), SUCCESS);
+}
+
+
+void StubExceptionFunc(aclrtExceptionInfo *exception_info, void *reserved) {
+  (void)exception_info;
+  (void)reserved;
+}
+
+TEST_F(UtestKernelTaskInfo, SetExceptionCallback_Success) {
+  gert::SpaceRegistryFaker::UpdateOpImplToDefaultSpaceRegistry();
+  auto space_registry_array = gert::OpImplSpaceRegistryV2Array();
+  space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp)) =
+      gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  auto space_registry = space_registry_array.at(static_cast<size_t>(OppImplVersion::kOpp));
+  auto funcs = space_registry->CreateOrGetOpImpl(RELU);
+  funcs->tiling = StubTiling;
+  funcs->tiling_parse = StubTilingParse;
+  funcs->compile_info_creator = CompileInfoCreator;
+  funcs->compile_info_deleter = nullptr;
+  funcs->exception_func = StubExceptionFunc;
+
+  DavinciModel model(0, nullptr);
+  model.SetSpaceRegistries(std::make_shared<gert::OpImplSpaceRegistryV2Array>(space_registry_array));
+  model.SetFeatureBaseRefreshable(true);
+  model.runtime_param_.mem_size = 2048U;
+  std::vector<uint8_t> memory_holder(model.runtime_param_.mem_size);
+  model.runtime_param_.mem_base = reinterpret_cast<uintptr_t>(memory_holder.data());
+  MemAllocation fm_mem_allocation = {0, 0, UINT64_MAX, ge::MemAllocation::Type::FEATURE_MAP, 0U};
+  model.logical_mem_allocations_.emplace_back(fm_mem_allocation);
+  ModelHelper model_helper;
+  model_helper.HandleDeviceInfo(model.platform_infos_);
+
+  rtStream_t stream = nullptr;
+  model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+  model.reusable_stream_allocator_->GetOrCreateRtStream(stream, 0, 0, 0);
+  model.stream_list_.push_back(stream);
+  auto op_desc = CreateOpDesc("relu", RELU);
+  AttrUtils::SetBool(op_desc, ATTR_NAME_STATIC_TO_DYNAMIC_SOFT_SYNC_OP, true);
+  AttrUtils::SetBool(op_desc, "globalworkspace_type", true);
+  AttrUtils::SetStr(op_desc, ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AiCore");
+  std::string json_str = R"({"_sgt_cube_vector_core_type": "AiCore"})";
+  AttrUtils::SetStr(op_desc, "compile_info_json", json_str);
+  AttrUtils::SetInt(op_desc, "op_para_size", 16);
+  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
+  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
+  op_desc->SetIsInputConst({false});
+  op_desc->SetInputOffset({0});
+  op_desc->SetOutputOffset({0, 128});
+  TensorUtils::SetSize(*op_desc->MutableInputDesc(0), 32);
+  TensorUtils::SetSize(*op_desc->MutableOutputDesc(0), 32);
+  TensorUtils::SetSize(*op_desc->MutableOutputDesc(1), 32);
+  op_desc->SetId(0);
+  op_desc->SetWorkspace({32});
+  op_desc->SetWorkspaceBytes({32});
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl(RELU)->tiling = StubTiling;
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl(RELU)->tiling_parse = StubTilingParse;
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl(RELU)->compile_info_creator = CompileInfoCreator;
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry()->CreateOrGetOpImpl(RELU)->exception_func = StubExceptionFunc;
+
+  std::vector<char> kernelBin;
+  TBEKernelPtr tbe_kernel = std::make_shared<ge::OpKernelBin>("name/data", std::move(kernelBin));
+  op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, tbe_kernel);
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  std::vector<int32_t> output_indices{0, 1};
+  AttrUtils::SetListInt(op_desc, ATOMIC_ATTR_OUTPUT_INDEX, output_indices);
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "00_0_kernel");
+  EXPECT_EQ(model.bin_kernel_handle_.RegisterDynamicKernel(op_desc, ""), SUCCESS);
+
+  domi::ModelTaskDef model_task_def;
+  domi::TaskDef &task_def = *model_task_def.add_task();
+  task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_ALL_KERNEL));
+  domi::KernelDefWithHandle *kernel_def = task_def.mutable_kernel_with_handle();
+  kernel_def->mutable_context()->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE));
+  kernel_def->mutable_context()->set_op_index(op_desc->GetId());
+  kernel_def->mutable_context()->mutable_origin_op_index()->Clear();
+  uint16_t offset = 16U;
+  kernel_def->mutable_context()->set_args_offset(&offset, sizeof(uint16_t));
+  std::vector<char> args_info(48U, '0');
+  kernel_def->set_args_size(args_info.size());
+  kernel_def->set_args(args_info.data(), args_info.size());
+
+  KernelTaskInfo kernel_task_info;
+  int64_t op_index = kernel_task_info.ParseOpIndex(task_def);
+  EXPECT_EQ(op_index, op_desc->GetId());
+
+  model.op_list_[op_desc->GetId()] = op_desc;
+  auto graph = std::make_shared<ComputeGraph>("tmp");
+  model.ge_model_ = MakeShared<GeModel>();
+  model.ge_model_->SetGraph(graph);
+  auto node = graph->AddNode(op_desc);
+  auto operator_info = std::make_shared<Operator>(OpDescUtils::CreateOperatorFromNode(node));
+  model.operator_list_[op_desc->GetId()] = operator_info;
+  op_desc->SetWorkspace({1308});
+  op_desc->SetWorkspaceBytes({150});
+
+  model.args_manager_.AllocKernelLaunchArgsHostMem(model.logical_mem_allocations_.size());
+  {
+    EXPECT_EQ(model.InitTaskInfo(model_task_def), SUCCESS);
+    EXPECT_EQ(model.DistributeTask(model_task_def), SUCCESS);
+  }
+
+  {
+    model.feature_base_refreshable_ = true;
+    EXPECT_EQ(model.InitTaskInfo(model_task_def), SUCCESS);
+    EXPECT_EQ(model.DistributeTask(model_task_def), SUCCESS);
+  }
 }
 }  // namespace ge

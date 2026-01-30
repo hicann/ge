@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -27,7 +27,7 @@
 namespace ge {
 class TbeHandleInfo {
  public:
-  TbeHandleInfo(void *const handle, const OpKernelBinPtr &kernel) : handle_(handle), kernel_(kernel) {}
+  TbeHandleInfo(void *const handle, const OpKernelBinPtr &kernel) : used_(0U), handle_(handle), kernel_(kernel) {}
 
   ~TbeHandleInfo();
 
@@ -38,7 +38,7 @@ class TbeHandleInfo {
   void *handle() const;
 
  private:
-  uint32_t used_ = 0U;
+  uint32_t used_;
   void *handle_;
   // After registering bin, the rts will hold a raw pointer to the kernelbin until rtDevBinUnRegister is called.
   // Therefore, it is necessary to hold a shared_ptr to the bin to ensure its lifecycle is consistent with the
@@ -77,7 +77,7 @@ class TBEHandleStore {
   /// @return NA
   void EraseTBEHandle(const std::map<std::string, uint32_t> &names);
 
-  void* GetUniqueIdPtr(void *const handle);
+  void *GetUniqueIdPtr(void *const handle, const std::string &kernel, bool &inserted);
 
   static std::recursive_mutex mutex_;
 
@@ -86,7 +86,7 @@ class TBEHandleStore {
   ~TBEHandleStore() = default;
 
   std::unordered_map<std::string, std::unique_ptr<TbeHandleInfo>> bin_key_to_handle_;
-  std::unordered_map<void *, std::list<uint8_t>> handle_to_unique_ids_;
+  std::unordered_map<void*, std::unordered_map<std::string, std::list<uint8_t>>> handle_to_kernel_to_unique_id_;
 };
 
 class KernelHolder {

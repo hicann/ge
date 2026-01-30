@@ -24,6 +24,7 @@
 #include "graph/tensor.h"
 #include "graph/ge_tensor.h"
 #include "framework/common/ge_model_inout_types.h"
+#include "common/ge_common/ge_types.h"
 
 namespace ge {
 class SingleOp;
@@ -78,7 +79,7 @@ class GE_FUNC_VISIBILITY GeExecutor {
 
   Status UnloadModel(const uint32_t model_id);
 
-  Status RecoverAllModel(const int32_t device_id);
+  Status RecoverAllModel(const int32_t device_id) const;
 
   // Get input and output descriptor
   Status GetModelDescInfo(const uint32_t model_id, std::vector<TensorDesc> &input_desc,
@@ -243,7 +244,7 @@ class GE_FUNC_VISIBILITY GeExecutor {
   Status LoadModelWithQ(uint32_t &model_id, const ModelData &model_data, const ModelQueueArg &args);
 
   Status LoadModelWithQueueParam(uint32_t &model_id, const ModelData &model_data,
-                                 const ModelQueueParam &model_queue_param);
+                                 const ModelQueueParam &model_queue_param) const;
 
   ///
   /// @ingroup ge

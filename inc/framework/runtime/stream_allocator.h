@@ -12,7 +12,6 @@
 #define AIR_CXX_RUNTIME_STREAM_ALLOCATOR_H_
 
 #include <memory>
-#include <cstdlib>
 #include "runtime/stream.h"
 #include "common/ge_visibility.h"
 #include "framework/common/ge_inner_error_codes.h"

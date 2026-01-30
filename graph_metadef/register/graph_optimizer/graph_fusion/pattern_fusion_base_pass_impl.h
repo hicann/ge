@@ -17,7 +17,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/opskernel/ops_kernel_info_store.h"
 #include "register/graph_optimizer/graph_fusion/fusion_pattern.h"
 

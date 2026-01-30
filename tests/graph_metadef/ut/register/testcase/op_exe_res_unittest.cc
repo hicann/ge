@@ -21,7 +21,7 @@
 #include "register/graph_optimizer/graph_fusion/fusion_quant_util.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/tensor_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #define protected public
 #include "exe_graph/runtime/exe_res_generation_context.h"
 #include "exe_graph/lowering/exe_res_generation_ctx_builder.h"
@@ -119,6 +119,7 @@ TEST_F(OpExeResTest, OpResAPITest) {
   auto res_ptr_holder = exe_ctx_builder.CreateOpExeContext(*mm_node);
   EXPECT_NE(res_ptr_holder, nullptr);
   auto op_exe_res_ctx = reinterpret_cast<ExeResGenerationContext *>(res_ptr_holder->context_);
+  auto op_check_ctx = reinterpret_cast<OpCheckContext *>(res_ptr_holder->context_);
   auto node_ptr = op_exe_res_ctx->MutableInputPointer<ge::Node>(0);
   EXPECT_NE(node_ptr, nullptr);
   auto stream_id = op_exe_res_ctx->GetStreamId();
@@ -156,8 +157,14 @@ TEST_F(OpExeResTest, OpResAPITest) {
   auto is_const = op_exe_res_ctx->IsConstInput(ir_name);
   EXPECT_EQ(is_const, false);
 
+  is_const = op_check_ctx->IsConstInput(ir_name);
+  EXPECT_EQ(is_const, false);
+
   ge::AscendString ir_name1 = "__input_invalid";
   is_const = op_exe_res_ctx->IsConstInput(ir_name1);
+  EXPECT_EQ(is_const, false);
+
+  is_const = op_check_ctx->IsConstInput(ir_name1);
   EXPECT_EQ(is_const, false);
 
   std::vector<StreamInfo> stream_info_vec;

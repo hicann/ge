@@ -11,7 +11,7 @@
 #include "graph/utils/args_format_desc_utils.h"
 #include <functional>
 #include "common/checker.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/args_format_desc.h"
 
 namespace ge {

@@ -73,7 +73,7 @@ Status PreModelHelper::SaveToExeOmModel(const GeModelPtr &ge_model, const std::s
     return FAILED;
   }
 
-  const std::shared_ptr<PreDavinciModel> pre_davinci_model = ge::MakeShared<PreDavinciModel>();
+  const std::unique_ptr<PreDavinciModel> pre_davinci_model = ge::MakeUnique<PreDavinciModel>();
   GE_ASSERT_NOTNULL(pre_davinci_model, "New PreDavinciModel fail");
   pre_davinci_model->Assign(ge_model);
   auto ret = pre_davinci_model->Init();
@@ -140,7 +140,7 @@ Status PreModelHelper::SaveAllModelPartiton(std::shared_ptr<OmFileSaveHelper> &o
 
 Status PreModelHelper::SaveModelDesc(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper, const GeModelPtr &ge_model,
                                      const size_t model_index) {
-  const std::shared_ptr<ModelDescPartition> model_desc = ge::MakeShared<ModelDescPartition>();
+  const std::unique_ptr<ModelDescPartition> model_desc = ge::MakeUnique<ModelDescPartition>();
   GE_ASSERT_NOTNULL(model_desc, "New ModelDescPartition fail");
 
   GE_ASSERT_SUCCESS(model_desc->Init(ge_model), "ModelDescPartition Init Failed, model %s, model index %zu",
@@ -160,7 +160,7 @@ Status PreModelHelper::SaveModelDesc(std::shared_ptr<OmFileSaveHelper> &om_file_
 
 Status PreModelHelper::SaveTaskDesc(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper, const GeModelPtr &ge_model,
                                     const size_t model_index) {
-  const std::shared_ptr<ModelTaskDescPartition> task_desc = ge::MakeShared<ModelTaskDescPartition>();
+  const std::unique_ptr<ModelTaskDescPartition> task_desc = ge::MakeUnique<ModelTaskDescPartition>();
   GE_ASSERT_NOTNULL(task_desc, "New ModelTaskDescPartition fail");
 
   GE_ASSERT_SUCCESS(task_desc->Init(ge_model), "ModelTaskDescPartition Init Failed, model %s, model index %zu",
@@ -179,7 +179,7 @@ Status PreModelHelper::SaveTaskDesc(std::shared_ptr<OmFileSaveHelper> &om_file_s
 
 Status PreModelHelper::SaveKernelArgs(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper,
                                       const GeModelPtr &ge_model, const size_t model_index) {
-  const std::shared_ptr<ModelKernelArgsPartition> model_kernel_args = ge::MakeShared<ModelKernelArgsPartition>();
+  const std::unique_ptr<ModelKernelArgsPartition> model_kernel_args = ge::MakeUnique<ModelKernelArgsPartition>();
   GE_ASSERT_NOTNULL(model_kernel_args, "New ModelKernelArgsPartition fail");
 
   GE_ASSERT_SUCCESS(model_kernel_args->Init(ge_model),
@@ -199,7 +199,7 @@ Status PreModelHelper::SaveKernelArgs(std::shared_ptr<OmFileSaveHelper> &om_file
 
 Status PreModelHelper::SaveKernelBin(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper, const GeModelPtr &ge_model,
                                      const size_t model_index) {
-  const std::shared_ptr<ModelKernelBinPartition> kernel_bin = ge::MakeShared<ModelKernelBinPartition>();
+  const std::unique_ptr<ModelKernelBinPartition> kernel_bin = ge::MakeUnique<ModelKernelBinPartition>();
   GE_ASSERT_NOTNULL(kernel_bin, "New KernelBinPartition fail");
 
   GE_ASSERT_SUCCESS(kernel_bin->Init(ge_model), "ModelKernelBinPartition Init Failed, model %s, model index %zu",

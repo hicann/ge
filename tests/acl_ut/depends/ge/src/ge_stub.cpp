@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include <vector>
@@ -52,7 +52,6 @@
 #include "nlohmann/json.hpp"
 #include "register/stream_manage_func_registry.h"
 #include "base/err_mgr.h"
-#include "error_manager/error_manager.h"
 
 using namespace ge;
 
@@ -699,7 +698,7 @@ std::map<string, AnyValue> g_geAttrMap;
         return SUCCESS;
     }
 
-    Status GeExecutor::RecoverAllModel(const int32_t device_id)
+    Status GeExecutor::RecoverAllModel(const int32_t device_id) const
     {
         return SUCCESS;
     }
@@ -1115,6 +1114,12 @@ std::map<string, AnyValue> g_geAttrMap;
     }
 
     uint8_t* TensorData::data()
+    {
+        static uint8_t data[8] = {0};
+        return data;
+    }
+
+    const uint8_t* TensorData::data() const
     {
         static uint8_t data[8] = {0};
         return data;
@@ -2349,56 +2354,20 @@ namespace gert {
     }
 }
 
-ErrorManager &ErrorManager::GetInstance() {
-  static ErrorManager instance;
-  return instance;
-}
+namespace error_message {
+    int FormatErrorMessage(char *str_dst, size_t dst_max, const char *format, ...)
+    {
+        return 1;
+    }
 
-void ErrorManager::SetStage(const std::string &firstStage, const std::string &secondStage)
-{
-    (void)firstStage;
-    (void)secondStage;
-}
+    std::string TrimPath(const std::string &str) {
+        return "";
+    }
 
-const string& ErrorManager::GetLogHeader()
-{
-    static const string header = "[Test][Test]";
-    return header;
-}
-
-int ErrorManager::Init()
-{
-    return MockFunctionTest::aclStubInstance().Init();
-}
-
-int ErrorManager::Init(error_message::ErrorMsgMode mode)
-{
-    return MockFunctionTest::aclStubInstance().Init();
-}
-
-void ErrorManager::ATCReportErrMessage(std::string error_code, const std::vector<std::string> &key,
-                                       const std::vector<std::string> &value)
-{
-
-}
-
-int ErrorManager::ReportInterErrMessage(std::string error_code, const std::string &error_msg)
-{
-    return 0;
-}
-
-int error_message::FormatErrorMessage(char *str_dst, size_t dst_max, const char *format, ...)
-{
-    return 1;
-}
-
-std::string error_message::TrimPath(const std::string &str) {
-    return "";
-}
-
-void error_message::ReportInnerError(const char_t *file_name, const char_t *func, uint32_t line,
-                                     const std::string error_code, const char_t *format, ...) {
-    return;
+    void ReportInnerError(const char_t *file_name, const char_t *func, uint32_t line,
+                                         const std::string error_code, const char_t *format, ...) {
+        return;
+    }
 }
 
 namespace fe {

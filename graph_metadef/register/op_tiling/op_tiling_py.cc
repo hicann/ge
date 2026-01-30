@@ -13,7 +13,7 @@
 #include "graph/op_desc.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_attr_define.h"
 #include "register/op_tiling_info.h"
 #include "register/op_tiling_registry.h"
@@ -23,13 +23,15 @@
 #include "common/util/tiling_utils.h"
 #include "platform/platform_info.h"
 #include "exe_graph/runtime/storage_shape.h"
-#include "common/util/error_manager/error_manager.h"
+#include "ge_common/ge_api_types.h"
+#include "common/ge_common/util.h"
+#include "base/err_mgr.h"
 #include "exe_graph/lowering/kernel_run_context_builder.h"
 #include "exe_graph/runtime/tiling_context.h"
 #include "common/checker.h"
 #include "graph/utils/math_util.h"
 #include "hcom/hcom_topo_info.h"
-#include "ge_common/ge_api_types.h"
+#include "register/core_num_utils.h"
 #include "common/ge_common/util.h"
 
 namespace ge {
@@ -153,11 +155,11 @@ bool ParseValueNullDesc(const nlohmann::json &value_null_desc, std::vector<T> &d
   std::string null_desc = value_null_desc.get<std::string>();
   if (std::numeric_limits<T>::has_infinity && std::numeric_limits<T>::has_quiet_NaN) {
     if (null_desc == "inf") {
-      data.emplace_back(std::numeric_limits<T>::infinity());
+      (void)data.emplace_back(std::numeric_limits<T>::infinity());
     } else if (null_desc == "-inf") {
-      data.emplace_back(-std::numeric_limits<T>::infinity());
+      (void)data.emplace_back(static_cast<T>(0) - std::numeric_limits<T>::infinity());
     } else if (null_desc == "nan") {
-      data.emplace_back(std::numeric_limits<T>::quiet_NaN());
+      (void)data.emplace_back(std::numeric_limits<T>::quiet_NaN());
     } else {
       GELOGE(ge::GRAPH_PARAM_INVALID, "value_null desc: %s is not supported", null_desc.c_str());
       return false;
@@ -174,7 +176,7 @@ bool ParseAndSetFloatAttr(ge::OpDescPtr &op_desc, const nlohmann::json &attr, co
   std::vector<float> data;
   const auto value_null_desc = attr.find("value_null_desc");
   if (value_null_desc == attr.end()) {
-    data.emplace_back(value.get<float>());
+    (void)data.emplace_back(value.get<float>());
   } else {
     if (value.is_null()) {
       GE_ASSERT_TRUE(ParseValueNullDesc(value_null_desc.value(), data));
@@ -208,7 +210,7 @@ bool ParseAndSetFloatListAttr(ge::OpDescPtr &op_desc, const nlohmann::json &attr
       if (value.at(i).is_null()) {
         GE_ASSERT_TRUE(ParseValueNullDesc(value_null_desc->at(i), data));
       } else {
-        data.emplace_back(value.at(i).get<float>());
+        (void)data.emplace_back(value.at(i).get<float>());
       }
     }
   }
@@ -232,9 +234,9 @@ bool ParseAndSetListListAttr(ge::OpDescPtr &op_desc, const nlohmann::json &attr,
   for (const auto &vec_int32 : attr_value_int32) {
     for (const auto &item : vec_int32) {
       int64_t tmp = static_cast<int64_t>(item);
-      temp_int64_vec.emplace_back(tmp);
+      (void)temp_int64_vec.emplace_back(tmp);
     }
-    attr_value_int64.emplace_back(temp_int64_vec);
+    (void)attr_value_int64.emplace_back(temp_int64_vec);
     temp_int64_vec.clear();
   }
   op_desc->AppendIrAttrName(attr_name);
@@ -265,7 +267,7 @@ bool GetConstData(const nlohmann::json &json_array, const size_t total_size,
       if (const_value.at(i).is_null()) {
         GE_ASSERT_TRUE(ParseValueNullDesc(const_value_null_desc->at(i), value));
       } else {
-        value.emplace_back(const_value.at(i).get<T>());
+        (void)value.emplace_back(const_value.at(i).get<T>());
       }
     }
   }
@@ -283,7 +285,7 @@ bool GetConstDataWithFloat16(const nlohmann::json &json_array, const size_t tota
   std::vector<uint16_t> const_data_vec;
   for (size_t i = 0UL; i < const_value.size(); ++i) {
     uint16_t const_data_uint16 = Float32ToFloat16(const_value[i]);
-    const_data_vec.emplace_back(const_data_uint16);
+    (void)const_data_vec.emplace_back(const_data_uint16);
   }
   auto tensor = reinterpret_cast<gert::Tensor *>(tensor_holder.get());
   if (memcpy_s(tensor->GetData<uint8_t>(), total_size - sizeof(gert::Tensor), const_data_vec.data(),
@@ -300,7 +302,7 @@ bool GetConstDataWithBF16(const nlohmann::json &json_array, const size_t total_s
   std::vector<uint16_t> const_data_vec;
   for (size_t i = 0UL; i < const_value.size(); ++i) {
     uint16_t const_data_uint16 = Float32ToBfloat16(const_value[i]);
-    const_data_vec.emplace_back(const_data_uint16);
+    (void)const_data_vec.emplace_back(const_data_uint16);
   }
   auto tensor = reinterpret_cast<gert::Tensor *>(tensor_holder.get());
   GE_CHK_BOOL_RET_STATUS((memcpy_s(tensor->GetData<uint8_t>(), total_size - sizeof(gert::Tensor), const_data_vec.data(),
@@ -340,10 +342,10 @@ const FuncTable kFuncTable = FuncTable()
                              .Insert(ge::DT_INT64, GetConstData<int64_t>)
                              .Insert(ge::DT_UINT64, GetConstData<uint64_t>)
                              .Insert(ge::DT_FLOAT, GetConstData<float>)
-                             .Insert(ge::DT_DOUBLE, GetConstData<double>)
-                             .Insert(ge::DT_FLOAT16, GetConstDataWithFloat16)
-                             .Insert(ge::DT_BF16, GetConstDataWithBF16)
-                             .Insert(ge::DT_BOOL, GetConstData<int8_t>);
+                             .Insert(ge::DT_DOUBLE, &GetConstData<double>)
+                             .Insert(ge::DT_FLOAT16, &GetConstDataWithFloat16)
+                             .Insert(ge::DT_BF16, &GetConstDataWithBF16)
+                             .Insert(ge::DT_BOOL, &GetConstData<int8_t>);
 
 void ParseDtype(const nlohmann::json &json, ge::GeTensorDesc &tensor_desc) {
   if (json.contains("dtype")) {
@@ -373,7 +375,7 @@ void ParseStorageShape(const nlohmann::json &json, gert::StorageShape &storage_s
     }
     storage_shape.MutableOriginShape() = shape;
   }
-  storage_shapes.emplace_back(storage_shape);
+  (void)storage_shapes.emplace_back(storage_shape);
 }
 
 void ParseStorageFormat(const nlohmann::json &json, ge::GeTensorDesc &tensor_desc) {
@@ -382,7 +384,7 @@ void ParseStorageFormat(const nlohmann::json &json, ge::GeTensorDesc &tensor_des
     (void)std::transform(format_str.begin(), format_str.end(), format_str.begin(), ::toupper);
     ge::Format ge_format = ge::TypeUtils::SerialStringToFormat(format_str);
     if (json.contains("sub_format")) {
-      int32_t sub_format = json["sub_format"].get<std::int32_t>();
+      const int32_t sub_format = json["sub_format"].get<std::int32_t>();
       GELOGD("Sub format: %d, Primary format: %d", sub_format, static_cast<int32_t>(ge_format));
       ge_format = static_cast<ge::Format>(ge::GetFormatFromSub(static_cast<int32_t>(ge_format), sub_format));
     }
@@ -420,7 +422,7 @@ ge::graphStatus ParseConstValue(const nlohmann::json &input, const gert::Storage
     tensor->SetDataType(tensor_desc.GetDataType());
     tensor->SetStorageFormat(tensor_desc.GetFormat());
     tensor->SetOriginFormat(tensor_desc.GetOriginFormat());
-    index_to_tensor.emplace_back(index, std::move(tensor_holder));
+    (void)index_to_tensor.emplace_back(index, std::move(tensor_holder));
   } else {
     auto tensor_holder = std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[sizeof(gert::Tensor)]);
     GE_ASSERT_NOTNULL(tensor_holder);
@@ -428,7 +430,7 @@ ge::graphStatus ParseConstValue(const nlohmann::json &input, const gert::Storage
                                            gert::kOnHost, tensor_desc.GetDataType(), nullptr);
     reinterpret_cast<gert::Tensor *>(tensor_holder.get())->MutableStorageShape() = storage_shape.GetStorageShape();
     reinterpret_cast<gert::Tensor *>(tensor_holder.get())->MutableOriginShape() = storage_shape.GetOriginShape();
-    index_to_tensor.emplace_back(index, std::move(tensor_holder));
+    (void)index_to_tensor.emplace_back(index, std::move(tensor_holder));
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -751,10 +753,34 @@ constexpr int64_t ret_success = 0;
 constexpr int64_t ret_fail = 1;
 constexpr int64_t outter_error_type = 1;
 constexpr int64_t inner_error_type = 2;
+
+std::map<std::string, std::string> AssembleMap(const std::vector<error_message::unique_const_char_array>& args_key,
+    const std::vector<error_message::unique_const_char_array>& args_value){
+  std::map<std::string, std::string> result_map;
+
+  // 第一步：校验两个向量长度一致，避免下标越界
+  if (args_key.size() != args_value.size()) {
+    GELOGE(ge::GRAPH_FAILED, "key length:%d is inconsistent with value length:%d", args_key.size(), args_value.size());
+    return result_map; // 长度不一致返回空map
+  }
+
+  for (size_t i = 0; i < args_key.size(); ++i) {
+    const char* key_ptr = args_key[i] ? args_key[i].get() : "";
+    std::string key_str = key_ptr;
+
+    const char* val_ptr = args_value[i] ? args_value[i].get() : "";
+    std::string val_str = val_ptr;
+
+    result_map[key_str] = val_str;
+  }
+
+  return result_map;
+}
+
 std::string GetRawErrorMessage() {
   try {
     nlohmann::json ret_json;
-    const auto &error_messages = ErrorManager::GetInstance().GetRawErrorMessages();
+    const auto &error_messages = error_message::GetErrMgrRawErrorMessages();
     if (error_messages.empty()) {
       ret_json["ret_code"] = ret_success;
       return ret_json.dump();
@@ -763,13 +789,13 @@ std::string GetRawErrorMessage() {
     nlohmann::json error_messages_json = {};
     for (const auto &item : error_messages) {
       nlohmann::json item_json;
-      item_json["errorcode"] = item.error_id;
-      if (item.args_map.empty()) {
+      item_json["errorcode"] = item.error_id ? std::string(item.error_id.get()) : std::string("");
+      if (item.args_key.empty() || item.args_value.empty()) {
         item_json["type"] = inner_error_type;
-        item_json["errormsg"] = item.error_message;
+        item_json["errormsg"] = item.error_message ? std::string(item.error_message.get()) : std::string("");
       } else {
         item_json["type"] = outter_error_type;
-        item_json["errormsg"] = item.args_map;
+        item_json["errormsg"] = AssembleMap(item.args_key, item.args_value);
       }
       error_messages_json.push_back(item_json);
     }
@@ -780,6 +806,7 @@ std::string GetRawErrorMessage() {
     return "";
   }
 }
+
 void ParseAndSetAttrListListValue(ge::Operator &op, const nlohmann::json &attr, const std::string &attr_name) {
   std::vector<std::vector<int32_t>> attr_value_int32 = attr["value"].get<std::vector<std::vector<int32_t>>>();
   std::vector<std::vector<int64_t>> attr_value_int64;
@@ -787,9 +814,9 @@ void ParseAndSetAttrListListValue(ge::Operator &op, const nlohmann::json &attr, 
   for (const auto &vec_int32 : attr_value_int32) {
     for (const auto &item : vec_int32) {
       int64_t tmp = static_cast<int64_t>(item);
-      temp_int64_vec.emplace_back(tmp);
+      (void)temp_int64_vec.emplace_back(tmp);
     }
-    attr_value_int64.emplace_back(temp_int64_vec);
+    (void)attr_value_int64.emplace_back(temp_int64_vec);
     temp_int64_vec.clear();
   }
 
@@ -837,7 +864,7 @@ void ParseShapeDesc(const nlohmann::json &shape, std::vector<TeOpTensor> &tensor
   if (shape.contains("dtype")) {
     tensor.dtype = shape["dtype"].get<std::string>();
   }
-  tensors.emplace_back(tensor);
+  (void)tensors.emplace_back(tensor);
 }
 
 void ParseShapeDescList(const nlohmann::json &shape_list, std::vector<TeOpTensorArg> &op_args) {
@@ -854,7 +881,7 @@ void ParseShapeDescList(const nlohmann::json &shape_list, std::vector<TeOpTensor
       tensor_arg.arg_type = TensorArgType::TA_SINGLE;
       ParseShapeDesc(elem, tensor_arg.tensor);
     }
-    op_args.emplace_back(tensor_arg);
+    (void)op_args.emplace_back(tensor_arg);
   }
 }
 
@@ -895,7 +922,7 @@ void ParseShapeDescV2(const nlohmann::json &shape, ge::OpDescPtr &op_desc, const
   }
 }
 
-void ParseAndSetAttr(const nlohmann::json &attr, ge::Operator &op) {
+void ParseAndSetOperatorAttr(const nlohmann::json &attr, ge::Operator &op) {
   if (!attr.contains("name") || !attr.contains("dtype") || !attr.contains("value")) {
     REPORT_INNER_ERR_MSG("E19999", "cur attr does not contain name or dtype or value.");
     return;
@@ -940,7 +967,7 @@ void ParseShapeDescListV2(const nlohmann::json &shape_list, ge::OpDescPtr &op_de
 
 void ParseAndSetAttrsList(const nlohmann::json &attrs_list, ge::Operator &op) {
   for (const auto &attr : attrs_list) {
-    ParseAndSetAttr(attr, op);
+    ParseAndSetOperatorAttr(attr, op);
   }
 }
 
@@ -962,9 +989,9 @@ void CopyConstDataWithFloat16(const nlohmann::json &json_array, std::vector<uint
   std::vector<uint16_t> const_data_vec;
   const size_t size = sizeof(const_value)/sizeof(float);
   for (size_t i = 0; i < size; ++i) {
-    const float const_data = *(const_data_ptr + i);
+    const float const_data = const_data_ptr[i];
     uint16_t const_data_uint16 = optiling::Float32ToFloat16(const_data);
-    const_data_vec.emplace_back(const_data_uint16);
+    (void)const_data_vec.emplace_back(const_data_uint16);
   }
   uint8_t *pv_begin = reinterpret_cast<uint8_t *>(const_data_vec.data());
   uint8_t *pv_end = pv_begin + (const_data_vec.size() * sizeof(uint16_t));
@@ -1149,7 +1176,7 @@ std::string DumpByteBuffer(const ByteBuffer &buf) {
   return output;
 }
 
-bool DumpRunInfo(const OpRunInfo &run_info, char *run_info_json, const size_t &run_info_len) {
+bool DumpOpRunInfo(const OpRunInfo &run_info, char *run_info_json, size_t &run_info_len) {
   if (run_info_json == nullptr) {
     GE_LOGE("run_info buffer is null");
     return false;
@@ -1167,10 +1194,10 @@ bool DumpRunInfo(const OpRunInfo &run_info, char *run_info_json, const size_t &r
     GE_LOGE("runinfo too large. %zu/%zu", str.size(), run_info_len);
     return false;
   }
-  return memcpy_s(run_info_json, str.size() + 1, str.c_str(), str.size() + 1) == EOK;
+  return memcpy_s(run_info_json, str.size() + 1UL, str.c_str(), str.size() + 1UL) == EOK;
 }
 
-bool DumpRunInfoV2(const OpRunInfoV2 &run_info, char *run_info_json, const size_t &run_info_len) {
+bool DumpRunInfoV2(const OpRunInfoV2 &run_info, char *run_info_json, size_t run_info_len) {
   if (run_info_json == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "run_info buffer is null");
     return false;
@@ -1252,7 +1279,7 @@ int TbeOpTilingPyInterfaceEx2BackUpInner(const char *const optype, const char *c
   }
 
   GELOGI("Optiling succeeded. op_type: %s", optype);
-  (void)DumpRunInfo(run_info, run_info_json, run_info_len);
+  (void)DumpOpRunInfo(run_info, run_info_json, run_info_len);
   return 1;
 }
 
@@ -1453,87 +1480,25 @@ int TbeOpTilingPyInterfaceEx4Inner(const char *const optype, const char *const c
   return 1;
 }
 
-ge::graphStatus UpdateCoreCountWithOpDesc(std::map<std::string, std::string>& res, const std::string& key_ini, const std::string& key_op, ge::OpDesc::OpDescPtr op_desc) {
-  auto it = res.find(key_ini);
-  if (it == res.end()) {
-    return ge::GRAPH_SUCCESS;
-  }
-  string core_num_str = "";
-  const int32_t core_num_ini = std::stoi(it->second);
-
-  if (!ge::AttrUtils::HasAttr(op_desc, key_op)) {
-    GELOGI("No attr: %s exist in op_desc", key_op.c_str());
-    return ge::GRAPH_SUCCESS;
-  }
-  if (ge::AttrUtils::GetStr(op_desc, key_op, core_num_str)) {
-    GELOGI("Attr: %s exists in op_desc, value: %s", key_op.c_str(), core_num_str.c_str());
-    int32_t core_num = -1;
-    try {
-      core_num = std::stoi(core_num_str);
-    } catch (...) {
-      GELOGE(ge::GRAPH_FAILED, "[Parse][Param]Failed, digit str:%s cannot change to int", core_num_str.c_str());
-      return ge::GRAPH_FAILED;
-    }
-    if (core_num > 0) {
-      GELOGD("Change %s from platform %ld to the op_desc %ld.", key_ini.c_str(), core_num_ini, core_num);
-      res[key_ini] = core_num_str;
-    }
-  }
-  return ge::GRAPH_SUCCESS;
-}
-
 gert::KernelContextHolder BuildTilingParseContextHolder(ge::OpDescPtr &op_desc, const char *compile_info,
-                                                        const char *op_type, fe::PlatFormInfos &platform_info,
+                                                        const char *op_type, fe::PlatFormInfos &platform_infos,
                                                         const gert::OpImplKernelRegistry::OpImplFunctionsV2 *funcs) {
   std::vector<std::pair<void *, gert::Chain::Deleter>> tiling_parse_outputs(1, std::make_pair(nullptr, nullptr));
   if (op_desc->GetType() != OP_TYPE_AUTO_TILING) {
     tiling_parse_outputs[0].first = funcs->compile_info_creator();
     tiling_parse_outputs[0].second = funcs->compile_info_deleter;
   }
-  std::string socVersionStr;
-  (void)platform_info.GetPlatformResWithLock("version", "Short_SoC_version", socVersionStr);
-  GELOGI("Short_SoC_version in platform_info: %s", socVersionStr.c_str());
 
-  static fe::PlatFormInfos tmp_info = platform_info;
-  std::map<std::string, std::string> res;
-  (void)tmp_info.GetPlatformResWithLock("SoCInfo", res);
-
-  GELOGI("Begin to UpdateCoreCountWithOpDesc, opName: %s, opType: %s", op_desc->GetName().c_str(),
-         op_desc->GetTypePtr());
-  bool needUpdate = false;
-  if (ge::AttrUtils::HasAttr(op_desc, ge::public_attr::OP_AI_CORE_NUM) || ge::AttrUtils::HasAttr(op_desc, ge::public_attr::OP_VECTOR_CORE_NUM)) {
-    needUpdate = true;
-    if (UpdateCoreCountWithOpDesc(res, ge::public_attr::AI_CORE_CNT, ge::public_attr::OP_AI_CORE_NUM, op_desc) != ge::GRAPH_SUCCESS) {
-      return gert::KernelContextHolder();
-    }
-    res[ge::public_attr::CUBE_CORE_CNT] = res[ge::public_attr::AI_CORE_CNT];
-    if (UpdateCoreCountWithOpDesc(res, ge::public_attr::VECTOR_CORE_CNT, ge::public_attr::OP_VECTOR_CORE_NUM, op_desc) != ge::GRAPH_SUCCESS) {
-      return gert::KernelContextHolder();
-    }
-    tmp_info.SetPlatformResWithLock(ge::public_attr::SOC_INFO, res);
-  }
-
-  if (needUpdate) {
-    GELOGI("Need to update platform info, use tmp_info");
-    return gert::KernelRunContextBuilder()
+  return gert::KernelRunContextBuilder()
       .Inputs({std::make_pair(const_cast<char *>(compile_info), nullptr),
-               std::make_pair(reinterpret_cast<void *>(&tmp_info), nullptr),
+               std::make_pair(reinterpret_cast<void *>(&platform_infos), nullptr),
                std::make_pair(const_cast<char *>(op_type), nullptr)})
       .Outputs(tiling_parse_outputs)
       .Build(op_desc);
-  } else {
-    GELOGI("No need to update platform info");
-    return gert::KernelRunContextBuilder()
-      .Inputs({std::make_pair(const_cast<char *>(compile_info), nullptr),
-               std::make_pair(reinterpret_cast<void *>(&platform_info), nullptr),
-               std::make_pair(const_cast<char *>(op_type), nullptr)})
-      .Outputs(tiling_parse_outputs)
-      .Build(op_desc);
-  }
 }
 
 gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert::KernelContext *tiling_parse_context,
-                                             fe::PlatFormInfos &platform_info) {
+                                             fe::PlatFormInfos &platform_infos) {
   if (context_com.storage_shapes.size() >= std::numeric_limits<size_t>::max() - kSize) {
     GELOGE(ge::GRAPH_FAILED, "Context storage size overflow.");
     return gert::KernelContextHolder();
@@ -1552,34 +1517,9 @@ gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert
     GELOGE(ge::GRAPH_FAILED, "Output Pointer is null.");
     return gert::KernelContextHolder();
   }
-  std::string socVersionStr;
-  (void)platform_info.GetPlatformResWithLock("version", "Short_SoC_version", socVersionStr);
-  GELOGI("Short_SoC_version in platform_info: %s", socVersionStr.c_str());
-
-  static fe::PlatFormInfos tmp_info = platform_info;
-  std::map<std::string, std::string> res;
-  (void)tmp_info.GetPlatformResWithLock("SoCInfo", res);
-
-  bool needUpdate = false;
-  if (ge::AttrUtils::HasAttr(context_com.op_desc, ge::public_attr::OP_AI_CORE_NUM)
-    || ge::AttrUtils::HasAttr(context_com.op_desc, ge::public_attr::OP_VECTOR_CORE_NUM)) {
-    needUpdate = true;
-    GELOGI("Begin to UpdateCoreCountWithOpDesc, opName: %s, opType: %s", context_com.op_desc->GetName().c_str(), context_com.op_desc->GetTypePtr());
-    GE_ASSERT_SUCCESS(UpdateCoreCountWithOpDesc(res, ge::public_attr::AI_CORE_CNT, ge::public_attr::OP_AI_CORE_NUM, context_com.op_desc));
-    res[ge::public_attr::CUBE_CORE_CNT] = res[ge::public_attr::AI_CORE_CNT];
-    GE_ASSERT_SUCCESS(UpdateCoreCountWithOpDesc(res, ge::public_attr::VECTOR_CORE_CNT, ge::public_attr::OP_VECTOR_CORE_NUM, context_com.op_desc));
-
-    tmp_info.SetPlatformResWithLock(ge::public_attr::SOC_INFO, res);
-  }
 
   tiling_context_inputs[context_com.storage_shapes.size()] = *tiling_parse_context->GetOutputPointer<void **>(0);
-  if (needUpdate) {
-    GELOGI("Need to update platform info, use tmp_info");
-    tiling_context_inputs[context_com.storage_shapes.size() + 1UL] = reinterpret_cast<void *>(&tmp_info);
-  } else {
-    GELOGI("No need to update platform info");
-    tiling_context_inputs[context_com.storage_shapes.size() + 1UL] = reinterpret_cast<void *>(&platform_info);
-  }
+  tiling_context_inputs[context_com.storage_shapes.size() + 1UL] = reinterpret_cast<void *>(&platform_infos);
 
   int32_t deterministic = 0;
   (void)ge::AttrUtils::GetInt(context_com.op_desc, "deterministic", deterministic);
@@ -1651,18 +1591,18 @@ ge::graphStatus ParseJson(const char *const inputs, const char *const outputs, c
   return ge::GRAPH_SUCCESS;
 }
 
-int32_t ParseDeviceIdAndCoreType(const char *compile_info, uint32_t &device_id, std::string &core_type) {
+ge::graphStatus ParseDeviceIdAndCoreType(const char *compile_info, uint32_t &device_id, std::string &core_type) {
   const std::string compile_str = compile_info;
   if (compile_str.empty()) {
     GELOGD("compile info is empty.");
-    return 1;
+    return ge::GRAPH_SUCCESS;
   }
   nlohmann::json info_list;
   try {
     info_list = nlohmann::json::parse(compile_info);
   } catch (const nlohmann::json::exception &e) {
     GELOGE(ge::GRAPH_FAILED, "Parse json exception. %s", compile_info);
-    return 0;
+    return ge::FAILED;
   }
   GELOGD("Parsing compile info: %s.", info_list.dump().c_str());
 
@@ -1691,32 +1631,32 @@ int32_t ParseDeviceIdAndCoreType(const char *compile_info, uint32_t &device_id, 
       }
     }
   }
-
-  return 1;
+  return ge::GRAPH_SUCCESS;
 }
 
-int32_t GetPlatformInfo(const char *compile_info, fe::PlatFormInfos &platform_info) {
-  uint32_t device_id = 0U;
-  std::string core_type;
-  if (ParseDeviceIdAndCoreType(compile_info, device_id, core_type) == 0) {
-    return 0;
-  }
+ge::graphStatus GetPlatformInfos(uint32_t device_id, const std::string &core_type, fe::PlatFormInfos &platform_infos,
+                         fe::PlatFormInfos &platform_infos_bak) {
+  GE_ASSERT(fe::PlatformInfoManager::Instance().InitializePlatformInfo() == 0U, "InitializePlatformInfo failed.");
 
-  if (fe::PlatformInfoManager::Instance().InitializePlatformInfo() != 0U) {
-    GELOGE(ge::GRAPH_FAILED, "InitializePlatformInfo failed.");
-    REPORT_INNER_ERR_MSG("E19999", "InitializePlatformInfo failed.");
-    return 0;
-  }
+  GE_ASSERT(fe::PlatformInfoManager::Instance().GetPlatformInstanceByDevice(device_id, platform_infos) == 0,
+            "GetPlatformInstanceByDevice failed.");
 
-  if (fe::PlatformInfoManager::Instance().GetPlatformInstanceByDevice(device_id, platform_info) != 0) {
-    GELOGE(ge::GRAPH_FAILED, "GetPlatformInstanceByDevice failed.");
-    REPORT_INNER_ERR_MSG("E19999", "GetPlatformInstanceByDevice failed.");
-    return 0;
-  }
-  platform_info.SetCoreNumByCoreType(core_type);
-  GELOGD("device id: %u, core type: %s, core num: %u.", device_id, core_type.c_str(), platform_info.GetCoreNum());
+  platform_infos.SetCoreNumByCoreType(core_type);
+  GELOGD("device id: %u, core type: %s, core num: %u.", device_id, core_type.c_str(), platform_infos.GetCoreNum());
 
-  return 1;
+  platform_infos_bak = platform_infos;
+
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus ParseSocVersion(fe::PlatFormInfos &platform_info, std::string &socVersionStr, std::string &shortSocVersionStr) {
+  GE_ASSERT_TRUE(platform_info.GetPlatformResWithLock("version", "SoC_version", socVersionStr));
+  GELOGI("SoC_version in platform_infos: %s", socVersionStr.c_str());
+
+  GE_ASSERT_TRUE(platform_info.GetPlatformResWithLock("version", "Short_SoC_version", shortSocVersionStr));
+  GELOGI("Short_SoC_version in platform_infos: %s", shortSocVersionStr.c_str());
+
+  return ge::GRAPH_SUCCESS;
 }
 
 int64_t GetNewMaxTilingSize(const char *const attrs) {
@@ -1753,14 +1693,35 @@ int TbeOptilingPyInterfaceNew(const char *const op_type, const char *const compi
     return 0;
   }
 
-  fe::PlatFormInfos platform_info;
-  if (GetPlatformInfo(compile_info, platform_info) == 0) {
-    return 0;
-  }
+  uint32_t device_id = 0U;
+  std::string core_type;
+  GE_ASSERT_SUCCESS(ParseDeviceIdAndCoreType(compile_info, device_id, core_type));
+
+  fe::PlatFormInfos platform_infos;
+  fe::PlatFormInfos platform_infos_bak;
+  GE_ASSERT_SUCCESS(GetPlatformInfos(device_id, core_type, platform_infos, platform_infos_bak));
+
+  std::string socVersionStr;
+  std::string shortSocVersionStr;
+  GE_ASSERT_SUCCESS(ParseSocVersion(platform_infos, socVersionStr, shortSocVersionStr));
+
+  fe::PlatformInfo platform_info;
+  GE_ASSERT_SUCCESS(ge::CoreNumUtils::GetGeDefaultPlatformInfo(socVersionStr, platform_info));
+
+  // 如果配置了算子级核数，更新到副本PlatformInfos中，后续用副本，防止影响其他算子
+  bool is_op_core_num_set = false;
+  GE_ASSERT_SUCCESS(ge::CoreNumUtils::UpdatePlatformInfosWithOpDesc(platform_info, context_com.op_desc, platform_infos_bak, is_op_core_num_set));
 
   // tiling parse
-  auto tiling_parse_context_holder = BuildTilingParseContextHolder(context_com.op_desc, compile_info, op_type,
-                                                                   platform_info, funcs);
+  gert::KernelContextHolder tiling_parse_context_holder;
+  if (is_op_core_num_set) {
+    tiling_parse_context_holder = BuildTilingParseContextHolder(context_com.op_desc, compile_info, op_type,
+                                                                   platform_infos_bak, funcs);
+  } else {
+    tiling_parse_context_holder = BuildTilingParseContextHolder(context_com.op_desc, compile_info, op_type,
+                                                                   platform_infos, funcs);
+  }
+
   if (DoTilingParse(funcs, tiling_parse_context_holder) != ge::GRAPH_SUCCESS) {
     GELOGE(ge::GRAPH_FAILED, "Op %s tiling parse failed", op_type);
     REPORT_INNER_ERR_MSG("E19999", "Op %s tiling parse failed", op_type);
@@ -1782,8 +1743,13 @@ int TbeOptilingPyInterfaceNew(const char *const op_type, const char *const compi
   const auto aligned_max_size = ge::RoundUp(static_cast<uint64_t>(max_size), sizeof(uintptr_t));
   context_com.tiling_data = gert::TilingData::CreateCap(aligned_max_size);
   context_com.workspace_size = gert::ContinuousVector::Create<size_t>(kWorkspaceHolerSize);
-  gert::KernelContextHolder tiling_context_holder =
-      BuildTilingContext(context_com, tiling_parse_context_holder.context_, platform_info);
+  gert::KernelContextHolder tiling_context_holder;
+  if (is_op_core_num_set) {
+    tiling_context_holder = BuildTilingContext(context_com, tiling_parse_context_holder.context_, platform_infos_bak);
+  } else {
+    tiling_context_holder = BuildTilingContext(context_com, tiling_parse_context_holder.context_, platform_infos);
+  }
+
   if (tiling_context_holder.context_ == nullptr) {
     GELOGE(ge::GRAPH_FAILED, "Output build tiling context failed.");
     return 0;
@@ -1863,7 +1829,7 @@ extern "C" int OpTilingForCompile(const char *optype, const char *compile_info, 
     return 0;
   }
 
-  if (strcmp(optype, OP_TYPE_AUTO_TILING.c_str()) == 0) {
+  if (optype == OP_TYPE_AUTO_TILING) {
     GELOGI("The tiling function is automatically enabled for tiling on rt2.");
     return TbeOptilingPyInterfaceNew(optype, compile_info, inputs, outputs, run_info_json, run_info_len, elapse, attrs,
                                      extra_info);
@@ -1889,7 +1855,7 @@ extern "C" const char *DoOpTilingForCompile(const char *optype,
     return error_string.data();
   }
 
-  if (strcmp(optype, OP_TYPE_AUTO_TILING.c_str()) == 0) {
+  if (optype == OP_TYPE_AUTO_TILING) {
     GELOGI("The tiling function is automatically enabled for tiling on rt2.");
     if (TbeOptilingPyInterfaceNew(optype, compile_info, inputs, outputs, run_info_json, run_info_len, elapse, attrs,
                                   extra_info) == 0) {
@@ -1918,7 +1884,7 @@ extern "C" int TbeOpTilingPyInterface(const char *optype, const char *compile_in
     return 0;
   }
 
-  if (strcmp(optype, OP_TYPE_AUTO_TILING.c_str()) == 0) {
+  if (optype == OP_TYPE_AUTO_TILING) {
     GELOGI("The tiling function is automatically enabled for tiling on rt2.");
     return TbeOptilingPyInterfaceNew(optype, compile_info, inputs, outputs, run_info_json, run_info_len, elapse, attrs,
                                      nullptr);

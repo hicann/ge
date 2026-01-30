@@ -13,75 +13,59 @@
 #include "runtime/rt.h"
 #include "common/debug/log.h"
 #include "platform/platform_info.h"
+#include "platform/soc_spec.h"
 #include "graph/ge_context.h"
 #include "framework/common/helper/model_helper.h"
 
 namespace ge {
 namespace {
-const std::string kJitCompileDefaultValue = "2"; // auto
-constexpr uint32_t kSocVersionLen = 50U;
+const std::string kJitCompileDefaultAuto = "2";
+const std::string kJitCompileEnable = "1";
 const std::string kHardwareInfo = "ge.hardwareInfo";
 const std::string kMemorySizeName = "memory_size";
-constexpr const char_t* kVectorcoreNum = "ge.vectorcoreNum";
 constexpr size_t kNameValueLen = 2U;
 constexpr int32_t kStrToIntBase = 10;
-}
 
-// runtime/data/platform_config配置了jit_compile默认值，通过platform公共接口获取
+// A set of NPU architecture IDs for which JIT compilation is enabled by default.
+const std::set<std::string> kJitCompileEnabledByArch = {
+    NPUARCH_TO_STR(NpuArch::DAV_1001), NPUARCH_TO_STR(NpuArch::DAV_2002), NPUARCH_TO_STR(NpuArch::DAV_2102),
+    NPUARCH_TO_STR(NpuArch::DAV_3002), NPUARCH_TO_STR(NpuArch::DAV_3004), NPUARCH_TO_STR(NpuArch::DAV_3505),
+    NPUARCH_TO_STR(NpuArch::DAV_3102), NPUARCH_TO_STR(NpuArch::DAV_5102),
+};
+}  // namespace
+
 std::string PlatformInfoUtil::GetJitCompileDefaultValue() {
-  std::string default_value = kJitCompileDefaultValue;
-  char_t version[kSocVersionLen] = {};
-  if (rtGetSocVersion(&version[0], kSocVersionLen) != RT_ERROR_NONE) {
-    GELOGE(FAILED, "[Get][SocVersion]rtGetSocVersion failed.");
+  std::string default_value = kJitCompileDefaultAuto;
+
+  std::string npu_arch;
+  if (GetSocSpec("version", "NpuArch", npu_arch) != SUCCESS) {
+    GELOGW("Cannot get NpuArch, using default jit_compile = %s", default_value.c_str());
     return default_value;
   }
 
-  if (fe::PlatformInfoManager::GeInstance().InitializePlatformInfo() != 0U) {
-    GELOGE(FAILED, "Initialize platform info failed.");
-    return default_value;
+  const auto iter = kJitCompileEnabledByArch.find(npu_arch);
+  if (iter != kJitCompileEnabledByArch.end()) {
+    default_value = kJitCompileEnable;
   }
 
-  const std::string soc_version(version);
-  fe::OptionalInfo optional_info;
-  fe::PlatformInfo platform_info;
-  if (fe::PlatformInfoManager::GeInstance().GetPlatformInfo(soc_version, platform_info, optional_info) != 0U) {
-    GELOGE(FAILED, "Unable to get platform info.");
-    return default_value;
-  }
-  default_value = std::to_string(static_cast<int32_t>(platform_info.software_spec.jit_compile_mode));
-  GELOGD("soc_version: %s, jit_compile_default_value: %s", soc_version.c_str(), default_value.c_str());
+  GELOGD("Current NpuArch = %s, jit_compile = %s", npu_arch.c_str(), default_value.c_str());
   return default_value;
 }
 
-std::string PlatformInfoUtil::ParseShortSocVersion(const std::string &soc_version) {
-  std::string default_value = "";
-  std::string short_soc_version;
-  fe::PlatFormInfos platform_infos;
-  fe::OptionalInfos optional_info;
-  if (soc_version.empty()) {
-    GELOGW("Invalid soc_version.");
-    return default_value;
+Status PlatformInfoUtil::GetSocSpec(const std::string &label, const std::string &key, std::string &value_str) {
+  constexpr uint32_t kMaxValueLen = 16UL;
+  char_t value[kMaxValueLen] = {0};
+
+  // rtGetSocSpec will query the current SoC version
+  const auto ret = rtGetSocSpec(label.c_str(), key.c_str(), value, kMaxValueLen);
+  if (ret != RT_ERROR_NONE) {
+    GELOGW("Cannot get value with label [%s] and key [%s], ret = %d", label.c_str(), key.c_str(), ret);
+    value_str.clear();
+    return FAILED;
   }
 
-  if (fe::PlatformInfoManager::GeInstance().InitRuntimePlatformInfos(soc_version) != 0U) {
-    GELOGW("Initialize platform info failed. Soc version is: %s", soc_version.c_str());
-    return default_value;
-  }
-  if (fe::PlatformInfoManager::GeInstance().GetPlatformInfos(soc_version, platform_infos, optional_info) != 0) {
-    GELOGW("Unable to get platform infos. Soc version is: %s", soc_version.c_str());
-    return default_value;
-  }
-
-  if (!platform_infos.GetPlatformRes("version", "Short_SoC_version", short_soc_version) ||
-      short_soc_version.empty()) {
-    GELOGW("Soc version: %s, get short_soc_version failed.", soc_version.c_str());
-  } else {
-    (void)std::transform(short_soc_version.begin(), short_soc_version.end(), short_soc_version.begin(), ::tolower);
-    GELOGI("Get short_soc_version:%s success.", short_soc_version.c_str());
-    return short_soc_version;
-  }
-
-  return default_value;
+  value_str = std::string(value);
+  return SUCCESS;
 }
 
 size_t PlatformInfoUtil::GetMemorySize() {
@@ -129,27 +113,5 @@ size_t PlatformInfoUtil::GetMemorySize() {
   }
   GELOGI("Final platform %s memory size is %zu.", soc_version.c_str(), total_mem_size);
   return total_mem_size;
-}
-
-Status PlatformInfoUtil::parseAicoreNumOption(std::map<std::string, std::string> &options) {
-  auto it = options.find(AICORE_NUM);
-  if (it != options.end()) {
-    std::string aicore_num_option_str = it->second;
-    if (aicore_num_option_str.empty()) {
-      return SUCCESS;
-    }
-    if (aicore_num_option_str.find('|') == std::string::npos) {
-      GELOGW("Invalid format for ge.aicoreNum: %s. Expected format: aicore_num|vectorcore_num.", aicore_num_option_str.c_str());
-      return SUCCESS;
-    }
-    GELOGI("origin ge.aicoreNum in options, value: %s.", aicore_num_option_str.c_str());
-    size_t delimiter_pos = aicore_num_option_str.find('|');
-    std::string aicore_num_str = aicore_num_option_str.substr(0, delimiter_pos);
-    std::string vectorcore_num_str = aicore_num_option_str.substr(delimiter_pos + 1);
-
-    options[AICORE_NUM] = aicore_num_str;
-    options[kVectorcoreNum] = vectorcore_num_str;
-  }
-  return SUCCESS;
 }
 } // namespace ge

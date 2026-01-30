@@ -24,7 +24,7 @@
 #include "graph/operator_factory.h"
 #include "graph/operator_reg.h"
 #include "graph/operator_factory_impl.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 using namespace testing;
 using namespace ge;

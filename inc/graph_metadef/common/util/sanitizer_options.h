@@ -16,6 +16,7 @@
 #include "sanitizer/lsan_interface.h"
 /*  如果业务代码中存在已知的内存泄漏的代码块, 并且允许这部分内存泄漏存在, 可在代码块首尾添加开关,
  *  控制地址消毒器关闭与开启.
+ *  开关仅在蓝区CI场景可用，仅在当前thread有效.
  *  DT_DETECT_LEAKS_OFF();
  *  // code block with memory leak
  *  DT_DETECT_LEAKS_ON();

@@ -108,11 +108,7 @@ class RunAsyncListener : public ModelListener {
 
   ~RunAsyncListener() override = default;
 
-  void SetCallback(const RunAsyncCallback &callback) override;
   void SetCallback(const RunAsyncCallbackV2 &callback) override;
-  // callback
-  Status OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,
-                       std::vector<Tensor> &outputs) override;
   // callback
   Status OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,
                        std::vector<gert::Tensor> &outputs) override;
@@ -121,14 +117,14 @@ class RunAsyncListener : public ModelListener {
   BlockingQueue<RunAsyncCallbackV2> sem_v2_;
 };
 
-enum class RunGraphMode {
+enum class RunGraphMode : uint32_t {
   kRunGraph,
   kRunGraphAsync,
   kRunGraphWithStreamAsync,
   kRunGraphModeEnd
 };
 
-const char_t *GetRunGraphModeStr(const RunGraphMode &mode);
+const char_t *GetRunGraphModeStr(RunGraphMode mode);
 
 using InputMemoryBaseInfo = std::pair<const void *, size_t>; // <mem_base, mem_size>
 // single graph node info
@@ -161,7 +157,7 @@ class GraphNode {
   void SetBuildFlag(const bool buildFlag) { build_flag_ = buildFlag; }
   bool GetLoadFlag() const { return load_flag_; }
   RunGraphMode GetRunGraphMode() const { return run_graph_mode_; }
-  void SetRunGraphMode(const RunGraphMode &mode) { run_graph_mode_ = mode; }
+  void SetRunGraphMode(RunGraphMode mode) { run_graph_mode_ = mode; }
   // allow repeatively load graph owns same graph id
   void UpdateLoadFlag() { load_flag_ = ((load_count_ == 0U) || (load_record_ >= max_load_record_)); }
   void SetLoadFlag(const bool load_flag) { load_flag_ = load_flag; }
@@ -170,6 +166,7 @@ class GraphNode {
   void SetGeRootModel(const GeRootModelPtr &ge_root_model) { ge_root_model_ = ge_root_model; }
   GeRootModelPtr GetGeRootModel() const { return ge_root_model_; }
   const std::map<std::string, std::string>& GetOptions() const { return options_; }
+  std::map<std::string, std::string>& GetMutableOptions() { return options_; }
   void SetOptions(const std::map<std::string, std::string> &options) { options_ = options; }
   void Lock();
   void Unlock();
@@ -225,13 +222,13 @@ class GraphNode {
   NodePtr GetNetOutputNode() const { return net_output_node_; }
 
   void SetTensorSize(size_t tensor_size) {
-    tensor_sizes_.emplace_back(tensor_size);
+    (void)tensor_sizes_.emplace_back(tensor_size);
   }
   const std::vector<size_t> &GetTensorSize() const {
     return tensor_sizes_;
   }
   void SetGeTensorDescPtr(GeTensorDescPtr &ge_tensor_desc) {
-    ge_tensor_descs_.emplace_back(ge_tensor_desc);
+    (void)ge_tensor_descs_.emplace_back(ge_tensor_desc);
   }
   const std::vector<GeTensorDescPtr> &GetGeTensorDescPtr() const {
     return ge_tensor_descs_;
@@ -270,6 +267,10 @@ class GraphNode {
     return group_2_communication_nodes_;
   }
 
+  std::mutex &GetRunMutex(){
+    return run_mutex_;
+  }
+
   std::shared_ptr<GraphNode> Fork(uint32_t forked_graph_id);
  private:
   GraphId graph_id_;
@@ -283,7 +284,7 @@ class GraphNode {
   GraphPtr graph_;
   ComputeGraphPtr compute_graph_;
   // set true only when Session::CompileGraph is called
-  // only set or check in inner_session.cc
+  // only set or check in ge_api.cc
   bool compiled_flag_{false};
   bool build_flag_{false};
   // load_flag_ is true if more than 1 model were loaded
@@ -323,6 +324,7 @@ class GraphNode {
   std::unordered_set<uint32_t> frozen_input_indexes_;
   std::map<uint32_t, std::pair<uint64_t, uint64_t>> frozen_index_to_node_info_; // input_index-<addr,len>
   std::map<std::string, std::vector<std::string>> group_2_communication_nodes_;
+  std::mutex run_mutex_;
 };
 
 using GraphNodePtr = std::shared_ptr<GraphNode>;
@@ -333,9 +335,6 @@ class GraphModelListener : public ge::ModelListener {
 
   ~GraphModelListener() override = default;
 
-  // callback
-  Status OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,
-                       std::vector<ge::Tensor> &outputs) override;
   Status OnComputeDone(const uint32_t model_id, const uint32_t data_index, const uint32_t result_code,
                        std::vector<gert::Tensor> &outputs) override;
 

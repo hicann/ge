@@ -78,6 +78,7 @@ class DumpOp {
   Status BuildFftsSubOpTask(toolkit::aicpu::dump::OpMappingInfo &op_mapping_info);
   Status BuildUnLoadFftsDumpInfo(void *&unload_dump_info, uint32_t &unload_dump_len);
   toolkit::aicpu::dump::AddressType GetAddrType(const toolkit::aicpu::dump::Task &task, const GeTensorDesc &desc) const;
+  Status ExecuteDump(toolkit::aicpu::dump::Task &task, bool need_device_args);
 
   DumpProperties dump_properties_;
   OpDescPtr op_desc_;

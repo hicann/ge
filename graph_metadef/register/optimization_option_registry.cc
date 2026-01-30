@@ -9,7 +9,7 @@
  */
 
 #include "register/optimization_option_registry.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace {
 bool IsPassOptionValid(const std::string& pass_name, const std::map<ge::OoHierarchy, std::string> &options) {
@@ -98,7 +98,7 @@ graphStatus PassOptionRegistry::FindOptionNamesByPassName(const std::string &pas
   }
   for (const auto &opt_name : iter->second) {
     if (!opt_name.empty()) {
-      option_names.emplace_back(opt_name);
+      (void) option_names.emplace_back(opt_name);
     }
   }
   return GRAPH_SUCCESS;

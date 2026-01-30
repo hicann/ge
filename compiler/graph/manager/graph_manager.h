@@ -15,13 +15,13 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <shared_mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "common/blocking_queue.h"
 #include "framework/common/ge_inner_error_codes.h"
-#include "graph/types.h"
 #include "ge/ge_api_types.h"
 #include "base/err_msg.h"
 #include "base/err_mgr.h"
@@ -93,6 +93,8 @@ class GraphManager {
   /// @param [in] inputs input data
   /// @param [out] outputs output data
   /// @return Status result of function
+  Status RunGraph(const GraphId &graph_id, const std::vector<Tensor> &inputs, std::vector<Tensor> &outputs,
+    uint64_t session_id);
   Status RunGraph(const GraphId &graph_id, const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs);
 
   /// @ingroup ge_graph
@@ -124,8 +126,8 @@ class GraphManager {
   Status InnerLoadGraph(const GeRootModelPtr &ge_root_model, const GraphNodePtr &graph_node,
                         const rtStream_t stream = nullptr) const;
 
-  Status LoadGraph(const uint32_t graph_id, const GeRootModelPtr &ge_root_model,
-                   const GraphNodePtr &graph_node, const rtStream_t stream);
+  Status LoadGraph(const uint32_t graph_id, const std::map<AscendString, AscendString> &options,
+      const rtStream_t stream);
 
   Status BuildGraphForUnregisteredOp(const GraphId &graph_id, const std::vector<GeTensor> &inputs,
                                      GeRootModelPtr &ge_root_model, uint64_t session_id);
@@ -155,8 +157,9 @@ class GraphManager {
   /// @param [in] inputs input data
   /// @param [out] callback: callback while run graph async finish
   /// @return Status result of function
-  Status RunGraphAsync(const GraphId &graph_id, std::vector<gert::Tensor> inputs,
-                       uint64_t session_id, RunAsyncCallbackV2 callback);
+  Status RunGraphAsync(const GraphId &graph_id, std::vector<gert::Tensor> &&inputs,
+                       uint64_t session_id, const RunAsyncCallbackV2 &callback);
+
   /// @ingroup ge_graph
   /// @brief me register the callback function to get the result of summary or checkpoin
   /// @param [in] key: summary or checkpoint
@@ -208,8 +211,6 @@ class GraphManager {
 
   Status CompileGraph(uint32_t graph_id, uint64_t session_id, const vector<ge::Tensor> &inputs);
 
-  Status CompileGraph(uint32_t graph_id, uint64_t session_id);
-
   Status GetCompiledGraphSummary(uint32_t graph_id, CompiledGraphSummaryPtr &summary);
 
   Status SetConstMemoryBase(uint32_t graph_id, const void *const memory, size_t size);
@@ -225,6 +226,11 @@ class GraphManager {
 
   static Status SetRunContext(const GraphNodePtr &graph_node);
   Status GetGraphNode(const GraphId &graph_id, GraphNodePtr &out) const;
+
+  // GeSession约束RunGraph/RunGraphAsync/RunGraphWithStreamAsync不能混用
+  Status GetRunGraphMode(uint32_t graph_id, RunGraphMode &mode) const;
+  Status SetRunGraphMode(uint32_t graph_id, const RunGraphMode &mode);
+  Status GetCompiledModel(uint32_t graph_id, ModelBufferData &model_buffer);
   const std::vector<GraphId> &GetOrderedGraphIds() const;
 
   Status PaRemapped(const GraphId graph_id, const uint64_t va, const uint64_t new_pa, const uint64_t len,
@@ -238,6 +244,13 @@ class GraphManager {
                           GeRootModelPtr &ge_root_model, uint64_t session_id = INVALID_SESSION_ID,
                           const rtStream_t stream = nullptr);
   Status TranFrameOp(const GraphNodePtr &graph_node);
+  Status RegisterExternalAllocator(const void *const stream, AllocatorPtr allocator) const;
+  Status UnregisterExternalAllocator(const void * const stream) const;
+  Status GetOmeContextByGraphId(const GraphId &graph_id, OmeContext &ome_context) const;
+  bool GetLoadFlag(uint32_t graph_id) const;
+  bool GetBuildFlag(uint32_t graph_id) const;
+  Status GetCompiledFlag(uint32_t graph_id, bool &flag) const;
+  Status SetCompiledFlag(uint32_t graph_id, bool flag);
  private:
   struct CompilerStages {
     GraphPrepare preparer;
@@ -329,7 +342,7 @@ class GraphManager {
 
   Status MergeSubGraph(ComputeGraphPtr &compute_graph, const ComputeGraphPtr &original_compute_graph,
                        GraphId root_graph_id,
-                       EnginePartitioner::Mode mode = EnginePartitioner::kAtomicEnginePartitioning);
+                       EnginePartitioner::Mode mode = EnginePartitioner::Mode::kAtomicEnginePartitioning);
 
   Status ConvertGraphToFile(ComputeGraphPtr &compute_graph, EnginePartitioner &partitioner, std::string path,
                             bool exe_flag = false) const;
@@ -369,7 +382,7 @@ class GraphManager {
 
   bool IsGraphNeedBuild(const GraphNodePtr &graph_node) const;
 
-  void PushRunArgs(const std::shared_ptr<RunArgsV2> &args) const;
+  void PushRunArgs(const std::shared_ptr<RunArgs> &args) const;
   void PreRunThreadV2();
   void StopQueue();
   void ReturnError(RunAsyncCallbackV2 callback, Status ret,
@@ -397,7 +410,7 @@ class GraphManager {
   CompilerStages &GetCompilerStages(GraphId graph_id);
   void RemoveCompilerStages(GraphId graph_id);
 
-  Status CheckIncreBuildAndPreRun(const std::shared_ptr<RunArgsV2> &args, GraphNodePtr &graph_node);
+  Status CheckIncreBuildAndPreRun(const std::shared_ptr<RunArgs> &args, GraphNodePtr &graph_node);
 
   Status CheckRepeatAdd(uint32_t graph_id, bool &is_added);
 
@@ -434,7 +447,6 @@ class GraphManager {
 
   Status CheckOptionsValid(const ComputeGraphPtr &compute_graph,
                            const std::map<std::string, std::string> &options) const;
-  void UpdateGraphOption(const uint32_t graph_id, const std::map<std::string, std::string> &ext_options);
   Status CheckFixedFeatureMemoryBase(const uint32_t graph_id, const MemoryType type, const void *const memory,
                                      const size_t size, bool &fixed_mem_not_exist);
 
@@ -445,7 +457,7 @@ class GraphManager {
   Status InnerRemoveGraph(const GraphId &graph_id);
 
   std::atomic_bool thread_run_flag_{false};
-  BlockingQueue<std::shared_ptr<RunArgsV2>> prerun_args_v2_q_{};
+  BlockingQueue<std::shared_ptr<RunArgs>> prerun_args_v2_q_{};
   std::thread prerun_thread_v2_;
   std::map<GraphId, GraphNodePtr> graph_map_;
   std::vector<GraphId> graph_ids_;
@@ -466,8 +478,7 @@ class GraphManager {
   std::map<GraphId, CompilerStages> compiler_stages_;
   Executor *executor_{nullptr};
 
-  std::mutex run_mutex_;
-
+  mutable std::shared_mutex callback_mutex_;
   mutable std::mutex member_mutex_;
   std::mutex unload_model_mutex_;
   // avoid repeatively add same graph (owns same graph id)

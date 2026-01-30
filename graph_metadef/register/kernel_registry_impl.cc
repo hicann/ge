@@ -10,7 +10,7 @@
 
 #include "register/kernel_registry_impl.h"
 #include <utility>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "kernel_register_data.h"
 namespace gert {
 namespace {

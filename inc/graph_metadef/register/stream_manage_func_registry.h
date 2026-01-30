@@ -14,7 +14,7 @@
 #include <map>
 #include <mutex>
 #include "runtime/rt.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 // acl action types

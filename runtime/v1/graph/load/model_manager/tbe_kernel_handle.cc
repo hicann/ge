@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -16,6 +16,7 @@
 #include "common/ge_types.h"
 #include "framework/runtime/subscriber/global_profiler.h"
 #include "register/op_tiling_info.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -270,9 +271,13 @@ Status TBEKernelHandle::FunctionRegister(const OpDescPtr &op_desc, const std::st
   std::string kernel_name;
   GE_CHK_STATUS_RET(InitKernelName(op_desc, thread_index, kernel_name, prefix), "Init kernel name of %s failed.",
                     op_desc->GetName().c_str());
-  const void *const kernel_unique_ids_addr = bin_handle_store.GetUniqueIdPtr(bin_handle);
-  GE_CHK_RT_RET(
-      rtFunctionRegister(bin_handle, kernel_unique_ids_addr, bin_handle_key.c_str(), kernel_name.c_str(), 0U));
+
+  bool inserted = false;
+  const void *const kernel_unique_ids_addr = bin_handle_store.GetUniqueIdPtr(bin_handle, kernel_name, inserted);
+  if (inserted) {
+    GE_CHK_RT_RET(
+        rtFunctionRegister(bin_handle, kernel_unique_ids_addr, bin_handle_key.c_str(), kernel_name.c_str(), 0U));
+  }
 
   uint64_t tiling_key = 0U;
   const auto tiling_info = op_desc->GetExtAttr<std::shared_ptr<optiling::utils::OpRunInfo>>(ge::ATTR_NAME_OP_RUN_INFO);

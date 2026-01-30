@@ -29,7 +29,7 @@ ge::char_t *CreateMessage(const ge::char_t *format, va_list arg) {
     return nullptr;
   }
 
-  auto msg = std::unique_ptr<ge::char_t[]>(new (std::nothrow) ge::char_t[len + 1]);
+  auto msg = std::make_unique<ge::char_t[]>(len + 1);
   if (msg == nullptr) {
     return nullptr;
   }

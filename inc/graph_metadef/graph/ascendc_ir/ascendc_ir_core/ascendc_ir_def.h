@@ -27,6 +27,7 @@
 #include "proto/ascendc_ir.pb.h"
 #include "proto/ge_ir.pb.h"
 #include "serialization/attr_serializer_registry.h"
+#include "graph/attribute_group/attr_group_base.h"
 // proto调整后，兼容老代码
 namespace ascendc_ir {
 namespace proto {

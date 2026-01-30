@@ -307,7 +307,7 @@ ComputeGraphPtr FftsGraphUtils::GetFftsPlusGraph(ComputeGraph &graph) {
 }
 
 graphStatus FftsGraphUtils::SetAttrForFftsPlusSubgraph(const ComputeGraphPtr &subgraph) {
-  const auto &parent_node = subgraph->GetParentNode();
+  const auto &parent_node = subgraph->GetParentNodeBarePtr();
   if (parent_node == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "Parent node of subgraph %s is null", subgraph->GetName().c_str());
     GELOGE(GRAPH_FAILED, "[Check][Param] Parent node of subgraph %s is null", subgraph->GetName().c_str());
@@ -349,7 +349,7 @@ graphStatus FftsGraphUtils::GraphPartition(ComputeGraph &graph,
     GELOGI("Graph %s not exceed limit, skip graph partition", ffts_plus_graph->GetName().c_str());
     return SUCCESS;
   }
-  const auto &parent_node = ffts_plus_graph->GetParentNode();
+  const auto &parent_node = ffts_plus_graph->GetParentNodeBarePtr();
   GE_CHECK_NOTNULL(parent_node);
   // op_desc of node should not be null
   (void)parent_node->GetOpDesc()->DelAttr(ATTR_NAME_FFTS_PLUS_SUB_GRAPH);
@@ -359,7 +359,7 @@ graphStatus FftsGraphUtils::GraphPartition(ComputeGraph &graph,
 
   // only non-Ffts+ subgraph of PARTITIONEDCALL need to be unfolded
   const auto &filter = [](const ComputeGraphPtr &graph_ptr) {
-    const auto &parent = graph_ptr->GetParentNode();
+    const auto &parent = graph_ptr->GetParentNodeBarePtr();
     if ((parent == nullptr) || (parent->GetOpDesc() == nullptr)) {
       return false;
     }

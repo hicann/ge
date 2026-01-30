@@ -69,7 +69,7 @@ PreTaskResult GenerateAiCoreTask(const domi::TaskDef &task_def, const OpDescPtr 
   pre_task_desc_info.seq_info.u.aicoreTask.argsOffset = 0U;
   pre_task_desc_info.seq_info.u.aicoreTask.blockDim =
           (kernel_def.block_dim() == 0U) ? 1U : static_cast<uint16_t>(kernel_def.block_dim());
-  result.pre_task_desc_infos.emplace_back(pre_task_desc_info);
+  (void)result.pre_task_desc_infos.emplace_back(pre_task_desc_info);
 
   result.status = PreTaskStatus::Success();
   GELOGD("Init generate aicore task success");

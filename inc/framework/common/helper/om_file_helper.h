@@ -18,6 +18,7 @@
 #include "framework/common/types.h"
 #include "framework/common/ge_types.h"
 #include "graph/model.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 struct ModelPartition {
@@ -58,8 +59,6 @@ class GE_FUNC_VISIBILITY OmFileLoadHelper {
 
   static bool CheckPartitionTableNum(const uint32_t partition_num);
 
-  OmFileContext context_;
-
   std::vector<OmFileContext> model_contexts_;
 
  private:
@@ -71,7 +70,7 @@ class GE_FUNC_VISIBILITY OmFileLoadHelper {
                                  const uint64_t model_data_size,
                                  const uint32_t model_num,
                                  const ModelFileHeader *file_header = nullptr);
-
+  OmFileContext context_;
   bool is_inited_{false};
 };
 

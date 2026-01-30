@@ -13,11 +13,10 @@
 #include <deque>
 #include "graph/ge_context.h"
 #include "graph/debug/ge_attr_define.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "debug/ge_op_types.h"
 #include "graph/debug/ge_util.h"
 #include "common/checker.h"
-#include "common/ge_common/debug/ge_log.h"
 #include "graph/normal_graph/compute_graph_impl.h"
 #include "graph/utils/ge_ir_utils.h"
 #include "graph/utils/graph_utils.h"
@@ -149,7 +148,7 @@ bool IsMemoryPriority() {
 
 bool InputIsLongLifeTimeNode(const NodePtr& node, const ConstComputeGraphPtr &graph) {
   bool match = false;
-  for (const auto &in_data_anchor : node->GetAllInDataAnchors()) {
+  for (const auto &in_data_anchor : node->GetAllInDataAnchorsPtr()) {
     if (in_data_anchor == nullptr) {
       continue;
     }
@@ -340,9 +339,9 @@ std::unordered_set<std::string> GetAttrStringSet(const std::vector<NodePtr> &nod
   std::unordered_set<std::string> attr_set;
   for (const auto &node : nodes) {
     const auto &op_desc = node->GetOpDesc();
-    std::string attr_val;
-    if (AttrUtils::GetStr(op_desc, attr_key, attr_val)) {
-      attr_set.emplace(attr_val);
+    const std::string *attr_val_ptr = AttrUtils::GetStr(op_desc, attr_key);
+    if (attr_val_ptr != nullptr) {
+      attr_set.emplace(*attr_val_ptr);
     }
   }
   return attr_set;
@@ -399,13 +398,13 @@ graphStatus InheritCoreNumFromOriginNodes(const std::vector<NodePtr> &ori_nodes,
 
   for (const auto &node : ori_nodes) {
     const auto &op_desc = node->GetOpDesc();
-    std::string user_ai_core_num_op;
-    if (AttrUtils::GetStr(op_desc, public_attr::OP_AI_CORE_NUM, user_ai_core_num_op)) {
-      origin_ai_core_nums.emplace(user_ai_core_num_op);
+    const std::string *user_ai_core_num_op_ptr = AttrUtils::GetStr(op_desc, public_attr::OP_AI_CORE_NUM);
+    if (user_ai_core_num_op_ptr != nullptr) {
+      origin_ai_core_nums.emplace(*user_ai_core_num_op_ptr);
     }
-    std::string user_vector_core_num_op;
-    if (AttrUtils::GetStr(op_desc, public_attr::OP_VECTOR_CORE_NUM, user_vector_core_num_op)) {
-      origin_vector_core_nums.emplace(user_vector_core_num_op);
+    const std::string *user_vector_core_num_op_ptr = AttrUtils::GetStr(op_desc, public_attr::OP_VECTOR_CORE_NUM);
+    if (user_vector_core_num_op_ptr != nullptr) {
+      origin_vector_core_nums.emplace(*user_vector_core_num_op_ptr);
     }
   }
 
@@ -1390,7 +1389,7 @@ graphStatus ComputeGraphImpl::DFSTopologicalSorting(std::vector<NodePtr> &node_v
     GELOGD("node_vec.push_back %s", node->GetOpDescBarePtr()->GetName().c_str());
     for (const auto &anchor : node->GetAllOutDataAnchors()) {
       GE_CHECK_NOTNULL(anchor);
-      for (const auto &peer_in_anchor : anchor->GetPeerInDataAnchors()) {
+      for (const auto &peer_in_anchor : anchor->GetPeerInDataAnchorsPtr()) {
         GE_CHECK_NOTNULL(peer_in_anchor);
         GetOutNodesFromAnchor(peer_in_anchor, map_in_edge_num, out_nodes);
       }
@@ -1552,7 +1551,7 @@ graphStatus ComputeGraphImpl::BFSTopologicalSorting(std::vector<NodePtr> &node_v
 graphStatus ComputeGraphImpl::CollectBreadthOutNode(const NodePtr &node, std::map<NodePtr, uint32_t> &map_in_edge_num,
     std::map<std::string, NodePtr> &breadth_node_map) const {
   for (const auto &anchor : node->GetAllOutDataAnchors()) {
-    for (const auto &peer_in_anchor : anchor->GetPeerInDataAnchors()) {
+    for (const auto &peer_in_anchor : anchor->GetPeerInDataAnchorsPtr()) {
       const auto iter = map_in_edge_num.find(peer_in_anchor->GetOwnerNode());
       if (iter != map_in_edge_num.end()) {
         --iter->second;
@@ -1752,7 +1751,7 @@ size_t ComputeGraphImpl::GetInEdgeSize(const NodePtr &node) const {
   if (node == nullptr) {
     return in_edge_size;
   }
-  for (const auto &anchor : node->GetAllInDataAnchors()) {
+  for (const auto &anchor : node->GetAllInDataAnchorsPtr()) {
     in_edge_size = in_edge_size + anchor->GetPeerAnchorsSize();
     // Break flow control data loop.
     const OutDataAnchorPtr out_anchor = anchor->GetPeerOutAnchor();
@@ -1808,7 +1807,7 @@ void ComputeGraphImpl::Dump(const ConstComputeGraphPtr &graph) const {
   for (const auto &node : GetAllNodes(graph)) {
     GELOGD("node name = %s.", node->GetName().c_str());
     for (const auto &anchor : node->GetAllOutDataAnchors()) {
-      for (const auto &peer_in_anchor : anchor->GetPeerInDataAnchors()) {
+      for (const auto &peer_in_anchor : anchor->GetPeerInDataAnchorsPtr()) {
         GE_IF_BOOL_EXEC((peer_in_anchor != nullptr) && (peer_in_anchor->GetOwnerNode() != nullptr),
                         GELOGI("node name = %s, out data node name = %s.", node->GetName().c_str(),
                                peer_in_anchor->GetOwnerNode()->GetName().c_str()));
@@ -1896,7 +1895,7 @@ graphStatus ComputeGraphImpl::IsolateNode(const NodePtr &node) const {
   GE_CHECK_NOTNULL(node);
   const auto next_nodes = node->GetOutAllNodes();
   // If there is input data side
-  for (size_t i = 0UL; i < node->GetAllInDataAnchors().size(); i++) {
+  for (size_t i = 0UL; i < node->GetAllInDataAnchorsSize(); i++) {
     const auto in_data_anchor = node->GetInDataAnchor(static_cast<int32_t>(i));
     GE_CHECK_NOTNULL(in_data_anchor);
     const auto pre_out_data_anchor = in_data_anchor->GetPeerOutAnchor();
@@ -2565,16 +2564,16 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus ComputeGraph::InsertG
 }
 
 graphStatus ComputeGraph::DFSTopologicalSorting(std::vector<NodePtr> &node_vec,
-                                                std::map<NodePtr, uint32_t> &map_in_edge_num,
-                                                std::vector<NodePtr> &stack, const bool reverse) {
+                                                const std::map<NodePtr, uint32_t> &map_in_edge_num,
+                                                const std::vector<NodePtr> &stack, const bool reverse) {
   (void) map_in_edge_num;
   (void) stack;
   return impl_->DFSTopologicalSorting(node_vec, reverse, shared_from_this());
 }
 
 graphStatus ComputeGraph::BFSTopologicalSorting(std::vector<NodePtr> &node_vec,
-                                                std::map<NodePtr, uint32_t> &map_in_edge_num,
-                                                std::deque<NodePtr> &stack) {
+                                                const std::map<NodePtr, uint32_t> &map_in_edge_num,
+                                                const std::deque<NodePtr> &stack) {
   (void) map_in_edge_num;
   (void) stack;
   return impl_->BFSTopologicalSorting(node_vec, false, shared_from_this());

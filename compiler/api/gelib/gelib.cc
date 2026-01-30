@@ -29,6 +29,7 @@
 #include "graph/manager/graph_external_weight_manager.h"
 #include "host_cpu_engine/host_cpu_engine.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
+#include "register/core_num_utils.h"
 
 namespace ge {
 namespace {
@@ -176,7 +177,7 @@ Status GELib::InnerInitialize(std::map<std::string, std::string> &options) {
   }
 
   // parse ge.aicoreNum
-  GE_CHK_STATUS_RET(PlatformInfoUtil::parseAicoreNumOption(options));
+  GE_CHK_STATUS_RET(CoreNumUtils::ParseAicoreNumFromOption(options));
 
   const std::string path_base = GetModelPath();
   GELOGI("GE System initial.");

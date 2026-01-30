@@ -9,7 +9,7 @@
  */
 
 #include "register/graph_optimizer/graph_fusion/connection_matrix.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace fe {
 ConnectionMatrix::ConnectionMatrix() : enable_data_flow_(false) {}
@@ -36,7 +36,7 @@ void ConnectionMatrix::Generate(const ge::ComputeGraph &graph) {
   int64_t index_loop = 0;
   for (const ge::NodePtr &node : direct_nodes) {
     name_to_index_[node->GetName()] = index_loop;
-    bit_maps.emplace_back(size_);
+    (void)bit_maps.emplace_back(size_);
     index_loop++;
   }
 

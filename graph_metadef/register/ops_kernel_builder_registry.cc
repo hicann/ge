@@ -9,9 +9,8 @@
  */
 
 #include "register/ops_kernel_builder_registry.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/util/sanitizer_options.h"
-#include "common/ge_common/ge_inner_error_codes.h"
 
 namespace ge {
 OpsKernelBuilderRegistry::~OpsKernelBuilderRegistry() noexcept {

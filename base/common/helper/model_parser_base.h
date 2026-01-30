@@ -15,7 +15,6 @@
 
 #include "framework/common/debug/log.h"
 #include "framework/common/ge_types.h"
-#include "framework/common/util.h"
 #include "framework/common/types.h"
 #include "framework/common/ge_model_inout_types.h"
 

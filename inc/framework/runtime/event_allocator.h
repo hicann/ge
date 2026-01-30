@@ -14,7 +14,6 @@
 #include <cstdlib>
 #include "runtime/event.h"
 #include "common/ge_visibility.h"
-#include "framework/common/ge_inner_error_codes.h"
 #include "exe_graph/runtime/continuous_vector.h"
 
 namespace gert {

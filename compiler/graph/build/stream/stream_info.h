@@ -39,7 +39,7 @@ struct StreamNode {
 
  private:
   NodePtr origin_node_;
-  size_t idx_;
+  size_t idx_{};
   bool in_branch_{false};
   std::vector<size_t> send_event_ids_;
   std::vector<size_t> recv_event_ids_;
@@ -60,7 +60,7 @@ class StreamGraph {
   std::string DotEdges() const;
   std::string DotActives() const;
   std::string DotTailStr() const;
-  std::string DotId(const StreamNodePtr) const;
+  std::string DotId(const StreamNodePtr node) const;
 
  private:
   std::string name_;

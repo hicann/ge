@@ -43,7 +43,6 @@ set(DAVINCI_SRC_LIST
     graph/manager/trans_var_data_utils.cc
     hybrid/node_executor/aicpu/aicpu_ext_info_handler.cc
     graph/load/model_manager/cpu_queue_schedule.cc
-    graph/load/model_manager/data_inputer.cc
     graph/load/model_manager/davinci_model.cc
     graph/load/model_manager/memory_block_manager.cc
     graph/load/model_manager/reusable_stream_allocator.cc
@@ -55,12 +54,8 @@ set(DAVINCI_SRC_LIST
     graph/load/model_manager/aicpu_resources.cc
     graph/load/model_manager/model_utils.cc
     graph/load/model_manager/task_info/args_format/args_format_utils.cc
-    graph/load/model_manager/kernel_handles_manager/aicore_kernel_handles_manager.cc
-    graph/load/model_manager/kernel_handles_manager/aicpu_kernel_handles_manager.cc
-    graph/load/model_manager/kernel_handles_manager/cust_aicpu_kernel_handles_manager.cc
-    graph/load/model_manager/kernel_handles_manager/kernel_handles_manager.cc
-    graph/load/model_manager/kernel_handles_manager/kernel_handle_utils.cc
-    graph/load/model_manager/model_kernel_handles_manager.cc
+    graph/load/model_manager/kernel/kernel_register_info_builder.cc
+    graph/load/model_manager/kernel/model_kernel_handles_manager.cc
     graph/load/model_manager/task_info/fe/cmo_barrier_task_info.cc
     graph/load/model_manager/task_info/fe/cmo_task_info.cc
     graph/load/model_manager/task_info/rts/cmo_addr_task_info.cc
@@ -81,6 +76,7 @@ set(DAVINCI_SRC_LIST
     graph/load/model_manager/task_info/ffts_plus/ffts_plus_proto_transfer.cc
     graph/load/model_manager/task_info/fe/fusion_start_task_info.cc
     graph/load/model_manager/task_info/fe/fusion_stop_task_info.cc
+    graph/load/model_manager/task_info/fe/fusion_task_info.cc
     graph/load/model_manager/task_info/hccl/hccl_task_info.cc
     graph/load/model_manager/task_info/hccl/hccl_util.cc
     graph/load/model_manager/task_info/aicpu/kernel_ex_task_info.cc
@@ -503,12 +499,22 @@ list(TRANSFORM STUB_HEADER_LIST
     OUTPUT_VARIABLE STUB_SRC_LIST
 )
 
-add_custom_command(
-    OUTPUT ${STUB_SRC_LIST}
-    COMMAND echo "Generating hybrid_executor_stub files."
-            && ${HI_PYTHON} ${GE_METADEF_DIR}/../tests/graph_metadef/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
-            && echo "Generating stub files end."
-)
+if(NOT BUILD_PKG_COMPONENT)
+    # TODO:待整包下线后删除
+    add_custom_command(
+        OUTPUT ${STUB_SRC_LIST}
+        COMMAND echo "Generating hybrid_executor_stub files."
+                && ${HI_PYTHON} ${METADEF_DIR}/tests/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
+                && echo "Generating stub files end."
+    )
+else()
+    add_custom_command(
+        OUTPUT ${STUB_SRC_LIST}
+        COMMAND echo "Generating hybrid_executor_stub files."
+                && ${HI_PYTHON} ${GE_METADEF_DIR}/../tests/graph_metadef/stub/gen_stubapi.py ${CMAKE_CURRENT_BINARY_DIR} ${STUB_HEADER_LIST}
+                && echo "Generating stub files end."
+    )
+endif()
 
 add_custom_target(stub_hybrid_executor DEPENDS ${STUB_SRC_LIST})
 

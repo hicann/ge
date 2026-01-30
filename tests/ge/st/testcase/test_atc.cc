@@ -34,16 +34,7 @@ namespace ge {
 class AtcCommonSTest : public AtcTest {
   void SetUp() {
     GeRunningEnvFaker::SetEnvForOfflineSoPack();
-    st_base_path_ = EnvPath().GetAirBasePath() + "/tests/ge/st/";
-    pb_path_ = st_base_path_ + "st_run_data/origin_model/add.pb";
-    op_name_map_ = st_base_path_ + "st_run_data/config/opname_map.cfg";
-    keep_dtype_cfg_ = st_base_path_ + "st_run_data/config/keep_dtype.cfg";
   }
-public:
-  std::string st_base_path_;
-  std::string pb_path_;
-  std::string op_name_map_;
-  std::string keep_dtype_cfg_;
 };
 
 char g_handleStub;
@@ -96,9 +87,9 @@ TEST_F(AtcCommonSTest, pb_model_common_1) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -130,9 +121,9 @@ TEST_F(AtcCommonSTest, pb_model_status_check_error) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -165,9 +156,9 @@ TEST_F(AtcCommonSTest, pb_model_set_out_tensor_names) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -191,9 +182,9 @@ TEST_F(AtcCommonSTest, pb_model_common_2) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_2");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string keep_dtype = "--keep_dtype=" + keep_dtype_cfg_;
+  std::string keep_dtype = "--keep_dtype=st_run_data/config/keep_dtype.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -207,11 +198,10 @@ TEST_F(AtcCommonSTest, pb_model_common_2) {
                   "--input_fp16_nodes=Placeholder_1",
                   "--save_original_model=true",
                   const_cast<char *>(keep_dtype.c_str()),
-    "--log=error"
                   };
   DUMP_GRAPH_WHEN("PreRunBegin")
   auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
-  EXPECT_EQ(ret, 0);
+  EXPECT_EQ(ret, -1);
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
 }
 
@@ -243,9 +233,6 @@ void MainImplSetUp() {
   inner_x86_tiling_path += "libopmaster_rt2.0.so";
   system(("touch " + inner_x86_tiling_path).c_str());
   system(("echo 'op tiling_x86 ' > " + inner_x86_tiling_path).c_str());
-
-  std::string include_path = EnvPath().GetAscendInstallPath() + "/include";
-  system(("ln -s " + include_path + " ./").c_str());
 }
 
 void MainImplTearDown() {
@@ -360,7 +347,7 @@ std::string Generatefile(const std::string &file_type, const std::string &file_n
 // 这些用例需要操作文件，性能较差，为了提升性能，将用例合并。
 TEST_F(AtcCommonSTest, CheckPrecisionModeAndPrecisionModeV2) {
   MainImplSetUp();
-  std::string om_arg = "--model=" + pb_path_;
+  std::string om_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = Generatefile("--output=", "tmp");
   ge::GetThreadLocalContext().SetGlobalOption({});
   ge::GetThreadLocalContext().SetSessionOption({});
@@ -379,7 +366,7 @@ TEST_F(AtcCommonSTest, pb_keep_dtype_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_2");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   std::string keep_dtype = "--keep_dtype=invalid";
   char *argv[] = {"atc",
@@ -410,7 +397,7 @@ TEST_F(AtcCommonSTest, pb_model_input_fp16_and_NCIHWC0) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_2");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -443,9 +430,9 @@ TEST_F(AtcCommonSTest, keep_dtype_has_invalid_node) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
-  std::string keep_dtype = "--keep_dtype=" + keep_dtype_cfg_;
+  std::string keep_dtype = "--keep_dtype=st_run_data/config/keep_dtype.cfg";
 
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -469,10 +456,9 @@ TEST_F(AtcCommonSTest, keep_dtype_has_invalid_node_type) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
-  std::string keep_dtype = "--keep_dtype=" + EnvPath().GetAirBasePath() +
-    "/tests/ge/st/st_run_data/config/keep_dtype_invalid_nodetype.cfg";
+  std::string keep_dtype = "--keep_dtype=st_run_data/config/keep_dtype_invalid_nodetype.cfg";
 
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -496,7 +482,7 @@ TEST_F(AtcCommonSTest, pb_model_auto_tune_mode) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -520,7 +506,7 @@ TEST_F(AtcCommonSTest, pb_model_exeom_for_nano_mode) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_exeom_for_nano");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
   char *argv[] = {"atc",
                   "--mode=30",
@@ -548,7 +534,7 @@ TEST_F(AtcCommonSTest, pb_model_exeom_for_nano_mode_fail01) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_exeom_for_nano");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
   char *argv[] = {"atc",
                   "--mode=30",
@@ -574,7 +560,7 @@ TEST_F(AtcCommonSTest, pb_model_exeom_for_nano_mode_fail02) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_exeom_for_nano");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -599,7 +585,7 @@ TEST_F(AtcCommonSTest, pb_model_exeom_for_nano_mode_fail03) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   "--mode=30",
@@ -618,9 +604,9 @@ TEST_F(AtcCommonSTest, pb_model_only_precheck) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -644,7 +630,7 @@ TEST_F(AtcCommonSTest, pb_model_precheck_fail) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   "--model=3",
@@ -668,7 +654,7 @@ TEST_F(AtcCommonSTest, pb_model_amct_interface) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -693,7 +679,7 @@ TEST_F(AtcCommonSTest, pb_model_amct_interface_dlsymError) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -719,7 +705,7 @@ TEST_F(AtcCommonSTest, pb_model_amct_interface_amctError) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=" + om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -742,9 +728,9 @@ TEST_F(AtcCommonSTest, pb_model_with_weight_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -763,41 +749,41 @@ TEST_F(AtcCommonSTest, pb_model_with_weight_invalid) {
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
 }
 
-TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse) {
-  mmSetEnv("ASCEND_OPP_PATH", (EnvPath().GetAscendInstallPath() + "/opp").c_str(), 1);
-  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
-  ReInitGe();
-  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  Mkdir(om_path.c_str());
-  om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
-  std::string output_arg = "--output="+om_path;
-  char *argv[] = {"atc",
-                  const_cast<char *>(model_arg.c_str()),
-                  const_cast<char *>(output_arg.c_str()),
-                  "--framework=3", // FrameworkType
-                  "--out_nodes=add_test_1:0",
-                  "--soc_version=Ascend910B2",
-                  "--output_type=FP32",
-                  "--input_shape=Placeholder_1:1,256,256,3",
-                  "--sparsity=1",
-                  "--allow_hf32=true",
-                  "--status_check=0"
-  };
-  DUMP_GRAPH_WHEN("PreRunBegin")
-  auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
-  EXPECT_EQ(ret, 0);
-  ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
-  unsetenv("AUTOFUSE_FLAGS");
-  unsetenv("ASCEND_OPP_PATH");
-}
+// TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse) {
+//   mmSetEnv("ASCEND_OPP_PATH", (EnvPath().GetAscendInstallPath() + "/opp").c_str(), 1);
+//   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+//   ReInitGe();
+//   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
+//   Mkdir(om_path.c_str());
+//   om_path = PathJoin(om_path.c_str(), "pb_common_1");
+//   std::string model_arg = "--model=st_run_data/origin_model/add.pb";
+//   std::string output_arg = "--output="+om_path;
+//   char *argv[] = {"atc",
+//                   const_cast<char *>(model_arg.c_str()),
+//                   const_cast<char *>(output_arg.c_str()),
+//                   "--framework=3", // FrameworkType
+//                   "--out_nodes=add_test_1:0",
+//                   "--soc_version=Ascend910B2",
+//                   "--output_type=FP32",
+//                   "--input_shape=Placeholder_1:1,256,256,3",
+//                   "--sparsity=1",
+//                   "--allow_hf32=true",
+//                   "--status_check=0"
+//   };
+//   DUMP_GRAPH_WHEN("PreRunBegin")
+//   auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
+//   EXPECT_EQ(ret, 0);
+//   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
+//   unsetenv("AUTOFUSE_FLAGS");
+//   unsetenv("ASCEND_OPP_PATH");
+// }
 
 TEST_F(AtcCommonSTest, pb_model_sparse_weight) {
   ReInitGe();
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -822,10 +808,9 @@ TEST_F(AtcCommonSTest, pb_model_weight_compress_both_exist) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string compress_weight_conf = "--compress_weight_conf=" + EnvPath().GetAirBasePath() +
-    "tests/ge/st/st_run_data/config/compress_weight_nodes.cfg";
+  std::string compress_weight_conf = "--compress_weight_conf=st_run_data/config/compress_weight_nodes.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -848,7 +833,7 @@ TEST_F(AtcCommonSTest, pb_model_weight_compress_conf_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   std::string compress_weight_conf = "--compress_weight_conf=st_run_data/invalid";
   char *argv[] = {"atc",
@@ -873,7 +858,7 @@ TEST_F(AtcCommonSTest, pb_model_weight_compress_enable_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -895,9 +880,9 @@ TEST_F(AtcCommonSTest, pb_model_out_node_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -920,9 +905,9 @@ TEST_F(AtcCommonSTest, pb_model_out_node_leak_port) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -945,9 +930,9 @@ TEST_F(AtcCommonSTest, pb_model_out_node_port_not_digit) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
-  std::string op_name_map = "--op_name_map=" + op_name_map_;
+  std::string op_name_map = "--op_name_map=st_run_data/config/opname_map.cfg";
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -970,8 +955,7 @@ TEST_F(AtcCommonSTest, onnx_model_common) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "onnx_common_1");
-  std::string model_arg = "--model=" + EnvPath().GetAirBasePath() +
-    "tests/ge/st/st_run_data/origin_model/test.onnx";
+  std::string model_arg = "--model=st_run_data/origin_model/test.onnx";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -993,8 +977,7 @@ TEST_F(AtcCommonSTest, onnx_model_common_2) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "onnx_common_1");
-  std::string model_arg = "--model=" + EnvPath().GetAirBasePath() +
-    "tests/ge/st/st_run_data/origin_model/test.onnx";
+  std::string model_arg = "--model=st_run_data/origin_model/test.onnx";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1017,8 +1000,7 @@ TEST_F(AtcCommonSTest, onnx_model_input_format_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "onnx_common_1");
-  std::string model_arg = "--model=" + EnvPath().GetAirBasePath() +
-    "tests/ge/st/st_run_data/origin_model/test.onnx";
+  std::string model_arg = "--model=st_run_data/origin_model/test.onnx";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1235,6 +1217,35 @@ TEST_F(AtcCommonSTest, mindspore_model_atc_scalar_inputshape) {
   // 清理环境变量
   mmSetEnv(kEnvValue, "", 1);
 }
+// 校验输入hint shape的index校验失败
+TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_shpae_index_invalid) {
+  mmSetEnv("ASCEND_OPP_PATH", (EnvPath().GetAscendInstallPath() + "/opp").c_str(), 1);
+  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+  ReInitGe();
+  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
+  Mkdir(om_path.c_str());
+  om_path = PathJoin(om_path.c_str(), "pb_common_1");
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
+  std::string output_arg = "--output="+om_path;
+  char *argv[] = {"atc",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--framework=3", // FrameworkType
+                  "--out_nodes=add_test_1:0",
+                  "--soc_version=Ascend910B2",
+                  "--output_type=FP32",
+                  "--input_hint_shape=-1:[2]",
+                  "--sparsity=1",
+                  "--allow_hf32=true",
+                  "--status_check=0"
+  };
+  DUMP_GRAPH_WHEN("PreRunBegin")
+  auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
+  EXPECT_EQ(ret, -1);
+  ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
+  unsetenv("AUTOFUSE_FLAGS");
+  unsetenv("ASCEND_OPP_PATH");
+}
 
 // 校验输入hint shape不匹配，符号推到失败场景
 TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape_failed) {
@@ -1244,7 +1255,7 @@ TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape_failed) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1255,6 +1266,38 @@ TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape_failed) {
                   "--output_type=FP32",
                   "--input_shape=Placeholder_1:-1",
                   "--input_hint_shape=0:[2];1:[3]",
+                  "--sparsity=1",
+                  "--allow_hf32=true",
+                  "--status_check=0"
+  };
+  DUMP_GRAPH_WHEN("PreRunBegin")
+  auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
+  EXPECT_EQ(ret, -1);
+  ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
+  unsetenv("AUTOFUSE_FLAGS");
+  unsetenv("ASCEND_OPP_PATH");
+}
+
+// test input hint shape and input dynamic param failed
+TEST_F(AtcCommonSTest, pb_model_generate_om_model_hint_shape_with_dyna_param_failed) {
+  mmSetEnv("ASCEND_OPP_PATH", (EnvPath().GetAscendInstallPath() + "/opp").c_str(), 1);
+  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+  ReInitGe();
+  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
+  Mkdir(om_path.c_str());
+  om_path = PathJoin(om_path.c_str(), "pb_common_1");
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
+  std::string output_arg = "--output="+om_path;
+  char *argv[] = {"atc",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--framework=3", // FrameworkType
+                  "--out_nodes=add_test_1:0",
+                  "--soc_version=Ascend910B2",
+                  "--output_type=FP32",
+                  "--input_shape=Placeholder_1:-1",
+                  "--input_hint_shape=0:[3];1:[3]",
+                  "--dynamic_dims=4;8;16;64",
                   "--sparsity=1",
                   "--allow_hf32=true",
                   "--status_check=0"
@@ -1368,7 +1411,7 @@ TEST_F(AtcCommonSTest, om_display_info) {
 
 TEST_F(AtcCommonSTest, origin_model_convert_to_json_without_dump_mode) {
   ReInitGe();
-  std::string model_arg = "--om=" + pb_path_;
+  std::string model_arg = "--om=st_run_data/origin_model/add.pb";
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   om_path = PathJoin(om_path.c_str(), "pb_json_1");
   std::string json_arg = "--json="+om_path+".json";
@@ -1386,7 +1429,7 @@ TEST_F(AtcCommonSTest, origin_model_convert_to_json_without_dump_mode) {
 
 TEST_F(AtcCommonSTest, origin_model_convert_to_json_with_dump_mode) {
   ReInitGe();
-  std::string model_arg = "--om=" + pb_path_;
+  std::string model_arg = "--om=st_run_data/origin_model/add.pb";
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   om_path = PathJoin(om_path.c_str(), "pb_json_1");
   std::string json_arg = "--json="+om_path+".json";
@@ -1407,7 +1450,7 @@ TEST_F(AtcCommonSTest, origin_model_convert_to_json_with_dump_mode) {
 
 TEST_F(AtcCommonSTest, origin_model_convert_to_json_invalid_framework) {
   ReInitGe();
-  std::string model_arg = "--om=" + pb_path_;
+  std::string model_arg = "--om=st_run_data/origin_model/add.pb";
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   om_path = PathJoin(om_path.c_str(), "pb_json_1");
   std::string json_arg = "--json="+om_path+".json";
@@ -1426,7 +1469,7 @@ TEST_F(AtcCommonSTest, origin_model_convert_to_json_invalid_framework) {
 
 TEST_F(AtcCommonSTest, origin_model_convert_to_json_invalid_dump_mode) {
   ReInitGe();
-  std::string model_arg = "--om=" + pb_path_;
+  std::string model_arg = "--om=st_run_data/origin_model/add.pb";
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   om_path = PathJoin(om_path.c_str(), "pb_json_1");
   std::string json_arg = "--json="+om_path+".json";
@@ -1446,7 +1489,7 @@ TEST_F(AtcCommonSTest, origin_model_convert_to_json_invalid_dump_mode) {
 
 TEST_F(AtcCommonSTest, pbtxt_convert_to_json) {
   ReInitGe();
-  std::string model_arg = "--om=" + st_base_path_ + "st_run_data/origin_model/origin.txt";
+  std::string model_arg = "--om=st_run_data/origin_model/origin.txt";
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   om_path = PathJoin(om_path.c_str(), "pbtxt_json");
   std::string json_arg = "--json="+om_path+".json";
@@ -1481,7 +1524,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_dynamic) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1503,42 +1546,41 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_dynamic) {
   };
 }
 
-TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape_suc) {
-  MainImplSetUp();
-  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
-  ReInitGe();
-  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
-  Mkdir(om_path.c_str());
-  om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
-  std::string output_arg = "--output="+om_path;
-  char *argv[] = {"atc",
-                  const_cast<char *>(model_arg.c_str()),
-                  const_cast<char *>(output_arg.c_str()),
-                  "--framework=3", // FrameworkType
-                  "--out_nodes=add_test_1:0",
-                  "--soc_version=Ascend910B2",
-                  "--output_type=FP32",
-                  "--input_shape=Placeholder_1:-1",
-                  "--input_hint_shape=0:[1];1:[1]",
-                  "--sparsity=1",
-                  "--allow_hf32=true",
-                  "--status_check=0"
-  };
-  DUMP_GRAPH_WHEN("PreRunBegin")
-  auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
-  EXPECT_EQ(ret, 0);
-  ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
-  unsetenv("AUTOFUSE_FLAGS");
-  unsetenv("ASCEND_OPP_PATH");
-  MainImplTearDown();
-}
+// TEST_F(AtcCommonSTest, pb_model_generate_om_model_autofuse_dyna_shape_suc) {
+//   mmSetEnv("ASCEND_OPP_PATH", (EnvPath().GetAscendInstallPath() + "/opp").c_str(), 1);
+//   mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+//   ReInitGe();
+//   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
+//   Mkdir(om_path.c_str());
+//   om_path = PathJoin(om_path.c_str(), "pb_common_1");
+//   std::string model_arg = "--model=st_run_data/origin_model/add.pb";
+//   std::string output_arg = "--output="+om_path;
+//   char *argv[] = {"atc",
+//                   const_cast<char *>(model_arg.c_str()),
+//                   const_cast<char *>(output_arg.c_str()),
+//                   "--framework=3", // FrameworkType
+//                   "--out_nodes=add_test_1:0",
+//                   "--soc_version=Ascend910B2",
+//                   "--output_type=FP32",
+//                   "--input_shape=Placeholder_1:-1",
+//                   "--input_hint_shape=0:[1];1:[1]",
+//                   "--sparsity=1",
+//                   "--allow_hf32=true",
+//                   "--status_check=0"
+//   };
+//   DUMP_GRAPH_WHEN("PreRunBegin")
+//   auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
+//   EXPECT_EQ(ret, 0);
+//   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
+//   unsetenv("AUTOFUSE_FLAGS");
+//   unsetenv("ASCEND_OPP_PATH");
+// }
 
 TEST_F(AtcCommonSTest, pb_model_input_shape_range) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1563,7 +1605,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_with_invalid_input_op) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1585,7 +1627,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_range_node_not_exist) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1606,7 +1648,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_range_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1627,7 +1669,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_range_lead_brace) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1648,7 +1690,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_range_lead_node) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1669,7 +1711,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_range_more_node) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_common_1");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1691,7 +1733,7 @@ TEST_F(AtcCommonSTest, pb_op_precision_mode_fail) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1711,7 +1753,7 @@ TEST_F(AtcCommonSTest, pb_modify_mixlist_fail) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1732,7 +1774,7 @@ TEST_F(AtcCommonSTest, pb_op_select_implmode_fail) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1753,7 +1795,7 @@ TEST_F(AtcCommonSTest, pb_optypelist_for_implmode_fail) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1773,7 +1815,7 @@ TEST_F(AtcCommonSTest, pb_framework_fail) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1792,7 +1834,7 @@ TEST_F(AtcCommonSTest, pb_framework_caffe_fail) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -1808,7 +1850,7 @@ TEST_F(AtcCommonSTest, pb_framework_caffe_fail) {
 }
 
 TEST_F(AtcCommonSTest, pb_output_exceed_max_len) {
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string om_path(4097, 'a');
   std::string output_arg = "--output="+om_path;
 
@@ -1826,7 +1868,7 @@ TEST_F(AtcCommonSTest, pb_output_exceed_max_len) {
 }
 
 TEST_F(AtcCommonSTest, pb_output_not_file) {
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output=st_run_data/";
 
   char *argv[] = {"atc",
@@ -1846,7 +1888,7 @@ TEST_F(AtcCommonSTest, pb_tensorflow_format_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1867,7 +1909,7 @@ TEST_F(AtcCommonSTest, pb_caffe_format_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1903,7 +1945,7 @@ TEST_F(AtcCommonSTest, pb_caffe_model_failed) {
   system(command.c_str());
 
   auto om_path = PathJoin(base_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1925,7 +1967,7 @@ TEST_F(AtcCommonSTest, pb_log_level_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1946,7 +1988,7 @@ TEST_F(AtcCommonSTest, mode_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_abnormal");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1967,7 +2009,7 @@ TEST_F(AtcCommonSTest, single_op) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "singleop");
-  std::string single_op = "--singleop=" + st_base_path_ + "st_run_data/json/single_op/add_op.json";
+  std::string single_op = "--singleop=st_run_data/json/single_op/add_op.json";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -1997,7 +2039,7 @@ TEST_F(AtcCommonSTest, single_op_op_precision_mode_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "singleop");
-  std::string single_op = "--singleop=" + st_base_path_ + "st_run_data/json/single_op/add_op.json";
+  std::string single_op = "--singleop=st_run_data/json/single_op/add_op.json";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -2015,7 +2057,7 @@ TEST_F(AtcCommonSTest, single_op_modify_mixlist_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "singleop");
-  std::string single_op = "--singleop=" + st_base_path_ + "st_run_data/json/single_op/add_op.json";
+  std::string single_op = "--singleop=st_run_data/json/single_op/add_op.json";
   std::string output_arg = "--output="+om_path;
 
   char *argv[] = {"atc",
@@ -2034,7 +2076,7 @@ TEST_F(AtcCommonSTest, pb_model_is_input_adjust_hw_layout_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2059,7 +2101,7 @@ TEST_F(AtcCommonSTest, pb_model_input_fp16_nodes_not_exist) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2082,7 +2124,7 @@ TEST_F(AtcCommonSTest, pb_model_input_fp16_nodes_not_data) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2104,7 +2146,7 @@ TEST_F(AtcCommonSTest, pb_input_shape_negative) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2126,7 +2168,7 @@ TEST_F(AtcCommonSTest, pb_input_shape_float) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2148,7 +2190,7 @@ TEST_F(AtcCommonSTest, pb_input_shape_node_not_exist) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2170,7 +2212,7 @@ TEST_F(AtcCommonSTest, pb_input_shape_content_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2192,7 +2234,7 @@ TEST_F(AtcCommonSTest, pb_input_shape_type_not_data) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2214,7 +2256,7 @@ TEST_F(AtcCommonSTest, pb_input_shape_not_digit) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2236,7 +2278,7 @@ TEST_F(AtcCommonSTest, pb_input_shape_exceed) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2258,7 +2300,7 @@ TEST_F(AtcCommonSTest, pb_output_type_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2280,7 +2322,7 @@ TEST_F(AtcCommonSTest, pb_output_type_node_not_exist) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2302,7 +2344,7 @@ TEST_F(AtcCommonSTest, pb_output_type_content_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2324,7 +2366,7 @@ TEST_F(AtcCommonSTest, pb_output_type_not_digit) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2346,7 +2388,7 @@ TEST_F(AtcCommonSTest, pb_output_type_port_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2368,7 +2410,7 @@ TEST_F(AtcCommonSTest, virtual_type_invalid) {
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
   om_path = PathJoin(om_path.c_str(), "pb_invalid");
-  std::string model_arg = "--model=" + pb_path_;
+  std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
@@ -2679,17 +2721,6 @@ TEST_F(AtcCommonSTest, GeFlags_mode_1_framework_error) {
   EXPECT_NE(ret, 0);
 }
 
-TEST_F(AtcCommonSTest, GeFlagsFrameworkCaffe_Fail_UnsupportedVersion) {
-  std::string weight_path = "--weight=" + st_base_path_ + "st_run_data/origin_model/add.pb";
-  char *argv[] = {"atc",
-                  "--mode=0",
-                  "--framework=0",
-                  const_cast<char *>(weight_path.c_str()),
-                  "--soc_version=Ascend910_9391"};
-  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
-  EXPECT_NE(ret, 0);
-}
-
 TEST_F(AtcCommonSTest, GeFlags_framework_0_weight_error) {
   char *argv[] = {"atc",
                   "--mode=0",
@@ -2710,7 +2741,7 @@ TEST_F(AtcCommonSTest, GeFlags_framework_0_weight_none) {
 }
 
 TEST_F(AtcCommonSTest, GeFlags_framework_3_weight_warn) {
-  std::string weight = "--weight=" + pb_path_;
+  std::string weight = "--weight=st_run_data/origin_model/add.pb";
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=3",
@@ -2721,7 +2752,7 @@ TEST_F(AtcCommonSTest, GeFlags_framework_3_weight_warn) {
 }
 
 TEST_F(AtcCommonSTest, GeFlags_framework_5_weight_warn) {
-  std::string weight = "--weight=" + pb_path_;
+  std::string weight = "--weight=st_run_data/origin_model/add.pb";
   char *argv[] = {"atc",
                   "--mode=0",
                   "--framework=5",

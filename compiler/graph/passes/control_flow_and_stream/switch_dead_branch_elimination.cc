@@ -168,7 +168,7 @@ Status SwitchDeadBranchElimination::Run(NodePtr &node) {
     return SUCCESS;
   }
 
-  auto input_node = PassUtils::GetInNodeCrossSubgraphByIndex(node, kDataInputIndex);
+  auto input_node = PassUtils::GetInDataNode(node, kDataInputIndex);
   if (input_node == nullptr) {
     GELOGD("[%s] Data input is null.", node->GetName().c_str());
     return SUCCESS;

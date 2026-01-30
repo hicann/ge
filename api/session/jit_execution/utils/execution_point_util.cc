@@ -14,21 +14,21 @@
 #include "compiler/graph/manager/util/graph_rebuild_state_ctrl.h"
 
 namespace ge {
-void from_json(const nlohmann::json &json_obj, GuardedExecutionPointInfo &info) {
+static void from_json(const nlohmann::json &json_obj, GuardedExecutionPointInfo &info) {
   auto iter = json_obj.find(kGuardedExecutionPointInfoKeyName);
   if (iter != json_obj.end()) {
     info.gep_graph_key = iter.value().get<std::string>();
   }
 }
 
-void from_json(const nlohmann::json &json_obj, GuardedExecutionPointInfoList &list) {
+static void from_json(const nlohmann::json &json_obj, GuardedExecutionPointInfoList &list) {
   auto iter = json_obj.find(kGuardedExecutionPointListKeyName);
   if (iter != json_obj.end()) {
     list.gep_list = iter.value().get<std::vector<GuardedExecutionPointInfo>>();
   }
 }
 
-Status ReadGEPListFromFile(const std::string &gep_list_file, GuardedExecutionPointInfoList &gep_info_list) {
+static Status ReadGEPListFromFile(const std::string &gep_list_file, GuardedExecutionPointInfoList &gep_info_list) {
   nlohmann::json json_obj;
   GE_CHK_STATUS_RET(ModelCache::ReadJsonFile(gep_list_file, json_obj), "Failed to read gep_list file[%s]", gep_list_file.c_str());
   try {

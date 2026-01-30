@@ -9,7 +9,7 @@
  */
 
 #include "pass_registry.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/option/optimization_option_info.h"
 #include "optimization_option_registry.h"
 

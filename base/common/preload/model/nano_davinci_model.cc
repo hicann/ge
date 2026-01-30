@@ -19,7 +19,6 @@
 #include "mmpa/mmpa_api.h"
 #include "framework/common/string_util.h"
 #include "graph/utils/file_utils.h"
-#include "runtime/kernel.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 
 namespace ge {
@@ -52,7 +51,7 @@ Status GetBinRealPath(const std::string &switch_kernel_name, std::string &bin_re
   return GRAPH_SUCCESS;
 }
 
-Status GetKernelBinByName(const std::string &bin_real_path, std::unique_ptr<char_t []> &buf, uint32_t &buf_len) {
+Status GetKernelBinByName(const std::string &bin_real_path, std::unique_ptr<char_t []> &buf, uint64_t &buf_len) {
   std::ifstream file(bin_real_path.c_str(), std::ios::binary | std::ios::in);
   GE_ASSERT_TRUE(file.is_open(), "file: %s does not exist or is unaccessible.", bin_real_path.c_str());
   GE_MAKE_GUARD(file_guard, [&file]() {
@@ -61,16 +60,16 @@ Status GetKernelBinByName(const std::string &bin_real_path, std::unique_ptr<char
   const std::streampos begin = file.tellg();
   (void)file.seekg(0, std::ios::end);
   const std::streampos end = file.tellg();
-  buf_len = static_cast<uint32_t>(end - begin);
-  GE_ASSERT_TRUE(static_cast<int32_t>(buf_len) > 0, "file: %s is empty.", bin_real_path.c_str());
+  buf_len = static_cast<uint64_t>(end - begin);
+  GE_ASSERT_TRUE(static_cast<int64_t>(buf_len) > 0, "file: %s is empty.", bin_real_path.c_str());
   buf = MakeUnique<char_t []>(buf_len);
   GE_ASSERT_NOTNULL(buf);
   (void)file.seekg(0, std::ios::beg);
-  (void)file.read(buf.get(), buf_len);
+  (void)file.read(buf.get(), static_cast<int64_t>(buf_len));
   return GRAPH_SUCCESS;
 }
 
-Status GetKernelBin(const std::string &switch_kernel_name, std::unique_ptr<char_t []> &buf, uint32_t &buf_len) {
+Status GetKernelBin(const std::string &switch_kernel_name, std::unique_ptr<char_t []> &buf, uint64_t &buf_len) {
   // nano rts replace
   std::string bin_real_path;
   GE_ASSERT_SUCCESS(GetBinRealPath(switch_kernel_name, bin_real_path));
@@ -201,12 +200,12 @@ Status NanoDavinciModel::MatchIndexToTaskIndex(const uint32_t label_idx, uint32_
 Status NanoDavinciModel::NanoAddSwitchKernel(const OpDescPtr &op_desc) {
   (void)op_desc;
   std::unique_ptr<char_t []> buf = nullptr;
-  uint32_t buf_len = 0U;
+  uint64_t buf_len = 0U;
   const string switch_kernel_name = "switch_by_index.o";
   GE_ASSERT_SUCCESS(GetKernelBin(switch_kernel_name, buf, buf_len),
       "[Call][GetKernelBin]kernel[%s] get bin fail", switch_kernel_name.c_str());
   GE_ASSERT_NOTNULL(buf);
-  std::vector<char_t> data(buf.get(), PtrToPtr<void, char_t>(ValueToPtr(PtrToValue(buf.get()) + static_cast<uint64_t>(buf_len))));
+  std::vector<char_t> data(buf.get(), PtrToPtr<void, char_t>(ValueToPtr(PtrToValue(buf.get()) + buf_len)));
   const TBEKernelPtr tbe_kernel = MakeShared<OpKernelBin>(switch_kernel_name, std::move(data));
   GE_ASSERT_NOTNULL(tbe_kernel);
   GELOGD("Nano add switch kernel: %s", switch_kernel_name.c_str());
@@ -391,7 +390,7 @@ Status NanoDavinciModel::SetAnchorsOffset(const ge::NodePtr &node, const uint32_
 
 Status NanoDavinciModel::SetPeerInDataOffset(const OutDataAnchorPtr out_anchor, const uint32_t offset) const {
   GE_CHECK_NOTNULL(out_anchor);
-  for (const auto &in_anchor : out_anchor->GetPeerInDataAnchors()) {
+  for (const auto &in_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
     GE_IF_BOOL_EXEC(in_anchor == nullptr, continue);
     auto owner_node = in_anchor->GetOwnerNode();
     const auto in_index = in_anchor->GetIdx();

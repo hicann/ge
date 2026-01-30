@@ -272,8 +272,6 @@ class DModelListener : public ModelListener {
  public:
   DModelListener() {};
   uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index,
-                         uint32_t resultCode, std::vector<ge::Tensor> &outputs) { return 0; }
-  uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index,
                          uint32_t resultCode, std::vector<gert::Tensor> &outputs) { return 0; }
 };
 
@@ -289,15 +287,6 @@ class StubExecutor : public Executor {
   }
 
   Status PushRunArgs(const std::shared_ptr<RunArgs> &args) override {
-    return SUCCESS;
-  }
-
-  Status PushRunArgs(const std::shared_ptr<RunArgsV2> &args) override {
-    return SUCCESS;
-  }
-
-  Status RunGraph(const GraphNodePtr &graph_node, const GraphId graph_id,
-                  const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) override {
     return SUCCESS;
   }
 
@@ -602,6 +591,8 @@ TEST_F(UtestModelManagerModelManager, test_launch_custom_aicpu_platform_infos_fr
   OpSoBinPtr op_so_bin = std::make_shared<OpSoBin>(so_name, "", std::move(so_bin), so_name.length());
   mm.cust_op_master_so_names_to_bin_[so_name] = op_so_bin;
   EXPECT_EQ(mm.cust_op_master_so_names_to_bin_.size(), 1UL);
+  rtBinHandle bin_handle = (void *)0x12000;
+  mm.SetPlatformBinHandle(bin_handle);
   EXPECT_EQ(model.LaunchCustPlatformInfos(), SUCCESS);
 
   // ===launch过再申请内存，相同核数配置根据cust_platform_infos_addr_to_launch_复用缓存===
@@ -719,6 +710,8 @@ TEST_F(UtestModelManagerModelManager, test_launch_custom_aicpu_platform_infos_fr
   OpSoBinPtr op_so_bin = std::make_shared<OpSoBin>(so_name, "", std::move(so_bin), so_name.length());
   mm.cust_op_master_so_names_to_bin_[so_name] = op_so_bin;
   EXPECT_EQ(mm.cust_op_master_so_names_to_bin_.size(), 1UL);
+  rtBinHandle bin_handle = (void *)0x12000;
+  mm.SetPlatformBinHandle(bin_handle);
   EXPECT_EQ(model.LaunchCustPlatformInfos(), SUCCESS);
 
   // ===launch过再申请内存，相同核数配置根据cust_platform_infos_addr_to_launch_复用缓存===
@@ -2193,10 +2186,10 @@ TEST_F(UtestModelManagerModelManager, HandleCommand_Prof) {
 }
 
 TEST_F(UtestModelManagerModelManager, InitOpMasterDeviceSo_FromOm_Success) {
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
   std::vector<std::pair<ccKernelType, const std::string>> kernel_type_so_names;
 
-  opp_path = opp_path + "/test_tmp/";
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "/test_tmp/";
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
   ConstructOpMasterDeviceSo(opp_path, 1, 2, true, kernel_type_so_names);
 
@@ -2229,10 +2222,10 @@ TEST_F(UtestModelManagerModelManager, InitOpMasterDeviceSo_FromOm_Success) {
 }
 
 TEST_F(UtestModelManagerModelManager, InitOpMasterDeviceSo_FromPackage_Success) {
-  std::string opp_path = FILE_GRAPH_LOAD_PATH;
+  std::string opp_path = __FILE__;
   std::vector<std::pair<ccKernelType, const std::string>> kernel_type_so_names;
 
-  opp_path = opp_path + "/test_tmp/";
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "/test_tmp/";
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
   ConstructOpMasterDeviceSo(opp_path, 1, 2, true, kernel_type_so_names);
 

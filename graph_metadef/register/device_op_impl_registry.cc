@@ -15,10 +15,8 @@ class DeviceOpImplRegisterImpl {};
 DeviceOpImplRegister::DeviceOpImplRegister(const char *opType) {
   ops::OpDefFactory::OpTilingSinkRegister(opType);
 }
-DeviceOpImplRegister::~DeviceOpImplRegister() {}
-DeviceOpImplRegister::DeviceOpImplRegister(DeviceOpImplRegister &&other) noexcept {
-  impl_ = std::move(other.impl_);
-}
+DeviceOpImplRegister::~DeviceOpImplRegister() = default;
+DeviceOpImplRegister::DeviceOpImplRegister(DeviceOpImplRegister &&other) noexcept = default;
 DeviceOpImplRegister::DeviceOpImplRegister(const DeviceOpImplRegister &other) {
   (void)other;
 }

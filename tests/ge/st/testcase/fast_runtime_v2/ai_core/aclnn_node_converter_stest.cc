@@ -33,7 +33,6 @@
 #include "runtime/subscriber/global_dumper.h"
 #include "graph/utils/execute_graph_utils.h"
 #include "graph/utils/graph_dump_utils.h"
-#include "register/op_impl_registry_holder_manager.h"
 using namespace ge;
 using namespace gert::bg;
 

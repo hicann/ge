@@ -12,7 +12,7 @@
 
 #include "register/op_kernel_registry.h"
 #include "register/host_cpu_context.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 class UtestOpKernelRegistry : public testing::Test { 

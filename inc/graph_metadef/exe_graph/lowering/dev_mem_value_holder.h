@@ -11,7 +11,10 @@
 #ifndef AIR_CXX_RUNTIME_V2_GRAPH_BUILDER_DEV_MEM_VALUE_HOLDER_H_
 #define AIR_CXX_RUNTIME_V2_GRAPH_BUILDER_DEV_MEM_VALUE_HOLDER_H_
 
+#include <cstddef>
 #include "value_holder.h"
+#include "graph/fast_graph/fast_node.h"
+#include "exe_graph/lowering/value_holder.h"
 
 namespace gert {
 namespace bg {

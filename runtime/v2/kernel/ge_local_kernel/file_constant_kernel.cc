@@ -63,7 +63,7 @@ ge::graphStatus CopyWeightFromFileAsync(const void *const curr_dev_ptr, const Fi
   std::string compress_nodes;
   compress_nodes.reserve(static_cast<size_t>(kBlockSize));
 
-  while ((!ifs.eof()) && (used_memory <= file_constant_info.file_length)) {
+  while ((!ifs.eof()) && (used_memory < file_constant_info.file_length)) {
     (void)ifs.read(&compress_nodes[0U], kBlockSize);
     auto copy_len_once = static_cast<size_t>(ifs.gcount());
     if ((file_constant_info.file_length - used_memory) < copy_len_once) {
@@ -146,7 +146,7 @@ ge::graphStatus CreateFileConstantOutput(const ge::FastNode *node, KernelContext
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus CreateFileConstantUserMemOutput(const ge::FastNode *node, KernelContext *context) {
+static ge::graphStatus CreateFileConstantUserMemOutput(const ge::FastNode *node, KernelContext *context) {
   (void)node;
   auto tensor_data_chain = context->GetOutput(0U);
   GE_ASSERT_NOTNULL(tensor_data_chain);
@@ -212,7 +212,7 @@ ge::graphStatus FileConstantKernel(KernelContext *context) {
 }
 
 // user set FileConstant device memory via aclmdlSetExternalWeightAddress
-ge::graphStatus FileConstantUserMemKernel(KernelContext *context) {
+static ge::graphStatus FileConstantUserMemKernel(KernelContext *context) {
   const auto user_mem =
       context->GetInputValue<void *>(static_cast<size_t>(FileConstantUserMemKernelInput::kUserMem));
   GE_ASSERT_NOTNULL(user_mem);

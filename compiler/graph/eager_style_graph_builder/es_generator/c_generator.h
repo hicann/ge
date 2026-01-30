@@ -26,7 +26,7 @@ inline constexpr const char *const kIndentEight = "        ";  // 8个空格
 inline constexpr const char *const kIndentTen = "          ";  // 10个空格
 inline constexpr const char *const kIndentTwelve = "            ";  // 12个空格
 
-enum AssertType {
+enum class AssertType {
   Es_NOTNULL = 0,
   Es_SUCCESS,
   Es_GRAPH_SUCCESS,
@@ -287,7 +287,7 @@ class CGenerator : public ICodeGenerator {
       if (strcmp(attr.type_info.c_api_type, "EsCTensor *") == 0) {
         cc_stream << "  auto " << GetStoredAttrTensorName(op, attr.name) << " = "
                   << GetAttrTensorStoringFun(op, attr.name) << std::endl;
-        GenAssertCheck(cc_stream, GetStoredAttrTensorName(op, attr.name), Es_NOTNULL);
+        GenAssertCheck(cc_stream, GetStoredAttrTensorName(op, attr.name), AssertType::Es_NOTNULL);
       }
     }
   }
@@ -334,25 +334,25 @@ class CGenerator : public ICodeGenerator {
   static void GenAssertCheck(std::stringstream &css, const std::string exp,
                              const AssertType assert_type, const std::string &indent = kIndentTwo) {
     switch (assert_type) {
-      case Es_NOTNULL:
+      case AssertType::Es_NOTNULL:
         css << indent << "ES_ASSERT_NOTNULL(" << exp << ");" << std::endl;
         break;
-      case Es_SUCCESS:
+      case AssertType::Es_SUCCESS:
         css << indent << "ES_ASSERT_SUCCESS(" << exp << ");" << std::endl;
         break;
-      case Es_GRAPH_SUCCESS:
+      case AssertType::Es_GRAPH_SUCCESS:
         css << indent << "ES_ASSERT_GRAPH_SUCCESS(" << exp << ");" << std::endl;
         break;
-      case Es_RT_OK:
+      case AssertType::Es_RT_OK:
         css << indent << "ES_ASSERT_RT_OK(" << exp << ");" << std::endl;
         break;
-      case Es_EOK:
+      case AssertType::Es_EOK:
         css << indent << "ES_ASSERT_EOK(" << exp << ");" << std::endl;
         break;
-      case Es_TRUE:
+      case AssertType::Es_TRUE:
         css << indent << "ES_ASSERT_TRUE(" << exp << ");" << std::endl;
         break;
-      case Es_HYPER_SUCCESS:
+      case AssertType::Es_HYPER_SUCCESS:
         css << indent << "ES_ASSERT_HYPER_SUCCESS(" << exp << ");" << std::endl;
         break;
       default:
@@ -400,6 +400,8 @@ class CGenerator : public ICodeGenerator {
       case OutputType::kDynamicOutput: // 与Multioutput逻辑一致
       case OutputType::kMultiOutput:
         ss << OutputStructName(op) << ' ';
+        break;
+      default:
         break;
     }
     ss << FuncName(op->GetType()) + "(";
@@ -470,7 +472,7 @@ class CGenerator : public ICodeGenerator {
     return ss.str();
   }
   static void GenInputsCheckForNoIrInputs(std::stringstream &css) {
-    GenAssertCheck(css, "owner_graph_builder", Es_NOTNULL);
+    GenAssertCheck(css, "owner_graph_builder", AssertType::Es_NOTNULL);
     css << "  auto &builder = *owner_graph_builder;" << std::endl;
     css << "  auto ge_graph = builder.GetGraph();" << std::endl;
     css << std::endl;
@@ -483,9 +485,9 @@ class CGenerator : public ICodeGenerator {
   static void GenInputsCheck(const OpDescPtr &op, std::stringstream &css) {
     for (const auto &in : op->GetIrInputs()) {
       if (in.second == kIrInputRequired) {
-        GenAssertCheck(css, InName(in.first), Es_NOTNULL);
+        GenAssertCheck(css, InName(in.first), AssertType::Es_NOTNULL);
       } else if (in.second == kIrInputDynamic) {
-        GenAssertCheck(css, "ge::IntegerChecker<int32_t>::Compat(" + InName(in.first) + "_num)", Es_TRUE);
+        GenAssertCheck(css, "ge::IntegerChecker<int32_t>::Compat(" + InName(in.first) + "_num)", AssertType::Es_TRUE);
       }
     }
 
@@ -511,7 +513,7 @@ class CGenerator : public ICodeGenerator {
     css << ");" << std::endl;
     GenAssertCheck(css, "owner_builder, "
                         "\"Failed to resolve owner builder: please ensure at least one input tensor "
-                        "or an explicit owner_graph_builder is provided when supported.\"", Es_NOTNULL);
+                        "or an explicit owner_graph_builder is provided when supported.\"", AssertType::Es_NOTNULL);
     css << "  auto &builder = *owner_builder;" << std::endl;
     css << "  auto ge_graph = builder.GetGraph();" << std::endl;
     css << std::endl;
@@ -668,25 +670,25 @@ class CGenerator : public ICodeGenerator {
     css << indent << "std::unordered_set<int64_t> " << subgraph_name << "_data_indexes;" << std::endl;
     css << indent << "" << subgraph_name << "_data_indexes.reserve("<< input_num <<");" << std::endl;
     css << indent << "for (auto &sub_graph_node : input_subgraph->GetDirectNode()) {" << std::endl;
-    GenAssertCheck(css, "sub_graph_node.GetType(" + subgraph_name + "_node_type)", Es_GRAPH_SUCCESS, indent + kIndentTwo);
+    GenAssertCheck(css, "sub_graph_node.GetType(" + subgraph_name + "_node_type)", AssertType::Es_GRAPH_SUCCESS, indent + kIndentTwo);
     css << indent << "  if (" << subgraph_name << "_node_type != \"Data\") {" << std::endl;
     css << indent << "    if (" << subgraph_name << "_node_type == \"NetOutput\") {" << std::endl;
-    GenAssertCheck(css, "net_output_num_of_" + subgraph_name + " <= 1", Es_TRUE, indent + kIndentSix);
+    GenAssertCheck(css, "net_output_num_of_" + subgraph_name + " <= 1", AssertType::Es_TRUE, indent + kIndentSix);
     css << indent << "      net_output_num_of_" << subgraph_name <<"++;" << std::endl;
-    GenAssertCheck(css, "ge::IntegerChecker<int32_t>::Compat(" + output_num + ")", Es_TRUE, indent + kIndentSix);
+    GenAssertCheck(css, "ge::IntegerChecker<int32_t>::Compat(" + output_num + ")", AssertType::Es_TRUE, indent + kIndentSix);
     if (subgraph_compare_output_num) {
       css << indent << "      auto subgraph_output_cnt = sub_graph_node.GetInputsSize();" << std::endl;
-      GenAssertCheck(css, "static_cast<int64_t>(subgraph_output_cnt)  == " + output_num, Es_TRUE, indent + kIndentEight);
+      GenAssertCheck(css, "static_cast<int64_t>(subgraph_output_cnt)  == " + output_num, AssertType::Es_TRUE, indent + kIndentEight);
     }
     css << indent << "    }" << std::endl;
     css << indent << "    continue;" << std::endl;
     css << indent << "  }" << std::endl;
     css << indent << "  int64_t index_value;" << std::endl;
-    GenAssertCheck(css, "sub_graph_node.GetAttr(\"index\", index_value)", Es_GRAPH_SUCCESS, indent + kIndentTwo);
-    GenAssertCheck(css, subgraph_name + "_data_indexes.insert(index_value).second", Es_TRUE, indent + kIndentTwo);
-    GenAssertCheck(css, "index_value < " + input_num, Es_TRUE, indent + kIndentTwo);
+    GenAssertCheck(css, "sub_graph_node.GetAttr(\"index\", index_value)", AssertType::Es_GRAPH_SUCCESS, indent + kIndentTwo);
+    GenAssertCheck(css, subgraph_name + "_data_indexes.insert(index_value).second", AssertType::Es_TRUE, indent + kIndentTwo);
+    GenAssertCheck(css, "index_value < " + input_num, AssertType::Es_TRUE, indent + kIndentTwo);
     css << indent << "}" << std::endl;
-    GenAssertCheck(css, "net_output_num_of_" + subgraph_name + " == 1", Es_TRUE, indent);
+    GenAssertCheck(css, "net_output_num_of_" + subgraph_name + " == 1", AssertType::Es_TRUE, indent);
   }
 
   static void GenSubgraphPreNodeIfNeed(const OpDescPtr &op, std::stringstream &css) {
@@ -809,7 +811,7 @@ class CGenerator : public ICodeGenerator {
         GenAssertCheck(css,
                        "ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, " + InName(in.first) + "->GetProducer(), " +
                            InName(in.first) + "->GetOutIndex(), node, " + input_index.Index() + ")",
-                       Es_GRAPH_SUCCESS, kIndentFour);
+                       AssertType::Es_GRAPH_SUCCESS, kIndentFour);
         css << "  }" << std::endl;
       } else if (in.second == kIrInputDynamic) {
         std::string one_name = "one_" + in.first;
@@ -817,18 +819,18 @@ class CGenerator : public ICodeGenerator {
         css << "  if ((" << InName(in.first) << " != nullptr) && (" << num_name << " > 0)) {" << std::endl;
         css << "    for (int64_t i = 0; i < " << num_name << "; ++i) {" << std::endl;
         css << "      auto " << one_name << " = " << InName(in.first) << "[i];" << std::endl;
-        GenAssertCheck(css, one_name, Es_NOTNULL, kIndentSix);
+        GenAssertCheck(css, one_name, AssertType::Es_NOTNULL, kIndentSix);
         GenAssertCheck(css,
                        "ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, " + one_name + "->GetProducer(), " + one_name +
                            "->GetOutIndex(), node, " + input_index.DynamicIndex(num_name, "i") + ")",
-                       Es_GRAPH_SUCCESS, kIndentSix);
+                       AssertType::Es_GRAPH_SUCCESS, kIndentSix);
         css << "    }" << std::endl;
         css << "  }" << std::endl;
       } else {
         GenAssertCheck(css,
                        "ge::es::AddEdgeAndUpdatePeerDesc(*ge_graph, " + InName(in.first) + "->GetProducer(), " +
                            InName(in.first) + "->GetOutIndex(), node, " + input_index.Index() + ")",
-                       Es_GRAPH_SUCCESS);
+                       AssertType::Es_GRAPH_SUCCESS);
       }
     }
   }
@@ -889,6 +891,8 @@ class CGenerator : public ICodeGenerator {
       }
       case OutputType::kDynamicOutput:
         GenDynamicOutput(op, css);
+        break;
+      default:
         break;
       }
   }

@@ -22,7 +22,7 @@
 #include "graph/detail/model_serialize_imp.h"
 #include "graph/debug/ge_attr_define.h"
 #include "base/err_msg.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/serialization/attr_serializer_registry.h"

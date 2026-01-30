@@ -496,7 +496,9 @@ TEST_F(UtestOmg, ConvertPbtxtToJsonFlagIsFalse) {
 }
 
 TEST_F(UtestOmg, ConvertPbtxtToJsonTest) {
-  std::string caseDir = FILE_SESSION_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/ge_proto_00000261_partition0_rank31_new_sub_graph102_SecondPartitioning.txt";
 
   const char *json_file = nullptr;

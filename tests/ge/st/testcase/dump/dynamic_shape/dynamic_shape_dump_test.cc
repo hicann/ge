@@ -16,7 +16,6 @@
 #include "graph_builder/bg_memory.h"                    // AllocOutputMemory
 #include "register/node_converter_registry.h"           // REGISTER_NODE_CONVERTER
 #include "register/kernel_registry.h"                   // REGISTER_KERNEL
-#include "register/op_impl_registry_holder_manager.h"
 
 using namespace ge;
 using DynamicShapeDumpST = DumpST<true>;

@@ -976,17 +976,100 @@ Status PluginManager::LoadWithFlags(const std::string &path, const int32_t flags
 void PluginManager::GetOppSupportedOsAndCpuType(
     std::unordered_map<std::string, std::unordered_set<std::string>> &opp_supported_os_cpu,
     std::string opp_path, std::string os_name, uint32_t layer) {
-  (void)opp_path;
-  (void)os_name;
-  (void)layer;
-  opp_supported_os_cpu["linux"].insert("aarch64");
-  opp_supported_os_cpu["linux"].insert("x86_64");
-  opp_supported_os_cpu["minios"].insert("aarch64");
+  if (layer > kLibSecondLayer) {
+    GELOGW("The lib structure of the current opp package has only 2 layers");
+    return;
+  }
+  GELOGD("Enter GetOppSupportedOsAndCpuType schedule");
+
+  if (opp_path.empty()) {
+    (void) GetOppPath(opp_path);
+    opp_path += "built-in/op_proto/lib/";
+    if (opp_path.size() >= static_cast<size_t>(MMPA_MAX_PATH)) {
+      GELOGW("param path size:%zu >= max path:%d", opp_path.size(), MMPA_MAX_PATH);
+      return;
+    }
+  }
+
+  char_t real_path[MMPA_MAX_PATH] = {};
+  if (mmRealPath(opp_path.c_str(), &(real_path[0U]), MMPA_MAX_PATH) != EN_OK) {
+    GELOGW("Can not get real path:%s, it may be an old version", opp_path.c_str());
+    return;
+  }
+
+  if (mmIsDir(&(real_path[0U])) != EN_OK) {
+    GELOGW("Path %s is not directory, it may be an old version", real_path);
+    return;
+  }
+
+  mmDirent **entries = nullptr;
+  const auto ret = Scandir(&(real_path[0U]), &entries, nullptr, nullptr);
+  if (ret < EN_OK) {
+    GELOGW("Can not open directory %s, it may be an old version, ret = %d", real_path, ret);
+    return;
+  }
+  for (int32_t i = 0; i < ret; ++i) {
+    const mmDirent *const dir_ent = *PtrAdd<mmDirent*>(entries, static_cast<size_t>(ret), static_cast<size_t>(i));
+    if (dir_ent != nullptr && static_cast<int32_t>(dir_ent->d_type) == DT_DIR) {
+      std::string dir_name = dir_ent->d_name;
+      if ((dir_name.compare(".") == 0) || (dir_name.compare("..") == 0)) {
+        continue;
+      }
+      if ((layer == kLibFirstLayer) && (opp_supported_os_cpu.find(dir_name) == opp_supported_os_cpu.end())) {
+        opp_supported_os_cpu[dir_name] = {};
+        GetOppSupportedOsAndCpuType(opp_supported_os_cpu, opp_path + dir_name, dir_name, 1U);
+      }
+      if (layer == kLibSecondLayer) {
+        opp_supported_os_cpu[os_name].emplace(dir_name);
+        GELOGD("Get supported os[%s] -> cpu[%s]", os_name.c_str(), dir_name.c_str());
+      }
+    }
+  }
+  mmScandirFree(entries, ret);
+  return;
 }
 
 void PluginManager::GetCurEnvPackageOsAndCpuType(std::string &host_env_os, std::string &host_env_cpu) {
-  host_env_cpu = "x86_64";
-  host_env_os = "linux";
+  GELOGD("Enter GetCurEnvPackageOsAndCpuType schedule");
+  std::string model_path = GetModelPath();
+  GELOGD("Current lib path is:%s", model_path.c_str());
+  model_path = model_path.substr(0, model_path.rfind('/'));
+  model_path = model_path.substr(0, model_path.rfind('/'));
+  model_path = model_path.substr(0, model_path.rfind('/') + 1);
+  GELOGD("Run package path is:%s", model_path.c_str());
+
+  std::string scene;
+  if (mmAccess2((model_path + kOppPath + kScene).c_str(), M_R_OK) == EN_OK) {
+    scene = model_path + kOppPath + kScene;
+  } else if (mmAccess2((model_path + kRuntimePath + kScene).c_str(), M_R_OK) == EN_OK) {
+    scene = model_path + kRuntimePath + kScene;
+  } else {
+    GELOGW("opp and runtime not exit");
+    return;
+  }
+  GELOGI("extract os and cpu info from %s", scene.c_str());
+  std::ifstream ifs(scene);
+  if (!ifs.good()) {
+    GELOGW("Can not open file:%s", scene.c_str());
+    return;
+  }
+  std::string line;
+  while (std::getline(ifs, line)) {
+    line = StringUtils::Trim(line);
+    std::vector<std::string> value = StringUtils::Split(line, '=');
+    if (value.size() != kSceneValueCount) {
+      continue;
+    }
+    if (value[kSceneKeyIndex].compare(kSceneOs) == 0) {
+      host_env_os = value[kSceneValueIndex];
+      GELOGI("Get os:%s", host_env_os.c_str());
+    }
+    if (value[kSceneKeyIndex].compare(kSceneArch) == 0) {
+      host_env_cpu = value[kSceneValueIndex];
+      GELOGI("Get cpu:%s", host_env_cpu.c_str());
+    }
+  }
+  return;
 }
 
 bool PluginManager::GetVersionFromPathWithName(const std::string &file_path, std::string &version,

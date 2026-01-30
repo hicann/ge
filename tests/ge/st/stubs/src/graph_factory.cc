@@ -994,7 +994,8 @@ Graph GraphFactory::BuildRefDataTrainGraph1() {
     ADD_OUTPUT(add, 0);
   };
 
-  return ToGeGraph(graph);
+  auto ge_graph = ToGeGraph(graph);
+  return ge_graph;
 }
 
 /*

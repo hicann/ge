@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include "graph/def_types.h"
+#include "graph/gnode.h"
 #include "graph/node.h"
 #include "graph/operator.h"
 #include "graph/runtime_inference_context.h"

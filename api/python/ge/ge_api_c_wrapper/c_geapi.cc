@@ -9,7 +9,6 @@
  */
 #include "graph/graph.h"
 #include "utils/graph_utils.h"
-#include "graph/tensor.h"
 #include "ge/ge_api.h"
 #include "utils/graph_utils_ex.h"
 #include "common/checker.h"

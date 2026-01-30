@@ -12,7 +12,7 @@
 #include <utility>
 
 #include "graph/utils/tensor_adapter.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/runtime_inference_context.h"
 
 namespace ge {

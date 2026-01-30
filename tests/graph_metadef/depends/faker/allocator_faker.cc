@@ -29,4 +29,8 @@ namespace gert {
       }
     }
   }
-}
+
+  GertTensorData AllocatorFaker::MallocTensorData(size_t size) {
+    return {size, kOnDeviceHbm, 0, Malloc(size)};
+  }
+  }

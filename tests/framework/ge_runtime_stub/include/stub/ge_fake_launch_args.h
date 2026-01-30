@@ -33,6 +33,9 @@ struct GeFakeLaunchArgs {
   GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t stm,
                    const rtKernelLaunchCfg_t *cfg, void *hostArgs, uint32_t argsSize,
                    rtPlaceHolderInfo_t *placeHolderArray, uint32_t placeHolderNum, std::unique_ptr<std::string> tag);
+  GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t stm,
+                   const rtKernelLaunchCfg_t *cfg, const void *devArgs, uint32_t argsSize,
+                   void *reserve, std::unique_ptr<std::string> tag);
   uint64_t GetDevFun() const {
     return devFunc_;
   }

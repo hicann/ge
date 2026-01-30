@@ -21,6 +21,7 @@
 #include "graph/node.h"
 #include "exe_graph/runtime/tiling_context.h"
 #include "kernel/common_kernel_impl/tiling.h"
+#include "exe_graph/runtime/gert_mem_block.h"
 
 namespace gert {
 struct KernelRunContextHolder {

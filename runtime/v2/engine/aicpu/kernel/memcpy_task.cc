@@ -129,7 +129,7 @@ ge::graphStatus GetOutputShapeFromHbmBuffer(KernelContext *context) {
 }
 
 ge::graphStatus CreateOutputsForHbmBuffer(const ge::FastNode *node, KernelContext *context) {
-  (void)node;
+  (void) node;
   GELOGD("Output number = %zd.", context->GetOutputNum());
   for (size_t i = 0U; i < context->GetOutputNum(); i++) {
     auto av_holder = context->GetOutput(i);
@@ -140,7 +140,6 @@ ge::graphStatus CreateOutputsForHbmBuffer(const ge::FastNode *node, KernelContex
   }
   return ge::GRAPH_SUCCESS;
 }
-
 REGISTER_KERNEL(GetOutputShapeFromHbmBuffer)
     .RunFunc(GetOutputShapeFromHbmBuffer)
     .OutputsCreator(CreateOutputsForHbmBuffer);

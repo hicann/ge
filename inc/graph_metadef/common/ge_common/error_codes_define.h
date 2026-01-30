@@ -12,7 +12,7 @@
 
 #include <map>
 #include <string>
-#include "external/ge_common/ge_api_error_codes.h"
+#include "ge_common/ge_api_error_codes.h"
 
 // Each module defines error codes using the following macros, name can not be modified to (name)
 #define GE_ERRORNO_COMMON(name, value, desc)                                 \

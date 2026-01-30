@@ -290,8 +290,11 @@ graphStatus TuningUtils::HandleConst(NodePtr &node, const std::string &aoe_path)
 
 std::string TuningUtils::GenerateFileConstPath(const std::string &aoe_path, const OpDescPtr &op_desc) {
   std::string file_path;
-  if ((!AttrUtils::GetStr(op_desc, parent_node_name_attr, file_path)) || (file_path.empty())) {
+  const std::string *file_path_str = AttrUtils::GetStr(op_desc, parent_node_name_attr);
+  if ((file_path_str == nullptr) || (file_path_str->empty())) {
     file_path = op_desc->GetName();
+  } else {
+    file_path = *file_path_str;
   }
   static std::atomic<int64_t> node_count{0};
   const auto iter = name_to_index_.find(file_path);
@@ -414,9 +417,9 @@ graphStatus TuningUtils::CreateDataNode(NodePtr &node, const std::string &aoe_pa
       GE_ASSERT_SUCCESS(SetFileConstInfo(node, weight[0U], aoe_path, data_op_desc));
     }
     output_desc = weight[0U]->GetTensorDesc();
-    std::string parent_node_name;
-    if (AttrUtils::GetStr(node->GetOpDesc(), parent_node_name_attr, parent_node_name) && (!parent_node_name.empty())) {
-      (void) AttrUtils::SetStr(data_op_desc, ATTR_NAME_SRC_CONST_NAME, parent_node_name);
+    const std::string *parent_node_name = AttrUtils::GetStr(node->GetOpDesc(), parent_node_name_attr);
+    if (parent_node_name != nullptr && (!parent_node_name->empty())) {
+      (void) AttrUtils::SetStr(data_op_desc, ATTR_NAME_SRC_CONST_NAME, *parent_node_name);
     }
     GELOGD("Create const node for %s, output_desc shape is:%s",
            node->GetName().c_str(), output_desc.GetShape().ToString().c_str());
@@ -453,21 +456,21 @@ graphStatus TuningUtils::AddAttrToDataNodeForMergeGraph(const NodePtr &pld, cons
   GE_CHECK_NOTNULL(pld_desc);
   // inherit
   // a.  set `end's input node type` as attr
-  std::string parent_op_type;
-  if (!AttrUtils::GetStr(pld_desc, "parentOpType", parent_op_type)) {
+  const std::string *parent_op_type = AttrUtils::GetStr(pld_desc, "parentOpType");
+  if (parent_op_type == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "TUU:pld %s get parentOpType failed", pld_desc->GetName().c_str());
     GELOGE(FAILED, "[Invoke][GetStr] TUU:pld %s get parentOpType failed", pld_desc->GetName().c_str());
     return FAILED;
   }
-  (void) AttrUtils::SetStr(op_desc, "parentOpType", parent_op_type);
+  (void) AttrUtils::SetStr(op_desc, "parentOpType", *parent_op_type);
   // b. set `end's input node name` as attr
-  std::string parent_op_name;
-  if (!AttrUtils::GetStr(pld_desc, parent_node_name_attr, parent_op_name)) {
+  const std::string *parent_op_name = AttrUtils::GetStr(pld_desc, parent_node_name_attr);
+  if (parent_op_name == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "TUU:pld %s get _parentNodeName failed", pld_desc->GetName().c_str());
     GELOGE(FAILED, "[Invoke][GetStr] TUU:pld %s get _parentNodeName failed", pld_desc->GetName().c_str());
     return FAILED;
   }
-  (void) AttrUtils::SetStr(op_desc, parent_node_name_attr, parent_op_name);
+  (void) AttrUtils::SetStr(op_desc, parent_node_name_attr, *parent_op_name);
   // c. set `end's input node's out anchor index` as attr
   int32_t parent_node_anchor_index;
   if (!AttrUtils::GetInt(pld_desc, "anchorIndex", parent_node_anchor_index)) {
@@ -479,13 +482,13 @@ graphStatus TuningUtils::AddAttrToDataNodeForMergeGraph(const NodePtr &pld, cons
   GELOGD("TUU:from node %s(%s) to add attr to node %s(%s) success",
          pld->GetName().c_str(), pld->GetType().c_str(), data_node->GetName().c_str(), data_node->GetType().c_str());
   // d. set `end node name` as attr
-  std::string peer_end_name;
-  if (!AttrUtils::GetStr(pld_desc, peer_node_name_attr, peer_end_name)) {
+  const std::string *peer_end_name = AttrUtils::GetStr(pld_desc, peer_node_name_attr);
+  if (peer_end_name == nullptr) {
     REPORT_INNER_ERR_MSG("E18888", "TUU:pld %s get _peerNodeName failed", pld_desc->GetName().c_str());
     GELOGE(FAILED, "[Invoke][GetStr] TUU:pld %s get _peerNodeName failed", pld_desc->GetName().c_str());
     return FAILED;
   }
-  (void) AttrUtils::SetStr(op_desc, peer_node_name_attr, peer_end_name);
+  (void) AttrUtils::SetStr(op_desc, peer_node_name_attr, *peer_end_name);
   GELOGD("TUU:from node %s(%s) to add attr to node %s(%s) success",
          pld->GetName().c_str(), pld->GetType().c_str(), data_node->GetName().c_str(), data_node->GetType().c_str());
   return SUCCESS;
@@ -848,14 +851,14 @@ graphStatus TuningUtils::LoadGraphFromFile(const std::map<int64_t, std::string> 
         is_root_graph) {
       root_graphs.emplace_back(compute_graph);
     } else {
-      std::string parent_graph_name;
-      if (!ge::AttrUtils::GetStr(compute_graph, ATTR_NAME_PARENT_GRAPH_NAME, parent_graph_name)) {
+      const std::string *parent_graph_name = ge::AttrUtils::GetStr(compute_graph, ATTR_NAME_PARENT_GRAPH_NAME);
+      if (parent_graph_name == nullptr) {
         REPORT_INNER_ERR_MSG("E18888", "TUU:get attr ATTR_NAME_PARENT_GRAPH_NAME failed for subgraph.");
         GELOGE(GRAPH_FAILED, "get attr ATTR_NAME_PARENT_GRAPH_NAME failed for subgraph:%s",
                compute_graph->GetName().c_str());
         return GRAPH_FAILED;
       }
-      name_to_subgraphs[parent_graph_name].emplace_back(compute_graph);
+      name_to_subgraphs[*parent_graph_name].emplace_back(compute_graph);
     }
   }
 
@@ -951,13 +954,13 @@ graphStatus TuningUtils::MergeSubGraph(const ComputeGraphPtr &subgraph) {
     if ((node->GetType() == DATA) || (node->GetType() == CONSTANT)) {
       const auto op_desc = node->GetOpDesc();
       GE_CHECK_NOTNULL(op_desc);
-      std::string peer_out_name;
+      const std::string *peer_out_name = AttrUtils::GetStr(op_desc, peer_node_name_attr);
       const bool has_valid_str =
-          (AttrUtils::GetStr(op_desc, peer_node_name_attr, peer_out_name)) && (!peer_out_name.empty());
+          (peer_out_name != nullptr) && (!peer_out_name->empty());
       if (has_valid_str) {
         const std::lock_guard<std::mutex> lock(mutex_);
-        (void)data_2_end_.emplace(op_desc->GetName(), peer_out_name);
-        (void)data_node_2_end_node_.emplace(node, peer_out_name);
+        (void)data_2_end_.emplace(op_desc->GetName(), *peer_out_name);
+        (void)data_node_2_end_node_.emplace(node, *peer_out_name);
         continue;
       }
     }

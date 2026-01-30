@@ -20,10 +20,9 @@ namespace gert {
 LowerResult LoweringConditionCalc(const ge::NodePtr &node, const LowerInput &lower_input) {
   const auto op_desc = node->GetOpDescBarePtr();
   GE_ASSERT_NOTNULL(op_desc);
-  std::string cond_fn;
-  LOWER_REQUIRE(ge::AttrUtils::GetStr(op_desc, "cond_func", cond_fn),
-                "Failed get attr 'cond_func' from node %s", node->GetNamePtr());
-  auto cond_fn_name = bg::ValueHolder::CreateConst(cond_fn.c_str(), cond_fn.size() + 1, true);
+  const std::string *cond_fn = ge::AttrUtils::GetStr(op_desc, "cond_func");
+  LOWER_REQUIRE(cond_fn != nullptr, "Failed get attr 'cond_func' from node %s", node->GetNamePtr());
+  auto cond_fn_name = bg::ValueHolder::CreateConst(cond_fn->c_str(), cond_fn->size() + 1, true);
   LOWER_REQUIRE_VALID_HOLDER(cond_fn_name, "Failed create lower cond fn node.");
   auto cond_func = bg::ValueHolder::CreateSingleDataOutput("FindKernelFunc", {cond_fn_name});
   LOWER_REQUIRE_VALID_HOLDER(cond_func, "Failed create lower find kernel func node.");

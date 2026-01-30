@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: UTF-8 -*-
+# -------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
@@ -171,7 +172,6 @@ RETURN_STATEMENTS = {
     'OpBankParseFunV2&': '    return parse_funcV2_;',
     'OpBankKeyConvertFunV2&': '    return convert_funcV2_;',
     'StructSizeInfoBase& StructSizeInfoBase::': '    return *this;',
-
     'CTilingDataClassFactory& CTilingDataClassFactory::': '    return *this;',
     'TilingDataStructBase& TilingDataStructBase::': '    return *this;',
     'std::shared_ptr<TilingDef>': '    return nullptr;',
@@ -222,6 +222,7 @@ RETURN_STATEMENTS = {
     'std::vector<std::pair<int64_t, int64_t>>': '    return {};',
     'OpsProtoManager* OpsProtoManager::': '    static OpsProtoManager instance;\n    return &instance;',
     'Operator': '    return Operator();',
+    'std::unique_ptr<BaseCustomOp>': 'return nullptr;',
     'std::map<size_t, std::pair<size_t, size_t>>': '    return {};',
     'GeTensor': '    return GeTensor();',
     'GeTensorPtr': '    return nullptr;',
@@ -382,7 +383,10 @@ SKIP_METHODS = [
     "FeedStreamCtrlMap",
     "GenerateStreamCtrlMap",
     "ConvertPartitionCalledOp",
-    "StridedOptimize"
+    "StridedOptimize",
+    "GetAllCustomOpApiSoPaths",
+    "CallInitFunc",
+    "UpdateFormatImpl"
 ]
 
 """

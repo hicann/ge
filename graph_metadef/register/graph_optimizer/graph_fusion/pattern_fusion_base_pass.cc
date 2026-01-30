@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 #include "mmpa/mmpa_api.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/graph_utils.h"
 #include "register/graph_optimizer/fusion_common/fusion_statistic_recorder.h"
 #include "register/graph_optimizer/fusion_common/graph_pass_util.h"
@@ -42,11 +42,11 @@ void StoreOriginNodes(const Mapping &mapping,
       continue;
     }
     for (const auto &node : item.second) {
-      original_nodes.emplace_back(node);
+      (void)original_nodes.emplace_back(node);
       std::vector<std::string> origin_op_attrs_vec;
       origin_op_attrs_vec.push_back(node->GetName());
       origin_op_attrs_vec.push_back(node->GetType());
-      origin_op_attrs.emplace_back(origin_op_attrs_vec);
+      (void)origin_op_attrs.emplace_back(origin_op_attrs_vec);
     }
   }
 }

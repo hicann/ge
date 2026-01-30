@@ -18,17 +18,10 @@ BUILD_RELATIVE_PATH="build_ut"
 BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}"
 echo "PYTHONPATH:${PYTHONPATH}"
 echo "LD_LIBRARY_PATH:${LD_LIBRARY_PATH}"
-echo "LD_PRELOAD:${LD_PRELOAD}"
-
+unset LD_LIBRARY_PATH
 unset PYTHONPATH
-# delete ascend dir in LD_LIBRARY_PATH for test
-export LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | sed -e 's/:*[^:]*Ascend[^:]*:*//g' -e 's/^://' -e 's/:$//')
-export LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | sed -e 's/:*[^:]*cann[^:]*:*//g' -e 's/^://' -e 's/:$//')
-unset LD_PRELOAD
-
 echo "PYTHONPATH:${PYTHONPATH}"
 echo "LD_LIBRARY_PATH:${LD_LIBRARY_PATH}"
-echo "LD_PRELOAD:${LD_PRELOAD}"
 
 # print usage message
 usage() {
@@ -45,6 +38,13 @@ usage() {
   echo "            =python       Build ge python ut"
   echo "            =parser       Build ge parser ut"
   echo "            =dflow        Build ge dflow ut"
+  echo "        =engines          Build all engines ut"
+  echo "            =fe           Build fusion engine ut"
+  echo "            =dvpp         Build dvpp engine ut"
+  echo "            =aicpu        Build aicpu engine ut"
+  echo "            =ffts         Build ffts engine ut"
+  echo "            =rts          Build rts engine ut"
+  echo "            =hcce         Build hcce engine ut"
   echo "        =executor_c       Build executor_c ut"
   echo "        =autofuse         Build autofuse ut"
   echo "    -s, --st       Build all st"
@@ -55,6 +55,12 @@ usage() {
   echo "            =python       Build ge python st"
   echo "            =parser       Build ge parser st"
   echo "            =dflow        Build ge dflow st"
+  echo "        =engines          Build all engines st"
+  echo "            =fe           Build fusion engine st"
+  echo "            =dvpp         Build dvpp engine st"
+  echo "            =aicpu        Build aicpu engine st"
+  echo "            =ffts         Build ffts engine st"
+  echo "            =hcce         Build hcce engine st"
   echo "        =executor_c       Build executor_c st"
   echo "        =autofuse         Build autofuse st"
   echo "    -h, --help     Print usage"
@@ -62,7 +68,7 @@ usage() {
   echo "                   Please ensure that the environment has correctly installed lcov, gcov, and genhtml."
   echo "                   and the version matched gcc/g++."
   echo "    -v, --verbose  Show detailed build commands during the build process"
-  echo "    -j<N>          Set the number of threads used for building ut/st, default 16"
+  echo "    -j<N>          Set the number of threads used for building Parser, default 8"
   echo "    --cann_3rd_lib_path=<PATH>"
   echo "                   Set third_party package install path, default ./output/third_party"
   echo ""
@@ -104,10 +110,16 @@ checkopts() {
   ENABLE_PARSER="off"
   ENABLE_DFLOW="off"
   ENABLE_ENGINES="off"
+  ENABLE_FE="off"
+  ENABLE_FFTS="off"
+  ENABLE_RTS="off"
+  ENABLE_HCCE="off"
+  ENABLE_AICPU="off"
+  ENABLE_DVPP="off"
   ENABLE_ST_WHOLE_PROCESS="off"
-  ENABLE_ACL_UT="off"
   ENABLE_GE_C="off"
   ENABLE_GE_AUTOFUSE="off"
+  ENABLE_ACL_UT="off"
 
   ENABLE_GE_BENCHMARK="off"
 
@@ -146,6 +158,12 @@ checkopts() {
             ENABLE_PARSER="on"
             ENABLE_DFLOW="on"
             ENABLE_ENGINES="on"
+            ENABLE_FE="on"
+            ENABLE_DVPP="on"
+            ENABLE_AICPU="on"
+            ENABLE_FFTS="on"
+            ENABLE_RTS="on"
+            ENABLE_HCCE="on"
             shift 2
             ;;
           "ge")
@@ -182,8 +200,51 @@ checkopts() {
             ENABLE_GE="on"
             shift 2
             ;;
+          "engines")
+            ENABLE_ENGINES="on"
+            ENABLE_FE="on"
+            ENABLE_DVPP="on"
+            ENABLE_AICPU="on"
+            ENABLE_FFTS="on"
+            ENABLE_RTS="on"
+            ENABLE_HCCE="on"
+            shift 2
+            ;;
+          "fe")
+            ENABLE_ENGINES="on"
+            ENABLE_FE="on"
+            BUILD_METADEF="on"
+            shift 2
+            ;;
+          "dvpp")
+            ENABLE_ENGINES="on"
+            ENABLE_DVPP="on"
+            shift 2
+            ;;
+          "aicpu")
+            ENABLE_ENGINES="on"
+            ENABLE_AICPU="on"
+            shift 2
+            ;;
+          "ffts")
+            ENABLE_ENGINES="on"
+            ENABLE_FFTS="on"
+            shift 2
+            ;;
+          "hcce")
+            ENABLE_ENGINES="on"
+            ENABLE_HCCE="on"
+            BUILD_METADEF="on"
+            shift 2
+            ;;
           "executor_c")
             ENABLE_GE_C="on"
+            shift 2
+            ;;
+          "rts")
+            ENABLE_ENGINES="on"
+            ENABLE_RTS="on"
+            BUILD_METADEF="on"
             shift 2
             ;;
           "autofuse")
@@ -207,6 +268,13 @@ checkopts() {
             ENABLE_PYTHON="on"
             ENABLE_PARSER="on"
             ENABLE_DFLOW="on"
+            ENABLE_ENGINES="on"
+            ENABLE_FE="on"
+            ENABLE_DVPP="on"
+            ENABLE_AICPU="on"
+            ENABLE_FFTS="on"
+            ENABLE_RTS="on"
+            ENABLE_HCCE="on"
             shift 2
             ;;
           "ge")
@@ -249,12 +317,53 @@ checkopts() {
             ENABLE_GE="on"
             shift 2
             ;;
-          "autofuse")
-            ENABLE_GE_AUTOFUSE="on"
+          "engines")
+            ENABLE_ENGINES="on"
+            ENABLE_FE="on"
+            ENABLE_DVPP="on"
+            ENABLE_AICPU="on"
+            ENABLE_FFTS="on"
+            ENABLE_RTS="on"
+            ENABLE_HCCE="on"
+            shift 2
+            ;;
+          "fe")
+            ENABLE_ENGINES="on"
+            ENABLE_FE="on"
+            BUILD_METADEF="on"
+            shift 2
+            ;;
+          "dvpp")
+            ENABLE_ENGINES="on"
+            ENABLE_DVPP="on"
+            shift 2
+            ;;
+          "aicpu")
+            ENABLE_ENGINES="on"
+            ENABLE_AICPU="on"
+            shift 2
+            ;;
+          "ffts")
+            ENABLE_ENGINES="on"
+            ENABLE_FFTS="on"
+            shift 2
+            ;;
+          "hcce")
+            ENABLE_ENGINES="on"
+            ENABLE_HCCE="on"
             shift 2
             ;;
           "executor_c")
             ENABLE_GE_C="on"
+            shift 2
+            ;;
+          "rts")
+            ENABLE_ENGINES="on"
+            ENABLE_RTS="on"
+            shift 2
+            ;;
+          "autofuse")
+            ENABLE_GE_AUTOFUSE="on"
             shift 2
             ;;
           *)
@@ -264,6 +373,8 @@ checkopts() {
         ;;
       --process_st)
         ENABLE_ST="on"
+        ENABLE_ENGINES="on"
+        ENABLE_FE="on"
         ENABLE_ST_WHOLE_PROCESS="on"
         BUILD_METADEF="on"
         shift 2
@@ -369,210 +480,6 @@ mk_dir() {
   local create_dir="$1"  # the target to make
   mkdir -pv "${create_dir}"
   echo "created ${create_dir}"
-}
-
-# 安全地打印测试统计信息（不受 ASAN/LD_PRELOAD 影响）
-# 参数：test_names数组元素... -- output_files数组元素...
-print_test_summary_safe() {
-  local test_names=()
-  local output_files=()
-  local found_separator=false
-
-  # 解析参数：在 "--" 之前的是 test_names，之后的是 output_files
-  for arg in "$@"; do
-    if [ "${arg}" = "--" ]; then
-      found_separator=true
-      continue
-    fi
-    if [ "${found_separator}" = false ]; then
-      test_names+=("${arg}")
-    else
-      output_files+=("${arg}")
-    fi
-  done
-
-  echo ""
-  echo "=========================================="
-  echo "               测试结果汇总"
-  echo "=========================================="
-
-  local executed_count=0
-  local total_all=0
-  local passed_all=0
-
-  # 收集所有数据行
-  local output_lines=()
-  output_lines+=("测试套件|已执行|总用例数|通过")
-
-  for i in "${!output_files[@]}"; do
-    local output_file="${output_files[$i]}"
-    local test_name="${test_names[$i]}"
-    local executed="否"
-    local total_tests="0"
-    local passed_tests="0"
-
-    # 安全地读取文件内容，避免受 ASAN 影响
-    # 只要文件存在就标记为已执行（即使为空，段错误时可能文件未完全写入）
-    if [ -f "${output_file}" ]; then
-      executed="是"
-      executed_count=$((executed_count + 1))
-      local ok_count=0
-      # 尝试读取文件内容（即使文件可能为空）
-      if [ -s "${output_file}" ]; then
-        local total_count=0  # 总测试数（passed + failed + skipped）
-        while IFS= read -r line || [ -n "${line}" ]; do
-          # 解析 GTest 格式：总测试数
-          if [[ "${line}" =~ Running[[:space:]]+([0-9]+)[[:space:]]+test[s]? ]]; then
-            total_tests="${BASH_REMATCH[1]}"
-          fi
-          # 解析 GTest 格式：通过的测试数（汇总行）
-          if [[ "${line}" =~ \[[[:space:]]+PASSED[[:space:]]+\][[:space:]]+([0-9]+)[[:space:]]+test[s]? ]]; then
-            passed_tests="${BASH_REMATCH[1]}"
-          fi
-          # 统计每个 [ OK ] 行（段错误时可能没有汇总行，需要逐个统计）
-          if [[ "${line}" =~ \[[[:space:]]+OK[[:space:]]+\] ]]; then
-            ok_count=$((ok_count + 1))
-          fi
-          # 解析 pytest 格式：汇总行（例如：2 failed, 371 passed, 2 skipped in 3.80s）
-          if [[ "${line}" =~ ([0-9]+)[[:space:]]+failed,[[:space:]]+([0-9]+)[[:space:]]+passed(,[[:space:]]+([0-9]+)[[:space:]]+skipped)? ]]; then
-            local failed_num="${BASH_REMATCH[1]}"
-            passed_tests="${BASH_REMATCH[2]}"
-            local skipped_num=0
-            if [ -n "${BASH_REMATCH[4]}" ]; then
-              skipped_num="${BASH_REMATCH[4]}"
-            fi
-            total_tests=$((passed_tests + failed_num + skipped_num))
-          fi
-          # 统计 pytest 格式：每个测试用例的 PASSED/FAILED/SKIPPED
-          # 通过逐行统计来确保即使没有汇总行也能得到准确数据
-          if [[ "${line}" =~ PASSED[[:space:]]*$ ]]; then
-            ok_count=$((ok_count + 1))
-            total_count=$((total_count + 1))
-          elif [[ "${line}" =~ FAILED[[:space:]]*$ ]]; then
-            total_count=$((total_count + 1))
-          elif [[ "${line}" =~ SKIPPED[[:space:]]*$ ]]; then
-            total_count=$((total_count + 1))
-          fi
-        done < "${output_file}"
-        if [ "${total_tests}" -eq 0 ] && [ "${total_count}" -gt 0 ]; then
-          total_tests=${total_count}
-        fi
-        if [ "${passed_tests}" -eq 0 ] && [ "${ok_count}" -gt 0 ]; then
-          passed_tests=${ok_count}
-        fi
-      fi
-    fi
-
-    total_tests=${total_tests:-0}
-    passed_tests=${passed_tests:-0}
-    total_tests=$((total_tests + 0))
-    passed_tests=$((passed_tests + 0))
-
-    # 如果没有找到Running行，使用passed_tests作为total_tests
-    if [ "${total_tests}" -eq 0 ] && [ "${passed_tests}" -gt 0 ]; then
-      total_tests=${passed_tests}
-    fi
-
-    total_all=$((total_all + total_tests))
-    passed_all=$((passed_all + passed_tests))
-    output_lines+=("${test_name}|${executed}|${total_tests}|${passed_tests}")
-  done
-
-  output_lines+=("总计|${executed_count}|${total_all}|${passed_all}")
-
-  # 纯 bash 实现对齐：计算每列的最大宽度, 不引入额外的column等依赖
-  local col_widths=(0 0 0 0)  # 4列：测试套件、已执行、总用例数、通过
-  for line in "${output_lines[@]}"; do
-    IFS='|' read -ra fields <<< "${line}"
-    for i in "${!fields[@]}"; do
-      local field="${fields[$i]}"
-      local len=${#field}  # 字符长度（对中文也适用）
-      if [ "${len}" -gt "${col_widths[$i]}" ]; then
-        col_widths[$i]=${len}
-      fi
-    done
-  done
-
-  # 计算分隔线长度（所有列宽 + 列之间的空格）
-  local separator_len=$((col_widths[0] + col_widths[1] + col_widths[2] + col_widths[3] + 6))
-
-  # 打印表头
-  IFS='|' read -ra header_fields <<< "${output_lines[0]}"
-  printf "%-*s  %-*s  %-*s  %-*s\n" \
-    "${col_widths[0]}" "${header_fields[0]}" \
-    "${col_widths[1]}" "${header_fields[1]}" \
-    "${col_widths[2]}" "${header_fields[2]}" \
-    "${col_widths[3]}" "${header_fields[3]}"
-
-  # 打印表头分隔线
-  printf "%*s\n" "${separator_len}" "" | tr ' ' '-'
-
-  # 打印数据行（跳过表头和总计行）
-  local total_lines=${#output_lines[@]}
-  for ((i=1; i<total_lines-1; i++)); do
-    IFS='|' read -ra fields <<< "${output_lines[$i]}"
-    printf "%-*s  %-*s  %*s  %*s\n" \
-      "${col_widths[0]}" "${fields[0]}" \
-      "${col_widths[1]}" "${fields[1]}" \
-      "${col_widths[2]}" "${fields[2]}" \
-      "${col_widths[3]}" "${fields[3]}"
-  done
-
-  # 打印总计行分隔线
-  printf "%*s\n" "${separator_len}" "" | tr ' ' '-'
-
-  # 打印总计行（右对齐数字列）
-  IFS='|' read -ra total_fields <<< "${output_lines[-1]}"
-  printf "%-*s  %-*s  %*s  %*s\n" \
-    "${col_widths[0]}" "${total_fields[0]}" \
-    "${col_widths[1]}" "${total_fields[1]}" \
-    "${col_widths[2]}" "${total_fields[2]}" \
-    "${col_widths[3]}" "${total_fields[3]}"
-
-  echo "=========================================="
-  echo ""
-}
-
-# 读取并打印所有测试汇总
-print_all_tests_summary_from_files() {
-  local summary_file_base="$1"
-  local all_test_names=()
-  local all_output_files=()
-
-  if [ -z "${summary_file_base}" ]; then
-    return
-  fi
-
-  local summary_file="${summary_file_base}.names"
-  if [ ! -f "${summary_file}" ]; then
-    return
-  fi
-
-  # 读取测试名称
-  while IFS= read -r name || [ -n "${name}" ]; do
-    [ -n "${name}" ] && all_test_names+=("${name}")
-  done < "${summary_file}"
-
-  # 读取对应的输出文件路径
-  local files_file="${summary_file_base}.files"
-  if [ -f "${files_file}" ]; then
-    while IFS= read -r file || [ -n "${file}" ]; do
-      [ -n "${file}" ] && all_output_files+=("${file}")
-    done < "${files_file}"
-  fi
-
-  # 如果有收集到测试信息，统一打印
-  if [ ${#all_test_names[@]} -gt 0 ]; then
-    print_test_summary_safe "${all_test_names[@]}" -- "${all_output_files[@]}"
-
-    # 清理所有临时输出文件
-    for file in "${all_output_files[@]}"; do
-      rm -f "${file}" 2>/dev/null || true
-    done
-  fi
-
-  # 清理汇总文件
-  rm -f "${summary_file}" "${files_file}" 2>/dev/null || true
 }
 
 build_acl() {
@@ -689,6 +596,12 @@ main() {
     ENABLE_PARSER="on"
     ENABLE_DFLOW="on"
     ENABLE_ENGINES="on"
+    ENABLE_FE="on"
+    ENABLE_DVPP="on"
+    ENABLE_AICPU="on"
+    ENABLE_FFTS="on"
+    ENABLE_RTS="on"
+    ENABLE_HCCE="on"
   fi
 
   export BUILD_METADEF=${BUILD_METADEF}
@@ -700,98 +613,103 @@ main() {
     touch ${ASCEND_INSTALL_PATH}/fwkacllib/lib64/switch_by_index.o
   fi
 
-  # 用于记录是否有测试失败（即使失败也要先打印汇总后退出）
-  local test_failed=0
-  
   # module ge
   if [ "X$ENABLE_GE" = "Xon" ]; then
     # ge ut
     if [ "X$ENABLE_UT" == "Xon" ]; then
-      set +e
       if [ "X$ENABLE_GE_COMMON" = "Xon" ] && [ "X$ENABLE_RT" = "Xon" ] && [ "X$ENABLE_PYTHON" = "Xon" ] && [ "X$ENABLE_PARSER" = "Xon" ] && [ "X$ENABLE_DFLOW" = "Xon" ]; then
-        bash scripts/build_fwk.sh -t -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -t -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_GE_COMMON" = "Xon" ]; then
-        bash scripts/build_fwk.sh -T -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
-        bash scripts/build_fwk.sh -d -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -T -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_RT" = "Xon" ]; then
-        bash scripts/build_fwk.sh -L -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -L -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_PYTHON" = "Xon" ]; then
-        bash scripts/build_fwk.sh -l -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -l -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_PARSER" = "Xon" ]; then
-        bash scripts/build_fwk.sh -m -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -m -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_DFLOW" = "Xon" ]; then
-        bash scripts/build_fwk.sh -o -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -o -j $THREAD_NUM $VERBOSE $COVERAGE
       else
         echo "unknown ut type."
-      fi
-      set -e
-      
-      # 如果 GE UT 失败，打印汇总后立即退出
-      if [ "${test_failed}" -ne 0 ]; then
-        print_all_tests_summary_from_files "${TEST_SUMMARY_FILE}"
-        unset TEST_SUMMARY_FILE
-        exit 1
       fi
     fi
 
     # ge st
     if [ "X$ENABLE_ST" = "Xon" ]; then
-      set +e
       if [ "X$ENABLE_GE_COMMON" = "Xon" ] && [ "X$ENABLE_RT" = "Xon" ] && [ "X$ENABLE_HETERO" = "Xon" ] && [ "X$ENABLE_PYTHON" == "Xon" ] && [ "X$ENABLE_PARSER" == "Xon" ] && [ "X$ENABLE_DFLOW" == "Xon" ]; then
-        bash scripts/build_fwk.sh -s -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -s -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_GE_COMMON" = "Xon" ]; then
-        bash scripts/build_fwk.sh -O -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -O -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_RT" = "Xon" ]; then
-        bash scripts/build_fwk.sh -R -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -R -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_HETERO" = "Xon" ]; then
-        bash scripts/build_fwk.sh -K -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -K -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_PYTHON" = "Xon" ]; then
-        bash scripts/build_fwk.sh -P -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -P -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_PARSER" = "Xon" ]; then
-        bash scripts/build_fwk.sh -n -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -n -j $THREAD_NUM $VERBOSE $COVERAGE
       elif [ "X$ENABLE_DFLOW" = "Xon" ]; then
-        bash scripts/build_fwk.sh -D -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
+        bash scripts/build_fwk.sh -D -j $THREAD_NUM $VERBOSE $COVERAGE
       else
         echo "unknown type st."
-      fi
-      set -e
-      
-      # 如果 GE ST 失败，打印汇总后立即退出
-      if [ "${test_failed}" -ne 0 ]; then
-        print_all_tests_summary_from_files "${TEST_SUMMARY_FILE}"
-        unset TEST_SUMMARY_FILE
-        exit 1
       fi
     fi
   fi
 
-  # module autofuse
-  if [ "X$ENABLE_GE_AUTOFUSE" == "Xon" ]; then
-    # autofuse ut
-    if [ "X$ENABLE_UT" = "Xon" ]; then
-      set +e
-      bash scripts/test/run_autofuse_test.sh -u -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
-      set -e
-
-      # 如果 autofuse UT 失败，打印汇总后立即退出
-      if [ "${test_failed}" -ne 0 ]; then
-        print_all_tests_summary_from_files "${TEST_SUMMARY_FILE}"
-        unset TEST_SUMMARY_FILE
-        exit 1
+  # module fe
+  if [ "X$ENABLE_ENGINES" = "Xon" ]; then
+    # engines ut
+    if [ "X$ENABLE_UT" == "Xon" ]; then
+      if [ "X$ENABLE_FE" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -u -n -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_DVPP" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -k -u -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_AICPU" = "Xon"  ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -a -u -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_FFTS" = "Xon" ]; then
+        bash scripts/build.sh -f -u -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_RTS" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -u -r -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_HCCE" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -u -e -j $THREAD_NUM $VERBOSE $COVERAGE
       fi
     fi
 
-    # autofuse st
+    # engines st
     if [ "X$ENABLE_ST" = "Xon" ]; then
-      set +e
-      bash scripts/test/run_autofuse_test.sh -s -j $THREAD_NUM $VERBOSE $COVERAGE || test_failed=1
-      set -e
+      if [ "X$ENABLE_FE" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -s -n -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_DVPP" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -k -s -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_AICPU" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -a -s -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_FFTS" = "Xon" ]; then
+        bash scripts/build.sh -f -s -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
+      if [ "X$ENABLE_HCCE" = "Xon" ]; then
+        export LD_LIBRARY_PATH=${ASCEND_INSTALL_PATH}/lib64:${ASCEND_INSTALL_PATH}/devlib:$LD_LIBRARY_PATH
+        bash scripts/build.sh -s -e -j $THREAD_NUM $VERBOSE $COVERAGE
+      fi
 
-      # 如果 autofuse ST 失败，打印汇总后立即退出
-      if [ "${test_failed}" -ne 0 ]; then
-        print_all_tests_summary_from_files "${TEST_SUMMARY_FILE}"
-        unset TEST_SUMMARY_FILE
-        exit 1
+      # fe process st
+      if [ "X$ENABLE_ST_WHOLE_PROCESS" = "Xon" ]; then
+        bash scripts/build.sh -w -n -j $THREAD_NUM $VERBOSE $COVERAGE
       fi
     fi
   fi
@@ -809,9 +727,19 @@ main() {
     fi
   fi
 
-  # 统一打印所有测试汇总（从 build_fwk.sh 保存的文件中读取）
-  print_all_tests_summary_from_files "${TEST_SUMMARY_FILE}"
-  unset TEST_SUMMARY_FILE
+  # module autofuse
+  if [ "X$ENABLE_GE_AUTOFUSE" == "Xon" ]; then
+    # executor_c ut
+    if [ "X$ENABLE_UT" = "Xon" ]; then
+      bash scripts/test/run_autofuse_test.sh -u -j $THREAD_NUM $VERBOSE $COVERAGE
+    fi
+
+    # executor_c st
+    if [ "X$ENABLE_ST" = "Xon" ]; then
+      bash scripts/test/run_autofuse_test.sh -s -j $THREAD_NUM $VERBOSE $COVERAGE
+    fi
+  fi
+
   date +"test end: %Y-%m-%d %H:%M:%S"
 }
 

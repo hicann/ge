@@ -82,8 +82,7 @@ Status HybridMemAssigner::Assign() {
   const bool memory_priority_mode = binary_assigner->IsMemoryPriorityMode();
   binary_assigner->SetReuseStrategy(ReuseStrategy(false, true, false, memory_priority_mode));
 
-  std::future<void> reuse_checker_init_future;
-  reuse_checker_init_future = std::async(std::launch::async, [this] () { (void)ReuseCheckerInit(); });
+  std::future<void> reuse_checker_init_future = std::async(std::launch::async, [this] () { (void)ReuseCheckerInit(); });
   memory_assigners.emplace_back(std::make_pair("binary-block", std::make_pair(std::move(binary_assigner), 0U)));
 
   auto max_assigner = MakeUnique<MaxBlockMemAssigner>(mem_assist_info_);

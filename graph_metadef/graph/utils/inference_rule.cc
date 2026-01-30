@@ -736,17 +736,20 @@ std::string InferenceRule::GetInferenceRule(const ge::OpDescPtr &op) {
     return "";
   }
   std::string rule_json;
-  (void) ge::AttrUtils::GetStr(op, ge::ATTR_NAME_INFER_RULE, rule_json);
+  const std::string *rule_json_str = ge::AttrUtils::GetStr(op, ge::ATTR_NAME_INFER_RULE);
+  if (rule_json_str != nullptr) {
+    rule_json = *rule_json_str;
+  }
   return rule_json;
 }
 
 std::shared_ptr<ShapeInferenceRule> ShapeInferenceRule::FromOpDesc(const ge::OpDescPtr &op) {
-  std::string rule_json;
-  if (!ge::AttrUtils::GetStr(op, ge::ATTR_NAME_INFER_RULE, rule_json)) {
+  const std::string *rule_json = ge::AttrUtils::GetStr(op, ge::ATTR_NAME_INFER_RULE);
+  if (rule_json == nullptr) {
     // Skip log error if op does not with rule
     return nullptr;
-  }
-  return FromJsonString(rule_json);
+  } 
+  return FromJsonString(*rule_json);
 }
 
 std::shared_ptr<ShapeInferenceRule> ShapeInferenceRule::FromJsonString(const std::string &json_str) {
@@ -842,12 +845,12 @@ ge::graphStatus DtypeInferenceRule::InferDtype(gert::InferDataTypeContext *infer
 }
 
 std::shared_ptr<DtypeInferenceRule> DtypeInferenceRule::FromOpDesc(const ge::OpDescPtr &op) {
-  std::string rule_json;
-  if (!ge::AttrUtils::GetStr(op, ge::ATTR_NAME_INFER_RULE, rule_json)) {
+  const std::string *rule_json = ge::AttrUtils::GetStr(op, ge::ATTR_NAME_INFER_RULE);
+  if (rule_json == nullptr) {
     // Skip log error if op does not with rule
     return nullptr;
   }
-  return FromJsonString(rule_json);
+  return FromJsonString(*rule_json);
 }
 
 std::shared_ptr<DtypeInferenceRule> DtypeInferenceRule::FromJsonString(const std::string &json_str) {

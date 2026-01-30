@@ -44,6 +44,7 @@ target_compile_definitions(ut_graph PRIVATE
 target_link_libraries(ut_graph PRIVATE
     intf_pub -lgcov
     -Wl,--no-as-needed
+    -lstdc++fs
     platform
     slog_headers
     ge_runtime_stub eager_style_graph_builder_base

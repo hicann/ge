@@ -18,11 +18,17 @@ BUILD_RELATIVE_PATH="build"
 BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}/"
 PYTHON_PATH=python3
 
+# MDC build para
+ENABLE_BUILD_DEVICE=ON
+USE_CXX11_ABI=1
+CMAKE_TOOLCHAIN_FILE=""
+MDC_BUILD_COMPONENT=""
+
 # print usage message
 usage() {
   echo "Usage:"
   echo "  sh build.sh [-h | --help] [-v | --verbose] [-j<N>]"
-  echo "              [--ge_compiler] [--ge_executor]  [--dflow]"
+  echo "              [--pkg] [--ge_compiler] [--ge_executor]  [--dflow]"
   echo "              [--build_type=<TYPE> | --build-type=<TYPE>]"
   echo "              [--output_path=<PATH>] [--cann_3rd_lib_path=<PATH>]"
   echo "              [--python_path=<PATH>]"
@@ -33,15 +39,18 @@ usage() {
   echo "    -h, --help        Print usage"
   echo "    -v, --verbose     Show detailed build commands during the build process"
   echo "    -j<N>             Set the number of threads used for building AIR, default is 8"
-  echo "    --ge_compiler   Build ge-compiler run package with kernel bin"
-  echo "    --ge_executor   Build ge-executor run package with kernel bin"
-  echo "    --dflow         Build dflow-executor run package with kernel bin"
+  echo "    --pkg             Build run package with kernel bin"
+  echo "      --ge_compiler   Build ge-compiler run package with kernel bin"
+  echo "      --ge_executor   Build ge-executor run package with kernel bin"
+  echo "      --dflow         Build dflow-executor run package with kernel bin"
   echo "    --asan            Enable AddressSanitizer"
   echo "    --cov             Enable Coverage"
   echo "    --build_type=<TYPE>, --build-type=<TYPE>"
   echo "                      Specify build type (TYPE option: Release/Debug), Default: Release"
   echo "    --output_path=<PATH>"
   echo "                      Set output path, default ./output"
+  echo "    --cann_3rd_lib_path=<PATH>"
+  echo "                      Set third_party package install path, default ./output/third_party"
   echo "    --python_path=<PATH>"
   echo "                      Set python path, for example:/usr/local/bin/python3.9, default python3"
   echo "    --enable-sign"
@@ -50,11 +59,64 @@ usage() {
   echo "                      Set custom sign script path to <PATH>"
   echo "    --version=<VERSION>"
   echo "                      Set sign version to <VERSION>"
-  echo "    --cann_3rd_lib_path=<PATH>"
-  echo "                      Set third_party package install path, default ./output/third_party"
-  echo "                      (Third_party package will cost a little time during the first compilation," 
-  echo "                      it will skip compilation to save time during subsequent builds)" 
   echo ""
+}
+
+# check value of build_type option
+# usage: check_build_type build_type
+check_build_type() {
+  arg_value="$1"
+  if [ "X$arg_value" != "XRelease" ] && [ "X$arg_value" != "XDebug" ]; then
+    echo "Invalid value $arg_value for option --$2"
+    usage
+    exit 1
+  fi
+}
+
+parse_cmake_extra_args() {
+    echo "Parse cmake extra args."
+    # para check
+    local args_str="$1"
+    if [[ -z "$args_str" ]]; then
+        echo "The parsed parameter string is empty."
+        return 0
+    fi
+
+    IFS=',' read -ra kv_pairs <<< "$args_str"
+
+    for kv_pair in "${kv_pairs[@]}"; do
+        if [[ -z "$kv_pair" ]]; then
+            continue
+        fi
+
+        local key="${kv_pair%%=*}"
+        local value="${kv_pair#*=}"
+
+        case "$key" in
+            "ENABLE_BUILD_DEVICE")
+                ENABLE_BUILD_DEVICE="$value"
+                echo "[MDC compile] Set ENABLE_BUILD_DEVICE to ${ENABLE_BUILD_DEVICE}."
+                ;;
+            "USE_CXX11_ABI")
+                USE_CXX11_ABI="$value"
+                echo "[MDC compile] Set USE_CXX11_ABI to ${USE_CXX11_ABI}."
+                ;;
+            "CMAKE_TOOLCHAIN_FILE")
+                CMAKE_TOOLCHAIN_FILE=$(realpath -s "$value")
+                echo "[MDC compile] Set CMAKE_TOOLCHAIN_FILE to ${CMAKE_TOOLCHAIN_FILE}."
+                ;;
+            *)
+                echo "invalid parameter key: $key"
+                ;;
+        esac
+    done
+
+    lower_abi=$(echo "$USE_CXX11_ABI" | tr '[:upper:]' '[:lower:]')
+    if [[ "$lower_abi" == "on" || "$USE_CXX11_ABI" == "1" ]]; then
+        USE_CXX11_ABI=1
+    elif [[ "$lower_abi" == "off" || "$USE_CXX11_ABI" == "0" ]]; then
+        USE_CXX11_ABI=0
+    fi
 }
 
 # parse and set options
@@ -106,12 +168,17 @@ checkopts() {
         VERBOSE="VERBOSE=1"
         shift
         ;;
+      --pkg)
+        shift
+        ;;
       --ge_compiler)
         ENABLE_GE_COMPILER_PKG="on"
+        MDC_BUILD_COMPONENT=${BUILD_COMPONENT_COMPILER}
         shift
         ;;
       --ge_executor)
         ENABLE_GE_EXECUTOR_PKG="on"
+        MDC_BUILD_COMPONENT=${BUILD_COMPONENT_EXECUTOR}
         shift
         ;;
       --dflow)
@@ -134,11 +201,13 @@ checkopts() {
         OUTPUT_PATH="$(realpath $2)"
         shift 2
         ;;
-      --build_type)
-        if [ "X$2" != "XRelease" ] && [ "X$2" != "XDebug" ]; then
-          usage && echo "Error: Invalid option '$1=$2'" && exit 1
-        fi
+      --build-type)
+        check_build_type "$2" build-type
         CMAKE_BUILD_TYPE="$2"
+        shift 2
+        ;;
+      --extra-cmake-args)
+        parse_cmake_extra_args "$2"
         shift 2
         ;;
       --python_path)
@@ -258,6 +327,23 @@ mk_dir() {
   echo "created ${create_dir}"
 }
 
+copy_pkg() {
+  if [ "${ENABLE_BUILD_DEVICE}" = "ON" ]; then
+    mv ${BUILD_PATH}_CPack_Packages/makeself_staging/cann-*.run ${BUILD_OUT_PATH}/
+  elif [ -z "${CMAKE_TOOLCHAIN_FILE}" ]; then
+    if [ -f "/etc/lsb-release" ]; then
+      ubuntu_version=$(grep -E '^DISTRIB_RELEASE=' /etc/lsb-release | cut -d'=' -f2 | xargs)
+      ubuntu_version="ubuntu${ubuntu_version}"
+      mv ${BUILD_PATH}_CPack_Packages/makeself_staging/cann-*.run ${BUILD_OUT_PATH}/cann-${MDC_BUILD_COMPONENT}-${VERSION_INFO}-${ubuntu_version}.x86_64.run
+    else
+      echo "Error: operate enviroment is not ubuntu."
+      exit 1
+    fi
+  else
+    mv ${BUILD_PATH}_CPack_Packages/makeself_staging/cann-*.run ${BUILD_OUT_PATH}/cann-${MDC_BUILD_COMPONENT}-${VERSION_INFO}-aoskernel.aarch64.run
+  fi
+}
+
 make_package() {
   echo "---------------- Build AIR package:  $1 ----------------"
   rm -rf ${BUILD_PATH}_CPack_Packages/makeself_staging/
@@ -278,9 +364,12 @@ make_package() {
         -D ENABLE_SIGN=${ENABLE_SIGN} \
         -D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT} \
         -D VERSION_INFO=${VERSION_INFO} \
+        -D ENABLE_BUILD_DEVICE=${ENABLE_BUILD_DEVICE} \
+        -D USE_CXX11_ABI=${USE_CXX11_ABI} \
+        -D CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} \
         ..
   make ${VERBOSE} $1 -j${THREAD_NUM} && cpack
-  mv ${BUILD_PATH}_CPack_Packages/makeself_staging/cann-*.run ${BUILD_OUT_PATH}/
+  copy_pkg
 }
 
 build_pkg() {
@@ -316,19 +405,20 @@ main() {
   g++ -v
 
   # 编译三方库
-    if [ "X$ENABLE_DFLOW_EXECUTOR_PKG" == "Xon" ]; then
-      bash ${THIRD_PARTY_DL} ${CANN_3RD_LIB_PATH} ${THREAD_NUM} ${BUILD_COMPONENT_DFLOW}
-    fi
-    if [ "X$ENABLE_GE_EXECUTOR_PKG" == "Xon" ]; then
-      bash ${THIRD_PARTY_DL} ${CANN_3RD_LIB_PATH} ${THREAD_NUM} ${BUILD_COMPONENT_EXECUTOR}
-    fi
-    if [ "X$ENABLE_GE_COMPILER_PKG" == "Xon" ]; then
-      bash ${THIRD_PARTY_DL} ${CANN_3RD_LIB_PATH} ${THREAD_NUM} ${BUILD_COMPONENT_COMPILER}
-    fi
+  if [ "X$ENABLE_DFLOW_EXECUTOR_PKG" == "Xon" ]; then
+    bash ${THIRD_PARTY_DL} ${CANN_3RD_LIB_PATH} ${THREAD_NUM} ${BUILD_COMPONENT_DFLOW} ${ENABLE_BUILD_DEVICE} ${USE_CXX11_ABI} ${CMAKE_TOOLCHAIN_FILE}
+  fi
+  if [ "X$ENABLE_GE_EXECUTOR_PKG" == "Xon" ]; then
+    bash ${THIRD_PARTY_DL} ${CANN_3RD_LIB_PATH} ${THREAD_NUM} ${BUILD_COMPONENT_EXECUTOR} ${ENABLE_BUILD_DEVICE} ${USE_CXX11_ABI} ${CMAKE_TOOLCHAIN_FILE}
+  fi
+  if [ "X$ENABLE_GE_COMPILER_PKG" == "Xon" ]; then
+    bash ${THIRD_PARTY_DL} ${CANN_3RD_LIB_PATH} ${THREAD_NUM} ${BUILD_COMPONENT_COMPILER} ${ENABLE_BUILD_DEVICE} ${USE_CXX11_ABI} ${CMAKE_TOOLCHAIN_FILE}
+  fi
 
   echo "---------------- Build AIR package ----------------"
   mk_dir ${OUTPUT_PATH}
   mk_dir ${BUILD_OUT_PATH}
+  mk_dir ${OUTPUT_PATH}/package
   build_pkg || { echo "AIR build failed."; exit 1; }
   echo "---------------- AIR build finished ----------------"
   date +"build end: %Y-%m-%d %H:%M:%S"

@@ -28,7 +28,7 @@ bool IsFreeTargetNode(const ge::FastNode *const node) {
   return std::any_of(kFreeKernels.begin(), kFreeKernels.end(), func);
 }
 
-ge::graphStatus ReplaceFreeNode(ge::FastNode *free_node) {
+ge::graphStatus ReplaceFreeNode(const ge::FastNode *free_node) {
   if (strcmp(free_node->GetTypePtr(), "FreeTensorMemory") == 0) {
     return ge::GRAPH_SUCCESS;
   }
@@ -95,11 +95,11 @@ ge::graphStatus RemoveLaunchFreeEdge::Run(ge::ExecuteGraph *const graph, bool &c
       }
     }
     for (const auto edge : launch_free_ctrl_edges) {
-      const auto launch_node = edge->src;
-      GE_ASSERT_TRUE(IsLaunchTargetNode(launch_node));
-      const auto current_graph = launch_node->GetExtendInfo()->GetOwnerGraphBarePtr();
+      const auto launch_node_local = edge->src;
+      GE_ASSERT_TRUE(IsLaunchTargetNode(launch_node_local));
+      const auto current_graph = launch_node_local->GetExtendInfo()->GetOwnerGraphBarePtr();
       GE_ASSERT_NOTNULL(current_graph);
-      GELOGD("remove ctrl edge from %s to %s", launch_node->GetNamePtr(), edge->dst->GetNamePtr());
+      GELOGD("remove ctrl edge from %s to %s", launch_node_local->GetNamePtr(), edge->dst->GetNamePtr());
       GE_ASSERT_GRAPH_SUCCESS(current_graph->RemoveEdge(edge));
     }
   }

@@ -164,7 +164,7 @@ REG_ASC_IR_WITH_COMMENT(StubOp2New,
                         .Input("x1", "T")
                         .Input("x2", "T")
                         .Output("y", "T")
-                        .ComputeType(ge::ComputeType::kComputeBroadcast)
+                        .ComputeType(ge::ComputeType::kComputeElewise)
                         .Impl({"socv1"},
                                    {nullptr, nullptr,
                                    {{"T", TensorType{DT_INT32, DT_INT64}}}})

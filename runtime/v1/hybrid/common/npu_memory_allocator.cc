@@ -9,6 +9,7 @@
  */
 
 #include <mutex>
+#include "common/ge_common/util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "framework/common/debug/log.h"
 #include "graph/def_types.h"

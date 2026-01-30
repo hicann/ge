@@ -81,7 +81,7 @@ class KernelExTaskInfo : public TaskInfo {
   Status AssembleKernelBuffer(const STR_FWK_OP_KERNEL * const fwk_op_kernel) const;
   Status InitInputOutputAddr(const PisToArgs &args, const IowAddrs &iow_addrs);
   Status AssembleInputOutputAddr();
-
+  rtFuncHandle GetFuncHandle();
   uint32_t task_id_{0U};
   uint32_t stream_id_{0U};
   uint32_t dump_flag_{RT_KERNEL_DEFAULT};
@@ -109,6 +109,8 @@ class KernelExTaskInfo : public TaskInfo {
   std::vector<void *> workspace_data_addrs_;
   ArgsIoAddrsUpdater args_io_addrs_updater_;
   ArgsPlacement pls_{ArgsPlacement::kArgsPlacementHbm};
+  rtFuncHandle func_handle_{nullptr};
+  bool is_data_dump_{false};
 };
 }  // namespace ge
 #endif  // GE_GRAPH_LOAD_NEW_MODEL_MANAGER_TASK_INFO_KERNEL_EX_TASK_INFO_H_

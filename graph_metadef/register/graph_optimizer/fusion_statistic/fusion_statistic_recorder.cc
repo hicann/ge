@@ -10,7 +10,7 @@
 
 #include "register/graph_optimizer/fusion_common/fusion_statistic_recorder.h"
 #include <algorithm>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace fe {
 

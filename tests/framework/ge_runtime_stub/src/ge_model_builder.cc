@@ -17,6 +17,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "common/host_resource_center/host_resource_center.h"
 #include "common/env_path.h"
+#include "common/ge_common/scope_guard.h"
 
 namespace gert {
 namespace {
@@ -170,9 +171,21 @@ void GeModelBuilder::AddTbeKernelStore() {
     ge::TBEKernelPtr kernel_handle = ge::MakeShared<ge::OpKernelBin>("dumy_kernel_name", std::move(kernel_bin));
     tbe_kernel_store.AddTBEKernel(kernel_handle);
   }
+  for (const auto &node : compute_graph_->GetDirectNode()) {
+    auto bin = node->GetOpDesc()->TryGetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, ge::TBEKernelPtr());
+    if (bin != nullptr) {
+      tbe_kernel_store.AddTBEKernel(bin);
+    }
+    bin = node->GetOpDesc()->TryGetExtAttr(ge::EXT_ATTR_ATOMIC_TBE_KERNEL, ge::TBEKernelPtr());
+    if (bin != nullptr) {
+      tbe_kernel_store.AddTBEKernel(bin);
+    }
+  }
   tbe_kernel_store.Build();
   ge_model->SetTBEKernelStore(tbe_kernel_store);
 }
+
+
 ge::TBEKernelStore GeModelBuilder::BuildKernelStoreFromNodes() const {
   ge::TBEKernelStore tbe_kernel_store;
   for (const auto &node : compute_graph_->GetDirectNode()) {
@@ -189,9 +202,23 @@ ge::TBEKernelStore GeModelBuilder::BuildKernelStoreFromNodes() const {
   tbe_kernel_store.Build();
   return tbe_kernel_store;
 }
+
+ge::CustAICPUKernelStore GeModelBuilder::BuildCustAicpuKernelStoreFromNodes() const {
+  ge::CustAICPUKernelStore cust_aicpu_kernel_store;
+  for (const auto &node : compute_graph_->GetDirectNode()) {
+    auto bin = node->GetOpDesc()->TryGetExtAttr(ge::OP_EXTATTR_CUSTAICPU_KERNEL, ge::OpKernelBinPtr());
+    if (bin != nullptr) {
+      cust_aicpu_kernel_store.AddCustAICPUKernel(bin);
+    }
+  }
+  cust_aicpu_kernel_store.Build();
+  return cust_aicpu_kernel_store;
+}
+
 void GeModelBuilder::AddTbeKernelStoreFromNodes() {
   FakeTbeBinToNodes();
   ge_model->SetTBEKernelStore(BuildKernelStoreFromNodes());
+  ge_model->SetCustAICPUKernelStore(BuildCustAicpuKernelStoreFromNodes());
 }
 
 void GeModelBuilder::BuildCommon() {
@@ -230,6 +257,7 @@ void GeModelBuilder::SetAttrs() {
 
 ge::GeModelPtr GeModelBuilder::Build() {
   AddTbeKernelStore();
+  ge_model->SetCustAICPUKernelStore(BuildCustAicpuKernelStoreFromNodes());
   BuildCommon();
   SetAttrs();
   AddDefaultTasks();

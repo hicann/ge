@@ -14,6 +14,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 #include "framework/common/ge_inner_error_codes.h"
@@ -24,10 +25,6 @@
 #include "runtime/base.h"
 
 namespace ge {
-using SessionPtr = std::shared_ptr<InnerSession>;
-using UserGraphsManagerPtr = std::shared_ptr<UserGraphsManager>;
-using UserHybridGraphManagerPtr = std::shared_ptr<UserHybridGraphManager>;
-
 class SessionManager {
  public:
   SessionManager() = default;
@@ -62,15 +59,6 @@ class SessionManager {
   /// @param [in] session_id session id
   /// @return SessionPtr session
   SessionPtr GetSession(SessionId session_id);
-
-  /// @ingroup ge_session
-  /// @brief get userGraphManager with specific session id
-  /// @param [in] session_id session id
-  /// @return UserGraphsManagerPtr userGraphManager
-  UserGraphsManagerPtr GetUserGraphsManager(SessionId session_id);
-
-  UserHybridGraphManagerPtr GetUserHybridGraphManager(SessionId session_id);
-
   /// @ingroup ge_graph
   /// @brief get variables in the session with specific session id
   /// @param [in] session_id: sssion id
@@ -87,9 +75,7 @@ class SessionManager {
   Status SetRtContext(SessionId session_id, rtContext_t rt_context) const;
 
   std::map<SessionId, SessionPtr> session_manager_map_;
-  std::map<SessionId, UserGraphsManagerPtr> user_graphs_manager_map_;
-  std::map<SessionId, UserHybridGraphManagerPtr> user_hybrid_graph_manager_map_;
-  std::mutex mutex_;
+  std::shared_mutex mutex_;
   bool init_flag_ = false;
 };
 }  // namespace ge

@@ -59,8 +59,8 @@ const uint32_t kSetOutputModeMixed = 0x3;
 const size_t kInputShapePairSize = 2U;
 const char *const kInputShapeSample1 = "\"input_name1:n1,c1,h1,w1\"";
 const char *const kInputShapeSample2 = "\"input_name1:1,3,224,224\"";
-const char *const kSplitError1 = "after split shape by \":\", the shape must contains two parts: name and value.";
-const char *const kEmptyError = "the shape has a name, it's value can not be empty";
+const char *const kSplitError1 = "The shape must contain two parts: name and value";
+const char *const kEmptyError = "The shape has a parameter name whose value cannot be empty";
 const std::set<domi::FrameworkType> kSupportTensorAsOutput = {
     domi::CAFFE,
     domi::ONNX
@@ -165,8 +165,8 @@ static Status CheckOutNode(ge::OpDescPtr op_desc, int32_t index) {
   if (index < 0 || index >= out_size) {
     GELOGE(domi::FAILED, "[Check][Param]out_node [%s] output index:%d must be smaller "
            "than node output size:%d and can not be negative!", op_desc->GetName().c_str(), index, out_size);
-    std::string fail_reason = "output index:" + to_string(index) +
-                              " must be smaller than output size:" + to_string(out_size) + " and can not be negative";
+    std::string fail_reason = "Output index:\"" + to_string(index) +
+                              "\" must be smaller than output size:" + to_string(out_size) + " and cannot be negative.";
     REPORT_PREDEFINED_ERR_MSG(
         "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({"out_nodes", op_desc->GetName().c_str(), fail_reason.c_str()}));
@@ -293,7 +293,7 @@ domi::Status AclGraphParserUtil::ParseAclOutputNodes(const string &out_nodes) co
           REPORT_PREDEFINED_ERR_MSG(
               "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
               std::vector<const char *>({"out_nodes", node.c_str(),
-                                        "the correct format is \"node_name1:0; node_name1:1; node_name2:0\""}));
+                                        "The correct format is \"node_name1:0; node_name1:1; node_name2:0\"."}));
           GELOGE(PARAM_INVALID, "[Check][Param] The input format of out_nodes is invalid, the correct format is "
                  "\"node_name1:0; node_name1:1; node_name2:0\", while the actual input is %s.",
                  node.c_str());
@@ -307,7 +307,7 @@ domi::Status AclGraphParserUtil::ParseAclOutputNodes(const string &out_nodes) co
         if (!CheckDigitStr(key_value_v[1])) {
           REPORT_PREDEFINED_ERR_MSG(
               "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-              std::vector<const char *>({"out_nodes", out_nodes.c_str(), "is not positive integer"}));
+              std::vector<const char *>({"out_nodes", out_nodes.c_str(), "It is not a positive integer."}));
           GELOGE(PARAM_INVALID, "[Check][Param] This str:%s must be digit string, while the actual input is %s",
                  key_value_v[1].c_str(), out_nodes.c_str());
           return PARAM_INVALID;
@@ -328,7 +328,7 @@ domi::Status AclGraphParserUtil::ParseAclOutputNodes(const string &out_nodes) co
       if (set_output_mode == kSetOutputModeMixed) {
         REPORT_PREDEFINED_ERR_MSG(
             "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-            std::vector<const char *>({"--out_nodes", out_nodes.c_str(), "is not all index or top_name"}));
+            std::vector<const char *>({"--out_nodes", out_nodes.c_str(), "Only one of index, top_name and output_name can be used."}));
         GELOGE(PARAM_INVALID, "[Parse][Param]This out_nodes str must be all index or tensor_name, "
                               "while the actual input is %s", out_nodes.c_str());
         return PARAM_INVALID;

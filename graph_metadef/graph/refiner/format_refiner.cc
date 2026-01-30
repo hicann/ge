@@ -144,7 +144,7 @@ static bool JudgeNodeIsAllNd(const OpDescPtr &one_op_desc, const ge::NodePtr &on
 
 static graphStatus AnchorsInferProcess(std::deque<ge::NodePtr> &nodes, const OutDataAnchorPtr &out_data_anchor,
                                        const Format to_be_set_format) {
-  for (const auto &peer_in_data_anchor : out_data_anchor->GetPeerInDataAnchors()) {
+  for (const auto &peer_in_data_anchor : out_data_anchor->GetPeerInDataAnchorsPtr()) {
     GE_IF_BOOL_EXEC(peer_in_data_anchor == nullptr, continue);
 
     const auto peer_in_data_node = peer_in_data_anchor->GetOwnerNode();
@@ -302,7 +302,7 @@ graphStatus FormatRefiner::AnchorProcess(const ge::NodePtr &anchor_node) {
 }
 graphStatus FormatRefiner::BackInferProcess(std::deque<ge::NodePtr> &nodes, const ge::NodePtr &node) {
   GELOGD("Enter back infer format for Node [%s]", node->GetName().c_str());
-  for (const auto &in_anchor : node->GetAllInDataAnchors()) {
+  for (const auto &in_anchor : node->GetAllInDataAnchorsPtr()) {
     const auto in_data_anchor_idx = in_anchor->GetIdx();
     GELOGD("Node [%s]:%d [B]", node->GetName().c_str(), in_data_anchor_idx);
     const auto input_desc = node->GetOpDesc()->MutableInputDesc(static_cast<uint32_t>(in_data_anchor_idx));

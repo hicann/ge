@@ -87,7 +87,7 @@ class FileSaver {
                                    const bool is_partition_align = false,
                                    const uint32_t align_bytes = 32U);
  private:
-  static Status SaveWithAlignFill(uint32_t size, uint32_t align_bytes, int32_t &fd);
+  static Status SaveWithAlignFill(uint32_t size, uint32_t align_bytes, const int32_t fd);
   static bool host_platform_param_initialized_;
 };
 }  // namespace ge

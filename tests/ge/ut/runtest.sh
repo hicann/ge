@@ -11,8 +11,8 @@
 
 set -e
 BASEPATH=$(cd "$(dirname $0)"; pwd)
-BUILD_PATH=$BASEPATH/../../../build/
-OUTPUT_PATH=$BASEPATH/../../../output/
+BUILD_PATH=$BASEPATH/../../build/
+OUTPUT_PATH=$BASEPATH/../../output/
 
 echo $BUILD_PATH
 

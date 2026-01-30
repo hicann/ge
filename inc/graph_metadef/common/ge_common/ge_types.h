@@ -18,8 +18,6 @@
 #include "common/ge_common/fmk_error_codes.h"
 #include "external/ge_common/ge_api_error_codes.h"
 #include "graph/types.h"
-#include "external/ge_common/ge_api_types.h"
-#include "exe_graph/runtime/tensor.h"
 
 namespace ge {
 enum RuntimeType { HOST = 0, DEVICE = 1 };
@@ -59,12 +57,17 @@ enum OpEngineType {
   ENGINE_AIVECTOR = 4  // not support
 };
 
-enum InputAippType { DATA_WITHOUT_AIPP = 0, DATA_WITH_STATIC_AIPP, DATA_WITH_DYNAMIC_AIPP, DYNAMIC_AIPP_NODE };
+enum InputAippType : int32_t {
+  DATA_WITHOUT_AIPP = 0,
+  DATA_WITH_STATIC_AIPP,
+  DATA_WITH_DYNAMIC_AIPP,
+  DYNAMIC_AIPP_NODE
+};
 
-enum OfflineModelFormat { OM_FORMAT_DEFAULT, OM_FORMAT_LITE, OM_FORMAT_NANO, OM_FORMAT_MOBILE };
+enum class OfflineModelFormat : int32_t { OM_FORMAT_DEFAULT, OM_FORMAT_LITE, OM_FORMAT_NANO, OM_FORMAT_MOBILE };
 
-const char_t *const GE_ENGINE_ATTR_MEM_TYPE_HBM = "HBM";
-const char_t *const GE_OPTION_EXEC_PLACEMENT = "ge.exec.placement";
+constexpr const char_t *GE_ENGINE_ATTR_MEM_TYPE_HBM = "HBM";
+constexpr const char_t *GE_OPTION_EXEC_PLACEMENT = "ge.exec.placement";
 
 // profiling data
 
@@ -84,6 +87,9 @@ const std::string kEngineNameHccl = "ops_kernel_info_hccl";
 const std::string kEngineNameRts = "DNN_VM_RTS_OP_STORE";
 const std::string kEngineNameHostCpu = "DNN_VM_HOST_CPU_OP_STORE";
 const std::string kEngineNameGeLocal = "DNN_VM_GE_LOCAL_OP_STORE";
+const std::string kEngineNameCustom = "DNN_VM_CUSTOM";
+const std::string kCustomOpKernelLibName = "DNN_VM_CUSTOM_OP_STORE";
+const std::string kCustomGraphOptimizer = "custom_graph_optimizer";
 const std::string kEngineNameAiCpu = "aicpu_ascend_kernel";
 const std::string kEngineNameAiCpuTf = "aicpu_tf_kernel";
 const std::string kEngineNameAiCore = "AIcoreEngine";
@@ -361,21 +367,9 @@ class GE_FUNC_VISIBILITY ModelListener {
   /// @param [in] resultCode Execution results
   ///
   virtual Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
-                               std::vector<ge::Tensor> &outputs) = 0;
-  ///
-  /// @brief Asynchronous callback interface
-  /// @param [in] model_id   Model ID of the callback
-  /// @param [in] data_index Index of the input_data
-  /// @param [in] resultCode Execution results
-  ///
-  virtual Status OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result_code,
                                std::vector<gert::Tensor> &outputs) = 0;
 
   virtual void SetCallback(const RunAsyncCallbackV2 &callback) {
-    (void)callback;
-  }
-
-  virtual void SetCallback(const RunAsyncCallback &callback) {
     (void)callback;
   }
 

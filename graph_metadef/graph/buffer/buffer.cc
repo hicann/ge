@@ -10,7 +10,7 @@
 
 #include "graph/buffer.h"
 #include "proto/ge_ir.pb.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/buffer/buffer_impl.h"
 #include "graph/debug/ge_util.h"
 #include "common/util/mem_utils.h"

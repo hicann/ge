@@ -327,9 +327,9 @@ class MemoryBlock {
 
     // need recompute max real size
     max_real_size_ = 0;
-    last_continuous_block_ |= node_type_index.GetLastContinuousNodeFlag();
-    first_continuous_block_ |= node_type_index.GetFirstContinuousNodeFlag();
-    continuous_block_ |= node_type_index.GetContinuousNodeFlag();
+    last_continuous_block_ = last_continuous_block_ || node_type_index.GetLastContinuousNodeFlag();
+    first_continuous_block_ = first_continuous_block_ || node_type_index.GetFirstContinuousNodeFlag();
+    continuous_block_ = continuous_block_ || node_type_index.GetContinuousNodeFlag();
     block_type_list_.WithAdded(node_type_index);
   }
 

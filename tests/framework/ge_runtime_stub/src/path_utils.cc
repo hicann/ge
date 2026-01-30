@@ -12,7 +12,7 @@
 #include <fstream>
 #include "ge_common/string_util.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "base/err_msg.h"
 
 #ifdef __GNUC__
@@ -26,7 +26,7 @@ namespace ge {
 std::string ge::PathUtils::Join(const std::vector<std::string> &names) {
   return StringUtils::Join(names.begin(), names.end(), "/");
 }
-void PathUtils::CopyFile(const std::string &src, const std::string &dst) {
+bool PathUtils::CopyFile(const std::string &src, const std::string &dst) {
   std::ifstream src_file(src, std::ios::binary);
   std::ofstream dst_file(dst, std::ios::binary);
   dst_file << src_file.rdbuf();
@@ -45,7 +45,7 @@ std::string RealPath(const char_t *path) {
 int32_t CheckAndMkdir(const char_t *tmp_dir_path, mmMode_t mode) {
   if (mmAccess2(tmp_dir_path, M_F_OK) != EN_OK) {
     const int32_t ret = mmMkdir(tmp_dir_path, mode);
-    if (ret != 0 && errno != EEXIST) {
+    if (ret != 0) {
       REPORT_INNER_ERR_MSG("E18888",
                            "Can not create directory %s. Make sure the directory "
                            "exists and writable. errmsg:%s",

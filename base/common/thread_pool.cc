@@ -17,7 +17,6 @@
 #include <utility>
 #include <vector>
 
-#include "register/register_types.h"
 #include "graph/ge_context.h"
 #include "mmpa/mmpa_api.h"
 #include "base/err_msg.h"
@@ -48,7 +47,7 @@ ThreadPool::ThreadPool(std::string thread_name_prefix, const uint32_t size, cons
   }
 
   for (uint32_t i = 0U; i < idle_thrd_num_; ++i) {
-    pool_.emplace_back(&ThreadFunc, this, i);
+    (void)pool_.emplace_back(&ThreadFunc, this, i);
   }
 }
 

@@ -55,9 +55,6 @@ namespace fileconstant {
 class DModelListener : public ModelListener {
  public:
   DModelListener(){};
-  uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<Tensor> &outputs) {
-    return 0;
-  }
   uint32_t OnComputeDone(uint32_t model_id, uint32_t data_index, uint32_t result, std::vector<gert::Tensor> &outputs) {
     return 0;
   }
@@ -147,6 +144,8 @@ TEST_F(StestFileConstantUtilTransfer, Preprocess_Fileconstant_Op_OK) {
   EXPECT_EQ(status, SUCCESS);
   ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
             model.runtime_param_.fileconstant_addr_mapping.end());
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(128)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
   free(reinterpret_cast<void *>(model.runtime_param_.mem_base));
   free(reinterpret_cast<void *>(model.weights_mem_base_));
 
@@ -154,6 +153,200 @@ TEST_F(StestFileConstantUtilTransfer, Preprocess_Fileconstant_Op_OK) {
   EXPECT_EQ(model.InitNodes(graph), SUCCESS);
   model.runtime_param_.mem_base = 0;
   (void)remove("tmp_weight_file.bin");
+}
+
+TEST_F(StestFileConstantUtilTransfer, Preprocess_Fileconstant_WeightCombined_OK) {
+  DavinciModel model(0, g_local_call_back);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.session_id_ = 2;
+  model.runtime_param_.mem_size = 51200;
+  model.weights_mem_base_ = reinterpret_cast<uintptr_t>(malloc(model.runtime_param_.mem_size));
+  model.file_constant_weight_dir_ = "./";
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+  std::vector<int64_t> shape = {2,2,2,2};
+
+  OpDescPtr op_desc = CreateOpDesc("FileConstant0", FILECONSTANT);
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_OFFSET, 0));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_LOCATION, "weight_combined_2132345.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_LENGTH, 768));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "shape", shape));
+  GeTensorDesc tensor_desc(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 768);
+  op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({0});
+  graph->AddNode(op_desc);
+
+  OpDescPtr op_desc1 = CreateOpDesc("FileConstant1", FILECONSTANT);
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc1, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_OFFSET, 1024));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc1, ATTR_NAME_LOCATION, "weight_combined_2132345.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_LENGTH, 1024));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc1, "shape", shape));
+  GeTensorDesc tensor_desc1(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc1, 1024);
+  op_desc1->AddOutputDesc(tensor_desc1);
+  op_desc1->SetOutputOffset({1});
+  graph->AddNode(op_desc1);
+
+  std::unique_ptr<float[]> float_buf(new float[2048 / sizeof(float)]);
+  std::string file_name = "weight_combined_2132345.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 2048);
+  out1.close();
+  ModelParam default_parm;
+  auto status = model.PreProcessFileConstants(graph, default_parm);
+  EXPECT_EQ(status, SUCCESS);
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(1)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  free(reinterpret_cast<void*>(model.weights_mem_base_));
+
+  VarManager::Instance(0U)->var_resource_ = MakeShared<VarResource>(0U);
+  EXPECT_EQ(model.InitNodes(graph), SUCCESS);
+  model.runtime_param_.mem_base = 0;
+  (void)remove("weight_combined_2132345.bin");
+}
+
+TEST_F(StestFileConstantUtilTransfer, Preprocess_Fileconstant_IndividualWeights_OK) {
+  DavinciModel model(0, g_local_call_back);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.session_id_ = 2;
+  model.runtime_param_.mem_size = 51200;
+  model.weights_mem_base_ = reinterpret_cast<uintptr_t>(malloc(model.runtime_param_.mem_size));
+  model.file_constant_weight_dir_ = "./";
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+  std::vector<int64_t> shape = {2,2,2,2};
+
+  OpDescPtr op_desc = CreateOpDesc("FileConstant0", FILECONSTANT);
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_OFFSET, 0));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_LOCATION, "weight_combined_1.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_LENGTH, 768));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "shape", shape));
+  GeTensorDesc tensor_desc(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 768);
+  op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({0});
+  graph->AddNode(op_desc);
+
+  OpDescPtr op_desc1 = CreateOpDesc("FileConstant1", FILECONSTANT);
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc1, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_OFFSET, 0));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc1, ATTR_NAME_LOCATION, "weight_combined_2.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_LENGTH, 1024));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc1, "shape", shape));
+  GeTensorDesc tensor_desc1(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc1, 1024);
+  op_desc1->AddOutputDesc(tensor_desc1);
+  op_desc1->SetOutputOffset({1});
+  graph->AddNode(op_desc1);
+
+  std::unique_ptr<float[]> float_buf(new float[1024 / sizeof(float)]);
+  std::string file_name = "weight_combined_1.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 1024);
+  out1.close();
+  file_name = "weight_combined_2.bin";
+  std::ofstream out2(file_name, std::ios::binary);
+  EXPECT_TRUE(out2.is_open());
+  out2.write((char *)float_buf.get(), 1024);
+  out2.close();
+  ModelParam default_parm;
+  auto status = model.PreProcessFileConstants(graph, default_parm);
+  EXPECT_EQ(status, SUCCESS);
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(1)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  free(reinterpret_cast<void*>(model.weights_mem_base_));
+
+  VarManager::Instance(0U)->var_resource_ = MakeShared<VarResource>(0U);
+  EXPECT_EQ(model.InitNodes(graph), SUCCESS);
+  model.runtime_param_.mem_base = 0;
+  (void)remove("weight_combined_1.bin");
+  (void)remove("weight_combined_2.bin");
+}
+
+TEST_F(StestFileConstantUtilTransfer, Preprocess_Fileconstant_IndividualWeights2_OK) {
+  DavinciModel model(0, g_local_call_back);
+  model.ge_model_ = MakeShared<GeModel>();
+  model.session_id_ = 2;
+  model.runtime_param_.mem_size = 51200;
+  model.weights_mem_base_ = reinterpret_cast<uintptr_t>(malloc(model.runtime_param_.mem_size));
+  model.file_constant_weight_dir_ = "./";
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+  std::vector<int64_t> shape = {2,2,2,2};
+
+  OpDescPtr op_desc = CreateOpDesc("FileConstant0", FILECONSTANT);
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_OFFSET, 0));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc, ATTR_NAME_LOCATION, "weight_combined_1.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc, ATTR_NAME_LENGTH, 768));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc, "shape", shape));
+  GeTensorDesc tensor_desc(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc, 768);
+  op_desc->AddOutputDesc(tensor_desc);
+  op_desc->SetOutputOffset({0});
+  graph->AddNode(op_desc);
+
+  OpDescPtr op_desc1 = CreateOpDesc("FileConstant1", FILECONSTANT);
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc1, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_OFFSET, 0));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc1, ATTR_NAME_LOCATION, "weight_combined_2.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc1, ATTR_NAME_LENGTH, 1024));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc1, "shape", shape));
+  GeTensorDesc tensor_desc1(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc1, 1024);
+  op_desc1->AddOutputDesc(tensor_desc1);
+  op_desc1->SetOutputOffset({128});
+  graph->AddNode(op_desc1);
+
+  OpDescPtr op_desc2 = CreateOpDesc("FileConstant1", FILECONSTANT);
+  EXPECT_TRUE(AttrUtils::SetDataType(op_desc2, "dtype", DT_INT32));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc2, ATTR_NAME_OFFSET, 1024));
+  EXPECT_TRUE(AttrUtils::SetStr(op_desc2, ATTR_NAME_LOCATION, "weight_combined_1.bin"));
+  EXPECT_TRUE(AttrUtils::SetInt(op_desc2, ATTR_NAME_LENGTH, 1024));
+  EXPECT_TRUE(AttrUtils::SetListInt(op_desc2, "shape", shape));
+  GeTensorDesc tensor_desc2(GeShape(shape), FORMAT_ND, DT_FLOAT);
+  TensorUtils::SetSize(tensor_desc2, 1024);
+  op_desc2->AddOutputDesc(tensor_desc2);
+  op_desc2->SetOutputOffset({256});
+  graph->AddNode(op_desc2);
+
+  std::unique_ptr<float[]> float_buf(new float[2048 / sizeof(float)]);
+  std::string file_name = "weight_combined_1.bin";
+  std::ofstream out1(file_name, std::ios::binary);
+  EXPECT_TRUE(out1.is_open());
+  out1.write((char *)float_buf.get(), 1024);
+  out1.close();
+  file_name = "weight_combined_2.bin";
+  std::ofstream out2(file_name, std::ios::binary);
+  EXPECT_TRUE(out2.is_open());
+  out2.write((char *)float_buf.get(), 1024);
+  out2.close();
+  ModelParam default_parm;
+  auto status = model.PreProcessFileConstants(graph, default_parm);
+  EXPECT_EQ(status, SUCCESS);
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(0)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(128)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  ASSERT_NE(model.runtime_param_.fileconstant_addr_mapping.find(static_cast<int64_t>(256)),
+            model.runtime_param_.fileconstant_addr_mapping.end());
+  free(reinterpret_cast<void*>(model.weights_mem_base_));
+
+  VarManager::Instance(0U)->var_resource_ = MakeShared<VarResource>(0U);
+  EXPECT_EQ(model.InitNodes(graph), SUCCESS);
+  model.runtime_param_.mem_base = 0;
+  (void)remove("weight_combined_1.bin");
+  (void)remove("weight_combined_2.bin");
 }
 
 TEST_F(StestFileConstantUtilTransfer, Reuse_External_Weight_File_OK) {

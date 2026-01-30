@@ -211,7 +211,7 @@ aclError AclOpResourceManager::LoadModelFromMem(const void *const model, const s
 }
 
 aclError AclOpResourceManager::LoadModelFromSharedMem(const std::shared_ptr<void> &model, const size_t modelSize,
-                                                    const AclOp *const aclOp, const bool isStatic)
+                                                    AclOp *aclOp, const bool isStatic)
 {
     ACL_LOG_INFO("Load inner op model begin. modelSize = %zu", modelSize);
     ACL_REQUIRES_NOT_NULL(model);
@@ -219,7 +219,7 @@ aclError AclOpResourceManager::LoadModelFromSharedMem(const std::shared_ptr<void
     OpModel opModel;
     opModel.data = model;
     if (aclOp != nullptr) {
-        const_cast<AclOp *>(aclOp)->opModel.profilingIndex =
+        aclOp->opModel.profilingIndex =
             static_cast<int64_t>(gert::GlobalProfilingWrapper::GetInstance()->RegisterString(aclOp->opType));
         opModel.profilingIndex = aclOp->opModel.profilingIndex;
     }
@@ -317,7 +317,7 @@ aclError AclOpResourceManager::SetTensorConst(aclTensorDesc *const desc, const a
     }
 
     desc->isConst = true;
-    desc->constDataBuf.reset(reinterpret_cast<char_t *>(hostMem), [](const char_t *const) {});
+    desc->constDataBuf.reset(static_cast<char_t *>(hostMem), [](const char_t *const) {});
     desc->constDataLen = length;
     return ACL_SUCCESS;
 }
@@ -549,7 +549,7 @@ aclError AclOpResourceManager::ReadModelDefs(const std::string &configPath,
     return ACL_SUCCESS;
 }
 
-aclError AclOpResourceManager::BuildOpModel(const AclOp &aclOp)
+aclError AclOpResourceManager::BuildOpModel(AclOp &aclOp)
 {
     RT2_PROFILING_SCOPE(gert::profiling::kUnknownName, gert::profiling::kAclBuildOpModel);
     std::shared_ptr<void> modelData;

@@ -25,9 +25,8 @@ constexpr int32_t kShapeIndex = 0;
 constexpr int32_t kAddrIndex = 1;
 }
 bool IsVarPlacedOnHost(const ge::NodePtr &node) {
-  std::string placement;
-  return ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), ge::ATTR_VARIABLE_PLACEMENT, placement) &&
-	  (placement == kPlacementOnHost);
+  const std::string *placement = ge::AttrUtils::GetStr(node->GetOpDescBarePtr(), ge::ATTR_VARIABLE_PLACEMENT);
+  return (placement != nullptr) && (*placement == kPlacementOnHost);
 }
 
 LowerResult LoweringVariable(const ge::NodePtr &node, const LowerInput &lower_input) {

@@ -81,6 +81,21 @@ std::unique_ptr<ge::Allocator> CreateAllocators_succ(const gert::TensorPlacement
     AllocatorStub *ptr = new (std::nothrow) AllocatorStub();
     return std::unique_ptr<ge::Allocator>(ptr);
 }
+
+ge::Status LoadDynamicSingleOpV2_Invok(
+    const std::string& model_name,
+    const ge::ModelData& model_data,
+    void* stream,
+    ge::DynamicSingleOp** single_op,
+    uint64_t model_id)
+{
+    (void) model_name;
+    (void) model_data;
+    (void) stream;
+    (void) model_id;
+    *single_op = (DynamicSingleOp *)0x12345678;
+    return SUCCESS;
+}
 } // namespace
 
 class OpExecutorTest : public testing::Test {
@@ -424,6 +439,9 @@ TEST_F(OpExecutorTest, TestCaseaclopExecWithHandle)
     aclDataBuffer **const outputs_tmp = const_cast<aclDataBuffer **>(const_cast<aclDataBuffer *const *>(outputs_));
 
     ASSERT_EQ(aclopExecuteV2("BatchNorm_Test1", 1, input_desc_tmp, inputs_tmp, 1, output_desc_tmp, outputs_tmp, nullptr, nullptr), ACL_SUCCESS);
+    
+    ASSERT_EQ(aclopExecWithHandle(handle, 0, inputs_, 1, outputs_, nullptr), ACL_ERROR_OP_INPUT_NOT_MATCH);
+    
     aclopDestroyHandle(handle);
     aclopUnregisterCompileFunc("BatchNorm_Test1");
 }
@@ -615,12 +633,59 @@ TEST_F(OpExecutorTest, TestStaticExecuteAsyncWithOpHandle)
     const aclrtStream stream = (aclrtStream) 0x1234;
     EXPECT_NE(aclopExecWithHandle(handle, 2, inputs_, 1, outputs_, stream), ACL_SUCCESS);
     EXPECT_EQ(aclopExecWithHandle(handle, 2, inputs_, 1, outputs_, stream), ACL_SUCCESS);
-    /// EXPECT_EQ(aclrtDestroyStream(stream), ACL_SUCCESS);
+    EXPECT_EQ(aclopExecWithHandle(handle, 2, inputs_, 0, outputs_, stream), ACL_ERROR_OP_OUTPUT_NOT_MATCH);
     aclopDestroyAttr(attr);
     aclopDestroyHandle(handle);
 }
 
-TEST_F(OpExecutorTest, TestDynamicExecuteAsyncWithOpHandle)
+TEST_F(OpExecutorTest, TestDynamicExecuteAsyncWithOpHandle1)
+{
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadDynamicSingleOpV2(_, _, _, _, _))
+        .WillRepeatedly(Invoke(LoadDynamicSingleOpV2_Invok));
+
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), ExecuteAsync(_,_,_,_,_))
+        .WillRepeatedly(Return(SUCCESS));
+
+    aclopHandle *handle = nullptr;
+
+    OpModelDef modelDef;
+    modelDef.opType = "dynamic_op";
+    modelDef.modelPath = "BBB";
+
+    int64_t shape[] = {-1, -1};
+    aclTensorDesc desc(ACL_FLOAT, 2, shape, ACL_FORMAT_ND);
+    desc.shapeRange.emplace_back(std::pair<int64_t, int64_t>(1, -1));
+    desc.shapeRange.emplace_back(std::pair<int64_t, int64_t>(1, -1));
+
+    modelDef.inputDescArr.emplace_back(desc);
+    modelDef.inputDescArr.emplace_back(desc);
+    modelDef.outputDescArr.emplace_back(desc);
+
+    OpModel opModel;
+
+    char_t *data = new char_t[32];
+    const std::shared_ptr<void> p_data(data, [](const char_t *const p) { delete[]p; });
+    opModel.data = p_data;
+    opModel.size = 32U;
+    opModel.name = "path";
+
+    auto &instance = AclOpResourceManager::GetInstance();
+    instance.modelCache_.Add(modelDef.opModelId, opModel);
+    bool isDeduplicate = false;
+    EXPECT_EQ(instance.RegisterModel(std::move(modelDef), AclOpResourceManager::GetInstance().opModels_, true, isDeduplicate),
+              ACL_SUCCESS);
+
+    aclopAttr *attr = aclopCreateAttr();
+    aclopCreateHandle("dynamic_op", 2, input_desc_, 1, output_desc_, attr, &handle);
+    const aclrtStream stream = (aclrtStream) 0x1234;
+    EXPECT_EQ(aclopExecWithHandle(handle, 2, inputs_, 1, outputs_, stream), ACL_SUCCESS);
+
+    instance.modelCache_.Delete(modelDef, false);
+    aclopDestroyAttr(attr);
+    aclopDestroyHandle(handle);
+}
+
+TEST_F(OpExecutorTest, TestDynamicExecuteAsyncWithOpHandle2)
 {
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadDynamicSingleOpV2(_,_,_,_,_))
         .WillOnce(Return(ACL_ERROR_GE_LOAD_MODEL))
@@ -1041,4 +1106,66 @@ TEST_F(OpExecutorTest, DoRTV2ExecuteAsyncTestFailed)
     aclDestroyDataBuffer(inputs[0]);
     aclDestroyDataBuffer(inputs[1]);
     aclDestroyDataBuffer(outputs[0]);
+}
+
+namespace acl {
+    extern aclError AclOpExecutorInitCallbackFunc(const char *configBuffer, size_t bufferSize, void *userData);
+    extern aclError AclOpResourceInitCallbackFunc(const char *configBuffer, size_t bufferSize, void *userData);
+    extern aclError AclOpResourceFinalizeCallbackFunc(void *userData);
+}
+
+TEST_F(OpExecutorTest, AclInitCallbackFunc)
+{
+    EXPECT_EQ(AclOpExecutorInitCallbackFunc(nullptr, 0, nullptr), ACL_SUCCESS);
+    const char *configBuffer = "{\"op_executor\":{\"max_op_queue_num\":1024}}";
+    EXPECT_EQ(AclOpExecutorInitCallbackFunc(configBuffer, strlen(configBuffer), nullptr), ACL_SUCCESS);
+    const char *configBufferInvalid = "{\"op_executor\":{\"max_op_queue_num\":\"invalid\"}";
+    EXPECT_EQ(AclOpExecutorInitCallbackFunc(configBufferInvalid, strlen(configBufferInvalid), nullptr), ACL_ERROR_INVALID_PARAM);
+
+    EXPECT_EQ(AclOpResourceInitCallbackFunc(nullptr, 0, nullptr), ACL_SUCCESS);
+    const char *configBufferRes = "{\"op_resource\":{\"max_op_queue_num\":2048}}";
+    EXPECT_EQ(AclOpResourceInitCallbackFunc(configBufferRes, strlen(configBufferRes), nullptr), ACL_SUCCESS);
+    const char *configBufferResInvalid = "{\"op_resource\":{\"max_op_queue_num\":\"invalid\"}";
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_ERROR_INVALID_PARAM));
+    EXPECT_EQ(AclOpResourceInitCallbackFunc(configBufferResInvalid, strlen(configBufferResInvalid), nullptr), ACL_ERROR_INVALID_PARAM);
+
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_SUCCESS));
+    EXPECT_EQ(AclOpResourceFinalizeCallbackFunc(nullptr), ACL_SUCCESS);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_ERROR_INVALID_PARAM));
+    EXPECT_EQ(AclOpResourceFinalizeCallbackFunc(nullptr), ACL_ERROR_INVALID_PARAM);
+
+    AclOp aclOp;
+    aclTensorDesc *inputDesc[1];
+    aclTensorDesc *outputDesc[1];
+    int64_t shape[]{16, 16};
+    inputDesc[0] = aclCreateTensorDesc(ACL_FLOAT16, 2, shape, ACL_FORMAT_ND);
+    outputDesc[0] = aclCreateTensorDesc(ACL_FLOAT16, 2, shape, ACL_FORMAT_ND);
+    aclOp.inputDesc = inputDesc;
+    aclOp.outputDesc = outputDesc;
+    aclOp.numInputs = 1;
+    aclOp.numOutputs = 1;
+    aclOp.BackupDimsAndShapeRanges();
+    aclOp.RecoverDimsAndShapeRanges();
+    aclDestroyTensorDesc(inputDesc[0]);
+    aclDestroyTensorDesc(outputDesc[0]);
+
+    acl::AclOpResourceManager::GetInstance().HandleReleaseSourceByDevice(0, ACL_RT_DEVICE_STATE_RESET_PRE, nullptr);
+    acl::AclOpResourceManager::GetInstance().HandleReleaseSourceByStream(0, ACL_RT_STREAM_STATE_DESTROY_PRE, nullptr);
+}
+
+TEST_F(OpExecutorTest, TestAclopExecute)
+{
+    aclTensorDesc *inputDesc[1];
+    aclTensorDesc *outputDesc[1];
+    int64_t shape[]{16, 16};
+    inputDesc[0] = aclCreateTensorDesc(ACL_FLOAT16, 2, shape, ACL_FORMAT_ND);
+    outputDesc[0] = aclCreateTensorDesc(ACL_FLOAT16, 2, shape, ACL_FORMAT_ND);
+    aclDataBuffer *inputs[1];
+    aclDataBuffer *outputs[1];
+    EXPECT_EQ(aclopExecute("BatchNorm_Test1", 1, inputDesc, inputs, 1, outputDesc, outputs, nullptr, nullptr), ACL_ERROR_OP_NOT_FOUND);
+    aclDestroyTensorDesc(inputDesc[0]);
+    aclDestroyTensorDesc(outputDesc[0]);
 }

@@ -112,7 +112,7 @@ class QuantUtilImpl {
                                    std::vector<ge::NodePtr> &fusion_nodes,
                                    WeightMode cube_type = WeightMode::RESERVED);
   static Status InsertFixpipeDequantScaleConvert(ge::InDataAnchorPtr deq_scale, std::vector<ge::NodePtr> &fusion_nodes);
-  static Status InsertFixpipeDequantScaleConvert(ge::InDataAnchorPtr &deq_scale, ge::InDataAnchorPtr &quant_offset,
+  static Status InsertFixpipeDequantScaleConvert(const ge::InDataAnchorPtr &deq_scale, ge::InDataAnchorPtr &quant_offset,
                                                  std::vector<ge::NodePtr> &fusion_nodes);
   static Status InsertQuantScaleConvert(ge::InDataAnchorPtr &quant_scale, ge::InDataAnchorPtr &quant_offset,
                                         std::vector<ge::NodePtr> &fusion_nodes);
@@ -144,7 +144,7 @@ class QuantUtilImpl {
   static Status SetQuantScaleAndOffset(const ge::NodePtr &quant_node, const BiasOptimizeEdges &param,
                                        ge::OpDescPtr &host_op_desc);
   static Status LinkBiasOptimizeHostOp(const ge::NodePtr &quant_node, const ge::NodePtr &weight_const_node,
-                                       const BiasOptimizeEdges &param, ge::NodePtr &host_op_node);
+                                       const BiasOptimizeEdges &param, const ge::NodePtr &host_op_node);
   static Status CreateBiasOptimizeHostCpuOp(std::shared_ptr<ge::ComputeGraph> &graph, const ge::NodePtr &quant_node,
                                             const BiasOptimizeEdges &param, const ge::NodePtr &weight_const_node,
                                             WeightMode cube_type, std::vector<ge::NodePtr> &fusion_nodes);
@@ -154,7 +154,7 @@ class QuantUtilImpl {
 
   static bool IsSupportFixpipe();
 
-  static ge::GeTensorPtr GetTensorByAnchor(ge::InDataAnchorPtr &anchor);
+  static ge::GeTensorPtr GetTensorByAnchor(const ge::InDataAnchorPtr &anchor);
 
   static const uint8_t *GetDataByAnchor(ge::InDataAnchorPtr &anchor);
 
@@ -166,7 +166,7 @@ class QuantUtilImpl {
                                   const ge::DataType &data_type, ge::GeTensorDescPtr &scale_tensor_desc,
                                   ge::GeTensorPtr &quant_op_tensor);
 
-  static Status CreateQuantOp(ge::NodePtr &cube_node, ge::InDataAnchorPtr &quant_scale,
+  static Status CreateQuantOp(const ge::NodePtr &cube_node, const ge::InDataAnchorPtr &quant_scale,
                               ge::GeTensorDescPtr scale_tensor_desc, ge::GeTensorPtr quant_op_tensor,
                               std::vector<ge::NodePtr> &fusion_nodes);
 

@@ -45,7 +45,7 @@ constexpr int32_t kIndentationLen = 4;
 constexpr const char *kFinalWeightDirName = "/weight/";
 constexpr const char *kLockFileName = ".lock";
 constexpr const char *kSuspendGraphOriginalName = "_suspend_graph_original_name";
-const std::unordered_set<std::string> kDataUnChangedNodeType = {RESHAPE, REFORMAT, SQUEEZEV2, UNSQUEEZEV2};
+std::unordered_set<std::string> kDataUnChangedNodeType;
 constexpr size_t kMaxUpdateCacheThreadPoolSize = 8U;
 
 Status TryLockFile(const std::string &lock_file, int32_t &fd) {
@@ -89,7 +89,7 @@ Status ModelCache::Init(const ComputeGraphPtr &root_graph, GraphRebuildStateCtrl
   GELOGI("Cache is enable, cache_dir=%s, graph_key=%s.", cache_dir_.c_str(), cache_index_.graph_key.c_str());
   if (!CheckFileExist(cache_dir_)) {
     REPORT_PREDEFINED_ERR_MSG("E13026", std::vector<const char_t *>({"pathname", "reason"}),
-                       std::vector<const char_t *>({cache_dir_.c_str(), "Cache directory does not exist."}));
+                       std::vector<const char_t *>({cache_dir_.c_str(), "The cache directory does not exist."}));
     GELOGE(PARAM_INVALID, "Init cache failed, as cache dir[%s] does not exist.", cache_dir_.c_str());
     return PARAM_INVALID;
   }
@@ -227,6 +227,10 @@ Status ModelCache::RenewVarDesc(uint64_t session_id, const VarDescCache &update_
 Status ModelCache::RenewVarDesc(uint64_t session_id,
                                 const std::string &var_name,
                                 const VarTransRoad &fusion_road) const {
+  if (kDataUnChangedNodeType.empty()) {
+    kDataUnChangedNodeType = {RESHAPE, REFORMAT, SQUEEZEV2, UNSQUEEZEV2};
+  }
+
   // renew var desc if the trans_road is all reshape or reformat
   for (const auto &road : fusion_road) {
     if (kDataUnChangedNodeType.count(road.node_type) == 0) {
@@ -683,10 +687,10 @@ bool ModelCache::CheckFileExist(const std::string &file_path) {
   return mmAccess(file_path.c_str()) == EN_OK;
 }
 
-Status ModelCache::GetRealFileName(std::string &file_name) const {
-  file_name = file_name.substr(file_name.rfind("/") + 1UL, file_name.length());
-  GE_ASSERT_TRUE(!file_name.empty());
-  GELOGD("Get real file name[%s].", file_name.c_str());
+Status ModelCache::GetRealFileName(std::string &cache_file_name) const {
+  cache_file_name = cache_file_name.substr(cache_file_name.rfind("/") + 1UL, cache_file_name.length());
+  GE_ASSERT_TRUE(!cache_file_name.empty());
+  GELOGD("Get real file name[%s].", cache_file_name.c_str());
   return SUCCESS;
 }
 

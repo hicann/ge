@@ -30,7 +30,7 @@ const std::set<DataType> kMulSupportedType = {DT_INT8,   DT_INT16,     DT_INT32,
                                               DT_UINT16, DT_UINT32,    DT_UINT64,    DT_FLOAT16,   DT_FLOAT,
                                               DT_DOUBLE, DT_COMPLEX32, DT_COMPLEX64, DT_COMPLEX128};
 template <typename T>
-Status OverflowCheckMul(T const &x, T const &y, DataType &type) {
+Status OverflowCheckMul(T const &x, T const &y, DataType const &type) {
   switch (type) {
     case DT_INT8:
       FMK_INT8_MULCHECK(x, y)
@@ -76,7 +76,7 @@ Status OverflowCheckMul(T const &x, T const &y, DataType &type) {
 }
 
 template <typename T>
-Status OverflowCheckAdd(T const &x, T const &y, DataType &type) {
+Status OverflowCheckAdd(T const &x, T const &y, DataType const &type) {
   switch (type) {
     case DT_COMPLEX32:
       FMK_FP16_ADDCHECK(x, y)
@@ -94,7 +94,7 @@ Status OverflowCheckAdd(T const &x, T const &y, DataType &type) {
 }
 
 template <typename T>
-Status OverflowCheckSub(T const &x, T const &y, DataType &type) {
+Status OverflowCheckSub(T const &x, T const &y, DataType const &type) {
   switch (type) {
     case DT_COMPLEX32:
       FMK_FP16_SUBCHECK(x, y)

@@ -28,17 +28,17 @@ static Status TryLoadCompiledGraphFromCache(const ComputeGraphPtr &root_graph, C
 }
 }
 
-void to_json(nlohmann::json &json_obj, const GuardedExecutionPointInfo &info) {
+static void to_json(nlohmann::json &json_obj, const GuardedExecutionPointInfo &info) {
   json_obj = Json();
   json_obj[kGuardedExecutionPointInfoKeyName] = info.gep_graph_key;
 }
 
-void to_json(nlohmann::json &json_obj, const GuardedExecutionPointInfoList &list) {
+static void to_json(nlohmann::json &json_obj, const GuardedExecutionPointInfoList &list) {
   json_obj = Json();
   json_obj[kGuardedExecutionPointListKeyName] = list.gep_list;
 }
 
-Status SaveGepListJsonFile(const std::string &gep_list_file, const GuardedExecutionPointInfoList &gep_info_list) {
+static Status SaveGepListJsonFile(const std::string &gep_list_file, const GuardedExecutionPointInfoList &gep_info_list) {
   nlohmann::json json_obj;
   try {
     to_json(json_obj, gep_info_list); // transfer gep_info_list to JSON object
@@ -51,7 +51,7 @@ Status SaveGepListJsonFile(const std::string &gep_list_file, const GuardedExecut
   return SUCCESS;
 }
 
-std::string GetCurTimeInNs() {
+static std::string GetCurTimeInNs() {
   const auto cur_time = std::chrono::system_clock::now();
   const auto cur_time_ns = std::chrono::time_point_cast<std::chrono::nanoseconds>(cur_time);
   const auto value_ns = cur_time_ns.time_since_epoch().count();

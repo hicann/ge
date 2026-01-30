@@ -24,8 +24,7 @@
 #include "graph/serialization/tensor_desc_serializer.h"
 #include "graph/serialization/tensor_serializer.h"
 
-#include "common/ge_common/debug/ge_log.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 REG_GEIR_SERIALIZER(attr_bool, BoolSerializer, GetTypeId<bool>(), proto::AttrDef::kB);

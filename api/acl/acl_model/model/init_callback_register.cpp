@@ -13,6 +13,7 @@
 #include "acl_resource_manager.h"
 #include "error_codes_inner.h"
 #include "json_parser.h"
+#include "log_inner.h"
 
 namespace {
 void HandleReleaseSourceByDevice(int32_t deviceId, aclrtDeviceState state, void *args)

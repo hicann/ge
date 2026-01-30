@@ -169,7 +169,7 @@ ge::graphStatus ConstructCompileKernelContextInputs(const ge::Operator &op, cons
     if (status != ge::GRAPH_SUCCESS) {
       return status;
     }
-    inputs.emplace_back(std::move(tensor_holder));
+    (void)inputs.emplace_back(std::move(tensor_holder));
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -179,7 +179,7 @@ ge::graphStatus ConstructInferShapeContextInputs(const ge::Operator &op, const g
                                                  std::vector<std::unique_ptr<ge::Tensor>> &ge_tensors_holder) {
   GE_ASSERT_GRAPH_SUCCESS(ConstructCompileKernelContextInputs(op, op_desc, inputs, ge_tensors_holder));
   // set infer shape_func to NULL
-  inputs.emplace_back(nullptr);
+  (void)inputs.emplace_back(nullptr);
   return ge::GRAPH_SUCCESS;
 }
 
@@ -226,10 +226,10 @@ ge::graphStatus ConstructInferShapeRangeContextInputs(
     }
     new (tensor_range_holder.get())
         gert::TensorRange(&input_tensor_ranges_holder[i].first, &input_tensor_ranges_holder[i].second);
-    inputs.emplace_back(std::move(tensor_range_holder));
+    (void)inputs.emplace_back(std::move(tensor_range_holder));
   }
   // set infer shape_func to NULL
-  inputs.emplace_back(nullptr);
+  (void)inputs.emplace_back(nullptr);
   return ge::GRAPH_SUCCESS;
 }
 
@@ -266,12 +266,12 @@ ge::graphStatus ConstructInferShapeContextInputs(const ge::Operator &op, const g
     if (status != ge::GRAPH_SUCCESS) {
       return status;
     }
-    min_inputs.emplace_back(std::move(min_tensor_holder));
-    max_inputs.emplace_back(std::move(max_tensor_holder));
+    (void)min_inputs.emplace_back(std::move(min_tensor_holder));
+    (void)max_inputs.emplace_back(std::move(max_tensor_holder));
   }
   // set infer shape_func to NULL
-  min_inputs.emplace_back(nullptr);
-  max_inputs.emplace_back(nullptr);
+  (void)min_inputs.emplace_back(nullptr);
+  (void)max_inputs.emplace_back(nullptr);
   return ge::GRAPH_SUCCESS;
 }
 
@@ -281,7 +281,7 @@ ge::graphStatus ConstructCompileKernelContextOutputs(const ge::OpDescPtr &op_des
   while (size-- > 0) {
     auto tensor_holder = ge::ComGraphMakeUnique<uint8_t[]>(sizeof(gert::Tensor));
     GE_ASSERT_NOTNULL(tensor_holder, "Create context holder outputs failed, op[%s]", op_desc->GetName().c_str());
-    outputs.emplace_back(std::move(tensor_holder));
+    (void)outputs.emplace_back(std::move(tensor_holder));
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -295,7 +295,7 @@ ge::graphStatus ConstructInferShapeRangeContextOutputs(
     reinterpret_cast<Range<Shape> *>(tensor_holder.get())->SetMin(&(output_range_holder[i].first.MutableOriginShape()));
     reinterpret_cast<Range<Shape> *>(tensor_holder.get())
         ->SetMax(&(output_range_holder[i].second.MutableOriginShape()));
-    outputs.emplace_back(std::move(tensor_holder));
+    (void)outputs.emplace_back(std::move(tensor_holder));
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -321,7 +321,7 @@ ge::graphStatus AddRange(std::vector<std::pair<int64_t, int64_t>> &shape_range,
     if (max_shape->GetDim(i) != -1) {
       GE_CHECK_LE(min_shape->GetDim(i), max_shape->GetDim(i));
     }
-    shape_range.emplace_back(std::make_pair(min_shape->GetDim(i), max_shape->GetDim(i)));
+    (void)shape_range.emplace_back(std::make_pair(min_shape->GetDim(i), max_shape->GetDim(i)));
   }
   return ge::GRAPH_SUCCESS;
 }
@@ -359,7 +359,7 @@ ge::graphStatus UpdateOpDescOutShapeRange(const ge::OpDescPtr &op_desc,
     GE_ASSERT_NOTNULL(out_range->GetMax(), "out range max is nullptr.");
     GE_ASSERT_NOTNULL(out_range->GetMin(), "out range min is nullptr.");
     for (size_t j = 0UL; j < out_range->GetMax()->GetDimNum(); ++j) {
-      shape_range.emplace_back(std::make_pair(out_range->GetMin()->GetDim(j), out_range->GetMax()->GetDim(j)));
+      (void)shape_range.emplace_back(std::make_pair(out_range->GetMin()->GetDim(j), out_range->GetMax()->GetDim(j)));
     }
     (void)output_tensor->SetShapeRange(shape_range);
   }
@@ -374,14 +374,14 @@ void ConstructDataTypeContextInputs(const ge::OpDescPtr &op_desc, std::vector<vo
              op_desc->GetTypePtr(), i);
       continue;
     }
-    inputs.emplace_back(reinterpret_cast<void *>(compile_tensor->GetDataType()));
+    (void)inputs.emplace_back(reinterpret_cast<void *>(compile_tensor->GetDataType()));
   }
 }
 
 void ConstructDataTypeContextOutputs(const ge::OpDescPtr &op_desc, std::vector<void *> &outputs) {
   for (size_t i = 0UL; i < op_desc->GetAllOutputsDescSize(); i++) {
     const auto &compile_tensor = op_desc->GetOutputDesc(static_cast<uint32_t>(i));
-    outputs.emplace_back(reinterpret_cast<void *>(compile_tensor.GetDataType()));
+    (void)outputs.emplace_back(reinterpret_cast<void *>(compile_tensor.GetDataType()));
   }
 }
 
@@ -390,7 +390,7 @@ std::vector<void *> GetInputs(const std::vector<std::unique_ptr<uint8_t[]>> &inp
   std::vector<void *> inputs;
   inputs.reserve(inputs_holders.size());
   for (const auto &input_holder : inputs_holders) {
-    inputs.emplace_back(input_holder.get());
+    (void)inputs.emplace_back(input_holder.get());
   }
   return inputs;
 }
@@ -399,10 +399,10 @@ std::vector<void *> GetInputs(const ge::Operator &op, const std::vector<std::uni
   std::vector<void *> inputs;
   inputs.reserve(inputs_holders.size() + 1UL);
   for (const auto &input_holder : inputs_holders) {
-    inputs.emplace_back(input_holder.get());
+    (void)inputs.emplace_back(input_holder.get());
   }
   // inputs layout is input tensors + infer func + inference context ptr
-  inputs.emplace_back(op.GetInferenceContext().get());
+  (void)inputs.emplace_back(op.GetInferenceContext().get());
   return inputs;
 }
 
@@ -410,7 +410,7 @@ std::vector<void *> GetOutputs(const std::vector<std::unique_ptr<uint8_t[]>> &ou
   std::vector<void *> outputs;
   outputs.reserve(outputs_holders.size());
   for (const auto &output_holder : outputs_holders) {
-    outputs.emplace_back(output_holder.get());
+    (void)outputs.emplace_back(output_holder.get());
   }
   return outputs;
 }
@@ -530,7 +530,7 @@ ge::graphStatus UpdateOpDescOutFormat(const ge::OpDescPtr &op_desc, gert::InferF
 ge::graphStatus InferShapeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpImplFunctionsV2 *functions,
                                                  const ge::OpDescPtr &op_desc,
                                                  gert::InferShapeContext *infer_shape_ctx) {
-  if (functions && functions->infer_shape) {
+  if (functions != nullptr && functions->infer_shape != nullptr) {
     if (functions->IsOutputShapeDependOnCompute()) {
       GELOGD("OpDesc %s(%s) is third class operator", op_desc->GetNamePtr(), op_desc->GetTypePtr());
       (void) ge::AttrUtils::SetInt(op_desc, ge::ATTR_NAME_UNKNOWN_SHAPE_TYPE,
@@ -572,7 +572,7 @@ ge::graphStatus InferShapeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpI
 ge::graphStatus InferDtypeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpImplFunctionsV2 *functions,
                                                  const ge::OpDescPtr &op_desc,
                                                  gert::InferDataTypeContext *infer_dtype_ctx) {
-  if (functions && functions->infer_datatype) {
+  if (functions != nullptr && functions->infer_datatype != nullptr) {
     GELOGD("Infer dtype for %s[%s] by registered func", op_desc->GetNamePtr(), op_desc->GetTypePtr());
     return functions->infer_datatype(infer_dtype_ctx);
   }
@@ -624,14 +624,15 @@ ge::graphStatus InferShapeRangeOnCompile(const ge::Operator &op, const ge::OpDes
   if (functions->infer_shape_range != nullptr) {
     GELOGD("Op[%s], type[%s] use custom derivation strategy.", op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return InferShapeRangeCustom(op, op_desc, functions->infer_shape_range);
-  } else if (functions->infer_shape != nullptr) {
+  }
+  if (functions->infer_shape != nullptr) {
     GELOGD("Can not get infer shape range func op[%s], type[%s], will use an automatic derivation strategy.",
            op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return InferShapeRangeAutomaticly(op, op_desc, functions->infer_shape);
-  } else {
-    GELOGE(ge::PARAM_INVALID, "infer_shape_range and infer_shape is nullptr.");
-    return ge::PARAM_INVALID;
   }
+  GELOGD("Skip infer shape range for node[%s], type[%s] as no infer shape range func.", op_desc->GetName().c_str(),
+         op_desc->GetType().c_str());
+  return ge::GRAPH_SUCCESS;
 }
 
 ge::graphStatus InferShapeOnCompile(const ge::Operator &op, const ge::OpDescPtr &op_desc) {
@@ -693,7 +694,7 @@ ge::graphStatus InferDataTypeOnCompile(const ge::OpDescPtr &op_desc) {
   }
 
   const auto &functions = space_registry->GetOpImpl(op_desc->GetType().c_str());
-  if ((!functions || !functions->infer_datatype) && op_desc->IsSupportSymbolicInferDataType()) {
+  if ((functions == nullptr || functions->infer_datatype == nullptr) && op_desc->IsSupportSymbolicInferDataType()) {
     GELOGD("Infer dtype for %s[%s] by ir symbol", op_desc->GetNamePtr(), op_desc->GetTypePtr());
     return op_desc->SymbolicInferDataType();
   }
@@ -705,7 +706,7 @@ ge::graphStatus InferDataTypeOnCompile(const ge::OpDescPtr &op_desc) {
   const auto kernel_context_holder = gert::KernelRunContextBuilder().Inputs(inputs).Outputs(outputs).Build(op_desc);
   const auto kernel_context = reinterpret_cast<gert::InferDataTypeContext *>(kernel_context_holder.context_);
 
-  ge::graphStatus ret = InferDtypeByRegisteredFuncOrRule(functions, op_desc, kernel_context);
+  const ge::graphStatus ret = InferDtypeByRegisteredFuncOrRule(functions, op_desc, kernel_context);
   GE_CHK_STATUS_RET(ret, "[Check][InferDataType] result failed, op_desc[%s], ret[%d]", op_desc->GetName().c_str(), ret);
   for (size_t i = 0UL; i < op_desc->GetOutputsSize(); i++) {
     const auto &out_desc = op_desc->MutableOutputDesc(static_cast<size_t>(i));

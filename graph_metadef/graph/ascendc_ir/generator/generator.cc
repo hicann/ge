@@ -214,8 +214,8 @@ class SymbolProcessor {
     if (!name_to_soc_to_sym_dtype_.empty()) {
       // get soc version.
       ss << "    char soc_version[128] = {};" << std::endl;
-      ss << "    auto res = rtGetSocVersion(soc_version, 128U);" << std::endl;
-      ss << R"(    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get soc version str.");)" << std::endl;
+      ss << R"(    auto res = rtGetSocSpec("version", "NpuArch", soc_version, 128U);)" << std::endl;
+      ss << R"(    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");)" << std::endl;
       ss << "    auto soc_str = std::string(soc_version);" << std::endl;
     }
     return SUCCESS;
@@ -234,7 +234,6 @@ class SymbolProcessor {
 
  protected:
   void GenerateTypeDefinition(const std::pair<std::string, SymDtype *> &sym, std::stringstream &ss) {
-    // TODO 老代码删除后优化for循环
     const std::string tensor_type_obj = "support_dtypes_of_sym_" + sym.first;
     auto iter = name_to_soc_to_sym_dtype_.find(sym.first);
     if (iter != name_to_soc_to_sym_dtype_.end()) {
@@ -949,8 +948,8 @@ class SocOrderedSymbolProcessor : public SymbolProcessor {
     std::ostringstream oss;
     // get soc version.
     oss << "    char soc_version[128] = {};" << std::endl;
-    oss << "    auto res = rtGetSocVersion(soc_version, 128U);" << std::endl;
-    oss << R"(    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get soc version str.");)" << std::endl;
+    oss << R"(    auto res = rtGetSocSpec("version", "NpuArch", soc_version, 128U);)" << std::endl;
+    oss << R"(    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");)" << std::endl;
     oss << "    auto soc_str = std::string(soc_version);" << std::endl;
 
     container_type_ = GetContainerType(meta);
@@ -1485,9 +1484,9 @@ void ascir::FunctionGenerator::GenDefinition(std::stringstream &ss, const bool h
   std::vector<std::pair<std::string, IrInputType>> empty_input_defs;
 
   if (def_.IsStartNode()) {
-    // TODO 由于历史原因，IsStartNode()（例如Data）仍然带有输入定义，但是这种输入实际是不连边的。
-    //      但是为了最小化修改，当前先不修改Data的定义，后续需要做调整，对与StartNode类型，不定义输入，
-    //      或者认为没有输入的op就是start node，在定义IR时不需要再显式指定start node标记
+    //  由于历史原因，IsStartNode()（例如Data）仍然带有输入定义，但是这种输入实际是不连边的。
+    //  但是为了最小化修改，当前先不修改Data的定义，后续需要做调整，对与StartNode类型，不定义输入，
+    //  或者认为没有输入的op就是start node，在定义IR时不需要再显式指定start node标记
     input_defs = &empty_input_defs;
   } else {
     input_defs = &def_.GetInputDefs();
@@ -1535,7 +1534,7 @@ void ascir::FunctionGenerator::GenInstantiation(std::stringstream &ss) const {
   ss << "  desc->SetExtAttr(RELATED_OP, op_ptr);" << std::endl;
 }
 bool ascir::FunctionGenerator::GenConnectInputs(std::stringstream &ss, const bool has_optional_input) const {
-  // TODO 这里与GenFunctionDefinition同理，后续删除
+  // 这里与GenFunctionDefinition同理，后续删除
   if (def_.IsStartNode()) {
     return false;
   }
@@ -1780,7 +1779,7 @@ void GenAll(std::stringstream &ss) {
   ss << R"(#include "utils/cg_utils.h")" << std::endl << std::endl;
   ss << R"(#include "graph/type/tensor_type_impl.h")" << std::endl << std::endl;
   ss << R"(#include "graph/type/sym_dtype.h")" << std::endl << std::endl;
-  ss << R"(#include "runtime/dev.h")" << std::endl << std::endl;
+  ss << R"(#include "runtime/base.h")" << std::endl << std::endl;
   ss << "#include <variant>" << std::endl;
   ss << "#include <type_traits>" << std::endl;
   ss << "#include <tuple>" << std::endl << std::endl;

@@ -11,7 +11,7 @@
 #include "atomic_clean_checker.h"
 #include "node_checker_utils.h"
 #include "ge_common/ge_api_error_codes.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/utils/node_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/checker.h"

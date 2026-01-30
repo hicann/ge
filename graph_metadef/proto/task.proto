@@ -867,6 +867,7 @@ message CmoAddrTaskDef {
     uint32 stride_inner = 8;
     uint32 resv0 = 9;
     uint32 resv1 = 10;
+    string args_format = 11;
 }
 
 message CmoBarrierTaskDef {

@@ -285,7 +285,7 @@ Status GeRootModel::GetSummaryFeatureMemory(std::vector<FeatureMemoryPtr> &all_f
     auto feature_memory = FeatureMemory::Builder::Build(MemoryType::MEMORY_TYPE_DEFAULT,
                                                         hbm_fixed_feature_mem, {true});
     GE_ASSERT_NOTNULL(feature_memory);
-    all_feature_memory_.emplace_back(std::move(feature_memory));
+    (void)all_feature_memory_.emplace_back(std::move(feature_memory));
   }
 
   size_t p2p_fixed_size = 0U;
@@ -294,7 +294,7 @@ Status GeRootModel::GetSummaryFeatureMemory(std::vector<FeatureMemoryPtr> &all_f
     auto p2p_feature_memory = FeatureMemory::Builder::Build(MemoryType::MEMORY_TYPE_P2P,
                                                             p2p_fixed_size, {true});
     GE_ASSERT_NOTNULL(p2p_feature_memory);
-    all_feature_memory_.emplace_back(std::move(p2p_feature_memory));
+    (void)all_feature_memory_.emplace_back(std::move(p2p_feature_memory));
   }
   all_feature_memory = all_feature_memory_;
   all_feature_memory_init_flag_ = true;

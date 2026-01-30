@@ -46,7 +46,8 @@ class UtestGeRootModel : public testing::Test {
 };
 
 TEST_F(UtestGeRootModel, LoadBinDataSuccess) {
-  std::string opp_path = FILE_COMMON_PATH;
+  std::string opp_path = __FILE__;
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
   std::string path_vendors = opp_path + "vendors";

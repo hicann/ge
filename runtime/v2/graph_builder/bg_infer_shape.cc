@@ -172,7 +172,7 @@ std::vector<ValueHolderPtr> BuildInferShapeGraphByRule(const std::string &rule, 
                                                        const std::vector<ValueHolderPtr> &input_shapes,
                                                        const size_t num_outputs, LoweringGlobalData &global_data) {
   auto builder = [&rule, &compiled_rule]() -> std::vector<bg::ValueHolderPtr> {
-    return bg::FrameSelector::OnInitRoot([&]() -> std::vector<bg::ValueHolderPtr> {
+    return bg::FrameSelector::OnInitRoot([&rule, &compiled_rule]() -> std::vector<bg::ValueHolderPtr> {
       auto rule_json_holder = ValueHolder::CreateConst(rule.c_str(), rule.size() + 1, true);
       if (compiled_rule.size() > 0U) {
         auto rule_binary_holder = ValueHolder::CreateConst(compiled_rule.data(), compiled_rule.size(), false);

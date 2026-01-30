@@ -22,30 +22,34 @@
 namespace ge {
 class UserGraphsManager {
  public:
-  explicit UserGraphsManager(InnerSession &inner_session)
-      : compile_context_(inner_session), inner_session_(inner_session) {}
+  explicit UserGraphsManager(GraphManager &graph_manager)
+      : compile_context_(graph_manager), graph_manager_(graph_manager) {}
   Status AddGraph(uint32_t user_graph_id, const Graph &graph, const std::map<std::string, std::string> &options);
-  Status BuildGraph(uint32_t user_graph_id, const std::vector<ge::Tensor> &inputs) const;
-  Status RunGraphAsync(uint32_t user_graph_id, const std::vector<Tensor> &inputs, const RunAsyncCallback &callback);
+  Status BuildGraph(uint32_t user_graph_id, const std::vector<GeTensor> &inputs, uint64_t session_id) const;
+  Status RunGraphAsync(uint32_t user_graph_id, std::vector<gert::Tensor> &&inputs,
+      uint64_t session_id, const RunAsyncCallbackV2 &callback);
   Status RemoveGraph(uint32_t user_graph_id);
   bool IsGraphNeedRebuild(uint32_t user_graph_id);
+  Status GetCompiledFlag(uint32_t user_graph_id, bool &flag);
+  Status SetCompiledFlag(uint32_t user_graph_id, bool flag);
   Status Finalize();
-  Status CompileGraph(uint32_t user_graph_id);
+  Status CompileGraph(uint32_t user_graph_id, uint64_t session_id, const vector<ge::Tensor> &inputs);
   Status GetCompiledGraphSummary(uint32_t user_graph_id, CompiledGraphSummaryPtr &summary);
   Status LoadGraph(const uint32_t user_graph_id, const std::map<AscendString, AscendString> &options,
                    void *stream);
   Status ExecuteGraphWithStreamAsync(uint32_t user_graph_id, void *stream, const std::vector<gert::Tensor> &inputs,
-                                     std::vector<gert::Tensor> &outputs);
+                                     std::vector<gert::Tensor> &outputs, uint64_t session_id);
   Status GetOmeContextByGraphId(const GraphId &graph_id, OmeContext &ome_context) const;
  private:
   UserGraphControl* GetUserGraphControl(uint32_t user_graph_id);
  private:
   CompileContext compile_context_;
-  InnerSession &inner_session_;
+  GraphManager &graph_manager_;
 
   std::mutex user_graph_ctrl_mutex_;
   std::map<uint32_t, std::unique_ptr<UserGraphControl>> ids_to_user_graph_ctrl_;
 };
+using UserGraphsManagerPtr = std::shared_ptr<UserGraphsManager>;
 } // ge
 
 #endif // USER_GRAPHS_MANAGER_H

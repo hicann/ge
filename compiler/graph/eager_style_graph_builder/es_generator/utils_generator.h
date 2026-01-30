@@ -14,7 +14,6 @@
 #include <memory>
 #include <vector>
 #include <string>
-#include <cstring>
 #include <unordered_map>
 #include "generator_interface.h"
 
@@ -58,7 +57,7 @@ class UtilsGenerator {
     return utils_to_hss;
   }
 
-  void GenPerUtilFiles(const std::string &output_dir, const std::vector<string> &util_names) {
+  void GenPerUtilFiles(const std::string &output_dir, const std::vector<string> &util_names) const {
     // 生成utils相关hpp
     WritePerUtilFiles(output_dir, util_names, GetPerUtilContents(),
                     [this](const std::string &util_name) { return GetPerUtilFileName(util_name); });
@@ -138,6 +137,7 @@ inline std::vector<char> CreateErrorMsg(const char *format, ...) {
 inline std::vector<char> CreateErrorMsg() {
   return {};
 }
+
 // 为了支持 C++11 版本，自定义EsMakeUnique封装 make_unique
 template<typename T, typename... Args>
 std::unique_ptr<T> EsMakeUnique(Args&&... args) {

@@ -344,6 +344,23 @@ OpExecuteContextFaker &OpExecuteContextFaker::ExecuteFunc(void *execute_func) {
   execute_func_ = execute_func;
   return *this;
 }
+OpExecuteContextFaker &OpExecuteContextFaker::OpAicoreNum(int64_t *op_aicore_num) {
+  op_aicore_num_ = op_aicore_num;
+  return *this;
+}
+OpExecuteContextFaker &OpExecuteContextFaker::OpVecCoreNum(int64_t *op_vec_core_num) {
+  op_vec_core_num_ = op_vec_core_num;
+  return *this;
+}
+OpExecuteContextFaker &OpExecuteContextFaker::GlobalAicoreNum(int64_t *global_aicore_num) {
+  global_aicore_num_ = global_aicore_num;
+  return *this;
+}
+OpExecuteContextFaker &OpExecuteContextFaker::GlobalVecCoreNum(int64_t *global_vec_core_num) {
+  global_vec_core_num_ = global_vec_core_num;
+  return *this;
+}
+
 
 void OpExecuteContextFaker::UpdateInputs() {
   std::vector<void *> inputs;
@@ -357,6 +374,10 @@ void OpExecuteContextFaker::UpdateInputs() {
   inputs.push_back(stream_);
   inputs.push_back(execute_option_);
   inputs.push_back(execute_func_);
+  inputs.push_back(reinterpret_cast<void*>(*op_aicore_num_));
+  inputs.push_back(reinterpret_cast<void*>(*op_vec_core_num_));
+  inputs.push_back(reinterpret_cast<void*>(*global_aicore_num_));
+  inputs.push_back(reinterpret_cast<void*>(*global_vec_core_num_));
   base_faker_.Inputs(std::move(inputs));
 }
 
@@ -491,5 +512,67 @@ void OpExecuteLaunchContextFaker::UpdateInputs() {
 void OpExecuteLaunchContextFaker::UpdateOutputs() {
   std::vector<void *> outputs;
   base_faker_.Outputs(std::move(outputs));
+}
+
+EagerOpExecutionContextFaker &EagerOpExecutionContextFaker::NodeIoNum(size_t input_num, size_t output_num) {
+  base_faker_.KernelIONum(input_num + kEnd, output_num + 1UL);
+  base_faker_.NodeIoNum(input_num, output_num);
+  return *this;
+}
+
+EagerOpExecutionContextFaker &EagerOpExecutionContextFaker::InputTensor(std::vector<gert::Tensor *> input_tensor) {
+  input_tensor_ = std::move(input_tensor);
+  return *this;
+}
+
+EagerOpExecutionContextFaker &EagerOpExecutionContextFaker::OutputTensor(std::vector<gert::Tensor *> output_tensor) {
+  output_tensor_ = std::move(output_tensor);
+  return *this;
+}
+
+EagerOpExecutionContextFaker &EagerOpExecutionContextFaker::OutputMem(std::shared_ptr<std::vector<gert::GertMemBlock *>> &output_block_memory) {
+  output_block_memory_ = output_block_memory;
+  return *this;
+}
+
+EagerOpExecutionContextFaker &EagerOpExecutionContextFaker::Allocator(void *allocator) {
+  allocator_ = allocator;
+  return *this;
+}
+
+EagerOpExecutionContextFaker &EagerOpExecutionContextFaker::Stream(void *stream) {
+  stream_ = stream;
+  return *this;
+}
+
+EagerOpExecutionContextFaker &EagerOpExecutionContextFaker::ExecuteFunc(void *execute_func) {
+  execute_func_ = execute_func;
+  return *this;
+}
+
+void EagerOpExecutionContextFaker::UpdateInputs() {
+  std::vector<void *> inputs;
+  for (const auto input_tensor : input_tensor_) {
+    inputs.push_back(input_tensor);
+  }
+  inputs.push_back(allocator_);
+  inputs.push_back(stream_);
+  inputs.push_back(execute_func_);
+  base_faker_.Inputs(std::move(inputs));
+}
+
+void EagerOpExecutionContextFaker::UpdateOutputs() {
+  std::vector<void *> outputs;
+  for (const auto output_tensor : output_tensor_) {
+    outputs.push_back(output_tensor);
+  }
+  outputs.push_back(output_block_memory_.get());
+  base_faker_.Outputs(std::move(outputs));
+}
+
+FakeKernelContextHolder EagerOpExecutionContextFaker::Build() {
+  UpdateInputs();
+  UpdateOutputs();
+  return base_faker_.Build();
 }
 }  // namespace gert

@@ -233,7 +233,6 @@ mk_dir() {
 
 # run pyge python tests (shared by UT/ST)
 run_pyge_pytests() {
-  local test_type="$1"  # "ut" 或 "st"
   echo "----------pyge tests start----------"
   PYGE_INSTALL_PATH=${BUILD_PATH}/tests/ge/ut/ge/graph/pyge_tests/ge_py_install
   PYGE_SRC_PATH=${BASEPATH}/api/python/ge
@@ -241,44 +240,13 @@ run_pyge_pytests() {
   export LD_LIBRARY_PATH=${PYGE_INSTALL_PATH}/ge/_capi/:${ORIGINAL_LD_LIBRARY_PATH}
   # 优先使用源码路径，因为使用安装路径存在覆盖率统计不到问题
   export PYTHONPATH=${PYGE_SRC_PATH}:${PYGE_INSTALL_PATH}:$PYTHON_ORIGINAL_PATH
-  
-  # 创建临时文件保存测试输出（使用 test_type 区分 UT/ST）
-  local temp_output_pyge="${OUTPUT_PATH}/.test_output_pyge_tests_${test_type}_$$.tmp"
-  
-  ASAN_OPTIONS=detect_leaks=0 coverage run --data-file=coverage_pyge --source=${PYGE_SRC_PATH}/ge -m pytest ${BASEPATH}/tests/ge/ut/ge/graph/pyge_tests/*_test.py -vv -s 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_pyge}"
-  
-  # 给tee一点时间刷新缓冲区（段错误时可能需要）
-  sleep 0.1
-  
-  # 保存测试信息到文件（使用 test_type 区分 UT/ST）
-  local test_names=("pyge_tests_${test_type}")
-  local temp_files=("${temp_output_pyge}")
-  save_test_summary_to_file "test_names" "temp_files"
-  
+  ASAN_OPTIONS=detect_leaks=0 coverage run --data-file=coverage_pyge --source=${PYGE_SRC_PATH}/ge -m pytest ${BASEPATH}/tests/ge/ut/ge/graph/pyge_tests/*_test.py -vv -s
   export LD_LIBRARY_PATH=${ORIGINAL_LD_LIBRARY_PATH}
   export PYTHONPATH=$PYTHON_ORIGINAL_PATH
 }
 
 # GraphEngine build start
 echo "---------------- GraphEngine build start ----------------"
-
-# 保存测试信息到文件（供 run_test.sh 统一打印）
-save_test_summary_to_file() {
-  local test_names_var="$1"
-  local temp_files_var="$2"
-  
-  # 使用环境变量 TEST_SUMMARY_FILE 指定的文件名, 由 run_test.sh 传入;如果没有指定, 则使用进程ID
-  local summary_file="${TEST_SUMMARY_FILE:-${OUTPUT_PATH}/.test_summary_$$.tmp}"
-
-  local -n test_names_ref="${test_names_var}"
-  local -n temp_files_ref="${temp_files_var}"
-  if [ ${#test_names_ref[@]} -eq 0 ]; then
-    return
-  fi
-
-  printf "%s\n" "${test_names_ref[@]}" >> "${summary_file}.names"
-  printf "%s\n" "${temp_files_ref[@]}" >> "${summary_file}.files"
-}
 
 # create build path
 build_graphengine()
@@ -312,6 +280,7 @@ build_graphengine()
         -D CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
         -D CMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
         -D CMAKE_POLICY_VERSION_MINIMUM=3.5 \
+        -D ENABLE_PKG=${ENABLE_PKG} \
         ..
   if [ $? -ne 0 ]
   then
@@ -384,7 +353,7 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       echo "----------v1 ut start----------"
 
       ASAN_OPTIONS=detect_leaks=0 coverage run --data-file=coverage_python -m unittest discover python_tests/v1/ut
-      run_pyge_pytests "ut"
+      run_pyge_pytests
       export PYTHONPATH=$PYTHON_ORIGINAL_PATH:${BASEPATH}/api/python/llm_datadist/:${BASEPATH}/api/python/
       unset LD_PRELOAD
     fi
@@ -393,27 +362,9 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       echo "---------------- Parser UT Run Start ----------------"
       cp ${BUILD_PATH}/tests/parser/ut/parser/ut_parser ${OUTPUT_PATH}
       cp -rf ${BUILD_PATH}/tests/graph_metadef/ut/graph/ut_graph ${OUTPUT_PATH}
-      
-      # 创建临时文件保存每个测试的输出
-      temp_output_parser="${OUTPUT_PATH}/.test_output_ut_parser_$$.tmp"
-      temp_output_graph="${OUTPUT_PATH}/.test_output_ut_graph_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_parser --gtest_output=xml:${report_dir}/ut/ut_parser.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_parser}" &&
-      RUN_TEST_CASE="${OUTPUT_PATH}/ut_graph --gtest_output=xml:${report_dir}/ut/ut_graph.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_graph}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("ut_parser" "ut_graph")
-      temp_files=("${temp_output_parser}" "${temp_output_graph}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
+      RUN_TEST_CASE="${OUTPUT_PATH}/ut_parser --gtest_output=xml:${report_dir}/ut/ut_parser.xml" && ${RUN_TEST_CASE} &&
+      RUN_TEST_CASE="${OUTPUT_PATH}/ut_graph --gtest_output=xml:${report_dir}/ut/ut_graph.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
         echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
         echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
         exit 1
@@ -430,7 +381,7 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       unset PYDFLOW_SRC_PATH
       unset PYDFLOW_TEST_PATH
       unset PYDFLOW_BUILD_PATH
- 
+
       echo "---------------- Dflow Udf UT Run Start ----------------"
       ctest --output-on-failure -j ${THREAD_NUM} -L ut -L ut_dflow --test-dir ${BUILD_PATH} --no-tests=error \
                     -O ${BUILD_PATH}/ctest_ut_dflow.log
@@ -452,36 +403,21 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
         mv .coverage ${BASEPATH}/cov/
       fi
 
-      # 执行 lcov 收集覆盖率数据
-      # 使用 set +e 允许命令失败，避免某些版本的 lcov 不支持 --ignore-errors 参数的错误类型导致脚本退出
-      set +e  # 临时禁用 set -e，允许命令失败
       lcov -c -d ${BUILD_PATH}/runtime/v2/CMakeFiles/gert.dir -d ${BUILD_PATH}/runtime/v1/CMakeFiles/davinci_executor.dir \
               -d ${BUILD_PATH}/tests/ge/ut/ge -d ${BUILD_PATH}/tests/ge/ut/common/graph/ -d ${BUILD_PATH}/tests/parser/ut/parser \
               -d ${BUILD_PATH}/tests/depends/llm_datadist -d ${BUILD_PATH}/dflow/llm_datadist -d ${BUILD_PATH}/api/python \
               -d ${BUILD_PATH}/api/python/llm_datadist_v1 -d ${BUILD_PATH}/api/python/llm_wrapper \
-              -d ${BUILD_PATH}/base -d ${BUILD_PATH}/compiler/graph/eager_style_graph_builder \
-              -d ${BUILD_PATH}/tests/framework/CMakeFiles/graphengine.dir -o cov/tmp.info --ignore-errors mismatch,empty,negative
-      set -e  # 恢复 set -e
-      
+              -d ${BUILD_PATH}/tests/framework/CMakeFiles/graphengine.dir -o cov/tmp.info
       if [ ! -s "cov/tmp.info" ] || ! grep -q "SF:" "cov/tmp.info"; then
         echo "No valid cpp coverage data found; skip filtering."
         touch cov/coverage.info  # 生成空文件占位，避免后续流程报错
       else
-        # 执行 lcov remove 过滤覆盖率数据
-        # 使用 set +e 允许命令失败，避免某些版本的 lcov 不支持 --ignore-errors 参数的错误类型导致脚本退出
-        set +e  # 临时禁用 set -e
         lcov -r cov/tmp.info '*/output/*' "*/${BUILD_RELATIVE_PATH}/opensrc/*" "*/${BUILD_RELATIVE_PATH}/proto/*" \
                              '*/op_impl/*' "*/${BUILD_RELATIVE_PATH}/grpc_*" '*/third_party/*' '*/op_impl/*' '*/tests/*' \
                              '/usr/local/*' '/usr/include/*' '*/metadef/*' \
-                             "${ASCEND_INSTALL_PATH}/*" "${ASCEND_3RD_LIB_PATH}/*" -o cov/coverage.info --ignore-errors mismatch,empty,unused
-        set -e  # 恢复 set -e
-        
+                             "${ASCEND_INSTALL_PATH}/*" "${ASCEND_3RD_LIB_PATH}/*" -o cov/coverage.info
         cd ${BASEPATH}/cov
-        # 执行 genhtml 生成 HTML 报告
-        # 使用 set +e 允许命令失败，避免某些版本的 genhtml 不支持 --ignore-errors 参数的错误类型导致脚本退出
-        set +e  # 临时禁用 set -e
-        genhtml coverage.info --ignore-errors mismatch,empty
-        set -e  # 恢复 set -e
+        genhtml coverage.info
 
         if [[ "X$ENABLE_ICOV" = "Xon" ]]; then
           generate_inc_coverage
@@ -493,7 +429,7 @@ fi
 
 echo "---------------- Parser llt finished ----------------"
 
-if [[ "X$ENABLE_GE_DT" = "Xon" ]]; then
+if [[ "X$ENABLE_GE_DT" = "Xon" ]] || [[ "X$ENABLE_GE_UT" = "Xon" ]]; then
     cp -rf ${BUILD_PATH}/tests/ge/ut/ge/ge_manual_test ${OUTPUT_PATH}
     if [[ ! -d ${OUTPUT_PATH}/plugin/nnengine/ge_config ]]; then
       mk_dir ${OUTPUT_PATH}/plugin/nnengine/ge_config
@@ -503,26 +439,9 @@ if [[ "X$ENABLE_GE_DT" = "Xon" ]]; then
     #execute ut testcase
     export ASAN_OPTIONS=detect_leaks=0
     export LD_PRELOAD=${USE_ASAN}
-    echo "Begin to run ge_manual_test WITHOUT leaks check and WITHOUT coverage"
-    
-    # 创建临时文件保存测试输出
-    temp_output_ge_manual_test="${OUTPUT_PATH}/.test_output_ge_manual_test_$$.tmp"
-    
-    set -o pipefail
-    RUN_TEST_CASE="${OUTPUT_PATH}/ge_manual_test --gtest_output=xml:${report_dir}/ut/ge_manual_test.xml" && ${RUN_TEST_CASE} 2>&1 | env -u ASAN_OPTIONS env -u LD_PRELOAD tee "${temp_output_ge_manual_test}"
-    test_status=$?
-    set +o pipefail
-    
-    # 给tee一点时间刷新缓冲区（段错误时可能需要）
-    sleep 0.1
-    
-    # 保存测试信息到文件
-    test_names=("ge_manual_test")
-    temp_files=("${temp_output_ge_manual_test}")
-    save_test_summary_to_file "test_names" "temp_files"
-    
-    # 检查测试是否失败
-    if [[ "${test_status}" -ne 0 ]]; then
+    echo "Begin to run tests WITHOUT leaks check"
+    RUN_TEST_CASE="${OUTPUT_PATH}/ge_manual_test --gtest_output=xml:${report_dir}/ut/ge_manual_test.xml" && ${RUN_TEST_CASE}
+    if [[ "$?" -ne 0 ]]; then
         echo "!!! UT FAILED, PLEASE CHECK YOUR CHANGES !!!"
         echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
         exit 1;
@@ -530,24 +449,8 @@ if [[ "X$ENABLE_GE_DT" = "Xon" ]]; then
 fi
 
 if [[ "X$ENABLE_GE_BENCHMARK" = "Xon" ]]; then
-    # 创建临时文件保存测试输出
-    temp_output_ge_runtime_benchmark="${OUTPUT_PATH}/.test_output_ge_runtime_benchmark_$$.tmp"
-    
-    set -o pipefail
-    RUN_TEST_CASE="${BUILD_PATH}/tests/benchmark/ge_runtime_benchmark --gtest_output=xml:${report_dir}/benchmark/ge_runtime_benchmark.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_ge_runtime_benchmark}"
-    test_status=$?
-    set +o pipefail
-    
-    # 给tee一点时间刷新缓冲区（段错误时可能需要）
-    sleep 0.1
-    
-    # 保存测试信息到文件
-    test_names=("ge_runtime_benchmark")
-    temp_files=("${temp_output_ge_runtime_benchmark}")
-    save_test_summary_to_file "test_names" "temp_files"
-    
-    # 检查测试是否失败
-    if [[ "${test_status}" -ne 0 ]]; then
+    RUN_TEST_CASE="${BUILD_PATH}/tests/benchmark/ge_runtime_benchmark --gtest_output=xml:${report_dir}/benchmark/ge_runtime_benchmark.xml" && ${RUN_TEST_CASE}
+    if [[ "$?" -ne 0 ]]; then
         echo "!!! runtime benchmark failed  please check!!!"
         echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
         exit 1;
@@ -559,25 +462,8 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
     #execute st testcase with memory leak detection by default
     if [[ "X$ENABLE_GE_ST" = "Xon" ]];then
       echo "Run tests with leaks check"
-      
-      # 创建临时文件保存每个测试的输出
-      temp_output_graph_engine="${OUTPUT_PATH}/.test_output_graph_engine_test_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/graph_engine_test --gtest_output=xml:${report_dir}/st/graph_engine_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_graph_engine}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("graph_engine_test")
-      temp_files=("${temp_output_graph_engine}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
+      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/graph_engine_test --gtest_output=xml:${report_dir}/st/graph_engine_test.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
         echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
         echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
         exit 1;
@@ -592,27 +478,10 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
 
     if [[ "X$ENABLE_RT2_ST" = "Xon" ]]; then
       echo "Run tests with leaks check"
-      
-      # 创建临时文件保存每个测试的输出
-      temp_output_hybrid_model="${OUTPUT_PATH}/.test_output_hybrid_model_async_exec_test_$$.tmp"
-      temp_output_fast_runtime2="${OUTPUT_PATH}/.test_output_st_fast_runtime2_test_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/hybrid_model_exec/hybrid_model_async_exec_test --gtest_output=xml:${report_dir}/st/hybrid_model_async_exec_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_hybrid_model}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/fast_runtime_v2/st_fast_runtime2_test --gtest_output=xml:${report_dir}/st/st_fast_runtime2_test.xml" && (ASAN_OPTIONS=detect_container_overflow=0 ${RUN_TEST_CASE}) 2>&1 | env -u ASAN_OPTIONS tee "${temp_output_fast_runtime2}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("hybrid_model_async_exec_test" "st_fast_runtime2_test")
-      temp_files=("${temp_output_hybrid_model}" "${temp_output_fast_runtime2}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
+      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/hybrid_model_exec/hybrid_model_async_exec_test --gtest_output=xml:${report_dir}/st/hybrid_model_async_exec_test.xml" && ${RUN_TEST_CASE} &&
+      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/fast_runtime_v2/st_fast_runtime2_test --gtest_output=xml:${report_dir}/st/st_fast_runtime2_test.xml" && ${RUN_TEST_CASE} &&
+      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/fast_runtime_v2/dvpp/dvpp_rtkernel/st_dvpp_runtime2_test --gtest_output=xml:${report_dir}/st/st_dvpp_runtime2_test.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
           echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
           echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
           exit 1;
@@ -628,7 +497,7 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
       export LD_PRELOAD=${USE_ASAN}
       echo "----------v1 st start----------"
       ASAN_OPTIONS=detect_leaks=0 coverage run --data-file=coverage_python -m unittest discover python_tests/v1/st
-      run_pyge_pytests "st"
+      run_pyge_pytests
       export PYTHONPATH=$PYTHON_ORIGINAL_PATH:${BASEPATH}/api/python/llm_datadist/:${BASEPATH}/api/python/
       unset LD_PRELOAD
     fi
@@ -637,26 +506,9 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
       echo "---------------- Parser ST Run Start ----------------"
       cp ${BUILD_PATH}/tests/parser/st/st_parser ${OUTPUT_PATH}
 
-      # 创建临时文件保存每个测试的输出
-      temp_output_st_parser="${OUTPUT_PATH}/.test_output_st_parser_$$.tmp"
-      temp_output_compile_test="${OUTPUT_PATH}/.test_output_graph_engine_compile_test_$$.tmp"
-      
-      set -o pipefail
-      RUN_TEST_CASE="${OUTPUT_PATH}/st_parser --gtest_output=xml:${report_dir}/st/st_parser.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_st_parser}" &&
-      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/graph_engine_compile_test --gtest_output=xml:${report_dir}/st/graph_engine_compile_test.xml" && ${RUN_TEST_CASE} 2>&1 | tee "${temp_output_compile_test}"
-      test_status=$?
-      set +o pipefail
-      
-      # 给tee一点时间刷新缓冲区（段错误时可能需要）
-      sleep 0.1
-      
-      # 保存测试信息到文件
-      test_names=("st_parser" "graph_engine_compile_test")
-      temp_files=("${temp_output_st_parser}" "${temp_output_compile_test}")
-      save_test_summary_to_file "test_names" "temp_files"
-      
-      # 检查测试是否失败（保持原来的逻辑）
-      if [[ "${test_status}" -ne 0 ]]; then
+      RUN_TEST_CASE="${OUTPUT_PATH}/st_parser --gtest_output=xml:${report_dir}/st/st_parser.xml" && ${RUN_TEST_CASE} &&
+      RUN_TEST_CASE="${BUILD_PATH}/tests/ge/st/testcase/graph_engine_compile_test --gtest_output=xml:${report_dir}/st/graph_engine_compile_test.xml" && ${RUN_TEST_CASE}
+      if [[ "$?" -ne 0 ]]; then
         echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
         echo -e "\033[31m${RUN_TEST_CASE}\033[0m"
         exit 1
@@ -676,7 +528,7 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
 
       echo "---------------- Dflow Udf ST Run Start ----------------"
       ctest --output-on-failure -j ${THREAD_NUM} -L st -L st_dflow --test-dir ${BUILD_PATH} --no-tests=error \
-          -O ${BUILD_PATH}/ctest_st_dflow.log
+            -O ${BUILD_PATH}/ctest_st_dflow.log
       if [[ "$?" -ne 0 ]]; then
         echo "!!! ST FAILED, PLEASE CHECK YOUR CHANGES !!!"
         echo -e "\033[31m${RUN_TEST_CASE}\033[0m"

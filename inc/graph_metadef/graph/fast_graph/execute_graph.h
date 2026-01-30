@@ -14,8 +14,10 @@
 #include <deque>
 #include <queue>
 #include <unordered_map>
+#include "graph/attr_store.h"
 #include "graph/fast_graph/fast_node.h"
 #include "graph/fast_graph/list_element.h"
+#include "graph/attr_store.h"
 
 namespace ge {
 template <class T, class G>

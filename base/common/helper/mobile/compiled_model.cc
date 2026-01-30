@@ -71,7 +71,7 @@ ge::Status SetGraphOpAttrs(
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_task_offset_str, graphop_task_offset_value);
 
     const std::string graphop_task_size_str = "graphop_task_size";
-    GE_ASSERT_TRUE(compiled_targets.size() > 0 && compiled_targets[0] != nullptr, "[Mobile] compiled_targets is invalid.");
+    GE_ASSERT_NOTNULL(compiled_targets[0], "[Mobile] compiled_targets[0] is nullptr.");
     const int64_t graphop_task_size_value = static_cast<int64_t>(compiled_targets[0]->GetSize());
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_task_size_str, graphop_task_size_value);
 
@@ -81,7 +81,6 @@ ge::Status SetGraphOpAttrs(
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_weight_offset_str, graphop_weight_offset_value);
 
     const std::string graphop_weight_size_str = "graphop_weight_size";
-    GE_ASSERT_TRUE(weights_list.size() > 0, "[Mobile] weights_list is invalid.");
     const int64_t graphop_weight_size_value = static_cast<int64_t>(weights_list[0].GetSize());
     (void)ge::AttrUtils::SetInt(graph_op_desc, graphop_weight_size_str, graphop_weight_size_value);
 

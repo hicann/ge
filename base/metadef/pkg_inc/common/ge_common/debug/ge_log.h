@@ -18,12 +18,9 @@
 #include <string>
 #include <sstream>
 
-#include "common/util/error_manager/error_manager.h"
 #include "base/err_msg.h"
 #include "dlog_pub.h"
-#include "common/ge_common/string_util.h"
-#include "common/ge_common/util.h"
-#include "ge_common/ge_api_error_codes.h"
+#include "common/ge_common/error_codes_define.h"
 
 #ifdef __GNUC__
 #include <unistd.h>

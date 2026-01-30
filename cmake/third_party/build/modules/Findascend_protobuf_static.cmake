@@ -32,18 +32,18 @@ else()
 endif()
 
 if(ascend_protobuf_static_FOUND)
-    message(STATUS "[ascend protobuf static] ascend_protobuf_static found, skip compiling..")
+    message(STATUS "[ascend protobuf static] ascend_protobuf_static found, skip compiling.")
 else()
-    message(STATUS "[ascend protobuf static] ascend_protobuf_static not found, finding binary file..")
+    message(STATUS "[ascend protobuf static] ascend_protobuf_static not found, finding binary file.")
 
     set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/protobuf/protobuf-all-25.1.tar.gz")
     set(REQ_URL_BACK "${CMAKE_THIRD_PARTY_LIB_DIR}/protobuf/protobuf-25.1.tar.gz")
     # 初始化可选参数列表
     set(PROTOBUF_EXTRA_ARGS "")
     if(EXISTS ${REQ_URL})
-        message(STATUS "[ascend protobuf static] ${REQ_URL} found, start compile.")
+        message(STATUS "[ascend protobuf static] ${REQ_URL} found.")
     elseif(EXISTS ${REQ_URL_BACK})
-        message(STATUS "[ascend protobuf static] ${REQ_URL_BACK} found, start compile.")
+        message(STATUS "[ascend protobuf static] ${REQ_URL_BACK} found.")
         set(REQ_URL ${REQ_URL_BACK})
     else()
         message(STATUS "[ascend protobuf static] ${REQ_URL} not found, need download.")
@@ -53,7 +53,8 @@ else()
         )
     endif()
     
-    set(protobuf_CXXFLAGS "-fvisibility=hidden -fvisibility-inlines-hidden -Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=0 -O2 -Dgoogle=ascend_private")
+    set(protobuf_CXXFLAGS "-fvisibility=hidden -fvisibility-inlines-hidden -Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI} -O2 -Dgoogle=ascend_private")
+    set(protobuf_LDFLAGS "-Wl,-z,relro,-z,now,-z,noexecstack")
 
     ExternalProject_Add(ascend_protobuf_static_build
                         URL ${REQ_URL}
@@ -68,6 +69,7 @@ else()
                             -Dprotobuf_BUILD_TESTS=OFF
                             -DCMAKE_CXX_STANDARD=14
                             -DCMAKE_CXX_FLAGS=${protobuf_CXXFLAGS}
+                            -DCMAKE_CXX_LDFLAGS=${protobuf_LDFLAGS}
                             -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                             -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
                             -DCMAKE_INSTALL_PREFIX=${CMAKE_THIRD_PARTY_LIB_DIR}/ascend_protobuf_static

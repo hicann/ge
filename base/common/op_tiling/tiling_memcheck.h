@@ -14,7 +14,6 @@
 #include <string>
 #include <mutex>
 #include <memory>
-#include <map>
 #include "graph/op_desc.h"
 #include "graph/utils/args_format_desc_utils.h"
 #include "register/op_tiling_registry.h"

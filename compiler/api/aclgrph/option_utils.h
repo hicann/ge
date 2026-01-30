@@ -70,6 +70,9 @@ bool CheckAndParseDynamicDims(int32_t dynamic_dim_num, std::string &dynamic_dims
 
 Status CheckInputShapeValueValid(const std::string &input_shape_value);
 
+Status CheckHintShapeConflictWithDynamicParam(std::string &hint_shape, std::string &dynamic_batch_size,
+                                              std::string &dynamic_image_size, std::string &dynamic_dims);
+
 Status ParserShapeRangeByIndex(std::string &input_shape, std::string &input_shape_range);
 
 Status CheckAndTransferInputShapeToRange(std::string &input_shape, std::string &input_shape_range,

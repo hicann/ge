@@ -26,6 +26,7 @@ enum class PriorityEnum : uint32_t {
   COST_2 = 2,
   COST_3 = 3,
   COST_4 = 4,
+  COST_5 = 5,
   COST_9 = 9,
   COST_10 = 10,
 };

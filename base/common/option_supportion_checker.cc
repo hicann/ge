@@ -18,10 +18,10 @@
 
 namespace ge {
 // todo llm的option不應該傳給GE，後續刪除
-constexpr const char LLM_OPTION_CLUSTER_INFO[] = "llm.ClusterInfo";
-constexpr const char LLM_OPTION_ROLE[] = "llm.Role";
-constexpr const char LLM_OPTION_SYNC_KV_CACHE_WAIT_TIME[] = "llm.SyncKvCacheWaitTime";
-constexpr const char LLM_OPTION_OUTPUT_MAX_SIZE[] = "llm.OutputMaxSize";
+const std::string LLM_OPTION_CLUSTER_INFO = "llm.ClusterInfo";
+const std::string LLM_OPTION_ROLE = "llm.Role";
+const std::string LLM_OPTION_SYNC_KV_CACHE_WAIT_TIME = "llm.SyncKvCacheWaitTime";
+const std::string LLM_OPTION_OUTPUT_MAX_SIZE = "llm.OutputMaxSize";
 
 // 目前有5个白名单，有4个在这个CC文件，还有1个是ir_builder_suppported_options(for aclgrphBuildModel)
 namespace ir_option {
@@ -158,7 +158,8 @@ const std::set<std::string> ir_builder_global_options = {CORE_TYPE,
   OPTION_EXPORT_COMPILE_STAT,
   OPTION_VARIABLE_USE_1G_HUGE_PAGE,
   configure_option::INPUT_BATCH_CPY,
-  OPTIMIZATION_SWITCH
+  OPTIMIZATION_SWITCH,
+  OPTION_OUTPUT_REUSE_MEM_INDEXES
 };
 }  // namespace ir_option
 
@@ -599,7 +600,8 @@ const std::set<std::string> session_options = {OPTION_GRAPH_RUN_MODE,
   OPTION_VARIABLE_USE_1G_HUGE_PAGE,
   configure_option::INPUT_BATCH_CPY,
   OPTION_ALLOW_MULTI_GRAPH_PARALLEL_COMPILE,
-  OPTIMIZATION_SWITCH
+  OPTIMIZATION_SWITCH,
+  OUTPUT_DATATYPE
 };
 
 const std::set<std::string> graph_options = {OPTION_EXEC_DEVICE_ID,
@@ -785,7 +787,9 @@ const std::set<std::string> graph_options = {OPTION_EXEC_DEVICE_ID,
   OPTION_EXEC_HOST_INPUT_INDEXES,
   "ge.inputHintShape",
   configure_option::INPUT_BATCH_CPY,
-  OPTIMIZATION_SWITCH
+  OPTIMIZATION_SWITCH,
+  OUTPUT_DATATYPE,
+  OPTION_OUTPUT_REUSE_MEM_INDEXES
 };
 
 static Status CheckSupportedOptions(const std::map<std::string, std::string> &input_options,
@@ -833,15 +837,15 @@ Status CheckAllowParallelCompile(const std::map<std::string, std::string> &optio
   const auto &value_iter = options.find(OPTION_ALLOW_MULTI_GRAPH_PARALLEL_COMPILE);
   std::string parallel_option;
   (void)ge::GetContext().GetOption(OPTION_ALLOW_MULTI_GRAPH_PARALLEL_COMPILE, parallel_option);
-  const auto parallel_compile = ((value_iter != options.end()) && (value_iter->second == "1")) ||
+  const bool parallel_compile = ((value_iter != options.end()) && (value_iter->second == "1")) ||
                                 (parallel_option == "1");
   const auto &var_iter = options.find(ge::OPTION_EXEC_VARIABLE_ACC);
   std::string var_acc_option;
   (void)ge::GetContext().GetOption(ge::OPTION_EXEC_VARIABLE_ACC, var_acc_option);
-  const auto variable_acc = (((var_iter != options.end()) && (var_iter->second == "True"))) ||
+  const bool variable_acc = (((var_iter != options.end()) && (var_iter->second == "True"))) ||
                             (var_acc_option == "True");
   if (parallel_compile && variable_acc) {
-    REPORT_PREDEFINED_ERR_MSG(
+    (void)REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({ge::OPTION_EXEC_VARIABLE_ACC, "True",
         "The options ge.AllowMultiGraphParallelCompile and ge.exec.variable_acc cannot both enabled simultaneously."}));

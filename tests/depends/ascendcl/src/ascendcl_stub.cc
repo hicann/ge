@@ -7,19 +7,25 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
+
+#include <string>
+#include <map>
+#include <queue>
+#include <iostream>
 #include "ascendcl_stub.h"
 #include "mmpa/mmpa_api.h"
-#include <iostream>
-#include <string>
-#include "graph/def_types.h"
 
-static std::string g_acl_stub_mock = "";
+extern std::string g_acl_stub_mock;
+extern std::string g_acl_stub_mock_v2;
+std::string g_acl_stub_mock = "";
+std::string g_acl_stub_mock_v2 = "";
 static char g_soc_version[50] = {0};
 
 static int32_t g_free_stream_num = 2048;
 static int32_t g_free_event_num = 2048;
 static int32_t g_cnt_rtStreamSynchronize_over_flow = 0;
 static int32_t g_cnt_rtStreamSynchronize_fail = 0;
+static size_t reserve_mem_size_ = 200UL * 1024UL * 1024UL;
 
 #define EVENT_LENTH 10
 #define NOTIFY_LENTH 10
@@ -218,6 +224,9 @@ namespace ge {
 std::shared_ptr<AclRuntimeStub> AclRuntimeStub::instance_;
 std::mutex AclRuntimeStub::mutex_;
 thread_local AclRuntimeStub* AclRuntimeStub::fake_instance_;
+void AclRuntimeStub::SetErrorResultApiName(const std::string &stub_api_name) {
+  g_acl_stub_mock = stub_api_name;
+}
 AclRuntimeStub *AclRuntimeStub::GetInstance() {
   const std::lock_guard<std::mutex> lock(mutex_);
   if(fake_instance_ != nullptr){
@@ -256,6 +265,14 @@ aclError AclRuntimeStub::aclrtLaunchKernel(aclrtFuncHandle funcHandle,
 }
 
 aclError AclRuntimeStub::aclrtStreamGetId(aclrtStream stream, int32_t *streamId) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return -1;
+  }
+  (void) stream;
+  if (*streamId == 999) {
+    return -1;
+  }
+  *streamId = 0;
   return ACL_SUCCESS;
 }
 
@@ -264,11 +281,11 @@ aclError AclRuntimeStub::aclrtWaitAndResetNotify(aclrtNotify notify, aclrtStream
 }
 
 aclError AclRuntimeStub::aclrtSetDevice(int32_t deviceId) {
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtResetDevice(int32_t deviceId) {
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetDevice(int32_t *deviceId) {
@@ -276,10 +293,17 @@ aclError AclRuntimeStub::aclrtGetDevice(int32_t *deviceId) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
   *deviceId = 0;
-  return ACL_ERROR_NONE;
+  if (cur_device_id > 0) {
+    *deviceId = cur_device_id;
+  }
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetThreadLastTaskId(uint32_t *taskId) {
+  if (*taskId == 999) {
+    return -1;
+  }
+  *taskId = 0;
   return ACL_SUCCESS;
 }
 
@@ -291,13 +315,16 @@ aclError AclRuntimeStub::aclrtSetCurrentContext(aclrtContext context) {
   if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetCurrentContext(aclrtContext *context) {
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return -1;
+  }
   uintptr_t x = 1;
   *context = (aclrtContext *)x;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtCreateEvent(aclrtEvent *event) {
@@ -310,22 +337,35 @@ aclError AclRuntimeStub::aclrtCreateEvent(aclrtEvent *event) {
   }
   g_free_event_num--;
   *event = new int[EVENT_LENTH];
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCreateEventExWithFlag(aclrtEvent *event, uint32_t flag) {
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+
+  if(g_free_event_num <= 0) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  g_free_event_num--;
+  *event = new int[EVENT_LENTH];
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtDestroyEvent(aclrtEvent event) {
   g_free_event_num++;
   delete[](int *) event;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtRecordEvent(aclrtEvent event, aclrtStream stream) {
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtQueryEventStatus(aclrtEvent event, aclrtEventRecordedStatus *status) {
   *status = ACL_EVENT_RECORDED_STATUS_COMPLETE;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtCreateStream(aclrtStream *stream) {
@@ -341,7 +381,7 @@ aclError AclRuntimeStub::aclrtCreateStream(aclrtStream *stream) {
   }
   g_free_stream_num--;
   *stream = new uint32_t;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtCreateStreamWithConfig(aclrtStream *stream, uint32_t priority, uint32_t flag) {
@@ -350,7 +390,7 @@ aclError AclRuntimeStub::aclrtCreateStreamWithConfig(aclrtStream *stream, uint32
   }
   g_free_stream_num--;
   *stream = new uint32_t;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtDestroyStream(aclrtStream stream) {
@@ -358,12 +398,20 @@ aclError AclRuntimeStub::aclrtDestroyStream(aclrtStream stream) {
     delete (uint32_t *)stream;
   }
   g_free_stream_num++;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtDestroyStreamForce(aclrtStream stream) {
+  if (stream != nullptr) {
+    delete (uint32_t *)stream;
+  }
+  g_free_stream_num++;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtStreamAbort(aclrtStream stream) {
   (void) stream;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtSynchronizeStream(aclrtStream stream) {
@@ -408,7 +456,7 @@ aclError AclRuntimeStub::aclrtSynchronizeStream(aclrtStream stream) {
     }
   }
 
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtSynchronizeStreamWithTimeout(aclrtStream stream, int32_t timeout) {
@@ -450,7 +498,7 @@ aclError AclRuntimeStub::aclrtSynchronizeStreamWithTimeout(aclrtStream stream, i
   if (std::string(__FUNCTION__) == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy) {
@@ -467,7 +515,7 @@ aclError AclRuntimeStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocP
   if (std::string(&record_path1[0]).find("1") != std::string::npos) {
     *devPtr = new uint8_t[size];
     memset_s(*devPtr, size, 0, size);
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   if (std::string(__FUNCTION__) == g_acl_stub_mock) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
@@ -481,15 +529,15 @@ aclError AclRuntimeStub::aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocP
   if ((ret == EN_OK) && (strlen(record_path_Huge) != 0)) {
     *devPtr = new uint8_t[size];
     memset_s(*devPtr, size, 0, size);
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   if (size > INT32_MAX) {
     *devPtr = new uint8_t[1024U];
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   *devPtr = new uint8_t[size];
   memset_s(*devPtr, size, 0, size);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMallocHost(void **hostPtr, size_t size) {
@@ -501,17 +549,17 @@ aclError AclRuntimeStub::aclrtMemset(void *devPtr, size_t maxCount, int32_t valu
     return ACL_ERROR_RT_INTERNAL_ERROR;
   }
   memset_s(devPtr, maxCount, value, count);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtFree(void *devPtr) {
   delete[](uint8_t *) devPtr;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtFreeHost(void *devPtr) {
   delete[](uint8_t *) devPtr;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemcpy(void *dst, size_t dest_max, const void *src, size_t count, aclrtMemcpyKind kind) {
@@ -524,7 +572,7 @@ aclError AclRuntimeStub::aclrtMemcpy(void *dst, size_t dest_max, const void *src
   const char *const kEnvRecordPath1 = "NPU_COLLECT_PATH_EXE";
   (void)mmGetEnv(kEnvRecordPath1, &record_path[0], static_cast<uint32_t>(MMPA_MAX_PATH));
   if (!std::string(&record_path[0]).empty()) {
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
 
   if (__FUNCTION__ == g_acl_stub_mock) {
@@ -535,7 +583,7 @@ aclError AclRuntimeStub::aclrtMemcpy(void *dst, size_t dest_max, const void *src
     dest_max = std::min(dest_max, reserve_mem_size_);
     memcpy_s(dst, dest_max, src, count);
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemcpyAsync(void *dst,
@@ -552,17 +600,17 @@ aclError AclRuntimeStub::aclrtMemcpyAsync(void *dst,
       dest_max = std::min(dest_max, reserve_mem_size_);
       memcpy_s(dst, dest_max, src, src_count);
     }
-    return ACL_ERROR_NONE;
+    return ACL_SUCCESS;
   }
   size_t offset = 0U;
   size_t remain_size = src_count;
   do {
     size_t copy_size = (remain_size > SECUREC_MEM_MAX_LEN) ? SECUREC_MEM_MAX_LEN : remain_size;
-    memcpy_s(ValueToPtr(PtrToValue(dst) + offset), copy_size, ValueToPtr(PtrToValue(src) + offset), copy_size);
+    memcpy_s((dst + offset), copy_size, (src + offset), copy_size);
     offset += copy_size;
     remain_size -= copy_size;
   } while (remain_size > 0U);
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtMemcpyAsyncWithCondition(void *dst,
@@ -577,7 +625,7 @@ aclError AclRuntimeStub::aclrtMemcpyAsyncWithCondition(void *dst,
 aclError AclRuntimeStub::aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total) {
   *free_size = 64UL * 1024UL * 1024UL;
   *total = 128UL * 1024UL * 1024UL;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 // no change for rt here
@@ -587,17 +635,343 @@ aclError AclRuntimeStub::aclrtGetSocVersion(char *version, const uint32_t maxLen
   } else {
     strncpy_s(version, maxLen, g_soc_version, strlen(g_soc_version));
   }
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
+}
+
+const char* AclRuntimeStub::aclrtGetSocName() {
+  return "Ascend910";
 }
 
 aclError AclRuntimeStub::aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) {
   *value = 8;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
 }
 
 aclError AclRuntimeStub::aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId) {
   *phyId = devIndex;
-  return ACL_ERROR_NONE;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCheckArchCompatibility(const char *socVersion, int32_t *canCompatible) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return -1;
+  }
+  *canCompatible = 1;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtDestroyContext(aclrtContext context) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtActiveStream(aclrtStream activeStream, aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCtxGetCurrentDefaultStream(aclrtStream *stream) {
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return -1;
+  }
+  uintptr_t x = 1;
+  *stream = (aclrtStream *)x;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtDestroyLabel(aclrtLabel label) {
+  if (label != nullptr) {
+    delete reinterpret_cast<int *>(label);
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIDestroy(aclmdlRI modelRI) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIUnbindStream(aclmdlRI modelRI, aclrtStream stream) {
+  const std::lock_guard<std::mutex> lock(mtx_);
+  model_unbind_streams_.emplace_back(stream);
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtDestroyLabelList(aclrtLabelList labelList) {
+  delete[](int *) labelList;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIBindStream(aclmdlRI modelRI, aclrtStream stream, uint32_t flag) {
+  const std::lock_guard<std::mutex> lock(mtx_);
+  model_bind_streams_.emplace_back(stream);
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIBuildEnd(aclmdlRI modelRI, void *reserve) {
+  const char * const kEnvRecordPath = "CONSTANT_FOLDING_PASS_7";
+  char record_path[MMPA_MAX_PATH] = {};
+  (void)mmGetEnv(kEnvRecordPath, &record_path[0], static_cast<uint32_t>(MMPA_MAX_PATH));
+
+  if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
+    return -1;
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtPersistentTaskClean(aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetTsDevice(aclrtTsId tsId) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetDeviceCount(uint32_t *count) {
+  *count = 1U;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return -1;
+  }
+
+  if(g_free_event_num <= 0) {
+    return -1;
+  }
+  g_free_event_num--;
+  *event = new int[EVENT_LENTH];
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtResetEvent(aclrtEvent event, aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSynchronizeEventWithTimeout(aclrtEvent event, int32_t timeout) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtMallocForTaskScheduler(void **devPtr, size_t size, aclrtMemMallocPolicy policy,
+                                                     aclrtMallocConfig *cfg) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtReserveMemAddress(void **virPtr, size_t size, size_t alignment, void *expectPtr,
+                                                uint64_t flags) {
+  if (size < 200UL * 1024UL *1024UL) {
+    *virPtr = new uint8_t[size];
+    reserve_mem_size_ = size;
+  } else {
+    *virPtr = new uint8_t[reserve_mem_size_];
+  }
+  memset_s(*virPtr, reserve_mem_size_, 0, reserve_mem_size_);
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtReleaseMemAddress(void *virPtr) {
+  delete[] (uint8_t *)virPtr;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop,
+                                             uint64_t flags) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return -1;
+  }
+  *handle = (aclrtDrvMemHandle) new uint8_t[8];
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtFreePhysical(aclrtDrvMemHandle handle) {
+  if (handle != nullptr) {
+    delete[] (uint8_t *)handle;
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtMapMem(void *virPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtUnmapMem(void *virPtr) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtStreamWaitEventWithTimeout(aclrtStream stream, aclrtEvent event, int32_t timeout) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetOpWaitTimeout(uint32_t timeout) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetOpExecuteTimeOut(uint32_t timeout) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetOpExecuteTimeOutV2(uint64_t timeout, uint64_t *actualTimeout) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetStreamAvailableNum(uint32_t *streamCount) {
+  const char *const kEnvRecordPath = "MOCK_AVAIL_STREAM_NUM";
+  char record_path[8] = {};
+  int32_t ret = mmGetEnv(kEnvRecordPath, &record_path[0], static_cast<uint32_t>(8));
+  if ((ret != EN_OK) || (strlen(record_path) == 0)) {
+    *streamCount = g_free_stream_num;
+    return ACL_SUCCESS;
+  }
+  try {
+    *streamCount = std::stoi(std::string(record_path));
+    return ACL_SUCCESS;
+  } catch (...) {
+    return 1; // SOME ERROR
+  }
+  *streamCount = g_free_stream_num;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetEventId(aclrtEvent event, uint32_t *eventId) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return -1;
+  }
+  *eventId = 1;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetEventAvailNum(uint32_t *eventCount) {
+  *eventCount = (uint32_t)g_free_event_num;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCreateLabel(aclrtLabel *label) {
+  if (std::string(__FUNCTION__) == g_acl_stub_mock) {
+    return -1;
+  }
+  *label = reinterpret_cast<aclrtLabel>(new int);
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetLabel(aclrtLabel label, aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCreateLabelList(aclrtLabel *labels, size_t num, aclrtLabelList *labelList) {
+  *labelList = new int[num];
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSwitchLabelByIndex(void *ptr, uint32_t maxValue, aclrtLabelList labelList, aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSwitchStream(void *leftValue, aclrtCondition cond, void *rightValue,
+                                           aclrtCompareDataType dataType, aclrtStream trueStream, aclrtStream falseStream,
+                                           aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIExecuteAsync(aclmdlRI modelRI, aclrtStream stream) {
+  const char * const kEnvRecordPath = "CONSTANT_FOLDING_PASS_8";
+  char record_path[MMPA_MAX_PATH] = {};
+  (void)mmGetEnv(kEnvRecordPath, &record_path[0], static_cast<uint32_t>(MMPA_MAX_PATH));
+
+  if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
+    return -1;
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIExecute(aclmdlRI modelRI, int32_t timeout) {
+  const char * const kEnvRecordPath = "CONSTANT_FOLDING_PASS_8";
+  char record_path[MMPA_MAX_PATH] = {};
+  (void)mmGetEnv(kEnvRecordPath, &record_path[0], static_cast<uint32_t>(MMPA_MAX_PATH));
+
+  if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
+    return -1;
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIBuildBegin(aclmdlRI *modelRI, uint32_t flag) {
+  const char * const kEnvRecordPath = "CONSTANT_FOLDING_PASS_3";
+  char record_path[MMPA_MAX_PATH] = {};
+  (void)mmGetEnv(kEnvRecordPath, &record_path[0], static_cast<uint32_t>(MMPA_MAX_PATH));
+
+  if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
+    return -1;
+  }
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIEndTask(aclmdlRI modelRI, aclrtStream stream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRISetName(aclmdlRI modelRI, const char *name) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCtxGetFloatOverflowAddr(void **overflowAddr) {
+  *overflowAddr = (void *)0x1;
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetHardwareSyncAddr(void **addr) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtTaskUpdateAsync(aclrtStream taskStream, uint32_t taskId, aclrtTaskUpdateInfo *info,
+                                              aclrtStream execStream) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclmdlRIAbort(aclmdlRI modelRI) {
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtProfTrace(void *userdata, int32_t length, aclrtStream stream) {
+  const char *const kEnvRecordPath = "CONSTANT_FOLDING_PASS";
+  char record_path[MMPA_MAX_PATH] = {};
+  (void)mmGetEnv(kEnvRecordPath, &record_path[0], static_cast<uint32_t>(MMPA_MAX_PATH));
+  if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
+    return -1;
+  }
+  return ACL_SUCCESS;
+}
+aclError AclRuntimeStub::aclrtCreateNotify(aclrtNotify *notify, uint64_t flag) {
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+  *notify = new int[NOTIFY_LENTH];
+  return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtDestroyNotify(aclrtNotify notify) {
+  if (notify != nullptr) {
+    delete[](int *) notify;
+    notify = nullptr;
+  }
+  return ACL_SUCCESS;
 }
 
 std::shared_ptr<AclApiStub> AclApiStub::instance_;
@@ -895,6 +1269,10 @@ aclError aclrtDestroyStream(aclrtStream stream) {
   return ge::AclRuntimeStub::GetInstance()->aclrtDestroyStream(stream);
 }
 
+aclError aclrtDestroyStreamForce(aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtDestroyStreamForce(stream);
+}
+
 aclError aclrtStreamAbort(aclrtStream stream) {
   return ge::AclRuntimeStub::GetInstance()->aclrtStreamAbort(stream);
 }
@@ -957,12 +1335,234 @@ aclError aclrtGetSocVersion(char *version, const uint32_t maxLen) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetSocVersion(version, maxLen);
 }
 
+const char* aclrtGetSocName() {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetSocName();
+}
+
 aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetDeviceInfo(deviceId, attr, value);
 }
 
 aclError aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetDevicePhyIdByIndex(devIndex, phyId);
+}
+
+aclError aclrtCheckArchCompatibility(const char *socVersion, int32_t *canCompatible) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCheckArchCompatibility(socVersion, canCompatible);
+}
+
+aclError aclrtDestroyContext(aclrtContext context) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtDestroyContext(context);
+}
+
+aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetStreamFailureMode(stream, mode);
+}
+
+aclError aclrtActiveStream(aclrtStream activeStream, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtActiveStream(activeStream, stream);
+}
+
+aclError aclrtCtxGetCurrentDefaultStream(aclrtStream *stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCtxGetCurrentDefaultStream(stream);
+}
+
+aclError aclrtDestroyLabel(aclrtLabel label) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtDestroyLabel(label);
+}
+
+aclError aclmdlRIDestroy(aclmdlRI modelRI) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIDestroy(modelRI);
+}
+
+aclError aclmdlRIUnbindStream(aclmdlRI modelRI, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIUnbindStream(modelRI, stream);
+}
+
+aclError aclrtDestroyLabelList(aclrtLabelList labelList) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtDestroyLabelList(labelList);
+}
+
+aclError aclmdlRIBindStream(aclmdlRI modelRI, aclrtStream stream, uint32_t flag) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIBindStream(modelRI, stream, flag);
+}
+
+aclError aclmdlRIBuildEnd(aclmdlRI modelRI, void *reserve) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIBuildEnd(modelRI, reserve);
+}
+
+aclError aclrtPersistentTaskClean(aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtPersistentTaskClean(stream);
+}
+
+aclError aclrtSetTsDevice(aclrtTsId tsId) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetTsDevice(tsId);
+}
+
+aclError aclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetExceptionInfoCallback(callback);
+}
+
+aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCreateContext(context, deviceId);
+}
+
+aclError aclrtGetDeviceCount(uint32_t *count) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetDeviceCount(count);
+}
+
+aclError aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCreateEventWithFlag(event, flag);
+}
+
+aclError aclrtCreateEventExWithFlag(aclrtEvent *event, uint32_t flag) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCreateEventExWithFlag(event, flag);
+}
+
+aclError aclrtResetEvent(aclrtEvent event, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtResetEvent(event, stream);
+}
+
+aclError aclrtSynchronizeEventWithTimeout(aclrtEvent event, int32_t timeout) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSynchronizeEventWithTimeout(event, timeout);
+}
+
+aclError aclrtMallocForTaskScheduler(void **devPtr, size_t size, aclrtMemMallocPolicy policy,
+                                     aclrtMallocConfig *cfg) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtMallocForTaskScheduler(devPtr, size, policy, cfg);
+}
+
+aclError aclrtReserveMemAddress(void **virPtr, size_t size, size_t alignment, void *expectPtr,
+                                uint64_t flags) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtReserveMemAddress(virPtr, size, alignment, expectPtr, flags);
+}
+
+aclError aclrtReleaseMemAddress(void *virPtr) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtReleaseMemAddress(virPtr);
+}
+
+aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop,
+                             uint64_t flags) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtMallocPhysical(handle, size, prop, flags);
+}
+
+aclError aclrtFreePhysical(aclrtDrvMemHandle handle) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtFreePhysical(handle);
+}
+
+aclError aclrtMapMem(void *virPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtMapMem(virPtr, size, offset, handle, flags);
+}
+
+aclError aclrtUnmapMem(void *virPtr) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtUnmapMem(virPtr);
+}
+
+aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtStreamWaitEvent(stream, event);
+}
+
+aclError aclrtStreamWaitEventWithTimeout(aclrtStream stream, aclrtEvent event, int32_t timeout) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtStreamWaitEventWithTimeout(stream, event, timeout);
+}
+
+aclError aclrtSetOpWaitTimeout(uint32_t timeout) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetOpWaitTimeout(timeout);
+}
+
+aclError aclrtSetOpExecuteTimeOut(uint32_t timeout) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetOpExecuteTimeOut(timeout);
+}
+
+aclError aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetOpExecuteTimeOutWithMs(timeout);
+}
+
+aclError aclrtSetOpExecuteTimeOutV2(uint64_t timeout, uint64_t *actualTimeout) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetOpExecuteTimeOutV2(timeout, actualTimeout);
+}
+
+aclError aclrtGetStreamAvailableNum(uint32_t *streamCount) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetStreamAvailableNum(streamCount);
+}
+
+aclError aclrtGetEventId(aclrtEvent event, uint32_t *eventId) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetEventId(event, eventId);
+}
+
+aclError aclrtGetEventAvailNum(uint32_t *eventCount) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetEventAvailNum(eventCount);
+}
+
+aclError aclrtCreateLabel(aclrtLabel *label) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCreateLabel(label);
+}
+
+aclError aclrtSetLabel(aclrtLabel label, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetLabel(label, stream);
+}
+
+aclError aclrtCreateLabelList(aclrtLabel *labels, size_t num, aclrtLabelList *labelList) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCreateLabelList(labels, num, labelList);
+}
+
+aclError aclrtSwitchLabelByIndex(void *ptr, uint32_t maxValue, aclrtLabelList labelList, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSwitchLabelByIndex(ptr, maxValue, labelList, stream);
+}
+
+aclError aclrtSwitchStream(void *leftValue, aclrtCondition cond, void *rightValue,
+                           aclrtCompareDataType dataType, aclrtStream trueStream, aclrtStream falseStream,
+                           aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSwitchStream(leftValue, cond, rightValue, dataType, trueStream, falseStream, stream);
+}
+
+aclError aclmdlRIExecuteAsync(aclmdlRI modelRI, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIExecuteAsync(modelRI, stream);
+}
+
+aclError aclmdlRIExecute(aclmdlRI modelRI, int32_t timeout) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIExecute(modelRI, timeout);
+}
+
+aclError aclmdlRIBuildBegin(aclmdlRI *modelRI, uint32_t flag) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIBuildBegin(modelRI, flag);
+}
+
+aclError aclmdlRIEndTask(aclmdlRI modelRI, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIEndTask(modelRI, stream);
+}
+
+aclError aclmdlRISetName(aclmdlRI modelRI, const char *name) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRISetName(modelRI, name);
+}
+
+aclError aclrtCtxGetFloatOverflowAddr(void **overflowAddr) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCtxGetFloatOverflowAddr(overflowAddr);
+}
+
+aclError aclrtGetHardwareSyncAddr(void **addr) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetHardwareSyncAddr(addr);
+}
+
+aclError aclrtTaskUpdateAsync(aclrtStream taskStream, uint32_t taskId, aclrtTaskUpdateInfo *info,
+                              aclrtStream execStream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtTaskUpdateAsync(taskStream, taskId, info, execStream);
+}
+
+aclError aclmdlRIAbort(aclmdlRI modelRI) {
+  return ge::AclRuntimeStub::GetInstance()->aclmdlRIAbort(modelRI);
+}
+
+aclError aclrtProfTrace(void *userdata, int32_t length, aclrtStream stream) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtProfTrace(userdata, length, stream);
+}
+
+aclError aclrtCreateNotify(aclrtNotify *notify, uint64_t flag) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtCreateNotify(notify, flag);
+}
+
+aclError aclrtDestroyNotify(aclrtNotify notify) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtDestroyNotify(notify);
 }
 
 aclError aclInit(const char *configPath) {

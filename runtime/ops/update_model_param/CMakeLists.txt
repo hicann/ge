@@ -8,5 +8,4 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-add_subdirectory(ascend910B)
-add_subdirectory(ascend910_93)
+add_subdirectory(dav_2201)

@@ -105,7 +105,7 @@ class PyGenerator : public ICodeGenerator {
   static void GenHeader(std::stringstream &ss) {
     ss << R"(#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# -----------------------------------------------------------------------------------------------------------
+# -------------------------------------------------------------------
 )" << std::endl;
   }
 
@@ -466,10 +466,10 @@ except ImportError as e:
     ss << "    " << PyGenConstants::kOwnerGraphBuilder << " = ";
     if (InputHandler::SupportTensorLike(op)) {
       // 多个入参时，使用 resolve_builder 从所有入参中获取到GraphBuilder
-      GenOwnerGraphBuilder(input_infos, ss);
+      InputHandler::GenOwnerGraphBuilder(input_infos, ss);
     } else {
       // 单个入参时，直接返回
-      GenOwnerGraphBuilder(input_infos[0], ss);
+      InputHandler::GenOwnerGraphBuilder(input_infos[0], ss);
     }
     ss << std::endl;
   }

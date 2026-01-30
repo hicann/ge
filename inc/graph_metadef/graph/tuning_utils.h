@@ -22,7 +22,6 @@
 #include <mutex>
 
 #include <graph/anchor.h>
-#include <graph/detail/attributes_holder.h>
 #include <graph/ge_tensor.h>
 #include <graph/graph.h>
 #include <graph/model.h>
@@ -30,10 +29,9 @@
 #include <graph/utils/graph_utils.h>
 #include <graph/utils/type_utils.h>
 
-#include "common/ge_common/debug/ge_log.h"
-#include "utils/attr_utils.h"
-#include "utils/node_utils.h"
+#include "framework/common/debug/ge_log.h"
 #include "external/ge_common/ge_api_types.h"
+#include "utils/node_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/tensor_utils.h"

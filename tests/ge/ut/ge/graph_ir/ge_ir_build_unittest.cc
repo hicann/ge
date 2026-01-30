@@ -671,6 +671,17 @@ TEST(UtestIrCommon, check_param_failed) {
   ret = CheckLogParamValidAndSetLogLevel(param_invalid);
 }
 
+TEST(UtestIrCommon, check_external_weight_param_succ) {
+  Status ret = CheckExternalWeightParamValid("0");
+  EXPECT_EQ(ret, SUCCESS);
+
+  ret = CheckExternalWeightParamValid("1");
+  EXPECT_EQ(ret, SUCCESS);
+
+  ret = CheckExternalWeightParamValid("2");
+  EXPECT_EQ(ret, SUCCESS);
+}
+
 TEST(UtestIrBuild, test_subgraph) {
   auto graph = BuildSubGraph();
   WeightRefreshableGraphs split_graphs;
@@ -1201,7 +1212,9 @@ TEST(UtestIrBuild, aclgrphGenerateForOp_test) {
 }
 
 TEST(UtestIrBuild, aclgrphGenerateForOp_singleop_test) {
-  std::string pwd = FILE_GRAPHIR_PATH;
+  std::string pwd = __FILE__;
+  std::size_t idx = pwd.find_last_of("/");
+  pwd = pwd.substr(0, idx);
   std::string json_file = pwd + "/../session/add_int.json";
   ge::AscendString json(json_file.c_str());
 
@@ -1212,7 +1225,9 @@ TEST(UtestIrBuild, aclgrphGenerateForOp_singleop_test) {
 }
 
 TEST(UtestIrBuild, aclgrphGenerateForOp_singleop_const_test) {
-  std::string pwd = FILE_GRAPHIR_PATH;
+  std::string pwd = __FILE__;
+  std::size_t idx = pwd.find_last_of("/");
+  pwd = pwd.substr(0, idx);
   std::string json_file = pwd + "/../session/add_int_const.json";
   ge::AscendString json(json_file.c_str());
 
@@ -1584,8 +1599,9 @@ TEST(UtestIrCommon, weight_compress_func_test) {
     currentDir = "./test_weight_compress_func_test";
     ret = ge::WeightCompressFunc(graph, currentDir);
     ASSERT_NE(ret, SUCCESS);
-    currentDir = FILE_GRAPHIR_PATH;
-    currentDir = currentDir + "/weight_compress.cfg";
+    currentDir = __FILE__;
+    std::size_t idx = currentDir.find_last_of("/");
+    currentDir = currentDir.substr(0, idx) + "/weight_compress.cfg";
     ret = ge::WeightCompressFunc(graph, currentDir);
     ASSERT_EQ(ret, SUCCESS);
 }

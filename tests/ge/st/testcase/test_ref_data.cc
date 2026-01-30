@@ -44,6 +44,7 @@
 #include "ge_running_env/fake_op.h"
 #include "common/summary_checker.h"
 #include "common/topo_checker.h"
+#include "common/opskernel/ops_kernel_info_types.h"
 
 #include <stub/gert_runtime_stub.h>
 
@@ -489,12 +490,51 @@ ComputeGraphPtr BuildGraphVarPartitionedCallWithSubgraph(bool main_graph_dynamic
 
   return main_graph;
 }
+void MockGenerateTask() {
+  auto aicore_func = [](const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
+    if (node.GetType() == CONSTANT) {
+      return SUCCESS;
+    }
+    auto op_desc = node.GetOpDesc();
+    op_desc->SetOpKernelLibName("AiCoreLib");
+    ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+    ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+    const char kernel_bin[] = "kernel_bin";
+    vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+    ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("kernel_bin", std::move(buffer));
+    op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
+    size_t arg_size = 100;
+    std::vector<uint8_t> args(arg_size, 0);
+    domi::TaskDef task_def;
+    task_def.set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_KERNEL));
+    auto kernel_info = task_def.mutable_kernel();
+    kernel_info->set_args(args.data(), args.size());
+    kernel_info->set_args_size(arg_size);
+    kernel_info->mutable_context()->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE));
+    kernel_info->set_kernel_name(node.GetName());
+    kernel_info->set_block_dim(1);
+    uint16_t args_offset[2] = {0};
+    kernel_info->mutable_context()->set_args_offset(args_offset, 2 * sizeof(uint16_t));
+    kernel_info->mutable_context()->set_op_index(node.GetOpDesc()->GetId());
+
+    tasks.emplace_back(task_def);
+    return SUCCESS;
+  };
+
+  auto rts_func = [](const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
+    return SUCCESS;
+  };
+
+  MockForGenerateTask("AiCoreLib", aicore_func);
+  MockForGenerateTask("RTSLib", rts_func);
+}
 }  // namespace
 class RefDataSt : public testing::Test {
  protected:
   void SetUp() {
     dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
     ge_env.InstallDefault();
+    MockGenerateTask();
   }
   void TearDown() {
     ge_env.Reset();

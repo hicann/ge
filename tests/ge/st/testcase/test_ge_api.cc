@@ -37,7 +37,11 @@
 #include "common/share_graph.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "operator_reg.h"
+#include "graph/custom_op_factory.h"
+#include "graph/custom_op.h"
 
+using namespace gert;
 namespace ge {
 namespace {
 static FakeOpsKernelInfoStore g_fake_hccl_ops_kernel_info_store;
@@ -405,6 +409,8 @@ ge::Graph BuildAddGraph() {
       .TensorDesc(FORMAT_NCHW, DT_INT32, shape)
       .InCnt(2)
       .OutCnt(1)
+      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+      .Attr(ATTR_NAME_KERNEL_BIN_ID, "_add_1_fake_id")
       .Build("add_1");
 
   auto netoutput = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).Build("netoutput");
@@ -426,6 +432,12 @@ auto aicore_func = [](const Node &node, RunContext &context, std::vector<domi::T
 
   auto op_desc = node.GetOpDesc();
   op_desc->SetOpKernelLibName("AiCoreLib");
+  ge::AttrUtils::SetStr(op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  ge::AttrUtils::SetStr(op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, op_desc->GetName() + "_fake_id");
+  const char kernel_bin[] = "kernel_bin";
+  vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+  ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("test", std::move(buffer));
+  op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
   size_t arg_size = 100;
   std::vector<uint8_t> args(arg_size, 0);
   domi::TaskDef task_def;

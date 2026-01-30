@@ -47,11 +47,12 @@ const std::map<std::string, ge::DataType> kOutputTypeSupportDatatype = {
     {"FP32", ge::DT_FLOAT}, {"FP16", ge::DT_FLOAT16}, {"UINT8", ge::DT_UINT8}, {"INT8", ge::DT_INT8},
     {"HIF8", ge::DT_HIFLOAT8}, {"FP8E5M2", ge::DT_FLOAT8_E5M2}, {"FP8E4M3FN", ge::DT_FLOAT8_E4M3FN},
 };
-const char *const kOutputTypeSupport = "only support FP32, FP16, UINT8, INT8, HIF8, FP8E5M2, FP8E4M3FN";
+const char *const kOutputTypeSupport =
+    "The current value is not within the valid range. Only support FP32, FP16, UINT8, INT8, HIF8, FP8E5M2, FP8E4M3FN.";
 const std::set<std::string> kBufferOptimizeSupportOption = {"l1_optimize", "l2_optimize", "off_optimize",
                                                             "l1_and_l2_optimize"};
 // The function is incomplete. Currently, only l2_optimize, off_optimize is supported.
-const char *const kBufferOptimizeSupport = "only support l2_optimize, off_optimize";
+const char *const kBufferOptimizeSupport = "The value must be  l2_optimize or off_optimize.";
 const char *const IR_OPTION_OP_SELECT_IMPLMODE_DEFAULT = "high_performance";
 const char *const IR_OPTION_OP_SELECT_IMPLMODE_PRECISON = "high_precision";
 const char *const IR_OPTION_OP_SELECT_IMPLMODE_HIGH_PRECISION_FOR_ALL = "high_precision_for_all";
@@ -60,29 +61,29 @@ const char *const IR_OPTION_OP_SELECT_IMPLMODE_ALLOW_FP32 = "enable_float_32_exe
 const char *const IR_OPTION_OP_SELECT_IMPLMODE_ALLOW_HI_FP32 = "enable_hi_float_32_execution";
 const char *const kInputShapeSample1 = "\"input_name1:n1,c1,h1,w1\"";
 const char *const kInputShapeSample2 = "\"input_name1:1,3,224,224\"";
-const char *const kSplitError1 = "after split shape by \":\", the shape must contains two parts: name and value";
-const char *const kEmptyError = "the shape has a name, it's value can not be empty";
-const char *const kFloatNumError = "exist float number";
-const char *const kDigitError = "is not digit";
-const char *const kCompressWeightError = "it must be appointed when appoint parameter[--optypelist_for_implmode]";
-const char *const kSelectImplmodeError = "only support high_performance, high_precision, "
-                                         "high_precision_for_all, high_performance_for_all";
-const char *const kDynamicBatchSizeError = "It can only contains digit, \",\"";
-const char *const kDynamicImageSizeError = "It can only contains digit, \",\", \" \" and \";\"";
-const char *const kKeepDtypeError = "file not found";
-const char *const kModifyMixlistPrecisonModeError = "modify_mixlist is assigned, "
-    "please ensure that precision_mode is assigned to 'allow_mix_precision' or "
-    "'allow_mix_precision_fp16' or 'allow_mix_precision_bf16'(if available).";
-const char *const kModifyMixlistPrecisonModeV2Error = "modify_mixlist is assigned, "
-    "please ensure that precision_mode_v2 is assigned to 'mixed_float16' or "
-    "'mixed_bfloat16' or 'mixed_hif8'(if available).";
+const char *const kSplitError1 = "The shape must contain two parts: name and value";
+const char *const kEmptyError = "The shape has a parameter name, whose value cannot be empty";
+const char *const kFloatNumError = "The float number is unsupported";
+const char *const kDigitError = "It is not a digit";
+const char *const kCompressWeightError =
+    "Parameters --op_select_implmode and --optypelist_for_implmode must be set at the same time.";
+const char *const kSelectImplmodeError = "The value must be high_performance, high_precision, "
+                                         "high_precision_for_all, high_performance_for_all.";
+const char *const kDynamicBatchSizeError = "It can only contain digits and \",\".";
+const char *const kDynamicImageSizeError = "It can only contain digits, \",\", \" \" and \";\".";
+const char *const kKeepDtypeError = "File defined by keep_dtype is not found.";
+const char *const kModifyMixlistPrecisonModeError =
+    "Modify_mixlist is set. Please ensure that precision_mode is set to any of {allow_mix_precision, "
+    "allow_mix_precision_fp16, allow_mix_precision_bf16(if available}.";
+const char *const kModifyMixlistPrecisonModeV2Error =
+    "Modify_mixlist is set. Please ensure that precision_mode_v2 is set to any of {mixed_float16, mixed_bfloat16, "
+    "mixed_hif8(if available)}.";
 const char *const kModifyMixlistError = "modify_mixlist is assigned, "
     "Please ensure that precision_mode only can be assigned to 'allow_mix_precision' or "
     "'allow_mix_precision_fp16' or 'allow_mix_precision_bf16'(if available), "
     "precision_mode_v2 only can be assigned to 'mixed_float16' or "
     "'mixed_bfloat16' or 'mixed_hif8'(if available).";
-const char *const kInputFormatInvalid = "Input format is invalid. "
-    "For details, see the corresponding tool guide.";
+const char *const kInValidValueRange = "The current value is not within the valid range.";
 
 // parser input_shape_range
 const size_t kSquareBracketsSize = 2;
@@ -93,9 +94,9 @@ const size_t kShapeRangeStrSize = 1;
 const size_t kShapeRangeVecNameIndex = 0;
 const size_t kShapeRangeVecValueIndex = 1;
 const size_t kShapeRangeVecSize = 2;
-const char *const kInvalidReasonBrackets = "after separate ranges with ';', the value can only contains a pair of '[]'";
-const char *const kInputShapeRangeInvalid = "format of shape range is invalid";
-const char *const kInputShapeRangeSizeInvalid = " shape range size less than 2 is invalid";
+const char *const kInvalidReasonBrackets = "The value can only contains a pair of '[]'";
+const char *const kInputShapeRangeInvalid = "The format of the shape range is invalid";
+const char *const kInputShapeRangeSizeInvalid = "The shape range size less than 2, and it is invalid";
 const char *const kShapeRangeValueConvertError = "The current string cannot be converted to a number";
 const char *const kInputShapeRangeSample1 = "\"input_name1:[n1~n2,c1,h1,w1]\"";
 const char *const kInputShapeRangeSample2 = "\"1~20\"";
@@ -108,6 +109,10 @@ const char *const kHintInputShape = "ge.inputHintShape";
 const std::vector<int64_t> kDummyShape = {-3};
 
 const std::unordered_set<std::string> kSupportedPrintMode = {"enable", "disable"};
+
+constexpr const char *kExternalWeightDisabled = "0";           // 禁用外置权重
+constexpr const char *kExternalWeightEnabled = "1";            // 启用外置权重，每个权重单独导出
+constexpr const char *kExternalWeightCombined = "2";           // 启用外置权重，所有权重合并导出到同一文件
 
 vector<std::string> SplitInputShape(const std::string &input_shape) {
   std::vector<std::string> shape_pair_vec;
@@ -227,7 +232,7 @@ Status CheckInputFormat(const std::string &input_format) {
   if (!ge::TypeUtilsInner::IsFormatValid(input_format.c_str())) {
     REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-        std::vector<const char *>({"--input_format", input_format.c_str(), kInputFormatInvalid}));
+        std::vector<const char *>({"--input_format", input_format.c_str(), kInValidValueRange}));
     GELOGE(ge::PARAM_INVALID, "[Check][InputFormat] --input_format[%s] is invalid!", input_format.c_str());
     return ge::PARAM_INVALID;
   }
@@ -285,7 +290,7 @@ bool CheckDynamicImagesizeInputShapeValid(std::map<std::string, std::vector<int6
     GELOGE(ge::PARAM_INVALID,
         "[Check][DynamicImagesizeInputShape] input_format [%s] invalid, can not support now.", input_format.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10003", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>({"input_format", input_format.c_str(), "this format is not support"}));
+                       std::vector<const char *>({"input_format", input_format.c_str(), "This format is not supported."}));
     return false;
   }
   int32_t size = 0;
@@ -360,7 +365,7 @@ bool CheckDynamicDimsInputShapeValid(const std::map<std::string, std::vector<int
   if (dynamic_dim == 0) {
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({"--input_shape's dynamic dim num", "0",
-                                                         "at least one dim should be -1 when set dynamic_dims"}));
+                                                         "At least one dim should be -1 when dynamic_dims is set."}));
     GELOGE(ge::PARAM_INVALID,
            "[Check][DynamicDimsInputShape]--input_shape invalid,"
            "at least one dim should be -1 when set dynamic_dims.");
@@ -378,9 +383,8 @@ bool CheckDynamicDimsInputShapeValid(const std::map<std::string, std::vector<int
 bool CheckAndParseDynamicDims(int32_t dynamic_dim_num, std::string &dynamic_dims) {
   EraseEndSemicolon(dynamic_dims);
   if (dynamic_dims.empty()) {
-    REPORT_PREDEFINED_ERR_MSG(
-        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-        std::vector<const char *>({"--dynamic_dims", dynamic_dims.c_str(), "dynamic_dims can not be empty"}));
+    REPORT_PREDEFINED_ERR_MSG("E10058", std::vector<const char *>({"parameter"}),
+                              std::vector<const char *>({"--dynamic_dims"}));
     GELOGE(ge::PARAM_INVALID, "[CheckAndParse][DynamicDims]--dynamic_dims can not be empty.");
     return false;
   }
@@ -392,7 +396,7 @@ bool CheckAndParseDynamicDims(int32_t dynamic_dim_num, std::string &dynamic_dims
       REPORT_PREDEFINED_ERR_MSG(
           "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
           std::vector<const char *>({"dynamic_dims", dynamic_dims.c_str(),
-            "Each gear setting needs to be consistent with the number of -1 in the inputshape"}));
+            "Each setting needs to be consistent with the number of -1 in the input shape."}));
       GELOGE(ge::PARAM_INVALID, "[CheckAndParse][DynamicDims] --dynamic_dims:%s invalid. "
           "reason: Each gear setting needs to be consistent with the number of -1 in the inputshape.",
           dynamic_dims.c_str());
@@ -403,7 +407,7 @@ bool CheckAndParseDynamicDims(int32_t dynamic_dim_num, std::string &dynamic_dims
         if (!isdigit(c)) {
           REPORT_PREDEFINED_ERR_MSG(
               "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-              std::vector<const char *>({"--dynamic_dims", dim.c_str(), "must be positive integer"}));
+              std::vector<const char *>({"--dynamic_dims", dim.c_str(), "Dynamic dims must be a positive integer."}));
           GELOGE(ge::PARAM_INVALID,
               "[CheckAndParse][DynamicDims]--dynamic_dims:%s parameter must be positive integer.",
               dynamic_dims.c_str());
@@ -580,6 +584,19 @@ Status CheckInputShapeValueValid(const std::string &input_shape_value) {
   return SUCCESS;
 }
 
+Status CheckHintShapeConflictWithDynamicParam(std::string &hint_shape, std::string &dynamic_batch_size,
+                                              std::string &dynamic_image_size, std::string &dynamic_dims) {
+  bool is_enable_dynamic_param = !dynamic_batch_size.empty() || !dynamic_image_size.empty() || !dynamic_dims.empty();
+  if (!hint_shape.empty() && is_enable_dynamic_param) {
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                std::vector<const char *>({"--input_hint_shape", hint_shape.c_str(),
+                                "input_hint_shape cannot be used with dynamic_batch_size, dynamic_image_size or dynamic_dims."}));
+      GELOGE(PARAM_INVALID, "input_hint_shape cannot be used with dynamic_batch_size, dynamic_image_size or dynamic_dims.");
+      return PARAM_INVALID;
+  }
+  return SUCCESS;
+}
+
 Status ParserShapeRangeByIndex(std::string &input_shape, std::string &input_shape_range) {
   input_shape_range.clear();
   std::vector<std::string> temp_input_shape_vec = StringUtils::Split(input_shape, ';');
@@ -614,7 +631,7 @@ Status ParserShapeRangeByName(std::string &input_shape, std::string &input_shape
     if (input_name_and_value[kShapeRangeVecNameIndex].empty()) {
       REPORT_PREDEFINED_ERR_MSG(
           "E10002", std::vector<const char *>({"shape", "reason", "sample"}),
-          std::vector<const char *>({temp_input_shape_vec[i].c_str(), "Input name is empty", kInputShapeRangeSample6}));
+          std::vector<const char *>({temp_input_shape_vec[i].c_str(), "The input name is empty", kInputShapeRangeSample6}));
       GELOGE(PARAM_INVALID,
           "[Parse][Parameter]invalid input_shape: %s, reason: Input name is empty, correct sample is %s.",
           temp_input_shape_vec[i].c_str(), kInputShapeRangeSample6);
@@ -811,7 +828,7 @@ bool ParseInputShape(const std::string &input_shape, std::map<std::string, std::
         return false;
       } catch (...) {
         REPORT_PREDEFINED_ERR_MSG(
-            "E10015", std::vector<const char *>({"parameter", "value"}),
+            "E10014", std::vector<const char *>({"parameter", "value"}),
             std::vector<const char *>({"input_shape", shape_value_str.c_str()}));
         GELOGW("Input parameter[--input_shape]'s value[%s] cause unkown execption!", shape_value_str.c_str());
         return false;
@@ -958,15 +975,16 @@ Status ParseHintInputShape(std::vector<GeShape> &option_shape) {
   GELOGI("Option %s is set, value: %s.", kHintInputShape, input_option.c_str());
   const std::vector<std::string> input_option_strs = ge::StringUtils::Split(input_option, ';');
   option_shape.resize(input_option_strs.size(), GeShape(kDummyShape));
-  for (const auto &input_option : input_option_strs) {
-    const std::vector<std::string> index_and_shape_str = ge::StringUtils::Split(input_option, ':');
+  for (const auto &input_option_local : input_option_strs) {
+    const std::vector<std::string> index_and_shape_str = ge::StringUtils::Split(input_option_local, ':');
     // :的左右两边必须是有元素的，key和value元素
     GE_ASSERT_TRUE(index_and_shape_str.size() == kLeastStrElementNum,
-        "Options in %s is invalid, which is %s", kHintInputShape, input_option.c_str());
+        "Options in %s is invalid, which is %s", kHintInputShape, input_option_local.c_str());
     int64_t index = -1;
     GE_ASSERT_SUCCESS(ConvertToInt64(index_and_shape_str.front(), index),
-        "Option: %s is invalid in option %s", input_option.c_str(), kHintInputShape);
-    GE_ASSERT_TRUE(index < static_cast<int64_t>(option_shape.size()));
+        "Option: %s is invalid in option %s", input_option_local.c_str(), kHintInputShape);
+    GE_ASSERT_TRUE((index >= 0) && index < static_cast<int64_t>(option_shape.size()),
+        "Shpae index[%ld] is invalid, not between 0-%u", index, option_shape.size());
     GE_ASSERT_TRUE(option_shape[index].GetDims() == kDummyShape,
         "Deplicate input index: %lld in option %s", index, kHintInputShape);
     GeShape shape;
@@ -1034,11 +1052,12 @@ Status CheckEnableSingleStreamParamValid(const std::string &enable_single_stream
 }
 
 Status CheckExternalWeightParamValid(const std::string &enable_external_weight) {
-  if ((enable_external_weight != "") && (enable_external_weight != "0") && (enable_external_weight != "1")) {
+  if ((enable_external_weight != "") && (enable_external_weight != kExternalWeightDisabled) &&
+      (enable_external_weight != kExternalWeightEnabled) && (enable_external_weight != kExternalWeightCombined)) {
     REPORT_PREDEFINED_ERR_MSG(
         "E10006", std::vector<const char *>({"parameter", "value"}),
         std::vector<const char *>({"external_weight", enable_external_weight.c_str()}));
-    GELOGE(ge::PARAM_INVALID, "[Check][Param:--external_weight] value:%s must be 1 or 0.",
+    GELOGE(ge::PARAM_INVALID, "[Check][Param:--external_weight] value:%s must be 0, 1 or 2.",
            enable_external_weight.c_str());
     return ge::PARAM_INVALID;
   }
@@ -1138,7 +1157,8 @@ Status CheckPrecisionModeParamValid(const std::string &precision_mode) {
   static const std::unordered_set<std::string> allowed_set = {
       "", "force_fp16", "force_fp32", "cube_fp16in_fp32out", "allow_mix_precision", "allow_fp32_to_fp16",
       "must_keep_origin_dtype", "allow_mix_precision_fp16", "allow_mix_precision_bf16", "allow_fp32_to_bf16"};
-  static const std::string reason = "valid values are: " + StringSetToString(allowed_set);
+  static const std::string reason =
+      "The current value is not within the valid range. Valid values are: " + StringSetToString(allowed_set) + ".";
   if (allowed_set.find(precision_mode) == allowed_set.end()) {
     REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
@@ -1155,7 +1175,8 @@ Status CheckPrecisionModeV2ParamValid(const std::string &precision_mode_v2) {
     "", "fp16", "origin", "cube_fp16in_fp32out", "mixed_float16", "mixed_bfloat16",
     "cube_hif8", "mixed_hif8",
   };
-  static const std::string reason = "valid values are: " + StringSetToString(allowed_set);
+  static const std::string reason =
+      "The current value is not within the valid range. Valid values are: " + StringSetToString(allowed_set) + ".";
   if (allowed_set.find(precision_mode_v2) == allowed_set.end()) {
     REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
@@ -1355,7 +1376,7 @@ Status UpdateDataOpShapeRange(const OpDescPtr &op,
 
   if ((index < 0) || (static_cast<size_t>(index) >= index_shape_range_map.size())) {
     std::string situation = "data op index[" + std::to_string(index) + "]";
-    std::string reason = "it must less than user_input size[" + std::to_string(index_shape_range_map.size()) + "]";
+    std::string reason = "The attribute index of the operator is less than 0 or exceeds the shape range entered by the user";
     REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"situation", "reason"}),
                        std::vector<const char *>({situation.c_str(), reason.c_str()}));
     GELOGE(PARAM_INVALID, "user_input size = %zu, graph data op index = %ld.", index_shape_range_map.size(), index);
@@ -1482,8 +1503,8 @@ Status CheckHostEnvOsAndHostEnvCpuValid(const std::string &host_env_os, const st
   if (cpu_os_iter == opp_supported_os_cpu.end()) {
     const std::string &opp_supported_os = SupportedHostEnvOsList(opp_supported_os_cpu);
     std::stringstream reason;
-    reason << "The os [" << host_env_os << "] not supported, support list is [" << opp_supported_os
-           << "], the supported os type is same as opp package.";
+    reason << "The OS " << host_env_os << " is not within the support list of {" << opp_supported_os
+           << "}, and the OS type must be consistent with that of the opp.";
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
                        std::vector<const char *>({host_env_os.c_str(), "--host_env_os", reason.str().c_str()}));
     GELOGE(FAILED, "%s", reason.str().c_str());
@@ -1493,8 +1514,8 @@ Status CheckHostEnvOsAndHostEnvCpuValid(const std::string &host_env_os, const st
   if (cpu_os_iter->second.count(host_env_cpu) == 0U) {
     const std::string &opp_supported_cpu = SupportedHostEnvCpuList(cpu_os_iter->second);
     std::stringstream reason;
-    reason << "The cpu [" << host_env_cpu << "] not supported, support list is [" << opp_supported_cpu
-           << "], the supported cpu type is same as opp package.";
+    reason << "The CPU " << host_env_cpu << " is not within the support list of {" << opp_supported_cpu
+           << "}, and the CPU type must be consistent with that of the opp.";
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
                        std::vector<const char *>({host_env_cpu.c_str(), "--host_env_cpu", reason.str().c_str()}));
     GELOGE(FAILED, "%s", reason.str().c_str());
@@ -1530,7 +1551,7 @@ Status CheckOptionValidValues(const std::map<std::string, std::string> &options,
   if (valid_values.count(iter->second) == 0UL) {
     GELOGE(PARAM_INVALID, "[Check][Option]option %s=%s is invalid", key.c_str(), iter->second.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>({key.c_str(), iter->second.c_str(), "value is unsupported. Please check!"}));
+                       std::vector<const char *>({key.c_str(), iter->second.c_str(), kInValidValueRange}));
     return FAILED;
   }
   GELOGI("Get option key[%s] value[%s].", key.c_str(), iter->second.c_str());
@@ -1546,8 +1567,8 @@ Status CheckValidValueRange(const std::string &key, const std::string &value, co
   int64_t value_got;
   val >> value_got;
   if ((value_got < min) || (value_got > max)) {
-    std::string valid_range_msg =
-        "valid range is [" + std::to_string(min) + "," + std::to_string(max) + "]" + ", please check!";
+    std::string valid_range_msg = "The current value is not within the valid range. The valid range is [" +
+                                  std::to_string(min) + "," + std::to_string(max) + "].";
     GELOGE(PARAM_INVALID, "[Check][Parameter] failed, option[%s] value[%s] is invalid, %s", key.c_str(),
            value.c_str(), valid_range_msg.c_str());
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
@@ -1658,8 +1679,10 @@ Status CheckScreenPrinterOption(const std::map<std::string, std::string> &option
     return SUCCESS;
   }
   if (kSupportedPrintMode.count(iter->second) == 0U) {
-    REPORT_PREDEFINED_ERR_MSG("E10003", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>({OPTION_SCREEN_PRINT_MODE, iter->second.c_str(), "this value is not support"}));
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({OPTION_SCREEN_PRINT_MODE, iter->second.c_str(),
+                                   "This value is not supported. It only supports enable or disable."}));
     GELOGE(ge::PARAM_INVALID, "[Check][Option] option[%s] value[%s] invalid, not support.", OPTION_SCREEN_PRINT_MODE,
            iter->second.c_str());
     return FAILED;

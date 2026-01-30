@@ -42,12 +42,10 @@ class HybridModelRtV1Executor : public HybridModelExecutor {
   Status Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs,
     CtrlArgs &ctrl_args) override;
 
-  Status Execute(const InputData &input_data, ExecuteArgs &args) override;
+  Status Execute(const InputData &input_data, ExecuteArgs &args);
 
   Status ExecuteForSingleOp(const HybridModelExecutor::ExecuteArgs &args);
 
-  Status ExecuteOnlineModel(const InputData &input_data, OutputData *const output_data,
-                            std::shared_ptr<ModelListener> listener) override;
   Status ExecuteOnlineModel(const std::vector<gert::Tensor> &inputs,
     std::shared_ptr<ModelListener> listener) override;
  private:

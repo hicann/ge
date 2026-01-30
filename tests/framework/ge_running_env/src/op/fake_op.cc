@@ -12,6 +12,7 @@
 #include "fake_op_repo.h"
 #include "ge_running_env/info_store_holder.h"
 #include "graph/operator_factory.h"
+#include "graph/utils/op_desc_utils.h"
 
 FAKE_NS_BEGIN
 auto default_infer_fun = [](Operator &op) -> graphStatus { 
@@ -47,33 +48,45 @@ void RegistOpToInfoStore(OpsKernelInfoStorePtr& info_store, const std::string& o
     return;
   }
   auto holder = dynamic_cast<InfoStoreHolder*>(info_store.get());
-  holder->RegistOp(op_type);
+  if (holder != nullptr) {
+    holder->RegistOp(op_type);
+  }
 }
 
 struct FakeOperator : Operator {
-  FakeOperator(const std::string& op_type) : Operator(op_type.c_str()) {}
+  FakeOperator(const std::string& op_type) : Operator(op_type) {}
 
   FakeOperator& RegistInputs(const std::vector<std::string>& inputs) {
     for (auto& input : inputs) {
-      Operator::InputRegister(input.c_str());
+      Operator::InputRegister(input);
     }
     return *this;
   }
 
   FakeOperator& RegistOutputs(const std::vector<std::string>& outputs) {
     for (auto& output : outputs) {
-      Operator::OutputRegister(output.c_str());
+      Operator::OutputRegister(output);
     }
     return *this;
   }
 
-  FakeOperator& AttrRegister(const std::map<std::string, std::variant<int64_t>>& attrs) {
+  FakeOperator& AttrRegister(const std::map<std::string, std::variant<int64_t, std::string>>& attrs) {
     for (auto& attr : attrs) {
       std::visit([this, name = attr.first](const auto& value) {
-        Operator::AttrRegister(name.c_str(), value);
+        Operator::AttrRegister(name, value);
       }, attr.second);
     }
     
+    return *this;
+  }
+
+  FakeOperator& ExtAttrRegister(const std::map<std::string, std::variant<OpKernelBinPtr>>& ext_attrs) {
+    for (auto& attr : ext_attrs) {
+      std::visit([this, name = attr.first](const auto& value) {
+        auto op_desc = OpDescUtils::GetOpDescFromOperator(*this);
+        op_desc->SetExtAttr(name, value);
+      }, attr.second);
+    }
     return *this;
   }
 };
@@ -91,8 +104,8 @@ void FakeOp::InstallTo(std::map<string, OpsKernelInfoStorePtr>& info_stores) con
 void FakeOp::Install() const {
   FakeOpRepo::Regist(
     op_type_,
-    [op_type = this->op_type_, inputs = this->inputs_, outputs = this->outputs_, attrs = this->attrs_](const std::string&) -> Operator {
-      return FakeOperator(op_type).RegistInputs(inputs).RegistOutputs(outputs).AttrRegister(attrs);
+    [op_type = this->op_type_, inputs = this->inputs_, outputs = this->outputs_, attrs = this->attrs_, ext_attrs = this->ext_attrs_](const std::string&) -> Operator {
+      return FakeOperator(op_type).RegistInputs(inputs).RegistOutputs(outputs).AttrRegister(attrs).ExtAttrRegister(ext_attrs);
     });
   if (info_fun_) {
     FakeOpRepo::Regist(op_type_, info_fun_);

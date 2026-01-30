@@ -403,7 +403,7 @@ Status CaffeModelParser::ParseNetModelByCustomProto(const char *model_path, cons
     delete message;
     REPORT_PREDEFINED_ERR_MSG("E11032", std::vector<const char *>({"message_type", "name", "reason"}),
                        std::vector<const char *>({"model", "LayerParameter",
-                           "Does not find domi.caffe.LayerParameter in google::protobuf::Descriptor"}));
+                           "Cannot find domi.caffe.LayerParameter in google::protobuf::Descriptor"}));
     GELOGE(FAILED, "[Invoke][FindMessageTypeByName]Does not find domi.caffe.LayerParameter"
            "in google::protobuf::Descriptor");
     return FAILED;
@@ -778,7 +778,7 @@ Status CaffeModelParser::ParseOpParam(const domi::caffe::LayerParameter &layer, 
     vector<ge::Operator> custom_operator;
     status = GetCustomOp(layer, custom_operator);
     if (status != SUCCESS || custom_operator.empty()) {
-      REPORT_PREDEFINED_ERR_MSG("E19999", std::vector<const char *>({"opname", "optype"}),
+      REPORT_PREDEFINED_ERR_MSG("E10501", std::vector<const char *>({"opname", "optype"}),
                                 std::vector<const char *>({layer.name().c_str(), op_type.c_str()}));
       GELOGE(status, "[Get][CustomOp]failed for op [%s], optype [%s]",
              layer.name().c_str(), op_type.c_str());
@@ -1801,7 +1801,7 @@ Status CaffeWeightsParser::ParseWeightByFusionProto(const char *weight_path, con
   if (descriptor == nullptr) {
     REPORT_PREDEFINED_ERR_MSG("E11032", std::vector<const char *>({"message_type", "name", "reason"}),
                        std::vector<const char *>({"weight", "NetParameter",
-                           "Does not find domi.caffe.NetParameter in google::protobuf::Descriptor."}));
+                           "Cannot find domi.caffe.NetParameter in google::protobuf::Descriptor"}));
     GELOGE(FAILED, "[Invoke][FindMessageTypeByName]Does not find domi.caffe.NetParameter in "
            "google::protobuf::Descriptor, which may be caused by problematic fusion proto.");
     return FAILED;
@@ -1828,7 +1828,7 @@ Status CaffeWeightsParser::ParseWeightByFusionProto(const char *weight_path, con
     message = nullptr;
     REPORT_PREDEFINED_ERR_MSG("E11032", std::vector<const char *>({"message_type", "name", "reason"}),
                        std::vector<const char *>({"weight", "NetParameter",
-                           "Does not find domi.caffe.LayerParameter in google::protobuf::Descriptor"}));
+                           "Cannot find domi.caffe.LayerParameter in google::protobuf::Descriptor"}));
     GELOGE(FAILED,
            "[Invoke][FindMessageTypeByName]Does not find domi.caffe.LayerParameter in google::protobuf::Descriptor");
     return FAILED;
@@ -1876,8 +1876,9 @@ Status CaffeWeightsParser::ParseLayerParameter(const google::protobuf::Descripto
       continue;
     }
     if (!field->is_repeated()) {
-      REPORT_PREDEFINED_ERR_MSG("E11032", std::vector<const char *>({"message_type", "name", "reason"}),
-                         std::vector<const char *>({"weight", field->name().c_str(), "LayerParameter should be repeated"}));
+      REPORT_PREDEFINED_ERR_MSG(
+          "E11032", std::vector<const char *>({"message_type", "name", "reason"}),
+          std::vector<const char *>({"weight", field->name().c_str(), "LayerParameter should be repeated"}));
       GELOGE(FAILED, "[Check][Param] LayerParameter should be repeated, field:%s.", field->name().c_str());
       return FAILED;
     }
@@ -2106,8 +2107,9 @@ Status CaffeWeightsParser::CheckLayersSize(const google::protobuf::Message &mess
       continue;
     }
     if (!field->is_repeated()) {
-      REPORT_PREDEFINED_ERR_MSG("E11032", std::vector<const char *>({"message_type", "name", "reason"}),
-                         std::vector<const char *>({"weight", field->name().c_str(), "LayerParameter should be repeated"}));
+      REPORT_PREDEFINED_ERR_MSG(
+          "E11032", std::vector<const char *>({"message_type", "name", "reason"}),
+          std::vector<const char *>({"weight", field->name().c_str(), "LayerParameter should be repeated"}));
       GELOGE(FAILED, "[Check][Param] LayerParameter should be repeated. field:%s", field->name().c_str());
       return FAILED;
     }

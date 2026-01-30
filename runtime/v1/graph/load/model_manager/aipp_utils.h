@@ -16,7 +16,6 @@
 #include "framework/common/ge_inner_error_codes.h"
 #include "framework/common/ge_types.h"
 #include "graph/op_desc.h"
-#include "graph/utils/attr_utils.h"
 #include "proto/insert_op.pb.h"
 
 namespace ge {

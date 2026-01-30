@@ -33,6 +33,7 @@
 #include "parser/common/convert/pb2json.h"
 #include "common/proto_util.h"
 #include "graph/utils/op_type_utils.h"
+#include "common/ge_common/util.h"
 
 using std::ostringstream;
 
@@ -40,11 +41,11 @@ namespace ge {
 namespace {
 const std::string kGraphDefaultName = "domi_default";
 const std::string kScopeIdAttr = "fusion_scope";
-const char *const kOutputTypeSample = "correct sample is \"opname:index:dtype\"";
-const char *const kOutputTypeSupport = "only support FP32, FP16, UINT8, INT8, a node can only have one type, "
-                                       "The correct example is: --output_type=FP32";
+const char *const kOutputTypeSample = "The parameter is invalid. Valid format \"opname:index:dtype\".";
+const char *const kOutputTypeSupport = "The value must be FP32, FP16, UINT8, INT8. A node can only have one type. "
+                                       "The correct example is: --output_type=FP32.";
 const char *const kOutputTypeError = "In the mode of specified node, the correct example is: node1:0:FP16;node2:0:FP32."
-                                     "The nodes set in --output_type must be found in --out_nodes";
+                                     "The nodes set in --output_type must be found in --out_nodes.";
 const size_t kNodeNameIndex = 0;
 const size_t kIndexStrIndex = 1;
 const size_t kDTValueIndex = 2;
@@ -122,7 +123,7 @@ static domi::Status CheckInputShapeNode(const ComputeGraphPtr &graph, bool is_dy
             GELOGE(PARAM_INVALID, "[Check][Param]Input op [%s] shape %ld is negative, "
                    "maybe you should set input_shape to specify its shape", node->GetName().c_str(), dim);
             const std::string reason =
-                "The shapes of Inputs contain -1 in model, maybe you should set input_shape to specify its shape";
+                "The shapes of inputs contain -1 in the model. You may need to set input shape to specify its shape.";
             REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                                       std::vector<const char *>({"--input_shape", "NULL", reason.c_str()}));
             return PARAM_INVALID;
@@ -275,7 +276,7 @@ domi::Status StringToInt(std::string &str, int32_t &value) {
     if (!CheckDigitStr(str)) {
       GELOGE(PARAM_INVALID, "[Check][Param]Invalid of digit std::string: %s ", str.c_str());
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                                std::vector<const char *>({"--output_type", str.c_str(), "is not positive integer"}));
+          std::vector<const char *>({"--output_type", str.c_str(), "The value is not a positive integer."}));
       return PARAM_INVALID;
     }
     value = stoi(str);
@@ -382,8 +383,8 @@ domi::Status CheckOutNode(ge::OpDescPtr op_desc, int32_t index) {
            "[Check][Param]out_node [%s] output index:%d must be smaller "
            "than node output size:%d and can not be negative",
            op_desc->GetName().c_str(), index, out_size);
-    std::string fail_reason = "output index:" + to_string(index) + " must be smaller than output size:" +
-                              to_string(out_size) + " and can not be negative";
+    std::string fail_reason = "Output index:\"" + to_string(index) + "\" must be smaller than output size:" +
+                              to_string(out_size) + " and cannot be negative.";
     REPORT_PREDEFINED_ERR_MSG("E10003", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({"out_nodes", op_desc->GetName().c_str(), fail_reason.c_str()}));
     return FAILED;
@@ -620,7 +621,8 @@ domi::Status ParseOutNodes(const std::string &out_nodes) {
           REPORT_PREDEFINED_ERR_MSG(
               "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
               std::vector<const char *>(
-                  {"--out_nodes", node.c_str(), "the correct format is \"node_name1:0;node_name1:1;node_name2:0\""}));
+                  {"--out_nodes", node.c_str(),
+                   "The parameter format is invalid. Valid format: \"node_name1:0;node_name1:1;node_name2:0\"."}));
           GELOGE(PARAM_INVALID,
                  "[Parse][Param]The input format of --out_nodes is invalid, the correct format is "
                  "\"node_name1:0;node_name1:1;node_name2:0\", while the actual input is %s.",
@@ -635,7 +637,7 @@ domi::Status ParseOutNodes(const std::string &out_nodes) {
         if (!CheckDigitStr(key_value_v[1])) {
           REPORT_PREDEFINED_ERR_MSG(
               "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-              std::vector<const char *>({"--out_nodes", out_nodes.c_str(), "index is not positive integer"}));
+              std::vector<const char *>({"--out_nodes", out_nodes.c_str(), "The index is not a positive integer."}));
           GELOGE(PARAM_INVALID, "[Parse][Param]This str must be digit string, while the actual input is %s",
                  out_nodes.c_str());
           return PARAM_INVALID;
@@ -656,7 +658,8 @@ domi::Status ParseOutNodes(const std::string &out_nodes) {
       if (set_output_mode == kSetOutputModeMixed) {
         REPORT_PREDEFINED_ERR_MSG(
             "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-            std::vector<const char *>({"--out_nodes", out_nodes.c_str(), "is not all index or top_name"}));
+            std::vector<const char *>(
+                {"--out_nodes", out_nodes.c_str(), "Only one of index, top_name and output_name can be used."}));
         GELOGE(PARAM_INVALID, "[Parse][Param]This out_nodes str must be all index or tensor_name, "
                               "while the actual input is %s", out_nodes.c_str());
         return PARAM_INVALID;
@@ -699,7 +702,7 @@ static domi::Status CheckOpNameMap(const ComputeGraphPtr &graph, const std::stri
   if (propertiesMap.empty()) {
     REPORT_PREDEFINED_ERR_MSG(
         "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
-        std::vector<const char *>({"op_name_map", op_conf.c_str(), "the file content is empty"}));
+        std::vector<const char *>({"op_name_map", op_conf.c_str(), "The file content is empty."}));
     GELOGE(PARAM_INVALID, "[Check][Param]op_name_map file content is empty, please check file!");
     return PARAM_INVALID;
   }
@@ -707,9 +710,9 @@ static domi::Status CheckOpNameMap(const ComputeGraphPtr &graph, const std::stri
     GE_IF_BOOL_EXEC(graphNodeTypes.find(iter->second) == graphNodeTypes.end(),
                     REPORT_PREDEFINED_ERR_MSG(
                         "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
-                        std::vector<const char *>({"op_name_map", op_conf.c_str(), ("type[" + iter->second + "] is not found in model").c_str()}));
-                    GELOGE(PARAM_INVALID, "[Find][NodeType]Invalid parameter for op_name_map.");
-                    return PARAM_INVALID;);
+                        std::vector<const char *>({"op_name_map", op_conf.c_str(),
+                                                   ("Type[" + iter->second + "] is not found in the model.").c_str()}));
+                    GELOGE(PARAM_INVALID, "[Find][NodeType]Invalid parameter for op_name_map."); return PARAM_INVALID;);
   }
   return SUCCESS;
 }
@@ -774,7 +777,7 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ParseGraph(ge::Graph &graph, const std::ma
     GE_IF_BOOL_EXEC(!PropertiesManager::Instance().Init(op_conf),
                     REPORT_PREDEFINED_ERR_MSG(
                             "E10003", std::vector<const char *>({"parameter", "value", "reason"}),
-                            std::vector<const char *>({"op_name_map", op_conf, "file content error"}));
+                            std::vector<const char *>({"op_name_map", op_conf, "File content error."}));
                     GELOGE(FAILED, "[Invoke][Init]op_name_map init failed!");
                     return FAILED);
     // Return map and put it into ATC global variable
@@ -1077,8 +1080,9 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertFwkModelToJson(const domi::Framewor
 
   REPORT_PREDEFINED_ERR_MSG(
       "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-      std::vector<const char *>({"--framework", std::to_string(framework).c_str(),
-                                 "only support 0(Caffe) 3(TensorFlow) 5(Onnx) when model set 1"}));
+      std::vector<const char *>(
+          {"--framework", std::to_string(framework).c_str(),
+           "The ramework must be selected from {0(Caffe), 3(TensorFlow), 5(Onnx)} when model is set to 1(JSON)."}));
   GELOGE(PARAM_INVALID, "[Check][Param]Input parameter[--framework] is mandatory "
          "and it's value must be: 0(Caffe) 3(TensorFlow) or 5(Onnx).");
   return PARAM_INVALID;

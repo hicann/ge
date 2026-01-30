@@ -32,7 +32,6 @@
 #include "runtime/subscriber/global_dumper.h"
 #include "graph/utils/execute_graph_utils.h"
 #include "graph/utils/graph_dump_utils.h"
-#include "register/op_impl_registry_holder_manager.h"
 using namespace ge;
 using namespace gert::bg;
 
@@ -156,7 +155,7 @@ TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
                                                                   {"Const", 9},
                                                                   {"AllocBatchHbm", 1},
                                                                   {"AllocMemHbm", 1},
-                                                                  {"BuildAclnnOpFwkData", 1},
+                                                                  {"BuildDualStageAclnnOpFwkData", 1},
                                                                   {"BuildRefTensor", 3},
                                                                   {"CalcTensorSizeFromShape", 1},
                                                                   {"CalcTensorSizeFromStorage", 2},
@@ -166,7 +165,7 @@ TEST_F(AclnnNodeConverterUT, TestHgl_Twostages) {
                                                                   {"FreeBatchHbm", 1},
                                                                   {"FreeMemory", 3},
                                                                   {"InferShape", 1},
-                                                                  {"InnerData", 8},
+                                                                  {"InnerData", 9},
                                                                   {"MakeSureTensorAtDevice", 2},
                                                                   {"SelectL1Allocator", 1},
                                                                   {"SelectL2Allocator", 1},

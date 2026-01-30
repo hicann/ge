@@ -26,9 +26,9 @@ else()
 endif()
 
 if(protoc_grpc_FOUND)
-    message(STATUS "[protoc grpc] protoc_grpc found, skip compiling..")
+    message(STATUS "[protoc grpc] protoc_grpc found, skip compiling.")
 else()
-    message(STATUS "[protoc grpc] protoc_grpc not found, finding binary file..")
+    message(STATUS "[protoc grpc] protoc_grpc not found, finding binary file.")
     set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/grpc/grpc-1.60.0.tar.gz")
     # 初始化可选参数列表
     set(GRPC_EXTRA_ARGS "")
@@ -42,7 +42,7 @@ else()
         )
     endif()
 
-    set(GRPC_CXX_FLAGS "-Wl,-z,relro,-z,now,-z,noexecstack -D_FORTIFY_SOURCE=2 -O2 -fstack-protector-all -s -D_GLIBCXX_USE_CXX11_ABI=0")
+    set(GRPC_CXX_FLAGS "-Wl,-z,relro,-z,now,-z,noexecstack -D_FORTIFY_SOURCE=2 -O2 -fstack-protector-all -s -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI}")
 
     ExternalProject_Add(protoc_grpc_build
                         URL ${REQ_URL}

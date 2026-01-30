@@ -41,6 +41,13 @@ rtError_t RuntimeStub::rtGetSocVersion(char *version, const uint32_t maxLen) {
  (void)strcpy_s(version, maxLen, "Ascend910B1");
  return RT_ERROR_NONE;
 }
+
+rtError_t RuntimeStub::rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) {
+ (void)label;
+ (void)key;
+ (void)strcpy_s(val, maxLen, "2201");
+ return RT_ERROR_NONE;
+}
 } // namespace ge
 
 #ifdef __cplusplus
@@ -52,6 +59,10 @@ rtError_t rtGetSocVersion(char *version, const uint32_t maxLen)
  return ge::RuntimeStub::GetInstance()->rtGetSocVersion(version, maxLen);
 }
 
+rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen)
+{
+ return ge::RuntimeStub::GetInstance()->rtGetSocSpec(label, key, val, maxLen);
+}
 #ifdef __cplusplus
 }
 #endif

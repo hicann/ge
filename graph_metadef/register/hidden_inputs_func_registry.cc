@@ -10,7 +10,7 @@
 
 #include "register/hidden_inputs_func_registry.h"
 #include <iostream>
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 namespace ge {
 GetHiddenAddrs HiddenInputsFuncRegistry::FindHiddenInputsFunc(const HiddenInputsType input_type) {
   const auto &iter = type_to_funcs_.find(input_type);
@@ -21,7 +21,7 @@ GetHiddenAddrs HiddenInputsFuncRegistry::FindHiddenInputsFunc(const HiddenInputs
   return nullptr;
 }
 
-void HiddenInputsFuncRegistry::Register(const HiddenInputsType input_type, const GetHiddenAddrs func) {
+void HiddenInputsFuncRegistry::Register(HiddenInputsType const input_type, GetHiddenAddrs const func) {
   GELOGD("Hidden input func reg, type:[%d].", static_cast<int32_t>(input_type));
   type_to_funcs_[input_type] = func;
 }

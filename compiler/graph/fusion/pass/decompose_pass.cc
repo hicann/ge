@@ -11,7 +11,7 @@
 #include "ge/fusion/pass/decompose_pass.h"
 #include "graph/utils/node_adapter.h"
 #include "graph/utils/graph_utils_ex.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "ge/fusion/subgraph_boundary.h"

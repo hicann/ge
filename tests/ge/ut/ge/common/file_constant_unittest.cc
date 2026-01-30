@@ -546,6 +546,45 @@ TEST_F(UtestFileConstantUtilTransfer, test_reuse_external_weight_success) {
   GetThreadLocalContext().SetGraphOption(options_back);
 }
 
+TEST_F(UtestFileConstantUtilTransfer, test_reuse_external_weight_2_success) {
+  GetContext().SetSessionId(0U);
+  ge::ut::GraphBuilder builder("graph");
+  auto const1 = builder.AddNode("const_1", "Const", 0, 1);
+  auto const2 = builder.AddNode("const_2", "Const", 0, 1);
+  auto const3 = builder.AddNode("const_1", "Const", 0, 1);
+  auto netoutput = builder.AddNode("Node_OutPut", "NetOutPut", 3, 0);
+
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value(4 * 8 * 8);
+  std::vector<int64_t> shape{1, 4, 8, 8};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  ConstantUtils::SetWeight(const1->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const2->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const3->GetOpDesc(), 0, tensor);
+  (void)AttrUtils::SetStr(const1->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const2->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const3->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+
+  builder.AddDataEdge(const1, 0, netoutput, 0);
+  builder.AddDataEdge(const2, 0, netoutput, 1);
+  builder.AddDataEdge(const3, 0, netoutput, 2);
+  auto graph = builder.GetGraph();
+  auto options_back = GetThreadLocalContext().GetAllGraphOptions();
+  auto options = options_back;
+  options[OPTION_GRAPH_COMPILER_CACHE_DIR] = "./cache_dir";
+  GetThreadLocalContext().SetGraphOption(options);
+  auto ret = FileConstantUtils::ConvertConstToFileConst(graph, true);
+  EXPECT_EQ(ret, SUCCESS);
+  auto fileconstant1 = graph->FindFirstNodeMatchType(FILECONSTANT);
+  ASSERT_NE(fileconstant1, nullptr);
+  const auto &fileconstant_info = FileConstantUtils::GetFileConstantInfo(fileconstant1->GetOpDesc());
+  ASSERT_NE(fileconstant_info.weight_path, "");
+  ExternalWeightManagerPool::Instance().Destroy();
+  GetThreadLocalContext().SetGraphOption(options_back);
+}
+
 TEST_F(UtestFileConstantUtilTransfer, test_convert_const_to_file_const_with_DT_STRING) {
   ge::ut::GraphBuilder builder("graph");
   auto const1 = builder.AddNode("const1", "Const", 0, 1);

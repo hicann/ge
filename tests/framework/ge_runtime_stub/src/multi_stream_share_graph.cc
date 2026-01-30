@@ -13,7 +13,7 @@
 #include "common/ge_inner_attrs.h"
 #include "framework/common/types.h"
 #include "ge_graph_dsl/graph_dsl.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/op_kernel_bin.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"

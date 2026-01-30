@@ -15,6 +15,8 @@
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "graph/load/model_manager/model_utils.h"
+#include "common/kernel_handles_manager/kernel_handle_utils.h"
+#include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 
 namespace {
 const std::string kAttrAicpuAllshape = "_AllShape";
@@ -164,6 +166,19 @@ Status KernelExTaskInfo::AssembleInputOutputAddr() {
   return SUCCESS;
 }
 
+rtFuncHandle KernelExTaskInfo::GetFuncHandle() {
+  auto kernel_handles_manager = davinci_model_->GetKernelHandlesManager(KernelHandleType::kAicpu);
+  GE_ASSERT_NOTNULL(kernel_handles_manager);
+  GE_ASSERT_NOTNULL(op_desc_);
+  KernelRegisterInfo register_info;
+  GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructAicpuRegisterInfo(op_desc_->GetType(),
+      "libtf_kernels.so", "TFOperateAPI", "TFKernel", register_info));
+  const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+  auto bin_handle = kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
+  GE_ASSERT_NOTNULL(bin_handle);
+  return KernelHandleUtils::GetFuncHandle(bin_handle, op_desc_->GetType());
+}
+
 Status KernelExTaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *const davinci_model,
                               const PisToArgs &args, const PisToPersistentWorkspace &persistent_workspace,
                               const IowAddrs &iow_addrs) {
@@ -179,7 +194,8 @@ Status KernelExTaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *const
   const OpDescPtr op_desc = davinci_model_->GetOpByIndex(op_index);
   GE_CHECK_NOTNULL(op_desc);
   op_desc_ = op_desc;
-
+  func_handle_ = GetFuncHandle();
+  GE_ASSERT_NOTNULL(func_handle_);
   // 2. Reconstruct kernelExDef.args to STR_FWK_OP_KERNEL
   STR_FWK_OP_KERNEL fwk_op_kernel = {};
   const size_t args_size = kernel_ex_def.args().size();
@@ -262,6 +278,7 @@ void KernelExTaskInfo::InitDumpFlag(const OpDescPtr &op_desc) {
     || davinci_model_->OpNeedSetDumpFlagOnWatcherModel(op_desc->GetName())) {
     GELOGD("Op %s need init dump flag in kernel ex task info", op_desc->GetName().c_str());
     dump_flag_ = RT_KERNEL_DUMPFLAG;
+    is_data_dump_ = true;
   }
 }
 
@@ -389,21 +406,15 @@ Status KernelExTaskInfo::AssembleWorkSpaceAddr(const domi::KernelExDef &kernel_d
 Status KernelExTaskInfo::Distribute() {
   GE_ASSERT_NOTNULL(op_desc_);
   GELOGI("KernelExTaskInfo %s Distribute Start.", op_desc_->GetNamePtr());
-//  todo
   const TaskProfGuarder prof_guarder(this);
-  // Use the 5th and 6th bits of dump_flag_ indicate the value of topic_type.
-  // xxxxxxxx xxxxxxxx xxxxxxxx xx00xxxx: DEVICE_ONLY
-  // xxxxxxxx xxxxxxxx xxxxxxxx xx01xxxx: DEVICE_FIRST
-  // xxxxxxxx xxxxxxxx xxxxxxxx xx10xxxx: HOST_ONLY
-  // xxxxxxxx xxxxxxxx xxxxxxxx xx11xxxx: HOST_FIRST
-  dump_flag_ = dump_flag_ | static_cast<uint32_t>(deploy_type_flag_);
-  // Use the 9th-11th bits of dump_flag_ indicate the value of qos. 12th indicate qos on/off
-  // xxxxxxxx xxxxxxxx xxxx0000 xxxxxxxx: qos off
-  // xxxxxxxx xxxxxxxx xxxx1000 xxxxxxxx: qos on, level=0(min level)
-  // xxxxxxxx xxxxxxxx xxxx1111 xxxxxxxx: qos on, level=7(max level)
-  dump_flag_ = dump_flag_ | qos_level_flag_;
   SetTaskTag(op_desc_->GetName().c_str());
-  GE_CHK_RT_RET(rtKernelLaunchFwk(op_desc_->GetName().c_str(), kernel_buf_, kernel_buf_size_, dump_flag_, stream_));
+  LaunchKernelParam launch_kernel_param;
+  launch_kernel_param.args = kernel_buf_;
+  launch_kernel_param.args_size = kernel_buf_size_;
+  launch_kernel_param.block_dim = 1U;
+  launch_kernel_param.stream = stream_;
+  launch_kernel_param.launch_config.is_data_dump = is_data_dump_;
+  GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(func_handle_, launch_kernel_param));
   GE_CHECK_NOTNULL(davinci_model_);
   GE_CHK_RT_RET(rtsGetThreadLastTaskId(&task_id_));
   GE_CHK_RT_RET(rtsStreamGetId(stream_, reinterpret_cast<int32_t*>(&stream_id_)));

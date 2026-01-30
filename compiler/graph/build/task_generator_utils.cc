@@ -11,7 +11,7 @@
 #include "task_generator_utils.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/debug/ge_attr_define.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 namespace ge {
 bool NoNeedGenTask(const OpDescPtr &op_desc) {
   bool no_need_gen_task = false;

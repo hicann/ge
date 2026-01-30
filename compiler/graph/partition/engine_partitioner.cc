@@ -30,6 +30,7 @@
 #include "api/gelib/gelib.h"
 #include "graph/attribute_group/attr_group_shape_env.h"
 #include "common/ge_common/util.h"
+#include "common/ge_common/ge_types.h"
 
 namespace ge {
 namespace {
@@ -72,6 +73,17 @@ struct DeviceIndex {
     return indices < rhs.indices;
   };
 };
+
+std::string GenClusterEngineName(const NodePtr &node,
+    EnginePartitioner::Mode mode, const NodeEngineMap &engine_map) {
+  auto engine_name = engine_map.at(node);
+  // 流分配时，自定义算子需要跟aicore算子一条流
+  if ((mode == EnginePartitioner::Mode::kSecondPartitioning) && (engine_name == kEngineNameCustom)) {
+    // 临时改动，后续需要从用户的注册引擎信息里面获取此处的自定义算子挂靠的引擎名字
+    engine_name = kEngineNameAiCore;
+  }
+  return engine_name;
+}
 
 bool IsLinkedInGraph(const NodePtr &src_node, const NodePtr &dst_node) {
   if ((src_node == nullptr) || (dst_node == nullptr)) {
@@ -422,8 +434,8 @@ Status ge::EnginePartitioner::MergeSubGraph(ge::ComputeGraphPtr &output_merged_c
   GraphPartitionInfo &graph_info = graph_2_graph_partition_info_[original_compute_graph];
   const auto &sub_graph_list = graph_2_subgraph_list_[original_compute_graph];
 
-  GE_ASSERT_TRUE(graph_info.mode_ == kMerging, "[Check][Param] Cannot call merging in partition mode, as mode != %d",
-                 kMerging);
+  GE_ASSERT_TRUE(graph_info.mode_ == Mode::kMerging, "[Check][Param] Cannot call merging in partition mode, as mode != %d",
+                 Mode::kMerging);
   GELOGD("Graph merge starts.");
   ComputeGraphPtr new_sub_graph = MakeShared<ComputeGraph>(original_compute_graph->GetName());
   GE_CHECK_NOTNULL(new_sub_graph);
@@ -529,8 +541,8 @@ graphStatus ge::EnginePartitioner::MakeEndOpNode(const AnchorPtr &out_anchor, co
   GE_CHECK_NOTNULL(end_op_desc);
   // replace input_desc of end with owner node's desc
   int32_t output_index = ge::AnchorUtils::GetIdx(out_anchor);
-  bool is_need_update_desc = (output_index >= 0) && ((graph_info_.mode_ == kAtomicEnginePartitioning) ||
-                                                     (graph_info_.mode_ == kCompositeEnginePartitioning));
+  bool is_need_update_desc = (output_index >= 0) && ((graph_info_.mode_ == Mode::kAtomicEnginePartitioning) ||
+                                                     (graph_info_.mode_ == Mode::kCompositeEnginePartitioning));
   if (is_need_update_desc) {
     GE_ASSERT_GRAPH_SUCCESS(UpdateEndOpDesc(out_anchor->GetOwnerNode(), output_index, end_op_desc),
                             "[Update][EndOpDesc] failed, input index:%d, end_op_desc:%s", output_index,
@@ -555,8 +567,8 @@ graphStatus ge::EnginePartitioner::MakePldOpNode(const AnchorPtr &peer_in_anchor
   GE_CHECK_NOTNULL(pld_op_desc);
   // replace output_desc of pld with input node's output desc
   int32_t input_index = ge::AnchorUtils::GetIdx(peer_in_anchor);
-  bool is_need_update_desc = (input_index >= 0) && ((graph_info_.mode_ == kAtomicEnginePartitioning) ||
-                                                    (graph_info_.mode_ == kCompositeEnginePartitioning));
+  bool is_need_update_desc = (input_index >= 0) && ((graph_info_.mode_ == Mode::kAtomicEnginePartitioning) ||
+                                                    (graph_info_.mode_ == Mode::kCompositeEnginePartitioning));
   if (is_need_update_desc) {
     GE_ASSERT_GRAPH_SUCCESS(UpdatePldOpDesc(peer_in_anchor->GetOwnerNode(), input_index, pld_op_desc),
                             "[Update][PldOpDesc] failed, output index:%d, pld_op_desc:%s", input_index,
@@ -803,7 +815,7 @@ Status ge::EnginePartitioner::InitializeInputClusters(const NodePtr &node, const
   return SUCCESS;
 }
 
-Status ge::EnginePartitioner::Initialize(const ge::ComputeGraphPtr &compute_graph) {
+Status ge::EnginePartitioner::Initialize(const ge::ComputeGraphPtr &compute_graph, Mode mode) {
   GELOGI("Initialize starts, Engine partition mode: %d.", static_cast<int32_t>(graph_info_.mode_));
   const auto &node_engine_map = GetNodeEngineMap();
   size_t temp_index = 0;
@@ -840,7 +852,8 @@ Status ge::EnginePartitioner::Initialize(const ge::ComputeGraphPtr &compute_grap
       }
       GE_ASSERT_TRUE(node_engine_map.count(node) > 0, "Failed to find node:%s(%s) in node engine map, mode:%d",
                      node->GetName().c_str(), node->GetType().c_str(), static_cast<int32_t>(graph_info_.mode_));
-      ClusterPtr cluster = MakeShared<Cluster>(temp_index, node_engine_map.at(node), temp_stream, temp_user_stream);
+      std::string engine_name = GenClusterEngineName(node, mode, node_engine_map);
+      ClusterPtr cluster = MakeShared<Cluster>(temp_index, engine_name, temp_stream, temp_user_stream);
       new_cluster = cluster;
     }
     GE_ASSERT_NOTNULL(new_cluster, "[Allocate][Cluster] failed, index:%zu", temp_index);
@@ -961,9 +974,9 @@ bool ge::EnginePartitioner::IsMergeable(size_t parent_cluster, size_t child_clus
     return false;
   }
   if ((current_mode_ == Mode::kSecondPartitioning) &&
-      !graph_info_.clusters_[parent_cluster]->user_stream_label_.empty() &&
+      ((!graph_info_.clusters_[parent_cluster]->user_stream_label_.empty()) &&
       (graph_info_.clusters_[parent_cluster]->user_stream_label_ ==
-       graph_info_.clusters_[child_cluster]->user_stream_label_)) {
+      graph_info_.clusters_[child_cluster]->user_stream_label_))) {
     GELOGD(
         "Parent cluster[%zu] engine[%s] stream label[%s] user stream label[%s], child cluster[%zu] engine[%s] stream "
         "label[%s] user stream label[%s] should merge",
@@ -1251,7 +1264,7 @@ Status ge::EnginePartitioner::Partition(const ge::ComputeGraphPtr &compute_graph
   GE_CHECK_NOTNULL(compute_graph);
   GE_CHK_STATUS_RET(compute_graph->TopologicalSorting(), "TopologicalSorting for graph:%s failed",
                     compute_graph->GetName().c_str());
-  if (mode == EnginePartitioner::kCompositeEnginePartitioning) {
+  if (mode == EnginePartitioner::Mode::kCompositeEnginePartitioning) {
     GE_CHK_STATUS_RET(engine_placer_.AssignCompositeEngine(),
                       "[Partition][SubGraph] Assign composite engine for graph %s failed",
                       compute_graph->GetName().c_str());
@@ -1304,7 +1317,7 @@ Status ge::EnginePartitioner::PartitionSubGraph(const ge::ComputeGraphPtr &compu
   graph_info_.input_size_ = compute_graph->GetInputSize();
   GELOGI("Graph Partition starts, graph nodes size is %zu", compute_graph->GetDirectNodesSize());
   GE_TRACE_START(PartitionSubGraphInitialize);
-  GE_CHK_STATUS_RET(Initialize(compute_graph), "[Initialize] for graph:%s failed", compute_graph->GetName().c_str());
+  GE_CHK_STATUS_RET(Initialize(compute_graph, mode), "[Initialize] for graph:%s failed", compute_graph->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(PartitionSubGraphInitialize, "EnginePartitioner::PartitionInitialize");
   GE_TRACE_START(PartitionSubGraphMarkClusters);
   if (topo_sorting_mode_ == kStableRdfsSort) {
@@ -1338,7 +1351,7 @@ Status ge::EnginePartitioner::PartitionSubGraph(const ge::ComputeGraphPtr &compu
   GELOGI("Graph Partition ends. Adding partitions to SubGraphInfo, got %zu sub graphs", output_subgraphs.size());
   partition_times_++;  // do not care over flow
   graph_2_graph_partition_info_[compute_graph] = std::move(graph_info_);
-  graph_2_graph_partition_info_[compute_graph].mode_ = kMerging;
+  graph_2_graph_partition_info_[compute_graph].mode_ = Mode::kMerging;
   graph_2_subgraph_list_[compute_graph] = std::move(output_subgraphs);
   return SUCCESS;
 }
@@ -1474,7 +1487,7 @@ void ge::EnginePartitioner::ClearAllPartitionData() {
 }
 
 const NodeEngineMap &EnginePartitioner::GetNodeEngineMap() const {
-  return engine_placer_.GetNodeEngineMap(graph_info_.mode_ == kCompositeEnginePartitioning);
+  return engine_placer_.GetNodeEngineMap(graph_info_.mode_ == Mode::kCompositeEnginePartitioning);
 }
 
 Status EnginePartitioner::UpdateCorrespondNodeInPartitions(const ComputeGraphPtr &compute_graph,

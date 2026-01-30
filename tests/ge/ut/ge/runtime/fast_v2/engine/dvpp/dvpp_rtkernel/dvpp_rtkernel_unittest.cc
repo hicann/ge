@@ -83,21 +83,20 @@ TEST_F(DvppRtKernelUt, generate_sqe_and_launch_task_001)
 
 TEST_F(DvppRtKernelUt, generate_sqe_and_launch_task_002)
 {
-    string str = "test";
-    uint32_t *mockSqePtr = (uint32_t *)&mockSqe;
+    gert::KernelContext context{};
     gert::ContinuousVector conVec{};
     gert::ContinuousVector* ptrVec = &conVec;
-    gert::KernelContext context{};
+    string str = "test";
+    uint32_t *mockSqePtr = (uint32_t *)&mockSqe;
 
-    MOCKER_CPP(gert::kernel::FreeSqeReadOnlyMem).stubs();
-    MOCKER_CPP(gert::kernel::BuildDvppCmdlistV2).stubs().will(returnValue(-1));
-    MOCKER_CPP(&gert::DvppContext::GetNodeType).stubs().will(returnValue(str));
-    MOCKER_CPP(&gert::DvppContext::GetComputeNodeInputNum).stubs().will(returnValue(0U));
     MOCKER_CPP(&gert::KernelContext::GetInputPointer<gert::ContinuousVector>).stubs().will(returnValue(ptrVec));
     MOCKER_CPP(&gert::KernelContext::GetOutputPointer<uint32_t*>).stubs().will(returnValue(&mockSqePtr));
-    MOCKER_CPP(memset_s).stubs().will(returnValue(0));
+    MOCKER_CPP(&gert::DvppContext::GetComputeNodeInputNum).stubs().will(returnValue(0U));
     MOCKER_CPP(&gert::DvppContext::GetComputeNodeOutputNum).stubs().will(returnValue(0U));
-
+    MOCKER_CPP(&gert::DvppContext::GetNodeType).stubs().will(returnValue(str));
+    MOCKER_CPP(gert::kernel::BuildDvppCmdlistV2).stubs().will(returnValue(-1));
+    MOCKER_CPP(gert::kernel::FreeSqeReadOnlyMem).stubs();
+    MOCKER_CPP(memset_s).stubs().will(returnValue(0));
     ge::Status ret = gert::kernel::GenerateSqeAndLaunchTask(&context);
     EXPECT_EQ(ge::FAILED, ret);
     GlobalMockObject::reset();
@@ -106,20 +105,19 @@ TEST_F(DvppRtKernelUt, generate_sqe_and_launch_task_002)
 TEST_F(DvppRtKernelUt, generate_sqe_and_launch_task_003)
 {
     gert::KernelContext context{};
-    string str = "test";
     gert::ContinuousVector conVec{};
-    uint32_t *mockSqePtr = (uint32_t *)&mockSqe;
     gert::ContinuousVector* ptrVec = &conVec;
+    string str = "test";
+    uint32_t *mockSqePtr = (uint32_t *)&mockSqe;
 
-    MOCKER_CPP(gert::kernel::StarsBatchTaskLaunch).stubs().will(returnValue(0));
-    MOCKER_CPP(gert::kernel::BuildDvppCmdlistV2).stubs().will(returnValue(0));
-    MOCKER_CPP(&gert::DvppContext::GetNodeType).stubs().will(returnValue(str));
-    MOCKER_CPP(&gert::DvppContext::GetComputeNodeOutputNum).stubs().will(returnValue(0U));
-    MOCKER_CPP(&gert::DvppContext::GetComputeNodeInputNum).stubs().will(returnValue(0U));
-    MOCKER_CPP(&gert::KernelContext::GetOutputPointer<uint32_t*>).stubs().will(returnValue(&mockSqePtr));
-    MOCKER_CPP(memset_s).stubs().will(returnValue(0));
     MOCKER_CPP(&gert::KernelContext::GetInputPointer<gert::ContinuousVector>).stubs().will(returnValue(ptrVec));
-    
+    MOCKER_CPP(&gert::KernelContext::GetOutputPointer<uint32_t*>).stubs().will(returnValue(&mockSqePtr));
+    MOCKER_CPP(&gert::DvppContext::GetComputeNodeInputNum).stubs().will(returnValue(0U));
+    MOCKER_CPP(&gert::DvppContext::GetComputeNodeOutputNum).stubs().will(returnValue(0U));
+    MOCKER_CPP(&gert::DvppContext::GetNodeType).stubs().will(returnValue(str));
+    MOCKER_CPP(gert::kernel::BuildDvppCmdlistV2).stubs().will(returnValue(0));
+    MOCKER_CPP(gert::kernel::StarsBatchTaskLaunch).stubs().will(returnValue(0));
+    MOCKER_CPP(memset_s).stubs().will(returnValue(0));
     ge::Status ret = gert::kernel::GenerateSqeAndLaunchTask(&context);
     EXPECT_EQ(ge::SUCCESS, ret);
     GlobalMockObject::reset();
@@ -173,18 +171,17 @@ TEST_F(DvppRtKernelUt, generate_sqe_and_launch_task_005)
 
 TEST_F(DvppRtKernelUt, generate_sqe_and_launch_task_006)
 {
+    gert::KernelContext context{};
     gert::ContinuousVector conVec{};
     gert::ContinuousVector* ptrVec = &conVec;
     string str = "test";
-    gert::KernelContext context{};
     uint32_t *mockSqePtr = (uint32_t *)&mockSqe;
 
-    MOCKER_CPP(&gert::KernelContext::GetOutputPointer<uint32_t*>).stubs().will(returnValue(&mockSqePtr));
     MOCKER_CPP(&gert::KernelContext::GetInputPointer<gert::ContinuousVector>).stubs().will(returnValue(ptrVec));
+    MOCKER_CPP(&gert::KernelContext::GetOutputPointer<uint32_t*>).stubs().will(returnValue(&mockSqePtr));
     MOCKER_CPP(&gert::DvppContext::GetComputeNodeInputNum).stubs().will(returnValue(0U));
-    MOCKER_CPP(&gert::DvppContext::GetNodeType).stubs().will(returnValue(str));
     MOCKER_CPP(&gert::DvppContext::GetComputeNodeOutputNum).stubs().will(returnValue(0U));
-    
+    MOCKER_CPP(&gert::DvppContext::GetNodeType).stubs().will(returnValue(str));
     MOCKER_CPP(gert::kernel::BuildDvppCmdlistV2).stubs().will(returnValue(0));
     MOCKER_CPP(gert::kernel::StarsBatchTaskLaunch).stubs().will(returnValue(-1));
     MOCKER_CPP(memset_s).stubs().will(returnValue(0));

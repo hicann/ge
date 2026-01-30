@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -80,12 +80,13 @@ class KernelTaskInfo : public TaskInfo {
   }
 
   uintptr_t GetArgs() const override {
-    return static_cast<uintptr_t>(PtrToValue(args_ex_.args) + io_addr_offset_);
+    return static_cast<uintptr_t>(PtrToValue(args_) + io_addr_offset_);
   }
 
   size_t GetArgSize() const override {
-    if (args_ex_.argsSize > io_addr_offset_) {
-      return static_cast<size_t>(args_ex_.argsSize) - io_addr_offset_;
+    auto argsSize = customized_args_info_.customized_aligned ? customized_args_info_.kernel_def_args_size : args_size_;
+    if (argsSize > io_addr_offset_) {
+      return static_cast<size_t>(argsSize) - io_addr_offset_;
     } else {
       return 0U;
     }
@@ -236,6 +237,10 @@ class KernelTaskInfo : public TaskInfo {
   Status AppendInputOutputAddr(size_t ir_idx, bool is_input);
   Status PreprocessForSkNode();
   Status FindSkSubNode(const OpDescPtr &sk_op, const int32_t id,  NodePtr &sub_node) const;
+  rtBinHandle GetBinHandle(const domi::TaskDef &task_def) const;
+  rtFuncHandle GetFuncHandle(const domi::TaskDef &task_def);
+  void SetExceptionCallback(rtBinHandle bin_handle);
+  Status DistributeTask();
   rtArgsEx_t args_ex_{};
   rtAicpuArgsEx_t aicpu_args_ex_{};
   const void *stub_func_{nullptr};
@@ -286,6 +291,8 @@ class KernelTaskInfo : public TaskInfo {
   bool clear_atomic_ = false;
   bool is_soft_sync_op_ = false;
   uint32_t local_memory_size_ = 0U;  // for simt op
+  bool is_block_task_prefetch_{false};
+  bool is_data_dump_{false};
   struct AICPUCustomInfo {
    private:
     friend class KernelTaskInfo;
@@ -318,6 +325,7 @@ class KernelTaskInfo : public TaskInfo {
   std::map<uint64_t, uint64_t> cust_to_relevant_offset_;
   std::vector<uint64_t> l0_dump_list_;
   int64_t args_offset_from_pls_{0};
+  rtFuncHandle func_handle_{nullptr};
 };
 }  // namespace ge
 #endif  // GE_GRAPH_LOAD_NEW_MODEL_MANAGER_TASK_INFO_KERNEL_TASK_INFO_H_

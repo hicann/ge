@@ -30,7 +30,7 @@ namespace ge {
 namespace {
 ge::Status InitVarIfHasInitValue(const VarDevAddrMgr *const var_mgr, void *var_dev_addr) {
   ge::ConstGeTensorPtr init_value = nullptr;
-  AttrUtils::GetTensor(&var_mgr->tensor_desc, ATTR_NAME_INIT_VALUE, init_value);
+  (void)AttrUtils::GetTensor(&var_mgr->tensor_desc, ATTR_NAME_INIT_VALUE, init_value);
   if (init_value != nullptr) {
     int64_t var_size = 0;
     const auto &init_desc = init_value->GetTensorDesc();
@@ -51,7 +51,7 @@ ge::Status InitVarIfHasInitValue(const VarDevAddrMgr *const var_mgr, void *var_d
     const auto init_value_size = init_value->GetData().GetSize();
     GE_ASSERT_TRUE(init_value_size <= static_cast<size_t>(var_size), "_init_value size too big."
                    " var_size: %" PRId64 ", init_value_size: %zu", var_size, init_value_size);
-    GE_CHK_RT_RET(rtMemcpy(var_dev_addr, var_size, init_value->GetData().GetData(), init_value_size, RT_MEMCPY_HOST_TO_DEVICE)); 
+    GE_CHK_RT_RET(rtMemcpy(var_dev_addr, static_cast<uint64_t>(var_size), init_value->GetData().GetData(), init_value_size, RT_MEMCPY_HOST_TO_DEVICE)); 
     GELOGI("variable offset[%p] has _init_value attr, init value success, var_dev_addr: %p, tensor size: %" PRId64 ","
            " value size: %zu, ", var_mgr->logic_addr, var_dev_addr, var_size, init_value_size);
   } 
@@ -119,7 +119,7 @@ Status VarResource::GetFileConstantReuseAddr(const OpDescPtr &op_desc,
     return FAILED;
   }
 
-  const auto reuse_key = file_constant_var_map_.find(file_name);
+  const auto reuse_key = file_constant_var_map_.find(file_name + ":" + std::to_string(fileconstant_info.weight_offset));
   if (reuse_key == file_constant_var_map_.cend()) {
     // no reusable find.
     return FAILED;
@@ -197,8 +197,9 @@ Status VarResource::GetReuseAddr(const OpDescPtr &op_desc, uint8_t **const dev_p
 void VarResource::CheckAndCacheFileConstantVar(const OpDescPtr &op_desc, const std::string &var_key) {
   if ((op_desc != nullptr) && (op_desc->GetType() == FILECONSTANT)) {
     const auto file_constant_info = FileConstantUtils::GetFileConstantInfo(op_desc);
-    if (file_constant_var_map_.find(file_constant_info.weight_path) == file_constant_var_map_.end()) {
-      file_constant_var_map_[file_constant_info.weight_path] = var_key;
+    const auto key = file_constant_info.weight_path + ":" + std::to_string(file_constant_info.weight_offset);
+    if (file_constant_var_map_.find(key) == file_constant_var_map_.end()) {
+      file_constant_var_map_[key] = var_key;
     }
   }
 }
@@ -666,7 +667,7 @@ Status VarResource::VarResourceToDeserial(const deployer::VarResourceInfo *const
       const proto::TensorDescriptor &output_tensor_desc = x.second.node_info(i).output();
       GeTensorSerializeUtils::AssembleGeTensorDescFromProto(&input_tensor_desc, trans_node_info.input);
       GeTensorSerializeUtils::AssembleGeTensorDescFromProto(&output_tensor_desc, trans_node_info.output);
-      trans_node_info_vec.emplace_back(trans_node_info);
+      (void)trans_node_info_vec.emplace_back(trans_node_info);
     }
     (void)var_to_trans_road_.insert(std::pair<std::string, std::vector<TransNodeInfo>>(x.first, trans_node_info_vec));
   }
@@ -1059,15 +1060,15 @@ Status VarManager::RestoreVarMem(const std::string &var_name, const OpDescPtr &o
   } else {
     std::vector<int64_t> output_offset = op_desc->GetOutputOffset();
     GE_ASSERT(!output_offset.empty());
-    const int64_t logic_offset = output_offset[0UL] - var_mem_logic_base_;
+    const int64_t logic_offset = output_offset[0UL] - static_cast<int64_t>(var_mem_logic_base_);
     GE_ASSERT_TRUE(logic_offset >= 0, "The output offset [%ld] of [%s] is invalid.", output_offset[0UL],
                    var_name.c_str());
-    const uint64_t total_size = static_cast<uint64_t>(logic_offset + tensor_desc_size);
+    const uint64_t total_size = static_cast<uint64_t>(logic_offset) + static_cast<uint64_t>(tensor_desc_size);
     GE_ASSERT_TRUE(total_size <= var_mem_max_size_,
                    "Variable offset overflow max_size:[%lu], offset:[%ld], tensor_size:[%ld].", var_mem_max_size_,
                    logic_offset, tensor_desc_size);
     uint8_t *mem_addr = nullptr;
-    mem_addr = PtrToPtr<void, uint8_t>(ValueToPtr(logic_offset));
+    mem_addr = PtrToPtr<void, uint8_t>(ValueToPtr(static_cast<uint64_t>(logic_offset)));
     GE_ASSERT_SUCCESS(var_resource_->SaveVarAddr(var_name, tensor_desc, mem_addr, memory_type, op_desc),
                       "[Save][VarAddr] by offset failed, memory type:%u, session_id:%" PRIu64 ".", memory_type,
                       session_id_);
@@ -1423,7 +1424,9 @@ uint8_t *VarManager::GetAutoMallocVarAddr(const std::string &graph_name,
       const bool is_shared_mem =
           (GetVarMallocSize(var_mgr->tensor_desc, variable_size) == SUCCESS) && (it == mem_statistic.dev_addrs.cend());
       if (is_shared_mem) {
-        mem_statistic.shared_size += static_cast<uint64_t>(variable_size);
+        const uint64_t add_size = static_cast<uint64_t>(variable_size);
+        GE_ASSERT_TRUE(mem_statistic.shared_size <= (UINT64_MAX - add_size), "Var shared_size overflow.");
+        mem_statistic.shared_size += add_size;
       }
     }
 
@@ -1463,10 +1466,15 @@ uint8_t *VarManager::GetAutoMallocVarAddr(const std::string &graph_name,
     (void)graph_var_mem_statistic_[graph_name].dev_addrs.emplace(var_dev_addr);
   }
 
-  uint8_t *var_dev_addr_tmp = PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(var_dev_addr) + inner_offset_tmp + kSessionMemAlignSize));
+  const uint64_t addr_val = PtrToValue(var_dev_addr);
+  GE_ASSERT_TRUE(addr_val <= (UINT64_MAX - inner_offset_tmp), "var_dev_addr_tmp overflow.");
+  const uint64_t temp_addr = addr_val + inner_offset_tmp;
+  GE_ASSERT_TRUE(temp_addr <= (UINT64_MAX - kSessionMemAlignSize), "var_dev_addr_tmp overflow.");
+  uint8_t *var_dev_addr_tmp = PtrToPtr<void, uint8_t>(ValueToPtr(temp_addr + kSessionMemAlignSize));
+
   GE_ASSERT_SUCCESS(InitVarIfHasInitValue(var_mgr, reinterpret_cast<void*>(var_dev_addr_tmp)));
   GELOGI("[Variable][Addr] Malloc var addr success.");
-  return PtrToPtr<void, uint8_t>(ValueToPtr(PtrToValue(var_dev_addr) + inner_offset_tmp + kSessionMemAlignSize));
+  return var_dev_addr_tmp;
 }
 
 void VarManager::LogGraphVarMemInfo() const {

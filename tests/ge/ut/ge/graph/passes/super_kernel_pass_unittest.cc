@@ -1025,4 +1025,66 @@ TEST_F(SuperKernelPassTest, super_kernel_sk_split_test) {
   }
   EXPECT_EQ(sk_node_cnt, 2);
 }
+TEST_F(SuperKernelPassTest, super_kernel_pass_simt) {
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data1", DATA)->EDGE(0, 0)->NODE("trans1", TRANSDATA)->EDGE(0, 0)->NODE("reshape", RESHAPE)
+              ->EDGE(0, 0)->NODE("trans2", TRANSDATA)->EDGE(0, 0)->NODE("trans3", TRANSDATA)->EDGE(0, 0)->
+        EDGE(0, 0)->NODE("trans4", TRANSDATA)->EDGE(0, 0)->NODE("net_output", NETOUTPUT));
+    CHAIN(NODE("const1", CONSTANT)->EDGE(0, 1)->NODE("reshape", RESHAPE));
+  };
+  auto compute_graph = ToComputeGraph(g1);
+  compute_graph->TopologicalSorting();
+  auto trans1_node = compute_graph->FindNode("trans1");
+  auto reshape_node = compute_graph->FindNode("reshape");
+  auto trans2_node = compute_graph->FindNode("trans2");
+  auto trans3_node = compute_graph->FindNode("trans3");
+  auto trans4_node = compute_graph->FindNode("trans4");
+
+  AttrUtils::SetStr(trans1_node->GetOpDesc(), "_super_kernel_scope", "scope_1");
+  AttrUtils::SetInt(trans1_node->GetOpDesc(), "local_memory_size", 1);
+  AttrUtils::SetInt(trans1_node->GetOpDesc(), "supportSuperKernel", 1);
+
+  SuperKernelPass super_kernel_pass;
+  AttrUtils::SetInt(trans2_node->GetOpDesc(), "local_memory_size", 1);
+  AttrUtils::SetStr(trans2_node->GetOpDesc(), "_super_kernel_scope", "scope_1");
+  AttrUtils::SetInt(trans2_node->GetOpDesc(), "supportSuperKernel", 1);
+  auto ret = super_kernel_pass.Run(compute_graph);
+  EXPECT_EQ(ret, SUCCESS);
+  NodePtr sk_node;
+  for (auto &node : compute_graph->GetDirectNode()) {
+    if (node->GetType() == "SuperKernel") {
+      sk_node = node;
+    }
+  }
+  EXPECT_EQ(sk_node, nullptr);
+
+  AttrUtils::SetInt(reshape_node->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetInt(reshape_node->GetOpDesc(), "local_memory_size", 1);
+  AttrUtils::SetStr(reshape_node->GetOpDesc(), "_super_kernel_scope", "scope_1");
+  AttrUtils::SetInt(trans3_node->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetInt(trans3_node->GetOpDesc(), "local_memory_size", 1);
+  AttrUtils::SetStr(trans3_node->GetOpDesc(), "_super_kernel_scope", "scope_1");
+  ret = super_kernel_pass.Run(compute_graph);
+  for (auto &node : compute_graph->GetDirectNode()) {
+    if (node->GetType() == "SuperKernel") {
+      sk_node = node;
+    }
+  }
+  EXPECT_EQ(sk_node, nullptr);
+
+  AttrUtils::SetInt(trans3_node->GetOpDesc(), "local_memory_size", 0);
+  AttrUtils::SetInt(trans4_node->GetOpDesc(), "supportSuperKernel", 1);
+  AttrUtils::SetInt(trans4_node->GetOpDesc(), "local_memory_size", 0);
+  AttrUtils::SetStr(trans4_node->GetOpDesc(), "_super_kernel_scope", "scope_1");
+  ret = super_kernel_pass.Run(compute_graph);
+  for (auto &node : compute_graph->GetDirectNode()) {
+    if (node->GetType() == "SuperKernel") {
+      sk_node = node;
+    }
+  }
+  EXPECT_NE(sk_node, nullptr);
+  ComputeGraphPtr sub_graph;
+  sub_graph = sk_node->GetOpDesc()->TryGetExtAttr("_sk_sub_graph", sub_graph);
+  EXPECT_NE(sub_graph, nullptr);
+}
 } // namespace ge

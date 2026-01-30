@@ -96,6 +96,23 @@ TEST_F(UtestGeLib, InnerInitialize_aicore_num_invalid) {
   options[SOC_VERSION] = "Ascend910";
   p1->init_flag_ = false;
   EXPECT_EQ(p1->InnerInitialize(options), SUCCESS);
+
+  options[AICORE_NUM] = "2a|20";
+  options[SOC_VERSION] = "Ascend910";
+  p1->init_flag_ = false;
+  EXPECT_NE(p1->InnerInitialize(options), SUCCESS);
+
+  // not greater than 0
+  options[AICORE_NUM] = "01|20";
+  options[SOC_VERSION] = "Ascend910";
+  p1->init_flag_ = false;
+  EXPECT_NE(p1->InnerInitialize(options), SUCCESS);
+
+  options[AICORE_NUM] = "1|99999999999999999999999";
+  options[SOC_VERSION] = "Ascend910";
+  p1->init_flag_ = false;
+  EXPECT_NE(p1->InnerInitialize(options), SUCCESS);
+
   dlog_setlevel(0, 3, 0);
 }
 

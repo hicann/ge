@@ -88,7 +88,7 @@ bool OpDescUtils::ClearInputDesc(const NodePtr &node) {
   GE_CHK_BOOL_EXEC(node->GetOpDesc() != nullptr, REPORT_INNER_ERR_MSG("E18888", "opdesc is nullptr.");
                    return false, "[Check][Param] opdesc is nullptr");
   std::vector<int32_t> index_list;
-  for (const auto &in_anchor : node->GetAllInDataAnchors()) {
+  for (const auto &in_anchor : node->GetAllInDataAnchorsPtr()) {
     if (in_anchor->GetPeerOutAnchor() == nullptr) {
       index_list.push_back(in_anchor->GetIdx());
     }
@@ -131,7 +131,7 @@ bool OpDescUtils::ClearOutputDesc(const NodePtr &node) {
                    return false, "[Check][Param] opdesc is nullptr");
   std::vector<int32_t> index_list;
   for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
-    if (out_anchor->GetPeerInDataAnchors().empty()) {
+    if (out_anchor->GetPeerInDataAnchorsPtr().empty()) {
       index_list.push_back(out_anchor->GetIdx());
     }
   }
@@ -209,7 +209,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY std::vector<ConstGeTensorPtr> OpD
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY std::vector<ge::NodePtr> OpDescUtils::GetConstInputNode(
     const ge::Node &node) {
   std::vector<ge::NodePtr> ret;
-  const auto in_anchors = node.GetAllInDataAnchors();
+  const auto in_anchors = node.GetAllInDataAnchorsPtr();
   for (const auto &in_anchor : in_anchors) {
     const auto out_anchor = in_anchor->GetPeerOutAnchor();
     if (out_anchor == nullptr) {
@@ -423,7 +423,7 @@ bool OpDescUtils::GetNonConstInputIndex(const ge::Node &node, const size_t index
       }
     }
   } else {
-    for (const auto &anchor : node.GetAllInDataAnchors()) {
+    for (const auto &anchor : node.GetAllInDataAnchorsPtr()) {
       const auto peer_anchor = anchor->GetPeerOutAnchor();
       if (peer_anchor == nullptr) {
         continue;
@@ -459,7 +459,7 @@ bool OpDescUtils::IsNonConstInput(const ge::Node &node, const size_t index) {
       ret = (ge::AnchorUtils::GetStatus(node.GetInDataAnchor(static_cast<int32_t>(index))) ==
              ANCHOR_DATA); // lint !e712
     } else {
-      for (const auto &anchor : node.GetAllInDataAnchors()) {
+      for (const auto &anchor : node.GetAllInDataAnchorsPtr()) {
         if (anchor->GetIdx() != static_cast<int32_t>(index)) {
           continue;
         }
@@ -506,7 +506,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY std::vector<ge::GeTensorDesc> OpD
       }
     }
   } else {
-    for (const auto &in_anchor : node->GetAllInDataAnchors()) {
+    for (const auto &in_anchor : node->GetAllInDataAnchorsPtr()) {
       const auto out_anchor = in_anchor->GetPeerOutAnchor();
       if ((out_anchor == nullptr) || (out_anchor->GetOwnerNodeBarePtr()->GetOpDesc() == nullptr)) {
         continue;
@@ -526,7 +526,7 @@ std::vector<ge::NodePtr> OpDescUtils::GetConstInputs(const ge::Node &node, const
     return ret;
   }
 
-  const auto in_anchors = node.GetAllInDataAnchors();
+  const auto in_anchors = node.GetAllInDataAnchorsPtr();
   for (const auto &in_anchor : in_anchors) {
     const auto out_anchor = in_anchor->GetPeerOutAnchor();
     if (out_anchor == nullptr) {
@@ -585,7 +585,7 @@ graphStatus OpDescUtils::SetNoneConstNodeWeights(ge::Node &node, const std::vect
   // If set more weights than constop, need to add constop
   for (size_t i = input_nodes.size(); i < copy_weights.size(); ++i) {
     // Use org weight before SetWeights Overwrite
-    const auto const_opdesc = CreateConstOp(copy_weights[i]);
+    const auto const_opdesc = CreateConstOpZeroCopy(copy_weights[i]);
     GE_CHECK_NOTNULL(const_opdesc);
 
     const auto owner_graph = node.GetOwnerComputeGraph();
@@ -634,7 +634,7 @@ graphStatus OpDescUtils::SetNoneConstNodeWeights(ge::Node &node, const std::map<
       }
     } else {
       // b. create new const input node
-      const auto const_opdesc = CreateConstOp(pair.second);
+      const auto const_opdesc = CreateConstOpZeroCopy(pair.second);
       GE_CHECK_NOTNULL(const_opdesc);
       const auto owner_graph = node.GetOwnerComputeGraph();
       if (owner_graph == nullptr) {
@@ -797,7 +797,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus
 OpDescUtils::AddConstOpToAnchor(const InDataAnchorPtr in_anchor, const GeTensorPtr &tensor_ptr) {
   GE_CHECK_NOTNULL(in_anchor);
   GE_CHECK_NOTNULL(tensor_ptr);
-  const auto const_opdesc = CreateConstOp(tensor_ptr);
+  const auto const_opdesc = CreateConstOpZeroCopy(tensor_ptr);
   GE_CHECK_NOTNULL(const_opdesc);
   const auto in_node = in_anchor->GetOwnerNodeBarePtr();
   GE_CHECK_NOTNULL(in_node);
@@ -903,6 +903,10 @@ bool OpDescUtils::HasCallbackGetConstInputFunc(const Operator &op) {
 
 ge::graphStatus IrInputRequiredCall(const OpDescPtr &op_desc, size_t ir_index, size_t start_index, size_t all_ins_num,
                                     const std::string &ir_name,
+                                    const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num);
+
+ge::graphStatus IrInputRequiredCall(const OpDescPtr &op_desc, size_t ir_index, size_t start_index, size_t all_ins_num,
+                                    const std::string &ir_name,
                                     const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num) {
   (void)all_ins_num;
   const auto max_index = valid_index_2_names.rbegin()->first;
@@ -931,6 +935,10 @@ ge::graphStatus IrInputRequiredCall(const OpDescPtr &op_desc, size_t ir_index, s
 
 ge::graphStatus IrInputOptionalCall(const OpDescPtr &op_desc, size_t ir_index, size_t start_index, size_t all_ins_num,
                                     const std::string &ir_name,
+                                    const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num);
+
+ge::graphStatus IrInputOptionalCall(const OpDescPtr &op_desc, size_t ir_index, size_t start_index, size_t all_ins_num,
+                                    const std::string &ir_name,
                                     const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num) {
   (void)all_ins_num;
   const auto max_index = valid_index_2_names.rbegin()->first;
@@ -954,6 +962,10 @@ ge::graphStatus IrInputOptionalCall(const OpDescPtr &op_desc, size_t ir_index, s
 
 ge::graphStatus IrDynamicCall(const OpDescPtr &op_desc, size_t ir_index, size_t start_index, size_t all_ins_num,
                                    const std::string &ir_name,
+                                   const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num);
+
+ge::graphStatus IrDynamicCall(const OpDescPtr &op_desc, size_t ir_index, size_t start_index, size_t all_ins_num,
+                                   const std::string &ir_name,
                                    const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num) {
   size_t dyn_i = 0;
   const auto max_index = valid_index_2_names.rbegin()->first;
@@ -971,6 +983,9 @@ ge::graphStatus IrDynamicCall(const OpDescPtr &op_desc, size_t ir_index, size_t 
          op_desc->GetName().c_str(), ir_name.c_str(), ir_index, start_index);
   return ge::SUCCESS;
 }
+
+ge::graphStatus GetOutputInstanceNum(const OpDescPtr &op_desc, size_t ir_index, size_t start_index,
+                                     const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num);
 
 ge::graphStatus GetOutputInstanceNum(const OpDescPtr &op_desc, size_t ir_index, size_t start_index,
                                      const std::map<uint32_t, std::string> &valid_index_2_names, size_t &instance_num) {

@@ -42,7 +42,7 @@ T FloorDiv(T const &x, T const &y) {
 }
 
 template <typename T>
-Status CheckYIsZero(T const &y, DataType &type) {
+Status CheckYIsZero(T const &y, DataType const &type) {
   switch (type) {
     case DT_INT32:
       if (y == static_cast<T>(0)) {

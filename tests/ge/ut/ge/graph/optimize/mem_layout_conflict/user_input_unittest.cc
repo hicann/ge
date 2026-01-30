@@ -521,7 +521,7 @@ TEST_F(UtestMemLayoutConflictUserInput, UserInAndNoPaddingContinuousInput_Insert
 /*
  *    data
  *      |
- *   phonysplit (输出引用输入，
+ *   phony_split (输出引用输入，
  *     /  \      且NoPadding连续输出内存)
  *    a    b
  */
@@ -530,6 +530,26 @@ TEST_F(UtestMemLayoutConflictUserInput, UserInAndNoPaddingContinuousOutput_NotIn
   MemLayoutConflictOptimizer mem_check_pass;
   ASSERT_EQ(mem_check_pass.Run(graph), GRAPH_SUCCESS);
   EXPECT_EQ(mem_check::ResultChecker::CheckIdentityNum(graph, 0U), GRAPH_SUCCESS);
+}
+
+/*
+ *    data
+ *      |
+ *   phony_split (输出引用输入，
+ *     /  \      且NoPadding连续输出内存)
+ *    a    b
+ */
+TEST_F(UtestMemLayoutConflictUserInput, UserInAndNoPaddingContinuousOutput_SingleOp_InsertIdentity_Success) {
+  auto graph = MemConflictShareGraph::BuildUserInConnectNoPaddingContinuousOutputGraph();
+  (void)AttrUtils::SetBool(graph, ATTR_SINGLE_OP_SCENE, true);
+  auto ps = graph->FindNode("phony_split");
+  ASSERT_NE(ps, nullptr);
+  AttrUtils::SetBool(ps->GetOpDesc(), ATTR_NAME_REFERENCE, true);
+  ps->GetOpDesc()->MutableAllInputName()["x"] = 0;
+  ps->GetOpDesc()->MutableAllOutputName()["x"] = 0;
+  MemLayoutConflictOptimizer mem_check_pass;
+  ASSERT_EQ(mem_check_pass.Run(graph), GRAPH_SUCCESS);
+  EXPECT_EQ(mem_check::ResultChecker::CheckIdentityNum(graph, 1U), GRAPH_SUCCESS);
 }
 
 /*

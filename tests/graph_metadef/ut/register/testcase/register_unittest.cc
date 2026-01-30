@@ -20,14 +20,14 @@
 #include "graph/normal_graph/compute_graph_impl.h"
 #include "graph_metadef/register/register.h"
 #include "base/registry/op_impl_space_registry_v2.h"
-#include "common/util/error_manager/error_manager.h"
+#include "base/err_mgr.h"
 
 #include <gtest/gtest.h>
 #include <iostream>
 #include <nlohmann/json.hpp>
 #include <stdlib.h>
 
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "register/op_registry.h"
 #include "op_tiling/op_tiling_utils.h"
 #include "register/op_tiling_registry.h"
@@ -47,7 +47,6 @@
 #include "graph/attr_value.h"
 
 #include "graph/debug/ge_util.h"
-#include "graph/debug/ge_log.h"
 #include "graph/debug/ge_attr_define.h"
 
 #include "proto/tensorflow/attr_value.pb.h"
@@ -127,7 +126,7 @@ UINT32 OpTilingStubNew(gert::TilingContext *kernel_context) {
   auto ci = kernel_context->GetCompileInfo();
   EXPECT_EQ(reinterpret_cast<const StubCompileInfo *>(ci)->stub_, 1);
 
-  EXPECT_EQ(kernel_context->GetAttrs()->GetAttrNum(), 4);
+  EXPECT_EQ(kernel_context->GetAttrs()->GetAttrNum(), 5);
   std::vector<int64_t> expect_attr = {1, 2, 3, 4};
   for (size_t i = 0UL; i < 4UL; ++i) {
     EXPECT_EQ(reinterpret_cast<const int64_t *>(
@@ -135,6 +134,13 @@ UINT32 OpTilingStubNew(gert::TilingContext *kernel_context) {
               expect_attr[i]);
   }
   EXPECT_EQ(*kernel_context->GetAttrs()->GetAttrPointer<int8_t>(1), 99);
+
+  std::vector<int64_t> expect_attr3 = {2147483647, 2147483648, 9223372036854775807};
+  for (size_t i = 0UL; i < 2UL; ++i) {
+    EXPECT_EQ(reinterpret_cast<const int64_t *>(
+                  kernel_context->GetAttrs()->GetAttrPointer<gert::ContinuousVector>(3)->GetData())[i],
+              expect_attr3[i]);
+  }
   kernel_context->SetBlockDim(2);
   kernel_context->SetAicpuBlockDim(4);
   kernel_context->SetNeedAtomic(true);
@@ -250,11 +256,7 @@ bool CheckErrorRetFormat(const std::string &ret_json_str) {
 }
 
 void ReInitErrorManager() {
-  ErrorManager::GetInstance().is_init_ = false;
-  ErrorManager::GetInstance().compile_failed_msg_map_.clear();
-  ErrorManager::GetInstance().compile_failed_msg_map_.clear();
-  ErrorManager::GetInstance().error_message_per_work_id_.clear();
-  ErrorManager::GetInstance().warning_messages_per_work_id_.clear();
+  (void)error_message::GetErrMgrErrorMessage();
 }
 }  // namespace
 
@@ -263,11 +265,7 @@ class UtestRegister : public testing::Test {
   void SetUp() {}
 
   void TearDown() {
-    ErrorManager::GetInstance().is_init_ = false;
-    ErrorManager::GetInstance().compile_failed_msg_map_.clear();
-    ErrorManager::GetInstance().compile_failed_msg_map_.clear();
-    ErrorManager::GetInstance().error_message_per_work_id_.clear();
-    ErrorManager::GetInstance().warning_messages_per_work_id_.clear();
+    (void)error_message::GetErrMgrErrorMessage();
   }
 };
 
@@ -1109,6 +1107,7 @@ TEST_F(UtestRegister, new_optiling_py_interface_ok) {
 { "name": "attr_0","dtype": "list_int64","value": [1,2, 3, 4]},
 { "name": "attr_1","dtype": "int","value": 99},
 { "name": "attr_2","dtype": "list_int32","value": [1, 2, 3, 4]},
+{ "name": "attr_3","dtype": "list_int","value": [2147483647, 2147483648, 9223372036854775807]},
 { "name": "op_para_size", "dtype": "int", "value": 50}])"_json;
   std::string attrs_str = attrs.dump();
   const char *op_type = "TestReluV2";
@@ -2599,5 +2598,43 @@ TEST_F(UtestRegister, new_optiling_py_interface_ok_with_bf16_data) {
   EXPECT_EQ(TbeOpTilingPyInterface(op_type, cmp_info, cmp_info_hash, input_str.c_str(), output_str.c_str(),
                                    attrs.dump().c_str(), const_cast<char *>(runinfo.c_str()), size, elapse),
             1);
+  gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
+}
+
+TEST_F(UtestRegister, GetRawErrorMessage_fail_map) {
+  const nlohmann::json input = R"([
+{"name": "t0", "dtype": "float16","const_value": [1.1,2.1,3.1,4.1] ,"shape": [4,4,4,4], "ori_shape":[4,4,4,4],"format": "FRACTAL_Z", "sub_format" :32},
+{"dtype": "int8", "shape": [4,4,4,4], "ori_shape":[4,4,4,4],"format": "ND"}
+])"_json;
+  std::string input_str = input.dump();
+  const nlohmann::json output = R"([
+{"name": "y_0","dtype": "int8","shape": [9,9,9,9],"ori_shape" :[9,9,9,9],"format": "ND","ori_format":"ND"}])"_json;
+  std::string output_str = output.dump();
+  const char *op_type = "TestReluV2";
+  const char *cmp_info = "";
+  std::string runinfo(161, 'a');
+  size_t size = 161;
+  const char *cmp_info_hash = "";
+  uint64_t *elapse = nullptr;
+  const nlohmann::json attrs = R"([
+{ "name": "op_para_size", "dtype": "int", "value": 50}, { "name": "test_name", "dtype": "list_int", "value": [50, 51]}])"_json;
+  const nlohmann::json extra_infos = R"([
+{ "op_name": "matmul_all_reduce", "rank_size": 1}])"_json;
+
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl(op_type);
+  op_impl_func->tiling = OpTilingStubV6;
+  op_impl_func->tiling_parse = OpTilingParseStubV5;
+  op_impl_func->compile_info_creator = CreateCompileInfo;
+  op_impl_func->compile_info_deleter = DeleteCompileInfo;
+  op_impl_func->max_tiling_data_size = 50;
+
+  const string expect_result = "{\"error_messages\":[{\"errorcode\":\"E10025\",\"errormsg\":{\"errmsg\":\"22\",\"realpath\":\"11\"},\"type\":1}],\"ret_code\":1}";
+  REPORT_PREDEFINED_ERR_MSG("E10025", std::vector<const char *>({"realpath", "errmsg"}), std::vector<const char *>({"11", "22"}));
+  EXPECT_EQ(std::string(DoOpTilingForCompile(op_type, cmp_info, cmp_info_hash, input_str.c_str(), output_str.c_str(),
+                               attrs.dump().c_str(), const_cast<char *>(runinfo.c_str()), size, elapse,
+                               extra_infos.dump().c_str())), expect_result);
   gert::DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
 }

@@ -112,8 +112,8 @@ void DataDumper::SaveDumpInput(const std::shared_ptr<Node> &node) {
     }
 
     for (const auto &out_data_anchor : node->GetAllOutDataAnchors()) {
-      for (const auto &dst_in_data_anchor : out_data_anchor->GetPeerInDataAnchors()) {
-        const ge::NodePtr dst_node = dst_in_data_anchor->GetOwnerNode();
+      for (const auto &dst_in_data_anchor : out_data_anchor->GetPeerInDataAnchorsPtr()) {
+        const Node *dst_node = dst_in_data_anchor->GetOwnerNodeBarePtr();
         const auto &op_desc = dst_node->GetOpDesc();
         if (op_desc == nullptr) {
           GELOGE(PARAM_INVALID, "[Get][OpDesc] input op desc is null.");
@@ -271,19 +271,19 @@ static void SetOpMappingLoopAddr(const uintptr_t step_id, const uintptr_t loop_p
 }
 
 Status DataDumper::GenerateOutput(toolkit::aicpu::dump::Output &output,
-                                  const OpDesc::Vistor<GeTensorDesc> &tensor_descs,
+                                  const OpDesc::Vistor<GeTensorDescPtr> &tensor_descs,
                                   const uintptr_t addr, const size_t index, const uint64_t offset) {
-  output.set_data_type(DataTypeUtil::GetIrDataType(tensor_descs.at(index).GetDataType()));
-  output.set_format(static_cast<int32_t>(tensor_descs.at(index).GetFormat()));
+  output.set_data_type(DataTypeUtil::GetIrDataType(tensor_descs.at(index)->GetDataType()));
+  output.set_format(static_cast<int32_t>(tensor_descs.at(index)->GetFormat()));
 
-  for (const int64_t dim : tensor_descs.at(index).GetShape().GetDims()) {
+  for (const int64_t dim : tensor_descs.at(index)->GetShape().GetDims()) {
     output.mutable_shape()->add_dim(static_cast<uint64_t>(dim));
   }
-  for (const int64_t dim : tensor_descs.at(index).GetOriginShape().GetDims()) {
+  for (const int64_t dim : tensor_descs.at(index)->GetOriginShape().GetDims()) {
     output.mutable_origin_shape()->add_dim(static_cast<uint64_t>(dim));
   }
   int64_t output_size = 0;
-  if (TensorUtils::GetTensorSizeInBytes(tensor_descs.at(index), output_size) != SUCCESS) {
+  if (TensorUtils::GetTensorSizeInBytes(*tensor_descs.at(index), output_size) != SUCCESS) {
     REPORT_INNER_ERR_MSG("E19999", "Get tensor size fail");
     GELOGE(PARAM_INVALID, "[Get][OutputSize] failed");
     return PARAM_INVALID;
@@ -292,14 +292,17 @@ Status DataDumper::GenerateOutput(toolkit::aicpu::dump::Output &output,
   std::string origin_name;
   bool no_tiling_mem_type = false;
   int32_t origin_output_index = -1;
-  (void)AttrUtils::GetStr(&tensor_descs.at(index), ATTR_NAME_DATA_DUMP_ORIGIN_NAME, origin_name);
-  (void)AttrUtils::GetInt(&tensor_descs.at(index), ATTR_NAME_DATA_DUMP_ORIGIN_OUTPUT_INDEX, origin_output_index);
-  (void)AttrUtils::GetBool(&tensor_descs.at(index), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, no_tiling_mem_type);
+  const std::string* origin_name_ptr = AttrUtils::GetStr(tensor_descs.at(index).get(), ATTR_NAME_DATA_DUMP_ORIGIN_NAME);
+  if (origin_name_ptr != nullptr) {
+      origin_name = *origin_name_ptr;
+  }
+  (void)AttrUtils::GetInt(tensor_descs.at(index).get(), ATTR_NAME_DATA_DUMP_ORIGIN_OUTPUT_INDEX, origin_output_index);
+  (void)AttrUtils::GetBool(tensor_descs.at(index).get(), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, no_tiling_mem_type);
   output.set_size(static_cast<uint64_t>(output_size));
   output.set_original_name(origin_name);
   output.set_original_output_index(origin_output_index);
-  output.set_original_output_format(static_cast<int32_t>(tensor_descs.at(index).GetOriginFormat()));
-  output.set_original_output_data_type(static_cast<int32_t>(tensor_descs.at(index).GetOriginDataType()));
+  output.set_original_output_format(static_cast<int32_t>(tensor_descs.at(index)->GetOriginFormat()));
+  output.set_original_output_data_type(static_cast<int32_t>(tensor_descs.at(index)->GetOriginDataType()));
   output.set_address(static_cast<uint64_t>(addr));
   output.set_offset(offset);
   InnerRealAddressAndSize real_address_and_size;
@@ -340,13 +343,13 @@ Status DataDumper::DumpRefOutput(const DataDumper::InnerDumpInfo &inner_dump_inf
   GE_CHECK_NOTNULL(iter->second);
   auto addr = PtrToValue(iter->second);
   if (input_or_output == kDumpInput) {
-    const auto &replace_input_descs = replace_opdesc->GetAllInputsDesc();
+    const auto &replace_input_descs = replace_opdesc->GetAllInputsDescPtr();
     addr += static_cast<size_t>(kAddrLength) * index;
     GE_CHK_STATUS_RET(GenerateOutput(output, replace_input_descs, addr, index),
                       "[Generate][Output] failed for %s, index:%zu", inner_dump_info.op->GetName().c_str(), index);
   } else {
-    const auto &replace_output_descs = replace_opdesc->GetAllOutputsDesc();
-    const size_t replace_input_size = replace_opdesc->GetAllInputsDesc().size();
+    const auto &replace_output_descs = replace_opdesc->GetAllOutputsDescPtr();
+    const size_t replace_input_size = replace_opdesc->GetAllInputsDescPtr().size();
     addr += static_cast<uint64_t>((index + replace_input_size) * static_cast<size_t>(kAddrLength));
     GE_CHK_STATUS_RET(GenerateOutput(output, replace_output_descs, addr, index),
                       "[Generate][Output] failed for %s, index:%zu", inner_dump_info.op->GetName().c_str(), index);
@@ -358,8 +361,8 @@ Status DataDumper::DumpRefOutput(const DataDumper::InnerDumpInfo &inner_dump_inf
 
 Status DataDumper::DumpOutputWithRawAddress(const InnerDumpInfo &inner_dump_info,
                                             toolkit::aicpu::dump::Task &task) {
-  const auto &output_descs = inner_dump_info.op->GetAllOutputsDesc();
-  const size_t offset = inner_dump_info.op->GetAllInputsDesc().size();
+  const auto &output_descs = inner_dump_info.op->GetAllOutputsDescPtr();
+  const size_t offset = inner_dump_info.op->GetAllInputsDescPtr().size();
   GE_CHECK_GE(inner_dump_info.address.size(), offset + output_descs.size());
   for (size_t i = 0U; i < output_descs.size(); ++i) {
     toolkit::aicpu::dump::Output output;
@@ -375,9 +378,11 @@ Status DataDumper::DumpOutputWithRawAddress(const InnerDumpInfo &inner_dump_info
 Status DataDumper::GetOffsetFromJson(const InnerDumpInfo &inner_dump_info, size_t tensor_idx, size_t input_size,
                                      uint64_t &offset) const {
   std::string ffts_str;
-  if (!ge::AttrUtils::GetStr(inner_dump_info.op, ffts::kAttrSgtJsonInfo, ffts_str) || ffts_str.empty()) {
-    return ge::FAILED;
+  const std::string* ffts_str_ptr = ge::AttrUtils::GetStr(inner_dump_info.op, ffts::kAttrSgtJsonInfo);
+  if (ffts_str_ptr == nullptr || ffts_str_ptr->empty()) {
+      return ge::FAILED;
   }
+  ffts_str = *ffts_str_ptr;
   GE_ASSERT_TRUE(nlohmann::json::accept(ffts_str));
   nlohmann::json slice_info_json = nlohmann::json::parse(ffts_str);
   GE_ASSERT_TRUE(!slice_info_json.is_null());
@@ -416,7 +421,7 @@ uint64_t DataDumper::GetOffset(const InnerDumpInfo &inner_dump_info, const size_
 }
 
 Status DataDumper::DumpOutputWithTask(const InnerDumpInfo &inner_dump_info, toolkit::aicpu::dump::Task &task) {
-  const auto &output_descs = inner_dump_info.op->GetAllOutputsDesc();
+  const auto &output_descs = inner_dump_info.op->GetAllOutputsDescPtr();
   const std::vector<void *> output_addrs = ModelUtils::GetOutputAddrs(*runtime_param_, inner_dump_info.op);
   std::vector<int64_t> v_memory_type;
   const bool has_mem_type_attr =
@@ -431,8 +436,7 @@ Status DataDumper::DumpOutputWithTask(const InnerDumpInfo &inner_dump_info, tool
   const std::string om_name = om_name_;
   for (size_t i = 0U; i < output_descs.size(); ++i) {
     toolkit::aicpu::dump::Output output;
-    std::string node_name_index;
-    const auto &output_desc = output_descs.at(i);
+    const auto &output_desc = *output_descs.at(i);
     int32_t calc_type = 0;
     GELOGI("[Dumper] Model name %s, Node name %s, Node type %s, output index %zu.", model_name.c_str(), inner_dump_info.op->GetName().c_str(), inner_dump_info.op->GetType().c_str(), i);
     if (dump_properties_.IsOutputInOpNameBlacklist(model_name, inner_dump_info.op->GetName().c_str(), i) ||
@@ -471,40 +475,41 @@ Status DataDumper::DumpOutputWithTask(const InnerDumpInfo &inner_dump_info, tool
     }
 
     // check dump output tensor desc is redirected by attr ATTR_DATA_DUMP_REF
-    if (AttrUtils::GetStr(&output_desc, ATTR_DATA_DUMP_REF, node_name_index)) {
-      GE_CHK_STATUS_RET(DumpRefOutput(inner_dump_info, output, i, node_name_index), "[Dump][RefOutput] failed");
+    const std::string* node_name_index_ptr = AttrUtils::GetStr(&output_desc, ATTR_DATA_DUMP_REF);
+    if (node_name_index_ptr != nullptr) {
+      GE_CHK_STATUS_RET(DumpRefOutput(inner_dump_info, output, i, *node_name_index_ptr), "[Dump][RefOutput] failed");
       task.mutable_output()->Add(std::move(output));
-    } else {
-      if (IsTensorDescWithSkipDumpAddrType(has_mem_type_attr, v_memory_type, i)) {
-        GELOGI("[L1Fusion] DumpOutputWithTask[%s] output[%zu] is l1 addr.", inner_dump_info.op->GetName().c_str(), i);
-        int64_t output_size = 0;
-        if (TensorUtils::GetTensorSizeInBytes(output_descs.at(i), output_size) != SUCCESS) {
-          REPORT_INNER_ERR_MSG("E19999", "Get output tensor size fail in op:%s(%s), index:%zu",
-                            inner_dump_info.op->GetName().c_str(), inner_dump_info.op->GetType().c_str(), i);
-          GELOGE(PARAM_INVALID, "[Get][OutputSize] failed in %s, index:%zu", inner_dump_info.op->GetName().c_str(), i);
-          return PARAM_INVALID;
-        }
-        GELOGI("Get output size of l1_fusion_dump is %" PRId64, output_size);
-        need_generate_op_buffer_ = true;
-      } else {
-        const auto input_size = inner_dump_info.op->GetInputsSize();
-        uint64_t cur_offset = i + input_size;
-        auto &cust_to_relevant = inner_dump_info.cust_to_relevant_offset_;
-        if (!cust_to_relevant.empty()) {
-          auto iter = cust_to_relevant.find(cur_offset);
-          if (iter == cust_to_relevant.end()) {
-            GELOGD("Skip to dump op [%s] output idx [%zu]", inner_dump_info.op->GetNamePtr(), i);
-            continue;
-          }
-          cur_offset = iter->second;
-        }
-        const uintptr_t addr = static_cast<uintptr_t>(inner_dump_info.args + (cur_offset * kAddrLength));
-        GELOGD("Dump op [%s] output[%zu], args_begin:[%" PRIx64 "] offset_addr:[%" PRIx64 "]",
-          inner_dump_info.op->GetNamePtr(), i, inner_dump_info.args, addr);
-        GE_CHK_STATUS_RET(GenerateOutput(output, output_descs, addr, i, GetOffset(inner_dump_info, i, input_size)),
-                          "[Generate][Output] failed for %s, index:%zu", inner_dump_info.op->GetName().c_str(), i);
-        task.mutable_output()->Add(std::move(output));
+      continue;
+    }
+    if (IsTensorDescWithSkipDumpAddrType(has_mem_type_attr, v_memory_type, i)) {
+      GELOGI("[L1Fusion] DumpOutputWithTask[%s] output[%zu] is l1 addr.", inner_dump_info.op->GetName().c_str(), i);
+      int64_t output_size = 0;
+      if (TensorUtils::GetTensorSizeInBytes(*output_descs.at(i), output_size) != SUCCESS) {
+        REPORT_INNER_ERR_MSG("E19999", "Get output tensor size fail in op:%s(%s), index:%zu",
+                          inner_dump_info.op->GetName().c_str(), inner_dump_info.op->GetType().c_str(), i);
+        GELOGE(PARAM_INVALID, "[Get][OutputSize] failed in %s, index:%zu", inner_dump_info.op->GetName().c_str(), i);
+        return PARAM_INVALID;
       }
+      GELOGI("Get output size of l1_fusion_dump is %" PRId64, output_size);
+      need_generate_op_buffer_ = true;
+    } else {
+      const auto input_size = inner_dump_info.op->GetInputsSize();
+      uint64_t cur_offset = i + input_size;
+      auto &cust_to_relevant = inner_dump_info.cust_to_relevant_offset_;
+      if (!cust_to_relevant.empty()) {
+        auto iter = cust_to_relevant.find(cur_offset);
+        if (iter == cust_to_relevant.end()) {
+          GELOGD("Skip to dump op [%s] output idx [%zu]", inner_dump_info.op->GetNamePtr(), i);
+          continue;
+        }
+        cur_offset = iter->second;
+      }
+      const uintptr_t addr = static_cast<uintptr_t>(inner_dump_info.args + (cur_offset * kAddrLength));
+      GELOGD("Dump op [%s] output[%zu], args_begin:[%" PRIx64 "] offset_addr:[%" PRIx64 "]",
+        inner_dump_info.op->GetNamePtr(), i, inner_dump_info.args, addr);
+      GE_CHK_STATUS_RET(GenerateOutput(output, output_descs, addr, i, GetOffset(inner_dump_info, i, input_size)),
+                        "[Generate][Output] failed for %s, index:%zu", inner_dump_info.op->GetName().c_str(), i);
+      task.mutable_output()->Add(std::move(output));
     }
   }
   return SUCCESS;
@@ -552,7 +557,10 @@ Status DataDumper::DumpOutput(const InnerDumpInfo &inner_dump_info, toolkit::aic
   std::string origin_name;
   int32_t origin_output_index = -1;
   bool no_tiling_mem_type = false;
-  (void)AttrUtils::GetStr(output_tensor, ATTR_NAME_DATA_DUMP_ORIGIN_NAME, origin_name);
+  const std::string* origin_name_ptr = AttrUtils::GetStr(output_tensor, ATTR_NAME_DATA_DUMP_ORIGIN_NAME);
+  if (origin_name_ptr != nullptr) {
+      origin_name = *origin_name_ptr;
+  }
   (void)AttrUtils::GetInt(output_tensor, ATTR_NAME_DATA_DUMP_ORIGIN_OUTPUT_INDEX, origin_output_index);
   (void)AttrUtils::GetBool(output_tensor, ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, no_tiling_mem_type);
   output.set_size(static_cast<uint64_t>(inner_dump_info.data_size));
@@ -595,22 +603,22 @@ Status DataDumper::DumpOutput(const InnerDumpInfo &inner_dump_info, toolkit::aic
   return SUCCESS;
 }
 
-Status DataDumper::GenerateInput(toolkit::aicpu::dump::Input &input, const OpDesc::Vistor<GeTensorDesc> &tensor_descs,
+Status DataDumper::GenerateInput(toolkit::aicpu::dump::Input &input, const OpDesc::Vistor<GeTensorDescPtr> &tensor_descs,
                                  const uintptr_t addr, const size_t index, const uint64_t offset) {
-  input.set_data_type(DataTypeUtil::GetIrDataType(tensor_descs.at(index).GetDataType()));
-  input.set_format(static_cast<int32_t>(tensor_descs.at(index).GetFormat()));
+  input.set_data_type(DataTypeUtil::GetIrDataType(tensor_descs.at(index)->GetDataType()));
+  input.set_format(static_cast<int32_t>(tensor_descs.at(index)->GetFormat()));
 
-  for (const int64_t dim : tensor_descs.at(index).GetShape().GetDims()) {
+  for (const int64_t dim : tensor_descs.at(index)->GetShape().GetDims()) {
     input.mutable_shape()->add_dim(static_cast<uint64_t>(dim));
   }
-  for (const int64_t dim : tensor_descs.at(index).GetOriginShape().GetDims()) {
+  for (const int64_t dim : tensor_descs.at(index)->GetOriginShape().GetDims()) {
     input.mutable_origin_shape()->add_dim(static_cast<uint64_t>(dim));
   }
   int64_t input_size = 0;
-  if (AttrUtils::GetInt(tensor_descs.at(index), ATTR_NAME_INPUT_ORIGIN_SIZE, input_size)) {
+  if (AttrUtils::GetInt(*tensor_descs.at(index), ATTR_NAME_INPUT_ORIGIN_SIZE, input_size)) {
     GELOGI("Get aipp input size according to attr is %" PRId64, input_size);
   } else {
-    if (TensorUtils::GetTensorSizeInBytes(tensor_descs.at(index), input_size) != SUCCESS) {
+    if (TensorUtils::GetTensorSizeInBytes(*tensor_descs.at(index), input_size) != SUCCESS) {
       REPORT_INNER_ERR_MSG("E19999", "Get tensor size fail");
       GELOGE(PARAM_INVALID, "[Get][TensorSize] failed");
       return PARAM_INVALID;
@@ -625,7 +633,7 @@ Status DataDumper::GenerateInput(toolkit::aicpu::dump::Input &input, const OpDes
   real_address_and_size.size = (offset == 0U) ? static_cast<uint64_t>(input_size) : offset;
   context_.input.emplace_back(real_address_and_size);
   bool no_tiling_mem_type = false;
-  (void)AttrUtils::GetBool(tensor_descs.at(index), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, no_tiling_mem_type);
+  (void)AttrUtils::GetBool(*tensor_descs.at(index), ATTR_NAME_TENSOR_NO_TILING_MEM_TYPE, no_tiling_mem_type);
   input.set_addr_type(no_tiling_mem_type ?
       toolkit::aicpu::dump::AddressType::NOTILING_ADDR : toolkit::aicpu::dump::AddressType::TRADITIONAL_ADDR);
   return SUCCESS;
@@ -659,13 +667,13 @@ Status DataDumper::DumpRefInput(const DataDumper::InnerDumpInfo &inner_dump_info
   GE_CHECK_NOTNULL(iter->second);
   auto addr = PtrToValue(iter->second);
   if (input_or_output == kDumpInput) {
-    const auto &replace_input_descs = replace_opdesc->GetAllInputsDesc();
+    const auto &replace_input_descs = replace_opdesc->GetAllInputsDescPtr();
     addr += static_cast<uint64_t>(kAddrLength * index);
     GE_CHK_STATUS_RET(GenerateInput(input, replace_input_descs, static_cast<uintptr_t>(addr), index),
                       "[Generate][Input] failed for %s, index:%zu", inner_dump_info.op->GetName().c_str(), index);
   } else {
-    const auto &replace_output_descs = replace_opdesc->GetAllOutputsDesc();
-    const size_t replace_input_size = replace_opdesc->GetAllInputsDesc().size();
+    const auto &replace_output_descs = replace_opdesc->GetAllOutputsDescPtr();
+    const size_t replace_input_size = replace_opdesc->GetAllInputsDescPtr().size();
     addr += static_cast<uint64_t>((index + replace_input_size) * static_cast<size_t>(kAddrLength));
     GE_CHK_STATUS_RET(GenerateInput(input, replace_output_descs, static_cast<uintptr_t>(addr), index),
                       "[Generate][Input] failed for %s, index:%zu", inner_dump_info.op->GetName().c_str(), index);
@@ -678,7 +686,7 @@ Status DataDumper::DumpRefInput(const DataDumper::InnerDumpInfo &inner_dump_info
 Status DataDumper::DumpInputWithRawAddress(const InnerDumpInfo &inner_dump_info,
                                            toolkit::aicpu::dump::Task &task) {
   GELOGI("Start dump input.");
-  const auto &input_descs = inner_dump_info.op->GetAllInputsDesc();
+  const auto &input_descs = inner_dump_info.op->GetAllInputsDescPtr();
   GE_CHECK_GE(inner_dump_info.address.size(), input_descs.size());
   for (size_t i = 0U; i < input_descs.size(); ++i) {
     toolkit::aicpu::dump::Input input;
@@ -693,7 +701,7 @@ Status DataDumper::DumpInputWithRawAddress(const InnerDumpInfo &inner_dump_info,
 
 Status DataDumper::DumpInput(const InnerDumpInfo &inner_dump_info, toolkit::aicpu::dump::Task &task) {
   GELOGI("Start dump input.");
-  const auto &input_descs = inner_dump_info.op->GetAllInputsDesc();
+  const auto &input_descs = inner_dump_info.op->GetAllInputsDescPtr();
   const std::vector<void *> input_addrs = ModelUtils::GetInputAddrs(*runtime_param_, inner_dump_info.op);
   if (input_descs.size() != input_addrs.size()) {
     REPORT_INNER_ERR_MSG("E19999", "input_desc size:%zu != input addr size:%zu in op:%s(%s)",
@@ -731,46 +739,48 @@ Status DataDumper::DumpInput(const InnerDumpInfo &inner_dump_info, toolkit::aicp
       continue;
     }
     // check dump input tensor desc is redirected by attr ATTR_DATA_DUMP_REF
-    if (AttrUtils::GetStr(&input_descs.at(i), ATTR_DATA_DUMP_REF, node_name_index)) {
+    const std::string* node_name_index_ptr = AttrUtils::GetStr(input_descs.at(i).get(), ATTR_DATA_DUMP_REF);
+    if (node_name_index_ptr != nullptr) {
+      node_name_index = *node_name_index_ptr;
       GE_CHK_STATUS_RET(DumpRefInput(inner_dump_info, input, i, node_name_index),
                         "[Dump][RefInput] failed, node name index:%s", node_name_index.c_str());
       task.mutable_input()->Add(std::move(input));
+      continue;
       // normal dump without attr
-    } else {
-      if (IsTensorDescWithSkipDumpAddrType(has_mem_type_attr, v_memory_type, i)) {
-        GELOGI("[L1Fusion] DumpInput[%s] input[%zu] is l1 addr", inner_dump_info.op->GetName().c_str(), i);
-        int64_t input_size = 0;
-        if (AttrUtils::GetInt(input_descs.at(i), ATTR_NAME_INPUT_ORIGIN_SIZE, input_size)) {
-          GELOGI("Get aipp input size according to attr is %" PRId64, input_size);
-        } else {
-          if (TensorUtils::GetTensorSizeInBytes(input_descs.at(i), input_size) != SUCCESS) {
-            REPORT_INNER_ERR_MSG("E19999", "Get input tensor size fail in op:%s(%s), index:%zu",
-                              inner_dump_info.op->GetName().c_str(), inner_dump_info.op->GetType().c_str(), i);
-            GELOGE(PARAM_INVALID, "[Get][InputTensorSize] fail in op:%s(%s), index:%zu",
-                   inner_dump_info.op->GetName().c_str(), inner_dump_info.op->GetType().c_str(), i);
-            return PARAM_INVALID;
-          }
-        }
-        GELOGI("Get input size of l1_fusion_dump is %" PRId64, input_size);
-        need_generate_op_buffer_ = true;
+    }
+    if (IsTensorDescWithSkipDumpAddrType(has_mem_type_attr, v_memory_type, i)) {
+      GELOGI("[L1Fusion] DumpInput[%s] input[%zu] is l1 addr", inner_dump_info.op->GetName().c_str(), i);
+      int64_t input_size = 0;
+      if (AttrUtils::GetInt(*input_descs.at(i), ATTR_NAME_INPUT_ORIGIN_SIZE, input_size)) {
+        GELOGI("Get aipp input size according to attr is %" PRId64, input_size);
       } else {
-        uint64_t cur_offset = i;
-        auto &cust_to_relevant = inner_dump_info.cust_to_relevant_offset_;
-        if (!cust_to_relevant.empty()) {
-          auto iter = cust_to_relevant.find(cur_offset);
-          if (iter == cust_to_relevant.end()) {
-            GELOGD("Skip to dump op [%s] input idx [%zu]", inner_dump_info.op->GetNamePtr(), i);
-            continue;
-          }
-          cur_offset = iter->second;
+        if (TensorUtils::GetTensorSizeInBytes(*input_descs.at(i), input_size) != SUCCESS) {
+          REPORT_INNER_ERR_MSG("E19999", "Get input tensor size fail in op:%s(%s), index:%zu",
+                            inner_dump_info.op->GetName().c_str(), inner_dump_info.op->GetType().c_str(), i);
+          GELOGE(PARAM_INVALID, "[Get][InputTensorSize] fail in op:%s(%s), index:%zu",
+                  inner_dump_info.op->GetName().c_str(), inner_dump_info.op->GetType().c_str(), i);
+          return PARAM_INVALID;
         }
-        const uintptr_t addr = inner_dump_info.args + static_cast<uintptr_t>(cur_offset * kAddrLength);
-        GELOGD("Dump op [%s] input[%zu], args_begin:[%" PRIx64 "] offset_addr:[%" PRIx64 "]",
-          inner_dump_info.op->GetNamePtr(), i, inner_dump_info.args, addr);
-        GE_CHK_STATUS_RET(GenerateInput(input, input_descs, addr, i, GetOffset(inner_dump_info, i, 0U)),
-                          "[Generate][Input] failed for op:%s, index:%zu", inner_dump_info.op->GetName().c_str(), i);
-        task.mutable_input()->Add(std::move(input));
       }
+      GELOGI("Get input size of l1_fusion_dump is %" PRId64, input_size);
+      need_generate_op_buffer_ = true;
+    } else {
+      uint64_t cur_offset = i;
+      auto &cust_to_relevant = inner_dump_info.cust_to_relevant_offset_;
+      if (!cust_to_relevant.empty()) {
+        auto iter = cust_to_relevant.find(cur_offset);
+        if (iter == cust_to_relevant.end()) {
+          GELOGD("Skip to dump op [%s] input idx [%zu]", inner_dump_info.op->GetNamePtr(), i);
+          continue;
+        }
+        cur_offset = iter->second;
+      }
+      const uintptr_t addr = inner_dump_info.args + static_cast<uintptr_t>(cur_offset * kAddrLength);
+      GELOGD("Dump op [%s] input[%zu], args_begin:[%" PRIx64 "] offset_addr:[%" PRIx64 "]",
+        inner_dump_info.op->GetNamePtr(), i, inner_dump_info.args, addr);
+      GE_CHK_STATUS_RET(GenerateInput(input, input_descs, addr, i, GetOffset(inner_dump_info, i, 0U)),
+                        "[Generate][Input] failed for op:%s, index:%zu", inner_dump_info.op->GetName().c_str(), i);
+      task.mutable_input()->Add(std::move(input));
     }
   }
   return SUCCESS;
@@ -1146,11 +1156,11 @@ void DataDumper::InitAicpuDumpTask(const InnerDumpInfo &dump_info, toolkit::aicp
     task.set_context_id(dump_info.context_id);
     GELOGI("op[%s] set task type[FFTSPLUS], context id[%u], is_fftsplus_task: %d", op_desc->GetName().c_str(),
            dump_info.context_id, static_cast<int32_t>(is_fftsplus_task));
-    std::string ffts_str;
-    if (AttrUtils::GetStr(op_desc, ffts::kAttrSgtJsonInfo, ffts_str) && (!ffts_str.empty())) {
+    const std::string* ffts_str_ptr = AttrUtils::GetStr(op_desc, ffts::kAttrSgtJsonInfo);
+    if (ffts_str_ptr != nullptr && (!ffts_str_ptr->empty())) {
       toolkit::aicpu::dump::OpAttr op_attr;
       op_attr.set_name(ffts::kAttrSgtJsonInfo);
-      op_attr.set_value(ffts_str);
+      op_attr.set_value(*ffts_str_ptr);
       task.mutable_attr()->Add(std::move(op_attr));
     }
   }

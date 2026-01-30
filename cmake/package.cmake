@@ -1,4 +1,4 @@
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
 # CANN Open Software License Agreement Version 2.0 (the "License").
@@ -6,7 +6,7 @@
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 
 #### CPACK to package run #####
 message(STATUS "System processor: ${CMAKE_SYSTEM_PROCESSOR}")
@@ -99,36 +99,66 @@ endif ()
 
 if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
     message(STATUS "************Install ge-compiler packages***************")
-    install(TARGETS parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
-                    slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion dflow_runner
-                    eager_style_graph_builder_base eager_style_graph_builder_base_static ge_runner_v2
-                    aihac_codegen aihac_ir aihac_ir_register aihac_symbolizer compress compressweight 
-                    hcom_gradient_split_tune hcom_graph_adaptor
-                    acl_op_compiler
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
-    )
-    install(TARGETS fmk_onnx_parser_stub fmk_parser_stub atc_stub_ge_compiler fwk_stub_ge_runner fwk_stub_ge_runner_v2 stub_acl_op_compiler
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-    )
-    install(TARGETS engine
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/plugin/nnengine
-    )
-    install(TARGETS aicpu_ascend_engine aicpu_tf_engine dvpp_engine fe ffts ge_local_engine ge_local_opskernel_builder rts_engine
-                    host_cpu_opskernel_builder host_cpu_engine hcom_opskernel_builder hcom_gradtune_opskernel_builder
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/plugin/opskernel
-    )
-    install(TARGETS cpu_compiler udf_compiler
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/plugin/pnecompiler
-    )
-    install(TARGETS gen_esb OPTIONAL
+    if(NOT MDC_COMPILE_RUNTIME)
+        install(TARGETS parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
+                        slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion dflow_runner eager_style_graph_builder_base
+                        eager_style_graph_builder_base_static ge_runner_v2 aihac_codegen aihac_ir aihac_ir_register aihac_symbolizer compress compressweight
+                        hcom_gradient_split_tune hcom_graph_adaptor acl_op_compiler
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+        install(TARGETS fmk_onnx_parser_stub fmk_parser_stub atc_stub_ge_compiler fwk_stub_ge_runner fwk_stub_ge_runner_v2 stub_acl_op_compiler
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+        )
+        install(TARGETS engine
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/plugin/nnengine
+        )
+        install(TARGETS aicpu_ascend_engine aicpu_tf_engine dvpp_engine fe ffts ge_local_engine ge_local_opskernel_builder rts_engine
+                        host_cpu_opskernel_builder host_cpu_engine hcom_opskernel_builder hcom_gradtune_opskernel_builder
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/plugin/opskernel
+        )
+        install(TARGETS cpu_compiler udf_compiler
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/plugin/pnecompiler
+        )
+        install(TARGETS gen_esb OPTIONAL
+                RUNTIME DESTINATION ${BUILD_COMPONENT}/bin
+        )
+        install(TARGETS pyautofuse
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/python/site-packages/autofuse
+        )
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/compiler/engines/rts_engine/switch_by_index.o
+                DESTINATION ${BUILD_COMPONENT}/fwkacllib/lib64/
+        )
+        install(TARGETS atc_atc.bin OPTIONAL
+            RUNTIME DESTINATION ${BUILD_COMPONENT}/lib64/atclib
+        )
+        install(TARGETS fwk_atc.bin OPTIONAL
+            RUNTIME DESTINATION ${BUILD_COMPONENT}/lib64/fwkacl
+        )
+        install(TARGETS fwk_atc.bin OPTIONAL
             RUNTIME DESTINATION ${BUILD_COMPONENT}/bin
-    )
-    install(TARGETS pyautofuse
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/python/site-packages/autofuse
-    )
-
+        )
+        install(FILES ${CMAKE_SOURCE_DIR}/api/atc/atc
+            DESTINATION ${BUILD_COMPONENT}/bin
+        )
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/api/python/wheel2/dist/llm_datadist_v1-0.0.1-py3-none-any.whl
+            DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/api/python/ge/wheel/dist/ge_py-0.0.1-py3-none-any.whl
+            DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/dflow/pydflow/dataflow-0.0.1-py3-none-any.whl
+                DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+    else()
+        # MDC 运行态编译
+        install(TARGETS flow_graph
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+    endif()
+    
     install(DIRECTORY ${CMAKE_SOURCE_DIR}/inc/external/flow_graph
         DESTINATION ${BUILD_COMPONENT}/include
     )
@@ -140,13 +170,9 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
         DESTINATION ${BUILD_COMPONENT}/include/ge
     )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api_error_codes.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_error_codes.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_ir_build.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_utils.h
         DESTINATION ${BUILD_COMPONENT}/include/ge
-    )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_error_codes.h
-        DESTINATION ${BUILD_COMPONENT}/include/acl/error_codes
     )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/llm_datadist/llm_error_codes.h
                   ${CMAKE_SOURCE_DIR}/inc/external/llm_datadist/llm_engine_types.h
@@ -197,18 +223,6 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
                   ${CMAKE_SOURCE_DIR}/compiler/graph/optimize/autofuse/compiler/python/__init__.py
         DESTINATION ${BUILD_COMPONENT}/python/site-packages/autofuse
     )
-    install(TARGETS atc_atc.bin OPTIONAL
-        RUNTIME DESTINATION ${BUILD_COMPONENT}/lib64/atclib
-    )
-    install(TARGETS fwk_atc.bin OPTIONAL
-        RUNTIME DESTINATION ${BUILD_COMPONENT}/lib64/fwkacl
-    )
-    install(TARGETS fwk_atc.bin OPTIONAL
-        RUNTIME DESTINATION ${BUILD_COMPONENT}/bin
-    )
-    install(FILES ${CMAKE_SOURCE_DIR}/api/atc/atc
-        DESTINATION ${BUILD_COMPONENT}/bin
-    )
     install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/manager/engine_manager/engine_conf.json
         DESTINATION ${BUILD_COMPONENT}/lib64/plugin/nnengine/ge_config
     )
@@ -226,18 +240,6 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
     install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/ffts_engine/common/ffts_config/ffts.ini
             DESTINATION ${BUILD_COMPONENT}/lib64/plugin/opskernel/ffts_config
     )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/api/python/wheel2/dist/llm_datadist_v1-0.0.1-py3-none-any.whl
-        DESTINATION ${BUILD_COMPONENT}/lib64
-    )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/api/python/ge/wheel/dist/ge_py-0.0.1-py3-none-any.whl
-        DESTINATION ${BUILD_COMPONENT}/lib64
-    )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/dflow/pydflow/dataflow-0.0.1-py3-none-any.whl
-            DESTINATION ${BUILD_COMPONENT}/lib64
-    )
-    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/compiler/engines/rts_engine/switch_by_index.o
-            DESTINATION ${BUILD_COMPONENT}/fwkacllib/lib64/
-    )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/acl/acl_op_compiler.h
             DESTINATION ${BUILD_COMPONENT}/include/acl
     )
@@ -252,40 +254,44 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
     )
 elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
     message(STATUS "************Install ge-executor packages***************")
-    install(TARGETS ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
-            graph lowering register_static graph_base model_deployer npu_sched_model_loader data_flow_base hcom_executor
-            acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
-    )
-    install(TARGETS ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-    )
-    install(TARGETS ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-    )
-    install(TARGETS stub_acl_mdl stub_acl_cblas stub_acl_op_executor
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
-    )
-    install(TARGETS graph register lowering
-            LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
-            ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
-    )
-    install(FILES ${CMAKE_SOURCE_DIR}/build/runtime/ops/update_model_param/ascend910B/UpdateModelParam_ascend910B.o
-                  ${CMAKE_SOURCE_DIR}/build/runtime/ops/update_model_param/ascend910_93/UpdateModelParam_ascend910_93.o
-            DESTINATION ${BUILD_COMPONENT}/lib64
-    )
+    if(NOT MDC_COMPILE_RUNTIME)
+        install(TARGETS ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
+                graph lowering register_static graph_base model_deployer npu_sched_model_loader data_flow_base hcom_executor
+                acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+        install(TARGETS ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+        )
+        install(TARGETS ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+        )
+        install(TARGETS stub_acl_mdl stub_acl_cblas stub_acl_op_executor
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/linux/${ARCH}
+        )
+        install(TARGETS graph register lowering
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
+        )
+        install(FILES ${CMAKE_SOURCE_DIR}/build/runtime/ops/update_model_param/dav_2201/UpdateModelParam_dav_2201.o
+                DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+    else()
+       # MDC 运行态编译
+        install(TARGETS ge_common ge_common_base davinci_executor hybrid_executor gert register graph graph_base acl_cblas
+                LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64
+                ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64
+        )
+    endif()
+
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api_types.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api_error_codes.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_error_codes.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_external_weight_desc.h
         DESTINATION ${BUILD_COMPONENT}/include/ge
-    )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_error_codes.h
-        DESTINATION ${BUILD_COMPONENT}/include/acl/error_codes
     )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/acl/acl_mdl.h
                   ${CMAKE_SOURCE_DIR}/inc/external/acl/acl_base_mdl.h
@@ -294,6 +300,9 @@ elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
     )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/acl/ops/acl_cblas.h
         DESTINATION ${BUILD_COMPONENT}/include/acl/ops
+    )
+    install(FILES ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/eager_op_execution_context.h
+            DESTINATION ${BUILD_COMPONENT}/include/exe_graph/runtime
     )
     set(EXTERNAL_GRAPH_FILES
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/graph.h
@@ -309,7 +318,8 @@ elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/resource_context.h 
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/tensor.h 
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/kernel_launch_info.h 
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/arg_desc_info.h 
+        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/arg_desc_info.h
+        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/custom_op.h
     )
     install(FILES ${EXTERNAL_GRAPH_FILES}
         DESTINATION ${BUILD_COMPONENT}/include/graph
@@ -333,7 +343,6 @@ elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_def.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_def_registry.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_def_factory.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/tilingdata_base.h
     )
     install(FILES ${EXTERNAL_REGISTER_FILES}
         DESTINATION ${BUILD_COMPONENT}/include/register

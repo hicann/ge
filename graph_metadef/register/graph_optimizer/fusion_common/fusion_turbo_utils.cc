@@ -116,7 +116,7 @@ void Relations::AppendPeerInAllPairs(ThisIndex relation_index, const ge::NodePtr
 
   for (const auto &ele : peer_anchors) {
     NodeIndex temp(ele->GetOwnerNode(), ele->GetIdx());
-    out_relations[relation_index].emplace_back(temp);
+    (void)out_relations[relation_index].emplace_back(temp);
   }
 }
 
@@ -152,13 +152,13 @@ void Relations::PreProcessOneNodeIndex(ThisIndex index, const NodeIndex &node_in
   }
 
   if (node_index.direction != PEER && node_index.direction != PEER_SINGLE) {
-    in_relations[index].emplace_back(node_index);
-    out_relations[index].emplace_back(node_index);
+    (void)in_relations[index].emplace_back(node_index);
+    (void)out_relations[index].emplace_back(node_index);
   } else {
     /* Update input's peer nodes */
     auto peer_out = FusionTurboUtils::GetPeerOutPair(node_index.node, node_index.index);
     if (peer_out.node != nullptr) {
-      in_relations[index].emplace_back(peer_out);
+      (void)in_relations[index].emplace_back(peer_out);
     } else {
       GELOGD("Peer input for %s %u is nullptr", node_index.node->GetName().c_str(), node_index.index);
     }
@@ -171,7 +171,7 @@ void Relations::PreProcessOneNodeIndex(ThisIndex index, const NodeIndex &node_in
       if (peer_in.node == nullptr) {
         GELOGD("Peer output for %s %u is nullptr", node_index.node->GetName().c_str(), node_index.index);
       } else {
-        out_relations[index].emplace_back(peer_in);
+        (void)out_relations[index].emplace_back(peer_in);
       }
     }
   }
@@ -270,7 +270,7 @@ Relations& Relations::Add(ThisIndex this_index, const NodeIndex &peer_index) {
     NodeIndices temp = {peer_index};
     std::ignore = ori_relations.emplace(std::make_pair(this_index, temp));
   } else {
-    iter->second.emplace_back(peer_index);
+    (void)iter->second.emplace_back(peer_index);
   }
   PreProcessOneNodeIndex(this_index, peer_index);
   return *this;
@@ -283,7 +283,7 @@ Relations& Relations::Add(ThisIndex this_index, NodeIndex &&peer_index) {
     NodeIndices temp = {std::move(peer_index)};
     std::ignore = ori_relations.emplace(std::make_pair(this_index, std::move(temp)));
   } else {
-    iter->second.emplace_back(std::move(peer_index));
+    (void)iter->second.emplace_back(std::move(peer_index));
   }
   return *this;
 }
@@ -294,7 +294,7 @@ Relations& Relations::Add(ThisIndex this_index, const std::initializer_list<Node
     std::ignore = ori_relations.emplace(std::make_pair(this_index, peer_indices));
   } else {
     for (const auto &peer_index : peer_indices) {
-      iter->second.emplace_back(peer_index);
+      (void)iter->second.emplace_back(peer_index);
     }
   }
   PreProcessNodeIndices(this_index, peer_indices);
@@ -307,7 +307,7 @@ Relations& Relations::Add(ThisIndex this_index, const NodeIndices &peer_indices)
     std::ignore = ori_relations.emplace(std::make_pair(this_index, peer_indices));
   } else {
     for (const auto &peer_index : peer_indices) {
-      iter->second.emplace_back(peer_index);
+      (void)iter->second.emplace_back(peer_index);
     }
   }
   PreProcessNodeIndices(this_index, peer_indices);
@@ -321,7 +321,7 @@ Relations& Relations::Add(ThisIndex this_index, NodeIndices &&peer_indices) {
     std::ignore = ori_relations.emplace(std::make_pair(this_index, std::move(peer_indices)));
   } else {
     for (auto &&peer_index : peer_indices) {
-      iter->second.emplace_back(std::move(peer_index));
+      (void)iter->second.emplace_back(std::move(peer_index));
     }
   }
   return *this;

@@ -95,6 +95,8 @@ SET(GRAPH_SOURCE_LIST
     "type/ascend_string.cc"
     "attr/attr_value.cc"
     "type/axis_type_info.cc"
+    "normal_graph/custom_op_factory.cc"
+    "normal_graph/custom_op_factory_impl.cc"
     "normal_graph/operator_factory.cc"
     "normal_graph/operator_factory_impl.cc"
     "normal_graph/graph.cc"
@@ -127,7 +129,6 @@ SET(GRAPH_SOURCE_LIST
     "${GE_METADEF_DIR}/third_party/transformer/src/transfer_range_according_to_format.cc"
     "${GE_METADEF_DIR}/third_party/transformer/src/transfer_shape_utils.cc"
     "${GE_METADEF_DIR}/ops/op_imp.cpp"
-    "${GE_METADEF_DIR}/base/utils/type_utils_inner.cc"
 )
 
 SET(FAST_GRAPH_SOURCE_LIST
@@ -144,7 +145,7 @@ add_library(graph_base SHARED
 
 target_compile_options(graph_base PRIVATE
     $<$<OR:$<STREQUAL:${PRODUCT_SIDE},host>,$<STREQUAL:${ENABLE_OPEN_SRC},True>>:-fexceptions>
-    $<$<OR:$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>,$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>: -fno-common -Wextra -Wfloat-equal -Wno-array-bounds>
+    $<$<OR:$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>,$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>: -fno-common -Wextra -Wfloat-equal>
     $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Debug>>:/MTd>
     $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Release>>:/MT>)
 
@@ -213,7 +214,7 @@ target_compile_options(graph PRIVATE -DNO_METADEF_ABI_COMPATIABLE)
 
 target_compile_options(graph PRIVATE
     $<$<OR:$<STREQUAL:${PRODUCT_SIDE},host>,$<STREQUAL:${ENABLE_OPEN_SRC},True>>:-fexceptions>
-    $<$<OR:$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>,$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>: -fno-common -Wextra -Wfloat-equal -Wno-array-bounds>
+    $<$<OR:$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>,$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>: -fno-common -Wextra -Wfloat-equal>
     $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Debug>>:/MTd>
     $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Release>>:/MT>)
 
@@ -228,7 +229,6 @@ target_compile_definitions(graph PRIVATE
 target_include_directories(graph PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_BINARY_DIR}
-    ${METADEF_DIR}
     ${CMAKE_BINARY_DIR}/proto/metadef_protos
     ${AIR_CODE_DIR}/inc/graph_metadef
     ${ASCEND_INSTALL_PATH}/include/graph
@@ -273,7 +273,7 @@ else()
 
     target_compile_options(graph_share PRIVATE
             $<$<OR:$<STREQUAL:${PRODUCT_SIDE},host>,$<STREQUAL:${ENABLE_OPEN_SRC},True>>:-fexceptions>
-            $<$<OR:$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>,$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>: -fno-common -Wextra -Wfloat-equal -Wno-array-bounds>
+            $<$<OR:$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>,$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>: -fno-common -Wextra -Wfloat-equal>
             $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Debug>>:/MTd>
             $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Release>>:/MT>)
 
@@ -289,7 +289,6 @@ else()
             ${CMAKE_CURRENT_LIST_DIR}
             ${CMAKE_BINARY_DIR}
             ${CMAKE_BINARY_DIR}/proto/metadef_protos
-            ${METADEF_DIR}
             ${GE_METADEF_DIR}
             ${AIR_CODE_DIR}/inc/graph_metadef
             )
@@ -321,7 +320,7 @@ else()
     target_link_libraries(graph_static PRIVATE ascend_protobuf_static)
 
     target_compile_options(graph_share PRIVATE -O2)
-    target_compile_options(graph_static PRIVATE $<$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>:-O2 -fPIC -Wextra -Wfloat-equal -Wno-array-bounds>)
+    target_compile_options(graph_static PRIVATE $<$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>:-O2 -fPIC -Wextra -Wfloat-equal>)
 
     set_target_properties(graph_static PROPERTIES
             WINDOWS_EXPORT_ALL_SYMBOLS TRUE

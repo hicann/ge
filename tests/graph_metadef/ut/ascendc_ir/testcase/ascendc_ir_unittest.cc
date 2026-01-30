@@ -2035,6 +2035,10 @@ TEST_F(UtestAscendCIR, CheckInferDtypeImplementation_StubOp4New_InferDataType) {
       (void) strcpy(version, "socv1");
       return RT_ERROR_NONE;
     }
+    rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen) {
+      (void) strcpy(value, "socv1");
+      return RT_ERROR_NONE;
+    }
   };
   RuntimeMock mock_runtime;
   RuntimeStub::Install(&mock_runtime);
@@ -2054,8 +2058,8 @@ TEST_F(UtestAscendCIR, CheckInferDtypeImplementation_StubOp4New_InferDataType) {
 
     // 校验同sym的输入的dtype是否在注册范围内并且一致
     char soc_version[128] = {};
-    auto res = rtGetSocVersion(soc_version, 128U);
-    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get soc version str.");
+    auto res = rtGetSocSpec("version", "NpuArch", soc_version, 128U);
+    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");
     auto soc_str = std::string(soc_version);
     std::set<ge::DataType> support_dtypes_of_sym_T1;
     if (soc_str == "socv1") {
@@ -2600,6 +2604,10 @@ TEST_F(UtestAscendCIR, CheckInferDtypeImplementation_StubOp8New_InferDataType) {
       (void) strcpy(version, "socv1");
       return RT_ERROR_NONE;
     }
+    rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen) {
+      (void) strcpy(value, "socv1");
+      return RT_ERROR_NONE;
+    }
   };
   RuntimeMock mock_runtime;
   RuntimeStub::Install(&mock_runtime);
@@ -2617,8 +2625,8 @@ TEST_F(UtestAscendCIR, CheckInferDtypeImplementation_StubOp8New_InferDataType) {
     GE_ASSERT_TRUE(expect_output_dtypes.empty() || expect_output_dtypes.size() == 1U);
 
     char soc_version[128] = {};
-    auto res = rtGetSocVersion(soc_version, 128U);
-    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get soc version str.");
+    auto res = rtGetSocSpec("version", "NpuArch", soc_version, 128U);
+    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");
     auto soc_str = std::string(soc_version);
     std::map<ge::DataType, std::set<ge::DataType>> results;
     if (soc_str == "socv1") {
@@ -2851,6 +2859,10 @@ TEST_F(UtestAscendCIR, CheckInferDtypeImplementation_StubOp9New_InferDataType) {
       (void) strcpy(version, "socv1");
       return RT_ERROR_NONE;
     }
+    rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen) {
+      (void) strcpy(value, "socv1");
+      return RT_ERROR_NONE;
+    }
   };
   RuntimeMock mock_runtime;
   RuntimeStub::Install(&mock_runtime);
@@ -2868,8 +2880,8 @@ TEST_F(UtestAscendCIR, CheckInferDtypeImplementation_StubOp9New_InferDataType) {
     GE_ASSERT_TRUE(expect_output_dtypes.empty() || expect_output_dtypes.size() == 4U);
 
     char soc_version[128] = {};
-    auto res = rtGetSocVersion(soc_version, 128U);
-    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get soc version str.");
+    auto res = rtGetSocSpec("version", "NpuArch", soc_version, 128U);
+    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");
     auto soc_str = std::string(soc_version);
     std::map<std::vector<ge::DataType>, std::vector<std::set<ge::DataType>>> results;
     if (soc_str == "socv1") {

@@ -33,7 +33,7 @@ const static std::map<std::string, std::set<std::string>> kStrValueRange = {
     {"virtual_type", {"0", "1"}},
     {"status_check", {"0", "1"}},
     {"deterministic", {"0", "1"}},
-    {"external_weight", {"0", "1"}},
+    {"external_weight", {"0", "1", "2"}},
     {"display_model_info", {"0", "1"}},
     {"atomic_clean_policy", {"0", "1"}},
     {"disable_reuse_memory", {"0", "1"}},
@@ -148,7 +148,7 @@ CmdFlagInfo::CmdFlagInfo(int32_t has_arg, int32_t index, const std::string &flag
       value_int32_(default_val) {}
 
 void CmdFlagInfo::PrintTypeError(const char *type) {
-  std::string reason = "The value type must be [" + std::string(type) + "]";
+  std::string reason = "The value type must be [" + std::string(type) + "].";
   REPORT_PREDEFINED_ERR_MSG("E10003", std::vector<const char *>({"value", "parameter", "reason"}),
                             std::vector<const char *>({value_string_.c_str(), flag_name_.c_str(), reason.c_str()}));
 }
@@ -181,7 +181,8 @@ void CmdFlagInfo::PrintValueError() {
                               std::vector<const char *>({"framework", support.c_str()}));
   } else {
     std::string parameter = "--" + flag_name_;
-    const std::string reason = "The value is not within the range of values: " + PrintValueRange();
+    const std::string reason =
+        "The value is not within the range of values. The valid range is " + PrintValueRange() + ".";
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
                               std::vector<const char *>({value_string_.c_str(), parameter.c_str(), reason.c_str()}));
   }

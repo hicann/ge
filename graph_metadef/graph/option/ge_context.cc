@@ -13,7 +13,7 @@
 #include "graph/ge_global_options.h"
 #include "graph/ge_local_context.h"
 #include "graph/types.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "utils/extern_math_util.h"
 #include "external/ge_common/ge_api_types.h"
 

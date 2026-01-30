@@ -43,7 +43,7 @@ Status JitInferUtils::PrepareBeforeInferSymbol(const ComputeGraphPtr &graph, con
   return SUCCESS;
 }
 
-void ClearInferedNodesWithAllDataNodes(std::vector<NodePtr> &infered_nodes) {
+static void ClearInferedNodesWithAllDataNodes(std::vector<NodePtr> &infered_nodes) {
   size_t data_node_num = 0;
   for (auto &node : infered_nodes) {
     auto node_type = node->GetType();
@@ -58,7 +58,7 @@ void ClearInferedNodesWithAllDataNodes(std::vector<NodePtr> &infered_nodes) {
   }
 }
 
-bool ParentNodeInfered(const NodePtr &node, std::vector<NodePtr> &infered_nodes) {
+static bool ParentNodeInfered(const NodePtr &node, std::vector<NodePtr> &infered_nodes) {
   if (!node->GetInDataNodes().empty()) {
     for (auto &in_data_node : node->GetInDataNodes()) {
       // check parents data nodes
@@ -78,7 +78,7 @@ bool ParentNodeInfered(const NodePtr &node, std::vector<NodePtr> &infered_nodes)
   return true;
 }
 
-void DeleteNodesWithoutParentNode(std::vector<NodePtr> &infered_nodes) {
+static void DeleteNodesWithoutParentNode(std::vector<NodePtr> &infered_nodes) {
   // delete nodes whose parents node not infered
   for (auto it = infered_nodes.begin(); it != infered_nodes.end();) {
     if (!ParentNodeInfered(*it, infered_nodes)) {

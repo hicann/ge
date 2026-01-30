@@ -28,12 +28,22 @@ endif()
 if(json_FOUND)
     message(STATUS "[json] json found.")
 else()
-    message(STATUS "[json] json not found, downloading..")
-    set(REQ_URL "https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/json-3.11.3.tar.gz")
+    message(STATUS "[json] json not found, finding binary file.")
+    set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/json/json-3.11.3.tar.gz")
+    set(JSON_EXTRA_ARGS "")
+    if(EXISTS ${REQ_URL})
+        message(STATUS "[json] ${REQ_URL} found.")
+    else()
+        message(STATUS "[json] ${REQ_URL} not found, need download.")
+        set(REQ_URL "https://gitcode.com/cann-src-third-party/json/releases/download/v3.11.3/json-3.11.3.tar.gz")
+        list(APPEND JSON_EXTRA_ARGS
+            DOWNLOAD_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/json
+        )
+    endif()
     ExternalProject_Add(json_build
                         URL ${REQ_URL}
-                        DOWNLOAD_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/json
                         TLS_VERIFY OFF
+                        ${JSON_EXTRA_ARGS}
                         CONFIGURE_COMMAND ${CMAKE_COMMAND}
                             -DJSON_MultipleHeaders=ON
                             -DJSON_BuildTests=OFF

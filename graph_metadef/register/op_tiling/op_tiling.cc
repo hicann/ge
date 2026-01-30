@@ -11,7 +11,6 @@
 #include "register/op_tiling.h"
 
 #include <nlohmann/json.hpp>
-#include <securec.h>
 #include "graph/operator.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
@@ -142,7 +141,7 @@ private:
 
     std::vector<T> dest;
     for (const auto elem : value) {
-      dest.emplace_back(static_cast<T>(elem));
+      (void) dest.emplace_back(static_cast<T>(elem));
     }
     const auto dest_ptr = std::make_shared<AnyVecValue<T>>(dest);
     (void)data_map_.emplace(name + '_' + typeid(T).name(), dest_ptr);
@@ -247,8 +246,8 @@ bool FeedTeOpTensorArg(ge::OpDesc::Vistor<ge::GeTensorDescPtr> &tensor_desc_vec,
       GELOGI("calling optiling shape info: %s", shapestr.str().c_str());
     }
 
-    arg_tensor.tensor.emplace_back(tensor);
-    tensor_arg.emplace_back(arg_tensor);
+    (void) arg_tensor.tensor.emplace_back(tensor);
+    (void) tensor_arg.emplace_back(arg_tensor);
     index++;
   }
   return true;
@@ -481,7 +480,7 @@ ge::graphStatus PostProcCalculateV2(const ge::Operator &op, OpRunInfoV2 &run_inf
 
   // mixl2--pass will add additional works after op_workspaces
   for (size_t i = op_work_size; i < all_workspaces.size(); ++i) {
-    op_workspaces.emplace_back(all_workspaces[i]);
+    (void) op_workspaces.emplace_back(all_workspaces[i]);
   }
   for (size_t i = 0; i < op_workspaces.size(); ++i) {
     GELOGD("Op's workspace: %zu, value: %ld.", i, op_workspaces[i]);
@@ -757,7 +756,7 @@ ge::graphStatus OpAtomicCalculateV1(const ge::OpDescPtr &op_desc_ptr, OpRunInfo 
   return ret ? ge::GRAPH_SUCCESS : ge::GRAPH_FAILED;
 }
 
-ge::graphStatus TurnToOpAtomicCalculateV1(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
+static ge::graphStatus TurnToOpAtomicCalculateV1(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
                                           const OpTilingFunc &tiling_func) {
   OpRunInfo run_info_struct;
   run_info_struct.block_dim = run_info.GetBlockDim();
@@ -832,7 +831,7 @@ ge::graphStatus AssembleWorkspaceList(const ge::OpDescPtr &op_desc_ptr,
   return ge::GRAPH_SUCCESS;
 }
 
-ge::graphStatus TurnToOpAtomicCalculateV2(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
+static ge::graphStatus TurnToOpAtomicCalculateV2(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
                                           const OpTilingFuncV2 &tiling_func) {
   GELOGI("Begin atomic optiling V2 for op [%s, %s].",
          op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
@@ -875,7 +874,7 @@ ge::graphStatus TurnToOpAtomicCalculateV2(const ge::OpDescPtr &op_desc_ptr, OpRu
   return ret ? ge::GRAPH_SUCCESS : ge::GRAPH_FAILED;
 }
 
-ge::graphStatus TurnToOpAtomicCalculateV3(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
+static ge::graphStatus TurnToOpAtomicCalculateV3(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
                                           const OpTilingFuncV3 &tiling_func, const OpParseFuncV3 &parse_func) {
   GELOGI("Begin Atomic optiling V3 for op [%s, %s].",
          op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
@@ -930,7 +929,7 @@ ge::graphStatus TurnToOpAtomicCalculateV3(const ge::OpDescPtr &op_desc_ptr, OpRu
   return ret ? ge::GRAPH_SUCCESS : ge::GRAPH_FAILED;
 }
 
-ge::graphStatus TurnToOpAtomicCalculateV4(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
+static ge::graphStatus TurnToOpAtomicCalculateV4(const ge::OpDescPtr &op_desc_ptr, OpRunInfoV2 &run_info,
                                           const OpTilingFuncV4 &tiling_func, const OpParseFuncV4 &parse_func) {
   GELOGI("Begin Atomic optiling V4 for op [%s, %s].",
          op_desc_ptr->GetName().c_str(), op_desc_ptr->GetType().c_str());
@@ -1047,7 +1046,7 @@ ge::graphStatus UpDateNodeShapeBySliceInfo(const ffts::ThreadSliceMapDyPtr slice
       return ge::GRAPH_FAILED;
     }
     if (thread_id == 0U) {
-      ori_shape.emplace_back(shape.GetDim(0));
+      (void) ori_shape.emplace_back(shape.GetDim(0));
       auto &tail_dim = slice_info_ptr->input_tensor_slice[slice_info_ptr->slice_instance_num - 1][index];
       if (tail_dim.empty()) {
         return ge::GRAPH_FAILED;
@@ -1063,7 +1062,7 @@ ge::graphStatus UpDateNodeShapeBySliceInfo(const ffts::ThreadSliceMapDyPtr slice
     GE_CHECK_NOTNULL(tensor_ptr);
     ge::GeShape& shape = tensor_ptr->MutableShape();
     if (thread_id == 0U) {
-      ori_shape.emplace_back(shape.GetDim(0));
+      (void) ori_shape.emplace_back(shape.GetDim(0));
     }
     auto &tmp_dim = slice_info_ptr->output_tensor_slice[static_cast<size_t>(thread_id)][index];
     if (tmp_dim.empty()) {

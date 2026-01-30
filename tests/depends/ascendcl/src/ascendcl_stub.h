@@ -30,7 +30,10 @@ public:
   virtual ~AclRuntimeStub() = default;
 
   static AclRuntimeStub* GetInstance();
-
+  void SetDeviceId(int64_t device_id) {
+    device_id_ = device_id;
+  }
+  static void SetErrorResultApiName(const std::string &stub_api_name);
   static void SetInstance(const std::shared_ptr<AclRuntimeStub> &instance) {
     instance_ = instance;
   }
@@ -89,18 +92,82 @@ public:
                           aclrtStream stream);
   virtual aclError aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total);
   virtual aclError aclrtGetSocVersion(char *version, const uint32_t maxLen);
+  virtual const char* aclrtGetSocName();
   virtual aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value);
   virtual aclError aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId);
+  virtual aclError aclrtCheckArchCompatibility(const char *socVersion, int32_t *canCompatible);
+  virtual aclError aclrtDestroyContext(aclrtContext context);
+  virtual aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode);
+  virtual aclError aclrtActiveStream(aclrtStream activeStream, aclrtStream stream);
+  virtual aclError aclrtCtxGetCurrentDefaultStream(aclrtStream *stream);
+  virtual aclError aclrtDestroyLabel(aclrtLabel label);
+  virtual aclError aclmdlRIDestroy(aclmdlRI modelRI);
+  virtual aclError aclmdlRIUnbindStream(aclmdlRI modelRI, aclrtStream stream);
+  virtual aclError aclrtDestroyLabelList(aclrtLabelList labelList);
+  virtual aclError aclmdlRIBindStream(aclmdlRI modelRI, aclrtStream stream, uint32_t flag);
+  virtual aclError aclmdlRIBuildEnd(aclmdlRI modelRI, void *reserve);
+  virtual aclError aclrtPersistentTaskClean(aclrtStream stream);
+  virtual aclError aclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback);
+  virtual aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId);
+  virtual aclError aclrtSetTsDevice(aclrtTsId tsId);
+  virtual aclError aclrtGetDeviceCount(uint32_t *count);
+  virtual aclError aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag);
+  virtual aclError aclrtResetEvent(aclrtEvent event, aclrtStream stream);
+  virtual aclError aclrtSynchronizeEventWithTimeout(aclrtEvent event, int32_t timeout);
+  virtual aclError aclrtMallocForTaskScheduler(void **devPtr, size_t size, aclrtMemMallocPolicy policy,
+                                               aclrtMallocConfig *cfg);
+  virtual aclError aclrtReserveMemAddress(void **virPtr, size_t size, size_t alignment, void *expectPtr,
+                                          uint64_t flags);
+  virtual aclError aclrtReleaseMemAddress(void *virPtr);
+  virtual aclError aclrtMallocPhysical(aclrtDrvMemHandle *handle, size_t size, const aclrtPhysicalMemProp *prop,
+                                       uint64_t flags);
+  virtual aclError aclrtFreePhysical(aclrtDrvMemHandle handle);
+  virtual aclError aclrtMapMem(void *virPtr, size_t size, size_t offset, aclrtDrvMemHandle handle, uint64_t flags);
+  virtual aclError aclrtUnmapMem(void *virPtr);
+  virtual aclError aclrtDestroyStreamForce(aclrtStream stream);
+  virtual aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event);
+  virtual aclError aclrtStreamWaitEventWithTimeout(aclrtStream stream, aclrtEvent event, int32_t timeout);
+  virtual aclError aclrtSetOpWaitTimeout(uint32_t timeout);
+  virtual aclError aclrtSetOpExecuteTimeOut(uint32_t timeout);
+  virtual aclError aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout);
+  virtual aclError aclrtSetOpExecuteTimeOutV2(uint64_t timeout, uint64_t *actualTimeout);
+  virtual aclError aclrtGetStreamAvailableNum(uint32_t *streamCount);
+  virtual aclError aclrtGetEventId(aclrtEvent event, uint32_t *eventId);
+  virtual aclError aclrtCreateEventExWithFlag(aclrtEvent *event, uint32_t flag);
+  virtual aclError aclrtGetEventAvailNum(uint32_t *eventCount);
+  virtual aclError aclrtCreateLabel(aclrtLabel *label);
+  virtual aclError aclrtSetLabel(aclrtLabel label, aclrtStream stream);
+  virtual aclError aclrtCreateLabelList(aclrtLabel *labels, size_t num, aclrtLabelList *labelList);
+  virtual aclError aclrtSwitchLabelByIndex(void *ptr, uint32_t maxValue, aclrtLabelList labelList, aclrtStream stream);
+  virtual aclError aclrtSwitchStream(void *leftValue, aclrtCondition cond, void *rightValue,
+                                     aclrtCompareDataType dataType, aclrtStream trueStream, aclrtStream falseStream,
+                                     aclrtStream stream);
+  virtual aclError aclmdlRIExecuteAsync(aclmdlRI modelRI, aclrtStream stream);
+  virtual aclError aclmdlRIExecute(aclmdlRI modelRI, int32_t timeout);
+  virtual aclError aclmdlRIBuildBegin(aclmdlRI *modelRI, uint32_t flag);
+  virtual aclError aclmdlRIEndTask(aclmdlRI modelRI, aclrtStream stream);
+  virtual aclError aclmdlRISetName(aclmdlRI modelRI, const char *name);
+  virtual aclError aclrtCtxGetFloatOverflowAddr(void **overflowAddr);
+  virtual aclError aclrtGetHardwareSyncAddr(void **addr);
+  virtual aclError aclrtTaskUpdateAsync(aclrtStream taskStream, uint32_t taskId, aclrtTaskUpdateInfo *info,
+                                        aclrtStream execStream);
+  virtual aclError aclmdlRIAbort(aclmdlRI modelRI);
+  virtual aclError aclrtProfTrace(void *userdata, int32_t length, aclrtStream stream);
+  virtual aclError aclrtCreateNotify(aclrtNotify *notify, uint64_t flag);
+  virtual aclError aclrtDestroyNotify(aclrtNotify notify);
 
-private:
+ private:
   static std::mutex mutex_;
   static std::shared_ptr<AclRuntimeStub> instance_;
   static thread_local AclRuntimeStub *fake_instance_;
   size_t reserve_mem_size_ = 200UL * 1024UL * 1024UL;
   std::mutex mtx_;
+  int64_t device_id_{0L};
   std::vector<aclrtStream> model_bind_streams_;
   std::vector<aclrtStream> model_unbind_streams_;
   size_t input_mem_copy_batch_count_{0UL};
+  int32_t cur_device_id = 0;
+  int32_t batch_memcpy_device_id = 0;
 };
 
 class AclApiStub {
@@ -168,6 +235,9 @@ private:
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern std::string g_acl_stub_mock;
+extern std::string g_acl_stub_mock_v2;
 
 #ifdef __cplusplus
 }

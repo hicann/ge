@@ -19,6 +19,8 @@ add_library(acl_cblas SHARED
 target_include_directories(acl_cblas PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
     ${CMAKE_CURRENT_LIST_DIR}/..
+    ${CMAKE_CURRENT_LIST_DIR}/../acl_model
+    ${CMAKE_CURRENT_LIST_DIR}/../acl_op_executor
 
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/graph_metadef

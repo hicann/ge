@@ -15,7 +15,7 @@
 #include <stack>
 
 #include <securec.h>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/utils/graph_utils.h"
 #include "common/checker.h"

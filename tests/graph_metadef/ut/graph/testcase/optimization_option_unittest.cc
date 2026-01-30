@@ -14,7 +14,7 @@
 #include "register/optimization_option_registry.h"
 #include "register/pass_option_utils.h"
 #include "ge_common/ge_api_types.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/ge_local_context.h"
 
 namespace {

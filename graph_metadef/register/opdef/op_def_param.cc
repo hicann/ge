@@ -11,7 +11,7 @@
 #include <vector>
 #include "register/op_def.h"
 #include "op_def_impl.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ops {
 OpParamDef::OpParamDef(const char *name) : impl_(new(std::nothrow) OpParamDefImpl) {

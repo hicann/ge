@@ -25,7 +25,7 @@ class MatchResultImpl {
  public:
   explicit MatchResultImpl(const Pattern *const pattern)
       : pattern_(const_cast<Pattern *>(pattern)), captured_tensors_(pattern) {}
-
+  MatchResultImpl& operator=(const MatchResultImpl&) = delete;
   MatchResultImpl(const MatchResultImpl &other) : pattern_(other.pattern_), captured_tensors_(other.pattern_) {
     if (&other != this) {
       this->pattern_node_2_matched_node_ = other.pattern_node_2_matched_node_;

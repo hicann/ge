@@ -11,7 +11,7 @@
 #include "common/screen_printer.h"
 
 #include <iostream>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/ge_context.h"
 #include "mmpa/mmpa_api.h"
 

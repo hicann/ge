@@ -36,8 +36,8 @@
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
 #include "graph/def_types.h"
-#include "types/acl_model_tensor_desc_internal.h"
-#include "types/acl_model_data_buffer_internal.h"
+#include "types/tensor_desc_internal.h"
+#include "types/data_buffer_internal.h"
 #include "acl_model_impl.h"
 
 namespace {
@@ -444,39 +444,39 @@ static aclError IsSupportRuntimeV2WithModelPath(const char *filePath, bool &isSu
 static aclError GetBundleNumAndOffset(const void *const model, const size_t modelSize,
                                       size_t &varSize, std::vector<std::pair<size_t, size_t>> &subModelOffsetAndSize)
 {
-    varSize = 0U;
-    size_t currentOffset = 0U;
-    if (modelSize < (sizeof(ge::ModelFileHeader) + sizeof(ge::ModelPartitionTable))) {
-        ACL_LOG_ERROR("[Check][Param] Invalid model size, Model data size %zu must be greater than or equal to %zu.",
-                      modelSize, sizeof(ge::ModelFileHeader));
-        return ACL_ERROR_INVALID_PARAM;
+  varSize = 0U;
+  size_t currentOffset = 0U;
+  if (modelSize < (sizeof(ge::ModelFileHeader) + sizeof(ge::ModelPartitionTable))) {
+    ACL_LOG_ERROR("[Check][Param] Invalid model size, Model data size %zu must be greater than or equal to %zu.",
+                  modelSize, sizeof(ge::ModelFileHeader));
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  const auto *fileHeader = ge::PtrToPtr<void, ge::ModelFileHeader>(model);
+  if (fileHeader->modeltype != ge::MODEL_TYPE_BUNDLE_MODEL) {
+    ACL_LOG_ERROR("this is not bundle om, please check");
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  currentOffset += sizeof(ge::ModelFileHeader);
+  const auto *partitionTable =
+      ge::PtrToPtr<void, ge::ModelPartitionTable>(ge::ValueToPtr(ge::PtrToValue(model) + currentOffset));
+  const size_t partitionTableSize = ge::SizeOfModelPartitionTable(*partitionTable);
+  ACL_LOG_INFO("get offset %zu, partitionTableSize %zu", currentOffset, partitionTableSize);
+  ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset, partitionTableSize, currentOffset));
+  ACL_REQUIRES_LE(currentOffset, modelSize);
+  for (size_t i = 0; i < partitionTable->num; ++i) {
+    ACL_LOG_INFO("get %zu om offset %zu, size %zu", i, currentOffset, partitionTable->partition[i].mem_size);
+    if (partitionTable->partition[i].type == ge::BUNDLE_MODEL_VAR_INFO) {
+      varSize = *ge::PtrToPtr<void, int64_t>(ge::ValueToPtr(ge::PtrToValue(model) + currentOffset));
+      ACL_LOG_INFO("get var size %zu", varSize);
     }
-    const auto *fileHeader = ge::PtrToPtr<void, ge::ModelFileHeader>(model);
-    if (fileHeader->modeltype != ge::MODEL_TYPE_BUNDLE_MODEL) {
-        ACL_LOG_ERROR("this is not bundle om, please check");
-        return ACL_ERROR_INVALID_PARAM;
+    if (partitionTable->partition[i].type == ge::BUNDLE_MODEL_INFO) {
+      subModelOffsetAndSize.emplace_back(currentOffset, partitionTable->partition[i].mem_size);
     }
-    currentOffset += sizeof(ge::ModelFileHeader);
-    const auto *partitionTable =
-            ge::PtrToPtr<void, ge::ModelPartitionTable>(ge::ValueToPtr(ge::PtrToValue(model) + currentOffset));
-    const size_t partitionTableSize = ge::SizeOfModelPartitionTable(*partitionTable);
-    ACL_LOG_INFO("get offset %zu, partitionTableSize %zu", currentOffset, partitionTableSize);
-    ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset, partitionTableSize, currentOffset));
+    ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset,
+                                               partitionTable->partition[i].mem_size, currentOffset));
     ACL_REQUIRES_LE(currentOffset, modelSize);
-    for (size_t i = 0; i < partitionTable->num; ++i) {
-        ACL_LOG_INFO("get %zu om offset %zu, size %zu", i, currentOffset, partitionTable->partition[i].mem_size);
-        if (partitionTable->partition[i].type == ge::BUNDLE_MODEL_VAR_INFO) {
-            varSize = *ge::PtrToPtr<void, int64_t>(ge::ValueToPtr(ge::PtrToValue(model) + currentOffset));
-            ACL_LOG_INFO("get var size %zu", varSize);
-        }
-        if (partitionTable->partition[i].type == ge::BUNDLE_MODEL_INFO) {
-            subModelOffsetAndSize.emplace_back(currentOffset, partitionTable->partition[i].mem_size);
-        }
-        ACL_REQUIRES_OK(acl::CheckSizeTAddOverflow(currentOffset,
-                                                   partitionTable->partition[i].mem_size, currentOffset));
-        ACL_REQUIRES_LE(currentOffset, modelSize);
-    }
-    return ACL_SUCCESS;
+  }
+  return ACL_SUCCESS;
 }
 
     static aclError IsSupportRuntimeV2WithModelData(const void *const model, const size_t modelSize,
@@ -1891,7 +1891,7 @@ static aclError LoadBundleSubModelFromMem(const void *const currentModePtr, cons
   return ret;
 }
 
-static aclError BundleInitFromMem(std::shared_ptr<uint8_t> model, size_t modelSize, const std::string &modelPath,
+static aclError BundleInitFromMem(std::shared_ptr<const uint8_t> model, size_t modelSize, const std::string &modelPath,
                                   void *varWeightPtr, size_t varWeightSize, uint32_t *bundleId)
 {
   // get bundle num from file header
@@ -2202,9 +2202,9 @@ aclError aclmdlBundleInitFromMemImpl(const void* model, size_t modelSize, void *
   ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(bundleId);
   ACL_LOG_INFO("start to execute aclmdlBundleInitFromMem, model size %zu, varWeightSize %zu",
                modelSize, varWeightSize);
-  std::shared_ptr<uint8_t> tmpData;
+  std::shared_ptr<const uint8_t> tmpData;
   // no delete func
-  tmpData.reset(ge::PtrToPtr<void, uint8_t>(const_cast<void *>(model)), [](const uint8_t* const p) { (void) p; });
+  tmpData.reset(ge::PtrToPtr<void, uint8_t>(model), [](const uint8_t* const p) { (void) p; });
   ACL_REQUIRES_OK(BundleInitFromMem(tmpData, modelSize, "", varWeightPtr, varWeightSize, bundleId));
   ACL_LOG_INFO("end to execute aclmdlBundleInitFromMem, model size %zu, varWeightSize %zu, bundleId %u",
                modelSize, varWeightSize, *bundleId);

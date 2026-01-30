@@ -17,6 +17,7 @@
 #include "ge/ut/ge/test_tools_task_info.h"
 #include "common/dump/dump_properties.h"
 #include "common/dump/dump_manager.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "mmpa/mmpa_api.h"
 using namespace std;
 using namespace testing;
@@ -355,22 +356,17 @@ Status KnownDynamicExecute(ComputeGraphPtr &graph, const GeRootModelPtr &ge_root
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
   //-- Run Asynchronous
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  int64_t value_0 = 127;
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  int64_t value_1 = 100;
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  int64_t value_2 = 127;
-  Tensor tensor_2(tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-  int64_t value_3 = 100;
-  Tensor tensor_3(tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
-  const std::vector<Tensor> input_tensors{ tensor_0, tensor_1, tensor_2, tensor_3 };
+  std::vector<gert::Tensor> inputs(4);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[3], {1}, DT_INT64, FORMAT_ND);
 
   std::mutex run_mutex;
   std::condition_variable model_run_cv;
   Status run_status = FAILED;
-  std::vector<Tensor> run_outputs;
-  const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+  std::vector<gert::Tensor> run_outputs;
+  const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     std::unique_lock<std::mutex> lock(run_mutex);
     run_status = status;
     run_outputs.swap(outputs);
@@ -389,7 +385,7 @@ Status KnownDynamicExecute(ComputeGraphPtr &graph, const GeRootModelPtr &ge_root
   arg->graph_id = graph_id;
   arg->session_id = 2001;
   arg->error_context = error_context;
-  arg->input_tensor = input_tensors;
+  arg->input_tensor = std::move(inputs);
   arg->context = context;
   arg->callback = callback;
   EXPECT_EQ(model_executor.PushRunArgs(arg), SUCCESS);
@@ -429,10 +425,16 @@ Status KnownDynamicRunSync(ComputeGraphPtr &graph, const GeRootModelPtr &ge_root
   GeTensor sync_tensor_3(sync_tensor_desc, (uint8_t *)&value_3, sizeof(value_3));
   const std::vector<GeTensor> sync_input_tensors{ sync_tensor_0, sync_tensor_1, sync_tensor_2, sync_tensor_3 };
 
-  std::vector<GeTensor> sync_outputs;
-  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, sync_input_tensors, sync_outputs), SUCCESS);
+  std::vector<gert::Tensor> inputs(4);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[2], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[3], {1}, DT_INT64, FORMAT_ND);
+  std::vector<gert::Tensor> outputs;
+  EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), SUCCESS);
   rtStream_t run_stream = &model_executor;
   // not support rt1, return failed
+  std::vector<GeTensor> sync_outputs;
   EXPECT_NE(model_executor.RunGraphWithStream(graph_node, graph_id, run_stream, sync_input_tensors, sync_outputs),
 	    SUCCESS);
 
@@ -458,6 +460,15 @@ TEST_F(DynamicKnownTest, execute_known_from_dynamic) {
 
   {
     // Test LoadModelOnline: -> DoLoadHybridModelOnline.
+    for (const auto &node : graph->GetAllNodes()) {
+      auto op_desc = node->GetOpDesc();
+      AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+      AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, node->GetName() + "_fake_id");
+      const char kernel_bin[] = "kernel_bin";
+      vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+      ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>(op_desc->GetName(), std::move(buffer));
+      op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
+    }
     EXPECT_EQ(KnownDynamicExecute(graph, ge_root_model), SUCCESS);
     EXPECT_EQ(KnownDynamicRunSync(graph, ge_root_model), SUCCESS);
   }

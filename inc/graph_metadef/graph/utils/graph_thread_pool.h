@@ -21,8 +21,7 @@
 #include <thread>
 #include <vector>
 
-#include "common/ge_common/debug/ge_log.h"
-#include "common/ge_common/ge_inner_error_codes.h"
+#include "framework/common/debug/ge_log.h"
 #include "external/ge_common/ge_api_error_codes.h"
 #include "common/util/mem_utils.h"
 

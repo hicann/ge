@@ -49,7 +49,7 @@ ScalableAllocator::~ScalableAllocator() {
     span_layers_.clear();
     new_span_layers_.clear();
     new_span_layer_ids_.clear();
-  } catch (const std::exception &) {
+  } catch (...) {
     // do nothing
   }
 }

@@ -100,7 +100,7 @@ public:
 
   void SetBlockDim(const uint32_t &block_dim);
   uint32_t GetBlockDim() const;
-  void SetAicpuBlockDim(uint32_t block_dim);
+  void SetAicpuBlockDim(uint32_t block_dim) const;
   uint32_t GetAicpuBlockDim() const;
   void SetScheduleMode(const uint32_t schedule_mode);
   uint32_t GetScheduleMode() const;

@@ -7390,7 +7390,7 @@ TEST_F(TestOptimizer, platform_reg_test) {
   ge::AscGraph graph("tmp");
   ge::PlatformInfo info;
   ge::PlatformContext::GetInstance().GetCurrentPlatform(info);
-  EXPECT_EQ(info.name, "Ascend910B1");
+  EXPECT_EQ(info.name, "2201");
   auto platform_v1 = optimize::PlatformFactory::GetInstance().GetPlatform();
   EXPECT_NE(platform_v1, nullptr);
   auto platform_v1_new = optimize::PlatformFactory::GetInstance().GetPlatform();

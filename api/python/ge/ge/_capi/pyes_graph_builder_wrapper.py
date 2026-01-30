@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# -------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
@@ -97,7 +98,6 @@ try:
     _default_lib_available = True
 except OSError as e:
     _default_lib = None
-    print(f"Warning: Failed to load {DEFAULT_GENERATED_LIB_NAME}: {e}")
 
 
 def is_generated_lib_available():

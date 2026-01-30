@@ -39,6 +39,7 @@
 #include "register/kernel_registry.h"
 #include "graph/utils/tensor_adapter.h"
 #include "api/aclgrph/option_utils.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 
 using namespace std;
 using namespace testing;
@@ -590,23 +591,20 @@ Status OnlineInferDynamic(const ComputeGraphPtr &graph, const GeModelPtr &ge_mod
   model_executor.StartRunThread();
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  int64_t value_0 = 127;
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  int64_t value_1 = 100;
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  std::vector<Tensor> input_tensors{tensor_0, tensor_1};
+  std::vector<gert::Tensor> inputs(2);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
   if (sink_dynamic) { // GETDYNAMICDIMS on output for sink dynamic.
-    int64_t value_2 = 300;
-    Tensor tensor_2(tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-    input_tensors.emplace_back(tensor_2);
+    gert::Tensor tensor;
+    TensorCheckUtils::ConstructGertTensor(tensor, {1}, DT_INT64, FORMAT_ND);
+    inputs.emplace_back(std::move(tensor));
   }
 
   std::mutex run_mutex;
   std::condition_variable model_run_cv;
   Status run_status = FAILED;
-  std::vector<Tensor> run_outputs;
-  const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+  std::vector<gert::Tensor> run_outputs;
+  const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     std::unique_lock<std::mutex> lock(run_mutex);
     run_status = status;
     run_outputs.swap(outputs);
@@ -625,7 +623,7 @@ Status OnlineInferDynamic(const ComputeGraphPtr &graph, const GeModelPtr &ge_mod
   arg->graph_id = graph_id;
   arg->session_id = 2001;
   arg->error_context = error_context;
-  arg->input_tensor = input_tensors;
+  arg->input_tensor = std::move(inputs);
   arg->context = context;
   arg->callback = callback;
   EXPECT_EQ(model_executor.PushRunArgs(arg), SUCCESS);
@@ -1130,22 +1128,15 @@ TEST_F(OnlineInferTest, online_infer_dynamic_execute_invalide_input) {
     model_executor.StartRunThread();
     EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
-    TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-    int64_t value_0 = 127;
-    Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-    int64_t value_1 = 100;
-    Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-    std::vector<Tensor> input_tensors{tensor_0, tensor_1};
-    // GETDYNAMICDIMS on output for sink dynamic.
-    int64_t value_2 = 300;
-    Tensor tensor_2(tensor_desc, (uint8_t *)&value_2, sizeof(value_2));
-    input_tensors.emplace_back(tensor_2);
-
+    std::vector<gert::Tensor> inputs(3);
+    TensorCheckUtils::ConstructGertTensor(inputs[0], {1}, DT_INT64, FORMAT_ND);
+    TensorCheckUtils::ConstructGertTensor(inputs[1], {1}, DT_INT64, FORMAT_ND);
+    TensorCheckUtils::ConstructGertTensor(inputs[2], {1}, DT_INT64, FORMAT_ND);
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    std::vector<Tensor> run_outputs;
-    const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+    std::vector<gert::Tensor> run_outputs;
+    const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       run_outputs.swap(outputs);
@@ -1162,7 +1153,7 @@ TEST_F(OnlineInferTest, online_infer_dynamic_execute_invalide_input) {
     arg->graph_id = graph_id;
     arg->session_id = 2001;
     arg->error_context = error_context;
-    arg->input_tensor = input_tensors;
+    arg->input_tensor = std::move(inputs);
     arg->context = context;
     arg->callback = callback;
     EXPECT_EQ(model_executor.PushRunArgs(arg), SUCCESS);

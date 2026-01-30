@@ -29,6 +29,7 @@
 #include "graph/ge_context.h"
 #include "hcom/hcom_topo_info.h"
 #include "executor/ge_executor.h"
+#include "common/ge_common/util.h"
 
 using namespace std;
 
@@ -115,6 +116,7 @@ void CreateSummaryCompiledModel(GraphNodePtr &graph_node, GeModelPtr &ge_model, 
   std::map<std::string, std::string> graph_options;
   graph_options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
   GetThreadLocalContext().SetGraphOption(graph_options);
+  graph_node->SetOptions(graph_options);
 }
 }
 class UtestModelExecutorTest : public testing::Test {
@@ -887,7 +889,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread) {
   uint64_t session_id = 0;
   error_message::ErrorManagerContext error_context;
   GEThreadLocalContext context = GetThreadLocalContext();
-  const auto callback = [](Status status, std::vector<ge::Tensor> &outputs) { };
+  const auto callback = [](Status status, std::vector<gert::Tensor> &outputs) { };
 
   auto compute_graph = MakeShared<ComputeGraph>("test_graph");
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
@@ -908,9 +910,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread) {
   graph_node->IncreaseLoadCount();
   graph_node->Lock();
 
-  Tensor tensor;
-  std::vector<Tensor> input_tensors;
-  input_tensors.emplace_back(tensor);
+  std::vector<gert::Tensor> input_tensors(1);
 
   std::shared_ptr<RunArgs> run_args;
   run_args = std::make_shared<RunArgs>();
@@ -919,7 +919,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread) {
   run_args->graph_id = graph_id;
   run_args->session_id = session_id;
   run_args->error_context = error_context;
-  run_args->input_tensor = input_tensors;
+  run_args->input_tensor = std::move(input_tensors);
   run_args->context = context;
   run_args->callback = callback;
   EXPECT_EQ(model_executor.PushRunArgs(run_args), SUCCESS);
@@ -932,7 +932,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread) {
   graph_options[STATIC_MEMORY_POLICY] = "";
   GetThreadLocalContext().SetGraphOption(graph_options);
 }
-/*
+
 TEST_F(UtestModelExecutorTest, test_run_thread_2) {
   GraphId graph_id = 1;
   uint64_t session_id = 0;
@@ -957,9 +957,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_2) {
   graph_node->SetAsync(true);
   graph_node->IncreaseLoadCount();
 
-  Tensor tensor;
-  std::vector<Tensor> input_tensors;
-  input_tensors.emplace_back(tensor);
+  std::vector<gert::Tensor> input_tensors(1);
 
   std::shared_ptr<RunArgs> run_args;
   run_args = std::make_shared<RunArgs>();
@@ -968,7 +966,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_2) {
   run_args->graph_id = graph_id;
   run_args->session_id = session_id;
   run_args->error_context = error_context;
-  run_args->input_tensor = input_tensors;
+  run_args->input_tensor = std::move(input_tensors);
   run_args->context = context;
 
   {
@@ -978,7 +976,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_2) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    const RunAsyncCallback callback = [&](Status status, std::vector<Tensor> &outputs) {
+    const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       model_run_cv.notify_one();
@@ -1003,7 +1001,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_2) {
     bool call_flag = false;
     size_t sleep_time_max = 5U;
     size_t sleep_time = 0U;
-    const RunAsyncCallback callback = [&](Status status, std::vector<Tensor> &outputs) {
+    const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       run_status = status;
       model_run_cv.notify_one();
       call_flag = true;
@@ -1030,7 +1028,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_2) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    const RunAsyncCallback callback = [&](Status status, std::vector<Tensor> &outputs) {
+    const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       model_run_cv.notify_one();
@@ -1050,7 +1048,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_2) {
   }
   ModelManager::GetInstance().DeleteModel(ge_root_model->GetModelId());
 }
-*/
+
 TEST_F(UtestModelExecutorTest, test_run_thread_3) {
   GraphId graph_id = 1;
   uint64_t session_id = 0;
@@ -1077,9 +1075,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_3) {
   graph_node->SetLoadCount(0);
   graph_node->SetLoadRecord(0);
 
-  Tensor tensor;
-  std::vector<Tensor> input_tensors;
-  input_tensors.emplace_back(tensor);
+  std::vector<gert::Tensor> input_tensors(1);
 
   std::shared_ptr<RunArgs> run_args;
   run_args = std::make_shared<RunArgs>();
@@ -1088,7 +1084,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_3) {
   run_args->graph_id = graph_id;
   run_args->session_id = session_id;
   run_args->error_context = error_context;
-  run_args->input_tensor = input_tensors;
+  run_args->input_tensor = std::move(input_tensors);
   run_args->context = context;
 
   {
@@ -1098,7 +1094,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_3) {
     std::mutex run_mutex;
     std::condition_variable model_run_cv;
     Status run_status = FAILED;
-    const RunAsyncCallback callback = [&](Status status, std::vector<Tensor> &outputs) {
+    const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
       std::unique_lock<std::mutex> lock(run_mutex);
       run_status = status;
       model_run_cv.notify_one();
@@ -1146,9 +1142,7 @@ TEST_F(UtestModelExecutorTest, test_run_thread_4) {
   graph_node->SetLoadCount(0);
   graph_node->SetLoadRecord(0);
 
-  Tensor tensor;
-  std::vector<Tensor> input_tensors;
-  input_tensors.emplace_back(tensor);
+  std::vector<gert::Tensor> input_tensors(1);
 
   std::shared_ptr<RunArgs> run_args;
   run_args = std::make_shared<RunArgs>();
@@ -1157,14 +1151,14 @@ TEST_F(UtestModelExecutorTest, test_run_thread_4) {
   run_args->graph_id = graph_id;
   run_args->session_id = session_id;
   run_args->error_context = error_context;
-  run_args->input_tensor = input_tensors;
+  run_args->input_tensor = std::move(input_tensors);
   run_args->context = context;
 
   {
     ModelExecutor model_executor;
     EXPECT_EQ(model_executor.Initialize({}, session_id), SUCCESS);
     // Callback for execute.
-    const RunAsyncCallback callback = [&](Status status, std::vector<Tensor> &outputs) {
+    const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     };
     run_args->callback = callback;
     graph_node->Lock();
@@ -1201,8 +1195,8 @@ static void test_run_graph(ModelExecutor &model_executor) {
   graph_node->SetAsync(false);  // RunGraph is Synchronization.
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
-  std::vector<GeTensor> inputs;
-  std::vector<GeTensor> outputs;
+  std::vector<gert::Tensor> inputs;
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), SUCCESS);
   EXPECT_EQ(ModelManager::GetInstance().DeleteModel(ge_root_model->GetModelId()), SUCCESS);
 }
@@ -1309,12 +1303,12 @@ TEST_F(UtestModelExecutorTest, test_execute_graph_with_stream) {
 }
 
 static bool is_err_cb_called = false;
-static void err_cb_stub(Status sta, std::vector<ge::Tensor> tens) {
+static void err_cb_stub(Status sta, std::vector<gert::Tensor> &tens) {
   is_err_cb_called = true;
 }
 
 TEST_F(UtestModelExecutorTest, ReturnError) {
-  RunAsyncCallback callback = err_cb_stub;
+  RunAsyncCallbackV2 callback = err_cb_stub;
   Status ret = 0;
   string log_info = string("err log info");
 

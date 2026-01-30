@@ -423,8 +423,8 @@ const OutputLowerResult *PlacedLoweringResult::CreateRawTensorResult(const Outpu
   auto guarder = result.address->GetGuarder();
   if (guarder != nullptr) {
     tensor_result->shape = bg::BuildRefTensor(node_->shared_from_this(), output_index,
-                                           static_cast<TensorPlacement>(address_placement),
-                                           result_.out_shapes[output_index], result.address);
+                                              static_cast<TensorPlacement>(address_placement),
+                                              result_.out_shapes[output_index], result.address);
   } else {
     tensor_result->shape = bg::BuildTensorWithoutGuarder(node_->shared_from_this(), output_index,
                                                          static_cast<TensorPlacement>(address_placement),

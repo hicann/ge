@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# -------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
@@ -13,18 +14,34 @@
 """Runtime utilities for dynamically discovering and loading ES plugins."""
 
 import importlib
-import logging
 import sys
 from types import ModuleType
-from typing import Dict, Any, Union, List
+from typing import Dict, Any, List
 
 try:
     from importlib.metadata import entry_points
 except ImportError:  
     from importlib_metadata import entry_points  # type: ignore
 
-LOG = logging.getLogger(__name__)
 _ENTRY_POINT_GROUP = "ge.es.plugins"
+
+# Log level keywords
+LOG_LEVEL_INFO = "INFO"
+LOG_LEVEL_WARNING = "WARNING"
+LOG_LEVEL_ERROR = "ERROR"
+
+
+def debug_print(level: str, message: str, *args):
+    """Print debug message with formatted output.
+    
+    Args:
+        level: Log level (INFO, WARNING, ERROR)
+        message: Message format string
+        *args: Arguments for message formatting
+    """
+    module_name = __name__
+    formatted_message = message % args if args else message
+    print(f"[{level}] [{module_name}] {formatted_message}")
 
 
 def _iter_plugin_entry_points() -> List[Any]:
@@ -80,7 +97,7 @@ def load_all_plugins() -> Dict[str, ModuleType]:
     for entry_point in _iter_plugin_entry_points():
         name = getattr(entry_point, "name", None)
         if not name:
-            LOG.warning("Ignoring ES plugin entry point without name: %s", entry_point)
+            debug_print(LOG_LEVEL_WARNING, "Ignoring ES plugin entry point without name: %s", entry_point)
             continue
         
         try:
@@ -97,28 +114,25 @@ def load_all_plugins() -> Dict[str, ModuleType]:
             # Add to plugin dictionary
             plugins[name] = module
             
-            # Check plugin status (if plugin provides status function)
-            status = "loaded"
-            if hasattr(module, "is_ops_loaded"):
-                ops_loaded = module.is_ops_loaded()
-                status = "fully loaded" if ops_loaded else "partially loaded"
-            
-            LOG.info("ES plugin '%s' %s: %s", name, status, module.__name__)
+            debug_print(LOG_LEVEL_INFO, "ES plugin '%s' loaded: %s", name, module.__name__)
             
         except AttributeError as err:
-            LOG.error(
+            debug_print(
+                LOG_LEVEL_ERROR,
                 "Failed to load ES plugin '%s': entry point '%s' missing required attribute. "
                 "Ensure the plugin's __init__.py defines get_module(). Error: %s",
                 name, getattr(entry_point, "value", "unknown"), err
             )
         except ImportError as err:
-            LOG.error(
+            debug_print(
+                LOG_LEVEL_ERROR,
                 "Failed to import ES plugin '%s': %s. "
                 "Check if all dependencies are installed.",
                 name, err
             )
         except Exception as err:
-            LOG.error(
+            debug_print(
+                LOG_LEVEL_ERROR,
                 "Unexpected error loading ES plugin '%s' (entry point: %s): %s",
                 name, getattr(entry_point, "value", "unknown"), err
             )

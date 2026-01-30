@@ -45,6 +45,28 @@ protected:
     }
 };
 
+namespace acl {
+    extern aclError AclMdlInitCallbackFunc(const char *configStr, size_t len, void *userData);
+    extern aclError AclMdlFinalizeCallbackFunc(void *userData);
+    extern aclError ResourceInitCallbackFunc(const char *configStr, size_t len, void *userData);
+    extern aclError ResourceFinalizeCallbackFunc(void *userData);
+    extern aclError RegAclMdlInitCallback();
+    extern aclError UnRegAclMdlInitCallback();
+    extern aclError RegResourceInitCallback();
+    extern aclError UnRegResourceInitCallback();
+    extern aclError RegAclMdlFinalizeCallback();
+    extern aclError UnRegAclMdlFinalizeCallback();
+    extern aclError RegResourceFinalizeCallback();
+    extern aclError UnRegResourceFinalizeCallback();
+
+    // acl_aipp.cpp
+    extern void ExtractFP16(const uint16_t val, uint16_t *const s, int16_t *const e, uint16_t *const m);
+}
+
+namespace {
+    constexpr int32_t MIN_ALIGNMENT_YUV = 2;
+}
+
 ge::graphStatus ExecuteSync_Invoke(gert::Tensor **inputs, size_t input_num, gert::Tensor **outputs, size_t output_num) {
     (void) inputs;
     (void) input_num;
@@ -339,6 +361,13 @@ TEST_F(UTEST_ACL_Model, aclmdlGetOpAttr)
         .WillOnce(Invoke(GetOpAttr_Invoke));
     const char *resultGeFailed  = aclmdlGetOpAttr(mdlDesc, opName, attr);
     EXPECT_EQ(resultGeFailed, nullptr);
+
+    //ensure ut cover two functions below
+    string testStr = "test";
+    acl::AclErrorLogManager::ReportInnerError("%s", testStr.c_str());
+    acl::AclErrorLogManager::ReportCallError("%s", testStr.c_str());
+    acl::AclErrorLogManager::ReportInnerError("%n");
+    acl::AclErrorLogManager::ReportCallError("%n");
 
     EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOpAttr(_,_,_,_))
         .WillOnce(Invoke(GetOpAttr_Invoke_1));
@@ -1041,6 +1070,10 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputDynamicDims01)
     ret = aclmdlSetInputDynamicDims(1, dataset, 0, dims);
     EXPECT_NE(ret, ACL_SUCCESS);
 
+    dims[0].dimCount = 0;
+    ret = aclmdlSetInputDynamicDims(1, dataset, 0, dims);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
     aclDestroyDataBuffer(buffer);
     aclDestroyDataBuffer(buffer2);
     aclmdlDestroyDataset(dataset);
@@ -1317,6 +1350,10 @@ TEST_F(UTEST_ACL_Model, aclmdlGetDynamicBatch)
     ret = aclmdlGetDynamicBatch(desc, &batch);
     EXPECT_EQ(ret, ACL_SUCCESS);
 
+    desc->dynamicBatch.resize(ACL_MAX_BATCH_NUM + 1, 1);
+    ret = aclmdlGetDynamicBatch(desc, &batch);
+    EXPECT_EQ(ret, ACL_ERROR_STORAGE_OVER_LIMIT);
+
     ret = aclmdlDestroyDesc(desc);
     EXPECT_EQ(ret, ACL_SUCCESS);
 }
@@ -1332,6 +1369,10 @@ TEST_F(UTEST_ACL_Model, aclmdlGetDynamicHW)
 
     ret = aclmdlGetDynamicHW(desc, -1, &hw);
     EXPECT_EQ(ret, ACL_SUCCESS);
+
+    desc->dynamicHW.resize(ACL_MAX_HW_NUM + 1);
+    ret = aclmdlGetDynamicHW(desc, -1, &hw);
+    EXPECT_EQ(ret, ACL_ERROR_STORAGE_OVER_LIMIT);
 
     ret = aclmdlDestroyDesc(desc);
     EXPECT_EQ(ret, ACL_SUCCESS);
@@ -1362,6 +1403,10 @@ TEST_F(UTEST_ACL_Model, aclmdlGetInputDynamicGearCount)
     ret = aclmdlGetInputDynamicGearCount(desc, 1, &dimsCount);
     EXPECT_NE(ret, ACL_SUCCESS);
 
+    desc->dynamicDims.resize(ACL_MAX_DIM_CNT + 1);
+    ret = aclmdlGetInputDynamicGearCount(desc, -1, &dimsCount);
+    EXPECT_EQ(ret, ACL_ERROR_STORAGE_OVER_LIMIT);
+
     ret = aclmdlDestroyDesc(desc);
     EXPECT_EQ(ret, ACL_SUCCESS);
 }
@@ -1390,6 +1435,11 @@ TEST_F(UTEST_ACL_Model, aclmdlGetInputDynamicDims)
     EXPECT_EQ(ret, ACL_SUCCESS);
     ret = aclmdlGetInputDynamicDims(desc, 1, dims, dimsCount);
     EXPECT_NE(ret, ACL_SUCCESS);
+
+    desc->dynamicDims.resize(ACL_MAX_DIM_CNT);
+    ret = aclmdlGetInputDynamicDims(desc, -1, dims, dimsCount);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
     ret = aclmdlDestroyDesc(desc);
     EXPECT_EQ(ret, ACL_SUCCESS);
 }
@@ -1795,14 +1845,20 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPP)
     EXPECT_EQ(ret, ACL_SUCCESS);
     ret = aclmdlSetAIPPDtcPixelMean(aippDynamicSet, 0, 0, 0, 0, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
+    ret = aclmdlSetAIPPDtcPixelMean(aippDynamicSet, 0, 0, 0, 0, 1024);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
     ret = aclmdlSetAIPPDtcPixelMin(aippDynamicSet, 0, 0, 0, 0, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
+    ret = aclmdlSetAIPPDtcPixelMin(aippDynamicSet, 0, 0, 0, 0, 1024);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
     ret = aclmdlSetAIPPPixelVarReci(aippDynamicSet, 1, 1, 1, 0, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
     ret = aclmdlSetAIPPScfParams(aippDynamicSet, 0, 1, 1, 1, 1, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
     ret = aclmdlSetAIPPScfParams(aippDynamicSet, 1, 224, 224, 16, 224, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
+    ret = aclmdlSetAIPPScfParams(aippDynamicSet, 1, 224, 224, 16, 224, 1024);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
     ret = aclmdlSetAIPPAxSwapSwitch(aippDynamicSet, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
     ret = aclmdlSetAIPPSrcImageSize(aippDynamicSet, 224, 224);
@@ -1811,6 +1867,8 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPP)
     EXPECT_EQ(ret, ACL_SUCCESS);
     ret = aclmdlSetAIPPCropParams(aippDynamicSet, 1, 0, 0, 1, 1, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
+    ret = aclmdlSetAIPPCropParams(aippDynamicSet, 1, 0, 0, 1, 1, 1024);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
     ret = aclmdlSetAIPPPaddingParams(aippDynamicSet, 0, 0, 0, 0, 0, 0);
     EXPECT_EQ(ret, ACL_SUCCESS);
     ret = aclmdlSetAIPPPaddingParams(aippDynamicSet, 1, 0, 0, 0, 0, 0);
@@ -2086,26 +2144,120 @@ TEST_F(UTEST_ACL_Model, AippParamsCheck)
     ret = aclmdlAddDatasetBuffer(dataset, buffer);
     EXPECT_EQ(ret, ACL_SUCCESS);
 
-    //InputFormat not setted
+    // InputFormat not setted
     (void)GetSrcImageSize(aippDynamicSet);
+    std::string archVersion = "1001";
+    ret = ::AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
 
-    //aipp not support Ascend910
-    std::string socVersion = "Ascend910";
+    // aipp arch 1001 not support ACL_ARGB8888_U8
     (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_ARGB8888_U8);
     (void)GetSrcImageSize(aippDynamicSet);
-    ret = AippParamsCheck(aippDynamicSet, socVersion);
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
     EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
 
-    //ES,YUV420SP_U8, src_image_w must be multiples of 16
-    (void)aclmdlSetAIPPSrcImageSize(aippDynamicSet, 18, 224);
-    ret = aclmdlSetInputAIPP(1, dataset, 0, aippDynamicSet);
+    // aipp arch 3002 not support ACL_ARGB8888_U8
+    archVersion = "3002";
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
     EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
 
-    //enable scf, disable crop,scfInputSizeW==srcImageSizeW,scfInputSizeH==srcImageSizeH
+    // aipp arch 2201 not support ACL_ARGB8888_U8
+    archVersion = "2201";
+    ret = ::AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    // aipp arch 3510 not support ACL_ARGB8888_U8
+    archVersion = "3510";
+    ret = ::AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    // aipp arch 2002 not support ACL_ARGB8888_U8
+    archVersion = "2002";
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    // aipp arch 2002 not support YUYV_U8
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_YUYV_U8);
+    (void)GetSrcImageSize(aippDynamicSet);
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    // arch 2002 not support RAW10,for cover GetSrcImageSize
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_RAW10);
+    (void)GetSrcImageSize(aippDynamicSet);
+
+    // arch 2002 not support RAW12,for cover GetSrcImageSize
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_RAW12);
+    (void)GetSrcImageSize(aippDynamicSet);
+
+    // arch 2002 not support RAW16,for cover GetSrcImageSize
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_RAW16);
+    (void)GetSrcImageSize(aippDynamicSet);
+
+    // arch 2002 not support RAW24,for cover GetSrcImageSize
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_RAW24);
+    (void)GetSrcImageSize(aippDynamicSet);
+
+    // arch 2002 not support UV422SP_U8,for cover GetSrcImageSize
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_YUV422SP_U8);
+    (void)GetSrcImageSize(aippDynamicSet);
+
+    //for cover GetSrcImageSize
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_XRGB8888_U8);
+    (void)GetSrcImageSize(aippDynamicSet);
+
+    // arch 2002 not support scf
     (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_YUV420SP_U8);
-    (void)aclmdlSetAIPPSrcImageSize(aippDynamicSet, 224, 224);
-    ret = aclmdlSetAIPPScfParams(aippDynamicSet, 1, 210, 210, 1, 1, 0);
-    ret = aclmdlSetInputAIPP(1, dataset, 0, aippDynamicSet);
+    ret = aclmdlSetAIPPScfParams(aippDynamicSet, 0, 1, 1, 1, 1, 0);
+    (void)GetSrcImageSize(aippDynamicSet);
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    // YUV400_U8 not support csc
+    ret = aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_YUV400_U8);
+    ret = aclmdlSetAIPPCscParams(aippDynamicSet, 1, 256, 443, 0, 256, -86, -178, 256, 0, 350, 0, 0, 0, 0, 128, 128);
+    (void)GetSrcImageSize(aippDynamicSet);
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    // YUV420SP_U8,src_image_h and src_image_w must be even
+    (void)aclmdlSetAIPPInputFormat(aippDynamicSet, ACL_YUV420SP_U8);
+    (void)GetSrcImageSize(aippDynamicSet);
+    (void)aclmdlSetAIPPSrcImageSize(aippDynamicSet, 223, 223);
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    (void)aclmdlSetAIPPSrcImageSize(aippDynamicSet, 4096, 4096);
+    ret = aclmdlSetAIPPCropParams(aippDynamicSet, 0, 5, 1, 221, 221, 0);
+    ret = aclmdlSetAIPPCropParams(aippDynamicSet, 0, 5, 1, 221, 221, 1);
+    ret = aclmdlSetAIPPScfParams(aippDynamicSet, 0, 224, 224, 120, 120, 0);
+    ret = aclmdlSetAIPPScfParams(aippDynamicSet, 0, 224, 224, 120, 120, 1);
+    ret = aclmdlSetAIPPPaddingParams(aippDynamicSet, 1, 10, 10, 10, 10, 0);
+    ret = aclmdlSetAIPPPaddingParams(aippDynamicSet, 1, 10, 10, 10, 10, 1);
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    archVersion = "3002";
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    archVersion = "3002";
+    aippDynamicSet->aippBatchPara[0].scfSwitch = 1;
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    archVersion = "3002";
+    aippDynamicSet->aippBatchPara[0].scfSwitch = 0;
+    aippDynamicSet->aippBatchPara[0].cropSwitch = 1;
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    archVersion = "3002";
+    aippDynamicSet->aippParms.inputFormat = CCE_YUV420SP_U8;
+    aippDynamicSet->aippBatchPara[0].cropStartPosW = MIN_ALIGNMENT_YUV + 1;
+    aippDynamicSet->aippBatchPara[0].scfSwitch = 0;
+    aippDynamicSet->aippBatchPara[0].cropSwitch = 1;
+    ret = AippParamsCheck(aippDynamicSet, archVersion);
     EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
 
     ret = aclmdlDestroyAIPP(aippDynamicSet);
@@ -2141,6 +2293,7 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPP_Check)
     EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
     ret = aclmdlSetInputAIPP(1, dataset, 0, aippDynamicSet);
     EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
     ret = aclmdlDestroyAIPP(aippDynamicSet);
     EXPECT_EQ(ret, ACL_SUCCESS);
     aclDestroyDataBuffer(buffer);
@@ -2353,6 +2506,11 @@ TEST_F(UTEST_ACL_Model, aclmdlLoadWithConfig_ExternalAddress)
     handle->attrState.erase(ACL_MDL_WITHOUT_GRAPH_INT32);
     ret = aclmdlLoadWithConfig(handle, &modelId);
     EXPECT_EQ(ret, ACL_SUCCESS);
+
+    handle->mdlLoadType = -1;
+    ret = aclmdlLoadWithConfig(handle, &modelId);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
     acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = false;
     aclmdlDestroyConfigHandle(handle);
 }
@@ -2966,6 +3124,32 @@ TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPPTest04)
     aclmdlDestroyDataset(dataset);
 }
 
+TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPPTest05)
+{
+    uint32_t batchNumber = 1;
+    aclmdlAIPP *aippDynamicSet = aclmdlCreateAIPP(batchNumber);
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    aippDynamicSet->aippParms.inputFormat = CCE_YUV400_U8;
+    aippDynamicSet->aippParms.srcImageSizeW = 1;
+    aippDynamicSet->aippParms.srcImageSizeH = 1;
+    aippDynamicSet->batchSize = 1;
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetModelDescInfo(_, _,_,_))
+        .WillRepeatedly(Invoke((GetModelDescInfo_Invoke)));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetAippType(_, _,_,_))
+        .WillRepeatedly(Invoke(GetAippTypeSuccessInvoke));
+
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetAIPPInfo(_, _, _))
+        .WillRepeatedly(Return(ACL_ERROR_INVALID_PARAM));
+    aclDataBuffer *buffer = aclCreateDataBuffer((void*)0x1, 1);
+    auto ret = aclmdlAddDatasetBuffer(dataset, buffer);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    ret = aclmdlSetInputAIPP(1, dataset, 0, aippDynamicSet);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    aclmdlDestroyAIPP(aippDynamicSet);
+    aclmdlDestroyDataset(dataset);
+    aclDestroyDataBuffer(buffer);
+}
+
 TEST_F(UTEST_ACL_Model, aclmdlSetInputAIPPWithDynamicShapeTest)
 {
     uint32_t batchNumber = 1;
@@ -3132,11 +3316,164 @@ TEST_F(UTEST_ACL_Model, aclmdlGetFirstAippInfoTest_rt2)
 
 TEST_F(UTEST_ACL_Model, AippScfSizeCheckTest)
 {
-    uint32_t batchNumber = 10;
+    uint32_t batchNumber = 1;
     aclmdlAIPP *aippParmsSet = aclmdlCreateAIPP(batchNumber);
     int32_t batchIndex = 0;
-    aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
-    EXPECT_NE(ret, ACL_SUCCESS);
+
+    // ----------------------------
+    // 1. crop enabled: mismatch → error
+    // ----------------------------
+    aippParmsSet->aippBatchPara[batchIndex].cropSwitch = 1;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 1;
+    aippParmsSet->aippBatchPara[batchIndex].cropSizeW = 2;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeH = 1;
+    aippParmsSet->aippBatchPara[batchIndex].cropSizeH = 1;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // ----------------------------
+    // 2. Test scfInputSizeW < 16 and scfInputSizeW > 4096
+    // ----------------------------
+    // Test scfInputSizeW < 16
+    aippParmsSet->aippBatchPara[batchIndex].cropSwitch = 0;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 15;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeH = 100;
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 100;
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeH = 100;
+    aippParmsSet->aippParms.srcImageSizeW = 100;
+    aippParmsSet->aippParms.srcImageSizeH = 100;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // Test scfInputSizeW > 4096
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 4097;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // ----------------------------
+    // 3. Test scfOutputSizeW < 16 and scfOutputSizeW > 1920
+    // ----------------------------
+    // Reset input size to valid values
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 100;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeH = 100;
+
+    // Test scfOutputSizeW < 16
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 15;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // Test scfOutputSizeW > 1920
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 1921;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // ----------------------------
+    // 4. Test scfOutputSizeH < 16 and scfOutputSizeH > 4096
+    // ----------------------------
+    // Reset output width to valid value
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 100;
+
+    // Test scfOutputSizeH < 16
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeH = 15;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // Test scfOutputSizeH > 4096
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeH = 4097;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // ----------------------------
+    // 5. Test scale ratio out of [1/16, 16]
+    // ----------------------------
+    // Reset all sizes to valid values
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeH = 100;
+
+    // Ratio too small: output / input < 1/16
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 100;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 1700; // 100/1700 ≈ 0.0588 < 1/16=0.0625
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeH = 100;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeH = 100;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // Ratio too large: output / input > 16
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 1700;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 100; // 1700/100 = 17 > 16
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // Same for H
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 100;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 100;
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeH = 1700;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeH = 100;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // ----------------------------
+    // 6. crop disabled: mismatch → error
+    // ----------------------------
+    aippParmsSet->aippBatchPara[batchIndex].cropSwitch = 0;
+    aippParmsSet->aippParms.srcImageSizeW = 200;
+    aippParmsSet->aippParms.srcImageSizeH = 200;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 100; // mismatch
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeH = 100;
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+    }
+
+    // ----------------------------
+    // 7. crop disabled: match → continue
+    // ----------------------------
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeW = 200;
+    aippParmsSet->aippBatchPara[batchIndex].scfInputSizeH = 200;
+
+    // Set valid output sizes within range
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeW = 100; // 100/200 = 0.5 ∈ [1/16,16]
+    aippParmsSet->aippBatchPara[batchIndex].scfOutputSizeH = 100;
+
+    // ----------------------------
+    // 8. All checks pass → success
+    // ----------------------------
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_SUCCESS);
+    }
+
+    // ----------------------------
+    // 9. crop enabled + all valid → success
+    // ----------------------------
+    aippParmsSet->aippBatchPara[batchIndex].cropSwitch = 1;
+    aippParmsSet->aippBatchPara[batchIndex].cropSizeW = 200;
+    aippParmsSet->aippBatchPara[batchIndex].cropSizeH = 200;
+    // input already 200x200, output 100x100 → valid
+    {
+        aclError ret = AippScfSizeCheck(aippParmsSet, batchIndex);
+        EXPECT_EQ(ret, ACL_SUCCESS);
+    }
+
     aclmdlDestroyAIPP(aippParmsSet);
 }
 
@@ -3933,65 +4270,65 @@ Status LoadModelFromDataWithArgsStub(uint32_t &model_id, const ModelData &model_
 
 TEST_F(UTEST_ACL_Model, TestBundleInfo)
 {
-  AclResourceManager::GetInstance().bundleInfos_.clear();
-  AclResourceManager::GetInstance().bundleInnerIds_.clear();
-  AclResourceManager::GetInstance().executorMap_.clear();
-  AclResourceManager::GetInstance().rtSessionMap_.clear();
-  // load
-  uint32_t bundle_id = 0;
-  size_t size = 0;
-  auto model_p = ConstructBundleOm(3, size);
-  uint8_t * model_data = model_p.get();
-  acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
-  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
-      .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
-  EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
-      .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
-  auto ret = aclmdlBundleLoadFromMem(model_data, size, &bundle_id);
-  EXPECT_EQ(ret , ACL_SUCCESS);
-
-  // check bundle info
-  size_t modelNum = 0;
-  ret = aclmdlBundleGetModelNum(bundle_id, nullptr);
-  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-  ret = aclmdlBundleGetModelNum((bundle_id + 1), &modelNum);
-  EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
-  ret = aclmdlBundleGetModelNum(bundle_id, &modelNum);
-  EXPECT_EQ(ret , ACL_SUCCESS);
-  EXPECT_EQ(modelNum , 3);
-
-  size_t index = 0;
-  uint32_t model_id = 0;
-  std::vector<uint32_t> model_ids;
-  ret = aclmdlBundleGetModelId(bundle_id, 999, nullptr);
-  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-  ret = aclmdlBundleGetModelId(bundle_id, 999, &model_id);
-  EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-  ret = aclmdlBundleGetModelId(bundle_id + 1, index, &model_id);
-  EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
-  for (size_t i = 0; i < modelNum; ++i) {
-    ret = aclmdlBundleGetModelId(bundle_id, i, &model_id);
+    AclResourceManager::GetInstance().bundleInfos_.clear();
+    AclResourceManager::GetInstance().bundleInnerIds_.clear();
+    AclResourceManager::GetInstance().executorMap_.clear();
+    AclResourceManager::GetInstance().rtSessionMap_.clear();
+    // load
+    uint32_t bundle_id = 0;
+    size_t size = 0;
+    auto model_p = ConstructBundleOm(3, size);
+    uint8_t * model_data = model_p.get();
+    acl::AclResourceManager::GetInstance().enableRuntimeV2ForModel_ = true;
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadExecutorFromModelData(_,_,_))
+        .WillRepeatedly(Invoke(LoadExecutorFromModelDataSuccess));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), LoadModelFromDataWithArgs(_,_,_))
+        .WillRepeatedly(Invoke(LoadModelFromDataWithArgsStub));
+    auto ret = aclmdlBundleLoadFromMem(model_data, size, &bundle_id);
     EXPECT_EQ(ret , ACL_SUCCESS);
-    model_ids.emplace_back(model_id);
-  }
-  for (auto id : model_ids) {
-    ret = aclmdlUnload(id);
+
+    // check bundle info
+    size_t modelNum = 0;
+    ret = aclmdlBundleGetModelNum(bundle_id, nullptr);
     EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
-  }
+    ret = aclmdlBundleGetModelNum((bundle_id + 1), &modelNum);
+    EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+    ret = aclmdlBundleGetModelNum(bundle_id, &modelNum);
+    EXPECT_EQ(ret , ACL_SUCCESS);
+    EXPECT_EQ(modelNum , 3);
 
-  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 1);
-  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 3);
-  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 2);
-  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 2);
-  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_[bundle_id].get(),
-            AclResourceManager::GetInstance().rtSessionMap_[model_ids[2]].get());
+    size_t index = 0;
+    uint32_t model_id = 0;
+    std::vector<uint32_t> model_ids;
+    ret = aclmdlBundleGetModelId(bundle_id, 999, nullptr);
+    EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+    ret = aclmdlBundleGetModelId(bundle_id, 999, &model_id);
+    EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+    ret = aclmdlBundleGetModelId(bundle_id + 1, index, &model_id);
+    EXPECT_EQ(ret , ACL_ERROR_INVALID_BUNDLE_MODEL_ID);
+    for (size_t i = 0; i < modelNum; ++i) {
+        ret = aclmdlBundleGetModelId(bundle_id, i, &model_id);
+        EXPECT_EQ(ret , ACL_SUCCESS);
+        model_ids.emplace_back(model_id);
+    }
+    for (auto id : model_ids) {
+        ret = aclmdlUnload(id);
+        EXPECT_EQ(ret , ACL_ERROR_INVALID_PARAM);
+    }
 
-  ret = aclmdlBundleUnload(bundle_id);
-  EXPECT_EQ(ret , ACL_SUCCESS);
-  EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 0);
-  EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 0);
-  EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 0);
-  EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 0);
+    EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 1);
+    EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 3);
+    EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 2);
+    EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 2);
+    EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_[bundle_id].get(),
+                AclResourceManager::GetInstance().rtSessionMap_[model_ids[2]].get());
+
+    ret = aclmdlBundleUnload(bundle_id);
+    EXPECT_EQ(ret , ACL_SUCCESS);
+    EXPECT_EQ(AclResourceManager::GetInstance().bundleInfos_.size(), 0);
+    EXPECT_EQ(AclResourceManager::GetInstance().bundleInnerIds_.size(), 0);
+    EXPECT_EQ(AclResourceManager::GetInstance().executorMap_.size(), 0);
+    EXPECT_EQ(AclResourceManager::GetInstance().rtSessionMap_.size(), 0);
 }
 
 TEST_F(UTEST_ACL_Model, TestBundleInfoFromVarSizeOm)
@@ -4277,4 +4614,46 @@ TEST_F(UTEST_ACL_Model, TestaclmdlaclmdlBundleLoadFromMemAndBundleLoadSubModel) 
   auto ret = aclmdlBundleLoadFromMem(model_data, size, &bundle_id);
   EXPECT_EQ(ret , ACL_SUCCESS);
   Verify(bundle_id, false);
+}
+
+TEST_F(UTEST_ACL_Model, TestInitCallbackRegister) {
+    EXPECT_EQ(AclMdlInitCallbackFunc(nullptr, 0, nullptr), ACL_SUCCESS);
+
+    EXPECT_EQ(ResourceInitCallbackFunc(nullptr, 0, nullptr), ACL_SUCCESS);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_ERROR_INVALID_PARAM));
+    EXPECT_EQ(ResourceInitCallbackFunc(nullptr, 0, nullptr), ACL_ERROR_INVALID_PARAM);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_SUCCESS));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegDeviceStateCallback(_,_,_))
+        .WillOnce(Return(ACL_ERROR_INVALID_PARAM));
+    EXPECT_EQ(ResourceInitCallbackFunc(nullptr, 0, nullptr), ACL_ERROR_INVALID_PARAM);
+
+    EXPECT_EQ(AclMdlFinalizeCallbackFunc(nullptr), ACL_SUCCESS);
+
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_SUCCESS));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegDeviceStateCallback(_,_,_))
+        .WillOnce(Return(ACL_SUCCESS));
+    EXPECT_EQ(ResourceFinalizeCallbackFunc(nullptr), ACL_SUCCESS);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_ERROR_INVALID_PARAM));
+    EXPECT_EQ(ResourceFinalizeCallbackFunc(nullptr), ACL_ERROR_INVALID_PARAM);
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegStreamStateCallback(_,_,_))
+        .WillOnce(Return(ACL_SUCCESS));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), aclrtRegDeviceStateCallback(_,_,_))
+        .WillOnce(Return(ACL_ERROR_INVALID_PARAM));
+    EXPECT_EQ(ResourceFinalizeCallbackFunc(nullptr), ACL_ERROR_INVALID_PARAM);
+
+    EXPECT_EQ(RegAclMdlInitCallback(), ACL_SUCCESS);
+    EXPECT_EQ(UnRegAclMdlInitCallback(), ACL_SUCCESS);
+    EXPECT_EQ(RegResourceInitCallback(), ACL_SUCCESS);
+    EXPECT_EQ(UnRegResourceInitCallback(), ACL_SUCCESS);
+    EXPECT_EQ(RegAclMdlFinalizeCallback(), ACL_SUCCESS);
+    EXPECT_EQ(UnRegAclMdlFinalizeCallback(), ACL_SUCCESS);
+    EXPECT_EQ(RegResourceFinalizeCallback(), ACL_SUCCESS);
+    EXPECT_EQ(UnRegResourceFinalizeCallback(), ACL_SUCCESS);
+
+    acl::AclResourceManager::GetInstance().HandleReleaseSourceByDevice(0, ACL_RT_DEVICE_STATE_RESET_PRE, nullptr);
+    acl::AclResourceManager::GetInstance().HandleReleaseSourceByStream(0, ACL_RT_STREAM_STATE_DESTROY_PRE, nullptr);
 }

@@ -14,6 +14,7 @@
 #include "common/preload/model/pre_model_types.h"
 #include "common/preload/task_info/pre_task_status.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
@@ -119,36 +120,47 @@ void GenerateNanoAiCoreStaticTaskDesc(rtHwtsStaticTaskDesc_t &hwts_static_task_d
     GELOGD("get attr weight_prefetch_type success, prefetchNum: %u", hwts_static_task_desc.prefetchNum);
   }
 }
+
+bool PreValidTaskDescInfo(PreTaskResult &result, const OpDescPtr &op_desc, const std::unique_ptr<PreTaskDescInfo> &pre_task_desc_info) {
+  if (op_desc == nullptr) {
+    result.status = PreTaskStatus::ErrorStatus("op_desc is nullptr.");
+    return false;
+  }
+  GELOGD("Init generate nano aicore task %s.", op_desc->GetName().c_str());
+  if (pre_task_desc_info == nullptr) {
+    result.status = PreTaskStatus::ErrorStatus("pre_task_desc_info is nullptr.");
+    return false;
+  }
+  return true;
+}
 } // namespace
 
 PreTaskResult GenerateNanoAiCoreTask(const domi::TaskDef &task_def, const OpDescPtr &op_desc,
                                      const PreTaskInput &pre_task_input) {
   PreTaskResult result;
-  if (op_desc == nullptr) {
-    result.status = PreTaskStatus::ErrorStatus("op_desc is nullptr.");
+  std::unique_ptr<PreTaskDescInfo> pre_task_desc_info = ge::MakeUnique<PreTaskDescInfo>();
+  if (!PreValidTaskDescInfo(result, op_desc, pre_task_desc_info)) {
     return result;
   }
-  GELOGD("Init generate nano aicore task %s.", op_desc->GetName().c_str());
-  PreTaskDescInfo pre_task_desc_info;
   const domi::KernelDef &kernel_def = task_def.kernel();
   const auto task_type = static_cast<ModelTaskType>(task_def.type());
   // step1. static task desc
-  pre_task_desc_info.seq_info.taskType = RT_TASK_TYPE_KERNEL_NANO_AICORE;
-  pre_task_desc_info.seq_info.streamId = static_cast<uint16_t>(task_def.stream_id());
-  pre_task_desc_info.seq_info.u.nanoAicoreTask.type = HWTS_STATIC_TASK_DESC;
-  pre_task_desc_info.seq_info.bufType = HWTS_STATIC_TASK_DESC;
+  pre_task_desc_info->seq_info.taskType = RT_TASK_TYPE_KERNEL_NANO_AICORE;
+  pre_task_desc_info->seq_info.streamId = static_cast<uint16_t>(task_def.stream_id());
+  pre_task_desc_info->seq_info.u.nanoAicoreTask.type = HWTS_STATIC_TASK_DESC;
+  pre_task_desc_info->seq_info.bufType = HWTS_STATIC_TASK_DESC;
   // preP posP dump conds uf sw prefetchNum softUser kernelCredit init 0
   // taskParamOffset init 0 and need refresh for rts
   rtHwtsStaticTaskDesc_t hwts_static_task_desc = {};
   GenerateNanoAiCoreStaticTaskDesc(hwts_static_task_desc, op_desc, task_type);
-  pre_task_desc_info.seq_info.u.nanoAicoreTask.u.hwtsTaskDesc = hwts_static_task_desc;
-  result.pre_task_desc_infos.push_back(pre_task_desc_info);
+  pre_task_desc_info->seq_info.u.nanoAicoreTask.u.hwtsTaskDesc = hwts_static_task_desc;
+  result.pre_task_desc_infos.push_back(*pre_task_desc_info);
 
   // step2. dynamic task desc
-  pre_task_desc_info.seq_info.taskType = RT_TASK_TYPE_KERNEL_NANO_AICORE;
-  pre_task_desc_info.seq_info.streamId = static_cast<uint16_t>(task_def.stream_id());
-  pre_task_desc_info.seq_info.u.nanoAicoreTask.type = HWTS_DYNAMIC_TASK_DESC;
-  pre_task_desc_info.seq_info.bufType = HWTS_DYNAMIC_TASK_DESC;
+  pre_task_desc_info->seq_info.taskType = RT_TASK_TYPE_KERNEL_NANO_AICORE;
+  pre_task_desc_info->seq_info.streamId = static_cast<uint16_t>(task_def.stream_id());
+  pre_task_desc_info->seq_info.u.nanoAicoreTask.type = HWTS_DYNAMIC_TASK_DESC;
+  pre_task_desc_info->seq_info.bufType = HWTS_DYNAMIC_TASK_DESC;
   rtHwtsDynamicTaskDesc_t hwts_dynamic_task_desc = {};
   hwts_dynamic_task_desc.vld = static_cast<uint8_t>(DEFAULT_INFO_VALUE_ONE);
   hwts_dynamic_task_desc.codeSize = DEFAULT_INFO_VALUE_EIGHT;
@@ -162,19 +174,19 @@ PreTaskResult GenerateNanoAiCoreTask(const domi::TaskDef &task_def, const OpDesc
                                                op_desc->GetName().c_str(), kernel_def.kernel_name().c_str());
     return result;
   }
-  pre_task_desc_info.seq_info.u.nanoAicoreTask.u.hwtsDynamicTaskDesc = hwts_dynamic_task_desc;
-  result.pre_task_desc_infos.push_back(pre_task_desc_info);
+  pre_task_desc_info->seq_info.u.nanoAicoreTask.u.hwtsDynamicTaskDesc = hwts_dynamic_task_desc;
+  result.pre_task_desc_infos.push_back(*pre_task_desc_info);
 
   // step3. task param info desc
-  pre_task_desc_info.seq_info.taskType = RT_TASK_TYPE_KERNEL_NANO_AICORE;
-  pre_task_desc_info.seq_info.streamId = static_cast<uint16_t>(task_def.stream_id());
-  pre_task_desc_info.seq_info.u.nanoAicoreTask.type = PARAM_TASK_INFO_DESC;
-  pre_task_desc_info.seq_info.bufType = PARAM_TASK_INFO_DESC;
-  rtParamBufDesc_t &param_buf_desc = pre_task_desc_info.seq_info.u.nanoAicoreTask.u.paramBufDesc;
+  pre_task_desc_info->seq_info.taskType = RT_TASK_TYPE_KERNEL_NANO_AICORE;
+  pre_task_desc_info->seq_info.streamId = static_cast<uint16_t>(task_def.stream_id());
+  pre_task_desc_info->seq_info.u.nanoAicoreTask.type = PARAM_TASK_INFO_DESC;
+  pre_task_desc_info->seq_info.bufType = PARAM_TASK_INFO_DESC;
+  rtParamBufDesc_t &param_buf_desc = pre_task_desc_info->seq_info.u.nanoAicoreTask.u.paramBufDesc;
   param_buf_desc.prefetchBufSize = 0U;
   param_buf_desc.paramBufSize = 0U;
   GenParamBufDesc(op_desc, pre_task_input, param_buf_desc);
-  result.pre_task_desc_infos.push_back(pre_task_desc_info);
+  result.pre_task_desc_infos.push_back(*pre_task_desc_info);
 
   result.status = PreTaskStatus::Success();
   GELOGD("Init generate nano aicore task success");

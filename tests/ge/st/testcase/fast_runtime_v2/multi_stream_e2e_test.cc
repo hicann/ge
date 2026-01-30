@@ -632,21 +632,21 @@ TEST_F(GraphExecutorMultiStreamSystemTest, Case05_TwoStream_RefMemAccessCrossStr
   EXPECT_EQ(FastNodeTopoChecker(assign_launch_node.at(0))
                 .StrictConnectFrom({{"SplitRtStreams",1},
                                     {"InnerData",0},
-                                    {"Tiling"},
-                                    {"AllocBatchHbm"},
-                                    {"InnerData"},
-                                    {"InnerData"},
-                                    {"InnerData"},
-                                    {"Tiling"},
-                                    {"InnerData"},
-                                    {"Tiling"},
-                                    {"Tiling"},
-                                    {"AccessMemCrossStream"}, // input 0
-                                    {"AccessMemCrossStream"},  // input 1
-                                    {"AccessMemCrossStream"}, // output 0 ref input 0
-                                    {"SplitDataTensor"},
-                                    {"SplitDataTensor"},
-                                    {"InferShape"},
+                                    {"CacheableTiling", 1},
+                                    {"AllocBatchHbm", 0},
+                                    {"InnerData", 0},
+                                    {"InnerData", 0},
+                                    {"InnerData", 0},
+                                    {"CacheableTiling", 6},
+                                    {"InnerData", 0},
+                                    {"CacheableTiling", 9},
+                                    {"CacheableTiling", 7},
+                                    {"AccessMemCrossStream", 0}, // input 0
+                                    {"AccessMemCrossStream", 0},  // input 1
+                                    {"AccessMemCrossStream", 0}, // output 0 ref input 0
+                                    {"SplitDataTensor", 0},
+                                    {"SplitDataTensor", 0},
+                                    {"InferShape", 0},
                                     {"WaitEvents", -1},
                                     {"SendEvents", -1},
                                     {"SendEvents", -1}}),

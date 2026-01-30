@@ -226,7 +226,7 @@ Status MemConflictShareGraph::TopologicalSortingMock(const ComputeGraphPtr &grap
       EnsureOrder(origin_nodes, cur_node, param_nodes[j]);
     }
   }
-  for (size_t i = 0U; i < origin_nodes.size(); ++i) {
+  for (int64_t i = 0; i < origin_nodes.size(); ++i) {
     origin_nodes.at(i)->GetOpDesc()->SetId(i);
   }
   graph->ReorderByNodeId();
@@ -921,7 +921,7 @@ ComputeGraphPtr MemConflictShareGraph::BuildUserInConnectNoPaddingContinuousInpu
 /*
  *     data
  *      |
- *   phonysplit (输出引用输入，且NoPadding连续输出内存)
+ *   phony_split (输出引用输入，且NoPadding连续输出内存)
  *     /  \
  *    a    b
  */
@@ -3408,6 +3408,60 @@ ComputeGraphPtr MemConflictShareGraph::BuildNoPaddingContinuousInAndRtsSpecailIn
   SetOutReuseInput(graph, "pc");
 
   SetRtsSpecialTypeOutput(graph, "hcom", RT_MEMORY_P2P_DDR);
+  // 如果不设置，会被设置为动态shape图
+  AttrUtils::SetBool(graph, ATTR_NAME_NO_NEED_DYNAMIC_SHAPE_PARTITION, true);
+  return graph;
+}
+
+/*
+ *              data
+ *               /\
+ *  assign_slice0 assign_slice1 (inplace)
+ *             \   /
+ *              pc
+ *              |
+ *              b
+ */
+ComputeGraphPtr MemConflictShareGraph::BuildNoPaddingContinuousInWithSameAnchorData() {
+  const auto assign = OP_CFG(ASSIGN).Attr(ATTR_NAME_REFERENCE, true).InNames({"ref"}).OutNames({"ref"});
+
+  DEF_GRAPH(g1) {
+                  CHAIN(NODE("data", DATA)->NODE("assign_slice0", assign)->NODE("pc", PHONYCONCAT));
+                  CHAIN(NODE("data", DATA)->Data(0, 0)->NODE("assign_slice1", assign)->NODE("pc", PHONYCONCAT)->NODE("b", RELU));
+                };
+  auto graph = ToComputeGraph(g1);
+
+  SetNoPaddingContinuousInput(graph, "pc");
+  SetRefSrcVarName(graph, "assign_slice0", "var");
+  SetRefSrcVarName(graph, "assign_slice1", "var");
+
+  // 如果不设置，会被设置为动态shape图
+  AttrUtils::SetBool(graph, ATTR_NAME_NO_NEED_DYNAMIC_SHAPE_PARTITION, true);
+  return graph;
+}
+
+/*
+ *              var
+ *               /\
+ *  assign_slice0 assign_slice1 (inplace)
+ *             \   /
+ *              pc
+ *              |
+ *              b
+ */
+ComputeGraphPtr MemConflictShareGraph::BuildNoPaddingContinuousInWithSameAnchorVariable() {
+  const auto assign = OP_CFG(ASSIGN).Attr(ATTR_NAME_REFERENCE, true).InNames({"ref"}).OutNames({"ref"});
+
+  DEF_GRAPH(g1) {
+                  CHAIN(NODE("var", VARIABLE)->NODE("assign_slice0", assign)->NODE("pc", PHONYCONCAT));
+                  CHAIN(NODE("var", VARIABLE)->Data(0, 0)->NODE("assign_slice1", assign)->NODE("pc", PHONYCONCAT)->NODE("b", RELU));
+                };
+  auto graph = ToComputeGraph(g1);
+
+  SetNoPaddingContinuousInput(graph, "pc");
+  SetRefSrcVarName(graph, "assign_slice0", "var");
+  SetRefSrcVarName(graph, "assign_slice1", "var");
+
   // 如果不设置，会被设置为动态shape图
   AttrUtils::SetBool(graph, ATTR_NAME_NO_NEED_DYNAMIC_SHAPE_PARTITION, true);
   return graph;

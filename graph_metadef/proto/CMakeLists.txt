@@ -58,7 +58,7 @@ set(METADEF_GRAPH_PROTO_SRCS
         "${CMAKE_BINARY_DIR}/proto/metadef_protos/proto/task_mobile.pb.cc"
         )
 
-if(NOT DEFINED BUILD_COMPONENT AND NOT ENABLE_LLT_PKG)
+if(NOT (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
     list(APPEND METADEF_GRAPH_PROTO_SRCS
         "${CMAKE_BINARY_DIR}/proto/metadef_protos/proto/dump_task.pb.cc"
         "${CMAKE_BINARY_DIR}/proto/metadef_protos/proto/op_mapping.pb.cc"

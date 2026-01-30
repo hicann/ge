@@ -71,7 +71,7 @@ class ModelSaveHelperFactory {
   ModelSaveHelperPtr Creator_##type##_Model_Save_Helper() noexcept {                                                  \
     return std::make_shared<clazz>();                                                                                 \
   }                                                                                                                   \
-  ModelSaveHelperFactory::Registerar g_##type##_Model_Save_Helper_Creator(type, &Creator_##type##_Model_Save_Helper); \
+  ModelSaveHelperFactory::Registerar g_##type##_Model_Save_Helper_Creator(OfflineModelFormat::type, &Creator_##type##_Model_Save_Helper); \
   }  // namespace
 
 #endif  // INC_FRAMEWORK_COMMON_HELPER_MODEL_SAVE_HELPER_H_

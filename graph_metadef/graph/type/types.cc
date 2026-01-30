@@ -11,7 +11,7 @@
 #include "graph/types.h"
 #include <cmath>
 #include <utility>
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/ge_error_codes.h"
 #include "graph/utils/type_utils.h"
 
@@ -152,12 +152,10 @@ std::vector<const char *> Promote::Syms() const {
 }
 
 Promote::Promote(const std::initializer_list<const char *> &syms) {
-  data_ = std::shared_ptr<void>(new (std::nothrow) std::vector<std::string>(),
-                                [](void *ptr) { delete static_cast<std::vector<std::string> *>(ptr); });
-  if (data_ != nullptr) {
-    for (const auto &sym : syms) {
-      static_cast<std::vector<std::string> *>(data_.get())->emplace_back((sym == nullptr) ? "" : sym);
-    }
+  data_ = std::make_shared<std::vector<std::string>>();
+  auto *vec = static_cast<std::vector<std::string> *>(data_.get());
+  for (const auto &sym : syms) {
+    vec->emplace_back((sym == nullptr) ? "" : sym);
   }
 }
 

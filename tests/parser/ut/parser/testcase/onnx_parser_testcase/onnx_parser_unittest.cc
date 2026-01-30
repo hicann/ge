@@ -50,8 +50,7 @@ static Status ParseParamByOpFunc(const ge::Operator &op_src, ge::Operator& op_de
   return SUCCESS;
 }
 
-Status ParseSubgraphPostFnIf(const AscendString& subgraph_name, const ge::Graph& graph) {
-  (void)subgraph_name;
+Status ParseSubgraphPostFnIf(const std::string& subgraph_name, const ge::Graph& graph) {
   domi::AutoMappingSubgraphIOIndexFunc auto_mapping_subgraph_index_func =
       domi::FrameworkRegistry::Instance().GetAutoMappingSubgraphIOIndexFunc(domi::ONNX);
   if (auto_mapping_subgraph_index_func == nullptr) {
@@ -78,11 +77,11 @@ void UtestOnnxParser::RegisterCustomOp() {
   // register if op info to GE
   REGISTER_CUSTOM_OP("If")
   .FrameworkType(domi::ONNX)
-  .OriginOpType({AscendString("ai.onnx::9::If"),
-                 AscendString("ai.onnx::10::If"),
-                 AscendString("ai.onnx::11::If"),
-                 AscendString("ai.onnx::12::If"),
-                 AscendString("ai.onnx::13::If")})
+  .OriginOpType({"ai.onnx::9::If",
+                 "ai.onnx::10::If",
+                 "ai.onnx::11::If",
+                 "ai.onnx::12::If",
+                 "ai.onnx::13::If"})
   .ParseParamsFn(ParseParams)
   .ParseParamsByOperatorFn(ParseParamByOpFunc)
   .ParseSubgraphPostFn(ParseSubgraphPostFnIf);
@@ -128,7 +127,8 @@ ge::onnx::GraphProto CreateOnnxGraph() {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_if_node) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/if.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   ge::Graph graph;
@@ -138,7 +138,8 @@ TEST_F(UtestOnnxParser, onnx_parser_if_node) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_user_output_with_name_and_index) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/conv2d.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   parser_params.insert({AscendString(ge::ir_option::OUT_NODES), AscendString("Conv_0:0")});
@@ -156,7 +157,8 @@ TEST_F(UtestOnnxParser, onnx_parser_user_output_with_name_and_index) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_precheck) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/conv2d.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   parser_params.insert({AscendString(ge::ir_option::OUT_NODES), AscendString("Conv_0:0")});
@@ -167,7 +169,8 @@ TEST_F(UtestOnnxParser, onnx_parser_precheck) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_user_output_with_tensor) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/conv2d.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   parser_params.insert({AscendString(ge::ir_option::OUT_NODES), AscendString("y")});
@@ -185,7 +188,8 @@ TEST_F(UtestOnnxParser, onnx_parser_user_output_with_tensor) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_user_output_with_default) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/conv2d.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   ge::Graph graph;
@@ -202,7 +206,8 @@ TEST_F(UtestOnnxParser, onnx_parser_user_output_with_default) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_user_output_with_tensor_failed) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/conv2d.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   parser_params.insert({AscendString(ge::ir_option::OUT_NODES), AscendString("not_exist_output")});
@@ -212,7 +217,8 @@ TEST_F(UtestOnnxParser, onnx_parser_user_output_with_tensor_failed) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_expand_one_to_many) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/onnx_clip_v9.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   ge::Graph graph;
@@ -225,7 +231,8 @@ TEST_F(UtestOnnxParser, onnx_parser_expand_one_to_many) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_to_json) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/onnx_clip_v9.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   OnnxModelParser onnx_parser;
@@ -284,7 +291,8 @@ TEST_F(UtestOnnxParser, onnx_parser_to_json) {
 }
 
 TEST_F(UtestOnnxParser, onnx_parser_const_data_type) {
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/onnx_const_type.onnx";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   ge::Graph graph;
@@ -779,7 +787,8 @@ TEST_F(UtestOnnxParser, onnx_test_initializer_name) {
 
 TEST_F(UtestOnnxParser, OnnxModelParser_ParseOnnxModelStableSort) {
   OnnxModelParser model_parser;
-  std::string case_dir = FILE_ONNX_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/onnx_model/onnx_clip_v9.onnx";
   auto graph_options = GetThreadLocalContext().GetAllGraphOptions();
   graph_options[OPTION_TOPOSORTING_MODE] = "3";

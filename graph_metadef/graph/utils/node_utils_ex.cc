@@ -76,7 +76,7 @@ graphStatus NodeUtilsEx::InferOriginFormat(const NodePtr &node) {
 
 graphStatus NodeUtilsEx::IsInputsValid(const NodePtr &node) {
   const auto &op_desc = node->GetOpDesc();
-  for (const auto &in_anchor : node->GetAllInDataAnchors()) {
+  for (const auto &in_anchor : node->GetAllInDataAnchorsPtr()) {
     if (in_anchor == nullptr) {
       GELOGW("[Verify][CheckParam] In data anchor is null");
       continue;

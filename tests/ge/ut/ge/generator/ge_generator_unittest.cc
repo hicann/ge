@@ -42,7 +42,8 @@ const char *const kKernelLibName = "DNN_VM_GE_LOCAL";
 class UtestGeGenerator : public testing::Test {
  protected:
   void SetUp() {
-    std::string opp_path = FILE_GENERATOR_PATH;
+    std::string opp_path = __FILE__;
+    opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
     mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
     std::string path_vendors = opp_path + "vendors";
@@ -68,7 +69,8 @@ class UtestGeGenerator : public testing::Test {
   }
 
   void TearDown() {
-    std::string opp_path = FILE_GENERATOR_PATH;
+    std::string opp_path = __FILE__;
+    opp_path = opp_path.substr(0, opp_path.rfind("/") + 1);
     mmSetEnv(kEnvName, opp_path.c_str(), 1);
 
     std::string path_vendors = opp_path + "vendors";

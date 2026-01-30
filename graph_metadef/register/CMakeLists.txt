@@ -78,6 +78,7 @@ set(SRC_LIST
     "stream_manage_func_registry.cc"
     "optimization_option_registry.cc"
     "pass_option_utils.cc"
+    "core_num_utils.cc"
     "kernel_launch_info.cc"
     "kernel_launch_info_impl.cc"
     "${GE_METADEF_DIR}/exe_graph/lowering/kernel_run_context_builder.cc"
@@ -228,7 +229,6 @@ add_dependencies(op_tiling_o2
 
 target_include_directories(op_tiling_o2 PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}
-    ${METADEF_DIR}
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/metadef_protos
     ${AIR_CODE_DIR}/inc/graph_metadef
@@ -258,25 +258,54 @@ target_link_libraries(op_tiling_o2 PRIVATE
 )
 
 ##############################################################
-set(STUB_HEADER_LIST
-    ${ASCEND_INSTALL_PATH}/include/register/op_impl_registry.h
-    ${GE_METADEF_INC_DIR}/register/register.h
-    ${GE_METADEF_INC_DIR}/register/op_lib_register_impl.h
-    ${GE_METADEF_INC_DIR}/register/optimization_option_registry.h
-    ${GE_METADEF_INC_DIR}/register/op_tiling.h
-    ${GE_METADEF_INC_DIR}/register/stream_manage_func_registry.h
-    ${GE_METADEF_INC_DIR}/external/register/op_def.h
-    ${GE_METADEF_INC_DIR}/external/register/op_def_factory.h
-    ${GE_METADEF_INC_DIR}/external/register/op_lib_register.h
-    ${GE_METADEF_INC_DIR}/external/register/op_tiling_info.h
-    ${GE_METADEF_INC_DIR}/external/register/op_tiling_registry.h
-    ${GE_METADEF_INC_DIR}/external/register/tilingdata_base.h
-    ${GE_METADEF_INC_DIR}/external/register/register_base.h
-    ${GE_METADEF_INC_DIR}/external/register/tuning_bank_key_registry.h
-    ${GE_METADEF_INC_DIR}/external/register/tuning_tiling_registry.h
-    ${GE_METADEF_INC_DIR}/external/register/hidden_input_func_registry.h
-    ${GE_METADEF_INC_DIR}/external/register/hidden_inputs_func_registry.h
-)
+if(NOT BUILD_PKG_COMPONENT)
+    # TODO:待整包下线后删除
+    set(STUB_HEADER_LIST
+        ${METADEF_DIR}/inc/external/register/op_impl_registry.h
+        ${METADEF_DIR}/inc/register/op_impl_registry_holder_manager.h
+        ${METADEF_DIR}/inc/register/opp_so_manager.h
+        ${METADEF_DIR}/inc/register/op_impl_space_registry.h
+        ${METADEF_DIR}/inc/register/op_impl_registry_base.h
+        ${METADEF_DIR}/inc/external/register/register.h
+        ${METADEF_DIR}/inc/external/register/tilingdata_base.h
+        ${GE_METADEF_INC_DIR}/register/op_lib_register_impl.h
+        ${GE_METADEF_INC_DIR}/register/optimization_option_registry.h
+        ${GE_METADEF_INC_DIR}/register/core_num_utils.h
+        ${GE_METADEF_INC_DIR}/external/register/op_def.h
+        ${GE_METADEF_INC_DIR}/external/register/op_def_factory.h
+        ${GE_METADEF_INC_DIR}/external/register/op_lib_register.h
+        ${GE_METADEF_INC_DIR}/external/register/register_base.h
+        ${GE_METADEF_INC_DIR}/external/register/op_tiling_info.h
+        ${GE_METADEF_INC_DIR}/external/register/op_tiling_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/tuning_bank_key_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/tuning_tiling_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/hidden_input_func_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/hidden_inputs_func_registry.h
+        ${GE_METADEF_INC_DIR}/register/op_tiling.h
+        ${GE_METADEF_INC_DIR}/register/stream_manage_func_registry.h
+    )
+else()
+    set(STUB_HEADER_LIST
+        ${ASCEND_INSTALL_PATH}/include/register/op_impl_registry.h
+        ${ASCEND_INSTALL_PATH}/include/register/tilingdata_base.h
+        ${GE_METADEF_INC_DIR}/register/register.h
+        ${GE_METADEF_INC_DIR}/register/op_lib_register_impl.h
+        ${GE_METADEF_INC_DIR}/register/optimization_option_registry.h
+        ${GE_METADEF_INC_DIR}/register/core_num_utils.h
+        ${GE_METADEF_INC_DIR}/register/op_tiling.h
+        ${GE_METADEF_INC_DIR}/register/stream_manage_func_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/op_def.h
+        ${GE_METADEF_INC_DIR}/external/register/op_def_factory.h
+        ${GE_METADEF_INC_DIR}/external/register/op_lib_register.h
+        ${GE_METADEF_INC_DIR}/external/register/op_tiling_info.h
+        ${GE_METADEF_INC_DIR}/external/register/op_tiling_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/register_base.h
+        ${GE_METADEF_INC_DIR}/external/register/tuning_bank_key_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/tuning_tiling_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/hidden_input_func_registry.h
+        ${GE_METADEF_INC_DIR}/external/register/hidden_inputs_func_registry.h
+    )
+endif()
 
 list(TRANSFORM STUB_HEADER_LIST
     REPLACE "^.*/([^/]+)\\.h$" "${CMAKE_CURRENT_BINARY_DIR}/stub_\\1.cc"

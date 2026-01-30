@@ -82,15 +82,6 @@ class StubExecutor : public Executor {
     return SUCCESS;
   }
 
-  Status PushRunArgs(const std::shared_ptr<RunArgsV2> &args) override {
-    return SUCCESS;
-  }
-
-  Status RunGraph(const GraphNodePtr &graph_node, const GraphId graph_id,
-                  const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) override {
-    return SUCCESS;
-  }
-
   Status RunGraph(const GraphNodePtr &graph_node, const GraphId graph_id,
                   const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs) override {
     return SUCCESS;
@@ -504,50 +495,54 @@ TEST_F(UtestInnerSession, Feed_graph_not_exits) {
   std::map<std::string, std::string> options = {};
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   setenv("RESOURCE_CONFIG_PATH", "./stub_resource_config_path.json", 0);
-  uint64_t session_id = 1;
-  InnerSession inner_session(session_id, options);
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+
+  // Initialize GE and create Session
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+
   uint32_t graph_id = 0;
   DataFlowInfo data_flow_info;
   std::vector<Tensor> inputs;
   ge::Tensor tensor;
   inputs.emplace_back(tensor);
-  EXPECT_NE(inner_session.FeedDataFlowGraph(graph_id, {}, inputs, data_flow_info, 0), SUCCESS);
+  EXPECT_NE(session.FeedDataFlowGraph(graph_id, {}, inputs, data_flow_info, 0), SUCCESS);
 
   uint64_t sample_data = 9;
   RawData raw_data = {.addr = reinterpret_cast<void *>(&sample_data), .len = sizeof(uint64_t)};
-  EXPECT_NE(inner_session.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), SUCCESS);
+  EXPECT_NE(session.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), SUCCESS);
 
   std::vector<FlowMsgPtr> flow_msg_inputs;
   flow_msg_inputs.emplace_back(FlowBufferFactory::AllocEmptyDataMsg(MsgType::MSG_TYPE_TENSOR_DATA));
-  EXPECT_NE(inner_session.FeedDataFlowGraph(graph_id, {}, flow_msg_inputs, 0), SUCCESS);
+  EXPECT_NE(session.FeedDataFlowGraph(graph_id, {}, flow_msg_inputs, 0), SUCCESS);
 
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(GEFinalize(), SUCCESS);
   unsetenv("RESOURCE_CONFIG_PATH");
   MmpaStub::GetInstance().Reset();
 }
 
 TEST_F(UtestInnerSession, Fetch_graph_not_exits) {
   std::map<std::string, std::string> options = {};
-  uint64_t session_id = 1;
-  InnerSession inner_session(session_id, options);
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+
   uint32_t graph_id = 0;
   DataFlowInfo data_flow_info;
   std::vector<Tensor> outputs;
-  EXPECT_NE(inner_session.FetchDataFlowGraph(graph_id, {}, outputs, data_flow_info, 0), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_NE(session.FetchDataFlowGraph(graph_id, {}, outputs, data_flow_info, 0), SUCCESS);
+
+  EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 
 TEST_F(UtestInnerSession, Fetch_flow_msg_graph_not_exits) {
   std::map<std::string, std::string> options = {};
-  uint64_t session_id = 1;
-  InnerSession inner_session(session_id, options);
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
+  EXPECT_EQ(GEInitialize(options), SUCCESS);
+  Session session(options);
+
   uint32_t graph_id = 0;
   std::vector<FlowMsgPtr> outputs;
-  EXPECT_NE(inner_session.FetchDataFlowGraph(graph_id, {}, outputs, 0), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_NE(session.FetchDataFlowGraph(graph_id, {}, outputs, 0), SUCCESS);
+
+  EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 
 TEST_F(UtestInnerSession, InitializeWithJitCompileTrueCheckSuccess) {

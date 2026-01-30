@@ -13,7 +13,7 @@
 #include "graph/op_desc.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "register/op_tiling_info.h"
 #include "register/op_tiling_registry.h"
 #include "op_tiling/op_tiling_utils.h"
@@ -144,7 +144,7 @@ void ParseConstShapeDescV2(const nlohmann::json &shape_json, ge::Operator &op_pa
   ge_tensor.SetName(name);
   ge::GeTensor const_tensor(ge_tensor, res.first->second);
   ge::GeTensorPtr const_tensor_ptr = ge::MakeShared<ge::GeTensor>(const_tensor);
-  ge::OpDescPtr const_op_desc = ge::OpDescUtils::CreateConstOp(const_tensor_ptr);
+  ge::OpDescPtr const_op_desc = ge::OpDescUtils::CreateConstOpZeroCopy(const_tensor_ptr);
   ge::Operator const_op = ge::OpDescUtils::CreateOperatorFromOpDesc(const_op_desc);
   (void) op_para.SetInput(name.c_str(), const_op);
 }

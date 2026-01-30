@@ -11,7 +11,6 @@
 #ifndef COMPILED_MODEL_CACHE_UTIL_H
 #define COMPILED_MODEL_CACHE_UTIL_H
 
-#include <checker.h>
 #include <chrono>
 #include <fstream>
 #include <nlohmann/json.hpp>

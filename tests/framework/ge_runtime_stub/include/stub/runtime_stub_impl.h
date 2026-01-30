@@ -110,9 +110,7 @@ class RuntimeStubImpl : public ge::RuntimeStub {
     uint16_t model_id;
   };
   using HandleArgsPtrList = std::list<ge::GeFakeLaunchArgs *>;
-  const std::map<const void *, HandleArgsPtrList> &GetLaunchWithHandleArgs() {
-    return launch_with_handle_args_;
-  }
+  const std::map<const void *, HandleArgsPtrList> &GetLaunchWithHandleArgs();
   void Clear();
 
   ge::GeFakeLaunchArgs *PopLaunchArgsBy(const void *handle);
@@ -217,6 +215,8 @@ class RuntimeStubImpl : public ge::RuntimeStub {
   rtError_t rtsLaunchKernelWithHostArgs(rtFuncHandle funcHandle, uint32_t blockDim, rtStream_t stm,
                                         rtKernelLaunchCfg_t *cfg, void *hostArgs, uint32_t argsSize,
                                         rtPlaceHolderInfo_t *placeHolderArray, uint32_t placeHolderNum) override;
+  rtError_t rtsLaunchKernelWithDevArgs(rtFuncHandle funcHandle, uint32_t blockDim, rtStream_t stm,
+                                       rtKernelLaunchCfg_t *cfg, const void *args, uint32_t argsSize, void *reserve) override;
   rtError_t rtsBinaryLoadFromData(const void * const data, const uint64_t length,
                                   const rtLoadBinaryConfig_t * const optionalCfg, rtBinHandle *handle) override;
   rtError_t rtsRegisterCpuFunc(const rtBinHandle binHandle, const char_t * const funcName,

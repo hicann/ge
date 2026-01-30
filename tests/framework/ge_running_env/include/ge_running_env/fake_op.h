@@ -17,6 +17,7 @@
 #include "fake_ns.h"
 #include "ge_running_env/env_installer.h"
 #include "graph/operator_factory.h"
+#include "graph/op_kernel_bin.h"
 
 FAKE_NS_BEGIN
 
@@ -32,6 +33,11 @@ struct FakeOp : EnvInstaller {
     attrs_.emplace(name, value);
     return *this;
   }
+  template<class T>
+  FakeOp& ExtAttrsDef(const std::string &name, const T &value) {
+    ext_attrs_.emplace(name, value);
+    return *this;
+  }
 
  private:
   void Install() const override;
@@ -43,7 +49,8 @@ struct FakeOp : EnvInstaller {
   std::vector<std::string> outputs_;
   InferShapeFunc info_fun_;
   std::set<std::string> info_store_names_;
-  std::map<std::string, std::variant<int64_t>> attrs_;
+  std::map<std::string, std::variant<int64_t, std::string>> attrs_;
+  std::map<std::string, std::variant<OpKernelBinPtr>> ext_attrs_;
 };
 
 FAKE_NS_END

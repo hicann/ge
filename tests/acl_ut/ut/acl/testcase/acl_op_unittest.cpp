@@ -116,6 +116,7 @@ protected:
         aclDestroyDataBuffer(empty_outputs_[1]);
 
         aclopDestroyAttr(opAttr);
+        Mock::VerifyAndClear((void *)(&MockFunctionTest::aclStubInstance()));
     }
 
     const aclTensorDesc *input_desc_[3];
@@ -945,4 +946,21 @@ TEST_F(OpApiTest, AclIsSameTensorNull)
     bool ret = (desc == nullptr);
     EXPECT_EQ(ret, false);
     aclDestroyTensorDesc(desc);
+}
+
+TEST_F(OpApiTest, AclAclopSetAttrDataType)
+{
+    aclopAttr attr;
+    EXPECT_EQ(aclopSetAttrDataType(&attr, "attrName", ACL_FLOAT), ACL_SUCCESS);
+    EXPECT_EQ(aclopSetAttrDataType(&attr, "attrName", ACL_DT_UNDEFINED), ACL_SUCCESS);
+}
+
+TEST_F(OpApiTest, AclAclopSetAttrListDataType)
+{
+    aclopAttr attr;
+    int numValues = 1;
+    const aclDataType values[] { ACL_FLOAT };
+    EXPECT_EQ(aclopSetAttrListDataType(&attr, "attrName", numValues, values), ACL_SUCCESS);
+    const aclDataType valuesUndefined[] { ACL_DT_UNDEFINED };
+    EXPECT_EQ(aclopSetAttrListDataType(&attr, "attrName", numValues, valuesUndefined), ACL_SUCCESS);
 }

@@ -42,7 +42,9 @@
 #include "common/parser_utils.h"
 #include "base/err_msg.h"
 #include "base/err_mgr.h"
+#include <experimental/filesystem>
 
+namespace fs = std::experimental::filesystem;
 namespace ge {
 using std::string;
 using std::vector;
@@ -51,6 +53,7 @@ using std::map;
 using std::unordered_map;
 using std::mutex;
 using std::shared_ptr;
+
 
 enum TfTranspose { TO_NCHW, TO_NHWC, NO_TRANSPOSE };
 

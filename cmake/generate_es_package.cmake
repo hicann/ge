@@ -248,20 +248,30 @@ exit 1
         message(STATUS "Generated helper script: ${ES_LOCK_SCRIPT}")
     endif ()
 
-    # 0.1. 确保 Python3 可用（用于生成 wheel 包）
-    if (NOT Python3_EXECUTABLE)
-        find_package(Python3 COMPONENTS Interpreter)
-        if (NOT Python3_EXECUTABLE)
-            message(WARNING "Python3 not found, wheel package generation will be skipped")
-            set(SKIP_WHL_GENERATION TRUE)
-        endif ()
-    endif ()
-
     # 1. 解析函数参数
     set(options SKIP_WHL)
     set(oneValueArgs ES_LINKABLE_AND_ALL_TARGET OPP_PROTO_TARGET OUTPUT_PATH EXCLUDE_OPS)
     set(multiValueArgs "")
     cmake_parse_arguments(ARG "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
+    # 1.1. 只有 add_es_library_and_whl 调用时才需要检查 Python3
+    if (NOT ARG_SKIP_WHL)
+        if (NOT Python3_EXECUTABLE)
+            find_package(Python3 COMPONENTS Interpreter)
+            if (Python3_EXECUTABLE)
+                message(STATUS "Found Python3: ${Python3_EXECUTABLE}")
+            else ()
+                message(FATAL_ERROR "Python3 is required for wheel package generation, but not found.\n"
+                        "Please choose one of the following options:\n"
+                        "  1. Confirm if python3 is installed (run 'which python3' or 'python3 --version')\n"
+                        "  2. If python3 exists but CMake cannot find it, you can define Python3_EXECUTABLE in your CMakeLists.txt:\n"
+                        "     set(Python3_EXECUTABLE /path/to/python3)\n"
+                        "  3. If you don't need the Python wheel package, you can use 'add_es_library'")
+            endif ()
+        else ()
+            message(STATUS "Using existing Python3: ${Python3_EXECUTABLE}")
+        endif ()
+    endif ()
 
     # 2. 参数校验
     if (NOT ARG_ES_LINKABLE_AND_ALL_TARGET)
@@ -406,7 +416,7 @@ exit 1
         # gen_esb target 不存在，尝试从环境中查找
         message(STATUS "_add_es_library_impl: gen_esb target not found, searching in environment...")
 
-        # 方法 1: 检查 PATH 环境变量（用户执行了 source set_env.sh 的场景）
+        # 方法 1: 检查 PATH 环境变量（用户执行了 source setenv.bash 的场景）
         find_program(GEN_ESB_IN_PATH gen_esb)
         if (GEN_ESB_IN_PATH)
             set(GEN_ESB_EXE "${GEN_ESB_IN_PATH}")
@@ -493,7 +503,7 @@ exit 1
                     "\n"
                     "Please ensure:\n"
                     "  1. The run package is installed completely according to the installation guide\n"
-                    "  2. 'source /usr/local/Ascend/cann/set_env.sh' has been executed to configure environment variables\n"
+                    "  2. 'source /usr/local/Ascend/cann/bin/setenv.bash' has been executed to configure environment variables\n"
                     "  3. This cmake file is included from the run package path (e.g. /usr/local/Ascend/cann/include/ge/cmake/)\n"
                     "\n"
                     "Debug info:\n"
@@ -763,13 +773,11 @@ exit 1
 
     # 13.1.1 在 Release 配置下添加 -s 选项去除符号表
     target_link_options(${SO_NAME} PRIVATE $<$<CONFIG:Release>:-s>)
-
     # 清除so中的RPATH，避免安全风险
     set_target_properties(${SO_NAME} PROPERTIES
-            SKIP_BUILD_RPATH TRUE
-            SKIP_INSTALL_RPATH TRUE
+        SKIP_BUILD_RPATH TRUE
+        SKIP_INSTALL_RPATH TRUE
     )
-
     # 13.2 准备头文件搜索路径列表（供 SO 和 IMPORTED library 共用）
     set(ES_INCLUDE_DIRS ${GEN_CODE_DIR} ${INCLUDE_DIR})
 
@@ -905,12 +913,7 @@ endforeach()
 ")
 
     # 检查是否跳过 wheel 包生成
-    # 如果调用者指定 SKIP_WHL 或 Python3 不可用，则跳过
-    if (ARG_SKIP_WHL OR SKIP_WHL_GENERATION)
-        set(SKIP_WHL_GENERATION TRUE)
-    endif ()
-
-    if (NOT SKIP_WHL_GENERATION)
+    if (NOT ARG_SKIP_WHL)
         add_custom_command(
                 OUTPUT ${WHL_GEN_FLAG}
                 COMMAND ${CMAKE_COMMAND} -E echo "Building Python wheel for package: ${PYTHON_PKG_NAME}"

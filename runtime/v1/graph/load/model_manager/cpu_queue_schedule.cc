@@ -448,7 +448,9 @@ Status CpuTaskMarkStep::Init(const GroupInfo &group_info, const std::string &dum
   mark_step_info.is_head = is_head ? 0U : 1U;
   const auto ret = strcpy_s(mark_step_info.dump_step, sizeof(mark_step_info.dump_step), dump_step.c_str());
   if (ret != EOK) {
-    REPORT_INNER_ERR_MSG("E19999", "Call strcpy failed, dump_step: %s is too long", dump_step.c_str());
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+        std::vector<const char *>({"dump_step", dump_step.c_str(), "Dump step is too long."}));
     GELOGE(FAILED, "[Call][strcpy_s] strcpy failed, result: %d, dump_step: %s", ret, dump_step.c_str());
     return FAILED;
   }

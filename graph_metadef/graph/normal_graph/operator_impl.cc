@@ -11,7 +11,7 @@
 #include "graph/normal_graph/operator_impl.h"
 
 #include "graph/normal_graph/op_io.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_util.h"
 #include "debug/ge_op_types.h"
 #include "graph/compute_graph.h"

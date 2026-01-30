@@ -17,7 +17,7 @@ namespace ge {
 class OpSoStoreUtils {
  public:
   static bool IsSoBinType(const uint16_t so_flag, const SoBinType so_bin_type) {
-    return static_cast<bool>(so_flag & EnableSoBinTypeBit(so_bin_type));
+    return (so_flag & EnableSoBinTypeBit(so_bin_type)) != 0;
   }
 
   static void SetSoBinType(const SoBinType so_bin_type, uint16_t &so_flag) {
@@ -30,7 +30,9 @@ class OpSoStoreUtils {
   // 0100 0000 中的1表示OpMasterDevice
   // 0010 0000 中的1表示Autofuse
   static uint16_t EnableSoBinTypeBit(SoBinType so_bin_type) {
-    return 1U << (15U - static_cast<uint16_t>(so_bin_type));
+    const uint16_t shift = 15U - static_cast<uint16_t>(so_bin_type);
+    constexpr uint16_t base = 1U;
+    return base << shift;
   }
 };
 }  // namespace ge

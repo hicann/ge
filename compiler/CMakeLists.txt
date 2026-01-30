@@ -271,6 +271,7 @@ set(COMPILER_SRC_LIST
     "graph/passes/shape_optimize/reshape_recovery_pass.cc"
     "graph/passes/shape_optimize/reshape_remove_pass.cc"
     "graph/passes/standard_optimize/same_transdata_breadth_fusion_pass.cc"
+    "graph/passes/standard_optimize/tensor_move_delete_pass.cc"
     "graph/passes/standard_optimize/save_pass.cc"
     "graph/passes/memory_conflict/set_input_output_offset_pass.cc"
     "graph/passes/shape_optimize/shape_operate_op_remove_pass.cc"
@@ -407,6 +408,10 @@ target_compile_options(ge_compiler PRIVATE
     -fvisibility=default
 )
 
+target_include_directories(ge_compiler  PRIVATE
+    ${AIR_CODE_DIR}/inc/graph_metadef
+)
+
 target_include_directories(ge_compiler SYSTEM PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${AIR_CODE_DIR}
@@ -419,7 +424,6 @@ target_include_directories(ge_compiler SYSTEM PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${ASCGEN_DIR}/inc
-    ${AIR_CODE_DIR}/inc/graph_metadef
     ${METADEF_DIR}/base/registry
     ${METADEF_DIR}/register
     ${METADEF_DIR}/pkg_inc

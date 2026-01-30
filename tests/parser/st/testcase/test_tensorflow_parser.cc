@@ -27,6 +27,7 @@
 #include "base/err_mgr.h"
 
 #include "parser/tensorflow_parser.h"
+#include "parser/tensorflow/tensorflow_custom_op_parser.h"
 #include "parser/tensorflow/tensorflow_constant_parser.h"
 #include "common/types.h"
 #include "parser/common/op_def/variable_operator.h"
@@ -71,6 +72,7 @@
 
 #include "depends/mmpa/src/parser_mmpa_stub.h"
 #include "common/plugin/plugin_manager.h"
+#include <experimental/filesystem>
 
 using namespace std;
 using namespace domi::tensorflow;
@@ -80,7 +82,7 @@ using namespace std;
 using namespace google::protobuf;
 
 static const string GRAPH_DEFAULT_NAME = "default";
-
+namespace fs = std::experimental::filesystem;
 namespace ge {
 int32_t dl_flag = -1;
 int32_t dl_open_count = 0;
@@ -132,6 +134,18 @@ class STestTensorflowParser : public testing::Test {
 
  public:
   void RegisterCustomOp();
+};
+
+class STestTensorflowCustomOpParser : public testing::Test {
+protected:
+  void SetUp() {
+    ParerSTestsUtils::ClearParserInnerCtx();
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
+  }
+
+  void TearDown() {
+    MmpaStub::GetInstance().Reset();
+  }
 };
 
 class TestOperator : public ParserOperator
@@ -292,6 +306,89 @@ namespace {
     (*node_attr_map)[TENSORFLOW_ATTR_VALUE] = value_attr_value;
     delete[] addr;
     return nodeDef;
+  }
+
+domi::tensorflow::OpDef MakeDynamicInputOpDef_NumberAttr() {
+    domi::tensorflow::OpDef opdef;
+    opdef.set_name("MyGreatOpDynamic");
+
+    auto *in = opdef.add_input_arg();
+    in->set_name("x");
+    in->set_number_attr("N");
+    in->set_type_attr("T");
+
+    auto *out = opdef.add_output_arg();
+    out->set_name("y");
+    out->set_type_attr("T");
+
+    auto *attr_n = opdef.add_attr();
+    attr_n->set_name("N");
+    attr_n->set_type("int");
+
+    auto *attr_t = opdef.add_attr();
+    attr_t->set_name("T");
+    attr_t->set_type("type");
+    return opdef;
+  }
+
+  NodeDef *InitNodeDefWithOpDefAttr() {
+    auto *node = new domi::tensorflow::NodeDef();
+    node->set_name("node_with_opdef");
+    node->set_op("MyCustomOp");
+    auto *attr_map = node->mutable_attr();
+    domi::tensorflow::OpDef opdef;
+    opdef.set_name("MyGreatOp");
+    auto *in = opdef.add_input_arg();
+    in->set_name("x");
+    in->set_type(domi::tensorflow::DT_FLOAT);
+
+    auto *out = opdef.add_output_arg();
+    out->set_name("y");
+    out->set_type(domi::tensorflow::DT_FLOAT);
+
+    std::string blob;
+    if (!opdef.SerializeToString(&blob)) {
+      delete node;
+      return nullptr;
+    }
+    domi::tensorflow::AttrValue opdef_attr;
+    opdef_attr.set_s(blob);
+    (*attr_map)[ge::ATTR_NAME_FRAMEWORK_OP_DEF] = opdef_attr;
+    return node;
+  }
+
+  domi::tensorflow::OpDef MakeListOpDef_TypeListAttr() {
+    domi::tensorflow::OpDef opdef;
+    opdef.set_name("MyGreatOpDynamicTypeList");
+
+    // input: x 是 list（N 个），类型 T
+    auto *in = opdef.add_input_arg();
+    in->set_name("x");
+    in->set_number_attr("N");
+    in->set_type_attr("T");
+
+    auto *out = opdef.add_output_arg();
+    out->set_name("y");
+    out->set_type_list_attr("Tout");
+
+    auto *attr_n = opdef.add_attr();
+    attr_n->set_name("N");
+    attr_n->set_type("int");
+    auto *attr_t = opdef.add_attr();
+    attr_t->set_name("T");
+    attr_t->set_type("type");
+
+    auto *attr_tout = opdef.add_attr();
+    attr_tout->set_name("Tout");
+    attr_tout->set_type("list(type)");
+    return opdef;
+  }
+
+  NodeDef *InitNodeDefWithOutOpDefAttr() {
+    auto *node = new domi::tensorflow::NodeDef();
+    node->set_name("node_with_opdef");
+    node->set_op("MyCustomOp");
+    return node;
   }
 
   NodeDef * initOpNodeDef_VariableV2() {
@@ -536,7 +633,7 @@ namespace {
     fusion_rlt->InsertOutputs("scope_node_n", {1});  // scope output 1
 
     fusion_rlt->SetType(ge::kScopeToMultiNodes);
-    fusion_rlt->SetName(fusion_op_name.c_str());
+    fusion_rlt->SetName(fusion_op_name);
     fusion_rlt->SetDescription("Description for fusion node");
 
     // Add inner nodes in sequence.
@@ -797,7 +894,7 @@ namespace {
     (*attr)[ge::ATTR_NAME_INPUT_TENSOR_DESC] = input_attr_value;
   }
 
-  NodeDef* AddGraphNode(GraphDef *graph, string name, string optype, string input) 
+  NodeDef* AddGraphNode(GraphDef *graph, string name, string optype, string input)
   {
     NodeDef *node_def = graph->add_node();
     node_def->set_name(name);
@@ -980,20 +1077,19 @@ static MemBuffer* MemBufferFromFile(const char *path)
     return membuf;
 }
 
-/*
- *        placeholder0  placeholder1
- *          |       /\  /\       |
- *          |      /  \/  \      |
- *          |     /   /\   \     |
- *          |     |  /  \  |     |
- *          |     add0   mul0    |
- *          |     /     /c | \   |
- *            mul1 --- /   |   add1
- *              \          |    |
- *               \ ---- add2    |
- *                      |       |
- *                    retval0 retval1
- */
+///        placeholder0  placeholder1
+///          |       /\  /\       |
+///          |      /  \/  \      |
+///          |     /   /\   \     |
+///          |     |  /  \  |     |
+///          |     add0   mul0    |
+///          |     /     /c | \   |
+///            mul1 --- /   |   add1
+///              \          |    |
+///               \ ---- add2    |
+///                      |       |
+///                    retval0 retval1
+
 void CreateGraphDef(domi::tensorflow::GraphDef &graph_def) {
   // 1. add node
   auto placeholder0 = graph_def.add_node();
@@ -1063,6 +1159,7 @@ void CreateGraphDef(domi::tensorflow::GraphDef &graph_def) {
   softmax0->add_input("add3:0");
   softmax0->add_input("add2:0");
 }
+
 #if 0
 TEST_F(STestTensorflowParser, tensorflow_parser_success) {
   RegisterCustomOp();
@@ -1831,7 +1928,7 @@ TEST_F(STestTensorflowParser, tensorflow_squeeze_test) {
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)14);
-  
+
   static const string KEY_TYPE_LIST = "key_type_list";
   const std::string ATTR_NAME_INPUT_TENSOR_DESC  = "input_tensor_desc";
   const std::string ATTR_NAME_OUTPUT_TENSOR_DESC = "output_tensor_desc";
@@ -1953,7 +2050,7 @@ TEST_F(STestTensorflowParser, tensorflow_enter_test) {
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)14);
-  
+
   static const string KEY_TYPE_LIST = "key_type_list";
   const std::string ENTER_ATTR_FRAME_NAME = "frame_name";
   const std::string ATTR_NAME_OUTPUT_TENSOR_DESC = "output_tensor_desc";
@@ -2211,7 +2308,7 @@ TEST_F(STestTensorflowParser, tensorflow_CheckOpShapeDim_test)
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)14);
-  
+
   static const string KEY_TYPE_LIST = "key_type_list";
   const std::string ATTR_NAME_INPUT_TENSOR_DESC  = "input_tensor_desc";
   const std::string ATTR_NAME_OUTPUT_TENSOR_DESC = "output_tensor_desc";
@@ -2336,7 +2433,7 @@ TEST_F(STestTensorflowParser, tensorflow_arg_parser_test)
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)14);
-  
+
   static const string KEY_TYPE_LIST = "key_type_list";
   const std::string ATTR_NAME_INPUT_TENSOR_DESC  = "input_tensor_desc";
   const std::string ATTR_NAME_OUTPUT_TENSOR_DESC = "output_tensor_desc";
@@ -2413,7 +2510,7 @@ TEST_F(STestTensorflowParser, tensorflow_frameworkop_parser_test2)
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)14);
-  
+
   static const string KEY_TYPE_LIST = "key_type_list";
   const std::string ATTR_NAME_INPUT_TENSOR_DESC  = "ATTR_NAME_FRAMEWORK_OP_DEF";
   const std::string ATTR_NAME_OUTPUT_TENSOR_DESC = "output_tensor_desc";
@@ -2490,7 +2587,7 @@ TEST_F(STestTensorflowParser, tensorflow_DefunToPartitionedCall_parser_test)
   node_def->set_name("ShapeN");
   ge::OpDescPtr op = make_shared<ge::OpDesc>("ShapeN", ge::parser::PARTITIONEDCALL);
   Status ret = parser.DefunToPartitionedCall(node_def, op);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, PARAM_INVALID);
 
   static const string KEY_SHAPE_LIST = "key_shape_list";
   static const string KEY_TENSOR_LIST = "key_tensor_list";
@@ -2519,7 +2616,7 @@ TEST_F(STestTensorflowParser, tensorflow_DefunToPartitionedCall_parser_test)
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)32);
   shape.mutable_list()->add_i((int64)14);
-  
+
   static const string KEY_TYPE_LIST = "key_type_list";
   static const  domi::tensorflow::DataType VALUE_TYPE = domi::tensorflow::DataType::DT_FLOAT;
   value.clear_value();
@@ -2550,7 +2647,7 @@ TEST_F(STestTensorflowParser, tensorflow_TransNodeToOpDesc_parser_test)
   std::string op_type = "ge::parser::DATA";
   ge::OpDescPtr op = make_shared<ge::OpDesc>("constant", ge::parser::CONSTANT);
   Status ret = parser.TransNodeToOpDesc(node_def, op, op_type);
-  EXPECT_EQ(ret, FAILED);
+  EXPECT_EQ(ret, PARAM_INVALID);
 }
 
 domi::Status fusion_parse_param_by_op(const std::vector<ge::Operator> &op_src, ge::Operator &op) {
@@ -2963,7 +3060,7 @@ TEST_F(STestTensorflowParser, tensorflow_AddControlEdgeAfterRemoveInputs_test)
   removed_inputs_vec.emplace_back("Add0");
   Status ret = tensorflow_parser.AddControlEdgeAfterRemoveInputs(&graph_def, node_def, all_node_map, removed_inputs_vec);
   EXPECT_EQ(ret, SUCCESS);
-    
+
   tensorflow::NodeDef *node_swith = initNodeDef();
   node_swith->set_name("switch_op");
   node_swith->set_op(parser::SWITCH);
@@ -5574,4 +5671,197 @@ TEST_F(STestTensorflowParser, tensorflow_AclParserInitialize_TryOnceAfterLoadReg
   system(("rm -rf " + opp_path).c_str());
 }
 #endif
+
+TEST_F(STestTensorflowCustomOpParser, test_ConstructRegCustomOpString_with_dynamic_input)
+{
+  domi::tensorflow::OpDef op_def = MakeDynamicInputOpDef_NumberAttr();
+  domi::tensorflow::NodeDef node_def;
+  node_def.set_name("MyGreatOpDynamic");
+  node_def.set_op("MyGreatOpDynamic");
+  std::string reg_custom_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegCustomOpString(op_def, node_def, reg_custom_op);
+  EXPECT_NE(reg_custom_op.find(".FrameworkType(TENSORFLOW)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ParseParamsFn(AutoMappingFnCustomDynamic_MyGreatOpDynamic)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::TVM)"), std::string::npos);
+}
+
+TEST_F(STestTensorflowCustomOpParser, test_ConstructRegOpString_with_dynamic_input_list)
+{
+  domi::tensorflow::OpDef op_def = MakeListOpDef_TypeListAttr();
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegOpString(op_def, reg_op);
+  EXPECT_NE(reg_op.find("REG_OP(MyGreatOpDynamicTypeList)"), std::string::npos);
+  EXPECT_NE(reg_op.find("INPUT(x, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OUTPUT(y, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OP_END_FACTORY_REG(MyGreatOpDynamicTypeList)"), std::string::npos);
+}
+
+TEST_F(STestTensorflowCustomOpParser, test_ConstructRegCustomOpString_with_dynamic_input_list)
+{
+  domi::tensorflow::OpDef opDef = MakeDynamicInputOpDef_NumberAttr();
+  domi::tensorflow::NodeDef node_def;
+  node_def.set_name("MyGreatOpDynamic");
+  node_def.set_op("MyGreatOpDynamic");
+  std::string reg_custom_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegCustomOpString(opDef, node_def, reg_custom_op);
+  EXPECT_NE(reg_custom_op.find(".FrameworkType(TENSORFLOW)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ParseParamsFn(AutoMappingFnCustomDynamic_MyGreatOpDynamic)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::TVM)"), std::string::npos);
+}
+
+TEST_F(STestTensorflowCustomOpParser, test_ConstructRegOpStringTest) {
+  domi::tensorflow::OpDef op_def = MakeDynamicInputOpDef_NumberAttr();
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  parser.ConstructRegOpString(op_def, reg_op);
+  EXPECT_NE(reg_op.find("REG_OP(MyGreatOpDynamic)"), std::string::npos);
+  EXPECT_NE(reg_op.find("INPUT(x, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OUTPUT(y, TensorType::ALL())"), std::string::npos);
+  EXPECT_NE(reg_op.find("OP_END_FACTORY_REG(MyGreatOpDynamic)"), std::string::npos);
+}
+
+TEST_F(STestTensorflowCustomOpParser, test_BuildCustomOpStrings) {
+  std::string all_reg_op;
+  TensorFlowCustomOpParser parser;
+  NodeDef* node_def = InitNodeDefWithOpDefAttr();
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  custom_nodes_map[node_def->name()] = node_def;
+  parser.BuildCustomOpStrings(custom_nodes_map, all_reg_op);
+  EXPECT_NE(all_reg_op.find("REG_OP(MyGreatOp)"), std::string::npos);
+  EXPECT_NE(all_reg_op.find("INPUT(x, TensorType({DT_FLOAT}))"), std::string::npos);
+  EXPECT_NE(all_reg_op.find("FrameworkType(TENSORFLOW)"), std::string::npos);
+  EXPECT_NE(all_reg_op.find("#endif  // OP_REG_CUSTOM_H"), std::string::npos);
+}
+
+TEST_F(STestTensorflowCustomOpParser, ParseCustomOp_NormalCase_ReturnSuccess) {
+  NodeDef* node_def = InitNodeDefWithOpDefAttr();
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  custom_nodes_map[node_def->name()] = node_def;
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.ParseCustomOp(custom_nodes_map);
+  EXPECT_NE(ret_status, FAILED);
+  delete node_def;
+  custom_nodes_map.clear();
+}
+
+TEST_F(STestTensorflowCustomOpParser, test_BuildCustomOpStrings_failed) {
+  std::string all_reg_op;
+  TensorFlowCustomOpParser parser;
+  NodeDef* node_def = InitNodeDefWithOutOpDefAttr();
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  custom_nodes_map[node_def->name()] = node_def;
+  Status ret_status = parser.BuildCustomOpStrings(custom_nodes_map, all_reg_op);
+  EXPECT_NE(ret_status, SUCCESS);
+}
+
+TEST_F(STestTensorflowCustomOpParser, DeleteTmpDirectoryContents_DirExists_ReturnSuccess) {
+  fs::path test_dir = fs::temp_directory_path() / "test_tmp_dir_exists";
+  fs::create_directories(test_dir);
+  fs::path test_file = test_dir / "test_file.txt";
+  std::ofstream(test_file).put('a');
+  fs::path sub_dir = test_dir / "sub_dir";
+  fs::create_directory(sub_dir);
+  EXPECT_TRUE(fs::exists(test_dir));
+  EXPECT_TRUE(fs::exists(test_file));
+  EXPECT_TRUE(fs::exists(sub_dir));
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.DeleteTmpDirectoryContents(test_dir);
+
+  EXPECT_EQ(ret_status, SUCCESS);
+  EXPECT_FALSE(fs::exists(test_dir));
+  if (fs::exists(test_dir)) {
+    fs::remove_all(test_dir);
+  }
+}
+
+TEST_F(STestTensorflowCustomOpParser, DeleteTmpDirectoryContents_DirNotExists_ReturnSuccess) {
+  fs::path non_exist_dir = fs::temp_directory_path() / "test_tmp_dir_not_exist";
+  if (fs::exists(non_exist_dir)) {
+    fs::remove_all(non_exist_dir);
+  }
+  EXPECT_FALSE(fs::exists(non_exist_dir));
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.DeleteTmpDirectoryContents(non_exist_dir);
+  EXPECT_EQ(ret_status, SUCCESS);
+  EXPECT_FALSE(fs::exists(non_exist_dir));
+  if (fs::exists(non_exist_dir)) {
+    fs::remove_all(non_exist_dir);
+  }
+}
+
+TEST_F(STestTensorflowCustomOpParser, RegisteredTfaOps) {
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.RegisteredTfaOps();
+  EXPECT_EQ(ret_status, SUCCESS);
+}
+
+TEST_F(STestTensorflowCustomOpParser, FullCoverage_AllBranches) {
+  domi::tensorflow::OpDef op_def;
+  op_def.set_name("FullCoverageOp");
+
+  auto* fixed_input = op_def.add_input_arg();
+  fixed_input->set_name("fixed_in");
+  fixed_input->set_type(domi::tensorflow::DT_BOOL);
+
+  auto* list_input = op_def.add_input_arg();
+  list_input->set_name("list_in");
+  list_input->set_type_list_attr("TList");
+
+  auto* dynamic_output = op_def.add_output_arg();
+  dynamic_output->set_name("dynamic_out");
+  dynamic_output->set_type_attr("T");
+
+  auto* attr_int = op_def.add_attr();
+  attr_int->set_name("num");
+  attr_int->set_type("int");
+  attr_int->mutable_default_value()->set_i(5);
+
+  auto* attr_type = op_def.add_attr();
+  attr_type->set_name("T");
+  attr_type->set_type("type");
+  auto* allowed = attr_type->mutable_allowed_values();
+  allowed->mutable_list()->add_type(domi::tensorflow::DT_FLOAT);
+  allowed->mutable_list()->add_type(domi::tensorflow::DT_INT32);
+  attr_type->mutable_default_value()->set_type(domi::tensorflow::DT_FLOAT);
+
+  auto* attr_list_int = op_def.add_attr();
+  attr_list_int->set_name("dims");
+  attr_list_int->set_type("list(int)");
+  auto* list_val = attr_list_int->mutable_default_value()->mutable_list();
+  list_val->add_i(1);
+  list_val->add_i(2);
+
+  auto* attr_unknown = op_def.add_attr();
+  attr_unknown->set_name("extra");
+  attr_unknown->set_type("string");
+  attr_unknown->mutable_default_value()->set_s("extra_val");
+
+  auto* attr_shape = op_def.add_attr();
+  attr_shape->set_name("input_shape");
+  attr_shape->set_type("shape");
+  auto* shape_val = attr_shape->mutable_default_value()->mutable_shape();
+  auto* dim1 = shape_val->add_dim();
+  dim1->set_size(32);
+  auto* dim2 = shape_val->add_dim();
+  dim2->set_size(64);
+  auto* dim3 = shape_val->add_dim();
+  dim3->set_size(-1);
+  auto* attr_list_string = op_def.add_attr();
+  attr_list_string->set_name("feature_names");
+  attr_list_string->set_type("list(string)");
+  auto* list_string_val = attr_list_string->mutable_default_value()->mutable_list();
+  std::string reg_op;
+  TensorFlowCustomOpParser parser;
+  Status status = parser.ConstructRegOpString(op_def, reg_op);
+  EXPECT_EQ(status, SUCCESS);
+  EXPECT_NE(reg_op.find("    .INPUT(fixed_in, TensorType({DT_BOOL}))\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .DYNAMIC_INPUT(list_in, TensorType::ALL())\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .OUTPUT(dynamic_out, TensorType({DT_FLOAT, DT_INT32}))\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .ATTR(num, Int, 5)\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .ATTR(dims, IntList, {1, 2})\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .ATTR(extra, String, \"extra_val\")\n"), std::string::npos);
+}
 } // namespace ge

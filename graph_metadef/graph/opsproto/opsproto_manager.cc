@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -11,8 +11,7 @@
 #include "graph/opsproto_manager.h"
 #include <cstdlib>
 #include <functional>
-#include "common/ge_common/debug/ge_log.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/types.h"
 #include "graph/def_types.h"
 #include "graph/operator_factory_impl.h"
@@ -41,7 +40,7 @@ bool OpsProtoManager::Initialize(const std::map<std::string, std::string> &optio
   }
 
   pluginPath_ = iter->second;
-  LoadOpsProtoPluginSo(pluginPath_);
+  LoadBuiltinOpsPluginSo(pluginPath_);
 
   is_init_ = true;
 
@@ -100,7 +99,7 @@ static std::vector<std::string> SplitStr(const std::string &str, const char_t de
   return elems;
 }
 
-void GetOpsProtoSoFileList(const std::string &path, std::vector<std::string> &file_list) {
+static void GetOpsProtoSoFileList(const std::string &path, std::vector<std::string> &file_list) {
   // Support multi lib directory with ":" as delimiter
   const std::vector<std::string> v_path = SplitStr(path, ':');
 
@@ -133,14 +132,36 @@ void OpsProtoManager::LoadOpsProtoPluginSo(const std::string &path) {
     GELOGE(GRAPH_FAILED, "[Check][Param] filePath is empty. please check your text file.");
     return;
   }
+  GELOGW("[LoadSo][Check] Shared library will not be checked. Please make sure that the source of shared library is "
+         "trusted.");
+  OperatorFactoryImpl::SetRegisterOverridable(true);
+  void *const handle = mmDlopen(path.c_str(), static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_NOW) |
+      static_cast<uint32_t>(MMPA_RTLD_GLOBAL)));
+  OperatorFactoryImpl::SetRegisterOverridable(false);
+  if (handle == nullptr) {
+    const char_t *error = mmDlerror();
+    error = (error == nullptr) ? "" : error;
+    GELOGW("[LoadSo][Open] OpsProtoManager dlopen unsuccessfully, plugin name:%s. Message(%s).", path.c_str(), error);
+    return;
+  }
+  GELOGI("OpsProtoManager plugin load %s successfully.", path.c_str());
+  handles_.push_back(handle);
+}
+
+void OpsProtoManager::LoadBuiltinOpsPluginSo(const std::string &path_list) {
+  if (path_list.empty()) {
+    REPORT_INNER_ERR_MSG("E18888", "filePath is empty. please check your text file.");
+    GELOGE(GRAPH_FAILED, "[Check][Param] filePath is empty. please check your text file.");
+    return;
+  }
   std::vector<std::string> file_list;
 
   // If there is .so file in the lib path
-  GetOpsProtoSoFileList(path, file_list);
+  GetOpsProtoSoFileList(path_list, file_list);
 
   // Not found any .so file in the lib path
   if (file_list.empty()) {
-    GELOGW("[LoadSo][Check] OpsProtoManager can not find any plugin file in pluginPath: %s \n", path.c_str());
+    GELOGW("[LoadSo][Check] OpsProtoManager can not find any plugin file in pluginPath: %s \n", path_list.c_str());
     return;
   }
   // Warning message
@@ -149,20 +170,7 @@ void OpsProtoManager::LoadOpsProtoPluginSo(const std::string &path) {
 
   // Load .so file
   for (const auto &elem : file_list) {
-    OperatorFactoryImpl::SetRegisterOverridable(true);
-    void *const handle = mmDlopen(elem.c_str(), static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_NOW) |
-        static_cast<uint32_t>(MMPA_RTLD_GLOBAL)));
-    OperatorFactoryImpl::SetRegisterOverridable(false);
-    if (handle == nullptr) {
-      const char_t *error = mmDlerror();
-      error = (error == nullptr) ? "" : error;
-      GELOGW("[LoadSo][Open] OpsProtoManager dlopen unsuccessfully, plugin name:%s. Message(%s).", elem.c_str(), error);
-      continue;
-    } else {
-      // Close dl when the program exist, not close here
-      GELOGI("OpsProtoManager plugin load %s successfully.", elem.c_str());
-      handles_.push_back(handle);
-    }
+    LoadOpsProtoPluginSo(elem);
   }
 }
 }  // namespace ge

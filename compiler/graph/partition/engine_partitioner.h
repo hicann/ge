@@ -56,7 +56,7 @@ class EnginePartitioner {
   /// Partition() can only be called in Partition mode.
   /// MergeAfterSubGraphOptimization() can only be called in Merge mode.
   /// After Partition(), change to Merge mode. After MergeAfterSubGraphOptimization(), change to Partition mode
-  enum Mode {
+  enum class Mode {
     kAtomicEnginePartitioning,
     kCompositeEnginePartitioning,
     kSecondPartitioning,
@@ -72,7 +72,7 @@ class EnginePartitioner {
   // after partition, all SubGraph will be merged back based on end<->pld.
   Status MergeAfterSubGraphOptimization(ComputeGraphPtr &output_merged_compute_graph,
                                         const ComputeGraphPtr &original_compute_graph,
-                                        EnginePartitioner::Mode mode = EnginePartitioner::kAtomicEnginePartitioning);
+                                        EnginePartitioner::Mode mode = EnginePartitioner::Mode::kAtomicEnginePartitioning);
   // Return all subgraphs
   const Graph2SubGraphInfoList &GetSubGraphMap();
 
@@ -97,7 +97,7 @@ class EnginePartitioner {
     std::unordered_map<size_t, ClusterPtr> clusters_;                       // index to cluster ptr, contains all nodes
     std::unordered_map<NodePtr, std::shared_ptr<Cluster>> node_2_cluster_;  // node map to cluster
     std::unordered_map<std::shared_ptr<Cluster>, ComputeGraphPtr> cluster_2_partition_;  // cluster map to subgraph
-    GraphPartitionInfo(Mode mode = kAtomicEnginePartitioning)
+    GraphPartitionInfo(Mode mode = Mode::kAtomicEnginePartitioning)
         : num_of_pld_end_(0), input_size_(0), output_size_(0), mode_(mode) {}
     ~GraphPartitionInfo() = default;
   };
@@ -116,7 +116,7 @@ class EnginePartitioner {
                                   ComputeGraphPtr &output_merged_compute_graph) const;
 
   // Run engine placer, assign engine, check support amd init all clusters
-  Status Initialize(const ComputeGraphPtr &compute_graph);
+  Status Initialize(const ComputeGraphPtr &compute_graph, Mode mode);
   Status InitializeInputClusters(const NodePtr &node, const ClusterPtr &cluster, size_t index);
 
   /// add pld and end nodes between two sub-graphs for the specific anchors
@@ -199,10 +199,10 @@ class EnginePartitioner {
   Graph2InputNodesSubGraphInfo graph_2_input_subgraph_;
   GraphPartitionInfo graph_info_;
   uint32_t partition_times_;  // times of call partition
-  std::map<Mode, std::string> mode_2_str_ = {{ kAtomicEnginePartitioning, "AtomicEnginePartitioning" },
-                                             { kCompositeEnginePartitioning, "CompositeEnginePartitioning" },
-                                             { kSecondPartitioning, "SecondPartitioning" },
-                                             { kMerging, "Merging" }};
+  std::map<Mode, std::string> mode_2_str_ = {{ Mode::kAtomicEnginePartitioning, "AtomicEnginePartitioning" },
+                                             { Mode::kCompositeEnginePartitioning, "CompositeEnginePartitioning" },
+                                             { Mode::kSecondPartitioning, "SecondPartitioning" },
+                                             { Mode::kMerging, "Merging" }};
   
   // for support overflow detection
   int64_t global_workspace_type_ = -1;

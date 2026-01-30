@@ -14,6 +14,7 @@
 #include "graph/load/model_manager/tbe_kernel_handle.h"
 #include "graph/load/model_manager/task_info/args_format/args_format_utils.h"
 #include "ge/ge_api_types.h"
+#include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 
 namespace ge {
 Status UpdatePCTaskInfo::Init(const domi::TaskDef &task_def, DavinciModel *const davinci_model, const PisToArgs &args,
@@ -42,7 +43,7 @@ Status UpdatePCTaskInfo::Distribute() {
   std::shared_ptr<TilingContextAddr> tiling_context_addr =
       op_desc_->TryGetExtAttr(kTilingContextAddrs, default_ctx_ptr);
   GE_ASSERT_NOTNULL(tiling_context_addr, "Tiling info is nullptr, please check if tiling task has been launched.");
-
+  
   void *handle{nullptr};
   GE_ASSERT_SUCCESS(GetKernelHandle(handle));
   update_info_.hdl = handle;
@@ -59,6 +60,17 @@ Status UpdatePCTaskInfo::Distribute() {
 }
 
 Status UpdatePCTaskInfo::GetKernelHandle(void *&handle) {
+  auto kernel_handles_manager = davinci_model_->GetKernelHandlesManager(KernelHandleType::kAicore);
+  GE_ASSERT_NOTNULL(kernel_handles_manager);
+  KernelRegisterInfo register_info;
+  GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructAicoreRegisterInfo(op_desc_, false, davinci_model_->GetModelId(), register_info));
+  const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+  handle = kernel_handles_manager->FindKernel(bin_name);
+  if (handle != nullptr) {
+    GELOGI("[%s][%s] Get tiling device kernel handle from kernel manager.",
+        op_desc_->GetNamePtr(), op_desc_->GetTypePtr());
+    return SUCCESS;
+  }
   std::vector<std::string> name_prefix;
   (void)AttrUtils::GetListStr(op_desc_, ATTR_NAME_KERNEL_NAMES_PREFIX, name_prefix);
   std::string prefix;
@@ -66,7 +78,6 @@ Status UpdatePCTaskInfo::GetKernelHandle(void *&handle) {
     GE_ASSERT(name_prefix.size() == 1UL, "Rts does not support multi handles.");
     prefix = name_prefix[0UL];
   }
-
   std::string kernel_handle_name = davinci_model_->GetBinHandleKey(*op_desc_, prefix, false);
   GE_ASSERT_TRUE(TBEHandleStore::GetInstance().FindTBEHandle(kernel_handle_name, handle),
                  "Kernel bin is not found for op :[%s] with kernel name:[%s]", op_desc_->GetNamePtr(),

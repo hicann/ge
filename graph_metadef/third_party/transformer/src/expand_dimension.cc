@@ -17,7 +17,7 @@
 #include "axis_constants.h"
 #include "exe_graph/runtime/expand_dims_type.h"
 #include "graph/types.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/ge_error_codes.h"
 #include "graph/utils/type_utils.h"
 

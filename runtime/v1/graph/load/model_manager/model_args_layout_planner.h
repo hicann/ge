@@ -14,6 +14,7 @@
 #include <cstdint>
 #include "task_info/task_info.h"
 #include "task_args_refresh_type_classifier.h"
+#include "graph/small_vector.h"
 
 namespace ge {
 enum class UpdateTriggerType : int32_t {

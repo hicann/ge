@@ -12,6 +12,8 @@
 #define __INC_METADEF_OP_TYPE_UTILS_H
 #include <string>
 #include "graph/node.h"
+#include "graph/op_desc.h"
+#include "graph/ge_error_codes.h"
 
 namespace ge {
 class OpTypeUtils {

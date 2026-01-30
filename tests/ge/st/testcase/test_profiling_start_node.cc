@@ -193,9 +193,8 @@ TEST_F(ProfilingStartNodeTest, test_execute_graph_with_profiling_success) {
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
   // Test for Execute.
-  GeTensor input0, input1;
-  std::vector<GeTensor> inputs{input0, input1};
-  std::vector<GeTensor> outputs;
+  std::vector<gert::Tensor> inputs(2);
+  std::vector<gert::Tensor> outputs;
   EXPECT_EQ(model_executor.RunGraph(graph_node, graph_id, inputs, outputs), SUCCESS);
   EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
   ASSERT_EQ(model_executor.Finalize(), SUCCESS);

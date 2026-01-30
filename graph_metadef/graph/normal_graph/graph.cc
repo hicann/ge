@@ -8,10 +8,9 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/util/error_manager/error_manager.h"
 #include "graph/graph.h"
-#include "graph/graph_buffer.h"
 #include <cstring>
+#include "graph/graph_buffer.h"
 #include "graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/debug/ge_op_types.h"
@@ -29,6 +28,7 @@
 #include "proto/onnx/ge_onnx.pb.h"
 #include "utils/ge_ir_utils.h"
 #include "graph/utils/readable_dump.h"
+#include "base/err_msg.h"
 
 namespace ge {
 class GraphImpl {
@@ -1031,6 +1031,9 @@ graphStatus ConvertComputeGraphToProto(Graph::DumpFormat format, const ComputeGr
     case Graph::DumpFormat::kReadable: {
       break;
     }
+    default: {
+      break;
+    }
   }
   return SUCCESS;
 }
@@ -1068,6 +1071,9 @@ graphStatus Graph::Dump(Graph::DumpFormat format, std::ostream &o_stream) const 
       std::stringstream readable_ss;
       GE_ASSERT_SUCCESS(ConvertComputeGraphToReadableStr(readable_ss, compute_graph));
       GraphUtils::WriteReadableDumpToOStream(readable_ss, o_stream);
+    }
+    default: {
+      break;
     }
   }
 
@@ -1109,6 +1115,9 @@ graphStatus Graph::DumpToFile(Graph::DumpFormat format, const AscendString &suff
       GraphUtils::WriteReadableDumpToTextFile(readable_ss, file_absolut_name.c_str());
       break;
     }
+    default: {
+      break;
+    }
   }
   return SUCCESS;
 #else
@@ -1121,7 +1130,7 @@ graphStatus Graph::DumpToFile(Graph::DumpFormat format, const AscendString &suff
 
 GNodePtr Graph::FindNodeByName(const AscendString &node_name) const {
   if (!IsValid()) {
-    REPORT_INNER_ERROR("E18888", "current graph is invalid.");
+    REPORT_INNER_ERR_MSG("E18888", "current graph is invalid.");
     GELOGE(GRAPH_FAILED, "[Find][Node] impl is invalid.");
     return nullptr;
   }
@@ -1132,7 +1141,7 @@ GNodePtr Graph::FindNodeByName(const AscendString &node_name) const {
 
 ConstGraphPtr Graph::GetParentGraph() const {
   if (!IsValid()) {
-    REPORT_INNER_ERROR("E18888", "current graph is invalid.");
+    REPORT_INNER_ERR_MSG("E18888", "current graph is invalid.");
     GELOGE(GRAPH_FAILED, "[Get][ParentGraph] current impl is invalid.");
     return nullptr;
   }
@@ -1143,7 +1152,7 @@ ConstGraphPtr Graph::GetParentGraph() const {
 
 GNodePtr Graph::GetParentNode() const {
   if (!IsValid()) {
-    REPORT_INNER_ERROR("E18888", "current graph is invalid.");
+    REPORT_INNER_ERR_MSG("E18888", "current graph is invalid.");
     GELOGE(GRAPH_FAILED, "[Get][ParentNode] current impl is invalid.");
     return nullptr;
   }

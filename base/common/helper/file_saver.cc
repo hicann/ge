@@ -83,10 +83,10 @@ Status FileSaver::OpenFile(int32_t &fd, const std::string &file_path, const bool
     // -1: Failed to open file; - 2: Illegal parameter
     std::array<char_t, kMaxErrStrLen + 1U> err_buf = {};
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrStrLen);
+    std::string reason = "[Errno " + std::to_string(mmGetErrorCode()) + "] " + err_msg + ".";
     GELOGE(FAILED, "[Open][File]Failed. errno:%d, errmsg:%s", fd, err_msg);
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
-                       std::vector<const char *>({&real_path[0], "file parameter",
-                       err_msg}));
+    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+                                    std::vector<const char *>({&real_path[0], "file parameter", reason.c_str()}));
     return FAILED;
   }
   return SUCCESS;
@@ -151,17 +151,16 @@ Status FileSaver::SaveWithFileHeader(const std::string &file_path, const ModelFi
   return ret;
 }
 
-Status FileSaver::SaveWithAlignFill(uint32_t size, uint32_t align_bytes, int32_t &fd) {
-  Status ret = SUCCESS;
-  auto padding_size = MemSizeAlign(size, align_bytes) - size;
+Status FileSaver::SaveWithAlignFill(uint32_t size, uint32_t align_bytes, const int32_t fd) {
+  const size_t padding_size = MemSizeAlign(static_cast<size_t>(size), align_bytes) - static_cast<size_t>(size);
   if (padding_size > 0U) {
     GELOGI("%u bytes need to be padded for alignment, raw size:%u, align bytes:%u", padding_size, size, align_bytes);
     auto buff = ge::MakeUnique<uint8_t[]>(padding_size);
-    errno_t err = memset_s(buff.get(), padding_size, 0, padding_size);
+    const errno_t err = memset_s(buff.get(), padding_size, 0, padding_size);
     GE_ASSERT_EOK(err, "memset_s err, error_code %d", err);
     GE_ASSERT_TRUE(WriteData(static_cast<const void *>(buff.get()), padding_size, fd) == SUCCESS, "write data failed");
   }
-  return ret;
+  return SUCCESS;
 }
 
 Status FileSaver::SaveWithFileHeader(const std::string &file_path, const ModelFileHeader &file_header,
@@ -409,16 +408,16 @@ Status FileSaver::SaveWithFileHeader(const std::string &file_path, const ModelFi
     }
     for (size_t index = 0U; index < model_partition_tables.size(); ++index) {
       // Write model partition table
-      auto &cur_tabel = *model_partition_tables[index];
-      const uint64_t table_size = SizeOfModelPartitionTable(cur_tabel);
+      auto &cur_table = *model_partition_tables[index];
+      const uint64_t table_size = SizeOfModelPartitionTable(cur_table);
       GELOGI("table_size[%u]", table_size);
-      for (uint32_t i = 0U; i < cur_tabel.num; i++) {
-        GELOGI("partition type:%u, offset:%u, size:%u", cur_tabel.partition[i].type,
-                                                        cur_tabel.partition[i].mem_offset,
-                                                        cur_tabel.partition[i].mem_size);
+      for (const auto& part : cur_table.partition) {
+        GELOGI("partition type:%u, offset:%u, size:%u", part.type,
+                                                        part.mem_offset,
+                                                        part.mem_size);
       }
 
-      if (WriteData(static_cast<const void *>(&cur_tabel), table_size, fd) != SUCCESS ||
+      if (WriteData(static_cast<const void *>(&cur_table), table_size, fd) != SUCCESS ||
           (is_partition_align && (SaveWithAlignFill(table_size, align_bytes, fd) != SUCCESS))) {
         ret = FAILED;
         break;

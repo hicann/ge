@@ -729,7 +729,7 @@ Status GeExecutor::UnloadModel(const uint32_t model_id) {
   return SUCCESS;
 }
 
-Status GeExecutor::RecoverAllModel(const int32_t device_id) {
+Status GeExecutor::RecoverAllModel(const int32_t device_id) const {
     return ModelManager::GetInstance().RecoverAllModel(device_id);
 }
 
@@ -976,7 +976,7 @@ Status GeExecutor::LoadDataFromFile(const std::string &path, ModelData &model_da
   if (filePath.empty()) {
     REPORT_PREDEFINED_ERR_MSG(
         "E13026", std::vector<const char_t *>({"pathname", "reason"}),
-        std::vector<const char_t *>({path.c_str(), "It's not a real path, please check your model path."}));
+        std::vector<const char_t *>({path.c_str(), "It is not a real path. Please check your model path."}));
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID,
            "[Call][RealPath] File path is invalid. please check your text file '%s'.", path.c_str());
     return ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID;
@@ -1095,7 +1095,7 @@ Status GeExecutor::LoadModelWithQ(uint32_t &model_id,
 }
 
 Status GeExecutor::LoadModelWithQueueParam(uint32_t &model_id, const ModelData &model_data,
-                                           const ModelQueueParam &model_queue_param) {
+                                           const ModelQueueParam &model_queue_param) const {
   GELOGI("Load model with queue param begin.");
   if (!is_inited_) {
     REPORT_INNER_ERR_MSG("E19999", "GeExecutor has not been initialized!");

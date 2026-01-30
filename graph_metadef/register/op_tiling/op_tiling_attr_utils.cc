@@ -11,7 +11,7 @@
 #include "register/op_tiling_attr_utils.h"
 #include <vector>
 #include <functional>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "op_tiling/op_tiling_utils.h"
 #include "common/util/tiling_utils.h"
 
@@ -236,7 +236,7 @@ private:
   }
 
   AttrDataPtr GetFloatAttrValueAndToFp16(const ge::Operator &op, const char *attr_name) const {
-    float attr_value = 0.0f;
+    float attr_value = 0.0F;
     if (op.GetAttr(attr_name, attr_value) != ge::GRAPH_SUCCESS) {
       GELOGW("Failed to retrieve attribute [%s] from op.", attr_name);
       return nullptr;
@@ -266,7 +266,7 @@ private:
   }
 
   AttrDataPtr GetFloatAttrValueAndToInt(const ge::Operator &op, const char *attr_name) const {
-    float attr_value = 0.0f;
+    float attr_value = 0.0F;
     if (op.GetAttr(attr_name, attr_value) != ge::GRAPH_SUCCESS) {
       GELOGW("Failed to retrieve attribute [%s] from op.", attr_name);
       return nullptr;

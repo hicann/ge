@@ -48,13 +48,13 @@ class JitExecutorPool {
 class UserGraphControl {
  public:
   UserGraphControl(uint32_t user_graph_id, const ComputeGraphPtr &graph, CompileContext &compile_context,
-                   InnerSession &inner_session)
+                   GraphManager &graph_manager)
       : user_graph_id_(user_graph_id),
         order_(UserGraph({user_graph_id, graph})),
         compile_context_(compile_context),
-        inner_session_(inner_session),
+        graph_manager_(graph_manager),
         jit_exe_thread_pool_("jit_exe", kDefaultJitExeThreadPoolSize, true),
-        cmc_(user_graph_id_, compile_context_, inner_session_) {
+        cmc_(user_graph_id_, compile_context_, graph_manager_) {
     auto ge_context = ge::GetThreadLocalContext();
     user_graph_exe_thread_ = std::thread(
       [this, ge_context]() mutable {
@@ -73,23 +73,25 @@ class UserGraphControl {
   Status AddGraphInstance();
   void RunGraphAsync(std::unique_ptr<UserGraphExecution> &task);
   Status ExecuteGraphWithStreamAsync(std::unique_ptr<UserGraphExecution> task);
-  Status CompileGraph();
+  Status CompileGraph(uint64_t session_id);
   CompiledGraphSummaryPtr GetCompiledGraphSummary();
   Status LoadGraph(const std::map<AscendString, AscendString> &options, void *stream);
   Status Finalize();
   bool IsUserGraphNeedRebuild();
+  bool GetCompiledFlag() const;
+  void SetCompiledFlag(bool flag);
   std::map<AscendString, AscendString> GetLoadOptions() const;
 
  private:
   void StopQueue();
   void ExecuteUserGraph();
   void SetLoadOptions(const std::map<AscendString, AscendString> &load_options);
-  Status CompileCompleteGraph();
+  Status CompileCompleteGraph(uint64_t session_id);
 
   uint32_t user_graph_id_;
   ExecutionOrder order_;
   CompileContext &compile_context_;
-  InnerSession &inner_session_;
+  GraphManager &graph_manager_;
   std::mutex compile_mutex_;
 
   std::mutex add_execution_mutex_;
@@ -107,6 +109,10 @@ class UserGraphControl {
   std::map<uint32_t, uint32_t> user_graph_id_to_ins_id;
   // std::vector<std::unique_ptr<JitExecutor>> executors_; // 实例
   CompiledModelCache cmc_;
+
+  // set true only when Session::CompileGraph is called
+  // only set or check in ge_api.cc
+  bool compiled_flag_{false};
 };
 }  // namespace ge
 

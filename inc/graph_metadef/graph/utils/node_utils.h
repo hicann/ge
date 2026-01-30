@@ -12,10 +12,8 @@
 #define INC_GRAPH_UTILS_NODE_UTILS_H_
 
 #include <set>
-#include <map>
 #include <vector>
 #include <cstring>
-#include "graph/operator.h"
 #include "graph/types.h"
 #include "graph/anchor.h"
 #include "graph/node.h"
@@ -127,6 +125,13 @@ class NodeUtils {
   /// @return Node
   static NodePtr GetParentInput(const Node &node);
   static NodePtr GetParentInput(const NodePtr &node);
+  static bool IsWrapperNode(const NodePtr &node);
+  static NodePtr GetParentNode(const Node &node);
+  static NodePtr GetParentNode(const NodePtr &node);
+  /// @brief Get subgraph parent node
+  /// @param [in] node
+  /// @return NodePtr  parent node
+  static InDataAnchorPtr GetParentInDataAnchor(const NodePtr &node);
   /// @brief Get subgraph original input node and corresponding out_anchor.
   /// @param [in] node
   /// @return NodeToOutAnchor  node and out_anchor which linked to in_param node
@@ -248,6 +253,8 @@ class NodeUtils {
   static graphStatus GetInNodeCrossPartionedCallNode(const NodePtr &node, uint32_t index, NodePtr &peer_node,
                                                      int32_t &peer_out_anchor_index);
 
+  static bool IsNodeInRootGraph(const NodePtr &node);
+  static bool IsMultiBranchControlFlowOp(const NodePtr &node);
   static graphStatus SetNodeParallelGroup(Node &node, const char_t *const group_name);
 
   static graphStatus UpdateInputOriginalShapeAndShape(const Node &node, const uint32_t index, const GeShape &shape);

@@ -47,7 +47,6 @@ using namespace es;
 class UtestFusionPassExecutor : public testing::Test {
  public:
   void SetUp() override {
-    dlog_setlevel(GE_MODULE_NAME, 0, 0);
     PassRegistry::GetInstance().name_2_fusion_pass_regs_.clear();
     global_options_bak_ = ge::GetThreadLocalContext().GetAllGlobalOptions();
     session_options_bak_ = ge::GetThreadLocalContext().GetAllSessionOptions();

@@ -50,7 +50,6 @@
 #include "lowering/exe_graph_serializer.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "macro_utils/dt_public_unscope.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace gert {
 class CannProfilerST : public bg::BgTest {

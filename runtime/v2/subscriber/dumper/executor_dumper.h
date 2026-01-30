@@ -201,7 +201,7 @@ protected:
 private:
   ge::Status UpdateFftsplusLaunchTask(const Node *node);
  KernelNameAndIdx GetKernelNameAndIdxAfterPass(const ge::OpDesc *op_desc, const KernelNameAndIdx &kernel_name_and_idx,
-                                               NodeDumpUnit *dump_unit) const;
+                                               const NodeDumpUnit *dump_unit) const;
  ge::Status InsertHcclDumpOp(const KernelRunContext &context, ExecutorEvent event);
   ge::Status DumpOpDebug();
   ge::Status ClearDumpOpDebug();

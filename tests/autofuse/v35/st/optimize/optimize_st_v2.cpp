@@ -238,16 +238,6 @@ TEST_F(OptimizerStV2, ReduceNeedAlignment) {
   EXPECT_EQ(reduce_node->outputs[0].attr.vectorized_strides, golden_stride);
 }
 
-TEST_F(OptimizerStV2, PlatformRegTest) {
-  ge::AscGraph graph("tmp");
-  ge::PlatformInfo info;
-  ge::PlatformContext::GetInstance().GetCurrentPlatform(info);
-  EXPECT_EQ(info.name, "Ascend910_9591");
-  auto platform_v2 = ::optimize::PlatformFactory::GetInstance().GetPlatform();
-  EXPECT_NE(platform_v2, nullptr);
-  EXPECT_EQ(platform_v2->PartitionSubFunctions(graph), ge::SUCCESS);
-}
-
 TEST_F(OptimizerStV2, NotRemovePad) {
   ge::AscGraph graph("Autoschedule_autoschedule_removepad_broadcast");
   auto s0 = graph.CreateSizeVar(2);

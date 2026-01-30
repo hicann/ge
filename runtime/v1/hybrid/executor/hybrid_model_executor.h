@@ -50,13 +50,8 @@ class HybridModelExecutor {
   // interface is called by sess.RunGraphWithStream and LoadModelWithQ
   virtual Status Execute(ExecuteArgs &args) = 0;
   // interface is called by sess.RunGraph
-  virtual Status Execute(const InputData &input_data, ExecuteArgs &args) = 0;
-  // interface is called by sess.RunGraph
   virtual Status Execute(const std::vector<gert::Tensor> &inputs, std::vector<gert::Tensor> &outputs,
     CtrlArgs &ctrl_args) = 0;
-  // interface is called by sess.RunGraphAsync
-  virtual Status ExecuteOnlineModel(const InputData &input_data, OutputData *const output_data,
-                                    std::shared_ptr<ModelListener> listener) = 0;
   // interface is called by sess.RunGraphAsync
   virtual Status ExecuteOnlineModel(const std::vector<gert::Tensor> &inputs,
     std::shared_ptr<ModelListener> listener) = 0;

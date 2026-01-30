@@ -14,7 +14,6 @@
 #include <aicore/launch_kernel/ai_core_launch_kernel.h>
 #include <tuning_utils.h>
 #include <dlog_pub.h>
-#include <anchor.h>
 #include "common/checker.h"
 #include "common/ge_inner_error_codes.h"
 #include "graph/debug/ge_attr_define.h"
@@ -50,7 +49,6 @@
 #include "kernel/known_subgraph/davinci_model_kernel.h"
 #include "graph/utils/attr_utils.h"
 #include "exe_graph/lowering/value_holder_utils.h"
-#include "graph/utils/execute_graph_utils.h"
 #include "runtime/rts/rts_stream.h"
 #include "runtime/rts/rts_kernel.h"
 
@@ -176,7 +174,8 @@ bool IsDavinciModelExecute(const char *const kernel_type) {
 }
 bool IsNeedCheckOverflowNode(const char *const node_type) {
   return IsAiCoreLaunchNode(node_type) || IsAiCpuLaunchNode(node_type) || IsLaunchFFTSPlusTaskNode(node_type) ||
-         IsExecuteOpFuncNode(node_type) || IsExecuteOplaunchNode(node_type) || IsDavinciModelExecute(node_type);
+         IsExecuteOpFuncNode(node_type) || IsExecuteOplaunchNode(node_type) || IsDavinciModelExecute(node_type) ||
+         IsCustomOpFuncNode(node_type);
 }
 ge::Status CheckOverflow(const Node &node, const rtStream_t stream, bool &is_overflow) {
   auto timeout = ge::GetContext().StreamSyncTimeout();
@@ -248,7 +247,7 @@ ge::Status NormalProcessor(const ge::OpDescPtr &op_desc, ge::ExceptionDumper *du
 }
 
 ge::Status FftsPlusProcessor(const ge::OpDescPtr &op_desc, ge::ExceptionDumper *dumper, NodeDumpUnit &dump_unit,
-                             ge::ExtraOpInfo &extra_dump_unit, rtStream_t &stream) {
+                             ge::ExtraOpInfo &extra_dump_unit, const rtStream_t &stream) {
   (void) stream;
   int32_t device_id = 0;
   GE_CHK_RT_RET(rtGetDevice(&device_id));
@@ -303,7 +302,7 @@ ge::Status FindNodeNameFromSubGraph(const bg::ValueHolderPtr &order_holder, cons
 // replace old kernel name&idx to new kernel name&idx which is changed by pass.
 KernelNameAndIdx ExecutorDumper::GetKernelNameAndIdxAfterPass(const ge::OpDesc *op_desc,
                                                               const KernelNameAndIdx &kernel_name_and_idx,
-                                                              NodeDumpUnit *dump_unit) const {
+                                                              const NodeDumpUnit *dump_unit) const {
   auto pass_changed_info = op_desc->TryGetExtAttr(kPassChangedInfo, PassChangedKernels{});
   for (auto &pass_changed_kernel : pass_changed_info.pass_changed_kernels) {
     // 映射关系里记录了launch name时才去比较，目前只有CopyFlowLaunch场景记录了launch name

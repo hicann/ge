@@ -35,6 +35,7 @@
 #include "graph/ge_context.h"
 #include "lowering/placement/placed_lowering_result.h"
 #include "exe_graph/lowering/lowering_definitions.h"
+#include "common/ge_common/util.h"
 
 using namespace ge;
 namespace gert {

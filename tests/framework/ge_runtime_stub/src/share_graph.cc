@@ -14,7 +14,7 @@
 #include "framework/common/ge_types.h"
 #include "framework/common/types.h"
 #include "ge_graph_dsl/graph_dsl.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/op_kernel_bin.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"
@@ -23,6 +23,7 @@
 #include "array_ops.h"
 #include "runtime/mem.h"
 #include "faker/fake_value.h"
+#include "common/tbe_handle_store/kernel_store.h"
 
 namespace ge {
 REG_OP(ConditionCalc)
@@ -381,6 +382,51 @@ ComputeGraphPtr ShareGraph::AicoreGraph() {
 
   auto net_output = graph->FindNode("NetOutput");
   net_output->GetOpDesc()->SetSrcName({"add1"});
+  net_output->GetOpDesc()->SetSrcIndex({0});
+  net_output->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  net_output->GetOpDesc()->SetOpEngineName(kEngineNameGeLocal);
+  SetGraphOutShapeRange(graph);
+  return graph;
+}
+
+ /*
+  *  customop
+  *  |  \     \
+  *  |   \     \
+  * data1 data2 data3
+  */
+ ge::ComputeGraphPtr ShareGraph::BuildCustomOpGraph() {
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data0", "Data")->EDGE(0, 0)->NODE("custom_op", "CustomOp"));
+    CHAIN(NODE("data1", "Data")->EDGE(0, 1)->NODE("custom_op")->NODE("NetOutput", "NetOutput"));
+    CHAIN(NODE("data2", "Data")->EDGE(0, 2)->NODE("custom_op"));
+  };
+  auto graph = ToComputeGraph(g1);
+  auto data0 = graph->FindNode("data0");
+  SetNoStorage(data0->GetOpDesc(), FORMAT_NCHW, DT_FLOAT, {-1, -1 - 1, -1});
+  AttrUtils::SetInt(data0->GetOpDesc(), "index", 0);
+  data0->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  data0->GetOpDesc()->SetOpEngineName(kEngineNameGeLocal);
+
+  auto data1 = graph->FindNode("data1");
+  SetNoStorage(data1->GetOpDesc(), FORMAT_NCHW, DT_FLOAT, {-1, -1 - 1, -1});
+  AttrUtils::SetInt(data1->GetOpDesc(), "index", 1);
+  data1->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  data1->GetOpDesc()->SetOpEngineName(kEngineNameGeLocal);
+
+  auto data2 = graph->FindNode("data2");
+  SetNoStorage(data2->GetOpDesc(), FORMAT_NCHW, DT_FLOAT, {-1, -1 - 1, -1});
+  AttrUtils::SetInt(data2->GetOpDesc(), "index", 2);
+  data2->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
+  data2->GetOpDesc()->SetOpEngineName(kEngineNameGeLocal);
+
+  auto custom_op = graph->FindNode("custom_op");
+  SetNoStorage(custom_op->GetOpDesc(), FORMAT_NCHW, DT_FLOAT, {-1, -1 - 1, -1});
+  custom_op->GetOpDesc()->SetOpKernelLibName("DNN_VM_CUSTOM_OP_STORE");
+  custom_op->GetOpDesc()->SetOpEngineName("DNN_VM_CUSTOM");
+
+  auto net_output = graph->FindNode("NetOutput");
+  net_output->GetOpDesc()->SetSrcName({"custom_op"});
   net_output->GetOpDesc()->SetSrcIndex({0});
   net_output->GetOpDesc()->SetOpKernelLibName(kEngineNameGeLocal);
   net_output->GetOpDesc()->SetOpEngineName(kEngineNameGeLocal);
@@ -6795,6 +6841,12 @@ ge::ComputeGraphPtr ShareGraph::BuildWithKnownSubgraph(bool no_netoutput, bool e
   conv2d->SetOpKernelLibName("AIcoreEngine");
   conv2d->SetInputOffset({0});
   conv2d->SetOutputOffset({16});
+  std::vector<char> kernel_bin(64, '\0');
+  TBEKernelPtr kernel_handle = MakeShared<OpKernelBin>(conv2d->GetName(), std::move(kernel_bin));
+  conv2d->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, kernel_handle);
+  AttrUtils::SetStr(conv2d, conv2d->GetName() + "_kernelname", conv2d->GetName());
+  AttrUtils::SetStr(conv2d, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(conv2d, ATTR_NAME_KERNEL_BIN_ID, "te_conv2d_123");
 
   auto relu = OP_CFG("Relu").TensorDesc(FORMAT_NCHW, DT_FLOAT, shape).InCnt(1).OutCnt(1).Build("relu");
   relu->SetInputOffset({16});
@@ -6803,6 +6855,11 @@ ge::ComputeGraphPtr ShareGraph::BuildWithKnownSubgraph(bool no_netoutput, bool e
 
   relu->SetOpEngineName("AIcoreEngine");
   relu->SetOpKernelLibName("AIcoreEngine");
+  TBEKernelPtr relu_kernel_handle = MakeShared<OpKernelBin>(relu->GetName(), std::move(kernel_bin));
+  relu->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, relu_kernel_handle);
+  AttrUtils::SetStr(relu, relu->GetName() + "_kernelname", relu->GetName());
+  AttrUtils::SetStr(relu, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(relu, ATTR_NAME_KERNEL_BIN_ID, "te_relu_123");
 
   auto netoutput_sub = OP_CFG("NetOutput")
                            .TensorDesc(FORMAT_NCHW, DT_FLOAT, shape)
@@ -8439,6 +8496,22 @@ ComputeGraphPtr ShareGraph::BuildDynamicAndStaticGraph() {
   net_output->GetOpDesc()->SetSrcName({"mul"});
   net_output->GetOpDesc()->SetSrcIndex({0});
 
+  auto add_node = compute_graph1->FindNode("add");
+  auto op_desc = add_node->GetOpDesc();
+  AttrUtils::SetStr(op_desc, TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+  AttrUtils::SetStr(op_desc, ATTR_NAME_KERNEL_BIN_ID, "_add_fake_id");
+  // cust aicpu kernel
+  const char kernel_bin[] = "test";
+  vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+  ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>(op_desc->GetName(), std::move(buffer));
+  op_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, kernel_bin_ptr);
+  // tbe kernel
+  const char dummy_kernel_bin[] = "test";
+  vector<char> buffer2(dummy_kernel_bin, dummy_kernel_bin + strlen(dummy_kernel_bin));
+  ge::OpKernelBinPtr dummy_kernel_bin_ptr = std::make_shared<ge::OpKernelBin>(op_desc->GetName(), std::move(buffer2));
+  op_desc->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, dummy_kernel_bin_ptr);
+  AttrUtils::SetStr(op_desc, op_desc->GetName() + "_kernelname", op_desc->GetName());
+
   auto sub_graph2 = ToGeGraph(sub_2);
   auto compute_graph2 = ge::GraphUtilsEx::GetComputeGraph(sub_graph2);
   compute_graph2->SetGraphUnknownFlag(true);
@@ -8678,6 +8751,11 @@ ge::ComputeGraphPtr ShareGraph::IFASingleGraph() {
 
   // set concatv2 shape and IR info
   auto ifa_op = ifa_node->GetOpDesc();
+  AttrUtils::SetStr(ifa_op, ATTR_NAME_KERNEL_BIN_ID, "_ifa_fake_id");
+  const char kernel_bin[] = "kernel_bin";
+  vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+  ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>(ifa_op->GetName(), std::move(buffer));
+  ifa_op->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
   ifa_op->MutableInputDesc(0)->SetShape(ge::GeShape({1, 1, 3, 2}));
   for (size_t i = 0UL; i < 7; i++) {
     ge::TensorUtils::SetSize(*(ifa_op->MutableInputDesc(i)), 24);
@@ -8946,6 +9024,12 @@ ge::ComputeGraphPtr ShareGraph::BatchSingleGraph() {
 
   // set concatv2 shape and IR info
   auto batch_op = batch_node->GetOpDesc();
+
+  AttrUtils::SetStr(batch_op, ATTR_NAME_KERNEL_BIN_ID, "_batch_fake_id");
+  const char kernel_bin[] = "kernel_bin";
+  vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+  ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("test", std::move(buffer));
+  batch_op->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
 
   for (size_t i = 0UL; i < 4; i++) {
     ge::TensorUtils::SetSize(*(batch_op->MutableOutputDesc(i)), 24);
@@ -9932,6 +10016,60 @@ ge::ComputeGraphPtr ShareGraph::AutoFuseNodeGraph() {
 }
 
 /*
+ * main_graph
+ *                   data1
+ *                     |
+ *      Data0 -- Partitioncall -- Output
+ *
+ * sub_graph
+ *
+ *                  Data1
+ *                   |
+ *      Data0 -- ReduceProd -- Output
+ */
+ComputeGraphPtr ShareGraph::AutofusePartitioncallGraph() {
+  auto main_graph = []() {
+    DEF_GRAPH(g) {
+      CHAIN(NODE("data0", DATA)->NODE("partitioncall", PARTITIONEDCALL)->NODE("output", NETOUTPUT));
+      CHAIN(NODE("data1", DATA)->EDGE(0, 1)->NODE("partitioncall", PARTITIONEDCALL));
+    };
+    return ToComputeGraph(g);
+  }();
+  main_graph->SetName("main");
+  auto data0 = main_graph->FindNode("data0");
+  SetNoStorage(data0->GetOpDesc(), FORMAT_NCHW, DT_INT32, {3, 4});
+  AttrUtils::SetInt(data0->GetOpDesc(), "index", 0);
+
+  auto data1 = main_graph->FindNode("data1");
+  SetNoStorage(data0->GetOpDesc(), FORMAT_NCHW, DT_INT32, {1});
+  AttrUtils::SetInt(data1->GetOpDesc(), "index", 1);
+
+  auto sub_graph = []() {
+    DEF_GRAPH(g) {
+      CHAIN(NODE("data0", DATA)->EDGE(0, 0)->NODE("reduceprod", REDUCEPROD)->NODE("NetOutput", NETOUTPUT));
+      CHAIN(NODE("data1", DATA)->EDGE(0, 1)->NODE("reduceprod", REDUCEPROD));
+    };
+    return ToComputeGraph(g);
+  }();
+  sub_graph->SetName("sub_graph");
+  ge::AttrUtils::SetInt(sub_graph->FindNode("data0")->GetOpDesc(), "index", 0);
+  ge::AttrUtils::SetInt(sub_graph->FindNode("data0")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 0);
+  ge::AttrUtils::SetInt(sub_graph->FindNode("data1")->GetOpDesc(), "index", 1);
+  ge::AttrUtils::SetInt(sub_graph->FindNode("data1")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 1);
+  SetConstValue<int32_t, ge::DT_INT32>(sub_graph->FindNode("data1"), {0});
+
+  auto partitioncall_node = main_graph->FindNode("partitioncall");
+  sub_graph->SetParentGraph(main_graph);
+  sub_graph->SetParentNode(partitioncall_node);;
+
+  main_graph->AddSubgraph(sub_graph);
+  partitioncall_node->GetOpDesc()->AddSubgraphName("sub_graph");
+  partitioncall_node->GetOpDesc()->SetSubgraphInstanceName(0, "sub_graph");
+  main_graph->TopologicalSorting();
+  return main_graph;
+}
+
+/*
  *
  * cast
  *   |
@@ -10795,17 +10933,16 @@ ComputeGraphPtr ShareGraph::BuildRefnodeGraph() {
   return graph;
 }
 
-/*
- *      Data    Data
- *        \      /
- *         Switch   Constant
- *          |   \    /
- *          |    Add
- *          |    /
- *          Merge
- *           |
- *        NetOutput
- */
+///      Data    Data
+///        \      /
+///         Switch   Constant
+///          |   \    /
+///          |    Add
+///          |    /
+///          Merge
+///           |
+///        NetOutput
+///
 Graph ShareGraph::BuildSwitchMergeGraph() {
   std::vector<int64_t> shape{1, 2, 3, 4};
   auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(1).OutCnt(1).Build("data_1");
@@ -10829,23 +10966,23 @@ Graph ShareGraph::BuildSwitchMergeGraph() {
     CHAIN(NODE(data_2)->EDGE(0, 1)->NODE(switch_1));
     CHAIN(NODE(const_1)->EDGE(0, 1)->NODE(add_1));
   };
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
-/*
- *      Data    Data
- *        \      /
- *         Switch   Constant
- *          |   \    /
- *          |    Add
- *          |    /
- *          Merge
- *           | |
- *        NetOutput
- */
+///      Data    Data
+///        \      /
+///         Switch   Constant
+///          |   \    /
+///          |    Add
+///          |    /
+///          Merge
+///           | |
+///        NetOutput
+///
 Graph ShareGraph::BuildSwitchMergeGraphWithTwoOutputs() {
   std::vector<int64_t> shape{1, 2, 3, 4};
-  auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_BOOL, shape).InCnt(1).OutCnt(1).Build("data_1");
+  auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(1).OutCnt(1).Build("data_1");
 
   auto data_2 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_BOOL, {1}).InCnt(1).OutCnt(1).Build("data_2");
 
@@ -10867,7 +11004,8 @@ Graph ShareGraph::BuildSwitchMergeGraphWithTwoOutputs() {
     CHAIN(NODE(data_2)->EDGE(0, 1)->NODE(switch_1));
     CHAIN(NODE(const_1)->EDGE(0, 1)->NODE(add_1));
   };
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 /*
@@ -10934,19 +11072,18 @@ Graph ShareGraph::BuildAtomicNodeConnectNetoutputThroughRefNode() {
   return graph;
 }
 
-/*
- *    NetOutput
- *         |
- *       Merge
- *      /   \
- *     /    NEG
- *    /      \
- *   NEG    shape
- *   F|     T|
- *    Switch1
- *   /       \
- *  Data     Data
- */
+///
+///    NetOutput
+///         |
+///       Merge
+///      /   \
+///     /    NEG
+///    /      \
+///   NEG    shape
+///   F|     T|
+///    Switch1
+///   /       \
+///  Data     Data
 ge::Graph ShareGraph::BuildSwitchMergeGraphWithNeg() {
   std::vector<int64_t> shape{1, 2, 3, 4};
   auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(1).OutCnt(1).Build("data_1");
@@ -10973,23 +11110,23 @@ ge::Graph ShareGraph::BuildSwitchMergeGraphWithNeg() {
          ->NODE(merge_1));
   };
 
-  return ge::ToGeGraph(g0);
+  auto graph = ge::ToGeGraph(g0);
+  return graph;
 }
 
-/*
- *     Data    Data
- *       \      /
- *        Switch     Constant
- *         |   \    /   |
- *         |    Add    |
- *         |    |     /
- *         |    |   /
- *         |    Add
- *         |    |
- *         Merge
- *          |
- *       NetOutput
- */
+///      Data    Data
+///        \      /
+///         Switch     Constant
+///          |   \    /   |
+///          |    Add    |
+///          |    |     /
+///          |    |   /
+///          |    Add
+///          |    |
+///          Merge
+///           |
+///        NetOutput
+///
 Graph ShareGraph::BuildSwitchMergeGraphWithMultiAddNodes() {
   std::vector<int64_t> shape{1, 2, 3, 4};
   auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(1).OutCnt(1).Build("data_1");
@@ -11016,7 +11153,8 @@ Graph ShareGraph::BuildSwitchMergeGraphWithMultiAddNodes() {
     CHAIN(NODE(const_1)->EDGE(0, 1)->NODE(add_1));
     CHAIN(NODE(const_1)->EDGE(0, 1)->NODE(add_2));
   };
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 ComputeGraphPtr ShareGraph::BuildDsaRandomNormalKnownGraph() {
@@ -11040,18 +11178,17 @@ ComputeGraphPtr ShareGraph::BuildDsaRandomNormalKnownGraph() {
   return graph;
 }
 
-/*
- *      Data    Data Data    Data  Data  Data Data    Data
- *        \      /    \      /       \    /    \      /
- *         add1         add2         add3      add4
- *            \         |             |        /
- *             \        |            /       /
- *               \      |          /       /
- *                 \    |         /      /
- *                    random_normal
- *                       |
- *                     NetOutput
- */
+///      Data    Data Data    Data  Data  Data Data    Data
+///        \      /    \      /       \    /    \      /
+///         add1         add2         add3      add4
+///            \         |             |        /
+///             \        |            /       /
+///               \      |          /       /
+///                 \    |         /      /
+///                    random_normal
+///                       |
+///                     NetOutput
+///
 ComputeGraphPtr ShareGraph::BuildAddAndDsaRandomNormalKnownGraph() {
   std::vector<int64_t> shape{1, 2, 3, 4};
   auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(1).OutCnt(1).Build("data_1");
@@ -11085,16 +11222,15 @@ ComputeGraphPtr ShareGraph::BuildAddAndDsaRandomNormalKnownGraph() {
   return graph;
 }
 
-/*
- *      Data    Data   var
- *        \      /      |
- *         add1       split
- *            \        / \
- *             \      add2
- *               \      |
- *                 \    |
- *                 NetOutput
- */
+///      Data    Data   var
+///        \      /      |
+///         add1       split
+///            \        / \
+///             \      add2
+///               \      |
+///                 \    |
+///                 NetOutput
+///
 ComputeGraphPtr ShareGraph::BuildVarConnectToSplit() {
   std::vector<int64_t> shape{1, 2, 3, 4};
   auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(1).OutCnt(1).Build("data_1");
@@ -11125,13 +11261,11 @@ ComputeGraphPtr ShareGraph::BuildVarConnectToSplit() {
   return graph;
 }
 
-/*
- *     data  data
- *       \   /
- *        hcom
- *         |
- *      netoutput
- */
+///     data  data
+///       \   /
+///        hcom
+///         |
+///      netoutput
 ge::Graph ShareGraph::BuildHcomGraph() {
   vector<std::string> engine_list = {"AIcoreEngine"};
   std::vector<int64_t> memtype_list = {RT_MEMORY_HBM, RT_MEMORY_HBM};
@@ -11162,15 +11296,13 @@ ge::Graph ShareGraph::BuildHcomGraph() {
   return graph;
 }
 
-/*
- *     data
- *       \
- *        hcom
- *         | \
- *         a  b
- *         \  \
- *      netoutput
- */
+///     data
+///       \
+///        hcom
+///         | \
+///         a  b
+///         \  \
+///      netoutput
 ge::Graph ShareGraph::BuildHcomGraphWithTwoOutputs(const std::string hcom_node_type) {
   std::vector<int64_t> shape{1, 2, 3, 4};
   auto data_1 = OP_CFG(DATA).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(1).OutCnt(1).Build("data_1");
@@ -11190,13 +11322,11 @@ ge::Graph ShareGraph::BuildHcomGraphWithTwoOutputs(const std::string hcom_node_t
   return graph;
 }
 
-/*
- *   refdata  refdata
- *       \   /
- *        hcom
- *         |
- *      netoutput
- */
+///   refdata  refdata
+///       \   /
+///        hcom
+///         |
+///      netoutput
 ge::Graph ShareGraph::BuildHcomGraphWithRefData() {
   std::vector<int64_t> memtype_list = {RT_MEMORY_HBM, RT_MEMORY_HBM};
   std::vector<int64_t> shape{1, 2, 3, 4};
@@ -11716,37 +11846,36 @@ ge::ComputeGraphPtr ShareGraph::BuildGraphRefdataWhile() {
   return main_graph;
 }
 
-/*
- *-------------------------------------------------
- *           Data0   Data1
- *            \      /
- *             \    /
- *               Add1
- *                |    +---Constant_1
- *                |   /    /     |
- *                Add2    /      |
- *                |      /       |
- *                |\    /        |
- *                | Add3         |
- *                |  \           |
- *                |   \          |
- *                |----Add4     /
- *                      \      /
- *                       \    /
- *                       mul_1
- *                        |
- *                        NetOutput // set netoutput reuse
- *------------------------------------------------
- * 构造图的输入内存比图中的其他op输出内存大的场景，对add进行info shape打桩
- *  内存分配结果 -----offset ------ size ----------
- *  data0            16896         512
- *  data1            17408         512
- *  add1             1024          512    // reuse netouput
- *  add2             515           512    // reuse netouput
- *  add3             1024          512    // reuse netouput
- *  add4             0             512
- *  mul_1            512         16384
- */
+///-------------------------------------------------
+///           Data0   Data1
+///            \      /
+///             \    /
+///               Add1
+///                |    +---Constant_1
+///                |   /    /     |
+///                Add2    /      |
+///                |      /       |
+///                |\    /        |
+///                | Add3         |
+///                |  \           |
+///                |   \          |
+///                |----Add4     /
+///                      \      /
+///                       \    /
+///                       mul_1
+///                        |
+///                        NetOutput // set netoutput reuse
+///------------------------------------------------
+/// 构造图的输入内存比图中的其他op输出内存大的场景，对add进行info shape打桩
+///  内存分配结果 -----offset ------ size ----------
+///  data0            16896         512
+///  data1            17408         512
+///  add1             1024          512    // reuse netouput
+///  add2             515           512    // reuse netouput
+///  add3             1024          512    // reuse netouput
+///  add4             0             512
+///  mul_1            512         16384
+///
 ge::Graph ShareGraph::BuildIoReuseMemGraph() {
   std::vector<int64_t> shape{2, 2, 2, 2};
   auto data_0 = OP_CFG(DATA)
@@ -11817,8 +11946,8 @@ ge::Graph ShareGraph::BuildIoReuseMemGraph() {
     CHAIN(NODE(add_2)->EDGE(0, 1)->NODE(add_4));
     ADD_OUTPUT(mul_1, 0);
   };
-
-  return ToGeGraph(g1);
+  auto graph = ToGeGraph(g1);
+  return graph;
 }
 
 /*
@@ -12421,6 +12550,11 @@ ComputeGraphPtr ShareGraph::MultiStreamGraphDynamicAndStaticGraph(int64_t &strea
   auto net_output = compute_graph1->FindNode("sub_1_netoutput");
   net_output->GetOpDesc()->SetSrcName({"add"});
   net_output->GetOpDesc()->SetSrcIndex({0});
+  const char kernel_bin[] = "kernel_bin";
+  auto add_node = compute_graph1->FindNode("add");
+  vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+  ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("test", std::move(buffer));
+  add_node->GetOpDesc()->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, kernel_bin_ptr);
 
   auto relu_node = root_graph->FindNode("relu");
   AddCompileResult(relu_node, false);
@@ -12450,7 +12584,8 @@ ComputeGraphPtr ShareGraph::MultiStreamGraphDynamicAndStaticGraph(int64_t &strea
  * pred(Data)  input(Data)  +-----------+  +-----------+
  */
 ComputeGraphPtr ShareGraph::MultiStreamGraphWithIfGraph(int64_t &stream_num, int64_t &event_num) {
-  return IfGraph3();
+  auto origin_graph = IfGraph3();
+
 }
 
 /*

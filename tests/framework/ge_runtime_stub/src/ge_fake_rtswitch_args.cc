@@ -15,7 +15,7 @@ using namespace std;
 
 namespace ge {
 GetAllSwitchArgs::GetAllSwitchArgs(void *ptr, void *value_ptr, std::unique_ptr<std::string> tag) :
-     tag_name_(std::move(tag)), handle_(ptr) {
+    handle_(ptr), tag_name_(std::move(tag)) { 
         size_t data_size = 2 * sizeof(void *);
         args_holder_ = std::unique_ptr<uint8_t[]>(new (std::nothrow) uint8_t[data_size]());
         uintptr_t *ptr_s = reinterpret_cast<uintptr_t *>(args_holder_.get());

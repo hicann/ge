@@ -14,26 +14,27 @@
 #include "compiler/graph/manager/util/graph_rebuild_state_ctrl.h"
 
 namespace ge {
-void to_json(nlohmann::json &json_obj, const SliceGraphInfo &info) {
+
+static void to_json(nlohmann::json &json_obj, const SliceGraphInfo &info) {
   json_obj = Json();
   json_obj[kSliceGraphInfoSliceGraphIDKeyName] = info.slice_graph_id;
 }
 
-void to_json(nlohmann::json &json_obj, const SlicingResult &result) {
+static void to_json(nlohmann::json &json_obj, const SlicingResult &result) {
   json_obj = Json();
   json_obj[kSlicingResultUserGraphKeyKeyName] = result.user_graph_key;
   json_obj[kSlicingResultUserGraphIDKeyName] = result.user_graph_id;
   json_obj[kSlicingResultSliceGraphListKeyName] = result.slice_graph_infos;
 }
 
-void from_json(const nlohmann::json &json_obj, SliceGraphInfo &info) {
+static void from_json(const nlohmann::json &json_obj, SliceGraphInfo &info) {
   auto iter = json_obj.find(kSliceGraphInfoSliceGraphIDKeyName);
   if (iter != json_obj.end()) {
     info.slice_graph_id = iter.value().get<int64_t>();
   }
 }
 
-void from_json(const nlohmann::json &json_obj, SlicingResult &result) {
+static void from_json(const nlohmann::json &json_obj, SlicingResult &result) {
   auto iter = json_obj.find(kSlicingResultUserGraphKeyKeyName);
   if (iter != json_obj.end()) {
     result.user_graph_key = iter.value().get<std::string>();
@@ -48,7 +49,7 @@ void from_json(const nlohmann::json &json_obj, SlicingResult &result) {
   }
 }
 
-Status ReadSlicingResultFromFile(const std::string &slicing_result_file, SlicingResult &slicing_result) {
+static Status ReadSlicingResultFromFile(const std::string &slicing_result_file, SlicingResult &slicing_result) {
   nlohmann::json slicing_result_json_obj;
   GE_CHK_STATUS_RET(ModelCache::ReadJsonFile(slicing_result_file, slicing_result_json_obj),
     "Failed to read json file file[%s].", slicing_result_file.c_str());
@@ -62,7 +63,7 @@ Status ReadSlicingResultFromFile(const std::string &slicing_result_file, Slicing
   return SUCCESS;
 }
 
-Status SaveSlicingResultToFile(const std::string &slicing_result_file, const SlicingResult &slicing_result) {
+static Status SaveSlicingResultToFile(const std::string &slicing_result_file, const SlicingResult &slicing_result) {
   nlohmann::json json_obj;
   try {
     to_json(json_obj, slicing_result);

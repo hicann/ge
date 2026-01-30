@@ -12,8 +12,7 @@
 #define INC_REGISTER_REGISTRY_H_
 
 #include "include/register/register.h"
-#include "external/ge_common/ge_api_error_codes.h"
-#include "graph/ge_error_codes.h"
+#include "graph/types.h"
 
 namespace ge {
 class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY HostCpuOp {

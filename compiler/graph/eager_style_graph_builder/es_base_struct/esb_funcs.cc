@@ -20,6 +20,7 @@
 #include "graph/utils/type_utils.h"
 #include <fstream>
 #include <iostream>
+#include "base/err_msg.h"
 
 namespace {
 const char *kIrIndexAttrName = "index";
@@ -185,9 +186,8 @@ EsCTensor *EsCreateEsCTensorFromFile(const char *data_file_path, const int64_t *
   (void)ifs.seekg(0, std::ifstream::end);
   const size_t act_file_len = ifs.tellg();
   ifs.clear();
-
   // 校验文件长度大于0
-  GE_ASSERT_TRUE(act_file_len > 0, "File length should be greater than 0, path: %s.", data_file_path);
+  GE_ASSERT_TRUE(act_file_len > 0U, "File length should be greater than 0, path: %s.", data_file_path);
   int64_t total_elements = 1;  // dims为空代表标量，默认值使用1
   // 如果dim非空，校验文件长度是否足够
   if (dim != nullptr) {
@@ -195,6 +195,7 @@ EsCTensor *EsCreateEsCTensorFromFile(const char *data_file_path, const int64_t *
       total_elements *= dim[i];
     }
   }
+
   const size_t data_type_size = ge::GetSizeByDataType(static_cast<ge::DataType>(data_type));
   GE_ASSERT_TRUE(data_type_size > 0, "Unsupported data type: %s.",
                  ge::TypeUtils::DataTypeToAscendString(static_cast<ge::DataType>(data_type)).GetString());

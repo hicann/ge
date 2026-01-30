@@ -11,6 +11,7 @@
 #ifndef EXECUTION_ORDER_H
 #define EXECUTION_ORDER_H
 #include <vector>
+#include <mutex>
 #include "graph/compute_graph.h"
 #include "execution_point.h"
 #include "exe_graph/runtime/tensor.h"
@@ -41,7 +42,7 @@ class ExecutionOrder {
   Status NextPoint(const ExecutionPoint &ep, const std::vector<GeTensor> &inputs, ExecutionPoint *&next_ep);
 
   ExecutionPoint* GetFirstPoint();
-  std::vector<Tensor> GetInputTensors(bool &is_unknown_input_shape);
+  const std::vector<gert::Tensor> &GetInputTensors(bool &is_unknown_input_shape);
   UserGraph GetUserGraph() const;
  private:
   bool HasNext(const ExecutionPoint &ep) const;
@@ -54,7 +55,7 @@ class ExecutionOrder {
   std::mutex mutex_;
   std::vector<std::unique_ptr<ExecutionPoint>> slice_graphs_;
   // todo add io relation between slicing graph later
-  std::vector<Tensor> graph_inputs_;
+  std::vector<gert::Tensor> graph_inputs_;
   bool is_unknown_input_shape_;
   friend class ExecutionOrderUtil;
 };

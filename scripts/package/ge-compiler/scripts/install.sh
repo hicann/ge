@@ -1,5 +1,5 @@
 #!/bin/bash
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
 # CANN Open Software License Agreement Version 2.0 (the "License").
@@ -7,7 +7,7 @@
 # THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------------------------------------
  
 default_root_dir="/usr/local/Ascend"
 default_normal_dir="${HOME}/Ascend"
@@ -100,10 +100,18 @@ chmod_end() {
     chmod_recur "$current_install_path/python" 750 dir
  
     if [ "$pylocal" = "y" ]; then
-        chmod_recur "$current_install_path/python/site-packages/superkernel" 550 dir
-        chmod_recur "$current_install_path/python/site-packages/superkernel" 550 file
-        chmod_recur "$current_install_path/python/site-packages/superkernel-0.1.0.dist-info" 550 dir
-        chmod_recur "$current_install_path/python/site-packages/superkernel-0.1.0.dist-info" 550 file
+        chmod_recur "$current_install_path/python/site-packages/llm_datadist_v1" 550 dir
+        chmod_recur "$current_install_path/python/site-packages/llm_datadist_v1" 550 file
+        chmod_recur "$current_install_path/python/site-packages/llm_datadist_v1-0.0.1.dist-info" 550 dir
+        chmod_recur "$current_install_path/python/site-packages/llm_datadist_v1-0.0.1.dist-info" 550 file
+        chmod_recur "$current_install_path/python/site-packages/dataflow" 550 dir
+        chmod_recur "$current_install_path/python/site-packages/dataflow" 550 file
+        chmod_recur "$current_install_path/python/site-packages/dataflow-0.0.1.dist-info" 550 dir
+        chmod_recur "$current_install_path/python/site-packages/dataflow-0.0.1.dist-info" 550 file
+        chmod_recur "$current_install_path/python/site-packages/ge" 550 dir
+        chmod_recur "$current_install_path/python/site-packages/ge" 550 file
+        chmod_recur "$current_install_path/python/site-packages/ge_py-0.0.1.dist-info" 550 dir
+        chmod_recur "$current_install_path/python/site-packages/ge_py-0.0.1.dist-info" 550 file
         chmod_recur "$current_install_path/python/site-packages/LICENSE" 440 file
     fi
  

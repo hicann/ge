@@ -27,7 +27,9 @@ class HostMem : public ge::MemBlock {
   }
   void Free();
   ~HostMem() override {
-    Free();
+    try {
+      Free();
+    } catch (...) {}
   }
 
  private:

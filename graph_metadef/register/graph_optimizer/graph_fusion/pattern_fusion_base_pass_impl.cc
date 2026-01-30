@@ -276,9 +276,9 @@ void PatternFusionBasePassImpl::AddCandidateQueue(const FusionPattern::OpDescPtr
   if (IsMatched(op_desc, node, cand.mapping)) {
     return;
   }
-  cand.candidate_nodes.emplace_back(node);
-  cand.candidate_op_descs.emplace_back(op_desc);
-  cand.mapping[op_desc].emplace_back(node);
+  (void)cand.candidate_nodes.emplace_back(node);
+  (void)cand.candidate_op_descs.emplace_back(op_desc);
+  (void)cand.mapping[op_desc].emplace_back(node);
 }
 
 void PatternFusionBasePassImpl::MatchOneOutputNode(const ge::NodePtr &output_node,
@@ -386,7 +386,7 @@ bool PatternFusionBasePassImpl::MatchAllEdges(const size_t &input_size, const st
 
 void PatternFusionBasePassImpl::GetInDataAnchors(const ge::NodePtr &node,
                                                  std::vector<ge::InDataAnchorPtr> &in_anchor_vec) {
-  for (const auto in_anchor : node->GetAllInDataAnchors()) {
+  for (const auto &in_anchor : node->GetAllInDataAnchors()) {
     if ((in_anchor == nullptr) || (in_anchor->GetPeerOutAnchor() == nullptr) ||
         (in_anchor->GetPeerOutAnchor()->GetOwnerNode() == nullptr)) {
       continue;
@@ -397,11 +397,11 @@ void PatternFusionBasePassImpl::GetInDataAnchors(const ge::NodePtr &node,
 
 void PatternFusionBasePassImpl::GetOutDataAnchors(const ge::NodePtr &node,
                                                   std::vector<ge::OutDataAnchorPtr> &out_anchor_vec) {
-  for (const auto out_anchor : node->GetAllOutDataAnchors()) {
+  for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
     if (out_anchor == nullptr || out_anchor->GetPeerInDataNodesSize() == 0) {
       continue;
     }
-    out_anchor_vec.emplace_back(out_anchor);
+    (void)out_anchor_vec.emplace_back(out_anchor);
   }
 }
 

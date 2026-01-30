@@ -11,7 +11,7 @@
 #include "base/common/plugin/ge_make_unique_util.h"
 #include "graph/anchor.h"
 #include "graph/utils/node_adapter.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 namespace ge {
 namespace fusion {

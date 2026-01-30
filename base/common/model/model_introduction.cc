@@ -15,6 +15,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "framework/common/types.h"
 #include "base/err_msg.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 static constexpr uint32_t UINT32_SIZE = static_cast<uint32_t>(sizeof(uint32_t));
@@ -231,7 +232,7 @@ Status ModelIntroduction::GetDynamicInfoFromCase(int32_t &dynamic_type, std::vec
                     REPORT_INNER_ERR_MSG("E19999", "Get Attr:%s from op:%s(%s) fail", attr_name.c_str(),
                                        case_desc_->GetName().c_str(), case_desc_->GetType().c_str());
                     return FAILED);
-    batch_info.emplace_back(batch_shape);
+    (void)batch_info.emplace_back(batch_shape);
   }
   (void)AttrUtils::GetInt(case_desc_, ATTR_DYNAMIC_TYPE, dynamic_type);
   return SUCCESS;

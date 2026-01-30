@@ -17,7 +17,7 @@
 namespace ge {
 class AgingPolicyLru : public AgingPolicy {
 public:
-  virtual ~AgingPolicyLru() override = default;
+  ~AgingPolicyLru() override = default;
   void SetDeleteInterval(const uint64_t &interval) {
     delete_interval_ = interval;
   }

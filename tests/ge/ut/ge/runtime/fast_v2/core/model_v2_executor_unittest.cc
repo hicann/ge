@@ -818,10 +818,10 @@ TEST_F(ExecutorUnitTest, LoadExecutorFromModelDataWithRollbackSingleStream) {
 }
 
 TEST_F(ExecutorUnitTest, LoadExecutorFromModelData_InitOpMasterDeviceSo_Success) {
-  std::string opp_path = FILE_FAST_V2_PATH;
+  std::string opp_path = __FILE__;
   std::vector<std::pair<ge::ccKernelType, const std::string>> kernel_type_so_names;
 
-  opp_path = opp_path + "/test_tmp/";
+  opp_path = opp_path.substr(0, opp_path.rfind("/") + 1) + "/test_tmp/";
   mmSetEnv(kEnvName, opp_path.c_str(), 1);
   ConstructOpMasterDeviceSo(opp_path, 1, 1, true, kernel_type_so_names);
 

@@ -12,7 +12,7 @@
 #include "graph/debug/ge_util.h"
 
 #include "mmpa/mmpa_api.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
 #include "common/checker.h"
 #include "common/plugin/plugin_manager.h"
@@ -73,7 +73,7 @@ void OpLibRegistry::RegisterInitFunc(OpLibRegisterImpl &register_impl) {
   // ignore same vendor_name op lib when register secondly
   if (it.second) {
     if (func != nullptr) {
-      vendor_funcs_.emplace_back(vendor_name, func);
+      (void) vendor_funcs_.emplace_back(vendor_name, func);
     }
     GELOGI("%s op lib register successfully", vendor_name.c_str());
   } else {
@@ -137,7 +137,7 @@ graphStatus OpLibRegistry::GetAllCustomOpApiSoPaths(const std::string &custom_op
     std::string so_real_path = RealPath(so_path.c_str());
     if (!so_real_path.empty()) {
       GELOGI("find so_real_path %s", so_real_path.c_str());
-      so_real_paths.emplace_back(so_real_path);
+      (void) so_real_paths.emplace_back(so_real_path);
     }
   }
   return GRAPH_SUCCESS;
@@ -150,7 +150,7 @@ graphStatus OpLibRegistry::CallInitFunc(const std::string &custom_opp_path,
     GELOGI("begin dlopen %s", so_path.c_str());
     void* const handle = mmDlopen(so_path.c_str(), static_cast<int32_t>(static_cast<uint32_t>(MMPA_RTLD_NOW)));
     GE_ASSERT_NOTNULL(handle, "Failed to dlopen %s! errmsg:%s", so_path.c_str(), mmDlerror());
-    handles_.emplace_back(handle);
+    (void) handles_.emplace_back(handle);
   }
 
   // call init func orderly

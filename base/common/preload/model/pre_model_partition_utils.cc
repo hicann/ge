@@ -45,7 +45,7 @@ Status PreModelPartitionUtils::PreparePartitionData(const EngineType type) {
       }
     } else {
       GELOGD("need to do zero copy.");
-      zero_copy_task.emplace_back(task_desc);
+      (void)zero_copy_task.emplace_back(task_desc);
     }
   }
   // zero copy task need to move to last position
@@ -58,8 +58,8 @@ Status PreModelPartitionUtils::PreparePartitionData(const EngineType type) {
 
 Status PreModelPartitionUtils::InitTaskBuildMem(const uint32_t huge_stream_size, const uint32_t stream_size) {
   GELOGI("begin init task build mem.");
-  uint32_t huge_buf_len = 0U;
-  uint32_t default_buf_len = 1U;
+  constexpr uint32_t huge_buf_len = 0U;
+  constexpr uint32_t default_buf_len = 1U;
   GELOGI("Init mem info huge_stream_size:%u, huge_buf_len:%u, stream_size:%u, default_buf_len:%u.", huge_stream_size,
          huge_buf_len, stream_size, default_buf_len);
   uint32_t orgi_size = (huge_stream_size * huge_buf_len) + ((stream_size - huge_stream_size) * default_buf_len);
@@ -176,7 +176,7 @@ Status PreModelPartitionUtils::PrepareDefaultPartitionData(const PreTaskDescInfo
   GE_CHK_STATUS_RET(UpdateSqeInfo(task_desc, task_build_buf_), "[Call][UpdateSqeInfo] update failed.");
 
   // 2. update KernelArgsInfo
-  kernel_args_info_.emplace_back(task_desc.kernel_args_info);
+  (void)kernel_args_info_.emplace_back(task_desc.kernel_args_info);
 
   // 3. update KernelArgsDescInfo
   PartitionKernelArgsParam partition_kernel_arg;
@@ -185,7 +185,7 @@ Status PreModelPartitionUtils::PrepareDefaultPartitionData(const PreTaskDescInfo
     partition_kernel_arg.offset =
         kernel_arg.offset.need_refresh ? (kernel_args_info_size_ + kernel_arg.offset.offset) : kernel_arg.offset.offset;
     partition_kernel_arg.para = kernel_arg.para;
-    partition_kernel_args_param_.emplace_back(partition_kernel_arg);
+    (void)partition_kernel_args_param_.emplace_back(partition_kernel_arg);
   }
 
   // 4. refresh to next task offset

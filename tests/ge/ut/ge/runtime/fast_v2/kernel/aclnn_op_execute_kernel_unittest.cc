@@ -12,7 +12,6 @@
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "faker/kernel_run_context_facker.h"
 #include "stub/gert_runtime_stub.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace gert {
 using namespace ge;

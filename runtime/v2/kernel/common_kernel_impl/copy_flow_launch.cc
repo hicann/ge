@@ -26,6 +26,7 @@
 #include "core/executor/multi_thread_topological/executor/schedule/producer/producers/kernel_tags/critical_section_config.h"
 #include "core/utils/tensor_utils.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
+#include "common/ge_common/util.h"
 
 using namespace ge;
 namespace gert {

@@ -20,7 +20,6 @@
 #include "faker/space_registry_faker.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
 #include "runtime/v2/engine/aicore/kernel/set_output_shape_kernel.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace gert {
 namespace kernel {

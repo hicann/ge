@@ -9,7 +9,7 @@
  */
 
 #include "register/tuning_bank_key_registry.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace tuningtiling {
 OpBankKeyFuncInfo::OpBankKeyFuncInfo(const ge::AscendString &optype) : optype_(optype) {}

@@ -63,7 +63,7 @@ TEST_F(GNodeTest, GetALLSubgraphs_nullptr_root_graph) {
 TEST_F(GNodeTest, GetInDataNodesAndPortIndexs_success) {
   auto builder = ut::GraphBuilder("graph");
   const auto node1 = builder.AddNode("node1", "node1", 0, 1);
-  const auto node2 = builder.AddNode("node2", "node2", 1, 0);
+  const auto node2 = builder.AddNode("node2", "node2", 2, 0);
   builder.AddDataEdge(node1, 0, node2, 0);
   GNode gnode;
   ASSERT_EQ(gnode.GetInDataNodesAndPortIndexs(0).first, nullptr);
@@ -71,6 +71,7 @@ TEST_F(GNodeTest, GetInDataNodesAndPortIndexs_success) {
   ASSERT_EQ(gnode.GetInDataNodesAndPortIndexs(0).first, nullptr);
   gnode = NodeAdapter::Node2GNode(node2);
   ASSERT_NE(gnode.GetInDataNodesAndPortIndexs(0).first, nullptr);
+  ASSERT_EQ(gnode.GetInDataNodesAndPortIndexs(1).first, nullptr);
 }
 
 TEST_F(GNodeTest, GetoutDataNodesAndPortIndexs_success) {

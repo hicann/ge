@@ -13,8 +13,6 @@
 #include "model_v2_executor.h"
 #include "stream_executor.h"
 #include "common/ge_types.h"
-#include "common/ge_visibility.h"
-#include "mem_allocator.h"
 #include "memory/allocator_desc.h"
 #include "exe_graph/lowering/lowering_opt.h"
 #include "stream_allocator.h"

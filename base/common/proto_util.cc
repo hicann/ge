@@ -13,7 +13,6 @@
 #include "base/err_msg.h"
 
 #include <fstream>
-#include <array>
 
 #include "mmpa/mmpa_api.h"
 #include "common/compile_profiling/ge_call_wrapper.h"

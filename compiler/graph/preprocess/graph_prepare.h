@@ -28,7 +28,6 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "framework/omg/omg_inner_types.h"
-#include "runtime/context.h"
 #include "graph/resource_context_mgr.h"
 
 namespace ge {

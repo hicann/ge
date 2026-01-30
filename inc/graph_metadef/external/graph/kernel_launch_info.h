@@ -61,6 +61,22 @@ class KernelLaunchInfo {
   static KernelLaunchInfo CreateHcomWaitTask(const gert::ExeResGenerationContext *context,
       const char *group_name = "group");
   /**
+   * 创建一个FusionTask
+   * @param context gentask callback函数的入参，保存了算子的基础信息
+   * @param sub_tasks KernelLaunchInfo序列，包含aicore和ccu类型的KernelLaunchInfo
+   * @return KernelLaunchInfo对象，保存了算子的Launch信息
+   */
+  static KernelLaunchInfo CreateFusionTask(const gert::ExeResGenerationContext *context,
+      const std::vector<KernelLaunchInfo>& sub_tasks);
+  /**
+   * 创建一个Ccu Task
+   * @param context gentask callback函数的入参，保存了算子的基础信息
+   * @param groups CcuSubFusionTask 保存到group信息
+   * @return KernelLaunchInfo对象，保存了算子的Launch信息
+   */
+  static KernelLaunchInfo CreateCcuTask(const gert::ExeResGenerationContext *context,
+      const std::vector<std::string>& groups);
+  /**
    * 将KernelLaunchInfo序列化成数据流
    * @return 被序列化后的数据流
    */

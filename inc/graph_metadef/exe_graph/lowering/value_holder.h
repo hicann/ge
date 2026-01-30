@@ -47,7 +47,9 @@ class ValueHolder {
    public:
     explicit CurrentComputeNodeGuarder(ge::NodePtr old_node) : old_node_(std::move(old_node)) {}
     ~CurrentComputeNodeGuarder() {
-      ValueHolder::SetCurrentComputeNode(old_node_);
+      try {
+        ValueHolder::SetCurrentComputeNode(old_node_);
+      } catch (...) {}
     }
 
    private:

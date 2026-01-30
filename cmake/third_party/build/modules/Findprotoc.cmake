@@ -28,18 +28,18 @@ else()
 endif()
 
 if(protoc_FOUND)
-    message(STATUS "[protoc] protoc found, skip compiling..")
+    message(STATUS "[protoc] protoc found, skip compiling.")
 else()
-    message(STATUS "[protoc] protoc not found, finding binary file..")
+    message(STATUS "[protoc] protoc not found, finding binary file.")
 
     set(REQ_URL "${CMAKE_THIRD_PARTY_LIB_DIR}/protobuf/protobuf-all-25.1.tar.gz")
     set(REQ_URL_BACK "${CMAKE_THIRD_PARTY_LIB_DIR}/protobuf/protobuf-25.1.tar.gz")
     # 初始化可选参数列表
     set(PROTOBUF_EXTRA_ARGS "")
     if(EXISTS ${REQ_URL})
-        message(STATUS "[protoc] ${REQ_URL} found, start compile.")
+        message(STATUS "[protoc] ${REQ_URL} found.")
     elseif(EXISTS ${REQ_URL_BACK})
-        message(STATUS "[protoc] ${REQ_URL_BACK} found, start compile.")
+        message(STATUS "[protoc] ${REQ_URL_BACK} found.")
         set(REQ_URL ${REQ_URL_BACK})
     else()
         message(STATUS "[protoc] ${REQ_URL} not found, need download.")
@@ -49,7 +49,7 @@ else()
         )
     endif()
     
-    set(protoc_CXXFLAGS "-Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=0 -O2")
+    set(protoc_CXXFLAGS "-Wno-maybe-uninitialized -Wno-unused-parameter -fPIC -fstack-protector-all -D_FORTIFY_SOURCE=2 -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI} -O2")
     set(protoc_LDFLAGS "-Wl,-z,relro,-z,now,-z,noexecstack")
 
     ExternalProject_Add(protoc_build

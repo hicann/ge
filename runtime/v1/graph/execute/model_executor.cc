@@ -95,9 +95,6 @@ Status ModelExecutor::Finalize() {
   if (run_thread_.joinable()) {
     run_thread_.join();
   }
-  if (run_thread_v2_.joinable()) {
-    run_thread_v2_.join();
-  }
 
   GELOGI("VarManager free var memory.");
   const auto var_manager = VarManager::Instance(session_id_);
@@ -199,15 +196,6 @@ Status ModelExecutor::UnloadPneModel(const uint32_t model_id, const uint64_t ses
 void ModelExecutor::StopQueue() {
   thread_run_flag_.store(false);
   run_args_q_.Stop();
-  run_args_v2_q_.Stop();
-}
-
-void ModelExecutor::ReturnError(const RunAsyncCallback &callback, const Status ret, const std::string &log_info) const {
-  GELOGE(ret, "%s.", log_info.c_str());
-  if (callback != nullptr) {
-    std::vector<Tensor> outputs;
-    callback(ret, outputs);
-  }
 }
 
 void ModelExecutor::ReturnError(const RunAsyncCallbackV2 &callback,
@@ -229,16 +217,6 @@ Status ModelExecutor::PushRunArgs(const std::shared_ptr<RunArgs> &args) {
   return run_args_q_.Push(args) ? SUCCESS : FAILED;
 }
 
-///
-/// @ingroup ge
-/// @brief Push model execution params to queue.
-/// @param [in] RunArgs of for model execution.
-/// @return Status result of function
-///
-Status ModelExecutor::PushRunArgs(const std::shared_ptr<RunArgsV2> &args) {
-  return run_args_v2_q_.Push(args) ? SUCCESS : FAILED;
-}
-
 void ModelExecutor::RunThread() {
   SET_THREAD_NAME(pthread_self(), "ge_mdlexecrun");
   if (mmSetCurrentThreadName("GE_Run") != EN_OK) {
@@ -249,62 +227,6 @@ void ModelExecutor::RunThread() {
   while (thread_run_flag_) {
     std::shared_ptr<RunArgs> args;
     if (!run_args_q_.Pop(args)) {
-      continue;
-    }
-
-    GELOGI("[RunThread] run graph async start, graph_id:%u.", args->graph_id);
-    GE_MAKE_GUARD(args, [args]() { args->graph_node->Unlock(); });
-    error_message::SetErrMgrContext(args->error_context);
-    GetContext().SetSessionId(args->session_id);
-    GetThreadLocalContext() = args->context;
-    bool is_continue = false;
-    if (is_continue) {
-      GELOGI("graph [%u] is suspended, return success", args->graph_id);
-      std::vector<Tensor> outputs;
-      args->callback(SUCCESS, outputs);
-      args->graph_node->SetRunFlag(false);
-      continue;
-    }
-
-    auto ge_root_model = args->graph_node->GetGeRootModel();
-    if (ge_root_model == nullptr) {
-      ReturnError(args->callback, PARAM_INVALID, "ge_root_model is invalid, thread exit.");
-      continue;
-    }
-    Status ret = SUCCESS;
-    args->graph_node->UpdateLoadFlag();
-    if (!args->graph_node->GetLoadFlag()) {
-      args->graph_node->SetAsync(true);
-      ret = ModelLoad(ge_root_model, args->graph_node);
-      if (ret != SUCCESS) {
-        ReturnError(args->callback, ret, "LoadGraphAsync failed, thread exit.");
-        continue;
-      }
-      GELOGI("LoadGraph[%u], model[%u] success and set LoadFlag to true.", args->graph_node->GetGraphId(),
-             ge_root_model->GetModelId());
-    }
-
-    ret = graph_executor_.ExecuteGraphAsync(ge_root_model, args);
-    args->graph_node->SetRunFlag(false);
-    if (ret != SUCCESS) {
-      ReturnError(args->callback, ret, "ExecuteGraphAsync failed, thread exit.");
-      continue;
-    }
-    GELOGI("[GraphExecutor] Run graph async success, graph_id=%u.", args->graph_id);
-  }
-  GELOGI("[RunThread] GE_Run end");
-}
-
-void ModelExecutor::RunThreadV2() {
-  SET_THREAD_NAME(pthread_self(), "ge_mdlexecrun");
-  if (mmSetCurrentThreadName("GE_Run") != EN_OK) {
-    GELOGW("Set thread name failed.");
-  }
-
-  GELOGI("[RunThread] GE_Run start");
-  while (thread_run_flag_) {
-    std::shared_ptr<RunArgsV2> args;
-    if (!run_args_v2_q_.Pop(args)) {
       continue;
     }
 
@@ -349,27 +271,6 @@ void ModelExecutor::RunThreadV2() {
     GELOGI("[GraphExecutor] Run graph async success, graph_id=%u.", args->graph_id);
   }
   GELOGI("[RunThread] GE_Run end");
-}
-
-///
-/// @ingroup ge
-/// @brief Run graph for synchronize model.
-/// @param [in] graph_node: node of graph.
-/// @param [in] graph_id: graph identifier.
-/// @param [in] inputs: input data for the graph running.
-/// @param [out] outputs: output data of the graph running
-/// @return Status result of function
-///
-Status ModelExecutor::RunGraph(const GraphNodePtr &graph_node, const GraphId graph_id,
-                               const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) {
-  const auto ge_root_model = graph_node->GetGeRootModel();
-  GE_CHECK_NOTNULL(ge_root_model);
-  Status ret = graph_executor_.ExecuteGraph(graph_id, ge_root_model, inputs, outputs);
-  graph_node->SetRunFlag(false);
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[Execute][Graph] failed, graph_id = %u.", graph_id);
-  }
-  return ret;
 }
 
 ///
@@ -814,11 +715,11 @@ Status ModelExecutor::CheckFreeMemory(const GeRootModelPtr &ge_root_model, const
     GELOGI("use static memory, release_all[%d], reuse[%d]", static_cast<int32_t>(release_all),
            static_cast<int32_t>(reuse));
   } else {
-    const auto &ge_model = *ge_models.begin();
+    const auto &ge_model_local = *ge_models.begin();
     int64_t value = 0;
-    int64_t memory_size = AttrUtils::GetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, value) ? value : 0;
-    int64_t weight_size = AttrUtils::GetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, value) ? value : 0;
-    const int64_t zero_copy_size = AttrUtils::GetInt(ge_model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, value) ? value : 0;
+    int64_t memory_size = AttrUtils::GetInt(ge_model_local, ATTR_MODEL_MEMORY_SIZE, value) ? value : 0;
+    int64_t weight_size = AttrUtils::GetInt(ge_model_local, ATTR_MODEL_WEIGHT_SIZE, value) ? value : 0;
+    const int64_t zero_copy_size = AttrUtils::GetInt(ge_model_local, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, value) ? value : 0;
 
     // 外部设置fm地址(fm, fixed fm, refreshable fm), IO内存均由外部分配
     if ((feature_mem.first != nullptr) || (refreshable_feature_mem.first != nullptr)) {
@@ -1058,7 +959,6 @@ Status ModelExecutor::CheckAndReleaseEvent(const GeRootModelPtr &ge_root_model, 
 
 void ModelExecutor::StartRunThread() {
   run_thread_ = std::thread(&ModelExecutor::RunThread, this);
-  run_thread_v2_ = std::thread(&ModelExecutor::RunThreadV2, this);
 }
 
 Status ModelExecutor::PaRemapped(const GraphNodePtr &graph_node, const uint64_t va, const uint64_t new_pa,

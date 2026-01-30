@@ -278,9 +278,8 @@ ge::graphStatus ModelV2ExecutorBuilder::RestoreDeviceVarMem(ModelV2Executor &exe
       if ((node->GetType() != ge::VARIABLE) && (node->GetType() != ge::CONSTANTOP)) {
         continue;
       }
-      std::string placement;
-      (void)ge::AttrUtils::GetStr(node->GetOpDesc(), ge::ATTR_VARIABLE_PLACEMENT, placement);
-      if (placement == "host") {
+      const std::string *placement = ge::AttrUtils::GetStr(node->GetOpDesc(), ge::ATTR_VARIABLE_PLACEMENT);
+      if ((placement != nullptr) && (*placement == "host")) {
         continue;
       }
       device_variables.push_back(node);

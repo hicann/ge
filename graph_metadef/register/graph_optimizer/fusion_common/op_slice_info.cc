@@ -10,7 +10,7 @@
 
 #include "register/graph_optimizer/fusion_common/op_slice_info.h"
 #include <algorithm>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace fe {
 #define FE_MAKE_SHARED(exec_expr0, exec_expr1) \

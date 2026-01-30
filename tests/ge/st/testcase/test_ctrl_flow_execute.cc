@@ -16,6 +16,7 @@
 #include "graph/execute/model_executor.h"
 #include "framework/common/helper/om_file_helper.h"
 #include "framework/common/helper/model_helper.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "mmpa/mmpa_api.h"
 
 using namespace std;
@@ -151,18 +152,15 @@ Status OnlineInferDynamic(ComputeGraphPtr &graph, const GeModelPtr &ge_model) {
   model_executor.StartRunThread();
   EXPECT_EQ(model_executor.LoadGraph(ge_root_model, graph_node), SUCCESS);
 
-  int64_t value_0 = 127;
-  int64_t value_1 = 100;
-  TensorDesc tensor_desc(Shape(), FORMAT_ND, DT_INT64);
-  Tensor tensor_0(tensor_desc, (uint8_t *)&value_0, sizeof(value_0));
-  Tensor tensor_1(tensor_desc, (uint8_t *)&value_1, sizeof(value_1));
-  const std::vector<Tensor> input_tensors{tensor_0, tensor_1};
+  std::vector<gert::Tensor> input_tensors(2);
+  TensorCheckUtils::ConstructGertTensor(input_tensors[0], {1}, DT_INT64, FORMAT_ND);
+  TensorCheckUtils::ConstructGertTensor(input_tensors[1], {1}, DT_INT64, FORMAT_ND);
 
   std::mutex run_mutex;
   std::condition_variable model_run_cv;
   Status run_status = FAILED;
-  std::vector<Tensor> run_outputs;
-  const auto callback = [&](Status status, std::vector<Tensor> &outputs) {
+  std::vector<gert::Tensor> run_outputs;
+  const auto callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     std::unique_lock<std::mutex> lock(run_mutex);
     run_status = status;
     run_outputs.swap(outputs);
@@ -181,7 +179,7 @@ Status OnlineInferDynamic(ComputeGraphPtr &graph, const GeModelPtr &ge_model) {
   arg->graph_id = graph_id;
   arg->session_id = 2001;
   arg->error_context = error_context;
-  arg->input_tensor = input_tensors;
+  arg->input_tensor = std::move(input_tensors);
   arg->context = context;
   arg->callback = callback;
   EXPECT_EQ(model_executor.PushRunArgs(arg), SUCCESS);

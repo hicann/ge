@@ -10,7 +10,7 @@
 
 #include "graph/utils/ge_ir_utils.h"
 #include <utility>
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/detail/model_serialize_imp.h"
 #include "graph/normal_graph/ge_tensor_impl.h"
 #include "graph/normal_graph/node_impl.h"

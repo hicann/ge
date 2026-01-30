@@ -95,7 +95,7 @@ Status CaffeOpParser::CheckSizeInvalid(const string &lay_name, const int32_t blo
   }
   REPORT_PREDEFINED_ERR_MSG("E11033", std::vector<const char *>({"opname", "blobsize", "reason"}),
                             std::vector<const char *>({lay_name.c_str(), std::to_string(blob_size).c_str(),
-                                                      ("it does not match shape size[" + std::to_string(size) + "]").c_str()}));
+                                                      ("It does not match shape size " + std::to_string(size)).c_str()}));
   GELOGE(FAILED, "[Check][Param]Convert weight fail, Blob size does not match shape size, "
          "shape size:%d, blob size:%d, layer name:%s", size, blob_size, lay_name.c_str());
   return FAILED;

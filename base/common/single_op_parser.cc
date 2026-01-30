@@ -24,6 +24,7 @@
 #include "graph/utils/type_utils_inner.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/operator_factory_impl.h"
+#include "formats/utils/formats_trans_utils.h"
 #include "base/err_msg.h"
 
 using Json = nlohmann::json;
@@ -145,11 +146,11 @@ bool CheckFileNameIsValid(const std::string &file_name) {
 
 std::string GenerateFileName(const SingleOpDesc &single_op_desc, const int32_t index) {
   std::string file_name = single_op_desc.name;
+  if (file_name.length() > kMaxFileNameLen) {
+    GELOGW("[GenerateFileName]Trim file name for it is too long, origin file name = %s", file_name.c_str());
+    file_name = file_name.substr(0, kMaxFileNameLen);
+  }
   if (CheckFileNameIsValid(file_name)) {
-    if (file_name.length() > kMaxFileNameLen) {
-      GELOGW("[GenerateFileName]Trim file name for it is too long, origin file name = %s", file_name.c_str());
-      file_name = file_name.substr(0, kMaxFileNameLen);
-    }
     file_name += kFileSuffix;
     GELOGI("Output om file name is from name field in json file, which is: %s", file_name.c_str());
     return file_name;
@@ -408,7 +409,7 @@ void from_json(const Json &j, SingleOpDesc &desc) {
 Status SingleOpParser::ReadJsonFile(const std::string &file, Json &json_obj) {
   std::string real_path = RealPath(file.c_str());
   if (real_path.empty()) {
-    REPORT_PREDEFINED_ERR_MSG("E10023", std::vector<const char *>({"value"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E10023", std::vector<const char *>({"value"}),
                               std::vector<const char *>({file.c_str()}));
     GELOGE(FAILED, "[Read][JsonFile]Input parameter[--singleop]'s value[%s] is not a valid path.", file.c_str());
     return INTERNAL_ERROR;
@@ -416,7 +417,7 @@ Status SingleOpParser::ReadJsonFile(const std::string &file, Json &json_obj) {
 
   std::ifstream ifs(real_path);
   if (!ifs.is_open()) {
-    REPORT_PREDEFINED_ERR_MSG("E10024", std::vector<const char *>({"value"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E10024", std::vector<const char *>({"value"}),
                               std::vector<const char *>({file.c_str() }));
     GELOGE(FAILED, "[Open][JsonFile] failed for file[%s] provided in input parameter[--singleop].", file.c_str());
     return FAILED;
@@ -424,7 +425,7 @@ Status SingleOpParser::ReadJsonFile(const std::string &file, Json &json_obj) {
   try {
     ifs >> json_obj;
   } catch (const std::exception &e) {
-    REPORT_PREDEFINED_ERR_MSG("E10025", std::vector<const char *>({"realpath", "errmsg"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E10025", std::vector<const char *>({"realpath", "errmsg"}),
                               std::vector<const char *>({real_path.c_str(), e.what()}));
     GELOGE(PARAM_INVALID,
         "[Parse][JsonFile] fail for file[%s] provided in input parameter[--singleop], exception = %s.",
@@ -438,7 +439,7 @@ Status SingleOpParser::ReadJsonFile(const std::string &file, Json &json_obj) {
 
 bool SingleOpParser::Validate(const SingleOpDesc &op_desc) {
   if (op_desc.op.empty()) {
-    REPORT_PREDEFINED_ERR_MSG("E10026", std::vector<const char *>({}), std::vector<const char *>({}));
+    (void)REPORT_PREDEFINED_ERR_MSG("E10026", std::vector<const char *>({}), std::vector<const char *>({}));
     GELOGE(PARAM_INVALID, "[Check][Param] fail for name of input SingleOpDesc is empty.");
     return false;
   }
@@ -478,13 +479,13 @@ bool SingleOpParser::Validate(const SingleOpDesc &op_desc) {
   }
   for (auto &attr : op_desc.attrs) {
     if (attr.name.empty()) {
-      REPORT_PREDEFINED_ERR_MSG("E10029", std::vector<const char *>({"op_name"}),
+      (void)REPORT_PREDEFINED_ERR_MSG("E10029", std::vector<const char *>({"op_name"}),
                                 std::vector<const char *>({op_desc.op.c_str()}));
       GELOGE(PARAM_INVALID, "[Parse][Attr]attr name is empty");
       return false;
     }
     if (attr.value.IsEmpty()) {
-      REPORT_PREDEFINED_ERR_MSG("E10030", std::vector<const char *>({"op_name", "attrname"}),
+      (void)REPORT_PREDEFINED_ERR_MSG("E10030", std::vector<const char *>({"op_name", "attrname"}),
                                 std::vector<const char *>({op_desc.op.c_str(), attr.name.c_str()}));
       GELOGE(PARAM_INVALID, "[Parse][Attr] fail for vale of attr name:\"%s\" is empty. ", attr.name.c_str());
       return false;
@@ -549,7 +550,7 @@ Status SingleOpParser::ConvertToBuildParam(int32_t index,
       ge_tensor_desc.SetName(desc.name);
       (void)op_desc->AddInputDesc(desc.name, ge_tensor_desc);
     }
-    build_param.inputs.emplace_back(ge_tensor_desc);
+    (void)build_param.inputs.emplace_back(ge_tensor_desc);
   }
 
   for (auto &desc : single_op_desc.output_desc) {
@@ -570,7 +571,7 @@ Status SingleOpParser::ConvertToBuildParam(int32_t index,
       ge_tensor_desc.SetName(desc.name);
       (void)op_desc->AddOutputDesc(desc.name, ge_tensor_desc);
     }
-    build_param.outputs.emplace_back(ge_tensor_desc);
+    (void)build_param.outputs.emplace_back(ge_tensor_desc);
   }
 
   for (const auto &attr : single_op_desc.attrs) {
@@ -596,12 +597,11 @@ Status SingleOpParser::VerifyOpInputOutputSizeByIr(const OpDesc &current_op_desc
     const size_t current_opdesc_inputs_num = current_op_desc.GetInputsSize();
     const size_t ir_opdesc_inputs_num = opdesc_ir->GetInputsSize();
     if (current_opdesc_inputs_num < ir_opdesc_inputs_num) {
-      const std::string reason = "is smaller than the ir needed input size " + std::to_string(ir_opdesc_inputs_num);
-      REPORT_PREDEFINED_ERR_MSG(
-          "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-          std::vector<const char *>({current_op_desc.GetName().c_str(),
-                                     ("input size " + std::to_string(current_opdesc_inputs_num)).c_str(),
-                                     reason.c_str()}));
+      const std::string reason = "The number of actual input in operator is less than the required number of inputs";
+      (void)REPORT_PREDEFINED_ERR_MSG(
+          "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
+          std::vector<const char *>({current_op_desc.GetName().c_str(), "input size",
+                                     std::to_string(current_opdesc_inputs_num).c_str(), reason.c_str()}));
       GELOGE(PARAM_INVALID,
           "[Verify][OpInputOutputSize]This op:%s input size %zu is smaller than the ir needed input size %zu",
           current_op_desc.GetName().c_str(), current_opdesc_inputs_num, ir_opdesc_inputs_num);
@@ -610,12 +610,11 @@ Status SingleOpParser::VerifyOpInputOutputSizeByIr(const OpDesc &current_op_desc
     const size_t current_opdesc_outputs_num = current_op_desc.GetOutputsSize();
     const size_t ir_opdesc_outputs_num = opdesc_ir->GetOutputsSize();
     if (current_opdesc_outputs_num < ir_opdesc_outputs_num) {
-      const std::string reason = "is smaller than the ir needed output size " + std::to_string(ir_opdesc_outputs_num);
-      REPORT_PREDEFINED_ERR_MSG(
-          "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-          std::vector<const char *>({current_op_desc.GetName().c_str(),
-                                     ("output size " + std::to_string(current_opdesc_outputs_num)).c_str(),
-                                     reason.c_str()}));
+      const std::string reason = "The number of actual output in operator is less than the required number of outputs";
+      (void)REPORT_PREDEFINED_ERR_MSG(
+          "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
+          std::vector<const char *>({current_op_desc.GetName().c_str(), "output size",
+                                     std::to_string(current_opdesc_outputs_num).c_str(), reason.c_str()}));
       GELOGE(PARAM_INVALID,
           "[Verify][OpInputOutputSize]This op:%s output size %zu is smaller than the ir needed output size %zu",
           current_op_desc.GetName().c_str(), current_opdesc_outputs_num, ir_opdesc_outputs_num);
@@ -633,17 +632,20 @@ Status SingleOpParser::SetShapeRange(const std::string &op_name,
   const auto it = std::find(tensor_desc.dims.begin(), tensor_desc.dims.end(), ge::UNKNOWN_DIM_NUM);
   if (it != tensor_desc.dims.end()) {
     if (tensor_desc.dims != ge::UNKNOWN_RANK) {
-      REPORT_PREDEFINED_ERR_MSG(
-          "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-          std::vector<const char *>({op_name.c_str(), "shape", "has unknown rank but dim size is not one"}));
+      (void)REPORT_PREDEFINED_ERR_MSG(
+          "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
+          std::vector<const char *>({op_name.c_str(), "shape", formats::JoinToString(tensor_desc.dims).c_str(),
+                                     "The tensor has unknown rank, so its shape must be set to {-2}"}));
       GELOGE(PARAM_INVALID, "[Set][ShapeRange]Invalid tensor shape:%s.",
           ge_tensor_desc.MutableShape().ToString().c_str());
       return PARAM_INVALID;
     }
     if (!tensor_desc.dim_ranges.empty()) {
-      REPORT_PREDEFINED_ERR_MSG("E13014", std::vector<const char *>({"opname", "value", "reason"}),
-                                std::vector<const char *>({op_name.c_str(), "shape range",
-                                                           "is not needed while the rank the shape is unknown"}));
+      (void)REPORT_PREDEFINED_ERR_MSG(
+          "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
+          std::vector<const char *>({op_name.c_str(), "shape range size",
+                                     std::to_string(tensor_desc.dim_ranges.size()).c_str(),
+                                     "The tensor has dynamic dimensions, but the shape range is not empty"}));
       GELOGE(PARAM_INVALID, "[Set][ShapeRange]Shape range is not needed while the rank the shape is unknown.");
       return PARAM_INVALID;
     }
@@ -656,43 +658,50 @@ Status SingleOpParser::SetShapeRange(const std::string &op_name,
   size_t range_index = 0;
   for (int64_t dim : tensor_desc.dims) {
     if (dim >= 0) {
-      shape_range.emplace_back(dim, dim);
+      (void)shape_range.emplace_back(dim, dim);
       GELOGD("Adding shape range: [%ld, %ld]", dim, dim);
     } else {
       GELOGD("To get shape range by index = %zu", range_index);
       if (range_index >= num_shape_ranges) {
-        std::string reason = "is smaller than the unknown dim size " + std::to_string(++range_index);
-        REPORT_PREDEFINED_ERR_MSG("E13014", std::vector<const char *>({"opname", "value", "reason"}),
+        ++range_index;
+        std::string reason =
+            "The number of dimensions with a configured shape range is inconsistent with the actual number of dynamic "
+            "dimensions";
+        (void)REPORT_PREDEFINED_ERR_MSG(
+            "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
             std::vector<const char *>(
-                {op_name.c_str(), ("shape range size " + std::to_string(num_shape_ranges)).c_str(), reason.c_str()}));
+                {op_name.c_str(), "shape range num", std::to_string(num_shape_ranges).c_str(), reason.c_str()}));
         GELOGE(PARAM_INVALID, "[Set][ShapeRange]The number of shape_range mismatches that of unknown dims.");
         return PARAM_INVALID;
       }
 
       auto &range = tensor_desc.dim_ranges[range_index];
       if (range.size() != kShapeRangePairSize) {
-        std::string reason = "has " + std::to_string(range.size()) + " item(s)";
-        REPORT_PREDEFINED_ERR_MSG(
-            "E13014", std::vector<const char *>({"opname", "value", "reason"}),
-            std::vector<const char *>(
-                {op_name.c_str(), ("shape range " + std::to_string(range_index)).c_str(), reason.c_str()}));
+        std::string reason = "The format of shape range " + std::to_string(range_index) +
+                             " is invalid. The expected number of shape ranges is 2, but actual number is " +
+                             std::to_string(range.size());
+        (void)REPORT_PREDEFINED_ERR_MSG(
+            "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
+            std::vector<const char *>({op_name.c_str(),
+                                       ("shape range " + std::to_string(range_index) + " size").c_str(),
+                                       std::to_string(range.size()).c_str(), reason.c_str()}));
         GELOGE(PARAM_INVALID, "[Set][ShapeRange]Invalid shape range entry. index = %zu, size = %zu",
             range_index, range.size());
         return PARAM_INVALID;
       }
 
-      shape_range.emplace_back(range[kShapeRangeLow], range[kShapeRangeHigh]);
+      (void)shape_range.emplace_back(range[kShapeRangeLow], range[kShapeRangeHigh]);
       GELOGD("Adding shape range: [%ld, %ld]", range[kShapeRangeLow], range[kShapeRangeHigh]);
       ++range_index;
     }
   }
 
   if (num_shape_ranges != range_index) {
-    std::string reason = "is greater than the unknown dim size " + std::to_string(range_index);
-    REPORT_PREDEFINED_ERR_MSG(
-        "E13014", std::vector<const char *>({"opname", "value", "reason"}),
+    std::string reason = "The number of dimensions with a configured shape range is inconsistent with the actual number of dynamic dimensions";
+    (void)REPORT_PREDEFINED_ERR_MSG(
+        "E13014", std::vector<const char *>({"opname", "parameter", "value", "reason"}),
         std::vector<const char *>(
-            {op_name.c_str(), ("shape range size " + std::to_string(num_shape_ranges)).c_str(), reason.c_str()}));
+            {op_name.c_str(), "shape range num", std::to_string(num_shape_ranges).c_str(), reason.c_str()}));
     GELOGE(PARAM_INVALID,
         "[Set][ShapeRange]The number of shape_range(%zu) mismatches that of unknown dims(%zu).",
         num_shape_ranges, range_index);
@@ -742,13 +751,13 @@ Status SingleOpParser::ParseSingleOpList(const std::string &file, std::vector<Si
       }
       param.compile_flag = compile_flag;
 
-      op_list.emplace_back(param);
+      (void)op_list.emplace_back(param);
       GELOGI("Parse the index[%d] of op[%s] success", index, single_op_desc.op.c_str());
       index += 1;
     }
   } catch (const nlohmann::json::exception &e) {
-    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason", "optional_info"}),
-        std::vector<const char *>({file.c_str(), e.what(), ""}));
+    (void)REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                                    std::vector<const char *>({file.c_str(), e.what()}));
     GELOGE(PARAM_INVALID, "[Parse][OpList] the index:%d of op failed when read json file:%s, exception:%s",
         index, file.c_str(), e.what());
     return PARAM_INVALID;

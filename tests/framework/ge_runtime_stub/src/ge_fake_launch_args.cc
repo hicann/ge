@@ -81,7 +81,7 @@ GeFakeLaunchArgs::GeFakeLaunchArgs(const void *kernel_name, uint32_t block_dim, 
 }
 
 GeFakeLaunchArgs::GeFakeLaunchArgs(uintptr_t *ctrl, uint32_t num, uint32_t type, std::unique_ptr<std::string> tag)
-    : tag_name_(std::move(tag)), type_(type) {
+    : type_(type), tag_name_(std::move(tag)) {
   if (type == RT_GNL_CTRL_TYPE_MEMCPY_ASYNC_CFG) {
     args_addr_ = reinterpret_cast<void *>(*(ctrl + 2));
     return;
@@ -125,9 +125,19 @@ GeFakeLaunchArgs::GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t
     : blockDim_(blockDim), stream_(stm), arg_size_(argsSize), tag_name_(std::move(tag)) {
   (void)cfg;
   (void)funcHandle;
-  (void)hostArgs;
+  args_addr_ = hostArgs;
   (void)placeHolderArray;
   (void)placeHolderNum;
+}
+
+GeFakeLaunchArgs::GeFakeLaunchArgs(const rtFuncHandle funcHandle, const uint32_t blockDim, rtStream_t stm,
+                                   const rtKernelLaunchCfg_t *cfg, const void *devArgs, uint32_t argsSize,
+                                   void *reserve, std::unique_ptr<std::string> tag)
+    : blockDim_(blockDim), stream_(stm), arg_size_(argsSize), tag_name_(std::move(tag)) {
+  (void)cfg;
+  (void)funcHandle;
+  args_addr_ = const_cast<void*>(devArgs);
+  (void)reserve;
 }
 
 }  // namespace ge

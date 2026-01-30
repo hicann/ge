@@ -8,7 +8,6 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include <cstring>
 #include <stack>
 
 #include "graph/utils/tensor_value_utils.h"
@@ -31,7 +30,7 @@ inline float Fp16ToFloat(uint16_t fp16_val) {
   if (exp == 0x1F) {
     Fp32Bits result_bits{};
     result_bits.u =
-        (static_cast<uint32_t>(sign) << 31) | (0xFFU << 23) | ((static_cast<uint32_t>(man) & kFp16ManMask) << 13);
+        (static_cast<uint32_t>(sign) << kFp32Fraction) | (0xFFU << kFp32FractionMove) | ((static_cast<uint32_t>(man) & kFp16ManMask) << kFp16FractionMove);
     return result_bits.f;
   }
 
@@ -55,11 +54,11 @@ inline float Fp16ToFloat(uint16_t fp16_val) {
   } else {
     // 转换为 FP32 格式
     fp32_exp = static_cast<uint32_t>(exp - kFp16ExpBias + kFp32ExpBias);
-    fp32_man = (static_cast<uint32_t>(man) & kFp16ManMask) << 13;
+    fp32_man = (static_cast<uint32_t>(man) & kFp16ManMask) << kFp16FractionMove;
   }
 
   Fp32Bits fp32_bits{};
-  fp32_bits.u = (fp32_sign << 31) | (fp32_exp << 23) | (fp32_man & 0x7FFFFFU);
+  fp32_bits.u = (fp32_sign << kFp32Fraction) | (fp32_exp << kFp32FractionMove) | (fp32_man & 0x7FFFFFU);
   return fp32_bits.f;
 }
 
@@ -196,6 +195,7 @@ std::string ConvertTensorValueImpl(const Tensor &tensor, const std::string &sep,
   return ConvertTensorValueImplWithConverter<T>(tensor, sep, identity, is_mid_skipped);
 }
 
+namespace{
 /**
  * @brief 专门处理 FP16 类型的 tensor 值转换
  * @param tensor tensor 对象
@@ -206,6 +206,7 @@ std::string ConvertTensorValueFp16(const Tensor &tensor, const std::string &sep,
   // 使用 FP16 到 float 的转换函数
   return ConvertTensorValueImplWithConverter<uint16_t>(tensor, sep, Fp16ToFloat, is_mid_skipped);
 }
+} // namespace
 
 std::string TensorValueUtils::ConvertTensorValue(const Tensor &tensor, DataType value_type, const std::string &sep, const bool is_mid_skipped) {
   switch (value_type) {

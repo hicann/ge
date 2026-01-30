@@ -8,16 +8,17 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "host_cpu_engine/host_cpu_engine.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/tensor_adapter.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/type_utils.h"
 #include "register/host_cpu_context.h"
+#include "common/ge_common/util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/plugin/plugin_manager.h"
 #include "common/math/math_util.h"
 #include "base/err_msg.h"
+#include "host_cpu_engine/host_cpu_engine.h"
 
 namespace ge {
 namespace {
@@ -99,7 +100,7 @@ ge::Status HostCpuEngine::LoadOpsHostCpuNew() {
   if (path_env != nullptr) {
     std::string path = std::string(path_env);
     if (path[path.size() - 1] != '/') {
-      path.append("/");
+      (void)path.append("/");
     }
     std::string ops_host_cpu_name_new = path + kOpsHostCpuNameNew;
     if (GetEngineRealPath(ops_host_cpu_name_new) == SUCCESS) {
@@ -246,7 +247,7 @@ Status HostCpuEngine::Run(const NodePtr &node, HostCpuOp &kernel, const std::vec
     }
     auto ge_tensor = MakeShared<GeTensor>(TensorAdapter::AsGeTensor(iter->second));
     GE_CHECK_NOTNULL(ge_tensor);
-    tmp_outputs.emplace_back(ge_tensor);
+    (void)tmp_outputs.emplace_back(ge_tensor);
   }
   GELOGD("Run node by host cpu engine successfully. name node = %s", node->GetName().c_str());
   outputs.swap(tmp_outputs);
@@ -277,7 +278,7 @@ Status HostCpuEngine::LoadLib(const std::string &lib_path) {
   if (lib_path.find(kConstantFoldingName) != lib_path.npos) {
     constant_folding_handle_ = handle;
   }
-  lib_handles_.emplace_back(handle);
+  (void)lib_handles_.emplace_back(handle);
   return SUCCESS;
 }
 

@@ -27,7 +27,7 @@ void AppendShape(aicpu::FWKAdapter::FWKTaskExtInfoType type, size_t shape_num, s
   aicpu_ext_info->infoType = type;
   aicpu_ext_info->infoLen = sizeof(AicpuShapeAndType) * shape_num;
   AicpuShapeAndType input_shape_and_types[shape_num];
-  for (size_t m = 0U; m < shape_num; m++) {
+  for (auto m = 0; m < shape_num; m++) {
     input_shape_and_types[m].dims[0] = 5;
   }
   memcpy_s(aicpu_ext_info->infoMsg, sizeof(AicpuShapeAndType) * shape_num,

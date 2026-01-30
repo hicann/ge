@@ -76,7 +76,6 @@
 #include "depends/profiler/src/profiling_test_util.h"
 #include "graph/manager/host_mem_manager.h"
 #include "register/register_custom_pass.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 namespace ge {
 namespace {
@@ -3593,7 +3592,7 @@ TEST_F(DynamicGraphTest, TestDynamicInput_size_fail) {
   stub.GetSlogStub().SetLevel(DLOG_DEBUG);
   stub.GetSlogStub().Clear();
   EXPECT_EQ(session.BuildGraph(graph_id, inputs), FAILED);
-  EXPECT_EQ(stub.GetSlogStub().FindLog(DLOG_ERROR, "Dynamic input shape range size is"), 0);
+  EXPECT_EQ(stub.GetSlogStub().FindLog(DLOG_ERROR, "Dynamic input shape range size "), 0);
   EXPECT_NE(stub.GetSlogStub().FindLog(DLOG_DEBUG, "Option ge.exec.dataInputsShapeRange's readable name"), -1);
   stub.GetSlogStub().SetLevel(DLOG_ERROR);
 }

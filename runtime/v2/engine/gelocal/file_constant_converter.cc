@@ -91,7 +91,11 @@ std::vector<bg::DevMemValueHolderPtr> FileConstantConverter(const ge::NodePtr &n
     GE_ASSERT_TRUE(init_outputs.size() == 1U);
     return init_outputs;
   };
-  auto file_const_holders = lower_input.global_data->GetOrCreateUniqueValueHolder(file_name, builder);
+
+  int64_t offset_attr = 0;
+  (void)ge::AttrUtils::GetInt(node->GetOpDesc(), "offset", offset_attr);
+
+  auto file_const_holders = lower_input.global_data->GetOrCreateUniqueValueHolder(file_name + ":" + std::to_string(offset_attr), builder);
   std::vector<bg::DevMemValueHolderPtr> return_holder;
   for (const auto &addr : file_const_holders) {
     return_holder.emplace_back(std::dynamic_pointer_cast<bg::DevMemValueHolder>(addr));
@@ -152,13 +156,18 @@ ge::Status GetUserDeviceAddress(const ge::NodePtr &node, LoweringGlobalData *con
   // which is a rarely used pattern
   GE_ASSERT_TRUE(user_device_mem->mem_size > offset, "mem_size: %zu, offset: %zu", user_device_mem->mem_size, offset);
   if (user_device_mem->mem_size - offset < weights_size) {
-    REPORT_INNER_ERR_MSG("E19999", "[Check][Param] The device memory size set by the user via "
+    std::string reason =
+        "The device memory size set by the user via "
         "aclmdlSetExternalWeightAddress for the external weight file is insufficient. "
-        "Required: %zu bytes, Provided: %zu bytes. External weight - Shape: [%s], Data type: [%s], Offset: [%zu], "
-        "File name: [%s], Node name: [%s].", weights_size, user_device_mem->mem_size - offset,
-        tensor_desc.GetShape().ToString().c_str(),
-        ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str(), offset,
-        file_constant_file_name.c_str(), op_desc->GetNamePtr());
+        "Required: " +
+        std::to_string(weights_size) + " bytes, Provided: " + std::to_string(user_device_mem->mem_size - offset) +
+        " bytes. External weight - Shape: [" + tensor_desc.GetShape().ToString().c_str() + "], Data type: [" +
+        ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str() + "], Offset: [" +
+        std::to_string(offset) + "], File name: [" + file_constant_file_name + "], Node name: [" +
+        op_desc->GetNamePtr() + "].";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"aclmdlSetExternalWeightAddress",
+                                                         std::to_string(weights_size).c_str(), reason.c_str()}));
 
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
            "[Check][Param] The device memory size set by the user via "

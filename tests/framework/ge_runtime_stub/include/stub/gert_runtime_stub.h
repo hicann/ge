@@ -15,6 +15,7 @@
 #include "converter_stub.h"
 #include "ge_fake_launch_args.h"
 #include "runtime_stub_impl.h"
+#include "acl_runtime_stub_impl.h"
 #include "slog_stub_impl.h"
 #include "task_info_registry_stub.h"
 #include <list>
@@ -27,15 +28,18 @@ class BaseNodeExeFaker;
 class GertRuntimeStub {
  public:
   GertRuntimeStub(bool reset_slog_stub = true)
-      : GertRuntimeStub(std::make_unique<RuntimeStubImpl>(), reset_slog_stub) {
+      : GertRuntimeStub(std::make_unique<RuntimeStubImpl>(), reset_slog_stub, std::make_unique<AclRuntimeStubImpl>()) {
     Clear();
   }
-  explicit GertRuntimeStub(std::unique_ptr<RuntimeStubImpl> rts_runtime_impl, bool reset_slog_stub = true);
+  explicit GertRuntimeStub(std::unique_ptr<RuntimeStubImpl> rts_runtime_impl, bool reset_slog_stub = true, std::unique_ptr<AclRuntimeStubImpl> acl_runtime_impl = nullptr);
   ~GertRuntimeStub();
   bool CheckLaunchWhenStubTiling();
   void Clear() {
     ClearCtxFakers();
     rts_runtime_stub_->Clear();
+    if (acl_runtime_stub_ != nullptr) {
+      acl_runtime_stub_->Clear();
+    }
     converter_stub_.Clear();
     kernel_stub_.Clear();
   }
@@ -47,8 +51,17 @@ class GertRuntimeStub {
   RuntimeStubImpl &GetRtsRuntimeStub() {
     return *rts_runtime_stub_;
   }
+
+  AclRuntimeStubImpl &GetAclRuntimeStub() {
+    return *acl_runtime_stub_;
+  }
+
   const RuntimeStubImpl &GetRtsRuntimeStub() const {
     return *rts_runtime_stub_;
+  }
+
+  const AclRuntimeStubImpl &GetAclRuntimeStub() const {
+    return *acl_runtime_stub_;
   }
 
   ConverterStub &GetConverterStub() {
@@ -81,6 +94,7 @@ class GertRuntimeStub {
   KernelStub kernel_stub_;
   ConverterStub converter_stub_;
   std::unique_ptr<RuntimeStubImpl> rts_runtime_stub_;
+  std::unique_ptr<AclRuntimeStubImpl> acl_runtime_stub_;
   std::vector<std::string> ctx_mocking_ops_;
   bool need_reset_slog_stub_;
   std::shared_ptr<SlogStubImpl> slog_stub_;

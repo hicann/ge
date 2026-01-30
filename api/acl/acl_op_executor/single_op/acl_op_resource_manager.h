@@ -60,7 +60,7 @@ public:
 
     aclError LoadModelFromSharedMem(const std::shared_ptr<void> &model,
                                     const size_t modelSize,
-                                    const AclOp *const aclOp,
+                                    AclOp *aclOp,
                                     const bool isStatic = false);
 
     aclError GetOpModel(AclOp &aclOp);
@@ -107,7 +107,7 @@ private:
     aclError ReadModelDefs(const std::string &configPath,
                            std::vector<OpModelDef> &configList);
 
-    aclError BuildOpModel(const AclOp &aclOp);
+    aclError BuildOpModel(AclOp &aclOp);
 
     static bool OmFileFilterFn(const std::string &fileName);
 

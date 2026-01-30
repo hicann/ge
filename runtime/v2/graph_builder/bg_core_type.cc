@@ -29,9 +29,11 @@ ValueHolderPtr GetCoreType(const ge::NodePtr &node, LoweringGlobalData *global_d
   const auto op_desc = node->GetOpDescBarePtr();
   GE_ASSERT_NOTNULL(op_desc);
   std::string core_type = kDefaultCoreType;
-  if (ge::AttrUtils::GetStr(op_desc, ge::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, core_type)) {
+  const std::string *core_type_ptr = ge::AttrUtils::GetStr(op_desc, ge::ATTR_NAME_CUBE_VECTOR_CORE_TYPE);
+  if (core_type_ptr != nullptr) {
+    core_type = *core_type_ptr;
     GELOGD("Get attr: %s of op[%s, %s] is %s", ge::ATTR_NAME_CUBE_VECTOR_CORE_TYPE.c_str(), op_desc->GetNamePtr(),
-    op_desc->GetTypePtr(), core_type.c_str());
+           op_desc->GetTypePtr(), core_type.c_str());
   }
 
   CoreTypeIndex core_type_index = CoreTypeIndex::kAiCore;

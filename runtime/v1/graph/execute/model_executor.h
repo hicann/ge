@@ -46,26 +46,10 @@ class ModelExecutor : public Executor {
   /// @return Status result of function
   Status UnloadGraph(const GeRootModelPtr &ge_root_model, const uint32_t graph_id) override;
 
-  /// @ingroup ge
   /// @brief Push model execution params to queue.
   /// @param [in] RunArgs of for model execution.
   /// @return Status result of function
   Status PushRunArgs(const std::shared_ptr<RunArgs> &args) override;
-  /// @ingroup ge
-  /// @brief Push model execution params to queue.
-  /// @param [in] RunArgs of for model execution.
-  /// @return Status result of function
-  Status PushRunArgs(const std::shared_ptr<RunArgsV2> &args) override;
-
-  /// @ingroup ge
-  /// @brief Run graph for synchronize model.
-  /// @param [in] graph_node: node of graph.
-  /// @param [in] graph_id: graph identifier.
-  /// @param [in] inputs: input data for the graph running.
-  /// @param [out] outputs: output data of the graph running
-  /// @return Status result of function
-  Status RunGraph(const GraphNodePtr &graph_node, const GraphId graph_id,
-                  const std::vector<GeTensor> &inputs, std::vector<GeTensor> &outputs) override;
 
   /// @ingroup ge
   /// @brief Run graph for synchronize model.
@@ -148,9 +132,7 @@ class ModelExecutor : public Executor {
                                         int64_t &sum_size, bool &reuse) const;
 
   void RunThread();
-  void RunThreadV2();
   void StopQueue();
-  void ReturnError(const RunAsyncCallback &callback, const Status ret, const std::string &log_info) const;
   void ReturnError(const RunAsyncCallbackV2 &callback,
       const Status ret, const std::string &log_info) const;
   bool DoReleaseModel(const GeRootModelPtr &ge_root_model, const GraphNodePtr &loaded_graph_node) const;
@@ -163,10 +145,8 @@ class ModelExecutor : public Executor {
   std::map<GraphId, GraphNodePtr> graph_nodes_;
 
   std::thread run_thread_;
-  std::thread run_thread_v2_;
   std::atomic_bool thread_run_flag_{false};
   BlockingQueue<std::shared_ptr<RunArgs>> run_args_q_;
-  BlockingQueue<std::shared_ptr<RunArgsV2>> run_args_v2_q_;
 };
 }
 #endif // GE_GRAPH_EXECUTE_MODEL_EXECUTOR_H

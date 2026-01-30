@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# -------------------------------------------------------------------
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
 # This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
@@ -21,8 +22,7 @@ try:
     from ge.es.graph_builder import GraphBuilder, TensorHolder
     from ge.graph import Graph, Tensor, DumpFormat
     from ge.graph.types import DataType, Format
-    from es_ut_test import (phony_1i_1o, Add, Const, phony_1i1dyi_1o, phony_If, While, phony_3opi_1o, phony_1opi_1o,
-                            phony_req_attrs)
+    from es_ut_test import phony_1i_1o, Add, Const, phony_1i1dyi_1o, phony_If, While, phony_3opi_1o, phony_1opi_1o, phony_req_attrs
 except Exception as e:
     import traceback
 

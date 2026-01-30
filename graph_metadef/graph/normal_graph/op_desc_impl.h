@@ -17,6 +17,7 @@
 #include <set>
 #include "graph/types.h"
 #include "graph/op_desc.h"
+#include "graph/ge_tensor.h"
 #include "graph/small_vector.h"
 #include "graph/ascend_limits.h"
 #include "graph/type/tensor_type_impl.h"

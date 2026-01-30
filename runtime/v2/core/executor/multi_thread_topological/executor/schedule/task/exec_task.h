@@ -20,7 +20,7 @@
 #include "exe_graph/runtime/extended_kernel_context.h"
 #include "kernel/memory/util/link_node.h"
 #include "core/execution_data.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace gert {
 class ExecTask : public LinkNode<ExecTask> {

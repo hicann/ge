@@ -46,7 +46,7 @@ graphStatus PassOptionUtils::CheckIsPassEnabled(const std::string &pass_name, bo
       GELOGW("Option [%s] of pass [%s] is not registered", opt_name.c_str(), pass_name.c_str());
       continue;
     }
-    opt_infos.emplace_back(info_ptr);
+    (void) opt_infos.emplace_back(info_ptr);
   }
   // Pass关联的选项均未注册,说明注册阶段遗漏了选项
   if (opt_infos.empty()) {

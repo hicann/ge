@@ -119,6 +119,10 @@ inline bool IsExecuteOpFuncNode(const char *const node_type) {
   return (strcmp(node_type, "ExecuteOpFunc") == 0);
 }
 
+inline bool IsCustomOpFuncNode(const char *const node_type) {
+  return (strcmp(node_type, "ExecuteCustomOp") == 0);
+}
+
 inline bool IsExecuteOpPrepareNode(const char *const node_type) {
   return (strcmp(node_type, "ExecuteOpPrepare") == 0);
 }
@@ -148,7 +152,7 @@ inline bool IsLaunchNode(const char *const node_type) {
   return IsAiCoreLaunchNode(node_type) || IsAiCpuLaunchNode(node_type) ||
          (strcmp(node_type, "StarsTaskLaunchKernel") == 0) || IsLaunchFFTSPlusTaskNode(node_type) ||
          IsHcomLaunchNode(node_type) || IsDavinciModelExecuteNode(node_type) || IsExecuteOpFuncNode(node_type) ||
-         IsExecuteOplaunchNode(node_type);
+         IsExecuteOplaunchNode(node_type) || IsCustomOpFuncNode(node_type);
 }
 
 inline bool IsCalcSizeNode(const char *const node_type) {

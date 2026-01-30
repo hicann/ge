@@ -91,13 +91,14 @@
 #define GE_RUN(prefix, func, ...) \
   RETURN_IF_ERROR_WITH_TIMESTAMP_NAME(COUNTER_NAME(ge_timestamp_##prefix), prefix, func, __VA_ARGS__)
 #define GE_RUN_PERF(prefix, func, ...) \
-  RETURN_IF_ERROR_WITH_PERF_TIMESTAMP_NAME(COUNTER_NAME(ge_timestamp_##prefix), prefix, func, __VA_ARGS__)
+  RETURN_IF_ERROR_WITH_PERF_TIMESTAMP_NAME(COUNTER_NAME(ge_timestamp_##prefix), (prefix), (func), __VA_ARGS__)
 #define SET_THREAD_NAME(thread_id, thread_name)       \
   do {                                                \
-    (void)pthread_setname_np(thread_id, thread_name); \
+    (void)pthread_setname_np((thread_id), (thread_name)); \
   } while (false)
 
 
+namespace ge {
 class FuncPerfScope {
  public:
   FuncPerfScope(const char *const message1, const char *const message2)
@@ -115,5 +116,6 @@ class FuncPerfScope {
   const char *const message1_;
   const char *const message2_;
 };
+}
 
 #endif  // GE_GE_CALL_WRAPPER_H_

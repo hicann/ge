@@ -14,6 +14,7 @@
 #include "graph/load/model_manager/task_info/args_io_addrs_updater.h"
 #include "graph/load/model_manager/task_info/task_info.h"
 #include "graph/op_desc.h"
+#include "graph/args_format_desc.h"
 
 namespace ge {
 class CmoAddrTaskInfo : public TaskInfo {
@@ -42,8 +43,12 @@ class CmoAddrTaskInfo : public TaskInfo {
   DavinciModel *davinci_model_{nullptr};
   OpDescPtr op_desc_;
   void *args_{nullptr};
-  rtCmoAddrInfo *addr_info_{nullptr};
+  void *host_args_{nullptr};
+  ArgsFormatDesc format_;
+  uint32_t task_id_{0U};
+  uint32_t stream_id_{0U};
   size_t args_size_{0UL};
+  size_t format_args_size_{0UL};
   std::vector<uint64_t> io_addrs_;
   std::vector<uint64_t> io_addr_mem_types_;
   size_t io_align_offset_{0UL};

@@ -44,28 +44,19 @@
 namespace {
 using json = nlohmann::json;
 using amctStatus = int32_t;
-bool IsCaffeUnsupportedVersion(const std::string &version) {
-  static const std::set<std::string> kUnsupportedVersion = {"Ascend910B1", "Ascend910B2",   "Ascend910B3",
-                                                            "Ascend910B4", "Ascend910B4-1", "Ascend910B2C"};
-  static const std::string kUnsupportedShortVersion = "Ascend910_9";
-  if ((kUnsupportedVersion.find(version) != kUnsupportedVersion.end()) ||
-      (version.find(kUnsupportedShortVersion) == 0UL)) {
-    return true;
-  }
-  return false;
-}
 static bool is_dynamic_input = false;
 const char *const kAmctSo = "libamctacl.so";
-const char *const kModeSupport = "only support 0(model to framework model), "
+const char *const kModeSupport = "The value must be selected from the following: 0(model to framework model), "
                                  "1(framework model to json), 3(only pre-check), "
                                  "5(pbtxt to json), 6(display model info),"
-                                 "30(model to execute-om for nano)";
-const char *const kModelToJsonSupport = "only support 0(Caffe) 3(TensorFlow) 5(Onnx) when mode set 1";
-const char *const kCaffeFormatSupport = "only support NCHW, ND in Caffe model, you must choose one of them";
+                                 "30(model to execute-om for nano, an .om file for nano chips).";
+const char *const kModelToJsonSupport =
+    "The framework must be selected from {0(Caffe), 3(TensorFlow), 5(Onnx)} when model is set to 1(JSON).";
+const char *const kCaffeFormatSupport = "The value must be NCHW or ND in Caffe model.";
 const char *const kCaffeSupport = "Caffe is not supported in the current soc version";
 const char *const kTFFormatSupport =
-    "only support NCHW, NHWC, ND, NCDHW, NDHWC in TF model, you must choose one of them";
-const char *const kONNXFormatSupport = "only support NCHW, ND, NCDHW in ONNX model, you must choose one of them";
+    "The value must be NCHW, NHWC, ND, NCDHW or NDHWC in TF model.";
+const char *const kONNXFormatSupport = "The value must be NCHW, ND or NCDHW in ONNX model.";
 // limit available mem size 2G
 const long kMinAvailableMem = 2097152;  // 2 * 1024 * 1024
 
@@ -357,6 +348,7 @@ DEFINE_string(external_weight, "0",
 "For converting const to file constant, and saving weight to file. "
 "0: save weight in om. "
 "1: save weight in file. "
+"2: save all weights in one file. "
 "Default is 0.");
 
 DEFINE_string(deterministic, "0",
@@ -491,7 +483,7 @@ class GFlagUtils {
         "  --is_output_adjust_hw_layout   Net output node datatype is fp16 and format is NC1HWC0, used with out_nodes. "
         "true: enable; false(default): disable. E.g.: \"true,true,false,true\"\n"
         "  --external_weight        Convert const to file constant, and save weight in file.\n"
-        "                           0 (default): save weight in om.  1: save weight in file.\n"
+        "                           0 (default): save weight in om.  1: save weight in file.  2: save all weights in one file.\n"
         + oo_help_info[static_cast<size_t>(OoCategory::kFeature)] +
         "\n[Model Tuning]\n"
         "  --disable_reuse_memory    The switch of reuse memory. Default value is : 0. "
@@ -658,13 +650,7 @@ class GFlagUtils {
                 support.c_str());
       return false;
     } else if (FLAGS_framework == static_cast<int32_t>(domi::CAFFE)) {
-      if (IsCaffeUnsupportedVersion(FLAGS_soc_version)) {
-        REPORT_PREDEFINED_ERR_MSG(
-            "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-            std::vector<const char *>({"--framework", std::to_string(FLAGS_framework).c_str(), kCaffeSupport}));
-        DOMI_LOGE("[Check][Parameter]%s.", kCaffeSupport);
-        return false;
-      }
+      // The Soc Version check for caffe model conversion has been removed, so errors may occur in later processes.
       if (FLAGS_weight.empty()) {
         REPORT_PREDEFINED_ERR_MSG(
             "E10008", std::vector<const char *>({"parameter"}),
@@ -729,7 +715,7 @@ class GFlagUtils {
       REPORT_PREDEFINED_ERR_MSG(
           "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
           std::vector<const char *>({"--op_precision_mode", FLAGS_op_precision_mode.c_str(),
-                                    "path is not found"}));
+                                    "Path defined by op precision mode is not found."}));
       GELOGE(FAILED, "[Check][op_precision_mode] %s not found", FLAGS_op_precision_mode.c_str());
       return FAILED;
     }
@@ -748,7 +734,8 @@ class GFlagUtils {
       GELOGE(FAILED, "[Check][TransferShapeAndRange] Transfer shape to shape range failed!");
       return FAILED;
     }
-
+    GE_ASSERT_SUCCESS(CheckHintShapeConflictWithDynamicParam(FLAGS_input_hint_shape, FLAGS_dynamic_batch_size,
+                      FLAGS_dynamic_image_size, FLAGS_dynamic_dims), "[Check][input hint shape] failed!");
     if (CheckDynamicInputParamValid(FLAGS_dynamic_batch_size, FLAGS_dynamic_image_size,
                                     FLAGS_dynamic_dims, FLAGS_input_shape, FLAGS_input_shape_range,
                                     FLAGS_input_format, is_dynamic_input) != SUCCESS) {
@@ -761,7 +748,7 @@ class GFlagUtils {
       REPORT_PREDEFINED_ERR_MSG(
           "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
           std::vector<const char *>({"--insert_op_conf", FLAGS_insert_op_conf.c_str(),
-                                    "dynamic dims function does not support aipp"}));
+                                    "The dynamic dims function does not support AIPP."}));
       GELOGE(FAILED, "[Check][Param]dynamic dims function does not support aipp");
       return FAILED;
     }
@@ -825,7 +812,7 @@ class GFlagUtils {
     if (is_invalid_input) {
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
                          std::vector<const char_t *>({"--display_model_info", FLAGS_display_model_info.c_str(),
-                           "display_model_info does not support execute-om for nano"}));
+                           "Parameter display_model_info does not support execute-om for nano."}));
       GELOGE(FAILED, "[Check][Parameter]Input parameter[--display_model_info] does not support execute-om nano.");
       return FAILED;
     }
@@ -892,7 +879,7 @@ class GFlagUtils {
           }
           target_soc += soc_str + " ";
         }
-        ss_err_msg << "option soc_version[" << target_soc << "] and mode[" << iter->first << "] must be set together";
+        ss_err_msg << "Option soc_version " << target_soc << " and mode " << iter->first << " must be set together";
         REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char *>({"reason"}),
                                   std::vector<const char *>({ss_err_msg.str().c_str()}));
         GELOGE(FAILED, "[Check][Option]mode[%d] should set soc_version[%s]", iter->first, target_soc.c_str());
@@ -901,7 +888,7 @@ class GFlagUtils {
         // soc version匹配成功，但mode参数不匹配
         for (const std::string &soc_str : iter->second) {
           if (soc_str == FLAGS_soc_version) {
-            ss_err_msg << "option soc_version[" << soc_str << "] and mode[" << iter->first << "] must be set together";
+            ss_err_msg << "Option soc_version " << soc_str << " and mode " << iter->first << " must be set together";
             REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char *>({"reason"}),
                                       std::vector<const char *>({ss_err_msg.str().c_str()}));
             GELOGE(FAILED, "[Check][Option]soc_version[%s] should set mode[%d]", soc_str.c_str(), iter->first);
@@ -1351,13 +1338,13 @@ namespace {
 static Status GenerateOfflineModel(GeGenerator &ge_generator, Graph graph,
                                    std::string output, std::vector<GeTensor> inputs) {
   std::map<int32_t, OfflineModelFormat> flags_mode_map = {
-    {GEN_EXE_OM_FOR_NANO, OM_FORMAT_NANO}
+    {GEN_EXE_OM_FOR_NANO, OfflineModelFormat::OM_FORMAT_NANO}
   };
 
   if (flags_mode_map.find(FLAGS_mode) != flags_mode_map.end()) {
     return ge_generator.GenerateOfflineModel(graph, output, inputs, flags_mode_map[FLAGS_mode]);
   }
-  return ge_generator.GenerateOfflineModel(graph, output, inputs, OM_FORMAT_DEFAULT);
+  return ge_generator.GenerateOfflineModel(graph, output, inputs, OfflineModelFormat::OM_FORMAT_DEFAULT);
 }
 
 void SetAtcParams(std::map<std::string, std::string> &atc_params, const std::string &output) {
@@ -1442,7 +1429,7 @@ Status GenerateModelBySingleGraph(GeGenerator &ge_generator, const std::string &
                      return FAILED);
   ret = GenerateOfflineModel(ge_generator, graph, output, inputs);
   if (ret != SUCCESS) {
-    REPORT_PREDEFINED_ERR_MSG("E10042", std::vector<const char *>({}), std::vector<const char *>({}));
+    REPORT_INNER_ERR_MSG("E19999", "GE GenerateOfflineModel execute failed");
     DOMI_LOGE("GE GenerateOfflineModel execute failed");
     return FAILED;
   }
@@ -1473,7 +1460,6 @@ Status GenerateModel(std::map<std::string, std::string> &options, const std::str
   GE_MAKE_GUARD(release, callback);
   GELOGD("Current input is single graph to generate model.");
   return GenerateModelBySingleGraph(ge_generator, output, options);
-  return SUCCESS;
 }
 
 static void SetEnvForSingleOp(std::map<std::string, std::string> &options) {
@@ -1532,9 +1518,9 @@ Status GenerateSingleOp(const std::string& json_file_path) {
   }
 
   if (!FLAGS_op_precision_mode.empty() && !CheckInputPathValid(FLAGS_op_precision_mode, "--op_precision_mode")) {
-    REPORT_PREDEFINED_ERR_MSG(
-        "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-        std::vector<const char *>({"--op_precision_mode", FLAGS_op_precision_mode.c_str(), "path is not found"}));
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                              std::vector<const char *>({"--op_precision_mode", FLAGS_op_precision_mode.c_str(),
+                                                         "Path defined by op_precision_mode is not found."}));
     GELOGE(FAILED, "[Check][op_precision_mode] %s not found", FLAGS_op_precision_mode.c_str());
     return FAILED;
   }
@@ -1826,7 +1812,6 @@ Status DisplayModelInfo() {
 Status ConvertPbtxtToJson();
 
 Status ConvertPbtxtToJson() {
-
   if (FLAGS_om.empty()) {
     REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char *>({"parameter"}), std::vector<const char *>({"om"}));
     GELOGE(FAILED, "[Check][Parameter]Input parameter[--om]'s value is empty!");
@@ -1835,9 +1820,9 @@ Status ConvertPbtxtToJson() {
 
   const std::string &suffix = FLAGS_om.substr(FLAGS_om.find_last_of('.') + 1);
   if (suffix != "txt") {
-    static const std::string reason = "if the value of [--model] is " +
-                                       std::to_string(static_cast<uint32_t>(RunMode::PBTXT_TO_JSON)) +
-                                       ", [--om] parameter only support *.txt format.";
+    static const std::string reason = "If the value of --model is " +
+                                      std::to_string(static_cast<uint32_t>(RunMode::PBTXT_TO_JSON)) +
+                                      ", --om only supports *.txt format.";
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({"--om", FLAGS_om.c_str(), reason.c_str()}));
     GELOGE(FAILED, "[Check][Parameter] Invalid value for --om[%s], %s", FLAGS_om.c_str(), reason.c_str());
@@ -1908,8 +1893,8 @@ Status CheckAndRunSingleOp() {
   if ((FLAGS_display_model_info == "1") || (FLAGS_framework != -1) || (!FLAGS_insert_op_conf.empty()) ||
       (FLAGS_mode != static_cast<int32_t>(RunMode::GEN_OM_MODEL))) {
     std::string reason(
-        "After the parameter[--singleop] is specified, these parameters can cause conflicts: "
-        "[--display_model_info,--mode,--framework,--insert_op_conf].");
+        "When --singleop is specified, only one of the following parameters can be used: {--display_model_info, "
+        "--mode, --framework, --insert_op_conf}.");
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({"--singleop", FLAGS_singleop.c_str(), reason.c_str()}));
     GELOGE(FAILED, "[Check][Parameter]%s", reason.c_str());
@@ -1991,7 +1976,7 @@ int32_t main_impl(int32_t argc, char* argv[]) {
   }
   do {
     if (!FLAGS_auto_tune_mode.empty()) {
-      std::string reason("The Auto Tune function has been discarded. Please use the AOE tool for tuning.");
+      std::string reason("The Auto Tune function has been deprecated. Please use the AOE tool for tuning.");
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                                 std::vector<const char *>({"--auto_tune_mode", FLAGS_auto_tune_mode.c_str(), reason.c_str()}));
       GELOGE(FAILED, "[Check][Parameter]%s", reason.c_str());

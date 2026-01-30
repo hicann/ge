@@ -10,7 +10,7 @@
 
 #include "axis_util.h"
 #include "axis_constants.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "expand_dimension.h"
 #include "graph/utils/type_utils.h"
 

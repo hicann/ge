@@ -83,11 +83,19 @@ Status SuperKernelPass::Run(ge::ComputeGraphPtr graph) {
     }
     int64_t support = 0;
     (void)AttrUtils::GetInt(op_desc, "supportSuperKernel", support);
+    /*
+      背景：SIMT算子不支持取消融合，在GE处规避，待GE/SK check方案合入后删除
+      临时规避方案：SIMT算子中添加local_memory_size属性，GE SK通过该属性识别SIMT算子并跳过
+      正式方案：提供SK的融合前检查，方案设计中
+    */
+    int64_t local_memory_size = 0;
+    (void)AttrUtils::GetInt(op_desc, "local_memory_size", local_memory_size);
+    const bool is_simt_op = local_memory_size > 0;
     std::string super_kernel_options;
     (void)AttrUtils::GetStr(op_desc, ATTR_NAME_SUPER_KERNEL_OPTIONS, super_kernel_options);
     std::string check_val;
     GE_ASSERT_SUCCESS(ParseSuperKernelOptions(super_scope_name, super_kernel_options, check_val));
-    const bool no_support_sk_fusion = (support != 1) && !IsHcomOpSupportSk(op_desc);
+    const bool no_support_sk_fusion = ((support != 1) || (is_simt_op)) && !IsHcomOpSupportSk(op_desc);
     // can not delete _super_kernel_scope attr when strict-scope-check is not empty,
     // because strict-scope-check logic need this attr to verify
     const bool need_del_attr = no_support_sk_fusion && check_val.empty();
@@ -99,9 +107,9 @@ Status SuperKernelPass::Run(ge::ComputeGraphPtr graph) {
       std::string unsupported_reason = no_support_sk_fusion ?
            "can not fusion, maybe it is tbe or tik operator, please replace to ascendc operator and specify super_kernel_scope" :
            "can not fusion, please check your super_kernel_scope";
-      GEEVENT("find super kernel sub op %s(%s) %s, super_scope_name %s, stream_id %ld, "
+      GEEVENT("find super kernel sub op %s(%s) %s, local_memory_size %ld, super_scope_name %s, stream_id %ld, "
           "cur_pos %zu, topo id %ld, so delete attr",
-          op_desc->GetNamePtr(), op_desc->GetTypePtr(), unsupported_reason.c_str(), super_scope_name.c_str(), stream_id,
+          op_desc->GetNamePtr(), op_desc->GetTypePtr(), unsupported_reason.c_str(), local_memory_size, super_scope_name.c_str(), stream_id,
           cur_pos, op_desc->GetId());
       ori_super_nodes_delete_id_[super_scope_name][stream_id].emplace_back(op_desc->GetId());
       continue;
@@ -268,15 +276,23 @@ Status SuperKernelPass::SelectFusionScope() {
         (void)AttrUtils::GetStr(cur_node->GetOpDesc(), super_scope_key, super_scope_name);
         int64_t support = 0;
         (void)AttrUtils::GetInt(cur_node->GetOpDesc(), "supportSuperKernel", support);
-        const bool no_support_sk_fusion = (support != 1) && !IsHcomOpSupportSk(cur_node->GetOpDescBarePtr());
+        /*
+          背景：SIMT算子不支持取消融合，在GE处规避，待GE/SK check方案合入后删除
+          临时规避方案：SIMT算子中添加local_memory_size属性，GE SK通过该属性识别SIMT算子并跳过
+          正式方案：提供SK的融合前检查，方案设计中
+        */
+        int64_t local_memory_size = 0;
+        (void)AttrUtils::GetInt(cur_node->GetOpDesc(), "local_memory_size", local_memory_size);
+        const bool is_simt_op = local_memory_size > 0;
+        const bool no_support_sk_fusion = ((support != 1) || (is_simt_op)) && !IsHcomOpSupportSk(cur_node->GetOpDescBarePtr());
         std::string unsupported_reason = no_support_sk_fusion ?
             "can not fusion, maybe it is tbe or tik operator, please replace to ascendc operator and specify super_kernel_scope" :
             "can not fusion, please check your super_kernel_scope";
         const bool need_cut = (super_scope_name != cur_scope_str) || no_support_sk_fusion;
         if (need_cut) {
           const auto check_val = super_kernel_scope_options_[cur_scope_str];
-          GEEVENT("node %s %s. stream id %ld index %zu, target scope %s, topo id is %ld.",
-                  cur_node->GetNamePtr(), unsupported_reason.c_str(), cur_stream_id, i,
+          GEEVENT("node %s %s, local_memory_size %ld. stream id %ld index %zu, target scope %s, topo id is %ld.",
+                  cur_node->GetNamePtr(), unsupported_reason.c_str(), local_memory_size, cur_stream_id, i,
                   cur_scope_str.c_str(), cur_node->GetOpDesc()->GetId());
           GE_ASSERT_TRUE((check_val != "abort"), "In abort check scene, node %s %s, target scope %s",
               cur_node->GetNamePtr(), unsupported_reason.c_str(), cur_scope_str.c_str());

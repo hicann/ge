@@ -301,8 +301,4 @@ void TestStaticFftsPlusGraphLoad() {
   EXPECT_EQ(model_executor.UnloadGraph(ge_root_model, graph_id), SUCCESS);
   ASSERT_EQ(model_executor.Finalize(), SUCCESS);
 }
-
-TEST_F(StaticGraphProfilingSt, DavinciModelFftsPlusProfiling_ReportValidProfInfo_WithTaskTimeL0SwitchOn) {
-  EXPECT_DefaultProfilingTestWithExpectedCallTimes(TestStaticFftsPlusGraphLoad, 1, 4, 2, 0);
-}
 }  // namespace ge

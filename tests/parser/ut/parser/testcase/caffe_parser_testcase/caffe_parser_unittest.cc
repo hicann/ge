@@ -169,7 +169,8 @@ void UtestCaffeParser::RegisterCustomOp() {
 }
 
 TEST_F(UtestCaffeParser, caffe_parser_user_output_with_name_and_index) {
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe_abs.pbtxt";
   auto model_parser = domi::ModelParserFactory::Instance()->CreateModelParser(domi::CAFFE);
   ASSERT_NE(model_parser, nullptr);
@@ -195,7 +196,8 @@ TEST_F(UtestCaffeParser, caffe_parser_user_output_with_name_and_index) {
 }
 
 TEST_F(UtestCaffeParser, caffe_parser_user_output_with_top_name) {
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe_abs.pbtxt";
   auto model_parser = domi::ModelParserFactory::Instance()->CreateModelParser(domi::CAFFE);
   ASSERT_NE(model_parser, nullptr);
@@ -221,7 +223,8 @@ TEST_F(UtestCaffeParser, caffe_parser_user_output_with_top_name) {
 }
 
 TEST_F(UtestCaffeParser, caffe_parser_user_output_with_default) {
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe_abs.pbtxt";
   auto model_parser = domi::ModelParserFactory::Instance()->CreateModelParser(domi::CAFFE);
   ASSERT_NE(model_parser, nullptr);
@@ -245,7 +248,8 @@ TEST_F(UtestCaffeParser, caffe_parser_user_output_with_default) {
 }
 
 TEST_F(UtestCaffeParser, acl_caffe_parser) {
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe_add.pbtxt";
   std::string weight_file_txt = case_dir + "/caffe_model/caffe_add.caffemodel.txt";
   std::string weight_file = case_dir + "/caffe_model/caffe_add.caffemodel";
@@ -289,7 +293,9 @@ TEST_F(UtestCaffeParser, acl_caffe_parser) {
 
 TEST_F(UtestCaffeParser, ParseFromMemory_success)
 {
-  std::string caseDir = FILE_CAFFE_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/caffe_model/caffe_add.pbtxt";
   std::string weight_file = caseDir + "/caffe_model/caffe_add.caffemodel";
 
@@ -314,7 +320,8 @@ TEST_F(UtestCaffeParser, ParseFromMemory_success)
 }
 
 TEST_F(UtestCaffeParser, caffe_parser_to_json) {
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe_add.pbtxt";
   std::map<ge::AscendString, ge::AscendString> parser_params;
   CaffeModelParser caffe_parser;
@@ -347,7 +354,7 @@ TEST_F(UtestCaffeParser, caffe_parser_ParseParamsForDummyData_test)
   ret = caffe_parser.ParseParamsForDummyData(*lay, op);
   EXPECT_EQ(ret, FAILED);
 
-  (void)dummyData->add_shape();
+  domi::caffe::BlobShape* dummpShape = dummyData->add_shape();
   ret = caffe_parser.ParseParamsForDummyData(*lay, op);
   EXPECT_EQ(ret, SUCCESS);
 }
@@ -430,7 +437,8 @@ TEST_F(UtestCaffeParser, CaffeDataParser_ParseParams_success)
 TEST_F(UtestCaffeParser, CaffeWeightsParser_Parse_test)
 {
   CaffeWeightsParser weightParser;
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe_add.caffemodel";
   const char *file = nullptr;
   ge::ComputeGraphPtr graph;
@@ -463,7 +471,8 @@ TEST_F(UtestCaffeParser, CaffeWeightsParser_Parse_test)
 TEST_F(UtestCaffeParser, CaffeWeightsParser_ParseWeightByFusionProto_test)
 {
   CaffeWeightsParser weightParser;
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string weight_file = case_dir + "/caffe_model/caffe_add.caffemodel";
   std::string model_file = case_dir + "/../../../../graph_metadef/proto/caffe/caffe.proto";
   const char *weight_path = model_file.c_str();
@@ -477,7 +486,8 @@ TEST_F(UtestCaffeParser, CaffeWeightsParser_ParseWeightByFusionProto_test)
 TEST_F(UtestCaffeParser, CaffeWeightsParser_ParseFromMemory_test)
 {
   CaffeWeightsParser weightParser;
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string weight_file = case_dir + "/caffe_model/caffe_add.caffemodel";
   ge::ComputeGraphPtr graph;
   const char *data = nullptr;
@@ -708,7 +718,8 @@ TEST_F(UtestCaffeParser, CaffeModelParser_ParseInput_test2)
 TEST_F(UtestCaffeParser, CaffeModelParser_CustomProtoParse_test)
 {
   CaffeModelParser modelParser;
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/";
   const char *model_path = model_file.c_str();
 
@@ -739,7 +750,8 @@ TEST_F(UtestCaffeParser, CaffeWeightsParser_ParseGraph_test)
   ge::ComputeGraphPtr compute_graph = ge::parser::MakeShared<ge::ComputeGraph>("tmp_graph");
   ge::Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
 
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string weight_file = case_dir + "/caffe_model/caffe_add.caffemodel";
   const char *file = weight_file.c_str();
 
@@ -849,7 +861,8 @@ TEST_F(UtestCaffeParser, CaffeWeightsParser_ConvertLayerParameter_test)
   Status ret = weightParser.ConvertLayerParameter(layer, compute_graph);
   EXPECT_EQ(ret, SUCCESS);
 
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string caffe_proto = case_dir + "/../../../../../../graph_metadef/proto/caffe/";
   google::protobuf::compiler::DiskSourceTree sourceTree;
   sourceTree.MapPath("project_root", caffe_proto);
@@ -945,7 +958,8 @@ TEST_F(UtestCaffeParser, CaffeModelParser_SaveDataLayerTops_test)
 TEST_F(UtestCaffeParser, CaffeModelParser_ReadCaffeModelFromText_test)
 {
   CaffeModelParser modelParser;
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe.pbtxt";
   const char *model_path = model_file.c_str();
 
@@ -984,6 +998,7 @@ TEST_F(UtestCaffeParser, CaffeReshapeParser_ParseWeights_test)
   CaffeReshapeParser reshapeParser;
   domi::caffe::NetParameter net;
   domi::caffe::LayerParameter *layer = net.add_layer();
+  domi::caffe::ReshapeParameter* reshape_param = layer->mutable_reshape_param();
   layer->add_bottom("bottom");
   layer->add_top("top");
 
@@ -1102,7 +1117,8 @@ TEST_F(UtestCaffeParser, CaffeWeightsParser_ParseLayerParameter_test)
   layer->set_type("AbsVal");
 
   ge::ComputeGraphPtr compute_graph = build_graph(true);
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   google::protobuf::compiler::DiskSourceTree sourceTree;
   std::string caffe_proto = case_dir + "/../../../../../../graph_metadef/proto/caffe/";
   sourceTree.MapPath("project_root", caffe_proto);
@@ -1132,7 +1148,8 @@ TEST_F(UtestCaffeParser, CaffeModelParser_ParseLayerParameter_test)
   ge::Operator op_src = ge::OpDescUtils::CreateOperatorFromOpDesc(op_desc_src);
   operators.emplace_back(op_src);
 
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string caffe_proto = case_dir + "/../../../../../../graph_metadef/proto/caffe/";
   google::protobuf::compiler::DiskSourceTree sourceTree;
   sourceTree.MapPath("project_root", caffe_proto);
@@ -1159,7 +1176,8 @@ TEST_F(UtestCaffeParser, CaffeModelParser_ParseLayerParameter_test)
 TEST_F(UtestCaffeParser, CaffeModelParser_ReadModelWithoutWarning_test)
 {
   CaffeModelParser modelParser;
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string model_file = case_dir + "/caffe_model/caffe.pbtxt";
   const char *model_path = model_file.c_str();
 
@@ -1211,7 +1229,8 @@ TEST_F(UtestCaffeParser, CaffeWeightsParser_ReorderInput_test)
 TEST_F(UtestCaffeParser, CaffeOpParser_ParseParms_test)
 {
   CaffeOpParser parser;
-  std::string case_dir = FILE_CAFFE_PATH;
+  std::string case_dir = __FILE__;
+  case_dir = case_dir.substr(0, case_dir.find_last_of("/"));
   std::string caffe_proto = case_dir + "/../../../../../../graph_metadef/proto/caffe/";
   google::protobuf::compiler::DiskSourceTree sourceTree;
   sourceTree.MapPath("project_root", caffe_proto);
@@ -1240,11 +1259,14 @@ TEST_F(UtestCaffeParser, CaffeModelParser_Constructor_and_delete)
 
 TEST_F(UtestCaffeParser, ParseFromMemory_success_graph)
 {
-  std::string caseDir = FILE_CAFFE_PATH;
+  std::string caseDir = __FILE__;
+  std::size_t idx = caseDir.find_last_of("/");
+  caseDir = caseDir.substr(0, idx);
   std::string modelFile = caseDir + "/caffe_model/caffe_add.pbtxt";
   std::string weight_file = caseDir + "/caffe_model/caffe_add.caffemodel";
 
   const char* tmp_tf_pb_model = modelFile.c_str();
+  const char* tmp_tf_weight_model = weight_file.c_str();
   ge::Graph graph;
 
   Status ret = ge::aclgrphParseCaffe(modelFile.c_str(), weight_file.c_str(), graph);

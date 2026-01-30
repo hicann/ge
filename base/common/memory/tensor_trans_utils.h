@@ -26,7 +26,7 @@ struct MemcpyBatchParam {
   std::vector<size_t> src_sizes;
   std::vector<rtMemcpyBatchAttr> attrs;
   std::vector<size_t> attr_idxs;
-  int32_t device_id;
+  int32_t device_id{};
 };
 
 struct MemcpyParam {
@@ -45,8 +45,8 @@ class TensorTransUtils {
   static gert::Shape ContructRtShapeFromVector(const std::vector<int64_t> &dims);
   static std::vector<int64_t> GetDimsFromGertShape(const gert::Shape &gert_shape);
 
-  static Status TransHostTensorsToDeviceGertTensors(Allocator *allocator, const std::vector<Tensor> &src_tensors, std::vector<gert::Tensor> &dst_tensors,
-                                                  std::vector<MemBlock *> &inputs_memblocks, bool enable_input_batch_cpy);
+  static Status TransHostGertTensorsToDevice(Allocator *allocator, const std::vector<gert::Tensor> &src_tensors, std::vector<gert::Tensor> &dst_tensors,
+                                             std::vector<MemBlock *> &inputs_memblocks, bool enable_input_batch_cpy);
   static Status HostTensorToDeviceGertTensor(ge::Allocator *allocator, const void *src_tensor_addr, uint64_t src_tensor_length,
                                              gert::Tensor &dst_tensor, MemBlock *&mem_block_to_keep);
   static Status FillRtTensorDesc(const Tensor &src_tensor, gert::Tensor &dst_tensor);
@@ -90,7 +90,10 @@ class TensorTransUtils {
   static Status AsTensorsView(const std::vector<Tensor> &ge_tensors,
     std::vector<gert::Tensor> &tensors_view);
 
+  // device gert tensor to host, host内存使用AlignedPtr
   static Status TransGertTensorToHost(const gert::Tensor &device_tensor, gert::Tensor &host_tensor);
+  static Status TransGertTensorsToHost(const std::vector<gert::Tensor> &device_tensors,
+    std::vector<gert::Tensor> &host_tensors);
   static std::vector<gert::Tensor> ShareFromGertTenosrs(const std::vector<gert::Tensor> &gert_tensors);
   static void AddMemcpyBatchParam(const MemcpyParam &param, MemcpyBatchParam &memcpy_batch_params);
   static Status TryBatchMemcpy(MemcpyBatchParam &args);

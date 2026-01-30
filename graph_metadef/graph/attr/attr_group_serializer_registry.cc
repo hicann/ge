@@ -1,15 +1,15 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include "graph/attribute_group/attr_group_serializer_registry.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 namespace ge {
 
 AttrGroupSerializerRegistry &AttrGroupSerializerRegistry::GetInstance() {
@@ -58,7 +58,7 @@ AttrGroupDeserializer AttrGroupSerializerRegistry::GetDeserializer(const proto::
 }
 
 AttrGroupSerializerRegister::AttrGroupSerializerRegister(const AttrGroupSerializeBuilder builder,
-                                                         TypeId const obj_type,
+                                                         const TypeId obj_type,
                                                          const proto::AttrGroupDef::AttrGroupCase proto_type) noexcept {
   if (builder == nullptr) {
     GELOGE(FAILED, "SerializerBuilder is nullptr.");

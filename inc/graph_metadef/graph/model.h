@@ -13,6 +13,7 @@
 
 #include <memory>
 #include <string>
+#include "graph/attr_store.h"
 #include "graph/detail/attributes_holder.h"
 #include "graph/ge_attr_value.h"
 #include "graph/compute_graph.h"

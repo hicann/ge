@@ -20,6 +20,9 @@
 #include "register/op_tiling_info.h"
 #include "graph/debug/ge_attr_define.h"
 #include "faker/aicore_taskdef_faker.h"
+#include "graph/utils/graph_utils_ex.h"
+#include "graph/debug/ge_attr_define.h"
+#include "graph/utils/attr_utils.h"
 
 namespace gert {
 class AssignWeightMemST : public testing::Test {
@@ -41,7 +44,8 @@ class AssignWeightMemST : public testing::Test {
 TEST_F(AssignWeightMemST, BigMemSinkWeightSUCCESS) {
   auto graph = ShareGraph::BuildDynamicAndStaticGraph();
   graph->TopologicalSorting();
-  auto ge_root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto ge_model_builder = GeModelBuilder(graph);
+  auto ge_root_model = ge_model_builder.BuildGeRootModel();
   auto model_data_holder = ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShape();
 
   // malloc device mem
@@ -91,7 +95,8 @@ TEST_F(AssignWeightMemST, BigMemSinkWeightSUCCESS_bin_Reuse) {
       node->GetOpDesc()->SetOpEngineName(ge::kEngineNameAiCore);
     }
   }
-  auto ge_root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto ge_model_builder = GeModelBuilder(graph);
+  auto ge_root_model = ge_model_builder.BuildGeRootModel();
   auto model_data_holder = ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShape();
 
   // malloc device mem
@@ -129,9 +134,9 @@ TEST_F(AssignWeightMemST, BigMemSinkWeightSUCCESS_bin_Reuse) {
 TEST_F(AssignWeightMemST, SmallMemSinkWeight_FreeBeforeRun_StillRunOK) {
   auto graph = ShareGraph::BuildDynamicAndStaticGraph();
   graph->TopologicalSorting();
-  auto ge_root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto ge_model_builder = GeModelBuilder(graph);
+  auto ge_root_model = ge_model_builder.BuildGeRootModel();
   auto model_data_holder = ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShape();
-
   // malloc device mem
   size_t weight_size = 4U; //require 8
   void *weight_mem = nullptr;
@@ -166,7 +171,8 @@ TEST_F(AssignWeightMemST, SmallMemSinkWeight_FreeBeforeRun_StillRunOK) {
 TEST_F(AssignWeightMemST, MemSinkWeight_UserDefaultWeight) {
   auto graph = ShareGraph::BuildDynamicAndStaticGraph();
   graph->TopologicalSorting();
-  auto ge_root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto ge_model_builder = GeModelBuilder(graph);
+  auto ge_root_model = ge_model_builder.BuildGeRootModel();
   auto model_data_holder = ModelDataFaker().GeRootModel(ge_root_model).BuildUnknownShape();
 
   // don't malloc

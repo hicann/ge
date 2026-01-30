@@ -12,7 +12,7 @@
 #define COMMON_GRAPH_DEBUG_GE_UTIL_H_
 
 #include "common/ge_common/util.h"
-#include "debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/ge_error_codes.h"
 namespace ge {
 template<typename T, typename... Args>

@@ -11,7 +11,7 @@
 #include "graph/utils/anchor_utils.h"
 #include <algorithm>
 #include "graph/debug/ge_util.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 // Get anchor status

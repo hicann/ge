@@ -258,6 +258,7 @@ set(PARSER_SRC_FILES
     "${PARSER_DIR}/parser/tensorflow/tensorflow_merge_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_no_op_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_parser.cc"
+    "${PARSER_DIR}/parser/tensorflow/tensorflow_custom_op_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_ref_switch_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_reshape_parser.cc"
     "${PARSER_DIR}/parser/tensorflow/tensorflow_shape_n_parser.cc"
@@ -312,9 +313,10 @@ target_link_libraries(st_parser_common PRIVATE
     slog_headers
     st_parser_proto st_parser_graph c_sec
     ascend_protobuf
+    -lstdc++fs
     json
     mmpa_headers
-    opp_registry
+    opp_registry -lstdc++fs
 )
 
 
@@ -342,7 +344,7 @@ target_link_libraries(st_parser PRIVATE
     msprof_headers
     st_parser_proto
     metadef
-    json
+    json -lstdc++fs
     -Wl,--whole-archive st_parser_common -Wl,--no-whole-archive
     st_parser_graph st_parser_register error_manager parser_mmpa_stub attr_util_stub
     GTest::gtest GTest::gtest_main parser_slog_stub ascend_protobuf c_sec  -lrt -ldl -lgcov

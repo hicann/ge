@@ -13,7 +13,7 @@
 #include <cstring>
 #include <sstream>
 #include "graph/debug/ge_util.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/node.h"
 #include "common/util/trace_manager/trace_manager.h"
 
@@ -204,7 +204,6 @@ graphStatus Anchor::Unlink(const AnchorPtr &peer) {
     const auto anchor = an.lock();
     return peer->Equal(anchor);
   });
-
   if (it == impl_->peer_anchors_.end()) {
     GELOGW("[Check][Param] Unlink failed , as this anchor is not connected to peer.");
     return GRAPH_FAILED;

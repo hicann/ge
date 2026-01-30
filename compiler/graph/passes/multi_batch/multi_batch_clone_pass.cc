@@ -303,7 +303,7 @@ Status MultiBatchClonePass::CheckAndParseDynamicData() {
           REPORT_PREDEFINED_ERR_MSG(
               "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
               std::vector<const char *>({"--dynamic_dims", data_name.c_str(),
-                                         "all dynamic node must be set in --input_shape, please check"}));
+                                         "All dynamic nodes must be set in --input_shape."}));
           GELOGE(INTERNAL_ERROR, "[Check][Param] data:%s shape:%s must be set in --input_shape",
                  node->GetName().c_str(), data_shape.ToString().c_str());
           return INTERNAL_ERROR;

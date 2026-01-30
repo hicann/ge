@@ -59,14 +59,14 @@ bool GuardCheckFuncCaller::Match(const vector<gert::Tensor> &inputs) const {
 
 Status GuardCheckFuncCaller::LoadGuardCheckFunc(ComputeGraphPtr computeGraphPtr) {
   GELOGD("Start load guard check func");
-  std::string buffer;
-  if (!ge::AttrUtils::GetStr(computeGraphPtr, kGuardCheckSoDataResult, buffer)) {
+  const std::string *buffer = ge::AttrUtils::GetStr(computeGraphPtr, kGuardCheckSoDataResult);
+  if ((buffer == nullptr) || buffer->empty()) {
     GELOGE(ge::FAILED, "LoadGuardCheckFunc GetStr fail %s", kGuardCheckSoDataResult);
     return ge::FAILED;
   }
 
   file_handle_ = static_cast<int32_t>(syscall(__NR_memfd_create, kGuardCheckSoName.c_str(), 0));
-  const auto write_count = mmWrite(file_handle_, const_cast<char_t *>(buffer.c_str()), buffer.size());
+  const auto write_count = mmWrite(file_handle_, const_cast<char_t *>(buffer->c_str()), buffer->size());
   GE_ASSERT_TRUE(((write_count != EN_INVALID_PARAM) && (write_count != EN_ERROR)), "Write data failed, errno: %lld",
                  write_count);
   (void)lseek(static_cast<int32_t>(file_handle_), 0, SEEK_SET);

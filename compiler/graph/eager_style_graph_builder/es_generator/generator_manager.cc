@@ -11,6 +11,9 @@
 #include "generator_manager.h"
 #include "utils.h"
 #include <iostream>
+#include <experimental/filesystem>
+
+namespace fs = std::experimental::filesystem;
 
 namespace ge {
 namespace es {

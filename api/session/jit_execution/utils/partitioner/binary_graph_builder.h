@@ -42,16 +42,16 @@ class BinaryGraphBuilder {
   BinaryGraphBuilder(BinaryGraphBuilder&&) = delete;
   BinaryGraphBuilder& operator=(BinaryGraphBuilder&&) = delete;
 
-  ComputeGraphPtr BuildGraph(const std::vector<NodePtr> &nodes, const std::string &name);
-  Status GetIOMapping(BinaryGraphIOLinkage &io_link);
+  ComputeGraphPtr BuildGraph(const std::vector<NodePtr> &nodes, const std::string &name) const;
+  Status GetIOMapping(BinaryGraphIOLinkage &io_link) const;
   // preserve the variable and const nodes in the original graph and repalce data node in remaining graph
-  Status ReplaceInputNode(BinaryGraphIOLinkage &io_link);
+  Status ReplaceInputNode(BinaryGraphIOLinkage &io_link) const;
   // merge the output nodes corresponding to nodes with single output and multiple references in remaining graph
-  Status MergeSameInputNode(BinaryGraphIOLinkage &io_link);
+  Status MergeSameInputNode(BinaryGraphIOLinkage &io_link) const;
   Status SetInputNodeDesc(const BinaryGraphIOLinkage &io_link) const;
  private:
   void RefreshNodeName(const ComputeGraphPtr &graph, const std::string &name) const;
-  Status GetIONodeMapping(BinaryGraphIOLinkage &io_link);
+  Status GetIONodeMapping(BinaryGraphIOLinkage &io_link) const;
   Status GetIOIdxMapping(BinaryGraphIOLinkage &io_link) const;
   Status FindIOIdxMappingAndSet(BinaryGraphIOLinkage &io_link, const std::string &out_node_name,
                                 const int32_t out_node_idx, const int32_t out_idx) const;

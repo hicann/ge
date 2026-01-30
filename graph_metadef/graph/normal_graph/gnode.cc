@@ -214,10 +214,8 @@ std::pair<GNodePtr, int32_t> GNode::GetInDataNodesAndPortIndexs(const int32_t in
 
   const auto out_anchor = in_anchor->GetPeerOutAnchor();
   if (out_anchor == nullptr) {
-    REPORT_INNER_ERR_MSG("E18888", "Failed to get in data node of index[%d] from node [%s], "
-                      "the data input does not exist", index, node_ptr->GetName().c_str());
-    GELOGE(GRAPH_FAILED, "[Get][Anchor] Failed to get in data node of index[%d] from node [%s], "
-           "the data input does not exist", index, node_ptr->GetName().c_str());
+    GELOGI("Index[%d] from node[%s] has no peer anchor, maybe it is optional input", index,
+           node_ptr->GetName().c_str());
     return gnode_idx;
   }
 
@@ -283,7 +281,7 @@ std::vector<std::pair<GNodePtr, int32_t>> GNode::GetOutDataNodesAndPortIndexs(co
   }
 
   std::vector<std::pair<GNodePtr, int32_t>> gnode_index;
-  const auto in_data_anchors = out_anchor->GetPeerInDataAnchors();
+  const auto in_data_anchors = out_anchor->GetPeerInDataAnchorsPtr();
   for (auto &in_data_anchor : in_data_anchors) {
     if (in_data_anchor == nullptr) {
       REPORT_INNER_ERR_MSG("E18888", "In data anchor of node[%s] is nullptr.", node_ptr->GetName().c_str());

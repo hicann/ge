@@ -9,6 +9,7 @@
  */
 
 #include "common/preload/partition/nano_task_desc_partition.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 Status NanoTaskDescPartition::Init(const GeModelPtr &ge_model, const uint8_t type) {

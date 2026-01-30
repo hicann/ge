@@ -616,7 +616,7 @@ TEST_F(CommonUtilsTest, GetAscIrCodegenImplNotNullTest) {
     }
   };
 
-  std::vector<std::string> soc_version_stub{"Ascend910B1"};
+  std::vector<std::string> soc_version_stub{"2201"};
   REG_ASC_IR(StubWorkspace)
       .Input("x", "T")
       .Output("y", "T")

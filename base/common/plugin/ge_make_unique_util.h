@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef GE_COMMON_GE_GE_UTIL_H_
-#define GE_COMMON_GE_GE_UTIL_H_
+#ifndef GE_COMMON_GE_GE_MAKE_UNIQUE_UTIL_H_
+#define GE_COMMON_GE_GE_MAKE_UNIQUE_UTIL_H_
 
 #include <iostream>
 #include <memory>
@@ -37,17 +37,17 @@ struct MakeUniq<T[B]> {
 };
 
 template <typename T, typename... Args>
-static inline typename MakeUniq<T>::unique_object MakeUnique(Args &&... args) {
+static inline auto MakeUnique(Args &&... args) -> typename MakeUniq<T>::unique_object {
   using T_nc = typename std::remove_const<T>::type;
-  return std::unique_ptr<T>(new (std::nothrow) T_nc(std::forward<Args>(args)...));
+  return std::make_unique<T_nc>(std::forward<Args>(args)...);
 }
 
 template <typename T>
-static inline typename MakeUniq<T>::unique_array MakeUnique(const size_t num) {
-  return std::unique_ptr<T>(new (std::nothrow) typename std::remove_extent<T>::type[num]());
+static inline auto MakeUnique(const size_t num) -> typename MakeUniq<T>::unique_array {
+  return std::make_unique<typename std::remove_extent<T>::type[]>(num);
 }
 
 template <typename T, typename... Args>
 static inline typename MakeUniq<T>::invalid_type MakeUnique(Args &&...) = delete;
 }  // namespace ge
-#endif  // GE_COMMON_GE_GE_UTIL_H_
+#endif  // GE_COMMON_GE_GE_MAKE_UNIQUE_UTIL_H_

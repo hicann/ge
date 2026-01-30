@@ -25,6 +25,9 @@
 #include "common_setup.h"
 #include "ge/ge_api.h"
 #include "api/aclgrph/option_utils.h"
+#include "common/memory/tensor_trans_utils.h"
+#include "graph/execute/model_executor.h"
+#include "graph_metadef/depends/checker/tensor_check_utils.h"
 
 using namespace testing;
 
@@ -32,43 +35,61 @@ namespace ge {
 bool EnableSliceSchedule() { // 桩函数
   return true;
 }
+class RuntimeMock : public RuntimeStub {
+public:
+  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) override {
+    (void)label;
+    (void)key;
+    (void)strcpy_s(val, maxLen, "fake"); // 用例不应该走自动融合
+    return RT_ERROR_NONE;
+  }
+};
+
 class UserGraphsManagerlUT : public testing::Test {
  protected:
   void SetUp() override {
     CommonSetupUtil::CommonSetup();
     gert_stub_.GetKernelStub().StubTiling();
     RuntimeStub::Install(nullptr); // gert的rts stub不能在多线程环境下工作，因此使用默认rts stub
+    RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+    gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry();
+    std::map<std::string, std::string> options = {{ge::SOC_VERSION, "Ascend310"}};
+    GetThreadLocalContext().SetGlobalOption(options);
   }
   void TearDown() override {
+    unsetenv("AUTOFUSE_FLAGS");
     CommonSetupUtil::CommonTearDown();
     gert_stub_.Clear();
+    RuntimeStub::Reset();
   }
   gert::GertRuntimeStub gert_stub_;
 };
 
 TEST_F(UserGraphsManagerlUT, AddGraph_RemoveGraph_Success) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes();
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  EXPECT_EQ(user_graph_manager.BuildGraph(user_graph_id, {}), SUCCESS);
+  EXPECT_EQ(user_graph_manager.BuildGraph(user_graph_id, {}, 0), SUCCESS);
   EXPECT_FALSE(user_graph_manager.IsGraphNeedRebuild(user_graph_id));
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 TEST_F(UserGraphsManagerlUT, AddGraph_Twice_Success) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes();
@@ -76,31 +97,48 @@ TEST_F(UserGraphsManagerlUT, AddGraph_Twice_Success) {
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  EXPECT_EQ(user_graph_manager.BuildGraph(user_graph_id, {}), SUCCESS);
+  EXPECT_EQ(user_graph_manager.BuildGraph(user_graph_id, {}, 0), SUCCESS);
   EXPECT_FALSE(user_graph_manager.IsGraphNeedRebuild(user_graph_id));
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
 TEST_F(UserGraphsManagerlUT, RemoveGraph_NotExist) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   EXPECT_EQ(user_graph_manager.RemoveGraph(0), FAILED);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+}
+
+TEST_F(UserGraphsManagerlUT, GetSetCompiledFlag_Failed) {
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+
+  bool flag = false;
+  EXPECT_NE(user_graph_manager.GetCompiledFlag(0, flag), SUCCESS);
+  EXPECT_NE(user_graph_manager.SetCompiledFlag(0, flag), SUCCESS);
+
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
 TEST_F(UserGraphsManagerlUT, RunGraphAsync_Success) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes();
@@ -110,29 +148,28 @@ TEST_F(UserGraphsManagerlUT, RunGraphAsync_Success) {
 
   // prepare run task
   std::vector<int64_t> shape_dim = {2, 3, 3, 2};
-  TensorDesc td(Shape(shape_dim), FORMAT_NCHW, DT_FLOAT);
-  td.SetOriginShape(Shape(shape_dim)); // todo check tfa set origin shape?
-  Tensor tensor(td);
-  std::vector<Tensor> inputs{std::move(tensor)};
-  std::vector<Tensor> outputs;
-  const RunAsyncCallback callback = [&](Status status, std::vector<Tensor> &outputs) {
+  std::vector<gert::Tensor> inputs(1);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {2, 3, 3, 2}, DT_FLOAT, FORMAT_NCHW);
+  const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     EXPECT_EQ(status, SUCCESS);
-    EXPECT_EQ(outputs.size(), 1);
-    EXPECT_EQ(outputs[0].GetTensorDesc().GetShape().GetDims(), shape_dim);
-    return SUCCESS;
+    ASSERT_EQ(outputs.size(), 1);
+    auto out_shape = outputs[0].GetStorageShape();
+    auto out_dims = TensorTransUtils::GetDimsFromGertShape(out_shape);
+    EXPECT_EQ(out_dims, shape_dim);
   };
-  EXPECT_EQ(user_graph_manager.RunGraphAsync(user_graph_id, inputs, callback), SUCCESS);
+  EXPECT_EQ(user_graph_manager.RunGraphAsync(user_graph_id, std::move(inputs), 0, callback), SUCCESS);
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
 TEST_F(UserGraphsManagerlUT, IsGraphNeedRebuild_False) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes();
@@ -142,18 +179,17 @@ TEST_F(UserGraphsManagerlUT, IsGraphNeedRebuild_False) {
 
   // prepare run task
   std::vector<int64_t> shape_dim = {2, 3, 3, 2};
-  TensorDesc td(Shape(shape_dim), FORMAT_NCHW, DT_FLOAT);
-  td.SetOriginShape(Shape(shape_dim)); // todo check tfa set origin shape?
-  Tensor tensor(td);
-  std::vector<Tensor> inputs{std::move(tensor)};
-  std::vector<Tensor> outputs;
-  const RunAsyncCallback callback = [&](Status status, std::vector<Tensor> &outputs) {
+  std::vector<gert::Tensor> inputs(1);
+  TensorCheckUtils::ConstructGertTensor(inputs[0], {2, 3, 3, 2}, DT_FLOAT, FORMAT_NCHW);
+  const RunAsyncCallbackV2 callback = [&](Status status, std::vector<gert::Tensor> &outputs) {
     EXPECT_EQ(status, SUCCESS);
     EXPECT_EQ(outputs.size(), 1);
-    EXPECT_EQ(outputs[0].GetTensorDesc().GetShape().GetDims(), shape_dim);
+    auto out_shape = outputs[0].GetStorageShape();
+    auto out_dims = TensorTransUtils::GetDimsFromGertShape(out_shape);
+    EXPECT_EQ(out_dims, shape_dim);
     return SUCCESS;
   };
-  EXPECT_EQ(user_graph_manager.RunGraphAsync(user_graph_id, inputs, callback), SUCCESS);
+  EXPECT_EQ(user_graph_manager.RunGraphAsync(user_graph_id, std::move(inputs), 0, callback), SUCCESS);
   // graph is built, no need build
   EXPECT_FALSE(user_graph_manager.IsGraphNeedRebuild(user_graph_id));
 
@@ -162,14 +198,15 @@ TEST_F(UserGraphsManagerlUT, IsGraphNeedRebuild_False) {
   // graph is not exist, need rebuild
   EXPECT_TRUE(user_graph_manager.IsGraphNeedRebuild(user_graph_id));
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
 }
 
 TEST_F(UserGraphsManagerlUT, ExecuteGraphWithStreamAsync_Success) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes();
@@ -189,7 +226,7 @@ TEST_F(UserGraphsManagerlUT, ExecuteGraphWithStreamAsync_Success) {
                     ge::DT_INT32,                                // data type
                     (void *) input_data_1.data()};
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
@@ -198,15 +235,16 @@ TEST_F(UserGraphsManagerlUT, ExecuteGraphWithStreamAsync_Success) {
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_success_when_input_dynamic_graph_not_partition) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes();
@@ -214,7 +252,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_s
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -237,7 +275,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_s
                     gert::kOnDeviceHbm,                          // placement
                     ge::DT_INT32,                                // data type
                     (void *) input_data_1.data()};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
@@ -246,15 +284,16 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_s
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_success_when_input_dynamic_graph_contain_partition) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::OneReshapeNode();
@@ -262,7 +301,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_s
   const std::map<std::string, std::string> options;
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
   EXPECT_NE(summary, nullptr);
@@ -291,7 +330,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_s
                     gert::kOnDeviceHbm,                          // placement
                     ge::DT_INT64,                                // data type
                     (void *) input_data_2.data()};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
@@ -300,15 +339,16 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_s
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_input_static_graph_not_partition) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
@@ -317,7 +357,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
@@ -345,7 +385,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
                     ge::DT_INT32,                                // data type
                     (void *) input_data_1.data()};
   gert_outputs[0] = {{{1, 2, 3, 4}, {1, 2, 3, 4}}, {}, {}, {}, nullptr};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
@@ -354,15 +394,16 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_success_when_input_static_graph_contain_partition) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::OneReshapeNode({1, 2, 3, 4}, {4});
@@ -372,7 +413,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
@@ -402,13 +443,13 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
                     gert::kOnDeviceHbm,                          // placement
                     ge::DT_INT64,                                // data type
                     (void *) input_data_2.data()};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
   gert_outputs.clear();
   gert_outputs.resize(1);
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs), SUCCESS); // hint guard no compile
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS); // hint guard no compile
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
@@ -417,15 +458,16 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_load_fail_when_input_static_graph_not_partition_not_compile) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
@@ -445,15 +487,16 @@ TEST_F(UserGraphsManagerlUT, return_load_fail_when_input_static_graph_not_partit
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_load_succ_when_input_dynamic_graph_partition_not_compile) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::OneReshapeNode();
@@ -473,15 +516,16 @@ TEST_F(UserGraphsManagerlUT, return_load_succ_when_input_dynamic_graph_partition
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_success_when_input_static_graph_contain_partition_extern_stream) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
   rtStream_t new_stream;
   (void)rtStreamCreate(&new_stream, 0);
 
@@ -493,7 +537,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
@@ -523,13 +567,13 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
                     gert::kOnDeviceHbm,                          // placement
                     ge::DT_INT64,                                // data type
                     (void *) input_data_2.data()};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
   gert_outputs.clear();
   gert_outputs.resize(1);
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs), SUCCESS); // hint guard no compile
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs, 0), SUCCESS); // hint guard no compile
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
@@ -538,16 +582,17 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_not_null_execute_succes
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_input_static_graph_not_partition_extern_stream) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
   rtStream_t new_stream;
   (void)rtStreamCreate(&new_stream, 0);
 
@@ -558,7 +603,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
@@ -586,7 +631,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
                     ge::DT_INT32,                                // data type
                     (void *) input_data_1.data()};
   gert_outputs[0] = {{{1, 2, 3, 4}, {1, 2, 3, 4}}, {}, {}, {}, nullptr};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
@@ -595,16 +640,17 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_input_static_graph_not_partition_extern_stream_external_output) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
   rtStream_t new_stream;
   (void)rtStreamCreate(&new_stream, 0);
 
@@ -618,7 +664,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
@@ -652,26 +698,27 @@ TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_in
                      ge::DT_INT32,                              // data type
                      (void *) output_data_1.data()};
   EXPECT_EQ(gert_outputs.size(), 1);
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs), SUCCESS);
+  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs, 0), SUCCESS);
   EXPECT_EQ(gert_outputs.size(), 1);
   EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
 
   gert_inputs.clear();
   gert_outputs.clear();
-  inner_session.UnregisterExternalAllocator(new_stream);
+  graph_manager.UnregisterExternalAllocator(new_stream);
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
 TEST_F(UserGraphsManagerlUT, return_compile_summary_execute_success_when_input_static_graph_not_partition_extern_stream) {
-  uint64_t session_id = 0;
-  InnerSession inner_session(session_id, {});
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  UserGraphsManager user_graph_manager(inner_session);
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
   rtStream_t new_stream;
   (void)rtStreamCreate(&new_stream, 0);
 
@@ -682,7 +729,7 @@ TEST_F(UserGraphsManagerlUT, return_compile_summary_execute_success_when_input_s
   EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
   
   dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id), SUCCESS);
+  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
   
   CompiledGraphSummaryPtr summary;
   EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
@@ -707,14 +754,14 @@ TEST_F(UserGraphsManagerlUT, return_compile_summary_execute_success_when_input_s
                     ge::DT_INT32,                                // data type
                     (void *) input_data_1.data()};
   gert_outputs[0] = {{{1, 2, 3, 4}, {1, 2, 3, 4}}, {}, {}, {}, nullptr};
-  EXPECT_NE(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs), SUCCESS); // 未load报错
+  EXPECT_NE(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, new_stream, gert_inputs, gert_outputs, 0), SUCCESS); // 未load报错
  
   gert_inputs.clear();
   gert_outputs.clear();
   EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
 
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }

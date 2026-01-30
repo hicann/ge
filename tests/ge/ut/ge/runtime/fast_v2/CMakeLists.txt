@@ -41,7 +41,6 @@ target_compile_options(ut_fast_runtime2_test PRIVATE
 target_compile_definitions(ut_fast_runtime2_test PRIVATE
         $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
         CMAKE_BINARY_DIR=\"${CMAKE_BINARY_DIR}\"
-        FILE_FAST_V2_PATH="${CMAKE_CURRENT_SOURCE_DIR}/core"
         )
 
 target_include_directories(ut_fast_runtime2_test PRIVATE
@@ -88,6 +87,7 @@ target_link_libraries(ut_fast_runtime2_test PRIVATE
         ge_common
         ge_common_base
         ge_runtime_stub
+        ascendcl_stub
         )
 
 add_test(NAME ut_fast_runtime2_test COMMAND ut_fast_runtime2_test --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_fast_runtime2_test.xml)

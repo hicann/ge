@@ -234,6 +234,7 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY bool TensorFlowUtil::ParseFromA
   GE_CHK_BOOL_RET_STATUS(type != ge::DataType::DT_UNDEFINED, PARAM_INVALID,
                          "In FrameworkOp translate datatype:%d failed, domi cann't support.", tf_datatype);
   ge_desc.SetDataType(type);
+  ge_desc.SetOriginDataType(type);
   int shape_dim_dim = a_list.func(i).attr().at(SERIALIZE_SHAPE).list().i_size();
   std::vector<int64_t> data_dim;
   for (int j = 0; j < shape_dim_dim; j++) {

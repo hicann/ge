@@ -22,7 +22,7 @@
 #include "graph/utils/anchor_utils.h"
 #include "test_std_structs.h"
 #include "graph/operator_reg.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/util/mem_utils.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "faker/space_registry_faker.h"

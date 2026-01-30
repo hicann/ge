@@ -465,7 +465,7 @@ bool CrossLifeTime(const NodeTypeIndex &left, const NodeTypeIndex &right) {
 /// |-----------------------------parent block---------------------|
 /// |------child block1--------------||------child block2------|
 /// |--child block1-1-|
-bool CanIntervalLifeReuse(const MemoryBlock &parent_block, MemoryBlock &child_block,
+static bool CanIntervalLifeReuse(const MemoryBlock &parent_block, MemoryBlock &child_block,
                           std::vector<MemoryBlock *> &clone_blocks) {
   // judge by interval life time, only same stream can be judged by interval life time
   bool not_same_stream = ((parent_block.stream_id_ != child_block.stream_id_) || (!parent_block.same_stream_) ||
@@ -536,7 +536,7 @@ bool SizeIndependentOfBatch(const std::string &node_type) {
   return (kSizeIndependentOps.count(node_type) != 0UL);
 }
 
-void GetDiffStreamMinLifeTime(const Node *const node, const int64_t src_stream,
+static void GetDiffStreamMinLifeTime(const Node *const node, const int64_t src_stream,
                               const DiffStreamEdgeLife &in_stream_edge, int64_t &min_life_time) {
   const auto node_op_desc = node->GetOpDescBarePtr();
   const auto dst_stream = GetStreamId(node_op_desc);
@@ -1515,7 +1515,7 @@ void BlockMemAssigner::InsertStreamInEdge(const EdgeLife &new_in_edge, const int
  * 40->50
  * only keep edge 40->50, 可以简单记为缩短peer_node_id与node_id差值
  */
-void EraseIntersectedEdge(std::set<EdgeLife, CompareEdgeLife> &in_edge_set,
+static void EraseIntersectedEdge(std::set<EdgeLife, CompareEdgeLife> &in_edge_set,
                           const EdgeLife &old_in_edge,
                           const EdgeLife &new_in_edge,
                           const int64_t src_node_stream_id,
@@ -3754,10 +3754,13 @@ void BlockMemAssigner::ReleaseMemorys(StreamIdToBlocks &to_releases,
   // [stream id][blocks]
   for (auto &stream_blocks : to_releases) {
     for (auto mem_block : stream_blocks.second) {
-      const bool output = (mem_block != nullptr) && (!mem_block->NodeTypeIndexList().empty())
-                          && (mem_block->NodeTypeIndexList().back().mem_type_ == kOutput) && (!mem_block->SymbolList().empty());
-      ReleaseMemory(mem_block, reusable_memory[stream_blocks.first], mem_block->stream_id_,
-                    output ? mem_block->SymbolList().back() : "", false);
+      if (mem_block != nullptr) { // mem_block 不可能为空
+        const bool output = (!mem_block->NodeTypeIndexList().empty()) &&
+                            (mem_block->NodeTypeIndexList().back().mem_type_ == kOutput) &&
+                            (!mem_block->SymbolList().empty());
+        ReleaseMemory(mem_block, reusable_memory[stream_blocks.first], mem_block->stream_id_,
+                      output ? mem_block->SymbolList().back() : "", false);
+      }
     }
     GELOGD("Clear stream:%ld workspace blocks", stream_blocks.first);
     stream_blocks.second.clear();

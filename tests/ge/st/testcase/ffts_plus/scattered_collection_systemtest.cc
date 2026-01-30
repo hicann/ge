@@ -33,7 +33,6 @@
 #include "common/share_graph.h"
 #include "graph/args_format_desc.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 using namespace std;
 using namespace testing;
@@ -359,6 +358,9 @@ TEST_F(StestScatteredCollection, mixl2_mem_check_success) {
   std::vector<char> atomic_bin(64, '\0');
   ge::TBEKernelPtr atomic_kernel = MakeShared<ge::OpKernelBin>("aiv_atomic_test", std::move(atomic_bin));
   (void)AttrUtils::SetStr(ifa_node->GetOpDesc(), ATOMIC_ATTR_TBE_KERNEL_NAME, atomic_kernel->GetName());
+  (void)AttrUtils::SetStr(ifa_node->GetOpDesc(), ATTR_NAME_KERNEL_BIN_ID, "_fake_ifa_kernel_bin_id");
+  (void)AttrUtils::SetBool(ifa_node->GetOpDesc(), "_mix_with_enhanced_kernel", true);
+  ifa_node->GetOpDesc()->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, atomic_kernel);
 
   std::shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
 
@@ -586,6 +588,9 @@ TEST_F(StestScatteredCollection, ifa_aicore_with_args_format_graph_load_and_succ
   std::vector<char> test_bin(64, '\0');
   ge::TBEKernelPtr test_kernel = MakeShared<ge::OpKernelBin>("_tbeKernel_test", std::move(test_bin));
   (void)AttrUtils::SetStr(ifa_node->GetOpDesc(), "_kernelname", test_kernel->GetName());
+  (void)AttrUtils::SetStr(ifa_node->GetOpDesc(), ATOMIC_ATTR_TBE_KERNEL_NAME, test_kernel->GetName());
+  (void)AttrUtils::SetStr(ifa_node->GetOpDesc(), ATTR_NAME_KERNEL_BIN_ID, "_fake_ifa_kernel_bin_id");
+  ifa_node->GetOpDesc()->SetExtAttr(OP_EXTATTR_NAME_TBE_KERNEL, test_kernel);
 
 
   std::shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();

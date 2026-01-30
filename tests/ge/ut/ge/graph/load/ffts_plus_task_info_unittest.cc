@@ -3417,7 +3417,8 @@ static void BuildFftsPlusGraph(ComputeGraphPtr &root_graph, ComputeGraphPtr &fft
     auto conv_0 = OP_CFG(CONV2D)
                       .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::TVM))
                       .Attr(ATTR_NAME_CUBE_VECTOR_CORE_TYPE, "AIC")
-                      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF");
+                      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                      .Attr("_mix_with_enhanced_kernel", true);
     auto relu_0 = OP_CFG(RELU).Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::AI_CPU));
     auto add_0 = OP_CFG(ADD)
                      .Attr(ATTR_NAME_IMPLY_TYPE, static_cast<int64_t>(domi::ImplyType::AI_CPU))

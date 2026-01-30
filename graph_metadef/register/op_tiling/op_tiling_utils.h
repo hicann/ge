@@ -14,7 +14,7 @@
 #include <vector>
 #include <nlohmann/json.hpp>
 #include "graph/op_desc.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace optiling {
 void ReplaceEmptyShapeOfTensorDesc(const ge::OpDescPtr &op_desc, std::vector<int32_t> &indexes);

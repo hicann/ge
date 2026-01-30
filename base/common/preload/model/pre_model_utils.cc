@@ -14,11 +14,12 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/tensor_utils.h"
 #include "base/err_msg.h"
+#include "common/ge_common/util.h"
 
 namespace ge {
 namespace {
 constexpr uint64_t kSessionScopeMemoryMask = 0x100000000UL;
-constexpr char_t const *kWorkSpace = "workspace";
+const std::string kWorkSpace = "workspace";
 constexpr int32_t kMemoryGlobalType = 2;
 uint64_t GetWorkspaceMemTypeByPriority(const bool is_p2p_memory, const bool is_l1_memory, const bool is_ub_memory,
                                        const bool session_scope_memory) {
@@ -356,34 +357,36 @@ std::vector<PreMemInfo> PreModelUtils::GetAllMemoryTypeSize(const GeModelPtr &ge
   int64_t zero_copy_size = 0;
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, default_mem_info.memory_size);
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_ZERO_COPY_MEMORY_SIZE, zero_copy_size);
-  default_mem_info.memory_size -= zero_copy_size;
+  if (zero_copy_size <= default_mem_info.memory_size) {
+    default_mem_info.memory_size -= zero_copy_size;
+  }
   default_mem_info.memory_type = RT_MEMORY_HBM;
-  all_mem_info.emplace_back(std::move(default_mem_info));
+  (void)all_mem_info.emplace_back(std::move(default_mem_info));
 
   PreMemInfo p2p_mem_info{};
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_P2P_MEMORY_SIZE, p2p_mem_info.memory_size);
   p2p_mem_info.memory_type = RT_MEMORY_P2P_DDR;
   p2p_mem_info.memory_key = "_p";
-  all_mem_info.emplace_back(std::move(p2p_mem_info));
+  (void)all_mem_info.emplace_back(std::move(p2p_mem_info));
 
   PreMemInfo session_scope_mem_info{};
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_SESSION_SCOPE_MEMORY_SIZE, session_scope_mem_info.memory_size);
   session_scope_mem_info.memory_type = (kSessionScopeMemoryMask | RT_MEMORY_HBM);
-  all_mem_info.emplace_back(std::move(session_scope_mem_info));
+  (void)all_mem_info.emplace_back(std::move(session_scope_mem_info));
 
   PreMemInfo host_mem_info{};
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_HOST_MEMORY_SIZE, host_mem_info.memory_size);
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_TASK_GEN_HOST_BASE_ADDR, host_mem_info.logic_memory_base);
   host_mem_info.memory_type = RT_MEMORY_HOST;
   host_mem_info.memory_key = "_h";
-  all_mem_info.emplace_back(std::move(host_mem_info));
+  (void)all_mem_info.emplace_back(std::move(host_mem_info));
 
   PreMemInfo host_svm_mem_info{};
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_HOST_SVM_SIZE, host_svm_mem_info.memory_size);
   (void)AttrUtils::GetInt(ge_model, MODEL_ATTR_TASK_GEN_HOST_SVM_BASE_ADDR, host_svm_mem_info.logic_memory_base);
   host_svm_mem_info.memory_type = RT_MEMORY_HOST_SVM;
   host_svm_mem_info.memory_key = "_svm";
-  all_mem_info.emplace_back(std::move(host_svm_mem_info));
+  (void)all_mem_info.emplace_back(std::move(host_svm_mem_info));
   return all_mem_info;
 }
 std::vector<int64_t> PreModelUtils::GetInputSize(const ConstOpDescPtr &op_desc) {

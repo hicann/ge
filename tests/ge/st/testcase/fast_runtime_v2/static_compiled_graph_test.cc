@@ -112,6 +112,9 @@ class StaticCompiledGraphTest : public bg::BgTest {
                       .Attr("dilations", test_int64_list_attr)
                       .Attr("groups", (int32_t)1)
                       .Attr("offset_x", (int32_t)1)
+                      .Attr("_kernel_bin_id", "te_conv2d_12345")
+                      .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
+                      .Attr(ATTR_NAME_KERNEL_BIN_ID, "conv2d_fake_id")
                       .Build("conv2d");
     conv2d->SetOpEngineName("AIcoreEngine");
     conv2d->SetOpKernelLibName("AIcoreEngine");
@@ -131,6 +134,7 @@ class StaticCompiledGraphTest : public bg::BgTest {
                              .InCnt(3)
                              .OutCnt(1)
                              .Attr(ATTR_NAME_PARENT_NODE_INDEX, 0)
+                             .Attr(TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF")
                              .Build("netoutput_sub");
     netoutput_sub->SetSrcName({"relu", "data1", "const1"});
     netoutput_sub->SetSrcIndex({0, 0, 0});
@@ -179,6 +183,11 @@ class StaticCompiledGraphTest : public bg::BgTest {
     auto sub_graph = ToGeGraph(g2);
     auto sub_compute_graph = ge::GraphUtilsEx::GetComputeGraph(sub_graph);
     sub_compute_graph->SetGraphUnknownFlag(false);
+    auto conv2d_node = sub_compute_graph->FindNode("conv2d");
+    const char kernel_bin[] = "kernel_bin";
+    vector<char> buffer(kernel_bin, kernel_bin + strlen(kernel_bin));
+    ge::OpKernelBinPtr kernel_bin_ptr = std::make_shared<ge::OpKernelBin>("test", std::move(buffer));
+    conv2d_node->GetOpDesc()->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, kernel_bin_ptr);
 
     // set sub graph
     SetSubGraph(compute_graph, parent_node, sub_compute_graph);
@@ -446,7 +455,9 @@ TEST_F(StaticCompiledGraphTest, KnownSubgraphWithAddNode_FakeTiling_ExecuteSucce
   new_options["ge.exec.frozenInputIndexes"] = "0;1";
   ge::GetThreadLocalContext().SetGlobalOption(new_options);
   graph->TopologicalSorting();
-  auto root_model = GeModelBuilder(graph).BuildGeRootModel();
+  auto ge_model_builder = GeModelBuilder(graph);
+  ge_model_builder.AddTbeKernelStore();
+  auto root_model = ge_model_builder.BuildGeRootModel();
   auto faker = GlobalDataFaker(root_model);
   auto global_data = faker.FakeWithoutHandleAiCore("Conv2d", false).FakeWithHandleAiCore("Add", false, false).Build();
 

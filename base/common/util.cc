@@ -35,12 +35,12 @@ constexpr int32_t kFileSizeOutLimitedOrOpenFailed = -1;
 /// The maximum length of the file.
 constexpr int32_t kMaxBuffSize = 256;
 constexpr size_t kMaxErrorStrLength = 128U;
-const char_t *const kPathValidReason =
-    "The path can only contain 'a-z' 'A-Z' '0-9' '-' '.' '_' and chinese character";
+const std::string kPathValidReason =
+    "The path can only contain 'a-z' 'A-Z' '0-9' '-' '.' '_' and Chinese characters.";
 
 void PathValidErrReport(const std::string &file_path, const std::string &atc_param, const std::string &reason) {
   if (!atc_param.empty()) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({atc_param.c_str(), file_path.c_str(), reason.c_str()}));
   } else {
     REPORT_INNER_ERR_MSG("E19999", "Path[%s] invalid, reason:%s", file_path.c_str(), reason.c_str());
@@ -111,8 +111,8 @@ bool ReadBytesFromBinaryFile(const char_t *const file_name, char_t **const buffe
   }
 
   (void)file.seekg(0, std::ios::beg);
-
-  *buffer = new (std::nothrow) char[length]();
+  
+  *buffer = new (std::nothrow) char[static_cast<size_t>(length)]();
   if (*buffer == nullptr) {
     REPORT_INNER_ERR_MSG("E19999", "new an object failed.");
     GELOGE(FAILED, "new an object failed.");
@@ -168,10 +168,10 @@ uint32_t GetCurrentSecondTimestap() {
 }
 
 static void RemoveDoubleHyphen(std::string &str) {
-  size_t pos = 2UL;
   if (!str.empty()) {
+    constexpr size_t pos = 2UL;
     if (str.substr(0, pos) == "--") {
-      str.erase(0, pos);
+      (void)str.erase(0, pos);
     }
   }
 }
@@ -182,12 +182,12 @@ bool CheckInputPathValid(const std::string &file_path, const std::string &atc_pa
     if (!atc_param.empty()) {
       std::string para = atc_param;
       RemoveDoubleHyphen(para);
-      REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char *>({"parameter"}), std::vector<const char *>({para.c_str()}));
+      (void)REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char *>({"parameter"}), std::vector<const char *>({para.c_str()}));
     } else {
       char_t err_buf[kMaxErrorStrLength + 1U] = {};
       const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
       std::string reason = "[Error " + std::to_string(mmGetErrorCode()) + "] " + err_msg;
-      REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
+      (void)REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
                                 std::vector<const char *>({file_path.c_str(), reason.c_str()}));
     }
     GELOGW("Input parameter %s is empty.", file_path.c_str());
@@ -215,16 +215,17 @@ bool CheckInputPathValid(const std::string &file_path, const std::string &atc_pa
 
   if (!ValidateStr(real_path, mode)) {
     PathValidErrReport(file_path, atc_param, kPathValidReason);
-    GELOGE(FAILED, "Invalid value for %s[%s], %s.", atc_param.c_str(), real_path.c_str(), kPathValidReason);
+    GELOGE(FAILED, "Invalid value for %s[%s], %s.", atc_param.c_str(), real_path.c_str(), kPathValidReason.c_str());
     return false;
   }
 
   // The absolute path points to a file that is not readable
   if (mmAccess2(real_path.c_str(), M_R_OK) != EN_OK) {
     char_t err_buf[kMaxErrorStrLength + 1U] = {};
-    const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
-    PathValidErrReport(file_path, atc_param, "cat not access, errmsg:" + std::string(err_msg));
-    GELOGW("Read file[%s] unsuccessful, errmsg[%s]", file_path.c_str(), err_msg);
+    const auto reason = "[Errno " + std::to_string(mmGetErrorCode()) + "] " +
+                        mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
+    PathValidErrReport(file_path, atc_param, "cat not access, errmsg:" + reason);
+    GELOGW("Read file[%s] unsuccessful, errmsg[%s]", file_path.c_str(), reason.c_str());
     return false;
   }
 
@@ -235,18 +236,18 @@ bool CheckOutputPathValid(const std::string &file_path, const std::string &atc_p
   // The specified path is empty
   if (file_path.empty()) {
     if (!atc_param.empty()) {
-      REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char_t *>({"parameter"}), std::vector<const char_t *>({atc_param.c_str()}));
+      (void)REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char_t *>({"parameter"}), std::vector<const char_t *>({atc_param.c_str()}));
     } else {
       REPORT_INNER_ERR_MSG("E19999", "Param file_path is empty, check invalid.");
     }
-    REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char *>({"parameter"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char *>({"parameter"}),
                               std::vector<const char *>({atc_param.c_str()}));
     GELOGW("Input parameter's value is empty.");
     return false;
   }
 
   if (file_path.length() >= static_cast<size_t>(MMPA_MAX_PATH)) {
-    const std::string reason = "Path len is too long, it must be less than " + std::to_string(MMPA_MAX_PATH);
+    const std::string reason = "Path length is too long. It must be less than " + std::to_string(MMPA_MAX_PATH) + ".";
     PathValidErrReport(file_path, atc_param, reason);
     GELOGE(FAILED, "Path len is too long, it must be less than %d, path: [%s]", MMPA_MAX_PATH, file_path.c_str());
     return false;
@@ -263,7 +264,7 @@ bool CheckOutputPathValid(const std::string &file_path, const std::string &atc_p
 
   if (!ValidateStr(file_path, mode)) {
     PathValidErrReport(file_path, atc_param, kPathValidReason);
-    GELOGE(FAILED, "Invalid value for %s[%s], %s.", atc_param.c_str(), file_path.c_str(), kPathValidReason);
+    GELOGE(FAILED, "Invalid value for %s[%s], %s.", atc_param.c_str(), file_path.c_str(), kPathValidReason.c_str());
     return false;
   }
 
@@ -274,9 +275,10 @@ bool CheckOutputPathValid(const std::string &file_path, const std::string &atc_p
     if (mmAccess2(real_path.c_str(),
         static_cast<int32_t>(static_cast<uint32_t>(M_W_OK) | static_cast<uint32_t>(M_F_OK))) != EN_OK) {
       char_t err_buf[kMaxErrorStrLength + 1U] = {};
-      const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
-      PathValidErrReport(file_path, atc_param, "cat not access, errmsg:" + std::string(err_msg));
-      GELOGW("Write file[%s] unsuccessful, errmsg[%s]", real_path.c_str(), err_msg);
+      const auto reason = "[Errno " + std::to_string(mmGetErrorCode()) + "] " +
+                          mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
+      PathValidErrReport(file_path, atc_param, "cat not access, errmsg:" + std::string(reason));
+      GELOGW("Write file[%s] unsuccessful, errmsg[%s]", real_path.c_str(), reason.c_str());
       return false;
     }
   } else {
@@ -295,6 +297,10 @@ bool CheckOutputPathValid(const std::string &file_path, const std::string &atc_p
       const std::string prefix_path = std::string(file_path).substr(0U, static_cast<size_t>(path_split_pos));
       // Determine whether the specified path is valid by creating the path
       if (CreateDirectory(prefix_path) != 0) {
+        char_t err_buf[kMaxErrorStrLength + 1U] = {};
+        const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
+        std::string reason =
+            "Directory creation failed. [Errno " + std::to_string(mmGetErrorCode()) + "] " + err_msg + ".";
         PathValidErrReport(file_path, atc_param, "Can not create directory");
         GELOGW("Can not create directory[%s].", file_path.c_str());
         return false;
@@ -403,15 +409,5 @@ std::string GetErrorNumStr(const int32_t errorNum) {
   char_t err_buf[kMaxErrorStrLength + 1U] = {};
   const auto err_msg = mmGetErrorFormatMessage(errorNum, &err_buf[0], kMaxErrorStrLength);
   return (err_msg == nullptr) ? "" : err_msg;
-}
-
-Status CheckCoreNumValidAndConvertToInt32(const std::string &key, const std::string &core_num_str, int32_t &core_num) {
-  if (ge::ConvertToInt32(core_num_str, core_num) != ge::SUCCESS || std::to_string(core_num) != core_num_str || core_num < 0) {
-    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-                       std::vector<const char *>({key.c_str(), core_num_str.c_str(), "invalid core num"}));
-    GELOGE(ge::PARAM_INVALID, "Invalid %s: %s", key.c_str(), core_num_str.c_str());
-    return ge::PARAM_INVALID;
-  }
-  return ge::SUCCESS;
 }
 }  //  namespace ge

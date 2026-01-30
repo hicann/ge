@@ -74,7 +74,7 @@ ge::graphStatus LaunchCmoTask(KernelContext *const context) {
   return ge::GRAPH_SUCCESS;
 }
 
-std::vector<std::string> LaunchCmoTracer(const KernelContext *context) {
+static std::vector<std::string> LaunchCmoTracer(const KernelContext *context) {
   std::stringstream ss;
   auto cmo_args = context->GetInputPointer<rtCmoTaskInfo_t>(0UL);
   GE_ASSERT_NOTNULL(cmo_args);

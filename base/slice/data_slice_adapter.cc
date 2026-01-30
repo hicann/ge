@@ -170,15 +170,16 @@ std::string DataSliceAdapter::GetTensorStr(const OpDesc::Vistor<ge::GeTensorDesc
     const GeShape shape = tensor->GetShape();
     auto iter_ori = FORMAT_MAP_STR.find(ori_format);
     auto iter = FORMAT_MAP_STR.find(format);
-    std::string reshape_type;
-    (void)AttrUtils::GetStr(tensor, ATTR_NAME_RESHAPE_INFER_TYPE, reshape_type);
+    const std::string *reshape_type = AttrUtils::GetStr(tensor, ATTR_NAME_RESHAPE_INFER_TYPE);
     if (iter_ori == FORMAT_MAP_STR.cend() || iter == FORMAT_MAP_STR.cend()) {
       ss << "ori_fomat:" << ori_format << ",ori_shape:" << ori_shape.ToString();
-      ss << ",fomat:" << format << ",shape:" << shape.ToString() << ",reshape_type:" << reshape_type << ";";
+      ss << ",fomat:" << format << ",shape:" << shape.ToString();
+      ss << ",reshape_type:" << (reshape_type == nullptr ? "" : *reshape_type) << ";";
       continue;
     }
     ss << "ori_fomat:" << iter_ori->second << ",ori_shape:" << ori_shape.ToString();
-    ss << ",fomat:" << iter->second << ",shape:" << shape.ToString() << ",reshape_type:" << reshape_type << ";";
+    ss << ",fomat:" << iter->second << ",shape:" << shape.ToString();
+    ss << ",reshape_type:" << (reshape_type == nullptr ? "" : *reshape_type) << ";";
   }
   return ss.str();
 }

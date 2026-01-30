@@ -10,7 +10,7 @@
 
 #include "register/op_tiling_info.h"
 #include <securec.h>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "graph/def_types.h"
 
 namespace optiling {
@@ -212,7 +212,7 @@ void OpRunInfo::SetBlockDim(const uint32_t &block_dim) {
   impl_->SetBlockDim(block_dim);
 }
 
-void OpRunInfo::SetAicpuBlockDim(uint32_t block_dim) {
+void OpRunInfo::SetAicpuBlockDim(uint32_t block_dim) const {
   impl_->SetAicpuBlockDim(block_dim);
 }
 

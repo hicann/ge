@@ -12,7 +12,7 @@
 #include "register/scope/scope_graph_impl.h"
 #include "register/register_utils.h"
 #include "graph_metadef/register/register.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
 #include "graph/debug/ge_util.h"
 #include "graph/ge_tensor.h"
@@ -394,13 +394,13 @@ std::string FusionScopesResult::InnerNodeInfo::InnerNodeInfoImpl::GetFullNodeNam
 void FusionScopesResult::InnerNodeInfo::InnerNodeInfoImpl::InsertInput(const std::string &input_node,
                                                                        int32_t peer_out_idx) {
   std::string input_name = (input_node != kInputFromFusionScope) ? GetFullNodeName(input_node) : input_node;
-  inner_node_inputs_.emplace_back(std::make_pair(input_name, peer_out_idx));
+  (void) inner_node_inputs_.emplace_back(std::make_pair(input_name, peer_out_idx));
 }
 
 void FusionScopesResult::InnerNodeInfo::InnerNodeInfoImpl::InsertOutput(const std::string &output_node,
                                                                         int32_t peer_in_idx) {
   std::string output_name = (output_node != kOutputToFusionScope) ? GetFullNodeName(output_node) : output_node;
-  inner_node_outputs_.emplace_back(std::make_pair(output_name, peer_in_idx));
+  (void) inner_node_outputs_.emplace_back(std::make_pair(output_name, peer_in_idx));
 }
 
 ge::graphStatus FusionScopesResult::InnerNodeInfo::InnerNodeInfoImpl::BuildOperator() {
@@ -678,7 +678,7 @@ ge::graphStatus FusionScopesResult::InnerNodeInfo::GetInputs(
     tmps = impl_->GetInputs();
   }
   for (auto &tmp : tmps) {
-    inputs.emplace_back(std::pair<AscendString, int32_t>(AscendString(tmp.first.c_str()), tmp.second));
+    (void)inputs.emplace_back(std::pair<AscendString, int32_t>(AscendString(tmp.first.c_str()), tmp.second));
   }
   return GRAPH_SUCCESS;
 }
@@ -698,7 +698,7 @@ ge::graphStatus FusionScopesResult::InnerNodeInfo::GetOutputs(
     tmps = impl_->GetOutputs();
   }
   for (auto &tmp : tmps) {
-    outputs.emplace_back(std::pair<AscendString, int32_t>(tmp.first.c_str(), tmp.second));
+    (void) outputs.emplace_back(std::pair<AscendString, int32_t>(tmp.first.c_str(), tmp.second));
   }
   return GRAPH_SUCCESS;
 }
@@ -741,7 +741,7 @@ bool FusionScopesResult::FusionScopesResultImpl::FindScopes(const std::string &s
 
 FusionScopesResult::InnerNodeInfo *FusionScopesResult::FusionScopesResultImpl::AddInnerNode(const std::string &name,
                                                                                             const std::string &type) {
-  inner_node_infos_.emplace_back(InnerNodeInfo(name_.c_str(), name.c_str(), type.c_str()));
+  (void) inner_node_infos_.emplace_back(InnerNodeInfo(name_.c_str(), name.c_str(), type.c_str()));
   return &(inner_node_infos_[inner_node_infos_.size() - 1U]);
 }
 
@@ -771,15 +771,15 @@ FusionInnerNodesInfo FusionScopesResult::FusionScopesResultImpl::GetInnerNodesIn
     (void) info.GetInputs(inputs);
     std::vector<std::pair<std::string, int32_t>> input_strings;
     for (const auto &input : inputs) {
-      input_strings.emplace_back(input.first.GetString(), input.second);
+      (void)input_strings.emplace_back(input.first.GetString(), input.second);
     }
     std::vector<std::pair<AscendString, int32_t>> outputs;
     (void) info.GetOutputs(outputs);
     std::vector<std::pair<std::string, int32_t>> output_strings;
     for (const auto &output : outputs) {
-      output_strings.emplace_back(output.first.GetString(), output.second);
+      (void)output_strings.emplace_back(output.first.GetString(), output.second);
     }
-    nodes_info.emplace_back(
+    (void) nodes_info.emplace_back(
         std::make_tuple(name.GetString(), type.GetString(), input_strings, output_strings, info.MutableOperator()));
   }
   return nodes_info;

@@ -1,11 +1,11 @@
 /**
- * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
- * CANN Open Software License Agreement Version 2.0 (the "License").
- * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
- * See LICENSE in the root of the software repository for the full text of the License.
+ * Copyright (c) 2025 Huawei Technologies Co., Ltd.
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * CANN Open Software License Agreement Version 2.0 (the "License").
+ * Please refer to the License for details. You may not use this file except in compliance with the License.
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * See LICENSE in the root of the software repository for the full text of the License.
  */
 
 #include <gtest/gtest.h>
@@ -133,7 +133,6 @@ TEST_F(AutofuseNodeST, CheckAutofuseSoFromBuffer) {
 }
 
 TEST_F(AutofuseNodeST, CheckAutofuseSoNoBinFilePath) {
- setenv("ENABLE_TILING_CACHE", "0", 1);
  auto graph = ShareGraph::AutoFuseNodeGraph();
  (void)ge::AttrUtils::SetInt(graph, "_all_symbol_num", 8);
  auto fused_graph_node = graph->FindNode("fused_graph");
@@ -165,13 +164,11 @@ TEST_F(AutofuseNodeST, CheckAutofuseSoNoBinFilePath) {
  auto autofuse_ret = LoweringAutofuseNode(fused_graph_node, add_input);
  ASSERT_FALSE(autofuse_ret.result.IsSuccess());
 
- unsetenv("ENABLE_TILING_CACHE");
  graph->DelExtAttr("bin_file_buffer");
 }
 
 TEST_F(AutofuseNodeST, CheckAutofuseSoNoBinFileBuffer) {
   gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry(true);
-  setenv("ENABLE_TILING_CACHE", "0", 1);
   auto graph = BuildAutofuseGraph();
   auto fused_graph_node = graph->FindNode("fused_graph");
   auto op_desc = fused_graph_node->GetOpDesc();
@@ -226,7 +223,6 @@ TEST_F(AutofuseNodeST, CheckAutofuseSoNoBinFileBuffer) {
   auto autofuse_ret = LoweringAutofuseNode(fused_graph_node, add_input);
   ASSERT_FALSE(autofuse_ret.result.IsSuccess());
 
-  unsetenv("ENABLE_TILING_CACHE");
   graph->DelExtAttr("bin_file_buffer");
 }
 }

@@ -20,7 +20,6 @@
 #include <queue>
 #include <atomic>
 #include <mutex>
-#include "common/util/error_manager/error_manager.h"
 
 #include "graph/ge_context.h"
 #include "graph/debug/ge_util.h"
@@ -32,7 +31,6 @@
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/dumper/ge_graph_dumper.h"
 #include "graph/debug/ge_op_types.h"
-#include "external/ge_common/ge_api_types.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/tensor_utils.h"
@@ -46,6 +44,7 @@
 #include "utils/extern_math_util.h"
 #include "ge_dump_graph_whitelist.h"
 #include "graph/utils/readable_dump.h"
+#include "base/err_msg.h"
 
 namespace ge {
 enum class DumpGraphLevel {
@@ -88,10 +87,10 @@ const std::vector<std::string> kNecessaryStrAttrWhitelist = {
 Status InheritAttr(const OpDescPtr &node_op_desc, const OpDescPtr &insert_op_desc) {
   GE_ASSERT_NOTNULL(node_op_desc);
   for (const auto &attr : kNecessaryStrAttrWhitelist) {
-    std::string attr_val;
-    if (AttrUtils::GetStr(node_op_desc, attr, attr_val)) {
+    const std::string* attr_val = AttrUtils::GetStr(node_op_desc, attr);
+    if (attr_val != nullptr) {
       GE_ASSERT_NOTNULL(insert_op_desc);
-      GE_ASSERT_TRUE(AttrUtils::SetStr(insert_op_desc, attr, attr_val));
+      GE_ASSERT_TRUE(AttrUtils::SetStr(insert_op_desc, attr, *attr_val));
     }
   }
   return SUCCESS;
@@ -926,7 +925,7 @@ bool IsDumpFormatMatch(DumpFormat input_format, const char_t *env_dump_format) {
 
 unique_ptr<char[]> ToLowerCase(const char_t *str) {
   auto lower_case_str = ComGraphMakeUnique<char_t[]>(strlen(str) + 1);
-  for (int i = 0; str[i]; i++) {
+  for (int i = 0; str[i] != '\0'; i++) {
     lower_case_str[i] = std::tolower(static_cast<unsigned char>(str[i]));
   }
   lower_case_str[strlen(str)] = str[strlen(str)];
@@ -1273,13 +1272,13 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::WriteProt
     const ascend_private::protobuf::Message &proto, std::ostream &o_stream) {
   auto output = ComGraphMakeUnique<google::protobuf::io::OstreamOutputStream>(&o_stream);
   if (output == nullptr) {
-    REPORT_CALL_ERROR("E18888", "create OstreamOutputStream failed.");
+    REPORT_INNER_ERR_MSG("E18888", "create OstreamOutputStream failed.");
     GELOGE(GRAPH_FAILED, "[Create][OstreamOutputStream] Output is nullptr");
     return GRAPH_FAILED;
   }
   const bool ret = google::protobuf::TextFormat::Print(proto, output.get());
   if (!ret) {
-    REPORT_CALL_ERROR("E18888", "write ostream failed.");
+    REPORT_INNER_ERR_MSG("E18888", "write ostream failed.");
     GELOGE(GRAPH_FAILED, "[Invoke][Print] Fail to write the ostream");
     return GRAPH_FAILED;
   }
@@ -1881,7 +1880,7 @@ graphStatus ReplaceControlAnchors(const NodePtr &new_node, const NodePtr &old_no
     }
     const auto ret = GraphUtils::AddEdge(peer_out_anchor, new_in_control_anchor);
     if (ret != GRAPH_SUCCESS) {
-      REPORT_INNER_ERR_MSG("E18888", "Add edge from %s to %s failed, ret:%d",
+      REPORT_INNER_ERR_MSG("E18888", "Add edge from %s to %s failed, ret:%u",
                            peer_out_anchor->GetOwnerNode()->GetName().c_str(),
                            new_in_control_anchor->GetOwnerNode()->GetName().c_str(), ret);
       GELOGE(GRAPH_FAILED, "[Add][Edge] from %s to %s failed, ret:%d",
@@ -1906,7 +1905,7 @@ graphStatus ReplaceControlAnchors(const NodePtr &new_node, const NodePtr &old_no
     }
     const auto ret = GraphUtils::AddEdge(new_out_control_anchor, peer_in_anchor);
     if (ret != GRAPH_SUCCESS) {
-      REPORT_INNER_ERR_MSG("E18888", "AddEdge from %s to %s failed, ret:%d",
+      REPORT_INNER_ERR_MSG("E18888", "AddEdge from %s to %s failed, ret:%u",
                            new_out_control_anchor->GetOwnerNode()->GetName().c_str(),
                            peer_in_anchor->GetOwnerNode()->GetName().c_str(), ret);
       GELOGE(GRAPH_FAILED, "[Add][Edge] from %s to %s failed, ret:%d",
@@ -2990,7 +2989,7 @@ graphStatus GraphUtils::CopyTensorAttrs(const OpDescPtr &dst_desc, const NodePtr
   for (uint32_t i = 0U; i < src_node->GetAllOutDataAnchorsSize(); ++i) {
     const auto output_desc = dst_desc->MutableOutputDesc(i);
     if (output_desc == nullptr) {
-      REPORT_INNER_ERR_MSG("E18888", "Param dst node:%s not valid, output_desc[%d] is nullptr",
+      REPORT_INNER_ERR_MSG("E18888", "Param dst node:%s not valid, output_desc[%u] is nullptr",
                            dst_desc->GetName().c_str(), i);
       GELOGE(GRAPH_FAILED, "[Check][Param] Param dst node:%s not valid", dst_desc->GetName().c_str());
       return GRAPH_FAILED;

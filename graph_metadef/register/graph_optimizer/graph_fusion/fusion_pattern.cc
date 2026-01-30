@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace fe {
 const uint32_t kFuzzyOutIndex = 0xFFFFFFFF;

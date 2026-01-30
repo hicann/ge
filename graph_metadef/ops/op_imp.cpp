@@ -12,7 +12,7 @@
 #include <functional>
 #include <algorithm>
 #include <vector>
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 namespace {

@@ -11,7 +11,6 @@
 #ifndef GE_COMMON_GE_DATATYPE_UTIL_H_
 #define GE_COMMON_GE_DATATYPE_UTIL_H_
 
-#include <map>
 #include <vector>
 
 #include "graph/types.h"

@@ -51,9 +51,9 @@ ge::Status ProfilingInit::Init(const std::map<std::string, std::string> &options
     if (cb_ret != 0) {
       GELOGE(FAILED, "[Call][MsprofInit]Failed, type %u, return %d",
              static_cast<uint32_t>(MsprofCtrlCallbackType::MSPROF_CTRL_INIT_GE_OPTIONS), cb_ret);
-       REPORT_PREDEFINED_ERR_MSG(
-          "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-          std::vector<const char_t *>({"profiling_options", prof_conf.options, "value is unsupported. Please check!"}));
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+                                std::vector<const char_t *>({"profiling_options", prof_conf.options,
+                                                             "The current value is not within the valid range."}));
       return FAILED;
     }
   } else {
@@ -96,7 +96,7 @@ ge::Status ProfilingInit::InitProfOptions(const std::map<std::string, std::strin
 
   if (prof_mode == "1" && !prof_option.empty()) {
     // enable profiling by ge option
-    GE_ASSERT_EQ(strncpy_s(prof_conf.options, MSPROF_OPTIONS_DEF_LEN_MAX, prof_option.c_str(),
+    GE_ASSERT_EQ(strncpy_s(prof_conf.options, sizeof(prof_conf.options), prof_option.c_str(),
                            MSPROF_OPTIONS_DEF_LEN_MAX - 1U), EN_OK);
     GELOGI("The profiling in options is %s, %s. origin option: %s", prof_mode.c_str(), prof_conf.options,
            prof_option.c_str());
@@ -111,7 +111,7 @@ ge::Status ProfilingInit::InitProfOptions(const std::map<std::string, std::strin
     const char_t *prof_conf_options = nullptr;
     MM_SYS_GET_ENV(MM_ENV_PROFILING_OPTIONS, prof_conf_options);
     if (prof_conf_options != nullptr) {
-      GE_ASSERT_EQ(strncpy_s(prof_conf.options, MSPROF_OPTIONS_DEF_LEN_MAX, prof_conf_options,
+      GE_ASSERT_EQ(strncpy_s(prof_conf.options, sizeof(prof_conf.options), prof_conf_options,
                              MSPROF_OPTIONS_DEF_LEN_MAX - 1U), EN_OK);
     }
     GELOGI("The profiling in env, prof_conf.options:[%s].", prof_conf.options);
@@ -119,7 +119,7 @@ ge::Status ProfilingInit::InitProfOptions(const std::map<std::string, std::strin
     if (strcmp(prof_conf.options, "\0") == 0) {
       const char* default_options = "{\"output\":\"./\",\"training_trace\":\"on\",\"task_trace\":\"on\","\
         "\"hccl\":\"on\",\"aicpu\":\"on\",\"aic_metrics\":\"PipeUtilization\",\"msproftx\":\"off\"}";
-      (void)strncpy_s(prof_conf.options, MSPROF_OPTIONS_DEF_LEN_MAX, default_options, strlen(default_options));
+      (void)strncpy_s(prof_conf.options, sizeof(prof_conf.options), default_options, strlen(default_options));
     }
   }
 
@@ -128,16 +128,16 @@ ge::Status ProfilingInit::InitProfOptions(const std::map<std::string, std::strin
   if (ret != ge::SUCCESS) {
     GELOGE(ge::PARAM_INVALID, "[Parse][Options]Parse training trace param %s failed, error_code %u", prof_conf.options,
            ret);
-    REPORT_PREDEFINED_ERR_MSG(
-        "E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
-        std::vector<const char_t *>({"profiling_options", prof_conf.options, "value is unsupported. Please check!"}));
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+                              std::vector<const char_t *>({"profiling_options", prof_conf.options,
+                                                           "The current value is not within the valid range."}));
     return ge::PARAM_INVALID;
   }
 
   iter = options.find(ge::OPTION_EXEC_JOB_ID);
   if (iter != options.end()) {
     std::string job_id = iter->second;
-    GE_ASSERT_EQ(strncpy_s(prof_conf.jobId, MSPROF_OPTIONS_DEF_LEN_MAX, job_id.c_str(), job_id.length()), EN_OK);
+    GE_ASSERT_EQ(strncpy_s(prof_conf.jobId, sizeof(prof_conf.jobId), job_id.c_str(), job_id.length()), EN_OK);
     GELOGI("Job id: %s, original job id: %s.", prof_conf.jobId, job_id.c_str());
   }
 

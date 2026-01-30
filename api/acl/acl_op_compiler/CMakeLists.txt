@@ -27,10 +27,13 @@ target_include_directories(acl_op_compiler PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/..
     ${CMAKE_CURRENT_LIST_DIR}/../common
     ${CMAKE_CURRENT_LIST_DIR}/../utils
+    ${CMAKE_CURRENT_LIST_DIR}/../acl_model
+    ${CMAKE_CURRENT_LIST_DIR}/../acl_op_executor
     ${CMAKE_CURRENT_LIST_DIR}/compile
     ${CMAKE_CURRENT_LIST_DIR}/utils
     ${CMAKE_CURRENT_LIST_DIR}/single_op
     ${CMAKE_CURRENT_LIST_DIR}/../acl_op_executor/single_op
+    ${CMAKE_CURRENT_LIST_DIR}/../acl_op_executor/single_op/compile
 
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/external
@@ -91,6 +94,7 @@ target_link_libraries(acl_op_compiler PRIVATE
     ge_runner
     ge_common_base
     error_manager
+    platform
     -Wl,--as-needed
     -ldl
      $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>

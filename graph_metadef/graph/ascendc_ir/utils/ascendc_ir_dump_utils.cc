@@ -244,7 +244,7 @@ std::stringstream &DumpAscirGraph::MemBufAttrStr(std::stringstream &ss, AscTenso
   return ss;
 }
 
-std::stringstream &DumpAscirGraph::MemOptAttrStr(std::stringstream &ss, AscTensorAttr *attr) {
+std::stringstream &DumpAscirGraph::MemOptAttrStr(std::stringstream &ss, const AscTensorAttr *attr) {
   ss << "                MemOptAttr: " << std::endl;
   ss << "                    reuse_id: " << attr->opt.reuse_id << std::endl;
   ss << "                    ref_tensor: " << attr->opt.ref_tensor << std::endl;

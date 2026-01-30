@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -20,6 +20,7 @@
 #include "aicpu/aicpu_schedule/aicpusd_info.h"
 #include "rt_error_codes.h"
 #include <iostream>
+#include "runtime/rts/rts_dqs.h"
 
 extern std::string g_runtime_stub_mock;
 extern std::string g_runtime_stub_mock_v2;
@@ -32,6 +33,7 @@ static int32_t g_free_event_num = 2048;
 static int32_t g_cnt_rtStreamSynchronize_over_flow = 0;
 static int32_t g_cnt_rtStreamSynchronize_fail = 0;
 static uint32_t g_rt_model_id = 0;
+static uint32_t g_mock_entity_type = 0;
 
 #define ADD_STUB_RETURN_VALUE(FUNC, TYPE) std::vector<TYPE> g_Stub_##FUNC##_RETURN
 
@@ -206,7 +208,7 @@ rtError_t RuntimeStub::rtMemcpyAsync(void *dst, uint64_t dest_max, const void *s
   size_t remain_size = count;
   do {
     size_t copy_size = (remain_size > SECUREC_MEM_MAX_LEN) ? SECUREC_MEM_MAX_LEN : remain_size;
-    memcpy_s(ValueToPtr(PtrToValue(dst) + offset), copy_size, ValueToPtr(PtrToValue(src) + offset), copy_size);
+    memcpy_s((dst + offset), copy_size, (src + offset), copy_size);
     offset += copy_size;
     remain_size -= copy_size;
   } while (remain_size > 0U);
@@ -414,6 +416,13 @@ rtError_t RuntimeStub::rtMbufFree(rtMbufPtr_t mbuf) {
   return RT_ERROR_NONE;
 }
 
+rtError_t RuntimeStub::rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen) {
+  if ((strcmp(label, "version") == 0) && (strcmp(key, "NpuArch") == 0)) {
+    (void)strcpy_s(value, maxLen, "2201");
+  }
+  return RT_ERROR_NONE;
+}
+
 rtError_t RuntimeStub::rtGetSocVersion(char *version, const uint32_t maxLen) {
   (void)strcpy_s(version, maxLen, "Ascend910");
   return RT_ERROR_NONE;
@@ -457,6 +466,13 @@ rtError_t RuntimeStub::rtsStreamGetId(void *stm, int32_t *streamId)
     return -1;
   }
   *streamId = 0;
+  return RT_ERROR_NONE;
+}
+
+rtError_t RuntimeStub::rtBinarySetExceptionCallback(rtBinHandle binHandle, rtOpExceptionCallback exceptionFunc, void *userData) {
+  (void) binHandle;
+  (void) exceptionFunc;
+  (void) userData;
   return RT_ERROR_NONE;
 }
 
@@ -1178,7 +1194,6 @@ rtError_t rtModelBindStream(rtModel_t model, rtStream_t stream, uint32_t flag) {
   if (std::string(&record_path[0]).find("mock_fail") != std::string::npos) {
     return -1;
   }
-
   return ge::RuntimeStub::GetInstance()->rtModelBindStream(model, stream, flag);
 }
 
@@ -1385,6 +1400,13 @@ rtError_t rtGetSocVersion(char *version, const uint32_t maxLen)
   return ge::RuntimeStub::GetInstance()->rtGetSocVersion(version, maxLen);
 }
 
+rtError_t rtGetSocSpec(const char *label, const char *key, char *value, const uint32_t maxLen) {
+  if ((strcmp(label, "version") == 0) && (strcmp(key, "NpuArch") == 0)) {
+    (void)strcpy_s(value, maxLen, "2201");
+  }
+  return ge::RuntimeStub::GetInstance()->rtGetSocSpec(label, key, value, maxLen);
+}
+
 rtError_t rtGetAiCoreCount(uint32_t *aiCoreCnt)
 {
   return RT_ERROR_NONE;
@@ -1501,6 +1523,10 @@ rtError_t rtsStreamGetId(void *stm, int32_t *streamId)
     return -1;
   }
   return ge::RuntimeStub::GetInstance()->rtsStreamGetId(stm, streamId);
+}
+
+rtError_t rtBinarySetExceptionCallback(rtBinHandle binHandle, rtOpExceptionCallback exceptionFunc, void *userData) {
+  return ge::RuntimeStub::GetInstance()->rtBinarySetExceptionCallback(binHandle, exceptionFunc, userData);
 }
 
 rtError_t rtsSetStreamResLimit(rtStream_t stm, const rtDevResLimitType_t type, const uint32_t value) {
@@ -1982,6 +2008,10 @@ rtError_t rtsLaunchCpuKernel(const rtFuncHandle funcHandle, const uint32_t block
   return ge::RuntimeStub::GetInstance()->rtsLaunchCpuKernel(funcHandle, blockDim, st, cfg, argsInfo);
 }
 
+rtError_t rtFusionLaunch(void * const fusionInfo, rtStream_t const stm, rtFusionArgsEx_t *argsInfo) {
+  return 0;
+}
+
 rtError_t rtsBinaryLoadFromData(const void * const data, const uint64_t length,
     const rtLoadBinaryConfig_t * const optionalCfg, rtBinHandle *handle) {
   return ge::RuntimeStub::GetInstance()->rtsBinaryLoadFromData(data, length, optionalCfg, handle);
@@ -2015,6 +2045,23 @@ rtError_t rtsLaunchKernelWithDevArgs(rtFuncHandle funcHandle, uint32_t blockDim,
 
 rtError_t rtsGetHardwareSyncAddr(void **addr) {
   return ge::RuntimeStub::GetInstance()->rtsGetHardwareSyncAddr(addr);
+}
+
+rtError_t rtLaunchDqsTask(const rtStream_t stm, const rtDqsTaskCfg_t * const taskCfg) {
+  return RT_ERROR_NONE;
+}
+
+void SetMemQueueEntityType(uint32_t type) {
+  g_mock_entity_type = type;
+}
+
+rtError_t rtMemQueueQuery(int32_t devId, rtMemQueueQueryCmd_t cmd, const void *inBuff, uint32_t inLen,
+  void *outBuff, uint32_t *outLen) {
+  if (cmd == RT_MQ_QUERY_QUES_ATTR_ENTITY_TYPE && outBuff != nullptr) {
+    uint32_t *entity_type = static_cast<uint32_t*>(outBuff);
+    *entity_type = g_mock_entity_type;
+  }
+  return RT_ERROR_NONE;
 }
 
 #ifdef __cplusplus

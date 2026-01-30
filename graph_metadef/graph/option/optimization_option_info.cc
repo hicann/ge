@@ -11,6 +11,7 @@
 #include "graph/option/optimization_option_info.h"
 #include <unordered_set>
 #include "common/ge_common/debug/ge_log.h"
+#include "graph/ge_local_context.h"
 
 namespace {
 const std::map<ge::OoLevel, std::string> kOoLevelStr = {{ge::OoLevel::kO1, "O1"}, {ge::OoLevel::kO3, "O3"}};
@@ -76,6 +77,10 @@ bool OoInfoUtils::IsSwitchOptValueValid(const std::string &opt_value) {
   if (opt_value.empty() || (opt_value == "true") || (opt_value == "false")) {
     return true;
   }
+  const auto opt_name = GetThreadLocalContext().GetReadableName(OO_LEVEL);
+  (void)REPORT_PREDEFINED_ERR_MSG(
+      "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+      std::vector<const char *>({opt_name.c_str(), opt_value.c_str(), "The value must be true or false"}));
   GELOGE(ge::GRAPH_PARAM_INVALID, "Valid switch option value: \"true\" or \"false\" or null");
   return false;
 }

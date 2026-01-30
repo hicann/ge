@@ -43,14 +43,14 @@ enum class DumpProcState : int32_t {
   kStart = 1,
   kStop = 2,
   kError = 3,
-  kEnd
+  kEnd = 4
 };
 
 enum class DumpProcEvent : int32_t {
   kRangeStart = 0,
   kRangeEnd = 1,
   kOutOfRange = 2,
-  kEnd
+  kEnd = 3
 };
 
 class DumpProperties {
@@ -107,12 +107,9 @@ class DumpProperties {
 
   const std::string &GetDumpData() const;
 
-  void GetOrCreateModelBlacklist(const std::string& model_name, ModelOpBlacklist& out_model_blacklist);
-  bool GetModelBlacklist(const std::string& model_name,
-    const ModelOpBlacklist*& out_model_blacklist) const;
   const std::map<std::string, ModelOpBlacklist> &GetModelDumpBlacklistMap() const;
   void SetModelDumpBlacklistMap(const std::map<std::string, ModelOpBlacklist>& new_map);
-  void SetModelDumpBlacklistMap(std::map<std::string, ModelOpBlacklist>&& new_map);
+
   void SetModelBlacklist(const std::string& model_name, const ModelOpBlacklist& blacklist);
 
   const std::string &GetEnableDump() const {
@@ -155,7 +152,7 @@ class DumpProperties {
 
   uint32_t GetOpDebugMode() const { return op_debug_mode_; }
 
-  void SetOpDumpRange(const std::string &model, const std::vector<std::pair<std::string, std::string>> &op_range);
+  void SetOpDumpRange(const std::string &model, const std::vector<std::pair<std::string, std::string>> &op_ranges);
 
   size_t GetDumpOpRangeSize(const std::string &model, const std::string &om_name) const;
 

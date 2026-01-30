@@ -14,7 +14,6 @@ set(AIR_COMMON_COMPILE_OPTION ${AIR_COMMON_COMPILE_OPTION} -fno-access-control)
 
 include(dflow/udf/cmake/third_party/boost.cmake)
 include(dflow/udf/cmake/third_party/mockcpp.cmake)
-
 add_subdirectory(depends/slog)
 add_subdirectory(depends/mmpa)
 add_subdirectory(depends/mmpa2)

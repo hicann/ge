@@ -9,8 +9,9 @@
  */
 
 #include "register/op_binary_resource_manager.h"
-#include "common/ge_common/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
+#include "graph/def_types.h"
 
 namespace nnopbase {
 namespace {
@@ -22,9 +23,9 @@ ge::graphStatus GetStr(const std::tuple<const uint8_t*, const uint8_t*> &input, 
     GELOGE(ge::GRAPH_PARAM_INVALID, "Parse json failed, end is %p, start is %p!", end, start);
     return ge::GRAPH_PARAM_INVALID;
   }
-  const size_t len = end - start;
-  str = std::string((const char *)start, len);
-  GELOGD("Parse str addr is %p, len is %zu, %s.", start, len, str.c_str());
+
+  str = std::string(start, end);
+  GELOGD("Parse str addr is %p, len is %zu, %s.", start, ge::PtrToValue(end) - ge::PtrToValue(start), str.c_str());
   return ge::GRAPH_SUCCESS;
 }
 
@@ -49,7 +50,12 @@ ge::graphStatus ParseBinary(const std::tuple<const uint8_t*, const uint8_t*> &in
     GELOGE(ge::GRAPH_PARAM_INVALID, "Parse json failed, end is %p, start is %p!", end, start);
     return ge::GRAPH_PARAM_INVALID;
   }
-  binaryInfo.len = end - start;
+  const size_t len = ge::PtrToValue(end) - ge::PtrToValue(start);
+  if (len > static_cast<size_t>(UINT32_MAX)) {
+    GELOGE(ge::GRAPH_PARAM_INVALID, "Parse json failed, binary len %zu is larger than uint32_max.", len);
+    return ge::GRAPH_PARAM_INVALID;
+  }
+  binaryInfo.len = static_cast<uint32_t>(len);
   binaryInfo.content = start;
   GELOGD("Parse binary info, addr is %p, len is %us.", binaryInfo.content, binaryInfo.len);
   return ge::GRAPH_SUCCESS;
@@ -87,7 +93,8 @@ ge::graphStatus OpBinaryResourceManager::AddBinary(const ge::AscendString &opTyp
     opBinaryDesc_[opType] = opDesc;
   }
 
-  for (size_t i = 1U; i + 1U < opBinary.size(); i += 2U) { // 2 for json & binary
+  size_t i = 1U;
+  while (i + 1U < opBinary.size()) {
     nlohmann::json binaryDesc;
     Binary binaryInfo;
     GE_ASSERT_GRAPH_SUCCESS(ParseJson(opBinary[i], binaryDesc), "Parse op %s binary json file [%zu] failed!",
@@ -119,6 +126,8 @@ ge::graphStatus OpBinaryResourceManager::AddBinary(const ge::AscendString &opTyp
              key.c_str(), filePath.c_str(), binaryInfo.content, binaryInfo.len);
       keyToPath_[key.c_str()] = filePath.c_str();
     }
+
+    i += 2U; // 2 for json & binary
   }
   return ge::GRAPH_SUCCESS;
 }

@@ -51,7 +51,6 @@
 #include "engine/aicore/kernel/rt_ffts_plus_launch_args.h"
 #include "graph/utils/graph_dump_utils.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "register/op_impl_registry_holder_manager.h"
 
 using namespace std;
 using namespace testing;

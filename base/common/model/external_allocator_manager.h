@@ -11,8 +11,8 @@
 #ifndef GE_COMMON_EXTERNAL_ALLOCATOR_MANAGER_H
 #define GE_COMMON_EXTERNAL_ALLOCATOR_MANAGER_H
 
-#include <mutex>
 #include <map>
+#include <shared_mutex>
 #include "ge/ge_allocator.h"
 #include "framework/runtime/stream_allocator.h"
 #include "framework/runtime/event_allocator.h"
@@ -30,7 +30,7 @@ class ExternalAllocatorManager {
   static void DeleteExternalAllocator(const void *const stream);
   static AllocatorPtr GetExternalAllocator(const void *const stream);
  private:
-  static std::mutex stream_to_external_allocator_Mutex_;
+  static std::shared_mutex stream_to_external_allocator_Mutex_;
   static std::map<const void *const, AllocatorPtr> stream_to_external_allocator_;
 };
 }  // namespace ge

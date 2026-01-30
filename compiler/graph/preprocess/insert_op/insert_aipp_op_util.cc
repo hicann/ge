@@ -141,16 +141,18 @@ Status InsertAippOpUtil::CheckInputNamePositionNotRepeat() const {
       const domi::AippOpParams *another_item = insert_op_conf_->mutable_aipp_op(j);
       GE_CHECK_NOTNULL(another_item);
       if (another_item->related_input_name().empty()) {
-        std::string error_msg = "Can not both set related_input_name and related_input_rank!"
-                           " Please ensure param is the same with the first aipp config(related_input_name).";
+        std::string error_msg =
+            "Cannot both set related_input_name and related_input_rank. Please ensure param is the same as the first "
+            "aipp config(related_input_name)";
         GELOGE(PARAM_INVALID, "[Check][InputParam]%s", error_msg.c_str());
         REPORT_PREDEFINED_ERR_MSG("E10052", std::vector<const char_t *>({"reason"}),
                                   std::vector<const char_t *>({error_msg.c_str()}));
         return PARAM_INVALID;
       }
       if (item->related_input_name() == another_item->related_input_name()) {
-        std::string error_msg = "Can not insert aipp to the same postion! Please ensure related_input_name"
-                           " param is different in different aipp config.";
+        std::string error_msg =
+            "Can not insert aipp to the same position! Please ensure related_input_name"
+            " param is different in different aipp config";
         GELOGE(PARAM_INVALID, "[Check][InputParam]%s", error_msg.c_str());
         REPORT_PREDEFINED_ERR_MSG("E10052", std::vector<const char_t *>({"reason"}),
                                   std::vector<const char_t *>({error_msg.c_str()}));
@@ -171,16 +173,18 @@ Status InsertAippOpUtil::CheckInputRankPositionNoRepeat() const {
       const domi::AippOpParams *another_item = insert_op_conf_->mutable_aipp_op(j);
       GE_CHECK_NOTNULL(another_item);
       if (!another_item->related_input_name().empty()) {
-        std::string error_msg = "Can not both set related_input_rank and related_input_name!"
-                           " Please ensure param is the same with the first aipp config(related_input_rank).";
+        std::string error_msg =
+            "Can not both set related_input_rank and related_input_name!"
+            " Please ensure param is the same with the first aipp config(related_input_rank)";
         GELOGE(PARAM_INVALID, "[Check][InputParam]%s", error_msg.c_str());
         REPORT_PREDEFINED_ERR_MSG("E10052", std::vector<const char_t *>({"reason"}),
                                   std::vector<const char_t *>({error_msg.c_str()}));
         return PARAM_INVALID;
       }
       if (item->related_input_rank() == another_item->related_input_rank()) {
-        std::string error_msg = "Can not insert aipp to the same postion! Please ensure related_input_rank"
-                          " param is different in different aipp config.";
+        std::string error_msg =
+            "Can not insert aipp to the same position! Please ensure related_input_rank"
+            " param is different in different aipp config";
         GELOGE(PARAM_INVALID, "[Check][InputParam]%s", error_msg.c_str());
         REPORT_PREDEFINED_ERR_MSG("E10052", std::vector<const char_t *>({"reason"}),
                                   std::vector<const char_t *>({error_msg.c_str()}));

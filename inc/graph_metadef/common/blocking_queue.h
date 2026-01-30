@@ -88,7 +88,7 @@ class BlockingQueue {
       return false;
     }
 
-    queue_.emplace_back(std::move(item));
+    (void)queue_.emplace_back(std::move(item));
 
     empty_cond_.notify_one();
 

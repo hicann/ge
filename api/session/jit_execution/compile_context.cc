@@ -15,50 +15,52 @@
 namespace ge {
 // todo refactor func name to AddAndCompile
 Status CompileContext::Compile(uint32_t graph_id, const ComputeGraphPtr &graph, const std::vector<gert::Tensor> &inputs,
-                               const std::map<std::string, std::string> &options) {
+                               const std::map<std::string, std::string> &options, uint64_t session_id) {
   Graph graph_to_add = GraphUtilsEx::CreateGraphFromComputeGraph(graph);  // todo check if need more info in graph
-  GE_ASSERT_SUCCESS(inner_session_.AddGraph(graph_id, graph_to_add, options));
-  GELOGI("[Session: ][AddGraph] success to add slice graph id: %ld", graph_id);
+  GE_ASSERT_SUCCESS(graph_manager_.AddGraph(graph_id, graph_to_add, options, domi::GetContext()));
+  GELOGI("[Session: ][AddGraph] success to add slice graph id: %ld, session_id: %llu", graph_id, session_id);
   std::vector<Tensor> inputs_to_ge;
   GE_ASSERT_SUCCESS(TensorTransUtils::TransRtTensorToTensor(inputs, inputs_to_ge, false));
   GE_ASSERT_TRUE(inputs_to_ge.size() == inputs.size());
-  GE_ASSERT_SUCCESS(inner_session_.CompileGraph(graph_id, inputs_to_ge));
+  GE_ASSERT_SUCCESS(graph_manager_.CompileGraph(graph_id, session_id, inputs_to_ge), "graph id: %ld, session_id: %llu",
+    graph_id, session_id);
   return SUCCESS;
 }
 
-Status CompileContext::Compile(uint32_t graph_id, const ComputeGraphPtr &graph, const std::vector<ge::Tensor> &inputs) {
+Status CompileContext::Compile(uint32_t graph_id, const ComputeGraphPtr &graph, const std::vector<ge::Tensor> &inputs,
+    uint64_t session_id) {
   Graph graph_to_add = GraphUtilsEx::CreateGraphFromComputeGraph(graph);
-  GE_ASSERT_SUCCESS(inner_session_.AddGraph(graph_id, graph_to_add));
-  GELOGI("[Session: ][AddGraph] success to add slice graph id: %ld", graph_id);
-  GE_ASSERT_SUCCESS(inner_session_.CompileGraph(graph_id, inputs));
+  GE_ASSERT_SUCCESS(graph_manager_.AddGraph(graph_id, graph_to_add, {}, domi::GetContext()));
+  GELOGI("[Session: ][AddGraph] success to add slice graph id: %ld, session_id: %llu", graph_id, session_id);
+  GE_ASSERT_SUCCESS(graph_manager_.CompileGraph(graph_id, session_id, inputs), "graph id: %ld, session_id: %llu",
+    graph_id, session_id);
   return SUCCESS;
 }
 
-Status CompileContext::Load(uint32_t graph_id, rtStream_t stream) {
-  std::map<AscendString, AscendString> load_option;
-  GE_ASSERT_SUCCESS(inner_session_.LoadGraph(graph_id, load_option, stream));
+Status CompileContext::Load(uint32_t graph_id, const rtStream_t stream) const {
+  GE_ASSERT_SUCCESS(graph_manager_.LoadGraph(graph_id, {}, stream));
   GELOGI("[Session: ][AddGraph] success to load slice_graph_id: %ld", graph_id);
   return SUCCESS;
 }
 
 Status CompileContext::Load(uint32_t graph_id, const std::map<AscendString, AscendString> &options,
-                            rtStream_t stream) {
-  GE_ASSERT_SUCCESS(inner_session_.LoadGraph(graph_id, options, stream));
+                            const rtStream_t stream) {
+  GE_ASSERT_SUCCESS(graph_manager_.LoadGraph(graph_id, options, stream));
   GELOGI("[Session: ][LoadGraph] success to load slice_graph_id: %ld", graph_id);
   return SUCCESS;
 }
 
 Status CompileContext::Fork(uint32_t origin_graph_id, uint32_t forked_graph_id) {
-  GE_ASSERT_SUCCESS(inner_session_.ForkGraph(origin_graph_id, forked_graph_id));
+  GE_ASSERT_SUCCESS(graph_manager_.ForkGraph(origin_graph_id, forked_graph_id));
   GELOGI("[Session: ][ForkGraph] success to fork graph: %u from graph:%u", forked_graph_id, origin_graph_id);
   return SUCCESS;
 }
 bool CompileContext::IsGraphNeedRebuild(uint32_t graph_id) {
-  return inner_session_.IsGraphNeedRebuild(graph_id);
+  return graph_manager_.IsGraphNeedRebuild(graph_id);
 }
 
 Status CompileContext::GetCompiledGraphSummary(uint32_t graph_id, CompiledGraphSummaryPtr &summary) const {
-  GE_ASSERT_SUCCESS(inner_session_.GetCompiledGraphSummary(graph_id, summary));
+  GE_ASSERT_SUCCESS(graph_manager_.GetCompiledGraphSummary(graph_id, summary));
   GELOGI("[Session: ][GetCompiledGraphSummary] success to get compiled graph: %u", graph_id);
   return SUCCESS;
 }

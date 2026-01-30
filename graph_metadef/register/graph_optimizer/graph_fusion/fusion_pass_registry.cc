@@ -14,8 +14,7 @@
 #include <mutex>
 #include <utility>
 #include <vector>
-#include "graph/debug/ge_log.h"
-#include "common/ge_common/ge_inner_error_codes.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace fe {
 class FusionPassRegistry::FusionPassRegistryImpl {

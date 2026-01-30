@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "depends/mmpa2/src/mmpa_stub.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 #include "depends/slog/src/slog_stub.h"
 #include <fstream>
 #include <cstdio>  // for std::remove

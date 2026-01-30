@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef ACL_OP_EXECUTOR_ACL_TYPES_OP_MODEL_H_
-#define ACL_OP_EXECUTOR_ACL_TYPES_OP_MODEL_H_
+#ifndef ACL_TYPES_OP_MODEL_H_
+#define ACL_TYPES_OP_MODEL_H_
 
 #include <map>
 #include <string>
@@ -65,4 +65,4 @@ struct OpModelDef {
 ACL_FUNC_VISIBILITY aclError ReadOpModelFromFile(const std::string &path, OpModel &opModel);
 } // namespace acl
 
-#endif // ACL_OP_EXECUTOR_ACL_TYPES_OP_MODEL_H_
+#endif // ACL_TYPES_OP_MODEL_H_

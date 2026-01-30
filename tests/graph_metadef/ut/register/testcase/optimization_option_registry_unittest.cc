@@ -12,7 +12,7 @@
 
 #include "register/optimization_option_registry.h"
 #include "ge_common/ge_api_types.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
 
 namespace {

@@ -1,17 +1,12 @@
-# Copyright 2019-2020 Huawei Technologies Co., Ltd
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-# http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ============================================================================
+# -----------------------------------------------------------------------------------------------------------
+# Copyright (c) 2025 Huawei Technologies Co., Ltd.
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+# CANN Open Software License Agreement Version 2.0 (the "License").
+# Please refer to the License for details. You may not use this file except in compliance with the License.
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+# INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+# See LICENSE in the root of the software repository for the full text of the License.
+# -----------------------------------------------------------------------------------------------------------
 
 project(acl_utest)
 
@@ -22,6 +17,8 @@ set(UT_FILES
     "testcase/compatibility/enum_check.cpp"
     "testcase/compatibility/const_check.cpp"
     "testcase/compatibility/struct_check.cpp"
+    "testcase/acl_common_unittest.cpp"
+    "testcase/acl_utils_unittest.cpp"
     "testcase/acl_model_unittest.cpp"
     "testcase/acl_opCompile_unittest.cpp"
     "testcase/acl_opAttr_unittest.cpp"
@@ -42,7 +39,7 @@ set(MODEL_SRC_FILES
     "${BASE_DIR}/api/acl/acl_model/model/model_config.cpp"
     "${BASE_DIR}/api/acl/acl_model/model/acl_resource_manager.cpp"
     "${BASE_DIR}/api/acl/acl_model/model/init_callback_register.cpp"
-    "${BASE_DIR}/api/acl/acl_model/types/acl_model_tensor_desc_internal.cpp"
+    "${BASE_DIR}/api/acl/acl_model/types/tensor_desc_internal.cpp"
     "${BASE_DIR}/api/acl/common/json_parser.cpp"
     "${BASE_DIR}/api/acl/common/log_inner.cpp"
     "${BASE_DIR}/api/acl/utils/string_utils.cpp"
@@ -106,9 +103,6 @@ add_library(ut_acl_model_src SHARED
     ${MODEL_SRC_FILES}
 )
 
-message("sgbdebug ASCEND_INSTALL_PATH = ${ASCEND_INSTALL_PATH}")
-message("sgbdebug METADEF_DIR = ${METADEF_DIR}")
-
 target_include_directories(ut_acl_model_src PRIVATE
     ${BASE_DIR}/inc
     ${BASE_DIR}/inc/framework
@@ -120,9 +114,9 @@ target_include_directories(ut_acl_model_src PRIVATE
     ${BASE_DIR}/api/acl
     ${BASE_DIR}/api/acl/acl_model
     ${BASE_DIR}/api/acl/common
-    ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
+    ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
     ${ASCEND_INSTALL_PATH}/include/external
     ${ASCEND_INSTALL_PATH}/include/graph
@@ -165,7 +159,8 @@ target_include_directories(ut_acl_cblas_src PRIVATE
     ${BASE_DIR}/inc/external/acl
     ${BASE_DIR}/api/acl
     ${BASE_DIR}/api/acl/acl_cblas
-    ${METADEF_DIR}/inc
+    ${BASE_DIR}/api/acl/acl_op_executor
+    ${BASE_DIR}/api/acl/acl_model
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
     ${ASCEND_INSTALL_PATH}/include/acl
@@ -216,7 +211,6 @@ target_include_directories(ut_acl_op_exec_src PRIVATE
     ${BASE_DIR}/api/acl/acl_op_executor
     ${BASE_DIR}/api/acl/common
     ${BASE_DIR}/api/acl/acl_model
-    ${METADEF_DIR}/inc
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
     ${ASCEND_INSTALL_PATH}/include/acl
@@ -264,12 +258,15 @@ target_include_directories(ut_acl_op_compiler_src PRIVATE
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/framework
     ${BASE_DIR}/api/acl
+    ${BASE_DIR}/api/acl/acl_model
     ${BASE_DIR}/api/acl/acl_op_compiler
+    ${BASE_DIR}/api/acl/acl_op_executor
     ${BASE_DIR}/api/acl/common
     ${BASE_DIR}/api/acl/acl_op_executor/single_op
-    ${METADEF_DIR}/inc
+    ${BASE_DIR}/api/acl/acl_op_executor/single_op/compile
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
+    ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
     ${ASCEND_INSTALL_PATH}/include/external
     ${ASCEND_INSTALL_PATH}/include/graph
@@ -318,7 +315,7 @@ target_include_directories(acl_utest PRIVATE
     ${BASE_DIR}/api/acl/acl_op_compiler
     ${BASE_DIR}/api/acl/acl_op_executor
     ${BASE_DIR}/api/acl/acl_op_executor/single_op
-    ${METADEF_DIR}/inc
+    ${BASE_DIR}/api/acl/acl_op_executor/single_op/compile
     ${METADEF_DIR}/pkg_inc
     ${ASCEND_INSTALL_PATH}
     ${ASCEND_INSTALL_PATH}/include

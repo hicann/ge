@@ -18,6 +18,13 @@ class RuntimeStubV2 : public RuntimeStub {
     (void)strcpy_s(version, maxLen, "Ascend910_9599");
     return RT_ERROR_NONE;
   }
+
+  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) override {
+    (void)label;
+    (void)key;
+    (void)strcpy_s(val, maxLen, "3510");
+    return RT_ERROR_NONE;
+  }
 };
 }  // namespace ge
 

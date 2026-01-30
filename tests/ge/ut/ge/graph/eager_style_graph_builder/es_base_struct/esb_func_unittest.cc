@@ -18,15 +18,11 @@
 #include "c_types.h"
 #include "node_adapter.h"
 #include "adxl/adxl_types.h"
-#include "mmpa/mmpa_api.h"
 #include <fstream>
+#include <experimental/filesystem>
 #include <symengine/logic.h>
 using namespace ge::es;
-
-std::string GetTempDirectory() {
-  return "/tmp";
-}
-
+namespace fs = std::experimental::filesystem;
 class EsbFuncsLLT : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -37,15 +33,19 @@ class EsbFuncsLLT : public ::testing::Test {
   }
 
   void CreateTmpFileDir() {
-    temp_dir = GetTempDirectory() + "/binary_file_test";
-    file_path = temp_dir + "/test_binary.bin";
-    std::string command = "mkdir -p " + temp_dir;
-    (void) std::system(command.c_str());
+    temp_dir = fs::temp_directory_path() / "binary_file_test";
+    fs::create_directories(temp_dir);
+    file_path = temp_dir / "test_binary.bin";
   }
 
   void CleanTmpFileDir() {
-    std::string command = "rm -rf " + temp_dir;
-    (void) std::system(command.c_str());
+    if (fs::exists(file_path)) {
+      fs::remove(file_path);
+    }
+
+    if (fs::exists(temp_dir) && fs::is_empty(temp_dir)) {
+      fs::remove(temp_dir);
+    }
   }
 
   template<typename T>
@@ -57,8 +57,8 @@ class EsbFuncsLLT : public ::testing::Test {
   }
 
   EsGraphBuilder *_builder = nullptr;
-  std::string temp_dir;
-  std::string file_path;
+  fs::path temp_dir;
+  fs::path file_path;
 };
 
 // 测试EsCreateVector和EsCreateScalar系列函数
@@ -119,7 +119,7 @@ TEST_F(EsbFuncsLLT, EsCreateEsCTensorFromFile_success) {
   CleanTmpFileDir();
   CreateTmpFileDir();
   CreateBinaryFile(test_data);
-  EXPECT_TRUE(mmAccess(file_path.c_str()) == EN_OK);
+  EXPECT_TRUE(fs::exists(file_path));
   int64_t dims[] = {3};
   auto es_tensor =
       EsCreateEsCTensorFromFile(file_path.c_str(), dims, 1, C_DT_INT64, C_FORMAT_ALL);
@@ -139,7 +139,7 @@ TEST_F(EsbFuncsLLT, EsCreateEsCTensorFromFile_success_scalar) {
   CleanTmpFileDir();
   CreateTmpFileDir();
   CreateBinaryFile(test_data);
-  EXPECT_TRUE(mmAccess(file_path.c_str()) == EN_OK);
+  EXPECT_TRUE(fs::exists(file_path));
   auto es_tensor = EsCreateEsCTensorFromFile(file_path.c_str(), nullptr, 0, C_DT_INT64, C_FORMAT_ALL);
   ASSERT_NE(es_tensor, nullptr);
   auto inner_tensor = static_cast<const ge::Tensor *>(static_cast<void *>(es_tensor));
@@ -154,7 +154,7 @@ TEST_F(EsbFuncsLLT, EsCreateEsCTensorFromFile_fail_of_file_size_wrong) {
   CleanTmpFileDir();
   CreateTmpFileDir();
   CreateBinaryFile(test_data);
-  EXPECT_TRUE(mmAccess(file_path.c_str()) == EN_OK);
+  EXPECT_TRUE(fs::exists(file_path));
   int64_t dims[] = {5};
   auto es_tensor = EsCreateEsCTensorFromFile(file_path.c_str(), dims, 1, C_DT_INT64, C_FORMAT_ALL);
   EXPECT_EQ(es_tensor, nullptr);
@@ -166,7 +166,7 @@ TEST_F(EsbFuncsLLT, EsCreateEsCTensorFromFile_fail_of_file_size_wrong_scalar) {
   CleanTmpFileDir();
   CreateTmpFileDir();
   CreateBinaryFile(test_data);
-  EXPECT_TRUE(mmAccess(file_path.c_str()) == EN_OK);
+  EXPECT_TRUE(fs::exists(file_path));
   auto es_tensor = EsCreateEsCTensorFromFile(file_path.c_str(), nullptr, 0, C_DT_INT64, C_FORMAT_ALL);
   EXPECT_EQ(es_tensor, nullptr);
   CleanTmpFileDir();

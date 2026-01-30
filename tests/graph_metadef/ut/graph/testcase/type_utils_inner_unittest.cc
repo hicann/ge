@@ -20,6 +20,50 @@ class UtestTypeUtilsInner : public testing::Test {
   void TearDown() {}
 };
 
+TEST_F(UtestTypeUtilsInner, IsDataTypeValid) {
+  ASSERT_TRUE(TypeUtilsInner::IsDataTypeValid(DT_INT4));
+  ASSERT_FALSE(TypeUtilsInner::IsDataTypeValid(DT_MAX));
+}
+
+TEST_F(UtestTypeUtilsInner, IsFormatValid) {
+  ASSERT_TRUE(TypeUtilsInner::IsFormatValid(FORMAT_NCHW));
+  ASSERT_FALSE(TypeUtilsInner::IsFormatValid(FORMAT_END));
+}
+
+TEST_F(UtestTypeUtilsInner, IsDataTypeValid2) {
+  ASSERT_FALSE(TypeUtilsInner::IsDataTypeValid("MAX"));
+  ASSERT_TRUE(TypeUtilsInner::IsDataTypeValid("UINT64"));
+  ASSERT_TRUE(TypeUtilsInner::IsDataTypeValid("STRING_REF"));
+}
+
+TEST_F(UtestTypeUtilsInner, IsFormatValid2) {
+  ASSERT_TRUE(TypeUtilsInner::IsFormatValid("DECONV_SP_STRIDE8_TRANS"));
+  ASSERT_FALSE(TypeUtilsInner::IsFormatValid("FORMAT_END"));
+}
+
+TEST_F(UtestTypeUtilsInner, SplitFormatFromStr) {
+  string primary_format_str;
+  int32_t sub_format;
+  ASSERT_EQ(TypeUtilsInner::SplitFormatFromStr(":DDD", primary_format_str, sub_format), GRAPH_FAILED);
+  ASSERT_EQ(TypeUtilsInner::SplitFormatFromStr(":123", primary_format_str, sub_format), GRAPH_SUCCESS);
+  ASSERT_EQ(TypeUtilsInner::SplitFormatFromStr(":012", primary_format_str, sub_format), GRAPH_SUCCESS);
+  ASSERT_EQ(TypeUtilsInner::SplitFormatFromStr(":012@34", primary_format_str, sub_format), GRAPH_FAILED);
+  ASSERT_EQ(TypeUtilsInner::SplitFormatFromStr(":123456789123456789", primary_format_str, sub_format), GRAPH_FAILED);
+  ASSERT_EQ(TypeUtilsInner::SplitFormatFromStr(":65538", primary_format_str, sub_format), GRAPH_FAILED);
+}
+
+TEST_F(UtestTypeUtilsInner, CheckUint64MulOverflow) {
+  ASSERT_FALSE(TypeUtilsInner::CheckUint64MulOverflow(0x00ULL, 0x00UL));
+  ASSERT_FALSE(TypeUtilsInner::CheckUint64MulOverflow(0x02ULL, 0x01UL));
+  ASSERT_TRUE(TypeUtilsInner::CheckUint64MulOverflow(0xFFFFFFFFFFFFULL, 0xFFFFFFFUL));
+}
+
+TEST_F(UtestTypeUtilsInner, CheckUint64MulOverflow2) {
+  ASSERT_FALSE(TypeUtilsInner::CheckUint64MulOverflow(0, 1));
+  ASSERT_FALSE(TypeUtilsInner::CheckUint64MulOverflow(1, 1));
+  ASSERT_TRUE(TypeUtilsInner::CheckUint64MulOverflow(ULLONG_MAX, 2));
+}
+
 TEST_F(UtestTypeUtilsInner, IsInternalFormat) {
   ASSERT_TRUE(TypeUtilsInner::IsInternalFormat(FORMAT_FRACTAL_Z));
   ASSERT_FALSE(TypeUtilsInner::IsInternalFormat(FORMAT_RESERVED));
@@ -52,4 +96,4 @@ TEST_F(UtestTypeUtilsInner, FmkTypeToSerialString2) {
   ASSERT_EQ(TypeUtilsInner::FmkTypeToSerialString(domi::CAFFE), "caffe");
   ASSERT_EQ(TypeUtilsInner::FmkTypeToSerialString(static_cast<domi::FrameworkType>(domi::FRAMEWORK_RESERVED + 1)), "");
 }
-}
+}  // namespace ge

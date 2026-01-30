@@ -19,7 +19,7 @@
 #include "graph/normal_graph/node_impl.h"
 #include "graph/normal_graph/op_desc_impl.h"
 #include "graph/debug/ge_op_types.h"
-#include "graph/debug/ge_log.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 FastNode *FastNodeUtils::GetInDataNodeByIndex(const FastNode *const node, const int32_t index) {
