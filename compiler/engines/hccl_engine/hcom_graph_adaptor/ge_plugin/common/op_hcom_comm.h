@@ -43,7 +43,7 @@ constexpr u64 INVALID_U64 = 0xFFFFFFFFFFFFFFFF;
 constexpr u32 INVALID_UINT = 0xFFFFFFFF;
 constexpr u32 MAX_MODULE_DEVICE_NUM = 32;  // 单server双模组时支持最大的设备数量
 constexpr char HCCL_WORLD_GROUP[] = "hccl_world_group";
-constexpr u32 MAX_BLOCK_DIM = 48;
+constexpr u32 MAX_NUM_BLOCKS = 48;
 constexpr int HCCL_BASE_DECIMAL = 10;            // 10进制字符串转换
 constexpr u32 RANK_TABLE_MAX_LEN = 4096 - 1;     // PATH_MAX=4096
 constexpr s64 HCCL_ALIGN_SIZE = 4096;            // hccl  对齐方式， 按4KB来对齐
@@ -286,7 +286,7 @@ HcclResult __attribute__((weak)) HcomSelectAlg(s64 comm, const char *group, u64 
     HcclDataType dataType, HcclReduceOp op, HcclCMDType opType, int32_t aivCoreLimit,
     bool &ifAiv, char *algName);
 HcclResult __attribute__((weak)) HcomCalcAivCoreNum(const char *group, HcclCMDType opType, u64 count, void* counts,
-  HcclDataType dataType, int32_t aivCoreLimit, char *algName, u32 *blockDim);
+  HcclDataType dataType, int32_t aivCoreLimit, char *algName, u32 *numBlocks);
 HcclResult __attribute__((weak)) HcomGetCommCCLBufferSize(const char *group, uint64_t &size);
 #endif
 

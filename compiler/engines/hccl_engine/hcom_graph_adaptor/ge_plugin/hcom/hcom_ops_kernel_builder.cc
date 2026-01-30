@@ -248,9 +248,9 @@ ge::Status HcomOpsKernelBuilder::GenerateTask(const ge::Node &node, ge::RunConte
               HCCL_ERROR("[Generate][Task]errNo[0x%016llx] generate taskdef failed.", HCOM_ERROR_CODE(ret)),
               ge::INTERNAL_ERROR);
 
- 	ret = TaskDefSetBlockDim(node, taskDef, sCollectiveType, privateDefBuf.aivCoreLimit);
+ 	ret = TaskDefSetNumBlocks(node, taskDef, sCollectiveType, privateDefBuf.aivCoreLimit);
  	CHK_PRT_RET(ret != HCCL_SUCCESS,
- 	         HCCL_ERROR("[Generate][Task]errNo[0x%016llx] taskdef set blockDim failed.", HCOM_ERROR_CODE(ret)),
+ 	         HCCL_ERROR("[Generate][Task]errNo[0x%016llx] taskdef set numBlocks failed.", HCOM_ERROR_CODE(ret)),
  	         ge::INTERNAL_ERROR);
 
   taskDefList.push_back(taskDef);
@@ -266,7 +266,7 @@ HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void*
     HcomOpUtils::GetAllGatherVCountsDispl(const_cast<ge::Node&>(node), sendCounts, recvCounts, recvDispls);
     counts = recvCounts.data();
     if (counts == nullptr){
-      HCCL_ERROR("[TaskDefSetBlockDim], counts is nullptr");
+      HCCL_ERROR("[TaskDefSetNumBlocks], counts is nullptr");
       return HCCL_E_PTR;
     }
   } else if (opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER_V) {
@@ -276,19 +276,19 @@ HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void*
     HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node&>(node), sendCounts, sendDispls, recvCount);
     counts = sendCounts.data();
     if (counts == nullptr){
-      HCCL_ERROR("[TaskDefSetBlockDim], counts is nullptr");
+      HCCL_ERROR("[TaskDefSetNumBlocks], counts is nullptr");
       return HCCL_E_PTR;
     }
   }
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::TaskDefSetBlockDim(const ge::Node &node, domi::TaskDef &taskDef,
+HcclResult HcomOpsKernelBuilder::TaskDefSetNumBlocks(const ge::Node &node, domi::TaskDef &taskDef,
  	     const std::string sCollectiveType, const u32 aivCoreLimit)
 {
   // 离线模式不设置核数
   if (IsOfflineCompilation()) {
-      HCCL_DEBUG("[TaskDefSetBlockDim] IsOfflineCompilation, not set blockDim");
+      HCCL_DEBUG("[TaskDefSetNumBlocks] IsOfflineCompilation, not set numBlocks");
       return HCCL_SUCCESS;
   }
 
@@ -310,13 +310,13 @@ HcclResult HcomOpsKernelBuilder::TaskDefSetBlockDim(const ge::Node &node, domi::
   HcclCMDType opType = (iter != HCCL_OPTYPE_NAME_MAP.end()) ? iter->second : HcclCMDType::HCCL_CMD_INVALID;
 
   auto ret = HcomOpUtils::ConversionOpDataType(opDescPtr, sCollectiveType, dataType);
-  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Get][TaskDefSetBlockDim]op[%s]: get data type failed. ret[%d]",
+  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Get][TaskDefSetNumBlocks]op[%s]: get data type failed. ret[%d]",
       sCollectiveType.c_str(), ret), ret);
 
   CHK_RET(GetCommFromOpDesc(opDescPtr, comm, group));
 
   ret = GetCountFromOpDesc(opDescPtr, sCollectiveType, dataType, count);
-  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Get][TaskDefSetBlockDim]op[%s]: get count failed. ret[%d]",
+  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Get][TaskDefSetNumBlocks]op[%s]: get count failed. ret[%d]",
       sCollectiveType.c_str(), ret), ret);
 
   if (opType == HcclCMDType::HCCL_CMD_ALLREDUCE || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER) {
@@ -330,20 +330,20 @@ HcclResult HcomOpsKernelBuilder::TaskDefSetBlockDim(const ge::Node &node, domi::
 
   // 非AIV算法不设置核数
   if (!ifAiv) {
-      HCCL_DEBUG("[TaskDefSetBlockDim] not Aiv, do not set blockDim");
+      HCCL_DEBUG("[TaskDefSetNumBlocks] not Aiv, do not set numBlocks");
       return HCCL_SUCCESS;
   }
 
-  u32 blockDim = 0;
-  CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, counts, dataType, aivCoreLimit, algName, &blockDim));
+  u32 numBlocks = 0;
+  CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, counts, dataType, aivCoreLimit, algName, &numBlocks));
 
   domi::KernelHcclDef *kernelDefHccl = taskDef.mutable_kernel_hccl();
   CHK_PRT_RET((kernelDefHccl == nullptr),
             HCCL_ERROR("[Generate][Task]node[%s]: kernelDefHccl is null.", node.GetOpDesc()->GetName().c_str()),
             HCCL_E_PTR);
 
-  kernelDefHccl->set_aiv_block_dim(blockDim);
-  HCCL_INFO("[TaskDefSetBlockDim] %s set blockdim %d success", sCollectiveType.c_str(), blockDim);
+  kernelDefHccl->set_aiv_block_dim(numBlocks);
+  HCCL_INFO("[TaskDefSetNumBlocks] %s set numBlocks %d success", sCollectiveType.c_str(), numBlocks);
   return HCCL_SUCCESS;
 }
 

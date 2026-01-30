@@ -596,7 +596,7 @@ HcclResult HcomOpUtils::GetAllTensorSize(const ge::OpDescPtr &op, u32 tensorNum,
 
 HcclResult HcomOpUtils::GetAivCoreLimit(const ge::OpDescPtr &op, const std::string &sCollectiveType,
                                         u32 &aivCoreLimit) {
-  aivCoreLimit = MAX_BLOCK_DIM;
+  aivCoreLimit = MAX_NUM_BLOCKS;
   if (ge::AttrUtils::HasAttr(op, "_op_vectorcore_num")) {  // 核数优先取算子级配置
     std::string aivNumStr;
     bool bRet = ge::AttrUtils::GetStr(op, "_op_vectorcore_num", aivNumStr);

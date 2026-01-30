@@ -69,7 +69,7 @@ class HcomOpsKernelBuilder : public HCCLOpsKernelBuilder {
   HcclResult JudgeIsAivMode(ge::Node &node, std::string sGroup, std::string sCollectiveType, bool& ifAiv);
   HcclResult GetCountsFromOpDesc(const ge::Node &node, void*& counts, HcclCMDType opType);
   HcclResult SetAttachedStreamInfoList(ge::Node &node, const std::string &group);  // 设置附属从流信息
-  HcclResult TaskDefSetBlockDim(const ge::Node &node, domi::TaskDef &taskDef, const std::string sCollectiveType, const u32 aivCoreLimit);
+  HcclResult TaskDefSetNumBlocks(const ge::Node &node, domi::TaskDef &taskDef, const std::string sCollectiveType, const u32 aivCoreLimit);
 };
 }  // namespace hccl
 #endif  // GE_OPS_KERNEL_INFO_H

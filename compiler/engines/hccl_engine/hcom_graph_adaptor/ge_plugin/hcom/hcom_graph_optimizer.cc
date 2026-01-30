@@ -889,13 +889,13 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
         }
       }
     }
-    // 将BlockDim包装成Hcom层接口，层层下发参数，到Hccl communictor里计算结果并返回到这一层。
-    u32 blockDim{};
-    CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, 0, dataType, aivCoreLimit, algName, &blockDim));
-    ge::AttrUtils::SetInt(opDescPtr, "hcom_block_dim", blockDim);
+    // 将NumBlocks包装成Hcom层接口，层层下发参数，到Hccl communictor里计算结果并返回到这一层。
+    u32 numBlocks{};
+    CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, 0, dataType, aivCoreLimit, algName, &numBlocks));
+    ge::AttrUtils::SetInt(opDescPtr, "hcom_block_dim", numBlocks);
 
-    HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] rankSize[%u] aivCoreLimit[%u] blockDim[%u]",
-        rankSize, aivCoreLimit, blockDim);
+    HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] rankSize[%u] aivCoreLimit[%u] numBlocks[%u]",
+        rankSize, aivCoreLimit, numBlocks);
     
     HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] Support SPK Optype[%s] funcName[%s]",
         sCollectiveType.c_str(), funcName.c_str());  
