@@ -418,15 +418,18 @@ Status FileConstantUtils::SaveWeightToFileWithReuse(const ConstNodeWeightHashMap
   for (const auto &const_and_weight_hash : const_to_weight_hash_map) {
     const auto &const_name = const_and_weight_hash.first->GetName();
     const auto &weight_hash = const_and_weight_hash.second.second;
-    if (meta.hash_to_weight_file.count(weight_hash) > 0U) {
-      continue;
-    }
-    const auto &weight = const_and_weight_hash.second.first;
-    const auto &data = weight->GetData().GetData();
-    const auto size = weight->GetData().GetSize();
     const std::string file_name = "weight_" + weight_hash;
     std::string weight_path;
     GetValidFullPath(weight_dir, file_name, weight_path);
+    const bool weight_file_exist = (mmAccess(weight_path.c_str()) == EN_OK);
+    if ((meta.hash_to_weight_file.count(weight_hash) > 0U) && weight_file_exist) {
+      GELOGI("Reuse existing weight file: [%s]. No need to save again.", weight_path.c_str());
+      continue;
+    }
+
+    const auto &weight = const_and_weight_hash.second.first;
+    const auto &data = weight->GetData().GetData();
+    const auto size = weight->GetData().GetSize();
     meta.hash_to_weight_file[weight_hash] = weight_path;
     const auto &error_manager_context = error_message::GetErrMgrContext();
     auto fut = thread_pool.commit([const_name, weight_path, data, size, error_manager_context]() -> Status {

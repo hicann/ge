@@ -270,22 +270,41 @@ TEST_F(UtestFileConstantUtilTransfer, test_convert_file_const_to_const_success) 
   (void)mmRmdir("tmp_weight_pid");
 }
 
-TEST_F(UtestFileConstantUtilTransfer, test_convert_const_to_file_const_success) {
-  ge::ut::GraphBuilder builder("graph");
-  auto const1 = builder.AddNode("const1", "Const", 0, 1);
-  auto netoutput = builder.AddNode("Node_OutPut", "NetOutPut", 1, 0);
-  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
-  std::vector<uint8_t> value(4 * 8 * 8);
-  std::vector<int64_t> shape{1, 4, 8, 8};
-  tensor->MutableTensorDesc().SetShape(GeShape(shape));
-  tensor->SetData(value);
-  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
-  ConstantUtils::SetWeight(const1->GetOpDesc(), 0, tensor);
-
-  builder.AddDataEdge(const1, 0, netoutput, 0);
-  auto graph = builder.GetGraph();
-  auto ret = FileConstantUtils::ConvertConstToFileConst(graph);
+TEST_F(UtestFileConstantUtilTransfer, ConvertConstToFileConst_Ok_MultipleModelSameConst) {
+  const auto build_graph = []() {
+    ge::ut::GraphBuilder builder("graph");
+    auto const1 = builder.AddNode("const1", "Const", 0, 1);
+    auto netoutput = builder.AddNode("Node_OutPut", "NetOutPut", 1, 0);
+    ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+    std::vector<uint8_t> value(4 * 8 * 8);
+    std::vector<int64_t> shape{1, 4, 8, 8};
+    tensor->MutableTensorDesc().SetShape(GeShape(shape));
+    tensor->SetData(value);
+    tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+    ConstantUtils::SetWeight(const1->GetOpDesc(), 0, tensor);
+    (void)AttrUtils::SetStr(const1->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+    builder.AddDataEdge(const1, 0, netoutput, 0);
+    return builder.GetGraph();
+  };
+  const auto &external_weight_manager = ExternalWeightManagerPool::Instance().GetManager(GetContext().SessionId());
+  ASSERT_NE(external_weight_manager, nullptr);
+  external_weight_manager->SetWeightPath("./om_temp/weight");
+  auto& meta = external_weight_manager->MutableMetaFile();
+  meta.hash_to_weight_file.clear();
+  // 第一次保存，没有权重
+  auto graph_1 = build_graph();
+  auto ret = FileConstantUtils::ConvertConstToFileConst(graph_1);
   EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(meta.hash_to_weight_file.size(), 1);
+  (void)mmRmdir("./om_temp");
+
+  // 第二次保存相同模型，meta中有权重信息，但是没有对应权重文件，重新落盘
+  auto graph_2 = build_graph();
+  ret = FileConstantUtils::ConvertConstToFileConst(graph_2);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(mmAccess("./om_temp/weight/weight_1234567"), EOK);
+  meta.hash_to_weight_file.clear();
+  (void)mmRmdir("./om_temp");
 }
 
 TEST_F(UtestFileConstantUtilTransfer, test_convert_const_to_file_const_AscendWorkPath_success) {
