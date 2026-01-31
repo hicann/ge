@@ -16,6 +16,7 @@ set(ascendc_api_regbase_extend_src
         where.h
         where_v2.h
         erf.h
+        exp2.h
         tanh.h
         sub.h
         div.h

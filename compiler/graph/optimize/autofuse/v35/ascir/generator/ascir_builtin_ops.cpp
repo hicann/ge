@@ -156,7 +156,33 @@ REG_ASC_IR(Abs)
 REG_ASC_IR(Exp)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::ExpAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::ExpAscIrCodegenImplV2>(),
-                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT}}}});
+                            {{"T", TensorType{DT_BF16, DT_FLOAT16, DT_FLOAT}}}});
+
+REG_ASC_IR(Exp2)
+    .Input("x", "T")
+    .Output("y", "T")
+    .ComputeType(ge::ComputeType::kComputeElewise)
+    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::Exp2AscIrAttImplV2>(),
+                            ge::ascir::AscIrImplCreator<ge::ascir::Exp2AscIrCodegenImplV2>(),
+                            {{"T", TensorType{DT_BF16, DT_FLOAT16, DT_FLOAT}}}});
+
+REG_ASC_IR(Floor)
+    .Input("x", "T")
+    .Output("y", "T")
+    .ComputeType(ge::ComputeType::kComputeElewise)
+    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::FloorAscIrAttImplV2>(),
+                            ge::ascir::AscIrImplCreator<ge::ascir::FloorAscIrCodegenImplV2>(),
+                            {{"T", TensorType{DT_BF16, DT_FLOAT16, DT_FLOAT}}}});
+
+REG_ASC_IR(Fma)
+    .Input("x1", "T")
+    .Input("x2", "T")
+    .Input("x3", "T")
+    .Output("y", "T")
+    .ComputeType(ge::ComputeType::kComputeElewise)
+    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::FmaAscIrAttImplV2>(),
+                            ge::ascir::AscIrImplCreator<ge::ascir::FmaAscIrCodegenImplV2>(),
+                            {{"T", TensorType{DT_BF16, DT_FLOAT16, DT_FLOAT}}}});
 
 REG_ASC_IR(Ln)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::LnAscIrAttImplV2>(),
@@ -472,7 +498,7 @@ REG_ASC_IR(FlashSoftmax)
 REG_ASC_IR(FloorDiv)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::FloorDivAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::FloorDivAscIrCodegenImplV2>(),
-                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT}}}});
+                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT, DT_INT8, DT_INT16, DT_UINT8}}}});
 
 REG_ASC_IR(Gelu)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::GeluAscIrAttImplV2>(),

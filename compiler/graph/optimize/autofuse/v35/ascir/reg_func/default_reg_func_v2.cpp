@@ -13,7 +13,7 @@
 
 namespace ge {
 namespace ascir {
-constexpr uint32_t BLOCK_BUFFER_SIZE = 32; // InitBuffer限制不允许是0，设置32B
+constexpr uint32_t BLOCK_BUFFER_SIZE = 0;
 
 std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcVoidTmpSizeV2(const ge::AscNode &node)
 {

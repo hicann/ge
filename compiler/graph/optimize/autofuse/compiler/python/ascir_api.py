@@ -359,6 +359,90 @@ def Exp(owner_graph: ascir.HintGraph,
     return _common_in_1_out_1_normal_op("Exp", owner_graph, x, axis=axis, size=size, stride=stride)
 
 
+def Exp2(owner_graph: ascir.HintGraph,
+        x: ascir.OpsOperatorOutput,
+        *,
+        axis: List[ascir.Axis],
+        size: Optional[List[ascir.SizeExpr]] = None,
+        stride: Optional[List[ascir.SizeExpr]] = None
+        ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Exp2", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
+def Floor(owner_graph: ascir.HintGraph,
+        x: ascir.OpsOperatorOutput,
+        *,
+        axis: List[ascir.Axis],
+        size: Optional[List[ascir.SizeExpr]] = None,
+        stride: Optional[List[ascir.SizeExpr]] = None
+        ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Floor", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
+def Fma(owner_graph: ascir.HintGraph,
+           x1: ascir.OpsOperatorOutput,
+           x2: ascir.OpsOperatorOutput,
+           x3: ascir.OpsOperatorOutput,
+           *,
+           axis: List[ascir.Axis],
+           size: Optional[List[ascir.SizeExpr]] = None,
+           stride: Optional[List[ascir.SizeExpr]] = None
+           ) -> ascir.OpsOperatorOutput:
+    return _common_in_3_out_1_normal_op("Fma", owner_graph, x1, x2, x3, axis=axis, size=size, stride=stride)
+
+
+def BitwiseNot(owner_graph: ascir.HintGraph,
+               x: ascir.OpsOperatorOutput,
+               *,
+               axis: List[ascir.Axis],
+               size: Optional[List[ascir.SizeExpr]] = None,
+               stride: Optional[List[ascir.SizeExpr]] = None
+               ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("BitwiseNot", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
+def BitwiseOr(owner_graph: ascir.HintGraph,
+               x1: ascir.OpsOperatorOutput,
+               x2: ascir.OpsOperatorOutput,
+               *,
+               axis: List[ascir.Axis],
+               size: Optional[List[ascir.SizeExpr]] = None,
+               stride: Optional[List[ascir.SizeExpr]] = None
+               ) -> ascir.OpsOperatorOutput:
+    return _common_in_2_out_1_normal_op("BitwiseOr", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
+
+
+def BitwiseXor(owner_graph: ascir.HintGraph,
+               x1: ascir.OpsOperatorOutput,
+               x2: ascir.OpsOperatorOutput,
+               *,
+               axis: List[ascir.Axis],
+               size: Optional[List[ascir.SizeExpr]] = None,
+               stride: Optional[List[ascir.SizeExpr]] = None
+               ) -> ascir.OpsOperatorOutput:
+    return _common_in_2_out_1_normal_op("BitwiseXor", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
+
+
+def Ceil(owner_graph: ascir.HintGraph,
+               x: ascir.OpsOperatorOutput,
+               *,
+               axis: List[ascir.Axis],
+               size: Optional[List[ascir.SizeExpr]] = None,
+               stride: Optional[List[ascir.SizeExpr]] = None
+               ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Ceil", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
+def Cos(owner_graph: ascir.HintGraph,
+               x: ascir.OpsOperatorOutput,
+               *,
+               axis: List[ascir.Axis],
+               size: Optional[List[ascir.SizeExpr]] = None,
+               stride: Optional[List[ascir.SizeExpr]] = None
+               ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Cos", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
 def Sqrt(owner_graph: ascir.HintGraph,
          x: ascir.OpsOperatorOutput,
          *,

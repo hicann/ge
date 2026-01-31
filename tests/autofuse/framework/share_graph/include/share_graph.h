@@ -45,6 +45,13 @@ struct ShareGraph {
   static ge::ComputeGraphPtr LoadLeakyReluStoreFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr LoadSigmoidStoreFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr LoadErfStoreFusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AddExp2FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AddFloorFusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AddFloorBf16FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AbsFmaFusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AbsFmaBf16FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AddExpBf16FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr FloordivAbsFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr LoadTanhStoreFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr AddAbsScalarFusedGraph(size_t dims_size, ge::DataType dtype);
   static ge::ComputeGraphPtr AbsBrcAddFusedGraph(size_t dims_size);

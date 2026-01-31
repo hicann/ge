@@ -89,7 +89,7 @@ TEST_F(CalcTanhTmpSizeV2Test, CalcTanhTmpSizeV2_ShouldReturnCorrectSize_WhenInpu
     node->inputs[0].attr.vectorized_strides = {s1, Symbol(1)};
     std::vector<std::unique_ptr<ge::TmpBufDesc>> result = CalcVoidTmpSizeV2(*node);
     ASSERT_EQ(result.size(), 1);
-    ASSERT_EQ(result[0]->size, Symbol(32));
+    ASSERT_EQ(result[0]->size, Symbol(0));
     ASSERT_EQ(result[0]->life_time_axis_id, -1);
 }
 
@@ -151,7 +151,7 @@ TEST_F(CalcTanhTmpSizeV2Test, CalcTanhTmpSizeV2_ShouldReturnCorrectSize_WhenInpu
     node->inputs[0].attr.vectorized_strides = {s1, Symbol(1)};
     std::vector<std::unique_ptr<ge::TmpBufDesc>> result = CalcVoidTmpSizeV2(*node);
     ASSERT_EQ(result.size(), 1);
-    ASSERT_EQ(result[0]->size, Symbol(32));
+    ASSERT_EQ(result[0]->size, Symbol(0));
     ASSERT_EQ(result[0]->life_time_axis_id, -1);
 }
 } // namespace ascir

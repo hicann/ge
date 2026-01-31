@@ -69,6 +69,9 @@ Register::Register() {
   const std::string kAscendcPowRegBaseStr = {
 #include "pow_reg_base.h"
   };
+  const std::string kAscendcExp2RegBaseStr = {
+#include "exp2_reg_base.h"
+  };
   const std::string kAscendcErfRegBaseStr = {
 #include "erf_reg_base.h"
   };
@@ -91,6 +94,7 @@ Register::Register() {
       {"datacopy_reg_base.h", kAscendcDatacopyRegBaseStr},
       {"datacopy_nddma_reg_base.h", kAscendcDatacopyNddmaRegBaseStr},
       {"pow_reg_base.h", kAscendcPowRegBaseStr},
+      {"exp2_reg_base.h", kAscendcExp2RegBaseStr},
       {"erf_reg_base.h", kAscendcErfRegBaseStr},
       {"tanh_reg_base.h", kAscendcTanhRegBaseStr},
       {"reduce_init_reg_base.h", kAscendcReduce_initRegBase},

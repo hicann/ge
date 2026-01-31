@@ -693,6 +693,13 @@ build_backend() {
                       add_abs_float_scalar_test_e2e_v2 \
                       abs_brc_add_test_e2e_v2 \
                       ub_scalar_brc_abs_add_test_e2e_v2 \
+                      abs_fma_bf16_test_e2e_v2 \
+                      abs_fma_test_e2e_v2 \
+                      add_exp_bf16_test_e2e_v2 \
+                      add_exp2_test_e2e_v2 \
+                      add_floor_bf16_test_e2e_v2 \
+                      add_floor_test_e2e_v2 \
+                      floordiv_abs_test_e2e_v2 \
                       floordiv_mul_le_select_test_e2e_v2 \
                       load_bitwise_and_store_test_e2e_v2 \
                       tail_brc_tail_reduce_test_e2e_v2 \

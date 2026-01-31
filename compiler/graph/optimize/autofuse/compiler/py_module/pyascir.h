@@ -40,6 +40,14 @@ PyMODINIT_FUNC PyInit_pyautofuse(void);
   OP(Cast)             \
   OP(Abs)              \
   OP(Exp)              \
+  OP(Exp2)             \
+  OP(Floor)            \
+  OP(Fma)              \
+  OP(BitwiseNot)       \
+  OP(BitwiseOr)        \
+  OP(BitwiseXor)       \
+  OP(Ceil)             \
+  OP(Cos)              \
   OP(Sqrt)             \
   OP(Rsqrt)            \
   OP(RemovePad)        \
@@ -93,6 +101,6 @@ PyMODINIT_FUNC PyInit_pyautofuse(void);
   OP(IsFinite)         \
   OP(FloorDiv)         \
   OP(Gelu)             \
-  OP(Split)             \
+  OP(Split)            \
   OP(Axpy)
 #endif
