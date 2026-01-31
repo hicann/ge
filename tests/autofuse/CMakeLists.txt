@@ -112,7 +112,6 @@ include_directories(${ASCEND_ROOT}/include/experiment/msprof)
 include_directories(${CMAKE_BINARY_DIR}/proto/metadef_protos)
 include_directories(${ASCEND_INSTALL_PATH}/pkg_inc)
 include_directories(${ASCEND_INSTALL_PATH}/pkg_inc/base)
-include_directories(${ASCEND_INSTALL_PATH}/pkg_inc/runtime)
 
 
 

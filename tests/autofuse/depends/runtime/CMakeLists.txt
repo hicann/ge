@@ -19,7 +19,7 @@ target_link_libraries(autofuse_runtime_stub
         PRIVATE
         intf_pub
         c_sec
-
+        PUBLIC
         runtime_headers
 )
 

@@ -165,9 +165,9 @@ uint32_t ConcatFusionStrategy::GetMaxFusionNodeInputSize(const NodePtr &node1, c
 bool ConcatFusionStrategy::CheckSameSchedAxis(const NodePtr &node1, const NodePtr &node2,
                                               const AxisPairSet &node1_map, const AxisPairSet &node2_map,
                                               const NodeFuseInfo &node_fuse_info) {
-  (void) node1_map;
-  (void) node2_map;
-  (void) node_fuse_info;
+  (void)node1_map;
+  (void)node2_map;
+  (void)node_fuse_info;
   // 此时node1和node2有水平融合，如果：
   // 1.node1和node2只有水平融合，这种场景就不融合
   if (!BackendUtils::IsVertical(node1, node2) && !BackendUtils::IsVertical(node2, node1)) {
