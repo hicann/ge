@@ -777,40 +777,6 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanFuseBroadc
   RuntimeStub::Reset();
 }
 
-void VerifyProcessedCanNotFuseBatchBroadcastGraph(const std::shared_ptr<ge::ComputeGraph>& cg) {
-  auto Broadcast_0 = cg->FindNode("BroadcastTo_0");
-  ASSERT_NE(Broadcast_0, nullptr);
-  auto MatMulV3_1 = cg->FindNode("BatchMatMulV3_1");
-  ASSERT_NE(MatMulV3_1, nullptr);
-  auto Add_2 = cg->FindNode("Add_2");
-  ASSERT_NE(Add_2, nullptr);
-
-  ge::AscIrLowerer lowerer1;
-  ASSERT_EQ(lowerer1.Lowering(cg), GRAPH_SUCCESS);
-  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
-  FusionStrategySolver fusion_strategy_solver1;
-  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
-  EXPECT_EQ(fusion_strategy_solver1.Fuse(cg), SUCCESS);
-  ASSERT_EQ(lowerer1.Lifting(cg), GRAPH_SUCCESS);
-
-  AscBackendPostProcessor post_processor1;
-  EXPECT_EQ(post_processor1.Do(cg), SUCCESS);
-  CubeFixpipPass cube_fixpip_pass1;
-  EXPECT_EQ(cube_fixpip_pass1.Run(cg), SUCCESS);
-
-  for (auto &node : cg->GetDirectNode()) {
-    std::cout << "node name is " << node->GetNamePtr() << std::endl;
-  }
-  auto Broadcast_0_tmp = cg->FindNode("Broadcast_0");
-  ASSERT_EQ(Broadcast_0_tmp, nullptr);
-  auto MatMulV3_1_tmp = cg->FindNode("BatchMatMulV3_1");
-  ASSERT_NE(MatMulV3_1_tmp, nullptr);
-  auto autofuse_pointwise_1_BroadcastTo_Add = cg->FindNode("autofuse_pointwise_1_BroadcastTo_Add");
-  ASSERT_NE(autofuse_pointwise_1_BroadcastTo_Add, nullptr);
-  auto Add_2_tmp = cg->FindNode("Add_2");
-  ASSERT_EQ(Add_2_tmp, nullptr);
-}
-
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseBatchBroadcast) {
   ge::PlatformContext::GetInstance().Reset();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
@@ -837,7 +803,38 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseBat
   auto s2 = shape_env.CreateSymbol(4, MakeShared<GraphInputShapeSourceStub>(0, 2));
   auto graph = es_graph_->Build();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
-  VerifyProcessedCanNotFuseBatchBroadcastGraph(cg);
+
+  auto Broadcast_0 = cg->FindNode("BroadcastTo_0");
+  ASSERT_NE(Broadcast_0, nullptr);
+  auto MatMulV3_1 = cg->FindNode("BatchMatMulV3_1");
+  ASSERT_NE(MatMulV3_1, nullptr);
+  auto Add_2 = cg->FindNode("Add_2");
+  ASSERT_NE(Add_2, nullptr);
+
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+  CubeFixpipPass cube_fixpip_pass;
+  EXPECT_EQ(cube_fixpip_pass.Run(cg), SUCCESS);
+
+  for (auto &node : cg->GetDirectNode()) {
+    std::cout << "node name is " << node->GetNamePtr() << std::endl;
+  }
+  auto Broadcast_0_tmp = cg->FindNode("Broadcast_0");
+  ASSERT_EQ(Broadcast_0_tmp, nullptr);
+  auto MatMulV3_1_tmp = cg->FindNode("BatchMatMulV3_1");
+  ASSERT_NE(MatMulV3_1_tmp, nullptr);
+  auto autofuse_pointwise_1_BroadcastTo_Add = cg->FindNode("autofuse_pointwise_1_BroadcastTo_Add");
+  ASSERT_NE(autofuse_pointwise_1_BroadcastTo_Add, nullptr);
+  auto Add_2_tmp = cg->FindNode("Add_2");
+  ASSERT_EQ(Add_2_tmp, nullptr);
   SetCurShapeEnvContext(nullptr);
   RuntimeStub::Reset();
 }
