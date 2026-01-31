@@ -109,6 +109,7 @@ static const std::map<std::string, ge::ComputeType> kOpTypeToComputeType = {
     {Broadcast::Type, ge::ComputeType::kComputeBroadcast},
     {RemovePad::Type, ge::ComputeType::kComputeElewise},
     {Pad::Type, ge::ComputeType::kComputeElewise},
+    {Round::Type, ge::ComputeType::kComputeElewise},
 
     {Cast::Type, ge::ComputeType::kComputeElewise},        {Abs::Type, ge::ComputeType::kComputeElewise},
     {Neg::Type, ge::ComputeType::kComputeElewise},         {Exp::Type, ge::ComputeType::kComputeElewise},

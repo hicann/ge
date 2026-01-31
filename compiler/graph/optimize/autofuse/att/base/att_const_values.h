@@ -278,6 +278,7 @@ inline const std::string kLt = "Lt";
 // 下面为暂未有性能评估的ASCIR
 inline const std::string kPow = "Pow";
 inline const std::string kPad = "Pad";
+inline const std::string kRound = "Round";
 inline const std::string kLn = "Ln";
 inline const std::string kIsnan = "Isnan";
 inline const std::string kIsFinite = "IsFinite";

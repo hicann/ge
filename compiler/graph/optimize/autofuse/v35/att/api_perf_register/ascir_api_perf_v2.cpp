@@ -603,6 +603,8 @@ ApiPerfRegister<ApiPerf> workspace_api_perf_v2(ApiPerfRegisterV2(kWorkspace, Def
 // 目前无建模的ASCIR
 ApiPerfRegister<ApiPerf> pad_api_perf_v2(ApiPerfRegisterV2(kPad, GetPerfFunc(kUnitVector), nullptr,
                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
+ApiPerfRegister<ApiPerf> round_api_perf_v2(ApiPerfRegisterV2(kRound, GetPerfFunc(kUnitVector), nullptr,
+                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> nop_api_perf_v2(ApiPerfRegisterV2(kNop, GetPerfFunc(kUnitVector), nullptr,
                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> ln_api_perf_v2(ApiPerfRegisterV2(kLn, GetPerfFunc(kLn + "V2"), nullptr, &perf_param_table_v2, &tiling_schedule_config_table_v2));

@@ -44,6 +44,7 @@ PyMODINIT_FUNC PyInit_pyautofuse(void);
   OP(Rsqrt)            \
   OP(RemovePad)        \
   OP(Pad)              \
+  OP(Round)            \
   OP(Neg)              \
   OP(Relu)             \
   OP(Reciprocal)       \

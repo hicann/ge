@@ -299,6 +299,22 @@ class PadAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 };
 
+class RoundAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
+    return CalcVoidTmpSizeV2(node);
+  }
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "RoundApiCall";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Round";
+  }
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"round.h"};
+  }
+};
+
 class LnAscIrCodegenImplV2 : public AscIrCodegenV2 {
  public:
   [[nodiscard]] std::string GetApiCallName() const override {
@@ -394,6 +410,28 @@ class NegAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &neg_node) const override {
     (void) neg_node;
     return true;
+  }
+
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
+    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      if (node_inputs[i].attr.dtype == ge::DataType::DT_BF16) {
+        conversion_dtype.first.emplace_back(ge::DataType::DT_FLOAT);
+      } else {
+        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+      }
+    }
+    for (size_t i = 0; i < node_outputs().size(); i++) {
+      if (!conversion_dtype.first.empty()) {
+        conversion_dtype.second.emplace_back(conversion_dtype.first[0]);
+      } else {
+        // 回退到输出原类型或其他默认类型
+        conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+      }
+    }
+    return conversion_dtype;
   }
 };
 
@@ -508,6 +546,27 @@ class MaxAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init_reg_base.h"};
   }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
+    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      if (node_inputs[i].attr.dtype == ge::DataType::DT_UINT8) {
+        conversion_dtype.first.emplace_back(ge::DataType::DT_INT16);
+      } else {
+        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+      }
+    }
+    for (size_t i = 0; i < node_outputs().size(); i++) {
+      if (!conversion_dtype.first.empty()) {
+        conversion_dtype.second.emplace_back(conversion_dtype.first[0]);
+      } else {
+        // 回退到输出原类型或其他默认类型
+        conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+      }
+    }
+    return conversion_dtype;
+  }
 };
 
 class SumAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -525,6 +584,27 @@ class SumAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init_reg_base.h"};
   }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
+    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      if (node_inputs[i].attr.dtype == ge::DataType::DT_BF16 || node_inputs[i].attr.dtype == ge::DataType::DT_FLOAT16 || node_inputs[i].attr.dtype == ge::DataType::DT_INT8 || node_inputs[i].attr.dtype == ge::DataType::DT_INT16) {
+        conversion_dtype.first.emplace_back(ge::DataType::DT_FLOAT);
+      } else {
+        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+      }
+    }
+    for (size_t i = 0; i < node_outputs().size(); i++) {
+      if (!conversion_dtype.first.empty()) {
+        conversion_dtype.second.emplace_back(conversion_dtype.first[0]);
+      } else {
+        // 回退到输出原类型或其他默认类型
+        conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+      }
+    }
+    return conversion_dtype;
+  }
 };
 
 class MinAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -541,6 +621,27 @@ class MinAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init_reg_base.h"};
+  }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
+    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      if (node_inputs[i].attr.dtype == ge::DataType::DT_UINT8) {
+        conversion_dtype.first.emplace_back(ge::DataType::DT_INT16);
+      } else {
+        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+      }
+    }
+    for (size_t i = 0; i < node_outputs().size(); i++) {
+      if (!conversion_dtype.first.empty()) {
+        conversion_dtype.second.emplace_back(conversion_dtype.first[0]);
+      } else {
+        // 回退到输出原类型或其他默认类型
+        conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+      }
+    }
+    return conversion_dtype;
   }
 };
 
@@ -677,6 +778,22 @@ class NeAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsScalarInputSupportedIfExchangeInputs(const std::vector<bool> &is_scalar_list) const override {
     GE_ASSERT_EQ(is_scalar_list.size(), 2UL);
     return OnlySecondInputSupportScalar({is_scalar_list[1], is_scalar_list[0]});
+  }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
+    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      if (node_inputs[i].attr.dtype == ge::DataType::DT_UINT8) {
+        conversion_dtype.first.emplace_back(ge::DataType::DT_INT16);
+      } else {
+        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+      }
+    }
+    for (size_t i = 0; i < node_outputs().size(); i++) {
+      conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+    }
+    return conversion_dtype;
   }
 };
 
@@ -904,6 +1021,28 @@ class MulAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &mul_node) const override {
     (void) mul_node;
     return true;
+  }
+
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
+    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      if (node_inputs[i].attr.dtype == ge::DataType::DT_INT8 || node_inputs[i].attr.dtype == ge::DataType::DT_UINT8) {
+        conversion_dtype.first.emplace_back(ge::DataType::DT_INT16);
+      } else {
+        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+      }
+    }
+    for (size_t i = 0; i < node_outputs().size(); i++) {
+      if (!conversion_dtype.first.empty()) {
+        conversion_dtype.second.emplace_back(conversion_dtype.first[0]);
+      } else {
+        // 回退到输出原类型或其他默认类型
+        conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+      }
+    }
+    return conversion_dtype;
   }
 };
 
