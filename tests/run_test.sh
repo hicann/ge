@@ -123,13 +123,6 @@ checkopts() {
 
   ENABLE_GE_BENCHMARK="off"
 
-  if [ -n "$ASCEND_HOME_PATH" ]; then
-    ASCEND_INSTALL_PATH="$ASCEND_HOME_PATH"
-  else
-    echo "Error: No environment variable 'ASCEND_HOME_PATH' was found, please check the cann environment configuration."
-    exit 1
-  fi
-
   ASCEND_3RD_LIB_PATH="$BASEPATH/output/third_party"
   BUILD_METADEF="off"
 
@@ -424,6 +417,13 @@ checkopts() {
         ;;
     esac
   done
+
+  if [ -n "$ASCEND_HOME_PATH" ]; then
+    ASCEND_INSTALL_PATH="$ASCEND_HOME_PATH"
+  else
+    echo "Error: No environment variable 'ASCEND_HOME_PATH' was found, please check the cann environment configuration."
+    exit 1
+  fi
 }
 
 # check if changed files only include docs/, examples/ or README.md

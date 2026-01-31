@@ -138,13 +138,6 @@ checkopts() {
   BUILD_COMPONENT_DFLOW="dflow-executor"
   THIRD_PARTY_DL="${BASEPATH}/build_third_party.sh"
   BUILD_OUT_PATH="${BASEPATH}/build_out"
-
-  if [ -n "$ASCEND_HOME_PATH" ]; then
-    ASCEND_INSTALL_PATH="$ASCEND_HOME_PATH"
-  else
-    echo "Error: No environment variable 'ASCEND_HOME_PATH' was found, please check the cann environment configuration."
-    exit 1
-  fi
   
   # Process the options
   parsed_args=$(getopt -a -o j:hvf: -l help,verbose,ge_compiler,ge_executor,dflow,asan,cov,cann_3rd_lib_path:,output_path:,build_type:,build-type:,python_path:,enable-sign,sign-script:,version: -- "$@") || {
@@ -251,6 +244,13 @@ checkopts() {
         ;;
     esac
   done
+
+  if [ -n "$ASCEND_HOME_PATH" ]; then
+    ASCEND_INSTALL_PATH="$ASCEND_HOME_PATH"
+  else
+    echo "Error: No environment variable 'ASCEND_HOME_PATH' was found, please check the cann environment configuration."
+    exit 1
+  fi
 
   # dflow-executor子包依赖ge-executor包，所以不能同时编译
   if [ "X$ENABLE_GE_COMPILER_PKG" != "Xon" ] && [ "X$ENABLE_GE_EXECUTOR_PKG" != "Xon" ] && [ "X$ENABLE_DFLOW_EXECUTOR_PKG" != "Xon" ]; then
