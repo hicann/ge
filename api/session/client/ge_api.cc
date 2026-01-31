@@ -329,8 +329,8 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<s
   const auto dflow_session = inner_session->GetDFlowSession();
   Status ret;
   if (dflow_session != nullptr) {
-    GE_ASSERT_SUCCESS(InnerSession::SetSessionGraphId(graph, sessionId_, graph_id),
-                      "Set session graph id failed.");
+    const auto set_id_ret = InnerSession::SetSessionGraphId(graph, sessionId_, graph_id);
+    GE_CHK_BOOL_RET_STATUS(set_id_ret == SUCCESS, FAILED, "Set session graph id failed.");
     inner_session->UpdateGlobalSessionContext();
     ret = dflow_session->AddGraph(graph_id, graph, options);
     GELOGI("Add graph to dflow session success, graph_id=%u", graph_id);
@@ -379,8 +379,8 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<A
   const auto dflow_session = inner_session->GetDFlowSession();
   Status ret;
   if (dflow_session != nullptr) {
-    GE_ASSERT_SUCCESS(InnerSession::SetSessionGraphId(graph, sessionId_, graph_id),
-                      "Set session graph id failed.");
+    const auto set_id_ret2 = InnerSession::SetSessionGraphId(graph, sessionId_, graph_id);
+    GE_CHK_BOOL_RET_STATUS(set_id_ret2 == SUCCESS, FAILED, "Set session graph id failed.");
     inner_session->UpdateGlobalSessionContext();
     ret = dflow_session->AddGraph(graph_id, graph, str_options);
     GELOGI("Add graph to dflow session success, graph_id=%u", graph_id);
@@ -707,7 +707,8 @@ Status Session::LoadGraph(const uint32_t graph_id, const std::map<AscendString, 
   const auto inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "Load graph failed, session_id:%lu.", sessionId_);
   const auto check_ret = CheckCompiledFlag(inner_session, graph_id, true);
-  GE_ASSERT_SUCCESS(check_ret, "Load graph failed, graph needs to be compiled first, graph_id=%u", graph_id);
+  GE_CHK_BOOL_RET_STATUS(check_ret == SUCCESS, FAILED,
+    "Load graph failed, graph needs to be compiled first, graph_id:%u", graph_id);
 
   const auto ret = inner_session->LoadGraph(graph_id, options, stream);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Load graph failed, error code:%u, session_id:%lu, graph_id:%u",
@@ -794,7 +795,9 @@ Status Session::RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tensor> &
   }
 
   std::vector<gert::Tensor> tensors_view;
-  GE_ASSERT_SUCCESS(TensorTransUtils::AsTensorsView(inputs, tensors_view));
+  ret = TensorTransUtils::AsTensorsView(inputs, tensors_view);
+  GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph async failed, convert tensors failed, error code:%u, "
+                                                 "session_id:%lu, graph_id:%u.", ret, sessionId_, graph_id);
   ret = inner_session->RunGraphAsync(graph_id, std::move(tensors_view), callback_wrapper);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph async failed, error code:%u, session_id:%lu, graph_id:%u.",
                          ret, sessionId_, graph_id);

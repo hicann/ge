@@ -114,8 +114,8 @@ void ConstructSession(const std::map<std::string, std::string> &options, Session
   // check init status
   session_id = 0U;
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitializeV2 call before.");
     return;
   }
   // call Initialize
@@ -302,7 +302,7 @@ Status GEInitializeV2(const std::map<AscendString, AscendString> &options) {
   std::map<std::string, std::string> str_options;
   for (const auto &option_item : options) {
     if (option_item.first.GetLength() == 0) {
-      GELOGE(FAILED, "[Check][Param] GEInitialize failed, option key is empty.");
+      GELOGE(FAILED, "[Check][Param] GEInitializeV2 failed, option key is empty.");
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                                 std::vector<const char *>({option_item.first.GetString(),
                                                            option_item.second.GetString(), "parameter is empty"}));
@@ -319,8 +319,8 @@ Status GEInitializeV2(const std::map<AscendString, AscendString> &options) {
 
   const auto ret = GEInitializeImpl(str_options);
   if (ret != SUCCESS) {
-    GELOGE(ret, "[GEInit] GEInitialize failed, error code:%u.", ret);
-    REPORT_INNER_ERR_MSG("E19999", "GEInitialize failed.");
+    GELOGE(ret, "[GEInit] GEInitializeV2 failed, error code:%u.", ret);
+    REPORT_INNER_ERR_MSG("E19999", "GEInitializeV2 failed.");
   }
   return ret;
 }
@@ -334,7 +334,7 @@ Status GEFinalizeV2() {
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kGEFinalize);
   // check init status
   if (!g_ge_initialized) {
-    GELOGW("[FINAL]GEFinalize is called before GEInitialize");
+    GELOGW("[FINAL]GEFinalize is called before GEInitializeV2");
     return SUCCESS;
   }
   std::lock_guard<std::mutex> lock(g_ge_release_mutex);
@@ -451,8 +451,8 @@ Status GeSession::AddGraph(uint32_t graph_id, const Graph &graph) {
 // Add Graph
 Status GeSession::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<AscendString, AscendString> &options) {
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
@@ -498,8 +498,8 @@ Status GeSession::AddGraphClone(uint32_t graph_id, const Graph &graph) {
 Status GeSession::AddGraphClone(uint32_t graph_id, const Graph &graph,
                                 const std::map<AscendString, AscendString> &options) {
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
@@ -531,8 +531,8 @@ Status GeSession::AddGraphClone(uint32_t graph_id, const Graph &graph,
 // Remove Graph
 Status GeSession::RemoveGraph(uint32_t graph_id) {
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
@@ -607,14 +607,16 @@ static void PrintOutputResult(std::vector<gert::Tensor> &outputs) {
 Status GeSession::RunGraph(uint32_t graph_id, const std::vector<gert::Tensor> &inputs,
                            std::vector<gert::Tensor> &outputs) {
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
   RunGraphMode cur_mode = RunGraphMode::kRunGraphModeEnd;
-  GE_ASSERT_SUCCESS(impl_->GetRunGraphMode(graph_id, cur_mode), "Run graph async failed, get run graph mode failed. graph_id: %u", graph_id);
+  const auto get_mode_ret = impl_->GetRunGraphMode(graph_id, cur_mode);
+  GE_CHK_BOOL_RET_STATUS(get_mode_ret == SUCCESS, FAILED, "Run graph async failed, get run graph mode failed. "
+                                                          "graph_id: %u", graph_id);
   auto ret = CheckRunGraphMode(cur_mode, graph_id, RunGraphMode::kRunGraph);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "Run graph failed, error code:%u, session_id:%lu, graph_id:%u.", ret,
                          GetSessionId(), graph_id);
@@ -652,14 +654,16 @@ Status GeSession::RunGraphWithStreamAsync(uint32_t graph_id, void *stream, const
                                           std::vector<gert::Tensor> &outputs) {
   RT2_PROFILING_SCOPE(gert::profiling::kUnknownName, gert::profiling::kStaticGraphExecute);
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
   RunGraphMode cur_mode = RunGraphMode::kRunGraphModeEnd;
-  GE_ASSERT_SUCCESS(impl_->GetRunGraphMode(graph_id, cur_mode), "Run graph with stream async failed, get run graph mode failed. graph_id: %u", graph_id);
+  const auto get_mode_ret = impl_->GetRunGraphMode(graph_id, cur_mode);
+  GE_CHK_BOOL_RET_STATUS(get_mode_ret == SUCCESS, FAILED, "Run graph with stream async failed, get run graph mode "
+                                                          "failed. graph_id: %u", graph_id);
   auto ret = CheckRunGraphMode(cur_mode, graph_id, RunGraphMode::kRunGraphWithStreamAsync);
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED, "Run graph with stream async failed, error code:%u,"
         " session_id:%lu, graph_id:%u, stream:%p.", ret, GetSessionId(), graph_id, stream);
@@ -681,8 +685,8 @@ Status GeSession::RunGraphWithStreamAsync(uint32_t graph_id, void *stream, const
 
 Status GeSession::RegisterCallBackFunc(const char *key, const RunCallback &callback) {
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
@@ -699,8 +703,8 @@ Status GeSession::LoadGraph(const uint32_t graph_id, const std::map<AscendString
                             void *stream) const {
   GELOGD("Loading graph to session, graph_id: %u, session_id: %u, stream:%p .", graph_id, GetSessionId(), stream);
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
@@ -708,7 +712,7 @@ Status GeSession::LoadGraph(const uint32_t graph_id, const std::map<AscendString
   if (!impl_->GetBuildFlag(graph_id)) {
     GELOGI("Graph is not compiled, start to compile graph, session_id:%lu, graph_id:%u", GetSessionId(), graph_id);
     const auto ret = impl_->CompileGraph(graph_id, {});
-    GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret,
+    GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, FAILED,
                          "Load graph failed, error code:%u, session_id:%lu, graph_id:%u.",
                          ret, GetSessionId(), graph_id);
     GELOGI("Graph compiled successfully, continue to load graph, session_id:%lu, graph_id:%u",
@@ -725,14 +729,16 @@ Status GeSession::LoadGraph(const uint32_t graph_id, const std::map<AscendString
 Status GeSession::RunGraphAsync(uint32_t graph_id, const std::vector<gert::Tensor> &inputs,
                                 RunAsyncCallbackV2 callback) {
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
 
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
   RunGraphMode cur_mode = RunGraphMode::kRunGraphModeEnd;
-  GE_ASSERT_SUCCESS(impl_->GetRunGraphMode(graph_id, cur_mode), "Run graph async failed, get run graph mode failed. graph_id: %u", graph_id);
+  const auto get_mode_ret = impl_->GetRunGraphMode(graph_id, cur_mode);
+  GE_CHK_BOOL_RET_STATUS(get_mode_ret == SUCCESS, FAILED, "Run graph async failed, get run graph mode failed. "
+                                                          "graph_id: %u", graph_id);
   auto ret = CheckRunGraphMode(cur_mode, graph_id, RunGraphMode::kRunGraphAsync);
   if (ret != SUCCESS) {
     if (callback != nullptr) {
@@ -765,8 +771,8 @@ Status GeSession::RunGraphAsync(uint32_t graph_id, const std::vector<gert::Tenso
 bool GeSession::IsGraphNeedRebuild(uint32_t graph_id) {
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kIsGraphNeedRebuild);
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitializeV2 call before.");
     return false;
   }
 
@@ -787,22 +793,22 @@ Status GeSession::CompileGraph(uint32_t graph_id) {
 }
 
 Status GeSession::CompileGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inputs) {
-  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
+  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
 
   GELOGT(TRACE_INIT, "Start to compile graph, session_id:%lu, graph_id:%u, inputs size:%zu",
          GetSessionId(), graph_id, inputs.size());
 
   Status ret = impl_->CompileGraph(graph_id, inputs);
-  GE_ASSERT_SUCCESS(ret, "[Compile][Graph]Compile graph failed, error code:%u, session_id:%lu, graph_id:%u.",
-      ret, GetSessionId(), graph_id);
+  GE_ASSERT_SUCCESS(ret, "[Compile][Graph]Compile graph failed, error code:%u, session_id:%lu, graph_id:%u",
+        ret, GetSessionId(), graph_id);
   GELOGT(TRACE_STOP, "Compile graph success, session_id:%lu, graph_id:%u, inputs size:%zu",
          GetSessionId(), graph_id, inputs.size());
   return SUCCESS;
 }
 
 CompiledGraphSummaryPtr GeSession::GetCompiledGraphSummary(uint32_t graph_id) {
-  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
+  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
   GE_ASSERT_NOTNULL(impl_, "GeSession construction incomplete (null impl pointer)");
 
   CompiledGraphSummaryPtr summary = nullptr;
@@ -813,7 +819,7 @@ CompiledGraphSummaryPtr GeSession::GetCompiledGraphSummary(uint32_t graph_id) {
 }
 
 Status GeSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
+  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
   if (EnableSliceSchedule()) {
     GELOGE(UNSUPPORTED,
@@ -834,7 +840,7 @@ Status GeSession::SetGraphConstMemoryBase(uint32_t graph_id, const void *const m
 }
 
 Status GeSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
+  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
   if (EnableSliceSchedule()) {
     GELOGE(UNSUPPORTED,
@@ -856,7 +862,7 @@ Status GeSession::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *co
 
 Status GeSession::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, MemoryType type, const void *const memory,
                                                          size_t size) {
-  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
+  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
   if (EnableSliceSchedule()) {
     GELOGE(UNSUPPORTED,
@@ -879,7 +885,7 @@ Status GeSession::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, Memo
 }
 
 Status GeSession::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
+  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
   if (EnableSliceSchedule()) {
     GELOGE(UNSUPPORTED,
@@ -900,7 +906,7 @@ Status GeSession::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, con
 }
 
 Status GeSession::RegisterExternalAllocator(const void *const stream, AllocatorPtr allocator) const {
-  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitialize call before.");
+  GE_ASSERT(g_ge_initialized, "[Construct][GeSession]Failed because lack GEInitializeV2 call before.");
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");
 
   GE_CHK_STATUS_RET(impl_->RegisterExternalAllocator(stream, allocator), "register external allocator failed");
@@ -917,8 +923,8 @@ Status GeSession::UnregisterExternalAllocator(const void *const stream) const {
 
 Status GeSession::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_buffer) {
   if (!g_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitializeV2 call before.");
+    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitializeV2 call before.");
     return FAILED;
   }
   GE_CHK_BOOL_RET_STATUS(impl_ != nullptr, FAILED, "GeSession construction incomplete (null impl pointer)");

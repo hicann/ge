@@ -122,6 +122,22 @@ TEST_F(GeApiV2Test, ge_init_option_invalid) {
   GEFinalizeV2();
 }
 
+TEST_F(GeApiV2Test, api_not_init_failed) {
+  std::map<AscendString, AscendString> options;
+  GeSession session(options);
+  Graph graph;
+  EXPECT_EQ(session.AddGraphClone(1, graph, options), FAILED);
+  EXPECT_EQ(session.RemoveGraph(1), FAILED);
+  std::vector<gert::Tensor> inputs, outputs;
+  EXPECT_EQ(session.RunGraph(1, inputs, outputs), FAILED);
+  EXPECT_EQ(session.RunGraphWithStreamAsync(1, nullptr, inputs, outputs), FAILED);
+  RunCallback callback;
+  EXPECT_EQ(session.RegisterCallBackFunc(nullptr, callback), FAILED);
+  EXPECT_EQ(session.LoadGraph(1, options, nullptr), FAILED);
+  RunAsyncCallbackV2 callback2;
+  EXPECT_EQ(session.RunGraphAsync(1, inputs, callback2), FAILED);
+}
+
 TEST_F(GeApiV2Test, ge_init_with_core_num) {
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
   std::map<AscendString, AscendString> options;
