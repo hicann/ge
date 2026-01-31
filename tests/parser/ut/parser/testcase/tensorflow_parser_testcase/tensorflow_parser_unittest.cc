@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -6098,7 +6098,7 @@ TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegCustomOpString_with_dynam
   TensorFlowCustomOpParser parser;
   parser.ConstructRegCustomOpString(op_def, node_def, reg_custom_op);
   EXPECT_NE(reg_custom_op.find(".FrameworkType(TENSORFLOW)"), std::string::npos);
-  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::TVM)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::CUSTOM)"), std::string::npos);
 }
 
 TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegOpString_with_dynamic_input_list)
@@ -6124,7 +6124,7 @@ TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegCustomOpString_with_dynam
   parser.ConstructRegCustomOpString(opDef, node_def, reg_custom_op);
   EXPECT_NE(reg_custom_op.find(".FrameworkType(TENSORFLOW)"), std::string::npos);
   EXPECT_NE(reg_custom_op.find(".ParseParamsFn(AutoMappingFnCustomDynamic_MyGreatOpDynamic)"), std::string::npos);
-  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::TVM)"), std::string::npos);
+  EXPECT_NE(reg_custom_op.find(".ImplyType(ImplyType::CUSTOM)"), std::string::npos);
 }
 
 TEST_F(UtestTensorflowCustomOpParser, test_ConstructRegOpStringTest) {
@@ -6239,6 +6239,13 @@ TEST_F(UtestTensorflowCustomOpParser, ListArg_ExceptionScenarios) {
   EXPECT_EQ(reg_op.find(".INPUT(, "), std::string::npos);
 }
 
+
+TEST_F(UtestTensorflowCustomOpParser, ParseCustomOpWithNullNode_NormalCase_ReturnSuccess) {
+  std::unordered_map<std::string, const domi::tensorflow::NodeDef *> custom_nodes_map;
+  TensorFlowCustomOpParser parser;
+  Status ret_status = parser.ParseCustomOp(custom_nodes_map);
+  EXPECT_EQ(ret_status, SUCCESS);
+}
 
 TEST_F(UtestTensorflowCustomOpParser, FullCoverage_AllBranches) {
   domi::tensorflow::OpDef op_def;

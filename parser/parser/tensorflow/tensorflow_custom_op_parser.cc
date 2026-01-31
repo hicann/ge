@@ -41,6 +41,7 @@
 #include "graph/opsproto_manager.h"
 #include <experimental/filesystem>
 #include "common/types_map.h"
+#include "utils/file_utils.h"
 
 namespace fs = std::experimental::filesystem;
 namespace ge {
@@ -234,8 +235,7 @@ void ProcessArg(std::string &reg_op, const std::string &indent,
   }
   const auto type_syms = CollectAllowedTypeSyms(arg, attr_map);
   const auto type_expr = FormatTensorTypeExpr(type_syms);
-  const std::string arg_type = IsListArg(arg) ? (is_input ? "DYNAMIC_INPUT" : "DYNAMIC_OUTPUT")
-                                              : (is_input ? "INPUT" : "OUTPUT");
+  const std::string arg_type = IsListArg(arg) ? (is_input ? "DYNAMIC_INPUT" : "DYNAMIC_OUTPUT") : (is_input ? "INPUT" : "OUTPUT");
   std::ostringstream oss;
   oss << "." << arg_type << "(" << arg.name() << ", " << type_expr << ")";
   AppendLine(reg_op, indent, oss.str());
@@ -338,7 +338,7 @@ Status TensorFlowCustomOpParser::ConstructRegCustomOpString(const domi::tensorfl
   } else {
     reg_op_custom_string.append("    .ParseParamsByOperatorFn(").append(parse_fn).append(")\n");
   }
-  AppendLine(reg_op_custom_string, "    ", ".ImplyType(ImplyType::TVM);");
+  AppendLine(reg_op_custom_string, "    ", ".ImplyType(ImplyType::CUSTOM);");
   return SUCCESS;
 }
 
@@ -373,8 +373,7 @@ Status TensorFlowCustomOpParser::CompileCustomOpFiles(const std::string &custom_
   std::string command = "g++ -O2 -fstack-protector-all -shared -fPIC -Wl,-z,now -Wl,-z,noexecstack -s -o " + output_so_path + " -D_GLIBCXX_USE_CXX11_ABI=0 -Dgoogle=ascend_private -I " +
     incloud_path + " -L c_sec -L " + register_path + " -lregister -lgraph -lruntime -x c++ " + custom_op_cc_path;
   GE_ASSERT_TRUE(CheckPathInCmdIsValid(output_so_path, incloud_path, register_path),
-               "CheckPathInCmdIsValid failed, output_so_path = %s, incloud_path = %s, register_path = %s.",
-               incloud_path.c_str(), incloud_path.c_str(), register_path.c_str());
+               "CheckPathInCmdIsValid failed, output_so_path = %s, incloud_path = %s, register_path = %s.", incloud_path.c_str(), incloud_path.c_str(), register_path.c_str());
   int rc = system(command.c_str());
   if ((rc == -1) || (WEXITSTATUS(rc) != 0)) {
     int real_exit_code = (rc == -1) ? -1 : WEXITSTATUS(rc);
@@ -408,8 +407,8 @@ Status TensorFlowCustomOpParser::RegisteredTfaOps() {
       GELOGD("Skip: om_op_type not in CustomOpFactory registered set: %s", om);
       continue;
     }
-    (void)OpRegistrationTbe::Instance()->Finalize(reg_data,true);
-    (void)domi::OpRegistry::Instance()->Register(reg_data);
+    (void)OpRegistrationTbe::Instance()->Finalize(reg_data,true, true);
+    (void)domi::OpRegistry::Instance()->Register(reg_data, true);
   }
   return SUCCESS;
 }
@@ -438,8 +437,7 @@ namespace ge {
     const std::string node_op = node_def->op();
     domi::tensorflow::AttrValue attr_v;
     if (!ge::TensorFlowUtil::FindAttrValue(node_def, ge::ATTR_NAME_FRAMEWORK_OP_DEF, attr_v)) {
-      GELOGE(FAILED, "[ERROR] Custom op %s missing necessary attr: %s",
-             node_name.c_str(), ge::ATTR_NAME_FRAMEWORK_OP_DEF.c_str());
+      GELOGE(FAILED, "[ERROR] Custom op %s missing necessary attr: %s", node_name.c_str(), ge::ATTR_NAME_FRAMEWORK_OP_DEF.c_str());
       return FAILED;
     }
     const std::string &opdef_blob = attr_v.s();
@@ -456,20 +454,6 @@ namespace ge {
   op_ss += "}\n";
   custom_ss += "}\n#endif  // OP_REG_CUSTOM_H\n";
   all_reg_op_strings = op_ss + custom_ss;
-  return SUCCESS;
-}
-
-Status EnsureDir(const fs::path &dir) {
-  if (!fs::exists(dir)) {
-    try {
-      fs::create_directories(dir);
-      std::cout << "Created output directory: " << dir << std::endl;
-    } catch (const fs::filesystem_error &e) {
-      std::cerr << "Error creating output directory: " << dir << std::endl;
-      std::cerr << "Error: " << e.what() << std::endl;
-      return FAILED;
-    }
-  }
   return SUCCESS;
 }
 
@@ -493,6 +477,8 @@ Status TensorFlowCustomOpParser::WriteTextFile(const fs::path &file_path, const 
 }
 
 Status TensorFlowCustomOpParser::WriteWrapperCc(const fs::path &cc_path) {
+  std::ofstream custom_op_cc_file(cc_path, std::ios::out | std::ios::trunc);
+  GE_ASSERT_TRUE(custom_op_cc_file.is_open());
   std::string wrapper_code = R"(
 #include <iostream>
 #include "op_reg_custom.h"
@@ -503,11 +489,6 @@ extern "C" {
   }
 }
 )";
-  std::ofstream custom_op_cc_file(cc_path, std::ios::out | std::ios::trunc);
-  if (!custom_op_cc_file.is_open()) {
-    GELOGE(FAILED, "Failed to open file %s for writing", cc_path.c_str());
-    return FAILED;
-  }
   custom_op_cc_file << wrapper_code;
   custom_op_cc_file.close();
   return SUCCESS;
@@ -517,23 +498,24 @@ Status TensorFlowCustomOpParser::DeleteTmpDirectoryContents(const fs::path &out_
   if (fs::exists(out_dir)) {
     fs::remove_all(out_dir);
   } else {
-    std::cout << "Directory " << out_dir << " does not exist." << std::endl;
+    GELOGW("Directory %s does not exist.", out_dir.c_str());
   }
   return SUCCESS;
 }
 
 Status TensorFlowCustomOpParser::ParseCustomOp(const std::unordered_map<std::string, const domi::tensorflow::NodeDef *> &custom_nodes_map) {
   if (custom_nodes_map.empty()) {
+    GELOGI("No custom operators found, custom_nodes_map is empty");
     return SUCCESS;
   }
   // generate register code
   std::string all_reg_op_strings;
   GE_ASSERT_SUCCESS(BuildCustomOpStrings(custom_nodes_map, all_reg_op_strings));
-  const fs::path out_dir("./tmp");
+  const fs::path out_dir("./custom_op_tmp");
   const fs::path header_path = out_dir / "op_reg_custom.h";
   const fs::path cc_path = out_dir / "op_custom.cc";
   const fs::path so_path = out_dir / "lib_op_custom.so";
-  GE_ASSERT_SUCCESS(EnsureDir(out_dir));
+  GE_ASSERT_TRUE((ge::CreateDir(out_dir) == EOK), "Create direct failed, path: %s.", out_dir.c_str());
   GE_ASSERT_SUCCESS(WriteTextFile(header_path, all_reg_op_strings));
   GE_ASSERT_SUCCESS(WriteWrapperCc(cc_path));
   GE_ASSERT_SUCCESS(CompileCustomOpFiles(cc_path, so_path.string()));

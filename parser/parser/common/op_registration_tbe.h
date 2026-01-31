@@ -18,10 +18,10 @@ class OpRegistrationTbe {
  public:
   static OpRegistrationTbe *Instance();
 
-  bool Finalize(const OpRegistrationData &reg_data, bool is_train = false);
+    bool Finalize(const OpRegistrationData &reg_data, bool is_train = false, bool is_custom_op = false);
 
  private:
-  bool RegisterParser(const OpRegistrationData &reg_data) const;
+    bool RegisterParser(const OpRegistrationData &reg_data, bool is_custom_op = false) const;
 };
 }  // namespace ge
 

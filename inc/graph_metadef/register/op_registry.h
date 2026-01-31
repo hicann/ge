@@ -49,7 +49,7 @@ class FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY OpRegistry {
 
   std::vector<OpRegistrationData> registrationDatas;
 
-  bool Register(const OpRegistrationData &reg_data);
+  bool Register(const OpRegistrationData &reg_data, bool is_custom_op = false);
 
   domi::ImplyType GetImplyType(const std::string &op_type);
 

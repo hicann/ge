@@ -37,12 +37,12 @@ FMK_FUNC_HOST_VISIBILITY OpRegistrationTbe *OpRegistrationTbe::Instance() {
   return &instance;
 }
 
-bool OpRegistrationTbe::Finalize(const OpRegistrationData &reg_data, bool is_train) {
+bool OpRegistrationTbe::Finalize(const OpRegistrationData &reg_data, bool is_train, bool is_custom_op) {
   static std::map<domi::FrameworkType, std::map<std::string, std::string> *> op_map = {{domi::CAFFE, &caffe_op_map}};
   if (is_train) {
-    op_map[domi::TENSORFLOW] = &tensorflow_train_op_map;
+      op_map[domi::TENSORFLOW] = &tensorflow_train_op_map;
   } else {
-    op_map[domi::TENSORFLOW] = &tensorflow_op_map;
+      op_map[domi::TENSORFLOW] = &tensorflow_op_map;
   }
 
   if (op_map.find(reg_data.GetFrameworkType()) != op_map.end()) {
@@ -53,24 +53,22 @@ bool OpRegistrationTbe::Finalize(const OpRegistrationData &reg_data, bool is_tra
       if (tmp.GetString() == nullptr) {
         continue;
       }
-      if ((*fmk_op_map).find(tmp.GetString()) != (*fmk_op_map).end()) {
-        GELOGW("Op type does not need to be changed, om_optype:%s, orignal type:%s.",
-               (*fmk_op_map)[tmp.GetString()].c_str(), tmp.GetString());
+      if (((*fmk_op_map).find(tmp.GetString()) != (*fmk_op_map).end()) && !is_custom_op) {
+        GELOGW("Op type does not need to be changed, om_optype:%s, orignal type:%s.", (*fmk_op_map)[tmp.GetString()].c_str(), tmp.GetString());
         continue;
       } else {
         (*fmk_op_map)[tmp.GetString()] = GetOmOptype(reg_data);
         GELOGD("First register in parser initialize, original type: %s, om_optype: %s, imply type: %s.",
-               tmp.GetString(), GetOmOptype(reg_data).c_str(),
-               TypeUtilsInner::ImplyTypeToSerialString(reg_data.GetImplyType()).c_str());
+        tmp.GetString(), GetOmOptype(reg_data).c_str(),
+        TypeUtilsInner::ImplyTypeToSerialString(reg_data.GetImplyType()).c_str());
       }
     }
   }
-
-  bool ret = RegisterParser(reg_data);
+  bool ret = RegisterParser(reg_data, is_custom_op);
   return ret;
 }
 
-bool OpRegistrationTbe::RegisterParser(const OpRegistrationData &reg_data) const {
+bool OpRegistrationTbe::RegisterParser(const OpRegistrationData &reg_data, bool is_custom_op) const {
   if (reg_data.GetFrameworkType() == domi::TENSORFLOW) {
     std::shared_ptr<OpParserFactory> factory = OpParserFactory::Instance(domi::TENSORFLOW);
     if (factory == nullptr) {
@@ -80,7 +78,7 @@ bool OpRegistrationTbe::RegisterParser(const OpRegistrationData &reg_data) const
     }
     if (reg_data.GetParseParamFn() != nullptr || reg_data.GetParseParamByOperatorFn() != nullptr) {
       bool is_registed = factory->OpParserIsRegistered(GetOmOptype(reg_data));
-      if (is_registed) {
+      if (is_registed && !is_custom_op) {
         GELOGW("Parse param func has already register for op:%s.", GetOmOptype(reg_data).c_str());
         return false;
       }

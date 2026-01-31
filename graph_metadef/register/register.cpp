@@ -1036,13 +1036,13 @@ std::string GetParserKey(const std::string &om_type, const std::string &ori_type
 }
 } // namespace
 
-bool OpRegistry::Register(const OpRegistrationData &reg_data) {
+bool OpRegistry::Register(const OpRegistrationData &reg_data, bool is_custom_op) {
   if (reg_data.impl_ == nullptr) {
     return false;
   }
   for (const auto &ori_type : reg_data.impl_->ori_optype_set_) {
     const std::string om_ori_type = GetParserKey(reg_data.impl_->om_optype_, ori_type);
-    if (op_parse_params_fn_map_.find(om_ori_type) != op_parse_params_fn_map_.end()) {
+    if ((op_parse_params_fn_map_.find(om_ori_type) != op_parse_params_fn_map_.end()) && !is_custom_op) {
       GELOGI("[Register][Check] Plugin of op type:%s, original type:%s already registered, skip",
              reg_data.impl_->om_optype_.c_str(), ori_type.c_str());
       continue;
@@ -1061,7 +1061,7 @@ bool OpRegistry::Register(const OpRegistrationData &reg_data) {
     }
   }
 
-  if (op_run_mode_map_.find(reg_data.impl_->om_optype_) != op_run_mode_map_.end()) {
+  if ((op_run_mode_map_.find(reg_data.impl_->om_optype_) != op_run_mode_map_.end()) && !is_custom_op) {
     GELOGI("[Register][Check] Plugin of %s already registered, skip", reg_data.impl_->om_optype_.c_str());
     return true;
   }
