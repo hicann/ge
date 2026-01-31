@@ -836,7 +836,7 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
       return HCCL_E_NOT_FOUND;
     }
 
-    if (socVersion.find("Ascend910_95") != std::string::npos) {
+    if (socVersion.find("Ascend950") != std::string::npos) {
       auto itMap = AivSuperKernelMapV2.find(opType);
       auto it = (itMap->second).find(algName);
       if (it != (itMap->second).end()) {
