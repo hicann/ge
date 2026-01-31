@@ -11,9 +11,12 @@
 #include "exe_graph/runtime/eager_op_execution_context.h"
 #include "exe_graph/runtime/gert_mem_allocator.h"
 #include "common/checker.h"
+#include "graph/utils/math_util.h"
 
 namespace gert {
+
 namespace {
+constexpr size_t kMemAlignment = 512U;
 void SetTensorDesc(const StorageShape &shape, const StorageFormat &format, ge::DataType dtype, Tensor *dst) {
   auto &storage_shape = dst->MutableStorageShape();
   storage_shape = shape.GetStorageShape();
@@ -46,7 +49,9 @@ Tensor *EagerOpExecutionContext::MallocOutputTensor(size_t index, const StorageS
   GE_ASSERT_NOTNULL(output_tensor);
   SetTensorDesc(shape, format, dtype, output_tensor);
 
-  auto gert_tensor_data = gert_allocator->MallocTensorData(tensor_size);
+  size_t aligned_tensor_size = tensor_size;
+  GE_ASSERT_TRUE(!ge::RoundUpOverflow(tensor_size, kMemAlignment, aligned_tensor_size));
+  auto gert_tensor_data = gert_allocator->MallocTensorData(aligned_tensor_size);
   output_tensor->SetData(std::move(gert_tensor_data.MutableTensorData()));
   return output_tensor;
 }
@@ -74,7 +79,9 @@ void *EagerOpExecutionContext::MallocWorkSpace(size_t size) {
       GetOutputPointer<std::vector<GertMemBlock *>>(additional_output_start + static_cast<size_t>(AdditionalOutputIndex::kWorkSpace));
   GE_ASSERT_NOTNULL(memory_vec);
 
-  auto mem_block = gert_allocator->Malloc(size);
+  size_t aligned_size = size;
+  GE_ASSERT_TRUE(!ge::RoundUpOverflow(size, kMemAlignment, aligned_size));
+  auto mem_block = gert_allocator->Malloc(aligned_size);
   GE_ASSERT_NOTNULL(mem_block);
   (void)memory_vec->emplace_back(mem_block);
   return mem_block->GetAddr();

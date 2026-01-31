@@ -210,7 +210,7 @@ TEST_F(EagerOpExecutionContextUT, MallocOutputTensorOk) {
   EXPECT_EQ(output_tensor0->GetOriginFormat(), ge::FORMAT_ND);
   EXPECT_EQ(output_tensor0->GetStorageFormat(), ge::FORMAT_ND);
   EXPECT_EQ(output_tensor0->GetDataType(), ge::DT_FLOAT16);
-  EXPECT_EQ(output_tensor0->GetSize(), 30);
+  EXPECT_EQ(output_tensor0->GetSize(), 512);
   EXPECT_NE(output_tensor0->GetAddr(), nullptr);
 
   auto output_tensor_0_in_context = context->GetOutputTensor(0);
@@ -220,7 +220,7 @@ TEST_F(EagerOpExecutionContextUT, MallocOutputTensorOk) {
   EXPECT_EQ(output_tensor_0_in_context->GetOriginFormat(), ge::FORMAT_ND);
   EXPECT_EQ(output_tensor_0_in_context->GetStorageFormat(), ge::FORMAT_ND);
   EXPECT_EQ(output_tensor_0_in_context->GetDataType(), ge::DT_FLOAT16);
-  EXPECT_EQ(output_tensor_0_in_context->GetSize(), 30);
+  EXPECT_EQ(output_tensor_0_in_context->GetSize(), 512);
   EXPECT_NE(output_tensor_0_in_context->GetAddr(), nullptr);
 }
 
