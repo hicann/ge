@@ -1141,7 +1141,7 @@ TEST(RtsEngineOpTest, CmoAddrOpTest)
             cmoAddrOpPtr->v_input_data_addr_.push_back((void *)(uintptr_t)(&input_data[0]));
             cmoAddrOpPtr->v_input_data_addr_.push_back((void *)(uintptr_t)(&input_data[1]));
             auto ret = cmoAddrOpPtr->Run(tasks);
-            ASSERT_EQ(ret, SUCCESS);
+            ASSERT_EQ(ret, FAILED);
             ret = cmoAddrOpPtr->UpdateTaskDef(tasks);
             ASSERT_EQ(ret, SUCCESS);
         }

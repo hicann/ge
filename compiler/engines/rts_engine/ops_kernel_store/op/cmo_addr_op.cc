@@ -12,6 +12,8 @@
 
 #include "op_factory.h"
 #include "graph/utils/tensor_utils.h"
+#include "graph/args_format_desc.h"
+#include "common/util.h"
 #include "common/util/log.h"
 #include "../../../inc/framework/common/runtime_model_ge.h"
 
@@ -53,13 +55,87 @@ Status CmoAddrOp::Run(vector<TaskDef> &tasks)
         cmoAddrDef->set_stride_outer(0);
         cmoAddrDef->set_stride_inner(0);
         cmoAddrDef->set_cmo_op_code(cmoOpCode);
- 
+        Status ret = AddArgsFormatDescInfo(cmoAddrDef);
+        if (ret != SUCCESS) {
+            return ret;
+        }
         tasks.push_back(taskDef);
     }
 
     return SUCCESS;
 }
 
+Status CmoAddrOp::AddArgsFormatDescInfo(domi::CmoAddrTaskDef * const cmoAddrDef)
+{
+    uint32_t len_inner = 0U;
+    Status ret = CalculateLenInner(len_inner);
+    if (ret != SUCCESS) {
+        RTS_REPORT_INNER_ERROR("CalculateLenInner failed, ret=%#x", ret);
+        return ret;
+    }
+    
+    const int32_t socVersionLen = 50;
+    char_t version[socVersionLen] = {0};
+    ret = GetSocVersion(version, socVersionLen);
+    if (ret != SUCCESS) {
+        RTS_REPORT_INNER_ERROR("GetSocVersion failed, ret=%#x", ret);
+        return ret;
+    }
+    RTS_LOGI("Soc version is [%s]", version);
+    std::string res;
+    ArgsFormatDesc desc;
+    if ((strncmp(version, "Ascend950", strlen("Ascend950")) == 0)) {
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        desc.Append(AddrType::INPUT_INSTANCE, 0);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        desc.AppendCustomValue(len_inner, ArgsFormatWidth::BIT32);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT32);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        res = desc.ToString();
+    } else {
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT32);
+        desc.AppendCustomValue(len_inner, ArgsFormatWidth::BIT32);
+        desc.Append(AddrType::INPUT_INSTANCE, 0);
+        desc.AppendPlaceholder(ArgsFormatWidth::BIT64);
+        res = desc.ToString();
+    }
+    cmoAddrDef->set_args_format(res);
+
+    return SUCCESS;
+}
+
+Status CmoAddrOp::CalculateLenInner(uint32_t &len_inner) {
+    const GeTensorDesc &tensor_desc = op_desc_->GetInputDesc(0U);
+    int64_t num_cnt = tensor_desc.GetShape().IsScalar() ? 1 : tensor_desc.GetShape().GetShapeSize();
+    int64_t shape_len = GetSizeInBytes(num_cnt, tensor_desc.GetDataType());
+    if (shape_len <= 0) {
+        RTS_REPORT_INNER_ERROR("invalid shape_len:%d", shape_len);
+        return FAILED;
+    }
+    int64_t offset{0};
+    (void)AttrUtils::GetInt(op_desc_, kAttrAddrOffset, offset);
+    RTS_LOGD("[%s] got offset [%" PRId64 "], size:[%" PRId64 "]", op_desc_->GetNamePtr(), offset, shape_len);
+    
+    if ((offset < 0) || (offset >= shape_len)) {
+        RTS_REPORT_INNER_ERROR("The offset %" PRId64 " should be within the range of [0, %" PRId64 ").", offset, shape_len);
+        return FAILED;
+    }
+    
+    shape_len -= offset;
+    
+    uint32_t max_size{0U};
+    (void)AttrUtils::GetInt(op_desc_, kAttrMaxSize, max_size);
+    if (max_size == 0) {
+        max_size = kMaxPrefetchLen;
+    }
+    
+    len_inner = std::min(static_cast<uint32_t>(shape_len), max_size);
+    return SUCCESS;
+}
 // function of op {ENTER, LOOPCOND, NEXTITERATION, EXIT} is similar: pass through data without change
 }  // namespace runtime
 }  // namespace cce

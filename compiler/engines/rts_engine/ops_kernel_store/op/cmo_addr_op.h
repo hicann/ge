@@ -18,6 +18,9 @@ using namespace std;
 
 namespace cce {
 namespace runtime {
+constexpr uint32_t kMaxPrefetchLen = 120U * 1024U * 1024U;
+constexpr char_t const *kAttrMaxSize = "max_size";
+constexpr char_t const *kAttrAddrOffset = "offset";
 class CmoAddrOp : public Op {
 public:
     CmoAddrOp(const ge::Node &node, ge::RunContext &runContext);
@@ -41,6 +44,10 @@ public:
      *          other: run failed
      */
     ge::Status Run(vector<TaskDef> &tasks) override;
+    
+private:
+    ge::Status AddArgsFormatDescInfo(domi::CmoAddrTaskDef * const cmoAddrDef);
+    ge::Status CalculateLenInner(uint32_t &len_inner);
 };
 }  // namespace runtime
 }  // namespace cce

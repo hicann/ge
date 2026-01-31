@@ -10,9 +10,6 @@
 #include "rt_log.h"
 #include "dlog_pub.h"
 #include "securec.h"
-#if (!defined(WIN32)) && (!defined(CFG_DEV_PLATFORM_PC))
-#include "common/util/error_manager/error_manager.h"
-#endif
 #include "mmpa/mmpa_api.h"
 namespace cce {
 namespace runtime {
@@ -22,18 +19,13 @@ void RecordErrorLog(const char *file, const int32_t line, const char *fun, const
         return;
     }
     char buf[RT_MAX_LOG_BUF_SIZE] = {0};
-#if (!defined(WIN32)) && (!defined(CFG_DEV_PLATFORM_PC))
-    std::string err = ErrorManager::GetInstance().GetLogHeader();
-#else
-    std::string err = " ";
-#endif
     va_list arg;
     va_start(arg, fmt);
     int ret = vsnprintf_truncated_s(buf, RT_MAX_LOG_BUF_SIZE, fmt, arg);
     va_end(arg);
     if (ret > 0) {
-        DlogRecord(static_cast<int32_t>(RUNTIME), DLOG_ERROR, "[%s:%d]%d %s:%s%s",
-            file, line, mmGetTid(), fun, err.c_str(), buf);
+        DlogRecord(static_cast<int32_t>(RUNTIME), DLOG_ERROR, "[%s:%d]%d %s:%s",
+            file, line, mmGetTid(), fun, buf);
     }
     return;
 }

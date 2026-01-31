@@ -13,7 +13,8 @@
 #include <cstdint>
 #include <sys/syscall.h>
 #include <unistd.h>
-#include "common/util/error_manager/error_manager.h"
+#include <cinttypes>
+#include "base/err_msg.h"
 #include "dlog_pub.h"
 
 inline uint64_t GetTid() {
@@ -62,8 +63,8 @@ namespace rts {
             ##__VA_ARGS__)
 #define RTS_LOGE(fmt, ...)                                      \
   do {                                                             \
-    dlog_error(RTS_MODULE_NAME, "[%s][tid:%lu]%s:" fmt, __FUNCTION__, GetTid(), \
-        ErrorManager::GetInstance().GetLogHeader().c_str(), ##__VA_ARGS__);   \
+    dlog_error(RTS_MODULE_NAME, "[%s][tid:%lu]:" fmt, __FUNCTION__, GetTid(), \
+        ##__VA_ARGS__);   \
   } while(0)
 #define RTS_LOGEVENT(fmt, ...)                                  \
   dlog_event(RTS_RUN_MODULE_NAME, "[%s][tid:%lu]:" fmt, __FUNCTION__, GetTid(), \
@@ -77,16 +78,16 @@ namespace rts {
 
 #define RTS_REPORT_INNER_ERROR(fmt, ...) \
   do { \
-    dlog_error(RTS_MODULE_NAME, "[%s][tid:%lu]%s:" fmt, __FUNCTION__, GetTid(), \
-        ErrorManager::GetInstance().GetLogHeader().c_str(), ##__VA_ARGS__);   \
-    REPORT_INNER_ERROR(RTS_ERROR_CODE, fmt, ##__VA_ARGS__);                \
+    dlog_error(RTS_MODULE_NAME, "[%s][tid:%lu]:" fmt, __FUNCTION__, GetTid(), \
+        ##__VA_ARGS__);   \
+    REPORT_INNER_ERR_MSG(RTS_ERROR_CODE, fmt, ##__VA_ARGS__);                \
   } while (0)
 
 #define RTS_REPORT_CALL_ERROR(fmt, ...) \
   do { \
-    dlog_error(RTS_MODULE_NAME, "[%s][tid:%lu]%s:" fmt, __FUNCTION__, GetTid(), \
-        ErrorManager::GetInstance().GetLogHeader().c_str(), ##__VA_ARGS__);   \
-    REPORT_CALL_ERROR(ERR_MODULE_GE, fmt, ##__VA_ARGS__);                 \
+    dlog_error(RTS_MODULE_NAME, "[%s][tid:%lu]:" fmt, __FUNCTION__, GetTid(), \
+        ##__VA_ARGS__);   \
+    REPORT_INNER_ERR_MSG(ERR_MODULE_GE, fmt, ##__VA_ARGS__);                 \
   } while (0)
 
 #endif
