@@ -18,7 +18,7 @@
 #
 # 注意：
 #   本示例会自动从 rank_table/rank_table_2p.json 中读取设备ID配置。
-#   如需使用其他设备（如2,3或4,5），请修改 rank_table_2p.json 文件中的 device_id 和 device_ip。
+#   如需使用其他设备（如2,3或4,5），请修改 rank_table_2p.json 文件中的 device_id 。
 
 
 set -euo pipefail # 命令执行错误则退出
@@ -37,7 +37,7 @@ Usage: $0 [OPTIONS]
 
 注意:
   脚本会自动从 rank_table/rank_table_2p.json 中读取设备ID配置
-  如需使用其他设备(如2,3或4,5)，请修改 rank_table_2p.json 文件中的 device_id 和 device_ip
+  如需使用其他设备(如2,3或4,5)，请修改 rank_table_2p.json 文件中的 device_id
 EOF
     exit 0
 }
@@ -124,16 +124,16 @@ echo "[Info] LD_LIBRARY_PATH 已设置为: ${LD_LIBRARY_PATH}"
 case "${TARGET}" in
   sample)
     echo "[Info] 开始准备并编译目标: sample"
-    echo "[Info] 重新生成 CMake 构建文件并开始编译 sample"
+    echo "[Info] 清理旧的 ${BUILD_DIR}..."
+    [ -n "${BUILD_DIR}" ] && rm -rf "${BUILD_DIR}" || true
     mkdir -p "${BUILD_DIR}"
-
     cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
     cmake --build "${BUILD_DIR}" --target sample -j"$(nproc)"
     
     echo "[Info] 运行 ${BUILD_DIR}/sample dump ${CASE_NAME}"
     if [[ -x "${BUILD_DIR}/sample" ]]; then
       "${BUILD_DIR}/sample" dump ${CASE_NAME}
-      echo "[Success] sample 执行成功，EP图的pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示"
+      echo "[Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示"
     else
       echo "ERROR: 找不到或不可执行 ${BUILD_DIR}/sample" >&2
       exit 1
@@ -227,7 +227,7 @@ case "${TARGET}" in
     echo "========================================"
 
     if [ "$ALL_SUCCESS" = true ]; then
-      echo "[Success] sample_and_run 执行成功！"
+      echo "[Success] sample_and_run 执行成功，pbtxt和data输出dump 已生成在当前目录"
     else
       echo "[Error] sample_and_run 执行失败！"
       exit 1

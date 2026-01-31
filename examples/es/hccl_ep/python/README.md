@@ -39,7 +39,7 @@ bash run_sample.sh -t sample_and_run_python
 1. 自动生成ES接口
 2. 编译sample程序
 3. dump图到当前目录
-4. 在2个NPU设备上并行运行TP图（设备ID从 rank_table 自动读取）
+4. 在2个NPU设备上并行运行EP图（设备ID从 rank_table 自动读取）
 
 **注意事项：**
 - 脚本会自动从 `rank_table/rank_table_2p.json` 中读取设备ID配置
@@ -53,7 +53,7 @@ bash run_sample.sh -t sample_and_run_python
 #### 输出文件说明
 
 执行成功后会在当前目录生成以下文件：
-- `ge_onnx_MakeEPGraph.pbtxt` - 图结构的protobuf文本格式，可用netron查看
+- `ge_onnx_*.pbtxt` - 图结构的protobuf文本格式，可用netron查看
 
 ### 3.3、日志打印
 可执行程序执行过程中如果需要日志打印来辅助定位，可以在bash run_sample.sh -t sample_and_run_python之前设置如下环境变量来让日志打印到屏幕

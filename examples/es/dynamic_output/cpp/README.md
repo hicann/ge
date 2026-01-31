@@ -34,6 +34,7 @@ bash run_sample.sh
 ```
 [Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示
 ```
+可通过data文件查看计算结果
 #### 输出文件说明
 
 执行成功后会在当前目录生成以下文件：

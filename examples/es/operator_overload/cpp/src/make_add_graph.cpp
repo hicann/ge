@@ -35,8 +35,6 @@ int RunGraphAdd(ge::Graph &graph, const std::vector<ge::Tensor> &inputs,
     std::cout << "AddGraph failed" << std::endl;
     return -1;
   }
-  std::cout << "input is :" << std::endl;
-  ge::Utils::PrintTensorsToConsole(inputs);
   std::vector<ge::Tensor> outputs;
   ret = s->RunGraph(graph_id, inputs, outputs);
   if (ret != ge::SUCCESS) {

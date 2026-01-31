@@ -67,6 +67,7 @@ namespace es_showcase {
 
 int RunGraph(ge::Graph &graph, const std::vector<ge::Tensor> &inputs,
              const std::string &output_prefix) {
+  ge::Utils::PrintTensorsToFile(inputs, "input");
   std::map<ge::AscendString, ge::AscendString> options;
   auto *s = new (std::nothrow) ge::Session(options);
   if (s == nullptr) {
@@ -81,8 +82,6 @@ int RunGraph(ge::Graph &graph, const std::vector<ge::Tensor> &inputs,
     delete s;
     return -1;
   }
-  std::cout << "input is :" << std::endl;
-  ge::Utils::PrintTensorsToConsole(inputs);
   std::vector<ge::Tensor> outputs;
   ret = s->RunGraph(graph_id, inputs, outputs);
   if (ret != ge::SUCCESS) {

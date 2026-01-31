@@ -14,7 +14,7 @@
 #
 # 注意：
 #   本示例会自动从 rank_table/rank_table_2p.json 中读取设备ID配置。
-#   如需使用其他设备（如2,3或4,5），请修改 rank_table_2p.json 文件中的 device_id 和 device_ip。
+#   如需使用其他设备（如2,3或4,5），请修改 rank_table_2p.json 文件中的 device_id 。
 
 set -euo pipefail # 命令执行错误则退出
 
@@ -32,7 +32,7 @@ Usage: $0 [OPTIONS]
 
 注意:
   脚本会自动从 rank_table/rank_table_2p.json 中读取设备ID配置
-  如需使用其他设备(如2,3或4,5)，请修改 rank_table_2p.json 文件中的 device_id 和 device_ip
+  如需使用其他设备(如2,3或4,5)，请修改 rank_table_2p.json 文件中的 device_id
 EOF
     exit 0
 }

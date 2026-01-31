@@ -113,7 +113,8 @@ echo "[Info] LD_LIBRARY_PATH 已设置为: ${LD_LIBRARY_PATH}"
 case "${TARGET}" in
   sample)
     echo "[Info] 开始准备并编译目标: sample"
-    echo "[Info] 重新生成 CMake 构建文件并开始编译 sample"
+    echo "[Info] 清理旧的 ${BUILD_DIR}..."
+    [ -n "${BUILD_DIR}" ] && rm -rf "${BUILD_DIR}" || true
     mkdir -p "${BUILD_DIR}"
     cmake -S . -B "${BUILD_DIR}" -DCMAKE_BUILD_TYPE=Release
     cmake --build "${BUILD_DIR}" --target sample -j"$(nproc)"

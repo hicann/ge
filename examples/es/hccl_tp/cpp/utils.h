@@ -15,6 +15,7 @@
 #include <iostream>
 #include <fstream>
 #include <map>
+#include <cstdlib>
 #include "graph/tensor.h"
 #include "ge/es_graph_builder.h"
 namespace ge {
@@ -62,10 +63,13 @@ class Utils {
   }
 
   template<typename T>
-  static void PrintTensorToFile(const ge::Tensor &tensor, const std::string &prefix = "tensor") {
-    static std::map<std::string, int64_t> index_map;
-    int64_t &index = index_map[prefix];
-    std::string filename = prefix + "_" + std::to_string(index++) + ".data";
+  static void PrintTensorToFile(const ge::Tensor &tensor, const std::string &prefix, int64_t index) {
+    const char* device_id = std::getenv("DEVICE_ID");
+    std::string filename = prefix + "_" + std::to_string(index);
+    if (device_id != nullptr) {
+      filename += "_device" + std::string(device_id);
+    }
+    filename += ".data";
     std::ofstream data_file(filename);
     auto shape = tensor.GetTensorDesc().GetShape();
     auto dims = shape.GetDims();
@@ -91,6 +95,12 @@ class Utils {
       data_file << std::endl;
     }
     data_file.close();
+
+    // 打印保存信息
+    if (device_id != nullptr) {
+      std::cout << "device" << device_id << "_";
+    }
+    std::cout << prefix << "[" << index << "] save to file " << filename << std::endl;
   }
 
   template<typename T>
@@ -124,18 +134,21 @@ class Utils {
     }
   }
   static void PrintTensorsToFile(const std::vector<ge::Tensor> &tensors, const std::string &prefix = "tensor") {
+    static std::map<std::string, int64_t> index_map;
+    int64_t &index = index_map[prefix];
     for (const auto &tensor : tensors) {
       auto data_type = tensor.GetTensorDesc().GetDataType();
       switch (data_type) {
-        case ge::DT_FLOAT:PrintTensorToFile<float>(tensor, prefix);
+        case ge::DT_FLOAT:PrintTensorToFile<float>(tensor, prefix, index);
           break;
-        case ge::DT_INT32:PrintTensorToFile<int32_t>(tensor, prefix);
+        case ge::DT_INT32:PrintTensorToFile<int32_t>(tensor, prefix, index);
           break;
-        case ge::DT_INT64:PrintTensorToFile<int64_t>(tensor, prefix);
+        case ge::DT_INT64:PrintTensorToFile<int64_t>(tensor, prefix, index);
           break;
         default:std::cout << "unsupported type: " << static_cast<int64_t>(data_type) << std::endl;
           break;
       }
+      index++;
     }
   }
 };

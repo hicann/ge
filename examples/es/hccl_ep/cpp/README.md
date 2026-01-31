@@ -29,7 +29,7 @@ source /usr/local/Ascend/cann/set_env.sh
 ```
 
 ### 3.2、编译和执行
-
+#### 1.2.1 生成 es 接口与构建图进行DUMP
 只需运行下述命令即可完成清理、生成接口、构图和DUMP图：
 ```bash
 bash run_sample.sh
@@ -38,12 +38,12 @@ bash run_sample.sh
 ```
 [Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示
 ```
-#### 输出文件说明
+**1.2.2 输出文件说明**
 
 执行成功后会在当前目录生成以下文件：
 - `ge_onnx_*.pbtxt` - 图结构的protobuf文本格式，可用netron查看
 
-#### 构建图并执行
+#### 1.2.3 构建图并执行
 
 **重要前提：确保您的系统有至少2个可用的NPU设备**
 
@@ -68,9 +68,9 @@ bash run_sample.sh -t sample_and_run
 
 执行成功后会看到：
 ```
-[Success] sample_and_run 执行成功！
+[Success] sample_and_run 执行成功，pbtxt和data输出dump 已生成在当前目录
 ```
-
+可通过data文件查看计算结果
 ### 3.3、日志打印
 可执行程序执行过程中如果需要日志打印来辅助定位，可以在bash run_sample.sh之前设置如下环境变量来让日志打印到屏幕
 ```bash

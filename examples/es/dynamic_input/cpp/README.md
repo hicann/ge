@@ -55,6 +55,7 @@ bash run_sample.sh -t sample_and_run
 ```
 [Success] sample_and_run 执行成功，pbtxt和data输出dump 已生成在当前目录
 ```
+可通过data文件查看计算结果
 ### 3.3、日志打印
 可执行程序执行过程中如果需要日志打印来辅助定位，可以在bash run_sample.sh之前设置如下环境变量来让日志打印到屏幕
 ```bash
