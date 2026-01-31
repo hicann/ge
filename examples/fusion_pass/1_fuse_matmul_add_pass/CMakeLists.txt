@@ -47,7 +47,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${INCLUDE_DIR}/register
     ${INCLUDE_DIR}
     ${INCLUDE_DIR}/external
-    ${CMAKE_CURRENT_BINARY_DIR}/generated_ops
+    ${CMAKE_CURRENT_BINARY_DIR}/es_output/include/es_all
 )
 
 target_link_directories(${PROJECT_NAME} PRIVATE
@@ -61,12 +61,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     graph
     register
     ge_compiler
-    esb_generated_shared
-    eager_style_graph_builder_base
+    es_all
     -Wl,--as-needed
 )
 
-add_dependencies(${PROJECT_NAME} esb_generated_shared)
+set_target_properties(${PROJECT_NAME} PROPERTIES INSTALL_RPATH "${CMAKE_CURRENT_BINARY_DIR}/es_output/lib64")
+
 install(TARGETS ${PROJECT_NAME}
         LIBRARY DESTINATION ${ASCEND_PATH}/opp/vendors/${PASS_SO_DIR}/custom_fusion_passes
 )
+install(CODE "message(STATUS \"so file of ${PROJECT_NAME} is ready！\")")

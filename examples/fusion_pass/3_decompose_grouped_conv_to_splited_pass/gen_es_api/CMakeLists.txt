@@ -1,73 +1,39 @@
 message(STATUS "ASCEND_PATH: ${ASCEND_PATH}")
+message(STATUS "PROJECT_SOURCE_DIR: ${PROJECT_SOURCE_DIR}")
 
-###########  generate eager stype api  ######################
+###########  generate eager style api using generate_es_package.cmake  ######################
 set(CMAKE_CURRENT_BINARY_DIR ${PROJECT_SOURCE_DIR}/build)
+
 message(STATUS "Binary directory: ${CMAKE_CURRENT_BINARY_DIR}")
-set(common_compile_options
-        -std=c++17
-        -g
-        -Wall
-)
-set(common_compile_definitions
-        _GLIBCXX_USE_CXX11_ABI=0
-)
-# 1. 创建输出目录
-file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/generated_ops)
 
-# 2. 在构建目录创建占位源文件
-file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/generated_ops/placeholder.cpp
-        "// Placeholder file - will be replaced during build\n"
-        "void placeholder_function() {}\n")
+# 设置输出路径
+set(ES_OUTPUT_PATH ${CMAKE_CURRENT_BINARY_DIR}/es_output)
+message(STATUS "ES_OUTPUT_PATH: ${ES_OUTPUT_PATH}")
 
-# 3. 使用 file(GLOB) 获取文件列表（但使用 CONFIGURE_DEPENDS 特性）
-file(GLOB GENERATED_CPP_FILES CONFIGURE_DEPENDS
-        "${CMAKE_CURRENT_BINARY_DIR}/generated_ops/*.cpp"
-)
-link_directories(${ASCEND_PATH}/libs)
-# 4. 定义代码生成命令
-add_custom_command(
-        OUTPUT
-        ${CMAKE_CURRENT_BINARY_DIR}/generated_ops/generated_code.flag
-        COMMAND ${CMAKE_COMMAND} -E remove -f ${CMAKE_CURRENT_BINARY_DIR}/generated_ops/*.cpp
-        COMMAND ${CMAKE_COMMAND} -E env ASCEND_OPP_PATH=${ASCEND_PATH}/opp env LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${ASCEND_PATH}/lib64 ${ASCEND_PATH}/bin/gen_esb --output_dir=${CMAKE_CURRENT_BINARY_DIR}/generated_ops
-        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/generated_ops/generated_code.flag
-        COMMENT "Generating eager style graph builder code..."
-        VERBATIM
-)
-# 5. 创建自定义目标触发代码生成
-add_custom_target(generate_es_api ALL
-        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/generated_ops/generated_code.flag)
+# 尝试使用 find_package 方式（适用于 run 包环境）
+# 如果 run 包中有 generate_es_package.cmake，优先使用
+if (EXISTS "${ASCEND_PATH}/include/ge/cmake/generate_es_package.cmake")
+    list(APPEND CMAKE_MODULE_PATH "${ASCEND_PATH}/include/ge/cmake")
+    find_package(GenerateEsPackage REQUIRED)
+    message(STATUS "Using GenerateEsPackage from run package")
+else ()
+    message(FATAL_ERROR "Cannot find generate_es_package.cmake. Please ensure:\n"
+            "  1. Run package is installed and ASCEND_PATH is set correctly, or\n"
+            "  2. Source code contains generate_es_package.cmake")
+endif ()
 
-# 临时处理，后续run包发布了es api的so后，去掉这一步
-###########  generate eager stype api so  ######################
+include_directories(
+        ${ASCEND_PATH}/include
+        ${ASCEND_PATH}/include/graph/
+)
 
-add_library(esb_generated_shared SHARED
-        ${CMAKE_CURRENT_BINARY_DIR}/generated_ops/placeholder.cpp
-        ${GENERATED_CPP_FILES}
+#生成算子 ES API
+add_library(opgraph_all INTERFACE)
+set_target_properties(opgraph_all PROPERTIES
+        INTERFACE_LIBRARY_OUTPUT_DIRECTORY "${ASCEND_PATH}/opp/built-in/op_proto"
 )
-set_source_files_properties(${GENERATED_CPP_FILES}
-        PROPERTIES
-        GENERATED TRUE
-)
-add_dependencies(esb_generated_shared generate_es_api)
-target_compile_options(esb_generated_shared PRIVATE ${common_compile_options})
-target_compile_definitions(esb_generated_shared PRIVATE ${common_compile_definitions})
-
-target_include_directories(esb_generated_shared PUBLIC
-        ${CMAKE_CURRENT_BINARY_DIR}/generated_ops
-        ${PROJECT_SOURCE_DIR}/gen_es_api/temp
-        ${ASCEND_PATH}/opp/built-in/op_proto/inc
-        ${INCLUDE_DIR}/graph
-        ${INCLUDE_DIR}/ge
-        ${INCLUDE_DIR}/register
-        ${INCLUDE_DIR}
-        ${INCLUDE_DIR}/external
-)
-target_link_directories(esb_generated_shared PRIVATE
-        ${ASCEND_PATH}/lib64/stub
-        ${ASCEND_PATH}/lib64/
-)
-target_link_libraries(esb_generated_shared
-        PUBLIC
-        eager_style_graph_builder_base
+add_es_library(
+        ES_LINKABLE_AND_ALL_TARGET es_all
+        OPP_PROTO_TARGET opgraph_all
+        OUTPUT_PATH ${ES_OUTPUT_PATH}
 )

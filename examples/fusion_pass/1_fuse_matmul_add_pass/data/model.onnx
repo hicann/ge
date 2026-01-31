@@ -1,24 +1,0 @@
-pytorch2.1.0:ø
-C
-onnx::MatMul_0
-onnx::MatMul_1/MatMul_output_0/MatMul"MatMul
--
-/MatMul_output_0
-onnx::Add_24/Add"Add
-main_graphZ 
-onnx::MatMul_0
-
-
-Z 
-onnx::MatMul_1
-
-
-Z
-onnx::Add_2
-
-
-b
-4
-
-
-B

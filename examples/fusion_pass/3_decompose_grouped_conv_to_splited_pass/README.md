@@ -66,27 +66,13 @@
    ```
    mkdir build && cd build
    cmake ..
-   make generate_es_api
    ```
-   执行后，在**build**目录下产生generated_ops目录，内含es构图api的头文件及源码
+   执行后，在**build**目录下产生的es_all_build/generated_code目录中包含es构图api的头文件及源码。
 
-4. 临时步骤，执行如下命令生成es api对应的so，并拷贝到run包安装路径下。可以在make后增加参数`-j<N>`用于并行执行构建任务，`N`推荐选择CPU核心数或CPU核心数+1。
+4. 执行make命令编译自定义pass so，成功编译后通过make install将动态库文件libdecompose_grouped_conv_to_splited_pass.so安装到自定义融合pass目录下。
+   可以在make后增加可选参数`-j<N>`用于并行执行构建任务，`N`推荐选择CPU核心数或CPU核心数+1。
    ```
-   make esb_generated_shared
-   ```
-   编译完成后，在**build**/gen_es_api目录下生成libesb_generated_shared.so
-   将so拷贝到ASCEND_PATH下lib64目录下。
-   ```
-   cp gen_es_api/libesb_generated_shared.so ${ASCEND_PATH}/x86_64-linux/lib64
-   ```
-   若为arm环境，目标路径调整为
-   ```
-   cp gen_es_api/libesb_generated_shared.so ${ASCEND_PATH}/aarch64-linux/lib64
-   ```
-
-5. 执行make命令编译自定义pass so，成功编译后通过make install将动态库文件libdecompose_grouped_conv_to_splited_pass.so安装到自定义融合pass目录下。
-   ```
-   make
+   make [-j<N>] decompose_grouped_conv_to_splited_pass
    make install
    ```
 
@@ -108,7 +94,13 @@
      ```
      export DUMP_GE_GRAPH=1
      ```
-   - data目录中提供了当前sample对应场景的模型`model.onnx`。执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾社区](www.hiascend.com)搜索ATC离线模型编译工具)，`soc_version`请根据实际环境修改：
+   - 进入data目录执行.py文件导出onnx（文件中使用了torch的onnx导出器，依赖额外的Python包onnx，运行前确保安装。
+     此外ATC工具当前最高支持onnx opset_version 18，若当前torch默认导出更高版本，请显式指定，见脚本中注释）：
+     ```
+     python torch_gen_onnx.py
+     ```
+   - 执行结束后，在data目录下生成.onnx格式的模型文件，名称为model.onnx。
+   - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾社区](www.hiascend.com)搜索ATC离线模型编译工具)，`soc_version`请根据实际环境修改：
      ```
      atc --model=./model.onnx --framework=5 --soc_version=xxx --output=./model
      ```

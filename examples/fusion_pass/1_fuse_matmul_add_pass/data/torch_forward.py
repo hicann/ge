@@ -25,12 +25,12 @@ class Model(nn.Module):
 
 
 if __name__ == "__main__":
-    model = Model()
+    model = Model().npu()
     config = torchair.CompilerConfig()
     npu_backend = torchair.get_npu_backend(compiler_config=config)
 
-    x, y = torch.randn(2, 3), torch.randn(3, 2)
-    z = torch.randn(2, 2)
+    x, y = torch.randn(2, 3).npu(), torch.randn(3, 2).npu()
+    z = torch.randn(2, 2).npu()
     model = torch.compile(model, backend=npu_backend)
     res = model(x, y, z)
     print(res)

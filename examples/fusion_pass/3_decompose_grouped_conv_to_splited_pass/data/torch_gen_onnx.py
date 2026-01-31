@@ -12,14 +12,12 @@
 
 import torch
 import torch.nn as nn
-import torch_npu
-import torchair
 
 
 class Model(nn.Module):
     def __init__(self):
         super().__init__()
-        self.grouped_conv = nn.Conv2d(3, 3, 3, 3, 0, groups=3, bias=False)
+        self.grouped_conv = nn.Conv2d(6, 6, 3, 3, 0, groups=3, bias=False)
         self.pool = nn.MaxPool2d(kernel_size=3, stride=3, padding=0)
 
     def forward(self, x):
@@ -28,12 +26,14 @@ class Model(nn.Module):
         return x
 
 
-if __name__ == "__main__":
-    model = Model().npu()
-    config = torchair.CompilerConfig()
-    npu_backend = torchair.get_npu_backend(compiler_config=config)
+def convert():
+    model = Model()
+    model.eval()
+    x = torch.randn(1, 6, 9, 9)
+    # 当前atc工具opset_version最高支持18，若torch版本默认导出opset_version过高，请如下显式指定opset_version
+    # torch.onnx.export(model, (x,), "model.onnx", opset_version=18, do_constant_folding=False)
+    torch.onnx.export(model, (x,), "model.onnx", do_constant_folding=False)
 
-    x = torch.randn(1, 3, 9, 9).npu()
-    model = torch.compile(model, backend=npu_backend)
-    res = model(x)
-    print(res)
+
+if __name__ == "__main__":
+    convert()

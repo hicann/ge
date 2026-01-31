@@ -101,8 +101,11 @@ patterns.emplace_back(std::move(pattern));
 ```
 
 > **注意！**
-> 用于匹配的pattern需要满足**自包含**(除了边界的输出算子，边界内所有算子的数据输出消费者都要在边界内)，
+> 
+> - 用于匹配的pattern需要满足**自包含**(除了边界的输出算子，边界内所有算子的数据输出消费者都要在边界内)，
 > 非自包含的pattern不会被匹配。
+> 
+> - 自定义pass基于**当前图**匹配，对子图的修改需要在子图中再次调用pass。
 
 
 除了上文中探讨的匹配图结构，我们还提供了两种接口实现对pattern更细粒度的定义：
@@ -123,7 +126,7 @@ struct NodeIo {
 };
 ```
 
-调用CaptureTensor捕获data示例如下：
+调用CaptureTensor捕获relu示例如下：
 
 ```c++
 std::vector<PatternUniqPtr> patterns;
@@ -132,8 +135,8 @@ auto data = graph_builder.CreateInput(0);
 auto relu = es::Relu(data);
 auto graph = graph_builder.BuildAndReset({relu});
 auto pattern = std::make_unique<Pattern>(std::move(*graph));
-// 调用CaptureTensor捕获data
-pattern->CaptureTensor({*data->GetProducer(), 0})
+// 调用CaptureTensor捕获relu
+pattern->CaptureTensor({*relu.GetProducer(), 0})
 patterns.emplace_back(std::move(pattern));
 ```
 

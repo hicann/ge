@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5.1)
-project(add_zero_pass)
+project(move_relu_before_concat_pass)
 
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
 
@@ -26,7 +26,7 @@ message(STATUS "ASCEND_PATH: ${ASCEND_PATH}")
 
 add_subdirectory(gen_es_api)
 
-############ add_zero_pass.so ############
+############ move_relu_before_concat_pass.so ############
 add_library(${PROJECT_NAME} SHARED ${SRC_LIST})
 
 set_target_properties(${PROJECT_NAME} PROPERTIES output_name ${PROJECT_NAME})

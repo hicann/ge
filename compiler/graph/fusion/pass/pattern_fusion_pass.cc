@@ -52,7 +52,9 @@ Status PatternFusionPass::Run(GraphPtr &graph, CustomPassContext &pass_context) 
       GE_ASSERT_NOTNULL(replacement);
       (void)FusionUtils::MarkPassNameOnReplacementNodes(replacement, boundary, boost::core::demangle(typeid(*this).name()));
       if (SubgraphRewriter::Replace(*boundary, *replacement) != SUCCESS) {
-        GELOGE(FAILED, "Failed to replace %s to %s", match_result->ToAscendString().GetString(), "");
+        AscendString replacement_name;
+        GE_ASSERT_GRAPH_SUCCESS(replacement->GetName(replacement_name));
+        GELOGE(FAILED, "Failed to replace %s to %s", match_result->ToAscendString().GetString(), replacement_name.GetString());
         return FAILED;
       }
       GE_ASSERT_SUCCESS(FusionUtils::UpdateToCycleDetector(match_result, replacement));
