@@ -194,7 +194,6 @@ target_link_libraries(aihac_codegen PUBLIC
     aihac_symbolizer
     $<BUILD_INTERFACE:ge_log_utils>
     $<BUILD_INTERFACE:ascendc_api_extend>
-    $<BUILD_INTERFACE:ascendc_api_cube_extend>
     error_manager
     c_sec
     unified_dlog

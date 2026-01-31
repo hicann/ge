@@ -42,10 +42,12 @@ target_sources(test_codegen PRIVATE
 
 target_link_libraries(test_codegen PRIVATE
         ascendc_api_regbase_extend
+        ascendc_api_cube_extend
 )
 
 target_link_libraries(codegen_st PRIVATE
         ascendc_api_regbase_extend
+        ascendc_api_cube_extend
 )
 
 target_sources(test_ascir_ut PRIVATE
@@ -108,6 +110,7 @@ target_include_directories(codegen PRIVATE
 
 target_link_libraries(codegen PRIVATE
         ascendc_api_regbase_extend
+        ascendc_api_cube_extend
 )
 
 add_subdirectory(ut/ascendc)

@@ -45,7 +45,7 @@ CV_COMMON_MIX_WHITE_LIST = [
 ]
 
 
-def generate_cmake_lists(asc_graph_name, kernel_name, host_build_dir, is_last_compile, is_static_shape):
+def generate_cmake_lists(asc_graph_name, kernel_name, host_build_dir, is_last_compile, is_static_shape, is_cube=False):
     source = f"################ {kernel_name}.so ################\n"
 
     machine = platform.machine()
@@ -82,6 +82,9 @@ def generate_cmake_lists(asc_graph_name, kernel_name, host_build_dir, is_last_co
     source += f"    {ASCEND_PATH}/{machine}-linux/include\n"
     source += f"    {ASCEND_PATH}/{machine}-linux/ascendc/include/highlevel_api/tiling/platform\n"
     source += f"    {ASCEND_PATH}/{machine}-linux/ascendc/include/highlevel_api\n"
+    if is_cube:
+        source += f"    {ASCEND_PATH}/opp/built-in/op_impl/ai_core/tbe/impl/ascendc/mat_mul_v3\n"
+        source += f"    {ASCEND_PATH}/opp/built-in/op_impl/ai_core/tbe/impl/ops_nn/ascendc/mat_mul_v3\n"
     source += "    )\n\n"
 
     with open(host_build_dir + "/CMakeLists.txt", "w") as cmake_file:
@@ -95,8 +98,8 @@ def generate_file(dst_dir, file_name, text):
         file.write(text)
 
 
-def ascbc_host_compile(graph_name, kernel_name, host_build_dir, is_last_compile, is_static_shape):
-    generate_cmake_lists(graph_name, kernel_name, host_build_dir, is_last_compile, is_static_shape)
+def ascbc_host_compile(graph_name, kernel_name, host_build_dir, is_last_compile, is_static_shape, is_cube=False):
+    generate_cmake_lists(graph_name, kernel_name, host_build_dir, is_last_compile, is_static_shape, is_cube)
     ori_directory = os.getcwd()
     # 切换到临时工作目录
     os.chdir(host_build_dir)
@@ -260,13 +263,13 @@ def static_shape_kernel_proc(kernel_src, temp_dir, kernel_type, use_cv_common=No
 
 
 def static_shape_compile(kernel_name, temp_dir, graph_name, tiling_key_list=None, kernel_type_list=None,
-                         use_cv_common=None):
+                         use_cv_common=None, is_cube=False):
     ori_directory = os.getcwd()
     if use_cv_common and use_cv_common[0]:
         host_build_dir = os.path.join(temp_dir, "host", "cv_common")
     else:
         host_build_dir = os.path.join(temp_dir, "host")
-    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True)
+    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True, is_cube)
 
     kernel_src = graph_name + "_op_kernel.cpp"
     host_so = os.path.join(host_build_dir, f"lib{kernel_name}.so")
@@ -326,7 +329,7 @@ def static_shape_compile(kernel_name, temp_dir, graph_name, tiling_key_list=None
 
 def static_shape_cv_compile(kernel_name, temp_dir, graph_name):
     host_build_dir = os.path.join(temp_dir, "host")
-    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True)
+    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True, True)
     host_so = os.path.join(host_build_dir, f"lib{kernel_name}.so")
     pgo_config_path = os.path.abspath(
         os.path.join(temp_dir, "..", "..", "pgo", f"{graph_name}_config.txt")
@@ -364,7 +367,7 @@ def get_cv_ub_fusion_stage_size_name(kernel_name, temp_dir, graph_name):
 
 def static_shape_cv_common_compile(kernel_name, temp_dir, graph_name):
     host_build_dir = os.path.join(temp_dir, "host", "cv_common")
-    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True)
+    ascbc_host_compile(graph_name, kernel_name, host_build_dir, False, True, True)
     host_so = os.path.join(host_build_dir, f"lib{kernel_name}.so")
     pgo_config_path = os.path.abspath(
         os.path.join(temp_dir, "..", "..", "pgo", f"{graph_name}_config.txt")
@@ -919,186 +922,6 @@ def _build_args(args_list, input_num, mm_attr1, mm_attr2):
     return _origin_inputs_, _origin_outputs_, _inputs_
 
 
-def generate_matmul_tiling(temp_dir):
-    class_body = """#ifndef __OP_KERNEL_MATMUL_TILING_DATA_H__
-#define __OP_KERNEL_MATMUL_TILING_DATA_H__
-
-#include "kernel_tiling/kernel_tiling.h"
-
-#ifndef __CCE_AICORE__
-#include <cstdint>
-#endif
-
-constexpr uint64_t TILINGDATA_OFFSET = 512;
-constexpr uint64_t TILINGDATA_SPLIT_NUM = 2;
-
-enum class L2CacheMode : std::uint32_t
-{
-    L2_CACHE_DEFAULT = 0x00,
-    A_L2_CACHE_DISABLE = 0x01,
-    B_L2_CACHE_DISABLE = 0x02,
-    ALL_L2_CACHE_DISABLE = 0x03,
-};
-
-#pragma pack(push, 8)
-struct MatMulV3TilingData {
-    TCubeTiling tCubeTiling;
-    // aswt滑窗最后一轮m或n方向的切分次数
-    uint32_t mTailCnt = 0;
-    uint32_t nTailCnt = 0;
-    // streamk 根据核数计算的k方向切分次数
-    uint32_t kTailCnt = 0;
-    // 负载均衡时，若一边需要均衡，则对应尾块均衡合并后的块数
-    // -----------------------------------N=4673------------------------------------
-    // -------------------------------------------nTailMain=240--nBaseTailSplitCnt=8
-    // --------------------------------------------|-v------nBaseTail=1857----------
-    // |256|256|256|256|256|256|256|256|256|256|256|240|240|240|240|240|240|240|177|
-    uint32_t mBaseTailSplitCnt = 1;
-    uint32_t nBaseTailSplitCnt = 1;
-    uint32_t mTailMain = 0;
-    uint32_t nTailMain = 0;
-    uint32_t isHf32 = 0;
-    uint32_t aswWindowLen = 0;
-    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct MatMulV3TilingDataCopy {
-    MatMulV3TilingData matMulTilingData;
-    uint8_t reserved[TILINGDATA_OFFSET] = {};  // 申请一个空的512B大小的空间，用于tiling分块
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct BatchMatMulV3TilingData {
-    MatMulV3TilingData matMulTilingData;
-    uint32_t aBatchDimAll = 1;
-    uint32_t bBatchDimAll = 1;
-    uint32_t cBatchDimAll = 1;
-    uint32_t biasBatchDimAll = 1;
-    uint32_t aBatchDim0 = 1;
-    uint32_t bBatchDim0 = 1;
-    uint32_t cBatchDim0 = 1;
-    uint32_t aBatchDim1 = 1;
-    uint32_t bBatchDim1 = 1;
-    uint32_t cBatchDim1 = 1;
-    uint32_t aBatchDim2 = 1;
-    uint32_t bBatchDim2 = 1;
-    uint32_t cBatchDim2 = 1;
-    uint32_t aBatchDim3 = 1;
-    uint32_t bBatchDim3 = 1;
-    uint32_t cBatchDim3 = 1;
-    uint32_t iterBatch = 1;
-    uint32_t batchOutNum = 1;
-    uint32_t batchSplitFactor = 1;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct MatMulV3BasicTilingData {
-    uint32_t usedCoreNum = 0;
-    uint32_t m = 0;
-    uint32_t n = 0;
-    uint32_t k = 0;
-    uint32_t mL1 = 0;
-    uint32_t nL1 = 0;
-    uint32_t kL1 = 0;
-    uint32_t baseM = 0;
-    uint32_t baseN = 0;
-    uint32_t baseK = 0;
-    uint32_t skSingleCoreK = 0;
-    uint32_t mTailCnt = 0;
-    uint32_t nTailCnt = 0;
-    uint32_t mBaseTailSplitCnt = 1;
-    uint32_t nBaseTailSplitCnt = 1;
-    uint32_t mTailMain = 1;
-    uint32_t nTailMain = 1;
-    uint8_t isHf32 = 0;
-    uint8_t l1BufferNum = 0;
-    uint8_t l0cDB = 1; // 默认不开db为1
-    uint8_t ubDB = 1; // ub默认不开db为1
-    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT; // L2Cache默认使能
-    uint32_t sliceM;  // 非连续场景m轴
-    uint32_t srcNdStride; // 非连续场景m轴stride
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct BatchMatMulV3BasicTilingData {
-    MatMulV3BasicTilingData matMulTilingData;
-    uint32_t batchDimAll = 1;
-    uint32_t reserved = 0;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct BatchMatMulV3IterBatchBasicTilingData {
-    uint32_t m = 1;
-    uint32_t n = 1;
-    uint32_t k = 1;
-    uint32_t b = 1;
-    uint32_t iterBatchL1 = 1;
-    uint32_t iterBatchL0 = 1;
-    uint32_t isHf32 = 0;
-    uint32_t baseM = 16;
-    uint32_t baseN = 16;
-    uint32_t baseK = 16;
-    uint32_t innerBatch = 0; // 非连续场景B2内轴
-    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct BatchMatMulV3MergeBatchBasicTilingData {
-    uint32_t m = 1;
-    uint32_t n = 1;
-    uint32_t k = 1;
-    uint32_t b = 1;
-    uint32_t batchAL1 = 1;
-    uint32_t batchBL1 = 1;
-    uint32_t batchL0 = 1;
-    uint32_t kL1 = 1;
-    uint32_t baseK = 16;
-    uint32_t isHf32 = 0;
-    L2CacheMode l2CacheDisable = L2CacheMode::L2_CACHE_DEFAULT;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct BatchMatMulToMulBasicTilingData{
-    uint32_t m = 1;
-    uint32_t n = 1;
-    uint32_t b = 1;
-    uint32_t usedCoreNum = 1;
-    uint32_t singleCoreBatch = 1;
-    uint32_t batchNum = 1;
-    uint32_t batchNumLastRound = 1;
-    uint32_t batchNumLastRoundTail = 1;
-    uint32_t lastCoreNum = 1;
-    uint32_t alignNum = 1;
-};
-#pragma pack(pop)
-
-#pragma pack(push, 8)
-struct MatMulV3KEqZeroBasicTilingData {
-    uint64_t totalDataAmount = 1;
-    uint64_t aivNum = 1;
-};
-#pragma pack(pop)
-#endif // __OP_KERNEL_MATMUL_TILING_DATA_H__
-"""
-
-    # 在host目录下生成文件
-    generate_file(os.path.join(temp_dir, "host"), "matmul_tiling_data.h", class_body)
-    # 在device目录下生成文件
-    generate_file(os.path.join(temp_dir, "device"), "matmul_tiling_data.h", class_body)
-    # 在host/cv_common目录下生成文件
-    generate_file(os.path.join(temp_dir, "host", "cv_common"), "matmul_tiling_data.h", class_body)
-    # 在device/cv_common目录下生成文件
-    generate_file(os.path.join(temp_dir, "device", "cv_common"), "matmul_tiling_data.h", class_body)
-
-
 def _process_tiling_info(is_batch, compile_info, origin_inputs, origin_outputs, attrs, tiling_key_list):
     tiling_info = TilingInfo()
     op_type = "BatchMatMulV3" if is_batch else "MatMulV3"
@@ -1155,7 +978,6 @@ def template_decider(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
 
 def create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
     cube_output_type_size, is_batch, _, _, _ = cube_info[:5]
-    generate_matmul_tiling(temp_dir)
 
     # 根据is_batch设置结构体名称和数据访问路径
     struct_name = "BatchMatMulV3BasicTilingData" if is_batch else "MatMulV3BasicTilingData"
@@ -1163,7 +985,7 @@ def create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube
 
     # 生成host端tiling数据
     host_tiling_data = f"""
-#include "matmul_tiling_data.h"
+#include "arch35/mat_mul_tiling_data.h"
 GET_TILING_DATA_WITH_STRUCT({struct_name}, tmpTilingData, tmpTilingGM);
 """
 
@@ -1185,7 +1007,7 @@ GET_TILING_DATA_WITH_STRUCT({struct_name}, tmpTilingData, tmpTilingGM);
     template_decider(kernel_name, temp_dir, graph_name, tiling_info, cube_info)
 
     # 写入device端文件
-    device_tiling_data = "\n#include \"matmul_tiling_data.h\"\n"
+    device_tiling_data = "\n#include \"arch35/mat_mul_tiling_data.h\"\n"
     tiling_info.file_content += device_tiling_data
     device_tiling_content = tiling_info.file_content
     generate_file(os.path.join(temp_dir, "device"), "autofuse_cube_tiling_data.h", device_tiling_content)
@@ -1262,7 +1084,8 @@ def asc_graph_compile_post(
     kernel_file,
     json_file,
     kernel_name,
-    static_compile_flag
+    static_compile_flag,
+    is_cube=False
 ):
     # 生成get_kernel.cpp代码
     timestamp_set(True, graph_name, "GenGetKernel")
@@ -1272,7 +1095,7 @@ def asc_graph_compile_post(
 
     #重新编译host so
     timestamp_set(True, graph_name, "CompileSecondHost")
-    ascbc_host_compile(graph_name, kernel_name, host_build_dir, True, static_compile_flag)
+    ascbc_host_compile(graph_name, kernel_name, host_build_dir, True, static_compile_flag, is_cube)
     timestamp_set(False, graph_name, "CompileSecondHost", True)
 
     #拷贝so和json
@@ -1342,7 +1165,7 @@ def asc_graph_compile(*args, temp_dir, params):
                                      tiling_key_list=tiling_key_list, use_cv_common=use_cv_common)
         static_shape_compile(kernel_name=kernel_name, temp_dir=temp_dir, graph_name=graph_name,
                              tiling_key_list=tiling_key_list, kernel_type_list=kernel_type_list,
-                             use_cv_common=use_cv_common)
+                             use_cv_common=use_cv_common, is_cube=is_cube)
     elif static_compile_flag:
         #PGO需要使用非const tiling编译的kernel进行调优
         pgo_env = get_pgo_env_flag()
@@ -1375,7 +1198,7 @@ def asc_graph_compile(*args, temp_dir, params):
     else:
         host_build_dir = os.path.join(temp_dir, "host")
     asc_graph_compile_post(host_build_dir, code_gen, graph_name, kernel_file,
-                           json_file, kernel_name, static_compile_flag)
+                           json_file, kernel_name, static_compile_flag, is_cube)
 
 
 def compute_graph_compile(*args, temp_dir, params, vector_core_num, device_id):

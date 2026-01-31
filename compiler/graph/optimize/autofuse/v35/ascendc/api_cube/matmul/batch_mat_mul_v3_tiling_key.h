@@ -17,6 +17,7 @@
 #define OP_KERNEL_BATCH_MAT_MUL_V3_TILING_KEY_H
 #endif
 
+#include "arch35/mat_mul_tiling_data.h"
 #include "template_argument.h"
 
 #define MAT_MUL_BASIC_LEVEL 1 // 数据类型定义

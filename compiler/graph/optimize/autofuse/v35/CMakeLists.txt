@@ -1,4 +1,5 @@
 add_subdirectory(ascendc/api_regbase)
+add_subdirectory(ascendc/api_cube)
 add_subdirectory(ascir)
 add_subdirectory(codegen)
 add_subdirectory(optimize)

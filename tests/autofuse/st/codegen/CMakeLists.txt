@@ -21,5 +21,4 @@ target_link_libraries(codegen_st PRIVATE
     aihac_symbolizer
     json
     ascendc_api_extend
-    ascendc_api_cube_extend
     GTest::gtest)

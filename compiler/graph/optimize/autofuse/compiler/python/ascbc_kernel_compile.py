@@ -91,7 +91,7 @@ def _build_args(args_list, input_num, output_num):
     return _origin_inputs_, _origin_outputs_, _inputs_, _outputs_
 
 
-def _join_path(options, asc_path):
+def _join_path(options, asc_path, is_cube):
     options.append("-I" + os.path.join(asc_path, "impl", "adv_api"))
     options.append("-I" + os.path.join(asc_path, "impl", "basic_api"))
     options.append("-I" + os.path.join(asc_path, "impl", "utils"))
@@ -110,17 +110,26 @@ def _join_path(options, asc_path):
     options.append("-I" + os.path.join(asc_path, "..", "ascendc"))
     options.append("-I" + os.path.join(asc_path, "..", "ascendc", "include"))
     options.append("-I" + os.path.join(asc_path, "..", "asc", "include", "tiling"))
-    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
-                                       "ascendc", "common"))
-    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
-                                       "ascendc", "common", "cmct"))
-    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
-                                       "ops_nn", "ascendc", "common"))
-    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
-                                       "ops_nn", "ascendc", "common", "cmct"))
+    if is_cube:
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ascendc", "common"))
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ascendc", "common", "cmct"))
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ascendc", "mat_mul_v3"))
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ascendc", "batch_mat_mul_v3"))
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ops_nn", "ascendc", "common"))
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ops_nn", "ascendc", "common", "cmct"))
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ops_nn", "ascendc", "mat_mul_v3"))
+        options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                           "ops_nn", "ascendc", "batch_mat_mul_v3"))
 
 
-def _build_options(temp_build_dir, impl_mode):
+def _build_options(temp_build_dir, impl_mode, is_cube):
     options = ["-x", "cce"]
     ascend_home_path = os.environ.get('ASCEND_HOME_PATH')
     import platform
@@ -141,7 +150,7 @@ def _build_options(temp_build_dir, impl_mode):
         asc_path = os.path.realpath(os.path.join(ascend_home_path, "aarch64-linux", "asc"))
     if asc_path is None:
         asc_path = os.path.realpath(os.path.join(ascend_home_path, "compiler", "asc"))
-    _join_path(options, asc_path)
+    _join_path(options, asc_path, is_cube)
     options.append("-I" + os.path.join(temp_build_dir))
     if impl_mode == "high_performance":
         options.append("-DHIGH_PERFORMANCE=1")
@@ -193,7 +202,7 @@ def ascbc_kernel_compile(
         enable_parallel_compile,
         tiling_key=-1,
         kernel_type="KERNEL_TYPE_AIV_ONLY",
-        is_cube=True
+        is_cube=False
 ):
     graph_name = camel_to_snake(graph_name)
     args_list = args[0]
@@ -209,7 +218,7 @@ def ascbc_kernel_compile(
 
     _origin_inputs_, _origin_outputs_, _inputs_, _outputs_ = \
         _build_args(args_list, input_num=input_num, output_num=output_num)
-    _options_ = _build_options(temp_build_dir, impl_mode)
+    _options_ = _build_options(temp_build_dir, impl_mode, is_cube)
     if enable_parallel_compile:
         _options_ += ['--cce-long-call=true']
         os.environ['ASCENDC_PAR_COMPILE_JOB'] = '1'

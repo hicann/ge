@@ -1730,24 +1730,10 @@ class MatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "MatMul";
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
-    return {"mat_mul_v3_tiling_key_public.h",
-            "mat_mul_tiling_key.h",
+    return {"mat_mul_tiling_key.h",
             "mat_mul_v3_common.h",
-            "mat_mul_tiling_data.h",
-            "mat_mul_asw_block.h",
-            "mat_mul_asw_kernel.h",
-            "mat_mul_stream_k_block.h",
-            "mat_mul_stream_k_kernel.h",
-            "mat_mul_v3_full_load_kernel_helper.h",
-            "mat_mul_full_load.h",
-            "mm_copy_cube_out.h",
-            "mm_custom_mm_policy.h",
-            "mat_mul_fixpipe_opti.h",
-            "block_scheduler_aswt.h",
-            "block_scheduler_streamk.h",
+            "matmul_include_headers.h",
             "mat_mul_pingpong_basic_cmct.h",
-            "mat_mul_streamk_basic_cmct.h",
-            "mat_mul_fixpipe_opti_basic_cmct.h",
             "mat_mul_input_k_eq_zero_clear_output.h",
             "matmul.h"};
   }
@@ -1763,22 +1749,8 @@ class BatchMatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"mat_mul_v3_common.h",
-            "mat_mul_tiling_data.h",
             "batch_mat_mul_v3_tiling_key.h",
-            "mat_mul_v3_full_load_kernel_helper.h",
-            "batch_mat_mul_v3_asw_block_advanced.h",
-            "batch_mat_mul_v3_asw_kernel_advanced.h",
-            "batch_mat_mul_v3_asw_al1_full_load_kernel_advanced.h",
-            "batch_mat_mul_v3_asw_bl1_full_load_kernel_advanced.h",
-            "batch_mat_mul_v3_iterbatch_block_advanced.h",
-            "batch_mat_mul_v3_iterbatch_kernel_advanced.h",
-            "batch_mat_mul_v3_iterbatch_basicapi_block_scheduler.h",
-            "batch_mat_mul_v3_iterbatch_basicapi_cmct.h",
-            "block_scheduler_aswt.h",
-            "batch_mat_mul_v3_matmul2mul_block_scheduler.h",
-            "batch_mat_mul_v3_mergebatch_basicapi_block_scheduler.h",
-            "batch_mat_mul_v3_mergebatch_basicapi_cmct.h",
-            "batch_mat_mul_v3_matmul2mul_cmct.h",
+            "batch_matmul_include_headers.h",
             "mat_mul_pingpong_basic_cmct.h",
             "mat_mul_input_k_eq_zero_clear_output.h",
             "batch_matmul.h"};

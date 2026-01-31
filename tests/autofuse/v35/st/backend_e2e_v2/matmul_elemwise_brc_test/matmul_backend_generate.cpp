@@ -81,6 +81,30 @@ TEST_F(TestBackendMatmulEleBrc, MatmulEleBrcCodegen) {
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
 
+    // 校验result.kernel中是否包含IncludeMatmulHeadFiles方法返回的所有头文件内容
+    std::vector<std::string> expected_headers = {
+        "#include \"arch35/mat_mul_v3_tiling_key_public.h\"",
+        "#include \"arch35/mat_mul_tiling_data.h\"",
+        "#include \"arch35/mat_mul_asw_block.h\"",
+        "#include \"arch35/mat_mul_asw_kernel.h\"",
+        "#include \"arch35/mat_mul_stream_k_block.h\"",
+        "#include \"arch35/mat_mul_stream_k_kernel.h\"",
+        "#include \"arch35/mat_mul_v3_full_load_kernel_helper.h\"",
+        "#include \"arch35/mat_mul_full_load.h\"",
+        "#include \"arch35/mm_extension_interface/mm_copy_cube_out.h\"",
+        "#include \"arch35/mm_extension_interface/mm_custom_mm_policy.h\"",
+        "#include \"arch35/mat_mul_fixpipe_opti.h\"",
+        "#include \"arch35/block_scheduler_aswt.h\"",
+        "#include \"arch35/block_scheduler_streamk.h\"",
+        "#include \"arch35/mat_mul_streamk_basic_cmct.h\"",
+        "#include \"arch35/mat_mul_fixpipe_opti_basic_cmct.h\""
+    };
+
+    for (const auto& header : expected_headers) {
+      EXPECT_NE(result.kernel.find(header), std::string::npos)
+          << "Expected header not found in kernel: " << header;
+    }
+
     kernel_src_file_name = "matmul_elemwise_brc_test_kernel_common.cpp";   // matmul_elemwise_brc_test_kernel_common.cpp
     tiling_src_file_name = "matmul_elemwise_brc_test_tiling_common.cpp";   // matmul_elemwise_brc_test_tiling_common.cpp
     tiling_data_src_file_name = parts[2]; // autofuse_tiling_data.h
@@ -93,6 +117,11 @@ TEST_F(TestBackendMatmulEleBrc, MatmulEleBrcCodegen) {
     tiling_file_common << result_common.tiling;
     tiling_data_file_common << result_common.tiling_data;
 
+    // 校验result_common.kernel中是否包含IncludeMatmulHeadFiles方法返回的所有头文件内容
+    for (const auto &header : expected_headers) {
+      EXPECT_NE(result_common.kernel.find(header), std::string::npos)
+          << "Expected header not found in common kernel: " << header;
+    }
   } catch (...) {
     gen_success = false;
   }

@@ -11,4 +11,5 @@ target_include_directories(aihac_codegen PRIVATE
 
 target_link_libraries(aihac_codegen PUBLIC
         $<BUILD_INTERFACE:ascendc_api_regbase_extend>
+        $<BUILD_INTERFACE:ascendc_api_cube_extend>
 )

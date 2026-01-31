@@ -17,6 +17,7 @@
 #define __OP_KERNEL_MAT_MUL_TILING_KEY_H__
 #endif
 
+#include "arch35/mat_mul_v3_tiling_key_public.h"
 #include "template_argument.h"
 
 // 模板参数

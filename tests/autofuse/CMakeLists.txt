@@ -340,7 +340,6 @@ if (ENABLE_OPEN_SRC)
         att
         json
         ascendc_api_extend
-        ascendc_api_cube_extend
     )
 else ()
     target_link_libraries(codegen PUBLIC
@@ -356,7 +355,6 @@ else ()
         graph
         json
         ascendc_api_extend
-        ascendc_api_cube_extend
     )
 endif ()
 
