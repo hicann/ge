@@ -70,16 +70,21 @@ ge::Status GetWorkspacePattern(const ge::Node &node, std::string &super_kernel_a
 
 ge::Status GetArgFormatV2(domi::TaskDef &task_temp, std::string &args_format) {
     args_format = "";
-    domi::KernelContext *kernel_context = nullptr;
     if (task_temp.type() == RT_MODEL_TASK_KERNEL || (task_temp.type() == RT_MODEL_TASK_PREPROCESS_KERNEL)) {
         auto kernel_def = task_temp.mutable_kernel();
         FE_CHECK_NOTNULL(kernel_def);
-        kernel_context = kernel_def->mutable_context();
+        auto kernel_context = kernel_def->mutable_context();
+        FE_CHECK_NOTNULL(kernel_context);
+        args_format = kernel_context->args_format();
+    } else if(task_temp.type() == RT_MODEL_TASK_ALL_KERNEL) {
+        auto kernel_def_with_handle = task_temp.mutable_kernel_with_handle();
+        FE_CHECK_NOTNULL(kernel_def_with_handle);
+        auto kernel_context_with_handle = kernel_def_with_handle->mutable_context();
+        FE_CHECK_NOTNULL(kernel_context_with_handle);
+        args_format = kernel_context_with_handle->args_format();
     } else {
         return ge::SUCCESS;
     }
-    FE_CHECK_NOTNULL(kernel_context);
-    args_format = kernel_context->args_format();
     FE_LOGI("GetArgFormat: %s ", args_format.c_str());
     return ge::SUCCESS;
 }
@@ -343,6 +348,11 @@ ge::Status GetArgFormat(const std::vector<ge::Node *> &sub_nodes, uint32_t &args
                     FE_CHECK_NOTNULL(kernel_def_tmp);
                     args_size = kernel_def_tmp->args_size();
                     FE_LOGI( "task_arg.type is RT_MODEL_TASK_KERNEL args_size: %d %d", args_size, __LINE__);
+                } else if (single_task.type() == static_cast<uint32_t>(RT_MODEL_TASK_ALL_KERNEL)) {
+                    auto kernel_def_with_handle = single_task.mutable_kernel_with_handle();
+                    FE_CHECK_NOTNULL(kernel_def_with_handle);
+                    args_size = kernel_def_with_handle->args_size();
+                    FE_LOGI( "task_arg.type is RT_MODEL_TASK_ALL_KERNEL args_size: %d %d", args_size, __LINE__);
                 } else {
                     FE_LOGE( "The task type[%u] is invalid.", single_task.type());
                     continue;
