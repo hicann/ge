@@ -23,7 +23,7 @@
 #include "kernel_box.h"
 #include "loop_common.h"
 #include "loop_ops.h"
-#include "ascir_ops.h"
+#include "utils/autofuse_utils.h"
 
 namespace ge {
 namespace loop {
@@ -34,9 +34,9 @@ inline bool UnimplementInferDatatype(const std::vector<DataType> &inputs, std::v
   return true;
 }
 
-#define ASCIR_INFERDTYPE_2_OP_INFERDTYPE(OP)                                                           \
-  [](const std::vector<DataType> &input_dtypes, std::vector<DataType> &expect_output_dtypes) -> bool { \
-    return (ascir_op::OP::InferDataType(input_dtypes, expect_output_dtypes) == SUCCESS);                 \
+#define ASCIR_INFERDTYPE_2_OP_INFERDTYPE(OP)                                                                   \
+  [](const std::vector<DataType> &input_dtypes, std::vector<DataType> &expect_output_dtypes) -> bool {         \
+    return AutofuseUtils::CallAscirInferDataType<ascir_op::OP>(input_dtypes, expect_output_dtypes) == SUCCESS; \
   }
 
 #define MAKE_POINTWISE_BASE_INST1(OP, INFERDTYPEKERNEL)                                                               \

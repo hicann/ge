@@ -21,7 +21,7 @@ import time
 
 from tbe.common.buildcfg import get_current_build_config
 from tbe.tikcpp.compile_op import CommonUtility, AscendCLogLevel
-from tbe.common.platform.platform_info import get_soc_spec, set_soc_spec
+from asc_op_compile_base.common.platform.platform_info import get_soc_spec
 import tbe.common.utils.log as logger
 # Python3 lib pyautofuse.so
 from .pyautofuse import Schedule, CodeGen, ascir
@@ -1428,6 +1428,14 @@ def asc_codegen_compile(*args, **kwargs):
         extra_params = op_info[0].extra_params
         vector_core_num = op_context.get_context().get_addition("_op_vectorcore_num")
         device_id = op_context.get_context().get_addition("device_id")
+
+        # 设置 platform 到 context
+        npu_arch = get_soc_spec('NpuArch')
+        if npu_arch:
+            ascir.utils.set_platform(npu_arch)
+            CommonUtility.print_compile_log("", f"Set platform from get_soc_spec: {npu_arch}",
+                                            AscendCLogLevel.LOG_DEBUG)
+
         CommonUtility.print_compile_log("", f"params type: {type(extra_params)}, params: {extra_params}",
                                             AscendCLogLevel.LOG_DEBUG)
         #反序列化graph和symbol_source_info

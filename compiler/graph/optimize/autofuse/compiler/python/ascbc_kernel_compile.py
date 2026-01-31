@@ -14,7 +14,7 @@
 import os
 import shutil
 import re
-from tbe.common.platform import get_soc_spec
+from asc_op_compile_base.common.platform.platform_info import get_soc_spec
 from tbe.tikcpp import (
     compile_op,
     get_code_channel,

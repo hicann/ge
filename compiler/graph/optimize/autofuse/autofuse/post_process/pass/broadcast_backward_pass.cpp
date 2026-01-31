@@ -47,7 +47,7 @@ bool IsDtypeNotSupportOp(const NodePtr &next_node, DataType &output_dtype) {
   expect_output_dtypes.push_back(output_dtype);
   input_dtypes.push_back(output_dtype);
   return (next_node->GetType() == kCastType) &&
-         (ge::ascir::CommonInferDtype(kBroadcastType, input_dtypes, expect_output_dtypes) != SUCCESS);
+         (AutofuseUtils::CallAscirCommonInferDtype(kBroadcastType, input_dtypes, expect_output_dtypes) != SUCCESS);
 }
 
 Status ReverseCollectBrcNodes(const NodePtr &node, vector<NodePtr> &bro_nodes) {

@@ -8,19 +8,39 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "platform_context.h"
+#include "common/platform_context.h"
 #include "runtime/base.h"
 #include "common/checker.h"
+#include "runtime/dev.h"
 
 namespace {
-const uint32_t kSocStrMaxLen = 128U;
+const uint32_t kSocStrMaxLen = 32U;
 }
 namespace ge {
-PlatformContext& PlatformContext::GetInstance() {
+PlatformContext &PlatformContext::GetInstance() {
   static PlatformContext instance;
   return instance;
 }
 std::mutex PlatformContext::mutex_;
+
+void PlatformContext::SetPlatform(const std::string &platform_name) {
+  std::lock_guard<std::mutex> lg(mutex_);
+  if (!platform_name.empty()) {
+    current_platform_ = platform_name;
+    initialized_ = true;
+    GELOGD("Platform externally set to [%s].", platform_name.c_str());
+  }
+}
+
+ge::Status PlatformContext::GetCurrentPlatformString(std::string &platform_name) {
+  if (!initialized_) {
+    GE_ASSERT_SUCCESS(Initialize(), "Failed to init platform info with name %s.", platform_name.c_str());
+  }
+  std::lock_guard<std::mutex> lg(mutex_);
+  platform_name = current_platform_;
+  return ge::SUCCESS;
+}
+
 ge::Status PlatformContext::Initialize() {
   std::lock_guard<std::mutex> lg(mutex_);
   if (initialized_) {
@@ -29,19 +49,10 @@ ge::Status PlatformContext::Initialize() {
   char soc_version[kSocStrMaxLen] = {};
   auto res = rtGetSocSpec("version", "NpuArch", soc_version, kSocStrMaxLen);
   GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");
-  GELOGD("Init platform context under [%s].", soc_version);
-  current_platform_.name = std::string(soc_version);
+  GELOGD("Init platform context from rtGetSocSpec under [%s].", soc_version);
+  current_platform_ = std::string(soc_version);
   initialized_ = true;
 
-  return ge::SUCCESS;
-}
-
-ge::Status PlatformContext::GetCurrentPlatform(PlatformInfo &platform_info) {
-  if (!initialized_) {
-    GE_ASSERT_SUCCESS(Initialize(), "Failed to init platform info.");
-  }
-  std::lock_guard<std::mutex> lg(mutex_);
-  platform_info = current_platform_;
   return ge::SUCCESS;
 }
 }  // namespace ge

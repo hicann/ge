@@ -382,7 +382,7 @@ inline bool CheckCastDtype(DataType input_dtype, DataType output_dtype) {
   std::vector<DataType> expect_output_dtypes;
   input_dtypes.push_back(input_dtype);
   expect_output_dtypes.push_back(output_dtype);
-  return ascir_op::Cast::InferDataType(input_dtypes, expect_output_dtypes) == SUCCESS;
+  return AutofuseUtils::CallAscirInferDataType<ascir_op::Cast>(input_dtypes, expect_output_dtypes) == SUCCESS;
 }
 
 inline bool CheckTransposeDtype(DataType dtype) {
@@ -390,7 +390,7 @@ inline bool CheckTransposeDtype(DataType dtype) {
   std::vector<DataType> expect_output_dtypes;
   input_dtypes.push_back(dtype);
   expect_output_dtypes.push_back(dtype);
-  return ascir_op::Transpose::InferDataType(input_dtypes, expect_output_dtypes) == SUCCESS;
+  return AutofuseUtils::CallAscirInferDataType<ascir_op::Transpose>(input_dtypes, expect_output_dtypes) == SUCCESS;
 }
 
 inline Status GetTensorInfoFromAscgraph(TensorInfo &tensor_info, const AscGraph &asc_graph) {

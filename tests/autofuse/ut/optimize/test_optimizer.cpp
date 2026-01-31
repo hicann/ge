@@ -7388,15 +7388,19 @@ TEST_F(TestOptimizer, LoadOpSequenceAdjustCase2) {
 
 TEST_F(TestOptimizer, platform_reg_test) {
   ge::AscGraph graph("tmp");
-  ge::PlatformInfo info;
-  ge::PlatformContext::GetInstance().GetCurrentPlatform(info);
-  EXPECT_EQ(info.name, "2201");
+  std::string platform_str;
+  ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_str);
+  EXPECT_EQ(platform_str, "2201");
   auto platform_v1 = optimize::PlatformFactory::GetInstance().GetPlatform();
   EXPECT_NE(platform_v1, nullptr);
   auto platform_v1_new = optimize::PlatformFactory::GetInstance().GetPlatform();
   EXPECT_EQ(platform_v1, platform_v1_new);
 
   EXPECT_EQ(platform_v1->PartitionSubFunctions(graph), ge::SUCCESS);
+
+  ge::PlatformContext::GetInstance().SetPlatform("fake");
+  auto platform_fake = optimize::PlatformFactory::GetInstance().GetPlatform();
+  EXPECT_EQ(platform_fake, nullptr);
 }
 
 TEST_F(TestOptimizer, BackendSpec) {

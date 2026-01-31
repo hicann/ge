@@ -19,6 +19,7 @@
 #include "loop_common.h"
 #include "loop_ops.h"
 #include "asc_overrides.h"
+#include "utils/autofuse_utils.h"
 
 namespace ge {
 namespace {
@@ -227,7 +228,7 @@ bool LoadOp::InferDataType(const std::vector<DataType> &input_dtypes,
     return false;
   }
   std::vector<DataType> load_input_dtypes = {data_type};
-  if (ascir_op::Load::InferDataType(load_input_dtypes, expect_output_dtypes) != SUCCESS) {
+  if (AutofuseUtils::CallAscirInferDataType<ascir_op::Load>(load_input_dtypes, expect_output_dtypes) != SUCCESS) {
     GELOGI("Infer Op ops.Load with input dtypes %s got outputs %s", loop::StrJoin(load_input_dtypes).c_str(),
            loop::StrJoin(expect_output_dtypes).c_str());
     return false;
@@ -263,7 +264,7 @@ bool LoadGatherOp::InferDataType(const std::vector<DataType> &input_dtypes,
     GetBufferDataType(input.input_anchor.get(), data_type);
     data_types.emplace_back(data_type);
   }
-  if (ascir_op::Gather::InferDataType(data_types, expect_output_dtypes) != SUCCESS) {
+  if (AutofuseUtils::CallAscirInferDataType<ascir_op::Gather>(data_types, expect_output_dtypes) != SUCCESS) {
     GELOGI("Infer Op ops.LoadGather with input dtypes %s got outputs %s", loop::StrJoin(data_types).c_str(),
            loop::StrJoin(expect_output_dtypes).c_str());
     return false;
@@ -299,7 +300,7 @@ graphStatus StoreOp::RealizeImpl() {
 
 bool StoreOp::InferDataType(const std::vector<DataType> &input_dtypes,
                             std::vector<DataType> &expect_output_dtypes) const {
-  return (ascir_op::Store::InferDataType(input_dtypes, expect_output_dtypes) == SUCCESS);
+  return AutofuseUtils::CallAscirInferDataType<ascir_op::Store>(input_dtypes, expect_output_dtypes) == SUCCESS;
 }
 
 graphStatus StoreReductionOp::RealizeImpl() {
@@ -374,7 +375,7 @@ bool StoreConcatOp::InferDataType(const std::vector<DataType> &input_dtypes,
   if (!input_dtypes.empty()) {
     concat_input_dtypes.emplace_back(input_dtypes[0]);
   }
-  return (ascir_op::Concat::InferDataType(concat_input_dtypes, expect_output_dtypes) == SUCCESS);
+  return AutofuseUtils::CallAscirInferDataType<ascir_op::Concat>(concat_input_dtypes, expect_output_dtypes) == SUCCESS;
 }
 
 bool ReduceThenBroadcastOp::InferDataType(const std::vector<DataType> &input_dtypes,
@@ -386,12 +387,12 @@ bool ScalarOp::InferDataType(const std::vector<DataType> &input_dtypes,
                              std::vector<DataType> &expect_output_dtypes) const {
   DataType data_type = dtype_ == DT_BOOL ? DT_UINT8 : dtype_;
   expect_output_dtypes = {data_type};
-  return (ascir_op::Scalar::InferDataType(input_dtypes, expect_output_dtypes) == SUCCESS);
+  return AutofuseUtils::CallAscirInferDataType<ascir_op::Scalar>(input_dtypes, expect_output_dtypes) == SUCCESS;
 }
 
 bool BroadcastOp::InferDataType(const std::vector<DataType> &input_dtypes,
                                 std::vector<DataType> &expect_output_dtypes) const {
-  return (ascir_op::Broadcast::InferDataType(input_dtypes, expect_output_dtypes) == SUCCESS);
+  return AutofuseUtils::CallAscirInferDataType<ascir_op::Broadcast>(input_dtypes, expect_output_dtypes) == SUCCESS;
 }
 
 graphStatus StoreMatMulOp::RealizeImpl() {

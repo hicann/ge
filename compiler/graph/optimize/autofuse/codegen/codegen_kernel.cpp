@@ -26,6 +26,7 @@
 #include "graph/symbolizer/symbolic_utils.h"
 #include "ascendc_api_registry.h"
 #include "optimize/platform/platform_factory.h"
+#include "common/platform_context.h"
 
 using namespace std;
 using namespace ge::ops;
@@ -3278,7 +3279,9 @@ Status Kernel::IsDataTypeSupported(const ascir::ImplGraph &graph) const {
          std::find(input_dtypes.begin(), input_dtypes.end(), ge::DT_INT64) != input_dtypes.end())) {
       continue;
     }
-    if (ge::ascir::CommonInferDtype(node->GetType(), input_dtypes, output_dtypes) != ge::SUCCESS) {
+    std::string npu_arch;
+    GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(npu_arch));
+    if (ge::ascir::CommonInferDtype(node->GetType(), input_dtypes, output_dtypes, npu_arch) != ge::SUCCESS) {
       GELOGE(ge::FAILED, "ASCIR(%s) not support dtypes(input dtype:%s, output dtype:%s), node:%s", node->GetTypePtr(),
              VectorToStr(input_dtypes).c_str(), VectorToStr(output_dtypes).c_str(), node->GetNamePtr());
       return ge::FAILED;
@@ -4437,6 +4440,13 @@ Status Kernel::GenerateMacro(stringstream &ss) {
 Status Kernel::GenerateKernelByNode(const ascir::ImplGraph &graph, stringstream &ss,
                                     std::unordered_set<const std::string *> &kernel_file_ptr) {
   GE_CHK_STATUS_RET(GenerateMacro(ss), "Generate Macro failed");
+  std::string npu_arch;
+  GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(npu_arch));
+  const bool need_marco = (npu_arch == "3510");
+  if (need_marco) {
+    ss << "#if defined(__DAV_C310__) || (defined(__NPU_ARCH__) && (__NPU_ARCH__ == 5102 || __NPU_ARCH__ == 3101))"
+       << std::endl;
+  }
   for (const auto &node : graph.GetAllNodes()) {
     auto impl = ascgen_utils::GetAscIrCodegenImpl(node->GetType());
     GE_ASSERT_NOTNULL(impl, "GetAscIrCodegenImpl of node %s[%s] is null", node->GetTypePtr(), node->GetNamePtr());
@@ -4449,6 +4459,9 @@ Status Kernel::GenerateKernelByNode(const ascir::ImplGraph &graph, stringstream 
         }
       }
     }
+  }
+  if (need_marco) {
+    ss << "#endif" << std::endl;
   }
   return ge::SUCCESS;
 }

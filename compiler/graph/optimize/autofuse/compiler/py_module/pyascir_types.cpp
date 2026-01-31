@@ -14,6 +14,7 @@
 #include "ascgen_log.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
 #include "autofuse/lowering/asc_lowerer/loop_common.h"
+#include "common/platform_context.h"
 
 #include "pyascir_types.h"
 #include "common/common_utils.h"
@@ -22,7 +23,8 @@
 namespace pyascir {
 // 生成推导dtype的映射
 using InferDtypeFunc = Status (*)(const std::vector<ge::DataType> &input_dtypes,
-                                  std::vector<ge::DataType> &expect_output_dtypes);
+                                  std::vector<ge::DataType> &expect_output_dtypes,
+                                  const std::string &npu_arch);
 std::map<std::string, pyascir::InferDtypeFunc> kInferDtypeFuncs = {
 #define OP(NAME) {#NAME, ge::ascir_op::NAME::InferDataType},
     REGISTERED_OPS
@@ -112,6 +114,11 @@ bool CollectInputDtypes(const ge::AscNodePtr &node, std::vector<ge::DataType> &i
 
 bool DoInference(const ge::AscNodePtr &node, InferDtypeFunc infer_func, const std::vector<ge::DataType> &input_dtypes,
                  std::vector<ge::DataType> &output_dtyps) {
+  // 获取 npu_arch
+  std::string npu_arch;
+  PY_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(npu_arch),
+                    "Failed to get npu_arch");
+
   // 收集非DT_UNDEFINED的预定义输出类型
   bool for_infer = true;
   for (const auto &tensor : node->outputs()) {
@@ -124,13 +131,13 @@ bool DoInference(const ge::AscNodePtr &node, InferDtypeFunc infer_func, const st
 
   // 执行推导或者校验
   if (!for_infer) {
-    PY_ASSERT_SUCCESS(infer_func(input_dtypes, output_dtyps),
+    PY_ASSERT_SUCCESS(infer_func(input_dtypes, output_dtyps, npu_arch),
                       "Check dtype failed for %s %s; input_dtypes: %s, output_dytpes: %s", node->GetNamePtr(),
                       node->GetTypePtr(), ge::loop::StrJoin(input_dtypes).c_str(),
                       ge::loop::StrJoin(output_dtyps).c_str());
     return true;
   }
-  PY_ASSERT_SUCCESS(infer_func(input_dtypes, output_dtyps),
+  PY_ASSERT_SUCCESS(infer_func(input_dtypes, output_dtyps, npu_arch),
                     "Infer dtype failed for %s %s; input_dtypes: %s is not supportted now", node->GetNamePtr(),
                     node->GetTypePtr(), ge::loop::StrJoin(input_dtypes).c_str(),
                     ge::loop::StrJoin(output_dtyps).c_str());

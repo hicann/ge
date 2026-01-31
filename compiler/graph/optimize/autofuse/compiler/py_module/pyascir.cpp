@@ -1273,6 +1273,8 @@ PyMethodDef UtilsMethods[] = {
     {"duration_record", reinterpret_cast<PyCFunction>(pyascir::UtilsDurationRecord), METH_VARARGS, "duration record"},
     {"report_durations", reinterpret_cast<PyCFunction>(pyascir::UtilsReportDurations), METH_VARARGS,
      "report durations"},
+    {"set_platform", reinterpret_cast<PyCFunction>(pyascir::UtilsSetPlatform), METH_VARARGS,
+     "set platform for platform context"},
     {NULL}};
 
 PyMethodDef AscirMethods[] = {

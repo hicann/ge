@@ -16,6 +16,7 @@
 #include "graph/detail/model_serialize_imp.h"
 #include "common/ge_common/debug/log.h"
 #include "attribute_group/attr_group_shape_env.h"
+#include "common/platform_context.h"
 
 #include "pyascir_types.h"
 #include "ascgen_log.h"
@@ -191,6 +192,19 @@ PyObject *UtilsDurationRecord(PyObject *self_pyobject, PyObject *args, PyObject 
   }
   TracingRecordDuration(ge::TracingModule::kAutoFuseBackend, va_args, static_cast<uint64_t>(start),
                         static_cast<uint64_t>(duration));
+  Py_RETURN_NONE;
+}
+
+PyObject *UtilsSetPlatform(PyObject *self_pyobject, PyObject *args, PyObject *kwds) {
+  (void)self_pyobject;
+  (void)kwds;
+  const char *platform = nullptr;
+  if (PyArg_ParseTuple(args, "s", &platform) == kPythonFail) {
+    return PyErr_Format(PyExc_TypeError, "UtilsSetPlatform param parse failed, expected string");
+  }
+  PY_ASSERT_NOTNULL(platform);
+  std::string platform_str(platform);
+  ge::PlatformContext::GetInstance().SetPlatform(platform_str);
   Py_RETURN_NONE;
 }
 }  // namespace pyascir

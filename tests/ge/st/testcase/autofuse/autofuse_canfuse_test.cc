@@ -24,6 +24,7 @@
 #include "common/share_graph.h"
 #include "ge_running_env/fake_op.h"
 #include "common/env_path.h"
+#include "common/platform_context.h"
 #include "tests/framework/ge_runtime_stub/include/common/summary_checker.h"
 #include "faker/space_registry_faker.h"
 #include "depends/runtime/src/runtime_stub.h"
@@ -37,6 +38,12 @@ class RuntimeMock910B2 : public RuntimeStub {
  public:
   rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) {
     (void)strcpy_s(version, maxLen, "Ascend910B2");
+    return RT_ERROR_NONE;
+  }
+  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) override {
+    (void)label;
+    (void)key;
+    (void)strcpy_s(val, maxLen, "2201");
     return RT_ERROR_NONE;
   }
 };
@@ -69,6 +76,7 @@ class TestCanfusePass : public testing::Test {
     setenv("ASCEND_OPP_PATH", (ascend_install_path + "/opp").c_str(), 1);
     setenv("LD_LIBRARY_PATH", (ascend_install_path + "/runtime/lib64").c_str(), 1);
     AutoFuseConfig::MutableLoweringConfig().experimental_lowering_reduce = true;
+    PlatformContext::GetInstance().SetPlatform("2201");
   }
 
   void TearDown() override {
@@ -83,6 +91,7 @@ class TestCanfusePass : public testing::Test {
     unsetenv("AUTOFUSE_FLAGS");
     mmSetEnv("ASCEND_OPP_PATH", old_opp_path_env_, 1);
     mmSetEnv("LD_LIBRARY_PATH", old_ld_path_env_, 1);
+    ge::PlatformContext::GetInstance().Reset();
   }
   char old_opp_path_env_[MMPA_MAX_PATH] = {'\0'};
   char old_ld_path_env_[MMPA_MAX_PATH] = {'\0'};

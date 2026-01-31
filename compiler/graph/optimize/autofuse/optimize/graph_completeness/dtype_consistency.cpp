@@ -138,7 +138,7 @@ Status DtypeConsistency::CheckCastSupported(ge::DataType src_dtype, ge::DataType
                                             size_t input_idx) {
   std::vector<ge::DataType> cast_input_dtypes = {src_dtype};
   std::vector<ge::DataType> cast_output_dtypes = {dst_dtype};
-  auto infer_ret = Cast::InferDataType(cast_input_dtypes, cast_output_dtypes);
+  auto infer_ret = ScheduleUtils::CallAscirInferDataType<ge::ascir_op::Cast>(cast_input_dtypes, cast_output_dtypes);
   if (infer_ret != ge::SUCCESS) {
     GELOGE(ge::FAILED, "Failed to insert cast for node [%s] input [%zu]: cast from [%s] to [%s] is not supported.",
            node->GetNamePtr(), input_idx, ge::TypeUtils::DataTypeToSerialString(src_dtype).c_str(),
@@ -154,7 +154,8 @@ bool DtypeConsistency::TryMergeWithUpstreamCast(ge::AscGraph &graph, const ge::A
   auto orig_src_dtype = upstream_cast->inputs[0].attr.dtype;
   std::vector<ge::DataType> merge_input_dtypes = {orig_src_dtype};
   std::vector<ge::DataType> merge_output_dtypes = {target_dtype};
-  if ((orig_src_dtype != target_dtype) && Cast::InferDataType(merge_input_dtypes, merge_output_dtypes) != ge::SUCCESS) {
+  if ((orig_src_dtype != target_dtype) &&
+    ScheduleUtils::CallAscirInferDataType<ge::ascir_op::Cast>(merge_input_dtypes, merge_output_dtypes) != ge::SUCCESS) {
     return false;
   }
 

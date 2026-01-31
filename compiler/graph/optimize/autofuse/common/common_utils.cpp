@@ -21,7 +21,7 @@
 #include "ascir_ops_utils.h"
 #include "common/ge_common/debug/log.h"
 #include "graph/symbolizer/symbolic_utils.h"
-#include "platform_context.h"
+#include "common/platform_context.h"
 #include "autofuse_config/auto_fuse_config.h"
 
 using namespace ge::ascir_op;
@@ -503,15 +503,17 @@ void GetApiExtractDupSet(const ascir::ImplGraph &graph,
 }
 
 std::unique_ptr<ge::ascir::AscIrAtt> GetAscIrAttImpl(const string &ascir_type) {
-  ge::PlatformInfo info;
-  GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatform(info), "Failed to get platform info.");
-  return ge::ascir::AscirRegistry::GetInstance().GetIrAttImpl(info.name, ascir_type);
+  std::string platform_name;
+  GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name),
+                   "Failed to get platform info.");
+  return ge::ascir::AscirRegistry::GetInstance().GetIrAttImpl(platform_name, ascir_type);
 }
 
 std::unique_ptr<ge::ascir::AscIrCodegen> GetAscIrCodegenImpl(const string &ascir_type) {
-  ge::PlatformInfo info;
-  GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatform(info), "Failed to get platform info.");
-  return ge::ascir::AscirRegistry::GetInstance().GetIrCodegenImpl(info.name, ascir_type);
+  std::string platform_name;
+  GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name),
+                   "Failed to get platform info.");
+  return ge::ascir::AscirRegistry::GetInstance().GetIrCodegenImpl(platform_name, ascir_type);
 }
 
 bool IsScalarInput(const std::vector<ge::Expression> &repeats) {

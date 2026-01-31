@@ -27,6 +27,7 @@
 #include "loop_common.h"
 #include "loop_op_overrides.h"
 #include "ascir_ops.h"
+#include "utils/autofuse_utils.h"
 
 namespace ge {
 namespace loop {
@@ -55,7 +56,7 @@ namespace loop {
 
 template <typename T>
 bool InferAscirDataType(const std::vector<DataType> &input_dtypes, std::vector<DataType> &output_dtypes) {
-  if (T::InferDataType(input_dtypes, output_dtypes) == SUCCESS) {
+  if (ge::AutofuseUtils::CallAscirInferDataType<T>(input_dtypes, output_dtypes)== SUCCESS) {
     return true;
   }
   // fp16,bf16可通过精度提升转成fp32,可以跳过校验推导输出datatype；ascir部分op不支持fp32，仅让部分op进行nocheck推导

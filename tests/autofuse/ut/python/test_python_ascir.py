@@ -2924,3 +2924,35 @@ class TestSizeExprErrorScenarios():
         # Test with divisor 2
         result2 = s0 % 2
         assert result2.expression == "0"
+
+    @staticmethod
+    def test_set_platform():
+        """Test UtilsSetPlatform with various platform strings"""
+        # Test with valid platform strings
+        result = ascir.utils.set_platform("v2")
+        assert result is None, "set_platform should return None for valid input"
+
+        result = ascir.utils.set_platform("Ascend910B")
+        assert result is None, "set_platform should return None for valid input"
+
+        # Test with empty string (should return None without error)
+        result = ascir.utils.set_platform("")
+        assert result is None, "set_platform should return None for empty string"
+
+        # Test with None-like input (passing empty string)
+        result = ascir.utils.set_platform("")
+        assert result is None, "set_platform should return None for empty string"
+
+        # Test with invalid parameter type - should raise TypeError
+        try:
+            ascir.utils.set_platform(123)
+        except TypeError as e:
+            assert "param parse failed" in str(e) or "string" in str(e).lower()
+
+        try:
+            ascir.utils.set_platform(None)
+        except TypeError as e:
+            assert "param parse failed" in str(e) or "string" in str(e).lower()
+
+        result = ascir.utils.set_platform("2201")
+        assert result is None, "set_platform should return None for valid input"

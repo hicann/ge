@@ -652,4 +652,26 @@ TEST_F(TestDtypeConsistencyST, MergeUpstreamCastMultipleConsumers) {
   EXPECT_TRUE(mul1_is_fp32);
   EXPECT_TRUE(add_is_fp16);
 }
+
+TEST_F(TestDtypeConsistencyST, TryMergeWithUpstreamCast) {
+  AscGraph graph("test_merge_upstream_multiple");
+
+  ge::ascir_op::Data data0("data0", graph);
+  data0.ir_attr.SetIndex(0);
+  data0.y.dtype = ge::DT_FLOAT16;
+
+  ge::ascir_op::Cast cast0("cast0");
+  cast0.x = data0.y;
+  cast0.y.dtype = ge::DT_FLOAT;
+
+  // 手动添加一个 cast
+  ge::ascir_op::Cast cast1("cast1");
+  cast1.x = cast0.y;
+  cast1.y.dtype = ge::DT_INT64;
+
+  auto node0 = graph.FindNode("cast0");
+  auto node1 = graph.FindNode("cast1");
+
+  EXPECT_TRUE(optimize::DtypeConsistency::TryMergeWithUpstreamCast(graph, node0, node1, 0, DT_INT64));
+}
 }  // namespace

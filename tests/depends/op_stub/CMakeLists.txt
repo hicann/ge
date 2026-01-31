@@ -86,6 +86,7 @@ file(GLOB_RECURSE AUTOFUSE_SRC CONFIGURE_DEPENDS "autofuse_impl/*.cc")
 add_library(autofuse_stub SHARED ${AUTOFUSE_SRC})
 target_include_directories(autofuse_stub PRIVATE
         ${AIR_CODE_DIR}/inc/external
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/inc
         ${ASCEND_INSTALL_PATH}/include
 )
 target_compile_definitions(autofuse_stub PRIVATE

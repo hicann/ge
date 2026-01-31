@@ -28,7 +28,7 @@
 #include "common/memory/tensor_trans_utils.h"
 #include "graph/execute/model_executor.h"
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
-
+#include "common/platform_context.h"
 using namespace testing;
 
 namespace ge {
@@ -55,12 +55,14 @@ class UserGraphsManagerlUT : public testing::Test {
     gert::SpaceRegistryFaker::CreateDefaultSpaceRegistry();
     std::map<std::string, std::string> options = {{ge::SOC_VERSION, "Ascend310"}};
     GetThreadLocalContext().SetGlobalOption(options);
+    ge::PlatformContext::GetInstance().SetPlatform("fake");
   }
   void TearDown() override {
     unsetenv("AUTOFUSE_FLAGS");
     CommonSetupUtil::CommonTearDown();
     gert_stub_.Clear();
     RuntimeStub::Reset();
+    ge::PlatformContext::GetInstance().Reset();
   }
   gert::GertRuntimeStub gert_stub_;
 };

@@ -10,10 +10,12 @@
 
 
 #include "autofuser.h"
+#include "ge_context.h"
 #include "backend/backend_spec.h"
 #include "ge_common/ge_api_error_codes.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/checker.h"
+#include "common/platform_context.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/operator_reg.h"
 #include "pattern_fusion/pattern_fusion.h"
@@ -24,6 +26,7 @@
 #include "utils/auto_fuse_config.h"
 #include "autofuse_frame/autofuse_frames.h"
 #include "post_process/scheduler_adapter/adaption_fallback_load.h"
+#include "platform/platform_info.h"
 
 namespace ge {
 using namespace autofuse;
@@ -94,7 +97,19 @@ Autofuser::Autofuser(AutofuserOptions &options, CounterPtr counter) {
   counter_ = counter;
 }
 
-void UpdateAutoFuseConfigByChipType() {
+ge::Status UpdateAutoFuseConfigByChipType() {
+  // 先初始化platform信息
+  std::string soc_version;
+  (void)ge::GetContext().GetOption(ge::SOC_VERSION, soc_version);
+  GELOGD("Get soc_version [%s] from context.", soc_version.c_str());
+  fe::PlatFormInfos plat_form_infos;
+  fe::OptionalInfos optional_infos;
+  if (fe::PlatformInfoManager::GeInstance().GetPlatformInfos(soc_version, plat_form_infos, optional_infos) == 0U) {
+    std::string npu_arch;
+    GE_ASSERT_TRUE(plat_form_infos.GetPlatformRes("version", "NpuArch", npu_arch));
+    ge::PlatformContext::GetInstance().SetPlatform(npu_arch);
+  }
+
   const auto backend_spec = optimize::BackendSpec::GetInstance();
   if (backend_spec != nullptr) {
     AutoFuseConfig::MutableConfig().GetMutableFusionStrategySolver().max_input_nums_after_fuse =
@@ -102,6 +117,7 @@ void UpdateAutoFuseConfigByChipType() {
     GELOGI("update autofuse config: max_input_nums_after_fuse to %u by chip type",
            AutoFuseConfig::MutableConfig().GetMutableFusionStrategySolver().max_input_nums_after_fuse);
   }
+  return ge::SUCCESS;
 }
 
 ge::Status Autofuser::Fuse(const ge::ComputeGraphPtr &graph) const {
@@ -111,7 +127,7 @@ ge::Status Autofuser::Fuse(const ge::ComputeGraphPtr &graph) const {
     return ge::SUCCESS;
   }
 
-  UpdateAutoFuseConfigByChipType();
+  GE_ASSERT_SUCCESS(UpdateAutoFuseConfigByChipType());
   AutoFuseConfig::MutableConfig().GetMutableFusionStrategySolver().fwk_type = options_.fwk_type;
   GELOGI("Framework type:%d", AutoFuseConfig::MutableConfig().GetMutableFusionStrategySolver().fwk_type);
   if (options_.fwk_type == AutoFuseFwkType::kTorch) {

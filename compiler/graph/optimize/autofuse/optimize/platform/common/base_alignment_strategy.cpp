@@ -322,7 +322,8 @@ ge::Status BaseAlignmentStrategy::AddPadForAlignmentConflictNode(ascir::ImplGrap
 
       const auto &dtype = node->outputs[0].attr.dtype;
       std::vector<ge::DataType> exp_dtypes{dtype};
-      GE_ASSERT_SUCCESS(ge::ascir_op::RemovePad::InferDataType({dtype}, exp_dtypes),
+
+      GE_ASSERT_SUCCESS(ScheduleUtils::CallAscirInferDataType<ge::ascir_op::RemovePad>({dtype}, exp_dtypes),
                         "Input dtype [%s] is unsupported for pad.",
                         ge::TypeUtils::DataTypeToSerialString(dtype).c_str());
       inserted = true;

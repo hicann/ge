@@ -206,17 +206,10 @@ class SymbolProcessor {
     return SUCCESS;
   }
 
-  Status GenSocVersionCallFunc(std::stringstream &ss) {
+  Status GenSocVersionCallFunc() {
     for (const auto &iter : def_.GetSocToDataTypeSymbolStore()) {
       for (const auto &sym : iter.second.GetNamedSymbols())
         name_to_soc_to_sym_dtype_[sym.first].emplace(iter.first, iter.second.GetNamedSymbols()[sym.first]);
-    }
-    if (!name_to_soc_to_sym_dtype_.empty()) {
-      // get soc version.
-      ss << "    char soc_version[128] = {};" << std::endl;
-      ss << R"(    auto res = rtGetSocSpec("version", "NpuArch", soc_version, 128U);)" << std::endl;
-      ss << R"(    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");)" << std::endl;
-      ss << "    auto soc_str = std::string(soc_version);" << std::endl;
     }
     return SUCCESS;
   }
@@ -241,15 +234,15 @@ class SymbolProcessor {
       bool is_first = true;
       for (const auto &soc_to_sym : iter->second) {
         if (is_first) {
-          ss << "    if (soc_str == \"" << soc_to_sym.first << "\") {\n";
+          ss << "    if (npu_arch == \"" << soc_to_sym.first << "\") {\n";
           is_first = false;
         } else {
-          ss << "    } else if (soc_str == \"" << soc_to_sym.first << "\") {\n";
+          ss << "    } else if (npu_arch == \"" << soc_to_sym.first << "\") {\n";
         }
         ss << "      " << tensor_type_obj << " = " << TensorTypeToCode(soc_to_sym.second->GetTensorType()) << ";\n";
       }
       ss << "    } else {\n";
-      ss << R"(      GELOGE(ge::FAILED, "Failed to get soc version, res:%s", soc_str.c_str());)" << std::endl;
+      ss << R"(      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());)" << std::endl;
       ss << "      return ge::FAILED;\n";
       ss << "    }\n";
       return;
@@ -946,26 +939,20 @@ class SocOrderedSymbolProcessor : public SymbolProcessor {
   std::string BuildContainerString(const std::map<std::string, SolutionMap> &soc_to_solution_map,
                                    const ContainerMeta &meta) {
     std::ostringstream oss;
-    // get soc version.
-    oss << "    char soc_version[128] = {};" << std::endl;
-    oss << R"(    auto res = rtGetSocSpec("version", "NpuArch", soc_version, 128U);)" << std::endl;
-    oss << R"(    GE_ASSERT_TRUE(res == RT_ERROR_NONE, "Failed to get npu arch str.");)" << std::endl;
-    oss << "    auto soc_str = std::string(soc_version);" << std::endl;
-
     container_type_ = GetContainerType(meta);
     oss << "    " << container_type_ << " results;" << std::endl;
     bool is_first = true;
     for (const auto &iter : soc_to_solution_map) {
       if (is_first) {
-        oss << "    if (soc_str == \"" << iter.first << "\") {\n";
+        oss << "    if (npu_arch == \"" << iter.first << "\") {\n";
         is_first = false;
       } else {
-        oss << "    } else if (soc_str == \"" << iter.first << "\") {\n";
+        oss << "    } else if (npu_arch == \"" << iter.first << "\") {\n";
       }
       oss << GenContainerEntries(iter.second, meta) << std::endl;
     }
     oss << "    } else {\n";
-    oss << R"(      GELOGE(ge::FAILED, "Failed to get soc version, res:%s", soc_str.c_str());)" << std::endl;
+    oss << R"(      GELOGE(ge::FAILED, "Unknown npu arch: %s", npu_arch.c_str());)" << std::endl;
     oss << "      return ge::FAILED;\n";
     oss << "    }\n";
     return oss.str();
@@ -1118,7 +1105,8 @@ class InferDtypeCodeGenerator {
  private:
   static void GenerateFunctionSignature(std::stringstream &ss) {
     ss << R"(  inline static Status InferDataType(const std::vector<DataType>& input_dtypes,
-                                     std::vector<DataType>& expect_output_dtypes) {)"
+                                     std::vector<DataType>& expect_output_dtypes,
+                                     [[maybe_unused]]const std::string& npu_arch) {)"
        << std::endl;
   }
 
@@ -1153,7 +1141,7 @@ class InferDtypeCodeGenerator {
     }
     ss << "    // 校验同sym的输入的dtype是否在注册范围内并且一致" << std::endl;
     SymbolProcessor symbol_processor(def_);
-    symbol_processor.GenSocVersionCallFunc(ss);
+    symbol_processor.GenSocVersionCallFunc();
     for (const auto &sym : GetFirstDataTypeSymbolStore(def_).GetNamedSymbols()) {
       symbol_processor.ProcessSymbol(sym, ss);
     }
@@ -1192,8 +1180,6 @@ class InferDtypeWithNoCheckCodeGenerator {
   Status Generate(std::stringstream &ss) const {
     GenerateFunctionSignature(ss);
     if (is_ordered_dtype_infer_ || is_soc_ordered_dtype_infer_) {
-      ss << "    (void)input_dtypes;" << std::endl;
-      ss << "    (void)expect_output_dtypes;" << std::endl;
       ss << "    // 输入输出存在关联, 无法进行推导" << std::endl;
       ss << "    (void)input_dtypes;" << std::endl;
       ss << "    (void)expect_output_dtypes;" << std::endl;
@@ -1212,7 +1198,8 @@ class InferDtypeWithNoCheckCodeGenerator {
  private:
   static void GenerateFunctionSignature(std::stringstream &ss) {
     ss << R"(  inline static Status InferDataTypeWithNoCheck(const std::vector<DataType>& input_dtypes,
-                                                std::vector<DataType>& expect_output_dtypes) {)"
+                                                std::vector<DataType>& expect_output_dtypes,
+                                                [[maybe_unused]]const std::string& npu_arch = "") {)"
        << std::endl;
   }
 
@@ -1742,17 +1729,19 @@ void GenCommonInferDtypeBaseFunc(std::stringstream &ss,
   }
   ss << "inline ge::Status CommonInferDtype" << extra_str
      << "(const std::string &type, const std::vector<DataType> &input_dtypes,\n"
-        "                                   std::vector<DataType> &expect_output_dtypes) {"
+        "                                   std::vector<DataType> &expect_output_dtypes,\n"
+        "                                   const std::string &npu_arch) {"
      << std::endl;
   ss << "  using func = ge::Status (*)(const std::vector<DataType> &input_dtypes, \n"
-        "                              std::vector<DataType> &expect_output_dtypes);"
+        "                              std::vector<DataType> &expect_output_dtypes,\n"
+        "                              const std::string &npu_arch);"
      << std::endl;
   ss << "  static const std::unordered_map<std::string, func> func_table = {" << std::endl;
   ss << func_table.str();
   ss << "  };" << std::endl;
   ss << "  const auto &iter = func_table.find(type);" << std::endl;
   ss << "  if (iter != func_table.end()) {" << std::endl;
-  ss << "    return iter->second(input_dtypes, expect_output_dtypes);" << std::endl;
+  ss << "    return iter->second(input_dtypes, expect_output_dtypes, npu_arch);" << std::endl;
   ss << "  }" << std::endl;
   ss << "  GELOGW(\"Node type %s is not supported to infer for now!\", type.c_str());" << std::endl;
   ss << "  return ge::FAILED;" << std::endl;
@@ -1779,7 +1768,6 @@ void GenAll(std::stringstream &ss) {
   ss << R"(#include "utils/cg_utils.h")" << std::endl << std::endl;
   ss << R"(#include "graph/type/tensor_type_impl.h")" << std::endl << std::endl;
   ss << R"(#include "graph/type/sym_dtype.h")" << std::endl << std::endl;
-  ss << R"(#include "runtime/base.h")" << std::endl << std::endl;
   ss << "#include <variant>" << std::endl;
   ss << "#include <type_traits>" << std::endl;
   ss << "#include <tuple>" << std::endl << std::endl;

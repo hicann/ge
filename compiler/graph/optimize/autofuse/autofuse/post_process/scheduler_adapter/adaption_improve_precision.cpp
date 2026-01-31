@@ -15,6 +15,7 @@
 #include "utils/autofuse_utils.h"
 #include "utils/autofuse_attrs.h"
 #include "post_process/post_process_util.h"
+#include "common/platform_context.h"
 
 namespace ge {
 namespace {
@@ -427,8 +428,7 @@ Status CheckNodeDtype(const NodePtr &node) {
   GE_ASSERT_SUCCESS(asc_adapt::GetOutputTensorDesc(node, output_tensor_desc));
   const auto output_dtype = output_tensor_desc->GetDataType();
   expect_output_dtypes.push_back(output_dtype);
-
-  if (ge::ascir::CommonInferDtype(node->GetType(), input_dtypes, expect_output_dtypes) != SUCCESS) {
+  if (AutofuseUtils::CallAscirCommonInferDtype(node->GetType(), input_dtypes, expect_output_dtypes) != SUCCESS) {
     GELOGE(FAILED,
            "Node %s(%s) with dtype(%s) is not supported. Do not configure it in autofuse_enhance_precision_blacklist",
            node->GetName().c_str(), node->GetType().c_str(), TypeUtils::DataTypeToSerialString(output_dtype).c_str());

@@ -18,6 +18,7 @@
 #include "ascgen_log.h"
 #include "ascir.h"
 #include "ascir_ops.h"
+#include "common/platform_context.h"
 
 namespace optimize {
 class ScheduleUtils {
@@ -94,12 +95,23 @@ class ScheduleUtils {
 
   template <typename T>
   static bool IsNodeSupportDataType(const ge::DataType data_type) {
+    std::string npu_arch;
+    GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(npu_arch));
     std::vector exp_dtypes{data_type};
-    if (T::InferDataType({data_type}, exp_dtypes) != ge::SUCCESS) {
+    if (T::InferDataType({data_type}, exp_dtypes, npu_arch) != ge::SUCCESS) {
       GELOGD("%s not support dtype=%s", T::Type, ge::TypeUtils::DataTypeToSerialString(data_type).c_str());
       return false;
     }
     return true;
+  }
+
+  // 获取 npu_arch 并调用 InferDataType
+  template <typename OpType>
+  static Status CallAscirInferDataType(const std::vector<ge::DataType> &input_dtypes,
+                                       std::vector<ge::DataType> &expect_output_dtypes) {
+    std::string npu_arch;
+    GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(npu_arch));
+    return OpType::InferDataType(input_dtypes, expect_output_dtypes, npu_arch);
   }
 
   static bool GetGatherParams(ge::AscGraph &graph, int64_t &attr_axis, int64_t &params_size) {

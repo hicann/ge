@@ -16,10 +16,6 @@
 #include "ge_common/ge_api_error_codes.h"
 
 namespace ge {
-struct PlatformInfo {
-  std::string name;
-};
-
 class PlatformContext {
  public:
   static PlatformContext& GetInstance();
@@ -29,17 +25,21 @@ class PlatformContext {
   PlatformContext(PlatformContext &&) = delete;
   PlatformContext &operator=(PlatformContext &&) = delete;
 
-  ge::Status GetCurrentPlatform(PlatformInfo &platform_info);
+  // 外部设置 platform
+  void SetPlatform(const std::string &platform_name);
+
+  // 获取当前 platform 字符串
+  ge::Status GetCurrentPlatformString(std::string &platform_name);
 
   void Reset() {
     initialized_ = false;
-    current_platform_ = {""};
+    current_platform_ = "";
   }
 
  private:
   ge::Status Initialize();
   PlatformContext() = default;
-  PlatformInfo current_platform_;
+  std::string current_platform_;
   bool initialized_ = false;
   static std::mutex mutex_;
 };

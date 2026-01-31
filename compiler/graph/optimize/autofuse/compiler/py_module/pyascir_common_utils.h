@@ -17,12 +17,13 @@
 
 namespace pyascir {
 bool ShapeInfoDeserialize(const std::string to_be_deserialized, PyObject *py_obj);
-bool OutputSymbolShapeDeserialize(PyObject *output_shape_obj, std::vector<std::vector<std::string>> &output_shape); 
+bool OutputSymbolShapeDeserialize(PyObject *output_shape_obj, std::vector<std::vector<std::string>> &output_shape);
 bool ComputeGraphDeserialize(const std::string to_be_deserialized, PyObject* py_obj);
 bool PyListToVector(PyObject *list, std::vector<std::string> &vec);
 PyObject *UtilsDeserialize(PyObject *self_pyobject, PyObject *args, PyObject *kwds);
 PyObject *UtilsDurationRecord(PyObject *self_pyobject, PyObject *args, PyObject *kwds);
 PyObject *UtilsReportDurations(PyObject *self_pyobject, PyObject *args, PyObject *kwds);
+PyObject *UtilsSetPlatform(PyObject *self_pyobject, PyObject *args, PyObject *kwds);
 }
 
 #endif

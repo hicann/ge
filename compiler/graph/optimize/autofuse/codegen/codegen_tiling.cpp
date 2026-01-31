@@ -27,7 +27,7 @@
 #include "graph/symbolizer/symbolic_utils.h"
 #include "autofuse_config/auto_fuse_config.h"
 #include "graph/ge_context.h"
-#include "platform_context.h"
+#include "common/platform_context.h"
 #include "graph/utils/type_utils.h"
 #include "backend/backend_spec.h"
 

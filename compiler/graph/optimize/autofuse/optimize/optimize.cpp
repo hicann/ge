@@ -47,7 +47,7 @@ struct ExpressionStaticCheckEq {
 using ConcatDimAxisMap = std::unordered_map<ge::Expression, ge::AxisId, ge::ExpressionHash, ExpressionStaticCheckEq>;
 
 bool IsAxisContinuous(const ge::AscGraph &graph, const int64_t pre_id_idx, const int64_t post_id_idx) {
-  for (auto node : graph.GetAllNodes()) {
+  for (const auto &node : graph.GetAllNodes()) {
     if (ScheduleUtils::IsBuffer(node)) {
       continue;
     }
@@ -804,7 +804,7 @@ Status Optimizer::InitializeScheduledResults(std::vector<ascir::ScheduledResult>
 
 Status Optimizer::AutoScheduler([[maybe_unused]]const HintGraph &hint_graph, ScheduleTask &schedule_task,
                                 std::vector<ascir::ScheduledResult> &scheduled_results) const {
-  size_t index = 0;
+  size_t index = 0UL;
   std::vector<ascir::ScheduledResult> scheduled_results_cur;
   GE_ASSERT_SUCCESS(InitializeScheduledResults(scheduled_results_cur, schedule_task));
 

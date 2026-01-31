@@ -9,7 +9,7 @@
  */
 
 #include "platform_factory.h"
-#include "platform_context.h"
+#include "common/platform_context.h"
 
 namespace optimize {
 PlatformFactory &PlatformFactory::GetInstance() {
@@ -22,21 +22,22 @@ void PlatformFactory::RegisterPlatform(const std::string &platform_name, Platfor
   }
 }
 BasePlatform *PlatformFactory::GetPlatform() {
-  ge::PlatformInfo info;
-  GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatform(info), "Failed to get platform info.");
-  GELOGD("Current platform info is %s", info.name.c_str());
-  auto it = platform_name_to_instances_.find(info.name);
+  std::string platform_name;
+  GE_ASSERT_SUCCESS(ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name),
+                   "Failed to get platform info.");
+  GELOGD("Current platform info is %s", platform_name.c_str());
+  auto it = platform_name_to_instances_.find(platform_name);
   if (it != platform_name_to_instances_.end()) {
     return it->second.get();
   }
 
-  auto creator_it = platform_name_to_creators_.find(info.name);
+  auto creator_it = platform_name_to_creators_.find(platform_name);
   if (creator_it != platform_name_to_creators_.end()) {
-    platform_name_to_instances_[info.name] = creator_it->second();
-    return platform_name_to_instances_[info.name].get();
+    platform_name_to_instances_[platform_name] = creator_it->second();
+    return platform_name_to_instances_[platform_name].get();
   }
 
-  GELOGE(ge::FAILED, "Can't find platform %s", info.name.c_str());
+  GELOGE(ge::FAILED, "Can't find platform %s", platform_name.c_str());
   return nullptr;
 }
 

@@ -18,7 +18,7 @@ import argparse
 import subprocess
 import platform
 from typing import List
-from tbe.common.platform.platform_info import get_soc_spec
+from asc_op_compile_base.common.platform.platform_info import get_soc_spec
 PYF_PATH = os.path.dirname(os.path.realpath(__file__))
 ASCEND_PATH = os.path.join(PYF_PATH, "..", "..", "..")
 machine = platform.machine()

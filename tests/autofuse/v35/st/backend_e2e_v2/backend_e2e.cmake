@@ -53,7 +53,6 @@ function(do_backend_e2e_st_test)
                           autofuse_runtime_stub)
 
 
-
     list (JOIN ARG_KERNEL_SRC ":" KERNEL_SRC_LIST)
     message(STATUS "KERNEL_SRC_LIST = ${KERNEL_SRC_LIST}")
 

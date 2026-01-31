@@ -117,7 +117,8 @@ bool IsDtypeNotSupport(const AscGraph &graph, DataType &output_dtype) {
     output_dtype = output_tensor_desc->GetDataType();
     expect_output_dtypes.push_back(output_dtype);
     input_dtypes.push_back(output_dtype);
-    is_not_support = ge::ascir::CommonInferDtype(kBroadcastType, input_dtypes, expect_output_dtypes) != SUCCESS;
+    is_not_support =
+      AutofuseUtils::CallAscirCommonInferDtype(kBroadcastType, input_dtypes, expect_output_dtypes) != SUCCESS;
   }
   return is_not_support;
 }
