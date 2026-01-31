@@ -23,7 +23,6 @@ namespace ge {
 class SymbolicShapeInference {
  public:
   Status Infer(const ComputeGraphPtr &graph) const;
-
  private:
   graphStatus CheckOutputSymbolDimNumValid(const OpDescPtr &op_desc) const;
   graphStatus PrintSymbolShapeInfo(const OpDescPtr &op_desc, const std::string &stage) const;

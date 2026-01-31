@@ -18,6 +18,7 @@
 #include "eager_style_graph_builder/all_ops.h"
 #include "eager_style_graph_builder/all_ops_cpp.h"
 #include "compiler/graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_inference.h"
+#include "compiler/graph/optimize/symbolic/infer_symbolic_shape/symbolic_info_pre_processor.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
 #include "attribute_group/attr_group_shape_env.h"
 #include "framework/common/types.h"
@@ -35,8 +36,13 @@
 #include "ge_types.h"
 #include "expect_node_info_check_test.h"
 #include "ge_running_env/op_reg.h"
+#include "common/share_graph.h"
+#include "api/aclgrph/option_utils.h"
 
 namespace ge {
+bool EnableSliceSchedule() { // 桩函数
+  return true;
+}
 class SymbolicShapeInferenceUT : public testing::Test {
  public:
  protected:
@@ -2753,5 +2759,116 @@ TEST_F(SymbolicShapeInferenceUT, InferShapeForBroadCastToGraphWithGuard) {
   std::vector<ExpectNodeInfo> expect_node_vec;
   expect_node_vec.push_back(expect_node1);
   ASSERT_EQ(RunSymbolInferenceTest(cg, expect_node_vec, input_vec), SUCCESS);
+}
+
+/* 
+ * if的条件输入是data
+ *  
+ * then_grpah:
+ *   data -> sqrt -> output
+ * else_graph:
+ *   data -> sqrt -> output
+ * 
+ * data1 -> if -> output
+ *           |
+ * data  ----
+ * 
+ */
+TEST_F(SymbolicShapeInferenceUT, NestIfGraphTest) {
+  EnableSliceScheduleEnv();
+  auto root_graph = gert::ShareGraph::BuildNestIfGraph();
+
+  // data
+  DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_0", di0, 0);
+  // data1
+  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {2, 3}};
+  SetNoStorage(root_graph, "data_1", di1, 1);
+
+  // data
+  std::vector<GeTensor> input_vec;
+  auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input1 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  input_vec.emplace_back(input0);
+  input_vec.emplace_back(input1);
+
+  SymbolicShapeSymbolizer symboilzer;
+  ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+  ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
+
+  ASSERT_EQ(root_graph->FindNode("if1"), nullptr);
+
+  auto sqrt_node = root_graph->FindNode("then_subgraph_sqrt1");
+  ASSERT_NE(sqrt_node, nullptr);
+  DisableSliceScheduleEnv();
+}
+
+TEST_F(SymbolicShapeInferenceUT, NestCaseGraphTest) {
+  EnableSliceScheduleEnv();
+  auto root_graph = gert::ShareGraph::BuildNestCaseGraph();
+
+  // data
+  DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_0", di0, 0);
+  // data1
+  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {2, 3}};
+  SetNoStorage(root_graph, "data_1", di1, 1);
+
+  // data
+  std::vector<GeTensor> input_vec;
+  auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input1 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  input_vec.emplace_back(input0);
+  input_vec.emplace_back(input1);
+
+  SymbolicShapeSymbolizer symboilzer;
+  ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+  ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
+
+  ASSERT_EQ(root_graph->FindNode("case1"), nullptr);
+
+  auto sqrt_node = root_graph->FindNode("batch2_subgraph_sqrt1");
+  ASSERT_NE(sqrt_node, nullptr);
+  DisableSliceScheduleEnv();
+}
+
+// if的条件输入是其它算子的输出
+TEST_F(SymbolicShapeInferenceUT, NestIfGraph1Test) {
+  EnableSliceScheduleEnv();
+  auto root_graph = gert::ShareGraph::BuildNestIfGraph1();
+
+  // data
+  DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_0", di0, 0);
+  // data1
+  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_1", di1, 1);
+  // data2
+  DataInfo di2 = {FORMAT_NCHW, DT_INT32, {2, 3}};
+  SetNoStorage(root_graph, "data_2", di2, 2);
+
+
+  // data
+  std::vector<GeTensor> input_vec;
+  auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input1 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input2 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  input_vec.emplace_back(input0);
+  input_vec.emplace_back(input1);
+  input_vec.emplace_back(input2);
+
+  SymbolicShapeSymbolizer symboilzer;
+  ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+  ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
+  
+  ASSERT_NE(root_graph->FindNode("if1"), nullptr);
+
+  DisableSliceScheduleEnv();
 }
 } // namespace ge

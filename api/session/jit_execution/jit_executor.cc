@@ -18,6 +18,8 @@
 #include "graph/ge_context.h"
 #include "common/model/external_allocator_manager.h"
 #include "graph/load/model_manager/model_manager.h"
+#include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
+#include "graph/utils/op_type_utils.h"
 
 #define JIT_ASSERT(exp, tsk, ...)              \
   do {                                          \
@@ -86,6 +88,40 @@ Status CopyHostInputToDeviceAfterSlice(std::vector<gert::Tensor> *inputs, std::v
       GE_ASSERT_NOTNULL(mem_block_to_keep);
       input_mem_block.emplace_back(mem_block_to_keep);
     }
+  }
+  return SUCCESS;
+}
+
+Status GetAllCondInputData(const ComputeGraphPtr &graph, std::set<size_t> &data_idx) {
+  GE_ASSERT_NOTNULL(graph);
+  for (const auto &node : graph->GetAllNodes()) {
+    auto cond_input = SymbolicInferUtil::GetCondInput(node);
+    if (cond_input == nullptr) {
+      continue;
+    }
+    if (!OpTypeUtils::IsDataNode(cond_input->GetType())) {
+      continue;
+    }
+    int32_t data_index = -1;
+    GE_ASSERT_TRUE(AttrUtils::GetInt(cond_input->GetOpDesc(), "index", data_index),
+      "get data node %s index failed", cond_input->GetNamePtr());
+    data_idx.insert(static_cast<size_t>(data_index));
+  }
+  return SUCCESS;
+}
+
+Status BuildCompileInputs(const std::vector<gert::Tensor> &ori_inputs, const ComputeGraphPtr &graph,
+  std::vector<gert::Tensor> &compile_inputs) {
+  std::set<size_t> need_host_data_idx;
+  GE_ASSERT_SUCCESS(GetAllCondInputData(graph, need_host_data_idx));
+
+  compile_inputs = TensorTransUtils::ShareFromGertTenosrs(ori_inputs);
+  for (size_t data_idx : need_host_data_idx) {
+    GELOGD("input[%u] need copy data to host.", data_idx);
+    GE_ASSERT_TRUE(data_idx < compile_inputs.size());
+    gert::Tensor host_tensor;
+    GE_ASSERT_SUCCESS(TensorTransUtils::TransGertTensorToHost(compile_inputs[data_idx], host_tensor));
+    compile_inputs[data_idx] = std::move(host_tensor);
   }
   return SUCCESS;
 }
@@ -321,15 +357,19 @@ Status JitExecutor::ProcessAndExecuteGraphAsync(UserGraphExecution &task, const 
                                                 std::vector<gert::Tensor> &outputs, ExecutionPoint *ep,
                                                 bool need_malloc_output) {
   GuardedExecutionPoint *gep = nullptr;
+  std::vector<gert::Tensor> compile_inputs;
+  GE_ASSERT_SUCCESS(BuildCompileInputs(inputs, ep->GetSlicedGraph(), compile_inputs));
   uint32_t guarded_ep_instance_id;
   {
     std::lock_guard<std::mutex> locker(mutex_);
-    gep = ep->FindOrCreateGuarded(inputs);
+    // 需要value
+    gep = ep->FindOrCreateGuarded(compile_inputs);
     JIT_ASSERT_NOTNULL(gep, task);
     GELOGD("Get GEP[compiled_graph_id:%u] [compiled? %d] of EP[%ld] USER_GRAPH[%u], session_id:%llu.",
       gep->GetCompiledGraphId(), gep->Compiled(), ep->GetId(), task.user_graph_id, task.session_id);
 
-    JIT_ASSERT_SUCCESS(CompileAndLoad(inputs, gep, guarded_ep_instance_id, stream, task.load_options, task.session_id),
+    // 需要value
+    JIT_ASSERT_SUCCESS(CompileAndLoad(compile_inputs, gep, guarded_ep_instance_id, stream, task.load_options, task.session_id),
       task);
   }
   JIT_ASSERT_NOTNULL(gep, task);

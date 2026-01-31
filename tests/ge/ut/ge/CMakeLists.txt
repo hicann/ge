@@ -631,6 +631,7 @@ set(GRAPH_PASS_COMMON_SRC_FILES
     "${AIR_CODE_DIR}/compiler/graph/passes/control_flow_and_stream/control_trigger_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/control_flow_and_stream/cond_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/control_flow_and_stream/cond_remove_pass.cc"
+    "${AIR_CODE_DIR}/compiler/graph/passes/symbolic/symbolic_cond_remove_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/control_flow_and_stream/for_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/control_flow_and_stream/enter_pass.cc"
     "${AIR_CODE_DIR}/compiler/graph/passes/variable_optimize/assign_remove_pass.cc"

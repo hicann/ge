@@ -296,46 +296,46 @@ TEST_F(UtestCondRemovePass, test_get_idx_succ) {
   CondRemovePass pass;
   int32_t ret = 0;
   GeTensorPtr value_tensor;
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, -1);
   
   value_tensor = ConstructTensorPtr<int64_t>(DT_INT64);
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   value_tensor = ConstructTensorPtr<uint32_t>(DT_UINT32);
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   value_tensor = ConstructTensorPtr<int16_t>(DT_INT16);
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   value_tensor = ConstructTensorPtr<int8_t>(DT_INT8);
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   value_tensor = ConstructTensorPtr<double>(DT_DOUBLE);
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   value_tensor = ConstructTensorPtr<float>(DT_FLOAT);
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   value_tensor = ConstructTensorPtr<float>(DT_DUAL);
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   vector<int32_t> datas = {0};
   GeTensorDesc tensor_desc(GeShape({1}), ge::FORMAT_NCHW, DT_BOOL);
   value_tensor = std::make_shared<GeTensor>(tensor_desc, (uint8_t *)datas.data(), datas.size() * sizeof(int32_t));
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
   EXPECT_EQ(ret, 0);
   
   GeTensorDesc str_tensor_desc(GeShape({1}), ge::FORMAT_NCHW, DT_STRING);
   value_tensor = std::make_shared<GeTensor>(str_tensor_desc, (uint8_t *)datas.data(), datas.size() * sizeof(int32_t));
-  ret = pass.GetCondIndex(value_tensor);
+  ret = pass.GetCondIndex(value_tensor.get());
 }
 
 void BuildAndCheckConstScalerIfGraphWithDataType(DataType dtype, void *value, bool should_take) {

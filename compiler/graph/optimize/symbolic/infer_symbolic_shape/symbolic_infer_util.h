@@ -15,6 +15,7 @@
 #include "common/checker.h"
 #include "op_impl_infer_symbol_shape.h"
 #include "framework/common/util.h"
+#include "graph/node.h"
 
 namespace ge {
 const Expression kSymbolZero{Symbol(0)};
@@ -137,6 +138,8 @@ class SymbolicInferUtil {
   static Status Broadcast(const std::vector<std::vector<Expression>> &shapes,
                           std::vector<Expression> &b_shape);
   static std::string DumpSymbolTensor(const gert::SymbolTensor &symbolic_tensor);
+  static bool IsSupportCondNode(const NodePtr &node);
+  static NodePtr GetCondInput(const NodePtr &node);
 };
 }  // namespace ge
 

@@ -249,6 +249,18 @@ struct ShareGraph {
   static ge::ComputeGraphPtr MultiStreamGraphWithFirstEventSyncGraph(int64_t &stream_num, int64_t &event_num);
   static ge::ComputeGraphPtr MultiStreamGraphWithLastEventSyncGraph(int64_t &stream_num, int64_t &event_num);
   static ge::ComputeGraphPtr BuildStaticMinimumGradAndAddGraph();
+  static ge::ComputeGraphPtr BuildSubGraph(const std::string& name = "subgraph", int64_t parent_node_index = 0);
+  static ge::ComputeGraphPtr BuildNestPartitioncallSubGraph(const ge::ComputeGraphPtr &main_graph, const std::string &name);
+  static ge::ComputeGraphPtr BuildNestIfGraph();
+  static ge::ComputeGraphPtr BuildNestCaseGraph();
+  static ge::ComputeGraphPtr BuildNestIfGraph1();
+  static ge::ComputeGraphPtr BuildNestIfSubGraph(const ge::ComputeGraphPtr &main_graph, const std::string &name);
+  static ge::ComputeGraphPtr BuildNestIfGraph2();
+  static ge::ComputeGraphPtr BuildNestIfSubGraph1(const ge::ComputeGraphPtr &main_graph, const std::string &name);
+  static ge::ComputeGraphPtr BuildNestIfGraph3();
+  static ge::ComputeGraphPtr BuildNestedPartitionedCallTwice();
+  static ge::ComputeGraphPtr BuildIfWithNestedPartitionedCall();
+  static ge::ComputeGraphPtr BuildCaseWithNestedPartitionedCall();
   // TODO value depend, aicpu, ffts, refdata
   };
 

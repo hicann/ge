@@ -20,6 +20,8 @@ class GraphUnfolder {
  public:
   static ge::Status UnfoldSubgraphs(const ge::ComputeGraphPtr &root_graph, ge::ComputeGraphPtr &merged_graph);
 
+  static ge::Status UnfoldAllPartitioncallInPlace(const ge::ComputeGraphPtr &root_graph);
+
   static bool IsGraphNeedUnfold(const ge::ComputeGraphPtr &root_graph);
   static bool IsGraphDynamicCompiled(const ge::ComputeGraphPtr &graph);
 
@@ -52,6 +54,12 @@ class GraphUnfolder {
                                                 const ge::NodePtr &node,
                                                 const uint32_t depth);
     static ge::Status MarkGraphNodeIndex(const ge::ComputeGraphPtr &merged_graph);
+    // 递归展平所有的partitioncall
+    static ge::Status UnfoldPartitioncallInPlace(const ge::ComputeGraphPtr &root_graph,
+      const ge::ComputeGraphPtr &graph, uint32_t depth);
+    // 展平子图上的partitioncall
+    static ge::Status UnfoldSubGraphPartitioncall(const ge::ComputeGraphPtr &root_graph,
+      const ge::ComputeGraphPtr &graph);
 };
 }
 

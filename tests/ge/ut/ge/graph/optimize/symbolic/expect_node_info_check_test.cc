@@ -88,30 +88,4 @@ Status RunSymbolInferenceTest(const ComputeGraphPtr &cg, const std::vector<Expec
   }
   return SUCCESS;
 }
-
-Status SetNoStorage(ComputeGraphPtr &cg, const std::string &DataName, const DataInfo &di, int64_t idx) {
-  auto data_node = cg->FindNode(DataName);
-  GE_ASSERT_NOTNULL(data_node);
-  auto op_desc = data_node->GetOpDesc();
-  GE_ASSERT_NOTNULL(op_desc);
-  ge::AttrUtils::SetInt(op_desc, "index", idx);
-  for (size_t i = 0; i < op_desc->GetInputsSize(); ++i) {
-    op_desc->MutableInputDesc(i)->SetFormat(di.format);
-    op_desc->MutableInputDesc(i)->SetOriginFormat(di.format);
-    op_desc->MutableInputDesc(i)->SetShape(GeShape(di.shape));
-    op_desc->MutableInputDesc(i)->SetOriginShape(GeShape(di.shape));
-    op_desc->MutableInputDesc(i)->SetDataType(di.dt);
-    op_desc->MutableInputDesc(i)->SetOriginDataType(di.dt);
-  }
-  for (size_t i = 0; i < op_desc->GetOutputsSize(); ++i) {
-    op_desc->MutableOutputDesc(i)->SetFormat(di.format);
-    op_desc->MutableOutputDesc(i)->SetOriginFormat(di.format);
-    op_desc->MutableOutputDesc(i)->SetShape(GeShape(di.shape));
-    op_desc->MutableOutputDesc(i)->SetOriginShape(GeShape(di.shape));
-    op_desc->MutableOutputDesc(i)->SetDataType(di.dt);
-    op_desc->MutableOutputDesc(i)->SetOriginDataType(di.dt);
-  }
-  return SUCCESS;
-}
-
 }

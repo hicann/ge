@@ -18,6 +18,20 @@ class CondRemovePass : public BaseNodePass {
  public:
   Status Run(NodePtr &node) override;
 
+  /// @brief Remove if dead branch, for if
+  static Status GetIfChosenBranch(const NodePtr &node, const uint32_t cond, ComputeGraphPtr &compute_graph);
+
+  /// @brief Remove if dead branch, for case
+  static Status GetCaseChosenBranch(const NodePtr &node, const uint32_t cond_index, ComputeGraphPtr &compute_graph);
+
+  static int32_t GetCondIndex(const GeTensor *tensor);
+
+  /// @brief Remove dead condition input, for if / case / while
+  static Status RemoveDeadCondLink(const int32_t index, const NodePtr &node);
+
+  /// @brief Remove if dead branch, for if
+  static Status ReplaceIfCaseNodeWithPartitioncall(const NodePtr &node, const ComputeGraphPtr &save_branch);
+
  private:
   /// @brief Get cond info for if/case node
   /// @param [in] node: If/Case op
@@ -41,22 +55,9 @@ class CondRemovePass : public BaseNodePass {
   bool CheckIfCondConstInput(const OutDataAnchorPtr &cond_out_anchor, const InDataAnchorPtr &cond_in_anchor,
                              int32_t &cond_index) const;
 
-  /// @brief Remove if dead branch, for if
-  Status GetIfChosenBranch(const NodePtr &node, const uint32_t cond, ComputeGraphPtr &compute_graph) const;
 
-  /// @brief Remove if dead branch, for case
-  Status GetCaseChosenBranch(const NodePtr &node, const uint32_t cond_index, ComputeGraphPtr &compute_graph) const;
-
-  /// @brief Remove dead condition input, for if / case / while
-  Status RemoveDeadCondLink(const int32_t index, const NodePtr &node) const;
-
-  /// @brief Remove if dead branch, for if
-  Status ReplaceIfCaseNodeWithPartitioncall(const NodePtr &node, const ComputeGraphPtr &save_branch) const;
-
-  OpDescPtr CreateSubgraphOpDesc(const NodePtr &node, const std::string &name, size_t input_num,
-                                 size_t output_num) const;
-
-  int32_t GetCondIndex(const ConstGeTensorPtr &tensor) const;
+  static OpDescPtr CreateSubgraphOpDesc(const NodePtr &node, const std::string &name, size_t input_num,
+                                 size_t output_num);
 };
 }  // namespace ge
 #endif  // GE_GRAPH_PASSES_COND_REMOVE_PASS_H

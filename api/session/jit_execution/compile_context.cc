@@ -11,6 +11,10 @@
 #include "compile_context.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "common/memory/tensor_trans_utils.h"
+#include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_infer_util.h"
+#include "graph/utils/tensor_adapter.h"
+
+#include <op_type_utils.h>
 
 namespace ge {
 // todo refactor func name to AddAndCompile
@@ -20,7 +24,21 @@ Status CompileContext::Compile(uint32_t graph_id, const ComputeGraphPtr &graph, 
   GE_ASSERT_SUCCESS(graph_manager_.AddGraph(graph_id, graph_to_add, options, domi::GetContext()));
   GELOGI("[Session: ][AddGraph] success to add slice graph id: %ld, session_id: %llu", graph_id, session_id);
   std::vector<Tensor> inputs_to_ge;
-  GE_ASSERT_SUCCESS(TensorTransUtils::TransRtTensorToTensor(inputs, inputs_to_ge, false));
+  inputs_to_ge.reserve(inputs.size());
+  for (size_t i = 0; i < inputs.size(); i++) {
+    const auto &gert_tensor = inputs[i];
+    Tensor tensor;
+    if (gert::TensorPlacementUtils::IsOnHost(gert_tensor.GetPlacement())) {
+      GE_ASSERT_SUCCESS(TensorTransUtils::GertTensor2Tensor(gert_tensor, tensor));
+      GELOGD("Trans gert_tensor[%u] to tensor with host data success.", i);
+    } else {
+      auto ge_tensor = TensorTransUtils::TransRtTensorToGeTensor(gert_tensor);
+      ge_tensor.ClearData();
+      ge_tensor.MutableTensorDesc().SetPlacement(kPlacementEnd);
+      tensor = TensorAdapter::AsTensor(ge_tensor);
+    }
+    inputs_to_ge.emplace_back(tensor);
+  }
   GE_ASSERT_TRUE(inputs_to_ge.size() == inputs.size());
   GE_ASSERT_SUCCESS(graph_manager_.CompileGraph(graph_id, session_id, inputs_to_ge), "graph id: %ld, session_id: %llu",
     graph_id, session_id);

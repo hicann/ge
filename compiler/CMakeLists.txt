@@ -207,6 +207,7 @@ set(COMPILER_SRC_LIST
     "graph/passes/feature/compile_nodes_pass.cc"
     "graph/passes/control_flow_and_stream/cond_pass.cc"
     "graph/passes/control_flow_and_stream/cond_remove_pass.cc"
+    "graph/passes/symbolic/symbolic_cond_remove_pass.cc"
     "graph/passes/standard_optimize/constant_folding/constant_folding_pass.cc"
     "graph/passes/feature/constant_clip_pass.cc"
     "graph/passes/standard_optimize/constant_fuse_same_pass.cc"

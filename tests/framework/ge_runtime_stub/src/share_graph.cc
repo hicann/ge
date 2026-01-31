@@ -25,6 +25,10 @@
 #include "faker/fake_value.h"
 #include "common/tbe_handle_store/kernel_store.h"
 
+#include <stdbool.h>
+#include <omg/parser/parser_types.h>
+#include <symengine/add.h>
+
 namespace ge {
 REG_OP(ConditionCalc)
     .DYNAMIC_INPUT(input, TensorType::ALL())
@@ -13005,5 +13009,330 @@ Graph ShareGraph::BuildCVSerialGraph() {
   AttrUtils::SetStr(aic1->GetOpDesc(), ge::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, kTaskTypeAicore);
   AttrUtils::SetStr(aic2->GetOpDesc(), ge::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, kTaskTypeAicore);
   return graph;
+}
+
+/*
+ * 子图构造
+ * data -> sqrt -> output
+ */
+ComputeGraphPtr ShareGraph::BuildSubGraph(const std::string& name, int64_t parent_node_index) {
+  auto subgraph_name = name + "_subgraph";
+  auto graph = std::make_shared<ge::ComputeGraph>(subgraph_name);
+  auto data = NodeBuilder(subgraph_name + "_data", ge::DATA)
+                      .Attr(ge::ATTR_NAME_INDEX, 0)
+                      .Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, parent_node_index)
+                      .Output()
+                      .Build(graph);
+  auto sqrt = NodeBuilder(subgraph_name + "_sqrt1", SQRT)
+              .Input(data)
+              .Output()
+              .Build(graph);
+  auto output = NodeBuilder(subgraph_name + "_output", NETOUTPUT).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0)
+                        .Input(sqrt).Build(graph);
+  return graph;
+}
+
+/*
+ * 含partitioncall的子图构造
+ *
+ * data -> partitioncall -> output
+ *              |
+ *     data -> sqrt -> output
+ */
+ComputeGraphPtr ShareGraph::BuildNestPartitioncallSubGraph(const ComputeGraphPtr &main_graph, const std::string &name) {
+  auto subgrpah_name = name + "_with_partitioncall_subgraph";
+  auto graph = std::make_shared<ge::ComputeGraph>(subgrpah_name);
+  auto data = NodeBuilder(subgrpah_name + "_data", ge::DATA)
+                      .Attr(ge::ATTR_NAME_INDEX, 0)
+                      .Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 0)
+                      .Output()
+                      .Build(graph);
+
+  auto sub_grpah = BuildSubGraph(subgrpah_name + "_particall");
+  auto partitioncall = NodeBuilder(name + "_partitioncall", ge::PARTITIONEDCALL)
+                      .Input(data)
+                      .Attr(ge::ATTR_STAGE_LEVEL, 1)
+                      .Output()
+                      .Attr("f", sub_grpah)
+                      .Build(graph);
+  auto output = NodeBuilder(subgrpah_name + "_output", NETOUTPUT).Input(partitioncall)
+                        .Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).Build(graph);
+  (void)main_graph->AddSubGraph(sub_grpah);
+  return graph;
+}
+
+// if的条件输入是data
+ComputeGraphPtr ShareGraph::BuildNestIfGraph() {
+  auto main_graph = std::make_shared<ge::ComputeGraph>("root");
+  auto data = NodeBuilder("data_0", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0).Output().Build(main_graph);
+  auto data1 = NodeBuilder("data_1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+
+  auto cast = NodeBuilder("cast1", CAST).Input(data).Output().Build(main_graph);
+  auto then_graph = BuildSubGraph("then",1);
+  auto else_graph = BuildSubGraph("else", 1);
+  auto if_node = NodeBuilder("if1", IF)
+                  .Input(cast)
+                  .Input(data1)
+                  .Output()
+                  .Attr("then_graph", then_graph)
+                  .Attr("else_graph", else_graph)
+                  .Build(main_graph);
+
+  auto sqrt = NodeBuilder("abs1", "Abs").Input(if_node).Output().Build(main_graph);
+  auto output = NodeBuilder("output", NETOUTPUT).Input(sqrt).Build(main_graph);
+  (void)main_graph->AddSubGraph(then_graph);
+  (void)main_graph->AddSubGraph(else_graph);
+  for (auto &node : main_graph->GetAllNodes()) {
+    auto op_desc = node->GetOpDesc();
+    for (auto &td : op_desc->GetAllInputsDesc()) {
+      td.SetOriginFormat(td.GetFormat());
+    }
+  }
+  return main_graph;
+}
+
+// case的条件输入是data
+ComputeGraphPtr ShareGraph::BuildNestCaseGraph() {
+  auto main_graph = std::make_shared<ge::ComputeGraph>("root");
+  auto data = NodeBuilder("data_0", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0).Output().Build(main_graph);
+  auto data1 = NodeBuilder("data_1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+
+  auto batch1 = BuildSubGraph("batch1",1);
+  auto batch2 = BuildSubGraph("batch2", 1);
+  auto if_node = NodeBuilder("case1", CASE)
+                  .Input(data)
+                  .Input(data1)
+                  .Output()
+                  .Attr("batch1", batch1)
+                  .Attr("batch2", batch2)
+                  .Build(main_graph);
+
+  auto sqrt = NodeBuilder("abs1", "Abs").Input(if_node).Output().Build(main_graph);
+  auto output = NodeBuilder("output", NETOUTPUT).Input(sqrt).Build(main_graph);
+  (void)main_graph->AddSubGraph(batch1);
+  (void)main_graph->AddSubGraph(batch2);
+  for (auto &node : main_graph->GetAllNodes()) {
+    auto op_desc = node->GetOpDesc();
+    for (auto &td : op_desc->GetAllInputsDesc()) {
+      td.SetOriginFormat(td.GetFormat());
+    }
+  }
+  return main_graph;
+}
+
+// if的条件输入是其它算子的输出
+ComputeGraphPtr ShareGraph::BuildNestIfGraph1() {
+  auto main_graph = std::make_shared<ge::ComputeGraph>("root");
+  auto data = NodeBuilder("data_0", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0).Output().Build(main_graph);
+  auto data1 = NodeBuilder("data_1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+  auto data2 =  NodeBuilder("data_2", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 2).Output().Build(main_graph);
+
+  auto sub = NodeBuilder("sub", SUB).Input(data).Input(data1).Output().Build(main_graph);
+
+  auto then_graph = BuildSubGraph("then",1);
+  auto else_graph = BuildSubGraph("else", 1);
+  auto if_node = NodeBuilder("if1", IF)
+                  .Input(sub)
+                  .Input(data2)
+                  .Output()
+                  .Attr("then_graph", then_graph)
+                  .Attr("else_graph", else_graph)
+                  .Build(main_graph);
+
+  auto output = NodeBuilder("output", NETOUTPUT).Input(if_node).Build(main_graph);
+  (void)main_graph->AddSubGraph(then_graph);
+  (void)main_graph->AddSubGraph(else_graph);
+  for (auto &node : main_graph->GetAllNodes()) {
+    auto op_desc = node->GetOpDesc();
+    for (auto &td : op_desc->GetAllInputsDesc()) {
+      td.SetOriginFormat(td.GetFormat());
+    }
+  }
+  return  main_graph;
+}
+
+
+// 子图含有if节点, if的条件输入是data
+ComputeGraphPtr ShareGraph::BuildNestIfSubGraph(const ge::ComputeGraphPtr &main_graph, const std::string &name) {
+  auto subgrpah_name = name + "_with_if_subgraph";
+  auto graph = std::make_shared<ge::ComputeGraph>(subgrpah_name);
+  auto data = NodeBuilder(subgrpah_name + "_data", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0)
+                     .Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 0).Output().Build(graph);
+  auto data1 = NodeBuilder(subgrpah_name + "_data1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1)
+                     .Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 1).Output().Build(graph);
+
+  auto then_graph = BuildSubGraph(subgrpah_name + "_then",1);
+  auto else_graph = BuildSubGraph(subgrpah_name + "_else", 1);
+  auto if_node = NodeBuilder(subgrpah_name + "_if2", IF)
+                  .Input(data)
+                  .Input(data1)
+                  .Output()
+                  .Attr("then_graph", then_graph)
+                  .Attr("else_graph", else_graph)
+                  .Build(graph);
+
+  auto output = NodeBuilder(subgrpah_name + "_output", NETOUTPUT).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0)
+                        .Input(if_node).Build(graph);
+  (void)main_graph->AddSubGraph(then_graph);
+  (void)main_graph->AddSubGraph(else_graph);
+  return  graph;
+}
+
+// if子图嵌套if算子，且条件输入都是data
+ComputeGraphPtr ShareGraph::BuildNestIfGraph2 () {
+  auto main_graph = std::make_shared<ge::ComputeGraph>("root");
+  auto data = NodeBuilder("data_0", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0).Output().Build(main_graph);
+  auto data1 = NodeBuilder("data_1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+  auto then_graph = BuildNestIfSubGraph(main_graph, "then");
+  auto else_graph = BuildNestIfSubGraph(main_graph, "else");
+  auto if_node = NodeBuilder("if1", IF)
+                  .Input(data)
+                  .Input(data1)
+                  .Output()
+                  .Attr("then_graph", then_graph)
+                  .Attr("else_graph", else_graph)
+                  .Build(main_graph);
+  auto output = NodeBuilder("output", NETOUTPUT).Input(if_node).Build(main_graph);
+  (void)main_graph->AddSubGraph(then_graph);
+  (void)main_graph->AddSubGraph(else_graph);
+  for (auto &node : main_graph->GetAllNodes()) {
+    auto op_desc = node->GetOpDesc();
+    for (auto &td : op_desc->GetAllInputsDesc()) {
+      td.SetOriginFormat(td.GetFormat());
+    }
+  }
+  return  main_graph;
+}
+
+
+// 子图中包含if节点, 且if的条件输入是其它算子的输出
+ComputeGraphPtr ShareGraph::BuildNestIfSubGraph1(const ge::ComputeGraphPtr &main_graph, const std::string &name) {
+  auto graph_name = name + "_with_if_subgraph1";
+  auto graph = std::make_shared<ge::ComputeGraph>(graph_name);
+  auto data = NodeBuilder(graph_name + "_data_0", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0)
+                     .Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 0).Output().Build(graph);
+  auto data1 = NodeBuilder(graph_name + "_data_1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1)
+                     .Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 1).Output().Build(graph);
+  auto data2 = NodeBuilder(graph_name + "_data_2", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 2)
+                     .Attr(ge::ATTR_NAME_PARENT_NODE_INDEX, 2).Output().Build(graph);
+
+  auto sub = NodeBuilder(graph_name + "_sub", SUB).Input(data).Input(data1).Output().Build(graph);
+
+  auto then_graph = BuildSubGraph(graph_name + "_then",1);
+  auto else_graph = BuildSubGraph(graph_name + "_else", 1);
+  auto if_node = NodeBuilder(graph_name + "_if1", IF)
+                  .Input(sub)
+                  .Input(data2)
+                  .Output()
+                  .Attr("then_graph", then_graph)
+                  .Attr("else_graph", else_graph)
+                  .Build(graph);
+
+  auto output = NodeBuilder(graph_name + "_output", NETOUTPUT).Input(if_node)
+                        .Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).Build(graph);
+  (void)main_graph->AddSubGraph(then_graph);
+  (void)main_graph->AddSubGraph(else_graph);
+  return  graph;
+}
+
+// if子图嵌套if算子，根图的if条件输入是data，子图的if条件输入不是data
+ComputeGraphPtr ShareGraph::BuildNestIfGraph3() {
+  auto main_graph = std::make_shared<ge::ComputeGraph>("root");
+  auto data = NodeBuilder("data_0", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0).Output().Build(main_graph);
+  auto data1 = NodeBuilder("data_1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+  auto data2 = NodeBuilder("data_2", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+
+  auto then_graph = BuildNestIfSubGraph1(main_graph, "then");
+  auto else_graph = BuildNestIfSubGraph1(main_graph, "else");
+  auto if_node = NodeBuilder("if1", IF)
+                  .Input(data)
+                  .Input(data1)
+                  .Input(data2)
+                  .Output()
+                  .Attr("then_graph", then_graph)
+                  .Attr("else_graph", else_graph)
+                  .Build(main_graph);
+  auto output = NodeBuilder("output", NETOUTPUT).Input(if_node).Build(main_graph);
+  (void)main_graph->AddSubGraph(then_graph);
+  (void)main_graph->AddSubGraph(else_graph);
+  for (auto &node : main_graph->GetAllNodes()) {
+    auto op_desc = node->GetOpDesc();
+    for (auto &td : op_desc->GetAllInputsDesc()) {
+      td.SetOriginFormat(td.GetFormat());
+    }
+  }
+  return  main_graph;
+}
+
+/*
+ * partitioncall子图嵌套
+ *
+ */
+ComputeGraphPtr ShareGraph::BuildNestedPartitionedCallTwice() {
+  auto graph = std::make_shared<ge::ComputeGraph>("root");
+  auto data = NodeBuilder("data", ge::DATA)
+                      .Attr(ge::ATTR_NAME_INDEX, 0)
+                      .Output()
+                      .Build(graph);
+  auto sub_graph = BuildNestPartitioncallSubGraph(graph, "subgraph");
+  auto partitioncall = NodeBuilder("partitioncall", ge::PARTITIONEDCALL)
+                      .Input(data)
+                      .Output()
+                      .Attr("f", sub_graph)
+                      .Build(graph);
+  auto output = NodeBuilder("output", NETOUTPUT).Input(partitioncall).Build(graph);
+  (void)graph->AddSubGraph(sub_graph);
+  return graph;
+}
+
+
+/*
+ * if子图嵌套
+ *
+ *
+ * data -> if -> output
+ *          |
+ * data1 ___|
+ *
+ */
+ComputeGraphPtr ShareGraph::BuildIfWithNestedPartitionedCall() {
+  auto main_graph = std::make_shared<ComputeGraph>("root");
+  auto data = NodeBuilder("data", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0).Output().Build(main_graph);
+  auto data1 = NodeBuilder("data1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+
+  auto then_graph = BuildNestPartitioncallSubGraph(main_graph, "then");
+  auto else_graph = BuildNestPartitioncallSubGraph(main_graph, "else");
+  auto if_node = NodeBuilder("if1", IF)
+                  .Input(data)
+                  .Input(data1)
+                  .Output()
+                  .Attr("then_graph", then_graph)
+                  .Attr("else_graph", else_graph)
+                  .Build(main_graph);
+
+  auto output = NodeBuilder("ouput", NETOUTPUT).Input(if_node).Build(main_graph);
+  (void)main_graph->AddSubGraph(then_graph);
+  (void)main_graph->AddSubGraph(else_graph);
+  return main_graph;
+}
+
+// case子图嵌套partitioncall
+ComputeGraphPtr ShareGraph::BuildCaseWithNestedPartitionedCall() {
+  auto main_graph = std::make_shared<ComputeGraph>("root");
+  auto data = NodeBuilder("data", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 0).Output().Build(main_graph);
+  auto data1 = NodeBuilder("data1", ge::DATA).Attr(ge::ATTR_NAME_INDEX, 1).Output().Build(main_graph);
+
+  auto batch1 = BuildNestPartitioncallSubGraph(main_graph, "batch1");
+  auto batch2 = BuildNestPartitioncallSubGraph(main_graph, "batch2");
+  auto case_node = NodeBuilder("case", "Case")
+    .Input(data).Input(data1)
+    .Output()
+    .Attr("batch1", batch1)
+    .Attr("batch2",  batch2)
+    .Build(main_graph);
+  auto output = NodeBuilder("ouput", NETOUTPUT).Input(case_node).Build(main_graph);
+  (void)main_graph->AddSubGraph(batch1);
+  (void)main_graph->AddSubGraph(batch2);
+  return main_graph;
 }
 }  // namespace gert

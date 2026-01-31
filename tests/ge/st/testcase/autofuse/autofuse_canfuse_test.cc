@@ -100,6 +100,7 @@ class TestCanfusePass : public testing::Test {
  * 预期结果:融合lowering生成的两个AscBc为1个，同时校验ascgraph的正确性
  */
 TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_1) {
+  dlog_setlevel(0, 0, 0);
   auto infer_data = ELMTWISE_INFER_SHAPEANDTYPE("x", "y");
   ge_env.Reset()
       .Install(FakeEngine("AIcoreEngine").KernelInfoStore("AIcoreEngine"))
@@ -146,6 +147,7 @@ TEST_F(TestCanfusePass, test_canfuse_ele_and_ele_horizontal_fusion_1) {
   node_types_to_count.emplace("Store", 2);
   node_types_to_count.emplace("Output", 2);
   EXPECT_EQ(gert::SummaryChecker(fused_graph).StrictDirectNodeTypes(node_types_to_count), "success");
+  dlog_setlevel(0, 3, 0);
 }
 
 /**

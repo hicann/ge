@@ -20,6 +20,7 @@
 #include "common/checker.h"
 #include "api/aclgrph/option_utils.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_inference.h"
+#include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_info_pre_processor.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_info_post_processor.h"
 #include "graph/optimize/symbolic/infer_symbolic_shape/symbolic_shape_symbolizer.h"
 #include "graph/passes/feature/auto_fuse_pass.h"
@@ -200,7 +201,8 @@ Status AutofuseOptimize::Run(const ge::ComputeGraphPtr &compute_graph, const std
   GE_ASSERT_GRAPH_SUCCESS(SymbolicShapeSymbolizer::Symbolize(compute_graph, inputs), "Symbolize graph input failed, graph %s",
                           compute_graph->GetName().c_str());
   GE_COMPILE_TRACE_TIMESTAMP_END(Symbolize, "SymbolicShapeInference::Symbolize::" + compute_graph->GetName());
-  GE_CHK_STATUS_RET(graph_pass_for_autofuse.AddPass("PreRun::AutoFusePass", new (std::nothrow) AutoFusePass));
+  GE_ASSERT_SUCCESS(SymbolicInfoPreProcessor::Run(compute_graph, inputs));
+  GE_CHK_STATUS_RET(graph_pass_for_autofuse.AddPass("PreRun::AutoFusePass", new (std::nothrow) AutoFusePass()));
   GE_CHK_STATUS_RET(graph_pass_for_autofuse.Run(compute_graph));
 
   GE_ASSERT_SUCCESS(PostProcess(compute_graph));

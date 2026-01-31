@@ -27,8 +27,23 @@
 #include "ge_running_env/op_reg.h"
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "faker/space_registry_faker.h"
+#include "ge/ut/ge/graph/optimize/symbolic/expect_node_info_check_test.h"
+#include "common/share_graph.h"
+#include "compiler/graph/optimize/symbolic/infer_symbolic_shape/symbolic_info_pre_processor.h"
+#include "api/aclgrph/option_utils.h"
+#include "ge_local_context.h"
+#include "register/optimization_option_registry.h"
 
 namespace ge {
+bool EnableSliceSchedule() { // 桩函数
+  const char_t *auto_fuse_options = nullptr;
+  MM_SYS_GET_ENV(MM_ENV_AUTOFUSE_FLAGS, auto_fuse_options);
+  if (auto_fuse_options == nullptr) {
+    return false;
+  }
+  std::string option = std::string(auto_fuse_options);
+  return option.find("--experimental_enable_jit_executor_v2=true") != std::string::npos;
+}
 class SymbolicShapeInferenceST : public testing::Test {
  public:
  protected:
@@ -38,13 +53,31 @@ class SymbolicShapeInferenceST : public testing::Test {
   static void TearDownTestSuite() {
   }
   void SetUp() override {
+    global_options_ = ge::GetThreadLocalContext().GetAllGlobalOptions();
+    graph_options_ = ge::GetThreadLocalContext().GetAllGraphOptions();
+    session_options_ = ge::GetThreadLocalContext().GetAllSessionOptions();
+
+    std::map<std::string, std::string> tmp_global_option;
+    tmp_global_option.insert(std::make_pair(ge::OPTION_TOPOSORTING_MODE, "0"));
+    ge::GetThreadLocalContext().SetGlobalOption(tmp_global_option);
+    GetThreadLocalContext().GetOo().Initialize(GetThreadLocalContext().GetAllOptions(),
+                                               OptionRegistry::GetInstance().GetRegisteredOptTable());
     graph_ = EsCreateGraph("Hello");
   }
   void TearDown() override {
+    ge::GetThreadLocalContext().SetGlobalOption(global_options_);
+    ge::GetThreadLocalContext().SetGraphOption(graph_options_);
+    ge::GetThreadLocalContext().SetSessionOption(session_options_);
+    GetThreadLocalContext().GetOo().Initialize(GetThreadLocalContext().GetAllOptions(),
+                                               OptionRegistry::GetInstance().GetRegisteredOptTable());
     EsDestroyGraph(graph_);
     graph_ = nullptr;
   }
   EsbGraph *graph_{nullptr};
+ private:
+  std::map<std::string, std::string> global_options_;
+  std::map<std::string, std::string> graph_options_;
+  std::map<std::string, std::string> session_options_;
 };
 
 /**
@@ -7114,5 +7147,106 @@ TEST_F(SymbolicShapeInferenceST, InferShapeForBroadCastToGraphWithGuard) {
   for (auto &iter : guard_infos) {
     EXPECT_TRUE(expect_guard.find(std::string(iter.expr.Serialize().get())) != expect_guard.end());
   }
+}
+
+/*
+ * if的条件输入是data
+ */
+TEST_F(SymbolicShapeInferenceST, NestIfGraphTest) {
+  EnableSliceScheduleEnv();
+  auto root_graph = gert::ShareGraph::BuildNestIfGraph();
+
+  // data
+  DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_0", di0, 0);
+  // data1
+  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {2, 3}};
+  SetNoStorage(root_graph, "data_1", di1, 1);
+
+  // data
+  std::vector<GeTensor> input_vec;
+  auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input1 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  input_vec.emplace_back(input0);
+  input_vec.emplace_back(input1);
+
+  SymbolicShapeSymbolizer symboilzer;
+  ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+  ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
+
+  ASSERT_EQ(root_graph->FindNode("if1"), nullptr);
+
+  auto sqrt_node = root_graph->FindNode("then_subgraph_sqrt1");
+  ASSERT_NE(sqrt_node, nullptr);
+  DisableSliceScheduleEnv();
+}
+
+TEST_F(SymbolicShapeInferenceST, NestCaseGraphTest) {
+  EnableSliceScheduleEnv();
+  auto root_graph = gert::ShareGraph::BuildNestCaseGraph();
+
+  // data
+  DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_0", di0, 0);
+  // data1
+  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {2, 3}};
+  SetNoStorage(root_graph, "data_1", di1, 1);
+
+  // data
+  std::vector<GeTensor> input_vec;
+  auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input1 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  input_vec.emplace_back(input0);
+  input_vec.emplace_back(input1);
+
+  SymbolicShapeSymbolizer symboilzer;
+  ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+  ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
+
+  ASSERT_EQ(root_graph->FindNode("case1"), nullptr);
+
+  auto sqrt_node = root_graph->FindNode("batch2_subgraph_sqrt1");
+  ASSERT_NE(sqrt_node, nullptr);
+  DisableSliceScheduleEnv();
+}
+
+// if的条件输入是其它算子的输出
+TEST_F(SymbolicShapeInferenceST, NestIfGraph1Test) {
+  EnableSliceScheduleEnv();
+  auto root_graph = gert::ShareGraph::BuildNestIfGraph1();
+
+  // data
+  DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_0", di0, 0);
+  // data1
+  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {}};
+  SetNoStorage(root_graph, "data_1", di1, 1);
+  // data2
+  DataInfo di2 = {FORMAT_NCHW, DT_INT32, {2, 3}};
+  SetNoStorage(root_graph, "data_2", di2, 2);
+
+
+  // data
+  std::vector<GeTensor> input_vec;
+  auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input1 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
+  auto input2 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  input_vec.emplace_back(input0);
+  input_vec.emplace_back(input1);
+  input_vec.emplace_back(input2);
+
+  SymbolicShapeSymbolizer symboilzer;
+  ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+  ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
+  SymbolicShapeInference ssi;
+  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
+
+  ASSERT_NE(root_graph->FindNode("if1"), nullptr);
+
+  DisableSliceScheduleEnv();
 }
 }  // namespace ge

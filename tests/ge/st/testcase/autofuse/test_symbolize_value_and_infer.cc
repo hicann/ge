@@ -48,7 +48,7 @@ namespace ge {
 
 class RuntimeMock : public RuntimeStub {
  public:
-  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen) override {
+  rtError_t rtGetSocSpec(const char* label, const char* key, char* val, const uint32_t maxLen)  {
     (void)label;
     (void)key;
     (void)strcpy_s(val, maxLen, "fake"); // fake

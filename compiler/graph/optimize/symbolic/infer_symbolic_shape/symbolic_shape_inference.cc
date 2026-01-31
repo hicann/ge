@@ -10,7 +10,6 @@
 
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
-#include "graph/utils/graph_utils_ex.h"
 #include "graph/debug/ge_util.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
 #include "attribute_group/attr_group_shape_env.h"

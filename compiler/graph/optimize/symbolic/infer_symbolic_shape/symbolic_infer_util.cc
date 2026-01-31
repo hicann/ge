@@ -10,8 +10,13 @@
 
 #include "symbolic_infer_util.h"
 
+#include "graph/utils/node_utils.h"
+
+#include <op_type_utils.h>
+
 namespace ge {
 constexpr static size_t kByteBitCount = 8UL;
+
 
 graphStatus SymbolicInferUtil::GetConstInt(const gert::SymbolTensor *tensor, DataType dt, int64_t &value) {
   if (dt == DT_INT32) {
@@ -85,6 +90,35 @@ std::string SymbolicInferUtil::DumpSymbolTensor(const gert::SymbolTensor &symbol
     debug_msg += "None";
   }
   return debug_msg;
+}
+
+bool SymbolicInferUtil::IsSupportCondNode(const ge::NodePtr &node) {
+  GE_WARN_ASSERT(node != nullptr);
+  std::string node_type = node->GetType();
+  return (kIfOpTypes.find(node_type) != kIfOpTypes.end()) ||
+         (kCaseOpTypes.find(node_type) != kCaseOpTypes.end());
+}
+
+NodePtr SymbolicInferUtil::GetCondInput(const NodePtr &node) {
+  GE_WARN_ASSERT(IsSupportCondNode(node));
+  auto cond_input = NodeUtils::GetInDataNodeByIndex(*node, 0);
+  GELOGD("Get cond node[%s] input[%s] success.", node->GetNamePtr(), cond_input->GetNamePtr());
+  GE_WARN_ASSERT(cond_input != nullptr);
+  // 如果node节点的输入时cast，size，stringlength需要再往上找
+  const std::set<string> vaild_types = {"Cast", "Size", "StringLength"};
+  if (vaild_types.find(cond_input->GetType()) != vaild_types.end()) {
+    cond_input = NodeUtils::GetInDataNodeByIndex(*cond_input, 0);
+    GELOGD("Cond node[%s] input is cast/size/stringlength, get input[%s] success.",
+      node->GetNamePtr(), cond_input->GetNamePtr());
+    GE_ASSERT_NOTNULL(cond_input);
+  }
+  // 如果不是data节点, 直接返回
+  if (!OpTypeUtils::IsDataNode(cond_input->GetType())) {
+    return cond_input;
+  }
+  // 如果是data节点找根图的节点
+  auto parent_input = NodeUtils::GetParentInput(*cond_input);
+  return parent_input == nullptr ? cond_input : parent_input;
 }
 
 }  // namespace ge

@@ -4897,7 +4897,7 @@ Status GraphManager::UpdateInputWithHintShape(const std::vector<GeShape> &hint_s
   for (size_t i = 0; i < inputs.size(); ++i) {
       auto tensor_desc = inputs[i].GetTensorDesc();
       GE_ASSERT_TRUE(i < hint_shape.size(), "Option ge.inputHintShape is invalid, hint shape num: %zu is" 
-                     "less than inputs num: %zu", hint_shape.size(), inputs.size());
+                     " less than inputs num: %zu", hint_shape.size(), inputs.size());
       GELOGD("Before update input %zu is %s.", i, tensor_desc.GetShape().ToString().c_str());
       tensor_desc.SetShape(hint_shape[i]);
       tensor_desc.SetOriginShape(hint_shape[i]);

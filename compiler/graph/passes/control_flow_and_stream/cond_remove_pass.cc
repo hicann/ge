@@ -77,7 +77,7 @@ Status CondRemovePass::Run(NodePtr &node) {
   return ret;
 }
 
-Status CondRemovePass::RemoveDeadCondLink(const int32_t index, const NodePtr &node) const {
+Status CondRemovePass::RemoveDeadCondLink(const int32_t index, const NodePtr &node) {
   const auto &in_anchor = node->GetInDataAnchor(index);
   GE_ASSERT_NOTNULL(in_anchor);
   const auto &peerout_anchor = in_anchor->GetPeerOutAnchor();
@@ -97,7 +97,7 @@ Status CondRemovePass::RemoveDeadCondLink(const int32_t index, const NodePtr &no
 }
 
 Status CondRemovePass::GetCaseChosenBranch(const NodePtr &node, const uint32_t cond_index,
-                                           ComputeGraphPtr &compute_graph) const {
+                                           ComputeGraphPtr &compute_graph) {
   uint32_t subgraph_names_size = static_cast<uint32_t>(node->GetOpDesc()->GetSubgraphInstanceNames().size());
   uint32_t cond_index_new = cond_index;
   if (subgraph_names_size == 0) {
@@ -125,7 +125,7 @@ Status CondRemovePass::GetCaseChosenBranch(const NodePtr &node, const uint32_t c
 }
 
 Status CondRemovePass::GetIfChosenBranch(const NodePtr &node, const uint32_t cond,
-                                         ComputeGraphPtr &compute_graph) const {
+                                         ComputeGraphPtr &compute_graph) {
   uint32_t subgraph_names_size = static_cast<uint32_t>(node->GetOpDesc()->GetSubgraphInstanceNames().size());
   uint32_t cond_index_new = 0;
   if (subgraph_names_size == 0) {
@@ -160,7 +160,7 @@ Status CondRemovePass::GetIfChosenBranch(const NodePtr &node, const uint32_t con
   return ge::SUCCESS;
 }
 
-int32_t CondRemovePass::GetCondIndex(const ConstGeTensorPtr &tensor) const {
+int32_t CondRemovePass::GetCondIndex(const GeTensor *tensor) {
   if (tensor == nullptr) {
     return kInvalidRetVal;
   }
@@ -240,7 +240,7 @@ bool CondRemovePass::CheckIfCondConstInput(const OutDataAnchorPtr &cond_out_anch
     cond_index = static_cast<int32_t>((cond_tensor.GetShape().GetDimNum() != 0) && !if_zero_dim);
   } else {
     // Get condition index
-    cond_index = GetCondIndex(tensor);
+    cond_index = GetCondIndex(tensor.get());
   }
   GELOGD("Condition index is %d, node name is %s, anchor index is %d, dim num is %zu, zero dim flag %d", cond_index,
          op_desc->GetName().c_str(), cond_out_anchor->GetIdx(), cond_tensor.GetShape().GetDimNum(), if_zero_dim);
@@ -248,7 +248,7 @@ bool CondRemovePass::CheckIfCondConstInput(const OutDataAnchorPtr &cond_out_anch
 }
 
 Status CondRemovePass::ReplaceIfCaseNodeWithPartitioncall(const NodePtr &node,
-                                                          const ComputeGraphPtr &save_branch) const {
+                                                          const ComputeGraphPtr &save_branch) {
   // Add compute graph to new node
   const auto &input_desc_size = node->GetOpDesc()->GetInputsSize();
   const auto &output_desc_size = node->GetOpDesc()->GetOutputsSize();
@@ -328,7 +328,7 @@ Status CondRemovePass::ReplaceIfCaseNodeWithPartitioncall(const NodePtr &node,
 /// @return OpDescPtr
 ///
 OpDescPtr CondRemovePass::CreateSubgraphOpDesc(const NodePtr &node, const std::string &name, size_t input_num,
-                                               size_t output_num) const {
+                                               size_t output_num) {
   OpDescBuilder op_desc_builder(name, PARTITIONEDCALL);
   op_desc_builder.AddDynamicInput("args", input_num).AddDynamicOutput("output", output_num);
 

@@ -92,7 +92,7 @@ ge::Status CreateSoPathHolder(const ge::NodePtr &node, bg::ValueHolderPtr &so_pa
   so_path_holder = bg::ValueHolder::CreateConst(so_path.c_str(), so_path.size() + 1, true);
 
   // 从扩展属性获取bin_file_buffer
-  auto graph = node->GetOwnerComputeGraph();
+  auto graph = ge::NodeUtils::FindRootGraph(*node);
   GE_ASSERT_NOTNULL(graph);
   auto bin_file_buffer = graph->GetExtAttr<std::map<std::string, ge::OpSoBinPtr>>("bin_file_buffer");
   if (bin_file_buffer == nullptr) {
@@ -153,7 +153,9 @@ std::vector<bg::ValueHolderPtr> AutofuseNodeConveter::GetSymbolInputsWithSize(
 bg::ValueHolderPtr AutofuseNodeConveter::GetAllSymbolNumHolder(
     LoweringGlobalData &global_data, const ge::NodePtr &node) {
   // all_sym_num_handle, 同一个图的all_sym_num相同，可以用一个节点
-  auto graph = node->GetOwnerComputeGraph();
+  // 可能是子图上的融合节点，需要找到根图再获取all_sym_num
+  auto graph = ge::NodeUtils::FindRootGraph(*node);
+  GE_ASSERT_NOTNULL(graph);
   auto all_sym_num_handle_builder = [&graph]() -> bg::ValueHolderPtr {
     size_t all_sym_num;
     GE_ASSERT_TRUE(ge::AttrUtils::GetInt(graph, "_all_symbol_num", all_sym_num));
@@ -177,7 +179,9 @@ LowerResult LoweringAutofuseNode(const ge::NodePtr &node, const LowerInput &lowe
             {}, {}, {}};
   }
   // infershape
-  const auto input_data_shape_handlers = GetOrCreateInputFeeds(global_data, node->GetOwnerComputeGraph());
+  const auto root_graph = ge::NodeUtils::FindRootGraph(*node);
+  LOWER_REQUIRE_NOTNULL(root_graph);
+  const auto input_data_shape_handlers = GetOrCreateInputFeeds(global_data, root_graph);
   auto output_shapes = bg::InferStorageShape(node, input_data_shape_handlers, *global_data);
   auto output_sizes = bg::CalcTensorSize(node, output_shapes);
   auto output_addrs = bg::AllocOutputMemory(kOnDeviceHbm, node, output_sizes, lower_input.input_addrs, *(global_data));

@@ -15,6 +15,8 @@
 #include "common/share_graph.h"
 #include "graph/utils/node_utils.h"
 
+#include <omg/parser/parser_types.h>
+
 using namespace ge;
 namespace gert {
 class GraphUnfolderTest : public testing::Test {};
@@ -31,19 +33,19 @@ void UpdateUnkownFlag(const ge::ComputeGraphPtr &root_graph){
 
 TEST_F(GraphUnfolderTest, test_subgraph_unford_success){
   DEF_GRAPH(sub_1) {
-                     CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0))->NODE("less", ge::LESS)->NODE("netoutput", ge::NETOUTPUT));
-                     CHAIN(NODE("const_5", ge::CONSTANT)->NODE("less"));
-                   };
+    CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0))->NODE("less", ge::LESS)->NODE("netoutput", ge::NETOUTPUT));
+    CHAIN(NODE("const_5", ge::CONSTANT)->NODE("less"));
+  };
 
   DEF_GRAPH(sub_2) {
-                     CHAIN(NODE("data_a", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_PARENT_NODE_INDEX, 1))->NODE("mul", ge::MUL)->NODE("netoutput", ge::NETOUTPUT));
-                     CHAIN(NODE("const_2", ge::CONSTANT)->NODE("mul"));
-                   };
+    CHAIN(NODE("data_a", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_PARENT_NODE_INDEX, 1))->NODE("mul", ge::MUL)->NODE("netoutput", ge::NETOUTPUT));
+    CHAIN(NODE("const_2", ge::CONSTANT)->NODE("mul"));
+  };
 
   DEF_GRAPH(g1) {
-                  CHAIN(NODE("data_a", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 0))->NODE("partition_call", ge::PARTITIONEDCALL, sub_1, sub_2));
-                  CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 1))->NODE("partition_call"));
-                };
+    CHAIN(NODE("data_a", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 0))->NODE("partition_call", ge::PARTITIONEDCALL, sub_1, sub_2));
+    CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 1))->NODE("partition_call"));
+  };
 
   auto graph = ToComputeGraph(g1);
   UpdateUnkownFlag(graph);
@@ -54,14 +56,14 @@ TEST_F(GraphUnfolderTest, test_subgraph_unford_success){
 
 TEST_F(GraphUnfolderTest, test_known_shape_subgraph_unford_success){
   DEF_GRAPH(sub_1) {
-                     CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0))->NODE("less", ge::LESS)->NODE("netoutput", ge::NETOUTPUT));
-                     CHAIN(NODE("const_5", ge::CONSTANT)->NODE("less"));
-                   };
+    CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0))->NODE("less", ge::LESS)->NODE("netoutput", ge::NETOUTPUT));
+    CHAIN(NODE("const_5", ge::CONSTANT)->NODE("less"));
+  };
 
   DEF_GRAPH(g1) {
-                  CHAIN(NODE("data_a", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 0))->NODE("partition_call", ge::PARTITIONEDCALL, sub_1));
-                  CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 1))->NODE("partition_call"));
-                };
+    CHAIN(NODE("data_a", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 0))->NODE("partition_call", ge::PARTITIONEDCALL, sub_1));
+    CHAIN(NODE("data_i", OP_CFG(ge::DATA_TYPE).Attr(ATTR_NAME_INDEX, 1))->NODE("partition_call"));
+  };
 
   auto graph = ToComputeGraph(g1);
   ge::ComputeGraphPtr flatten_graph;
@@ -275,6 +277,7 @@ TEST_F(GraphUnfolderTest, test_nested_twice_graph) {
   ASSERT_NE(output, nullptr);
   ASSERT_EQ(x1->GetOutControlAnchor()->GetFirstPeerAnchor(), output->GetInControlAnchor());
 }
+
 TEST_F(GraphUnfolderTest, test_case_sub_graph) {
   auto graph = BuildCaseSubGraph();
   ge::ComputeGraphPtr flatten_graph;
@@ -300,4 +303,81 @@ TEST_F(GraphUnfolderTest, test_if_sub_graph) {
   ASSERT_EQ(flatten_graph->GetDirectNodesSize(), 4U);
   ASSERT_EQ(flatten_graph->GetAllSubgraphs().size(), 2U);
 }
+
+/*
+ *1、图上只有一个partitioncall
+ *2、图上有多个partitioncall
+ *3、图上有partitioncall嵌套
+ *4、图上有if/case/while节点
+ *5、partitioncall嵌套if/case/while
+ *7、if/case/while嵌套partitioncall
+ *8、
+ */
+
+// 在原图上展开partitioncall子图
+TEST_F(GraphUnfolderTest, test_inplace_nested_once_graph) {
+
+
+  auto graph = BuildNestedOnceGraph();
+  ASSERT_EQ(GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(graph->GetDirectNodesSize(), 3U);
+  auto data = graph->FindNode("data");
+  ASSERT_NE(data, nullptr);
+  auto foo = graph->FindNode("foo");
+  ASSERT_NE(foo, nullptr);
+  ASSERT_EQ(graph->FindFirstNodeMatchType(ge::PARTITIONEDCALL), nullptr);  // Inlined
+  ASSERT_EQ(data->GetOutControlAnchor()->GetFirstPeerAnchor(), foo->GetInControlAnchor());
 }
+
+// 在原图上展开嵌套的partitioncall子图
+TEST_F(GraphUnfolderTest, test_inplace_nested_twice_graph) {
+  auto graph = BuildNestedTwiceGraph();
+  ASSERT_EQ(GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(graph->GetDirectNodesSize(), 4U);  // data->x1->x2->net-output
+  auto data = graph->FindNode("data");
+  ASSERT_NE(data, nullptr);
+  auto x = graph->FindNode("x");
+  ASSERT_NE(x, nullptr);
+  auto x1 = graph->FindNode("x1");
+  ASSERT_NE(x1, nullptr);
+  ASSERT_EQ(graph->FindFirstNodeMatchType(ge::PARTITIONEDCALL), nullptr);  // Inlined
+  ASSERT_EQ(x->GetOutDataNodesSize(), 1U);
+  ASSERT_EQ(*x->GetOutDataNodes().begin(), x1);
+  auto output = graph->FindFirstNodeMatchType(ge::NETOUTPUT);
+  ASSERT_NE(output, nullptr);
+  ASSERT_EQ(x1->GetOutControlAnchor()->GetFirstPeerAnchor(), output->GetInControlAnchor());
+}
+
+// 在原图上展开case子图
+TEST_F(GraphUnfolderTest, test_inplace_case_sub_graph) {
+  auto graph =  ShareGraph::BuildCaseWithNestedPartitionedCall();
+  ASSERT_EQ(GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), ge::GRAPH_SUCCESS);
+  auto case_node =  graph->FindFirstNodeMatchType(CASE);
+  ASSERT_NE(case_node, nullptr);
+  std::vector<ge::ComputeGraphPtr> subgraphs;
+  ge::NodeUtils::GetDirectSubgraphs(case_node, subgraphs);
+  ASSERT_EQ(subgraphs.size(), 2UL);
+  // case子图上的partitioncall节点展开
+  for (const auto &subgraph : subgraphs) {
+    ASSERT_EQ(subgraph->FindFirstNodeMatchType(PARTITIONEDCALL), nullptr);
+    ASSERT_NE(subgraph->FindFirstNodeMatchType(SQRT), nullptr);
+  }
+}
+
+// 在原图上展开if子图
+TEST_F(GraphUnfolderTest, test_inplace_if_sub_graph) {
+  auto graph = ShareGraph::BuildIfWithNestedPartitionedCall();
+  ASSERT_EQ(GraphUnfolder::UnfoldAllPartitioncallInPlace(graph), ge::GRAPH_SUCCESS);
+  auto if_node = graph->FindFirstNodeMatchType(IF);
+  ASSERT_NE(if_node, nullptr);
+  std::vector<ge::ComputeGraphPtr> subgraphs;
+  ge::NodeUtils::GetDirectSubgraphs(if_node, subgraphs);
+  ASSERT_EQ(subgraphs.size(), 2UL);
+  // if子图上的partitioncall节点展开
+  for (const auto &subgraph : subgraphs) {
+    ASSERT_EQ(subgraph->FindFirstNodeMatchType(PARTITIONEDCALL), nullptr);
+    ASSERT_NE(subgraph->FindFirstNodeMatchType(SQRT), nullptr);
+  }
+}
+} // namespace gert
+
