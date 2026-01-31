@@ -60,6 +60,8 @@ public:
   virtual aclError aclrtResetDevice(int32_t deviceId);
   virtual aclError aclrtGetDevice(int32_t *deviceId);
   virtual aclError aclrtGetThreadLastTaskId(uint32_t *taskId);
+  virtual aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId);
+  virtual aclError aclrtDestroyContext(aclrtContext context);
   virtual aclError aclrtSetCurrentContext(aclrtContext context);
   virtual aclError aclrtGetCurrentContext(aclrtContext *context);
   virtual aclError aclrtCreateEvent(aclrtEvent *event);
@@ -91,12 +93,12 @@ public:
                           aclrtMemcpyKind kind,
                           aclrtStream stream);
   virtual aclError aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total);
-  virtual aclError aclrtGetSocVersion(char *version, const uint32_t maxLen);
   virtual const char* aclrtGetSocName();
   virtual aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value);
-  virtual aclError aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId);
+  virtual aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId);
+  virtual aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                                    aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex);
   virtual aclError aclrtCheckArchCompatibility(const char *socVersion, int32_t *canCompatible);
-  virtual aclError aclrtDestroyContext(aclrtContext context);
   virtual aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode);
   virtual aclError aclrtActiveStream(aclrtStream activeStream, aclrtStream stream);
   virtual aclError aclrtCtxGetCurrentDefaultStream(aclrtStream *stream);
@@ -108,9 +110,12 @@ public:
   virtual aclError aclmdlRIBuildEnd(aclmdlRI modelRI, void *reserve);
   virtual aclError aclrtPersistentTaskClean(aclrtStream stream);
   virtual aclError aclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback);
-  virtual aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId);
+  virtual uint32_t aclrtGetDeviceIdFromExceptionInfo(const aclrtExceptionInfo *info);
+  virtual uint32_t aclrtGetErrorCodeFromExceptionInfo(const aclrtExceptionInfo *info);
+  virtual aclError aclrtGetUserDevIdByLogicDevId(const int32_t logicDevId, int32_t *const userDevid);
   virtual aclError aclrtSetTsDevice(aclrtTsId tsId);
   virtual aclError aclrtGetDeviceCount(uint32_t *count);
+  virtual aclError aclrtGetDeviceCapability(int32_t deviceId, aclrtDevFeatureType devFeatureType, int32_t *value);
   virtual aclError aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag);
   virtual aclError aclrtResetEvent(aclrtEvent event, aclrtStream stream);
   virtual aclError aclrtSynchronizeEventWithTimeout(aclrtEvent event, int32_t timeout);
@@ -128,6 +133,8 @@ public:
   virtual aclError aclrtStreamWaitEvent(aclrtStream stream, aclrtEvent event);
   virtual aclError aclrtStreamWaitEventWithTimeout(aclrtStream stream, aclrtEvent event, int32_t timeout);
   virtual aclError aclrtSetOpWaitTimeout(uint32_t timeout);
+  virtual aclError aclrtSetDeviceSatMode(aclrtFloatOverflowMode mode);
+  virtual aclError aclrtDeviceGetBareTgid(int32_t *pid);
   virtual aclError aclrtSetOpExecuteTimeOut(uint32_t timeout);
   virtual aclError aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout);
   virtual aclError aclrtSetOpExecuteTimeOutV2(uint64_t timeout, uint64_t *actualTimeout);

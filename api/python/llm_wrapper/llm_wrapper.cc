@@ -18,8 +18,7 @@
 #include <vector>
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
-#include "rt_error_codes.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "ge/ge_api.h"
 #include "graph/types.h"
 #include "llm_datadist/llm_error_codes.h"

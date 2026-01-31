@@ -24,6 +24,7 @@ target_link_libraries(ascendcl_stub
         cce_headers
         msprof_headers
         datagw_headers
+        mmpa_headers
     PUBLIC
         ascendcl_headers
 )

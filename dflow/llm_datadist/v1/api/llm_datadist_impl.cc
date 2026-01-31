@@ -18,7 +18,7 @@
 #include "llm_datadist.h"
 #include "common/llm_common.h"
 #include "nlohmann/json.hpp"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
 #include "common/def_types.h"
@@ -845,11 +845,11 @@ Status LlmDataDist::CopyKvCache(const Cache &src_cache,
                                 int64_t size) {
   LLMLOGI("[CopyKvCache] start");
   LLM_CHK_BOOL_RET_STATUS(impl_ != nullptr, LLM_FAILED, "impl is nullptr, check LlmDataDist construct");
-  rtContext_t user_ctx = nullptr;
-  (void) rtCtxGetCurrent(&user_ctx);
+  aclrtContext user_ctx = nullptr;
+  (void) aclrtGetCurrentContext(&user_ctx);
   const auto ret = impl_->CopyKvCache(src_cache, dst_cache, src_batch_index, dst_batch_index, offset, size);
   if (user_ctx != nullptr) {
-    (void) rtCtxSetCurrent(user_ctx);
+    (void) aclrtSetCurrentContext(user_ctx);
   }
   LLM_CHK_BOOL_RET_STATUS(ret == LLM_SUCCESS, ret,
                          "[CopyKvCache][%ld:%u->%ld:%u] failed, offset = %lu, size = %ld",
@@ -865,11 +865,11 @@ Status LlmDataDist::CopyKvBlocks(const Cache &src_cache,
                                  const std::vector<std::vector<uint64_t>> &dst_blocks_list) {
   LLMLOGI("[CopyKvBlocks] start");
   LLM_CHK_BOOL_RET_STATUS(impl_ != nullptr, LLM_FAILED, "impl is nullptr, check LlmDataDist construct");
-  rtContext_t user_ctx = nullptr;
-  (void) rtCtxGetCurrent(&user_ctx);
+  aclrtContext user_ctx = nullptr;
+  (void) aclrtGetCurrentContext(&user_ctx);
   const auto ret = impl_->CopyKvBlocks(src_cache, dst_cache, src_blocks, dst_blocks_list);
   if (user_ctx != nullptr) {
-    (void) rtCtxSetCurrent(user_ctx);
+    (void) aclrtSetCurrentContext(user_ctx);
   }
   LLM_CHK_BOOL_RET_STATUS(ret == LLM_SUCCESS,
                          ret,

@@ -54,6 +54,8 @@ target_link_libraries(llm_engine PRIVATE
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:hccl_headers>
         PUBLIC c_sec
+        ascendcl_headers
+        acl_rt
         alog
         graph
         graph_base
@@ -63,6 +65,7 @@ target_link_libraries(llm_engine PRIVATE
         flow_graph
         json
         runtime_headers
+        runtime
         msprof_headers
         ascend_protobuf
         -O2 -fPIC -Wextra -Wfloat-equal

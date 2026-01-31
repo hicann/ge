@@ -464,7 +464,7 @@ TEST_F(LLMDatadistV2UTest, SwapBlocksFailed) {
 
   std::vector<std::pair<int64_t, int64_t>> block_mapping{{0, 0}};
 
-  // rtMalloc failed
+  // aclrtMalloc failed
   EXPECT_EQ(llm_engine.SwapBlocks(cached_tensors, cached_tensors, 123, 0, block_mapping), ge::LLM_DEVICE_OUT_OF_MEMORY);
 }
 

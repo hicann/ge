@@ -92,6 +92,8 @@ target_link_libraries(llm_engine_base PRIVATE
         intf_pub
         llm_mmpa_stub
         slog_stub
+        runtime_stub
+        ascendcl_stub
         -Wl,--no-as-needed
         unified_dlog
         -Wl,-as-needed

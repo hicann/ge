@@ -18,7 +18,7 @@
 #include "common/link_manager.h"
 #include "common/llm_utils.h"
 #include "common/cache_manager.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 
 namespace llm {
 template<typename T>

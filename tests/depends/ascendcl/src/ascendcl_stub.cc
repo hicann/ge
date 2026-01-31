@@ -221,6 +221,10 @@ struct aclmdlConfigHandleStub {
 };
 
 namespace ge {
+struct aclrtContextStub {
+    int32_t deviceId;
+};
+
 std::shared_ptr<AclRuntimeStub> AclRuntimeStub::instance_;
 std::mutex AclRuntimeStub::mutex_;
 thread_local AclRuntimeStub* AclRuntimeStub::fake_instance_;
@@ -305,6 +309,20 @@ aclError AclRuntimeStub::aclrtGetThreadLastTaskId(uint32_t *taskId) {
   }
   *taskId = 0;
   return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
+  aclrtContextStub *ctxStub = new aclrtContextStub;
+  ctxStub->deviceId = deviceId;
+  *context = ctxStub;
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtDestroyContext(aclrtContext context) {
+  if (context != nullptr) {
+    delete (aclrtContextStub *)context;
+  }
+  return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtSetCurrentContext(aclrtContext context) {
@@ -629,17 +647,8 @@ aclError AclRuntimeStub::aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, s
 }
 
 // no change for rt here
-aclError AclRuntimeStub::aclrtGetSocVersion(char *version, const uint32_t maxLen) {
-  if (strlen(g_soc_version) == 0) {
-    strncpy_s(version, maxLen, g_soc_version, strlen(g_soc_version));
-  } else {
-    strncpy_s(version, maxLen, g_soc_version, strlen(g_soc_version));
-  }
-  return ACL_SUCCESS;
-}
-
 const char* AclRuntimeStub::aclrtGetSocName() {
-  return "Ascend910";
+  return g_soc_version;
 }
 
 aclError AclRuntimeStub::aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value) {
@@ -647,9 +656,25 @@ aclError AclRuntimeStub::aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr
   return ACL_SUCCESS;
 }
 
-aclError AclRuntimeStub::aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId) {
-  *phyId = devIndex;
+aclError AclRuntimeStub::aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) {
+  *phyDevId = logicDevId;
   return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                          aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex)
+{
+  *failIndex = static_cast<size_t>(0);
+  if (__FUNCTION__ == g_acl_stub_mock) {
+    return ACL_ERROR_RT_INTERNAL_ERROR;
+  }
+
+  if (dsts != nullptr && srcs != nullptr) {
+    for (size_t i = 0; i < numBatches; i++) {
+      memcpy_s(dsts[i], destMax[i], srcs[i], sizes[i]);
+    }
+  }
+  return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtCheckArchCompatibility(const char *socVersion, int32_t *canCompatible) {
@@ -657,10 +682,6 @@ aclError AclRuntimeStub::aclrtCheckArchCompatibility(const char *socVersion, int
     return -1;
   }
   *canCompatible = 1;
-  return ACL_SUCCESS;
-}
-
-aclError AclRuntimeStub::aclrtDestroyContext(aclrtContext context) {
   return ACL_SUCCESS;
 }
 
@@ -731,14 +752,28 @@ aclError AclRuntimeStub::aclrtSetTsDevice(aclrtTsId tsId) {
 aclError AclRuntimeStub::aclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback) {
   return ACL_SUCCESS;
 }
+uint32_t AclRuntimeStub::aclrtGetDeviceIdFromExceptionInfo(const aclrtExceptionInfo *info) {
+  return 0U;
+}
 
-aclError AclRuntimeStub::aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
-  return ACL_SUCCESS;
+uint32_t AclRuntimeStub::aclrtGetErrorCodeFromExceptionInfo(const aclrtExceptionInfo *info) {
+  return 0U;
+}
+
+aclError AclRuntimeStub::aclrtGetUserDevIdByLogicDevId(const int32_t logicDevId, int32_t *const userDevid) {
+  *userDevid = 0;
+  return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtGetDeviceCount(uint32_t *count) {
   *count = 1U;
   return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtGetDeviceCapability(int32_t deviceId,
+                                                  aclrtDevFeatureType devFeatureType, int32_t *value) {
+  *value = 1;
+  return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag) {
@@ -822,6 +857,15 @@ aclError AclRuntimeStub::aclrtSetOpWaitTimeout(uint32_t timeout) {
 
 aclError AclRuntimeStub::aclrtSetOpExecuteTimeOut(uint32_t timeout) {
   return ACL_SUCCESS;
+}
+
+aclError AclRuntimeStub::aclrtSetDeviceSatMode(aclrtFloatOverflowMode mode) {
+  return ACL_ERROR_NONE;
+}
+
+aclError AclRuntimeStub::aclrtDeviceGetBareTgid(int32_t *pid) {
+  *pid = static_cast<int32_t>(getpid());
+  return ACL_ERROR_NONE;
 }
 
 aclError AclRuntimeStub::aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout) {
@@ -1331,10 +1375,6 @@ aclError aclrtGetMemInfo(aclrtMemAttr attr, size_t *free_size, size_t *total) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetMemInfo(attr, free_size, total);
 }
 
-aclError aclrtGetSocVersion(char *version, const uint32_t maxLen) {
-  return ge::AclRuntimeStub::GetInstance()->aclrtGetSocVersion(version, maxLen);
-}
-
 const char* aclrtGetSocName() {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetSocName();
 }
@@ -1343,8 +1383,15 @@ aclError aclrtGetDeviceInfo(uint32_t deviceId, aclrtDevAttr attr, int64_t *value
   return ge::AclRuntimeStub::GetInstance()->aclrtGetDeviceInfo(deviceId, attr, value);
 }
 
-aclError aclrtGetDevicePhyIdByIndex(uint32_t devIndex, uint32_t *phyId) {
-  return ge::AclRuntimeStub::GetInstance()->aclrtGetDevicePhyIdByIndex(devIndex, phyId);
+aclError aclrtGetPhyDevIdByLogicDevId(const int32_t logicDevId, int32_t *const phyDevId) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetPhyDevIdByLogicDevId(logicDevId, phyDevId);
+}
+
+aclError aclrtMemcpyBatch(void **dsts, size_t *destMax, void **srcs, size_t *sizes, size_t numBatches,
+                          aclrtMemcpyBatchAttr *attrs, size_t *attrsIndexex, size_t numAttrs, size_t *failIndex)
+{
+  return ge::AclRuntimeStub::GetInstance()->aclrtMemcpyBatch(dsts, destMax, srcs, sizes, numBatches,
+                                                              attrs, attrsIndexex, numAttrs, failIndex);
 }
 
 aclError aclrtCheckArchCompatibility(const char *socVersion, int32_t *canCompatible) {
@@ -1399,16 +1446,16 @@ aclError aclrtSetTsDevice(aclrtTsId tsId) {
   return ge::AclRuntimeStub::GetInstance()->aclrtSetTsDevice(tsId);
 }
 
-aclError aclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback) {
-  return ge::AclRuntimeStub::GetInstance()->aclrtSetExceptionInfoCallback(callback);
-}
-
 aclError aclrtCreateContext(aclrtContext *context, int32_t deviceId) {
   return ge::AclRuntimeStub::GetInstance()->aclrtCreateContext(context, deviceId);
 }
 
 aclError aclrtGetDeviceCount(uint32_t *count) {
   return ge::AclRuntimeStub::GetInstance()->aclrtGetDeviceCount(count);
+}
+
+aclError aclrtGetDeviceCapability(int32_t deviceId, aclrtDevFeatureType devFeatureType, int32_t *value) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetDeviceCapability(deviceId, devFeatureType, value);
 }
 
 aclError aclrtCreateEventWithFlag(aclrtEvent *event, uint32_t flag) {
@@ -1472,6 +1519,30 @@ aclError aclrtSetOpWaitTimeout(uint32_t timeout) {
 
 aclError aclrtSetOpExecuteTimeOut(uint32_t timeout) {
   return ge::AclRuntimeStub::GetInstance()->aclrtSetOpExecuteTimeOut(timeout);
+}
+
+aclError aclrtSetDeviceSatMode(aclrtFloatOverflowMode mode) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetDeviceSatMode(mode);
+}
+
+aclError aclrtDeviceGetBareTgid(int32_t *pid) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtDeviceGetBareTgid(pid);
+}
+
+aclError aclrtSetExceptionInfoCallback(aclrtExceptionInfoCallback callback) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetExceptionInfoCallback(callback);
+}
+
+uint32_t aclrtGetDeviceIdFromExceptionInfo(const aclrtExceptionInfo *info) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetDeviceIdFromExceptionInfo(info);
+}
+
+uint32_t aclrtGetErrorCodeFromExceptionInfo(const aclrtExceptionInfo *info) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetErrorCodeFromExceptionInfo(info);
+}
+
+aclError aclrtGetUserDevIdByLogicDevId(const int32_t logicDevId, int32_t *const userDevid) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtGetUserDevIdByLogicDevId(logicDevId, userDevid);
 }
 
 aclError aclrtSetOpExecuteTimeOutWithMs(uint32_t timeout) {

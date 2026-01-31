@@ -10,7 +10,7 @@
 
 #include "ge/ge_error_codes.h"
 #include "common/llm_flow_service.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 #include "swap_impl.h"
 #include "common/llm_checker.h"
 #include "common/llm_scope_guard.h"
@@ -236,7 +236,7 @@ ge::Status LlmFlowService::Initialize(const std::map<ge::AscendString, ge::Ascen
     LlmWorker worker(cluster_id_, device_index, logical_device_ids[device_index]);
     ret = worker_pool_->commit([device_index, this, &worker, &options]() -> ge::Status {
       if (device_index < device_ids_.size()) {
-        LLM_CHK_BOOL_RET_STATUS(rtSetDevice(device_ids_[device_index]) == RT_ERROR_NONE, ge::FAILED,
+        LLM_CHK_BOOL_RET_STATUS(aclrtSetDevice(device_ids_[device_index]) == ACL_ERROR_NONE, ge::FAILED,
                                "Failed to set device, device id = %d", device_ids_[device_index]);
       }
       return worker.Initialize(options);
@@ -287,7 +287,7 @@ void LlmFlowService::Finalize() {
       cache_manager_.DestroyCopyStream(i);
       worker.Finalize();
       if (i < device_ids_.size()) {
-        LLM_CHK_ACL(rtDeviceReset(device_ids_[i]));
+        LLM_CHK_ACL(aclrtResetDevice(device_ids_[i]));
       }
     });
     futures.emplace_back(std::move(fut));
@@ -344,7 +344,7 @@ ge::Status LlmFlowService::LoadDataFlow(const FlowNodeDef &flow_node_def,
   for (size_t i = 0U; i < device_indices_.size(); ++i) {
     auto fut = pool.commit([this, i, &flow_node_def, &options]() -> ge::Status {
       if (i < device_ids_.size()) {
-        LLM_CHK_BOOL_RET_STATUS(rtSetDevice(device_ids_[i]) == RT_ERROR_NONE, ge::FAILED,
+        LLM_CHK_BOOL_RET_STATUS(aclrtSetDevice(device_ids_[i]) == ACL_ERROR_NONE, ge::FAILED,
                                 "Failed to set device, device id = %d", device_ids_[i]);
       }
       auto node_def = flow_node_def;

@@ -23,7 +23,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "dlog_pub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 #include "mem_utils.h"
 #include "llm_test_helper.h"
 

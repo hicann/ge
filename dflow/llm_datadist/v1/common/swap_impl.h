@@ -12,7 +12,7 @@
 #define AIR_RUNTIME_LLM_ENGINE_COMMON_SWAP_IMPL_H_
 
 #include "common/llm_utils.h"
-#include "runtime/rt.h"
+#include "runtime/rt_external.h"
 
 namespace llm {
 enum class CopyType : int32_t { kMemcpy = 0, kMemcpyEx = 1 };

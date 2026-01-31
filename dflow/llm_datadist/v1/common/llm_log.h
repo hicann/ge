@@ -24,7 +24,7 @@
 // LLM_ERROR_CODES has been defined in metadef, that will cause can't find the info in llm_error_codes.h
 #include "llm_datadist/llm_error_codes.h"
 #include "dlog_pub.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
 #include "base/err_msg.h"
 
 #ifdef __GNUC__
@@ -222,9 +222,9 @@ inline ge::Status ConvertAclError2Ge(int32_t ret) {
 #define LLM_CHK_ACL_RET(expr)                                                   \
   do {                                                                          \
     const int32_t _ret = static_cast<int32_t>(expr);                          \
-    if (_ret != RT_ERROR_NONE) {                                                            \
+    if (_ret != ACL_ERROR_NONE) {                                                            \
       REPORT_INNER_ERR_MSG("E19999", "Call %s fail, ret: 0x%X", #expr, static_cast<uint32_t>(_ret));      \
-      LLMLOGE(ge::FAILED, "Call rt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));             \
+      LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_ret));             \
       return llm::ConvertAclError2Ge(_ret);                                      \
     }                                                                           \
   } while (false)
@@ -232,18 +232,18 @@ inline ge::Status ConvertAclError2Ge(int32_t ret) {
 
 #define LLM_CHK_ACL(expr)                                              \
   do {                                                                 \
-    const rtError_t _rt_err = (expr);                \
-    if (_rt_err != RT_ERROR_NONE) {                                                 \
-      LLMLOGE(ge::FAILED, "Call rt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_err)); \
+    const aclError _rt_err = (expr);                \
+    if (_rt_err != ACL_ERROR_NONE) {                                                 \
+      LLMLOGE(ge::FAILED, "Call aclrt api failed, ret: 0x%X", static_cast<uint32_t>(_rt_err)); \
     }                                                                  \
   } while (false)
 
 #define LLM_FREE_ACL_LOG(addr)                                        \
   do {                                                              \
     if ((addr) != nullptr) {                                        \
-      const rtError_t error = rtFree(addr);     \
-      if (error != RT_ERROR_NONE) {                                 \
-        LLMLOGE(ge::FAILED, "Call rtFree failed, error:  0x%X", static_cast<uint32_t>(error)); \
+      const aclError error = aclrtFree(addr);     \
+      if (error != ACL_ERROR_NONE) {                                 \
+        LLMLOGE(ge::FAILED, "Call aclrtFree failed, error:  0x%X", static_cast<uint32_t>(error)); \
       }                                                             \
       (addr) = nullptr;                                             \
     }                                                               \

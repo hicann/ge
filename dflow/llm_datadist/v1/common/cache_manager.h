@@ -14,7 +14,9 @@
 #include <map>
 #include <mutex>
 #include "llm_datadist/llm_error_codes.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
+// for using rtMemcpyEx with mbuf
+#include "runtime/rt_external.h"
 #include "common.h"
 
 namespace llm {
@@ -45,7 +47,7 @@ private:
   ge::Status EnsureCopyStream(size_t device_index);
 
   std::mutex copy_mu_;
-  std::vector<rtStream_t> copy_streams_;
+  std::vector<aclrtStream> copy_streams_;
 };
 }  // namespace llm
 

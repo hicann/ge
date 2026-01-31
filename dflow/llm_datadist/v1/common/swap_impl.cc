@@ -28,23 +28,23 @@ struct D2dArgs {
   uint64_t block_size;
 };
 
-void D2dMemcpyThread(const rtContext_t &rt_context, const std::atomic_bool &d2d_thread_run_flag,
+void D2dMemcpyThread(const aclrtContext &rt_context, const std::atomic_bool &d2d_thread_run_flag,
                      ge::BlockingQueue<D2dArgs> &d2d_args_queue, ge::BlockingQueue<void *> &hbm_buffers,
                      std::pair<std::atomic_int32_t, size_t> &status_info) {
   (void)pthread_setname_np(pthread_self(), "ge_llm_swap");
   auto &ret = status_info.first;
-  ret = rtCtxSetCurrent(rt_context);
-  if (ret != RT_ERROR_NONE) {
-    LLMLOGE(ge::FAILED, "rtCtxSetCurrent failed");
+  ret = aclrtSetCurrentContext(rt_context);
+  if (ret != ACL_ERROR_NONE) {
+    LLMLOGE(ge::FAILED, "aclrtSetCurrentContext failed");
     return;
   }
-  rtStream_t swap_in_stream = nullptr;
-  ret = rtStreamCreate(&swap_in_stream, static_cast<int32_t>(RT_STREAM_PRIORITY_DEFAULT));
-  if (ret != RT_ERROR_NONE) {
-    LLMLOGE(ge::FAILED, "rtStreamCreate failed");
+  aclrtStream swap_in_stream = nullptr;
+  ret = aclrtCreateStream(&swap_in_stream);
+  if (ret != ACL_ERROR_NONE) {
+    LLMLOGE(ge::FAILED, "aclrtCreateStream failed");
     return;
   }
-  LLM_MAKE_GUARD(destroy_stream, [&swap_in_stream]() { LLM_CHK_ACL(rtStreamDestroy(swap_in_stream)); });
+  LLM_MAKE_GUARD(destroy_stream, [&swap_in_stream]() { LLM_CHK_ACL(aclrtDestroyStream(swap_in_stream)); });
   while (true) {
     if (!d2d_thread_run_flag && d2d_args_queue.Size() == 0) {
       break;
@@ -53,17 +53,17 @@ void D2dMemcpyThread(const rtContext_t &rt_context, const std::atomic_bool &d2d_
     if (!d2d_args_queue.Pop(d2d_args)) {
       continue;
     }
-    LLMLOGI("Begin rtMemcpyAsyncWithoutCheckKind, block size:%lu", d2d_args.block_size);
+    LLMLOGI("Begin aclrtMemcpyAsync, block size:%lu", d2d_args.block_size);
     const auto copy_start = std::chrono::steady_clock::now();
-    ret = rtMemcpyAsyncWithoutCheckKind(d2d_args.dst_addr, d2d_args.block_size, d2d_args.src_addr, d2d_args.block_size,
-                                        RT_MEMCPY_DEVICE_TO_DEVICE, swap_in_stream);
-    if (ret != RT_ERROR_NONE) {
-      LLMLOGE(ge::FAILED, "rtMemcpyAsyncWithoutCheckKind failed");
+    ret = aclrtMemcpyAsync(d2d_args.dst_addr, d2d_args.block_size, d2d_args.src_addr, d2d_args.block_size,
+                           ACL_MEMCPY_DEVICE_TO_DEVICE, swap_in_stream);
+    if (ret != ACL_ERROR_NONE) {
+      LLMLOGE(ge::FAILED, "aclrtMemcpyAsync failed");
       return;
     }
-    ret = rtStreamSynchronize(swap_in_stream);
-    if (ret != RT_ERROR_NONE) {
-      LLMLOGE(ge::FAILED, "rtStreamSynchronize failed");
+    ret = aclrtSynchronizeStream(swap_in_stream);
+    if (ret != ACL_ERROR_NONE) {
+      LLMLOGE(ge::FAILED, "aclrtSynchronizeStream failed");
       return;
     }
     const auto copy_end = std::chrono::steady_clock::now();
@@ -85,9 +85,9 @@ void StopSwapThread(ge::BlockingQueue<void *> &hbm_buffers, ge::BlockingQueue<D2
 ge::Status AllCachesH2dCopy(const std::vector<uintptr_t> &src_addrs, const std::vector<uintptr_t> &dst_addrs,
                             const uint64_t block_size, const std::vector<std::pair<int64_t, int64_t>> &block_mapping,
                             ge::BlockingQueue<void *> &hbm_buffers) {
-  rtContext_t rt_context = nullptr;
-  LLM_CHK_ACL_RET(rtCtxGetCurrent(&rt_context));
-  std::pair<std::atomic_int32_t, size_t> status_info{RT_ERROR_NONE, 0UL};
+  aclrtContext rt_context = nullptr;
+  LLM_CHK_ACL_RET(aclrtGetCurrentContext(&rt_context));
+  std::pair<std::atomic_int32_t, size_t> status_info{ACL_ERROR_NONE, 0UL};
   std::atomic_bool d2d_thread_run_flag(true);
   ge::BlockingQueue<D2dArgs> d2d_args_queue(kDefaultMaxQueueSize);
   std::thread d2d_thread = std::thread(D2dMemcpyThread, rt_context, std::ref(d2d_thread_run_flag),
@@ -105,7 +105,7 @@ ge::Status AllCachesH2dCopy(const std::vector<uintptr_t> &src_addrs, const std::
     auto dst_addr = dst_addrs[i];
     std::queue<std::pair<int64_t, int64_t>> tmp_block_indices(block_indices);
     while (true) {
-      if (tmp_block_indices.empty() || (status_info.first != RT_ERROR_NONE)) {
+      if (tmp_block_indices.empty() || (status_info.first != ACL_ERROR_NONE)) {
         break;
       }
       void *hbm_addr = nullptr;
@@ -115,10 +115,10 @@ ge::Status AllCachesH2dCopy(const std::vector<uintptr_t> &src_addrs, const std::
       const auto &block_index = tmp_block_indices.front();
       tmp_block_indices.pop();
       const uintptr_t src = src_addr + block_index.first * block_size;
-      LLMLOGI("Begin rtMemcpy, src_index:%ld, dst_index:%ld", block_index.first, block_index.second);
+      LLMLOGI("Begin aclrtMemcpy, src_index:%ld, dst_index:%ld", block_index.first, block_index.second);
       const auto copy_start = std::chrono::steady_clock::now();
       LLM_CHK_ACL_RET(
-          rtMemcpy(hbm_addr, block_size, reinterpret_cast<void *>(src), block_size, RT_MEMCPY_HOST_TO_DEVICE));
+          aclrtMemcpy(hbm_addr, block_size, reinterpret_cast<void *>(src), block_size, ACL_MEMCPY_HOST_TO_DEVICE));
       const auto copy_end = std::chrono::steady_clock::now();
       const auto cost = std::chrono::duration_cast<std::chrono::microseconds>(copy_end - copy_start).count();;
       h2d_copy_time.fetch_add(cost, std::memory_order_relaxed);
@@ -129,9 +129,9 @@ ge::Status AllCachesH2dCopy(const std::vector<uintptr_t> &src_addrs, const std::
     }
   }
   StopSwapThread(hbm_buffers, d2d_args_queue, d2d_thread_run_flag, d2d_thread);
-  LLMLOGI("[LlmPerf] h2d rtMemcpy cost time:%zu us, d2d rtMemcpyAsyncWithoutCheckKind cost time:%zu us",
+  LLMLOGI("[LlmPerf] h2d aclrtMemcpy cost time:%zu us, d2d aclrtMemcpyAsync cost time:%zu us",
          h2d_copy_time.load(), status_info.second);
-  LLM_CHK_BOOL_RET_STATUS(status_info.first == RT_ERROR_NONE, ge::FAILED, "d2d memcpy failed");
+  LLM_CHK_BOOL_RET_STATUS(status_info.first == ACL_ERROR_NONE, ge::FAILED, "d2d memcpy failed");
   return ge::SUCCESS;
 }
 }  // namespace
@@ -144,8 +144,8 @@ ge::Status SwapImpl::SwapBlocks(const std::vector<uintptr_t> &src_addrs, const s
   LLM_CHK_STATUS_RET(LLMUtils::FindContiguousBlockIndexPair(block_mapping, ordered_block_mapping));
   const auto start = std::chrono::steady_clock::now();
   llm::LLMThreadPool swap_out_pool("ge_llm_swap", kHbmBufferNum);
-  rtContext_t rt_context = nullptr;
-  LLM_CHK_ACL_RET(rtCtxGetCurrent(&rt_context));
+  aclrtContext rt_context = nullptr;
+  LLM_CHK_ACL_RET(aclrtGetCurrentContext(&rt_context));
   std::vector<std::future<ge::Status>> rets;
   std::atomic<size_t> rt_copy_time{0UL};
   for (size_t i = 0U; i < src_addrs.size(); ++i) {
@@ -153,7 +153,7 @@ ge::Status SwapImpl::SwapBlocks(const std::vector<uintptr_t> &src_addrs, const s
     auto dst_addr = dst_addrs[i];
     std::future<ge::Status> f = swap_out_pool.commit([src_addr, dst_addr, &ordered_block_mapping, &block_size,
                                                       &rt_context, &rt_copy_time, &copy_info]() -> ge::Status {
-      LLM_CHK_ACL_RET(rtCtxSetCurrent(rt_context));
+      LLM_CHK_ACL_RET(aclrtSetCurrentContext(rt_context));
       for (const auto &ordered_block : ordered_block_mapping) {
         const int64_t src_index = ordered_block.front().first;
         const int64_t dst_index = ordered_block.front().second;
@@ -176,7 +176,7 @@ ge::Status SwapImpl::SwapBlocks(const std::vector<uintptr_t> &src_addrs, const s
       }
       return ge::SUCCESS;
     });
-    LLM_CHK_BOOL_RET_STATUS(f.valid(), ge::FAILED, "commit blocks rtMemcpyEx task failed");
+    LLM_CHK_BOOL_RET_STATUS(f.valid(), ge::FAILED, "commit blocks rtMemcpy task failed");
     rets.emplace_back(std::move(f));
   }
   for (size_t i = 0U; i < rets.size(); ++i) {
@@ -193,13 +193,13 @@ ge::Status SwapImpl::SwapInBlocks(const std::vector<uintptr_t> &src_addrs, const
                                   const std::vector<std::pair<int64_t, int64_t>> &block_mapping) {
   const auto start = std::chrono::steady_clock::now();
   ge::BlockingQueue<void *> hbm_buffers;
-  rtError_t ret = RT_ERROR_NONE;
+  aclError ret = ACL_ERROR_NONE;
   std::vector<void *> need_freed_buffers;
   for (int32_t i = 0; i < kHbmBufferNum; ++i) {
     void *addr = nullptr;
-    ret = rtMalloc(&addr, block_size, RT_MEMORY_HBM, LLM_MODULE_NAME_U16);
-    if (ret != RT_ERROR_NONE) {
-      LLMLOGE(ge::FAILED, "rtMalloc failed");
+    ret = aclrtMalloc(&addr, block_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH);
+    if (ret != ACL_ERROR_NONE) {
+      LLMLOGE(ge::FAILED, "aclrtMalloc failed");
       break;
     }
     need_freed_buffers.emplace_back(addr);
@@ -209,10 +209,10 @@ ge::Status SwapImpl::SwapInBlocks(const std::vector<uintptr_t> &src_addrs, const
   LLMLOGI("Malloc hbm buffer success, num:%d, per buffer size:%lu", need_freed_buffers.size(), block_size);
   LLM_MAKE_GUARD(free_buffers, [&need_freed_buffers]() {
     for (const auto &buffer : need_freed_buffers) {
-      (void)rtFree(buffer);
+      (void)aclrtFree(buffer);
     }
   });
-  LLM_CHK_BOOL_RET_STATUS(ret == RT_ERROR_NONE, ge::LLM_DEVICE_OUT_OF_MEMORY, "rtMalloc hbm buffer failed");
+  LLM_CHK_BOOL_RET_STATUS(ret == ACL_ERROR_NONE, ge::LLM_DEVICE_OUT_OF_MEMORY, "aclrtMalloc hbm buffer failed");
   LLM_CHK_STATUS_RET(AllCachesH2dCopy(src_addrs, dst_addrs, block_size, block_mapping, hbm_buffers),
                     "h2d memcpy failed");
   const auto end = std::chrono::steady_clock::now();
@@ -239,8 +239,8 @@ ge::Status SwapImpl::SwapBlocks(const Cache &src, const Cache &dst, const uint64
                          "src adrrs size:%zu not equal dst addrs size:%zu", src_addrs[device_index].size(),
                          dst_addrs[device_index].size());
   LLMLOGI("Begin swap blocks, cache num:%zu, swap block num:%zu", src_addrs.front().size(), block_mapping.size());
-  LLM_CHK_ACL_RET(rtSetDevice(device_id_));
-  LLM_MAKE_GUARD(reset_device, [this]() { LLM_CHK_ACL(rtDeviceReset(device_id_)); });
+  LLM_CHK_ACL_RET(aclrtSetDevice(device_id_));
+  LLM_MAKE_GUARD(reset_device, [this]() { LLM_CHK_ACL(aclrtResetDevice(device_id_)); });
   if (type == kSwapOut) {
     LLM_CHK_STATUS_RET(SwapOutBlocks(src_addrs[device_index], dst_addrs[device_index], block_size, block_mapping),
                       "swap out blocks failed");

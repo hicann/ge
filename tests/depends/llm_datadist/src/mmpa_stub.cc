@@ -13,9 +13,9 @@
 #include <fstream>
 #include <cstdio>  // for std::remove
 #include <iostream>
-#include "depends/runtime/src/runtime_stub.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 #include "hccl_mem_comm.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "hccl_stub.h"
 #include "common/llm_log.h"
 #include "common/llm_checker.h"
@@ -37,7 +37,7 @@ HcclResult HcclExchangeMemDesc1(HcclComm comm, uint32_t remoteRank, HcclMemDescs
 }
 
 HcclResult HcclBatchPut1(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                         rtStream_t stream) {
+                         aclrtStream stream) {
   LLMLOGI("remote_rank = %u, num_tasks = %u", remoteRank, descNum);
   for (uint32_t i = 0; i < descNum; ++i) {
     auto src = desc[i].localAddr;
@@ -52,7 +52,7 @@ namespace {
 uintptr_t mock_handle = 0x8001;
 
 HcclResult HcclBatchGet1(HcclComm comm, uint32_t remoteRank, HcclOneSideOpDesc *desc, uint32_t descNum,
-                         rtStream_t stream) {
+                         aclrtStream stream) {
   LLMLOGI("remote_rank = %u, num_tasks = %u", remoteRank, descNum);
   for (uint32_t i = 0; i < descNum; ++i) {
     auto src = desc[i].localAddr;
@@ -142,21 +142,22 @@ class MockMmpa : public MmpaStubApiGe {
     return 0;
   }
 };
-class RuntimeMock : public RuntimeStub {
+
+#define LLM_TEST_QUERY_EVENT_INTERVAL 5
+class RuntimeMock : public ge::AclRuntimeStub {
  public:
-  rtError_t rtEventQueryStatus(rtEvent_t evt, rtEventStatus_t *status)  {
+  aclError aclrtQueryEventStatus(aclrtEvent evt, aclrtEventRecordedStatus *status)  {
     count++;
-    if ((count % 5) == 0) {
-      *status = RT_EVENT_RECORDED;
+    if ((count % LLM_TEST_QUERY_EVENT_INTERVAL) == 0) {
+      *status = ACL_EVENT_RECORDED_STATUS_COMPLETE;
     } else {
-      *status = RT_EVENT_INIT;
+      *status = ACL_EVENT_RECORDED_STATUS_NOT_READY;
     }
-    return RT_ERROR_NONE;
+    return ACL_ERROR_NONE;
   }
 
-  rtError_t rtGetSocVersion(char *version, const uint32_t maxLen) override {
-    (void)strcpy_s(version, maxLen, "Ascend910_9391");
-    return RT_ERROR_NONE;
+  const char* aclrtGetSocName() override {
+    return "Ascend910_9391";
   }
  private:
   int count;
@@ -165,7 +166,7 @@ class StartMock {
  public:
   StartMock() {
     MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
-    RuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
+    ge::AclRuntimeStub::SetInstance(std::make_shared<RuntimeMock>());
     WriteHccnConfFile();
   }
 
