@@ -2259,7 +2259,7 @@ std::string TilingLib::GenTilingFunc(const std::map<std::string, std::string> &s
 
 static void GetTilingParse(std::string &tiling_parse, int &vector_core_num) {
   std::stringstream ss;
-  ss << "bool version_is_ASCEND910_95 = false;" << std::endl;
+  ss << "bool version_is_ASCEND950 = false;" << std::endl;
   ss << "struct AfTilingParseData{" << std::endl;
   ss << " uint32_t aiv_num;" << std::endl;
   ss << " uint64_t ub_size;" << std::endl;
@@ -2297,10 +2297,10 @@ static void GetTilingParse(std::string &tiling_parse, int &vector_core_num) {
   ss << " auto tiling_parse_data = extend_context->GetOutputPointer<AfTilingParseData *>(0);" << std::endl;
   ss << " (*tiling_parse_data)->aiv_num = aiv_num;" << std::endl;
   // 当前A5获取ubsize没减256，和静态编译获取的不一致，临时规避
-  ss << " if (ascendc_platform.GetSocVersion() == platform_ascendc::SocVersion::ASCEND910_95) {" << std::endl;
-  ss << " version_is_ASCEND910_95 = true;" << std::endl;
+  ss << " if (ascendc_platform.GetSocVersion() == platform_ascendc::SocVersion::ASCEND950) {" << std::endl;
+  ss << " version_is_ASCEND950 = true;" << std::endl;
   ss << " }" << std::endl;
-  ss << " ub_size -= (ascendc_platform.GetSocVersion() == platform_ascendc::SocVersion::ASCEND910_95 && ub_size % 1024 == 0) ? 256 : 0;" << std::endl;
+  ss << " ub_size -= (ascendc_platform.GetSocVersion() == platform_ascendc::SocVersion::ASCEND950 && ub_size % 1024 == 0) ? 256 : 0;" << std::endl;
   ss << " (*tiling_parse_data)->ub_size = ub_size;" << std::endl;
   ss << " return ge::GRAPH_SUCCESS;" << std::endl;
   ss << "}" << std::endl;
@@ -2369,7 +2369,7 @@ static std::string GenWorkspaceNodeCheckCode(const ascir::FusedScheduledResult &
   }
   ss << "};" << std::endl;
 
-  ss << "  if (version_is_ASCEND910_95 && ";
+  ss << "  if (version_is_ASCEND950 && ";
   ss << "schedule_result_has_workspace_node.count(tiling_data->graph0_tiling_key) > 0) {" << std::endl;
   ss << "    context->SetScheduleMode(1);" << std::endl;
   ss << "  }" << std::endl;

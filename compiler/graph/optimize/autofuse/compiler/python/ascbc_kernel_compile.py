@@ -155,7 +155,7 @@ def _build_options(temp_build_dir, impl_mode):
     options.append("-DAUTO_FUSE_DEVICE=1")
 
     custom_compile_options = {'_ALLSOC_': ['--cce-auto-sync=off', '-Wno-deprecated-declarations', '-Werror']},
-    custom_all_compile_options = {'ascend910_95': ['--cce-simd-vf-fusion=true']},
+    custom_all_compile_options = {'ascend950': ['--cce-simd-vf-fusion=true']},
     soc_short = get_soc_spec("SHORT_SOC_VERSION").lower()
     custom_compile_options_soc = get_shortsoc_compile_option(custom_compile_options[0], soc_short)
     custom_all_compile_options_soc = get_shortsoc_compile_option(custom_all_compile_options[0], soc_short)

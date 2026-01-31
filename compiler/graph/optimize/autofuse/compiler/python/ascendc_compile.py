@@ -38,7 +38,7 @@ def get_soc_type(args):
         return "dav-2201"
     elif args.soc_version.startswith("Ascend910_93"):
         return "dav-2201"
-    elif args.soc_version.startswith("Ascend910_95"):
+    elif args.soc_version.startswith("Ascend950"):
         return "dav-3101"
     else:
         raise ValueError(f"Unsupported soc_version: {args.soc_version}")

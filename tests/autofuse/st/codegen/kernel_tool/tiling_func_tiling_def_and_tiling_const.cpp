@@ -131,7 +131,7 @@ extern "C" ge::graphStatus TilingParse(gert::SymbolTilingParseContext *context) 
  tiling_parse_data_av->SetWithDefaultDeleter<uint8_t[]>(tiling_parse_data_ptr);
  auto tiling_parse_data = extend_context->GetOutputPointer<AfTilingParseData *>(0);
  (*tiling_parse_data)->aiv_num = aiv_num;
- ub_size -= (ascendc_platform.GetSocVersion() == platform_ascendc::SocVersion::ASCEND910_95 && ub_size % 1024 == 0) ? 256 : 0;
+ ub_size -= (ascendc_platform.GetSocVersion() == platform_ascendc::SocVersion::ASCEND950 && ub_size % 1024 == 0) ? 256 : 0;
  (*tiling_parse_data)->ub_size = ub_size;
  return ge::GRAPH_SUCCESS;
 }
