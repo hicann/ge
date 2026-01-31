@@ -499,15 +499,21 @@ __aicore__ inline void CastExtendImpl(__ubuf__ OutT *dstUb, __ubuf__ InT *srcUb,
         func(dstUb, srcUb, count, repeatTimes, innerLoopStride);
     } else if constexpr (dim == 2) {
         uint32_t loop_num = uint32_t(output_dims[0]);
-        for (uint32_t i = 0; i < loop_num; i++) {
-            if constexpr (std::is_same_v<InT, int4x2_t>) {
-                func(dstUb + i * output_stride[0], srcUb + i * input_stride[0] / 2, count, repeatTimes,
-                    innerLoopStride);
-            } else if constexpr (std::is_same_v<OutT, int4x2_t>) {
-                func(dstUb + i * output_stride[0] / 2, srcUb + i * input_stride[0], count, repeatTimes,
-                    innerLoopStride);
-            } else {
-                func(dstUb + i * output_stride[0], srcUb + i * input_stride[0], count, repeatTimes, innerLoopStride);
+        if ((output_stride[0] == input_stride[0]) && (output_stride[0] == output_dims[1])) {
+            uint32_t count_new = output_dims[0] * output_stride[0];
+            uint32_t repeat_times_new = static_cast<uint32_t>((count_new + innerLoopStride - 1) / innerLoopStride);
+            func(dstUb, srcUb, count_new, repeat_times_new, innerLoopStride);
+        } else{
+            for (uint32_t i = 0; i < loop_num; i++) {
+                if constexpr (std::is_same_v<InT, int4x2_t>) {
+                    func(dstUb + i * output_stride[0], srcUb + i * input_stride[0] / 2, count, repeatTimes,
+                        innerLoopStride);
+                } else if constexpr (std::is_same_v<OutT, int4x2_t>) {
+                    func(dstUb + i * output_stride[0] / 2, srcUb + i * input_stride[0], count, repeatTimes,
+                        innerLoopStride);
+                } else {
+                    func(dstUb + i * output_stride[0], srcUb + i * input_stride[0], count, repeatTimes, innerLoopStride);
+                }
             }
         }
     }
@@ -662,10 +668,12 @@ __aicore__ inline void CastExtend(const AscendC::LocalTensor<OutT> &dst, const A
         CastExtendImpl<func, InT, OutT, roundMode, dim>(dstUb, srcUb, count, repeatTimes, innerLoopStride,
             output_dims, output_stride, input_stride);
     } else {
+        int64_t ctrl_value = AscendC::GetCtrlSpr<60, 60>();
         AscendC::SetCtrlSpr<60, 60>(0);
         constexpr auto func = CastExtendCommon<InT, OutT, roundMode>;
         CastExtendImpl<func, InT, OutT, roundMode, dim>(dstUb, srcUb, count, repeatTimes, innerLoopStride,
             output_dims, output_stride, input_stride);
+        AscendC::SetCtrlSpr<60, 60>(ctrl_value);
     }
 }
 #endif

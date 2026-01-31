@@ -70,23 +70,20 @@ class TestApiReduceInit :public testing::Test {
 
     T pad_value = GetPaddingValue<T, ReduceType>();
 
-    int repeatStride = ((param.inner_r * itemsize + 31) / 32) * 32;
-    int strideElement = repeatStride / itemsize;
+    int repeatStride = ((param.inner_r * itemsize + 31) / 32) * 32; // inner_r up to 32B
+    int strideElement = repeatStride / itemsize; // inner_r_up
     int pad_len = strideElement - param.inner_r;
+    int repeat_times = param.dim_r_current / strideElement;
 
-    int repeat_times = ((param.dim_a - 1) * param.dim_r) / strideElement + param.dim_r_current / strideElement;
+    for (int i = param.dim_r_current; i < param.dim_r; ++i) {
+      param.exp[i] = pad_value;
+    }
 
     for (int i = 0; i < repeat_times; ++i) {
-        for (int j = 0; j < pad_len; ++j) {
-            param.exp[param.inner_r + i * strideElement + j] = pad_value;
-        }
+      for (int j = 0; j < pad_len; ++j) {
+        param.exp[param.inner_r + j + i * strideElement] = pad_value;
+      }
     }
-
-    int current_offset = (param.dim_a - 1) * param.dim_r + param.dim_r_current;
-    for (int i = ((param.dim_a - 1) * param.dim_r + param.dim_r_current); i < param.size; ++i) {
-        param.exp[i] = pad_value;
-    }
-
   }
 
   template <typename T>
