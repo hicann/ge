@@ -43,6 +43,7 @@
 #include "common/math/math_util.h"
 #include "graph/passes/pass_manager.h"
 #include "base/err_msg.h"
+#include "ge/ge_api_types.h"
 
 namespace {
 const uint32_t kWeightsStartOffset = 512;
@@ -583,6 +584,20 @@ Status ModelBuilder::BuildModelDefForMem(ge::Model &model) {
                    GELOGE(FAILED, "[Set][Str] %s in model failed.", ATTR_MODEL_OUT_NODES_NAME.c_str());
                    return FAILED);
   (void) ge::AttrUtils::SetListListInt(&model, ATTR_MODEL_SUB_MEMORY_INFO, sub_mem_offsets_);
+
+  // Set output reuse input memory indexes from option
+  std::string output_reuse_input_mem_indexes;
+  if (ge::GetContext().GetOption(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, output_reuse_input_mem_indexes) == SUCCESS) {
+    if (!output_reuse_input_mem_indexes.empty()) {
+      if (!ge::AttrUtils::SetStr(&model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, output_reuse_input_mem_indexes)) {
+        REPORT_INNER_ERR_MSG("E19999", "Set Attr:%s in model failed", ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES.c_str());
+        GELOGE(FAILED, "[Set][Str] %s in model failed", ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES.c_str());
+        return FAILED;
+      }
+      GELOGI("Set attr output_reuse_input_mem_indexes to model, value is %s.", output_reuse_input_mem_indexes.c_str());
+    }
+  }
+
   GELOGI(
       "For model, max_mem_offset: %zu, host_max_mem_offset: %zu, host_svm_max_mem_offset: %zu, p2p_mem_size: %zu, "
       "zero_copy_mem_size: %zu, "

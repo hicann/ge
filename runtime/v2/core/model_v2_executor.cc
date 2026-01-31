@@ -13,6 +13,7 @@
 
 #include <utility>
 #include "framework/common/debug/ge_log.h"
+#include "framework/common/util.h"
 #include "builder/model_v2_executor_builder.h"
 #include "register/kernel_registry.h"
 #include "common/model/ge_root_model.h"
@@ -238,6 +239,8 @@ ge::graphStatus ModelV2Executor::Execute(const ModelExecuteArg &arg, Tensor **in
   GE_RETURN_IF_ERROR(CheckTensors(outputs, output_num, "outputs"));
   GE_RETURN_IF_ERROR(graph_executor.SpecifyOutputs(reinterpret_cast<void *const *>(outputs), output_num));
 
+  GE_RETURN_IF_ERROR(CheckIoReuseAddrs(inputs, input_num, outputs, output_num));
+
   if (subscribers_.IsEnable()) {
     return graph_executor.Execute(kMainExeGraph, &subscribers_.GetSubscriber(kMainExeGraph));
   } else {
@@ -394,5 +397,31 @@ uint32_t ModelV2Executor::GetIterationNum() const {
     return 0U;
   }
   return cann_profiler->GetIterationNum();
+}
+
+ge::graphStatus ModelV2Executor::CheckIoReuseAddrs(Tensor **inputs, size_t input_num,
+                                                    Tensor **outputs, size_t output_num) const {
+  if (io_same_addr_pairs_.empty()) {
+    return ge::GRAPH_SUCCESS;
+  }
+  if (inputs == nullptr || outputs == nullptr) {
+    return ge::GRAPH_SUCCESS;
+  }
+  if (input_num == 0U || output_num == 0U) {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  AddrGetter input_getter;
+  AddrGetter output_getter;
+  for (size_t i = 0; i < input_num; ++i) {
+    input_getter = [&](size_t i) { return inputs[i]->GetAddr(); };
+  }
+  for (size_t i = 0; i < output_num; ++i) {
+    output_getter = [&](size_t i) { return outputs[i]->GetAddr(); };
+  }
+
+  GE_ASSERT_SUCCESS(ge::CheckIoReuseAddrPairs(io_same_addr_pairs_, input_getter, input_num,
+                                              output_getter, output_num));
+  return ge::GRAPH_SUCCESS;
 }
 }  // namespace gert

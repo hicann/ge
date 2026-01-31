@@ -178,6 +178,104 @@ TEST_F(UtestUtilTransfer, GetAscendWorkPath_Success) {
   unsetenv("ASCEND_WORK_PATH");
 }
 
+// 1. 测试正常场景：单个配对
+TEST_F(UtestUtilTransfer, Parse_Success_SinglePair) {
+  std::string input = "0,0";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  EXPECT_EQ(result.size(), 1);
+  EXPECT_EQ(result[0].first, 0);
+  EXPECT_EQ(result[0].second, 0);
+}
+
+// 2. 测试正常场景：多个配对
+TEST_F(UtestUtilTransfer, Parse_Success_MultiPairs) {
+  std::string input = "0,1|2,3|10,20";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  EXPECT_EQ(result.size(), 3);
+  // Check first pair
+  EXPECT_EQ(result[0].first, 0);
+  EXPECT_EQ(result[0].second, 1);
+  // Check last pair
+  EXPECT_EQ(result[2].first, 10);
+  EXPECT_EQ(result[2].second, 20);
+}
+
+// 3. 测试空字符串
+TEST_F(UtestUtilTransfer, Parse_EmptyString_NoOutput) {
+  std::string input = "";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  EXPECT_TRUE(result.empty());
+}
+
+// 4. 测试容错：包含空段 (||) 或 尾部竖线 (|)
+TEST_F(UtestUtilTransfer, Parse_SkipEmptySegments) {
+  // "||" 导致空子串，结尾 "|" 导致空子串
+  std::string input = "1,1||2,2|";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_EQ(result[0].first, 1);
+  EXPECT_EQ(result[1].first, 2);
+}
+
+// 5. 测试异常：包含负数 (应打印日志并跳过该项)
+TEST_F(UtestUtilTransfer, Parse_InvalidNegative_Skip) {
+  std::string input = "1,1|-1,0|2,2|0,-5";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  // -1,0 和 0,-5 应该被跳过
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_EQ(result[0].first, 1);
+  EXPECT_EQ(result[1].first, 2);
+}
+
+// 6. 测试异常：格式错误 (缺少逗号)
+TEST_F(UtestUtilTransfer, Parse_InvalidFormatNoComma_Skip) {
+  std::string input = "1,1|invalid|3,3";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  EXPECT_EQ(result.size(), 2);
+  EXPECT_EQ(result[0].first, 1);
+  EXPECT_EQ(result[1].first, 3);
+}
+
+// 7. 测试异常：非数字字符 (stoul 抛异常被 catch)
+TEST_F(UtestUtilTransfer, Parse_InvalidChars_Skip) {
+  std::string input = "a,b|1,1";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  EXPECT_EQ(result.size(), 1);
+  EXPECT_EQ(result[0].first, 1);
+  EXPECT_EQ(result[0].second, 1);
+}
+
+// 8. 测试异常：超出整数范围
+TEST_F(UtestUtilTransfer, Parse_InvalidRange_Skip) {
+  std::string input = "99999999999999999999999999,1";
+  std::vector<std::pair<size_t, size_t>> result;
+
+  ParseOutputReuseInputMemIndexes(input, result);
+
+  EXPECT_EQ(result.size(), 0);
+}
+
 class UtestIntegerChecker : public testing::Test {
  protected:
   void SetUp() {}

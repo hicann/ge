@@ -229,6 +229,7 @@ class VISIBILITY_EXPORT ModelV2Executor {
                                        TypedContinuousVector<rtEvent_t> *&events,
                                        TypedContinuousVector<rtNotify_t> *&notifies);
   ge::Status InitRtVarManager(const ModelLoadArg &load_arg);
+  ge::graphStatus CheckIoReuseAddrs(Tensor **inputs, size_t input_num, Tensor **outputs, size_t output_num) const;
 
  private:
   // to keep host resource live longer than resource_guard_
@@ -260,6 +261,9 @@ class VISIBILITY_EXPORT ModelV2Executor {
   NotifyAllocator builtin_notify_allocator_;
   uint64_t load_session_id_{std::numeric_limits<uint64_t>::max()};
   RtSession default_rt_session_{load_session_id_};
+
+  // For output reuse input memory address validation
+  std::vector<std::pair<size_t, size_t>> io_same_addr_pairs_;
 };
 }  // namespace gert
 

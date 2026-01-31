@@ -992,6 +992,14 @@ class DavinciModel {
 
   Status UpdateAllNodeArgs(const InputData &input_data, const OutputData &output_data,
                            const std::vector<GeTensor> &input_tensor, const std::vector<GeTensor> &output_tensor);
+  Status CheckIoReuseAddrs(const std::vector<DataBuffer> &input_blobs,
+                           const std::vector<DataBuffer> &output_blobs,
+                           const std::vector<gert::Tensor> &input_tensors,
+                           const std::vector<gert::Tensor> &output_tensors) const;
+  Status CheckIoReuseAddrs(const std::vector<DataBuffer> &input_blobs,
+                           const std::vector<DataBuffer> &output_blobs,
+                           const std::vector<GeTensor> &input_tensors,
+                           const std::vector<GeTensor> &output_tensors) const;
   Status CopyInputForNoZeroCopy(const std::vector<DataBuffer> &blobs,
                                 const std::map<uint32_t, MemAllocationSlice> &copy_infos,
                                 const std::vector<GeTensor> &tensors);
@@ -1761,6 +1769,9 @@ class DavinciModel {
 
   std::vector<DumpProcState> dump_fsm_state_;
   std::unordered_set<std::string> dump_op_in_range_;
+
+  // For output reuse input memory address validation
+  std::vector<std::pair<size_t, size_t>> io_same_addr_pairs_;
 };
 }  // namespace ge
 #endif  // GE_GRAPH_LOAD_NEW_MODEL_MANAGER_DAVINCI_MODEL_H_

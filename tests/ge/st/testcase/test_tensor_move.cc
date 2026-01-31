@@ -60,7 +60,6 @@ bool SetTransDataTensorDesc(const ComputeGraphPtr &root_graph, const std::vector
       std::cout << "========================================" << std::endl;
       std::cout << "can not find " << node_name << std::endl;
       std::cout << "========================================" << std::endl;
-      GE_DUMP(root_graph, "SetTransDataTensorDesc_failed");
       return false;
     }
   }
@@ -79,7 +78,6 @@ bool AddParentIndexForNetoutput(ComputeGraphPtr &root_graph, NetoutputParentInde
       std::cout << "========================================" << std::endl;
       std::cout << "can not find " << name_indexes_pair.first << std::endl;
       std::cout << "========================================" << std::endl;
-      GE_DUMP(root_graph, "AddParentIndexForNetoutput_failed");
       return false;
     }
     auto op_desc = iter->second->GetOpDesc();
@@ -89,7 +87,6 @@ bool AddParentIndexForNetoutput(ComputeGraphPtr &root_graph, NetoutputParentInde
       std::cout << name_indexes_pair.first << " real inputs size: " << op_desc->GetInputsSize()
                 << ", but name_indexes_pair.second.size(): " << name_indexes_pair.second.size() << std::endl;
       std::cout << "========================================" << std::endl;
-      GE_DUMP(root_graph, "AddParentIndexForNetoutput_failed");
       return false;
     }
     for (auto parent_index : name_indexes_pair.second) {
@@ -140,7 +137,7 @@ TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_Deleted) {
 
   // 1. 设置内存复用选项：设置根图的第 0 个输出复用第 0 个输入
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "0,0";
   options["ge.oo.level"] = "O3";
   ge::GetThreadLocalContext().SetGraphOption(options);
 
@@ -154,8 +151,9 @@ TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_Deleted) {
   };
 
   // 3. 构造父图 g1
+  const auto data_cfg = OP_CFG(DATA).Attr(ATTR_NAME_INDEX, 0);
   DEF_GRAPH(g1) {
-    CHAIN(NODE("data", DATA)
+    CHAIN(NODE("data", data_cfg)
           ->EDGE(0, 0)->NODE("partitioned_call", PARTITIONEDCALL, sub_1)
           ->EDGE(0, 0)->NODE("netoutput", NETOUTPUT));
   };
@@ -226,7 +224,7 @@ TEST_F(TensoeMoveTest, TensorMove_NestedPCall_FromAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   options["ge.oo.level"] = "O3";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto sub_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
@@ -318,7 +316,7 @@ TEST_F(TensoeMoveTest, TensorMoveInSub_FromSubSubAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   options["ge.oo.level"] = "O3";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto sub_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
@@ -417,7 +415,7 @@ TEST_F(TensoeMoveTest, TensorMoveInRootAndSub_FromSubSubAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   options["ge.oo.level"] = "O3";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto sub_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
@@ -746,7 +744,7 @@ TEST_F(TensoeMoveTest, TensorMove_RootDeleted_SubInIfKept_DueToIfOp) {
 TEST_F(TensoeMoveTest, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   options["ge.oo.level"] = "O3";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto if_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
@@ -789,5 +787,129 @@ TEST_F(TensoeMoveTest, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
   EXPECT_NE(if_sub_graph->FindNode("if_tensormove"), nullptr);
   EXPECT_NE(compute_graph->FindNode("tensormove"), nullptr);
 
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+/**
+ * 父图:                子图 sub_1:
+ * Data                 sub_Data (ParentIndex: 0)
+ * |                      |
+ * PartitionedCall ------> TensorMove
+ * |                      |
+ * NetOutput            sub_NetOutput
+ * (复用输入地址)
+ *
+ * 场景说明：
+ * - 子图内部 TensorMove 的前驱是 sub_Data，其在父图的实际源头是 Data。
+ * - 设置根图 NetOutput 复用输入内存，触发 TensorMove 优化逻辑。
+ *
+ * 预期行为：
+ * - Trace 能够跨越子图边界识别到 Data 是源头。
+ * - TensorMove 被成功识别并删除。
+ */
+TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_Deleted2) {
+  // 1. 设置内存复用选项：设置根图的第 0 个输出复用第 0 个输入
+  std::map<std::string, std::string> options;
+  options[OPTION_INPUT_REUSE_MEM_INDEXES] = "0";
+  options["ge.oo.level"] = "O3";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  // 2. 构造子图 sub_1
+  // sub_Data 的 ParentNodeIndex(0) 代表它对应父图中 PartitionedCall 的第 0 个 Input
+  const auto sub_data_cfg = OP_CFG(DATA).ParentNodeIndex(0);
+  DEF_GRAPH(sub_1) {
+    CHAIN(NODE("sub_data", sub_data_cfg)
+          ->NODE("sub_tensormove", TENSORMOVE)
+          ->NODE("sub_netoutput", NETOUTPUT));
+  };
+
+  // 3. 构造父图 g1
+  const auto data_cfg = OP_CFG(DATA).Attr(ATTR_NAME_INDEX, 0);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data", data_cfg)
+          ->EDGE(0, 0)->NODE("partitioned_call", PARTITIONEDCALL, sub_1)
+          ->EDGE(0, 0)->NODE("netoutput", NETOUTPUT));
+  };
+
+  // 4. 将子图挂载到父图
+  auto compute_graph = ToComputeGraph(g1);
+  const auto sub_graph_1 = compute_graph->GetSubgraph("sub_1");
+  ASSERT_NE(sub_graph_1, nullptr);
+
+  auto p_call_node = compute_graph->FindNode("partitioned_call");
+  ASSERT_NE(p_call_node, nullptr);
+
+  // 设置父子图关联属性
+  sub_graph_1->SetParentGraph(compute_graph);
+  sub_graph_1->SetParentNode(p_call_node);
+  NetoutputParentIndexes indexes{{"netoutput", {0}},
+                                 {"sub_netoutput", {0}}};
+  ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
+
+  // 6. 执行 Pass
+  ge::GEPass pass(compute_graph);
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+
+  // 7. 验证结果：子图内部的 tensormove 应该被删除
+  // 注意：FindNode 在子图中查找
+  EXPECT_EQ(sub_graph_1->FindNode("sub_tensormove"), nullptr);
+
+  // 清理环境
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_NotDeleted) {
+  // 1. 设置内存复用选项：设置根图的第 0 个输出复用第 0 个输入
+  std::map<std::string, std::string> options;
+  options["ge.oo.level"] = "O3";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  // 2. 构造子图 sub_1
+  // sub_Data 的 ParentNodeIndex(0) 代表它对应父图中 PartitionedCall 的第 0 个 Input
+  const auto sub_data_cfg = OP_CFG(DATA).ParentNodeIndex(0);
+  DEF_GRAPH(sub_1) {
+    CHAIN(NODE("sub_data", sub_data_cfg)
+          ->NODE("sub_tensormove", TENSORMOVE)
+          ->NODE("sub_netoutput", NETOUTPUT));
+  };
+
+  // 3. 构造父图 g1
+  const auto data_cfg = OP_CFG(DATA).Attr(ATTR_NAME_INDEX, 0);
+  DEF_GRAPH(g1) {
+    CHAIN(NODE("data", data_cfg)
+          ->EDGE(0, 0)->NODE("partitioned_call", PARTITIONEDCALL, sub_1)
+          ->EDGE(0, 0)->NODE("netoutput", NETOUTPUT));
+  };
+
+  // 4. 将子图挂载到父图
+  auto compute_graph = ToComputeGraph(g1);
+  const auto sub_graph_1 = compute_graph->GetSubgraph("sub_1");
+  ASSERT_NE(sub_graph_1, nullptr);
+
+  auto p_call_node = compute_graph->FindNode("partitioned_call");
+  ASSERT_NE(p_call_node, nullptr);
+
+  // 设置父子图关联属性
+  sub_graph_1->SetParentGraph(compute_graph);
+  sub_graph_1->SetParentNode(p_call_node);
+  NetoutputParentIndexes indexes{{"netoutput", {0}},
+                                 {"sub_netoutput", {0}}};
+  ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
+
+  // 6. 执行 Pass
+  ge::GEPass pass(compute_graph);
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+
+  // 7. 验证结果：子图内部的 tensormove 应该被删除
+  // 注意：FindNode 在子图中查找
+  EXPECT_NE(sub_graph_1->FindNode("sub_tensormove"), nullptr);
+
+  // 清理环境
   ge::GetThreadLocalContext().SetGraphOption({});
 }

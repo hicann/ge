@@ -10964,11 +10964,13 @@ Graph ShareGraph::BuildSwitchMergeGraph() {
 
   auto merge_1 = OP_CFG(MERGE).TensorDesc(FORMAT_NCHW, DT_INT32, shape).InCnt(2).OutCnt(2).Build("merge_1");
 
+  auto netoutput = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).Build("netoutput");
   DEF_GRAPH(g1) {
-    CHAIN(NODE(data_1)->EDGE(0, 0)->NODE(switch_1)->EDGE(0, 0)->NODE(merge_1)->EDGE(0, 0)->NODE("output_1", NETOUTPUT));
+    CHAIN(NODE(data_1)->EDGE(0, 0)->NODE(switch_1)->EDGE(0, 0)->NODE(merge_1)->EDGE(0, 0)->NODE(netoutput));
     CHAIN(NODE(switch_1)->EDGE(1, 0)->NODE(add_1)->EDGE(0, 1)->NODE(merge_1));
     CHAIN(NODE(data_2)->EDGE(0, 1)->NODE(switch_1));
     CHAIN(NODE(const_1)->EDGE(0, 1)->NODE(add_1));
+    ADD_OUTPUT(netoutput, 0);
   };
   auto graph = ToGeGraph(g1);
   return graph;

@@ -11,6 +11,7 @@
 #include "model_v2_executor_builder.h"
 
 #include <cstring>
+#include <sstream>
 #include <utility>
 #include "ge/ge_api_types.h"
 #include "executor_builder.h"
@@ -157,6 +158,7 @@ std::unique_ptr<ModelV2Executor> ModelV2ExecutorBuilder::Build(const ExecutorOpt
   GE_TIMESTAMP_EVENT_END(SubscribersSchedulerInit, "ModelV2ExecutorBuilderBuild::SubscribersSchedulerInit");
   GE_TIMESTAMP_EVENT_END(ModelV2ExecutorBuilderBuild, "ModelV2ExecutorBuilderBuild::All");
   executor->host_resource_center_ = root_model_->GetHostResourceCenterPtr();
+  SetOutputReuseInputMemIndexes(*executor);
   return executor;
 }
 
@@ -327,5 +329,22 @@ std::unique_ptr<uint8_t[]> ModelV2ExecutorBuilder::ReadBufferFromAttr(const char
     buffer_size -= copy_size;
   }
   return buffer_data;
+}
+
+void ModelV2ExecutorBuilder::SetOutputReuseInputMemIndexes(ModelV2Executor &executor) const {
+  if (root_model_ == nullptr) {
+    return;
+  }
+  const auto &models = root_model_->GetSubgraphInstanceNameToModel();
+  for (const auto &iter : models) {
+    std::string reuse_indexes_str;
+    if (!ge::AttrUtils::GetStr(iter.second, ge::ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, reuse_indexes_str)) {
+      continue;
+    }
+    ge::ParseOutputReuseInputMemIndexes(reuse_indexes_str, executor.io_same_addr_pairs_);
+    GELOGI("Read output reuse input mem indexes from model %s, pairs count: %zu",
+           iter.first.c_str(), executor.io_same_addr_pairs_.size());
+    break;  // Only need to read from one model
+  }
 }
 }  // namespace gert

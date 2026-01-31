@@ -410,4 +410,103 @@ std::string GetErrorNumStr(const int32_t errorNum) {
   const auto err_msg = mmGetErrorFormatMessage(errorNum, &err_buf[0], kMaxErrorStrLength);
   return (err_msg == nullptr) ? "" : err_msg;
 }
+
+void SplitStringByComma(const std::string &str, std::vector<std::string> &sub_str_vec) {
+  std::string tmp_string = str + ",";
+  std::string::size_type start_pos = 0;
+  std::string::size_type cur_pos = tmp_string.find(',', 0);
+  while (cur_pos != std::string::npos) {
+    std::string sub_str = tmp_string.substr(start_pos, cur_pos - start_pos);
+    if (!sub_str.empty()) {
+      std::vector<std::string>::iterator ret = std::find(sub_str_vec.begin(), sub_str_vec.end(), sub_str);
+      if (ret == sub_str_vec.end()) {
+        sub_str_vec.push_back(sub_str);
+      }
+    }
+    start_pos = cur_pos + 1;
+    cur_pos = tmp_string.find(',', start_pos);
+  }
+}
+
+void ParseOutputReuseInputMemIndexes(const std::string &reuse_indexes_str,
+                                     std::vector<std::pair<size_t, size_t>> &io_same_addr_pairs) {
+  if (reuse_indexes_str.empty()) {
+    return;
+  }
+
+  std::string::size_type start = 0;
+  while (start < reuse_indexes_str.length()) {
+    const std::string::size_type end = reuse_indexes_str.find('|', start);
+    std::string pair_str;
+    // 1. 优先计算当前子串并更新下一轮的 start
+    if (end == std::string::npos) {
+      pair_str = reuse_indexes_str.substr(start);
+      start = reuse_indexes_str.length();
+    } else {
+      pair_str = reuse_indexes_str.substr(start, end - start);
+      start = end + 1;
+    }
+    // 2. 过滤空字符串
+    if (pair_str.empty()) {
+      continue;
+    }
+    // 3. 校验格式（必须包含逗号）
+    const size_t comma_pos = pair_str.find(',');
+    if (comma_pos == std::string::npos) {
+      continue;
+    }
+    const std::string input_idx_str = pair_str.substr(0, comma_pos);
+    const std::string output_idx_str = pair_str.substr(comma_pos + 1);
+    // 4. 校验负数
+    if (input_idx_str.find('-') != std::string::npos ||
+        output_idx_str.find('-') != std::string::npos) {
+      GELOGW("[Parse][Option] Invalid negative index in ge.exec.outputReuseInputMemIndexes: '%s'. "
+             "Indexes must be non-negative.", reuse_indexes_str.c_str());
+      continue;
+    }
+    try {
+      const size_t input_idx = static_cast<size_t>(std::stoul(input_idx_str));
+      const size_t output_idx = static_cast<size_t>(std::stoul(output_idx_str));
+      io_same_addr_pairs.emplace_back(input_idx, output_idx);
+    } catch (...) {
+      GELOGW("[Parse][Option] Invalid index in ge.exec.outputReuseInputMemIndexes: '%s'. "
+             "Indexes must be non-negative integers.", reuse_indexes_str.c_str());
+    }
+  }
+}
+
+Status CheckIoReuseAddrPairs(const std::vector<std::pair<size_t, size_t>> &io_same_addr_pairs,
+                             const AddrGetter& get_input_addr, size_t input_num,
+                             const AddrGetter& get_output_addr, size_t output_num) {
+  GELOGD("Start to check io reuse addr pairs, io_same_addr_pairs count: %zu, input num: %zu, output num: %zu",
+         io_same_addr_pairs.size(), input_num, output_num);
+  for (const auto &pair : io_same_addr_pairs) {
+    const size_t input_idx = pair.first;
+    const size_t output_idx = pair.second;
+
+    if (input_idx >= input_num) {
+      GELOGE(ge::PARAM_INVALID, "[Check][Param] Input index %zu out of range, input_num is %zu, addr reuse check not pass",
+             input_idx, input_num);
+      return ge::PARAM_INVALID;
+    }
+    if (output_idx >= output_num) {
+      GELOGE(ge::PARAM_INVALID, "[Check][Param] Output index %zu out of range, output_num is %zu, addr reuse check not pass",
+             output_idx, output_num);
+      return ge::PARAM_INVALID;
+    }
+
+    const void *input_addr = get_input_addr(input_idx);
+    const void *output_addr = get_output_addr(output_idx);
+
+    if (output_addr != input_addr) {
+      GELOGE(ge::PARAM_INVALID, "[Check][Param] Output[%zu] address(%p) must be same as Input[%zu] address(%p) because the option "
+             "'ge.exec.outputReuseInputMemIndexes' is set with value containing '%zu,%zu', addr reuse check not pass",
+             output_idx, output_addr, input_idx, input_addr, input_idx, output_idx);
+      return ge::PARAM_INVALID;
+    }
+    GELOGD("[Check][Param] Output[%zu] address(%p) is same as Input[%zu] address(%p), addr reuse check pass.",
+           output_idx, output_addr, input_idx, input_addr);
+  }
+  return SUCCESS;
+}
 }  //  namespace ge

@@ -5915,5 +5915,364 @@ TEST_F(DavinciModelTest, mc2_with_fusion_task_graph_load_and_success) {
   dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
 }
 
+/**
+ * ST场景: CheckIoReuseAddrs - 端到端验证地址相同时校验通过
+ *
+ * 说明：
+ * - 设置 ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES = "0,0"
+ * - 执行时输入输出使用相同地址
+ *
+ * 预期：
+ * - CheckIoReuseAddrs 返回 SUCCESS
+ */
+TEST_F(DavinciModelTest, CheckIoReuseAddrs_SameAddress_Success) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_io_reuse");
+  GeTensorDesc tensor(GeShape({1, 4, 4, 8}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor, 512);
+
+  // Data 节点
+  {
+    OpDescPtr op_desc = CreateOpDesc("data", DATA, 1, 1);
+    op_desc->UpdateInputDesc(0, tensor);
+    op_desc->UpdateOutputDesc(0, tensor);
+    op_desc->SetInputOffset({0});
+    op_desc->SetOutputOffset({0});
+    graph->AddNode(op_desc);
+  }
+
+  // NetOutput 节点
+  {
+    OpDescPtr op_desc = CreateOpDesc("netoutput", NETOUTPUT, 1, 0);
+    op_desc->UpdateInputDesc(0, tensor);
+    op_desc->SetInputOffset({512});
+    op_desc->SetSrcName({"data"});
+    op_desc->SetSrcIndex({0});
+    graph->AddNode(op_desc);
+  }
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  SetGeModelAttrs(ge_model);
+
+  // 设置地址复用属性
+  AttrUtils::SetStr(ge_model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0");
+
+  shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(model_task_def);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+
+  // 使用相同地址作为输入和输出
+  void *shared_addr = reinterpret_cast<void *>(0x10000);
+  std::vector<DataBuffer> input_blobs = {{shared_addr, 512, false}};
+  std::vector<DataBuffer> output_blobs = {{shared_addr, 512, false}};
+
+  std::vector<GeTensor> empty_tensors;
+  EXPECT_EQ(model.CheckIoReuseAddrs(input_blobs, output_blobs, empty_tensors, empty_tensors), SUCCESS);
+
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+/**
+ * ST场景: CheckIoReuseAddrs - 端到端验证地址不同时校验失败
+ *
+ * 说明：
+ * - 设置 ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES = "0,0"
+ * - 执行时输入输出使用不同地址
+ *
+ * 预期：
+ * - CheckIoReuseAddrs 返回 FAILED
+ */
+TEST_F(DavinciModelTest, CheckIoReuseAddrs_DifferentAddress_Fail) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_io_reuse_fail");
+  GeTensorDesc tensor(GeShape({1, 4, 4, 8}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor, 512);
+
+  // Data 节点
+  {
+    OpDescPtr op_desc = CreateOpDesc("data", DATA, 1, 1);
+    op_desc->UpdateInputDesc(0, tensor);
+    op_desc->UpdateOutputDesc(0, tensor);
+    op_desc->SetInputOffset({0});
+    op_desc->SetOutputOffset({0});
+    graph->AddNode(op_desc);
+  }
+
+  // NetOutput 节点
+  {
+    OpDescPtr op_desc = CreateOpDesc("netoutput", NETOUTPUT, 1, 0);
+    op_desc->UpdateInputDesc(0, tensor);
+    op_desc->SetInputOffset({512});
+    op_desc->SetSrcName({"data"});
+    op_desc->SetSrcIndex({0});
+    graph->AddNode(op_desc);
+  }
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  SetGeModelAttrs(ge_model);
+
+  // 设置地址复用属性
+  AttrUtils::SetStr(ge_model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0");
+
+  shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(model_task_def);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+
+  // 使用不同地址作为输入和输出
+  std::vector<DataBuffer> input_blobs = {{reinterpret_cast<void *>(0x10000), 512, false}};
+  std::vector<DataBuffer> output_blobs = {{reinterpret_cast<void *>(0x20000), 512, false}};
+
+  std::vector<GeTensor> empty_tensors;
+  EXPECT_NE(model.CheckIoReuseAddrs(input_blobs, output_blobs, empty_tensors, empty_tensors), SUCCESS);
+
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+/**
+ * ST场景: CheckIoReuseAddrs - 多输入多输出复用验证
+ *
+ * 说明：
+ * - 设置 ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES = "0,0|1,1"
+ * - 验证多对索引的地址校验
+ *
+ * 预期：
+ * - 地址匹配时返回 SUCCESS
+ * - 部分地址不匹配时返回 FAILED
+ */
+TEST_F(DavinciModelTest, CheckIoReuseAddrs_MultipleInputsOutputs) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_multi_io_reuse");
+  GeTensorDesc tensor(GeShape({1, 4, 4, 8}), FORMAT_NCHW, DT_FLOAT);
+  TensorUtils::SetSize(tensor, 512);
+
+  // Data0 节点
+  {
+    OpDescPtr op_desc = CreateOpDesc("data0", DATA, 1, 1);
+    op_desc->UpdateInputDesc(0, tensor);
+    op_desc->UpdateOutputDesc(0, tensor);
+    op_desc->SetInputOffset({0});
+    op_desc->SetOutputOffset({0});
+    graph->AddNode(op_desc);
+  }
+
+  // Data1 节点
+  {
+    OpDescPtr op_desc = CreateOpDesc("data1", DATA, 1, 1);
+    op_desc->UpdateInputDesc(0, tensor);
+    op_desc->UpdateOutputDesc(0, tensor);
+    op_desc->SetInputOffset({512});
+    op_desc->SetOutputOffset({512});
+    graph->AddNode(op_desc);
+  }
+
+  // NetOutput 节点
+  {
+    OpDescPtr op_desc = CreateOpDesc("netoutput", NETOUTPUT, 2, 0);
+    op_desc->UpdateInputDesc(0, tensor);
+    op_desc->UpdateInputDesc(1, tensor);
+    op_desc->SetInputOffset({1024, 1536});
+    op_desc->SetSrcName({"data0", "data1"});
+    op_desc->SetSrcIndex({0, 0});
+    graph->AddNode(op_desc);
+  }
+
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  SetGeModelAttrs(ge_model);
+
+  // 设置多对地址复用属性
+  AttrUtils::SetStr(ge_model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0|1,1");
+
+  shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(model_task_def);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+
+  // 测试1：地址全部匹配
+  void *addr0 = reinterpret_cast<void *>(0x10000);
+  void *addr1 = reinterpret_cast<void *>(0x20000);
+
+  std::vector<DataBuffer> input_blobs = {{addr0, 512, false}, {addr1, 512, false}};
+  std::vector<DataBuffer> output_blobs = {{addr0, 512, false}, {addr1, 512, false}};
+
+  std::vector<GeTensor> empty_tensors;
+  EXPECT_EQ(model.CheckIoReuseAddrs(input_blobs, output_blobs, empty_tensors, empty_tensors), SUCCESS);
+
+  // 测试2：部分地址不匹配
+  void *addr2 = reinterpret_cast<void *>(0x30000);
+  output_blobs[1].data = addr2;  // output[1] 使用不同地址
+
+  EXPECT_NE(model.CheckIoReuseAddrs(input_blobs, output_blobs, empty_tensors, empty_tensors), SUCCESS);
+
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+/**
+ * - 输入输出均使用 GeTensor
+ * - 使用同一个 GeTensor 对象放入输入输出列表 (模拟地址复用)
+ *
+ * 预期：SUCCESS
+ */
+TEST_F(DavinciModelTest, CheckIoReuseAddrs_GeTensor_SameAddress_Success) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_ge_tensor");
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  SetGeModelAttrs(ge_model);
+  AttrUtils::SetStr(ge_model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0");
+
+  shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(model_task_def);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+
+  GeTensor tensor;
+  std::vector<uint8_t> dummy_data(128, 0xAB);
+  tensor.SetData(dummy_data); // 内部分配内存
+
+  std::vector<GeTensor> input_tensors = {tensor};
+  std::vector<GeTensor> output_tensors = {tensor};
+  std::vector<DataBuffer> empty_blobs;
+
+  EXPECT_EQ(model.CheckIoReuseAddrs(empty_blobs, empty_blobs, input_tensors, output_tensors), SUCCESS);
+
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+/**
+ * - 设置 ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES = "0,0"
+ * - Input 使用 GeTensor A
+ * - Output 使用 GeTensor B (拥有独立的内存地址)
+ *
+ * 预期：
+ * - CheckIoReuseAddrs 返回 FAILED (不等于 SUCCESS)
+ */
+TEST_F(DavinciModelTest, CheckIoReuseAddrs_GeTensor_DiffAddress_Fail) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_ge_tensor_fail");
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  SetGeModelAttrs(ge_model);
+
+  AttrUtils::SetStr(ge_model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0");
+
+  shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(model_task_def);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+
+  GeTensor input_tensor;
+  std::vector<uint8_t> data_in(128, 0xAA);
+  input_tensor.SetData(data_in); // 分配内存地址 A
+
+  GeTensor output_tensor;
+  std::vector<uint8_t> data_out(128, 0xBB);
+  output_tensor.SetData(data_out); // 分配内存地址 B
+
+  std::vector<GeTensor> input_tensors = {input_tensor};
+  std::vector<GeTensor> output_tensors = {output_tensor};
+  std::vector<DataBuffer> empty_blobs;
+
+  EXPECT_NE(model.CheckIoReuseAddrs(empty_blobs, empty_blobs, input_tensors, output_tensors), SUCCESS);
+
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+/**
+ * - 使用 gert::Tensor 重载
+ * - 手动设置不同的物理地址
+ * - 注意 gert::Tensor 不可拷贝，需直接构造 vector
+ *
+ * 预期：FAILED
+ */
+TEST_F(DavinciModelTest, CheckIoReuseAddrs_GertTensor_DiffAddress_Fail) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_gert");
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  SetGeModelAttrs(ge_model);
+  AttrUtils::SetStr(ge_model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0");
+
+  shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(model_task_def);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+
+  std::vector<gert::Tensor> input_tensors(1);
+  input_tensors[0].MutableTensorData().SetAddr(reinterpret_cast<void*>(0xAAAA), nullptr);
+
+  std::vector<gert::Tensor> output_tensors(1);
+  output_tensors[0].MutableTensorData().SetAddr(reinterpret_cast<void*>(0xBBBB), nullptr); // 地址不同
+
+  std::vector<DataBuffer> empty_blobs;
+
+  EXPECT_NE(model.CheckIoReuseAddrs(empty_blobs, empty_blobs, input_tensors, output_tensors), SUCCESS);
+
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
+
+/**
+ * ST场景: CheckIoReuseAddrs - gert::Tensor 场景验证 (地址一致成功)
+ *
+ * 说明：
+ * - 手动设置相同的物理地址
+ *
+ * 预期：SUCCESS
+ */
+TEST_F(DavinciModelTest, CheckIoReuseAddrs_GertTensor_SameAddress_Success) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
+
+  // 1. 初始化
+  ComputeGraphPtr graph = MakeShared<ComputeGraph>("test_gert_success");
+  GeModelPtr ge_model = MakeShared<GeModel>();
+  ge_model->SetGraph(graph);
+  SetGeModelAttrs(ge_model);
+  AttrUtils::SetStr(ge_model, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0");
+
+  shared_ptr<domi::ModelTaskDef> model_task_def = MakeShared<domi::ModelTaskDef>();
+  ge_model->SetModelTaskDef(model_task_def);
+
+  DavinciModel model(0, nullptr);
+  model.Assign(ge_model);
+  EXPECT_EQ(model.Init(), SUCCESS);
+
+  // 2. 构造 gert::Tensor
+  void* shared_addr = reinterpret_cast<void*>(0xCCCC);
+
+  std::vector<gert::Tensor> input_tensors(1);
+  input_tensors[0].MutableTensorData().SetAddr(shared_addr, nullptr);
+
+  std::vector<gert::Tensor> output_tensors(1);
+  output_tensors[0].MutableTensorData().SetAddr(shared_addr, nullptr); // 地址一致
+
+  std::vector<DataBuffer> empty_blobs;
+
+  // 3. 执行校验
+  EXPECT_EQ(model.CheckIoReuseAddrs(empty_blobs, empty_blobs, input_tensors, output_tensors), SUCCESS);
+
+  dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
+}
 } // namespace ge
 

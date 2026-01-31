@@ -789,6 +789,8 @@ const std::string ATTR_MODEL_SESSION_SCOPE_MEMORY_SIZE = "session_scope_memory_s
 
 const std::string ATTR_MODEL_SUB_MEMORY_INFO = "sub_memory_info";
 
+const std::string ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES = "output_reuse_input_mem_indexes";
+
 // Used for om compress
 const std::string ATTR_MODEL_OM_COMPRESS_VERSION = "om_compress_version";
 

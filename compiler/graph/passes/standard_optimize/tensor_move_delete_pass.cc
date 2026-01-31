@@ -20,6 +20,7 @@
 #include "node_utils.h"
 #include "op_type_utils.h"
 #include "common/omg_util.h"
+#include "framework/common/util.h"
 
 namespace ge {
 namespace {
@@ -314,237 +315,49 @@ bool IsSourceNodeWithSinglePath(const NodePtr &tensor_move_node, const std::vect
 }
 
 /**
- * @brief 判断节点是否为子图（SubGraph）的 NetOutput 节点
- * @return true 该节点是 NetOutput 类型，且位于子图中（非根图）
- * @return false 节点不是 NetOutput，或者是根图的 NetOutput
- */
-bool IsSubGraphNetOutput(const NodePtr &node) {
-  GE_ASSERT_NOTNULL(node);
-  GE_ASSERT_NOTNULL(node->GetOpDesc());
-  if (node->GetOpDesc()->GetType() != NETOUTPUT) {
-    return false;
-  }
-  return !NodeUtils::IsNodeInRootGraph(node);
-}
-
-/**
- * @brief 检查指定节点的特定输入索引是否通过Refop透传到了某个输出
- * @param node 当前节点
- * @param in_index 输入锚点的索引
- * @return 如果找到对应的Ref输出锚点则返回Ptr，否则返回nullptr
- */
-OutDataAnchorPtr GetRefOutAnchorByInput(const NodePtr &node, int32_t in_index) {
-  GE_ASSERT_NOTNULL(node);
-  GE_ASSERT_NOTNULL(node->GetOpDesc());
-  for (const auto &out_anchor : node->GetAllOutDataAnchors()) {
-    int32_t reuse_in_index;
-    // 检查该输出是否引用了输入，且引用的输入索引是否匹配
-    if (GraphUtils::IsRefFromInput(out_anchor, reuse_in_index) && (reuse_in_index == in_index)) {
-      return out_anchor;
-    }
-  }
-  return nullptr;
-}
-
-/**
- * @brief 处理 PartitionedCall 节点的钻入逻辑，查找对应子图的 Data 节点并将它们的输出锚点压入栈中
- * @param partitoned_call_node 持有子图的调用节点（如 PartitionedCall）
- * @param in_index 当前节点正在被追踪的输入索引
- * @param out_anchor_stack 用于遍历的输出锚点栈，找到的子图 Data 节点输出锚点会被压入此栈
- */
-void PushSubDataNodes(const NodePtr &partitoned_call_node, int32_t in_index,
-                           std::stack<OutDataAnchorPtr> &out_anchor_stack) {
-  auto sub_data_nodes = NodeUtils::GetSubgraphDataNodesByIndex(*partitoned_call_node, in_index);
-  if (!sub_data_nodes.empty()) {
-    GELOGI("PartitionedCall %s maps to [%zu] subgraph Data nodes.",
-           partitoned_call_node->GetName().c_str(), sub_data_nodes.size());
-    for (const auto &data_node : sub_data_nodes) {
-      // Data 节点的输出通常是索引 0
-      out_anchor_stack.push(data_node->GetOutDataAnchor(0));
-    }
-  } else {
-    GELOGI("PartitionedCall %s input %d has no corresponding Data node in subgraph.",
-           partitoned_call_node->GetName().c_str(), in_index);
-  }
-}
-
-/**
- * @brief 处理子图 NetOutput 节点的跳出逻辑，根据输入索引查找父图 Wrapper 节点对应的输出锚点
- * @param netoutput_node 子图内部的 NetOutput 节点
- * @param in_index NetOutput 节点的输入锚点索引
- * @return 若存在映射关系则返回父图 Wrapper 节点的输出锚点，否则返回 nullptr
- */
-OutDataAnchorPtr GetWrapperOutAnchor(const NodePtr &netoutput_node, int32_t in_index) {
-  const auto &op_desc = netoutput_node->GetOpDesc();
-  const auto in_tensor_desc = op_desc->GetInputDesc(static_cast<uint32_t>(in_index));
-  uint32_t parent_index = 0;
-  // 尝试获取父节点索引映射
-  GE_ASSERT_TRUE(AttrUtils::GetInt(in_tensor_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index),
-                 "Subgraph NetOutput node %s input index %d has no parent node index attr.",
-                 netoutput_node->GetName().c_str(), in_index);
-  // 获取 Wrapper Node (即子图的 Parent Node)
-  const auto &wrapper_node = netoutput_node->GetOwnerComputeGraphBarePtr()->GetParentNode();
-  GE_ASSERT_NOTNULL(wrapper_node, "Subgraph NetOutput node %s input index %d has no parent node.",
-                    netoutput_node->GetNamePtr(), in_index);
-
-  return wrapper_node->GetOutDataAnchor(static_cast<int32_t>(parent_index));
-}
-
-/**
- * @brief 深度优先遍历图结构，查找指定节点输出直连/通过Ref/透传链路后到达的最终目的节点的输入锚点
- *
- * 该函数从起始节点的指定输出端口出发，追踪数据流。
- * 如果遇到以下类型的“透传”节点，会继续向下追踪（穿透）：
- * 1. Ref 节点：输入输出内存复用/透传的节点
- * 2. Wrapper节点:钻入子图，从sub data往下追踪
- * 3. TensorMove：函数调用或内存搬运节点，视为透传
- * 3. SubGraph NetOutput：子图的输出节点，跳到父图中对应的节点继续追踪。
- *
- * 停止追踪的条件：
- * 1. 遇到普通的计算节点
- * 2. 到达根图的NetOutput 节点
- *
- * @param [in]  node       起始节点指针
- * @param [in]  out_index  起始节点的输出锚点索引
- * @param [out] dst_in_anchors  收集查找到的最终目的输入锚点列表
- */
-Status GetDstInAnchors(const NodePtr &node, const int32_t out_index, std::vector<InDataAnchor *> &dst_in_anchors) {
-  auto start_out_anchor = node->GetOutDataAnchor(out_index);
-  GE_ASSERT_NOTNULL(start_out_anchor);
-
-  std::stack<OutDataAnchorPtr> out_anchor_stack;
-  out_anchor_stack.push(start_out_anchor);
-  while (!out_anchor_stack.empty()) {
-    const auto out_anchor = out_anchor_stack.top();
-    out_anchor_stack.pop();
-    GE_ASSERT_NOTNULL(out_anchor);
-    for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchorsPtr()) {
-      GE_ASSERT_NOTNULL(peer_in_anchor);
-      const auto next_node = peer_in_anchor->GetOwnerNode();
-      GE_ASSERT_NOTNULL(next_node);
-      int32_t cur_in_idx = peer_in_anchor->GetIdx();
-      // 1. 根图 NetOutput (终点)
-      if (OpTypeUtils::IsGraphOutputNode(next_node->GetType()) && !IsSubGraphNetOutput(next_node)) {
-        dst_in_anchors.emplace_back(peer_in_anchor);
-        continue;
-      }
-      // 2. RefOp (透传)
-      auto ref_out_anchor = GetRefOutAnchorByInput(next_node, cur_in_idx);
-      if (ref_out_anchor != nullptr) {
-        out_anchor_stack.push(ref_out_anchor);
-        continue;
-      }
-      // 3. Wrapper节点 (钻入子图)
-      if (NodeUtils::IsWrapperNode(next_node)) {
-        PushSubDataNodes(next_node, cur_in_idx, out_anchor_stack);
-        continue;
-      }
-      // 4. TensorMove (透传)
-      if (next_node->GetType() == TENSORMOVE) {
-        auto next_out_anchor = next_node->GetOutDataAnchor(cur_in_idx);
-        // 如果找不到TensorMove的输出，则这条路断了，不需要记录为终点
-        if (next_out_anchor != nullptr) {
-          out_anchor_stack.push(next_out_anchor);
-        }
-        continue;
-      }
-      // 5. 子图 NetOutput (跳出子图)
-      if (IsSubGraphNetOutput(next_node)) {
-        auto wrapper_out_anchor = GetWrapperOutAnchor(next_node, cur_in_idx);
-        // 如果找不到 Wrapper 的输出（比如悬空），则这条路断了，不需要记录为终点
-        if (wrapper_out_anchor != nullptr) {
-           out_anchor_stack.push(wrapper_out_anchor);
-        }
-        continue;
-      }
-      // 6. 普通计算节点 (终点)
-      dst_in_anchors.emplace_back(peer_in_anchor);
-    }
-  }
-  return SUCCESS;
-}
-
-/**
- * @brief 判断指定节点的输出是否可以直连/通过Ref/透传链路连接全图输出 (NetOutput)
- *
- * @param node          起始节点
- * @param out_idx       起始节点的输出索引
- * @param netout_in_anchor_idx [输出] 如果到达了 NetOutput，记录 NetOutput 对应的输入索引
- * @return true         数据流最终到达了全图输出
- * @return false        数据流没有到达全图输出（被中间节点消费或终结）
- */
-bool IsConnectedToGraphOutput(const NodePtr &node, int out_idx, int &netout_in_anchor_idx) {
-  std::vector<InDataAnchor *> dst_in_anchors;
-  GE_ASSERT_SUCCESS(GetDstInAnchors(node, out_idx, dst_in_anchors));
-  for (const auto &anchor : dst_in_anchors) {
-    auto owner_node = anchor->GetOwnerNode();
-    if (OpTypeUtils::IsGraphOutputNode(owner_node->GetType())) {
-      netout_in_anchor_idx = anchor->GetIdx();
-      GELOGI("TensorMove node %s is linked to NetOutput, netoutput_in_anchor_idx: %d.", node->GetName().c_str(), netout_in_anchor_idx);
-      return true;
-    }
-  }
-  GELOGI("TensorMove node %s is not linked to NetOutput, cannot be deleted.", node->GetName().c_str());
-  return false;
-}
-
-/**
- * @brief 解析内存复用配置字符串，将其按 '|' 分割为子串集合
- * @param config_str 配置字符串（格式示例："1,1|2,3"）
- * @return 包含分割后子串的无序集合，用于快速查找
- */
-std::unordered_set<std::string> ParseReuseConfig(const std::string &config_str) {
-  std::unordered_set<std::string> config_set;
-  if (config_str.empty()) {
-    return config_set;
-  }
-
-  std::string::size_type start = 0;
-  std::string::size_type end = config_str.find('|');
-
-  while (end != std::string::npos) {
-    // 截取 "1,1" 放入集合
-    if (end > start) {
-      config_set.insert(config_str.substr(start, end - start));
-    }
-    start = end + 1;
-    end = config_str.find('|', start);
-  }
-
-  // 处理最后一个段落 (例如 "|2,3" 后的部分)
-  if (start < config_str.length()) {
-    config_set.insert(config_str.substr(start));
-  }
-
-  return config_set;
-}
-
-/**
- * @brief 检查当前源输入节点索引与 NetOutput输出节点索引的配对是否在允许的内存复用配置中
+ * @brief 检查当前源输入节点索引是否在允许的内存复用配置中
  * @param src_out_idx 源节点（通常为 Data 节点）的输出索引，表示第几个输入
- * @param netout_in_anchor_idx 最终连接的NetOutput节点的输入锚点索引，表示第几个输出
  * @param node_name 当前处理的节点名称（用于日志记录）
- * @return 如果该配对存在于全局配置中则返回 true，否则返回 false
+ * @return 如果该输入索引存在于全局配置中则返回 true，否则返回 false
  */
-bool IsMemoryReuseAllowed(int32_t src_out_idx, int32_t netout_in_anchor_idx, const std::string &node_name) {
-  std::string mem_reuse_config_str;
-  if (GetThreadLocalContext().GetOption("ge.exec.outputReuseInputMemIndexes", mem_reuse_config_str) != SUCCESS) {
-    GELOGI("Failed to get output reuse input memory indexes config.");
-    return false;
-  }
-  auto valid_reuse_pairs = ParseReuseConfig(mem_reuse_config_str);
+bool IsMemoryReuseAllowed(int32_t src_out_idx, const std::string &node_name) {
+  // Check ge.exec.outputReuseInputMemIndexes first
+  std::string output_reuse_input_config;
+  if (GetThreadLocalContext().GetOption(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, output_reuse_input_config) == SUCCESS) {
+    std::vector<std::pair<size_t, size_t>> io_same_addr_pairs;
+    ParseOutputReuseInputMemIndexes(output_reuse_input_config, io_same_addr_pairs);
 
-  // 构造当前实际的复用对key
-  std::string current_pair = std::to_string(src_out_idx) + "," + std::to_string(netout_in_anchor_idx);
-  if (valid_reuse_pairs.count(current_pair) == 0) {
-    GELOGI("Memory reuse check failed: pair %s not found in allowed config %s, node %s cannot be deleted.",
-           current_pair.c_str(), mem_reuse_config_str.c_str(), node_name.c_str());
-    return false;
+    for (const auto &pair : io_same_addr_pairs) {
+      if (pair.first == static_cast<size_t>(src_out_idx)) {
+        GELOGI("Memory reuse check passed: input index %d found in ge.exec.outputReuseInputMemIndexes config %s for node %s.",
+               src_out_idx, output_reuse_input_config.c_str(), node_name.c_str());
+        return true;
+      }
+    }
   }
 
-  GELOGI("Memory reuse check passed: pair %s found in allowed config %s for node %s.",
-         current_pair.c_str(), mem_reuse_config_str.c_str(), node_name.c_str());
-  return true;
+  // Check ge.exec.inputReuseMemIndexes
+  std::string input_reuse_config;
+  if (GetThreadLocalContext().GetOption(OPTION_INPUT_REUSE_MEM_INDEXES, input_reuse_config) == SUCCESS) {
+    if (input_reuse_config.empty()) {
+      GELOGI("Memory reuse check skipped: ge.exec.inputReuseMemIndexes is empty.");
+      return false;
+    }
+    std::vector<std::string> input_indexes;
+    SplitStringByComma(input_reuse_config, input_indexes);
+    for (const auto &index_str : input_indexes) {
+      const int32_t index = std::stoi(index_str);
+      if (index == src_out_idx) {
+        GELOGI("Memory reuse check passed: input index %d found in ge.exec.inputReuseMemIndexes config %s for node %s.",
+                src_out_idx, input_reuse_config.c_str(), node_name.c_str());
+        return true;
+      }
+    }
+  }
+
+  GELOGI("Memory reuse check not pass: input index %d not found in any reuse config, node %s cannot be deleted.",
+         src_out_idx, node_name.c_str());
+  return false;
 }
 
 bool HasReservedAttr(const NodePtr &node) {
@@ -591,14 +404,14 @@ DeleteRule CheckSourceNodeReuse = [](const TensorMoveDeleteContext &ctx) {
     return true;
   }
 
-  auto netout_in_anchor_idx = -1;
-  if (!IsConnectedToGraphOutput(ctx.tensor_move, 0, netout_in_anchor_idx)) {
+  uint64_t input_index;
+  if (!AttrUtils::GetInt(src_node->GetOpDesc(), ATTR_NAME_INDEX, input_index)) {
+    GELOGI("Node %s(type %s) does not have attr %s, cannot delete.", src_node->GetName().c_str(), src_node->GetType().c_str(), ATTR_NAME_INDEX.c_str());
     return false;
   }
 
   // 校验内存复用配置
-  auto src_out_idx = ctx.path_to_source_node.back().second->GetIdx();
-  if (!IsMemoryReuseAllowed(src_out_idx, netout_in_anchor_idx, ctx.tensor_move->GetName())) {
+  if (!IsMemoryReuseAllowed(static_cast<int32_t>(input_index), ctx.tensor_move->GetName())) {
     return false;
   }
 

@@ -60,7 +60,6 @@ bool SetTransDataTensorDesc(const ComputeGraphPtr &root_graph, const std::vector
       std::cout << "========================================" << std::endl;
       std::cout << "can not find " << node_name << std::endl;
       std::cout << "========================================" << std::endl;
-      GE_DUMP(root_graph, "SetTransDataTensorDesc_failed");
       return false;
     }
   }
@@ -79,7 +78,6 @@ bool AddParentIndexForNetoutput(ComputeGraphPtr &root_graph, NetoutputParentInde
       std::cout << "========================================" << std::endl;
       std::cout << "can not find " << name_indexes_pair.first << std::endl;
       std::cout << "========================================" << std::endl;
-      GE_DUMP(root_graph, "AddParentIndexForNetoutput_failed");
       return false;
     }
     auto op_desc = iter->second->GetOpDesc();
@@ -89,7 +87,6 @@ bool AddParentIndexForNetoutput(ComputeGraphPtr &root_graph, NetoutputParentInde
       std::cout << name_indexes_pair.first << " real inputs size: " << op_desc->GetInputsSize()
                 << ", but name_indexes_pair.second.size(): " << name_indexes_pair.second.size() << std::endl;
       std::cout << "========================================" << std::endl;
-      GE_DUMP(root_graph, "AddParentIndexForNetoutput_failed");
       return false;
     }
     for (auto parent_index : name_indexes_pair.second) {
@@ -149,8 +146,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromComputeNodeToNetOutput_Deleted) 
   names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(builder.GetGraph()->FindNode("TensorMove"), nullptr);
-
-  GE_DUMP(builder.GetGraph(), "GraphAfterRemoveNode");
 }
 
 /**
@@ -176,7 +171,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataToNetOutput_ThroughRefOps_De
   setenv("DUMP_GE_GRAPH", "2", 1);
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
 
   auto builder = ut::GraphBuilder("g1");
@@ -185,6 +180,8 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataToNetOutput_ThroughRefOps_De
   auto node2 = builder.AddNode("ReShape1", RESHAPE, 1, 1);
   auto node22 = builder.AddNode("ReShape2", RESHAPE, 1, 1);
   auto node3 = builder.AddNode("NetOutput", NETOUTPUT, 1, 1);
+
+  AttrUtils::SetInt(relu_node->GetOpDesc(), ATTR_NAME_INDEX, 0);
 
   GraphUtils::AddEdge(relu_node->GetOutDataAnchor(0), node1->GetInDataAnchor(0));
   GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
@@ -200,7 +197,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataToNetOutput_ThroughRefOps_De
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(builder.GetGraph()->FindNode("TensorMove"), nullptr);
 
-  GE_DUMP(builder.GetGraph(), "GraphAfterRemoveNode");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -226,7 +222,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataToNetOutput_ThroughSingleRef
   setenv("DUMP_GE_GRAPH", "2", 1);
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
 
   auto builder = ut::GraphBuilder("g1");
@@ -234,6 +230,8 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataToNetOutput_ThroughSingleRef
   auto tensor_move_node = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
   auto reshape_node = builder.AddNode("ReShape", RESHAPE, 1, 1);
   auto netoutput_node = builder.AddNode("NetOutput", NETOUTPUT, 1, 1);
+
+  AttrUtils::SetInt(data_node->GetOpDesc(), ATTR_NAME_INDEX, 0);
 
   GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), reshape_node->GetInDataAnchor(0));
   GraphUtils::AddEdge(reshape_node->GetOutDataAnchor(0), tensor_move_node->GetInDataAnchor(0));
@@ -248,7 +246,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataToNetOutput_ThroughSingleRef
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(builder.GetGraph()->FindNode("TensorMove"), nullptr);
 
-  GE_DUMP(builder.GetGraph(), "GraphAfterRemoveNode");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -273,7 +270,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataViaRefOp_WithBranch_Kept) {
   setenv("DUMP_GE_GRAPH", "2", 1);
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
 
   auto builder = ut::GraphBuilder("g1");
@@ -305,7 +302,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromDataViaRefOp_WithBranch_Kept) {
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
 
-  GE_DUMP(builder.GetGraph(), "GraphAfterRemoveNode");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -343,9 +339,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_NoReuseConfig_Kept) {  // �
   names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
-
-  GE_DUMP(builder.GetGraph(), "GraphAfterRemoveNode");
-  // EXPECT_EQ(ret, SUCCESS);
 }
 
 /**
@@ -369,12 +362,14 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_MemReuse_Deleted) {
   setenv("DUMP_GE_GRAPH", "2", 1);
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
   auto builder = ut::GraphBuilder("g1");
   auto data_node = builder.AddNode("Data", DATA, 1, 1);
   auto node1 = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
   auto node2 = builder.AddNode("NetOutput", NETOUTPUT, 1, 1);
+
+  AttrUtils::SetInt(data_node->GetOpDesc(), ATTR_NAME_INDEX, 0);
 
   GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), node1->GetInDataAnchor(0));
   GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
@@ -388,7 +383,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_MemReuse_Deleted) {
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(builder.GetGraph()->FindNode("TensorMove"), nullptr);
 
-  GE_DUMP(builder.GetGraph(), "GraphAfterRemoveNode");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -413,7 +407,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromRelu_SourceHasMultiOutputs_Kept)
   setenv("DUMP_GE_GRAPH", "2", 1);
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
   setenv("DUMP_GRAPH_LEVEL", "2", 1);
   setenv("DUMP_GE_GRAPH", "2", 1);
@@ -446,7 +440,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromRelu_SourceHasMultiOutputs_Kept)
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
 
-  GE_DUMP(builder.GetGraph(), "GraphAfterRemoveNode");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -472,7 +465,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInSubgraph_FromParentData_Deleted) {
 
   // 1. 设置内存复用选项：设置根图的第 0 个输出复用第 0 个输入
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
 
   // 2. 构造子图 sub_1
@@ -485,8 +478,9 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInSubgraph_FromParentData_Deleted) {
   };
 
   // 3. 构造父图 g1
+  const auto data_cfg = OP_CFG(DATA).Attr(ATTR_NAME_INDEX, 0);
   DEF_GRAPH(g1) {
-    CHAIN(NODE("data", DATA)
+    CHAIN(NODE("data", data_cfg)
           ->EDGE(0, 0)->NODE("partitioned_call", PARTITIONEDCALL, sub_1)
           ->EDGE(0, 0)->NODE("netoutput", NETOUTPUT));
   };
@@ -510,8 +504,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInSubgraph_FromParentData_Deleted) {
                                  {"sub_netoutput", {0}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "Before_Delete_SubTensorMove");
-
   // 6. 执行 Pass
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
@@ -522,8 +514,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInSubgraph_FromParentData_Deleted) {
   // 7. 验证结果：子图内部的 tensormove 应该被删除
   // 注意：FindNode 在子图中查找
   EXPECT_EQ(sub_graph_1->FindNode("sub_tensormove"), nullptr);
-
-  GE_DUMP(compute_graph, "After_Delete_SubTensorMove");
 
   // 清理环境
   ge::GetThreadLocalContext().SetGraphOption({});
@@ -565,7 +555,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_NestedPCall_FromAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto sub_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(sub_sub_1) {
@@ -609,7 +599,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_NestedPCall_FromAdd_Deleted) {
                                  {"sub_sub_netoutput", {0, 1}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "GraphBeforeRemoveNode222");
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
   ge::NamesToPass names_to_pass;
@@ -618,7 +607,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_NestedPCall_FromAdd_Deleted) {
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(sub_graph_1->FindNode("sub_tensor_move"), nullptr);
 
-  GE_DUMP(compute_graph, "GraphAfterRemoveNode222");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -658,7 +646,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInSub_FromSubSubAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto sub_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(sub_sub_1) {
@@ -701,8 +689,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInSub_FromSubSubAdd_Deleted) {
                                  {"sub_sub_netoutput", {0, 1}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "GraphBeforeRemoveNode222");
-
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
   ge::NamesToPass names_to_pass;
@@ -711,7 +697,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInSub_FromSubSubAdd_Deleted) {
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(sub_graph_1->FindNode("sub_tensor_move"), nullptr);
 
-  GE_DUMP(compute_graph, "GraphAfterRemoveNode222");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -758,7 +743,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInRootAndSub_FromSubSubAdd_Deleted) 
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto sub_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(sub_sub_1) {
@@ -802,7 +787,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInRootAndSub_FromSubSubAdd_Deleted) 
                                  {"sub_sub_netoutput", {0, 1}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "GraphBeforeRemoveNode222");
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
   ge::NamesToPass names_to_pass;
@@ -812,7 +796,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInRootAndSub_FromSubSubAdd_Deleted) 
   EXPECT_EQ(compute_graph->FindNode("tensormove"), nullptr);
   EXPECT_EQ(compute_graph->FindNode("sub_tensormove"), nullptr);
 
-  GE_DUMP(compute_graph, "GraphAfterRemoveNode222");
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
@@ -969,7 +952,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInRootAndIfSub_ViaTransData_Deleted)
   NetoutputParentIndexes indexes{{"if_sub_netoutput", {0}}, {"then_sub_netoutput", {0}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "GraphBeforeRemoveNode222");
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
   ge::NamesToPass names_to_pass;
@@ -979,8 +961,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveInRootAndIfSub_ViaTransData_Deleted)
   EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
   EXPECT_EQ(compute_graph->FindNode("tensormove"), nullptr);
   EXPECT_EQ(if_sub_graph->FindNode("if_tensormove"), nullptr);
-
-  GE_DUMP(compute_graph, "GraphAfterRemoveNode222");
 }
 
 /**
@@ -1052,7 +1032,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_RootDeleted_SubKept_DueToSourceBran
   NetoutputParentIndexes indexes{{"if_sub_netoutput", {0}}, {"then_sub_netoutput", {0}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "GraphBeforeRemoveNode222");
   EXPECT_NE(if_sub_graph->FindNode("if_tensormove"), nullptr);
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
@@ -1065,8 +1044,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_RootDeleted_SubKept_DueToSourceBran
 
   EXPECT_NE(if_sub_graph->FindNode("if_tensormove"), nullptr);
   EXPECT_EQ(compute_graph->FindNode("tensormove"), nullptr);
-
-  GE_DUMP(compute_graph, "GraphAfterRemoveNode222");
 }
 
 /**
@@ -1130,7 +1107,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_RootDeleted_SubInIfKept_DueToIfOp) 
   NetoutputParentIndexes indexes{{"if_sub_netoutput", {0}}, {"then_sub_netoutput", {0}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "GraphBeforeRemoveNode222");
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
   ge::NamesToPass names_to_pass;
@@ -1139,8 +1115,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_RootDeleted_SubInIfKept_DueToIfOp) 
 
   EXPECT_NE(if_sub_graph->FindNode("if_tensormove"), nullptr);
   EXPECT_EQ(compute_graph->FindNode("tensormove"), nullptr);
-
-  GE_DUMP(compute_graph, "GraphAfterRemoveNode222");
 }
 
 /**
@@ -1178,7 +1152,7 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_RootDeleted_SubInIfKept_DueToIfOp) 
 TEST_F(UtestTensorMoveDeletePass, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
-  options["ge.exec.outputReuseInputMemIndexes"] = "1,1|0,0";
+  options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
   ge::GetThreadLocalContext().SetGraphOption(options);
   const auto if_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(if_sub) {
@@ -1208,7 +1182,6 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
   NetoutputParentIndexes indexes{{"if_sub_netoutput", {0, 1}}, {"then_sub_netoutput", {0}}};
   ASSERT_TRUE(AddParentIndexForNetoutput(compute_graph, indexes));
 
-  GE_DUMP(compute_graph, "GraphBeforeRemoveNode222");
   ge::GEPass pass(compute_graph);
   TensorMoveDeletePass tensor_move_delete_pass;
   ge::NamesToPass names_to_pass;
@@ -1222,6 +1195,49 @@ TEST_F(UtestTensorMoveDeletePass, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
   EXPECT_NE(compute_graph->FindNode("tensormove"), nullptr);
 
   ge::GetThreadLocalContext().SetGraphOption({});
+}
 
-  GE_DUMP(compute_graph, "GraphAfterRemoveNode222");
+/**
+ *       Data
+ *        |
+ *     TensorMove
+ *        |
+ *     NetOutput  (复用输入地址)
+ *
+ * 说明：
+ * - TensorMove 输入为根图Data，直连NetOutput
+ * - 设置了输出复用输入内存
+ * - 单输入、单输出
+ * - 无分支、无子图
+ *
+ * 预期行为：
+ * - 删除TensorMove
+ */
+TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_MemReuse_Deleted2) {
+  setenv("DUMP_GRAPH_LEVEL", "2", 1);
+  setenv("DUMP_GE_GRAPH", "2", 1);
+  dlog_setlevel(0, 0, 0);
+  std::map<std::string, std::string> options;
+  options[OPTION_INPUT_REUSE_MEM_INDEXES] = "0";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+  auto builder = ut::GraphBuilder("g1");
+  auto data_node = builder.AddNode("Data", DATA, 1, 1);
+  auto node1 = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
+  auto node2 = builder.AddNode("NetOutput", NETOUTPUT, 1, 1);
+
+  AttrUtils::SetInt(data_node->GetOpDesc(), ATTR_NAME_INDEX, 0);
+
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), node1->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+
+  EXPECT_EQ(node1->GetOutDataNodes().size(), 1);
+
+  ge::GEPass pass(builder.GetGraph());
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+  EXPECT_EQ(builder.GetGraph()->FindNode("TensorMove"), nullptr);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
 }

@@ -148,6 +148,8 @@ Status CheckOutputReuseMemIndexesOption(const std::map<std::string, std::string>
                                         bool &has_output_set_reuse_mem);
 Status CheckInputReuseMemIndexesOption(const std::map<std::string, std::string> &options,
                                        bool &has_input_set_reuse_mem);
+Status CheckOutputReuseInputMemIndexesOption(const ComputeGraphPtr &compute_graph,
+                                             const std::map<std::string, std::string> &options);
 bool ParseSingleShapeRange(std::string &shape_range, std::vector<std::pair<int64_t, int64_t>> &shape_range_vec);
 std::string SupportedHostEnvCpuList(std::unordered_set<std::string> &supported_os_cpu);
 std::string SupportedHostEnvOsList(std::unordered_map<std::string, std::unordered_set<std::string>>

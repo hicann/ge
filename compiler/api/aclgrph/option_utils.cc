@@ -1648,12 +1648,60 @@ Status CheckInputReuseMemIndexesOption(const std::map<std::string, std::string> 
   return SUCCESS;
 }
 
+Status CheckOutputReuseInputMemIndexesOption(const ComputeGraphPtr &compute_graph,
+                                             const std::map<std::string, std::string> &options) {
+  const auto iter = options.find(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES);
+  if (iter == options.cend()) {
+    return SUCCESS;
+  }
+
+  const std::string &reuse_indexes_str = iter->second;
+  if (reuse_indexes_str.empty()) {
+    return SUCCESS;
+  }
+
+  // Get input count
+  const size_t input_num = compute_graph->GetInputNodes().size();
+  const auto netoutput_node = compute_graph->GetOrUpdateNetOutputNode();
+  size_t output_num;
+  if (netoutput_node == nullptr) {
+    output_num = 0;
+  } else {
+    output_num = netoutput_node->GetAllInDataAnchorsSize();
+  }
+
+  // Parse using common function
+  std::vector<std::pair<size_t, size_t>> io_same_addr_pairs;
+  ParseOutputReuseInputMemIndexes(reuse_indexes_str, io_same_addr_pairs);
+
+  // Validate parsed pairs (pair is <input_idx, output_idx>)
+  for (const auto &pair : io_same_addr_pairs) {
+    const size_t input_idx = pair.first;
+    const size_t output_idx = pair.second;
+
+    GE_ASSERT_TRUE((input_idx < input_num),
+                   "[Check][Option]Check option failed because option %s=%s is invalid. "
+                   "Input_index %zu out of range, model has %zu inputs (valid range: 0-%zu).",
+                   ge::GetContext().GetReadableName(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES).c_str(), reuse_indexes_str.c_str(),
+                   input_idx, input_num, input_num > 0U ? input_num - 1U : 0U);
+    GE_ASSERT_TRUE((output_idx < output_num),
+                   "[Check][Option]Check option failed because option %s=%s is invalid. "
+                   "Output_index %zu out of range, model has %zu outputs (valid range: 0-%zu).",
+                   ge::GetContext().GetReadableName(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES).c_str(), reuse_indexes_str.c_str(),
+                   output_idx, output_num, output_num > 0U ? output_num - 1U : 0U);
+  }
+
+  GELOGD("[Check][Option]Check output reuse input mem indexes option passed.");
+  return SUCCESS;
+}
+
 Status CheckIoReuseMemIndexesOption(const ComputeGraphPtr &compute_graph,
                                     const std::map<std::string, std::string> &options) {
   bool has_input_set_reuse_mem = false;
   bool has_output_set_reuse_mem = false;
   GE_ASSERT_SUCCESS(CheckInputReuseMemIndexesOption(options, has_input_set_reuse_mem));
   GE_ASSERT_SUCCESS(CheckOutputReuseMemIndexesOption(options, has_output_set_reuse_mem));
+  GE_ASSERT_SUCCESS(CheckOutputReuseInputMemIndexesOption(compute_graph, options));
 
   if ((!has_input_set_reuse_mem) && (!has_output_set_reuse_mem)) {
     return SUCCESS;

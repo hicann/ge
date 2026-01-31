@@ -66,6 +66,11 @@ class ModelV2ExecutorTestHelper {
     }
     return GetOutChain(node, out_index);
   }
+
+  static ge::graphStatus CheckIoReuseAddrs(ModelV2Executor *executor, Tensor **inputs, size_t input_num,
+                                           Tensor **outputs, size_t output_num) {
+    return executor->CheckIoReuseAddrs(inputs, input_num, outputs, output_num);
+  }
 };
 }  // namespace gert
 

@@ -3815,23 +3815,6 @@ void BlockMemAssigner::ReleaseInputNodeOutMemory(const NodePtr &node) {
   }
 }
 
-void SplitStringByComma(const std::string &str, std::vector<std::string> &sub_str_vec) {
-  std::string tmp_string = str + ",";
-  std::string::size_type start_pos = 0;
-  std::string::size_type cur_pos = tmp_string.find(',', 0);
-  while (cur_pos != std::string::npos) {
-    std::string sub_str = tmp_string.substr(start_pos, cur_pos - start_pos);
-    if (!sub_str.empty()) {
-      std::vector<std::string>::iterator ret = std::find(sub_str_vec.begin(), sub_str_vec.end(), sub_str);
-      if (ret == sub_str_vec.end()) {
-        sub_str_vec.push_back(sub_str);
-      }
-    }
-    start_pos = cur_pos + 1;
-    cur_pos = tmp_string.find(',', start_pos);
-  }
-}
-
 void CheckAndGetOpReuseEnv(const std::string &env, std::vector<std::string> &env_vec, bool &op_reuse_env_valid) {
   std::string env_str = std::string(env);
   if (env_str.size() > kReuseMaxCharNum) {

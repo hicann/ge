@@ -4490,6 +4490,40 @@ TEST_F(UtestGraphManagerTest, test_checkIoReuseMemIndexesOption1) {
   EXPECT_EQ(CheckOptionValidThreshold(options, OPTION_HOST_SCHEDULING_MAX_THRESHOLD), SUCCESS);
 }
 
+TEST_F(UtestGraphManagerTest, test_CheckOutputReuseInputMemIndexesOption) {
+  auto graph1 = gert::ShareGraph::BuildSwitchMergeGraph();
+  auto compute_graph1 = GraphUtilsEx::GetComputeGraph(graph1);
+
+  std::map<std::string, std::string> options;
+
+  options.emplace(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0");
+  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), SUCCESS);
+
+  options.clear();
+  options.emplace(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,1|2,3|10,20");
+  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), PARAM_INVALID);
+
+  options.clear();
+  options.emplace(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, "");
+  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), SUCCESS);
+
+  options.clear();
+  options.emplace(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0|");
+  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), SUCCESS);
+
+  options.clear();
+  options.emplace(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0|-1,0");
+  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), SUCCESS);
+
+  options.clear();
+  options.emplace(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, "0,0|invalid");
+  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), SUCCESS);
+
+  options.clear();
+  options.emplace(OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES, "99999999999999999999999999,1");
+  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), SUCCESS);
+}
+
 /**
  *   refdata   data
  *      \      /

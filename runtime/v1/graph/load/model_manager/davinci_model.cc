@@ -54,6 +54,8 @@
 #include "common/kernel_handles_manager/kernel_handle_utils.h"
 #include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "graph/debug/ge_attr_define.h"
+#include "framework/common/util.h"
 
 namespace ge {
 namespace {
@@ -1204,6 +1206,14 @@ Status DavinciModel::Init(const ModelParam &param, void *outer_fm_mem) {
   stream_sync_timeout_ = stream_sync_timeout.empty()
                              ? kDefaultTimeout
                              : static_cast<int32_t>(std::strtol(stream_sync_timeout.c_str(), nullptr, kBase));
+
+  // Parse output reuse input memory indexes from model attribute
+  std::string reuse_indexes_str;
+  if (ge::AttrUtils::GetStr(ge_model_, ATTR_MODEL_OUTPUT_REUSE_INPUT_MEM_INDEXES, reuse_indexes_str)) {
+    ge::ParseOutputReuseInputMemIndexes(reuse_indexes_str, io_same_addr_pairs_);
+    GELOGI("Parsed output reuse input mem indexes, pairs count: %zu", io_same_addr_pairs_.size());
+  }
+
   Shrink();
   PrintfModelProfOfModelLoad();
   return SUCCESS;
@@ -6931,6 +6941,9 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
     return ACL_ERROR_GE_PARAM_INVALID;
   }
 
+  GE_ASSERT_SUCCESS(CheckIoReuseAddrs(input_data.blobs, output_data.blobs, input_tensor, output_tensor),
+                    "[Check][IoReuseAddrs] failed, model_id:%u.", model_id_);
+
   uint32_t ret_up = 0;
   std::vector<uint32_t>& active_mem_base_id_to_plicy = args_manager_.GetId2Policy();
   if (!active_mem_base_id_to_plicy.empty()) {
@@ -6987,6 +7000,9 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
     return ACL_ERROR_GE_PARAM_INVALID;
   }
 
+  GE_ASSERT_SUCCESS(CheckIoReuseAddrs(input_data.blobs, output_data.blobs, input_tensor, output_tensor),
+                    "[Check][IoReuseAddrs] failed, model_id:%u.", model_id_);
+
   uint32_t ret_up = 0;
   std::vector<uint32_t>& active_mem_base_id_to_plicy = args_manager_.GetId2Policy();
   if (!active_mem_base_id_to_plicy.empty()) {
@@ -7004,6 +7020,81 @@ Status DavinciModel::UpdateAllNodeArgs(const InputData &input_data, const Output
   }
 
   GE_ASSERT_SUCCESS(args_manager_.UpdateForExecute(ret_up, rt_model_stream_));
+  return SUCCESS;
+}
+
+Status DavinciModel::CheckIoReuseAddrs(const std::vector<DataBuffer> &input_blobs,
+                                       const std::vector<DataBuffer> &output_blobs,
+                                       const std::vector<gert::Tensor> &input_tensors,
+                                       const std::vector<gert::Tensor> &output_tensors) const {
+  if (io_same_addr_pairs_.empty()) {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  AddrGetter input_getter;
+  size_t input_num = 0;
+  if (!input_blobs.empty()) {
+    input_num = input_blobs.size();
+    input_getter = [&](size_t i) { return input_blobs[i].data; };
+  } else if (!input_tensors.empty()) {
+    input_num = input_tensors.size();
+    input_getter = [&](size_t i) { return input_tensors[i].GetAddr(); };
+  } else {
+    return SUCCESS;
+  }
+
+  AddrGetter output_getter;
+  size_t output_num = 0;
+  if (!output_blobs.empty()) {
+    output_num = output_blobs.size();
+    output_getter = [&](size_t i) { return output_blobs[i].data; };
+  } else if (!output_tensors.empty()) {
+    output_num = output_tensors.size();
+    output_getter = [&](size_t i) { return output_tensors[i].GetAddr(); };
+  } else {
+    return SUCCESS;
+  }
+
+  GE_ASSERT_SUCCESS(ge::CheckIoReuseAddrPairs(io_same_addr_pairs_, input_getter, input_num, output_getter, output_num));
+  return SUCCESS;
+}
+
+Status DavinciModel::CheckIoReuseAddrs(const std::vector<DataBuffer> &input_blobs,
+                                       const std::vector<DataBuffer> &output_blobs,
+                                       const std::vector<GeTensor> &input_tensors,
+                                       const std::vector<GeTensor> &output_tensors) const {
+  if (io_same_addr_pairs_.empty()) {
+    return ge::GRAPH_SUCCESS;
+  }
+
+  AddrGetter input_getter;
+  size_t input_num = 0;
+  std::vector<const void *> input_addrs;
+  if (!input_blobs.empty()) {
+    input_num = input_blobs.size();
+    input_getter = [&](size_t i) { return input_blobs[i].data; };
+  } else if (!input_tensors.empty()) {
+    input_num = input_tensors.size();
+    input_getter = [&](size_t i) { return input_tensors[i].GetData().GetData(); };
+  } else {
+    return SUCCESS;
+  }
+
+  AddrGetter output_getter;
+  size_t output_num = 0;
+  std::vector<const void *> output_addrs;
+  if (!output_blobs.empty()) {
+    output_num = output_blobs.size();
+    output_getter = [&](size_t i) { return output_blobs[i].data; };
+  } else if (!output_tensors.empty()) {
+    output_num = output_tensors.size();
+    output_getter = [&](size_t i) { return output_tensors[i].GetData().GetData(); };
+  } else {
+    GELOGD("Skip check io reuse addrs, output blobs and tensors are both empty");
+    return SUCCESS;
+  }
+
+  GE_ASSERT_SUCCESS(ge::CheckIoReuseAddrPairs(io_same_addr_pairs_, input_getter, input_num, output_getter, output_num));
   return SUCCESS;
 }
 

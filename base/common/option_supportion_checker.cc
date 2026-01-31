@@ -159,7 +159,7 @@ const std::set<std::string> ir_builder_global_options = {CORE_TYPE,
   OPTION_VARIABLE_USE_1G_HUGE_PAGE,
   configure_option::INPUT_BATCH_CPY,
   OPTIMIZATION_SWITCH,
-  OPTION_OUTPUT_REUSE_MEM_INDEXES
+  OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES
 };
 }  // namespace ir_option
 
@@ -789,7 +789,7 @@ const std::set<std::string> graph_options = {OPTION_EXEC_DEVICE_ID,
   configure_option::INPUT_BATCH_CPY,
   OPTIMIZATION_SWITCH,
   OUTPUT_DATATYPE,
-  OPTION_OUTPUT_REUSE_MEM_INDEXES
+  OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES
 };
 
 static Status CheckSupportedOptions(const std::map<std::string, std::string> &input_options,
