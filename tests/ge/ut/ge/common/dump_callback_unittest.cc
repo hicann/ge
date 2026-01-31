@@ -925,6 +925,30 @@ TEST_F(DumpConfigValidatorTest, ParseDumpConfig_SetDumpStatus_BasedOnDumpLevel) 
     }
 }
 
+TEST_F(DumpConfigValidatorTest, ParseModelDumpConfig_EmptyModelName_ReturnsFalse) {
+    nlohmann::json modelJson = R"({
+        "model_name": "",
+        "layer": ["layer1", "layer2"]
+    })"_json;
+    
+    ge::ModelDumpConfig modelConfig;
+    bool result = DumpConfigValidator::ParseModelDumpConfig(modelJson, modelConfig);
+    
+    EXPECT_FALSE(result);
+}
+
+TEST_F(DumpConfigValidatorTest, ParseModelDumpConfig_EmptyLayerArray_ReturnsFalse) {
+    nlohmann::json modelJson = R"({
+        "model_name": "test_model",
+        "layer": []
+    })"_json;
+    
+    ge::ModelDumpConfig modelConfig;
+    bool result = DumpConfigValidator::ParseModelDumpConfig(modelJson, modelConfig);
+    
+    EXPECT_FALSE(result);
+}
+
 // 主函数
 int main(int argc, char** argv) {
     testing::InitGoogleTest(&argc, argv);

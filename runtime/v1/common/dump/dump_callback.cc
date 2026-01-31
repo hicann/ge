@@ -717,12 +717,40 @@ void DumpConfigValidator::ParseModelDumpConfigList(const nlohmann::json& jsonArr
 
     for (const auto& modelJson : jsonArray) {
         ModelDumpConfig modelConfig;
-        ParseModelDumpConfig(modelJson, modelConfig);
-        output.push_back(modelConfig);
+        if (ParseModelDumpConfig(modelJson, modelConfig)) {
+            output.push_back(modelConfig);
+        }
     }
 }
 
-void DumpConfigValidator::ParseModelDumpConfig(const nlohmann::json& modelJson, ModelDumpConfig& modelConfig) {
+bool DumpConfigValidator::CheckDumpModelConfig(const nlohmann::json& modelJson) {
+    if (modelJson.contains(GE_DUMP_MODEL_NAME)) {
+        const auto& modelNameField = modelJson[GE_DUMP_MODEL_NAME];
+        if (modelNameField.is_string() && modelNameField.get<std::string>().empty()) {
+            GELOGW("[Check][modelName]the modelName field is null");
+            return false;
+        }
+    }
+
+    if (modelJson.contains(GE_DUMP_LAYER)) {
+        const auto& layerField = modelJson[GE_DUMP_LAYER];
+        if (layerField.is_array() && layerField.empty()) {
+            std::string modelName = modelJson.contains(GE_DUMP_MODEL_NAME) 
+                ? modelJson[GE_DUMP_MODEL_NAME].get<std::string>() 
+                : "unknown";
+            GELOGW("[Check][Layer]Layer field is null in model %s", modelName.c_str());
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool DumpConfigValidator::ParseModelDumpConfig(const nlohmann::json& modelJson, ModelDumpConfig& modelConfig) {
+    if (!CheckDumpModelConfig(modelJson)) {
+        return false;
+    }
+
     if (modelJson.contains(GE_DUMP_MODEL_NAME)) {
         modelConfig.model_name = modelJson[GE_DUMP_MODEL_NAME].get<std::string>();
     }
@@ -769,6 +797,7 @@ void DumpConfigValidator::ParseModelDumpConfig(const nlohmann::json& modelJson, 
             }
         }
     }
+    return true;
 }
 
 void DumpConfigValidator::ParseBlacklist(const nlohmann::json& blacklistJson, DumpBlacklist& blacklist) {

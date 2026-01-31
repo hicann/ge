@@ -110,7 +110,8 @@ private:
     static std::string GetConfigWithDefault(const nlohmann::json& json,
                                            const std::string& key,
                                            const std::string& defaultValue);
-    static void ParseModelDumpConfig(const nlohmann::json& modelJson, ModelDumpConfig& modelConfig);
+    static bool CheckDumpModelConfig(const nlohmann::json& modelJson);
+    static bool ParseModelDumpConfig(const nlohmann::json& modelJson, ModelDumpConfig& modelConfig);
     static void ParseBlacklist(const nlohmann::json& blacklistJson, DumpBlacklist& blacklist);
     static bool IsDumpDebugEnabled(const nlohmann::json &jsDumpConfig);
     static bool ValidateNormalDumpConfig(const nlohmann::json &jsDumpConfig);
