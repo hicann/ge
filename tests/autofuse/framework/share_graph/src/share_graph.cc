@@ -1093,6 +1093,281 @@ ge::ComputeGraphPtr ShareGraph::BF16NddmaAddFusedGraph(size_t dims_size) {
   return compute_graph;
 }
 
+static void CreateAbsUint8AscGraph(ge::AscGraph &graph, size_t dims_size) {
+  ge::ascir_op::Data x("data", graph);
+  x.y.dtype = ge::DataType::DT_UINT8;
+  x.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load xLocal("load");
+  xLocal.x = x.y;
+  xLocal.y.dtype = ge::DataType::DT_UINT8;
+
+  ge::ascir_op::Abs abs("abs");
+  abs.x = xLocal.y;
+  abs.y.dtype = ge::DataType::DT_UINT8;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = abs.y;
+  x_out.y.dtype = ge::DataType::DT_UINT8;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+/**
+ *      NetOutput
+ *         |
+ *       AscBc
+ *      /     \
+ *   data0  data1
+ */
+ge::ComputeGraphPtr ShareGraph::AbsUint8FusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("abs_uint8_test");
+  auto data = builder.AddNode("data", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("abs_uint8_test");
+  CreateAbsUint8AscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+static void CreateAbsBf16AscGraph(ge::AscGraph &graph, size_t dims_size) {
+  ge::ascir_op::Data x("data", graph);
+  x.y.dtype = ge::DataType::DT_BF16;
+  x.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load xLocal("load");
+  xLocal.x = x.y;
+  xLocal.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Abs abs("abs");
+  abs.x = xLocal.y;
+  abs.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = abs.y;
+  x_out.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+/**
+ *      NetOutput
+ *         |
+ *       AscBc
+ *      /     \
+ *   data0  data1
+ */
+ge::ComputeGraphPtr ShareGraph::AbsBf16FusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("abs_bf16_test");
+  auto data = builder.AddNode("data", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("abs_bf16_test");
+  CreateAbsBf16AscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+static void CreateCeilBf16AscGraph(ge::AscGraph &graph, size_t dims_size) {
+  ge::ascir_op::Data x("data", graph);
+  x.y.dtype = ge::DataType::DT_BF16;
+  x.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load xLocal("load");
+  xLocal.x = x.y;
+  xLocal.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Ceil ceil("ceil");
+  ceil.x = xLocal.y;
+  ceil.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = ceil.y;
+  x_out.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+/**
+ *      NetOutput
+ *         |
+ *       AscBc
+ *      /     \
+ *   data0  data1
+ */
+ge::ComputeGraphPtr ShareGraph::CeilBf16FusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("ceil_bf16_test");
+  auto data = builder.AddNode("data", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("ceil_bf16_test");
+  CreateCeilBf16AscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+static void CreateCosBf16AscGraph(ge::AscGraph &graph, size_t dims_size) {
+  ge::ascir_op::Data x("data", graph);
+  x.y.dtype = ge::DataType::DT_BF16;
+  x.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load xLocal("load");
+  xLocal.x = x.y;
+  xLocal.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Cos cos("cos");
+  cos.x = xLocal.y;
+  cos.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = cos.y;
+  x_out.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+/**
+ *      NetOutput
+ *         |
+ *       AscBc
+ *      /     \
+ *   data0  data1
+ */
+ge::ComputeGraphPtr ShareGraph::CosBf16FusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("cos_bf16_test");
+  auto data = builder.AddNode("data", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("cos_bf16_test");
+  CreateCosBf16AscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+static void CreateErfBf16AscGraph(ge::AscGraph &graph, size_t dims_size) {
+  ge::ascir_op::Data x("data", graph);
+  x.y.dtype = ge::DataType::DT_BF16;
+  x.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load xLocal("load");
+  xLocal.x = x.y;
+  xLocal.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Erf erf("erf");
+  erf.x = xLocal.y;
+  erf.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = erf.y;
+  x_out.y.dtype = ge::DataType::DT_BF16;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+/**
+ *      NetOutput
+ *         |
+ *       AscBc
+ *      /     \
+ *   data0  data1
+ */
+ge::ComputeGraphPtr ShareGraph::ErfBf16FusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("erf_bf16_test");
+  auto data = builder.AddNode("data", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("erf_bf16_test");
+  CreateErfBf16AscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
 static void CreateAbsClipAscGraph(ge::AscGraph &graph, size_t dims_size) {
   ge::ascir_op::Data x1("data0", graph);
   x1.ir_attr.SetIndex(0);
@@ -3464,6 +3739,202 @@ ge::ComputeGraphPtr ShareGraph::LoadBitwiseAndStoreFusedGraph(size_t dims_size, 
   auto ascbc_node = compute_graph->FindNode("ascbc");
   ge::AscGraph sub_graph("load_bitwise_and_store");
   CreateLoadBitwiseAndStoreAscGraph(sub_graph, dims_size, in_dtype, out_dtype);
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+/**
+ *      output
+ *         |
+ *       store
+ *         |
+ *    bitwiseor
+ *       /   \
+ *   load0   load1
+ *     |       |
+ *   data0   data1
+ */
+static void CreateLoadBitwiseOrStoreAscGraph(ge::AscGraph &graph, size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  ge::ascir_op::Data x1("data0", graph);
+  x1.ir_attr.SetIndex(0);
+  x1.y.dtype = in_dtype;
+  ge::ascir_op::Data x2("data1", graph);
+  x2.ir_attr.SetIndex(1);
+  x2.y.dtype = in_dtype;
+
+  ge::ascir_op::Load x1Local("load0");
+  x1Local.x = x1.y;
+  x1Local.y.dtype = in_dtype;
+
+  ge::ascir_op::Load x2Local("load1");
+  x2Local.x = x2.y;
+  x2Local.y.dtype = in_dtype;
+
+  ge::ascir_op::BitwiseOr bitwiseor("bitwiseor");
+  bitwiseor.x1 = x1Local.y;
+  bitwiseor.x2 = x2Local.y;
+  bitwiseor.y.dtype = out_dtype;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = bitwiseor.y;
+  x_out.y.dtype = out_dtype;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+ge::ComputeGraphPtr ShareGraph::LoadBitwiseOrStoreFusedGraph(size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  auto builder = GraphBuilder("load_bitwise_or_store_test");
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data1->GetOpDescBarePtr(), "_parent_node_index", 1);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 2, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(data1, 0, ascbc, 1);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("load_bitwise_or_store");
+  CreateLoadBitwiseOrStoreAscGraph(sub_graph, dims_size, in_dtype, out_dtype);
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+/**
+ *      output
+ *         |
+ *       store
+ *         |
+ *    bitwisexor
+ *       /   \
+ *   load0   load1
+ *     |       |
+ *   data0   data1
+ */
+static void CreateLoadBitwiseXorStoreAscGraph(ge::AscGraph &graph, size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  ge::ascir_op::Data x1("data0", graph);
+  x1.ir_attr.SetIndex(0);
+  x1.y.dtype = in_dtype;
+  ge::ascir_op::Data x2("data1", graph);
+  x2.ir_attr.SetIndex(1);
+  x2.y.dtype = in_dtype;
+
+  ge::ascir_op::Load x1Local("load0");
+  x1Local.x = x1.y;
+  x1Local.y.dtype = in_dtype;
+
+  ge::ascir_op::Load x2Local("load1");
+  x2Local.x = x2.y;
+  x2Local.y.dtype = in_dtype;
+
+  ge::ascir_op::BitwiseXor bitwisexor("bitwisexor");
+  bitwisexor.x1 = x1Local.y;
+  bitwisexor.x2 = x2Local.y;
+  bitwisexor.y.dtype = out_dtype;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = bitwisexor.y;
+  x_out.y.dtype = out_dtype;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+ge::ComputeGraphPtr ShareGraph::LoadBitwiseXorStoreFusedGraph(size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  auto builder = GraphBuilder("load_bitwise_xor_store_test");
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data1->GetOpDescBarePtr(), "_parent_node_index", 1);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 2, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(data1, 0, ascbc, 1);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("load_bitwise_xor_store");
+  CreateLoadBitwiseXorStoreAscGraph(sub_graph, dims_size, in_dtype, out_dtype);
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+/**
+ *       output
+ *         |
+ *       store
+ *         |
+ *     bitwisenot
+ *         |
+ *       load0
+ *         |
+ *       data0
+ */
+static void CreateLoadBitwiseNotStoreAscGraph(ge::AscGraph &graph, size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  ge::ascir_op::Data x("data", graph);
+  x.ir_attr.SetIndex(0);
+  x.y.dtype = in_dtype;
+
+  ge::ascir_op::Load xLocal("load");
+  xLocal.x = x.y;
+  xLocal.y.dtype = in_dtype;
+
+  ge::ascir_op::BitwiseNot bitwisenot("bitwisenot");
+  bitwisenot.x = xLocal.y;
+  bitwisenot.y.dtype = out_dtype;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = bitwisenot.y;
+  x_out.y.dtype = out_dtype;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+ge::ComputeGraphPtr ShareGraph::LoadBitwiseNotStoreFusedGraph(size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  auto builder = GraphBuilder("load_bitwise_not_store_test");
+  auto data = builder.AddNode("data", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("load_bitwise_not_store");
+  CreateLoadBitwiseNotStoreAscGraph(sub_graph, dims_size, in_dtype, out_dtype);
   std::string sub_graph_str;
   ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
   ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);

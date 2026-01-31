@@ -77,6 +77,17 @@ struct ShareGraph {
   static ge::ComputeGraphPtr DivAbsFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr BF16AddFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr BF16NddmaAddFusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AbsBf16FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AbsUint8FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr ErfBf16FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr LoadBitwiseNotStoreFusedGraph(size_t dims_size, ge::DataType in_dtype,
+                                                           ge::DataType out_dtype);
+  static ge::ComputeGraphPtr LoadBitwiseOrStoreFusedGraph(size_t dims_size, ge::DataType in_dtype,
+                                                           ge::DataType out_dtype);
+  static ge::ComputeGraphPtr LoadBitwiseXorStoreFusedGraph(size_t dims_size, ge::DataType in_dtype,
+                                                           ge::DataType out_dtype);
+  static ge::ComputeGraphPtr CeilBf16FusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr CosBf16FusedGraph(size_t dims_size);
 };
 }  // namespace ascir
 #endif

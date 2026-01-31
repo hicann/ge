@@ -26,6 +26,29 @@ inline bool OnlySecondInputSupportScalar(const std::vector<bool> &is_scalar_list
   return !is_scalar_list[0] && is_scalar_list[1];
 }
 
+[[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+GetConversionFromDtypeMap(const ge::AscNode &node, const std::map<ge::DataType, ge::DataType> &dtype_conversion_map) {
+  std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
+  AscNodeInputs node_inputs = node.inputs;
+  AscNodeOutputs node_outputs = node.outputs;
+  for (size_t i = 0; i < node_inputs().size(); i++) {
+    auto it = dtype_conversion_map.find(node_inputs[i].attr.dtype);
+    if (it != dtype_conversion_map.end()) {
+        conversion_dtype.first.emplace_back(it->second);  // 使用迭代器访问
+    } else {
+        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
+    }
+  }
+  for (size_t i = 0; i < node_outputs().size(); i++) {
+    auto it = dtype_conversion_map.find(node_outputs[i].attr.dtype);
+    if (it != dtype_conversion_map.end()) {
+        conversion_dtype.second.emplace_back(it->second);  // 使用迭代器访问
+    } else {
+        conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
+    }
+  }
+  return conversion_dtype;
+}
 
 /*********************************************************************************/
 class VfAscIrCodegenImpl : public AscIrCodegenV2 {
@@ -239,6 +262,15 @@ class AbsAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &abs_node) const override {
     (void) abs_node;
     return true;
+  }
+  // 如果需要插入cast节点，返回cast的目的类型
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT},
+      {DT_UINT8, DT_INT16}
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
 };
 
@@ -1349,6 +1381,56 @@ class ErfAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"erf_reg_base.h"};
   }
+  // 如果需要插入cast节点，返回cast的目的类型
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
+};
+
+class CeilAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
+    return CalcCeilTmpSizeV2(node);
+  }
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "UnaryApiTmpV2Call";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Ceil";
+  }
+  // 如果需要插入cast节点，返回cast的目的类型
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
+};
+
+class CosAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
+    return CalcCosTmpSizeV2(node);
+  }
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "UnaryApiTmpV2Call";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Cos";
+  }
+  // 如果需要插入cast节点，返回cast的目的类型
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
 };
 
 class TanhAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1446,18 +1528,48 @@ class BitwiseAndAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "BitwiseAnd";
   }
+};
+
+class BitwiseNotAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "UnaryApiCall";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "BitwiseNot";
+  }
 
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
 
   [[nodiscard]] std::string GetMicroApiName() const override {
-    return "And";
+    return "Not";
   }
 
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
     (void)node;
     return true;
+  }
+};
+
+class BitwiseOrAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "BinaryApiCallV2";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "BitwiseOr";
+  }
+};
+
+class BitwiseXorAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "BinaryApiCallV2";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "BitwiseXor";
   }
 };
 

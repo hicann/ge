@@ -24,6 +24,8 @@ std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcGatherTmpSizeV2(const ge::AscNo
 std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcPowTmpSizeV2(const ge::AscNode &node);
 std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcVoidTmpSizeV2(const ge::AscNode &node);
 std::vector<std::unique_ptr<ge::TmpBufDesc>> GetCompareSizeV2([[maybe_unused]]const ge::AscNode &node);
+std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcCosTmpSizeV2(const ge::AscNode &node);
+std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcCeilTmpSizeV2(const ge::AscNode &node);
 }  // namespace ascir
 }  // namespace ge
 #endif  // __ASCIR_REG_FUNC_DEFAULT_REG_FUNC_V2_H__

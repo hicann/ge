@@ -720,7 +720,15 @@ build_backend() {
                       matmul_compare_scalar_test_e2e_v2 \
                       div_abs_test_e2e_v2 \
                       bf16_add_test_e2e_v2 \
-                      bf16_nddma_add_test_e2e_v2"
+                      bf16_nddma_add_test_e2e_v2 \
+                      abs_bf16_test_e2e_v2 \
+                      abs_uint8_test_e2e_v2 \
+                      erf_bf16_test_e2e_v2 \
+                      load_bitwise_not_store_test_e2e_v2 \
+                      load_bitwise_or_store_test_e2e_v2 \
+                      load_bitwise_xor_store_test_e2e_v2 \
+                      ceil_bf16_test_e2e_v2 \
+                      cos_bf16_test_e2e_v2"
   fi
   make -j${THREAD_NUM} $MAKE_TARGET_LIST
   if [ $? -ne 0 ]
