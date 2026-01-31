@@ -25,8 +25,6 @@
 #include "attribute_group/attr_group_shape_env.h"
 #include "can_fuse/backend/asc_backend_fusion_decider.h"
 #include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
-#include "ascir_registry.h"
-#include "platform_context.h"
 
 namespace ge {
 using namespace autofuse;
@@ -13000,7 +12998,7 @@ TEST_F(AscBackendPostProcessorTest, Adaption_ScalarToAdd1_OK) {
     auto attr = output_tensor_desc->GetOrCreateAttrsGroup<AscTensorAttr>();
     ASSERT_NE(attr, nullptr);
     if (node->GetType() == "Broadcast") {
-      ASSERT_EQ(output_tensor_desc->GetDataType(), DT_FLOAT16);
+      ASSERT_EQ(output_tensor_desc->GetDataType(), DT_FLOAT);
       broadcast_cnt++;
       continue;
     }
@@ -13010,8 +13008,8 @@ TEST_F(AscBackendPostProcessorTest, Adaption_ScalarToAdd1_OK) {
     if (node->GetType() == "Add") {
       std::vector<int64_t> expect_axis = {0, 1, 2, 3, 4};
       // 循环外提把broadcast移到了最下面
-      std::vector<ge::Expression> expect_repeats = {ONE, ONE, ONE, ONE, ONE};
-      std::vector<ge::Expression> expect_strides = {ZERO, ZERO, ZERO, ZERO, ZERO};
+      std::vector<ge::Expression> expect_repeats = {A, B, C, D, E};
+      std::vector<ge::Expression> expect_strides = {B * C * D * E, C * D * E, D * E, E, ONE};
       ASSERT_EQ(attr->axis, expect_axis);
       ASSERT_EQ(attr->repeats, expect_repeats);
       ASSERT_EQ(attr->strides, expect_strides);
@@ -17283,90 +17281,90 @@ TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarNotOK) {
   ASSERT_EQ(broadcast_cnt, 5);
 }
 
-// Broadcast后移判断Scalar节点后的Brc在其后计算节点支持Scalar时也支持后移
-TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarOK) {
-  // 添加自定义AscIrCodegen实现，使IsScalarInputSupported返回true
-  class TestAscIrCodegenStub : public ge::ascir::AscIrCodegen {
-   public:
-    bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
-      return true;
-    }
-  };
-
-  // 获取当前平台信息
-  ge::PlatformInfo platform_info;
-  ge::PlatformContext::GetInstance().GetCurrentPlatform(platform_info);
-
-  // 保存原始注册表状态
-  auto &registry = ge::ascir::AscirRegistry::GetInstance();
-  auto original_registry = registry.GetAll();
-
-  // 创建AscIrImpl对象，设置codegen创建函数
-  ge::ascir::AscIrImpl ir_impl;
-  ir_impl.codegen = []() { return std::unique_ptr<ge::ascir::AscIrCodegen>(new TestAscIrCodegenStub()); };
-
-  // 创建AscIrDef对象并添加实现
-  ge::ascir::AscIrDef ir_def;
-  ir_def.Init("Abs", __FILE__, __LINE__);
-  ir_def.AddSocImpl({platform_info.name}, ir_impl);
-
-  // 注册到AscirRegistry
-  registry.RegisterAscIr("Abs", ir_def);
-
-  ComputeGraphPtr compute_graph = BuildGraph1("AscBackend");
-  EXPECT_EQ(compute_graph->GetAllNodesSize(), 5);
-
-  auto addn1 = compute_graph->FindNode("addn1");
-  ASSERT_NE(addn1, nullptr);
-  auto op_desc1 = addn1->GetOpDescBarePtr();
-  ASSERT_NE(op_desc1, nullptr);
-  auto attr1 = GetOrCreateAutoFuseAttrs(op_desc1);
-  ASSERT_NE(attr1, nullptr);
-  std::vector<std::pair<std::string, DataType>> names = {
-      {"const1", DT_FLOAT16}, {"const2", DT_FLOAT16}, {"shape1", DT_FLOAT16}, {"netoutput", DT_FLOAT16}};
-  for (auto name : names) {
-    auto node = compute_graph->FindNode(name.first);
-    ASSERT_NE(node, nullptr);
-    auto op_desc = node->GetOpDescBarePtr();
-    ASSERT_NE(op_desc, nullptr);
-    op_desc->SetType("NotAscBc");
-    auto attr = GetOrCreateAutoFuseAttrs(op_desc);
-    ASSERT_NE(attr, nullptr);
-  }
-
-  ge::AscGraph add_graph1("add");
-  attr1->SetAscGraph(CreatAscGraphWithScalarAbsToAdd(add_graph1));
-  EXPECT_EQ(asc_adapt::FallbackScalarToBroadcastWithoutCheckType(compute_graph), SUCCESS);
-  EXPECT_EQ(asc_adapt::GeFallback(compute_graph), SUCCESS);
-  EXPECT_EQ(asc_adapt::CompleteNodeAttrsOnAscGraphForSched(compute_graph), SUCCESS);
-  BroadcastBackwardPass broadcast_backward_pass;
-  EXPECT_EQ(broadcast_backward_pass.Run(compute_graph), SUCCESS);
-
-  // 校验结果
-  size_t broadcast_cnt = 0;
-  for (auto node : AscGraphUtils::GetComputeGraph(*(attr1->GetAscGraph()))->GetDirectNode()) {
-    if (node->GetType() == "Output" || node->GetType() == "Data") {
-      continue;
-    }
-    if (node->GetType() == "Broadcast") {
-      broadcast_cnt++;
-    }
-    if (node->GetName() == "add_4") {
-      NodePtr pre_add_node;
-      asc_adapt::GetPeerOutNode(node, pre_add_node, 0);
-      ASSERT_EQ(pre_add_node->GetType(), "Broadcast");
-      asc_adapt::GetPeerOutNode(node, pre_add_node, 1);
-      ASSERT_EQ(pre_add_node->GetType(), "Load");
-    }
-  }
-  ASSERT_EQ(broadcast_cnt, 5);
-
-  // 恢复原始注册表状态
-  registry.ClearAll();
-  for (const auto &item : original_registry) {
-    registry.RegisterAscIr(item.first, item.second);
-  }
-}
+// Broadcast后移判断Scalar节点后的Brc在其后计算节点支持Scalar时也支持后移(当前Scalar先不放开，相关问题解决后使用)
+//TEST_F(AscBackendPostProcessorTest, BroadcastBackward_ScalarOK) {
+//  // 添加自定义AscIrCodegen实现，使IsScalarInputSupported返回true
+//  class TestAscIrCodegenStub : public ge::ascir::AscIrCodegen {
+//   public:
+//    bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
+//      return true;
+//    }
+//  };
+//
+//  // 获取当前平台信息
+//  std::string platform_name;
+//  ge::PlatformContext::GetInstance().GetCurrentPlatformString(platform_name);
+//
+//  // 保存原始注册表状态
+//  auto &registry = ge::ascir::AscirRegistry::GetInstance();
+//  auto original_registry = registry.GetAll();
+//
+//  // 创建AscIrImpl对象，设置codegen创建函数
+//  ge::ascir::AscIrImpl ir_impl;
+//  ir_impl.codegen = []() { return std::unique_ptr<ge::ascir::AscIrCodegen>(new TestAscIrCodegenStub()); };
+//
+//  // 创建AscIrDef对象并添加实现
+//  ge::ascir::AscIrDef ir_def;
+//  ir_def.Init("Abs", __FILE__, __LINE__);
+//  ir_def.AddSocImpl({platform_name}, ir_impl);
+//
+//  // 注册到AscirRegistry
+//  registry.RegisterAscIr("Abs", ir_def);
+//
+//  ComputeGraphPtr compute_graph = BuildGraph1("AscBackend");
+//  EXPECT_EQ(compute_graph->GetAllNodesSize(), 5);
+//
+//  auto addn1 = compute_graph->FindNode("addn1");
+//  ASSERT_NE(addn1, nullptr);
+//  auto op_desc1 = addn1->GetOpDescBarePtr();
+//  ASSERT_NE(op_desc1, nullptr);
+//  auto attr1 = GetOrCreateAutoFuseAttrs(op_desc1);
+//  ASSERT_NE(attr1, nullptr);
+//  std::vector<std::pair<std::string, DataType>> names = {
+//      {"const1", DT_FLOAT16}, {"const2", DT_FLOAT16}, {"shape1", DT_FLOAT16}, {"netoutput", DT_FLOAT16}};
+//  for (auto name : names) {
+//    auto node = compute_graph->FindNode(name.first);
+//    ASSERT_NE(node, nullptr);
+//    auto op_desc = node->GetOpDescBarePtr();
+//    ASSERT_NE(op_desc, nullptr);
+//    op_desc->SetType("NotAscBc");
+//    auto attr = GetOrCreateAutoFuseAttrs(op_desc);
+//    ASSERT_NE(attr, nullptr);
+//  }
+//
+//  ge::AscGraph add_graph1("add");
+//  attr1->SetAscGraph(CreatAscGraphWithScalarAbsToAdd(add_graph1));
+//  EXPECT_EQ(asc_adapt::FallbackScalarToBroadcastWithoutCheckType(compute_graph), SUCCESS);
+//  EXPECT_EQ(asc_adapt::GeFallback(compute_graph), SUCCESS);
+//  EXPECT_EQ(asc_adapt::CompleteNodeAttrsOnAscGraphForSched(compute_graph), SUCCESS);
+//  BroadcastBackwardPass broadcast_backward_pass;
+//  EXPECT_EQ(broadcast_backward_pass.Run(compute_graph), SUCCESS);
+//
+//  // 校验结果
+//  size_t broadcast_cnt = 0;
+//  for (auto node : AscGraphUtils::GetComputeGraph(*(attr1->GetAscGraph()))->GetDirectNode()) {
+//    if (node->GetType() == "Output" || node->GetType() == "Data") {
+//      continue;
+//    }
+//    if (node->GetType() == "Broadcast") {
+//      broadcast_cnt++;
+//    }
+//    if (node->GetName() == "add_4") {
+//      NodePtr pre_add_node;
+//      asc_adapt::GetPeerOutNode(node, pre_add_node, 0);
+//      ASSERT_EQ(pre_add_node->GetType(), "Broadcast");
+//      asc_adapt::GetPeerOutNode(node, pre_add_node, 1);
+//      ASSERT_EQ(pre_add_node->GetType(), "Load");
+//    }
+//  }
+//  ASSERT_EQ(broadcast_cnt, 5);
+//
+//  // 恢复原始注册表状态
+//  registry.ClearAll();
+//  for (const auto &item : original_registry) {
+//    registry.RegisterAscIr(item.first, item.second);
+//  }
+//}
 
 // Broadcast后移测试IsDtypeNotSupportOp返回true的场景
 TEST_F(AscBackendPostProcessorTest, BroadcastBackward_DtypeNotSupportOp_Ok) {

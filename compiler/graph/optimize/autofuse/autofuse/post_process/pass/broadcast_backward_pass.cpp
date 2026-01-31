@@ -13,7 +13,6 @@
 #include "post_process/post_process_util.h"
 #include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
 #include "post_process/scheduler_adapter/adaption_fallback_load.h"
-#include "common_utils.h"
 
 namespace ge {
 namespace {
@@ -312,7 +311,6 @@ bool CanBackward(NodePtr &cur_node, NodePtr &next_node, vector<NodePtr> &bro_nod
     // 下一节点多输出或者输出多引用时不在后移
     return false;
   }
-
   DataType output_dtype;
   if (IsDtypeNotSupportOp(next_node, output_dtype)) {
     // Broadcast不支持的dtype不进行后移
@@ -506,56 +504,6 @@ Status BroadcastBackwardReally(std::vector<NodePtr> &compute_nodes, std::vector<
   return SUCCESS;
 }
 
-Status GetNodeScalarInputList(const ge::AscNodePtr &asc_node, std::vector<bool> &is_scalar_list) {
-  is_scalar_list.resize(asc_node->GetInDataNodesSize(), false);
-  for (size_t i = 0UL; i < is_scalar_list.size(); ++i) {
-    is_scalar_list[i] = ascgen_utils::IsScalarInput(asc_node->inputs[i].attr.repeats);
-  }
-  return ge::SUCCESS;
-}
-
-/**
- * 判断Scalar节点后Broadcast节点直连的计算节点是否支持Scalar输入
- */
-Status JudgeNextCompOpSupportsScalarInput(const NodePtr &node, bool &is_next_support_scalar) {
-  NodePtr cur_node = node;
-  NodePtr next_comp_op = node;
-  if (GetSingleNextNode(cur_node, next_comp_op) == ge::FAILED) {
-    // 非输出单引用场景，不支持Scalar输入
-    is_next_support_scalar = false;
-    return ge::SUCCESS;
-  }
-  std::vector<int64_t> topo_list;
-  std::vector<NodePtr> bro_nodes;
-  // 收集 Broadcast 节点, 当前多引用的Broadcast节点不处理
-  GE_ASSERT_SUCCESS(CollectBroNodes(cur_node, next_comp_op, bro_nodes, topo_list));
-  if ((next_comp_op->GetType() == kBroadcastType) || bro_nodes.empty()) {
-    // Broadcast节点输出多引用场景或者Scalar后无BroadCast场景，不做后移
-    is_next_support_scalar = false;
-    return ge::SUCCESS;
-  }
-  std::vector<bool> is_scalar_list;
-  GE_ASSERT_NOTNULL(std::dynamic_pointer_cast<ge::AscNode>(next_comp_op));
-  const auto &next_comp_asc_op = std::dynamic_pointer_cast<ge::AscNode>(next_comp_op);
-  GE_ASSERT_SUCCESS(GetNodeScalarInputList(next_comp_asc_op, is_scalar_list));
-  auto bro_out_anchor = bro_nodes.back()->GetOutDataAnchor(0);
-  GE_ASSERT_NOTNULL(bro_out_anchor);
-  auto cmp_in_anchors = bro_out_anchor->GetPeerInDataAnchors();
-  GE_ASSERT_TRUE(!cmp_in_anchors.empty());
-  auto cmp_in_anchor = cmp_in_anchors.at(0);
-  GE_ASSERT_NOTNULL(cmp_in_anchor);
-  const auto idx = static_cast<size_t>(cmp_in_anchor->GetIdx());
-  GE_ASSERT_TRUE(idx < is_scalar_list.size(), "Input index(%zu) of %s(%s) out of range(%zu)", idx,
-                 next_comp_op->GetTypePtr(), next_comp_op->GetNamePtr(), is_scalar_list.size());
-  is_scalar_list[idx] = true;
-  if (!ascgen_utils::IsNodeSupportsScalarInput(next_comp_asc_op, is_scalar_list)) {
-    GELOGD("Node %s(%s) does not support scalar input, index=%zu.", next_comp_op->GetNamePtr(),
-           next_comp_op->GetTypePtr(), idx);
-    is_next_support_scalar = false;
-  }
-  return ge::SUCCESS;
-}
-
 /**
  * 找到图上所有brc的前驱节点，作为后移判断开始的起点
  */
@@ -566,14 +514,12 @@ Status CollectBackwardStartNodes(const AscGraph &graph, std::vector<NodePtr> &pr
       // 循环经过单输出单引用的Brc节点链
       GE_ASSERT_SUCCESS(asc_adapt::GetPeerOutNode(cur_node, cur_node, 0));
     }
-    bool is_next_support_scalar = true;
-    if (cur_node->GetType() == kScalarType) {
-      // 如果当前节点为Scalar，判断Broadcast节点后计算节点是否支持Scalar
-      GE_ASSERT_SUCCESS(JudgeNextCompOpSupportsScalarInput(cur_node, is_next_support_scalar));
-    }
-
-    if ((cur_node != node) && is_next_support_scalar) {
-      // 至少存在单输出的Brc节点就把前驱节点当作输出(Scalar节点判断后续计算节点是否支持Scalar)
+    // 当前节点输出为UbScalar时，broadcast节点不做后移
+    AscTensorAttr *output_tensor_attr;
+    GE_ASSERT_SUCCESS(asc_adapt::GetOutputTensorAttr(cur_node, output_tensor_attr));
+    bool is_ub_scalar = AutofuseUtils::IsUbScalar(output_tensor_attr->repeats);
+    if ((cur_node != node) && (cur_node->GetType() != kScalarType) && !is_ub_scalar) {
+      // 至少存在单输出的Brc节点就把前驱节点当作输出(Scalar和UbScalar无法判断后续计算节点是否支持暂时不做后移)
       pre_brc_nodes.push_back(cur_node);
     }
   }
