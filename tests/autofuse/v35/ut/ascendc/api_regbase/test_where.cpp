@@ -426,4 +426,17 @@ TEST_F(TestRegbaseApiWhereUT, Where_int8_normal) {
   WhereNormalTest<int8_t, 2>(71, (ONE_BLK_SIZE - sizeof(int8_t)) / sizeof(int8_t));
   WhereNormalTest<int8_t, 2>(71, (ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int8_t));
 }
+
+// 场景7: uint8 测试
+TEST_F(TestRegbaseApiWhereUT, Where_uint8_count) {
+  WhereNormalTest<uint8_t, 1>(1, ONE_BLK_SIZE / sizeof(uint8_t));
+  WhereNormalTest<uint8_t, 1>(1, ONE_REPEAT_BYTE_SIZE / sizeof(uint8_t));
+  WhereNormalTest<uint8_t, 1>(1, (ONE_BLK_SIZE - sizeof(uint8_t)) / sizeof(uint8_t));
+}
+
+TEST_F(TestRegbaseApiWhereUT, Where_uint8_normal) {
+  WhereNormalTest<uint8_t, 2>(71, ONE_REPEAT_BYTE_SIZE / sizeof(uint8_t));
+  WhereNormalTest<uint8_t, 2>(71, (ONE_BLK_SIZE - sizeof(uint8_t)) / sizeof(uint8_t));
+  WhereNormalTest<uint8_t, 2>(71, (ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(uint8_t));
+}
 }  // namespace ge

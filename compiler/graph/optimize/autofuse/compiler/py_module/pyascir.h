@@ -59,6 +59,8 @@ PyMODINIT_FUNC PyInit_pyautofuse(void);
   OP(Erf)              \
   OP(Sign)             \
   OP(Tanh)             \
+  OP(Sin)              \
+  OP(Rshift)           \
   OP(Isnan)            \
   OP(Max)              \
   OP(Any)              \

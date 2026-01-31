@@ -461,6 +461,15 @@ class SqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) sqrt_node;
     return true;
   }
+
+  // 如果需要插入cast节点，返回cast的目的类型
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &sqrt_node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+        {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(sqrt_node, dtype_conversion_map);
+  }
 };
 
 class RsqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -474,6 +483,14 @@ class RsqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &rsqrt_node) const override {
     (void) rsqrt_node;
     return true;
+  }
+  // 如果需要插入cast节点，返回cast的目的类型
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &rsqrt_node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+        {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(rsqrt_node, dtype_conversion_map);
   }
 };
 
@@ -961,6 +978,13 @@ class SigmoidAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "Sigmoid";
+  }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+        {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
 };
 
@@ -1758,6 +1782,36 @@ class BatchMatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
             "mat_mul_pingpong_basic_cmct.h",
             "mat_mul_input_k_eq_zero_clear_output.h",
             "batch_matmul.h"};
+  }
+};
+
+class SinAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "UnaryApiCall";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Sin";
+  }
+  [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
+    return CalcSinTmpSizeV2(node);
+  }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+        {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
+};
+
+class RShiftAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "BinaryApiCallV2";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Rshift";
   }
 };
 }  // namespace ascir

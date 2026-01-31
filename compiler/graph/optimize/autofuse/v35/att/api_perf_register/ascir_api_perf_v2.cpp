@@ -579,6 +579,9 @@ ApiPerfRegister<ApiPerf> sqrt_api_perf_v2(ApiPerfRegisterV2(kSqrt, GetPerfFunc(k
 ApiPerfRegister<ApiPerf> sub_api_perf_v2(ApiPerfRegisterV2(kSub, GetPerfFunc(kSub + "V2"), nullptr,
                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> tanh_api_perf_v2(ApiPerfRegisterV2(kTanh, GetPerfFunc(kTanh + "V2"), nullptr, &perf_param_table_v2, &tiling_schedule_config_table_v2));
+ApiPerfRegister<ApiPerf> sin_api_perf_v2(ApiPerfRegisterV2(kSin, GetPerfFunc(kSin + "V2"), nullptr,
+                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2));
+ApiPerfRegister<ApiPerf> rshift_api_perf_v2(ApiPerfRegisterV2(kRshift, GetPerfFunc(kRshift + "V2"), nullptr, &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> where_api_perf_v2(ApiPerfRegisterV2(kWhere, GetPerfFunc(kWhere + "V2"), nullptr,
                                                              &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> select_api_perf_v2(ApiPerfRegisterV2(kSelect, GetPerfFunc(kWhere + "V2"), nullptr,

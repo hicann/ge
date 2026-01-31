@@ -552,6 +552,16 @@ def Tanh(owner_graph: ascir.HintGraph,
     return _common_in_1_out_1_normal_op("Tanh", owner_graph, x, axis=axis, size=size, stride=stride)
 
 
+def Sin(owner_graph: ascir.HintGraph,
+        x: ascir.OpsOperatorOutput,
+        *,
+        axis: List[ascir.Axis],
+        size: Optional[List[ascir.SizeExpr]] = None,
+        stride: Optional[List[ascir.SizeExpr]] = None
+        ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Sin", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
 def Isnan(owner_graph: ascir.HintGraph,
           x: ascir.OpsOperatorOutput,
           *,
@@ -674,6 +684,17 @@ def Gt(owner_graph: ascir.HintGraph,
        stride: Optional[List[ascir.SizeExpr]] = None
        ) -> ascir.OpsOperatorOutput:
     return _common_in_2_out_1_normal_op("Gt", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
+
+
+def Rshift(owner_graph: ascir.HintGraph,
+           x1: ascir.OpsOperatorOutput,
+           x2: ascir.OpsOperatorOutput,
+           *,
+           axis: List[ascir.Axis],
+           size: Optional[List[ascir.SizeExpr]] = None,
+           stride: Optional[List[ascir.SizeExpr]] = None
+           ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Sin", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
 
 
 def Le(owner_graph: ascir.HintGraph,

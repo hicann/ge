@@ -295,7 +295,7 @@ REG_ASC_IR(Add)
 REG_ASC_IR(Sub)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::SubAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::SubAscIrCodegenImplV2>(),
-                            {{"T", TensorType{DT_INT16, DT_INT32, DT_FLOAT16, DT_FLOAT, DT_BF16, DT_INT8, DT_INT64}}}});
+                            {{"T", TensorType{DT_INT16, DT_INT32, DT_FLOAT16, DT_FLOAT, DT_BF16, DT_INT8, DT_INT64, DT_UINT8}}}});
 
 REG_ASC_IR(Div)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::DivAscIrAttImplV2>(),
@@ -415,7 +415,7 @@ REG_ASC_IR(Where)
     .Impl(v2_soc_versions,
           {ge::ascir::AscIrImplCreator<ge::ascir::WhereAscIrAttImplV2>(),
            ge::ascir::AscIrImplCreator<ge::ascir::WhereAscIrCodegenImplV2>(),
-           {{"T1", TensorType{DT_UINT8}}, {"T2", TensorType{DT_FLOAT16, DT_FLOAT, DT_INT16, DT_INT32, DT_INT64, DT_BF16, DT_INT8}}}});
+           {{"T1", TensorType{DT_UINT8}}, {"T2", TensorType{DT_FLOAT16, DT_FLOAT, DT_INT16, DT_INT32, DT_INT64, DT_BF16, DT_INT8, DT_UINT8}}}});
 
 // Ub2ub是在sched阶段添加的，不需要在py构图中对外体现
 // todo:Ub2ub DT_INT64 后面根据需要放开
@@ -561,5 +561,23 @@ REG_ASC_IR(BatchMatMulOffsetBias)
                              {"T2", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16}},
                              {"T3", TensorType{DT_INT8, DT_INT4}}}});
 
+REG_ASC_IR(Sin)
+    .Input("x", "T")
+    .Output("y", "T")
+    .ComputeType(ge::ComputeType::kComputeElewise)
+    .DataType("T", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16})
+    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::SinAscIrAttImplV2>(),
+                            ge::ascir::AscIrImplCreator<ge::ascir::SinAscIrCodegenImplV2>(),
+                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
+
+REG_ASC_IR(Rshift)
+    .Input("x1", "T")
+    .Input("x2", "T")
+    .Output("y", "T")
+    .ComputeType(ge::ComputeType::kComputeElewise)
+    .DataType("T", TensorType{DT_INT8, DT_INT16, DT_INT32, DT_INT64})
+    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::RshiftAscIrAttImplV2>(),
+                            ge::ascir::AscIrImplCreator<ge::ascir::RShiftAscIrCodegenImplV2>(),
+                            {{"T", TensorType{DT_INT8, DT_INT16, DT_INT32, DT_INT64}}}});
 }  // namespace ascir
 }

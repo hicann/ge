@@ -122,7 +122,6 @@ class TestRegbaseApiSubUT : public testing::Test {
   }
 };
 
-// ============ Tensor - Tensor 测试 (新增数据类型: DT_INT8, DT_INT64, DT_BF16) ============
 TEST_F(TestRegbaseApiSubUT, Sub_TensorTensor_Test) {
   // int8
   SubTensorTensorTest<int8_t>(ONE_BLK_SIZE / sizeof(int8_t));
@@ -147,6 +146,14 @@ TEST_F(TestRegbaseApiSubUT, Sub_TensorTensor_Test) {
   SubTensorTensorTest<bfloat16_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(bfloat16_t));
   SubTensorTensorTest<bfloat16_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(bfloat16_t));
   SubTensorTensorTest<bfloat16_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(bfloat16_t));
+
+  // uint8
+  SubTensorTensorTest<uint8_t>(ONE_BLK_SIZE / sizeof(int8_t));
+  SubTensorTensorTest<uint8_t>(ONE_REPEAT_BYTE_SIZE / sizeof(int8_t));
+  SubTensorTensorTest<uint8_t>((ONE_BLK_SIZE - sizeof(int8_t)) / sizeof(int8_t));
+  SubTensorTensorTest<uint8_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int8_t));
+  SubTensorTensorTest<uint8_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int8_t));
+  SubTensorTensorTest<uint8_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int8_t));
 }
 
 }  // namespace ge
