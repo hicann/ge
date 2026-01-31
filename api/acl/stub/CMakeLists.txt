@@ -161,3 +161,8 @@ target_link_libraries(stub_acl_mdl PRIVATE
     -ldl
 )
 ##################################################################################################################
+
+add_dependencies(stub_acl_cblas stub_src)
+add_dependencies(stub_acl_op_compiler stub_src)
+add_dependencies(stub_acl_op_executor stub_src)
+add_dependencies(stub_acl_mdl stub_src)
