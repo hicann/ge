@@ -1,16 +1,17 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#include "pattern_fusion.h"
 #include "utils/auto_fuse_config.h"
 #include "utils/autofuse_attrs.h"
-
+#include "common/checker.h"
 #include "decompose_large_const_pass.h"
 #include "flatten_concat_pass.h"
 #include "flatten_split_pass.h"
@@ -19,18 +20,36 @@
 #include "gather_forward_fusion_pass.h"
 #include "pad_slice_optimize_pass.h"
 #include "concat_slice_simplification_pass.h"
-#include "pattern_fusion.h"
+#include "slice_forward_fusion_pass.h"
+#include "transpose_with_broadcast_eliminate_pass.h"
+#include "cast_remove_pass.h"
 
 namespace ge {
+constexpr uint32_t kMaxIterations = 3U;
+
 graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph, const GraphPasses &graph_passes) const {
+  GE_ASSERT_NOTNULL(graph);
+
+  // ============ 优化类 Pass (循环调用直到收敛) ============
+  bool changed = true;
+  uint32_t iter = 0U;
+  while (changed && iter < kMaxIterations) {
+    changed = false;
+    iter++;
+    GE_ASSERT_GRAPH_SUCCESS(PadSliceOptimizePass().Run(graph));
+    GE_ASSERT_GRAPH_SUCCESS(RedundantSliceRemovePass().Run(graph, changed));
+    GE_ASSERT_GRAPH_SUCCESS(CascadeReshapeRemovePass().Run(graph, changed));
+    GE_ASSERT_GRAPH_SUCCESS(TransposeWithBroadcastEliminatePass().Run(graph, changed));
+    GE_ASSERT_GRAPH_SUCCESS(CastRemovePass().Run(graph, changed));
+  }
+  GE_ASSERT_GRAPH_SUCCESS(graph->TopologicalSorting());
+  // ============ 融合类pass，先统一只调用一次 ============
   GE_ASSERT_GRAPH_SUCCESS(ConcatSliceSimplificationPass().Run(graph, graph_passes));
-  GE_ASSERT_GRAPH_SUCCESS(PadSliceOptimizePass().Run(graph));
-  GE_ASSERT_GRAPH_SUCCESS(RedundantSliceRemovePass().Run(graph));
-  GE_ASSERT_GRAPH_SUCCESS(CascadeReshapeRemovePass().Run(graph));
+  GE_ASSERT_GRAPH_SUCCESS(SliceForwardFusionPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(FlattenConcatPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(FlattenSplitPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(GatherForwardFusionPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(DecomposeLargeConstPass::Run(graph));
-  return GRAPH_SUCCESS;
+  return graph->TopologicalSorting();
 }
 }  // namespace ge

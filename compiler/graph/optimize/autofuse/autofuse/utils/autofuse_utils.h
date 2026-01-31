@@ -132,8 +132,6 @@ class AutofuseUtils {
 
   static Status DelOneNodeInGraph(const ComputeGraphPtr &graph, const NodePtr &node);
 
-  static Status RemoveUnusefulCastPattern(const ComputeGraphPtr &graph);
-
   static bool CheckAndMulDetect(const std::vector<Expression> &long_dims, const std::vector<Expression> &short_dims,
                                 size_t &sort_idx, std::vector<size_t> &mul_idx);
   static bool IsCubeNodeType(const NodePtr &node);

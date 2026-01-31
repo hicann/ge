@@ -69,7 +69,8 @@ TEST_F(RedundantOpRemovePassTest, RemoveReshapeWithCtrlEdge) {
     CHAIN(NODE(reshape3)->CTRL_EDGE()->NODE(relu));
   };
   auto graph = ToComputeGraph(test_graph);
-  EXPECT_EQ(CascadeReshapeRemovePass().Run(graph), GRAPH_SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(CascadeReshapeRemovePass().Run(graph, changed), GRAPH_SUCCESS);
   EXPECT_TRUE(graph->FindNode("reshape1") == nullptr);
   EXPECT_TRUE(graph->FindNode("reshape2") == nullptr);
   EXPECT_TRUE(graph->FindNode("reshape3") == nullptr);
@@ -101,7 +102,8 @@ TEST_F(RedundantOpRemovePassTest, RemoveReshapeWithEdge) {
     CHAIN(NODE(reshape3)->DATA_EDGE(0, 1)->NODE(add));
   };
   auto graph = ToComputeGraph(test_graph);
-  EXPECT_EQ(CascadeReshapeRemovePass().Run(graph), GRAPH_SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(CascadeReshapeRemovePass().Run(graph, changed), GRAPH_SUCCESS);
   EXPECT_TRUE(graph->FindNode("reshape1") == nullptr);
   EXPECT_TRUE(graph->FindNode("reshape2") == nullptr);
   EXPECT_TRUE(graph->FindNode("reshape3") != nullptr);
@@ -158,27 +160,6 @@ TEST_F(RedundantOpRemovePassTest, RemoveReshapeWithSlice) {
 }
 
 
-TEST_F(RedundantOpRemovePassTest, RemoveCast) {
-  auto data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {1, 2, 3, 4}).InCnt(0).OutCnt(1).Build("Data");
-  auto cast1 = OP_CFG("Cast").TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 2, 3, 4}).InCnt(1).OutCnt(1).Build("cast1");
-  auto cast2 = OP_CFG("Cast").TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 2, 3, 4}).InCnt(1).OutCnt(1).Build("cast2");
-  auto relu = OP_CFG("Add").TensorDesc(FORMAT_NCHW, DT_FLOAT, {1, 2, 3, 4}).InCnt(2).OutCnt(1).Build("add");
-
-  DEF_GRAPH(test_graph) {
-    CHAIN(NODE(data)->NODE(cast1)->NODE(cast2)->NODE(relu)->NODE("output_0", NETOUTPUT));
-    CHAIN(NODE(cast1)->DATA_EDGE(0, 1)->NODE(relu));
-  };
-  auto graph = ToComputeGraph(test_graph);
-
-  EXPECT_EQ(AutofuseUtils::RemoveUnusefulCastPattern(graph), GRAPH_SUCCESS);
-  EXPECT_TRUE(graph->FindNode("cast1") == nullptr);
-  EXPECT_TRUE(graph->FindNode("cast2") == nullptr);
-  auto add_node = graph->FindNode("add");
-  ASSERT_NE(add_node, nullptr);
-  EXPECT_EQ(add_node->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetName(), "Data");
-  EXPECT_EQ(add_node->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode()->GetName(), "Data");
-}
-
 TEST_F(RedundantOpRemovePassTest, RemoveSlice) {
   auto dtype = DT_INT32;
   auto shape = GeShape(std::vector<int64_t>({2}));
@@ -218,7 +199,8 @@ TEST_F(RedundantOpRemovePassTest, RemoveSlice) {
   };
   auto graph = ToComputeGraph(test_graph);
 
-  EXPECT_EQ(RedundantSliceRemovePass().Run(graph), GRAPH_SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(RedundantSliceRemovePass().Run(graph, changed), GRAPH_SUCCESS);
   EXPECT_TRUE(graph->FindNode("slice1") == nullptr);
   auto relu_node = graph->FindNode("relu");
   ASSERT_NE(relu_node, nullptr);
@@ -274,7 +256,8 @@ TEST_F(RedundantOpRemovePassTest, SkipRemoveSlice) {
   };
   auto graph = ToComputeGraph(test_graph);
 
-  EXPECT_EQ(RedundantSliceRemovePass().Run(graph), GRAPH_SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(RedundantSliceRemovePass().Run(graph, changed), GRAPH_SUCCESS);
   EXPECT_TRUE(graph->FindNode("slice1") != nullptr);
   EXPECT_TRUE(graph->FindNode("slice2") != nullptr);
   auto relu_node = graph->FindNode("relu");

@@ -3,7 +3,7 @@
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -23,7 +23,9 @@ const std::unordered_set<std::string> kSliceOpTypes = {"Slice", "SliceD"};
 }  // namespace
 
 namespace ge {
-graphStatus RedundantSliceRemovePass::Run(const ComputeGraphPtr &graph) const {
+graphStatus RedundantSliceRemovePass::Run(const ComputeGraphPtr &graph, bool &changed) const {
+  GE_CHECK_NOTNULL(graph);
+
   auto direct_nodes = graph->GetDirectNode();
   for (auto it = direct_nodes.rbegin(); it != direct_nodes.rend(); ++it) {
     ge::NodePtr &current_node = *it;
@@ -35,6 +37,7 @@ graphStatus RedundantSliceRemovePass::Run(const ComputeGraphPtr &graph) const {
       GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveJustNode(graph, current_node),
                               "[Remove][JustNode] failed, graph:%s, node:%s.", graph->GetName().c_str(),
                               current_node->GetNamePtr());
+      changed = true;
     }
   }
   return SUCCESS;

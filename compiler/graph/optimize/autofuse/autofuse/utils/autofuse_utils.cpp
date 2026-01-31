@@ -535,51 +535,6 @@ Status AutofuseUtils::DelOneNodeInGraph(const ComputeGraphPtr &graph, const Node
   return SUCCESS;
 }
 
-/**
-找到图中级联的无意义的cast节点，删除
-1.dtype无变化
-2.级联cast
-*/
-Status AutofuseUtils::RemoveUnusefulCastPattern(const ComputeGraphPtr &graph) {
-  auto direct_nodes = graph->GetDirectNode();
-  for (auto it = direct_nodes.rbegin(); it != direct_nodes.rend(); ++it) {
-    ge::NodePtr &node = *it;
-    GE_ASSERT_NOTNULL(node);
-    auto op_type = node->GetOpDescBarePtr()->GetType();
-    if (op_type != "Cast") {
-      continue;
-    }
-    const auto &input_desc = node->GetOpDescBarePtr()->GetInputDesc(0U);
-    const auto &output_desc = node->GetOpDescBarePtr()->GetOutputDesc(0U);
-    if (input_desc.GetDataType() == output_desc.GetDataType()) {
-      GE_ASSERT_SUCCESS(GraphUtils::IsolateNode(node, {0}), "Failed to delete single useless Reshape node: %s",
-                        node->GetNamePtr());
-      GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveJustNode(graph, node), "[Remove][JustNode] failed, graph:%s, node:%s.",
-                              graph->GetName().c_str(), node->GetNamePtr());
-      GELOGD("Success to delete single useless Cast node: %s", node->GetName().c_str());
-    }
-  }
-  for (ge::NodePtr &node : graph->GetDirectNode()) {
-    auto op_type = node->GetOpDesc()->GetType();
-    if ((op_type == "Cast") && (node->GetOutNodesSize() == 1U)) {
-      const auto &input_desc = node->GetOpDesc()->GetInputDesc(0U);
-      auto after_node = node->GetOutNodes().at(0);
-
-      GE_CHECK_NOTNULL(after_node);
-      if (after_node->GetOpDesc()->GetType() == "Cast") {
-        auto output_desc = after_node->GetOpDesc()->GetOutputDesc(0U);
-        if (output_desc.GetDataType() == input_desc.GetDataType()) {
-          GE_ASSERT_SUCCESS(AutofuseUtils::DelOneNodeInGraph(graph, node));
-          GE_ASSERT_SUCCESS(AutofuseUtils::DelOneNodeInGraph(graph, after_node));
-          GELOGI("Success to detect two useless cast node, node1 name is %s, node2 name is %s",
-                 node->GetName().c_str(), after_node->GetName().c_str());
-        }
-      }
-    }
-  }
-  return SUCCESS;
-}
-
 // 检测是否存在[a,b,c]->[a*b,c]的情况, 从第一个未找到shape开始，到shape大小相同为止，划定下标范围。
 bool AutofuseUtils::CheckAndMulDetect(const std::vector<Expression> &long_dims,
                                       const std::vector<Expression> &short_dims, size_t &sort_idx,

@@ -118,7 +118,6 @@ ge::Status Autofuser::Fuse(const ge::ComputeGraphPtr &graph) const {
     return FuseLite(graph);
   }
 
-  GE_ASSERT_SUCCESS(AutofuseUtils::RemoveUnusefulCastPattern(graph));
   ge::PatternFusion patter_fusion;
   GE_ASSERT_SUCCESS(patter_fusion.RunAllPatternFusion(graph, graph_passes_));
   GE_DUMP(graph, "AutoFuser_AfterPatternFusion");
