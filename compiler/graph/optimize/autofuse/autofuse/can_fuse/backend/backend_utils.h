@@ -124,7 +124,7 @@ class BackendUtils {
    * @return 如果两个节点是最简单的操作节点，则返回 true；否则返回 false。
    */
   static bool IsSimplestLoad(const NodePtr &node, const NodePtr &load_node, const NodePtr &data_node,
-                             std::vector<ViewOpAttrInfo> &attr_infos);
+                             std::vector<ViewOpAttrInfo> &attr_infos, const bool is_condition_with_node_type = true);
 
   /**
    * 该函数用于查找指定输出锚点的前置 Load 节点。
@@ -711,7 +711,9 @@ class BackendUtils {
    * @param index 输入锚点的索引
    * @return 如果输入节点是最简单的Load操作，则返回true；否则返回false
    */
-  static bool CurNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index, std::vector<ViewOpAttrInfo> &attr_infos);
+  static bool CurNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index,
+                                         std::vector<ViewOpAttrInfo> &attr_infos,
+                                         const bool is_condition_with_node_type = true);
 
   /**
    * 该函数用于判断指定节点的前置节点的输入是否为纯粹的load操作。

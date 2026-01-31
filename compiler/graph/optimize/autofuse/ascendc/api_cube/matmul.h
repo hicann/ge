@@ -94,7 +94,7 @@ __global__ __aicore__ void mat_mul_v3(
         L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
         GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
         MatmulV3Advanced::MatMulActKernel<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor,
-            0, IS_ENABLE_RELU>(
+            0, OP_TYPE_RELU_VALUE>(
 #ifdef CV_UB_FUSION
             aGM, bGM, biasGM, cGM, nullptr, tilingData, param);
 #else
@@ -106,7 +106,7 @@ __global__ __aicore__ void mat_mul_v3(
         GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
         MatmulV3Advanced::MatMulActKernel<
             DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, B_FULL_LOAD_MODE,
-            IS_ENABLE_RELU>(
+            OP_TYPE_RELU_VALUE>(
 #ifdef CV_UB_FUSION
             aGM, bGM, biasGM, cGM, nullptr, tilingData, param);
 #else
@@ -118,14 +118,14 @@ __global__ __aicore__ void mat_mul_v3(
         GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
         MatMulStreamKActKernel<
             DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, MatMulL0C2Out::ON_THE_FLY,
-            IS_ENABLE_RELU>(aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+            OP_TYPE_RELU_VALUE>(aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
     } else if constexpr (
         API_LEVEL == MAT_MUL_BASIC_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_STREAM_K &&
         L0C2OUT_MODEL == MAT_MUL_1V2_ND_ALIG_FIXPIPE) {
         GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
         MatMulStreamKActKernel<
             DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, MatMulL0C2Out::ND_FIXPIPE_1_2,
-            IS_ENABLE_RELU>(aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
+            OP_TYPE_RELU_VALUE>(aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
     } else if constexpr (
         API_LEVEL == MAT_MUL_HIGH_LEVEL && FULL_LOAD == MAT_MUL_NO_FULL_LOAD && MODEL == MAT_MUL_K_EQUAL_ZERO &&
         L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY) {
@@ -156,7 +156,7 @@ __global__ __aicore__ void mat_mul_v3(
         GET_TILING_DATA_WITH_STRUCT(MatMulV3BasicTilingData, tilingData, tilingGM);
         MatmulV3Advanced::MatMulActKernel<
             DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor, A_FULL_LOAD_MODE,
-            IS_ENABLE_RELU>(
+            OP_TYPE_RELU_VALUE>(
 #ifdef CV_UB_FUSION
             aGM, bGM, biasGM, cGM, nullptr, tilingData, param);
 #else

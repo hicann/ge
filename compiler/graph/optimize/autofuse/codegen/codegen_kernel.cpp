@@ -4162,15 +4162,10 @@ std::string Kernel::GenCubeTilingSingleFuncCall(const bool is_batch, const bool 
       ss << output.Str() << ", ";
     }
     if (this->outputs.empty()) {
-      ss << "nullptr, ";
+      ss << (is_cv_fuse ? "nullptr, " : "output_0, ");
     }
   }
   ss << this->workspace_arg.Str() << ", ";
-  if (!is_cv_fuse) {
-    for (auto &workspace : this->workspaces) {
-      ss << "t." << workspace.Str() << ", ";
-    }
-  }
   ss << "gm_tiling_data";
   ss << (is_cv_fuse ? ", &CV_FUSION_ADDR" : "");
   ss << ");" << std::endl;
@@ -4744,7 +4739,7 @@ Status Kernel::GenerateVecFuncOfCVFusion(std::stringstream &result, bool vector_
     result << R"(
 #include "cmct/block/block_scheduler_policy.h"
 #include "cmct/block/block_scheduler_utils.h"
-#include "include/utils/status_utils.h"
+#include "cmct/utils/status_utils.h"
 #include "autofuse_cube_tiling_data.h"
 )" << std::endl;
     result << "#ifdef CV_UB_NO_DB" << std::endl;
@@ -4922,8 +4917,10 @@ Status Kernel::InitCVFusionAddr(std::stringstream &result, bool vector_no_db_fla
     for (auto input : this->inputs) {
       result << "  CV_FUSION_ADDR." << input.Str() << " = " << input.Str() << ";" << std::endl;
     }
+    size_t output_idx = 0;
     for (auto output : this->outputs) {
       result << "  CV_FUSION_ADDR." << output.Str() << " = " << output.Str() << ";" << std::endl;
+      result << "  GM_ADDR output_" << output_idx++ << " = " << output.Str() << ";" << std::endl;
     }
   }
   return ge::SUCCESS;

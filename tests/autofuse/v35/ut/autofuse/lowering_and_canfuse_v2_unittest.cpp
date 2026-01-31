@@ -777,6 +777,71 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanFuseBroadc
   RuntimeStub::Reset();
 }
 
+void VerifyProcessedCanNotFuseBatchBroadcastGraph(const std::shared_ptr<ge::ComputeGraph>& cg) {
+  auto Broadcast_0 = cg->FindNode("BroadcastTo_0");
+  ASSERT_NE(Broadcast_0, nullptr);
+  auto MatMulV3_1 = cg->FindNode("BatchMatMulV3_1");
+  ASSERT_NE(MatMulV3_1, nullptr);
+  auto Add_2 = cg->FindNode("Add_2");
+  ASSERT_NE(Add_2, nullptr);
+
+  ge::AscIrLowerer lowerer1;
+  ASSERT_EQ(lowerer1.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+  FusionStrategySolver fusion_strategy_solver1;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver1.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer1.Lifting(cg), GRAPH_SUCCESS);
+
+  AscBackendPostProcessor post_processor1;
+  EXPECT_EQ(post_processor1.Do(cg), SUCCESS);
+  CubeFixpipPass cube_fixpip_pass1;
+  EXPECT_EQ(cube_fixpip_pass1.Run(cg), SUCCESS);
+
+  for (auto &node : cg->GetDirectNode()) {
+    std::cout << "node name is " << node->GetNamePtr() << std::endl;
+  }
+  auto Broadcast_0_tmp = cg->FindNode("Broadcast_0");
+  ASSERT_EQ(Broadcast_0_tmp, nullptr);
+  auto MatMulV3_1_tmp = cg->FindNode("BatchMatMulV3_1");
+  ASSERT_NE(MatMulV3_1_tmp, nullptr);
+  auto autofuse_pointwise_1_BroadcastTo_Add = cg->FindNode("autofuse_pointwise_1_BroadcastTo_Add");
+  ASSERT_NE(autofuse_pointwise_1_BroadcastTo_Add, nullptr);
+  auto Add_2_tmp = cg->FindNode("Add_2");
+  ASSERT_EQ(Add_2_tmp, nullptr);
+}
+
+TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseBatchBroadcast) {
+  ge::PlatformContext::GetInstance().Reset();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"4", "4", "4", "4"});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"4", "4", "4", "4"});
+    auto data2 = es_graph_->CreateInput(2, "data2", nullptr);
+    data2.SetSymbolShape({"4"});
+    auto broadcast = es::BroadcastTo(data2, data1);
+    broadcast.SetSymbolShape({"4", "4", "4", "4"});
+    auto matmul = es::BatchMatMulV3(data0, data1);
+    matmul.SetSymbolShape({"4", "4", "4", "4"});
+    auto reshape = es::Add(matmul, broadcast);
+    reshape.SetSymbolShape({"4", "4", "4", "4"});
+    es_graph_->SetOutput(reshape, 0);
+  }();
+  auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
+  SetCurShapeEnvContext(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<GraphInputShapeSourceStub>(0, 2));
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  VerifyProcessedCanNotFuseBatchBroadcastGraph(cg);
+  SetCurShapeEnvContext(nullptr);
+  RuntimeStub::Reset();
+}
+
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseDirectBroadcast) {
   ge::PlatformContext::GetInstance().Reset();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
@@ -839,7 +904,6 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseDir
   RuntimeStub::Reset();
 }
 
-// 因为scalar也有broadcast，cube暂不支持融合broadcast
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndScalarLoweringCanfuseV2CanFuseScalar) {
   ge::PlatformContext::GetInstance().Reset();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
@@ -957,6 +1021,169 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseV2CanNotFuseReduce
   ASSERT_NE(autofuse_reduce_1_Add_ReduceSumD, nullptr);
   auto Add_1_tmp = cg->FindNode("Add_1");
   ASSERT_EQ(Add_1_tmp, nullptr);
+  SetCurShapeEnvContext(nullptr);
+  RuntimeStub::Reset();
+}
+
+TEST_F(UTestLoweringAndCanfuseV2, CubeAndElementwiseLoweringCanfuseV2CanNotFuseVertical) {
+  ge::PlatformContext::GetInstance().Reset();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"4", "4"});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"4", "4"});
+    auto data2 = es_graph_->CreateInput(2, "data2", nullptr);
+    data2.SetSymbolShape({"4", "4"});
+    auto matmul = es::MatMulV3(data0, data1);
+    matmul.SetSymbolShape({"4", "4"});
+    auto add = es::Add(data1, data2);
+    add.SetSymbolShape({"4", "4"});
+    es_graph_->SetOutput(matmul, 0);
+    es_graph_->SetOutput(add, 1);
+  }();
+  auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
+  SetCurShapeEnvContext(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<GraphInputShapeSourceStub>(0, 2));
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+
+  auto MatMulV3_0 = cg->FindNode("MatMulV3_0");
+  ASSERT_NE(MatMulV3_0, nullptr);
+  auto Add_1 = cg->FindNode("Add_1");
+  ASSERT_NE(Add_1, nullptr);
+
+
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+
+  for (auto &node : cg->GetDirectNode()) {
+    std::cout << "node name is " << node->GetNamePtr() << std::endl;
+  }
+
+  auto MatMulV3_0_tmp = cg->FindNode("MatMulV3_0");
+  ASSERT_NE(MatMulV3_0_tmp, nullptr);
+  auto Add_1_tmp = cg->FindNode("Add_1");
+  ASSERT_NE(Add_1_tmp, nullptr);
+  SetCurShapeEnvContext(nullptr);
+  RuntimeStub::Reset();
+}
+
+TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseReluAbs) {
+  ge::PlatformContext::GetInstance().Reset();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"4", "4"});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"4", "4"});
+    auto matmul = es::MatMulV3(data0, data1);
+    matmul.SetSymbolShape({"4", "4"});
+    auto add = es::Relu(matmul);
+    add.SetSymbolShape({"4", "4"});
+    auto sum = es::Abs(add);
+    sum.SetSymbolShape({"4", "4"});
+    es_graph_->SetOutput(sum, 0);
+  }();
+  auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
+  SetCurShapeEnvContext(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<GraphInputShapeSourceStub>(0, 2));
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+
+  auto MatMulV3_0 = cg->FindNode("MatMulV3_0");
+  ASSERT_NE(MatMulV3_0, nullptr);
+  auto Add_1 = cg->FindNode("Relu_1");
+  ASSERT_NE(Add_1, nullptr);
+  auto ReduceSumD_2 = cg->FindNode("Abs_2");
+  ASSERT_NE(ReduceSumD_2, nullptr);
+
+
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+
+  for (auto &node : cg->GetDirectNode()) {
+    std::cout << "node name is " << node->GetNamePtr() << std::endl;
+  }
+
+  auto MatMulV3_0_tmp = cg->FindNode("MatMulV3_0");
+  ASSERT_EQ(MatMulV3_0_tmp, nullptr);
+  auto autofuse_reduce_1_Add_ReduceSumD = cg->FindNode("autofuse_pointwise_1_Relu_Abs");
+  ASSERT_EQ(autofuse_reduce_1_Add_ReduceSumD, nullptr);
+  SetCurShapeEnvContext(nullptr);
+  RuntimeStub::Reset();
+}
+
+TEST_F(UTestLoweringAndCanfuseV2, CubeAndReduceLoweringCanfuseOnlyRelu) {
+  ge::PlatformContext::GetInstance().Reset();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"4", "4"});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"4", "4"});
+    auto matmul = es::MatMulV3(data0, data1);
+    matmul.SetSymbolShape({"4", "4"});
+    auto add = es::Relu(matmul);
+    add.SetSymbolShape({"4", "4"});
+    es_graph_->SetOutput(add, 0);
+  }();
+  auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
+  SetCurShapeEnvContext(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<GraphInputShapeSourceStub>(0, 2));
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+
+  auto MatMulV3_0 = cg->FindNode("MatMulV3_0");
+  ASSERT_NE(MatMulV3_0, nullptr);
+  auto Add_1 = cg->FindNode("Relu_1");
+  ASSERT_NE(Add_1, nullptr);
+
+
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+
+  for (auto &node : cg->GetDirectNode()) {
+    std::cout << "node name is " << node->GetNamePtr() << std::endl;
+  }
+
+  auto MatMulV3_0_tmp = cg->FindNode("MatMulV3_0");
+  ASSERT_EQ(MatMulV3_0_tmp, nullptr);
+  auto autofuse_reduce_1_Add_ReduceSumD = cg->FindNode("autofuse_pointwise_1_Relu");
+  ASSERT_EQ(autofuse_reduce_1_Add_ReduceSumD, nullptr);
   SetCurShapeEnvContext(nullptr);
   RuntimeStub::Reset();
 }

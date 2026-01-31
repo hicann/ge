@@ -72,6 +72,8 @@ Status CubeFixpip(AscGraph &graph, const NodePtr &asc_node) {
     return SUCCESS;
   }
 
+  bool is_relu_only = false;
+  NodePtr cube_node = nullptr;
   for (const auto &node : graph.GetAllNodes()) {
     if (AutofuseUtils::IsCubeNodeType(node)) {
       std::vector<NodePtr> peer_in_nodes;
@@ -87,19 +89,28 @@ Status CubeFixpip(AscGraph &graph, const NodePtr &asc_node) {
         GELOGI("node:%s(%s) peer node not relu, skip.", node->GetName().c_str(), node->GetType().c_str());
         return SUCCESS;
       }
-      GE_ASSERT_SUCCESS(asc_adapt::DelNode(graph, peer_in_node));
-      GE_ASSERT_SUCCESS(SetReluAttr(node));
-      break;
+      // 当前不需要删除relu节点，以防遇到不支持fixpip的tiling key需要走ub模板 GE_ASSERT_SUCCESS(asc_adapt::DelNode(graph, peer_in_node));
+      // 后续需要删除relu节点时在此处设置relu标记，不在下方is_relu_only分支设置GE_ASSERT_SUCCESS(SetReluAttr(node));
+      is_relu_only = true;
+      cube_node = node;
+    } else if (node->GetType() != kDataType && node->GetType() != kLoadType && node->GetType() != kStoreType &&
+               node->GetType() != kOutputType && node->GetType() != kReluType) {
+      GELOGI("node:%s(%s) is not relu or input/output node, skip.", node->GetName().c_str(), node->GetType().c_str());
+      return SUCCESS;
     }
   }
+  if (is_relu_only) {
+    GE_ASSERT_SUCCESS(SetReluAttr(cube_node));
+  }
 
-  asc_adapt::TopologicalSorting(AscGraphUtils::GetComputeGraph(graph));
+  // 没有删除节点不需要做topo排序asc_adapt::TopologicalSorting(AscGraphUtils::GetComputeGraph(graph));
   return SUCCESS;
 }
 }
 
 Status CubeFixpipPass::Run(const ComputeGraphPtr &graph) const {
   // 代码预埋，act支持所有模板的fixpip能力后，开启此功能,后面要fixpip能力要注意act是否支持fixpip+后融合elemetnwise混合
+  // 当前只支持纯matmul+relu无别的节点且matmul不输出多引用的场景标记relu，不删除relu节点，后端直接选relu的matmul模板，不走ub模板
   GE_ASSERT_SUCCESS(asc_adapt::ProcessAscBackendNodes(graph, CubeFixpip, "cube_fixpip_pass"));
   GELOGI("Graph %s completed CubeFixpipPass successfully.", graph->GetName().c_str());
   return SUCCESS;

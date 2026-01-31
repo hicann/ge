@@ -69,6 +69,7 @@ constexpr MatmulBatchParams batchBiasParams{false, BatchMode::BATCH_LESS_THAN_L1
 constexpr MatmulBatchParams singBiasParams{false, BatchMode::BATCH_LESS_THAN_L1, false, BatchOutMode::DYNAMIC};
 
 #if defined(IS_ENABLE_RELU) && IS_ENABLE_RELU // 自动融合新增
+#define OP_TYPE_RELU_VALUE 5UL
 template<typename T>
 __aicore__ inline constexpr MatmulConfig CreatMatmulConfigWithRelu(T baseConfig) {
     auto mmCfg = baseConfig;
@@ -87,6 +88,7 @@ constexpr MatmulConfig MM_CFG_MULTI_BATCH_OUT_BATCH_BIAS = CreatMatmulConfigWith
 constexpr MatmulConfig MM_CFG_MULTI_BATCH_OUT_SING_BIAS_TMP = GetMMConfig<MatmulConfigMode::CONFIG_NORM>(singBiasParams);
 constexpr MatmulConfig MM_CFG_MULTI_BATCH_OUT_SING_BIAS = CreatMatmulConfigWithRelu(MM_CFG_MULTI_BATCH_OUT_SING_BIAS_TMP);
 #else
+#define OP_TYPE_RELU_VALUE 0UL
 // set enUnitFlag
 constexpr MatmulConfig MM_CFG_NO_PRELOAD = GetMDLConfig(false, false, 0, false, false, false, true);
 constexpr MatmulConfig MM_CFG_NO_PRELOAD_WITH_SPLIT_K_N = GetMDLConfig(false, false, 0, false, false, false, false);

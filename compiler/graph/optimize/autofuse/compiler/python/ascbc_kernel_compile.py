@@ -91,28 +91,57 @@ def _build_args(args_list, input_num, output_num):
     return _origin_inputs_, _origin_outputs_, _inputs_, _outputs_
 
 
+def _join_path(options, asc_path):
+    options.append("-I" + os.path.join(asc_path, "impl", "adv_api"))
+    options.append("-I" + os.path.join(asc_path, "impl", "basic_api"))
+    options.append("-I" + os.path.join(asc_path, "impl", "utils"))
+    options.append("-I" + os.path.join(asc_path, "include"))
+    options.append("-I" + os.path.join(asc_path, "include", "adv_api"))
+    options.append("-I" + os.path.join(asc_path, "include", "basic_api"))
+    options.append("-I" + os.path.join(asc_path, "include", "aicpu_api"))
+    options.append("-I" + os.path.join(asc_path, "include", "utils"))
+    options.append("-I" + os.path.join(asc_path, "..", "..", "include"))
+    options.append("-I" + os.path.join(asc_path, "..", "..", "include", "ascendc"))
+    options.append("-I" + os.path.join(asc_path, "..", "ascendc", "act"))
+    options.append("-I" + os.path.join(asc_path, "..", "tikcpp"))
+    options.append("-I" + os.path.join(asc_path, "..", "tikcpp", "tikcfw"))
+    options.append("-I" + os.path.join(asc_path, "..", "tikcpp", "tikcfw", "impl"))
+    options.append("-I" + os.path.join(asc_path, "..", "tikcpp", "tikcfw", "interface"))
+    options.append("-I" + os.path.join(asc_path, "..", "ascendc"))
+    options.append("-I" + os.path.join(asc_path, "..", "ascendc", "include"))
+    options.append("-I" + os.path.join(asc_path, "..", "asc", "include", "tiling"))
+    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                       "ascendc", "common"))
+    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                       "ascendc", "common", "cmct"))
+    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                       "ops_nn", "ascendc", "common"))
+    options.append("-I" + os.path.join(asc_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
+                                       "ops_nn", "ascendc", "common", "cmct"))
+
+
 def _build_options(temp_build_dir, impl_mode):
     options = ["-x", "cce"]
-    bisheng = os.environ.get('BISHENG_REAL_PATH')
-    if bisheng is None:
-        bisheng = shutil.which("bisheng")
-    if bisheng is not None:
-        bisheng_path = os.path.dirname(bisheng)
-        tikcpp_path = os.path.realpath(os.path.join(bisheng_path, "..", "..", "tikcpp"))
+    ascend_home_path = os.environ.get('ASCEND_HOME_PATH')
+    import platform
+    archlinux = platform.machine()
+    if ascend_home_path is None or ascend_home_path == '':
+        asc_opc_path = shutil.which("asc_opc")
+        if asc_opc_path is not None:
+            asc_opc_path_link = os.path.dirname(asc_opc_path)
+            asc_opc_real_path = os.path.realpath(asc_opc_path_link)
+            ascend_home_path = os.path.realpath(
+                    os.path.join(asc_opc_real_path, "..", ".."))
+        else:
+            ascend_home_path = "/usr/local/Ascend/cann"
+
+    if 'x86' in archlinux:
+        asc_path = os.path.realpath(os.path.join(ascend_home_path, "x86_64-linux", "asc"))
     else:
-        tikcpp_path = os.path.realpath("/usr/local/Ascend/latest/compiler/tikcpp")
-    options.append("-I" + tikcpp_path)
-    options.append("-I" + os.path.join(tikcpp_path, "..", "..", "include"))
-    options.append("-I" + os.path.join(tikcpp_path, "tikcfw"))
-    options.append("-I" + os.path.join(tikcpp_path, "tikcfw", "impl"))
-    options.append("-I" + os.path.join(tikcpp_path, "tikcfw", "interface"))
-    options.append("-I" + os.path.join(tikcpp_path, "..", "ascendc"))
-    options.append("-I" + os.path.join(tikcpp_path, "..", "ascendc", "include"))
-    options.append("-I" + os.path.join(tikcpp_path, "..", "asc", "include", "tiling"))
-    options.append("-I" + os.path.join(tikcpp_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
-                                       "ascendc", "common"))
-    options.append("-I" + os.path.join(tikcpp_path, "..", "..", "opp", "built-in", "op_impl", "ai_core", "tbe", "impl",
-                                       "ascendc", "common", "cmct"))
+        asc_path = os.path.realpath(os.path.join(ascend_home_path, "aarch64-linux", "asc"))
+    if asc_path is None:
+        asc_path = os.path.realpath(os.path.join(ascend_home_path, "compiler", "asc"))
+    _join_path(options, asc_path)
     options.append("-I" + os.path.join(temp_build_dir))
     if impl_mode == "high_performance":
         options.append("-DHIGH_PERFORMANCE=1")

@@ -1114,8 +1114,47 @@ def _process_tiling_info(is_batch, compile_info, origin_inputs, origin_outputs, 
     return tiling_info, cube_block_dim
 
 
+def template_decider(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
+    _, is_batch, cube_block_dim, use_cv_common, has_relu = cube_info[:5]
+    tiling_key = static_shape_cv_compile(kernel_name=kernel_name, temp_dir=temp_dir,
+                                                        graph_name=graph_name)
+    logger.info("CV fusion op, get vector tilingkey(%s)", tiling_key)
+    use_cv_common = use_cv_common or [False]
+    tiling_key_transpose_mask = 0xF0
+    tiling_key_transpose_and_full_load_mask = 0xF00F0
+    cube_tiling_key_ub = tiling_info.tiling_key & ~tiling_key_transpose_mask
+    cube_tiling_key_fixpip = tiling_info.tiling_key & ~tiling_key_transpose_and_full_load_mask
+    if (has_relu and cube_tiling_key_fixpip == 1):
+        logger.info("CV fusion op, entering fixpip fusion mode.")
+        tiling_info.file_content += "\n#define CV_UB_NO_DB 1\n" # 防止编译问题
+    elif (tiling_key == -1 or cube_tiling_key_ub != 1):
+        if tiling_info.tiling_key in CV_COMMON_MIX_WHITE_LIST:
+            tiling_info.file_content += "\n#define CV_SAFETY_FUSION_MIX_MODE 1\n"
+        logger.info("CV fusion op, entering safety fusion mode. vector_tiling_key=%s, is_batch=%s, cube_tiling_key=%s",
+                    tiling_key, is_batch, tiling_info.tiling_key)
+        tiling_info.file_content += "\n#define CV_SAFETY_FUSION 1\n"
+        use_cv_common[0] = True
+        vec_block_dim, wss = static_shape_cv_common_compile(kernel_name=kernel_name, temp_dir=temp_dir,
+                                                            graph_name=graph_name)
+        logger.info("CV fusion op, CV_AIC_NUM=[%s] CV_AIV_NUM=[%s] CV_VEC_WSS=[%s]", str(cube_block_dim),
+                    str(vec_block_dim), str(wss))
+        for name, value in [("CV_AIC_NUM", cube_block_dim), ("CV_AIV_NUM", vec_block_dim), ("CV_VEC_WSS", wss)]:
+            if value >= 0:
+                tiling_info.file_content += f"\n#define {name} {value}\n"
+    else:
+        logger.info("CV fusion op, entering UB fusion mode, cube_tiling_key=%s, vector tilingkey=%s.",
+                    tiling_info.tiling_key, tiling_key)
+        tiling_info.file_content += "\n#define CV_UB_FUSION 1\n"
+        if (tiling_key == 0):
+            logger.info("CV fusion op, entering UB fusion mode with no db.")
+            tiling_info.file_content += "\n#define CV_UB_NO_DB 1\n"
+        else:  # tiling_key 为1表示UB复用循环模板(非全载模板)
+            logger.info("CV fusion op, entering UB fusion mode with db.")
+            tiling_info.file_content += "\n#define CV_UB_DB 1\n"
+
+
 def create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
-    cube_output_type_size, is_batch, cube_block_dim, use_cv_common = cube_info[:4]
+    cube_output_type_size, is_batch, _, _, _ = cube_info[:5]
     generate_matmul_tiling(temp_dir)
 
     # 根据is_batch设置结构体名称和数据访问路径
@@ -1142,36 +1181,11 @@ GET_TILING_DATA_WITH_STRUCT({struct_name}, tmpTilingData, tmpTilingGM);
     generate_file(os.path.join(temp_dir, "host"), "autofuse_cube_tiling_data.h", host_tiling_content)
     generate_file(os.path.join(temp_dir, "host", "cv_common"), "autofuse_cube_tiling_data.h", host_tiling_content)
 
-    tiling_key = static_shape_cv_compile(kernel_name=kernel_name, temp_dir=temp_dir,
-                                                        graph_name=graph_name)
-    device_tiling_data = "\n#include \"matmul_tiling_data.h\"\n"
-    logger.info("CV fusion op, get vector tilingkey(%s)", tiling_key)
-    use_cv_common = use_cv_common or [False]
-
-    if (tiling_key == -1 or tiling_info.tiling_key != 1):
-        if tiling_info.tiling_key in CV_COMMON_MIX_WHITE_LIST:
-            tiling_info.file_content += "\n#define CV_SAFETY_FUSION_MIX_MODE 1\n"
-        logger.info("CV fusion op, entering safety fusion mode. vector_tiling_key=%s, is_batch=%s, cube_tiling_key=%s",
-                    tiling_key, is_batch, tiling_info.tiling_key)
-        tiling_info.file_content += "\n#define CV_SAFETY_FUSION 1\n"
-        use_cv_common[0] = True
-        vec_block_dim, wss = static_shape_cv_common_compile(kernel_name=kernel_name, temp_dir=temp_dir,
-                                                            graph_name=graph_name)
-        logger.info("CV fusion op, CV_AIC_NUM=[%s] CV_AIV_NUM=[%s] CV_VEC_WSS=[%s]", str(cube_block_dim),
-                    str(vec_block_dim), str(wss))
-        for name, value in [("CV_AIC_NUM", cube_block_dim), ("CV_AIV_NUM", vec_block_dim), ("CV_VEC_WSS", wss)]:
-            if value >= 0:
-                tiling_info.file_content += f"\n#define {name} {value}\n"
-    else:
-        tiling_info.file_content += "\n#define CV_UB_FUSION 1\n"
-        if (tiling_key == 0):
-            logger.info("CV fusion op, entering UB fusion mode with no db.")
-            tiling_info.file_content += "\n#define CV_UB_NO_DB 1\n"
-        else:  # tiling_key 为1表示UB复用循环模板(非全载模板)
-            logger.info("CV fusion op, entering UB fusion mode with db.")
-            tiling_info.file_content += "\n#define CV_UB_DB 1\n"
+    # 生成决定走哪一个vector模板的宏
+    template_decider(kernel_name, temp_dir, graph_name, tiling_info, cube_info)
 
     # 写入device端文件
+    device_tiling_data = "\n#include \"matmul_tiling_data.h\"\n"
     tiling_info.file_content += device_tiling_data
     device_tiling_content = tiling_info.file_content
     generate_file(os.path.join(temp_dir, "device"), "autofuse_cube_tiling_data.h", device_tiling_content)
@@ -1208,6 +1222,7 @@ def ascbc_cube_kernel_tiling_pro(
         return None
 
     is_batch = cube_attributes.get("is_batch", False)
+    has_relu = cube_attributes.get("has_relu", False)
 
     mm_attr1 = {"name" : "transpose_x1", "dtype" : "bool", "value" : cube_attributes.get("transpose_x1", False)}
     mm_attr2 = {"name" : "transpose_x2", "dtype" : "bool", "value" : cube_attributes.get("transpose_x2", False)}
@@ -1236,7 +1251,7 @@ def ascbc_cube_kernel_tiling_pro(
     logger.info("kernel_name=[%s], cube tiling_key[%s], tiling_data=[%s], tiling_file_context=[%s]", kernel_name, str(
         tiling_info.tiling_key), str(tiling_info.tiling_data), str(tiling_info.file_content))
     cube_output_type_size = cube_attributes.get("type_size", 4)
-    cube_info = [cube_output_type_size, is_batch, cube_block_dim, use_cv_common]
+    cube_info = [cube_output_type_size, is_batch, cube_block_dim, use_cv_common, has_relu]
     create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube_info)
 
 

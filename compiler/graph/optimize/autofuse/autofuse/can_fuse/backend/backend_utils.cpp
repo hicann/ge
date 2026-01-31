@@ -176,7 +176,7 @@ Status BackendUtils::SwapGraphAxis(const std::vector<std::pair<int64_t, int64_t>
 
 // 用data和load的输出tensor信息判断是否是单纯不包括view操作的load
 bool BackendUtils::IsSimplestLoad(const NodePtr &node, const NodePtr &load_node, const NodePtr &data_node,
-                                  std::vector<ViewOpAttrInfo> &attr_infos) {
+                                  std::vector<ViewOpAttrInfo> &attr_infos, const bool is_condition_with_node_type) {
   const auto attr = BackendUtils::GetNodeAutoFuseAttr(node);
   GE_ASSERT_NOTNULL(attr);
   if (attr->HasFuseType(loop::FuseType::kConcat)){
@@ -184,12 +184,14 @@ bool BackendUtils::IsSimplestLoad(const NodePtr &node, const NodePtr &load_node,
     return true;
   }
   // 如果load后有broadcast说明是有view算子的(transpose刷新过轴，不当作view来处理)
-  NodePtr finded_node = nullptr;
-  GE_ASSERT_SUCCESS(BackendUtils::GetViewOpNextNodeByLoad(load_node, finded_node));
-  if (finded_node != nullptr) {
-    GELOGD("data node %s(%s) and load node %s(%s) are view op, have broadcast op.", data_node->GetNamePtr(),
-           data_node->GetType().c_str(), load_node->GetNamePtr(), load_node->GetType().c_str());
-    return false;
+  if (is_condition_with_node_type) {
+    NodePtr finded_node = nullptr;
+    GE_ASSERT_SUCCESS(BackendUtils::GetViewOpNextNodeByLoad(load_node, finded_node));
+    if (finded_node != nullptr) {
+      GELOGD("data node %s(%s) and load node %s(%s) are view op, have broadcast op.", data_node->GetNamePtr(),
+             data_node->GetType().c_str(), load_node->GetNamePtr(), load_node->GetType().c_str());
+      return false;
+    }
   }
 
   // 通过load反推出来，如果有broadcast或者slice轴信息，说明是view算子
@@ -2665,7 +2667,8 @@ bool BackendUtils::IsNodeAllInputsAreSimplestLoad(const NodePtr &node) {
 }
 
 bool BackendUtils::CurNodeInputIsSimplestLoad(const NodePtr &node, const int32_t index,
-                                              std::vector<ViewOpAttrInfo> &attr_infos) {
+                                              std::vector<ViewOpAttrInfo> &attr_infos,
+                                              bool is_condition_with_node_type) {
   if (node->GetType() == kAscBackendType) {
     ComputeGraphPtr graph;
     GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(node, graph));
@@ -2678,7 +2681,7 @@ bool BackendUtils::CurNodeInputIsSimplestLoad(const NodePtr &node, const int32_t
     for (const auto &node_peer_anchor : data_out_anchor->GetPeerInDataAnchors()) {
       const auto load_node = node_peer_anchor->GetOwnerNode();
       GE_ASSERT_NOTNULL(load_node);
-      if (!BackendUtils::IsSimplestLoad(node, load_node, data_node, attr_infos)) {
+      if (!BackendUtils::IsSimplestLoad(node, load_node, data_node, attr_infos, is_condition_with_node_type)) {
         GELOGD("cur node %s(%s) ascgraph data node %s(%s) have view op.", node->GetNamePtr(), node->GetType().c_str(),
                data_node->GetNamePtr(), data_node->GetType().c_str());
         return false;
