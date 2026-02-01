@@ -271,6 +271,7 @@ class GraphManager {
                                                 const struct error_message::ErrorManagerContext &error_context,
                                                 const GEThreadLocalContext &ge_context, int32_t device_id);
   Status CheckGraphExisted(const GraphId &graph_id, bool &is_added);
+  Status RunCustomPassAfterOriginGraphOptimize(ConstGraphPtr const_graph) const;
   Status RunCustomPass(ConstGraphPtr const_graph) const;
   Status PreRun(const GraphNodePtr &graph_node, const std::vector<GeTensor> &inputs, GeRootModelPtr &ge_root_model,
                 uint64_t session_id = INVALID_SESSION_ID);

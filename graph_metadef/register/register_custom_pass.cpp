@@ -27,6 +27,7 @@ const std::map<CustomPassStage, std::string> kCustomPassStageToStringMap = {
     {CustomPassStage::kAfterInferShape, "AfterInferShape"},
     {CustomPassStage::kAfterAssignLogicStream, "AfterAssignLogicStream"},
     {CustomPassStage::kAfterBuiltinFusionPass, "AfterBuiltinFusionPass"},
+    {CustomPassStage::kAfterOriginGraphOptimize, "AfterOriginGraphOptimize"},
     {CustomPassStage::kInvalid, "InvalidStage"}
 };
 

@@ -38,6 +38,7 @@ enum class CustomPassStage : uint32_t {
   kAfterInferShape = 1,
   kAfterAssignLogicStream = 2, // only support CustomAllocateStreamPassFunc in this stage
   kAfterBuiltinFusionPass = 3,
+  kAfterOriginGraphOptimize = 4,
   kInvalid
 };
 

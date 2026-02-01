@@ -1105,6 +1105,8 @@ Status GraphManager::PreRunOptimizeOriginalGraph(const GraphNodePtr &graph_node,
                     "[Identify][Reference] failed, graph:%s.", compute_graph->GetName().c_str());
   GM_RUN_AND_DUMP_PERF("Optimize1", OptimizeStage1, compute_graph);
   GM_RUN_AND_DUMP_PERF("OptimizeAfterStage1", stages.optimizer.OptimizeAfterStage1, compute_graph);
+  GE_ASSERT_SUCCESS(RunCustomPassAfterOriginGraphOptimize(graph_node->GetGraph()),
+                  "[Run][CustomPass] in AfterOriginGraphOptimize stage failed.");
   GM_RUN_AND_DUMP_PERF("InferShape2", GraphUtilsEx::InferShapeInNeed, compute_graph);
 
   PassManager graph_pass;
@@ -1217,6 +1219,18 @@ Status GraphManager::UnfoldDynamicShapeGraph(ComputeGraphPtr &compute_graph) con
   compute_graph = std::move(merged_graph);
   GE_DUMP(compute_graph, "AfterUnfoldSubgraphs");
 
+  return SUCCESS;
+}
+
+Status GraphManager::RunCustomPassAfterOriginGraphOptimize(ConstGraphPtr const_graph) const {
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*const_graph);
+  GE_CHECK_NOTNULL(compute_graph);
+  fusion::FusionPassExecutor fusion_pass_executor;
+  GE_TRACE_START(RunCustomPassAfterOriginGraphOptimize);
+  GE_ASSERT_SUCCESS(fusion_pass_executor.RunPassesWithLegacyCustom(compute_graph, CustomPassStage::kAfterOriginGraphOptimize),
+                    "Run custom pass for graph [%s] in stage [AfterOriginGraphOptimize] failed.", compute_graph->GetName().c_str());
+  GE_COMPILE_TRACE_TIMESTAMP_END(RunCustomPassAfterOriginGraphOptimize, "GraphManager::RunCustomPassAfterOriginGraphOptimize");
+  GE_DUMP(compute_graph, "RunCustomPassAfterOriginGraphOptimize");
   return SUCCESS;
 }
 
