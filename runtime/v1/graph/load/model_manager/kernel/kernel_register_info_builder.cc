@@ -16,6 +16,7 @@
 #include "framework/common/taskdown_common.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "graph/load/model_manager/model_manager.h"
+#include "framework/common/debug/ge_log.h"
 
 namespace ge {
 namespace {
@@ -41,15 +42,18 @@ Status GetBinaryMagic(const OpDescPtr &op_desc, bool is_atomic_node, int32_t &bi
   binary_magic = iter->second;
   return SUCCESS;
 }
-    
+
 TBEKernelPtr GetTbeKernelBin(const OpDescPtr &op_desc, bool is_atomic_node) {
   std::string kernel_bin_attr = OP_EXTATTR_NAME_TBE_KERNEL;
   if (is_atomic_node) {
     kernel_bin_attr = kAtomicPrefix + kernel_bin_attr;
   }
   auto tbe_kernel_ptr = op_desc->TryGetExtAttr(kernel_bin_attr, TBEKernelPtr());
-  GE_ASSERT_NOTNULL(tbe_kernel_ptr, "[%s][%s] Get aicore kernel bin from attr %s failed.",
-      op_desc->GetNamePtr(), op_desc->GetTypePtr(), kernel_bin_attr.c_str());
+  // 当前ffts+场景可能会获取到空，不影响功能
+  if (tbe_kernel_ptr == nullptr) {
+    GELOGW("[%s][%s] Attr %s not exists.",
+           op_desc->GetNamePtr(), op_desc->GetTypePtr(), kernel_bin_attr.c_str());
+  }
   return tbe_kernel_ptr;
 }
 
