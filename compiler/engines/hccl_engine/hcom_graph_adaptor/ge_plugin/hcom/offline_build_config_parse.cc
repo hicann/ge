@@ -71,7 +71,7 @@ HcclResult GetOffDeviceTypeWithoutDev(DevType &devType) {
   if (socVersion == "Ascend310B1") {
     HCCL_WARNING("[GetOffDeviceTypeWithoutDev] Ascend310B1 not support! please check usage");
   }
-  if (socVersion.find("Ascend910_95") != std::string::npos) {
+  if (socVersion.find("Ascend950") != std::string::npos) {
     tempDevType = DevType::DEV_TYPE_910_95;
     return HCCL_SUCCESS;
   }
