@@ -69,6 +69,7 @@ REGISTER_OP_CREATOR(ReadVariableOp, GeDeletedOp);
 REGISTER_OP_CREATOR(VarHandleOp, GeDeletedOp);
 REGISTER_OP_CREATOR(VarIsInitializedOp, GeDeletedOp);
 REGISTER_OP_CREATOR(Snapshot, GeDeletedOp);
+REGISTER_OP_CREATOR(RefIdentity, GeDeletedOp);
 REGISTER_OP_CREATOR(Identity, GeDeletedOp);
 REGISTER_OP_CREATOR(IdentityN, GeDeletedOp);
 REGISTER_OP_CREATOR(VariableV2, GeDeletedOp);
