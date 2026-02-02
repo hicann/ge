@@ -422,7 +422,6 @@ GeSession::~GeSession() {
     return;
   }
   ExternalWeightManagerPool::Instance().RemoveManager(GetSessionId());
-  Status ret = FAILED;
   std::lock_guard<std::mutex> lock(g_ge_release_mutex);
   try {
     const uint64_t session_id = GetSessionId();
@@ -434,12 +433,6 @@ GeSession::~GeSession() {
     (void)e;
     GELOGE(GE_CLI_SESS_DESTROY_FAILED, "[Destructor][GeSession]Failed: an exception occurred");
     REPORT_INNER_ERR_MSG("E19999", "Failed to destroy session: an exception occurred");
-  }
-
-  // check return status, return, update session id if success
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[Destructor][GeSession]Failed, error code:%u.", ret);
-    REPORT_INNER_ERR_MSG("E19999", "Destroy session failed, error code:%u.", ret);
   }
 
   GELOGT(TRACE_STOP, "GeSession has been successfully destroyed");
