@@ -417,8 +417,8 @@ HcclResult HcomGraphOptimizer::SetHcomOpAttrs(ge::OpDescPtr &opDescPtr) {
         HCCL_E_INTERNAL);
   }
 
-  if (opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_ALLREDUCE || opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_ALLGATHER ||
-      opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCESCATTER || opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCE) {
+  if (opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_ALLREDUCE || opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCESCATTER ||
+      opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCE) {
     bRet = ge::AttrUtils::SetBool(opDescPtr, "_input_mutable", true);
     HCCL_DEBUG("node[%s] op type [%s] input mutable attr is set", opDescPtr->GetName().c_str(),
                opDescPtr->GetType().c_str());
