@@ -433,7 +433,7 @@ Status SliceGetNodeOffset(const NodePtr &load_node, Expression &load_offset, boo
   GE_ASSERT_NOTNULL(load_node->GetOpDesc());
   const auto &attr = load_node->GetOpDesc()->GetAttrsGroup<AscNodeAttr>();
   GE_ASSERT_NOTNULL(attr);
-  auto load_attr = dynamic_cast<ascir_op::Load::AscLoadIrAttrDef *>(attr->ir_attr.get());
+  auto load_attr = attr->ir_attr->DownCastTo<ascir_op::Load::AscLoadIrAttrDef>();
   GE_ASSERT_NOTNULL(load_attr);
   if (load_attr->GetOffset(load_offset) != SUCCESS) {
     slice_op_flag = false;
@@ -649,7 +649,28 @@ bool BackendUtils::SliceHasSameLoad(const NodePtr &node1, const NodePtr &node2,
   return slice_has_nosame_load_flag;
 }
 
-bool IsSlice(TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr, ViewOpAttrInfo &attr_info,
+bool IsSameStride(std::vector<ge::Expression> &strides, std::vector<ge::Expression> &compare_strides) {
+  for (size_t index = 0U; index < compare_strides.size(); index++) {
+    if (strides[index] != compare_strides[index]) {
+      GELOGD("pre node and cur node are both slice.");
+      return true;
+    }
+  }
+  return false;
+}
+
+bool IsOffsetZero(const NodePtr &load_node) {
+  bool node_slice_op_flag = false;
+  Expression pre_load_offset;  
+  GE_ASSERT_SUCCESS(SliceGetNodeOffset(load_node, pre_load_offset, node_slice_op_flag));
+  if ((node_slice_op_flag == true) && (pre_load_offset != Symbol(0))) {
+    return true;
+  }
+  return false;  
+}
+
+bool IsSlice(const NodePtr &load_node,
+             TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr, ViewOpAttrInfo &attr_info,
              bool is_fuse) {
   auto &load_repeats = temp_load_attr.repeats;
   auto &data_repeats = temp_data_attr.repeats;
@@ -668,13 +689,10 @@ bool IsSlice(TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr, Vie
     compare_strides = load_strides;
   }
   GELOGD("contiguous strides:%s.", AutofuseUtils::VectorToStr(strides).c_str());
-  for (auto index = 0U; index < compare_strides.size(); index++) {
-    if(strides[index] != compare_strides[index]) {
-      GELOGD("pre node and cur node are both slice.");
-      return true;
-    }
-  }
-  return false;
+  auto stride_same_flag = IsSameStride(strides, compare_strides);
+  auto offset_zero_flag = IsOffsetZero(load_node);
+
+  return ((stride_same_flag == true) || (offset_zero_flag == true));
 }
 
 Status BackendUtils::BackSteppingViewOpSlice(TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr,
@@ -688,7 +706,7 @@ Status BackendUtils::BackSteppingViewOpSlice(TensorAttrInfo &temp_data_attr, Ten
          AutofuseUtils::VectorToStr(temp_data_attr.repeats).c_str(),
          AutofuseUtils::VectorToStr(temp_data_attr.strides).c_str());
 
-  pre_node_slice_op_flag = IsSlice(temp_data_attr, temp_load_attr, attr_info, is_fuse);
+  pre_node_slice_op_flag = IsSlice(load_node, temp_data_attr, temp_load_attr, attr_info, is_fuse);
   if (!pre_node_slice_op_flag) {
     return SUCCESS;
   }
@@ -876,7 +894,7 @@ Status BackendUtils::FusedApplyViewOpSlice(AscTensorAttr *output_attr, const Nod
   TensorAttrInfo temp_data_attr;
   TensorAttrInfo temp_load_attr;
   GE_ASSERT_SUCCESS(GetNodeAttr(data_node, load_node, temp_data_attr, temp_load_attr));
-  curr_node_slice_op_flag = IsSlice(temp_data_attr, temp_load_attr, attr_info, true);
+  curr_node_slice_op_flag = IsSlice(load_node, temp_data_attr, temp_load_attr, attr_info, true);
   if (!curr_node_slice_op_flag) {
     return SUCCESS;
   }
