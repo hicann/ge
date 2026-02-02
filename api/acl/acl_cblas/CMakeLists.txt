@@ -24,6 +24,7 @@ target_include_directories(acl_cblas PRIVATE
 
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/graph_metadef
+    ${AIR_CODE_DIR}/inc/graph_metadef/external
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/external/acl
     ${AIR_CODE_DIR}/base/metadef/pkg_inc

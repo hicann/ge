@@ -311,10 +311,10 @@ elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_reg.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/gnode.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/graph_buffer.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/inference_context.h 
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/infer_format_context.h 
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator.h 
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_factory.h 
+        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/inference_context.h
+        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/attr_value.h
+        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator.h
+        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_factory.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/resource_context.h 
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/tensor.h 
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/kernel_launch_info.h 
@@ -336,7 +336,6 @@ elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
     set(EXTERNAL_REGISTER_FILES
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/register_base.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_lib_register.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/device_op_impl_registry.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/register_custom_pass.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_binary_resource_manager.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_config_registry.h

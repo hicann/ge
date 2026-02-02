@@ -26,7 +26,7 @@
 #include "easy_graph/builder/graph_dsl.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/operator_reg.h"
-#include "graph_metadef/external/ge_common/ge_api_types.h"
+#include "external/ge_common/ge_api_types.h"
 
 using namespace std;
 using namespace testing;

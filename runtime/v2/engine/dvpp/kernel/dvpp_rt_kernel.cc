@@ -19,7 +19,7 @@
 #else
 #include "register/kernel_registry.h"
 #include "register/op_impl_registry.h"
-#include "gert_tensor_data.h"
+#include "exe_graph/runtime/gert_tensor_data.h"
 #include "debug/ge_log.h"
 #endif
 #include "dvpp_rt_kernel.h"

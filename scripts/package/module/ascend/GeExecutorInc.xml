@@ -38,8 +38,8 @@
         <file value="operator_reg.h"/>
         <file value="gnode.h"/>
         <file value="graph_buffer.h"/>
+        <file value="attr_value.h"/>
         <file value="inference_context.h"/>
-        <file value="infer_format_context.h"/>
         <file value="operator.h"/>
         <file value="operator_factory.h"/>
         <file value="custom_op.h"/>
@@ -52,7 +52,6 @@
     <file_info value="include" copy_type="source" dst_path="include/register" install_path="$(TARGET_ENV)/include/register" install_type="devel" install_mod="440">
         <file value="register_base.h"/>
         <file value="op_lib_register.h"/>
-        <file value="device_op_impl_registry.h"/>
     </file_info>
     <file_info value="include" copy_type="source" dst_path="include/register" install_path="$(TARGET_ENV)/include/register" install_type="devel" install_mod="440">
         <file value="register_custom_pass.h"/>
