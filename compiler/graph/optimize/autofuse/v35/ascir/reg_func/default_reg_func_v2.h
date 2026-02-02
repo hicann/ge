@@ -16,6 +16,8 @@
 namespace ge {
 namespace ascir {
 
+std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcLog2TmpSizeV2(const ge::AscNode &node);
+std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcModTmpSizeV2(const ge::AscNode &node);
 std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcReduceTmpSizeV2(const ge::AscNode &node);
 std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcErfTmpSizeV2(const ge::AscNode &node);
 std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcGeluTmpSizeV2(const ge::AscNode &node);

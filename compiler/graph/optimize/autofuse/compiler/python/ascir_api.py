@@ -894,6 +894,38 @@ def Ln(owner_graph: ascir.HintGraph,
     return _common_in_1_out_1_normal_op("Ln", owner_graph, x, axis=axis, size=size, stride=stride)
 
 
+def Log2(owner_graph: ascir.HintGraph,
+         x: ascir.OpsOperatorOutput,
+         *,
+         axis: List[ascir.Axis],
+         size: Optional[List[ascir.SizeExpr]] = None,
+         stride: Optional[List[ascir.SizeExpr]] = None
+         ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Log2", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
+def LShift(owner_graph: ascir.HintGraph,
+           x1: ascir.OpsOperatorOutput,
+           x2: ascir.OpsOperatorOutput,
+           *,
+           axis: List[ascir.Axis],
+           size: Optional[List[ascir.SizeExpr]] = None,
+           stride: Optional[List[ascir.SizeExpr]] = None
+           ) -> ascir.OpsOperatorOutput:
+    return _common_in_2_out_1_normal_op("LShift", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
+
+
+def Mod(owner_graph: ascir.HintGraph,
+        x1: ascir.OpsOperatorOutput,
+        x2: ascir.OpsOperatorOutput,
+        *,
+        axis: List[ascir.Axis],
+        size: Optional[List[ascir.SizeExpr]] = None,
+        stride: Optional[List[ascir.SizeExpr]] = None
+        ) -> ascir.OpsOperatorOutput:
+    return _common_in_2_out_1_normal_op("Mod", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
+
+
 def Lt(owner_graph: ascir.HintGraph,
        x1: ascir.OpsOperatorOutput,
        x2: ascir.OpsOperatorOutput,

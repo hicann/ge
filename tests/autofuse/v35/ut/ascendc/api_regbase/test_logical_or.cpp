@@ -116,3 +116,9 @@ TEST_F(TestApiLogicalOr, LogicalOr_Test_Int8) {
 TEST_F(TestApiLogicalOr, LogicalOr_Test_Int64) {
     LogicalOrTest<int64_t>(256);
 }
+TEST_F(TestApiLogicalOr, LogicalOr_Test_Bf16) {
+    LogicalOrTest<bfloat16_t>(256);
+}
+TEST_F(TestApiLogicalOr, LogicalOr_Test_Uint32) {
+    LogicalOrTest<uint32_t>(256);
+}

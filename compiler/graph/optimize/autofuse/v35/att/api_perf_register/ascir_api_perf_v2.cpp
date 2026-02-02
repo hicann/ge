@@ -627,6 +627,12 @@ ApiPerfRegister<ApiPerf> round_api_perf_v2(ApiPerfRegisterV2(kRound, GetPerfFunc
 ApiPerfRegister<ApiPerf> nop_api_perf_v2(ApiPerfRegisterV2(kNop, GetPerfFunc(kUnitVector), nullptr,
                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> ln_api_perf_v2(ApiPerfRegisterV2(kLn, GetPerfFunc(kLn + "V2"), nullptr, &perf_param_table_v2, &tiling_schedule_config_table_v2));
+ApiPerfRegister<ApiPerf> log2_api_perf_v2(ApiPerfRegisterV2(kLog2, GetPerfFunc(kLog2 + "V2"), nullptr,
+                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
+ApiPerfRegister<ApiPerf> lShift_api_perf_v2(ApiPerfRegisterV2(kLShift, GetPerfFunc(kLShift + "V2"), nullptr,
+                                                              &perf_param_table_v2, &tiling_schedule_config_table_v2));
+ApiPerfRegister<ApiPerf> mod_api_perf_v2(ApiPerfRegisterV2(kMod, GetPerfFunc(kMod + "V2"), nullptr,
+                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> isnan_api_perf_v2(ApiPerfRegisterV2(kIsnan, GetPerfFunc(kUnitVector), nullptr,
                                                              &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> isfinite_api_perf_v2(ApiPerfRegisterV2(kIsFinite, GetPerfFunc(kUnitVector), nullptr,

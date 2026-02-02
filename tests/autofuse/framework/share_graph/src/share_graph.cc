@@ -6939,6 +6939,201 @@ ge::ComputeGraphPtr ShareGraph::LoadCompareCastSumStoreFusedGraph(size_t dims_si
 }
 
 /**
+ *      output
+ *         |
+ *       store
+ *         |
+ *        log2
+ *         |
+ *       load0
+ *         |
+ *       data0
+ */
+static void CreateLoadLog2StoreAscGraph(ge::AscGraph &graph, size_t dims_size) {
+  ge::ascir_op::Data x1("data0", graph);
+  x1.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load x1Local("load0");
+  x1Local.x = x1.y;
+
+  ge::ascir_op::Log2 log2("log2");
+  log2.x = x1Local.y;
+
+  ge::ascir_op::Store log2_store("store");
+  log2_store.x = log2.y;
+
+  ge::ascir_op::Output y("output");
+  y.x = log2_store.y;
+
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+ge::ComputeGraphPtr ShareGraph::LoadLog2StoreFusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("load_log2_store_test");
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("load_log2_store");
+  CreateLoadLog2StoreAscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+/**
+ *      output
+ *         |
+ *       store
+ *         |
+ *        mod
+ *       /   \
+ *   load0   load1
+ *     |       |
+ *   data0   data1
+ */
+static void CreateModAscGraph(ge::AscGraph &graph, size_t dims_size) {
+  ge::ascir_op::Data x1("data0", graph);
+  x1.ir_attr.SetIndex(0);
+  x1.y.dtype = ge::DT_FLOAT;
+  ge::ascir_op::Data x2("data1", graph);
+  x2.ir_attr.SetIndex(1);
+  x2.y.dtype = ge::DT_FLOAT;
+
+  ge::ascir_op::Load x1Local("load0");
+  x1Local.x = x1.y;
+  x1Local.y.dtype = ge::DT_FLOAT;
+
+  ge::ascir_op::Load x2Local("load1");
+  x2Local.x = x2.y;
+  x2Local.y.dtype = ge::DT_FLOAT;
+
+  ge::ascir_op::Mod mod("mod");
+  mod.x1 = x1Local.y;
+  mod.x2 = x2Local.y;
+  mod.y.dtype = ge::DT_FLOAT;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = mod.y;
+  x_out.y.dtype = ge::DT_FLOAT;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+ge::ComputeGraphPtr ShareGraph::ModFusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("mod_test");
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data1->GetOpDescBarePtr(), "_parent_node_index", 1);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 2, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(data1, 0, ascbc, 1);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("mod");
+  CreateModAscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+/**
+ *      output
+ *         |
+ *       store
+ *         |
+ *       LShift
+ *       /   \
+ *   load0   load1
+ *     |       |
+ *   data0   data1
+ */
+static void CreateLoadLShiftStoreAscGraph(ge::AscGraph &graph, size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  ge::ascir_op::Data x1("data0", graph);
+  x1.ir_attr.SetIndex(0);
+  x1.y.dtype = in_dtype;
+  ge::ascir_op::Data x2("data1", graph);
+  x2.ir_attr.SetIndex(1);
+  x2.y.dtype = in_dtype;
+
+  ge::ascir_op::Load x1Local("load0");
+  x1Local.x = x1.y;
+  x1Local.y.dtype = in_dtype;
+
+  ge::ascir_op::Load x2Local("load1");
+  x2Local.x = x2.y;
+  x2Local.y.dtype = in_dtype;
+
+  ge::ascir_op::LShift lshift("lshift");
+  lshift.x1 = x1Local.y;
+  lshift.x2 = x2Local.y;
+  lshift.y.dtype = out_dtype;
+
+  ge::ascir_op::Store x_out("store");
+  x_out.x = lshift.y;
+  x_out.y.dtype = out_dtype;
+
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+ge::ComputeGraphPtr ShareGraph::LoadLShiftStoreFusedGraph(size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype) {
+  auto builder = GraphBuilder("load_lshift_store_test");
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data1->GetOpDescBarePtr(), "_parent_node_index", 1);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 2, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(data1, 0, ascbc, 1);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("load_lshift_store");
+  CreateLoadLShiftStoreAscGraph(sub_graph, dims_size, in_dtype, out_dtype);
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+/**
  *                  sub
  *               mul    \
  *              /   \    \

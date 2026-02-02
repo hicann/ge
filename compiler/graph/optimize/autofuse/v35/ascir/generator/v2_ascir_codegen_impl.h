@@ -433,6 +433,69 @@ class LnAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) ln_node;
     return true;
   }
+
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT}
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
+};
+
+class Log2AscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+   [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
+    return CalcLog2TmpSizeV2(node);
+  }
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "UnaryApiTmpV2Call";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Log2";
+  }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    // 与CalcLog2TmpSizeV2中的dtype_conversion_map表格同步维护
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT}
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);;
+  }
+};
+
+class LShiftAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "BinaryApiCallV2";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "ShiftLeft";
+  }
+};
+
+class ModAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+   [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
+    return CalcModTmpSizeV2(node);
+  }
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "BinaryTmpApiCallV2";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Fmod";
+  }
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    // 与CalcModTmpSizeV2中的dtype_conversion_map表格同步维护
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT},
+      {DT_INT16, DT_FLOAT},
+      {DT_INT8, DT_FLOAT16},
+      {DT_UINT8, DT_FLOAT16}
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
 };
 
 class SqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {

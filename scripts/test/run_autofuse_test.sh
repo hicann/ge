@@ -726,6 +726,9 @@ build_backend() {
                       matmul_elemwise_brc_test_e2e_v2 \
                       matmul_compare_scalar_test_e2e_v2 \
                       div_abs_test_e2e_v2 \
+                      load_log2_store_test_e2e_v2 \
+                      mod_test_e2e_v2 \
+                      load_lshift_store_test_e2e_v2 \
                       bf16_add_test_e2e_v2 \
                       bf16_nddma_add_test_e2e_v2 \
                       abs_bf16_test_e2e_v2 \

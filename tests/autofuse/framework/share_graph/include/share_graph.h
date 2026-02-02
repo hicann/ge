@@ -15,6 +15,9 @@
 
 namespace ascir {
 struct ShareGraph {
+  static ge::ComputeGraphPtr LoadLog2StoreFusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr ModFusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr LoadLShiftStoreFusedGraph(size_t dims_size, ge::DataType in_dtype, ge::DataType out_dtype);
   static ge::ComputeGraphPtr AddAbsFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr SubAbsFusedGraph(size_t dims_size);
   static ge::ComputeGraphPtr SubTransposeAbsFusedGraph(size_t dims_size, vector<size_t> perms);

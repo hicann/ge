@@ -56,6 +56,9 @@ include_directories(${CODE_ROOT_DIR}/../../../../tests/autofuse/framework/share_
 include_directories(${CODE_ROOT_DIR}/../../../../tests/autofuse/st/backend_e2e)
 include(backend_e2e.cmake)
 
+add_subdirectory(mod_test)
+add_subdirectory(load_log2_store_test)
+add_subdirectory(load_lshift_store_test)
 add_subdirectory(load_loop_mode_test)
 add_subdirectory(add_abs_test)
 add_subdirectory(add_rsqrt_test)

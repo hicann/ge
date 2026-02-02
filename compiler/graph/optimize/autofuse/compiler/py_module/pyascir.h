@@ -94,6 +94,9 @@ PyMODINIT_FUNC PyInit_pyautofuse(void);
   OP(Transpose)        \
   OP(BitwiseAnd)       \
   OP(Ln)               \
+  OP(Log2)             \
+  OP(LShift)           \
+  OP(Mod)              \
   OP(Lt)               \
   OP(Pow)              \
   OP(ClipByValue)      \
