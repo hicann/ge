@@ -2203,6 +2203,10 @@ TEST_F(UtestGraphManagerTest, test_BuildGraph_with_fileconst) {
   std::map<std::string, string> graph_options;
   graph_options["ge.externalWeight"] = "1";
   GetThreadLocalContext().SetGraphOption(graph_options);
+  const auto back_options = ge::GetThreadLocalContext().GetAllGlobalOptions();
+  auto global_options = back_options;
+  global_options["ge.deterministicLevel"] = "1";
+  GetThreadLocalContext().SetGlobalOption(global_options);
 
   GraphId graph_id = 1;
   GraphManager graph_manager;
@@ -2220,6 +2224,12 @@ TEST_F(UtestGraphManagerTest, test_BuildGraph_with_fileconst) {
 
   graph_options["ge.externalWeight"] = "0";
   GetThreadLocalContext().SetGraphOption(graph_options);
+
+  int32_t deterministic_level = 0;
+  (void)ge::AttrUtils::GetInt(compute_graph, "ge.deterministicLevel", deterministic_level);
+  EXPECT_EQ(deterministic_level, 1);
+  global_options["ge.deterministicLevel"] = "0";
+  GetThreadLocalContext().SetGlobalOption(global_options);
 }
 
 ge::ComputeGraphPtr CreateGraphWithHcom() {

@@ -194,7 +194,7 @@ TEST_F(CacheableTilingUt, CacheableTiling_Fail_CallTilingFuncFailed) {
                          .NodeIoNum(2UL, 1UL)
                          .IrInputNum(2UL)
                          .KernelIONum(6UL, static_cast<size_t>(TilingExOutputIndex::kNum))
-                         .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr})
+                         .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr, nullptr})
                          .Outputs({nullptr, nullptr, nullptr, nullptr, workspace_sizes_holder.get(),
                                    nullptr, nullptr, nullptr, nullptr, nullptr})
                          .Build();
@@ -243,7 +243,8 @@ TEST_F(CacheableTilingUt, CacheableTiling_Ok_TilingResultAddedAndFetched) {
                            .NodeIoNum(2UL, 1UL)
                            .IrInputNum(2UL)
                            .KernelIONum(6UL, static_cast<size_t>(TilingExOutputIndex::kNum))
-                           .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr})
+                           .Inputs({&in_shape1, &in_shape2, &out_shape, nullptr, nullptr, &cacheable_fwk_data, nullptr,
+                                    nullptr})
                            .Build();
     ASSERT_EQ(kf_cacheable_tiling->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
     ASSERT_EQ(kf_cacheable_tiling->run_func(run_context), ge::GRAPH_SUCCESS);
@@ -333,7 +334,7 @@ TEST_F(CacheableTilingUt, CacheableTiling_Ok_DataDependentTilingResultAddedAndFe
             .NodeIoNum(2UL, 1UL)
             .IrInputNum(2UL)
             .KernelIONum(7UL, static_cast<size_t>(TilingExOutputIndex::kNum))
-            .Inputs({&in_tensor1, &in_tensor2, &out_tensor, nullptr, nullptr, &cacheable_fwk_data, nullptr})
+            .Inputs({&in_tensor1, &in_tensor2, &out_tensor, nullptr, nullptr, &cacheable_fwk_data, nullptr, nullptr})
             .Build();
 
     ASSERT_EQ(kf_cacheable_tiling->outputs_creator(nullptr, run_context), ge::GRAPH_SUCCESS);
@@ -370,7 +371,7 @@ TEST_F(CacheableTilingUt, CacheableFallibleTiling_ok_TilingFuncSucc) {
   auto context_holder =
       KernelRunContextFaker()
           .KernelIONum(2, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
-          .Inputs({&cacheable_fwk_data, nullptr})
+          .Inputs({&cacheable_fwk_data, nullptr, nullptr})
           .Build();
   auto context = context_holder.GetContext<KernelContext>();
   ASSERT_EQ(kf_cacheable_fallible_tiling->run_func(context), ge::GRAPH_SUCCESS);

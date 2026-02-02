@@ -192,6 +192,7 @@ class TilingContextFaker {
   void *fwk_data_ = nullptr;
   void *compile_info_ = nullptr;
   void *deterministic_ = nullptr;
+  void *deterministic_level_ = nullptr;
 };
 }  // namespace gert
 #endif  //AIR_CXX_TESTS_UT_GE_RUNTIME_V2_FAKER_KERNEL_RUN_CONTEXT_FACKER_H_

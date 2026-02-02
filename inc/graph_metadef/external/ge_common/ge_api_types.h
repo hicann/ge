@@ -238,6 +238,7 @@ const char_t *const EXTERNAL_WEIGHT = "ge.externalWeight";
 static const char_t *const QUANT_DUMPABLE = "ge.quant_dumpable";
 const char_t *const QUANT_BIAS_OPTIMIZE = "ge.experiment.quant_bias_optimize";
 static const char_t *const DETERMINISTIC = "ge.deterministic";
+static const char_t *const DETERMINISTIC_LEVEL = "ge.deterministicLevel";
 const char_t *const OP_DEBUG_OPTION = "op_debug_option";
 const char_t *const TILING_SCHEDULE_OPTIMIZE = "ge.tiling_schedule_optimize";
 const char_t *const GRAPH_MAX_PARALLEL_MODEL_NUM = "ge.graphMaxParallelModelNum";
@@ -522,6 +523,7 @@ const char_t *const FILE_CONSTANT_PATH = "ge.exec.value_bins";
 const std::string EXTERNAL_WEIGHT = "ge.externalWeight";
 
 const std::string DETERMINISTIC = "ge.deterministic";
+const std::string DETERMINISTIC_LEVEL = "ge.deterministicLevel";
 
 const std::string QUANT_DUMPABLE = "ge.quant_dumpable";
 
@@ -654,6 +656,7 @@ static const char_t *const ATOMIC_CLEAN_POLICY = "ge.exec.atomicCleanPolicy";
 static const char_t *const EXTERNAL_WEIGHT = ge::EXTERNAL_WEIGHT.c_str();
 static const char_t *const EXCLUDE_ENGINES = ge::EXCLUDE_ENGINES.c_str();
 static const char_t *const DETERMINISTIC = ge::DETERMINISTIC.c_str();
+static const char_t *const DETERMINISTIC_LEVEL = ge::DETERMINISTIC_LEVEL.c_str();
 static const char_t *const DISTRIBUTED_CLUSTER_BUILD = ge::DISTRIBUTED_CLUSTER_BUILD.c_str();
 static const char_t *const MODEL_RELATION_CONFIG = ge::MODEL_RELATION_CONFIG.c_str();
 static const char_t *const CLUSTER_CONFIG = ge::CLUSTER_CONFIG.c_str();
@@ -760,6 +763,7 @@ const std::set<std::string> global_options = {CORE_TYPE,
                                               COMPRESSION_OPTIMIZE_CONF,
                                               OP_DEBUG_CONFIG,
                                               DETERMINISTIC,
+                                              DETERMINISTIC_LEVEL,
                                               CLUSTER_CONFIG,
                                               OP_DEPENDENCY_IN_OM,
                                               TILING_SCHEDULE_OPTIMIZE,

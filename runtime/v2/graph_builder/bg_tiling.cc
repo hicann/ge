@@ -23,6 +23,7 @@
 #include "register/op_tiling/op_tiling_constants.h"
 #include "graph_builder/bg_compatible_utils.h"
 #include "common/omg_util.h"
+#include "common/ge_inner_attrs.h"
 #include "bg_platform.h"
 #include "runtime/subscriber/global_tracer.h"
 #include "exe_graph/lowering/frame_selector.h"
@@ -33,6 +34,7 @@
 #include "graph/ge_context.h"
 #include "common/op_tiling/tiling_dfx.h"
 #include "runtime/rt_model.h"
+#include "runtime/dev.h"
 #include "adump_pub.h"
 #include "mmpa/mmpa_api.h"
 #include "common/opskernel/ops_kernel_info_types.h"
@@ -227,12 +229,18 @@ ge::Status BuildTilingDeterministicInput(const ge::NodePtr &node, LoweringGlobal
       (void)ge::AttrUtils::GetInt(root_compute_graph, ge::DETERMINISTIC, deterministic);
       GELOGI("Get DETERMINISTIC: %d", deterministic);
       auto deterministic_holder = bg::HolderOnInit(bg::ValueHolder::CreateConst(&deterministic, sizeof(int32_t)));
-      return {deterministic_holder};
+
+      int32_t deterministic_level = 0;
+      (void)ge::AttrUtils::GetInt(root_compute_graph, "ge.deterministicLevel", deterministic_level);
+      GELOGI("Get DETERMINISTIC LEVEL: %d", deterministic_level);
+      auto deterministic_level_holder =
+          bg::HolderOnInit(bg::ValueHolder::CreateConst(&deterministic_level, sizeof(int32_t)));
+      return {deterministic_holder, deterministic_level_holder};
     });
   };
   auto deterministic_vec = global_data.GetOrCreateUniqueValueHolder("Deterministic", builder);
-  GE_ASSERT_TRUE(deterministic_vec.size() == 1UL);
-  tiling_input.emplace_back(deterministic_vec[0]);
+  GE_ASSERT_TRUE(deterministic_vec.size() == 2UL);
+  tiling_input.insert(tiling_input.end(), deterministic_vec.begin(), deterministic_vec.end());
   return ge::SUCCESS;
 }
 

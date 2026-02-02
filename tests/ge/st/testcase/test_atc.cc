@@ -328,6 +328,7 @@ void CheckPrecisionModeV2ParamValid_Success(const std::string &om_arg,
                   const_cast<char *>(output_arg.c_str()),
                   "--soc_version=\"Ascend310\"",
                   "--deterministic=1",
+                  "--deterministic_level=2",
                   "--input_format=NCHW",
                   "--host_env_os=linux",
                   "--host_env_cpu=x86_64",
@@ -336,6 +337,8 @@ void CheckPrecisionModeV2ParamValid_Success(const std::string &om_arg,
   std::string ge_option;
   EXPECT_EQ(ge::GetThreadLocalContext().GetOption(ge::PRECISION_MODE_V2, ge_option), ge::GRAPH_SUCCESS);
   EXPECT_STREQ(ge_option.c_str(), "fp16");
+  EXPECT_EQ(ge::GetThreadLocalContext().GetOption("ge.deterministicLevel", ge_option), ge::GRAPH_SUCCESS);
+  EXPECT_STREQ(ge_option.c_str(), "2");
 }
 std::string Generatefile(const std::string &file_type, const std::string &file_name) {
   std::string pwd = __FILE__;

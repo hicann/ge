@@ -251,6 +251,7 @@ class BgCacheableTilingUT : public BgTestAutoCreateFrame {
     // UT中未执行CEM，因此PrepareTilingFwkData还在main图上，需要将校验对象InnerData替换为PrepareTilingFwkData
     expect_from.emplace_back("PrepareCacheableTilingFwkData");
     expect_from.emplace_back("InnerData");
+    expect_from.emplace_back("InnerData");
     ASSERT_EQ(FastNodeTopoChecker(tiling_rets[0]).StrictConnectFrom(expect_from), "success");
     auto tiling_parse_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "TilingParse");
     ASSERT_NE(tiling_parse_node, nullptr);
@@ -378,7 +379,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_Ok_TopoCorrectSameNodeWithDifferentOppImplV
                                                                   {"CacheableTiling", 2},
                                                                   {"TilingAppendDfxInfo", 2},
                                                                   {"TilingParse", 2},
-                                                                  {"InnerData", 3},
+                                                                  {"InnerData", 4},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 23},
                                                                   {"CalcTensorSizeFromStorage", 2},
@@ -394,7 +395,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_Ok_TopoCorrectSameNodeWithDifferentOppImplV
                     {"FindTilingFunc", 2},
                     {"ConstData", 3},
                     {"Data", 1},
-                    {"Const", 7},
+                    {"Const", 8},
                     {"SplitRtStreams", 1},
                     {"GetSpaceRegistry", 2},
                 }),
@@ -434,7 +435,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_KnownWorkspace) {
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 6},
                                                                   {"CacheableTiling", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 13},
                                                                   {"TilingAppendWorkspace", 1},
@@ -475,7 +476,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_MemCheck) {
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 6},
                                                                   {"CacheableTiling", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 13},
                                                                   {"TilingAppendWorkspace", 1},
@@ -542,7 +543,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_MemCheck2) {
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 4},
                                                                   {"CacheableTiling", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"Const", 12},
                                                                   {"TilingAppendWorkspace", 1},
                                                                   {"TilingAppendDfxInfo", 1},
@@ -609,7 +610,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_MemCheck3) {
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 4},
                                                                   {"CacheableTiling", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"Const", 12},
                                                                   {"TilingAppendWorkspace", 1},
                                                                   {"TilingAppendDfxInfo", 1},
@@ -674,7 +675,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_MemCheck4) {
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 4},
                                                                   {"CacheableTiling", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"Const", 12},
                                                                   {"TilingAppendWorkspace", 1},
                                                                   {"TilingAppendDfxInfo", 1},
@@ -739,7 +740,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_MemCheck5) {
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 4},
                                                                   {"CacheableTiling", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"Const", 12},
                                                                   {"TilingAppendWorkspace", 1},
                                                                   {"TilingAppendDfxInfo", 1},
@@ -845,7 +846,7 @@ TEST_F(BgCacheableTilingUT, FallibleTiling_Ok_TopoCorrectWithMemCheck) {
 
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 6},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 12},
                                                                   {"CacheableFallibleTiling", 1},
@@ -971,10 +972,11 @@ TEST_F(BgCacheableTilingUT, BgAtomicTiling_TopoCorrect) {
   }
   auto tiling_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "Tiling");
   ASSERT_NE(tiling_node, nullptr);
-  ASSERT_EQ(FastNodeTopoChecker(tiling_node)
-                .StrictConnectFrom(
-                    {ws_size, output_0_size, output_1_size, {"TilingParse"}, {"PrepareTilingFwkData"}, {"InnerData"}}),
-            "success");
+      ASSERT_EQ(FastNodeTopoChecker(tiling_node)
+                    .StrictConnectFrom(
+                        {ws_size, output_0_size, output_1_size, {"TilingParse"}, {"PrepareTilingFwkData"},
+                         {"InnerData"}, {"InnerData"}}),
+                "success");
   auto tiling_parse_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "TilingParse");
   ASSERT_NE(tiling_parse_node, nullptr);
   ASSERT_EQ(FastNodeTopoChecker(tiling_parse_node).StrictConnectFrom({{"Const"}, {"InnerData"}, {"Const"}, {"Const"}}),
@@ -1692,7 +1694,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect) {
                                                                   {"CacheableTiling", 1},
                                                                   {"TilingAppendDfxInfo", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 12},
                                                                   {"CalcTensorSizeFromStorage", 1},
@@ -1708,7 +1710,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect) {
                     {"FindTilingFunc", 1},
                     {"ConstData", 3},
                     {"Data", 1},
-                    {"Const", 5},
+                    {"Const", 6},
                     {"SplitRtStreams", 1},
                     {"GetSpaceRegistry", 1},
                 }),
@@ -1746,7 +1748,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_FallibleTiling_MemCheck) {
 
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 6},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 12},
                                                                   {"CacheableFallibleTiling", 1},
@@ -1793,7 +1795,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_FallibleTiling_MemCheck2) {
 
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 6},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 12},
                                                                   {"CacheableFallibleTiling", 1},
@@ -1842,7 +1844,7 @@ TEST_F(BgCacheableTilingUT, BgTiling_TopoCorrect_FallibleTiling_MemCheck3) {
 
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 6},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 12},
                                                                   {"CacheableFallibleTiling", 1},
@@ -1881,7 +1883,7 @@ TEST_F(BgCacheableTilingUT, BgFallibleTiling_OutputsCountCorrect) {
   ASSERT_EQ(ExeGraphSummaryChecker(exe_graph).StrictAllNodeTypes({{"Data", 6},
                                                                   {"CacheableFallibleTiling", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"CalcTensorSizeFromStorage", 1},
                                                                   {"TilingAppendDfxInfo", 1},

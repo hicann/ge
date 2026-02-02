@@ -49,6 +49,11 @@ TilingContextBuilder &TilingContextBuilder::Deterministic(int32_t deterministic)
   return *this;
 }
 
+TilingContextBuilder &TilingContextBuilder::DeterministicLevel(int32_t deterministic_level) {
+  deterministic_level_ = deterministic_level;
+  return *this;
+}
+
 TilingContextBuilder &TilingContextBuilder::TilingData(void *tiling_data) {
   outputs_[TilingContext::kOutputTilingData] = tiling_data;
   return *this;
@@ -185,6 +190,7 @@ KernelContextHolder TilingContextBuilder::Build(const ge::Operator &op, ge::grap
   context_inputs.emplace_back(platform_info_);
   context_inputs.emplace_back(nullptr);
   context_inputs.emplace_back(reinterpret_cast<void *>(deterministic_));
+  context_inputs.emplace_back(reinterpret_cast<void *>(deterministic_level_));
   return base_builder_.Inputs(context_inputs).Outputs(outputs_).Build(node->GetOpDesc(), ret);
 }
 // 0-n input tensors

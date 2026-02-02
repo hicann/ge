@@ -113,6 +113,7 @@ class BgTilingUT : public BgTestAutoCreateFrame {
     // UT中未执行CEM，因此PrepareTilingFwkData还在main图上，需要将校验对象InnerData替换为PrepareTilingFwkData
     expect_from.emplace_back("PrepareTilingFwkData");
     expect_from.emplace_back("InnerData");
+    expect_from.emplace_back("InnerData");
     ASSERT_EQ(FastNodeTopoChecker(tiling_rets[0]).StrictConnectFrom(expect_from), "success");
     auto tiling_parse_node = ge::ExecuteGraphUtils::FindFirstNodeMatchType(exe_graph, "TilingParse");
     ASSERT_NE(tiling_parse_node, nullptr);
@@ -192,7 +193,7 @@ TEST_F(BgTilingUT, BgTiling_Ok_CachableTilingUnsupported) {
                                                                   {"Tiling", 1},
                                                                   {"TilingAppendDfxInfo", 1},
                                                                   {"TilingParse", 1},
-                                                                  {"InnerData", 2},
+                                                                  {"InnerData", 3},
                                                                   {"SplitRtStreams", 1},
                                                                   {"Const", 10},
                                                                   {"CalcTensorSizeFromStorage", 1},
@@ -208,7 +209,7 @@ TEST_F(BgTilingUT, BgTiling_Ok_CachableTilingUnsupported) {
                     {"FindTilingFunc", 1},
                     {"ConstData", 3},
                     {"Data", 1},
-                    {"Const", 5},
+                    {"Const", 6},
                     {"SplitRtStreams", 1},
                     {"GetSpaceRegistry", 1},
                 }),

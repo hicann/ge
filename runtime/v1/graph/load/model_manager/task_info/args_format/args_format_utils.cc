@@ -10,6 +10,7 @@
 
 #include "args_format_utils.h"
 
+#include "common/op_tiling/op_tiling_rt2.h"
 #include "graph/ge_local_context.h"
 #include "register/hidden_inputs_func_registry.h"
 #include "graph/args_format_desc.h"
@@ -141,12 +142,15 @@ Status ArgsFormatUtils::SinkTilingContext(const NodePtr &node, DavinciModel &dav
   gert::TiledKernelContextHolder tiling_context_holder;
   tiling_context_holder.compute_node_info_size_ = compute_node_info_size;
   tiling_context_holder.host_compute_node_info_ = compute_node_extend_holder.get();
+  int32_t deterministic_level = 0;
+  GE_ASSERT_SUCCESS(optiling::GetDeterministicLevel(deterministic_level));
 
   auto context_builder = gert::DeviceTilingContextBuilder();
   Status ret =
       context_builder.PlatformInfo(platform_infos_addr)
           .TilingData(device_addr)
           .Deterministic(deterministic)
+          .DeterministicLevel(deterministic_level)
           .Workspace(ValueToPtr(PtrToValue(device_addr) + aligned_tiling_size))
           .AddrRefreshedInputTensor(index_to_tensor)
           .TiledHolder(context_host_begin, context_dev_begin, aligned_tiling_context_size + compute_node_info_size)

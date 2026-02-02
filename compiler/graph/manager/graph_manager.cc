@@ -25,6 +25,7 @@
 #include "common/dump/dump_manager.h"
 #include "common/file_constant_utils.h"
 #include "common/model/external_allocator_manager.h"
+#include "common/op_tiling/op_tiling_rt2.h"
 #include "opt_info/ge_opt_info.h"
 #include "analyzer/analyzer.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
@@ -4113,6 +4114,9 @@ Status GraphManager::Build(const GraphNodePtr &graph_node, ComputeGraphPtr &comp
   (void)ge::GetContext().GetOption(ge::DETERMINISTIC, deterministic_str);
   const int32_t deterministic = (deterministic_str == "1") ? 1 : 0;
   GE_ASSERT_TRUE(AttrUtils::SetInt(compute_graph, ge::DETERMINISTIC, deterministic));
+  int32_t deterministic_level = 0;
+  GE_ASSERT_SUCCESS(optiling::GetDeterministicLevel(deterministic_level));
+  GE_ASSERT_TRUE(AttrUtils::SetInt(compute_graph, "ge.deterministicLevel", deterministic_level));
 
   // After recover, the node and the IR definition will not be changed
   GE_TRACE_START(RecoverIrDefinitionAndModifyAippData);

@@ -244,6 +244,7 @@ void TilingContextFaker::UpdateInputs() {
   inputs.push_back(compile_info_);         // kInputsCompileInfo
   inputs.push_back(fwk_data_);  // kInputsTilingFunc
   inputs.push_back(deterministic_);
+  inputs.push_back(deterministic_level_);
   base_faker_.Inputs(std::move(inputs));
 }
 TilingContextFaker &TilingContextFaker::TilingFwkData(void* fwk_data) {

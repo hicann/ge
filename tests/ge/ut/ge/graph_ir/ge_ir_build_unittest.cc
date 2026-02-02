@@ -1300,9 +1300,15 @@ TEST(UtestIrBuild, aclgrphBuildInitialize_test) {
 
   std::map<std::string, std::string> global_options3;
   global_options3[ge::DETERMINISTIC] = "1";
+  global_options3["ge.deterministicLevel"] = "1";
   ret = ge::aclgrphBuildInitialize(global_options3);
   auto &options = GetMutableGlobalOptions();
   auto it = options.find(ge::DETERMINISTIC);
+  EXPECT_NE(it, options.end());
+  if (it != options.end()) {
+    EXPECT_EQ(it->second == "1", true);
+  }
+  it = options.find("ge.deterministicLevel");
   EXPECT_NE(it, options.end());
   if (it != options.end()) {
     EXPECT_EQ(it->second == "1", true);

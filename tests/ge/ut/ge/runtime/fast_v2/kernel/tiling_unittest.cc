@@ -101,7 +101,7 @@ UINT32 StubFailedTiling(KernelContext *) {
 }
 
 TEST_F(TilingUT, Tiling_Failed_WhenTilingFuncFailed) {
-  auto run_context = BuildKernelRunContext(2, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
+  auto run_context = BuildKernelRunContext(3, static_cast<size_t>(kernel::TilingExOutputIndex::kNum));
   auto tiling_data = TilingData::CreateCap(10);
   kernel::TilingFwkData fwk_data = {.tiling_func = reinterpret_cast<void *>(StubFailedTiling),
                                     .launch_arg = fake_launch_arg};
@@ -384,7 +384,7 @@ TEST_F(TilingUT, FallibleTiling_ReturnSuccess_WhenTilingFuncFailed) {
   auto context_holder =
       KernelRunContextFaker()
           .KernelIONum(2, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
-          .Inputs({&fwk_data, nullptr})
+          .Inputs({&fwk_data, nullptr, nullptr})
           .Build();
   auto context = context_holder.GetContext<KernelContext>();
   ASSERT_EQ(kernel::FallibleTiling(context), ge::GRAPH_SUCCESS);
@@ -398,7 +398,7 @@ TEST_F(TilingUT, FallibleTiling_ReturnSuccess_WhenTilingFuncSuccess) {
   auto context_holder =
       KernelRunContextFaker()
           .KernelIONum(2, static_cast<size_t>(kernel::FallibleTilingExOutputIndex::kFallibleOutputNum))
-          .Inputs({&fwk_data, nullptr})
+          .Inputs({&fwk_data, nullptr, nullptr})
           .Build();
   auto context = context_holder.GetContext<KernelContext>();
   ASSERT_EQ(kernel::FallibleTiling(context), ge::GRAPH_SUCCESS);

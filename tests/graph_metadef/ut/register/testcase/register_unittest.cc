@@ -225,6 +225,9 @@ UINT32 OpTilingStubV6(gert::TilingContext *kernel_context) {
   for (size_t i = 0UL; i < 4UL; ++i) {
     EXPECT_EQ((tensor->GetData<uint16_t>())[i], optiling::Float32ToFloat16(real_data[i]));
   }
+  //  强一致性计算紧急需求上库，ge暂时不能依赖metadef，已于BBIT及本地验证DT通过，后续补上
+  //  auto deterministic_level = kernel_context->GetDeterministicLevel();
+  //  EXPECT_EQ(deterministic_level, 0);
   return ge::GRAPH_SUCCESS;
 }
 

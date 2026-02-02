@@ -33,6 +33,7 @@ const static std::map<std::string, std::set<std::string>> kStrValueRange = {
     {"virtual_type", {"0", "1"}},
     {"status_check", {"0", "1"}},
     {"deterministic", {"0", "1"}},
+    {"deterministic_level", {"0", "1", "2"}},
     {"external_weight", {"0", "1", "2"}},
     {"display_model_info", {"0", "1"}},
     {"atomic_clean_policy", {"0", "1"}},
@@ -167,9 +168,10 @@ std::string CmdFlagInfo::PrintValueRange() {
 }
 
 void CmdFlagInfo::PrintValueError() {
-  if ((flag_name_ == "status_check") || (flag_name_ == "deterministic") || (flag_name_ == "external_weight") ||
-      (flag_name_ == "display_model_info") || (flag_name_ == "atomic_clean_policy") || (flag_name_ == "dump_mode") ||
-      (flag_name_ == "disable_reuse_memory") || flag_name_ == "sparsity") {
+  if ((flag_name_ == "status_check") || (flag_name_ == "deterministic") || (flag_name_ == "deterministic_level") ||
+      (flag_name_ == "external_weight") || (flag_name_ == "display_model_info") ||
+      (flag_name_ == "atomic_clean_policy") || (flag_name_ == "dump_mode") || (flag_name_ == "disable_reuse_memory") ||
+      flag_name_ == "sparsity") {
     REPORT_PREDEFINED_ERR_MSG("E10006", std::vector<const char *>({"value", "parameter"}),
                               std::vector<const char *>({value_string_.c_str(), flag_name_.c_str()}));
   } else if (flag_name_ == "log") {

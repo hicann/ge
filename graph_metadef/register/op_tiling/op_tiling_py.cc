@@ -13,6 +13,7 @@
 #include "graph/op_desc.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
+#include "graph/ge_local_context.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/debug/ge_attr_define.h"
 #include "register/op_tiling_info.h"
@@ -109,7 +110,9 @@ constexpr uint32_t kRightShiftBits = 4;
 constexpr uint32_t kAndBits = 15;
 const std::string kHexDigits = "0123456789ABCDEF";
 constexpr size_t kSize = 4UL;
+constexpr size_t kTilingCtxFixedInputSize = 5UL;
 constexpr size_t kDeterministicOffset = 3UL;
+constexpr size_t kDeterministicLevelOffset = 4UL;
 const std::string kMaxTilingSize = "op_para_size";
 constexpr size_t kMaxTilingDataSize = 16UL * 1024UL;
 constexpr size_t kWorkspaceHolerSize = 8UL;
@@ -1499,11 +1502,11 @@ gert::KernelContextHolder BuildTilingParseContextHolder(ge::OpDescPtr &op_desc, 
 
 gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert::KernelContext *tiling_parse_context,
                                              fe::PlatFormInfos &platform_infos) {
-  if (context_com.storage_shapes.size() >= std::numeric_limits<size_t>::max() - kSize) {
+  if (context_com.storage_shapes.size() >= std::numeric_limits<size_t>::max() - kTilingCtxFixedInputSize) {
     GELOGE(ge::GRAPH_FAILED, "Context storage size overflow.");
     return gert::KernelContextHolder();
   }
-  std::vector<void *> tiling_context_inputs(context_com.storage_shapes.size() + kSize, nullptr);
+  std::vector<void *> tiling_context_inputs(context_com.storage_shapes.size() + kTilingCtxFixedInputSize, nullptr);
   for (size_t i = 0UL; i < context_com.index_to_tensors.size(); ++i) {
     tiling_context_inputs[context_com.index_to_tensors[i].first] =
         reinterpret_cast<gert::Tensor *>(context_com.index_to_tensors[i].second.get());
@@ -1526,6 +1529,24 @@ gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert
   GELOGI("Get deterministic: %d from node: %s", deterministic, context_com.op_desc->GetName().c_str());
   tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicOffset] =
       reinterpret_cast<void *>(deterministic);
+  std::string deterministic_level_str;
+  (void)ge::GetThreadLocalContext().GetOption("ge.deterministicLevel", deterministic_level_str);
+  deterministic_level_str = deterministic_level_str.empty() ? "0" : deterministic_level_str;
+  int32_t deterministic_level = 0;
+  try {
+    deterministic_level = std::stoi(deterministic_level_str);
+  } catch (const std::exception &) {
+    GELOGE(ge::FAILED, "[Parse][Param]Invalid DETERMINISTIC_LEVEL: %s, must be an integer.",
+           deterministic_level_str.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Invalid DETERMINISTIC_LEVEL: %s, must be an integer.",
+                         deterministic_level_str.c_str());
+    return gert::KernelContextHolder();
+  }
+  GE_ASSERT_TRUE((deterministic_level >= 0 && deterministic_level <= 2),
+                 "Valid values for DETERMINISTIC_LEVEL are {0,1,2}");
+  GELOGI("Get deterministic level: %d from node: %s", deterministic_level, context_com.op_desc->GetName().c_str());
+  tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicLevelOffset] =
+      reinterpret_cast<void *>(deterministic_level);
   return gert::KernelRunContextBuilder()
       .Inputs(tiling_context_inputs)
       .Outputs(

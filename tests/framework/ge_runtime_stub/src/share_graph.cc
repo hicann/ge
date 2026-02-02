@@ -2295,6 +2295,7 @@ ge::ComputeGraphPtr ShareGraph::BuildFakeDeterministicNodeGraph() {
   net_output->GetOpDesc()->SetSrcIndex({0});
 
   (void)AttrUtils::SetInt(graph, ge::DETERMINISTIC, 1);
+  (void)AttrUtils::SetInt(graph, "ge.deterministicLevel", 2);
   return graph;
 }
 

@@ -285,7 +285,7 @@ TEST_F(AutofuseNodeUT, symtiling_kernel_test) {
 
   const auto workspace_size_t = gert::ContinuousVector::Create<size_t>(16);
   auto autofuse_tiling_context_holder = gert::KernelRunContextBuilder()
-      .Inputs({(void *)input_data_num, &shape0, &shape1, &parse_data, fwk_data, nullptr})
+      .Inputs({(void *)input_data_num, &shape0, &shape1, &parse_data, fwk_data, nullptr, nullptr})
       .Outputs({nullptr, nullptr, nullptr, nullptr,
                 static_cast<void *>(workspace_size_t.get()), nullptr, nullptr, nullptr, nullptr, nullptr})
       .Build(op_desc);
@@ -368,7 +368,7 @@ TEST_F(AutofuseNodeUT, cacheablesymtiling_kernel_test) {
   AfTilingParseData parse_data{8, 16 * 1024};
   const auto cacheable_workspace_size_t = gert::ContinuousVector::Create<size_t>(16);
   auto cacheable_tiling_context_holder = gert::KernelRunContextBuilder()
-      .Inputs({(void *)input_num, &shape0, &shape1, &parse_data, all_sym_num_vector, tiling_fwk_data, nullptr})
+      .Inputs({(void *)input_num, &shape0, &shape1, &parse_data, all_sym_num_vector, tiling_fwk_data, nullptr, nullptr})
       .Outputs({nullptr, nullptr, nullptr, nullptr,
                 static_cast<void *>(cacheable_workspace_size_t.get()), nullptr, nullptr, nullptr, nullptr, nullptr})
       .Build(op_desc);

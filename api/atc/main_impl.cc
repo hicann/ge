@@ -123,6 +123,7 @@ void SetOptionNameMap(std::map<std::string, std::string> &options) {
   option_name_map.emplace(ge::ATOMIC_CLEAN_POLICY, "--atomic_clean_policy");
   option_name_map.emplace(ge::EXTERNAL_WEIGHT, "--external_weight");
   option_name_map.emplace(ge::DETERMINISTIC, "--deterministic");
+  option_name_map.emplace("ge.deterministicLevel", "--deterministic_level");
   option_name_map.emplace(ge::CUSTOMIZE_DTYPES, "--customize_dtypes");
   option_name_map.emplace(ge::FRAMEWORK_TYPE, "--framework");
   option_name_map.emplace(ge::CALIBRATION_CONF_FILE, "--cal_conf");
@@ -358,6 +359,14 @@ DEFINE_string(deterministic, "0",
 "1: deterministic on. "
 "Default is 0.");
 
+DEFINE_string(deterministic_level, "0",
+"Optional; "
+"For deterministic and strong consistency calculation"
+"0: deterministic off. "
+"1: deterministic on. "
+"2: strong consistency on. "
+"Default is 0.");
+
 DEFINE_string(host_env_os, "",
 "Optional;"
 "OS type of the target execution environment");
@@ -561,6 +570,8 @@ class GFlagUtils {
         "                           0 (default): centralized clean.  1: separate clean.\n"
         "  --deterministic          For deterministic calculation.\n"
         "                           0 (default): deterministic off. 1: deterministic on.\n"
+        "  --deterministic_level    For deterministic and strong consistency calculation.\n"
+        "                           0 (default): deterministic off. 1: deterministic on. 2: strong consistency on.\n"
         + oo_help_info[static_cast<size_t>(OoCategory::kDebug)]);
 
     return flgs::ParseCommandLine(argc, argv);
@@ -1493,6 +1504,7 @@ static void SetEnvForSingleOp(std::map<std::string, std::string> &options) {
   options.emplace(ATOMIC_CLEAN_POLICY, FLAGS_atomic_clean_policy);
   options.emplace(EXTERNAL_WEIGHT, FLAGS_external_weight);
   options.emplace(DETERMINISTIC, FLAGS_deterministic);
+  options.emplace("ge.deterministicLevel", FLAGS_deterministic_level);
   options.emplace(CUSTOMIZE_DTYPES, FLAGS_customize_dtypes);
   options.emplace("ge.is_weight_clip", FLAGS_is_weight_clip);
   // atc do not limit resource ever
@@ -1731,6 +1743,7 @@ Status GenerateOmModel() {
   options.insert(std::pair<std::string, std::string>(std::string(ATOMIC_CLEAN_POLICY), FLAGS_atomic_clean_policy));
   options.insert(std::pair<std::string, std::string>(std::string(EXTERNAL_WEIGHT), FLAGS_external_weight));
   options.insert(std::pair<std::string, std::string>(std::string(DETERMINISTIC), FLAGS_deterministic));
+  options.insert(std::pair<std::string, std::string>("ge.deterministicLevel", FLAGS_deterministic_level));
   options.insert(std::pair<std::string, std::string>(std::string(OPTION_HOST_ENV_OS), FLAGS_host_env_os));
   options.insert(std::pair<std::string, std::string>(std::string(OPTION_HOST_ENV_CPU), FLAGS_host_env_cpu));
   options.insert(std::pair<std::string, std::string>("ge.is_weight_clip", FLAGS_is_weight_clip));

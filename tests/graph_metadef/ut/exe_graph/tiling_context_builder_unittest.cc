@@ -255,7 +255,7 @@ TEST_F(TilingContextBuilderUT, BuildWithInputConstSuccess) {
   auto bar_node = ComputeNodeFaker().NameAndType("bar", "Bar").IoNum(2, 1).InputNames({"x", "y"}).Build();
   ge::GraphUtils::AddEdge(foo_node->GetOutDataAnchor(0), bar_node->GetInDataAnchor(0));
   ge::GraphUtils::AddEdge(foo_node->GetOutDataAnchor(1), bar_node->GetInDataAnchor(1));
-  const size_t k_input_anchor = 3U;
+  const size_t k_input_anchor = 2U;
   ge::NodeUtils::AppendInputAnchor(bar_node, k_input_anchor);
   EXPECT_EQ(bar_node->GetAllInDataAnchorsSize(), k_input_anchor);
   ge::OpDescPtr op_desc = bar_node->GetOpDesc();
@@ -270,6 +270,7 @@ TEST_F(TilingContextBuilderUT, BuildWithInputConstSuccess) {
                                    .PlatformInfo(reinterpret_cast<void *>(&platform_infos))
                                    .TilingData(tiling_data.get())
                                    .Deterministic(1)
+                                   .DeterministicLevel(1)
                                    .Workspace(reinterpret_cast<gert::ContinuousVector *>(workspace_size.get()))
                                    .SetSpaceRegistryV2(space_registry, gert::OppImplVersionTag::kOpp)
                                    .Build(op, ret);
@@ -281,6 +282,9 @@ TEST_F(TilingContextBuilderUT, BuildWithInputConstSuccess) {
   EXPECT_NE(input_tensor1, nullptr);
   EXPECT_EQ(input_tensor1->GetDataType(), ge::DT_INT32);
   EXPECT_EQ(input_tensor1->GetOriginShape().GetDim(0), 1);
+  //  强一致性计算紧急需求上库，ge暂时不能依赖metadef，已于BBIT及本地验证DT通过，后续补上
+  //  auto deterministic_level = tiling_context->GetDeterministicLevel();
+  //  EXPECT_EQ(deterministic_level, 1);
 
   // deprecated later
   builder.CompileInfo(const_cast<char *>(op_compile_info_json.c_str()))
@@ -463,6 +467,7 @@ TEST_F(TilingContextBuilderUT, BuildDeviceTilingContextSuccess) {
   ge::Status ret = context_builder.PlatformInfo(reinterpret_cast<void *>(&platform_infos))
                        .TilingData(device_addr.get())
                        .Deterministic(0)
+                       .DeterministicLevel(1)
                        .CompileInfo(nullptr)
                        .Workspace(ge::ValueToPtr(ge::PtrToValue(device_addr.get()) + aligned_tiling_size))
                        .AddrRefreshedInputTensor(index_to_tensor)
@@ -516,6 +521,11 @@ TEST_F(TilingContextBuilderUT, BuildDeviceTilingContextSuccess) {
   // op type
   char *op_type = reinterpret_cast<char *>(tiling_context_holder.dev_op_type_addr_);
   EXPECT_EQ(op_type, op_desc->GetType());
+
+  // deterministic level
+  //  强一致性计算紧急需求上库，ge暂时不能依赖metadef，已于BBIT及本地验证DT通过，后续补上
+  //  auto deterministic_level = device_context->GetDeterministicLevel();
+  //  EXPECT_EQ(deterministic_level, 1);
 
   EXPECT_EQ(ret, ge::SUCCESS);
 }

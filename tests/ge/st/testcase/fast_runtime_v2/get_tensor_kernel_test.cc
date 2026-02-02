@@ -83,6 +83,9 @@ ge::graphStatus TilingForFakeNodeWithDeterminic(TilingContext *context) {
   // 确定性计算的值为1
   auto deterministic = context->GetDeterministic();
   EXPECT_EQ(deterministic, 1);
+  //  强一致性计算紧急需求上库，ge暂时不能依赖metadef，已于BBIT及本地验证DT通过，后续补上
+  //  auto deterministic_level = context->GetDeterministicLevel();
+  //  EXPECT_EQ(deterministic_level, 2);
   return ge::GRAPH_SUCCESS;
 }
 

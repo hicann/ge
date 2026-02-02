@@ -105,6 +105,10 @@ ge::graphStatus DummyTiling(TilingContext *tiling_context) {
     size_t *workspace_size = tiling_context->GetWorkspaceSizes(i + 1);
     *(workspace_size + i) = i;
   }
+
+  //  强一致性计算紧急需求上库，ge暂时不能依赖metadef，已于BBIT及本地验证DT通过，后续补上
+  //  auto deterministic_level = tiling_context->GetDeterministicLevel();
+  //  EXPECT_EQ(deterministic_level, 0);
   return ge::GRAPH_SUCCESS;
 }
 
