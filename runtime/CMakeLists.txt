@@ -11,4 +11,7 @@
 add_subdirectory(v1)
 add_subdirectory(v2)
 add_subdirectory(stub)
+if(NOT DEFINED BUILD_COMPONENT AND NOT ENABLE_PKG AND NOT ENABLE_LLT_PKG AND NOT CMAKE_BUILD_TYPE MATCHES GCOV AND NOT ENABLE_GE_DT AND NOT ENABLE_GE_C_LLT)
+    add_subdirectory(c)
+endif()
 add_subdirectory(ops)
