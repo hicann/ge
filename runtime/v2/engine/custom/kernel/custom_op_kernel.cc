@@ -158,9 +158,45 @@ static std::vector<std::string> CustomOpExecuteKernelTrace(const KernelContext *
   return {PrintNodeType(context), input_tensor_ss.str(), output_tensor_ss.str()};  
 }
 
+ge::graphStatus CustomOpProfilingDataFill(const KernelContext *context, ProfilingInfoWrapper &prof_info) {
+  prof_info.SetBlockDim(std::numeric_limits<uint32_t>::max());
+  auto extend_context = reinterpret_cast<const ExtendedKernelContext *>(context);
+  auto compute_node_info = extend_context->GetComputeNodeInfo();
+  GE_ASSERT_NOTNULL(compute_node_info);
+  auto node_input_num = compute_node_info->GetInputsNum();
+  const auto eager_context = reinterpret_cast<const EagerOpExecutionContext *>(context);
+  GE_ASSERT_NOTNULL(eager_context);
+  std::vector<std::vector<int64_t>> input_shapes;
+  for (size_t i = 0UL; i < node_input_num; i++) {
+    auto tensor = eager_context->GetInputTensor(i);
+    GE_ASSERT_NOTNULL(tensor);
+    auto shape = tensor->GetStorageShape();
+    std::vector<int64_t> dims;
+    for (size_t j = 0U; j < shape.GetDimNum(); ++j) {
+      dims.emplace_back(shape.GetDim(j));
+    }
+    input_shapes.emplace_back(dims);
+  }
+  auto node_output_num = compute_node_info->GetOutputsNum();
+  std::vector<std::vector<int64_t>> output_shapes;
+  for (size_t i = 0UL; i < node_output_num; i++) {
+    auto tensor = eager_context->GetOutputTensor(i);
+    GE_ASSERT_NOTNULL(tensor);
+    auto shape = tensor->GetStorageShape();
+    std::vector<int64_t> dims;
+    for (size_t j = 0U; j < shape.GetDimNum(); ++j) {
+      dims.emplace_back(shape.GetDim(j));
+    }
+    output_shapes.emplace_back(dims);
+  }
+  GE_ASSERT_SUCCESS(prof_info.FillShapeInfo(input_shapes, output_shapes));
+  return ge::GRAPH_SUCCESS;
+}
+
 REGISTER_KERNEL(FindCustomOp).RunFunc(FindCustomOpFunc);
 REGISTER_KERNEL(ExecuteCustomOp).OutputsCreator(CreateWorkspacesMemory)
-    .RunFunc(ExecuteCustomOpFunc).TracePrinter(CustomOpExecuteKernelTrace);
+    .RunFunc(ExecuteCustomOpFunc).TracePrinter(CustomOpExecuteKernelTrace)
+    .ProfilingInfoFiller(CustomOpProfilingDataFill);
 REGISTER_KERNEL(FreeCustomOpWorkspaces).RunFunc(FreeCustomOpWorkspacesFunc);
 }
 }

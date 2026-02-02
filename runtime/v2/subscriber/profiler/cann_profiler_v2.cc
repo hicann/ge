@@ -696,6 +696,9 @@ void CannProfilerV2::SetEngineType(NodeIdentity node_id, const std::string &kern
     info.engine_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_HCCL);
   } else if (IsHostAicpuCpuLaunchNode(kernel_type.c_str())) {
     info.engine_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_AI_CPU);
+  } else if (IsCustomOpFuncNode(kernel_type.c_str())) {
+    // 临时方案：当前自定义算子默认设置为aic，正式方案走runtime上报
+    info.engine_type = static_cast<uint32_t>(MSPROF_GE_TASK_TYPE_AI_CORE);
   } else {
     info.engine_type = std::numeric_limits<uint32_t>::max();
   }

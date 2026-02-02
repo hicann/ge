@@ -26,6 +26,7 @@
 #include "common/executor_tracer_on.h"
 #include "stub/gert_runtime_stub.h"
 #include "depends/checker/mem_trace_checker.h"
+#include "common/global_variables/diagnose_switch.h"
 
 using namespace ge;
 using namespace gert::bg;
@@ -111,6 +112,7 @@ TEST_F(TestCustomNodeKernel, custom_op_kernel_execute_test) {
   ess->Clear();
   // 打开info日志验证traceprinter
   ExecutorTracerOn executor_tracer_on;  // 开启trace
+  ge::diagnoseSwitch::EnableProfiling({gert::ProfilingType::kTaskTime, gert::ProfilingType::kDevice});
   ASSERT_EQ(model_executor->Execute({i3.value}, inputs.GetTensorList(), inputs.size(),
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             GRAPH_SUCCESS);
@@ -121,6 +123,7 @@ TEST_F(TestCustomNodeKernel, custom_op_kernel_execute_test) {
       .AppendExpectEvent(kAllocRe, 0) // (1) alloc in stream 0
       .AppendExpectEvent(kFreeRe, 0)  // (3) free on stream 0, trigger LocalRecycle
       .AsYouWish());
+  ge::diagnoseSwitch::DisableProfiling();
   rtStreamDestroy(stream);
 }
 }

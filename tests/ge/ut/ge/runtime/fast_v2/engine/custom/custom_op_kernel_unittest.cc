@@ -24,6 +24,7 @@
 #include "core/executor/multi_thread_topological/execution_data/multi_thread_execution_data.h"
 #include "operator_reg.h"
 #include "common/executor_tracer_on.h"
+#include "common/global_variables/diagnose_switch.h"
 
 using namespace ge;
 using namespace gert::bg;
@@ -99,9 +100,11 @@ TEST_F(CustomNodeKernelUT, custom_op_kernel_execute_test) {
   ess->Clear();
   // 打开info日志验证traceprinter
   ExecutorTracerOn executor_tracer_on;  // 开启trace
+  ge::diagnoseSwitch::EnableProfiling({gert::ProfilingType::kTaskTime, gert::ProfilingType::kDevice});
   ASSERT_EQ(model_executor->Execute({i3.value}, inputs.GetTensorList(), inputs.size(),
                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
             GRAPH_SUCCESS);
+  ge::diagnoseSwitch::DisableProfiling();
   rtStreamDestroy(stream);
 }
 }
