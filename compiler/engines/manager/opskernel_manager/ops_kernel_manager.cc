@@ -16,7 +16,13 @@
 #include "common/compile_profiling/ge_trace_wrapper.h"
 #include "graph/ge_context.h"
 #include "graph/types.h"
+#include "common/checker.h"
+#include "engines/custom_engine/custom_ops_kernel_info_store.h"
+#include "engines/custom_engine/custom_graph_optimizer.h"
+#include "common/util/mem_utils.h"
+#include "common/ge_common/ge_types.h"
 
+namespace ge {
 namespace {
 const char *const kInitialize = "Initialize";
 const char *const kGetOpsKernelInfoStores = "GetOpsKernelInfoStores";
@@ -25,11 +31,22 @@ const char *const kFinalize = "Finalize";
 const char *const kGetCompositeEngines = "GetCompositeEngines";
 const ge::char_t *const kGetFftsEnableFlag = "GetFFTSPlusSwitch";
 const size_t kSlogOverflowThreshold = 1024u;
-
 std::mutex ops_kernel_info_mutex;
-}  // namespace
 
-namespace ge {
+Status InsertCustomOpsKernelInfoStores(std::map<std::string, OpsKernelInfoStorePtr> &ops_kernel_store) {
+  OpsKernelInfoStorePtr custom_kernel_info_store_ptr = MakeShared<custom::CustomOpsKernelInfoStore>();
+  GE_ASSERT_NOTNULL(custom_kernel_info_store_ptr);
+  ops_kernel_store.emplace(std::make_pair(kCustomOpKernelLibName, custom_kernel_info_store_ptr));
+  return SUCCESS;
+}
+
+Status InsertCustomGraphOptimizers(std::map<std::string, GraphOptimizerPtr> &graph_optimizers) {
+  GraphOptimizerPtr custom_graph_optimizer_ptr = MakeShared<CustomGraphOptimizer>();
+  GE_ASSERT_NOTNULL(custom_graph_optimizer_ptr);
+  graph_optimizers.emplace(std::make_pair(kCustomGraphOptimizer, custom_graph_optimizer_ptr));
+  return SUCCESS;
+}
+}  // namespace
 OpsKernelManager::OpsKernelManager()
     : plugin_manager_(),
       op_tiling_manager_(),
@@ -79,9 +96,8 @@ Status OpsKernelManager::Initialize(const std::map<std::string, std::string> &in
   GE_CHK_BOOL_RET_STATUS(ret == SUCCESS, ret, "OpsKernelManager::Initialize failed for not find any valid so file.");
   GE_INIT_TRACE_TIMESTAMP_END(LoadPluginManagerSo, "OpsKernelManager::LoadPluginManagerSo");
   initialize_ = options;
-  GE_CHK_BOOL_RET_STATUS(
-      (plugin_manager_.InvokeAll<std::map<std::string, std::string> &, Status>(kInitialize, initialize_) == SUCCESS),
-      GE_OPS_GET_NO_VALID_SO, "PluginManager InvokeAll failed.");
+  GE_CHK_BOOL_RET_STATUS((plugin_manager_.InvokeAll<std::map<std::string, std::string> &, Status>(kInitialize,
+      initialize_) == SUCCESS), GE_OPS_GET_NO_VALID_SO, "PluginManager InvokeAll failed.");
   if (plugin_manager_.InvokeAll<std::map<std::string, OpsKernelInfoStorePtr> &>(kGetOpsKernelInfoStores,
                                                                                 ops_kernel_store_) != SUCCESS) {
     GELOGW("Initialize OpsKernelInfo failed.");
@@ -90,6 +106,8 @@ Status OpsKernelManager::Initialize(const std::map<std::string, std::string> &in
                                                                             graph_optimizers_) != SUCCESS) {
     GELOGW("Initialize GraphOptimizerObjs failed.");
   }
+  GE_ASSERT_SUCCESS(InsertCustomOpsKernelInfoStores(ops_kernel_store_));
+  GE_ASSERT_SUCCESS(InsertCustomGraphOptimizers(graph_optimizers_));
   plugin_manager_.
     OptionalInvokeAll<std::map<std::string, std::set<std::string>> &, std::map<std::string, std::string> &>(
       kGetCompositeEngines, composite_engines_, composite_engine_kernel_lib_names_);

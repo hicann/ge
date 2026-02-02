@@ -26,6 +26,13 @@ class GE_FUNC_VISIBILITY AICoreDNNEngine : public DNNEngine {
   ~AICoreDNNEngine() override = default;
 };
 
+class GE_FUNC_VISIBILITY CustomDNNEngine : public DNNEngine {
+ public:
+  explicit CustomDNNEngine(const std::string &engine_name);
+  explicit CustomDNNEngine(const DNNEngineAttribute &attrs) : DNNEngine(attrs) {}
+  ~CustomDNNEngine() override = default;
+};
+
 class GE_FUNC_VISIBILITY VectorCoreDNNEngine : public DNNEngine {
  public:
   explicit VectorCoreDNNEngine(const std::string &engine_name);

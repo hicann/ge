@@ -31,7 +31,7 @@ class UtestOpsKernelBuilderManager : public testing::Test {
 
 TEST_F(UtestOpsKernelBuilderManager, GetAllOpsKernelBuilders) {
     auto &instance = OpsKernelBuilderManager::Instance();
-    EXPECT_EQ(instance.GetAllOpsKernelBuilders().size(), 1);
+    EXPECT_EQ(instance.GetAllOpsKernelBuilders().size(), 2);
 }
 
 TEST_F(UtestOpsKernelBuilderManager, GetOpsKernelBuilder) {

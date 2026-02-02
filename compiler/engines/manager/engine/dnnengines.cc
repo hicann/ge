@@ -13,7 +13,7 @@
 #include <string>
 
 namespace ge {
-AICoreDNNEngine::AICoreDNNEngine(const std::string &engine_name) {
+CustomDNNEngine::CustomDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_name = engine_name;
   engine_attribute_.compute_cost = PriorityEnum::COST_0;
   engine_attribute_.runtime_type = DEVICE;
@@ -21,7 +21,7 @@ AICoreDNNEngine::AICoreDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_output_format = FORMAT_RESERVED;
 }
 
-VectorCoreDNNEngine::VectorCoreDNNEngine(const std::string &engine_name) {
+AICoreDNNEngine::AICoreDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_name = engine_name;
   engine_attribute_.compute_cost = PriorityEnum::COST_1;
   engine_attribute_.runtime_type = DEVICE;
@@ -29,7 +29,7 @@ VectorCoreDNNEngine::VectorCoreDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_output_format = FORMAT_RESERVED;
 }
 
-AICpuDNNEngine::AICpuDNNEngine(const std::string &engine_name) {
+VectorCoreDNNEngine::VectorCoreDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_name = engine_name;
   engine_attribute_.compute_cost = PriorityEnum::COST_2;
   engine_attribute_.runtime_type = DEVICE;
@@ -37,9 +37,17 @@ AICpuDNNEngine::AICpuDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_output_format = FORMAT_RESERVED;
 }
 
+AICpuDNNEngine::AICpuDNNEngine(const std::string &engine_name) {
+  engine_attribute_.engine_name = engine_name;
+  engine_attribute_.compute_cost = PriorityEnum::COST_3;
+  engine_attribute_.runtime_type = DEVICE;
+  engine_attribute_.engine_input_format = FORMAT_RESERVED;
+  engine_attribute_.engine_output_format = FORMAT_RESERVED;
+}
+
 DvppDNNEngine::DvppDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_name = engine_name;
-  engine_attribute_.compute_cost = PriorityEnum::COST_4;
+  engine_attribute_.compute_cost = PriorityEnum::COST_5;
   engine_attribute_.runtime_type = DEVICE;
   engine_attribute_.engine_input_format = FORMAT_RESERVED;
   engine_attribute_.engine_output_format = FORMAT_RESERVED;
@@ -47,7 +55,7 @@ DvppDNNEngine::DvppDNNEngine(const std::string &engine_name) {
 
 AICpuTFDNNEngine::AICpuTFDNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_name = engine_name;
-  engine_attribute_.compute_cost = PriorityEnum::COST_3;
+  engine_attribute_.compute_cost = PriorityEnum::COST_4;
   engine_attribute_.runtime_type = DEVICE;
   engine_attribute_.engine_input_format = FORMAT_RESERVED;
   engine_attribute_.engine_output_format = FORMAT_RESERVED;
@@ -93,7 +101,7 @@ FftsPlusDNNEngine::FftsPlusDNNEngine(const std::string &engine_name) {
 
 DSADNNEngine::DSADNNEngine(const std::string &engine_name) {
   engine_attribute_.engine_name = engine_name;
-  engine_attribute_.compute_cost = PriorityEnum::COST_1;
+  engine_attribute_.compute_cost = PriorityEnum::COST_2;
   engine_attribute_.runtime_type = DEVICE;
   engine_attribute_.engine_input_format = FORMAT_RESERVED;
   engine_attribute_.engine_output_format = FORMAT_RESERVED;

@@ -19,6 +19,7 @@
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/string_util.h"
 #include "engines/manager/engine/dnnengines.h"
+#include "common/ge_common/ge_types.h"
 #include "base/err_msg.h"
 
 namespace ge {
@@ -60,7 +61,7 @@ void RegisterAiCoreEngine() {
   mem_type_aicore.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_aicore = { ai_core,
                                      mem_type_aicore,
-                                     PriorityEnum::COST_0,
+                                     PriorityEnum::COST_1,
                                      DEVICE,
                                      FORMAT_RESERVED,
                                      FORMAT_RESERVED,
@@ -82,7 +83,7 @@ void RegisterVectorEngine() {
   mem_type_aivcore.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_vector_core = { vector_core,
                                           mem_type_aivcore,
-                                          PriorityEnum::COST_1,
+                                          PriorityEnum::COST_2,
                                           DEVICE,
                                           FORMAT_RESERVED,
                                           FORMAT_RESERVED,
@@ -104,7 +105,7 @@ void RegisterDsaEngine() {
   mem_type_dsa.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   const DNNEngineAttribute attr_dsa = { dsa,
                                         mem_type_dsa,
-                                        PriorityEnum::COST_1,
+                                        PriorityEnum::COST_2,
                                         DEVICE,
                                         FORMAT_RESERVED,
                                         FORMAT_RESERVED,
@@ -128,7 +129,7 @@ void RegisterDvppEngine() {
 
   const DNNEngineAttribute attr_dvpp = { vm_dvpp,
                                          mem_type_dvpp,
-                                         PriorityEnum::COST_4,
+                                         PriorityEnum::COST_5,
                                          DEVICE,
                                          FORMAT_RESERVED,
                                          FORMAT_RESERVED,
@@ -152,7 +153,7 @@ void RegisterAiCpuEngine() {
 
   DNNEngineAttribute attr_aicpu = { vm_aicpu,
                                     mem_type_aicpu,
-                                    PriorityEnum::COST_2,
+                                    PriorityEnum::COST_3,
                                     DEVICE,
                                     FORMAT_RESERVED,
                                     FORMAT_RESERVED,
@@ -176,7 +177,7 @@ void RegisterAiCpuTFEngine() {
 
   DNNEngineAttribute attr_aicpu_tf = { vm_aicpu_tf,
                                        mem_type_aicpu_tf,
-                                       PriorityEnum::COST_3,
+                                       PriorityEnum::COST_4,
                                        DEVICE,
                                        FORMAT_RESERVED,
                                        FORMAT_RESERVED,
@@ -198,7 +199,7 @@ void RegisterAICpuAscendFftsPlusEngine() {
   mem_type_aicpu_ascend_ffts_plus.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_aicpu_ascend_ffts_plus = { vm_aicpu_ascend_ffts_plus,
                                                      mem_type_aicpu_ascend_ffts_plus,
-                                                     PriorityEnum::COST_1,
+                                                     PriorityEnum::COST_2,
                                                      DEVICE,
                                                      FORMAT_RESERVED,
                                                      FORMAT_RESERVED,
@@ -220,7 +221,7 @@ void RegisterAICpuFftsPlusEngine() {
   mem_type_aicpu_ffts_plus.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_aicpu_ffts_plus = { vm_aicpu_ffts_plus,
                                               mem_type_aicpu_ffts_plus,
-                                              PriorityEnum::COST_1,
+                                              PriorityEnum::COST_2,
                                               DEVICE,
                                               FORMAT_RESERVED,
                                               FORMAT_RESERVED,
@@ -289,7 +290,7 @@ void RegisterRtsEngine() {
   mem_type_rts.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_rts = { vm_rts,
                                   mem_type_rts,
-                                  PriorityEnum::COST_1,
+                                  PriorityEnum::COST_2,
                                   DEVICE,
                                   FORMAT_RESERVED,
                                   FORMAT_RESERVED,
@@ -311,7 +312,7 @@ void RegisterRtsFftsPlusEngine() {
   mem_type_rts_ffts_plus.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_rts_ffts_plus = { vm_rts_ffts_plus,
                                             mem_type_rts_ffts_plus,
-                                            PriorityEnum::COST_1,
+                                            PriorityEnum::COST_2,
                                             DEVICE,
                                             FORMAT_RESERVED,
                                             FORMAT_RESERVED,
@@ -333,7 +334,7 @@ void RegisterHcclEngine() {
   mem_type_hccl.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_hccl = { dnn_hccl,
                                    mem_type_hccl,
-                                   PriorityEnum::COST_1,
+                                   PriorityEnum::COST_2,
                                    DEVICE,
                                    FORMAT_RESERVED,
                                    FORMAT_RESERVED,
@@ -355,7 +356,7 @@ void RegisterFftsPlusEngine() {
   mem_type_ffts_plus.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
   DNNEngineAttribute attr_ffts_plus = { dnn_ffts_plus,
                                         mem_type_ffts_plus,
-                                        PriorityEnum::COST_0,
+                                        PriorityEnum::COST_1,
                                         DEVICE,
                                         FORMAT_RESERVED,
                                         FORMAT_RESERVED,
@@ -371,7 +372,28 @@ void RegisterFftsPlusEngine() {
   }
 }
 
+void RegisterCustomEngine() {
+  std::vector<std::string> mem_type;
+  mem_type.emplace_back(GE_ENGINE_ATTR_MEM_TYPE_HBM);
+  DNNEngineAttribute attr_custom = { kEngineNameCustom, mem_type,
+                                     PriorityEnum::COST_0,
+                                     DEVICE,
+                                     FORMAT_RESERVED,
+                                     FORMAT_RESERVED,
+                                     true };
+  DNNEnginePtr custom_engine_ptr = MakeShared<CustomDNNEngine>(attr_custom);
+  if (custom_engine_ptr == nullptr) {
+    GELOGE(ge::FAILED, "[Register][CustomEngine] failed, as malloc shared_ptr failed.");
+    REPORT_INNER_ERR_MSG("E19999", "RegisterCustomEngine failed for new DNNEnginePtr failed.");
+    return;
+  }
+  if (EngineManager::RegisterEngine(kEngineNameCustom, custom_engine_ptr) != SUCCESS) {
+    GELOGW("register custom failed");
+  }
+}
+
 void GetDNNEngineObjs(std::map<std::string, DNNEnginePtr> &engines) {
+  RegisterCustomEngine();
   RegisterAiCoreEngine();
   RegisterVectorEngine();
   RegisterDvppEngine();

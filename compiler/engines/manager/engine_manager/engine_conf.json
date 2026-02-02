@@ -13,6 +13,13 @@
           "attach": true
         },
         {
+          "id": "DNN_VM_CUSTOM",
+          "name": "CUSTOM",
+          "independent": false,
+          "skip_assign_stream": false,
+          "attach": false
+        },
+        {
           "id": "DNN_VM_GE_LOCAL",
           "name": "GE_LOCAL",
           "independent": false,

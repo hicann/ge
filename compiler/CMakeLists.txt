@@ -377,6 +377,9 @@ set(COMPILER_SRC_LIST
     "api/aclgrph/option_utils.cc"
     "engines/manager/opskernel_manager/ops_kernel_builder_manager.cc"
     "engines/manager/opskernel_manager/ops_kernel_manager.cc"
+    "engines/custom_engine/custom_graph_optimizer.cc"
+    "engines/custom_engine/custom_ops_kernel_info_store.cc"
+    "engines/custom_engine/custom_ops_kernel_builder.cc"
     "graph/build/model_data_info.cc"
 )
 

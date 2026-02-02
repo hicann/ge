@@ -30,7 +30,7 @@ class GeRunningEvnFakerTest : public testing::Test {
 TEST_F(GeRunningEvnFakerTest, test_reset_running_env_is_success) {
   GeRunningEnvFaker ge_env;
   ge_env.Reset();
-  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 0);
+  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 1);
   ASSERT_EQ(builder_manager.GetAllOpsKernelBuilders().size(), 0);
   ASSERT_EQ(kernel_manager.GetAllOpsKernelInfo().size(), 0);
   ASSERT_EQ(kernel_manager.GetOpsKernelInfo(SWITCH).size(), 0);
@@ -70,7 +70,7 @@ TEST_F(GeRunningEvnFakerTest, test_install_engine_with_default_info_store) {
   GeRunningEnvFaker ge_env;
   ge_env.Install(FakeEngine("DNN_HCCL"));
 
-  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 1);
+  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 2);
   ASSERT_EQ(builder_manager.GetAllOpsKernelBuilders().size(), 1);
   ASSERT_EQ(kernel_manager.GetAllOpsKernelInfo().size(), 0);
   ASSERT_EQ(kernel_manager.GetOpsKernelInfo(SWITCH).size(), 0);
@@ -81,7 +81,7 @@ TEST_F(GeRunningEvnFakerTest, test_install_engine_with_info_store_name) {
   ge_env.Install(FakeEngine("DNN_HCCL").KernelInfoStore("AiCoreLib2"))
     .Install(FakeOp(SWITCH).InfoStoreAndBuilder("AiCoreLib2"));
 
-  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 1);
+  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 2);
   ASSERT_EQ(builder_manager.GetAllOpsKernelBuilders().size(), 1);
   ASSERT_EQ(kernel_manager.GetAllOpsKernelInfo().size(), 1);
   ASSERT_EQ(kernel_manager.GetOpsKernelInfo(SWITCH).size(), 1);
@@ -102,7 +102,7 @@ TEST_F(GeRunningEvnFakerTest, test_install_custom_kernel_builder_success) {
   auto ai_core_kernel = FakeEngine("DNN_HCCL").KernelBuilder(std::make_shared<FakeKernelBuilder>());
   ge_env.Reset().Install(ai_core_kernel);
 
-  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 1);
+  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 2);
   ASSERT_EQ(builder_manager.GetAllOpsKernelBuilders().size(), 1);
   ASSERT_EQ(kernel_manager.GetAllOpsKernelInfo().size(), 0);
 }
@@ -118,7 +118,7 @@ TEST_F(GeRunningEvnFakerTest, test_install_custom_kernel_info_store_success) {
   auto ai_core_kernel = FakeEngine("DNN_HCCL").KernelInfoStore(std::make_shared<FakeKernelBuilder>("AiCoreLib2"));
   ge_env.Reset().Install(ai_core_kernel);
 
-  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(),1);
+  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(),2);
   ASSERT_EQ(builder_manager.GetAllOpsKernelBuilders().size(), 1);
   ASSERT_EQ(kernel_manager.GetAllOpsKernelInfo().size(), 0);
 }
@@ -127,7 +127,7 @@ TEST_F(GeRunningEvnFakerTest, test_install_default_fake_engine_success) {
   GeRunningEnvFaker ge_env;
   ge_env.InstallDefault();
 
-  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 9);
+  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 10);
   ASSERT_EQ(builder_manager.GetAllOpsKernelBuilders().size(), 9);
   ASSERT_GE(kernel_manager.GetAllOpsKernelInfo().size(), 49);
 }
@@ -136,8 +136,8 @@ TEST_F(GeRunningEvnFakerTest, test_install_fake_engine_with_optimizer_success) {
   GeRunningEnvFaker ge_env;
   ge_env.Install(FakeEngine("DNN_VM_AICPU"));
 
-  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 1);
-  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjs().size(), 0);
+  ASSERT_EQ(kernel_manager.GetAllOpsKernelInfoStores().size(), 2);
+  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjs().size(), 1);
   ASSERT_EQ(builder_manager.GetAllOpsKernelBuilders().size(), 1);
 }
 
@@ -145,9 +145,10 @@ TEST_F(GeRunningEvnFakerTest, test_fake_graph_optimizer_success) {
   GeRunningEnvFaker ge_env;
   ge_env.Install(FakeEngine("DNN_VM_AICPU").GraphOptimizer("op1").GraphOptimizer("op2"));
 
-  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjsByPriority().size(), 2);
-  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjsByPriority()[0].first, "op1");
-  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjsByPriority()[1].first, "op2");
-  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjs().size(), 2);
+  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjsByPriority().size(), 3);
+  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjsByPriority()[0].first, "custom_graph_optimizer");
+  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjsByPriority()[1].first, "op1");
+  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjsByPriority()[2].first, "op2");
+  ASSERT_EQ(kernel_manager.GetAllGraphOptimizerObjs().size(), 3);
 }
 FAKE_NS_END
