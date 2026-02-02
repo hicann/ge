@@ -28,7 +28,7 @@ MDC_BUILD_COMPONENT=""
 usage() {
   echo "Usage:"
   echo "  sh build.sh [-h | --help] [-v | --verbose] [-j<N>]"
-  echo "              [--pkg] [--ge_compiler] [--ge_executor]  [--dflow]"
+  echo "              [--ge_compiler] [--ge_executor]  [--dflow]"
   echo "              [--build_type=<TYPE> | --build-type=<TYPE>]"
   echo "              [--output_path=<PATH>] [--cann_3rd_lib_path=<PATH>]"
   echo "              [--python_path=<PATH>]"
@@ -39,10 +39,9 @@ usage() {
   echo "    -h, --help        Print usage"
   echo "    -v, --verbose     Show detailed build commands during the build process"
   echo "    -j<N>             Set the number of threads used for building AIR, default is 8"
-  echo "    --pkg             Build run package with kernel bin"
-  echo "      --ge_compiler   Build ge-compiler run package with kernel bin"
-  echo "      --ge_executor   Build ge-executor run package with kernel bin"
-  echo "      --dflow         Build dflow-executor run package with kernel bin"
+  echo "    --ge_compiler   Build ge-compiler run package with kernel bin"
+  echo "    --ge_executor   Build ge-executor run package with kernel bin"
+  echo "    --dflow         Build dflow-executor run package with kernel bin"
   echo "    --asan            Enable AddressSanitizer"
   echo "    --cov             Enable Coverage"
   echo "    --build_type=<TYPE>, --build-type=<TYPE>"
@@ -140,7 +139,7 @@ checkopts() {
   BUILD_OUT_PATH="${BASEPATH}/build_out"
   
   # Process the options
-  parsed_args=$(getopt -a -o j:hvf: -l help,verbose,ge_compiler,ge_executor,dflow,asan,cov,cann_3rd_lib_path:,output_path:,build_type:,build-type:,python_path:,enable-sign,sign-script:,version: -- "$@") || {
+  parsed_args=$(getopt -a -o j:hvf: -l help,verbose,ge_compiler,ge_executor,dflow,asan,cov,cann_3rd_lib_path:,extra-cmake-args:,output_path:,build_type:,build-type:,python_path:,enable-sign,sign-script:,version: -- "$@") || {
     usage
     exit 1
   }
@@ -159,9 +158,6 @@ checkopts() {
         ;;
       -v | --verbose)
         VERBOSE="VERBOSE=1"
-        shift
-        ;;
-      --pkg)
         shift
         ;;
       --ge_compiler)
