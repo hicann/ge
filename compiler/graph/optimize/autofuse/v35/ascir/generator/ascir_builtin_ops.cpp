@@ -223,12 +223,12 @@ REG_ASC_IR(Mod)
 REG_ASC_IR(Sqrt)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::SqrtAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::SqrtAscIrCodegenImplV2>(),
-                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT}}}});
+                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
 
 REG_ASC_IR(Rsqrt)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::RsqrtAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::RsqrtAscIrCodegenImplV2>(),
-                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT}}}});
+                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
 
 REG_ASC_IR(Reciprocal)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::ReciprocalAscIrAttImplV2>(),
@@ -305,7 +305,7 @@ REG_ASC_IR(Prod)
 REG_ASC_IR(Sigmoid)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::SigmoidAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::SigmoidAscIrCodegenImplV2>(),
-                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT}}}});
+                            {{"T", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
 
 REG_ASC_IR(Any)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::AnyAscIrAttImplV2>(),
@@ -601,13 +601,13 @@ REG_ASC_IR(Sin)
                             ge::ascir::AscIrImplCreator<ge::ascir::SinAscIrCodegenImplV2>(),
                             {{"T", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
 
-REG_ASC_IR(Rshift)
+REG_ASC_IR(RShift)
     .Input("x1", "T")
     .Input("x2", "T")
     .Output("y", "T")
     .ComputeType(ge::ComputeType::kComputeElewise)
     .DataType("T", TensorType{DT_INT8, DT_INT16, DT_INT32, DT_INT64})
-    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::RshiftAscIrAttImplV2>(),
+    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::RShiftAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::RShiftAscIrCodegenImplV2>(),
                             {{"T", TensorType{DT_INT8, DT_INT16, DT_INT32, DT_INT64}}}});
 }  // namespace ascir

@@ -1846,7 +1846,7 @@ class RShiftAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "BinaryApiCallV2";
   }
   [[nodiscard]] std::string GetApiName() const override {
-    return "Rshift";
+    return "ShiftRight";
   }
 };
 }  // namespace ascir

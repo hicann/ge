@@ -24,7 +24,7 @@
 #include "runtime_stub.h"
 #include "common/platform_context.h"
 
-class TestBackendBf16SinE2e : public testing::Test {
+class TestBackendBf16SqrtE2e : public testing::Test {
  protected:
   void SetUp() override {
     dlog_setlevel(ASCGEN_MODULE_NAME, DLOG_ERROR, 0);
@@ -38,16 +38,16 @@ class TestBackendBf16SinE2e : public testing::Test {
   }
 };
 
-TEST_F(TestBackendBf16SinE2e, Bf16SinE2eCodegen) {
+TEST_F(TestBackendBf16SqrtE2e, Bf16SqrtE2eCodegen) {
   bool gen_success = true;
   std::string tiling_stub = R"(
 #define REGISTER_TILING_DEFAULT(tiling)
 #define GET_TILING_DATA(t, tiling)  AutofuseTilingData t = *(AutofuseTilingData*)tiling;
 )";
 
-  // shape_info 和 LoadSinStoreFusedGraph入参dims_size匹配（个数相同，命名规则为s开头、编号从0开始）
+  // shape_info 和 LoadSqrtStoreFusedGraph入参dims_size匹配（个数相同，命名规则为s开头、编号从0开始）
   std::map<std::string, std::string> shape_info({{"s0", "stub_s0"}, {"s1", "stub_s1"}});
-  auto graph = ascir::ShareGraph::BF16SinFusedGraph(2);
+  auto graph = ascir::ShareGraph::BF16SqrtFusedGraph(2);
   std::cout << "KERNEL_SRC_LIST=" << KERNEL_SRC_LIST << std::endl;
   std::vector<std::string> parts = splitString(KERNEL_SRC_LIST, ':');
   const std::string &kernel_src_file_name = parts[0];
