@@ -26,7 +26,7 @@ using namespace AscendC;
 namespace ge {
 
 template <typename T>
-struct RshiftInputParam {
+struct RShiftInputParam {
   T *y{};
   T *x1{};
   T *x2{};
@@ -34,11 +34,11 @@ struct RshiftInputParam {
   uint32_t size{};
 };
 
-class TestRegbaseApiRshiftUT : public testing::Test {
+class TestRegbaseApiRShiftUT : public testing::Test {
  protected:
   // Tensor - Tensor 场景
   template <typename T>
-  static void InvokeTensorTensorKernel(RshiftInputParam<T> &param) {
+  static void InvokeTensorTensorKernel(RShiftInputParam<T> &param) {
     TPipe tpipe;
     TBuf<TPosition::VECCALC> x1buf, x2buf, ybuf;
     tpipe.InitBuffer(x1buf, sizeof(T) * param.size);
@@ -56,7 +56,7 @@ class TestRegbaseApiRshiftUT : public testing::Test {
   }
 
   template <typename T>
-  static void CreateTensorInput(RshiftInputParam<T> &param) {
+  static void CreateTensorInput(RShiftInputParam<T> &param) {
     param.y = static_cast<T *>(AscendC::GmAlloc(sizeof(T) * param.size));
     param.exp = static_cast<T *>(AscendC::GmAlloc(sizeof(T) * param.size));
     param.x1 = static_cast<T *>(AscendC::GmAlloc(sizeof(T) * param.size));
@@ -84,7 +84,7 @@ class TestRegbaseApiRshiftUT : public testing::Test {
   }
 
   template <typename T>
-  static uint32_t Valid(RshiftInputParam<T> &param) {
+  static uint32_t Valid(RShiftInputParam<T> &param) {
     uint32_t diff_count = 0;
     for (uint32_t i = 0; i < param.size; i++) {
       if (param.y[i] != param.exp[i]) {
@@ -96,8 +96,8 @@ class TestRegbaseApiRshiftUT : public testing::Test {
 
   // Tensor - Tensor 测试
   template <typename T>
-  static void RshiftTensorTensorTest(uint32_t size) {
-    RshiftInputParam<T> param{};
+  static void RShiftTensorTensorTest(uint32_t size) {
+    RShiftInputParam<T> param{};
     param.size = size;
     CreateTensorInput(param);
 
@@ -115,38 +115,38 @@ class TestRegbaseApiRshiftUT : public testing::Test {
 };
 
 // ============ Tensor - Tensor 测试 ============
-TEST_F(TestRegbaseApiRshiftUT, Rshift_TensorTensor_Test) {
+TEST_F(TestRegbaseApiRShiftUT, RShift_TensorTensor_Test) {
   // int8
-  RshiftTensorTensorTest<int8_t>(ONE_BLK_SIZE / sizeof(int8_t));
-  RshiftTensorTensorTest<int8_t>(ONE_REPEAT_BYTE_SIZE / sizeof(int8_t));
-  RshiftTensorTensorTest<int8_t>((ONE_BLK_SIZE - sizeof(int8_t)) / sizeof(int8_t));
-  RshiftTensorTensorTest<int8_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int8_t));
-  RshiftTensorTensorTest<int8_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int8_t));
-  RshiftTensorTensorTest<int8_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int8_t));
+  RShiftTensorTensorTest<int8_t>(ONE_BLK_SIZE / sizeof(int8_t));
+  RShiftTensorTensorTest<int8_t>(ONE_REPEAT_BYTE_SIZE / sizeof(int8_t));
+  RShiftTensorTensorTest<int8_t>((ONE_BLK_SIZE - sizeof(int8_t)) / sizeof(int8_t));
+  RShiftTensorTensorTest<int8_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int8_t));
+  RShiftTensorTensorTest<int8_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int8_t));
+  RShiftTensorTensorTest<int8_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int8_t));
 
   // int16
-  RshiftTensorTensorTest<int16_t>(ONE_BLK_SIZE / sizeof(int16_t));
-  RshiftTensorTensorTest<int16_t>(ONE_REPEAT_BYTE_SIZE / sizeof(int16_t));
-  RshiftTensorTensorTest<int16_t>((ONE_BLK_SIZE - sizeof(int16_t)) / sizeof(int16_t));
-  RshiftTensorTensorTest<int16_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int16_t));
-  RshiftTensorTensorTest<int16_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int16_t));
-  RshiftTensorTensorTest<int16_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int16_t));
+  RShiftTensorTensorTest<int16_t>(ONE_BLK_SIZE / sizeof(int16_t));
+  RShiftTensorTensorTest<int16_t>(ONE_REPEAT_BYTE_SIZE / sizeof(int16_t));
+  RShiftTensorTensorTest<int16_t>((ONE_BLK_SIZE - sizeof(int16_t)) / sizeof(int16_t));
+  RShiftTensorTensorTest<int16_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int16_t));
+  RShiftTensorTensorTest<int16_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int16_t));
+  RShiftTensorTensorTest<int16_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int16_t));
 
   // int32
-  RshiftTensorTensorTest<int>(ONE_BLK_SIZE / sizeof(int));
-  RshiftTensorTensorTest<int>(ONE_REPEAT_BYTE_SIZE / sizeof(int));
-  RshiftTensorTensorTest<int>((ONE_BLK_SIZE - sizeof(int)) / sizeof(int));
-  RshiftTensorTensorTest<int>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int));
-  RshiftTensorTensorTest<int>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int));
-  RshiftTensorTensorTest<int>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int));
+  RShiftTensorTensorTest<int>(ONE_BLK_SIZE / sizeof(int));
+  RShiftTensorTensorTest<int>(ONE_REPEAT_BYTE_SIZE / sizeof(int));
+  RShiftTensorTensorTest<int>((ONE_BLK_SIZE - sizeof(int)) / sizeof(int));
+  RShiftTensorTensorTest<int>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int));
+  RShiftTensorTensorTest<int>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int));
+  RShiftTensorTensorTest<int>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int));
 
   // int64
-  RshiftTensorTensorTest<int64_t>(ONE_BLK_SIZE / sizeof(int64_t));
-  RshiftTensorTensorTest<int64_t>(ONE_REPEAT_BYTE_SIZE / sizeof(int64_t));
-  RshiftTensorTensorTest<int64_t>((ONE_BLK_SIZE - sizeof(int64_t)) / sizeof(int64_t));
-  RshiftTensorTensorTest<int64_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int64_t));
-  RshiftTensorTensorTest<int64_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int64_t));
-  RshiftTensorTensorTest<int64_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int64_t));
+  RShiftTensorTensorTest<int64_t>(ONE_BLK_SIZE / sizeof(int64_t));
+  RShiftTensorTensorTest<int64_t>(ONE_REPEAT_BYTE_SIZE / sizeof(int64_t));
+  RShiftTensorTensorTest<int64_t>((ONE_BLK_SIZE - sizeof(int64_t)) / sizeof(int64_t));
+  RShiftTensorTensorTest<int64_t>((ONE_REPEAT_BYTE_SIZE - ONE_BLK_SIZE) / sizeof(int64_t));
+  RShiftTensorTensorTest<int64_t>(MAX_REPEAT_NUM * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int64_t));
+  RShiftTensorTensorTest<int64_t>((MAX_REPEAT_NUM - 1) * ONE_REPEAT_BYTE_SIZE / 2 / sizeof(int64_t));
 }
 
 }  // namespace ge

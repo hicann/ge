@@ -686,7 +686,7 @@ def Gt(owner_graph: ascir.HintGraph,
     return _common_in_2_out_1_normal_op("Gt", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
 
 
-def Rshift(owner_graph: ascir.HintGraph,
+def RShift(owner_graph: ascir.HintGraph,
            x1: ascir.OpsOperatorOutput,
            x2: ascir.OpsOperatorOutput,
            *,
@@ -694,7 +694,7 @@ def Rshift(owner_graph: ascir.HintGraph,
            size: Optional[List[ascir.SizeExpr]] = None,
            stride: Optional[List[ascir.SizeExpr]] = None
            ) -> ascir.OpsOperatorOutput:
-    return _common_in_1_out_1_normal_op("Sin", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
+    return _common_in_2_out_1_normal_op("RShift", owner_graph, x1, x2, axis=axis, size=size, stride=stride)
 
 
 def Le(owner_graph: ascir.HintGraph,

@@ -60,7 +60,7 @@ PyMODINIT_FUNC PyInit_pyautofuse(void);
   OP(Sign)             \
   OP(Tanh)             \
   OP(Sin)              \
-  OP(Rshift)           \
+  OP(RShift)           \
   OP(Isnan)            \
   OP(Max)              \
   OP(Any)              \

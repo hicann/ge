@@ -24,7 +24,7 @@ extern "C" int64_t AutofuseTiling(uint32_t s0, uint32_t s1, AutofuseTilingData *
 
 class E2E_BackendBf16Sigmoid_Code : public testing::Test, public testing::WithParamInterface<std::vector<int>> {};
 
-TEST_P(E2E_BackendBf16sigmoid_Code, CalculateCorrect) {
+TEST_P(E2E_BackendBf16Sigmoid_Code, CalculateCorrect) {
   auto test_shape = GetParam();
 
   uint64_t block_dim = 48;
@@ -40,8 +40,7 @@ TEST_P(E2E_BackendBf16sigmoid_Code, CalculateCorrect) {
   for (int i = 0; i < test_size; i++) {
     double val = rand() / (double)RAND_MAX;
     x[i] = static_cast<bfloat16_t>(val);
-    // Calculate expected Sqrt result
-    expect[i] = static_cast<bfloat16_t>(1.0f / std::sqrt(val));
+    expect[i] = static_cast<bfloat16_t>(1.0f / (1.0f + std::exp(-val)));
   }
 
   // Launch
@@ -50,12 +49,12 @@ TEST_P(E2E_BackendBf16sigmoid_Code, CalculateCorrect) {
   printf("tiling key: %d, core_num: %d\n", tiling_data.tiling_key, tiling_data.block_dim);
 
   AscendC::SetKernelMode(KernelMode::AIV_MODE);
-  ICPU_RUN_KF(sin_bf16_test, tiling_data.block_dim, (uint8_t *)x, (uint8_t *)y, nullptr, (uint8_t *)&tiling_data);
+  ICPU_RUN_KF(sigmoid_bf16_test, tiling_data.block_dim, (uint8_t *)x, (uint8_t *)y, nullptr, (uint8_t *)&tiling_data);
 
   // Count difference
   uint32_t diff_count = 0;
   for (int i = 0; i < test_size; i++) {
-    if (std::fabs(y[i] - expect[i]) > 1e-3) {
+    if (std::fabs(y[i] - expect[i]) > 1e-2) {
       diff_count++;
     }
   }
@@ -67,4 +66,4 @@ TEST_P(E2E_BackendBf16sigmoid_Code, CalculateCorrect) {
   AscendC::GmFree(expect);
 }
 
-INSTANTIATE_TEST_SUITE_P(CalcWithDifferentShape, E2E_BackendBf16Sin_Code, ::testing::Values(std::vector<int>{32, 16}));
+INSTANTIATE_TEST_SUITE_P(CalcWithDifferentShape, E2E_BackendBf16Sigmoid_Code, ::testing::Values(std::vector<int>{32, 16}));

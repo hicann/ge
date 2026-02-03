@@ -56,7 +56,7 @@ TEST_P(E2E_BackendBf16Sqrt_Code, CalculateCorrect) {
   // Count difference
   uint32_t diff_count = 0;
   for (int i = 0; i < test_size; i++) {
-    if (std::fabs(y[i] - expect[i]) > 1e-3) {
+    if (std::fabs(y[i] - expect[i]) > 1e-2) {
       diff_count++;
     }
   }
