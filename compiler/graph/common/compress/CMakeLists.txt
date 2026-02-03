@@ -28,7 +28,7 @@ target_compile_options(compress PRIVATE
         $<$<STREQUAL:${PRODUCT_SIDE},host>:-fexceptions>
         -fno-common
         -fno-strict-aliasing
-        -O2
+        -O2 -D_FORTIFY_SOURCE
         )
 
 target_link_libraries(compress
@@ -92,7 +92,7 @@ target_compile_options(compressweight PRIVATE
         $<$<STREQUAL:${PRODUCT_SIDE},host>:-fexceptions>
         -fno-common
         -fno-strict-aliasing
-        -O2
+        -O2 -D_FORTIFY_SOURCE
         )
 
 target_link_libraries(compressweight PRIVATE
