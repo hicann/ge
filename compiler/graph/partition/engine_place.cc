@@ -212,29 +212,39 @@ const NodeEngineMap &EnginePlacer::GetNodeEngineMap(bool is_composite_engine_mod
   return is_composite_engine_mode ? node_composite_engine_map_ : node_atomic_engine_map_;
 }
 
+Status EnginePlacer::RunSinglePass(const std::string &pass_name, const std::shared_ptr<EngineReAssignPass> &pass) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  GE_CHECK_NOTNULL(pass);
+  Status ret = pass->Run(compute_graph_, node_atomic_engine_map_, node_composite_engine_map_);
+  if (ret == SUCCESS) {
+    GELOGD("Engine reassign pass %s return SUCCESS.", pass_name.c_str());
+    return SUCCESS;
+  } else if (ret == NOT_CHANGED) {
+    GELOGD("Engine reassign pass %s return NOT_CHANGED.", pass_name.c_str());
+    return NOT_CHANGED;
+  } else {
+    REPORT_INNER_ERR_MSG("E19999", "Engine reassign pass %s run failed.", pass_name.c_str());
+    GELOGE(ret, "[Call][Run] Engine reassign pass %s failed.", pass_name.c_str());
+    return ret;
+  }
+}
+
 Status EnginePlacer::ReAssignEngine() {
   std::vector<std::pair<std::string, std::shared_ptr<EngineReAssignPass>>> passes;
   passes.emplace_back(
       std::make_pair("DynamicDataFlowEngineReassignPass", MakeShared<DynamicDataFlowEngineReassignPass>()));
-  passes.emplace_back(std::make_pair("HostcpuEngineUpdatePass", MakeShared<HostcpuEngineUpdatePass>()));
 
   for (const auto &pass_item : passes) {
-    GE_CHECK_NOTNULL(pass_item.second);
-    Status ret;
-    {
-      std::lock_guard<std::mutex> lock(mutex_);
-      ret = pass_item.second->Run(compute_graph_, node_atomic_engine_map_, node_composite_engine_map_);
-    }
-    if (ret == SUCCESS) {
-      GELOGD("Engine reassign pass %s return SUCCESS.", pass_item.first.c_str());
-    } else if (ret == NOT_CHANGED) {
-      GELOGD("Engine reassign pass %s return NOT_CHANGED.", pass_item.first.c_str());
-    } else {
-      REPORT_INNER_ERR_MSG("E19999", "Engine reassign pass %s run failed.", pass_item.first.c_str());
-      GELOGE(ret, "[Call][Run] Engine reassign pass %s failed.", pass_item.first.c_str());
+    Status ret = RunSinglePass(pass_item.first, pass_item.second);
+    if (ret != SUCCESS && ret != NOT_CHANGED) {
       return ret;
     }
   }
   return SUCCESS;
+}
+
+Status EnginePlacer::RunHostcpuEngineUpdatePass() {
+  auto hostcpu_pass = MakeShared<HostcpuEngineUpdatePass>();
+  return RunSinglePass("HostcpuEngineUpdatePass", hostcpu_pass);
 }
 }  // namespace ge
