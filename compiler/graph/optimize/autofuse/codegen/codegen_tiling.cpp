@@ -226,6 +226,12 @@ std::string GenAutofuseLaunchDeclare(const ascir::FusedScheduledResult &fused_sc
 std::string GenAscirCompileAndLaunchHead(const ascir::FusedScheduledResult &fused_schedule_result) {
   std::stringstream ss;
   ss << "extern \"C\" int AscirCompileAndLaunch(";
+  for (const auto vars : fused_schedule_result.origin_vars) {
+    if (!(vars.IsConstExpr())) {
+      std::string var_name = std::string(vars.Str().get());
+      ss << "uint32_t " << var_name << ", ";
+    }
+  }
   for (size_t i = 0U; i < fused_schedule_result.input_nodes.size(); i++) {
     ss << "void* input" << i << ", ";
   }
@@ -265,11 +271,21 @@ std::string GenAclInit() {
   return ss.str();
 }
 
-std::string GenAscirTilingFunc(const std::string graph_name) {
+std::string GenAscirTilingFunc(const ascir::FusedScheduledResult &fused_schedule_result) {
   std::stringstream ss;
   std::string tiling_func_name = "AutofuseTiling";
+  std::string graph_name = CamelToLowerSneak(GenValidName(fused_schedule_result.fused_graph_name.GetString()));
 
-  ss << "  result = " << tiling_func_name << "(&tiling_data, &workspace_size, &block_dim, nullptr);" << std::endl;
+  std::stringstream shape_args;
+  for (const auto vars : fused_schedule_result.origin_vars) {
+    if (!(vars.IsConstExpr())) {
+      std::string var_name = std::string(vars.Str().get());
+      shape_args << var_name << ", ";
+    }
+  }
+
+  ss << "  result = " << tiling_func_name << "(" << shape_args.str()
+     << "&tiling_data, &workspace_size, &block_dim, nullptr);" << std::endl;
   ss << "  if (result != 0) {" << std::endl;
   ss << "    OP_LOGE(OP_NAME, \"" << graph_name << " tiling func failed: %ld\", result);" << std::endl;
   ss << "    return -1;" << std::endl;
@@ -342,7 +358,7 @@ std::string TilingLib::GenAscirTilingAndLaunchFunc(const ascir::FusedScheduledRe
   ss << GenAutofuseLaunchDeclare(fused_schedule_result);
   ss << GenAscirCompileAndLaunchHead(fused_schedule_result);
   ss << GenAclInit();
-  ss << GenAscirTilingFunc(graph_name);
+  ss << GenAscirTilingFunc(fused_schedule_result);
   ss << GenAscirMallocWorkspaceFunc(graph_name);
   ss << GenAscirLaunchFunc(fused_schedule_result);
 
