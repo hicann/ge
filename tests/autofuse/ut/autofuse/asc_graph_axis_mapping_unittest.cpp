@@ -96,7 +96,16 @@ std::shared_ptr<AscGraph> CreatBroadcastAddAscGraph(ge::AscGraph &graph) {
   *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id, f.id};
   *x_out.y.repeats = {A, B, C, D, E, F};
   *x_out.y.strides = {B * C * D * E * F, C * D * E * F, D * E * F, E * F, F, ONE};
-  auto x_out_node = graph.FindNode("x_out_broadcast_add");
+
+  ge::ascir_op::Output x_output1("x_output1");
+  x_output1.x = x_out.y;
+  x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+  x_output1.attr.sched.loop_axis = c.id;
+  x_output1.y.dtype = DT_FLOAT;
+  *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+  *x_output1.y.repeats = {A, B, C, D, E};
+  *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+  auto x_out_node = graph.FindNode("x_output1");
   auto compute_graph = x_out_node->GetOwnerComputeGraph();
   std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
   compute_graph->SetOutputSize(1U);
@@ -165,7 +174,16 @@ std::shared_ptr<AscGraph> CreatBroadcastAddAscGraph2(ge::AscGraph &graph) {
   *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id, f.id};
   *x_out.y.repeats = {A, B, C, D, E, F};
   *x_out.y.strides = {B * C * D * E * F, C * D * E * F, D * E * F, E * F, F, ONE};
-  auto x_out_node = graph.FindNode("x_out_broadcast_add");
+
+  ge::ascir_op::Output x_output1("x_output1");
+  x_output1.x = x_out.y;
+  x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+  x_output1.attr.sched.loop_axis = c.id;
+  x_output1.y.dtype = DT_FLOAT;
+  *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+  *x_output1.y.repeats = {A, B, C, D, E};
+  *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+  auto x_out_node = graph.FindNode("x_output1");
   auto compute_graph = x_out_node->GetOwnerComputeGraph();
   std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
   compute_graph->SetOutputSize(1U);
@@ -637,7 +655,15 @@ std::shared_ptr<AscGraph> CreatAddAscGraphFor3Repeats(ge::AscGraph &graph) {
   *x_out.y.axis = {a.id, b.id, c.id};
   *x_out.y.repeats = {A, B, C};
   *x_out.y.strides = {B * C, C, ONE};
-  auto x_out_node = graph.FindNode("x_out_5");
+
+  ge::ascir_op::Output x_output1("x_output1");
+  x_output1.x = x_out.y;
+  x_output1.attr.sched.axis = {a.id, b.id, c.id};
+  x_output1.attr.sched.loop_axis = c.id;
+  *x_output1.y.axis = {a.id, b.id, c.id};
+  *x_output1.y.repeats = {A, B, C};
+  *x_output1.y.strides = {B * C, C, ONE};
+  auto x_out_node = graph.FindNode("x_output1");
   auto compute_graph = x_out_node->GetOwnerComputeGraph();
   std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
   compute_graph->SetOutputSize(1U);
@@ -673,7 +699,14 @@ std::shared_ptr<AscGraph> CreatAddAscGraphOnlyDataLoad(ge::AscGraph &graph) {
   *xLocal1.y.repeats = {D, B, C};
   *xLocal1.y.strides = {B * C * D, C * D, D, ONE};
 
-  auto x_out_node = graph.FindNode("xLocal1");
+  ge::ascir_op::Output x_output1("x_output1");
+  x_output1.x = xLocal1.y;
+  x_output1.attr.sched.axis = {b.id, c.id, d.id};
+  x_output1.attr.sched.loop_axis = c.id;
+  *x_output1.y.axis = {d.id, b.id, c.id};
+  *x_output1.y.repeats = {D, B, C};
+  *x_output1.y.strides = {B * C * D, C * D, D, ONE};
+  auto x_out_node = graph.FindNode("x_output1");
   auto compute_graph = x_out_node->GetOwnerComputeGraph();
   std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
   compute_graph->SetOutputSize(1U);
@@ -738,7 +771,15 @@ std::shared_ptr<AscGraph> CreatAddAscGraphTmp(ge::AscGraph &graph) {
   *x_out.y.axis = {f.id, b.id, c.id, d.id, e.id};
   *x_out.y.repeats = {F, B, C, D, E};
   *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-  auto x_out_node = graph.FindNode("x_out_5");
+
+  ge::ascir_op::Output x_output1("x_output1");
+  x_output1.x = x_out.y;
+  x_output1.attr.sched.axis = {f.id, b.id, c.id, d.id, e.id};
+  x_output1.attr.sched.loop_axis = c.id;
+  *x_output1.y.axis = {f.id, b.id, c.id, d.id, e.id};
+  *x_output1.y.repeats = {F, B, C, D, E};
+  *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+  auto x_out_node = graph.FindNode("x_output1");
   auto compute_graph = x_out_node->GetOwnerComputeGraph();
   std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
   compute_graph->SetOutputSize(1U);

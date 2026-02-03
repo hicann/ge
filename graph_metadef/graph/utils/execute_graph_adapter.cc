@@ -168,7 +168,7 @@ graphStatus ExecuteGraphAdapter::CopyMembers(ExecuteGraph *src_graph, const Comp
       new_out_nodes_info.emplace_back(it->second, info.second);
     }
   }
-  dst_graph->SetGraphOutNodesInfo(new_out_nodes_info);
+  GE_ASSERT_SUCCESS(dst_graph->SetGraphOutNodesInfo(new_out_nodes_info));
 
   // copy info of input nodes from old graph to new graph.
   const auto &input_nodes = src_graph->graph_shared_->GetAllInputNodeInfo();

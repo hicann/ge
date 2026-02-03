@@ -424,7 +424,7 @@ TEST_F(AtcCommonSTest, pb_model_input_fp16_and_NCIHWC0) {
   unsetenv("ASCEND_WORK_PATH");
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
   CHECK_GRAPH(PreRunBegin) {
-    EXPECT_EQ(graph->GetDirectNodesSize(), 3);
+    EXPECT_EQ(graph->GetDirectNodesSize(), 4);
   };
 }
 
@@ -1545,7 +1545,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_dynamic) {
   EXPECT_EQ(ret, 0);
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
   CHECK_GRAPH(PreRunBegin) {
-    EXPECT_EQ(graph->GetDirectNodesSize(), 3);
+    EXPECT_EQ(graph->GetDirectNodesSize(), 4);
   };
 }
 
@@ -1600,7 +1600,7 @@ TEST_F(AtcCommonSTest, pb_model_input_shape_range) {
   EXPECT_EQ(ret, 0);
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
   CHECK_GRAPH(PreRunBegin) {
-    EXPECT_EQ(graph->GetDirectNodesSize(), 3);
+    EXPECT_EQ(graph->GetDirectNodesSize(), 4);
   };
 }
 

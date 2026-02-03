@@ -29,7 +29,9 @@ GraphT SharedGraph<GraphT, BuilderT>::BuildGraphWithSubGraph() {
   root_builder.AddDataEdge(relu1, 0, netoutput, 0);
 
   auto sub_builder1 = CreateBuilder("sub1");
-  (void) sub_builder1.AddNode("data1", "Data", 0, 1);
+  auto sub1_data1 = sub_builder1.AddNode("data1", "Data", 0, 1);
+  const auto &sub1_netoutput = sub_builder1.AddNode("sub1_netoutput", "NetOutput", 1, 1);
+  sub_builder1.AddDataEdge(sub1_data1, 0, sub1_netoutput, 0);
   auto sub_graph1 = sub_builder1.GetGraph();
   root_graph->AddSubGraph(sub_graph1);
   sub_graph1->SetParentNode(case0);
@@ -38,7 +40,9 @@ GraphT SharedGraph<GraphT, BuilderT>::BuildGraphWithSubGraph() {
   case0->GetOpDescBarePtr()->SetSubgraphInstanceName(0, "sub1");
 
   auto sub_builder2 = CreateBuilder("sub2");
-  (void) sub_builder2.AddNode("data2", "Data", 0, 1);
+  auto sub2_data2 = sub_builder2.AddNode("data2", "Data", 0, 1);
+  const auto &sub2_netoutput = sub_builder2.AddNode("sub2_netoutput", "NetOutput", 1, 1);
+  sub_builder2.AddDataEdge(sub2_data2, 0, sub2_netoutput, 0);
   auto sub_graph2 = sub_builder2.GetGraph();
   root_graph->AddSubGraph(sub_graph2);
   sub_graph2->SetParentNode(case0);
@@ -85,7 +89,7 @@ GraphT SharedGraph<GraphT, BuilderT>::BuildGraphWithControlEdge() {
   auto n2 = builder.AddNode("n2", "Op", 1, 1);
   auto n3 = builder.AddNode("n3", "Op", 1, 1);
   auto n4 = builder.AddNode("n4", "Op", 1, 1);
-  auto n5 = builder.AddNode("n5", "Netoutput", 3, 1);
+  auto n5 = builder.AddNode("n5", "NetOutput", 3, 1);
   builder.AddDataEdge(n1, 0, n2, 0);
   builder.AddDataEdge(n1, 0, n3, 0);
   builder.AddControlEdge(n1, n4);

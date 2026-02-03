@@ -408,9 +408,6 @@ TEST_F(UtestReadableDump, test_GenComplex) {
   graph.AddDataEdge(phony_mix_ios_node, 0, netoutput_gnode, 3);
   graph.AddDataEdge(phony_mix_ios_node, 1, netoutput_gnode, 4);
 
-  std::vector<Operator> outputs = {phony1_op, phony_multi_attr_op2, phony_mix_ios_op};
-  graph.SetOutputs(outputs);
-
   std::string readable_dump = R"(graph("graph_complex"):
   %data : [#users=1] = Node[type=Data] (attrs = {index: 0})
   %const : [#users=1] = Node[type=Const] (attrs = {value: [0.000000]})

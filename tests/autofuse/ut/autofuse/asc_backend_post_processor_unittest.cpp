@@ -185,7 +185,16 @@ namespace {
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output("x_output");
+    x_output.x = x_out.y;
+    x_output.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output.attr.sched.loop_axis = c.id;
+    x_output.y.dtype = DT_FLOAT16;
+    *x_output.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output.y.repeats = {A, B, C, D, E};
+    *x_output.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -272,8 +281,27 @@ namespace {
     *x2_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x2_out.y.repeats = {A, B, C, D, E};
     *x2_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x1_out_node = graph.FindNode("x1_out");
-    auto x2_out_node = graph.FindNode("x2_out");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x1_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT16;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x2_out.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT16;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x1_out_node = graph.FindNode("x_output1");
+    auto x2_out_node = graph.FindNode("x_output2");
     auto compute_graph = x2_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x1_out_node, 0},{x2_out_node, 1}};
     compute_graph->SetOutputSize(2U);
@@ -403,9 +431,36 @@ namespace {
     *x_store3.y.repeats = {A, B, C, D, E};
     *x_store3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node1 = graph.FindNode("x_store1");
-    auto x_out_node2 = graph.FindNode("x_store2");
-    auto x_out_node3 = graph.FindNode("x_store3");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_store1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_store2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_store3.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
+    auto x_out_node3 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}, {x_out_node2, 0}, {x_out_node3, 0}};
     compute_graph->SetOutputSize(3U);
@@ -486,6 +541,15 @@ namespace {
     *x_store1.y.axis = {b.id, c.id, a.id, d.id, e.id};
     *x_store1.y.repeats = {B, C, A, D, E};
     *x_store1.y.strides = {C * A * D * E, A * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_store1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
   
     // ge::ascir_op::Store x_store2("x_store2");
     // x_store2.x = mul1.y;
@@ -496,7 +560,7 @@ namespace {
     // *x_store2.y.repeats = {B, C, A, D, E};
     // *x_store2.y.strides = {C * A * D * E, A * D * E, D * E, E, ONE};
 
-    auto x_out_node1 = graph.FindNode("x_store1");
+    auto x_out_node1 = graph.FindNode("x_output1");
     // auto x_out_node2 = graph.FindNode("x_store2");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}};
@@ -628,9 +692,36 @@ namespace {
     *x_store3.y.repeats = {A, B, C, D, E};
     *x_store3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node1 = graph.FindNode("x_store1");
-    auto x_out_node2 = graph.FindNode("x_store2");
-    auto x_out_node3 = graph.FindNode("x_store3");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_store1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_store2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_store3.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
+    auto x_out_node3 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}, {x_out_node2, 0}, {x_out_node3, 0}};
     compute_graph->SetOutputSize(3U);
@@ -761,9 +852,36 @@ namespace {
     *x_store3.y.repeats = {A, B, C, D, E};
     *x_store3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node1 = graph.FindNode("x_store1");
-    auto x_out_node2 = graph.FindNode("x_store2");
-    auto x_out_node3 = graph.FindNode("x_store3");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_store1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_store2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_store3.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
+    auto x_out_node3 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}, {x_out_node2, 0}, {x_out_node3, 0}};
     compute_graph->SetOutputSize(3U);
@@ -1815,8 +1933,26 @@ namespace {
     *x_out1.y.repeats = {A, B, C, D, E};
     *x_out1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out1_mul");
-    auto x_out_node1 = graph.FindNode("x_out2_mul");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
@@ -1958,9 +2094,36 @@ namespace {
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out1_mul");
-    auto x_out_node1 = graph.FindNode("x_out2_mul");
-    auto x_out_node2 = graph.FindNode("x_out3_mul");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_out2.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
+    auto x_out_node2 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(3U);
@@ -2101,9 +2264,36 @@ namespace {
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out1_mul");
-    auto x_out_node1 = graph.FindNode("x_out2_mul");
-    auto x_out_node2 = graph.FindNode("x_out3_mul");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_out2.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
+    auto x_out_node2 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(3U);
@@ -2238,9 +2428,36 @@ namespace {
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out1_mul");
-    auto x_out_node1 = graph.FindNode("x_out2_mul");
-    auto x_out_node2 = graph.FindNode("x_out3_mul");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_out2.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
+    auto x_out_node2 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(3U);
@@ -2398,9 +2615,36 @@ namespace {
     *x_store3.y.repeats = {A, B, C, E, D};
     *x_store3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node1 = graph.FindNode("x_store1");
-    auto x_out_node2 = graph.FindNode("x_store2");
-    auto x_out_node3 = graph.FindNode("x_store3");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_store1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_store2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_store3.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
+    auto x_out_node3 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}, {x_out_node2, 0}, {x_out_node3, 0}};
     compute_graph->SetOutputSize(3U);
@@ -2531,9 +2775,36 @@ namespace {
     *x_store3.y.repeats = {A, B, C, D, ONE};
     *x_store3.y.strides = {B * C * D, C * D, D, ONE, ZERO};
 
-    auto x_out_node1 = graph.FindNode("x_store1");
-    auto x_out_node2 = graph.FindNode("x_store2");
-    auto x_out_node3 = graph.FindNode("x_store3");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_store1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_store2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_store3.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
+    auto x_out_node3 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}, {x_out_node2, 0}, {x_out_node3, 0}};
     compute_graph->SetOutputSize(3U);
@@ -2688,9 +2959,36 @@ namespace {
     *x_store3.y.repeats = {A, B, C, D, ONE};
     *x_store3.y.strides = {B * C * D, C * D, D, ONE, ZERO};
 
-    auto x_out_node1 = graph.FindNode("x_store1");
-    auto x_out_node2 = graph.FindNode("x_store2");
-    auto x_out_node3 = graph.FindNode("x_store3");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_store1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_store2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_store3.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
+    auto x_out_node3 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}, {x_out_node2, 0}, {x_out_node3, 0}};
     compute_graph->SetOutputSize(3U);
@@ -2975,7 +3273,17 @@ namespace {
     *x_out.y.axis = {a.id, c.id};
     *x_out.y.repeats = {A, C};
     *x_out.y.strides = {C, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, c.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT16;
+    *x_output1.y.axis = {a.id, c.id};
+    *x_output1.y.repeats = {A, C};
+    *x_output1.y.strides = {C, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -3020,7 +3328,17 @@ namespace {
     *x_out.y.axis = {a.id, c.id};
     *x_out.y.repeats = {A, C};
     *x_out.y.strides = {C, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, c.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT16;
+    *x_output1.y.axis = {a.id, c.id};
+    *x_output1.y.repeats = {A, C};
+    *x_output1.y.strides = {C, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4122,7 +4440,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4168,7 +4496,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4215,7 +4553,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4262,7 +4610,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, e.id, d.id};
     *x_out.y.repeats = {A, B, C, E, D};
     *x_out.y.strides = {B * C * E * D, C * E * D, E * D, D, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4309,7 +4667,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4356,7 +4724,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4443,8 +4821,27 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
-    auto x_out_node1 = graph.FindNode("x_out2_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
@@ -4523,8 +4920,27 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
-    auto x_out_node1 = graph.FindNode("x_out2_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
@@ -4603,8 +5019,27 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
-    auto x_out_node1 = graph.FindNode("x_out2_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
@@ -4683,8 +5118,27 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
-    auto x_out_node1 = graph.FindNode("x_out2_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
@@ -4763,8 +5217,26 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
-    auto x_out_node1 = graph.FindNode("x_out2_5");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
@@ -4818,7 +5290,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node1 = graph.FindNode("x_out2_5");
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}};
     compute_graph->SetOutputSize(1U);
@@ -4883,8 +5365,26 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.repeats = {A, B, C, D, ONE}; // slice切分场景会在store改变repeats
     *x_out2.y.strides = {B * C * D, C * D, D, ONE, ONE};
 
-    auto x_out_node1 = graph.FindNode("x_out1_5");
-    auto x_out_node2 = graph.FindNode("x_out2_5");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out1.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out2.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node1 = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node1->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node1, 0}, {x_out_node2, 0}};
     compute_graph->SetOutputSize(2U);
@@ -4974,7 +5474,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -6184,7 +6694,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -6282,7 +6802,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -6380,7 +6910,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -6478,7 +7018,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -6576,7 +7126,17 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -6684,8 +7244,26 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out1.y.repeats = {A, B, C, D, E};
     *x_out1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out_5");
-    auto x_out_node2 = graph.FindNode("x_out_6");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node2 = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node2, 0}, {x_out_node, 1}};
     compute_graph->SetOutputSize(2U);
@@ -6783,7 +7361,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -6908,7 +7495,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7014,7 +7610,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE}; // 刻意内轴设置为1，构造无效轴不删除场景叠加broadcast后移内轴刷新正确
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7140,9 +7745,36 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out1_mul");
-    auto x_out_node1 = graph.FindNode("x_out2_mul");
-    auto x_out_node2 = graph.FindNode("x_out3_mul");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_out2.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
+    auto x_out_node2 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(3U);
@@ -7267,9 +7899,36 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out2.y.repeats = {A, B, C, D, E};
     *x_out2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out1_mul");
-    auto x_out_node1 = graph.FindNode("x_out2_mul");
-    auto x_out_node2 = graph.FindNode("x_out3_mul");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output3("x_output3");
+    x_output3.x = x_out2.y;
+    x_output3.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output3.attr.sched.loop_axis = c.id;
+    x_output3.y.dtype = DT_FLOAT;
+    *x_output3.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output3.y.repeats = {A, B, C, D, E};
+    *x_output3.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    auto x_out_node = graph.FindNode("x_output1");
+    auto x_out_node1 = graph.FindNode("x_output2");
+    auto x_out_node2 = graph.FindNode("x_output3");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(3U);
@@ -7351,7 +8010,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7426,7 +8094,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7484,7 +8161,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7523,7 +8209,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7589,7 +8284,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7655,7 +8359,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7730,8 +8443,26 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node0 = graph.FindNode("x_out_4");
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out0.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node0 = graph.FindNode("x_output1");
+    auto x_out_node = graph.FindNode("x_output2");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node0, 0}, {x_out_node, 0}};
     compute_graph->SetOutputSize(2U);
@@ -7805,7 +8536,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7948,7 +8688,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -7995,7 +8744,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -8069,7 +8827,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -8181,7 +8948,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -8284,7 +9060,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -8387,7 +9172,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -8491,7 +9285,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -8611,7 +9414,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -8966,7 +9778,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -9077,7 +9898,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -9169,9 +9999,26 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out1.y.repeats = {A, B, C, D, E};
     *x_out1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out_5");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
-    auto x_out_node1 = graph.FindNode("x_out_6");
+    auto x_out_node1 = graph.FindNode("x_output2");
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
     compute_graph->SetGraphOutNodesInfo(output_nodes);
@@ -9278,9 +10125,26 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out1.y.repeats = {A, B, C, D, E};
     *x_out1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
 
-    auto x_out_node = graph.FindNode("x_out_5");
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+
+    ge::ascir_op::Output x_output2("x_output2");
+    x_output2.x = x_out1.y;
+    x_output2.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output2.attr.sched.loop_axis = c.id;
+    x_output2.y.dtype = DT_FLOAT;
+    *x_output2.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output2.y.repeats = {A, B, C, D, E};
+    *x_output2.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
-    auto x_out_node1 = graph.FindNode("x_out_6");
+    auto x_out_node1 = graph.FindNode("x_output2");
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}, {x_out_node1, 0}};
     compute_graph->SetOutputSize(2U);
     compute_graph->SetGraphOutNodesInfo(output_nodes);
@@ -9397,7 +10261,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -9515,7 +10388,16 @@ std::shared_ptr<AscGraph> ThreeScalarTwoSameValueDtypeAscGraph(ge::AscGraph &gra
     *x_out.y.axis = {a.id, b.id, c.id, d.id, e.id};
     *x_out.y.repeats = {A, B, C, D, E};
     *x_out.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
-    auto x_out_node = graph.FindNode("x_out_5");
+
+    ge::ascir_op::Output x_output1("x_output1");
+    x_output1.x = x_out.y;
+    x_output1.attr.sched.axis = {a.id, b.id, c.id, d.id, e.id};
+    x_output1.attr.sched.loop_axis = c.id;
+    x_output1.y.dtype = DT_FLOAT;
+    *x_output1.y.axis = {a.id, b.id, c.id, d.id, e.id};
+    *x_output1.y.repeats = {A, B, C, D, E};
+    *x_output1.y.strides = {B * C * D * E, C * D * E, D * E, E, ONE};
+    auto x_out_node = graph.FindNode("x_output1");
     auto compute_graph = x_out_node->GetOwnerComputeGraph();
     std::vector<std::pair<NodePtr, int32_t>> output_nodes{{x_out_node, 0}};
     compute_graph->SetOutputSize(1U);
@@ -14483,7 +15365,7 @@ TEST_F(AscBackendPostProcessorTest, IncreasePrecision_HasCastAndStoreFp32) {
     if (node->GetType() == "Cast") {
       cast_cnt++;
     }
-    if (node->GetType() != "Data" && node->GetType() != "Load" && node->GetType() != "Store"){
+    if (node->GetType() != "Data" && node->GetType() != "Load" && node->GetType() != "Store" && node->GetType() != "Output"){
       ASSERT_EQ(attr->dtype, DT_FLOAT);
     }
     ASSERT_NE(node->GetName(), "add_Cast");
@@ -14555,7 +15437,7 @@ TEST_F(AscBackendPostProcessorTest, IncreasePrecision_Int8ToFloat16) {
         EXPECT_EQ(dtype, DT_UINT8);
       }
       cast_cnt++;
-    } else if (node->GetType() != "Data" && node->GetType() != "Load" && node->GetType() != "Store") {
+    } else if (node->GetType() != "Data" && node->GetType() != "Load" && node->GetType() != "Store" && node->GetType() != "Output") {
       EXPECT_EQ(dtype, DT_FLOAT);
     }
     printf("AscAdapterTest_Ok To find node to change precision, current node(%s), type:%s, speats %s, dtype:%s in graph %s.\n",
@@ -14662,7 +15544,7 @@ TEST_F(AscBackendPostProcessorTest, IncreasePrecision_HasCastAndStoreFp16) {
         ASSERT_EQ(dtype, DT_FLOAT16);
       }
       cast_cnt++;
-    } else if (node->GetType() != "Data" && node->GetType() != "Load" && node->GetType() != "Store") {
+    } else if (node->GetType() != "Data" && node->GetType() != "Load" && node->GetType() != "Store" && node->GetType() != "Output") {
       ASSERT_EQ(dtype, DT_FLOAT);
     }
     ASSERT_NE(node->GetName(), "add_Cast");

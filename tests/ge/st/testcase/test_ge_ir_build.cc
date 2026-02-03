@@ -2005,6 +2005,10 @@ void BuildAndCheckSimpleConstCastGraph(bool use_const, DataType dtype) {
   };
   auto graph = ToGeGraph(g1);
 
+  std::vector<Operator> output_nodes;
+  EXPECT_EQ(graph.FindOpByType(NETOUTPUT, output_nodes), SUCCESS);
+  EXPECT_EQ(output_nodes.size(), 0U);
+
   std::map<AscendString, AscendString> options = {
     { OO_CONSTANT_FOLDING, "false" },
   };
@@ -2022,6 +2026,9 @@ void BuildAndCheckSimpleConstCastGraph(bool use_const, DataType dtype) {
     EXPECT_NE(node_1, nullptr);
     EXPECT_EQ(node_0->GetOpDesc()->GetOutputDesc(0).GetDataType(), dtype);
     EXPECT_EQ(node_1->GetOpDesc()->GetInputDesc(0).GetDataType(), dtype);
+
+    auto netoutput = graph->FindFirstNodeMatchType(NETOUTPUT);
+    EXPECT_NE(netoutput, nullptr);
   };
 }
 
