@@ -2138,6 +2138,8 @@ bool TeJsonAssemble::GenerateOptionsMap(
     options.emplace("need_precompile", firstTbeOpInfo->IsNeedPreCompile() ? "true" : "false");
     options.emplace("deterministic", TeContextUtils::GetDeterministic());
     options.emplace("device_id", TeConfigInfo::Instance().GetDeviceId());
+    options.emplace("deterministic_level", TeContextUtils::GetDeterministicLevel());
+    TE_INFOLOG("Get deterministic_level as %s", TeContextUtils::GetDeterministicLevel().c_str());
 
     if (tbeOpInfoVec.size() == 1) {
         if (firstTbeOpInfo->GetNode() != nullptr) {

@@ -573,6 +573,10 @@ void ParseExtraInfo(const nlohmann::json &extra_info, ge::OpDescPtr &op_desc) {
     const int32_t deterministic = extra_info["deterministic"];
     (void)ge::AttrUtils::SetInt(op_desc, "deterministic", deterministic);
   }
+  if (extra_info.contains("deterministic_level")) {
+    const int32_t deterministic_level = extra_info["deterministic_level"];
+    (void)ge::AttrUtils::SetInt(op_desc, "deterministic_level", deterministic_level);
+  }
   if (extra_info.contains(ge::public_attr::OP_AI_CORE_NUM)) {
     const std::string op_aicore_num = extra_info[ge::public_attr::OP_AI_CORE_NUM];
     GELOGI("Set op_aicore_num from extra info: %s", op_aicore_num.c_str());
@@ -1529,21 +1533,8 @@ gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert
   GELOGI("Get deterministic: %d from node: %s", deterministic, context_com.op_desc->GetName().c_str());
   tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicOffset] =
       reinterpret_cast<void *>(deterministic);
-  std::string deterministic_level_str;
-  (void)ge::GetThreadLocalContext().GetOption("ge.deterministicLevel", deterministic_level_str);
-  deterministic_level_str = deterministic_level_str.empty() ? "0" : deterministic_level_str;
   int32_t deterministic_level = 0;
-  try {
-    deterministic_level = std::stoi(deterministic_level_str);
-  } catch (const std::exception &) {
-    GELOGE(ge::FAILED, "[Parse][Param]Invalid DETERMINISTIC_LEVEL: %s, must be an integer.",
-           deterministic_level_str.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Invalid DETERMINISTIC_LEVEL: %s, must be an integer.",
-                         deterministic_level_str.c_str());
-    return gert::KernelContextHolder();
-  }
-  GE_ASSERT_TRUE((deterministic_level >= 0 && deterministic_level <= 2),
-                 "Valid values for DETERMINISTIC_LEVEL are {0,1,2}");
+ 	(void)ge::AttrUtils::GetInt(context_com.op_desc, "deterministic_level", deterministic_level);
   GELOGI("Get deterministic level: %d from node: %s", deterministic_level, context_com.op_desc->GetName().c_str());
   tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicLevelOffset] =
       reinterpret_cast<void *>(deterministic_level);
