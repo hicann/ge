@@ -12,10 +12,8 @@
 #define OPTIMIZE_PLATFORM_V2_PASS_RUNNER_V2_H
 
 #include "optimize/platform/common/pass_runner.h"
-#include "optimize/graph_pass/store_load_cancellation.h"
 #include "optimize/graph_pass/broadcast_const_to_store.h"
 #include "optimize/graph_pass/scalar_to_1d_tensor.h"
-#include "optimize/graph_pass/set_axis_info_for_scalar.h"
 #include "optimize/graph_pass/scalar_broadcast_optimization.h"
 #include "optimize/graph_pass/expand_dims_for_all_reduce.h"
 #include "optimize/graph_pass/pow_equiv_substitution_pass.h"
@@ -28,10 +26,8 @@ class PassRunnerV2 final : public BasePassRunner {
  public:
   explicit PassRunnerV2() : BasePassRunner() {
     this->RegisterPass<PowEquivSubstitutionPass>();
-    this->RegisterPass<StoreLoadCancellationPass>();
     this->RegisterPass<BroadcastConstToStorePass>();
     this->RegisterPass<ScalarTo1DTensorPass>();
-    this->RegisterPass<SetAxisInfoForScalarPass>();
     this->RegisterPass<ScalarBroadcastOptimizationPass>();
     this->RegisterPass<ExpandDimsForAllReducePass>();
     this->RegisterPass<ContinuesBroadcastOptimizationPass>();

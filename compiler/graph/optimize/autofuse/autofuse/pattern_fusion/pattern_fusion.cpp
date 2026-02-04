@@ -36,15 +36,15 @@ graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph, con
   while (changed && iter < kMaxIterations) {
     changed = false;
     iter++;
-    GE_ASSERT_GRAPH_SUCCESS(PadSliceOptimizePass().Run(graph));
+    GE_ASSERT_GRAPH_SUCCESS(PadSliceOptimizePass().Run(graph, changed));
     GE_ASSERT_GRAPH_SUCCESS(RedundantSliceRemovePass().Run(graph, changed));
     GE_ASSERT_GRAPH_SUCCESS(CascadeReshapeRemovePass().Run(graph, changed));
     GE_ASSERT_GRAPH_SUCCESS(TransposeWithBroadcastEliminatePass().Run(graph, changed));
     GE_ASSERT_GRAPH_SUCCESS(CastRemovePass().Run(graph, changed));
+    GE_ASSERT_GRAPH_SUCCESS(ConcatSliceSimplificationPass().Run(graph, graph_passes, changed));
   }
   GE_ASSERT_GRAPH_SUCCESS(graph->TopologicalSorting());
   // ============ 融合类pass，先统一只调用一次 ============
-  GE_ASSERT_GRAPH_SUCCESS(ConcatSliceSimplificationPass().Run(graph, graph_passes));
   GE_ASSERT_GRAPH_SUCCESS(SliceForwardFusionPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(FlattenConcatPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(FlattenSplitPass().Run(graph));

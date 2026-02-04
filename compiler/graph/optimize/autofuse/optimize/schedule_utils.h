@@ -328,6 +328,7 @@ class ScheduleUtils {
   static bool HasSameInput(const ge::AscNodePtr &node);
   static bool IsLastAxisReduce(const ascir::ImplGraph &impl_graph);
   static bool IsScalarBroadcastNode(const ascir::NodeView &node);
+  static bool IsScalarBrc(const ge::AscNodePtr &node);
   static Status SwapInputIndex(const ascir::NodeView &node, const int32_t idx1, const int32_t idx2);
   static Status GetInputForTranspose(ge::AscNode &node, std::vector<ascir::AxisId> &input_axis);
   template<typename T>

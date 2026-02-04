@@ -116,7 +116,8 @@ TEST_F(ConcatSliceSimplificationPassTest, OptimizeSuccessAndPrune) {
     const_folding_invoked = true;
     return 0;
   };
-  EXPECT_EQ(ConcatSliceSimplificationPass().Run(graph, graph_passes), SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(ConcatSliceSimplificationPass().Run(graph, graph_passes, changed), SUCCESS);
   auto data_1_node = graph->FindNode("data_1");
   ASSERT_TRUE(data_1_node != nullptr);
   EXPECT_EQ(data_1_node->GetOutDataNodes().size(), 2);
@@ -170,7 +171,8 @@ TEST_F(ConcatSliceSimplificationPassTest, OptimizeSuccessAndFold) {
     const_folding_invoked = true;
     return 0;
   };
-  EXPECT_EQ(ConcatSliceSimplificationPass().Run(graph, graph_passes), SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(ConcatSliceSimplificationPass().Run(graph, graph_passes, changed), SUCCESS);
   auto src_node = graph->FindFirstNodeMatchType("Const");
   ASSERT_TRUE(src_node != nullptr);
   EXPECT_EQ(src_node->GetOutDataNodes().size(), 2);

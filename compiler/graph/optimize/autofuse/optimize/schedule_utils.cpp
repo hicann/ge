@@ -692,6 +692,7 @@ bool ScheduleUtils::HasComputeType(const ascir::ImplGraph &impl_graph, const ge:
   return false;
 }
 
+// 该接口校验了brc单输出，并非针对sclar直连brc的通用接口
 bool ScheduleUtils::IsScalarBroadcastNode(const ascir::NodeView &node) {
   GELOGD("%s[%s] output_size=%u, input_size=%u", node->GetTypePtr(), node->GetNamePtr(), node->GetOutDataNodesSize(),
          node->GetInDataNodesSize());
@@ -703,6 +704,16 @@ bool ScheduleUtils::IsScalarBroadcastNode(const ascir::NodeView &node) {
     return false;
   }
   return ascgen_utils::IsScalarInput(node->inputs[0].attr.repeats);
+}
+
+bool ScheduleUtils::IsScalarBrc(const ge::AscNodePtr &node) {
+  if (!IsBroadcast(node)) {
+    return false;
+  }
+  const auto &repeats = node->inputs[0].attr.repeats;
+  return std::all_of(repeats.begin(), repeats.end(), [](const ge::Expression &repeat) {
+    return ascgen_utils::ExpressEq(repeat, ge::sym::kSymbolOne);
+  });
 }
 
 bool ScheduleUtils::HasSameInput(const ge::AscNodePtr &node) {

@@ -1449,78 +1449,6 @@ TEST_F(TestOptimizer, only_concat_graph_tail_dim1_scene) {
   kernel_func << result.kernel;
 }
 
-TEST_F(TestOptimizer, StoreLoadCancellation) {
-  ge::AscGraph graph("store_load");
-
-  auto s0 = graph.CreateSizeVar(128);
-  auto z0 = graph.CreateAxis("z0", s0);
-
-  Data data("data", graph);
-  data.y.dtype = ge::DT_FLOAT;
-
-  Load load("load");
-  load.attr.sched.axis = {z0.id};
-  load.x = data.y;
-  *load.y.axis = {z0.id};
-  load.y.dtype = ge::DT_FLOAT;
-  *load.y.strides = {ge::ops::One};
-  *load.y.repeats = {s0};
-
-  Sum sum("sum");
-  sum.attr.sched.axis = {z0.id};
-  sum.x = load.y;
-  *sum.y.axis = {z0.id};
-  sum.y.dtype = ge::DT_FLOAT;
-  *sum.y.strides = {ge::ops::Zero};
-  *sum.y.repeats = {ge::ops::One};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id};
-  store_op.x = sum.y;
-  *store_op.y.axis = {z0.id};
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.axis = {z0.id};
-  *store_op.y.strides = {ge::ops::Zero};
-  *store_op.y.repeats = {ge::ops::One};
-
-  Load load1("load1");
-  load1.attr.sched.axis = {z0.id};
-  load1.x = store_op.y;
-  *load1.y.axis = {z0.id};
-  load1.y.dtype = ge::DT_FLOAT;
-  *load1.y.strides = {ge::ops::One};
-  *load1.y.repeats = {s0};
-
-  Sum sum1("sum1");
-  sum1.attr.sched.axis = {z0.id};
-  sum1.x = load1.y;
-  *sum1.y.axis = {z0.id};
-  sum1.y.dtype = ge::DT_FLOAT;
-  *sum1.y.strides = {ge::ops::Zero};
-  *sum1.y.repeats = {ge::ops::One};
-
-  Store store_op1("store1");
-  store_op1.attr.sched.axis = {z0.id};
-  store_op1.x = sum1.y;
-  *store_op1.y.axis = {z0.id};
-  store_op1.y.dtype = ge::DT_FLOAT;
-  *store_op1.y.axis = {z0.id};
-  *store_op1.y.strides = {ge::ops::Zero};
-  *store_op1.y.repeats = {ge::ops::One};
-
-  Output output_op("output");
-  output_op.x = store_op1.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-
-  int res = optimizer.GraphPass(graph);
-  EXPECT_EQ(res, 0);
-
-  auto store_node = graph.FindNode("store");
-  EXPECT_EQ(store_node, nullptr);
-  auto load1_node = graph.FindNode("load1");
-  EXPECT_EQ(load1_node, nullptr);
-}
-
 /**
  *         NetOutput
  *            |
@@ -1703,51 +1631,6 @@ static void CreateMidPackAscGraph(ge::AscGraph &graph) {
   y.x = store.y;
   y.y.dtype = ge::DT_FLOAT16;
   y.ir_attr.SetIndex(0);
-}
-
-TEST_F(TestOptimizer, scalar_to_brc) {
-  ge::AscGraph graph("LoadAbsStore");
-  auto s0 = graph.CreateSizeVar("s0");
-  auto s1 = graph.CreateSizeVar("s1");
-
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z2", s1);
-
-  ge::ascir_op::Scalar scalar("scalar", graph);
-  scalar.attr.sched.axis = {z0.id, z1.id};
-  scalar.y.dtype = ge::DT_FLOAT16;
-
-  ge::ascir_op::Broadcast brc("brc");
-  brc.x = scalar.y;
-  brc.attr.sched.axis = {z0.id, z1.id};
-  brc.y.dtype = ge::DT_FLOAT16;
-  *brc.y.axis = {z0.id, z1.id};
-  *brc.y.repeats = {s0, One};
-  *brc.y.strides = {One, Zero};
-
-  ge::ascir_op::Store store("store");
-  store.x = brc.y;
-  store.attr.sched.axis = {z0.id, z1.id};
-  store.y.dtype = ge::DT_FLOAT16;
-  *store.y.axis = {z0.id, z1.id};
-  *store.y.repeats = {s0, s1};
-  *store.y.strides = {s1, One};
-
-  ge::ascir_op::Output y("y");
-  y.x = store.y;
-  y.attr.sched.axis = {z0.id, z1.id};
-  y.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  y.y.dtype = ge::DT_FLOAT16;
-  y.ir_attr.SetIndex(0);
-
-  Status res = optimizer.GraphPass(graph);
-  EXPECT_EQ(res, ge::SUCCESS);
-
-  auto scalar_node = graph.FindNode("scalar");
-  ASSERT_NE(nullptr, scalar_node);
-  std::vector<ge::Expression> golden_repeats = {ge::sym::kSymbolOne, ge::sym::kSymbolOne};
-  EXPECT_EQ(scalar_node->outputs[0].attr.repeats, golden_repeats);
-  EXPECT_EQ(scalar_node->outputs[0].attr.strides, golden_repeats);
 }
 
 TEST_F(TestOptimizer, OptimizeWithFusedTailPack) {

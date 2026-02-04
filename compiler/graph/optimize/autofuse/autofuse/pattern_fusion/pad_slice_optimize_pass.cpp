@@ -201,7 +201,7 @@ graphStatus RefreshOffsetsValue(const NodePtr &slice_node, std::vector<int64_t> 
 }
 }
 
-graphStatus PadSliceOptimizePass::Run(const ComputeGraphPtr &graph) {
+graphStatus PadSliceOptimizePass::Run(const ComputeGraphPtr &graph, bool &changed) {
   GE_CHECK_NOTNULL(graph);
   GELOGD("PadAndSliceOptimizePass::main func begin.");
 
@@ -233,6 +233,7 @@ graphStatus PadSliceOptimizePass::Run(const ComputeGraphPtr &graph) {
       if (IsAllEqual(all_results, kNeedRemovePadPattern)) {
         GELOGI("Condition one is satisfied, pad node will be removed.");
         GE_ASSERT_SUCCESS(PostProcess(graph, node));
+        changed = true;
       }
     }
   }

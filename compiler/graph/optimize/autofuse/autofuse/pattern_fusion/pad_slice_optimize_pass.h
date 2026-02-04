@@ -19,7 +19,7 @@
 namespace ge {
 class PadSliceOptimizePass {
  public:
-  graphStatus Run(const ComputeGraphPtr &graph);
+  graphStatus Run(const ComputeGraphPtr &graph, bool &changed);
   graphStatus PostProcess(const ComputeGraphPtr &graph, const NodePtr &node) const;
 };
 }

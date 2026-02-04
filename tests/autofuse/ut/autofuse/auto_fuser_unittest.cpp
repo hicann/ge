@@ -374,7 +374,8 @@ TEST_F(AutofuserTest, PadSlicePattern1) {
   slice_desc1->SetOriginDataType(DT_INT64);
 
   PadSliceOptimizePass padSliceOptimizePass;
-  EXPECT_EQ(padSliceOptimizePass.Run(cg), ge::GRAPH_SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(padSliceOptimizePass.Run(cg, changed), ge::GRAPH_SUCCESS);
 }
 
 TEST_F(AutofuserTest, PadSliceNotPattern) {
@@ -406,7 +407,8 @@ TEST_F(AutofuserTest, PadSliceNotPattern) {
   pad_input_desc->SetShape(GeShape(std::vector<int64_t>{100, 50, 20}));
 
   PadSliceOptimizePass padSliceOptimizePass;
-  EXPECT_EQ(padSliceOptimizePass.Run(cg), ge::GRAPH_SUCCESS);
+  bool changed = false;
+  EXPECT_EQ(padSliceOptimizePass.Run(cg, changed), ge::GRAPH_SUCCESS);
 }
 
 TEST_F(AutofuserTest, PadSlicePatternPostProcess) {

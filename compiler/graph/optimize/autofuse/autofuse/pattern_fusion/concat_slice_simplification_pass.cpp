@@ -47,7 +47,7 @@ bool HasAnyControlEdges(const NodePtr &node) {
 }
 }  // namespace
 
-graphStatus ConcatSliceSimplificationPass::Run(const ComputeGraphPtr &graph, const GraphPasses &graph_passes) {
+graphStatus ConcatSliceSimplificationPass::Run(const ComputeGraphPtr &graph, const GraphPasses &graph_passes, bool &changed) {
   for (const auto &node : graph->GetAllNodes()) {
     if (IsSlice(node) && IsFromConcat(node)) {
       (void)HandleSlice(node);
@@ -58,11 +58,13 @@ graphStatus ConcatSliceSimplificationPass::Run(const ComputeGraphPtr &graph, con
   if (need_prune_  && (graph_passes.prune_graph_func != nullptr)) {
       (void)graph_passes.prune_graph_func(graph);
       GE_ASSERT_GRAPH_SUCCESS(graph->TopologicalSorting());
+      changed = true;
   }
   if (need_constant_folding_ && (graph_passes.constant_folding_func != nullptr)) {
     for (auto &node : graph->GetAllNodes()) {
       GE_ASSERT_GRAPH_SUCCESS(graph_passes.constant_folding_func(node));
     }
+    changed = true;
   }
   return GRAPH_SUCCESS;
 }

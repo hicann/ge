@@ -238,7 +238,7 @@ Status TopoSortByCubePriority(ge::AscGraph &graph) {
 bool HasBroadCastNode(const ascir::ImplGraph &impl_graph) {
   for (const auto &node : impl_graph.GetAllNodes()) {
     if (node->attr.api.compute_type == ge::ComputeType::kComputeBroadcast &&
-        !ScheduleUtils::IsScalarBroadcastNode(node)) {
+        !ScheduleUtils::IsScalarBrc(node)) {
       return true;
     }
   }
