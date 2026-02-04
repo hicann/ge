@@ -15,6 +15,11 @@
 using namespace ascgen_utils;
 
 namespace att {
+namespace {
+// AxesReorderSolverGen 默认阈值
+constexpr double kDefaultSolverUbThreshold = 0.2;
+constexpr double kDefaultSolverCoreNumThreshold = 0.4;
+}  // namespace
 ExprUintMap AxesReorderSolverGen::priority_map_;
 
 bool CheckExist(const std::vector<Expr> &args, const Expr &check_arg) {
@@ -960,20 +965,28 @@ std::string AxesReorderSolverGen::GenInput(const TradeOffConfig &trade_off_confi
   strs += "    input.sub_case_id = " + sub_case_str + ";\n";
   std::string ub_threshold_str;
   std::string core_num_threshold_str;
-  // 用户通过环境变量配置使能
-  GELOGD(
-      "GenInput got enable_multicore_ub_tradeoff=%d, config.default_enable=%d， ub_threshold=%lf, "
-      "core_num_threshold=%lf.",
-      enable_multicore_ub_tradeoff_, trade_off_config.default_enable, ub_threshold_, corenum_threshold_);
-  if (!enable_multicore_ub_tradeoff_ && trade_off_config.default_enable) {
-    // 不同原型配置可能不同
-    ub_threshold_str = std::to_string(trade_off_config.ub_ratio);
-    core_num_threshold_str = std::to_string(trade_off_config.core_num_ratio);
+
+  // 三种场景（优先级从高到低）：
+  // 1. 用户配置使能（enable_multicore_ub_tradeoff_ == true）
+  // 2. ModelInfo 惩罚配置（trade_off_config.is_enable == true 且来自惩罚）
+  // 3. 默认配置
+  GELOGI("[DFX] GenInput: enable_multicore_ub_tradeoff=%d, trade_off_config.is_enable=%d, ub_threshold=%lf, "
+         "corenum_threshold=%lf",
+         enable_multicore_ub_tradeoff_, trade_off_config.is_enable, ub_threshold_, corenum_threshold_);
+  if (enable_multicore_ub_tradeoff_) {
+    // 场景1: 用户配置使能（最高优先级）
+    ub_threshold_str = std::to_string(kDefaultSolverUbThreshold);
+    core_num_threshold_str = std::to_string(kDefaultSolverCoreNumThreshold);
+  } else if (trade_off_config.is_enable) {
+    // 场景2: ModelInfo 级别的 TilingScheduleConfig（惩罚配置）
+    ub_threshold_str = Str(trade_off_config.ub_ratio);
+    core_num_threshold_str = Str(trade_off_config.core_num_ratio);
   } else {
-    // 存在2种场景：1) 用户未使能，默认配置 2) 用户使能，用用户配置
-    ub_threshold_str = std::to_string(ub_threshold_);
-    core_num_threshold_str = std::to_string(corenum_threshold_);
+    // 场景3: 默认配置
+    ub_threshold_str = std::to_string(kDefaultSolverUbThreshold);
+    core_num_threshold_str = std::to_string(kDefaultSolverCoreNumThreshold);
   }
+
   strs += "    input.ub_threshold = " + ub_threshold_str + ";\n";
   strs += "    input.corenum_threshold = " + core_num_threshold_str + ";\n";
 
@@ -1125,7 +1138,7 @@ std::string AxesReorderSolverGen::IsEnableBlockLoopTradeOffByPerf() const {
   std::string res = "true";
   if (tiling_schedule_config_table_ != nullptr) {
     bool enable_trade_off =
-        (tiling_schedule_config_table_->GetTradeOffConfig().default_enable) || (enable_multicore_ub_tradeoff_);
+        (tiling_schedule_config_.trade_off_config.is_enable) || (enable_multicore_ub_tradeoff_);
     // 开启trade off后需要禁用自动核内循环调节
     if (enable_trade_off || !tiling_schedule_config_table_->IsEnableBlockLoopAutoTune()) {
       res = "false";
@@ -1158,17 +1171,16 @@ std::string AxesReorderSolverGen::GenSolverFuncImpl() {
   codes += "  bool ExecuteAxesReorderSolver(" + type_name_ + "& tiling_data) {\n";
   codes += InitiateArgs();
   codes += GenInputInfo(all_cons, local_buffer_cons, mc_mixed_cons);
-  auto trade_off_config = ((tiling_schedule_config_table_ != nullptr) && !enable_group_parallel_)
-                           ? tiling_schedule_config_table_->GetTradeOffConfig() : TradeOffConfig();
-  codes += GenInput(trade_off_config, all_cons);
+  // 直接使用 ModelInfo 中的 TilingScheduleConfig
+  codes += GenInput(tiling_schedule_config_.trade_off_config, all_cons);
   codes += "    " + class_name + " solver(input);\n";
   // 仅当使能高性能tiling模式并且未使能分组并行时才使能高性能tiling模式(分组并行会影响性能估值)
   const ge::char_t *high_perf_val = (enable_high_perf_ && (!enable_group_parallel_)) ? "true" : "false";
   bool hit_pattern = NeedUBMultiCoreBalance();
   const auto enable_block_loop_trade_off_by_perf = IsEnableBlockLoopTradeOffByPerf();
   const std::string enable_multicore_ub_tradeoff =
-      ((enable_multicore_ub_tradeoff_ || trade_off_config.default_enable || model_enable_multicore_ub_tradeoff_) &&
-       hit_pattern) ? "true" : "false";
+      ((enable_multicore_ub_tradeoff_ || tiling_schedule_config_.trade_off_config.is_enable) && hit_pattern) ? "true"
+                                                                                                             : "false";
   // 根据enable_equal_order_生成不同的Run调用参数
   std::string enable_equal_order_arg = enable_equal_order_ ? ", true" : ", false";
   // 是否开启性能公式权衡核内循环数，vec重型算子/使能多核权衡时不使能该功能
@@ -1180,11 +1192,11 @@ std::string AxesReorderSolverGen::GenSolverFuncImpl() {
   std::string run_args = enable_multicore_ub_tradeoff + ", " + enable_block_loop_trade_off_by_perf + ", " +
                          high_perf_val + enable_equal_order_arg;
   codes += "    if (!solver.Run(" + run_args + ")) {\n";
-  GELOGD(
-      "Gen solver func, high_perf_val: %s, hit_pattern: %d, high_perf_: %d, multicore_ub_tradeoff:%d, "
-      "trade_off_config:%s, parallel enable flag:%d, enable_block_loop_trade_off_by_perf:%s, enable_equal_order_:%d",
+  GELOGI(
+      "[DFX] Gen solver func, high_perf_val: %s, hit_pattern: %d, high_perf_: %d, multicore_ub_tradeoff:%d, "
+      "tiling_schedule_config.trade_off_config:%s, parallel enable flag:%d, enable_block_loop_trade_off_by_perf:%s, enable_equal_order_:%d",
       high_perf_val, hit_pattern, enable_high_perf_, enable_multicore_ub_tradeoff_,
-      trade_off_config.DebugString().c_str(), enable_group_parallel_, enable_block_loop_trade_off_by_perf.c_str(),
+      tiling_schedule_config_.trade_off_config.DebugString().c_str(), enable_group_parallel_, enable_block_loop_trade_off_by_perf.c_str(),
       enable_equal_order_);
   // 使能高性能tiling模式并且命中ub多核可调优patterns
   codes += "      return false;\n";

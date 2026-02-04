@@ -143,7 +143,6 @@ TEST_F(TestAscendGraphParser, test_gather_graph_parse)
 
 TEST_F(TestAscendGraphParser, test_reduce_graph_parse)
 {
-  dlog_setlevel(GE, 0, 1);
   ge::AscGraph graph1("reduce_graph");
   ASSERT_EQ(ge::ascir::cg::BuildReduceAscendGraphND(graph1), ge::SUCCESS);
   att::TuningSpacePtr tuning_space = std::make_shared<att::TuningSpace>();
@@ -467,7 +466,7 @@ TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_1_dim)
   att::GenerateTilingExpr tiling_expr(tuning_space);
   ModelInfo model_info;
   tiling_expr.UpdateNeedUBMCTradeoff(model_info);
-  EXPECT_EQ(model_info.enable_ub_mc_tradeoff, false);
+  EXPECT_EQ(model_info.tiling_schedule_config.trade_off_config.is_enable, false);
 }
 
 TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff)
@@ -487,7 +486,7 @@ TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff)
   att::GenerateTilingExpr tiling_expr(tuning_space);
   ModelInfo model_info;
   tiling_expr.UpdateNeedUBMCTradeoff(model_info);
-  EXPECT_EQ(model_info.enable_ub_mc_tradeoff, true);
+  EXPECT_EQ(model_info.tiling_schedule_config.trade_off_config.is_enable, true);
 }
 
 TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_inputs)
@@ -507,7 +506,7 @@ TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_inputs)
   att::GenerateTilingExpr tiling_expr(tuning_space);
   ModelInfo model_info;
   tiling_expr.UpdateNeedUBMCTradeoff(model_info);
-  EXPECT_EQ(model_info.enable_ub_mc_tradeoff, true);
+  EXPECT_EQ(model_info.tiling_schedule_config.trade_off_config.is_enable, true);
 }
 
 TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_non_gm)
@@ -527,7 +526,7 @@ TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_non_gm)
   att::GenerateTilingExpr tiling_expr(tuning_space);
   ModelInfo model_info;
   tiling_expr.UpdateNeedUBMCTradeoff(model_info);
-  EXPECT_EQ(model_info.enable_ub_mc_tradeoff, false);
+  EXPECT_EQ(model_info.tiling_schedule_config.trade_off_config.is_enable, false);
 }
 
 TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_symbol_zero)
@@ -547,6 +546,6 @@ TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_symbol_zero)
   att::GenerateTilingExpr tiling_expr(tuning_space);
   ModelInfo model_info;
   tiling_expr.UpdateNeedUBMCTradeoff(model_info);
-  EXPECT_EQ(model_info.enable_ub_mc_tradeoff, false);
+  EXPECT_EQ(model_info.tiling_schedule_config.trade_off_config.is_enable, false);
 }
 }

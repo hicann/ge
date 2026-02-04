@@ -66,6 +66,10 @@ struct AttAxis {
   SymInfoPtr size;  // 用于表达轴的size
   std::vector<AttAxis *> orig_axis;  // 原始轴的信息
   std::vector<AttAxis *> from_axis;  // 父轴的信息
+
+  // 分核轴类型标记（用于Store冲突检测）
+  bool is_reduce_split_axis{false};    // 该轴是否是Reduce分核轴
+  bool is_broadcast_split_axis{false}; // 该轴是否是Broadcast分核轴
 };
 
 using AttAxisPtr = std::shared_ptr<AttAxis>;
@@ -151,12 +155,32 @@ enum class TilingScheduleConfigPriority : int32_t {
 };
 
 struct TradeOffConfig {
-  bool default_enable = false;
-  double ub_ratio = 0.1;
-  double core_num_ratio = 0.8;
+  bool is_enable = false;                          // 是否使能 multicore-ub tradeoff
+  Expr ub_ratio{ge::Symbol(0.1)};            // UB 阈值（Expr 类型）
+  Expr core_num_ratio{ge::Symbol(0.8)};      // 核数比例（Expr 类型）
+
   [[nodiscard]] std::string DebugString() const {
-    return "default_enable: " + std::to_string(default_enable) + ", ub_ratio: " + std::to_string(ub_ratio) +
-           ", core_num_ratio: " + std::to_string(core_num_ratio);
+    return "is_enable: " + std::to_string(is_enable) +
+           ", ub_ratio: " + Str(ub_ratio) +
+           ", core_num_ratio: " + Str(core_num_ratio);
+  }
+};
+
+// Model 级别的 Tiling 调度配置
+struct TilingScheduleConfig {
+  // 多核UB权衡配置
+  TradeOffConfig trade_off_config;
+
+  // CacheLine 大小（字节）
+  uint32_t cache_line_size{128};
+
+  // 是否启用惩罚配置（用于日志区分）
+  bool is_penalty_config{false};
+
+  [[nodiscard]] std::string DebugString() const {
+    return "trade_off_config: {" + trade_off_config.DebugString() +
+           "}, cache_line_size: " + std::to_string(cache_line_size) +
+           ", is_penalty_config: " + std::to_string(is_penalty_config);
   }
 };
 
@@ -184,6 +208,15 @@ class TilingScheduleConfigTable {
     constexpr double kDefaultPerfEffectVal = 5000.0;
     return kDefaultPerfEffectVal;
   }
+
+  // 新增：获取 Model 级别的 Tiling 调度配置
+  [[nodiscard]] virtual TilingScheduleConfig GetModelTilingScheduleConfig() const = 0;
+
+  // 新增：获取 CacheLine 大小
+  [[nodiscard]] virtual uint32_t GetCacheLineSize() const = 0;
+
+  // 新增：是否启用Reduce分核Store地址冲突惩罚功能
+  [[nodiscard]] virtual bool IsCoreNumThresholdPenaltyEnable() const = 0;
 };
 
 struct TilingCaseIdent {
@@ -216,13 +249,13 @@ struct ModelInfo {
   std::map<Expr, std::string, ExprCmp> variable_name_map; //用于记录tensor的名称
   std::map<Expr, TenaryOp, ExprCmp> tenary_op_map; //用于记录三目运算符的名称
   uint32_t output_size;
-  bool enable_ub_mc_tradeoff{false}; // 使能多核ub权衡，存在非连续搬运的时候使能
   std::vector<ge::AscNodePtr> input_nodes; // 获取输入schedule_results[0].input_nodes
   std::vector<ge::AscNodePtr> output_nodes; // 获取输入出schedule_results[0].output_nodes
   bool enable_group_parallel{false}; // 使能group并行
   std::vector<Expr> sizes{}; // 图原始Sizes信息
   vector<CacheLineConfig> cache_line_config; // ub->gm/gm->ub节点的cache配置信息
   const TilingScheduleConfigTable *tiling_schedule_config_table{nullptr};
+  TilingScheduleConfig tiling_schedule_config;  // Model 级别的 Tiling 调度配置
   bool is_enable_equal_order_tiling{false}; // 使能等order tiling算法
 };
 

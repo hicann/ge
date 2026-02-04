@@ -37,6 +37,7 @@ file(GLOB SOURCES
         ${TOP_DIR}/tests/autofuse/st/att/testcase/add_layer_norm/test_add_layer_norm.cpp
         ${TOP_DIR}/tests/autofuse/st/att/testcase/add_layer_norm/add_layer_norm.cpp
         ${TOP_DIR}/tests/autofuse/st/att/testcase/concat/*.cpp
+        ${TOP_DIR}/tests/autofuse/st/att/testcase/reduce_split_penalty/*.cpp
         ${TOP_DIR}/tests/autofuse/st/att/testcase/e2e_st_test/*.cpp
         ${TOP_DIR}/tests/autofuse/st/att/testcase/profiler_e2e/*.cpp
         ${TOP_DIR}/tests/autofuse/st/att/testcase/e2e_brc_buf/*.cpp

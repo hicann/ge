@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <map>
 #include <securec.h>
+#include <vector>
 #include "dlog_pub.h"
 #include "err_mgr.h"
 

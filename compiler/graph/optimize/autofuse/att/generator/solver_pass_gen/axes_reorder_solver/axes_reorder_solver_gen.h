@@ -109,9 +109,6 @@ namespace att {
     void SetEnableMulticoreUBTradeoff(const bool enable_multicore_ub_tradeoff) {
       enable_multicore_ub_tradeoff_ = enable_multicore_ub_tradeoff;
     }
-    void SetModelEnableMulticoreUBTradeoff(bool model_enable_multicore_ub_tradeoff) {
-      model_enable_multicore_ub_tradeoff_ = model_enable_multicore_ub_tradeoff;
-    }
     void SetEnableAutofusePGO(bool enable_autofuse_pgo) {
       enable_autofuse_pgo_ = enable_autofuse_pgo;
     }
@@ -132,6 +129,9 @@ namespace att {
     }
     void SetTilingScheduleConfigTable(const TilingScheduleConfigTable *tiling_schedule_config_table) {
       tiling_schedule_config_table_ = tiling_schedule_config_table;
+    }
+    void SetTilingScheduleConfig(const TilingScheduleConfig &tiling_schedule_config) {
+      tiling_schedule_config_ = tiling_schedule_config;
     }
     void SetCacheLineConfig(const vector<CacheLineConfig> *cache_line_config) {
       cache_line_config_ = cache_line_config;      
@@ -215,13 +215,13 @@ namespace att {
     Expr reserved_ub_size_{CreateExpr(0)};
     double corenum_threshold_{0.4};
     bool enable_multicore_ub_tradeoff_{false};
-    bool model_enable_multicore_ub_tradeoff_{false};
     bool enable_autofuse_pgo_{false};
     int64_t pgo_step_max_{16};
     bool enable_high_perf_{false};
     bool enable_equal_order_{false};
     std::string arrange_code_;
     const TilingScheduleConfigTable *tiling_schedule_config_table_{nullptr};
+    TilingScheduleConfig tiling_schedule_config_;  // Model 级别的 Tiling 调度配置
     const vector<CacheLineConfig> *cache_line_config_ {nullptr};
     bool enable_group_parallel_{false};
     TilingCaseIdent tiling_case_ident_{ScheduleGroupIdent{}, 0U, ""};

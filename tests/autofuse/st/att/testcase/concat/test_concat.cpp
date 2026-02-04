@@ -20,6 +20,7 @@
 #include "gen_tiling_impl.h"
 #include "graph/utils/graph_utils.h"
 #include "autofuse_config/auto_fuse_config.h"
+#include "common/test_common_utils.h"
 using namespace ge::ascir_op;
 namespace ascir {
 constexpr int64_t ID_NONE = -1;
@@ -27,6 +28,8 @@ using namespace ge;
 using HintGraph=AscGraph;
 }
 namespace {
+using att::test_common::CreateTilingMainFunc;
+
 std::string kRunTilingFuncMain = R"(
 #include <iostream>
 #include "Concat_tiling_data.h"
@@ -664,7 +667,6 @@ Status BuildConcatGroupAscendGraphND(ge::AscGraph &graph) {
 }
 
 Status BuildConcatGroupAscendGraphS0S1MultiTiling(ge::AscGraph &graph) {
-  dlog_setlevel(GE, 0, 1);
   auto S0 = ge::Symbol("S0");
   auto s0 = graph.CreateAxis("s0", S0);
   auto S1 = ge::Symbol("S1");
@@ -1264,27 +1266,10 @@ ge::Status GenTilingImpl(std::vector<ascir::ScheduledResult> &schedule_results) 
   ascir::FusedScheduledResult fused_scheduled_result;
   fused_scheduled_result.node_idx_to_scheduled_results.emplace_back(schedule_results);
   auto res = GenTilingImplAutoFuseV3(op_name, fused_scheduled_result, options, tiling_funcs, true);
-  std::string tiling_func;
-  CombineTilings(tiling_funcs, tiling_func);
-  std::ofstream oss;
-  oss.open("Concat_tiling_func.cpp", std::ios::out);
-  oss << "#include \"Concat_tiling_data.h\"\n";
-  oss << tiling_func;
-  oss.close();
   GE_ASSERT_EQ(res, true);
-  TilingCodeGenerator generator;
-  TilingCodeGenConfig generator_config;
-  std::map<std::string, std::string> tiling_res;
-  FusedParsedScheduleResult all_model_infos;
-  GetModelInfoMap(fused_scheduled_result, options, all_model_infos);
-  generator_config.type = TilingImplType::HIGH_PERF;
-  generator_config.tiling_data_type_name = options[ge::sym::kTilingDataTypeName];
-  generator_config.gen_tiling_data = true;
-  generator_config.gen_extra_infos = false;
-  GE_ASSERT_EQ(generator.GenTilingCode(op_name, all_model_infos, generator_config, tiling_res), ge::SUCCESS);
-  oss.open("Concat_tiling_data.h", std::ios::out);
-  oss << tiling_res[kFirstGraphName + "TilingData"];
-  oss.close();
+  GE_ASSERT_EQ(att::test_common::GenTilingCodeToFile(
+      op_name, tiling_funcs, fused_scheduled_result, options,
+      kFirstGraphName + "TilingData"), ge::SUCCESS);
   auto ret =
       std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   ret = std::system(
@@ -1502,6 +1487,7 @@ struct TestCase {
   uint32_t S0;
   uint32_t S1;
   uint32_t ub_size;
+  bool need_square{true};
   uint32_t expect_s0t_size{0U};
   uint32_t expect_s1t_size{0U};
   uint32_t expect_ub_size{0U};
@@ -1513,9 +1499,9 @@ int main() {
       {"Case1_0: Equal priority", 20, 20, 40000},
       {"Case1_1: Equal priority", 30, 30, 40000},
       {"Case1_2: Equal priority", 40, 40, 40000},
-      {"Case1_3: Equal priority", 40, 200, 40000},
-      {"Case1_4: Equal priority", 40, 2000, 40000},
-      {"Case1_5: Equal priority", 40, 20000, 40000},
+      {"Case1_3: Equal priority", 40, 200, 40000, false, 40},
+      {"Case1_4: Equal priority", 40, 2000, 40000, false, 40},
+      {"Case1_5: Equal priority", 40, 20000, 40000, false, 40},
       {"Case1: Equal priority", 50, 50, 40000},
       {"Case2: Equal priority", 100, 100, 40000},
       {"Case3: Equal priority", 150, 150, 40000},
@@ -1535,15 +1521,17 @@ int main() {
       {"Case17: Equal priority", 1000, 1000, 40000},
   };
 
-  int passed = 0;
-  int failed = 0;
-
+  int64_t passed = 0;
+  int64_t failed = 0;
+  constexpr uint32_t kHardwareCoreNum = 72U;
+  constexpr uint32_t kCoreNumThreshold = kHardwareCoreNum * 0.9;
+  constexpr uint32_t kSquareTileThreshold = 5U;
   for (const auto& tc : test_cases) {
     case0TilingData tilingData;
     tilingData.set_ub_size(tc.ub_size);
     tilingData.set_S1(tc.S1);
     tilingData.set_S0(tc.S0);
-    tilingData.set_block_dim(72);
+    tilingData.set_block_dim(kHardwareCoreNum);
 
     std::cout << "\n========== Testing: " << tc.name << " ==========" << std::endl;
     std::cout << "Input: S0=" << tc.S0 << ", S1=" << tc.S1 << ", ub_size=" << tc.ub_size << std::endl;
@@ -1574,11 +1562,11 @@ int main() {
       std::cout << "tc.name raw_block_dim: " << tc.name << " " << raw_block_dim << std::endl;
 
       // 统一使用tilingData.block_dim_来判断（已考虑s1Ts0Tb_size）
-      if (tilingData.block_dim_ == 72 && ub_size < ub_ratio_10) {
+      if (tilingData.block_dim_ == kHardwareCoreNum && ub_size < ub_ratio_10) {
         is_pass = false;
       }
-      // 放宽约束：如果原始block_dim >= 64，即使实际block_dim < 64也通过
-      if (tilingData.block_dim_ < 64 && raw_block_dim >= 64) {
+      // 放宽约束：如果原始block_dim >= kCoreNumThreshold，即使实际block_dim < kCoreNumThreshold也通过
+      if (tilingData.block_dim_ < kCoreNumThreshold && raw_block_dim >= kCoreNumThreshold) {
         is_pass = true;  // 算法已经找到了最优解，只是s1Ts0Tb_size导致实际block_dim降低
       }
       // 校验期望值
@@ -1598,15 +1586,16 @@ int main() {
         std::cout << "expect_block_dim=" << tc.expect_block_dim << ", s0t=" << tilingData.block_dim_ << std::endl;
         is_pass = false;
       }
-      bool is_square_tile = (tilingData.get_s0t_size() - tilingData.get_s1t_size()) < 10;
-      if (std::string(tc.name) == "Case1_5: Equal priority") {
+      bool is_square_tile = std::abs((static_cast<int64_t>(tilingData.get_s0t_size()) -
+                                      static_cast<int64_t>(tilingData.get_s1t_size()))) < kSquareTileThreshold;
+      if (!tc.need_square) {
         is_square_tile = true;
         if (tilingData.s1Ts0Tb_size_ > 2) {
           is_pass = false;
         }
       }
       if (is_pass && tilingData.get_s0t_size() > 0 && tilingData.get_s1t_size() > 0 && (ub_size <= tc.ub_size) &&
-          (all_ub_size >= (tc.S0 * tc.S1 * 4)) && (tilingData.block_dim_ <= 72) &&
+          (all_ub_size >= (tc.S0 * tc.S1 * 4)) && (tilingData.block_dim_ <= kHardwareCoreNum) &&
           // 同优先级切分，s1t和s0t有相同的优先级,保证s0t和s1t的差值在阈值内
           (is_square_tile)) {
         std::cout << "PASSED - Both axes are tiled" << std::endl;
@@ -1791,7 +1780,7 @@ ge::Status ConstructConcatTwoTilingCaseS0S1() {
   std::string json_info;
   std::vector<att::ModelInfo> model_info_list;
 
-  const std::string kFirstGraphName = "graph_nd";
+  const std::string kFirstGraphName = "Concat";
   ascir::AscGraph graph_nd(kFirstGraphName.c_str());
   ascir::AscGraph graph_s0("graph_s0");
   GE_ASSERT_SUCCESS(ge::ascir::cg::BuildConcatGroupAscendGraphS0S1_Reorder(graph_nd));
@@ -1840,34 +1829,7 @@ ge::Status ConstructConcatTwoTilingCaseS0S1() {
   ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   GE_ASSERT_TRUE(ret == 0);
   oss.open("tiling_func_main_concat.cpp", std::ios::out);
-  const std::string kRunTilingFuncMainLocal = R"(
-#include <iostream>
-#include "Concat_tiling_data.h"
-using namespace optiling;
-
-void PrintResult(graph_ndTilingData& tilingData) {
-  std::cout << "====================================================" << std::endl;
-  auto tiling_key = tilingData.get_tiling_key();
-  std::cout << "get_tiling_key"<< " = " << tiling_key << std::endl;
-  std::cout << "====================================================" << std::endl;
-}
-
-int main() {
-  graph_ndTilingData tilingData;
-  tilingData.set_block_dim(64);
-  tilingData.set_ub_size(245760);
-  tilingData.set_S0(1024);
-  tilingData.set_S1(1024);
-  if (GetTiling(tilingData)) {
-    PrintResult(tilingData);
-  } else {
-    std::cout << "addlayernorm tiling func execute failed." << std::endl;
-    return -1;
-  }
-  return 0;
-}
-)";
-  oss << kRunTilingFuncMainLocal;
+  oss << CreateTilingMainFunc("Concat", "64", "245760", {{"S0", "1024"}, {"S1", "1024"}});
   oss.close();
   return ge::SUCCESS;
 }

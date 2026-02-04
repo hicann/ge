@@ -126,6 +126,16 @@ private:
 
   // 非正式方案，正式方案需要由Schedule计算预留大小，待正式方案合入后删除
   ge::Status CalculateReservedUbSize(const ge::AscGraph &graph);
+
+  // 检测Reduce/Broadcast分核Store冲突场景
+  ge::Status CheckReduceBroadcastSplitStoreConflict(const ge::AscGraph &graph);
+
+  // 辅助方法：检查并标记轴是否为 Reduce 分核轴
+  bool CheckAndMarkReduceSplitAxis(SubAxis *axis, const std::set<std::string> &reduce_axis_orig_names);
+
+  // 辅助方法：检查并标记轴是否为 Broadcast 分核轴
+  bool CheckAndMarkBroadcastSplitAxis(SubAxis *axis, const std::set<std::string> &broadcast_axis_orig_names);
+
 private:
   std::map<std::string, TensorPtr> tensor_info_; // 记录所有tensor信息，目前未用到
   std::map<size_t, SubAxisPtr> sub_axes_info_; // 轴id到att处理过的轴信息, sub axis ptr owner

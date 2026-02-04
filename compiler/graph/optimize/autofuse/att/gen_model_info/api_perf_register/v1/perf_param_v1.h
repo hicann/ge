@@ -30,6 +30,7 @@ class PerfParamTableV1 : public PerfParamTable {
 };
 
 class TilingScheduleConfigTableV1 : public TilingScheduleConfigTable {
+ public:
   [[nodiscard]] bool IsEnableBlockLoopAutoTune() const override {
     return true;
   }
@@ -43,14 +44,28 @@ class TilingScheduleConfigTableV1 : public TilingScheduleConfigTable {
     constexpr double kDefaultUbThresholdPerfValEffect = 0.19;
     return kDefaultUbThresholdPerfValEffect;
   }
+  [[nodiscard]] TilingScheduleConfig GetModelTilingScheduleConfig() const override {
+    TilingScheduleConfig config;
+    config.trade_off_config = GetTradeOffConfig();
+    config.cache_line_size = 512;  // V1 CacheLine 大小为 512 字节
+    return config;
+  }
+  [[nodiscard]] uint32_t GetCacheLineSize() const override {
+    return 512;  // V1 CacheLine 大小为 512 字节
+  }
+  // 新增：V1形态不使能Reduce分核惩罚
+  [[nodiscard]] bool IsCoreNumThresholdPenaltyEnable() const override {
+    return false;
+  }
 };
 
 class TilingScheduleConfigTableV1HeavyOp : public TilingScheduleConfigTableV1 {
+ public:
   [[nodiscard]] bool IsEnableBlockLoopAutoTune() const override{
     return false;
   }
   [[nodiscard]] TradeOffConfig GetTradeOffConfig() const override {
-    return TradeOffConfig{true, 0.1, 0.4};
+    return {true, ge::Symbol(0.1), ge::Symbol(0.4)};
   }
   [[nodiscard]] TilingScheduleConfigPriority GetConfigPriority() const override {
     return TilingScheduleConfigPriority::kHeavyOpPriority;
