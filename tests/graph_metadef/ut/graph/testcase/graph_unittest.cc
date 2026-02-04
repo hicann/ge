@@ -33,7 +33,6 @@
 #include "graph/ge_attr_value.h"
 #include "ge_ir.pb.h"
 #include "common/ge_common/ge_inner_error_codes.h"
-#include "framework/common/types.h"
 #include "graph/tensor.h"
 #include "graph/ascend_string.h"
 #include "graph/types.h"
@@ -66,34 +65,6 @@ std::string GetSpecificFilePath(const std::string &file_path, const string &suff
   }
   closedir(dir);
   return "";
-}
-
-ComputeGraphPtr BuildComputeGraphWithoutNetOutput() {
-  ut::GraphBuilder builder = ut::GraphBuilder("graph");
-  auto data1 = builder.AddNode("Data1", "Data", 0, 1);
-  auto transdata1 = builder.AddNode("Transdata1", "Transdata", 1, 1);
-  builder.AddDataEdge(data1, 0, transdata1, 0);
-
-  auto data2 = builder.AddNode("Data2", "Data", 0, 1);
-  auto transdata2 = builder.AddNode("Transdata2", "Transdata", 1, 1);
-  builder.AddDataEdge(data2, 0, transdata2, 0);
-  auto graph = builder.GetGraph();
-  return graph;
-}
-
-ComputeGraphPtr BuildComputeGraphWithNetOutput() {
-  ut::GraphBuilder builder = ut::GraphBuilder("graph");
-  auto data1 = builder.AddNode("Data1", "Data", 0, 1);
-  auto transdata1 = builder.AddNode("Transdata1", "Transdata", 1, 1);
-  auto net_output = builder.AddNode("Netoutput", NETOUTPUT, 1, 0);
-  builder.AddDataEdge(data1, 0, transdata1, 0);
-  builder.AddDataEdge(transdata1, 0, net_output, 0);
-
-  auto data2 = builder.AddNode("Data2", "Data", 0, 1);
-  auto transdata2 = builder.AddNode("Transdata2", "Transdata", 1, 1);
-  builder.AddDataEdge(data2, 0, transdata2, 0);
-  auto graph = builder.GetGraph();
-  return graph;
 }
 } // namespace
 class UtestGraph : public testing::Test {
@@ -224,7 +195,7 @@ TEST_F(UtestGraph, copy_graph_01) {
   auto cp_compute_graph = ge::GraphUtilsEx::GetComputeGraph(copy_graph);
   ASSERT_NE(cp_compute_graph, nullptr);
   ASSERT_NE(cp_compute_graph, compute_graph);
-  ASSERT_EQ(cp_compute_graph->GetDirectNodesSize(), 2);
+  ASSERT_EQ(cp_compute_graph->GetDirectNodesSize(), 1);
   auto cp_add_node = cp_compute_graph->FindNode("add1");
   ASSERT_NE(cp_add_node, nullptr);
   ASSERT_NE(cp_add_node, add_node);
@@ -267,7 +238,7 @@ TEST_F(UtestGraph, copy_graph_02) {
   auto cp_compute_graph = ge::GraphUtilsEx::GetComputeGraph(copy_graph);
   ASSERT_NE(cp_compute_graph, nullptr);
   ASSERT_NE(cp_compute_graph, compute_graph);
-  ASSERT_EQ(cp_compute_graph->GetDirectNodesSize(), 2);
+  ASSERT_EQ(cp_compute_graph->GetDirectNodesSize(), 1);
   auto cp_if_node = cp_compute_graph->FindNode("if");
   ASSERT_NE(cp_if_node, nullptr);
   ASSERT_NE(cp_if_node, if_node);
@@ -275,7 +246,7 @@ TEST_F(UtestGraph, copy_graph_02) {
   auto cp_then_compute_graph = cp_compute_graph->GetSubgraph("then");
   ASSERT_NE(cp_then_compute_graph, nullptr);
   ASSERT_NE(cp_then_compute_graph, then_compute_graph);
-  ASSERT_EQ(cp_then_compute_graph->GetDirectNodesSize(), 2);
+  ASSERT_EQ(cp_then_compute_graph->GetDirectNodesSize(), 1);
   auto cp_add_node1 = cp_then_compute_graph->FindNode("add1");
   ASSERT_NE(cp_add_node1, nullptr);
   ASSERT_NE(cp_add_node1, add_node1);
@@ -283,7 +254,7 @@ TEST_F(UtestGraph, copy_graph_02) {
   auto cp_else_compute_graph = cp_compute_graph->GetSubgraph("else");
   ASSERT_NE(cp_else_compute_graph, nullptr);
   ASSERT_NE(cp_else_compute_graph, else_compute_graph);
-  ASSERT_EQ(cp_else_compute_graph->GetDirectNodesSize(), 2);
+  ASSERT_EQ(cp_else_compute_graph->GetDirectNodesSize(), 1);
   auto cp_add_node2 = cp_else_compute_graph->FindNode("add2");
   ASSERT_NE(cp_add_node2, nullptr);
   ASSERT_NE(cp_add_node2, add_node2);
@@ -612,35 +583,6 @@ TEST_F(UtestGraph, SetOutputs_ops) {
   // EXPECT_TRUE(graph.impl_->output_name_.empty()); // impl缺少头文件，找不到声明
 }
 
-TEST_F(UtestGraph, SetOutputsRepalceExistedNetOutputDataEdge) {
-  auto compute_graph = BuildComputeGraphWithNetOutput();
-  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
-  auto transdata2 = compute_graph->FindNode("Transdata2");
-  auto transdata2_op = OpDescUtils::CreateOperatorFromNode(transdata2);
-  graph.SetOutputs({transdata2_op});
-  auto net_output = compute_graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output, nullptr);
-  ASSERT_EQ(net_output->GetInDataNodes().size(), 1U);
-  ASSERT_EQ(net_output->GetInDataNodes().at(0)->GetName(), "Transdata2");
-  ASSERT_EQ(net_output->GetInControlNodes().size(), 0U);
-}
-
-TEST_F(UtestGraph, SetTargetsAndSetOutputs) {
-  auto compute_graph = BuildComputeGraphWithoutNetOutput();
-  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
-  auto transdata1 = compute_graph->FindNode("Transdata1");
-  auto transdata2 = compute_graph->FindNode("Transdata2");
-  auto transdata1_op = OpDescUtils::CreateOperatorFromNode(transdata1);
-  auto transdata2_op = OpDescUtils::CreateOperatorFromNode(transdata2);
-
-  graph.SetTargets({transdata1_op}).SetOutputs({transdata2_op});
-  auto net_output = compute_graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output, nullptr);
-  ASSERT_EQ(net_output->GetInDataNodes().size(), 1U);
-  ASSERT_EQ(net_output->GetInDataNodes().at(0)->GetName(), "Transdata2");
-  ASSERT_EQ(net_output->GetInControlNodes().size(), 1U);
-}
-
 TEST_F(UtestGraph, SetOutputs_string) {
   using std::make_pair;
   ge::OpDescPtr add_op(new ge::OpDesc("add_0", "add"));
@@ -706,7 +648,7 @@ TEST_F(UtestGraph, SetOutputs_Index) {
     make_pair(op2, vec_index2),  make_pair(op3, vec_index3)};
   graph2.SetOutputs(outputs);
   graph.SetOutputs(outputs);
-  EXPECT_EQ(graph.GetAllNodes().size(), 2); // add + netoutput
+  EXPECT_EQ(graph.GetAllNodes().size(), 1);
 }
 
 TEST_F(UtestGraph, SetTargets) {
@@ -729,7 +671,7 @@ TEST_F(UtestGraph, SetTargets) {
 
   graph2.SetTargets(targets);
   graph.SetTargets(targets);
-  EXPECT_EQ(graph.GetAllNodes().size(), 2); // add + netoutput
+  EXPECT_EQ(graph.GetAllNodes().size(), 1);
 }
 
 TEST_F(UtestGraph, SetNeedIteration) {

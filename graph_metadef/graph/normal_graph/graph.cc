@@ -138,7 +138,7 @@ class GraphImpl {
     }
     compute_graph_->SetUserDefOutput(output_name_);
     compute_graph_->SetOutputSize(static_cast<uint32_t>(output_indexs.size()));
-    GE_ASSERT_SUCCESS(compute_graph_->SetGraphOutNodesInfo(output_nodes));
+    compute_graph_->SetGraphOutNodesInfo(output_nodes);
     return GRAPH_SUCCESS;
   }
 
@@ -195,7 +195,7 @@ class GraphImpl {
       output_name_ = output_name_.substr(0U, output_name_.length() - 1U);
     }
     compute_graph_->SetOutputSize(static_cast<uint32_t>(outputs.size()));
-    GE_ASSERT_SUCCESS(compute_graph_->SetGraphOutNodesInfo(output_nodes));
+    compute_graph_->SetGraphOutNodesInfo(output_nodes);
     GELOGI("********************SetOutputs Success***********************");
     GE_IF_BOOL_EXEC(!output_name_.empty(), GELOGI(" NetOutputs: (%s)", output_name_.c_str()));
 
@@ -208,7 +208,7 @@ class GraphImpl {
     for (const auto &item : outputs) {
       output_node_and_index.emplace_back(NodeAdapter::GNode2Node(item.first), item.second);
     }
-    GE_ASSERT_SUCCESS(compute_graph_->SetGraphOutNodesInfo(output_node_and_index));
+    compute_graph_->SetGraphOutNodesInfo(output_node_and_index);
     return GRAPH_SUCCESS;
   }
 
@@ -230,7 +230,7 @@ class GraphImpl {
       }
       target_nodes.push_back(node);
     }
-    GE_ASSERT_SUCCESS(compute_graph_->SetGraphTargetNodesInfo(target_nodes));
+    compute_graph_->SetGraphTargetNodesInfo(target_nodes);
     return GRAPH_SUCCESS;
   }
   bool IsValid() const { return (compute_graph_ != nullptr); }

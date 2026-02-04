@@ -262,8 +262,6 @@ ComputeGraphPtr BuildGraphWithSubGraph() {
 
   auto sub_builder1 = ut::GraphBuilder("sub1");
   const auto &data1 = sub_builder1.AddNode("data1", "Data", 0, 1);
-  const auto &sub1_netoutput = sub_builder1.AddNode("sub1_netoutput", "NetOutput", 1, 1);
-  sub_builder1.AddDataEdge(data1, 0, sub1_netoutput, 0);
   const auto &sub_graph1 = sub_builder1.GetGraph();
   root_graph->AddSubGraph(sub_graph1);
   sub_graph1->SetParentNode(case0);
@@ -273,8 +271,6 @@ ComputeGraphPtr BuildGraphWithSubGraph() {
 
   auto sub_builder2 = ut::GraphBuilder("sub2");
   const auto &data2 = sub_builder2.AddNode("data2", "Data", 0, 1);
-  const auto &sub2_netoutput = sub_builder2.AddNode("sub2_netoutput", "NetOutput", 1, 1);
-  sub_builder2.AddDataEdge(data2, 0, sub2_netoutput, 0);
   const auto &sub_graph2 = sub_builder2.GetGraph();
   root_graph->AddSubGraph(sub_graph2);
   sub_graph2->SetParentNode(case0);
@@ -1324,12 +1320,12 @@ TEST_F(UtestGraphUtils, CheckDumpGraphNum) {
 TEST_F(UtestGraphUtils, CopyRootComputeGraph) {
   auto graph = BuildGraphWithSubGraph();
   // check origin graph size
-  ASSERT_EQ(graph->GetAllNodesSize(), 9);
+  ASSERT_EQ(graph->GetAllNodesSize(), 7);
   ComputeGraphPtr dst_compute_graph = std::make_shared<ComputeGraph>(ComputeGraph("dst"));
   // test copy root graph success
   auto ret = GraphUtils::CopyComputeGraph(graph, dst_compute_graph);
   ASSERT_EQ(ret, GRAPH_SUCCESS);
-  ASSERT_EQ(dst_compute_graph->GetAllNodesSize(), 9);
+  ASSERT_EQ(dst_compute_graph->GetAllNodesSize(), 7);
   // test copy subgraph failed
   auto sub1_graph = graph->GetSubgraph("sub1");
   ret = GraphUtils::CopyComputeGraph(sub1_graph, dst_compute_graph);
@@ -1344,7 +1340,7 @@ TEST_F(UtestGraphUtils, CopyRootComputeGraph) {
 TEST_F(UtestGraphUtils, CopyComputeGraphWithNodeAndGraphFilter) {
   auto graph = BuildGraphWithSubGraph();
   // check origin graph size
-  ASSERT_EQ(graph->GetAllNodesSize(), 5 + 2 + 2);
+  ASSERT_EQ(graph->GetAllNodesSize(), 5 + 1 + 1);
   ComputeGraphPtr dst_compute_graph = std::make_shared<ComputeGraph>(ComputeGraph("dst"));
   auto node_filter = [&graph](const Node &node) {
     // no filter node which not in root graph
@@ -1366,13 +1362,13 @@ TEST_F(UtestGraphUtils, CopyComputeGraphWithNodeAndGraphFilter) {
   // test copy root graph success
   auto ret = GraphUtils::CopyComputeGraph(graph, node_filter, graph_filter, nullptr, dst_compute_graph);
   ASSERT_EQ(ret, GRAPH_SUCCESS);
-  ASSERT_EQ(dst_compute_graph->GetAllNodesSize(), 4 + 2 + 0);
+  ASSERT_EQ(dst_compute_graph->GetAllNodesSize(), 4 + 1 + 0);
   ASSERT_EQ(dst_compute_graph->GetDirectNodesSize(), 4);
   ASSERT_EQ(dst_compute_graph->GetDirectNode().size(), 4);
   ASSERT_EQ(dst_compute_graph->FindNode("relu1"), nullptr);
   ASSERT_NE(dst_compute_graph->FindNode("relu0"), nullptr);
   auto sub1_graph = dst_compute_graph->GetSubgraph("sub1");
-  ASSERT_EQ(sub1_graph->GetDirectNodesSize(), 2);
+  ASSERT_EQ(sub1_graph->GetDirectNodesSize(), 1);
   ASSERT_NE(sub1_graph->GetDirectNode().at(0U), nullptr);
   ASSERT_NE(sub1_graph->GetDirectNode().at(0U)->GetOpDesc(), nullptr);
   ASSERT_EQ(sub1_graph->GetDirectNode().at(0U)->GetOpDesc()->GetId(),
@@ -4147,6 +4143,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithGraphControlEdge) {
 
   std::vector<std::string> origin_node_sort;
   for (const auto &node : graph->GetDirectNode()) {
+    std::cout << "origin node: " << node->GetName() << std::endl;
     origin_node_sort.emplace_back(node->GetName());
   }
 
@@ -4258,7 +4255,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithGraphControlEdge) {
   for (const auto &origin_node_name : origin_node_sort) {
     if (origin_node_name == "add0") {
       for (const auto &subgraph_node : sub_graph->GetDirectNode()) {
-        if ((subgraph_node->GetType() != "Data") && (subgraph_node->GetType() != NETOUTPUT)) {
+        if (subgraph_node->GetType() != "Data") {
           expect_sort.emplace_back(subgraph_node->GetName());
         }
       }
@@ -4426,7 +4423,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithGraphWithSubGraph) {
   for (const auto &origin_node_name : origin_node_sort) {
     if (origin_node_name == "add0") {
       for (const auto &subgraph_node : sub_graph->GetDirectNode()) {
-        if ((subgraph_node->GetType() != "Data") && (subgraph_node->GetType() != NETOUTPUT)) {
+        if (subgraph_node->GetType() != "Data") {
           expect_sort.emplace_back(subgraph_node->GetName());
         }
       }
@@ -4558,7 +4555,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithGraphNodeInSubGraph) {
   const auto add_out_data_anchor = sub_add_node->GetOutDataAnchor(0);
   ASSERT_NE(add_out_data_anchor, nullptr);
   const auto peer_in_add_out_data_anchors = add_out_data_anchor->GetPeerInDataAnchors();
-  EXPECT_EQ(peer_in_add_out_data_anchors.size(), 1); // 连给子图NetOutput
+  EXPECT_EQ(peer_in_add_out_data_anchors.size(), 0);
   const auto output_node_info = then_graph->GetGraphOutNodesInfo();
   EXPECT_EQ(output_node_info.size(), 1);
   EXPECT_EQ(output_node_info[0].first, sub_add_node);
@@ -4680,7 +4677,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithGraphInputNotMatch) {
   for (const auto &origin_node_name : origin_node_sort) {
     if (origin_node_name == "clip0") {
       for (const auto &subgraph_node : sub_graph->GetDirectNode()) {
-        if ((subgraph_node->GetType() != "Data") && (subgraph_node->GetType() != NETOUTPUT)) {
+        if (subgraph_node->GetType() != "Data") {
           expect_sort.emplace_back(subgraph_node->GetName());
         }
       }
@@ -5030,7 +5027,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithDataControl) {
   for (const auto &origin_node_name : origin_node_sort) {
     if (origin_node_name == "add0") {
       for (const auto &subgraph_node : sub_graph->GetDirectNode()) {
-        if ((subgraph_node->GetType() != "Data") && (subgraph_node->GetType() != "NetOutput")) {
+        if (subgraph_node->GetType() != "Data") {
           expect_sort.emplace_back(subgraph_node->GetName());
         }
       }
@@ -5152,7 +5149,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithOutputNotMatch) {
   for (const auto &origin_node_name : origin_node_sort) {
     if (origin_node_name == "identityn0") {
       for (const auto &subgraph_node : sub_graph->GetDirectNode()) {
-        if ((subgraph_node->GetType() != "Data") && (subgraph_node->GetType() != "NetOutput")) {
+        if (subgraph_node->GetType() != "Data") {
           expect_sort.emplace_back(subgraph_node->GetName());
         }
       }
@@ -5249,7 +5246,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithOutputWithOutNodeInfos) {
   const auto add0_out_data_anchor = sub_add0_node->GetOutDataAnchor(0);
   ASSERT_NE(add0_out_data_anchor, nullptr);
   const auto peer_in_add0_out_data_anchors = add0_out_data_anchor->GetPeerInDataAnchors();
-  EXPECT_EQ(peer_in_add0_out_data_anchors.size(), 1UL); // 连接NetOutput
+  EXPECT_EQ(peer_in_add0_out_data_anchors.size(), 0UL);
 
   const auto sub_add1_node = graph->FindNode("sub_add1");
   EXPECT_EQ(sub_add1_node, sub_add1);
@@ -5266,7 +5263,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithOutputWithOutNodeInfos) {
   const auto add1_out_data_anchor = sub_add1_node->GetOutDataAnchor(0);
   ASSERT_NE(add1_out_data_anchor, nullptr);
   const auto peer_in_add1_out_data_anchors = add1_out_data_anchor->GetPeerInDataAnchors();
-  EXPECT_EQ(peer_in_add1_out_data_anchors.size(), 2); // 连接NetOutput
+  EXPECT_EQ(peer_in_add1_out_data_anchors.size(), 1);
   EXPECT_EQ(peer_in_add1_out_data_anchors.at(0)->GetOwnerNode()->GetName(), "add0");
 
   // 验证输出NodeInfo
@@ -5282,7 +5279,7 @@ TEST_F(UtestGraphUtils, TestExpandNodeWithOutputWithOutNodeInfos) {
   for (const auto &origin_node_name : origin_node_sort) {
     if (origin_node_name == "identityn0") {
       for (const auto &subgraph_node : sub_graph->GetDirectNode()) {
-        if ((subgraph_node->GetType() != "Data") && (subgraph_node->GetType() != "NetOutput")) {
+        if (subgraph_node->GetType() != "Data") {
           expect_sort.emplace_back(subgraph_node->GetName());
         }
       }

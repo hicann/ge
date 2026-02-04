@@ -837,18 +837,17 @@ TEST_F(UtestComputeGraph, Set_GetOrigGraph_success) {
 }
 
 TEST_F(UtestComputeGraph, GetOutputSize_success) {
-  auto builder = ut::GraphBuilder("graph");
-  const auto &node = builder.AddNode("node1", "node1", 1, 1);
-  auto graph = builder.GetGraph();
-  graph->AddOutputNode(node);
-  EXPECT_EQ(graph->GetOutputNodes().size(), 1);
+  auto graph = std::make_shared<ComputeGraph>("graph");
+  auto nodes = std::make_shared<Node>();
+  graph->AddOutputNode(nodes);
+  EXPECT_EQ(graph->GetOutputSize(), 1);
 }
 
 TEST_F(UtestComputeGraph, GetInputSize_success) {
   auto graph = std::make_shared<ComputeGraph>("graph");
-  auto node = std::make_shared<Node>();
-  graph->AddInputNode(node);
-  EXPECT_EQ(graph->GetInputNodes().size(), 1);
+  auto nodes = std::make_shared<Node>();
+  graph->AddInputNode(nodes);
+  EXPECT_EQ(graph->GetInputSize(), 1);
 }
 
 TEST_F(UtestComputeGraph, Set_GetNeedIteration_success) {
@@ -2026,81 +2025,5 @@ TEST_F(UtestComputeGraph, CreateShapeEnvAttrWithArgs) {
   auto graph = BuildDelayTopoGraphMultiInput("test_delay_topo_graph");
   graph->CreateAttrsGroup<ShapeEnvAttr>(ShapeEnvSetting());
   ASSERT_NE(graph->GetAttrsGroup<ShapeEnvAttr>(), nullptr);
-}
-
-TEST_F(UtestComputeGraph, SetGraphOutNodesInfo_RepeatSet_UpdateDataEdge) {
-  auto builder = ut::GraphBuilder("graph");
-  const auto &node1 = builder.AddNode("node1", "node1", 1, 1);
-  const auto &node2 = builder.AddNode("node2", "node2", 1, 1);
-  const auto &node3 = builder.AddNode("node3", "node3", 1, 1);
-  auto graph = builder.GetGraph();
-  ASSERT_EQ(graph->SetGraphOutNodesInfo({{node3, 0}}), SUCCESS);
-  auto net_output = graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output, nullptr);
-  ASSERT_EQ(net_output->GetInDataNodesSize(), 1U);
-  ASSERT_EQ(net_output->GetInDataNodes().at(0), node3);
-
-  ASSERT_EQ(graph->SetGraphOutNodesInfo({{node1, 0}, {node2, 0}}), SUCCESS);
-  ASSERT_EQ(net_output->GetInDataNodesSize(), 2U);
-  ASSERT_EQ(net_output->GetInDataNodes().at(0), node1);
-  ASSERT_EQ(net_output->GetInDataNodes().at(1), node2);
-
-  ASSERT_EQ(graph->SetGraphOutNodesInfo({{node1, 0}, {node2, 0}, {node3, 0}}), SUCCESS);
-  ASSERT_EQ(net_output->GetInDataNodesSize(), 3U);
-  ASSERT_EQ(net_output->GetInDataNodes().at(0), node1);
-  ASSERT_EQ(net_output->GetInDataNodes().at(1), node2);
-  ASSERT_EQ(net_output->GetInDataNodes().at(2), node3);
-}
-
-TEST_F(UtestComputeGraph, SetGraphTargetNodesInfo_RepeatSet) {
-  auto builder = ut::GraphBuilder("graph");
-  const auto &node1 = builder.AddNode("node1", "node1", 1, 1);
-  const auto &node2 = builder.AddNode("node2", "node2", 1, 1);
-  const auto &node3 = builder.AddNode("node3", "node3", 1, 1);
-  auto graph = builder.GetGraph();
-  ASSERT_EQ(graph->SetGraphTargetNodesInfo({node3}), SUCCESS);
-  auto net_output = graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output, nullptr);
-  ASSERT_EQ(net_output->GetInControlNodesSize(), 1U);
-  ASSERT_EQ(net_output->GetInControlNodes().at(0), node3);
-  ASSERT_EQ(graph->SetGraphTargetNodesInfo({node1, node2}), SUCCESS);
-  ASSERT_EQ(net_output->GetInControlNodesSize(), 2U);
-  ASSERT_EQ(net_output->GetInControlNodes().at(0), node1);
-  ASSERT_EQ(net_output->GetInControlNodes().at(1), node2);
-}
-
-TEST_F(UtestComputeGraph, SetGraphOutNodesInfo_SetGraphTargetNodesInfo_NodeIsBothOutputAndTarget) {
-  auto builder = ut::GraphBuilder("graph");
-  const auto &node1 = builder.AddNode("node1", "node1", 1, 1);
-  const auto &node2 = builder.AddNode("node2", "node2", 1, 1);
-  const auto &node3 = builder.AddNode("node3", "node3", 1, 1);
-  auto graph = builder.GetGraph();
-
-  ASSERT_EQ(graph->SetGraphOutNodesInfo({{node1, 0}}), SUCCESS);
-  auto net_output = graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output, nullptr);
-  ASSERT_EQ(net_output->GetInDataNodesSize(), 1U);
-  ASSERT_EQ(net_output->GetInDataNodes().at(0), node1);
-  ASSERT_EQ(net_output->GetInControlNodesSize(), 0U);
-
-
-  ASSERT_EQ(graph->SetGraphTargetNodesInfo({node1}), SUCCESS);
-  ASSERT_EQ(net_output->GetInControlNodesSize(), 0U);
-}
-
-TEST_F(UtestComputeGraph, BuildGraphWithNetOutput_CreateOrUpdateNetOutput_Success) {
-  auto builder = ut::GraphBuilder("graph");
-  const auto &node1 = builder.AddNode("node1", "node1", 1, 1);
-  const auto &node2 = builder.AddNode("node2", "node2", 1, 1);
-  const auto &node3 = builder.AddNode("node3", "node3", 1, 1);
-  const auto &net_output = builder.AddNode("netoutput", NETOUTPUT, 1, 0);
-  builder.AddDataEdge(node3, 0, net_output, 0);
-  auto graph = builder.GetGraph();
-
-  ASSERT_EQ(graph->CreateOrUpdateNetoutput(), SUCCESS);
-  auto net_output_node = graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output_node, nullptr);
-  ASSERT_EQ(net_output_node->GetInDataNodesSize(), 1U);
-  ASSERT_EQ(net_output_node->GetInDataNodes().at(0), node3);
 }
 }

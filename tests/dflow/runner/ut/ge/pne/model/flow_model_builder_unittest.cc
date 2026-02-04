@@ -55,8 +55,6 @@ ComputeGraphPtr FakeComputeGraph(const string &graph_name) {
   };
 
   auto root_graph = ToComputeGraph(graph1);
-  auto fused_op1 = root_graph->FindNode("fused_op1");
-  (void) root_graph->SetGraphOutNodesInfo({{fused_op1, 0}});
   root_graph->SetName(graph_name);
   root_graph->SetSessionID(0);
   AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, "0_1");

@@ -48,9 +48,9 @@ TEST_F(DataFlowGraphPassTest, TimeBatch_CountBatch_Run_Success) {
   auto graph = GraphUtilsEx::GetComputeGraph(flow_graph.ToGeGraph());
 
   ConvertBatchAttrToUdfPass pass;
-  ASSERT_EQ(graph->GetAllNodes().size(), 4);
+  ASSERT_EQ(graph->GetAllNodes().size(), 3);
   ASSERT_EQ(pass.Run(graph), SUCCESS);
-  ASSERT_EQ(graph->GetAllNodes().size(), 6);
+  ASSERT_EQ(graph->GetAllNodes().size(), 5);
   auto node_node0_time_batch = graph->FindNode("Node0__BuiltIn_TimeBatch_0");
   ASSERT_NE(node_node0_time_batch, nullptr);
   auto node_data0 = graph->FindNode("Data0");
@@ -89,7 +89,7 @@ TEST_F(DataFlowGraphPassTest, TimeBatch_CountBatch_Run_With_Catch_Exception_Fail
   AttrUtils::SetBool(graph, "_enable_exception_catch", true);
 
   ConvertBatchAttrToUdfPass pass;
-  ASSERT_EQ(graph->GetAllNodes().size(), 4);
+  ASSERT_EQ(graph->GetAllNodes().size(), 3);
   ASSERT_EQ(pass.Run(graph), FAILED);
 }
 
@@ -113,7 +113,7 @@ TEST_F(DataFlowGraphPassTest, TimeBatch_With_Invalid_Window) {
   auto graph = GraphUtilsEx::GetComputeGraph(flow_graph.ToGeGraph());
 
   ConvertBatchAttrToUdfPass pass;
-  ASSERT_EQ(graph->GetAllNodes().size(), 4);
+  ASSERT_EQ(graph->GetAllNodes().size(), 3);
   ASSERT_NE(pass.Run(graph), SUCCESS);
 }
 
@@ -133,9 +133,9 @@ TEST_F(DataFlowGraphPassTest, Prune_pass_succ) {
 
   DataFlowGraphPrunePass pass;
   ASSERT_EQ(pass.Run(nullptr), GE_GRAPH_ISNULL);
-  ASSERT_EQ(graph->GetDirectNode().size(), 6);
-  ASSERT_EQ(pass.Run(graph), SUCCESS);
   ASSERT_EQ(graph->GetDirectNode().size(), 5);
+  ASSERT_EQ(pass.Run(graph), SUCCESS);
+  ASSERT_EQ(graph->GetDirectNode().size(), 4);
 }
 
 TEST_F(DataFlowGraphPassTest, Prune_pass_without_outnodes) {
@@ -173,8 +173,8 @@ TEST_F(DataFlowGraphPassTest, Prune_pass_with_send_succ) {
 
   DataFlowGraphPrunePass pass;
   ASSERT_EQ(pass.Run(nullptr), GE_GRAPH_ISNULL);
-  ASSERT_EQ(graph->GetDirectNode().size(), 6);
-  ASSERT_EQ(pass.Run(graph), SUCCESS);
   ASSERT_EQ(graph->GetDirectNode().size(), 5);
+  ASSERT_EQ(pass.Run(graph), SUCCESS);
+  ASSERT_EQ(graph->GetDirectNode().size(), 4);
 }
 }  // namespace ge

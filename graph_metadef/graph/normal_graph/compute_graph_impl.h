@@ -151,15 +151,19 @@ class ComputeGraphImpl {
   const std::map<uint32_t, std::string> &GetGraphOpName() const { return op_name_map_; }
   void SetAllNodesInfo(const std::map<OperatorImplPtr, NodePtr> &nodes) { all_nodes_infos_ = nodes; }
 
-  void SetGraphOutNodesInfo(const std::vector<std::pair<NodePtr, int32_t>> &out_nodes_info);
+  void SetGraphOutNodesInfo(const std::vector<std::pair<NodePtr, int32_t>> &out_nodes_info) {
+    output_nodes_info_ = out_nodes_info;
+  }
 
   void AppendGraphOutNodesInfo(std::vector<std::pair<NodePtr, int32_t>> &out_nodes_info) {
     (void)output_nodes_info_.insert(output_nodes_info_.cend(), out_nodes_info.cbegin(), out_nodes_info.cend());
   }
 
-  const std::vector<std::pair<NodePtr, int32_t>> &GetGraphOutNodesInfo();
+  const std::vector<std::pair<NodePtr, int32_t>> &GetGraphOutNodesInfo() const { return output_nodes_info_; }
 
-  void SetGraphTargetNodesInfo(const std::vector<NodePtr> &target_nodes_info);
+  void SetGraphTargetNodesInfo(const std::vector<NodePtr> &target_nodes_info) {
+    target_nodes_info_ = target_nodes_info;
+  }
   const std::vector<NodePtr> &GetGraphTargetNodesInfo() const { return target_nodes_info_; }
 
   void SetSessionID(const uint64_t session_id) { session_id_ = session_id; }
@@ -240,7 +244,6 @@ class ComputeGraphImpl {
   void EmplaceBackToNodeList(const NodePtr &node);
   void ClearNodeList();
   void ReorderByNodeId();
-  graphStatus CreateOrUpdateNetoutput(const ComputeGraphPtr &compute_graph, bool update_data_edge);
 
  private:
   void inline AddInputDataNode(const NodePtr &node);
@@ -268,38 +271,6 @@ class ComputeGraphImpl {
   graphStatus DoTopologicalSorting(const ConstComputeGraphPtr &compute_graph,
                                    TopoSortingMode sorting_mode,
                                    bool dfs_reverse);
-
- private:
-  // 该private用于生成Netoutput节点
-  struct RetvalInfo {
-    NodePtr output_node;
-    int32_t node_output_index;
-    int32_t parent_node_index;
-  };
-  graphStatus AddNetOutputNodeToGraph(const ComputeGraphPtr &compute_graph, NodePtr &output_node);
-  graphStatus CreateNetOutputNode(OpDescPtr &net_output_desc);
-  graphStatus CollectOutputNode(const ComputeGraphPtr &compute_graph, std::vector<RetvalInfo> &output_nodes_info);
-  graphStatus GetRetvalOutputInfo(const ge::NodePtr &node, std::map<int32_t, RetvalInfo> &retval_node_index_map);
-  graphStatus CheckOutputNodeInfo(const std::vector<RetvalInfo> &outputs) const;
-  graphStatus AddCtrlEdgesBetweenLeafAndNetOutput(const ComputeGraphPtr &compute_graph,
-                                                  const ge::NodePtr &net_out_node) const;
-  graphStatus AddCtrlEdgeForTargets(const ge::NodePtr &net_out_node);
-  graphStatus AddInOutForNetOutputOp(const OpDescPtr &net_output_desc, std::vector<RetvalInfo> &output_nodes_info);
-  graphStatus AddDataEdgesForNetOutput(const ComputeGraphPtr &compute_graph, const ge::NodePtr &net_out_node,
-                                       const std::vector<RetvalInfo> &output_nodes_info);
-  graphStatus RemoveUnusedRetvalNode(const ComputeGraphPtr &compute_graph);
-  graphStatus UpdateNetOutput(const ComputeGraphPtr &compute_graph, const ge::NodePtr &output_node, bool update_data_edge);
-  graphStatus UpdateNetOutputDesc(const ge::NodePtr &net_output) const;
-  graphStatus UnLinkAnchorsOfNetoutput(const ge::NodePtr &net_out_node);
-  graphStatus UnLinkDataAnchorOfNetoutput(const ge::NodePtr &net_out_node);
-  graphStatus UnLinkControlAnchorOfNetoutput(const ge::NodePtr &net_out_node);
-  bool CheckNodeIsInOutputNodes(const ge::NodePtr &node) const;
-
-  bool is_include_special_node_ = false;
-  std::set<NodePtr> targets_;
-  std::set<NodePtr> old_targets_; // 在多次SetGraphTargetNodesInfo中保存上一次的信息，用于删除上一次的控制边
-  bool is_user_define_output_nodes_ = false;
-
  private:
   friend class ModelSerializeImp;
   friend class GraphUtils;
@@ -318,7 +289,6 @@ class ComputeGraphImpl {
   std::map<std::string, std::vector<int32_t>> out_nodes_map_;
   uint32_t output_size_ = 1U;
   std::vector<std::pair<NodePtr, int32_t>> output_nodes_info_;
-  std::map<int32_t, RetvalInfo> retval_node_index_map_;
 
   std::vector<std::shared_ptr<ComputeGraph>> sub_graph_;
   std::map<std::string, std::shared_ptr<ComputeGraph>> names_to_subgraph_;

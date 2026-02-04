@@ -44,9 +44,7 @@ Graph GeGraphVisitor::BuildGeGraph() const {
   for (const auto &id : targets_) {
     target_nodes.emplace_back(build_graph_->FindNode(id));
   }
-  if (!target_nodes.empty()) {
-    build_graph_->SetGraphTargetNodesInfo(target_nodes);
-  }
+  build_graph_->SetGraphTargetNodesInfo(target_nodes);
   return GraphUtilsEx::CreateGraphFromComputeGraph(build_graph_);
 }
 

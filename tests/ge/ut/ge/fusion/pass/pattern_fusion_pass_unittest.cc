@@ -16,8 +16,6 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/node_adapter.h"
-#include "graph/utils/op_desc_utils.h"
-#include "ge_graph_dsl/graph_dsl.h"
 
 #include "stub/gert_runtime_stub.h"
 
@@ -540,126 +538,6 @@ TEST_F(UtestPatternFusionPass, GetPatternName) {
   TestPassForCaptureTensors test_pass_for_capture_tensors;
   CustomPassContext context;
   test_pass_for_capture_tensors.Run(target_graph, context);
-}
-
-TEST_F(UtestPatternFusionPass, ReplaceOutput_AutoUpdateOutput) {
-  // define pass
-  class TestPassForReplaceOutput : public PatternFusionPass {
-   protected:
-    std::vector<PatternUniqPtr> Patterns() override {
-      // build pattern graph
-      std::vector<PatternUniqPtr> patterns;
-      auto pattern_graph = es::Graph("pattern");
-      auto esb_graph = pattern_graph.GetEsbGraph();
-      auto data_1 = EsCreateGraphInput(esb_graph, 0);
-      auto data_2 = EsCreateGraphInput(esb_graph, 1);
-      auto add = EsAdd(data_1, data_2);
-      esb_graph->SetGraphOutput(add, 0);
-      auto graph = pattern_graph.Build();
-      auto pattern = std::make_unique<Pattern>(std::move(*graph));
-
-      patterns.emplace_back(std::move(pattern));
-      return patterns;
-    }
-    bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result) override {
-      auto pattern_name = match_result->GetPatternGraph().GetName();
-      EXPECT_EQ(pattern_name, "pattern");
-      return true;
-    }
-    std::unique_ptr<Graph> Replacement(const unique_ptr<MatchResult> &match_result) override {
-      auto replace_graph_builder = es::Graph("replace");
-      auto replace_esb_graph = replace_graph_builder.GetEsbGraph();
-      auto data_r_1 = EsCreateGraphInput(replace_esb_graph, 0);
-      auto data_r_2 = EsCreateGraphInput(replace_esb_graph, 1);
-      auto sub_r = EsSub(data_r_1, data_r_2);
-      replace_esb_graph->SetGraphOutput(sub_r, 0);
-      return replace_graph_builder.Build();
-    }
-  };
-
-  // build target graph
-  DEF_GRAPH(g1) {
-    CHAIN(NODE("data1", DATA)->NODE("relu1", RELU)->NODE("add", ADD));
-    CHAIN(NODE("data2", DATA)->EDGE(0, 1)->NODE("add"));
-  };
-
-  auto target_compute_graph = ToComputeGraph(g1);
-  auto net_output = target_compute_graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_EQ(net_output, nullptr);
-  auto target_graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(target_compute_graph);
-  auto compute_output_node = target_compute_graph->FindFirstNodeMatchType("Add");
-  auto output_gnode = NodeAdapter::Node2GNode(compute_output_node);
-  ASSERT_EQ(target_graph->SetOutputs({{output_gnode, {0}}}), SUCCESS);
-
-  TestPassForReplaceOutput test_pass_for_capture_tensors;
-  CustomPassContext context;
-  test_pass_for_capture_tensors.Run(target_graph, context);
-
-  net_output = target_compute_graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output, nullptr);
-  ASSERT_EQ(net_output->GetInDataNodes().size(), 1U);
-  ASSERT_EQ(net_output->GetInDataNodes().at(0)->GetType(), "Sub");
-}
-
-TEST_F(UtestPatternFusionPass, ReplceTarget_AutoUpdateTarget) {
-  // define pass
-  class TestPassForReplaceOutput : public PatternFusionPass {
-   protected:
-    std::vector<PatternUniqPtr> Patterns() override {
-      // build pattern graph
-      std::vector<PatternUniqPtr> patterns;
-      auto pattern_graph = es::Graph("pattern");
-      auto esb_graph = pattern_graph.GetEsbGraph();
-      auto data_1 = EsCreateGraphInput(esb_graph, 0);
-      auto data_2 = EsCreateGraphInput(esb_graph, 1);
-      auto add = EsAdd(data_1, data_2);
-      esb_graph->SetGraphOutput(add, 0);
-      auto graph = pattern_graph.Build();
-      auto pattern = std::make_unique<Pattern>(std::move(*graph));
-
-      patterns.emplace_back(std::move(pattern));
-      return patterns;
-    }
-    bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result) override {
-      auto pattern_name = match_result->GetPatternGraph().GetName();
-      EXPECT_EQ(pattern_name, "pattern");
-      return true;
-    }
-    std::unique_ptr<Graph> Replacement(const unique_ptr<MatchResult> &match_result) override {
-      auto replace_graph_builder = es::Graph("replace");
-      auto replace_esb_graph = replace_graph_builder.GetEsbGraph();
-      auto data_r_1 = EsCreateGraphInput(replace_esb_graph, 0);
-      auto data_r_2 = EsCreateGraphInput(replace_esb_graph, 1);
-      auto sub_r = EsSub(data_r_1, data_r_2);
-      replace_esb_graph->SetGraphOutput(sub_r, 0);
-      return replace_graph_builder.Build();
-    }
-  };
-
-  // build target graph
-  DEF_GRAPH(g1) {
-    CHAIN(NODE("data1", DATA)->NODE("relu1", RELU)->NODE("add", ADD));
-    CHAIN(NODE("data2", DATA)->EDGE(0, 1)->NODE("add"));
-  };
-
-  auto target_compute_graph = ToComputeGraph(g1);
-  auto net_output = target_compute_graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_EQ(net_output, nullptr);
-  auto compute_output_node = target_compute_graph->FindFirstNodeMatchType("Add");
-  auto target_operator = OpDescUtils::CreateOperatorFromNode(compute_output_node);
-  auto target_graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(target_compute_graph);
-  target_graph->SetTargets({target_operator});
-  net_output = target_compute_graph->FindFirstNodeMatchType(NETOUTPUT);
-  ASSERT_NE(net_output, nullptr);
-
-  TestPassForReplaceOutput test_pass_for_capture_tensors;
-  CustomPassContext context;
-  test_pass_for_capture_tensors.Run(target_graph, context);
-
-  auto sub = target_compute_graph->FindFirstNodeMatchType(SUB);
-  ASSERT_NE(sub, nullptr);
-  ASSERT_EQ(sub->GetOutControlNodes().size(), 1U);
-  ASSERT_EQ(sub->GetOutControlNodes().at(0)->GetOutControlNodes().at(0)->GetType(), NETOUTPUT);
 }
 }  // namespace fusion
 }  // namespace ge

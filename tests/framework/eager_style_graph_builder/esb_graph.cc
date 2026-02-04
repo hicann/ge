@@ -126,14 +126,12 @@ ComputeGraphPtr EsbGraph::BuildComputeGraph() {
 
   auto node = graph_->AddNode(desc);
   GE_ASSERT_NOTNULL(node);
-  std::vector<std::pair<NodePtr, int32_t>> out_nodes_info;
+
   for (const auto &output : output_indexes_to_tensor_) {
     auto tensor = output.second;
     GE_ASSERT_NOTNULL(tensor);
     GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(tensor->GetAnchor(), node->GetInDataAnchor(output.first)));
-    out_nodes_info.emplace_back(std::make_pair(tensor->GetAnchor()->GetOwnerNode(), tensor->GetAnchor()->GetIdx()));
   }
-  graph_->SetGraphOutNodesInfo(out_nodes_info);
 
   return std::move(graph_);
 }

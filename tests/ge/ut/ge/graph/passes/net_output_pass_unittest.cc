@@ -736,6 +736,7 @@ TEST_F(UtestGraphPassesNetOutputPass, check_order_and_const_flag_success) {
 
   // Construct specified output
   std::vector<std::pair<ge::NodePtr, int32_t>> output_nodes = {{const_node, 0}};
+  compute_graph->SetGraphOutNodesInfo(output_nodes);
 
   ge::OpDescPtr retval_node_desc2 = std::make_shared<ge::OpDesc>("reval_node2", FRAMEWORKOP);
   retval_node_desc2->AddInputDesc(ge::GeTensorDesc());
@@ -746,8 +747,6 @@ TEST_F(UtestGraphPassesNetOutputPass, check_order_and_const_flag_success) {
   NodePtr mul2 = compute_graph->FindNode("Mul2");
   EXPECT_NE(mul2, nullptr);
   GraphUtils::AddEdge(mul2->GetOutDataAnchor(0), retval_node2->GetInDataAnchor(0));
-
-  compute_graph->SetGraphOutNodesInfo(output_nodes);
 
   ge::PassManager pass_managers;
   pass_managers.AddPass("NetOutputPass", new (std::nothrow) NetOutputPass);
@@ -807,7 +806,7 @@ TEST_F(UtestGraphPassesNetOutputPass, retval_node_check_fail) {
   ge::PassManager pass_managers;
   pass_managers.AddPass("NetOutputPass", new (std::nothrow) NetOutputPass);
   Status status = pass_managers.Run(compute_graph);
-  EXPECT_NE(status, ge::SUCCESS);
+  EXPECT_EQ(status, ge::INTERNAL_ERROR);
   NodePtr net_out_node = compute_graph->FindNode(NODE_NAME_NET_OUTPUT);
   EXPECT_EQ(net_out_node, nullptr);
 }
@@ -890,6 +889,29 @@ TEST_F(UtestGraphPassesNetOutputPass, clear_status) {
   NetOutputPass pass_;
   Status ret = pass_.ClearStatus();
   EXPECT_EQ(ge::SUCCESS, ret);
+}
+
+TEST_F(UtestGraphPassesNetOutputPass, AddCtrlEdgeForTargets) {
+  NetOutputPass net_output_pass;
+  ge::NodePtr net_out_node = nullptr;
+  Status ret = net_output_pass.AddCtrlEdgeForTargets(net_out_node);
+  EXPECT_EQ(PARAM_INVALID, ret);
+}
+
+TEST_F(UtestGraphPassesNetOutputPass, UnLinkDataAnchorOfNetoutput) {
+  NetOutputPass net_output_pass;
+  ge::ComputeGraphPtr graph = BuildClearWeightGraph();
+  ge::NodePtr net_out_node = nullptr;
+  Status ret = net_output_pass.UnLinkDataAnchorOfNetoutput(graph, net_out_node);
+  EXPECT_EQ(PARAM_INVALID, ret);
+}
+
+TEST_F(UtestGraphPassesNetOutputPass, UnLinkControlAnchorOfNetoutput) {
+  NetOutputPass net_output_pass;
+  ge::ComputeGraphPtr graph = BuildClearWeightGraph();
+  ge::NodePtr net_out_node = nullptr;
+  Status ret = net_output_pass.UnLinkControlAnchorOfNetoutput(graph, net_out_node);
+  EXPECT_EQ(PARAM_INVALID, ret);
 }
 
 TEST_F(UtestGraphPassesNetOutputPass, Run_Test) {

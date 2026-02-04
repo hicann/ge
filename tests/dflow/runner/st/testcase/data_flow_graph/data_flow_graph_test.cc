@@ -361,8 +361,6 @@ static ComputeGraphPtr BuildDataFlowGraphWithOneUDF() {
     CHAIN(NODE("node2", node2)->EDGE(0, 0)->NODE("net_output", net_output));
   };
   auto root_graph = ToComputeGraph(flow_graph);
-  auto node2 = root_graph->FindNode("node2");
-  root_graph->SetGraphOutNodesInfo({{node2, 0}});
   (void)(AttrUtils::SetBool(root_graph, dflow::ATTR_NAME_IS_DATA_FLOW_GRAPH, true), true);
   (void)AttrUtils::SetStr(root_graph, ATTR_NAME_SESSION_GRAPH_ID, "xxxx");
   auto pp0 = dataflow::ProcessPoint();

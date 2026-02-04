@@ -185,7 +185,7 @@ TEST_F(ConvertBatchAttrToUdfPassTest, TimeBatch_CountBatch_Run_Success) {
   flow_graph.SetInputs(inputsOperator).SetOutputs(outputsOperator);
   auto graph = GraphUtilsEx::GetComputeGraph(flow_graph.ToGeGraph());
 
-  EXPECT_EQ(graph->GetDirectNode().size(), 4);
+  EXPECT_EQ(graph->GetDirectNode().size(), 3);
   std::map<AscendString, AscendString> options = {{"ge.runFlag", "0"}};
   Session session(options);
   session.AddGraph(1, flow_graph.ToGeGraph());
@@ -233,7 +233,7 @@ TEST_F(ConvertBatchAttrToUdfPassTest, TimeBatch_CountBatch_with_catch_exception)
   (void)AttrUtils::SetInt(graph, "_inputs_align_max_cache_num", 1024);
   (void)AttrUtils::SetInt(graph, "_inputs_align_timeout", 30 * 1000);
   (void)AttrUtils::SetBool(graph, "_inputs_align_dropout", true);
-  EXPECT_EQ(graph->GetDirectNode().size(), 4);
+  EXPECT_EQ(graph->GetDirectNode().size(), 3);
   std::map<AscendString, AscendString> options = {{"ge.runFlag", "0"}};
   Session session(options);
   session.AddGraph(1, flow_graph.ToGeGraph());
@@ -267,7 +267,7 @@ TEST_F(ConvertBatchAttrToUdfPassTest, TimeBatch_CountBatch_with_deploy_info) {
   flow_graph.SetInputs(inputsOperator).SetOutputs(outputsOperator);
   auto graph = GraphUtilsEx::GetComputeGraph(flow_graph.ToGeGraph());
 
-  EXPECT_EQ(graph->GetDirectNode().size(), 4);
+  EXPECT_EQ(graph->GetDirectNode().size(), 3);
 
   constexpr const char *file_name = "./st_data_flow_deploy_info.json";
   std::ofstream json_file(file_name);

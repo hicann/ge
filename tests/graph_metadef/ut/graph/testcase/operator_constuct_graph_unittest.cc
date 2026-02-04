@@ -148,7 +148,7 @@ void CheckGraph1(Graph &g) {
   auto cg = GraphUtilsEx::GetComputeGraph(g);
   EXPECT_NE(cg, nullptr);
 
-  EXPECT_EQ(cg->GetAllNodesSize(), 7);
+  EXPECT_EQ(cg->GetAllNodesSize(), 6);
   auto node_o1_1 = cg->FindNode("o1_1");
   auto node_o1_2 = cg->FindNode("o1_2");
   auto node_o1_3 = cg->FindNode("o1_3");

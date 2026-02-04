@@ -68,9 +68,6 @@ Status DataFlowGraphPrunePass::Run(ge::ComputeGraphPtr graph) {
              node_ptr->GetName().c_str(), out_nodes.at(0UL)->GetName().c_str());
       continue;
     }
-    if (OpTypeUtils::IsGraphOutputNode(node_ptr->GetType())) {
-      continue;
-    }
     // Remove subgraphs on the node before remove it in graph.
     (void)NodeUtils::RemoveSubgraphsOnNode(node_ptr);
     /// Common function:[RemoveNode] will delete not only input node but its constant input node also will be deleted

@@ -68,8 +68,5 @@ TEST_F(UtestExecuteGraphAdapter, ConvertExecuteGraphToComputeGraph_Ok_with_null_
   auto compute_graph = ExecuteGraphAdapter::ConvertExecuteGraphToComputeGraph(exe_graph.get());
   EXPECT_NE(compute_graph, nullptr);
   EXPECT_EQ(exe_graph->GetAllNodes().size(), compute_graph->GetAllNodes().size());
-  auto n4_node = compute_graph->FindNode("n4");
-  EXPECT_NE(n4_node, nullptr);
-  EXPECT_EQ(n4_node->GetOutDataNodes().size(), 0);
 }
 }  // namespace ge

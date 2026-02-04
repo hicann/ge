@@ -30,7 +30,7 @@ bool HasOneNonDataNode(const ComputeGraphPtr &graph) {
   GE_CHECK_NOTNULL(graph);
   int32_t non_data_nums = 0;
   for (const auto& node : graph->GetDirectNode()) {
-    if ((node->GetType() != parser::DATA) && (node->GetType() != parser::NETOUTPUT)) {
+    if (node->GetType() != parser::DATA) {
       non_data_nums++;
     }
   }
