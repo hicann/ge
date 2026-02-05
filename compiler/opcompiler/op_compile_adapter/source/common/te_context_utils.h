@@ -23,6 +23,7 @@ public:
     static std::string GetTuningPath();
     static std::string GetBuildInnerModel();
     static std::string GetDeterministic();
+    static std::string GetDeterministicLevel();
     static std::string GetStatusCheck();
     static std::string GetPerformanceMode();
     static JIT_MODE GetJitCompile();

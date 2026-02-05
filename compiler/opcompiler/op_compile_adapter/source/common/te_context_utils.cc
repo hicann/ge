@@ -42,6 +42,11 @@ std::string TeContextUtils::GetDeterministic()
     return (GetContextValue(ge::DETERMINISTIC) == "1") ? STR_TRUE : STR_FALSE;
 }
 
+std::string TeContextUtils::GetDeterministicLevel()
+{
+    return GetContextValue("ge.deterministicLevel");
+}
+
 std::string TeContextUtils::GetStatusCheck()
 {
     return GetContextValue(ge::STATUS_CHECK);
