@@ -81,20 +81,6 @@ void AppendShapeDesc(const ge::GeTensorDesc &tensor_desc, std::vector<int64_t> &
   }
 }
 
-uint32_t CcKernelTypeToRtKernelType(const ge::ccKernelType cc_type) {
-  uint32_t rt_kernel_type = static_cast<uint32_t>(rtKernelType_t::KERNEL_TYPE_AICPU);
-  static const std::map<ge::ccKernelType, rtKernelType_t> cc_type_to_rt_type = {
-      {ge::ccKernelType::AI_CPU_KFC, rtKernelType_t::KERNEL_TYPE_AICPU_KFC},
-      {ge::ccKernelType::CUST_AI_CPU, rtKernelType_t::KERNEL_TYPE_AICPU_CUSTOM},
-      {ge::ccKernelType::AI_CPU, rtKernelType_t::KERNEL_TYPE_AICPU}};
-  const auto iter = cc_type_to_rt_type.find(cc_type);
-  if (iter != cc_type_to_rt_type.end()) {
-    rt_kernel_type = static_cast<uint32_t>(iter->second);
-  }
-  GELOGD("cc type:[%u], rt_type:[%u]", static_cast<uint32_t>(cc_type), rt_kernel_type);
-  return rt_kernel_type;
-}
-
 // 为了做到tensor.GetTensorData().GetAddr()返回地址的可刷新，这里需要做两次8字节对齐，即TensorData首地址对其以及Tensor大小的对齐
 void GetAddrAlignedGertTensorSize(size_t &io_aligned_offset, size_t &double_aliged_tensor_size) {
   gert::Tensor tensor;
@@ -667,72 +653,6 @@ Status KernelTaskInfo::Distribute() {
     super_kernel_op_desc_.reset();
     sk_sub_operator_.reset();
   }
-  return SUCCESS;
-}
-
-Status KernelTaskInfo::DistributeAicoreTask() {
-  GE_CHECK_NOTNULL(op_desc_);
-  GE_ASSERT_SUCCESS(ReportL0ExceptionDumpInfo(op_desc_, l0_dump_list_), "[%s] report l0 exception dump addr failed",
-                    op_desc_->GetNamePtr());
-  // call rtKernelLaunch for current task
-  const string op_name = op_desc_->GetName();
-  GELOGD("Start to launch kernel of %s.", op_name.c_str());
-  SetTaskTag(op_name.c_str());
-  args_ex_.args = args_;
-  args_ex_.argsSize =
-      customized_args_info_.customized_aligned ? customized_args_info_.kernel_def_args_size : args_size_;
-  args_ex_.isNoNeedH2DCopy = 1U;
-  cfg_.dumpflag = dump_flag_;
-  cfg_.localMemorySize = local_memory_size_;
-  bool op_exec_never_timeout = false;
-  if (AttrUtils::GetBool(op_desc_, public_attr::OP_EXEC_NEVER_TIMEOUT, op_exec_never_timeout) && op_exec_never_timeout) {
-    cfg_.neverTimeout = 1;
-    GELOGI("op %s type %s set never timeout", op_name.c_str(), op_desc_->GetTypePtr());
-  }
-  switch (task_type_) {
-    case ModelTaskType::MODEL_TASK_KERNEL:
-      GE_CHK_RT_RET(rtKernelLaunchWithFlagV2(stub_func_, block_dim_, &args_ex_, nullptr,
-                                             stream_, dump_flag_, &cfg_));
-      break;
-    case ModelTaskType::MODEL_TASK_ALL_KERNEL:
-      GE_CHK_RT_RET(rtKernelLaunchWithHandleV2(handle_, tiling_key_, block_dim_, &args_ex_, nullptr, stream_, &cfg_));
-      break;
-    case ModelTaskType::MODEL_TASK_VECTOR_KERNEL:
-      GE_CHK_RT_RET(rtVectorCoreKernelLaunch(stub_func_, block_dim_, &args_ex_, nullptr,
-                                             stream_, dump_flag_, &cfg_));
-      break;
-    case ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL:
-      GE_CHK_RT_RET(
-          rtVectorCoreKernelLaunchWithHandle(handle_, tiling_key_, block_dim_, &args_ex_, nullptr, stream_, &cfg_));
-      break;
-    default:
-      // misra
-      break;
-  }
-
-  GE_CHK_RT_RET(rtsGetThreadLastTaskId(&task_id_));
-  GE_CHK_RT_RET(rtsStreamGetId(stream_, reinterpret_cast<int32_t*>(&stream_id_)));
-  std::shared_ptr<TilingContextAddr> default_ctx_ptr = nullptr;
-  std::shared_ptr<TilingContextAddr> tiling_context_addr =
-      op_desc_->TryGetExtAttr(kTilingContextAddrs, default_ctx_ptr);
-  if (tiling_context_addr != nullptr) {
-    auto sink_info = MakeShared<TilingSinkTaskInfo>();
-    GE_ASSERT_NOTNULL(sink_info);
-    sink_info->task_id = task_id_;
-    sink_info->stream = stream_;
-    sink_info->ffts_task_handle = nullptr;
-    GE_ASSERT_TRUE(op_desc_->SetExtAttr(kTilingSinkTaskInfo, sink_info));
-    is_support_redistribute_ = false;
-    GELOGW("Redistribute is not supported in tiling, is_support_redistribute_ set to false");
-  } else {
-    is_support_redistribute_ = true;
-  }
-
-  GELOGI(
-      "Node: %s launch kernel success, task_type: %u, args: %p, argsize: %u, is no need h2d copy : %u, "
-      "tiling key: %" PRIu64 ", block dim: %u, stream_id: %u, task_id: %u, local memory size: %u.",
-      op_desc_->GetName().c_str(), static_cast<uint32_t>(task_type_), args_ex_.args, args_ex_.argsSize,
-      args_ex_.isNoNeedH2DCopy, tiling_key_, block_dim_, stream_id_, task_id_, local_memory_size_);
   return SUCCESS;
 }
 
@@ -2556,26 +2476,6 @@ Status KernelTaskInfo::AssembleKernelNamesAndLaunch() {
   // blockDim is reserved parameter, set to 1
   GE_CHK_RT_RET(rtAicpuKernelLaunchWithFlag(PtrToPtr<void, rtKernelLaunchNames_t>(kernel_name_arg_), block_dim_,
                                             &args_ex_, nullptr, stream_, dump_flag_));
-  is_support_redistribute_ = true;
-  return SUCCESS;
-}
-
-Status KernelTaskInfo::LaunchAicpuKernelWithArgs() {
-  aicpu_args_ex_.isNoNeedH2DCopy = true;
-  aicpu_args_ex_.args = args_;
-  aicpu_args_ex_.argsSize = args_size_;
-  aicpu_args_ex_.hostInputInfoPtr = nullptr;
-  aicpu_args_ex_.kernelOffsetInfoPtr = nullptr;
-  aicpu_args_ex_.hostInputInfoNum = 0U;
-  aicpu_args_ex_.kernelOffsetInfoNum = 0U;
-
-  uint32_t flag = RT_KERNEL_DEFAULT;
-  if (kernel_type_ == ccKernelType::CUST_AI_CPU) {
-    flag |= static_cast<uint32_t>(RT_KERNEL_CUSTOM_AICPU);
-  }
-  const uint32_t rt_kernel_type = CcKernelTypeToRtKernelType(kernel_type_);
-  GE_ASSERT_RT_OK(rtAicpuKernelLaunchExWithArgs(rt_kernel_type, op_desc_->GetNamePtr(), block_dim_, &aicpu_args_ex_,
-                                                nullptr, stream_, flag));
   is_support_redistribute_ = true;
   return SUCCESS;
 }

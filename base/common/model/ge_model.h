@@ -39,7 +39,7 @@ class GeModel : public std::enable_shared_from_this<GeModel>, public AttrHolder 
 
   std::shared_ptr<domi::ModelTaskDef> GetModelTaskDefPtr() const;
   TBEKernelStore &GetTBEKernelStore();
-  const CustAICPUKernelStore &GetCustAICPUKernelStore() const;
+  CustAICPUKernelStore &GetCustAICPUKernelStore();
   Buffer GetWeight() const;
   uint8_t* GetWeightData() const;
   size_t GetWeightSize() const;
