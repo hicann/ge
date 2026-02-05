@@ -20,14 +20,6 @@
 
 namespace ge {
 using NodeEngineMap = std::unordered_map<ConstNodePtr, std::string>;
-class EngineReAssignPass {
- public:
-  EngineReAssignPass() = default;
-  virtual ~EngineReAssignPass() = default;
-  virtual Status Run(const ComputeGraphPtr &graph,
-                     NodeEngineMap &node_atomic_engine_map,
-                     NodeEngineMap &node_composite_engine_map) = 0;
-};
 
 ///
 /// @ingroup graph/partition
@@ -60,7 +52,6 @@ class EnginePlacer {
   Status Run(bool direct_node_flag = true);
   Status AssignCompositeEngine();
   Status ReAssignEngine();
-  Status RunHostcpuEngineUpdatePass();
 
   // Get the unique node-engine map
   const NodeEngineMap &GetNodeEngineMap(bool is_composite_engine_mode) const;
@@ -68,10 +59,6 @@ class EnginePlacer {
   void SetComputeGraph(const ComputeGraphPtr &compute_graph) { compute_graph_ = compute_graph; }
 
  private:
-  // Execute single EngineReAssignPass and handle return value
-  Status RunSinglePass(const std::string &pass_name,
-                       const std::shared_ptr<EngineReAssignPass> &pass);
-
   Status Check() const;
   static void GetOpInfoByOpDesc(const OpDescPtr &op_desc, const std::string &attr_engine_name,
                                 const std::string &attr_kernel_name, OpInfo &matched_op_info);
@@ -84,6 +71,14 @@ class EnginePlacer {
   mutable std::mutex mutex_;
 };
 
+class EngineReAssignPass {
+ public:
+  EngineReAssignPass() = default;
+  virtual ~EngineReAssignPass() = default;
+  virtual Status Run(const ComputeGraphPtr &graph,
+                     NodeEngineMap &node_atomic_engine_map,
+                     NodeEngineMap &node_composite_engine_map) = 0;
+};
 }  // namespace ge
 
 #endif  // GE_GRAPH_PARTITION_ENGINE_PLACE_H_

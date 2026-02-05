@@ -290,10 +290,6 @@ class GraphManager {
       const std::map<std::string, std::vector<vector<int64_t>>> &data_to_dynamic_info);
   Status OptimizeSubgraph(const GraphNodePtr &graph_node, ComputeGraphPtr &compute_graph, uint64_t session_id);
 
-  Status DoDynamicShapePartition(const GraphNodePtr &graph_node, const ComputeGraphPtr &compute_graph);
-  Status DoSubgraphPartitionWithMode(const GraphNodePtr &graph_node, ComputeGraphPtr &compute_graph,
-                                     uint64_t session_id, EnginePartitioner::Mode mode, const char *mode_name);
-
   Status SubgraphPartitionAndOptimization(const GraphNodePtr &graph_node, ComputeGraphPtr &compute_graph,
                                           uint64_t session_id, EnginePartitioner::Mode mode);
 
