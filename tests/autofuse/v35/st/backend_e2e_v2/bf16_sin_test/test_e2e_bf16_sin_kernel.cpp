@@ -41,7 +41,6 @@ TEST_P(E2E_BackendBf16Sin_Code, CalculateCorrect) {
   for (int i = 0; i < test_size; i++) {
     // Generate random float values
     double val = rand() / (double)RAND_MAX;
-    std::cout << val << " ";
     x[i] = static_cast<bfloat16_t>(val);
     // Calculate expected sin result
     expect[i] = static_cast<bfloat16_t>(std::sin(val));
@@ -57,10 +56,8 @@ TEST_P(E2E_BackendBf16Sin_Code, CalculateCorrect) {
 
   // Count difference
   uint32_t diff_count = 0;
-  std::cout << std::endl;
   for (int i = 0; i < test_size; i++) {
     if (std::fabs(y[i] - expect[i]) > 1e-2) {
-      std::cout << std::fabs(y[i] - expect[i]) << " ";
       diff_count++;
     }
   }
