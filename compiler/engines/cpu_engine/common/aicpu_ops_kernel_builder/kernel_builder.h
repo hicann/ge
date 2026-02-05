@@ -100,6 +100,9 @@ class KernelBuilder {
   virtual ge::Status GenSingleOpRunTask(const ge::NodePtr &node,
                                         STR_FWK_OP_KERNEL &task,
                                         std::string &task_info) {
+    (void)node;
+    (void)task;
+    (void)task_info;
     return ge::FAILED;
   };
 
@@ -112,6 +115,9 @@ class KernelBuilder {
    */
   virtual ge::Status GenMemCopyTask(uint64_t count, STR_FWK_OP_KERNEL &task,
                                     std::string &task_info) {
+    (void)count;
+    (void)task;
+    (void)task_info;
     return ge::FAILED;
   };
 
