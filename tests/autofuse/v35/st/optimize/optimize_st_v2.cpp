@@ -926,7 +926,7 @@ TEST_F(OptimizerStV2, NddmaCaseAlignTailBrcScoreFunc_Dynamic) {
       "  const auto tail_size = static_cast<int64_t>((2 * tiling_data.s1));\n"
       "  if (tail_size % 32 == 0) { return -1; }\n"
       "  if (tail_size > 4096) { return -1; }\n"
-      "  return 1;\n"
+      "  return 0;\n"
       "}\n";
   EXPECT_EQ(score_func_iter->second, res);
 }

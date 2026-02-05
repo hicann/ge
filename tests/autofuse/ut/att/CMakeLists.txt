@@ -94,16 +94,12 @@ target_link_libraries(att_ut PRIVATE
         ascir_ops_headers
         symengine
         Boost::boost
-        register
-        graph_base graph error_manager
-        graph
-        exe_graph
-        lowering
+        graph_base
+        error_manager
         metadef
-        rt2_registry_static
+        graph
         c_sec
         json
         ascend_protobuf
-        opp_registry
         )
 add_dependencies(att_ut ascir_builtin_ops)

@@ -415,7 +415,8 @@ bool IsStaticGraph(const ge::AscGraph &origin_graph){
 }
 
 std::string GetStaticScoreFunc(const ge::AscNodePtr &nddma_node, std::stringstream &ss){
-  int score = 1;
+  // 默认打分为0，ATT根据性能公式选择模板
+  int32_t score = 0;
   const int low_score = -1;
   // case1: B8,B16类型时，若尾轴对齐，低分
   if (IsValidDataType(nddma_node) && ScheduleUtils::IsTailAxisAlignedBy(nddma_node)) {
@@ -464,7 +465,7 @@ std::string GetDynamicScoreFunc(const ge::AscGraph &nddma_graph, const ge::AscNo
     GELOGD("Nddma Node [%s] is tail broadcast, check tail size.", nddma_node->GetNamePtr());
     ss << "  if (tail_size > 4096) { return -1; }" << std::endl;
   }
-  ss << "  return 1;" << std::endl << "}" << std::endl;
+  ss << "  return 0;" << std::endl << "}" << std::endl;
   return ss.str();
 }
 

@@ -103,13 +103,8 @@ target_link_libraries(att_st
         aihac_symbolizer
         ascir_ops_headers
         aihac_ir_register
-        register
         graph_base
         graph
-        metadef
-        exe_graph
-        lowering
-        rt2_registry_static
         error_manager
         c_sec
         json
