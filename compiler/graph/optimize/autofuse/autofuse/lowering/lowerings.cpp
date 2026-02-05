@@ -94,7 +94,7 @@ std::string WhyRealizeByKernelBoxCategory(loop::KernelBox &kernel_box, const Low
   // 重计算阈值，忽略Slice类型融合
   if (kernelbox_num == 1U &&
       kernel_box.TargetBuffer()->GetPeerInDataNodesSize() > AutoFuseConfig::LoweringConfig().recomputation_threshold &&
-      !kernel_box.IsSlice()) {
+      !kernel_box.IsSliceOnly()) {
     return "single anchor readers" + std::to_string(kernel_box.TargetBuffer()->GetPeerInDataNodesSize()) +
            " exceed limited recomputation_threshold " +
            std::to_string(AutoFuseConfig::LoweringConfig().recomputation_threshold) + ", anchor size " +

@@ -225,7 +225,23 @@ class KernelBox {
 
   bool IsSlice() const {
     return (meta_ != nullptr) && (meta_->type == FuseType::kSliceSplit);
-}
+  }
+
+  bool IsSliceOnly() const {
+    if (!IsSlice()) {
+      return false;
+    }
+    bool is_slice_only = true;
+    static std::set<std::string> slice_ascir_ops = {"ops.Load", "ops.Store", "ops.StoreStridedSlice"};
+    LoopOp::StrictTopoExecute(meta_->var.Op().get(), [&is_slice_only](const LoopOp *op) -> graphStatus {
+      if (slice_ascir_ops.count(op->Type()) == 0) {
+        is_slice_only = false;
+        GELOGD("this kernelbox is not slice only, contains non-slice ascir op type: %s", op->Type().c_str());
+      }
+      return GRAPH_SUCCESS;
+    });
+    return is_slice_only;
+  }
 
   bool IsSupport() const {
     return meta_ != nullptr && meta_->is_support;
