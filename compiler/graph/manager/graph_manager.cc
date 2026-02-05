@@ -3865,49 +3865,22 @@ Status GraphManager::OptimizeSubgraph(const GraphNodePtr &graph_node, ComputeGra
   GE_COMPILE_TRACE_TIMESTAMP_END(EnginePlacer1, "OptimizeSubgraph::EnginePlacer1");
   GE_DUMP(compute_graph, "AfterEnginePlacer");
 
-  // ffts+场景采用优先merge静态子图的策略
-  GE_TRACE_START(GraphPartitionDynamicShape);
-  bool ffts_flag = OpsKernelManager::GetInstance().GetEnableFftsFlag();
-  DynamicShapePartitioner dynamic_shape_partitioner(compute_graph, ffts_flag);
-  ret = dynamic_shape_partitioner.Partition();
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[Call][Partition] for Graph:%s by dynamic shape Failed", compute_graph->GetName().c_str());
-    return ret;
-  }
-  GE_COMPILE_TRACE_TIMESTAMP_END(GraphPartitionDynamicShape, "OptimizeSubgraph::GraphPartitionDynamicShape");
-  GE_TRACE_START(EnginePlacer2);
-  if (engine_placer.ReAssignEngine() != SUCCESS) {
-    GELOGE(FAILED, "[Call][Run] Engine placer reassign failed, graph:%s.", compute_graph->GetName().c_str());
-    return FAILED;
-  }
-  GE_COMPILE_TRACE_TIMESTAMP_END(EnginePlacer2, "OptimizeSubgraph::EnginePlacer2");
-  GE_DUMP(compute_graph, "AfterDynamicShapePartition");
+  // 提前执行HostcpuEngineUpdatePass，在动态图划分前标记host CPU引擎
+  GE_TRACE_START(HostcpuEngineUpdatePass);
+  TraceOwnerGuard guard_hostcpu("GE", "HostcpuEngineUpdatePass", compute_graph->GetName());
+  GE_ASSERT_SUCCESS(engine_placer.RunHostcpuEngineUpdatePass());
+  GE_COMPILE_TRACE_TIMESTAMP_END(HostcpuEngineUpdatePass, "OptimizeSubgraph::HostcpuEngineUpdatePass");
+  GE_DUMP(compute_graph, "AfterHostcpuEngineUpdatePass");
 
-  GE_TRACE_START(SubgraphPartitionAndOptimization_CompositeEngine);
-  TraceOwnerGuard guard3("GE", "SubgraphPartitionAndOptimization_CompositeEngine", compute_graph->GetName());
-  ret = SubgraphPartitionAndOptimization(graph_node, compute_graph, session_id,
-                                         EnginePartitioner::Mode::kCompositeEnginePartitioning);
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[SubgraphPartitionAndOptimization][CompositeEngine] for graph:%s failed",
-           compute_graph->GetName().c_str());
-    return ret;
-  }
-  GE_COMPILE_TRACE_TIMESTAMP_END(SubgraphPartitionAndOptimization_CompositeEngine,
-                         "OptimizeSubgraph::SubgraphPartitionAndOptimization::CompositeEngine");
-  GE_DUMP(compute_graph, "MergedComputeGraphAfterCompositeEnginePartition");
+  // DynamicShapePartition + EnginePlacer2
+  GE_ASSERT_SUCCESS(DoDynamicShapePartition(graph_node, compute_graph));
 
-  GE_TRACE_START(SubgraphPartitionAndOptimization_AtomicEngine);
-  TraceOwnerGuard guard4("GE", "SubgraphPartitionAndOptimization_AtomicEngine", compute_graph->GetName());
-  ret = SubgraphPartitionAndOptimization(graph_node, compute_graph, session_id,
-                                         EnginePartitioner::Mode::kAtomicEnginePartitioning);
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[SubgraphPartitionAndOptimization][AtomicEngine] for graph:%s failed",
-           compute_graph->GetName().c_str());
-    return ret;
-  }
-  GE_COMPILE_TRACE_TIMESTAMP_END(SubgraphPartitionAndOptimization_AtomicEngine,
-                         "OptimizeSubgraph::SubgraphPartitionAndOptimization::AtomicEngine");
-  GE_DUMP(compute_graph, "MergedComputeGraphAfterAtomicEnginePartition");
+  // SubgraphPartitionAndOptimization for CompositeEngine and AtomicEngine
+  GE_ASSERT_SUCCESS(DoSubgraphPartitionWithMode(graph_node, compute_graph, session_id,
+                    EnginePartitioner::Mode::kCompositeEnginePartitioning, "CompositeEngine"));
+  GE_ASSERT_SUCCESS(DoSubgraphPartitionWithMode(graph_node, compute_graph, session_id,
+                    EnginePartitioner::Mode::kAtomicEnginePartitioning, "AtomicEngine"));
+
   GE_ASSERT_SUCCESS(VerifyCommNodesOrderAfterEngineAssigned(compute_graph));
   return SUCCESS;
 }
@@ -5098,6 +5071,49 @@ Status GraphManager::ForkGraph(uint32_t origin_graph_id, uint32_t forked_graph_i
   GE_ASSERT_TRUE(graph_ids_to_forked_ids_[origin_graph_id].emplace(forked_graph_id).second,
                  "Forked graph id %u already exists", forked_graph_id);
   GELOGI("Fork graph %u success from graph %u", forked_graph_id, origin_graph_id);
+  return SUCCESS;
+}
+
+Status GraphManager::DoDynamicShapePartition(const GraphNodePtr &graph_node,
+                                              const ComputeGraphPtr &compute_graph) {
+  // ffts+场景采用优先merge静态子图的策略
+  GE_TRACE_START(GraphPartitionDynamicShape);
+  bool ffts_flag = OpsKernelManager::GetInstance().GetEnableFftsFlag();
+  DynamicShapePartitioner dynamic_shape_partitioner(compute_graph, ffts_flag);
+  auto ret = dynamic_shape_partitioner.Partition();
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[Call][Partition] for Graph:%s by dynamic shape Failed", compute_graph->GetName().c_str());
+    return ret;
+  }
+  GE_COMPILE_TRACE_TIMESTAMP_END(GraphPartitionDynamicShape, "OptimizeSubgraph::GraphPartitionDynamicShape");
+
+  GE_TRACE_START(EnginePlacer2);
+  auto &engine_placer = GetCompilerStages(graph_node->GetGraphId()).partitioner.GetEnginePlacer();
+  if (engine_placer.ReAssignEngine() != SUCCESS) {
+    GELOGE(FAILED, "[Call][Run] Engine placer reassign failed, graph:%s.", compute_graph->GetName().c_str());
+    return FAILED;
+  }
+  GE_COMPILE_TRACE_TIMESTAMP_END(EnginePlacer2, "OptimizeSubgraph::EnginePlacer2");
+  GE_DUMP(compute_graph, "AfterDynamicShapePartition");
+  return SUCCESS;
+}
+
+Status GraphManager::DoSubgraphPartitionWithMode(const GraphNodePtr &graph_node, ComputeGraphPtr &compute_graph,
+                                                  uint64_t session_id, EnginePartitioner::Mode mode,
+                                                  const char *mode_name) {
+  GE_TRACE_START(SubgraphPartitionAndOptimization_Mode);
+  std::string trace_name = std::string("SubgraphPartitionAndOptimization_") + mode_name;
+  TraceOwnerGuard guard("GE", trace_name, compute_graph->GetName());
+  auto ret = SubgraphPartitionAndOptimization(graph_node, compute_graph, session_id, mode);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "[SubgraphPartitionAndOptimization][%s] for graph:%s failed", mode_name,
+           compute_graph->GetName().c_str());
+    return ret;
+  }
+  std::string timestamp_name = std::string("OptimizeSubgraph::SubgraphPartitionAndOptimization::") + mode_name;
+  GE_COMPILE_TRACE_TIMESTAMP_END(SubgraphPartitionAndOptimization_Mode, timestamp_name.c_str());
+  std::string dump_name = std::string("MergedComputeGraphAfter") + mode_name + "Partition";
+  GE_DUMP(compute_graph, dump_name.c_str());
   return SUCCESS;
 }
 }  // namespace ge
