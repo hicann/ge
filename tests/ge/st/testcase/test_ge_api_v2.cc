@@ -97,7 +97,10 @@ class GeApiV2Test : public testing::Test {
 };
 
 TEST_F(GeApiV2Test, ge_init_run_mode_train) {
-  std::map<AscendString, AscendString> options;
+  std::string long_value(900, 'a');  // 创建 900 字符的长字符串
+  std::map<AscendString, AscendString> options = {
+    {AscendString("ge.test.long_option"), AscendString(long_value.c_str())}
+  };
   options[OPTION_GRAPH_RUN_MODE] = "1";
   EXPECT_EQ(GEInitializeV2(options), SUCCESS);
   EXPECT_EQ(GEFinalizeV2(), SUCCESS);
@@ -2226,7 +2229,7 @@ TEST(FeatureQueryTest, QueryUnsupportedIr) {
   bool noFeature = IsIrRepSupport("");
   EXPECT_FALSE(noFeature);
 
-  bool similarErrorFeature = IsIrRepSupport("Inference_Rule"); 
+  bool similarErrorFeature = IsIrRepSupport("Inference_Rule");
   EXPECT_FALSE(similarErrorFeature);
 }
 }  // namespace ge
