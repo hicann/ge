@@ -237,8 +237,8 @@ class ModelArgsManager {
       + sizeof(KernelLaunchOpArgs)/sizeof(uint64_t);
   }
 
-  void SetStubFunc(void* stub_func) {
-    stub_func_ = stub_func;
+  void SetFuncHandle(const rtFuncHandle &func_handle) {
+    func_handle_ = func_handle;
   }
 
   Status CalculateUpdateModelParamTiling(uint32_t active_base_len, uint32_t index_len,
@@ -354,7 +354,7 @@ class ModelArgsManager {
   uint64_t host_input_partition_len_{0U};
   int8_t logLevel_ {DLOG_DEBUG};
   uint32_t block_dim_{0};
-  void* stub_func_{nullptr};
+  rtFuncHandle func_handle_{nullptr};
   std::vector<uint64_t> index_dingwei;
   std::vector<uint64_t> offset_dingwei;
   ArgsPlacement op_refresh_placement_{ArgsPlacement::kEnd};

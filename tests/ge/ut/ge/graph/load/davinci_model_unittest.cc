@@ -3806,12 +3806,10 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test) {
   EXPECT_EQ(model.Init(), SUCCESS);
   EXPECT_EQ(model.InitAddrRefreshKernelBin(), SUCCESS);
 
-  model.bin_kernel_handle_.CleanTbeHandle();
-  TBEHandleStore &kernel_store_cann = TBEHandleStore::GetInstance();
-  std::string bin_handle_key_cann = "UpdateModelParam_static_bin";
-  void *bin_handle_cann = nullptr;
-  EXPECT_TRUE(kernel_store_cann.FindTBEHandle(bin_handle_key_cann, bin_handle_cann));
-  TBEHandleStore::GetInstance().bin_key_to_handle_.clear();
+  std::string bin_handle_key = "UpdateModelParam_AicoreKernel";
+  auto kernel_handles_manager = model.GetKernelHandlesManager(KernelHandleType::kAicore);
+  EXPECT_NE(kernel_handles_manager->FindKernel(bin_handle_key), nullptr);
+  kernel_handles_manager->ClearKernel();
 
   setenv("LD_LIBRARY_PATH", path, 1);
   std::string save_path = lib_path + "/UpdateModelParam_dav_2201.o";
@@ -3822,12 +3820,8 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test) {
   graph_to_file.SaveToFile(save_path.c_str());
   EXPECT_EQ(model.InitAddrRefreshKernelBin(), SUCCESS);
 
-  model.bin_kernel_handle_.CleanTbeHandle();
-  TBEHandleStore &kernel_store = TBEHandleStore::GetInstance();
-  std::string bin_handle_key = "UpdateModelParam_static_bin";
-  void *bin_handle = nullptr;
-  EXPECT_TRUE(kernel_store.FindTBEHandle(bin_handle_key, bin_handle));
-  TBEHandleStore::GetInstance().bin_key_to_handle_.clear();
+  EXPECT_NE(kernel_handles_manager->FindKernel(bin_handle_key), nullptr);
+  kernel_handles_manager->ClearKernel();
   dlog_setlevel(0, 3, 0);
 }
 
@@ -3905,7 +3899,7 @@ TEST_F(UtestDavinciModel, InitAddrRefreshKernelBin_Test_OverflowDump_Enabled) {
   gert::BuiltInSubscriberUtil::BuildEnableFlags<gert::DumpType>({gert::DumpType::kOverflowDump}));
   EXPECT_EQ(model.Init(), SUCCESS);
   //EXPECT_EQ(model.InitAddrRefreshKernelBin(), SUCCESS);
-  EXPECT_EQ(model.args_manager_.stub_func_, nullptr);
+  EXPECT_EQ(model.args_manager_.func_handle_, nullptr);
   gert::GlobalDumper::GetInstance()->SetEnableFlags(0);
   dlog_setlevel(0, 3, 0);
 }
@@ -9367,7 +9361,7 @@ TEST_F(UtestDavinciModel, NnExecute_HostInput_GeTensor_kernelbin_OK) {
 
   DavinciModel model(0, nullptr);
   model.Assign(ge_model);
-  model.args_manager_.SetStubFunc((void*)100);
+  model.args_manager_.SetFuncHandle((void*)100);
   EXPECT_EQ(model.Init(), SUCCESS);
 
 
@@ -9525,7 +9519,7 @@ TEST_F(UtestDavinciModel, NnExecute_HostInput_GeTensor_kernelbin_pciebar_OK) {
 
   DavinciModel model(0, nullptr);
   model.Assign(ge_model);
-  model.args_manager_.SetStubFunc((void*)100);
+  model.args_manager_.SetFuncHandle((void*)100);
   EXPECT_EQ(model.Init(), SUCCESS);
 
   // 获取model args manager 地址

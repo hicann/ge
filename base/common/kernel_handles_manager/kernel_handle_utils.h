@@ -26,12 +26,15 @@ struct LaunchKernelConfig {
   uint16_t time_out{0U};
 };
 
+using RefreshAddrInfo = rtPlaceHolderInfo_t;
+
 struct LaunchKernelParam {
   uint32_t block_dim{0U};
   void *stream{nullptr};
   void *args{nullptr};
   uint32_t args_size{0U};
   LaunchKernelConfig launch_config;
+  std::vector<RefreshAddrInfo> refresh_add_infos;
   bool is_host_args{false};
 };
 
