@@ -72,27 +72,27 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 -   `${arch}`：表示CPU架构，如`aarch64`、`x86_64`。
 -   `${install_path}`：表示指定安装路径，可选，默认安装在/usr/local/Ascend目录，指定路径安装时，指定的路径权限需设置为755。
 
-#### 步骤二：安装社区版CANN ops包（运行样例依赖）
+#### 步骤二：安装社区版CANN ops包（可选，仅运行[样例](../examples/README.md)依赖）
 
 运行样例时必须安装该软件包，若仅编译源码，可跳过本操作。
 
-根据产品型号和环境架构，下载对应CANN ops包，下载链接为[CANN包社区版资源下载](https://ascend.devcloud.huaweicloud.com/cann/run/software/8.5.0-beta.1)：
+根据产品型号和环境架构，下载对应CANN ops包，请选择最新版本，[下载链接](https://mirror-centralrepo.devcloud.cn-north-4.huaweicloud.com/artifactory/cann-run-release/software/9.0.0/)。
 
 - Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件：`Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run`
-- Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run`
+- Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run`
 
 ```bash
 # 确保安装包具有可执行权限
 # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
 chmod +x Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run
 # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-chmod +x Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run
+chmod +x Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run
 
 # 安装命令
 # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
 ./Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
 # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-./Atlas-cann-A3-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
+./Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
 ```
 
 - `${install_path}`：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。

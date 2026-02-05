@@ -61,7 +61,7 @@ if (NOT DEFINED CMAKE_MODULE_PATH OR NOT DEFINED CMAKE_PREFIX_PATH)
     # In a developer environment, neither CMAKE_MODULE_PATH nor CMAKE_PREFIX_PATH is set.
     if (NOT DEFINED ASCEND_INSTALL_PATH OR NOT DEFINED ASCEND_3RD_LIB_PATH)
         message(FATAL_ERROR "Environment setup incomplete.\n"
-                "To complete the setup, refer to the 'CLion配置' section in README.md.")
+                "To complete the setup, please refer to https://gitcode.com/cann/ge/blob/master/docs/build.md#2-%E5%AE%89%E8%A3%85%E8%BD%AF%E4%BB%B6%E5%8C%85.")
     endif ()
 endif ()
 
