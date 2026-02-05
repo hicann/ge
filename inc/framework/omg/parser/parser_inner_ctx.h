@@ -38,6 +38,8 @@ struct ParserContext {
   // save the output node of the network. key = operator name, value = index, index indicates the output index of the
   // operator
   std::map<std::string, std::vector<int32_t>> out_nodes_map;
+  // Records output node names that were renamed during parsing (old_name:index, <new_name, index>)
+  std::map<std::string, std::pair<std::string, int32_t>> final_out_nodes_map;
   // save the output node of the network, value = topName,
   // tensorName indicates the output name of the operator.
   std::vector<std::string> user_out_tensors;
