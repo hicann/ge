@@ -106,6 +106,14 @@ bool NodeForwardFusionJudge(const NodePtr &node) {
     node->GetName().c_str(), node->GetType().c_str(), loop::StrJoin(node_input_dtypes).c_str());
     return false;
   }
+  auto node_output_desc = node_op_desc->MutableOutputDesc(0);
+  GE_ASSERT_NOTNULL(node_output_desc);
+  auto node_output_desc_dtype = node_output_desc->GetDataType();
+  if (node_input_desc_dtype != node_output_desc_dtype) {
+    GELOGD("elementwise_node's name = %s, elementwise_node's type = %s, input dtype(%d) != output dtype(%d), stop gather forward fusion",
+    node->GetName().c_str(), node->GetType().c_str(), static_cast<int32_t>(node_input_desc_dtype), static_cast<int32_t>(node_output_desc_dtype));
+    return false;
+  }
   return true;
 }
 
