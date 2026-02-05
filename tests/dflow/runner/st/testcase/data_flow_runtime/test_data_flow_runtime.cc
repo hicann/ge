@@ -45,7 +45,7 @@ class MockMmpaDeployer : public ge::MmpaStubApiGe {
   }
 
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-    strncpy(realPath, path, realPathLen);
+    (void)strncpy_s(realPath, realPathLen, path, strlen(path));
     return 0;
   }
 };

@@ -18,6 +18,7 @@
 
 namespace ge {
 void HeterogeneousStubEnv::SetupAIServerEnv() {
+  SubprocessManager::GetInstance().executable_paths_.emplace("queue_schedule", "/var/queue_schedule");
   LoadAIServerHostConfig("valid/server/numa_config2.json");
 
   auto &deployer_proxy = DeployerProxy::GetInstance();

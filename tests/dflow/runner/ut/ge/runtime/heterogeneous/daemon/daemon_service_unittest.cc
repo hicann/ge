@@ -32,7 +32,7 @@ namespace {
 class MockMmpa : public MmpaStubApiGe {
  public:
   int32_t RealPath(const char *path, char *realPath, int32_t realPathLen) override {
-    strncpy(realPath, path, realPathLen);
+    (void)strncpy_s(realPath, realPathLen, path, strlen(path));
     return 0;
   }
 

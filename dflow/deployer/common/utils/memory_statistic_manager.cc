@@ -44,8 +44,8 @@ void MemoryStatisticManager::Finalize() {
   {
     std::unique_lock<std::mutex> lock(mtx_);
     thread_run_flag_ = false;
-    thread_condition_.notify_all();
   }
+  thread_condition_.notify_all();
   if (statistic_thread_.joinable()) {
     statistic_thread_.join();
   }
@@ -59,11 +59,11 @@ void MemoryStatisticManager::RunStatistic() {
   while (thread_run_flag_) {
     StatisticRss();
     StatisticXsmem();
-    {
-      std::unique_lock<std::mutex> lock(mtx_);
-      // every 2s.
-      thread_condition_.wait_for(lock, std::chrono::seconds(2));
-    }
+    std::unique_lock<std::mutex> lock(mtx_);
+    // every 2s.
+    thread_condition_.wait_for(lock, std::chrono::seconds(2), [this] {
+      return !thread_run_flag_;
+    });
   }
 }
 

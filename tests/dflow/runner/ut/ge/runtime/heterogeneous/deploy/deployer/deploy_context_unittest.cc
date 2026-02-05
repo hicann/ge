@@ -115,7 +115,7 @@ class MockMmpa : public MmpaStubApiGe {
   }
 
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-    strncpy(realPath, path, realPathLen);
+    (void)strncpy_s(realPath, realPathLen, path, strlen(path));
     return EN_OK;
   }
 
@@ -130,6 +130,9 @@ class MockMmpa : public MmpaStubApiGe {
       return 0L;
     }
     return MmpaStubApiGe::DlClose(handle);
+  }
+  int32_t Sleep(UINT32 microSecond) override {
+    return 0;
   }
 };
 

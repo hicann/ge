@@ -19,14 +19,29 @@
 #include "framework/common/ge_inner_error_codes.h"
 #include "proto/deployer.pb.h"
 #include "stub/heterogeneous_stub_env.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 
 using namespace std;
 using namespace ::testing;
 
 namespace ge {
+namespace {
+class MockMmpaRealPath : public ge::MmpaStubApiGe {
+public:
+  int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    (void)strncpy_s(realPath, realPathLen, path, strlen(path));
+    return 0;
+  }
+  int32_t Sleep(UINT32 microSecond) override {
+    return 0;
+  }
+};
+}
 class HeterogeneousExchangeDeployerTest : public testing::Test {
  protected:
   void SetUp() override {
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaRealPath>());
+    HeterogeneousStubEnv::SetupAIServerEnv();
     EXPECT_CALL(mock_exchange_service_, DoCreateQueue).WillRepeatedly(Return(SUCCESS));
     EXPECT_CALL(mock_exchange_service_, DestroyQueue).WillRepeatedly(Return(SUCCESS));
     client_manager_.GetOrCreateClient(0, 0, {0}, false);
@@ -34,6 +49,8 @@ class HeterogeneousExchangeDeployerTest : public testing::Test {
   }
   void TearDown() override {
     client_manager_.Finalize();
+    HeterogeneousStubEnv::ClearEnv();
+    MmpaStub::GetInstance().Reset();
   }
 
   class MockHeterogeneousExchangeDeployer : public HeterogeneousExchangeDeployer {
