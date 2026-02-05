@@ -109,6 +109,10 @@ struct SubAxis {
   std::vector<SubAxis *> parent_axis;
 
   std::string basic;
+
+  // 分核轴类型标记（用于Store冲突检测）
+  bool is_reduce_split_axis{false};    // 该轴是否是Reduce分核轴
+  bool is_broadcast_split_axis{false}; // 该轴是否是Broadcast分核轴
 };
 
 struct Tensor {

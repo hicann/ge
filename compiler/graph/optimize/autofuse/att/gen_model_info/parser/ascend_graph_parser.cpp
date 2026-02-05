@@ -343,7 +343,7 @@ ge::Status AscendGraphParser::ParseTensorMemInfo(const ge::AscTensorAttr &ascir_
     container->allocated_tensors.emplace_back(tensor);
     container->container_id = ascir_tensor_info.buf.id;
   } else if (ascir_tensor_info.mem.alloc_type == ge::AllocType::kAllocTypeGlobal) {
-    if (node_type == kWorkspaceWithInput || node_type == kWorkspace) {
+    if (node_type == kWorkspace) {
       GE_ASSERT_TRUE(ascir_tensor_info.mem.hardware == ge::MemHardware::kMemHardwareGM,
                      "Hardware for workspace should be MEM_HARDWARE_GM.");
       GE_ASSERT_SUCCESS(ConstructGlobalContainer(ascir_tensor_info), "Construct global container failed.");
@@ -879,11 +879,76 @@ ge::Status AscendGraphParser::ConvertToTuningSpace(const ge::AscGraph &graph) {
   SetAxisPriority(graph);
   ParserOptionalInfos(graph);
   for (auto &pair : sub_axes_info_) {
-    GELOGI("Axis id[%lu], info [%s]", pair.first, pair.second->ToString().c_str());
+    GELOGI("[DFX] Axis id[%lu], info [%s], graph[%s]", pair.first, pair.second->ToString().c_str(),
+           graph.GetName().c_str());
     tuning_space_->sub_axes.emplace_back(std::move(pair.second));
   }
   tuning_space_->asc_graph = &graph;
   return ge::SUCCESS;
+}
+
+// 检测Reduce/Broadcast分核Store冲突场景
+// 使用 AttUtils 的公共函数检测 Reduce/Broadcast 轴
+ge::Status AscendGraphParser::CheckReduceBroadcastSplitStoreConflict(const ge::AscGraph &graph) {
+  // 首先收集所有Reduce轴和Brodacast轴的原始名称（从所有节点）
+  std::set<std::string> reduce_axis_orig_names;
+  std::set<std::string> broadcast_axis_orig_names;
+
+  for (const auto &node : tuning_space_->node_infos) {
+    // 从所有节点收集Reduce/Broadcast轴（使用新签名）
+    AttUtils::CollectReduceAxisNames(node, reduce_axis_orig_names);
+    AttUtils::CollectBroadcastAxisNames(node, broadcast_axis_orig_names);
+  }
+
+  // 然后遍历所有节点的 loop_axes 进行标记（不限制 Store 节点）
+  for (const auto &node : tuning_space_->node_infos) {
+    GELOGD("[DFX] Check node [%s] type[%s] for Reduce/Broadcast split axis.",
+           node.name.c_str(), node.node_type.c_str());
+
+    // 遍历loop_axes，标记Reduce/Broadcast分核轴
+    for (const auto &axis : node.loop_axes) {
+      // 跳过非分核轴或已被标记为Reduce分核轴的轴
+      if (!axis->is_bind_multi_core || axis->is_reduce_split_axis) {
+        continue;
+      }
+
+      // 检查并标记该轴是否为Reduce分核轴
+      if (CheckAndMarkReduceSplitAxis(axis, reduce_axis_orig_names)) {
+        continue;  // 已标记为Reduce分核轴，跳过Broadcast检查
+      }
+
+      // 检查并标记该轴是否为Broadcast分核轴
+      CheckAndMarkBroadcastSplitAxis(axis, broadcast_axis_orig_names);
+    }
+  }
+
+  return ge::SUCCESS;
+}
+
+// 检查并标记轴是否为 Reduce 分核轴
+bool AscendGraphParser::CheckAndMarkReduceSplitAxis(
+    SubAxis *axis, const std::set<std::string> &reduce_axis_orig_names) {
+  for (const auto &orig_name : axis->orig_axis_name) {
+    if (reduce_axis_orig_names.find(orig_name) != reduce_axis_orig_names.end()) {
+      axis->is_reduce_split_axis = true;
+      GELOGD("[DFX] Marked axis [%s] as reduce split axis", axis->name.c_str());
+      return true;
+    }
+  }
+  return false;
+}
+
+// 检查并标记轴是否为 Broadcast 分核轴
+bool AscendGraphParser::CheckAndMarkBroadcastSplitAxis(
+    SubAxis *axis, const std::set<std::string> &broadcast_axis_orig_names) {
+  for (const auto &orig_name : axis->orig_axis_name) {
+    if (broadcast_axis_orig_names.find(orig_name) != broadcast_axis_orig_names.end()) {
+      axis->is_broadcast_split_axis = true;
+      GELOGD("[DFX] Marked axis [%s] as broadcast split axis", axis->name.c_str());
+      return true;
+    }
+  }
+  return false;
 }
 
 ge::Status AscendGraphParser::GraphParser(const ge::AscGraph &graph) {
@@ -892,6 +957,10 @@ ge::Status AscendGraphParser::GraphParser(const ge::AscGraph &graph) {
   GE_ASSERT_SUCCESS(ParserOriginAxis(graph), "Parser origin axis info failed.");
   GE_ASSERT_SUCCESS(CreateSubAxisInfo(graph), "Create sub axis info failed.");
   GE_ASSERT_SUCCESS(ConvertToTuningSpace(graph), "Construct tuning space from infos failed");
+
+  // 新增：检测Reduce/Broadcast分核Store冲突
+  GE_ASSERT_SUCCESS(CheckReduceBroadcastSplitStoreConflict(graph));
+
   std::string dump_debug_info;
   if (GetThreadLocalContext().GetOption(kDumpDebugInfo, dump_debug_info) != ge::SUCCESS) {
     return ge::SUCCESS;

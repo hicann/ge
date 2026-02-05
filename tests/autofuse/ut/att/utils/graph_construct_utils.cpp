@@ -39,6 +39,52 @@ Status ConstructSimpleLoadStoreOp(ge::AscGraph &graph) {
   store_asc_node->outputs[0].attr.mem.hardware = ge::MemHardware::kMemHardwareGM;
   return ge::SUCCESS;
 }
+
+// 公共构图函数：Reduce分核惩罚场景的Concat图
+// 用于V1和V35测试，避免符号冲突
+Status BuildConcatGroupAscendGraphS0S1ReduceMultiTiling(ge::AscGraph &graph) {
+  auto S0 = ge::Symbol("S0");
+  auto s0 = graph.CreateAxis("s0", S0);
+  auto S1 = ge::Symbol("S1");
+  auto s1 = graph.CreateAxis("s1", S1);
+  auto [s0T, s0t] = graph.TileSplit(s0.id);
+  auto [s1T, s1t] = graph.TileSplit(s1.id);
+  auto s1Ts0T = *graph.MergeAxis({s1T->id, s0T->id});
+  auto [s1Ts0TB, s1Ts0Tb] = graph.BlockSplit(s1Ts0T.id);
+  auto data1 = graph.CreateContiguousData("input1", DT_FLOAT, {s0, s1});
+  LOOP(*s1Ts0TB) {
+    LOOP(*s1Ts0Tb) {
+      auto load1 = Load("load1", data1).TQue(Position::kPositionVecIn, 1, 1);
+      auto mean = Mean("mean1", load1).TQue(Position::kPositionVecOut, 1, 1);
+      auto store1 = Store("store1", mean);
+      GE_ASSERT_SUCCESS(
+          att::GraphConstructUtils::UpdateOutputTensorAxes({*s1Ts0TB, *s1Ts0Tb, *s1t, *s0t}, {load1, store1}, 1));
+      *load1.axis = {s1Ts0Tb->id, s1t->id, s0t->id};
+      *load1.repeats = {s1Ts0Tb->size, s1t->size, s0t->size};
+      *load1.strides = {s0t->size * s1t->size, s1t->size, att::CreateExpr(1)};
+      *load1.vectorized_axis = {s1t->id, s0t->id};
+
+      *mean.axis = {s1Ts0Tb->id, s1t->id, s0t->id};
+      *mean.repeats = {s1Ts0Tb->size, s1t->size, att::CreateExpr(1)};
+      *mean.strides = {s0t->size * s1t->size, s0t->size, att::CreateExpr(0)};
+      *mean.vectorized_axis = {s1t->id, s0t->id};
+
+      *store1.axis = {s1Ts0Tb->id, s1t->id, s0t->id};
+      *store1.repeats = {s1Ts0Tb->size, s1t->size, att::CreateExpr(1)};
+      *store1.strides = {s0t->size * s1t->size, s0t->size, att::CreateExpr(0)};
+      *store1.vectorized_axis = {s1t->id, s0t->id};
+      auto output1 = Output("output1", store1);
+    }
+  }
+  for (auto node : graph.GetAllNodes()) {
+    if (node->outputs().empty()) {
+      continue;
+    }
+    auto last_dim_name = att::GetVecString(node->outputs()[0]->attr.repeats);
+    GELOGD("Found Tile split axis %s in load/store node", last_dim_name.c_str());
+  }
+  return ge::SUCCESS;
+}
 }
 }
 }  // namespace ge
@@ -54,6 +100,10 @@ ge::AscNodePtr GraphConstructUtils::ConstructSingleOp(const std::string &op_type
 
 ge::Status GraphConstructUtils::CreateSimpleLoadStoreOp(ge::AscGraph &graph) {
   return ge::ascir::cg::ConstructSimpleLoadStoreOp(graph);
+}
+
+ge::Status GraphConstructUtils::BuildConcatGroupAscendGraphS0S1ReduceMultiTiling(ge::AscGraph &graph) {
+  return ge::ascir::cg::BuildConcatGroupAscendGraphS0S1ReduceMultiTiling(graph);
 }
 
 void GraphConstructUtils::UpdateVectorizedStride(const std::vector<int64_t> &axis,

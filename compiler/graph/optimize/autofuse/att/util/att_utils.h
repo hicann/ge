@@ -12,6 +12,8 @@
 
 #include "ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "base/model_info.h"
+#include <set>
+#include "gen_model_info/parser/tuning_space.h"
 namespace att {
 class AttUtils {
  public:
@@ -20,6 +22,14 @@ class AttUtils {
   static bool IsLoadStoreNode(ge::AscNode *node);
   static bool IsTileSplitAxis(const AttAxisPtr &axis);
   static bool GetLastTileSplitAxisName(ge::AscNode &node, const ge::AscGraph &graph, std::string &axis_name);
+
+  // 收集Reduce轴的原始轴名称（供 ascend_graph_parser 和 arg_list_reorder 共用）
+  static void CollectReduceAxisNames(const NodeInfo &node_info,
+                                     std::set<std::string> &reduce_axis_orig_names);
+
+  // 收集Broadcast轴的原始轴名称（供 ascend_graph_parser 和 arg_list_reorder 共用）
+  static void CollectBroadcastAxisNames(const NodeInfo &node_info,
+                                        std::set<std::string> &broadcast_axis_orig_names);
 };
 }
 #endif // UTIL_ATT_UTILS_H_
