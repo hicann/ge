@@ -41,7 +41,7 @@ class GenImplLLT : public ::testing::Test {
   void SetUp() override {
     // 创建测试输出目录
     test_output_dir_ = "./test_gen_output/";
-    ge::es::GenEsImpl(test_output_dir_, ge::es::kEsCodeGenDefaultModelName, ge::es::kEsCodeGenDefaultPrefixGuard, ge::es::kEsCodeGenDefaultExcludeOps);
+    ge::es::GenEsImpl(test_output_dir_, ge::es::kEsCodeGenDefaultModelName, ge::es::kEsCodeGenDefaultPrefixGuard, "phony_all");
   }
 
   void TearDown() override {
