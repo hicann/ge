@@ -323,6 +323,7 @@ ge::Status ConcatGroupPartitioner::CheckIsAncestorOfConcat(const ge::OutDataAnch
                                                            bool &need_split) const {
   std::vector<const ge::Node *> nodes;
   std::set<const ge::Node *> visited;
+  visited.emplace(concat_node_.get());
   for (const auto &peer_in_anchor : out_anchor->GetPeerInDataAnchors()) {
     const auto owner_node = peer_in_anchor->GetOwnerNode().get();
     GE_ASSERT_NOTNULL(owner_node);
