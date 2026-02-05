@@ -478,7 +478,7 @@ struct ScoreTilingCase {
      config_.force_tiling_case.Clear();
      config_.force_schedule_result = -1L;
    }
-   GELOGI("Get tiling code gen config(%s)", config.Debug().c_str());
+   GELOGI("[DFX] Get tiling code gen config(%s)", config.Debug().c_str());
  }
  
  ge::Status TilingCodeGenImpl::GetRelatedHardware(std::map<std::string, std::string> &hardware_info) {
