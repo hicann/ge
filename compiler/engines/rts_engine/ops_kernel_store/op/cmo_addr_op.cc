@@ -113,7 +113,7 @@ Status CmoAddrOp::CalculateLenInner(uint32_t &len_inner) {
     int64_t num_cnt = tensor_desc.GetShape().IsScalar() ? 1 : tensor_desc.GetShape().GetShapeSize();
     int64_t shape_len = GetSizeInBytes(num_cnt, tensor_desc.GetDataType());
     if (shape_len <= 0) {
-        RTS_REPORT_INNER_ERROR("invalid shape_len:%d", shape_len);
+        RTS_REPORT_INNER_ERROR("invalid shape_len %" PRId64 " should be greater than 0.", shape_len);
         return FAILED;
     }
     int64_t offset{0};
