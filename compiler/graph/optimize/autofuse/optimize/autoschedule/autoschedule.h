@@ -36,6 +36,15 @@ class AutoSchedule {
   Status DoAutoSchedule();
 
  private:
+  // 生成所有可能的TilingCase列表
+  Status PrepareTilingCases(std::vector<TilingCase> &tiling_cases);
+
+  // 针对每个TilingCase生成通用切分模版
+  Status ProcessOneTilingCase(TilingCase &tiling_case, size_t index, bool is_last_axis_reduce,
+                              bool is_reduce_full_load) const;
+
+  // 生成UBFuse模板（用于Cube模板为kUBFuse的情况）
+  void GenUBFuseTemplates() const;
   void GenTilingCase(std::vector<TilingCase> &tiling_cases);
   Status PruneTilingCase(std::vector<TilingCase> &tiling_cases) const;
   Status SelectLoopAxis(ascir::ImplGraph &impl_graph, bool is_reduce_fullload) const;

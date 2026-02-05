@@ -28,8 +28,7 @@ inline Status SerilizeAscBackendNode(const ComputeGraphPtr &graph) {
     }
     if (copy_graph == nullptr) {
       // 存在需要序列化节点时再拷贝子图
-      copy_graph = ComGraphMakeShared<ComputeGraph>("HashCopyGraph");
-      GE_ASSERT_NOTNULL(copy_graph);
+      GE_ASSERT_SUCCESS(AutofuseUtils::CreateComputeGraphWithGraphID(graph, "HashCopyGraph", copy_graph));
       // hash表示需要先拷贝图替换掉名字
       GE_ASSERT_SUCCESS(AutofuseUtils::CopyGraphAndRenameNode(graph, copy_graph, nullptr));
     }

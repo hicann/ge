@@ -30,6 +30,8 @@
 #include <symengine/integer.h>
 #include "solver_pass_manager/stub_model_info.h"
 #include "reuse_group_utils/reuse_group_utils.h"
+#include "tiling_data_gen/tiling_data_generator.h"
+#include "base/base_types.h"
 
 const std::string op_name = "OpTest";
 
@@ -489,6 +491,66 @@ TEST(GeneratorUT, GenGetScheduleResultPGOSuccess) {
   genImpl.enable_group_parallels_ = enable_group_parallels;
   EXPECT_EQ(genImpl.GenPGOGetScheduleResult(0, 0, graph_info, hardware_map), ge::SUCCESS);
   EXPECT_EQ(genImpl.tiling_func_.GetOutputStr().empty(), false);
+}
+
+// UT测试：验证tiling_data.set参数溢出修复
+// 测试用例1: 验证 MemoryTilingDataGen::GenFuncImpl 使用 static_cast<uint32_t>()
+TEST(GeneratorUT, MemoryTilingDataGen_GenFuncImpl_UseStaticCast) {
+  ModelInfo model_info;
+  // 创建大数值表达式: 70000 * 70000 * 4 > UINT32_MAX(4294967295)
+  // 70000 * 70000 = 4900000000 > UINT32_MAX
+  Expr large_expr = ge::Symbol(70000, "tmp") * ge::Symbol(70000, "tmp") * ge::Symbol(4, "tmp");
+  model_info.container_exprs["LargeContainer"] = large_expr;
+
+  // 创建 MemoryTilingDataGen 对象
+  auto memory_gen = att::MemoryTilingDataGen(model_info);
+  EXPECT_EQ(memory_gen.Init(), ge::SUCCESS);
+
+  // 获取生成的函数实现代码
+  const std::vector<std::string> func_impls = memory_gen.GetTilingFuncImpl("TestTilingData");
+
+  // 验证生成的代码包含 "static_cast<uint32_t>("
+  bool found_static_cast = false;
+  for (const auto &code : func_impls) {
+    if (code.find("static_cast<uint32_t>(") != std::string::npos) {
+      found_static_cast = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_static_cast) << "Generated code should contain 'static_cast<uint32_t>(' to prevent overflow";
+}
+
+// 测试用例2: 验证硬件约束代码生成使用 double 类型
+TEST(GeneratorUT, GenHardwareCheckCode_UseDoubleType) {
+  ModelInfo model_info;
+  // 创建大数值硬件约束: 102400 * 102400 = 10485760000，可能导致 uint32_t 溢出
+  Expr large_hardware_expr = ge::Symbol(102400, "tmp") * ge::Symbol(102400, "tmp");
+  model_info.hardware_cons[HardwareDef::UB] = large_hardware_expr;
+
+  TilingModelInfo model_infos;
+  model_infos.emplace_back(model_info);
+  TilingCodeGenConfig config;
+  config.path = "./";
+  config.type = TilingImplType::HIGH_PERF;
+  config.gen_extra_infos = false;
+  config.gen_tiling_data = false;
+  MockTilingCodeGenerator generator;
+  EXPECT_EQ(ReuseGroupUtils::InitReuseScheduleGroup({0UL, 0UL, 0UL}, model_infos), ge::SUCCESS);
+  EXPECT_EQ(generator.GenTilingCode(op_name, model_infos, config), ge::SUCCESS);
+
+  // 获取生成的代码
+  std::map<std::string, std::string> tiling_res;
+  EXPECT_EQ(generator.GenTilingCode(op_name, model_infos, config, tiling_res), ge::SUCCESS);
+
+  // 验证生成的代码包含 "double " 类型声明
+  bool found_double_type = false;
+  for (const auto &[key, code] : tiling_res) {
+    if (code.find("double ") != std::string::npos) {
+      found_double_type = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_double_type) << "Generated hardware check code should contain 'double ' type to prevent overflow";
 }
 
 }

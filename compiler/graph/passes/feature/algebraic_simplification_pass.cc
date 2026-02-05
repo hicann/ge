@@ -9,19 +9,21 @@
  */
 
 #include "algebraic_simplification_pass.h"
+
 #include "checker.h"
+#include "common/types.h"
+#include "debug/ge_attr_define.h"
+#include "debug/ge_util.h"
+#include "ge/fusion/pass/pattern_fusion_pass.h"
+#include "graph/passes/standard_optimize/prune_pass.h"
 #include "graph_utils.h"
 #include "graph_utils_ex.h"
 #include "node_adapter.h"
 #include "node_utils.h"
 #include "op_desc_utils.h"
 #include "operator_factory.h"
-#include "common/types.h"
-#include "debug/ge_attr_define.h"
-#include "debug/ge_util.h"
-#include "ge/fusion/pass/pattern_fusion_pass.h"
 #include "register/custom_pass_context_impl.h"
-#include "graph/passes/standard_optimize/prune_pass.h"
+#include "util/mem_utils.h"
 
 namespace ge {
 namespace {
@@ -31,6 +33,11 @@ constexpr auto kPatternDataConst = "_Data_Const";
 uint16_t ToFloat16(const int32_t value) {
   constexpr uint16_t kFp16One = 15360;
   return value == 0 ? 0 : kFp16One;
+}
+
+uint16_t ToBf16(const int32_t value) {
+  constexpr uint16_t kBf16One = 16256;
+  return value == 0 ? 0 : kBf16One;
 }
 
 class UselessBinaryOpRemovePass : public fusion::PatternFusionPass {
@@ -55,6 +62,7 @@ class UselessBinaryOpRemovePass : public fusion::PatternFusionPass {
   static bool CanRemove(const GeTensor &tensor, const std::string &op_type);
   static std::string GetPatternName(const fusion::MatchResult &match_result);
   static NodePtr GetTargetNode(const fusion::MatchResult &match_result);
+  static NodePtr AddBroadcastNode(const ComputeGraphPtr &graph, const NodePtr &node, int32_t data_index);
 };
 
 std::vector<fusion::PatternUniqPtr> UselessBinaryOpRemovePass::Patterns() {
@@ -66,8 +74,43 @@ std::vector<fusion::PatternUniqPtr> UselessBinaryOpRemovePass::Patterns() {
   return patterns;
 }
 
+NodePtr UselessBinaryOpRemovePass::AddBroadcastNode(const ComputeGraphPtr &graph, const NodePtr &node, int32_t data_index) {
+  const auto &shape = node->GetOpDesc()->GetOutputDesc(0).GetShape().GetDims();
+  const auto shape_tensor = MakeShared<GeTensor>();
+  GE_ASSERT_NOTNULL(shape_tensor);
+  auto &tensor_desc = shape_tensor->MutableTensorDesc();
+  const auto shape_tensor_shape = GeShape(std::vector<int64_t>{static_cast<int64_t>(shape.size())});
+  tensor_desc.Update(shape_tensor_shape, FORMAT_ND, DT_INT64);
+  tensor_desc.SetOriginShape(shape_tensor_shape);
+  shape_tensor->SetData(PtrToPtr<int64_t, uint8_t>(shape.data()), shape.size() * sizeof(int64_t));
+  const auto shape_op_desc = OpDescUtils::CreateConstOpZeroCopy(shape_tensor);
+  GE_ASSERT_NOTNULL(shape_op_desc);
+  const auto shape_node = graph->AddNode(shape_op_desc);
+  GE_ASSERT_NOTNULL(shape_node);
+  const auto &brc_node_name = node->GetName() + "_broadcast_to_by_UselessBinaryOpRemovePass";
+  const auto broadcast_to_op = ge::OperatorFactory::CreateOperator(brc_node_name.c_str(), BROADCAST_TO);
+  broadcast_to_op.BreakConnect();
+  const auto op_desc = ge::OpDescUtils::GetOpDescFromOperator(broadcast_to_op);
+  GE_ASSERT_NOTNULL(op_desc);
+
+  const auto &[src_node, out_anchor] = NodeUtils::GetInDataNodeAndAnchorByIndex(*node, data_index);
+  GE_ASSERT_NOTNULL(src_node);
+  const auto &src_op_desc = src_node->GetOpDesc();
+  GE_ASSERT_NOTNULL(src_op_desc);
+  GE_ASSERT_GRAPH_SUCCESS(op_desc->UpdateInputDesc(data_index, src_op_desc->GetOutputDesc(out_anchor->GetIdx())));
+  const auto const_index = 1 - data_index;
+  GE_ASSERT_GRAPH_SUCCESS(op_desc->UpdateInputDesc(const_index, tensor_desc));
+  GE_ASSERT_GRAPH_SUCCESS(op_desc->UpdateOutputDesc(0, node->GetOpDesc()->GetOutputDesc(0)));
+  auto broadcast_to_node = graph->AddNode(op_desc);
+  GE_ASSERT_NOTNULL(broadcast_to_node);
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(shape_node->GetOutDataAnchor(0), broadcast_to_node->GetInDataAnchor(1)));
+  return broadcast_to_node;
+}
+
 fusion::GraphUniqPtr UselessBinaryOpRemovePass::Replacement(const std::unique_ptr<fusion::MatchResult> &match_result) {
   const std::string pattern_name = GetPatternName(*match_result);
+  const auto target_node = GetTargetNode(*match_result);
+  const auto &op_desc = target_node->GetOpDesc();
   OpDescPtr const_op_desc;
   const int32_t data_index = pattern_name.find(kPatternDataConst) != std::string::npos ? 0 : 1;
   const auto compute_graph = ComGraphMakeShared<ComputeGraph>("replacement");
@@ -77,13 +120,22 @@ fusion::GraphUniqPtr UselessBinaryOpRemovePass::Replacement(const std::unique_pt
   GE_ASSERT_TRUE(AttrUtils::SetInt(x1_node->GetOpDesc(), ATTR_NAME_INDEX, data_index));
   const auto x2_node = AddNode(compute_graph, "x2", DATA);
   GE_ASSERT_NOTNULL(x2_node);
-  GE_ASSERT_TRUE(AttrUtils::SetInt(x2_node->GetOpDesc(), ATTR_NAME_INDEX, 1 - data_index));
+  GE_ASSERT_TRUE(AttrUtils::SetInt(x2_node->GetOpDesc(), ATTR_NAME_INDEX, (1 - data_index)));
   const auto net_output_desc = ComGraphMakeShared<OpDesc>("output", NETOUTPUT);
   GE_ASSERT_NOTNULL(net_output_desc);
-  GE_ASSERT_GRAPH_SUCCESS(net_output_desc->AddInputDesc(x1_node->GetOpDesc()->GetOutputDesc(0)));
+  const auto &data_shape = op_desc->GetInputDesc(data_index).GetShape().GetDims();
+  const auto &output_shape = op_desc->GetOutputDesc(0).GetShape().GetDims();
+  auto parent_node = x1_node;
+  if (data_shape != output_shape) { // need broadcast
+    GELOGD("node: %s need broadcast, in_shape = %s, out_shape = %s", target_node->GetNamePtr(), ToString(data_shape).c_str(), ToString(output_shape).c_str());
+    parent_node = AddBroadcastNode(compute_graph, target_node, data_index);
+    GE_ASSERT_NOTNULL(parent_node);
+    GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(x1_node->GetOutDataAnchor(0), parent_node->GetInDataAnchor(0)));
+  }
+  GE_ASSERT_GRAPH_SUCCESS(net_output_desc->AddInputDesc(target_node->GetOpDesc()->GetOutputDesc(0)));
   const auto net_output_node = compute_graph->AddNode(net_output_desc);
   GE_ASSERT_NOTNULL(net_output_node);
-  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(x1_node->GetOutDataAnchor(0), net_output_node->GetInDataAnchor(0)));
+  GE_ASSERT_GRAPH_SUCCESS(GraphUtils::AddEdge(parent_node->GetOutDataAnchor(0), net_output_node->GetInDataAnchor(0)));
   auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
   auto ret = ComGraphMakeUnique<Graph>(graph);
   GE_ASSERT_NOTNULL(ret);
@@ -194,6 +246,8 @@ bool UselessBinaryOpRemovePass::CanRemove(const GeTensor &tensor, const std::str
       return IsAll(tensor, static_cast<uint64_t>(value));
     case DT_FLOAT16:
       return IsAll(tensor, ToFloat16(value));
+    case DT_BF16:
+      return IsAll(tensor, ToBf16(value));
     case DT_FLOAT:
       return IsAll(tensor, static_cast<float>(value));
     case DT_DOUBLE:

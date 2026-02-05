@@ -501,7 +501,7 @@ TEST_F(UtestFileConstantUtilTransfer, test_convert_const_to_file_const_empty_ten
 }
 
 TEST_F(UtestFileConstantUtilTransfer, test_change_file_path_success) {
-  std::string file_name = "tmp_weight_pid/hello.bin";
+  std::string file_name = "tmp_weight_pid/weight.bin";
   size_t file_const_size = 12;
   size_t value_num = file_const_size / sizeof(float);
   std::unique_ptr<float[]> float_buf(new float[value_num]);
@@ -523,6 +523,9 @@ TEST_F(UtestFileConstantUtilTransfer, test_change_file_path_success) {
   std::string om_path = "om_path/hello.om";
   ret = FileConstantUtils::ChangeFilePath(graph, om_path);
   EXPECT_EQ(ret, SUCCESS);
+  std::string weight_file;
+  EXPECT_TRUE(AttrUtils::GetStr(op_desc, ATTR_NAME_LOCATION, weight_file));
+  EXPECT_EQ(weight_file, "weight.bin");
   (void)mmRmdir("om_path");
 }
 
@@ -565,9 +568,50 @@ TEST_F(UtestFileConstantUtilTransfer, test_reuse_external_weight_success) {
   GetThreadLocalContext().SetGraphOption(options_back);
 }
 
-TEST_F(UtestFileConstantUtilTransfer, test_reuse_external_weight_2_success) {
+TEST_F(UtestFileConstantUtilTransfer, test_reuse_external_weight_combined_use_om_name_success) {
   GetContext().SetSessionId(0U);
   ge::ut::GraphBuilder builder("graph");
+  auto const1 = builder.AddNode("const_1", "Const", 0, 1);
+  auto const2 = builder.AddNode("const_2", "Const", 0, 1);
+  auto const3 = builder.AddNode("const_1", "Const", 0, 1);
+  auto netoutput = builder.AddNode("Node_OutPut", "NetOutPut", 3, 0);
+
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value(4 * 8 * 8);
+  std::vector<int64_t> shape{1, 4, 8, 8};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  ConstantUtils::SetWeight(const1->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const2->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const3->GetOpDesc(), 0, tensor);
+  (void)AttrUtils::SetStr(const1->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const2->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const3->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+
+  builder.AddDataEdge(const1, 0, netoutput, 0);
+  builder.AddDataEdge(const2, 0, netoutput, 1);
+  builder.AddDataEdge(const3, 0, netoutput, 2);
+  auto graph = builder.GetGraph();
+  auto options_back = GetThreadLocalContext().GetAllGraphOptions();
+  auto options = options_back;
+  options[OPTION_GRAPH_COMPILER_CACHE_DIR] = "./cache_dir";
+  GetThreadLocalContext().SetGraphOption(options);
+  (void)AttrUtils::SetStr(graph, ATTR_MODEL_FILE_NAME_PREFIX, "./test_om_file.om");
+  auto ret = FileConstantUtils::ConvertConstToFileConst(graph, true);
+  EXPECT_EQ(ret, SUCCESS);
+  auto fileconstant1 = graph->FindFirstNodeMatchType(FILECONSTANT);
+  ASSERT_NE(fileconstant1, nullptr);
+  const auto &fileconstant_info = FileConstantUtils::GetFileConstantInfo(fileconstant1->GetOpDesc());
+  std::string weight_name = StringUtils::GetFileName(fileconstant_info.weight_path);
+  ASSERT_EQ(weight_name, "test_om_file_weight_combined");
+  ExternalWeightManagerPool::Instance().Destroy();
+  GetThreadLocalContext().SetGraphOption(options_back);
+}
+
+TEST_F(UtestFileConstantUtilTransfer, test_reuse_external_weight_combined_use_graph_name_success) {
+  GetContext().SetSessionId(0U);
+  ge::ut::GraphBuilder builder("test_graph");
   auto const1 = builder.AddNode("const_1", "Const", 0, 1);
   auto const2 = builder.AddNode("const_2", "Const", 0, 1);
   auto const3 = builder.AddNode("const_1", "Const", 0, 1);
@@ -599,7 +643,8 @@ TEST_F(UtestFileConstantUtilTransfer, test_reuse_external_weight_2_success) {
   auto fileconstant1 = graph->FindFirstNodeMatchType(FILECONSTANT);
   ASSERT_NE(fileconstant1, nullptr);
   const auto &fileconstant_info = FileConstantUtils::GetFileConstantInfo(fileconstant1->GetOpDesc());
-  ASSERT_NE(fileconstant_info.weight_path, "");
+  std::string weight_name = StringUtils::GetFileName(fileconstant_info.weight_path);
+  ASSERT_EQ(weight_name, "test_graph_weight_combined");
   ExternalWeightManagerPool::Instance().Destroy();
   GetThreadLocalContext().SetGraphOption(options_back);
 }

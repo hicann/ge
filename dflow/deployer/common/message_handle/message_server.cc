@@ -44,7 +44,9 @@ Status MessageServer::InitMessageQueue() const {
 template <class Request>
 Status MessageServer::WaitRequest(Request &request, bool &is_finalize) const {
   rtMbufPtr_t mbuf = nullptr;
-  auto ret = HService::GetInstance().DequeueMbuf(device_id_, req_msg_queue_id_, &mbuf, kDefaultTimeout);
+  // max wait 1s per time.
+  constexpr int32_t kWaitRequestPerTime = 1 * 1000;
+  auto ret = HService::GetInstance().DequeueMbuf(device_id_, req_msg_queue_id_, &mbuf, kWaitRequestPerTime);
   if (ret == RT_ERROR_TO_GE_STATUS(ACL_ERROR_RT_QUEUE_EMPTY)) {
     GELOGD("No message was received");
     return ret;

@@ -1585,11 +1585,10 @@ TEST_F(UtestFusionStrategySolverV2, Fuse_concat_backward_merge_split) {
   const FusionStrategySolver fusion_strategy_solver;
   EXPECT_EQ(fusion_strategy_solver.Fuse(graph), SUCCESS);
   auto post_nodes_size = graph->GetAllNodesSize();
-  EXPECT_EQ(pre_nodes_size - 3U, post_nodes_size);
+  EXPECT_EQ(pre_nodes_size - 2U, post_nodes_size);
   std::map<size_t, std::set<std::string>> expect_nodes;
   expect_nodes[0].insert("B");
-  expect_nodes[0].insert("Mul2Inputs");
-  expect_nodes[0].insert("SplitFirstDim");
+  // split canfuse新方案里, Mul2Inputs、SplitFirstDim两个节点先融合成新AscBackend了
   expect_nodes[0].insert("Concat2Inputs");
   EXPECT_TRUE(CheckFuseNodes(graph, expect_nodes));
 }
@@ -1634,7 +1633,7 @@ TEST_F(UtestFusionStrategySolverV2, Fuse_concat_backward_no_merge_split) {
   EXPECT_EQ(pre_nodes_size - 2U, post_nodes_size);
   std::map<size_t, std::set<std::string>> expect_nodes;
   expect_nodes[0].insert("B");
-  expect_nodes[0].insert("Mul2Inputs");
+  // 新方案里Mul2Inputs节点先和split融合成新AscBackend了
   expect_nodes[0].insert("Concat2InputsFirstDim");
   EXPECT_TRUE(CheckFuseNodes(graph, expect_nodes));
 }

@@ -515,6 +515,7 @@ Status GeGenerator::GenerateOfflineModel(const Graph &graph, const std::string &
                                          OfflineModelFormat om_format) {
   GELOGI("Start to generate offline model.");
   ModelBufferData model;
+  (void)AttrUtils::SetStr(GraphUtilsEx::GetComputeGraph(graph), ATTR_MODEL_FILE_NAME_PREFIX, file_name_prefix);
   return GenerateModel(graph, file_name_prefix, inputs, model, true, om_format);
 }
 

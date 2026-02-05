@@ -87,7 +87,7 @@ else()
             URL ${REQ_URL}
         )
     else()
-        message(FATAL_ERROR "[openssl] ${REQ_URL} not found, need download.")
+        message(STATUS "[openssl] ${REQ_URL} not found, need download.")
         list(APPEND OPENSSL_EXTRA_ARGS
             URL "https://gitcode.com/cann-src-third-party/openssl/releases/download/openssl-3.0.9/openssl-openssl-3.0.9.tar.gz"
             DOWNLOAD_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/openssl

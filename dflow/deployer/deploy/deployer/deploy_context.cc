@@ -233,10 +233,13 @@ Status DeployContext::ProcessSharedContent(const deployer::SharedContentDescRequ
       uint32_t transfer_queue_id = 0U;
       GE_CHK_STATUS_RET(GetOrCreateTransferQueue(device_id, transfer_queue_id), "Failed to get transfer queue");
       GELOGD("enqueue to queue[%u] in device[%d]", transfer_queue_id, device_id);
-      exchange_service.EnqueueMbuf(device_id, transfer_queue_id, m_buf, kDequeueTimeout);
+      GE_CHK_STATUS_RET(HService::EnqueueMbufToClientQueue(device_id, transfer_queue_id, m_buf, kDequeueTimeout),
+                        "Failed to enqueue mbuf to client, device_id=%d, queue_id=%u, timeout=%d", device_id,
+                        transfer_queue_id, kDequeueTimeout);
 
-      GE_CHK_STATUS_RET_NOLOG(
-          var_manager->ProcessSharedContent(content_desc, buffer_size, data_offset, transfer_queue_id));
+      GE_CHK_STATUS_RET(var_manager->ProcessSharedContent(content_desc, buffer_size, data_offset, transfer_queue_id),
+                        "Failed to process shared content, device_id=%d, queue_id=%u,buffer_size=%lu, data_offset=%lu.",
+                        device_id, transfer_queue_id, buffer_size, data_offset);
     }
     data_offset += buffer_size;
     GELOGD("Process shared content successfully, size = %lu, current/total = %lu/%lu",

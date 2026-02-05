@@ -1816,8 +1816,8 @@ TEST_F(AutoSchedulerUT, AutoSchedule_Tiling) {
   EXPECT_EQ(graph.GetAllAxis().size(), 8);
   EXPECT_EQ(std::get<0>(scheduler.tiling_case_.ub_tiling_y)->id, 3);
   EXPECT_EQ(std::get<1>(scheduler.tiling_case_.ub_tiling_y)->id, 4);
-  EXPECT_EQ(std::get<0>(scheduler.tiling_case_.block_tling)->id, 6);
-  EXPECT_EQ(std::get<1>(scheduler.tiling_case_.block_tling)->id, 7);
+  EXPECT_EQ(std::get<0>(scheduler.tiling_case_.block_tiling)->id, 6);
+  EXPECT_EQ(std::get<1>(scheduler.tiling_case_.block_tiling)->id, 7);
 }
 
 TEST_F(AutoSchedulerUT, Autoschedule_scheduler_elementwise_3axis) {

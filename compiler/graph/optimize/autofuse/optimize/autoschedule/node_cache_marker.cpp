@@ -44,9 +44,9 @@ void NodeCacheMarker::AddToCacheStartSet(const ge::NodePtr &node) {
   cache_start_nodes_.insert(node);
 }
 
-ge::ExecuteCondition NodeCacheMarker::DoesNodeNeedCache(const vector<int64_t> &in_axis, const vector<int64_t> &out_axis,
-                                                        const vector<ge::Expression> &in_repeats,
-                                                        const vector<ge::Expression> &out_repeats) const {
+ge::ExecuteCondition NodeCacheMarker::DoesNodeNeedCache(const std::vector<int64_t> &in_axis, const std::vector<int64_t> &out_axis,
+                                                        const std::vector<ge::Expression> &in_repeats,
+                                                        const std::vector<ge::Expression> &out_repeats) const {
   GE_ASSERT_EQ(in_axis.size(), out_axis.size());
   GE_ASSERT_EQ(in_repeats.size(), out_repeats.size());
   GE_ASSERT_EQ(in_axis.size(), in_repeats.size());

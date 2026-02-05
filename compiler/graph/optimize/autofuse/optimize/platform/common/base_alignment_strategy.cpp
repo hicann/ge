@@ -323,9 +323,12 @@ ge::Status BaseAlignmentStrategy::AddPadForAlignmentConflictNode(ascir::ImplGrap
       const auto &dtype = node->outputs[0].attr.dtype;
       std::vector<ge::DataType> exp_dtypes{dtype};
 
-      GE_ASSERT_SUCCESS(ScheduleUtils::CallAscirInferDataType<ge::ascir_op::RemovePad>({dtype}, exp_dtypes),
-                        "Input dtype [%s] is unsupported for pad.",
-                        ge::TypeUtils::DataTypeToSerialString(dtype).c_str());
+      auto ret = ScheduleUtils::CallAscirInferDataType<ge::ascir_op::Pad>({dtype}, exp_dtypes);
+      if (ret != ge::SUCCESS) {
+        GELOGW("Pad is unsupported for dtype [%s] in graph [%s], skip this template.",
+               ge::TypeUtils::DataTypeToSerialString(dtype).c_str(), impl_graph.GetName().c_str());
+        return ge::UNSUPPORTED;
+      }
       inserted = true;
       // Add pad node
       const std::string node_name = node->GetName() + "_" + std::to_string(i) + "_pad";
@@ -383,8 +386,11 @@ ge::Status BaseAlignmentStrategy::AlignVectorizedStrides(ascir::ImplGraph &impl_
     GE_ASSERT_SUCCESS(InferAlignmentForOneNode(node));
   }
   // Add pad nodes for alignment conflict
-  GE_ASSERT_SUCCESS(AddPadForAlignmentConflictNode(impl_graph), "Failed to add pad for [%s].",
-                    impl_graph.GetName().c_str());
+  auto ret = AddPadForAlignmentConflictNode(impl_graph);
+  if (ret != ge::SUCCESS) {
+    return ret;
+  }
+
   for (const auto &node : impl_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
     if (ScheduleUtils::IsBuffer(node)) {

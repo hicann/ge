@@ -6414,6 +6414,68 @@ TEST_F(OptimizerSt, PowWithTwoScalar) {
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
 }
 
+TEST(OptimizeST, TransposeSkipPadTilingCase) {
+  ge::AscGraph graph("trans_int64");
+  auto s0 = ge::Symbol(3);
+  auto s1 = ge::Symbol(10);
+  auto s2 = ge::Symbol(4);
+
+  auto z0 = graph.CreateAxis("z0", s0);
+  auto z1 = graph.CreateAxis("z1", s1);
+  auto z2 = graph.CreateAxis("z2", s2);
+
+  std::vector<int64_t> axis_ids = {z2.id, z1.id, z0.id};
+  Data data0("data0", graph);
+  data0.y.dtype = ge::DT_FLOAT;
+  data0.ir_attr.SetIndex(0);
+
+  Load load0("load0");
+  load0.attr.sched.axis = axis_ids;
+  load0.x = data0.y;
+  load0.y.dtype = ge::DT_FLOAT;
+  *load0.y.axis = axis_ids;
+  *load0.y.repeats = {s2, s1, s0};
+  *load0.y.strides = {s1 * s0, s0, ge::ops::One};
+
+  Transpose transpose0("transpose0");
+  transpose0.attr.sched.axis = axis_ids;
+  transpose0.x = load0.y;
+  transpose0.y.dtype = ge::DT_FLOAT;
+  *transpose0.y.axis = {z0.id, z1.id, z2.id};
+  *transpose0.y.repeats = {s0, s1, s2};
+  *transpose0.y.strides = {s1 * s2, s2, ge::ops::One};
+
+  Cast cast0("cast0");
+  cast0.attr.sched.axis = axis_ids;
+  cast0.x = transpose0.y;
+  cast0.y.dtype = ge::DT_INT64;
+  *cast0.y.axis = {z0.id, z1.id, z2.id};
+  *cast0.y.repeats = {s0, s1, s2};
+  *cast0.y.strides = {s1 * s2, s2, ge::ops::One};
+
+  Store store0("store0");
+  store0.attr.sched.axis = axis_ids;
+  store0.x = cast0.y;
+  store0.y.dtype = ge::DT_INT64;
+  *store0.y.axis = {z0.id, z1.id, z2.id};
+  *store0.y.repeats = {s0, s1, s2};
+  *store0.y.strides = {s1 * s2, s2, ge::ops::One};
+
+  Output out0("out0");
+  out0.x = store0.y;
+  out0.y.dtype = ge::DT_INT64;
+  out0.ir_attr.SetIndex(0);
+
+  ::optimize::AscGraphInfoComplete::CompleteApiInfo(graph);
+
+  optimize::Optimizer optimizer(optimize::OptimizerOptions{});
+  ::ascir::FusedScheduledResult fused_scheduled_result;
+  ASSERT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
+  ASSERT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0].size(), 2UL);
+  EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
+  EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][1].schedule_groups[0].impl_graphs.size(), 2UL);
+}
+
 TEST_F(OptimizerSt, vecoutCanBeReuse) {
   ge::AscGraph graph("reuse");
 
@@ -6608,58 +6670,4 @@ TEST_F(OptimizerSt, SliceSliceConcatD) {
     auto load1_remove_pad_0 = impl_graph.FindNode("load1_remove_pad_0");
     EXPECT_NE(load1_remove_pad_0, nullptr);
   }
-}
-
-TEST_F(OptimizerSt, TransposeAlign) {
-  ge::AscGraph graph("transpose");
-
-  auto s0 = graph.CreateSizeVar(512);
-  auto s1 = graph.CreateSizeVar(128);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
-
-  Data data0("data0", graph);
-  data0.ir_attr.SetIndex(0);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z1.id, z0.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z1.id, z0.id};
-  *load0.y.repeats = {s0, s1};
-  *load0.y.strides = {s1, ge::ops::One};
-
-  Transpose transpose("transpose0");
-  transpose.attr.sched.axis = {z1.id, z0.id};
-  transpose.x = load0.y;
-  *transpose.y.axis = {z0.id, z1.id};
-  *transpose.y.repeats = {s1, s0};
-  *transpose.y.strides = {s0, ge::ops::One};
-
-  Store store0("store0");
-  store0.attr.sched.axis = {z1.id, z0.id};
-  store0.x = transpose.y;
-  *store0.y.axis = {z0.id, z1.id};
-  *store0.y.repeats = {s1, s0};
-  *store0.y.strides = {s0, ge::ops::One};
-
-  Output out0("out0");
-  out0.x = store0.y;
-  out0.ir_attr.SetIndex(1);
-
-  ::ascir::FusedScheduledResult fused_scheduled_result;
-  EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
-
-  EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results.size(), 1UL);
-  EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0].size(), 2UL);
-
-  auto tiling_case0 = fused_scheduled_result.node_idx_to_scheduled_results[0][1].schedule_groups[0].impl_graphs[0];
-  auto store_node = tiling_case0.FindNode("store0");
-  ASSERT_EQ(store_node->outputs[0].attr.vectorized_strides.size(), 2UL);
-  EXPECT_EQ(ge::SymbolicUtils::ToString(store_node->outputs[0].attr.vectorized_strides[0]),
-            "(8 * Ceiling((Rational(1 , 8) * z1t_size)))");
-
-  auto tiling_case1 = fused_scheduled_result.node_idx_to_scheduled_results[0][1].schedule_groups[0].impl_graphs[1];
-  auto store_node1 = tiling_case1.FindNode("store0");
-  ASSERT_EQ(store_node1->outputs[0].attr.vectorized_strides.size(), 1UL);
-  EXPECT_EQ(ge::SymbolicUtils::ToString(store_node1->outputs[0].attr.vectorized_strides[0]), "8");
 }

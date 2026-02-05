@@ -25,9 +25,9 @@ class NodeCacheMarker {
   void VisitNode(const ge::NodePtr &node);
   void AddToCacheStartSet(const ge::NodePtr &node);
 
-  ge::ExecuteCondition DoesNodeNeedCache(const vector<int64_t> &in_axis, const vector<int64_t> &out_axis,
-                                         const vector<ge::Expression> &in_repeats,
-                                         const vector<ge::Expression> &out_repeats) const;
+  ge::ExecuteCondition DoesNodeNeedCache(const std::vector<int64_t> &in_axis, const std::vector<int64_t> &out_axis,
+                                         const std::vector<ge::Expression> &in_repeats,
+                                         const std::vector<ge::Expression> &out_repeats) const;
   ge::ExecuteCondition DoesNodeNeedCache(const ge::AscNodePtr &node) const;
   ge::ExecuteCondition DoesNodeNeedCache(const ge::NodePtr &node) const;
   ge::ExecuteCondition DoesInlineNodeNeedCache(const ge::NodePtr &node, int32_t brc_idx) const;

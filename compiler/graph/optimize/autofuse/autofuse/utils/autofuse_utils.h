@@ -129,6 +129,11 @@ class AutofuseUtils {
     // op_desc外部保证非空
     return OpTypeUtils::IsAutofuseNode(op_desc);
   }
+  static Status CreateComputeGraphWithGraphID(const ge::NodePtr &node, const std::string &graph_name,
+                                              ComputeGraphPtr &compute_graph);
+
+  static Status CreateComputeGraphWithGraphID(const ComputeGraphPtr &graph, const std::string &graph_name,
+                                              ComputeGraphPtr &compute_graph);
 
   static Status SerilizeAscBackend(Node *node_ptr, std::string &output, bool isHash = false);
 

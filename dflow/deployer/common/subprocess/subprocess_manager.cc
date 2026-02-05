@@ -24,8 +24,7 @@
 namespace ge {
 namespace {
 constexpr size_t kMaxArgsSize = 128UL;
-constexpr int32_t kWatchSubProcThreadWaitTimeInsec = 1;
-const std::string kDefaultFlowGwBinDir = "/var/queue_schedule";
+constexpr int32_t kWatchSubProcThreadWaitTimeInMs = 200;
 }  // namespace
 SubprocessManager::SubprocessManager() : run_flag_(false) {}
 
@@ -70,7 +69,7 @@ void SubprocessManager::MonitorSubprocess() {
         excpt_handle_callback++;
       }
     }
-    std::this_thread::sleep_for(std::chrono::seconds(kWatchSubProcThreadWaitTimeInsec));
+    std::this_thread::sleep_for(std::chrono::milliseconds(kWatchSubProcThreadWaitTimeInMs));
   }
 }
 

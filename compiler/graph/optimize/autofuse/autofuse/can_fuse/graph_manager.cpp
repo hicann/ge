@@ -27,8 +27,8 @@ Status FusionGraphManager::AddMergeGraphMap(const std::string &new_node, const s
 
 Status FusionGraphManager::CacheGraph(const std::string &graph_name, const ComputeGraphPtr &graph) {
   GELOGD("cache graph: %s.", graph_name.c_str());
-  ComputeGraphPtr cache_graph = ComGraphMakeShared<ComputeGraph>(graph_name.c_str());
-  GE_ASSERT_NOTNULL(cache_graph);
+  ComputeGraphPtr cache_graph;
+  GE_ASSERT_SUCCESS(AutofuseUtils::CreateComputeGraphWithGraphID(graph, graph_name, cache_graph));
   GE_ASSERT_GRAPH_SUCCESS(GraphUtils::CopyComputeGraph(graph, cache_graph));
   cache_graph->CopyAttrsFrom(*graph);
   name_to_graph_[graph_name] = cache_graph;

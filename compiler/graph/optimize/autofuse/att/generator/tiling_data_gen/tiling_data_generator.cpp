@@ -518,7 +518,8 @@ std::string MemoryTilingDataGen::GenFuncImpl(const std::pair<std::string, Expr> 
   std::string tmp_var = ast_optimizer.RebuildExpr(*ast.get(), 1);
 
   func_impl += ast_optimizer.GenerateCode();
-  func_impl += "    tiling_data.set_" + var_name + "(" + tmp_var + ");\n";
+  // 防止溢出导致编译错误，由于内存类tiling data类型均为uint32_t，这里增加强转uint32_t
+  func_impl += "    tiling_data.set_" + var_name + "(static_cast<uint32_t>(" + tmp_var + "));\n";
   func_impl += "  }\n";
   return func_impl;
 }

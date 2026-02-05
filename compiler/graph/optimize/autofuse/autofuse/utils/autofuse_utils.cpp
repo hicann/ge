@@ -244,12 +244,31 @@ NodePtr AutofuseUtils::ConvertAscBackendNodeToAscGraphNode(const ComputeGraphPtr
   return new_node;
 }
 
+// 从Node获取GraphID的版本
+Status AutofuseUtils::CreateComputeGraphWithGraphID(const ge::NodePtr &node, const std::string &graph_name,
+                                                    ComputeGraphPtr &compute_graph) {
+  compute_graph = ComGraphMakeShared<ComputeGraph>(graph_name.c_str());
+  GE_ASSERT_NOTNULL(compute_graph);
+  GE_ASSERT_NOTNULL(node->GetOwnerComputeGraph());
+  compute_graph->SetGraphID(node->GetOwnerComputeGraph()->GetGraphID());
+  return SUCCESS;
+}
+
+// 从Graph获取GraphID的版本
+Status AutofuseUtils::CreateComputeGraphWithGraphID(const ComputeGraphPtr &graph, const std::string &graph_name,
+                                                    ComputeGraphPtr &compute_graph) {
+  compute_graph = ComGraphMakeShared<ComputeGraph>(graph_name.c_str());
+  GE_ASSERT_NOTNULL(compute_graph);
+  GE_ASSERT_NOTNULL(graph);
+  compute_graph->SetGraphID(graph->GetGraphID());
+  return SUCCESS;
+}
+
 Status AutofuseUtils::SerilizeAscBackend(ge::Node *node_ptr, std::string &output, bool isHash) {
   NodePtr node(node_ptr, [](ge::Node *) {});
   ComputeGraphPtr compute_graph;
   // 给ascbackend node创建子图
-  compute_graph = ComGraphMakeShared<ComputeGraph>(node->GetName());
-  GE_ASSERT_NOTNULL(compute_graph);
+  GE_ASSERT_SUCCESS(CreateComputeGraphWithGraphID(node, node->GetName(), compute_graph));
 
   if ((node->GetType() == kAscBackendType) || (node->GetType() == kAscBackendNoKernelType)) {
     auto new_node = ConvertAscBackendNodeToAscGraphNode(compute_graph, node);
@@ -469,8 +488,8 @@ Status AutofuseUtils::CopyGraphAndRenameNode(const ComputeGraphPtr &graph, Compu
       node->GetOpDesc()->CopyAttrsFrom(*(origin_node->GetOpDesc()));
       GE_ASSERT_SUCCESS(CompleteSymbolicAttrForCopyGraph(node, graph, index));
       std::string copy_fused_graph_name = "HashCopyFusedAscGraph";
-      ComputeGraphPtr copy_fused_graph = ComGraphMakeShared<ComputeGraph>(copy_fused_graph_name.c_str());
-      GE_ASSERT_NOTNULL(copy_fused_graph);
+      ComputeGraphPtr copy_fused_graph;
+      GE_ASSERT_SUCCESS(CreateComputeGraphWithGraphID(node, copy_fused_graph_name, copy_fused_graph));
       GE_ASSERT_SUCCESS(AutofuseUtils::CopyGraphAndRenameNode(fused_compute_graph, copy_fused_graph, new_counter_ptr));
       auto fuse_attrs = BackendUtils::GetNodeAutoFuseAttr(node);
       GE_ASSERT_NOTNULL(fuse_attrs);

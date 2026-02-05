@@ -42,18 +42,20 @@ class AlgebraicSimplificationPassTest : public testing::Test {
   }
 
   template <typename T>
-  static ComputeGraphPtr BuildGraph(const std::string &op_type, DataType dtype, T value, bool lhs_is_data,
-                                    bool ref_const = false) {
-    const auto shape = GeShape(std::vector<int64_t>({8, 16}));
-    GeTensorDesc desc(shape, FORMAT_ND, dtype);
-
-    std::vector<T> buffer(shape.GetShapeSize(), value);
+  static ComputeGraphPtr BuildGraph(const std::string &op_type, DataType dtype,
+                                    T value, bool lhs_is_data,
+                                    bool ref_const = false,
+                                    const std::vector<int64_t> &const_shape = {8, 16},
+                                    const std::vector<int64_t> &data_shape = {8, 16}) {
+    GeTensorDesc const_desc(GeShape(const_shape), FORMAT_ND, dtype);
+    std::vector<T> buffer(GeShape(const_shape).GetShapeSize(), value);
     ::es::Graph es_graph("graph");
     {
       auto data_0 = es_graph.CreateInput(0, "data_0", nullptr);
-      data_0.SetShape({{8, 16}});
+      data_0.SetShape({data_shape});
       auto abs_0 = es::Abs(data_0);
-      auto const_0 = CreateConst(es_graph, dtype, shape.GetDims(), buffer);
+      auto const_0 = CreateConst(es_graph, dtype, GeShape(const_shape).GetDims(), buffer);
+      const_0.SetShape({const_shape});
       const ::es::Tensor &lhs = lhs_is_data ? abs_0 : const_0;
       const ::es::Tensor &rhs = lhs_is_data ? const_0 : abs_0;
       if (op_type == ADD) {
@@ -75,6 +77,19 @@ class AlgebraicSimplificationPassTest : public testing::Test {
     }
     const auto test_graph = es_graph.Build();
     const auto graph = GraphUtilsEx::GetComputeGraph(*test_graph);
+    std::vector<int64_t> output_shape(data_shape.size());
+    for (size_t i = 0; i < data_shape.size(); ++i) {
+      output_shape[i] = (data_shape[i] != 1 ? data_shape[i] : const_shape[i]);
+    }
+    for (const auto &node : graph->GetAllNodes()) {
+      if (node->GetType() == op_type) {
+        const auto &lhs_shape = lhs_is_data ? data_shape : const_shape;
+        const auto &rhs_shape = lhs_is_data ? const_shape : data_shape;
+        node->GetOpDesc()->MutableInputDesc(0)->SetShape(GeShape(lhs_shape));
+        node->GetOpDesc()->MutableInputDesc(1)->SetShape(GeShape(rhs_shape));
+        node->GetOpDesc()->MutableOutputDesc(0)->SetShape(GeShape(output_shape));
+      }
+    }
     return graph;
   }
 };
@@ -89,7 +104,7 @@ REG_OP(Mul)
                            DT_COMPLEX64, DT_COMPLEX128}))
     .OP_END_FACTORY_REG(Mul)
 
-        REG_OP(Add)
+REG_OP(Add)
     .INPUT(x1, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
                            DT_COMPLEX64, DT_COMPLEX128}))
     .INPUT(x2, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
@@ -98,7 +113,7 @@ REG_OP(Mul)
                            DT_COMPLEX64, DT_COMPLEX128}))
     .OP_END_FACTORY_REG(Add)
 
-        REG_OP(Div)
+REG_OP(Div)
     .INPUT(x1, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
                            DT_COMPLEX64, DT_COMPLEX128}))
     .INPUT(x2, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
@@ -107,7 +122,7 @@ REG_OP(Mul)
                            DT_COMPLEX64, DT_COMPLEX128}))
     .OP_END_FACTORY_REG(Div)
 
-        REG_OP(Sub)
+REG_OP(Sub)
     .INPUT(x1, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
                            DT_COMPLEX64, DT_COMPLEX128}))
     .INPUT(x2, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
@@ -116,11 +131,19 @@ REG_OP(Mul)
                            DT_COMPLEX64, DT_COMPLEX128}))
     .OP_END_FACTORY_REG(Sub)
 
-        REG_OP(Constant)
+REG_OP(Constant)
     .OUTPUT(y, TensorType({DT_FLOAT, DT_FLOAT16, DT_INT8, DT_INT16, DT_UINT16, DT_UINT8, DT_INT32, DT_INT64, DT_UINT32,
                            DT_UINT64, DT_BOOL, DT_DOUBLE}))
     .ATTR(value, Tensor, Tensor())
     .OP_END_FACTORY_REG(Constant)
+
+REG_OP(BroadcastTo)
+    .INPUT(x, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
+                      DT_COMPLEX64, DT_COMPLEX128}))
+    .INPUT(shape, TensorType({DT_INT32, DT_INT64}))
+    .OUTPUT(y, TensorType({DT_FLOAT, DT_FLOAT16, DT_INT8, DT_INT16, DT_UINT16, DT_UINT8, DT_INT32, DT_INT64, DT_UINT32,
+                           DT_UINT64, DT_BOOL, DT_DOUBLE}))
+    .OP_END_FACTORY_REG(BroadcastTo)
 }  // namespace
 
 TEST_F(AlgebraicSimplificationPassTest, HandleAdd) {
@@ -189,6 +212,27 @@ TEST_F(AlgebraicSimplificationPassTest, HandleMul) {
     const auto graph = BuildGraph(ADD, DT_FLOAT, 1.1f, true);
     EXPECT_EQ(AlgebraicSimplificationPass::Run(graph), SUCCESS);
     EXPECT_EQ(graph->GetAllNodesSize(), 5);
+  }
+}
+
+TEST_F(AlgebraicSimplificationPassTest, HandleMul_WithBrc) {
+  // 1 * A -> A
+  {
+    const auto graph = BuildGraph<uint16_t>(MUL, DT_BF16, 16256, false, false, {8, 16}, {1, 1});
+    EXPECT_EQ(AlgebraicSimplificationPass::Run(graph), SUCCESS);
+    EXPECT_EQ(graph->GetAllNodesSize(), 5);
+    EXPECT_TRUE(graph->FindFirstNodeMatchType("BroadcastTo") != nullptr);
+  }
+  {
+    const auto graph = BuildGraph<uint16_t>(MUL, DT_BF16, 16256, false, false, {1, 1}, {8, 16});
+    EXPECT_EQ(AlgebraicSimplificationPass::Run(graph), SUCCESS);
+    EXPECT_EQ(graph->GetAllNodesSize(), 3);
+  }
+  {
+    const auto graph = BuildGraph<uint16_t>(MUL, DT_BF16, 16256, false, false, {8, 1}, {1, 16});
+    EXPECT_EQ(AlgebraicSimplificationPass::Run(graph), SUCCESS);
+    EXPECT_EQ(graph->GetAllNodesSize(), 5);
+    EXPECT_TRUE(graph->FindFirstNodeMatchType("BroadcastTo") != nullptr);
   }
 }
 

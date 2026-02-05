@@ -1082,8 +1082,8 @@ void VarManager::SetVarIsReady(const std::string &var_name,
                                const uint32_t device_id) {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   GELOGD("VarManager::SetVarIsReady var_name = %s, data_type = %s, data_format = %s", var_name.c_str(),
-         ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str(),
-         ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str());
+         ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str(),
+         ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str());
 
   if (var_resource_ == nullptr) {
     GELOGW("VarManager has not been init.");
@@ -1097,8 +1097,8 @@ bool VarManager::IsVarReady(const std::string &var_name,
                             const uint32_t device_id) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   GELOGD("VarManager::IsVarReady var_name = %s, data_type = %s, data_format = %s", var_name.c_str(),
-         ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str(),
-         ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str());
+         ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str(),
+         ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str());
 
   if (var_resource_ == nullptr) {
     GELOGW("VarManager has not been init.");
@@ -1110,8 +1110,8 @@ bool VarManager::IsVarReady(const std::string &var_name,
 bool VarManager::IsVarExist(const std::string &var_name, const ge::GeTensorDesc &tensor_desc) const {
   const std::lock_guard<std::recursive_mutex> lock(mutex_);
   GELOGD("VarManager::IsVarExist var_name = %s, data_type = %s, data_format = %s", var_name.c_str(),
-         ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str(),
-         ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str());
+         ge::TypeUtils::DataTypeToSerialString(tensor_desc.GetDataType()).c_str(),
+         ge::TypeUtils::FormatToSerialString(tensor_desc.GetFormat()).c_str());
 
   if (var_resource_ == nullptr) {
     GELOGW("VarManager has not been init.");

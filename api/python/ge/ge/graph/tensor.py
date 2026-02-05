@@ -16,11 +16,11 @@ from ge._capi.pygraph_wrapper import graph_lib
 from ge._capi.pyes_graph_builder_wrapper import esb_lib
 from .types import DataType, Format
 from ._numeric import float_list_to_fp16_bits
-from ge.es.tensor_like import TensorLike, _unflatten
+
 
 if TYPE_CHECKING:
     from ge.es.graph_builder import GraphBuilder
-
+    from ge.es.tensor_like import TensorLike, _unflatten
 UnionTensorDataType = Union[List[int], List[float], List[bool]]
 
 class Tensor:
@@ -325,5 +325,6 @@ def _parse_str_list(list_str: str) -> List['Number']:
 
 
 def unflatten_tensor_data(tensor_data: str, shape: List[int]) -> 'TensorLike':
+    from ge.es.tensor_like import _unflatten
     tensor_data_list = _parse_str_list(tensor_data)
     return _unflatten(tensor_data_list, shape)

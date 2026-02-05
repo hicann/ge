@@ -194,13 +194,6 @@ class UdfExecutorClientTest : public testing::Test {
 };
 
 TEST_F(UdfExecutorClientTest, InitAndFinalize) {
-  class MockMmpaWaitPid : public ge::MmpaStubApiGe {
-   public:
-    int32_t WaitPid(mmProcess pid, INT32 *status, INT32 options) override {
-      return 0;
-    }
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaWaitPid>());
   UdfExecutorClient client(0);
   client.model_id_to_pids_[0].emplace_back(1111111111111);
   client.model_id_to_pids_[1].emplace_back(2222222222222);
@@ -499,13 +492,6 @@ TEST_F(UdfExecutorClientTest, LoadModel_tar_file_write_success_by_multi_times) {
 }
 
 TEST_F(UdfExecutorClientTest, UnLoadModel) {
-  class MockMmpaWaitPid : public ge::MmpaStubApiGe {
-   public:
-    int32_t WaitPid(mmProcess pid, INT32 *status, INT32 options) override {
-      return 0;
-    }
-  };
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaWaitPid>());
   UdfExecutorClient client(0);
   client.model_id_to_pids_[0].emplace_back(111111111111);
   EXPECT_EQ(client.UnloadModel(0), SUCCESS);

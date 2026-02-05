@@ -204,6 +204,26 @@ TEST_F(GeIrBuildTest, TestBuildModel) {
   aclgrphBuildFinalize();
 }
 
+TEST_F(GeIrBuildTest, TestExternalWeightCombined) {
+  BenchEnv::Init();
+  std::shared_ptr<GELib> ge_lib = GELib::GetInstance();
+  if (ge_lib != nullptr) {
+    ge_lib->init_flag_=false;
+  }
+  std::map<std::string, std::string> init_options;
+  EXPECT_EQ(aclgrphBuildInitialize(init_options), SUCCESS);
+
+  setenv("ASCEND_OPP_PATH", "./", 0);
+
+  auto graph = GraphFactory::BuildRefreshWeight();
+  init_options.emplace(ge::EXTERNAL_WEIGHT, "2");
+  ModelBufferData model_buffer_data{};
+  EXPECT_EQ(aclgrphBuildModel(graph, init_options, model_buffer_data), SUCCESS);
+  std::string output_file = "./saved_model";
+  EXPECT_EQ(aclgrphSaveModel(output_file, model_buffer_data), SUCCESS);
+  aclgrphBuildFinalize();
+}
+
 TEST_F(GeIrBuildTest, TestBuildModelFailWtihL1OptimizeInVirtual) {
   BenchEnv::Init();
   std::map<AscendString, AscendString> init_options;

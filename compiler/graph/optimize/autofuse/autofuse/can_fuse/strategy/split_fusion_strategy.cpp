@@ -37,6 +37,15 @@ bool SplitFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
     // 前端必须保证同一个Ascend IR split lowering成的N个split AscBackend在canfuse阶段融合到同一个AscBackend内
     return true;
   }
+
+  // canfuse框架已经预测过split融合比例过低，复用判断结果提前返回false
+  if (attr1->GetSplitFusionRatioRequirementState() == SplitFusionRatioRequirementState::NOT_SATISFIED) {
+    // Split类型不支持低融合比例, 当前只支持split后向融合
+    GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 or node2 has low fuse ratio]",
+           node1->GetName().c_str(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
+           ge::NotFuseReasonCode(ge::NotFuseReason::kSplitLowFuseRatio));
+    return false;
+  }
   // split不与reduction融合
   if ((attr1->HasFuseType(loop::FuseType::kSplit) && attr2->HasFuseType(loop::FuseType::kReduction)) ||
       (attr1->HasFuseType(loop::FuseType::kReduction) && attr2->HasFuseType(loop::FuseType::kSplit))) {
@@ -92,7 +101,7 @@ FusionPriority SplitFusionStrategy::GetFusionPairPriority(const NodePtr &node1, 
   GE_ASSERT_NOTNULL(attr1);
   const auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
   GE_ASSERT_NOTNULL(attr2);
-  auto fusion_priority = FusionPriority::DEFAULT;
+  auto fusion_priority = FusionPriority::HIGHER;
   if ((attr1->GetFuseType() == loop::FuseType::kSplit) && (attr2->GetFuseType() == loop::FuseType::kSplit)) {
     fusion_priority = FusionPriority::HIGHEST;
     GELOGI("node1 %s(%s) and node2 %s(%s) priority:%u.", node1->GetName().c_str(), node1->GetType().c_str(),
@@ -102,4 +111,4 @@ FusionPriority SplitFusionStrategy::GetFusionPairPriority(const NodePtr &node1, 
 }
 
 REGISTER_FUSION_STRATEGY(SplitFusionStrategy, loop::FuseType::kSplit);
-}
+} // namespace ge

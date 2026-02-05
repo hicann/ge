@@ -1251,6 +1251,51 @@ TEST_F(ConcatScheduleCaseGeneratorTest, RecomputeNode) {
   ASSERT_EQ(partitioner.PartitionGroups(groups), ge::SUCCESS);
 }
 
+TEST_F(ConcatScheduleCaseGeneratorTest, RecomputeNode_HorizontalFuse) {
+  ge::AscGraph graph("concat_last_dim_graph");
+  auto s0 = ge::Symbol("s0");
+  auto s1_1 = ge::Symbol("s1_1");
+
+  auto s1 = s1_1 + s1_1;
+  Data data0("data0", graph);
+  data0.ir_attr.SetIndex(0);
+
+  Data data1("data1", graph);
+  data1.ir_attr.SetIndex(1);
+
+  Load load1("load1");
+  load1.y.dtype = ge::DT_FLOAT16;
+  load1.x = data0.y;
+
+  Load load2("load2");
+  load2.x = data1.y;
+  *load2.y.repeats = {s0, s1_1};
+
+  Mul mul1("mul1");
+  mul1.x1 = load1.y;
+  mul1.x2 = load1.y;
+  *mul1.y.repeats = {s0, s1_1};
+
+  Mul mul2("mul2");
+  mul2.x1 = mul1.y;
+  mul2.x2 = load2.y;
+
+  Concat concat("concat");
+  concat.x = {mul1.y, load2.y};
+  *concat.y.repeats = {s0, s1};
+  *concat.y.strides = {s1, ge::sym::kSymbolOne};
+
+  auto concat_node = graph.FindNode("concat");
+  ASSERT_TRUE(concat_node != nullptr);
+
+  ::ascir::utils::DumpGraph(graph, "BeforeGroup");
+  optimize::ConcatGroupPartitioner partitioner(concat_node, 1);
+  std::vector<optimize::ConcatGroupPartitioner::ConcatGroup> groups;
+  ASSERT_EQ(partitioner.PartitionGroups(groups), ge::SUCCESS);
+  ASSERT_TRUE(partitioner.HasRecompute());
+  ::ascir::utils::DumpGraph(graph, "AfterGroup");
+}
+
 TEST_F(ConcatScheduleCaseGeneratorTest, RecomputeSingeItemGroups) {
   ge::AscGraph graph("concat_last_dim_graph");
   auto s0 = ge::Symbol("s0");

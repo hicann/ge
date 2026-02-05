@@ -394,6 +394,100 @@ TEST_F(StestFileConstantUtilTransfer, Reuse_External_Weight_File_OK) {
   GetThreadLocalContext().SetGraphOption(options_back);
 }
 
+TEST_F(StestFileConstantUtilTransfer, Reuse_External_Weight_Combined_File_Use_GraphName_OK) {
+  GetContext().SetSessionId(0U);
+  DEF_GRAPH(g1) {
+    auto const1 = OP_CFG(CONSTANT).InCnt(0).OutCnt(1);
+    auto const2 = OP_CFG(CONSTANT).InCnt(0).OutCnt(1);
+    auto const3 = OP_CFG(CONSTANT).InCnt(0).OutCnt(1);
+    auto netoutput = OP_CFG(NETOUTPUT).InCnt(3).OutCnt(1);
+    CHAIN(NODE("const1", const1)->EDGE(0, 0)->NODE("netoutput", netoutput));
+    CHAIN(NODE("const2", const2)->EDGE(0, 1)->NODE("netoutput", netoutput));
+    CHAIN(NODE("const3", const3)->EDGE(0, 2)->NODE("netoutput", netoutput));
+  };
+
+  auto compute_graph = ToComputeGraph(g1);
+  compute_graph->TopologicalSorting();
+  auto const_node_1 = compute_graph->FindNode("const1");
+  auto const_node_2 = compute_graph->FindNode("const2");
+  auto const_node_3 = compute_graph->FindNode("const3");
+  const_node_3->GetOpDesc()->SetName("const1");
+
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value(4 * 8 * 8);
+  std::vector<int64_t> shape{1, 4, 8, 8};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  ConstantUtils::SetWeight(const_node_1->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const_node_2->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const_node_3->GetOpDesc(), 0, tensor);
+  (void)AttrUtils::SetStr(const_node_1->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const_node_2->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const_node_3->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  auto options_back = GetThreadLocalContext().GetAllGraphOptions();
+  auto options = options_back;
+  options[OPTION_GRAPH_COMPILER_CACHE_DIR] = "./cache_dir";
+  GetThreadLocalContext().SetGraphOption(options);
+  auto ret = FileConstantUtils::ConvertConstToFileConst(compute_graph, true);
+  EXPECT_EQ(ret, SUCCESS);
+  auto fileconstant_node_1 = compute_graph->FindFirstNodeMatchType(FILECONSTANT);
+  ASSERT_NE(fileconstant_node_1, nullptr);
+  const auto &fileconstant_info = FileConstantUtils::GetFileConstantInfo(fileconstant_node_1->GetOpDesc());
+  auto graph_name = compute_graph->GetName();
+  std::string weight_name = StringUtils::GetFileName(fileconstant_info.weight_path);
+  ASSERT_EQ(weight_name, graph_name + "_weight_combined");
+  ExternalWeightManagerPool::Instance().Destroy();
+  GetThreadLocalContext().SetGraphOption(options_back);
+}
+
+TEST_F(StestFileConstantUtilTransfer, Reuse_External_Weight_Combined_File_Use_OmName_OK) {
+  GetContext().SetSessionId(0U);
+  DEF_GRAPH(g1) {
+    auto const1 = OP_CFG(CONSTANT).InCnt(0).OutCnt(1);
+    auto const2 = OP_CFG(CONSTANT).InCnt(0).OutCnt(1);
+    auto const3 = OP_CFG(CONSTANT).InCnt(0).OutCnt(1);
+    auto netoutput = OP_CFG(NETOUTPUT).InCnt(3).OutCnt(1);
+    CHAIN(NODE("const1", const1)->EDGE(0, 0)->NODE("netoutput", netoutput));
+    CHAIN(NODE("const2", const2)->EDGE(0, 1)->NODE("netoutput", netoutput));
+    CHAIN(NODE("const3", const3)->EDGE(0, 2)->NODE("netoutput", netoutput));
+  };
+
+  auto compute_graph = ToComputeGraph(g1);
+  compute_graph->TopologicalSorting();
+  auto const_node_1 = compute_graph->FindNode("const1");
+  auto const_node_2 = compute_graph->FindNode("const2");
+  auto const_node_3 = compute_graph->FindNode("const3");
+  const_node_3->GetOpDesc()->SetName("const1");
+
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value(4 * 8 * 8);
+  std::vector<int64_t> shape{1, 4, 8, 8};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  ConstantUtils::SetWeight(const_node_1->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const_node_2->GetOpDesc(), 0, tensor);
+  ConstantUtils::SetWeight(const_node_3->GetOpDesc(), 0, tensor);
+  (void)AttrUtils::SetStr(const_node_1->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const_node_2->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  (void)AttrUtils::SetStr(const_node_3->GetOpDesc(), ATTR_NAME_WEIGHT_SHA256, "1234567");
+  auto options_back = GetThreadLocalContext().GetAllGraphOptions();
+  auto options = options_back;
+  options[OPTION_GRAPH_COMPILER_CACHE_DIR] = "./cache_dir";
+  GetThreadLocalContext().SetGraphOption(options);
+  (void)AttrUtils::SetStr(compute_graph, ATTR_MODEL_FILE_NAME_PREFIX, "./test_om_file.om");
+  auto ret = FileConstantUtils::ConvertConstToFileConst(compute_graph, true);
+  EXPECT_EQ(ret, SUCCESS);
+  auto fileconstant_node_1 = compute_graph->FindFirstNodeMatchType(FILECONSTANT);
+  ASSERT_NE(fileconstant_node_1, nullptr);
+  const auto &fileconstant_info = FileConstantUtils::GetFileConstantInfo(fileconstant_node_1->GetOpDesc());
+  std::string weight_name = StringUtils::GetFileName(fileconstant_info.weight_path);
+  ASSERT_EQ(weight_name, "test_om_file_weight_combined");
+  ExternalWeightManagerPool::Instance().Destroy();
+  GetThreadLocalContext().SetGraphOption(options_back);
+}
+
 TEST_F(StestFileConstantUtilTransfer, Reuse_NO_CONST) {
   GetContext().SetSessionId(0U);
   DEF_GRAPH(g1) {

@@ -30,7 +30,6 @@ std::vector<es::EsTensorHolder> MakePfaHcomGraph(
     es::EsTensorHolder atten_mask, es::EsTensorHolder quant_scale2, es::EsTensorHolder quant_offset2,
     es::EsTensorHolder mm_x2, es::EsTensorHolder arn_x1, es::EsTensorHolder arn_gamma,
     EsGraphBuilder &graph_builder) {
-
   auto query_fp16 = Cast(query, DT_FLOAT16);
   auto key_fp16 = Cast(key, DT_FLOAT16);
   auto value_fp16 = Cast(value, DT_FLOAT16);
@@ -40,7 +39,6 @@ std::vector<es::EsTensorHolder> MakePfaHcomGraph(
   auto mm_x2_fp16 = Cast(mm_x2, DT_FLOAT16);
   auto arn_x1_fp16 = Cast(arn_x1, DT_FLOAT16);
   auto arn_gamma_fp16 = Cast(arn_gamma, DT_FLOAT16);
-
   auto pfa_output = PromptFlashAttention(
     query_fp16, key_fp16, value_fp16,
     nullptr, atten_mask_fp16, nullptr, nullptr,

@@ -15,6 +15,7 @@
 #include "ascir_ops_utils.h"
 #include "ascir_utils.h"
 #include "autoschedule/autoschedule.h"
+#include "graph_properties_cache.h"
 #include "fused_graph/fused_graph_unfolder.h"
 #include "fused_graph/fused_graph_modifier.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
@@ -25,7 +26,6 @@
 #include "schedule_utils.h"
 #include "common_utils.h"
 #include "node_utils.h"
-#include "util/mem_utils.h"
 #include "optimize/graph_pass/pass_runner_handler.h"
 #include "graph/symbolizer/symbolic_utils.h"
 #include "optimize/graph_completeness/dtype_consistency.h"
@@ -38,13 +38,6 @@ using namespace ge::ops;
 namespace {
 const char *const kAttrAscGraph = "ascgraph";
 constexpr int64_t kInvalidNodeId = -1;
-struct ExpressionStaticCheckEq {
-  // cooncat子图表达式可能不一致, 依赖guard
-  bool operator()(const ge::Expression &lhs, const ge::Expression &rhs) const {
-    return ge::SymbolicUtils::StaticCheckEq(lhs, rhs) == ge::TriBool::kTrue;
-  }
-};
-using ConcatDimAxisMap = std::unordered_map<ge::Expression, ge::AxisId, ge::ExpressionHash, ExpressionStaticCheckEq>;
 
 bool IsAxisContinuous(const ge::AscGraph &graph, const int64_t pre_id_idx, const int64_t post_id_idx) {
   for (const auto &node : graph.GetAllNodes()) {
@@ -320,14 +313,9 @@ ge::Status CopyAndReNameImplGraphs(const std::vector<autoschedule::AutoScheduleO
 }
 
 bool CanDoReMergeAxis(const ge::AscGraph &impl_graph) {
-  for (const auto &node : impl_graph.GetAllNodes()) {
-    if (node->attr.api.compute_type == ge::ComputeType::kComputeGather ||
-        node->attr.api.compute_type == ge::ComputeType::kComputeReduce ||
-        node->attr.api.compute_type == ge::ComputeType::kComputeCube) {
-      return false;
-    }
-  }
-  return true;
+  GraphPropertiesCache cache(impl_graph);
+  // 如果包含Gather、Reduce或Cube类型节点，则不能重新合并轴
+  return !cache.HasGather() && !cache.HasReduce() && !cache.HasCube();
 }
 }  // namespace
 
@@ -827,6 +815,8 @@ Status Optimizer::AutoScheduler([[maybe_unused]]const HintGraph &hint_graph, Sch
                                                 schedule_task.reduce_type, schedule_task.cube_type);
     GE_CHK_STATUS_RET(scheduler.DoAutoSchedule(), "Failed to do schedule, graph:[%s].",
                       grouped_graph.GetName().c_str());
+    GE_ASSERT_TRUE(!schedule_outputs.empty(), "Failed to gen tiling case for graph:[%s].",
+                   grouped_graph.GetName().c_str());
     GELOGI("AutoScheduler end: %s, number of tiling cases = %zu", grouped_graph.GetName().c_str(),
            schedule_outputs.size());
     if (is_reduce_first_stage) {

@@ -1411,6 +1411,7 @@ TEST_F(DavinciModelTest, davinci_model_execute_datadump_on_watcher_model_success
   auto dump_checker_stub = std::make_shared<ge::DumpCheckRuntimeStub>();
   ge::RuntimeStub::SetInstance(dump_checker_stub);
   auto &model_mgr = ModelManager::GetInstance();
+  model_mgr.model_map_.clear();
   ModelExecutor model_executor;
   EXPECT_EQ(model_executor.Initialize({}, 10086), SUCCESS); // fixed sessionid
   model_executor.StartRunThread();

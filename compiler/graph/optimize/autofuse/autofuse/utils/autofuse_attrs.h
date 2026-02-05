@@ -27,6 +27,12 @@
 namespace ge {
 const std::string kSplitTypeStub = "Split";
 constexpr int64_t kNonSplitGlobalId = -1L;
+constexpr float32_t kSplitLowFusionRatioThreshold = 0.2000;
+enum class SplitFusionRatioRequirementState: uint32_t {
+  NOT_DETERMINED = 0, // 尚未计算融合比例
+  NOT_SATISFIED = 1,  // 融合比例不满足阈值要求
+  SATISFIED = 2       // 融合比例满足阈值要求
+};
 struct AutofuseInnerAttrs {
   std::vector<const ge::Node *> origin_nodes;       // Asc节点对应的原始节点，用于Dfx打印、获取融合前ComputeGraph片段等
   std::vector<ge::OutDataAnchor *> output_buffers;  // Asc节点负责写入的原始输出anchor，用于lifting
@@ -44,7 +50,9 @@ struct AutofuseInnerAttrs {
   int32_t vector_core_num;  // user set vector vore num scope
   size_t reduce_fused_elementwise_node_num = 0U;  // reduce节点向后融合的elementwise节点数量
   int64_t split_global_id = kNonSplitGlobalId; // split op 在 lowering 之前的全局编号，不是split节点的话，这个编号为-1
-  bool is_fuse_from_lowering = false;  // 标识融合节点来自lowering还是can_fuse
+  SplitFusionRatioRequirementState split_fusion_ratio_requirement_state = SplitFusionRatioRequirementState::NOT_DETERMINED;   // 缓存对split融合比例是否超过阈值的预测结果
+  bool is_split_complete = false; // 缓存原split节点是否完全恢复的判断结果
+  bool is_fuse_from_lowering = false;       // 标识融合节点来自lowering还是can_fuse
 
   bool IsReduction() const {
     return HasFuseType(loop::FuseType::kReduction);
@@ -219,6 +227,19 @@ class AutoFuseAttrs : public ge::AttrGroupsBase {
 
   void SetSplitGlobalId(const size_t global_id) {
     inner_attrs_.split_global_id = global_id;
+  }
+
+  SplitFusionRatioRequirementState GetSplitFusionRatioRequirementState() {
+    return inner_attrs_.split_fusion_ratio_requirement_state;
+  }
+  void SetSplitLowFusionRatioRequirementState(SplitFusionRatioRequirementState state) {
+    inner_attrs_.split_fusion_ratio_requirement_state = state;
+  }
+  void SetSplitComplete() {
+    inner_attrs_.is_split_complete = true;
+  }
+  bool GetSplitComplete() {
+    return inner_attrs_.is_split_complete;
   }
 
  private:

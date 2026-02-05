@@ -32,7 +32,7 @@ graphStatus RedundantSliceRemovePass::Run(const ComputeGraphPtr &graph, bool &ch
     GE_ASSERT_NOTNULL(current_node);
     if (IsSliceNoOp(current_node)) {
       GELOGD("Slice node [%s] is redundant, will be deleted.", current_node->GetNamePtr());
-      GE_ASSERT_SUCCESS(GraphUtils::IsolateNode(current_node, {0}), "Failed to delete single useless Reshape node: %s",
+      GE_ASSERT_SUCCESS(GraphUtils::IsolateNode(current_node, {0}), "Failed to delete single useless Slice node: %s",
                         current_node->GetNamePtr());
       GE_ASSERT_GRAPH_SUCCESS(GraphUtils::RemoveJustNode(graph, current_node),
                               "[Remove][JustNode] failed, graph:%s, node:%s.", graph->GetName().c_str(),
@@ -59,7 +59,9 @@ bool RedundantSliceRemovePass::IsSliceNoOp(const ge::NodePtr &node) {
   GE_WARN_ASSERT(begins.size() == input_shape.GetDimNum());
   GE_WARN_ASSERT(begins.size() == sizes.size());
   for (size_t i = 0UL; i < begins.size(); ++i) {
-    if (begins[i] != 0 || sizes[i] != input_shape.GetDim(i)) {
+    // size=-1 表示从offset到该维度末尾，等价于取全部
+    bool is_full_slice = (sizes[i] == -1) || (sizes[i] == input_shape.GetDim(i));
+    if (begins[i] != 0 || !is_full_slice) {
       return false;
     }
   }

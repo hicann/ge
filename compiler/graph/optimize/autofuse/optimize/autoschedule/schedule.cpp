@@ -221,11 +221,11 @@ void Scheduler::HandleBlockSplitting(std::vector<ascir::AxisId> &tile_out_axes,
     return;
   }
 
-  tiling_case_.block_tling = graph_.BlockSplit(tiling_case_.block_tiling_id);
-  tile_out_axes.push_back(tiling_case_.block_tling.first->id);
-  tile_out_axes.push_back(tiling_case_.block_tling.second->id);
+  tiling_case_.block_tiling = graph_.BlockSplit(tiling_case_.block_tiling_id);
+  tile_out_axes.push_back(tiling_case_.block_tiling.first->id);
+  tile_out_axes.push_back(tiling_case_.block_tiling.second->id);
 
-  bool has_gather = ScheduleUtils::HasComputeType(graph_, ge::ComputeType::kComputeGather);
+  bool has_gather = graph_cache_.HasComputeType(ge::ComputeType::kComputeGather);
   if (has_gather && non_reduce_outer_axes.size() > 1UL) {
     tile_out_axes.insert(tile_out_axes.end(), non_reduce_outer_axes.begin() + 1, non_reduce_outer_axes.end());
   }
@@ -250,13 +250,11 @@ Status Scheduler::BlockSplit(std::vector<ascir::AxisId> &tile_out_axes) {
   GetOuterAxes(axes_group_.y_group, tiling_case_.ub_tiling_id_y, *(tiling_case_.ub_tiling_y.first),
                axes_group_.axes_order, non_reduce_outer_axes, non_reduce_outer_axes_index, axes_order_idx);
   axes_order_idx += axes_group_.y_group.size();
-  // todo: transpose reorder, 考虑transpose分组中轴相同的场景
 
   if (HasRGroup()) {
     GetOuterAxes(axes_group_.r_group, tiling_case_.ub_tiling_id_r, *(tiling_case_.ub_tiling_r.first),
                  axes_group_.axes_order, reduce_outer_axes, reduce_outer_axes_index, axes_order_idx);
   }
-  // todo: transpose reorder
 
   if (tiling_case_.reduce_is_block) {
     return ReduceBlockTiling(tile_out_axes, reduce_outer_axes, non_reduce_outer_axes);
@@ -329,7 +327,7 @@ Status Scheduler::ApplyBlockSplitToNode(ascir::NodeView &node, bool is_store_aft
     }
   } else {
     // 多核切R场景，block_tiling_id 是merge出来的, 不需要ApplyTiling
-    ApplyTiling(node, tiling_case_.block_tiling_id, tiling_case_.block_tling);
+    ApplyTiling(node, tiling_case_.block_tiling_id, tiling_case_.block_tiling);
   }
   return ge::SUCCESS;
 }
@@ -373,7 +371,7 @@ void Scheduler::FindVectorizedAxes(std::vector<ascir::AxisId> &vectorized_axes,
     last_ub_size = current_ub_size;
   }
 
-  bool has_reduce = ScheduleUtils::HasComputeType(graph_, ge::ComputeType::kComputeReduce);
+  bool has_reduce = graph_cache_.HasComputeType(ge::ComputeType::kComputeReduce);
   if (has_reduce && !HasRGroup()) {
     const size_t non_reduce_axis_size = vectorized_axes.size();
     vectorized_axes.insert(vectorized_axes.end(), axes_group_.n_group.begin(), axes_group_.n_group.end());
@@ -448,7 +446,7 @@ Status Scheduler::TileSplit() {
     sorted_node_vectorized_axes.push_back(vectorized_axes[index]);
   }
 
-  bool has_reduce = ScheduleUtils::HasComputeType(graph_, ge::ComputeType::kComputeReduce);
+  bool has_reduce = graph_cache_.HasComputeType(ge::ComputeType::kComputeReduce);
   for (auto node : graph_.GetAllNodes()) {
     if (ScheduleUtils::IsBuffer(node)) {
       continue;
@@ -502,7 +500,10 @@ Status Scheduler::DoScheduler() {
     GE_CHK_STATUS_RET(ApplyBlockSplit(new_sched_axes));
   }
   GE_CHK_STATUS_RET(RemoveRedundantBroadcastNode(graph_));
-  GE_ASSERT_SUCCESS(AlignmentHandler::AlignVectorizedStrides(graph_));
+  auto align_ret = AlignmentHandler::AlignVectorizedStrides(graph_);
+  if (align_ret != ge::SUCCESS) {
+    return align_ret;  // 返回 UNSUPPORTED 让上层跳过这个模板
+  }
   GE_ASSERT_SUCCESS(NodeCacheMarker(graph_).MarkIfNodeNeedsCache());
   ascir::utils::DumpGraph(graph_, "AfterDoTiling");
   return ge::SUCCESS;

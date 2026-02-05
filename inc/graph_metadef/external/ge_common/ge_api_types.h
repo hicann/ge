@@ -522,6 +522,11 @@ const char_t *const FILE_CONSTANT_PATH = "ge.exec.value_bins";
 // Its value should be "0" or "1", default value is "0".
 const std::string EXTERNAL_WEIGHT = "ge.externalWeight";
 
+// Configure the prefix of model file name when saving model.
+// Its value should be a string, default value is empty string.
+// The prefix should not contain path traversal characters (e.g., '../').
+const std::string ATTR_MODEL_FILE_NAME_PREFIX = "ge.modelFileNamePrefix";
+
 const std::string DETERMINISTIC = "ge.deterministic";
 const std::string DETERMINISTIC_LEVEL = "ge.deterministicLevel";
 

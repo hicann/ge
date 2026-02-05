@@ -11,7 +11,6 @@
 #include <gtest/gtest.h>
 #include <string>
 #include <google/protobuf/text_format.h>
-#include <experimental/filesystem>
 
 #include "graph/utils/graph_utils.h"
 #include "graph/graph_buffer.h"
@@ -36,7 +35,6 @@
 #include "recover_ir_utils.h"
 
 using namespace ge;
-namespace fs = std::experimental::filesystem;
 namespace {
 ComputeGraphPtr BuildGraphWithConst(const std::string &graph_name = "graph") {
   auto ge_tensor = std::make_shared<GeTensor>();

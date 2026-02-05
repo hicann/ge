@@ -2007,6 +2007,32 @@ Tensor *esFooV2(const Tensor *x, const Tensor *xo);
 
 ### generate_es_package.cmake依赖关系说明
 
+`generate_es_package.cmake` 采用**单文件模式**，将所有生成的 ES API 代码合并到一个源文件中统一编译。
+
+#### 设计理念
+
+单文件模式的核心思想是：
+- 将生成的多个算子代码文件合并为一个 `all_in_one.cpp`
+- 在构建阶段一次性完成：清理目录 → 生成代码 → 写入文件 → 编译
+- 避免多文件管理、避免子进程调用、避免竞态条件、并可以有效减少生成的库文件大小
+
+#### 构建阶段流程
+
+```
+构建阶段 (make)
+    │
+    ├─> 1. 清理输出目录
+    │
+    ├─> 2. 执行 gen_esb 生成代码
+    │       └─> 依赖: opgraph_xxx (原型库)
+    │
+    ├─> 3. 将所有生成内容写入 all_in_one.cpp
+    │
+    └─> 4. 编译 all_in_one.cpp → libes_xxx.so
+```
+
+#### 架构图
+
 ```
 用户应用 (my_app)
     │
@@ -2015,52 +2041,64 @@ Tensor *esFooV2(const Tensor *x, const Tensor *xo);
             ▼
     ┌──────────────────────────────────────┐
     │  es_math (INTERFACE library)         │  ← 对外接口
-    │  - 不生成任何构建产物                │
-    │  - 纯粹的依赖和属性传递              │
+    │  - target_link_libraries INTERFACE  │
+    │  - 传递头文件路径、链接库              │
     └──────────────────────────────────────┘
             │
-            ├─> add_dependencies(build_es_math)  # 触发智能构建
-            │        │
-            │        ▼
-            │   ┌─────────────────────────────────┐
-            │   │  build_es_math (custom_target)  │  ← 智能构建协调器
-            │   │  - 执行 smart_build.cmake 脚本  │
-            │   └─────────────────────────────────┘
-            │            │
-            │            ├─> Step 1: make install_es_math (首次构建)
-            │            │        │
-            │            │        └─> install_es_math → es_math_so → generate_es_math_code
-            │            │                                    │              │
-            │            │                                    │              └─> gen_esb (生成代码)
-            │            │                                    │
-            │            │                                    └─> 编译 placeholder.cpp
-            │            │
-            │            ├─> Step 2: 检查是否生成了真实代码
-            │            │        └─> GLOB *.cpp (排除 placeholder.cpp)
-            │            │
-            │            └─> Step 3 (如果有真实代码): cmake . && make install_es_math
-            │                     └─> 重新配置 + 重新编译真实源文件
-            │
-            └─> target_link_libraries(INTERFACE es_math_imported)  # 链接到IMPORTED library，主进程链接时使用IMPORTED library 不可构建，因此主进程不会触发es_math_so的构建避免了主进程和子进程同时构建内部es_math_so的竞态问题
+            └─> add_dependencies(build_es_math)
                      │
                      ▼
-            ┌────────────────────────────────────┐
-            │  es_math_so (SHARED library)       │  ← 实际 .so 文件
-            │  - 产物: libes_math.so             │
-            │  - 源文件: GLOB *.cpp (动态)       │
-            └────────────────────────────────────┘
+            ┌──────────────────────────────────────┐
+            │  build_es_math (custom_target)       │  ← 构建目标
+            │  - 依赖: install_es_math             │
+            │  - 触发完整构建流程                   │
+            └──────────────────────────────────────┘
                      │
-                     └─> add_dependencies(generate_es_math_code)
-                              │
-                              ▼
-                     ┌──────────────────────────────────────┐
-                     │  generate_es_math_code (ALL target)  │
-                     │  - add_custom_command 生成代码       │
-                     └──────────────────────────────────────┘
-                              │
-                              ├─> DEPENDS: opgraph_math (原型库)
-                              │
-                              └─> COMMAND: bash run_gen_esb_with_lock.sh
-                                       │
-                                       └─> 执行 gen_esb (带文件锁)
+                     ▼
+            ┌──────────────────────────────────────┐
+            │  install_es_math (custom_target)     │  ← 安装目标
+            │  - 依赖: es_math_so                  │
+            │  - 依赖: generate_es_math_whl        │
+            │  - 拷贝头文件、.so、.whl 到输出目录   │
+            └──────────────────────────────────────┘
+                     │
+                     ├──────────────────────────────┐
+                     │                              │
+                     ▼                              ▼
+    ┌──────────────────────────────┐    ┌──────────────────────────────────────┐
+    │  es_math_so (SHARED library) │    │  generate_es_math_whl (custom_target)│
+    │  - 源文件: all_in_one.cpp     │    │  - 依赖: generate_es_math_code        │
+    │  - 依赖: generate_es_math_code│    │  - 构建 Python wheel 包               │
+    │  - 产物: libes_math.so        │    │  - 产物: es_math-1.0.0-py3-none-any.whl│
+    └──────────────────────────────┘    └──────────────────────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────┐
+    │  generate_es_math_code (custom_target) │  ← 代码生成
+    │  - ALL target (始终构建)              │
+    │  - 依赖: generated_code.flag          │
+    │  - 触发时机: 构建阶段                  │
+    │  - 流程:                               │
+    │    1. 清理输出目录                     │
+    │    2. 调用 gen_esb 生成各算子 .cpp       │
+    │    3. 运行 generate_wrapper.cmake      │
+    │    4. 生成 all_in_one.cpp              │
+    └──────────────────────────────────────┘
+                     │
+                     ▼
+    ┌──────────────────────────────────────┐
+    │  generated_code.flag (file)         │  ← 生成标记
+    │  - 由 add_custom_command 生成        │
+    │  - 依赖: opgraph_math (原型库)        │
+    │  - 依赖: gen_esb (代码生成工具)       │
+    └──────────────────────────────────────┘
 ```
+
+#### 与多文件模式对比
+
+| 特性 | 多文件模式 | 单文件模式 |
+|------|-----------|-----------|
+| 源文件数量 | 多个 .cpp 文件 | 单个 all_in_one.cpp |
+| 代码管理 | placeholder + 文件替换 | 直接生成 |
+| 构建流程 | 两阶段（首次占位+重新配置） | 单阶段 |
+| 子进程调用 | 需要 | 不需要 |

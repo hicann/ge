@@ -885,26 +885,34 @@ Status HeterogeneousExchangeService::DequeueTensor(int32_t device_id, uint32_t q
   return SUCCESS;
 }
 
-Status HeterogeneousExchangeService::EnqueueMbuf(int32_t device_id, uint32_t queue_id, rtMbufPtr_t m_buf, int32_t timeout) {
+Status HeterogeneousExchangeService::EnqueueMbufToClientQueue(int32_t device_id, uint32_t queue_id, rtMbufPtr_t m_buf,
+                                                              int32_t timeout) {
+  void *control_data = nullptr;
+  void *data_buffer = nullptr;
+  uint64_t head_size = 0U;
+  uint64_t data_buffer_size = 0U;
+  GE_CHK_STATUS_RET(RtsApiUtils::MbufGetPrivData(m_buf, &control_data, &head_size), "get mbuf priv data failed");
+  GE_CHK_STATUS_RET(RtsApiUtils::MbufGetBufferAddr(m_buf, &data_buffer), "get mbuf addr failed");
+  GE_CHK_STATUS_RET(RtsApiUtils::MbufGetBufferSize(m_buf, data_buffer_size), "get mbuf size failed");
+  rtMemQueueBuffInfo queue_buf_info = {data_buffer, data_buffer_size};
+  rtMemQueueBuff_t queue_buf = {control_data, head_size, &queue_buf_info, 1U};
+  auto ret = rtMemQueueEnQueueBuff(device_id, queue_id, &queue_buf, timeout);
+  return (ret == RT_ERROR_NONE) ? SUCCESS : RT_ERROR_TO_GE_STATUS(ret);
+}
+
+Status HeterogeneousExchangeService::EnqueueMbuf(int32_t device_id, uint32_t queue_id, rtMbufPtr_t m_buf,
+                                                 int32_t timeout) {
   GE_CHK_STATUS_RET(SetTransId(device_id, queue_id, m_buf), "Set mbuf trans id failed, device_id = %d, queue_id = %u",
                     device_id, queue_id);
-  auto ret = RT_ERROR_NONE;
   if (IsClientQueue(queue_id)) {
-    void *control_data = nullptr;
-    void *data_buffer = nullptr;
-    uint64_t head_size = 0U;
-    uint64_t data_buffer_size = 0U;
-    RtsApiUtils::MbufGetPrivData(m_buf, &control_data, &head_size);
-    RtsApiUtils::MbufGetBufferAddr(m_buf, &data_buffer);
-    RtsApiUtils::MbufGetBufferSize(m_buf, data_buffer_size);
-    rtMemQueueBuffInfo queue_buf_info = {data_buffer, data_buffer_size};
-    rtMemQueueBuff_t queue_buf = {control_data, head_size, &queue_buf_info, 1U};
-    ret = rtMemQueueEnQueueBuff(device_id, queue_id, &queue_buf, timeout);
-    if (ret == RT_ERROR_NONE) {
+    Status enqueue_ret = EnqueueMbufToClientQueue(device_id, queue_id, m_buf, timeout);
+    if (enqueue_ret == SUCCESS) {
+      // enqueue success, take ownership of m_buf
       GE_CHK_RT(rtMbufFree(m_buf));
     }
-    return (ret == RT_ERROR_NONE) ? SUCCESS : RT_ERROR_TO_GE_STATUS(ret);
+    return enqueue_ret;
   }
+  auto ret = RT_ERROR_NONE;
   GE_CHK_STATUS_RET(InitializeEvents(device_id), "[Enqueue] [Init] failed, device id = %d", device_id);
   std::unique_lock<std::mutex> lk(enqueue_mu_);
   GE_CHK_STATUS_RET(EnsureEnqueueSubscribed(device_id, queue_id), "[Enqueue] [Init] failed, queue id = %u", queue_id);

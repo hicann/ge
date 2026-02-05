@@ -63,23 +63,26 @@ Status SessionManager::CreateSession(const std::map<std::string, std::string> &o
 
   SessionId next_session_id = 0;
 
-  const std::unique_lock<std::shared_mutex> lock(mutex_);
   const auto nextSessionIdRet = GetNextSessionId(next_session_id);
   if (nextSessionIdRet != SUCCESS) {
     return nextSessionIdRet;
   }
 
-  SessionPtr sessionPtr = MakeShared<InnerSession>(next_session_id, options);
-  if (sessionPtr == nullptr) {
+  SessionPtr session_ptr = MakeShared<InnerSession>(next_session_id, options);
+  if (session_ptr == nullptr) {
     return MEMALLOC_FAILED;
   }
 
-  Status ret = sessionPtr->Initialize();
+  Status ret = session_ptr->Initialize();
   if (ret != SUCCESS) {
     return ret;
   }
 
-  (void)session_manager_map_.emplace(std::pair<SessionId, SessionPtr>(next_session_id, sessionPtr));
+  {
+    const std::unique_lock<std::shared_mutex> lock(mutex_);
+    (void)session_manager_map_.emplace(std::pair<SessionId, SessionPtr>(next_session_id, session_ptr));
+  }
+
   session_id = next_session_id;
 
   // create a context
@@ -93,21 +96,30 @@ Status SessionManager::DestroySession(SessionId session_id) {
     GELOGW("[Destroy][Session]Session manager is not initialized, session_id:%lu.", session_id);
     return SUCCESS;
   }
-  const std::unique_lock<std::shared_mutex> lock(mutex_);
-  const auto it = session_manager_map_.find(session_id);
-  if (it == session_manager_map_.end()) {
-    return GE_SESSION_NOT_EXIST;
+
+  SessionPtr session_ptr = nullptr;
+  {
+    const std::shared_lock<std::shared_mutex> lock(mutex_);
+    const auto it = session_manager_map_.find(session_id);
+    if (it == session_manager_map_.end()) {
+      return GE_SESSION_NOT_EXIST;
+    }
+    session_ptr = it->second;
   }
 
   // Unified destruct rt_context
   RtContextUtil::GetInstance().DestroyRtContexts(session_id);
 
-  const SessionPtr &innerSession = it->second;
-  const auto ret = innerSession->Finalize();
+  const auto ret = session_ptr->Finalize();
   if (ret != SUCCESS) {
     return ret;
   }
-  (void)session_manager_map_.erase(session_id);
+
+  {
+    const std::unique_lock<std::shared_mutex> lock(mutex_);
+    (void)session_manager_map_.erase(session_id);
+  }
+
   return ret;
 }
 

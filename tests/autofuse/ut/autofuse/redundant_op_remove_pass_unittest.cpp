@@ -264,4 +264,56 @@ TEST_F(RedundantOpRemovePassTest, SkipRemoveSlice) {
   ASSERT_NE(relu_node, nullptr);
   EXPECT_EQ(relu_node->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetName(), "slice1");
 }
+
+// 测试混合情况：部分维度 size=-1
+TEST_F(RedundantOpRemovePassTest, RemoveSliceWithMixedMinusOneSize) {
+  auto dtype = DT_INT32;
+  auto shape = GeShape(std::vector<int64_t>({3}));
+  GeTensorDesc desc(shape, FORMAT_ND, dtype);
+  auto num_elements = shape.GetShapeSize();
+
+  // offsets = [0, 0, 0]
+  std::vector<int32_t> begin_buffer{0, 0, 0};
+  auto begin_tensor = std::make_shared<GeTensor>(desc, reinterpret_cast<uint8_t *>(begin_buffer.data()),
+                                                 GetSizeByDataType(dtype) * num_elements);
+  auto const_0 = OP_CFG(CONSTANT)
+                     .TensorDesc(desc.GetFormat(), dtype, shape.GetDims())
+                     .OutCnt(1)
+                     .Weight(begin_tensor)
+                     .Build("const_0");
+
+  // size = [64, -1, 128]，第二个维度用-1
+  std::vector<int32_t> end_buffer{64, -1, 128};
+  auto end_tensor = std::make_shared<GeTensor>(desc, reinterpret_cast<uint8_t *>(end_buffer.data()),
+                                               GetSizeByDataType(dtype) * num_elements);
+  auto const_1 = OP_CFG(CONSTANT)
+                     .TensorDesc(desc.GetFormat(), dtype, shape.GetDims())
+                     .OutCnt(1)
+                     .Weight(end_tensor)
+                     .Build("const_1");
+
+  auto data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {64, 128, 128}).InCnt(0).OutCnt(1).Build("Data");
+  auto slice1 = OP_CFG("Slice")
+                    .TensorDesc(FORMAT_NCHW, DT_FLOAT, {64, 128, 128})
+                    .InCnt(3)
+                    .OutCnt(1)
+                    .InNames({"x", "offsets", "size"})
+                    .Build("slice1");
+  auto relu = OP_CFG("Relu").TensorDesc(FORMAT_NCHW, DT_FLOAT, {64, 128, 128}).InCnt(1).OutCnt(1).Build("relu");
+
+  DEF_GRAPH(test_graph) {
+    CHAIN(NODE(data)->NODE(slice1)->NODE(relu)->NODE("output_0", NETOUTPUT));
+    CHAIN(NODE(const_0)->DATA_EDGE(0, 1)->NODE(slice1));
+    CHAIN(NODE(const_1)->DATA_EDGE(0, 2)->NODE(slice1));
+  };
+  auto graph = ToComputeGraph(test_graph);
+
+  bool changed = false;
+  EXPECT_EQ(RedundantSliceRemovePass().Run(graph, changed), GRAPH_SUCCESS);
+  // [0,0,0] + [64,-1,128] 对于输入 [64,128,128] 是冗余的
+  EXPECT_TRUE(graph->FindNode("slice1") == nullptr);
+  auto relu_node = graph->FindNode("relu");
+  ASSERT_NE(relu_node, nullptr);
+  EXPECT_EQ(relu_node->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetName(), "Data");
+}
 }  // namespace ge

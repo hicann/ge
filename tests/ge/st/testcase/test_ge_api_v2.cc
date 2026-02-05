@@ -10,8 +10,14 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
-#include <filesystem>
 #include <regex>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include "mmpa/mmpa_api.h"
+#include "graph/utils/file_utils.h"
+#include "ge_running_env/path_utils.h"
+#include "common/path_utils.h"
 #include "macro_utils/dt_public_scope.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "proto/ge_ir.pb.h"
@@ -49,29 +55,39 @@ namespace {
 static FakeOpsKernelInfoStore g_fake_hccl_ops_kernel_info_store;
 bool test_callback_called = false;
 
-namespace fs = std::filesystem;
-
-bool CheckWeightFile(const std::string& external_weight_dir) {
-  try {
-    if (!fs::exists(external_weight_dir) || !fs::is_directory(external_weight_dir)) {
-      return false;
-    }
-
-    // 使用正则表达式匹配文件模式
-    std::regex pattern("weight_.*");
-    for (const auto& entry : fs::directory_iterator(external_weight_dir)) {
-      if (entry.is_regular_file()) {
-        std::string filename = entry.path().filename().string();
-        if (std::regex_match(filename, pattern)) {
-          return true;
-        }
-      }
-    }
-    return false;
-  } catch (const fs::filesystem_error& ex) {
-    std::cout << "文件系统错误: " << ex.what() << std::endl;
+bool CheckWeightFile(const std::string &external_weight_dir) {
+  if (mmAccess(external_weight_dir.c_str()) != EN_OK || !ge::IsDir(external_weight_dir.c_str())) {
     return false;
   }
+
+  // 使用正则表达式匹配文件模式
+  std::regex pattern("weight_.*");
+  DIR *dir = opendir(external_weight_dir.c_str());
+  if (dir == nullptr) {
+    return false;
+  }
+
+  struct dirent *entry;
+  bool found = false;
+  while ((entry = readdir(dir)) != nullptr) {
+    if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+      continue;
+    }
+    std::string entry_path = external_weight_dir + "/" + entry->d_name;
+    if (ge::IsFile(entry_path.c_str())) {
+      std::string filename = entry->d_name;
+      if (std::regex_match(filename, pattern)) {
+        found = true;
+        break;
+      }
+    }
+  }
+  closedir(dir);
+  return found;
+}
+
+int RemoveAll(const std::string &path) {
+  return ge::PathUtils::RemoveDirectories(path);
 }
 }
 class GeApiV2Test : public testing::Test {
@@ -1647,7 +1663,7 @@ TEST_F(GeApiV2Test, GetCompileGraphModel_Success_LoadAndExec) {
   ModelBufferData model_buff;
   std::string external_weight_dir = "./user_weight_dir/";
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    fs::remove_all(external_weight_dir);
+    RemoveAll(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;
@@ -2016,7 +2032,7 @@ TEST_F(GeApiV2Test, GetCompileGraphModel_UserSetExternalWeightAddress_Success_Lo
   std::vector<ExternalWeightDescPtr> external_weight_paths;
   std::string external_weight_dir = "./user_weight_dir/";
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    fs::remove_all(external_weight_dir);
+    RemoveAll(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;
@@ -2087,12 +2103,12 @@ TEST_F(GeApiV2Test, ExternalWeightDirAndModelCache_Success) {
   std::string model_cache_dir = "./build_cache_dir";
   std::string graph_key = "test_graph_001";
   std::string external_weight_dir = "./user_weight_dir/";
-  ASSERT_TRUE(fs::create_directory(model_cache_dir));
+  ASSERT_TRUE(ge::CreateDir(model_cache_dir) == 0);
   GE_MAKE_GUARD(remove_model_cache_dir, [&model_cache_dir] () {
-    fs::remove_all(model_cache_dir);
+    RemoveAll(model_cache_dir);
   });
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    fs::remove_all(external_weight_dir);
+    RemoveAll(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;
@@ -2150,12 +2166,12 @@ TEST_F(GeApiV2Test, ExternalWeightDirAndModelCache_Failed_SecondSessionNotSetExt
   std::string model_cache_dir = "./build_cache_dir";
   std::string graph_key = "test_graph_001";
   std::string external_weight_dir = "./user_weight_dir/";
-  ASSERT_TRUE(fs::create_directory(model_cache_dir));
+  ASSERT_TRUE(ge::CreateDir(model_cache_dir) == 0);
   GE_MAKE_GUARD(remove_model_cache_dir, [&model_cache_dir] () {
-    fs::remove_all(model_cache_dir);
+    RemoveAll(model_cache_dir);
   });
   GE_MAKE_GUARD(remove_dir, [&external_weight_dir] () {
-    fs::remove_all(external_weight_dir);
+    RemoveAll(external_weight_dir);
   });
   {
     std::map<AscendString, AscendString> options;

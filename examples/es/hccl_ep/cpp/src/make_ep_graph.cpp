@@ -46,12 +46,9 @@ es::EsTensorHolder MakeEPGraph(
     es::EsTensorHolder expert_weight,
     es::EsTensorHolder group_list,
     EsGraphBuilder &graph_builder) {
-
   auto [hidden_states_int8, pertoken_scale] = DynamicQuant(hidden_states, nullptr, nullptr, ge::DT_INT8);
-
   const char* group = "hccl_world_group";
   auto global_hidden_states = HcomAllGather(hidden_states_int8, RANK_SIZE, group, 0, -1);
-
   auto router_logits = MatMul(hidden_states, gate_weight);
   auto [topk_weights, topk_ids, row_idx] = MoeGatingTopKSoftmax(router_logits, finished, TOP_K);
   auto topk_ids_float = Cast(topk_ids, ge::DT_FLOAT);

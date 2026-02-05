@@ -839,6 +839,61 @@ TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseBat
   RuntimeStub::Reset();
 }
 
+// 特殊场景vector的轴信息为m 1 n，对于matmul的m n两根轴来说看起来是batch 轴broadcast，实际可以做无效轴删除然后变成非batch轴broadcast的可融合场景
+TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanFuseBatchBroadcast2) {
+  ge::PlatformContext::GetInstance().Reset();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"4", "4"});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"4", "4"});
+    auto matmul = es::MatMulV3(data0, data1);
+    matmul.SetSymbolShape({"4", "4"});
+    auto data2 = es_graph_->CreateInput(2, "data2", nullptr);
+    data2.SetSymbolShape({"1", "1", "4"});
+    auto data3 = es_graph_->CreateInput(3, "data3", nullptr);
+    data3.SetSymbolShape({"4", "1", "4"});
+    auto broadcast = es::BroadcastTo(data2, data3);
+    broadcast.SetSymbolShape({"4", "1", "4"});
+    auto reshape1 = es::Reshape(matmul, data3);
+    reshape1.SetSymbolShape({"4", "1", "4"});
+    auto Add = es::Add(reshape1, broadcast);
+    Add.SetSymbolShape({"4", "1", "4"});
+    auto reshape2 = es::Reshape(Add, data1);
+    reshape2.SetSymbolShape({"4", "4"});
+    es_graph_->SetOutput(reshape2, 0);
+  }();
+  auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
+  SetCurShapeEnvContext(&shape_env);
+  auto s0 = shape_env.CreateSymbol(2, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  auto s1 = shape_env.CreateSymbol(3, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  auto s2 = shape_env.CreateSymbol(4, MakeShared<GraphInputShapeSourceStub>(0, 2));
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+  CubeFixpipPass cube_fixpip_pass;
+  EXPECT_EQ(cube_fixpip_pass.Run(cg), SUCCESS);
+
+  auto Broadcast_1 = cg->FindNode("Broadcast_1");
+  ASSERT_EQ(Broadcast_1, nullptr);
+  auto MatMulV3_0 = cg->FindNode("MatMulV3_0");
+  ASSERT_EQ(MatMulV3_0, nullptr);
+  SetCurShapeEnvContext(nullptr);
+  RuntimeStub::Reset();
+}
+
 TEST_F(UTestLoweringAndCanfuseV2, CubeAndBroadcastLoweringCanfuseV2CanNotFuseDirectBroadcast) {
   ge::PlatformContext::GetInstance().Reset();
   auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
@@ -2063,6 +2118,9 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitAndConcatAndAbsSplitPartialFuse) {
   auto graph = es_graph_->Build();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
 
+  auto prev_node_num = cg->GetDirectNode().size();
+  ge::PatternFusion patter_fusion;
+  ASSERT_EQ(patter_fusion.RunAllPatternFusion(cg),GRAPH_SUCCESS);
   ge::AscIrLowerer lowerer;
   ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
   ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
@@ -2070,8 +2128,52 @@ TEST_F(UTestLoweringAndCanfuseV2, SplitAndConcatAndAbsSplitPartialFuse) {
   FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
   EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
   ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+  auto post_node_num = cg->GetDirectNode().size();
   AscBackendPostProcessor post_processor;
   EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+  EXPECT_EQ(prev_node_num - 1, post_node_num);
+  SetCurShapeEnvContext(nullptr);
+  RuntimeStub::Reset();
+}
+
+TEST_F(UTestLoweringAndCanfuseV2, SplitAndReduceAndAbsSplitLowFuseRatio) {
+  ge::PlatformContext::GetInstance().Reset();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"32", "32", "96", "64"});
+    auto split0_outputs = es::SplitD(data0,2U,6);
+    for (auto output: split0_outputs) {
+      output.SetSymbolShape({"32", "32", "32", "64"});
+    }
+    auto abs0 = es::Abs(split0_outputs[0]);
+    abs0.SetSymbolShape({"32", "32", "16", "64"});
+    for (int32_t i = 0; i < 5U; i++) {
+      auto reduce_axis = CreateConst(*es_graph_,DT_INT64,{1},std::vector<int64_t>{3});
+      auto reduce = es::ReduceAny(split0_outputs[i],reduce_axis);
+      reduce.SetSymbolShape({"32", "32", "16"});
+      es_graph_->SetOutput(reduce, i);
+    }
+    es_graph_->SetOutput(abs0, 5);
+  }();
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+
+  auto prev_node_num = cg->GetDirectNode().size();
+  ge::PatternFusion patter_fusion;
+  ASSERT_EQ(patter_fusion.RunAllPatternFusion(cg),GRAPH_SUCCESS);
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+  auto post_node_num = cg->GetDirectNode().size();
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+  EXPECT_EQ(prev_node_num, post_node_num);
   SetCurShapeEnvContext(nullptr);
   RuntimeStub::Reset();
 }

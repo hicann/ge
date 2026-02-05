@@ -1175,7 +1175,7 @@ static TilingOption tiling_option_default{};
        GELOGD("%s occupy is const, generating if codes.", name.c_str());
        GE_ASSERT_SUCCESS(UpdateRelatedVars(hardware.second, param_map, related_vars, 1U));
        for (const auto &pair : param_map) {
-         judge_code += "    uint32_t " + Str(pair.first) + " = " + Str(pair.second) + ";\n";
+         judge_code += "    double " + Str(pair.first) + " = " + Str(pair.second) + ";\n";
        }
        std::string hardware_orig_expr = Str(hardware.second);
        judge_code.append("// ").append(name).append(" expr = ").append(hardware_orig_expr + "\n");

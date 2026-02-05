@@ -451,11 +451,11 @@ Status FileConstantUtils::SaveWeightToOneFileWithReuse(const ConstNodeWeightHash
                                                     const std::string &weight_dir, FileConstantMeta &meta) {
   // 预检查：计算需要写入的新权重数量
   size_t new_weights_count = 0;
-  std::string graph_name;
+  ComputeGraphPtr root_graph = nullptr;
   for (const auto &const_and_weight_hash : const_to_weight_hash_map) {
     const auto &weight_hash = const_and_weight_hash.second.second;
-    if (graph_name.empty() && const_and_weight_hash.first != nullptr) {
-      graph_name = NodeUtils::FindRootGraph(*const_and_weight_hash.first)->GetName();
+    if (root_graph == nullptr && const_and_weight_hash.first != nullptr) {
+      root_graph = NodeUtils::FindRootGraph(*const_and_weight_hash.first);
     }
     if (meta.hash_to_weight_file.find(weight_hash) == meta.hash_to_weight_file.end()) {
       ++new_weights_count;
@@ -470,8 +470,22 @@ Status FileConstantUtils::SaveWeightToOneFileWithReuse(const ConstNodeWeightHash
   GELOGI("Converting %zu const nodes to file constants (all-in-one mode), %zu are new weights",
          const_to_weight_hash_map.size(), new_weights_count);
 
+  std::string model_file_name_prefix;
+  std::string graph_name;
+  if (root_graph != nullptr) {
+    graph_name = root_graph->GetName();
+    (void)AttrUtils::GetStr(root_graph, ATTR_MODEL_FILE_NAME_PREFIX, model_file_name_prefix);
+  }
+
+  std::string om_name = StringUtils::GetFileName(model_file_name_prefix);
+  auto pos = om_name.rfind('.');
+  if (pos != std::string::npos) {
+    om_name = om_name.substr(0, pos);
+  }
+  const std::string weight_file_name = om_name.empty()
+                                         ? (graph_name.empty() ? "weight_combined" : (graph_name + "_weight_combined"))
+                                         : (om_name + "_weight_combined");
   std::string weight_path;
-  const std::string weight_file_name = graph_name.empty() ? "weight_combined" : (graph_name + "_weight_combined");
   GetValidFullPath(weight_dir, weight_file_name, weight_path);
 
   std::ofstream ofs(weight_path, std::ios::binary | std::ios::app | std::ios::out);
@@ -640,7 +654,7 @@ Status FileConstantUtils::ConvertConstToFileConst(const ComputeGraphPtr &compute
     GE_CHK_STATUS_RET(ReadJsonFile(meta_path, meta_json), "read meta json failed.");
     meta = meta_json.get<FileConstantMeta>();
   }
-  
+
   GE_CHK_STATUS_RET_NOLOG(ConvertToFileConstants(const_to_weight_hash_map, file_const_dir, meta, all_in_one));
   const nlohmann::json out_json(meta);
   GE_CHK_STATUS_RET(WriteJsonFile(meta_path, out_json), "save file constant meta failed.");
@@ -706,8 +720,6 @@ void FileConstantUtils::SetFileConstantPath(const OpDescPtr &op_desc, const std:
 Status FileConstantUtils::ChangeFilePathAttr(const ComputeGraphPtr &compute_graph, const std::string &om_path,
                                              std::map<std::string, std::string> &old_file_to_new_file) {
   std::string origin_dir;
-  std::string external_weight = std::to_string(0);
-  (void)GetContext().GetOption(EXTERNAL_WEIGHT, external_weight);
   for (const auto &node : compute_graph->GetAllNodes()) {
     if (node->GetType() == FILECONSTANT) {
       const auto &op_desc = node->GetOpDesc();
@@ -735,15 +747,6 @@ Status FileConstantUtils::ChangeFilePathAttr(const ComputeGraphPtr &compute_grap
       std::string path = om_path;
       const char_t *const om_dir = mmDirName(&path[0]);
       GE_CHECK_NOTNULL(om_dir);
-      if (external_weight == kExternalWeightCombined) {
-        std::string om_name = StringUtils::GetFileName(om_path);
-        pos = om_name.rfind('.');
-        if (pos != std::string::npos) {
-          om_name = om_name.substr(0, pos);
-        }
-        GE_CHECK_NOTNULL(om_name.c_str());
-        file_name = om_name + "_weight_combined";
-      }
       const std::string om_weight_path = std::string(om_dir) + "/weight/" + file_name;
       SetFileConstantPath(op_desc, file_name, static_cast<int64_t>(offset), static_cast<int64_t>(length));
       old_file_to_new_file[real_path] = om_weight_path;

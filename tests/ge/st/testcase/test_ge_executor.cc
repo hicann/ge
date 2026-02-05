@@ -1752,7 +1752,7 @@ TEST_F(GeExecutorTest, sample_davinci_model_dynamic_memory) {
 }
 
 /**
- * 用例描述：静态图历险加在场景，图中有FILECONSTANT，用户为FileConstant设置了Device地址，使用用户设置的Device地址
+ * 用例描述：静态图离线加在场景，图中有FILECONSTANT，用户为FileConstant设置了Device地址，使用用户设置的Device地址
  * 预置条件：
  * 1. 构造包含FILECONSTANT算子的图，并创建对应的权重文件
  * 2. 构造离线模型，落盘生成om 文件
@@ -1840,6 +1840,92 @@ TEST_F(GeExecutorTest, FileConstant_UserSetDeviceMem) {
   }
   system("rm -rf file_constant1.bin");
   system("rm -rf file_constant2.bin");
+}
+
+/**
+ * 用例描述：静态图离线加在场景，图中有FILECONSTANT，同一个线程加载2个om，校验第2个om加载时fileconstant会有h2d拷贝
+ * 预置条件：
+ * 1. 构造包含FILECONSTANT算子的图，并创建对应的权重文件
+ * 2. 构造离线模型，落盘生成om 文件
+ * 测试步骤：
+ * 1. fileconstant算子的权重文件名test_weight.bin
+ * 2. 通过计算图生成ModelData
+ * 3. 通过ModelData加载执行器
+ * 预期结果：
+ * 1. 两次加载，session id不同，因此外置权重不能共享同一份device内存，各自有h2d拷贝
+ */
+TEST_F(GeExecutorTest, FileConstant_OneThreadLoadTwoOm) {
+  shared_ptr<OpsKernelInfoStore> fake_ops_kernel_info_store = std::make_shared<FakeOpsKernelInfoStore>();
+  // hccl op goes to AIcoreEngine in this testcase
+  OpsKernelExecutorManager::GetInstance().executors_["AIcoreEngine"] = fake_ops_kernel_info_store;
+  uint32_t mem_offset = 0;
+  ComputeGraphPtr graph;
+  GeModelPtr ge_model;
+  BuildFileConstantGraph(graph, ge_model, mem_offset);
+  EXPECT_NE(graph, nullptr);
+  EXPECT_NE(ge_model, nullptr);
+
+  ModelDumpInitCmd(ge_executor_);
+
+  DelStaticForOffline(graph, mem_offset);  // Offline model will set new session_id, static var invalid.
+  EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, mem_offset));
+  {
+    auto var1 = ge_model->GetGraph()->FindNode("file_constant1");
+    auto var2 = ge_model->GetGraph()->FindNode("file_constant2");
+    ASSERT_NE(var1, nullptr);
+    ASSERT_NE(var2, nullptr);
+    ge::TensorUtils::SetSize(*var1->GetOpDescBarePtr()->MutableOutputDesc(0), 512);
+    var1->GetOpDescBarePtr()->SetOutputOffset({137438953472U});
+    ge::TensorUtils::SetSize(*var2->GetOpDescBarePtr()->MutableOutputDesc(0), 512);
+    var2->GetOpDescBarePtr()->SetOutputOffset({137438954472U});
+
+    // Test LoadModelOffline
+    {
+      ModelHelper model_helper;
+      model_helper.SetSaveMode(true);  // Save to file.
+      ModelBufferData model_buffer;
+      EXPECT_EQ(model_helper.SaveToOmModel(ge_model, "sample_offline_model1.om", model_buffer), SUCCESS);
+    }
+
+    // Test LoadModelOffline
+    {
+      ModelHelper model_helper;
+      model_helper.SetSaveMode(true);  // Save to file.
+      ModelBufferData model_buffer;
+      EXPECT_EQ(model_helper.SaveToOmModel(ge_model, "sample_offline_model2.om", model_buffer), SUCCESS);
+    }
+
+    GeExecutor ge_executor;
+    ModelData model_data;
+    EXPECT_EQ(ge_executor.LoadDataFromFile("sample_offline_model1.om", model_data), SUCCESS);
+    model_data.om_name = "g1_om";
+    uint32_t model_id = 0U;
+    ge::ModelLoadArg load_arg;
+
+    EXPECT_EQ(ge_executor.LoadModelFromDataWithArgs(model_id, model_data, load_arg), SUCCESS);
+
+    GeExecutor ge_executor2;
+    ModelData model_data2;
+    EXPECT_EQ(ge_executor2.LoadDataFromFile("sample_offline_model2.om", model_data2), SUCCESS);
+    model_data.om_name = "g1_om";
+    uint32_t model_id2 = 1U;
+    {
+      gert::GertRuntimeStub runtime_stub;
+      runtime_stub.GetSlogStub().SetLevel(DLOG_INFO);
+      EXPECT_EQ(ge_executor2.LoadModelFromDataWithArgs(model_id2, model_data2, load_arg), SUCCESS);
+      auto log_ret = runtime_stub.GetSlogStub().FindLog(DLOG_INFO, "CopyOneWeightFromFileWithFilehandler");
+      EXPECT_NE(log_ret, -1);
+    }
+
+    EXPECT_EQ(ge_executor.UnloadModel(model_id), SUCCESS);
+
+    delete[] (char *)model_data.model_data;
+    delete[] (char *)model_data2.model_data;
+  }
+  system("rm -rf file_constant1.bin");
+  system("rm -rf file_constant2.bin");
+  system("rm -rf sample_offline_model1.om");
+  system("rm -rf sample_offline_model2.om");
 }
 
 static void BuildSampleCondGraph(ComputeGraphPtr &graph, uint32_t &mem_offset) {

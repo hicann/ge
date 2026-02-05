@@ -513,9 +513,9 @@ NodePtr AscBackendFusionDecider::FuseNode(NodePtr node1, NodePtr node2, const Co
 ComputeGraphPtr AscBackendFusionDecider::CreateAscBackendNodeSubGraph(
     const NodePtr &node, uint32_t in_nums, uint32_t out_nums, const std::vector<uint32_t> &node_output_index,
     const std::vector<std::pair<ge::NodePtr, int32_t>> &pre_nodes) const {
-  const auto &sub_graph =
-      ComGraphMakeShared<ComputeGraph>("FusedAscBackendNode_graph_" + std::to_string(AutofuseUtils::GenUniqueNumber()));
-  GE_ASSERT_NOTNULL(sub_graph);
+  const std::string graph_name = "FusedAscBackendNode_graph_" + std::to_string(AutofuseUtils::GenUniqueNumber());
+  ComputeGraphPtr sub_graph;
+  GE_ASSERT_SUCCESS(AutofuseUtils::CreateComputeGraphWithGraphID(node, graph_name, sub_graph));
   GE_ASSERT_GRAPH_SUCCESS(GraphUtils::MoveNodeToGraph(node, *sub_graph));
   GE_ASSERT_SUCCESS(BackendUtils::CreateSubGraphInput(sub_graph, node, in_nums, pre_nodes));
   GE_ASSERT_SUCCESS(BackendUtils::CreateSubGraphOutput(sub_graph, node, out_nums, node_output_index));

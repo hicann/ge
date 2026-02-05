@@ -77,6 +77,8 @@ class HeterogeneousExchangeService : public ExchangeService {
   bool IsClientQueue(const uint32_t queue_id);
   static Status CheckResult(rtMbufPtr_t m_buf, ControlInfo &control_info);
 
+  // put m_buf info to client queue, do not take ownership of m_buf
+  static Status EnqueueMbufToClientQueue(int32_t device_id, uint32_t queue_id, rtMbufPtr_t m_buf, int32_t timeout);
  private:
   static Status MoveMbufTo(void *m_buf, const ControlInfo &control_info,
                            std::shared_ptr<AlignedPtr> &aligned_ptr);

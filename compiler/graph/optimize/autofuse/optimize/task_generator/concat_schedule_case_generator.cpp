@@ -49,8 +49,9 @@ Status ConcatFusionCaseGenerator::Generate(ascir::HintGraph &graph,
   support_small_tail_ = backend_spec->concat_alg == kConcatAlgTranspose;
   // case1. 首轴concat，转store
   if (is_first_dim) {
-    bool is_one_axis = (concat_node->outputs[0].attr.repeats.size() == 1UL);
-    if ((!convert_to_store_) && (!support_small_tail_) && (is_one_axis || (concat_dim_ > 0))) {
+    const bool is_one_axis = (concat_node->outputs[0].attr.repeats.size() == 1UL);
+    const bool is_single_input = concat_node->inputs.Size() == 1U;
+    if ((!is_single_input) &&(!convert_to_store_) && (!support_small_tail_) && (is_one_axis || (concat_dim_ > 0))) {
       // 单维concat, 在前面补轴，复用非首轴处理逻辑
       // 先限制单维，后续处理多维但小包场景
       if (is_one_axis) {

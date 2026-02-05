@@ -7324,7 +7324,7 @@ Status DavinciModel::InitFileConstant(const NodePtr &node) {
   GE_CHK_STATUS_RET(FileConstantUtils::GetFilePath(op_desc, file_id_and_path_map_, file_path, offset, length),
                     "Failed to get file path.");
   size_t left_size = static_cast<size_t>(weight_size);
-  const auto &external_weight_manager = ExternalWeightManagerPool::Instance().GetManager(GetContext().SessionId());
+  const auto &external_weight_manager = ExternalWeightManagerPool::Instance().GetManager(session_id_);
   GE_CHECK_NOTNULL(external_weight_manager);
   if (!external_weight_manager->CheckAndSetWeightLoaded(file_path + ":" + std::to_string(offset), device_id_)) {
     const size_t file_length = (length == 0U ? static_cast<size_t>(weight_size) : length);

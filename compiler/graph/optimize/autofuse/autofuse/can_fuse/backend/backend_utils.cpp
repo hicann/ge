@@ -133,6 +133,126 @@ Status GetCurAscLoadNode(const ComputeGraphPtr &graph, const int32_t index, Node
   GE_ASSERT_NOTNULL(load_node);
   return SUCCESS;
 }
+
+bool CanFuseByStrategyPro(const NodePtr &node1, const NodePtr &node2, uint32_t &max_fusion_node_input_size) {
+  const auto fuse_type = BackendUtils::GetAllFuseType(node1, node2);
+  uint64_t max_fusion_nodes_size = 0U;
+  for (const auto fusion_strategy : FusionStrategyRegistry::Instance().Get(fuse_type)) {
+    if (fusion_strategy != nullptr) {
+      if (!fusion_strategy->CanFuse(node1, node2)) {
+        return false;
+      }
+      const uint32_t strategy_max_fusion_node_input_size = fusion_strategy->GetMaxFusionNodeInputSize(node1, node2);
+      if (strategy_max_fusion_node_input_size > max_fusion_node_input_size) {
+        max_fusion_node_input_size = strategy_max_fusion_node_input_size;
+      }
+      const uint64_t strategy_max_fusion_nodes_size = fusion_strategy->GetMaxFusionNodesSize(node1, node2);
+      if (strategy_max_fusion_nodes_size > max_fusion_nodes_size) {
+        max_fusion_nodes_size = strategy_max_fusion_nodes_size;
+      }
+    }
+  }
+
+  auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
+  GE_ASSERT_NOTNULL(attr1);
+  auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
+  GE_ASSERT_NOTNULL(attr2);
+
+  if (attr1->GetVectorCoreNum() != attr2->GetVectorCoreNum()) {
+    GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][It has different vector core num scope, "
+           "node1 vector core num is %d, node2 vector core num is %d]", node1->GetNamePtr(), node1->GetType().c_str(),
+           node2->GetNamePtr(), node2->GetType().c_str(), ge::NotFuseReasonCode(ge::NotFuseReason::kVectorCoreNumNotEqual),
+           attr1->GetVectorCoreNum(), attr2->GetVectorCoreNum());
+    return false;
+  }
+  // 融合后节点数超过总数限制不做融合
+  if ((attr1->GetFusionNodesSize() + attr2->GetFusionNodesSize()) > max_fusion_nodes_size) {
+    GELOGI(
+        "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 size(%" PRIu64 ") plus node2 size(%" PRIu64 ")"
+        " exceeds max fusion nodes size(%" PRIu64 ")]", node1->GetNamePtr(), node1->GetType().c_str(),
+        node2->GetNamePtr(), node2->GetType().c_str(),
+        ge::NotFuseReasonCode(ge::NotFuseReason::kMaxFusionNodesSizeExceedThreshold), attr1->GetFusionNodesSize(),
+        attr2->GetFusionNodesSize(), max_fusion_nodes_size);
+    return false;
+  }
+  return true;
+}
+
+bool IsSplitComplete(const NodePtr &node) {
+  GE_ASSERT_NOTNULL(node);
+  auto attr = BackendUtils::GetNodeAutoFuseAttr(node);
+  GE_ASSERT_NOTNULL(attr);
+  // 复用缓存结果
+  if (attr->GetSplitComplete()) {
+    GELOGD("split node %s is compelete", node->GetName().c_str());
+    return true;
+  }
+  GE_ASSERT_TRUE(attr->GetFuseType() == loop::FuseType::kSplit);
+  GE_ASSERT_TRUE(!attr->GetOriginNodes().empty());
+  auto origin_node = attr->GetOriginNodes()[0];
+  GE_ASSERT_NOTNULL(origin_node);
+  auto origin_output_num = origin_node->GetAllOutDataAnchorsSize();
+  auto fused_split_num = 0U;
+  auto asc_graph = BackendUtils::GetNodeFusedAscGraph(node);
+  GE_ASSERT_NOTNULL(asc_graph);
+  for (auto ascir_node: asc_graph->GetAllNodes()) {
+    if (ascir_node->GetType() == kSplitType) {
+      fused_split_num++;
+    }
+  }
+  GELOGD("split node %s, original node %s, original output num %zu, fused split node %zu", node->GetName().c_str(),
+         origin_node->GetName().c_str(), origin_output_num, fused_split_num);
+  if (fused_split_num == origin_output_num) {
+    // 缓存原split节点融合完整的标志
+    attr->SetSplitComplete();
+    return true;
+  }
+  return false;
+}
+
+bool IsSplitLowFusionRatio(const NodePtr &node, uint32_t &max_fusion_node_input_size) {
+  GE_ASSERT_NOTNULL(node);
+  const auto attr = BackendUtils::GetNodeAutoFuseAttr(node);
+  GE_ASSERT_NOTNULL(attr);
+  GE_ASSERT_TRUE(attr->GetFuseType() == loop::FuseType::kSplit);
+  if (attr->GetSplitFusionRatioRequirementState() == SplitFusionRatioRequirementState::SATISFIED) {
+    // 复用缓存的判断结果避免重复判断
+    GELOGD("node %s has high fuse ratio", node->GetName().c_str());
+    return false;
+  }
+  GELOGD("node %s is calculating fuse ratio", node->GetName().c_str());
+  uint32_t can_fuse = 0;
+  GE_ASSERT_TRUE(!attr->GetOriginNodes().empty());
+  auto origin_node = attr->GetOriginNodes()[0];
+  GE_ASSERT_NOTNULL(origin_node);
+  uint32_t total = origin_node->GetAllOutDataAnchorsSize();
+  for (auto anchor: node->GetAllOutDataAnchors()) {
+    for (auto peer_anchor: anchor->GetPeerInDataAnchors()) {
+      auto peer_node = peer_anchor->GetOwnerNode();
+      if (!BackendUtils::IsBackendFuseNode(peer_node)) {
+        continue;
+      }
+      if (CanFuseByStrategyPro(node, peer_node, max_fusion_node_input_size)) {
+        can_fuse++;
+        break;
+      }
+    }
+  }
+  GE_ASSERT_TRUE(total > 0U);
+  const float32_t ratio = static_cast<float32_t>(can_fuse) / static_cast<float32_t>(total);
+  GELOGD("node %s, total number of output: %zu, number of can-fuse output: %zu, fuse ratio %f, threshold: %f", node->GetName().c_str(), total,
+         can_fuse, ratio, kSplitLowFusionRatioThreshold);
+  if (ratio > kSplitLowFusionRatioThreshold) {
+    GELOGD("node %s has high fuse ratio, can fuse", node->GetName().c_str());
+    // 缓存判断结果避免重复判断
+    attr->SetSplitLowFusionRatioRequirementState(SplitFusionRatioRequirementState::SATISFIED);
+    return false;
+  }
+  GELOGD("node %s has low fuse ratio, can not fuse", node->GetName().c_str());
+  // 缓存判断结果避免重复判断
+  attr->SetSplitLowFusionRatioRequirementState(SplitFusionRatioRequirementState::NOT_SATISFIED);
+  return true;
+}
 }  // namespace
 
 Status BackendUtils::UpdateContinueStrides(const std::vector<ge::Expression> &repeats, std::vector<ge::Expression> &strides) {
@@ -2104,45 +2224,18 @@ AutoFuseAttrs *BackendUtils::GetAscGraphOutputAttr(const NodePtr &node1, const N
 }
 
 bool BackendUtils::CanFuseByStrategy(const NodePtr &node1, const NodePtr &node2, uint32_t &max_fusion_node_input_size) {
-  const auto fuse_type = BackendUtils::GetAllFuseType(node1, node2);
-  uint64_t max_fusion_nodes_size = 0U;
-  for (const auto fusion_strategy : FusionStrategyRegistry::Instance().Get(fuse_type)) {
-    if (fusion_strategy != nullptr) {
-      if (!fusion_strategy->CanFuse(node1, node2)) {
-        return false;
-      }
-      const uint32_t strategy_max_fusion_node_input_size = fusion_strategy->GetMaxFusionNodeInputSize(node1, node2);
-      if (strategy_max_fusion_node_input_size > max_fusion_node_input_size) {
-        max_fusion_node_input_size = strategy_max_fusion_node_input_size;
-      }
-      const uint64_t strategy_max_fusion_nodes_size = fusion_strategy->GetMaxFusionNodesSize(node1, node2);
-      if (strategy_max_fusion_nodes_size > max_fusion_nodes_size) {
-        max_fusion_nodes_size = strategy_max_fusion_nodes_size;
-      }
-    }
+  if (!CanFuseByStrategyPro(node1, node2, max_fusion_node_input_size)) {
+    return false;
   }
-
   auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
   GE_ASSERT_NOTNULL(attr1);
-  auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
-  GE_ASSERT_NOTNULL(attr2);
-
-  if (attr1->GetVectorCoreNum() != attr2->GetVectorCoreNum()) {
-    GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][It has different vector core num scope, "
-           "node1 vector core num is %d, node2 vector core num is %d]", node1->GetNamePtr(), node1->GetType().c_str(),
-           node2->GetNamePtr(), node2->GetType().c_str(), ge::NotFuseReasonCode(ge::NotFuseReason::kVectorCoreNumNotEqual),
-           attr1->GetVectorCoreNum(), attr2->GetVectorCoreNum());
-    return false;
-  }
-  // 融合后节点数超过总数限制不做融合
-  if ((attr1->GetFusionNodesSize() + attr2->GetFusionNodesSize()) > max_fusion_nodes_size) {
-    GELOGI(
-        "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 size(%" PRIu64 ") plus node2 size(%" PRIu64 ")"
-        " exceeds max fusion nodes size(%" PRIu64 ")]", node1->GetNamePtr(), node1->GetType().c_str(),
-        node2->GetNamePtr(), node2->GetType().c_str(),
-        ge::NotFuseReasonCode(ge::NotFuseReason::kMaxFusionNodesSizeExceedThreshold), attr1->GetFusionNodesSize(),
-        attr2->GetFusionNodesSize(), max_fusion_nodes_size);
-    return false;
+  if ((attr1->GetFuseType() == loop::FuseType::kSplit) && IsSplitComplete(node1) &&
+      IsSplitLowFusionRatio(node1, max_fusion_node_input_size)) {
+      // Split类型不支持低融合比例, 当前只支持split后向融合
+      GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 or node2 has low fuse ratio]",
+             node1->GetName().c_str(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
+             ge::NotFuseReasonCode(ge::NotFuseReason::kSplitLowFuseRatio));
+      return false;
   }
   return true;
 }

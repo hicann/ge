@@ -48,6 +48,14 @@ class AutofuserUT : public testing::Test {
 };
 
 namespace {
+REG_OP(BroadcastTo)
+    .INPUT(x, TensorType({DT_FLOAT16, DT_FLOAT, DT_DOUBLE, DT_UINT8, DT_INT8, DI_UINT16, DT_INT16, DT_INT32, DT_INT64,
+                      DT_COMPLEX64, DT_COMPLEX128}))
+    .INPUT(shape, TensorType({DT_INT32, DT_INT64}))
+    .OUTPUT(y, TensorType({DT_FLOAT, DT_FLOAT16, DT_INT8, DT_INT16, DT_UINT16, DT_UINT8, DT_INT32, DT_INT64, DT_UINT32,
+                           DT_UINT64, DT_BOOL, DT_DOUBLE}))
+    .OP_END_FACTORY_REG(BroadcastTo)
+
 template <typename T>
 es::Tensor CreateConst(es::Graph &graph, ge::DataType dtype, const std::vector<int64_t> &dims,
                        const std::vector<T> &value) {
@@ -66,18 +74,20 @@ es::Tensor CreateConst(es::Graph &graph, ge::DataType dtype, const std::vector<i
 }
 
 template <typename T>
-ComputeGraphPtr BuildGraph(const std::string &op_type, DataType dtype, T value, bool lhs_is_data,
-                                  bool ref_const = false) {
-  const auto shape = GeShape(std::vector<int64_t>({8, 16}));
-  GeTensorDesc desc(shape, FORMAT_ND, dtype);
-
-  std::vector<T> buffer(shape.GetShapeSize(), value);
+ComputeGraphPtr BuildGraph(const std::string &op_type, DataType dtype, T value,
+                           bool lhs_is_data, bool ref_const = false) {
+  std::vector<int64_t> const_shape = {8, 16};
+  std::vector<int64_t> data_shape = {8, 1};
+  GeTensorDesc const_desc(GeShape(const_shape), FORMAT_ND, dtype);
+  std::vector<T> buffer(GeShape(const_shape).GetShapeSize(), value);
   ::es::Graph es_graph("graph");
   {
     auto data_0 = es_graph.CreateInput(0, "data_0", nullptr);
-    data_0.SetShape({{8, 16}});
+    data_0.SetShape({data_shape});
     auto abs_0 = es::Abs(data_0);
-    auto const_0 = CreateConst(es_graph, dtype, shape.GetDims(), buffer);
+    auto const_0 =
+        CreateConst(es_graph, dtype, GeShape(const_shape).GetDims(), buffer);
+    const_0.SetShape({const_shape});
     const ::es::Tensor &lhs = lhs_is_data ? abs_0 : const_0;
     const ::es::Tensor &rhs = lhs_is_data ? const_0 : abs_0;
     if (op_type == ADD) {
@@ -99,6 +109,19 @@ ComputeGraphPtr BuildGraph(const std::string &op_type, DataType dtype, T value, 
   }
   const auto test_graph = es_graph.Build();
   const auto graph = GraphUtilsEx::GetComputeGraph(*test_graph);
+  std::vector<int64_t> output_shape(data_shape.size());
+  for (size_t i = 0; i < data_shape.size(); ++i) {
+    output_shape[i] = (data_shape[i] != 1 ? data_shape[i] : const_shape[i]);
+  }
+  for (const auto &node : graph->GetAllNodes()) {
+    if (node->GetType() == op_type) {
+      const auto &lhs_shape = lhs_is_data ? data_shape : const_shape;
+      const auto &rhs_shape = lhs_is_data ? const_shape : data_shape;
+      node->GetOpDesc()->MutableInputDesc(0)->SetShape(GeShape(lhs_shape));
+      node->GetOpDesc()->MutableInputDesc(1)->SetShape(GeShape(rhs_shape));
+      node->GetOpDesc()->MutableOutputDesc(0)->SetShape(GeShape(output_shape));
+    }
+  }
   return graph;
 }
 }  // namespace
@@ -170,9 +193,15 @@ TEST_F(AutofuserUT, Symbolic_DynamicShapeTest_InputIsEmpty_Fail) {
 }
 
 TEST_F(AutofuserUT, PreProcess_Success) {
-  AutoFusePass pass;
-  const auto graph = BuildGraph(ADD, DT_INT32, 0, true, true);
-  EXPECT_EQ(pass.Run(graph), SUCCESS);
-  // pass.Run()
+  {
+    AutoFusePass pass;
+    const auto graph = BuildGraph(ADD, DT_INT32, 0, true, true);
+    EXPECT_EQ(pass.Run(graph), SUCCESS);
+  }
+  {
+    AutoFusePass pass;
+    const auto graph = BuildGraph(ADD, DT_BF16, 0, true, true);
+    EXPECT_EQ(pass.Run(graph), SUCCESS);
+  }
 }
 } // namespace ge

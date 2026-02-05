@@ -896,6 +896,7 @@ def _build_args(args_list, input_num, mm_attr1, mm_attr2):
         _inputs_[-1]["shape"] = shape
         _inputs_[-1]["ori_shape"] = shape
         if i == 0:
+            write_shape = list(shape)
             if mm_attr1['value']: # a矩阵是否有transpose
                 _m = shape[-1]
             else:
@@ -911,8 +912,6 @@ def _build_args(args_list, input_num, mm_attr1, mm_attr2):
     CommonUtility.print_compile_log("", msg, AscendCLogLevel.LOG_INFO)
     _origin_outputs_.append(args_list[-2])
     _origin_outputs_[-1]["param_name"] = "output0"
-    shape = _origin_outputs_[-1]["shape"]
-    write_shape = list(shape)
     write_shape[-1] = _n
     write_shape[-2] = _m
     _origin_outputs_[-1]["shape"] = tuple(write_shape)
@@ -944,7 +943,7 @@ def template_decider(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
     logger.info("CV fusion op, get vector tilingkey(%s)", tiling_key)
     use_cv_common = use_cv_common or [False]
     tiling_key_transpose_mask = 0xF0
-    tiling_key_transpose_and_full_load_mask = 0xF00F0
+    tiling_key_transpose_and_full_load_mask = 0xF10F0 # transpose/全载模式/基础或者切k模板
     cube_tiling_key_ub = tiling_info.tiling_key & ~tiling_key_transpose_mask
     cube_tiling_key_fixpip = tiling_info.tiling_key & ~tiling_key_transpose_and_full_load_mask
     if (has_relu and cube_tiling_key_fixpip == 1):

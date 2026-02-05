@@ -11,6 +11,7 @@
 #include "cube_fusion_strategy.h"
 #include "backend/backend_spec.h"
 #include "can_fuse/backend/backend_utils.h"
+#include "post_process/scheduler_adapter/adaption_complete_node_attrs.h"
 #include "utils/autofuse_attrs.h"
 #include "can_fuse/strategy/fusion_strategy_registry.h"
 #include "utils/auto_fuse_config.h"
@@ -43,6 +44,8 @@ bool IsIndirectLinksWithoutBatchBroadcast(const NodePtr &node1, const NodePtr &n
   TensorAttrInfo temp_graph_attr;
   auto asc_graph = BackendUtils::GetNodeFusedAscGraph(node2);
   GE_ASSERT_NOTNULL(asc_graph);
+  // 存在reshape加1根大小为1的轴在m、n轴之间的场景，需删除无效轴，否则反推会判断为batch 轴broadcast
+  GE_ASSERT_SUCCESS(asc_adapt::GetAndRemoveInvalidAxis(*asc_graph));
   GE_ASSERT_SUCCESS(BackendUtils::GetGraphAttrInfo(*asc_graph, temp_graph_attr));
   GE_ASSERT_TRUE(temp_graph_attr.axis.size() < static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
   auto axis_size = static_cast<int32_t>(temp_graph_attr.axis.size());

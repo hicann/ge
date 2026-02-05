@@ -16,6 +16,7 @@
 #include "ascir.h"
 #include "optimize.h"
 #include "tiling_group.h"
+#include "graph_properties_cache.h"
 
 namespace optimize::autoschedule {
 constexpr int64_t kDefaultAxisId = -1;
@@ -33,7 +34,7 @@ struct TilingCase {
   std::pair<ge::AxisPtr, ge::AxisPtr> ub_tiling_x;
   std::pair<ge::AxisPtr, ge::AxisPtr> ub_tiling_y;
   std::pair<ge::AxisPtr, ge::AxisPtr> ub_tiling_r;
-  std::pair<ge::AxisPtr, ge::AxisPtr> block_tling;
+  std::pair<ge::AxisPtr, ge::AxisPtr> block_tiling;
   std::pair<ge::AxisPtr, ge::AxisPtr> reduce_block_tiling;
   ge::Expression rm_org_size;  // R轴切多核时，R轴用于分核的轴大小
   ge::Expression a_org_size;   // R轴切多核时，A轴大小
@@ -51,7 +52,8 @@ class Scheduler {
         tiling_case_(tiling_case),
         is_last_axis_reduce_(is_last_axis_reduce),
         reduce_template_(reduce_template),
-        cube_template_(cube_template) {};
+        cube_template_(cube_template),
+        graph_cache_(graph) {};
 
   Status DoScheduler();
   Status ReduceBlockTiling(std::vector<ascir::AxisId> &tile_out_axes,
@@ -100,6 +102,7 @@ class Scheduler {
   bool is_last_axis_reduce_;
   optimize::ReduceTemplateType reduce_template_;
   ascir::CubeTemplateType cube_template_;
+  GraphPropertiesCache graph_cache_;  // 图属性缓存，避免重复遍历
 };
 }  // namespace optimize::autoschedule
 

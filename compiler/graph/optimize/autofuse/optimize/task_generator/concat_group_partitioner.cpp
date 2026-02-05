@@ -169,56 +169,6 @@ void ConcatGroupPartitioner::GroupEnd(size_t index_end) {
   group_type_ = -1;
 }
 
-ge::Status ConcatGroupPartitioner::IndexIo(std::set<size_t> &multi_ref_input_indices) const {
-  // 防止后续拆出同一个图有多个Concat，先简单处理，都转为Store
-  std::map<std::string, std::set<size_t>> root_to_in;
-  for (const auto &in_data_anchor : concat_node_->GetAllInDataAnchorsPtr()) {
-    GE_CHECK_NOTNULL(in_data_anchor);
-    // 遍历到Load为止
-    auto peer_anchor = in_data_anchor->GetPeerOutAnchor();
-    GE_CHECK_NOTNULL(peer_anchor);
-    auto peer_node = peer_anchor->GetOwnerNodeBarePtr();
-    GE_CHECK_NOTNULL(peer_node);
-    auto root_nodes = FindRootNodes(peer_node);
-    for (const auto &root_node : root_nodes) {
-      root_to_in[root_node->GetName()].emplace(in_data_anchor->GetIdx());
-    }
-  }
-  for (const auto &root_and_in : root_to_in) {
-    if (root_and_in.second.size() > 1U) {
-      for (auto index : root_and_in.second) {
-        multi_ref_input_indices.emplace(index);
-      }
-    }
-  }
-  return ge::SUCCESS;
-}
-
-std::vector<const ge::Node *> ConcatGroupPartitioner::FindRootNodes(const ge::Node *node) {
-  std::vector<const ge::Node *> root_nodes;
-  std::set<const ge::Node *> visited;
-  std::vector<const ge::Node *> nodes{node};
-  while (!nodes.empty()) {
-    auto cur_node = nodes.back();
-    nodes.pop_back();
-    // 向上，到Load为止
-    const auto &in_data_nodes = cur_node->GetInDataNodes();
-    if ((!in_data_nodes.empty()) &&
-        (ge::ops::IsOps<ge::ascir_op::Data>(in_data_nodes.at(0)) ||
-            ge::ops::IsOps<ge::ascir_op::Scalar>(in_data_nodes.at(0)))) {
-      root_nodes.emplace_back(cur_node);
-      continue;
-    }
-    (void)visited.emplace(cur_node).second;
-    for (const auto &in_data_node : cur_node->GetInDataNodes()) {
-      if (in_data_node != nullptr && visited.find(in_data_node.get()) == visited.cend()) {
-        nodes.emplace_back(in_data_node.get());
-      }
-    }
-  }
-  return root_nodes;
-}
-
 int64_t ConcatGroupPartitioner::GetSizeLimitByGroupType(uint32_t group_type) const {
   const auto it = group_type_to_limit_.find(group_type);
   return (it != group_type_to_limit_.end()) ? it->second : default_cols_per_group_;
@@ -314,15 +264,10 @@ bool ConcatGroupPartitioner::IsSmallTail(uint32_t group_type) {
 
 ge::Status ConcatGroupPartitioner::RecomputeNodesCrossGroups(const std::vector<ConcatGroup> &groups,
                                                              bool &has_recompute) const {
-  std::set<size_t> multi_ref_input_indices;
-  GE_ASSERT_SUCCESS(IndexIo(multi_ref_input_indices));
   for (const auto &group : groups) {
     std::map<std::string, ge::AscNodePtr> name_to_new_node;
     for (size_t i = group.start; i < group.end; ++i) {
-      if (multi_ref_input_indices.find(i) == multi_ref_input_indices.cend()) {
-        continue;
-      }
-      GELOGD("input[%zu] has multi-ref ancestor", i);
+      GELOGD("input[%zu] check recompute start", i);
       auto const in_anchor = concat_node_->GetInDataAnchor(static_cast<int32_t>(i));
       int32_t depth = 64;
       while (--depth >= 0) {
@@ -402,6 +347,11 @@ ge::Status ConcatGroupPartitioner::CheckIsAncestorOfConcat(const ge::OutDataAnch
         if (visited.emplace(out_node.get()).second) {
           nodes.emplace_back(out_node.get());
         }
+      }
+    }
+    for (const auto &in_node: cur_node->GetInDataNodes()) {
+      if (visited.emplace(in_node.get()).second) {
+        nodes.emplace_back(in_node.get());
       }
     }
   }

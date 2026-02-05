@@ -35,10 +35,8 @@ class ConcatGroupPartitioner {
 
  private:
   Status Initialize();
-  Status IndexIo(std::set<size_t> &multi_ref_input_indices) const;
   void GroupEnd(size_t index_end);
   void GroupStart(int64_t index_start, uint32_t group_type, int64_t size);
-  static std::vector<const ge::Node *> FindRootNodes(const ge::Node *node);
   [[nodiscard]] int64_t GetSizeLimitByGroupType(uint32_t group_type) const;
   [[nodiscard]] uint32_t GetGroupType(int64_t size) const;
   void MergeSmallGroups(std::vector<ConcatGroup> &groups);

@@ -10,8 +10,6 @@
 
 #include "autoschedule.h"
 #include <algorithm>
-#include <cstddef>
-#include <list>
 #include <sstream>
 #include <string>
 #include <queue>
@@ -25,10 +23,11 @@
 #include "autoschedule/template_generator_handler.h"
 
 namespace {
-void FindNotLoopAxis(const ascir::NodeView &node, ascir::ImplGraph &impl_graph, std::vector<int64_t> &not_loop_axis,
+void FindNotLoopAxis(const ascir::NodeView &node, ascir::ImplGraph &impl_graph,
+                     std::unordered_set<int64_t> &not_loop_axis_set,
                      bool has_reduce, bool is_reduce_first_stage) {
   for (auto output : node->outputs()) {
-    not_loop_axis.insert(not_loop_axis.end(), output->attr.vectorized_axis.begin(), output->attr.vectorized_axis.end());
+    not_loop_axis_set.insert(output->attr.vectorized_axis.begin(), output->attr.vectorized_axis.end());
   }
   if (!has_reduce) {
     return;
@@ -61,13 +60,14 @@ void FindNotLoopAxis(const ascir::NodeView &node, ascir::ImplGraph &impl_graph, 
           continue;
         }
       }
-      not_loop_axis.push_back(input->attr.axis[i]);
+      not_loop_axis_set.insert(input->attr.axis[i]);
     }
   }
 }
 
-bool IsNotLoopAxis(ascir::ImplGraph &impl_graph, int64_t axis, std::vector<int64_t> &not_loop_axis) {
-  if (std::find(not_loop_axis.begin(), not_loop_axis.end(), axis) != not_loop_axis.end()) {
+bool IsNotLoopAxis(ascir::ImplGraph &impl_graph, int64_t axis,
+                    const std::unordered_set<int64_t> &not_loop_axis_set) {
+  if (not_loop_axis_set.find(axis) != not_loop_axis_set.end()) {
     return true;
   }
   auto r = impl_graph.FindAxis(axis);
@@ -78,7 +78,7 @@ bool IsNotLoopAxis(ascir::ImplGraph &impl_graph, int64_t axis, std::vector<int64
     return false;
   }
   for (auto c : r->from) {
-    if (!IsNotLoopAxis(impl_graph, c, not_loop_axis)) {
+    if (!IsNotLoopAxis(impl_graph, c, not_loop_axis_set)) {
       return false;
     }
   }
@@ -99,10 +99,10 @@ Status AutoSchedule::SelectLoopAxis(ascir::ImplGraph &impl_graph, bool is_reduce
       has_reduce = true;
     }
     auto axis = node->attr.sched.axis;
-    std::vector<int64_t> not_loop_axis;
-    FindNotLoopAxis(node, impl_graph, not_loop_axis, has_reduce, is_reduce_first_stage_);
+    std::unordered_set<int64_t> not_loop_axis_set;
+    FindNotLoopAxis(node, impl_graph, not_loop_axis_set, has_reduce, is_reduce_first_stage_);
     for (auto &s : axis) {
-      if (IsNotLoopAxis(impl_graph, s, not_loop_axis)) {
+      if (IsNotLoopAxis(impl_graph, s, not_loop_axis_set)) {
         s = ge::kIdNone;
         continue;
       }
@@ -212,56 +212,90 @@ static std::string GetTilingCaseStr(const std::string &graph_name, const TilingC
 
 Status AutoSchedule::DoAutoSchedule() {
   graph_.SetGraphType(ge::AscGraphType::kImplGraph);
+
+  // 生成通用模版
+  std::vector<TilingCase> tiling_cases;
+  GE_CHK_STATUS_RET(PrepareTilingCases(tiling_cases), "Failed to prepare tiling cases for graph: [%s]",
+                    graph_.GetName().c_str());
+
+  const bool is_last_axis_reduce = ScheduleUtils::IsLastAxisReduce(graph_);
+  const bool is_reduce_full_load = (reduce_template_ == optimize::ReduceTemplateType::kAllLoad);
+  for (size_t index = 0UL; index < tiling_cases.size(); ++index) {
+    GE_CHK_STATUS_RET(ProcessOneTilingCase(tiling_cases[index], index, is_last_axis_reduce, is_reduce_full_load),
+                      "Failed to process tiling case %zu for graph: [%s]", index, graph_.GetName().c_str());
+  }
+
+  // 生成多模板
+  GE_CHK_STATUS_RET(TemplateGeneratorHandler::GenerateTemplates(graph_, schd_outputs_),
+                    "Failed to generate templates for graph: [%s]", graph_.GetName().c_str());
+
+  // 生成 UBFuse 模板 TTODO待归到多模版内
+  if (cube_template_ == ascir::CubeTemplateType::kUBFuse) {
+    GenUBFuseTemplates();
+  }
+
+  return ge::SUCCESS;
+}
+
+Status AutoSchedule::PrepareTilingCases(std::vector<TilingCase> &tiling_cases) {
   const bool is_reduce_full_load = (reduce_template_ == optimize::ReduceTemplateType::kAllLoad);
   GE_CHK_STATUS_RET(TilingGroup::GenTilingGroup(graph_, axes_group_, is_reduce_full_load),
                     "Gen tiling group failed for graph: [%s]", graph_.GetName().c_str());
   TilingGroup::NormGroup(axes_group_);
-  std::vector<TilingCase> tiling_cases;
+
   GenTilingCase(tiling_cases);
   GE_CHK_STATUS_RET(PruneTilingCase(tiling_cases), "Failed to prune tiling cases for graph: [%s]",
                     graph_.GetName().c_str());
+
   GE_ASSERT_TRUE(!tiling_cases.empty(), "No valid tiling cases for graph: [%s]. Please check graph legality.",
                  graph_.GetName().c_str());
 
-  const bool is_last_axis_reduce = ScheduleUtils::IsLastAxisReduce(graph_);
-  for (size_t index = 0UL; index < tiling_cases.size(); ++index) {
-    TilingCase &tiling_case = tiling_cases[index];
-    const std::string graph_name = GetTilingCaseStr(ascgen_utils::GenValidName(graph_.GetName()), tiling_case);
-    AutoScheduleOutput output(graph_name.c_str());
-    GE_ASSERT_TRUE(output.scheduled_graph.CopyFrom(graph_), "Failed to copy graph for tiling case %zu in graph: [%s]",
-                   index, graph_.GetName().c_str());
-
-    Scheduler scheduler(output.scheduled_graph, axes_group_, tiling_case, is_last_axis_reduce, reduce_template_,
-                        cube_template_);
-    GE_CHK_STATUS_RET(scheduler.DoScheduler(), "Scheduler failed for tiling case %zu in graph: [%s]", index,
-                      graph_name.c_str());
-    if (tiling_case.reduce_is_block) {
-      GE_ASSERT_TRUE(
-          output.scheduled_graph.BindBlock(tiling_case.block_tiling_id, tiling_case.reduce_block_tiling.second->id));
-      output.var_relations_["Rm_org_size"] = tiling_case.rm_org_size;
-      output.var_relations_["A_org_size"] = tiling_case.a_org_size;
-    }
-
-    GE_CHK_STATUS_RET(SelectLoopAxis(output.scheduled_graph, is_reduce_full_load),
-                      "Failed to select loop axis for tiling case %zu in graph: [%s]", index, graph_name.c_str());
-
-    schd_outputs_.emplace_back(output);
-  }
-  // 多模板
-  GE_CHK_STATUS_RET(TemplateGeneratorHandler::GenerateTemplates(graph_, schd_outputs_),
-                    "Failed to generate templates for graph: [%s]", graph_.GetName().c_str());
-  if (cube_template_ == ascir::CubeTemplateType::kUBFuse) {
-    std::vector<AutoScheduleOutput> schd_outputs_non_db;
-    for (const auto &schd_output : schd_outputs_) {
-      auto graph_name = schd_output.scheduled_graph.GetName() + "_non_db";
-      AutoScheduleOutput output_non_db(graph_name.c_str());
-      output_non_db.scheduled_graph.CopyFrom(schd_output.scheduled_graph);
-      output_non_db.var_relations_ = schd_output.var_relations_;
-      output_non_db.score_func = schd_output.score_func;
-      schd_outputs_non_db.emplace_back(output_non_db);
-    }
-    schd_outputs_.insert(schd_outputs_.begin(), schd_outputs_non_db.begin(), schd_outputs_non_db.end());
-  }
   return ge::SUCCESS;
+}
+
+Status AutoSchedule::ProcessOneTilingCase(TilingCase &tiling_case, size_t index,
+                                          bool is_last_axis_reduce, bool is_reduce_full_load) const {
+  const std::string graph_name = GetTilingCaseStr(ascgen_utils::GenValidName(graph_.GetName()), tiling_case);
+  AutoScheduleOutput output(graph_name.c_str());
+  GE_ASSERT_TRUE(output.scheduled_graph.CopyFrom(graph_),
+                 "Failed to copy graph for tiling case %zu in graph: [%s]", index, graph_.GetName().c_str());
+
+  Scheduler scheduler(output.scheduled_graph, axes_group_, tiling_case, is_last_axis_reduce, reduce_template_,
+                      cube_template_);
+
+  auto ret = scheduler.DoScheduler();
+  if (ret == ge::UNSUPPORTED) {
+    GELOGW("Tiling case %zu (graph: [%s]) is unsupported, skip it.", index, graph_name.c_str());
+    return ge::SUCCESS;
+  }
+  GE_CHK_STATUS_RET(ret, "Scheduler failed for tiling case %zu in graph: [%s]", index, graph_name.c_str());
+
+  if (tiling_case.reduce_is_block) {
+    GE_ASSERT_TRUE(
+      output.scheduled_graph.BindBlock(tiling_case.block_tiling_id, tiling_case.reduce_block_tiling.second->id));
+    output.var_relations_["Rm_org_size"] = tiling_case.rm_org_size;
+    output.var_relations_["A_org_size"] = tiling_case.a_org_size;
+  }
+
+  GE_CHK_STATUS_RET(SelectLoopAxis(output.scheduled_graph, is_reduce_full_load),
+                    "Failed to select loop axis for tiling case %zu in graph: [%s]", index, graph_name.c_str());
+
+  schd_outputs_.emplace_back(output);
+  return ge::SUCCESS;
+}
+
+void AutoSchedule::GenUBFuseTemplates() const {
+  std::vector<AutoScheduleOutput> schd_outputs_non_db;
+  schd_outputs_non_db.reserve(schd_outputs_.size());
+  for (const auto &schd_output : schd_outputs_) {
+    auto graph_name = schd_output.scheduled_graph.GetName() + "_non_db";
+    AutoScheduleOutput output_non_db(graph_name.c_str());
+    output_non_db.scheduled_graph.CopyFrom(schd_output.scheduled_graph);
+    output_non_db.var_relations_ = schd_output.var_relations_;
+    output_non_db.score_func = schd_output.score_func;
+    schd_outputs_non_db.emplace_back(std::move(output_non_db));
+  }
+  schd_outputs_.insert(schd_outputs_.begin(), std::make_move_iterator(schd_outputs_non_db.begin()),
+                       std::make_move_iterator(schd_outputs_non_db.end()));
 }
 }  // namespace optimize::autoschedule
