@@ -56,3 +56,12 @@ if("${tikicpulib_not_found}" STREQUAL "NOTFOUND")
 else()
     add_subdirectory(api)
 endif()
+
+add_executable(test_ascendc_api ../test_main.cpp)
+target_link_libraries(test_ascendc_api PRIVATE
+        atrace
+        error_manager
+        test_ascendc
+        GTest::gtest
+)
+gtest_discover_tests(test_ascendc_api)

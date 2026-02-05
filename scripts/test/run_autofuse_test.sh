@@ -205,20 +205,32 @@ build_ascgen-dev() {
   echo "$(date '+%F %T') cp metadef libs from ${BUILD_PATH} to ${METADEF_LIB_PATH}"
 }
 
+build_test_ascendc_api_test() {
+  echo "create build directory and build ascendc_api_test";
+  MAKE_TEST_TARGET="test_ascendc_api
+                    test_ascendc_api_v35 \
+                    test_load_broadcast_store_codegen \
+                    test_load_broadcast_multi_axis_store_codegen"
+  make -j${THREAD_NUM} $MAKE_TEST_TARGET
+  echo "make test_ascendc_api success!"
+  export LD_LIBRARY_PATH=${METADEF_LIB_PATH}:${ASCEND_INSTALL_LIB_PATH}
+
+  ctest --output-on-failure -j${THREAD_NUM} --test-dir ${BUILD_PATH}/tests/autofuse/ut/ascendc --no-tests=error \
+        -O ${BUILD_PATH}/ctest_test_ascendc_api.log
+  ctest --output-on-failure -j${THREAD_NUM} --test-dir ${BUILD_PATH}/tests/autofuse/v35/ut/ascendc --no-tests=error \
+        -O ${BUILD_PATH}/ctest_test_ascendc_api_arch35.log
+  ctest --output-on-failure -j${THREAD_NUM} --test-dir ${BUILD_PATH}/tests/autofuse/ut/e2e --no-tests=error \
+          -O ${BUILD_PATH}/ctest_ut_e2e.log
+  echo "ascendc_api test success!"
+}
+
 build_test() {
   echo "$(date '+%F %T') create build directory and build ascgen-dev";
   cd "${BUILD_PATH}"
 
   env
 
-  MAKE_TEST_TARGET="test_main
-                    test_load_broadcast_store_codegen \
-                    test_load_broadcast_multi_axis_store_codegen"
-  if [[ "X$RUN_V35_TESTS" = "Xon" ]]; then
-    MAKE_TEST_TARGET="${MAKE_TEST_TARGET} \
-                      test_ascendc_api_v35"
-  fi
-
+  MAKE_TEST_TARGET="test_main"
   make -j${THREAD_NUM} $MAKE_TEST_TARGET
 
   if [ $? -ne 0 ]
@@ -237,37 +249,7 @@ build_test() {
     echo "execute command: test_main  failed."
     return 1
   fi
-  if [[ "X$RUN_V35_TESTS" = "Xon" ]]; then
-    RUN_TEST_CASE=${BUILD_PATH}/tests/autofuse/v35/ut/ascendc/test_ascendc_api_v35 && ${RUN_TEST_CASE}
-    if [ $? -ne 0 ]
-    then
-      echo "execute command: test_ascendc_api_v35  failed."
-      return 1
-    fi
-  fi
   cd -
-
-  export LD_LIBRARY_PATH=${METADEF_LIB_PATH}:${ASCEND_INSTALL_LIB_PATH}
-  cd ${BUILD_PATH}/tests/autofuse/ut/e2e/load_broadcast_store_expect_code/
-  RUN_TEST_CASE=${BUILD_PATH}/tests/autofuse/ut/e2e/load_broadcast_store_expect_code/test_load_broadcast_store_codegen && ${RUN_TEST_CASE}
-  if [ $? -ne 0 ]
-  then
-    echo "execute command: test_load_broadcast_store_codegen  failed."
-    return 1
-  fi
-  cd -
-
-  cd ${BUILD_PATH}/tests/autofuse/ut/e2e/load_broadcast_multi_axis_store_expect_code/
-  RUN_TEST_CASE=${BUILD_PATH}/tests/autofuse/ut/e2e/load_broadcast_multi_axis_store_expect_code/test_load_broadcast_multi_axis_store_codegen && ${RUN_TEST_CASE}
-  #make -j${THREAD_NUM} test
-  if [ $? -ne 0 ]
-  then
-    echo "execute command: test_load_broadcast_multi_axis_store_codegen failed."
-    return 1
-  fi
-  cd -
-  unset LD_LIBRARY_PATH
-
   echo "$(date '+%F %T') ascgen-dev test success!"
 }
 
@@ -890,6 +872,7 @@ build_st_att() {
 }
 
 build_ut() {
+  echo "build_ut start, mode = ${MODEL_NAME}."
   case ${MODEL_NAME} in
     "att")
       build_ut_att || { echo "test ut att failed."; exit 1; }
@@ -907,12 +890,24 @@ build_ut() {
     "common")
       build_ut_common || { echo "test ut common failed."; exit 1; }
       ;;
+    "ascendc_api")
+      build_test_ascendc_api_test || { echo "failed to build and run ascendc_api ."; exit 1; }
+      ;;
+    "all_but_ascendc_api")
+      build_ut_att || { echo "failed to build and run att ut."; exit 1; }
+      build_ut_optimize || { echo "failed to build and run optimize ut."; exit 1; }
+      build_ut_autofusion || { echo "failed to build and run autofusion ut."; exit 1; }
+      build_ut_common || { echo "test ut common failed."; exit 1; }
+      build_test || { echo "test build failed."; exit 1; }
+      py_module_ut || { echo "run py module ut failed."; exit 1; }
+      ;;
     "all")
       build_ut_att || { echo "failed to build and run att ut."; exit 1; }
       build_ut_optimize || { echo "failed to build and run optimize ut."; exit 1; }
       build_ut_autofusion || { echo "failed to build and run autofusion ut."; exit 1; }
       build_ut_common || { echo "test ut common failed."; exit 1; }
       build_test || { echo "test build failed."; exit 1; }
+      build_test_ascendc_api_test || { echo "failed to build and run ascendc_api ."; exit 1; }
       py_module_ut || { echo "run py module ut failed."; exit 1; }
       ;;
     *)
@@ -950,6 +945,7 @@ build_st() {
       build_backend || { echo "run backend st failed."; exit 1; }
       ;;
     "all")
+
       build_st_att || { echo "failed to build and run att st."; exit 1; }
       build_test_ascir_st || { echo "run ascir st failed."; exit 1; }
       build_st_autofuse || { echo "run autofuse st failed."; exit 1; }
