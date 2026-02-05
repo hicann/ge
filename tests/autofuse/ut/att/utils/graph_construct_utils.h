@@ -28,7 +28,6 @@ class GraphConstructUtils {
                                            int32_t loop_id = -1);
   static ge::Status CreateSimpleLoadStoreOp(ge::AscGraph &graph);
   static ge::AscNodePtr ConstructSingleOp(const std::string &op_type, int32_t in_cnt, int32_t out_cnt);
-  static ge::Status BuildConcatGroupAscendGraphS0S1ReduceMultiTiling(ge::AscGraph &graph);
 };
 
 class GraphBuilder {

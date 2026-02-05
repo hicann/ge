@@ -11,17 +11,12 @@
 #include "generate_tiling_expr.h"
 #include <algorithm>
 #include "arg_list_manager.h"
-#include "att_utils.h"
 #include "buf_occupy_expr.h"
 #include "pipe_perf_expr.h"
 #include "common/util/mem_utils.h"
 
 namespace att {
 namespace {
-// Tiling 调度配置相关常量
-constexpr double kDefaultUbThreshold = 0.1;      // 默认 UB 阈值
-constexpr uint32_t kDefaultCacheLineSize = 128; // 默认CacheLine大小（字节）
-
 const uint32_t kUBAlignValue = 32u;
 const uint32_t kConcatOuterDimAlign = 16u;
 template <typename T>
@@ -99,10 +94,6 @@ ge::Status GenerateTilingExpr::MakeArg(const SubAxis *sub_axis,
   arg_info->is_last = sub_axis->is_last;
   arg_info->is_concat_outer_dim = sub_axis->is_concat_vec_axis && !sub_axis->is_node_innerest_dim;
   arg_info->is_concat_inner_dim = sub_axis->is_concat_vec_axis && sub_axis->is_node_innerest_dim;
-
-  // 新增：转换分核轴类型标记
-  arg_info->is_reduce_split_axis = sub_axis->is_reduce_split_axis;
-  arg_info->is_broadcast_split_axis = sub_axis->is_broadcast_split_axis;
 
   if (sub_axis->repeat.IsConstExpr()) {
     auto size = ge::MakeShared<SymConstInfo>(sub_axis->repeat);
@@ -267,286 +258,10 @@ void GenerateTilingExpr::UpdateNeedUBMCTradeoff(ModelInfo &model_info) {
           "model [%s] case [%d] need ub mc tradeoff, output tensor need tradeoff: %d, input tensor need tradeoff: %d",
           model_info.schedule_group_ident.GetGroupPrefixSnakeCase().c_str(), model_info.tiling_case_id,
           need_tradeoff_by_output, need_tradeoff_by_input);
-      model_info.tiling_schedule_config.trade_off_config.is_enable = true;
+      model_info.enable_ub_mc_tradeoff = true;
       return;
     }
   }
-}
-
-// 判断是否应该跳过某个轴
-bool GenerateTilingExpr::ShouldSkipAxis(const SubAxis *sub_axis,
-                                        const std::set<std::string> &reduce_split_axis_names) const {
-  // 跳过Reduce分核轴和Broadcast分核轴
-  if (sub_axis->is_reduce_split_axis || sub_axis->is_broadcast_split_axis) {
-    GELOGD("[DFX] ShouldSkipAxis: skip sub_axis [%s] (is_reduce_split or is_broadcast_split)",
-           sub_axis->name.c_str());
-    return true;
-  }
-  // 检查是否来自Reduce分核轴
-  if (IsFromReduceSplit(sub_axis, reduce_split_axis_names)) {
-    GELOGD("[DFX] ShouldSkipAxis: skip sub_axis [%s] as it's from reduce split", sub_axis->name.c_str());
-    return true;
-  }
-  return false;
-}
-
-// 检查轴是否来自Reduce分核轴（通过orig_axis链检查）
-bool GenerateTilingExpr::IsFromReduceSplit(const SubAxis *sub_axis,
-                                           const std::set<std::string> &reduce_split_axis_names) const {
-  std::set<const SubAxis *> visited;
-  std::vector<const SubAxis*> to_check = {sub_axis};
-
-  while (!to_check.empty()) {
-    const SubAxis* current = to_check.back();
-    to_check.pop_back();
-
-    if (!visited.insert(current).second) {
-      continue;
-    }
-
-    // 检查当前轴是否是Reduce分核轴的子轴
-    for (const auto *orig_axis : current->orig_axis) {
-      if (orig_axis == nullptr) {
-        continue;
-      }
-      if (reduce_split_axis_names.find(orig_axis->name) != reduce_split_axis_names.end()) {
-        GELOGD("[DFX] IsFromReduceSplit: sub_axis [%s] is from reduce split (orig_axis [%s])",
-               sub_axis->name.c_str(), orig_axis->name.c_str());
-        return true;
-      }
-      to_check.push_back(orig_axis);
-    }
-  }
-  return false;
-}
-
-// 查找A轴：Vectorized轴里从右向左数所有非R轴
-// 只从 Store 节点的 loop_axes (SubAxis) 中查找
-std::vector<const AttAxis*> GenerateTilingExpr::FindAAxis(const std::vector<AttAxisPtr> &arg_list) const {
-  std::vector<const AttAxis*> result;
-
-  // 收集 Reduce 分核轴名称
-  std::set<std::string> reduce_split_axis_names = CollectReduceSplitAxisNames();
-
-  GELOGD("[DFX] FindAAxis: reduce_split_axis_names=%s",
-         std::accumulate(
-             reduce_split_axis_names.begin(), reduce_split_axis_names.end(), std::string(),
-             [](const std::string &acc, const std::string &name) { return acc.empty() ? name : acc + "," + name; })
-             .c_str());
-
-  // 收集 Store 节点的 SubAxes
-  std::vector<SubAxis*> all_sub_axes = CollectStoreSubAxes();
-
-  // 从右向左遍历（最内层开始）
-  for (auto it = all_sub_axes.rbegin(); it != all_sub_axes.rend(); ++it) {
-    const SubAxis* sub_axis = *it;
-
-    GELOGD("[DFX] FindAAxis: checking sub_axis [%s], is_reduce_split=%d, is_broadcast_split=%d",
-           sub_axis->name.c_str(), sub_axis->is_reduce_split_axis, sub_axis->is_broadcast_split_axis);
-
-    // 根据该轴是否被Reduce，判断是否应该跳过该轴
-    if (ShouldSkipAxis(sub_axis, reduce_split_axis_names)) {
-      continue;
-    }
-
-    // 通过 name 匹配添加到 result
-    AddAxisByName(sub_axis, arg_list, result);
-  }
-
-  GELOGI("[DFX] FindAAxis: found %zu A axes[%s]", result.size(),
-         std::accumulate(result.begin(), result.end(), std::string(), [](const std::string &acc, const AttAxis *axis) {
-           return acc.empty() ? axis->name : acc + "," + axis->name;
-         }).c_str());
-  return result;
-}
-
-// 收集 Reduce 分核轴名称
-std::set<std::string> GenerateTilingExpr::CollectReduceSplitAxisNames() const {
-  std::set<std::string> reduce_split_axis_names;
-  for (const auto &node : tuning_space_->node_infos) {
-    AttUtils::CollectReduceAxisNames(node, reduce_split_axis_names);
-  }
-  return reduce_split_axis_names;
-}
-
-// 收集 Store 节点的 SubAxes
-std::vector<SubAxis*> GenerateTilingExpr::CollectStoreSubAxes() const {
-  std::vector<SubAxis*> all_sub_axes;
-  for (const auto &node : tuning_space_->node_infos) {
-    bool is_store = (node.node_type == kStore);
-    if (node.node_ptr != nullptr) {
-      is_store = AttUtils::IsStoreNode(node.node_ptr.get());
-    }
-
-    if (!is_store) {
-      continue;
-    }
-
-    GELOGD("[DFX] CollectStoreSubAxes: node_name=%s, node_type=%s, inputs=%s", node.name.c_str(), node.node_type.c_str(),
-           std::accumulate(node.inputs.begin(), node.inputs.end(), std::string(),
-           [](const std::string &acc, const auto &input) { return acc.empty() ? input->ToString() :
-           acc + "," + input->ToString(); }).c_str());
-
-    for (const auto &input : node.inputs) {
-      all_sub_axes.insert(all_sub_axes.cend(), input->dim_info.begin(), input->dim_info.end());
-    }
-    // 当前仅考虑一个输出节点，后续扩展时需处理多个输出节点
-    break;
-  }
-  return all_sub_axes;
-}
-
-// 通过名称匹配添加 A 轴
-void GenerateTilingExpr::AddAxisByName(const SubAxis* sub_axis, const std::vector<AttAxisPtr>& arg_list,
-                                        std::vector<const AttAxis*>& result) const {
-  for (const auto &axis : arg_list) {
-    if (axis->name == sub_axis->name) {
-      result.push_back(axis.get());
-      GELOGD("[DFX] AddAxisByName: found A axis [%s]", sub_axis->name.c_str());
-      break;
-    }
-  }
-}
-
-// 将表达式转换为 upper_bound 形式
-Expr GenerateTilingExpr::ApplyUpperBoundTransform(const Expr& size_expr) const {
-  auto symbols = size_expr.FreeSymbols();
-  std::vector<std::pair<Expr, Expr>> replace_pairs;
-
-  for (const auto& sym : symbols) {
-    if (sym.IsConstExpr()) {
-      continue;
-    }
-    std::string sym_name = Str(sym);
-    std::string upper_bound_expr = sym_name + ".upper_bound(" + sym_name + ".upper_bound_vars)";
-    replace_pairs.emplace_back(sym, ge::Symbol(upper_bound_expr.c_str()));
-  }
-
-  return size_expr.Replace(replace_pairs);
-}
-
-// 获取 cache_line_size
-uint32_t GenerateTilingExpr::GetCacheLineSize() const {
-  if (tuning_space_->tiling_schedule_config_table != nullptr) {
-    return tuning_space_->tiling_schedule_config_table->GetCacheLineSize();
-  }
-  return kDefaultCacheLineSize;
-}
-
-// 计算惩罚的core_num_ratio
-Expr GenerateTilingExpr::CalcPenaltyCoreNumRatio(const AttAxis *split_axis,
-                                                 const std::vector<const AttAxis *> &a_axes) const {
-  if (split_axis == nullptr || a_axes.empty()) {
-    return ge::Symbol(1);
-  }
-
-  GELOGI("[DFX] CalcPenaltyCoreNumRatio: split_axis=%s, a_axes_count=%zu", split_axis->name.c_str(), a_axes.size());
-
-  // 计算所有A轴的size乘积，Tile切分轴替换为 upper_bound 形式
-  Expr a_axis_size = ge::Symbol(1);
-  uint32_t data_type_size = split_axis->size->data_type_size;
-
-  for (const AttAxis *a_axis : a_axes) {
-    if (a_axis->size == nullptr || !a_axis->size->symbol_expr.IsValid()) {
-      continue;
-    }
-
-    // 获取轴大小表达式
-    Expr size_expr = a_axis->size->symbol_expr;
-    Expr final_size = size_expr;
-
-    // 只有Tile切分轴(INNER)才替换为 upper_bound 形式
-    if (a_axis->axis_pos == AxisPosition::INNER) {
-      final_size = ApplyUpperBoundTransform(size_expr);
-      GELOGD("[DFX] CalcPenaltyCoreNumRatio: a_axis=%s (INNER, Tile), size=%s -> upper_bound=%s",
-             a_axis->name.c_str(), Str(size_expr).c_str(), Str(final_size).c_str());
-    } else {
-      GELOGD("[DFX] CalcPenaltyCoreNumRatio: a_axis=%s (%s), size=%s (no upper_bound)",
-             a_axis->name.c_str(),
-             a_axis->axis_pos == AxisPosition::OUTER ? "OUTER" :
-             a_axis->axis_pos == AxisPosition::MERGED ? "MERGED" : "ORIGIN",
-             Str(size_expr).c_str());
-    }
-
-    a_axis_size = a_axis_size * final_size;
-
-    // 获取数据类型大小
-    if (a_axis->size->data_type_size > 0) {
-      data_type_size = a_axis->size->data_type_size;
-    }
-
-    GELOGD("[DFX] CalcPenaltyCoreNumRatio: accumulated=%s", Str(a_axis_size).c_str());
-  }
-
-  // 获取CacheLine大小
-  uint32_t cache_line_size = GetCacheLineSize();
-
-  // 计算 core_num_ratio = (a_axis_size * data_type_size) / cache_line_size
-  Expr core_num_ratio = (a_axis_size * ge::Symbol(data_type_size)) / ge::Symbol(cache_line_size);
-
-  GELOGI("[DFX] Calculated penalty core_num_ratio: split_axis=%s, a_axes_count=%zu, "
-         "total_a_size=%s, data_type_size=%u, cache_line_size=%u, ratio=%s",
-         split_axis->name.c_str(), a_axes.size(), Str(a_axis_size).c_str(),
-         data_type_size, cache_line_size, Str(core_num_ratio).c_str());
-
-  return core_num_ratio;
-}
-
-// 应用惩罚配置到 ModelInfo
-void GenerateTilingExpr::ApplyPenaltyConfigToModelInfo(ModelInfo &model_info) {
-  // 0. 首先从 TilingScheduleConfigTable 获取基础配置（无论是否有惩罚场景）
-  if (tuning_space_->tiling_schedule_config_table != nullptr) {
-    model_info.tiling_schedule_config = tuning_space_->tiling_schedule_config_table->GetModelTilingScheduleConfig();
-    GELOGI("[DFX] Loaded base TilingScheduleConfig from table, tiling_schedule_config=%s, model_name=%s",
-           model_info.tiling_schedule_config.DebugString().c_str(), model_info.graph_name.c_str());
-  } else {
-    GELOGD("[DFX] tiling_schedule_config_table is null, using default TilingScheduleConfig, model_name=%s",
-           model_info.graph_name.c_str());
-  }
-
-  // 1. 检查配置是否启用Reduce分核惩罚功能（通过TilingScheduleConfigTable接口）
-  if (tuning_space_->tiling_schedule_config_table == nullptr) {
-    GELOGD("[DFX] tiling_schedule_config_table is null, skip penalty calculation, model_name=%s",
-           model_info.graph_name.c_str());
-    return;
-  }
-
-  bool enable_penalty = tuning_space_->tiling_schedule_config_table->IsCoreNumThresholdPenaltyEnable();
-  GELOGI("[DFX] Reduce split penalty config: enabled=%s (from TilingScheduleConfigTable), model_name=%s",
-         enable_penalty ? "true" : "false", model_info.graph_name.c_str());
-
-  if (!enable_penalty) {
-    GELOGD("[DFX] Reduce split penalty is disabled by config, skip penalty calculation, model_name=%s",
-           model_info.graph_name.c_str());
-    return;
-  }
-
-  // 2. 检查是否存在Reduce分核Store冲突（暂时不考虑Broadcast分核场景）
-  for (const auto &axis : model_info.arg_list) {
-    if (axis->is_reduce_split_axis) {
-      // 先查找所有A轴
-      std::vector<const AttAxis*> a_axes = FindAAxis(model_info.arg_list);
-
-      GELOGI("[DFX] Found %zu A axes for penalty calculation", a_axes.size());
-
-      // 计算惩罚 ratio
-      Expr penalty_core_num_ratio = CalcPenaltyCoreNumRatio(axis.get(), a_axes);
-
-      // 3. 设置惩罚配置（覆盖基础配置）
-      model_info.tiling_schedule_config.trade_off_config.ub_ratio = ge::Symbol(kDefaultUbThreshold);
-      model_info.tiling_schedule_config.trade_off_config.core_num_ratio =
-          ge::sym::Min(penalty_core_num_ratio, ge::Symbol(1.0));
-      model_info.tiling_schedule_config.trade_off_config.is_enable = true;
-      model_info.tiling_schedule_config.is_penalty_config = true;
-
-      GELOGI("[DFX] Applied Reduce split Store penalty, model_name=%s, split_axis=%s, "
-             "core_num_ratio=%s, ub_ratio=%f", model_info.graph_name.c_str(), axis->name.c_str(),
-             Str(penalty_core_num_ratio).c_str(), kDefaultUbThreshold);
-      return;
-    }
-  }
-
-  GELOGD("[DFX] No Reduce split axis found, model_name=%s", model_info.graph_name.c_str());
 }
 
 ge::Status GenerateTilingExpr::Generate(ModelInfo &model_info) {
@@ -568,23 +283,22 @@ ge::Status GenerateTilingExpr::Generate(ModelInfo &model_info) {
   GE_ASSERT_SUCCESS(GetPipePerformance(model_info.objects, model_info.tenary_op_map, model_info.head_cost),
                     "Get perf objects failed.");
   model_info.tiling_schedule_config_table = tuning_space_->tiling_schedule_config_table;
+  GELOGD("Get perf objects success.");
 
   GE_ASSERT_SUCCESS(GetWorkSpaceSize(model_info.workspace_size_map),
                      "Get workspace size failed.");
+  GELOGD("Get workspace size success.");
 
   GE_ASSERT_SUCCESS(GetSubAxisArgs(model_info.arg_list), "Get args list failed.");
+  GELOGD("Get args list success.");
 
   GetAxisConstraints(model_info.eq_exprs, model_info.leq_exprs);
   GetOutputSize(model_info.output_size);
+  GELOGD("Get constraints success.");
 
-  // 如果已经因为 Reduce 分核使能了 trade_off，则不需要再更新
-  if (!model_info.enable_group_parallel && !model_info.tiling_schedule_config.is_penalty_config) {
+  if (!model_info.enable_group_parallel) {
     UpdateNeedUBMCTradeoff(model_info);
   }
-
-  // 检测并应用惩罚配置（根据是否存在Reduce分核场景，后续补齐Broadcast分核场景）
-  ApplyPenaltyConfigToModelInfo(model_info);
-
   return ge::SUCCESS;
 }
 

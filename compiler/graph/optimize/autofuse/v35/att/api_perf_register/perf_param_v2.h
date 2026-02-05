@@ -36,7 +36,6 @@ class PerfParamTableV2 : public PerfParamTable {
 };
 
 class TilingScheduleConfigTableV2 : public TilingScheduleConfigTable {
- public:
   [[nodiscard]] bool IsEnableBlockLoopAutoTune() const override{
     return false;
   }
@@ -44,7 +43,7 @@ class TilingScheduleConfigTableV2 : public TilingScheduleConfigTable {
     return true;
   }
   [[nodiscard]] TradeOffConfig GetTradeOffConfig() const override {
-    return {true, ge::Symbol(0.1), ge::Symbol(1.0)};
+    return TradeOffConfig{true, 0.1, 1.0};
   }
   [[nodiscard]] double GetUbThresholdPerfValEffect() const override {
     constexpr double kDefaultUbThresholdPerfValEffect = 0.05;
@@ -54,29 +53,11 @@ class TilingScheduleConfigTableV2 : public TilingScheduleConfigTable {
     constexpr double kDefaultPerfEffectVal = 2000.0;
     return kDefaultPerfEffectVal;
   }
-  [[nodiscard]] TilingScheduleConfig GetModelTilingScheduleConfig() const override {
-    TilingScheduleConfig config;
-    config.trade_off_config = GetTradeOffConfig();
-    config.cache_line_size = 128;  // V2 CacheLine 大小为 128 字节
-    return config;
-  }
-  [[nodiscard]] uint32_t GetCacheLineSize() const override {
-    return 128;  // V2 CacheLine 大小为 128 字节
-  }
-  // 新增：V2形态使能Reduce分核惩罚
-  [[nodiscard]] bool IsCoreNumThresholdPenaltyEnable() const override {
-    return true;
-  }
 };
 
 class TilingScheduleConfigTableV2HeavyOp : public TilingScheduleConfigTableV2 {
- public:
   [[nodiscard]] TradeOffConfig GetTradeOffConfig() const override {
-    TradeOffConfig config;
-    config.is_enable = true;
-    config.ub_ratio = ge::Symbol(0.05);
-    config.core_num_ratio = ge::Symbol(1.0);
-    return config;
+    return TradeOffConfig{true, 0.05, 1.0};
   }
   [[nodiscard]] TilingScheduleConfigPriority GetConfigPriority() const override {
     return TilingScheduleConfigPriority::kHeavyOpPriority;

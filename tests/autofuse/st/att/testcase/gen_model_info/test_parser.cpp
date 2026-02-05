@@ -63,7 +63,7 @@ TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff_1_dim)
   att::GenerateTilingExpr tiling_expr(tuning_space);
   ModelInfo model_info;
   tiling_expr.UpdateNeedUBMCTradeoff(model_info);
-  EXPECT_EQ(model_info.tiling_schedule_config.trade_off_config.is_enable, false);
+  EXPECT_EQ(model_info.enable_ub_mc_tradeoff, false);
 }
 
 TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff)
@@ -83,6 +83,6 @@ TEST_F(TestAscendGraphParser, get_need_ub_mc_tradeoff)
   att::GenerateTilingExpr tiling_expr(tuning_space);
   ModelInfo model_info;
   tiling_expr.UpdateNeedUBMCTradeoff(model_info);
-  EXPECT_EQ(model_info.tiling_schedule_config.trade_off_config.is_enable, true);
+  EXPECT_EQ(model_info.enable_ub_mc_tradeoff, true);
 }
 }

@@ -284,11 +284,11 @@ Perf PipePerfExpr::UpdateTilingScheduleConfigTable(const NodeInfo &node, bool ta
              tuning_space_->tiling_schedule_config_table->GetConfigPriority())) {
       GELOGD(
           "Replace node [%s] type [%s] tiling schedule config table with api perf tiling schedule config table, "
-          "is_enable = %d, core_num_ratio = %s, ub_ratio = %s.",
+          "default_enable = %d, core_num_ratio = %lf, ub_ratio = %lf.",
           node.name.c_str(), node.node_type.c_str(),
-          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().is_enable,
-          Str(api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().core_num_ratio).c_str(),
-          Str(api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().ub_ratio).c_str());
+          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().default_enable,
+          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().core_num_ratio,
+          api_perf->GetTilingScheduleConfigTable()->GetTradeOffConfig().ub_ratio);
       tuning_space_->tiling_schedule_config_table = api_perf->GetTilingScheduleConfigTable();
     }
   }
@@ -434,7 +434,8 @@ ge::Status PipePerfExpr::UpdatePipeHead(std::map<PipeType, Expr> &pipe_costs,
 ge::Status PipePerfExpr::GetPerfExpr(std::map<PipeType, Expr> &pipe_costs,
                                      std::map<Expr, TenaryOp, ExprCmp> &tenary_ops,
                                      Expr &head_cost) {
-  std::unordered_set<std::string> skip_node_types = {kData, kWorkspace, kOutput, kTbufData,  kScalar};
+  std::unordered_set<std::string> skip_node_types = {kData,   kWorkspace, kWorkspaceWithInput,
+                                                     kOutput, kTbufData,  kScalar};
   ExeTimePassManager exe_time_mgr(tuning_space_);
   for (const auto &node : tuning_space_->node_infos) {
     // 跳过不算pipe性能的node

@@ -64,8 +64,6 @@ target_include_directories(att_ut PRIVATE
 
 target_include_directories(att_st PRIVATE
         ${CODE_ROOT_DIR}/v35/
-        ${TOP_DIR}/tests/autofuse/st/att/testcase
-        ${TOP_DIR}/tests/autofuse/st/att/testcase/gen_model_info
 )
 
 target_sources(optimize PRIVATE

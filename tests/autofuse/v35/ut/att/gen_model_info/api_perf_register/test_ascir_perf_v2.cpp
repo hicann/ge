@@ -39,6 +39,7 @@ public:
  }
  void SetUp() override
  {
+   dlog_setlevel(GE, 0, 1);
    setenv("ASCEND_GLOBAL_LOG_LEVEL", "0", 1);
    setenv("ASCEND_SLOG_PRINT_TO_STDOUT", "1", 1);
  }
