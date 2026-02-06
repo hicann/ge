@@ -14,9 +14,9 @@
 ├── CMakeLists.txt               // 编译脚本
 ├── data         
 |   ├──torch_gen_onnx.py         // torch脚本用于导出onnx
-|   ├──torch_forward_1.py          // torch脚本用于在线推理,pass成功执行
-|   ├──torch_forward_2.py          // torch脚本用于在线推理，EnableConstValueMatch拦截生效，pass被拦截
-|   ├──torch_forward_3.py          // torch脚本用于在线推理，EnableIrAttrMatch拦截生效， pass被拦截
+|   ├──torch_forward_1.py        // torch脚本用于在线推理,pass成功执行
+|   ├──torch_forward_2.py        // torch脚本用于在线推理，EnableConstValueMatch拦截生效，pass被拦截
+|   ├──torch_forward_3.py        // torch脚本用于在线推理，EnableIrAttrMatch拦截生效， pass被拦截
 |—— gen_es_api
 |   |——CMakeLists.txt            // 生成eager style api的编译脚本
 ```
@@ -51,14 +51,16 @@
    运行软件包中设置环境变量脚本，命令如下：
 
    ```
-   source ${ASCEND_PATH}/setenv.sh
+   source ${ASCEND_PATH}/set_env.sh
    ```
 
    `${ASCEND_PATH}`为CANN软件包安装目录下的cann路径。请替换相关软件包的实际安装路径，例如`${INSTALL_PATH}/cann`。
 
 2. 根据实际情况修改**CMakeLists.txt**文件中的如下信息。
 
-   - ASCEND_PATH：可以设置默认的软件包路径，如果通过setenv.bash设置了`$ASCEND_HOME_PATH`，无需修改。
+   - ASCEND_PATH：可以设置默认的软件包路径，如果通过set_env.sh设置了`$ASCEND_HOME_PATH`，无需修改。
+
+   - PASS_SO_DIR：可以设置自定义融合pass动态库安装目录名，默认为`pass_so_dir`。
 
    - target_include_directories：需要包含的头文件，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加头文件时，在示例下方直接增加行即可，注意不要删除原有项目。如果网络中有自定义算子，请增加自定义算子的原型定义头文件。
 
@@ -77,10 +79,10 @@
    执行后，在**build**目录下产生es_all_build目录，内含es构图api的头文件及源码
 
 5. 执行如下命令编译自定义pass so，并将编译后的动态库文件libfuse_matmul_add_for_matcher_config_sample_pass.so拷贝到自定义融合pass目录下，其中“xxx”为用户自定义目录。
-   可以在make后增加可选参数`-j<N>`用于并行执行构建任务，`N`推荐选择CPU核心数或CPU核心数+1。
+   可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
    ```
-   make [-j<N>] fuse_matmul_add_for_matcher_config_sample_pass
-   cp ./libfuse_matmul_add_pass.so ${ASCEND_PATH}/opp/vendors/xxx/custom_fusion_passes/libfuse_matmul_add_for_matcher_config_sample_pass.so
+   make -j$(nproc) fuse_matmul_add_for_matcher_config_sample_pass
+   make install
    ```
 
 ## 程序运行<a name="section4524573456563512"></a>
@@ -90,7 +92,7 @@
    - 运行软件包中设置环境变量脚本，命令如下：
 
      ```
-     source ${ASCEND_PATH}/bin/setenv.bash
+     source ${ASCEND_PATH}/bin/set_env.sh
      ```
 
      `${ASCEND_PATH}`请替换相关软件包的实际安装路径。
@@ -135,12 +137,12 @@
       ```
       python torch_forward_1.py/torch_forward_2.py/torch_forward_3.py
       ```  
-   - 对于test1,日志中出现如下打印：
+   - 对于torch_forward_1.py，日志中出现如下打印：
      ```
      Define pattern for MatMulAddFusionPass in matcher config sample
      Define replacement for MatMulAddFusionPass in matcher config sample
      ```
-   - 对于test2和test3,日志中出现如下打印：
+   - 对于torch_forward_2.py和torch_forward_3.py，日志中出现如下打印：
       ```
       Define pattern for FuseMatMulAndAddPass in matcher config sample
       ```
@@ -152,7 +154,7 @@
       - `ge_onnx_xxxxx_PreRunBegin.pdtxt`执行前dump图
       - `ge_onnx_xxxxx_RunCustomPassBeforeInferShape.pdtxt`执行InferShape前的自定义pass dump图
      
-    可以发现模型已按预期优化，即MatMul与Add被GEMM替换。
+     可以发现模型已按预期优化，即MatMul与Add被GEMM替换。
    - 若未获得预期结果，可设置如下环境变量让日志打印到屏幕，来定位原因。
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕

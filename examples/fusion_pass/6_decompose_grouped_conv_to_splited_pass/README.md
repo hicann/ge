@@ -70,9 +70,9 @@
    执行后，在**build**目录下产生的es_all_build/generated_code目录中包含es构图api的头文件及源码。
 
 4. 执行make命令编译自定义pass so，成功编译后通过make install将动态库文件libdecompose_grouped_conv_to_splited_pass.so安装到自定义融合pass目录下。
-   可以在make后增加可选参数`-j<N>`用于并行执行构建任务，`N`推荐选择CPU核心数或CPU核心数+1。
+   可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
    ```
-   make [-j<N>] decompose_grouped_conv_to_splited_pass
+   make -j$(nproc) decompose_grouped_conv_to_splited_pass
    make install
    ```
 
@@ -132,5 +132,10 @@
       - `ge_onnx_xxxxx_PreRunBegin.pbtxt`执行前dump图
       - `ge_onnx_xxxxx_RunCustomPass_AfterInferShape.pbtxt`执行InferShape后的自定义pass dump图
 
-   可以发现模型已按预期优化，即groups=3的分组卷积被拆分成3个groups=1的卷积。
+     可以发现模型已按预期优化，即groups=3的分组卷积被拆分成3个groups=1的卷积。
 
+    - 若未获得预期结果，可设置如下环境变量将日志打印到屏幕，来定位原因。
+      ```bash
+       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
+       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别
+      ```
