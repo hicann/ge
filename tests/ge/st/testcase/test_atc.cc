@@ -176,7 +176,8 @@ TEST_F(AtcCommonSTest, pb_model_set_out_tensor_names) {
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
 }
 
-TEST_F(AtcCommonSTest, ConvertPbModel_Ok_SetOutNodeAndOutType) {
+TEST_F(AtcCommonSTest, pb_model_common_2) {
+  unsetenv("ASCEND_OPP_PATH");
   ReInitGe();
   auto om_path = PathJoin(GetRunPath().c_str(), "temp");
   Mkdir(om_path.c_str());
@@ -184,7 +185,6 @@ TEST_F(AtcCommonSTest, ConvertPbModel_Ok_SetOutNodeAndOutType) {
   std::string model_arg = "--model=st_run_data/origin_model/add.pb";
   std::string output_arg = "--output="+om_path;
   std::string keep_dtype = "--keep_dtype=st_run_data/config/keep_dtype.cfg";
-  domi::GetContext().final_out_nodes_map = {std::make_pair("add_test_1:0", std::make_pair("add_test_1", 0))};
   char *argv[] = {"atc",
                   const_cast<char *>(model_arg.c_str()),
                   const_cast<char *>(output_arg.c_str()),
@@ -201,8 +201,7 @@ TEST_F(AtcCommonSTest, ConvertPbModel_Ok_SetOutNodeAndOutType) {
                   };
   DUMP_GRAPH_WHEN("PreRunBegin")
   auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
-  EXPECT_EQ(ret, 0);
-  domi::GetContext().final_out_nodes_map .clear();
+  EXPECT_EQ(ret, -1);
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
 }
 

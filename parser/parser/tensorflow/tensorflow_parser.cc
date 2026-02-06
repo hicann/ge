@@ -4109,11 +4109,6 @@ Status TensorFlowModelParser::CheckAndUpdateInputDesc(const ge::ComputeGraphPtr 
 }
 
 Status TensorFlowModelParser::UpdateOutputsInfo(const ParserUtils::OutputMapping &final_output_nodes) {
-  // 记录一对多转换场景中原算子名称到子图实际输出名称的映射关系，传递给外部OMG流程用于更新输出算子相关信息（如datatype）
-  auto &final_out_nodes_map = ge::GetParserContext().final_out_nodes_map;
-  for (const auto &node_info : final_output_nodes) {
-    (void)final_out_nodes_map.emplace(node_info.first, node_info.second);
-  }
   auto &user_specified_nodes = ge::GetParserContext().user_out_nodes;
   if (!user_specified_nodes.empty()) {
     for (auto &output_node_info : user_specified_nodes) {

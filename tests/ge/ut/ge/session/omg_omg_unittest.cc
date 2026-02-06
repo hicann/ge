@@ -574,12 +574,10 @@ TEST_F(UtestOmg, SetOutputNodeInfoUserOutPutTest) {
   EXPECT_EQ(ret, domi::FAILED);
 
   domi::GetContext().user_out_nodes.clear();
-  domi::GetContext().final_out_nodes_map.clear();
   std::pair<std::string, int32_t> out_node2("data2", 0);
   domi::GetContext().user_out_nodes.push_back(out_node2);
-  domi::GetContext().final_out_nodes_map.emplace("data2:0", std::make_pair("data2", 0));
   domi::GetContext().output_formats.push_back(domi::DOMI_TENSOR_NC1HWC0);
-  ret = SetOutputNodeInfo(graph, "data2:0:FP16");
+  ret = SetOutputNodeInfo(graph, output_type);
   EXPECT_EQ(ret, domi::SUCCESS);
 }
 
