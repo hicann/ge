@@ -77,14 +77,6 @@ ge::graphStatus AppendCoreTypeToPlatform(KernelContext *context) {
   *out_platform_holder = *platform_holder;
   std::map<std::string, std::string> res;
   (void)out_platform_holder->GetPlatformResWithLock(kSocInfo, res);
-  const auto iter = kCoreTypeReflection.find(*core_type_holder);
-  if (iter != kCoreTypeReflection.end()) {
-    out_platform_holder->SetCoreNumByCoreType(iter->second);
-    GELOGD("Set core type to %s.", iter->second.c_str());
-  } else {
-    out_platform_holder->SetCoreNumByCoreType(kDefaultCoreType);
-    GELOGD("Set core type to %s.", kDefaultCoreType);
-  }
   bool is_op_core_num_set = false;
   if (op_ai_core_num_holder > 0) {
     GE_ASSERT_SUCCESS(ge::CoreNumUtils::UpdateCoreCountWithOpDesc(kAiCoreNum, std::to_string(op_ai_core_num_holder),
@@ -98,8 +90,25 @@ ge::graphStatus AppendCoreTypeToPlatform(KernelContext *context) {
                                                     core_num_infos_holder->soc_vec_core_num, kAivCntKeyIni, res));
     is_op_core_num_set = true;
   }
+
   if (is_op_core_num_set) {
-    out_platform_holder->SetPlatformResWithLock(kSocInfo, res);
+    int32_t device_id = -1;
+    GE_CHK_RT_RET(rtGetDevice(&device_id));
+    fe::PlatFormInfos platform_infos_bak;
+    GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(
+                   static_cast<uint32_t>(device_id), platform_infos_bak, true) == 0,
+                   "Get runtime platformInfos by device failed, deviceId = %d", device_id);
+    platform_infos_bak.SetPlatformResWithLock(kSocInfo, res);
+    *out_platform_holder = platform_infos_bak;
+  }
+
+  const auto iter = kCoreTypeReflection.find(*core_type_holder);
+  if (iter != kCoreTypeReflection.end()) {
+    out_platform_holder->SetCoreNumByCoreType(iter->second);
+    GELOGD("Set core type to %s.", iter->second.c_str());
+  } else {
+    out_platform_holder->SetCoreNumByCoreType(kDefaultCoreType);
+    GELOGD("Set core type to %s.", kDefaultCoreType);
   }
 
   // 用算子级核数填充第二个输出：CoreNumInfos

@@ -8841,6 +8841,55 @@ bool DavinciModel::UpdateCoreCountWithOpDesc(const NodePtr &node, fe::PlatFormIn
   return true;
 }
 
+Status DavinciModel::UpdatePlatformInfos(const NodePtr &node, fe::PlatFormInfos &platform_infos) const {
+  int32_t device_id = -1;
+  GE_CHK_RT_RET(rtGetDevice(&device_id));
+
+  fe::PlatFormInfos platform_infos_bak;
+  auto ret = fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(
+      static_cast<uint32_t>(device_id), platform_infos_bak, true);
+  GE_ASSERT_TRUE(ret == 0, "Get runtime platformInfos by device failed, deviceId = %d", device_id);
+
+  GE_ASSERT_TRUE(UpdateCoreCountWithOpDesc(node, platform_infos_bak));
+  platform_infos = platform_infos_bak; // 更新引用
+  return SUCCESS;
+}
+
+void* DavinciModel::AllocPlatformInfosMem(size_t total_size, bool need_update_op_desc, bool is_custom) {
+  if (need_update_op_desc) {
+    // 算子级控核场景：使用模型级的PlatFormInfo内存
+    return MallocDynamicMemory(total_size);
+  }
+
+  // 全局控核场景：使用进程级的PlatFormInfo内存
+  auto &mem_instance = MemManager::Instance().MemInstance(RT_MEMORY_HBM);
+  const std::string &memory_key = is_custom ? kCustPlatformInfoMemoryKey : kPlatformInfoMemoryKey;
+  const std::string &purpose = is_custom ? kCustPlatformInfoPurpose : kPlatformInfoPurpose;
+  return mem_instance.MallocMemory(purpose, memory_key, total_size, GetDeviceId());
+}
+
+Status DavinciModel::SerializeAndCopyToDevice(fe::PlatFormInfos &platform_infos, void *dev_addr, size_t copy_size,
+                                              size_t total_size) const {
+  const std::string serialized_str = platform_infos.SaveToBuffer();
+  const size_t serialized_size = serialized_str.length() + 1UL; // '\0'
+
+  std::unique_ptr<uint8_t[]> host_addr = ge::MakeUnique<uint8_t[]>(total_size);
+  GE_ASSERT_NOTNULL(host_addr);
+  GE_ASSERT_EOK(memset_s(host_addr.get(), total_size, 0, total_size), "Failed to memset host context buffer.");
+
+  GE_ASSERT_EOK(memcpy_s(&host_addr[sizeof(fe::PlatFormInfos)], serialized_size, serialized_str.data(), serialized_size));
+
+  PlatformInfosLaunchArgs *args = reinterpret_cast<PlatformInfosLaunchArgs *>(&host_addr[copy_size]);
+  GE_ASSERT_NOTNULL(args);
+  args->proto_ptr = PtrToValue(dev_addr) + sizeof(fe::PlatFormInfos);
+  args->proto_len = serialized_str.length();
+  args->platform_infos_addr = PtrToValue(dev_addr);
+
+  GE_CHK_RT_RET(rtMemcpy(dev_addr, total_size, host_addr.get(), total_size, RT_MEMCPY_HOST_TO_DEVICE));
+  return SUCCESS;
+}
+
+
 //  |platform_infos|serialized_proto|launch_args|
 // 如果是通过 LaunchPlatformInfos 接口过来的，plat_form_info_ptr默认为platform_infos_，如果配置了算子级核数，platform_infos为装载了核数信息的temp_info
 // 如果是通过 LoadCustPlatformInfos 接口过来的，plat_form_info_ptr为platform_infos_，因此本接口内要判断是否配置了算子级核数
@@ -8858,7 +8907,7 @@ Status DavinciModel::LoadPlatformInfos(const fe::PlatFormInfos *const plat_form_
     }
 
     if (need_update_with_op_desc) {
-      GE_ASSERT_TRUE(UpdateCoreCountWithOpDesc(node, platform_infos_to_load));
+      GE_CHK_STATUS_RET(UpdatePlatformInfos(node, platform_infos_to_load));
     }
 
     auto it_to_launch = cust_platform_infos_addr_to_launch_.find(addr_key);
@@ -8867,34 +8916,23 @@ Status DavinciModel::LoadPlatformInfos(const fe::PlatFormInfos *const plat_form_
       return SUCCESS;
     }
   }
+
   const std::string serialized_str = platform_infos_to_load.SaveToBuffer();
   const size_t serialized_size = serialized_str.length() + 1UL; // '\0'
   copy_size = sizeof(fe::PlatFormInfos) + serialized_size;
   const size_t launched_size = sizeof(PlatformInfosLaunchArgs);
   const size_t total_size = copy_size + launched_size;
 
-  if (need_update_with_op_desc) {
-    // 算子级控核场景使用模型级的PlatFormInfo内存，在DavinciModel析构时候释放
-    dev_addr = MallocDynamicMemory(total_size);
-  } else {
-    // soc级/global级/session级(暂定)等全局控核场景使用进程级的PlatFormInfo内存，，在进程退出时释放
-    auto &mem_instance = MemManager::Instance().MemInstance(RT_MEMORY_HBM);
-    const std::string &memory_key = is_custom ? kCustPlatformInfoMemoryKey : kPlatformInfoMemoryKey;
-    const std::string &purpose = is_custom ? kCustPlatformInfoPurpose : kPlatformInfoPurpose;
-    dev_addr = mem_instance.MallocMemory(purpose, memory_key, total_size, GetDeviceId());
-  }
+  // 分配内存
+  dev_addr = AllocPlatformInfosMem(total_size, need_update_with_op_desc, is_custom);
   GE_ASSERT_NOTNULL(dev_addr);
-  std::unique_ptr<uint8_t[]> host_addr = ge::MakeUnique<uint8_t[]>(total_size);
-  GE_ASSERT_NOTNULL(host_addr);
-  GE_ASSERT_EOK(memset_s(host_addr.get(), total_size, 0, total_size), "Failed to memset host context buffer.");
-  GE_ASSERT_EOK(memcpy_s(&host_addr[sizeof(fe::PlatFormInfos)], serialized_size, serialized_str.data(), serialized_size));
-  PlatformInfosLaunchArgs *args = reinterpret_cast<PlatformInfosLaunchArgs *>(&host_addr[copy_size]);
-  GE_ASSERT_NOTNULL(args);
-  args->proto_ptr = PtrToValue(dev_addr) + sizeof(fe::PlatFormInfos);
-  args->proto_len = serialized_str.length();
-  args->platform_infos_addr = PtrToValue(dev_addr);
-  GE_CHK_RT_RET(rtMemcpy(dev_addr, total_size, host_addr.get(), total_size, RT_MEMCPY_HOST_TO_DEVICE));
+
+  // 序列化与拷贝
+  GE_CHK_STATUS_RET(SerializeAndCopyToDevice(platform_infos_to_load, dev_addr, copy_size, total_size));
+
   GELOGD("load platform_infos_addr = %p", dev_addr);
+
+  // 更新缓存
   if (is_custom) {
     cust_platform_infos_addr_to_launch_[addr_key] = std::make_pair(dev_addr, copy_size);
   }
@@ -9015,10 +9053,15 @@ Status DavinciModel::LaunchFromOpMasterSo() {
 }
 
 Status DavinciModel::LaunchPlatformInfos(void *&platform_infos_addr, const NodePtr &node) {
-  const std::string soc_info = "SoCInfo";
-  fe::PlatFormInfos temp_info = platform_infos_;
+  int32_t device_id = -1;
+  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  fe::PlatFormInfos platform_infos_bak;
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(
+                 static_cast<uint32_t>(device_id), platform_infos_bak, true) == 0,
+                 "Get runtime platformInfos by device failed, deviceId = %d", device_id);
+
   std::string addr_key;
-  bool need_update_with_op_desc = NeedUpdateCoreCountWithOpDesc(node, temp_info, addr_key);
+  bool need_update_with_op_desc = NeedUpdateCoreCountWithOpDesc(node, platform_infos_bak, addr_key);
 
   const auto &it = platform_infos_addr_.find(addr_key);
   if (it != platform_infos_addr_.cend()) {
@@ -9032,8 +9075,8 @@ Status DavinciModel::LaunchPlatformInfos(void *&platform_infos_addr, const NodeP
   // platform_infos_在初始化过程中被rts/device级/global级/session级核数配置刷新过
   fe::PlatFormInfos *plat_form_info_ptr = &platform_infos_;
   if (need_update_with_op_desc) {
-    GE_ASSERT_TRUE(UpdateCoreCountWithOpDesc(node, temp_info));
-    plat_form_info_ptr = &temp_info;
+    GE_ASSERT_TRUE(UpdateCoreCountWithOpDesc(node, platform_infos_bak));
+    plat_form_info_ptr = &platform_infos_bak;
   }
   GE_CHK_STATUS_RET(LoadPlatformInfos(plat_form_info_ptr, copy_size, dev_addr, false, node), "Failed to load platform infos");
   // rtcpulaunch

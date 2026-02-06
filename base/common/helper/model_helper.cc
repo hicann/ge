@@ -1606,7 +1606,7 @@ Status ModelHelper::InitRuntimeAndGetDevicePlatformInfos(int32_t device_id, cons
       "[Init][PlatformInfo]init runtime platform info failed, SocVersion = %s", soc_version.c_str());
 
   // 获取指定 device 的 platform info
-  GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(static_cast<uint32_t>(device_id), platform_infos_device) == 0,
+  GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(static_cast<uint32_t>(device_id), platform_infos_device, true) == 0,
      "Get runtime platformInfos by device failed, deviceId = %d", device_id);
 
   return SUCCESS;
