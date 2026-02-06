@@ -76,7 +76,6 @@ class DFlowSessionImpl {
   }
   FlowModelPtr GetFlowModel(uint32_t graph_id) const;
  private:
-  static Status InitializeExecutionRuntime(const std::map<std::string, std::string> &options);
   void UpdateThreadContext(const std::map<std::string, std::string> &options) const;
   void UpdateGlobalSessionContext() const;
   void UpdateThreadContext(uint32_t graph_id);

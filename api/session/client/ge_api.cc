@@ -52,6 +52,7 @@
 #include "base/err_msg.h"
 #include "base/err_mgr.h"
 #include "common/memory/tensor_trans_utils.h"
+#include "exec_runtime/execution_runtime_utils.h"
 
 namespace {
 constexpr int32_t kMaxStrLen = 128;
@@ -199,11 +200,13 @@ Status GEInitialize(const std::map<AscendString, AscendString> &options) {
     REPORT_INNER_ERR_MSG("E19999", "GEInitializeV2 initialize failed.");
     return ret;
   }
-  ret = DFlowInitializeInner(options);
-  if (ret != SUCCESS) {
-    GELOGE(ret, "[Init][DFlowInitializeInner] initial failed.");
-    REPORT_INNER_ERR_MSG("E19999", "DFlowInitializeInner initialize failed.");
-    return ret;
+  if (ExecutionRuntimeUtils::IsHeterogeneous()) {
+    ret = DFlowInitializeInner(options);
+    if (ret != SUCCESS) {
+      GELOGE(ret, "[Init][DFlowInitializeInner] initial failed.");
+      REPORT_INNER_ERR_MSG("E19999", "DFlowInitializeInner initialize failed.");
+      return ret;
+    }
   }
   GELOGI("sessionManager initial.");
   GE_TIMESTAMP_START(SessionManagerInitialize);
@@ -226,7 +229,9 @@ Status GEFinalize() {
   if (g_session_manager != nullptr) {
     (void)g_session_manager->Finalize();  // always success.
   }
-  DFlowFinalizeInner();
+  if (ExecutionRuntimeUtils::IsHeterogeneous()) {
+    DFlowFinalizeInner();
+  }
   return GEFinalizeV2();
 }
 
