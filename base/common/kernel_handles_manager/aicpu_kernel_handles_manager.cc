@@ -11,6 +11,7 @@
 #include "aicpu_kernel_handles_manager.h"
 #include <fstream>
 #include <cstdio>
+#include "mmpa/mmpa_api.h"
 #include "ge/ge_api_error_codes.h"
 #include "common/checker.h"
 #include "common/ge_common/scope_guard.h"
@@ -21,7 +22,8 @@ namespace ge {
 namespace {
 constexpr uint32_t kMaxJsonFileLen = 512U;
 graphStatus GenerateJsonFile(const KernelRegisterInfo &register_info, std::string &json_path) {
-  json_path = "/tmp/temp_ops_info_" + std::to_string(GetCurrentTimestamp()) + ".json";
+  json_path = "/tmp/temp_aicpu_ops_info_" + std::to_string(mmGetPid()) + "_" + std::to_string(mmGetTid()) + "_" +
+      std::to_string(GetCurrentTimestamp()) + ".json";
   std::string json_data_format = R"(
 {
     "%s":{
