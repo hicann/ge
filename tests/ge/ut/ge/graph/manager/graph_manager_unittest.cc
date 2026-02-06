@@ -4467,12 +4467,6 @@ TEST_F(UtestGraphManagerTest, test_checkIoReuseMemIndexesOption1) {
   options.emplace(ge::OPTION_OUTPUT_REUSE_MEM_INDEXES, "0, 0");
   EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph1, options), PARAM_INVALID);
 
-  options.clear();
-  options.emplace(ge::OPTION_OUTPUT_REUSE_MEM_INDEXES, "0");
-  options.emplace(ge::OPTION_INPUT_REUSE_MEM_INDEXES, "0");
-  compute_graph2->SetNeedIteration(true);
-  EXPECT_EQ(CheckIoReuseMemIndexesOption(compute_graph2, options), PARAM_INVALID);
-
   /* OPTION_FEATURE_BASE_REFRESHABLE default set 1 */
   options.clear();
   options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "0");

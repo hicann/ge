@@ -1707,12 +1707,6 @@ Status CheckIoReuseMemIndexesOption(const ComputeGraphPtr &compute_graph,
     return SUCCESS;
   }
 
-  if (has_input_set_reuse_mem) {
-    GE_ASSERT_TRUE(!compute_graph->GetNeedIteration(),
-                   "[Check][Option]Check option failed because option(%s) conflict with graph iteration.",
-                   OPTION_INPUT_REUSE_MEM_INDEXES);
-  }
-
   std::string alloc_mode;
   (void)ge::GetContext().GetOption(OPTION_GRAPH_IO_MEM_ALLOC_MODE, alloc_mode);
   if (alloc_mode == "ByGE") {
