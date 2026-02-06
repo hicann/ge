@@ -38,6 +38,53 @@ using namespace ge::ops;
 namespace {
 const char *const kAttrAscGraph = "ascgraph";
 constexpr int64_t kInvalidNodeId = -1;
+constexpr size_t kMaxGraphNameLength = 60UL;  // 截断后的最大graph name长度
+
+// 截断 graph name，保留前 kMaxGraphNameLength 个字符
+std::string TruncateGraphName(const std::string &name) {
+  if (name.length() <= kMaxGraphNameLength) {
+    return name;
+  }
+  return name.substr(0, kMaxGraphNameLength);
+}
+
+// graph_name添加索引格式为: original_name_S{result_idx}G{group_idx}C{impl_idx}
+std::string GenerateIndexedGraphName(const std::string &original_name,
+                                     size_t result_idx,
+                                     size_t group_idx,
+                                     size_t impl_idx) {
+  std::ostringstream oss;
+  oss << original_name << "_S" << result_idx << "G" << group_idx << "C" << impl_idx;
+  return oss.str();
+}
+
+Status FinalizeIndexedGraphs(std::vector<ascir::ScheduledResult> &scheduled_results) {
+  for (size_t result_idx = 0UL; result_idx < scheduled_results.size(); ++result_idx) {
+    auto &scheduled_result = scheduled_results[result_idx];
+    for (size_t group_idx = 0UL; group_idx < scheduled_result.schedule_groups.size(); ++group_idx) {
+      auto &schedule_group = scheduled_result.schedule_groups[group_idx];
+      for (size_t impl_idx = 0UL; impl_idx < schedule_group.impl_graphs.size(); ++impl_idx) {
+        auto &impl_graph = schedule_group.impl_graphs[impl_idx];
+        std::string old_name = impl_graph.GetName();
+        std::string new_name = GenerateIndexedGraphName(old_name, result_idx, group_idx, impl_idx);
+        // 修改 impl_graph 的 name
+        auto compute_graph = ge::AscGraphUtils::GetComputeGraph(impl_graph);
+        GE_ASSERT_NOTNULL(compute_graph);
+        compute_graph->SetName(new_name);
+        GELOGD("Rename graph: [%s] -> [%s]", old_name.c_str(), new_name.c_str());
+
+        // 如果有 score func，直接在 map 中更新 key（只查找一次）
+        auto node = schedule_group.graph_name_to_score_funcs.extract(old_name);
+        if (!node.empty()) {
+          node.key() = std::move(new_name);
+          schedule_group.graph_name_to_score_funcs.insert(std::move(node));
+          GELOGD("Update score func key: [%s] -> [%s]", old_name.c_str(), node.key().c_str());
+        }
+      }
+    }
+  }
+  return ge::SUCCESS;
+}
 
 bool IsAxisContinuous(const ge::AscGraph &graph, const int64_t pre_id_idx, const int64_t post_id_idx) {
   for (const auto &node : graph.GetAllNodes()) {
@@ -292,18 +339,15 @@ void RegisterScoreFuncInScheduleGroup([[maybe_unused]] const autoschedule::AutoS
          schedule_output.score_func.c_str());
 }
 
-ge::Status CopyAndReNameImplGraphs(const std::vector<autoschedule::AutoScheduleOutput> &schedule_outputs,
-                                   std::vector<ascir::ScheduledResult> &scheduled_results_cur) {
+ge::Status CopyImplGraphs(const std::vector<autoschedule::AutoScheduleOutput> &schedule_outputs,
+                          std::vector<ascir::ScheduledResult> &scheduled_results_cur) {
   for (size_t i = 0UL; i < scheduled_results_cur.size(); ++i) {
     auto &cur_result = scheduled_results_cur[i];
     ScheduleGroup cur_group;
     cur_group.impl_graphs.reserve(schedule_outputs.size());
-    for (const auto &result : schedule_outputs) {
+    for (const auto &result: schedule_outputs) {
       ascir::ImplGraph copied_graph(result.scheduled_graph.GetName().c_str());
       GE_ASSERT_TRUE(copied_graph.CopyFrom(result.scheduled_graph));
-      auto cur_owner = ge::AscGraphUtils::GetComputeGraph(copied_graph);
-      GE_ASSERT_NOTNULL(cur_owner);
-      cur_owner->SetName(result.scheduled_graph.GetName() + "_" + std::to_string(i));
       cur_group.impl_graphs.push_back(std::move(copied_graph));
       RegisterScoreFuncInScheduleGroup(result, cur_group);
     }
@@ -657,7 +701,10 @@ Status Optimizer::OptimizeForHintGraph(ge::AscGraph &hint_graph,
   // 这样原图自身才是dtype和stride连续的
   // 这一步本身不是优化而是图的完整性准备。
   GE_CHK_STATUS_RET(AscGraphInfoComplete::CompleteApiInfo(hint_graph), "CompleteApiInfo failed");
-  ascir::ImplGraph optimize_graph(hint_graph.GetName().c_str());
+
+  // 截断 graph name
+  std::string base_graph_name = TruncateGraphName(hint_graph.GetName());
+  ascir::ImplGraph optimize_graph(base_graph_name.c_str());
   GE_ASSERT_TRUE(optimize_graph.CopyFrom(hint_graph));
 
   // dtype 兜底处理：针对算子实际支持的 dtype 与注册不一致的情况，插入必要的 Cast
@@ -685,6 +732,10 @@ Status Optimizer::OptimizeForHintGraph(ge::AscGraph &hint_graph,
                       i);
     GELOGI("AutoScheduler task[%zu] end", i);
   }
+
+  // 最终处理：添加 SizeVar 和索引后缀
+  GE_ASSERT_SUCCESS(FinalizeIndexedGraphs(scheduled_results));
+
   return ge::SUCCESS;
 }
 
@@ -712,10 +763,10 @@ Status Optimizer::LoadOpSeqAdjust(const ge::AscGraph &impl_graph) {
 Status Optimizer::Optimize(ge::AscGraph &hint_graph, FusedScheduledResult &fused_scheduled_result) {
   ascir::utils::DumpGraph(hint_graph, "AutoFuseBeforeOptimize");
   fused_scheduled_result.node_idx_to_scheduled_results.resize(1UL);
-  GE_ASSERT_SUCCESS(OptimizeForHintGraph(hint_graph, fused_scheduled_result.node_idx_to_scheduled_results[0UL]),
-                    "Failed to optimize for graph:[%s].", hint_graph.GetName().c_str());
   SizeVarSet original_var_set;
   AscGraphInfoComplete::AppendOriginalSizeVar(hint_graph, original_var_set);
+  GE_ASSERT_SUCCESS(OptimizeForHintGraph(hint_graph, fused_scheduled_result.node_idx_to_scheduled_results[0UL]),
+                    "Failed to optimize for graph:[%s].", hint_graph.GetName().c_str());
   // 内存分配
   GE_CHK_STATUS_RET(BufQueAllocator().AllocBufQue(fused_scheduled_result));
   if (options_.graph_type == GraphType::kAscGraph) {
@@ -834,7 +885,7 @@ Status Optimizer::AutoScheduler([[maybe_unused]]const HintGraph &hint_graph, Sch
       scheduled_results_tmp.swap(scheduled_results_cur);
     } else {
       if (schedule_task.reduce_type == ReduceTemplateType::kRCore) {
-        GE_ASSERT_SUCCESS(CopyAndReNameImplGraphs(schedule_outputs, scheduled_results_cur));
+        GE_ASSERT_SUCCESS(CopyImplGraphs(schedule_outputs, scheduled_results_cur));
       } else {
         GE_ASSERT_SUCCESS(
             ProcessNonReduceSchedules(schedule_outputs, scheduled_results_cur, schedule_task));

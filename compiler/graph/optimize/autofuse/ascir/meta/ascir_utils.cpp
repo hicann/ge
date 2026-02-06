@@ -386,13 +386,14 @@ static std::stringstream &GraphAxisStr(std::stringstream &ss, const ascir::Graph
   auto all_axis = graph.GetAllAxis();
   std::map<ge::AxisId, std::string> axis_id_to_name = GetAxisIdToName(all_axis);
   for (auto &axis : all_axis) {
-    ss << "  " << axis->name << "(" << axis->id << ") : " << ge::SymbolicUtils::ToString(axis->size) << ", ";
+    ss << "  " << axis->name << "(" << axis->id << ") : ";
     auto iter = kTypeToStr.find(axis->type);
     if (iter != kTypeToStr.end()) {
       ss << iter->second;
     } else {
       ss << "UNKNOWN";
     }
+    ss <<", size:"<< ge::SymbolicUtils::ToString(axis->size) << ", ";
 
     if (!axis->from.empty()) {
       ss << ", from: {";
@@ -401,10 +402,6 @@ static std::stringstream &GraphAxisStr(std::stringstream &ss, const ascir::Graph
       }
       ss << "}";
     }
-
-    ss << ", align: " << ge::SymbolicUtils::ToString(axis->align);
-    ss << ", allow_oversize_axis: " << axis->allow_oversize_axis;
-    ss << ", allow_unaligned_tail: " << axis->allow_unaligned_tail;
 
     ss << std::endl;
   }

@@ -1925,7 +1925,7 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_elementwise_1axis) {
   ge::AscGraph graph("LoadAbsStore");
   Construct_ElementwiseAbs(graph);
 
-  ge::AscGraph except_graph("LoadAbsStore_general_0_nil_0_nil");
+  ge::AscGraph except_graph("LoadAbsStore_B0Y0");
   except_graph.CopyFrom(graph);
 
   std::vector<autoschedule::AutoScheduleOutput> results;
@@ -1966,7 +1966,7 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_elementwise_fusion) {
   ge::AscGraph graph("AbsFusion");
   Construct_ElementwiseFusion(graph);
 
-  ge::AscGraph except_graph("AbsFusion_general_0_nil_0_nil");
+  ge::AscGraph except_graph("AbsFusion_B0Y0");
   except_graph.CopyFrom(graph);
 
   std::vector<autoschedule::AutoScheduleOutput> impl_graphs;
@@ -2790,7 +2790,7 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_softmax_fusion_axesgroup) {
   ge::AscGraph graph("SoftmaxFusion");
   Construct_Softmax(graph);
 
-  ge::AscGraph except_graph("SoftmaxFusion_general_0_-1_0_-1");
+  ge::AscGraph except_graph("SoftmaxFusion_B0Y0");
   except_graph.CopyFrom(graph);
 
   auto store = graph.FindNode("b3_store");
@@ -2810,7 +2810,7 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_softmax_fusion_tilingcase) {
   ge::AscGraph graph("SoftmaxFusion");
   Construct_Softmax(graph);
 
-  ge::AscGraph except_graph("SoftmaxFusion_general_0_-1_0_-1");
+  ge::AscGraph except_graph("SoftmaxFusion_B0Y0");
   except_graph.CopyFrom(graph);
 
   auto store = graph.FindNode("b3_store");
@@ -2834,7 +2834,7 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_softmax_fusion) {
   ge::AscGraph graph("SoftmaxFusion");
   Construct_Softmax(graph);
 
-  ge::AscGraph except_graph("SoftmaxFusion_general_0_nui_0_nui");
+  ge::AscGraph except_graph("SoftmaxFusion_B0Y0");
   except_graph.CopyFrom(graph);
 
   std::vector<autoschedule::AutoScheduleOutput> impl_graphs;
@@ -3447,11 +3447,11 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_removepad_support_broadcast) {
   AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 3);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "Autoschedule_autoschedule_removepad_support_broadcast_general_0_nil_3_nil");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "Autoschedule_autoschedule_removepad_support_broadcast_B0Y3");
   EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(),
-            "Autoschedule_autoschedule_removepad_support_broadcast_general_0_nil_0_nil_unaligned");
+            "Autoschedule_autoschedule_removepad_support_broadcast_B0Y0_unaligned");
   EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(),
-            "Autoschedule_autoschedule_removepad_support_broadcast_general_0_nil_0_nil_inline");
+            "Autoschedule_autoschedule_removepad_support_broadcast_B0Y0_inline");
 
   EXPECT_NE(impl_graphs[1].scheduled_graph.FindNode("brc0"), nullptr);
   EXPECT_NE(impl_graphs[1].scheduled_graph.FindNode("brc2"), nullptr);
@@ -4009,7 +4009,7 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_brc_inline_static_support) {
   EXPECT_EQ(impl1_add0->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetName(), "load0");
   EXPECT_EQ(impl1_add0->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode()->GetName(), "load1");
 
-  EXPECT_EQ("Autoschedule_autoschedule_brc_inline_static_support_general_0_nil_0_nil_inline", impl_graphs[1].scheduled_graph.GetName());
+  EXPECT_EQ("Autoschedule_autoschedule_brc_inline_static_support_B0Y0_inline", impl_graphs[1].scheduled_graph.GetName());
 }
 
 /**
@@ -4213,7 +4213,7 @@ TEST_F(AutoSchedulerUT, Autoschedule_autoschedule_brc_inline_static_not_support)
   AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 2);
-  EXPECT_EQ("Autoschedule_autoschedule_brc_inline_static_not_support_general_0_nil_1_nil", impl_graphs[1].scheduled_graph.GetName());
+  EXPECT_EQ("Autoschedule_autoschedule_brc_inline_static_not_support_B0Y1", impl_graphs[1].scheduled_graph.GetName());
 }
 
 TEST_F(AutoSchedulerUT, test_vectorized_reduce_ra) {

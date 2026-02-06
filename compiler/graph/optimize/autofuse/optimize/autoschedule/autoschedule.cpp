@@ -23,6 +23,7 @@
 #include "autoschedule/template_generator_handler.h"
 
 namespace {
+  constexpr int64_t kDefaultAxisId = -1;
 void FindNotLoopAxis(const ascir::NodeView &node, ascir::ImplGraph &impl_graph,
                      std::unordered_set<int64_t> &not_loop_axis_set,
                      bool has_reduce, bool is_reduce_first_stage) {
@@ -83,6 +84,12 @@ bool IsNotLoopAxis(ascir::ImplGraph &impl_graph, int64_t axis,
     }
   }
   return true;
+}
+
+void AppendIdIfNotDefault(std::stringstream &ss, const std::string &prefix, int64_t id) {
+  if (id != kDefaultAxisId) {
+    ss << prefix << id;
+  }
 }
 }  // namespace
 
@@ -177,7 +184,7 @@ void AutoSchedule::GenTilingCase(std::vector<TilingCase> &tiling_cases) {
   }
 }
 
-// 尽量不生成切size=1轴的tilingcase
+// 尽量不生成切size=1轴的tiling case
 Status AutoSchedule::PruneTilingCase(std::vector<TilingCase> &tiling_cases) const {
   auto all_axis = graph_.GetAllAxis();
   for (auto it = tiling_cases.begin(); it != tiling_cases.end();) {
@@ -202,11 +209,11 @@ Status AutoSchedule::PruneTilingCase(std::vector<TilingCase> &tiling_cases) cons
 
 static std::string GetTilingCaseStr(const std::string &graph_name, const TilingCase &tiling_case) {
   std::stringstream ss;
-  ss << graph_name << "_general";
-  auto id_str = ascir::utils::IdentifierToStr;
-  ss << "_" << id_str(tiling_case.block_tiling_id);
-  ss << "_" << id_str(tiling_case.ub_tiling_id_x) << "_" << id_str(tiling_case.ub_tiling_id_y) << "_"
-     << id_str(tiling_case.ub_tiling_id_r);
+  ss << graph_name << "_";
+  AppendIdIfNotDefault(ss, "B", tiling_case.block_tiling_id);
+  AppendIdIfNotDefault(ss, "X", tiling_case.ub_tiling_id_x);
+  AppendIdIfNotDefault(ss, "Y", tiling_case.ub_tiling_id_y);
+  AppendIdIfNotDefault(ss, "R", tiling_case.ub_tiling_id_r);
   return ss.str();
 }
 
