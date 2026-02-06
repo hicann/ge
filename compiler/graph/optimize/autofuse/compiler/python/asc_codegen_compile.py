@@ -454,6 +454,7 @@ def _process_tiling_funcs_and_infershape(tiling_func_srcs, graph_name, host_buil
             # 生成cv_common目录下的infershape文件
             generate_file(template_dir, graph_name + "_infershape.cpp", infershape_src)
             common_template_processed = True
+            ret_tiling_func_srcs = template_dict
         else:
             template_dir = host_build_dir
             ret_tiling_func_srcs = template_dict

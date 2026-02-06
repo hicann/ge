@@ -180,6 +180,8 @@ namespace ascgen_utils {
   bool IsCubeFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
   bool IsCubeUBFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
   bool IsCubeCommonFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
+  bool HasCubeUBFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
+  bool HasCubeCommonFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result);
   bool IsCubeType(const ascir::ImplGraph &impl_graph);
   bool IsCubeTypeWithBatch(const ascir::ImplGraph &impl_graph);
   bool IsCubeTypeWithBias(const ascir::ImplGraph &impl_graph);

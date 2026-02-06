@@ -704,6 +704,10 @@ bool IsCubeUBFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_re
   return false;
 }
 
+bool HasCubeUBFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result) {
+  return IsCubeUBFusedScheduled(fused_schedule_result);
+}
+
 bool IsCubeCommonFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result) {
   for (auto scheduled_results : fused_schedule_result.node_idx_to_scheduled_results) {
     for (auto scheduled_result : scheduled_results) {
@@ -713,6 +717,10 @@ bool IsCubeCommonFusedScheduled(const ascir::FusedScheduledResult &fused_schedul
     }
   }
   return false;
+}
+
+bool HasCubeCommonFusedScheduled(const ascir::FusedScheduledResult &fused_schedule_result) {
+  return IsCubeCommonFusedScheduled(fused_schedule_result);
 }
 
 bool IsCubeType(const ascir::ImplGraph &impl_graph) {
