@@ -280,15 +280,5 @@ bool IsSocVersion91093(std::string socVersion);
 bool IsSocVersion910B(std::string socVersion);
 bool IsSocVersion910(std::string socVersion);
 
-#ifndef TEMP_WEAK_DEF
-HcclResult __attribute__((weak)) HcomSetAttachedStream(const char *group, u32 graphId, const rtStream_t *stream, s32 len);
-HcclResult __attribute__((weak)) HcomSelectAlg(s64 comm, const char *group, u64 count, void* counts,
-    HcclDataType dataType, HcclReduceOp op, HcclCMDType opType, int32_t aivCoreLimit,
-    bool &ifAiv, char *algName);
-HcclResult __attribute__((weak)) HcomCalcAivCoreNum(const char *group, HcclCMDType opType, u64 count, void* counts,
-  HcclDataType dataType, int32_t aivCoreLimit, char *algName, u32 *numBlocks);
-HcclResult __attribute__((weak)) HcomGetCommCCLBufferSize(const char *group, uint64_t &size);
-#endif
-
 }  // namespace hccl
 #endif
