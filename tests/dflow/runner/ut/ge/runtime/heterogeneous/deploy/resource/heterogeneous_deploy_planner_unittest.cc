@@ -27,15 +27,31 @@
 #include "stub/heterogeneous_stub_env.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "depends/mmpa/src/mmpa_stub.h"
 
 using namespace std;
 
 namespace ge {
+namespace {
+class MockMmpa : public MmpaStubApiGe {
+public:
+  int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
+    (void)strncpy_s(realPath, realPathLen, path, strlen(path));
+    return EN_OK;
+  }
+
+  int32_t Sleep(UINT32 microSecond) override {
+    return 0;
+  }
+};
+}
 class HeterogeneousDeployPlannerTest : public testing::Test {
  protected:
   void SetUp() override {
+    MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   }
   void TearDown() override {
+    MmpaStub::GetInstance().Reset();
     RuntimeStub::Reset();
   }
 

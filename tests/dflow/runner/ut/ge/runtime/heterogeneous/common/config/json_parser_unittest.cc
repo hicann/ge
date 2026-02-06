@@ -12,7 +12,6 @@
 #include <vector>
 #include <string>
 
-#include "depends/mmpa/src/mmpa_stub.h"
 #include "ge/ge_error_codes.h"
 #include "framework/common/debug/ge_log.h"
 #include "common/env_path.h"
@@ -23,23 +22,12 @@
 
 using namespace std;
 namespace ge {
-namespace {
-class MockMmpa : public MmpaStubApiGe {
- public:
-  int32_t RealPath(const char *path, char *realPath, int32_t realPathLen) override {
-    strncpy(realPath, path, realPathLen);
-    return 0;
-  }
-};
-}
-
 class UtJsonParser : public testing::Test {
  public:
   UtJsonParser() {}
  protected:
   void SetUp() override {}
   void TearDown() override {
-    MmpaStub::GetInstance().Reset();
   }
   const std::string data_path = PathUtils::Join({EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data"});
 };

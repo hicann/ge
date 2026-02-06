@@ -142,7 +142,6 @@ class KernelTaskInfo : public TaskInfo {
 
   std::vector<FusionOpInfo> fusion_op_info_;
   void UpdateIoAndWorkspaceAddrs(const IowAddrs &iow_addrs);
-  Status DistributeAicoreTask();
   Status InitTVMTask(const domi::KernelDef &kernel_def);
   Status InitTVMTask(const domi::KernelDefWithHandle &kernel_def);
   Status InitTVMTask();
@@ -187,7 +186,6 @@ class KernelTaskInfo : public TaskInfo {
 
   Status AssembleArgs(const std::vector<uint64_t> &io_addrs);
   Status AssembleKernelNamesAndLaunch();
-  Status LaunchAicpuKernelWithArgs();
   void InitFusionDumpInfo(const OpDescPtr &op_desc, const domi::TaskDef &task_def);
   void InitDumpArgs(const size_t offset);
 

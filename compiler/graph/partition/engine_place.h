@@ -21,6 +21,8 @@
 namespace ge {
 using NodeEngineMap = std::unordered_map<ConstNodePtr, std::string>;
 
+class EngineReAssignPass;
+
 ///
 /// @ingroup graph/partition
 /// @brief Assigned individual DNNEngine to each node in the origin graph
@@ -52,6 +54,7 @@ class EnginePlacer {
   Status Run(bool direct_node_flag = true);
   Status AssignCompositeEngine();
   Status ReAssignEngine();
+  Status RunHostcpuEngineUpdatePass();
 
   // Get the unique node-engine map
   const NodeEngineMap &GetNodeEngineMap(bool is_composite_engine_mode) const;
@@ -60,6 +63,7 @@ class EnginePlacer {
 
  private:
   Status Check() const;
+  Status RunSinglePass(const std::string &pass_name, const std::shared_ptr<EngineReAssignPass> &pass);
   static void GetOpInfoByOpDesc(const OpDescPtr &op_desc, const std::string &attr_engine_name,
                                 const std::string &attr_kernel_name, OpInfo &matched_op_info);
   static void UpdateOpdescWithAttr(const OpDescPtr &op_desc, const std::string &attr_engine_name,

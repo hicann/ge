@@ -742,7 +742,7 @@ void ModelArgsManager::GenModelArgsAaddrAfterDistributed() {
   // 满足以下条件才用算子刷新
   // 1、地址刷新算子已加载
   // 2、只有一个placememt需要刷新且placememt有效(即只kernel launch一次算子)
-  if (stub_func_ != nullptr && model_args_.size() == 1 &&
+  if (func_handle_ != nullptr && model_args_.size() == 1 &&
       op_refresh_placement_ == ArgsPlacement::kArgsPlacementHbm) {
     uint64_t offset_num = (model_args_len_[0] - host_input_partition_len_) / sizeof(uint64_t) ;
     // args table表的长度在这边扩展
@@ -752,8 +752,8 @@ void ModelArgsManager::GenModelArgsAaddrAfterDistributed() {
     }
     GELOGI("update_version:%d, model args offset num:%llu", update_version_, offset_num);
   } else {
-    GELOGI("update_version:%d, stub_func_:%p, model args size:%zu, op_refresh_placement:%d",
-      update_version_, stub_func_, model_args_.size(), static_cast<int32_t>(op_refresh_placement_));
+    GELOGI("update_version:%d, func_handle_:%p, model args size:%zu, op_refresh_placement:%d",
+      update_version_, func_handle_, model_args_.size(), static_cast<int32_t>(op_refresh_placement_));
   }
   GELOGI("model args manager update version %d", update_version_);
   return;
@@ -1001,9 +1001,25 @@ Status ModelArgsManager::ReportKernelLaunchOpProfilingData(const uint64_t begin_
     uint64_t kernel_launch_prof_begin_time = 0;
     GE_IF_BOOL_EXEC(l0_prof_enable, kernel_launch_prof_begin_time = MsprofSysCycleTime());
     GE_IF_BOOL_EXEC(dfx_info_.get_model_args_device_table_flag, GE_CHK_RT_RET(rtStreamSynchronize(stm)));
-    GE_CHK_RT_RET(rtKernelLaunchWithFlag(stub_func_, block_dim_,
-                                        &addr_update_op_args_, nullptr,
-                                        stm, 0));
+
+    LaunchKernelParam launch_kernel_param;
+    launch_kernel_param.stream = stm;
+    launch_kernel_param.block_dim = block_dim_;
+    launch_kernel_param.args = addr_update_op_args_.args;
+    launch_kernel_param.args_size = addr_update_op_args_.argsSize;
+    if (addr_update_op_args_.hostInputInfoPtr != nullptr) {
+      RefreshAddrInfo input_output_addr_info;
+      input_output_addr_info.addrOffset = addr_update_op_args_.hostInputInfoPtr->addrOffset;
+      input_output_addr_info.dataOffset = addr_update_op_args_.hostInputInfoPtr->dataOffset;
+      launch_kernel_param.refresh_add_infos.emplace_back(input_output_addr_info);
+    }
+    RefreshAddrInfo tiling_addr_info;
+    tiling_addr_info.addrOffset = addr_update_op_args_.tilingAddrOffset;
+    tiling_addr_info.dataOffset = addr_update_op_args_.tilingDataOffset;
+    launch_kernel_param.refresh_add_infos.emplace_back(tiling_addr_info);
+
+    launch_kernel_param.is_host_args = true;
+    GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(func_handle_, launch_kernel_param));
     GE_IF_BOOL_EXEC(l0_prof_enable, ReportKernelLaunchOpProfilingData(kernel_launch_prof_begin_time));
     if (dfx_info_.get_model_args_device_table_flag && logLevel_ <= DLOG_INFO) {
       UpdateHostArgs(active_mem_base_addr);

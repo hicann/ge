@@ -224,7 +224,21 @@ BuildAttrDefMap(const domi::tensorflow::OpDef &opdef) {
   }
   return m;
 }
-
+bool HasArgDefaultValue(const domi::tensorflow::OpDef::ArgDef &arg,
+    const std::unordered_map<std::string, const domi::tensorflow::OpDef::AttrDef*> &attr_map) {
+  const std::vector<std::string> possible_attr_names = {
+    arg.name() + "_default",
+    "default_" + arg.name(),
+    arg.name() + "_def_val"
+  };
+  for (const auto& attr_name : possible_attr_names) {
+    auto it = attr_map.find(attr_name);
+    if ((it != attr_map.end()) && (it->second != nullptr) && (it->second->has_default_value())) {
+        return true;
+    }
+  }
+  return false;
+}
 void ProcessArg(std::string &reg_op, const std::string &indent,
                 const domi::tensorflow::OpDef::ArgDef &arg,
                 const std::unordered_map<std::string, const domi::tensorflow::OpDef::AttrDef*> &attr_map,
@@ -235,20 +249,46 @@ void ProcessArg(std::string &reg_op, const std::string &indent,
   }
   const auto type_syms = CollectAllowedTypeSyms(arg, attr_map);
   const auto type_expr = FormatTensorTypeExpr(type_syms);
-  const std::string arg_type = IsListArg(arg) ? (is_input ? "DYNAMIC_INPUT" : "DYNAMIC_OUTPUT") : (is_input ? "INPUT" : "OUTPUT");
+  std::string arg_type;
+  if (is_input) {
+    bool has_default = HasArgDefaultValue(arg, attr_map);
+    if (has_default) {
+      arg_type = "OPTIONAL_INPUT";
+    } else {
+      arg_type = IsListArg(arg) ? "DYNAMIC_INPUT" : "INPUT";
+    }
+  } else {
+     arg_type = IsListArg(arg) ? "DYNAMIC_OUTPUT" : "OUTPUT";
+  }
   std::ostringstream oss;
   oss << "." << arg_type << "(" << arg.name() << ", " << type_expr << ")";
   AppendLine(reg_op, indent, oss.str());
 }
 
-std::unordered_set<std::string> CollectTypeAttrNames(const domi::tensorflow::OpDef& opdef) {
+std::unordered_set<std::string> CollectTypeAttrNames(const domi::tensorflow::OpDef &opdef) {
   std::unordered_set<std::string> type_attr_names;
-  for (const auto& input_arg : opdef.input_arg()) {
+  std::unordered_set<std::string> all_exist_attr_names;
+  for (const auto &attr: opdef.attr()) {
+    all_exist_attr_names.insert(attr.name());
+  }
+  for (const auto &input_arg: opdef.input_arg()) {
     if (!input_arg.type_attr().empty()) {
       type_attr_names.insert(input_arg.type_attr());
     }
+    const std::string arg_name = input_arg.name();
+    const std::vector<std::string> default_attr_names = {
+      arg_name + "_default",
+      "default_" + arg_name,
+      arg_name + "_def_val"
+    };
+    for (const auto &attr_name: default_attr_names) {
+      if (all_exist_attr_names.count(attr_name) > 0) {
+        type_attr_names.insert(attr_name);
+        break;
+      }
+    }
   }
-  for (const auto& output_arg : opdef.output_arg()) {
+  for (const auto &output_arg: opdef.output_arg()) {
     if (!output_arg.type_attr().empty()) {
       type_attr_names.insert(output_arg.type_attr());
     }

@@ -30,7 +30,6 @@ target_link_libraries(test_main PRIVATE
     error_manager
     aihac_symbolizer
     test_ascir_ut
-    test_ascendc
     test_codegen
     test_py_module
     test_e2e

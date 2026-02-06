@@ -476,13 +476,14 @@ void SolverPassManager::InitSolverGen(AxesReorderSolverGen &solver_gen) {
   solver_gen.SetTilingDataSubGroupItemName(GetTilingDataSubGroupItemName());
   solver_gen.SetIsUniGroup(GetIsUniGroup());
   solver_gen.SetTilingScheduleConfigTable(args_manager_.GetModelInfo().tiling_schedule_config_table);
+  solver_gen.SetTilingScheduleConfig(args_manager_.GetModelInfo().tiling_schedule_config);
   solver_gen.SetCacheLineConfig(&args_manager_.GetModelInfo().cache_line_config);
   solver_gen.SetEnableParallel(args_manager_.GetModelInfo().enable_group_parallel);
   solver_gen.SetTilingCaseIdent({args_manager_.GetModelInfo().schedule_group_ident,
                                  args_manager_.GetModelInfo().tiling_case_id,
                                  args_manager_.GetModelInfo().sub_case_tag});
-  solver_gen.SetModelEnableMulticoreUBTradeoff(args_manager_.GetModelInfo().enable_ub_mc_tradeoff);
-  GELOGD("[DFX]Set %s to axes reorder solver gen", DebugString().c_str());
+  GELOGD("[DFX]Set %s to and tiling schedule %s axes reorder solver gen", DebugString().c_str(),
+         args_manager_.GetModelInfo().tiling_schedule_config.DebugString().c_str());
 }
 
 AxesReorderSolverGen SolverPassManager::GenAxesReorderGen() {

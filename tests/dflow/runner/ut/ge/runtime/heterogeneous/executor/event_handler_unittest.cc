@@ -161,7 +161,7 @@ class ModelHandleMock2 : public ExecutorContext::ModelHandle {
 class MockMmpa : public MmpaStubApiGe {
  public:
   int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-    strncpy(realPath, path, realPathLen);
+    (void)strncpy_s(realPath, realPathLen, path, strlen(path));
     return EN_OK;
   }
 

@@ -28,7 +28,6 @@ const auto kInitB = CreateExpr(1U);
 const auto kTempBufSize = CreateExpr(8192U);
 const auto kBlkSize = CreateExpr(32U);
 const auto kMaxRepeatTime = CreateExpr(255U);
-const auto kSymOneRepeatByteSize = CreateExpr(256U);
 const auto kSymOne = CreateExpr(1U);
 const auto kSymTwo = CreateExpr(2U);
 const auto kSymThree = CreateExpr(3U);
@@ -144,8 +143,6 @@ const std::string kDurationLevelName = "duration_level";
 const std::string kDurationLevelDefault = "0";
 const std::string kRegisterNoDefault = "";
 const std::string kGenConfigType = "solver_type";
-const std::string kAttToolsScenario = "att_tools";
-const std::string kAutofuseScenario = "cann_autofuse";
 const std::string kGenConfigTypeDefault = "UNKNOWN";
 
 inline const std::string kVectorFunc = "VectorFunc"; // 表示VF function类型
@@ -167,7 +164,6 @@ inline const std::string kOutput = "Output";
 inline const std::string kTbufData = "TbufData";
 inline const std::string kLoad = "Load";
 inline const std::string kStore = "Store";
-inline const std::string kWorkspaceWithInput = "WorkspaceWithInput";
 // mte
 inline const std::string kMoveGmToL1 = "T_LoadTscm";
 inline const std::string kMoveL2ToL1 = "CopyL2ToL1";
@@ -283,7 +279,7 @@ inline const std::string kNe = "Ne";
 inline const std::string kGt = "Gt";
 inline const std::string kLe = "Le";
 inline const std::string kLt = "Lt";
-// 下面为暂未有性能评估的ASCIR
+
 inline const std::string kPow = "Pow";
 inline const std::string kPad = "Pad";
 inline const std::string kRound = "Round";

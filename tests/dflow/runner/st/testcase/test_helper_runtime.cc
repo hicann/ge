@@ -1718,9 +1718,9 @@ class MockMmpaForHeterogeneousRuntime : public MmpaStubApiGe {
     char tmp_path[MMPA_MAX_PATH];
     auto ptr = realpath(path, tmp_path);
     if (ptr == nullptr) {
-      strncpy(realPath, path, realPathLen);
+      (void)strncpy_s(realPath, realPathLen, path, strlen(path));
     } else {
-      strncpy(realPath, ptr, strlen(ptr));
+      (void)strncpy_s(realPath, realPathLen, ptr, strlen(ptr));
     }
     return EN_OK;
   }
@@ -3444,7 +3444,7 @@ TEST_F(STEST_helper_runtime, TestProcManager) {
     }
 
     int32_t RealPath(const CHAR *path, CHAR *realPath, INT32 realPathLen) override {
-      strncpy(realPath, path, realPathLen);
+      (void)strncpy_s(realPath, realPathLen, path, strlen(path));
       return 0;
     }
   };

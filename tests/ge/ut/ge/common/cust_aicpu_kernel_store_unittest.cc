@@ -15,6 +15,7 @@
 #include "common/tbe_handle_store/kernel_store.h"
 #include "graph/op_kernel_bin.h"
 #include "macro_utils/dt_public_unscope.h"
+#include "graph/utils/attr_utils.h"
 
 namespace ge {
 class UtestCustAicpuKernelStore : public testing::Test {
@@ -42,6 +43,7 @@ TEST_F(UtestCustAicpuKernelStore, LoadCustAICPUKernelBinToOpDesc) {
   ge::OpKernelBinPtr cust_aicpu_kernel = std::make_shared<ge::OpKernelBin>(
         "test", std::move(buffer));
   //opdesc->SetExtAttr("test", cust_aicpu_kernel);
+  (void)ge::AttrUtils::SetStr(opdesc, "kernelSo", "libcust_aicpu_kernel.so");
   ai_cpu_kernel_store->AddCustAICPUKernel(cust_aicpu_kernel);
   ai_cpu_kernel_store->LoadCustAICPUKernelBinToOpDesc(opdesc);
   const ge::OpKernelBinPtr BinPtr =opdesc->TryGetExtAttr<ge::OpKernelBinPtr>(ge::OP_EXTATTR_CUSTAICPU_KERNEL, nullptr);

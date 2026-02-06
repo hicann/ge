@@ -11,9 +11,12 @@
 #ifndef EXPR_GEN_GENERATE_TILING_EXPR_H_
 #define EXPR_GEN_GENERATE_TILING_EXPR_H_
 
+#include <utility>
 #include <vector>
 #include <string>
 #include <map>
+#include <set>
+#include <functional>
 #include "base/base_types.h"
 #include "gen_model_info.h"
 #include "parser/tuning_space.h"
@@ -21,7 +24,7 @@
 namespace att {
 class GenerateTilingExpr {
 public:
-  explicit GenerateTilingExpr(TuningSpacePtr tuning_space) : tuning_space_(tuning_space) {}
+  explicit GenerateTilingExpr(TuningSpacePtr tuning_space) : tuning_space_(std::move(tuning_space)) {}
   virtual ~GenerateTilingExpr() = default;
 
   ge::Status Generate(ModelInfo &model_info);
@@ -62,6 +65,43 @@ private:
 
   // 判断是否要UB多核权衡并更新
   void UpdateNeedUBMCTradeoff(ModelInfo &model_info);
+
+  // 辅助方法：查找A轴（Vectorized轴里从右向左数第一个非R轴、非B轴）
+  std::vector<const AttAxis*> FindAAxis(const std::vector<AttAxisPtr> &arg_list) const;
+
+  // 辅助方法：判断是否应该跳过某个轴
+  bool ShouldSkipAxis(const SubAxis* sub_axis, const std::set<std::string>& reduce_split_axis_names) const;
+
+  // 辅助方法：检查轴是否来自Reduce分核轴
+  bool IsFromReduceSplit(const SubAxis *sub_axis, const std::set<std::string> &reduce_split_axis_names) const;
+
+  // 辅助方法：收集 Reduce 分核轴名称
+  std::set<std::string> CollectReduceSplitAxisNames() const;
+
+  // 辅助方法：收集 Store 节点的 SubAxes
+  std::vector<SubAxis*> CollectStoreSubAxes() const;
+
+  // 辅助方法：通过名称匹配添加 A 轴
+  void AddAxisByName(const SubAxis* sub_axis, const std::vector<AttAxisPtr>& arg_list,
+                     std::vector<const AttAxis*>& result) const;
+
+  // 辅助方法：计算惩罚的core_num_ratio
+  Expr CalcPenaltyCoreNumRatio(const AttAxis *split_axis, const std::vector<const AttAxis*> &a_axes) const;
+
+  // 辅助方法：将表达式转换为 upper_bound 形式
+  Expr ApplyUpperBoundTransform(const Expr &size_expr) const;
+
+  Expr ApplyOriginalAxisTransform(const Expr &size_expr) const;
+
+  // 辅助方法：获取 cache_line_size
+  uint32_t GetCacheLineSize() const;
+
+  // 辅助方法：应用惩罚配置到 ModelInfo
+  void ApplyPenaltyConfigToModelInfo(ModelInfo &model_info);
+
+  // 辅助方法：应用符号转换（通用函数）
+  using SymbolTransformFunc = std::function<std::string(const std::string&)>;
+  Expr ApplySymbolTransform(const Expr &size_expr, const SymbolTransformFunc &transform_func) const;
 
   TuningSpacePtr tuning_space_;
 };

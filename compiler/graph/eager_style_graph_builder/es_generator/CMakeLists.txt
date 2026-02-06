@@ -33,6 +33,7 @@ target_link_libraries(geir_collector PRIVATE
 
 add_library(gen_esb_impl STATIC
         gen_esb.cc
+        ir_proto_codec.cc
         utils.cc
         generator_manager.cc
         )
@@ -44,13 +45,13 @@ target_link_libraries(gen_esb_impl PRIVATE
         graph_base
         error_manager
         geir_collector
+        json
         c_sec
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
         )
 add_executable(gen_esb main.cc)
 target_compile_options(gen_esb PRIVATE ${AIR_COMMON_COMPILE_OPTION})
-target_link_libraries(gen_esb PRIVATE c_sec metadef  intf_pub cmd_flag_info_static gen_esb_impl)
+target_link_libraries(gen_esb PRIVATE c_sec metadef  intf_pub cmd_flag_info_static gen_esb_impl json)
 install(TARGETS gen_esb OPTIONAL
         RUNTIME DESTINATION ${INSTALL_RUNTIME_DIR})
-

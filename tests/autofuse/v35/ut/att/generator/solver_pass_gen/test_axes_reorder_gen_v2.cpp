@@ -64,6 +64,7 @@ TEST_F(TestAxesReorderSolverGenV2, test_contain_heavy_op_A5) {
   std::string actual1 = solver.GenSolverFuncImpl();
   EXPECT_TRUE(actual1.find("solver.Run(false, true, ") != std::string::npos);
 
+  solver.tiling_schedule_config_ = tiling_schedule_config_table.GetModelTilingScheduleConfig();
   solver.tiling_schedule_config_table_ = &tiling_schedule_config_table;
   std::string actual2 = solver.GenSolverFuncImpl();
   EXPECT_TRUE(actual2.find("solver.Run(true, false, ") != std::string::npos);

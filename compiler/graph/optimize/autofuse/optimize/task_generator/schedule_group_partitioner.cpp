@@ -125,7 +125,7 @@ Status ScheduleGroupGraphPartitioner::RecordAxisSizes(const std::vector<ge::Expr
                                                       const std::vector<int64_t> &axis_ids,
                                                       std::map<ge::AxisId, ge::Expression> &axis_id_to_size) {
   for (size_t j = 0UL; j < repeats.size(); ++j) {
-    if (ge::SymbolicUtils::StaticCheckEq(repeats[j], ops::One) == ge::TriBool::kFalse) {
+    if (ge::SymbolicUtils::StaticCheckEq(repeats[j], ops::One) != ge::TriBool::kTrue) {
       const auto axis_id = axis_ids[j];
       if (!axis_id_to_size.emplace(axis_id, repeats[j]).second) {
         GE_ASSERT_TRUE(ge::SymbolicUtils::StaticCheckEq(repeats[j], axis_id_to_size[axis_id]) == TriBool::kTrue,
@@ -158,7 +158,7 @@ Status ScheduleGroupGraphPartitioner::RefreshAxisSize(const ::ascir::ImplGraph &
   for (const auto &axis : graph_attr->axis) {
     GE_ASSERT_NOTNULL(axis);
     const auto it = axis_id_to_size.find(axis->id);
-    if ((it != axis_id_to_size.cend()) && (SymbolicUtils::StaticCheckEq(axis->size, it->second) == TriBool::kFalse)) {
+    if ((it != axis_id_to_size.cend()) && (SymbolicUtils::StaticCheckEq(axis->size, it->second) != TriBool::kTrue)) {
       GELOGI("update axis, id = %ld, name = %s, from %s to %s", axis->id, axis->name.c_str(),
              SymbolicUtils::ToString(axis->size).c_str(), SymbolicUtils::ToString(it->second).c_str());
       axis->size = it->second;

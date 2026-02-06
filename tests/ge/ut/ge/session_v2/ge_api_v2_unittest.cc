@@ -2215,4 +2215,24 @@ TEST_F(UtestGeApiV2, QuerySameVersionIr) {
   EXPECT_FALSE(::IsIrRepSupport("future_new_feature_rule"));
   EXPECT_FALSE(::IsIrRepSupport(""));
 }
+
+TEST_F(UtestGeApiV2, GEInitialize_long_option_value) {
+  // 测试当 option value 长度超过 800 字符时，能够正常打印
+  std::string long_value(900, 'a');  // 创建 900 字符的长字符串
+  std::map<AscendString, AscendString> options = {
+    {AscendString("ge.test.long_option"), AscendString(long_value.c_str())}
+  };
+  Status ret = ge::GEInitializeV2(options);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+
+  // 测试 value 长度不超过 800 字符的情况
+  std::string short_value(100, 'b');
+  std::map<AscendString, AscendString> options2 = {
+    {AscendString("ge.test.short_option"), AscendString(short_value.c_str())}
+  };
+  ret = ge::GEInitializeV2(options2);
+  EXPECT_EQ(ret, SUCCESS);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
 }  // namespace ge

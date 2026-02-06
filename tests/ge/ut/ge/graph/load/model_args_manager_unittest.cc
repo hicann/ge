@@ -683,7 +683,7 @@ TEST_F(ModelArgsManagerUT, UpdateForExecute_AllTaskInfoCalled_FirstTime_With_Upd
   std::vector<TaskInfoPtr> task_list;
   mam.SetAllocationHitCount(1U, 1U);
   std::string stub_func_str = "func_test";
-  mam.SetStubFunc(static_cast<void*>(const_cast<char*>(stub_func_str.c_str())));
+  mam.SetFuncHandle(static_cast<void*>(const_cast<char*>(stub_func_str.c_str())));
   ASSERT_EQ(mam.Init(*(model->GetModelTaskDefPtr()), &task_list), SUCCESS);
 
   rtStream_t stream = (rtStream_t)1;
@@ -910,6 +910,8 @@ TEST_F(ModelArgsManagerUT, UpdateForExecute_OnlyModelIoCalled_IoChanged) {
   for (size_t i = 0; i < active_mem_base_addr.size(); i++) {
     active_mem_base_addr_temp[i] = active_mem_base_addr[i];
   }
+
+  mam.SetFuncHandle((void*)100);
 
   uint32_t up = 2;
   ASSERT_EQ(mam.UpdateForExecute(up, stream), SUCCESS);

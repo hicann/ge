@@ -149,7 +149,7 @@ TEST_F(ModelDeployerDaemonUnittest, TestInitializeAndFinalizeSubDeployerOnCpu) {
   };
   RuntimeStub::SetInstance(std::make_shared<MockRuntimeDequeueTimeEmpty>());
   auto MockRealPath = [](const CHAR *path, CHAR *realPath, INT32 realPathLen) -> int32_t {
-    strncpy(realPath, path, realPathLen);
+    (void)strncpy_s(realPath, realPathLen, path, strlen(path));
     return 0;
   };
   auto mock_mmpa = std::make_shared<MockMmpaDeployer>();

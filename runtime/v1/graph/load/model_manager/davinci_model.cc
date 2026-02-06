@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -1040,20 +1040,20 @@ Status DavinciModel::LoadAndRegisterAddrRefreshKernel(const std::string& file_pa
   delete[] buf;
 
   const TBEKernelPtr addr_refresh_kernel = MakeShared<OpKernelBin>(file_path, std::move(data));
-  ge::OpDescPtr addr_refresh_op_desc = std::make_shared<OpDesc>(kAddrRefreshOpBinId, "Data");
-  (void)ge::AttrUtils::SetStr(addr_refresh_op_desc, ge::TVM_ATTR_NAME_MAGIC, "RT_DEV_BINARY_MAGIC_ELF_AIVEC");
-  (void)ge::AttrUtils::SetStr(addr_refresh_op_desc, ge::ATTR_NAME_KERNEL_BIN_ID, kAddrRefreshOpBinId);
-  (void)addr_refresh_op_desc->SetExtAttr(ge::OP_EXTATTR_NAME_TBE_KERNEL, addr_refresh_kernel);
-
-  GE_CHK_STATUS_RET_NOLOG(bin_kernel_handle_.RegisterStaticHandle(addr_refresh_op_desc, "", ge_model_->GetTBEKernelStore()));
-
-  const std::string bin_handle_key = kAddrRefreshOpBinId + "_static_bin";
-  void *tmp_stub_func = nullptr;
-
-  GE_ASSERT_TRUE(rtGetFunctionByName(bin_handle_key.c_str(), &tmp_stub_func) == RT_ERROR_NONE,
-    "Failed to Get stub func by name.");
-  args_manager_.SetStubFunc(tmp_stub_func);
-
+  KernelRegisterInfo register_info;
+  AicoreRegisterInfo aicore_register_info;
+  aicore_register_info.magic = RT_DEV_BINARY_MAGIC_ELF_AIVEC;
+  aicore_register_info.kernel_bin = addr_refresh_kernel;
+  aicore_register_info.kernel_bin_name = kAddrRefreshOpBinId;
+  register_info = aicore_register_info;
+  auto kernel_handles_manager = GetKernelHandlesManager(KernelHandleType::kAicore);
+  GE_ASSERT_NOTNULL(kernel_handles_manager);
+  const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
+  auto bin_handle = kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
+  GE_ASSERT_NOTNULL(bin_handle);
+  auto func_handle = KernelHandleUtils::GetFuncHandle(bin_handle, kAddrRefreshOpBinId);
+  GE_ASSERT_NOTNULL(func_handle);
+  args_manager_.SetFuncHandle(func_handle);
   return SUCCESS;
 }
 
@@ -1079,7 +1079,6 @@ Status DavinciModel::InitAddrRefreshKernelBin() {
   if (logLevel_ <= DLOG_INFO) {
     GELOGI("Npu model add addr refresh kernel: %s", kernel_file_path.c_str());
   }
-
   return LoadAndRegisterAddrRefreshKernel(kernel_file_path);
 }
 
@@ -1954,7 +1953,8 @@ Status DavinciModel::InitNodes(const ComputeGraphPtr &compute_graph) {
   std::vector<NodePtr> nodes_init_by_thread;
   std::map<std::string, OpDescPtr> variable_by_name;
   std::vector<std::pair<std::string, std::string>> hccl_ops;
-
+  // 建立KernelSo与opName之间的映射关系
+  GE_ASSERT_SUCCESS(ge_model_->GetCustAICPUKernelStore().BuildKernelSoToOpNameMap(compute_graph));
   for (const auto &node : compute_graph->GetAllNodes()) {
     const auto &op_desc = node->GetOpDesc();
     GE_CHECK_NOTNULL(op_desc);
@@ -8936,8 +8936,9 @@ Status DavinciModel::LaunchFromPlatformSo(const std::string &platform_so_path) {
   register_info = tiling_device_register_info;
   const auto bin_name = kernel_handles_manager->GenerateKey(register_info);
   auto bin_handle = kernel_handles_manager->GetOrRegisterKernel(register_info, bin_name);
-  auto func_handle = KernelHandleUtils::GetCustAicpuFuncHandle(bin_handle, "PlatformInfos", kAicpuCustLoadPlatformInfo.c_str());
-
+  auto func_handle = KernelHandleUtils::GetCustAicpuFuncHandle(bin_handle,
+      "PlatformInfos", kAicpuCustLoadPlatformInfo.c_str());
+  GE_ASSERT_NOTNULL(func_handle);
   for (const auto &it : cust_platform_infos_addr_to_launch_) {
     const std::string &addr_key = it.first;
     auto cust_platform_infos_addr = it.second.first;

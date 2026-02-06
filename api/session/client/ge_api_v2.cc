@@ -192,7 +192,17 @@ static Status GEInitializeImpl(const std::map<std::string, std::string> &options
   GE_TIMESTAMP_START(GEInitializeAll);
   GELOGT(TRACE_INIT, "GEInitialize start");
   for (const auto &item : options) {
-    GELOGI("GE option: %s, value: %s.", item.first.c_str(), item.second.c_str());
+    const std::string &key = item.first;
+    const std::string &value = item.second;
+    const size_t max_line_length = 800U;
+    if (value.length() > max_line_length) {
+      GELOGI("GE option: %s, value: %s", key.c_str(), value.substr(0, max_line_length).c_str());
+      for (size_t i = max_line_length; i < value.length(); i += max_line_length) {
+        GELOGI("%s", value.substr(i, max_line_length).c_str());
+      }
+    } else {
+      GELOGI("GE option: %s, value: %s.", key.c_str(), value.c_str());
+    }
   }
 
   // 0.check init status

@@ -5813,6 +5813,11 @@ TEST_F(STestTensorflowCustomOpParser, FullCoverage_AllBranches) {
   fixed_input->set_name("fixed_in");
   fixed_input->set_type(domi::tensorflow::DT_BOOL);
 
+  auto* fixed_in_default_attr = op_def.add_attr();
+  fixed_in_default_attr->set_name("fixed_in_default");
+  fixed_in_default_attr->set_type("bool");
+  fixed_in_default_attr->mutable_default_value()->set_b(true);
+
   auto* list_input = op_def.add_input_arg();
   list_input->set_name("list_in");
   list_input->set_type_list_attr("TList");
@@ -5864,7 +5869,7 @@ TEST_F(STestTensorflowCustomOpParser, FullCoverage_AllBranches) {
   TensorFlowCustomOpParser parser;
   Status status = parser.ConstructRegOpString(op_def, reg_op);
   EXPECT_EQ(status, SUCCESS);
-  EXPECT_NE(reg_op.find("    .INPUT(fixed_in, TensorType({DT_BOOL}))\n"), std::string::npos);
+  EXPECT_NE(reg_op.find("    .OPTIONAL_INPUT(fixed_in, TensorType({DT_BOOL}))\n"), std::string::npos);
   EXPECT_NE(reg_op.find("    .DYNAMIC_INPUT(list_in, TensorType::ALL())\n"), std::string::npos);
   EXPECT_NE(reg_op.find("    .OUTPUT(dynamic_out, TensorType({DT_FLOAT, DT_INT32}))\n"), std::string::npos);
   EXPECT_NE(reg_op.find("    .ATTR(num, Int, 5)\n"), std::string::npos);

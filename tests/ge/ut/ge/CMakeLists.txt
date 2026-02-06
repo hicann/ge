@@ -2085,6 +2085,7 @@ target_link_libraries(ut_eager_style_builder
         intf_pub
         metadef_headers
         es_generator_inner_headers
+        json
         ${AIR_COMMON_LINK_OPTION}
         -Wl,--whole-archive
         ge_common_base

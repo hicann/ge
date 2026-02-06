@@ -67,7 +67,7 @@ ge::Status TilingCodeGenerator::GenTilingCode(const std::string &op_type, const 
 ge::Status TilingCodeGenerator::GenTilingCode(const std::string &op_type, const TilingModelInfo &model_infos,
                                           const TilingCodeGenConfig &config,
                                           std::map<std::string, std::string> &tiling_res) {
-  GELOGI("Start to gen tiling code.");
+  GELOGI("[DFX] Start to gen tiling code, config[%s].", config.Debug().c_str());
   TilingCodeGenImplPtr impl = CreateTilingCodeGenImpl(op_type, config, model_infos, {}, true);
   GE_ASSERT_NOTNULL(impl, "Create tiling code gen impl failed, type[%d].", static_cast<int32_t>(config.type));
   GE_ASSERT_SUCCESS(impl->GenTilingHead(tiling_res), "Gen tiling head impl failed, type[%d].",

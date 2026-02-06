@@ -40,7 +40,6 @@ TEST_P(E2E_BackendBf16Rsqrt_Code, CalculateCorrect) {
  srand(1);
  for (int i = 0; i < test_size; i++) {
    double val = rand() / (double)RAND_MAX;
-   std::cout << val << " ";
    x[i] = static_cast<bfloat16_t>(val);
    // Calculate expected Rsqrt result
    expect[i] = static_cast<bfloat16_t>(1.0f / std::sqrt(val));

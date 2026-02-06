@@ -44,12 +44,12 @@ void MemoryStatisticManager::Finalize() {
     if (!thread_run_flag_) {
         return;
     }
-    thread_run_flag_ = false;
     {
-        // notify thread exit
-        std::unique_lock<std::mutex> lock(mtx_);
-        thread_condition_.notify_all();
+       std::unique_lock<std::mutex> lock(mtx_);
+       thread_run_flag_ = false;
     }
+    // notify thread exit
+    thread_condition_.notify_all();
     if (statistic_thread_.joinable()) {
         statistic_thread_.join();
     }
@@ -68,7 +68,9 @@ void MemoryStatisticManager::RunStatistic() {
         {
             std::unique_lock<std::mutex> lock(mtx_);
             // every 2 s
-            thread_condition_.wait_for(lock, std::chrono::seconds(2));
+            thread_condition_.wait_for(lock, std::chrono::seconds(2), [this] {
+                return !thread_run_flag_;
+            });
         }
     }
 }

@@ -132,7 +132,7 @@ TEST_F(TestExeTimePass, exec_condition) {
   TenaryOp exe_time_cast0;
   TenaryOp exe_time_store;
   GetExeTime(tuning_space, exe_time_cast0, exe_time_store);
-  EXPECT_EQ(exe_time_cast0.GetTenaryOpStr(), "(Ceiling((Z1 / (z1t_size))) * z0z2Tb_size / (Ceiling((Z2 / (z2t_size)))))");
+  EXPECT_EQ(exe_time_cast0.GetTenaryOpStr(), "Max(1, (Ceiling((Z1 / (z1t_size))) * z0z2Tb_size / (Ceiling((Z2 / (z2t_size))))))");
   EXPECT_EQ(exe_time_store.GetTenaryOpStr(), "(Ceiling((Z1 / (z1t_size))) * z0z2Tb_size)");
 }
 }

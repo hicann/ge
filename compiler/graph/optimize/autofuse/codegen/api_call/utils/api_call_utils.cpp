@@ -328,7 +328,35 @@ void GetOneAxisSize(const TPipe &tpipe, const Tensor &tensor, const uint32_t idx
   ss << tpipe.tiler.Size(tensor.axis_size[axis_pos]);
 }
 
-void SaveApiLoopAxisParams(const VectorizedAxisLoopMergeStatus &merge_info, ApiLoopParams &param) {
+bool IsNeedTailExpansion(const VectorizedAxisLoopMergeStatus &merge_info) {
+  for (size_t i = 0; i < merge_info.inputs_strides.size(); i++) {
+    if (!(merge_info.inputs_strides[i].empty()) &&
+        ge::SymbolicUtils::StaticCheckEq(merge_info.inputs_strides[i].back(), ge::sym::kSymbolOne) != ge::TriBool::kTrue &&
+        ge::SymbolicUtils::StaticCheckEq(merge_info.inputs_strides[i].back(), ge::sym::kSymbolZero) != ge::TriBool::kTrue) {
+      return true;
+    }
+  }
+  for (size_t i = 0; i < merge_info.outputs_strides.size(); i++) {
+    if (!(merge_info.outputs_strides[i].empty()) &&
+        ge::SymbolicUtils::StaticCheckEq(merge_info.outputs_strides[i].back(), ge::sym::kSymbolOne) != ge::TriBool::kTrue &&
+        ge::SymbolicUtils::StaticCheckEq(merge_info.outputs_strides[i].back(), ge::sym::kSymbolZero) != ge::TriBool::kTrue) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void SaveApiLoopAxisParams(VectorizedAxisLoopMergeStatus &merge_info, ApiLoopParams &param) {
+  if (IsNeedTailExpansion(merge_info)) {
+    merge_info.merge_repeats_str.push_back("1");
+    merge_info.merge_repeats.push_back(ge::ops::One);
+    for (size_t i = 0; i < merge_info.inputs_strides.size(); i++) {
+      merge_info.inputs_strides[i].push_back(ge::ops::Zero);
+    }
+    for (size_t i = 0; i < merge_info.outputs_strides.size(); i++) {
+      merge_info.outputs_strides[i].push_back(ge::ops::Zero);
+    }
+  }
   param.inputs_strides.resize(merge_info.inputs_strides.size());
   param.outputs_strides.resize(merge_info.outputs_strides.size());
   if (merge_info.merge_repeats.size() == 1) {
@@ -505,12 +533,12 @@ bool GetMaxDtypeSize(const ge::DataType input_data_type, const ge::DataType out_
 void GenerateLinkStoreEventCode(const Tensor& ub, const std::string& offset_str, std::stringstream& ss) {
   std::hash<std::string> hasher;
   [[maybe_unused]] size_t hasher_value = hasher(offset_str);
-  
+
   std::stringstream ss_event_id;
   std::stringstream ss_sync_flag_id;
   ss_event_id << ub << "_e_mte3_2_mte2_" << offset_str;
   ss_sync_flag_id << ub << "_s_mte3_2_mte2_" << offset_str;
-  
+
   ss << "auto " << ss_event_id.str() << " = tpipe.AllocEventID<HardEvent::MTE3_MTE2>();" << std::endl;
   ss << "TQueSync<PIPE_MTE3, PIPE_MTE2> " << ss_sync_flag_id.str() << ";" << std::endl;
   ss << ss_sync_flag_id.str() << ".SetFlag(" << ss_event_id.str() << ");" << std::endl;

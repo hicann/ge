@@ -226,8 +226,8 @@ TenaryOp ExeTimePassManager::UpdateNodeExeTime(const NodeInfo &node, const Expr 
       }
     }
     if (fused_axis != nullptr) {
-      cur_exe_time = ge::sym::Div(exe_time, *fused_axis);
-      GELOGD("fused broadcast updates [%s] exe time : [%s] -> [%s]", node.name.c_str(), Str(exe_time).c_str(),
+      cur_exe_time = ge::sym::Max(ge::sym::kSymbolOne, ge::sym::Div(exe_time, *fused_axis));
+      GELOGD("[DFX] fused broadcast updates [%s] exe time : [%s] -> [%s]", node.name.c_str(), Str(exe_time).c_str(),
              Str(cur_exe_time).c_str());
       return TenaryOp(cur_exe_time);
     }

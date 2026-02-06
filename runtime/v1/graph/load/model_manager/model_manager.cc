@@ -33,6 +33,9 @@
 #include "common/global_variables/diagnose_switch.h"
 #include "common/memory/tensor_trans_utils.h"
 #include "graph/manager/mem_manager.h"
+#include "common/kernel_handles_manager/kernel_handle_utils.h"
+#include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
+#include "common/kernel_handles_manager/aicpu_kernel_handles_manager.h"
 
 namespace ge {
 namespace {
@@ -478,7 +481,22 @@ Status ModelManager::KernelLaunchEx(const aicpu::FWKAdapter::FWKOperateType op_t
   GE_CHK_RT_RET(rtMemcpy(device_base, op_kernel_size, &param_base, op_kernel_size, RT_MEMCPY_HOST_TO_DEVICE));
 
   GE_CHK_RT_RET(rtStreamCreate(&stream, 0));
-  GE_CHK_RT_RET(rtKernelLaunchEx(device_base, op_kernel_size, 0U, stream));
+  KernelRegisterInfo register_info;
+  GE_ASSERT_SUCCESS(KernelRegisterInfoBuilder::ConstructAicpuRegisterInfo("TfSessionTask",
+      "libtf_kernels.so", "TFOperateAPI", "TFKernel", register_info));
+  AicpuKernelHandlesManager aicpu_kernel_handles_manager;
+  const auto bin_name = aicpu_kernel_handles_manager.GenerateKey(register_info);
+  auto bin_handle = aicpu_kernel_handles_manager.GetOrRegisterKernel(register_info, bin_name);
+  GE_ASSERT_NOTNULL(bin_handle);
+  auto func_handle = KernelHandleUtils::GetFuncHandle(bin_handle, "TfSessionTask");
+  GE_ASSERT_NOTNULL(func_handle);
+
+  LaunchKernelParam launch_kernel_param;
+  launch_kernel_param.args = device_base;
+  launch_kernel_param.args_size = op_kernel_size;
+  launch_kernel_param.block_dim = 1U;
+  launch_kernel_param.stream = stream;
+  GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(func_handle, launch_kernel_param));
   GE_CHK_RT_RET(rtStreamSynchronize(stream));
   return SUCCESS;
 }
