@@ -55,6 +55,20 @@ class TilingCodeGenerator {
                            const EnableGroupParallels &enable_group_parallels);
   ge::Status GenTilingTail(const GenTilingParams& params, std::map<std::string, std::string> &tiling_res,
                            const GenTilingTailExtParams &ext_params);
+
+  // 辅助方法：收集所有 model_infos 和相关元数据
+  ge::Status CollectModelInfosAndMetadata(const FusedParsedScheduleResult &fused_parsed_schedule_result,
+                                         TilingModelInfo &all_model_infos, size_t &group_num,
+                                         ScoreFuncs &schedule_result_score_func, VarRelations &var_relations,
+                                         EnableGroupParallels &enable_group_parallels,
+                                         TensorIdSet &workspace_tensor_id_set);
+  // 辅助方法：生成所有 schedule group 的 tiling 代码
+  ge::Status GenScheduleGroupTilingBodies(const std::string &op_type,
+                                          const FusedParsedScheduleResult &fused_parsed_schedule_result,
+                                          const TilingCodeGenConfig &config,
+                                          const std::unordered_map<std::string, std::string> &cache_reuse_info,
+                                          uint32_t cache_capacity, const EnableGroupParallels &enable_group_parallels,
+                                          std::map<std::string, std::string> &tiling_res);
 };
 }  // namespace att
 #endif

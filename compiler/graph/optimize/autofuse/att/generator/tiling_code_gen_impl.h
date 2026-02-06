@@ -112,7 +112,7 @@ class TilingCodeGenImpl {
   void GenGetMaxScoreIndex(const AscGraphNamepspaceMap &namespace_map);
 
   void GenScheduleResultGetTilingCalling(const std::string &index, const std::string &ident = "");
-  void GenGetAllSchedulesResults(const AscGraphNamepspaceMap &namespace_map);
+  ge::Status GenGetAllSchedulesResults(const AscGraphNamepspaceMap &namespace_map);
   void GenPGOUpdateTilingInfo(const size_t asc_graph_id, const size_t impl_graph_id);
   ge::Status GenPGOGetScheduleResultPerGroup(const size_t asc_graph_id, const size_t impl_graph_id,
                                              const std::map<size_t, std::pair<std::string, std::string>> &graph_info,
@@ -137,6 +137,11 @@ class TilingCodeGenImpl {
   // 生成GetTiling的PGO接口函数
   ge::Status GenGetTilingWithOption();
   ge::Status GenGetTilingWithCaseId(bool is_tail = false);
+  // 校验 force_tiling_case 配置
+  ge::Status ValidateForceTilingCase(const std::map<string, int32_t> &group_tiling_case_ids,
+                                     int32_t min_tiling_case_size) const;
+  ge::Status ValidateSingleModeForceTilingCase(int32_t min_tiling_case_size) const;
+  ge::Status ValidateGroupModeForceTilingCase(const std::map<string, int32_t> &group_tiling_case_ids) const;
 
   // 生成硬件信息的日志语句
   ge::Status GenHardwareSummary(const ModelInfo &model_info);

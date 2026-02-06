@@ -3077,7 +3077,7 @@ ge::Status TilingCodeGenImpl::GenPGOGetScheduleResult(const size_t asc_graph_id,
    tiling_func_.AddLine(ident + "  }");
  }
 
- void TilingCodeGenImpl::GenGetAllSchedulesResults(const AscGraphNamepspaceMap &namespace_map) {
+ ge::Status TilingCodeGenImpl::GenGetAllSchedulesResults(const AscGraphNamepspaceMap &namespace_map) {
    std::string chosen_index = (config_.force_schedule_result < 0) ? "max_index" : std::to_string(config_.force_schedule_result);
    if (NeedGenScoreFunc(score_funcs_)) {
      GenScheduleResultGetTilingCalling(chosen_index);
@@ -3085,15 +3085,18 @@ ge::Status TilingCodeGenImpl::GenPGOGetScheduleResult(const size_t asc_graph_id,
    if (config_.force_schedule_result >= 0) {
      GELOGI("Force schedule result %ld for op %s", config_.force_schedule_result,
             config_.tiling_data_type_name.c_str());
+     GE_ASSERT_TRUE(config_.force_schedule_result < static_cast<int32_t>(namespace_map.size()), "Force schedule "
+                    "result[%ld] should less than result size[%zu]", config_.force_schedule_result,
+                    namespace_map.size());
      tiling_func_.AddLine("  auto got_result = kScheduleResultFunctions[" + chosen_index +
-                          "](ori_block_dim, tiling_option->tiling_case_id, tiling_data, cur_perf, "
+       "](ori_block_dim, tiling_option->tiling_case_id, tiling_data, cur_perf, "
                           "best_perf, cur_block_dim);");
      tiling_func_.AddLine("  if (!got_result) {");
      tiling_func_.AddLine("    OP_LOGW(OP_NAME, \"Schedule result" + std::to_string(config_.force_schedule_result) +
                           " can not found for op\");");
      tiling_func_.AddLine("    return false;");
      tiling_func_.AddLine("  }");
-     return;
+     return ge::SUCCESS;
    }
    tiling_func_.AddLine("  for (int32_t index = 0; index < " + std::to_string(namespace_map.size()) + "; index++) {");
    if (NeedGenScoreFunc(score_funcs_)) {
@@ -3105,6 +3108,7 @@ ge::Status TilingCodeGenImpl::GenPGOGetScheduleResult(const size_t asc_graph_id,
        "    (void)kScheduleResultFunctions[index](ori_block_dim, tiling_option->tiling_case_id, tiling_data, cur_perf, "
        "best_perf, cur_block_dim);");
    tiling_func_.AddLine("  }");
+   return ge::SUCCESS;
  }
 
  ge::Status TilingCodeGenImpl::GenEnableGroupParallelFunctions(const FusedGraphNamespaceMap &namespace_map) {
@@ -3326,7 +3330,7 @@ ge::Status TilingCodeGenImpl::GenPGOGetScheduleResult(const size_t asc_graph_id,
      GenGetScoreFuncsCalling(asc_graph_id, asc_graph_map);
      GenGetMaxScoreIndex(asc_graph_map);
    }
-   GenGetAllSchedulesResults(asc_graph_map);
+   GE_ASSERT_SUCCESS(GenGetAllSchedulesResults(asc_graph_map));
    tiling_func_.AddLine("  GetResultSummary(best_perf, tiling_data);");
    GE_ASSERT_SUCCESS(GenDurationEndCode(TilingFuncDurationType::TILING_FUNC_DURATION_TOTAL, "  "),
                      "Generate end code!");
@@ -3466,10 +3470,21 @@ ge::Status TilingCodeGenImpl::GenPGOGetScheduleResult(const size_t asc_graph_id,
   ge::Status TilingCodeGenImpl::GenGetTilingWithCaseId(bool is_tail) {
     bool use_cache = (!is_tail && with_reuse_info_);
     bool use_workspace = !(is_uniq_group_ || is_tail);
+    int32_t min_tiling_case_size = INT32_MAX;
+    std::map<string, int32_t> group_tiling_case_ids;
+    for (auto &model : tiling_model_info_) {
+      group_tiling_case_ids[model.schedule_group_ident.GetItemPrefix()]++;
+    }
+    for (auto &group_tiling_case : group_tiling_case_ids) {
+      min_tiling_case_size = std::min(group_tiling_case.second, min_tiling_case_size);
+    }
+    GE_ASSERT_SUCCESS(ValidateForceTilingCase(group_tiling_case_ids, min_tiling_case_size));
+
     std::string tiling_case = (config_.force_tiling_case.is_single_mode && config_.force_tiling_case.single_case < 0)
-                              ? "tilingCaseId" : std::to_string(config_.force_tiling_case.single_case);
-    const ge::char_t *cache_define_head = use_cache ? (", CacheMap* cache = nullptr") : "";
-    const ge::char_t *cache_define_func = use_cache ? (", CacheMap* cache") : "";
+                                ? "tilingCaseId"
+                                : std::to_string(config_.force_tiling_case.single_case);
+    const ge::char_t *cache_define_head = use_cache ? (", CacheMap *cache = nullptr") : "";
+    const ge::char_t *cache_define_func = use_cache ? (", CacheMap *cache") : "";
     const ge::char_t *cache_used = use_cache ? (", cache") : "";
     const ge::char_t *workspace_define = use_workspace ? (", std::unordered_map<int64_t, uint64_t> &workspace_map") : "";
     const ge::char_t *workspace_used = use_workspace ? (", workspace_map") : "";
@@ -3519,7 +3534,118 @@ ge::Status TilingCodeGenImpl::GenPGOGetScheduleResult(const size_t asc_graph_id,
    tiling_func_.AddLine("}");
    return ge::SUCCESS;
  }
- 
+
+ ge::Status TilingCodeGenImpl::ValidateForceTilingCase(
+     const std::map<string, int32_t> &group_tiling_case_ids,
+     int32_t min_tiling_case_size) const {
+   // 如果配置了 force_schedule_result，但当前 tiling_model_info_ 不包含该 result，
+   // 说明当前是 GenTilingBody 在处理单个 result，跳过该校验（留给 GenTilingTail 处理）
+   if (config_.force_schedule_result >= 0) {
+     bool has_force_result = false;
+     for (const auto &model : tiling_model_info_) {
+       if (static_cast<int64_t>(model.schedule_group_ident.impl_graph_id) == config_.force_schedule_result) {
+         has_force_result = true;
+         break;
+       }
+     }
+     if (!has_force_result) {
+       GELOGD("Skip force tiling case validation: current model info does not contain result[%ld]",
+              config_.force_schedule_result);
+       return ge::SUCCESS;
+     }
+   }
+
+   GE_ASSERT_SUCCESS(ValidateSingleModeForceTilingCase(min_tiling_case_size));
+   if (!config_.force_tiling_case.is_single_mode) {
+     GE_ASSERT_SUCCESS(ValidateGroupModeForceTilingCase(group_tiling_case_ids));
+   }
+   return ge::SUCCESS;
+ }
+
+ ge::Status TilingCodeGenImpl::ValidateSingleModeForceTilingCase(int32_t min_tiling_case_size) const {
+   int32_t force_case = config_.force_tiling_case.single_case;
+
+   // 如果 force_case 为默认值 -1，跳过校验
+   if (force_case == -1) {
+     GELOGD("Force tiling case is not set, skip validation");
+     return ge::SUCCESS;
+   }
+
+   // 如果 force_case < min_tiling_case_size，按 case_id 校验
+   if (force_case < min_tiling_case_size) {
+     GE_ASSERT_TRUE(force_case >= 0,
+                    "Force tiling case[%d] should be non-negative", force_case);
+     return ge::SUCCESS;
+   }
+
+   // 否则，检查是否为有效的 tiling_key
+   bool tiling_key_found = false;
+   for (const auto &model : tiling_model_info_) {
+     if (static_cast<int32_t>(model.tiling_case_id) == force_case) {
+       tiling_key_found = true;
+       break;
+     }
+   }
+
+   GE_ASSERT_TRUE(tiling_key_found,
+                  "Force tiling case[%d] not found as tiling_key in model info", force_case);
+   return ge::SUCCESS;
+ }
+
+ge::Status TilingCodeGenImpl::ValidateGroupModeForceTilingCase(
+    const std::map<string, int32_t> &group_tiling_case_ids) const {
+  // 遍历当前传入的 tiling_model_info_，只校验这些 group
+  // 因为 GenTilingBody 每次只传入单个 group，而不是所有 groups
+  for (const auto &model : tiling_model_info_) {
+    size_t cur_group_id = model.schedule_group_ident.group_id;
+    int64_t cur_result_id = static_cast<int64_t>(model.schedule_group_ident.impl_graph_id);
+
+    // 如果配置了 force_schedule_result，跳过非指定 result 的 group
+    if (config_.force_schedule_result >= 0 && cur_result_id != config_.force_schedule_result) {
+      continue;
+    }
+
+    // 查找该 group 是否有强制指定的 case
+    auto it = config_.force_tiling_case.group_cases.find(cur_group_id);
+    if (it == config_.force_tiling_case.group_cases.end()) {
+      continue;  // 该 group 没有强制指定，跳过
+    }
+
+    int32_t force_case_id = it->second.first;
+
+    // 获取该 group 的 case 数量
+    auto case_it = group_tiling_case_ids.find(model.schedule_group_ident.GetItemPrefix());
+    GE_ASSERT_TRUE(case_it != group_tiling_case_ids.end(), "Group[%zu] in result[%ld] not found in "
+                                                          "group_tiling_case_ids", cur_group_id, cur_result_id);
+    size_t group_case_size = case_it->second;
+
+    GELOGD("Validate force tiling case: result[%ld] group[%zu] case[%d] < size[%zu]",
+           cur_result_id, cur_group_id, force_case_id, group_case_size);
+
+    // 校验 case_id 或 tiling_key
+    if (force_case_id < static_cast<int32_t>(group_case_size)) {
+      // case_id 在范围内，校验通过
+      GELOGD("Validate force tiling case by case_id: result[%ld] group[%zu] case[%d]",
+             cur_result_id, cur_group_id, force_case_id);
+    } else {
+      // 检查是否为有效的 tiling_key
+      bool tiling_key_found = false;
+      for (const auto &m : tiling_model_info_) {
+        if (m.schedule_group_ident.group_id == cur_group_id &&
+            static_cast<int64_t>(m.schedule_group_ident.impl_graph_id) == cur_result_id &&
+            static_cast<int32_t>(m.tiling_case_id) == force_case_id) {
+          tiling_key_found = true;
+          break;
+        }
+      }
+      GE_ASSERT_TRUE(tiling_key_found,
+                     "Force tiling case[%d] for group[%zu] result[%ld] not found as tiling_key",
+                     force_case_id, cur_group_id, cur_result_id);
+    }
+  }
+  return ge::SUCCESS;
+}
+
  ge::Status TilingCodeGenImpl::GenScheduleGroupTilingTail() {
    if (config_.gen_tiling_data) {
      if (!is_uniq_group_) {
