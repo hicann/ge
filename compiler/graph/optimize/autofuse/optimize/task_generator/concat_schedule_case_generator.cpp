@@ -30,6 +30,20 @@ constexpr uint32_t kMaxInputNum = 48U;
 constexpr size_t kTemplateSizeAll = 3UL;
 constexpr int32_t kConcatAlgTranspose = 0;
 constexpr int64_t kSmallDimSizeThreshold = 256;
+
+void CollectInAndOutNodes(const ge::NodePtr &node, std::set<ge::Node *> &visited_nodes,
+                          std::queue<ge::NodePtr> &nodes) {
+  for (const auto &in_node : node->GetInDataNodes()) {
+    if (visited_nodes.emplace(in_node.get()).second) {
+      nodes.emplace(in_node);
+    }
+  }
+  for (const auto &out_node : node->GetOutDataNodes()) {
+    if (visited_nodes.emplace(out_node.get()).second) {
+      nodes.emplace(out_node);
+    }
+  }
+}
 }  // namespace
 
 Status ConcatFusionCaseGenerator::Generate(ascir::HintGraph &graph,
@@ -256,6 +270,7 @@ Status ConcatFusionCaseGenerator::SplitConcats(ascir::HintGraph &owner_graph, co
 
 Status ConcatFusionCaseGenerator::Prepare(const ge::AscNodePtr &concat_node, size_t concat_dim) {
   GE_ASSERT_SUCCESS(CollectBackwardNodes(concat_node, post_concat_nodes_));
+  GE_ASSERT_SUCCESS(CollectReachableLoadNodes(concat_node, reachable_load_nodes_));
   for (const auto &in_anchor_and_node : ge::NodeUtils::GetOutDataNodesWithAnchorByIndex(*concat_node, 0)) {
     out_node_name_to_indices_[in_anchor_and_node.second->GetName()].emplace_back(in_anchor_and_node.first->GetIdx());
   }
@@ -451,21 +466,34 @@ ge::Status ConcatFusionCaseGenerator::CollectBackwardNodes(const ge::NodePtr &co
     auto asc_node = std::dynamic_pointer_cast<ge::AscNode>(top);
     GE_ASSERT_NOTNULL(asc_node);
     nodes.emplace_back(asc_node);
-    for (const auto &in_node : top->GetInDataNodes()) {
-      if (visited_nodes.emplace(in_node.get()).second) {
-        next_nodes.emplace(in_node);
-      }
-    }
-    for (const auto &out_node : top->GetOutDataNodes()) {
-      if (visited_nodes.emplace(out_node.get()).second) {
-        next_nodes.emplace(out_node);
-      }
-    }
+    CollectInAndOutNodes(top, visited_nodes, next_nodes);
     next_nodes.pop();
   }
   std::sort(nodes.begin(), nodes.end(), [](const ge::AscNodePtr &lhs, const ge::AscNodePtr &rhs) -> bool {
     return lhs->GetOpDesc()->GetId() < rhs->GetOpDesc()->GetId();
   });
+  return ge::SUCCESS;
+}
+
+Status ConcatFusionCaseGenerator::CollectReachableLoadNodes(const ge::NodePtr &concat_node,
+                                                            std::set<ge::AscNodePtr> &nodes) {
+  std::set<ge::Node *> visited_nodes{concat_node.get()};
+  std::queue<ge::NodePtr> next_nodes;
+  for (const auto &in_data_node : concat_node->GetInDataNodes()) {
+    if (visited_nodes.emplace(in_data_node.get()).second) {
+      next_nodes.push(in_data_node);
+    }
+  }
+  while (!next_nodes.empty()) {
+    auto &top = next_nodes.front();
+    auto asc_node = std::dynamic_pointer_cast<ge::AscNode>(top);
+    GE_ASSERT_NOTNULL(asc_node);
+    if (ge::ops::IsOps<ge::ascir_op::Load>(asc_node)) {
+      nodes.emplace(asc_node);
+    }
+    CollectInAndOutNodes(top, visited_nodes, next_nodes);
+    next_nodes.pop();
+  }
   return ge::SUCCESS;
 }
 
@@ -499,7 +527,8 @@ Status ConcatFusionCaseGenerator::CloneNonConcatNodes(const ge::Axis &new_axis,
       GE_ASSERT_NOTNULL(ir_attr);
       GE_CHK_STATUS_RET(ir_attr->SetOffset(offset), "Failed to set offset to %s", dst_new_node->GetNamePtr());
       GELOGI("Store node: %s added, offset = %s", dst_new_node->GetName().c_str(), offset.Serialize().get());
-    } else if (dst_new_node->GetType() == ge::ascir_op::Load::Type) {
+    } else if ((dst_new_node->GetType() == ge::ascir_op::Load::Type) &&
+               (reachable_load_nodes_.find(asc_node) == reachable_load_nodes_.end())) {
       const auto offset = concat_dim_offsets_[index] * dst_new_node->outputs[0].attr.strides[concat_dim_];
       const auto ir_attr = dst_new_node->attr.ir_attr->DownCastTo<ge::ascir_op::Load::AscLoadIrAttrDef>();
       GE_ASSERT_NOTNULL(ir_attr);
