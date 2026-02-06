@@ -125,9 +125,9 @@ vector<std::string> SplitInputShape(const std::string &input_shape) {
 }
 
 Status ConstructShapeFromStr(const std::string &shape_str, GeShape &shape) {
+  // Shape的字符串至少有2个[]字符, 校验shape是否由[]包括
+  GE_ASSERT_TRUE(shape_str.length() >= kLeastStrElementNum && shape_str.front() == '[' && shape_str.back() == ']');
   // 去除中括号
-  // Shape的字符串至少有2个[]字符
-  GE_ASSERT_TRUE(shape_str.length() >= kLeastStrElementNum);
   auto shape_dims_str = shape_str.substr(1, shape_str.length() - kLeastStrElementNum);
   auto dim_strs = ge::StringUtils::Split(shape_dims_str, ',');
   shape.SetDimNum(0UL);
@@ -967,29 +967,64 @@ int32_t CheckLogParamValidAndSetLogLevel(const std::string &log) {
 // option的格式为：0:[1, 2];1:[2, 3]
 Status ParseHintInputShape(std::vector<GeShape> &option_shape) {
   std::string input_option;
-  (void)ge::GetContext().GetOption(kHintInputShape, input_option);
+  (void)ge::GetContext().GetOption(INPUT_HINT_SHAPE, input_option);
   if (input_option.empty()) {
-    GELOGI("Option %s is not set, skip parse hint shape.", kHintInputShape);
+    GELOGI("Option %s is not set, skip parse hint shape.", INPUT_HINT_SHAPE);
     return GRAPH_SUCCESS;
   }
-  GELOGI("Option %s is set, value: %s.", kHintInputShape, input_option.c_str());
-  const std::vector<std::string> input_option_strs = ge::StringUtils::Split(input_option, ';');
-  option_shape.resize(input_option_strs.size(), GeShape(kDummyShape));
-  for (const auto &input_option_local : input_option_strs) {
-    const std::vector<std::string> index_and_shape_str = ge::StringUtils::Split(input_option_local, ':');
-    // :的左右两边必须是有元素的，key和value元素
-    GE_ASSERT_TRUE(index_and_shape_str.size() == kLeastStrElementNum,
-        "Options in %s is invalid, which is %s", kHintInputShape, input_option_local.c_str());
+  GELOGI("Option %s is set, value: %s.", INPUT_HINT_SHAPE, input_option.c_str());
+  std::vector<std::string> input_option_strs = ge::StringUtils::Split(input_option, ';');
+
+  std::vector<pair<int64_t, GeShape>> parse_shape;
+  parse_shape.reserve(input_option_strs.size());
+  std::set<int64_t> index_set;
+  int64_t max_index = 0L;
+  for (size_t i = 0U; i < input_option_strs.size(); i++) {
+    auto &input_option_local = StringUtils::Trim(input_option_strs[i]);
+    // 如果配置的input是空跳过解析
+    if (input_option_local.empty()) {
+      GELOGW("Options[%s] is invalid, Input[%u] is empty.", INPUT_HINT_SHAPE);
+      continue;
+    }
+    std::vector<std::string> index_and_shape_str = ge::StringUtils::Split(input_option_local, ':');
+    // 的左右两边必须是有元素的，key和value元素
+    if (index_and_shape_str.size() != kLeastStrElementNum) {
+      REPORT_PREDEFINED_ERR_MSG(
+        "E10014", std::vector<const char *>({"parameter", "value"}),
+        std::vector<const char *>({"input_hint_shape", input_option.c_str()}));
+      GELOGE(PARAM_INVALID, "Options[--input_hint_shape] is invalid, input[%u][%s] not match pattern: input_index:[n,c,h,w]",
+        i, input_option_local.c_str());
+      return PARAM_INVALID;
+    }
+
     int64_t index = -1;
-    GE_ASSERT_SUCCESS(ConvertToInt64(index_and_shape_str.front(), index),
-        "Option: %s is invalid in option %s", input_option_local.c_str(), kHintInputShape);
-    GE_ASSERT_TRUE((index >= 0) && index < static_cast<int64_t>(option_shape.size()),
-        "Shpae index[%ld] is invalid, not between 0-%u", index, option_shape.size());
-    GE_ASSERT_TRUE(option_shape[index].GetDims() == kDummyShape,
-        "Deplicate input index: %lld in option %s", index, kHintInputShape);
+    if (ConvertToInt64(index_and_shape_str.front(), index) != SUCCESS ||
+      index < 0 ||
+      !index_set.insert(index).second) {
+      REPORT_PREDEFINED_ERR_MSG(
+        "E10014", std::vector<const char *>({"parameter", "value"}),
+        std::vector<const char *>({"input_hint_shape", input_option.c_str()}));
+      GELOGE(PARAM_INVALID, "Option[--input_hint_shape] is invalid, input[%u][%s] check index fail.",
+        i, input_option_local.c_str());
+      return PARAM_INVALID;
+    }
+    max_index = index > max_index ? index : max_index;
+
     GeShape shape;
-    GE_ASSERT_SUCCESS(ConstructShapeFromStr(index_and_shape_str.back(), shape));
-    option_shape[static_cast<size_t>(index)] = shape;
+    if (ConstructShapeFromStr(StringUtils::Trim(index_and_shape_str.back()), shape) != GRAPH_SUCCESS) {
+      REPORT_PREDEFINED_ERR_MSG(
+        "E10014", std::vector<const char *>({"parameter", "value"}),
+        std::vector<const char *>({"input_hint_shape", input_option.c_str()}));
+      GELOGE(PARAM_INVALID, "Option[--input_hint_shape] is invalid, Input[%u] parse shape[%s] failed.",
+        i, input_option_local.c_str());
+      return PARAM_INVALID;
+    }
+    parse_shape.emplace_back(std::make_pair(index, shape));
+  }
+
+  option_shape.resize(max_index + 1, GeShape(kDummyShape));
+  for (const auto &shape : parse_shape) {
+    option_shape[shape.first] = shape.second;
   }
   return GRAPH_SUCCESS;
 }
