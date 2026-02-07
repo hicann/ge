@@ -48,7 +48,9 @@ class TestApiTilingGen : public ::testing::Test {
   void TearDown() override {
     // Code here will be called immediately after each test (right
     // before the destructor).
+    // 删除缓存
     system("rm -f *.log");
+    system("rm -rf ./tiling/ ./register/ ./graph/");
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
     unsetenv("AUTOFUSE_DFX_FLAGS");
   }
@@ -634,9 +636,10 @@ TEST_F(TestApiTilingGen, gen_transpose021_split_api_tiling_success) {
       std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
+  (void)std::system("mkdir ./graph/");
   /* 拷贝Tensor.h */
   ret = std::system(
-      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/graph/ ./ -f").c_str());
+      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tensor.h ./graph/ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   /* 拷贝tiling_api.h */
@@ -762,9 +765,10 @@ TEST_F(TestApiTilingGen, gen_transpose102_api_tiling_success) {
       std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
+  (void)std::system("mkdir ./graph/");
   /* 拷贝Tensor.h */
   ret = std::system(
-      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/graph/ ./ -f").c_str());
+      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tensor.h ./graph// -f").c_str());
   EXPECT_EQ(ret, 0);
 
   /* 拷贝tiling_api.h */
@@ -861,9 +865,10 @@ TEST_F(TestApiTilingGen, gen_transpose021_api_tiling_success) {
       std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
+  (void)std::system("mkdir ./graph/");
   /* 拷贝Tensor.h */
   ret = std::system(
-      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/graph/ ./ -f").c_str());
+      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tensor.h ./graph/ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   /* 拷贝tiling_api.h */
@@ -960,9 +965,10 @@ TEST_F(TestApiTilingGen, gen_transpose210_api_tiling_success) {
       std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
+  (void)std::system("mkdir ./graph/");
   /* 拷贝Tensor.h */
   ret = std::system(
-      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/graph/ ./ -f").c_str());
+      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tensor.h ./graph/ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   /* 拷贝tiling_api.h */
@@ -1059,9 +1065,10 @@ TEST_F(TestApiTilingGen, gen_transpose0213_api_tiling_success) {
       std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
+  (void)std::system("mkdir ./graph/");
   /* 拷贝Tensor.h */
   ret = std::system(
-      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/graph/ ./ -f").c_str());
+      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tensor.h ./graph/ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   /* 拷贝tiling_api.h */
@@ -1158,9 +1165,10 @@ TEST_F(TestApiTilingGen, gen_transpose2103_api_tiling_success) {
       std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
+  (void)std::system("mkdir ./graph/");
   /* 拷贝Tensor.h */
   ret = std::system(
-      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/graph/ ./ -f").c_str());
+      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tensor.h ./graph/ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   /* 拷贝tiling_api.h */
@@ -1257,9 +1265,10 @@ TEST_F(TestApiTilingGen, gen_transpose0321_api_tiling_success) {
       std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
+  (void)std::system("mkdir ./graph/");
   /* 拷贝Tensor.h */
   ret = std::system(
-      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/graph/ ./ -f").c_str());
+      std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tensor.h ./graph/ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   /* 拷贝tiling_api.h */
