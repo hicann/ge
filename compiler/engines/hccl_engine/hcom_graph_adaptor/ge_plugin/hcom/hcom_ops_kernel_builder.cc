@@ -286,6 +286,11 @@ HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void*
 HcclResult HcomOpsKernelBuilder::TaskDefSetNumBlocks(const ge::Node &node, domi::TaskDef &taskDef,
  	     const std::string sCollectiveType, const u32 aivCoreLimit)
 {
+  DevType devType = HcomGetDeviceType();
+  if (devType == DevType::DEV_TYPE_910_95) {
+    return HCCL_SUCCESS;
+  }
+
   // 离线模式不设置核数
   if (IsOfflineCompilation()) {
       HCCL_DEBUG("[TaskDefSetNumBlocks] IsOfflineCompilation, not set numBlocks");
@@ -516,10 +521,20 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
 
   // 判断是否是 AIV 展开模式
   bool ifAiv = false;
-  CHK_PRT(JudgeIsAivMode(node, group, node.GetOpDesc()->GetType(), ifAiv));
-  HCCL_INFO("%s JudgeIsAivMode ifAiv[%d] should not set attach stream info", __func__, ifAiv);
-  // AIV 模式不设置从流信息
-  if (!ifAiv) {
+  std::string superKernel{};
+  DevType devType = HcomGetDeviceType();
+  if(devType != DevType::DEV_TYPE_910_95)
+  {
+    CHK_PRT(JudgeIsAivMode(node, group, node.GetOpDesc()->GetType(), ifAiv));
+    HCCL_INFO("%s JudgeIsAivMode ifAiv[%d] should not set attach stream info", __func__, ifAiv);
+  } else {
+    // 950按照原先流程
+    auto const opDesc = node.GetOpDesc();
+    CHK_RET(GetSuperKernelFromDesc(opDesc, superKernel));
+    HCCL_INFO("%s SPK, superkernel is %s", __func__, superKernel.c_str());
+  }
+    // AIV 模式不设置从流信息
+  if (!ifAiv && superKernel == "") {
     const auto opDesc = node.GetOpDesc();
     (void)ge::AttrUtils::SetInt(opDesc, ge::ATTR_NAME_HCCL_ATTACHED_TASK_NUM, STREAM_ATTACHED_TASK_NUM);
     HCCL_INFO("%s HcclOp set STREAM_ATTACHED_TASK_NUM[%u]", __func__, STREAM_ATTACHED_TASK_NUM);  // 从流设置 task_num
