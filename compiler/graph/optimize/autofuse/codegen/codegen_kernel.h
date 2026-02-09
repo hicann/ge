@@ -318,9 +318,9 @@ class TPipe : public Variable {
   std::string TensorSizeCalc() const;
   std::string TensorActualSizeCalc(const ascir::TensorId id) const;
   Status MergeScopeSizeCalc(std::string &result) const;
-  Status LocalTBufAlloc(const TBuf &buf, std::string &result) const;
-  Status LocalTBufAllocLoopTwice(std::string &result) const;
-  std::string AllocTmpBuf(const TBuf &buf) const;
+  Status LocalTBufAlloc(const TBuf &buf, std::string &result, const bool with_define = true) const;
+  Status LocalTBufAllocLoopTwice(std::string &result, const bool with_define = true) const;
+  std::string AllocTmpBuf(const TBuf &buf, const bool with_define = true) const;
   std::string GenDuplicateBufAlloc(const std::set<std::pair<std::string, std::string>>& pre_api_extract_dup) const;
   Status LocalTQueAlloc(std::string &result) const;
   Status LocalTensorQueBufAlloc(std::string &result) const;
@@ -337,7 +337,7 @@ class TPipe : public Variable {
   void SetUsingAttCalcQBTSizeConfig(bool using_att_calc_qbt_size);
   Status GetCVFusionCubeOutputUBTensorIdAndQueId(const ascir::ImplGraph &graph);
   Status LocalTensorDefine(std::string &result) const;
-  Status LocalTBufAssign(std::string &result) const;
+  Status LocalTBufAssign(const TBuf &buf, std::string &result) const;
   std::string TensorSizeDefine() const;
   std::string TensorSizeAssign(std::string dtype_name) const;
   std::string GenDuplicateBufDefine(const std::set<std::pair<std::string, std::string>>& pre_api_extract_dup) const;
@@ -346,7 +346,7 @@ class TPipe : public Variable {
   Status BlkTensorAssign(std::string &result) const;
  private:
   Status ParseTBufReuse(TBuf buf, std::string& reuse_dtype_name, bool& is_buf_reuse,
-                        std::vector<const Tensor *>& reuse_buf_tensors) const;
+                        std::vector<const Tensor *>& reuse_buf_tensors, std::stringstream &tensor_size_max) const;
   bool using_att_calc_qbt_size_ = true;
 };
 

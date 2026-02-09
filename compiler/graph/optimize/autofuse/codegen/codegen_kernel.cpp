@@ -944,10 +944,14 @@ Status TPipe::AddTensor(const ascir::TensorAttr &tensor_attr, const ascir::SizeE
   return ge::SUCCESS;
 }
 
-std::string TPipe::AllocTmpBuf(const TBuf &buf) const {
+std::string TPipe::AllocTmpBuf(const TBuf &buf, const bool with_define) const {
   stringstream ss;
-  ss << this->tmp_buf.AsArg() << "_" << to_string(buf.id)  << " = ";
-  ss << buf.name << ".Get<uint8_t>();" << std::endl;
+  if (with_define) {
+    ss << this->tmp_buf.AsArg();
+  } else {
+    ss << this->tmp_buf.Str();
+  }
+  ss << "_" << to_string(buf.id)  << " = " << buf.name << ".Get<uint8_t>();" << std::endl;
   return ss.str();
 } 
 
@@ -1152,9 +1156,7 @@ Status TPipe::InitTQueBuffers(const TQue &que, std::string &result) const {
   stringstream ss;
   std::string blk_align;
   GE_CHK_STATUS_RET(KernelUtils::BlkAlign(ge::DT_UINT8, blk_align), "Codegen blk align failed");
-  if (this->cv_fusion_type == ascir::CubeTemplateType::kUBFuse) {
-    ss << this->name << "." << "InitBuffer(" << que << ", " << que.buf_num << ", " << "stage_size);";
-  } else if (!using_att_calc_qbt_size_) {
+  if (this->cv_fusion_type == ascir::CubeTemplateType::kUBFuse || !using_att_calc_qbt_size_) {
     ss << this->name << "."
        << "InitBuffer(" << que << ", " << que.buf_num << ", " << blk_align << "(" << que.size << "));";
   } else {
@@ -1172,9 +1174,7 @@ Status TPipe::InitTBufBuffer(const TBuf &buf, std::string &result) const {
   stringstream ss;
   std::string blk_align;
   GE_CHK_STATUS_RET(KernelUtils::BlkAlign(ge::DT_UINT8, blk_align), "Codegen blk align failed");
-  if (this->cv_fusion_type == ascir::CubeTemplateType::kUBFuse) {
-    ss << this->name << "." << "InitBuffer(" << buf << ", " << "stage_size);";
-  } else if (!using_att_calc_qbt_size_) {
+  if (this->cv_fusion_type == ascir::CubeTemplateType::kUBFuse || !using_att_calc_qbt_size_) {
     ss << this->name << "."
        << "InitBuffer(" << buf << ", " << blk_align << "(" << buf.size << "));";
   } else {
@@ -1351,13 +1351,16 @@ Status TPipe::LocalTQueAlloc(std::string &result) const {
     tensor_size_max << ")";
     tensor_bufnum_max << ")";
 
-    if (using_att_calc_qbt_size_) {
-      ss << "// " << que.size.DefineConst(tensor_size_max.str()) << std::endl;
-    } else {
+    if (this->cv_fusion_type == ascir::CubeTemplateType::kUBFuse) {
       ss << que.size.DefineConst(tensor_size_max.str()) << std::endl;
-    }
-    ss << que.buf_num.DefineConst(tensor_bufnum_max.str()) << std::endl;
-    if (this->cv_fusion_type != ascir::CubeTemplateType::kUBFuse) {
+      ss << que.buf_num.DefineConst(tensor_bufnum_max.str()) << std::endl;
+    } else if (!using_att_calc_qbt_size_) {
+      ss << que.size.DefineConst(tensor_size_max.str()) << std::endl;
+      ss << que.buf_num.DefineConst(tensor_bufnum_max.str()) << std::endl;
+      ss << que.Define() << std::endl;
+    } else {
+      ss << "// " << que.size.DefineConst(tensor_size_max.str()) << std::endl;
+      ss << que.buf_num.DefineConst(tensor_bufnum_max.str()) << std::endl;
       ss << que.Define() << std::endl;
     }
     std::string init;
@@ -1425,89 +1428,33 @@ std::string TPipe::GenDuplicateBufAlloc(const std::set<std::pair<std::string, st
   return ss.str();
 }
 
-Status TPipe::LocalTBufAlloc(const TBuf &buf, std::string &result) const {
+Status TPipe::LocalTBufAlloc(const TBuf &buf, std::string &result, const bool with_define) const {
   stringstream ss;
-  stringstream tensor_size_max;
-  tensor_size_max << KernelUtils::Max() << "(";
-
-  bool is_first = true;
-  for (auto mid : buf.merge_scopes) {
-    auto merge_scope = this->merge_scopes.find(mid);
-    if (merge_scope == this->merge_scopes.end()) {
-      GELOGE(ge::FAILED, "Codegen merge scope not found:%ld", mid);
-      return ge::FAILED;
-    }
-
-    if (is_first) {
-      is_first = false;
-    } else {
-      tensor_size_max << ", ";
-    }
-
-    tensor_size_max << merge_scope->second.size;
-  }
-
   std::string reuse_dtype_name = "";
   std::vector<const Tensor *> reuse_buf_tensors;
   bool is_buf_reuse = true;
-  for (auto tid : buf.not_merge_tensors) {
-    auto tensor = this->tensors.find(tid);
-    if (tensor == this->tensors.end()) {
-      GELOGE(ge::FAILED, "Codegen tensor not found:%ld", tid);
-      return ge::FAILED;
-    }
+  stringstream tensor_size_max;
 
-    if (is_first) {
-      is_first = false;
-    } else {
-      tensor_size_max << ", ";
-    }
+  GE_CHK_STATUS_RET(ParseTBufReuse(buf, reuse_dtype_name, is_buf_reuse, reuse_buf_tensors,
+                    tensor_size_max), "Codegen parse tbuf reuse failed");
 
-    std::string dtype_name;
-    GE_CHK_STATUS_RET(Tensor::DtypeName(tensor->second.dtype, dtype_name), "Codegen get data type:%d failed",
-                      static_cast<int32_t>(tensor->second.dtype));
-    if (is_buf_reuse) {
-      if (reuse_dtype_name == "") {
-        reuse_dtype_name = dtype_name;
-      } else {
-        if (reuse_dtype_name != dtype_name) {
-          is_buf_reuse = false;
-        }
-      }
-    }
-    tensor_size_max << tensor->second.size << " * sizeof(" << dtype_name << ")";
-    reuse_buf_tensors.push_back(&tensor->second);
-  }
-
-  for (auto tmp_buf_size : buf.tmp_buf_size_list) {
-    if (is_first) {
-      is_first = false;
-    } else {
-      tensor_size_max << ", ";
-    }
-    tensor_size_max << this->tiler.Size(tmp_buf_size);
-  }
-
-  if (reuse_buf_tensors.size() == 0) {
-    is_buf_reuse = false;
-  }
-  tensor_size_max << ")";
-
-  if (using_att_calc_qbt_size_) {
-    ss << "// " << buf.size.DefineConst(tensor_size_max.str()) << std::endl;
-  } else {
+  if (this->cv_fusion_type == ascir::CubeTemplateType::kUBFuse) {
     ss << buf.size.DefineConst(tensor_size_max.str()) << std::endl;
-  }
-  if (this->cv_fusion_type != ascir::CubeTemplateType::kUBFuse) {
+  } else if (!using_att_calc_qbt_size_) {
+    ss << buf.size.DefineConst(tensor_size_max.str()) << std::endl;
     ss << buf.Define() << std::endl;
-    std::string init;
-    GE_CHK_STATUS_RET(this->InitTBufBuffer(buf, init), "Codegen init tbuf buffer failed");
-    ss << init << std::endl;
-  }
-  if (!is_buf_reuse) {
-    ss << buf.AllocBuf() << std::endl;
   } else {
-    ss << buf.AllocBuf(reuse_buf_tensors[0]->name, reuse_dtype_name) << std::endl;
+    ss << "// " << buf.size.DefineConst(tensor_size_max.str()) << std::endl;
+    ss << buf.Define() << std::endl;
+  }
+  std::string init;
+  GE_CHK_STATUS_RET(this->InitTBufBuffer(buf, init), "Codegen init tbuf buffer failed");
+  ss << init << std::endl;
+  
+  if (!is_buf_reuse) {
+    ss << buf.AllocBuf(with_define) << std::endl;
+  } else {
+    ss << buf.AllocBuf(reuse_buf_tensors[0]->name, reuse_dtype_name, with_define) << std::endl;
     reuse_buf_tensors[0]->no_need_realloc = true;
     for (size_t i = 1UL; i < reuse_buf_tensors.size(); i++) {
       reuse_buf_tensors[i]->no_need_realloc = true;
@@ -1519,23 +1466,22 @@ Status TPipe::LocalTBufAlloc(const TBuf &buf, std::string &result) const {
   return ge::SUCCESS;
 }
 
-
-Status TPipe::LocalTBufAllocLoopTwice(std::string &result) const {
+Status TPipe::LocalTBufAllocLoopTwice(std::string &result, const bool with_define) const {
   stringstream ss;
   std::string tmp;
   for (auto &pair : this->bufs) {
     auto &buf = pair.second;
     if (!buf.tmp_buf_reuse) {
-      GE_CHK_STATUS_RET(this->LocalTBufAlloc(buf, tmp), "Codegen TBuf alloc failed(tmp buf not reuse).");
+      GE_CHK_STATUS_RET(this->LocalTBufAlloc(buf, tmp, with_define), "Codegen TBuf alloc failed(no tmp buf).");
       ss << tmp;
     }
   }
   for (auto &pair : this->bufs) {
     auto &buf = pair.second;
     if (buf.tmp_buf_reuse) {
-      GE_CHK_STATUS_RET(this->LocalTBufAlloc(buf, tmp), "Codegen TBuf alloc failed(tmp buf is reuse).");
+      GE_CHK_STATUS_RET(this->LocalTBufAlloc(buf, tmp, with_define), "Codegen TBuf alloc failed(tmp buf).");
       ss << tmp;
-      ss << this->AllocTmpBuf(buf);
+      ss << this->AllocTmpBuf(buf, with_define);
     }
   }
   ss << std::endl;
@@ -4530,12 +4476,36 @@ Status TPipe::GetCVFusionCubeOutputUBTensorIdAndQueId(const ascir::ImplGraph &gr
   return ge::FAILED;
 }
 
+static void AddCommaIfNeeded(bool &is_first, std::stringstream &tensor_size_max) {
+  if (is_first) {
+    is_first = false;
+  } else {
+    tensor_size_max << ", ";
+  }
+}
+
 Status TPipe::ParseTBufReuse(TBuf buf, std::string& reuse_dtype_name, bool& is_buf_reuse,
-                             std::vector<const Tensor *>& reuse_buf_tensors) const {
+                             std::vector<const Tensor *>& reuse_buf_tensors, std::stringstream &tensor_size_max) const {
+  tensor_size_max << KernelUtils::Max() << "(";
+
+  bool is_first = true;
+  for (auto mid : buf.merge_scopes) {
+    auto merge_scope = this->merge_scopes.find(mid);
+    if (merge_scope == this->merge_scopes.end()) {
+      GELOGE(ge::FAILED, "Codegen merge scope not found:%ld", mid);
+      return ge::FAILED;
+    }
+    AddCommaIfNeeded(is_first, tensor_size_max);
+    tensor_size_max << merge_scope->second.size;
+  }
+
   for (auto tid : buf.not_merge_tensors) {
     auto tensor = this->tensors.find(tid);
-    GE_ASSERT_TRUE((tensor != this->tensors.end()), "Codegen tensor not found:%ld", tid);
-
+    if (tensor == this->tensors.end()) {
+      GELOGE(ge::FAILED, "Codegen tensor not found:%ld", tid);
+      return ge::FAILED;
+    }
+    AddCommaIfNeeded(is_first, tensor_size_max);
     std::string dtype_name;
     GE_CHK_STATUS_RET(Tensor::DtypeName(tensor->second.dtype, dtype_name), "Codegen get data type:%d failed",
                       static_cast<int32_t>(tensor->second.dtype));
@@ -4548,11 +4518,19 @@ Status TPipe::ParseTBufReuse(TBuf buf, std::string& reuse_dtype_name, bool& is_b
         }
       }
     }
+    tensor_size_max << tensor->second.size << " * sizeof(" << dtype_name << ")";
     reuse_buf_tensors.push_back(&tensor->second);
   }
+
+  for (auto tmp_buf_size : buf.tmp_buf_size_list) {
+    AddCommaIfNeeded(is_first, tensor_size_max);
+    tensor_size_max << this->tiler.Size(tmp_buf_size);
+  }
+
   if (reuse_buf_tensors.size() == 0) {
     is_buf_reuse = false;
   }
+  tensor_size_max << ")";
   return ge::SUCCESS;
 }
 
@@ -4562,37 +4540,6 @@ Status TPipe::LocalTensorDefine(std::string &result) const {
     auto &t = pair.second;
     if (t.alloc_type != ge::AllocType::kAllocTypeGlobal) {
       ss << "    " << t.AsArg() << ";" << std::endl;
-    }
-  }
-  ss << std::endl;
-  result = ss.str();
-  return ge::SUCCESS;
-}
-
-Status TPipe::LocalTBufAssign(std::string &result) const {
-  stringstream ss;
-  for (auto &pair : this->bufs) {
-    auto &buf = pair.second;
-    std::string reuse_dtype_name = "";
-    std::vector<const Tensor *> reuse_buf_tensors;
-    bool is_buf_reuse = true;
-
-    GE_CHK_STATUS_RET(ParseTBufReuse(buf, reuse_dtype_name, is_buf_reuse, reuse_buf_tensors),
-                      "Codegen parse tbuf reuse failed");
-
-    std::string init;
-    GE_CHK_STATUS_RET(this->InitTBufBuffer(buf, init), "Codegen init tbuf buffer failed");
-    ss << init << std::endl;
-
-    if (!is_buf_reuse) {
-      ss << buf.AllocBuf(false) << std::endl;
-    } else {
-      ss << buf.AllocBuf(reuse_buf_tensors[0]->name, reuse_dtype_name, false) << std::endl;
-      reuse_buf_tensors[0]->no_need_realloc = true;
-      for (size_t i = 1; i < reuse_buf_tensors.size(); i++) {
-        reuse_buf_tensors[i]->no_need_realloc = true;
-        ss << reuse_buf_tensors[i]->name << " = " << reuse_buf_tensors[0]->name << ";" << std::endl;
-      }
     }
   }
   ss << std::endl;
@@ -4787,11 +4734,11 @@ class AutoFusionVector {
     auto &buf = pair.second;
     result << "    " << buf.Define() << std::endl;
     result << "    " << buf.buf.AsArg() << ";" << std::endl;
+    if (buf.tmp_buf_reuse) {
+      result << "    " << this->tpipe.tmp_buf.AsArg() << "_" << to_string(buf.id) << ";" << std::endl;  
+    }
   }
-  result << "    TBuf<TPosition::VECCALC> tmp_tbuf;" << std::endl;
   result << "    TBuf<TPosition::VECCALC> buf_cube;" << std::endl;
-
-  result << "    " << this->tpipe.tmp_buf.AsArg() << "_0;" << std::endl;
 
   if (!this->pre_api_extract_dup.empty()) {
     result << this->tpipe.GenDuplicateBufDefine(this->pre_api_extract_dup) << std::endl;
@@ -4839,11 +4786,8 @@ class AutoFusionVector {
   result << "cLocal = " << ub_tensor->name << ";" << std::endl << std::endl;
   result << "cLocal_ = " << ub_tensor->name << ";" << std::endl << std::endl;
 
-  GE_CHK_STATUS_RET(this->tpipe.LocalTBufAssign(tmp), "Local tbuf define failed");
+  GE_CHK_STATUS_RET(this->tpipe.LocalTBufAllocLoopTwice(tmp, false), "Local tbuf define failed");
   result << tmp;
-
-  result << "tpipe.InitBuffer(tmp_tbuf, 0);" << std::endl;
-  result << "tmp_buf_0 = " << "tmp_tbuf.Get<uint8_t>();" << std::endl << std::endl;
 
   if (!this->pre_api_extract_dup.empty()) {
     result << this->tpipe.GenDuplicateBufAssign(this->pre_api_extract_dup) << std::endl;
