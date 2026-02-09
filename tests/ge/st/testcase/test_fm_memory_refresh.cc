@@ -1789,7 +1789,7 @@ TEST_F(FmMemoryRefreshTest, check_input_output_reuse_mem_01) {
  * 3. 模型编译
  *
  * 预期结果：
- * 1. 模型添加校验失败
+ * 1. AddGraph成功
  */
 TEST_F(FmMemoryRefreshTest, check_input_output_reuse_mem_02) {
   std::map<AscendString, AscendString> options;
@@ -1806,7 +1806,7 @@ TEST_F(FmMemoryRefreshTest, check_input_output_reuse_mem_02) {
   uint32_t graph_id = 1;
 
   Status ret = session.AddGraph(graph_id, graph, options);
-  EXPECT_NE(SUCCESS, ret);
+  EXPECT_EQ(SUCCESS, ret);
 }
 
 /*

@@ -28,7 +28,7 @@ include_directories(
 #生成自定义算子API
 #先将proto包装成so target 
 add_library(custom_op_proto SHARED
-        /home/s00937318/ge-dev/examples/fuison_pass/4_add_custom_zero/proto/add_custom_proto.cc)
+        ../proto/add_custom_proto.cc)
 target_compile_definitions(custom_op_proto PRIVATE OP_PROTO_LIB)
 target_compile_options(custom_op_proto PRIVATE
         -fvisibility=hidden

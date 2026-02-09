@@ -60,6 +60,7 @@ class ConcatFusionCaseGenerator : public FusionCaseGenerator {
                                     size_t start,
                                     size_t end);
   static Status CollectBackwardNodes(const ge::NodePtr &concat_node, std::vector<ge::AscNodePtr> &nodes);
+  static Status CollectReachableLoadNodes(const ge::NodePtr &concat_node, std::set<ge::AscNodePtr> &nodes);
   Status CloneNonConcatNodes(const ge::Axis &new_axis, size_t index,
                              std::vector<ge::InDataAnchorPtr> &in_anchors,
                              const std::vector<ascir::AxisId> &new_axis_ids,
@@ -77,6 +78,7 @@ class ConcatFusionCaseGenerator : public FusionCaseGenerator {
   static Status ReconnectIfShareSameAncestor(const std::unordered_map<std::string, ge::NodePtr> &name_to_node, const ge::InDataAnchorPtr &in_anchor);
 
   std::vector<ge::AscNodePtr> post_concat_nodes_;
+  std::set<ge::AscNodePtr> reachable_load_nodes_;;
   std::map<std::string, std::vector<int32_t>> out_node_name_to_indices_;
   std::vector<ge::Expression> concat_dim_offsets_;
   ascir::AxisId concat_axis_id_ = -1;

@@ -1452,6 +1452,24 @@ TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_dynamic_shape_index_in
   unsetenv("AUTOFUSE_FLAGS");
 }
 
+// input_hint_shape校验失败，没有用[]
+TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_dynamic_shape_shape_invalid) {
+  setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);
+  std::string om_arg = AtcFileFactory::Generatefile1("--model=", "add.pb");
+  std::string output_arg = AtcFileFactory::Generatefile1("--output=", "tmp");
+  char *argv[] = {"atc",
+                  "--framework=3",
+                  const_cast<char *>(om_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--input_hint_shape=1:2",
+                  "--soc_version=\"Ascend310\"",
+                  "--input_format=NCHW"};
+  int32_t ret = main_impl(sizeof(argv) / sizeof(argv[0]), argv);
+  EXPECT_NE(ret, 0);
+  AtcFileFactory::RemoveFile(AtcFileFactory::Generatefile1("", "tmp.om").c_str());
+  unsetenv("AUTOFUSE_FLAGS");
+}
+
 // test input hint shape symbolic failed scenario
 TEST_F(UtestMain, MainImplTest_generate_om_model_autofuse_dynamic_shape_symbolic_failed) {
   setenv("AUTOFUSE_FLAGS", "--enable_autofuse=true", 1);

@@ -100,6 +100,15 @@ class DefaultNpuProcessNodeEngineImpl : public ProcessNodeEngineImpl {
  private:
   std::shared_ptr<GeSession> ge_session_;
 };
+
+Status InitializeExecutionRuntime(const std::map<std::string, std::string> &options) {
+  static std::mutex mu;
+  std::lock_guard<std::mutex> lk(mu);
+  if (ExecutionRuntime::GetInstance() == nullptr) {
+    GE_CHK_STATUS_RET_NOLOG(ExecutionRuntime::InitHeterogeneousRuntime(options));
+  }
+  return SUCCESS;
+}
 }
 
 Status DFlowInitializeInner(const std::map<AscendString, AscendString> &options) {
@@ -114,6 +123,8 @@ Status DFlowInitializeInner(const std::map<AscendString, AscendString> &options)
     std::string val = option_item.second.GetString();
     str_options[key] = val;
   }
+
+  GE_CHK_STATUS_RET(InitializeExecutionRuntime(str_options), "Failed to init execution runtime");
   GE_TRACE_START(ProcessNodeEngine);
   Status init_pne_status = ProcessNodeEngineManager::GetInstance().Initialize(str_options);
   GE_INIT_TRACE_TIMESTAMP_END(ProcessNodeEngine, "InnerInitialize::ProcessNodeEngine");
@@ -127,6 +138,7 @@ Status DFlowInitializeInner(const std::map<AscendString, AscendString> &options)
 
 void DFlowFinalizeInner() {
   (void)ProcessNodeEngineManager::GetInstance().Finalize();
+  ExecutionRuntime::FinalizeExecutionRuntime();
 }
 
 DFlowSessionImpl::DFlowSessionImpl(uint64_t session_id, const std::map<std::string, std::string> &options)
@@ -461,15 +473,6 @@ Status DFlowSessionImpl::FeedRawData(uint32_t graph_id, const std::vector<RawDat
            model_id);
   }
   return ret;
-}
-
-Status DFlowSessionImpl::InitializeExecutionRuntime(const std::map<std::string, std::string> &options) {
-  static std::mutex mu;
-  std::lock_guard<std::mutex> lk(mu);
-  if (ExecutionRuntime::GetInstance() == nullptr) {
-    GE_CHK_STATUS_RET_NOLOG(ExecutionRuntime::InitHeterogeneousRuntime(options));
-  }
-  return SUCCESS;
 }
 
 void DFlowSessionImpl::UpdateThreadContext(const std::map<std::string, std::string> &options) const {

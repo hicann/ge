@@ -50,7 +50,6 @@
 #include "framework/runtime/subscriber/global_profiler.h"
 #include "common/option_supportion_checker.h"
 #include "exec_runtime/execution_runtime_utils.h"
-#include "dflow/base/exec_runtime/execution_runtime.h"
 #include "base/err_msg.h"
 #include "common/memory/tensor_trans_utils.h"
 
@@ -177,16 +176,6 @@ static Status CheckOptionsValid(const std::map<std::string, std::string> &option
   return SUCCESS;
 }
 
-static Status InitializeExecutionRuntime(const std::map<std::string, std::string> &options) {
-  if (ExecutionRuntime::GetInstance() == nullptr) {
-    if (ExecutionRuntimeUtils::IsHeterogeneous()) {
-      GE_CHK_STATUS_RET_NOLOG(ExecutionRuntime::InitHeterogeneousRuntime(options));
-    }
-    GELOGI("Execution runtime initialize success.");
-  }
-  return SUCCESS;
-}
-
 // Initialize GE, prepare for execution, call GELib::Initialize
 static Status GEInitializeImpl(const std::map<std::string, std::string> &options) {
   GE_TIMESTAMP_START(GEInitializeAll);
@@ -295,9 +284,6 @@ static Status GEInitializeImpl(const std::map<std::string, std::string> &options
     return ret;
   }
   GE_TIMESTAMP_EVENT_END(GeExecutorInitialize, "GeExecutor::Initialize");
-  GE_TIMESTAMP_START(InitializeExecutionRuntime);
-  GE_CHK_STATUS_RET(InitializeExecutionRuntime(options), "Failed to init execution runtime");
-  GE_TIMESTAMP_EVENT_END(InitializeExecutionRuntime, "InitializeExecutionRuntime");
   // 7. init ge init status, first time calling initialize
   if (!g_ge_initialized) {
     g_ge_initialized = true;
@@ -356,7 +342,6 @@ Status GEFinalizeV2() {
   (void)CustomPassHelper::Instance().Unload();
   // call Finalize
   (void)GeExecutor::FinalizeEx();
-  ExecutionRuntime::FinalizeExecutionRuntime();
   Status ret = SUCCESS;
   Status middle_ret;
   std::shared_ptr<GELib> ge_lib = GELib::GetInstance();

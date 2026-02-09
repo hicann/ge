@@ -3711,7 +3711,7 @@ TEST_F(OptimizerSt, RemovePad_not_align_broadcast) {
   EXPECT_EQ(impl1_remove_pad2_out_strides, "(s1 * s2), 1, ");
 
   const auto &impl3 = impl_graphs[3];
-  EXPECT_EQ("RemovePad_not_align_broadcast_0_general_0_nil_0_nil_inline", impl3.GetName());
+  EXPECT_EQ("RemovePad_not_align_broadcast_0_B0Y0_inline_S0G0C3", impl3.GetName());
   EXPECT_EQ(impl3.FindNode("brc0"), nullptr);
   EXPECT_EQ(impl3.FindNode("brc2"), nullptr);
   EXPECT_EQ(impl3.FindNode("brc0_remove_pad_0"), nullptr);

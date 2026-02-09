@@ -296,7 +296,7 @@ TEST_F(TestOptimizerV2, NotRemovePad) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 3);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "Autoschedule_autoschedule_removepad_broadcast_general_0_nil_0_nil");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "Autoschedule_autoschedule_removepad_broadcast_B0Y0");
 }
 
 /**
@@ -1206,8 +1206,8 @@ TEST_F(TestOptimizerV2, NddmaCaseBrcOutputWithSingleRef) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 2);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
 }
 
 TEST_F(TestOptimizerV2, LargeTailBrcToNddmaLowScoreFunc) {
@@ -1255,10 +1255,10 @@ TEST_F(TestOptimizerV2, LargeTailBrcToNddmaLowScoreFunc) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 4);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil");
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
-  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0Y1");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
+  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_B0Y1_nddma");
 
   const auto nddma_template = ge::ComGraphMakeUnique<NddmaTemplate>();
   const auto score_func = nddma_template->GetScoreFunc(graph, impl_graphs[2].scheduled_graph);
@@ -1315,10 +1315,10 @@ TEST_F(TestOptimizerV2, LargeTailBrcToNddmaLowScoreFunc_Dynaminc) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 4);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil");
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
-  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0Y1");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
+  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_B0Y1_nddma");
 
   const auto nddma_template = ge::ComGraphMakeUnique<NddmaTemplate>();
   const auto score_func = nddma_template->GetScoreFunc(graph, impl_graphs[2].scheduled_graph);
@@ -1377,10 +1377,10 @@ TEST_F(TestOptimizerV2, LoadBrcToNddmaAlignLowScoreFunc) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 4);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil");
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
-  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0Y1");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
+  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_B0Y1_nddma");
 
   const auto nddma_template = ge::ComGraphMakeUnique<NddmaTemplate>();
   const auto score_func = nddma_template->GetScoreFunc(graph, impl_graphs[2].scheduled_graph);
@@ -1444,7 +1444,7 @@ TEST_F(TestOptimizerV2, LoadBrcToNddmaAlignLowScoreFunc_NotContinue) {
   autoschedule.DoAutoSchedule();
 
   EXPECT_EQ(impl_graphs.size(), 5);
-  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
+  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
 
   const auto nddma_template = ge::ComGraphMakeUnique<NddmaTemplate>();
   const auto score_func = nddma_template->GetScoreFunc(graph, impl_graphs[3].scheduled_graph);
@@ -1498,10 +1498,10 @@ TEST_F(TestOptimizerV2, LoadBrcToNddmaAlignScoreFunc_Dynamic) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 4);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil");
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
-  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0Y1");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
+  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_B0Y1_nddma");
 
   const auto nddma_template = ge::ComGraphMakeUnique<NddmaTemplate>();
   const auto score_func = nddma_template->GetScoreFunc(graph, impl_graphs[2].scheduled_graph);
@@ -1561,10 +1561,10 @@ TEST_F(TestOptimizerV2, LoadBrcToNddmaNotAlignHighScoreFunc) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 4);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil");
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
-  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0Y1");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
+  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_B0Y1_nddma");
 
   const auto nddma_template = ge::ComGraphMakeUnique<NddmaTemplate>();
   const auto score_func = nddma_template->GetScoreFunc(graph, impl_graphs[2].scheduled_graph);
@@ -1621,10 +1621,9 @@ TEST_F(TestOptimizerV2, LoadBrcToNddmaHighScoreFunc_Dynamic) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 3);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil");
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
-//  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0Y1");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
 
   const auto nddma_template = ge::ComGraphMakeUnique<NddmaTemplate>();
   const auto score_func = nddma_template->GetScoreFunc(graph, impl_graphs[2].scheduled_graph);
@@ -1682,7 +1681,7 @@ TEST_F(TestOptimizerV2, NddmaCaseTranspose10OutputWithSingleRef) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 1);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_1_0_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0X1Y0_nddma");
 }
 
 TEST_F(TestOptimizerV2, NddmaCaseTranspose021OutputWithSingleRef) {
@@ -1733,8 +1732,8 @@ TEST_F(TestOptimizerV2, NddmaCaseTranspose021OutputWithSingleRef) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 2);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_2_0_nil_nddma");
-  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_general_0_2_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0X2Y0_nddma");
+  EXPECT_EQ(impl_graphs[1].scheduled_graph.GetName(), "gen_nddma_B0X2Y1_nddma");
 }
 
 TEST_F(TestOptimizerV2, LoadBrcTransposeCase) {
@@ -1791,7 +1790,7 @@ TEST_F(TestOptimizerV2, LoadBrcTransposeCase) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 1);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_1_0_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0X1Y0_nddma");
 }
 
 TEST_F(TestOptimizerV2, LoadCastBrcCase) {
@@ -1871,8 +1870,8 @@ TEST_F(TestOptimizerV2, LoadCastBrcCase) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   EXPECT_EQ(autoschedule.DoAutoSchedule(), ge::SUCCESS);
   EXPECT_EQ(impl_graphs.size(), 4);
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil_nddma");
-  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_general_0_nil_1_nil_nddma");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "gen_nddma_B0Y0_nddma");
+  EXPECT_EQ(impl_graphs[3].scheduled_graph.GetName(), "gen_nddma_B0Y1_nddma");
 }
 
 TEST_F(TestOptimizerV2, LoadCastAndTailAxisBrcCase) {
@@ -2031,7 +2030,7 @@ TEST_F(TestOptimizerV2, LoadCastBrcTransposeCase) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 1);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_1_0_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0X1Y0_nddma");
 }
 
 TEST_F(TestOptimizerV2, LoadCastTransposeCase) {
@@ -2086,7 +2085,7 @@ TEST_F(TestOptimizerV2, LoadCastTransposeCase) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 1);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_1_0_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0X1Y0_nddma");
   for (auto node: impl_graphs[0].scheduled_graph.GetAllNodes()) {
     if (node->GetType() == "Nddma") {
       EXPECT_EQ(att::Str(node->outputs[0].attr.vectorized_strides[0]), "(16 * Ceiling((Rational(1 , 16) * z0t_size)))");
@@ -2177,7 +2176,7 @@ TEST_F(TestOptimizerV2, LoadGEWhereTransposeCase) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   autoschedule.DoAutoSchedule();
   EXPECT_EQ(impl_graphs.size(), 3);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_3_0_nil_nddma");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0X3Y0_nddma");
   for (auto node: impl_graphs[0].scheduled_graph.GetAllNodes()) {
     if (node->GetType() == "Nddma") {
       EXPECT_EQ(att::Str(node->outputs[0].attr.vectorized_strides[0]), "(2592 * z3t_size)");
@@ -2273,7 +2272,7 @@ TEST_F(TestOptimizerV2, LoadCastBrcMulMinCase) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   EXPECT_EQ(autoschedule.DoAutoSchedule(), ge::SUCCESS);
   EXPECT_EQ(impl_graphs.size(), 4);
-  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "nddma_alignment_general_0_nil_1_0_load_to_nddma");
+  EXPECT_EQ(impl_graphs[2].scheduled_graph.GetName(), "nddma_alignment_B0Y1R0_load_to_nddma");
 }
 
 TEST_F(TestOptimizerV2, LoadToNddmaCase) {
@@ -2435,7 +2434,7 @@ TEST_F(TestOptimizerV2, LoadCastStoreCase) {
   optimize::autoschedule::AutoSchedule autoschedule(graph, impl_graphs);
   ASSERT_EQ(autoschedule.DoAutoSchedule(), ge::SUCCESS);
   EXPECT_EQ(impl_graphs.size(), 1);
-  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_general_0_nil_0_nil");
+  EXPECT_EQ(impl_graphs[0].scheduled_graph.GetName(), "gen_nddma_B0Y0");
 }
 
 TEST_F(TestOptimizerV2, LoadOpSequenceAdjustCase1) {
@@ -4187,11 +4186,11 @@ TEST_F(TestOptimizerV2, MatmulAndCastBroadcastAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -4700,13 +4699,13 @@ TEST_F(TestOptimizerV2, MatmulAddExpAddAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C1");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[2].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C2");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[3].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C3");
 }
 
 TEST_F(TestOptimizerV2, MatmulAndCastAdd) {
@@ -4817,15 +4816,15 @@ TEST_F(TestOptimizerV2, MatmulAndCastAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C1");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[2].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C2");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[3].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C3");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -4929,15 +4928,15 @@ TEST_F(TestOptimizerV2, MatmulAndCastMultiRefsAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C1");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[2].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C2");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[3].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C3");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5075,11 +5074,11 @@ TEST_F(TestOptimizerV2, MatmulAndBrcLoadMultiRefsAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5198,9 +5197,9 @@ TEST_F(TestOptimizerV2, MatmulAndCastBrcMultiRefsAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
-  EXPECT_EQ("matmul_0", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName());
-  EXPECT_EQ("matmul_1_general_nil_nil_0_nil", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName());
-  EXPECT_EQ("matmul_1_general_nil_nil_1_nil", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName());
+  EXPECT_EQ("matmul_0_S0G1C0", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName());
+  EXPECT_EQ("matmul_1_Y0_S0G0C0", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName());
+  EXPECT_EQ("matmul_1_Y1_S0G0C1", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName());
 }
 
 TEST_F(TestOptimizerV2, MatmulStoreAddExpAddAdd) {
@@ -5321,9 +5320,9 @@ TEST_F(TestOptimizerV2, MatmulStoreAddExpAddAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C1");
 }
 
 TEST_F(TestOptimizerV2, MatmulAndBrcLoadScalarAdd) {
@@ -5435,11 +5434,11 @@ TEST_F(TestOptimizerV2, MatmulAndBrcLoadScalarAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5574,11 +5573,11 @@ TEST_F(TestOptimizerV2, MatmulAndLoadMultiBrcAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5716,9 +5715,9 @@ TEST_F(TestOptimizerV2, MatmulAndLoadBrcAndAbsBrcAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0");
+            "matmul_0_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_general_nil_nil_0_nil");
+            "matmul_1_Y0_S0G0C0");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");

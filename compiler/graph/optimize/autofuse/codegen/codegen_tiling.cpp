@@ -1440,8 +1440,8 @@ std::map<std::string, std::string> TilingLib::GenerateCVFusion(const ascir::Fuse
         get_cv_ub_stage_size_name << "}" << std::endl;
         ss << get_cv_ub_stage_size_name.str();
       }
-      ss << GenTilingDataBlockDimAndWss();
     }
+    ss << GenTilingDataBlockDimAndWss();
   }
 
   ss << kTilingHeadCceKtTestGuard << std::endl;

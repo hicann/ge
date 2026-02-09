@@ -61,6 +61,7 @@ struct TilingCodeGenConfig {
          << ", enable_multicore_ub_tradeoff(" << enable_multicore_ub_tradeoff << ")"
          << ", enable_autofuse_pgo(" << enable_autofuse_pgo << ")"
          << ", enable_score_func(" << enable_score_func << ")"
+         << ", force_schedule_result(" << force_schedule_result << ")"
          << ", force_tiling_case(" << force_tiling_case.Debug() << ")"
          << "]";
       return ss.str();

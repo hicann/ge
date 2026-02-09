@@ -1335,6 +1335,7 @@ TEST_F(STEST_helper_runtime, TestDeployModel) {
   auto graph = ToGeGraph(g1);
   map<AscendString, AscendString> options;
   options["ge.exec.graphExecTimeout"] = "600000";
+  EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
   Session session(options);
   session.AddGraph(1, graph, options);
 
@@ -2703,7 +2704,7 @@ TEST_F(STEST_helper_runtime, TestDeployUdfModelWriteTarSuccessByMultiTimes) {
 TEST_F(STEST_helper_runtime, TestHeterogeneousInitInvalid) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
-
+  GEFinalize();
   std::map<AscendString, AscendString> options;
 
   auto real_path = st_dir_path + "st_run_data/json/helper_runtime/host_invalid";
@@ -2712,12 +2713,13 @@ TEST_F(STEST_helper_runtime, TestHeterogeneousInitInvalid) {
   setenv("RESOURCE_CONFIG_PATH", config_file.c_str(), 1);
   EXPECT_EQ(ge::GEInitialize(options), ACL_ERROR_GE_PARAM_INVALID);
   unsetenv("RESOURCE_CONFIG_PATH");
-
+  GEFinalize();
   // invalid cluster
   config_file = real_path + std::string("/numa_config_invalid_cluster.json");
   setenv("RESOURCE_CONFIG_PATH", config_file.c_str(), 1);
   EXPECT_EQ(ge::GEInitialize(options), ACL_ERROR_GE_PARAM_INVALID);
   unsetenv("RESOURCE_CONFIG_PATH");
+  GEFinalize();
   // invalid resource type
   config_file = real_path + std::string("/numa_config_invalid_resource.json");
   setenv("RESOURCE_CONFIG_PATH", config_file.c_str(), 1);
@@ -3010,9 +3012,6 @@ TEST_F(STEST_helper_runtime, TestDeployHostCpuDynamicModel) {
   GEFinalize();
   CpuSchedEventDispatcher::GetInstance().Finalize();
   rtMbufFree(input_mbuf);
-  MmpaStub::GetInstance().Reset();
-  RuntimeStub::Reset();
-  unsetenv("RESOURCE_CONFIG_PATH");
 }
 
 void DeleteLines(const char* real_path, const std::vector<int>& lineNumbers) {

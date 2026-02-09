@@ -11,13 +11,13 @@
 
 ```
 ├── src
-│   ├──addcustom_zero_pass.cpp         // pass实现文件 
+│   ├──addcustom_zero_pass.cpp   // pass实现文件 
 ├── CMakeLists.txt               // 编译脚本
 ├── data         
 |   ├──torch_forward.py          // torch脚本用于在线推理
 |—— gen_es_api
 |   |——CMakeLists.txt            // 生成eager style api的编译脚本
-|—— proto                     //存放自定义算子的算子原型
+|—— proto                        // 存放自定义算子的算子原型
 |   |——add_custom_proto.cc            
 |   |——add_custom_proto.h            
 ```
@@ -42,7 +42,7 @@
    - 运行软件包中设置环境变量脚本，命令如下：
 
      ```
-     source ${ASCEND_PATH}/setenv.sh
+     source ${ASCEND_PATH}/set_env.sh
      ```
 
      `${ASCEND_PATH}`为CANN软件包安装目录下的cann路径。请替换相关软件包的实际安装路径，例如`${INSTALL_PATH}/cann`。
@@ -52,7 +52,15 @@
 
 3. 根据实际情况修改**CMakeLists.txt**文件中的如下信息。
 
-    - ASCEND_PATH：指定到ATC或FwkACLlib的安装目录，到latest一级，例如`${INSTALL_PATH}/latest`， `${INSTALL_PATH}`请替换相关软件包的实际安装路径。
+  - ASCEND_PATH：可以设置默认的软件包路径，如果通过set_env.sh设置了`$ASCEND_HOME_PATH`，无需修改。
+
+  - PASS_SO_DIR：可以设置自定义融合pass动态库安装目录名，默认为`pass_so_dir`。
+
+  - target_include_directories：需要包含的头文件，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加头文件时，在示例下方直接增加行即可，注意不要删除原有项目。如果网络中有自定义算子，请增加自定义算子的原型定义头文件。
+
+  - target_link_libraries：需要链接的库，对于本示例，无需修改。如果是用户自行开发的代码，当需要添加链接库时，在示例下方直接增加行即可，注意不要删除原有项目。
+
+  >   禁止链接软件包中的其他so，否则后续升级可能会导致兼容性问题。
 
 4. 执行如下命令 生成eager style api
 
@@ -62,13 +70,13 @@
    mkdir build && cd build
    cmake ..
    ```
-   执行后，在**build**目录下产生es_all_build以及es_custom_build目录，内含es构图api的头文件及源码
+   执行后，在**build**目录下产生的es_all_build/generated_code目录中包含es构图api的头文件及源码。
    
 5. 完成pass的编写后，执行如下命令编译自定义pass so，并将编译后的动态库文件libadd_zero_pass.so拷贝到自定义融合pass目录下，其中“xxx”为用户自定义目录。
-   可以在make后增加可选参数`-j<N>`用于并行执行构建任务，`N`推荐选择CPU核心数或CPU核心数+1。
+   可以在make后增加可选参数`-j$(nproc)`用于并行执行构建任务，`$(nproc)`动态获取CPU核心数。
    ```
-   make [-j<N>] add_custom_zero_pass
-   cp ./libadd_zero_pass.so ${ASCEND_PATH}/opp/vendors/xxx/custom_fusion_passes/libadd_zero_pass.so
+   make -j$(nproc) add_custom_zero_pass
+   make install
    ```
 
 ## pass编写
@@ -86,7 +94,7 @@
     - 运行软件包中设置环境变量的脚本，命令如下：
 
       ```
-      source ${ASCEND_PATH}/setenv.sh
+      source ${ASCEND_PATH}/set_env.sh
       ```
       `${ASCEND_PATH}`为CANN软件包安装目录下的cann路径。请替换相关软件包的实际安装路径，例如`${INSTALL_PATH}/cann`。
 
@@ -114,7 +122,7 @@
      - `ge_onnx_xxxxx_PreRunBegin.pdtxt`执行前dump图
      - `ge_onnx_xxxxx_RunCustomPassBeforeInferShape.pdtxt`执行InferShape前的自定义pass dump图
      
-   可以发现模型已按预期优化，即加零节点被删除。
+      可以发现模型已按预期优化，即加零节点被删除。
 
    - 若未获得预期结果，可设置如下环境变量让日志打印到屏幕，来定位原因。
      ```bash

@@ -37,7 +37,6 @@
 #include "graph/manager/active_memory_allocator.h"
 #include "graph/load/graph_loader.h"
 #include "exec_runtime/execution_runtime_utils.h"
-#include "dflow/base/exec_runtime/execution_runtime.h"
 #include "common/platform_info_util.h"
 #include <api/gelib/gelib.h>
 #include "common/memory/tensor_trans_utils.h"
@@ -285,18 +284,7 @@ Status InnerSession::Finalize() {
   return ret;
 }
 
-Status InnerSession::InitializeExecutionRuntime(const std::map<std::string, std::string> &options) {
-  static std::mutex mu;
-  std::lock_guard<std::mutex> lk(mu);
-  const auto is_heterogeneous = ExecutionRuntimeUtils::IsHeterogeneous();
-  if (is_heterogeneous && (ExecutionRuntime::GetInstance() == nullptr)) {
-    GE_CHK_STATUS_RET_NOLOG(ExecutionRuntime::InitHeterogeneousRuntime(options));
-  }
-  return SUCCESS;
-}
-
 Status InnerSession::InnerInitialize() {
-  GE_CHK_STATUS_RET(InitializeExecutionRuntime(options_), "Failed to init execution runtime");
   Status ret = model_executor_.Initialize(options_, session_id_);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Init][GraphExecutor] failed, InnerSession:%lu.", session_id_);

@@ -390,7 +390,7 @@ TEST_F(OptimizerStV2, NotRemovePad) {
   ASSERT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups.size(), 1UL);
   const auto &impl_graphs = fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs;
   EXPECT_EQ(impl_graphs.size(), 3);
-  EXPECT_EQ(impl_graphs[0].GetName(), "Autoschedule_autoschedule_removepad_broadcast_0_general_0_nil_0_nil");
+  EXPECT_EQ(impl_graphs[0].GetName(), "Autoschedule_autoschedule_removepad_broadcast_0_B0Y0_S0G0C0");
 }
 
 /**
@@ -4408,11 +4408,11 @@ TEST_F(OptimizerStV2, MatmulAndBroadcastAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -4541,11 +4541,11 @@ TEST_F(OptimizerStV2, MatmulAndCastBroadcastAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -4868,13 +4868,13 @@ TEST_F(OptimizerStV2, MatmulAddExpAddAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C1");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[2].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C2");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[3].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C3");
 }
 
 TEST_F(OptimizerStV2, MatmulAndCastAdd) {
@@ -4985,15 +4985,15 @@ TEST_F(OptimizerStV2, MatmulAndCastAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C1");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[2].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C2");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[3].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C3");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5097,15 +5097,15 @@ TEST_F(OptimizerStV2, MatmulAndCastMultiRefsAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C1");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[2].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C2");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[3].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C3");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5243,11 +5243,11 @@ TEST_F(OptimizerStV2, MatmulAndBrcLoadMultiRefsAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5367,9 +5367,9 @@ TEST_F(OptimizerStV2, MatmulAndCastBrcMultiRefsAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
-  EXPECT_EQ("matmul_0", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName());
-  EXPECT_EQ("matmul_1_general_nil_nil_0_nil", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName());
-  EXPECT_EQ("matmul_1_general_nil_nil_1_nil", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName());
+  EXPECT_EQ("matmul_0_S0G1C0", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName());
+  EXPECT_EQ("matmul_1_Y0_S0G0C0", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName());
+  EXPECT_EQ("matmul_1_Y1_S0G0C1", fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName());
 }
 
 TEST_F(OptimizerStV2, MatmulStoreAddExpAddAdd) {
@@ -5490,9 +5490,9 @@ TEST_F(OptimizerStV2, MatmulStoreAddExpAddAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil_non_db");
+            "matmul_1_ub_Y2_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_2_nil");
+            "matmul_1_ub_Y2_S0G0C1");
 }
 
 TEST_F(OptimizerStV2, JustMutmulBiasAdd) {
@@ -5757,11 +5757,11 @@ TEST_F(OptimizerStV2, MatmulAndBrcLoadScalarAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -5896,11 +5896,11 @@ TEST_F(OptimizerStV2, MatmulAndLoadMultiBrcAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 2UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0_ub");
+            "matmul_0_ub_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil_non_db");
+            "matmul_1_ub_Y3_non_db_S0G0C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1].GetName(),
-            "matmul_1_ub_general_nil_nil_3_nil");
+            "matmul_1_ub_Y3_S0G0C1");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");
@@ -6038,9 +6038,9 @@ TEST_F(OptimizerStV2, MatmulAndLoadBrcAndAbsBrcAdd) {
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs.size(), 1UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs.size(), 4UL);
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetName(),
-            "matmul_0");
+            "matmul_0_S0G1C0");
   EXPECT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetName(),
-            "matmul_1_general_nil_nil_0_nil");
+            "matmul_1_Y0_S0G0C0");
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 4) {
       EXPECT_EQ(node->GetOpDesc()->GetType(), "MatMul");

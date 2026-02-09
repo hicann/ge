@@ -158,50 +158,33 @@ ge::Status TilingCodeGenerator::GenTilingCode(const std::string &op_type,
                                               const FusedParsedScheduleResult &fused_parsed_schedule_result,
                                               const TilingCodeGenConfig &config,
                                               std::map<std::string, std::string> &tiling_res) {
-  TilingCodeGenConfig cur_config = config;
   TilingModelInfo all_model_infos;
   ScoreFuncs schedule_result_score_func;
   VarRelations var_relations;
   EnableGroupParallels enable_group_parallels;
-  size_t group_num = 0UL;
   TensorIdSet workspace_tensor_id_set;
-  for (const auto &asc_graph_models : fused_parsed_schedule_result) {
-    for (const auto &impl_graph_groups : asc_graph_models.second) {
-      const auto& parsed_result = impl_graph_groups.second;
-      size_t asc_graph_id = parsed_result.asc_graph_id;
-      size_t impl_graph_id = parsed_result.impl_graph_id;
-      for (const auto &sub_graphs : impl_graph_groups.second.groups_tiling_model_info) {
-        group_num++;
-        all_model_infos.insert(all_model_infos.end(), sub_graphs.second.begin(), sub_graphs.second.end());
-        GE_ASSERT_SUCCESS(GetWorkspaceTensorId(workspace_tensor_id_set, sub_graphs.second, asc_graph_id, impl_graph_id));
-      }
-      schedule_result_score_func[kModelInfoLevel::K_SCHEDULE_RESULT_LEVEL][asc_graph_models.first]
-                                [impl_graph_groups.second.impl_graph_id] = impl_graph_groups.second.score_func;
-      SaveVarRelationsInfo(var_relations, impl_graph_groups.second.asc_graph_id, impl_graph_groups.second.impl_graph_id,
-                           impl_graph_groups.second.var_relations);
-      enable_group_parallels[asc_graph_models.first][impl_graph_groups.second.impl_graph_id] =
-          impl_graph_groups.second.enable_group_parallel;
-    }
-  }
+  size_t group_num = 0UL;
+
+  GE_ASSERT_SUCCESS(CollectModelInfosAndMetadata(fused_parsed_schedule_result, all_model_infos, group_num,
+                                                 schedule_result_score_func, var_relations, enable_group_parallels,
+                                                 workspace_tensor_id_set),
+                    "Collect model infos and metadata failed.");
   GE_ASSERT_TRUE(group_num != 0UL, "group num is zero of op type = %s.", op_type.c_str());
+
   const bool is_uniq_group = (group_num == 1UL);
   if (is_uniq_group) {
     return GenTilingCode(op_type, all_model_infos, config, tiling_res);
   }
+
   GenTilingHead(op_type, all_model_infos, config, tiling_res, enable_group_parallels);
   GELOGD("Got model infos size %zu of op type = %s.", all_model_infos.size(), op_type.c_str());
+
   std::unordered_map<std::string, std::string> cache_reuse_info = GetCacheReuseInfo(fused_parsed_schedule_result);
   uint32_t cache_capacity = static_cast<uint32_t>(all_model_infos.size()) * 2;
-  for (auto &asc_graph_models : fused_parsed_schedule_result) {
-    for (auto &graph_groups : asc_graph_models.second) {
-      for (auto &group_graphs : graph_groups.second.groups_tiling_model_info) {
-        cur_config.tiling_data_type_name = group_graphs.second[0].schedule_group_ident.GetGroupPrefix() + kDefaultTilingDataTypeName;
-        GenTilingParams params = {op_type, group_graphs.second, cur_config, cache_reuse_info};
-        GE_ASSERT_SUCCESS(GenTilingBody(params, tiling_res, is_uniq_group, cache_capacity, enable_group_parallels));
-        tiling_res[config.tiling_data_type_name] += tiling_res[cur_config.tiling_data_type_name];
-      }
-    }
-  }
+  GE_ASSERT_SUCCESS(GenScheduleGroupTilingBodies(op_type, fused_parsed_schedule_result, config, cache_reuse_info,
+                                                 cache_capacity, enable_group_parallels, tiling_res),
+                    "Generate schedule group tiling bodies failed.");
+
   GenTilingParams params = {op_type, all_model_infos, config, cache_reuse_info};
   GenTilingTailExtParams ext_params = {schedule_result_score_func, var_relations, enable_group_parallels, workspace_tensor_id_set};
   GenTilingTail(params, tiling_res, ext_params);
@@ -252,4 +235,54 @@ ge::Status TilingCodeGenerator::GenTilingTail(const GenTilingParams &params, std
                     static_cast<int32_t>(params.config.type));
   return ge::SUCCESS;
 }
+
+ge::Status TilingCodeGenerator::CollectModelInfosAndMetadata(
+    const FusedParsedScheduleResult &fused_parsed_schedule_result,
+    TilingModelInfo &all_model_infos, size_t &group_num,
+    ScoreFuncs &schedule_result_score_func, VarRelations &var_relations,
+    EnableGroupParallels &enable_group_parallels, TensorIdSet &workspace_tensor_id_set) {
+  group_num = 0UL;
+  for (const auto &asc_graph_models : fused_parsed_schedule_result) {
+    for (const auto &impl_graph_groups : asc_graph_models.second) {
+      const auto& parsed_result = impl_graph_groups.second;
+      size_t asc_graph_id = parsed_result.asc_graph_id;
+      size_t impl_graph_id = parsed_result.impl_graph_id;
+      for (const auto &sub_graphs : impl_graph_groups.second.groups_tiling_model_info) {
+        group_num++;
+        all_model_infos.insert(all_model_infos.end(), sub_graphs.second.begin(), sub_graphs.second.end());
+        GE_ASSERT_SUCCESS(GetWorkspaceTensorId(workspace_tensor_id_set, sub_graphs.second, asc_graph_id, impl_graph_id));
+      }
+      schedule_result_score_func[kModelInfoLevel::K_SCHEDULE_RESULT_LEVEL][asc_graph_models.first]
+                                [impl_graph_groups.second.impl_graph_id] = impl_graph_groups.second.score_func;
+      SaveVarRelationsInfo(var_relations, impl_graph_groups.second.asc_graph_id, impl_graph_groups.second.impl_graph_id,
+                           impl_graph_groups.second.var_relations);
+      enable_group_parallels[asc_graph_models.first][impl_graph_groups.second.impl_graph_id] =
+          impl_graph_groups.second.enable_group_parallel;
+    }
+  }
+  return ge::SUCCESS;
+}
+
+ge::Status TilingCodeGenerator::GenScheduleGroupTilingBodies(
+    const std::string &op_type, const FusedParsedScheduleResult &fused_parsed_schedule_result,
+    const TilingCodeGenConfig &config, const std::unordered_map<std::string, std::string> &cache_reuse_info,
+    uint32_t cache_capacity, const EnableGroupParallels &enable_group_parallels,
+    std::map<std::string, std::string> &tiling_res) {
+  GELOGD("[DFX] schedule_results count: %zu, op_type[%s]", fused_parsed_schedule_result.size(), op_type.c_str());
+  for (auto &asc_graph : fused_parsed_schedule_result) {
+    GELOGD("[DFX] asc_graph_id: %zu, results: %zu, op_type[%s]", asc_graph.first, asc_graph.second.size(), op_type.c_str());
+    for (auto &result : asc_graph.second) {
+      GELOGD("[DFX] got result(impl_graph_id): %zu, op_type[%s]", result.first, op_type.c_str());
+      for (auto &group_graphs : result.second.groups_tiling_model_info) {
+        TilingCodeGenConfig cur_config = config;
+        cur_config.tiling_data_type_name = group_graphs.second[0].schedule_group_ident.GetGroupPrefix() + kDefaultTilingDataTypeName;
+        GenTilingParams params = {op_type, group_graphs.second, cur_config, cache_reuse_info};
+        GE_ASSERT_SUCCESS(GenTilingBody(params, tiling_res, false, cache_capacity, enable_group_parallels));
+        tiling_res[config.tiling_data_type_name] += tiling_res[cur_config.tiling_data_type_name];
+      }
+    }
+  }
+  return ge::SUCCESS;
+}
+
 }  // namespace att

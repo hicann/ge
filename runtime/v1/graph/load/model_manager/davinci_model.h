@@ -725,6 +725,10 @@ class DavinciModel {
   bool IsKnownNode() const;
   bool NeedUpdateCoreCountWithOpDesc(const NodePtr &node, fe::PlatFormInfos &platform_infos, std::string &addr_key_out) const;
   bool UpdateCoreCountWithOpDesc(const NodePtr &node, fe::PlatFormInfos &platform_infos) const;
+  Status UpdatePlatformInfos(const NodePtr &node, fe::PlatFormInfos &platform_infos) const;
+  void* AllocPlatformInfosMem(size_t total_size, bool need_update_op_desc, bool is_custom);
+  Status SerializeAndCopyToDevice(fe::PlatFormInfos &platform_infos, void *dev_addr, size_t copy_size,
+                                  size_t total_size) const;
   // todo 临时方案
   // 此处因解决地址可刷新问题临时去掉const修饰
   // 待重构后去掉临时方案，因此该方法虽然没有const修饰入参，实现里也最好不要修改入参。

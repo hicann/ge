@@ -97,6 +97,7 @@ target_link_libraries(dflow_runner
     PRIVATE
         intf_pub
         ge_compiler
+        ge_runner_v2
         -Wl,--as-needed
         graph
         ascendcl

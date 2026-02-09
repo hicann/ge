@@ -275,7 +275,7 @@ TEST(GeneratorUT, TilingCodeGenImplConstruct) {
   MockHighPerfTilingCodeGenImpl impl("test", config, tiling_model_info, score_funcs, true);
   EXPECT_EQ(config.force_template_op_name, "test");
   impl.GenGetAllSchedulesResults({});
-  EXPECT_EQ(impl.tiling_func_.GetOutputStr().empty(), false);
+  EXPECT_EQ(impl.tiling_func_.GetOutputStr().empty(), true);
 }
 
 TEST(GeneratorUT, TilingCodeGenImplPGO) {

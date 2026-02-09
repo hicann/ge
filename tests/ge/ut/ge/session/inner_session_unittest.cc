@@ -11,7 +11,6 @@
 #include <gtest/gtest.h>
 
 #include "macro_utils/dt_public_scope.h"
-#include "dflow/base/exec_runtime/execution_runtime.h"
 #include "session/inner_session.h"
 #include "ge/ge_api.h"
 #include "framework/omg/omg_inner_types.h"
@@ -113,10 +112,6 @@ class StubExecutor : public Executor {
   uintptr_t mem_base_;
   size_t mem_base_size_;
 };
-
-Status InitializeHeterogeneousRuntime(const std::map<std::string, std::string> &options) {
-  return SUCCESS;
-}
 }  // namespace
 
 class UtestInnerSession : public testing::Test {
@@ -379,50 +374,6 @@ TEST_F(UtestInnerSession, Initialize_03) {
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);
 }
 
-TEST_F(UtestInnerSession, InitializeExecutionRuntime) {
-  class MockMmpa : public MmpaStubApiGe {
-   public:
-    void *DlSym(void *handle, const char *func_name) override {
-      if (std::string(func_name) == "InitializeHeterogeneousRuntime") {
-        return (void *) &InitializeHeterogeneousRuntime;
-      }
-      return dlsym(handle, func_name);
-    }
-  };
-
-  std::map<std::string, std::string> options = {
-    {"ge.exec.disableReuseMemory", "1"}
-  };
-  options.insert({"ge.exec.modify_mixlist", "0"});
-  options.insert({"ge.session_device_id", "1"});
-  options.insert({"ge.exec.precision_mode", "allow_mix_precision"});
-
-  ExecutionRuntime::instance_ = nullptr;
-  uint64_t session_id = 0;
-  InnerSession local_session(session_id, options);
-  local_session.is_initialized_ = false;
-  EXPECT_EQ(local_session.Initialize(), SUCCESS);
-  EXPECT_EQ(local_session.Finalize(), SUCCESS);
-
-  setenv("RESOURCE_CONFIG_PATH", "fake_numa_config.json", 1);
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
-  ExecutionRuntime::handle_ = (void *)0xffffffff;
-
-  session_id = 1;
-  InnerSession inner_session(session_id, options);
-  inner_session.is_initialized_ = true;
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  inner_session.is_initialized_ = false;
-  EXPECT_EQ(inner_session.Initialize(), SUCCESS);
-  EXPECT_EQ(inner_session.Finalize(), SUCCESS);
-
-  ExecutionRuntime::handle_ = nullptr;
-  EXPECT_EQ(GEFinalize(), SUCCESS);
-  ExecutionRuntime::instance_ = nullptr;
-  MmpaStub::GetInstance().Reset();
-  unsetenv("RESOURCE_CONFIG_PATH");
-}
-
 TEST_F(UtestInnerSession, AddGraph) {
   std::map<std::string, std::string> options = {
     {"ge.exec.disableReuseMemory", "100"}
@@ -467,82 +418,6 @@ TEST_F(UtestInnerSession, Finalize) {
   InnerSession inner_session(session_id, options);
   inner_session.is_initialized_ = true;
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);
-}
-
-namespace {
-int32_t g_so_addr = 0;
-class MockMmpa : public ge::MmpaStubApiGe {
- public:
-  void *DlOpen(const char *file_name, int32_t mode) override {
-    if (string("libmodel_deployer.so") == file_name) {
-      return (void *) &g_so_addr;
-    }
-    return MmpaStubApiGe::DlOpen(file_name, mode);
-  }
-
-  void *DlSym(void *handle, const char *func_name) override {
-    if (std::string(func_name) == "InitializeHeterogeneousRuntime") {
-      return (void *) &InitializeHeterogeneousRuntime;
-    }
-    return dlsym(handle, func_name);
-  }
-  int32_t DlClose(void *handle) override {
-    return 0;
-  }
-};
-}
-TEST_F(UtestInnerSession, Feed_graph_not_exits) {
-  std::map<std::string, std::string> options = {};
-  MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
-  setenv("RESOURCE_CONFIG_PATH", "./stub_resource_config_path.json", 0);
-
-  // Initialize GE and create Session
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  Session session(options);
-
-  uint32_t graph_id = 0;
-  DataFlowInfo data_flow_info;
-  std::vector<Tensor> inputs;
-  ge::Tensor tensor;
-  inputs.emplace_back(tensor);
-  EXPECT_NE(session.FeedDataFlowGraph(graph_id, {}, inputs, data_flow_info, 0), SUCCESS);
-
-  uint64_t sample_data = 9;
-  RawData raw_data = {.addr = reinterpret_cast<void *>(&sample_data), .len = sizeof(uint64_t)};
-  EXPECT_NE(session.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), SUCCESS);
-
-  std::vector<FlowMsgPtr> flow_msg_inputs;
-  flow_msg_inputs.emplace_back(FlowBufferFactory::AllocEmptyDataMsg(MsgType::MSG_TYPE_TENSOR_DATA));
-  EXPECT_NE(session.FeedDataFlowGraph(graph_id, {}, flow_msg_inputs, 0), SUCCESS);
-
-  EXPECT_EQ(GEFinalize(), SUCCESS);
-  unsetenv("RESOURCE_CONFIG_PATH");
-  MmpaStub::GetInstance().Reset();
-}
-
-TEST_F(UtestInnerSession, Fetch_graph_not_exits) {
-  std::map<std::string, std::string> options = {};
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  Session session(options);
-
-  uint32_t graph_id = 0;
-  DataFlowInfo data_flow_info;
-  std::vector<Tensor> outputs;
-  EXPECT_NE(session.FetchDataFlowGraph(graph_id, {}, outputs, data_flow_info, 0), SUCCESS);
-
-  EXPECT_EQ(GEFinalize(), SUCCESS);
-}
-
-TEST_F(UtestInnerSession, Fetch_flow_msg_graph_not_exits) {
-  std::map<std::string, std::string> options = {};
-  EXPECT_EQ(GEInitialize(options), SUCCESS);
-  Session session(options);
-
-  uint32_t graph_id = 0;
-  std::vector<FlowMsgPtr> outputs;
-  EXPECT_NE(session.FetchDataFlowGraph(graph_id, {}, outputs, 0), SUCCESS);
-
-  EXPECT_EQ(GEFinalize(), SUCCESS);
 }
 
 TEST_F(UtestInnerSession, InitializeWithJitCompileTrueCheckSuccess) {

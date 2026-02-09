@@ -533,16 +533,22 @@ ge::Status CodeGen::HandleDeviceCodeGenForCVFusion(CodeGen::Object *self,
   GE_ASSERT_SUCCESS(ascgen_utils::FilterCVFusionUBResult(ub_schedule_result));
   GE_ASSERT_SUCCESS(ascgen_utils::FilterCVFusionCommonResult(common_schedule_result));
 
-  // 生成UB模板的代码
-  std::string ub_tiling_data = self->codegen->GenerateTilingData(ub_schedule_result);
+  // 生成UB模板的代码，存在没有UB模板的场景
+  std::string ub_tiling_data;
   std::string ub_kernel;
-  ge::Status ret = self->codegen->GenerateKernel(ub_schedule_result, ub_kernel, false);
-  GE_CHK_STATUS_RET(ret, "codegen generate ub kernel fail");
+  if (ascgen_utils::HasCubeUBFusedScheduled(ub_schedule_result)) {
+    ub_tiling_data = self->codegen->GenerateTilingData(ub_schedule_result);
+    ge::Status ret = self->codegen->GenerateKernel(ub_schedule_result, ub_kernel, false);
+    GE_CHK_STATUS_RET(ret, "codegen generate ub kernel fail");
+  } else {
+    GELOGI("Has no cube ub fused shcedule result, no need to generate ub tiling data and kernel");
+  }
 
-  // 生成兜底模板的代码
+  // 生成兜底模板的代码，必须有兜底模板
+  GE_ASSERT_TRUE(ascgen_utils::HasCubeCommonFusedScheduled(common_schedule_result));
   std::string common_tiling_data = self->codegen->GenerateTilingData(common_schedule_result);
   std::string common_kernel;
-  ret = self->codegen->GenerateKernel(common_schedule_result, common_kernel, false);
+  ge::Status ret = self->codegen->GenerateKernel(common_schedule_result, common_kernel, false);
   GE_CHK_STATUS_RET(ret, "codegen generate common kernel fail");
 
   // 将结果添加到字典中
@@ -585,11 +591,17 @@ ge::Status CodeGen::HandleHostCodeGenForCVFusion(CodeGen::Object *self,
   GE_ASSERT_SUCCESS(ascgen_utils::FilterCVFusionUBResult(ub_schedule_result));
   GE_ASSERT_SUCCESS(ascgen_utils::FilterCVFusionCommonResult(common_schedule_result));
 
-  // 生成UB模板的代码
-  std::map<std::string, std::string> ub_tiling_file_name_to_content =
-      self->codegen->GenerateTiling(ub_schedule_result, symbol_source_info, pgo_dir, vector_core_num);
+  // 生成UB模板的代码,存在没有UB模板的场景
+  std::map<std::string, std::string> ub_tiling_file_name_to_content;
+  if (ascgen_utils::HasCubeUBFusedScheduled(ub_schedule_result)) {
+    ub_tiling_file_name_to_content =
+        self->codegen->GenerateTiling(ub_schedule_result, symbol_source_info, pgo_dir, vector_core_num);
+  } else {
+    GELOGI("Has no cube ub fused shcedule result, no need to generate ub tiling");
+  }
 
-  // 生成兜底模板的代码
+  // 生成兜底模板的代码，必须有兜底模板
+  GE_ASSERT_TRUE(ascgen_utils::HasCubeCommonFusedScheduled(common_schedule_result));
   std::map<std::string, std::string> common_tiling_file_name_to_content =
       self->codegen->GenerateTiling(common_schedule_result, symbol_source_info, pgo_dir, vector_core_num);
 

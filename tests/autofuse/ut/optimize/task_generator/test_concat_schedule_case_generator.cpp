@@ -13,6 +13,7 @@
 #include "ascir_ops_utils.h"
 #include "ascir_utils.h"
 #include "asc_graph_utils.h"
+#include "graph_utils.h"
 #include "task_generator/concat_schedule_case_generator.h"
 #include "task_generator/concat_group_partitioner.h"
 #include "task_generator/concat_score_function_generator.h"
@@ -920,79 +921,58 @@ TEST_F(ConcatScheduleCaseGeneratorTest, ConcatBackwardFusion_WithSameLoad) {
   data0.ir_attr.SetIndex(0);
 
   Load load1("load1");
-  load1.attr.api.compute_type = ge::ComputeType::kComputeLoad;
-  load1.y.dtype = ge::DT_FLOAT16;
   load1.x = data0.y;
-  load1.attr.sched.axis = {z0.id, z1_1.id};
-  load1.y.dtype = ge::DT_FLOAT16;
-  *load1.y.axis = {z0.id, z1_1.id};
   load1.y.dtype = ge::DT_FLOAT16;
   *load1.y.repeats = {s0, s1_1};
   *load1.y.strides = {s1_1, ge::sym::kSymbolOne};
+  load1.ir_attr.SetOffset(sym::kSymbolZero);
 
   Load load2("load2");
-  load2.attr.api.compute_type = ge::ComputeType::kComputeLoad;
-  load2.y.dtype = ge::DT_FLOAT16;
   load2.x = data0.y;
-  load2.attr.sched.axis = {z0.id, z1_2.id};
-  load2.y.dtype = ge::DT_FLOAT16;
-  *load2.y.axis = {z0.id, z1_2.id};
   load2.y.dtype = ge::DT_FLOAT16;
   *load2.y.repeats = {s0, s1_2};
   *load2.y.strides = {s1_2, ge::sym::kSymbolOne};
+  load2.ir_attr.SetOffset(sym::kSymbolZero);
 
   Load load3("load3");
-  load3.attr.api.compute_type = ge::ComputeType::kComputeLoad;
   load3.y.dtype = ge::DT_FLOAT16;
   load3.x = data0.y;
-  load3.attr.sched.axis = {z0.id, z1_3.id};
-  load3.y.dtype = ge::DT_FLOAT16;
-  *load3.y.axis = {z0.id, z1_3.id};
-  load3.y.dtype = ge::DT_FLOAT16;
   *load3.y.repeats = {s0, s1_3};
   *load3.y.strides = {s1_3, ge::sym::kSymbolOne};
+  load3.ir_attr.SetOffset(sym::kSymbolZero);
+
+  Broadcast brc1("brc1");
+  brc1.x = load3.y;
+  *brc1.y.repeats = {s0, s1_2};
+  *brc1.y.strides = {s1_2, ge::sym::kSymbolOne};
+
+  Add add1("add1");
+  add1.x1 = load2.y;
+  add1.x2 = brc1.y;
+  *add1.y.repeats = {s0, s1_2};
+  *add1.y.strides = {s1_2, ge::sym::kSymbolOne};
 
   Concat concat("concat");
-  concat.attr.api.compute_type = ge::ComputeType::kComputeConcat;
   concat.y.dtype = ge::DT_FLOAT16;
-  concat.x = {load1.y, load2.y, load3.y};
+  concat.x = {load1.y, add1.y, load3.y};
   concat.attr.sched.axis = {z0.id, z1.id};
-  concat.y.dtype = ge::DT_FLOAT16;
-  *concat.y.axis = {z0.id, z1.id};
   concat.y.dtype = ge::DT_FLOAT16;
   *concat.y.repeats = {s0, s1};
   *concat.y.strides = {s1, ge::sym::kSymbolOne};
 
   Broadcast brc("brc");
-  brc.attr.api.compute_type = ge::ComputeType::kComputeElewise;
-  brc.y.dtype = ge::DT_FLOAT16;
   brc.x = load3.y;
-  brc.attr.sched.axis = {z0.id, z1.id};
-  brc.y.dtype = ge::DT_FLOAT16;
-  *brc.y.axis = {z0.id, z1.id};
-  brc.y.dtype = ge::DT_FLOAT16;
   *brc.y.repeats = {s0, s1};
   *brc.y.strides = {s1, ge::sym::kSymbolOne};
 
   Add add("add");
-  add.attr.api.compute_type = ge::ComputeType::kComputeElewise;
-  add.y.dtype = ge::DT_FLOAT16;
   add.x1 = concat.y;
   add.x2 = brc.y;
-  add.attr.sched.axis = {z0.id, z1.id};
-  add.y.dtype = ge::DT_FLOAT16;
-  *add.y.axis = {z0.id, z1.id};
-  add.y.dtype = ge::DT_FLOAT16;
   *add.y.repeats = {s0, s1};
   *add.y.strides = {s1, ge::sym::kSymbolOne};
 
   Store store("store_1");
-  store.y.dtype = ge::DT_FLOAT16;
   store.x = add.y;
-  store.attr.sched.axis = {z0.id, z1.id};
-  store.y.dtype = ge::DT_FLOAT16;
-  *store.y.axis = {z0.id, z1.id};
-  store.y.dtype = ge::DT_FLOAT16;
   *store.y.repeats = {s0, s1};
   *store.y.strides = {s1, ge::sym::kSymbolOne};
 
@@ -1001,17 +981,25 @@ TEST_F(ConcatScheduleCaseGeneratorTest, ConcatBackwardFusion_WithSameLoad) {
   out.x = store.y;
   out.ir_attr.SetIndex(0);
 
-
   optimize::ConcatFusionCaseGenerator generator;
   std::vector<AscGraph> generated_graphs;
   std::vector<std::string> score_functions;
   EXPECT_EQ(generator.Generate(graph, generated_graphs, score_functions), ge::SUCCESS);
   ASSERT_EQ(generated_graphs.size(), 3UL);
-  for (size_t i = 0; i < generated_graphs.size(); i++) {
-    auto cg = ge::AscGraphUtils::GetComputeGraph(generated_graphs[i]);
+  for (const auto & generated_graph : generated_graphs) {
+    auto cg = ge::AscGraphUtils::GetComputeGraph(generated_graph);
     auto add_node = cg->FindFirstNodeMatchType("Add");
     ASSERT_TRUE(add_node != nullptr);
     EXPECT_EQ(add_node->GetInDataNodesSize(), 2);
+    for (const auto &node : cg->GetAllNodes()) {
+      if (node->GetType() == "Load") {
+        auto asc_node = std::dynamic_pointer_cast<ge::AscNode>(node);
+        const auto ir_attr = asc_node->attr.ir_attr->DownCastTo<ge::ascir_op::Load::AscLoadIrAttrDef>();
+        ge::Expression offset;
+        EXPECT_EQ(ir_attr->GetOffset(offset), GRAPH_SUCCESS);
+        EXPECT_EQ(offset, sym::kSymbolZero);
+      }
+    }
   }
 }
 
