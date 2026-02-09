@@ -16,6 +16,7 @@
 #include "gen_tiling_impl.h"
 #include "base/att_const_values.h"
 #include "graph_construct_utils.h"
+#include "test_common_utils.h"
 
 using namespace ge::ascir_op;
 namespace ascir {
@@ -43,8 +44,8 @@ class TestGenConcat : public ::testing::Test {
   }
 
   void TearDown() override {
-    // Code here will be called immediately after each test (right
-    // before the destructor).
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
   }
 };

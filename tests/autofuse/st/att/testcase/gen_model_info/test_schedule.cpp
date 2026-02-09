@@ -17,6 +17,8 @@
 #include "base/att_const_values.h"
 #include "gen_tiling_impl.h"
 #include "tests/autofuse/ut/att/utils/graph_construct_utils.h"
+#include "common/test_common_utils.h"
+#include "test_common_utils.h"
 
 using namespace att;
 using namespace ge::ascir_op;
@@ -36,6 +38,8 @@ class TestSchedule : public ::testing::Test {
   }
 
   void TearDown() override {
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
     unsetenv("ASCEND_SLOG_PRINT_TO_STDOUT");
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
   }

@@ -17,6 +17,8 @@
 #include "stub/stub_model_info.h"
 #include "tiling_code_generator.h"
 #include "reuse_group_utils/reuse_group_utils.h"
+#include "common/test_common_utils.h"
+#include "test_common_utils.h"
 
 using namespace att;
 
@@ -57,6 +59,8 @@ class TestProfiler : public ::testing::Test {
   }
 
   void TearDown() override {
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
   }
  ModelInfo model_info_;
 };

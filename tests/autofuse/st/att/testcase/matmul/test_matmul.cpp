@@ -17,6 +17,8 @@
 #include "gen_tiling_impl.h"
 #include "tiling_code_generator.h"
 #include "reuse_group_utils/reuse_group_utils.h"
+#include "common/test_common_utils.h"
+#include "test_common_utils.h"
 
 using namespace att;
 class TestGenMatmulModelInfoE2E : public ::testing::Test {
@@ -34,8 +36,8 @@ class TestGenMatmulModelInfoE2E : public ::testing::Test {
   }
 
   void TearDown() override {
-    // Code here will be called immediately after each test (right
-    // before the destructor).
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
   }
 };

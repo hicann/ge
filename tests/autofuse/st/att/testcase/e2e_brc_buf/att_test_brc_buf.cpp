@@ -14,6 +14,8 @@
 #include "tiling_code_generator.h"
 #include "ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "graph_construct_utils.h"
+#include "common/test_common_utils.h"
+#include "test_common_utils.h"
 
 using namespace att;
 using namespace ge::ascir_op;
@@ -510,6 +512,8 @@ class TestBrcBuf : public ::testing::Test {
   }
 
   void TearDown() override {
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
     unsetenv("ASCEND_SLOG_PRINT_TO_STDOUT");
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
   }

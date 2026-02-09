@@ -79,8 +79,10 @@ class STestGenConcat : public ::testing::Test {
   }
 
   void TearDown() override {
-    // Code here will be called immediately after each test (right
-    // before the destructor).
+    // 清理测试生成的临时文件
+    system("rm -rf ./stub ./tiling ./register");
+    system("rm -f ./op_log.h ./autofuse_tiling_func_common.h ./tiling_func_main");
+    system("rm -f ./*_tiling_data.h ./*_tiling_func.cpp ./tiling_func_main_*.cpp");
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
     unsetenv("AUTOFUSE_DFX_FLAGS");
   }

@@ -22,6 +22,8 @@
 #include "ascendc_ir_dump_utils.h"
 #include "common_utils.h"
 #include "graph_construct_utils.h"
+#include "common/test_common_utils.h"
+#include "test_common_utils.h"
 
 using namespace ge::ascir_op;
 namespace ascir {
@@ -30,6 +32,45 @@ using namespace ge;
 using HintGraph = AscGraph;
 }  // namespace ascir
 using namespace att;
+
+// 辅助函数：生成特定操作的主程序文件
+inline void GenerateOpMainFile(const std::string& op_name, const std::string& tiling_data_type) {
+    std::ofstream oss;
+    std::string filename = "tiling_func_main_" + op_name + ".cpp";
+    oss.open(filename, std::ios::out);
+    oss << "/**\n";
+    oss << " * Copyright (c) 2026 Huawei Technologies Co., Ltd.\n";
+    oss << " * This program is free software, you can redistribute it and/or modify it under the terms and conditions of\n";
+    oss << " * CANN Open Software License Agreement Version 2.0 (the \"License\").\n";
+    oss << " * Please refer to the License for details. You may use this file except in compliance with the License.\n";
+    oss << " * THIS SOFTWARE IS PROVIDED ON AN \"AS IS\" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,\n";
+    oss << " * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.\n";
+    oss << " * See LICENSE in the root of the software repository for the full text of the License.\n";
+    oss << " */\n";
+    oss << "\n";
+    oss << "#include <iostream>\n";
+    oss << "#include \"" << tiling_data_type << ".h\"\n";
+    oss << "using namespace optiling;\n";
+    oss << "\n";
+    oss << "void PrintResult(graph_normalTilingData &tilingData) {\n";
+    oss << "    std::cout << \"====================================================\" << std::endl;\n";
+    oss << "    std::cout << \"get_tiling_key\" << \" = \" << tilingData.graph0_tiling_key_ << std::endl;\n";
+    oss << "    std::cout << \"====================================================\" << std::endl;\n";
+    oss << "}\n";
+    oss << "\n";
+    oss << "int main() {\n";
+    oss << "    graph_normalTilingData tilingData;\n";
+    oss << "    if (GetTiling(tilingData)) {\n";
+    oss << "        PrintResult(tilingData);\n";
+    oss << "    } else {\n";
+    oss << "        std::cout << \"" << op_name << " tiling func execute failed.\" << std::endl;\n";
+    oss << "        return -1;\n";
+    oss << "    }\n";
+    oss << "    return 0;\n";
+    oss << "}\n";
+    oss.close();
+}
+
 class TestApiTilingGen : public ::testing::Test {
  public:
   static void TearDownTestCase() {
@@ -46,11 +87,8 @@ class TestApiTilingGen : public ::testing::Test {
   }
 
   void TearDown() override {
-    // Code here will be called immediately after each test (right
-    // before the destructor).
-    // 删除缓存
-    system("rm -f *.log");
-    system("rm -rf ./tiling/ ./register/ ./graph/");
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
     unsetenv("AUTOFUSE_DFX_FLAGS");
   }
@@ -1384,10 +1422,9 @@ TEST_F(TestApiTilingGen, gen_softmax_api_tiling_success) {
   oss.open("FlashSoftmax_tiling_data.h", std::ios::out);
   oss << tiling_res["graph_normalTilingData"];
   oss.close();
-  auto ret = std::system(
-      std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
-  EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
+  // 生成正确的主程序文件
+  GenerateOpMainFile("softmax", "FlashSoftmax_tiling_data");
+  auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
   EXPECT_EQ(ret, 0);
@@ -1398,7 +1435,7 @@ TEST_F(TestApiTilingGen, gen_softmax_api_tiling_success) {
       std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/kernel_tiling/ ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(
-      "g++ tiling_func_main_transpose.cpp flash_softmax_tiling_func.cpp -o tiling_func_main_softmax -I ./ "
+      "g++ tiling_func_main_softmax.cpp flash_softmax_tiling_func.cpp -o tiling_func_main_softmax -I ./ "
       "-DSTUB_LOG");
   // 校验编译是否通过
   EXPECT_EQ(ret, 0);
@@ -1521,17 +1558,16 @@ TEST_F(TestApiTilingGen, gen_softmax_api_tiling_with_var_relation) {
   oss.open("FlashSoftmax_tiling_data.h", std::ios::out);
   oss << tiling_res["graph_normalTilingData"];
   oss.close();
-  auto ret = std::system(
-      std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
-  EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
+  // 生成正确的主程序文件
+  GenerateOpMainFile("softmax_var", "FlashSoftmax_tiling_data");
+  auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(
-      "g++ tiling_func_main_transpose.cpp flash_softmax_tiling_func.cpp -o tiling_func_main_softmax -I ./ "
+      "g++ tiling_func_main_softmax_var.cpp flash_softmax_tiling_func.cpp -o tiling_func_main_softmax -I ./ "
       "-DSTUB_LOG");
   // 校验编译是否通过
   EXPECT_EQ(ret, 0);
@@ -1622,10 +1658,9 @@ TEST_F(TestApiTilingGen, gen_mat_mul_tiling_success) {
   oss.open("MatMul_tiling_data.h", std::ios::out);
   oss << tiling_res["graph_normalTilingData"];
   oss.close();
-  auto ret = std::system(
-      std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_transpose.cpp ./ -f").c_str());
-  EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
+  // 生成正确的主程序文件
+  GenerateOpMainFile("mat_mul", "MatMul_tiling_data");
+  auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
   EXPECT_EQ(ret, 0);
@@ -1636,7 +1671,7 @@ TEST_F(TestApiTilingGen, gen_mat_mul_tiling_success) {
       std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/kernel_tiling/ ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(
-      "g++ tiling_func_main_transpose.cpp mat_mul_tiling_func.cpp -o tiling_func_main_mat_mul -I ./ "
+      "g++ tiling_func_main_mat_mul.cpp mat_mul_tiling_func.cpp -o tiling_func_main_mat_mul -I ./ "
       "-DSTUB_LOG");
   // 校验编译是否通过
   EXPECT_EQ(ret, 0);
