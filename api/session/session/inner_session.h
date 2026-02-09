@@ -28,6 +28,9 @@
 #include "user_hybrid_graph_manager.h"
 
 namespace ge {
+
+class DflowSessionImpl;
+
 class InnerSession {
  public:
   InnerSession(uint64_t session_id, const std::map<std::string, std::string> &options);
@@ -36,7 +39,6 @@ class InnerSession {
 
   Status Initialize();
   // only ge_api.cc call
-  Status CreateDFlowSessionIfNeed();
   Status AddGraph(uint32_t graph_id, const Graph &graph);
 
   Status AddGraph(uint32_t graph_id, const Graph &graph, const std::map<std::string, std::string> &options);
@@ -134,6 +136,8 @@ class InnerSession {
 
   // Get and Set dflow_session_impl_
   std::shared_ptr<DFlowSessionImpl> GetDFlowSession() const;
+
+  void SetDFlowSession(const std::shared_ptr<DFlowSessionImpl> &dflow_session_impl);
 
   Status GetRunGraphMode(uint32_t graph_id, RunGraphMode &mode) const;
 

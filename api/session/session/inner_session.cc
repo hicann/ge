@@ -36,7 +36,6 @@
 #include "common/model/external_allocator_manager.h"
 #include "graph/manager/active_memory_allocator.h"
 #include "graph/load/graph_loader.h"
-#include "exec_runtime/execution_runtime_utils.h"
 #include "common/platform_info_util.h"
 #include <api/gelib/gelib.h>
 #include "common/memory/tensor_trans_utils.h"
@@ -236,16 +235,6 @@ Status InnerSession::Initialize() {
   return SUCCESS;
 }
 
-Status InnerSession::CreateDFlowSessionIfNeed() {
-  if (ExecutionRuntimeUtils::IsHeterogeneous()) {
-    dflow_session_impl_ = MakeShared<DFlowSessionImpl>(session_id_, options_);
-    GE_CHECK_NOTNULL(dflow_session_impl_, ", make DFlowSessionImpl failed");
-    GE_ASSERT_SUCCESS(dflow_session_impl_->Initialize(options_));
-    GELOGI("Session[%lu] will be implemented using dflow session", session_id_);
-  }
-  return SUCCESS;
-}
-
 Status InnerSession::Finalize() {
   std::lock_guard<std::mutex> lock(resource_mutex_);
   if (!is_initialized_) {
@@ -254,10 +243,6 @@ Status InnerSession::Finalize() {
   }
   UpdateGlobalSessionContext();
   GetThreadLocalContext().SetGraphOption({});
-  if (dflow_session_impl_ != nullptr) {
-    // must call before rtDeviceReset.
-    GE_CHK_STATUS_RET(dflow_session_impl_->Finalize(), "[Finalize][DflowSession] failed.");
-  }
   if (user_hybrid_graph_manager_ != nullptr) {
     user_hybrid_graph_manager_->Finalize();
   }
@@ -893,6 +878,10 @@ Status InnerSession::SetCompiledFlag(uint32_t graph_id, bool flag) {
 
 std::shared_ptr<DFlowSessionImpl> InnerSession::GetDFlowSession() const {
   return dflow_session_impl_;
+}
+
+void InnerSession::SetDFlowSession(const std::shared_ptr<DFlowSessionImpl> &dflow_session_impl) {
+  dflow_session_impl_ = dflow_session_impl;
 }
 
 Status InnerSession::GetRunGraphMode(uint32_t graph_id, RunGraphMode &mode) const {

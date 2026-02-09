@@ -15,6 +15,8 @@ if (NOT ENABLE_D AND NOT ENABLE_ACL AND NOT ENABLE_MS_TESTCASES)
 set(RUNNER_SRC_LIST_V2
     "client/ge_api_v2.cc"
     "session/ge_session_impl.cc"
+    "session/inner_session.cc"
+    "session/user_hybrid_graph_manager.cc"
     "common/plugin/tbe_plugin_manager.cc"
 )
 
