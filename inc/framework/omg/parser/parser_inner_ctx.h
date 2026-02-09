@@ -59,6 +59,8 @@ struct ParserContext {
   std::string caffe_proto_path;
   // name of the pass that needs to take effect
   std::string enable_scope_fusion_passes;
+  // Records output node names that were renamed during parsing (old_name:index, <new_name, index>)
+  std::map<std::string, std::pair<std::string, int32_t>> final_out_nodes_map;
 };
 
 GE_FUNC_VISIBILITY ParserContext &GetParserContext();
