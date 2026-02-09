@@ -13,6 +13,7 @@ target_include_directories(optimize_ut PRIVATE
         ${CODE_ROOT_DIR}/../../../../
         ${CODE_ROOT_DIR}/../../../../tests/autofuse/ut/optimize
         ${CODE_ROOT_DIR}/../../../../tests/autofuse/depends/runtime/src
+        ${CODE_ROOT_DIR}/../../../../tests/autofuse/framework/easy_asc_graph
         ${CODE_ROOT_DIR}/autofuse
 )
 
@@ -51,5 +52,6 @@ target_link_libraries(optimize_ut ${ASCGEN_COMMON_LINK_OPTION}
         graph
         metadef
         e2e
+        easy_asc_graph
         GTest::gtest
 )
