@@ -47,23 +47,17 @@ void CreateGraph(Graph &graph) {
 }
 
 class FlowGraphManagerTest : public testing::Test {
- protected:
-  static void SetUpTestSuite() {
-    const std::map<AscendString, AscendString> options{};
-    // compile depend on ge init.
-    EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
-  }
-  static void TearDownTestSuite() {
-    ge::GEFinalize();
-  }
-  void SetUp() override {
-
-  }
-
-  void TearDown() override {
-
-  }
 };
+
+TEST_F(FlowGraphManagerTest, BasicInitializeFinalize) {
+  std::map<std::string, std::string> options;
+  DflowGraphManager dflow_graph_manager;
+  // finalize without init
+  dflow_graph_manager.Finalize();
+  EXPECT_EQ(dflow_graph_manager.Initialize(options), SUCCESS);
+  // init twice
+  EXPECT_EQ(dflow_graph_manager.Initialize(options), SUCCESS);
+}
 
 TEST_F(FlowGraphManagerTest, OperateGraphWithoutInit) {
   DflowGraphManager dflow_graph_manager;
