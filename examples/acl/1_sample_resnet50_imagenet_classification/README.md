@@ -64,7 +64,7 @@
         -   --framework：原始框架类型。0：表示Caffe；1：表示MindSpore；3：表示TensorFlow；5：表示ONNX。
         -   --soc\_version：昇腾AI处理器的版本。版本获取可参考[Link](https://hiascend.com/document/redirect/CannCommunityAtcSocVersion)。
         -   --output\_type：指定输出的数据类型为float32。
-        -   --output：生成的resnet50.om文件存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_process.cpp中的omModelPath参数值。
+        -   --output：生成的resnet50.om文件存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_resnet50\_imagenet\_classification.cpp 中的omModelPath参数值。
 
             ```
             const char* omModelPath = "../model/resnet50.om";
@@ -102,7 +102,11 @@
     -   配置示例如下所示：
 
         ```
-        export DDK_PATH=$HOME/Ascend/cann
+        # toolkit默认路径安装，以root用户为例（非root用户，将/usr/local替换为${HOME}）
+        export DDK_PATH=/usr/local/Ascend/cann
+        export NPU_HOST_LIB=$DDK_PATH/devlib
+        # toolkit指定路径安装，${install_path}为toolkit的安装目录。
+        export DDK_PATH=${install_path}/cann
         export NPU_HOST_LIB=$DDK_PATH/devlib
         ```
 
