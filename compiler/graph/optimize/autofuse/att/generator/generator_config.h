@@ -31,7 +31,6 @@ struct TilingCodeGenConfig {
     bool gen_extra_infos{false};
     bool gen_tiling_data{true};
     bool high_precision{true};
-    double ub_ratio{0.5};
     bool enable_small_shape_strategy{false};
     bool enable_multicore_ub_tradeoff{false};
     bool enable_autofuse_pgo{false};
@@ -56,7 +55,8 @@ struct TilingCodeGenConfig {
          << ", gen_extra_infos(" << gen_extra_infos << ")"
          << ", gen_tiling_data(" << gen_tiling_data << ")"
          << ", high_precision(" << high_precision << ")"
-         << ", ub_ratio(" << ub_ratio << ")"
+         << ", ub_threshold(" << ub_threshold << ")"
+         << ", corenum_threshold(" << corenum_threshold << ")"
          << ", enable_small_shape_strategy(" << enable_small_shape_strategy << ")"
          << ", enable_multicore_ub_tradeoff(" << enable_multicore_ub_tradeoff << ")"
          << ", enable_autofuse_pgo(" << enable_autofuse_pgo << ")"

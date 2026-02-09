@@ -1499,7 +1499,7 @@ int main() {
       {"Case1_0: Equal priority", 20, 20, 40000},
       {"Case1_1: Equal priority", 30, 30, 40000},
       {"Case1_2: Equal priority", 40, 40, 40000},
-      {"Case1_3: Equal priority", 40, 200, 40000, false, 40},
+      {"Case1_3: Equal priority", 40, 200, 40000, false, 32},
       {"Case1_4: Equal priority", 40, 2000, 40000, false, 40},
       {"Case1_5: Equal priority", 40, 20000, 40000, false, 40},
       {"Case1: Equal priority", 50, 50, 40000},

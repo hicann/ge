@@ -19,7 +19,7 @@ namespace att {
 class PerfParamTableV2 : public PerfParamTable {
  public:
   PerfParamTableV2();
-  ~PerfParamTableV2() = default;
+  ~PerfParamTableV2() override = default;
   const std::map<std::string, std::vector<VfInstructPerf>> &GetVfInstructPerfTable() const;
   [[nodiscard]] const std::vector<VfInstructPerf> &GetVfInstructPerfTable(
       [[maybe_unused]] const std::string &vf_instruct_type) const override;

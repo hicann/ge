@@ -30,7 +30,7 @@ using PipeHeadPerfFunc = att::Expr (*)(const std::vector<att::NodeInfo> &,
 class PerfParamTable {
  public:
   PerfParamTable() = default;
-  ~PerfParamTable() = default;
+  virtual ~PerfParamTable() = default;
   [[nodiscard]] virtual const std::string *GetAscendCApiPerfTable() const = 0;
   [[nodiscard]] virtual PipeHeadPerfFunc GetPipeHeadPerfFunc(PipeType pipe_type) const = 0;
   // 获取MicroApi的latency/throughput等信息

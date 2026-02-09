@@ -195,6 +195,7 @@ struct CacheLineConfig {
 
 class TilingScheduleConfigTable {
  public:
+  virtual ~TilingScheduleConfigTable() = default;
   [[nodiscard]] virtual bool IsEnableBlockLoopAutoTune() const = 0;
   [[nodiscard]] virtual bool IsEnableCacheLineCheck() const = 0;
   [[nodiscard]] virtual TradeOffConfig GetTradeOffConfig() const = 0;

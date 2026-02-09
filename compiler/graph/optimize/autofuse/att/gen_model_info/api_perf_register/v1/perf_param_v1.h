@@ -19,7 +19,7 @@ namespace att {
 class PerfParamTableV1 : public PerfParamTable {
  public:
   PerfParamTableV1();
-  ~PerfParamTableV1() = default;
+  ~PerfParamTableV1() override = default;
   [[nodiscard]] const std::string *GetAscendCApiPerfTable() const override;
   [[nodiscard]] PipeHeadPerfFunc GetPipeHeadPerfFunc(PipeType pipe_type) const override;
   [[nodiscard]] Expr GetOpHeadCost() const override;
