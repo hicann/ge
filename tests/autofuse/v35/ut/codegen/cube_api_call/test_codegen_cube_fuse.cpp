@@ -463,6 +463,7 @@ TEST_F(CubeFuseTest, CubeElewiseBrcTest) {
     std::vector<std::string> expected_headers = {
         "#include \"arch35/mat_mul_v3_tiling_key_public.h\"",
         "#include \"arch35/mat_mul_tiling_data.h\"",
+        "#include \"mat_mul_v3_common.h\"",
         "#include \"arch35/mat_mul_asw_block.h\"",
         "#include \"arch35/mat_mul_asw_kernel.h\"",
         "#include \"arch35/mat_mul_stream_k_block.h\"",
@@ -475,7 +476,8 @@ TEST_F(CubeFuseTest, CubeElewiseBrcTest) {
         "#include \"arch35/block_scheduler_aswt.h\"",
         "#include \"arch35/block_scheduler_streamk.h\"",
         "#include \"arch35/mat_mul_streamk_basic_cmct.h\"",
-        "#include \"arch35/mat_mul_fixpipe_opti_basic_cmct.h\""
+        "#include \"arch35/mat_mul_fixpipe_opti_basic_cmct.h\"",
+        "#include \"arch35/mat_mul_input_k_eq_zero_clear_output.h\""
     };
 
     for (const auto &header : expected_headers) {

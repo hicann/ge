@@ -2,10 +2,8 @@ set(ascendc_api_cube_src
         matmul.h
         matmul/matmul_include_headers.h
         matmul/mat_mul_tiling_key.h
-        matmul/mat_mul_v3_common.h
         matmul/batch_mat_mul_v3_tiling_key.h
         matmul/mat_mul_pingpong_basic_cmct.h
-        matmul/mat_mul_input_k_eq_zero_clear_output.h
         matmul/batch_matmul_include_headers.h
         batch_matmul.h
 )

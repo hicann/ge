@@ -4111,33 +4111,7 @@ ge::Status Kernel::GenCubeCommonTiling(std::stringstream &ss, const bool is_batc
     ss << "  mat_mul_v3<";
   }
 
-  std::vector<reference_wrapper<const Tensor>> input_tensors;
-  for (const auto &in_id : this->input_tensors) {
-    auto tensor_ptr = this->tpipe.GetTensor(in_id);
-    GE_ASSERT_NOTNULL(tensor_ptr, "", "Check[Param] tensor_ptr is nullptr");
-    input_tensors.emplace_back(*tensor_ptr);
-  }
-  std::vector<reference_wrapper<const Tensor>> output_tensors;
-  for (const auto &out_id : this->output_tensors) {
-    auto tensor_ptr = this->tpipe.GetTensor(out_id);
-    GE_ASSERT_NOTNULL(tensor_ptr, "", "Check[Param] tensor_ptr is nullptr");
-    output_tensors.emplace_back(*tensor_ptr);
-  }
-
-  for (const auto &pair : this->workspace_tensors) {
-    auto tensor_ptr = this->tpipe.GetTensor(pair.first);
-    GE_ASSERT_NOTNULL(tensor_ptr, "", "Check[Param] tensor_ptr is nullptr");
-    output_tensors.emplace_back(*tensor_ptr);
-  }
-
-  std::string input_dtype_name;
-  GE_CHK_STATUS(Tensor::DtypeName(input_tensors[0].get().dtype, input_dtype_name), "Codegen get data type:%d failed",
-                static_cast<int32_t>(input_tensors[0].get().dtype));
-  std::string output_dtype_name;
-  GE_CHK_STATUS(Tensor::DtypeName(output_tensors[0].get().dtype, output_dtype_name), "Codegen get data type:%d failed",
-                static_cast<int32_t>(output_tensors[0].get().dtype));
-  ss << input_dtype_name << ", " << input_dtype_name << ", " << output_dtype_name << ", " << output_dtype_name << ", "
-     << "API_LEVEL, A_TRANS, B_TRANS, BATCH_MODEL, MODEL, FULL_LOAD, L0C2OUT_MODEL>(";
+  ss << "API_LEVEL, A_TRANS, B_TRANS, BATCH_MODEL, MODEL, FULL_LOAD, L0C2OUT_MODEL>(";
   return ge::SUCCESS;
 }
 

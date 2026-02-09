@@ -129,8 +129,7 @@ constexpr CubeFormat format_y = CubeFormat::ND;
         op.Init(aGM, bGM, cGM, biasGM, offsetWGM, user, &tilingData, &pipe);             \
         op.Process();                                                                    \
     } while (0)
-template <class DTYPE_X1, class DTYPE_X2, class DTYPE_Y, class DTYPE_BIAS, // 此处和act模板代码有差异，注意保留dtype
-    int8_t BATCH_API_LEVEL, int8_t BATCH_A_TRANS, int8_t BATCH_B_TRANS, int8_t BATCH_ITER_MODEL, int8_t BMODEL,
+template <int8_t BATCH_API_LEVEL, int8_t BATCH_A_TRANS, int8_t BATCH_B_TRANS, int8_t BATCH_ITER_MODEL, int8_t BMODEL,
     int8_t BATCH_FULL_LOAD, int8_t BATCH_L0C2OUT_MODEL>
 __global__ __aicore__ void batch_mat_mul_v3(
 #ifdef CV_UB_FUSION
@@ -184,12 +183,6 @@ __global__ __aicore__ void batch_mat_mul_v3(
             aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
     } else if constexpr (
         BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
-        BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_MERGE_BATCH) {
-        GET_TILING_DATA_WITH_STRUCT(BatchMatMulV3MergeBatchBasicTilingData, tilingData, tilingGM);
-        BatchMatMulActMergeBatchKernel<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor>(
-            aGM, bGM, biasGM, cGM, workspaceGM, tilingData);
-    } else if constexpr (
-        BATCH_API_LEVEL == MAT_MUL_BASIC_LEVEL && BMODEL == MAT_MUL_BASIC && BATCH_FULL_LOAD == MAT_MUL_NO_FULL_LOAD &&
         BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_BATCH_MATMUL_TO_MUL) {
         GET_TILING_DATA_WITH_STRUCT(BatchMatMulToMulBasicTilingData, tilingData, tilingGM);
         BatchMatMulToMulActKernel<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS, aLayout, bLayout, layout::RowMajor>(
@@ -233,7 +226,7 @@ __global__ __aicore__ void batch_mat_mul_v3(
         BATCH_L0C2OUT_MODEL == MAT_MUL_ON_THE_FLY && BATCH_ITER_MODEL == MAT_MUL_FOR_BATCH) {
         TPipe pipe;
         GET_TILING_DATA_WITH_STRUCT(MatMulV3KEqZeroBasicTilingData, tilingData, tilingGM);
-        MatmulV3Advanced::MatMulInputKEqZeroClearOutput<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS>(biasGM, cGM, tilingData); // 此处自动融合和act有差异，多模版代码：<DTYPE_X1, DTYPE_X2, DTYPE_Y, DTYPE_BIAS>
+        MatmulV3Advanced::MatMulInputKEqZeroClearOutput(biasGM, cGM, tilingData);
 #endif
     }
 }

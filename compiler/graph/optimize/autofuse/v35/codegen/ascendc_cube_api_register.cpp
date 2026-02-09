@@ -30,20 +30,13 @@ Register::Register() {
 #include "mat_mul_tiling_key_str.h"
 
   };
-  const std::string kAscendcmat_mul_v3_common = {
-#include "mat_mul_v3_common_str.h"
 
-  };
   const std::string kAscendcbatch_mat_mul_v3_tiling_key = {
 #include "batch_mat_mul_v3_tiling_key_str.h"
 
   };
   const std::string kAscendcmat_mul_pingpong_basic_cmct = {
 #include "mat_mul_pingpong_basic_cmct_str.h"
-
-  };
-  const std::string kAscendcmat_mul_input_k_eq_zero_clear_output = {
-#include "mat_mul_input_k_eq_zero_clear_output_str.h"
 
   };
   const std::string kAscendcbatch_matmul = {
@@ -58,10 +51,8 @@ Register::Register() {
       {"matmul.h", kAscendcMatmulStr},
       {"matmul_include_headers.h", kAscendcmat_mul_include_headers},
       {"mat_mul_tiling_key.h", kAscendcmat_mul_tiling_key},
-      {"mat_mul_v3_common.h", kAscendcmat_mul_v3_common},
       {"batch_mat_mul_v3_tiling_key.h", kAscendcbatch_mat_mul_v3_tiling_key},
       {"mat_mul_pingpong_basic_cmct.h", kAscendcmat_mul_pingpong_basic_cmct},
-      {"mat_mul_input_k_eq_zero_clear_output.h", kAscendcmat_mul_input_k_eq_zero_clear_output},
       {"batch_matmul.h", kAscendcbatch_matmul},
       {"batch_matmul_include_headers.h", kAscendcbatch_matmul_include_headers}};
 

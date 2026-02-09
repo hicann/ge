@@ -976,8 +976,18 @@ def template_decider(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
             tiling_info.file_content += "\n#define CV_UB_DB 1\n"
 
 
+def map_dtype_to_string(dtype):
+    dtype_map = {
+        "bfloat16": "bfloat16_t",
+        "float16": "half",
+        "float32": "float"
+    }
+
+    return dtype_map.get(dtype.lower(), dtype)
+
+
 def create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube_info):
-    cube_output_type_size, is_batch, _, _, _ = cube_info[:5]
+    cube_output_type_size, is_batch, _, _, has_relu, origin_inputs, origin_outputs = cube_info[:7]
 
     # 根据is_batch设置结构体名称和数据访问路径
     struct_name = "BatchMatMulV3BasicTilingData" if is_batch else "MatMulV3BasicTilingData"
@@ -1007,7 +1017,15 @@ GET_TILING_DATA_WITH_STRUCT({struct_name}, tmpTilingData, tmpTilingGM);
     template_decider(kernel_name, temp_dir, graph_name, tiling_info, cube_info)
 
     # 写入device端文件
-    device_tiling_data = "\n#include \"arch35/mat_mul_tiling_data.h\"\n"
+    device_tiling_data = f"""\n#include "arch35/mat_mul_tiling_data.h"
+#define IS_ENABLE_RELU {str(has_relu).lower()}
+#define OP_TYPE_RELU_VALUE {5 if has_relu else 0}UL // 自动融合新增
+#define DTYPE_X1 {map_dtype_to_string(origin_inputs[-1]["dtype"])}
+#define DTYPE_X2 {map_dtype_to_string(origin_inputs[-1]["dtype"])}
+#define DTYPE_Y {map_dtype_to_string(origin_outputs[-1]["dtype"])}
+#define DTYPE_BIAS {map_dtype_to_string(origin_outputs[-1]["dtype"])}
+"""
+
     tiling_info.file_content += device_tiling_data
     device_tiling_content = tiling_info.file_content
     generate_file(os.path.join(temp_dir, "device"), "autofuse_cube_tiling_data.h", device_tiling_content)
@@ -1073,7 +1091,8 @@ def ascbc_cube_kernel_tiling_pro(
     logger.info("kernel_name=[%s], cube tiling_key[%s], tiling_data=[%s], tiling_file_context=[%s]", kernel_name, str(
         tiling_info.tiling_key), str(tiling_info.tiling_data), str(tiling_info.file_content))
     cube_output_type_size = cube_attributes.get("type_size", 4)
-    cube_info = [cube_output_type_size, is_batch, cube_block_dim, use_cv_common, has_relu]
+    cube_info = [cube_output_type_size, is_batch, cube_block_dim, use_cv_common, has_relu, _origin_inputs_,
+                 _origin_outputs_]
     create_cube_tiling_data(kernel_name, temp_dir, graph_name, tiling_info, cube_info)
 
 
