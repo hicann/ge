@@ -27,7 +27,7 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
      ```bash
      # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
      # asan以gcc 7.5.0版本为例安装的是libasan4，其他版本请安装对应版本asan
-     sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf
+     sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf 
      libgraph-easy-perl patch
      ```
 
