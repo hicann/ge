@@ -17,7 +17,6 @@ constexpr int32_t kMaxDmaLen = 4;
 constexpr int32_t kMaxNddmaLen = 5;
 PerfParamTableV2 perf_param_table_v2;
 TilingScheduleConfigTableV2 tiling_schedule_config_table_v2;
-TilingScheduleConfigTableV2HeavyOp tiling_schedule_config_table_v2_heavy_op;
 ApiPerfRegister<ApiPerf> ApiPerfRegisterV2(const std::string &api_name,
                                            Perf perf_func,
                                            MicroPerfFunc micro_perf_func,
@@ -557,9 +556,9 @@ ApiPerfRegister<ApiPerf> maximum_api_perf_v2(ApiPerfRegisterV2(kMaximum, GetPerf
 ApiPerfRegister<ApiPerf> minimum_api_perf_v2(ApiPerfRegisterV2(kMinimum, GetPerfFunc(kMin + "V2"), nullptr,
                                                                &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> reduce_max_api_perf_v2(ApiPerfRegisterV2(kMax, GetPerfFunc(kMax + "V2"), nullptr,
-                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> reduce_min_api_perf_v2(ApiPerfRegisterV2(kMin, GetPerfFunc(kMin + "V2"), nullptr,
-                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> min_api_perf_v2(ApiPerfRegisterV2(kMin, GetPerfFunc(kMin), nullptr, &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> mul_api_perf_v2(ApiPerfRegisterV2(kMul, GetPerfFunc(kMul + "V2"), nullptr,
                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
@@ -602,15 +601,15 @@ ApiPerfRegister<ApiPerf> nddma_api_perf_v2(ApiPerfRegisterV2(kNddma, GetPerfFunc
                                                             &perf_param_table_v2, &tiling_schedule_config_table_v2));                                                             
 // 暂时使用UnitVector，后续修改为对应Reduce的性能公式
 ApiPerfRegister<ApiPerf> reduce_all_api_perf_v2(ApiPerfRegisterV2(kAll, GetPerfFunc(kMin + "V2"), nullptr,
-                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> reduce_any_api_perf_v2(ApiPerfRegisterV2(kAny, GetPerfFunc(kMax + "V2"), nullptr,
-                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> reduce_mean_api_perf_v2(ApiPerfRegisterV2(kMean, GetPerfFunc(kMean + +"V2"), nullptr,
-                                                                   &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                                   &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> reduce_prod_api_perf_v2(ApiPerfRegisterV2(kProd, GetPerfFunc(kMul + "V2"), nullptr,
-                                                                   &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                                   &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> reduce_sum_api_perf_v2(ApiPerfRegisterV2(kSum, GetPerfFunc(kSum + "V2"), nullptr,
-                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                                  &perf_param_table_v2, &tiling_schedule_config_table_v2));
 // 不需要建模的ASCIR
 ApiPerfRegister<ApiPerf> data_api_perf_v2(ApiPerfRegisterV2(kData, DefaultGetPerf, nullptr, &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> scalar_api_perf_v2(ApiPerfRegisterV2(kScalar, DefaultGetPerf, nullptr, &perf_param_table_v2, &tiling_schedule_config_table_v2));
@@ -638,21 +637,21 @@ ApiPerfRegister<ApiPerf> isnan_api_perf_v2(ApiPerfRegisterV2(kIsnan, GetPerfFunc
 ApiPerfRegister<ApiPerf> isfinite_api_perf_v2(ApiPerfRegisterV2(kIsFinite, GetPerfFunc(kUnitVector), nullptr,
                                                                 &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> max_api_perf_v2(ApiPerfRegisterV2(kMax, GetPerfFunc(kUnitVector), nullptr,
-                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> mean_api_perf_v2(ApiPerfRegisterV2(kMean, GetPerfFunc(kUnitVector), nullptr,
-                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> prod_api_perf_v2(ApiPerfRegisterV2(kProd, GetPerfFunc(kUnitVector), nullptr,
-                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                            &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> any_api_perf_v2(ApiPerfRegisterV2(kAny, GetPerfFunc(kMax + "V2"), nullptr,
-                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> all_api_perf_v2(ApiPerfRegisterV2(kAll, GetPerfFunc(kMin + "V2"), nullptr,
-                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> sigmoid_api_perf_v2(ApiPerfRegisterV2(kSigmoid, GetPerfFunc(kSigmoid + "V2"), nullptr,
                                                                &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> true_div_api_perf_v2(ApiPerfRegisterV2(kTrueDiv, GetPerfFunc(kDiv + "V2"), nullptr,
                                                                 &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> pow_api_perf_v2(ApiPerfRegisterV2(kPow, GetPerfFunc(kPow + "V2"), nullptr,
-                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2_heavy_op));
+                                                           &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> clip_by_value_api_perf_v2(ApiPerfRegisterV2(kClipByValue, GetPerfFunc(kClipByValue + "V2"), nullptr,
                                                                      &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> concat_api_perf_v2(ApiPerfRegisterV2(kConcat, GetPerfFunc(kUnitVector), nullptr,

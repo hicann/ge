@@ -44,7 +44,7 @@ class TilingScheduleConfigTableV2 : public TilingScheduleConfigTable {
     return true;
   }
   [[nodiscard]] TradeOffConfig GetTradeOffConfig() const override {
-    return {true, ge::Symbol(0.1), ge::Symbol(1.0)};
+    return {true, ge::Symbol(0.01), ge::Symbol(1.0)};
   }
   [[nodiscard]] double GetUbThresholdPerfValEffect() const override {
     constexpr double kDefaultUbThresholdPerfValEffect = 0.05;
@@ -66,20 +66,6 @@ class TilingScheduleConfigTableV2 : public TilingScheduleConfigTable {
   // 新增：V2形态使能Reduce分核惩罚
   [[nodiscard]] bool IsCoreNumThresholdPenaltyEnable() const override {
     return true;
-  }
-};
-
-class TilingScheduleConfigTableV2HeavyOp : public TilingScheduleConfigTableV2 {
- public:
-  [[nodiscard]] TradeOffConfig GetTradeOffConfig() const override {
-    TradeOffConfig config;
-    config.is_enable = true;
-    config.ub_ratio = ge::Symbol(0.05);
-    config.core_num_ratio = ge::Symbol(1.0);
-    return config;
-  }
-  [[nodiscard]] TilingScheduleConfigPriority GetConfigPriority() const override {
-    return TilingScheduleConfigPriority::kHeavyOpPriority;
   }
 };
 extern const std::string kParamV2Info;

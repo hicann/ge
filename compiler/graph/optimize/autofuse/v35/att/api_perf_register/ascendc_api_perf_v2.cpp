@@ -16,15 +16,20 @@
 #include "api_perf_register/api_perf_factory.h"
 namespace att {
 namespace {
+// 获取 CacheLine 大小，与 TilingScheduleConfigTable 保持一致
+uint32_t GetCacheLineSize() {
+  return TilingScheduleConfigTableV2().GetCacheLineSize();
+}
+
 ge::Status GetBlockCount(const NodeDetail &node_info, vector<CacheLineConfig> *cache_line_config) {
-  if (cache_line_config != nullptr) {    
+  if (cache_line_config != nullptr) {
     auto dims = node_info.input_dims;
     Expr dim_product = accumulate(dims.begin(), dims.end(), CreateExpr(1), [](Expr a, Expr b) { return a * b; });
     auto iter1 = kDataTypeSizeMap.find(node_info.input_dtype[0]);
     GE_ASSERT_TRUE(iter1 != kDataTypeSizeMap.end());
     Expr dim_product_byte = ge::sym::Mul(dim_product, iter1->second);
     if (!dim_product_byte.IsConstExpr()) {
-      cache_line_config->push_back({node_info.name, dim_product_byte, 64});
+      cache_line_config->push_back({node_info.name, dim_product_byte, GetCacheLineSize()});
     }
   }
   return ge::SUCCESS;
@@ -104,7 +109,7 @@ ge::Status ExpandBlockLen(const NodeDetail &node_info, PerfOutputInfo &perf, std
   // 满足gm非连续且搬运小于cache line，扩展每次搬运数据量到cache line
   const size_t dim_size = dims.size();
   auto &block_len = dims[dim_size - 1UL];
-  constexpr int32_t kCacheLineSize = 128;
+  const int32_t kCacheLineSize = static_cast<int32_t>(GetCacheLineSize());
   const auto &data_type_size = kDataTypeSizeMap.find(node_info.input_dtype[0]);
   GE_ASSERT_TRUE(data_type_size != kDataTypeSizeMap.cend(), "Check data type size failed, node[%s]",
                  node_info.ToString().c_str());

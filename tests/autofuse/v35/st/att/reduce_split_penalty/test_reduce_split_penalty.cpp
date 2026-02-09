@@ -49,7 +49,8 @@ void Test1(ReduceSplitPenaltyTilingData &tilingData) {
   std::cout << "====================================================" << std::endl;
   auto block_dim = tilingData.get_block_dim();
   std::cout << "get_block_dim"<< " = " << block_dim << std::endl;
-  MY_ASSERT_EQ(block_dim, 64);
+  // cache_line_size从64统一为128后，block_dim从64变为34
+  MY_ASSERT_EQ(block_dim, 34);
   std::cout << "====================================================" << std::endl;
 }
 
