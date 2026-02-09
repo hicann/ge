@@ -145,18 +145,6 @@ set(HELPER_EXEC_FWK_SRC_LIST
         deploy/execfwk/udf_proxy_client.cc
         deploy/execfwk/udf_executor_client.cc)
 
-set(HELPER_EXECUTOR_SRC_LIST
-        executor/cpu_id_resource_manager.cc
-        executor/cpu_sched_event_dispatcher.cc
-        executor/cpu_sched_model.cc
-        executor/cpu_sched_model_builder.cc
-        executor/cpu_tasks.cc
-        executor/dynamic_model_executor.cc
-        executor/engine_thread.cc
-        executor/event_handler.cc
-        executor/executor_context.cc
-        executor/proxy_dynamic_model_executor.cc)
-
 set(LIB_MODEL_DEPLOYER_SRC_LIST
         ${HELPER_COMMON_SRC_LIST}
         ${HELPER_DEPLOYER_SRC_LIST}
@@ -164,7 +152,6 @@ set(LIB_MODEL_DEPLOYER_SRC_LIST
         ${HELPER_FLOW_RM_SRC_LIST}
         ${HELPER_RESOURCE_MANAGER_SRC_LIST}
         ${HELPER_DEPLOYER_RPC_SRC_LIST}
-        ${HELPER_EXECUTOR_SRC_LIST}
         deploy/model_send/flow_model_sender.cc
         deploy/model_recv/flow_model_receiver.cc
         deploy/heterogeneous_execution_runtime.cc)
@@ -235,7 +222,6 @@ target_link_libraries(model_deployer PRIVATE
         ge_common_base
         data_flow_base
         ge_executor_shared
-        npu_sched_model_loader
         gert
         error_manager
         dgw_client
