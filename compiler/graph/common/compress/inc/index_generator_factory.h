@@ -15,6 +15,7 @@
 #include "compress.h"
 #include "mode_a_index_generator.h"
 #include "mode_b_index_generator.h"
+#include "mode_warehouse.h"
 
 namespace amctcmp {
 class IndexGeneratorFactory {

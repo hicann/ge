@@ -42,9 +42,7 @@ static std::string PrettyTime()
     }
     char buffer[128];
 
-    strftime(buffer, sizeof(buffer),
-             LOGGER_PRETTY_TIME_FORMAT,
-             timeInfo);
+    (void)strftime(buffer, sizeof(buffer), LOGGER_PRETTY_TIME_FORMAT, timeInfo);
 
     std::chrono::milliseconds ms = std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch());
     std::chrono::microseconds cs = std::chrono::duration_cast<std::chrono::microseconds>(tp.time_since_epoch());
