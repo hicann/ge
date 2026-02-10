@@ -2316,7 +2316,7 @@ bool GraphPrepare::IsDynamicDims(const NodePtr &input_node) const {
   std::string compile_dynamic_mode;
   (void) ge::GetContext().GetOption("ge.compile_dynamic_mode", compile_dynamic_mode);
   if ((!all_is_positive) && ((compile_dynamic_mode == "1") || (jit_compile == "0") || (jit_compile == "2"))) {
-    GELOGI("No need fresh input shape when shape is unknown if compile_dynamic_mode: %s or jit_compile: %s",
+    GELOGI("No need fresh input shape when shape is unknown if compile_dynamic_mode:[%s] or jit_compile:[%s]",
         compile_dynamic_mode.c_str(), jit_compile.c_str());
     return true;
   }

@@ -128,7 +128,7 @@ Status GraphOptimize::OptimizeSubGraph(ComputeGraphPtr &compute_graph, const std
       }
     }
   } else {
-    GELOGI("Engine: %s is not registered. do nothing in subGraph Optimize by ATC.", engine_name.c_str());
+    GELOGI("Engine:[%s] is not registered. do nothing in subGraph Optimize by ATC.", engine_name.c_str());
   }
   return SUCCESS;
 }
