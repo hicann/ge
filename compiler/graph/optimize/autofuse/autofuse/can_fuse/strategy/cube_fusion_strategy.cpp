@@ -21,12 +21,13 @@
 namespace ge {
 using namespace autofuse;
 bool HasBatchBroadcast(int32_t axis_size, std::vector<ViewOpAttrInfo> &attr_infos, const NodePtr &node2) {
+  auto batch_axis_size = axis_size - 2U;
   for (const auto &attr_info : attr_infos) {
-    GELOGD("try to find batch axis(axis size %d) broadcast with broadcast info(%s) in node1 %s(%s)", axis_size,
+    GELOGD("try to find batch axis(axis size %d) broadcast with broadcast info(%s) in node2 %s(%s)", axis_size,
            AutofuseUtils::VectorToStr(attr_info.broadcast_info).c_str(), node2->GetNamePtr(), node2->GetType().c_str());
     for (auto axis_id : attr_info.broadcast_info) {
       // 非m、n轴broadcast则是batch轴broadcast，n、m轴总是总是在内轴
-      if ((axis_id != axis_size - 1U) && (axis_id != axis_size - 2U)) {
+      if (axis_id < batch_axis_size) {
         return true;
       }
     }
@@ -42,10 +43,8 @@ bool IsIndirectLinksWithoutBatchBroadcast(const NodePtr &node1, const NodePtr &n
   }
 
   TensorAttrInfo temp_graph_attr;
-  auto asc_graph = BackendUtils::GetNodeFusedAscGraph(node2);
+  auto asc_graph = BackendUtils::GetNodeFusedAscGraph(node1);
   GE_ASSERT_NOTNULL(asc_graph);
-  // 存在reshape加1根大小为1的轴在m、n轴之间的场景，需删除无效轴，否则反推会判断为batch 轴broadcast
-  GE_ASSERT_SUCCESS(asc_adapt::GetAndRemoveInvalidAxis(*asc_graph));
   GE_ASSERT_SUCCESS(BackendUtils::GetGraphAttrInfo(*asc_graph, temp_graph_attr));
   GE_ASSERT_TRUE(temp_graph_attr.axis.size() < static_cast<uint32_t>(std::numeric_limits<int32_t>::max()));
   auto axis_size = static_cast<int32_t>(temp_graph_attr.axis.size());
