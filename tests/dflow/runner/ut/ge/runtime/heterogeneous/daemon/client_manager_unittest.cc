@@ -98,9 +98,8 @@ TEST_F(DaemonClientManagerTest, run_create_client_success) {
   int64_t client_id = 0;
   std::map<std::string, std::string> deployer_envs;
   deployer_envs.emplace("FAKE_ENV", "1");
-  auto ret = client_manager.CreateAndInitClient("ipv4:192.188.1.1:12345", deployer_envs, client_id);
+  auto ret = client_manager.CreateAndInitClient("ipv4:192.168.1.1:12345", deployer_envs, client_id);
   ASSERT_EQ(ret, SUCCESS);
-
 }
 
 TEST_F(DaemonClientManagerTest, run_close_and_get_client_failed) {
