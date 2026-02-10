@@ -246,6 +246,20 @@ Status VfCall::ParseAttr(const ascir::NodeView &node) {
   return ParseSubGraph(node, sub_graph);
 }
 
+bool VfCall::ShouldInitAsMaskReg(const ascir::NodeView &node, ge::AscTensor *output) const {
+  // compare的输出需要初始化为mask_reg, where的第一个输入对应的输出需要初始化为mask_reg
+  if (IsOps<Ge>(node) || IsOps<Eq>(node) || IsOps<Le>(node) || IsOps<Ne>(node) || IsOps<Gt>(node) || IsOps<Lt>(node)) {
+    return true;
+  }
+  // 目前Compare输出多引用、Where第一个输入对应的输出多引用场景暂不支持VF融合，因此下面直接取第一个anchor
+  auto peer_input = output->anchor.GetPeerInDataAnchors().at(0);
+  auto output_node = std::dynamic_pointer_cast<ge::AscNode>(peer_input->GetOwnerNode());
+  if (IsOps<Where>(output_node) && (peer_input->GetIdx() == 0)) {
+    return true;
+  }
+  return false;
+}
+
 Status VfCall::ParseSubGraph(const ascir::NodeView &vf_node, const ascir::ImplGraph &graph) {
   // 从节点上读取sub_graph_name属性
   const std::string *graph_name = ge::AttrUtils::GetStr(vf_node->GetOpDescBarePtr(), "sub_graph_name");
@@ -267,7 +281,6 @@ Status VfCall::ParseSubGraph(const ascir::NodeView &vf_node, const ascir::ImplGr
     for (auto output : node->outputs()) {
       auto output_index = ge::ascir::AscTensorUtils::Index(*output);
       auto tensor_name = node->GetName() + "_" + desc->GetOutputNameByIndex(output_index);
-      std::string scalar_value;
 
       uint32_t dtype_size = 0;
       std::string dtype_name;
@@ -278,12 +291,8 @@ Status VfCall::ParseSubGraph(const ascir::NodeView &vf_node, const ascir::ImplGr
         this->max_dtype_size_ = dtype_name;
         max_dtype_size = dtype_size;
       }
-
-      if (IsOps<Scalar>(node)) {
-        GE_CHK_GRAPH_STATUS_RET(node->attr.ir_attr->GetAttrValue("value", scalar_value),
-                                "Failed to get scalar node value, node = %s", node->GetNamePtr());
-      }
-      MicroApiTensor tensor(*output, dtype_name, scalar_value);
+      auto init_as_mask_reg = ShouldInitAsMaskReg(node, output);
+      MicroApiTensor tensor(*output, dtype_name, init_as_mask_reg);
       GE_CHK_STATUS_RET(tensor_mgr_.AddTensor(tensor), "Codegen add tensor failed");
     }
   }

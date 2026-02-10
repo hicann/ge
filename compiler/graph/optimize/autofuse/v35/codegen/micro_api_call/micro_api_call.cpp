@@ -34,9 +34,6 @@ namespace codegen {
     stringstream ss;
     for (const auto &[tensor_id, m_api_tensor] : this->tensors_) {
       (void)tensor_id;
-      if (m_api_tensor.is_constant_) {
-        continue;
-      }
       ss << m_api_tensor.Define() << std::endl;
     }
     result = ss.str();
@@ -51,11 +48,13 @@ namespace codegen {
     return Type("AscendC::MicroAPI::RegTensor<" + dtype_name + ">");
   }
 
-  MicroApiTensor::MicroApiTensor(const ascir::TensorAttr &tensor, std::string &dtype_name,
-                                 const std::string &scalar_value)
-      : Variable((!scalar_value.empty()) ? Type(dtype_name) : RegTensorTypes(dtype_name),
-                 (!scalar_value.empty()) ? ("scalar_" + to_string(tensor.attr.mem.tensor_id))
-                                         : ("vreg_" + to_string(tensor.attr.mem.tensor_id))),
+  const Type MicroApiTensor::MaskRegTypes() {
+    return Type("AscendC::MicroAPI::MaskReg");
+  }
+
+  MicroApiTensor::MicroApiTensor(const ascir::TensorAttr &tensor, std::string &dtype_name, bool init_as_mask_reg)
+      : Variable((init_as_mask_reg ? MaskRegTypes() : RegTensorTypes(dtype_name)),
+                 (init_as_mask_reg ? "mask_reg_" : "vreg_") + to_string(tensor.attr.mem.tensor_id)),
         id_(tensor.attr.mem.tensor_id),
         dtype_(tensor.attr.dtype),
         position_(tensor.attr.mem.position),
@@ -66,8 +65,7 @@ namespace codegen {
         vectorized_strides_(tensor.attr.vectorized_strides),
         size_(this->name + "_size"),
         actual_size_(this->name + "_actual_size"),
-        const_value_(scalar_value),
-        is_constant_(!scalar_value.empty()) {}
+        init_as_mask_reg_(init_as_mask_reg) {}
 
 // 生成micro api的调用
   Status MicroApiCall::Generate(const TensorManager &tensor_mng, [[maybe_unused]] const TPipe &tpipe, CallParam &param,
@@ -78,7 +76,11 @@ namespace codegen {
       ss << *(tensor_mng.GetTensor(out_arg.second)) << ", ";
     }
     for (auto in_arg : this->inputs_) {
-      ss << *(tensor_mng.GetTensor(in_arg.second)) << ", ";
+      if (in_arg.first == TensorType::REG_TENSOR) {
+        ss << *(tensor_mng.GetTensor(in_arg.second)) << ", ";
+      } else {
+        ss << *(tpipe.GetTensor(in_arg.second)) << ", ";
+      }
     }
     ss << param.p_reg << ");" << endl;
     result = ss.str();

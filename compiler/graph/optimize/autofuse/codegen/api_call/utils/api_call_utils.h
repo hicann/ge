@@ -91,6 +91,7 @@ bool ShouldIgnoreZeroAxis(const std::vector<Tensor> &inputs, const std::vector<T
 bool IsInputOutputStrideAllZero(const std::vector<Tensor> &inputs, const std::vector<Tensor> &outputs,
                                 int64_t cur_index);
 void GenerateLinkStoreEventCode(const Tensor &ub, const std::string &offset_str, std::stringstream &ss);
+bool IsAllVecAxisContinuous(const ge::AscNode &node);
 }  // namespace codegen
 
 #endif

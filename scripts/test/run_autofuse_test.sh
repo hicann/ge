@@ -720,7 +720,9 @@ build_backend() {
                       load_bitwise_or_store_test_e2e_v2 \
                       load_bitwise_xor_store_test_e2e_v2 \
                       ceil_bf16_test_e2e_v2 \
-                      cos_bf16_test_e2e_v2"
+                      cos_bf16_test_e2e_v2 \
+                      load_compare_scalar_where_store_test_e2e_v2 \
+                      load_compare_where_store_test_e2e_v2"
   fi
   make -j${THREAD_NUM} $MAKE_TARGET_LIST
   if [ $? -ne 0 ]

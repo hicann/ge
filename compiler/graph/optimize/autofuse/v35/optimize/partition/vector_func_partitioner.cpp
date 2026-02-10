@@ -410,7 +410,12 @@ void VectorFuncPartitioner::RefineEnableVFFlag(const ge::AscNodePtr &node, bool 
     enable_vf = is_out_support_vf;
     return;
   }
-
+  // Compare微指令支持scalar输入
+  if (ge::ops::IsOps<ge::ascir_op::Ge>(node) || ge::ops::IsOps<ge::ascir_op::Eq>(node) ||
+      ge::ops::IsOps<ge::ascir_op::Ne>(node) || ge::ops::IsOps<ge::ascir_op::Le>(node) ||
+      ge::ops::IsOps<ge::ascir_op::Lt>(node) || ge::ops::IsOps<ge::ascir_op::Gt>(node)) {
+    return;
+  }
   // 非ScalarBrc场景：如果算子的任意输入直连scalar，就把enable_vf标记为false
   for (const auto &in_node : node->GetInDataNodes()) {
     if (ge::ops::IsOps<ge::ascir_op::Scalar>(in_node)) {

@@ -15,6 +15,7 @@
 #include "ascir_ops.h"
 #include "ascir_ops_utils.h"
 #include "codegen_kernel.h"
+#include "micro_api_call.h"
 #include "micro_scalar_broadcast_api_call.h"
 
 using namespace std;
@@ -94,16 +95,16 @@ TEST(CodegenKernel, MicroScalarBroadCastStore) {
   y1.id = store_node->outputs[0].attr.mem.tensor_id;
   codegen::CallParam cp = {"p_reg", ""};
   auto scalar_val = constant_node->GetName() + "_" + constant_node->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(constant_node->outputs[0], scalar_val, "1.0");
+  MicroApiTensor tensor1(constant_node->outputs[0], scalar_val);
   auto tensor_store = store_node->GetName() + "_" + store_node->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor2(store_node->outputs[0], tensor_store, "");
+  MicroApiTensor tensor2(store_node->outputs[0], tensor_store);
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor1);
   tensor_mng.AddTensor(tensor2);
 
   codegen::MicroScalarBroadcastApiCall call("Broadcast");
   EXPECT_EQ(call.Init(broadcast_node), 0);
-  call.AddInput(x1.id);
+  call.AddInput(x1.id, codegen::TensorType::UB_TENSOR);
   call.AddOutput(y1.id);
   std::string result;
   call.Generate(tensor_mng, tpipe, cp, result);

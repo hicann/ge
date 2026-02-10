@@ -7609,4 +7609,282 @@ ge::ComputeGraphPtr ShareGraph::DivAbsFusedGraph(size_t dims_size) {
   ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
   return compute_graph;
 }
+
+/**
+ *             where
+ *          /    \     \
+ *        eq      \     \
+ *      /     \     \    \
+ *   data0 scalar0 data1 data2
+ */
+static void CreateCompareScalarWhereGraph(ge::AscGraph &graph) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+  auto z0 = graph.CreateAxis("z0", Symbol("s0"));
+  auto z1 = graph.CreateAxis("z1", Symbol("s1"));
+
+  ge::ascir_op::Data data0("data0", graph);
+  data0.attr.sched.axis = {z0.id, z1.id};
+  data0.y.dtype = ge::DT_FLOAT16;
+  *data0.y.axis = {z0.id, z1.id};
+  data0.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data0.y.repeats = {s0, s1};
+  *data0.y.strides = {s1, ge::ops::One};
+  data0.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load load0("load0");
+  load0.attr.sched.axis = {z0.id, z1.id};
+  load0.y.dtype = ge::DT_FLOAT16;
+  load0.x = data0.y;
+  *load0.y.axis = {z0.id, z1.id};
+  *load0.y.repeats = {s0, s1};
+  *load0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Data data1("data1", graph);
+  data1.attr.sched.axis = {z0.id, z1.id};
+  data1.y.dtype = ge::DT_FLOAT16;
+  *data1.y.axis = {z0.id, z1.id};
+  data1.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data1.y.repeats = {s0, s1};
+  *data1.y.strides = {s1, ge::ops::One};
+  data1.ir_attr.SetIndex(1);
+
+  ge::ascir_op::Load load1("load1");
+  load1.attr.sched.axis = {z0.id, z1.id};
+  load1.y.dtype = ge::DT_FLOAT16;
+  load1.x = data1.y;
+  *load1.y.axis = {z0.id, z1.id};
+  *load1.y.repeats = {s0, s1};
+  *load1.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Data data2("data2", graph);
+  data2.y.dtype = ge::DT_FLOAT16;
+  data2.attr.sched.axis = {z0.id, z1.id};
+  *data2.y.axis = {z0.id, z1.id};
+  data2.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data2.y.repeats = {s0, s1};
+  *data2.y.strides = {s1, ge::ops::One};
+  data2.ir_attr.SetIndex(2);
+
+  ge::ascir_op::Load load2("load2");
+  load2.x = data2.y;
+  load2.attr.sched.axis = {z0.id, z1.id};
+  load2.y.dtype = ge::DT_FLOAT16;
+  *load2.y.axis = {z0.id, z1.id};
+  *load2.y.repeats = {s0, s1};
+  *load2.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Scalar scalar0("scalar0", graph);
+  scalar0.ir_attr.SetValue("0.5");
+
+  ge::ascir_op::Eq eq0("eq0");
+  eq0.x1 = load0.y;
+  eq0.x2 = scalar0.y;
+  eq0.attr.sched.axis = {z0.id, z1.id};
+  eq0.y.dtype = ge::DT_UINT8;
+  *eq0.y.axis = {z0.id, z1.id};
+  *eq0.y.repeats = {s0, s1};
+  *eq0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Where where0("where");
+  where0.x1 = eq0.y;
+  where0.x2 = load1.y;
+  where0.x3 = load2.y;
+  where0.attr.sched.axis = {z0.id, z1.id};
+  where0.y.dtype = ge::DT_FLOAT16;
+  *where0.y.axis = {z0.id, z1.id};
+  *where0.y.repeats = {s0, s1};
+  *where0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Store store_op("store");
+  store_op.x = where0.y;
+  store_op.attr.sched.axis = {z0.id, z1.id};
+  store_op.y.dtype = ge::DT_FLOAT16;
+  *store_op.y.axis = {z0.id, z1.id};
+  *store_op.y.repeats = {s0, s1};
+  *store_op.y.strides = {s1 ,ge::ops::One};
+
+  ge::ascir_op::Output output_op("output");
+  output_op.x = store_op.y;
+  output_op.y.dtype = ge::DT_FLOAT16;
+  output_op.ir_attr.SetIndex(0);
+}
+
+ge::ComputeGraphPtr ShareGraph::LoadCompareScalarWhereFusedGraph() {
+  auto builder = GraphBuilder("load_compare_scalar_where_store_test");
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data1->GetOpDescBarePtr(), "_parent_node_index", 1);
+  auto data2 = builder.AddNode("data2", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data2->GetOpDescBarePtr(), "_parent_node_index", 2);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 3, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(data1, 0, ascbc, 1);
+  builder.AddDataEdge(data2, 0, ascbc, 2);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("compare_scalar_where");
+  CreateCompareScalarWhereGraph(sub_graph);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
+
+/**
+ *            where
+ *          /    \    \
+ *        eq      \    \
+ *      /    \     \    \
+ *   data0 data1 data2 data3
+ */
+static void CreateCompareWhereGraph(ge::AscGraph &graph) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+  auto z0 = graph.CreateAxis("z0", Symbol("s0"));
+  auto z1 = graph.CreateAxis("z1", Symbol("s1"));
+
+  ge::ascir_op::Data data0("data0", graph);
+  data0.attr.sched.axis = {z0.id, z1.id};
+  data0.y.dtype = ge::DT_FLOAT16;
+  *data0.y.axis = {z0.id, z1.id};
+  data0.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data0.y.repeats = {s0, s1};
+  *data0.y.strides = {s1, ge::ops::One};
+  data0.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load load0("load0");
+  load0.attr.sched.axis = {z0.id, z1.id};
+  load0.y.dtype = ge::DT_FLOAT16;
+  load0.x = data0.y;
+  *load0.y.axis = {z0.id, z1.id};
+  *load0.y.repeats = {s0, s1};
+  *load0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Data data1("data1", graph);
+  data1.attr.sched.axis = {z0.id, z1.id};
+  data1.y.dtype = ge::DT_FLOAT16;
+  *data1.y.axis = {z0.id, z1.id};
+  data1.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data1.y.repeats = {s0, s1};
+  *data1.y.strides = {s1, ge::ops::One};
+  data1.ir_attr.SetIndex(1);
+
+  ge::ascir_op::Load load1("load1");
+  load1.attr.sched.axis = {z0.id, z1.id};
+  load1.y.dtype = ge::DT_FLOAT16;
+  load1.x = data1.y;
+  *load1.y.axis = {z0.id, z1.id};
+  *load1.y.repeats = {s0, s1};
+  *load1.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Data data2("data2", graph);
+  data2.y.dtype = ge::DT_FLOAT16;
+  data2.attr.sched.axis = {z0.id, z1.id};
+  *data2.y.axis = {z0.id, z1.id};
+  data2.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data2.y.repeats = {s0, s1};
+  *data2.y.strides = {s1, ge::ops::One};
+  data2.ir_attr.SetIndex(2);
+
+  ge::ascir_op::Load load2("load2");
+  load2.x = data2.y;
+  load2.attr.sched.axis = {z0.id, z1.id};
+  load2.y.dtype = ge::DT_FLOAT16;
+  *load2.y.axis = {z0.id, z1.id};
+  *load2.y.repeats = {s0, s1};
+  *load2.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Data data3("data3", graph);
+  data3.attr.sched.axis = {z0.id, z1.id};
+  data3.y.dtype = ge::DT_FLOAT16;
+  *data3.y.axis = {z0.id, z1.id};
+  data3.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data3.y.repeats = {s0, s1};
+  *data3.y.strides = {s1, ge::ops::One};
+  data3.ir_attr.SetIndex(3);
+
+  ge::ascir_op::Load load3("load3");
+  load3.x = data3.y;
+  load3.attr.sched.axis = {z0.id, z1.id};
+  load3.y.dtype = ge::DT_FLOAT16;
+  *load3.y.axis = {z0.id, z1.id};
+  *load3.y.repeats = {s0, s1};
+  *load3.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Eq eq0("eq0");
+  eq0.x1 = load0.y;
+  eq0.x2 = load1.y;
+  eq0.attr.sched.axis = {z0.id, z1.id};
+  eq0.y.dtype = ge::DT_UINT8;
+  *eq0.y.axis = {z0.id, z1.id};
+  *eq0.y.repeats = {s0, s1};
+  *eq0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Where where0("where");
+  where0.x1 = eq0.y;
+  where0.x2 = load2.y;
+  where0.x3 = load3.y;
+  where0.attr.sched.axis = {z0.id, z1.id};
+  where0.y.dtype = ge::DT_FLOAT16;
+  *where0.y.axis = {z0.id, z1.id};
+  *where0.y.repeats = {s0, s1};
+  *where0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Store store_op("store");
+  store_op.x = where0.y;
+  store_op.attr.sched.axis = {z0.id, z1.id};
+  store_op.y.dtype = ge::DT_FLOAT16;
+  *store_op.y.axis = {z0.id, z1.id};
+  *store_op.y.repeats = {s0, s1};
+  *store_op.y.strides = {s1 ,ge::ops::One};
+
+  ge::ascir_op::Output output_op("output");
+  output_op.x = store_op.y;
+  output_op.y.dtype = ge::DT_FLOAT16;
+  output_op.ir_attr.SetIndex(0);
+}
+
+ge::ComputeGraphPtr ShareGraph::LoadCompareWhereFusedGraph() {
+  auto builder = GraphBuilder("load_compare_where_store_test");
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+  auto data1 = builder.AddNode("data1", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data1->GetOpDescBarePtr(), "_parent_node_index", 1);
+  auto data2 = builder.AddNode("data2", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data2->GetOpDescBarePtr(), "_parent_node_index", 2);
+  auto data3 = builder.AddNode("data3", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data3->GetOpDescBarePtr(), "_parent_node_index", 3);
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 4, 1);
+  ge::AttrUtils::SetInt(ascbc->GetOpDescBarePtr(), "_parent_node_index", 4);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(data1, 0, ascbc, 1);
+  builder.AddDataEdge(data2, 0, ascbc, 2);
+  builder.AddDataEdge(data3, 0, ascbc, 3);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("compare_where");
+  CreateCompareWhereGraph(sub_graph);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
 }
