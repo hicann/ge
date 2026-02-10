@@ -56,10 +56,8 @@ class ReadableDump {
    * @param readable_ss 字符串流
    * @param graph 计算图
    * @param ctx dump上下文
-   * @param recursion_depth 递归深度
    */
-  static Status GenReadableDump(std::stringstream &readable_ss, const ComputeGraphPtr &graph,
-                                DumpContext &ctx, int32_t recursion_depth = 0);
+  static Status GenReadableDump(std::stringstream &readable_ss, const ComputeGraphPtr &graph, DumpContext &ctx);
 
   class OutputHandler {
    public:
