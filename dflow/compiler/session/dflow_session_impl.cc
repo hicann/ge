@@ -101,11 +101,22 @@ class DefaultNpuProcessNodeEngineImpl : public ProcessNodeEngineImpl {
   std::shared_ptr<GeSession> ge_session_;
 };
 
-Status InitializeExecutionRuntime(const std::map<std::string, std::string> &options) {
+Status EnsureDflowInitialized(const std::map<std::string, std::string> &options) {
   static std::mutex mu;
   std::lock_guard<std::mutex> lk(mu);
   if (ExecutionRuntime::GetInstance() == nullptr) {
+    GE_TIMESTAMP_START(InitializeExecutionRuntime);
     GE_CHK_STATUS_RET_NOLOG(ExecutionRuntime::InitHeterogeneousRuntime(options));
+    GE_TIMESTAMP_EVENT_END(InitializeExecutionRuntime, "InitializeExecutionRuntime");
+  }
+
+  GE_TRACE_START(ProcessNodeEngine);
+  Status init_pne_status = ProcessNodeEngineManager::GetInstance().Initialize(options);
+  GE_INIT_TRACE_TIMESTAMP_END(ProcessNodeEngine, "InnerInitialize::ProcessNodeEngine");
+  if (init_pne_status != SUCCESS) {
+    GELOGE(init_pne_status, "[Init][EngineManager]GE process node engine manager initial failed.");
+    REPORT_INNER_ERR_MSG("E19999", "Process node engine manager initial failed.");
+    return init_pne_status;
   }
   return SUCCESS;
 }
@@ -123,16 +134,7 @@ Status DFlowInitializeInner(const std::map<AscendString, AscendString> &options)
     std::string val = option_item.second.GetString();
     str_options[key] = val;
   }
-
-  GE_CHK_STATUS_RET(InitializeExecutionRuntime(str_options), "Failed to init execution runtime");
-  GE_TRACE_START(ProcessNodeEngine);
-  Status init_pne_status = ProcessNodeEngineManager::GetInstance().Initialize(str_options);
-  GE_INIT_TRACE_TIMESTAMP_END(ProcessNodeEngine, "InnerInitialize::ProcessNodeEngine");
-  if (init_pne_status != SUCCESS) {
-    GELOGE(init_pne_status, "[Init][EngineManager]GE process node engine manager initial failed.");
-    REPORT_INNER_ERR_MSG("E19999", "Process node engine manager initial failed.");
-    return init_pne_status;
-  }
+  GE_CHK_STATUS_RET(EnsureDflowInitialized(str_options), "Failed to init execution runtime");
   return SUCCESS;
 }
 
@@ -170,7 +172,7 @@ Status DFlowSessionImpl::Initialize(const std::map<std::string, std::string> &op
   ge_session_ = MakeShared<GeSession>(ascend_options);
   GE_CHECK_NOTNULL(ge_session_);
 
-  GE_CHK_STATUS_RET(InitializeExecutionRuntime(options_), "Failed to init execution runtime");
+  GE_CHK_STATUS_RET(EnsureDflowInitialized(options_), "Failed to init dflow.");
   auto pneImpl = MakeShared<DefaultNpuProcessNodeEngineImpl>(ge_session_);
   GE_CHECK_NOTNULL(pneImpl);
   GE_CHK_STATUS_RET(dflow_graph_manager_.Initialize(options_, pneImpl), "Failed to init dflow graph manager");

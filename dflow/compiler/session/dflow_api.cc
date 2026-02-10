@@ -79,13 +79,6 @@ Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
   g_dflow_session_manager->Initialize();
   GE_TIMESTAMP_EVENT_END(DflowSessionManagerInitialize, "InnerInitialize::DflowSessionManagerInitialize");
 
-  GE_TIMESTAMP_START(InitializeExecutionRuntime);
-  if ((ge::ExecutionRuntime::GetInstance() == nullptr)) {
-    std::map<std::string, std::string> str_options;
-    ConvertAscendStringMap(options, str_options);
-    GE_CHK_STATUS_RET(ge::ExecutionRuntime::InitHeterogeneousRuntime(str_options), "Failed to init execution runtime");
-  }
-  GE_TIMESTAMP_EVENT_END(InitializeExecutionRuntime, "InitializeExecutionRuntime");
   GE_CHK_STATUS_RET(ge::DFlowInitializeInner(options), "Failed to call dflow initialize inner");
   g_dflow_ge_initialized = true;
   GELOGT(TRACE_STOP, "DFlowInitialize finished");

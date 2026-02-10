@@ -1493,7 +1493,7 @@ TEST_F(UtestExecuteGraph, SetEdgeOwnerFail) {
 TEST_F(UtestExecuteGraph, GetAllNodes_ok_with_filter) {
   auto graph = ExecuteSharedGraph::BuildGraphWithSubGraph();
   const auto &nodes = graph->GetAllNodes();
-  EXPECT_EQ(nodes.size(), 7U);
+  EXPECT_EQ(nodes.size(), 9U);
   const auto &filter_func = [](const FastNode *node) ->bool {
     return node->GetType() == "Data";
   };

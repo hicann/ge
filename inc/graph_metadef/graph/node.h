@@ -198,6 +198,8 @@ class Node : public std::enable_shared_from_this<Node> {
 
   graphStatus AddLinkFrom(const uint32_t &index, const NodePtr input_node);
 
+  graphStatus AddLinkFrom(const uint32_t &index, const NodePtr input_node, const uint32_t input_node_index);
+
   graphStatus AddLinkFrom(const std::string &name, const NodePtr input_node);
 
   graphStatus AddLinkFromForParse(const NodePtr &input_node);

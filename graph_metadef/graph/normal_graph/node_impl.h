@@ -33,6 +33,10 @@ class Node::NodeImpl {
   graphStatus AddLinkFrom(const uint32_t &index,
                           const NodePtr &input_node,
                           const NodePtr &owner_node);
+
+  graphStatus AddLinkFrom(const uint32_t &index, const NodePtr &input_node, const uint32_t &input_node_index,
+                          const NodePtr &owner_node);
+
   graphStatus AddLinkFromForParse(const NodePtr &input_node, const NodePtr &owner_node);
   graphStatus AddLinkFrom(const std::string &name, const NodePtr &input_node, const NodePtr &owner_node);
   // Get the node belong to which compute graph

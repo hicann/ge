@@ -326,7 +326,7 @@ TEST_F(GeApiV2Test, run_graph_with_checkpoint) {
   auto netoutput = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).Build("netoutput");
   DEF_GRAPH(g1) {
     CHAIN(NODE(variable_1)->EDGE(0, 0)->NODE(netoutput));
-    ADD_OUTPUT(netoutput, 0);
+    ADD_OUTPUT(variable_1, 0);
   };
 
   auto graph = ToGeGraph(g1);
@@ -402,7 +402,7 @@ ge::Graph BuildAddGraph() {
   DEF_GRAPH(g1) {
     CHAIN(NODE(data_1)->EDGE(0, 0)->NODE(add_1)->EDGE(0, 0)->NODE(netoutput));
     CHAIN(NODE(data_2)->EDGE(0, 1)->NODE(add_1));
-    ADD_OUTPUT(netoutput, 0);
+    ADD_OUTPUT(add_1, 0);
   };
 
   auto graph = ToGeGraph(g1);
@@ -440,7 +440,7 @@ ge::Graph BuildDynamicAddGraph() {
   DEF_GRAPH(g1) {
     CHAIN(NODE(data_1)->EDGE(0, 0)->NODE(add_1)->EDGE(0, 0)->NODE(netoutput));
     CHAIN(NODE(data_2)->EDGE(0, 1)->NODE(add_1));
-    ADD_OUTPUT(netoutput, 0);
+    ADD_OUTPUT(add_1, 0);
   };
 
   auto graph = ToGeGraph(g1);
@@ -493,7 +493,7 @@ ge::Graph BuildConstGraph() {
   DEF_GRAPH(g1) {
     CHAIN(NODE(const1)->EDGE(0, 0)->NODE(add_1)->EDGE(0, 0)->NODE(netoutput));
     CHAIN(NODE(const2)->EDGE(0, 1)->NODE(add_1));
-    ADD_OUTPUT(netoutput, 0);
+    ADD_OUTPUT(add_1, 0);
   };
 
   auto graph = ToGeGraph(g1);

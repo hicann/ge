@@ -493,7 +493,7 @@ domi::Status SetOutputNodeInfo(ge::Graph &graph, const std::string &output_type)
     }
   }
   CreateOutputNodesInfo(output_nodes_info, output_nodes_name);
-  compute_graph->SetGraphOutNodesInfo(output_nodes_info);
+  GE_ASSERT_SUCCESS(compute_graph->SetGraphOutNodesInfo(output_nodes_info));
   domi::GetContext().net_out_nodes = output_nodes_name;
   return SUCCESS;
 }

@@ -483,7 +483,7 @@ TEST_F(UtestExecuteGraphUtils, ReplaceNodeDataEdges_Fail_GraphIsNull) {
 TEST_F(UtestExecuteGraphUtils, GetNodeMapFromAllNodes_ok) {
   const auto root_graph = ExecuteSharedGraph::BuildGraphWithSubGraph();
   auto node_name_to_nodes = ExecuteGraphUtils::GetNodeMapFromAllNodes(root_graph.get());
-  EXPECT_EQ(node_name_to_nodes.size(), 7U);
+  EXPECT_EQ(node_name_to_nodes.size(), 9U);
 }
 
 }  // namespace ge

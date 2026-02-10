@@ -258,11 +258,33 @@ class ComputeGraph : public std::enable_shared_from_this<ComputeGraph>, public A
 
   void SetAllNodesInfo(const std::map<OperatorImplPtr, NodePtr> &nodes);
 
-  void SetGraphOutNodesInfo(std::vector<std::pair<NodePtr, int32_t>> &out_nodes_info);
+  /**
+   * @brief 设置图的输出节点和输出节点索引，并且创建或更新NetOutput，如果NetOutput已经创建，可以通过update_data_edge参数设置
+   * 是否根据out_nodes_info更新NetOutput的数据连边，默认行为是更新。如果只是记录输出信息，调用者自己去手动更新数据连边，
+   * 可以将update_data_edge参数设置为false
+   * @param out_nodes_info 图的所有输出节点和节点的索引，容器为有序容器，顺序代表图的输出顺序
+   * @param update_data_edge 是否更新NetOutput的数据输入，默认值为true
+   * @return graphStatus 成功返回GRAPH_SUCCESS，失败返回其他
+   */
+  graphStatus SetGraphOutNodesInfo(const std::vector<std::pair<NodePtr, int32_t>> &out_nodes_info,
+                                   bool update_data_edge = true);
+
+  /**
+   * @brief 创建或更新NetOutput
+   * @param update_data_edge 是否更新NetOutput的数据输入，默认值为false
+   * @return graphStatus 成功返回GRAPH_SUCCESS，失败返回其他
+   */
+  graphStatus CreateOrUpdateNetoutput(bool update_data_edge = false);
   void AppendGraphOutNodesInfo(std::vector<std::pair<NodePtr, int32_t>> &out_nodes_info);
   const std::vector<std::pair<NodePtr, int32_t>> &GetGraphOutNodesInfo() const;
 
-  void SetGraphTargetNodesInfo(const std::vector<NodePtr> &target_nodes_info);
+  /**
+   * @brief 设置图的结束节点，并且创建或更新NetOutput
+   * @param target_nodes_info 图的所有结束节点，容器为有序容器，顺序代表图的结束节点顺序
+   * @return graphStatus 成功返回GRAPH_SUCCESS，失败返回其他
+   */
+  graphStatus SetGraphTargetNodesInfo(const std::vector<NodePtr> &target_nodes_info);
+
   const std::vector<NodePtr> &GetGraphTargetNodesInfo() const;
 
   void SetSessionID(const uint64_t session_id);

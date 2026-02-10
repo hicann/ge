@@ -2512,6 +2512,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::ExpandNod
   // 处理输出连边关系
   // 如果expand图存在netoutput，则先断开netoutput
   const auto net_output_node = expand_graph->FindFirstNodeMatchType(NETOUTPUT);
+  const auto sub_graph_out_node_info = expand_graph->GetGraphOutNodesInfo();
   if (net_output_node != nullptr) {
     NodeUtils::UnlinkAll(*net_output_node);
   }
@@ -2522,7 +2523,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::ExpandNod
   }
   // 处理输出信息的映射关系
   const auto target_graph_out_node_info = target_graph->GetGraphOutNodesInfo();
-  const auto sub_graph_out_node_info = expand_graph->GetGraphOutNodesInfo();
+
   std::vector<std::pair<NodePtr, int32_t>> new_output_info;
   for (const auto &out_node_info : target_graph_out_node_info) {
     if (out_node_info.first == target_node) {
@@ -2535,7 +2536,7 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus GraphUtils::ExpandNod
   // 删除原算子
   NodeUtils::UnlinkAll(*target_node);
   GE_ASSERT_SUCCESS(RemoveNodeWithoutRelink(target_graph, target_node));
-  target_graph->SetGraphOutNodesInfo(new_output_info);
+  GE_ASSERT_SUCCESS(target_graph->SetGraphOutNodesInfo(new_output_info));
   return SUCCESS;
 }
 
@@ -2833,7 +2834,7 @@ graphStatus GraphUtils::CopyMembers(const ComputeGraphPtr &src_compute_graph,
     }
     new_out_nodes_info.emplace_back(it->second, info.second);
   }
-  dst_compute_graph->SetGraphOutNodesInfo(new_out_nodes_info);
+  GE_ASSERT_SUCCESS(dst_compute_graph->SetGraphOutNodesInfo(new_out_nodes_info, false));
 
   // copy info of input nodes from old graph to new graph.
   const ComputeGraph::Vistor<NodePtr> &input_nodes = src_compute_graph->GetInputNodes();
@@ -2955,7 +2956,7 @@ ComputeGraphPtr GraphUtils::CloneGraph(const ComputeGraphPtr &graph, const std::
       new_out_nodes_info.emplace_back(it->second, info.second);
     }
   }
-  new_graph->SetGraphOutNodesInfo(new_out_nodes_info);
+  GE_ASSERT_SUCCESS(new_graph->SetGraphOutNodesInfo(new_out_nodes_info, false));
   return new_graph;
 }
 

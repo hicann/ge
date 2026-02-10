@@ -208,13 +208,17 @@ graphStatus Node::NodeImpl::AddLinkFrom(const NodePtr &input_node, const NodePtr
 graphStatus Node::NodeImpl::AddLinkFrom(const uint32_t &index,
                                         const NodePtr &input_node,
                                         const NodePtr &owner_node) {
+  return AddLinkFrom(index, input_node, 0U, owner_node);
+}
+
+graphStatus Node::NodeImpl::AddLinkFrom(const uint32_t &index, const ge::Node::NodePtr &input_node, const uint32_t &input_node_index, const ge::Node::NodePtr &owner_node) {
   GE_CHECK_NOTNULL(input_node);
   // Input_node ---> this
   auto out_anchors = input_node->GetAllOutDataAnchors();
-  if (out_anchors.size() != 1UL) {
-    REPORT_INNER_ERR_MSG("E18888", "node:%s out_anchor size is:%zu, only support 1", input_node->GetName().c_str(),
-                         out_anchors.size());
-    GELOGE(GRAPH_FAILED, "[Check][Param] out_anchor size is:%zu, only support 1", out_anchors.size());
+  if (input_node_index >= out_anchors.size()) {
+    REPORT_INNER_ERR_MSG("E18888", "node:%s out_anchor size is:%zu, but index is %u", input_node->GetName().c_str(),
+                         out_anchors.size(), input_node_index);
+    GELOGE(GRAPH_FAILED, "[Check][Param] out_anchor size is:%zu, but index is %u", out_anchors.size(), input_node_index);
     return GRAPH_PARAM_INVALID;
   }
 
@@ -222,15 +226,15 @@ graphStatus Node::NodeImpl::AddLinkFrom(const uint32_t &index,
   const auto op_desc = input_node->GetOpDesc();
   GE_CHECK_NOTNULL(op_desc);
 
-  if (op_->AddInputDesc(index, op_desc->GetOutputDesc(0U)) != GRAPH_SUCCESS) {
+  if (op_->AddInputDesc(index, op_desc->GetOutputDesc(input_node_index)) != GRAPH_SUCCESS) {
     REPORT_INNER_ERR_MSG("E18888", "add input desc failed, index:%u.", index);
     GELOGE(GRAPH_FAILED, "[Add][InputDesc] failed.");
     return GRAPH_FAILED;
   }
 
   if (index < GetAllInDataAnchors(owner_node).size()) {
-    (void) out_anchors.at(0U)->LinkTo(in_data_anchors_[static_cast<size_t>(index)]);
-  } else {
+    (void) out_anchors.at(input_node_index)->LinkTo(in_data_anchors_[static_cast<size_t>(index)]);
+  } else if (index == GetAllInDataAnchors(owner_node).size()) {
     const std::shared_ptr<InDataAnchor>
         anchor = ComGraphMakeShared<InDataAnchor>(owner_node, in_data_anchors_.size());
     if (anchor == nullptr) {
@@ -240,7 +244,11 @@ graphStatus Node::NodeImpl::AddLinkFrom(const uint32_t &index,
       return GRAPH_FAILED;
     }
     in_data_anchors_.push_back(anchor);
-    (void) out_anchors.at(0U)->LinkTo(in_data_anchors_.back());
+    (void) out_anchors.at(input_node_index)->LinkTo(in_data_anchors_.back());
+  } else {
+    REPORT_INNER_ERR_MSG("E18888", "index %u is over than in data anchors size %zu.", index, in_data_anchors_.size());
+    GELOGE(GRAPH_FAILED, "index %u is over than in data anchors size %zu.", index, in_data_anchors_.size());
+    return GRAPH_PARAM_INVALID;
   }
 
   return GRAPH_SUCCESS;
@@ -958,6 +966,12 @@ GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus Node::AddLinkFrom(con
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus Node::AddLinkFrom(const uint32_t &index,
                                                                              const NodePtr input_node) {
   return impl_->AddLinkFrom(index, input_node, shared_from_this());
+}
+
+GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus Node::AddLinkFrom(const uint32_t &index,
+                                                                             const ge::Node::NodePtr input_node,
+                                                                             const uint32_t input_node_index) {
+  return impl_->AddLinkFrom(index, input_node, input_node_index, shared_from_this());
 }
 
 GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY graphStatus Node::AddLinkFromForParse(const NodePtr &input_node) {

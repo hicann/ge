@@ -38,6 +38,12 @@ struct LowerIOShapes {
   std::vector<ValueHolderPtr> input_shapes;
   std::vector<ValueHolderPtr> output_shapes;
 };
+
+struct UBGraphOutNodesInfos {
+  ge::NodePtr node;
+  int32_t node_out_idx;
+  int32_t parent_node_idx;
+};
 bool IsInferShapeRegistered(const std::string &type, const gert::OpImplSpaceRegistryV2Ptr &space_registry) {
   if (space_registry == nullptr) {
     return false;
@@ -240,6 +246,23 @@ HyperStatus LowerInnerData(const ge::NodePtr &node, const std::vector<ValueHolde
   return HyperStatus::Success();
 }
 
+std::vector<ValueHolderPtr> LowerInnerOutNodes(
+    const std::vector<UBGraphOutNodesInfos> &ub_graph_out_nodes_info,
+    std::map<int64_t, LowerIOShapes> &node_2_shapes) {
+  std::vector<ValueHolderPtr> output_shapes(ub_graph_out_nodes_info.size());
+  for (const auto &out_node_info : ub_graph_out_nodes_info) {
+    auto index = out_node_info.parent_node_idx;
+    if ((index < 0) || (index >= static_cast<int64_t>(ub_graph_out_nodes_info.size()))) {
+      GELOGE(ge::FAILED, "Index[%ld] is invalid.", index);
+      return {};
+    }
+    const int64_t peer_node_id = out_node_info.node->GetOpDescBarePtr()->GetId();
+    auto peer_node_out_shapes = node_2_shapes[peer_node_id].output_shapes;
+    output_shapes[index] = peer_node_out_shapes.at(out_node_info.node_out_idx);
+  }
+  return output_shapes;
+}
+
 std::vector<ValueHolderPtr> LowerInnerRetVal(const std::vector<ge::NodePtr> &nodes,
                                              std::map<int64_t, LowerIOShapes> &node_2_shapes) {
   std::vector<ValueHolderPtr> output_shapes(nodes.size());
@@ -306,6 +329,7 @@ std::vector<ValueHolderPtr> InferUbGraphShape(const ge::ComputeGraphPtr &compute
   }
   std::map<int64_t, LowerIOShapes> node_2_shapes;
   std::vector<ge::NodePtr> ret_val_nodes;
+  std::vector<UBGraphOutNodesInfos> ub_graph_out_nodes_info;
   for (const auto &node : compute_graph->GetDirectNode()) {
     auto type = ge::NodeUtils::GetNodeType(node);
     if (type == ge::DATA) {
@@ -316,6 +340,18 @@ std::vector<ValueHolderPtr> InferUbGraphShape(const ge::ComputeGraphPtr &compute
       ret_val_nodes.emplace_back(node);
       continue;
     }
+    if (type == ge::NETOUTPUT) {
+      size_t i = 0U;
+      for (const auto &out_node_and_anchor : node->GetInDataNodesAndAnchors()) {
+        int32_t parent_node_index = -1;
+        (void)ge::AttrUtils::GetInt(node->GetOpDesc()->GetInputDesc(i), ge::ATTR_NAME_PARENT_NODE_INDEX,
+                                    parent_node_index);
+        ub_graph_out_nodes_info.emplace_back(
+            UBGraphOutNodesInfos{out_node_and_anchor.first, out_node_and_anchor.second->GetIdx(), parent_node_index});
+        i++;
+      }
+      continue;
+    }
     // lowering normal node
     auto ret = LoweringNormalNode(node, node_2_shapes, global_data);
     if (ret != ge::SUCCESS) {
@@ -323,7 +359,13 @@ std::vector<ValueHolderPtr> InferUbGraphShape(const ge::ComputeGraphPtr &compute
       return {};
     }
   }
-  return LowerInnerRetVal(ret_val_nodes, node_2_shapes);
+  if (!ret_val_nodes.empty()) {
+    GE_ASSERT_TRUE(ub_graph_out_nodes_info.empty(), "retval nodes size is %zu, should not has NetOutput node",
+                   ret_val_nodes.size());
+    return LowerInnerRetVal(ret_val_nodes, node_2_shapes);
+  }
+  GE_ASSERT_TRUE(ret_val_nodes.empty(), "NetOutput exist, should not has retval node");
+  return LowerInnerOutNodes(ub_graph_out_nodes_info, node_2_shapes);
 }
 
 bool IsOutputUnkownShape(const ge::OpDescPtr &op_desc) {
