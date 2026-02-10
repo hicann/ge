@@ -23,7 +23,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/ge_context.h"
 #include "graph/utils/attr_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_desc_utils.h"
@@ -33,7 +33,7 @@
 #include "runtime/mem.h"
 #include "mmpa/mmpa_api.h"
 #include "base/err_mgr.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

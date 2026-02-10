@@ -43,7 +43,6 @@ inline bool ValidateTilingResult(const std::map<std::string, std::string>& tilin
   return found_solver_config;
 }
 
-// 打印tiling调试信息
 inline void PrintTilingDebugInfo(const std::map<std::string, std::string>& tiling_funcs) {
   std::cout << "Reduce split penalty ST test completed successfully." << std::endl;
   std::cout << "\n=== Generated tiling function count: " << tiling_funcs.size() << " ===" << std::endl;

@@ -16,7 +16,7 @@
 #include "graph/ge_context.h"
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

@@ -10,7 +10,7 @@
 
 #include "aclnn_node_converter.h"
 
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "common/ge_common/debug/ge_log.h"
 #include "exe_graph/lowering/lowering_definitions.h"
 #include "graph/ge_local_context.h"

@@ -26,7 +26,7 @@
 #include "proto/udf_def.pb.h"
 #include "deploy/flowrm/tsd_client.h"
 #include "deploy/flowrm/flowgw_client.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "common/utils/rts_api_utils.h"
 
 namespace ge {

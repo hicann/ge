@@ -11,7 +11,7 @@
 #ifndef AIR_CXX_COMPILER_GRAPH_EAGER_STYLE_GRAPH_BUILDER_ESB_GRAPH_H_
 #define AIR_CXX_COMPILER_GRAPH_EAGER_STYLE_GRAPH_BUILDER_ESB_GRAPH_H_
 #include "graph/compute_graph.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/checker.h"
 
 #include "esb_tensor.h"

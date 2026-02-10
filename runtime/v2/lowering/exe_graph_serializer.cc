@@ -26,7 +26,7 @@
 #include "graph/utils/op_type_utils.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "subscriber/profiler/dfx_extend_info.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace gert {
 namespace {

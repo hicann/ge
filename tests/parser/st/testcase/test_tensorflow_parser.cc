@@ -71,7 +71,7 @@
 #include "proto/ge_ir.pb.h"
 
 #include "depends/mmpa/src/parser_mmpa_stub.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include <experimental/filesystem>
 
 using namespace std;

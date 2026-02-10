@@ -20,7 +20,7 @@
 #include "attribute_group/attr_group_shape_env.h"
 #include "code_printer.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "framework/common/types.h"
 #include "mmpa/mmpa_api.h"
 #include "guard_codegen.h"

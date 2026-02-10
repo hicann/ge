@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "macro_utils/dt_public_scope.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "graph/runtime_inference_context.h"
 #include "hybrid/executor/subgraph_context.h"
 #include "hybrid/node_executor/hccl/hccl_node_executor.h"

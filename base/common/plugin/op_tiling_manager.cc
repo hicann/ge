@@ -13,7 +13,7 @@
 #include <string>
 #include <array>
 
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "framework/common/debug/log.h"
 #include "mmpa/mmpa_api.h"

@@ -15,7 +15,7 @@
 #include <set>
 #include <utility>
 #include <vector>
-#include "graph/aligned_ptr.h"
+#include "graph_metadef/graph/aligned_ptr.h"
 #include "graph/types.h"
 #include "graph/passes/graph_pass.h"
 

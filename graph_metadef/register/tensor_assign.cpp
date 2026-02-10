@@ -14,7 +14,7 @@
 #include <memory>
 #include "securec.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/type_utils_inner.h"
@@ -22,7 +22,7 @@
 #include "register/register_error_codes.h"
 #include "graph/types.h"
 #include "graph/def_types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "register/tensor_assign.h"
 
 namespace domi {

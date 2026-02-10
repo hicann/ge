@@ -24,7 +24,7 @@
 #include "serialized_model.h"
 #include "proto/flow_model.pb.h"
 #include "debug/ge_attr_define.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "common/model/ge_root_model.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"

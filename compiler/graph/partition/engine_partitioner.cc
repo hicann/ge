@@ -29,7 +29,7 @@
 #include "graph/ge_context.h"
 #include "api/gelib/gelib.h"
 #include "graph/attribute_group/attr_group_shape_env.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "common/ge_common/ge_types.h"
 
 namespace ge {

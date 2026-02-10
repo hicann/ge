@@ -16,7 +16,7 @@
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"
 #include "executor/npu_sched_model_configurator.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

@@ -14,7 +14,7 @@
 #include "mmpa/mmpa_api.h"
 #include "graph/model.h"
 #include "graph/detail/model_serialize_imp.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "model_deploy_resource.h"
 #include "endpoint.h"
 #include "common/util.h"

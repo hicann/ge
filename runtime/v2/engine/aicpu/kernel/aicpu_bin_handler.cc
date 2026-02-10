@@ -13,7 +13,7 @@
 #include "mmpa/mmpa_api.h"
 #include "common/checker.h"
 #include "graph/ge_error_codes.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "framework/common/debug/log.h"
 #include "runtime/dev.h"

@@ -20,7 +20,7 @@
 #include <kernel/memory/mem_block.h>
 #include "kernel/tensor_attr.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/share_graph.h"
 #include "lowering/model_converter.h"
 #include "core/executor_error_code.h"

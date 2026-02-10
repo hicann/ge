@@ -11,7 +11,7 @@
 #include "data_flow_data_aligner.h"
 #include "securec.h"
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "data_flow_info_utils.h"
 
 namespace ge {

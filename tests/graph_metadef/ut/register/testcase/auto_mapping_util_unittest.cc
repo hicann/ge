@@ -13,10 +13,10 @@
 #include "graph_builder_utils.h"
 #include "graph_metadef/register/register.h"
 #include <google/protobuf/message.h>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_op_types.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/op_desc_utils.h"

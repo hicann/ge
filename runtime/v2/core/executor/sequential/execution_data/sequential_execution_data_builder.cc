@@ -15,7 +15,7 @@
 #include "core/builder/graph_node.h"
 #include "register/kernel_registry.h"
 #include "exe_graph/lowering/exe_graph_attrs.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace gert {
 namespace {

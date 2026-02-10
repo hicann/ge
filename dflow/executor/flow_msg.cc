@@ -18,7 +18,7 @@
 #include "graph/utils/tensor_adapter.h"
 #include "graph/utils/tensor_utils.h"
 #include "data_flow_executor_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

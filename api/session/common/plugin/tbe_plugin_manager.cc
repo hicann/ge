@@ -19,7 +19,7 @@
 #include <string>
 
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "ge/ge_api_types.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"

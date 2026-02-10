@@ -10,11 +10,11 @@
 
 #include "graph/tuning_utils.h"
 
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/normal_graph/node_impl.h"
 #include "graph/utils/graph_utils_ex.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/recover_ir_utils.h"
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"

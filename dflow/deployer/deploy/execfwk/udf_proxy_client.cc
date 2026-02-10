@@ -18,7 +18,7 @@
 #include "toolchain/prof_api.h"
 #include "prof_common.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 namespace {

@@ -18,7 +18,7 @@
 #include <type_traits>
 #include <limits>
 #include "utils/extern_math_util.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "symbolic_shape.h"
 
 namespace gert {

@@ -17,7 +17,7 @@
 #include <symengine/basic.h>
 #include <symengine/integer.h>
 #include "graph/symbolizer/symbolic.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 #define IF_NULL_RETURN_NULL(x)                                                                                         \
   if ((x) == nullptr)                                                                                                  \

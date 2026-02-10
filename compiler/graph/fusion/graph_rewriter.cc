@@ -20,7 +20,7 @@
 #include "common/types.h"
 #include <queue>
 #include "fusion_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace fusion {

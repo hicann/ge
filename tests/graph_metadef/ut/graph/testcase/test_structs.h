@@ -11,7 +11,7 @@
 #ifndef METADEF_CXX_TEST_STRUCTS_H
 #define METADEF_CXX_TEST_STRUCTS_H
 #include "graph/attribute_group/attr_group_base.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 namespace ge {
 struct TestStructA {
   TestStructA(int64_t a, int64_t b, int64_t c) : a(a), b(b), c(c) {}

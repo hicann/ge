@@ -10,7 +10,7 @@
 
 #include "engine/node_converter_utils.h"
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "framework/common/taskdown_common.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/ge_types.h"

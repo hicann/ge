@@ -11,7 +11,7 @@
 #include <gtest/gtest.h>
 #include "graph/ge_tensor.h"
 #include "graph/tensor.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/constant_utils.h"
 #include "graph_builder_utils.h"
 #include "graph/debug/ge_attr_define.h"

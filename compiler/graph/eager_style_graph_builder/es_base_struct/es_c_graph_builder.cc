@@ -16,7 +16,7 @@
 #include "graph/operator_factory.h"
 #include "graph/operator_reg.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "compliant_node_builder.h"
 
 namespace ge {

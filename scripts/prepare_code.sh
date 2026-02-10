@@ -37,6 +37,9 @@ copy_dir_files() {
       mv ${dst_dir}/base/attr/attrs_to_buffer.h ${dst_dir}/base/attr/attrs_to_buffer.h_bak
       mv ${dst_dir}/common/ge_common/util.h ${dst_dir}/common/ge_common/util.h_bak
       mv ${dst_dir}/common/plugin/plugin_manager.h ${dst_dir}/common/plugin/plugin_manager.h_bak
+      mv ${dst_dir}/graph/aligned_ptr.h ${dst_dir}/graph/aligned_ptr.h_bak
+      mv ${dst_dir}/graph/utils/file_utils.h ${dst_dir}/graph/utils/file_utils.h_bak
+      mv ${dst_dir}/common/util/mem_utils.h ${dst_dir}/common/util/mem_utils.h_bak
 
       cp -rf ${src_dir}/* ${dst_dir}
 
@@ -45,6 +48,9 @@ copy_dir_files() {
       mv ${dst_dir}/base/attr/attrs_to_buffer.h_bak ${dst_dir}/base/attr/attrs_to_buffer.h
       mv ${dst_dir}/common/ge_common/util.h_bak ${dst_dir}/common/ge_common/util.h
       mv ${dst_dir}/common/plugin/plugin_manager.h_bak ${dst_dir}/common/plugin/plugin_manager.h
+      mv ${dst_dir}/graph/aligned_ptr.h_bak ${dst_dir}/graph/aligned_ptr.h
+      mv ${dst_dir}/graph/utils/file_utils.h_bak ${dst_dir}/graph/utils/file_utils.h
+      mv ${dst_dir}/common/util/mem_utils.h_bak ${dst_dir}/common/util/mem_utils.h
     fi
   fi
 }

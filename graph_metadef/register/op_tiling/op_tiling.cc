@@ -13,7 +13,7 @@
 #include <nlohmann/json.hpp>
 #include "graph/operator.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"

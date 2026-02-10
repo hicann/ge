@@ -22,7 +22,7 @@
 #include <sys/socket.h>
 #include "common/checker.h"
 #include "common/debug/ge_log.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

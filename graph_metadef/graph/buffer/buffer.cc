@@ -12,7 +12,7 @@
 #include "proto/ge_ir.pb.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/buffer/buffer_impl.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/util/mem_utils.h"
 
 namespace ge {

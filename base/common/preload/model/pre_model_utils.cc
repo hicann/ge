@@ -14,7 +14,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/tensor_utils.h"
 #include "base/err_msg.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

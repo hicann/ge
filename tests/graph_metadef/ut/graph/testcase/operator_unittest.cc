@@ -24,7 +24,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/normal_graph/compute_graph_impl.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/node_utils.h"

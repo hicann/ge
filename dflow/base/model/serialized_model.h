@@ -12,7 +12,8 @@
 #define BASE_PNE_MODEL_SERIALIZED_MODEL_H_
 
 #include "dflow/inc/data_flow/model/pne_model.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
+
 namespace ge {
 class SerializedModel : public PneModel {
  public:

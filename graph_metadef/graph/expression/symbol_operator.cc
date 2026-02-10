@@ -14,7 +14,7 @@
 #include "graph/symbolizer/symbolic.h"
 #include "attribute_group/attr_group_shape_env.h"
 #include "expression_impl.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/math_util.h"
 #include "common/checker.h"
 #include "const_values.h"

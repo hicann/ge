@@ -12,7 +12,7 @@
 #include <algorithm>
 #include <cstring>
 #include <sstream>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/node.h"
 #include "common/util/trace_manager/trace_manager.h"

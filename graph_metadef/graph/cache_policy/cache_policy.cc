@@ -9,7 +9,7 @@
  */
 
 #include "graph/cache_policy/cache_policy.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 std::unique_ptr<CachePolicy> CachePolicy::Create(const MatchPolicyPtr &mp, const AgingPolicyPtr &ap) {

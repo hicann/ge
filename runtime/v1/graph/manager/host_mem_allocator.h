@@ -15,7 +15,7 @@
 #include <map>
 
 #include "framework/common/ge_inner_error_codes.h"
-#include "graph/aligned_ptr.h"
+#include "graph_metadef/graph/aligned_ptr.h"
 #include "runtime/mem.h"
 
 namespace ge {

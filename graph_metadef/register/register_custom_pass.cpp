@@ -14,8 +14,8 @@
 
 #include "register/custom_pass_helper.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/graph/debug/ge_util.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "register/custom_pass_context_impl.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/graph_utils.h"

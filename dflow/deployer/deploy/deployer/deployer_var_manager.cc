@@ -18,7 +18,7 @@
 #include "common/config/configurations.h"
 #include "runtime/mem.h"
 #include "securec.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/def_types.h"
 #include "common/data_flow/event/proxy_event_manager.h"

@@ -16,7 +16,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "engines/manager/engine_manager/dnnengine_manager.h"
 #include "nlohmann/json.hpp"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "framework/engine/dnnengine.h"

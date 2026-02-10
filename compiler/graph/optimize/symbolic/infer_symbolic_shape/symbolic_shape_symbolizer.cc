@@ -12,7 +12,7 @@
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "graph/utils/graph_utils_ex.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
 #include "framework/common/types.h"
 #include "graph/utils/op_desc_utils.h"

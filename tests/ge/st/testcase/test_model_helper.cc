@@ -40,7 +40,7 @@
 #include "common/path_utils.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "common/env_path.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 using namespace gert;

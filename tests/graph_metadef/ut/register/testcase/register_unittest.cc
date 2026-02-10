@@ -46,7 +46,7 @@
 #include "graph/utils/type_utils.h"
 #include "graph/attr_value.h"
 
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 
 #include "proto/tensorflow/attr_value.pb.h"

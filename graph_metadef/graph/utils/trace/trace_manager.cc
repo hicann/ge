@@ -17,9 +17,9 @@
 #include <pthread.h>
 
 #include "mmpa/mmpa_api.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/ge_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 namespace {

@@ -10,8 +10,8 @@
 
 #include "graph/utils/constant_utils.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/debug/ge_util.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/debug/ge_log.h"

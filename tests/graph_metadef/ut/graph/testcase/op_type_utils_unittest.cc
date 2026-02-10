@@ -12,7 +12,7 @@
 #include "graph/utils/op_type_utils.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/compute_graph.h"
 
 namespace ge {

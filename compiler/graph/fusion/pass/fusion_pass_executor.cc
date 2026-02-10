@@ -10,7 +10,7 @@
 #include "fusion_pass_executor.h"
 #include "pass_registry.h"
 #include "common/debug/ge_log.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "common/checker.h"
 #include "common/util/trace_manager/trace_manager.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"

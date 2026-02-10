@@ -22,7 +22,7 @@
 
 #include "exe_graph/lowering/exe_graph_attrs.h"
 #include "exe_graph/lowering/extend_exe_graph.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/def_types.h"
 #include "graph/fast_graph/execute_graph.h"

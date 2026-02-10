@@ -29,7 +29,7 @@
 #include "graph/ge_context.h"
 #include "hcom/hcom_topo_info.h"
 #include "executor/ge_executor.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 using namespace std;
 

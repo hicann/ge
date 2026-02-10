@@ -19,7 +19,7 @@
 #include "common/preload/task_info/pre_task_status.h"
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/tlv/pre_model_desc.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 

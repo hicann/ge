@@ -10,7 +10,7 @@
 
 #include "graph/arg_desc_info.h"
 #include "arg_desc_info_impl.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/checker.h"
 
 namespace ge {

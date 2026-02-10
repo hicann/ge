@@ -35,7 +35,7 @@
 #include "runtime/dev.h"
 #include "common/ge_common/ge_types.h"
 #include "base/registry/op_impl_space_registry_v2.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace {
 const std::set<std::string> kNotilingOps = {ge::MEMCPYASYNC, ge::STREAMMERGE, ge::PARTITIONEDCALL};

@@ -10,7 +10,7 @@
 
 #include "flatten_concat_pass.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/type/tensor_type_impl.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/graph_utils_ex.h"

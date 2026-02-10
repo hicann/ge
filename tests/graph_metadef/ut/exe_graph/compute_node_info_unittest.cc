@@ -11,7 +11,7 @@
 #include "exe_graph/runtime/compute_node_info.h"
 #include <gtest/gtest.h>
 #include "faker/kernel_run_context_faker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 namespace gert {
 class ComputeNodeInfoUT : public testing::Test {};
 TEST_F(ComputeNodeInfoUT, GetInputFormatOk) {

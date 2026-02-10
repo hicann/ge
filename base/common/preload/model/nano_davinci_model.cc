@@ -18,7 +18,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "framework/common/string_util.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 
 namespace ge {

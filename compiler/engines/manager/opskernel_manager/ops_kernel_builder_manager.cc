@@ -14,6 +14,7 @@
 #include "register/ops_kernel_builder_registry.h"
 #include "graph/debug/ge_attr_define.h"
 #include "common/plugin/ge_make_unique_util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

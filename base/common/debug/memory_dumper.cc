@@ -17,9 +17,9 @@
 #include "framework/common/util.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "graph/types.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/def_types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "base/err_msg.h"
 
 namespace {

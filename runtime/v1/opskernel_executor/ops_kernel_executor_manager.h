@@ -15,7 +15,7 @@
 #include <memory>
 #include <mutex>
 #include "common/opskernel/ops_kernel_info_store.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 
 namespace ge {
 using OpsKernelExecutor = OpsKernelInfoStore;

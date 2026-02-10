@@ -12,7 +12,7 @@
 #include <unordered_set>
 #include "graph/debug/ge_op_types.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 namespace {

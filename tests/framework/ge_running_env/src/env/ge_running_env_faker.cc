@@ -16,7 +16,7 @@
 #include "ge_running_env/ge_running_env_faker.h"
 #include "ge_default_running_env.h"
 #include "op/fake_op_repo.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 
 FAKE_NS_BEGIN
 

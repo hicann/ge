@@ -14,7 +14,7 @@
 #include "common/preload/model/pre_model_types.h"
 #include "common/preload/task_info/pre_task_status.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

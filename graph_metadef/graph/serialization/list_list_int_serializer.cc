@@ -10,7 +10,7 @@
 
 #include "list_list_int_serializer.h"
 #include <vector>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "proto/ge_ir.pb.h"
 #include "framework/common/debug/ge_log.h"
 

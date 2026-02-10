@@ -17,7 +17,7 @@
 #include "register/op_registry.h"
 #include "graph/graph.h"
 #include "graph/utils/attr_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 #include "register/auto_mapping_util.h"
 #include "register/scope/scope_fusion_pass_register.h"

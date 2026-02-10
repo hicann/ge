@@ -14,7 +14,7 @@
 #include "graph/utils/type_utils.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/tensor_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "common/checker.h"
 #include "common/file_constant_utils.h"
 #include "graph_builder/bg_memory.h"

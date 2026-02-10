@@ -13,7 +13,7 @@
 #include "mmpa/mmpa_api.h"
 #include "securec.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/def_types.h"
 #include "graph/types.h"
 

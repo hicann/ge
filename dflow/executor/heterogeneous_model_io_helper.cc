@@ -16,7 +16,7 @@
 #include "data_flow_executor_utils.h"
 #include "runtime/rt.h"
 #include "rt_error_codes.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

@@ -11,7 +11,7 @@
 #include "deploy/deployer/deployer_authentication.h"
 #include "mmpa/mmpa_api.h"
 #include "common/debug/log.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

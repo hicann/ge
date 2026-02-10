@@ -10,7 +10,7 @@
 
 #include "tensor_trans_utils.h"
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "common/util/mem_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/tensor_adapter.h"

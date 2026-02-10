@@ -19,7 +19,7 @@
 #include "can_fuse/strategy/fusion_strategy_registry.h"
 #include "utils/autofuse_utils.h"
 #include "graph/utils/type_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/graph_utils.h"
 #include "utils/auto_fuse_config.h"

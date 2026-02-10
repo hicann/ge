@@ -11,7 +11,7 @@
 #include "graph/utils/type_utils_inner.h"
 #include <climits>
 #include <gtest/gtest.h>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 class UtestTypeUtilsInner : public testing::Test {

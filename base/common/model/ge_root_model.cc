@@ -16,7 +16,7 @@
 #include "graph/ge_context.h"
 #include "common/host_resource_center/host_resource_serializer.h"
 #include "graph/manager/graph_var_manager.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 
 namespace ge {

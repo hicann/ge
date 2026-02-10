@@ -14,7 +14,7 @@
 #include <map>
 #include <securec.h>
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/normal_graph/ge_tensor_impl.h"
 #include "graph/ge_attr_value.h"
 #include "graph/model_serialize.h"

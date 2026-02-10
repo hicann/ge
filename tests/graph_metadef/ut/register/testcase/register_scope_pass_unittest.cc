@@ -12,7 +12,7 @@
 #include <gmock/gmock.h>
 #include <vector>
 #include <iostream>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 #include "register/scope/scope_fusion_pass_register.h"
 #include "register/scope/scope_graph_impl.h"

@@ -9,7 +9,7 @@
  */
 
 #include "attribute_group/attr_group_shape_env.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/detail/attributes_holder.h"
 #include "proto/ge_ir.pb.h"
 #include "graph/expression/expression_impl.h"

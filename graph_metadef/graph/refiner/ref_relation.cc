@@ -20,7 +20,7 @@
 #include "debug/ge_op_types.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/def_types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

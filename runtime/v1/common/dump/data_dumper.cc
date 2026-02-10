@@ -22,7 +22,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "graph/utils/tensor_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "framework/common/runtime_tensor_desc.h"
 #include "runtime/rt.h"
 #include "runtime/rts/rts_device.h"

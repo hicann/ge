@@ -33,7 +33,7 @@
 #include "parser/common/convert/pb2json.h"
 #include "common/proto_util.h"
 #include "graph/utils/op_type_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 using std::ostringstream;
 

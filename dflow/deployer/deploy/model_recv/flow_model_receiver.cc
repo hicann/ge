@@ -11,7 +11,7 @@
 #include "deploy/model_recv/flow_model_receiver.h"
 #include <cstdio>
 #include <cstring>
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "dflow/base/utils/process_utils.h"
 

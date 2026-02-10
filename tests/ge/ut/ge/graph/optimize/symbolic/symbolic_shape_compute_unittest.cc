@@ -12,7 +12,7 @@
 #include <gtest/gtest.h>
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "eager_style_graph_builder/esb_graph.h"
 #include "eager_style_graph_builder/all_ops.h"

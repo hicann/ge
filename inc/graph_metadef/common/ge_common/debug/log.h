@@ -12,5 +12,5 @@
 #define INC_COMMON_GE_COMMON_DEBUG_LOG_H_
 #include "common/ge_common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #endif  // INC_COMMON_GE_COMMON_DEBUG_LOG_H_

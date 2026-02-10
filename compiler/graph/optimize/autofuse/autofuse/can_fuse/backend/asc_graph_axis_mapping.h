@@ -12,7 +12,7 @@
 #define AUTOFUSE_CAN_FUSE_BACKEND_ASC_GRAPH_AXIS_MAPPING_H_
 #include "backend_utils.h"
 #include "graph/utils/type_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 
 #define GELOGD_IF(condition, fmt, ...)                                                                             \

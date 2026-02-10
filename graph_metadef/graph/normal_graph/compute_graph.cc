@@ -15,7 +15,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/debug/ge_log.h"
 #include "debug/ge_op_types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/checker.h"
 #include "graph/normal_graph/compute_graph_impl.h"
 #include "graph/utils/ge_ir_utils.h"

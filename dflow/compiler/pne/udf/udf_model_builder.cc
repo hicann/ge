@@ -26,7 +26,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "udf_attr_utils.h"
 #include "dflow/base/utils/process_utils.h"
 #include "graph/utils/op_type_utils.h"

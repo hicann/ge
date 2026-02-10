@@ -16,7 +16,7 @@
 #include <cctype>
 
 #include "graph/debug/ge_op_types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/ascendc_ir/ascir_registry.h"
 #include "graph/utils/type_utils.h"
 namespace ge {

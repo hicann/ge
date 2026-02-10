@@ -23,7 +23,7 @@
 #include "debug/ge_attr_define.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/ge_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/readable_dump.h"
 #include "graph/operator_reg.h"
 #include "es_graph_builder.h"

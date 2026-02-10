@@ -14,7 +14,7 @@
 #include "graph/utils/args_format_desc_utils.h"
 #include "platform/platform_info.h"
 #include "framework/common/taskdown_common.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/aicore_util_types.h"
 #include "common/aicore_util_attr_define.h"
 #include "exe_graph/lowering/data_dependent_interpreter.h"

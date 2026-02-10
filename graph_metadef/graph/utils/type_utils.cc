@@ -13,7 +13,7 @@
 #include "graph/utils/type_utils_inner.h"
 #include <algorithm>
 #include "graph/buffer.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/types.h"
 
 namespace ge {

@@ -19,7 +19,7 @@
 #include "exe_graph/runtime/runtime_attrs.h"
 #include "graph/any_value.h"
 #include "graph/def_types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/types.h"
 #include "graph/utils/math_util.h"
 

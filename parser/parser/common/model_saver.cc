@@ -18,7 +18,7 @@
 #include "framework/common/debug/ge_log.h"
 #include "common/util.h"
 #include "base/err_msg.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 
 namespace {

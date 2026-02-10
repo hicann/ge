@@ -13,7 +13,7 @@
 #include "fast_graph/fast_graph_impl.h"
 #include "graph/compute_graph.h"
 #include "graph/normal_graph/compute_graph_impl.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/execute_graph_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "mmpa/mmpa_api.h"
@@ -165,7 +165,7 @@ graphStatus ExecuteGraphAdapter::CopyMembers(ExecuteGraph *src_graph, const Comp
     GE_ASSERT_NOTNULL(info.first);
     const auto it = all_new_nodes.find(info.first);
     if (it != all_new_nodes.end()) {
-      new_out_nodes_info.emplace_back(it->second, info.second);
+      new_out_nodes_info.emplace_back(std::shared_ptr<ge::Node>(it->second), info.second);
     }
   }
   GE_ASSERT_SUCCESS(dst_graph->SetGraphOutNodesInfo(new_out_nodes_info));

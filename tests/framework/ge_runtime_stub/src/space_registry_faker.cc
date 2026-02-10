@@ -13,7 +13,7 @@
 #include "faker/space_registry_faker.h"
 #include "mmpa/mmpa_api.h"
 #include "base/registry/opp_package_utils.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 
 namespace gert {
 namespace {

@@ -10,7 +10,7 @@
 
 #include "graph/utils/multi_thread_graph_builder.h"
 #include "graph/normal_graph/operator_impl.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 MultiThreadGraphBuilder::MultiThreadGraphBuilder(int32_t thread_num)

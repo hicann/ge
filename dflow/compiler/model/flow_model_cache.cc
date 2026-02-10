@@ -22,7 +22,7 @@
 #include "graph/ge_error_codes.h"
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "dflow/base/model/flow_model_om_loader.h"
 #include "dflow/base/model/flow_model_om_saver.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"

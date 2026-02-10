@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 
 #include <algorithm>
 #include <cstring>
@@ -22,9 +22,9 @@
 
 #include "common/checker.h"
 #include "common/ge_common/debug/log.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "graph/def_types.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 namespace {

@@ -9,7 +9,7 @@
  */
 
 #include "register/auto_mapping_util.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace {
 constexpr int32_t kMaxFuncRecursiveDepth = 30;

@@ -25,7 +25,7 @@
  #include "pattern_fusion/flatten_concat_pass.h"
  #include "pattern_fusion/flatten_split_pass.h"
  #include "pattern_fusion/pattern_fusion.h"
- #include "graph/debug/ge_util.h"
+ #include "graph_metadef/graph/debug/ge_util.h"
  #include <gtest/gtest.h>
  
  using namespace std;

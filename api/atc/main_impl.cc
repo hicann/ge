@@ -16,7 +16,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "framework/common/util.h"
 #include "framework/generator/ge_generator.h"
 #include "framework/omg/omg.h"
@@ -37,7 +37,7 @@
 #include "framework/common/helper/model_helper.h"
 #include "graph/utils/op_type_utils.h"
 #include "nlohmann/json.hpp"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "register/optimization_option_registry.h"
 #include "register/op_lib_register_impl.h"
 

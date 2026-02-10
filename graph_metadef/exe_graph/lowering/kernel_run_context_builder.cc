@@ -13,7 +13,7 @@
 #include "graph/compute_graph.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "graph/def_types.h"
 

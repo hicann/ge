@@ -12,7 +12,7 @@
 #include <string>
 #include "graph/utils/graph_dump_utils.h"
 #include "graph/ge_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph_builder_utils.h"
 #include "common/share_graph.h"
 #include "mmpa/mmpa_api.h"

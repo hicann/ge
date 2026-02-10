@@ -17,7 +17,7 @@
 #include "graph/attribute_group/attr_group_serializer_registry.h"
 #include "graph/compute_graph.h"
 #include "graph/attribute_group/attr_group_shape_env.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/checker.h"
 #include "test_structs.h"
 

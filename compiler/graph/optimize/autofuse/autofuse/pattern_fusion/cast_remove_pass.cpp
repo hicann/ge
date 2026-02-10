@@ -10,7 +10,7 @@
 
 #include "cast_remove_pass.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 
 namespace ge {

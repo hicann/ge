@@ -20,7 +20,7 @@
 #include "graph/symbolizer/symbolic_utils.h"
 #include "ascend_graph_code_dumper.h"
 #include "asc_graph_dumper_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "common_utils.h"
 #include "ascir_ops_utils.h"
 

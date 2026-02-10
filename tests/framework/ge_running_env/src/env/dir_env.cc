@@ -9,9 +9,9 @@
  */
 
 #include "ge_running_env/dir_env.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "ge_running_env/path_utils.h"
 #include <fstream>
 #include <sstream>

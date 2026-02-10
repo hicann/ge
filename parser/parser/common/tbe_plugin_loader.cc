@@ -26,7 +26,7 @@
 #include <regex>
 
 #include "ge/ge_api_types.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "base/err_msg.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/string_util.h"

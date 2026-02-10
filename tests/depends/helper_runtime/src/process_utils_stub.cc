@@ -16,8 +16,8 @@
 #include "common/debug/ge_log.h"
 #include "common/debug/log.h"
 #include "common/checker.h"
-#include "graph/utils/file_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/graph/utils/file_utils.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

@@ -18,7 +18,7 @@
 #include "framework/common/types.h"
 #include "framework/common/ge_types.h"
 #include "graph/model.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 struct ModelPartition {

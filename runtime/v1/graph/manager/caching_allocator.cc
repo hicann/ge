@@ -18,7 +18,7 @@
 #include "graph/def_types.h"
 #include "common/debug/log.h"
 #include "common/math/math_util.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

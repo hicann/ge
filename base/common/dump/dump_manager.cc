@@ -21,7 +21,7 @@
 #include "common/checker.h"
 #include <regex>
 #include "base/err_msg.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

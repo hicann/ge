@@ -10,7 +10,7 @@
 
 #include <gtest/gtest.h>
 #include<fstream>
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/src/mmpa_stub.h"
 #include "faker/kernel_run_context_facker.h"
 #include "faker/kernel_outputs_faker.h"

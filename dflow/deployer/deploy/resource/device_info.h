@@ -15,7 +15,7 @@
 #include <string>
 #include <vector>
 #include "graph/types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "framework/common/string_util.h"
 
 namespace ge {

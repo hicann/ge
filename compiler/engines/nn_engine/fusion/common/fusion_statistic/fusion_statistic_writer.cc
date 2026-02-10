@@ -12,7 +12,7 @@
 #include "common/configuration.h"
 #include "common/aicore_util_constants.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include <fcntl.h>
 #include <google/protobuf/io/zero_copy_stream_impl.h>
 #include <climits>

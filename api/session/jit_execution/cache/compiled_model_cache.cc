@@ -14,7 +14,7 @@
 #include "compiler/graph/build/model_cache.h"
 #include "api/session/jit_execution/utils/guarded_execution_point_util.h"
 #include "graph/ge_local_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 CompiledModelCache::CompiledModelCache(uint32_t user_graph_id, CompileContext &context, GraphManager &graph_manager) : user_graph_id_(user_graph_id),

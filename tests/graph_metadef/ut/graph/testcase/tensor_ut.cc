@@ -13,7 +13,7 @@
 #include <gtest/gtest.h>
 #include "graph/ge_tensor.h"
 #include "ge_ir.pb.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/normal_graph/ge_tensor_impl.h"
 #include "graph/utils/tensor_adapter.h"
 #include "graph/utils/tensor_utils.h"

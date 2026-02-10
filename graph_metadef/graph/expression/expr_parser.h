@@ -11,7 +11,7 @@
 #ifndef GRAPH_EXPRESSION_EXPR_PARSER_H_
 #define GRAPH_EXPRESSION_EXPR_PARSER_H_
 #include "scanner.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "expression_impl.h"
 
 #include <symengine/integer.h>

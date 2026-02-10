@@ -11,9 +11,9 @@
 #include "tensor_desc_serializer.h"
 
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/attr_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/ge_tensor.h"
 
 namespace ge {

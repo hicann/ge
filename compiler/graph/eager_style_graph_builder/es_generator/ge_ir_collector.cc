@@ -9,7 +9,7 @@
  */
 
 #include "ge_ir_collector.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "graph/opsproto_manager.h"
 #include "graph/operator_factory.h"
 #include "graph/utils/op_desc_utils.h"

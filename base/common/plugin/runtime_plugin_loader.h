@@ -12,7 +12,7 @@
 #define GE_COMMON_RUNTIME_PlUGIN_LOADER_H_
 
 #include <memory>
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "ge/ge_api_error_codes.h"
 #include "common/ge_visibility.h"
 #include "common/ge_types.h"

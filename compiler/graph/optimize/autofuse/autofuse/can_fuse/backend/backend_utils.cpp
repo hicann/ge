@@ -14,7 +14,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "graph/ge_tensor.h"
 #include "graph/utils/type_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/ascendc_ir/ascendc_ir_core/ascendc_ir.h"
 #include "common/util/mem_utils.h"

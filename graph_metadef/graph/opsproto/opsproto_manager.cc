@@ -16,7 +16,7 @@
 #include "graph/def_types.h"
 #include "graph/operator_factory_impl.h"
 #include "mmpa/mmpa_api.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "graph/operator_factory_impl.h"
 
 namespace ge {

@@ -10,7 +10,7 @@
 
 #include "flow_attr_util.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "data_flow_attr_define.h"
 
 namespace ge {

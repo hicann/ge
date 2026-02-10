@@ -16,7 +16,7 @@
 #include "common/checker.h"
 #include "framework/common/ge_types.h"
 #include "graph/ge_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 namespace {

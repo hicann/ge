@@ -9,7 +9,7 @@
  */
 #include "equivalent_graph_recognizer.h"
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "graph/symbolizer/symbolic_utils.h"
 
 namespace att {

@@ -23,7 +23,7 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/node_utils.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 
 namespace ge {

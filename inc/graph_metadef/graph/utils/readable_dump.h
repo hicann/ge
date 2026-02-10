@@ -18,7 +18,7 @@
 #include <vector>
 #include <google/protobuf/text_format.h>
 
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/checker.h"
 #include "graph/node.h"
 #include "graph/serialization/attr_serializer_registry.h"

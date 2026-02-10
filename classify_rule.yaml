@@ -97,6 +97,13 @@ graphengine:
       - runtime/v2/engine/aicpu/kernel/rts_stub.cc
       - dflow/deployer/daemon/deployer_daemon.cc
       - dflow/deployer/common/utils/process_utils.cc
+      - compiler/pne/udf/system_utils.cc
+      - dflow/base/utils/process_utils.cc
+      - dflow/base/deploy/deploy_planner.cc
+      - dflow/base/model/flow_model_om_saver.cc
+      - dflow/base/exec_runtime/execution_runtime.cc
+      - dflow/base/model/pne_model.cc
+      - dflow/base/model/flow_model_om_loader.cc
       - executor/hybrid/hybrid_davinci_model_stub.cc
       - build.sh
       - build_third_party.sh

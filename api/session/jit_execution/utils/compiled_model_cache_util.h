@@ -20,7 +20,7 @@
 #include "graph/ge_local_context.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 namespace {

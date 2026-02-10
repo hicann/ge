@@ -14,7 +14,7 @@
 #include "macro_utils/dt_public_scope.h"
 #include "graph/manager/host_mem_manager.h"
 #include "framework/memory/memory_api.h"
-#include "graph/aligned_ptr.h"
+#include "graph_metadef/graph/aligned_ptr.h"
 
 using namespace std;
 using namespace testing;
