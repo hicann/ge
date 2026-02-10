@@ -507,6 +507,95 @@ TEST_F(UTestAscirPerfV2, TestCalculateStrideNddmaBlockCountIdx) {
          Str(result.stride).c_str());
 }
 
+// 测试 CalculateStride 函数 - 动态shape场景下尾轴stride为符号表达式
+TEST_F(UTestAscirPerfV2, TestCalculateStrideDynamicShapeLastStride) {
+  // 构造 TensorShapeInfo
+  att::TensorShapeInfo shape_info;
+
+  Expr z2t = CreateExpr("z2t");
+  Expr z1t = CreateExpr("z1t");
+  Expr dynamic_stride = CreateExpr("dynamic_stride");  // 动态shape的stride
+
+  // 设置动态shape场景：last_stride是符号表达式而非常量
+  shape_info.dims = {z2t, z1t, CreateExpr(90)};
+  shape_info.repeats = {z2t, z1t, CreateExpr(90)};
+  shape_info.gm_strides = {CreateExpr(1), CreateExpr(90), dynamic_stride};  // 尾轴为动态stride
+  shape_info.strides = {CreateExpr(1), CreateExpr(90), dynamic_stride};
+  shape_info.origin_repeats = {z2t, z1t, CreateExpr(90)};
+
+  // 创建 NodeDetail
+  att::NodeDetail node_info;
+  node_info.name = "Nddma";
+  node_info.optype = "NddmaV2";
+  node_info.input_dtype = {"float16"};
+  node_info.output_dtype = {"float16"};
+  node_info.input_dims = {z2t, z1t, CreateExpr(90)};
+  node_info.output_dims = {z2t, z1t, CreateExpr(90)};
+  node_info.repeats = {z2t, z1t, CreateExpr(90)};
+
+  // 设置 supported_max_dma_len
+  const int32_t supported_max_dma_len = 2;
+  const bool need_swap = false;
+
+  // 调用 CalculateStride 函数
+  auto result = att::CalculateStride(shape_info, false, node_info, supported_max_dma_len, need_swap);
+
+  // 验证 block_count_idx
+  EXPECT_EQ(result.block_count_idx, 1);
+
+  // 验证动态shape时返回的stride是新的符号变量（gm_stride_select）
+  EXPECT_EQ(Str(result.stride), "gm_stride_select");
+
+  // 验证 tenary_ops 被正确填充
+  EXPECT_EQ(result.tenary_ops.size(), 1u);
+  EXPECT_NE(result.tenary_ops.find(result.stride), result.tenary_ops.end());
+
+  // 验证 TenaryOp 的条件是 K_GT (dynamic_stride > 1)
+  const auto &tenary_op = result.tenary_ops.at(result.stride);
+  EXPECT_EQ(tenary_op.GetVariable(), result.stride);
+
+  GELOGD("TestCalculateStrideDynamicShapeLastStride: block_count_idx=%d, stride=%s, tenary_ops size=%zu",
+         result.block_count_idx, Str(result.stride).c_str(), result.tenary_ops.size());
+}
+
+// 测试 SetStride 函数 - 动态shape场景下合并tenary_ops到node_info
+TEST_F(UTestAscirPerfV2, TestSetStrideDynamicShapeMergesTenaryOps) {
+  // 构造 TensorShapeInfo
+  att::TensorShapeInfo shape_info;
+
+  Expr z2t = CreateExpr("z2t");
+  Expr z1t = CreateExpr("z1t");
+  Expr dynamic_stride = CreateExpr("dynamic_stride");
+
+  // 设置动态shape场景
+  shape_info.dims = {z2t, z1t, CreateExpr(90)};
+  shape_info.repeats = {z2t, z1t, CreateExpr(90)};
+  shape_info.gm_strides = {CreateExpr(1), CreateExpr(90), dynamic_stride};
+  shape_info.strides = {CreateExpr(1), CreateExpr(90), dynamic_stride};
+  shape_info.origin_repeats = {z2t, z1t, CreateExpr(90)};
+
+  // 创建 NodeDetail
+  att::NodeDetail node_info;
+  node_info.name = "Nddma";
+  node_info.optype = "NddmaV2";
+  node_info.input_dtype = {"float16"};
+  node_info.output_dtype = {"float16"};
+  node_info.input_dims = {z2t, z1t, CreateExpr(90)};
+  node_info.output_dims = {z2t, z1t, CreateExpr(90)};
+  node_info.repeats = {z2t, z1t, CreateExpr(90)};
+
+  const int32_t supported_max_dma_len = 2;
+
+  // 调用 SetStride 函数
+  auto status = att::SetStride(shape_info, node_info, supported_max_dma_len);
+  EXPECT_EQ(status, ge::SUCCESS);
+
+  // 验证 tenary_ops 被合并到 node_info
+  EXPECT_EQ(node_info.tenary_ops.size(), 2u);  // gm_stride 和 ub_stride 各一个
+
+  GELOGD("TestSetStrideDynamicShapeMergesTenaryOps: tenary_ops size=%zu", node_info.tenary_ops.size());
+}
+
 TEST_F(UTestAscirPerfV2, TestMicroApiPerfTableSize) {
   AbsAscIrAttImplV2 default_ir_att_v2;
   EXPECT_NE(default_ir_att_v2.GetAscendCApiPerfTable(), nullptr);

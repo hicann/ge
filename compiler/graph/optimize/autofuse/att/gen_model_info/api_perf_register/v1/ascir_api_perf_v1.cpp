@@ -194,19 +194,35 @@ Loadapi(DataCopy from GM to UB)的性能公式：
   7. overall_mte2 = mte2 * mte2_count + H
   8. 外抛for循环：最外侧两个维度丢到循环次数里面去
 */
+
+// DMA节点性能计算辅助函数（消除LoadApi和StoreApi重复代码）
+ge::Status InitDmaNodeAndGetPerf(const ge::AscNodePtr &node_ptr,
+                                  const std::string &node_name,
+                                  TensorShapeInfo &merged_shapes,
+                                  PerfOutputInfo &perf_res) {
+  GE_ASSERT_SUCCESS(MergeTensorContinuousDims(node_ptr,
+                                               GetNodeOutTensorName(node_ptr, 0),
+                                               merged_shapes));
+
+  NodeDetail dma_info;
+  dma_info.name     = node_ptr != nullptr ? node_ptr->GetName() : node_name;
+  dma_info.optype   = node_ptr->GetType();
+  dma_info.input_dtype  = {merged_shapes.data_type};
+  dma_info.output_dtype = {merged_shapes.data_type};
+
+  GE_ASSERT_SUCCESS(SetDims(merged_shapes, dma_info));
+  GE_ASSERT_SUCCESS(GetDmaPerf(merged_shapes, dma_info, perf_res, kMaxDmaLen, true));
+  return ge::SUCCESS;
+}
+
 ge::Status LoadApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
                    [[maybe_unused]] const std::vector<TensorShapeInfo> &output_shapes,
                    [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   auto const &node_ptr = node.node_ptr;
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
-  std::string node_name = node_ptr != nullptr ? (node_ptr)->GetName() : "LoadNode";
-  auto merged_output_shapes = output_shapes[0];
-  GE_ASSERT_SUCCESS(MergeTensorContinuousDims(node_ptr, GetNodeOutTensorName(node_ptr, 0), merged_output_shapes));
-  NodeDetail dma_info =
-      NodeDetail{node_name, node_ptr->GetType(), {merged_output_shapes.data_type}, {merged_output_shapes.data_type}};
-  GE_ASSERT_SUCCESS(SetDims(merged_output_shapes, dma_info));
-  GE_ASSERT_SUCCESS(GetDmaPerf(merged_output_shapes, dma_info, perf_res, kMaxDmaLen, true));
-  return ge::SUCCESS;
+
+  auto merged_shapes = output_shapes[0];
+  return InitDmaNodeAndGetPerf(node_ptr, "LoadNode", merged_shapes, perf_res);
 }
 
 /*
@@ -225,14 +241,9 @@ ge::Status StoreApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_s
                     [[maybe_unused]] const NodeInfo &node, PerfOutputInfo &perf_res) {
   auto const &node_ptr = node.node_ptr;
   GE_ASSERT_TRUE(!input_shapes.empty() && !output_shapes.empty());
-  std::string node_name = node_ptr != nullptr ? node_ptr->GetName() : "StoreNode";
-  auto merged_output_shapes = output_shapes[0];
-  GE_ASSERT_SUCCESS(MergeTensorContinuousDims(node_ptr, GetNodeOutTensorName(node_ptr, 0), merged_output_shapes));
-  NodeDetail dma_info =
-      NodeDetail{node_name, node_ptr->GetType(), {merged_output_shapes.data_type}, {merged_output_shapes.data_type}};
-  GE_ASSERT_SUCCESS(SetDims(merged_output_shapes, dma_info));
-  GE_ASSERT_SUCCESS(GetDmaPerf(merged_output_shapes, dma_info, perf_res, kMaxDmaLen, true));
-  return ge::SUCCESS;
+
+  auto merged_shapes = output_shapes[0];
+  return InitDmaNodeAndGetPerf(node_ptr, "StoreNode", merged_shapes, perf_res);
 }
 
 ge::Status AbsApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_shapes,
