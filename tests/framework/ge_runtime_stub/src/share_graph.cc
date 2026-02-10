@@ -8098,6 +8098,7 @@ ge::ComputeGraphPtr ShareGraph::ThirdAicpuOpGraph() {
   auto add1 = graph->FindNode("add1");
   add1->GetOpDesc()->MutableAllInputName() = {{"x1", 0}, {"x2", 1}};
   add1->GetOpDesc()->SetOpKernelLibName(ge::kEngineNameAiCpu);
+  (void)ge::AttrUtils::SetStr(add1->GetOpDesc(), "kernelSo", "libcust_aicpu_kernel.so");
   SetNoStorage(add1->GetOpDesc(), ge::FORMAT_ND, DT_FLOAT, {-1, 2, 3, 4});
   SetShapeRangeNoStorage(add1->GetOpDesc(), {1, 2, 3, 4}, {-1, 2, 3, 4});
   AddCompileResult(add1, false);

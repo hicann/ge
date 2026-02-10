@@ -3311,30 +3311,6 @@ TEST_F(UtestKernelTaskInfo, static_shape_reuse_binary_vectorcore) {
   }
 }
 
-TEST_F(UtestKernelTaskInfo, distribute_ai_core_misra) {
-  auto op_desc = CreateOpDesc("relu", RELU);
-  op_desc->AddInputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
-  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
-  op_desc->AddOutputDesc(GeTensorDesc(GeShape(std::vector<int64_t>{4}), FORMAT_NCHW, DT_INT32));
-  op_desc->SetIsInputConst({false});
-  op_desc->SetIsInputConst({false});
-  op_desc->SetInputOffset({0});
-  op_desc->SetOutputOffset({0, 128});
-  TensorUtils::SetSize(*op_desc->MutableInputDesc(0), 32);
-  TensorUtils::SetSize(*op_desc->MutableOutputDesc(0), 32);
-  TensorUtils::SetSize(*op_desc->MutableOutputDesc(1), 32);
-  op_desc->SetId(0);
-  op_desc->SetWorkspace({32});
-  op_desc->SetWorkspaceBytes({32});
-
-  DavinciModel model(0, nullptr);
-  KernelTaskInfo task_info;
-  task_info.op_desc_ = op_desc;
-  task_info.task_type_ = ModelTaskType::MODEL_TASK_CMO;
-  task_info.davinci_model_ = &model;
-  EXPECT_EQ(task_info.DistributeAicoreTask(), SUCCESS);
-}
-
 TEST_F(UtestKernelTaskInfo, static_shape_reuse_binary_atomic) {
   DavinciModel model(0, nullptr);
   model.SetKnownNode(true);

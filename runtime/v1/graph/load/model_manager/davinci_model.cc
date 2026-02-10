@@ -1954,7 +1954,8 @@ Status DavinciModel::InitNodes(const ComputeGraphPtr &compute_graph) {
   std::vector<NodePtr> nodes_init_by_thread;
   std::map<std::string, OpDescPtr> variable_by_name;
   std::vector<std::pair<std::string, std::string>> hccl_ops;
-
+  // 建立KernelSo与opName之间的映射关系
+  GE_ASSERT_SUCCESS(ge_model_->GetCustAICPUKernelStore().BuildKernelSoToOpNameMap(compute_graph));
   for (const auto &node : compute_graph->GetAllNodes()) {
     const auto &op_desc = node->GetOpDesc();
     GE_CHECK_NOTNULL(op_desc);

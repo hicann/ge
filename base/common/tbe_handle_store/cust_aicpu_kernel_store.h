@@ -12,6 +12,8 @@
 #define GE_COMMON_CUST_AICPU_KERNEL_STORE_H_
 
 #include "common/tbe_handle_store/kernel_store.h"
+#include "graph/compute_graph.h"
+#include <unordered_map>
 
 namespace ge {
 class CustAICPUKernelStore : public KernelStore {
@@ -22,6 +24,11 @@ class CustAICPUKernelStore : public KernelStore {
   void AddCustAICPUKernel(const CustAICPUKernelPtr &kernel);
 
   void LoadCustAICPUKernelBinToOpDesc(const std::shared_ptr<OpDesc> &op_desc) const;
+
+  graphStatus BuildKernelSoToOpNameMap(const ComputeGraphPtr &graph);
+ private:
+  // 保存KernelSo属性与算子名字之间的映射，用于从om中查找算子kernel
+  std::unordered_map<std::string, std::string> kernel_so_to_op_name_map_;
 };
 }  // namespace ge
 

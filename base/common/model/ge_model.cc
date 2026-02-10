@@ -38,7 +38,7 @@ std::shared_ptr<domi::ModelTaskDef> GeModel::GetModelTaskDefPtr() const { return
 
 TBEKernelStore &GeModel::GetTBEKernelStore() { return this->tbe_kernal_store_; }
 
-const CustAICPUKernelStore &GeModel::GetCustAICPUKernelStore() const { return this->cust_aicpu_kernal_store_; }
+CustAICPUKernelStore &GeModel::GetCustAICPUKernelStore() { return this->cust_aicpu_kernal_store_; }
 
 // use GetWeightData and GetWeightSize instead
 Buffer GeModel::GetWeight() const { return this->weights_buffer_; }
