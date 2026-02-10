@@ -59,6 +59,11 @@ if (${TARGET_SYSTEM_NAME} STREQUAL "Linux")
         endif()
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../inc
+
+        ${TOP_DIR}/air/inc/external
+        ${TOP_DIR}/air/inc/external/acl
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
     )
 
     target_compile_options(${ASCENDCL_C_COMPILE_TARGET} PRIVATE
@@ -117,6 +122,11 @@ elseif (${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
         endif()
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../inc
+
+        ${TOP_DIR}/air/inc/external
+        ${TOP_DIR}/air/inc/external/acl
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
     )
 
     target_compile_options(${ASCENDCL_C_COMPILE_TARGET} PRIVATE

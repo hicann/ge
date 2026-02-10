@@ -200,6 +200,9 @@ target_include_directories(ge_common PRIVATE
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${ASCGEN_DIR}/inc
     ${ASCEND_INSTALL_PATH}/include/graph
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_link_options(ge_common PRIVATE
@@ -262,6 +265,12 @@ target_include_directories(ge_common_base PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${ASCEND_INSTALL_PATH}/include/graph
+    ${TOP_DIR}/runtime/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/air/inc/external
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_link_options(ge_common_base PRIVATE
@@ -386,6 +395,8 @@ target_include_directories(ge_common PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${ASCGEN_DIR}/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_link_options(ge_common PRIVATE
@@ -452,6 +463,10 @@ target_include_directories(ge_common_base PRIVATE
     ${ASCEND_INSTALL_PATH}/include/experiment/runtime
     ${ASCEND_INSTALL_PATH}/pkg_inc
     ${ASCEND_INSTALL_PATH}/include/graph
+    ${TOP_DIR}/air/inc/external
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_link_options(ge_common_base PRIVATE

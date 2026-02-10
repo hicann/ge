@@ -53,6 +53,8 @@ target_include_directories(stub_acl_cblas PRIVATE
     ${CMAKE_CURRENT_LIST_DIR}/../../../inc/external/acl/ops
     ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
 )
 
 target_compile_definitions(stub_acl_cblas PRIVATE

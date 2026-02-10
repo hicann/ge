@@ -94,8 +94,11 @@ target_include_directories(fe PRIVATE
         ${ENG_DIR}/ffts_engine
         ${TOP_DIR}/inc
         ${AIR_CODE_DIR}/compiler/opcompiler/inc
+        ${TOP_DIR}/metadef/inc
         ${TOP_DIR}/metadef/inc/common/util
-        ${CMAKE_BINARY_DIR}/proto/fe_proto)
+        ${CMAKE_BINARY_DIR}/proto/fe_proto
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
+)
 
 target_compile_options(fe PRIVATE
         -Wfloat-equal

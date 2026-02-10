@@ -20,6 +20,9 @@ set(GERT_INCLUDING_PATH
     ${CMAKE_BINARY_DIR}/proto/ge
     ${CMAKE_BINARY_DIR}/proto/ge/proto
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 set(GERT_COMPILE_DEF

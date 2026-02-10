@@ -26,12 +26,16 @@ target_compile_definitions(aihac_autofusion PRIVATE
 if (ENABLE_OPEN_SRC)
         target_include_directories(aihac_autofusion PUBLIC
                ${CMAKE_CURRENT_SOURCE_DIR}
+               ${TOP_DIR}/runtime/include
+               ${TOP_DIR}/runtime/include/external
         )
 else ()
         target_include_directories(aihac_autofusion PRIVATE
                ${CMAKE_CURRENT_SOURCE_DIR}
                ${TOP_DIR}/air/inc
                ${TOP_DIR}/air/inc/graph_metadef
+               ${TOP_DIR}/runtime/include
+               ${TOP_DIR}/runtime/include/external
         )
 endif ()
 

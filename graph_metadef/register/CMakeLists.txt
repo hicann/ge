@@ -116,6 +116,8 @@ target_include_directories(register PRIVATE
     ${AIR_CODE_DIR}/inc/graph_metadef
     ${CMAKE_BINARY_DIR}/proto/metadef_protos
     ${ASCEND_INSTALL_PATH}/include/graph
+    ${TOP_DIR}/runtime/pkg_inc
+    ${TOP_DIR}/metadef/inc
 )
 
 target_link_options(register PRIVATE
@@ -123,6 +125,8 @@ target_link_options(register PRIVATE
 )
 
 target_link_libraries(register
+    PUBLIC
+        metadef_headers
     PRIVATE
         intf_pub
         msprof_headers
@@ -143,8 +147,7 @@ target_link_libraries(register
         static_mmpa
         -Wl,--as-needed
         json
-    PUBLIC
-        metadef_headers
+
 )
 
 ############ libregister.a ############
@@ -183,6 +186,8 @@ target_include_directories(register_static PUBLIC
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/graph_metadef
     ${TOP_DIR}/ace/npuruntime/runtime/platform/inc
+    ${TOP_DIR}/runtime/pkg_inc
+    ${TOP_DIR}/metadef/inc
     ${ASCEND_INSTALL_PATH}/include/graph
 )
 

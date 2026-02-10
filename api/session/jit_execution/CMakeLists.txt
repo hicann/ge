@@ -20,6 +20,9 @@ target_include_directories(jit_exe PRIVATE
         ${METADEF_DIR}/inc/external
         ${METADEF_DIR}/pkg_inc
         ${AIR_CODE_DIR}/inc/graph_metadef
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_compile_definitions(jit_exe PRIVATE

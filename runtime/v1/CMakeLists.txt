@@ -224,6 +224,11 @@ target_include_directories(ge_executor PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_libraries(ge_executor PRIVATE
@@ -283,6 +288,12 @@ target_include_directories(ge_executor_shared PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_options(ge_executor_shared PRIVATE
@@ -358,6 +369,11 @@ target_include_directories(davinci_executor PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_options(davinci_executor PRIVATE
@@ -448,6 +464,12 @@ target_include_directories(hybrid_executor PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_options(hybrid_executor PRIVATE
@@ -553,6 +575,10 @@ target_include_directories(hybrid_executor_stub PRIVATE
     ${AIR_CODE_DIR}/inc/framework
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_link_libraries(hybrid_executor_stub PRIVATE

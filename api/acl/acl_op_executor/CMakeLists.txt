@@ -59,6 +59,12 @@ target_include_directories(acl_op_executor_impl PRIVATE
     ${ASCEND_INSTALL_PATH}/include/external
     ${ASCEND_INSTALL_PATH}/pkg_inc/base
     ${ASCEND_INSTALL_PATH}/include/prof
+
+
+    ${TOP_DIR}/air/inc/external
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_compile_options(acl_op_executor_impl PRIVATE
@@ -134,6 +140,10 @@ target_include_directories(acl_op_executor PRIVATE
 
     ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
+
+    ${TOP_DIR}/air/inc/external
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
 )
 
 target_compile_options(acl_op_executor PRIVATE
