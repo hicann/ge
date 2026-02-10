@@ -62,6 +62,7 @@ target_include_directories(att_st PRIVATE
         ${TOP_DIR}/common
         ${TOP_DIR}/base
         ${TOP_DIR}/tests/autofuse/st/att/utils
+        ${TOP_DIR}/tests/autofuse/depends/common/inc
         ${ATT_DIR}/util
         ${ATT_DIR}/common_utils
         ${ATT_DIR}/generator

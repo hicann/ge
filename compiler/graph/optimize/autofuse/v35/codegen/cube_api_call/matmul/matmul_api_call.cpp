@@ -69,8 +69,6 @@ Status MatmulApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
 
 Status MatmulApiCall::GenerateMacro(std::string &result) const {
   stringstream ss;
-  ss << (HasRelu() ? "#define IS_ENABLE_RELU true" : "#define IS_ENABLE_RELU false") << std::endl;
-  result = ss.str();
 
   // 后面抽取专用基类, 此处先覆盖下
   Tiler tiler;

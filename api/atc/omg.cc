@@ -56,6 +56,17 @@ const uint32_t kSetOutputModeMixed = 0x3;
 const size_t kSoStoreIndex = 4;
 const size_t kTaskInfoIndex = 3;
 const std::set<domi::FrameworkType> kSupportTensorAsOutput = {domi::CAFFE, domi::ONNX};
+
+void UpdateOutputTypeNameAndIndex(std::string &node_name, std::string &index_str) {
+  const auto &final_out_nodes_map = domi::GetContext().final_out_nodes_map;
+  const auto new_name_it = final_out_nodes_map.find(node_name + ":" + index_str);
+  if (new_name_it != final_out_nodes_map.end()) {
+    GELOGI("Update output_type node from [%s:%s] to [%s:%d]", node_name.c_str(), index_str.c_str(),
+           new_name_it->second.first.c_str(), new_name_it->second.second);
+    node_name = new_name_it->second.first;
+    index_str = std::to_string(new_name_it->second.second);
+  }
+}
 }  // namespace
 
 // When the model is converted to a JSON file, the following operator attributes in the blacklist will be ignored
@@ -342,9 +353,9 @@ domi::Status ParseOutputType(const std::string &output_type, std::map<std::strin
       GELOGE(PARAM_INVALID, "[Parse][Param]Invalid value for --output_type[%s], %s.", node.c_str(), kOutputTypeSample);
       return FAILED;
     }
-    ge::DataType tmp_dt;
     std::string node_name = StringUtils::Trim(node_index_type_v[kNodeNameIndex]);
     std::string index_str = StringUtils::Trim(node_index_type_v[kIndexStrIndex]);
+    UpdateOutputTypeNameAndIndex(node_name, index_str);
     int32_t index;
     if (StringToInt(index_str, index) != SUCCESS) {
       GELOGE(PARAM_INVALID, "[Convert][Type]This str must be digit string, while the actual input is %s.",
@@ -359,9 +370,9 @@ domi::Status ParseOutputType(const std::string &output_type, std::map<std::strin
       GELOGE(ge::PARAM_INVALID, "[Parse][Param]Invalid value for --output_type[%s], %s.",
              dt_value.c_str(), kOutputTypeSupport);
       return FAILED;
-    } else {
-      tmp_dt = it->second;
     }
+    const ge::DataType tmp_dt = it->second;
+
     out_type_vec.push_back(node_name + ":" + index_str);
     std::string index_dt_str = index_str + ":" + TypeUtils::DataTypeToSerialString(tmp_dt);
     auto it1 = output_node_dt_map.find(node_name);
@@ -1124,6 +1135,7 @@ void UpdateOmgCtxWithParserCtx() {
   domi::GetContext().run_mode = GetParserContext().run_mode;
   domi::GetContext().op_conf_map = GetParserContext().op_conf_map;
   domi::GetContext().out_nodes_map = GetParserContext().out_nodes_map;
+  domi::GetContext().final_out_nodes_map = GetParserContext().final_out_nodes_map;
   domi::GetContext().input_nodes_format_map = GetParserContext().input_nodes_format_map;
   domi::GetContext().out_tensor_names = GetParserContext().out_tensor_names;
   domi::GetContext().user_out_tensors = GetParserContext().user_out_tensors;
@@ -1142,6 +1154,7 @@ void UpdateParserCtxWithOmgCtx() {
   GetParserContext().run_mode = domi::GetContext().run_mode;
   GetParserContext().op_conf_map = domi::GetContext().op_conf_map;
   GetParserContext().out_nodes_map = domi::GetContext().out_nodes_map;
+  GetParserContext().final_out_nodes_map = domi::GetContext().final_out_nodes_map;
   GetParserContext().input_nodes_format_map = domi::GetContext().input_nodes_format_map;
   GetParserContext().out_tensor_names = domi::GetContext().out_tensor_names;
   GetParserContext().user_out_tensors = domi::GetContext().user_out_tensors;

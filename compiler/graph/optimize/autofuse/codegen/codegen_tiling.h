@@ -79,6 +79,9 @@ const std::string kTilingDefAndConstIdentify = "tiling_def_and_tiling_const";
     std::string GenGetResLimitStru(void) const;
     bool IsMixKernelTaskType(const ::ascir::FusedScheduledResult &fused_schedule_result) const;
    private:
+    // 判断某个 origin_var 是否被特定 schedule_group 使用
+    bool IsVarUsedInScheduleGroup(const std::string &var_define,
+                                  const ::ascir::ScheduleGroup &schedule_group) const;
     std::string GenGetTilingSizeFunc(const std::string graph_name, const std::string tiling) const;
     std::string GenTilingFunc(const std::map<std::string, std::string> &shape_info,
                               const ::ascir::FusedScheduledResult& fused_schedule_result, const std::string func,

@@ -79,7 +79,6 @@ graphengine:
       - tests/CMakeLists.txt
       - tests/run_test.sh
       - tests/dflow
-      - dflow/udf
       - scripts/build
       - scripts/clean
       - scripts/config
@@ -98,7 +97,6 @@ graphengine:
       - runtime/v2/engine/aicpu/kernel/rts_stub.cc
       - dflow/deployer/daemon/deployer_daemon.cc
       - dflow/deployer/common/utils/process_utils.cc
-      - compiler/pne/udf/system_utils.cc
       - executor/hybrid/hybrid_davinci_model_stub.cc
       - build.sh
       - build_third_party.sh

@@ -10,7 +10,7 @@
 
 ##################################################################################################################
 add_custom_target(
-    stub_src ALL
+    stub_acl_src ALL
     DEPENDS  ${CMAKE_CURRENT_BINARY_DIR}/cblas_stub.cpp
              ${CMAKE_CURRENT_BINARY_DIR}/op_compiler_stub.cpp
              ${CMAKE_CURRENT_BINARY_DIR}/op_executor_stub.cpp
@@ -162,7 +162,7 @@ target_link_libraries(stub_acl_mdl PRIVATE
 )
 ##################################################################################################################
 
-add_dependencies(stub_acl_cblas stub_src)
-add_dependencies(stub_acl_op_compiler stub_src)
-add_dependencies(stub_acl_op_executor stub_src)
-add_dependencies(stub_acl_mdl stub_src)
+add_dependencies(stub_acl_cblas stub_acl_src)
+add_dependencies(stub_acl_op_compiler stub_acl_src)
+add_dependencies(stub_acl_op_executor stub_acl_src)
+add_dependencies(stub_acl_mdl stub_acl_src)

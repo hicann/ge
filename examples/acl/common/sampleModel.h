@@ -59,17 +59,20 @@ class AclModelDesc {
 public:
     AclModelDesc(uint32_t modelId)
     {
+        modelId_ = modelId;
         modelDesc_ = aclmdlCreateDesc();
         CHECK_NOT_NULL(modelDesc_);
         CHECK(aclmdlGetDesc(modelDesc_, modelId));
     }
     ~AclModelDesc()
     {
+        CHECK(aclmdlUnload(modelId_));
         CHECK(aclmdlDestroyDesc(modelDesc_));
         modelDesc_ = nullptr;
     }
     aclmdlDesc *GetModelDesc();
 private:
+    uint32_t modelId_;
     aclmdlDesc *modelDesc_;
 };
 

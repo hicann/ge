@@ -587,3 +587,120 @@ TEST_F(TestAxesReorderSolverGen, GenPgo_SolverwithClassImpl) {
   solver.GenSolverClassImpl();
   solver.GenSolverFuncImpl();
 }
+
+/**
+ * @brief 测试：当 enable_multicore_ub_tradeoff 为 true 时，GenInput 使用成员变量而非硬编码常量
+ *
+ * 原问题背景： GenInput() 函数中
+ * 使用硬编码常量 kDefaultSolverUbThreshold(0.2) 和 kDefaultSolverCoreNumThreshold(0.4)
+ * 而非成员变量 ub_threshold_ 和 corenum_threshold_。
+ *
+ * 本测试用例用于看护该修复，防止未来代码回退。
+ */
+TEST_F(TestAxesReorderSolverGen, GenInput_UseMemberVariableWhenTradeOffEnabled) {
+  AxesReorderSolverGen solver("case_test", "TilingData");
+
+  // 设置非默认阈值 (0.0 和 1.0 是边界值，常用于环境变量配置)
+  solver.SetUBThreshold(0.0);
+  solver.SetCoreNumThreshold(1.0);
+  solver.SetEnableMulticoreUBTradeoff(true);
+  solver.SetTilingCaseIdent({{0, 0, 0}, 1, ""});
+
+  std::vector<Expr> all_cons;
+  TradeOffConfig trade_off_config;
+  trade_off_config.is_enable = false;
+
+  std::string gen_code = solver.GenInput(trade_off_config, all_cons);
+
+  // 验证生成的代码使用成员变量值
+  // 注意: std::to_string() 默认生成6位小数格式
+  EXPECT_TRUE(gen_code.find("input.ub_threshold = 0.000000;") != std::string::npos)
+      << "GenInput should use ub_threshold_ member variable (0.0), not hardcoded default.\n"
+      << "Generated code:\n" << gen_code;
+
+  EXPECT_TRUE(gen_code.find("input.corenum_threshold = 1.000000;") != std::string::npos)
+      << "GenInput should use corenum_threshold_ member variable (1.0), not hardcoded default.\n"
+      << "Generated code:\n" << gen_code;
+
+  // 防止回退检查：确保代码中不包含硬编码的默认值 0.200000 和 0.400000
+  EXPECT_EQ(gen_code.find("0.200000"), std::string::npos)
+      << "Generated code contains hardcoded default ub_threshold 0.2!\n"
+      << "This indicates the fix from commit 3d7b57d5 may have regressed.\n"
+      << "Generated code:\n" << gen_code;
+
+  EXPECT_EQ(gen_code.find("0.400000"), std::string::npos)
+      << "Generated code contains hardcoded default corenum_threshold 0.4!\n"
+      << "This indicates the fix from commit 3d7b57d5 may have regressed.\n"
+      << "Generated code:\n" << gen_code;
+}
+
+/**
+ * @brief 测试：验证 enable_multicore_ub_tradeoff 为 false 时使用默认值
+ */
+TEST_F(TestAxesReorderSolverGen, GenInput_UseDefaultWhenTradeOffDisabled) {
+  AxesReorderSolverGen solver("case_test", "TilingData");
+
+  // 即使设置了非默认值，关闭开关后应使用默认值
+  solver.SetUBThreshold(0.0);
+  solver.SetCoreNumThreshold(1.0);
+  solver.SetEnableMulticoreUBTradeoff(false);
+  solver.SetTilingCaseIdent({{0, 0, 0}, 1, ""});
+
+  std::vector<Expr> all_cons;
+  TradeOffConfig trade_off_config;
+  trade_off_config.is_enable = false;
+
+  std::string gen_code = solver.GenInput(trade_off_config, all_cons);
+
+  // 应该使用默认值 0.2 和 0.4 (std::to_string 生成6位小数)
+  EXPECT_TRUE(gen_code.find("input.ub_threshold = 0.200000;") != std::string::npos);
+  EXPECT_TRUE(gen_code.find("input.corenum_threshold = 0.400000;") != std::string::npos);
+}
+
+/**
+ * @brief 测试：验证 trade_off_config 优先级低于 enable_multicore_ub_tradeoff
+ */
+TEST_F(TestAxesReorderSolverGen, GenInput_TradeOffConfigPriority) {
+  AxesReorderSolverGen solver("case_test", "TilingData");
+
+  solver.SetUBThreshold(0.0);
+  solver.SetCoreNumThreshold(1.0);
+  solver.SetEnableMulticoreUBTradeoff(true);
+  solver.SetTilingCaseIdent({{0, 0, 0}, 1, ""});
+
+  std::vector<Expr> all_cons;
+  TradeOffConfig trade_off_config;
+  trade_off_config.is_enable = true;
+  trade_off_config.ub_ratio = CreateExpr(0.3);
+  trade_off_config.core_num_ratio = CreateExpr(0.5);
+
+  std::string gen_code = solver.GenInput(trade_off_config, all_cons);
+
+  // enable_multicore_ub_tradeoff 优先级更高，应该使用成员变量值
+  EXPECT_TRUE(gen_code.find("input.ub_threshold = 0.000000;") != std::string::npos);
+  EXPECT_TRUE(gen_code.find("input.corenum_threshold = 1.000000;") != std::string::npos);
+}
+
+/**
+ * @brief 测试：验证 trade_off_config 在 enable_multicore_ub_tradeoff 为 false 时生效
+ */
+TEST_F(TestAxesReorderSolverGen, GenInput_UseTradeOffConfigWhenMemberDisabled) {
+  AxesReorderSolverGen solver("case_test", "TilingData");
+
+  solver.SetUBThreshold(0.0);
+  solver.SetCoreNumThreshold(1.0);
+  solver.SetEnableMulticoreUBTradeoff(false);
+  solver.SetTilingCaseIdent({{0, 0, 0}, 1, ""});
+
+  std::vector<Expr> all_cons;
+  TradeOffConfig trade_off_config;
+  trade_off_config.is_enable = true;
+  trade_off_config.ub_ratio = CreateExpr(0.3);
+  trade_off_config.core_num_ratio = CreateExpr(0.5);
+
+  std::string gen_code = solver.GenInput(trade_off_config, all_cons);
+
+  // 应该使用 trade_off_config 中的值
+  EXPECT_TRUE(gen_code.find("input.ub_threshold = 0.3;") != std::string::npos);
+  EXPECT_TRUE(gen_code.find("input.corenum_threshold = 0.5;") != std::string::npos);
+}

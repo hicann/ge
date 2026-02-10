@@ -975,8 +975,8 @@ std::string AxesReorderSolverGen::GenInput(const TradeOffConfig &trade_off_confi
          enable_multicore_ub_tradeoff_, trade_off_config.is_enable, ub_threshold_, corenum_threshold_);
   if (enable_multicore_ub_tradeoff_) {
     // 场景1: 用户配置使能（最高优先级）
-    ub_threshold_str = std::to_string(kDefaultSolverUbThreshold);
-    core_num_threshold_str = std::to_string(kDefaultSolverCoreNumThreshold);
+    ub_threshold_str = std::to_string(ub_threshold_);
+    core_num_threshold_str = std::to_string(corenum_threshold_);
   } else if (trade_off_config.is_enable) {
     // 场景2: ModelInfo 级别的 TilingScheduleConfig（惩罚配置）
     ub_threshold_str = Str(trade_off_config.ub_ratio);

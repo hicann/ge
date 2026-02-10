@@ -15,6 +15,7 @@
 #include "ascir.h"
 #include <ascir_ops.h>
 #include <ascir_utils.h>
+#include "tests/autofuse/framework/easy_asc_graph/asc_graph_builder.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "runtime_stub.h"
@@ -54,52 +55,7 @@ using namespace ge;
 using namespace ge::ops;
 using namespace ge::ascir_op;
 using namespace optimize;
-
-namespace {
-class GraphBuilder {
- public:
-  explicit GraphBuilder(const std::string &name) {
-    graph_ = std::make_shared<ComputeGraph>(name);
-  }
-
-  GraphBuilder(const std::string &name, const std::string &node_type) {
-    graph_ = std::make_shared<ComputeGraph>(name);
-    node_type_ = node_type;
-  }
-
-  NodePtr AddNode(const std::string &name, const std::string &type, const int in_cnt, const int out_cnt,
-                  const std::vector<int64_t> shape = {1, 1, 1, 1}) {
-    auto tensor_desc = std::make_shared<GeTensorDesc>();
-    tensor_desc->SetShape(GeShape(std::move(shape)));
-    tensor_desc->SetFormat(FORMAT_NCHW);
-    tensor_desc->SetDataType(DT_FLOAT);
-
-    auto op_desc = std::make_shared<OpDesc>(name, (node_type_ == "") ? type : "AscGraph");
-    for (std::int32_t i = 0; i < in_cnt; ++i) {
-      op_desc->AddInputDesc(tensor_desc->Clone());
-    }
-    for (std::int32_t i = 0; i < out_cnt; ++i) {
-      op_desc->AddOutputDesc(tensor_desc->Clone());
-    }
-    op_desc->AddInferFunc([](Operator &op) { return GRAPH_SUCCESS; });
-    return graph_->AddNode(op_desc);
-  }
-
-  void AddDataEdge(const NodePtr &src_node, const std::int32_t src_idx, const NodePtr &dst_node,
-                   const std::int32_t dst_idx) {
-    GraphUtils::AddEdge(src_node->GetOutDataAnchor(src_idx), dst_node->GetInDataAnchor(dst_idx));
-  }
-
-  ComputeGraphPtr GetGraph() {
-    graph_->TopologicalSorting();
-    return graph_;
-  }
-
- private:
-  ComputeGraphPtr graph_;
-  std::string node_type_;
-};
-}  // namespace
+using namespace ge::testing;
 
 class TestOptimizerV2 : public ::testing::Test {
  protected:
@@ -2527,102 +2483,34 @@ TEST_F(TestOptimizerV2, LoadOpSequenceAdjustCase1) {
 }
 
 TEST_F(TestOptimizerV2, ReduceFuseWithBrc) {
-  ge::AscGraph graph("test");
+  auto s0 = Sym(128);
+  auto s1 = Sym(112);
+  auto s2 = Sym(256);
+  auto s3 = Sym(3);
 
-  auto s0 = graph.CreateSizeVar(128);
-  auto s1 = graph.CreateSizeVar(112);
-  auto s2 = graph.CreateSizeVar(256);
-  auto s3 = graph.CreateSizeVar(3);
-
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
-  auto z2 = graph.CreateAxis("z2", s2);
-  auto z3 = graph.CreateAxis("z3", s3);
-
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT16;
-  data0.ir_attr.SetIndex(0);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  load0.y.dtype = ge::DT_FLOAT16;
-  *load0.y.repeats = {s0, s1, s2, s3};
-  *load0.y.strides = {s1 * s2 * s3, s2 * s3, s3, ge::ops::One};
-
-  Cast cast0("cast0");
-  cast0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  cast0.x = load0.y;
-  *cast0.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  cast0.y.dtype = ge::DT_FLOAT;
-  *cast0.y.repeats = {s0, s1, s2, s3};
-  *cast0.y.strides = {s1 * s2 * s3, s2 * s3, s3, ge::ops::One};
-
-  Data data1("data1", graph);
-  data1.y.dtype = ge::DT_FLOAT16;
-  data1.ir_attr.SetIndex(1);
-
-  Load load1("load1");
-  load1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  load1.x = data1.y;
-  *load1.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  load1.y.dtype = ge::DT_FLOAT16;
-  *load1.y.repeats = {s0, s1, s2, One};
-  *load1.y.strides = {s1 * s2, s2, One, Zero};
-
-  Cast cast1("cast1");
-  cast1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  cast1.x = load1.y;
-  *cast1.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  cast1.y.dtype = ge::DT_FLOAT;
-  *cast1.y.repeats = {s0, s1, s2, One};
-  *cast1.y.strides = {s1 * s2, s2, One, Zero};
-
-  Broadcast brc("brc");
-  brc.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  brc.x = cast1.y;
-  *brc.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  brc.y.dtype = ge::DT_FLOAT;
-  *brc.y.repeats = {s0, s1, s2, s3};
-  *brc.y.strides = {s1 * s2 * s3, s2 * s3, s3, ge::ops::One};
-
-  TrueDiv div("div");
-  div.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  div.x1 = cast0.y;
-  div.x2 = brc.y;
-  *div.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  div.y.dtype = ge::DT_FLOAT;
-  *div.y.repeats = {s0, s1, s2, s3};
-  *div.y.strides = {s1 * s2 * s3, s2 * s3, s3, ge::ops::One};
-
-  Max max("max");
-  max.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  max.x = div.y;
-  *max.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  max.y.dtype = ge::DT_FLOAT;
-  *max.y.repeats = {One, One, s2, One};
-  *max.y.strides = {Zero, Zero, One, Zero};
-
-  Cast cast2("cast2");
-  cast2.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  cast2.x = max.y;
-  *cast2.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  cast2.y.dtype = ge::DT_FLOAT16;
-  *cast2.y.repeats = {One, One, s2, One};
-  *cast2.y.strides = {Zero, Zero, One, Zero};
-
-  Store store("store");
-  store.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  store.x = cast2.y;
-  *store.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  store.y.dtype = ge::DT_FLOAT16;
-  *store.y.repeats = {One, One, s2, One};
-  *store.y.strides = {Zero, Zero, One, Zero};
-
-  ge::ascir_op::Output out1("out1");
-  out1.x = store.y;
-  out1.ir_attr.SetIndex(0);
+  // data0 [128,112,256,3] FP16 -> load0 -> cast0 (FP16->FP32)
+  // data1 [128,112,256,1] FP16 -> load1 -> cast1 (FP16->FP32) -> brc (broadcast 轴3 to 3)
+  // div(cast0, brc) -> reduce_max(axes=[0,1,3]) -> cast2 (FP32->FP16) -> store -> out1
+  auto graph = AscGraphBuilder("test")
+      .Loops({s0, s1, s2, s3})
+      // 第一个输入路径：data0(index=0, FP16)
+      .Data("data0", 0, ge::DT_FLOAT16)
+      .Load("load0", "data0")
+      .Cast("cast0", "load0", ge::DT_FLOAT)
+      // 第二个输入路径：data1(index=1, FP16)，需要broadcast
+      .Data("data1", 1, ge::DT_FLOAT16)
+      .Load("load1", "data1", {s0, s1, s2, ge::sym::kSymbolOne},
+            {s1 * s2, s2, ge::sym::kSymbolOne, ge::sym::kSymbolZero})
+      .Cast("cast1", "load1", ge::DT_FLOAT)
+      .Broadcast("brc", "cast1", {3})
+      .Op<ascir_op::TrueDiv>("div", {"cast0", "brc"})
+      .Max("max", "div", {0, 1, 3})
+      // Cast 回 FP16
+      .Cast("cast2", "max", ge::DT_FLOAT16)
+      // Store -> Output(index=0)
+      .Store("store", "cast2")
+      .Output("out1", "store", 0)
+      .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), ge::SUCCESS);

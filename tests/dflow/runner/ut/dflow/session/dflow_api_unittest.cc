@@ -292,13 +292,19 @@ class MockMmpa : public ge::MmpaStubApiGe {
   }
 
   void *DlSym(void *handle, const char *func_name) override {
-    if (std::string(func_name) == "InitializeHeterogeneousRuntime") {
-      return (void *) &InitializeHeterogeneousRuntime;
+    if (handle == &g_so_addr) {
+      if (std::string(func_name) == "InitializeHeterogeneousRuntime") {
+        return (void *)&InitializeHeterogeneousRuntime;
+      }
+      return nullptr;
     }
     return dlsym(handle, func_name);
   }
   int32_t DlClose(void *handle) override {
-    return 0;
+    if (handle == &g_so_addr) {
+      return 0;
+    }
+    return MmpaStubApiGe::DlClose(handle);
   }
 };
 }

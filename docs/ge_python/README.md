@@ -37,7 +37,8 @@ GE-PY 模块包含以下核心组件：
 
 ### 基础图操作示例
 
-参考 [使用es的python api构图sample](../../examples/es/transformer/python/src/make_transformer_graph.py)
+参考 [使用es的python api构图sample](../../examples/es/transformer/python/README.md)的方式执行用例， 特别需要说明的是:
+[需要先安装包并设置对应的环境变量](../../examples/es/transformer/python/README.md#31准备cann包)
 
 ### 更多示例
 

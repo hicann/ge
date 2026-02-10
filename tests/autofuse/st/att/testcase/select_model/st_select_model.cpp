@@ -18,6 +18,8 @@
 #include "test_expr/test_stub.h"
 #include "stub/stub_model_info.h"
 #include "tiling_code_generator.h"
+#include "common/test_common_utils.h"
+#include "test_common_utils.h"
 
 using namespace att;
 
@@ -38,6 +40,8 @@ class SelectModelST : public ::testing::Test {
   }
 
   void TearDown() override {
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
   }
 };
 

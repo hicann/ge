@@ -30,8 +30,11 @@
 #include "common/platform_context.h"
 #include "graph/utils/type_utils.h"
 #include "backend/backend_spec.h"
+#include "common/ascgraph_info_complete.h"
 
 namespace codegen {
+using optimize::AscGraphInfoComplete;
+using optimize::SizeVarSet;
 using namespace ge::ascir_op;
 using namespace ascir;
 using namespace codegen;
@@ -1767,16 +1770,40 @@ std::string TilingLib::GenGetWorkspaceSizeFunc(const std::string &tiling,
   return ss.str();
 }
 
+bool TilingLib::IsVarUsedInScheduleGroup(const std::string &var_define,
+                                         const ::ascir::ScheduleGroup &schedule_group) const {
+  SizeVarSet used_vars;
+  for (const auto &impl_graph : schedule_group.impl_graphs) {
+    AscGraphInfoComplete::AppendOriginalSizeVar(impl_graph, used_vars);
+  }
+
+  // 检查 var_define 是否在 used_vars 中
+  for (const auto &var : used_vars) {
+    if (auto var_str = var.Str()) {
+      if (std::string(var_str.get()) == var_define) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 void TilingLib::TilingSetShapeDim(std::stringstream &tiling_set_shape_dim, const std::string &var_define,
                                   const ascir::FusedScheduledResult &fused_schedule_result) const {
   for (size_t i = 0; i < fused_schedule_result.node_idx_to_scheduled_results.size(); i++) {
     auto scheduled_results = fused_schedule_result.node_idx_to_scheduled_results[i];
-    if ((scheduled_results.size() == 0) ||
+    if ((scheduled_results.empty()) ||
         ((scheduled_results.size() == 1) && (scheduled_results[0].schedule_groups.size() == 1))) {
+      // 简单情况：直接设置（保持原逻辑）
       tiling_set_shape_dim << "  tiling->set_" << var_define << "(" << var_define << ");" << std::endl;
     } else {
       for (size_t j = 0; j < scheduled_results.size(); j++) {
         for (size_t k = 0; k < scheduled_results[j].schedule_groups.size(); k++) {
+          // 新增：检查变量是否被此 schedule_group 使用
+          if (!IsVarUsedInScheduleGroup(var_define, scheduled_results[j].schedule_groups[k])) {
+            continue;
+          }
+          // 原有的 var_relations 检查
           if (scheduled_results[j].var_relations.find(k) != scheduled_results[j].var_relations.end()) {
             continue;
           }

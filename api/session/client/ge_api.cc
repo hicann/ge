@@ -137,11 +137,19 @@ void ConstructSession(const std::map<std::string, std::string> &options, Session
   session_id = tmp_session_id;
 
   auto inner_session = g_session_manager->GetSession(session_id);
-  ret = inner_session->CreateDFlowSessionIfNeed();
-  if (ret != SUCCESS) {
-    GELOGE(ret, "Construct session failed, error code:%u.", ret);
-    REPORT_INNER_ERR_MSG("E19999", "Construct session failed, error code:%u.", ret);
-    return;
+  if (ExecutionRuntimeUtils::IsHeterogeneous()) {
+    std::shared_ptr<DFlowSessionImpl> dflow_session_impl = MakeShared<DFlowSessionImpl>(session_id, options);
+    if (dflow_session_impl == nullptr) {
+      GELOGE(FAILED, "[Check] dflow_session_impl is null");
+      return;
+    }
+    inner_session->SetDFlowSession(dflow_session_impl);
+    ret = dflow_session_impl->Initialize(options);
+    if (ret != SUCCESS) {
+      GELOGE(ret, "Dflow session initialize failed, error code:%u.", ret);
+      return;
+    }
+    GELOGI("Session[%lu] will be implemented using dflow session", session_id);
   }
 
   GE_DISMISS_GUARD(create_failed);
@@ -171,9 +179,6 @@ size_t SessionUtils::NumSessions() {
 
 // Initialize GE, prepare for execution, call GELib::Initialize
 Status GEInitialize(const std::map<std::string, std::string> &options) {
-  if (IsGEInitialize()) {
-    return SUCCESS;
-  }
   std::map<AscendString, AscendString> str_options;
   for (const auto &option_item : options) {
     if (option_item.first.length() == 0) {
@@ -191,9 +196,6 @@ Status GEInitialize(const std::map<std::string, std::string> &options) {
 }
 
 Status GEInitialize(const std::map<AscendString, AscendString> &options) {
-  if (IsGEInitialize()) {
-    return SUCCESS;
-  }
   auto ret = GEInitializeV2(options);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Init][GEInitializeV2] initial failed.");
@@ -210,7 +212,9 @@ Status GEInitialize(const std::map<AscendString, AscendString> &options) {
   }
   GELOGI("sessionManager initial.");
   GE_TIMESTAMP_START(SessionManagerInitialize);
-  g_session_manager = MakeShared<ge::SessionManager>();
+  if (g_session_manager == nullptr) {
+    g_session_manager = MakeShared<ge::SessionManager>();
+  }
   if (g_session_manager == nullptr) {
     GELOGE(GE_CLI_INIT_FAILED, "[Init][Create]GeSessionManager failed");
     return FAILED;
@@ -281,6 +285,17 @@ Session::~Session() {
   }
   ExternalWeightManagerPool::Instance().RemoveManager(sessionId_);
   Status ret = FAILED;
+  auto inner_session = g_session_manager->GetSession(sessionId_);
+  if (inner_session != nullptr) {
+    auto dflow_session_impl = inner_session->GetDFlowSession();
+    if (dflow_session_impl != nullptr) {
+      // must call before rtDeviceReset.
+      Status ret = dflow_session_impl->Finalize();
+      if (ret != SUCCESS) {
+        GELOGE(ret, "[Finalize][DflowSession] failed, error code:%u.", ret);
+      }
+    }
+  }
   std::lock_guard<std::mutex> lock(g_ge_release_mutex);
   try {
     const uint64_t session_id = sessionId_;

@@ -21,6 +21,7 @@
 #include "graph/utils/graph_utils.h"
 #include "autofuse_config/auto_fuse_config.h"
 #include "common/test_common_utils.h"
+#include "test_common_utils.h"
 using namespace ge::ascir_op;
 namespace ascir {
 constexpr int64_t ID_NONE = -1;
@@ -82,8 +83,8 @@ class STestGenConcat : public ::testing::Test {
   }
 
   void TearDown() override {
-    // Code here will be called immediately after each test (right
-    // before the destructor).
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
     unsetenv("ASCEND_GLOBAL_LOG_LEVEL");
     unsetenv("AUTOFUSE_DFX_FLAGS");
   }
@@ -1499,7 +1500,7 @@ int main() {
       {"Case1_0: Equal priority", 20, 20, 40000},
       {"Case1_1: Equal priority", 30, 30, 40000},
       {"Case1_2: Equal priority", 40, 40, 40000},
-      {"Case1_3: Equal priority", 40, 200, 40000, false, 40},
+      {"Case1_3: Equal priority", 40, 200, 40000, false, 32},
       {"Case1_4: Equal priority", 40, 2000, 40000, false, 40},
       {"Case1_5: Equal priority", 40, 20000, 40000, false, 40},
       {"Case1: Equal priority", 50, 50, 40000},

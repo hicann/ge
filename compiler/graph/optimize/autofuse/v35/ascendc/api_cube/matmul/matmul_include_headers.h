@@ -11,6 +11,7 @@
 #define MATMUL_INCLUDE_HEADERS_H
 
 #include "arch35/mat_mul_tiling_data.h"
+#include "mat_mul_v3_common.h"
 #include "arch35/mat_mul_asw_block.h"
 #include "arch35/mat_mul_asw_kernel.h"
 #include "arch35/mat_mul_stream_k_block.h"
@@ -24,5 +25,6 @@
 #include "arch35/block_scheduler_streamk.h"
 #include "arch35/mat_mul_streamk_basic_cmct.h"
 #include "arch35/mat_mul_fixpipe_opti_basic_cmct.h"
+#include "arch35/mat_mul_input_k_eq_zero_clear_output.h"
 
 #endif  // MATMUL_INCLUDE_HEADERS_H

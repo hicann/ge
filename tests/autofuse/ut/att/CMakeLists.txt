@@ -50,6 +50,7 @@ target_include_directories(att_ut PRIVATE
         ${TOP_DIR}/
         ${TOP_DIR}/compiler/graph/optimize/autofuse
         ${TOP_DIR}/common
+        ${TOP_DIR}/tests/autofuse/depends/common/inc
         ${ATT_DIR}/util
         ${ATT_DIR}/dtree
         ${ATT_DIR}/common_utils

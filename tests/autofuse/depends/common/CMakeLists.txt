@@ -13,6 +13,7 @@ file(GLOB_RECURSE SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "src/*.cc")
 add_library(common_stub SHARED ${SRC_FILES})
 target_include_directories(common_stub PUBLIC
         ${COMMON_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc
         ${ASCEND_INSTALL_PATH}/include/toolchain)
 
 target_link_libraries(common_stub

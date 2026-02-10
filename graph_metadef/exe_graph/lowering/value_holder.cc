@@ -330,6 +330,7 @@ ge::FastNode *ValueHolder::CreateNode(const char *node_type, const std::vector<V
     return nullptr;
   }
   auto node = ValueHolder::AddNode(node_type, inputs.size(), out_count, *frame);
+  GE_ASSERT_NOTNULL(node);
 
   /*
    * todo 检查是否有子图向父图连接的场景，这种场景需要报错

@@ -1127,10 +1127,8 @@ class MatMulAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"mat_mul_tiling_key.h",
-            "mat_mul_v3_common.h",
             "matmul_include_headers.h",
             "mat_mul_pingpong_basic_cmct.h",
-            "mat_mul_input_k_eq_zero_clear_output.h",
             "matmul.h"};
   }
 };
@@ -1144,11 +1142,9 @@ class BatchMatMulAscIrCodegenImpl : public AscIrCodegen {
     return "BatchMatMul";
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
-    return {"mat_mul_v3_common.h",
-            "batch_mat_mul_v3_tiling_key.h",
+    return {"batch_mat_mul_v3_tiling_key.h",
             "batch_matmul_include_headers.h",
             "mat_mul_pingpong_basic_cmct.h",
-            "mat_mul_input_k_eq_zero_clear_output.h",
             "batch_matmul.h"};
   }
 };

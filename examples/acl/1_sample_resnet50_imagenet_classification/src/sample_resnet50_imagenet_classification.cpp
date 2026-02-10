@@ -200,24 +200,33 @@ Result SampleRes50ImagenetClassification::Process()
 
 int main()
 {
-    SampleRes50ImagenetClassification sampleRes50;
-    const char *aclConfigPath = "../src/acl.json";
-    Result ret = sampleRes50.InitResource(aclConfigPath);
-    if (ret != SUCCESS) {
-        ERROR_LOG("SAMPLE NOT PASSED: sample init resource failed.");
-        return FAILED;
-    }
+    INFO_LOG("SAMPLE start to execute.");
 
-    ret = sampleRes50.PrepareModel("../model/resnet50.om");
-    if (ret != SUCCESS) {
-        ERROR_LOG("SAMPLE NOT PASSED: sample prepare model failed.");
-        return FAILED;
-    }
+    // To better demonstrate the core usage of the acl interface, the sample encapsulates
+    // the resource management within SampleRes50ImagenetClassification, and the resource
+    // release relies on the destructor of SampleRes50ImagenetClassification. Therefore,
+    // using curly braces to define the scope ensures that it is destructed and resources
+    // are released before the process exits.
+    {
+        SampleRes50ImagenetClassification sampleRes50;
+        const char *aclConfigPath = "../src/acl.json";
+        Result ret = sampleRes50.InitResource(aclConfigPath);
+        if (ret != SUCCESS) {
+            ERROR_LOG("SAMPLE NOT PASSED: sample init resource failed.");
+            return FAILED;
+        }
 
-    ret = sampleRes50.Process();
-    if (ret != SUCCESS) {
-        ERROR_LOG("SAMPLE NOT PASSED: sample process failed.");
-        return FAILED;
+        ret = sampleRes50.PrepareModel("../model/resnet50.om");
+        if (ret != SUCCESS) {
+            ERROR_LOG("SAMPLE NOT PASSED: sample prepare model failed.");
+            return FAILED;
+        }
+
+        ret = sampleRes50.Process();
+        if (ret != SUCCESS) {
+            ERROR_LOG("SAMPLE NOT PASSED: sample process failed.");
+            return FAILED;
+        }
     }
 
     INFO_LOG("SAMPLE PASSED.");

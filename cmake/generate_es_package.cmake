@@ -589,11 +589,12 @@ exit 1
     endif ()
 
     # 3. 定义目标名称和路径变量
-    # 命名规则：使用 ES_LINKABLE_AND_ALL_TARGET 直接作为库名和目录名（如 es_math -> es_math_so, libes_math.so, es_math）
+    # 命名规则：使用 ES_LINKABLE_AND_ALL_TARGET 直接作为库名和目录名（如 es_math -> es_math_so, es_math_a, libes_math.so, libes_math.a）
     # 注意：BUILD_DIR 已在前面定义（标准路径处理需要）
 
     set(SO_NAME "${ARG_ES_LINKABLE_AND_ALL_TARGET}_so")  # 内部 .so target 名称
-    set(LIB_NAME "lib${ARG_ES_LINKABLE_AND_ALL_TARGET}.so")  # 实际库文件名（如 libes_math.so）
+    set(A_NAME "${ARG_ES_LINKABLE_AND_ALL_TARGET}_a")   # 内部 .a target 名称
+    set(OBJ_NAME "${ARG_ES_LINKABLE_AND_ALL_TARGET}_obj")  # 内部 OBJECT target 名称（避免重复编译）
     set(PYTHON_PKG_NAME "${ARG_ES_LINKABLE_AND_ALL_TARGET}")  # Python 包名（如 es_math）
 
     set(GEN_CODE_DIR "${BUILD_DIR}/generated_code")
@@ -606,12 +607,14 @@ exit 1
 
     message(STATUS "Configuring ES package: ${ARG_ES_LINKABLE_AND_ALL_TARGET}")
     message(STATUS "  - Exported target: ${EXPORTED_TARGET} (public interface)")
+    message(STATUS "  - Internal .obj target: ${OBJ_NAME} (compile once)")
     message(STATUS "  - Internal .so target: ${SO_NAME}")
+    message(STATUS "  - Internal .a target: ${A_NAME}")
     message(STATUS "  - Module name (for gen_esb): ${MODULE_NAME}")
     message(STATUS "  - OPP proto target: ${ARG_OPP_PROTO_TARGET}")
     message(STATUS "  - OPP proto path: ${OPP_PROTO_PATH}")
     message(STATUS "  - Output path: ${ARG_OUTPUT_PATH}")
-    message(STATUS "  - Library file: ${LIB_NAME}")
+    message(STATUS "  - Library files: lib${ARG_ES_LINKABLE_AND_ALL_TARGET}.so, lib${ARG_ES_LINKABLE_AND_ALL_TARGET}.a")
     message(STATUS "  - Python package: ${PYTHON_PKG_NAME}")
 
     # 4. 创建必要的目录
@@ -814,8 +817,20 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
             USES_TERMINAL_BUILD ON
             )
 
-    # 10. 创建共享库目标（单文件方案：使用固定的 wrapper 文件）
-    add_library(${SO_NAME} SHARED ${ALL_IN_ONE_WRAPPER})
+    # 10. 创建 OBJECT 库目标（避免重复编译）
+    # OBJECT 库只编译源文件生成 .o 文件，不进行归档或链接
+    # 共享库和静态库都链接同一个 .o 文件，避免重复编译
+    add_library(${OBJ_NAME} OBJECT ${ALL_IN_ONE_WRAPPER})
+
+    # 为 OBJECT 库设置 POSITION_INDEPENDENT_CODE（确保生成的 .o 文件是 PIC）
+    # 这对于共享库链接是必需的，特别是使用 address sanitizer 时
+    set_target_properties(${OBJ_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+    # 10.1 创建共享库目标（使用 OBJECT 库的 .o 文件）
+    add_library(${SO_NAME} SHARED $<TARGET_OBJECTS:${OBJ_NAME}>)
+
+    # 10.2 创建静态库目标（使用 OBJECT 库的 .o 文件）
+    add_library(${A_NAME} STATIC $<TARGET_OBJECTS:${OBJ_NAME}>)
 
     # 11. 标记生成的文件属性（告诉 CMake/IDE 这是生成的文件）
     set_source_files_properties(
@@ -824,17 +839,18 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
     )
 
     # 12. 确保代码生成完成后再编译
-    # 这个依赖关系确保：先执行 CODE_GEN_TARGET 生成文件，再编译 SO_NAME
-    add_dependencies(${SO_NAME} ${CODE_GEN_TARGET})
+    # 这个依赖关系确保：先执行 CODE_GEN_TARGET 生成文件，再编译
+    # OBJ_NAME 依赖 CODE_GEN_TARGET，SO_NAME 和 A_NAME 依赖 OBJ_NAME
+    add_dependencies(${OBJ_NAME} ${CODE_GEN_TARGET})
 
-    # 13. 配置共享库编译选项（兼容性处理）
+    # 13. 配置编译选项（应用于 OBJECT 目标，编译选项只设置一次）
     if (DEFINED AIR_COMMON_DYNAMIC_COMPILE_OPTION)
-        target_compile_options(${SO_NAME} PRIVATE ${AIR_COMMON_DYNAMIC_COMPILE_OPTION})
+        target_compile_options(${OBJ_NAME} PRIVATE ${AIR_COMMON_DYNAMIC_COMPILE_OPTION})
         message(STATUS "add_es_library: Using CANN compile options: ${AIR_COMMON_DYNAMIC_COMPILE_OPTION}")
     else ()
         # 外部环境默认编译选项
         # 使用 C++17 标准 + ABI 兼容性处理
-        set(ES_SO_COMPILE_OPTION
+        set(ES_COMMON_COMPILE_OPTION
                 -fPIC
                 -Wall
                 -std=c++17
@@ -842,20 +858,21 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
                 -O2
                 -Wno-free-nonheap-object # 抑制高版本的gcc12+的误报
                 )
-        target_compile_options(${SO_NAME} PRIVATE ${ES_SO_COMPILE_OPTION})
-        message(STATUS "add_es_library: Using default compile options: ${ES_SO_COMPILE_OPTION}")
+        target_compile_options(${OBJ_NAME} PRIVATE ${ES_COMMON_COMPILE_OPTION})
+        message(STATUS "add_es_library: Using default compile options: ${ES_COMMON_COMPILE_OPTION}")
     endif ()
 
     # 13.1 强制添加 ABI 兼容性定义（解决 std::string coredump 问题）
     # 确保所有库使用相同的 std::string ABI 版本
     if (NOT DEFINED _GLIBCXX_USE_CXX11_ABI)
-        target_compile_definitions(${SO_NAME} PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
+        target_compile_definitions(${OBJ_NAME} PRIVATE _GLIBCXX_USE_CXX11_ABI=0)
         message(STATUS "add_es_library: Set _GLIBCXX_USE_CXX11_ABI=0 for ABI compatibility")
     endif ()
 
-    # 13.1.1 在 Release 配置下添加 -s 选项去除符号表
+    # 13.1.1 在 Release 配置下添加 -s 选项去除符号表（仅对共享库）
     target_link_options(${SO_NAME} PRIVATE $<$<CONFIG:Release>:-s>)
-    # 清除so中的RPATH，避免安全风险
+
+    # 清除so中的RPATH，避免安全风险（仅对共享库）
     set_target_properties(${SO_NAME} PROPERTIES
         SKIP_BUILD_RPATH TRUE
         SKIP_INSTALL_RPATH TRUE
@@ -887,15 +904,20 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
         endif ()
     endif ()
 
-    # 为 SO 设置头文件路径（PUBLIC，供编译和链接使用）
-    target_include_directories(${SO_NAME} PUBLIC ${ES_INCLUDE_DIRS})
+    # 为 OBJECT 目标设置头文件路径（PRIVATE，仅用于编译）
+    target_include_directories(${OBJ_NAME} PRIVATE ${ES_INCLUDE_DIRS})
 
-    # 如果使用 run 包的库，添加库搜索路径
+    # OBJECT 库不会实际链接（只生成 .o 文件），但会继承头文件路径用于编译
+    if (HAS_ES_BASE_TARGET)
+        target_link_libraries(${OBJ_NAME} PRIVATE ${ES_BASE_LIB})
+    endif ()
+
+    # 如果使用 run 包的库，添加库搜索路径（仅对共享库有效）
     if (USE_EXTERNAL_GEN_ESB AND ASCEND_LIB_DIR AND NOT HAS_ES_BASE_TARGET)
         target_link_directories(${SO_NAME} PUBLIC ${ASCEND_LIB_DIR})
     endif ()
 
-    # 14. 配置共享库链接（兼容性处理）
+    # 14. 配置库链接（兼容性处理，同时应用于共享库和静态库）
     set(REQUIRED_LIBS "")
 
     # 检查 CANN 环境特有的库
@@ -913,21 +935,33 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
         message(STATUS "add_es_library: c_sec target not found, skipping")
     endif ()
 
-    # 设置链接库
+    # 设置链接库（共享库和静态库使用相同的链接库）
     if (REQUIRED_LIBS)
+        # OBJECT 库不会实际链接（只生成 .o 文件），但会继承头文件路径用于编译
+        target_link_libraries(${OBJ_NAME} PRIVATE ${REQUIRED_LIBS})
         target_link_libraries(${SO_NAME} PUBLIC ${ES_BASE_LIB} ${REQUIRED_LIBS})
+        target_link_libraries(${A_NAME} PUBLIC ${ES_BASE_LIB} ${REQUIRED_LIBS})
         message(STATUS "add_es_library: Linking with CANN libraries: ${REQUIRED_LIBS}")
     else ()
         target_link_libraries(${SO_NAME} PUBLIC ${ES_BASE_LIB})
+        target_link_libraries(${A_NAME} PUBLIC ${ES_BASE_LIB})
         message(STATUS "add_es_library: Using minimal configuration (no CANN libraries found)")
     endif ()
 
-    # 14. 设置共享库输出名称
+    # 14.1 设置共享库输出名称
     # 新的命名规则：lib<ES_LINKABLE_AND_ALL_TARGET>.so (如 libes_math.so)
     set_target_properties(${SO_NAME} PROPERTIES
             OUTPUT_NAME "${ARG_ES_LINKABLE_AND_ALL_TARGET}"
             PREFIX "lib"
             SUFFIX ".so"
+            )
+
+    # 14.2 设置静态库输出名称
+    # 新的命名规则：lib<ES_LINKABLE_AND_ALL_TARGET>.a (如 libes_math.a)
+    set_target_properties(${A_NAME} PROPERTIES
+            OUTPUT_NAME "${ARG_ES_LINKABLE_AND_ALL_TARGET}"
+            PREFIX "lib"
+            SUFFIX ".a"
             )
 
     # 15. 创建生成 setup.py 的辅助脚本
@@ -1070,11 +1104,13 @@ endforeach()
             COMMAND ${CMAKE_COMMAND} -P ${COPY_HEADERS_SCRIPT}
             # 拷贝共享库
             COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${SO_NAME}> ${LIB_DIR}/
+            # 拷贝静态库
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:${A_NAME}> ${LIB_DIR}/
             # 拷贝 wheel 包
             COMMAND ${CMAKE_COMMAND} -P ${COPY_WHL_SCRIPT}
             # 标记完成
             COMMAND ${CMAKE_COMMAND} -E touch ${INSTALL_FLAG}
-            DEPENDS ${SO_NAME} ${WHL_GEN_TARGET}
+            DEPENDS ${SO_NAME} ${A_NAME} ${WHL_GEN_TARGET}
             COMMENT "Installing ES package '${ARG_ES_LINKABLE_AND_ALL_TARGET}' to ${ARG_OUTPUT_PATH}"
             VERBATIM
     )
@@ -1104,7 +1140,7 @@ endforeach()
     endif ()
 
     # 23. 创建对外接口库（供使用方链接）
-    # 单文件方案：直接链接内部 SO target
+    # 单文件方案：直接链接内部 SO target（静态库用户按需直接链接）
     add_library(${EXPORTED_TARGET} INTERFACE)
 
     # INTERFACE 库依赖 SMART_BUILD_TARGET（确保外部链接时会触发构建）
@@ -1118,7 +1154,7 @@ endforeach()
         target_link_directories(${EXPORTED_TARGET} INTERFACE ${ASCEND_LIB_DIR})
     endif ()
 
-    # 链接到内部 SO target 和 ES base 库
+    # 链接到内部 SO target 和 ES base 库（静态库用户按需直接链接）
     target_link_libraries(${EXPORTED_TARGET} INTERFACE
             ${SO_NAME}
             ${ES_BASE_LIB}
@@ -1132,10 +1168,12 @@ endforeach()
     message(STATUS "  - Wrapper file: ${ALL_IN_ONE_WRAPPER}")
     message(STATUS "  - Internal targets:")
     message(STATUS "    * Code generation: ${CODE_GEN_TARGET}")
+    message(STATUS "    * Object library: ${OBJ_NAME} (compiled once)")
     message(STATUS "    * Shared library: ${SO_NAME}")
+    message(STATUS "    * Static library: ${A_NAME}")
     message(STATUS "    * Wheel generation: ${WHL_GEN_TARGET}")
     message(STATUS "    * Install: ${INSTALL_TARGET}")
-    message(STATUS "  - Library file: ${LIB_NAME}")
+    message(STATUS "  - Library files: lib${ARG_ES_LINKABLE_AND_ALL_TARGET}.so, lib${ARG_ES_LINKABLE_AND_ALL_TARGET}.a")
     message(STATUS "  - Python package: ${PYTHON_PKG_NAME}")
     if (HAS_ES_BASE_TARGET)
         message(STATUS "  - ES base library: eager_style_graph_builder_base (target)")
