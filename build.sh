@@ -23,6 +23,7 @@ ENABLE_BUILD_DEVICE=ON
 USE_CXX11_ABI=1
 CMAKE_TOOLCHAIN_FILE=""
 MDC_BUILD_COMPONENT=""
+CMAKE_TOOLCHAIN_PREFIX="${BASEPATH}/../cmake/toolchain"
 
 # print usage message
 usage() {
@@ -101,7 +102,8 @@ parse_cmake_extra_args() {
                 echo "[MDC compile] Set USE_CXX11_ABI to ${USE_CXX11_ABI}."
                 ;;
             "CMAKE_TOOLCHAIN_FILE")
-                CMAKE_TOOLCHAIN_FILE=$(realpath -s "$value")
+                CMAKE_TOOLCHAIN_FILE="${CMAKE_TOOLCHAIN_PREFIX}/${value}"
+                export LLVM_PATH="${BASEPATH}/../build/bin/os/aos_llvm_libs/aos_llvm_x86_ubuntu_20_04_adk/llvm/bin"
                 echo "[MDC compile] Set CMAKE_TOOLCHAIN_FILE to ${CMAKE_TOOLCHAIN_FILE}."
                 ;;
             *)
@@ -362,6 +364,7 @@ make_package() {
         -D VERSION_INFO=${VERSION_INFO} \
         -D ENABLE_BUILD_DEVICE=${ENABLE_BUILD_DEVICE} \
         -D USE_CXX11_ABI=${USE_CXX11_ABI} \
+        -D LLVM_PATH=${LLVM_PATH} \
         -D CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} \
         ..
   make ${VERBOSE} $1 -j${THREAD_NUM} && cpack

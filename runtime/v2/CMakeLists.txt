@@ -84,12 +84,13 @@ target_include_directories(gert PRIVATE ${GERT_INCLUDING_PATH} ${METADEF_DIR}/pk
 target_compile_definitions(gert PRIVATE ${GERT_COMPILE_DEF})
 target_link_libraries(gert PRIVATE
         intf_pub
-        cce_headers
+        $<$<TARGET_EXISTS:cce_headers>:cce_headers>
+        $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         msprof_headers
         mmpa_headers
         metadef_headers
         adump_headers
-        datagw_headers
+        $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         ${AIR_COMMON_LINK_OPTION}
         -Wl,--no-as-needed
         ge_common

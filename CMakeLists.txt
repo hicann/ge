@@ -103,11 +103,15 @@ cmake_print_variables(CMAKE_PREFIX_PATH)
 cmake_print_variables(CMAKE_MODULE_PATH)
 cmake_print_variables(BUILD_COMPONENT)
 cmake_print_variables(ENABLE_BUILD_DEVICE USE_CXX11_ABI CMAKE_TOOLCHAIN_FILE)
+cmake_print_variables(CMAKE_CXX_COMPILER_ID)
+
 if(ENABLE_BUILD_DEVICE)
     # 非MDC编译流程
     set(USE_CXX11_ABI 0)
 else()
-    if(CMAKE_TOOLCHAIN_FILE STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/cmake/llvm_toolchain.cmake")
+    string(FIND "${CMAKE_TOOLCHAIN_FILE}" "ubuntu18.04-x86_64-llvm-toolchain.cmake" SUBSTRING_FOUND)
+    if(SUBSTRING_FOUND GREATER_EQUAL 0)
+        set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY false)
         # MDC编译运行态
         message("[MDC compile] MDC compile runtime state.")
         add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})
@@ -154,20 +158,15 @@ cmake_print_variables(BUILD_OPEN_PROJECT ENABLE_LLT_COV ENABLE_FE_LLT ENABLE_FFT
 # 针对 Clang 编译器，关闭特定警告（避免 -Werror 触发编译错误）
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
     message(STATUS "Add compile option for Clang.")
-    
     add_compile_options(-Wno-error=unknown-warning-option)
-    
     add_compile_options(-Wno-unused)
     add_compile_options(-Wno-unused-private-field)
-    
     add_compile_options(-Wno-inconsistent-missing-override)
     add_compile_options(-Wno-vla)
-    
     add_compile_options(-Wno-error=inconsistent-missing-override)
     add_compile_options(-Wno-error=vla)
     add_compile_options(-Wno-error=unused)
     add_compile_options(-Wno-error=unused-private-field)
-
     add_compile_options(-Wno-error)
 endif()
 
@@ -542,7 +541,7 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
                     host_cpu_opskernel_builder host_cpu_engine engine)
             add_dependencies(ge-compiler cpu_compiler udf_compiler)
             add_dependencies(ge-compiler atc_atc.bin fwk_atc.bin)
-            add_dependencies(ge-compiler compress compress_static compressweight compressweight_static rts_engine switch_by_index)
+            add_dependencies(ge-compiler compress compress_static compressweight compressweight_static rts_engine)
             add_dependencies(ge-compiler acl_op_compiler)
             add_dependencies(ge-compiler fmk_onnx_parser_stub fmk_parser_stub atc_stub_ge_compiler fwk_stub_ge_runner fwk_stub_ge_runner_v2
                     stub_acl_op_compiler)
@@ -551,9 +550,12 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
             add_dependencies(ge-executor ge_common ge_executor_shared ge_common_base davinci_executor hybrid_executor gert register
                     graph npu_sched_model_loader lowering register_static graph_base model_deployer data_flow_base hcom_executor)
             add_dependencies(ge-executor acl_mdl acl_mdl_impl acl_op_executor acl_op_executor_impl acl_cblas)
-            add_dependencies(ge-executor runtime_update_model_param_dav_2201)
             add_dependencies(ge-executor ge_common_stub stub_lowering atc_stub_graph gert_stub hybrid_executor_stub stub_register stub_acl_mdl
                     stub_acl_cblas stub_acl_op_executor)
+            if(ENABLE_BUILD_DEVICE) # 交叉编译
+                add_dependencies(ge-executor runtime_update_model_param_dav_2201)
+                add_dependencies(ge-compiler switch_by_index)
+            endif()
         else()
             # MDC 运行态编译
             message("[MDC compile] MDC compile target set.")

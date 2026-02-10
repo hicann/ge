@@ -107,7 +107,7 @@ target_link_libraries(atc_static PRIVATE
         intf_pub
         cce_headers
         msprof_headers
-		metadef_headers
+        metadef_headers
         ascend_protobuf
         ge_common
         ge_common_base

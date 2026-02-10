@@ -211,7 +211,7 @@ target_link_libraries(ge_common
         intf_pub
         msprof_headers
         runtime_headers
-        datagw_headers
+        $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         static_mmpa
         -Wl,--no-as-needed
         graph
@@ -274,7 +274,8 @@ target_link_libraries(ge_common_base
         msprof_headers
         adump_headers
         runtime_headers
-        datagw_headers
+        $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
+        $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         static_mmpa
         -Wl,--no-as-needed
         runtime

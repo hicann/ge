@@ -73,6 +73,8 @@ else()
                             -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                             -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
                             -DCMAKE_INSTALL_PREFIX=${CMAKE_THIRD_PARTY_LIB_DIR}/ascend_protobuf_static
+                            -DLLVM_PATH=${LLVM_PATH}
+                            -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                             -Dprotobuf_BUILD_PROTOC_BINARIES=OFF
                             -Dprotobuf_ABSL_PROVIDER=module
                             -DABSL_ROOT_DIR=${CMAKE_BINARY_DIR}/abseil_build-prefix/src/abseil_build

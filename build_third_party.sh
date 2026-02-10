@@ -21,7 +21,15 @@ BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}"
 THIRD_PARTY_LIB_DIR=$1 # 三方库路径
 THREAD_NUM=$2
 BUILD_COMPONENT=$3
+ENABLE_BUILD_DEVICE=$4
+USE_CXX11_ABI=$5
+CMAKE_TOOLCHAIN_FILE=$6
 VERBOSE=""
+
+if [ -n "${CMAKE_TOOLCHAIN_FILE}" ]; then
+  export LLVM_PATH="${BASEPATH}/../build/bin/os/aos_llvm_libs/aos_llvm_x86_ubuntu_20_04_adk/llvm/bin"
+  echo "[MDC compile] Set LLVM_PATH to ${LLVM_PATH}"
+fi
 
 # build start
 cmake_generate_make() {
@@ -45,7 +53,11 @@ build_third_party() {
 
   CMAKE_ARGS="-D CMAKE_THIRD_PARTY_LIB_DIR=${THIRD_PARTY_LIB_DIR} \
               -D CMAKE_POLICY_VERSION_MINIMUM=3.5 \
-              -D CMAKE_BUILD_COMPONENT=${BUILD_COMPONENT}"
+              -D CMAKE_BUILD_COMPONENT=${BUILD_COMPONENT} \
+              -D ENABLE_BUILD_DEVICE=${ENABLE_BUILD_DEVICE} \
+              -D USE_CXX11_ABI=${USE_CXX11_ABI} \
+              -D LLVM_PATH=${LLVM_PATH} \
+              -D CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}"
   echo "CMAKE_ARGS is: $CMAKE_ARGS"
   # make clean
   [ -d "${BUILD_PATH}" ] && rm -rf "${BUILD_PATH}"

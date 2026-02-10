@@ -127,9 +127,6 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
         install(TARGETS pyautofuse
                 LIBRARY DESTINATION ${BUILD_COMPONENT}/python/site-packages/autofuse
         )
-        install(FILES ${CMAKE_CURRENT_BINARY_DIR}/compiler/engines/rts_engine/switch_by_index.o
-                DESTINATION ${BUILD_COMPONENT}/fwkacllib/lib64/
-        )
         install(TARGETS atc_atc.bin OPTIONAL
             RUNTIME DESTINATION ${BUILD_COMPONENT}/lib64/atclib
         )
@@ -151,6 +148,11 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/dflow/pydflow/dataflow-0.0.1-py3-none-any.whl
                 DESTINATION ${BUILD_COMPONENT}/lib64
         )
+        if(ENABLE_BUILD_DEVICE)
+            install(FILES ${CMAKE_CURRENT_BINARY_DIR}/compiler/engines/rts_engine/switch_by_index.o
+                DESTINATION ${BUILD_COMPONENT}/fwkacllib/lib64/
+            )
+        endif()
     else()
         # MDC 运行态编译
         install(TARGETS flow_graph
@@ -277,9 +279,11 @@ elseif("${BUILD_COMPONENT}" STREQUAL "ge-executor")
                 LIBRARY DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
                 ARCHIVE DESTINATION ${BUILD_COMPONENT}/lib64/stub/minios/aarch64
         )
-        install(FILES ${CMAKE_SOURCE_DIR}/build/runtime/ops/update_model_param/dav_2201/UpdateModelParam_dav_2201.o
-                DESTINATION ${BUILD_COMPONENT}/lib64
-        )
+        if(ENABLE_BUILD_DEVICE)
+            install(FILES ${CMAKE_SOURCE_DIR}/build/runtime/ops/update_model_param/dav_2201/UpdateModelParam_dav_2201.o
+                    DESTINATION ${BUILD_COMPONENT}/lib64
+            )
+        endif()
     else()
        # MDC 运行态编译
         install(TARGETS ge_common ge_common_base davinci_executor hybrid_executor gert register graph graph_base acl_cblas

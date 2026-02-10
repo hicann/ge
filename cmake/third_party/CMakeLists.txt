@@ -25,13 +25,16 @@ cmake_print_variables(CMAKE_BUILD_COMPONENT)
 cmake_print_variables(ENABLE_BUILD_DEVICE)
 cmake_print_variables(USE_CXX11_ABI)
 cmake_print_variables(CMAKE_TOOLCHAIN_FILE)
+cmake_print_variables(LLVM_PATH)
 cmake_print_variables(CMAKE_MODULE_PATH)
 
 if(ENABLE_BUILD_DEVICE)
     # 非MDC编译流程
     set(USE_CXX11_ABI 0)
 else()
-    if(CMAKE_TOOLCHAIN_FILE STREQUAL "${CMAKE_CURRENT_SOURCE_DIR}/cmake/llvm_toolchain.cmake")
+    string(FIND "${CMAKE_TOOLCHAIN_FILE}" "ubuntu18.04-x86_64-llvm-toolchain.cmake" SUBSTRING_FOUND)
+    if(SUBSTRING_FOUND GREATER_EQUAL 0)
+        set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY false)
         # MDC编译运行态
         message("[MDC compile] Thirdparty build, MDC compile runtime state.")
         add_compile_definitions(_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI})

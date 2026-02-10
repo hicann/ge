@@ -64,6 +64,8 @@ else()
                 -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
                 -DCMAKE_INSTALL_PREFIX=${CMAKE_THIRD_PARTY_LIB_DIR}/symengine
                 -DCMAKE_PREFIX_PATH=${CMAKE_THIRD_PARTY_LIB_DIR}/boost
+                -DLLVM_PATH=${LLVM_PATH}
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                 <SOURCE_DIR>
             BUILD_COMMAND $(MAKE)
             INSTALL_COMMAND $(MAKE) install
