@@ -141,10 +141,6 @@ target_include_directories(stub_acl_mdl PRIVATE
     ${ASCEND_INSTALL_PATH}/include/acl
 )
 
-target_include_directories(stub_acl_mdl PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/../include/external
-    ${CMAKE_CURRENT_LIST_DIR}/../include/external/acl
-)
 target_compile_definitions(stub_acl_mdl PRIVATE
     _FORTIFY_SOURCE=2
 )
