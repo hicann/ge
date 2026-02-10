@@ -12,26 +12,14 @@
 #include "base/base_types.h"
 #define private public
 #include "generator/solver_pass_gen/axes_reorder_solver/axes_reorder_solver_gen.h"
+#include "test_common_utils.h"
 using namespace att;
 
 class TestAxesReorderSolverGen : public ::testing::Test {
  public:
-  static void TearDownTestCase()
-  {
-    std::cout << "Test end." << std::endl;
-  }
-  static void SetUpTestCase()
-  {
-    std::cout << "Test begin." << std::endl;
-  }
-  void SetUp() override {
-     // Code here will be called immediately after the constructor (right
-     // before each test).
-  }
-
   void TearDown() override {
-     // Code here will be called immediately after each test (right
-     // before the destructor).
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
   }
 };
 

@@ -141,10 +141,16 @@ inline ge::Status GenTilingImpl(std::vector<ascir::ScheduledResult> &schedule_re
   // 复制必要的stub文件
   auto ret = std::system(
     std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
+  // 创建tiling和register目录并拷贝文件
+  (void)std::system("mkdir -p ./tiling ./register");
   ret = std::system(
-    std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+    std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/platform_ascendc.h ./tiling/ -f").c_str());
   ret = std::system(
-    std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
+    std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling_api.h ./tiling/ -f").c_str());
+  ret = std::system(
+    std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling_context.h ./tiling/ -f").c_str());
+  ret = std::system(
+    std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tilingdata_base.h ./register/ -f").c_str());
   GE_ASSERT_EQ(ret, 0);
   return ge::SUCCESS;
 }

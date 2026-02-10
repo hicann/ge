@@ -598,9 +598,7 @@ int main() {
   oss.close();
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   GE_ASSERT_TRUE(ret == 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
-  GE_ASSERT_TRUE(ret == 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   GE_ASSERT_TRUE(ret == 0);
   ret = std::system(
       "g++ tiling_func_main.cpp flash_softmax_tiling_func.cpp -o tiling_func_main_softmax -I ./ "
@@ -703,9 +701,8 @@ TEST_F(TestApiTilingGen, gen_transpose021_split_api_tiling_success) {
 
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   ret = std::system(
@@ -832,9 +829,8 @@ TEST_F(TestApiTilingGen, gen_transpose102_api_tiling_success) {
 
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   ret = std::system(
@@ -932,9 +928,8 @@ TEST_F(TestApiTilingGen, gen_transpose021_api_tiling_success) {
 
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   ret = std::system(
@@ -1032,9 +1027,8 @@ TEST_F(TestApiTilingGen, gen_transpose210_api_tiling_success) {
 
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   ret = std::system(
@@ -1132,9 +1126,8 @@ TEST_F(TestApiTilingGen, gen_transpose0213_api_tiling_success) {
 
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   ret = std::system(
@@ -1232,9 +1225,8 @@ TEST_F(TestApiTilingGen, gen_transpose2103_api_tiling_success) {
 
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   ret = std::system(
@@ -1332,9 +1324,8 @@ TEST_F(TestApiTilingGen, gen_transpose0321_api_tiling_success) {
 
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
 
   ret = std::system(
@@ -1426,9 +1417,8 @@ TEST_F(TestApiTilingGen, gen_softmax_api_tiling_success) {
   GenerateOpMainFile("softmax", "FlashSoftmax_tiling_data");
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   /* 拷贝kernel_tiling.h */
   ret = std::system(
@@ -1562,9 +1552,8 @@ TEST_F(TestApiTilingGen, gen_softmax_api_tiling_with_var_relation) {
   GenerateOpMainFile("softmax_var", "FlashSoftmax_tiling_data");
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   ret = std::system(
       "g++ tiling_func_main_softmax_var.cpp flash_softmax_tiling_func.cpp -o tiling_func_main_softmax -I ./ "
@@ -1662,9 +1651,8 @@ TEST_F(TestApiTilingGen, gen_mat_mul_tiling_success) {
   GenerateOpMainFile("mat_mul", "MatMul_tiling_data");
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
   EXPECT_EQ(ret, 0);
   /* 拷贝kernel_tiling.h */
   ret = std::system(

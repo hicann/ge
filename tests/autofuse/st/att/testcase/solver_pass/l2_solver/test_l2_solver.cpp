@@ -15,6 +15,7 @@
 #include "gtest/gtest.h"
 #include "base/base_types.h"
 #include "solver_pass/src/l2_solver.cpp"
+#include "test_common_utils.h"
 using namespace att;
 
 class MockStL2TileSolver : public L2TileSolver {
@@ -46,21 +47,9 @@ public:
 
 class TestL2SolverSt : public ::testing::Test {
  public:
-  static void TearDownTestCase()
-  {
-    std::cout << "Test end." << std::endl;
-  }
-  static void SetUpTestCase()
-  {
-    std::cout << "Test begin." << std::endl;
-  }
-  void SetUp() override {
-     // Code here will be called immediately after the constructor (right
-     // before each test).
-  }
-
   void TearDown() override {
-     // Code here will be called immediately after each test (right
+     // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
      // before the destructor).
   }
 };

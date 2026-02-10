@@ -284,8 +284,7 @@ TEST_F(TestAutoFuse, casev2)
   EXPECT_EQ(res, true);
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_auto_fuse.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system(

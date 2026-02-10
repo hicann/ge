@@ -16,25 +16,14 @@
 #include "stub/stub_model_info.h"
 #include "tiling_code_generator.h"
 #include "reuse_group_utils/reuse_group_utils.h"
+#include "test_common_utils.h"
 using namespace att;
 
 class TestSolverPassManager : public ::testing::Test {
  public:
-  static void TearDownTestCase()
-  {
-    std::cout << "Test end." << std::endl;
-  }
-  static void SetUpTestCase()
-  {
-    std::cout << "Test begin." << std::endl;
-  }
-  void SetUp() override {
-     // Code here will be called immediately after the constructor (right
-     // before each test).
-  }
-
   void TearDown() override {
-     // Code here will be called immediately after each test (right
+     // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
      // before the destructor).
   }
 };

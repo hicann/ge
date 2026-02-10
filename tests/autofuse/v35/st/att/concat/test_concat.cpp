@@ -20,6 +20,7 @@
 #include "gen_tiling_impl.h"
 #include "graph/utils/graph_utils.h"
 #include "autofuse_config/auto_fuse_config.h"
+#include "test_common_utils.h"
 using namespace ge::ascir_op;
 namespace ascir {
 constexpr int64_t ID_NONE = -1;
@@ -226,8 +227,7 @@ ge::Status GenTilingImplForGraphS0WithVectorFunc(bool tile_key=false) {
   oss << tiling_res[kFirstGraphName + "TilingData"];
   oss.close();
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   GE_ASSERT_EQ(ret, 0);
   return ge::SUCCESS;
 }
