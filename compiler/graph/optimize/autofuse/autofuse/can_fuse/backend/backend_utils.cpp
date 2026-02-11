@@ -255,6 +255,18 @@ bool IsSplitLowFusionRatio(const NodePtr &node, uint32_t &max_fusion_node_input_
 }
 }  // namespace
 
+bool BackendUtils::IsEq(const Expression &e1, const Expression &e2) {
+  return SymbolicUtils::StaticCheckEq(e1, e2) == TriBool::kTrue;
+}
+
+bool BackendUtils::IsEqOne(const Expression &e1) {
+  return SymbolicUtils::StaticCheckEq(e1, kSymbolOne) == TriBool::kTrue;
+}
+
+bool BackendUtils::IsEqZero(const Expression &e1) {
+  return SymbolicUtils::StaticCheckEq(e1, kSymbolZero) == TriBool::kTrue;
+}
+
 Status BackendUtils::UpdateContinueStrides(const std::vector<ge::Expression> &repeats, std::vector<ge::Expression> &strides) {
   auto size = repeats.size();
   if (size > 0U) {
@@ -264,7 +276,7 @@ Status BackendUtils::UpdateContinueStrides(const std::vector<ge::Expression> &re
       strides[sub_index - 1U] = repeats[sub_index] * strides[sub_index];
     }
     for (auto index = 0U; index < size - 1U; index++) {
-      if (repeats[index] == kSymbolOne) {
+      if (BackendUtils::IsEqOne(repeats[index])) {
         strides[index] = kSymbolZero;
       }
     }
@@ -340,9 +352,9 @@ Status BackendUtils::BackSteppingViewOpBroadcast(TensorAttrInfo &temp_data_attr,
   const auto &load_repeats = temp_load_attr.repeats;
 
   for (auto index = 0U; index < data_repeats.size(); index++) {
-    if ((data_repeats[index] == kSymbolOne) && (data_strides[index] == kSymbolZero)) {
+    if (BackendUtils::IsEqOne(data_repeats[index]) && (BackendUtils::IsEqZero(data_strides[index]))) {
       const auto axis_id = data_axis[index];
-      if (load_repeats[index] == kSymbolOne) {
+      if (BackendUtils::IsEqOne(load_repeats[index])) {
         continue;
       }
       broadcast_info.push_back(axis_id);
@@ -377,12 +389,12 @@ Status BackendUtils::FusedBackSteppingViewOpBroadcast(TensorAttrInfo &temp_graph
 
   GE_ASSERT_TRUE(temp_graph_attr.axis.size() <= load_repeats.size());
   for (auto index = 0U; index < load_repeats.size(); index++) {
-    if (load_repeats[index] != kSymbolOne) { // slice的load可能出现repeat是1，stride是512，同时跟graph非1的size相比是需要broadcast的
+    if (!BackendUtils::IsEqOne(load_repeats[index])) { // slice的load可能出现repeat是1，stride是512，同时跟graph非1的size相比是需要broadcast的
       continue;
     }
     const auto axis_id = load_axis[index];
     for (auto graph_index = 0U; graph_index < temp_graph_attr.axis.size(); graph_index++) {
-      if ((temp_graph_attr.axis[graph_index] == axis_id) && (temp_graph_attr.repeats[graph_index] != kSymbolOne)) {
+      if ((temp_graph_attr.axis[graph_index] == axis_id) && (!BackendUtils::IsEqOne(temp_graph_attr.repeats[graph_index]))) {
         broadcast_info.push_back(axis_id);
       }
     }
@@ -633,7 +645,7 @@ Status SliceCalcOffsetAndStridePerAxisCurNode(TensorAttrInfo &temp_load_attr, Te
 
   // 计算对应每根轴的原始stride
   for (auto index = 0U; index < peer_output_data_repeats.size(); index++) {
-      strides_temp = peer_output_data_repeats[index] == kSymbolOne ? Symbol(0)
+      strides_temp = BackendUtils::IsEqOne(peer_output_data_repeats[index]) ? kSymbolZero
                    : (ge::sym::Floor(load_strides[index] / peer_output_data_strides[index])).Simplify();
       slice_info.load_strides.push_back(strides_temp);
   }
@@ -642,7 +654,7 @@ Status SliceCalcOffsetAndStridePerAxisCurNode(TensorAttrInfo &temp_load_attr, Te
   Expression offset_remain = offset;
   Expression offset_temp;
   for (auto index = 0U; index < peer_output_data_repeats.size(); index++) {
-    offset_temp =  peer_output_data_repeats[index] == kSymbolOne ? Symbol(0)
+    offset_temp =  BackendUtils::IsEqOne(peer_output_data_repeats[index]) ? kSymbolZero
                    : (ge::sym::Floor(offset_remain / peer_output_data_strides[index])).Simplify();
     offset_remain = (offset_remain - offset_temp * peer_output_data_strides[index]).Simplify();
     slice_info.load_offsets.push_back(offset_temp);
@@ -685,13 +697,13 @@ std::vector<Expression> ContiguousStrides(const std::vector<Expression> &dims) {
   if (dims.empty()) {
     return {};
   }
-  std::vector<Expression> strides(dims.size(), Symbol(1));
+  std::vector<Expression> strides(dims.size(), kSymbolOne);
   for (size_t i = dims.size() - 1U; i > 0U; --i) {
     strides[i - 1] = strides[i] * dims[i];
   }
   for (size_t i = 0U; i < dims.size(); ++i) {
-    if ((dims[i] == Symbol(1)) || (dims[i] == Symbol(0))) {
-      strides[i] = Symbol(0);  // 保证dim size为0或1时，stride必定为0，简化stride判定规则，
+    if (BackendUtils::IsEqOne(dims[i]) || BackendUtils::IsEqZero(dims[i])) {
+      strides[i] = kSymbolZero;  // 保证dim size为0或1时，stride必定为0，简化stride判定规则，
     }
     strides[i] = strides[i].Simplify();
   }
@@ -781,12 +793,17 @@ bool IsSameStride(std::vector<ge::Expression> &strides, std::vector<ge::Expressi
 
 bool IsOffsetZero(const NodePtr &load_node) {
   bool node_slice_op_flag = false;
-  Expression pre_load_offset;  
+  Expression pre_load_offset;
   GE_ASSERT_SUCCESS(SliceGetNodeOffset(load_node, pre_load_offset, node_slice_op_flag));
-  if ((node_slice_op_flag == true) && (pre_load_offset != Symbol(0))) {
+  // 使用直接比较而不是 BackendUtils::IsEqZero，原因：
+  // 1. IsEqZero 内部调用 StaticCheckEq -> Simplify() -> SymEngine::expand()
+  // 2. SplitV 等算子的 offset 表达式可能是复杂的 SymEngine 表达式
+  // 3. 某些情况下 pre_load_offset 的内部 sym_expr_ 可能为空指针
+  // 4. SymEngine::expand() 在遇到空指针时会调用虚函数导致段错误
+  if ((node_slice_op_flag == true) && (pre_load_offset != kSymbolZero)) {
     return true;
   }
-  return false;  
+  return false;
 }
 
 bool IsSlice(const NodePtr &load_node,
@@ -852,7 +869,7 @@ Status BackendUtils::BackSteppingViewOpSlice(TensorAttrInfo &temp_data_attr, Ten
   auto output_attr = output_desc->GetAttrsGroup<AscTensorAttr>();
   GE_ASSERT_NOTNULL(output_attr);
   for (size_t i = 0U; i < temp_data_attr.strides.size(); i++) {
-    if (output_attr->strides[i] != Symbol(0)) {
+    if (!BackendUtils::IsEqZero(output_attr->strides[i])) {
       output_attr->strides[i] = temp_data_attr.strides[i];
     }
   }
@@ -2684,7 +2701,7 @@ Status BackendUtils::GetGraphAttrInfo(const AscGraph &asc_graph, TensorAttrInfo 
   GE_ASSERT_TRUE(current_node_attr.axis.size() == current_node_attr.repeats.size());
   ge::Expression tmpe_stride = kSymbolOne;
   for (size_t i = current_node_attr.axis.size(); i > 0U; --i) {
-    if (current_node_attr.repeats[i - 1U] == kSymbolOne) {
+    if (BackendUtils::IsEqOne(current_node_attr.repeats[i - 1U])) {
       current_node_attr.strides.insert(current_node_attr.strides.begin(), kSymbolZero);
     } else {
       current_node_attr.strides.insert(current_node_attr.strides.begin(), tmpe_stride);

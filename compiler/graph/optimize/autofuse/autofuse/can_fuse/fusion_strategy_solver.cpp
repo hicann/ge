@@ -85,7 +85,7 @@ ge::FusionStatistics GetFusionStatisticsByGraph(const ge::ComputeGraphPtr &graph
   if (!IsLogEnable(GE_MODULE_NAME, DLOG_INFO)) {
     return fusion_statistics;
   }
-  fusion_statistics.rw_memory_size = ge::Symbol(0);
+  fusion_statistics.rw_memory_size = kSymbolZero;
   fusion_statistics.nodes_size = graph->GetAllNodesSize();
   fusion_statistics.min_scale = std::numeric_limits<size_t>::max();
   fusion_statistics.max_scale = 1U;
@@ -291,7 +291,7 @@ Expression ScoreFusion::ScoreFusionMemory(const FusingNode &node1, const FusingN
     const auto it = node1_memory_buffers.find(memory_buffer);
     if (it != node1_memory_buffers.end()) {
       // 减少首次的+运算，提升性能
-      reduced_memory = (reduced_memory == kSymbolZero) ? memory_buffer.size : (reduced_memory + memory_buffer.size);
+      reduced_memory = (BackendUtils::IsEqZero(reduced_memory)) ? memory_buffer.size : (reduced_memory + memory_buffer.size);
     }
   }
   return reduced_memory;
@@ -597,7 +597,7 @@ bool FusionStrategySolver::CanFuse(const ComputeGraphPtr &graph, const FusingNod
   }
 
   // 融合后节省的内存读写大小为0不做融合
-  if (ScoreFusion::ScoreFusionMemory(*node1, *node2) == kSymbolZero) {
+  if (BackendUtils::IsEqZero(ScoreFusion::ScoreFusionMemory(*node1, *node2))) {
     GELOGI(
         "node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][node1 and node2 have no shared data]",
         node1->GetNamePtr(), node1->GetOrgNode()->GetType().c_str(), node2->GetNamePtr(),

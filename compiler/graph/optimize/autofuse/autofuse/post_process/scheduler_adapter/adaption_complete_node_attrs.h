@@ -20,7 +20,7 @@ inline Status UpdateStridesByReapeats(const std::vector<ge::Expression> &repeats
   strides.clear();
   ge::Expression temp_stride = kSymbolOne;
   for (size_t i = repeats.size(); i > 0U; --i) {
-    if (repeats[i - 1U] == kSymbolOne) {
+    if (BackendUtils::IsEqOne(repeats[i - 1U])) {
       strides.insert(strides.begin(), kSymbolZero);
     } else {
       strides.insert(strides.begin(), temp_stride);
@@ -91,7 +91,7 @@ inline Status UpdateTensorAttrsIfNotEmpty(const NodePtr &node, const std::vector
       tensor_attr->repeats.insert(tensor_attr->repeats.begin() + i, kSymbolOne);
       tensor_attr->strides.insert(tensor_attr->strides.begin() + i, kSymbolZero);
     }
-    if (tensor_attr->repeats[i] == kSymbolOne && tensor_attr->strides[i] == kSymbolZero) {
+    if (BackendUtils::IsEqOne(tensor_attr->repeats[i]) && BackendUtils::IsEqZero(tensor_attr->strides[i])) {
       axis_idx_to_complete.push_back(i);
     }
   }
@@ -220,7 +220,7 @@ inline Status UpdateInvalidIndices(const NodePtr &node, std::vector<int64_t> &gr
         continue;
       }
       auto idx = static_cast<int64_t>(std::distance(tensor_attr->axis.begin(), axis_it));
-      if (tensor_attr->repeats[idx] == kSymbolOne && tensor_attr->strides[idx] == kSymbolZero) {
+      if (BackendUtils::IsEqOne(tensor_attr->repeats[idx]) && BackendUtils::IsEqZero(tensor_attr->strides[idx])) {
         ++it;
       } else {
         GELOGI("node %s(%s) output(%u), axis idx %" PRId64 " is valid, del idx from graph invalid axis indices.",
@@ -243,7 +243,7 @@ inline Status GetInvalidAxis(AscGraph &asc_graph, std::vector<int64_t> &graph_in
   }
   for (auto idx = 0U; idx < size_t; idx++) {
     const auto &axis_info = graph_attr->axis[idx];
-    if (axis_info->size == kSymbolOne) {
+    if (BackendUtils::IsEqOne(axis_info->size)) {
       // 有transpose节点，transpose节点可能改变该轴的index，所以不能直接用index，需要用axis id
       graph_invalid_axis_id.push_back(axis_info->id);
     }

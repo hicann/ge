@@ -78,8 +78,8 @@ Status GetBroAxisFromNode(const NodePtr &bro_node, int64_t &bro_axis) {
   GE_ASSERT_TRUE(pre_bro_repeats.size() == pre_bro_strides.size());
   GE_ASSERT_TRUE(bro_attr_axis.size() == pre_bro_axis.size());
   for (auto index = 0U; index < bro_attr_axis.size(); index++) {
-    if ((pre_bro_repeats[index] == kSymbolOne) && (pre_bro_strides[index] == kSymbolZero)) {
-      if (bro_repeats[index] != kSymbolOne) {
+    if ((BackendUtils::IsEqOne(pre_bro_repeats[index])) && BackendUtils::IsEqZero(pre_bro_strides[index])) {
+      if (!BackendUtils::IsEqOne(bro_repeats[index])) {
         bro_axis = bro_attr_axis[index];
         return SUCCESS;
       }
@@ -113,8 +113,8 @@ Status GetBroAxisesIndex(vector<size_t> &bro_axis_idx, const vector<ge::Expressi
   GE_ASSERT_TRUE(pre_bro_repeats.size() == pre_bro_strides.size());
   GE_ASSERT_TRUE(pre_bro_repeats.size() == last_bro_repeats.size());
   for (auto index = 0U; index < pre_bro_repeats.size(); index++) {
-    if ((pre_bro_repeats[index] == kSymbolOne) && (pre_bro_strides[index] == kSymbolZero)) {
-      if (last_bro_repeats[index] == kSymbolOne) {
+    if (BackendUtils::IsEqOne(pre_bro_repeats[index]) && BackendUtils::IsEqZero(pre_bro_strides[index])) {
+      if (BackendUtils::IsEqOne(last_bro_repeats[index])) {
         continue;
       }
       bro_axis_idx.push_back(index);

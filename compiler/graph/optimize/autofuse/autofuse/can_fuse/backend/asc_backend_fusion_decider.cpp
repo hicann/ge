@@ -87,6 +87,11 @@ Status CacheGraphAfterMerge(const NodePtr &new_node, const NodePtr &node1, const
 }
 
 bool AscBackendSubGraphFusionDecider::CanFuse(const NodePtr &node1, const NodePtr &node2) const {
+  uint32_t max_fusion_node_input_size = AutoFuseConfig::Config().GetFusionStrategySolver().max_input_nums_after_fuse;
+  if (!BackendUtils::CanFuseByStrategy(node1, node2, max_fusion_node_input_size)) {
+    return false;
+  }
+
   ComputeGraphPtr graph1;
   ComputeGraphPtr graph2;
   GE_ASSERT_SUCCESS(BackendUtils::GetNodeFusedGraph(node1, graph1));
@@ -199,7 +204,7 @@ Status AscBackendFusionDecider::UpdateSubgraphAxisAttr(const NodePtr &new_node, 
   // 处理reduce场景，如果后续是reduce后的graph，那需要用前序的轴size
   auto new_graph_attr2 = graph_attr2;
   for (auto index1 = 0U; index1 < new_graph_attr2->axis.size(); index1++) {
-    if (new_graph_attr2->axis[index1]->size != kSymbolOne) {
+    if (!BackendUtils::IsEqOne(new_graph_attr2->axis[index1]->size)) {
       continue;
     }
     for (auto index2 = 0U; index2 < graph_attr1->axis.size(); index2++) {
