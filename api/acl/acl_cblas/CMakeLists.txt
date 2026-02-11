@@ -33,6 +33,11 @@ target_include_directories(acl_cblas PRIVATE
 
     ${ASCEND_INSTALL_PATH}/include/acl
     ${ASCEND_INSTALL_PATH}/pkg_inc/runtime
+
+    ${TOP_DIR}/air/inc/external
+    ${TOP_DIR}/air/inc/external/acl
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
 )
 
 target_compile_options(acl_cblas PRIVATE

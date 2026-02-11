@@ -10,7 +10,7 @@
 
 #include "graph/utils/anchor_utils.h"
 #include <algorithm>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 
 namespace ge {

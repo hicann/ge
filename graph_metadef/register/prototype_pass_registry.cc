@@ -13,7 +13,7 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "graph/types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/ge_common/ge_inner_error_codes.h"
 
 namespace ge {

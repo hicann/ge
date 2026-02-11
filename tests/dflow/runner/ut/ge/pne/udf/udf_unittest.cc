@@ -21,7 +21,7 @@
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
 #include "dflow/compiler/data_flow_graph/function_compile.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 static ComputeGraphPtr BuildComputeGraph(const std::string &path) {

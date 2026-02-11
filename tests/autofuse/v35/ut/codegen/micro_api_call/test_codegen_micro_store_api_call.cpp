@@ -107,9 +107,9 @@ TEST(CodegenKernel, StoreMicroApiCall_Store) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_store = store->GetName() + "_" + store->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(store->outputs[0], tensor_store, "");
+  MicroApiTensor tensor1(store->outputs[0], tensor_store);
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);
   tensor_mng.AddTensor(tensor1);
@@ -242,9 +242,9 @@ TEST(CodegenKernel, LoadMicroApiCall_Store_Cast_in16_out8) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_store = store->GetName() + "_" + store->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(store->outputs[0], tensor_store, "");
+  MicroApiTensor tensor1(store->outputs[0], tensor_store);
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);
   tensor_mng.AddTensor(tensor1);
@@ -379,9 +379,9 @@ TEST(CodegenKernel, LoadMicroApiCall_Store_Cast_in32_out16) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_store = store->GetName() + "_" + store->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(store->outputs[0], tensor_store, "");
+  MicroApiTensor tensor1(store->outputs[0], tensor_store);
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);
   tensor_mng.AddTensor(tensor1);
@@ -516,9 +516,9 @@ TEST(CodegenKernel, LoadMicroApiCall_Store_Cast_in64_out32) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_store = store->GetName() + "_" + store->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(store->outputs[0], tensor_store, "");
+  MicroApiTensor tensor1(store->outputs[0], tensor_store);
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);
   tensor_mng.AddTensor(tensor1);
@@ -653,9 +653,9 @@ TEST(CodegenKernel, LoadMicroApiCall_Store_Cast_in32_out8) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_store = store->GetName() + "_" + store->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(store->outputs[0], tensor_store, "");
+  MicroApiTensor tensor1(store->outputs[0], tensor_store);
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);
   tensor_mng.AddTensor(tensor1);
@@ -760,9 +760,9 @@ TEST(CodegenKernel, LoadMicroApiCall_Store_Out_Int8) {
 
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_abs = abs->GetName() + "_" + abs->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(abs->outputs[0], tensor_abs, "");
+  MicroApiTensor tensor1(abs->outputs[0], tensor_abs);
 
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);
@@ -868,9 +868,9 @@ TEST(CodegenKernel, LoadMicroApiCall_Store_Out_Half) {
 
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_abs = abs->GetName() + "_" + abs->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(abs->outputs[0], tensor_abs, "");
+  MicroApiTensor tensor1(abs->outputs[0], tensor_abs);
 
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);
@@ -976,9 +976,9 @@ TEST(CodegenKernel, LoadMicroApiCall_Store_Out_Float) {
 
   codegen::CallParam cp = {"p_reg", "offset"};
   auto tensor_load = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor(load->outputs[0], tensor_load, "");
+  MicroApiTensor tensor(load->outputs[0], tensor_load);
   auto tensor_abs = abs->GetName() + "_" + abs->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor tensor1(abs->outputs[0], tensor_abs, "");
+  MicroApiTensor tensor1(abs->outputs[0], tensor_abs);
 
   TensorManager tensor_mng;
   tensor_mng.AddTensor(tensor);

@@ -14,7 +14,7 @@
 
 #include "framework/common/debug/ge_log.h"
 #include "common/util/mem_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 extern "C" {
 void ReleaseOpsRegInfo();

@@ -13,7 +13,7 @@
 #include "securec.h"
 #include "graph/ge_error_codes.h"
 #include "graph/def_types.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "framework/runtime/rt_session.h"
 #include "register/kernel_registry.h"
 #include "kernel/tensor_attr.h"

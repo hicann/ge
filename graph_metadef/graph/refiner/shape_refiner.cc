@@ -29,7 +29,7 @@
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_desc_utils_ex.h"
 #include "graph/utils/node_utils_ex.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

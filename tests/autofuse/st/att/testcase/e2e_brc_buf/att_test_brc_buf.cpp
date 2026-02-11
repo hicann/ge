@@ -546,8 +546,7 @@ TEST_F(TestBrcBuf, case_01) {
   AddHeaderGuardToFile("autofuse_tiling_func_common.h", "__AUTOFUSE_TILING_FUNC_COMMON_H__");
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/tiling_func_main_brc.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_brc.cpp BrcBuf_*_tiling_func.cpp -o tiling_func_main_brc -I ./ -DSTUB_LOG");

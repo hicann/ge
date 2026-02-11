@@ -12,7 +12,7 @@
 
 #include <queue>
 
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/debug/ge_attr_define.h"

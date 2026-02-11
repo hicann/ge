@@ -9,7 +9,7 @@
  */
 
 #include "graph_serializer.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/detail/model_serialize_imp.h"
 

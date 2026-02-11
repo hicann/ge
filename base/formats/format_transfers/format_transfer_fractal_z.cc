@@ -13,7 +13,7 @@
 #include <securec.h>
 #include <memory>
 
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "framework/common/debug/log.h"
 #include "formats/utils/formats_definitions.h"
 #include "formats/utils/formats_trans_utils.h"

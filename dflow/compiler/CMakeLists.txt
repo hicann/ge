@@ -87,6 +87,8 @@ target_include_directories(dflow_runner SYSTEM PRIVATE
     ${CMAKE_BINARY_DIR}/proto/data_flow_protos
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
     )
 
 target_link_options(dflow_runner PRIVATE

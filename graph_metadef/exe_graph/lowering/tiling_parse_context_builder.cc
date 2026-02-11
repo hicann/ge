@@ -13,10 +13,10 @@
 #include "graph/compute_graph.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/graph_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/def_types.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace gert {
 TilingParseContextBuilder &TilingParseContextBuilder::CompileJson(const ge::char_t *compile_json) {

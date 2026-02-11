@@ -17,7 +17,7 @@
 #include <vector>
 #include "detail/attributes_holder.h"
 #include "graph/buffer.h"
-#include "graph/aligned_ptr.h"
+#include "graph_metadef/graph/aligned_ptr.h"
 #include "graph/ge_error_codes.h"
 #include "graph/types.h"
 #include "graph/small_vector.h"

@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 #include "common/plugin/ge_make_unique_util.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "framework/common/types.h"
 #include "common/checker.h"
 #include "common/util/mem_utils.h"

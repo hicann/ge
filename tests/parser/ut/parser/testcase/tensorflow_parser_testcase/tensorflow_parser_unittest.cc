@@ -70,7 +70,7 @@
 #include "common/op_map.h"
 #include "graph/ge_tensor.h"
 #include "depends/mmpa/src/parser_mmpa_stub.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include <experimental/filesystem>
 #include "common/types_map.h"
 

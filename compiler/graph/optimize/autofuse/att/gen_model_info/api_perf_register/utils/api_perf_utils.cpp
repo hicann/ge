@@ -185,6 +185,33 @@ void RemoveIndicesFromRepeats(std::vector<Expr> &repeats, const std::vector<size
     }
   }
 }
+
+// 创建动态shape的StrideResult，处理非连续分支选择
+StrideResult CreateDynamicStrideResult(const Expr &last_stride,
+                                       const Expr &normal_stride,
+                                       int32_t block_count_idx,
+                                       bool is_ub_stride) {
+  const char *var_prefix = is_ub_stride ? "ub_stride_select" : "gm_stride_select";
+  Expr res = CreateExpr(var_prefix);
+
+  auto normal_case = std::make_shared<IfCase>(normal_stride);
+  auto non_continuous_case = std::make_shared<IfCase>(last_stride);
+
+  constexpr int64_t kContinueLastStrideVal = 1L;
+  TenaryOp tenary_op = TenaryOp(CondType::K_GT, last_stride, CreateExpr(kContinueLastStrideVal),
+                                std::move(non_continuous_case), std::move(normal_case));
+  tenary_op.SetVariable(res);
+
+  StrideResult result(res, block_count_idx);
+  result.tenary_ops[res] = tenary_op;
+  return result;
+}
+
+// 计算 block_count_idx：用于性能模型计算
+int32_t CalculateBlockCountIdx(int32_t filtered_dim_size, bool actually_swap) {
+  constexpr int32_t kBlockLenCountDim = 2;
+  return actually_swap ? (filtered_dim_size - kBlockLenCountDim - 1) : (filtered_dim_size - kBlockLenCountDim);
+}
 }  // namespace
 
 // 为性能模型参数添加额外参数（从 node_perf_info 中获取）
@@ -403,12 +430,16 @@ void UpdateTensorDim(ge::AscNode *node, const std::vector<bool> &is_continuous,
 
 ge::Status GetDMAActualPerf(const NodeDetail &node_info, const Expr &swap_outer_repeat, const std::vector<Expr> &dims,
                             PerfOutputInfo &perf) {
-  NodeDetail cur_node =
-      NodeDetail{node_info.name, node_info.optype, {node_info.input_dtype[0]}, {node_info.output_dtype[0]}};
+  NodeDetail cur_node;
+  cur_node.name = node_info.name;
+  cur_node.optype = node_info.optype;
+  cur_node.input_dtype = {node_info.input_dtype[0]};
+  cur_node.output_dtype = {node_info.output_dtype[0]};
   cur_node.gm_stride = node_info.gm_stride;
   cur_node.ub_stride = node_info.ub_stride;
   cur_node.block_count_idx = node_info.block_count_idx;
   cur_node.repeats = node_info.repeats;
+  cur_node.tenary_ops = node_info.tenary_ops;
   GE_ASSERT_SUCCESS(SetDims(dims, cur_node));
   std::string registered_key_name;
   GE_ASSERT_SUCCESS(GetApiRegisterVerName(registered_key_name));
@@ -614,9 +645,7 @@ StrideResult CalculateStride(const TensorShapeInfo &shape_info, const bool is_ub
     return StrideResult(stride, 0);
   }
   const bool actually_swap = need_swap && (filtered_dim_size > supported_max_dma_len);
-  constexpr int32_t kBlockLenCountDim = 2;
-  const int32_t block_count_idx =
-      actually_swap ? (filtered_dim_size - kBlockLenCountDim - 1) : (filtered_dim_size - kBlockLenCountDim);
+  const int32_t block_count_idx = CalculateBlockCountIdx(filtered_dim_size, actually_swap);
   // 一般而言不应该出现下面异常分支
   GE_WARN_ASSERT((block_count_idx < static_cast<int32_t>(filtered_strides.size())) && (block_count_idx >= 0),
                  "%s, block_count_idx is %d over size(%zu).", node_info.ToString().c_str(), block_count_idx,
@@ -625,12 +654,22 @@ StrideResult CalculateStride(const TensorShapeInfo &shape_info, const bool is_ub
   constexpr int64_t kContinueLastStrideVal = 1L;
   int64_t last_stride_val = kContinueLastStrideVal;
   // 尾轴stride > 1时存在严重非连续，特殊处理
-  if (last_stride.IsConstExpr() && last_stride.GetConstValue(last_stride_val) &&
-      (last_stride_val > kContinueLastStrideVal)) {
-    GELOGD("%s, block_count_idx=%d, last_stride[%s=%ld], need_swap=%d, actually_swap=%d, filtered_dim_size=%d",
-           node_info.ToString().c_str(), block_count_idx, stride_type, last_stride_val, need_swap, actually_swap,
-           filtered_dim_size);
-    return StrideResult(last_stride, block_count_idx);
+  if (last_stride.IsConstExpr()) {
+    // 静态shape：原有逻辑
+    if (last_stride.GetConstValue(last_stride_val) && (last_stride_val > kContinueLastStrideVal)) {
+      GELOGD("%s, block_count_idx=%d, last_stride[%s=%ld], need_swap=%d, actually_swap=%d, filtered_dim_size=%d",
+             node_info.ToString().c_str(), block_count_idx, stride_type, last_stride_val, need_swap, actually_swap,
+             filtered_dim_size);
+      return StrideResult(last_stride, block_count_idx);
+    }
+  } else {
+    // 动态shape：使用TenaryOp
+    auto normal_stride = ge::sym::Sub(filtered_strides[block_count_idx],
+                                      filtered_repeats[filtered_dim_size - 1]);
+    auto result = CreateDynamicStrideResult(last_stride, normal_stride, block_count_idx, is_ub_stride);
+    GELOGD("%s, dynamic stride select, last_stride=%s", node_info.ToString().c_str(),
+           last_stride.Str().get());
+    return result;
   }
   auto expr = ge::sym::Sub(filtered_strides[block_count_idx], filtered_repeats[filtered_dim_size - 1]);
   GELOGD("%s, block_count_idx=%d, %s=[%s], need_swap=%d, actually_swap=%d, filtered_dim_size=%d",
@@ -647,6 +686,13 @@ ge::Status SetStride(const TensorShapeInfo &shape_info, NodeDetail &node_info, c
   node_info.ub_stride = (ub_stride_result.stride.Serialize() == nullptr) ? CreateExpr(0) : ub_stride_result.stride;
   // 保存 gm_stride 的 block_count_idx，用于性能函数计算
   node_info.block_count_idx = gm_stride_result.block_count_idx;
+  // 合并tenary_ops到node_info
+  for (const auto &tenary_op : gm_stride_result.tenary_ops) {
+    node_info.tenary_ops[tenary_op.first] = tenary_op.second;
+  }
+  for (const auto &tenary_op : ub_stride_result.tenary_ops) {
+    node_info.tenary_ops[tenary_op.first] = tenary_op.second;
+  }
   GELOGD("%s: repeats=%s, origin_repeats=%s, need_swap=%d, block_count_idx=%d", node_info.ToString().c_str(),
          GetVecString(shape_info.repeats).c_str(), GetVecString(shape_info.origin_repeats).c_str(), need_swap,
          node_info.block_count_idx);
@@ -915,6 +961,10 @@ ge::Status GetDmaPerf(const TensorShapeInfo &tensor_info, NodeDetail &node_info,
       GE_ASSERT_SUCCESS(UpdateSwapPerf(node_info, supported_max_dma_len, swap_perf, non_swap_perf, perf_res),
                         "Update swap perf failed, node=%s", node_info.ToString().c_str());
     }
+  }
+  // 合并node_info中的tenary_ops到perf_res
+  for (const auto &tenary_op : node_info.tenary_ops) {
+    perf_res.tenary_ops[tenary_op.first] = tenary_op.second;
   }
   return ge::SUCCESS;
 }

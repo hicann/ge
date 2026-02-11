@@ -65,7 +65,7 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 
   ```bash
   # 安装命令(其中--install-path为可选)
-  bash Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --install-path=${install_path}
+  bash Ascend-cann-toolkit_${cann_version}_linux-${arch}.run --full --quiet --install-path=${install_path}
   ```
 
 -   `${cann_version}`：表示CANN包版本号。
@@ -82,17 +82,11 @@ GE支持源码编译。在源码编译前，请根据实际情况选择 **方式
 - Atlas A3 训练系列产品/Atlas A3 推理系列产品：`Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run`
 
 ```bash
-# 确保安装包具有可执行权限
+# 安装命令(其中--install-path为可选)
 # Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
-chmod +x Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run
+bash Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
 # Atlas A3 训练系列产品/Atlas A3 推理系列产品
-chmod +x Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run
-
-# 安装命令
-# Atlas A2 训练系列产品/Atlas 800I A2 推理产品/A200I A2 Box 异构组件
-./Ascend-cann-910b-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
-# Atlas A3 训练系列产品/Atlas A3 推理系列产品
-./Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
+bash Ascend-cann-A3-ops_${cann_version}_linux-${arch}.run --install --quiet --install-path=${install_path}
 ```
 
 - `${install_path}`：表示指定安装路径，需要与toolkit包安装在相同路径，默认安装在`/usr/local/Ascend`目录。

@@ -20,7 +20,7 @@
 #include "register/kernel_registry.h"
 #include "runtime/mem.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace gert {
 namespace kernel {

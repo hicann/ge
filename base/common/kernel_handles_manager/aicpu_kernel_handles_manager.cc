@@ -16,7 +16,7 @@
 #include "common/checker.h"
 #include "common/ge_common/scope_guard.h"
 #include "kernel_handle_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

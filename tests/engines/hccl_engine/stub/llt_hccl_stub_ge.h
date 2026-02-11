@@ -13,7 +13,7 @@
 
 #include "graph/compute_graph.h"
 #include <unordered_map>
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "hccl_stub.h"
 
 namespace ge {

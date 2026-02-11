@@ -30,7 +30,7 @@
 #include "kernel/common_kernel_impl/tiling.h"
 #include "graph_builder/bg_tiling.h"
 #include "graph_builder/bg_platform.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/op_so_bin.h"
 
 namespace gert {

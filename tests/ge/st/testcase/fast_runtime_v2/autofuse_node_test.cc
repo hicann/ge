@@ -19,12 +19,12 @@
 #include "stub/gert_runtime_stub.h"
 #include "op_impl/less_important_op_impl.h"
 #include "graph/utils/op_desc_utils.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "engine/aicore/converter/autofuse_node_converter.h"
 #include "engine/gelocal/inputs_converter.h"
 #include "framework/ge_runtime_stub/include/common/bg_test.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 using namespace ge;
 namespace gert {

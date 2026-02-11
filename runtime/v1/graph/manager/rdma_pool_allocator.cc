@@ -18,7 +18,7 @@
 #include "runtime/dev.h"
 #include "graph/manager/mem_manager.h"
 #include "common/math/math_util.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace {
 constexpr size_t kAlignedSize = 512U;

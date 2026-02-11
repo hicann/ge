@@ -9,9 +9,9 @@
  */
 
 #include <string.h>
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include <gtest/gtest.h>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 class UtestFileUtils : public testing::Test {
@@ -83,6 +83,28 @@ TEST_F(UtestFileUtils, GetBinFileFromFileSuccess) {
   system(("rm -f " + so_bin).c_str());
 }
 
+TEST_F(UtestFileUtils, GetBinFileFromFileSuccess_offset) {
+  std::string so_bin = "./opsptoro.so";
+  system(("touch " + so_bin).c_str());
+  system(("echo '123' > " + so_bin).c_str());
+  size_t data_len = 4;
+  size_t offset = 0;
+  std::unique_ptr<ge::char_t[]> so_data = GetBinFromFile(so_bin, offset, data_len);
+  ASSERT_NE(so_data, nullptr);
+  ASSERT_EQ(data_len, 4);
+  ASSERT_EQ(so_data.get()[0], '1');
+  ASSERT_EQ(so_data.get()[1], '2');
+  ASSERT_EQ(so_data.get()[2], '3');
+
+  ASSERT_EQ(GetBinFromFile(so_bin, static_cast<ge::char_t *>(so_data.get()), data_len), GRAPH_SUCCESS);
+  ASSERT_NE(so_data, nullptr);
+  ASSERT_EQ(data_len, 4);
+  ASSERT_EQ(so_data.get()[0], '1');
+  ASSERT_EQ(so_data.get()[1], '2');
+  ASSERT_EQ(so_data.get()[2], '3');
+  system(("rm -f " + so_bin).c_str());
+}
+
 TEST_F(UtestFileUtils, GetBinFilePathNullFail) {
   std::string so_bin = "";
   uint32_t data_len;
@@ -101,7 +123,7 @@ TEST_F(UtestFileUtils, WriteBinToFileSuccess) {
   uint32_t data_len = 4;
   char so_data[4] = {'1', '2', '3'};
   ASSERT_EQ(WriteBinToFile(so_bin, so_data, data_len), GRAPH_SUCCESS);
-
+  ASSERT_EQ(SaveBinToFile(so_data, data_len, so_bin), GRAPH_SUCCESS);
   system(("rm -f " + so_bin).c_str());
 }
 

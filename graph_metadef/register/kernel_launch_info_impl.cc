@@ -9,7 +9,7 @@
  */
 
 #include "kernel_launch_info_impl.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/checker.h"
 #include "runtime/rt_model.h"
 #include "ge/framework/common/taskdown_common.h"

@@ -20,7 +20,7 @@
 #include "exe_graph/runtime/atomic_clean_tiling_context.h"
 #include "exe_graph/lowering/value_holder.h"
 #include "platform/platform_infos_def.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "register/op_impl_registry.h"
 #include "faker/node_faker.h"
 #include "faker/space_registry_faker.h"

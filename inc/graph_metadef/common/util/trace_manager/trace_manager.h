@@ -16,7 +16,7 @@
 #include <thread>
 #include <atomic>
 #include <condition_variable>
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 #define TRACE_GEN_RECORD(owner, action, graph_name, node_name, node_data, tensor_index, tensor_data, content)      \

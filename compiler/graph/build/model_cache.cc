@@ -26,7 +26,7 @@
 #include "graph/ge_local_context.h"
 #include "graph/ge_context.h"
 #include "graph/build/memory/var_mem_assign_util.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/manager/graph_external_weight_manager.h"
 #include "common/file_constant_utils.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"

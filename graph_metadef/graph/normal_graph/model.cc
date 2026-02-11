@@ -19,10 +19,10 @@
 #include <fstream>
 #include <iomanip>
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/model_serialize.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/utils/ge_ir_utils.h"

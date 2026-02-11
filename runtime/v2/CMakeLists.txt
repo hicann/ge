@@ -31,6 +31,9 @@ set(GERT_INCLUDING_PATH
         ${AIR_CODE_DIR}/inc/graph_metadef/exe_graph/runtime
         ${AIR_CODE_DIR}/base/metadef/pkg_inc/exe_graph/runtime
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/att/util/log
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 set(GERT_COMPILE_DEF
@@ -80,16 +83,22 @@ add_dependencies(gert_static gert_proto)
 target_compile_options(gert_static PRIVATE  ${AIR_COMMON_COMPILE_OPTION})
 
 add_library(gert SHARED ${RUNTIME2_SRCS})
-target_include_directories(gert PRIVATE ${GERT_INCLUDING_PATH} ${METADEF_DIR}/pkg_inc ${AIR_CODE_DIR}/inc/graph_metadef)
+target_include_directories(gert PRIVATE
+        ${GERT_INCLUDING_PATH}
+        ${METADEF_DIR}/pkg_inc
+        ${AIR_CODE_DIR}/inc/graph_metadef
+        ${TOP_DIR}/metadef/inc
+)
 target_compile_definitions(gert PRIVATE ${GERT_COMPILE_DEF})
 target_link_libraries(gert PRIVATE
         intf_pub
-        cce_headers
+        $<$<TARGET_EXISTS:cce_headers>:cce_headers>
+        $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         msprof_headers
         mmpa_headers
         metadef_headers
         adump_headers
-        datagw_headers
+        $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         ${AIR_COMMON_LINK_OPTION}
         -Wl,--no-as-needed
         ge_common

@@ -13,7 +13,7 @@
 #include <iostream>
 #include <stack>
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 #include "utils/autofuse_utils.h"
 

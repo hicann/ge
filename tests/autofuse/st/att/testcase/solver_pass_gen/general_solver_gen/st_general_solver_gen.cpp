@@ -11,6 +11,7 @@
 #include "gtest/gtest.h"
 #include "base/base_types.h"
 #include "generator/solver_pass_gen/general_solver/general_solver_gen.h"
+#include "test_common_utils.h"
 
 using namespace att;
 
@@ -75,6 +76,7 @@ class ST_GENERAL_SOLVER_GEN : public ::testing::Test {
 
 TEST_F(ST_GENERAL_SOLVER_GEN, test_gen_solver_impl) {
 #include <iostream>
+#include "test_common_utils.h"
   std::string codes = solver_->GenSolverClassImpl();
   std::string expect_codes = "";
 

@@ -9,14 +9,14 @@
  */
 
 #include "register/op_lib_register_impl.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 #include "mmpa/mmpa_api.h"
 #include "framework/common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
 #include "common/checker.h"
-#include "common/plugin/plugin_manager.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace {
   const std::string custom_so_name = "libcust_opapi.so";

@@ -62,28 +62,26 @@ AscGraphBuilder &AscGraphBuilder::Loops(const std::vector<Expression> &sizes) {
 AscGraphBuilder &AscGraphBuilder::Data(const std::string &name, int64_t index, DataType dtype) {
   ascir_op::Data data_op(name.c_str(), impl_->graph_);
   auto node = impl_->graph_.FindNode(name.c_str());
+  assert(node != nullptr);
   data_op.ir_attr.SetIndex(index);
   data_op.y.dtype = dtype;
-  if (node != nullptr) {
-    impl_->nodes_[name] = node;
-  }
+  impl_->nodes_[name] = node;
   return *this;
 }
 
 AscGraphBuilder &AscGraphBuilder::Data(const std::string &name, int64_t index,
-                                        const std::vector<Expression> &shape,
-                                        const std::vector<Expression> &strides,
-                                        DataType dtype) {
+                                       const std::vector<Expression> &shape,
+                                       const std::vector<Expression> &strides,
+                                       DataType dtype) {
   ascir_op::Data data_op(name.c_str(), impl_->graph_);
   auto node = impl_->graph_.FindNode(name.c_str());
+  assert(node != nullptr);
   data_op.ir_attr.SetIndex(index);
   data_op.y.dtype = dtype;
   *data_op.y.axis = impl_->axis_ids_;
   *data_op.y.repeats = shape;
   *data_op.y.strides = strides;
-  if (node != nullptr) {
-    impl_->nodes_[name] = node;
-  }
+  impl_->nodes_[name] = node;
   return *this;
 }
 
@@ -91,13 +89,11 @@ AscGraphBuilder &AscGraphBuilder::Scalar(const std::string &name, const std::str
   ascir_op::Scalar scalar_op(name.c_str(), impl_->graph_);
   scalar_op.ir_attr.SetValue(value);
   scalar_op.y.dtype = dtype;
-  // Scalar: repeat 全1，stride 全0, 其实可以不设置，以防codegen有bug
   std::vector<Expression> scalar_repeats(impl_->loop_repeats_.size(), sym::kSymbolOne);
   *scalar_op.y.repeats = scalar_repeats;
   auto node = impl_->graph_.FindNode(name.c_str());
-  if (node != nullptr) {
-    impl_->nodes_[name] = node;
-  }
+  assert(node != nullptr);
+  impl_->nodes_[name] = node;
   return *this;
 }
 
@@ -110,10 +106,9 @@ AscGraphBuilder &AscGraphBuilder::Output(const std::string &name, const std::str
 
   impl_->nodes_[name] = node;
   auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-  }
+  assert(it != impl_->nodes_.end());
+  GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
+                      node->GetInDataAnchor(0));
   return *this;
 }
 
@@ -125,164 +120,125 @@ AscGraphBuilder &AscGraphBuilder::Workspace(const std::string &name, const std::
   impl_->nodes_[name] = node;
   if (!input.empty()) {
     auto it = impl_->nodes_.find(input);
-    if (it != impl_->nodes_.end()) {
-      GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                          node->GetInDataAnchor(0));
-    }
+    assert(it != impl_->nodes_.end());
+    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
+                        node->GetInDataAnchor(0));
   }
   return *this;
 }
 
-AscGraphBuilder &AscGraphBuilder::Load(const std::string &name, const std::string &input) {
+// Load 通用实现
+AscGraphBuilder &AscGraphBuilder::LoadImpl(const std::string &name, const std::string &input,
+                                           const std::vector<Expression> *shape,
+                                           const std::vector<Expression> *strides) {
   ascir_op::Load load_op(name.c_str());
-  auto node = impl_->graph_.AddNode(load_op);
+  load_op.attr.sched.axis = impl_->axis_ids_;
   *load_op.y.axis = impl_->axis_ids_;
 
-  impl_->nodes_[name] = node;
+  auto &input_tensor = GetInputOutputTensor(input);
+  load_op.y.dtype = input_tensor.attr.dtype;
 
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
+  if (shape != nullptr && !shape->empty()) {
+    *load_op.y.repeats = *shape;
+  } else {
+    *load_op.y.repeats = impl_->loop_repeats_;
+  }
+  if (strides != nullptr) {
+    *load_op.y.strides = *strides;
   }
 
-  // 默认使用 loop_repeats_
-  *load_op.y.repeats = impl_->loop_repeats_;
-  load_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-
+  CreateNodeAndConnect(name, load_op, input);
   return *this;
+}
+
+AscGraphBuilder &AscGraphBuilder::Load(const std::string &name, const std::string &input) {
+  return LoadImpl(name, input, nullptr, nullptr);
 }
 
 AscGraphBuilder &AscGraphBuilder::Load(const std::string &name, const std::string &input,
                                        const std::vector<Expression> &shape,
                                        const std::vector<Expression> &strides) {
-  ascir_op::Load load_op(name.c_str());
-  auto node = impl_->graph_.AddNode(load_op);
-  *load_op.y.axis = impl_->axis_ids_;
+  return LoadImpl(name, input, &shape, &strides);
+}
 
-  impl_->nodes_[name] = node;
+// Store 通用实现
+AscGraphBuilder &AscGraphBuilder::StoreImpl(const std::string &name, const std::string &input,
+                                            const std::vector<Expression> *shape,
+                                            const std::vector<Expression> *strides) {
+  ascir_op::Store store_op(name.c_str());
+  store_op.attr.sched.axis = impl_->axis_ids_;
 
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
+  auto &input_tensor = GetInputOutputTensor(input);
+  *store_op.y.axis = input_tensor.attr.axis;
+  store_op.y.dtype = input_tensor.attr.dtype;
+  if (shape != nullptr) {
+    *store_op.y.repeats = *shape;
+  } else {
+    *store_op.y.repeats = input_tensor.attr.repeats;
+  }
+  if (strides != nullptr) {
+    *store_op.y.strides = *strides;
   }
 
-  *load_op.y.repeats = shape;
-  *load_op.y.strides = strides;
-  load_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-
+  CreateNodeAndConnect(name, store_op, input);
   return *this;
 }
 
 AscGraphBuilder &AscGraphBuilder::Store(const std::string &name, const std::string &input) {
-  ascir_op::Store store_op(name.c_str());
-  auto node = impl_->graph_.AddNode(store_op);
-  impl_->nodes_[name] = node;
-
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    *store_op.y.axis = it->second->outputs()[0]->attr.axis;
-    *store_op.y.repeats = it->second->outputs()[0]->attr.repeats;
-    store_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-  }
-
-  return *this;
+  return StoreImpl(name, input, nullptr, nullptr);
 }
 
 AscGraphBuilder &AscGraphBuilder::Store(const std::string &name, const std::string &input,
                                         const std::vector<Expression> &shape,
                                         const std::vector<Expression> &strides) {
-  ascir_op::Store store_op(name.c_str());
-  auto node = impl_->graph_.AddNode(store_op);
-  impl_->nodes_[name] = node;
+  return StoreImpl(name, input, &shape, &strides);
+}
 
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    *store_op.y.axis = it->second->outputs()[0]->attr.axis;
-    store_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-  }
+AscGraphBuilder &AscGraphBuilder::BroadcastImpl(const std::string &name, const std::string &input,
+                                                const std::vector<Expression> &output_shape) {
+  auto &input_tensor = GetInputOutputTensor(input);
 
-  *store_op.y.repeats = shape;
-  *store_op.y.strides = strides;
+  ascir_op::Broadcast brc_op(name.c_str());
+  brc_op.attr.sched.axis = impl_->axis_ids_;
+  *brc_op.y.axis = input_tensor.attr.axis;
+  brc_op.y.dtype = input_tensor.attr.dtype;
+  *brc_op.y.repeats = output_shape;
 
+  CreateNodeAndConnect(name, brc_op, input);
   return *this;
 }
 
 AscGraphBuilder &AscGraphBuilder::Broadcast(const std::string &name, const std::string &input,
                                             const std::vector<int64_t> &brc_axes) {
-  ascir_op::Broadcast brc_op(name.c_str());
-  auto node = impl_->graph_.AddNode(brc_op);
-  impl_->nodes_[name] = node;
+  auto &input_tensor = GetInputOutputTensor(input);
 
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    *brc_op.y.axis = it->second->outputs()[0]->attr.axis;
-    brc_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-
-    std::vector<Expression> output_shape = it->second->outputs()[0]->attr.repeats;
-    for (int64_t axis: brc_axes) {
-      if (axis >= 0 && axis < static_cast<int64_t>(output_shape.size()) &&
-          axis < static_cast<int64_t>(impl_->loop_repeats_.size())) {
-        output_shape[axis] = impl_->loop_repeats_[axis];
-      }
+  std::vector<Expression> output_shape = input_tensor.attr.repeats;
+  for (int64_t axis: brc_axes) {
+    if (axis >= 0 && axis < static_cast<int64_t>(output_shape.size()) &&
+        axis < static_cast<int64_t>(impl_->loop_repeats_.size())) {
+      output_shape[axis] = impl_->loop_repeats_[axis];
     }
-    *brc_op.y.repeats = output_shape;
   }
 
-  return *this;
+  return BroadcastImpl(name, input, output_shape);
 }
 
 AscGraphBuilder &AscGraphBuilder::Broadcast(const std::string &name, const std::string &input,
                                             std::initializer_list<int64_t> brc_axes) {
-  // 转换为 vector 调用另一个重载
   std::vector<int64_t> axes_vec(brc_axes);
   return Broadcast(name, input, axes_vec);
 }
 
 AscGraphBuilder &AscGraphBuilder::Broadcast(const std::string &name, const std::string &input,
                                             const std::vector<Expression> &shape) {
-  ascir_op::Broadcast brc_op(name.c_str());
-  auto node = impl_->graph_.AddNode(brc_op);
-  impl_->nodes_[name] = node;
-
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    *brc_op.y.axis = it->second->outputs()[0]->attr.axis;
-    brc_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-    *brc_op.y.repeats = shape;
-  }
-
-  return *this;
+  return BroadcastImpl(name, input, shape);
 }
 
 AscGraphBuilder &AscGraphBuilder::Transpose(const std::string &name, const std::string &input,
                                             const std::vector<int64_t> &axes) {
-  ascir_op::Transpose transpose_op(name.c_str());
-  auto node = impl_->graph_.AddNode(transpose_op);
-  impl_->nodes_[name] = node;
+  auto &input_tensor = GetInputOutputTensor(input);
+  const auto &input_shape = input_tensor.attr.repeats;
 
-  // 获取输入节点的输出 shape
-  std::vector<Expression> input_shape;
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end() && !it->second->outputs().empty()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    transpose_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-    input_shape = it->second->outputs()[0]->attr.repeats;
-  } else {
-    input_shape = impl_->loop_repeats_;
-  }
-
-  // 在输入 shape 的基础上做 transpose
   std::vector<Expression> output_shape;
   std::vector<AxisId> output_axis;
   for (int64_t axis_idx: axes) {
@@ -294,103 +250,80 @@ AscGraphBuilder &AscGraphBuilder::Transpose(const std::string &name, const std::
     }
   }
 
+  ascir_op::Transpose transpose_op(name.c_str());
+  transpose_op.attr.sched.axis = output_axis;
   *transpose_op.y.repeats = output_shape;
   *transpose_op.y.axis = output_axis;
+  transpose_op.y.dtype = input_tensor.attr.dtype;
 
+  CreateNodeAndConnect(name, transpose_op, input);
   return *this;
 }
 
 AscGraphBuilder &AscGraphBuilder::Concat(const std::string &name, const std::vector<std::string> &inputs) {
   ascir_op::Concat concat_op(name.c_str());
-  auto node = impl_->graph_.AddNode(concat_op);
-  impl_->nodes_[name] = node;
-
-  // 添加所有输入的边（动态输入）
-  for (size_t i = 0; i < inputs.size(); ++i) {
-    auto it = impl_->nodes_.find(inputs[i]);
-    if (it != impl_->nodes_.end()) {
-      GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                          node->GetInDataAnchor(i));
-    }
-  }
-
-  // 输出属性：repeat 为 loop_repeat，其他跟随 input[0]
-  if (!inputs.empty()) {
-    auto it = impl_->nodes_.find(inputs[0]);
-    if (it != impl_->nodes_.end() && !it->second->outputs().empty()) {
-      *concat_op.y.axis = it->second->outputs()[0]->attr.axis;
-      concat_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-    }
-  }
+  concat_op.attr.sched.axis = impl_->axis_ids_;
   *concat_op.y.repeats = impl_->loop_repeats_;
 
-  return *this;
-}
+  auto &input_tensor = GetInputOutputTensor(inputs.empty() ? "" : inputs[0]);
+  *concat_op.y.axis = input_tensor.attr.axis;
+  concat_op.y.dtype = input_tensor.attr.dtype;
 
-AscGraphBuilder &AscGraphBuilder::Max(const std::string &name, const std::string &input,
-                                      const std::vector<size_t> &reduce_axes) {
-  ascir_op::Max max_op(name.c_str());
-  auto node = impl_->graph_.AddNode(max_op);
-  impl_->nodes_[name] = node;
+  auto node = CreateNode(name, concat_op);
 
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    std::vector<Expression> output_shape = it->second->outputs()[0]->attr.repeats;
-    std::set<size_t> axes_set(reduce_axes.begin(), reduce_axes.end());
-    for (size_t i = 0; i < output_shape.size(); ++i) {
-      if (axes_set.count(i) > 0) {
-        output_shape[i] = sym::kSymbolOne;
-      }
-    }
-    *max_op.y.axis = it->second->outputs()[0]->attr.axis;
-    max_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-    *max_op.y.repeats = output_shape;
+  for (size_t i = 0; i < inputs.size(); ++i) {
+    ConnectEdge(inputs[i], node, i);
   }
 
   return *this;
 }
 
-AscGraphBuilder &AscGraphBuilder::Sum(const std::string &name, const std::string &input,
-                                      const std::vector<size_t> &reduce_axes) {
-  ascir_op::Sum sum_op(name.c_str());
-  auto node = impl_->graph_.AddNode(sum_op);
-  impl_->nodes_[name] = node;
+// 通用 Reduce 模板实现
+template<typename ReduceOp>
+AscGraphBuilder &AscGraphBuilder::Reduce(const std::string &name, const std::string &input,
+                                         const std::vector<size_t> &reduce_axes) {
+  auto &input_tensor = GetInputOutputTensor(input);
 
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    std::vector<Expression> output_shape = it->second->outputs()[0]->attr.repeats;
-    std::set<size_t> axes_set(reduce_axes.begin(), reduce_axes.end());
-    for (size_t i = 0; i < output_shape.size(); ++i) {
-      if (axes_set.count(i) > 0) {
-        output_shape[i] = sym::kSymbolOne;
-      }
+  std::vector<Expression> output_shape = input_tensor.attr.repeats;
+  for (size_t axis: reduce_axes) {
+    if (axis < output_shape.size()) {
+      output_shape[axis] = sym::kSymbolOne;
     }
-    *sum_op.y.axis = it->second->outputs()[0]->attr.axis;
-    sum_op.y.dtype = it->second->outputs()[0]->attr.dtype;
-    *sum_op.y.repeats = output_shape;
   }
 
+  ReduceOp reduce_op(name.c_str());
+  reduce_op.attr.sched.axis = impl_->axis_ids_;
+  *reduce_op.y.axis = input_tensor.attr.axis;
+  reduce_op.y.dtype = input_tensor.attr.dtype;
+  *reduce_op.y.repeats = output_shape;
+
+  CreateNodeAndConnect(name, reduce_op, input);
   return *this;
 }
+
+template AscGraphBuilder &AscGraphBuilder::Reduce<ascir_op::Max>(
+  const std::string &, const std::string &, const std::vector<size_t> &);
+
+template AscGraphBuilder &AscGraphBuilder::Reduce<ascir_op::Sum>(
+  const std::string &, const std::string &, const std::vector<size_t> &);
 
 AscGraphBuilder &AscGraphBuilder::Cast(const std::string &name, const std::string &input, DataType dtype) {
-  ascir_op::Cast cast_op(name.c_str());
-  auto node = impl_->graph_.AddNode(cast_op);
-  cast_op.y.dtype = dtype;
-  impl_->nodes_[name] = node;
+  auto &input_tensor = GetInputOutputTensor(input);
 
-  auto it = impl_->nodes_.find(input);
-  if (it != impl_->nodes_.end()) {
-    GraphUtils::AddEdge(it->second->GetOutDataAnchor(0),
-                        node->GetInDataAnchor(0));
-    *cast_op.y.axis = it->second->outputs()[0]->attr.axis;
-    *cast_op.y.repeats = it->second->outputs()[0]->attr.repeats;
-  }
+  ascir_op::Cast cast_op(name.c_str());
+  cast_op.attr.sched.axis = impl_->axis_ids_;
+  cast_op.y.dtype = dtype;
+  *cast_op.y.axis = input_tensor.attr.axis;
+  *cast_op.y.repeats = input_tensor.attr.repeats;
+
+  CreateNodeAndConnect(name, cast_op, input);
   return *this;
+}
+
+void AscGraphBuilder::ConnectEdge(const std::string &src_name, AscNodePtr dst_node, size_t dst_index) {
+  auto it = impl_->nodes_.find(src_name);
+  assert(it != impl_->nodes_.end());
+  GraphUtils::AddEdge(it->second->GetOutDataAnchor(0), dst_node->GetInDataAnchor(dst_index));
 }
 
 AscGraph AscGraphBuilder::Build() {
@@ -409,7 +342,6 @@ AscGraph AscGraphBuilder::Build() {
         output->attr.repeats = impl_->loop_repeats_;
       }
 
-      // 设置 strides（如果还没设置）
       if (output->attr.strides.empty()) {
         ComputeStrides(output->attr.repeats, output->attr.strides);
       }

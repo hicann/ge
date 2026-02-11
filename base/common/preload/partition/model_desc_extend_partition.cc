@@ -9,7 +9,7 @@
  */
 
 #include "common/preload/partition/model_desc_extend_partition.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 Status ModelDescExtendPartition::SaveModelDescExtendPartitonTlv() {

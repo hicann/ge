@@ -12,7 +12,7 @@
 #include "grpc++/grpc++.h"
 #include "mmpa/mmpa_api.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "proto/deployer.grpc.pb.h"
 

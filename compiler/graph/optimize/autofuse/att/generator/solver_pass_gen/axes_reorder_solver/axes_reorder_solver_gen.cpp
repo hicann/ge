@@ -1178,9 +1178,11 @@ std::string AxesReorderSolverGen::GenSolverFuncImpl() {
   const ge::char_t *high_perf_val = (enable_high_perf_ && (!enable_group_parallel_)) ? "true" : "false";
   bool hit_pattern = NeedUBMultiCoreBalance();
   const auto enable_block_loop_trade_off_by_perf = IsEnableBlockLoopTradeOffByPerf();
+  const bool model_tradeoff_enable = tiling_schedule_config_.trade_off_config.is_enable && (!enable_group_parallel_);
   const std::string enable_multicore_ub_tradeoff =
-      ((enable_multicore_ub_tradeoff_ || tiling_schedule_config_.trade_off_config.is_enable) && hit_pattern) ? "true"
-                                                                                                             : "false";
+      ((enable_multicore_ub_tradeoff_ || model_tradeoff_enable) && hit_pattern)
+        ? "true"
+        : "false";
   // 根据enable_equal_order_生成不同的Run调用参数
   std::string enable_equal_order_arg = enable_equal_order_ ? ", true" : ", false";
   // 是否开启性能公式权衡核内循环数，vec重型算子/使能多核权衡时不使能该功能
@@ -1194,9 +1196,11 @@ std::string AxesReorderSolverGen::GenSolverFuncImpl() {
   codes += "    if (!solver.Run(" + run_args + ")) {\n";
   GELOGI(
       "[DFX] Gen solver func, high_perf_val: %s, hit_pattern: %d, high_perf_: %d, multicore_ub_tradeoff:%d, "
-      "tiling_schedule_config.trade_off_config:%s, parallel enable flag:%d, enable_block_loop_trade_off_by_perf:%s, enable_equal_order_:%d",
-      high_perf_val, hit_pattern, enable_high_perf_, enable_multicore_ub_tradeoff_,
-      tiling_schedule_config_.trade_off_config.DebugString().c_str(), enable_group_parallel_, enable_block_loop_trade_off_by_perf.c_str(),
+      "model_tradeoff_enable:%d, trade_off_config:%s, parallel enable flag:%d, "
+      "enable_block_loop_trade_off_by_perf:%s, enable_equal_order_:%d",
+      high_perf_val, hit_pattern, enable_high_perf_, enable_multicore_ub_tradeoff_, model_tradeoff_enable,
+      tiling_schedule_config_.trade_off_config.DebugString().c_str(), enable_group_parallel_,
+      enable_block_loop_trade_off_by_perf.c_str(),
       enable_equal_order_);
   // 使能高性能tiling模式并且命中ub多核可调优patterns
   codes += "      return false;\n";

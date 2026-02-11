@@ -14,7 +14,7 @@
 #include "graph/utils/graph_utils.h"
 #include "exe_graph/runtime/tiling_parse_context.h"
 #include "platform/platform_infos_def.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "register/op_impl_registry.h"
 #include "faker/node_faker.h"
 

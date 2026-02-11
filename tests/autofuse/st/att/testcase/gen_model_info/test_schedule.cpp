@@ -241,8 +241,7 @@ TEST_F(TestSchedule, case0) {
   AddHeaderGuardToFile("autofuse_tiling_func_common.h", "__AUTOFUSE_TILING_FUNC_COMMON_H__");
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_special.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_special.cpp OpTest5_*tiling_func.cpp -I ./ -o tiling_func_main_special -g");

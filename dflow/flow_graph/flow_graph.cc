@@ -11,7 +11,7 @@
 #include "flow_graph/flow_graph.h"
 #include "common/checker.h"
 #include "common/util/mem_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "data_flow_attr_define.h"
 #include "flow_attr_util.h"
 #include "flow_graph_utils.h"

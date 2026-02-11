@@ -24,10 +24,10 @@
 #include "register/op_tiling/op_tiling_constants.h"
 #include "ge/ge_api_types.h"
 #include "graph/ge_local_context.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "common/env_path.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 using namespace ge;
 

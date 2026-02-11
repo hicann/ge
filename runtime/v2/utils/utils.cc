@@ -16,7 +16,7 @@
 #include "graph/ge_local_context.h"
 #include "common/debug/ge_log.h"
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "exe_graph/runtime/context_extend.h"
 #include "exe_graph/runtime/kernel_context.h"
 #include "core/builder/node_types.h"

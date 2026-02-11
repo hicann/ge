@@ -51,8 +51,11 @@ ge::Status LoadApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_sh
   std::string node_name = node_ptr != nullptr ? node_ptr->GetName() : "LoadNode";
   auto merged_output_shapes = output_shapes[0];
   GE_ASSERT_SUCCESS(MergeTensorContinuousDims(node_ptr, GetNodeOutTensorName(node_ptr, 0), merged_output_shapes));
-  NodeDetail dma_info =
-      NodeDetail{node_name, node_ptr->GetType(), {merged_output_shapes.data_type}, {merged_output_shapes.data_type}};
+  NodeDetail dma_info;
+  dma_info.name = node_name;
+  dma_info.optype = node_ptr->GetType();
+  dma_info.input_dtype = {merged_output_shapes.data_type};
+  dma_info.output_dtype = {merged_output_shapes.data_type};
   GE_ASSERT_SUCCESS(SetDims(merged_output_shapes, dma_info));
   GE_ASSERT_SUCCESS(GetDmaPerf(merged_output_shapes, dma_info, perf_res, kMaxDmaLen));
   return ge::SUCCESS;
@@ -79,8 +82,11 @@ ge::Status NddmaApi([[maybe_unused]] const std::vector<TensorShapeInfo> &input_s
   std::string node_name = node_ptr != nullptr ? node_ptr->GetName() : "NddmaNode";
   auto merged_output_shapes = output_shapes[0];
   GE_ASSERT_SUCCESS(MergeTensorContinuousDims(node_ptr, GetNodeOutTensorName(node_ptr, 0), merged_output_shapes));
-  NodeDetail dma_info =
-      NodeDetail{node_name, node_ptr->GetType(), {merged_output_shapes.data_type}, {merged_output_shapes.data_type}};
+  NodeDetail dma_info;
+  dma_info.name = node_name;
+  dma_info.optype = node_ptr->GetType();
+  dma_info.input_dtype = {merged_output_shapes.data_type};
+  dma_info.output_dtype = {merged_output_shapes.data_type};
   GE_ASSERT_SUCCESS(SetDims(merged_output_shapes, dma_info));
   GE_ASSERT_SUCCESS(GetDmaPerf(merged_output_shapes, dma_info, perf_res, kMaxNddmaLen, false));
   return ge::SUCCESS;
@@ -106,8 +112,11 @@ ge::Status StoreApiV2([[maybe_unused]] const std::vector<TensorShapeInfo> &input
   auto merged_output_shapes = output_shapes[0];
   GE_ASSERT_SUCCESS(
       MergeTensorContinuousDims(store_node_ptr, GetNodeOutTensorName(store_node_ptr, 0), merged_output_shapes));
-  NodeDetail dma_info = NodeDetail{
-      store_node_name, store_node_ptr->GetType(), {merged_output_shapes.data_type}, {merged_output_shapes.data_type}};
+  NodeDetail dma_info;
+  dma_info.name = store_node_name;
+  dma_info.optype = store_node_ptr->GetType();
+  dma_info.input_dtype = {merged_output_shapes.data_type};
+  dma_info.output_dtype = {merged_output_shapes.data_type};
   GE_ASSERT_SUCCESS(SetDims(merged_output_shapes, dma_info));
   GE_ASSERT_SUCCESS(GetDmaPerf(merged_output_shapes, dma_info, perf_res, kMaxDmaLen));
   return ge::SUCCESS;

@@ -24,7 +24,7 @@
 #include "graph/ge_local_context.h"
 #include "graph/passes/graph_builder_utils.h"
 #include "dlog_pub.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "ge_runtime_stub/include/common/share_graph.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "register/optimization_option_registry.h"

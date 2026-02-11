@@ -25,7 +25,7 @@
 #include "platform/platform_info.h"
 #include "exe_graph/runtime/storage_shape.h"
 #include "ge_common/ge_api_types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "base/err_mgr.h"
 #include "exe_graph/lowering/kernel_run_context_builder.h"
 #include "exe_graph/runtime/tiling_context.h"
@@ -33,7 +33,7 @@
 #include "graph/utils/math_util.h"
 #include "hcom/hcom_topo_info.h"
 #include "register/core_num_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 __attribute__((unused)) void to_json(nlohmann::json &j, const HcomTopoInfo::TopoLevelDesc &desc) {

@@ -21,7 +21,7 @@
 #include "common/dump/kernel_tracing_utils.h"
 #include "framework/common/debug/ge_log.h"
 #include "runtime/mem.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 #include <set>
 #include <utility>

@@ -14,7 +14,7 @@
 
 #include "graph/opsproto_manager.h"
 #include "depends/mmpa/src/mmpa_stub.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 
 using namespace std;
 using namespace testing;

@@ -224,6 +224,11 @@ target_include_directories(ge_executor PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_libraries(ge_executor PRIVATE
@@ -283,6 +288,12 @@ target_include_directories(ge_executor_shared PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_options(ge_executor_shared PRIVATE
@@ -293,12 +304,13 @@ target_link_options(ge_executor_shared PRIVATE
 target_link_libraries(ge_executor_shared
     PRIVATE
         intf_pub
-        cce_headers
+        $<$<TARGET_EXISTS:cce_headers>:cce_headers>
+        $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         msprof_headers
         adump_headers
         mmpa_headers
         hccl_headers
-        datagw_headers
+        $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         -Wl,--no-as-needed
         ge_common
         ge_common_base
@@ -357,6 +369,11 @@ target_include_directories(davinci_executor PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_options(davinci_executor PRIVATE
@@ -366,12 +383,13 @@ target_link_options(davinci_executor PRIVATE
 target_link_libraries(davinci_executor
   PRIVATE
     intf_pub
-    cce_headers
+    $<$<TARGET_EXISTS:cce_headers>:cce_headers>
+    $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
     msprof_headers
     adump_headers
     mmpa_headers
     hccl_headers
-    datagw_headers
+    $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
     -Wl,--no-as-needed
     graph_base
     ge_common
@@ -446,6 +464,12 @@ target_include_directories(hybrid_executor PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${TOP_DIR}/hcomm/pkg_inc
+    ${TOP_DIR}/hcomm/include
 )
 
 target_link_options(hybrid_executor PRIVATE
@@ -455,11 +479,12 @@ target_link_options(hybrid_executor PRIVATE
 target_link_libraries(hybrid_executor
   PRIVATE
     intf_pub
-    cce_headers
+    $<$<TARGET_EXISTS:cce_headers>:cce_headers>
+    $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
     msprof_headers
     mmpa_headers
     adump_headers
-    datagw_headers
+    $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
     hccl_headers
     -Wl,--no-as-needed
     graph
@@ -550,6 +575,10 @@ target_include_directories(hybrid_executor_stub PRIVATE
     ${AIR_CODE_DIR}/inc/framework
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_link_libraries(hybrid_executor_stub PRIVATE
@@ -559,7 +588,8 @@ target_link_libraries(hybrid_executor_stub PRIVATE
     mmpa_headers
     runtime_headers
     metadef_headers
-    cce_headers
+    $<$<TARGET_EXISTS:cce_headers>:cce_headers>
+    $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
     c_sec_headers
     ascend_protobuf_shared_headers
     $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>

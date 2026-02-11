@@ -48,6 +48,9 @@ target_include_directories(npu_sched_model_loader PRIVATE
         ${AIR_CODE_DIR}/inc
         ${AIR_CODE_DIR}/inc/external
         ${AIR_CODE_DIR}
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
         .
         )
 
@@ -176,6 +179,9 @@ target_include_directories(model_deployer PRIVATE
         ${CMAKE_BINARY_DIR}/proto/data_flow_base_proto
         ${CMAKE_BINARY_DIR}/proto_grpc/deployer
         ${METADEF_DIR}/pkg_inc
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
         .
         )
 
@@ -257,6 +263,9 @@ target_include_directories(deployer_daemon PRIVATE
         ${AIR_CODE_DIR}/inc/graph_metadef
         ${DEPLOYER_DAEMON_INC_LIST}
         ${METADEF_DIR}/pkg_inc
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
         )
 
 target_compile_options(deployer_daemon PRIVATE
@@ -352,6 +361,9 @@ target_include_directories(npu_executor_main PRIVATE
         ${AIR_CODE_DIR}/inc/graph_metadef
         ${NPU_EXECUTOR_INC_LIST}
         ${METADEF_DIR}/pkg_inc
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
         )
 
 target_compile_options(npu_executor_main PRIVATE
@@ -461,6 +473,9 @@ target_include_directories(host_cpu_executor_main PRIVATE
         ${AIR_CODE_DIR}/inc/graph_metadef
         ${HOST_CPU_EXECUTOR_INC_LIST}
         ${METADEF_DIR}/pkg_inc
+        ${TOP_DIR}/runtime/include/external
+        ${TOP_DIR}/runtime/include/external/acl
+        ${TOP_DIR}/runtime/include/external/acl/error_codes
         )
 
 target_compile_options(host_cpu_executor_main PRIVATE

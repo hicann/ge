@@ -15,7 +15,7 @@
 #include "pass/concat_from_sequence_pass.h"
 #include "graph/compute_graph.h"
 
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"
 #include "framework/common/ge_inner_error_codes.h"

@@ -13,7 +13,7 @@
 #include "graph/utils/node_utils.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 #include "utils/autofuse_utils.h"
 #include "graph/attribute_group/attr_group_symbolic_desc.h"

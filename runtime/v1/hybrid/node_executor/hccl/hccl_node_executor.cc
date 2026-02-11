@@ -10,7 +10,7 @@
 
 #include "hybrid/node_executor/hccl/hccl_node_executor.h"
 
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/math/math_util.h"
 #include "graph/attr_value.h"
 #include "graph/debug/ge_attr_define.h"

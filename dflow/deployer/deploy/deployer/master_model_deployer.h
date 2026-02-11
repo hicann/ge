@@ -15,7 +15,7 @@
 #include "common/config/device_debug_config.h"
 #include "dflow/base/deploy/model_deployer.h"
 #include "dflow/base/deploy/deploy_planner.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/config/device_debug_config.h"
 #include "common/data_flow/route/rank_table_builder.h"
 #include "ge/ge_ir_build.h"

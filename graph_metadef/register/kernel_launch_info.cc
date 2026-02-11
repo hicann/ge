@@ -9,7 +9,7 @@
  */
 
 #include "graph/kernel_launch_info.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "kernel_launch_info_impl.h"
 #include "common/checker.h"
 

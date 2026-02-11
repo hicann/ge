@@ -11,7 +11,7 @@
 #include "framework/common/helper/om_file_helper.h"
 
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "common/helper/model_parser_base.h"
 #include "common/helper/file_saver.h"
 #include "common/math/math_util.h"

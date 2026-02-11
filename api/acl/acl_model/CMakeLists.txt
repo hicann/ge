@@ -45,6 +45,10 @@ target_include_directories(acl_mdl_impl PRIVATE
     ${AIR_CODE_DIR}/base/metadef/pkg_inc
     ${ASCEND_INSTALL_PATH}/pkg_inc
     ${ASCEND_INSTALL_PATH}/pkg_inc/runtime
+
+    ${TOP_DIR}/air/inc/external
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
 )
 
 target_compile_options(acl_mdl_impl PRIVATE
@@ -118,6 +122,11 @@ target_include_directories(acl_mdl PRIVATE
 
     ${ASCEND_INSTALL_PATH}/include
     ${ASCEND_INSTALL_PATH}/include/acl
+
+    ${TOP_DIR}/air/inc/external
+    ${TOP_DIR}/air/inc/external/acl
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl
 )
 
 target_compile_options(acl_mdl PRIVATE

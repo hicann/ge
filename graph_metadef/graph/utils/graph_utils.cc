@@ -22,10 +22,10 @@
 #include <mutex>
 
 #include "graph/ge_context.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/ge_local_context.h"
 #include "proto/ge_ir.pb.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/ge_ir_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/attr_utils.h"

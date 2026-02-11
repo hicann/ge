@@ -57,8 +57,7 @@ class TestAttLog : public ::testing::Test {
     AddHeaderGuardToFile("autofuse_tiling_func_common.h", "__AUTOFUSE_TILING_FUNC_COMMON_H__");
     std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_attlog_main.cpp ./ -f").c_str());
     std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-    std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-    std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+    autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
     std::string build_cmd = "g++ -DDEBUG tiling_func_attlog_main.cpp OpTest6_*_tiling_func.cpp -DLOG_CPP -I ./";
     build_cmd.append(ResultCheckerUtils::GetDependAscendIncPath()).append(" -o tiling_func_log_main");
     std::system(build_cmd.c_str());

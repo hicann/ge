@@ -42,6 +42,7 @@
 #include <debug/ge_attr_define.h>
 #include <dirent.h>
 #include <google/protobuf/text_format.h>
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "proto/onnx/ge_onnx.pb.h"
 using namespace ge;
 namespace {

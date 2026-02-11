@@ -431,6 +431,9 @@ target_include_directories(ge_compiler SYSTEM PRIVATE
     ${METADEF_DIR}/base/registry
     ${METADEF_DIR}/register
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/metadef/inc
+    ${TOP_DIR}/runtime/include/external/
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
 )
 
 target_link_options(ge_compiler PRIVATE

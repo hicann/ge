@@ -11,7 +11,7 @@
 #include "graph/utils/connection_matrix.h"
 #include "connection_matrix_impl.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 ConnectionMatrix::ConnectionMatrix(const ComputeGraphPtr &graph)

@@ -11,7 +11,7 @@
 #include "redundant_slice_remove_pass.h"
 #include "graph/debug/ge_op_types.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "utils/auto_fuse_config.h"
 #include "utils/autofuse_utils.h"

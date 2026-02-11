@@ -15,7 +15,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/optimize/graph_optimize.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/range_vistor.h"
 
 namespace ge {

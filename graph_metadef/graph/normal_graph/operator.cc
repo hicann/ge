@@ -18,7 +18,7 @@
 #include "graph/operator_factory.h"
 #include "framework/common/debug/ge_log.h"
 #include "debug/ge_op_types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/attr_value.h"
 #include "graph/compute_graph.h"
 #include "graph/ge_context.h"

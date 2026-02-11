@@ -14,8 +14,8 @@
 #include "llm_test_helper.h"
 #include "common/mem_utils.h"
 #include "common/llm_checker.h"
-#include "graph/aligned_ptr.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/aligned_ptr.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 const int64_t UNKNOWN_DIM_SIZE = -1;

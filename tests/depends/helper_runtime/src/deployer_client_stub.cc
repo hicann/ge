@@ -11,7 +11,7 @@
 #include <sstream>
 #include "deploy/rpc/deployer_client.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "daemon/daemon_service.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"

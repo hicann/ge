@@ -22,19 +22,6 @@ using namespace att;
 using namespace ge::ascir_op;
 class TestGenModelInfo : public ::testing::Test {
  public:
-  static void TearDownTestCase()
-  {
-    std::cout << "Test end." << std::endl;
-  }
-  static void SetUpTestCase()
-  {
-    std::cout << "Test begin." << std::endl;
-  }
-  void SetUp() override {
-     // Code here will be called immediately after the constructor (right
-     // before each test).
-  }
-
   void TearDown() override {
      // 清理测试生成的临时文件
      autofuse::test::CleanupTestArtifacts();
@@ -67,8 +54,7 @@ TEST_F(TestGenModelInfo, case0)
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_fa.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_fa.cpp FA_tiling_func.cpp -I ./ -o tiling_func_main_fa");
@@ -96,8 +82,7 @@ TEST_F(TestGenModelInfo, case0_gen_tiling_impl)
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_fa.cpp ./ -f").c_str());
   ret = std::system("sed -i 's/TilingData/graphTilingData/g' tiling_func_main_fa.cpp");
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_fa.cpp FA_tiling_func.cpp -I ./ -o tiling_func_main_fa");
@@ -529,8 +514,7 @@ TEST_F(TestGenModelInfo, OptionTest05)
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_fa.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_fa.cpp FA_tiling_func.cpp -I ./ -o tiling_func_main_fa");
@@ -630,8 +614,7 @@ TEST_F(TestGenModelInfo, case_axes_reorder)
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_fa.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_fa.cpp FA_tiling_func.cpp -I ./ -o tiling_func_main_fa");

@@ -16,7 +16,7 @@
 #include "exe_graph/lowering/bg_ir_attrs.h"
 #include "exe_graph/runtime/context_extend.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/math_util.h"
 

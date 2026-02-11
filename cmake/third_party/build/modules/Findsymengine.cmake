@@ -44,7 +44,7 @@ else()
             PATCH_COMMAND patch -p1 < ${CMAKE_CURRENT_LIST_DIR}/patch/symengine_add_mod.patch
         )
     endif()
-    set(SYMENGINE_CXXFLAGS "-fPIC -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI}")
+    set(SYMENGINE_CXXFLAGS "-fPIC -D_GLIBCXX_USE_CXX11_ABI=${USE_CXX11_ABI} -std=c++17")
 
     ExternalProject_Add(symengine_build
             SOURCE_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/symengine
@@ -64,6 +64,8 @@ else()
                 -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
                 -DCMAKE_INSTALL_PREFIX=${CMAKE_THIRD_PARTY_LIB_DIR}/symengine
                 -DCMAKE_PREFIX_PATH=${CMAKE_THIRD_PARTY_LIB_DIR}/boost
+                -DLLVM_PATH=${LLVM_PATH}
+                -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                 <SOURCE_DIR>
             BUILD_COMMAND $(MAKE)
             INSTALL_COMMAND $(MAKE) install

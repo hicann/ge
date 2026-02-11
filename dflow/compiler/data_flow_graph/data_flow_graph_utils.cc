@@ -12,7 +12,7 @@
 #include "common/util/mem_utils.h"
 #include "framework/common/types.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 Status DataFlowGraphUtils::CreateFlowNodeOpDesc(const std::string &op_name, uint32_t input_num, uint32_t output_num,

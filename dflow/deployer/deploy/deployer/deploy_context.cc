@@ -13,7 +13,7 @@
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "common/thread_pool.h"
 #include "nlohmann/json.hpp"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "securec.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
@@ -26,7 +26,7 @@
 #include "common/data_flow/route/rank_table_builder.h"
 #include "common/utils/rts_api_utils.h"
 #include "graph/utils/tensor_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 namespace {

@@ -80,8 +80,7 @@ TEST_F(TestGenMatmulModelInfoE2E, case1) {
   
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_matmul_main.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_matmul_main.cpp Matmul_*tiling_func.cpp -I ./ -o tiling_func_main -Werror");
@@ -107,8 +106,7 @@ TEST_F(TestGenMatmulModelInfoE2E, axes_reorder) {
   
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_matmul_main.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_matmul_main.cpp Matmul_*tiling_func.cpp -I ./ -o tiling_func_main -Werror -DSTUB_LOG");

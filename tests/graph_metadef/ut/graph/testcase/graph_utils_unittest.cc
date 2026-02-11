@@ -21,7 +21,7 @@
 #include "graph_builder_utils.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "mmpa/mmpa_api.h"

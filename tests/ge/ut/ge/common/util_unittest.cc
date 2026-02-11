@@ -28,7 +28,7 @@
 #include "graph/types.h"
 #include "parser/tensorflow/tensorflow_parser.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "macro_utils/dt_public_unscope.h"
 
 namespace ge {

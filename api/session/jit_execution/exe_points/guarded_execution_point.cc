@@ -16,7 +16,7 @@
 #include "graph/utils/graph_utils.h"
 #include "util/mem_utils.h"
 #include "ge_common/ge_api_error_codes.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "guarded_execution_point.h"
 #include "execution_point.h"
 

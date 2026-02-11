@@ -16,7 +16,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/debug/ge_op_types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/normal_graph/node_impl.h"
 #include "graph/normal_graph/op_desc_impl.h"

@@ -20,7 +20,7 @@
 #include "graph/normal_graph/op_desc_impl.h"
 #include "graph/detail/model_serialize_imp.h"
 #include "graph/debug/ge_attr_define.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/serialization/attr_serializer_registry.h"
 #include "graph/utils/graph_utils.h"

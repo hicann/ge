@@ -15,7 +15,7 @@
 #include "ge_is_initialize.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "common/plugin/datatype_util.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/plugin/tbe_plugin_manager.h"
 #include "common/profiling/profiling_init.h"
 #include "common/profiling/profiling_properties.h"

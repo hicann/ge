@@ -10,7 +10,7 @@
 
 #include "graph/utils/graph_utils_ex.h"
 
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "common/util/trace_manager/trace_manager.h"
 #include "graph/refiner/format_refiner.h"
 #include "graph/normal_graph/operator_impl.h"

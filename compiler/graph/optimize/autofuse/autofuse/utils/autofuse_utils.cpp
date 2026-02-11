@@ -21,7 +21,7 @@
 #include "graph/detail/model_serialize_imp.h"
 #include "attribute_group/attr_group_shape_env.h"
 #include "graph/utils/type_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
 #include "ascend_graph_code_dumper.h"

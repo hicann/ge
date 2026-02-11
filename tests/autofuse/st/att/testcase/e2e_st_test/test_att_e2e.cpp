@@ -16,6 +16,7 @@
 #include <map>
 #include "gtest/gtest.h"
 #include "tiling_code_generator.h"
+#include "test_common_utils.h"
 
 using namespace att;
 namespace {
@@ -161,7 +162,8 @@ class TestAttE2e : public ::testing::Test {
   }
 
   void TearDown() override {
-    // Code here will be called immediately after each test (right
+    // 清理测试生成的临时文件
+    autofuse::test::CleanupTestArtifacts();
     // before the destructor).
   }
 };

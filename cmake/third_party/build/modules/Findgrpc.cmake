@@ -80,6 +80,8 @@ else()
                             -DCMAKE_BUILD_TYPE=Release
                             -DgRPC_BUILD_TESTS=OFF
                             -DCMAKE_INSTALL_LIBDIR=${CMAKE_INSTALL_LIBDIR}
+                            -DLLVM_PATH=${LLVM_PATH}
+                            -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                             -DgRPC_BUILD_CSHARP_EXT=OFF
                             -DgRPC_BUILD_CODEGEN=OFF
                             -DgRPC_BUILD_GRPC_CPP_PLUGIN=OFF

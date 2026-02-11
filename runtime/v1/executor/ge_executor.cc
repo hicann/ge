@@ -25,7 +25,7 @@
 #include "graph/manager/active_memory_allocator.h"
 #include "graph/ge_context.h"
 #include "single_op/single_op_manager.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "graph/opsproto_manager.h"
 #include "base/registry/opp_package_utils.h"
 #include "register/op_lib_register_impl.h"

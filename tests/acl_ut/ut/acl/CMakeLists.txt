@@ -154,6 +154,7 @@ add_library(ut_acl_cblas_src SHARED
 )
 
 target_include_directories(ut_acl_cblas_src PRIVATE
+    ${BASE_DIR}/inc
     ${BASE_DIR}/inc/graph_metadef
     ${BASE_DIR}/inc/external
     ${BASE_DIR}/inc/external/acl

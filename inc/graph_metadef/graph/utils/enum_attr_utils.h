@@ -12,7 +12,7 @@
 #define __INC_METADEF_ENUM_ATTR_UTILS_H
 
 #include <vector>
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "graph/ge_error_codes.h"
 #include "graph/ge_tensor.h"
 

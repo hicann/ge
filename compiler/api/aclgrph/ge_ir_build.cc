@@ -14,7 +14,7 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "common/helper/file_saver.h"
 #include "common/model/ge_model.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/screen_printer.h"
 #include "ge/ge_api_types.h"
 #include "register/register_types.h"

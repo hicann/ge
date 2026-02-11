@@ -14,7 +14,7 @@
 #include "common/config/configurations.h"
 #include "grpc++/grpc++.h"
 #include "proto/deployer.grpc.pb.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

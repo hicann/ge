@@ -10,7 +10,7 @@
 
 #include "tensor_serializer.h"
 #include "proto/ge_ir.pb.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "tensor_desc_serializer.h"
 #include "graph/ge_tensor.h"

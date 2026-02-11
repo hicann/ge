@@ -23,7 +23,7 @@
 #include "common/util/mem_utils.h"
 #include "core/debug/kernel_tracing.h"
 #include "graph/utils/type_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace gert {
 namespace kernel {

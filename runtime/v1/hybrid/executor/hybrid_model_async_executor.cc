@@ -23,7 +23,7 @@
 #include "graph/manager/mem_manager.h"
 #include "common/profiling_definitions.h"
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace hybrid {

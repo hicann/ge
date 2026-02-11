@@ -19,7 +19,7 @@
 
 #include "nlohmann/json.hpp"
 
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "framework/engine/dnnengine.h"
 #include "graph/op_desc.h"

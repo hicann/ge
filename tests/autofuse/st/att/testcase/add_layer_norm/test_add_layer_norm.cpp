@@ -1772,8 +1772,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, case0)
   std::system("pwd");
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm.cpp AddLayerNorm_*_tiling_func.cpp -o tiling_func_main_add_layer_norm -I ./ -DSTUB_LOG");
@@ -1829,8 +1828,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, case_axes_reorder)
   std::system("pwd");
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm.cpp AddLayerNorm_*_tiling_func.cpp -o tiling_func_main_add_layer_norm -I ./ -DSTUB_LOG");
@@ -1973,8 +1971,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_axes_reorder)
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm_sche.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm_sche.cpp add_layer_norm_autofuse_tiling_func_*_3.cpp -o tiling_func_main_add_layer_norm_autofuse -I ./");
@@ -2174,8 +2171,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_axes_reorder_enable_grou
   oss << ResultCheckerUtils::DefineCheckerFunction() << kAddLayerNormTilingFunc;
   oss.close();
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm_sche.cpp add_layer_norm_autofuse_*_tiling_func.cpp -o tiling_func_main_add_layer_norm_autofuse -I ./");
@@ -2257,8 +2253,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_axes_reorder_uniq_group)
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm.cpp add_layer_norm_autofuse_*_tiling_func.cpp -o tiling_func_main_add_layer_norm_autofuse -I ./");
@@ -2340,8 +2335,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_axes_reorder_reuse_solve
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm_reuse_solver.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ -g -O0 tiling_func_main_add_layer_norm_reuse_solver.cpp add_layer_norm_autofuse_*_tiling_func.cpp -o tiling_func_main_add_layer_norm_autofuse -I ./");
@@ -2434,8 +2428,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_axes_reorder_with_score_
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm_sche.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm_sche.cpp add_layer_norm_autofuse_*_tiling_func.cpp -o tiling_func_main_add_layer_norm_autofuse -I ./");
@@ -2523,8 +2516,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_axes_reorder_with_score_
   ret = system("sed -i '/schedule0_g1_tiling_data/d' ./tiling_func_main_add_layer_norm_sche.cpp");
 
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
   ret = std::system(
       "g++ tiling_func_main_add_layer_norm_sche.cpp add_layer_norm_autofuse_*_tiling_func.cpp -o "
@@ -2615,8 +2607,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_high_perf_choose_first_a
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm_sche.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm_sche.cpp add_layer_norm_autofuse_*_tiling_func.cpp -o tiling_func_main_add_layer_norm_autofuse -I ./");
@@ -2707,8 +2698,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, test_autofuse_v2_high_perf_choose_second_
 
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm_sche.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm_sche.cpp add_layer_norm_autofuse_*_tiling_func.cpp -o tiling_func_main_add_layer_norm_autofuse -I ./");
@@ -2876,8 +2866,7 @@ TEST_F(TestGenAddLayerNormalModelInfo, case_axes_reorder_by_env)
   std::system("pwd");
   auto ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/tiling_func_main_add_layer_norm.cpp ./ -f").c_str());
   ret = std::system(std::string("cp ").append(ST_DIR).append("/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(ST_DIR).append("/testcase/stub/register ./ -f").c_str());
+  ret = autofuse::test::CopyStubFiles(ST_DIR, "testcase/stub/");
   EXPECT_EQ(ret, 0);
 
   ret = std::system("g++ tiling_func_main_add_layer_norm.cpp AddLayerNorm_*_tiling_func.cpp -o tiling_func_main_add_layer_norm -I ./ -DSTUB_LOG");

@@ -12,7 +12,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "common/math/math_util.h"
 #include "graph/utils/type_utils.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace hybrid {

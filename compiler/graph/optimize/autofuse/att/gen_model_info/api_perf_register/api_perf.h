@@ -27,6 +27,7 @@ struct NodeDetail {
   Expr gm_stride{CreateExpr(0)};
   Expr ub_stride{CreateExpr(0)};
   int32_t block_count_idx{0};  // 用于 LoadStoreStrideV2Func，表示发生非连续的轴索引
+  std::map<Expr, TenaryOp, ExprCmp> tenary_ops;  // 动态shape表达式
 
   std::string ToString() const {
     std::string res = name + "[" + optype + "]";

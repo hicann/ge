@@ -11,7 +11,7 @@
 #ifndef GE_OPSKERNEL_MANAGER_OPS_KERNEL_BUILDER_MANAGER_H_
 #define GE_OPSKERNEL_MANAGER_OPS_KERNEL_BUILDER_MANAGER_H_
 
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/ge_common/fmk_error_codes.h"
 #include "common/opskernel/ops_kernel_builder.h"
 #include "ge/ge_api_error_codes.h"

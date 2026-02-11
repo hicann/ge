@@ -13,7 +13,7 @@
 #include "ge_common/ge_api_types.h"
 #include "graph/compute_graph.h"
 #include "fusion_decider.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "common/checker.h"
 #include "backend_utils.h"
 #include "asc_graph_axis_mapping.h"

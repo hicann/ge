@@ -127,10 +127,10 @@ TEST(CodegenKernel, CastMicroApiCall_float_2_int64) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
 
   auto load_output_name = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor load_output_tensor(load->outputs[0], load_output_name, "");
+  MicroApiTensor load_output_tensor(load->outputs[0], load_output_name);
 
   auto cast_output_name = cast->GetName() + "_" + cast->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor cast_output_tensor(cast->outputs[0], cast_output_name, "");
+  MicroApiTensor cast_output_tensor(cast->outputs[0], cast_output_name);
 
   TensorManager tensor_mng;
   codegen::CallParam cp = {"p_reg", "offset"};
@@ -248,10 +248,10 @@ TEST(CodegenKernel, CastMicroApiCall_float_2_half) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
 
   auto load_output_name = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor load_output_tensor(load->outputs[0], load_output_name, "");
+  MicroApiTensor load_output_tensor(load->outputs[0], load_output_name);
 
   auto cast_output_name = cast->GetName() + "_" + cast->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor cast_output_tensor(cast->outputs[0], cast_output_name, "");
+  MicroApiTensor cast_output_tensor(cast->outputs[0], cast_output_name);
 
   TensorManager tensor_mng;
   codegen::CallParam cp = {"p_reg", "offset"};
@@ -369,10 +369,10 @@ TEST(CodegenKernel, CastMicroApiCall_half_2_float) {
   y1.id = store->outputs[0].attr.mem.tensor_id;
 
   auto load_output_name = load->GetName() + "_" + load->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor load_output_tensor(load->outputs[0], load_output_name, "");
+  MicroApiTensor load_output_tensor(load->outputs[0], load_output_name);
 
   auto cast_output_name = cast->GetName() + "_" + cast->GetOpDesc()->GetOutputNameByIndex(0);
-  MicroApiTensor cast_output_tensor(cast->outputs[0], cast_output_name, "");
+  MicroApiTensor cast_output_tensor(cast->outputs[0], cast_output_name);
 
   TensorManager tensor_mng;
   codegen::CallParam cp = {"p_reg", "offset"};

@@ -60,6 +60,8 @@ else()
                             -DCMAKE_POLICY_VERSION_MINIMUM=3.5
                             -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                             -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
+                            -DLLVM_PATH=${LLVM_PATH}
+                            -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                             <SOURCE_DIR>
                         BUILD_COMMAND $(MAKE)
                         EXCLUDE_FROM_ALL TRUE

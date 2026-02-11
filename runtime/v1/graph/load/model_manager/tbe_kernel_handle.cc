@@ -16,7 +16,7 @@
 #include "common/ge_types.h"
 #include "framework/runtime/subscriber/global_profiler.h"
 #include "register/op_tiling_info.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

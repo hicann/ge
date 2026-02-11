@@ -11,7 +11,7 @@
 #include "register/scope/scope_pattern_impl.h"
 #include "register/scope/scope_graph_impl.h"
 #include "framework/common/debug/ge_log.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/attr_utils.h"
 #include "graph/types.h"

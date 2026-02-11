@@ -11,7 +11,7 @@
 #include "dynamic_stream_allocator.h"
 
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "framework/common/types.h"
 #include "graph/build/stream/assign_attached_notify_pass.h"
 #include "graph/build/stream/assign_attached_stream_pass.h"

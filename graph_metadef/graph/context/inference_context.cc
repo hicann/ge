@@ -9,7 +9,7 @@
  */
 
 #include "graph/inference_context.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "framework/common/debug/ge_log.h"
 #include "graph/ge_context.h"
 #include "graph/resource_context_mgr.h"

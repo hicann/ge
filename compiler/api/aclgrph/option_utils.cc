@@ -17,7 +17,7 @@
 #include <regex>
 #include "common/helper/file_saver.h"
 #include "base/err_msg.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "common/checker.h"
 #include "common/screen_printer.h"
 #include "ge/ge_api_types.h"

@@ -12,7 +12,7 @@
 #include "common/debug/log.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "base/err_msg.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

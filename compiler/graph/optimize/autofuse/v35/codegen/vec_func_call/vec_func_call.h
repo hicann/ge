@@ -14,6 +14,7 @@
 #include "codegen_kernel.h"
 #include "vf_loop.h"
 #include "common_utils.h"
+
 namespace codegen {
 class VfCall final : public ApiCall {
  public:
@@ -35,6 +36,7 @@ class VfCall final : public ApiCall {
  private:
   Status ParseInputOutputInfo(const TPipe &tpipe) const;
   void SetNodeAxisIds(const std::vector<ascir::AxisId> &origin_axis_ids);
+  bool ShouldInitAsMaskReg(const ascir::NodeView &node, ge::AscTensor *output) const;
 
  private:
   std::string vf_call_name_;

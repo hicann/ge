@@ -50,6 +50,42 @@ GetConversionFromDtypeMap(const ge::AscNode &node, const std::map<ge::DataType, 
   return conversion_dtype;
 }
 
+bool IsAllVecAxisContinuous(const ge::AscNode &node) {
+  AscNodeInputs node_inputs = node.inputs;
+  AscNodeOutputs node_outputs = node.outputs;
+  for (size_t i = 0; i < node_inputs().size(); i++) {
+    if (node_inputs[i].attr.vectorized_axis.size() == 1) {
+      continue;
+    }
+    auto &attr = node_inputs[i].attr;
+    for (size_t j = 1; j < attr.vectorized_axis.size(); j++) {
+      auto it = std::find(attr.axis.begin(), attr.axis.end(), attr.vectorized_axis[j]);
+      GE_ASSERT_TRUE(it != attr.axis.end(), "Incorrect axis ID in node: %s input %zu vectorized_axis: %zu", node.GetName(), i, j);
+      auto axis_id = static_cast<uint64_t>(std::distance(attr.axis.begin(), it));
+      ge::Expression cur_axis_stride = attr.repeats[axis_id] * attr.vectorized_strides[j];
+      if (ge::SymbolicUtils::StaticCheckEq(cur_axis_stride, attr.vectorized_strides[j - 1]) != ge::TriBool::kTrue) {
+        return false;
+      }
+    }
+  }
+  for (size_t i = 0; i < node_outputs().size(); i++) {
+    if (node_outputs[i].attr.vectorized_axis.size() == 1) {
+      continue;
+    }
+    auto &attr = node_outputs[i].attr;
+    for (size_t j = 1; j < attr.vectorized_axis.size(); j++) {
+      auto it = std::find(attr.axis.begin(), attr.axis.end(), attr.vectorized_axis[j]);
+      GE_ASSERT_TRUE(it != attr.axis.end(), "Incorrect axis ID in node: %s output %zu vectorized_axis: %zu", node.GetName(), i, j);
+      auto axis_id = static_cast<uint64_t>(std::distance(attr.axis.begin(), it));
+      ge::Expression cur_axis_stride = attr.repeats[axis_id] * attr.vectorized_strides[j];
+      if (ge::SymbolicUtils::StaticCheckEq(cur_axis_stride, attr.vectorized_strides[j - 1]) != ge::TriBool::kTrue) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
 /*********************************************************************************/
 class VfAscIrCodegenImpl : public AscIrCodegenV2 {
  public:
@@ -903,6 +939,26 @@ class GeAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
   }
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroCompareApiCall";
+  }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Compare";
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    for (const auto &out_node : node.GetOutNodes()) {
+      if ((out_node->GetType() != "Where") && (out_node->GetType() != "Select")) {
+        return false;
+      }
+    }
+    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
+      return false;
+    }
+    return true;
+  }
 };
 
 class EqAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -926,6 +982,26 @@ class EqAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"compare_reg_base.h"};
+  }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Compare";
+  }
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroCompareApiCall";
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
+      return false;
+    }
+    for (const auto &out_node : node.GetOutNodes()) {
+      if ((out_node->GetType() != "Where") && (out_node->GetType() != "Select")) {
+        return false;
+      }
+    }
+    return true;
   }
 };
 
@@ -967,6 +1043,26 @@ class NeAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return conversion_dtype;
   }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Compare";
+  }
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroCompareApiCall";
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    for (const auto &out_node : node.GetOutNodes()) {
+      if ((out_node->GetType() != "Where") && (out_node->GetType() != "Select")) {
+        return false;
+      }
+    }
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
+      return false;
+    }
+    return true;
+  }
 };
 
 class GtAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -986,6 +1082,26 @@ class GtAscIrCodegenImplV2 : public AscIrCodegenV2 {
 
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
+  }
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroCompareApiCall";
+  }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Compare";
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    for (const auto &out_node : node.GetOutNodes()) {
+      if ((out_node->GetType() != "Where") && (out_node->GetType() != "Select")) {
+        return false;
+      }
+    }
+    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
+      return false;
+    }
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    return true;
   }
 };
 
@@ -1008,6 +1124,26 @@ class LeAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
   }
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroCompareApiCall";
+  }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Compare";
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
+      return false;
+    }
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    for (const auto &out_node : node.GetOutNodes()) {
+      if ((out_node->GetType() != "Select") && (out_node->GetType() != "Where")) {
+        return false;
+      }
+    }
+    return true;
+  }
 };
 
 class LtAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1027,6 +1163,26 @@ class LtAscIrCodegenImplV2 : public AscIrCodegenV2 {
 
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
+  }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Compare";
+  }
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroCompareApiCall";
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
+      return false;
+    }
+    for (const auto &out_node : node.GetOutNodes()) {
+      if ((out_node->GetType() != "Where") && (out_node->GetType() != "Select")) {
+        return false;
+      }
+    }
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    return true;
   }
 };
 
@@ -1351,10 +1507,27 @@ class WhereAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"where_v2_reg_base.h"};
   }
-
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroWhereApiCall";
+  }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Select";
+  }
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     GE_ASSERT_EQ(is_scalar_list.size(), 3UL);
     return !is_scalar_list[0]; // 除第1个外都支持Scalar
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    auto in_node = node.GetInDataNodes().at(0);
+    if (in_node->GetType() == "Ge" || in_node->GetType() == "Eq" ||
+        in_node->GetType() == "Ne" || in_node->GetType() == "Le" ||
+        in_node->GetType() == "Lt" || in_node->GetType() == "Gt") {
+      return true;
+    }
+    return false;
   }
 };
 
@@ -1363,7 +1536,6 @@ class SelectAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
     return CalcSelectTmpSize(node);
   }
-
   [[nodiscard]] std::string GetApiCallName() const override {
     return "WhereApiCall";
   }
@@ -1373,10 +1545,27 @@ class SelectAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"duplicate.h", "where.h"};
   }
-
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     GE_ASSERT_EQ(is_scalar_list.size(), 3UL);
     return !is_scalar_list[0]; // 除第1个外都支持Scalar
+  }
+  [[nodiscard]] std::string GetMicroApiCallName() const override {
+    return "MicroWhereApiCall";
+  }
+  [[nodiscard]] std::string GetMicroApiName() const override {
+    return "Select";
+  }
+  [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    if (!IsAllVecAxisContinuous(node)) {
+      return false;
+    }
+    auto in_node = node.GetInDataNodes().at(0);
+    if (in_node->GetType() == "Lt" || in_node->GetType() == "Eq" ||
+        in_node->GetType() == "Ne" || in_node->GetType() == "Le" ||
+        in_node->GetType() == "Ge" || in_node->GetType() == "Gt") {
+      return true;
+    }
+    return false;
   }
 };
 /*********************************************************************************/

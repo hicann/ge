@@ -36,7 +36,7 @@
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/type_utils.h"
 #include "graph/utils/op_type_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "common/checker.h"
 #include "common/dump/kernel_tracing_utils.h"
 #include "runtime/subscriber/global_profiler.h"

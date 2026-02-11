@@ -816,7 +816,7 @@ Status HybridModelRtV2Executor::Init(CallbackManager *const callback_manager) {
     holder.SetOriginFormat(model_input_desc[i].GetOriginFormat());
     holder.SetStorageFormat(model_input_desc[i].GetStorageFormat());
     rt_inputs_.emplace_back(&holder);
-    GELOGI("  Input %zu %s", i, DebugString(holder, false).c_str());
+    GELOGI("Input %zu %s", i, DebugString(holder, false).c_str());
   }
 
   outputs_holder_.resize(num_outputs_);
@@ -1018,7 +1018,7 @@ static Status InputTensorValidate(const std::vector<gert::Tensor> &inputs, size_
                 "Input %zu has unexpected placement %d", i, inputs[i].GetPlacement());
     }
     if (logLevel <= DLOG_INFO) {
-      GELOGI("  Input %zu %s", i, DebugString(inputs[i]).c_str());
+      GELOGI("Input %zu %s", i, DebugString(inputs[i]).c_str());
     }
   }
   return SUCCESS;
@@ -1166,7 +1166,7 @@ Status HybridModelRtV2Executor::ExecuteWithStreamAsync(const std::vector<GeTenso
     GE_ASSERT_GRAPH_SUCCESS(rt_input->MutableTensorData().SetAddr(const_cast<void *>(address), nullptr));
     rt_input->MutableTensorData().SetSize(size);
     if (logLevel_ <= DLOG_INFO) {
-      GELOGI("  Input %zu %s", i, DebugString(*rt_input).c_str());
+      GELOGI("Input %zu %s", i, DebugString(*rt_input).c_str());
     }
   }
 
@@ -1297,7 +1297,7 @@ Status HybridModelRtV2Executor::Execute(const InputData &input_data, ExecuteArgs
       }
       input_mem_block.emplace_back(mem_block_to_keep);
     }
-    GELOGI("  Input %zu %s", i, DebugString(*input).c_str());
+    GELOGI("Input %zu %s", i, DebugString(*input).c_str());
   }
   GE_ASSERT_SUCCESS(CheckInputIsOnDevice());
 
@@ -1452,7 +1452,7 @@ Status HybridModelRtV2Executor::Execute(const std::vector<gert::Tensor> &inputs,
 
       input_mem_block.emplace_back(mem_block_to_keep);
     }
-    GELOGI("  Input %zu %s", i, DebugString(*ref_input).c_str());
+    GELOGI("Input %zu %s", i, DebugString(*ref_input).c_str());
   }
   GE_ASSERT_SUCCESS(CheckInputIsOnDevice());
 

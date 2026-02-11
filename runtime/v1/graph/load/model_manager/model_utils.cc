@@ -14,10 +14,10 @@
 #include <string>
 #include "mmpa/mmpa_api.h"
 
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "framework/common/op/ge_op_utils.h"
 #include "framework/common/types.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/type_utils.h"
 #include "graph/manager/graph_var_manager.h"

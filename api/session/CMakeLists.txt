@@ -55,6 +55,8 @@ target_include_directories(ge_runner_v2 SYSTEM PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
     )
 
 target_link_options(ge_runner_v2 PRIVATE
@@ -140,6 +142,8 @@ target_include_directories(ge_runner SYSTEM PRIVATE
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos
     ${METADEF_DIR}/pkg_inc
+    ${TOP_DIR}/runtime/include/external
+    ${TOP_DIR}/runtime/include/external/acl/error_codes
     )
 
 target_link_options(ge_runner PRIVATE

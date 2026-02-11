@@ -9,8 +9,8 @@
  */
 
 #include "register/ffts_plus_update_manager.h"
-#include "graph/debug/ge_util.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/graph/debug/ge_util.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 
 namespace ge {
 FftsPlusUpdateManager &FftsPlusUpdateManager::Instance() {

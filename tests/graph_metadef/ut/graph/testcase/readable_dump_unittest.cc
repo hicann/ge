@@ -23,7 +23,7 @@
 #include "debug/ge_attr_define.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/ge_context.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "graph/utils/readable_dump.h"
 #include "graph/operator_reg.h"
 #include "es_graph_builder.h"
@@ -1102,8 +1102,8 @@ graph("body"):
   EXPECT_EQ(readable_dump, readable_ss.str());
 }
 
-// 测试递归深度保护
-TEST_F(UtestReadableDump, test_RecursionDepthProtection) {
+// 测试子图嵌套深度不受限
+TEST_F(UtestReadableDump, test_SubgraphDepthMoreThan10) {
   ComputeGraphPtr root_graph;
   ComputeGraphPtr current_graph;
   NodePtr current_node;
@@ -1130,7 +1130,7 @@ TEST_F(UtestReadableDump, test_RecursionDepthProtection) {
   
   current_graph = root_graph;
   
-  // 创建深度嵌套的子图链（深度为 12，超过 kMaxRecursionDepth=10）
+  // 创建深度嵌套的子图链（深度为 12）
   for (int i = 1; i <= 12; ++i) {
     std::string subgraph_name = "graph" + std::to_string(i);
     ut::GraphBuilder sub_builder = ut::GraphBuilder(subgraph_name);
@@ -1168,7 +1168,7 @@ TEST_F(UtestReadableDump, test_RecursionDepthProtection) {
   }
 
   std::stringstream readable_ss;
-  EXPECT_NE(SUCCESS, ReadableDump::GenReadableDump(readable_ss, root_graph));
+  EXPECT_EQ(SUCCESS, ReadableDump::GenReadableDump(readable_ss, root_graph));
 }
 
 // 测试 IR 信息异常时使用位置参数格式

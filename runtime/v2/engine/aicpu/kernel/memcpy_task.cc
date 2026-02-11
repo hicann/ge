@@ -25,7 +25,7 @@
 #include "core/debug/kernel_tracing.h"
 #include "framework/common/ge_types.h"
 #include "exe_graph/runtime/gert_tensor_data.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace gert {
 namespace kernel {

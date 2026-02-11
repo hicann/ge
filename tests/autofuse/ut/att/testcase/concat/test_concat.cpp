@@ -937,8 +937,8 @@ void TestGenConcat_tque_tbuf_test(bool reuse_temp_buffer) {
   oss << tiling_res[kFirstGraphName + "TilingData"];
   oss.close();
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
+  EXPECT_EQ(ret, 0);
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
   oss.open("tiling_func_main_concat.cpp", std::ios::out);
   std::string kRunTilingFuncMainLocal = R"(
@@ -1050,8 +1050,8 @@ TEST_F(TestGenConcat, tque_tbuf_case1)
   oss << tiling_res[kFirstGraphName + "TilingData"];
   oss.close();
   auto ret = std::system(std::string("cp ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/op_log.h ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/tiling ./ -f").c_str());
-  ret = std::system(std::string("cp -r ").append(TOP_DIR).append("/tests/autofuse/st/att/testcase/stub/register ./ -f").c_str());
+  EXPECT_EQ(ret, 0);
+  ret = autofuse::test::CopyStubFiles(TOP_DIR, "tests/autofuse/st/att/testcase/stub/");
   EXPECT_EQ(ret, 0);
   oss.open("tiling_func_main_concat.cpp", std::ios::out);
   const std::string kRunTilingFuncMainLocal = R"(

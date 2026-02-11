@@ -15,7 +15,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "framework/common/types.h"
 #include "base/err_msg.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 static constexpr uint32_t UINT32_SIZE = static_cast<uint32_t>(sizeof(uint32_t));

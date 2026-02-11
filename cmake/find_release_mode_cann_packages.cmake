@@ -12,22 +12,23 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
     include(cmake/function.cmake)
     find_package_if_target_not_exists(slog MODULE REQUIRED)
     find_package_if_target_not_exists(runtime MODULE REQUIRED)
-    find_package_if_target_not_exists(datagw MODULE REQUIRED)
     find_package_if_target_not_exists(mmpa MODULE REQUIRED)
     find_package_if_target_not_exists(msprof MODULE REQUIRED)
     find_package_if_target_not_exists(adump MODULE REQUIRED)
     find_package_if_target_not_exists(hccl MODULE REQUIRED)
     find_package_if_target_not_exists(aicpu MODULE REQUIRED)
     find_package_if_target_not_exists(unified_dlog MODULE REQUIRED)
-    find_package_if_target_not_exists(cce MODULE REQUIRED)
     find_package_if_target_not_exists(platform MODULE REQUIRED)
-    find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
-    find_package_if_target_not_exists(atrace MODULE REQUIRED)
     find_package_if_target_not_exists(ascendcl MODULE REQUIRED)
-
-
-   # 使用medadef发布包编译
-   find_package(metadef MODULE REQUIRED)
+    if(NOT MDC_COMPILE_RUNTIME) # MDC运行态不需要下列依赖
+        find_package_if_target_not_exists(cce MODULE REQUIRED)
+        find_package_if_target_not_exists(datagw MODULE REQUIRED)
+        find_package_if_target_not_exists(ascend_hal MODULE REQUIRED)
+        find_package_if_target_not_exists(atrace MODULE REQUIRED)
+    endif()
+    
+    # 使用medadef发布包编译
+    find_package(metadef MODULE REQUIRED)
     set(METADEF_DIR ${CMAKE_CURRENT_LIST_DIR}/../base/metadef)
     set(PARSER_DIR ${CMAKE_CURRENT_LIST_DIR}/parser)
 endif ()

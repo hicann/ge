@@ -17,10 +17,10 @@
 #include "graph/def_types.h"
 #include "graph/types.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 #include "exe_graph/runtime/tensor.h"
-#include "base/attr/attrs_to_buffer.h"
+#include "graph_metadef/base/attr/attrs_to_buffer.h"
 
 namespace gert {
 namespace bg {

@@ -10,7 +10,7 @@
 
 #include "register/shape_inference.h"
 #include "exe_graph/lowering/kernel_run_context_builder.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/operator_factory_impl.h"
 #include "graph/compiler_def.h"

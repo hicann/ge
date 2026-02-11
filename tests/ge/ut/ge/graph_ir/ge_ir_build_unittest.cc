@@ -26,7 +26,7 @@
 #include "api/aclgrph/attr_options/attr_options.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "mmpa/mmpa_api.h"
-#include "common/plugin/plugin_manager.h"
+#include "graph_metadef/common/plugin/plugin_manager.h"
 #include "graph/ge_local_context.h"
 #include "common/util/mem_utils.h"
 #include "ge_graph_dsl/graph_dsl.h"

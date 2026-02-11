@@ -11,7 +11,7 @@
 #include "common/message_handle/message_server.h"
 #include "common/utils/rts_api_utils.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

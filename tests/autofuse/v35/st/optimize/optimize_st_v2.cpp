@@ -360,96 +360,43 @@ TEST_F(OptimizerStV2, NotRemovePad) {
  *     store
  */
 TEST_F(OptimizerStV2, ContinuesBroadcastOptimization_3Brc) {
-  ge::AscGraph graph("Continues_3Broadcast_Optimization_graph");
-  auto s0 = graph.CreateSizeVar("s0");
-  auto s1 = graph.CreateSizeVar("s1");
-  auto s2 = graph.CreateSizeVar("s2");
-  auto s3 = graph.CreateSizeVar("s3");
+  const Expression s0 = ge::Symbol("s0");
+  const Expression s1 = ge::Symbol("s1");
+  const Expression s2 = ge::Symbol("s2");
+  const Expression s3 = ge::Symbol("s3");
 
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
-  auto z2 = graph.CreateAxis("z2", s2);
-  auto z3 = graph.CreateAxis("z3", s3);
+  // Load with padding: shape {One, One, One, s3}, strides {Zero, Zero, Zero, One}
+  std::vector<Expression> load0_shape = {ge::sym::kSymbolOne, ge::sym::kSymbolOne, ge::sym::kSymbolOne, s3};
+  std::vector<Expression> load0_strides = {ge::sym::kSymbolZero, ge::sym::kSymbolZero, ge::sym::kSymbolZero, ge::sym::kSymbolOne};
 
-  ge::ascir_op::Data data0("data0", graph);
-  data0.ir_attr.SetIndex(0);
-  data0.attr.sched.axis = {z0.id, z1.id, z2.id};
-  data0.y.dtype = ge::DT_FLOAT16;
-  *data0.y.axis = {z0.id, z1.id, z2.id};
+  // Broadcast 0: shape {One, One, s2, s3}, strides {Zero, Zero, s3, One}
+  std::vector<Expression> brc0_shape = {ge::sym::kSymbolOne, ge::sym::kSymbolOne, s2, s3};
+  std::vector<Expression> brc0_strides = {ge::sym::kSymbolZero, ge::sym::kSymbolZero, s3, ge::sym::kSymbolOne};
 
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.repeats = {One, One, One, s3};
-  *load0.y.strides = {Zero, Zero, Zero, One};
+  // Broadcast 1: shape {One, s1, s2, s3}, strides {Zero, s2*s3, s3, One}
+  std::vector<Expression> brc1_shape = {ge::sym::kSymbolOne, s1, s2, s3};
+  std::vector<Expression> brc1_strides = {ge::sym::kSymbolZero, s2 * s3, s3, ge::sym::kSymbolOne};
 
-  ge::ascir_op::Broadcast brc0("brc0");
-  brc0.x = load0.y;
-  brc0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  brc0.attr.api.compute_type = ComputeType::kComputeBroadcast;
-  brc0.y.dtype = ge::DT_FLOAT16;
-  *brc0.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  *brc0.y.repeats = {One, One, s2, s3};
-  *brc0.y.strides = {Zero, Zero, s3, One};
+  // Broadcast 2: shape {s0, s1, s2, s3}, strides {s1*s2*s3, s2*s3, s3, One}
+  std::vector<Expression> brc2_shape = {s0, s1, s2, s3};
+  std::vector<Expression> brc2_strides = {s1 * s2 * s3, s2 * s3, s3, ge::sym::kSymbolOne};
 
-  ge::ascir_op::Broadcast brc1("brc1");
-  brc1.x = brc0.y;
-  brc1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  brc1.attr.api.compute_type = ComputeType::kComputeBroadcast;
-  brc1.y.dtype = ge::DT_FLOAT16;
-  *brc1.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  *brc1.y.repeats = {One, s1, s2, s3};
-  *brc1.y.strides = {Zero, s2 * s3, s3, One};
+  // Store strides
+  std::vector<Expression> store_strides = {s1 * s2 * s3, s2 * s3, s3, ge::sym::kSymbolOne};
 
-  ge::ascir_op::Broadcast brc2("brc2");
-  brc2.x = brc1.y;
-  brc2.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  brc2.attr.api.compute_type = ComputeType::kComputeBroadcast;
-  brc2.y.dtype = ge::DT_FLOAT16;
-  *brc2.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  *brc2.y.repeats = {s0, s1, s2, s3};
-  *brc2.y.strides = {s1 * s2 * s3, s2 * s3, s3, One};
-
-  ge::ascir_op::Data data1("data1", graph);
-  data1.ir_attr.SetIndex(0);
-  data1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  data1.y.dtype = ge::DT_FLOAT16;
-  *data1.y.axis = {z0.id, z1.id, z2.id, z3.id};
-
-  Load load1("load1");
-  load1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  load1.x = data1.y;
-  *load1.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  load1.y.dtype = ge::DT_FLOAT;
-  *load1.y.repeats = {s0, s1, s2, s3};
-  *load1.y.strides = {s1 * s2 * s3, s2 * s3, s3, One};
-
-  Add add("add");
-  add.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  add.x1 = brc2.y;
-  add.x2 = load1.y;
-  *add.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  add.y.dtype = ge::DT_FLOAT;
-  *add.y.repeats = {s0, s1, s2, s3};
-  *add.y.strides = {s1 * s2 * s3, s2 * s3, s3, One};
-
-  ge::ascir_op::Store store("store");
-  store.x = add.y;
-  store.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  store.attr.api.compute_type = ComputeType::kComputeStore;
-  store.y.dtype = ge::DT_FLOAT16;
-  *store.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  *store.y.repeats = {s0, s1, s2, s3};
-  *store.y.strides = {s1 * s2 * s3, s2 * s3, s3, One};
-
-  ge::ascir_op::Output y("y");
-  y.ir_attr.SetIndex(0);
-  y.x = store.y;
-  y.attr.api.compute_type = ComputeType::kComputeInvalid;
-  y.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  y.y.dtype = ge::DT_FLOAT16;
+  auto graph = AscGraphBuilder("Continues_3Broadcast_Optimization_graph")
+    .Loops({s0, s1, s2, s3})
+    .Data("data0", 0, ge::DT_FLOAT16)
+    .Load("load0", "data0", load0_shape, load0_strides)
+    .Broadcast("brc0", "load0", brc0_shape)
+    .Broadcast("brc1", "brc0", brc1_shape)
+    .Broadcast("brc2", "brc1", brc2_shape)
+    .Data("data1", 0, ge::DT_FLOAT16)
+    .Load("load1", "data1")
+    .Add("add", "brc2", "load1")
+    .Store("store", "add", {}, store_strides)
+    .Output("y", "store", 0, ge::DT_FLOAT16)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   Status res = optimizer.Optimize(graph, fused_scheduled_result);
@@ -471,135 +418,46 @@ TEST_F(OptimizerStV2, ContinuesBroadcastOptimization_3Brc) {
 }
 
 TEST_F(OptimizerStV2, ContinuesBroadcastOptimization_BABAB) {
-  ge::AscGraph graph("Continues_3Broadcast_Optimization_graph");
-  const Expression s0 = graph.CreateSizeVar(4);
-  const Expression s1 = graph.CreateSizeVar(8);
-  const Expression s2 = graph.CreateSizeVar(16);
-  const Expression s3 = graph.CreateSizeVar(64);
-  const Expression s4 = graph.CreateSizeVar(32);
+  const Expression s0 = ge::Symbol(4);
+  const Expression s1 = ge::Symbol(8);
+  const Expression s2 = ge::Symbol(16);
+  const Expression s3 = ge::Symbol(64);
+  const Expression s4 = ge::Symbol(32);
 
-  auto One = Symbol(1);
-  auto Zero = Symbol(0);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
-  auto z2 = graph.CreateAxis("z2", s2);
-  auto z3 = graph.CreateAxis("z3", s3);
-  auto z4 = graph.CreateAxis("z4", s4);
+  // Load 1 with padding: shape {One, s1, One, s3, One}, strides {Zero, s3, Zero, One, Zero}
+  std::vector<Expression> load1_shape = {ge::sym::kSymbolOne, s1, ge::sym::kSymbolOne, s3, ge::sym::kSymbolOne};
+  std::vector<Expression> load1_strides = {ge::sym::kSymbolZero, s3, ge::sym::kSymbolZero, ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  ge::ascir_op::Data x0("x0", graph);
-  x0.attr.api.compute_type = ComputeType::kComputeInvalid;
-  x0.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  x0.ir_attr.SetIndex(0);
-  x0.y.dtype = ge::DataType::DT_FLOAT;
+  // Broadcast 0: shape {s0, s1, One, s3, One}, strides {s1*s3, s3, Zero, One, Zero}
+  std::vector<Expression> brc0_shape = {s0, s1, ge::sym::kSymbolOne, s3, ge::sym::kSymbolOne};
+  std::vector<Expression> brc0_strides = {s1 * s3, s3, ge::sym::kSymbolZero, ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  ge::ascir_op::Load load0("load0");
-  load0.x = x0.y;
-  load0.attr.api.compute_type = ComputeType::kComputeLoad;
-  load0.attr.api.type = ge::ApiType::kAPITypeCompute;
-  load0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *load0.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *load0.y.repeats = {s0, s1, s2, s3, s4};
-  *load0.y.strides = {s1 * s2 * s3 * s4, s2 * s3 * s4, s3 * s4, s4, One};
-  load0.y.dtype = ge::DataType::DT_FLOAT;
-  load0.attr.api.unit = ComputeUnit::kUnitMTE2;
+  // Broadcast 1: shape {s0, s1, s2, s3, One}, strides {s1*s2*s3, s2*s3, s3, One, Zero}
+  std::vector<Expression> brc1_shape = {s0, s1, s2, s3, ge::sym::kSymbolOne};
+  std::vector<Expression> brc1_strides = {s1 * s2 * s3, s2 * s3, s3, ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  ge::ascir_op::Data x1("x1", graph);
-  x1.attr.api.compute_type = ComputeType::kComputeInvalid;
-  x1.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  x1.y.dtype = ge::DataType::DT_FLOAT;
-  x1.ir_attr.SetIndex(1);
+  // Broadcast 2: shape {s0, s1, s2, s3, s4}, strides {s1*s2*s3*s4, s2*s3*s4, s3*s4, s4, One}
+  std::vector<Expression> brc2_shape = {s0, s1, s2, s3, s4};
+  std::vector<Expression> brc2_strides = {s1 * s2 * s3 * s4, s2 * s3 * s4, s3 * s4, s4, ge::sym::kSymbolOne};
 
-  ge::ascir_op::Load load1("load1");
-  load1.x = x1.y;
-  load1.attr.api.compute_type = ComputeType::kComputeLoad;
-  load1.attr.api.type = ge::ApiType::kAPITypeCompute;
-  load1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *load1.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *load1.y.repeats = {One, s1, One, s3, One};
-  *load1.y.strides = {Zero, s3, Zero, One, Zero};
-  load1.y.dtype = ge::DataType::DT_FLOAT;
-  load1.attr.api.unit = ComputeUnit::kUnitMTE2;
+  // Store strides
+  std::vector<Expression> store_strides = {s1 * s2 * s3 * s4, s2 * s3 * s4, s3 * s4, s4, ge::sym::kSymbolOne};
 
-  ge::ascir_op::Broadcast brc0("brc0");
-  brc0.x = load1.y;
-  brc0.attr.api.compute_type = ComputeType::kComputeBroadcast;
-  brc0.attr.api.type = ge::ApiType::kAPITypeCompute;
-  brc0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *brc0.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *brc0.y.repeats = {s0, s1, One, s3, One};
-  *brc0.y.strides = {s1 * s3, s3, Zero, One, Zero};
-  brc0.y.dtype = ge::DataType::DT_FLOAT;
-  brc0.attr.api.unit = ComputeUnit::kUnitVector;
-
-  ge::ascir_op::Broadcast brc1("brc1");
-  brc1.x = brc0.y;
-  brc1.attr.api.compute_type = ComputeType::kComputeBroadcast;
-  brc1.attr.api.type = ge::ApiType::kAPITypeCompute;
-  brc1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *brc1.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *brc1.y.repeats = {s0, s1, s2, s3, One};
-  *brc1.y.strides = {s1 * s2 * s3, s2 * s3, s3, One, Zero};
-  brc1.y.dtype = ge::DataType::DT_FLOAT;
-  brc1.attr.api.unit = ComputeUnit::kUnitVector;
-
-  ge::ascir_op::Broadcast brc2("brc2");
-  brc2.x = brc1.y;
-  brc2.attr.api.compute_type = ComputeType::kComputeBroadcast;
-  brc2.attr.api.type = ge::ApiType::kAPITypeCompute;
-  brc2.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *brc2.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *brc2.y.repeats = {s0, s1, s2, s3, s4};
-  *brc2.y.strides = {s1 * s2 * s3 * s4, s2 * s3 * s4, s3 * s4, s4, One};
-  brc2.y.dtype = ge::DataType::DT_FLOAT;
-  brc2.attr.api.unit = ComputeUnit::kUnitVector;
-
-  ge::ascir_op::Store store1("store1");
-  store1.x = brc2.y;
-  store1.attr.api.compute_type = ComputeType::kComputeStore;
-  store1.attr.api.type = ge::ApiType::kAPITypeCompute;
-  store1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *store1.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *store1.y.repeats = {s0, s1, s2, s3, s4};
-  *store1.y.strides = {s1 * s2 * s3 * s4, s2 * s3 * s4, s3 * s4, s4, One};
-  store1.y.dtype = ge::DataType::DT_FLOAT;
-  store1.attr.api.unit = ComputeUnit::kUnitMTE3;
-
-  ge::ascir_op::Output y1("y1");
-  y1.x = store1.y;
-  y1.attr.api.compute_type = ComputeType::kComputeInvalid;
-  y1.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  y1.y.dtype = ge::DataType::DT_FLOAT;
-  y1.ir_attr.SetIndex(1);
-
-  ge::ascir_op::Add add0("add0");
-  add0.x1 = load0.y;
-  add0.x2 = brc2.y;
-  add0.attr.api.compute_type = ComputeType::kComputeElewise;
-  add0.attr.api.type = ge::ApiType::kAPITypeCompute;
-  add0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *add0.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *add0.y.repeats = {s0, s1, s2, s3, s4};
-  *add0.y.strides = {s1 * s2 * s3 * s4, s2 * s3 * s4, s3 * s4, s4, One};
-  add0.y.dtype = ge::DataType::DT_FLOAT;
-  add0.attr.api.unit = ComputeUnit::kUnitVector;
-
-  ge::ascir_op::Store store("store");
-  store.x = add0.y;
-  store.attr.api.compute_type = ComputeType::kComputeStore;
-  store.attr.api.type = ge::ApiType::kAPITypeCompute;
-  store.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *store.y.axis = {z0.id, z1.id, z2.id, z3.id, z4.id};
-  *store.y.repeats = {s0, s1, s2, s3, s4};
-  *store.y.strides = {s1 * s2 * s3 * s4, s2 * s3 * s4, s3 * s4, s4, One};
-  store.y.dtype = ge::DataType::DT_FLOAT;
-  store.attr.api.unit = ComputeUnit::kUnitMTE3;
-
-  ge::ascir_op::Output y("y");
-  y.x = store.y;
-  y.attr.api.compute_type = ComputeType::kComputeInvalid;
-  y.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  y.y.dtype = ge::DataType::DT_FLOAT;
-  y.ir_attr.SetIndex(0);
+  auto graph = AscGraphBuilder("Continues_3Broadcast_Optimization_graph")
+    .Loops({s0, s1, s2, s3, s4})
+    .Data("x0", 0, ge::DT_FLOAT)
+    .Load("load0", "x0")
+    .Data("x1", 1, ge::DT_FLOAT)
+    .Load("load1", "x1", load1_shape, load1_strides)
+    .Broadcast("brc0", "load1", brc0_shape)
+    .Broadcast("brc1", "brc0", brc1_shape)
+    .Broadcast("brc2", "brc1", brc2_shape)
+    .Store("store1", "brc2", {}, store_strides)
+    .Output("y1", "store1", 1, ge::DT_FLOAT)
+    .Add("add0", "load0", "brc2")
+    .Store("store", "add0", {}, store_strides)
+    .Output("y", "store", 0, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   Status res = optimizer.Optimize(graph, fused_scheduled_result);
@@ -636,71 +494,24 @@ TEST_F(OptimizerStV2, ContinuesBroadcastOptimization_BABAB) {
  *           output
  */
 TEST_F(OptimizerStV2, NddmaCaseBrcOutputWithMultiRef) {
-  ge::AscGraph graph("gen_nddma");
+  const Expression s0 = ge::Symbol(64);
+  const Expression s1 = ge::Symbol(64);
 
-  auto s0 = graph.CreateSizeVar(64);
-  auto s1 = graph.CreateSizeVar(64);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
+  // Load scalar: shape {1, 1}, strides {1, 1}
+  std::vector<Expression> load_shape = {ge::sym::kSymbolOne, ge::sym::kSymbolOne};
+  std::vector<Expression> load_strides = {ge::sym::kSymbolOne, ge::sym::kSymbolOne};
 
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT;
-  data0.ir_attr.SetIndex(0);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.strides = {ge::ops::One, ge::ops::One};
-  *load0.y.repeats = {ge::ops::One, ge::ops::One};
-
-  Broadcast broadcast0("broadcast");
-  broadcast0.x = load0.y;
-  broadcast0.attr.sched.axis = {z0.id, z1.id};
-  *broadcast0.y.axis = {z0.id, z1.id};
-  broadcast0.y.dtype = ge::DT_FLOAT;
-  *broadcast0.y.strides = {s1, ge::ops::One};
-  *broadcast0.y.repeats = {s0, s1};
-
-  Exp exp0("exp0");
-  exp0.attr.sched.axis = {z0.id, z1.id};
-  exp0.x = broadcast0.y;
-  *exp0.y.axis = {z0.id, z1.id};
-  exp0.y.dtype = ge::DT_FLOAT;
-  *exp0.y.strides = {s1, ge::ops::One};
-  *exp0.y.repeats = {s0, s1};
-
-  Abs abs0("abs0");
-  abs0.x = broadcast0.y;
-  abs0.attr.sched.axis = {z0.id, z1.id};
-  abs0.y.dtype = ge::DT_FLOAT;
-  *abs0.y.axis = {z0.id, z1.id};
-  *abs0.y.repeats = {s0, s1};
-  *abs0.y.strides = {s1, One};
-  abs0.attr.api.compute_type = ComputeType::kComputeElewise;
-
-  Mul mul0("mul0");
-  mul0.attr.sched.axis = {z0.id, z1.id};
-  mul0.x1 = exp0.y;
-  mul0.x2 = abs0.y;
-  mul0.y.dtype = ge::DT_FLOAT;
-  *mul0.y.axis = {z0.id, z1.id};
-  *mul0.y.repeats = {s0, s1};
-  *mul0.y.strides = {s1, One};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id, z1.id};
-  store_op.x = mul0.y;
-  *store_op.y.axis = {z0.id, z1.id};
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.strides = {s1, ge::ops::One};
-  *store_op.y.repeats = {s0, s1};
-
-  Output output_op("output");
-  output_op.x = store_op.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-  output_op.ir_attr.SetIndex(8);
+  auto graph = AscGraphBuilder("gen_nddma")
+    .Loops({s0, s1})
+    .Data("data0", 0, ge::DT_FLOAT)
+    .Load("load0", "data0", load_shape, load_strides)
+    .Broadcast("broadcast", "load0", {0, 1})  // broadcast on both axes
+    .Exp("exp0", "broadcast")
+    .Abs("abs0", "broadcast")
+    .Mul("mul0", "exp0", "abs0")
+    .Store("store", "mul0")
+    .Output("output", "store", 8, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
@@ -885,71 +696,24 @@ TEST_F(OptimizerStV2, NddmaCaseAlignTailBrcScoreFunc_Dynamic) {
 }
 
 TEST_F(OptimizerStV2, NddmaCaseLargeTailBrcScoreFunc) {
-  ge::AscGraph graph("gen_nddma");
+  const Expression s0 = ge::Symbol(8);
+  const Expression s1 = ge::Symbol(2012);
 
-  auto s0 = graph.CreateSizeVar(8);
-  auto s1 = graph.CreateSizeVar(2012);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
+  // Load with padding: shape {s0, 1}, strides {1, 0}
+  std::vector<Expression> load0_shape = {s0, ge::sym::kSymbolOne};
+  std::vector<Expression> load0_strides = {ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT;
-  data0.ir_attr.SetIndex(0);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.repeats = {s0, Symbol(1)};
-  *load0.y.strides = {Symbol(1), Symbol(0)};
-
-  Broadcast broadcast0("broadcast");
-  broadcast0.x = load0.y;
-  broadcast0.attr.sched.axis = {z0.id, z1.id};
-  *broadcast0.y.axis = {z0.id, z1.id};
-  broadcast0.y.dtype = ge::DT_FLOAT;
-  *broadcast0.y.repeats = {s0, s1};
-  *broadcast0.y.strides = {s1, ge::ops::One};
-
-  Exp exp0("exp0");
-  exp0.attr.sched.axis = {z0.id, z1.id};
-  exp0.x = broadcast0.y;
-  *exp0.y.axis = {z0.id, z1.id};
-  exp0.y.dtype = ge::DT_FLOAT;
-  *exp0.y.repeats = {s0, s1};
-  *exp0.y.strides = {s1, ge::ops::One};
-
-  Abs abs0("abs0");
-  abs0.x = broadcast0.y;
-  abs0.attr.sched.axis = {z0.id, z1.id};
-  abs0.y.dtype = ge::DT_FLOAT;
-  *abs0.y.axis = {z0.id, z1.id};
-  *abs0.y.repeats = {s0, s1};
-  *abs0.y.strides = {s1, One};
-  abs0.attr.api.compute_type = ComputeType::kComputeElewise;
-
-  Mul mul0("mul0");
-  mul0.attr.sched.axis = {z0.id, z1.id};
-  mul0.x1 = exp0.y;
-  mul0.x2 = abs0.y;
-  mul0.y.dtype = ge::DT_FLOAT;
-  *mul0.y.axis = {z0.id, z1.id};
-  *mul0.y.repeats = {s0, s1};
-  *mul0.y.strides = {s1, One};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id, z1.id};
-  store_op.x = mul0.y;
-  *store_op.y.axis = {z0.id, z1.id};
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.strides = {s1, ge::ops::One};
-  *store_op.y.repeats = {s0, s1};
-
-  Output output_op("output");
-  output_op.x = store_op.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-  output_op.ir_attr.SetIndex(8);
+  auto graph = AscGraphBuilder("gen_nddma")
+    .Loops({s0, s1})
+    .Data("data0", 0, ge::DT_FLOAT)
+    .Load("load0", "data0", load0_shape, load0_strides)
+    .Broadcast("broadcast", "load0", {1})  // broadcast on axis 1
+    .Exp("exp0", "broadcast")
+    .Abs("abs0", "broadcast")
+    .Mul("mul0", "exp0", "abs0")
+    .Store("store", "mul0")
+    .Output("output", "store", 8, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
@@ -967,71 +731,24 @@ TEST_F(OptimizerStV2, NddmaCaseLargeTailBrcScoreFunc) {
 
 
 TEST_F(OptimizerStV2, NddmaCaseLargeTailBrc_Dynamic) {
-  ge::AscGraph graph("gen_nddma");
+  const Expression s0 = ge::Symbol("s0");
+  const Expression s1 = ge::Symbol("s1");
 
-  auto s0 = graph.CreateSizeVar("s0");
-  auto s1 = graph.CreateSizeVar("s1");
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
+  // Load with padding: shape {s0, 1}, strides {1, 0}
+  std::vector<Expression> load0_shape = {s0, ge::sym::kSymbolOne};
+  std::vector<Expression> load0_strides = {ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT;
-  data0.ir_attr.SetIndex(0);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.repeats = {s0, Symbol(1)};
-  *load0.y.strides = {Symbol(1), Symbol(0)};
-
-  Broadcast broadcast0("broadcast");
-  broadcast0.x = load0.y;
-  broadcast0.attr.sched.axis = {z0.id, z1.id};
-  *broadcast0.y.axis = {z0.id, z1.id};
-  broadcast0.y.dtype = ge::DT_FLOAT;
-  *broadcast0.y.repeats = {s0, s1};
-  *broadcast0.y.strides = {s1, ge::ops::One};
-
-  Exp exp0("exp0");
-  exp0.attr.sched.axis = {z0.id, z1.id};
-  exp0.x = broadcast0.y;
-  *exp0.y.axis = {z0.id, z1.id};
-  exp0.y.dtype = ge::DT_FLOAT;
-  *exp0.y.repeats = {s0, s1};
-  *exp0.y.strides = {s1, ge::ops::One};
-
-  Abs abs0("abs0");
-  abs0.x = broadcast0.y;
-  abs0.attr.sched.axis = {z0.id, z1.id};
-  abs0.y.dtype = ge::DT_FLOAT;
-  *abs0.y.axis = {z0.id, z1.id};
-  *abs0.y.repeats = {s0, s1};
-  *abs0.y.strides = {s1, One};
-  abs0.attr.api.compute_type = ComputeType::kComputeElewise;
-
-  Mul mul0("mul0");
-  mul0.attr.sched.axis = {z0.id, z1.id};
-  mul0.x1 = exp0.y;
-  mul0.x2 = abs0.y;
-  mul0.y.dtype = ge::DT_FLOAT;
-  *mul0.y.axis = {z0.id, z1.id};
-  *mul0.y.repeats = {s0, s1};
-  *mul0.y.strides = {s1, One};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id, z1.id};
-  store_op.x = mul0.y;
-  *store_op.y.axis = {z0.id, z1.id};
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.strides = {s1, ge::ops::One};
-  *store_op.y.repeats = {s0, s1};
-
-  Output output_op("output");
-  output_op.x = store_op.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-  output_op.ir_attr.SetIndex(8);
+  auto graph = AscGraphBuilder("gen_nddma")
+    .Loops({s0, s1})
+    .Data("data0", 0, ge::DT_FLOAT)
+    .Load("load0", "data0", load0_shape, load0_strides)
+    .Broadcast("broadcast", "load0", {1})  // broadcast on axis 1
+    .Exp("exp0", "broadcast")
+    .Abs("abs0", "broadcast")
+    .Mul("mul0", "exp0", "abs0")
+    .Store("store", "mul0")
+    .Output("output", "store", 8, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
@@ -1053,74 +770,29 @@ TEST_F(OptimizerStV2, NddmaCaseLargeTailBrc_Dynamic) {
  *                 output
  */
 TEST_F(OptimizerStV2, NddmaCaseWithMultiNddma) {
-  AscGraph graph("gen_nddma");
+  const Expression s0 = ge::Symbol(64);
+  const Expression s1 = ge::Symbol(64);
 
-  auto s0 = graph.CreateSizeVar(64);
-  auto s1 = graph.CreateSizeVar(64);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
+  // Load0 with padding: shape {One, s1}, strides {Zero, One}
+  std::vector<Expression> load0_shape = {ge::sym::kSymbolOne, s1};
+  std::vector<Expression> load0_strides = {ge::sym::kSymbolZero, ge::sym::kSymbolOne};
 
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT;
-  data0.ir_attr.SetIndex(0);
+  // Load1 with padding: shape {s0, One}, strides {One, Zero}
+  std::vector<Expression> load1_shape = {s0, ge::sym::kSymbolOne};
+  std::vector<Expression> load1_strides = {ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  Data data1("data1", graph);
-  data1.y.dtype = ge::DT_FLOAT;
-  data1.ir_attr.SetIndex(1);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.repeats = {One, s1};
-  *load0.y.strides = {Zero, One};
-
-  Broadcast broadcast0("broadcast0");
-  broadcast0.x = load0.y;
-  broadcast0.attr.sched.axis = {z0.id, z1.id};
-  *broadcast0.y.axis = {z0.id, z1.id};
-  broadcast0.y.dtype = ge::DT_FLOAT;
-  *broadcast0.y.repeats = {s0, s1};
-  *broadcast0.y.strides = {s1, One};
-
-  Load load1("load1");
-  load1.attr.sched.axis = {z0.id, z1.id};
-  load1.x = data1.y;
-  *load1.y.axis = {z0.id, z1.id};
-  load1.y.dtype = ge::DT_FLOAT;
-  *load1.y.repeats = {s0, One};
-  *load1.y.strides = {One, Zero};
-
-  Broadcast broadcast1("broadcast1");
-  broadcast1.x = load1.y;
-  broadcast1.attr.sched.axis = {z0.id, z1.id};
-  *broadcast1.y.axis = {z0.id, z1.id};
-  broadcast1.y.dtype = ge::DT_FLOAT;
-  *broadcast1.y.repeats = {s0, s1};
-  *broadcast1.y.strides = {s1, One};
-
-  Mul mul0("mul0");
-  mul0.attr.sched.axis = {z0.id, z1.id};
-  mul0.x1 = broadcast0.y;
-  mul0.x2 = broadcast1.y;
-  mul0.y.dtype = ge::DT_FLOAT;
-  *mul0.y.axis = {z0.id, z1.id};
-  *mul0.y.repeats = {s0, s1};
-  *mul0.y.strides = {s1, One};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id, z1.id};
-  store_op.x = mul0.y;
-  *store_op.y.axis = {z0.id, z1.id};
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.strides = {s1, One};
-  *store_op.y.repeats = {s0, s1};
-
-  Output output_op("output");
-  output_op.x = store_op.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-  output_op.ir_attr.SetIndex(8);
+  auto graph = AscGraphBuilder("gen_nddma")
+    .Loops({s0, s1})
+    .Data("data0", 0, ge::DT_FLOAT)
+    .Data("data1", 1, ge::DT_FLOAT)
+    .Load("load0", "data0", load0_shape, load0_strides)
+    .Broadcast("broadcast0", "load0", {0})  // broadcast on axis 0
+    .Load("load1", "data1", load1_shape, load1_strides)
+    .Broadcast("broadcast1", "load1", {1})  // broadcast on axis 1
+    .Mul("mul0", "broadcast0", "broadcast1")
+    .Store("store", "mul0")
+    .Output("output", "store", 8, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
@@ -1252,79 +924,31 @@ TEST_F(OptimizerStV2, concat_last1dim) {
 }
 
 TEST_F(OptimizerStV2, LoadToNddmaCase) {
-  AscGraph graph("gen_load_to_nddma");
+  const Expression s0 = ge::Symbol(129);
+  const Expression s1 = ge::Symbol(32);
+  const Expression s2 = ge::Symbol(32);
+  const Expression s3 = ge::Symbol(68);
 
-  auto s0 = graph.CreateSizeVar(129);
-  auto s1 = graph.CreateSizeVar(32);
-  auto s2 = graph.CreateSizeVar(32);
-  auto s3 = graph.CreateSizeVar(68);
+  // Load1 with padding: shape {s0, s1, s2, One}, strides {s1*s2, s2, One, Zero}
+  std::vector<Expression> load1_shape = {s0, s1, s2, ge::sym::kSymbolOne};
+  std::vector<Expression> load1_strides = {s1 * s2, s2, ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
-  auto z2 = graph.CreateAxis("z2", s2);
-  auto z3 = graph.CreateAxis("z3", s3);
+  // Sum output: shape {s0, One, One, s3}, strides {s3, Zero, Zero, One}
+  std::vector<Expression> sum_shape = {s0, ge::sym::kSymbolOne, ge::sym::kSymbolOne, s3};
+  std::vector<Expression> sum_strides = {s3, ge::sym::kSymbolZero, ge::sym::kSymbolZero, ge::sym::kSymbolOne};
 
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT;
-  data0.ir_attr.SetIndex(0);
-
-  Data data1("data1", graph);
-  data1.y.dtype = ge::DT_FLOAT;
-  data1.ir_attr.SetIndex(1);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.repeats = {s0, s1, s2, s3};
-  *load0.y.strides = {s1 * s2 * s3, s2 * s3, s3, One};
-
-  Load load1("load1");
-  load1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  load1.x = data1.y;
-  *load1.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  load1.y.dtype = ge::DT_FLOAT;
-  *load1.y.repeats = {s0, s1, s2, One};
-  *load1.y.strides = {s1 * s2, s2, One, Zero};
-
-  Broadcast broadcast1("broadcast1");
-  broadcast1.x = load1.y;
-  broadcast1.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  *broadcast1.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  broadcast1.y.dtype = ge::DT_FLOAT;
-  *broadcast1.y.repeats = {s0, s1, s2, s3};
-  *broadcast1.y.strides = {s1 * s2 * s3, s2 * s3, s3, One};
-
-  Mul mul0("mul0");
-  mul0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  mul0.x1 = load0.y;
-  mul0.x2 = broadcast1.y;
-  mul0.y.dtype = ge::DT_FLOAT;
-  *mul0.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  *mul0.y.repeats = {s0, s1, s2, s3};
-  *mul0.y.strides = {s1 * s2 * s3, s2 * s3, s3, One};
-
-  Sum sum0("sum0");
-  sum0.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  sum0.x = mul0.y;
-  sum0.y.dtype = ge::DT_FLOAT;
-  *sum0.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  *sum0.y.repeats = {s0, One, One, s3};
-  *sum0.y.strides = {s3, Zero, Zero, One};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id, z1.id, z2.id, z3.id};
-  store_op.x = sum0.y;
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.axis = {z0.id, z1.id, z2.id, z3.id};
-  *store_op.y.repeats = {s0, One, One, s3};
-  *store_op.y.strides = {s3, Zero, Zero, One};
-
-  Output output_op("output");
-  output_op.x = store_op.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-  output_op.ir_attr.SetIndex(8);
+  auto graph = AscGraphBuilder("gen_load_to_nddma")
+    .Loops({s0, s1, s2, s3})
+    .Data("data0", 0, ge::DT_FLOAT)
+    .Data("data1", 1, ge::DT_FLOAT)
+    .Load("load0", "data0")
+    .Load("load1", "data1", load1_shape, load1_strides)
+    .Broadcast("broadcast1", "load1", {3})  // broadcast on axis 3
+    .Mul("mul0", "load0", "broadcast1")
+    .Sum("sum0", "mul0", {1, 2})  // reduce on axis 1 and 2
+    .Store("store", "sum0", sum_shape, sum_strides)
+    .Output("output", "store", 8, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
@@ -1728,36 +1352,22 @@ TEST_F(OptimizerStV2, ConcatTailDim_SplitConcat_LargeRowNum) {
 }
 
 TEST_F(OptimizerStV2, OneAxisSliceNoNeedAlign) {
-  ge::AscGraph graph("shorten_load");
-  auto ONE = Symbol(1);
   const Expression s0 = ge::Symbol(10);
   const Expression s1 = ge::Symbol(4);
   const Expression s2 = ge::Symbol(3);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
 
-  ge::ascir_op::Data data0("x0", graph);
-  data0.attr.api.compute_type = ComputeType::kComputeInvalid;
-  data0.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  data0.ir_attr.SetIndex(0);
+  // Load 使用自定义 shape {s0, s1} 和 strides {s1 * s2, s2}
+  std::vector<Expression> load_shape = {s0, s1};
+  std::vector<Expression> load_strides = {s1 * s2, s2};
+  std::vector<Expression> store_strides = {s1 * s2, s2};
 
-  ge::ascir_op::Load load0("load0");
-  load0.x = data0.y;
-  load0.attr.sched.axis = {z0.id, z1.id};
-  *load0.y.axis = {z0.id, z1.id};
-  *load0.y.repeats = {s0, s1};
-  *load0.y.strides = {s1 * s2, s2};
-
-  ge::ascir_op::Store store("store5");
-  store.x = load0.y;
-  store.attr.sched.axis = {z0.id, z1.id};
-  *store.y.axis = {z0.id, z1.id};
-  *store.y.repeats = {s0, s1};
-  *store.y.strides = {s1 * s2, s2};
-
-  ge::ascir_op::Output output5("output5");
-  output5.x = store.y;
-  output5.ir_attr.SetIndex(0);
+  auto graph = ge::testing::AscGraphBuilder("shorten_load")
+    .Loops({s0, s1})
+    .Data("x0", 0)
+    .Load("load0", "x0", load_shape, load_strides)
+    .Store("store5", "load0", {}, store_strides)
+    .Output("output5", "store5", 0)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled;
   int res = optimizer.Optimize(graph, fused_scheduled);
@@ -1771,37 +1381,23 @@ TEST_F(OptimizerStV2, OneAxisSliceNoNeedAlign) {
 }
 
 TEST_F(OptimizerStV2, TwoAxisSliceNeedAlign) {
-  ge::AscGraph graph("shorten_load");
-  auto ONE = Symbol(1);
   const Expression s0 = ge::Symbol(10);
   const Expression s1 = ge::Symbol(4);
   const Expression s2 = ge::Symbol(3);
   const Expression s3 = ge::Symbol(2);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
 
-  ge::ascir_op::Data data0("x0", graph);
-  data0.attr.api.compute_type = ComputeType::kComputeInvalid;
-  data0.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  data0.ir_attr.SetIndex(0);
+  // Load 使用自定义 shape {s0, s1} 和 strides {s1 * s2 * s3, s2}
+  std::vector<Expression> load_shape = {s0, s1};
+  std::vector<Expression> load_strides = {s1 * s2 * s3, s2};
+  std::vector<Expression> store_strides = {s1 * s2 * s3, s2};
 
-  ge::ascir_op::Load load0("load0");
-  load0.x = data0.y;
-  load0.attr.sched.axis = {z0.id, z1.id};
-  *load0.y.axis = {z0.id, z1.id};
-  *load0.y.repeats = {s0, s1};
-  *load0.y.strides = {s1 * s2 * s3, s2};
-
-  ge::ascir_op::Store store("store5");
-  store.x = load0.y;
-  store.attr.sched.axis = {z0.id, z1.id};
-  *store.y.axis = {z0.id, z1.id};
-  *store.y.repeats = {s0, s1};
-  *store.y.strides = {s1 * s2 * s3, s2};
-
-  ge::ascir_op::Output output5("output5");
-  output5.x = store.y;
-  output5.ir_attr.SetIndex(0);
+  auto graph = ge::testing::AscGraphBuilder("shorten_load")
+    .Loops({s0, s1})
+    .Data("x0", 0)
+    .Load("load0", "x0", load_shape, load_strides)
+    .Store("store5", "load0", {}, store_strides)
+    .Output("output5", "store5", 0)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled;
   int res = optimizer.Optimize(graph, fused_scheduled);
@@ -1815,49 +1411,25 @@ TEST_F(OptimizerStV2, TwoAxisSliceNeedAlign) {
 }
 
 TEST_F(OptimizerStV2, NoNeedAlign_AABToARA) {
-  ge::AscGraph graph("shorten_load");
-  auto ONE = Symbol(1);
   const Expression s0 = ge::Symbol(3);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s0);
-  auto z2 = graph.CreateAxis("z1", s0);
 
-  ge::ascir_op::Data data0("x0", graph);
-  data0.attr.api.compute_type = ComputeType::kComputeInvalid;
-  data0.attr.api.type = ge::ApiType::kAPITypeBuffer;
-  data0.ir_attr.SetIndex(0);
+  // Load: shape {s0, s0, 1}, strides {s0, 1, 0}
+  std::vector<Expression> load_shape = {s0, s0, ge::sym::kSymbolOne};
+  std::vector<Expression> load_strides = {s0, ge::sym::kSymbolOne, ge::sym::kSymbolZero};
 
-  ge::ascir_op::Load load0("load0");
-  load0.x = data0.y;
-  load0.attr.sched.axis = {z0.id, z1.id, z2.id};
-  *load0.y.axis = {z0.id, z1.id, z2.id};
-  *load0.y.repeats = {s0, s0, One};
-  *load0.y.strides = {s0, One, Zero};
+  // Max output: shape {s0, 1, s0}, strides {s0, 0, 1}
+  std::vector<Expression> max_shape = {s0, ge::sym::kSymbolOne, s0};
+  std::vector<Expression> max_strides = {s0, ge::sym::kSymbolZero, ge::sym::kSymbolOne};
 
-  ge::ascir_op::Broadcast brc("brc");
-  brc.x = load0.y;
-  brc.attr.sched.axis = {z0.id, z1.id, z2.id};
-  *brc.y.axis = {z0.id, z1.id, z2.id};
-  *brc.y.repeats = {s0, s0, s0};
-  *brc.y.strides = {s0 * s0, s0, One};
-
-  ge::ascir_op::Max max("max");
-  max.x = brc.y;
-  max.attr.sched.axis = {z0.id, z1.id, z2.id};
-  *max.y.axis = {z0.id, z1.id, z2.id};
-  *max.y.repeats = {s0, One, s0};
-  *max.y.strides = {s0, Zero, One};
-
-  ge::ascir_op::Store store("store5");
-  store.x = max.y;
-  store.attr.sched.axis = {z0.id, z1.id, z2.id};
-  *store.y.axis = {z0.id, z1.id, z2.id};
-  *store.y.repeats = {s0, One, s0};
-  *store.y.strides = {s0, Zero, One};
-
-  ge::ascir_op::Output output5("output5");
-  output5.x = store.y;
-  output5.ir_attr.SetIndex(0);
+  auto graph = AscGraphBuilder("shorten_load")
+    .Loops({s0, s0, s0})
+    .Data("x0", 0)
+    .Load("load0", "x0", load_shape, load_strides)
+    .Broadcast("brc", "load0", {2})  // broadcast on axis 2
+    .Max("max", "brc", {1})  // Max reduce on axis 1
+    .Store("store5", "max", max_shape, max_strides)
+    .Output("output5", "store5", 0)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled;
   int res = optimizer.Optimize(graph, fused_scheduled);
@@ -1872,47 +1444,21 @@ TEST_F(OptimizerStV2, NoNeedAlign_AABToARA) {
 }
 
 TEST_F(OptimizerStV2, NddmaCaseTranspose021OutputWithSingleRef) {
-  AscGraph graph("Transpose_gen_nddma");
+  const Expression s0 = ge::Symbol(32);
+  const Expression s1 = ge::Symbol(64);
+  const Expression s2 = ge::Symbol(16);
 
-  auto s0 = graph.CreateSizeVar(32);
-  auto s1 = graph.CreateSizeVar(64);
-  auto s2 = graph.CreateSizeVar(16);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
-  auto z2 = graph.CreateAxis("z2", s2);
+  // Transpose output: shape {s0, s2, s1}, strides {s2 * s1, s1, One}
+  std::vector<Expression> transpose_strides = {s2 * s1, s1, ge::sym::kSymbolOne};
 
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT;
-  data0.ir_attr.SetIndex(0);
-
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id, z2.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id, z2.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.strides = {s1 * s2, s2, One};
-  *load0.y.repeats = {s0, s1, s2};
-
-  Transpose transpose("transpose");
-  transpose.x = load0.y;
-  transpose.attr.sched.axis = {z0.id, z1.id, z2.id};
-  *transpose.y.axis = {z0.id, z2.id, z1.id};
-  transpose.y.dtype = ge::DT_FLOAT;
-  *transpose.y.strides = {s2 * s1, s1, One};
-  *transpose.y.repeats = {s0, s2, s1};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id, z1.id, z2.id};
-  store_op.x = transpose.y;
-  *store_op.y.axis = {z0.id, z2.id, z1.id};
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.strides = {s2 * s1, s1, One};
-  *store_op.y.repeats = {s0, s2, s1};
-
-  Output output_op("output");
-  output_op.x = store_op.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-  output_op.ir_attr.SetIndex(8);
+  auto graph = AscGraphBuilder("Transpose_gen_nddma")
+    .Loops({s0, s1, s2})
+    .Data("data0", 0, ge::DT_FLOAT)
+    .Load("load0", "data0")
+    .Transpose("transpose", "load0", {0, 2, 1})  // transpose axes: {0, 2, 1}
+    .Store("store", "transpose", {}, transpose_strides)
+    .Output("output", "store", 8, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
@@ -1925,52 +1471,22 @@ TEST_F(OptimizerStV2, NddmaCaseTranspose021OutputWithSingleRef) {
 }
 
 TEST_F(OptimizerStV2, LoadCastTransposeCase) {
-  AscGraph graph("gen_nddma");
-  auto s0 = graph.CreateSizeVar(64);
-  auto s1 = graph.CreateSizeVar(64);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
+  const Expression s0 = ge::Symbol(64);
+  const Expression s1 = ge::Symbol(64);
 
-  Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT16;
-  data0.ir_attr.SetIndex(0);
+  // Transpose output: shape {s1, s0}, strides {s0, One}
+  std::vector<Expression> transpose_strides = {s0, ge::sym::kSymbolOne};
 
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z1.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z1.id};
-  load0.y.dtype = ge::DT_FLOAT16;
-  *load0.y.repeats = {s0, s1};
-  *load0.y.strides = {s1, One};
+  auto graph = AscGraphBuilder("gen_nddma")
+    .Loops({s0, s1})
+    .Data("data0", 0, ge::DT_FLOAT16)
+    .Load("load0", "data0")
+    .Cast("cast1", "load0", ge::DT_FLOAT)
+    .Transpose("transpose", "cast1", {1, 0})  // transpose axes: {1, 0}
+    .Store("store", "transpose", {}, transpose_strides)
+    .Output("output", "store", 5, ge::DT_FLOAT)
+    .Build();
 
-  Cast cast1("cast1");
-  cast1.x = load0.y;
-  cast1.attr.sched.axis = {z0.id, z1.id};
-  *cast1.y.axis = {z0.id, z1.id};
-  cast1.y.dtype = ge::DT_FLOAT;
-  *cast1.y.repeats = {s0, s1};
-  *cast1.y.strides = {s1, One};
-
-  Transpose transpose("transpose");
-  transpose.x = cast1.y;
-  transpose.attr.sched.axis = {z0.id, z1.id};
-  *transpose.y.axis = {z1.id, z0.id};
-  transpose.y.dtype = ge::DT_FLOAT;
-  *transpose.y.repeats = {s1, s0};
-  *transpose.y.strides = {s0, One};
-
-  Store store_op("store");
-  store_op.attr.sched.axis = {z0.id, z1.id};
-  store_op.x = transpose.y;
-  *store_op.y.axis = {z1.id, z0.id};
-  store_op.y.dtype = ge::DT_FLOAT;
-  *store_op.y.repeats = {s1, s0};
-  *store_op.y.strides = {s0, One};
-
-  Output output_op("output");
-  output_op.x = store_op.y;
-  output_op.y.dtype = ge::DT_FLOAT;
-  output_op.ir_attr.SetIndex(5);
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), 0);
   for (const auto &node :
@@ -2185,66 +1701,29 @@ TEST_F(OptimizerStV2, SplitAndFirstDimConcat) {
 }
 
 TEST_F(OptimizerStV2, TransposeTwoAxisSplitCaseNeedInputAlign) {
-  AscGraph graph("test");
-  auto s0 = graph.CreateSizeVar(347);
-  auto s2 = graph.CreateSizeVar(15);
-  auto s3 = graph.CreateSizeVar(49);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z2 = graph.CreateAxis("z2", s2);
-  auto z3 = graph.CreateAxis("z3", s3);
+  const Expression s0 = ge::Symbol(347);
+  const Expression s2 = ge::Symbol(15);
+  const Expression s3 = ge::Symbol(49);
 
-  Data data0("data0", graph);
-  data0.ir_attr.SetIndex(0);
+  // Load load0 with transpose: axis order {z0, z3, z2}
+  std::vector<Expression> load0_strides = {s2 * s3, s2, ge::sym::kSymbolOne};
 
-  Load load0("load0");
-  load0.attr.sched.axis = {z0.id, z2.id, z3.id};
-  load0.x = data0.y;
-  *load0.y.axis = {z0.id, z3.id, z2.id};
-  *load0.y.repeats = {s0, s3, s2};
-  *load0.y.strides = {s2 * s3, s2, One};
+  // Load load1 with padding on axis 1: shape {s0, 1, s3}, strides {s3, 0, One}
+  std::vector<Expression> load1_shape = {s0, ge::sym::kSymbolOne, s3};
+  std::vector<Expression> load1_strides = {s3, ge::sym::kSymbolZero, ge::sym::kSymbolOne};
 
-  Transpose transpose0("transpose0");
-  transpose0.attr.sched.axis = {z0.id, z2.id, z3.id};
-  transpose0.x = load0.y;
-  *transpose0.y.axis = {z0.id, z2.id, z3.id};
-  *transpose0.y.repeats = {s0, s2, s3};
-  *transpose0.y.strides = {s2 * s3, s3, One};
-
-  Data data1("data1", graph);
-  data1.ir_attr.SetIndex(1);
-
-  Load load1("load1");
-  load1.attr.sched.axis = {z0.id, z2.id, z3.id};
-  load1.x = data1.y;
-  *load1.y.axis = {z0.id, z2.id, z3.id};
-  *load1.y.repeats = {s0, One, s3};
-  *load1.y.strides = {s3, Zero, One};
-
-  Broadcast brc0("brc0");
-  brc0.attr.sched.axis = {z0.id, z2.id, z3.id};
-  brc0.x = load1.y;
-  *brc0.y.axis = {z0.id, z2.id, z3.id};
-  *brc0.y.repeats = {s0, s2, s3};
-  *brc0.y.strides = {s2 * s3, s3, One};
-
-  Mul mul0("mul0");
-  mul0.attr.sched.axis = {z0.id, z2.id, z3.id};
-  mul0.x1 = brc0.y;
-  mul0.x2 = transpose0.y;
-  *mul0.y.axis = {z0.id, z2.id, z3.id};
-  *mul0.y.repeats = {s0, s2, s3};
-  *mul0.y.strides = {s2 * s3, s3, One};
-
-  Store store0("store0");
-  store0.attr.sched.axis = {z0.id, z2.id, z3.id};
-  store0.x = mul0.y;
-  *store0.y.axis = {z0.id, z2.id, z3.id};
-  *store0.y.repeats = {s0, s2, s3};
-  *store0.y.strides = {s2 * s3, s3, One};
-
-  Output out0("output");
-  out0.x = store0.y;
-  out0.ir_attr.SetIndex(0);
+  auto graph = AscGraphBuilder("test")
+    .Loops({s0, s2, s3})
+    .Data("data0", 0, ge::DT_FLOAT)
+    .Load("load0", "data0", {}, load0_strides)  // loads with transpose axis {z0, z3, z2}
+    .Transpose("transpose0", "load0", {0, 2, 1})  // transpose axes: {z0, z3, z2} -> {z0, z2, z3}
+    .Data("data1", 1, ge::DT_FLOAT)
+    .Load("load1", "data1", load1_shape, load1_strides)
+    .Broadcast("brc0", "load1", {1})  // broadcast on axis 1
+    .Mul("mul0", "brc0", "transpose0")
+    .Store("store0", "mul0")
+    .Output("output", "store0", 0, ge::DT_FLOAT)
+    .Build();
 
   ::ascir::FusedScheduledResult fused_scheduled_result;
   EXPECT_EQ(optimizer.Optimize(graph, fused_scheduled_result), ge::SUCCESS);

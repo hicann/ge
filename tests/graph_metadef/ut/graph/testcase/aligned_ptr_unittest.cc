@@ -14,8 +14,8 @@
 #include <memory>
 #include <stdio.h>
 
-#include "graph/aligned_ptr.h"
-#include "graph/aligned_ptr.h"
+#include "graph_metadef/graph/aligned_ptr.h"
+#include "graph_metadef/graph/aligned_ptr.h"
 
 namespace ge {
 class UtestAlignedPtr : public testing::Test {

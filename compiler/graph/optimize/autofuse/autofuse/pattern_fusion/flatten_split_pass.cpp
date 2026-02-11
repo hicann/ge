@@ -13,7 +13,7 @@
 #include "ascir.h"
 #include "backend/backend_spec.h"
 #include "common/checker.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/debug/ge_op_types.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/node_utils.h"

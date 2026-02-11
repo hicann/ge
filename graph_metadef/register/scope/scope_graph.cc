@@ -14,12 +14,12 @@
 #include "graph_metadef/register/register.h"
 #include "framework/common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/ge_tensor.h"
 #include "graph/utils/op_desc_utils.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace ge {
 namespace {

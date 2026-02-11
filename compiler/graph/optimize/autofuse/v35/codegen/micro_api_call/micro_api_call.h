@@ -30,10 +30,11 @@ enum class TensorType : int8_t {
 class MicroApiTensor : public Variable {
  public:
   virtual ~MicroApiTensor() = default;
-  explicit MicroApiTensor(const ascir::TensorAttr &tensor, std::string &dtype_name, const std::string &scalar_value);
+  explicit MicroApiTensor(const ascir::TensorAttr &tensor, std::string &dtype_name, bool init_as_mask_reg = false);
 
   static const Type UBTensorTypes(std::string &dtype_name);
   static const Type RegTensorTypes(std::string &dtype_name);
+  static const Type MaskRegTypes();
 
  public:
   uint32_t id_;
@@ -46,8 +47,7 @@ class MicroApiTensor : public Variable {
   vector<ascir::SizeExpr> vectorized_strides_;
   Uint32 size_;
   Uint32 actual_size_;
-  std::string const_value_;
-  bool is_constant_;
+  bool init_as_mask_reg_ = false;
 };
 
 class TensorManager {

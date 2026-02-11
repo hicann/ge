@@ -10,7 +10,7 @@
 
 #include "common/env_path.h"
 #include "common/path_utils.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 namespace ge {
 EnvPath::EnvPath() {

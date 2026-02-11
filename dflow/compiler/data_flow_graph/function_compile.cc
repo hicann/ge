@@ -15,7 +15,7 @@
 #include "framework/common/scope_guard.h"
 #include "dflow/compiler/data_flow_graph/compile_config_json.h"
 #include "mmpa/mmpa_api.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "dflow/base/utils/data_flow_utils.h"
 
 namespace ge {

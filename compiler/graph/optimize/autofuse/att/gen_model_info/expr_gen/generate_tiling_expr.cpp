@@ -587,8 +587,7 @@ ge::Status GenerateTilingExpr::Generate(ModelInfo &model_info) {
                     "Get perf objects failed.");
   model_info.tiling_schedule_config_table = tuning_space_->tiling_schedule_config_table;
 
-  GE_ASSERT_SUCCESS(GetWorkSpaceSize(model_info.workspace_size_map),
-                     "Get workspace size failed.");
+  GE_ASSERT_SUCCESS(GetWorkSpaceSize(model_info.workspace_size_map), "Get workspace size failed.");
 
   GE_ASSERT_SUCCESS(GetSubAxisArgs(model_info.arg_list), "Get args list failed.");
 

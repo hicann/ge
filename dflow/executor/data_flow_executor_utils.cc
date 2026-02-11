@@ -10,7 +10,7 @@
 
 #include "data_flow_executor_utils.h"
 #include "framework/common/debug/ge_log.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "graph/utils/tensor_utils.h"
 
 namespace ge {

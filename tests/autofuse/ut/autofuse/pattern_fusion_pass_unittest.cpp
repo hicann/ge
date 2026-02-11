@@ -32,7 +32,7 @@
 #include "pattern_fusion/slice_forward_fusion_pass.h"
 #include "pattern_fusion/cast_remove_pass.h"
 #include "utils/autofuse_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/symbolizer/symbolic_utils.h"
 
 namespace ge {

@@ -89,6 +89,9 @@ set(GRAPH_BASE_SOURCE_LIST
     "utils/readable_dump.cc"
     "utils/tensor_value_utils.cc"
     "${GE_METADEF_DIR}/base/utils/type_utils_inner.cc"
+    "${GE_METADEF_DIR}/base/utils/file_utils.cc"
+    "${GE_METADEF_DIR}/base/utils/aligned_ptr.cc"
+    "${GE_METADEF_DIR}/base/common/plugin/plugin_manager.cc"
 )
 
 SET(GRAPH_SOURCE_LIST

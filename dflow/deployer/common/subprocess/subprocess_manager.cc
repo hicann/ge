@@ -17,7 +17,7 @@
 #include "dflow/base/utils/process_utils.h"
 #include "common/debug/log.h"
 #include "dflow/inc/data_flow/model/pne_model.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 #include "mmpa/mmpa_api.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 

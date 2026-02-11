@@ -11,7 +11,7 @@
 #include "graph/tensor.h"
 
 #include <numeric>
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/ge_tensor.h"
 #include "graph/debug/ge_attr_define.h"
 #include "securec.h"

@@ -14,7 +14,7 @@
 #include "exe_graph/lowering/graph_frame.h"
 #include "exe_graph/lowering/value_holder.h"
 #include "exe_graph/runtime/execute_graph_types.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils.h"
 #include "graph/utils/execute_graph_utils.h"
 #include "scoped_current_frame.h"

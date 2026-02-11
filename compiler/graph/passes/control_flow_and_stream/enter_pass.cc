@@ -15,7 +15,7 @@
 #include "framework/common/debug/log.h"
 #include "graph/utils/graph_utils.h"
 #include "common/checker.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace {
 const size_t kOutNodesNum = 1;

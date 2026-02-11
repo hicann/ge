@@ -12,6 +12,6 @@
 #define COMMON_GRAPH_DEBUG_GE_LOG_H_
 #include "common/ge_common/debug/ge_log.h"
 #include "common/ge_common/string_util.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #endif  // COMMON_GRAPH_DEBUG_GE_LOG_H_
 

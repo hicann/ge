@@ -10,7 +10,7 @@
 
 #include "register/graph_optimizer/graph_fusion/fusion_quant_util_impl.h"
 #include "common/ge_common/string_util.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 #include "graph/anchor.h"
 #include "graph/compute_graph.h"
 #include "framework/common/debug/ge_log.h"

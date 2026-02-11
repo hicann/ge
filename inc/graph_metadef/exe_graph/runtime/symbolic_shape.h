@@ -19,7 +19,7 @@
 #include <limits>
 #include "utils/extern_math_util.h"
 #include "graph/symbolizer/symbolic.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 
 namespace gert {
 /*

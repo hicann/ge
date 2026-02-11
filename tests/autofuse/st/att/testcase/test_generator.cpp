@@ -12,6 +12,7 @@
 #include <iostream>
 #include <gtest/gtest.h>
 #include "tiling_code_generator.h"
+#include "test_common_utils.h"
 
 namespace att {
 class GeneratorST : public testing::Test {};

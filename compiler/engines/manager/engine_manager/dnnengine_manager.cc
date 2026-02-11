@@ -210,7 +210,7 @@ bool DNNEngineManager::IsEngineRegistered(const std::string &name) {
   if (iter != engines_map_.cend()) {
     return true;
   }
-  GELOGW("Engine: %s is not registered", name.c_str());
+  GELOGW("Engine:[%s] is not registered", name.c_str());
   return false;
 }
 

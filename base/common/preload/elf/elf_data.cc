@@ -14,7 +14,7 @@
 #include "graph/ge_error_codes.h"
 #include "common/checker.h"
 #include "graph/def_types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

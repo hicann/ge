@@ -31,7 +31,7 @@
 #include "kernel/common_kernel_impl/tiling.h"
 #include "stub/gert_runtime_stub.h"
 #include "mmpa/mmpa_api.h"
-#include "graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/file_utils.h"
 
 using namespace ge;
 using namespace gert::bg;

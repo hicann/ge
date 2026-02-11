@@ -20,7 +20,7 @@
 #include "graph/utils/node_utils.h"
 #include "base/err_msg.h"
 #include "common/opskernel/ops_kernel_info_types.h"
-#include "common/ge_common/util.h"
+#include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
 namespace {

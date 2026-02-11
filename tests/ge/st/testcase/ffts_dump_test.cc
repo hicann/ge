@@ -27,7 +27,7 @@
 #include "faker/ge_model_builder.h"
 #include "lowering/model_converter.h"
 #include "core/executor_error_code.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "engine/ffts_plus/converter/ffts_plus_proto_transfer.h"
 #include "register/ffts_node_calculater_registry.h"
 #include "engine/aicore/kernel/aicore_update_kernel.h"

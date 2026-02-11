@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <vector>
+#include <stack>
 
 #include "graph/debug/ge_op_types.h"
 #include "graph/utils/op_desc_utils.h"
@@ -24,7 +25,6 @@
 namespace ge {
 namespace {
 constexpr size_t kForNodeInputStartIndex = 1U;
-constexpr int32_t kMaxRecursionDepth = 10;
 }  // namespace
 
 Status ReadableDump::GenReadableDump(std::stringstream &readable_ss, const ComputeGraphPtr &graph) {
@@ -32,40 +32,45 @@ Status ReadableDump::GenReadableDump(std::stringstream &readable_ss, const Compu
   return GenReadableDump(readable_ss, graph, ctx);
 }
 
-Status ReadableDump::GenReadableDump(std::stringstream &readable_ss, const ComputeGraphPtr &graph,
-                                     DumpContext &ctx, int32_t recursion_depth) {
-  if (recursion_depth > kMaxRecursionDepth) {
-    REPORT_INNER_ERR_MSG("E18888", "recursion_depth:%d is bigger than kMaxRecursionDepth:%d", recursion_depth,
-                     kMaxRecursionDepth);
-    GELOGE(GRAPH_FAILED, "[ReadableDump][GenReadableDump] recursion depth is too large, abort");
-    return GRAPH_FAILED;
-  }
+Status ReadableDump::GenReadableDump(std::stringstream &readable_ss, const ComputeGraphPtr &graph, DumpContext &ctx) {
+  std::stack<ComputeGraphPtr> graph_stack;
+  graph_stack.push(graph);
+  bool is_first_graph = true;
 
-  GE_ASSERT_NOTNULL(graph);
-  const auto graph_name = graph->GetName();
-  OutputHandler output_handler;
-  output_handler.GenNodeToOutputsMap(graph);
-  readable_ss << "graph(\"" << graph_name << "\"):" << std::endl;
-  std::stringstream graph_output_ss("");
-  std::vector<ComputeGraphPtr> subgraphs_to_dump;
-  for (const auto &node : graph->GetDirectNode()) {
-    GE_ASSERT_NOTNULL(node);
-    GE_ASSERT_NOTNULL(node->GetOpDesc());
-    if (node->GetOpDesc()->GetType() != kNetOutput) {
-      GenNodeDump(readable_ss, output_handler, node.get(), subgraphs_to_dump, ctx);
-    } else {
-      GenGraphOutput(graph_output_ss, node.get(), output_handler);
+  while (!graph_stack.empty()) {
+    const auto current_graph = graph_stack.top();
+    graph_stack.pop();
+
+    if (!is_first_graph) {
+      readable_ss << std::endl;
     }
-  }
-  if (!graph_output_ss.str().empty()) {
-    readable_ss << std::endl;
-    readable_ss << kIndentTwo << graph_output_ss.str();
-    readable_ss << std::endl;
-  }
+    is_first_graph = false;
 
-  for (const auto &subgraph : subgraphs_to_dump) {
-    readable_ss << std::endl;
-    GE_ASSERT_SUCCESS(GenReadableDump(readable_ss, subgraph, ctx, recursion_depth + 1));
+    GE_ASSERT_NOTNULL(current_graph);
+    const auto graph_name = current_graph->GetName();
+    OutputHandler output_handler;
+    output_handler.GenNodeToOutputsMap(current_graph);
+    readable_ss << "graph(\"" << graph_name << "\"):" << std::endl;
+    std::stringstream graph_output_ss("");
+    std::vector<ComputeGraphPtr> subgraphs_to_dump;
+    for (const auto &node : current_graph->GetDirectNode()) {
+      GE_ASSERT_NOTNULL(node);
+      GE_ASSERT_NOTNULL(node->GetOpDesc());
+      if (node->GetOpDesc()->GetType() != kNetOutput) {
+        GenNodeDump(readable_ss, output_handler, node.get(), subgraphs_to_dump, ctx);
+      } else {
+        GenGraphOutput(graph_output_ss, node.get(), output_handler);
+      }
+    }
+    if (!graph_output_ss.str().empty()) {
+      readable_ss << std::endl;
+      readable_ss << kIndentTwo << graph_output_ss.str();
+      readable_ss << std::endl;
+    }
+
+    for (auto it = subgraphs_to_dump.rbegin(); it != subgraphs_to_dump.rend(); ++it) {
+      graph_stack.push(*it);
+    }
   }
 
   return SUCCESS;

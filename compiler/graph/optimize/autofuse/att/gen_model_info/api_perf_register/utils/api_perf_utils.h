@@ -26,6 +26,7 @@ namespace att {
 struct StrideResult {
   Expr stride;
   int32_t block_count_idx;
+  std::map<Expr, TenaryOp, ExprCmp> tenary_ops;  // 动态shape的三元表达式
 
   // 默认构造函数
   StrideResult() : stride(CreateExpr(0)), block_count_idx(0) {}

@@ -11,7 +11,7 @@
 #include "flow_graph/process_point.h"
 #include "common/checker.h"
 #include "common/util/mem_utils.h"
-#include "graph/debug/ge_util.h"
+#include "graph_metadef/graph/debug/ge_util.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/serialization/attr_serializer_registry.h"
 #include "proto/dflow.pb.h"
