@@ -111,15 +111,14 @@ graphStatus ConcatSliceSimplificationPass::HandleSlice(const NodePtr &node) {
 
 bool ConcatSliceSimplificationPass::FindInput(const NodePtr &concat_node, size_t concat_dim, const std::vector<int64_t> &sizes,
                                               std::vector<int64_t> &offsets, size_t &input_index) {
+  const int64_t slice_start = offsets[concat_dim];
+  const int64_t slice_end = slice_start + sizes[concat_dim];
+  GELOGD("slice_start = %ld, slice_end = %ld", slice_start, slice_end);
   size_t num_inputs;
   const auto &concat_op_desc = concat_node->GetOpDesc();
   GE_ASSERT_NOTNULL(concat_op_desc);
   GE_WARN_ASSERT(AttrUtils::GetInt(concat_op_desc, kAttrNameN, num_inputs));
   GE_WARN_ASSERT(num_inputs <= concat_node->GetAllInDataAnchorsSize());
-  const int64_t slice_start = offsets[concat_dim];
-  const int64_t slice_end = sizes[concat_dim] == -1 ? concat_op_desc->GetOutputDesc(0).GetShape().GetDim(concat_dim)
-                                                    : (slice_start + sizes[concat_dim]);
-  GELOGD("slice_start = %ld, slice_end = %ld", slice_start, slice_end);
   int64_t span_start = 0;
   for (size_t i = 0UL; i < num_inputs; ++i) {
     const auto &input_desc = concat_op_desc->GetInputDesc(i);
