@@ -124,10 +124,6 @@ class RuntimeStub {
     return RT_ERROR_NONE;
   }
 
-  virtual rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) {
-    return RT_ERROR_NONE;
-  }
-
   virtual rtError_t rtMemGrpQuery(rtMemGrpQueryInput_t * const input, rtMemGrpQueryOutput_t *output)
   {
     return RT_ERROR_NONE;
@@ -230,9 +226,6 @@ class RuntimeStub {
     return RT_ERROR_NONE;
   }
   virtual rtError_t rtSetTaskTag(const char *taskTag);
-  virtual rtError_t rtBuffConfirm(void *buff, const uint64_t size) {
-    return RT_ERROR_NONE;
-  }
   virtual rtError_t rtModelCreate(rtModel_t *model, uint32_t flag);
   virtual rtError_t rtModelBindStream(rtModel_t model, rtStream_t stream, uint32_t flag);
   virtual rtError_t rtModelUnbindStream(rtModel_t model, rtStream_t stream);
