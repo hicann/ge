@@ -53,6 +53,7 @@
 #include "base/err_mgr.h"
 #include "common/memory/tensor_trans_utils.h"
 #include "exec_runtime/execution_runtime_utils.h"
+#include "dflow/compiler/session/dflow_session_impl.h"
 
 namespace {
 constexpr int32_t kMaxStrLen = 128;
