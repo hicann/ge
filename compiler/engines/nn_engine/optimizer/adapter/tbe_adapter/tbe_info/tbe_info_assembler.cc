@@ -38,6 +38,8 @@
 #include "framework/common/ge_types.h"
 #include "base/registry/op_impl_space_registry_v2.h"
 #include "register/op_impl_kernel_registry.h"
+#include "common/fe_context_utils.h"
+#include "graph/tuning_utils.h"
 
 namespace fe {
 namespace {
@@ -167,6 +169,21 @@ Status SetTbeTensor(const ge::OpDesc &op_desc, const TensorDescAndIndex &tensor_
   /* Set original format and dtype */
   SetTbeTensorShape(op_desc, tensor_info, input_tensor);
   return SUCCESS;
+}
+
+bool CheckAOETuning(const ge::Node *node) {
+  ge::ComputeGraphPtr owner_graph = node->GetOwnerComputeGraph();
+  if (owner_graph == nullptr) {
+    FE_LOGW("Node[%s] can not get owner graph.", node->GetName().c_str());
+    return false;
+  }
+  std::string build_mode_value = FEContextUtils::GetBuildMode();
+  if (build_mode_value == ge::BUILD_MODE_TUNING) {
+    FE_LOGI("Node[%s]'s graph has build_mode_value BUILD_MODE_TUNING.", node->GetName().c_str());
+    return true;
+  }
+  FE_LOGI("Node[%s]'s graph check not aoe tuning.", node->GetName().c_str());
+  return false;
 }
 }
 
@@ -852,13 +869,19 @@ void TbeInfoAssembler::SetOutputDdrBaseProp(const ge::Node *node, const uint32_t
   }
 }
 
-void TbeInfoAssembler::SetIsConstInputFlag(const ge::Node *node, const uint32_t &tensor_index,
-                                          te::TbeOpTensor &input_tensor) const {
+void TbeInfoAssembler::SetIsConstInputFlag(const ge::Node *node, const ge::OpDesc &op_desc,
+                                           const uint32_t &tensor_index, te::TbeOpTensor &input_tensor) const {
+  if (CheckAOETuning(node)) {
+    FE_LOGD("op[%s, %s] will not set input_const for the aoe_tuning scenario.",
+      op_desc.GetName().c_str(), op_desc.GetType().c_str());
+    return;
+  }
   ge::NodePtr peer_out_node = nullptr;
   bool is_const_node = FeGraphUtils::IsPeerOutConst(node, static_cast<int>(tensor_index), peer_out_node);
   if (is_const_node) {
-    input_tensor.SetIsInputConst(true);
+    input_tensor.SetIsInputConst(1);
   }
+  input_tensor.SetIsInputConst(0);
 }
 
 Status TbeInfoAssembler::SetTensorConstValue(const ge::Node *node, const uint32_t &tensor_index,
@@ -1045,7 +1068,7 @@ Status TbeInfoAssembler::ConvertInputsToTbeOpInfo(const ge::NodePtr &node, Index
         FE_LOGD("Ddr base prop of op[%s, %s]'s input[%u] is [%d].",
                 op_desc.GetName().c_str(), op_desc.GetType().c_str(), index_in_opdesc,
                 static_cast<int32_t>(input_tensor.GetDdrBaseProp()));
-        SetIsConstInputFlag(node.get(), index_in_opdesc, input_tensor);
+        SetIsConstInputFlag(node.get(), op_desc, index_in_opdesc, input_tensor);
         if (SetTensorConstValue(node.get(), index_in_opdesc, input_info_ptr, input_tensor) != SUCCESS) {
           REPORT_FE_ERROR(
               "[SubGraphOpt][PreCompileOp][AssembleConstVal][Op %s, type %s]: Fail to set value for input[%u].",

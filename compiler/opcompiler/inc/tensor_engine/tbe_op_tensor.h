@@ -547,12 +547,12 @@ public:
         atomicType = atomic_type_;
     }
 
-    void SetIsInputConst(const bool &isConstInput)
+    void SetIsInputConst(const int32_t &isConstInput)
     {
         is_input_const_ = isConstInput;
     }
 
-    bool GetInputConst() const
+    int32_t GetInputConst() const
     {
         return is_input_const_;
     }
@@ -614,7 +614,7 @@ private:
     std::string atomic_type_;  // include add sub mul div, etc..
     int64_t cAxisValue_{-1};
     DdrBaseType ddr_base_prop_;
-    bool is_input_const_{false};
+    int32_t is_input_const_{-1};
 };
 }
 #endif  // ATC_OPCOMPILER_INC_TENSOR_ENGINE_TBE_OP_TENSOR_H_

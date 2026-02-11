@@ -611,6 +611,10 @@ bool GetPyObjectOfInputConst(const TbeOpTensor &paraTensor, PyObject *&pyTensor,
         TE_FUSION_LOG_EXEC(TE_FUSION_LOG_ERROR, "Failed to get pyTrue or pyFalse from class HandleManager.");
         return false;
     }
+    if (paraTensor.GetInputConst() == -1) {
+        TE_DBGLOG("Not setting input const for aoe_tuning scenario.");
+        return true;
+    }
     bool isInputConst = paraTensor.GetInputConst();
     int ires = HandleManager::Instance().TE_PyDict_SetItemString(pyTensor, "is_input_const",
                                                                  isInputConst ? pyTrue : pyFalse);
