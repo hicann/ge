@@ -168,7 +168,7 @@ std::string CmdFlagInfo::PrintValueRange() {
 }
 
 void CmdFlagInfo::PrintValueError() {
-  if ((flag_name_ == "status_check") || (flag_name_ == "deterministic") || (flag_name_ == "deterministic_level") ||
+  if ((flag_name_ == "status_check") || (flag_name_ == "deterministic") ||
       (flag_name_ == "external_weight") || (flag_name_ == "display_model_info") ||
       (flag_name_ == "atomic_clean_policy") || (flag_name_ == "dump_mode") || (flag_name_ == "disable_reuse_memory") ||
       flag_name_ == "sparsity") {
