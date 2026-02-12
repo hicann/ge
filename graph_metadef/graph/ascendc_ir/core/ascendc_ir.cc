@@ -260,6 +260,7 @@ std::string AscGraphImpl::GetName() const {
 
 void AscGraphImpl::SetTilingKey(const uint32_t tiling_key) {
   const auto graph_attr_group_ptr = GetOrCreateGraphAttrsGroup();
+  GE_CHECK_NOTNULL_JUST_RETURN(graph_attr_group_ptr);
   graph_attr_group_ptr->tiling_key = static_cast<int64_t>(tiling_key);
 }
 
@@ -271,6 +272,7 @@ int64_t AscGraphImpl::GetTilingKey() const {
 
 void AscGraphImpl::SetGraphType(const AscGraphType type) {
   const auto graph_attr_group_ptr = GetOrCreateGraphAttrsGroup();
+  GE_CHECK_NOTNULL_JUST_RETURN(graph_attr_group_ptr);
   graph_attr_group_ptr->type = type;
 }
 
