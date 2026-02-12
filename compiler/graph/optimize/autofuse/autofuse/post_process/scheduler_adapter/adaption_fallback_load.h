@@ -131,7 +131,7 @@ inline void UpdateStrides(const ge::Expression repeat_old, std::vector<ge::Expre
                           int64_t axis_index) {
   // 更新高维 stride
   for (int64_t j = axis_index - 1; j >= 0; j--) {
-    if (current_broadcast_strides[j] != kSymbolZero) {
+    if (!BackendUtils::IsEqZero(current_broadcast_strides[j])) {
       current_broadcast_strides[j] = current_broadcast_strides[j] / repeat_old;
     }
   }
@@ -158,7 +158,7 @@ inline Status UpdateBroadcastNodeAttrs(const NodePtr &b_node, const std::vector<
   GE_ASSERT_TRUE(axis_index < current_broadcast_repeats.size());
   GE_ASSERT_TRUE(axis_index < current_broadcast_strides.size());
   const auto repeat_old = current_broadcast_repeats[axis_index];
-  GE_ASSERT_TRUE(repeat_old != kSymbolZero);
+  GE_ASSERT_TRUE(!BackendUtils::IsEqZero(repeat_old));
   current_broadcast_repeats[axis_index] = kSymbolOne;
   current_broadcast_strides[axis_index] = kSymbolZero;
 

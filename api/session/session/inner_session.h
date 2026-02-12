@@ -23,13 +23,12 @@
 #include "graph/execute/model_executor.h"
 #include "ge/ge_allocator.h"
 
-#include "dflow/compiler/session/dflow_session_impl.h"
 #include "jit_execution/user_graphs_manager.h"
 #include "user_hybrid_graph_manager.h"
 
 namespace ge {
 
-class DflowSessionImpl;
+class DFlowSessionImpl;
 
 class InnerSession {
  public:

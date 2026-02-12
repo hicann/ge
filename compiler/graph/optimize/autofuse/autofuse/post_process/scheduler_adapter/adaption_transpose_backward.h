@@ -99,7 +99,7 @@ inline Status ApplySwapTensorInfo(std::vector<int64_t> &axis, std::vector<ge::Ex
     strides.clear();
     ge::Expression temp_stride = kSymbolOne;
     for (size_t i = axis.size(); i > 0U; --i) {
-      if (repeats[i - 1U] == kSymbolOne) {
+      if (BackendUtils::IsEqOne(repeats[i - 1U])) {
         strides.insert(strides.begin(), kSymbolZero);
       } else {
         strides.insert(strides.begin(), temp_stride);

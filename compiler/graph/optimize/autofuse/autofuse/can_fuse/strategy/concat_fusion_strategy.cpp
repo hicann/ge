@@ -311,12 +311,12 @@ bool ConcatFusionStrategy::IsConcatOrSplitFirstDim(const AscNodePtr &concat_node
   size_t concat_dim = 0UL;
   bool is_first_dim = false;
   for (size_t i = 0U; i < input_repeats.size(); ++i) {
-    if (SymbolicUtils::StaticCheckEq(input_repeats[i], output_repeats[i]) != ge::TriBool::kTrue) {
+    if (!BackendUtils::IsEq(input_repeats[i], output_repeats[i])) {
       concat_dim = i;
       is_first_dim = (non_one_count == 0);
       break;
     }
-    if (SymbolicUtils::StaticCheckEq(input_repeats[i], ge::Symbol(1)) != ge::TriBool::kTrue) {
+    if (!BackendUtils::IsEqOne(input_repeats[i])) {
       ++non_one_count;
     }
   }

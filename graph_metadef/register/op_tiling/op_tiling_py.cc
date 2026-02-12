@@ -1524,10 +1524,8 @@ gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert
     GELOGE(ge::GRAPH_FAILED, "Output Pointer is null.");
     return gert::KernelContextHolder();
   }
-
   tiling_context_inputs[context_com.storage_shapes.size()] = *tiling_parse_context->GetOutputPointer<void **>(0);
   tiling_context_inputs[context_com.storage_shapes.size() + 1UL] = reinterpret_cast<void *>(&platform_infos);
-
   int32_t deterministic = 0;
   (void)ge::AttrUtils::GetInt(context_com.op_desc, "deterministic", deterministic);
   GELOGI("Get deterministic: %d from node: %s", deterministic, context_com.op_desc->GetName().c_str());
@@ -1535,6 +1533,20 @@ gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert
       reinterpret_cast<void *>(deterministic);
   int32_t deterministic_level = 0;
  	(void)ge::AttrUtils::GetInt(context_com.op_desc, "deterministic_level", deterministic_level);
+  if (deterministic_level < 0 || deterministic_level > 2) {
+    std::string readable_name = ge::GEThreadLocalContext().GetReadableName("ge.deterministicLevel");
+    std::string error_msg =
+        "Valid values for " + readable_name + " are {0,1,2}.";
+    GELOGE(ge::FAILED, "Valid values for %s are {0,1,2}, given value is %d", readable_name.c_str(),
+           deterministic_level);
+    (void) REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                     std::vector<const char *>(
+                                         {
+                                           readable_name.c_str(), to_string(deterministic_level).c_str(),
+                                               error_msg.c_str()
+                                         }));
+    return gert::KernelContextHolder();
+  }
   GELOGI("Get deterministic level: %d from node: %s", deterministic_level, context_com.op_desc->GetName().c_str());
   tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicLevelOffset] =
       reinterpret_cast<void *>(deterministic_level);

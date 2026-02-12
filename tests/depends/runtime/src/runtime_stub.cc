@@ -1668,10 +1668,6 @@ rtError_t rtRegTaskFailCallbackByModule(const char *moduleName, rtTaskFailCallba
   return ge::RuntimeStub::GetInstance()->rtRegTaskFailCallbackByModule(moduleName, callback);
 }
 
-rtError_t rtGetIsHeterogenous(int32_t *heterogeneous) {
-  return ge::RuntimeStub::GetInstance()->rtGetIsHeterogenous(heterogeneous);
-}
-
 rtError_t rtMemGrpQuery(rtMemGrpQueryInput_t * const input, rtMemGrpQueryOutput_t *output)
 {
   return ge::RuntimeStub::GetInstance()->rtMemGrpQuery(input, output);
@@ -1768,10 +1764,6 @@ rtError_t rtBuffAlloc(uint64_t size, void **buff) {
 
 rtError_t rtBuffFree(void *buff) {
   return 0;
-}
-
-rtError_t rtBuffConfirm(void *buff, const uint64_t size){
-  return ge::RuntimeStub::GetInstance()->rtBuffConfirm(buff, size);
 }
 
 rtError_t rtMbufAlloc(rtMbufPtr_t *mbuf, uint64_t size) {

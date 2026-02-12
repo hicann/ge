@@ -673,6 +673,9 @@ class BackendUtils {
                                std::vector<std::pair<int32_t, int32_t>> &same_input_map_);
   static bool IsSameBroadCastInfo(std::vector<ViewOpAttrInfo> &attr_infos1, std::vector<ViewOpAttrInfo> &attr_infos2);
   static bool IsNodeAllInputsAreSimplestLoad(const NodePtr &node);
+  static bool IsEq(const Expression &e1, const Expression &e2);
+  static bool IsEqOne(const Expression &e1);
+  static bool IsEqZero(const Expression &e1);
   static Status UpdateContinueStrides(const std::vector<ge::Expression> &repeats,
                                       std::vector<ge::Expression> &strides);
 

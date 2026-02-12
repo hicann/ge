@@ -406,7 +406,7 @@ inline Status GetTensorInfoFromAscgraph(TensorInfo &tensor_info, const AscGraph 
   GE_ASSERT_TRUE(tensor_info.axis.size() == tensor_info.repeats.size());
   ge::Expression temp_stride = kSymbolOne;
   for (size_t i = tensor_info.axis.size(); i > 0U; --i) {
-    if (tensor_info.repeats[i - 1U] == kSymbolOne) {
+    if (BackendUtils::IsEqOne(tensor_info.repeats[i - 1U])) {
       tensor_info.strides.insert(tensor_info.strides.begin(), kSymbolZero);
     } else {
       tensor_info.strides.insert(tensor_info.strides.begin(), temp_stride);

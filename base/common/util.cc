@@ -360,15 +360,15 @@ Status ConvertToInt32(const std::string &str, int32_t &val) {
     val = std::stoi(str);
   } catch (std::invalid_argument &) {
     GELOGE(FAILED, "[Parse][Param]Failed, digit str:%s is invalid", str.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s is invalid", str.c_str());
+    REPORT_INNER_ERR_MSG("E18888", "Parse param failed, digit str:%s is invalid", str.c_str());
     return FAILED;
   } catch (std::out_of_range &) {
     GELOGE(FAILED, "[Parse][Param]Failed, digit str:%s cannot change to int", str.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s cannot change to int", str.c_str());
+    REPORT_INNER_ERR_MSG("E18888", "Parse param failed, digit str:%s cannot change to int", str.c_str());
     return FAILED;
   } catch (...) {
     GELOGE(FAILED, "[Parse][Param]Failed, digit str:%s cannot change to int", str.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s cannot change to int", str.c_str());
+    REPORT_INNER_ERR_MSG("E18888", "Parse param failed, digit str:%s cannot change to int", str.c_str());
     return FAILED;
   }
 

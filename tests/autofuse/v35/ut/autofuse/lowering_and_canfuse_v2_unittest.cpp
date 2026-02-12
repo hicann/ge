@@ -2586,4 +2586,84 @@ TEST_F(UTestLoweringAndCanfuseV2, GatherBrocConcatFuse2) {
   ge::PlatformContext::GetInstance().Reset();
   RuntimeStub::Reset();
 }
+
+// Gather/Gather + Concat 辅助函数
+// 构建 Gather+Gather+Tile+Concat 计算图
+static void BuildGatherGatherConcatGraph(es::Graph &es_graph) {
+  auto data0 = es_graph.CreateInput(0, "data0", nullptr);
+  data0.SetSymbolShape({"10", "6"});
+  auto data1 = es_graph.CreateInput(1, "data1", nullptr);
+  data1.SetSymbolShape({"128", "1"});
+  auto data2 = es_graph.CreateInput(2, "data2", nullptr);
+  data2.SetSymbolShape({"1", "1", "6"});
+  auto multiples = es_graph.CreateVector({128, 1, 1});
+  multiples.SetSymbolShape({"3"});
+  auto axis = CreateConst(es_graph, ge::DT_INT64, {1}, std::vector<int64_t>{0});
+  axis.SetSymbolShape({});
+  auto gather1 = es::GatherV2(data0, data1, axis);
+  gather1.SetSymbolShape({"128", "1", "6"});
+  auto gather2 = es::GatherV2(data0, data1, axis);
+  gather2.SetSymbolShape({"128", "1", "6"});
+  auto tile = es::Tile(data2, multiples);
+  tile.SetSymbolShape({"128", "1", "6"});
+  auto concat = es::ConcatD({gather1, gather2, tile}, 1);
+  concat.SetSymbolShape({"128", "3", "6"});
+  es_graph.SetOutput(concat, 0);
+}
+
+// 验证 GatherGatherConcat 融合后的结果
+static void VerifyGatherGatherConcatFuseResult(const ComputeGraphPtr &cg) {
+  for (const auto &node : cg->GetDirectNode()) {
+    if (node->GetType() == kFusedAscBackendType) {
+      const auto attr = node->GetOpDescBarePtr()->GetAttrsGroup<AutoFuseAttrs>();
+      auto autofuse_gather_0_GatherV2 = attr->GetFuseComputeGraph()->FindNode("autofuse_gather_0_GatherV2");
+      ASSERT_NE(autofuse_gather_0_GatherV2, nullptr);
+      auto autofuse_gather_1_GatherV2 = attr->GetFuseComputeGraph()->FindNode("autofuse_gather_1_GatherV2");
+      ASSERT_NE(autofuse_gather_1_GatherV2, nullptr);
+    }
+  }
+}
+
+// 执行完整的 Lowering/Fusion/Lifting/Post-process 流程
+static Status ProcessGraphWithFullPipeline(ComputeGraphPtr &cg) {
+  ge::AscIrLowerer lowerer;
+  GE_ASSERT_SUCCESS(lowerer.Lowering(cg));
+  GE_ASSERT_SUCCESS(asc_adapt::GeFallback(cg));
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  GE_ASSERT_SUCCESS(fusion_strategy_solver.Fuse(cg));
+  GE_ASSERT_SUCCESS(lowerer.Lifting(cg));
+  AscBackendPostProcessor post_processor;
+  return post_processor.Do(cg);
+}
+
+// Gather/Gather + Concat, 可以融合,但是FusedAscBackend内部的Gather不能融合
+TEST_F(UTestLoweringAndCanfuseV2, GatherGatherConcatFuse) {
+  ge::PlatformContext::GetInstance().Reset();
+  auto stub_v2 = std::make_shared<RuntimeStubV2Common>();
+  RuntimeStub::SetInstance(stub_v2);
+
+  // 构建测试图
+  BuildGatherGatherConcatGraph(*es_graph_);
+
+  // 获取计算图并设置数据类型
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto nodeptr = cg->FindNode("data1");
+  ASSERT_NE(nodeptr, nullptr);
+  auto tmp_desc = nodeptr->GetOpDesc()->MutableOutputDesc(0);
+  tmp_desc->SetDataType(DT_INT64);
+  tmp_desc->SetOriginDataType(DT_INT64);
+
+  // 执行完整的 lowering/fusion/lifting/post-process 流程
+  EXPECT_EQ(ProcessGraphWithFullPipeline(cg), SUCCESS);
+
+  // 验证融合结果
+  VerifyGatherGatherConcatFuseResult(cg);
+
+  // 清理环境
+  SetCurShapeEnvContext(nullptr);
+  ge::PlatformContext::GetInstance().Reset();
+  RuntimeStub::Reset();
+}
 }  // namespace ge

@@ -926,10 +926,21 @@ ge::graphStatus GetDeterministicLevel(int32_t &deterministic_level) {
   std::string deterministic_level_str;
   (void)ge::GetThreadLocalContext().GetOption("ge.deterministicLevel", deterministic_level_str);
   deterministic_level_str = deterministic_level_str.empty() ? "0" : deterministic_level_str;
-  GE_ASSERT_SUCCESS(ge::ConvertToInt32(deterministic_level_str, deterministic_level),
-                    "DETERMINISTIC_LEVEL value is not valid, must be a valid integer string");
-  GE_ASSERT_TRUE((deterministic_level >= 0 && deterministic_level <= 2),
-                 "Valid values for DETERMINISTIC_LEVEL are {0,1,2}");
+  auto ret = ge::ConvertToInt32(deterministic_level_str, deterministic_level);
+  if (ret != ge::SUCCESS || deterministic_level < 0 || deterministic_level > 2) {
+    std::string readable_name = ge::GEThreadLocalContext().GetReadableName("ge.deterministicLevel");
+    std::string error_msg =
+        "Valid values for " + readable_name + " are {0,1,2}.";
+    GELOGE(ge::FAILED, "Valid values for %s are {0,1,2}, given value is %s", readable_name.c_str(),
+           deterministic_level_str.c_str());
+    (void) REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+                                     std::vector<const char_t *>(
+                                         {
+                                           readable_name.c_str(), deterministic_level_str.c_str(),
+                                               error_msg.c_str()
+                                         }));
+    return ge::GRAPH_FAILED;
+  }
   return ge::GRAPH_SUCCESS;
 }
 }  // namespace optiling

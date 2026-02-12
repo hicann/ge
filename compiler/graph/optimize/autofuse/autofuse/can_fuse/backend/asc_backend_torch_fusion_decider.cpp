@@ -32,7 +32,7 @@ bool IsProduct(const ge::Expression &target, const std::deque<ge::Expression> &v
   ge::Expression product = kSymbolOne;
   for (size_t i = 0U; i < vec.size(); ++i) {
     product = product * vec[i];
-    if (target == product) {
+    if (BackendUtils::IsEq(target, product)) {
       size = ++i;
       return true;
     }
@@ -179,7 +179,7 @@ Status UpdateTensorStrides(const std::unordered_map<int64_t, std::vector<int64_t
       for (auto index = 0U; index < iter->second.size(); index++) {
         auto sub_index = iter->second.size() - 1U - index;
         GE_ASSERT_TRUE(static_cast<size_t>(iter->second[sub_index]) < base.size());
-        if (base[static_cast<size_t>(iter->second[sub_index])] == kSymbolZero) {
+        if (BackendUtils::IsEqZero(base[static_cast<size_t>(iter->second[sub_index])])) {
           split_stride.push_back(kSymbolZero);
         } else {
           split_stride.push_back(cur_stride);

@@ -114,7 +114,7 @@ bool CheckIfSliceEndDimIsOne(const NodePtr &node1) {
   GE_ASSERT_TRUE(!output_dims.empty(), "node [%s] output end dim is 0.", node1->GetName().c_str());
   auto index = output_dims.size() - 1UL;
   GELOGI("slice op output end dim is %s.", output_dims[index].Serialize().get());
-  if (SymbolicUtils::StaticCheckEq(output_dims[index], Symbol(1)) == TriBool::kTrue) {
+  if (BackendUtils::IsEqOne(output_dims[index])) {
     return true;
   }
   return false;
