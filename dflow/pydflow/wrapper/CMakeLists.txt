@@ -14,6 +14,7 @@ add_library(dflow_wrapper MODULE dflow_wrapper.cpp)
 target_include_directories(dflow_wrapper PRIVATE
         ${HI_PYTHON_INC}
         ${pybind11_INCLUDE_DIR}
+        ${AIR_CODE_DIR}
 )
 
 target_link_libraries(dflow_wrapper PRIVATE
@@ -25,7 +26,8 @@ target_link_libraries(dflow_wrapper PRIVATE
         $<BUILD_INTERFACE:air_headers>
         unified_dlog
         flow_graph
-        ge_runner
+        ge_runner_v2
+        dflow_runner
         fmk_parser
         fmk_onnx_parser
 )

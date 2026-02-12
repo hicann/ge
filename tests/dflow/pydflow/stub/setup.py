@@ -27,6 +27,7 @@ ext_modules = [
         include_dirs=[
             "./",
             workspace_base_dir + "/wrapper",
+            workspace_base_dir + "/../..",
             workspace_base_dir + "/../../inc/external",
             workspace_base_dir + "/../../inc/graph_metadef/external",
             workspace_base_dir + "/../../inc/parser/external",

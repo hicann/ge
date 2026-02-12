@@ -14,6 +14,7 @@
 #include "common/util/mem_utils.h"
 #include "graph/manager/session_id_manager.h"
 
+namespace ge {
 namespace dflow {
 using ge::Status;
 using ge::SUCCESS;
@@ -109,4 +110,5 @@ SessionPtr DFlowSessionManager::GetSession(uint64_t session_id) {
   }
   return it->second;
 }
+} // namespace dflow
 }  // namespace ge

@@ -22,7 +22,8 @@
 #include "pybind11/stl.h"
 #include "dlog_pub.h"
 #include "flow_graph/data_flow.h"
-#include "ge/ge_api.h"
+#include "dflow/compiler/session/dflow_api.h"
+#include "ge/ge_api_v2.h"
 #include "parser/onnx_parser.h"
 #include "parser/tensorflow_parser.h"
 
@@ -200,6 +201,15 @@ class PyFlowMsg : public ge::FlowMsg {
     PYBIND11_OVERRIDE_PURE(ge::Status, ge::FlowMsg, SetUserData, data, size, offset);
   }
 };
+std::map<ge::AscendString, ge::AscendString> ConvertToAscendString(const std::map<std::string, std::string> &str_map) {
+  std::map<ge::AscendString, ge::AscendString> ascend_string_map;
+  for (const auto &it : str_map) {
+    AscendString key{it.first.c_str()};
+    AscendString value{it.second.c_str()};
+    ascend_string_map[key] = value;
+  }
+  return ascend_string_map;
+}
 }  // namespace
 
 PYBIND11_MODULE(dflow_wrapper, m) {
@@ -222,13 +232,17 @@ PYBIND11_MODULE(dflow_wrapper, m) {
   m.def(
       "ge_initialize",
       [](const std::map<std::string, std::string> &options) {
-        std::map<ge::AscendString, ge::AscendString> options_ascend_string;
-        for (auto it = options.cbegin(); it != options.cend(); ++it) {
-          AscendString key{it->first.data()};
-          AscendString value{it->second.data()};
-          options_ascend_string[key] = value;
+        auto options_ascend_string = ConvertToAscendString(options);
+        auto ret = ge::GEInitializeV2(options_ascend_string);
+        if (ret != ge::SUCCESS) {
+          DFLOW_LOGE("GEInitialize failed, ret=%u.", ret);
+          return ret;
         }
-        const auto ret = ge::GEInitialize(options_ascend_string);
+        ret = ::dflow::DFlowInitialize(options_ascend_string);
+        if (ret != ge::SUCCESS) {
+          DFLOW_LOGE("DFlowInitialize failed, ret=%u.", ret);
+          return ret;
+        }
         return ret;
       },
       py::call_guard<py::gil_scoped_release>());
@@ -236,7 +250,16 @@ PYBIND11_MODULE(dflow_wrapper, m) {
   m.def(
       "ge_finalize",
       []() {
-        const auto ret = ge::GEFinalize();
+        auto ret = ::dflow::DFlowFinalize();
+        if (ret != ge::SUCCESS) {
+          DFLOW_LOGE("DFlowFinalize failed, ret=%u.", ret);
+          return ret;
+        }
+        ret = ge::GEFinalizeV2();
+        if (ret != ge::SUCCESS) {
+          DFLOW_LOGE("GEFinalize failed, ret=%u.", ret);
+          return ret;
+        }
         return ret;
       },
       py::call_guard<py::gil_scoped_release>());
@@ -278,14 +301,7 @@ PYBIND11_MODULE(dflow_wrapper, m) {
   m.def("load_graph_pp", [](const std::string &framework, const std::string &graph_file,
                             const std::map<std::string, std::string> &load_params, const std::string &compile_config_path,
                             const std::string &name) {
-    std::map<ge::AscendString, ge::AscendString> params;
-    if (!load_params.empty()) {
-      for (auto it = load_params.cbegin(); it != load_params.cend(); ++it) {
-        AscendString key{it->first.data()};
-        AscendString value{it->second.data()};
-        params[key] = value;
-      }
-    }
+    std::map<ge::AscendString, ge::AscendString> params = ConvertToAscendString(load_params);
     dflow::GraphBuilder err_graph_build = []() {
       ge::Graph graph;
       return graph;
@@ -402,14 +418,14 @@ PYBIND11_MODULE(dflow_wrapper, m) {
       .def_readwrite("end_time", &FlowInfo::end_time)
       .def_readwrite("flow_flags", &FlowInfo::flow_flags)
       .def_readwrite("transaction_id", &FlowInfo::transaction_id)
-      .def("set_user_data", [](FlowInfo &self, py::buffer user_data, size_t data_size, size_t offset) {
-        self.user_data.user_data_ptr = reinterpret_cast<void *>(user_data.request().ptr);
+      .def("set_user_data", [](FlowInfo &self, const py::buffer &user_data, size_t data_size, size_t offset) {
+        self.user_data.user_data_ptr = user_data.request().ptr;
         self.user_data.data_size = data_size;
         self.user_data.offset = offset;
       });
 
   py::class_<ge::Tensor>(m, "Tensor", py::buffer_protocol())
-      .def(py::init([](py::array &np_array) {
+      .def(py::init([](const py::array &np_array) {
         auto flags = static_cast<unsigned int>(np_array.flags());
         if ((flags & pybind11::detail::npy_api::NPY_ARRAY_C_CONTIGUOUS_) == 0) {
           throw std::runtime_error("Numpy array is not C Contiguous");
@@ -435,13 +451,13 @@ PYBIND11_MODULE(dflow_wrapper, m) {
           const int64_t shape_size = desc.GetShape().GetShapeSize();
           const size_t element_number = shape_size <= 0L ? 1UL : static_cast<size_t>(shape_size);
           const auto string_vec =
-              SplitToStrVector(reinterpret_cast<const char *>(np_array.data()), np_array.nbytes(), element_number);
+              SplitToStrVector(static_cast<const char *>(np_array.data()), np_array.nbytes(), element_number);
           if (string_vec.empty()) {
             throw std::runtime_error("Split string to vector failed.");
           }
           tensor.SetData(string_vec);
         } else {
-          tensor.SetData(reinterpret_cast<const uint8_t *>(np_array.data()), np_array.nbytes());
+          tensor.SetData(static_cast<const uint8_t *>(np_array.data()), np_array.nbytes());
         }
         return tensor;
       }))
@@ -508,7 +524,7 @@ PYBIND11_MODULE(dflow_wrapper, m) {
            [](ge::FlowMsg &self, uint16_t msg_type) { return self.SetMsgType(static_cast<ge::MsgType>(msg_type)); })
       .def("get_tensor", &ge::FlowMsg::GetTensor, py::return_value_policy::reference)
       .def("get_raw_data",
-           [](ge::FlowMsg &self) {
+           [](const ge::FlowMsg &self) {
              void *data = nullptr;
              uint64_t data_size = 0U;
              (void)self.GetRawData(data, data_size);
@@ -524,7 +540,7 @@ PYBIND11_MODULE(dflow_wrapper, m) {
       .def("set_flow_flags", &ge::FlowMsg::SetFlowFlags)
       .def("get_transaction_id", &ge::FlowMsg::GetTransactionId)
       .def("set_transaction_id", &ge::FlowMsg::SetTransactionId)
-      .def("__repr__", [](ge::FlowMsg &self) {
+      .def("__repr__", [](const ge::FlowMsg &self) {
         std::stringstream repr;
         repr << "FlowMsg(msg_type=" << static_cast<int32_t>(self.GetMsgType());
         repr << ", tensor=...";
@@ -542,7 +558,7 @@ PYBIND11_MODULE(dflow_wrapper, m) {
       .def_static("alloc_empty_data_msg", &ge::FlowBufferFactory::AllocEmptyDataMsg)
       .def_static("to_tensor_flow_msg",
                   [](const ge::Tensor &tensor) { return ge::FlowBufferFactory::ToFlowMsg(tensor); })
-      .def_static("to_raw_data_flow_msg", [](py::buffer buffer) {
+      .def_static("to_raw_data_flow_msg", [](const py::buffer &buffer) {
         py::buffer_info info = buffer.request();
         ge::RawData raw_data{};
         raw_data.addr = static_cast<const void *>(info.ptr);
@@ -550,58 +566,56 @@ PYBIND11_MODULE(dflow_wrapper, m) {
         return ge::FlowBufferFactory::ToFlowMsg(raw_data);
       });
 
-  py::class_<Session>(m, "Session")
-      .def(py::init<const std::map<std::string, std::string> &>())
-      .def("add_flow_graph", ([](ge::Session &self, uint32_t graph_id, dflow::FlowGraph &flow_graph,
+  py::class_<dflow::DFlowSession>(m, "DFlowSession")
+      .def(py::init([](const std::map<std::string, std::string> &options) {
+        auto options_ascend_string = ConvertToAscendString(options);
+        // no need add std::nothrow, as it need raise exception to python
+        return new dflow::DFlowSession(options_ascend_string);
+      }), py::return_value_policy::take_ownership)
+      .def("add_flow_graph", ([](dflow::DFlowSession &self, uint32_t graph_id,
+                                 const dflow::FlowGraph &flow_graph,
                                  const std::map<std::string, std::string> &options) {
              ReturnMessage return_msg = {.ret_code = ge::SUCCESS, .error_msg = "success"};
-             std::map<ge::AscendString, ge::AscendString> options_ascend_string;
-             for (auto it = options.cbegin(); it != options.cend(); ++it) {
-               AscendString key{it->first.data()};
-               AscendString value{it->second.data()};
-               options_ascend_string[key] = value;
-             }
-             const auto ret = self.AddGraph(graph_id, flow_graph.ToGeGraph(), options_ascend_string);
-             if (ret != 0) {
+             auto options_ascend_string = ConvertToAscendString(options);
+             const auto ret = self.AddGraph(graph_id, flow_graph, options_ascend_string);
+             if (ret != SUCCESS) {
                return_msg.ret_code = ret;
                return_msg.error_msg = "Failed to add flow graph, " + ERR_MSG;
              }
              return return_msg;
            }))
-      .def(
-          "feed_data",
-          [](ge::Session &self, uint32_t graph_id, std::vector<uint32_t> &indexes, const std::vector<ge::Tensor> &inputs,
-             FlowInfo &info, int32_t timeout) {
-            DataFlowInfo flow_info;
-            flow_info.SetStartTime(info.start_time);
-            flow_info.SetEndTime(info.end_time);
-            flow_info.SetFlowFlags(info.flow_flags);
-            flow_info.SetTransactionId(info.transaction_id);
-            ReturnMessage return_msg = {.ret_code = ge::SUCCESS, .error_msg = "success"};
-            if (info.user_data.data_size != 0UL) {
-              const auto setRet =
-                  flow_info.SetUserData(info.user_data.user_data_ptr, info.user_data.data_size, info.user_data.offset);
-              if (setRet != SUCCESS) {
-                return_msg.ret_code = setRet;
-                return_msg.error_msg = "Failed to set user data, " + ERR_MSG;
-                return return_msg;
-              }
-            }
-            const auto ret = self.FeedDataFlowGraph(graph_id, indexes, inputs, flow_info, timeout);
-            if ((ret != ge::SUCCESS)) {
-              return_msg.ret_code = ret;
-              if (ret == ACL_ERROR_GE_SUBHEALTHY) {
-                return_msg.error_msg = "Current system is in subhealth status.";
-              } else {
-                return_msg.error_msg = "Failed to feed data, " + ERR_MSG;
-              }
-            }
-            return return_msg;
-          },
-          py::call_guard<py::gil_scoped_release>())
+      .def("feed_data", [](dflow::DFlowSession &self, uint32_t graph_id, const std::vector<uint32_t> &indexes,
+                           const std::vector<ge::Tensor> &inputs, const FlowInfo &info, int32_t timeout) {
+             DataFlowInfo flow_info;
+             flow_info.SetStartTime(info.start_time);
+             flow_info.SetEndTime(info.end_time);
+             flow_info.SetFlowFlags(info.flow_flags);
+             flow_info.SetTransactionId(info.transaction_id);
+             ReturnMessage return_msg = {.ret_code = ge::SUCCESS, .error_msg = "success"};
+             if (info.user_data.data_size != 0UL) {
+               const auto setRet =
+                   flow_info.SetUserData(info.user_data.user_data_ptr, info.user_data.data_size, info.user_data.offset);
+               if (setRet != SUCCESS) {
+                 return_msg.ret_code = setRet;
+                 return_msg.error_msg = "Failed to set user data, " + ERR_MSG;
+                 return return_msg;
+               }
+             }
+             const auto ret = self.FeedDataFlowGraph(graph_id, indexes, inputs, flow_info, timeout);
+             if ((ret != ge::SUCCESS)) {
+               return_msg.ret_code = ret;
+               if (ret == ACL_ERROR_GE_SUBHEALTHY) {
+                 return_msg.error_msg = "Current system is in subhealth status.";
+               } else {
+                 return_msg.error_msg = "Failed to feed data, " + ERR_MSG;
+               }
+             }
+             return return_msg;
+           },
+           py::call_guard<py::gil_scoped_release>())
       .def(
           "feed_flow_msg",
-          [](ge::Session &self, uint32_t graph_id, std::vector<uint32_t> &indexes,
+          [](dflow::DFlowSession &self, uint32_t graph_id, const std::vector<uint32_t> &indexes,
              const std::vector<ge::FlowMsgPtr> &inputs, int32_t timeout) {
             ReturnMessage return_msg = {.ret_code = ge::SUCCESS, .error_msg = "success"};
             const auto ret = self.FeedDataFlowGraph(graph_id, indexes, inputs, timeout);
@@ -618,8 +632,8 @@ PYBIND11_MODULE(dflow_wrapper, m) {
           py::call_guard<py::gil_scoped_release>())
       .def(
           "fetch_data",
-          [](ge::Session &self, uint32_t graph_id, std::vector<uint32_t> &indexes, int32_t timeout,
-             py::buffer user_data) {
+          [](dflow::DFlowSession &self, uint32_t graph_id, const std::vector<uint32_t> &indexes, int32_t timeout,
+             const py::buffer &user_data) {
             const size_t user_data_size = user_data.request().size;
             ReturnMessage return_msg = {.ret_code = ge::SUCCESS, .error_msg = "success"};
             std::vector<ge::Tensor> outputs;
@@ -653,7 +667,7 @@ PYBIND11_MODULE(dflow_wrapper, m) {
           py::call_guard<py::gil_scoped_release>())
       .def(
           "fetch_flow_msg",
-          [](ge::Session &self, uint32_t graph_id, std::vector<uint32_t> &indexes, int32_t timeout) {
+          [](dflow::DFlowSession &self, uint32_t graph_id, const std::vector<uint32_t> &indexes, int32_t timeout) {
             ReturnMessage return_msg = {.ret_code = ge::SUCCESS, .error_msg = "success"};
             std::vector<ge::FlowMsgPtr> outputs;
             ge::DataFlowInfo flow_info;

@@ -18,14 +18,15 @@
 #include "common/option_supportion_checker.h"
 #include "dflow/base/exec_runtime/execution_runtime.h"
 #include "acl/acl.h"
-
+namespace ge {
+namespace dflow {
 namespace {
 constexpr uint32_t kExternalErrorCodeMaxValue = 9999999U; // user define error code max value
 constexpr uint64_t INVALID_SESSION_ID = 0xFFFFFFFFFFFFFFFFULL;
 std::atomic<bool> acl_initialized{false};
 
-static void ConvertAscendStringMap(const std::map<ge::AscendString, ge::AscendString> &options,
-                                   std::map<std::string, std::string> &str_options) {
+void ConvertAscendStringMap(const std::map<ge::AscendString, ge::AscendString> &options,
+                            std::map<std::string, std::string> &str_options) {
   for (auto &option_item : options) {
     if (option_item.first.GetLength() == 0) {
       GELOGE(ge::FAILED, "Construct session failed, option key is empty.");
@@ -37,20 +38,11 @@ static void ConvertAscendStringMap(const std::map<ge::AscendString, ge::AscendSt
     str_options[key] = val;
   }
 }
+
+std::atomic_bool g_dflow_ge_initialized{false};
+std::mutex g_dflow_ge_release_mutex;  // GEFinalize and ~DFlowSession use
+std::shared_ptr<DFlowSessionManager> g_dflow_session_manager;
 }
-
-static std::atomic_bool g_dflow_ge_initialized{false};
-static std::mutex g_dflow_ge_release_mutex;  // GEFinalize and ~DFlowSession use
-static std::shared_ptr<dflow::DFlowSessionManager> g_dflow_session_manager;
-
-namespace dflow {
-using ge::Status;
-using ge::SUCCESS;
-using ge::FAILED;
-using ge::PARAM_INVALID;
-using ge::GE_CLI_INIT_FAILED;
-using ge::GE_CLI_GE_NOT_INITIALIZED;
-using ge::GE_CLI_SESS_DESTROY_FAILED;
 
 Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
   if (g_dflow_ge_initialized) {
@@ -147,6 +139,9 @@ DFlowSession::DFlowSession(const std::map<AscendString, AscendString> &options) 
 }
 
 DFlowSession::~DFlowSession() {
+  if (dflow_session_impl_ == nullptr) {
+    return;
+  }
   GELOGT(TRACE_INIT, "Start to destroy session.");
   // 0.check init status
   if (!g_dflow_ge_initialized) {
@@ -156,10 +151,6 @@ DFlowSession::~DFlowSession() {
   Status ret = FAILED;
   std::lock_guard<std::mutex> lock(g_dflow_ge_release_mutex);
   try {
-    if (dflow_session_impl_ == nullptr) {
-      GELOGE(GE_CLI_SESS_DESTROY_FAILED, "DFlow session impl is null");
-      REPORT_INNER_ERR_MSG("E19999", "Failed to destroy session: DFlow session impl is null");
-    }
     const uint64_t session_id = dflow_session_impl_->GetSessionId();
     // call DestroySession
     GELOGT(TRACE_RUNNING, "DFlowSession id is %lu", session_id);
@@ -373,3 +364,4 @@ Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uin
   return ret;
 }
 } // namespace dflow
+} // nanamespace ge

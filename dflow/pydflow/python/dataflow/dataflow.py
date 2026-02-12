@@ -87,7 +87,7 @@ class _Context(object):
                 ret,
             )
         try:
-            self.session = dwrapper.Session(options)
+            self.session = dwrapper.DFlowSession(options)
         except dwrapper.DataFlowRuntimeError as e:
             raise utils.DfException(e.__str__(), e.GetErrorCode())
 

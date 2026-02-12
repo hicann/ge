@@ -39,6 +39,7 @@
 #include "common/env_path.h"
 
 using namespace testing;
+namespace ge {
 namespace dflow {
 using ge::Operator;
 using ge::GRAPH_SUCCESS;
@@ -284,4 +285,5 @@ TEST_F(DataFlowApiTest, FeedRawData) {
   EXPECT_NE(session3.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), SUCCESS);
   EXPECT_EQ(DFlowFinalize(), SUCCESS);
 }
-}  // namespace dlfow
+}  // namespace dflow
+}  // namespace ge

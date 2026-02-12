@@ -26,23 +26,8 @@
 #include "ge/graph/ops_stub.h"
 #include "external/ge_common/ge_api_types.h"
 
+namespace ge {
 namespace dflow {
-using ge::Operator;
-using ge::GRAPH_SUCCESS;
-using ge::SUCCESS;
-using ge::FAILED;
-using ge::PARAM_INVALID;
-using ge::ComputeGraphPtr;
-using ge::Node;
-using ge::RunContext;
-using ge::TensorDesc;
-using ge::Status;
-using ge::SUCCESS;
-using ge::FAILED;
-using ge::GE_SESSION_MANAGER_NOT_INIT;
-using ge::GE_SESSION_NOT_EXIST;
-using ge::MEMALLOC_FAILED;
-
 class DFlowSessionManagerTest : public testing::Test {
  protected:
   void SetUp() override {}
@@ -85,5 +70,6 @@ TEST_F(DFlowSessionImplTest, InitialFinalizeBasicTest) {
   EXPECT_EQ(inner_session.GetFlowModel(0), nullptr);
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);
   EXPECT_EQ(inner_session.Finalize(), SUCCESS);
+}
 }
 }
