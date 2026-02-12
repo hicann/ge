@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -37,45 +37,41 @@
 using namespace ge;
 namespace cce {
 namespace runtime {
-OpFactory &OpFactory::Instance()
-{
-    static OpFactory instance;
-    return instance;
+OpFactory &OpFactory::Instance() {
+  static OpFactory instance;
+  return instance;
 }
 
-std::shared_ptr<Op> OpFactory::CreateOp(const Node &node, RunContext &runContext)
-{
-    if (node.GetOpDesc() == nullptr) {
-        RTS_REPORT_CALL_ERROR("Create op failed, param can not be NULL.");
-        return nullptr;
-    }
-
-    auto opDesc = node.GetOpDesc();
-    auto iter = op_creator_map_.find(opDesc->GetType());
-    RTS_LOGD("op desc type:%s.", (opDesc->GetType()).c_str());
-    if (iter != op_creator_map_.end()) {
-        return iter->second(node, runContext);
-    }
-
-    RTS_REPORT_CALL_ERROR("Not supported OP, type = %s, name = %s", opDesc->GetType().c_str(),
-        opDesc->GetName().c_str());
+std::shared_ptr<Op> OpFactory::CreateOp(const Node &node, RunContext &runContext) {
+  if (node.GetOpDesc() == nullptr) {
+    RTS_REPORT_CALL_ERROR("Create op failed, param can not be NULL.");
     return nullptr;
+  }
+
+  auto opDesc = node.GetOpDesc();
+  auto iter = op_creator_map_.find(opDesc->GetType());
+  RTS_LOGD("op desc type:%s.", (opDesc->GetType()).c_str());
+  if (iter != op_creator_map_.end()) {
+    return iter->second(node, runContext);
+  }
+
+  RTS_REPORT_CALL_ERROR("Not supported OP, type = %s, name = %s", opDesc->GetType().c_str(), opDesc->GetName().c_str());
+  return nullptr;
 }
 
-void OpFactory::RegisterCreator(const std::string &type, const OP_CREATOR_FUNC &func)
-{
-    if (func == nullptr) {
-        RTS_REPORT_CALL_ERROR("Register creator failed, func is NULL."); 
-    }
+void OpFactory::RegisterCreator(const std::string &type, const OP_CREATOR_FUNC &func) {
+  if (func == nullptr) {
+    RTS_REPORT_CALL_ERROR("Register creator failed, func is NULL.");
+  }
 
-    auto iter = op_creator_map_.find(type);
-    if (iter != op_creator_map_.end()) {
-        RTS_LOGW("%s creator already exist", type.c_str());
-        return;
-    }
+  auto iter = op_creator_map_.find(type);
+  if (iter != op_creator_map_.end()) {
+    RTS_LOGW("%s creator already exist", type.c_str());
+    return;
+  }
 
-    op_creator_map_[type] = func;
-    all_ops_.push_back(type);
+  op_creator_map_[type] = func;
+  all_ops_.push_back(type);
 }
 
 REGISTER_OP_CREATOR(NetOutput, EndGraphOp);
