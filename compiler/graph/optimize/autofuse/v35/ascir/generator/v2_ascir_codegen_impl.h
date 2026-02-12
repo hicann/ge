@@ -1937,7 +1937,7 @@ class FloorDivAscIrCodegenImplV2 : public AscIrCodegenV2 {
     std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
       {DT_INT8, DT_FLOAT},
       {DT_INT16, DT_FLOAT},
-      {DT_UINT8, DT_FLOAT}
+      {DT_UINT8, DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
