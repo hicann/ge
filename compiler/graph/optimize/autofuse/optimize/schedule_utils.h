@@ -353,6 +353,7 @@ class ScheduleUtils {
   static Status RecalculateStridesFromRepeats(const std::vector<ge::Expression> &repeats,
                                        std::vector<ge::Expression> &strides);
   static bool IsNeedDiscontinuousAligned(const ge::AscTensorAttr &attr);
+  static Status ClearAllSizeVar(const ge::AscGraph &graph);
 };
 }  // namespace optimize
 

@@ -10,6 +10,7 @@
 
 #include "concat_score_function_generator.h"
 
+#include "ascgraph_info_complete.h"
 #include "ascir_utils.h"
 
 namespace optimize {
@@ -121,9 +122,11 @@ Status ConcatScoreFunctionGenerator::GenerateForUnaligned() {
   // 该模板必然为第0个result的第0个group
   const auto &tiling_data = "tiling_data.graph0_result0_g0_tiling_data";
   std::vector<std::pair<ge::Expression, ge::Expression>> replacements;
-  for (const auto &size_var : graph_->GetAllSizeVar()) {
-    if (!size_var->expr.IsConstExpr()) {
-      replacements.emplace_back(size_var->expr, ge::Symbol((std::string("t.") + size_var->expr.Str().get()).c_str()));
+  SizeVarSet original_var_set;
+  AscGraphInfoComplete::AppendOriginalSizeVar(*graph_, original_var_set);
+  for (const auto &size_var : original_var_set) {
+    if (!size_var.IsConstExpr()) {
+      replacements.emplace_back(size_var, ge::Symbol((std::string("t.") + size_var.Str().get()).c_str()));
     }
   }
   auto &output_concat_dim = concat_node_->outputs[0].attr.repeats[concat_dim_];
@@ -166,9 +169,11 @@ Status ConcatScoreFunctionGenerator::GenerateForCheckSmallTail(std::string &scor
   // 该模板必然为第1个result的第0个group
   const auto &tiling_data = "tiling_data.graph0_result1_g0_tiling_data";
   std::vector<std::pair<ge::Expression, ge::Expression>> replacements;
-  for (const auto &size_var : graph_->GetAllSizeVar()) {
-    if (!size_var->expr.IsConstExpr()) {
-      replacements.emplace_back(size_var->expr, ge::Symbol((std::string("t.") + size_var->expr.Str().get()).c_str()));
+  SizeVarSet original_var_set;
+  AscGraphInfoComplete::AppendOriginalSizeVar(*graph_, original_var_set);
+  for (const auto &size_var : original_var_set) {
+    if (!size_var.IsConstExpr()) {
+      replacements.emplace_back(size_var, ge::Symbol((std::string("t.") + size_var.Str().get()).c_str()));
     }
   }
 

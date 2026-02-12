@@ -175,6 +175,9 @@ private:
     std::vector<AxisId> axis_ids_;
     std::vector<Expression> loop_repeats_;
     std::map<std::string, AscNodePtr> nodes_;
+    // 存储 Operator 对象以支持动态输入算子（如 Concat）
+    // 这些 Operator 对象需要在图的整个生命周期内保持有效
+    std::vector<std::vector<ge::Operator>> dynamic_input_ops_;
 
     explicit Impl(const std::string &name) : name_(name), graph_(name.c_str()) {
     }
