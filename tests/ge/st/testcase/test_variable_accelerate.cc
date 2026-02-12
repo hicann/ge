@@ -665,7 +665,7 @@ TEST_F(VariableAccSt, test_variable_prepare_op_pass_on_v1_control) {
   EXPECT_EQ(ret, SUCCESS);
   // check result
   CHECK_GRAPH(PrepareAfterUpdateInputOutputByUserOptions) {
-    auto var_node = graph->FindNode("Identity_assign_TO_refmerge_0");
+    auto var_node = graph->FindFirstNodeMatchType(TENSORMOVE);
     ASSERT_NE(var_node, nullptr);
   };
 }
