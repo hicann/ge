@@ -90,7 +90,10 @@ TEST_F(ConcatSliceSimplificationPassTest, OptimizeSuccessAndPrune) {
     concat_0.SetShape({32, 5});
     auto slice_0 = es::SliceD(concat_0, {1, 2}, {4, 2});
     slice_0.SetSymbolShape({"4", "2"});
+    auto slice_1 = es::SliceD(concat_0, {1, 2}, {4, -1});
+    slice_1.SetSymbolShape({"4", "3"});
     es_graph.SetOutput(slice_0, 0);
+    es_graph.SetOutput(slice_1, 1);
   }
   auto test_graph = es_graph.Build();
   auto graph = GraphUtilsEx::GetComputeGraph(*test_graph);
@@ -120,7 +123,7 @@ TEST_F(ConcatSliceSimplificationPassTest, OptimizeSuccessAndPrune) {
   EXPECT_EQ(ConcatSliceSimplificationPass().Run(graph, graph_passes, changed), SUCCESS);
   auto data_1_node = graph->FindNode("data_1");
   ASSERT_TRUE(data_1_node != nullptr);
-  EXPECT_EQ(data_1_node->GetOutDataNodes().size(), 2);
+  EXPECT_EQ(data_1_node->GetOutDataNodes().size(), 3);
   EXPECT_TRUE(prune_invoked);
   EXPECT_FALSE(const_folding_invoked);
 }

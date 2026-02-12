@@ -269,7 +269,7 @@ ge::Status ConcatGroupPartitioner::RecomputeNodesCrossGroups(const std::vector<C
     for (size_t i = group.start; i < group.end; ++i) {
       GELOGD("input[%zu] check recompute start", i);
       auto const in_anchor = concat_node_->GetInDataAnchor(static_cast<int32_t>(i));
-      int32_t depth = 64;
+      int32_t depth = 1024;
       while (--depth >= 0) {
         ge::InDataAnchorPtr to_split;
         GE_ASSERT_SUCCESS(FindFirstMultiOutputAnchors(in_anchor, group.end, to_split));
@@ -297,7 +297,12 @@ ge::Status ConcatGroupPartitioner::FindFirstMultiOutputAnchors(const ge::InDataA
     if (out_anchor == nullptr) {
       continue;
     }
-    if (out_anchor->GetPeerAnchorsSize() > 1UL) {
+    std::set<ge::NodePtr> out_nodes;
+    for (const auto &out_node : out_anchor->GetOwnerNode()->GetOutDataNodes()) {
+      out_nodes.emplace(out_node);
+    }
+    if (out_nodes.size() > 1UL ||
+        (((*out_nodes.begin())->GetType() == "Concat") && (out_anchor->GetPeerAnchorsSize() > 1UL))) {
       bool need_split = false;
       GE_ASSERT_SUCCESS(CheckIsAncestorOfConcat(out_anchor, end_index, concat_dim_size, need_split));
       GELOGD("%s has multi-ref output, end_index = %d, need_split = %d", out_anchor->GetOwnerNode()->GetNamePtr(),

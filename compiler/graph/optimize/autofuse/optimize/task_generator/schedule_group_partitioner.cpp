@@ -71,13 +71,28 @@ Status ScheduleGroupGraphPartitioner::PartitionByConnectivity(const ::ascir::Imp
   return ge::SUCCESS;
 }
 
-Status ScheduleGroupGraphPartitioner::AddConnectedNodes(const ge::AscNodePtr &root_node, ::ascir::ImplGraph &sub_graph,
-                                                        std::set<ge::NodePtr> &all_visited) {
-  GELOGI("AddConnectedNodes in, root_node = %s[%s]", root_node->GetName().c_str(), root_node->GetType().c_str());
-  std::unordered_map<std::string, ge::NodePtr> all_new_nodes;
-  std::list<ge::NodePtr> next_nodes{root_node};
-  std::set<ge::NodePtr> visited{root_node};
+Status ScheduleGroupGraphPartitioner::NeedRefreshAxisSize(const ::ascir::ImplGraph &optimize_graph,
+                                                          bool &need_refresh) {
+  const auto concat_node = ScheduleUtils::FindFirstNodeOfType<ge::ascir_op::Concat>(optimize_graph);
+  GE_CHK_BOOL_RET_SPECIAL_STATUS(concat_node == nullptr, ge::SUCCESS, "no Concat node was found");
+  std::set<ge::NodePtr> visited;
   std::vector<ge::AscNodePtr> asc_nodes;
+  GE_ASSERT_SUCCESS(CollectConnectedNodes(concat_node, visited, asc_nodes));
+  size_t all_node_num = 0;
+  for (const auto &node : optimize_graph.GetAllNodes()) {
+    ++all_node_num;
+  }
+  need_refresh = (all_node_num == asc_nodes.size());
+  GELOGD("all node num = %zu, connected node num = %zu, need_refresh = %d", all_node_num, asc_nodes.size(),
+         static_cast<int32_t>(need_refresh));
+  return ge::SUCCESS;
+}
+
+Status ScheduleGroupGraphPartitioner::CollectConnectedNodes(const ge::AscNodePtr &root_node,
+                                                            std::set<ge::NodePtr> &visited,
+                                                            std::vector<ge::AscNodePtr> &asc_nodes) {
+  std::list<ge::NodePtr> next_nodes{root_node};
+  visited.emplace(root_node);
   while (!next_nodes.empty()) {
     auto node = next_nodes.front();
     next_nodes.pop_front();
@@ -97,7 +112,16 @@ Status ScheduleGroupGraphPartitioner::AddConnectedNodes(const ge::AscNodePtr &ro
       }
     }
   }
+  return ge::SUCCESS;
+}
 
+Status ScheduleGroupGraphPartitioner::AddConnectedNodes(const ge::AscNodePtr &root_node, ::ascir::ImplGraph &sub_graph,
+                                                        std::set<ge::NodePtr> &all_visited) {
+  GELOGI("AddConnectedNodes in, root_node = %s[%s]", root_node->GetName().c_str(), root_node->GetType().c_str());
+  std::unordered_map<std::string, ge::NodePtr> all_new_nodes;
+  std::set<ge::NodePtr> visited;
+  std::vector<ge::AscNodePtr> asc_nodes;
+  GE_ASSERT_SUCCESS(CollectConnectedNodes(root_node, visited, asc_nodes));
   std::sort(asc_nodes.begin(), asc_nodes.end(), CompareByNodeId);
   for (const auto &asc_node : asc_nodes) {
     const auto &op_desc = ge::GraphUtils::CopyOpDesc(asc_node->GetOpDesc(), nullptr);
@@ -128,10 +152,10 @@ Status ScheduleGroupGraphPartitioner::RecordAxisSizes(const std::vector<ge::Expr
     if (ge::SymbolicUtils::StaticCheckEq(repeats[j], ops::One) != ge::TriBool::kTrue) {
       const auto axis_id = axis_ids[j];
       if (!axis_id_to_size.emplace(axis_id, repeats[j]).second) {
-        GE_ASSERT_TRUE(ge::SymbolicUtils::StaticCheckEq(repeats[j], axis_id_to_size[axis_id]) == TriBool::kTrue,
-                       "inconsistent axis size, id = %ld, size0 = %s, size1 = %s", axis_id,
-                       SymbolicUtils::ToString(repeats[j]).c_str(),
-                       SymbolicUtils::ToString(axis_id_to_size[axis_id]).c_str());
+        GE_LOGW_IF(ge::SymbolicUtils::StaticCheckEq(repeats[j], axis_id_to_size[axis_id]) != TriBool::kTrue,
+                   "inconsistent axis size, id = %ld, size0 = %s, size1 = %s", axis_id,
+                   SymbolicUtils::ToString(repeats[j]).c_str(),
+                   SymbolicUtils::ToString(axis_id_to_size[axis_id]).c_str());
       }
     }
   }

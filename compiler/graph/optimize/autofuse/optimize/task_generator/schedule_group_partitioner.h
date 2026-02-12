@@ -20,10 +20,13 @@ class ScheduleGroupGraphPartitioner {
   static Status PartitionByConnectivity(const ::ascir::ImplGraph &optimize_graph,
                                         std::vector<::ascir::ImplGraph> &sub_optimize_graphs,
                                         std::vector<ge::AscNodePtr> node_order = {});
+  static Status NeedRefreshAxisSize(const ::ascir::ImplGraph &optimize_graph, bool &need_refresh);
   static Status RefreshAxisSize(const ::ascir::ImplGraph &sub_graph);
  private:
   static Status AddConnectedNodes(const ge::AscNodePtr &root_node, ::ascir::ImplGraph &sub_graph,
                                   std::set<ge::NodePtr> &all_visited);
+  static Status CollectConnectedNodes(const ge::AscNodePtr &root_node, std::set<ge::NodePtr> &visited,
+                                      std::vector<ge::AscNodePtr> &asc_nodes);
   static bool CompareByNodeId(const ge::AscNodePtr &lhs, const ge::AscNodePtr &rhs);
   static Status RecordAxisSizes(const std::vector<ge::Expression> &repeats, const std::vector<int64_t> &axis_ids,
                                 std::map<ge::AxisId, ge::Expression> &axis_id_to_size);
