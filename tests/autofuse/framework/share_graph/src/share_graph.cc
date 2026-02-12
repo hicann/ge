@@ -7887,4 +7887,205 @@ ge::ComputeGraphPtr ShareGraph::LoadCompareWhereFusedGraph() {
   ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
   return compute_graph;
 }
+
+/**
+ *                                         add
+ *                             /                         \
+ *                          add                            \
+ *                 /                   \                     \
+ *              add                    add                    add
+ *          /         \            /         \             /        \
+ *        add        mul       maximum     minimum   logical_and   logical_and
+ *      /    \     /     \     /     \     /     \     /     \      /     \
+ *   data0 data1 data0 data1 data0 data1 data0 data1 data0  data1 data0  data1
+ */
+static void CreateBinaryApiScalarGraph(ge::AscGraph &graph) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+  auto z0 = graph.CreateAxis("z0", Symbol("s0"));
+  auto z1 = graph.CreateAxis("z1", Symbol("s1"));
+
+  ge::ascir_op::Data data0("data0", graph);
+  data0.attr.sched.axis = {z0.id, z1.id};
+  data0.y.dtype = ge::DT_FLOAT16;
+  *data0.y.axis = {z0.id, z1.id};
+  data0.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data0.y.repeats = {ge::ops::One, ge::ops::One};
+  *data0.y.strides = {ge::ops::Zero, ge::ops::Zero};
+  data0.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Load load0("load0");
+  load0.attr.sched.axis = {z0.id, z1.id};
+  load0.y.dtype = ge::DT_FLOAT16;
+  load0.x = data0.y;
+  *load0.y.axis = {z0.id, z1.id};
+  *load0.y.repeats = {ge::ops::One, ge::ops::One};
+  *load0.y.strides = {ge::ops::Zero, ge::ops::Zero};
+
+  ge::ascir_op::Data data1("data1", graph);
+  data1.attr.sched.axis = {z0.id, z1.id};
+  data1.y.dtype = ge::DT_FLOAT16;
+  *data1.y.axis = {z0.id, z1.id};
+  data1.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
+  *data1.y.repeats = {ge::ops::One, ge::ops::One};
+  *data1.y.strides = {ge::ops::Zero, ge::ops::Zero};
+  data1.ir_attr.SetIndex(1);
+
+  ge::ascir_op::Load load1("load1");
+  load1.attr.sched.axis = {z0.id, z1.id};
+  load1.y.dtype = ge::DT_FLOAT16;
+  load1.x = data1.y;
+  *load1.y.axis = {z0.id, z1.id};
+  *load1.y.repeats = {ge::ops::One, ge::ops::One};
+  *load1.y.strides = {ge::ops::Zero, ge::ops::Zero};
+
+  ge::ascir_op::Add add0("add0");
+  add0.x1 = load0.y;
+  add0.x2 = load1.y;
+  add0.attr.sched.axis = {z0.id, z1.id};
+  add0.y.dtype = ge::DT_FLOAT16;
+  *add0.y.axis = {z0.id, z1.id};
+  *add0.y.repeats = {s0, s1};
+  *add0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Mul mul0("mul0");
+  mul0.x1 = load0.y;
+  mul0.x2 = load1.y;
+  mul0.attr.sched.axis = {z0.id, z1.id};
+  mul0.y.dtype = ge::DT_FLOAT16;
+  *mul0.y.axis = {z0.id, z1.id};
+  *mul0.y.repeats = {s0, s1};
+  *mul0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Maximum maximum0("maximum0");
+  maximum0.x1 = load0.y;
+  maximum0.x2 = load1.y;
+  maximum0.attr.sched.axis = {z0.id, z1.id};
+  maximum0.y.dtype = ge::DT_FLOAT16;
+  *maximum0.y.axis = {z0.id, z1.id};
+  *maximum0.y.repeats = {s0, s1};
+  *maximum0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Minimum minimum0("minimum0");
+  minimum0.x1 = load0.y;
+  minimum0.x2 = load1.y;
+  minimum0.attr.sched.axis = {z0.id, z1.id};
+  minimum0.y.dtype = ge::DT_FLOAT16;
+  *minimum0.y.axis = {z0.id, z1.id};
+  *minimum0.y.repeats = {s0, s1};
+  *minimum0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::LogicalAnd logical_and0("logical_and0");
+  logical_and0.x1 = load0.y;
+  logical_and0.x2 = load1.y;
+  logical_and0.attr.sched.axis = {z0.id, z1.id};
+  logical_and0.y.dtype = ge::DT_UINT8;
+  *logical_and0.y.axis = {z0.id, z1.id};
+  *logical_and0.y.repeats = {s0, s1};
+  *logical_and0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Cast cast0("cast0");
+  cast0.x = logical_and0.y;
+  cast0.attr.sched.axis = {z0.id, z1.id};
+  cast0.y.dtype = ge::DT_FLOAT16;
+  *cast0.y.axis = {z0.id, z1.id};
+  *cast0.y.repeats = {s0, s1};
+  *cast0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::LogicalOr logical_or0("logical_or0");
+  logical_or0.x1 = load0.y;
+  logical_or0.x2 = load1.y;
+  logical_or0.attr.sched.axis = {z0.id, z1.id};
+  logical_or0.y.dtype = ge::DT_UINT8;
+  *logical_or0.y.axis = {z0.id, z1.id};
+  *logical_or0.y.repeats = {s0, s1};
+  *logical_or0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Cast cast1("cast1");
+  cast1.x = logical_or0.y;
+  cast1.attr.sched.axis = {z0.id, z1.id};
+  cast1.y.dtype = ge::DT_FLOAT16;
+  *cast1.y.axis = {z0.id, z1.id};
+  *cast1.y.repeats = {s0, s1};
+  *cast1.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Add add1("add1");
+  add1.x1 = add0.y;
+  add1.x2 = mul0.y;
+  add1.attr.sched.axis = {z0.id, z1.id};
+  add1.y.dtype = ge::DT_FLOAT16;
+  *add1.y.axis = {z0.id, z1.id};
+  *add1.y.repeats = {s0, s1};
+  *add1.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Add add2("add2");
+  add2.x1 = maximum0.y;
+  add2.x2 = minimum0.y;
+  add2.attr.sched.axis = {z0.id, z1.id};
+  add2.y.dtype = ge::DT_FLOAT16;
+  *add2.y.axis = {z0.id, z1.id};
+  *add2.y.repeats = {s0, s1};
+  *add2.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Add add3("add3");
+  add3.x1 = cast0.y;
+  add3.x2 = cast1.y;
+  add3.attr.sched.axis = {z0.id, z1.id};
+  add3.y.dtype = ge::DT_FLOAT16;
+  *add3.y.axis = {z0.id, z1.id};
+  *add3.y.repeats = {s0, s1};
+  *add3.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Add add4("add4");
+  add4.x1 = add1.y;
+  add4.x2 = add2.y;
+  add4.attr.sched.axis = {z0.id, z1.id};
+  add4.y.dtype = ge::DT_FLOAT16;
+  *add4.y.axis = {z0.id, z1.id};
+  *add4.y.repeats = {s0, s1};
+  *add4.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Add add5("add5");
+  add5.x1 = add3.y;
+  add5.x2 = add4.y;
+  add5.attr.sched.axis = {z0.id, z1.id};
+  add5.y.dtype = ge::DT_FLOAT16;
+  *add5.y.axis = {z0.id, z1.id};
+  *add5.y.repeats = {s0, s1};
+  *add5.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Store store_op("store");
+  store_op.x = add5.y;
+  store_op.attr.sched.axis = {z0.id, z1.id};
+  store_op.y.dtype = ge::DT_FLOAT16;
+  *store_op.y.axis = {z0.id, z1.id};
+  *store_op.y.repeats = {s0, s1};
+  *store_op.y.strides = {s1 ,ge::ops::One};
+
+  ge::ascir_op::Output output_op("output");
+  output_op.x = store_op.y;
+  output_op.y.dtype = ge::DT_FLOAT16;
+  output_op.ir_attr.SetIndex(0);
+}
+
+ge::ComputeGraphPtr ShareGraph::BinaryApiScalarFusedGraph() {
+  auto builder = GraphBuilder("binary_api_scalar_test");
+
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 0, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("binary_api_scalar");
+  CreateBinaryApiScalarGraph(sub_graph);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+  return compute_graph;
+}
 }

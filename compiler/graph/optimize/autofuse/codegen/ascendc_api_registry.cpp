@@ -127,8 +127,8 @@ Register::Register() {
 #include "gather_str.h"
 
   };
-  const std::string kAscendcSubsStr = {
-#include "subs_str.h"
+  const std::string kAscendcScalarSubStr = {
+#include "scalar_sub_str.h"
 
   };
   const std::string kAscendcTranposeBaseTypeStr = {
@@ -138,6 +138,18 @@ Register::Register() {
   const std::string kAscendcTranposeStr = {
 #include "transpose_str.h"
 
+  };
+  const std::string kAscendcScalarAddStr = {
+#include "scalar_add_str.h"
+  };
+  const std::string kAscendcScalarMulStr = {
+#include "scalar_mul_str.h"
+  };
+  const std::string kAscendcScalarMaximumStr = {
+#include "scalar_maximum_str.h"
+  };
+  const std::string kAscendcScalarMinimumStr = {
+#include "scalar_minimum_str.h"
   };
   std::unordered_map<std::string, std::string> api_to_file{
       {"bitwise_and.h", kAscendcBitwise_andStr},
@@ -167,7 +179,11 @@ Register::Register() {
       {"sign.h", kAscendcSignStr},
       {"where.h", kAscendcWhereStr},
       {"gather.h", kAscendcGatherStr},
-      {"subs.h", kAscendcSubsStr},
+      {"scalar_sub.h", kAscendcScalarSubStr},
+      {"scalar_add.h", kAscendcScalarAddStr},
+      {"scalar_mul.h", kAscendcScalarMulStr},
+      {"scalar_maximum.h", kAscendcScalarMaximumStr},
+      {"scalar_minimum.h", kAscendcScalarMinimumStr},
       {"transpose_base_type.h", kAscendcTranposeBaseTypeStr},
       {"transpose.h", kAscendcTranposeStr}};
 

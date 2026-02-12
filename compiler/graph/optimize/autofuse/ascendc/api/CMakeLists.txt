@@ -28,10 +28,14 @@ set(ascendc_api_extend_src
     transpose.h
     bitwise_and.h
     gather.h
-    subs.h
+    scalar_sub.h
     floor_div.h
     brc_inline_api.h
     axpy.h
+    scalar_add.h
+    scalar_mul.h
+    scalar_maximum.h
+    scalar_minimum.h
     )
 
 set(generated_files)

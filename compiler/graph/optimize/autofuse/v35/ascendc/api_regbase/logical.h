@@ -38,4 +38,19 @@ inline __aicore__ void LogicalAndExtends(const LocalTensor<uint8_t> &dst, const 
     AscendC::LogicalAnds(dst_tmp, src1, src2, size);
 }
 
+template <typename T>
+inline __aicore__ void LogicalOrExtends(const LocalTensor<uint8_t> &dst, const T src1, const T src2) {
+    auto dst_tmp = dst.template ReinterpretCast<bool>();
+    uint8_t res = src1 || src2;
+    AscendC::Duplicate(dst, res, dst.GetSize());
+}
+
+template <typename T>
+inline __aicore__ void LogicalAndExtends(const LocalTensor<uint8_t> &dst, const T src1, const T src2) {
+    auto dst_tmp = dst.template ReinterpretCast<bool>();
+    uint8_t res = src1 && src2;
+    AscendC::Duplicate(dst, res, dst.GetSize());
+}
+
+
 #endif  // __ASCENDC_API_REGBASE_LOGICAL_H__

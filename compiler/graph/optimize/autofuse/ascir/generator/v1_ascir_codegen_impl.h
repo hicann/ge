@@ -656,7 +656,7 @@ class SubAscIrCodegenImpl : public AscIrCodegen {
     return "Sub";
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
-    return {"subs.h"};
+    return {"scalar_sub.h"};
   }
 
   bool IsBrcInlineSupported(const ge::AscNode &node) const override {
@@ -681,7 +681,9 @@ class AddAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "Add";
   }
-
+  std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_add.h"};
+  }
   bool IsBrcInlineSupported(const ge::AscNode &node) const override {
     (void)node;
     return true;
@@ -707,7 +709,9 @@ class MulAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "Mul";
   }
-
+  std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_mul.h"};
+  }
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list);
   }
@@ -762,7 +766,9 @@ class MinimumAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "AscendC::Min";
   }
-
+  std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_minimum.h"};
+  }
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list);
   }
@@ -787,6 +793,9 @@ class MaximumAscIrCodegenImpl : public AscIrCodegen {
   }
   std::string GetApiName() const override {
     return "AscendC::Max";
+  }
+  std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_maximum.h"};
   }
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list);

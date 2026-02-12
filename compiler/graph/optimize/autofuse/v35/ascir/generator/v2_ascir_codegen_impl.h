@@ -1303,7 +1303,9 @@ class AddAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "Add";
   }
-
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_add.h"};
+  }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
@@ -1335,7 +1337,9 @@ class MulAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "Mul";
   }
-
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_mul.h"};
+  }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
@@ -1424,15 +1428,16 @@ class MinimumAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "AscendC::Min";
   }
-
-  [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
-    return OnlySecondInputSupportScalar(is_scalar_list);
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_minimum.h"};
   }
   [[nodiscard]] bool IsScalarInputSupportedIfExchangeInputs(const std::vector<bool> &is_scalar_list) const override {
     GE_ASSERT_EQ(is_scalar_list.size(), 2UL);
     return OnlySecondInputSupportScalar({is_scalar_list[1], is_scalar_list[0]});
   }
-
+  [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
+    return OnlySecondInputSupportScalar(is_scalar_list);
+  }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
@@ -1463,7 +1468,9 @@ class MaximumAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "AscendC::Max";
   }
-
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_maximum.h"};
+  }
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list);
   }
