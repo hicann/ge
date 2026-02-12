@@ -27,18 +27,18 @@ int FormatErrorMessage(char *str_dst, size_t dst_max, const char *format, ...);
 void ReportInnerError(const char_t *file_name, const char_t *func, uint32_t line, const std::string error_code,
                       const char_t *format, ...);
 #endif
-}
+}  // namespace error_message
 
 class ErrorManager {
-public:
-   static ErrorManager &GetInstance();
-   void SetStage(const std::string &firstStage, const std::string &secondStage);
-   void ATCReportErrMessage(std::string error_code, const std::vector<std::string> &key = {},
+ public:
+  static ErrorManager &GetInstance();
+  void SetStage(const std::string &firstStage, const std::string &secondStage);
+  void ATCReportErrMessage(std::string error_code, const std::vector<std::string> &key = {},
                            const std::vector<std::string> &value = {});
-   int Init();
-   int ReportInterErrMessage(std::string error_code, const std::string &error_msg);
-    std::string GetErrorMessage();
-    const std::string &GetLogHeader();
+  int Init();
+  int ReportInterErrMessage(std::string error_code, const std::string &error_msg);
+  std::string GetErrorMessage();
+  const std::string &GetLogHeader();
 };
 
 int rtSetTaskGenCallback_stub(rtTaskGenCallback callback);
@@ -46,4 +46,4 @@ int rtSetTaskGenCallback_stub_with_notify(rtTaskGenCallback callback);
 int rtSetTaskGenCallback_stub_with_cmoAddr(rtTaskGenCallback callback);
 int rtSetTaskGenCallback_stub_with_memcpyaddr(rtTaskGenCallback callback);
 
-#endif // _RTS_ENGINE_UTEST_STUB_
+#endif  // _RTS_ENGINE_UTEST_STUB_
