@@ -14,7 +14,6 @@
 #include "common/util/trace_manager/trace_manager.h"
 #include "graph/refiner/format_refiner.h"
 #include "graph/normal_graph/operator_impl.h"
-#include "graph/common_error_codes.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/graph_utils.h"

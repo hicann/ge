@@ -27,6 +27,8 @@
 #include "graph/utils/tensor_adapter.h"
 #include "graph/operator_reg.h"
 #include <common_error_codes.h>
+#include <adxl/adxl_types.h>
+
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "graph/optimize/autofuse/autofuse_optimize.h"
 #include "common/env_path.h"
@@ -2870,5 +2872,93 @@ TEST_F(SymbolicShapeInferenceUT, NestIfGraph1Test) {
   ASSERT_NE(root_graph->FindNode("if1"), nullptr);
 
   DisableSliceScheduleEnv();
+}
+
+TEST_F(SymbolicShapeInferenceUT, AippOpTest) {
+  auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data0", nullptr);
+  auto data1 = EsCreateGraphInputWithDetails(graph_, 1, "data1", AIPPDATA);
+  ASSERT_NE(data0, nullptr);
+  ASSERT_NE(data1, nullptr);
+  auto aipp = EsAipp(data0, data1, "");
+  ASSERT_EQ(EsSetGraphOutput(aipp, 0), 0);
+  auto graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  DataInfo di = {ge::FORMAT_ND, DT_INT32, {-1, -1, -1, -1}};
+  SetNoStorage(cg, "data0", di, 0);
+  di.shape = {-1, 1, -1};
+  SetNoStorage(cg, "data1", di, 1);
+  std::vector<ge::GeTensor> input_vec;
+  std::vector<int64_t> dims_vec0 = {2, 3, 4, 4};
+  ge::Shape shape0({dims_vec0});
+  ge::TensorDesc td0{shape0, ge::FORMAT_ND, DT_INT32};
+  td0.SetOriginShape(shape0);
+  ge::Tensor tensor0{td0};
+  input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
+
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), adxl::SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferenceUT, MulitBatchOpTest) {
+  auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data0", nullptr);
+  auto data1 = EsCreateGraphInputWithDetails(graph_, 1, "data1", nullptr);
+
+  std::vector<int32_t> dims{0, 1, 2};
+  int64_t dims_size = 3;
+  auto const_int32_list = EsCreateConstInt32(graph_, dims.data(), &dims_size, 1);
+  ASSERT_NE(data0, nullptr);
+  ASSERT_NE(data1, nullptr);
+  auto mapindex = EsMapIndex(data1, const_int32_list, nullptr);
+  auto add = EsAdd(data0, mapindex);
+  ASSERT_EQ(EsSetGraphOutput(add, 0), 0);
+  auto graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  DataInfo di = {ge::FORMAT_ND, DT_INT32, {-1, -1, -1, -1}};
+  SetNoStorage(cg, "data0", di, 0);
+  di.shape = {-1, -1, -1, -1};
+  SetNoStorage(cg, "data1", di, 1);
+  auto data1_node = cg->FindNode("data1");
+  (void)AttrUtils::SetBool(data1_node->GetOpDesc(), "_is_multi_batch_shape_data", true);
+
+  std::vector<ge::GeTensor> input_vec;
+  std::vector<int64_t> dims_vec0 = {2, 3, 4, 4};
+  ge::Shape shape0({dims_vec0});
+  ge::TensorDesc td0{shape0, ge::FORMAT_ND, DT_INT32};
+  td0.SetOriginShape(shape0);
+  ge::Tensor tensor0{td0};
+  input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), SUCCESS);
+}
+
+TEST_F(SymbolicShapeInferenceUT, RefDataCopyOpTest) {
+  auto data0 = EsCreateGraphInputWithDetails(graph_, 0, "data0", REFDATA);
+  auto data1 = EsCreateGraphInputWithDetails(graph_, 1, "data1", REFDATA);
+  ASSERT_NE(data0, nullptr);
+  ASSERT_NE(data1, nullptr);
+  auto assign = EsAssign(data0, data0, true, true);
+  auto add = EsAdd(assign, data1);
+  ASSERT_EQ(EsSetGraphOutput(add, 0), 0);
+  auto graph = std::unique_ptr<Graph>(static_cast<Graph *>(EsBuildGraph(graph_)));
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  ASSERT_NE(cg, nullptr);
+
+  DataInfo di = {ge::FORMAT_ND, DT_INT32, {-1, -1, -1, -1}};
+  SetNoStorage(cg, "data0", di, 0);
+  di.shape = {-1, -1, -1, -1};
+  SetNoStorage(cg, "data1", di, 1);
+  auto data1_node = cg->FindNode("data1");
+  (void)AttrUtils::SetStr(data1_node->GetOpDesc(), REF_VAR_SRC_VAR_NAME, "data");
+
+  std::vector<ge::GeTensor> input_vec;
+  std::vector<int64_t> dims_vec0 = {2, 3, 4, 4};
+  ge::Shape shape0({dims_vec0});
+  ge::TensorDesc td0{shape0, ge::FORMAT_ND, DT_INT32};
+  td0.SetOriginShape(shape0);
+  ge::Tensor tensor0{td0};
+  input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), SUCCESS);
 }
 } // namespace ge
