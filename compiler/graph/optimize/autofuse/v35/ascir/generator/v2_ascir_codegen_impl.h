@@ -250,10 +250,16 @@ class CastAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
-    std::map<ge::DataType, std::set<ge::DataType>> unsupported_map = {
-      {DT_UINT8, {DT_INT16}},
-      {DT_INT16, {DT_INT8}}
-    };
+    std::map<ge::DataType, std::set<ge::DataType>> supported_map = {
+ 	    {DT_FLOAT,   {DT_FLOAT16, DT_INT64, DT_INT16, DT_INT32, DT_BF16}},
+ 	    {DT_FLOAT16, {DT_UINT8, DT_INT8, DT_FLOAT}},
+ 	    {DT_INT32,   {DT_FLOAT, DT_INT16}},
+ 	    {DT_INT64,   {DT_INT32, DT_FLOAT}},
+ 	    {DT_BF16,    {DT_FLOAT}},
+ 	    {DT_UINT8,   {DT_FLOAT16}},
+ 	    {DT_INT8,    {DT_FLOAT16, DT_INT16}},
+ 	    {DT_INT16,   {DT_FLOAT, DT_UINT8}},
+ 	  };
     AscNodeInputs node_inputs = node.inputs;
     AscNodeOutputs node_outputs = node.outputs;
     uint32_t input_dtype_size = GetSizeByDataType(node_inputs[0].attr.dtype);
@@ -263,13 +269,13 @@ class CastAscIrCodegenImplV2 : public AscIrCodegenV2 {
       return false;
     }
 
-    auto iter = unsupported_map.find(node_inputs[0].attr.dtype);
-    if (iter != unsupported_map.end()) {
+    auto iter = supported_map.find(node_inputs[0].attr.dtype);
+    if (iter != supported_map.end()) {
       if (iter->second.find(node_outputs[0].attr.dtype) != iter->second.end()) {
-        return false;
+        return true;
       }
     }
-    return true;
+    return false;
   }
 };
 
