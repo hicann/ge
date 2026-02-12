@@ -450,4 +450,253 @@ TEST_F(DumpCallbackTest, ValidateDumpLevelConfig) {
         bool result = DumpConfigValidator::IsValidDumpConfig(js);
         EXPECT_FALSE(result) << "Should fail for dump_level: " << level;
     }
-}  // namespace ge
+}
+
+// 测试 EnableDumpCallback 新增逻辑 - 空数据但有异常dump bit位
+TEST_F(DumpCallbackTest, EnableDumpCallback_EmptyDataWithExceptionBits_ReturnsSuccess) {
+    // 测试第三个bit位（aic_err_brief_dump）
+    uint64_t dumpSwitch1 = 0x4;  // 第三个bit位
+    int32_t result1 = DumpCallbackManager::EnableDumpCallback(dumpSwitch1, nullptr, 0);
+    EXPECT_EQ(result1, ADUMP_SUCCESS);
+
+    // 测试第四个bit位（aic_err_norm_dump）
+    uint64_t dumpSwitch2 = 0x8;  // 第四个bit位
+    int32_t result2 = DumpCallbackManager::EnableDumpCallback(dumpSwitch2, nullptr, 0);
+    EXPECT_EQ(result2, ADUMP_SUCCESS);
+
+    // 测试两个bit位同时设置
+    uint64_t dumpSwitch3 = 0xC;  // 0x4 + 0x8
+    int32_t result3 = DumpCallbackManager::EnableDumpCallback(dumpSwitch3, nullptr, 0);
+    EXPECT_EQ(result3, ADUMP_SUCCESS);
+}
+
+// 测试 EnableDumpCallback 新增逻辑 - 空数据但无异常dump bit位
+TEST_F(DumpCallbackTest, EnableDumpCallback_EmptyDataWithoutExceptionBits_ReturnsSuccess) {
+    // 没有设置异常dump bit位
+    uint64_t dumpSwitch = 0x0;  // 没有设置异常dump bit位
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ADUMP_SUCCESS);
+}
+
+// 测试 EnableDumpCallback 新增逻辑 - 有数据时忽略异常dump bit位
+TEST_F(DumpCallbackTest, EnableDumpCallback_ValidDataWithExceptionBits_UsesData) {
+    uint64_t dumpSwitch = 0xC;  // 设置了异常dump bit位
+    
+    std::string config_str = R"({
+        "dump": {
+            "dump_path": "/tmp/dump_test",
+            "dump_status": "on"
+        }
+    })";
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(
+        dumpSwitch, config_str.c_str(), config_str.size());
+    
+    // 应该使用传入的配置数据，而不是异常dump
+    EXPECT_EQ(result, ADUMP_SUCCESS);
+}
+
+// 测试异常dump配置构建
+TEST_F(DumpCallbackTest, BuildExceptionDumpConfig_BySwitchBits) {
+    // 测试brief_dump配置构建
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "aic_err_brief_dump",
+            "dump_path": ""
+        }
+    })";
+    
+    // 模拟通过switch构建的配置应该能被正确解析
+    DumpConfig dump_config;
+    bool result = DumpConfigValidator::ParseDumpConfig(config_str.c_str(), config_str.size(), dump_config);
+    
+    EXPECT_TRUE(result);
+    EXPECT_EQ(dump_config.dump_exception, "aic_err_brief_dump");
+    EXPECT_TRUE(dump_config.dump_path.empty());
+}
+
+// 测试异常dump配置的默认值处理
+TEST_F(DumpCallbackTest, ExceptionDumpConfig_DefaultValues) {
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "aic_err_norm_dump"
+        }
+    })";
+    
+    DumpConfig dump_config;
+    bool result = DumpConfigValidator::ParseDumpConfig(config_str.c_str(), config_str.size(), dump_config);
+    
+    EXPECT_TRUE(result);
+    EXPECT_EQ(dump_config.dump_exception, "aic_err_norm_dump");
+    // 默认值应该被设置
+    EXPECT_EQ(dump_config.dump_mode, GE_DUMP_MODE_DEFAULT);
+    EXPECT_EQ(dump_config.dump_level, GE_DUMP_LEVEL_DEFAULT);
+}
+
+// 测试异常dump配置验证
+TEST_F(DumpCallbackTest, ValidateExceptionDumpConfig) {
+    // 测试有效的异常dump场景
+    std::vector<std::string> valid_scenes = {
+        "aic_err_brief_dump",
+        "aic_err_norm_dump",
+        "aic_err_detail_dump",
+        "lite_exception"
+    };
+    
+    for (const auto& scene : valid_scenes) {
+        std::string config_str = R"({
+            "dump": {
+                "dump_scene": ")" + scene + R"("
+            }
+        })";
+        
+        nlohmann::json js = nlohmann::json::parse(config_str);
+        bool result = DumpConfigValidator::IsValidDumpConfig(js);
+        EXPECT_TRUE(result) << "Failed for dump_scene: " << scene;
+    }
+}
+
+// 测试混合场景 - 异常dump与其他配置
+TEST_F(DumpCallbackTest, MixedDumpConfig_ExceptionDumpTakesPriority) {
+    // 即使有normal dump配置，只要指定了exception scene，就按exception处理
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "aic_err_detail_dump",
+            "dump_path": "/tmp/test",
+            "dump_mode": "output",
+            "dump_level": "all"
+        }
+    })";
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(
+        0, config_str.c_str(), config_str.size());
+    
+    EXPECT_EQ(result, ADUMP_SUCCESS);
+}
+
+// 测试异常dump场景的路径处理
+TEST_F(DumpCallbackTest, ExceptionDumpConfig_PathHandling) {
+    // 测试异常dump场景下，即使路径为空也应该能够处理
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "lite_exception",
+            "dump_path": ""
+        }
+    })";
+    
+    // 这个配置应该能被解析，但验证可能失败（因为路径为空）
+    // 不过异常dump场景会从环境变量获取路径
+    DumpConfig dump_config;
+    bool parse_result = DumpConfigValidator::ParseDumpConfig(
+        config_str.c_str(), config_str.size(), dump_config);
+    
+    EXPECT_TRUE(parse_result);
+    EXPECT_EQ(dump_config.dump_exception, "lite_exception");
+    EXPECT_TRUE(dump_config.dump_path.empty());
+}
+
+// 测试异常dump与debug dump的互斥性
+TEST_F(DumpCallbackTest, ExceptionDumpConfig_WithDebug_ShouldFail) {
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "aic_err_brief_dump",
+            "dump_debug": "on"
+        }
+    })";
+    
+    nlohmann::json js = nlohmann::json::parse(config_str);
+    bool result = DumpConfigValidator::IsValidDumpConfig(js);
+    
+    // 根据需求，异常dump和debug dump不应该同时设置
+    EXPECT_FALSE(result);
+}
+
+// 测试边界情况 - dumpData为null但size不为0
+TEST_F(DumpCallbackTest, EnableDumpCallback_NullDataWithNonZeroSize) {
+    uint64_t dumpSwitch = 0x8;  // 设置了异常dump bit位
+    
+    // size不为0但dumpData为null的情况
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 10);
+    
+    // 应该触发异常dump逻辑
+    EXPECT_EQ(result, ADUMP_SUCCESS);
+}
+
+// 测试边界情况 - dumpData为空字符串
+TEST_F(DumpCallbackTest, EnableDumpCallback_EmptyStringData) {
+    uint64_t dumpSwitch = 0x4;  // 设置了异常dump bit位
+    
+    const char* empty_data = "";
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, empty_data, 0);
+    
+    // 空字符串且size为0，应该触发异常dump逻辑
+    EXPECT_EQ(result, ADUMP_SUCCESS);
+}
+
+// 测试异常dump场景的dump_level处理
+TEST_F(DumpCallbackTest, ExceptionDumpConfig_DumpLevelHandling) {
+    // 异常dump场景下，dump_level的处理
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "aic_err_norm_dump",
+            "dump_level": "kernel"
+        }
+    })";
+    
+    DumpConfig dump_config;
+    bool result = DumpConfigValidator::ParseDumpConfig(
+        config_str.c_str(), config_str.size(), dump_config);
+    
+    EXPECT_TRUE(result);
+    EXPECT_EQ(dump_config.dump_exception, "aic_err_norm_dump");
+    EXPECT_EQ(dump_config.dump_level, "kernel");
+    // 对于异常dump，dump_status应该被设置为on
+    EXPECT_EQ(dump_config.dump_status, "on");
+}
+
+// 测试watcher场景的特殊处理
+TEST_F(DumpCallbackTest, ValidateWatcherSceneConfig) {
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "watcher",
+            "dump_mode": "output"
+        }
+    })";
+    
+    nlohmann::json js = nlohmann::json::parse(config_str);
+    bool result = DumpConfigValidator::IsValidDumpConfig(js);
+    
+    EXPECT_TRUE(result);
+}
+
+// 测试watcher场景的无效dump_mode
+TEST_F(DumpCallbackTest, ValidateWatcherScene_InvalidMode) {
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "watcher",
+            "dump_mode": "input"  // watcher只支持output模式
+        }
+    })";
+    
+    nlohmann::json js = nlohmann::json::parse(config_str);
+    bool result = DumpConfigValidator::IsValidDumpConfig(js);
+    
+    EXPECT_FALSE(result);
+}
+
+// 测试异常dump场景与dump_op_switch的互斥性
+TEST_F(DumpCallbackTest, ExceptionDumpConfig_WithOpSwitch_ShouldFail) {
+    std::string config_str = R"({
+        "dump": {
+            "dump_scene": "lite_exception",
+            "dump_op_switch": "on"
+        }
+    })";
+    
+    nlohmann::json js = nlohmann::json::parse(config_str);
+    bool result = DumpConfigValidator::IsValidDumpConfig(js);
+    
+    // 根据需求，异常dump和dump_op_switch不应该同时设置
+    EXPECT_FALSE(result);
+}

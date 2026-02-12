@@ -22,10 +22,13 @@ namespace ge {
 
 const uint32_t ACL_GE_INVALID_DUMP_CONFIG = 100009U;
 constexpr int32_t ADUMP_SUCCESS = 0;
+constexpr int32_t ADUMP_FAILED = -1;
 constexpr uint32_t MAX_DUMP_PATH_LENGTH = 512;
 constexpr int32_t MAX_IPV4_ADDRESS_LENGTH = 4;
 constexpr int32_t MAX_IPV4_ADDRESS_VALUE = 255;
 constexpr int32_t DECIMAL = 10;
+const uint64_t AIC_ERR_BRIEF_DUMP_BIT = 0x4;
+const uint64_t AIC_ERR_NORM_DUMP_BIT = 0x8;
 
 const std::string GE_DUMP_MODE_INPUT = "input";
 const std::string GE_DUMP_MODE_OUTPUT = "output";
@@ -136,7 +139,9 @@ public:
 private:
     DumpCallbackManager() = default;
     ~DumpCallbackManager() = default;
-
+    static bool IsEnableExceptionDumpBySwitch(uint64_t dumpSwitch);
+    static std::string BuildExceptionDumpJsonBySwitch(uint64_t dumpSwitch);
+    static bool ProcessExceptionDumpBySwitch(uint64_t dumpSwitch);
     static int32_t EnableDumpCallback(uint64_t dumpSwitch, const char* dumpData, int32_t size);
     static int32_t DisableDumpCallback(uint64_t dumpSwitch, const char* dumpData, int32_t size);
 
