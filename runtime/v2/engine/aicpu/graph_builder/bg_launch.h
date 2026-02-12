@@ -30,7 +30,7 @@ ValueHolderPtr UpdateAicpuIoAddr(const ValueHolderPtr &args_handler,
                                  const std::vector<DevMemValueHolderPtr> input_addrs,
                                  const std::vector<ValueHolderPtr> output_addrs);
 ValueHolderPtr AicpuTfLaunchKernel(const ValueHolderPtr &args_handler, const ValueHolderPtr &stream,
-                                   const ValueHolderPtr &bin_handle, const ge::NodePtr node);
+                                   const ValueHolderPtr &bin_handler, const ge::NodePtr node);
 ValueHolderPtr AicpuCCLaunchKernel(const ValueHolderPtr &args_handler, const ValueHolderPtr &stream,
                                    const ValueHolderPtr &block_dim, const domi::KernelDef &kernel_def,
                                    const ge::OpDescPtr &op_desc, const ValueHolderPtr &ext_info_handler,

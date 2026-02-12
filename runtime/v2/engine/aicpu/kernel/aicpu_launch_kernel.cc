@@ -246,7 +246,7 @@ ge::graphStatus AicpuLaunchTfKernel(KernelContext *context) {
 }
 REGISTER_KERNEL(AicpuLaunchTfKernel).RunFunc(AicpuLaunchTfKernel).TracePrinter(PrintTfLaunchArgs);
 
-ge::graphStatus AicpuLaunchCCKernelWithNewInterface(KernelContext *context) {
+ge::graphStatus AicpuLaunchCCKernelWithNewInterface(const KernelContext *context) {
   auto args_handler = context->GetInputPointer<AicpuArgsHandler>(static_cast<size_t>(AicpuLaunchCommon::kArgsHandler));
   auto stream = context->GetInputValue<rtStream_t>(static_cast<size_t>(AicpuLaunchCommon::kStream));
   auto block_dim = context->GetInputValue<uint32_t>(static_cast<size_t>(AicpuCCLaunch::kBlockDim));

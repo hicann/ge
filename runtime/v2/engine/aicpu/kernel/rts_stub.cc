@@ -10,6 +10,7 @@
 
 #ifdef ONLY_COMPILE_OPEN_SRC
 #include "rts_stub.h"
+#include "graph/def_types.h"
 
 rtError_t rtsLaunchCpuKernel(const rtFuncHandle funcHandle, uint32_t blockDim, rtStream_t stm,
                              const rtKernelLaunchCfg_t *cfg, rtCpuKernelArgs_t *argsInfo)
@@ -43,7 +44,7 @@ rtError_t rtsBinaryLoadFromFile(const char_t * const binPath, const rtLoadBinary
   (void)binPath;
   (void)optionalCfg;
   uint64_t stub_bin_addr = 0x1200;
-  *handle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_bin_addr));
+  *handle = ge::ValueToPtr(stub_bin_addr);
   return RT_ERROR_NONE;
 }
 
@@ -54,7 +55,7 @@ rtError_t rtsBinaryLoadFromData(const void * const data, const uint64_t length,
   (void)length;
   (void)optionalCfg;
   uint64_t stub_bin_addr = 0x1200;
-  *handle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_bin_addr));
+  *handle = ge::ValueToPtr(stub_bin_addr);
   return RT_ERROR_NONE;
 }
 
@@ -63,7 +64,7 @@ rtError_t rtsFuncGetByName(const rtBinHandle binHandle, const char_t *kernelName
   (void)binHandle;
   (void)kernelName;
   uint64_t stub_func_addr = 0x1600;
-  *funcHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_func_addr));
+  *funcHandle = ge::ValueToPtr(stub_func_addr);
   return RT_ERROR_NONE;
 }
 
@@ -74,7 +75,7 @@ rtError_t rtsRegisterCpuFunc(const rtBinHandle binHandle, const char_t * const f
   (void)funcName;
   (void)kernelName;
   uint64_t stub_func_addr = 0x1600;
-  *funcHandle = reinterpret_cast<void *>(static_cast<uintptr_t>(stub_func_addr));
+  *funcHandle = ge::ValueToPtr(stub_func_addr);
   return RT_ERROR_NONE;
 }
 #endif
