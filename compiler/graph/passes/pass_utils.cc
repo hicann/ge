@@ -389,31 +389,4 @@ bool PassUtils::GetPerm(const NodePtr &node, const uint32_t kTransposeInputPerm,
   GELOGW("The data type of perm should be DT_INT32 or DT_INT64");
   return false;
 }
-
-Status PassUtils::UpdateRefAttr(const ComputeGraphPtr &graph) {
-  for (auto &node : graph->GetAllNodes()) {
-    GE_CHECK_NOTNULL(node);
-    auto op_desc = node->GetOpDesc();
-    GE_CHECK_NOTNULL(op_desc);
-    auto input_name_index = op_desc->GetAllInputName();
-    bool is_ref = false;
-    for (const auto &name_index : input_name_index) {
-      const int32_t out_index = op_desc->GetOutputIndexByName(name_index.first);
-      if (out_index != -1) {
-        const auto &input_desc = op_desc->MutableInputDesc(name_index.second);
-        if (input_desc == nullptr) {
-          continue;
-        }
-        is_ref = true;
-      }
-    }
-    if (is_ref) {
-      AttrUtils::SetBool(op_desc, ATTR_NAME_REFERENCE, is_ref);
-      GELOGI("param [node] %s is reference node, set attribute %s to be true.",
-             node->GetName().c_str(), ATTR_NAME_REFERENCE.c_str());
-    }
-  }
-  return SUCCESS;
-}
-
 }  // namespace ge

@@ -60,8 +60,6 @@ class PassUtils {
   static bool IsOptimizationDisabled(const std::set<std::string> &disabled_optimizations,
                                      const std::string &optimization_name);
   static bool GetPerm(const NodePtr &node, const uint32_t kTransposeInputPerm, std::vector<int64_t> &perm);
-
-  static Status UpdateRefAttr(const ComputeGraphPtr &graph);
 };
 }  // namespace ge
 

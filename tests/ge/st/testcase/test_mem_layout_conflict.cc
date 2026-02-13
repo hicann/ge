@@ -20,7 +20,6 @@
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/tensor_utils.h"
 #include "common/mem_conflict_share_graph.h"
-#include "ge_running_env/fake_op.h"
 #include "ge_context.h"
 #include "ge_local_context.h"
 #include "stub/gert_runtime_stub.h"
@@ -55,13 +54,6 @@ class MemLayoutConflictTest : public testing::Test {
 };
 
 namespace ge {
-REG_OP(TensorMove)
-    .INPUT(x, TensorType({DT_DOUBLE, DT_FLOAT16, DT_FLOAT, DT_INT32, DT_UINT32, DT_INT16, DT_UINT16, DT_INT8, DT_UINT8,
-                          DT_UINT64, DT_INT64, DT_BOOL, DT_BF16, DT_HIFLOAT8, DT_FLOAT8_E5M2, DT_FLOAT8_E4M3FN, DT_COMPLEX32, DT_COMPLEX64}))
-    .OUTPUT(y, TensorType({DT_DOUBLE, DT_FLOAT16, DT_FLOAT, DT_INT32, DT_UINT32, DT_INT16, DT_UINT16, DT_INT8, DT_UINT8,
-                           DT_UINT64, DT_INT64, DT_BOOL, DT_BF16, DT_HIFLOAT8, DT_FLOAT8_E5M2, DT_FLOAT8_E4M3FN, DT_COMPLEX32, DT_COMPLEX64}))
-    .OP_END_FACTORY_REG(TensorMove)
-
 /*
  *             data1    data2                                            data11   partitioned_call1 ┌──────────┐
  *                │       │                                                │         │              │constant1 │
@@ -515,8 +507,6 @@ TEST_F(MemLayoutConflictTest, ImmutableOutAndOtherType_InsertIdentity_Success) {
     EXPECT_EQ(name_to_node["netoutput3"]->GetInDataAnchor(2)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_NE(name_to_node["netoutput3"]->GetInDataAnchor(3)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
 
-    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
-    EXPECT_EQ(tensor_move, nullptr);
   };
 }
 
@@ -1473,9 +1463,6 @@ TEST_F(MemLayoutConflictTest, UserInOutAndContinuousInOut_InsertIdentity) {
     EXPECT_EQ(name_to_node["netoutput"]->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_EQ(name_to_node["hcom2"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_NE(name_to_node["assign"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
-
-    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
-    EXPECT_EQ(tensor_move, nullptr);
   };
 }
 
@@ -1533,9 +1520,6 @@ TEST_F(MemLayoutConflictTest, UserInOutAndNoPaddingContinuousInOut_InsertIdentit
     EXPECT_EQ(name_to_node["netoutput"]->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_EQ(name_to_node["phonysplit"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_NE(name_to_node["assign"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
-
-    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
-    EXPECT_EQ(tensor_move, nullptr);
   };
 }
 /*
@@ -1952,9 +1936,6 @@ TEST_F(MemLayoutConflictTest, ContinuousOutAndContinuousOutHcomByRef_InsertIdent
     ASSERT_NE(name_to_node["hcom2"]->GetInDataAnchor(1), nullptr);
     EXPECT_EQ(name_to_node["hcom2"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_EQ(name_to_node["hcom2"]->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
-
-    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
-    EXPECT_EQ(tensor_move, nullptr);
   };
 }
 /*
@@ -2201,9 +2182,6 @@ TEST_F(MemLayoutConflictTest, ContinuousInAndRtsSpecailInOut_CheckMemType_SUCCES
     ASSERT_NE(name_to_node["hcom2"]->GetInDataAnchor(0), nullptr);
     EXPECT_EQ(name_to_node["hcom2"]->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_EQ(name_to_node["hcom2"]->GetInDataAnchor(2)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
-
-    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
-    EXPECT_EQ(tensor_move, nullptr);
   };
 }
 /*
@@ -2256,9 +2234,6 @@ TEST_F(MemLayoutConflictTest, ContinuousInAndRtsSpecailInOutSameMemType_CheckMem
     ASSERT_NE(name_to_node["hcom1"], nullptr);
     ASSERT_NE(name_to_node["hcom1"]->GetInDataAnchor(0), nullptr);
     EXPECT_EQ(name_to_node["hcom1"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
-
-    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
-    EXPECT_EQ(tensor_move, nullptr);
   };
 }
 
@@ -2267,7 +2242,7 @@ TEST_F(MemLayoutConflictTest, ContinuousInAndRtsSpecailInOutSameMemType_CheckMem
  *    \    /             \    /
  *    assign             assign
  *      |       ==>        |
- *  hcombroadcast        tensormove
+ *  hcombroadcast        identity
  *      |                  |
  *      a              hcombroadcast
  *      |                  |
@@ -2275,14 +2250,14 @@ TEST_F(MemLayoutConflictTest, ContinuousInAndRtsSpecailInOutSameMemType_CheckMem
  *                         |
  *                       netoutput
  *
- * 用例场景：variable-assign-rts输出内存，校验只在assign后面插入tensormove，不在variable后面插入。
+ * 用例场景：variable-assign-rts输出内存，校验只在assign后面插入identity，不在variable后面插入。
  * 步骤：
  * step 1. 按照用例场景构图
  * 期望：构图成功
  * step 2. 执行图编译
  * 期望： 图编译返回成功
  * step 3. 校验
- * 期望：校验只在assign后面插入tensormove，不在variable后面插入。
+ * 期望：校验只在assign后面插入identity，不在variable后面插入。
  */
 TEST_F(MemLayoutConflictTest, ImmutableOutAndRtsSpecailInByAssign_Insert_SUCCESS) {
   DUMP_GRAPH_WHEN("PreRunAfterMemConflictProc");
@@ -2297,19 +2272,19 @@ TEST_F(MemLayoutConflictTest, ImmutableOutAndRtsSpecailInByAssign_Insert_SUCCESS
     GE_DUMP(graph, "BuildGraphFailed");
   }
   EXPECT_EQ(ret, SUCCESS);
-  size_t tensormove_cnt = 0U;
+  size_t identity_cnt = 0U;
   CHECK_GRAPH(PreRunAfterMemConflictProc) {
     std::map<std::string, NodePtr> name_to_node;
     for (const auto &node : graph->GetAllNodes()) {
       name_to_node[node->GetName()] = node;
-      if (node->GetType() == TENSORMOVE) {
-        tensormove_cnt++;
+      if (node->GetType() == IDENTITY) {
+        identity_cnt++;
       }
     }
-    EXPECT_EQ(tensormove_cnt, 1U);
+    EXPECT_EQ(identity_cnt, 1U);
     ASSERT_NE(name_to_node["hcombroadcast"], nullptr);
     ASSERT_NE(name_to_node["hcombroadcast"]->GetInDataAnchor(0), nullptr);
-    EXPECT_EQ(name_to_node["hcombroadcast"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), TENSORMOVE);
+    EXPECT_EQ(name_to_node["hcombroadcast"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
   };
 }
 /*
@@ -2409,7 +2384,7 @@ TEST_F(MemLayoutConflictTest, NoPaddingContinuousInAndNoPaddingContinuousOutConn
  *     \    /                \    /
  *     assign   c            assign
  *       |     /               |
- *   hcombroadcast  ==>     tensormove   c
+ *   hcombroadcast  ==>     identity   c
  *       / \                   |      /
  *      a   b               hcombroadcast (need p2p in/out, continuous in/out, out ref in)
  *      |   |                   / \
@@ -2423,28 +2398,11 @@ TEST_F(MemLayoutConflictTest, NoPaddingContinuousInAndNoPaddingContinuousOutConn
  * step 2. 执行图编译
  * 期望： 图编译返回成功
  * step 3. 校验
- * 期望：校验只在assign后面插入tensormove，不在variable后面插入。
+ * 期望：校验只在assign后面插入identity，不在variable后面插入。
  */
 TEST_F(MemLayoutConflictTest, ImmutableOutAnRtsSpecailOutContinuousInOutByAssign_Insert_SUCCESS) {
-  auto infer_fun = [](Operator &op) -> graphStatus {
-    for (size_t i = 0U; i < op.GetOutputsSize(); i++) {
-      auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
-      op_desc->MutableOutputDesc(i)->SetShape(GeShape(vector<int64_t>{1, 1, 224, 224}));
-      op_desc->MutableOutputDesc(i)->SetOriginShape(GeShape(vector<int64_t>{1, 1, 224, 224}));
-    }
-    for (size_t i = 0U; i < op.GetInputsSize(); i++) {
-      auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
-      op_desc->MutableInputDesc(i)->SetShape(GeShape(vector<int64_t>{1, 1, 224, 224}));
-      op_desc->MutableInputDesc(i)->SetOriginShape(GeShape(vector<int64_t>{1, 1, 224, 224}));
-    }
-    return GRAPH_SUCCESS;
-  };
   DUMP_GRAPH_WHEN("PreRunAfterMemConflictProc");
   auto graph = MemConflictShareGraph::BuildImmutableOutAnRtsSpecailOutContinuousInOutByAssignGraph();
-  auto hcombroadcast = graph->FindNode("hcombroadcast");
-  hcombroadcast->GetOpDesc()->AddInferFunc(infer_fun);
-  auto c_node = graph->FindNode("hcombroadcast");
-  hcombroadcast->GetOpDesc()->AddInferFunc(infer_fun);
   map<AscendString, AscendString> options;
   Session session(options);
   session.AddGraph(4, GraphUtilsEx::CreateGraphFromComputeGraph(graph), options);
@@ -2454,17 +2412,17 @@ TEST_F(MemLayoutConflictTest, ImmutableOutAnRtsSpecailOutContinuousInOutByAssign
     GE_DUMP(graph, "BuildGraphFailed");
   }
   EXPECT_EQ(ret, SUCCESS);
-  size_t tensormove_cnt = 0U;
+  size_t identity_cnt = 0U;
   CHECK_GRAPH(PreRunAfterMemConflictProc) {
     std::map<std::string, NodePtr> name_to_node;
     for (const auto &node : graph->GetAllNodes()) {
       name_to_node[node->GetName()] = node;
-      if (node->GetType() == TENSORMOVE) {
-        tensormove_cnt++;
+      if (node->GetType() == IDENTITY) {
+        identity_cnt++;
       }
     }
-    EXPECT_EQ(tensormove_cnt, 1U);
-    EXPECT_EQ(name_to_node["hcombroadcast"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), TENSORMOVE);
+    EXPECT_EQ(identity_cnt, 1U);
+    EXPECT_EQ(name_to_node["hcombroadcast"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
   };
 }
 /*
@@ -2505,9 +2463,6 @@ TEST_F(MemLayoutConflictTest, UserOutAndRtsSpecialIn_Insert_SUCCESS) {
     EXPECT_EQ(identity_cnt, 2U);
     EXPECT_EQ(name_to_node["netoutput"]->GetInDataAnchor(0)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
     EXPECT_EQ(name_to_node["netoutput"]->GetInDataAnchor(1)->GetPeerOutAnchor()->GetOwnerNode()->GetType(), IDENTITY);
-
-    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
-    EXPECT_EQ(tensor_move, nullptr);
   };
 }
 /*
