@@ -409,11 +409,6 @@ Status Optimizer::Optimize(const ge::ComputeGraphPtr &fused_graph,
   auto owner_graph = ge::AscGraphUtils::GetComputeGraph(hint_graph);
   GE_ASSERT_NOTNULL(owner_graph);
   owner_graph->SetName(ascgen_utils::GenValidName(fused_graph->GetName()));
-
-  // 仅针对GE前端补充sizevar 后续改为通过scheduleresult传递，会删除该代码
-  for (const auto &exp : original_var_set) {
-    GE_ASSERT_GRAPH_SUCCESS(hint_graph.CreateSizeVar(exp));
-  }
   GE_ASSERT_SUCCESS(Optimize(hint_graph, fused_scheduled_result), "optimize failed, graph:[%s].",
                     hint_graph.GetName().c_str());
   // modify origin var and fused_graph
@@ -853,6 +848,13 @@ Status Optimizer::AutoScheduler([[maybe_unused]]const HintGraph &hint_graph, Sch
       GE_ASSERT_SUCCESS(RemoveAllZeroStrideLoopAxis(grouped_graph), "Remove All zero stride axis failed.");
       GE_ASSERT_SUCCESS(MergeContinuousAxis(grouped_graph, schedule_task.cube_type),
                         "Merge continuous axes failed.");
+    }
+    // 图上全部原子符号加到size var上用于生成tiling data
+    GE_ASSERT_SUCCESS(ScheduleUtils::ClearAllSizeVar(grouped_graph));
+    SizeVarSet original_var_set;
+    AscGraphInfoComplete::AppendOriginalSizeVar(grouped_graph, original_var_set);
+    for (const auto &exp: original_var_set) {
+      GE_ASSERT_GRAPH_SUCCESS(grouped_graph.CreateSizeVar(exp));
     }
     ascir::utils::DumpGraph(grouped_graph, "BeforeAutoSchedule");
     GELOGI("AutoScheduler start: %s", grouped_graph.GetName().c_str());

@@ -63,9 +63,6 @@ Status BinaryApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
   }
 
   if (x1.IsAnyScalar() && x2.IsAnyScalar()) { // 两个输入都是Scalar
-    GE_ASSERT_TRUE(this->api_name_ == "Div" || this->api_name_ == "Sub" ||
-                   this->api_name_ == "DivExtend" || this->api_name_ == "SubExtend",
-      "Not support two scalar input for Node[%s].", this->api_name_.c_str());
     ss << this->api_name_ << "s(";
     ss << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], ";
     ss << "(" << dtype_name << ")" << x1.GetScalarValue() << ", ";

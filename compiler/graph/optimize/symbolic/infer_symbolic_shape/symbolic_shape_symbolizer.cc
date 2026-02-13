@@ -13,6 +13,7 @@
 #include "common/plugin/ge_make_unique_util.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph_metadef/graph/debug/ge_util.h"
+#include "graph/utils/node_utils.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
 #include "framework/common/types.h"
 #include "graph/utils/op_desc_utils.h"
@@ -21,6 +22,7 @@
 #include "symbolic_shape_symbolizer.h"
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "graph/symbolizer/guard_dfx_context.h"
+#include "graph/debug/ge_attr_define.h"
 
 namespace ge {
 namespace {
@@ -127,6 +129,57 @@ bool SupportSymbolizeValueSum(const GeTensor &ge_tensor) {
   }
   return true;
 }
+
+bool IsAippInput(const NodePtr &data_node) {
+  auto output_nodes = NodeUtils::GetOutDataNodes(*data_node, nullptr);
+  return output_nodes.size() == 1 && output_nodes[0]->GetType() == AIPP;
+}
+
+bool IsSupportSymbolize(const NodePtr &data_node) {
+  // data是aipp算子的输入暂不支持泛化
+  GE_WARN_ASSERT(!IsAippInput(data_node), "Data[%s] not support symbolize, output is aipp", data_node->GetNamePtr());
+  return true;
+}
+
+/**
+ * 获取编译期间用户输入的data节点
+ *
+ * 以下几种情况的data由ge构造需要排除：
+ * 1、动态分档的data，由MultiBatchClonePass构造
+ * 2、AippData类型的data，当图中有aipp算子的时候在Prepare阶段构造
+ * 3、带有ref_var_src_var_name标记的RefData，由VariablePrepareOpPass构造
+ * 4、aipp的输入由于会被ge修改原始shape，暂不支持泛化
+ *
+ * @param compute_graph 需要泛化的图
+ * @param support_input_nodes 出参，保存支持的泛化的node节点
+ * @param input_size 用户输入的Tensor个数，用来校验跟data的数量是否一致
+ * @return 成功返回 SUCCESS，失败返回对应错误码
+ */
+Status GetSupportSymbolizeInputDataNodes(const ComputeGraphPtr &compute_graph,
+  std::vector<NodePtr> &support_input_nodes, const size_t input_size) {
+  // GetUserInputDataNodes接口已过滤动态分档插入的data
+  std::vector<NodePtr> user_input_nodes;
+  for (const auto &node : GraphUtilsEx::GetUserInputDataNodes(compute_graph)) {
+    if (node->GetType() == AIPPDATA) {
+      GELOGI("Node[%s] is aippdata, skip it.", node->GetNamePtr());
+      continue;
+    }
+    if (AttrUtils::HasAttr(node->GetOpDesc(), REF_VAR_SRC_VAR_NAME)) {
+      GELOGI("Node[%s] is copy refdata, skip it.", node->GetNamePtr());
+      continue;
+    }
+    user_input_nodes.emplace_back(node);
+  }
+  GE_ASSERT_TRUE(user_input_nodes.size() == input_size, "data node number %zu not equal graph_inputs.size() %zu",
+    user_input_nodes.size(), input_size);
+
+  for (const auto &user_input_node : user_input_nodes) {
+    if (IsSupportSymbolize(user_input_node)) {
+      support_input_nodes.emplace_back(user_input_node);
+    }
+  }
+  return SUCCESS;
+}
 }
 
 std::string InputShapeSource::GetSourceStr() const {
@@ -185,9 +238,8 @@ Status SymbolicShapeSymbolizer::Symbolize(const ComputeGraphPtr &graph, const st
   // todoo: 对repeat算子特殊处理，Repeat算子需要对value的sum做symbolize处理，给repeat的data节点打上标签
   GELOGD("Start symbolize graph: %s", graph->GetName().c_str());
   MarkSymbolizeRepeatInputValue(graph);
-  std::vector<NodePtr> data_nodes = GraphUtilsEx::GetUserInputDataNodes(graph);
-  GE_ASSERT_TRUE(data_nodes.size() == graph_inputs.size(), "data node number %zu not equal graph_inputs.size() %zu",
-    data_nodes.size(), graph_inputs.size());
+  std::vector<NodePtr> data_nodes;
+  GE_ASSERT_SUCCESS(GetSupportSymbolizeInputDataNodes(graph, data_nodes, graph_inputs.size()));
   if (graph->DeleteAttrsGroup<ShapeEnvAttr>()) {
     GELOGI("graph [%s] has ShapeEnv, do reset for symbolic shape symbolizer!", graph->GetName().c_str());
   }

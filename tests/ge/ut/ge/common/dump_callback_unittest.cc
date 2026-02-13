@@ -949,6 +949,186 @@ TEST_F(DumpConfigValidatorTest, ParseModelDumpConfig_EmptyLayerArray_ReturnsFals
     EXPECT_FALSE(result);
 }
 
+TEST_F(DumpConfigValidatorTest, IsEnableExceptionDumpBySwitch_ValidBits_ReturnsTrue) {
+    EXPECT_TRUE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x4));
+
+    EXPECT_TRUE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x8));
+
+    EXPECT_TRUE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0xC));
+
+    EXPECT_TRUE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0xF));
+    EXPECT_TRUE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x14));
+}
+
+TEST_F(DumpConfigValidatorTest, IsEnableExceptionDumpBySwitch_NoExceptionBits_ReturnsFalse) {
+    EXPECT_FALSE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x0));
+    EXPECT_FALSE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x1));
+    EXPECT_FALSE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x2));
+    EXPECT_FALSE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x10));
+    EXPECT_FALSE(DumpCallbackManager::IsEnableExceptionDumpBySwitch(0x100));
+}
+
+TEST_F(DumpConfigValidatorTest, BuildExceptionDumpJsonBySwitch_NormDumpBit_ReturnsCorrectJson) {
+    std::string jsonStr = DumpCallbackManager::BuildExceptionDumpJsonBySwitch(0x8);
+
+    nlohmann::json js = nlohmann::json::parse(jsonStr);
+    EXPECT_TRUE(js.contains(ge::GE_DUMP));
+    EXPECT_TRUE(js[ge::GE_DUMP].contains(ge::GE_DUMP_SCENE));
+    EXPECT_EQ(js[ge::GE_DUMP][ge::GE_DUMP_SCENE].get<std::string>(), "aic_err_norm_dump");
+    EXPECT_TRUE(js[ge::GE_DUMP].contains(ge::GE_DUMP_PATH));
+    EXPECT_TRUE(js[ge::GE_DUMP][ge::GE_DUMP_PATH].get<std::string>().empty());
+}
+
+TEST_F(DumpConfigValidatorTest, BuildExceptionDumpJsonBySwitch_BriefDumpBit_ReturnsCorrectJson) {
+    std::string jsonStr = DumpCallbackManager::BuildExceptionDumpJsonBySwitch(0x4);
+    
+    nlohmann::json js = nlohmann::json::parse(jsonStr);
+    EXPECT_TRUE(js.contains(ge::GE_DUMP));
+    EXPECT_TRUE(js[ge::GE_DUMP].contains(ge::GE_DUMP_SCENE));
+    EXPECT_EQ(js[ge::GE_DUMP][ge::GE_DUMP_SCENE].get<std::string>(), "aic_err_brief_dump");
+    EXPECT_TRUE(js[ge::GE_DUMP].contains(ge::GE_DUMP_PATH));
+    EXPECT_TRUE(js[ge::GE_DUMP][ge::GE_DUMP_PATH].get<std::string>().empty());
+}
+
+TEST_F(DumpConfigValidatorTest, BuildExceptionDumpJsonBySwitch_BothBits_NormDumpTakesPriority) {
+    std::string jsonStr = DumpCallbackManager::BuildExceptionDumpJsonBySwitch(0xC);
+    
+    nlohmann::json js = nlohmann::json::parse(jsonStr);
+    EXPECT_EQ(js[ge::GE_DUMP][ge::GE_DUMP_SCENE].get<std::string>(), "aic_err_norm_dump");
+}
+
+TEST_F(DumpConfigValidatorTest, BuildExceptionDumpJsonBySwitch_NoExceptionBits_ReturnsEmpty) {
+    std::string jsonStr = DumpCallbackManager::BuildExceptionDumpJsonBySwitch(0x0);
+    EXPECT_TRUE(jsonStr.empty());
+    
+    jsonStr = DumpCallbackManager::BuildExceptionDumpJsonBySwitch(0x1);
+    EXPECT_TRUE(jsonStr.empty());
+}
+
+TEST_F(DumpConfigValidatorTest, ProcessExceptionDumpBySwitch_ValidSwitch_ReturnsTrue) {
+    EXPECT_TRUE(DumpCallbackManager::ProcessExceptionDumpBySwitch(0x4));
+
+    EXPECT_TRUE(DumpCallbackManager::ProcessExceptionDumpBySwitch(0x8));
+
+    EXPECT_TRUE(DumpCallbackManager::ProcessExceptionDumpBySwitch(0xC));
+}
+
+TEST_F(DumpConfigValidatorTest, ProcessExceptionDumpBySwitch_InvalidSwitch_ReturnsFalse) {
+    EXPECT_FALSE(DumpCallbackManager::ProcessExceptionDumpBySwitch(0x0));
+    EXPECT_FALSE(DumpCallbackManager::ProcessExceptionDumpBySwitch(0x1));
+    EXPECT_FALSE(DumpCallbackManager::ProcessExceptionDumpBySwitch(0x2));
+    EXPECT_FALSE(DumpCallbackManager::ProcessExceptionDumpBySwitch(0x10));
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_EmptyDataWithNormDumpBit_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0x8;
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_EmptyDataWithBriefDumpBit_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0x4;
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_EmptyDataWithBothExceptionBits_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0xC;
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_EmptyDataWithNoExceptionBits_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0x0;
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_EmptyDataWithOtherBits_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0x1;
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_ValidDataWithExceptionBits_IgnoresSwitchBits) {
+    uint64_t dumpSwitch = 0xC; 
+    
+    std::string validConfig = R"({
+        "dump": {
+            "dump_path": "/tmp/test",
+            "dump_mode": "output",
+            "dump_level": "op"
+        }
+    })";
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(
+        dumpSwitch, const_cast<char*>(validConfig.c_str()), validConfig.size());
+
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_EmptyDataWithLargeSize_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0x8;
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 10);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_InvalidDataWithExceptionBits_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0x8;
+    
+    const char* dummyData = "";
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, dummyData, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpCallbackManagerTest, EnableDumpCallback_MixedSwitchBits_ReturnsSuccess) {
+    uint64_t dumpSwitch = 0x9;
+    
+    int32_t result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+    
+    dumpSwitch = 0x14;
+    result = DumpCallbackManager::EnableDumpCallback(dumpSwitch, nullptr, 0);
+    EXPECT_EQ(result, ge::ADUMP_SUCCESS);
+}
+
+TEST_F(DumpConfigValidatorTest, BuiltJsonConfig_CanBeParsedCorrectly) {
+    uint64_t dumpSwitch = 0x8; 
+    
+    std::string jsonStr = DumpCallbackManager::BuildExceptionDumpJsonBySwitch(dumpSwitch);
+    ASSERT_FALSE(jsonStr.empty());
+
+    DumpConfig config;
+    bool result = DumpConfigValidator::ParseDumpConfig(
+        jsonStr.c_str(), jsonStr.size(), config);
+    
+    EXPECT_TRUE(result);
+    EXPECT_EQ(config.dump_exception, "aic_err_norm_dump");
+    EXPECT_TRUE(config.dump_path.empty());
+}
+
+TEST_F(DumpConfigValidatorTest, BuiltJsonConfig_ContainsRequiredFields) {
+
+    std::string jsonStr = DumpCallbackManager::BuildExceptionDumpJsonBySwitch(0x4);
+    nlohmann::json js = nlohmann::json::parse(jsonStr);
+    
+    EXPECT_TRUE(js.is_object());
+    EXPECT_TRUE(js.contains(ge::GE_DUMP));
+    EXPECT_TRUE(js[ge::GE_DUMP].is_object());
+    EXPECT_TRUE(js[ge::GE_DUMP].contains(ge::GE_DUMP_SCENE));
+    EXPECT_TRUE(js[ge::GE_DUMP].contains(ge::GE_DUMP_PATH));
+
+    EXPECT_FALSE(js[ge::GE_DUMP].contains(ge::GE_DUMP_MODE));
+    EXPECT_FALSE(js[ge::GE_DUMP].contains(ge::GE_DUMP_LEVEL));
+    EXPECT_FALSE(js[ge::GE_DUMP].contains(ge::GE_DUMP_LIST));
+}
+
 // 主函数
 int main(int argc, char** argv) {
     testing::InitGoogleTest(&argc, argv);

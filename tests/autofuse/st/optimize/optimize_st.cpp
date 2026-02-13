@@ -6161,6 +6161,74 @@ TEST_F(OptimizerSt, vecoutCanBeReuse) {
   EXPECT_NE(abs2_node->outputs[0].attr.mem.reuse_id, ge::kIdNone);
 }
 
+TEST_F(OptimizerSt, EliminateSizeVar) {
+  const Expression s0 = ge::Symbol("s0");
+  const Expression s1 = ge::Symbol("s1");
+  const Expression s2 = ge::Symbol("s2");
+  const Expression s3 = ge::Symbol("s3");
+  const Expression s4 = ge::Symbol("s4");
+  const Expression s5 = ge::Symbol("s5");
+  const Expression s6 = ge::Symbol("s6");
+  const Expression s7 = ge::Symbol("s7");
+
+  auto graph = AscGraphBuilder("EliminateSizeVar")
+      .Loops({s7})
+      .Data("data0", 0)
+      .Load("load0", "data0", {s0}, {ge::sym::kSymbolOne})
+      .Data("data1", 1)
+      .Load("load1", "data1", {s1}, {ge::sym::kSymbolOne})
+      .Data("data2", 2)
+      .Load("load2", "data2", {s2}, {ge::sym::kSymbolOne})
+      .Data("data3", 3)
+      .Load("load3", "data3", {s3}, {ge::sym::kSymbolOne})
+      .Data("data4", 4)
+      .Load("load4", "data4", {s4}, {ge::sym::kSymbolOne})
+      .Data("data5", 5)
+      .Load("load5", "data5", {s5}, {ge::sym::kSymbolOne})
+      .Data("data6", 6)
+      .Load("load6", "data6", {s6}, {ge::sym::kSymbolOne})
+      .Concat("concat", {"load0", "load1", "load2", "load3", "load4", "load5", "load6"})
+      .Store("store0", "concat")
+      .Output("out0", "store0", 0)
+      .Build();
+  graph.CreateSizeVar("s0");
+  graph.CreateSizeVar("s1");
+  graph.CreateSizeVar("s2");
+  graph.CreateSizeVar("s3");
+  graph.CreateSizeVar("s4");
+  graph.CreateSizeVar("s5");
+  graph.CreateSizeVar("s6");
+  graph.CreateSizeVar("s7");
+
+  ::ascir::FusedScheduledResult fused_scheduled_result;
+  Status res = optimizer.Optimize(graph, fused_scheduled_result);
+  EXPECT_EQ(res, ge::SUCCESS);
+  ASSERT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0].size(), 1UL);
+  ASSERT_EQ(fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups.size(), 7UL);
+
+  EXPECT_EQ(
+    fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetAllSizeVar().size(),
+    3UL);
+  EXPECT_EQ(
+    fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[1].impl_graphs[0].GetAllSizeVar().size(),
+    4UL);
+  EXPECT_EQ(
+    fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[2].impl_graphs[0].GetAllSizeVar().size(),
+    5UL);
+  EXPECT_EQ(
+    fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[3].impl_graphs[0].GetAllSizeVar().size(),
+    6UL);
+  EXPECT_EQ(
+    fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[4].impl_graphs[0].GetAllSizeVar().size(),
+    7UL);
+  EXPECT_EQ(
+    fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[5].impl_graphs[0].GetAllSizeVar().size(),
+    8UL);
+  EXPECT_EQ(
+    fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[6].impl_graphs[0].GetAllSizeVar().size(),
+    9UL);
+}
+
 TEST_F(OptimizerSt, SliceSliceConcatD) {
   AscGraph graph("slice_concat");
   auto s0 = graph.CreateSizeVar(128);

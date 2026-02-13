@@ -16,11 +16,9 @@
 #include <string>
 #include "ge/ge_api_types.h"
 #include "dflow_session_impl.h"
-
+namespace ge {
 namespace dflow {
 using SessionPtr = std::shared_ptr<ge::DFlowSessionImpl>;
-using Status = ge::Status;
-using ge::DFlowSessionImpl;
 
 class DFlowSessionManager {
  public:
@@ -62,6 +60,7 @@ class DFlowSessionManager {
   std::mutex mutex_;
   bool init_flag_ = false;
 };
+} // namespace dflow
 }  // namespace ge
 
 #endif  // DFLOW_SESSION_SESSION_MANAGER_H_

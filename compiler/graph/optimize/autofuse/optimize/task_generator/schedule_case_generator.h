@@ -27,11 +27,12 @@ class FusionCaseGenerator {
   virtual Status GeneratorTask(ascir::HintGraph &optimize_graph, std::vector<ScheduleTask> &tasks,
                                const OptimizerOptions &options) {
     (void)options;
+    bool need_update_axis = false;
+    GE_ASSERT_SUCCESS(ScheduleGroupGraphPartitioner::NeedRefreshAxisSize(optimize_graph, need_update_axis));
     std::vector<ascir::ImplGraph> optimize_graphs;
     std::vector<std::string> score_funcs;
     GE_CHK_STATUS_RET(Generate(optimize_graph, optimize_graphs, score_funcs), "GenerateScheduleCases failed");
     score_funcs.resize(optimize_graphs.size());
-    const bool need_update_axis = (ScheduleUtils::FindFirstNodeOfType<ge::ascir_op::Concat>(optimize_graph) != nullptr);
     for (size_t i = 0U; i < optimize_graphs.size(); ++i) {
       const auto &graph = optimize_graphs[i];
       ScheduleTask task{graph, {}, score_funcs[i]};

@@ -722,7 +722,8 @@ build_backend() {
                       ceil_bf16_test_e2e_v2 \
                       cos_bf16_test_e2e_v2 \
                       load_compare_scalar_where_store_test_e2e_v2 \
-                      load_compare_where_store_test_e2e_v2"
+                      load_compare_where_store_test_e2e_v2 \
+                      binary_api_scalar_test_e2e_v2"
   fi
   make -j${THREAD_NUM} $MAKE_TARGET_LIST
   if [ $? -ne 0 ]

@@ -8,8 +8,8 @@
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
-#ifndef __ASCENDC_API_SUB_H__
-#define __ASCENDC_API_SUB_H__
+#ifndef __ASCENDC_API_SCALAR_SUB_H__
+#define __ASCENDC_API_SCALAR_SUB_H__
 
 template <typename T, bool IS_SCALAR_LATTER = true>
 inline __aicore__ void Subs(const LocalTensor<T> &dst, const LocalTensor<T> &src, const T constant_x,
@@ -69,4 +69,4 @@ inline __aicore__ void Subs(const LocalTensor<T>& dst, const T x, const T y) {
   AscendC::Duplicate(dst, res, dst.GetSize());
 }
 
-#endif  // __ASCENDC_API_SUB_H__
+#endif  // __ASCENDC_API_SCALAR_SUB_H__

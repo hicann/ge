@@ -250,10 +250,16 @@ class CastAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
-    std::map<ge::DataType, std::set<ge::DataType>> unsupported_map = {
-      {DT_UINT8, {DT_INT16}},
-      {DT_INT16, {DT_INT8}}
-    };
+    std::map<ge::DataType, std::set<ge::DataType>> supported_map = {
+ 	    {DT_FLOAT,   {DT_FLOAT16, DT_INT64, DT_INT16, DT_INT32, DT_BF16}},
+ 	    {DT_FLOAT16, {DT_UINT8, DT_INT8, DT_FLOAT}},
+ 	    {DT_INT32,   {DT_FLOAT, DT_INT16}},
+ 	    {DT_INT64,   {DT_INT32, DT_FLOAT}},
+ 	    {DT_BF16,    {DT_FLOAT}},
+ 	    {DT_UINT8,   {DT_FLOAT16}},
+ 	    {DT_INT8,    {DT_FLOAT16, DT_INT16}},
+ 	    {DT_INT16,   {DT_FLOAT, DT_UINT8}},
+ 	  };
     AscNodeInputs node_inputs = node.inputs;
     AscNodeOutputs node_outputs = node.outputs;
     uint32_t input_dtype_size = GetSizeByDataType(node_inputs[0].attr.dtype);
@@ -263,13 +269,13 @@ class CastAscIrCodegenImplV2 : public AscIrCodegenV2 {
       return false;
     }
 
-    auto iter = unsupported_map.find(node_inputs[0].attr.dtype);
-    if (iter != unsupported_map.end()) {
+    auto iter = supported_map.find(node_inputs[0].attr.dtype);
+    if (iter != supported_map.end()) {
       if (iter->second.find(node_outputs[0].attr.dtype) != iter->second.end()) {
-        return false;
+        return true;
       }
     }
-    return true;
+    return false;
   }
 };
 
@@ -1303,7 +1309,9 @@ class AddAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "Add";
   }
-
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_add.h"};
+  }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
@@ -1335,7 +1343,9 @@ class MulAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "Mul";
   }
-
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_mul.h"};
+  }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
@@ -1424,15 +1434,16 @@ class MinimumAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "AscendC::Min";
   }
-
-  [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
-    return OnlySecondInputSupportScalar(is_scalar_list);
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_minimum.h"};
   }
   [[nodiscard]] bool IsScalarInputSupportedIfExchangeInputs(const std::vector<bool> &is_scalar_list) const override {
     GE_ASSERT_EQ(is_scalar_list.size(), 2UL);
     return OnlySecondInputSupportScalar({is_scalar_list[1], is_scalar_list[0]});
   }
-
+  [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
+    return OnlySecondInputSupportScalar(is_scalar_list);
+  }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
@@ -1463,7 +1474,9 @@ class MaximumAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "AscendC::Max";
   }
-
+  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"scalar_maximum.h"};
+  }
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list);
   }
@@ -1924,7 +1937,7 @@ class FloorDivAscIrCodegenImplV2 : public AscIrCodegenV2 {
     std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
       {DT_INT8, DT_FLOAT},
       {DT_INT16, DT_FLOAT},
-      {DT_UINT8, DT_FLOAT}
+      {DT_UINT8, DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }

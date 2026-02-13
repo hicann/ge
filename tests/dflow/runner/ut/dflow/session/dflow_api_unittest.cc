@@ -41,111 +41,99 @@
 #include "dflow/compiler/pne/npu/npu_process_node_engine.h"
 
 namespace ge {
-  class MockExchangeService : public ExchangeService {
-   public:
-    Status CreateQueue(int32_t device_id,
-                       const string &name,
-                       const MemQueueAttr &mem_queue_attr,
-                       uint32_t &queue_id) override {
-      queue_id = queue_id_gen_++;
-      return SUCCESS;
-    }
+class MockExchangeService : public ExchangeService {
+ public:
+  Status CreateQueue(int32_t device_id,
+                     const string &name,
+                     const MemQueueAttr &mem_queue_attr,
+                     uint32_t &queue_id) override {
+    queue_id = queue_id_gen_++;
+    return SUCCESS;
+  }
 
-    void ResetQueueInfo(const int32_t device_id, const uint32_t queue_id) override {
-      return;
-    }
-    Status Enqueue(const int32_t device_id, const uint32_t queue_id, const void *const data,
-                  const size_t size, const ControlInfo &control_info) {
-      return SUCCESS;
-    }
+  void ResetQueueInfo(const int32_t device_id, const uint32_t queue_id) override {
+    return;
+  }
+  Status Enqueue(const int32_t device_id, const uint32_t queue_id, const void *const data,
+                const size_t size, const ControlInfo &control_info) {
+    return SUCCESS;
+  }
 
-    Status Enqueue(int32_t device_id, uint32_t queue_id, size_t size, rtMbufPtr_t m_buf,
-                   const ControlInfo &control_info) override {
-      return SUCCESS;
-    }
-    Status Enqueue(const int32_t device_id, const uint32_t queue_id, const size_t size,
-                         const FillFunc &fill_func, const ControlInfo &control_info) {
-      return SUCCESS;
-    }
-    Status Enqueue(const int32_t device_id, const uint32_t queue_id, const std::vector<BuffInfo> &buffs,
-                   const ControlInfo &control_info) override {
-      return SUCCESS;
-    }
-    Status EnqueueMbuf(int32_t device_id, uint32_t queue_id, rtMbufPtr_t m_buf, int32_t timeout) override {
-      return SUCCESS;
-    }
-    Status Dequeue(const int32_t device_id, const uint32_t queue_id, void *const data, const size_t size,
-                   ControlInfo &control_info) override {
-      return SUCCESS;
-    }
-    Status DequeueMbufTensor(const int32_t device_id, const uint32_t queue_id,
-                                   std::shared_ptr<AlignedPtr> &aligned_ptr, const size_t size,
-                                   ControlInfo &control_info) override {
-      return SUCCESS;
-    }
+  Status Enqueue(int32_t device_id, uint32_t queue_id, size_t size, rtMbufPtr_t m_buf,
+                 const ControlInfo &control_info) override {
+    return SUCCESS;
+  }
+  Status Enqueue(const int32_t device_id, const uint32_t queue_id, const size_t size,
+                       const FillFunc &fill_func, const ControlInfo &control_info) {
+    return SUCCESS;
+  }
+  Status Enqueue(const int32_t device_id, const uint32_t queue_id, const std::vector<BuffInfo> &buffs,
+                 const ControlInfo &control_info) override {
+    return SUCCESS;
+  }
+  Status EnqueueMbuf(int32_t device_id, uint32_t queue_id, rtMbufPtr_t m_buf, int32_t timeout) override {
+    return SUCCESS;
+  }
+  Status Dequeue(const int32_t device_id, const uint32_t queue_id, void *const data, const size_t size,
+                 ControlInfo &control_info) override {
+    return SUCCESS;
+  }
+  Status DequeueMbufTensor(const int32_t device_id, const uint32_t queue_id,
+                                 std::shared_ptr<AlignedPtr> &aligned_ptr, const size_t size,
+                                 ControlInfo &control_info) override {
+    return SUCCESS;
+  }
 
-    Status DequeueTensor(const int32_t device_id, const uint32_t queue_id, GeTensor &tensor,
-                                ControlInfo &control_info) override {
-      return SUCCESS;
-    }
-    Status DequeueMbuf(int32_t device_id, uint32_t queue_id, rtMbufPtr_t *m_buf, int32_t timeout) override {
-      return SUCCESS;
-    }
-    Status DestroyQueue(int32_t device_id, uint32_t queue_id) override {
-      return SUCCESS;
-    }
+  Status DequeueTensor(const int32_t device_id, const uint32_t queue_id, GeTensor &tensor,
+                              ControlInfo &control_info) override {
+    return SUCCESS;
+  }
+  Status DequeueMbuf(int32_t device_id, uint32_t queue_id, rtMbufPtr_t *m_buf, int32_t timeout) override {
+    return SUCCESS;
+  }
+  Status DestroyQueue(int32_t device_id, uint32_t queue_id) override {
+    return SUCCESS;
+  }
 
-    int queue_id_gen_ = 100;
-  };
+  int queue_id_gen_ = 100;
+};
 
-  class MockModelDeployer : public ModelDeployer {
-   public:
-    Status DeployModel(const FlowModelPtr &flow_model,
-                       DeployResult &deploy_result) override {
-      return SUCCESS;
-    }
-    Status Undeploy(uint32_t model_id) override {
-      return SUCCESS;
-    }
-    Status GetDeviceMeshIndex(const int32_t device_id, std::vector<int32_t> &node_mesh_index) override {
-      node_mesh_index = {0, 0, device_id, 0};
-      return SUCCESS;
-    }
-  };
+class MockModelDeployer : public ModelDeployer {
+ public:
+  Status DeployModel(const FlowModelPtr &flow_model,
+                     DeployResult &deploy_result) override {
+    return SUCCESS;
+  }
+  Status Undeploy(uint32_t model_id) override {
+    return SUCCESS;
+  }
+  Status GetDeviceMeshIndex(const int32_t device_id, std::vector<int32_t> &node_mesh_index) override {
+    node_mesh_index = {0, 0, device_id, 0};
+    return SUCCESS;
+  }
+};
 
-  class MockExecutionRuntime : public ExecutionRuntime {
-   public:
-    Status Initialize(const map<std::string, std::string> &options) override {
-      return SUCCESS;
-    }
-    Status Finalize() override {
-      return SUCCESS;
-    }
-    ModelDeployer &GetModelDeployer() override {
-      return model_deployer_;
-    }
-    ExchangeService &GetExchangeService() override {
-      return exchange_service_;
-    }
+class MockExecutionRuntime : public ExecutionRuntime {
+ public:
+  Status Initialize(const map<std::string, std::string> &options) override {
+    return SUCCESS;
+  }
+  Status Finalize() override {
+    return SUCCESS;
+  }
+  ModelDeployer &GetModelDeployer() override {
+    return model_deployer_;
+  }
+  ExchangeService &GetExchangeService() override {
+    return exchange_service_;
+  }
 
-   private:
-    MockModelDeployer model_deployer_;
-    MockExchangeService exchange_service_;
-  };
-}
+ private:
+  MockModelDeployer model_deployer_;
+  MockExchangeService exchange_service_;
+};
 
 namespace dflow {
-using ge::Operator;
-using ge::GRAPH_SUCCESS;
-using ge::SUCCESS;
-using ge::FAILED;
-using ge::PARAM_INVALID;
-using ge::ComputeGraphPtr;
-using ge::Node;
-using ge::RunContext;
-using ge::TensorDesc;
-
-
 namespace {
 class TestProcessNodeEngine : public ge::NPUProcessNodeEngine {
   Status Initialize(const std::map<std::string, std::string> &options) override {
@@ -767,5 +755,6 @@ TEST_F(UtestDflowApi, test_build) {
   // graph invalid
   EXPECT_NE(pne->BuildGraph(0, graph, options, {}, model), ge::SUCCESS);
   impl.Finalize();
+}
 }
 }

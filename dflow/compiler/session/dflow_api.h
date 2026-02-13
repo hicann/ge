@@ -17,24 +17,13 @@
 
 #include "ge_common/ge_api_error_codes.h"
 #include "ge_common/ge_api_types.h"
-#include "graph/graph.h"
 #include "ge/ge_data_flow_api.h"
 #include "flow_graph/data_flow.h"
+
 namespace ge {
-  class DFlowSessionImpl;
-}
+class DFlowSessionImpl;
 
 namespace dflow {
-using ge::dflow::FlowGraph;
-using ge::DataFlowInfo;
-using ge::RawData;
-using ge::FlowMsgPtr;
-using ge::AscendString;
-using ge::Status;
-using ge::Graph;
-using ge::Tensor;
-using ge::RunAsyncCallback;
-
 GE_FUNC_VISIBILITY Status DFlowInitialize(const std::map<AscendString, AscendString> &options);
 GE_FUNC_VISIBILITY Status DFlowFinalize();
 
@@ -169,8 +158,8 @@ class GE_FUNC_VISIBILITY DFlowSession {
                             std::vector<FlowMsgPtr> &outputs, int32_t timeout);
 
  private:
-  std::shared_ptr<ge::DFlowSessionImpl> dflow_session_impl_;
+  std::shared_ptr<DFlowSessionImpl> dflow_session_impl_;
 };
-}  // namespace dflow
-
+} // namespace dflow
+} // namespace ge
 #endif  // DFLOW_INC_EXTERNAL_DFLOW_API_H_

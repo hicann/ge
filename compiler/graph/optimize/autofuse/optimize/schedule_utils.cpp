@@ -906,4 +906,13 @@ Status ScheduleUtils::RecalculateStridesFromRepeats(const std::vector<ge::Expres
   }
   return ge::SUCCESS;
 }
+
+Status ScheduleUtils::ClearAllSizeVar(const ge::AscGraph &graph) {
+  auto compute_graph = ge::AscGraphUtils::GetComputeGraph(graph);
+  GE_ASSERT_NOTNULL(compute_graph);
+  const auto graph_attr = ge::AscGraphUtils::GetComputeGraph(graph)->GetOrCreateAttrsGroup<ge::AscGraphAttr>();
+  GE_ASSERT_NOTNULL(graph_attr);
+  graph_attr->size_vars.clear();
+  return ge::SUCCESS;
+}
 }  // namespace optimize

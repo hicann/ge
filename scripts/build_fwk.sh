@@ -376,6 +376,7 @@ if [[ "X$ENABLE_GE_UT" = "Xon" ]] || [[ "X$ENABLE_RT2_UT" = "Xon" ]] || [[ "X$EN
       export PYDFLOW_SRC_PATH=${BASEPATH}/dflow/pydflow
       export PYDFLOW_TEST_PATH=${BUILD_PATH}/tests/dflow/pydflow
       export PYDFLOW_BUILD_PATH=${BUILD_PATH}
+      rm -fr ${PYDFLOW_TEST_PATH}
       cp -r ${BASEPATH}/tests/dflow/pydflow ${PYDFLOW_TEST_PATH}
       bash tests/dflow/pydflow/run_test.sh -u --ascend_install_path=${ASCEND_INSTALL_PATH}
       unset PYDFLOW_SRC_PATH
@@ -520,6 +521,7 @@ if [[ "X$ENABLE_GE_ST" = "Xon" ]] || [[ "X$ENABLE_RT2_ST" = "Xon" ]] || [[ "X$EN
       export PYDFLOW_SRC_PATH=${BASEPATH}/dflow/pydflow
       export PYDFLOW_TEST_PATH=${BUILD_PATH}/tests/dflow/pydflow
       export PYDFLOW_BUILD_PATH=${BUILD_PATH}
+      rm -fr ${PYDFLOW_TEST_PATH}
       cp -r ${BASEPATH}/tests/dflow/pydflow ${PYDFLOW_TEST_PATH}
       bash tests/dflow/pydflow/run_test.sh -s --ascend_install_path=${ASCEND_INSTALL_PATH}
       unset PYDFLOW_SRC_PATH

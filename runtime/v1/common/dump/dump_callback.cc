@@ -821,7 +821,7 @@ DumpCallbackManager& DumpCallbackManager::GetInstance() {
 bool DumpCallbackManager::RegisterDumpCallbacks(uint32_t module_id) const {
     int32_t result = Adx::AdumpRegisterCallback(
         module_id,
-        reinterpret_cast<Adx::AdumpCallback>(EnableDumpCallback),
+        reinterpret_cast<Adx::AdumpCallback>(EnableDumpCallback),\
         reinterpret_cast<Adx::AdumpCallback>(DisableDumpCallback));
     if (result != ADUMP_SUCCESS) {
         GELOGE(INTERNAL_ERROR, "[Register][DumpCallbacks]Register dump callbacks failed, result: %d", result);
@@ -833,8 +833,61 @@ bool DumpCallbackManager::RegisterDumpCallbacks(uint32_t module_id) const {
     return true;
 }
 
+bool DumpCallbackManager::IsEnableExceptionDumpBySwitch(uint64_t dumpSwitch) {
+    return ((dumpSwitch & AIC_ERR_NORM_DUMP_BIT) != 0) || 
+           ((dumpSwitch & AIC_ERR_BRIEF_DUMP_BIT) != 0);
+}
+
+std::string DumpCallbackManager::BuildExceptionDumpJsonBySwitch(uint64_t dumpSwitch) {
+    std::string exceptionScene;
+    
+    if ((dumpSwitch & AIC_ERR_NORM_DUMP_BIT) != 0) {
+        exceptionScene = "aic_err_norm_dump";
+    } else if ((dumpSwitch & AIC_ERR_BRIEF_DUMP_BIT) != 0) {
+        exceptionScene = "aic_err_brief_dump";
+    } else {
+        return "";
+    }
+
+    nlohmann::json js;
+    nlohmann::json jsDump;
+    
+    jsDump[GE_DUMP_SCENE] = exceptionScene;
+    jsDump[GE_DUMP_PATH] = "";
+    
+    js[GE_DUMP] = jsDump;
+    
+    return js.dump();
+}
+
+bool DumpCallbackManager::ProcessExceptionDumpBySwitch(uint64_t dumpSwitch) {
+    std::string configStr = BuildExceptionDumpJsonBySwitch(dumpSwitch);
+    if (configStr.empty()) {
+        GELOGE(INTERNAL_ERROR, "[Process][ExceptionDump]Failed to build exception dump config by switch");
+        REPORT_INNER_ERR_MSG("E19999", "Failed to build exception dump config by switch");
+        return false;
+    }
+    
+    GELOGI("Processing exception dump by switch, config: %s", configStr.c_str());
+
+    Status ret = HandleEnableDump(configStr.c_str(), static_cast<int32_t>(configStr.size()));
+    if (ret == SUCCESS) {
+        GELOGI("Enable exception dump by switch processed successfully");
+        return true;
+    } else {
+        GELOGE(ret, "[Process][ExceptionDump]Enable exception dump by switch failed, ret=%u", ret);
+        REPORT_INNER_ERR_MSG("E19999", "Enable exception dump by switch failed, ret=%u", ret);
+        return false;
+    }
+}
+
 int32_t DumpCallbackManager::EnableDumpCallback(uint64_t dumpSwitch, const char* dumpData, int32_t size) {
     GELOGI("Enable dump callback triggered, dumpSwitch=%lu, size=%d", dumpSwitch, size);
+
+    if ((dumpData == nullptr || size <= 0) && IsEnableExceptionDumpBySwitch(dumpSwitch)) {
+        GELOGI("dumpData is null or size is invalid (size=%d) but exception dump bit is set, processing exception dump by switch", size);
+        return ProcessExceptionDumpBySwitch(dumpSwitch) ? ADUMP_SUCCESS : ADUMP_FAILED;
+    }
 
     Status ret = HandleEnableDump(dumpData, size);
     if (ret == SUCCESS) {
@@ -843,7 +896,7 @@ int32_t DumpCallbackManager::EnableDumpCallback(uint64_t dumpSwitch, const char*
     } else {
         GELOGE(ret, "[Handle][EnableDump]Enable dump callback failed, ret=%u", ret);
         REPORT_INNER_ERR_MSG("E19999", "Enable dump callback failed, ret=%u", ret);
-        return -1;
+        return ADUMP_FAILED;
     }
 }
 
@@ -858,7 +911,7 @@ int32_t DumpCallbackManager::DisableDumpCallback(uint64_t dumpSwitch, const char
     } else {
         GELOGE(ret, "[Handle][DisableDump]Disable dump callback failed, ret=%u", ret);
         REPORT_INNER_ERR_MSG("E19999", "Disable dump callback failed, ret=%u", ret);
-        return -1;
+        return ADUMP_FAILED;
     }
 }
 

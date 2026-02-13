@@ -10,7 +10,7 @@
 
 #include <cstring>
 #include "flow_graph/data_flow.h"
-#include "ge/ge_api.h"
+#include "dflow/compiler/session/dflow_api.h"
 #include "parser/onnx_parser.h"
 #include "parser/tensorflow_parser.h"
 #include "dlog_pub.h"
@@ -34,36 +34,12 @@ Status CheckParamsForUserData(const void *data, size_t size, size_t offset) {
   return SUCCESS;
 }
 }  // namespace
-Status GEInitialize(const std::map<std::string, std::string> &options) {
+
+Status GEInitializeV2(const std::map<ge::AscendString, ge::AscendString> &options) {
   return SUCCESS;
 }
 
-Status GEInitialize(const std::map<ge::AscendString, ge::AscendString> &options) {
-  return SUCCESS;
-}
-
-Status GEFinalize() {
-  return SUCCESS;
-}
-
-Session::Session(const std::map<std::string, std::string> &options) {}
-
-Session::~Session() {}
-
-Status Session::AddGraph(uint32_t graph_id, const Graph &graph) {
-  return SUCCESS;
-}
-
-Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<std::string, std::string> &options) {
-  return SUCCESS;
-}
-
-Status Session::AddGraph(uint32_t graph_id, const Graph &graph,
-                         const std::map<ge::AscendString, ge::AscendString> &options) {
-  return SUCCESS;
-}
-
-Status RemoveGraph(uint32_t graph_id) {
+Status GEFinalizeV2() {
   return SUCCESS;
 }
 
@@ -177,26 +153,45 @@ class FlowMsgStub : public FlowMsg {
   std::vector<uint8_t> raw_data_;
 };
 
-Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                  const std::vector<Tensor> &inputs, const DataFlowInfo &info, int32_t timeout) {
+namespace dflow {
+Status DFlowInitialize(const std::map<AscendString, AscendString> &options) {
+  return SUCCESS;
+}
+Status DFlowFinalize() {
+  return SUCCESS;
+}
+DFlowSession::DFlowSession(const std::map<ge::AscendString, ge::AscendString> &options) {
+}
+
+DFlowSession::~DFlowSession() {
+}
+
+Status DFlowSession::AddGraph(uint32_t graph_id, const FlowGraph &graph,
+                              const std::map<ge::AscendString, ge::AscendString> &options) {
   return SUCCESS;
 }
 
-Status Session::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                   std::vector<Tensor> &outputs, DataFlowInfo &info, int32_t timeout) {
+Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
+                                       const std::vector<Tensor> &inputs, const DataFlowInfo &info, int32_t timeout) {
+  return SUCCESS;
+}
+
+Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
+                                        std::vector<Tensor> &outputs, DataFlowInfo &info, int32_t timeout) {
   outputs.emplace_back(Tensor());
   return SUCCESS;
 }
 
-Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                  const std::vector<FlowMsgPtr> &inputs, int32_t timeout) {
+Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
+                                       const std::vector<FlowMsgPtr> &inputs, int32_t timeout) {
   return SUCCESS;
 }
 
-Status Session::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
-                                   std::vector<FlowMsgPtr> &outputs, int32_t timeout) {
+Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
+                                        std::vector<FlowMsgPtr> &outputs, int32_t timeout) {
   outputs.emplace_back(std::make_shared<FlowMsgStub>(std::make_shared<Tensor>()));
   return SUCCESS;
+}
 }
 
 Operator::Operator(const char_t *name, const char_t *type) {}

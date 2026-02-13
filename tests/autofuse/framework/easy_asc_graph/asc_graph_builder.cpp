@@ -261,19 +261,36 @@ AscGraphBuilder &AscGraphBuilder::Transpose(const std::string &name, const std::
 }
 
 AscGraphBuilder &AscGraphBuilder::Concat(const std::string &name, const std::vector<std::string> &inputs) {
-  ascir_op::Concat concat_op(name.c_str());
-  concat_op.attr.sched.axis = impl_->axis_ids_;
-  *concat_op.y.repeats = impl_->loop_repeats_;
+  impl_->dynamic_input_ops_.emplace_back();
+  auto &ops = impl_->dynamic_input_ops_.back();
+  std::vector<ge::AscOpOutput> outputs;
 
-  auto &input_tensor = GetInputOutputTensor(inputs.empty() ? "" : inputs[0]);
-  *concat_op.y.axis = input_tensor.attr.axis;
-  concat_op.y.dtype = input_tensor.attr.dtype;
-
-  auto node = CreateNode(name, concat_op);
-
-  for (size_t i = 0; i < inputs.size(); ++i) {
-    ConnectEdge(inputs[i], node, i);
+  for (const auto &input: inputs) {
+    auto it = impl_->nodes_.find(input);
+    assert(it != impl_->nodes_.end());
+    ops.push_back(ge::OpDescUtils::CreateOperatorFromNode(it->second));
+    outputs.emplace_back(&ops.back(), 0);
   }
+
+  ascir_op::Concat concat_op(name.c_str());
+
+  // 设置动态输入 - 这会自动创建节点并添加到图中
+  concat_op.x = outputs;
+
+  auto const_node = ge::NodeUtilsEx::GetNodeFromOperator(concat_op);
+  assert(const_node != nullptr);
+  auto node_ptr = std::const_pointer_cast<ge::Node>(const_node);
+  auto asc_node = std::dynamic_pointer_cast<ge::AscNode>(node_ptr);
+  assert(asc_node != nullptr);
+
+  asc_node->attr.sched.axis = impl_->axis_ids_;
+  auto &output = asc_node->outputs[0];
+  auto &input_tensor = GetInputOutputTensor(inputs.empty() ? "" : inputs[0]);
+  output.attr.axis = input_tensor.attr.axis;
+  output.attr.dtype = input_tensor.attr.dtype;
+  output.attr.repeats = impl_->loop_repeats_;
+
+  impl_->nodes_[name] = asc_node;
 
   return *this;
 }
