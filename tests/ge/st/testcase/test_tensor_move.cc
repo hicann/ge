@@ -21,12 +21,22 @@
 #include "graph/utils/tensor_utils.h"
 #include "ge/ut/ge/graph/passes/graph_builder_utils.h"
 #include "ge_local_context.h"
+#include "graph_utils_ex.h"
 #include "graph/passes/standard_optimize/tensor_move_delete_pass.h"
 #include "ge_graph_dsl/op_desc/op_desc_cfg_box.h"
 #include "easy_graph/builder/graph_dsl.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/operator_reg.h"
 #include "graph_metadef/external/ge_common/ge_api_types.h"
+#include "api/gelib/gelib.h"
+#include "ge/ge_api.h"
+#include "ge_graph_dsl/assert/graph_assert.h"
+#include "exe_graph/runtime/infer_shape_range_context.h"
+#include "ge_running_env/ge_running_env_faker.h"
+#include "ge_running_env/fake_op.h"
+#include "graph/utils/constant_utils.h"
+#include "host_kernels/kernel.h"
+#include "host_kernels/kernel_factory.h"
 
 using namespace std;
 using namespace testing;
@@ -43,6 +53,13 @@ REG_OP(Cast)
 .ATTR(dst_type, Int, 0)
 .ATTR(truncate, Bool, false)
 .OP_END_FACTORY_REG(Cast)
+
+REG_OP(TensorMove)
+    .INPUT(x, TensorType({DT_DOUBLE, DT_FLOAT16, DT_FLOAT, DT_INT32, DT_UINT32, DT_INT16, DT_UINT16, DT_INT8, DT_UINT8,
+                          DT_UINT64, DT_INT64, DT_BOOL, DT_BF16, DT_HIFLOAT8, DT_FLOAT8_E5M2, DT_FLOAT8_E4M3FN, DT_COMPLEX32, DT_COMPLEX64}))
+    .OUTPUT(y, TensorType({DT_DOUBLE, DT_FLOAT16, DT_FLOAT, DT_INT32, DT_UINT32, DT_INT16, DT_UINT16, DT_INT8, DT_UINT8,
+                           DT_UINT64, DT_INT64, DT_BOOL, DT_BF16, DT_HIFLOAT8, DT_FLOAT8_E5M2, DT_FLOAT8_E4M3FN, DT_COMPLEX32, DT_COMPLEX64}))
+    .OP_END_FACTORY_REG(TensorMove)
 
 bool SetTransDataTensorDesc(const ComputeGraphPtr &root_graph, const std::vector<std::string> &node_names, Format format = FORMAT_NCL) {
   GeTensorDesc tensor_desc{GeShape{{2022, 2023}}, format, DT_FLOAT16};
@@ -96,15 +113,50 @@ bool AddParentIndexForNetoutput(ComputeGraphPtr &root_graph, NetoutputParentInde
   }
   return true;
 }
+
+void SetWeightForConstNode(NodePtr &const_node) {
+  // new a tensor
+  ge::GeTensorPtr tensor = std::make_shared<GeTensor>();
+  std::vector<uint8_t> value{1, 2, 3, 4, 5, 6, 7, 8, 9};
+  std::vector<int64_t> shape{9};
+  tensor->MutableTensorDesc().SetShape(GeShape(shape));
+  tensor->SetData(value);
+  tensor->MutableTensorDesc().SetDataType(DT_UINT8);
+  ConstantUtils::SetWeight(const_node->GetOpDesc(), 0, tensor);
 }
 
-class TensoeMoveTest : public Test {
+const char *AddNYes = "AddNYes";
+const char *ShapeNo = "ShapeNo";
+class TestAddNKernel : public Kernel {
+public:
+  Status Compute(const ge::OpDescPtr op_desc_ptr, const std::vector<ge::ConstGeTensorPtr> &input,
+                 std::vector<ge::GeTensorPtr> &v_output) override {
+    auto output = std::make_shared<GeTensor>();
+    std::vector<uint8_t> data{1, 2, 3};
+    std::vector<int64_t> shape{3};
+    output->MutableTensorDesc().SetShape(GeShape(shape));
+    output->SetData(data);
+    output->MutableTensorDesc().SetDataType(DT_UINT8);
+    v_output.push_back(output);
+    return SUCCESS;
+  }
+};
+
+REGISTER_COMPUTE_NODE_KERNEL(AddNYes, TestAddNKernel);
+}
+
+class TensorMoveTest : public Test {
   protected:
   void SetUp() {
     dlog_setlevel(0, 0, 0);
     std::map<std::string, std::string> options = {{"ge.oo.level", "O3"}};
     GetThreadLocalContext().SetGraphOption(options);
     GetThreadLocalContext().GetOo().Initialize({}, OptionRegistry::GetInstance().GetRegisteredOptTable());
+
+    GeRunningEnvFaker().Reset().InstallDefault()
+        .Install(FakeOp(AddNYes).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeOp(ShapeNo).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"))
+        .Install(FakeEngine("DNN_VM_AICPU_ASCEND").KernelInfoStore("aicpu_ascend_kernel"));
   }
 
   void TearDown() {
@@ -132,7 +184,7 @@ class TensoeMoveTest : public Test {
  * - Trace 能够跨越子图边界识别到 Data 是源头。
  * - TensorMove 被成功识别并删除。
  */
-TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_Deleted) {
+TEST_F(TensorMoveTest, TensorMoveInSubgraph_FromParentData_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   // 1. 设置内存复用选项：设置根图的第 0 个输出复用第 0 个输入
@@ -220,7 +272,7 @@ TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_Deleted) {
  * 预期行为：
  * - 删除 TensorMove,sub_sub_NetOutput两个输出，一个空悬，一个给到TensorMove，但是任意一个的输入都是计算节点(TransData或Add)
  */
-TEST_F(TensoeMoveTest, TensorMove_NestedPCall_FromAdd_Deleted) {
+TEST_F(TensorMoveTest, TensorMove_NestedPCall_FromAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
@@ -312,7 +364,7 @@ TEST_F(TensoeMoveTest, TensorMove_NestedPCall_FromAdd_Deleted) {
  * 预期结果：
  * tensormove的输入是sub_sub_add0，sub_sub_add0只有一条路径，删除
  */
-TEST_F(TensoeMoveTest, TensorMoveInSub_FromSubSubAdd_Deleted) {
+TEST_F(TensorMoveTest, TensorMoveInSub_FromSubSubAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
@@ -411,7 +463,7 @@ TEST_F(TensoeMoveTest, TensorMoveInSub_FromSubSubAdd_Deleted) {
  * - sub_tensormove 的真实输入应追溯至子子图中的 sub_sub_add0，sub_tensormove 也被成功删除；
  */
 
-TEST_F(TensoeMoveTest, TensorMoveInRootAndSub_FromSubSubAdd_Deleted) {
+TEST_F(TensorMoveTest, TensorMoveInRootAndSub_FromSubSubAdd_Deleted) {
   dlog_setlevel(0, 0, 0);
 
   std::map<std::string, std::string> options;
@@ -511,7 +563,7 @@ TEST_F(TensoeMoveTest, TensorMoveInRootAndSub_FromSubSubAdd_Deleted) {
  * - tensormove的输入是transdata，只有一条路径，被删除
  * - if_tensormove的输入是if_transdata，只有一条路径，被删除
  */
-TEST_F(TensoeMoveTest, TensorMoveInRootAndIfSub_ViaTransData_Deleted) {
+TEST_F(TensorMoveTest, TensorMoveInRootAndIfSub_ViaTransData_Deleted) {
   dlog_setlevel(0, 0, 0);
   const auto if_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(if_sub) {
@@ -593,7 +645,7 @@ TEST_F(TensoeMoveTest, TensorMoveInRootAndIfSub_ViaTransData_Deleted) {
  * - if_sub_graph 中的 if_tensormove 保留，上游源节点为 if_sub_data，但 if_sub_data 存在多条输出路径
  * - 主图中的 tensormove 被成功删除，上游源节点为 transdata，transdata → tensormove → netoutput
  */
-TEST_F(TensoeMoveTest, TensorMove_RootDeleted_SubKept_DueToSourceBranching) {
+TEST_F(TensorMoveTest, TensorMove_RootDeleted_SubKept_DueToSourceBranching) {
   dlog_setlevel(0, 0, 0);
   const auto if_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(if_sub) {
@@ -672,7 +724,7 @@ TEST_F(TensoeMoveTest, TensorMove_RootDeleted_SubKept_DueToSourceBranching) {
  * - if_sub_graph 中的 if_tensormove 保留，其源输入为主图中的 relu，但 relu 的下游节点是 IF 控制流算子
  * - 主图中的 tensormove 被成功删除，其源输入为 transdata，输出是netoutput
  */
-TEST_F(TensoeMoveTest, TensorMove_RootDeleted_SubInIfKept_DueToIfOp) {
+TEST_F(TensorMoveTest, TensorMove_RootDeleted_SubInIfKept_DueToIfOp) {
   dlog_setlevel(0, 0, 0);
   const auto if_sub_data = OP_CFG(DATA).ParentNodeIndex(0);
   DEF_GRAPH(if_sub) {
@@ -741,7 +793,7 @@ TEST_F(TensoeMoveTest, TensorMove_RootDeleted_SubInIfKept_DueToIfOp) {
  * - if 分支子图中的 if_tensormove 不删除，其输入为根图Data,路径上有IF算子
  * - 主图中的 tensormove 不删除，其输入为根图Data,路径上有IF算子
  */
-TEST_F(TensoeMoveTest, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
+TEST_F(TensorMoveTest, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
   dlog_setlevel(0, 0, 0);
   std::map<std::string, std::string> options;
   options[OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES] = "1,1|0,0";
@@ -807,7 +859,7 @@ TEST_F(TensoeMoveTest, TensorMove_InRootAndSub_ConnectedToIf_Kept) {
  * - Trace 能够跨越子图边界识别到 Data 是源头。
  * - TensorMove 被成功识别并删除。
  */
-TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_Deleted2) {
+TEST_F(TensorMoveTest, TensorMoveInSubgraph_FromParentData_Deleted2) {
   // 1. 设置内存复用选项：设置根图的第 0 个输出复用第 0 个输入
   std::map<std::string, std::string> options;
   options[OPTION_INPUT_REUSE_MEM_INDEXES] = "0";
@@ -861,7 +913,7 @@ TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_Deleted2) {
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
-TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_NotDeleted) {
+TEST_F(TensorMoveTest, TensorMoveInSubgraph_FromParentData_NotDeleted) {
   // 1. 设置内存复用选项：设置根图的第 0 个输出复用第 0 个输入
   std::map<std::string, std::string> options;
   options["ge.oo.level"] = "O3";
@@ -912,4 +964,183 @@ TEST_F(TensoeMoveTest, TensorMoveInSubgraph_FromParentData_NotDeleted) {
 
   // 清理环境
   ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+// 公共子表达式消除场景，添加内置TensorMove
+TEST_F(TensorMoveTest, Add_InnerTensorMove1) {
+  DEF_GRAPH(g1) {
+    auto assign = OP_CFG(ASSIGN)
+                      .TensorDesc(FORMAT_ND, DT_FLOAT, {2, 2})
+                      .InCnt(2)
+                      .OutCnt(1)
+                      .InNames({"ref", "value"})
+                      .OutNames({"ref"})
+                      .Build("assign");
+    CHAIN(NODE("data1", DATA)->EDGE(0, 0)->NODE("add1", ADD)->EDGE(0, 0)->NODE(assign)->CTRL_EDGE()->NODE("add3", ADD));
+    CHAIN(NODE("data1")->EDGE(0, 1)->NODE("add1"));
+    CHAIN(NODE("add1")->EDGE(0, 0)->NODE("add3"));
+    CHAIN(NODE("data2", DATA)->EDGE(0, 1)->NODE(assign));
+    CHAIN(NODE("data1")->EDGE(0,0)->NODE("add2", ADD)->EDGE(0, 1)->NODE("add3"));
+    CHAIN(NODE("data1")->EDGE(0,1)->NODE("add2"));
+  };
+
+  auto graph = ToGeGraph(g1);
+  map<string, string> options;
+
+  Status ret = ge::GELib::Initialize(options);
+  EXPECT_EQ(ret, SUCCESS);
+
+  Session session(options);
+  ret = session.AddGraph(0, graph, options);
+  EXPECT_EQ(ret, SUCCESS);
+  // build input tensor
+  std::vector<InputTensorInfo> inputs;
+  // build_graph through session
+  ret = session.BuildGraph(0, inputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  CHECK_GRAPH(PreRunAfterBuild) {
+    size_t add_count = 0U;
+    for (const auto &node : graph->GetAllNodes()) {
+      if (node->GetType() == ADD) {
+        add_count++;
+      }
+    }
+    // 公共子表达式消除，add1和add2合并
+    EXPECT_EQ(add_count, 2U);
+
+    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
+    ASSERT_NE(tensor_move, nullptr);
+    auto assign = graph->FindFirstNodeMatchType(ASSIGN);
+    ASSERT_NE(assign, nullptr);
+    EXPECT_EQ(assign->GetInDataNodes().at(0), tensor_move);
+  };
+}
+
+// 常量折叠场景，添加内置TensorMove
+TEST_F(TensorMoveTest, Add_InnerTensorMove2) {
+  DEF_GRAPH(g1) {
+    auto assign = OP_CFG(ASSIGN)
+                      .TensorDesc(FORMAT_ND, DT_FLOAT, {2, 2})
+                      .InCnt(2)
+                      .OutCnt(1)
+                      .InNames({"ref", "value"})
+                      .OutNames({"ref"})
+                      .Build("assign");
+    CHAIN(NODE("const1", CONSTANT)->NODE("addn", AddNYes)->NODE(assign)->CTRL_EDGE()->NODE("shape1", ShapeNo));
+    CHAIN(NODE("const2", CONSTANT)->EDGE(0, 1)->NODE("addn"));
+    CHAIN(NODE("data", DATA)->EDGE(0, 1)->NODE(assign));
+    CHAIN(NODE("addn")->EDGE(0, 0)->NODE("shape1")->NODE("net_output",NETOUTPUT));
+  };
+  auto graph = ToGeGraph(g1);
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
+  auto const1 = compute_graph->FindNode("const1");
+  auto const2 = compute_graph->FindNode("const2");
+  SetWeightForConstNode(const1);
+  SetWeightForConstNode(const2);
+  map<string, string> options;
+
+  Status ret = ge::GELib::Initialize(options);
+  EXPECT_EQ(ret, SUCCESS);
+
+  Session session(options);
+  ret = session.AddGraph(0, graph, options);
+  EXPECT_EQ(ret, SUCCESS);
+  // build input tensor
+  std::vector<InputTensorInfo> inputs;
+  // build_graph through session
+  ret = session.BuildGraph(0, inputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  CHECK_GRAPH(PreRunAfterBuild) {
+    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
+    ASSERT_NE(tensor_move, nullptr);
+    auto assign = graph->FindFirstNodeMatchType(ASSIGN);
+    ASSERT_NE(assign, nullptr);
+    EXPECT_EQ(assign->GetInDataNodes().at(0), tensor_move);
+  };
+}
+
+// relu多引用，连给两个ref op，且ref之间没有连边关系，需要插入内置inner TensorMove
+TEST_F(TensorMoveTest, Add_InnerTensorMove3) {
+  DEF_GRAPH(g1) {
+    auto assign1 = OP_CFG(ASSIGN)
+                      .TensorDesc(FORMAT_ND, DT_FLOAT, {2, 2})
+                      .InCnt(2)
+                      .OutCnt(1)
+                      .InNames({"ref", "value"})
+                      .OutNames({"ref"})
+                      .Build("assign1");
+    auto assign2 = OP_CFG(ASSIGN)
+                      .TensorDesc(FORMAT_ND, DT_FLOAT, {2, 2})
+                      .InCnt(2)
+                      .OutCnt(1)
+                      .InNames({"ref", "value"})
+                      .OutNames({"ref"})
+                      .Build("assign2");
+    CHAIN(NODE("data",DATA)->NODE("relu", RELU)->NODE(assign1));
+    CHAIN(NODE("data")->EDGE(0, 1)->NODE(assign1));
+    CHAIN(NODE("relu")->EDGE(0, 0)->NODE(assign2));
+    CHAIN(NODE("data")->EDGE(0, 1)->NODE(assign2));
+  };
+  auto graph = ToGeGraph(g1);
+  map<string, string> options;
+
+  Status ret = ge::GELib::Initialize(options);
+  EXPECT_EQ(ret, SUCCESS);
+
+  Session session(options);
+  ret = session.AddGraph(0, graph, options);
+  EXPECT_EQ(ret, SUCCESS);
+  // build input tensor
+  std::vector<InputTensorInfo> inputs;
+  // build_graph through session
+  ret = session.BuildGraph(0, inputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  CHECK_GRAPH(PreRunAfterBuild) {
+    size_t tensor_move_count = 0U;
+    for (const auto &node : graph->GetAllNodes()) {
+      if (node->GetType() == TENSORMOVE) {
+        tensor_move_count++;
+      }
+    }
+    EXPECT_EQ(tensor_move_count, 2U);
+  };
+}
+
+// relu多引用，且relu的另一个输出节点依赖ref算子，不需要插入内置inner TensorMove
+TEST_F(TensorMoveTest, InnerTensorMove_Delete1) {
+  DEF_GRAPH(g1) {
+    auto assign = OP_CFG(ASSIGN)
+                      .TensorDesc(FORMAT_ND, DT_FLOAT, {2, 2})
+                      .InCnt(2)
+                      .OutCnt(1)
+                      .InNames({"ref", "value"})
+                      .OutNames({"ref"})
+                      .Build("assign");
+    CHAIN(NODE("data1", DATA)->NODE("relu", RELU)->NODE(assign));
+    CHAIN(NODE("relu")->EDGE(0, 0)->NODE("add", ADD)->NODE("net_output", NETOUTPUT));
+    CHAIN(NODE("data2", DATA))->EDGE(0, 1)->NODE(assign)->EDGE(0, 1)->NODE("add");
+  };
+
+  auto graph = ToGeGraph(g1);
+  map<string, string> options;
+
+  Status ret = ge::GELib::Initialize(options);
+  EXPECT_EQ(ret, SUCCESS);
+
+  Session session(options);
+  ret = session.AddGraph(0, graph, options);
+  EXPECT_EQ(ret, SUCCESS);
+  // build input tensor
+  std::vector<InputTensorInfo> inputs;
+  // build_graph through session
+  ret = session.BuildGraph(0, inputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  CHECK_GRAPH(PreRunAfterBuild) {
+    auto tensor_move = graph->FindFirstNodeMatchType(TENSORMOVE);
+    ASSERT_EQ(tensor_move, nullptr);
+  };
 }

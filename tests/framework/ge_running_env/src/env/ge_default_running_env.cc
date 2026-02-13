@@ -13,9 +13,15 @@
 #include "ge_default_running_env.h"
 #include "ge_running_env/ge_running_env_faker.h"
 #include "ge_running_env/fake_op.h"
+#include "graph/utils/op_desc_utils.h"
 
 FAKE_NS_BEGIN
 namespace {
+auto infer_fun = [](Operator &op) -> graphStatus {
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  *op_desc->MutableOutputDesc(0) = *op_desc->GetInputDescPtr(0);
+  return GRAPH_SUCCESS;
+};
 std::vector<FakeEngine> default_engines = {
     FakeEngine("AIcoreEngine").KernelInfoStore("AiCoreLib").GraphOptimizer("AIcoreEngine").Priority(PriorityEnum::COST_0),
     FakeEngine("VectorEngine").KernelInfoStore("VectorLib").GraphOptimizer("VectorEngine").Priority(PriorityEnum::COST_1),
@@ -78,6 +84,7 @@ std::vector<FakeOp> fake_ops = {
     FakeOp(VARIABLE).InfoStoreAndBuilder("AiCoreLib"),
     FakeOp(CONSTANT).InfoStoreAndBuilder("AiCoreLib"),
     FakeOp(ASSIGN).InfoStoreAndBuilder("AiCoreLib"),
+    FakeOp(TENSORMOVE).InfoStoreAndBuilder("AiCoreLib").InferShape(infer_fun),
     FakeOp(ASSIGNADD).InfoStoreAndBuilder("AiCoreLib"),
     FakeOp(ADD).InfoStoreAndBuilder("AiCoreLib"),
     FakeOp(ADDN).InfoStoreAndBuilder("AiCoreLib"),
