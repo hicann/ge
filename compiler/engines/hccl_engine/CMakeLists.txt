@@ -13,6 +13,8 @@ message(STATUS "BUILD_OPEN_PROJECT=${BUILD_OPEN_PROJECT}")
 
 project(hcce)
 
+add_compile_options(-D_GLIBCXX_USE_CXX11_ABI=0)
+
 set(CMAKE_CXX_COMPILE_OBJECT
 	    "<CMAKE_CXX_COMPILER> <DEFINES> -D__FILE__='\"$(notdir $(abspath <SOURCE>))\"' -Wno-builtin-macro-redefined <INCLUDES> <FLAGS> -o <OBJECT> -c <SOURCE>"
 	)

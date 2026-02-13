@@ -69,12 +69,12 @@ rtStream_t HcomGetStreamByOpDesc(const ge::OpDescPtr &opdesc) {
 }
 
 void *HcomGetContext(const rtStream_t stream, const void *tilingData, const char *groupName) {
-#ifndef OPEN_BUILD_PROJECT    
+#ifndef OPEN_BUILD_PROJECT
   DevType devType = HcomGetDeviceType();
-  if(devType == DevType::DEV_TYPE_910_95){
-      return HcomGetContextV2(stream, tilingData, groupName);
+  if (devType == DevType::DEV_TYPE_910_95) {
+    return HcomGetContextV2(stream, tilingData, groupName);
   }
-#endif  
+#endif
   HcclComm commHandle = nullptr;
   HcclResult ret = HcomGetCommHandleByGroup(groupName, &commHandle);
   CHK_PRT_RET(ret != HCCL_SUCCESS || commHandle == nullptr,
@@ -110,25 +110,23 @@ void *HcomGetContext(const rtStream_t stream, const void *tilingData, const char
             groupName, context);
   return context;
 }
- 
-#ifndef OPEN_BUILD_PROJECT
-void *HcomGetContextV2(const rtStream_t stream, const void *tilingData, const char *groupName)
-{
-    HcclComm com = nullptr;
-    HcclResult ret= HcomGetCommHandleByGroup(groupName, &com);
 
-    void *context = nullptr;
-    if (tilingData != nullptr) {
-        ret = HcclAllocComResourceByTiling(com, stream, const_cast<void *>(tilingData), &context);
-    } else {
-        uint64_t streamMode = 0;
-        CHK_PRT_RET(hrtStreamGetMode(stream, &streamMode) != HCCL_SUCCESS,
-            HCCL_ERROR("Failed to get stream mode."), nullptr);
-        ret = HcomCreateComResourceByComm(com, streamMode, true, &context);
-    }
-    CHK_PRT_RET(ret != HCCL_SUCCESS || context == nullptr,
-        HCCL_ERROR("Failed to create ComResource by tiling, errNo[0x%016llx].", HCCL_ERROR_CODE(ret)),
-        nullptr);
+#ifndef OPEN_BUILD_PROJECT
+void *HcomGetContextV2(const rtStream_t stream, const void *tilingData, const char *groupName) {
+  HcclComm com = nullptr;
+  HcclResult ret = HcomGetCommHandleByGroup(groupName, &com);
+
+  void *context = nullptr;
+  if (tilingData != nullptr) {
+    ret = HcclAllocComResourceByTiling(com, stream, const_cast<void *>(tilingData), &context);
+  } else {
+    uint64_t streamMode = 0;
+    CHK_PRT_RET(hrtStreamGetMode(stream, &streamMode) != HCCL_SUCCESS, HCCL_ERROR("Failed to get stream mode."),
+                nullptr);
+    ret = HcomCreateComResourceByComm(com, streamMode, true, &context);
+  }
+  CHK_PRT_RET(ret != HCCL_SUCCESS || context == nullptr,
+              HCCL_ERROR("Failed to create ComResource by tiling, errNo[0x%016llx].", HCCL_ERROR_CODE(ret)), nullptr);
 
   ge::HcomTopoInfo::TopoInfo topoInfo;
   CHK_PRT_RET(!ge::HcomTopoInfo::Instance().TryGetGroupTopoInfo(groupName, topoInfo),
@@ -199,9 +197,9 @@ ge::graphStatus HcomCreateComResourceMC2(const ge::OpDescPtr &opdesc, std::vecto
   for (const auto group : groups) {
     HCCL_INFO("HcomCreateComResourceMC2 group is %s.", group.c_str());
     if (group.empty()) {
-        HCCL_RUN_INFO("[HcomCreateComResourceMC2] group is empty, push nullptr to context.");
-        contexts.push_back(nullptr);
-        continue;
+      HCCL_RUN_INFO("[HcomCreateComResourceMC2] group is empty, push nullptr to context.");
+      contexts.push_back(nullptr);
+      continue;
     }
     void *context = HcomGetContext(stream, reinterpret_cast<const void *>(tilingData.c_str()), group.c_str());
     CHK_PRT_RET(context == nullptr, HCCL_ERROR("Failed to create ComResource by tiling."), ge::GRAPH_FAILED);
@@ -222,7 +220,7 @@ ge::graphStatus HcomCreateComResource(const ge::OpDescPtr &opdesc, std::vector<v
     gRet = HcomCreateComResourceMC2(opdesc, contexts);
   } else {
     HCCL_ERROR("[HcomCreateComResource]HcomCreateComResource failed, opType[%d] not support MC2, sCollectiveType[%s]",
-            opType, sCollectiveType.c_str());
+               opType, sCollectiveType.c_str());
   }
   return gRet;
 }

@@ -60,6 +60,6 @@ HcclResult hrtEventDestroy(aclrtEvent event);
 HcclResult hrtStreamCreateWithFlags(aclrtStream *stream, int32_t priority, uint32_t flags);
 
 extern rtError_t rtMemcpyAsync(void *dst, uint64_t dest_max, const void *src, uint64_t count, rtMemcpyKind_t kind,
-                                     rtStream_t stream);
+                               rtStream_t stream);
 
 #endif

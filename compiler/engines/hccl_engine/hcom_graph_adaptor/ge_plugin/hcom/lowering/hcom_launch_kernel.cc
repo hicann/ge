@@ -814,9 +814,9 @@ HcclResult HcomSendKernel(HcomOpLaunchArgs &launchArgs, HcomOpInputStruct *input
 
 #ifndef OPEN_BUILD_PROJECT
 HcclResult HcomLaunchSendKernelV2(const HcomOpInputStruct *inputStruct, std::vector<void *> &inputAddrs,
-                                std::vector<void *> &outputAddrs) {
+                                  std::vector<void *> &outputAddrs) {
   HcomOpLaunchArgs launchArgs = inputStruct->launchArgs;
-  void* hcclCommPtr = inputStruct->hcclCommPtr;
+  void *hcclCommPtr = inputStruct->hcclCommPtr;
 
   CHK_RET(HcceSend(inputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType, launchArgs.opAttr.op.send.destRank,
                    hcclCommPtr, launchArgs.stream));
@@ -875,8 +875,8 @@ HcclResult HcomLaunchReduceKernel(const HcomOpInputStruct *inputStruct, std::vec
   HcclComm hcclComm = inputStruct->hcclComm;
 
   CHK_RET(HcceReduce(inputAddrs[0], outputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType,
-                         launchArgs.opAttr.op.reduce.reduction, launchArgs.opAttr.op.reduce.root, hcclComm,
-                         launchArgs.stream));
+                     launchArgs.opAttr.op.reduce.reduction, launchArgs.opAttr.op.reduce.root, hcclComm,
+                     launchArgs.stream));
   return HCCL_SUCCESS;
 }
 
@@ -905,8 +905,8 @@ HcclResult HcomLaunchReduceKernelV2(const HcomOpInputStruct *inputStruct, std::v
   void *hcclCommPtr = inputStruct->hcclCommPtr;
 
   CHK_RET(HcceReduce(inputAddrs[0], outputAddrs[0], inputStruct->count, launchArgs.opAttr.dataType,
-                         launchArgs.opAttr.op.reduce.reduction, launchArgs.opAttr.op.reduce.root, hcclCommPtr,
-                         launchArgs.stream));
+                     launchArgs.opAttr.op.reduce.reduction, launchArgs.opAttr.op.reduce.root, hcclCommPtr,
+                     launchArgs.stream));
   return HCCL_SUCCESS;
 }
 #endif
@@ -1202,7 +1202,7 @@ ge::graphStatus LaunchRecvKernelV2(gert::KernelContext *context) {
   CHK_RET(HcomGetCommHandleByGroup(launchArgs.opAttr.group, &hcclCommPtr));
 
   CHK_RET(HcomCreateCommCCLbuffer(launchArgs.opAttr.group));
-  
+
   // 设置单算子mode
   HcclWorkflowMode lastWorkflowMode = HcomGetWorkflowMode();
   if (HcomSetWorkflowMode(HcclWorkflowMode::HCCL_WORKFLOW_MODE_OP_BASE) != HCCL_SUCCESS) {

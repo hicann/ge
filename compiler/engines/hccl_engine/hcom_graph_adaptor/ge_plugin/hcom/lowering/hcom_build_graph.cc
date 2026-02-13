@@ -101,8 +101,7 @@ HcclResult HcomReduceGetOpAttr(const ge::NodePtr &node, struct HcomOpAttr &opAtt
 std::vector<std::function<HcclResult(const ge::NodePtr &, struct HcomOpAttr &)>> HcomOpGetAttrFuncs = {
     HcomAllGatherGetOpAttr,     HcomAllGatherVGetOpAttr,     HcomAllReduceGetOpAttr, HcomBroadcastGetOpAttr,
     HcomReduceScatterGetOpAttr, HcomReduceScatterVGetOpAttr, HcomAllToAllVGetOpAttr, HcomAllToAllVCGetOpAttr,
-    HcomAllToAllGetOpAttr,      HcomSendGetOpAttr,           HcomReduceGetOpAttr,    HcomRecvGetOpAttr
-};
+    HcomAllToAllGetOpAttr,      HcomSendGetOpAttr,           HcomReduceGetOpAttr,    HcomRecvGetOpAttr};
 
 /*
  * **********************************************************************

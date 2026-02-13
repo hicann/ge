@@ -35,10 +35,10 @@ bool GetAddrFromDesc(const ge::OpDescPtr &op, int64_t &inputAddr, int64_t &outpu
     }
   }
   if (ge::AttrUtils::HasAttr(op, "_skn_hcom_ws_addr")) {
-      bRet = ge::AttrUtils::GetInt(op, "_skn_hcom_ws_addr", workSpaceAddr);
-      if (!bRet) {
-        return false;
-      }
+    bRet = ge::AttrUtils::GetInt(op, "_skn_hcom_ws_addr", workSpaceAddr);
+    if (!bRet) {
+      return false;
+    }
   }
   return bRet;
 }
@@ -95,9 +95,9 @@ ge::graphStatus HcomGetSuperKernelHiddenInputs(const ge::OpDescPtr &opdesc, std:
   // get inputPtr, outputPtr
   GetAddrFromDesc(opdesc, input, output, workspace);
   std::vector<rtStream_t> hcclStreamList;
-  if(opdesc->GetWorkspaceBytes().size() != 0) {
-      CHK_RET(SetWorkspaceResource(cTag, group.c_str(), hcclStreamList,
-          reinterpret_cast<void*>(workspace), opdesc->GetWorkspaceBytes()[0]));
+  if (opdesc->GetWorkspaceBytes().size() != 0) {
+    CHK_RET(SetWorkspaceResource(cTag, group.c_str(), hcclStreamList, reinterpret_cast<void *>(workspace),
+                                 opdesc->GetWorkspaceBytes()[0]));
   }
 
   u32 aivCoreLimit = 0;
@@ -129,8 +129,9 @@ ge::graphStatus HcomCreateSuperkernelResource(const ge::OpDescPtr &opdesc, std::
   auto iter = HCCL_OPTYPE_NAME_MAP.find(sCollectiveType);
   HcclCMDType opType = (iter != HCCL_OPTYPE_NAME_MAP.end()) ? iter->second : HcclCMDType::HCCL_CMD_INVALID;
   if (opType == HcclCMDType::HCCL_CMD_INVALID) {
-    HCCL_ERROR("[HcomCreateSuperkernelResource]Try get superkernel hidden input fail, opType is invalid, sCollectiveType[%s].",
-            sCollectiveType.c_str());
+    HCCL_ERROR(
+        "[HcomCreateSuperkernelResource]Try get superkernel hidden input fail, opType is invalid, sCollectiveType[%s].",
+        sCollectiveType.c_str());
   } else {
     HCCL_INFO("Select HcomGetSuperKernelHiddenInputs.");
     gRet = HcomGetSuperKernelHiddenInputs(opdesc, contexts);

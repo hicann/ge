@@ -248,24 +248,23 @@ ge::Status HcomOpsKernelBuilder::GenerateTask(const ge::Node &node, ge::RunConte
               HCCL_ERROR("[Generate][Task]errNo[0x%016llx] generate taskdef failed.", HCOM_ERROR_CODE(ret)),
               ge::INTERNAL_ERROR);
 
- 	ret = TaskDefSetNumBlocks(node, taskDef, sCollectiveType, privateDefBuf.aivCoreLimit);
- 	CHK_PRT_RET(ret != HCCL_SUCCESS,
- 	         HCCL_ERROR("[Generate][Task]errNo[0x%016llx] taskdef set numBlocks failed.", HCOM_ERROR_CODE(ret)),
- 	         ge::INTERNAL_ERROR);
+  ret = TaskDefSetNumBlocks(node, taskDef, sCollectiveType, privateDefBuf.aivCoreLimit);
+  CHK_PRT_RET(ret != HCCL_SUCCESS,
+              HCCL_ERROR("[Generate][Task]errNo[0x%016llx] taskdef set numBlocks failed.", HCOM_ERROR_CODE(ret)),
+              ge::INTERNAL_ERROR);
 
   taskDefList.push_back(taskDef);
   return ge::SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void*& counts, HcclCMDType opType)
-{
+HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void *&counts, HcclCMDType opType) {
   if (opType == HcclCMDType::HCCL_CMD_ALLGATHER_V) {
     std::vector<int64_t> sendCounts;
     std::vector<int64_t> recvCounts;
     std::vector<int64_t> recvDispls;
-    HcomOpUtils::GetAllGatherVCountsDispl(const_cast<ge::Node&>(node), sendCounts, recvCounts, recvDispls);
+    HcomOpUtils::GetAllGatherVCountsDispl(const_cast<ge::Node &>(node), sendCounts, recvCounts, recvDispls);
     counts = recvCounts.data();
-    if (counts == nullptr){
+    if (counts == nullptr) {
       HCCL_ERROR("[TaskDefSetNumBlocks], counts is nullptr");
       return HCCL_E_PTR;
     }
@@ -273,9 +272,9 @@ HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void*
     std::vector<int64_t> sendCounts;
     std::vector<int64_t> sendDispls;
     std::vector<int64_t> recvCount;
-    HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node&>(node), sendCounts, sendDispls, recvCount);
+    HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCount);
     counts = sendCounts.data();
-    if (counts == nullptr){
+    if (counts == nullptr) {
       HCCL_ERROR("[TaskDefSetNumBlocks], counts is nullptr");
       return HCCL_E_PTR;
     }
@@ -284,8 +283,7 @@ HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, void*
 }
 
 HcclResult HcomOpsKernelBuilder::TaskDefSetNumBlocks(const ge::Node &node, domi::TaskDef &taskDef,
- 	     const std::string sCollectiveType, const u32 aivCoreLimit)
-{
+                                                     const std::string sCollectiveType, const u32 aivCoreLimit) {
   DevType devType = HcomGetDeviceType();
   if (devType == DevType::DEV_TYPE_910_95) {
     return HCCL_SUCCESS;
@@ -293,8 +291,8 @@ HcclResult HcomOpsKernelBuilder::TaskDefSetNumBlocks(const ge::Node &node, domi:
 
   // 离线模式不设置核数
   if (IsOfflineCompilation()) {
-      HCCL_DEBUG("[TaskDefSetNumBlocks] IsOfflineCompilation, not set numBlocks");
-      return HCCL_SUCCESS;
+    HCCL_DEBUG("[TaskDefSetNumBlocks] IsOfflineCompilation, not set numBlocks");
+    return HCCL_SUCCESS;
   }
 
   u64 count = 0;
@@ -307,36 +305,38 @@ HcclResult HcomOpsKernelBuilder::TaskDefSetNumBlocks(const ge::Node &node, domi:
 
   auto opDescPtr = node.GetOpDesc();
   if (!opDescPtr) {
-      HCCL_ERROR("desc of node[%s] is null.", node.GetName().c_str());
-      return HCCL_E_PARA;
+    HCCL_ERROR("desc of node[%s] is null.", node.GetName().c_str());
+    return HCCL_E_PARA;
   }
 
   auto iter = HCCL_OPTYPE_NAME_MAP.find(sCollectiveType);
   HcclCMDType opType = (iter != HCCL_OPTYPE_NAME_MAP.end()) ? iter->second : HcclCMDType::HCCL_CMD_INVALID;
 
   auto ret = HcomOpUtils::ConversionOpDataType(opDescPtr, sCollectiveType, dataType);
-  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Get][TaskDefSetNumBlocks]op[%s]: get data type failed. ret[%d]",
-      sCollectiveType.c_str(), ret), ret);
+  CHK_PRT_RET(
+      ret != HCCL_SUCCESS,
+      HCCL_ERROR("[Get][TaskDefSetNumBlocks]op[%s]: get data type failed. ret[%d]", sCollectiveType.c_str(), ret), ret);
 
   CHK_RET(GetCommFromOpDesc(opDescPtr, comm, group));
 
   ret = GetCountFromOpDesc(opDescPtr, sCollectiveType, dataType, count);
-  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[Get][TaskDefSetNumBlocks]op[%s]: get count failed. ret[%d]",
-      sCollectiveType.c_str(), ret), ret);
+  CHK_PRT_RET(ret != HCCL_SUCCESS,
+              HCCL_ERROR("[Get][TaskDefSetNumBlocks]op[%s]: get count failed. ret[%d]", sCollectiveType.c_str(), ret),
+              ret);
 
   if (opType == HcclCMDType::HCCL_CMD_ALLREDUCE || opType == HcclCMDType::HCCL_CMD_REDUCE_SCATTER) {
-      CHK_RET(HcomOpUtils::GetReduction(opDescPtr, reduction));
+    CHK_RET(HcomOpUtils::GetReduction(opDescPtr, reduction));
   }
 
-  void* counts = nullptr;
+  void *counts = nullptr;
   CHK_RET(GetCountsFromOpDesc(node, counts, opType));
 
   CHK_RET(HcomSelectAlg(comm, group.c_str(), count, counts, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
 
   // 非AIV算法不设置核数
   if (!ifAiv) {
-      HCCL_DEBUG("[TaskDefSetNumBlocks] not Aiv, do not set numBlocks");
-      return HCCL_SUCCESS;
+    HCCL_DEBUG("[TaskDefSetNumBlocks] not Aiv, do not set numBlocks");
+    return HCCL_SUCCESS;
   }
 
   u32 numBlocks = 0;
@@ -344,8 +344,8 @@ HcclResult HcomOpsKernelBuilder::TaskDefSetNumBlocks(const ge::Node &node, domi:
 
   domi::KernelHcclDef *kernelDefHccl = taskDef.mutable_kernel_hccl();
   CHK_PRT_RET((kernelDefHccl == nullptr),
-            HCCL_ERROR("[Generate][Task]node[%s]: kernelDefHccl is null.", node.GetOpDesc()->GetName().c_str()),
-            HCCL_E_PTR);
+              HCCL_ERROR("[Generate][Task]node[%s]: kernelDefHccl is null.", node.GetOpDesc()->GetName().c_str()),
+              HCCL_E_PTR);
 
   kernelDefHccl->set_aiv_block_dim(numBlocks);
   HCCL_INFO("[TaskDefSetNumBlocks] %s set numBlocks %d success", sCollectiveType.c_str(), numBlocks);
@@ -462,8 +462,8 @@ HcclResult HcomOpsKernelBuilder::HcomCalcOpRunningParam(ge::Node &node) {
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, std::string sGroup, std::string sCollectiveType, bool& ifAiv)
-{
+HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, std::string sGroup, std::string sCollectiveType,
+                                                bool &ifAiv) {
   auto const opDescPtr = node.GetOpDesc();
   int64_t hcomComm = 0;
   CHK_RET(GetCommFromOpDesc(opDescPtr, hcomComm, sGroup));
@@ -474,9 +474,10 @@ HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, std::string sGro
   HcclDataType dataType = HCCL_DATA_TYPE_RESERVED;
   // 获取准确的 datatype
   HcclResult ret = HcomOpUtils::ConversionOpDataType(opDescPtr, sCollectiveType, dataType);
-  CHK_PRT_RET(
-      ret != HCCL_SUCCESS,
-      HCCL_ERROR("[%s][Get][OpWorkspaceMemSize]op[%s]: get data type failed. ret[%d]", __func__, sCollectiveType.c_str(), ret), ret);
+  CHK_PRT_RET(ret != HCCL_SUCCESS,
+              HCCL_ERROR("[%s][Get][OpWorkspaceMemSize]op[%s]: get data type failed. ret[%d]", __func__,
+                         sCollectiveType.c_str(), ret),
+              ret);
 
   // 获取 opType
   auto iter = HCCL_OPTYPE_NAME_MAP.find(sCollectiveType);
@@ -488,20 +489,20 @@ HcclResult HcomOpsKernelBuilder::JudgeIsAivMode(ge::Node &node, std::string sGro
 
   char algName[ALG_NAME_MAX_LEN];
   u32 aivCoreLimit;
-  void* counts;
+  void *counts;
   // 获取 aivCoreLimit
   CHK_RET(HcomOpUtils::GetAivCoreLimit(opDescPtr, sCollectiveType, aivCoreLimit));
   // 获取 counts
   CHK_RET(GetCountsFromOpDesc(node, counts, opType));
   // 判断是否走 Aiv
-  CHK_RET(HcomSelectAlg(hcomComm, sGroup.c_str(), count, counts, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
+  CHK_RET(HcomSelectAlg(hcomComm, sGroup.c_str(), count, counts, dataType, reduction, opType, aivCoreLimit, ifAiv,
+                        algName));
   HCCL_INFO("[%s] hcomComm[%d], group[%s], count[%u], dataType[%u], reduction[%u], opType[%u], ifAiv[%d], algName[%s]",
             __func__, hcomComm, sGroup.c_str(), count, dataType, reduction, opType, ifAiv, algName);
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const string &group)
-{
+HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const string &group) {
   const uint32_t STREAM_CONFIG_NAME = 0;
   const uint32_t STREAM_CONFIG_REUSE_KEY = 1;
   const uint32_t STREAM_CONFIG_STREAM_NAMED_ATTRS = 2;
@@ -510,10 +511,11 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
   ge::GeAttrValue::NAMED_ATTRS attachedGraphStream;
   ge::GeAttrValue::NAMED_ATTRS attachedGroupStream;
   // 多个通信域都用同一条图粒度的流；每个通信域用一条流
-  const std::vector<std::tuple<std::string, std::  string, ge::GeAttrValue::NAMED_ATTRS*>> streamConfigs = {
-    std::make_tuple(std::string("hccl_attached_graph_stream"), std::string("hccl_attached_graph_stream"), &attachedGraphStream),
-    std::make_tuple(std::string("hccl_attached_group_stream"), std::string("hccl_attached_group_stream") + group, &attachedGroupStream)
-  };
+  const std::vector<std::tuple<std::string, std::string, ge::GeAttrValue::NAMED_ATTRS *>> streamConfigs = {
+      std::make_tuple(std::string("hccl_attached_graph_stream"), std::string("hccl_attached_graph_stream"),
+                      &attachedGraphStream),
+      std::make_tuple(std::string("hccl_attached_group_stream"), std::string("hccl_attached_group_stream") + group,
+                      &attachedGroupStream)};
 
   // 目前HCCL是否必须要申请从流，真表示如果从流申请失败则失败
   bool required = true;
@@ -523,8 +525,7 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
   bool ifAiv = false;
   std::string superKernel{};
   DevType devType = HcomGetDeviceType();
-  if(devType != DevType::DEV_TYPE_910_95)
-  {
+  if (devType != DevType::DEV_TYPE_910_95) {
     CHK_PRT(JudgeIsAivMode(node, group, node.GetOpDesc()->GetType(), ifAiv));
     HCCL_INFO("%s JudgeIsAivMode ifAiv[%d] should not set attach stream info", __func__, ifAiv);
   } else {
@@ -533,23 +534,26 @@ HcclResult HcomOpsKernelBuilder::SetAttachedStreamInfoList(ge::Node &node, const
     CHK_RET(GetSuperKernelFromDesc(opDesc, superKernel));
     HCCL_INFO("%s SPK, superkernel is %s", __func__, superKernel.c_str());
   }
-    // AIV 模式不设置从流信息
+  // AIV 模式不设置从流信息
   if (!ifAiv && superKernel == "") {
     const auto opDesc = node.GetOpDesc();
     (void)ge::AttrUtils::SetInt(opDesc, ge::ATTR_NAME_HCCL_ATTACHED_TASK_NUM, STREAM_ATTACHED_TASK_NUM);
     HCCL_INFO("%s HcclOp set STREAM_ATTACHED_TASK_NUM[%u]", __func__, STREAM_ATTACHED_TASK_NUM);  // 从流设置 task_num
-    for (auto& config : streamConfigs) {
+    for (auto &config : streamConfigs) {
       std::string name = std::get<STREAM_CONFIG_NAME>(config);
       std::string reuseKey = std::get<STREAM_CONFIG_REUSE_KEY>(config);
-      ge::GeAttrValue::NAMED_ATTRS& streamAttr = *std::get<STREAM_CONFIG_STREAM_NAMED_ATTRS>(config);
+      ge::GeAttrValue::NAMED_ATTRS &streamAttr = *std::get<STREAM_CONFIG_STREAM_NAMED_ATTRS>(config);
 
       (void)ge::AttrUtils::SetStr(streamAttr, ge::ATTR_NAME_ATTACHED_RESOURCE_NAME, name);
       (void)ge::AttrUtils::SetStr(streamAttr, ge::ATTR_NAME_ATTACHED_RESOURCE_REUSE_KEY, reuseKey);
       (void)ge::AttrUtils::SetBool(streamAttr, ge::ATTR_NAME_ATTACHED_RESOURCE_REQUIRED_FLAG, required);
-      (void)ge::AttrUtils::SetBool(streamAttr, ge::ATTR_NAME_ATTACHED_RESOURCE_FORCE_REUSE, true);  // true 表示强制主流复用
+      (void)ge::AttrUtils::SetBool(streamAttr, ge::ATTR_NAME_ATTACHED_RESOURCE_FORCE_REUSE,
+                                   true);  // true 表示强制主流复用
 
-      HCCL_INFO("[HcomOpsKernelBuilder][SetAttachedStreamInfoList] name[%s], reuse_key[%s], required[%d], nodeName[%s], groupId[%s].",
-              name.c_str(), reuseKey.c_str(), required, node.GetName().c_str(), group.c_str());
+      HCCL_INFO(
+          "[HcomOpsKernelBuilder][SetAttachedStreamInfoList] name[%s], reuse_key[%s], required[%d], nodeName[%s], "
+          "groupId[%s].",
+          name.c_str(), reuseKey.c_str(), required, node.GetName().c_str(), group.c_str());
 
       attachedStreamInfo.emplace_back(streamAttr);
     }
@@ -906,10 +910,10 @@ HcclResult HcomOpsKernelBuilder::GetCountFromOpDesc(const ge::OpDescPtr &op, con
           blockSize = 0;
         } else {
           CHK_PRT_RET(((u64)inputSize > INVALID_U64 - alignSize),
-                    HCCL_ERROR("op[%s] input size[%llu] is "
-                               "overflow.",
-                               sCollectiveType.c_str(), (u64)inputSize),
-                    HCCL_E_PARA);
+                      HCCL_ERROR("op[%s] input size[%llu] is "
+                                 "overflow.",
+                                 sCollectiveType.c_str(), (u64)inputSize),
+                      HCCL_E_PARA);
           blockSize = ((u64)inputSize + alignSize - 1) / alignSize * alignSize;
         }
       }
@@ -1239,8 +1243,9 @@ HcclResult HcomOpsKernelBuilder::SetHcomOpParam(const ge::Node &node, HcomOpPara
   hcomOpParam->count = count;
 
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_REDUCESCATTERV) {
-    // reducescatterv复用HcomOpParam的All2AllDataDes字段    
-    CHK_RET(HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
+    // reducescatterv复用HcomOpParam的All2AllDataDes字段
+    CHK_RET(
+        HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
     hcomOpParam->All2AllDataDes.sendCounts = static_cast<void *>(sendCounts.data());
     hcomOpParam->All2AllDataDes.sendDispls = static_cast<void *>(sendDispls.data());
     hcomOpParam->All2AllDataDes.recvCounts = static_cast<void *>(recvCounts.data());

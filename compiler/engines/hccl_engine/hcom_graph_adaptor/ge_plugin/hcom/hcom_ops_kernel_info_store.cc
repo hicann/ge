@@ -3030,10 +3030,10 @@ HcclResult HcomOpsKernelInfoStore::HcomAicpuStreamRegister(ge::GETaskInfo &task)
   // 获取aicpuStream
   rtStream_t aicpuStream;
   HcclResult ret = HcomMc2AiCpuStreamAllocAndGet(group.c_str(), streamMode, &aicpuStream);
- 	// V2 NOT_FOUND 跳过该流程
- 	CHK_PRT_RET(ret == HCCL_E_NOT_FOUND, 
- 	  HCCL_WARNING("[HcomMc2AiCpuStreamAllocAndGet] group is not exist, skip."), HCCL_SUCCESS);
- 	CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[HcomMc2AiCpuStreamAllocAndGet] error [%d]", ret), ret);
+  // V2 NOT_FOUND 跳过该流程
+  CHK_PRT_RET(ret == HCCL_E_NOT_FOUND, HCCL_WARNING("[HcomMc2AiCpuStreamAllocAndGet] group is not exist, skip."),
+              HCCL_SUCCESS);
+  CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("[HcomMc2AiCpuStreamAllocAndGet] error [%d]", ret), ret);
   CHK_PRT_RET(aicpuStream == nullptr, HCCL_ERROR("%s group:%s aicpuStream is null", __func__, group.c_str()),
               HCCL_E_PTR);
 

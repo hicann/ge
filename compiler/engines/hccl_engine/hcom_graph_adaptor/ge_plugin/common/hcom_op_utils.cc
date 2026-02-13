@@ -363,8 +363,8 @@ HcclResult HcomOpUtils::GetAlltoAllCountsDispl(ge::Node &node, std::vector<int64
   const auto &op_desc = ge::OpDescUtils::GetOpDescFromOperator(op);
   ge::AttrUtils::GetListTensor(op_desc, "alltoallvInputVec", alltoallvInputVec);
 
-  CHK_PRT_RET(alltoallvInputVec.size() != ALLTOALLV_INPUT_VEC_SIZE, HCCL_ERROR("Get AlltoallV input info from Operator invalid."),
-              HCCL_E_PARA);
+  CHK_PRT_RET(alltoallvInputVec.size() != ALLTOALLV_INPUT_VEC_SIZE,
+              HCCL_ERROR("Get AlltoallV input info from Operator invalid."), HCCL_E_PARA);
 
   auto sendCountsTensor = alltoallvInputVec[0U].get();
   auto sendDisplsTensor = alltoallvInputVec[1U].get();
@@ -532,13 +532,17 @@ HcclResult HcomOpUtils::CheckAlltoAllvcRank(const ge::Node &node, const int64_t 
       HCCL_E_PARA);
 
   if (rankId != alltoallvcRank) {
-      REPORT_PREDEFINED_ERR_MSG("EI0003", std::vector<const char*>({"ccl_op", "parameter", "value", "tips"}),\
-          std::vector<const char*>({"CheckAlltoAllvcRank", "rankId", std::to_string(rankId).c_str(),
-          "please check rankId"}));;
-  }  
-  CHK_PRT_RET(rankId != alltoallvcRank, HCCL_ERROR("[%s][%s]errNo[0x%016llx] AlltoAllvc rank is invalid. " \
-      "rank value %u, expect %u", LOG_KEYWORDS_TASK_EXEC.c_str(), LOG_KEYWORDS_INVALID_ARGUMENT.c_str(), HCOM_ERROR_CODE(HCCL_E_PARA),
-      alltoallvcRank, rankId), HCCL_E_PARA);
+    REPORT_PREDEFINED_ERR_MSG("EI0003", std::vector<const char *>({"ccl_op", "parameter", "value", "tips"}),
+                              std::vector<const char *>({"CheckAlltoAllvcRank", "rankId",
+                                                         std::to_string(rankId).c_str(), "please check rankId"}));
+    ;
+  }
+  CHK_PRT_RET(rankId != alltoallvcRank,
+              HCCL_ERROR("[%s][%s]errNo[0x%016llx] AlltoAllvc rank is invalid. "
+                         "rank value %u, expect %u",
+                         LOG_KEYWORDS_TASK_EXEC.c_str(), LOG_KEYWORDS_INVALID_ARGUMENT.c_str(),
+                         HCOM_ERROR_CODE(HCCL_E_PARA), alltoallvcRank, rankId),
+              HCCL_E_PARA);
   return HCCL_SUCCESS;
 }
 
@@ -606,10 +610,10 @@ HcclResult HcomOpUtils::GetAivCoreLimit(const ge::OpDescPtr &op, const std::stri
       CHK_RET(SalStrToInt(aivNumStr, HCCL_BASE_DECIMAL, aivNum));
       HCCL_INFO("[HcomOpUtils][GetAivCoreLimit]node [%s] optype [%s] opVectorCoreNum [%u]", op->GetName().c_str(),
                 sCollectiveType.c_str(), aivNum);
-      if(aivNum == 0) {
-          HCCL_ERROR("[HcomOpUtils][GetAivCoreLimit] node [%s] optype [%s] opVectorCoreNum 0 is illegel",
-              op->GetName().c_str(), sCollectiveType.c_str());
-          return HCCL_E_PARA;
+      if (aivNum == 0) {
+        HCCL_ERROR("[HcomOpUtils][GetAivCoreLimit] node [%s] optype [%s] opVectorCoreNum 0 is illegel",
+                   op->GetName().c_str(), sCollectiveType.c_str());
+        return HCCL_E_PARA;
       }
       aivCoreLimit = aivNum;
     }

@@ -65,8 +65,8 @@ HcclResult hrtMemAsyncCopy(void *dst, uint64_t destMax, const void *src, uint64_
     CHK_PRT_RET(
         ret != RT_ERROR_NONE,
         HCCL_ERROR("[AsyncCopy][Mem] rt memory async copy failed, "
-                  "return[%d], para: dstAddr[%p], destMax[%llu], srcAddr[%p], count[%llu], rtKind[%d], stream[%p].",
-                  ret, dst, destMax, src, count, RT_MEMCPY_ADDR_DEVICE_TO_DEVICE, stream),
+                   "return[%d], para: dstAddr[%p], destMax[%llu], srcAddr[%p], count[%llu], rtKind[%d], stream[%p].",
+                   ret, dst, destMax, src, count, RT_MEMCPY_ADDR_DEVICE_TO_DEVICE, stream),
         HCCL_E_RUNTIME);
 
     return HCCL_SUCCESS;
@@ -81,8 +81,8 @@ HcclResult hrtMemAsyncCopy(void *dst, uint64_t destMax, const void *src, uint64_
     CHK_PRT_RET(
         ret != ACL_SUCCESS,
         HCCL_ERROR("[AsyncCopy][Mem] rt memory async copy failed, "
-                  "return[%d], para: dstAddr[%p], destMax[%llu], srcAddr[%p], count[%llu], rtKind[%d], stream[%p].",
-                  ret, dst, destMax, src, count, rtKind, stream),
+                   "return[%d], para: dstAddr[%p], destMax[%llu], srcAddr[%p], count[%llu], rtKind[%d], stream[%p].",
+                   ret, dst, destMax, src, count, rtKind, stream),
         HCCL_E_RUNTIME);
 
     return HCCL_SUCCESS;

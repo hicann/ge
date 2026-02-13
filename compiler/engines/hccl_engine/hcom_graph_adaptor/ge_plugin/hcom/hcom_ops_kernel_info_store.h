@@ -22,7 +22,7 @@
 #include "hccl/hcom.h"
 
 namespace hccl {
-constexpr u32 CRACK_MEMORY_SIZE = 32;  // 申请32B内存，当缝隙SIZE小于32B时，用D2D Memcopy进行清零操作
+constexpr u32 CRACK_MEMORY_SIZE = 32;        // 申请32B内存，当缝隙SIZE小于32B时，用D2D Memcopy进行清零操作
 constexpr u32 CRACK_MEMORY_MAX_SIZE = 1024;  // 缝隙最大memory size
 
 enum kernelHcclInfoIndex { KERNEL_HCCL_INFO_IDX_0 = 0, KERNEL_HCCL_INFO_IDX_NUM = 1 };

@@ -27,11 +27,11 @@
 
 /* 对关键报错日志提供多级检索关键字 */
 /* 一级检索关键字 */
-const std::string LOG_KEYWORDS_TASK_EXEC = "TaskExecStage";               // 算子执行阶段异常
-const std::string LOG_KEYWORDS_INIT_GROUP = "InitGroupStage";             // 通信域初始化阶段异常
+const std::string LOG_KEYWORDS_TASK_EXEC = "TaskExecStage";    // 算子执行阶段异常
+const std::string LOG_KEYWORDS_INIT_GROUP = "InitGroupStage";  // 通信域初始化阶段异常
 const std::string LOG_KEYWORDS_INIT_CHANNEL = "InitChannelStage";
 const std::string LOG_KEYWORDS_LINK_INFO = "LinkInfo";
- 
+
 /* 二级检索关键字 */
 const std::string LOG_KEYWORDS_TIMEOUT = "Timeout";                       // 算子执行阶段超时
 const std::string LOG_KEYWORDS_RUN_FAILED = "RunFailed";                  // 算子执行阶段失败，如SDMA ERROR
@@ -42,7 +42,7 @@ const std::string LOG_KEYWORDS_RANKTABLE_CHECK = "RanktableCheck";        // ran
 const std::string LOG_KEYWORDS_RANKTABLE_DETECT = "RanktableDetect";      // ranktable协商失败
 const std::string LOG_KEYWORDS_PARAMETER_CONFLICT = "ParameterConflict";  // 参数不一致
 const std::string LOG_KEYWORDS_VERSION_CONFLICT = "VersionConflict";      // HCCL版本不一致
-const std::string LOG_KEYWORDS_INVALID_ARGUMENT= "InvalidArgument";       // 外部入参非法
+const std::string LOG_KEYWORDS_INVALID_ARGUMENT = "InvalidArgument";      // 外部入参非法
 const std::string LOG_KEYWORDS_RESOURCE = "Resource";
 const std::string LOG_KEYWORDS_NOT_SUPPORTED = "Not Supported";
 

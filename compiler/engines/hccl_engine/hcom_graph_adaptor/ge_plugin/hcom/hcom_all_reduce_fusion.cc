@@ -183,11 +183,11 @@ HcclResult HcomAllReduceFusion::GetFusionOps(ge::ComputeGraph &graph, FusionInfo
     }
 
     if (opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_ALLREDUCE) {
-        ret = GetFusionOpInfo(nodePtr, fusionInfos);
-        CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("get fusion ops by group failed. ret[%d]", ret), ret);
+      ret = GetFusionOpInfo(nodePtr, fusionInfos);
+      CHK_PRT_RET(ret != HCCL_SUCCESS, HCCL_ERROR("get fusion ops by group failed. ret[%d]", ret), ret);
     }
-    }
-    return HCCL_SUCCESS;
+  }
+  return HCCL_SUCCESS;
 }
 
 HcclResult HcomAllReduceFusion::GetFusionOption(const ge::NodePtr &nodePtr, FusionOption &fusionOption) {
@@ -227,17 +227,12 @@ HcclResult HcomAllReduceFusion::GetFusionOption(const ge::NodePtr &nodePtr, Fusi
       break;
     default:
       string fusionValue = std::to_string(fusionOption.fusionAttr);
-      REPORT_PREDEFINED_ERR_MSG("EI0003", 
-      std::vector<const char *>({"ccl_op", "parameter", "value", "tips"}),
-      std::vector<const char *>({"HcomAllReduceFusion", "fusion", fusionValue.c_str(), "please check fusion setting"}));
+      REPORT_PREDEFINED_ERR_MSG("EI0003", std::vector<const char *>({"ccl_op", "parameter", "value", "tips"}),
+                                std::vector<const char *>({"HcomAllReduceFusion", "fusion", fusionValue.c_str(),
+                                                           "please check fusion setting"}));
       HCCL_ERROR("[%s][%s]errNo[0x%016llx] node[%s] fusion[%lld] is incorrect, should be %lld ~ %lld",
-                LOG_KEYWORDS_TASK_EXEC.c_str(),
-                LOG_KEYWORDS_INVALID_ARGUMENT.c_str(),
-                HCOM_ERROR_CODE(HCCL_E_PARA),
-                nodeName.c_str(),
-                fusionOption.fusionAttr,
-                HCOM_ATTR_FUSION_MIN,
-                HCOM_ATTR_FUSION_MAX);
+                 LOG_KEYWORDS_TASK_EXEC.c_str(), LOG_KEYWORDS_INVALID_ARGUMENT.c_str(), HCOM_ERROR_CODE(HCCL_E_PARA),
+                 nodeName.c_str(), fusionOption.fusionAttr, HCOM_ATTR_FUSION_MIN, HCOM_ATTR_FUSION_MAX);
       return HCCL_E_PARA;
   }
 

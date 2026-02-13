@@ -40,52 +40,52 @@ HcomGraphOptimizer::HcomGraphOptimizer()
 HcomGraphOptimizer::~HcomGraphOptimizer() {}
 
 std::map<std::string, std::pair<std::string, std::string>> AivAlltoAllSuperKernelMap = {
-    {"AlltoAllMeshAivSmallCountExecutor", {"/hccl_a2a_superkernel",  "sk_alltoall"}},
+    {"AlltoAllMeshAivSmallCountExecutor", {"/hccl_a2a_superkernel", "sk_alltoall"}},
     {"AlltoAllMeshAivExecutor", {"/hccl_a2a_superkernel", "sk_alltoall"}},
-    {"AlltoAllMeshAivFor91093Executor", {"/hccl_sk_a2a_crossnode",  "sk_alltoall_crossnode"}},
+    {"AlltoAllMeshAivFor91093Executor", {"/hccl_sk_a2a_crossnode", "sk_alltoall_crossnode"}},
 };
- 
+
 std::map<std::string, std::pair<std::string, std::string>> AivAllGatherSuperKernelMap = {
-    {"AllGatherMeshAivSmallCountExecutor", {"/hccl_ag_superkernel",  "sk_allgather"}},
+    {"AllGatherMeshAivSmallCountExecutor", {"/hccl_ag_superkernel", "sk_allgather"}},
     {"AllGatherMeshAivExecutor", {"/hccl_ag_superkernel", "sk_allgather"}},
-    {"AllGatherMeshAivFor91093Executor", {"/hccl_sk_ag_crossnode",  "sk_allgather_crossnode"}},
+    {"AllGatherMeshAivFor91093Executor", {"/hccl_sk_ag_crossnode", "sk_allgather_crossnode"}},
 };
- 
+
 std::map<std::string, std::pair<std::string, std::string>> AivReduceScatterSuperKernelMap = {
-    {"ReduceScatterMeshAivSmallCountExecutor", {"/hccl_rs_superkernel",  "sk_reducescatter"}},
-    {"ReduceScatterMeshAivExecutor", {"/hccl_rs_superkernel",  "sk_reducescatter"}},
-    {"ReduceScatterMeshAivFor91093Executor", {"/hccl_sk_rs_crossnode",  "sk_reducescatter_crossnode"}},
+    {"ReduceScatterMeshAivSmallCountExecutor", {"/hccl_rs_superkernel", "sk_reducescatter"}},
+    {"ReduceScatterMeshAivExecutor", {"/hccl_rs_superkernel", "sk_reducescatter"}},
+    {"ReduceScatterMeshAivFor91093Executor", {"/hccl_sk_rs_crossnode", "sk_reducescatter_crossnode"}},
 };
- 
+
 std::map<std::string, std::pair<std::string, std::string>> AivReduceScatterSuperKernelDeterMap = {
-    {"ReduceScatterMeshAivFor91093Executor", {"/hccl_sk_rs_deter",  "sk_reducescatter_deter"}},
+    {"ReduceScatterMeshAivFor91093Executor", {"/hccl_sk_rs_deter", "sk_reducescatter_deter"}},
 };
- 
+
 std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKernelMap = {
-    {"AllReduceMeshAivSmallCountExecutor", {"/hccl_ar_superkernel",  "sk_allreduce"}},
-    {"AllReduceMeshAivExecutor", {"/hccl_ar_superkernel",  "sk_allreduce"}},
-    {"AllReduceMeshAivFor91093Executor", {"/hccl_sk_ar_crossnode",  "sk_all_reduce_crossnode"}},
+    {"AllReduceMeshAivSmallCountExecutor", {"/hccl_ar_superkernel", "sk_allreduce"}},
+    {"AllReduceMeshAivExecutor", {"/hccl_ar_superkernel", "sk_allreduce"}},
+    {"AllReduceMeshAivFor91093Executor", {"/hccl_sk_ar_crossnode", "sk_all_reduce_crossnode"}},
 };
- 
+
 std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKernelDeterMap = {
-    {"AllReduceMeshAivFor91093Executor", {"/hccl_sk_ar_deter",  "sk_allreduce_deter"}},
+    {"AllReduceMeshAivFor91093Executor", {"/hccl_sk_ar_deter", "sk_allreduce_deter"}},
 };
- 
+
 std::map<std::string, std::pair<std::string, std::string>> AivAlltoAllSuperKernelMapV2 = {
-    {"AivAlltoAllMesh1D", {"/hccl_a2a_superkernel_mesh_1d",  "sk_alltoall_mesh_1d"}},
+    {"AivAlltoAllMesh1D", {"/hccl_a2a_superkernel_mesh_1d", "sk_alltoall_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAllGatherSuperKernelMapV2 = {
-    {"AivAllGatherMesh1D", {"/hccl_ag_superkernel_mesh_1d",  "sk_allgather_mesh_1d"}},
+    {"AivAllGatherMesh1D", {"/hccl_ag_superkernel_mesh_1d", "sk_allgather_mesh_1d"}},
 };
- 
+
 std::map<std::string, std::pair<std::string, std::string>> AivReduceScatterSuperKernelMapV2 = {
-    {"AivReduceScatterMesh1D", {"/hccl_rs_superkernel_mesh_1d",  "sk_reducescatter_mesh_1d"}},
+    {"AivReduceScatterMesh1D", {"/hccl_rs_superkernel_mesh_1d", "sk_reducescatter_mesh_1d"}},
 };
 
 std::map<std::string, std::pair<std::string, std::string>> AivAllReduceSuperKernelMapV2 = {
-    {"AivAllReduceMesh1DOneShot", {"/hccl_ar_superkernel_mesh_1d_oneshot",  "sk_allreduce_mesh_1d_oneshot"}},
-    {"AivAllReduceMesh1DTwoShot", {"/hccl_ar_superkernel_mesh_1d_twoshot",  "sk_allreduce_mesh_1d_twoshot"}},
+    {"AivAllReduceMesh1DOneShot", {"/hccl_ar_superkernel_mesh_1d_oneshot", "sk_allreduce_mesh_1d_oneshot"}},
+    {"AivAllReduceMesh1DTwoShot", {"/hccl_ar_superkernel_mesh_1d_twoshot", "sk_allreduce_mesh_1d_twoshot"}},
 };
 
 std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>> AivSuperKernelMap = {
@@ -94,7 +94,7 @@ std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>
     {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, AivReduceScatterSuperKernelMap},
     {HcclCMDType::HCCL_CMD_ALLREDUCE, AivAllReduceSuperKernelMap},
 };
- 
+
 std::map<HcclCMDType, std::map<std::string, std::pair<std::string, std::string>>> AivSuperKernelDeterMap = {
     {HcclCMDType::HCCL_CMD_REDUCE_SCATTER, AivReduceScatterSuperKernelDeterMap},
     {HcclCMDType::HCCL_CMD_ALLREDUCE, AivAllReduceSuperKernelDeterMap},
@@ -417,8 +417,8 @@ HcclResult HcomGraphOptimizer::SetHcomOpAttrs(ge::OpDescPtr &opDescPtr) {
         HCCL_E_INTERNAL);
   }
 
-  if (opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_ALLREDUCE || opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCESCATTER ||
-      opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCE) {
+  if (opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_ALLREDUCE ||
+      opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCESCATTER || opDescPtr->GetType() == HCCL_KERNEL_OP_TYPE_REDUCE) {
     bRet = ge::AttrUtils::SetBool(opDescPtr, "_input_mutable", true);
     HCCL_DEBUG("node[%s] op type [%s] input mutable attr is set", opDescPtr->GetName().c_str(),
                opDescPtr->GetType().c_str());
@@ -816,7 +816,8 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
     }
     u32 aivCoreLimit;
     CHK_RET(HcomOpUtils::GetAivCoreLimit(opDescPtr, sCollectiveType, aivCoreLimit));
-    CHK_RET(HcomSelectAlg(comm, group.c_str(), count, nullptr, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
+    CHK_RET(
+        HcomSelectAlg(comm, group.c_str(), count, nullptr, dataType, reduction, opType, aivCoreLimit, ifAiv, algName));
     /* 判断获取出来的算子模式是否是AIV，如果不是，则将此算子的superkernel属性置为空 */
     if (!ifAiv) {
       HCCL_INFO("no support aiv, del superKernelScope attr");
@@ -847,45 +848,45 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
         ge::AttrUtils::SetStr(opDescPtr, "hcom_func_name", funcName + "_" + GetDataTypeEnumStr(dataType));
       } else {
         HCCL_WARNING("no support alg, del superKernelScope attr");
-      opDescPtr->DelAttr("_super_kernel_scope");
+        opDescPtr->DelAttr("_super_kernel_scope");
       }
     } else {
       bool isDeterOptype = (opType == HCCL_CMD_ALLREDUCE || opType == HCCL_CMD_REDUCE_SCATTER);
       u8 deterministic = DETERMINISTIC_DISABLE;
       CHK_RET(GetDeterministic(deterministic));
       if (deterministic != DETERMINISTIC_DISABLE && isDeterOptype) {
-        auto itMap = AivSuperKernelDeterMap.find(opType); 
-        auto it = (itMap -> second).find(algName);
-        if (it != (itMap -> second).end()) {
-            std::string binFilePath = binPath + it->second.first +".o";
+        auto itMap = AivSuperKernelDeterMap.find(opType);
+        auto it = (itMap->second).find(algName);
+        if (it != (itMap->second).end()) {
+          std::string binFilePath = binPath + it->second.first + ".o";
+          ge::AttrUtils::SetStr(opDescPtr, "bin_file_path", binFilePath);
+          ge::AttrUtils::SetStr(opDescPtr, "hcom_bin_file_path", binFilePath);
+          funcName = it->second.second;
+          ge::AttrUtils::SetStr(opDescPtr, "hcom_func_name", funcName);
+        } else {
+          HCCL_WARNING("no support aiv, del superKernelScope attr");
+          opDescPtr->DelAttr("_super_kernel_scope");
+        }
+      } else {
+        auto itMap = AivSuperKernelMap.find(opType);
+        auto it = (itMap->second).find(algName);
+        if (it != (itMap->second).end()) {
+          if (std::string(algName).find("91093") == std::string::npos) {
+            std::string binFilePath = binPath + it->second.first + "_" + GetDataTypeEnumStr(dataType) + ".o";
+            ge::AttrUtils::SetStr(opDescPtr, "bin_file_path", binFilePath);
+            ge::AttrUtils::SetStr(opDescPtr, "hcom_bin_file_path", binFilePath);
+            funcName = it->second.second;
+            ge::AttrUtils::SetStr(opDescPtr, "hcom_func_name", funcName + "_" + GetDataTypeEnumStr(dataType));
+          } else {
+            std::string binFilePath = binPath + it->second.first + ".o";
             ge::AttrUtils::SetStr(opDescPtr, "bin_file_path", binFilePath);
             ge::AttrUtils::SetStr(opDescPtr, "hcom_bin_file_path", binFilePath);
             funcName = it->second.second;
             ge::AttrUtils::SetStr(opDescPtr, "hcom_func_name", funcName);
+          }
         } else {
-            HCCL_WARNING("no support aiv, del superKernelScope attr");
-            opDescPtr->DelAttr("_super_kernel_scope");
-        }
-      } else {
-        auto itMap = AivSuperKernelMap.find(opType); 
-        auto it = (itMap -> second).find(algName);
-        if (it != (itMap -> second).end()) {
-            if (std::string(algName).find("91093") == std::string::npos) {
-                std::string binFilePath = binPath + it->second.first + "_" + GetDataTypeEnumStr(dataType) + ".o";
-                ge::AttrUtils::SetStr(opDescPtr, "bin_file_path", binFilePath);
-                ge::AttrUtils::SetStr(opDescPtr, "hcom_bin_file_path", binFilePath);
-                funcName = it->second.second;
-                ge::AttrUtils::SetStr(opDescPtr, "hcom_func_name", funcName + "_" + GetDataTypeEnumStr(dataType));
-            } else {
-                std::string binFilePath = binPath + it->second.first +".o";
-                ge::AttrUtils::SetStr(opDescPtr, "bin_file_path", binFilePath);
-                ge::AttrUtils::SetStr(opDescPtr, "hcom_bin_file_path", binFilePath);
-                funcName = it->second.second;
-                ge::AttrUtils::SetStr(opDescPtr, "hcom_func_name", funcName);
-            }
-        } else {
-            HCCL_WARNING("no support aiv, del superKernelScope attr");
-            opDescPtr->DelAttr("_super_kernel_scope");
+          HCCL_WARNING("no support aiv, del superKernelScope attr");
+          opDescPtr->DelAttr("_super_kernel_scope");
         }
       }
     }
@@ -894,11 +895,11 @@ HcclResult HcomGraphOptimizer::SetSuperKernelScopeAttr(ge::ComputeGraph &graph) 
     CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, 0, dataType, aivCoreLimit, algName, &numBlocks));
     ge::AttrUtils::SetInt(opDescPtr, "hcom_block_dim", numBlocks);
 
-    HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] rankSize[%u] aivCoreLimit[%u] numBlocks[%u]",
-        rankSize, aivCoreLimit, numBlocks);
-    
+    HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] rankSize[%u] aivCoreLimit[%u] numBlocks[%u]", rankSize,
+              aivCoreLimit, numBlocks);
+
     HCCL_INFO("[HcomGraphOptimizer][SetSuperKernelScopeAttr] Support SPK Optype[%s] funcName[%s]",
-        sCollectiveType.c_str(), funcName.c_str());  
+              sCollectiveType.c_str(), funcName.c_str());
   }
 
   return HCCL_SUCCESS;
@@ -1496,8 +1497,9 @@ HcclResult HcomGraphOptimizer::SetHcomOpParam(const ge::Node &node, HcomOpParam 
   hcomOpParam->aivCoreLimit = aivCoreLimit;
 
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_REDUCESCATTERV) {
-    // reducescatterv复用HcomOpParam的All2AllDataDes字段    
-    CHK_RET(HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
+    // reducescatterv复用HcomOpParam的All2AllDataDes字段
+    CHK_RET(
+        HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
     hcomOpParam->All2AllDataDes.sendCounts = static_cast<void *>(sendCounts.data());
     hcomOpParam->All2AllDataDes.sendDispls = static_cast<void *>(sendDispls.data());
     hcomOpParam->All2AllDataDes.recvCounts = static_cast<void *>(recvCounts.data());

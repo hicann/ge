@@ -40,67 +40,67 @@ HcclResult DlHcclFunction::init() {
   }
 
   // libhccl.so func
-  dlHcclAllGatherFunc = (HcclResult(*)(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType,
-                                       HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAllGather");
+  dlHcclAllGatherFunc = (HcclResult (*)(void *sendBuf, void *recvBuf, uint64_t sendCount, HcclDataType dataType,
+                                        HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAllGather");
   CHK_PTR_NULL(dlHcclAllGatherFunc);
 
   dlHcclAllGatherVFunc =
-      (HcclResult(*)(void *sendBuf, uint64_t sendCount, void *recvBuf, const void *recvCounts, const void *recvDispls,
-                     HcclDataType dataType, HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAllGatherV");
+      (HcclResult (*)(void *sendBuf, uint64_t sendCount, void *recvBuf, const void *recvCounts, const void *recvDispls,
+                      HcclDataType dataType, HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAllGatherV");
   CHK_PTR_NULL(dlHcclAllGatherVFunc);
 
   dlHcclAllReduceFunc =
-      (HcclResult(*)(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
-                     HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAllReduce");
+      (HcclResult (*)(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
+                      HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAllReduce");
   CHK_PTR_NULL(dlHcclAllReduceFunc);
 
-  dlHcclBroadcastFunc = (HcclResult(*)(void *buf, uint64_t count, HcclDataType dataType, uint32_t root, HcclComm comm,
-                                       aclrtStream stream))dlsym(dl_hccl_handle, "HcclBroadcast");
+  dlHcclBroadcastFunc = (HcclResult (*)(void *buf, uint64_t count, HcclDataType dataType, uint32_t root, HcclComm comm,
+                                        aclrtStream stream))dlsym(dl_hccl_handle, "HcclBroadcast");
   CHK_PTR_NULL(dlHcclBroadcastFunc);
 
   dlHcclReduceScatterFunc =
-      (HcclResult(*)(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, HcclReduceOp op,
-                     HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclReduceScatter");
+      (HcclResult (*)(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, HcclReduceOp op,
+                      HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclReduceScatter");
   CHK_PTR_NULL(dlHcclReduceScatterFunc);
 
   dlHcclReduceScatterVFunc =
-      (HcclResult(*)(void *sendBuf, const void *sendCounts, const void *sendDispls, void *recvBuf, uint64_t recvCount,
-                     HcclDataType dataType, HcclReduceOp op, HcclComm comm,
-                     aclrtStream stream))dlsym(dl_hccl_handle, "HcclReduceScatterV");
+      (HcclResult (*)(void *sendBuf, const void *sendCounts, const void *sendDispls, void *recvBuf, uint64_t recvCount,
+                      HcclDataType dataType, HcclReduceOp op, HcclComm comm,
+                      aclrtStream stream))dlsym(dl_hccl_handle, "HcclReduceScatterV");
   CHK_PTR_NULL(dlHcclReduceScatterVFunc);
 
   dlHcclAlltoAllVCFunc =
-      (HcclResult(*)(const void *sendBuf, const void *sendCountMatrix, HcclDataType sendType, const void *recvBuf,
-                     HcclDataType recvType, HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAlltoAllVC");
+      (HcclResult (*)(const void *sendBuf, const void *sendCountMatrix, HcclDataType sendType, const void *recvBuf,
+                      HcclDataType recvType, HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAlltoAllVC");
   CHK_PTR_NULL(dlHcclAlltoAllVCFunc);
 
   dlHcclAlltoAllVFunc =
-      (HcclResult(*)(const void *sendBuf, const void *sendCounts, const void *sdispls, HcclDataType sendType,
-                     const void *recvBuf, const void *recvCounts, const void *rdispls, HcclDataType recvType,
-                     HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAlltoAllV");
+      (HcclResult (*)(const void *sendBuf, const void *sendCounts, const void *sdispls, HcclDataType sendType,
+                      const void *recvBuf, const void *recvCounts, const void *rdispls, HcclDataType recvType,
+                      HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclAlltoAllV");
   CHK_PTR_NULL(dlHcclAlltoAllVFunc);
 
-  dlHcclAlltoAllFunc = (HcclResult(*)(const void *sendBuf, uint64_t sendCount, HcclDataType sendType,
-                                      const void *recvBuf, uint64_t recvCount, HcclDataType recvType, HcclComm comm,
-                                      aclrtStream stream))dlsym(dl_hccl_handle, "HcclAlltoAll");
+  dlHcclAlltoAllFunc = (HcclResult (*)(const void *sendBuf, uint64_t sendCount, HcclDataType sendType,
+                                       const void *recvBuf, uint64_t recvCount, HcclDataType recvType, HcclComm comm,
+                                       aclrtStream stream))dlsym(dl_hccl_handle, "HcclAlltoAll");
   CHK_PTR_NULL(dlHcclAlltoAllFunc);
 
   dlHcclReduceFunc =
-      (HcclResult(*)(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
-                     uint32_t root, HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclReduce");
+      (HcclResult (*)(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
+                      uint32_t root, HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclReduce");
   CHK_PTR_NULL(dlHcclReduceFunc);
 
-  dlHcclSendFunc = (HcclResult(*)(void *sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank,
-                                  HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclSend");
+  dlHcclSendFunc = (HcclResult (*)(void *sendBuf, uint64_t count, HcclDataType dataType, uint32_t destRank,
+                                   HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclSend");
   CHK_PTR_NULL(dlHcclSendFunc);
 
-  dlHcclRecvFunc = (HcclResult(*)(void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank, HcclComm comm,
-                                  aclrtStream stream))dlsym(dl_hccl_handle, "HcclRecv");
+  dlHcclRecvFunc = (HcclResult (*)(void *recvBuf, uint64_t count, HcclDataType dataType, uint32_t srcRank,
+                                   HcclComm comm, aclrtStream stream))dlsym(dl_hccl_handle, "HcclRecv");
   CHK_PTR_NULL(dlHcclRecvFunc);
 
   // libhcomm.so func
-  dlHcomGetandClearOverFlowTasksFunc = (HcclResult(*)(const char *group, hccl::HcclDumpInfo **hcclDumpInfoPtr,
-                                                      s32 *len))dlsym(dl_hcomm_handle, "HcomGetandClearOverFlowTasks");
+  dlHcomGetandClearOverFlowTasksFunc = (HcclResult (*)(const char *group, hccl::HcclDumpInfo **hcclDumpInfoPtr,
+                                                       s32 *len))dlsym(dl_hcomm_handle, "HcomGetandClearOverFlowTasks");
   CHK_PTR_NULL(dlHcomGetandClearOverFlowTasksFunc);
 
   return HCCL_SUCCESS;

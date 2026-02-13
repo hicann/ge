@@ -138,8 +138,9 @@ bool CheckFilePath(const std::string &filePath, const std::string &fileType) {
 HcclResult HcomLoadRanktableFile(const std::string &rankTablePath, std::string &rankTableM) {
   HcclResult ret;
   if (rankTablePath.empty()) {
-    REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"error_reason", "ranktable_path"}),
-      std::vector<const char *>({"Ranktable json file length is zero.", rankTablePath.c_str()}));
+    REPORT_PREDEFINED_ERR_MSG(
+        "EI0004", std::vector<const char *>({"error_reason", "ranktable_path"}),
+        std::vector<const char *>({"Ranktable json file length is zero.", rankTablePath.c_str()}));
     HCCL_ERROR("[Load][File] json file length is zero");
     return HCCL_E_PARA;
   }
@@ -148,7 +149,7 @@ HcclResult HcomLoadRanktableFile(const std::string &rankTablePath, std::string &
   std::string fileType = ".json";
   if (!CheckFilePath(rankTablePath, fileType)) {
     REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"error_reason", "ranktable_path"}),
-      std::vector<const char *>({"Ranktable file name is invalid.", rankTablePath.c_str()}));
+                              std::vector<const char *>({"Ranktable file name is invalid.", rankTablePath.c_str()}));
     HCCL_ERROR("[Load][File] path %s is not a valid %s file", rankTablePath.c_str(), fileType.c_str());
     return HCCL_E_PARA;
   }
@@ -217,7 +218,7 @@ HcclResult HcomGetRanktableRealPath(const char *rankTable, std::string &realFile
   u32 rankTablePathLen = strnlen(rankTable, RANK_TABLE_MAX_LEN + 1);
   if (rankTablePathLen == (RANK_TABLE_MAX_LEN + 1) || rankTablePathLen == 0) {
     REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"error_reason", "ranktable_path"}),
-      std::vector<const char *>({"Ranktable file name is invalid.", rankTable}));
+                              std::vector<const char *>({"Ranktable file name is invalid.", rankTable}));
     HCCL_ERROR("[Get][RanktableRealPath]errNo[0x%016llx] rankTable file name is invalid, len is %u",
                HCOM_ERROR_CODE(HCCL_E_PARA), rankTablePathLen);
     return HCCL_E_PARA;
@@ -226,7 +227,7 @@ HcclResult HcomGetRanktableRealPath(const char *rankTable, std::string &realFile
   char realFile[PATH_MAX] = {0};
   if (realpath(rankTable, realFile) == nullptr) {
     REPORT_PREDEFINED_ERR_MSG("EI0004", std::vector<const char *>({"error_reason", "ranktable_path"}),
-      std::vector<const char *>({"Ranktable path is not a valid real path.", rankTable}));
+                              std::vector<const char *>({"Ranktable path is not a valid real path.", rankTable}));
     HCCL_ERROR("[Get][RanktableRealPath]errNo[0x%016llx] path %s is not a valid real path",
                HCOM_ERROR_CODE(HCCL_E_PARA), rankTable);
     return HCCL_E_PARA;

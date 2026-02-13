@@ -336,51 +336,50 @@ HcclResult HcomPlugin::ConfigHcclAlgo(const std::map<string, string> &options, H
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomPlugin::HcomSetGroupToTopoInfo(const char *group, uint32_t rankSize)
-{
-    if (group == nullptr) {
-        HCCL_ERROR("[Set][GroupTopoInfo]SetGroupTopoInfo group is null");
-        return HCCL_E_PTR;
-    }
-    HCCL_INFO("[Set][GroupTopoInfo]group[%s] rankSize[%u].", group, rankSize);
-    HcclResult ret;
-    ge::HcomTopoInfo::TopoInfo topoInfo;
-    topoInfo.rank_size = rankSize;
+HcclResult HcomPlugin::HcomSetGroupToTopoInfo(const char *group, uint32_t rankSize) {
+  if (group == nullptr) {
+    HCCL_ERROR("[Set][GroupTopoInfo]SetGroupTopoInfo group is null");
+    return HCCL_E_PTR;
+  }
+  HCCL_INFO("[Set][GroupTopoInfo]group[%s] rankSize[%u].", group, rankSize);
+  HcclResult ret;
+  ge::HcomTopoInfo::TopoInfo topoInfo;
+  topoInfo.rank_size = rankSize;
 
-    HcclComm commHandle;
-    ret = HcomGetCommHandleByGroup(group, &commHandle);
-    if (ret != HCCL_SUCCESS) {
-        return ret;
-    }
+  HcclComm commHandle;
+  ret = HcomGetCommHandleByGroup(group, &commHandle);
+  if (ret != HCCL_SUCCESS) {
+    return ret;
+  }
 
-    u32 gRankSize;
-    CommTopo topoType;
-    u32 netLayerNum = 0;
-    u32 *netLayer = nullptr;
-    
-    ret = HcclRankGraphGetLayers(commHandle, &netLayer, &netLayerNum);
- 	     if (ret != HCCL_SUCCESS) return ret;
- 	     for (u32 i=0; i<netLayerNum; i++) {
- 	         ret = HcclRankGraphGetRankSizeByLayer(commHandle, netLayer[i], &gRankSize);
- 	         if (ret != HCCL_SUCCESS) return ret;
- 	         ret = HcclRankGraphGetTopoTypeByLayer(commHandle, netLayer[i], &topoType);
-        if (ret != HCCL_SUCCESS) return ret;
-        topoInfo.topo_level_descs[netLayer[i]].comm_sets = static_cast<uint32_t>(topoType);
-        topoInfo.topo_level_descs[netLayer[i]].rank_size = gRankSize;
-    }
-    uint64_t localWindowSize;
-    CHK_RET(HcomGetCommCCLBufferSize(group, localWindowSize));
-    topoInfo.local_window_size = localWindowSize;
-    HCCL_RUN_INFO("[Set][GroupTopoInfo]localWindowSize[%lu]", localWindowSize);
-    
-    uint32_t retInstance = ge::HcomTopoInfo::Instance().SetGroupTopoInfo(group, topoInfo);
-    if (retInstance != ge::GRAPH_SUCCESS) {
-        HCCL_ERROR("[Set][GroupTopoInfo]errNo[0x%016llx] SetGroupTopoInfo error, group[%s], rankSize[%u].", retInstance,
-            group, topoInfo.rank_size);
-        return HCCL_E_NOT_FOUND;
-    }
-    HCCL_INFO("[Set][GroupTopoInfo]SetGroupTopoInfo group set success");
-    return HCCL_SUCCESS;
+  u32 gRankSize;
+  CommTopo topoType;
+  u32 netLayerNum = 0;
+  u32 *netLayer = nullptr;
+
+  ret = HcclRankGraphGetLayers(commHandle, &netLayer, &netLayerNum);
+  if (ret != HCCL_SUCCESS) return ret;
+  for (u32 i = 0; i < netLayerNum; i++) {
+    ret = HcclRankGraphGetRankSizeByLayer(commHandle, netLayer[i], &gRankSize);
+    if (ret != HCCL_SUCCESS) return ret;
+    ret = HcclRankGraphGetTopoTypeByLayer(commHandle, netLayer[i], &topoType);
+    if (ret != HCCL_SUCCESS) return ret;
+    topoInfo.topo_level_descs[netLayer[i]].comm_sets = static_cast<uint32_t>(topoType);
+    topoInfo.topo_level_descs[netLayer[i]].rank_size = gRankSize;
+  }
+  uint64_t localWindowSize;
+  CHK_RET(HcomGetCommCCLBufferSize(group, localWindowSize));
+  topoInfo.local_window_size = localWindowSize;
+  HCCL_RUN_INFO("[Set][GroupTopoInfo]localWindowSize[%lu]", localWindowSize);
+
+  uint32_t retInstance = ge::HcomTopoInfo::Instance().SetGroupTopoInfo(group, topoInfo);
+  if (retInstance != ge::GRAPH_SUCCESS) {
+    HCCL_ERROR("[Set][GroupTopoInfo]errNo[0x%016llx] SetGroupTopoInfo error, group[%s], rankSize[%u].", retInstance,
+               group, topoInfo.rank_size);
+    return HCCL_E_NOT_FOUND;
+  }
+  HCCL_INFO("[Set][GroupTopoInfo]SetGroupTopoInfo group set success");
+  return HCCL_SUCCESS;
 }
 
 void HcomPlugin::HcomUnsetGroupToTopoInfo(const char *group) {
