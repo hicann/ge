@@ -79,6 +79,7 @@ target_link_libraries(gert_op_impl2
         -Wl,--whole-archive
         rt2_registry_static
         -Wl,--no-whole-archive
+        ascendcl_stub
         )
 target_compile_options(gert_op_impl2 PRIVATE ${AIR_COMMON_COMPILE_OPTION})
 

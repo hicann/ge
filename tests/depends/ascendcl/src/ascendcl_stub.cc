@@ -1234,6 +1234,11 @@ aclError AclApiStub::aclDestroyDataBuffer(const aclDataBuffer *dataBuffer) {
   return ACL_SUCCESS;
 }
 
+const char* AclApiStub::acldumpGetPath(acldumpType dumpType) {
+  (void) dumpType;
+  return "";
+}
+
 }
 
 #ifdef __cplusplus
@@ -1755,6 +1760,10 @@ void aclDestroyTensorDesc(const aclTensorDesc *desc) {
 
 aclError aclDestroyDataBuffer(const aclDataBuffer *dataBuffer) {
   return ge::AclApiStub::GetInstance()->aclDestroyDataBuffer(dataBuffer);
+}
+
+const char* acldumpGetPath(acldumpType dumpType) {
+  return ge::AclApiStub::GetInstance()->acldumpGetPath(dumpType);
 }
 #ifdef __cplusplus
 }

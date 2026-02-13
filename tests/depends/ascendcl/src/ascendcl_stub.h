@@ -20,6 +20,7 @@
 #include "mmpa/mmpa_api.h"
 #include "acl/acl.h"
 #include "acl/acl_base.h"
+#include "acl/acl_dump.h"
 #include "common/ge_common/ge_types.h"
 #include "graph/small_vector.h"
 #include "graph/any_value.h"
@@ -230,6 +231,7 @@ public:
   virtual aclError aclmdlDestroyConfigHandle(aclmdlConfigHandle *handle);
   virtual void aclDestroyTensorDesc(const aclTensorDesc *desc);
   virtual aclError aclDestroyDataBuffer(const aclDataBuffer *dataBuffer);
+  virtual const char* acldumpGetPath(acldumpType dumpType);
 
 private:
   static std::mutex mutex_;
