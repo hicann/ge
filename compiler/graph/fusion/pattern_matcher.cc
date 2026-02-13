@@ -29,6 +29,13 @@ bool IsGraphData(const NodePtr &node) {
   return strcmp(node->GetTypePtr(), DATA) == 0;
 }
 
+std::string GetOpType(const NodePtr &node) {
+  if (ConstantUtils::IsConstant(node)) {
+    return CONSTANT;
+  }
+  return node->GetTypePtr();
+}
+
 bool IsGraphNetOutput(const NodePtr &node) {
   return strcmp(node->GetTypePtr(), NETOUTPUT) == 0;
 }
@@ -91,41 +98,51 @@ NodeIo ToNodeIo(const OutDataAnchorPtr &out_data_anchor) {
 
 // pattern output匹配到的node称为匹配坐标MatchCoordinate
 struct MatchCoordinate {
+ public:
+  bool IsValid() const {
+    return node->GetOwnerComputeGraph() != nullptr;
+  }
+  MatchCoordinate(const NodePtr &target_node, size_t pattern_output_index)
+      : node(target_node), pattern_output_idx(pattern_output_index) {}
   NodePtr node;
   size_t pattern_output_idx; // 对应在pattern中的第几个输出
 };
+using MatchCoordinatePtr = std::shared_ptr<MatchCoordinate>;
 
 struct MatchCoordinateSeq {
  public:
-  explicit MatchCoordinateSeq(const std::vector<MatchCoordinate> &coordinates)
-      : coordinates_(coordinates), sliding_cursor_(0U) {}
-  bool HasNext() const {
-    return (sliding_cursor_ + 1) < coordinates_.size();
-  }
+  explicit MatchCoordinateSeq() : coordinates_sets_(), coordinates_(), sliding_cursor_(-1) {}
 
-  bool OutOfEnd() const {
-    return sliding_cursor_ >= coordinates_.size();
-  }
-
-  void SlideToNext() {
-    sliding_cursor_++;
+  explicit MatchCoordinateSeq(const std::vector<MatchCoordinatePtr> &coordinates)
+      : coordinates_(coordinates), sliding_cursor_(-1) {
+    for (const auto &cor : coordinates) {
+      coordinates_sets_.emplace(cor->node);
+    }
   }
 
   void ResetSlidingCursor() {
-    sliding_cursor_ = 0U;
+    sliding_cursor_ = -1;
   }
 
-  MatchCoordinate CurrentMatchCoordinate() const {
-    return coordinates_[sliding_cursor_];
-  }
   // should check whether has_next outside
-  MatchCoordinate NextMatchCoordinate() {
-    return coordinates_[++sliding_cursor_];
+  MatchCoordinatePtr NextMatchCoordinate() {
+    return HasNext() ? coordinates_[++sliding_cursor_] : nullptr;
+  }
+
+  void AppendCoordinate(const MatchCoordinatePtr &cor) {
+    if (coordinates_sets_.emplace(cor->node).second) {
+      coordinates_.emplace_back(cor);
+    }
   }
 
  private:
-  std::vector<MatchCoordinate> coordinates_;
-  size_t sliding_cursor_;
+  bool HasNext() const {
+    return (sliding_cursor_ + 1) < static_cast<int64_t>(coordinates_.size());
+  }
+
+  std::unordered_set<NodePtr> coordinates_sets_;
+  std::vector<MatchCoordinatePtr> coordinates_;
+  int64_t sliding_cursor_ = -1L;
 };
 
 std::vector<OutDataAnchorPtr> GetAllOutDataAnchors(const ComputeGraphPtr &compute_graph) {
@@ -146,7 +163,7 @@ std::vector<OutDataAnchorPtr> GetAllOutDataAnchors(const ComputeGraphPtr &comput
 
 void CollectDirectOpTypeToNodes(const ge::ComputeGraphPtr &compute_graph, OpType2Nodes &optype_2_nodes) {
   for (const auto node : compute_graph->GetDirectNodePtr()) {
-    optype_2_nodes[node->GetTypePtr()].emplace_back(node);
+    optype_2_nodes[GetOpType(node->shared_from_this())].emplace_back(node);
   }
 }
 
@@ -176,6 +193,26 @@ bool ElectQualifiedInputsCandidate(const NodePtr &p_node, const NodePtr &t_node,
   }
   return true;
 }
+
+bool IsValidMatch(const MatchResult &match) {
+  InnerSubgraphBoundary inner_boundary;
+  std::string boundary_invalid_reason;
+  if (inner_boundary.Init(*(match.ToSubgraphBoundary()), boundary_invalid_reason) != SUCCESS) {
+    GELOGW("%s", boundary_invalid_reason.c_str());
+    return false;
+  }
+  return true;
+}
+
+void FetchNextMainCoordinate(MatchCoordinateSeq &main_cor_seq, std::stack<MatchCoordinatePtr> &candidates) {
+  while (!candidates.empty()) {
+    candidates.pop();
+  }
+  auto main_coor =  main_cor_seq.NextMatchCoordinate();
+  if (main_coor != nullptr) {
+    candidates.emplace(main_coor);
+  }
+}
 } // namespace
 
 class PatternMatcherImpl {
@@ -195,22 +232,23 @@ class PatternMatcherImpl {
    * @return
    */
   Status Initialize() {
-    if (has_inited) {
-      return SUCCESS;
-    }
-    GE_ASSERT_SUCCESS(InitNodeMatchers());
-    auto pattern_graph = pattern_->GetGraph();
-    auto pattern_compute_graph = GraphUtilsEx::GetComputeGraph(pattern_graph);
-    GE_ASSERT_SUCCESS(ValidatePattern(pattern_compute_graph));
+    if (!has_inited) {
+      GE_ASSERT_SUCCESS(InitNodeMatchers());
+      auto pattern_graph = pattern_->GetGraph();
+      auto pattern_compute_graph = GraphUtilsEx::GetComputeGraph(pattern_graph);
+      GE_ASSERT_SUCCESS(ValidatePattern(pattern_compute_graph));
 
-    pattern_out_anchors_ = GetAllOutDataAnchors(pattern_compute_graph);
-    if (pattern_out_anchors_.empty()) {
-      GELOGW("Pattern graph %s has no output which is invalid pattern graph.",
-             pattern_compute_graph->GetName().c_str());
-      return FAILED;
+      pattern_out_anchors_ = GetAllOutDataAnchors(pattern_compute_graph);
+      if (pattern_out_anchors_.empty()) {
+        GELOGW("Pattern graph %s has no output which is invalid pattern graph.",
+               pattern_compute_graph->GetName().c_str());
+        return FAILED;
+      }
     }
-    idx_2_coordinate_seqs_ = GetAllMatchCoordinates(target_graph_, pattern_out_anchors_);
+    // coordinate需要更新，需要根据目标图实时刷新
+    GE_ASSERT_SUCCESS(UpdateAllMatchCoordinates(target_graph_, pattern_out_anchors_, idx_2_coordinate_seqs_));
     GE_ASSERT_TRUE(idx_2_coordinate_seqs_.size() == pattern_out_anchors_.size());
+
     has_inited = true;
     return SUCCESS;
   }
@@ -231,54 +269,57 @@ class PatternMatcherImpl {
     // 算法以第0个输出匹配到nodes为匹配序列，第0个输出对应的匹配坐标称为 主要匹配坐标 MainMatchCoordinate
     // idx_2_coordinate_seqs_ at least has 1 element, checked in Initialize
     auto &main_coordinate_seq = idx_2_coordinate_seqs_[0];
-    if (main_coordinate_seq.OutOfEnd()) {
+    const auto &cur_main_coordinate = main_coordinate_seq.NextMatchCoordinate();
+    if (cur_main_coordinate == nullptr) {
       return nullptr;
     }
-
-    const size_t p_output_count = pattern_out_anchors_.size();
     auto match = MakeUnique<MatchResult>(pattern_.get());
     GE_ASSERT_NOTNULL(match);
 
-    std::stack<MatchCoordinate> candidates;
-    const auto &cur_main_coordinate = main_coordinate_seq.CurrentMatchCoordinate();
+    std::stack<MatchCoordinatePtr> candidates;
     candidates.emplace(cur_main_coordinate);
-    GELOGD("[MATCH]Start match main coordinate [%s][%s]", cur_main_coordinate.node->GetNamePtr(),
-           cur_main_coordinate.node->GetTypePtr());
+    GELOGD("[MATCH]Start match main coordinate [%s][%s]", cur_main_coordinate->node->GetNamePtr(),
+           cur_main_coordinate->node->GetTypePtr());
+    const size_t p_output_count = pattern_out_anchors_.size();
     while (!candidates.empty()) {
       const auto &match_coordinate = candidates.top();
-      const auto curr_out_idx = match_coordinate.pattern_output_idx;  // 当前pattern图的图输出id
-      if (MatchBranchByOutTensor(match_coordinate.node, pattern_out_anchors_[curr_out_idx], *match)) {
-        if (static_cast<size_t>(curr_out_idx + 1) < p_output_count) {
-          // has next output anchor
-          const size_t next_out_idx = curr_out_idx + 1;
-          candidates.emplace(idx_2_coordinate_seqs_[next_out_idx].CurrentMatchCoordinate());
-        } else {
+      const auto curr_out_idx = match_coordinate->pattern_output_idx;  // 当前pattern图的图输出id
+      GE_ASSERT_TRUE(curr_out_idx < pattern_out_anchors_.size());
+      if (match_coordinate->IsValid() &&
+          MatchBranchByOutTensor(match_coordinate->node, pattern_out_anchors_[curr_out_idx], *match)) {
+        if (curr_out_idx >= (p_output_count - 1)) {
+          // 最后一个pattern output匹配成功
           // found match， 非main_coordinate_seq的cursor置0，准备进入下一个图实例匹配
           // 校验stack里node个数符合pattern中输出个数
           GE_ASSERT_TRUE(candidates.size() == p_output_count);
-          main_coordinate_seq.SlideToNext();
-          InnerSubgraphBoundary inner_boundary;
-          std::string boundary_invalid_reason;
-          if (inner_boundary.Init(*match->ToSubgraphBoundary(), boundary_invalid_reason) != SUCCESS) {
-            GELOGW("%s", boundary_invalid_reason.c_str());
-            return nullptr;
+          if (IsValidMatch(*match)) {
+            GELOGD("[MATCH][FOUND] %s", match->ToAscendString().GetString());
+            return match;
           }
-          GELOGD("[MATCH][FOUND] %s", match->ToAscendString().GetString());
-          return match;
-        }
-      } else {
-        candidates.pop();  // 当前图输出的coordinate出栈，下一个coordinate候选者入栈
-        if (idx_2_coordinate_seqs_[curr_out_idx].HasNext()) {
-          // 若当前match idx没匹配上，需要继续向下匹配
-          candidates.emplace(idx_2_coordinate_seqs_[curr_out_idx].NextMatchCoordinate());
+          // 否则走下一个main候选坐标的匹配
+          match = MakeUnique<MatchResult>(pattern_.get());
+          GE_ASSERT_NOTNULL(match);
+          FetchNextMainCoordinate(main_coordinate_seq, candidates);
+          continue;
         } else {
-          // todo 当前的branch实例，所有候选者都匹配不到，此时要结束匹配吗？剪枝
-          // clear all
-          while (!candidates.empty()) {
-            candidates.pop();
+          // 当前分支匹配成功，还有下一个pattern output待匹配
+          const size_t next_out_idx = curr_out_idx + 1;
+          const auto next_out_coordinate = idx_2_coordinate_seqs_[next_out_idx].NextMatchCoordinate();
+          if (next_out_coordinate == nullptr) {
+            candidates.pop();  // 当前pattern output的coordinate出栈，下一个coordinate候选者入栈
+            continue;
           }
+          candidates.emplace(next_out_coordinate);
+          continue;
         }
       }
+      candidates.pop();  // 当前图输出的coordinate出栈，下一个coordinate候选者入栈
+      auto next_coordinate = idx_2_coordinate_seqs_[curr_out_idx].NextMatchCoordinate();
+      if (next_coordinate == nullptr) {
+        return nullptr;
+      }
+      // 若当前match idx没匹配上，需要在当前branch序列继续向下匹配
+      candidates.emplace(next_coordinate);
     }
     return nullptr;
   }
@@ -288,10 +329,12 @@ class PatternMatcherImpl {
     return GetNodeMatcher(p_node)->IsMatch(p_node, t_node);
   }
   bool MatchBranchByOutTensor(const NodePtr &t_out_node, const OutDataAnchorPtr &p_out_anchor, MatchResult &match_ret) const;
-  std::vector<MatchCoordinate> GetMatchCoordinatesByIdx(const ge::ComputeGraphPtr &t_graph, const NodePtr &p_output_node,
-                                                        const size_t p_output_idx) const;
-  std::vector<MatchCoordinateSeq> GetAllMatchCoordinates(const ComputeGraphPtr &t_graph,
-                                                         const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors) const;
+  Status GetMatchCoordinatesByIdx(const ge::ComputeGraphPtr &t_graph, const NodePtr &p_output_node,
+                                  const size_t p_output_idx, MatchCoordinateSeq &cor_seq) const;
+
+  Status UpdateAllMatchCoordinates(const ComputeGraphPtr &t_graph,
+                                   const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors,
+                                   std::vector<MatchCoordinateSeq> &matched_cor_seq) const;
   Status InitNodeMatchers();
   const std::unique_ptr<NodeMatcher> &GetNodeMatcher(const NodePtr &node) const;
   bool has_inited = false;
@@ -304,53 +347,55 @@ class PatternMatcherImpl {
   std::unique_ptr<NodeMatcher> normal_matcher_{nullptr};
 
   std::vector<OutDataAnchorPtr> pattern_out_anchors_;
+  // pattern输出索引在target graph中的匹配到的坐标队列
   std::vector<MatchCoordinateSeq> idx_2_coordinate_seqs_;
 };
 
-std::vector<MatchCoordinateSeq> PatternMatcherImpl::GetAllMatchCoordinates(
-    const ComputeGraphPtr &t_graph, const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors) const {
-  std::vector<MatchCoordinateSeq> t_idx_2_out_nodes;
+Status PatternMatcherImpl::UpdateAllMatchCoordinates(const ComputeGraphPtr &t_graph,
+                                                     const std::vector<OutDataAnchorPtr> &p_idx_2_out_anchors,
+                                                     std::vector<MatchCoordinateSeq> &matched_cor_seq) const {
+  // std::vector<MatchCoordinateSeq> t_idx_2_out_nodes;
   for (size_t i = 0U; i < p_idx_2_out_anchors.size(); ++i) {
     auto idx_of_output = i;
     auto &p_out_data_anchor = p_idx_2_out_anchors[i];
     auto p_out_node = p_out_data_anchor->GetOwnerNode();
-    const auto t_nodes = GetMatchCoordinatesByIdx(t_graph, p_out_node, idx_of_output);  // 可以挪到matchbranch里面做
-    t_idx_2_out_nodes.emplace_back(t_nodes);
+    if (matched_cor_seq.size() > i) {
+      // 已存在主坐标序列，更新
+      GE_ASSERT_SUCCESS(GetMatchCoordinatesByIdx(t_graph, p_out_node, idx_of_output, matched_cor_seq[i]));  // 可以挪到matchbranch里面做
+    } else {
+      MatchCoordinateSeq cor_seq;
+      GE_ASSERT_SUCCESS(GetMatchCoordinatesByIdx(t_graph, p_out_node, idx_of_output, cor_seq));  // 可以挪到matchbranch里面做
+      matched_cor_seq.emplace_back(cor_seq);
+    }
   }
-  return t_idx_2_out_nodes;
+  return SUCCESS;
 }
 
-std::vector<MatchCoordinate> PatternMatcherImpl::GetMatchCoordinatesByIdx(const ge::ComputeGraphPtr &t_graph,
-                                                                          const NodePtr &p_output_node,
-                                                                          const size_t p_output_idx) const {
+Status PatternMatcherImpl::GetMatchCoordinatesByIdx(const ge::ComputeGraphPtr &t_graph, const NodePtr &p_output_node,
+                                                    const size_t p_output_idx, MatchCoordinateSeq &cor_seq) const {
   OpType2Nodes t_optype_2_nodes;
   CollectDirectOpTypeToNodes(t_graph, t_optype_2_nodes);
 
   GE_ASSERT_NOTNULL(p_output_node);
   // todo add fuzzy node type
-  auto op_type = p_output_node->GetTypePtr();
+  auto op_type = GetOpType(p_output_node);
   auto iter = t_optype_2_nodes.find(op_type);
   if (iter == t_optype_2_nodes.cend()) {
-    return {};
+    return SUCCESS;
   }
-  std::vector<MatchCoordinate> match_coordinates;
   for (const auto &node : iter->second) {
     if (IsNodeMatchWith(p_output_node, node->shared_from_this())) {
-      MatchCoordinate coordinate = {node->shared_from_this(), p_output_idx};
-      match_coordinates.emplace_back(coordinate);
+      MatchCoordinatePtr coordinate = std::make_shared<MatchCoordinate>(node->shared_from_this(), p_output_idx);
+      GE_ASSERT_NOTNULL(coordinate);
+      cor_seq.AppendCoordinate(coordinate);
+      GELOGD("Got coordinate [%zu][%s][%s]", p_output_idx, node->GetTypePtr(), node->GetNamePtr());
     }
   }
-  return match_coordinates;
+  return SUCCESS;
 }
 
 bool PatternMatcherImpl::MatchBranchByOutTensor(const NodePtr &t_out_node, const OutDataAnchorPtr &p_out_anchor,
                                                 MatchResult &match_ret) const {
-  auto p_out_node = p_out_anchor->GetOwnerNode();
-  if(!IsNodeMatchWith(p_out_node, t_out_node)) {
-    GELOGD("[MATCH][MISS] pattern node [%s][%s], target node [%s][%s].", p_out_node->GetNamePtr(),
-           p_out_node->GetTypePtr(), t_out_node->GetNamePtr(), t_out_node->GetTypePtr());
-    return false;
-  }
   // 本函数为回溯算法中的一次尝试，因此需要将match_ret备份
   MatchResult tmp_match = match_ret;
   // 这里使用p out anchor 的index来做索引
@@ -358,7 +403,6 @@ bool PatternMatcherImpl::MatchBranchByOutTensor(const NodePtr &t_out_node, const
   if (t_out_anchor == nullptr) {
     return false;
   }
-  GE_ASSERT_SUCCESS(tmp_match.AppendNodeMatchPair(ToNodeIo(p_out_anchor), ToNodeIo(t_out_anchor)));
   std::queue<PDataAnchor2TDataAnchor> node_pairs_queue;
   node_pairs_queue.emplace(p_out_anchor, t_out_anchor);
   while (!node_pairs_queue.empty()) {

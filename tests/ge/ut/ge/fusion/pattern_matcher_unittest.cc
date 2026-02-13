@@ -193,7 +193,9 @@ TEST_F(UtestPatternMatcher, SingleNode_1Input_1Output_Match) {
   PatternMatcher matcher(std::move(pattern), std::make_shared<Graph>(target_graph0));
   std::vector<std::unique_ptr<MatchResult>> match_ret;
   std::unique_ptr<MatchResult> match;
+
   while ((match = matcher.MatchNext()), match != nullptr) {
+    AscendString node_name;
     match_ret.emplace_back(std::move(match));
   }
 
@@ -744,12 +746,27 @@ TEST_F(UtestPatternMatcher, PatternOutNode_PartialOutputAnchorsAsPatternOutput_E
       \   /                |
       add                 netoutput
        |
+      abs2
+       |
+      relu2
+       |
     netoutput
 *
 *
 */
 TEST_F(UtestPatternMatcher, InvalidBoundary_NotSelfContained_Miss) {
-  ComputeGraphPtr target_compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
+  // build target graph
+  auto target_graph_builder = es::Graph("target");
+  auto target_esb_graph = target_graph_builder.GetEsbGraph();
+  auto data_target = EsCreateGraphInput(target_esb_graph, 0);
+  auto abs1_target = EsAbs(data_target);
+  auto relu_target = EsRelu(abs1_target);
+  auto exp_target = EsExp(abs1_target, 0, 0, 0);
+  auto add_target = EsAdd(exp_target, relu_target);
+  auto abs2_target = EsAbs(add_target);
+  auto relu2_target = EsRelu(abs2_target);
+  target_esb_graph->SetGraphOutput(relu2_target, 0);
+  ComputeGraphPtr target_compute_graph = GraphUtilsEx::GetComputeGraph(*target_graph_builder.Build());
   auto target_graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(target_compute_graph);
 
   // build pattern graph
@@ -765,12 +782,11 @@ TEST_F(UtestPatternMatcher, InvalidBoundary_NotSelfContained_Miss) {
   PatternMatcher matcher(std::move(pattern), target_graph);
   std::vector<std::unique_ptr<MatchResult>> match_ret;
   std::unique_ptr<MatchResult> match;
-  // dlog_setlevel(GE_MODULE_NAME, 0, 0);
   while ((match = matcher.MatchNext()), match != nullptr) {
     match_ret.emplace_back(std::move(match));
   }
 
-  EXPECT_EQ(match_ret.size(), 0);
+  EXPECT_EQ(match_ret.size(), 1);
 }
 
 /**

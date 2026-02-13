@@ -427,9 +427,7 @@ TEST_F(UtestPatternFusionPass, CaptureTensors) {
       auto replace_graph = ::es::Graph("pattern");
       auto esb_graph = replace_graph.GetEsbGraph();
       auto data = EsCreateGraphInput(esb_graph, 0);
-      auto data1 = EsCreateGraphInput(esb_graph, 1);
-      auto add_tensor = EsAdd(data, data1);
-      esb_graph->SetGraphOutput(add_tensor, 0);
+      esb_graph->SetGraphOutput(data, 0);
       return replace_graph.Build();
     }
   };
@@ -476,12 +474,7 @@ TEST_F(UtestPatternFusionPass, CaptureData) {
       auto replace_graph = ::es::Graph("replacement");
       auto esb_graph = replace_graph.GetEsbGraph();
       auto data = EsCreateGraphInput(esb_graph, 0);
-      std::vector<int64_t> x_reshape_const_data({-1, 1, 256});
-      std::vector<int64_t> x_reshape_shape({3});
-      auto shape_const =
-          EsCreateConstInt64(esb_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
-      auto reshape = EsReshape(data, shape_const, 0, 0);
-      esb_graph->SetGraphOutput(reshape, 0);
+      esb_graph->SetGraphOutput(data, 0);
       return replace_graph.Build();
     }
   };
@@ -525,12 +518,7 @@ TEST_F(UtestPatternFusionPass, GetPatternName) {
       auto replace_graph = ::es::Graph("replacement");
       auto esb_graph = replace_graph.GetEsbGraph();
       auto data = EsCreateGraphInput(esb_graph, 0);
-      std::vector<int64_t> x_reshape_const_data({-1, 1, 256});
-      std::vector<int64_t> x_reshape_shape({3});
-      auto shape_const =
-          EsCreateConstInt64(esb_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
-      auto reshape = EsReshape(data, shape_const, 0, 0);
-      esb_graph->SetGraphOutput(reshape, 0);
+      esb_graph->SetGraphOutput(data, 0);
       return replace_graph.Build();
     }
   };

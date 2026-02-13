@@ -39,7 +39,9 @@ class FusionUtils {
 
   static bool WillCauseCycleIfFuse(const std::unique_ptr<MatchResult> &match_result);
 
-  static Status UpdateToCycleDetector(const std::unique_ptr<MatchResult> &match_result, const std::unique_ptr<Graph> &replacement);
+  static Status UpdateToCycleDetector(const ComputeGraphPtr &curr_graph,
+                                      const std::unique_ptr<MatchResult> &match_result,
+                                      const std::unique_ptr<Graph> &replacement);
 
  private:
   static std::unordered_map<ComputeGraphPtr, CycleDetectorSharedPtr> graph_2_cycle_detectors_;

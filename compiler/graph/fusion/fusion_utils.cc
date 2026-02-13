@@ -96,15 +96,6 @@ std::vector<NodePtr> ToNodePtrs(const std::vector<GNode> &nodes) {
   }
   return node_ptrs;
 }
-
-std::shared_ptr<ComputeGraph> GetOwnerGraphOfMatchResult(const std::unique_ptr<MatchResult> &match_result) {
-  const auto matched_nodes = match_result->GetMatchedNodes();
-  if (matched_nodes.empty()) {
-    return nullptr;
-  }
-  auto node = NodeAdapter::GNode2Node(*matched_nodes.begin());
-  return node->GetOwnerComputeGraph();
-}
 }  // namespace
 std::unordered_map<ComputeGraphPtr, CycleDetectorSharedPtr> FusionUtils::graph_2_cycle_detectors_;
 Status FusionUtils::MarkPassNameOnReplacementNodes(const std::unique_ptr<Graph> &replacement,
@@ -195,7 +186,10 @@ bool FusionUtils::WillCauseCycleIfFuse(const std::unique_ptr<MatchResult> &match
   return false;
 }
 
-Status FusionUtils::UpdateToCycleDetector(const std::unique_ptr<MatchResult> &match_result, const unique_ptr<Graph> &replacement) {
+Status FusionUtils::UpdateToCycleDetector(const ComputeGraphPtr &curr_graph,
+                                          const std::unique_ptr<MatchResult> &match_result,
+                                          const unique_ptr<Graph> &replacement) {
+  (void)match_result;
   auto replacement_graph = GraphUtilsEx::GetComputeGraph(*replacement);
   std::vector<NodePtr> replacement_nodes;
   for (const auto &node : replacement_graph->GetDirectNode()) {
@@ -205,11 +199,9 @@ Status FusionUtils::UpdateToCycleDetector(const std::unique_ptr<MatchResult> &ma
     replacement_nodes.emplace_back(node);
   }
 
-  auto owner_graph = GetOwnerGraphOfMatchResult(match_result);
-  GE_ASSERT_NOTNULL(owner_graph);
-  auto detector = GetOrCreateCycleDetector(owner_graph);
+  auto detector = GetOrCreateCycleDetector(curr_graph);
   GE_ASSERT_NOTNULL(detector);
-  detector->Update(owner_graph, replacement_nodes);
+  detector->Update(curr_graph, replacement_nodes);
   return SUCCESS;
 }
 } // namespace fusion

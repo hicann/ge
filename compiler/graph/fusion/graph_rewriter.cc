@@ -156,6 +156,7 @@ Status PruneUnusedNodes(const ComputeGraphPtr &target_graph, const std::vector<N
       if (node->GetOutDataNodesSize() == 0U && removed_nodes.insert(node).second) {
         GE_ASSERT_SUCCESS(GraphUtils::IsolateNode(node, {}));
         GE_ASSERT_SUCCESS(GraphUtils::RemoveNodeWithoutRelink(target_graph, node));
+        GE_ASSERT_SUCCESS(node->ClearOwnerGraph(nullptr));
         GELOGI("[REPLACE]Remove node [%s][%s] from graph [%s] success", node->GetNamePtr(), node->GetTypePtr(), target_graph->GetName().c_str());
         remove_status = SUCCESS;
       }
