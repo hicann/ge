@@ -949,7 +949,7 @@ class GeAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "MicroCompareApiCall";
   }
   [[nodiscard]] std::string GetMicroApiName() const override {
-    return "Compare";
+    return "GE";
   }
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
     if (!IsAllVecAxisContinuous(node)) {
@@ -990,7 +990,7 @@ class EqAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return {"compare_reg_base.h"};
   }
   [[nodiscard]] std::string GetMicroApiName() const override {
-    return "Compare";
+    return "EQ";
   }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroCompareApiCall";
@@ -1050,7 +1050,7 @@ class NeAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return conversion_dtype;
   }
   [[nodiscard]] std::string GetMicroApiName() const override {
-    return "Compare";
+    return "NE";
   }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroCompareApiCall";
@@ -1093,7 +1093,7 @@ class GtAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "MicroCompareApiCall";
   }
   [[nodiscard]] std::string GetMicroApiName() const override {
-    return "Compare";
+    return "GT";
   }
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
     for (const auto &out_node : node.GetOutNodes()) {
@@ -1134,7 +1134,7 @@ class LeAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "MicroCompareApiCall";
   }
   [[nodiscard]] std::string GetMicroApiName() const override {
-    return "Compare";
+    return "LE";
   }
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
     if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
@@ -1171,7 +1171,7 @@ class LtAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
   }
   [[nodiscard]] std::string GetMicroApiName() const override {
-    return "Compare";
+    return "LT";
   }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroCompareApiCall";
@@ -1313,7 +1313,7 @@ class AddAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return {"scalar_add.h"};
   }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
-    return "MicroApiCall";
+    return "MicroAddApiCall";
   }
 
   [[nodiscard]] std::string GetMicroApiName() const override {
@@ -1326,7 +1326,10 @@ class AddAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
-    (void)node;
+    // 不支持第一个输入是scalar，支持第二个输入是scalar
+    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
+      return false;
+    }
     return true;
   }
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &add_node) const override {
