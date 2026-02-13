@@ -101,7 +101,8 @@ Status ConcatGroupPartitioner::PartitionGroups(std::vector<ConcatGroup> &groups)
   groups_ = std::move(groups);
   ConvertToDefaultIfTooSmall();
   MergeSmallGroups(groups);
-  GE_ASSERT_SUCCESS(RecomputeNodesCrossGroups(groups, has_recompute_));
+  GE_ASSERT_SUCCESS(RecomputeNodesCrossGroups(groups, false, has_recompute_));
+  GE_ASSERT_SUCCESS(RecomputeNodesCrossGroups(groups, true, has_recompute_));
   return ge::SUCCESS;
 }
 
@@ -263,8 +264,9 @@ bool ConcatGroupPartitioner::IsSmallTail(uint32_t group_type) {
 }
 
 ge::Status ConcatGroupPartitioner::RecomputeNodesCrossGroups(const std::vector<ConcatGroup> &groups,
-                                                             bool &has_recompute) const {
+                                                             bool search_backward, bool &has_recompute) const {
   for (const auto &group : groups) {
+    std::set<ge::InDataAnchorPtr> visited_in_anchors;
     std::map<std::string, ge::AscNodePtr> name_to_new_node;
     for (size_t i = group.start; i < group.end; ++i) {
       GELOGD("input[%zu] check recompute start", i);
@@ -272,7 +274,8 @@ ge::Status ConcatGroupPartitioner::RecomputeNodesCrossGroups(const std::vector<C
       int32_t depth = 1024;
       while (--depth >= 0) {
         ge::InDataAnchorPtr to_split;
-        GE_ASSERT_SUCCESS(FindFirstMultiOutputAnchors(in_anchor, group.end, to_split));
+        GE_ASSERT_SUCCESS(
+            FindFirstMultiOutputAnchors(in_anchor, group.end, search_backward, visited_in_anchors, to_split));
         if (to_split == nullptr) {
           break;
         }
@@ -286,37 +289,43 @@ ge::Status ConcatGroupPartitioner::RecomputeNodesCrossGroups(const std::vector<C
 }
 
 ge::Status ConcatGroupPartitioner::FindFirstMultiOutputAnchors(const ge::InDataAnchorPtr &in_anchor, int32_t end_index,
+                                                               bool search_backward,
+                                                               std::set<ge::InDataAnchorPtr> &visited_in_anchors,
                                                                ge::InDataAnchorPtr &to_split) const {
   std::vector<const ge::Node *> root_nodes;
-  std::vector<ge::InDataAnchorPtr> in_anchors{in_anchor};
+  std::queue<ge::InDataAnchorPtr> in_anchors;
+  in_anchors.push(in_anchor);
   const auto &concat_dim_size = concat_node_->inputs[in_anchor->GetIdx()].attr.repeats[concat_dim_];
+  std::set<ge::NodePtr> visited;
   while (!in_anchors.empty()) {
-    const auto cur_in_anchor = in_anchors.back();
-    in_anchors.pop_back();
+    const auto cur_in_anchor = in_anchors.front();
+    in_anchors.pop();
     auto out_anchor = cur_in_anchor->GetPeerOutAnchor();
     if (out_anchor == nullptr) {
       continue;
     }
-    std::set<ge::NodePtr> out_nodes;
-    for (const auto &out_node : out_anchor->GetOwnerNode()->GetOutDataNodes()) {
-      out_nodes.emplace(out_node);
-    }
-    if (out_nodes.size() > 1UL ||
-        (((*out_nodes.begin())->GetType() == "Concat") && (out_anchor->GetPeerAnchorsSize() > 1UL))) {
-      bool need_split = false;
-      GE_ASSERT_SUCCESS(CheckIsAncestorOfConcat(out_anchor, end_index, concat_dim_size, need_split));
-      GELOGD("%s has multi-ref output, end_index = %d, need_split = %d", out_anchor->GetOwnerNode()->GetNamePtr(),
-             end_index, need_split);
-      if (need_split) {
-        to_split = cur_in_anchor;
-        return ge::SUCCESS;
-      }
-    }
     auto owner_node = out_anchor->GetOwnerNode();
     GE_ASSERT_NOTNULL(owner_node);
+    if (visited_in_anchors.emplace(cur_in_anchor).second) {
+      std::set<ge::NodePtr> out_nodes;
+      for (const auto &out_node : owner_node->GetOutDataNodes()) {
+        out_nodes.emplace(out_node);
+      }
+      if (out_nodes.size() > 1UL ||
+          (((*out_nodes.begin())->GetType() == "Concat") && (out_anchor->GetPeerAnchorsSize() > 1UL))) {
+        bool need_split = false;
+        GE_ASSERT_SUCCESS(CheckIsAncestorOfConcat(out_anchor, end_index, concat_dim_size, search_backward, need_split));
+        GELOGD("%s has multi-ref output, end_index = %d, need_split = %d", out_anchor->GetOwnerNode()->GetNamePtr(),
+               end_index, need_split);
+        if (need_split) {
+          to_split = cur_in_anchor;
+          return ge::SUCCESS;
+        }
+      }
+    }
     for (const auto &in_data_anchor : owner_node->GetAllInDataAnchors()) {
       if (in_data_anchor != nullptr) {
-        in_anchors.emplace_back(in_data_anchor);
+        in_anchors.push(in_data_anchor);
       }
     }
   }
@@ -325,6 +334,7 @@ ge::Status ConcatGroupPartitioner::FindFirstMultiOutputAnchors(const ge::InDataA
 
 ge::Status ConcatGroupPartitioner::CheckIsAncestorOfConcat(const ge::OutDataAnchorPtr &out_anchor, int32_t start_index,
                                                            const ge::Expression &concat_dim_size,
+                                                           bool search_backward,
                                                            bool &need_split) const {
   std::vector<const ge::Node *> nodes;
   std::set<const ge::Node *> visited;
@@ -341,7 +351,7 @@ ge::Status ConcatGroupPartitioner::CheckIsAncestorOfConcat(const ge::OutDataAnch
     }
   }
   while (!nodes.empty()) {
-    auto cur_node = nodes.back();
+    const auto cur_node = nodes.back();
     nodes.pop_back();
     for (const auto &[out_node, in_anchor] : cur_node->GetOutDataNodesAndAnchors()) {
       if (out_node == concat_node_) {
@@ -355,9 +365,11 @@ ge::Status ConcatGroupPartitioner::CheckIsAncestorOfConcat(const ge::OutDataAnch
         }
       }
     }
-    for (const auto &in_node: cur_node->GetInDataNodes()) {
-      if (visited.emplace(in_node.get()).second) {
-        nodes.emplace_back(in_node.get());
+    if (search_backward) {
+      for (const auto &in_node: cur_node->GetInDataNodes()) {
+        if (visited.emplace(in_node.get()).second) {
+          nodes.emplace_back(in_node.get());
+        }
       }
     }
   }
@@ -502,7 +514,8 @@ Status ConcatGroupPartitioner::RecomputeDiffAxes() {
   for (uint32_t i = 0U; i < num_inputs; ++i) {
     groups_.emplace_back(ConcatGroup{i, i + 1, kGroupTypeDefault, 0});
   }
-  GE_ASSERT_SUCCESS(RecomputeNodesCrossGroups(groups_, has_recompute_));
+  GE_ASSERT_SUCCESS(RecomputeNodesCrossGroups(groups_, false, has_recompute_));
+  GE_ASSERT_SUCCESS(RecomputeNodesCrossGroups(groups_, true, has_recompute_));
   return ge::SUCCESS;
 }
 }  // namespace optimize

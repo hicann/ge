@@ -75,16 +75,7 @@ Status ScheduleGroupGraphPartitioner::NeedRefreshAxisSize(const ::ascir::ImplGra
                                                           bool &need_refresh) {
   const auto concat_node = ScheduleUtils::FindFirstNodeOfType<ge::ascir_op::Concat>(optimize_graph);
   GE_CHK_BOOL_RET_SPECIAL_STATUS(concat_node == nullptr, ge::SUCCESS, "no Concat node was found");
-  std::set<ge::NodePtr> visited;
-  std::vector<ge::AscNodePtr> asc_nodes;
-  GE_ASSERT_SUCCESS(CollectConnectedNodes(concat_node, visited, asc_nodes));
-  size_t all_node_num = 0;
-  for (const auto &node : optimize_graph.GetAllNodes()) {
-    ++all_node_num;
-  }
-  need_refresh = (all_node_num == asc_nodes.size());
-  GELOGD("all node num = %zu, connected node num = %zu, need_refresh = %d", all_node_num, asc_nodes.size(),
-         static_cast<int32_t>(need_refresh));
+  need_refresh = true;
   return ge::SUCCESS;
 }
 
