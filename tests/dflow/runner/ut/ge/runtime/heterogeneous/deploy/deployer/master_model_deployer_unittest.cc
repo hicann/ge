@@ -206,9 +206,7 @@ TEST_F(MasterModelDeployerTest, TestDeployModel_Success) {
   DeployResult deploy_result;
   auto mock_runtime = std::make_shared<MockRuntimeNoLeaks>();
   RuntimeStub::SetInstance(mock_runtime);
-  dlog_setlevel(0, 2, 0);
   ASSERT_EQ(model_deployer.DeployModel(flow_model, deploy_result), SUCCESS);
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.deployed_models_.size(), 1);
   ASSERT_EQ(model_deployer.UpdateProfilingInfo(true), SUCCESS);
   ASSERT_EQ(model_deployer.Undeploy(deploy_result.model_id), SUCCESS);
@@ -239,9 +237,7 @@ TEST_F(MasterModelDeployerTest, TestInitinalize) {
   ResourceManager::GetInstance().Finalize();
   MasterModelDeployer model_deployer;
   HeterogeneousStubEnv::LoadAIServerHostConfig("valid/server/numa_config2.json");
-  dlog_setlevel(0, 0, 0);
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 
@@ -741,7 +737,6 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_Success) {
   deploy_model.model_deploy_infos["model1"]["model1_0_0_7"] = {local_device8};
   model_deployer.abnormal_status_handler_.deployed_models_[0] = deploy_model;
   // 更改numa_config.json
-  dlog_setlevel(0, 0, 0);
   std::string config_path = PathUtils::Join(
     {EnvPath().GetAirBasePath(), "tests/dflow/runner/ut/ge/runtime/data/redeploy/server/numa_config.json"});
   char real_path[200];
@@ -751,7 +746,6 @@ TEST_F(MasterModelDeployerTest, TestFileMonitorWithResourceConfigPath_Success) {
   std::this_thread::sleep_for(std::chrono::milliseconds(200));
   CreateRedeployFile(real_path);
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
   RestoreFile(real_path);
 }
@@ -861,7 +855,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitor_Success) {
   MasterModelDeployer model_deployer;
   HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  dlog_setlevel(0, 0, 0);
   model_deployer.abnormal_status_handler_.is_dynamic_sched_ = true;
   DeployPlan::AbnormalStatusCallbackInfo abnormal_status_callback_info;
   {
@@ -888,7 +881,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitor_Success) {
     deploy_context.AddAbnormalSubmodelInstanceName(0,"model1_1_0_0_pid1");
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 
@@ -898,7 +890,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithNode0CpuAbnormal) 
   MasterModelDeployer model_deployer;
   HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  dlog_setlevel(0, 0, 0);
   model_deployer.abnormal_status_handler_.is_dynamic_sched_ = true;
   DeployPlan::AbnormalStatusCallbackInfo abnormal_status_callback_info;
   {
@@ -942,7 +933,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithNode0CpuAbnormal) 
     deploy_context.AddAbnormalDeviceInfo(device_info);
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 
@@ -952,7 +942,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithDevice0) {
   MasterModelDeployer model_deployer;
   HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  dlog_setlevel(0, 0, 0);
   model_deployer.abnormal_status_handler_.is_dynamic_sched_ = true;
   DeployPlan::AbnormalStatusCallbackInfo abnormal_status_callback_info;
   {
@@ -979,7 +968,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorFailedWithDevice0) {
     deploy_context.AddAbnormalDeviceInfo(device_info);
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 
@@ -989,7 +977,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithNoNewAbnormal) {
   MasterModelDeployer model_deployer;
   HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  dlog_setlevel(0, 0, 0);
   model_deployer.abnormal_status_handler_.is_dynamic_sched_ = true;
   DeployPlan::AbnormalStatusCallbackInfo abnormal_status_callback_info;
   {
@@ -1015,7 +1002,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithNoNewAbnormal) {
     deploy_context.AddAbnormalSubmodelInstanceName(0,"model0");
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 
@@ -1025,7 +1011,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithMulRootModel_Success) {
   MasterModelDeployer model_deployer;
   HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  dlog_setlevel(0, 0, 0);
   model_deployer.abnormal_status_handler_.is_dynamic_sched_ = true;
   DeployPlan::AbnormalStatusCallbackInfo abnormal_status_callback_info;
   {
@@ -1078,7 +1063,6 @@ TEST_F(MasterModelDeployerTest, TestHeartbeatMonitorWithMulRootModel_Success) {
     deploy_context.AddAbnormalDeviceInfo(device_info);
   }
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 
@@ -1124,7 +1108,6 @@ TEST_F(MasterModelDeployerTest, TestPreHandleAbnormalInfo) {
   HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
 
-  dlog_setlevel(0, 0, 0);
   AbnormalStatusHandler::DeployedModel deployed_model;
   model_deployer.abnormal_status_handler_.deployed_models_[1U] = deployed_model;
   std::thread thread_run;
@@ -1146,7 +1129,6 @@ TEST_F(MasterModelDeployerTest, TestPreHandleAbnormalInfo) {
   if (thread_run.joinable()) {
     thread_run.join();
   }
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 
@@ -1165,7 +1147,6 @@ TEST_F(MasterModelDeployerTest, TestIsSupportDynamicSched) {
   MasterModelDeployer model_deployer;
   HeterogeneousStubEnv::LoadAIServerHostConfig("redeploy/server/numa_config.json");
   ASSERT_EQ(model_deployer.Initialize({}), SUCCESS);
-  dlog_setlevel(0, 0, 0);
   DeployPlan::DeviceStateList device_state_list;
   DeployPlan::DeviceInfo device_info = DeployPlan::DeviceInfo(NPU, 1, 0);
   device_state_list[device_info] = false;
@@ -1182,7 +1163,6 @@ TEST_F(MasterModelDeployerTest, TestIsSupportDynamicSched) {
   model_deployer.abnormal_status_handler_.deployed_models_[0] = deploy_model;
   model_deployer.abnormal_status_handler_.abnormal_submodel_instances_name_[0]["1_0_0_0"] = false;
   EXPECT_EQ(model_deployer.abnormal_status_handler_.IsSupportDynamicSchedRecover(0), false);
-  dlog_setlevel(0, 3, 0);
   ASSERT_EQ(model_deployer.Finalize(), SUCCESS);
 }
 

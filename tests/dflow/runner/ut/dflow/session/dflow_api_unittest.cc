@@ -28,6 +28,7 @@
 #include "ge/graph/ops_stub.h"
 #include "ge_running_env/fake_op.h"
 #include "ge_running_env/ge_running_env_faker.h"
+#include "ge_running_env/dir_env.h"
 #include "ge/ge_api.h"
 #include "dflow/compiler/pne/udf/udf_process_node_engine.h"
 #include "dflow/compiler/pne/process_node_engine_manager.h"
@@ -142,19 +143,6 @@ class TestProcessNodeEngine : public ge::NPUProcessNodeEngine {
   }
 };
 
-std::string getTargetPathByKeyDir(const std::string &full_path, const std::string &key_dir) {
-    std::string key = "/" + key_dir + "/"; 
-    size_t pos = full_path.find(key);
-    if (pos == std::string::npos) {
-        pos = full_path.rfind("/" + key_dir);
-        if (pos == std::string::npos) {
-            return "";
-        }
-        return full_path.substr(0, pos + key_dir.size() + 1);
-    }
-    return full_path.substr(0, pos + key.size() - 1);
-}
-
 ge::dflow::FlowGraph BuildFlowGraph() {
   std::string cmd = "mkdir -p temp; cd temp; touch libtest.so";
   (void) system(cmd.c_str());
@@ -197,54 +185,6 @@ ge::dflow::FlowGraph BuildFlowGraph() {
   flow_graph.SetInputs(inputsOperator).SetOutputs(outputsOperator);
   return flow_graph;
 }
-
-/**
- * @brief 创建引擎配置JSON文件
- * 该函数用于创建并写入一个引擎配置的JSON文件，并将其复制到目标路径
- */
-void CreateEngineConfigJson() {
-  GELOGI("Begin to create engine config json file.");  // 记录开始创建JSON配置文件的日志
-  // 定义JSON文件的基础路径
-  std::string json_file_path = "plugin/nnengine/ge_config";
-  // 获取模型路径
-  std::string dir_path = ge::GetModelPath();
-  GELOGI("Base path is %s.", dir_path.c_str());  // 记录基础路径信息
-  // 拼接完整的目录路径
-  dir_path.append(json_file_path);
-  // 创建目录的命令
-  std::string cmd = "mkdir -p " + dir_path;
-  system(cmd.c_str());  // 执行创建目录的命令
-  // 定义完整的文件路径
-  std::string file_path = dir_path + "/engine_conf.json";
-  // 删除已存在的配置文件
-  cmd = "rm -rf " + file_path;
-  system(cmd.c_str());  // 执行删除文件的命令
-  GELOGI("Begin to write into the config file: %s.", file_path.c_str());  // 记录开始写入配置文件的日志
-  // 创建文件输出流
-  std::ofstream ofs(file_path, std::ios::out);
-  EXPECT_EQ(!ofs, false);
-  ofs << "{\n"
-         "  \"schedule_units\" : [ {\n"
-         "    \"id\" : \"TS_1\",\n"
-         "    \"name\" : \"1980_hwts\",\n"
-         "    \"ex_attrs\" : \"\",\n"
-         "    \"cal_engines\" : [\n"
-         "      {\"id\" : \"DNN_VM_GE_LOCAL\", \"name\" : \"GE_LOCAL\", \"independent\" : false, \"attch\" : true, \"skip_assign_stream\" : true },\n"
-         "      {\"id\" : \"AIcoreEngine\", \"name\" : \"AICORE\", \"independent\" : false, \"attch\" : false, \"skip_assign_stream\" : false}\n"
-         "    ]\n"
-         "  } ]\n"
-         "}";
-  ofs.close();
-  GELOGI("Json config file %s has been written.", file_path.c_str());
-  std::string base_dir = ge::GetModelPath();
-  std::string key_dir = "build_ut";
-  std::string target_path = getTargetPathByKeyDir(base_dir, key_dir);
-  json_file_path = "/compiler/plugin/nnengine/ge_config";
-  target_path.append(json_file_path);
-  cmd = "mkdir -p " + target_path;
-  system(cmd.c_str());
-  cmd = "cp " + file_path + " " + target_path;
-  system(cmd.c_str());
 }
 
 class GeFakeOpsKernelBuilder : public ge::OpsKernelBuilder {
@@ -295,11 +235,12 @@ class MockMmpa : public ge::MmpaStubApiGe {
     return MmpaStubApiGe::DlClose(handle);
   }
 };
-}
 
 class UtestDflowApi : public testing::Test {
  protected:
   static void SetUpTestSuite() {
+    // Init running dir env
+    ge::DirEnv::GetInstance().InitEngineConfJson();
     const std::map<AscendString, AscendString> options{};
     // now DFlowInitialize is not include GEInitialize, so add here.
     EXPECT_EQ(ge::GEInitialize(options), SUCCESS);
@@ -457,7 +398,6 @@ TEST_F(UtestDflowApi, BuildGraphTest) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   EXPECT_EQ(DFlowInitialize(options), SUCCESS);
   DFlowSession session(options);
   ASSERT_EQ(session.BuildGraph(graph_id, inputs), FAILED); // not add graph
@@ -479,7 +419,6 @@ TEST_F(UtestDflowApi, BuildGraphTestInGESession) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   ge::Session session(options);
 
   auto graph = BuildFlowGraph();
@@ -499,7 +438,6 @@ TEST_F(UtestDflowApi, CompileGraphTestInGESession) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   ge::Session session(options);
 
   auto graph = BuildFlowGraph();
@@ -519,7 +457,6 @@ TEST_F(UtestDflowApi, BuildGraphWithTensorInfoTestInGESession) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   ge::Session session(options);
 
   auto graph = BuildFlowGraph();
@@ -549,7 +486,6 @@ TEST_F(UtestDflowApi, FeedDataFlowGraphFetch) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   EXPECT_EQ(DFlowInitialize(options), SUCCESS);
   DFlowSession session(options);
   ASSERT_EQ(session.FeedDataFlowGraph(graph_id, inputs, data_flow_info, 0), FAILED); // not add graph
@@ -577,7 +513,6 @@ TEST_F(UtestDflowApi, FeedDataFlowGraphWithoutRun) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   EXPECT_EQ(DFlowInitialize(options), SUCCESS);
   DFlowSession session(options);
   auto graph1 = BuildFlowGraph();
@@ -623,7 +558,6 @@ TEST_F(UtestDflowApi, FeedDataFlowGraphWithIndex) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   EXPECT_EQ(DFlowInitialize(options), SUCCESS);
   DFlowSession session(options);
   ASSERT_EQ(session.FeedDataFlowGraph(graph_id, indexes, inputs, data_flow_info, 0), FAILED); // not add graph
@@ -661,7 +595,6 @@ TEST_F(UtestDflowApi, FeedDataFlowGraphWithFlowMsg) {
   ge::OpsKernelBuilderPtr builder = ge::MakeShared<GeFakeOpsKernelBuilder>();
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameAiCore, builder);
   ge::OpsKernelBuilderRegistry::GetInstance().Register(ge::kEngineNameGeLocal, builder);
-  CreateEngineConfigJson();
   EXPECT_EQ(DFlowInitialize(options), SUCCESS);
   DFlowSession session(options);
   ASSERT_EQ(session.FeedDataFlowGraph(graph_id, inputs, 0), FAILED); // not add graph
@@ -711,7 +644,6 @@ TEST_F(UtestDflowApi, FeedRawData) {
   uint64_t sample_data = 100;
   ge::RawData raw_data = {.addr = reinterpret_cast<void *>(&sample_data), .len = sizeof(uint64_t)};
   EXPECT_EQ(session1.FeedRawData(graph_id, {raw_data}, 0, data_flow_info, 0), FAILED);
-  CreateEngineConfigJson();
   EXPECT_EQ(DFlowInitialize(options), SUCCESS);
   auto graph = BuildFlowGraph();
   DFlowSession session2(options);
@@ -747,7 +679,7 @@ TEST_F(UtestDflowApi, test_build) {
   ge::FlowModelBuilder &builer = impl.dflow_graph_manager_.flow_model_builder_;
   EXPECT_FALSE(builer.process_node_engines_.empty());
   auto pne_iter = builer.process_node_engines_.find(ge::PNE_ID_NPU);
-  EXPECT_NE(pne_iter, builer.process_node_engines_.cend());
+  ASSERT_NE(pne_iter, builer.process_node_engines_.cend());
   ge::ProcessNodeEnginePtr pne = pne_iter->second;
   ComputeGraphPtr graph = ge::MakeShared<ge::ComputeGraph>("test");
   ge::PneModelPtr model;
