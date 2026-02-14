@@ -7611,11 +7611,11 @@ ge::ComputeGraphPtr ShareGraph::DivAbsFusedGraph(size_t dims_size) {
 }
 
 /**
- *             where
- *          /    \     \
- *        eq      \     \
- *      /     \     \    \
- *   data0 scalar0 data1 data2
+ *                where
+ *          /           \  \
+ *        ge            add  \
+ *      /     \      /      \  \
+ *   data0 scalar0 scalar0  data1
  */
 static void CreateCompareScalarWhereGraph(ge::AscGraph &graph) {
   auto s0 = Symbol("s0");
@@ -7657,39 +7657,31 @@ static void CreateCompareScalarWhereGraph(ge::AscGraph &graph) {
   *load1.y.repeats = {s0, s1};
   *load1.y.strides = {s1, ge::ops::One};
 
-  ge::ascir_op::Data data2("data2", graph);
-  data2.y.dtype = ge::DT_FLOAT16;
-  data2.attr.sched.axis = {z0.id, z1.id};
-  *data2.y.axis = {z0.id, z1.id};
-  data2.attr.api.compute_type = ge::ComputeType::kComputeInvalid;
-  *data2.y.repeats = {s0, s1};
-  *data2.y.strides = {s1, ge::ops::One};
-  data2.ir_attr.SetIndex(2);
-
-  ge::ascir_op::Load load2("load2");
-  load2.x = data2.y;
-  load2.attr.sched.axis = {z0.id, z1.id};
-  load2.y.dtype = ge::DT_FLOAT16;
-  *load2.y.axis = {z0.id, z1.id};
-  *load2.y.repeats = {s0, s1};
-  *load2.y.strides = {s1, ge::ops::One};
-
   ge::ascir_op::Scalar scalar0("scalar0", graph);
   scalar0.ir_attr.SetValue("0.5");
 
-  ge::ascir_op::Eq eq0("eq0");
-  eq0.x1 = load0.y;
-  eq0.x2 = scalar0.y;
-  eq0.attr.sched.axis = {z0.id, z1.id};
-  eq0.y.dtype = ge::DT_UINT8;
-  *eq0.y.axis = {z0.id, z1.id};
-  *eq0.y.repeats = {s0, s1};
-  *eq0.y.strides = {s1, ge::ops::One};
+  ge::ascir_op::Ge ge0("ge0");
+  ge0.x1 = load0.y;
+  ge0.x2 = scalar0.y;
+  ge0.attr.sched.axis = {z0.id, z1.id};
+  ge0.y.dtype = ge::DT_UINT8;
+  *ge0.y.axis = {z0.id, z1.id};
+  *ge0.y.repeats = {s0, s1};
+  *ge0.y.strides = {s1, ge::ops::One};
+
+  ge::ascir_op::Add add0("add0");
+  add0.x1 = load1.y;
+  add0.x2 = scalar0.y;
+  add0.attr.sched.axis = {z0.id, z1.id};
+  add0.y.dtype = ge::DT_FLOAT16;
+  *add0.y.axis = {z0.id, z1.id};
+  *add0.y.repeats = {s0, s1};
+  *add0.y.strides = {s1, ge::ops::One};
 
   ge::ascir_op::Where where0("where");
-  where0.x1 = eq0.y;
-  where0.x2 = load1.y;
-  where0.x3 = load2.y;
+  where0.x1 = ge0.y;
+  where0.x2 = add0.y;
+  where0.x3 = load1.y;
   where0.attr.sched.axis = {z0.id, z1.id};
   where0.y.dtype = ge::DT_FLOAT16;
   *where0.y.axis = {z0.id, z1.id};
@@ -7716,15 +7708,12 @@ ge::ComputeGraphPtr ShareGraph::LoadCompareScalarWhereFusedGraph() {
   ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
   auto data1 = builder.AddNode("data1", "Data", 0, 1);
   ge::AttrUtils::SetInt(data1->GetOpDescBarePtr(), "_parent_node_index", 1);
-  auto data2 = builder.AddNode("data2", "Data", 0, 1);
-  ge::AttrUtils::SetInt(data2->GetOpDescBarePtr(), "_parent_node_index", 2);
 
-  auto ascbc = builder.AddNode("ascbc", "AscGraph", 3, 1);
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 2, 1);
   auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
 
   builder.AddDataEdge(data0, 0, ascbc, 0);
   builder.AddDataEdge(data1, 0, ascbc, 1);
-  builder.AddDataEdge(data2, 0, ascbc, 2);
   builder.AddDataEdge(ascbc, 0, netoutput, 0);
   ComputeGraphPtr compute_graph = builder.GetGraph();
   if (compute_graph == nullptr) {

@@ -362,5 +362,127 @@ TEST_F(UtestFusionComponent, TwoNode_2Input_1Output_WithConst_Replace) {
     }
   }
 }
+
+std::unique_ptr<Graph> CreateTestKeepConstReplacement() {
+  auto es_graph = es::Graph("replace");
+  auto esb_graph = es_graph.GetEsbGraph();
+  auto data = EsCreateGraphInput(esb_graph, 0);
+  std::vector<int64_t> x_reshape_const_data({-1, 1, 256});
+  std::vector<int64_t> x_reshape_shape({3});
+  auto const_0 = EsCreateConstInt64(esb_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
+  esb_graph->SetGraphOutput(data, 0);
+  esb_graph->SetGraphOutput(const_0, 1);
+  return esb_graph->BuildGraph();
+}
+
+TEST_F(UtestFusionComponent, test_keep_const) {
+  auto es_graph = es::Graph("target");
+  auto esb_graph = es_graph.GetEsbGraph();
+  auto data = EsCreateGraphInput(esb_graph, 0);
+  std::vector<int64_t> x_reshape_const_data({-1, 1, 256});
+  std::vector<int64_t> x_reshape_shape({3});
+  auto const_0 = EsCreateConstInt64(esb_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
+  auto mul0 = EsMul(data, const_0);
+  auto mul1 = EsMul(mul0, const_0);
+  esb_graph->SetGraphOutput(mul1, 0);
+  auto target_graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(esb_graph->BuildComputeGraph());
+
+  // build pattern
+  auto es_pattern_graph = es::Graph("pattern");
+  auto esb_pattern_graph = es_pattern_graph.GetEsbGraph();
+  auto data_pattern = EsCreateGraphInput(esb_pattern_graph, 0);
+  auto const_pattern = EsCreateConstInt64(esb_pattern_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
+  auto mul_pattern = EsMul(data_pattern, const_pattern);
+  esb_pattern_graph->SetGraphOutput(mul_pattern, 0);
+  esb_pattern_graph->SetGraphOutput(const_pattern, 1);
+  auto pattern_graph = esb_pattern_graph->BuildGraph();
+  auto pattern = std::make_unique<Pattern>(std::move(*pattern_graph));
+
+
+  PatternMatcher matcher(std::move(pattern), target_graph);
+  std::unique_ptr<MatchResult> match_result;
+  dlog_setlevel(GE_MODULE_NAME_U16, 0 , 0);
+  while (match_result = matcher.MatchNext(), match_result != nullptr) {
+    // replace
+    auto rewrite_boundary = match_result->ToSubgraphBoundary();
+    EXPECT_NE(rewrite_boundary, nullptr);
+    auto replace_graph = CreateTestKeepConstReplacement();
+    EXPECT_EQ(SubgraphRewriter::Replace(*rewrite_boundary, *replace_graph), SUCCESS);
+  }
+  target_graph->DumpToFile(Graph::DumpFormat::kOnnx, "ZXXX");
+}
+
+TEST_F(UtestFusionComponent, test_core) {
+    auto es_graph = es::Graph("target");
+    auto esb_graph = es_graph.GetEsbGraph();
+    auto data = EsCreateGraphInput(esb_graph, 0);
+    std::vector<int64_t> x_reshape_const_data({-1, 1, 256});
+    std::vector<int64_t> x_reshape_shape({3});
+    auto const_0 = EsCreateConstInt64(esb_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
+    auto mul0 = EsMul(data, const_0);
+    auto mul1 = EsMul(mul0, const_0);
+    esb_graph->SetGraphOutput(mul1, 0);
+    auto target_graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(esb_graph->BuildComputeGraph());
+
+    // build pattern
+    auto es_pattern_graph = es::Graph("pattern");
+    auto esb_pattern_graph = es_pattern_graph.GetEsbGraph();
+    auto data_pattern = EsCreateGraphInput(esb_pattern_graph, 0);
+    auto const_pattern = EsCreateConstInt64(esb_pattern_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
+    auto mul_pattern = EsMul(data_pattern, const_pattern);
+    auto relu_pattern = EsRelu(const_pattern);
+    esb_pattern_graph->SetGraphOutput(mul_pattern, 0);
+    esb_pattern_graph->SetGraphOutput(relu_pattern, 1);
+    auto pattern_graph = esb_pattern_graph->BuildGraph();
+    auto pattern = std::make_unique<Pattern>(std::move(*pattern_graph));
+
+    PatternMatcher matcher(std::move(pattern), target_graph);
+    std::unique_ptr<MatchResult> match_result;
+    dlog_setlevel(GE_MODULE_NAME_U16, 0, 0);
+    while (match_result = matcher.MatchNext(), match_result != nullptr) {
+        // replace
+        auto rewrite_boundary = match_result->ToSubgraphBoundary();
+        EXPECT_NE(rewrite_boundary, nullptr);
+        auto replace_graph = CreateTestKeepConstReplacement();
+        EXPECT_EQ(SubgraphRewriter::Replace(*rewrite_boundary, *replace_graph), SUCCESS);
+    }
+    target_graph->DumpToFile(Graph::DumpFormat::kOnnx, "ZXXX");
+}
+
+TEST_F(UtestFusionComponent, test_cycle) {
+  auto es_graph = es::Graph("target");
+  auto esb_graph = es_graph.GetEsbGraph();
+  auto data = EsCreateGraphInput(esb_graph, 0);
+  std::vector<int64_t> x_reshape_const_data({-1, 1, 256});
+  std::vector<int64_t> x_reshape_shape({3});
+  auto const_0 = EsCreateConstInt64(esb_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
+  auto mul0 = EsMul(data, const_0);
+  auto mul1 = EsMul(mul0, const_0);
+  esb_graph->SetGraphOutput(mul1, 0);
+  auto target_graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(esb_graph->BuildComputeGraph());
+
+  // build pattern
+  auto es_pattern_graph = es::Graph("pattern");
+  auto esb_pattern_graph = es_pattern_graph.GetEsbGraph();
+  auto data_pattern = EsCreateGraphInput(esb_pattern_graph, 0);
+  auto const_pattern = EsCreateConstInt64(esb_pattern_graph, x_reshape_const_data.data(), x_reshape_shape.data(), x_reshape_shape.size());
+  auto mul_pattern = EsMul(data_pattern, const_pattern);
+  esb_pattern_graph->SetGraphOutput(mul_pattern, 0);
+  esb_pattern_graph->SetGraphOutput(const_pattern, 1);
+  auto pattern_graph = esb_pattern_graph->BuildGraph();
+  auto pattern = std::make_unique<Pattern>(std::move(*pattern_graph));
+
+  PatternMatcher matcher(std::move(pattern), target_graph);
+  std::unique_ptr<MatchResult> match_result;
+  dlog_setlevel(GE_MODULE_NAME_U16, 0 , 0);
+  while (match_result = matcher.MatchNext(), match_result != nullptr) {
+    // replace
+    auto rewrite_boundary = match_result->ToSubgraphBoundary();
+    EXPECT_NE(rewrite_boundary, nullptr);
+    auto replace_graph = CreateTestKeepConstReplacement();
+    EXPECT_EQ(SubgraphRewriter::Replace(*rewrite_boundary, *replace_graph), SUCCESS);
+  }
+  target_graph->DumpToFile(Graph::DumpFormat::kOnnx, "ZXXX");
+}
 }  // namespace fusion
 } // namespace ge

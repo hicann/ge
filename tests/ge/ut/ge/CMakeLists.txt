@@ -2098,6 +2098,7 @@ target_link_libraries(ut_eager_style_builder
         -Wl,--no-whole-archive
         st_stubs GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lgcov
         -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
+        ascendcl_stub
         )
 
 add_test(NAME ut_eager_style_builder COMMAND ut_eager_style_builder --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_eager_style_builder.xml)

@@ -57,7 +57,7 @@ Status PatternFusionPass::Run(GraphPtr &graph, CustomPassContext &pass_context) 
         GELOGE(FAILED, "Failed to replace %s to %s", match_result->ToAscendString().GetString(), replacement_name.GetString());
         return FAILED;
       }
-      GE_ASSERT_SUCCESS(FusionUtils::UpdateToCycleDetector(match_result, replacement));
+      GE_ASSERT_SUCCESS(FusionUtils::UpdateToCycleDetector(GraphUtilsEx::GetComputeGraph(*graph), match_result, replacement));
       if (!is_changed) {
         is_changed = true;
       }

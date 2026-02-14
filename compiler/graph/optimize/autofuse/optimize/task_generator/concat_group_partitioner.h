@@ -49,11 +49,14 @@ class ConcatGroupPartitioner {
   static bool IsSmallTail(uint32_t group_type);
   static void MergeGroups(std::vector<ConcatGroup>::value_type &lhs_group,
                           std::vector<ConcatGroup>::value_type &rhs_group);
-  ge::Status RecomputeNodesCrossGroups(const std::vector<ConcatGroup> &groups, bool &has_recompute) const;
-  ge::Status FindFirstMultiOutputAnchors(const ge::InDataAnchorPtr &in_anchor, int32_t end_index,
+  ge::Status RecomputeNodesCrossGroups(const std::vector<ConcatGroup> &groups, bool search_backward,
+                                       bool &has_recompute) const;
+  ge::Status FindFirstMultiOutputAnchors(const ge::InDataAnchorPtr &in_anchor, int32_t end_index, bool search_backward,
+                                         std::set<ge::InDataAnchorPtr> &visited_in_anchors,
                                          ge::InDataAnchorPtr &to_split) const;
   ge::Status CheckIsAncestorOfConcat(const ge::OutDataAnchorPtr &out_anchor, int32_t start_index,
-                                     const ge::Expression &concat_dim_size, bool &need_split) const;
+                                     const ge::Expression &concat_dim_size, bool search_backward,
+                                     bool &need_split) const;
   ge::Status RecomputeInNodes(const ge::InDataAnchorPtr &in_anchor, size_t index,
                               std::map<std::string, ge::AscNodePtr> &name_to_new_nodes) const;
   Status ParseConcatNode();

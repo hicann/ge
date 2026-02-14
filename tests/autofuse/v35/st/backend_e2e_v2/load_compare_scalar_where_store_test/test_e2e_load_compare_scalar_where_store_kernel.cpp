@@ -12,7 +12,7 @@
 #include "tikicpulib.h"
 
 #include "autofuse_tiling_data.h"
-extern "C" __global__ __aicore__ void load_compare_scalar_where_store_test(GM_ADDR x1, GM_ADDR x2, GM_ADDR x3, GM_ADDR y1, GM_ADDR workspace, GM_ADDR tiling);
+extern "C" __global__ __aicore__ void load_compare_scalar_where_store_test(GM_ADDR x1, GM_ADDR x2, GM_ADDR y1, GM_ADDR workspace, GM_ADDR tiling);
 extern "C" int64_t AutofuseTiling(uint32_t s0, uint32_t s1, AutofuseTilingData* tiling, uint32_t* workspaceSize, uint32_t *blockDim, uint32_t aiv_num, uint32_t ub_size);
 
 class E2E_BackendLoadCompareScalarWhereStore_Code : public testing::Test, public testing::WithParamInterface<std::vector<int>> {
@@ -28,7 +28,6 @@ TEST_P(E2E_BackendLoadCompareScalarWhereStore_Code, CalculateCorrect) {
   AutofuseTilingData tiling_data;
   half* x1 = (half *)AscendC::GmAlloc(test_size * sizeof(half) + 32);
   half* x2 = (half *)AscendC::GmAlloc(test_size * sizeof(half) + 32);
-  half* x3 = (half *)AscendC::GmAlloc(test_size * sizeof(half) + 32);
   half* y1 = (half *)AscendC::GmAlloc(test_size * sizeof(half) + 32);
   half* expect = (half *)AscendC::GmAlloc(test_size * sizeof(half) + 32);
 
@@ -37,8 +36,7 @@ TEST_P(E2E_BackendLoadCompareScalarWhereStore_Code, CalculateCorrect) {
   for (int i = 0; i < test_size; i++) {
     x1[i] = rand() / (double)RAND_MAX;
     x2[i] = rand() / (double)RAND_MAX;
-    x3[i] = rand() / (double)RAND_MAX;
-    expect[i] = (x1[i] == static_cast<half>(0.5)) ? x2[i] : x3[i];
+    expect[i] = (x1[i] >= static_cast<half>(0.5)) ? (x2[i] + static_cast<half>(0.5)) : x2[i];
   }
 
   // Launch
@@ -47,7 +45,7 @@ TEST_P(E2E_BackendLoadCompareScalarWhereStore_Code, CalculateCorrect) {
   printf("tiling key: %d, core_num: %d\n", tiling_data.tiling_key, tiling_data.block_dim);
 
   AscendC::SetKernelMode(KernelMode::AIV_MODE);
-  ICPU_RUN_KF(load_compare_scalar_where_store_test, tiling_data.block_dim, (uint8_t *)x1, (uint8_t *)x2, (uint8_t *)x3, (uint8_t *)y1, nullptr, (uint8_t*)&tiling_data);
+  ICPU_RUN_KF(load_compare_scalar_where_store_test, tiling_data.block_dim, (uint8_t *)x1, (uint8_t *)x2, (uint8_t *)y1, nullptr, (uint8_t*)&tiling_data);
 
   // Count difference
   uint32_t diff_count = 0;
@@ -61,7 +59,6 @@ TEST_P(E2E_BackendLoadCompareScalarWhereStore_Code, CalculateCorrect) {
 
   AscendC::GmFree(x1);
   AscendC::GmFree(x2);
-  AscendC::GmFree(x3);
   AscendC::GmFree(y1);
   AscendC::GmFree(expect);
 }

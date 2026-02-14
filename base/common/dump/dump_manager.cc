@@ -18,6 +18,7 @@
 #include "mmpa/mmpa_api.h"
 #include "adump_api.h"
 #include "adump_pub.h"
+#include "acl_dump.h"
 #include "common/checker.h"
 #include <regex>
 #include "base/err_msg.h"
@@ -393,6 +394,8 @@ Status DumpManager::SetDumpPath(const DumpConfig &dump_config, DumpProperties &d
     dump_path = dump_path + "/";
   }
   dump_path = dump_path + CurrentTimeInStr() + "/";
+  const std::string adump_dump_path = acldumpGetPath(DATA_DUMP);
+  dump_path = !adump_dump_path.empty() ? adump_dump_path : dump_path;
   GELOGI("Dump path is %s", dump_path.c_str());
   dump_properties.SetDumpPath(dump_path);
   return SUCCESS;
