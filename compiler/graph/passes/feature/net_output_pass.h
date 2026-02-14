@@ -53,11 +53,6 @@ class NetOutputPass : public GraphPass {
 
   Status TryToSetOutputMaxSize(const NodePtr &output_node) const;
 
-  Status AddCtrlEdgesBetweenLeafAndNetOutput(const ComputeGraphPtr &compute_graph,
-                                             const ge::NodePtr &net_out_node) const;
-
-  Status UpdateNetOutputFormat(const ge::NodePtr &net_output) const;
-
   friend class ReUpdateNetOutputPass;
 };
 }  // namespace ge

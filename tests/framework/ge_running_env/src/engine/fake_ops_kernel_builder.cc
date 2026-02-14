@@ -28,9 +28,7 @@ graphStatus FakeCalcNodeOffsetByReuseInput(const Node &node) {
     auto op_desc = node.GetOpDescBarePtr();
     GE_ASSERT_NOTNULL(op_desc);
     const auto &output_desc = op_desc->MutableOutputDesc(0);
-    if (output_desc == nullptr) {
-      return ge::SUCCESS;
-    }
+    GE_ASSERT_NOTNULL(output_desc);
     ge::TensorUtils::SetReuseInput(*output_desc, true);
     ge::TensorUtils::SetReuseInputIndex(*output_desc, 0);
     GELOGI("GeLocal Op %s type %s set reuse input.", node.GetName().c_str(), node.GetType().c_str());
