@@ -18,7 +18,6 @@
 #include <vector>
 
 #include "default_attr_utils.h"
-#include "eager_style_graph_builder/compliant_op_desc_builder.h"
 #include "graph/operator_reg.h"
 #include "op_desc_utils.h"
 

@@ -14,9 +14,7 @@
 #include <iostream>
 #include <common/plugin/ge_make_unique_util.h>
 #include <symengine/symengine_rcp.h>
-#include "eager_style_graph_builder/compliant_op_desc_builder.h"
 #include "graph/utils/graph_utils_ex.h"
-#include "eager_style_graph_builder/esb_graph.h"
 #include "exe_graph/lowering/kernel_run_context_builder.h"
 #include "faker/space_registry_faker.h"
 #include "exe_graph/runtime/infer_symbol_shape_context.h"
