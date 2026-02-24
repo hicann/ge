@@ -2066,6 +2066,10 @@ set_tests_properties(ut_jit_execution PROPERTIES LABELS "ut;ge_common" DEPENDS u
 add_test(NAME ut_jit_execution_st COMMAND ut_jit_execution --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/st/ut_jit_execution.xml)
 set_tests_properties(ut_jit_execution_st PROPERTIES LABELS "st;st_hetero")
 
+set(ES_HISTORY_REGISTRY_FIXTURE_SRC_DIR
+        ${AIR_CODE_DIR}/tests/ge/ut/ge/graph/eager_style_graph_builder/es_generator/history/fixtures/history_registry)
+file(COPY ${ES_HISTORY_REGISTRY_FIXTURE_SRC_DIR} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/fixtures)
+
 add_executable(ut_eager_style_builder
         ${ES_GRAPH_BUILDER_TEST_SRCS}
         )
