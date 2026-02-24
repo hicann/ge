@@ -11,6 +11,7 @@
 #include "vector_func_partitioner.h"
 #include <sstream>
 #include <queue>
+#include <climits>
 #include "graph/utils/graph_utils.h"
 #include "common/checker.h"
 #include "common_utils.h"
@@ -28,6 +29,7 @@ constexpr int32_t kMaxBitWidthGap = 2;
 constexpr int64_t kOutLoopAxisId = -1L;
 constexpr size_t kMinVfNodesNum = 2UL;
 
+namespace cast_helpers {
 bool HasHighToLowCastNode(const std::unordered_set<ge::AscNodePtr> &nodes) {
   for (const auto &node : nodes) {
     if (!ge::ops::IsOps<ge::ascir_op::Cast>(node)) {
@@ -40,19 +42,70 @@ bool HasHighToLowCastNode(const std::unordered_set<ge::AscNodePtr> &nodes) {
   return false;
 }
 
-bool CheckSupportedDtype(const std::unordered_set<ge::AscNodePtr> &nodes, int type_width) {
-  for (const auto &node : nodes) {
-    for (const auto &out_tensor : node->outputs()) {
-      const auto dtype_size = ge::GetSizeByDataType(out_tensor->attr.dtype);
-      if (dtype_size != type_width) {
-        GELOGD("Collected node [%s]'s output dtype width [%d] mismatch with target [%d].", node->GetNamePtr(),
-               dtype_size, type_width);
-        return false;
+// 检查 connected_nodes 在 to 中的输出节点是否是低→高 Cast
+bool HasLowToHighCastNode(const optimize::Cluster &to, const std::unordered_set<ge::AscNodePtr> &connected_nodes) {
+  for (const auto &node: connected_nodes) {
+    // 找到边界节点的输出节点
+    for (const auto &out_node: node->GetOutDataNodes()) {
+      auto asc_out_node = std::dynamic_pointer_cast<ge::AscNode>(out_node);
+      GE_ASSERT_NOTNULL(asc_out_node);
+      if (!to.ContainsNode(asc_out_node)) {
+        continue;
+      }
+      // 检查是否是低→高 Cast
+      if (!ge::ops::IsOps<ge::ascir_op::Cast>(asc_out_node)) {
+        continue;
+      }
+      const auto in_dtype_size = ge::GetSizeByDataType(asc_out_node->inputs[0].attr.dtype);
+      const auto out_dtype_size = ge::GetSizeByDataType(asc_out_node->outputs[0].attr.dtype);
+      if (in_dtype_size < out_dtype_size) {
+        return true;
       }
     }
   }
+  return false;
+}
+
+// 检查两个 Cluster 内所有 Cast 节点的位宽差距是否超过阈值
+// 检查所有 Cast 涉及的最大位宽和最小位宽，判断整体位宽变换倍数
+bool CheckCastBitWidthGap(const optimize::Cluster &from, const optimize::Cluster &to, int32_t max_gap) {
+  int32_t global_max_width = 0;
+  int32_t global_min_width = std::numeric_limits<int32_t>::max();
+
+  // 遍历 from 和 to 内所有节点，收集所有 Cast 的位宽信息
+  std::unordered_set<ge::AscNodePtr> all_nodes;
+  for (const auto &node: from.nodes_) {
+    all_nodes.insert(node);
+  }
+  for (const auto &node: to.nodes_) {
+    all_nodes.insert(node);
+  }
+
+  for (const auto &node: all_nodes) {
+    if (!ge::ops::IsOps<ge::ascir_op::Cast>(node)) {
+      continue;
+    }
+    const auto in_dtype_size = ge::GetSizeByDataType(node->inputs[0].attr.dtype);
+    const auto out_dtype_size = ge::GetSizeByDataType(node->outputs[0].attr.dtype);
+
+    global_max_width = std::max({global_max_width, in_dtype_size, out_dtype_size});
+    global_min_width = std::min({global_min_width, in_dtype_size, out_dtype_size});
+  }
+
+  // 如果没有 Cast 节点，直接返回 true
+  if (global_max_width == 0 && global_min_width == std::numeric_limits<int32_t>::max()) {
+    return true;
+  }
+
+  // 检查整体位宽变换倍数是否超过阈值
+  if (global_max_width > global_min_width * max_gap) {
+    GELOGD("Cast nodes global bit width gap [%d vs %d] exceeds threshold [%d].",
+           global_max_width, global_min_width, max_gap);
+    return false;
+  }
   return true;
 }
+}  // namespace cast_helpers
 
 ge::Status UnalignNode(const ge::AscNodePtr &node) {
   for (const auto &tensor : node->outputs()) {
@@ -372,22 +425,6 @@ ge::Status VectorFuncPartitioner::InitClusterAttr(const std::unique_ptr<ge::asci
     }
   }
 
-  // set bitwidth
-  GE_ASSERT_TRUE(!node->outputs.operator()().empty());
-  if (ge::ops::IsOps<ge::ascir_op::Cast>(node)) {
-    GE_ASSERT_TRUE(!node->inputs.operator()().empty());
-    const auto in_dtype_size = ge::GetSizeByDataType(node->inputs[0].attr.dtype);
-    const auto out_dtype_size = ge::GetSizeByDataType(node->outputs[0].attr.dtype);
-    cluster->meta_data_.from_width = in_dtype_size;
-    cluster->meta_data_.to_width = out_dtype_size;
-    cluster->meta_data_.max_width = std::max(cluster->meta_data_.from_width, cluster->meta_data_.to_width);
-  } else {
-    const auto dtype_size = ge::GetSizeByDataType(node->outputs[0].attr.dtype);
-    GE_ASSERT_TRUE(dtype_size > 0);
-    cluster->meta_data_.from_width = dtype_size;
-    cluster->meta_data_.to_width = dtype_size;
-    cluster->meta_data_.max_width = dtype_size;
-  }
   return ge::SUCCESS;
 }
 
@@ -497,26 +534,25 @@ bool VectorFuncPartitioner::CanMergeClusters(const Cluster &from, const Cluster 
   }
 
   auto connected_nodes = Cluster::FindConnectedNodes(from, to);
-  // 输出cluster从低位宽到高位宽变换，不允许向前融合
-  if ((to_meta.from_width < to_meta.to_width) && (!CheckSupportedDtype(connected_nodes, to_meta.to_width))) {
-    GELOGD("Output bit width mismatch with input, skip fuse [%s] to [%s].", from.DebugString().c_str(),
+  // 只针对 Cast 节点进行位宽限制
+  // 1. 低位宽→高位宽的 Cast：不允许和输入节点融合
+  //    检查 connected_nodes 在 to 中的输出节点是否是低→高 Cast
+  if (cast_helpers::HasLowToHighCastNode(to, connected_nodes)) {
+    GELOGD("Low-to-high cast in to cluster, skip fuse [%s] to [%s].", from.DebugString().c_str(),
            to.DebugString().c_str());
     return false;
   }
 
-  // 高位宽到低位宽，不允许向后融合
-  if ((from_meta.max_width > from_meta.to_width) && HasHighToLowCastNode(connected_nodes)) {
-    GELOGD("Input bit width mismatch with output, skip fuse [%s] to [%s].", from.DebugString().c_str(),
+  // 2. 高位宽→低位宽的 Cast：不允许和输出节点融合
+  if (cast_helpers::HasHighToLowCastNode(connected_nodes)) {
+    GELOGD("High-to-low cast in connected nodes, skip fuse [%s] to [%s].", from.DebugString().c_str(),
            to.DebugString().c_str());
     return false;
   }
 
-  // 最大两倍位宽差距
-  const int32_t global_max_width = std::max({from_meta.max_width, to_meta.max_width});
-  const int32_t global_min_width =
-      std::min({from_meta.from_width, from_meta.to_width, to_meta.from_width, to_meta.to_width});
-  if (global_max_width > global_min_width * kMaxBitWidthGap) {
-    GELOGD("Max bit width gap exceeds threshold, skip fuse [%s] to [%s].", from.DebugString().c_str(),
+  // 3. 防止出现两个cluster上各有一个Cast导致位宽差距超过2倍
+  if (!cast_helpers::CheckCastBitWidthGap(from, to, kMaxBitWidthGap)) {
+    GELOGD("Cast bit width gap exceeds threshold, skip fuse [%s] to [%s].", from.DebugString().c_str(),
            to.DebugString().c_str());
     return false;
   }
@@ -535,9 +571,21 @@ bool VectorFuncPartitioner::CanMergeClusters(const Cluster &from, const Cluster 
 
 ge::Status VectorFuncPartitioner::MergeClusters() {
   // Merge clusters according to the linking relationship
-  for (const auto &cluster : cluster_dict_.GetAllClusters()) {
+  auto all_clusters = cluster_dict_.GetAllClusters();
+  std::unordered_set<const Cluster *> merged_clusters; // 记录已合并的 cluster
+
+  for (const auto &cluster: all_clusters) {
+    // 如果该 cluster 已被合并到其他 cluster，跳过
+    if (merged_clusters.count(cluster.get()) > 0UL) {
+      continue;
+    }
+
     const auto cluster_inputs = cluster->Inputs();
-    for (const auto &in_cluster : cluster_inputs) {
+    for (const auto &in_cluster: cluster_inputs) {
+      // 如果输入 cluster 已被合并，跳过
+      if (merged_clusters.count(in_cluster) > 0UL) {
+        continue;
+      }
       if (!CanMergeClusters(*in_cluster, *cluster)) {
         continue;
       }
@@ -545,8 +593,11 @@ ge::Status VectorFuncPartitioner::MergeClusters() {
         GELOGD("There exists cycle between %zu and %zu, will skip to merge.", in_cluster->Id(), cluster->Id());
         continue;
       }
+      // 执行合并
       cluster->MergeFrom(*in_cluster);
-      for (const auto &node : in_cluster->Nodes()) {
+      merged_clusters.insert(in_cluster);
+      // 批量更新 cluster_dict_ 映射
+      for (const auto &node: in_cluster->Nodes()) {
         cluster_dict_.SetNodeClusterPair(node, cluster);
       }
       GELOGD("Merge cluster from %zu to %zu.", in_cluster->Id(), cluster->Id());
@@ -556,23 +607,19 @@ ge::Status VectorFuncPartitioner::MergeClusters() {
 }
 
 ge::Status VectorFuncPartitioner::SortClustersForBuildSubgraph() {
-  // Unique clusters left after merged clusters sorted by rank
-  std::vector<ClusterPtr> sorted_unique_clusters;
-  // Unique clusters left after merged clusters
+  // 收集所有唯一的 cluster, 按照id进行合并
   std::unordered_set<ClusterPtr> unique_clusters;
-  const auto comp_func = [](const ClusterPtr &clu_a, const ClusterPtr &clu_b) -> bool {
-    return clu_a->Id() < clu_b->Id();
-  };
-  for (const auto &node : impl_graph_.GetAllNodes()) {
+  for (const auto &node: impl_graph_.GetAllNodes()) {
     const auto &cluster = cluster_dict_.GetNodeCluster(node);
-    if (unique_clusters.count(cluster) != 0U) {
-      continue;
-    }
-    if (unique_clusters.insert(cluster).second) {
-      sorted_unique_clusters.emplace_back(cluster);
-    }
+    unique_clusters.insert(cluster);
   }
-  std::sort(sorted_unique_clusters.begin(), sorted_unique_clusters.end(), comp_func);
+
+  std::vector<ClusterPtr> sorted_unique_clusters(unique_clusters.begin(), unique_clusters.end());
+  std::sort(sorted_unique_clusters.begin(), sorted_unique_clusters.end(),
+            [](const ClusterPtr &clu_a, const ClusterPtr &clu_b) -> bool {
+              return clu_a->Id() < clu_b->Id();
+            });
+
   cluster_dict_.SwapClusters(sorted_unique_clusters);
   return ge::SUCCESS;
 }

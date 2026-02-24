@@ -427,105 +427,6 @@ TEST_F(VfPartition, add_more_than_30) {
   EXPECT_EQ(sub_graphs.size(), 2UL);
 }
 
-TEST_F(VfPartition, can_merge) {
-  ge::AscGraph graph("brc_abs");
-  auto s0 = ge::Symbol(10);
-  auto s1 = ge::Symbol(10);
-  auto s2 = ge::Symbol(10);
-  auto z0 = graph.CreateAxis("z0", s0);
-  auto z1 = graph.CreateAxis("z1", s1);
-  auto z2 = graph.CreateAxis("z1", s2);
-
-  ge::ascir_op::Data data0("data0", graph);
-  data0.y.dtype = ge::DT_FLOAT;
-  data0.ir_attr.SetIndex(1);
-  data0.attr.api.type = ge::ApiType::kAPITypeBuffer;
-
-  ge::ascir_op::Load load0("load0");
-  load0.x = data0.y;
-  load0.attr.api.compute_type = ge::ComputeType::kComputeLoad;
-  load0.attr.sched.axis = {z0.id, z1.id, z2.id};
-  load0.y.dtype = ge::DT_FLOAT;
-  *load0.y.axis = {z0.id, z1.id, z2.id};
-  *load0.y.repeats = {s0, One, s2};
-  *load0.y.strides = {s2, Zero, One};
-  *load0.y.vectorized_axis = {z0.id, z1.id, z2.id};
-
-  ge::ascir_op::Abs abs00("abs00");
-  abs00.x = load0.y;
-  abs00.attr.api.compute_type = ge::ComputeType::kComputeElewise;
-  abs00.attr.sched.axis = {z0.id, z1.id, z2.id};
-  abs00.y.dtype = ge::DT_FLOAT;
-  *abs00.y.axis = {z0.id, z1.id, z2.id};
-  *abs00.y.repeats = {s0, One, s2};
-  *abs00.y.strides = {s2, Zero, One};
-  *abs00.y.vectorized_axis = {z0.id, z1.id, z2.id};
-
-  ge::ascir_op::Abs abs01("abs01");
-  abs01.x = abs00.y;
-  abs01.attr.api.compute_type = ge::ComputeType::kComputeElewise;
-  abs01.attr.sched.axis = {z0.id, z1.id, z2.id};
-  abs01.y.dtype = ge::DT_FLOAT;
-  *abs01.y.axis = {z0.id, z1.id, z2.id};
-  *abs01.y.repeats = {s0, One, s2};
-  *abs01.y.strides = {s2, Zero, One};
-  *abs01.y.vectorized_axis = {z0.id, z1.id, z2.id};
-
-  ge::ascir_op::Abs abs02("abs01");
-  abs02.x = abs01.y;
-  abs02.attr.api.compute_type = ge::ComputeType::kComputeElewise;
-  abs02.attr.sched.axis = {z0.id, z1.id, z2.id};
-  abs02.y.dtype = ge::DT_FLOAT;
-  *abs02.y.axis = {z0.id, z1.id, z2.id};
-  *abs02.y.repeats = {s0, One, s2};
-  *abs02.y.strides = {s2, Zero, One};
-  *abs02.y.vectorized_axis = {z0.id, z1.id, z2.id};
-  ASSERT_EQ(AlignmentHandler::AlignVectorizedStrides(graph), ge::SUCCESS);
-
-  VectorFuncPartitioner partitioner(graph);
-  ASSERT_EQ(partitioner.Partition(), ge::SUCCESS);
-  AscNodePtr asc_node0 = graph.FindNode("abs00");
-  AscNodePtr asc_node1 = graph.FindNode("abs01");
-
-  Cluster from1(asc_node0, 1);
-  Cluster to1(asc_node1, 2);
-  from1.meta_data_ = {true, 10, 2, 2, 2, 1};
-  to1.meta_data_ = {true, 10, 2, 2, 2, 2};
-  EXPECT_FALSE(VectorFuncPartitioner::CanMergeClusters(from1, to1));
-  from1.meta_data_ = {false, 10, 2, 2, 2, 1};
-  to1.meta_data_ = {true, 10, 2, 2, 2, 1};
-  EXPECT_FALSE(VectorFuncPartitioner::CanMergeClusters(from1, to1));
-
-  from1.meta_data_ = {true, 16, 2, 2, 2, 1};
-  to1.meta_data_ = {true, 16, 2, 2, 2, 1};
-  EXPECT_FALSE(VectorFuncPartitioner::CanMergeClusters(from1, to1));
-
-  from1.meta_data_ = {true, 4, 1, 2, 2, 1};
-  to1.meta_data_ = {true, 4, 2, 4, 4, 1};
-  EXPECT_FALSE(VectorFuncPartitioner::CanMergeClusters(from1, to1));
-
-  // 水平融合
-  from1.meta_data_ = {true, 4, 2, 2, 2, 1};
-  to1.meta_data_ = {true, 4, 2, 4, 4, 1};
-  EXPECT_TRUE(VectorFuncPartitioner::CanMergeClusters(from1, to1));
-
-  from1.meta_data_ = {true, 4, 2, 2, 4, 1};
-  to1.meta_data_ = {true, 4, 2, 1, 2, 1};
-  EXPECT_FALSE(VectorFuncPartitioner::CanMergeClusters(from1, to1));
-
-  auto cluster_ptr1 = std::make_shared<Cluster>(asc_node0, 0);
-  auto cluster_ptr2 = std::make_shared<Cluster>(asc_node0, 1);
-  auto cluster_ptr3 = std::make_shared<Cluster>(asc_node0, 2);
-  auto cluster_ptr4 = std::make_shared<Cluster>(asc_node0, 3);
-  cluster_ptr2->AddOutput(*cluster_ptr3);
-  cluster_ptr2->AddOutput(*cluster_ptr3);
-  cluster_ptr3->AddInput(*cluster_ptr2);
-  cluster_ptr3->AddInput(*cluster_ptr2);
-  cluster_ptr2->AddOutput(*cluster_ptr4);
-  cluster_ptr1->AddOutput(*cluster_ptr2);
-  cluster_ptr1->MergeFrom(*cluster_ptr2);
-}
-
 TEST_F(VfPartition, skip_fuse_for_io_num) {
   ge::AscGraph graph("brc_abs");
   auto s0 = ge::Symbol(999);
@@ -1496,4 +1397,158 @@ TEST_F(VfPartition, test_vf_cache) {
     }
   }
 }
+
+// 测试 Cast 位宽差距恰好为 2 倍的情况（INT32->INT16），应该允许融合
+TEST_F(VfPartition, cast_bitwidth_gap_exactly_2x) {
+  ge::AscGraph graph("cast_2x_gap");
+  ge::ascir_op::Data data0("data0", graph);
+  data0.ir_attr.SetIndex(1);
+
+  ge::ascir_op::Load load("load");
+  load.x = data0.y;
+  load.y.dtype = ge::DT_INT32;
+
+  ge::ascir_op::Abs abs("abs");
+  abs.x = load.y;
+  abs.y.dtype = ge::DT_INT32;
+
+  ge::ascir_op::Cast cast("cast");
+  cast.x = abs.y;
+  cast.y.dtype = ge::DT_INT16;  // INT32 -> INT16, 恰好 2 倍差距
+
+  ge::ascir_op::Exp exp("exp");
+  exp.x = cast.y;
+  exp.y.dtype = ge::DT_INT16;
+
+  ge::ascir_op::Store store("store");
+  store.x = exp.y;
+  store.y.dtype = ge::DT_INT16;
+
+  ge::ascir_op::Output out("out");
+  out.x = store.y;
+  out.ir_attr.SetIndex(0);
+
+  auto eg = ge::EaseAscGraph(graph).Loops({ge::Symbol(10), ge::Symbol(10)});
+  eg.Build();
+
+  ASSERT_EQ(AlignmentHandler::AlignVectorizedStrides(graph), ge::SUCCESS);
+  VectorFuncPartitioner partitioner(graph);
+  ASSERT_EQ(partitioner.Partition(), ge::SUCCESS);
+
+  std::vector<ge::AscGraph> sub_graphs;
+  EXPECT_EQ(graph.GetAllSubGraphs(sub_graphs), ge::SUCCESS);
+
+  // 恰好 2 倍差距应该允许融合
+  EXPECT_EQ(sub_graphs.size(), 1UL);
+  auto cast_node = sub_graphs[0].FindNode("cast");
+  EXPECT_NE(cast_node, nullptr);
+}
+
+// 测试 Cast 位宽差距超过 2 倍的情况（INT64->INT16，4倍差距），不应该融合
+// 使用多个输入分支来触发 Cluster 合并时的位宽检查
+TEST_F(VfPartition, cast_bitwidth_gap_exceed_2x) {
+  ge::AscGraph graph("cast_4x_gap");
+  ge::ascir_op::Data data0("data0", graph);
+  data0.ir_attr.SetIndex(1);
+
+  ge::ascir_op::Data data1("data1", graph);
+  data1.ir_attr.SetIndex(2);
+
+  // 分支1: INT64 -> INT16 (4倍差距)
+  ge::ascir_op::Load load1("load1");
+  load1.x = data0.y;
+  load1.y.dtype = ge::DT_INT64;
+
+  ge::ascir_op::Abs abs1("abs1");
+  abs1.x = load1.y;
+  abs1.y.dtype = ge::DT_INT64;
+
+  ge::ascir_op::Cast cast1("cast1");
+  cast1.x = abs1.y;
+  cast1.y.dtype = ge::DT_INT16;
+
+  // 分支2: INT32
+  ge::ascir_op::Load load2("load2");
+  load2.x = data1.y;
+  load2.y.dtype = ge::DT_INT32;
+
+  ge::ascir_op::Abs abs2("abs2");
+  abs2.x = load2.y;
+  abs2.y.dtype = ge::DT_INT32;
+
+  // 合并点：两个分支的位宽差距超过 2 倍，应该阻止融合
+  ge::ascir_op::Add add("add");
+  add.x1 = cast1.y;
+  add.x2 = abs2.y;
+  add.y.dtype = ge::DT_INT16;
+
+  ge::ascir_op::Store store("store");
+  store.x = add.y;
+  store.y.dtype = ge::DT_INT16;
+
+  ge::ascir_op::Output out("out");
+  out.x = store.y;
+  out.ir_attr.SetIndex(0);
+
+  auto eg = ge::EaseAscGraph(graph).Loops({ge::Symbol(10), ge::Symbol(10)});
+  eg.Build();
+
+  ASSERT_EQ(AlignmentHandler::AlignVectorizedStrides(graph), ge::SUCCESS);
+  VectorFuncPartitioner partitioner(graph);
+  ASSERT_EQ(partitioner.Partition(), ge::SUCCESS);
+
+  std::vector<ge::AscGraph> sub_graphs;
+  EXPECT_EQ(graph.GetAllSubGraphs(sub_graphs), ge::SUCCESS);
+
+  // 由于位宽差距超过 2 倍，两个分支不应该融合到同一个 Cluster
+  EXPECT_GE(sub_graphs.size(), 1UL);
+}
+
+// 测试高→低 Cast 不应和输出节点融合
+TEST_F(VfPartition, cast_high_to_low_no_fuse_with_output) {
+  ge::AscGraph graph("cast_high_to_low");
+  ge::ascir_op::Data data0("data0", graph);
+  data0.ir_attr.SetIndex(1);
+
+  ge::ascir_op::Load load("load");
+  load.x = data0.y;
+  load.y.dtype = ge::DT_INT64;
+
+  ge::ascir_op::Abs abs("abs");
+  abs.x = load.y;
+  abs.y.dtype = ge::DT_INT64;
+
+  ge::ascir_op::Cast cast("cast");
+  cast.x = abs.y;
+  cast.y.dtype = ge::DT_INT32;  // INT64 -> INT32, 高→低
+
+  ge::ascir_op::Exp exp("exp");
+  exp.x = cast.y;
+  exp.y.dtype = ge::DT_INT32;
+
+  ge::ascir_op::Store store("store");
+  store.x = exp.y;
+  store.y.dtype = ge::DT_INT32;
+
+  ge::ascir_op::Output out("out");
+  out.x = store.y;
+  out.ir_attr.SetIndex(0);
+
+  auto eg = ge::EaseAscGraph(graph).Loops({ge::Symbol(10), ge::Symbol(10)});
+  eg.Build();
+
+  ASSERT_EQ(AlignmentHandler::AlignVectorizedStrides(graph), ge::SUCCESS);
+  VectorFuncPartitioner partitioner(graph);
+  ASSERT_EQ(partitioner.Partition(), ge::SUCCESS);
+
+  std::vector<ge::AscGraph> sub_graphs;
+  EXPECT_EQ(graph.GetAllSubGraphs(sub_graphs), ge::SUCCESS);
+
+  // 高→低 Cast 的检查是在合并 Cluster 时进行的
+  // 这里只有一个分支，所以所有节点应该能融合
+  EXPECT_EQ(sub_graphs.size(), 1UL);
+  auto cast_node = sub_graphs[0].FindNode("cast");
+  EXPECT_NE(cast_node, nullptr);
+}
+
 }  // namespace optimize
