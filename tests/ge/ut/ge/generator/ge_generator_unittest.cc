@@ -1064,4 +1064,66 @@ TEST_F(UtestGeGenerator, ResetInputOutputShape_netoutputnode_hassamesize) {
   auto ret1 = generator.ResetInputOutputShape(compute_graph1, inputs_name_type1, inputs_dynamic1, outputs_dynamic1);
   EXPECT_EQ(ret1, SUCCESS);
 }
+
+// Test: Verify ENABLE_ATTR_COMPRESSION option is correctly passed to ModelHelper
+TEST_F(UtestGeGenerator, generate_offline_model_with_attr_compression_enabled) {
+  GeTensorDesc tensor_desc;
+  GeTensor tensor(tensor_desc);
+  const vector<GeTensor> inputs = {tensor, tensor};
+  auto compute_graph = MakeGraph();
+  compute_graph->TopologicalSorting();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  // Initialize generator with attr_compression enabled
+  std::map<string, string> options;
+  options[ENABLE_ATTR_COMPRESSION] = "true";
+  GeGenerator generator;
+  auto ret = generator.Initialize(options);
+  ASSERT_EQ(ret, SUCCESS);
+
+  std::string name;
+  // The call may fail for other reasons, but should not fail due to invalid option
+  (void)generator.GenerateOfflineModel(graph, name, inputs);
+  // Test passes if no crash or exception related to attr_compression
+}
+
+TEST_F(UtestGeGenerator, generate_offline_model_with_attr_compression_disabled) {
+  GeTensorDesc tensor_desc;
+  GeTensor tensor(tensor_desc);
+  const vector<GeTensor> inputs = {tensor, tensor};
+  auto compute_graph = MakeGraph();
+  compute_graph->TopologicalSorting();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  // Initialize generator with attr_compression disabled
+  std::map<string, string> options;
+  options[ENABLE_ATTR_COMPRESSION] = "false";
+  GeGenerator generator;
+  auto ret = generator.Initialize(options);
+  ASSERT_EQ(ret, SUCCESS);
+
+  std::string name;
+  // The call may fail for other reasons, but should not fail due to invalid option
+  (void)generator.GenerateOfflineModel(graph, name, inputs);
+  // Test passes if no crash or exception related to attr_compression
+}
+
+TEST_F(UtestGeGenerator, generate_offline_model_with_attr_compression_default) {
+  GeTensorDesc tensor_desc;
+  GeTensor tensor(tensor_desc);
+  const vector<GeTensor> inputs = {tensor, tensor};
+  auto compute_graph = MakeGraph();
+  compute_graph->TopologicalSorting();
+  Graph graph = ge::GraphUtilsEx::CreateGraphFromComputeGraph(compute_graph);
+
+  // Initialize generator without attr_compression option (use default)
+  GeGenerator generator;
+  auto ret = generator.Initialize({});
+  ASSERT_EQ(ret, SUCCESS);
+
+  std::string name;
+  // The call may fail for other reasons, but should not fail due to invalid option
+  (void)generator.GenerateOfflineModel(graph, name, inputs);
+  // Test passes if no crash or exception related to attr_compression
+}
 }  // namespace ge

@@ -1496,6 +1496,14 @@ Status GeGenerator::Impl::SaveModel(const std::string &file_name_prefix, GeModel
   }
   ModelHelper model_helper;
   model_helper.SetSaveMode(is_offline_);
+
+  // Configure attribute compression mode from options
+  std::map<std::string, std::string> options;
+  std::string attr_compression_value;
+  if (GetContext().GetOption(ENABLE_ATTR_COMPRESSION, attr_compression_value) == SUCCESS) {
+    (void)model_helper.ConfigureAttrCompressionMode(attr_compression_value);
+  }
+
   Status ret = model_helper.SaveToOmModel(model, file_name_prefix, model_buff);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Call][SaveToOmModel] Save to om model failed");
@@ -1537,6 +1545,14 @@ Status GeGenerator::Impl::SaveRootModel(const std::string &file_name_prefix, con
   const auto model_save_helper = ModelSaveHelperFactory::Instance().Create(om_format);
   GE_CHECK_NOTNULL(model_save_helper);
   model_save_helper->SetSaveMode(is_offline_);
+
+  // Configure attribute compression mode from options
+  std::map<std::string, std::string> options;
+  std::string attr_compression_value;
+  if (GetContext().GetOption(ENABLE_ATTR_COMPRESSION, attr_compression_value) == SUCCESS) {
+    (void)model_save_helper->ConfigureAttrCompressionMode(attr_compression_value);
+  }
+
   GE_ASSERT_SUCCESS(model_save_helper->SaveToOmRootModel(ge_root_model, file_name_prefix, model_buff, is_unknown_shape),
                     "SaveToOmRootModel failed, model id:%u, om_format:%d", ge_root_model->GetModelId(), om_format);
   return SUCCESS;

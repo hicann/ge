@@ -554,6 +554,9 @@ const char_t *const OPTION_EXEC_FORMAT_MODEL = "ge.exec.formatMode";
 // 8: config build graph mode(online or offline)
 const char_t *const OPTION_BUILD_GRAPH_MODE = "ge.buildGraphMode";
 
+// Configure Attribute Compression flag(true or false, default true for backward compatibility)
+const std::string ENABLE_ATTR_COMPRESSION = "ge.enableAttrCompression";
+
 const std::set<std::string> ir_builder_suppported_options_inner = {EVALUATE_GRAPH_RESOURCE_MODE,
                                                                    RESOURCE_CONFIG_PATH,
                                                                    RECOMPUTE,

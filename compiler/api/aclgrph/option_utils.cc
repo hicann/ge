@@ -921,6 +921,31 @@ Status CheckSparseParamValid(const std::string &sparsity) {
   return SUCCESS;
 }
 
+Status CheckAttrCompressionParamValid(const std::string &enable_attr_compression) {
+  if (enable_attr_compression.empty()) {
+    return SUCCESS;  // Empty value means use default, considered valid
+  }
+
+  static const std::set<std::string> kValidValues = {
+      "true", "false"
+  };
+
+  std::string lower_value = enable_attr_compression;
+  std::transform(lower_value.begin(), lower_value.end(), lower_value.begin(), ::tolower);
+
+  if (kValidValues.find(lower_value) == kValidValues.end()) {
+    REPORT_PREDEFINED_ERR_MSG(
+        "E10005", std::vector<const char *>({"parameter", "value"}),
+        std::vector<const char *>({"enable_attr_compression", enable_attr_compression.c_str()}));
+    GELOGE(PARAM_INVALID, "[Check][Param:enable_attr_compression]"
+           "Input parameter[--enable_attr_compression]'s value:%s must be one of: "
+           "true/false.",
+           enable_attr_compression.c_str());
+    return PARAM_INVALID;
+  }
+  return SUCCESS;
+}
+
 Status CheckKeepTypeParamValid(const std::string &keep_dtype) {
   if ((!keep_dtype.empty()) && (!CheckInputPathValid(keep_dtype, "--keep_dtype"))) {
     REPORT_PREDEFINED_ERR_MSG(

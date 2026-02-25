@@ -116,6 +116,14 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
   bool IsSoStore() const {
     return is_so_store_;
   }
+
+  // Configure attribute compression enabled flag (default true for backward compatibility)
+  void SetAttrCompressionEnabled(bool enabled) {
+    attr_compression_enabled_ = enabled;
+  }
+
+  // configuration attr compression mode
+  Status ConfigureAttrCompressionMode(const string &mode) override;
   static Status UpdateGeRootModelTaskAddr(const GeRootModelPtr &ge_root_model,
                                           const ComputeGraphPtr &root_graph,
                                           std::set<ComputeGraph *> &refreshed_graphs,
@@ -175,6 +183,14 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
   static std::string output_file_name_;
   std::unordered_set<std::string> custom_compiler_versions_{};
   HostResourceSerializer host_serializer_;
+
+  // Attribute compression configuration (only supports ATC command line)
+  bool attr_compression_enabled_ = true;
+
+  // Calculate final compression decision based on enabled flag
+  bool ShouldCompress() const {
+    return attr_compression_enabled_ && is_offline_ && is_need_compress_;
+  }
 
   bool IsPartitionedGraph(const GeModelPtr &cur_model) const;
 
