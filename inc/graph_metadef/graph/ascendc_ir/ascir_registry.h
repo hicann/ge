@@ -160,7 +160,7 @@ class AscIrCodegen {
 
   // 返回需要包含的头文件
   virtual std::vector<std::string> IncludeApiHeaderFiles() const {
-    return {"kernel_operator.h"};
+    return {};
   }
 
   // 如果需要插入cast节点，返回cast的目的类型

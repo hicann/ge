@@ -38,7 +38,7 @@ int main() {
   InitScheduleResultsByImplGraphs(test_impl_graphs, fused_schedule_result);
   codegen::CodegenResult result;
   codegen.Generate(fused_schedule_result, result);
-  kernel_file << tilig_stub << result.kernel;
+  kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
   tiling_file << result.tiling;
   tiling_data_file << result.tiling_data;
 }

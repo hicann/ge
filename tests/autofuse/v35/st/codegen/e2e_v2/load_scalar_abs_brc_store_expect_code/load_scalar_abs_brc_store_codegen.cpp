@@ -68,7 +68,7 @@ TEST_F(LoadScalarAbsBrcStoreTest, LoadScalarAbsBrcStoreCodegen) {
     shape_info.insert(std::make_pair("s0","GetDimValueFromGraphInputData(0, 0);"));
     shape_info.insert(std::make_pair("s1","GetDimValueFromGraphInputData(0, 1);"));
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result),0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }

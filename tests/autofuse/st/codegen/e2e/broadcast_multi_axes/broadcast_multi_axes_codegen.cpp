@@ -70,7 +70,7 @@ TEST_F(BroadcastMultiAxesST, BroadcastMultiAxesCodegen) {
     InitScheduleResultsByImplGraphs(impl_graphs_multi_axis, fused_schedule_result);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(fused_schedule_result, result), 0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }
@@ -104,7 +104,7 @@ TEST_F(BroadcastMultiAxesST, BroadcastMultiAxesCodegen) {
     InitScheduleResultsByImplGraphs(impl_graphs_multi_axis_bab, fused_schedule_result_bab);
     codegen::CodegenResult result_bab;
     EXPECT_EQ(codegen_bab.Generate(fused_schedule_result_bab, result_bab), 0);
-    kernel_file_bab << tilig_stub_bab << result_bab.kernel;
+    kernel_file_bab << tilig_stub_bab << RemoveSubDirInclude(result_bab.kernel);
   }
   catch (...) {
     gen_success = false;

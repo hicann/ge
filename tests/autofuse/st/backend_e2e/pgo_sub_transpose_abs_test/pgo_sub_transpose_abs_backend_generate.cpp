@@ -72,7 +72,7 @@ TEST_F(TestBackendPgoSubTransposeAbsE2e, PgoSubTransposeAbsE2eCodegen) {
     pgo_src = codegen.GeneratorPgo(fused_schedule_result, ".");
     EXPECT_EQ(pgo_src.empty(), false);
 
-    kernel_file << tiling_stub << result.kernel;
+    kernel_file << tiling_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }

@@ -58,7 +58,7 @@ TEST_F(TestBackendConcatE2e, ConcatE2eCodegen) {
         {{"s0", "stub_s0"}, {"s1", "stub_s1"}}
     );
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }

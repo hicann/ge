@@ -82,7 +82,7 @@ TEST_F(TestBackendMatmulEqScalar, MatmulEqScalarCodegen) {
 
     // 分别生成ub和common模板的kernel和tiling
     EXPECT_EQ(codegen.Generate(shape_info, ub_schedule_result, result),0);
-    kernel_file << result.kernel;
+    kernel_file << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
 
@@ -94,7 +94,7 @@ TEST_F(TestBackendMatmulEqScalar, MatmulEqScalarCodegen) {
     std::fstream tiling_data_file_common(tiling_data_src_file_name, std::ios::out);
     codegen::CodegenResult result_common;
     EXPECT_EQ(codegen.Generate(shape_info, common_schedule_result, result_common),0);
-    kernel_file_common << result_common.kernel;
+    kernel_file_common << RemoveSubDirInclude(result_common.kernel);
     tiling_file_common << result_common.tiling;
     tiling_data_file_common << result_common.tiling_data;
   } catch (...) {

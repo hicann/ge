@@ -75,7 +75,7 @@ TEST_F(LoadRmaxStoreSt, reduceMaxTest) {
     InitScheduleResultsByImplGraphs(test_impl_graphs, fused_schedule_result);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(fused_schedule_result, result), 0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }

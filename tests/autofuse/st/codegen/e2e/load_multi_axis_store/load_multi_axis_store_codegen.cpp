@@ -74,7 +74,7 @@ TEST_F(LoadMultiAxisStoreTest, LoadMultiAxisStoreCodegen) {
     std::fstream tiling_file(tiling_src_file_name, std::ios::out);
     std::fstream tiling_data_file(tiling_data_src_file_name, std::ios::out);
 
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }

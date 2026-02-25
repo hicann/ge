@@ -95,6 +95,11 @@ class VfAscIrCodegenImpl : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"utils_reg_base.h"};
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 /*********************************************************************************/
@@ -109,6 +114,12 @@ class DataAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class ScalarAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -122,6 +133,12 @@ class ScalarAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetMicroApiCallName() const override {
     return "MicroApiCall";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class IndexExprAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -131,6 +148,11 @@ class IndexExprAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "IndexExpr";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -145,6 +167,12 @@ class OutputAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "Output";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class WorkspaceAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -154,6 +182,11 @@ class WorkspaceAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "Workspace";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -175,6 +208,11 @@ class LoadAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetMicroApiName() const override {
     return "Load";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class NddmaAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -187,6 +225,9 @@ class NddmaAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"datacopy_nddma_reg_base.h"};
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {};
   }
 };
 
@@ -217,6 +258,15 @@ class BroadcastAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return std::all_of(vectorized_strides.begin(), vectorized_strides.end(), [](const Expression &i)
                        { return ge::SymbolicUtils::StaticCheckEq(i, ge::sym::kSymbolZero) == ge::TriBool::kTrue; });
   }
+
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/pad/broadcast.h",
+      "micro_api/kernel_micro_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+    };
+  }
 };
 
 class NopAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -226,6 +276,11 @@ class NopAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "Nop";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -277,6 +332,11 @@ class CastAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return false;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class AbsAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -314,6 +374,12 @@ class AbsAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class ExpAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -348,6 +414,12 @@ class ExpAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class Exp2AscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -363,6 +435,11 @@ class Exp2AscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"exp2_reg_base.h"};
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/power.h",
+    };
   }
 };
 
@@ -383,6 +460,11 @@ class FloorAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/floor.h",
+    };
+  }
 };
 
 class FmaAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -402,6 +484,11 @@ class FmaAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/fma.h",
+    };
+  }
 };
 
 class RemovePadAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -414,6 +501,11 @@ class RemovePadAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"removepad.h"};
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
   }
 };
 
@@ -431,6 +523,11 @@ class PadAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "Pad";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/pad/pad.h",
+    };
+  }
 };
 
 class RoundAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -444,8 +541,10 @@ class RoundAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "Round";
   }
-  [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
-    return {"round.h"};
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/pad/round.h",
+    };
   }
 };
 
@@ -483,6 +582,12 @@ class LnAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class Log2AscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -504,6 +609,11 @@ class Log2AscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+     return {
+       "adv_api/math/log.h",
+     };
+   }
 };
 
 class LShiftAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -513,6 +623,11 @@ class LShiftAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "ShiftLeft";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
   }
 };
 
@@ -538,6 +653,11 @@ class ModAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+     return {
+       "adv_api/math/fmod.h"
+     };
+   }
 };
 
 class SqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -575,6 +695,12 @@ class SqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(sqrt_node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class RsqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -596,6 +722,11 @@ class RsqrtAscIrCodegenImplV2 : public AscIrCodegenV2 {
         {DT_BF16, DT_FLOAT},
     };
     return GetConversionFromDtypeMap(rsqrt_node, dtype_conversion_map);
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
   }
 };
 
@@ -647,6 +778,12 @@ class NegAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return conversion_dtype;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class ReluAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -675,6 +812,11 @@ class ReluAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) relu_node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
+  }
 };
 
 class ReciprocalAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -688,6 +830,11 @@ class ReciprocalAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &reciprocal_node) const override {
     (void) reciprocal_node;
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
   }
 };
 
@@ -706,6 +853,14 @@ class SignAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"cast.h", "sign_reg_base.h"};
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "adv_api/math/sign.h",
+      "utils/std/type_traits.h",
+    };
+  }
 };
 
 class IsnanAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -716,6 +871,11 @@ class IsnanAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "IsNan";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/is_nan.h",
+    };
+  }
 };
 
 class IsFiniteAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -725,6 +885,11 @@ class IsFiniteAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "IsFinite";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/is_finite.h",
+    };
   }
 };
 
@@ -742,6 +907,11 @@ class LogicalNotAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &not_node) const override {
     (void) not_node;
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/logical_not.h",
+    };
   }
 };
 
@@ -781,6 +951,13 @@ class MaxAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return conversion_dtype;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class SumAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -818,6 +995,13 @@ class SumAscIrCodegenImplV2 : public AscIrCodegenV2 {
       }
     }
     return conversion_dtype;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -857,6 +1041,13 @@ class MinAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return conversion_dtype;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class MeanAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -873,6 +1064,13 @@ class MeanAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init_reg_base.h"};
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -891,6 +1089,13 @@ class ProdAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override{
     return {"reduce_init_reg_base.h"};
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class AnyAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -908,6 +1113,13 @@ class AnyAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init_reg_base.h"};
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class AllAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -924,6 +1136,13 @@ class AllAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init_reg_base.h"};
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -964,6 +1183,11 @@ class GeAscIrCodegenImplV2 : public AscIrCodegenV2 {
       return false;
     }
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -1008,6 +1232,11 @@ class EqAscIrCodegenImplV2 : public AscIrCodegenV2 {
       }
     }
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -1069,6 +1298,11 @@ class NeAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class GtAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1108,6 +1342,11 @@ class GtAscIrCodegenImplV2 : public AscIrCodegenV2 {
       return false;
     }
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -1150,6 +1389,11 @@ class LeAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class LtAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1190,6 +1434,11 @@ class LtAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class SigmoidAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1211,6 +1460,11 @@ class SigmoidAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/activation/sigmoid.h",
+    };
+  }
 };
 
 class Ub2ubAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1220,6 +1474,9 @@ class Ub2ubAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "DataCopy";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {};
   }
 };
 
@@ -1263,6 +1520,14 @@ class DivAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) div_node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class SubAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1298,6 +1563,14 @@ class SubAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &sub_node) const override {
     (void) sub_node;
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -1335,6 +1608,13 @@ class AddAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &add_node) const override {
     (void) add_node;
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -1392,6 +1672,13 @@ class MulAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return conversion_dtype;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class TrueDivAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1426,6 +1713,14 @@ class TrueDivAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &true_div_node) const override {
     (void) true_div_node;
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -1466,6 +1761,13 @@ class MinimumAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &minimum_node) const override {
     (void) minimum_node;
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -1509,6 +1811,13 @@ class MaximumAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) maximum_node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 
@@ -1544,6 +1853,13 @@ class WhereAscIrCodegenImplV2 : public AscIrCodegenV2 {
       return true;
     }
     return false;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+      "adv_api/math/where.h",
+      "utils/std/type_traits.h",
+    };
   }
 };
 
@@ -1583,6 +1899,16 @@ class SelectAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     return false;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 class LeakyReluAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1610,6 +1936,12 @@ class LeakyReluAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) leaky_relu_node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 class ClipByValueAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1626,6 +1958,12 @@ class ClipByValueAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     (void)is_scalar_list; // 支持任意输入是scalar
     return true;
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/clamp.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 /*********************************************************************************/
@@ -1647,6 +1985,11 @@ class StoreAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetMicroApiName() const override {
     return "Store";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 class ConcatAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1663,6 +2006,11 @@ class ConcatAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"concat_reg_base.h"};
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h"
+    };
   }
 };
 /*********************************************************************************/
@@ -1681,6 +2029,11 @@ public:
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"split_reg_base.h"};
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h"
+    };
+  }
 };
 /*********************************************************************************/
 class GatherAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1698,6 +2051,14 @@ class GatherAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"gather_reg_base.h"};
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_scalar_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "micro_api/kernel_micro_intf.h",
+      "simt_api/cpp/kernel_simt_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 class TransposeAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1714,6 +2075,11 @@ class TransposeAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"transpose_base_type.h", "transpose.h"};
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+    };
   }
 };
 /*********************************************************************************/
@@ -1741,6 +2107,11 @@ class ErfAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/erf.h"
+    };
+  }
 };
 
 class CeilAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1761,6 +2132,11 @@ class CeilAscIrCodegenImplV2 : public AscIrCodegenV2 {
       {DT_BF16, DT_FLOAT},
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/ceil.h",
+    };
   }
 };
 
@@ -1783,6 +2159,11 @@ class CosAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/cos.h",
+    };
+  }
 };
 
 class TanhAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1800,6 +2181,11 @@ class TanhAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"tanh_reg_base.h"};
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/tanh.h"
+    };
+  }
 };
 
 class GeluAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1813,6 +2199,11 @@ class GeluAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "Gelu";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/activation/gelu.h"
+    };
   }
 };
 /*********************************************************************************/
@@ -1845,6 +2236,15 @@ class LogicalOrAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) or_node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+      "adv_api/math/logical_and.h",
+      "adv_api/math/logical_ands.h",
+      "adv_api/math/logical_or.h",
+      "adv_api/math/logical_ors.h",
+    };
+  }
 };
 
 class LogicalAndAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1870,6 +2270,14 @@ class LogicalAndAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void) and_node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/logical_and.h",
+      "adv_api/math/logical_ands.h",
+      "adv_api/math/logical_or.h",
+      "adv_api/math/logical_ors.h",
+    };
+  }
 };
 
 class BitwiseAndAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1879,6 +2287,12 @@ class BitwiseAndAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "BitwiseAnd";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/bitwise_and.h",
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 
@@ -1903,6 +2317,12 @@ class BitwiseNotAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void)node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/bitwise_not.h",
+      "micro_api/kernel_micro_intf.h",
+    };
+  }
 };
 
 class BitwiseOrAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1913,6 +2333,11 @@ class BitwiseOrAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::string GetApiName() const override {
     return "BitwiseOr";
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/bitwise_or.h",
+    };
+  }
 };
 
 class BitwiseXorAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1922,6 +2347,11 @@ class BitwiseXorAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "BitwiseXor";
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/bitwise_xor.h",
+    };
   }
 };
 
@@ -1943,6 +2373,11 @@ class FloorDivAscIrCodegenImplV2 : public AscIrCodegenV2 {
       {DT_UINT8, DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "micro_api/kernel_micro_intf.h",
+    };
   }
 };
 /*********************************************************************************/
@@ -1967,6 +2402,13 @@ class PowAscIrCodegenImplV2 : public AscIrCodegenV2 {
     // 不支持全scalar输入
     return !std::all_of(is_scalar_list.begin(), is_scalar_list.end(), [](bool i) { return i; });
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "utils/std/type_traits.h",
+      "adv_api/math/power.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class AxpyAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -1987,6 +2429,13 @@ class AxpyAscIrCodegenImplV2 : public AscIrCodegenV2 {
     (void)axpy_node;
     return true;
   }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class MatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -2003,6 +2452,14 @@ class MatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
             "mat_mul_pingpong_basic_cmct.h",
             "matmul.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "utils/std/algorithm.h",
+      "basic_api/kernel_operator_common_intf.h",
+      "basic_api/kernel_operator_set_atomic_intf.h",
+      "adv_api/matmul/matmul.h",
+    };
+  }
 };
 
 class BatchMatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -2018,6 +2475,14 @@ class BatchMatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
             "batch_matmul_include_headers.h",
             "mat_mul_pingpong_basic_cmct.h",
             "batch_matmul.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "utils/std/algorithm.h",
+      "basic_api/kernel_operator_common_intf.h",
+      "basic_api/kernel_operator_set_atomic_intf.h",
+      "adv_api/matmul/matmul.h",
+    };
   }
 };
 
@@ -2039,6 +2504,11 @@ class SinAscIrCodegenImplV2 : public AscIrCodegenV2 {
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/sin.h",
+    };
+  }
 };
 
 class RShiftAscIrCodegenImplV2 : public AscIrCodegenV2 {
@@ -2048,6 +2518,11 @@ class RShiftAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "ShiftRight";
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
   }
 };
 }  // namespace ascir

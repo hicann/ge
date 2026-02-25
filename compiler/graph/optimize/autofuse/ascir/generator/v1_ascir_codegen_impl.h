@@ -32,6 +32,11 @@ class DataAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "Data";
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class ScalarAscIrCodegenImpl : public AscIrCodegen {
@@ -41,6 +46,11 @@ class ScalarAscIrCodegenImpl : public AscIrCodegen {
   }
   std::string GetApiName() const override {
     return "Scalar";
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -52,6 +62,11 @@ class IndexExprAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "IndexExpr";
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class OutputAscIrCodegenImpl : public AscIrCodegen {
@@ -62,6 +77,11 @@ class OutputAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "Output";
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class WorkspaceAscIrCodegenImpl : public AscIrCodegen {
@@ -71,6 +91,11 @@ class WorkspaceAscIrCodegenImpl : public AscIrCodegen {
   }
   std::string GetApiName() const override {
     return "Workspace";
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -84,6 +109,9 @@ class LoadAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"datacopy.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {};
   }
 };
 
@@ -102,6 +130,14 @@ class BroadcastAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"duplicate.h", "broadcast.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "adv_api/pad/broadcast.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+    };
+  }
 };
 
 class NopAscIrCodegenImpl : public AscIrCodegen {
@@ -111,6 +147,11 @@ class NopAscIrCodegenImpl : public AscIrCodegen {
   }
   std::string GetApiName() const override {
     return "Nop";
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
   }
 };
 
@@ -128,6 +169,12 @@ class CastAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"cast.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class AbsAscIrCodegenImpl : public AscIrCodegen {
@@ -141,6 +188,11 @@ class AbsAscIrCodegenImpl : public AscIrCodegen {
   bool IsInplaceSupported(const ge::AscNode &abs_node) const override {
     (void) abs_node;
     return true;
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
   }
 };
 
@@ -156,6 +208,11 @@ class ExpAscIrCodegenImpl : public AscIrCodegen {
     (void) exp_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
+  }
 };
 
 class RemovePadAscIrCodegenImpl : public AscIrCodegen {
@@ -168,6 +225,11 @@ class RemovePadAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"removepad.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
   }
 };
 
@@ -187,6 +249,11 @@ class PadAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "Pad";
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/pad/pad.h",
+    };
+  }
 };
 
 class LnAscIrCodegenImpl : public AscIrCodegen {
@@ -201,6 +268,11 @@ class LnAscIrCodegenImpl : public AscIrCodegen {
     (void) ln_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
+  }
 };
 
 class SqrtAscIrCodegenImpl : public AscIrCodegen {
@@ -214,6 +286,11 @@ class SqrtAscIrCodegenImpl : public AscIrCodegen {
   bool IsInplaceSupported(const ge::AscNode &sqrt_node) const override {
     (void) sqrt_node;
     return true;
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
   }
 };
 
@@ -235,6 +312,13 @@ class RsqrtAscIrCodegenImpl : public AscIrCodegen {
     (void) rsqrt_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class NegAscIrCodegenImpl : public AscIrCodegen {
@@ -249,6 +333,11 @@ class NegAscIrCodegenImpl : public AscIrCodegen {
     (void) neg_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
+  }
 };
 
 class ReluAscIrCodegenImpl : public AscIrCodegen {
@@ -262,6 +351,11 @@ class ReluAscIrCodegenImpl : public AscIrCodegen {
   bool IsInplaceSupported(const ge::AscNode &relu_node) const override {
     (void) relu_node;
     return true;
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
   }
 };
 
@@ -283,6 +377,12 @@ class ReciprocalAscIrCodegenImpl : public AscIrCodegen {
     (void) reciprocal_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class SignAscIrCodegenImpl : public AscIrCodegen {
@@ -298,6 +398,13 @@ class SignAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"cast.h", "sign.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "adv_api/math/sign.h",
+    };
   }
 };
 
@@ -315,6 +422,14 @@ class IsnanAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"isnan.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class IsFiniteAscIrCodegenImpl : public AscIrCodegen {
@@ -330,6 +445,15 @@ class IsFiniteAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"isfinite.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_unary_intf.h",
+    };
   }
 };
 
@@ -351,6 +475,13 @@ class LogicalNotAscIrCodegenImpl : public AscIrCodegen {
     (void) not_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_unary_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+    };
+  }
 };
 
 class MaxAscIrCodegenImpl : public AscIrCodegen {
@@ -366,6 +497,17 @@ class MaxAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init.h", "reduce.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_brcb_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
   }
 };
 
@@ -383,6 +525,17 @@ class SumAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init.h", "reduce.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_brcb_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
+  }
 };
 
 class MinAscIrCodegenImpl : public AscIrCodegen {
@@ -398,6 +551,17 @@ class MinAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init.h", "reduce.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_brcb_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
   }
 };
 
@@ -415,6 +579,17 @@ class MeanAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init.h", "reduce.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_brcb_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
+  }
 };
 
 class ProdAscIrCodegenImpl : public AscIrCodegen {
@@ -430,6 +605,17 @@ class ProdAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init.h", "reduce.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_brcb_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
   }
 };
 
@@ -447,6 +633,17 @@ class AnyAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init.h", "reduce.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_brcb_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
+  }
 };
 
 class AllAscIrCodegenImpl : public AscIrCodegen {
@@ -462,6 +659,17 @@ class AllAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"reduce_init.h", "reduce.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "adv_api/reduce/reduce.h",
+      "basic_api/kernel_operator_vec_brcb_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
   }
 };
 
@@ -481,6 +689,17 @@ class GeAscIrCodegenImpl : public AscIrCodegen {
   }
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+    };
   }
 };
 
@@ -506,6 +725,17 @@ class EqAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"compare.h", "compare_v2.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+    };
+  }
 };
 
 class NeAscIrCodegenImpl : public AscIrCodegen {
@@ -529,6 +759,17 @@ class NeAscIrCodegenImpl : public AscIrCodegen {
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list);
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+    };
+  }
 };
 
 class GtAscIrCodegenImpl : public AscIrCodegen {
@@ -547,6 +788,17 @@ class GtAscIrCodegenImpl : public AscIrCodegen {
   }
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+    };
   }
 };
 
@@ -567,6 +819,17 @@ class LeAscIrCodegenImpl : public AscIrCodegen {
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+    };
+  }
 };
 
 class LtAscIrCodegenImpl : public AscIrCodegen {
@@ -586,6 +849,17 @@ class LtAscIrCodegenImpl : public AscIrCodegen {
   bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
     return OnlySecondInputSupportScalar(is_scalar_list); // 不支持调换
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_reduce_intf.h",
+    };
+  }
 };
 
 class SigmoidAscIrCodegenImpl : public AscIrCodegen {
@@ -602,6 +876,14 @@ class SigmoidAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"sigmoid.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_unary_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class Ub2ubAscIrCodegenImpl : public AscIrCodegen {
@@ -611,6 +893,9 @@ class Ub2ubAscIrCodegenImpl : public AscIrCodegen {
   }
   std::string GetApiName() const override {
     return "DataCopy";
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {};
   }
 };
 
@@ -642,6 +927,13 @@ class DivAscIrCodegenImpl : public AscIrCodegen {
     (void) div_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class SubAscIrCodegenImpl : public AscIrCodegen {
@@ -671,6 +963,13 @@ class SubAscIrCodegenImpl : public AscIrCodegen {
     (void) sub_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class AddAscIrCodegenImpl : public AscIrCodegen {
@@ -699,6 +998,12 @@ class AddAscIrCodegenImpl : public AscIrCodegen {
     (void) add_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
+  }
 };
 
 class MulAscIrCodegenImpl : public AscIrCodegen {
@@ -726,6 +1031,12 @@ class MulAscIrCodegenImpl : public AscIrCodegen {
   bool IsInplaceSupported(const ge::AscNode &mul_node) const override {
     (void) mul_node;
     return true;
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
   }
 };
 
@@ -756,6 +1067,13 @@ class TrueDivAscIrCodegenImpl : public AscIrCodegen {
     (void) true_div_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class MinimumAscIrCodegenImpl : public AscIrCodegen {
@@ -783,6 +1101,12 @@ class MinimumAscIrCodegenImpl : public AscIrCodegen {
   bool IsBrcInlineSupported(const ge::AscNode &node) const override {
     (void)node;
     return true;
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
   }
 };
 
@@ -812,6 +1136,12 @@ class MaximumAscIrCodegenImpl : public AscIrCodegen {
     (void) maximum_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 
@@ -833,6 +1163,16 @@ class WhereAscIrCodegenImpl : public AscIrCodegen {
     GE_ASSERT_EQ(is_scalar_list.size(), 3UL);
     return is_scalar_list[0] == false; // 除第1个外都支持Scalar
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+    };
+  }
 };
 
 class SelectAscIrCodegenImpl : public AscIrCodegen {
@@ -853,6 +1193,16 @@ class SelectAscIrCodegenImpl : public AscIrCodegen {
     GE_ASSERT_EQ(is_scalar_list.size(), 3UL);
     return is_scalar_list[0] == false; // 除第1个外都支持Scalar
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_cmpsel_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 class LeakyReluAscIrCodegenImpl : public AscIrCodegen {
@@ -866,6 +1216,11 @@ class LeakyReluAscIrCodegenImpl : public AscIrCodegen {
   bool IsInplaceSupported(const ge::AscNode &leaky_relu_node) const override {
     (void) leaky_relu_node;
     return true;
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
   }
 };
 /*********************************************************************************/
@@ -887,6 +1242,14 @@ class ClipByValueAscIrCodegenImpl : public AscIrCodegen {
     (void)is_scalar_list; // 支持任意输入是scalar
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "adv_api/math/clamp.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 class StoreAscIrCodegenImpl : public AscIrCodegen {
@@ -899,6 +1262,9 @@ class StoreAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"datacopy.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {};
   }
 };
 /*********************************************************************************/
@@ -916,6 +1282,12 @@ class ConcatAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"concat.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+      "basic_api/kernel_operator_vec_gather_mask_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 class GatherAscIrCodegenImpl : public AscIrCodegen {
@@ -931,6 +1303,13 @@ class GatherAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"gather.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_gather_intf.h",
+    };
   }
 };
 /*********************************************************************************/
@@ -952,6 +1331,11 @@ class TransposeAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"transpose_base_type.h", "transpose.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_transpose_intf.h",
+    };
+  }
 };
 /*********************************************************************************/
 
@@ -966,6 +1350,11 @@ class ErfAscIrCodegenImpl : public AscIrCodegen {
   std::string GetApiName() const override {
     return "Erf";
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/erf.h",
+    };
+  }
 };
 
 class TanhAscIrCodegenImpl : public AscIrCodegen {
@@ -978,6 +1367,11 @@ class TanhAscIrCodegenImpl : public AscIrCodegen {
   }
   std::string GetApiName() const override {
     return "Tanh";
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/tanh.h",
+    };
   }
 };
 
@@ -992,6 +1386,11 @@ class GeluAscIrCodegenImpl : public AscIrCodegen {
   }
   std::string GetApiName() const override {
     return "Gelu";
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/activation/gelu.h",
+    };
   }
 };
 /*********************************************************************************/
@@ -1021,6 +1420,15 @@ class LogicalOrAscIrCodegenImpl : public AscIrCodegen {
     (void) or_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "utils/std/type_traits.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_scalar_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
+  }
 };
 
 class LogicalAndAscIrCodegenImpl : public AscIrCodegen {
@@ -1048,6 +1456,15 @@ class LogicalAndAscIrCodegenImpl : public AscIrCodegen {
     (void) and_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "utils/std/type_traits.h",
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_scalar_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+    };
+  }
 };
 
 class BitwiseAndAscIrCodegenImpl : public AscIrCodegen {
@@ -1065,6 +1482,11 @@ class BitwiseAndAscIrCodegenImpl : public AscIrCodegen {
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"bitwise_and.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class FloorDivAscIrCodegenImpl : public AscIrCodegen {
@@ -1081,6 +1503,12 @@ class FloorDivAscIrCodegenImpl : public AscIrCodegen {
   }
   std::vector<std::string> LoadApiHeaderFiles() const override {
     return {"floor_div.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_binary_intf.h",
+      "adv_api/math/floor.h",
+    };
   }
 };
 /*********************************************************************************/
@@ -1104,6 +1532,12 @@ class PowAscIrCodegenImpl : public AscIrCodegen {
     // 不支持全scalar输入
     return !std::all_of(is_scalar_list.begin(), is_scalar_list.end(), [](bool i) { return i; });
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/power.h",
+      "basic_api/kernel_operator_vec_duplicate_intf.h",
+    };
+  }
 };
 
 class AxpyAscIrCodegenImpl : public AscIrCodegen {
@@ -1124,6 +1558,13 @@ class AxpyAscIrCodegenImpl : public AscIrCodegen {
     (void)axpy_node;
     return true;
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "basic_api/kernel_operator_vec_vconv_intf.h",
+      "basic_api/kernel_operator_vec_binary_scalar_intf.h",
+      "basic_api/kernel_operator_vec_binary_intf.h",
+    };
+  }
 };
 
 class MatMulAscIrCodegenImpl : public AscIrCodegen {
@@ -1140,6 +1581,14 @@ class MatMulAscIrCodegenImpl : public AscIrCodegen {
             "mat_mul_pingpong_basic_cmct.h",
             "matmul.h"};
   }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "utils/std/algorithm.h",
+      "basic_api/kernel_operator_common_intf.h",
+      "basic_api/kernel_operator_set_atomic_intf.h",
+      "adv_api/matmul/matmul.h",
+    };
+  }
 };
 
 class BatchMatMulAscIrCodegenImpl : public AscIrCodegen {
@@ -1155,6 +1604,14 @@ class BatchMatMulAscIrCodegenImpl : public AscIrCodegen {
             "batch_matmul_include_headers.h",
             "mat_mul_pingpong_basic_cmct.h",
             "batch_matmul.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "utils/std/algorithm.h",
+      "basic_api/kernel_operator_common_intf.h",
+      "basic_api/kernel_operator_set_atomic_intf.h",
+      "adv_api/matmul/matmul.h",
+    };
   }
 };
 }  // namespace ascir

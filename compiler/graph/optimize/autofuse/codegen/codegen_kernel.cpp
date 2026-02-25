@@ -3501,8 +3501,20 @@ Status Kernel::Generate(const std::string &impl_graph_name, const std::string &t
 }
 
 std::string Kernel::GetIncludeApiHeaderFiles(const ascir::FusedScheduledResult &fused_schedule_result) {
-  std::set<std::string> api_header_list;
+  std::set<std::string> api_header_list = {
+    "basic_api/kernel_tpipe.h",
+    "basic_api/kernel_tensor.h",
+    "basic_api/kernel_type.h",
+    "basic_api/kernel_operator_block_sync_intf.h",
+    "basic_api/kernel_operator_data_copy_intf.h",
+    "basic_api/kernel_common.h",
+    "basic_api/kernel_operator_common_intf.h",
+    "basic_api/kernel_operator_sys_var_intf.h",
+  };
   std::stringstream ss;
+  for (const auto &header : api_header_list) {
+    ss << "#include \"" << header << "\"" << std::endl;
+  }
   for (size_t graph_id = 0; graph_id < fused_schedule_result.node_idx_to_scheduled_results.size(); graph_id++) {
     auto scheduled_results = fused_schedule_result.node_idx_to_scheduled_results[graph_id];
     for (size_t i = 0; i < scheduled_results.size(); i++) {
@@ -3514,7 +3526,7 @@ std::string Kernel::GetIncludeApiHeaderFiles(const ascir::FusedScheduledResult &
             auto impl = ascgen_utils::GetAscIrCodegenImpl(node->GetType());
             GE_ASSERT_NOTNULL(impl, "GetAscIrCodegenImpl of node %s[%s] is null", node->GetTypePtr(),
                               node->GetNamePtr());
-            for (auto header_str : impl->IncludeApiHeaderFiles()) {
+            for (const auto &header_str : impl->IncludeApiHeaderFiles()) {
               if (api_header_list.count(header_str) == 0) {
                 api_header_list.insert(header_str);
                 ss << "#include \"" << header_str << "\"" << std::endl;

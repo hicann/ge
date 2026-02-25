@@ -90,6 +90,23 @@ Status CombineTilings(const std::map<std::string, std::string> &tiling_file_name
 }
 
 }  // namespace
+
+std::string RemoveSubDirInclude(const std::string& kernel_str) {
+  std::string result = R"(
+#include "kernel_operator.h"
+)";
+  std::stringstream ss(kernel_str);
+  std::string line;
+  while (std::getline(ss, line)) {
+    if (line.substr(0, 20) != "#include \"basic_api/" && line.substr(0, 18) != "#include \"adv_api/" &&
+        line.substr(0, 20) != "#include \"micro_api/" && line.substr(0, 19) != "#include \"simt_api/" &&
+        line.substr(0, 20) != "#include \"utils/std/") {
+      result += line + "\n";
+        }
+  }
+  return result;
+}
+
 Codegen::Codegen(const CodegenOptions &options)
     : tiling_lib_(options.tiling_lib_path, options.tiling_lib_codegen_symbol),
       using_att_calc_qbt_size_(options.using_att_calc_qbt_size) {}

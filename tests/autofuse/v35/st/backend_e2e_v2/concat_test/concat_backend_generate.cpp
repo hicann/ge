@@ -229,7 +229,7 @@ TEST_F(TestBackendConcatE2e, ConcatNotAllAligned) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }
@@ -260,7 +260,7 @@ TEST_F(TestBackendConcatE2e, ConcatNotAllAligned_B64) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
 
     std::string expected = "const concat::ConcatTiling<2> concat_tiling {\n"
                            "  .num_rows = static_cast<uint32_t>(z0t_actual_size),\n"
@@ -300,7 +300,7 @@ TEST_F(TestBackendConcatE2e, ConcatNotAllAligned_B8) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
     std::string expected = "const concat::ConcatTiling<2> concat_tiling {\n"
                            "  .num_rows = static_cast<uint32_t>(z0t_actual_size),\n"
                            "  .num_dst_cols = (ConvertToUint32((2 * t->s1))),\n"
@@ -337,7 +337,7 @@ TEST_F(TestBackendConcatE2e, ConcatNotAllAligned_B8ToB16) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
 
     std::string expected = "const concat::ConcatTiling<2> concat_tiling {\n"
                            "  .num_rows = static_cast<uint32_t>(z0t_actual_size),\n"
@@ -375,7 +375,7 @@ TEST_F(TestBackendConcatE2e, ConcatAllAligned) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
     std::string expected = "constexpr ConcatTilingAllAligned<2> concat_tiling {\n"
                            "  .dst_col_size = 64,\n"
                            "  .src_col_sizes = { 32, 32, },\n"
@@ -412,7 +412,7 @@ TEST_F(TestBackendConcatE2e, ConcatOneAxis) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
     std::cout << kernel << std::endl;
 
     std::string expected = "concat::ConcatOneAxis";

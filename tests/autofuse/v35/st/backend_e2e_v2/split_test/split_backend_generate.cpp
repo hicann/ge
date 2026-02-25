@@ -156,7 +156,7 @@ TEST_F(TestBackendSplitE2e, SplitAllAligned) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
     std::string expected = "constexpr SplitTilingAllAligned<2> split_tiling {\n"
                            "  .src_col_size = 64,\n"
                            "  .dst_col_sizes = { 32, 32, },\n"
@@ -197,7 +197,7 @@ TEST_F(TestBackendSplitE2e, SplitNotAllAligned_B64) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
 
     std::string expected = "const split::SplitTiling<2> split_tiling {\n"
                            "  .num_rows = static_cast<uint32_t>(z0t_actual_size), \n"
@@ -235,7 +235,7 @@ TEST_F(TestBackendSplitE2e, SplitNotAllAligned_B8) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
     std::string expected = "const split::SplitTiling<2> split_tiling {\n"
                            "  .num_rows = static_cast<uint32_t>(z0t_actual_size), \n"
                            "  .num_src_cols = (ConvertToUint32((2 * t->s1))), \n"
@@ -272,7 +272,7 @@ TEST_F(TestBackendSplitE2e, SplitNotAllAligned_B8ToB16) {
     EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    const auto &kernel = result.kernel;
+    const auto &kernel = RemoveSubDirInclude(result.kernel);
 
     std::string expected = "const split::SplitTiling<2> split_tiling {\n"
                            "  .num_rows = static_cast<uint32_t>(z0t_actual_size), \n"
@@ -322,7 +322,7 @@ TEST_F(TestBackendSplitE2e, SplitNotAllAligned_B8ToB16) {
      EXPECT_EQ(optimizer.Optimize(graph, fused_schedule_result), 0);
      codegen::CodegenResult result;
      EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-     kernel_file << tilig_stub << result.kernel;
+     kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
      tiling_file << result.tiling;
      tiling_data_file << result.tiling_data;
    }

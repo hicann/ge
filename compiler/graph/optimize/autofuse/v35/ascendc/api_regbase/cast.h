@@ -10,7 +10,6 @@
 
 #ifndef CAST_H
 #define CAST_H
-#include "kernel_operator.h"
 using namespace AscendC;
 
 template <typename InT, typename OutT>
