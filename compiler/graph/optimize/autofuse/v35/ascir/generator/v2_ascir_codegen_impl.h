@@ -2489,7 +2489,7 @@ class BatchMatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
 class SinAscIrCodegenImplV2 : public AscIrCodegenV2 {
  public:
   [[nodiscard]] std::string GetApiCallName() const override {
-    return "UnaryApiCall";
+    return "UnaryApiTmpV2Call";
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "Sin";

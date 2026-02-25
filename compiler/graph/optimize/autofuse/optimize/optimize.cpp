@@ -322,21 +322,22 @@ Status DoSeqAdjustment(const ge::AscGraph &impl_graph, const std::map<int64_t, i
   return ge::SUCCESS;
 }
 
-void RegisterScoreFuncInScheduleGroup([[maybe_unused]] const autoschedule::AutoScheduleOutput &schedule_output,
-                                      [[maybe_unused]] ScheduleGroup &schedule_group,
-                                      const bool should_skip_registry = true) {
+std::string RegisterScoreFuncInScheduleGroup(const autoschedule::AutoScheduleOutput &schedule_output,
+                                             ScheduleGroup &schedule_group, const bool should_skip_registry = true) {
   if (schedule_output.score_func.empty()) {
-    return;
+    return "";
   }
+
+  const std::string graph_name = schedule_output.scheduled_graph.GetName();
 
   if (should_skip_registry) {
-    GELOGD("Not a valid case, skip register template score func of graph [%s].", schedule_output.scheduled_graph.GetName().c_str());
-    return;
+    GELOGD("Not a valid case, skip register template score func of graph [%s].", graph_name.c_str());
+    return "";
   }
 
-  schedule_group.graph_name_to_score_funcs[schedule_output.scheduled_graph.GetName()] = schedule_output.score_func;
-  GELOGD("The score func of template [%s] is [%s].", schedule_output.scheduled_graph.GetName().c_str(),
-         schedule_output.score_func.c_str());
+  schedule_group.graph_name_to_score_funcs[graph_name] = schedule_output.score_func;
+  GELOGD("The score func of template [%s] is [%s].", graph_name.c_str(), schedule_output.score_func.c_str());
+  return graph_name;
 }
 
 ge::Status CopyImplGraphs(const std::vector<autoschedule::AutoScheduleOutput> &schedule_outputs,
@@ -360,6 +361,37 @@ bool CanDoReMergeAxis(const ge::AscGraph &impl_graph) {
   GraphPropertiesCache cache(impl_graph);
   // 如果包含Gather、Reduce或Cube类型节点，则不能重新合并轴
   return !cache.HasGather() && !cache.HasReduce() && !cache.HasCube();
+}
+
+void FilterComplexTilingDataScoreFuncs(std::vector<::ascir::ScheduledResult> &scheduled_results,
+                                       const std::set<std::string> &scored_graph_names) {
+  // 如果没有需要清理的图名，直接返回
+  if (scored_graph_names.empty()) {
+    return;
+  }
+  // 只为单result单group场景注册打分函数
+  if (scheduled_results.size() == 1UL && scheduled_results[0].schedule_groups.size() == 1UL) {
+    GELOGD("Autoschedule score func for graph simple tiling data: %zu results, %zu groups", scheduled_results.size(),
+           scheduled_results[0].schedule_groups.size());
+    return;
+  }
+
+  for (auto &result : scheduled_results) {
+    for (auto &group : result.schedule_groups) {
+      // 遍历 score_funcs，检查是否在 scored_graph_names 中
+      auto it = group.graph_name_to_score_funcs.begin();
+      while (it != group.graph_name_to_score_funcs.end()) {
+        if (scored_graph_names.count(it->first) == 0) {
+          ++it;
+          continue;
+        }
+        // 只删除在 scored_graph_names 中的打分函数
+        GELOGD("Clear autoschedule score func for graph [%s] in complex tiling data: %zu results, %zu groups",
+               it->first.c_str(), scheduled_results.size(), result.schedule_groups.size());
+        it = group.graph_name_to_score_funcs.erase(it);
+      }
+    }
+  }
 }
 }  // namespace
 
@@ -809,16 +841,17 @@ static Status ProcessCubeSchedules(std::vector<ascir::ScheduledResult> &schedule
 
 static Status ProcessNonReduceSchedules(const std::vector<autoschedule::AutoScheduleOutput> &schedule_outputs,
                                         std::vector<ascir::ScheduledResult> &scheduled_results_cur,
-                                        ScheduleTask &schedule_task) {
+                                        ScheduleTask &schedule_task,
+                                        std::set<std::string> &scored_graph_names) {
   ScheduleGroup schedule_group;
   schedule_group.impl_graphs.reserve(schedule_outputs.size());
   for (const auto &schedule_output : schedule_outputs) {
     schedule_group.impl_graphs.emplace_back(schedule_output.scheduled_graph);
-    // 目前仅对elewise+brc/单group/单result开放nddma模板打分
-    // transpose/split有场景触发转为Load/Store
-    bool skip_template_score_func_registry = schedule_task.grouped_graphs.size() > 1UL ||
-                                             scheduled_results_cur.size() > 1UL || schedule_task.has_load_store_conversion;
-    RegisterScoreFuncInScheduleGroup(schedule_output, schedule_group, skip_template_score_func_registry);
+    // 目前仅对elewise+brc/单group/单result开放nddma模板打分，单result单group场景过滤放在FilterComplexTilingDataScoreFuncs
+    // transpose/split/concat有场景触发转为Load/Store
+    std::string autoschedule_graph_name =
+        RegisterScoreFuncInScheduleGroup(schedule_output, schedule_group, schedule_task.has_load_store_conversion);
+    scored_graph_names.insert(autoschedule_graph_name);
   }
   for (auto &res : scheduled_results_cur) {
     res.schedule_groups.emplace_back(schedule_group);
@@ -841,6 +874,9 @@ Status Optimizer::AutoScheduler([[maybe_unused]]const HintGraph &hint_graph, Sch
   size_t index = 0UL;
   std::vector<ascir::ScheduledResult> scheduled_results_cur;
   GE_ASSERT_SUCCESS(InitializeScheduledResults(scheduled_results_cur, schedule_task));
+
+  // 记录注册打分函数的nddma模板名
+  std::set<std::string> scored_graph_names;
 
   for (auto &grouped_graph : schedule_task.grouped_graphs) {
     GE_CHK_STATUS_RET(AscGraphInfoComplete::CompleteApiInfo(grouped_graph), "CompleteApiInfo failed");
@@ -890,12 +926,16 @@ Status Optimizer::AutoScheduler([[maybe_unused]]const HintGraph &hint_graph, Sch
         GE_ASSERT_SUCCESS(CopyImplGraphs(schedule_outputs, scheduled_results_cur));
       } else {
         GE_ASSERT_SUCCESS(
-            ProcessNonReduceSchedules(schedule_outputs, scheduled_results_cur, schedule_task));
+            ProcessNonReduceSchedules(schedule_outputs, scheduled_results_cur, schedule_task, scored_graph_names));
       }
     }
     index++;
   }
   scheduled_results.insert(scheduled_results.end(), scheduled_results_cur.begin(), scheduled_results_cur.end());
+
+  // 过滤复杂tilingdata的nddma打分函数
+  FilterComplexTilingDataScoreFuncs(scheduled_results, scored_graph_names);
+
   return ge::SUCCESS;
 }
 
