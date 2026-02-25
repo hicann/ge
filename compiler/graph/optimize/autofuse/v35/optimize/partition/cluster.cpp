@@ -35,12 +35,13 @@ void Cluster::AddOutput(Cluster &output) {
 
 void Cluster::MergeFrom(Cluster &from) {
   nodes_.insert(nodes_.cend(), from.nodes_.cbegin(), from.nodes_.cend());
-  node_set_.insert(from.node_set_.begin(), from.node_set_.end());
   from.inputs_.erase(this);
   from.outputs_.erase(this);
   inputs_.erase(&from);
   outputs_.erase(&from);
   meta_data_.ins_num += from.meta_data_.ins_num;
+  meta_data_.max_width = std::max(from.meta_data_.max_width, meta_data_.max_width);
+  meta_data_.from_width = from.meta_data_.from_width;
 
   auto in_clusters = from.inputs_;
   for (const auto &cluster : in_clusters) {
@@ -101,13 +102,12 @@ std::unordered_set<ge::AscNodePtr> Cluster::CalculateMergedInNodes(
 std::unordered_set<ge::AscNodePtr> Cluster::CalculateMergedOutNodes(const Cluster &pre, const Cluster &post) {
   std::unordered_set<ge::AscNodePtr> merged_out;
 
-  for (const auto &node: post.out_nodes_) {
+  for (const auto &node : post.out_nodes_) {
     merged_out.insert(node);
   }
-  for (const auto &node: pre.out_nodes_) {
-    for (const auto &out_node: node->GetOutDataNodes()) {
-      auto asc_out_node = std::dynamic_pointer_cast<ge::AscNode>(out_node);
-      if ((asc_out_node != nullptr) && !post.ContainsNode(asc_out_node)) {
+  for (const auto &node : pre.out_nodes_) {
+    for (auto out_node : node->GetOutDataNodes()) {
+      if (std::find(post.nodes_.begin(), post.nodes_.end(), out_node) == post.nodes_.end()) {
         merged_out.insert(node);
       }
     }

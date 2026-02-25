@@ -20,6 +20,9 @@ struct Cluster {
   struct MetaData {
     bool enable_vf{false};
     uint32_t ins_num{0U};
+    int32_t from_width{0};
+    int32_t to_width{0};
+    int32_t max_width{0};
     int64_t loop_axis{-1};
   };
   struct ClusterCmp {
@@ -28,7 +31,7 @@ struct Cluster {
       return a->Id() < b->Id();
     }
   };
-  Cluster(const ge::AscNodePtr &node, const size_t id) : nodes_{node}, node_set_{node}, id_(id) {}
+  Cluster(const ge::AscNodePtr &node, const size_t id) : nodes_{node}, id_(id) {}
   virtual ~Cluster() = default;
 
   static std::unordered_set<ge::AscNodePtr> FindConnectedNodes(const Cluster &pre, const Cluster &post);
@@ -44,11 +47,6 @@ struct Cluster {
   void RemoveInput(Cluster &input);
   void RemoveOutput(Cluster &output);
   const std::list<ge::AscNodePtr> &Nodes() const;
-
-  bool ContainsNode(const ge::AscNodePtr &node) const {
-    return node_set_.count(node) > 0UL;
-  }
-
   size_t Id() const {
     return id_;
   }
@@ -62,7 +60,6 @@ struct Cluster {
 
   MetaData meta_data_;
   std::list<ge::AscNodePtr> nodes_;
-  std::unordered_set<ge::AscNodePtr> node_set_;  // 用于 O(1) 节点查找
   std::unordered_set<ge::AscNodePtr> in_nodes_;
   std::unordered_set<ge::AscNodePtr> out_nodes_;
   std::set<Cluster *, ClusterCmp> inputs_;
