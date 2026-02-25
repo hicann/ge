@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_LIFTINGS_H_
-#define AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_LIFTINGS_H_
+#ifndef AUTOFUSE_LOWERING_LIFINGS_H_
+#define AUTOFUSE_LOWERING_LIFINGS_H_
 
 #include "graph/node.h"
 
@@ -27,4 +27,4 @@ class LiftingManager {
 
 }  // namespace ge
 
-#endif  // AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_LIFTINGS_H_
+#endif  // AUTOFUSE_LOWERING_LIFINGS_H_

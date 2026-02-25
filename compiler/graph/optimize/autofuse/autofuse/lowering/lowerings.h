@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_LOWERING_H_
-#define AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_LOWERING_H_
+#ifndef AUTOFUSE_LOWERING_LOWERINGS_H_
+#define AUTOFUSE_LOWERING_LOWERINGS_H_
 
 #include <functional>
 #include <memory>
@@ -17,14 +17,9 @@
 
 #include "graph/node.h"
 #include "asc_lowerer/loop_api.h"
-#include "autofuse_frame/autofuse_frames.h"
+#include "lowering_utils.h"
 
 namespace ge {
-struct LoweringConfig {
-  size_t max_loop_ops = 64U;
-  size_t max_loop_loads = 4U;
-  size_t max_buffer_readers = 4U;
-};
 constexpr LoweringConfig kLoweringConfig;
 
 struct AscBackendFuseConfig {
@@ -39,10 +34,17 @@ class LoweringManager {
  public:
   static graphStatus Lowering(const NodePtr &node);
   static graphStatus LoweringGraph(const ComputeGraphPtr &graph, const LoweringConfig &config = kLoweringConfig);
+
+  static OpDescPtr BuildOpDescForKernelBox(loop::KernelBox &kernel_box, std::vector<const ge::OutDataAnchor *> &origin_inputs,
+                                           CounterPtr counter);
   static graphStatus FusedLoopToAscBackendOp(const ComputeGraphPtr &graph,
                                              const AscBackendFuseConfig &config = kAscBackendFuseConfig, CounterPtr counter = nullptr);
-  static graphStatus LiftingOneNodeAscBackendOp(const ComputeGraphPtr &graph);
+  static graphStatus FusedSubgraphLoopToAscBackendOp(
+    const ComputeGraphPtr &graph, const AscBackendFuseConfig &config,
+    std::map<const ge::OutDataAnchor *, ge::OutDataAnchor *> &ascend_out_to_asc_out, CounterPtr counter);
+
   static graphStatus GetFusedOriginComputeGraph(const AutoFuseAttrs &attrs, const NodePtr &node);
+  static graphStatus PostPrecessAfterLoweringNode(const NodePtr &node, const LoweringConfig &config);
 
   [[nodiscard]] bool IsLoweringRegistered(const std::string &op_type) const;
   static void Register(const std::string &op_type, const std::function<graphStatus(const NodePtr &)> &lower);
@@ -59,4 +61,4 @@ class LoweringManager {
 
 }  // namespace ge
 
-#endif  // AIR_CXX_COMPILER_GRAPH_OPTIMIZE_AUTOFUSE_LOWERING_LOWERING_H_
+#endif  // AUTOFUSE_LOWERING_LOWERINGS_H_

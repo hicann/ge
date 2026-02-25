@@ -38,15 +38,6 @@ class Autofuser {
   GraphPasses graph_passes_;
   CounterPtr counter_ = nullptr;
 };
-
-class DefaultCounter : public Counter {
-public:
-  DefaultCounter() = default;
-  ~DefaultCounter() override = default;
-  int64_t NextId() override { return id_++;};
-private:
-  int64_t id_ = 0;
-};
 }  // namespace ge
 
 #endif  // AUTOFUSE_AUTOFUSER_H
