@@ -11,7 +11,6 @@
 #ifndef __ASCENDC_API_REGBASE_WHERE_V2_H__
 #define __ASCENDC_API_REGBASE_WHERE_V2_H__
 
-#include "kernel_operator.h"
 using namespace AscendC;
 
 /**
@@ -113,10 +112,6 @@ inline __aicore__  void WhereExtend(const LocalTensor<T> &dst, const LocalTensor
     static_assert((dim == 1) || (dim == 2),"Where only support dim=1 or dim=2");
     static_assert(Std::is_same<T, T1>::value,"Where:T must be the same as T1");
     static_assert(Std::is_same<T, T2>::value,"Where:T must be the same as T2");
-    CheckTensorPosition(dst, "dst", "VECIN, VECOUT, VECCALC");
-    CheckTensorPosition(mask, "mask", "VECIN, VECOUT, VECCALC");
-    CheckTensorPosition(src0, "src0", "VECIN, VECOUT, VECCALC");
-    CheckTensorPosition(src1, "src1", "VECIN, VECOUT, VECCALC");
     T1 scalar0 = 0;
     T2 scalar1 = 0;
     if (isBcastSrc0 == true) {

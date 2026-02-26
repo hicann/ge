@@ -200,13 +200,34 @@ Status ModelHelper::SaveSizeToModelDef(const GeModelPtr &ge_model, const size_t 
   return SUCCESS;
 }
 
+Status ModelHelper::ConfigureAttrCompressionMode(const string &mode) {
+  if (mode != "true" && mode != "false") {
+    GELOGE(PARAM_INVALID, "[Validate][AttrCompressionMode] Invalid value '%s'. "
+           "Only 'true' or 'false' are allowed.", mode.c_str());
+    return PARAM_INVALID;
+  }
+
+  attr_compression_enabled_ = (mode == "true");
+  GELOGI("[AttrCompression] Configured from options: enabled=%s",
+         attr_compression_enabled_ ? "true" : "false");
+  return SUCCESS;
+}
+
 Status ModelHelper::SaveModelDef(std::shared_ptr<OmFileSaveHelper> &om_file_save_helper, const GeModelPtr &ge_model,
                                  ge::Buffer &model_buffer, const size_t model_index) const {
-  if (is_offline_ && is_need_compress_) {
+  // Calculate final compression decision based on enabled flag
+  const bool should_compress = ShouldCompress();
+
+  // Detailed logging for debugging
+  GELOGD("[AttrCompression] enabled=%s, is_offline=%d, is_need_compress=%d, decision=%s",
+         attr_compression_enabled_ ? "true" : "false",
+         static_cast<int32_t>(is_offline_),
+         static_cast<int32_t>(is_need_compress_),
+         should_compress ? "COMPRESS" : "SKIP");
+
+  if (should_compress) {
     (void)ModelCompressManager::Compress(ge_model);
   }
-  GELOGD("is_offline_ is %d, is_need_compress_ is %d", static_cast<int32_t>(is_offline_),
-         static_cast<int32_t>(is_need_compress_));
   const ModelPtr model_tmp = ge::MakeShared<ge::Model>(ge_model->GetName(), ge_model->GetPlatformVersion());
   if (model_tmp == nullptr) {
     GELOGE(FAILED, "[Creat][Model]Failed, Model %s Ptr", ge_model->GetName().c_str());

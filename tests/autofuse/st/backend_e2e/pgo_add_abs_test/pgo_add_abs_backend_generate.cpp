@@ -83,7 +83,7 @@ TEST_F(TestBackendPgoAddAbsE2e, PgoAddAbsE2eCodegen) {
 
     std::map<std::string, std::string> tiling_file_name_to_content;
     tiling_file_name_to_content = codegen.GenerateTiling(fused_schedule_result, shape_info, ".", "10");
-    kernel_file << tilig_stub << kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(kernel);
     tiling_data_file << tiling_data;
     tiling_head_file << tiling_file_name_to_content["TilingHead"];
     asc_graph0_result0_g0_file << tiling_file_name_to_content["asc_graph0_schedule_result0_g0"];

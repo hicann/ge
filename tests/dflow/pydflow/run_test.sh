@@ -137,7 +137,7 @@ main() {
 
       export PYTHONPATH=${BASEPATH}/dflow/pydflow/python:$PYTHONPATH
       echo "PYTHONPATH=${PYTHONPATH}"
-      ASAN_OPTIONS=detect_leaks=0 coverage run --data-file=coverage_dflow -m unittest discover -v ${PYDFLOW_TEST_PATH}/ut
+      ASAN_OPTIONS=detect_leaks=0 COVERAGE_FILE=coverage_dflow coverage run -m unittest discover -v ${PYDFLOW_TEST_PATH}/ut
       echo "run ut end"
       unset PYDFLOW_BUILD_PATH
   fi
@@ -155,7 +155,7 @@ main() {
 
       export PYTHONPATH=${BASEPATH}/dflow/pydflow/python/:$PYTHONPATH
       echo "PYTHONPATH=${PYTHONPATH}"
-      ASAN_OPTIONS=detect_leaks=0 coverage run --data-file=coverage_dflow -m unittest discover -v ${PYDFLOW_TEST_PATH}/st
+      ASAN_OPTIONS=detect_leaks=0 COVERAGE_FILE=coverage_dflow coverage run -m unittest discover -v ${PYDFLOW_TEST_PATH}/st
       echo "run st end"
       unset PYDFLOW_BUILD_PATH
   fi

@@ -15,7 +15,7 @@
 #include "codegen_tiling.h"
 #include "ascgen_log.h"
 #include "schedule_result.h"
-
+std::string RemoveSubDirInclude(const std::string& kernel_str);
 namespace codegen {
 struct CodegenResult {
   std::string proto = "";

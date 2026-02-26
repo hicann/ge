@@ -78,7 +78,7 @@ TEST_F(LoadStoreUT, DiscreteStoreCodegen) {
     codegen::CodegenResult result;
     std::map<std::string, std::string> shape_info;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }

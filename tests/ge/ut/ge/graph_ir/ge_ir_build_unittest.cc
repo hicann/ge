@@ -627,6 +627,39 @@ TEST(UtestIrCommon, check_allow_hf32) {
   EXPECT_EQ(CheckAllowHF32ParamValid("false"), SUCCESS);
 }
 
+TEST(UtestIrCommon, check_attr_compression_empty) {
+  EXPECT_EQ(CheckAttrCompressionParamValid(""), SUCCESS);
+}
+
+TEST(UtestIrCommon, check_attr_compression_valid_lowercase) {
+  EXPECT_EQ(CheckAttrCompressionParamValid("true"), SUCCESS);
+  EXPECT_EQ(CheckAttrCompressionParamValid("false"), SUCCESS);
+}
+
+TEST(UtestIrCommon, check_attr_compression_valid_uppercase) {
+  EXPECT_EQ(CheckAttrCompressionParamValid("TRUE"), SUCCESS);
+  EXPECT_EQ(CheckAttrCompressionParamValid("FALSE"), SUCCESS);
+}
+
+TEST(UtestIrCommon, check_attr_compression_valid_mixed_case) {
+  EXPECT_EQ(CheckAttrCompressionParamValid("True"), SUCCESS);
+  EXPECT_EQ(CheckAttrCompressionParamValid("False"), SUCCESS);
+  EXPECT_EQ(CheckAttrCompressionParamValid("TrUe"), SUCCESS);
+  EXPECT_EQ(CheckAttrCompressionParamValid("FaLsE"), SUCCESS);
+}
+
+TEST(UtestIrCommon, check_attr_compression_invalid_values) {
+  EXPECT_EQ(CheckAttrCompressionParamValid("yes"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("no"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("1"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("0"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("enable"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("disable"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("on"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("off"), PARAM_INVALID);
+  EXPECT_EQ(CheckAttrCompressionParamValid("invalid"), PARAM_INVALID);
+}
+
 TEST(UtestIrCommon, check_param_failed) {
   std::string param_invalid = "invalid";
 

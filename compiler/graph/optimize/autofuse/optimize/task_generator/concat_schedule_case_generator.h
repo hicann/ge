@@ -31,6 +31,9 @@ class ConcatFusionCaseGenerator : public FusionCaseGenerator {
                   std::vector<ascir::ImplGraph> &graphs,
                   std::vector<std::string> &score_functions) override;
   ConcatFusionCaseGenerator& SetConvertToStoreMode();
+  [[nodiscard]] bool HasLoadStoreConversion() const override{
+    return true;
+  }
 
  private:
   Status AddTemplateForSplitConcat(const ascir::HintGraph &graph, std::vector<ascir::ImplGraph> &graphs);

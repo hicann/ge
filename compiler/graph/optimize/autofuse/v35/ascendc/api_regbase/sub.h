@@ -11,8 +11,6 @@
 #ifndef __ASCENDC_REGBASE_API_SUB_H__
 #define __ASCENDC_REGBASE_API_SUB_H__
 
-#include "kernel_operator.h"
-
 template <typename T>
 inline __aicore__ void SubExtend(const LocalTensor<T> &dst, const LocalTensor<T> &src1, const LocalTensor<T> &src2,
                             const uint32_t calc_cnt) {

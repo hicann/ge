@@ -1226,4 +1226,97 @@ TEST_F(UtestModelHelper, SaveToOm_for_SubPkg_Opp) {
     ge::PathUtils::RemoveDirectories(path);
   }
 }
+
+// Testable ModelHelper subclass to expose private methods for testing
+class TestableModelHelper : public ModelHelper {
+ public:
+  // Expose ShouldCompress method for testing
+  bool TestShouldCompress() const {
+    return ShouldCompress();
+  }
+
+  // Expose GetCompressionModeString method for testing
+  const char* TestGetCompressionModeString() const {
+    return attr_compression_enabled_ ? "enable" : "disable";
+  }
+};
+
+// Test 1: enabled=true + offline=true + need_compress=true → should compress
+TEST_F(UtestModelHelper, AttrCompression_EnabledWithOffline_ShouldCompress) {
+  TestableModelHelper helper;
+  helper.SetSaveMode(true);  // is_offline_ = true
+  helper.SetAttrCompressionEnabled(true);  // attr_compression_enabled_ = true
+
+  EXPECT_TRUE(helper.TestShouldCompress());
+  EXPECT_STREQ(helper.TestGetCompressionModeString(), "enable");
+}
+
+// Test 2: enabled=true + offline=false → should not compress
+TEST_F(UtestModelHelper, AttrCompression_EnabledWithOnline_ShouldNotCompress) {
+  TestableModelHelper helper;
+  helper.SetSaveMode(false);  // is_offline_ = false
+  helper.SetAttrCompressionEnabled(true);  // attr_compression_enabled_ = true
+
+  EXPECT_FALSE(helper.TestShouldCompress());
+  EXPECT_STREQ(helper.TestGetCompressionModeString(), "enable");
+}
+
+// Test 3: enabled=false + offline=true → should not compress (disabled overrides offline)
+TEST_F(UtestModelHelper, AttrCompression_DisabledWithOffline_ShouldNotCompress) {
+  TestableModelHelper helper;
+  helper.SetSaveMode(true);   // is_offline_ = true
+  helper.SetAttrCompressionEnabled(false);  // attr_compression_enabled_ = false
+
+  EXPECT_FALSE(helper.TestShouldCompress());
+  EXPECT_STREQ(helper.TestGetCompressionModeString(), "disable");
+}
+
+// Test 4: enabled=false + offline=false → should not compress
+TEST_F(UtestModelHelper, AttrCompression_DisabledWithOnline_ShouldNotCompress) {
+  TestableModelHelper helper;
+  helper.SetSaveMode(false);  // is_offline_ = false
+  helper.SetAttrCompressionEnabled(false);  // attr_compression_enabled_ = false
+
+  EXPECT_FALSE(helper.TestShouldCompress());
+  EXPECT_STREQ(helper.TestGetCompressionModeString(), "disable");
+}
+
+// Test 5: ConfigureFromOptions with valid values (only "true" and "false" are accepted)
+TEST_F(UtestModelHelper, AttrCompression_ConfigureFromOptions_ValidValues) {
+  TestableModelHelper helper;
+
+  // Test "true"
+  EXPECT_EQ(helper.ConfigureAttrCompressionMode("true"), SUCCESS);
+  EXPECT_STREQ(helper.TestGetCompressionModeString(), "enable");
+
+  // Test "false"
+  EXPECT_EQ(helper.ConfigureAttrCompressionMode("false"), SUCCESS);
+  EXPECT_STREQ(helper.TestGetCompressionModeString(), "disable");
+}
+
+// Test 8: ConfigureFromOptions with other invalid values (auto, enable, disable, 1, 0)
+TEST_F(UtestModelHelper, AttrCompression_ConfigureFromOptions_OtherInvalidValues) {
+  TestableModelHelper helper;
+
+  // Test "enable" - no longer supported
+  EXPECT_EQ(helper.ConfigureAttrCompressionMode("enable"), PARAM_INVALID);
+
+  // Test "disable" - no longer supported
+  EXPECT_EQ(helper.ConfigureAttrCompressionMode("disable"), PARAM_INVALID);
+
+  // Test "1" - no longer supported
+  EXPECT_EQ(helper.ConfigureAttrCompressionMode("1"), PARAM_INVALID);
+
+  // Test "0" - no longer supported
+  EXPECT_EQ(helper.ConfigureAttrCompressionMode("0"), PARAM_INVALID);
+}
+
+// Test 6: ConfigureFromOptions with empty options (use default)
+TEST_F(UtestModelHelper, AttrCompression_ConfigureFromOptions_EmptyOptions) {
+  TestableModelHelper helper;
+
+  std::map<std::string, std::string> options;
+  EXPECT_EQ(helper.ConfigureAttrCompressionMode(""), PARAM_INVALID);
+  EXPECT_STREQ(helper.TestGetCompressionModeString(), "enable");  // Default value is true
+}
 }  // namespace ge

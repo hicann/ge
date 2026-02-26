@@ -77,11 +77,11 @@ TEST_F(TestBackendMatmulEleBrc, MatmulEleBrcCodegen) {
 
     // 分别生成ub和common模板的kernel和tiling
     EXPECT_EQ(codegen.Generate(shape_info, ub_schedule_result, result),0);
-    kernel_file << result.kernel;
+    kernel_file << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
 
-    // 校验result.kernel中是否包含IncludeMatmulHeadFiles方法返回的所有头文件内容
+    // 校验RemoveSubDirInclude(result.kernel)中是否包含IncludeMatmulHeadFiles方法返回的所有头文件内容
     std::vector<std::string> expected_headers = {
         "#include \"arch35/mat_mul_v3_tiling_key_public.h\"",
         "#include \"arch35/mat_mul_tiling_data.h\"",
@@ -103,7 +103,7 @@ TEST_F(TestBackendMatmulEleBrc, MatmulEleBrcCodegen) {
     };
 
     for (const auto& header : expected_headers) {
-      EXPECT_NE(result.kernel.find(header), std::string::npos)
+      EXPECT_NE(RemoveSubDirInclude(result.kernel).find(header), std::string::npos)
           << "Expected header not found in kernel: " << header;
     }
 
@@ -115,13 +115,13 @@ TEST_F(TestBackendMatmulEleBrc, MatmulEleBrcCodegen) {
     std::fstream tiling_data_file_common(tiling_data_src_file_name, std::ios::out);
     codegen::CodegenResult result_common;
     EXPECT_EQ(codegen.Generate(shape_info, common_schedule_result, result_common),0);
-    kernel_file_common << result_common.kernel;
+    kernel_file_common << RemoveSubDirInclude(result_common.kernel);
     tiling_file_common << result_common.tiling;
     tiling_data_file_common << result_common.tiling_data;
 
     // 校验result_common.kernel中是否包含IncludeMatmulHeadFiles方法返回的所有头文件内容
     for (const auto &header : expected_headers) {
-      EXPECT_NE(result_common.kernel.find(header), std::string::npos)
+      EXPECT_NE(RemoveSubDirInclude(result_common.kernel).find(header), std::string::npos)
           << "Expected header not found in common kernel: " << header;
     }
   } catch (...) {

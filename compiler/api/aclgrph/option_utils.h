@@ -118,6 +118,7 @@ Status CheckIsWeightClipParamValid(const std::string &is_weight_clip);
 Status CheckAcParallelEnableParamValid(const std::string &ac_parallel_enable);
 Status CheckTilingScheduleOptimizeParamValid(const std::string &tiling_schedule_optimize);
 Status CheckQuantDumpableParamValid(const std::string &quant_dumpable);
+Status CheckAttrCompressionParamValid(const std::string &enable_attr_compression);
 Status CheckImplmodeParamValid(const std::string &optypelist_for_implmode, std::string &op_select_implmode);
 Status CheckModifyMixlistParamValid(const std::map<std::string, std::string> &options);
 Status CheckModifyMixlistParamValid(const std::string &precision_mode, const std::string &precision_mode_v2,

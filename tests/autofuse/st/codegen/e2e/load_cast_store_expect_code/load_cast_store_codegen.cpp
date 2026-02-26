@@ -68,7 +68,7 @@ TEST_F(LoadCastStoreTest, LoadCastStoreCodegen) {
     InitScheduleResultsByImplGraphs(test_impl_graphs, fused_schedule_result);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(fused_schedule_result, result),0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }
@@ -111,7 +111,7 @@ TEST_F(LoadCastStoreTest, LoadCastStoreCodegen) {
     InitScheduleResultsByImplGraphs(test_impl_graphs_uint8, fused_schedule_result_uint8);
     codegen::CodegenResult result_uint8;
     EXPECT_EQ(codegen_uint8.Generate(fused_schedule_result_uint8, result_uint8),0);
-    kernel_file_uint8 << tilig_stub_uint8 << result_uint8.kernel;
+    kernel_file_uint8 << tilig_stub_uint8 << RemoveSubDirInclude(result_uint8.kernel);
     tiling_data_file_uint8 << result_uint8.tiling_data;
   }
   catch (...) {

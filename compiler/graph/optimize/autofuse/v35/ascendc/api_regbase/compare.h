@@ -11,7 +11,6 @@
 #ifndef __ASCENDC_API_REGBASE_COMPARE_H__
 #define __ASCENDC_API_REGBASE_COMPARE_H__
 
-#include "kernel_operator.h"
 using namespace AscendC;
 template <typename InT, CMPMODE mode, uint16_t vlSize, bool isScalar = false>
 __simd_vf__ inline void CompareNormal2DVecImpl(__ubuf__ uint8_t* dst, __ubuf__ InT* src0,
@@ -81,9 +80,6 @@ __aicore__ inline void CompareExtend(const LocalTensor<uint8_t>& dst,
                                      const uint16_t (&output_stride)[dim],
                                      const uint16_t (&input_stride)[dim]) 
 {
-    CheckTensorPosition(dst, "dst", "VECIN, VECOUT, VECCALC");
-    CheckTensorPosition(src0, "src0", "VECIN, VECOUT, VECCALC");
-    CheckTensorPosition(src1, "src1", "VECIN, VECOUT, VECCALC");
     static_assert((dim == 1) || (dim == 2), "CompareExtend only support dim=1 or dim=2");
     bool src1IsScalar = false;
     InT scalar = 0;
@@ -121,8 +117,6 @@ __aicore__ inline void CompareScalarExtend(const LocalTensor<uint8_t>& dst,
                                            const uint16_t (&output_stride)[dim],
                                            const uint16_t (&input_stride)[dim]) 
 {
-    CheckTensorPosition(dst, "dst", "VECIN, VECOUT, VECCALC");
-    CheckTensorPosition(src0, "src0", "VECIN, VECOUT, VECCALC");
     static_assert((dim == 1) || (dim == 2), "CompareExtend only support dim=1 or dim=2");
     constexpr uint16_t vlSize = static_cast<uint32_t>(GetVecLen() / sizeof(InT));
     __ubuf__ uint8_t* dstLocal = (__ubuf__ uint8_t *)dst.GetPhyAddr();

@@ -265,7 +265,7 @@ target_include_directories(att PRIVATE
 add_definitions(-DFORMULAS_PERF)
 
 target_compile_options(att PRIVATE
-        -g --coverage -fprofile-arcs -ftest-coverage
+        -g --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic
         -fPIC
         -fno-common
         -Wextra
@@ -515,11 +515,11 @@ else ()
     )
 endif ()
 if (ENABLE_OPEN_SRC)
-    target_compile_options(att PRIVATE -g --coverage -fprofile-arcs -ftest-coverage)
-    target_compile_options(optimize PRIVATE -g --coverage -fprofile-arcs -ftest-coverage)
-    target_compile_options(ascgen_common PUBLIC -g --coverage -fprofile-arcs -ftest-coverage)
-    target_compile_options(codegen PUBLIC -g --coverage -fprofile-arcs -ftest-coverage)
-    target_compile_options(pyautofuse PUBLIC -g --coverage -fprofile-arcs -ftest-coverage)
+    target_compile_options(att PRIVATE -g --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic)
+    target_compile_options(optimize PRIVATE -g --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic)
+    target_compile_options(ascgen_common PUBLIC -g --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic)
+    target_compile_options(codegen PUBLIC -g --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic)
+    target_compile_options(pyautofuse PUBLIC -g --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic)
 endif ()
 
 if (IS_DIRECTORY "${CODE_ROOT_DIR}/v35")

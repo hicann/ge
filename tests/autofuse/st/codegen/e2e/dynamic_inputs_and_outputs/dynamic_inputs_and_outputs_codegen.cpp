@@ -92,11 +92,11 @@ TEST_F(DynamicInputsAndOutputsST, DynamicInputsAndOutputsCodegen) {
     fused_schedule_result.fused_graph_name = ge::AscendString("dynamic_inputs_and_outputs");
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(fused_schedule_result, result), 0);
-    EXPECT_TRUE(result.kernel.find("kernel_operator_list_tensor_intf.h") == std::string::npos);
+    EXPECT_TRUE(RemoveSubDirInclude(result.kernel).find("kernel_operator_list_tensor_intf.h") == std::string::npos);
     // cpu编译不支持多进程并法编译，修改kernel为单kernel编译的方式
     std::stringstream ss_in;
     std::stringstream ss_out;
-    ss_in << result.kernel;
+    ss_in << RemoveSubDirInclude(result.kernel);
     std::string line;
     while (std::getline(ss_in, line)) {
       if (line.find("#if TILING") != std::string::npos) {
@@ -112,7 +112,7 @@ TEST_F(DynamicInputsAndOutputsST, DynamicInputsAndOutputsCodegen) {
     // use list tensor desc
     auto fused_schedule_result_64_inputs = GenTestCase(64);
     EXPECT_EQ(codegen.Generate(fused_schedule_result_64_inputs, result), 0);
-    EXPECT_TRUE(result.kernel.find("kernel_operator_list_tensor_intf.h") != std::string::npos);
+    EXPECT_TRUE(RemoveSubDirInclude(result.kernel).find("kernel_operator_list_tensor_intf.h") != std::string::npos);
   }
   catch (...) {
     gen_success = false;

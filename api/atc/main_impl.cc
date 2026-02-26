@@ -139,6 +139,7 @@ void SetOptionNameMap(std::map<std::string, std::string> &options) {
   option_name_map.emplace(ge::COMPRESSION_OPTIMIZE_CONF, "--compression_optimize_conf");
   option_name_map.emplace(ge::OP_DEBUG_CONFIG, "--op_debug_config");
   option_name_map.emplace(ge::ENABLE_COMPRESS_WEIGHT, "--enable_compress_weight");
+  option_name_map.emplace(ge::ENABLE_ATTR_COMPRESSION, "--enable_attr_compression");
   option_name_map.emplace(ge::ENABLE_SINGLE_STREAM, "--enable_single_stream");
   option_name_map.emplace(ge::AC_PARALLEL_ENABLE, "--ac_parallel_enable");
   option_name_map.emplace(ge::TILING_SCHEDULE_OPTIMIZE, "--tiling_schedule_optimize");
@@ -289,6 +290,10 @@ DEFINE_string(enable_small_channel, "0", "Optional; If set to 1, small channel i
 
 DEFINE_string(enable_compress_weight, "false",
 "Optional; enable compress weight. true: enable; false(default): disable");
+
+DEFINE_string(enable_attr_compression, "true",
+           "Optional; Enable or disable attribute compression in model saving. "
+           "Values: true (default, enabled) or false (disabled).");
 
 DEFINE_string(compress_weight_conf, "", "Optional; the config file to compress weight.");
 
@@ -511,6 +516,7 @@ class GFlagUtils {
         "  --enable_compress_weight  Enable compress weight. true: enable; false(default): disable\n"
         "  --compress_weight_conf    Config file to compress weight\n"
         "  --compression_optimize_conf    Config file to compress optimize\n"
+        "  --enable_attr_compression  Enable attribute compression. true(default): enable; false: disable\n"
         "  --sparsity                Optional; enable structured sparse. 0(default): disable; 1: enable\n"
         "  --buffer_optimize         Set buffer optimize. Support \"l2_optimize\" (default), "
         "\"l1_optimize\", \"off_optimize\"\n"
@@ -834,6 +840,8 @@ class GFlagUtils {
 
     GE_ASSERT_SUCCESS(CheckAllowHF32ParamValid(FLAGS_allow_hf32), "[Check][AllowHF32]failed!");
     GE_ASSERT_SUCCESS(CheckQuantDumpableParamValid(FLAGS_quant_dumpable), "[Check][QuantDumpable] failed!");
+    GE_CHK_BOOL_EXEC(CheckAttrCompressionParamValid(FLAGS_enable_attr_compression) == SUCCESS,
+                     return FAILED, "[Check][AttrCompression]failed!");
     return SUCCESS;
   }
 
@@ -1705,6 +1713,9 @@ Status GenerateOmModel() {
 
   options.insert(std::pair<std::string, std::string>(std::string(QUANT_DUMPABLE), FLAGS_quant_dumpable));
 
+  options.insert(std::pair<std::string, std::string>(std::string(ENABLE_ATTR_COMPRESSION),
+                                                     FLAGS_enable_attr_compression));
+
   options.insert(std::pair<std::string, std::string>(std::string(DEBUG_DIR), FLAGS_debug_dir));
 
   if (!FLAGS_status_check.empty()) {
@@ -1993,6 +2004,14 @@ int32_t main_impl(int32_t argc, char* argv[]) {
       REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                                 std::vector<const char *>({"--auto_tune_mode", FLAGS_auto_tune_mode.c_str(), reason.c_str()}));
       GELOGE(FAILED, "[Check][Parameter]%s", reason.c_str());
+      ret = FAILED;
+      break;
+    }
+    if (!FLAGS_input_hint_shape.empty()) {
+      const std::string reason = "Option[input_hint_shape: " +
+        FLAGS_input_hint_shape + "] is not supported in ATC. Please do not set it.";
+      REPORT_PREDEFINED_ERR_MSG("E10055", std::vector({"reason"}), std::vector({reason.c_str()}));
+      GELOGE(FAILED, "[Check][Param] %s", reason.c_str());
       ret = FAILED;
       break;
     }

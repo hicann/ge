@@ -20,7 +20,7 @@ target_include_directories(optimize_ut PRIVATE
 set(ASCGEN_DT_COMPILE_OPTION
         -O0
         -g
-        --coverage -fprofile-arcs -ftest-coverage
+        --coverage -fprofile-arcs -ftest-coverage -fprofile-update=atomic
 #        -fsanitize=address -fsanitize=leak -fsanitize-recover=address
 )
 

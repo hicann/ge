@@ -27,7 +27,6 @@
 #include "ascend_graph_code_dumper.h"
 #include "graph/ge_context.h"
 #include "post_process/post_process_util.h"
-#include "autofuser.h"
 
 namespace ge {
 namespace {

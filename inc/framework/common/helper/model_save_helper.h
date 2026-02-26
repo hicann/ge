@@ -41,6 +41,12 @@ class GE_FUNC_VISIBILITY ModelSaveHelper {
                                const GeRootModelPtr &ge_root_model = nullptr) = 0;
 
   virtual void SetSaveMode(const bool val) = 0;
+
+  // Configure from options - for attribute compression mode
+  virtual Status ConfigureAttrCompressionMode(const string &mode) {
+    (void)mode;
+    return SUCCESS;
+  }
  protected:
   ModelSaveHelper(const ModelSaveHelper &) = default;
   ModelSaveHelper &operator=(const ModelSaveHelper &) & = default;

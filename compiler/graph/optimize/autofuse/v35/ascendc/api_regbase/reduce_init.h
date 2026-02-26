@@ -10,7 +10,6 @@
 
 #ifndef REDUCEINIT_H
 #define REDUCEINIT_H
-#include "kernel_operator.h"
 using namespace AscendC;
 
 #ifndef INFINITY

@@ -10,8 +10,6 @@
 #ifndef __ASCENDC_API_REGBASE_TANH_H__
 #define __ASCENDC_API_REGBASE_TANH_H__
 
-#include "kernel_operator.h"
-
 static constexpr AscendC::TanhAlgo tanh_algo = AscendC::TanhAlgo::SUBSECTION_COMPENSATION;
 static constexpr AscendC::TanhConfig tanh_config = {tanh_algo};
 

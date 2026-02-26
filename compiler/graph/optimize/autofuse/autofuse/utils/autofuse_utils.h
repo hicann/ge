@@ -44,6 +44,15 @@ const std::string kBatchMatMulBias = "BatchMatMulBias";
 const std::string kBatchMatMulOffset = "BatchMatMulOffset";
 const std::string kBatchMatMulOffsetBias = "BatchMatMulOffsetBias";
 
+class DefaultCounter : public Counter {
+public:
+  DefaultCounter() = default;
+  ~DefaultCounter() override = default;
+  int64_t NextId() override { return id_++;};
+private:
+  int64_t id_ = 0;
+};
+
 class AutofuseUtils {
  public:
   static int64_t GenUniqueNumber();

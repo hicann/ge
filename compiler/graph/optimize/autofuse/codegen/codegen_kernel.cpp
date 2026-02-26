@@ -1701,12 +1701,14 @@ Status ApiCall::PreProcess(const TPipe &tpipe, const std::vector<ascir::AxisId> 
                            const std::vector<std::reference_wrapper<const Tensor>> &outputs,
                            std::string &result) const {
   stringstream ss;
-  const auto &ub = outputs[0].get();
-  if (ub.is_ub_scalar && !current_axis.empty()) {
-    GE_ASSERT_TRUE((outputs.size() == 1U), "ub_scalar support one output, actual %zu output", outputs.size());
-    const auto loop_axis = tpipe.tiler.GetAxis(current_axis.back());
-    GELOGD("t_name:%s, loop_axis_name:%s", ub.Str().c_str(), loop_axis.Str().c_str());
-    ss << "if (" << loop_axis << " < 1) {" << std::endl;
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    const auto &ub = outputs[i].get();
+    if (ub.is_ub_scalar && !current_axis.empty()) {
+      const auto loop_axis = tpipe.tiler.GetAxis(current_axis.back());
+      GELOGD("t_name:%s, loop_axis_name:%s", ub.Str().c_str(), loop_axis.Str().c_str());
+      ss << "if (" << loop_axis << " < 1) {" << std::endl;
+      break;
+    }
   }
 
   result = ss.str();
@@ -1718,36 +1720,41 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
                             std::string &result) const {
   (void)tpipe;
   stringstream ss;
-  const auto &ub = outputs[0].get();
-  if (ub.is_ub_scalar && !current_axis.empty()) {
-    GE_ASSERT_TRUE((outputs.size() == 1U), "ub_scalar support one output, actual %zu output", outputs.size());
-    GELOGD("t_name:%s, need_gen_get_value_of_ub_scalar:%d", ub.Str().c_str(),
-           static_cast<int32_t>(ub.need_gen_get_value_of_ub_scalar));
-    // 生成ub_scalar的变量初始化定义
-    if (ub.need_gen_get_value_of_ub_scalar) {
-      std::string sync_type = (this->type == Load::Type) ? "MTE2_S" : "V_S";
-      ss << "event_t eventID = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::";
-      ss << sync_type;
-      ss << "));" << std::endl;
+  bool first_set = true;
+  for (size_t i = 0; i < outputs.size(); ++i) {
+    const auto &ub = outputs[i].get();
+    if (ub.is_ub_scalar && !current_axis.empty()) {
+      GELOGD("t_name:%s, need_gen_get_value_of_ub_scalar:%d", ub.Str().c_str(),
+            static_cast<int32_t>(ub.need_gen_get_value_of_ub_scalar));
+      // 生成ub_scalar的变量初始化定义
+      if (ub.need_gen_get_value_of_ub_scalar) {
+        if (first_set) {
+          std::string sync_type = (this->type == Load::Type) ? "MTE2_S" : "V_S";
+          ss << "event_t eventID = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::";
+          ss << sync_type;
+          ss << "));" << std::endl;
 
-      ss << "SetFlag<HardEvent::";
-      ss << sync_type;
-      ss << ">(eventID);" << std::endl;
+          ss << "SetFlag<HardEvent::";
+          ss << sync_type;
+          ss << ">(eventID);" << std::endl;
 
-      ss << "WaitFlag<HardEvent::";
-      ss << sync_type;
-      ss << ">(eventID);" << std::endl;
+          ss << "WaitFlag<HardEvent::";
+          ss << sync_type;
+          ss << ">(eventID);" << std::endl;
 
-      std::string tmp;
-      GE_CHK_STATUS_RET(ub.InitUbScalar(tmp));
-      ss << tmp;
-      if (ub.need_duplicate_value_of_ub_scalar) {
-        GE_CHK_STATUS_RET(ub.GenDuplicateValueOfUbScalar(tmp));
+          first_set = false;
+        }
+        std::string tmp;
+        GE_CHK_STATUS_RET(ub.InitUbScalar(tmp));
         ss << tmp;
+        if (ub.need_duplicate_value_of_ub_scalar) {
+          GE_CHK_STATUS_RET(ub.GenDuplicateValueOfUbScalar(tmp));
+          ss << tmp;
+        }
       }
-    }
 
-    ss << "}" << std::endl;
+      ss << "}" << std::endl;
+    }
   }
 
   result = ss.str();
@@ -3501,8 +3508,20 @@ Status Kernel::Generate(const std::string &impl_graph_name, const std::string &t
 }
 
 std::string Kernel::GetIncludeApiHeaderFiles(const ascir::FusedScheduledResult &fused_schedule_result) {
-  std::set<std::string> api_header_list;
+  std::set<std::string> api_header_list = {
+    "basic_api/kernel_tpipe.h",
+    "basic_api/kernel_tensor.h",
+    "basic_api/kernel_type.h",
+    "basic_api/kernel_operator_block_sync_intf.h",
+    "basic_api/kernel_operator_data_copy_intf.h",
+    "basic_api/kernel_common.h",
+    "basic_api/kernel_operator_common_intf.h",
+    "basic_api/kernel_operator_sys_var_intf.h",
+  };
   std::stringstream ss;
+  for (const auto &header : api_header_list) {
+    ss << "#include \"" << header << "\"" << std::endl;
+  }
   for (size_t graph_id = 0; graph_id < fused_schedule_result.node_idx_to_scheduled_results.size(); graph_id++) {
     auto scheduled_results = fused_schedule_result.node_idx_to_scheduled_results[graph_id];
     for (size_t i = 0; i < scheduled_results.size(); i++) {
@@ -3514,7 +3533,7 @@ std::string Kernel::GetIncludeApiHeaderFiles(const ascir::FusedScheduledResult &
             auto impl = ascgen_utils::GetAscIrCodegenImpl(node->GetType());
             GE_ASSERT_NOTNULL(impl, "GetAscIrCodegenImpl of node %s[%s] is null", node->GetTypePtr(),
                               node->GetNamePtr());
-            for (auto header_str : impl->IncludeApiHeaderFiles()) {
+            for (const auto &header_str : impl->IncludeApiHeaderFiles()) {
               if (api_header_list.count(header_str) == 0) {
                 api_header_list.insert(header_str);
                 ss << "#include \"" << header_str << "\"" << std::endl;

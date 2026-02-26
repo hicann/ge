@@ -75,7 +75,7 @@ TEST_F(LoadRsumStoreSt, reduceSumTest) {
     InitScheduleResultsByImplGraphs(test_impl_graphs, fused_schedule_result);
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(fused_schedule_result, result), 0);
-    kernel_file << tilig_stub << result.kernel;
+    kernel_file << tilig_stub << RemoveSubDirInclude(result.kernel);
     tiling_file << result.tiling;
     tiling_data_file << result.tiling_data;
   }
@@ -115,7 +115,7 @@ TEST_F(LoadRsumStoreSt, reduceSumTest) {
     InitScheduleResultsByImplGraphs(test_impl_graphs_int32, fused_schedule_result_int32);
     codegen::CodegenResult result_int32;
     EXPECT_EQ(codegen_int32.Generate(fused_schedule_result_int32, result_int32), 0);
-    kernel_file_int32 << tilig_stub_int32 << result_int32.kernel;
+    kernel_file_int32 << tilig_stub_int32 << RemoveSubDirInclude(result_int32.kernel);
     tiling_file_int32 << result_int32.tiling;
     tiling_data_file_int32 << result_int32.tiling_data;
   }
