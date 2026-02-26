@@ -25,7 +25,6 @@ ge::graphStatus SequenceInsertCompute(KernelContext* context) {
   constexpr int32_t input_handle_idx = 3;
   constexpr int32_t input_value_idx = 4;
   constexpr int32_t input_index_idx = 6;
-  GELOGD("Enter SequenceInsertCompute");
   auto input_num = context->GetInputValue<uint32_t>(input_num_idx);
   constexpr int32_t least_input_number = 2;
   if (input_num < least_input_number) {
@@ -44,7 +43,6 @@ ge::graphStatus SequenceInsertCompute(KernelContext* context) {
 
   // handle's type is DT_RESOURCE(aka uint64_t)
   auto handle = static_cast<uint64_t*>(input_handle_data->GetAddr());
-  GELOGD("handle is %llu", *handle);
 
   auto session_id = context->GetInputValue<size_t>(session_id_idx);
   auto container_id = context->GetInputValue<size_t>(container_id_idx);
@@ -68,6 +66,9 @@ ge::graphStatus SequenceInsertCompute(KernelContext* context) {
       context->GetInputPointer<TensorData>(input_value_idx);
   auto input_value_storage_shape =
       context->GetInputPointer<StorageShape>(input_value_idx + 1);
+  if ((input_value_tensor_data == nullptr) || (input_value_storage_shape == nullptr)) {
+    return ge::PARAM_INVALID;
+  }
 
   int32_t output_idx = input_index_idx;
   ge::graphStatus ret = ge::GRAPH_SUCCESS;
@@ -109,7 +110,6 @@ ge::graphStatus SequenceInsertCompute(KernelContext* context) {
                            "or DT_INT64, [%u] not support.", insert_index_type);
         return ge::PARAM_INVALID;
     }
-    GELOGD("SequenceInsert insert index is %lld.", index);
     ret = tensor_seq_ptr->Add(input_value_data_type, *input_value_tensor_data,
                               *input_value_storage_shape, index);
     output_idx++;
@@ -123,7 +123,7 @@ ge::graphStatus SequenceInsertCompute(KernelContext* context) {
     return ge::PARAM_INVALID;
   }
   auto output_tensor = context->MutableInputPointer<Tensor>(output_idx);
-  if (output_tensor == nullptr) {
+  if ((output_tensor == nullptr) || (output_tensor->GetData<uint64_t>() == nullptr)) {
     GELOGE(ge::PARAM_INVALID, "output_tensor is nullptr");
     REPORT_INNER_ERR_MSG("E39999", "output_tensor is nullptr");
     return ge::PARAM_INVALID;

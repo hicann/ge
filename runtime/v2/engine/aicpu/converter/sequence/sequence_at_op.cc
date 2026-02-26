@@ -166,7 +166,7 @@ ge::graphStatus SequenceEmptyDoCompute(KernelContext *context) {
   out_rm->Create(handle, sequence);
 
   auto output_tensor = context->MutableInputPointer<Tensor>(kOutputTensorIndex);
-  if (output_tensor == nullptr) {
+  if ((output_tensor == nullptr) || (output_tensor->GetData<uint64_t>() == nullptr)) {
     GELOGE(ge::PARAM_INVALID, "Get output tensor failed.");
     REPORT_INNER_ERR_MSG("E39999", "Get output tensor failed.");
     return ge::PARAM_INVALID;
@@ -208,7 +208,7 @@ ge::graphStatus SequenceLengthDoCompute(KernelContext *context) {
   GELOGD("SequenceLength length = %llu", length);
 
   auto output_tensor = context->MutableInputPointer<Tensor>(kOutputTensorIndex);
-  if (output_tensor == nullptr) {
+  if ((output_tensor == nullptr) || (output_tensor->GetData<int64_t>() == nullptr)) {
     GELOGE(ge::PARAM_INVALID, "Get output tensor failed.");
     REPORT_INNER_ERR_MSG("E39999", "Get output tensor failed.");
     return ge::PARAM_INVALID;

@@ -144,7 +144,7 @@ ge::graphStatus StoreTensorInfoToSequence(KernelContext *context) {
 
   auto output_tensor = context->MutableInputPointer<Tensor>(
       static_cast<size_t>(SplitArgIndex::kOutputTensor));
-  if (output_tensor == nullptr) {
+  if ((output_tensor == nullptr) || (output_tensor->GetData<uint64_t>() == nullptr)) {
     GELOGE(ge::PARAM_INVALID, "rm is a null pointer");
     REPORT_INNER_ERR_MSG("E39999", "rm is a null pointer");
     return ge::PARAM_INVALID;
