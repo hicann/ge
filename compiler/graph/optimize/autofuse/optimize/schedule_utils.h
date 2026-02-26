@@ -314,6 +314,9 @@ class ScheduleUtils {
 
   static Status RemoveUnusedAxes(ge::AscGraph &graph);
 
+  // 删除指定的轴并重新编号剩余轴（从0开始）
+  static Status RemoveSpecificAxes(ge::AscGraph &graph, const std::unordered_set<int64_t> &axis_ids_to_remove);
+
   static void NormalizeAxisIds(const ge::AscGraph &graph);
 
   static Status GetVectorRepeats(const std::vector<ge::Expression> &repeats, const std::vector<int64_t> &axis,

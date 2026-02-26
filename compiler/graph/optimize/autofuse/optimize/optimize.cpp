@@ -432,6 +432,9 @@ Status Optimizer::Optimize(const ge::ComputeGraphPtr &fused_graph,
   // merging, it should be converted into multiple schedule groups.
   ge::AscGraph hint_graph(fused_graph->GetName().c_str());
   if (asc_backend_to_ascgraph.size() > 1UL) {
+    for (auto &iter: asc_backend_to_ascgraph) {
+      GE_ASSERT_SUCCESS(RemoveZeroStrideAxesAndRenumber(iter.second), "Remove All zero stride axis failed.");
+    }
     GE_CHK_STATUS_RET(FusedGraphUnfolder::UnfoldFusedGraph(fused_graph, asc_backend_to_ascgraph, hint_graph),
                       "Failed to unfold graph[%s].", fused_graph->GetName().c_str());
   } else {
@@ -629,6 +632,73 @@ Status Optimizer::RemoveAllZeroStrideLoopAxis(ascir::ImplGraph &owner_graph) {
       output->attr.repeats = new_repeats;
     }
   }
+  return ge::SUCCESS;
+}
+
+static std::unordered_set<int64_t> IdentifyZeroStrideAxisIds(const ascir::ImplGraph &owner_graph) {
+  std::unordered_map<int64_t, bool> axis_id_has_non_zero_stride;
+  for (const auto &node: owner_graph.GetAllNodes()) {
+    GE_ASSERT_NOTNULL(node);
+    if (ScheduleUtils::IsBuffer(node)) {
+      continue;
+    }
+
+    auto outputs = node->outputs();
+    const auto &loop_axes = node->attr.sched.axis;
+    for (auto axis_id: loop_axes) {
+      if (axis_id_has_non_zero_stride.find(axis_id) == axis_id_has_non_zero_stride.end()) {
+        axis_id_has_non_zero_stride[axis_id] = false;
+      }
+
+      // 检查该轴在这个节点的所有输出上是否stride都为0
+      for (const auto &output: outputs) {
+        auto iter = std::find(output->attr.axis.begin(), output->attr.axis.end(), axis_id);
+        if (iter == output->attr.axis.end()) {
+          continue;
+        }
+        auto axis_index = static_cast<size_t>(std::distance(output->attr.axis.begin(), iter));
+        if (axis_index >= output->attr.strides.size()) {
+          continue;
+        }
+
+        bool is_zero_stride = ascgen_utils::ExpressEq(output->attr.strides[axis_index], ge::sym::kSymbolZero);
+        if (!is_zero_stride) {
+          axis_id_has_non_zero_stride[axis_id] = true;
+          break;
+        }
+      }
+    }
+  }
+
+  std::unordered_set<int64_t> zero_stride_axis_ids;
+  for (const auto &[axis_id, has_non_zero]: axis_id_has_non_zero_stride) {
+    if (!has_non_zero) {
+      zero_stride_axis_ids.insert(axis_id);
+    }
+  }
+
+  // 全0场景,不需要删除
+  auto all_axes = owner_graph.GetAllAxis();
+  if (zero_stride_axis_ids.size() == all_axes.size()) {
+    return {};
+  }
+
+  return zero_stride_axis_ids;
+}
+
+Status Optimizer::RemoveZeroStrideAxesAndRenumber(ascir::ImplGraph &owner_graph) {
+  if (!ScheduleUtils::HasComputeType(owner_graph, ge::ComputeType::kComputeConcat)) {
+    return ge::SUCCESS;
+  }
+  // 获取所有需要删除的零步长轴的 axis id
+  std::unordered_set<int64_t> zero_stride_axis_ids = IdentifyZeroStrideAxisIds(owner_graph);
+  if (zero_stride_axis_ids.empty()) {
+    return ge::SUCCESS;
+  }
+
+  // 删除指定的零步长轴并重新编号剩余轴（从0开始）
+  GE_ASSERT_SUCCESS(ScheduleUtils::RemoveSpecificAxes(owner_graph, zero_stride_axis_ids),
+                    "Failed to remove specific axes");
   return ge::SUCCESS;
 }
 

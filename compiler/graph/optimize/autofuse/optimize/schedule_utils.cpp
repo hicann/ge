@@ -67,6 +67,15 @@ Status FindNodeSequence(ge::Node *start_node, std::unordered_set<ge::Node *> &re
 
   return ge::SUCCESS;
 }
+
+ge::AxisPtr CopyAxisWithNewId(const ge::AxisPtr &src, ge::AxisId new_id) {
+  auto axis = ge::MakeShared<ge::Axis>();
+  axis->id = new_id;
+  axis->name = src->name;
+  axis->type = src->type;
+  axis->size = src->size;
+  return axis;
+}
 }  // namespace
 namespace optimize {
 bool ScheduleUtils::IsNextNodeRemovePad(const ascir::NodeView &node) {
@@ -388,6 +397,54 @@ Status ScheduleUtils::RemoveUnusedAxes(ge::AscGraph &graph) {
   GELOGD("after: axes = %s", AxesToString(graph_attr->axis).c_str());
 
   GELOGD("RemoveUnusedAxes success, graph = %s", graph.GetName().c_str());
+  return ge::SUCCESS;
+}
+
+Status ScheduleUtils::RemoveSpecificAxes(ge::AscGraph &graph, const std::unordered_set<int64_t> &axis_ids_to_remove) {
+  if (axis_ids_to_remove.empty()) {
+    return ge::SUCCESS;
+  }
+  const auto graph_attr = ge::AscGraphUtils::GetComputeGraph(graph)->GetOrCreateAttrsGroup<ge::AscGraphAttr>();
+  const auto &src_axes = graph_attr->axis;
+  std::map<ge::AxisId, ge::AxisId> old_to_new;
+  for (const auto &axis : src_axes) {
+    if (axis_ids_to_remove.find(axis->id) == axis_ids_to_remove.end()) {
+      old_to_new[axis->id] = static_cast<int>(old_to_new.size());
+    }
+  }
+  if (old_to_new.empty()) {
+    return ge::SUCCESS;
+  }
+  for (const auto &node : graph.GetAllNodes()) {
+    std::vector<int64_t> new_sched;
+    for (auto id : node->attr.sched.axis) {
+      if (old_to_new.count(id)) {
+        new_sched.push_back(old_to_new.at(id));
+      }
+    }
+    node->attr.sched.axis = new_sched;
+    for (const auto &out : node->outputs()) {
+      GE_CHECK_NOTNULL(out, "output is null");
+      std::vector<int64_t> new_axis;
+      std::vector<ge::Expression> new_repeats;
+      std::vector<ge::Expression> new_strides;
+      for (size_t i = 0UL; i < out->attr.axis.size(); ++i) {
+        if (auto it = old_to_new.find(out->attr.axis[i]); it != old_to_new.end()) {
+          new_axis.push_back(it->second);
+          new_repeats.push_back(out->attr.repeats[i]);
+          new_strides.push_back(out->attr.strides[i]);
+        }
+      }
+      out->attr.axis = new_axis;
+      out->attr.repeats = new_repeats;
+      out->attr.strides = new_strides;
+    }
+  }
+  std::vector<ge::AxisPtr> new_axes(old_to_new.size());
+  for (const auto &[old_id, new_id] : old_to_new) {
+    new_axes[new_id] = CopyAxisWithNewId(src_axes[old_id], new_id);
+  }
+  graph_attr->axis = std::move(new_axes);
   return ge::SUCCESS;
 }
 
