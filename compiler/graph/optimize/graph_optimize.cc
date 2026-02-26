@@ -157,8 +157,8 @@ Status GraphOptimize::OptimizeGraphInit(const ComputeGraphPtr &compute_graph) co
 Status GraphOptimize::FinalizeSessionInfo(const ComputeGraphPtr &compute_graph) const {
   std::shared_ptr<GELib> instance_ptr = ge::GELib::GetInstance();
   if (instance_ptr == nullptr || !instance_ptr->InitFlag()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Get][GELib] Gelib not init before.");
-    return FAILED;
+    GELOGI("instance_ptr: nullptr or not initialized.");
+    return SUCCESS;
   }
 
   auto graph_optimizer = instance_ptr->OpsKernelManagerObj().GetAllGraphOptimizerObjsByPriority();
