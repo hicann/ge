@@ -1704,9 +1704,6 @@ static TilingOption tiling_option_default{};
  ge::Status TilingCodeGenImpl::GenExtraTilingData(const ModelInfo &model_info) {
    ArgsManager args_manager(model_info);
    GE_ASSERT_SUCCESS(GenExtraTilingFuncImpl(model_info), "Gen extra tiling func failed.");
-   std::string buf_occupy;
-   extra_info_generator_.GenExtraTilingData(args_manager, buf_occupy);
-   tiling_func_.AddLine(buf_occupy);
  
    std::string param = config_.tiling_data_type_name + " &tiling_data";
    tiling_func_.AddLine("  void ExtraTilingData(" + param + ") {");
