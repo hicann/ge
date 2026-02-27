@@ -458,8 +458,11 @@ Status FusedGraphUnfolder::SelectCommonLoopAxis(std::map<ge::Node *, ge::AscGrap
       }
       GE_ASSERT_SUCCESS(ScheduleUtils::GetConcatDim(node, concat_dim));
       has_concat = true;
-      loop_axis_ids = node->attr.sched.axis;
       auto loop_axis = iter.second.GetAllAxis();
+      loop_axis_ids.resize(loop_axis.size());
+      for (size_t i = 0UL; i < loop_axis.size(); ++i) {
+        loop_axis_ids[i] = loop_axis[i]->id;
+      }
       GE_ASSERT_SUCCESS(CollectPostConcatAscGraphs(iter.first, asc_backend_to_asc_graph, loop_axis, loop_axis_ids,
                                                    post_concat_node_to_asc_graph));
       new_loop_axes = iter.second.GetAllAxis();

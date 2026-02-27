@@ -87,8 +87,6 @@ class Optimizer {
 
   Status GraphPass(::ascir::ImplGraph &impl_graph) const;
   static Status RemoveAllZeroStrideLoopAxis(::ascir::ImplGraph &owner_graph);
-  // 删除 stride 全为 0 的轴并重新编号剩余轴（从 0 开始）
-  static Status RemoveZeroStrideAxesAndRenumber(::ascir::ImplGraph &owner_graph);
   static Status MergeContinuousAxis(::ascir::ImplGraph &impl_graph,
                                     ::ascir::CubeTemplateType cube_type = ::ascir::CubeTemplateType::kDefault);
   // 一些算子再内存是连续的，但是合轴时需要当成非连续去处理
