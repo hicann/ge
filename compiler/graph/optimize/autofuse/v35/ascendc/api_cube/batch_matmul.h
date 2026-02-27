@@ -134,7 +134,7 @@ template <int8_t BATCH_API_LEVEL, int8_t BATCH_A_TRANS, int8_t BATCH_B_TRANS, in
 __global__ __aicore__ void batch_mat_mul_v3(
 #ifdef CV_UB_FUSION
     GM_ADDR aGM, GM_ADDR bGM, GM_ADDR biasGM, GM_ADDR offsetWGM, GM_ADDR cGM, GM_ADDR workspaceGM, GM_ADDR tilingGM,
-    Block::AutoFusionVector::Params *param)
+    AutoFusionVector::Params *param)
 #else
     GM_ADDR aGM, GM_ADDR bGM, GM_ADDR biasGM, GM_ADDR offsetWGM, GM_ADDR cGM, GM_ADDR workspaceGM, GM_ADDR tilingGM)
 #endif
