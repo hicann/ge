@@ -4688,6 +4688,27 @@ Status TPipe::BlkTensorAssign(std::string &result) const {
   return ge::SUCCESS;
 }
 
+Status Loop::ActualSizeDefine(const Tiler &tiler, const TPipe &tpipe, std::string &result) {
+  std::stringstream ss;
+  if (this->axis_id == ge::kIdNone) {
+    for (const auto &body : this->bodys) {
+      if (body.type == LoopType::LOOP) {
+        GE_CHK_STATUS_RET(body.loop->ActualSizeDefine(tiler, tpipe, result), "Get axis id failed.");
+      }
+    }
+    return ge::SUCCESS;
+  }
+  const auto &axis = tiler.GetAxis(this->axis_id);
+  if (axis.type == Axis::Type::kAxisTypeTileOuter) {
+    const auto &tile_inner = tiler.GetAxis(axis.split_pair_other_id);
+    ge::Expression actual_size = ge::Symbol(tile_inner.actual_size.name.c_str());
+    tpipe.tiler.actual_sizes.emplace_back(std::make_pair(tile_inner.size_expr, actual_size));
+    ss << tile_inner.actual_size.AsArg() << " = stage_size;" << std::endl;
+  }
+  result = ss.str();
+  return ge::SUCCESS;
+}
+
 Status Kernel::GenerateVecFuncOfCVFusion(std::stringstream &result, bool vector_no_db_flag) {
   std::string tiling_data_type = "AutofuseTilingData";
   if (vector_no_db_flag) {
@@ -4702,9 +4723,6 @@ Status Kernel::GenerateVecFuncOfCVFusion(std::stringstream &result, bool vector_
     result << "#ifdef CV_UB_DB" << std::endl;
   }
   result << R"(
-namespace Cmct {
-namespace Gemm {
-namespace Block {
 class AutoFusionVector {
   public:
     __aicore__ inline AutoFusionVector() {};
@@ -4790,6 +4808,10 @@ class AutoFusionVector {
          << ") : basen_basem_align;" << std::endl;
   result << "stage_size_type = static_cast<int64_t>(autofuse_tiling_size.STAGE_SIZE_NAME > 144 ? " << std::endl;
   result << "autofuse_tiling_size.STAGE_SIZE_NAME : basen_basem_align / sizeof(" << dtype_name << "));" << std::endl;
+
+  GE_CHK_STATUS_RET(this->root_loop.ActualSizeDefine(this->tiler, this->tpipe, tmp), "actual size define failed");
+  result << tmp;
+
   result << ub_tensor->Str() << "_actual_size =  stage_size_type;" << std::endl << std::endl;
  
   result << this->tpipe.TensorSizeAssign(dtype_name) << std::endl;
@@ -4856,16 +4878,13 @@ class AutoFusionVector {
          << "}" << std::endl;
 
   result << "};" << std::endl;
-  result << "}  // namespace Cmct" << std::endl;
-  result << "}  // namespace Gemm" << std::endl;
-  result << "}  // namespace Block" << std::endl;
   result << "#endif" << std::endl; // CV_UB_NO_DB/CV_UB_DB
   return ge::SUCCESS;
 }
 
 Status Kernel::InitCVFusionAddr(std::stringstream &result, bool vector_no_db_flag) {
   if (vector_no_db_flag) {
-    result << "  Block::AutoFusionVector::Params CV_FUSION_ADDR;\n";
+    result << "  AutoFusionVector::Params CV_FUSION_ADDR;\n";
     for (auto input : this->inputs) {
       result << "  CV_FUSION_ADDR." << input.Str() << " = " << input.Str() << ";" << std::endl;
     }

@@ -30,7 +30,7 @@ template <class A_TYPE, class B_TYPE, class C_TYPE, class BIAS_TYPE, class A_LAY
 __aicore__ inline void MatMulActKernel(GM_ADDR aGM, GM_ADDR bGM, GM_ADDR biasGM,
 #ifdef CV_UB_FUSION
     GM_ADDR cGM, GM_ADDR workspaceGM, const MatMulV3BasicTilingData& tilingData,
-    Block::AutoFusionVector::Params *param, int64_t batch = 0)
+    AutoFusionVector::Params *param, int64_t batch = 0)
 #else
     GM_ADDR cGM, GM_ADDR workspaceGM, const MatMulV3BasicTilingData& tilingData, int64_t batch = 0)
 #endif
@@ -60,7 +60,7 @@ __aicore__ inline void MatMulActKernel(GM_ADDR aGM, GM_ADDR bGM, GM_ADDR biasGM,
         DispatchPolicy>;
 
     // 定义Fusion类型
-    using FusionOp = Block::AutoFusionVector;
+    using FusionOp = AutoFusionVector;
 
     // 定义BlockEpilogue类型
     using BlockEpilogue = Block::BlockEpilogueCV<L0TileShape, OutType, OutType, FusionOp>;

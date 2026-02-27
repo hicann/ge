@@ -495,6 +495,7 @@ struct Loop {
   bool IsReduceAxisNeedDivideSum(const TPipe &tpipe) const;
   const Tensor& GetReduceApiTensor(const TPipe &tpipe, bool is_input = false) const;
   void CollectTensorCrossLoop(std::map<ascir::AxisId, std::vector<ApiCall *>> &api_calls);
+  Status ActualSizeDefine(const Tiler &tiler, const TPipe &tpipe, std::string &result);
 
  private:
   Status GenerateLoop(const Tiler& tiler, const TPipe& tpipe, std::vector<ascir::AxisId>& current_axis, std::stringstream& ss);
