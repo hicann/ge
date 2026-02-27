@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -21,13 +21,13 @@ class UtestTBEHandleStore : public testing::Test {
   void SetUp() {
     TBEHandleStore &kernel_store = TBEHandleStore::GetInstance();
     kernel_store.bin_key_to_handle_.clear();
-    kernel_store.handle_to_unique_ids_.clear();
+    kernel_store.handle_to_kernel_to_unique_id_.clear();
   }
 
   void TearDown() {
     TBEHandleStore &kernel_store = TBEHandleStore::GetInstance();
     kernel_store.bin_key_to_handle_.clear();
-    kernel_store.handle_to_unique_ids_.clear();
+    kernel_store.handle_to_kernel_to_unique_id_.clear();
   }
 };
 
@@ -127,5 +127,33 @@ TEST_F(UtestTBEHandleStore, test_tbe_handle_info) {
 
   info.used_inc();
   EXPECT_EQ(info.used_num(), std::numeric_limits<uint32_t>::max());
+}
+
+TEST_F(UtestTBEHandleStore, test_get_unique_id_ptr) {
+  TBEHandleStore &kernel_store = TBEHandleStore::GetInstance();
+  kernel_store.handle_to_kernel_to_unique_id_.clear();
+  void *handle1 = (void *)0x12345678;
+  void *handle2 = (void *)0x123456;
+  std::string kernel1 = "k1";
+  std::string kernel2 = "k2";
+  bool inserted = false;
+  void *id1 = kernel_store.GetUniqueIdPtr(handle1, kernel1, inserted);
+  EXPECT_EQ(inserted, true);
+
+  void *id2 = kernel_store.GetUniqueIdPtr(handle1, kernel1, inserted);
+  EXPECT_EQ(inserted, false);
+  EXPECT_EQ(id1, id2);
+
+  void *id3 = kernel_store.GetUniqueIdPtr(handle1, kernel2, inserted);
+  EXPECT_EQ(inserted, true);
+  EXPECT_NE(id3, id1);
+
+  void *id4 = kernel_store.GetUniqueIdPtr(handle2, kernel2, inserted);
+  EXPECT_EQ(inserted, true);
+  EXPECT_NE(id4, id3);
+
+  void *id5 = kernel_store.GetUniqueIdPtr(handle2, kernel2, inserted);
+  EXPECT_EQ(inserted, false);
+  EXPECT_EQ(id5, id4);
 }
 }  // namespace ge
