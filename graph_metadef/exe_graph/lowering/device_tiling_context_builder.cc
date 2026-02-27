@@ -76,6 +76,11 @@ DeviceTilingContextBuilder &DeviceTilingContextBuilder::Deterministic(int32_t de
   return *this;
 }
 
+DeviceTilingContextBuilder &DeviceTilingContextBuilder::DeterministicLevel(int32_t deterministic_level) {
+  deterministic_level_ = deterministic_level;
+  return *this;
+}
+
 DeviceTilingContextBuilder &DeviceTilingContextBuilder::TilingData(void *tiling_data) {
   outputs_[TilingContext::kOutputTilingData] = tiling_data;
   return *this;
@@ -181,6 +186,7 @@ ge::graphStatus DeviceTilingContextBuilder::Build(const ge::NodePtr &node, Tiled
   inputs_.emplace_back(platform_info_);
   inputs_.emplace_back(nullptr);
   inputs_.emplace_back(reinterpret_cast<void *>(deterministic_));
+  inputs_.emplace_back(reinterpret_cast<void *>(deterministic_level_));
 
   return TiledBuild(node, holder);
 }

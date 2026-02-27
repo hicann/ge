@@ -88,6 +88,7 @@ enum class TilingFixedInputIndex {
   kPlatfrom,
   kFwkData,
   kDeterministic,
+  kDeterministicLevel,
   kNum,
 };
 

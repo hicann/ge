@@ -14,6 +14,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/type_utils.h"
 #include "graph/debug/ge_log.h"
+#include "graph/ge_local_context.h"
 #include "graph/debug/ge_attr_define.h"
 #include "register/op_tiling_info.h"
 #include "register/op_tiling_registry.h"
@@ -107,7 +108,9 @@ constexpr uint32_t kRightShiftBits = 4;
 constexpr uint32_t kAndBits = 15;
 const std::string kHexDigits = "0123456789ABCDEF";
 constexpr size_t kSize = 4UL;
+constexpr size_t kTilingCtxFixedInputSize = 5UL;
 constexpr size_t kDeterministicOffset = 3UL;
+constexpr size_t kDeterministicLevelOffset = 4UL;
 const std::string kMaxTilingSize = "op_para_size";
 constexpr size_t kMaxTilingDataSize = 16UL * 1024UL;
 constexpr size_t kWorkspaceHolerSize = 8UL;
@@ -567,6 +570,10 @@ void ParseExtraInfo(const nlohmann::json &extra_info, ge::OpDescPtr &op_desc) {
   if (extra_info.contains("deterministic")) {
     const int32_t deterministic = extra_info["deterministic"];
     (void)ge::AttrUtils::SetInt(op_desc, "deterministic", deterministic);
+  }
+  if (extra_info.contains("deterministic_level")) {
+    const int32_t deterministic_level = extra_info["deterministic_level"];
+    (void)ge::AttrUtils::SetInt(op_desc, "deterministic_level", deterministic_level);
   }
   if (extra_info.contains(ge::public_attr::OP_AI_CORE_NUM)) {
     const std::string op_aicore_num = extra_info[ge::public_attr::OP_AI_CORE_NUM];
@@ -1534,11 +1541,11 @@ gert::KernelContextHolder BuildTilingParseContextHolder(ge::OpDescPtr &op_desc, 
 
 gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert::KernelContext *tiling_parse_context,
                                              fe::PlatFormInfos &platform_info) {
-  if (context_com.storage_shapes.size() >= std::numeric_limits<size_t>::max() - kSize) {
+  if (context_com.storage_shapes.size() >= std::numeric_limits<size_t>::max() - kTilingCtxFixedInputSize) {
     GELOGE(ge::GRAPH_FAILED, "Context storage size overflow.");
     return gert::KernelContextHolder();
   }
-  std::vector<void *> tiling_context_inputs(context_com.storage_shapes.size() + kSize, nullptr);
+  std::vector<void *> tiling_context_inputs(context_com.storage_shapes.size() + kTilingCtxFixedInputSize, nullptr);
   for (size_t i = 0UL; i < context_com.index_to_tensors.size(); ++i) {
     tiling_context_inputs[context_com.index_to_tensors[i].first] =
         reinterpret_cast<gert::Tensor *>(context_com.index_to_tensors[i].second.get());
@@ -1586,6 +1593,25 @@ gert::KernelContextHolder BuildTilingContext(ContextComponent &context_com, gert
   GELOGI("Get deterministic: %d from node: %s", deterministic, context_com.op_desc->GetName().c_str());
   tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicOffset] =
       reinterpret_cast<void *>(deterministic);
+  int32_t deterministic_level = 0;
+  (void)ge::AttrUtils::GetInt(context_com.op_desc, "deterministic_level", deterministic_level);
+  if (deterministic_level < 0 || deterministic_level > 2) {
+    std::string readable_name = ge::GEThreadLocalContext().GetReadableName("ge.deterministicLevel");
+    std::string error_msg =
+        "Valid values for " + readable_name + " are {0,1,2}.";
+    GELOGE(ge::FAILED, "Valid values for %s are {0,1,2}, given value is %d", readable_name.c_str(),
+           deterministic_level);
+    (void) REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
+                                     std::vector<const char *>(
+                                       {
+                                       readable_name.c_str(), to_string(deterministic_level).c_str(),
+                                       error_msg.c_str()
+                                       }));
+    return gert::KernelContextHolder();
+  }
+  GELOGI("Get deterministic level: %d from node: %s", deterministic_level, context_com.op_desc->GetName().c_str());
+  tiling_context_inputs[context_com.storage_shapes.size() + kDeterministicLevelOffset] =
+      reinterpret_cast<void *>(deterministic_level);
   return gert::KernelRunContextBuilder()
       .Inputs(tiling_context_inputs)
       .Outputs(

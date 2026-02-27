@@ -24,6 +24,7 @@ class TilingContextBuilder {
  public:
   TilingContextBuilder &CompileInfo(void *compile_info);
   TilingContextBuilder &Deterministic(int32_t deterministic);
+  TilingContextBuilder &DeterministicLevel(int32_t deterministic_level);
   TilingContextBuilder &PlatformInfo(void *platform_info);
   TilingContextBuilder &TilingData(void *tiling_data);
   TilingContextBuilder &Workspace(ContinuousVector *workspace);
@@ -42,6 +43,7 @@ class TilingContextBuilder {
   void *compile_info_{nullptr};
   void *platform_info_{nullptr};
   int32_t deterministic_;
+  int32_t deterministic_level_;
   std::vector<std::unique_ptr<ge::Tensor>> depend_ge_tensor_holders_;
   std::vector<std::unique_ptr<uint8_t[]>> rt_tensor_holders_;
   std::vector<void *> outputs_ {TilingContext::kOutputNum};

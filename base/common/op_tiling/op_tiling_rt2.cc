@@ -14,6 +14,7 @@
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "common/sgt_slice_type.h"
+#include "common/util.h"
 #include "graph/def_types.h"
 #include "graph/op_desc.h"
 #include "graph/compute_graph.h"
@@ -555,6 +556,14 @@ ge::graphStatus RtParseAndTiling(const ge::Operator &op, const char_t * const co
   std::string deterministic_str;
   (void)ge::GetThreadLocalContext().GetOption(ge::DETERMINISTIC, deterministic_str);
   int32_t deterministic = deterministic_str == "1" ? 1 : 0;
+  int32_t deterministic_level = 0;
+  GE_ASSERT_SUCCESS(GetDeterministicLevel(deterministic_level));
+
+  /*
+   * 后续切换OpTilingContextBuilder时，出于兼容性考虑（新GE包+老metadef包），建议deterministic_level的设置通过调用纯C弱符号接口
+   * gert_TilingContextBuilder_SetDeterministicLevel实现，调用前可以通过该符号是否为空或者aclsysGetVersionNum > 80500000 (8.5.0)
+   * 判断是否是支持该能力的metadef版本。
+   */
   auto context_builder = gert::TilingContextBuilder();
   const gert::KernelContextHolder tiling_context_holder =
       context_builder
@@ -562,6 +571,7 @@ ge::graphStatus RtParseAndTiling(const ge::Operator &op, const char_t * const co
           .PlatformInfo(&tmp_info)
           .TilingData(tiling_data.get())
           .Deterministic(deterministic)
+          .DeterministicLevel(deterministic_level)
           .Workspace(reinterpret_cast<gert::ContinuousVector *>(workspace_size.get()))
           .SetSpaceRegistryV2(space_registry, static_cast<gert::OppImplVersionTag>(op_desc->GetOppImplVersion()))
           .Build(op);
@@ -909,6 +919,28 @@ ge::graphStatus FftsRtParseAndTiling(const ge::Operator &op, const fe::PlatFormI
   }
   // node shape write_back
   (void)UpdateNodeShapeBack(op_desc, slice_info_ptr, ori_shape);
+  return ge::GRAPH_SUCCESS;
+}
+
+ge::graphStatus GetDeterministicLevel(int32_t &deterministic_level) {
+  std::string deterministic_level_str;
+  (void)ge::GetThreadLocalContext().GetOption("ge.deterministicLevel", deterministic_level_str);
+  deterministic_level_str = deterministic_level_str.empty() ? "0" : deterministic_level_str;
+  auto ret = ge::ConvertToInt32(deterministic_level_str, deterministic_level);
+  if (ret != ge::SUCCESS || deterministic_level < 0 || deterministic_level > 2) {
+    std::string readable_name = ge::GEThreadLocalContext().GetReadableName("ge.deterministicLevel");
+    std::string error_msg =
+        "Valid values for " + readable_name + " are {0,1,2}.";
+    GELOGE(ge::FAILED, "Valid values for %s are {0,1,2}, given value is %s", readable_name.c_str(),
+           deterministic_level_str.c_str());
+    (void) REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"parameter", "value", "reason"}),
+                                     std::vector<const char_t *>(
+                                         {
+                                           readable_name.c_str(), deterministic_level_str.c_str(),
+                                               error_msg.c_str()
+                                         }));
+    return ge::GRAPH_FAILED;
+  }
   return ge::GRAPH_SUCCESS;
 }
 }  // namespace optiling

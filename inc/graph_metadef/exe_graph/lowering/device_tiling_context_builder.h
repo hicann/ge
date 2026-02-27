@@ -39,6 +39,7 @@ class DeviceTilingContextBuilder {
   static size_t CalcTotalTiledSize(const ge::OpDescPtr &op_desc);
   DeviceTilingContextBuilder &CompileInfo(void *compile_info);
   DeviceTilingContextBuilder &Deterministic(int32_t deterministic);
+  DeviceTilingContextBuilder &DeterministicLevel(int32_t deterministic_level);
   DeviceTilingContextBuilder &PlatformInfo(void *platform_info);
   DeviceTilingContextBuilder &TilingData(void *tiling_data);
   DeviceTilingContextBuilder &AddrRefreshedInputTensor(const std::map<size_t, AddrRefreshedTensor> &index_to_tensor);
@@ -56,6 +57,7 @@ class DeviceTilingContextBuilder {
   void *compile_info_{nullptr};
   void *platform_info_{nullptr};
   int32_t deterministic_{0};
+  int32_t deterministic_level_{0};
   uint64_t dev_begin_{0UL};
   uint8_t *host_begin_{nullptr};
   size_t max_mem_size_{0UL};

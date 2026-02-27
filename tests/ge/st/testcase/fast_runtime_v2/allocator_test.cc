@@ -40,7 +40,7 @@ namespace {
 UINT32 FakeTilingWithBigWorkspace(gert::KernelContext *context) {
   const auto input_num = context->GetInputNum();
   GE_ASSERT(input_num > 2);
-  auto fwk_data = context->GetInputPointer<kernel::TilingFwkData>(input_num - 2);
+  auto fwk_data = context->GetInputPointer<kernel::TilingFwkData>(input_num - 3);
   GE_ASSERT_NOTNULL(fwk_data);
   auto launch_arg = fwk_data->launch_arg;
   GE_ASSERT_NOTNULL(launch_arg);

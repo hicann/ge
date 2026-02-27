@@ -41,7 +41,8 @@ ge::graphStatus SoftSyncOpRtParseAndTiling(const ge::Operator &op, fe::PlatFormI
                                            const gert::OpImplSpaceRegistryV2Ptr &space_registry);
 ge::graphStatus FftsRtParseAndTiling(const ge::Operator &op, const fe::PlatFormInfos &platform_infos,
                                      std::vector<OpRunInfoV2> &op_run_infos);
-constexpr char_t OP_TILING_PARSE_RESULT[] = "tiling_parse_result";
+ge::graphStatus GetDeterministicLevel(int32_t &deterministic_level);
+const std::string OP_TILING_PARSE_RESULT = "tiling_parse_result";
 }  // namespace optiling
 
 #endif  // GE_COMMON_TILING_OP_TILING_RT2_H_
