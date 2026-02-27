@@ -88,6 +88,10 @@ target_link_libraries(aicpu_tf_engine PRIVATE
     -ldl
 )
 
+target_link_options(aicpu_tf_engine PRIVATE
+    -Wl,-Bsymbolic
+)
+
 target_include_directories(aicpu_tf_engine PRIVATE
     ${local_lib_inc_path}
     ${OP_PROTO_DIR}
