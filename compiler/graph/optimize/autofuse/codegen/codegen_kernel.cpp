@@ -1722,7 +1722,8 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
                             std::string &result) const {
   (void)tpipe;
   stringstream ss;
-  bool first_set = true;
+  bool first_ub_scalar = true;
+  bool first_gen_get_value = true;
   for (size_t i = 0; i < outputs.size(); ++i) {
     const auto &ub = outputs[i].get();
     if (ub.is_ub_scalar && !current_axis.empty()) {
@@ -1730,7 +1731,7 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
             static_cast<int32_t>(ub.need_gen_get_value_of_ub_scalar));
       // 生成ub_scalar的变量初始化定义
       if (ub.need_gen_get_value_of_ub_scalar) {
-        if (first_set) {
+        if (first_gen_get_value) {
           std::string sync_type = (this->type == Load::Type) ? "MTE2_S" : "V_S";
           ss << "event_t eventID = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::";
           ss << sync_type;
@@ -1744,7 +1745,7 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
           ss << sync_type;
           ss << ">(eventID);" << std::endl;
 
-          first_set = false;
+          first_gen_get_value = false;
         }
         std::string tmp;
         GE_CHK_STATUS_RET(ub.InitUbScalar(tmp));
@@ -1754,8 +1755,10 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
           ss << tmp;
         }
       }
-
-      ss << "}" << std::endl;
+      if (first_ub_scalar) {
+        ss << "}" << std::endl;
+        first_ub_scalar = false;
+      }
     }
   }
 
@@ -4587,7 +4590,11 @@ std::string TPipe::TensorSizeAssign(std::string dtype_name) const {
   for (auto &pair : this->tensors) {
     auto &t = pair.second;
     if ((t.alloc_type == ge::AllocType::kAllocTypeQueue) || (t.alloc_type == ge::AllocType::kAllocTypeBuffer)) {
-      ss << t.size.Str() << " = stage_size / sizeof(" << dtype_name << ");" << std::endl;
+      if (t.is_ub_scalar) {
+ 	      ss << t.size.Str() << " = 1;" << std::endl;
+ 	    } else {
+ 	      ss << t.size.Str() << " = stage_size / sizeof(" << dtype_name << ");" << std::endl;
+ 	    }
     }
   }
   return ss.str();
