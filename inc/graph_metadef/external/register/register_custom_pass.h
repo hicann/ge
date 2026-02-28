@@ -39,6 +39,7 @@ enum class CustomPassStage : uint32_t {
   kAfterAssignLogicStream = 2, // only support CustomAllocateStreamPassFunc in this stage
   kAfterBuiltinFusionPass = 3,
   kAfterOriginGraphOptimize = 4,
+  kCompatibleInherited = 5,
   kInvalid
 };
 
@@ -80,7 +81,11 @@ class CustomPassContext {
 
   void SetErrorMessage(const AscendString &error_message);
 
+  void SetPassName(const AscendString &pass_name);
+
   AscendString GetErrorMessage() const;
+
+  AscendString GetPassName() const;
 
   /**
    * 通过option的key，从上下文中获取option的值

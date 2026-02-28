@@ -18,6 +18,7 @@
 #include "graph/utils/graph_utils.h"
 #include "ge/fusion/subgraph_boundary.h"
 #include "ge/fusion/match_result.h"
+#include "graph_optimizer/fusion_common/fusion_statistic_recorder.h"
 
 namespace ge {
 namespace fusion {
@@ -42,6 +43,9 @@ class FusionUtils {
   static Status UpdateToCycleDetector(const ComputeGraphPtr &curr_graph,
                                       const std::unique_ptr<MatchResult> &match_result,
                                       const std::unique_ptr<Graph> &replacement);
+
+  static void RecordFusionStatistic(const uint64_t session_id, const std::string graph_id, const std::string pass_name,
+                                              const int match_times, const int effect_times);
 
  private:
   static std::unordered_map<ComputeGraphPtr, CycleDetectorSharedPtr> graph_2_cycle_detectors_;

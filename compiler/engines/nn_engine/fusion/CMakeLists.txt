@@ -62,7 +62,8 @@ target_include_directories(fusion_pass PRIVATE
         ${ENG_DIR}/ffts_engine
         ${TOP_DIR}/inc
         ${TOP_DIR}/metadef/inc
-        ${CMAKE_BINARY_DIR}/proto/fusion_proto)
+        ${CMAKE_BINARY_DIR}/proto/fusion_proto
+        ${AIR_CODE_DIR}/compiler/graph/fusion/pass)
 
 target_compile_options(fusion_pass PRIVATE
         -Wfloat-equal

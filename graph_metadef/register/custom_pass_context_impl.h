@@ -70,8 +70,16 @@ class CustomPassContextImpl {
     error_message_ = error_message;
   }
 
+  void SetPassName(const AscendString &pass_name) {
+    pass_name_ = pass_name;
+  }
+
   AscendString GetErrorMessage() const {
     return error_message_;
+  }
+
+  AscendString GetPassName() const {
+    return pass_name_;
   }
 
   graphStatus GetOptionValue(const AscendString &option_key, AscendString &option_value) const {
@@ -83,6 +91,7 @@ class CustomPassContextImpl {
 
  private:
   AscendString error_message_{""};
+  AscendString pass_name_{""};
 };
 }  // namespace ge
 
