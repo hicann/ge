@@ -85,5 +85,13 @@ void DisableSliceScheduleEnv() {
   MM_SYS_UNSET_ENV(MM_ENV_AUTOFUSE_FLAGS, ret);
   (void) ret;
 }
+
+inline GeTensor BuildTensor(const std::vector<int64_t> &shape, const Format format, const DataType data_type) {
+  const Shape shape0({shape});
+  TensorDesc td0{shape0, format, data_type};
+  td0.SetOriginShape(shape0);
+  Tensor tensor0{td0};
+  return TensorAdapter::AsGeTensor(tensor0);
+}
 }
 #endif  // AIR_CXX_EXPECT_NODE_INFO_CHECK_TEST_H

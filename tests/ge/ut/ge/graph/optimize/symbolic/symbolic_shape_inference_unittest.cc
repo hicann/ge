@@ -25,8 +25,6 @@
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/utils/tensor_adapter.h"
 #include "graph/operator_reg.h"
-#include <common_error_codes.h>
-#include <adxl/adxl_types.h>
 
 #include "graph/optimize/symbolic/shape_env_guarder.h"
 #include "graph/optimize/symbolic/symbolic_kernel_factory.h"
@@ -41,6 +39,7 @@
 #include "ge_running_env/op_reg.h"
 #include "common/share_graph.h"
 #include "api/aclgrph/option_utils.h"
+#include "common/context/local_context.h"
 
 namespace ge {
 bool EnableSliceSchedule() { // 桩函数
@@ -2998,7 +2997,7 @@ TEST_F(SymbolicShapeInferenceUT, AippOpTest) {
   ge::Tensor tensor0{td0};
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
 
-  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), adxl::SUCCESS);
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), SUCCESS);
 }
 
 TEST_F(SymbolicShapeInferenceUT, MulitBatchOpTest) {
@@ -3100,5 +3099,29 @@ TEST_F(SymbolicShapeInferenceUT, DummyShapeTest) {
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor1));
 
   ASSERT_NE(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), SUCCESS);
+}
+
+// 动态分档场景符号化推导
+TEST_F(SymbolicShapeInferenceUT, MultiBatchInferTest) {
+  GetLocalOmgContext().need_multi_batch = true;
+  auto graph = gert::ShareGraph::BuildMultiBatchShapesGraph();
+
+  std::vector<ge::GeTensor> input_vec;
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(graph, input_vec), SUCCESS);
+
+  for (auto &subgraph : graph->GetAllSubgraphs()) {
+    for (auto &node : subgraph->GetDirectNode()) {
+      if (node->GetType() == DATA) {
+        const auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+        ASSERT_NE(attr, nullptr);
+      }
+    }
+  }
+  GetLocalOmgContext().need_multi_batch = false;
 }
 } // namespace ge
