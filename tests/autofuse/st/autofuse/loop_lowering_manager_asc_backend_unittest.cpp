@@ -4799,16 +4799,60 @@ TEST_F(LoopLoweringToAscBackendUT, SimpleClipByValueConstScalar) {
   ASSERT_NE(asc_graph, nullptr);
   EXPECT_EQ(ReadableAscGraph(asc_graph->Graph()), R"(AscGraph(graph, axis=[0:28, 1:28])
 tmp0 = ascir.Scalar(Scalar_0, [])
-tmp1 = ascir.Data(Data_0, [])
-tmp1.attr = {axis = [0, 1], repeats = [28, 28], strides = [28, 1]}
-tmp2 = ascir.Load(Load_0, [tmp1])
+tmp1 = ascir.Scalar(Scalar_1, [])
+tmp2 = ascir.Data(Data_0, [])
 tmp2.attr = {axis = [0, 1], repeats = [28, 28], strides = [28, 1]}
-tmp3 = ascir.Minimum(Minimum_0, [tmp2, tmp0])
-tmp4 = ascir.Scalar(Scalar_1, [])
-tmp5 = ascir.Maximum(Maximum_0, [tmp3, tmp4])
+tmp3 = ascir.Load(Load_0, [tmp2])
+tmp3.attr = {axis = [0, 1], repeats = [28, 28], strides = [28, 1]}
+tmp4 = ascir.Minimum(Minimum_0, [tmp3, tmp1])
+tmp5 = ascir.Maximum(Maximum_0, [tmp4, tmp0])
 tmp6 = ascir.Store(Store_0, [tmp5])
 tmp6.attr = {axis = [0, 1], repeats = [28, 28], strides = [28, 1]}
 tmp7 = ascir.Output(Output_0, [tmp6])
+)");
+}
+
+TEST_F(LoopLoweringToAscBackendUT, ClipByValueWithTensorInput) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"2", "28"});
+    auto min = es_graph_->CreateInput(1, "data1", nullptr);
+    min.SetSymbolShape({"28"});
+    auto max = es_graph_->CreateInput(2, "data2", nullptr);
+    max.SetSymbolShape({"28"});
+    auto expanddims = es::ClipByValue(data0, min, max);
+    expanddims.SetSymbolShape({"2", "28"});
+    es_graph_->SetOutput(expanddims, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+
+  auto expanddims = cg->FindNode("ClipByValue_0");
+  ASSERT_NE(expanddims, nullptr);
+
+  ASSERT_EQ(LoweringManager::LoweringGraph(cg), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(expanddims->GetOutDataAnchor(0));
+  auto asc_graph = kernel.Realize<loop::AscOverrides>("graph");
+  ASSERT_NE(asc_graph, nullptr);
+  EXPECT_EQ(ReadableAscGraph(asc_graph->Graph()), R"(AscGraph(graph, axis=[0:2, 1:28])
+tmp0 = ascir.Data(Data_0, [])
+tmp0.attr = {axis = [0, 1], repeats = [1, 28], strides = [0, 1]}
+tmp1 = ascir.Load(Load_0, [tmp0])
+tmp1.attr = {axis = [0, 1], repeats = [2, 28], strides = [28, 1]}
+tmp2 = ascir.Data(Data_1, [])
+tmp2.attr = {axis = [0, 1], repeats = [1, 28], strides = [0, 1]}
+tmp3 = ascir.Load(Load_1, [tmp2])
+tmp3.attr = {axis = [0, 1], repeats = [2, 28], strides = [28, 1]}
+tmp4 = ascir.Data(Data_2, [])
+tmp4.attr = {axis = [0, 1], repeats = [2, 28], strides = [28, 1]}
+tmp5 = ascir.Load(Load_2, [tmp4])
+tmp5.attr = {axis = [0, 1], repeats = [2, 28], strides = [28, 1]}
+tmp6 = ascir.Minimum(Minimum_0, [tmp5, tmp3])
+tmp7 = ascir.Maximum(Maximum_0, [tmp6, tmp1])
+tmp8 = ascir.Store(Store_0, [tmp7])
+tmp8.attr = {axis = [0, 1], repeats = [2, 28], strides = [28, 1]}
+tmp9 = ascir.Output(Output_0, [tmp8])
 )");
 }
 

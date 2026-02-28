@@ -3319,12 +3319,52 @@ TEST_F(LoopNodeLoweringUT, SimpleClipByValueConstScalar) {
   auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
   ASSERT_FALSE(kernel.IsExternKernel());
 
-EXPECT_EQ(kernel.Readable(), "tmp0 = ops.Scalar(\"DT_FLOAT(2.00000000000000000000e+00)\")\n"
-            "tmp1 = ops.Load(\"data0:0\")\n"
-            "tmp2 = ops.Minimum(tmp1, tmp0)\n"
-            "tmp3 = ops.Scalar(\"DT_FLOAT(1.00000000000000000000e+00)\")\n"
-            "tmp4 = ops.Maximum(tmp2, tmp3)\n"
-            "tmp5 = ops.Store(\"ClipByValue_2:0\", tmp4)\n");
+EXPECT_EQ(kernel.Readable(), "tmp0 = ops.Scalar(\"DT_FLOAT(1.00000000000000000000e+00)\")\n"
+            "tmp1 = ops.Unsqueeze(tmp0, 0)\n"
+            "tmp2 = ops.Unsqueeze(tmp1, 1)\n"
+            "tmp3 = ops.Scalar(\"DT_FLOAT(2.00000000000000000000e+00)\")\n"
+            "tmp4 = ops.Unsqueeze(tmp3, 0)\n"
+            "tmp5 = ops.Unsqueeze(tmp4, 1)\n"
+            "tmp6 = ops.Broadcast(tmp2, \"[1, 1]->[d0, d1]\")\n"
+            "tmp7 = ops.Broadcast(tmp5, \"[1, 1]->[d0, d1]\")\n"
+            "tmp8 = ops.Load(\"data0:0\")\n"
+            "tmp9 = ops.Minimum(tmp8, tmp7)\n"
+            "tmp10 = ops.Maximum(tmp9, tmp6)\n"
+            "tmp11 = ops.Store(\"ClipByValue_2:0\", tmp10)\n");
+}
+
+TEST_F(LoopNodeLoweringUT, ClipByValueWithTensorInput) {
+  [this]() {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"2", "28"});
+    auto min = es_graph_->CreateInput(1, "data1", nullptr);
+    min.SetSymbolShape({"28"});
+    auto max = es_graph_->CreateInput(2, "data2", nullptr);
+    max.SetSymbolShape({"28"});
+    auto expanddims = es::ClipByValue(data0, min, max);
+    expanddims.SetSymbolShape({"2", "28"});
+    es_graph_->SetOutput(expanddims, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+  auto node = cg->FindNode("ClipByValue_0");
+  ASSERT_NE(node, nullptr);
+
+  ASSERT_EQ(LoweringManager::LoweringGraph(cg), GRAPH_SUCCESS);
+  auto kernel = ge::loop::GetKernelBox(node->GetOutDataAnchor(0));
+  ASSERT_FALSE(kernel.IsExternKernel());
+
+  EXPECT_EQ(kernel.Readable(), "tmp0 = ops.Load(\"data1:0\")\n"
+              "tmp1 = ops.Unsqueeze(tmp0, 0)\n"
+              "tmp2 = ops.Load(\"data2:0\")\n"
+              "tmp3 = ops.Unsqueeze(tmp2, 0)\n"
+              "tmp4 = ops.Broadcast(tmp1, \"[1, d1]->[d0, d1]\")\n"
+              "tmp5 = ops.Broadcast(tmp3, \"[1, d1]->[d0, d1]\")\n"
+              "tmp6 = ops.Load(\"data0:0\")\n"
+              "tmp7 = ops.Minimum(tmp6, tmp5)\n"
+              "tmp8 = ops.Maximum(tmp7, tmp4)\n"
+              "tmp9 = ops.Store(\"ClipByValue_0:0\", tmp8)\n");
 }
 
 #define TEST_F_LOWER_INST1(BACKENDOP, OP)                           \
