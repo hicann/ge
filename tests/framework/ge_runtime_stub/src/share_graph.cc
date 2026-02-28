@@ -13033,6 +13033,9 @@ ComputeGraphPtr ShareGraph::BuildSubGraph(const std::string& name, int64_t paren
               .Build(graph);
   auto output = NodeBuilder(subgraph_name + "_output", NETOUTPUT).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0)
                         .Input(sqrt).Build(graph);
+  AttrUtils::SetInt(output->GetOpDesc()->MutableInputDesc(0), ge::ATTR_NAME_PARENT_NODE_INDEX, 0);
+  output->GetOpDesc()->SetSrcName({subgraph_name + "_sqrt1"});
+  output->GetOpDesc()->SetSrcIndex({0});
   return graph;
 }
 
@@ -13061,6 +13064,9 @@ ComputeGraphPtr ShareGraph::BuildNestPartitioncallSubGraph(const ComputeGraphPtr
                       .Build(graph);
   auto output = NodeBuilder(subgrpah_name + "_output", NETOUTPUT).Input(partitioncall)
                         .Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).Build(graph);
+  AttrUtils::SetInt(output->GetOpDesc()->MutableInputDesc(0), ge::ATTR_NAME_PARENT_NODE_INDEX, 0);
+  output->GetOpDesc()->SetSrcName({name + "_sqrt1"});
+  output->GetOpDesc()->SetSrcIndex({0});
   (void)main_graph->AddSubGraph(sub_grpah);
   return graph;
 }
