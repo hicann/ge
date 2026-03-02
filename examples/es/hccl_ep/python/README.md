@@ -47,7 +47,7 @@ bash run_sample.sh -t sample_and_run_python
 
 执行成功后会看到：
 ```
-[Success] sample 执行成功, pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示
+[Success] sample 执行成功，pbtxt dump 已生成在当前目录。该文件以 ge_onnx_ 开头，可以在 netron 中打开显示
 ```
 
 #### 输出文件说明
