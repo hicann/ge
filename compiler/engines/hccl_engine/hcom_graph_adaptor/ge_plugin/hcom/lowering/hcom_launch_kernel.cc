@@ -995,7 +995,7 @@ ge::graphStatus PrepareHcomKernel(gert::KernelContext *context) {
   }
 
   // 获取通信域资源，
-  if (HcomCreateCommCCLbuffer(launchArgs.opAttr.group)) {
+  if (HcomCreateCommCCLbuffer(launchArgs.opAttr.group) != HCCL_SUCCESS) {
     HCCL_ERROR("LaunchHcomKernel: create ccl buffer failed. group:%s", launchArgs.opAttr.group);
     return ge::GRAPH_FAILED;
   }
@@ -1155,7 +1155,7 @@ ge::graphStatus HcomGetRecvBeforeKernel(HcomOpLaunchArgs &args, std::vector<int6
 #endif
   // 获取通信域资源
   HcclComm commHandle = nullptr;
-  if (HcomGetCommHandleByGroup(args.opAttr.group, &commHandle)) {
+  if (HcomGetCommHandleByGroup(args.opAttr.group, &commHandle) != HCCL_SUCCESS) {
     HCCL_ERROR("LaunchHcomKernel: get hcom comm handle failed. group:%s", args.opAttr.group);
     return ge::GRAPH_FAILED;
   }
@@ -1304,11 +1304,11 @@ ge::graphStatus LaunchRecvKernel(gert::KernelContext *context) {
 
   // 获取通信域资源
   HcclComm commHandle = nullptr;
-  if (HcomGetCommHandleByGroup(launchArgs.opAttr.group, &commHandle)) {
+  if (HcomGetCommHandleByGroup(launchArgs.opAttr.group, &commHandle) != HCCL_SUCCESS) {
     HCCL_ERROR("LaunchRecvKernel: get hcom comm handle failed. group:%s", launchArgs.opAttr.group);
     return ge::GRAPH_FAILED;
   }
-  if (HcomCreateCommCCLbuffer(launchArgs.opAttr.group)) {
+  if (HcomCreateCommCCLbuffer(launchArgs.opAttr.group) != HCCL_SUCCESS) {
     HCCL_ERROR("LaunchRecvKernel: create ccl buffer failed. group:%s", launchArgs.opAttr.group);
     return ge::GRAPH_FAILED;
   }

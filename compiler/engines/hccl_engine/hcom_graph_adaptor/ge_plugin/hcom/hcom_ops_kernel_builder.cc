@@ -882,7 +882,7 @@ HcclResult HcomOpsKernelBuilder::GetCountFromOpDesc(const ge::OpDescPtr &op, con
                     HCCL_E_PARA);
 
         u64 shapeSize = 0;
-        if ((u64)op->GetInputDescPtr(i)->GetShape().IsScalar()) {
+        if (op->GetInputDescPtr(i)->GetShape().IsScalar()) {
           shapeSize = 1;
         } else {
           shapeSize = (u64)op->GetInputDescPtr(i)->GetShape().GetShapeSize();
@@ -909,12 +909,12 @@ HcclResult HcomOpsKernelBuilder::GetCountFromOpDesc(const ge::OpDescPtr &op, con
         if (inputSize == -1) {
           blockSize = 0;
         } else {
-          CHK_PRT_RET(((u64)inputSize > INVALID_U64 - alignSize),
+          CHK_PRT_RET((static_cast<u64>(inputSize) > INVALID_U64 - alignSize),
                       HCCL_ERROR("op[%s] input size[%llu] is "
                                  "overflow.",
-                                 sCollectiveType.c_str(), (u64)inputSize),
+                                 sCollectiveType.c_str(), static_cast<u64>(inputSize)),
                       HCCL_E_PARA);
-          blockSize = ((u64)inputSize + alignSize - 1) / alignSize * alignSize;
+          blockSize = (static_cast<u64>(inputSize) + alignSize - 1) / alignSize * alignSize;
         }
       }
       totalSize = totalSize + blockSize;
