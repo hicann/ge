@@ -23,7 +23,7 @@ struct LaunchKernelConfig {
   uint32_t block_dim_offset{0U};
   bool is_block_task_prefetch{false};
   bool is_data_dump{false};
-  uint16_t time_out{0U};
+  int16_t time_out{-1};
 };
 
 using RefreshAddrInfo = rtPlaceHolderInfo_t;
