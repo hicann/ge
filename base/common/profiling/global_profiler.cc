@@ -16,7 +16,6 @@
 #include "common/profiling/profiling_properties.h"
 #include "common/global_variables/diagnose_switch.h"
 #include "framework/runtime/device_memory_recorder.h"
-#include "runtime/dev.h"
 #include "common/scope_guard.h"
 #include "common/util.h"
 #include "graph_metadef/common/ge_common/util.h"
@@ -492,7 +491,7 @@ ge::Status GlobalProfilingWrapper::ReportTaskMemoryInfo(const std::string &model
   auto memory_info_data = reinterpret_cast<MsprofMemoryInfo *>(task_memory_info.data);
   memory_info_data->nodeId = MsprofGetHashId(model_name.c_str(), model_name.size());
   int32_t device_id = 0;
-  (void)rtGetDevice(&device_id);
+  (void)aclrtGetDevice(&device_id);
   memory_info_data->deviceId = static_cast<uint32_t>(device_id);
   memory_info_data->deviceType = 0U;
   while (!DeviceMemoryRecorder::IsRecorderEmpty()) {
@@ -572,7 +571,7 @@ ge::Status GlobalProfilingWrapper::ReportGraphIdMap(const uint64_t prof_time, co
 }
 
 ge::Status GlobalProfilingWrapper::ProfileStepTrace(const uint64_t step_id, const uint32_t model_id,
-                                                    const uint16_t tag_id, const rtStream_t stream) {
+                                                    const uint16_t tag_id, const aclrtStream stream) {
   {
     const auto subscribe_graph_id = ge::ProfilingProperties::Instance().GetSubscribeGraphId();
     const bool is_this_model_unsubscribed = (subscribe_graph_id.find(model_id) == subscribe_graph_id.end());
@@ -586,7 +585,8 @@ ge::Status GlobalProfilingWrapper::ProfileStepTrace(const uint64_t step_id, cons
   GELOGD("Profiling Step Info TraceTask execute async start, step_id = %lu, model_id = %u, tag_id = %u", step_id,
          model_id, static_cast<uint32_t>(tag_id));
   const auto begin_time = MsprofSysCycleTime();
-  const rtError_t rt_ret = rtProfilerTraceEx(step_id, static_cast<uint64_t>(model_id), tag_id, stream);
+  int64_t userdata[] = {static_cast<int64_t>(step_id), model_id, tag_id};
+ 	const rtError_t rt_ret = aclrtProfTrace(userdata, sizeof(userdata) / sizeof(int64_t), stream);
   const auto end_time = MsprofSysCycleTime();
   if (rt_ret != RT_ERROR_NONE) {
     GELOGE(ge::RT_FAILED, "[Call][rtProfilerTraceEx]Failed, ret %d", rt_ret);
