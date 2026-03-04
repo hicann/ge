@@ -104,6 +104,7 @@ add_executable(graph_engine_test
     "${AIR_CODE_DIR}/tests/ge/st/testcase/ffts_plus/scattered_collection_systemtest.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/ut/register/testcase/op_def_factory_unittest.cc"
     "${AIR_CODE_DIR}/tests/graph_metadef/depends/faker/plugin_manager_stub.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2.cc"
 )
 
 add_dependencies(graph_engine_test mdat fmk_parser)
@@ -142,12 +143,14 @@ target_link_libraries(graph_engine_test
     ge_runner
     dflow_runner
     ge_runner_v2
+    ge_common_base
     gert
     cpu_compiler
     data_flow_base
     aihacb_autofusion_stub
     ge_local_opskernel_builder
     symengine
+    minizip_static
     -Wl,--whole-archive
     rt2_registry_static
     atc_static
