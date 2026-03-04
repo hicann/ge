@@ -20,6 +20,7 @@ GE 提供对 PyTorch、TensorFlow 前端的友好接入能力，并同时支持 
 
 -   [构建验证](docs/build.md)：介绍组件的完整构建、测试样例运行流程。
 -   [快速开始](examples/acl/1_sample_resnet50_imagenet_classification/README.md)：以 ResNet50 模型为例，介绍如何使用 ATC 工具进行模型转换，并在昇腾 AI 处理器上执行推理。
+-   [快速开始-LLM](examples/acl/2_sample_qwen_llm/README.md)：以 Qwen 模型为例，介绍如何使用 ATC 工具进行LLM模型转换，并实现LLM模型的加载、执行和获取执行结果等。
 
 ## 📚 文档
 

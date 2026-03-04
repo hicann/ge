@@ -112,4 +112,3 @@ function main()
   echo "[INFO] Sample preparation is complete"
 }
 main
-
