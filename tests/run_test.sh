@@ -52,7 +52,8 @@ usage() {
   echo "            =rts          Build rts engine ut"
   echo "            =hcce         Build hcce engine ut"
   echo "        =executor_c       Build executor_c ut"
-  echo "        =autofuse         Build autofuse ut"
+  echo "        =autofuse_framework         Build autofuse_framework ut"
+  echo "        =autofuse_ascendc_api       Build autofuse_ascendc_api ut"
   echo "    -s, --st       Build all st"
   echo "        =ge               Build all ge st"
   echo "            =ge_common    Build ge common st"
@@ -68,7 +69,8 @@ usage() {
   echo "            =ffts         Build ffts engine st"
   echo "            =hcce         Build hcce engine st"
   echo "        =executor_c       Build executor_c st"
-  echo "        =autofuse         Build autofuse st"
+  echo "        =autofuse_framework         Build autofuse_framework st"
+  echo "        =autofuse_ascendc_api       Build autofuse_ascendc_api st"
   echo "    -h, --help     Print usage"
   echo "    -c, --cov      Build ut/st with coverage tag"
   echo "                   Please ensure that the environment has correctly installed lcov, gcov, and genhtml."
@@ -373,6 +375,14 @@ checkopts() {
             ;;
           "autofuse")
             ENABLE_GE_AUTOFUSE="on"
+            shift 2
+            ;;
+          "autofuse_framework")
+            ENABLE_GE_AUTOFUSE_FRAMEWORK="on"
+            shift 2
+            ;;
+          "autofuse_ascendc_api")
+            ENABLE_GE_AUTOFUSE_ASCENDC_API="on"
             shift 2
             ;;
           *)
