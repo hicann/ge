@@ -11,9 +11,12 @@
 #include <string>
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
+#include "common/context/local_context.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph_metadef/graph/debug/ge_util.h"
+#include "graph/utils/graph_utils.h"
 #include "graph/utils/node_utils.h"
+#include "graph/utils/op_type_utils.h"
 #include "attribute_group/attr_group_symbolic_desc.h"
 #include "framework/common/types.h"
 #include "graph/utils/op_desc_utils.h"
@@ -27,6 +30,41 @@
 namespace ge {
 namespace {
 const std::vector<int64_t> kDummyShape = {-3};
+
+struct DataSymbolizeInfo {
+  int32_t dataIndex;
+  GeShape dataShape;
+  GeShape inputShape;
+};
+
+Status BuildDataSymbolizeInfo(const NodePtr &data_node, const std::vector<GeTensor> &graph_inputs,
+  DataSymbolizeInfo &info) {
+  auto op_desc = data_node->GetOpDescBarePtr();
+  GE_ASSERT_TRUE(AttrUtils::GetInt(op_desc, "index", info.dataIndex), "get data node %s index failed",
+    op_desc->GetName().c_str());
+  GE_ASSERT_TRUE(static_cast<size_t>(info.dataIndex) < graph_inputs.size(),
+    "Invalid data index %d, graph inputs size %zu", info.dataIndex, graph_inputs.size());
+
+  auto td = op_desc->GetOutputDescPtr(0);
+  GE_ASSERT_NOTNULL(td);
+  info.dataShape = td->GetOriginShape();
+  if (!(info.dataShape == td->GetShape())) {
+    GELOGW("The origin/storage shape are different, not support symbolize yet, data node %s", op_desc->GetNamePtr());
+    return ge::UNSUPPORTED;
+  }
+
+  const auto &tensor = graph_inputs.at(info.dataIndex);
+  const auto &ge_tensor_desc = tensor.GetTensorDesc();
+  if (ge_tensor_desc.IsOriginShapeInitialized()) {
+    info.inputShape = ge_tensor_desc.GetOriginShape();
+  } else {
+    info.inputShape = ge_tensor_desc.GetShape();
+  }
+  // atc + acl场景动态shape下开启自动融合会产生[-3]的shape，在这里拦截报错
+  GE_ASSERT_TRUE(info.inputShape.GetDims() != kDummyShape,
+    "Node[%s] is not supported symbolize, input origin shape is [-3].", data_node->GetNamePtr());
+  return SUCCESS;
+}
 
 std::map<ge::DataType, std::string> kGeDType2CppDtype = {
     {ge::DT_INT32, "int32_t"},
@@ -182,8 +220,134 @@ Status GetSupportSymbolizeInputDataNodes(const ComputeGraphPtr &compute_graph,
   }
   return SUCCESS;
 }
+
+// 动态分档子图泛化
+Status SymbolizeMultiBatchSubGraph(const ComputeGraphPtr &graph) {
+  // 1、判断是否是动态分档图
+  bool enable_dynamic_batch = false;
+  (void)AttrUtils::GetBool(graph, "_enable_dynamic_batch", enable_dynamic_batch);
+  if (!GetLocalOmgContext().need_multi_batch || !enable_dynamic_batch) {
+    return SUCCESS;
+  }
+  GELOGD("Start to symbolize multi batch graph[%s]", graph->GetName().c_str());
+  auto case_node = graph->FindFirstNodeMatchType(CASE);
+  GE_ASSERT_NOTNULL(case_node, "Graph[%s] is multi batch, but not have case node.", graph->GetName().c_str());
+  bool is_mbatch_inserted_node = false;
+  (void)AttrUtils::GetBool(case_node->GetOpDesc(), ATTR_INSERT_BY_MBATCH, is_mbatch_inserted_node);
+  GE_ASSERT_TRUE(is_mbatch_inserted_node, "Graph[%s] is multi batch, but case_node[%s] not create by MultiBatchPass.",
+    graph->GetName().c_str(), case_node->GetNamePtr());
+
+  std::vector<ComputeGraphPtr> sub_graphs;
+  NodeUtils::GetDirectSubgraphs(case_node, sub_graphs);
+  for (const auto &sub_graph : sub_graphs) {
+    for (const auto &node : sub_graph->GetDirectNode()) {
+      if (!OpTypeUtils::IsDataNode(node->GetType())) {
+        continue;
+      }
+      auto op_desc = node->GetOpDesc();
+      GE_ASSERT_NOTNULL(op_desc);
+      auto output_desc = op_desc->GetOutputDescPtr(0L);
+      GE_ASSERT_NOTNULL(output_desc);
+      auto &shape = output_desc->GetOriginShape();
+      GE_ASSERT_TRUE(!shape.IsUnknownShape(), "SubGraph[%s] DataNode[%s] is dynamic shape.",
+        sub_graph->GetName().c_str(), node->GetNamePtr());
+      auto symbol_attr = op_desc->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+      GE_ASSERT_NOTNULL(symbol_attr);
+      auto &origin_symbol_shape = symbol_attr->symbolic_tensor.MutableOriginSymbolShape().MutableDims();
+      origin_symbol_shape.clear();
+      for (size_t i = 0; i < shape.GetDimNum(); i++) {
+        GuardDfxContext dfx_context("node name:" + op_desc->GetName() + " index:" + to_string(i));
+        origin_symbol_shape.push_back(Symbol(shape.GetDim(i)));
+      }
+    }
+  }
+  return SUCCESS;
 }
 
+Status HandleUnknownDimNum(const GeShape& input_origin_shape, const OpDesc *op_desc, ShapeEnvAttr *shape_env_attr,
+                           int32_t data_index, GeShape& ge_shape) {
+  GELOGI("Start symbolize unknow rank, data node %s, index %d", op_desc->GetName().c_str(), data_index);
+  GE_ASSERT_NOTNULL(shape_env_attr);
+  const auto input_rank_source = MakeShared<InputRankSource>(data_index);
+  GE_ASSERT_NOTNULL(input_rank_source);
+  const auto rank = input_origin_shape.GetDimNum();
+  const auto rank_symbol = shape_env_attr->CreateSymbol(rank, input_rank_source);
+  EXPECT_SYMBOL_EQ(rank_symbol, Symbol(rank));     // 维度是否变化
+  ge_shape.SetDimNum(rank); // SetDimNum可以初始化rank个-1
+  GELOGI("Symbolize data node %s, index %d, symbol name %s, rank source str is %s.",
+    op_desc->GetName().c_str(), data_index, SymbolicUtils::ToString(rank_symbol).c_str(),
+    input_rank_source->GetSourceStr().c_str());
+  return SUCCESS;
+}
+
+Status SymbolizeShape(const DataSymbolizeInfo &info, const OpDesc *op_desc, ShapeEnvAttr *shape_env_attr,
+  SymbolicDescAttr *symbolic_desc_attr) {
+  const auto &input_origin_shape = info.inputShape;
+  const auto &ge_shape = info.dataShape;
+  const auto &data_index = info.dataIndex;
+
+  GE_ASSERT_TRUE(ge_shape.GetDimNum() == input_origin_shape.GetDimNum(),
+    "The index %d shape dim num between Data node(%s)(%zu) and input tensor(%zu) are different",
+    data_index, op_desc->GetName().c_str(), ge_shape.GetDimNum(), input_origin_shape.GetDimNum());
+
+  GE_ASSERT_NOTNULL(symbolic_desc_attr);
+  auto &origin_symbol_shape = symbolic_desc_attr->symbolic_tensor.MutableOriginSymbolShape().MutableDims();
+  origin_symbol_shape.clear();
+  for (size_t i = 0UL; i < ge_shape.GetDimNum(); ++i) {
+    GuardDfxContext dfx_context("node name:" + op_desc->GetName() + " index:" + to_string(i));
+    auto dim_value = ge_shape.GetDim(i);
+    if (dim_value >= 0) {
+      origin_symbol_shape.push_back(Symbol(dim_value));
+      continue;
+    }
+    dim_value = input_origin_shape.GetDim(i);
+    GE_ASSERT_TRUE(dim_value >= 0, "input origin dim value %lld is negative", dim_value);
+    auto input_source = MakeShared<InputShapeSource>(data_index, i);
+    Symbol symbol = shape_env_attr->CreateSymbol(dim_value, input_source);
+    // 需要生成符号是否是0的guard，判断输入是否是空tensor
+    EXPECT_SYMBOL_EQ(symbol, Symbol(0));
+    origin_symbol_shape.emplace_back(symbol);
+    GELOGI("Symbolize data node %s, index %zu, value %lld, symbol name %s, source str is %s",
+      op_desc->GetName().c_str(), i, dim_value, symbol.GetName().get(), input_source->GetSourceStr().c_str());
+  }
+  return SUCCESS;
+}
+
+Status SymbolizeRootGraph(const ComputeGraphPtr &graph, const std::vector<GeTensor> &graph_inputs) {
+  std::vector<NodePtr> data_nodes;
+  GE_ASSERT_SUCCESS(GetSupportSymbolizeInputDataNodes(graph, data_nodes, graph_inputs.size()));
+  auto shape_env_attr = graph->GetAttrsGroup<ShapeEnvAttr>();
+  GE_ASSERT_NOTNULL(shape_env_attr);
+  for (auto &data_node : data_nodes) {
+    auto op_desc = data_node->GetOpDescBarePtr();
+    DataSymbolizeInfo info;
+    auto ret = BuildDataSymbolizeInfo(data_node, graph_inputs, info);
+    if (ret == ge::UNSUPPORTED) {
+      continue;
+    }
+    GE_ASSERT_SUCCESS(ret);
+    const auto &data_index = info.dataIndex;
+    const auto &input_origin_shape = info.inputShape;
+    // 如果shape是[-2], 即不知道dims
+    if (info.dataShape.IsUnknownDimNum()) {
+      GE_ASSERT_SUCCESS(HandleUnknownDimNum(input_origin_shape , op_desc, shape_env_attr,
+        data_index, info.dataShape), "symbolize unknown rank node %s failed", op_desc->GetName().c_str());
+    }
+    const auto symbolic_desc_attr = op_desc->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
+    GE_ASSERT_SUCCESS(SymbolizeShape(info, op_desc, shape_env_attr, symbolic_desc_attr));
+
+    int64_t symbolize_value_type = SYMBOLIZE_VALUE_TYPE_NONE;
+    const auto &tensor = graph_inputs.at(data_index);
+    if (AttrUtils::GetInt(op_desc, kSymbolizeValueType, symbolize_value_type) &&
+      symbolize_value_type == static_cast<ino64_t>(SYMBOLIZE_VALUE_TYPE_SUM) &&
+      SupportSymbolizeValueSum(tensor)) {
+      GELOGI("Symbolize value sum for node %s[%s]", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+      GE_ASSERT_SUCCESS(SymbolizeInputValueForRepeat(tensor, symbolic_desc_attr, shape_env_attr, data_index));
+    }
+  }
+  return SUCCESS;
+}
+}
 std::string InputShapeSource::GetSourceStr() const {
   return R"([&]() -> int64_t {
       const auto *tensor = context->GetGraphInputTensor()" + std::to_string(input_data_idx_) + R"();
@@ -220,97 +384,19 @@ std::string InputRankSource::GetSourceStr() const {
     }())";
 }
 
-Status HandleUnknownDimNum(const GeShape& input_origin_shape, const OpDesc *op_desc, ShapeEnvAttr *shape_env_attr,
-                           int32_t data_index, GeShape& ge_shape) {
-  GELOGI("Start symbolize unknow rank, data node %s, index %d", op_desc->GetName().c_str(), data_index);
-  GE_ASSERT_NOTNULL(shape_env_attr);
-  const auto input_rank_source = MakeShared<InputRankSource>(data_index);
-  GE_ASSERT_NOTNULL(input_rank_source);
-  const auto rank = input_origin_shape.GetDimNum();
-  const auto rank_symbol = shape_env_attr->CreateSymbol(rank, input_rank_source);
-  EXPECT_SYMBOL_EQ(rank_symbol, Symbol(rank));     // 维度是否变化
-  ge_shape.SetDimNum(rank); // SetDimNum可以初始化rank个-1
-  GELOGI("Symbolize data node %s, index %d, symbol name %s, rank source str is %s.",
-    op_desc->GetName().c_str(), data_index, SymbolicUtils::ToString(rank_symbol).c_str(),
-    input_rank_source->GetSourceStr().c_str());
-  return SUCCESS;
-}
-
 Status SymbolicShapeSymbolizer::Symbolize(const ComputeGraphPtr &graph, const std::vector<GeTensor> &graph_inputs) {
-  // todoo: 对repeat算子特殊处理，Repeat算子需要对value的sum做symbolize处理，给repeat的data节点打上标签
   GELOGD("Start symbolize graph: %s", graph->GetName().c_str());
+  // 对repeat算子特殊处理，Repeat算子需要对value的sum做symbolize处理，给repeat的data节点打上标签
   MarkSymbolizeRepeatInputValue(graph);
-  std::vector<NodePtr> data_nodes;
-  GE_ASSERT_SUCCESS(GetSupportSymbolizeInputDataNodes(graph, data_nodes, graph_inputs.size()));
   if (graph->DeleteAttrsGroup<ShapeEnvAttr>()) {
     GELOGI("graph [%s] has ShapeEnv, do reset for symbolic shape symbolizer!", graph->GetName().c_str());
   }
   auto shape_env_attr = graph->CreateAttrsGroup<ShapeEnvAttr>();
   GE_ASSERT_NOTNULL(shape_env_attr);
   ShapeEnvGuarder guarder(shape_env_attr);
-  for (auto &data_node : data_nodes) {
-    auto op_desc = data_node->GetOpDescBarePtr();
-    int32_t data_index = -1;
-    GE_ASSERT_TRUE(AttrUtils::GetInt(op_desc, "index", data_index), "get data node %s index failed",
-      op_desc->GetName().c_str());
-    GE_ASSERT_TRUE(static_cast<size_t>(data_index) < graph_inputs.size(),
-                   "Invalid data index %d, graph inputs size %zu", data_index, graph_inputs.size());
-    auto td = op_desc->GetOutputDescPtr(0);
-    GE_ASSERT_NOTNULL(td);
-    auto &shape = td->GetOriginShape();
-    if (!(shape == td->GetShape())) {
-      GELOGW("The origin/storage shape are different, not support symbolize yet, data node %s", op_desc->GetNamePtr());
-      continue;
-    }
-    const auto &tensor = graph_inputs.at(data_index);
-    const auto &ge_tensor_desc = tensor.GetTensorDesc();
-    auto input_origin_shape = ge_tensor_desc.GetShape();
-    if (ge_tensor_desc.IsOriginShapeInitialized()) {
-      input_origin_shape = tensor.GetTensorDesc().GetOriginShape();
-    }
-    // atc + acl场景动态shape下开启自动融合会产生[-3]的shape，在这里拦截报错
-    GE_ASSERT_TRUE(input_origin_shape.GetDims() != kDummyShape,
-      "Node[%s] is not supported symbolize, input origin shape is [-3].", data_node->GetNamePtr());
-    GeShape ge_shape;
-    if (shape.IsUnknownDimNum()) {
-      GE_ASSERT_SUCCESS(HandleUnknownDimNum(input_origin_shape, op_desc, shape_env_attr, data_index, ge_shape),
-        "symbolize unknown rank node %s failed", op_desc->GetName().c_str());
-    } else {
-      ge_shape = shape;
-    }
+  GE_ASSERT_SUCCESS(SymbolizeRootGraph(graph, graph_inputs));
+  GE_ASSERT_SUCCESS(SymbolizeMultiBatchSubGraph(graph));
 
-    GE_ASSERT_TRUE(ge_shape.GetDimNum() == input_origin_shape.GetDimNum(),
-      "The index %d shape dim num between Data node(%s)(%zu) and input tensor(%zu) are different",
-      data_index, op_desc->GetName().c_str(), ge_shape.GetDimNum(), input_origin_shape.GetDimNum());
-
-    const auto symbolic_desc_attr = op_desc->MutableOutputDesc(0)->GetOrCreateAttrsGroup<SymbolicDescAttr>();
-    GE_ASSERT_NOTNULL(symbolic_desc_attr);
-    auto &origin_symbol_shape = symbolic_desc_attr->symbolic_tensor.MutableOriginSymbolShape().MutableDims();
-    origin_symbol_shape.clear();
-    for (size_t i = 0UL; i < ge_shape.GetDimNum(); ++i) {
-      GuardDfxContext dfx_context("node name:" + op_desc->GetName() + " index:" + to_string(i));
-      auto dim_value = ge_shape.GetDim(i);
-      if (dim_value >= 0) {
-        origin_symbol_shape.push_back(Symbol(dim_value));
-        continue;
-      }
-      dim_value = input_origin_shape.GetDim(i);
-      GE_ASSERT_TRUE(dim_value >= 0, "input origin dim value %lld is negative", dim_value);
-      auto input_source = MakeShared<InputShapeSource>(data_index, i);
-      Symbol symbol = shape_env_attr->CreateSymbol(dim_value, input_source);
-      // 需要生成符号是否是0的guard，判断输入是否是空tensor
-      EXPECT_SYMBOL_EQ(symbol, Symbol(0));
-      origin_symbol_shape.emplace_back(symbol);
-      GELOGI("Symbolize data node %s, index %zu, value %lld, symbol name %s, source str is %s",
-             op_desc->GetName().c_str(), i, dim_value, symbol.GetName().get(), input_source->GetSourceStr().c_str());
-    }
-    int64_t symbolize_value_type = SYMBOLIZE_VALUE_TYPE_NONE;
-    if (AttrUtils::GetInt(op_desc, kSymbolizeValueType, symbolize_value_type) &&
-        symbolize_value_type == static_cast<ino64_t>(SYMBOLIZE_VALUE_TYPE_SUM) && SupportSymbolizeValueSum(tensor)) {
-      GELOGI("Symbolize value sum for node %s[%s]", op_desc->GetNamePtr(), op_desc->GetTypePtr());
-      GE_ASSERT_SUCCESS(SymbolizeInputValueForRepeat(tensor, symbolic_desc_attr, shape_env_attr, data_index));
-    }
-  }
   GELOGD("Graph: %s finish symbolize.", graph->GetName().c_str());
   return SUCCESS;
 }

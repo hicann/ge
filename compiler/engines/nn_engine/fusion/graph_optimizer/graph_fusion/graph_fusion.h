@@ -22,6 +22,7 @@
 #include "register/graph_optimizer/fusion_common/pattern_fusion_base_pass.h"
 #include "register/graph_optimizer/graph_fusion/fusion_pass_manager/fusion_pass_registry.h"
 #include "register/graph_optimizer/graph_fusion/graph_fusion_pass_base.h"
+#include "ge/fusion/pass/fusion_pass_reg.h"
 
 namespace fe {
 enum class CastOptimizationType {
@@ -114,10 +115,12 @@ class GraphFusion {
    *  @param   [in|out] graph compute graph
    *  @return  SUCCESS or FAILED
    */
-  Status RunOnePassFusion(ge::ComputeGraph &graph, const FusionPassOrRule &pass_or_rule);
+  Status RunOnePassFusion(ge::ComputeGraph &graph, const FusionPassOrRule &pass_or_rule,
+                          const std::map<std::string, ge::fusion::CreateFusionPassFn> &ge_pass_map);
 
   Status RunOnePassFusionByType(ge::ComputeGraph &graph, const FusionPassOrRule &pass_or_rule,
-                                const GraphFusionPassType &pass_type);
+                              const GraphFusionPassType &pass_type,
+                              const std::map<std::string, ge::fusion::CreateFusionPassFn> &ge_pass_map);
 
   uint32_t GraphFusionQuantByPass(ge::ComputeGraph &graph);
 

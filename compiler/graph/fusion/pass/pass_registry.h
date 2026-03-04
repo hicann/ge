@@ -19,6 +19,7 @@ inline std::string CustomPassStageToString(CustomPassStage stage) {
       {CustomPassStage::kAfterAssignLogicStream, "AfterAssignLogicStream"},
       {CustomPassStage::kAfterBuiltinFusionPass, "AfterBuiltinFusionPass"},
       {CustomPassStage::kAfterOriginGraphOptimize, "AfterOriginGraphOptimize"},
+      {CustomPassStage::kCompatibleInherited, "CompatibleInherited"},
       {CustomPassStage::kInvalid, "InvalidStage"}
   };
   if (stage > CustomPassStage::kInvalid) {

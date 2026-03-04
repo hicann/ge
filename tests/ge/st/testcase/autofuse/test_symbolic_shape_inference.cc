@@ -34,6 +34,7 @@
 #include "api/aclgrph/option_utils.h"
 #include "ge_local_context.h"
 #include "register/optimization_option_registry.h"
+#include "common/context/local_context.h"
 
 namespace ge {
 using ge::es::EsTensorHolder;
@@ -7354,5 +7355,31 @@ TEST_F(SymbolicShapeInferenceST, RefDataCopyOpTest) {
   ge::Tensor tensor0{td0};
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
   ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), SUCCESS);
+}
+
+// 动态分档场景符号化推导
+TEST_F(SymbolicShapeInferenceST, MultiBatchInferTest) {
+  GetLocalOmgContext().need_multi_batch = true;
+  auto graph = gert::ShareGraph::BuildMultiBatchShapesGraph();
+
+  std::vector<ge::GeTensor> input_vec;
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+  input_vec.emplace_back(BuildTensor({8, 3, 1, 100}, FORMAT_NCHW, DT_FLOAT));
+
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(graph, input_vec), SUCCESS);
+
+  std::vector<Expression> expect_shape = {Symbol(8), Symbol(3), Symbol(1), Symbol(100)};
+
+  for (auto &subgraph : graph->GetAllSubgraphs()) {
+    for (auto &node : subgraph->GetDirectNode()) {
+      if (node->GetType() == DATA) {
+        const auto attr = node->GetOpDesc()->GetOutputDesc(0).GetAttrsGroup<SymbolicDescAttr>();
+        ASSERT_NE(attr, nullptr);
+      }
+    }
+  }
+  GetLocalOmgContext().need_multi_batch = false;
 }
 }  // namespace ge

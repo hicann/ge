@@ -59,6 +59,7 @@ TEST_F(UtestDecomposePass, SingleNode_1Input_1Output) {
   auto target_graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(target_compute_graph);
 
   CustomPassContext context;
+  context.SetPassName("TransDataToReluPass");
   TransDataToReluPass transdata_2_relu_pass({TRANSDATA});
   EXPECT_EQ(transdata_2_relu_pass.Run(target_graph, context), SUCCESS);
 
@@ -95,7 +96,7 @@ TEST_F(UtestDecomposePass, SingleNode_1Input_1Output) {
           ge::AttrUtils::GetListStr(node->GetOpDesc(), kPassName, pass_names);
       EXPECT_TRUE(has_pass_name_attr);
       EXPECT_TRUE(pass_names.size() == 1);
-      EXPECT_STREQ(pass_names[0].c_str(), "ge::fusion::UtestDecomposePass_SingleNode_1Input_1Output_Test::TestBody()::TransDataToReluPass");
+      EXPECT_STREQ(pass_names[0].c_str(), "TransDataToReluPass");
     }
   }
   EXPECT_EQ(transdata_2_relu_pass.Run(target_graph, context), NOT_CHANGED);

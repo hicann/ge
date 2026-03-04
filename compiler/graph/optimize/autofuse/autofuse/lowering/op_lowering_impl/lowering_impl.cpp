@@ -1182,14 +1182,58 @@ REGISTER_LOWERING_WITH_EXISTED(BatchMatMulV2, BatchLowerMatMul);
 REGISTER_LOWERING_WITH_EXISTED(BatchMatMulV3, BatchLowerMatMul);
 
 REGISTER_LOWERING(ClipByValue) {
+  loop::Index broadcasted;
+  std::vector<loop::Index> indices;
+
   auto x = node->GetInDataAnchor(0);
   GE_ASSERT_NOTNULL(x);
   auto y = node->GetInDataAnchor(1);
   GE_ASSERT_NOTNULL(y);
   auto z = node->GetInDataAnchor(2);
   GE_ASSERT_NOTNULL(z);
-  auto minimum = loop::Minimum(loop::Load(x), loop::Load(z));
-  (void)loop::Store(node->GetOutDataAnchor(0), loop::Maximum(minimum, loop::Load(y)));
+
+  auto input_tensor = x->GetPeerOutAnchor();
+  auto clip_value_min = y->GetPeerOutAnchor();
+  auto clip_value_max = z->GetPeerOutAnchor();
+  GE_ASSERT_NOTNULL(input_tensor);
+  GE_ASSERT_NOTNULL(clip_value_min);
+  GE_ASSERT_NOTNULL(clip_value_max);
+  std::vector<Expression> input_tensor_dims;
+  std::vector<Expression> clip_value_min_dims;
+  std::vector<Expression> clip_value_max_dims;
+  GE_WARN_ASSERT(loop::GetBufferShape(input_tensor, input_tensor_dims) == GRAPH_SUCCESS,
+                 "Skip lowering node %s, as: Failed to get input_tensor shape.", node->GetNamePtr());
+  GE_WARN_ASSERT(loop::GetBufferShape(clip_value_min, clip_value_min_dims) == GRAPH_SUCCESS,
+                 "Skip lowering node %s, as: Failed to get clip_value_min shape.", node->GetNamePtr());
+  GE_WARN_ASSERT(loop::GetBufferShape(clip_value_max, clip_value_max_dims) == GRAPH_SUCCESS,
+                 "Skip lowering node %s, as: Failed to get clip_value_max shape.", node->GetNamePtr());
+
+  auto UnsqueezeToMatchRank = [&](loop::LoopVar tensor, std::vector<Expression> &dims) {
+    if (dims.size() < input_tensor_dims.size()) {
+      const size_t num_unsqueeze = input_tensor_dims.size() - dims.size();
+      for (size_t i = 0U; i < num_unsqueeze; i++) {
+        tensor = loop::Unsqueeze(tensor, static_cast<int64_t>(i));
+        dims.emplace(dims.begin(), Symbol(1));
+      }
+    }
+    return tensor;
+  };
+
+  auto clip_value_min_tensor = UnsqueezeToMatchRank(loop::Load(y), clip_value_min_dims);
+  auto clip_value_max_tensor = UnsqueezeToMatchRank(loop::Load(z), clip_value_max_dims);
+
+  indices.emplace_back(input_tensor_dims);
+  indices.emplace_back(clip_value_min_dims);
+  indices.emplace_back(clip_value_max_dims);
+
+  GE_WARN_ASSERT_GRAPH_SUCCESS(Broadcast(indices, broadcasted));
+  constexpr size_t clip_value_min_idx = 1U;
+  constexpr size_t clip_value_max_idx = 2U;
+  auto clip_value_min_var = loop::Broadcast(clip_value_min_tensor, indices[clip_value_min_idx], broadcasted);
+  auto clip_value_max_var = loop::Broadcast(clip_value_max_tensor, indices[clip_value_max_idx], broadcasted);
+
+  auto minimum = loop::Minimum(loop::Load(x), clip_value_max_var);
+  (void)loop::Store(node->GetOutDataAnchor(0), loop::Maximum(minimum, clip_value_min_var));
   return GRAPH_SUCCESS;
 }
 

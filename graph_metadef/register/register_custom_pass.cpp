@@ -28,6 +28,7 @@ const std::map<CustomPassStage, std::string> kCustomPassStageToStringMap = {
     {CustomPassStage::kAfterAssignLogicStream, "AfterAssignLogicStream"},
     {CustomPassStage::kAfterBuiltinFusionPass, "AfterBuiltinFusionPass"},
     {CustomPassStage::kAfterOriginGraphOptimize, "AfterOriginGraphOptimize"},
+    {CustomPassStage::kCompatibleInherited, "CompatibleInherited"},
     {CustomPassStage::kInvalid, "InvalidStage"}
 };
 
@@ -58,6 +59,7 @@ Status RunAllocateStreamPass(const PassRegistrationData &reg_data, const GraphPt
 
   GE_DUMP(root_graph, "RunCustomPass_BeforeAssignLogicStream" + reg_data.GetPassName());
   // 此处框架保证传入的custom_pass_context实例为stream_pass_context
+  custom_pass_context.SetPassName(reg_data.GetPassName().c_str());
   auto *stream_pass_context = dynamic_cast<StreamPassContext *>(&custom_pass_context);
   GE_ASSERT_NOTNULL(stream_pass_context, "Failed to transfer CustomPassContext to StreamPassContext");
   const auto ret = allocate_stream_pass_func(graph, *stream_pass_context);
@@ -81,6 +83,7 @@ Status RunCustomPass(const PassRegistrationData &reg_data, GraphPtr &graph, Cust
            reg_data.GetPassName().c_str());
     return SUCCESS;
   }
+  custom_pass_context.SetPassName(reg_data.GetPassName().c_str());
   const auto ret = custom_pass_fn(graph, custom_pass_context);
   if (ret != SUCCESS) {
     GE_LOGE("Execution of custom pass [%s] failed! Reason: %s.", reg_data.GetPassName().c_str(),
@@ -188,9 +191,22 @@ void CustomPassContext::SetErrorMessage(const AscendString &error_message) {
   }
 }
 
+void CustomPassContext::SetPassName(const AscendString &pass_name) {
+  if (impl_ != nullptr) {
+    impl_->SetPassName(pass_name);
+  }
+}
+
 AscendString CustomPassContext::GetErrorMessage() const {
   if (impl_ != nullptr) {
     return impl_->GetErrorMessage();
+  }
+  return "";
+}
+
+AscendString CustomPassContext::GetPassName() const {
+  if (impl_ != nullptr) {
+    return impl_->GetPassName();
   }
   return "";
 }

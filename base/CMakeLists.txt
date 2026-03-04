@@ -57,6 +57,8 @@ set(SRC_LIST
     "graph/bin_cache/op_binary_cache.cc"
     "host_cpu_engine/host_cpu_engine.cc"
     "common/option_supportion_checker.cc"
+    "${AIR_CODE_DIR}/compiler/graph/fusion/pass/fusion_pass_reg.cc"
+    "${AIR_CODE_DIR}/compiler/graph/fusion/pass/pass_registry.cc"
 )
 
 set(SRC_BASE_LIST
@@ -194,7 +196,9 @@ target_include_directories(ge_common PRIVATE
     ${AIR_CODE_DIR}
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/graph_metadef
+    ${AIR_CODE_DIR}/inc/graph_metadef/external
     ${AIR_CODE_DIR}/inc/external
+    ${AIR_CODE_DIR}/inc/external/ge/fusion/pass
     ${AIR_CODE_DIR}/inc/framework
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos

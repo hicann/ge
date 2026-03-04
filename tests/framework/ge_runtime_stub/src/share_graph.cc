@@ -3989,64 +3989,40 @@ ge::ComputeGraphPtr ShareGraph::BuildMultiBatchShapesGraph() {
   }();
   main_graph->SetName("main");
   auto data1 = main_graph->FindNode("data1");
-  data1->GetOpDesc()->MutableOutputDesc(0)->SetShape(GeShape({8, 3, 1, 100}));
-  data1->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({8, 3, 1, 100}));
-  data1->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
-  data1->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT);
-  data1->GetOpDesc()->MutableOutputDesc(0)->SetFormat(ge::FORMAT_NCHW);
-  data1->GetOpDesc()->MutableOutputDesc(0)->SetOriginFormat(ge::FORMAT_NCHW);
+  SetNoStorage(data1->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
   std::vector<int32_t> unknown_dim_index_1 = {0, 3};
   (void)ge::AttrUtils::SetListInt(data1->GetOpDesc(), "_dynamic_batch_unknown_dim_index", unknown_dim_index_1);
   if (!AttrUtils::SetInt(data1->GetOpDesc(), "index", 0)) {
     return nullptr;
   }
   auto data2 = main_graph->FindNode("data2");
-  data2->GetOpDesc()->MutableOutputDesc(0)->SetShape(GeShape({8, 3, 1, 100}));
-  data2->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({8, 3, 1, 100}));
-  data2->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
-  data2->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT);
-  data2->GetOpDesc()->MutableOutputDesc(0)->SetFormat(ge::FORMAT_NCHW);
-  data2->GetOpDesc()->MutableOutputDesc(0)->SetOriginFormat(ge::FORMAT_NCHW);
+  SetNoStorage(data2->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
   std::vector<int32_t> unknown_dim_index_2 = {0, 3};
   (void)ge::AttrUtils::SetListInt(data2->GetOpDesc(), "_dynamic_batch_unknown_dim_index", unknown_dim_index_2);
   if (!AttrUtils::SetInt(data2->GetOpDesc(), "index", 1)) {
     return nullptr;
   }
   auto data3 = main_graph->FindNode("data3");
-  data3->GetOpDesc()->MutableOutputDesc(0)->SetShape(GeShape({8, 3, 1, 100}));
-  data3->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({8, 3, 1, 100}));
-  data3->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
-  data3->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT);
-  data3->GetOpDesc()->MutableOutputDesc(0)->SetFormat(ge::FORMAT_NCHW);
-  data3->GetOpDesc()->MutableOutputDesc(0)->SetOriginFormat(ge::FORMAT_NCHW);
+  SetNoStorage(data3->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
   std::vector<int32_t> unknown_dim_index_3 = {3};
   (void)ge::AttrUtils::SetListInt(data3->GetOpDesc(), "_dynamic_batch_unknown_dim_index", unknown_dim_index_3);
   if (!AttrUtils::SetInt(data3->GetOpDesc(), "index", 2)) {
     return nullptr;
   }
   auto data4 = main_graph->FindNode("data4");
-  data4->GetOpDesc()->MutableOutputDesc(0)->SetShape(GeShape({8, 3, 1, 100}));
-  data4->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({8, 3, 1, 100}));
-  data4->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_FLOAT);
-  data4->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_FLOAT);
-  data4->GetOpDesc()->MutableOutputDesc(0)->SetFormat(ge::FORMAT_NCHW);
-  data4->GetOpDesc()->MutableOutputDesc(0)->SetOriginFormat(ge::FORMAT_NCHW);
+  SetNoStorage(data4->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
   if (!AttrUtils::SetInt(data4->GetOpDesc(), "index", 3)) {
     return nullptr;
   }
   auto shape_data = main_graph->FindNode("shape_data");
-  shape_data->GetOpDesc()->MutableOutputDesc(0)->SetShape(GeShape({5}));
-  shape_data->GetOpDesc()->MutableOutputDesc(0)->SetOriginShape(GeShape({5}));
-  shape_data->GetOpDesc()->MutableOutputDesc(0)->SetDataType(DT_INT32);
-  shape_data->GetOpDesc()->MutableOutputDesc(0)->SetOriginDataType(DT_INT32);
-  shape_data->GetOpDesc()->MutableOutputDesc(0)->SetFormat(ge::FORMAT_ND);
-  shape_data->GetOpDesc()->MutableOutputDesc(0)->SetOriginFormat(ge::FORMAT_ND);
+  SetNoStorage(shape_data->GetOpDesc(), ge::FORMAT_ND, DT_INT32, {5});
   std::vector<int32_t> unknown_shape_data_index = {0, 1, 2};
   (void)ge::AttrUtils::SetListInt(shape_data->GetOpDesc(), "_dynamic_batch_unknown_data_index", unknown_shape_data_index);
   if (!AttrUtils::SetInt(shape_data->GetOpDesc(), "index", 4)) {
     return nullptr;
   }
   (void)AttrUtils::SetStr(shape_data->GetOpDesc(), "_ge_attr_lowering_func", "multi_batch_shape_data");
+  (void)AttrUtils::SetBool(shape_data->GetOpDesc(), "_is_multi_batch_shape_data", true);
   auto const_node = main_graph->FindNode("const");
   GeTensor weight;
   //std::vector<uint8_t> data = {2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 3, 3, 2, 2, 2, 2, 3, 3, 3, 3};
@@ -4081,6 +4057,7 @@ ge::ComputeGraphPtr ShareGraph::BuildMultiBatchShapesGraph() {
   case_node->GetOpDesc()->MutableInputDesc(4)->SetOriginDataType(ge::DT_FLOAT);
   case_node->GetOpDesc()->AppendIrInput("branch_index", kIrInputRequired);
   case_node->GetOpDesc()->AppendIrInput("input", kIrInputDynamic);
+  (void)AttrUtils::SetBool(case_node->GetOpDesc(), ATTR_INSERT_BY_MBATCH, true);
 
   auto &name_index = case_node->GetOpDesc()->MutableAllInputName();
   name_index.clear();
@@ -4099,12 +4076,20 @@ ge::ComputeGraphPtr ShareGraph::BuildMultiBatchShapesGraph() {
     return ToComputeGraph(g);
   }();
   graph_0->SetName("branch0");
-  ge::AttrUtils::SetInt(graph_0->FindNode("data1_batch_0")->GetOpDesc(), "index", 0);
-  ge::AttrUtils::SetInt(graph_0->FindNode("data1_batch_0")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 1);
-  ge::AttrUtils::SetInt(graph_0->FindNode("data2_batch_0")->GetOpDesc(), "index", 1);
-  ge::AttrUtils::SetInt(graph_0->FindNode("data2_batch_0")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 2);
-  ge::AttrUtils::SetInt(graph_0->FindNode("data3_batch_0")->GetOpDesc(), "index", 2);
-  ge::AttrUtils::SetInt(graph_0->FindNode("data3_batch_0")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 3);
+  auto data1_batch0 =  graph_0->FindNode("data1_batch_0");
+  SetNoStorage(data1_batch0->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
+  ge::AttrUtils::SetInt(data1_batch0->GetOpDesc(), "index", 0);
+  ge::AttrUtils::SetInt(data1_batch0->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 1);
+
+  auto data2_batch0 =  graph_0->FindNode("data2_batch_0");
+  SetNoStorage(data2_batch0->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
+  ge::AttrUtils::SetInt(data2_batch0->GetOpDesc(), "index", 1);
+  ge::AttrUtils::SetInt(data2_batch0->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 2);
+
+  auto data3_batch0 =  graph_0->FindNode("data3_batch_0");
+  SetNoStorage(data3_batch0->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
+  ge::AttrUtils::SetInt(data3_batch0->GetOpDesc(), "index", 1);
+  ge::AttrUtils::SetInt(data3_batch0->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 3);
 
   auto graph_1 = []() {
     DEF_GRAPH(g) {
@@ -4115,12 +4100,20 @@ ge::ComputeGraphPtr ShareGraph::BuildMultiBatchShapesGraph() {
     return ToComputeGraph(g);
   }();
   graph_1->SetName("branch1");
-  ge::AttrUtils::SetInt(graph_1->FindNode("data1_batch_1")->GetOpDesc(), "index", 0);
-  ge::AttrUtils::SetInt(graph_1->FindNode("data1_batch_1")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 1);
-  ge::AttrUtils::SetInt(graph_1->FindNode("data2_batch_1")->GetOpDesc(), "index", 1);
-  ge::AttrUtils::SetInt(graph_1->FindNode("data2_batch_1")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 2);
-  ge::AttrUtils::SetInt(graph_1->FindNode("data3_batch_1")->GetOpDesc(), "index", 2);
-  ge::AttrUtils::SetInt(graph_1->FindNode("data3_batch_1")->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 3);
+  auto data1_batch1 =  graph_1->FindNode("data1_batch_1");
+  SetNoStorage(data1_batch1->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
+  ge::AttrUtils::SetInt(data1_batch1->GetOpDesc(), "index", 0);
+  ge::AttrUtils::SetInt(data1_batch1->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 1);
+
+  auto data2_batch1 =  graph_1->FindNode("data2_batch_1");
+  SetNoStorage(data2_batch1->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
+  ge::AttrUtils::SetInt(data2_batch1->GetOpDesc(), "index", 1);
+  ge::AttrUtils::SetInt(data2_batch1->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 2);
+
+  auto data3_batch1 =  graph_1->FindNode("data3_batch_1");
+  SetNoStorage(data3_batch1->GetOpDesc(), ge::FORMAT_NCHW, DT_FLOAT, {8, 3, 1, 100});
+  ge::AttrUtils::SetInt(data3_batch1->GetOpDesc(), "index", 2);
+  ge::AttrUtils::SetInt(data3_batch1->GetOpDesc(), ge::ATTR_NAME_PARENT_NODE_INDEX, 3);
 
   graph_0->SetParentGraph(main_graph);
   graph_0->SetParentNode(case_node);
@@ -13033,6 +13026,9 @@ ComputeGraphPtr ShareGraph::BuildSubGraph(const std::string& name, int64_t paren
               .Build(graph);
   auto output = NodeBuilder(subgraph_name + "_output", NETOUTPUT).Attr(ATTR_NAME_PARENT_NODE_INDEX, 0)
                         .Input(sqrt).Build(graph);
+  AttrUtils::SetInt(output->GetOpDesc()->MutableInputDesc(0), ge::ATTR_NAME_PARENT_NODE_INDEX, 0);
+  output->GetOpDesc()->SetSrcName({subgraph_name + "_sqrt1"});
+  output->GetOpDesc()->SetSrcIndex({0});
   return graph;
 }
 
@@ -13061,6 +13057,9 @@ ComputeGraphPtr ShareGraph::BuildNestPartitioncallSubGraph(const ComputeGraphPtr
                       .Build(graph);
   auto output = NodeBuilder(subgrpah_name + "_output", NETOUTPUT).Input(partitioncall)
                         .Attr(ATTR_NAME_PARENT_NODE_INDEX, 0).Build(graph);
+  AttrUtils::SetInt(output->GetOpDesc()->MutableInputDesc(0), ge::ATTR_NAME_PARENT_NODE_INDEX, 0);
+  output->GetOpDesc()->SetSrcName({name + "_sqrt1"});
+  output->GetOpDesc()->SetSrcIndex({0});
   (void)main_graph->AddSubGraph(sub_grpah);
   return graph;
 }

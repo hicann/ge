@@ -17,7 +17,6 @@
 #include "ge/fusion/subgraph_boundary.h"
 #include "ge/fusion/graph_rewriter.h"
 #include "graph/fusion/fusion_utils.h"
-#include <boost/core/demangle.hpp>
 
 namespace ge {
 namespace fusion {
@@ -60,16 +59,16 @@ bool IsMatchAnyOfType(const std::string &op_type,  const std::vector<AscendStrin
 }
 
 std::vector<GNode> MatchFromAllNodes(const ComputeGraphPtr &root_graph, const std::vector<AscendString> &op_types) {
-  std::vector<GNode> matched_ndoes;
+  std::vector<GNode> matched_nodes;
   for (const auto &node : root_graph->GetDirectNode()) {
     if (node == nullptr) {
       continue;
     }
     if (IsMatchAnyOfType(node->GetType(), op_types)) {
-      matched_ndoes.emplace_back(NodeAdapter::Node2GNode(node));
+      matched_nodes.emplace_back(NodeAdapter::Node2GNode(node));
     }
   }
-  return matched_ndoes;
+  return matched_nodes;
 }
 } // namespace
 DecomposePass::DecomposePass(const vector<AscendString> &op_types) : op_types_(op_types) {}
@@ -83,8 +82,22 @@ Status fusion::DecomposePass::Run(GraphPtr &graph, CustomPassContext &pass_conte
     return NOT_CHANGED;
   }
   bool is_changed = false;
+  const uint32_t graph_id = compute_graph->GetGraphID();
+  std::string pass_name = pass_context.GetPassName().GetString();
+  // 记录匹配节点的match_times与effect_times
+  std::map<AscendString, std::pair<int32_t, int32_t>> fusion_info_map;
+  for (auto op_type : op_types_) {
+    fusion_info_map.emplace(std::piecewise_construct,
+      std::forward_as_tuple(op_type),
+      std::forward_as_tuple(0,0));
+  }
   for (const auto &g_node : matched_nodes) {
     auto node = NodeAdapter::GNode2Node(g_node);
+    AscendString g_node_type;
+    GE_ASSERT_GRAPH_SUCCESS(g_node.GetType(g_node_type));
+    auto it_fusion_info = fusion_info_map.find(g_node_type);
+    GE_ASSERT_TRUE(it_fusion_info != fusion_info_map.end());
+    it_fusion_info->second.first++;
     if (!MeetRequirements(g_node)) {
       GELOGD("Node [%s][%s] is not match requires", node->GetNamePtr(), node->GetTypePtr());
       continue;
@@ -94,13 +107,20 @@ Status fusion::DecomposePass::Run(GraphPtr &graph, CustomPassContext &pass_conte
     GE_ASSERT_NOTNULL(boundary, "Failed to build boundary for node [%s][%s]", node->GetNamePtr(), node->GetTypePtr());
     auto replacement = Replacement(g_node);
     GE_ASSERT_NOTNULL(replacement, "Got null replacement graph");
-    (void)FusionUtils::MarkPassNameOnReplacementNodes(replacement, boundary, boost::core::demangle(typeid(*this).name()));
+    (void)FusionUtils::MarkPassNameOnReplacementNodes(replacement, boundary, pass_name);
     GE_ASSERT_SUCCESS(SubgraphRewriter::Replace(*boundary, *replacement), "Failed to replace node [%s][%s] with replacement graph",
                       node->GetNamePtr(), node->GetTypePtr());
     if (!is_changed) {
       is_changed = true;
     }
     GELOGI("Replace node[%s][%s] with %s", node->GetNamePtr(), node->GetTypePtr(), FusionUtils::ToString(replacement).c_str());
+    it_fusion_info->second.second++; // effect_times ++
+  }
+  for (auto &pair : fusion_info_map) {
+    FusionUtils::RecordFusionStatistic(compute_graph->GetSessionID(), to_string(graph_id),pass_name,
+      pair.second.first, pair.second.second);
+    GELOGD("GraphId[%d], GraphFusionPass[%s]: pattern=%s, matched_times=%d, effected_times=%d", graph_id, pass_name.c_str(),
+      pair.first.GetString(), pair.second.first, pair.second.second);
   }
   return is_changed ? SUCCESS : NOT_CHANGED;
 }

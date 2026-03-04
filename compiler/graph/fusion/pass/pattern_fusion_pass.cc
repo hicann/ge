@@ -10,8 +10,6 @@
 
 #include "ge/fusion/pass/pattern_fusion_pass.h"
 
-#include <boost/core/demangle.hpp>
-
 #include "framework/common/debug/ge_log.h"
 #include "common/checker.h"
 #include "common/plugin/ge_make_unique_util.h"
@@ -30,13 +28,18 @@ PatternFusionPass::PatternFusionPass(std::unique_ptr<PatternMatcherConfig> match
 Status PatternFusionPass::Run(GraphPtr &graph, CustomPassContext &pass_context) {
   (void) pass_context;
   bool is_changed = false;
+  std::string pass_name = pass_context.GetPassName().GetString();
   auto patterns = Patterns();
-  for (auto &pattern_graph : patterns) {
+  for (auto &pattern : patterns) {
+    int32_t effect_times = 0;
+    int32_t match_times = 0;
+    auto pattern_graph = pattern->GetGraph();
     auto match_config =  std::make_unique<PatternMatcherConfig>(*match_config_);
     GE_ASSERT_NOTNULL(match_config);
-    PatternMatcher matcher(std::move(pattern_graph), graph, std::move(match_config));
+    PatternMatcher matcher(std::move(pattern), graph, std::move(match_config));
     std::unique_ptr<MatchResult> match_result;
     while (match_result = matcher.MatchNext(), match_result != nullptr) {
+      match_times++;
       if (!MeetRequirements(match_result)) {
         GELOGD("Match result[%s] is not meet requirements, skip replace.", match_result->ToAscendString().GetString());
         continue;
@@ -50,7 +53,7 @@ Status PatternFusionPass::Run(GraphPtr &graph, CustomPassContext &pass_context) 
       GE_ASSERT_NOTNULL(boundary);
       const auto replacement = Replacement(match_result);
       GE_ASSERT_NOTNULL(replacement);
-      (void)FusionUtils::MarkPassNameOnReplacementNodes(replacement, boundary, boost::core::demangle(typeid(*this).name()));
+      (void)FusionUtils::MarkPassNameOnReplacementNodes(replacement, boundary, pass_name);
       if (SubgraphRewriter::Replace(*boundary, *replacement) != SUCCESS) {
         AscendString replacement_name;
         GE_ASSERT_GRAPH_SUCCESS(replacement->GetName(replacement_name));
@@ -62,7 +65,14 @@ Status PatternFusionPass::Run(GraphPtr &graph, CustomPassContext &pass_context) 
         is_changed = true;
       }
       GELOGI("Replace [%s] to [%s] success", match_result->ToAscendString().GetString(), FusionUtils::ToString(replacement).c_str());
+      effect_times++;
     }
+    AscendString pattern_name;
+    GE_ASSERT_GRAPH_SUCCESS(pattern_graph.GetName(pattern_name));
+    auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
+    FusionUtils::RecordFusionStatistic(compute_graph->GetSessionID(), to_string(compute_graph->GetGraphID()),
+      pass_name, match_times, effect_times);
+    GELOGD("GraphId[%d], GraphFusionPass[%s]: pattern=%s, matched_times=%d, effected_times=%d", compute_graph->GetGraphID(), pass_name.c_str(), pattern_name.GetString(), match_times, effect_times);
   }
   return is_changed ? SUCCESS : NOT_CHANGED;
 }

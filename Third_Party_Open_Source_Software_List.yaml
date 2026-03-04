@@ -42,3 +42,6 @@ mockcpp:
 makeself:
   version: release-2.5.0-patch1.0
   type: build
+libseccomp:
+  version: 2.5.4
+  type: build

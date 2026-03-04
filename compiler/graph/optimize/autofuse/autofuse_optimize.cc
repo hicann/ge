@@ -145,10 +145,13 @@ Status DeleteCastForDataTypeUnconsistantNode(const ge::ComputeGraphPtr &compute_
     GE_ASSERT_NOTNULL(node);
     if (AttrUtils::HasAttr(node->GetOpDesc(), kCastInsertBeforeAutoFuse)) {
       // 控制子图场景
+      GE_ASSERT_SUCCESS(GraphUtils::IsolateNode(node, {0}),
+        "Isolate node[%s][%s] failed.",node->GetTypePtr(), node->GetNamePtr());
       const auto owner_graph = node->GetOwnerComputeGraph();
       GE_ASSERT_NOTNULL(owner_graph);
-      GE_ASSERT_SUCCESS(owner_graph->RemoveNode(node));
-      GELOGI("Delete node:%s(%s) after autofuse", node->GetName().c_str(), node->GetType().c_str());
+      GE_ASSERT_SUCCESS(GraphUtils::RemoveNodeWithoutRelink(owner_graph, node),
+        "Remove node[%s][%s] failed.",node->GetTypePtr(), node->GetNamePtr());
+      GELOGI("Delete node:[%][%s] after autofuse", node->GetName().c_str(), node->GetType().c_str());
     }
   }
   return GRAPH_SUCCESS;

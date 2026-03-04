@@ -1722,7 +1722,8 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
                             std::string &result) const {
   (void)tpipe;
   stringstream ss;
-  bool first_set = true;
+  bool first_ub_scalar = true;
+  bool first_gen_get_value = true;
   for (size_t i = 0; i < outputs.size(); ++i) {
     const auto &ub = outputs[i].get();
     if (ub.is_ub_scalar && !current_axis.empty()) {
@@ -1730,7 +1731,7 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
             static_cast<int32_t>(ub.need_gen_get_value_of_ub_scalar));
       // 生成ub_scalar的变量初始化定义
       if (ub.need_gen_get_value_of_ub_scalar) {
-        if (first_set) {
+        if (first_gen_get_value) {
           std::string sync_type = (this->type == Load::Type) ? "MTE2_S" : "V_S";
           ss << "event_t eventID = static_cast<event_t>(GetTPipePtr()->FetchEventID(HardEvent::";
           ss << sync_type;
@@ -1744,7 +1745,7 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
           ss << sync_type;
           ss << ">(eventID);" << std::endl;
 
-          first_set = false;
+          first_gen_get_value = false;
         }
         std::string tmp;
         GE_CHK_STATUS_RET(ub.InitUbScalar(tmp));
@@ -1754,8 +1755,10 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
           ss << tmp;
         }
       }
-
-      ss << "}" << std::endl;
+      if (first_ub_scalar) {
+        ss << "}" << std::endl;
+        first_ub_scalar = false;
+      }
     }
   }
 
@@ -3519,6 +3522,7 @@ std::string Kernel::GetIncludeApiHeaderFiles(const ascir::FusedScheduledResult &
     "basic_api/kernel_common.h",
     "basic_api/kernel_operator_common_intf.h",
     "basic_api/kernel_operator_sys_var_intf.h",
+    "basic_api/kernel_struct_binary.h",
   };
   std::stringstream ss;
   for (const auto &header : api_header_list) {
@@ -4587,7 +4591,11 @@ std::string TPipe::TensorSizeAssign(std::string dtype_name) const {
   for (auto &pair : this->tensors) {
     auto &t = pair.second;
     if ((t.alloc_type == ge::AllocType::kAllocTypeQueue) || (t.alloc_type == ge::AllocType::kAllocTypeBuffer)) {
-      ss << t.size.Str() << " = stage_size / sizeof(" << dtype_name << ");" << std::endl;
+      if (t.is_ub_scalar) {
+ 	      ss << t.size.Str() << " = 1;" << std::endl;
+ 	    } else {
+ 	      ss << t.size.Str() << " = stage_size / sizeof(" << dtype_name << ");" << std::endl;
+ 	    }
     }
   }
   return ss.str();
@@ -4848,7 +4856,7 @@ class AutoFusionVector {
   result << ss.str() << std::endl;
 
   result << "inline __aicore__ void auto_fusion_vector_stage1(int64_t offset, int64_t curAivM, int64_t curAivN, "
-            "int64_t shapeN, int64_t stageSize) {";
+            "int64_t shapeN, int64_t curAlignN, int64_t stageSize) {";
   result << std::endl;
   GE_CHK_STATUS_RET(this->root_loop.Generate(this->tiler, this->tpipe, tmp, ComputeStage::kCVFuseStage1),
                     "Codegen root loop Generate failed");
@@ -4856,7 +4864,7 @@ class AutoFusionVector {
   result << "}" << std::endl;
 
   result << "inline __aicore__ void auto_fusion_vector_stage2(int64_t offset, int64_t curAivM, int64_t curAivN, "
-            "int64_t shapeN, int64_t stageSize) {";
+            "int64_t shapeN, int64_t curAlignN, int64_t stageSize) {";
   result << std::endl;
   GE_CHK_STATUS_RET(this->root_loop.Generate(this->tiler, this->tpipe, tmp, ComputeStage::kCVFuseStage2),
                     "Codegen root loop Generate failed");
@@ -4864,16 +4872,16 @@ class AutoFusionVector {
   result << "}" << std::endl;
 
   result << "inline __aicore__ void operator()(int64_t offset, int64_t curAivM, int64_t curAivN, int64_t shapeN, "
-            "int64_t stageSize, int64_t stageOffset, uint8_t stage = 0) {"
+            "int64_t curAlignN, int64_t stageSize, int64_t stageOffset, uint8_t stage = 0) {"
          << std::endl
          << ub_tensor->name << " = cLocal_[stageOffset].template ReinterpretCast<" << dtype_name << ">();" << std::endl
          << "if (stage == 1) {" << std::endl
-         << "  auto_fusion_vector_stage1(offset, curAivM, curAivN, shapeN, stageSize);" << std::endl
+         << "  auto_fusion_vector_stage1(offset, curAivM, curAivN, shapeN, curAlignN, stageSize);" << std::endl
          << "} else if (stage == 2) {" << std::endl
-         << "  auto_fusion_vector_stage2(offset, curAivM, curAivN, shapeN, stageSize);" << std::endl
+         << "  auto_fusion_vector_stage2(offset, curAivM, curAivN, shapeN, curAlignN, stageSize);" << std::endl
          << "} else {" << std::endl
-         << "  auto_fusion_vector_stage1(offset, curAivM, curAivN, shapeN, stageSize);" << std::endl
-         << "  auto_fusion_vector_stage2(offset, curAivM, curAivN, shapeN, stageSize);" << std::endl
+         << "  auto_fusion_vector_stage1(offset, curAivM, curAivN, shapeN, curAlignN, stageSize);" << std::endl
+         << "  auto_fusion_vector_stage2(offset, curAivM, curAivN, shapeN, curAlignN, stageSize);" << std::endl
          << "}" << std::endl
          << "}" << std::endl;
 

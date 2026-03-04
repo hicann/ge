@@ -331,4 +331,16 @@ TEST_F(UtestRegisterPass, CustomPassContext_GetOptionValue_Failed) {
   EXPECT_NE(ret, GRAPH_SUCCESS);
   EXPECT_STREQ(graph_run_mode.GetString(), "");
 }
+
+TEST_F(UtestRegisterPass, CustomPassContext_SetPassName_GetPassName) {
+  auto custom_pass = CustomPassContext();
+  string pass_name = "TestPassName";
+  custom_pass.SetPassName(pass_name.c_str());
+  EXPECT_EQ(custom_pass.GetPassName().GetString(), pass_name);
+}
+
+TEST_F(UtestRegisterPass, CustomPassContext_GetPassName_without_SetPassName) {
+  auto custom_pass = CustomPassContext();
+  EXPECT_STREQ(custom_pass.GetPassName().GetString(), "");
+}
 } // namespace ge

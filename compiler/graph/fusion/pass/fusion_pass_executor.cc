@@ -64,6 +64,7 @@ Status FusionPassExecutor::RunPasses(const ComputeGraphPtr &compute_graph, Custo
     GE_CHECK_NOTNULL(pass);
     TraceOwnerGuard guard("Fusion", pass_name, compute_graph->GetName());
     GE_TRACE_START(FusionPassRun);
+    context.SetPassName(pass_name.c_str());
     Status status = pass->Run(graph, context);
     final_status = MergeFinalStatus(final_status, status);
     if ((final_status != SUCCESS) && (final_status != NOT_CHANGED)) {

@@ -18,10 +18,16 @@ BUILD_RELATIVE_PATH="build_ut"
 BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}"
 echo "PYTHONPATH:${PYTHONPATH}"
 echo "LD_LIBRARY_PATH:${LD_LIBRARY_PATH}"
+echo "LD_PRELOAD:${LD_PRELOAD}"
 unset LD_LIBRARY_PATH
 unset PYTHONPATH
+# delete ascend dir in LD_LIBRARY_PATH for test
+export LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | sed -e 's/:*[^:]*Ascend[^:]*:*//g' -e 's/^://' -e 's/:$//')
+export LD_LIBRARY_PATH=$(echo "$LD_LIBRARY_PATH" | sed -e 's/:*[^:]*cann[^:]*:*//g' -e 's/^://' -e 's/:$//')
+unset LD_PRELOAD
 echo "PYTHONPATH:${PYTHONPATH}"
 echo "LD_LIBRARY_PATH:${LD_LIBRARY_PATH}"
+echo "LD_PRELOAD:${LD_PRELOAD}"
 
 # print usage message
 usage() {
@@ -754,15 +760,25 @@ main() {
 
   # module autofuse_framework
   if [ "X$ENABLE_GE_AUTOFUSE_FRAMEWORK" == "Xon" ]; then
+    # autofuse_framework ut
     if [ "X$ENABLE_UT" = "Xon" ]; then
       bash scripts/test/run_autofuse_test.sh -u -m framework -j $THREAD_NUM $VERBOSE $COVERAGE
+    fi
+    # autofuse_framework st
+    if [ "X$ENABLE_ST" = "Xon" ]; then
+      bash scripts/test/run_autofuse_test.sh -s -m framework -j $THREAD_NUM $VERBOSE $COVERAGE
     fi
   fi
 
   # module autofuse_ascendc_api
   if [ "X$ENABLE_GE_AUTOFUSE_ASCENDC_API" == "Xon" ]; then
+    # autofuse_ascendc_api ut
     if [ "X$ENABLE_UT" = "Xon" ]; then
       bash scripts/test/run_autofuse_test.sh -u -m ascendc_api -j $THREAD_NUM $VERBOSE $COVERAGE
+    fi
+    # autofuse_ascendc_api st
+    if [ "X$ENABLE_ST" = "Xon" ]; then
+      bash scripts/test/run_autofuse_test.sh -s -m ascendc_api -j $THREAD_NUM $VERBOSE $COVERAGE
     fi
   fi
 

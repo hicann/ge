@@ -204,5 +204,14 @@ Status FusionUtils::UpdateToCycleDetector(const ComputeGraphPtr &curr_graph,
   detector->Update(curr_graph, replacement_nodes);
   return SUCCESS;
 }
+
+void FusionUtils::RecordFusionStatistic(const uint64_t session_id, const std::string graph_id, const std::string pass_name,
+  const int match_times, const int effect_times) {
+  fe::FusionStatisticRecorder &fusion_statistic_instance = fe::FusionStatisticRecorder::Instance();
+  auto fusion_info = fe::FusionInfo(session_id, graph_id, pass_name, match_times, effect_times);
+  fusion_statistic_instance.UpdateGraphFusionMatchTimes(fusion_info);
+  fusion_statistic_instance.UpdateGraphFusionEffectTimes(fusion_info);
+}
+
 } // namespace fusion
 }  // namespace ge

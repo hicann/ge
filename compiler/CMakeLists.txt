@@ -166,8 +166,6 @@ set(COMPILER_SRC_LIST
     "graph/fusion/fusion_utils.cc"
     "graph/fusion/pass/decompose_pass.cc"
     "graph/fusion/pass/pattern_fusion_pass.cc"
-    "graph/fusion/pass/fusion_pass_reg.cc"
-    "graph/fusion/pass/pass_registry.cc"
     "graph/fusion/pass/fusion_pass_executor.cc"
     "graph/fuzz_compile/fuzz_compile_bin_selector.cc"
     "graph/label/case_op_label_maker.cc"
@@ -453,7 +451,6 @@ target_link_libraries(ge_compiler
         graph
         graph_base
         flow_graph
-        ge_common
         ge_common_base
         ascend_protobuf
         aihac_autofusion
@@ -464,13 +461,13 @@ target_link_libraries(ge_compiler
         unified_dlog
         runtime_headers
         aihac_symbolizer
-        Boost::boost
         -Wl,--as-needed
         json
         -lrt
         -ldl
         crypto_static
     PUBLIC
+        ge_common
         air_headers
         metadef_headers
 )

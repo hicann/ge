@@ -172,8 +172,7 @@ if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
                   ${CMAKE_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_ops_stores.h
         DESTINATION ${BUILD_COMPONENT}/include/ge
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api_error_codes.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_ir_build.h
+    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_ir_build.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_utils.h
         DESTINATION ${BUILD_COMPONENT}/include/ge
     )

@@ -28,6 +28,14 @@ void EnsureDir(const std::string &path) {
   (void)std::system(cmd.c_str());
 }
 
+std::string DirName(const std::string &path) {
+  const auto pos = path.find_last_of("/\\");
+  if (pos == std::string::npos) {
+    return ".";
+  }
+  return path.substr(0, pos);
+}
+
 template <typename F>
 void ExpectRuntimeErrorContains(F &&fn, const std::string &expected_substr) {
   try {
@@ -62,7 +70,7 @@ std::string BuildDateFromOffsetDays(int offset_days) {
 class HistoryRegistryReaderUT : public ::testing::Test {
  protected:
   void SetUp() override {
-    fixture_root_ = "./fixtures/history_registry/math/";
+    fixture_root_ = DirName(__FILE__) + "/fixtures/history_registry/math/";
   }
 
   void TearDown() override {
@@ -201,11 +209,14 @@ TEST_F(HistoryRegistryReaderUT, LoadOpProtoFindsOpAndParses) {
   ASSERT_EQ(proto.inputs.size(), 2U);
   EXPECT_EQ(proto.inputs[0].name, "input");
   EXPECT_EQ(proto.inputs[0].type, ge::kIrInputRequired);
+  EXPECT_EQ(proto.inputs[0].dtype, "TensorType({DT_FLOAT, DT_INT32})");
   EXPECT_EQ(proto.inputs[1].name, "dy_input");
   EXPECT_EQ(proto.inputs[1].type, ge::kIrInputDynamic);
+  EXPECT_EQ(proto.inputs[1].dtype, "TensorType({DT_FLOAT, DT_INT32, DT_INT64})");
   ASSERT_EQ(proto.outputs.size(), 1U);
   EXPECT_EQ(proto.outputs[0].name, "output");
   EXPECT_EQ(proto.outputs[0].type, ge::kIrOutputDynamic);
+  EXPECT_EQ(proto.outputs[0].dtype, "TensorType({DT_FLOAT, DT_INT32})");
   ASSERT_EQ(proto.attrs.size(), 1U);
   EXPECT_EQ(proto.attrs[0].name, "index");
   EXPECT_EQ(proto.attrs[0].av_type, "Int");

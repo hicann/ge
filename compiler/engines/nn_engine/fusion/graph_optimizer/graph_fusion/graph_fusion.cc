@@ -35,11 +35,28 @@
 #include "graph_optimizer/graph_fusion/fusion_pass_manager/builtin_pass/quant_pass/delete_no_const_folding_fusion_pass.h"
 #include "param_calculate/tensorsize_calculator.h"
 #include "common/util/trace_manager/trace_manager.h"
+#include "graph_metadef/graph/utils/graph_utils_ex.h"
+#include "pass_registry.h"
 
 using std::vector;
 
 namespace fe {
 namespace {
+
+// 从 PassRegistry 获取 kCompatibleInherited 阶段注册的融合 pass，构建 name -> CreateFusionPassFn 映射
+std::map<std::string, ge::fusion::CreateFusionPassFn> GetGePassMapFromRegistry() {
+  std::map<std::string, ge::fusion::CreateFusionPassFn> ge_pass_map;
+  auto reg_data_vec =
+      ge::fusion::PassRegistry::GetInstance().GetFusionPassRegDataByStage(ge::CustomPassStage::kCompatibleInherited);
+  for (const auto &reg_data : reg_data_vec) {
+    auto create_fn = reg_data.GetCreatePassFn();
+    if (create_fn != nullptr) {
+      ge_pass_map[reg_data.GetPassName().GetString()] = create_fn;
+    }
+  }
+  return ge_pass_map;
+}
+
 CastOptimizationType GetCastOptimizationType(const ge::DataType &input_dtype, const ge::DataType &output_dtype) {
   /* input and output dtype should be one of the following:
    * a. input: fp32/fp16, output: arbitrary except fp32/fp16.
@@ -859,6 +876,7 @@ Status GraphFusion::FusionEachGraph(ge::ComputeGraph &graph) {
     return FAILED;
   }
   int64_t run_count = 0;
+  auto ge_pass_map = GetGePassMapFromRegistry();
   for (const FusionPassOrRule &pass_or_rule : sorted_graph_fusion_vec) {
     FE_TIMECOST_START(RunOnePassFusion);
     FE_LOGD("Start Graph Fusion:%s Owner:%s Method:%s Priority:%d.", pass_or_rule.name.c_str(),
@@ -869,7 +887,7 @@ Status GraphFusion::FusionEachGraph(ge::ComputeGraph &graph) {
     if (pass_or_rule.method == PASS_METHOD) {
       if (find(GRAPH_FUSION_QUANT_PASS_VEC.begin(), GRAPH_FUSION_QUANT_PASS_VEC.end(),
                pass_or_rule.type) == GRAPH_FUSION_QUANT_PASS_VEC.end()) {
-        ret = RunOnePassFusion(graph, pass_or_rule);
+        ret = RunOnePassFusion(graph, pass_or_rule, ge_pass_map);
         AdjustRunCountAfterPass(graph, pass_or_rule, run_count);
       }
     } else if (pass_or_rule.method == RULE_METHOD) {
@@ -905,6 +923,7 @@ Status GraphFusion::FusionEachPruningPass(ge::ComputeGraph &graph) {
     return FAILED;
   }
 
+  auto ge_pass_map = GetGePassMapFromRegistry();
   for (const FusionPassOrRule &pass_or_rule : sorted_graph_fusion_vec) {
     if (pass_or_rule.method != PASS_METHOD ||
         !IsPassAttrTypeOn(pass_or_rule.pass_desc.attr, PassAttrType::PRUNING_FLAG)) {
@@ -914,7 +933,7 @@ Status GraphFusion::FusionEachPruningPass(ge::ComputeGraph &graph) {
     FE_LOGD("Start running pass fusion:%s, owner:%s, priority:%d.", pass_or_rule.name.c_str(),
             GetPassTypeString(static_cast<GraphFusionPassType>(pass_or_rule.type)).c_str(),
             FusionPriorityManager::GetRealPriority(pass_or_rule.priority));
-    Status ret = RunOnePassFusion(graph, pass_or_rule);
+    Status ret = RunOnePassFusion(graph, pass_or_rule, ge_pass_map);
     string out_s = "GraphFusion::FusionEachPruningPass pass_name: " + pass_or_rule.name;
     FE_TIMECOST_END_LOGI(RunOnePassFusion, out_s.c_str());
     if (ret != SUCCESS) {
@@ -1122,7 +1141,7 @@ Status GraphFusion::RunOneRuleFusion(ge::ComputeGraph &graph, const FusionPassOr
             pass_or_rule.name.c_str(), GetRuleTypeString(rule_type).c_str(), priority, engine_name_.c_str());
   }
   Status ret = fusion_rule_mgr_ptr_->RunGraphFusionRuleByType(graph, rule_type, pass_or_rule.name);
-  if (ret != SUCCESS && ret != NOT_CHANGED) {
+  if (ret != SUCCESS && ret != NOT_CHANGED && ret != ge::NOT_CHANGED) {
     REPORT_FE_ERROR("[GraphOpt][FirstRoundFusion] Failed to run graph fusion rule: %s",
                     pass_or_rule.name.c_str());
     return ret;
@@ -1137,7 +1156,8 @@ Status GraphFusion::RunOneRuleFusion(ge::ComputeGraph &graph, const FusionPassOr
   return SUCCESS;
 }
 
-Status GraphFusion::RunOnePassFusion(ge::ComputeGraph &graph, const FusionPassOrRule &pass_or_rule) {
+Status GraphFusion::RunOnePassFusion(ge::ComputeGraph &graph, const FusionPassOrRule &pass_or_rule,
+                                    const std::map<std::string, ge::fusion::CreateFusionPassFn> &ge_pass_map) {
   auto pass_type = static_cast<GraphFusionPassType>(pass_or_rule.type);
 
   int32_t priority = FusionPriorityManager::GetRealPriority(pass_or_rule.priority);
@@ -1154,21 +1174,37 @@ Status GraphFusion::RunOnePassFusion(ge::ComputeGraph &graph, const FusionPassOr
   Status ret = SUCCESS;
   if (pass_type == CUSTOM_AI_CORE_GRAPH_PASS || pass_type == CUSTOM_VECTOR_CORE_GRAPH_PASS ||
       pass_type == BUILT_IN_GRAPH_PASS || pass_type == BUILT_IN_VECTOR_CORE_GRAPH_PASS) {
-    auto pattern_fusion_base_pass_ptr = std::unique_ptr<PatternFusionBasePass>(
-        dynamic_cast<PatternFusionBasePass *>(pass_or_rule.pass_desc.create_fn()));
-    FE_CHECK(pattern_fusion_base_pass_ptr == nullptr,
-             REPORT_FE_ERROR("[GraphOpt][FirstRoundFusion] Graph[%s], Pass[%s, %s]: the pattern fusion is nullptr.",
-                             graph_name.c_str(), pass_or_rule.name.c_str(), pass_type_str.c_str()),
-             return FAILED);
-    pattern_fusion_base_pass_ptr->SetName(pass_or_rule.name);
-    ge::TraceOwnerGuard guard(FE_MODULE_NAME, pass_or_rule.name, graph.GetName());
-    ret = pattern_fusion_base_pass_ptr->Run(graph, this->ops_kernel_info_store_ptr_);
+    auto ge_pass = ge_pass_map.find(pass_or_rule.name);
+    if (ge_pass != ge_pass_map.end()) {
+      FE_LOGI("Begin running the open-source registration pass, pass name:%s, pass type:%s",
+               pass_or_rule.name.c_str(), GetPassTypeString(pass_type).c_str());
+      ge::GraphPtr ge_graph = ge::GraphUtilsEx::CreateGraphPtrFromComputeGraph(graph.shared_from_this());
+      ge::CustomPassContext context;
+      FE_CHECK_NOTNULL(ge_pass->second);
+      context.SetPassName(ge_pass->first.c_str());
+      ret = ge_pass->second()->Run(ge_graph, context);
+      if (ret != SUCCESS) {
+        int64_t run_count_attr;
+        (void)ge::AttrUtils::GetInt(graph, "run_count", run_count_attr);
+        (void)ge::AttrUtils::SetInt(graph, "run_count", ++run_count_attr);
+      }
+    } else {
+      auto pattern_fusion_base_pass_ptr = std::unique_ptr<PatternFusionBasePass>(
+          dynamic_cast<PatternFusionBasePass *>(pass_or_rule.pass_desc.create_fn()));
+      FE_CHECK(pattern_fusion_base_pass_ptr == nullptr,
+              REPORT_FE_ERROR("[GraphOpt][FirstRoundFusion] Graph[%s], Pass[%s, %s]: the pattern fusion is nullptr.",
+                              graph_name.c_str(), pass_or_rule.name.c_str(), pass_type_str.c_str()),
+              return FAILED);
+      pattern_fusion_base_pass_ptr->SetName(pass_or_rule.name);
+      ge::TraceOwnerGuard guard(FE_MODULE_NAME, pass_or_rule.name, graph.GetName());
+      ret = pattern_fusion_base_pass_ptr->Run(graph, this->ops_kernel_info_store_ptr_);
+    }
   } else {
     int64_t run_count_attr;
     (void)ge::AttrUtils::GetInt(graph, "run_count", run_count_attr);
     (void)ge::AttrUtils::SetInt(graph, "run_count", ++run_count_attr);
   }
-  if (ret != SUCCESS && ret != NOT_CHANGED && ret != GRAPH_FUSION_CYCLE) {
+  if (ret != SUCCESS && ret != NOT_CHANGED && ret != ge::NOT_CHANGED && ret != GRAPH_FUSION_CYCLE) {
     ErrorMessageDetail err_msg(EM_RUN_PASS_FAILED, {pass_or_rule.name, GetPassTypeString(pass_type)});
     ReportErrorMessage(err_msg);
     REPORT_FE_ERROR("[GraphOpt][FirstRoundFusion] Failed to run graph fusion pass [%s, %s]. Return value is %u.",
@@ -1184,18 +1220,32 @@ Status GraphFusion::RunOnePassFusion(ge::ComputeGraph &graph, const FusionPassOr
 }
 
 Status GraphFusion::RunOnePassFusionByType(ge::ComputeGraph &graph, const FusionPassOrRule &pass_or_rule,
-                                           const GraphFusionPassType &pass_type) {
-  auto pattern_fusion_base_pass_ptr = std::unique_ptr<PatternFusionBasePass>(
-      dynamic_cast<PatternFusionBasePass *>(pass_or_rule.pass_desc.create_fn()));
-  if (pattern_fusion_base_pass_ptr == nullptr) {
-    REPORT_FE_ERROR(
-        "[GraphOptJdgInst][RunGraphFusion] Graph[%s], Pass[%s, %s]: the pattern_fusion_ptr is nullptr.",
-        graph.GetName().c_str(), GetPassTypeString(pass_type).c_str(), pass_or_rule.name.c_str());
-    return FAILED;
+                                          const GraphFusionPassType &pass_type,
+                                          const std::map<std::string, ge::fusion::CreateFusionPassFn> &ge_pass_map) {
+  Status ret = SUCCESS;
+  auto ge_pass = ge_pass_map.find(pass_or_rule.name);
+  if (ge_pass != ge_pass_map.end()) {
+    FE_LOGI("Begin running the open-source registration pass, pass name:%s, pass type:%s",
+              pass_or_rule.name.c_str(), GetPassTypeString(pass_type).c_str());
+    ge::GraphPtr ge_graph = ge::GraphUtilsEx::CreateGraphPtrFromComputeGraph(graph.shared_from_this());
+    ge::CustomPassContext context;
+    FE_CHECK_NOTNULL(ge_pass->second);
+    context.SetPassName(ge_pass->first.c_str());
+    ret = ge_pass->second()->Run(ge_graph, context);
+  } else {
+    auto pattern_fusion_base_pass_ptr = std::unique_ptr<PatternFusionBasePass>(
+        dynamic_cast<PatternFusionBasePass *>(pass_or_rule.pass_desc.create_fn()));
+    if (pattern_fusion_base_pass_ptr == nullptr) {
+      REPORT_FE_ERROR(
+          "[GraphOptJdgInst][RunGraphFusion] Graph[%s], Pass[%s, %s]: the pattern_fusion_ptr is nullptr.",
+          graph.GetName().c_str(), GetPassTypeString(pass_type).c_str(), pass_or_rule.name.c_str());
+      return FAILED;
+    }
+    pattern_fusion_base_pass_ptr->SetName(pass_or_rule.name);
+    ge::TraceOwnerGuard guard(FE_MODULE_NAME, pass_or_rule.name, graph.GetName());
+    ret = pattern_fusion_base_pass_ptr->Run(graph, this->ops_kernel_info_store_ptr_);
   }
-  pattern_fusion_base_pass_ptr->SetName(pass_or_rule.name);
-  ge::TraceOwnerGuard guard(FE_MODULE_NAME, pass_or_rule.name, graph.GetName());
-  return pattern_fusion_base_pass_ptr->Run(graph, this->ops_kernel_info_store_ptr_);
+  return ret;
 }
 
 Status GraphFusion::RunBuiltInFusionByType(ge::ComputeGraph &graph, GraphFusionPassType pass_type) {
@@ -1209,6 +1259,7 @@ Status GraphFusion::RunBuiltInFusionByType(ge::ComputeGraph &graph, GraphFusionP
   }
 
   // 1. get all create_fns
+  auto ge_pass_map = GetGePassMapFromRegistry();
   for (const FusionPassOrRule &pass_or_rule : sorted_graph_fusion_vec) {
     auto pass_type_curr = static_cast<GraphFusionPassType>(pass_or_rule.type);
     Status ret = SUCCESS;
@@ -1230,8 +1281,8 @@ Status GraphFusion::RunBuiltInFusionByType(ge::ComputeGraph &graph, GraphFusionP
       }
       // start to run one single pass
       FE_TIMECOST_START(RunOpsFusionPass);
-      ret = RunOnePassFusionByType(graph, pass_or_rule, pass_type);
-      if (ret != SUCCESS && ret != NOT_CHANGED) {
+      ret = RunOnePassFusionByType(graph, pass_or_rule, pass_type, ge_pass_map);
+      if (ret != SUCCESS && ret != NOT_CHANGED && ret != ge::NOT_CHANGED) {
         ErrorMessageDetail err_msg(EM_RUN_PASS_FAILED, {pass_or_rule.name, GetPassTypeString(pass_type)});
         ReportErrorMessage(err_msg);
         REPORT_FE_ERROR(
@@ -1344,13 +1395,14 @@ uint32_t GraphFusion::GraphFusionQuantByPass(ge::ComputeGraph &graph) {
   MapPassByType(quant_pass_map, graph);
   // run tf merge sub graph pass
   Status ret = SUCCESS;
+  auto ge_pass_map = GetGePassMapFromRegistry();
   for (const FusionPassOrRule &quant_pass_curr : quant_pass_map[BUILT_IN_TF_MERGE_SUB_GRAPH_PASS]) {
     auto pass_type_curr = static_cast<GraphFusionPassType>(quant_pass_curr.type);
     FE_LOGD("Start Graph Fusion:%s Owner:%s Method:%s Priority:%d", quant_pass_curr.name.c_str(),
             GetPassTypeString(pass_type_curr).c_str(), quant_pass_curr.method.c_str(),
             FusionPriorityManager::GetRealPriority(quant_pass_curr.priority));
-    ret = RunOnePassFusionByType(graph, quant_pass_curr, pass_type_curr);
-    if (ret != SUCCESS && ret != NOT_CHANGED) {
+    ret = RunOnePassFusionByType(graph, quant_pass_curr, pass_type_curr, ge_pass_map);
+    if (ret != SUCCESS && ret != NOT_CHANGED && ret != ge::NOT_CHANGED) {
       REPORT_FE_ERROR("[GraphOpt][FusionQuantOp] Graph[%s]: Run tf_merge fusion pass failed.", graph.GetName().c_str());
       return ret;
     }
@@ -1385,13 +1437,14 @@ uint32_t GraphFusion::GraphFusionQuantByPass(ge::ComputeGraph &graph) {
 
 uint32_t GraphFusion::RunQuantPass(ge::ComputeGraph &graph, std::vector<FusionPassOrRule> &quant_pass_vec) {
   // run quant pass
+  auto ge_pass_map = GetGePassMapFromRegistry();
   for (const FusionPassOrRule &quant_pass_curr : quant_pass_vec) {
     auto pass_type_curr = static_cast<GraphFusionPassType>(quant_pass_curr.type);
     FE_LOGD("Start Graph Fusion:%s Owner:%s Method:%s Priority:%d.", quant_pass_curr.name.c_str(),
             GetPassTypeString(pass_type_curr).c_str(), quant_pass_curr.method.c_str(),
             FusionPriorityManager::GetRealPriority(quant_pass_curr.priority));
-    auto ret = RunOnePassFusionByType(graph, quant_pass_curr, pass_type_curr);
-    if (ret != SUCCESS && ret != NOT_CHANGED) {
+    auto ret = RunOnePassFusionByType(graph, quant_pass_curr, pass_type_curr, ge_pass_map);
+    if (ret != SUCCESS && ret != NOT_CHANGED && ret != ge::NOT_CHANGED) {
       REPORT_FE_ERROR("[GraphOpt][FusionQuantOp] Graph[%s]: Run fusion pass failed.", graph.GetName().c_str());
       return ret;
     }
