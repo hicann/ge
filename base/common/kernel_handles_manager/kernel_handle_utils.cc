@@ -81,9 +81,11 @@ graphStatus KernelHandleUtils::LaunchKernel(const rtFuncHandle func_handle, cons
   attrs[actual_cfg_num].id = RT_LAUNCH_KERNEL_ATTR_LOCAL_MEM_SIZE;
   attrs[actual_cfg_num].value.localMemorySize = launch_param.launch_config.local_memory_size;
   actual_cfg_num++;
-  attrs[actual_cfg_num].id = RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
-  attrs[actual_cfg_num].value.timeout = launch_param.launch_config.time_out;
-  actual_cfg_num++;
+  if (launch_param.launch_config.time_out >= 0) {
+    attrs[actual_cfg_num].id = RT_LAUNCH_KERNEL_ATTR_TIMEOUT;
+    attrs[actual_cfg_num].value.timeout = static_cast<uint16_t>(launch_param.launch_config.time_out);
+    actual_cfg_num++;
+  }
   rt_launch_config.attrs = &attrs[0];
   rt_launch_config.numAttrs = actual_cfg_num;
   GE_ASSERT_NOTNULL(func_handle);

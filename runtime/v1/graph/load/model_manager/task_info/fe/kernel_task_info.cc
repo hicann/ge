@@ -590,7 +590,7 @@ Status KernelTaskInfo::DistributeTask() {
   bool op_exec_never_timeout = false;
   if (AttrUtils::GetBool(op_desc_, public_attr::OP_EXEC_NEVER_TIMEOUT, op_exec_never_timeout)
       && op_exec_never_timeout) {
-    launch_kernel_param.launch_config.time_out = op_exec_never_timeout;
+    launch_kernel_param.launch_config.time_out = 0;
     GELOGI("op %s type %s set never timeout", op_name.c_str(), op_desc_->GetTypePtr());
   }
   GE_ASSERT_SUCCESS(KernelHandleUtils::LaunchKernel(func_handle_, launch_kernel_param));
