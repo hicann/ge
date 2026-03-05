@@ -11,7 +11,6 @@
 #ifndef GRAPHENGINE_TESTS_UT_GE_RUNTIME_DEPLOY_STUB_MODELS_H_
 #define GRAPHENGINE_TESTS_UT_GE_RUNTIME_DEPLOY_STUB_MODELS_H_
 
-#include "ge/ge_ir_build.h"
 #include "graph/compute_graph.h"
 #include "common/model/ge_root_model.h"
 #include "dflow/base/deploy/deploy_planner.h"
@@ -78,12 +77,10 @@ class StubModels {
    */
   static ComputeGraphPtr BuildGraphWithoutNeedForBindingQueues(const std::string &prefix = "");
 
-  static GeRootModelPtr BuildGeRootModel(ComputeGraphPtr root_graph);
+  static PneModelPtr BuildGraphModel(ComputeGraphPtr root_graph, const std::string &model_type = "");
   static PneModelPtr BuildRootModel(ComputeGraphPtr root_graph, bool pipeline_partitioned = true);
   static FlowModelPtr BuildFlowModel(ComputeGraphPtr root_graph, bool pipeline_partitioned = true);
   static Status SaveGeRootModelToModelData(const GeRootModelPtr &ge_root_model, ModelData &model_data, ModelBufferData &model_buffer_data);
-
-  static void BuildModel(Graph &graph, ModelBufferData &model_buffer_data);
 
   /**
    *    NetOutput (4)       8->4(input_group)
@@ -100,9 +97,6 @@ class StubModels {
   static DeployPlan BuildSingleModelDeployPlanWithDummyQ(int32_t remote_node_id = 1);
   static DeployPlan BuildSingleModelWithFileConstDeployPlan(const std::string &location, int32_t remote_node_id = 1);
   static DeployPlan BuildSingleModelDeployPlanWithProxy(int32_t remote_node_id = 1);
- private:
-  static void InitGeLib();
-  static void FinalizeGeLib();
 };
 }  // namespace ge
 #endif // GRAPHENGINE_TESTS_UT_GE_RUNTIME_DEPLOY_STUB_MODELS_H_

@@ -384,11 +384,13 @@ TEST_F(EngineDaemonTest, TestEngineDaemonRegCallback) {
 
 TEST_F(EngineDaemonTest, TestEngineDaemonHost) {
   auto mock_runtime = std::make_shared<MockRuntime2>();
+  auto back_up_context = GetThreadLocalContext();
   RuntimeStub::SetInstance(mock_runtime);
   EngineDaemon engine_daemon(true);
   EXPECT_EQ(engine_daemon.InitializeGeExecutor(), SUCCESS);
   engine_daemon.Finalize();
   RuntimeStub::Reset();
+  GetThreadLocalContext() = back_up_context;
 }
 }  // namespace ge
 
