@@ -63,6 +63,8 @@ set(SRC_LIST
 
 file(GLOB_RECURSE OM2_SRCS CONFIGURE_DEPENDS
         "common/om2/*.cc"
+        "common/helper/om2/*.cc"
+        "common/helper/om2_package_helper.cc"
 )
 
 set(SRC_BASE_LIST
@@ -101,10 +103,6 @@ set(SRC_BASE_LIST
     "exec_runtime/execution_runtime_utils.cc"
     "common/helper/model_parser_base.cc"
     "common/helper/model_saver.cc"
-    "common/helper/om2/zip_archive.cc"
-    "common/helper/om2/zip_mem_ioapi.cc"
-    "common/helper/om2/om2_utils.cc"
-    "common/helper/om2_package_helper.cc"
     "common/op/ge_op_utils.cc"
     "common/tbe_handle_store/tbe_kernel_store.cc"
     "common/kernel_handles_manager/aicore_kernel_handles_manager.cc"
@@ -174,13 +172,13 @@ set(SRC_BASE_LIST
     "common/helper/mobile/model_file_saver.cc"
     "common/helper/mobile/model.cc"
     "common/error_registry/error_registry.cc"
-    "${OM2_SRCS}"
 )
 
 if (NOT ENABLE_D AND NOT ENABLE_ACL)
 ############ libge_common.so ############
 add_library(ge_common SHARED
     ${SRC_LIST}
+    ${OM2_SRCS}
 )
 
 add_dependencies(ge_common
@@ -226,6 +224,7 @@ target_link_libraries(ge_common
     PRIVATE
         intf_pub
         msprof_headers
+        cce_headers
         runtime_headers
         $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         static_mmpa
@@ -239,6 +238,7 @@ target_link_libraries(ge_common
         platform
         -Wl,--as-needed
         json
+        minizip_static
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
         ${AIR_COMMON_LINK_OPTION}
@@ -297,7 +297,6 @@ target_link_libraries(ge_common_base
         msprof_headers
         adump_headers
         runtime_headers
-        cce_headers
         $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         static_mmpa
@@ -315,7 +314,6 @@ target_link_libraries(ge_common_base
         lowering
         -Wl,--as-needed
         json
-        minizip_static
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
         ${AIR_COMMON_LINK_OPTION}
