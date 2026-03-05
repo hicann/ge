@@ -1,4 +1,4 @@
-/**
+ /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
  * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
  * CANN Open Software License Agreement Version 2.0 (the "License").
@@ -28,6 +28,9 @@ class VectorFuncPartitioner {
   using InsertOrderMap = std::vector<std::pair<ge::OutDataAnchorPtr, std::vector<ge::InDataAnchorPtr>>>;
   void DebugMergeLog() const;
   ge::Status InitClusters();
+  ClusterPtr CreateAndInitCluster(const ge::AscNodePtr &node, size_t &rank);
+  void EstablishClusterConnections(ClusterPtr &cluster, const ge::AscNodePtr &node);
+  void FixAllCompareClusterConnections();
   static void RefineEnableVFFlag(const ge::AscNodePtr &node, bool &enable_vf);
   static ge::Status InitClusterAttr(const std::unique_ptr<ge::ascir::AscIrCodegen> &codegen_impl,
                                     const ge::AscNodePtr &node, ClusterPtr &cluster);
@@ -57,6 +60,9 @@ class VectorFuncPartitioner {
   static ge::Status AddOutputDataAnchors(const ge::NodePtr &node, InsertOrderMap &out_data_to_peer_in_anchors);
 
   static bool HasDetectedCycle(const Cluster *const src, const Cluster *const dst);
+  static bool IsCompareOp(const ge::AscNodePtr &node);
+  bool TryMergeCompareOutputs(const ge::AscNodePtr &compare_node, ClusterPtr &cluster);
+  void FixCompareClusterConnections(const ClusterPtr &cluster, const ge::AscNodePtr &compare_node);
 
   ge::AscGraph &impl_graph_;
   ge::ComputeGraphPtr root_graph_;
