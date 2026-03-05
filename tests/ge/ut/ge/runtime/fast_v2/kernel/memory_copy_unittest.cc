@@ -497,6 +497,33 @@ TEST_F(MemCopyKernelTest, EnsureTensorAtOutMemory_Failed_WhenCopySizeCheckFail) 
                                                       "tensor data size 128 is less than copy size size 384"),
       0);
 }
+TEST_F(MemCopyKernelTest, EnsureTensorAtOutMemory_Failed_WhenZeroCopySizeCheckFail) {
+  auto input_tensor_holder = TensorFaker().Placement(kOnDeviceHbm).Shape({2, 3, 4}).Build();
+  auto input_tensor = input_tensor_holder.GetTensor();
+  input_tensor->MutableStorageShape() = Shape({2, 3, 16});
+  kernel::BuildTensorAttr attr = {kOnDeviceHbm, ge::DT_FLOAT, {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}}};
+  rtStream_t stream = (void *)1;
+  auto output_tensor_holder = TensorFaker().Placement(kOnDeviceHbm).Shape({1}).Build();
+  auto output_tensor = output_tensor_holder.GetTensor();
+  GertTensorData input_gert_tensor_data;
+  TensorUtils::RefTdToGtd(input_tensor_holder.GetTensor()->GetTensorData(), -1, input_gert_tensor_data);
+  auto &out_tensor_data = const_cast<gert::TensorData &>(output_tensor->GetTensorData());
+  out_tensor_data.SetAddr(input_tensor->GetTensorData().GetAddr(), nullptr);
+  auto context_holder =
+      KernelRunContextFaker()
+          .KernelIONum(static_cast<size_t>(kernel::EnsureTensorAtOutMemoryInputs::kNum), 0U)
+          .Inputs({&input_tensor->MutableOriginShape(), &input_gert_tensor_data, &attr, stream, output_tensor})
+          .Build();
+  auto kernel_context = context_holder.GetContext<KernelContext>();
+
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().Clear();
+  ASSERT_EQ(kernel::EnsureTensorAtOutMemory(kernel_context), ge::GRAPH_FAILED);
+  EXPECT_EQ(
+      runtime_stub.GetSlogStub().FindErrorLogEndsWith("Failed to copy output tensor data to the given buffer, given "
+                                                      "tensor data size 64 is less than copy size 128"),
+      0);
+}
 TEST_F(MemCopyKernelTest, EnsureTensorAtOutMemory_CopyDataOk_WhenCopyData) {
   auto input_tensor_holder = TensorFaker().Placement(kOnDeviceHbm).Shape({2, 3, 16}).Build();
   auto input_tensor = input_tensor_holder.GetTensor();

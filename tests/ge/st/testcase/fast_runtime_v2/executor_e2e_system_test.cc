@@ -1439,7 +1439,7 @@ TEST_F(GraphExecutorWithKernelUnitTest, Cmo_ExecuteSuccess) {
       TensorFaker().Placement(kOnDeviceHbm).DataType(ge::DT_FLOAT16).Format(ge::FORMAT_ND).Shape({32, 64}).Build();
   auto input1 = TensorFaker().Placement(kOnHost).DataType(ge::DT_INT32).Format(ge::FORMAT_ND).Shape({0}).Build();
   auto inputs = std::vector<Tensor *>({input0.GetTensor(), input1.GetTensor()});
-  auto outputs = FakeTensors({}, 1);
+  auto outputs = FakeTensors({2048}, 1);
 
   rtStream_t stream;
   ASSERT_EQ(rtStreamCreate(&stream, static_cast<int32_t>(RT_STREAM_PRIORITY_DEFAULT)), RT_ERROR_NONE);

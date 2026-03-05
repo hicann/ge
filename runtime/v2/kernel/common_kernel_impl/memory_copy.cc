@@ -439,14 +439,6 @@ ge::graphStatus TensorToOut(const StorageShape &shape, GertTensorData &tensor_da
     return ge::GRAPH_SUCCESS;
   }
 
-  // 零拷贝生效，不需要拷贝了
-  auto src_address = tensor_data.GetAddr();
-  if (src_address == dst_address) {
-    GELOGI("Zero copy takes effect, output addr:%lx", src_address);
-    return ge::GRAPH_SUCCESS;
-  }
-
-  // 外部申请了内存，且零拷贝没有生效，需要拷贝
   auto shape_size = shape.GetStorageShape().GetShapeSize();
   const auto copy_size = ge::GetSizeInBytes(shape_size, tensor_attr->data_type);
   if (copy_size < 0) {
@@ -462,6 +454,14 @@ ge::graphStatus TensorToOut(const StorageShape &shape, GertTensorData &tensor_da
     return ge::GRAPH_FAILED;
   }
 
+  // 零拷贝生效，不需要拷贝了
+  auto src_address = tensor_data.GetAddr();
+  if (src_address == dst_address) {
+    GELOGI("Zero copy takes effect, output addr:%lx", src_address);
+    return ge::GRAPH_SUCCESS;
+  }
+
+  // 外部申请了内存，且零拷贝没有生效，需要拷贝
   // todo: 不应该在这里校验，应该在AllocModeOutensor申请内存的时候，校验要申请的size不能小于storage shape 不加padding计算的size。
   // 需要将shape传到AllocModeOutensor中
 

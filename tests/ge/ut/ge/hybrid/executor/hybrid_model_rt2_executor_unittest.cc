@@ -41,7 +41,7 @@ using namespace hybrid;
 using namespace gert;
 namespace {
 LowerResult LoweringFooWithStreamSync(const ge::NodePtr &node, const LowerInput &lower_input) {
-  size_t output_size = 8U;
+  size_t output_size = 512U;
   gert::StorageShape shape;
   auto size_holder = bg::ValueHolder::CreateConst(&output_size, sizeof(output_size));
   auto output_addrs = bg::AllocOutputMemory(kOnDeviceHbm, node, {size_holder}, *(lower_input.global_data));
