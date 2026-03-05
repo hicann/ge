@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -770,6 +770,31 @@ bool IsInferFormatV2Registered(const ge::OpDescPtr &op_desc) {
   return false;
 }
 
+bool IsInferShapeV2Registered(const ge::OpDescPtr &op_desc) {
+  const auto *const space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance()
+    .GetSpaceRegistry(static_cast<gert::OppImplVersionTag>(op_desc->GetOppImplVersion()))
+    .get();
+  if (space_registry == nullptr) {
+    GELOGI("[%s][%s] Space registry is null.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    return false;
+  }
+
+  const auto &functions = space_registry->GetOpImpl(op_desc->GetType().c_str());
+  if (functions == nullptr) {
+    GELOGI("[%s][%s] Registry functions is null.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    return false;
+  }
+
+  if ((functions->infer_shape == nullptr) && (ge::ShapeInferenceRule::FromOpDesc(op_desc) == nullptr)) {
+    GELOGI(
+      "[%s][%s] Infer shape is null.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    return false;
+  }
+
+  return true;
+}
+
+
 class CompileAdaptFunctionsRegister {
  public:
   CompileAdaptFunctionsRegister() {
@@ -779,6 +804,7 @@ class CompileAdaptFunctionsRegister {
     (void) ge::OperatorFactoryImpl::RegisterInferDataTypeFunc(&gert::InferDataTypeOnCompile);
     (void) ge::OperatorFactoryImpl::RegisterInferFormatV2Func(&gert::InferFormatOnCompile);
     (void) ge::OperatorFactoryImpl::RegisterIsInferFormatV2RegisteredFunc(&gert::IsInferFormatV2Registered);
+    (void) ge::OperatorFactoryImpl::RegisterIsInferShapeV2RegisteredFunc(&gert::IsInferShapeV2Registered);
   }
 };
 static CompileAdaptFunctionsRegister VAR_UNUSED g_register_adapt_funcs;

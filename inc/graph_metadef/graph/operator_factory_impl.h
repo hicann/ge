@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -27,6 +27,8 @@ using InferDataTypeFunc = uint32_t (*)(const OpDescPtr &);
 using InferShapeRangeFunc = uint32_t (*)(const ge::Operator &op, const OpDescPtr &);
 using InferFormatV2Func = uint32_t (*)(const ge::Operator &, const OpDescPtr &);
 using IsInferFormatV2RegisteredFunc = bool (*)(const OpDescPtr &);
+using IsInferShapeV2RegisteredFunc = bool (*)(const OpDescPtr &);
+
 struct InferValueRangePara {
  public:
   InferValueRangePara() = default;
@@ -118,6 +120,10 @@ class GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY OperatorFactoryImpl {
 
   static IsInferFormatV2RegisteredFunc GetIsInferFormatV2RegisteredFunc();
 
+  static void RegisterIsInferShapeV2RegisteredFunc(IsInferShapeV2RegisteredFunc const is_infer_shape_v2_registered_func);
+
+  static IsInferShapeV2RegisteredFunc GetIsInferShapeV2RegisteredFunc();
+
   static void ReleaseRegInfo();
 
   static std::shared_ptr<std::map<std::string, OpCreator>> operator_creators_;
@@ -134,6 +140,7 @@ class GE_FUNC_DEV_VISIBILITY GE_FUNC_HOST_VISIBILITY OperatorFactoryImpl {
   static InferShapeRangeFunc operator_infer_shape_range_func_;
   static InferFormatV2Func operator_infer_format_v2_func_;
   static IsInferFormatV2RegisteredFunc is_infer_format_v2_registered_func_;
+  static IsInferShapeV2RegisteredFunc is_infer_shape_v2_registered_func_;
 };
 }  // namespace ge
 

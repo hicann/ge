@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -51,6 +51,7 @@ InferDataTypeFunc OperatorFactoryImpl::operator_infer_datatype_func_ = nullptr;
 InferShapeRangeFunc OperatorFactoryImpl::operator_infer_shape_range_func_ = nullptr;
 InferFormatV2Func OperatorFactoryImpl::operator_infer_format_v2_func_ = nullptr;
 IsInferFormatV2RegisteredFunc OperatorFactoryImpl::is_infer_format_v2_registered_func_ = nullptr;
+IsInferShapeV2RegisteredFunc OperatorFactoryImpl::is_infer_shape_v2_registered_func_ = nullptr;
 
 Operator OperatorFactoryImpl::CreateOperator(const std::string &operator_name, const std::string &operator_type) {
   if (operator_creators_v2_ != nullptr) {
@@ -422,6 +423,18 @@ void OperatorFactoryImpl::RegisterIsInferFormatV2RegisteredFunc(
 
 IsInferFormatV2RegisteredFunc OperatorFactoryImpl::GetIsInferFormatV2RegisteredFunc() {
   return is_infer_format_v2_registered_func_;
+}
+
+void OperatorFactoryImpl::RegisterIsInferShapeV2RegisteredFunc(
+    IsInferShapeV2RegisteredFunc const is_infer_shape_v2_registered_func) {
+  if (is_infer_shape_v2_registered_func_ == nullptr) {
+    GELOGI("operator is_infer_shape_v2_registered funcs init");
+    is_infer_shape_v2_registered_func_ = is_infer_shape_v2_registered_func;
+  }
+}
+
+IsInferFormatV2RegisteredFunc OperatorFactoryImpl::GetIsInferShapeV2RegisteredFunc() {
+  return is_infer_shape_v2_registered_func_;
 }
 
 void OperatorFactoryImpl::ReleaseRegInfo() {

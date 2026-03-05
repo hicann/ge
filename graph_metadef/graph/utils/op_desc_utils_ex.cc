@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -50,29 +50,6 @@ bool EnableIgnoreInferError() {
   std::string env_str_value = std::string(env_value);
   GELOGI("Got value of env[IGNORE_INFER_ERROR] is [%s].", env_str_value.c_str());
   return !env_str_value.empty();
-}
-graphStatus InferCustomOpShape(const OpDescPtr &op_desc) {
-  GE_ASSERT_NOTNULL(op_desc);
-  GELOGI("[%s][%s] Infer Custom op shape.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
-  for (size_t index = 0UL; index < op_desc->GetOutputsSize(); index++) {
-    auto output_tensor = op_desc->MutableOutputDesc(index);
-    GE_ASSERT_NOTNULL(output_tensor);
-    if (output_tensor->IsOriginShapeInitialized()) {
-      // 继承框架的Shape
-      output_tensor->SetShape(output_tensor->GetOriginShape());
-      output_tensor->SetDataType(output_tensor->GetOriginDataType());
-      output_tensor->SetFormat(output_tensor->GetOriginFormat());
-    } else {
-      // 否则刷新shape为-2, 此处后续可以调用用户注册的datatype推导函数推到datatype
-      output_tensor->SetShape(GeShape(UNKNOWN_RANK));
-      output_tensor->SetOriginShape(GeShape(UNKNOWN_RANK));
-      output_tensor->SetDataType(DT_UNDEFINED);
-      output_tensor->SetOriginDataType(DT_UNDEFINED);
-      output_tensor->SetFormat(FORMAT_ND);
-      output_tensor->SetOriginFormat(FORMAT_ND);
-    }
-  }
-  return GRAPH_SUCCESS;
 }
 }
 
@@ -135,6 +112,37 @@ graphStatus OpDescUtilsEx::CallInferFuncV1(const OpDescPtr &op_desc, Operator &o
   return graph_status;
 }
 
+graphStatus OpDescUtilsEx::InferCustomOpShape(const OpDescPtr &op_desc, Operator &op) {
+  GE_ASSERT_NOTNULL(op_desc);
+  GELOGI("[%s][%s] Infer Custom op shape.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+
+  const auto is_infer_shape_v2_registered_func = OperatorFactoryImpl::GetIsInferShapeV2RegisteredFunc();
+  if ((is_infer_shape_v2_registered_func != nullptr) && is_infer_shape_v2_registered_func(op_desc))  {
+    GELOGI("[Call][InferFunc] call V2 func for op [%s][%s]", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+    return CallInferFuncV2(op_desc, op);
+  }
+
+  for (size_t index = 0UL; index < op_desc->GetOutputsSize(); index++) {
+    auto output_tensor = op_desc->MutableOutputDesc(index);
+    GE_ASSERT_NOTNULL(output_tensor);
+    if (output_tensor->IsOriginShapeInitialized()) {
+      // 继承框架的Shape
+      output_tensor->SetShape(output_tensor->GetOriginShape());
+      output_tensor->SetDataType(output_tensor->GetOriginDataType());
+      output_tensor->SetFormat(output_tensor->GetOriginFormat());
+    } else {
+      // 否则刷新shape为-2, 此处后续可以调用用户注册的datatype推导函数推到datatype
+      output_tensor->SetShape(GeShape(UNKNOWN_RANK));
+      output_tensor->SetOriginShape(GeShape(UNKNOWN_RANK));
+      output_tensor->SetDataType(DT_UNDEFINED);
+      output_tensor->SetOriginDataType(DT_UNDEFINED);
+      output_tensor->SetFormat(FORMAT_ND);
+      output_tensor->SetOriginFormat(FORMAT_ND);
+    }
+  }
+  return GRAPH_SUCCESS;
+}
+
 graphStatus OpDescUtilsEx::CallInferFunc(const OpDescPtr &op_desc, Operator &op) {
   GE_CHECK_NOTNULL(op_desc, ", Op is null for Infer Shape.");
   graphStatus ret;
@@ -149,7 +157,7 @@ graphStatus OpDescUtilsEx::CallInferFunc(const OpDescPtr &op_desc, Operator &op)
     GELOGD("Node %s(%s) no io or no prototype so does not need infer.", op_desc->GetNamePtr(), op_desc->GetTypePtr());
     ret = GRAPH_PARAM_INVALID;
   } else if (CustomOpFactory::IsExistOp(op_desc->GetTypePtr())) {
-    ret = InferCustomOpShape(op_desc);
+    ret = InferCustomOpShape(op_desc, op);
   } else {
     // priority of use infer func v1
     // when v2 func is ready, remove v1 func, it will automatically follow the V2 process
