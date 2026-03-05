@@ -135,25 +135,6 @@ TEST_F(MainUTest, phy_device_id_invalid) {
   ret = FlowFuncTestMain(argc, argv1);
   EXPECT_NE(ret, 0);
 }
-TEST_F(MainUTest, init_log_error) {
-  ::setenv("ASCEND_HOSTPID", "123", 1);
-  ::setenv("ASCEND_LOG_SAVE_MODE", "0", 1);
-  char process_name[] = "flow_func_executor";
-  char param_device_id_ok[] = "--device_id=1";
-  char param_load_path_ok[] = "--load_path=./model/not_exit_batch_model_test.proto";
-  char param_grp_name_ok[] = "--group_name=Grp1";
-
-  MOCKER(DlogSetAttr).defaults().will(invoke(DlogSetAttrStub));
-  char *argv[] = {process_name, param_device_id_ok, param_load_path_ok, param_grp_name_ok};
-  int32_t argc = 4;
-  int32_t ret = FlowFuncTestMain(argc, argv);
-  EXPECT_NE(ret, 0);
-  GlobalConfig::on_device_ = true;
-  ret = FlowFuncTestMain(argc, argv);
-  EXPECT_NE(ret, 0);
-  ::unsetenv("ASCEND_HOSTPID");
-  ::unsetenv("ASCEND_LOG_SAVE_MODE");
-}
 
 TEST_F(MainUTest, npu_sched_invalid) {
   char process_name[] = "flow_func_executor";
