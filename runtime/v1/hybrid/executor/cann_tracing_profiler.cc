@@ -87,8 +87,8 @@ ge::Status CannTracingProfiler::ReportTraceInfo(uint16_t tag_id, const Node *nod
     cur_stream =
         *(reinterpret_cast<rtStream_t *>(rt_streams_->MutableData()) + static_cast<size_t>(logic_stream_id));
   }
-  int64_t userdata[] = {static_cast<int64_t>(iteration_num_), static_cast<int64_t>(extend_info_.model_id), tag_id};
-  GE_ASSERT_RT_OK(aclrtProfTrace(userdata, sizeof(userdata) / sizeof(int64_t), cur_stream));
+  GE_ASSERT_RT_OK(rtProfilerTraceEx(iteration_num_, static_cast<uint64_t>(extend_info_.model_id),
+      tag_id, cur_stream));
   GELOGD(
       "Profiling Step Info TraceTask execute async success, index_id = %llu, model_id = %u, tag_id = %u, "
       "logic_stream_id= %lld",

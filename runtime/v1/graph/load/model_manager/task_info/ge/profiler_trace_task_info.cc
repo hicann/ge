@@ -56,11 +56,11 @@ Status ProfilerTraceTaskInfo::Distribute() {
     return SUCCESS;
   }
 
-  int64_t userdata[] = {1, model_id_, static_cast<int64_t>(log_id_)};
- 	const rtError_t rt_ret = aclrtProfTrace(userdata, sizeof(userdata) / sizeof(int64_t) , stream_);
-  if (rt_ret != ACL_SUCCESS) {
-    GELOGE(ge::RT_FAILED, "[Call][aclrtProfTrace]Failed, ret %d", rt_ret);
-    REPORT_INNER_ERR_MSG("E19999", "Call aclrtProfTrace failed, ret %d", rt_ret);
+  const rtError_t rt_ret =
+    rtProfilerTraceEx(1UL, static_cast<uint64_t>(model_id_), static_cast<uint16_t>(log_id_), stream_);
+  if (rt_ret != RT_ERROR_NONE) {
+    GELOGE(ge::RT_FAILED, "[Call][rtProfilerTraceEx]Failed, ret %d", rt_ret);
+    REPORT_INNER_ERR_MSG("E19999", "Call rtProfilerTraceEx failed, ret %d", rt_ret);
     return RT_ERROR_TO_GE_STATUS(rt_ret);
   }
   GELOGI("ProfilerTraceTaskInfo Distribute Success, stream: %p.", stream_);

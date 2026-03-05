@@ -16,6 +16,7 @@
 #include "common/profiling/profiling_properties.h"
 #include "common/global_variables/diagnose_switch.h"
 #include "framework/runtime/device_memory_recorder.h"
+#include "runtime/dev.h"
 #include "common/scope_guard.h"
 #include "common/util.h"
 #include "graph_metadef/common/ge_common/util.h"
@@ -585,8 +586,7 @@ ge::Status GlobalProfilingWrapper::ProfileStepTrace(const uint64_t step_id, cons
   GELOGD("Profiling Step Info TraceTask execute async start, step_id = %lu, model_id = %u, tag_id = %u", step_id,
          model_id, static_cast<uint32_t>(tag_id));
   const auto begin_time = MsprofSysCycleTime();
-  int64_t userdata[] = {static_cast<int64_t>(step_id), model_id, tag_id};
- 	const rtError_t rt_ret = aclrtProfTrace(userdata, sizeof(userdata) / sizeof(int64_t), stream);
+  const rtError_t rt_ret = rtProfilerTraceEx(step_id, static_cast<uint64_t>(model_id), tag_id, stream);
   const auto end_time = MsprofSysCycleTime();
   if (rt_ret != RT_ERROR_NONE) {
     GELOGE(ge::RT_FAILED, "[Call][rtProfilerTraceEx]Failed, ret %d", rt_ret);
