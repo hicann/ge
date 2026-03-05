@@ -17,7 +17,6 @@
 #include "acl_base_rt.h"
 #include "acl_rt.h"
 #include "acl_mdl.h"
-#include "acl_base_mdl.h"
 
 #ifdef __cplusplus
 extern "C" {

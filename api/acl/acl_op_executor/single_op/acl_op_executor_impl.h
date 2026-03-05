@@ -8,12 +8,12 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
+#ifndef ACL_OP_EXECUTOR_SRC_SINGLE_OP_ACL_OP_EXECUTOR_IMPL_H_
+#define ACL_OP_EXECUTOR_SRC_SINGLE_OP_ACL_OP_EXECUTOR_IMPL_H_
+
 #include "acl_base.h"
 #include "acl_rt.h"
 #include "acl/acl_op.h"
-
-#ifndef ACL_OP_EXECUTOR_SRC_SINGLE_OP_ACL_OP_EXECUTOR_IMPL_H_
-#define ACL_OP_EXECUTOR_SRC_SINGLE_OP_ACL_OP_EXECUTOR_IMPL_H_
 
 #ifdef __cplusplus
 extern "C" {

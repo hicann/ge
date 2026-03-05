@@ -23,23 +23,25 @@ namespace {
     #define RT_DEV_BINARY_MAGIC_ELF_AICPU 0x41415243U
     #define RT_DEV_BINARY_MAGIC_ELF_AIVEC 0x41415246U
 
-    typedef enum {
+    enum rtFuncModeType {
         FUNC_MODE_NORMAL = 0,
         FUNC_MODE_PCTRACE_USERPROFILE_RECORDLOOP,
         FUNC_MODE_PCTRACE_USERPROFILE_SKIPLOOP,
         FUNC_MODE_PCTRACE_CYCLECNT_RECORDLOOP,
         FUNC_MODE_PCTRACE_CYCLECNT_SKIPLOOP,
         FUNC_MODE_BUTT
-    } rtFuncModeType_t;
+    };
+    using rtFuncModeType_t = rtFuncModeType;
 
-    typedef struct tagRtDevBinary {
+    struct tagRtDevBinary {
         uint32_t magic;    // magic number
         uint32_t version;  // version of binary
         const void *data;  // binary data
         uint64_t length;   // binary length
-    } rtDevBinary_t;
+    };
+    using rtDevBinary_t = tagRtDevBinary;
 
-    typedef int32_t rtError_t;
+    using rtError_t = int32_t;
     extern "C" rtError_t rtDevBinaryUnRegister(void *hdl);
     extern "C" rtError_t rtDevBinaryRegister(const rtDevBinary_t *bin, void **hdl);
     extern "C" rtError_t rtFunctionRegister(void *binHandle, const void *stubFunc, const char_t *stubName,

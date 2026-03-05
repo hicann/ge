@@ -14,10 +14,10 @@
 namespace acl {
 
 namespace {
-    typedef void *rtSmDesc_t;
-    typedef void *rtStream_t;
+    using rtSmDesc_t = void *;
+    using rtStream_t = void *;
 
-    typedef int32_t rtError_t;
+    using rtError_t = int32_t;
     extern "C" rtError_t rtKernelLaunch(const void *stubFunc, uint32_t blockDim, void *args, uint32_t argsSize,
                                  rtSmDesc_t *smDesc, rtStream_t stm);
 }
