@@ -15,7 +15,6 @@
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/model_utils.h"
 #include "opskernel_executor/ops_kernel_executor_manager.h"
-#include "acl/acl_rt.h"
 
 namespace {
 const ge::char_t *const kDumpOutput = "output";
