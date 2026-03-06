@@ -1076,7 +1076,7 @@ TEST_F(UtestDavinciModel, davinci_init_success) {
     model.Assign(ge_model);
     model.SetAiCpuCustFlag(true);
     EXPECT_EQ(model.Init(), SUCCESS);
-    const auto model_bind_streams = AclRuntimeStub::GetInstance()->model_bind_streams_;
+    const auto model_bind_streams = RuntimeStub::GetInstance()->model_bind_streams_;
     EXPECT_EQ(model_bind_streams.size(), model.stream_to_first_task_id_.size());
     ASSERT_TRUE(model_bind_streams.size() > 0U);
     auto pre_stream = model_bind_streams[0];
