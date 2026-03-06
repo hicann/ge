@@ -1,9 +1,9 @@
 /**
  * Copyright (c) 2025 Huawei Technologies Co., Ltd.
- * This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+ * This program is free software, you can redistribute it and/or modify it under the terms and conditions of
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+ * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
  * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
@@ -32,6 +32,7 @@
 #include "graph/ct_infer_shape_range_context.h"
 #include "graph/utils/tensor_adapter.h"
 #include "faker/space_registry_faker.h"
+#include "graph/custom_op_factory.h"
 
 namespace ge{
 REG_OP(Const)
@@ -43,6 +44,14 @@ REG_OP(Const)
 }
 namespace gert {
 using namespace ge;
+class MyCustomOp : public BaseCustomOp {
+  graphStatus Execute(gert::EagerOpExecutionContext *ctx) override {
+    (void)ctx;
+    return GRAPH_SUCCESS;
+  };
+};
+REG_AUTO_MAPPING_OP(MyCustomOp);
+
 class ShapeInferenceUT : public testing::Test {};
 // infer from output
 REG_OP(FixIOOp_OutputIsFix)
@@ -1307,5 +1316,144 @@ TEST_F(ShapeInferenceUT, CallInferFormatFunc_DynamicOutput) {
   const auto &output_1 = op_desc->GetOutputDesc(1U);
   EXPECT_EQ(output_1.GetOriginFormat(), Format::FORMAT_NCHW);
   EXPECT_EQ(output_1.GetFormat(), Format::FORMAT_NCHW);
+}
+
+
+// infer from output
+REG_OP(CustomAdd)
+    .INPUT(input1, "T")
+    .INPUT(input2, "T")
+    .OUTPUT(output, "T")
+    .OP_END_FACTORY_REG(CustomAdd);
+TEST_F(ShapeInferenceUT, CallInferFunc_CustomOp_With_InferShape_Success) {
+  auto op = OperatorFactory::CreateOperator("test1", "CustomAdd");
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  ASSERT_NE(op_desc, nullptr);
+  GeShape shape({1, 1, 1, 1});
+  GeTensorDesc tensor_desc(shape, Format::FORMAT_NCHW, DT_FLOAT16);
+  tensor_desc.SetOriginShape(shape);
+  tensor_desc.SetOriginDataType(DT_FLOAT16);
+  std::vector<std::pair<int64_t, int64_t>> range = {{0, 10000}};
+  tensor_desc.SetOriginShapeRange(range);
+  op_desc->UpdateInputDesc(0, tensor_desc);
+  op_desc->UpdateInputDesc(1, tensor_desc);
+  const auto infer_shape_func = [](gert::InferShapeContext *context) -> graphStatus {
+    const auto input_shape = context->GetInputShape(0U);
+    auto output = context->GetOutputShape(0);
+    for (size_t dim = 0UL; dim < input_shape->GetDimNum(); dim++) {
+      output->AppendDim(input_shape->GetDim(dim));
+    }
+    output->SetDimNum(input_shape->GetDimNum());
+    return GRAPH_SUCCESS;
+  };
+  const auto infer_data_type_func = [](gert::InferDataTypeContext *context) -> graphStatus {
+    const auto date_type = context->GetInputDataType(0U);
+    EXPECT_EQ(context->SetOutputDataType(0, date_type), SUCCESS);
+    return GRAPH_SUCCESS;
+  };
+  const auto infer_shape_range_func = [](gert::InferShapeRangeContext *context) -> graphStatus {
+    auto input_shape_range = context->GetInputShapeRange(0U);
+    auto output_shape_range = context->GetOutputShapeRange(0U);
+    output_shape_range->SetMin(const_cast<gert::Shape *>(input_shape_range->GetMin()));
+    output_shape_range->SetMax(const_cast<gert::Shape *>(input_shape_range->GetMax()));
+    return GRAPH_SUCCESS;
+  };
+
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("CustomAdd");
+
+  op_impl_func->infer_shape = infer_shape_func;
+  op_impl_func->infer_datatype = infer_data_type_func;
+  op_impl_func->infer_shape_range = infer_shape_range_func;
+  op_impl_func->output_shape_depend_compute = 1UL;
+
+  CustomOpFactory::RegisterCustomOpCreator("CustomAdd", []()->std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MyCustomOp>();
+  });
+
+  auto status = OpDescUtilsEx::CallInferFunc(op_desc, op);
+  ASSERT_EQ(status, GRAPH_SUCCESS);
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetDataType(), DT_FLOAT16);
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetShape().GetDimNum(), 4);
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetShape().GetDim(0), 1);
+}
+
+TEST_F(ShapeInferenceUT, CallInferFunc_CustomOp_Without_InferShape_Success) {
+  auto op = OperatorFactory::CreateOperator("test1", "CustomAdd");
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  ASSERT_NE(op_desc, nullptr);
+  GeShape shape({1, 1, 1, 1});
+  GeTensorDesc tensor_desc(shape, Format::FORMAT_NCHW, DT_FLOAT16);
+  tensor_desc.SetOriginShape(shape);
+  tensor_desc.SetOriginDataType(DT_FLOAT16);
+  std::vector<std::pair<int64_t, int64_t>> range = {{0, 10000}};
+  tensor_desc.SetOriginShapeRange(range);
+  op_desc->UpdateInputDesc(0, tensor_desc);
+  op_desc->UpdateInputDesc(1, tensor_desc);
+
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("CustomAdd");
+  (void) op_impl_func;
+  CustomOpFactory::RegisterCustomOpCreator("CustomAdd", []()->std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MyCustomOp>();
+  });
+
+  const auto call_infer_data_type = OperatorFactoryImpl::GetInferDataTypeFunc();
+  const auto call_infer_shape_v2 = OperatorFactoryImpl::GetInferShapeV2Func();
+
+  const auto call_infer_shape_range = OperatorFactoryImpl::GetInferShapeRangeFunc();
+  ASSERT_NE(call_infer_data_type, nullptr);
+  ASSERT_NE(call_infer_shape_v2, nullptr);
+  ASSERT_NE(call_infer_shape_range, nullptr);
+
+  auto status = OpDescUtilsEx::CallInferFunc(op_desc, op);
+  ASSERT_EQ(status, GRAPH_SUCCESS);
+  // 走shape为-2
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetDataType(), DT_UNDEFINED);
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetShape().GetDimNum(), 0);
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetShape().GetDim(0), -2);
+}
+
+TEST_F(ShapeInferenceUT, CallInferFunc_CustomOp_Without_InferShape_with_origin_shape_Success) {
+  auto op = OperatorFactory::CreateOperator("test1", "CustomAdd");
+  auto op_desc = OpDescUtils::GetOpDescFromOperator(op);
+  ASSERT_NE(op_desc, nullptr);
+  GeShape shape({1, 1, 1, 1});
+  GeTensorDesc tensor_desc(shape, Format::FORMAT_NCHW, DT_FLOAT16);
+  tensor_desc.SetOriginShape(shape);
+  tensor_desc.SetOriginDataType(DT_FLOAT16);
+  std::vector<std::pair<int64_t, int64_t>> range = {{0, 10000}};
+  tensor_desc.SetOriginShapeRange(range);
+  op_desc->UpdateInputDesc(0, tensor_desc);
+  op_desc->UpdateInputDesc(1, tensor_desc);
+  op_desc->UpdateOutputDesc(0, tensor_desc);
+
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2(true);
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto op_impl_func = space_registry->CreateOrGetOpImpl("CustomAdd");
+  (void) op_impl_func;
+  CustomOpFactory::RegisterCustomOpCreator("CustomAdd", []()->std::unique_ptr<BaseCustomOp> {
+    return std::make_unique<MyCustomOp>();
+  });
+
+  const auto call_infer_data_type = OperatorFactoryImpl::GetInferDataTypeFunc();
+  const auto call_infer_shape_v2 = OperatorFactoryImpl::GetInferShapeV2Func();
+
+  const auto call_infer_shape_range = OperatorFactoryImpl::GetInferShapeRangeFunc();
+  ASSERT_NE(call_infer_data_type, nullptr);
+  ASSERT_NE(call_infer_shape_v2, nullptr);
+  ASSERT_NE(call_infer_shape_range, nullptr);
+
+  auto status = OpDescUtilsEx::CallInferFunc(op_desc, op);
+  ASSERT_EQ(status, GRAPH_SUCCESS);
+  // 走shape为-2
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetDataType(), DT_FLOAT16);
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetShape().GetDimNum(), 4);
+  ASSERT_EQ(op_desc->GetOutputDesc(0U).GetShape().GetDim(0), 1);
 }
 }  // namespace gert

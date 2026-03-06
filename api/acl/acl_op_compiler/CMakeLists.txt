@@ -63,7 +63,6 @@ target_compile_options(acl_op_compiler PRIVATE
 )
 
 target_compile_definitions(acl_op_compiler PRIVATE
-    _FORTIFY_SOURCE=2
     OS_TYPE=0
     FUNC_VISIBILITY
     google=ascend_private

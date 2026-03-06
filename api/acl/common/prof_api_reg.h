@@ -19,7 +19,7 @@
 #define CBLAS_PROF_TYPE_START_OFFSET 0x006000U
 
 namespace acl {
-    enum AclProfType {
+    enum class AclProfType {
         // start with 0x010000U
         OpCompileProfTypeStart = MSPROF_REPORT_ACL_OP_BASE_TYPE + OP_COMPILE_PROF_TYPE_START_OFFSET,
         AclopCompile,

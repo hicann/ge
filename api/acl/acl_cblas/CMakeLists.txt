@@ -52,6 +52,7 @@ target_compile_definitions(acl_cblas PRIVATE
     FUNC_VISIBILITY
     $<$<STREQUAL:${ENABLE_OPEN_SRC},True>:ONLY_COMPILE_OPEN_SRC>
     $<$<STREQUAL:${ENABLE_ACL_UT},ON>:ONLY_ENABLE_ACL_UT>
+    _FORTIFY_SOURCE=2
 )
 
 target_link_options(acl_cblas PRIVATE

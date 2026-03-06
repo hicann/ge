@@ -16,7 +16,7 @@
 
 #include "graph/op_desc.h"
 #include "graph/ge_tensor.h"
-#include "common/ge_types.h"
+#include "common/ge_common/ge_types.h"
 
 #include "common/common_inner.h"
 #include "types/acl_op.h"

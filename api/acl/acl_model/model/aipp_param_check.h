@@ -20,8 +20,6 @@
 #include "acl/acl_mdl.h"
 #include "common/dynamic_aipp.h"
 #include "executor/ge_executor.h"
-#include "common/ge_inner_error_codes.h"
-#include "common/ge_types.h"
 #include "model_desc_internal.h"
 
 namespace acl {

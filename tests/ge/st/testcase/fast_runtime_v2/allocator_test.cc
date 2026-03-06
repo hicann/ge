@@ -334,6 +334,7 @@ TEST_F(Runtime2AllocatorSystemTest, expandable_memory_allocator_fail) {
  */
 
 TEST_F(Runtime2AllocatorSystemTest, ExternalAllocator_NodeoutputAndWorkspaceUseSameAllocator) {
+
   struct FakeRuntime : RuntimeStubImpl {
     rtError_t rtMemGetInfoEx(rtMemInfoType_t memInfoType, size_t *free, size_t *total) override {
       *free = 60UL * 1024UL * 1024UL * 1024UL;
@@ -413,8 +414,10 @@ TEST_F(Runtime2AllocatorSystemTest, ExternalAllocator_NodeoutputAndWorkspaceUseS
   ASSERT_NE(model_executor2, nullptr);
 
   EXPECT_EQ(model_executor2->Load(), ge::GRAPH_SUCCESS);
+  auto outputs2 = FakeTensors({64, 64, 128, 128}, 1);
+  outputs2.GetTensorList()[0]->SetSize(18014398509481984);
   ASSERT_EQ(model_executor2->Execute({i3.value, allocators.get()}, inputs.data(), inputs.size(),
-                                     reinterpret_cast<Tensor **>(outputs.GetAddrList()), outputs.size()),
+                                     reinterpret_cast<Tensor **>(outputs2.GetAddrList()), outputs2.size()),
             ge::GRAPH_SUCCESS);
 
   // 校验日志中存在该行日志，并且行号大于0,如果没有该行日志，行号小于0

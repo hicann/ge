@@ -688,7 +688,7 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeBase) {
   auto ess = StartExecutorStatistician(model_executor);
   EXPECT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
   FakeTensors inputs = FakeTensors({2, 3}, 4);
-  FakeTensors outputs = FakeTensors({3, 4}, 2);
+  FakeTensors outputs = FakeTensors({5, 6, 4}, 2);
   // 4、图执行
   rtStream_t stream;
   ASSERT_EQ(rtStreamCreate(&stream, static_cast<int32_t>(RT_STREAM_PRIORITY_DEFAULT)), RT_ERROR_NONE);
@@ -745,7 +745,7 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeWithTilingCacheAndInferMerge) {
   auto ess = StartExecutorStatistician(model_executor);
   EXPECT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
   FakeTensors inputs = FakeTensors({2, 3}, 4);
-  FakeTensors outputs = FakeTensors({3, 4}, 2);
+  FakeTensors outputs = FakeTensors({5, 6, 4}, 2);
   rtStream_t stream;
   ASSERT_EQ(rtStreamCreate(&stream, static_cast<int32_t>(RT_STREAM_PRIORITY_DEFAULT)), RT_ERROR_NONE);
   auto stream_value = FakeValue<uint64_t>(reinterpret_cast<uint64_t>(stream));
@@ -797,7 +797,7 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeTilingParse) {
   auto ess = StartExecutorStatistician(model_executor);
   EXPECT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
   FakeTensors inputs = FakeTensors({2, 3}, 4);
-  FakeTensors outputs = FakeTensors({3, 4}, 2);
+  FakeTensors outputs = FakeTensors({5, 6, 4}, 2);
   // 4、图执行
   rtStream_t stream;
   ASSERT_EQ(rtStreamCreate(&stream, static_cast<int32_t>(RT_STREAM_PRIORITY_DEFAULT)), RT_ERROR_NONE);
@@ -847,7 +847,7 @@ TEST_F(AICoreLoweringST, TestAutofuseNodeDlopenAutofuseSoNodeCheck) {
   auto ess = StartExecutorStatistician(model_executor);
   EXPECT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
   FakeTensors inputs = FakeTensors({2, 3}, 4);
-  FakeTensors outputs = FakeTensors({3, 4}, 2);
+  FakeTensors outputs = FakeTensors({5, 6, 4}, 2);
   // 4、图执行
   rtStream_t stream;
   ASSERT_EQ(rtStreamCreate(&stream, static_cast<int32_t>(RT_STREAM_PRIORITY_DEFAULT)), RT_ERROR_NONE);
@@ -897,7 +897,7 @@ TEST_F(AICoreLoweringST, AutofuseInferKernelTraceTest) {
   auto ess = StartExecutorStatistician(model_executor);
   EXPECT_EQ(model_executor->Load(), ge::GRAPH_SUCCESS);
   FakeTensors inputs = FakeTensors({2, 3}, 4);
-  FakeTensors outputs = FakeTensors({3, 4}, 2);
+  FakeTensors outputs = FakeTensors({5, 6, 4}, 2);
   // 4、图执行
   rtStream_t stream;
   ASSERT_EQ(rtStreamCreate(&stream, static_cast<int32_t>(RT_STREAM_PRIORITY_DEFAULT)), RT_ERROR_NONE);

@@ -12,7 +12,6 @@
 #include "awatchdog.h"
 #include "framework/runtime/gert_api.h"
 #include "framework/common/profiling_definitions.h"
-#include "framework/memory/allocator_desc.h"
 #include "framework/executor/ge_executor.h"
 #include "mmpa/mmpa_api.h"
 #include "common/log_inner.h"

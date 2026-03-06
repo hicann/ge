@@ -13,25 +13,19 @@
 
 #include "macro_utils/dt_public_scope.h"
 #include "dflow/base/deploy/deploy_planner.h"
-#include "register/ops_kernel_builder_registry.h"
-#include "api/gelib/gelib.h"
 #include "macro_utils/dt_public_unscope.h"
 
 #include "stub_models.h"
 #include "graph/build/graph_builder.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/passes/graph_builder_utils.h"
-#include "generator/ge_generator.h"
 #include "dflow/compiler/data_flow_graph/process_point_loader.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
 #include "framework/common/helper/model_save_helper.h"
 
 namespace ge {
 namespace {
-const char *const kKernelLibName = "ops_kernel_lib";
 const char *kSessionId = "123456";
-constexpr uint64_t kSessionIdInt = 123456;
-OmgContext default_context;
 
 NodePtr AddNode(ut::GraphBuilder &builder, const string &name, const string &type, int in_cnt, int out_cnt) {
   auto node = builder.AddNode(name, type, in_cnt, out_cnt);
@@ -74,6 +68,12 @@ void SetSubGraph(const NodePtr &node, const string &name) {
     builder.AddDataEdge(some_node, 0, net_output, i);
   }
 
+  auto output_op_desc = net_output->GetOpDesc();
+  std::vector<std::string> src_name(num_outputs, "out");
+  output_op_desc->SetSrcName(src_name);
+  std::vector<int64_t> src_index(num_outputs, 0);
+  output_op_desc->SetSrcIndex(src_index);
+
   auto subgraph = builder.GetGraph();
   AttrUtils::SetStr(*subgraph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
   subgraph->SetParentNode(node);
@@ -84,8 +84,7 @@ void SetSubGraph(const NodePtr &node, const string &name) {
   root_graph->AddSubgraph(name, subgraph);
 }
 
-Status BuildForPipelinePartitionedGraph(ge::GraphBuilder &graph_builder, uint64_t session_id,
-                                        const ComputeGraphPtr &root_graph, const PneModelPtr &root_model) {
+Status BuildForPipelinePartitionedGraph(const ComputeGraphPtr &root_graph, const PneModelPtr &root_model) {
   std::unique_ptr<ModelRelation> model_relation;
   GE_CHK_STATUS_RET(ModelRelationBuilder().BuildFromRootGraph(*root_graph, model_relation),
                     "Failed to build ModelRelation from root graph: %s",
@@ -107,86 +106,12 @@ Status BuildForPipelinePartitionedGraph(ge::GraphBuilder &graph_builder, uint64_
                       "Failed to PreProcessSubGraphAttrs failed, graph[%s].", subgraph->GetName().c_str());
 
     GELOGD("Start to build subgraph: %s", subgraph->GetName().c_str());
-    GeRootModelPtr submodel;
-    GE_CHK_STATUS_RET(graph_builder.Build(subgraph, submodel, session_id),
-                      "Failed to build subgraph %s", subgraph->GetName().c_str());
-    GELOGD("Done building subgraph successfully, name = %s ", subgraph->GetName().c_str());
-    ModelData model_data{};
-    ModelBufferData model_buffer_data;
-    GE_CHK_STATUS_RET(StubModels::SaveGeRootModelToModelData(submodel, model_data, model_buffer_data), "Save GeRootModel to model data failed.");
-    submodel->SetModelName(subgraph->GetName());
-    GE_CHK_STATUS_RET_NOLOG(root_model->AddSubModel(FlowModelHelper::ToPneModel(model_data, subgraph)));
+    auto submodel = StubModels::BuildGraphModel(subgraph);
+    GE_CHK_STATUS_RET_NOLOG(root_model->AddSubModel(submodel));
   }
   return SUCCESS;
 }
-
-class FakeOpsKernelBuilder : public OpsKernelBuilder {
- public:
-  FakeOpsKernelBuilder() = default;
- private:
-  Status Initialize(const map<std::string, std::string> &options) override {
-    return SUCCESS;
-  };
-  Status Finalize() override {
-    return SUCCESS;
-  };
-  Status CalcOpRunningParam(Node &node) override {
-    return SUCCESS;
-  };
-  Status GenerateTask(const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) override {
-    domi::TaskDef task_def;
-    tasks.push_back(task_def);
-    return SUCCESS;
-  };
-};
-
-class FakeOpsKernelInfoStore : public OpsKernelInfoStore {
- public:
-  FakeOpsKernelInfoStore() = default;
-
- private:
-  Status Initialize(const std::map<std::string, std::string> &options) override {
-    return SUCCESS;
-  };
-  Status Finalize() override {
-    return SUCCESS;
-  };
-  bool CheckSupported(const OpDescPtr &op_desc, std::string &reason) const override {
-    return true;
-  };
-  void GetAllOpsKernelInfo(std::map<std::string, ge::OpInfo> &infos) const override {};
-};
 }  // namespace
-
-void StubModels::InitGeLib() {
-  map<string, string> options;
-  Status ret = ge::GELib::Initialize(options);
-  EXPECT_EQ(ret, SUCCESS);
-  auto instance_ptr = ge::GELib::GetInstance();
-  EXPECT_NE(instance_ptr, nullptr);
-
-  //  SchedulerConf conf;
-  SchedulerConf scheduler_conf;
-  scheduler_conf.name = kKernelLibName;
-  scheduler_conf.cal_engines[kKernelLibName] = std::make_shared<EngineConf>();
-  scheduler_conf.cal_engines[kKernelLibName]->name = kKernelLibName;
-  scheduler_conf.cal_engines[kKernelLibName]->scheduler_id = kKernelLibName;
-  map<string, SchedulerConf> scheduler_confs;
-  scheduler_confs["scheduler"] = scheduler_conf;
-  instance_ptr->DNNEngineManagerObj().schedulers_[kKernelLibName] = scheduler_conf;
-
-  OpsKernelInfoStorePtr ops_kernel_info_store_ptr = MakeShared<FakeOpsKernelInfoStore>();
-  OpsKernelManager::GetInstance().ops_kernel_store_.emplace(kKernelLibName, ops_kernel_info_store_ptr);
-  OpsKernelBuilderPtr fake_builder = MakeShared<FakeOpsKernelBuilder>();
-  OpsKernelBuilderRegistry::GetInstance().kernel_builders_[kKernelLibName] = fake_builder;
-}
-
-void StubModels::FinalizeGeLib() {
-  auto instance_ptr = ge::GELib::GetInstance();
-  if (instance_ptr != nullptr) {
-    instance_ptr->Finalize();
-  }
-}
 
 Status StubModels::SaveGeRootModelToModelData(const GeRootModelPtr &ge_root_model, ModelData &model_data, ModelBufferData &model_buffer_data) {
   bool is_unknown_shape = false;
@@ -338,84 +263,41 @@ FlowModelPtr StubModels::BuildFlowModel(ComputeGraphPtr root_graph, bool pipelin
   return flow_model;
 }
 
-GeRootModelPtr StubModels::BuildGeRootModel(ComputeGraphPtr root_graph) {
-  InitGeLib();
-  SetLocalOmgContext(default_context);
-  for (const auto &node : root_graph->GetAllNodes()) {
-    node->GetOpDesc()->SetOpKernelLibName(kKernelLibName);
-    node->GetOpDesc()->SetOpEngineName(kKernelLibName);
-  }
+PneModelPtr StubModels::BuildGraphModel(ComputeGraphPtr root_graph, const std::string &model_type) {
+  GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
+  EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
+  auto ge_model = MakeShared<ge::GeModel>();
+  auto model_task_def = MakeShared<domi::ModelTaskDef>();
+  model_task_def->set_version("test_v100_r001");
+  ge_model->SetModelTaskDef(model_task_def);
+  ge_model->SetName(root_graph->GetName());
+  ge_model->SetGraph(root_graph);
+  ge_root_model->SetModelName(root_graph->GetName());
+  ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
 
-  AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
-  GeRootModelPtr ge_root_model;
-  ge::GraphBuilder graph_builder;
-  auto ret = graph_builder.Build(root_graph, ge_root_model);
+  ModelData model_data{};
+  ModelBufferData model_buffer_data;
+  auto ret = SaveGeRootModelToModelData(ge_root_model, model_data, model_buffer_data);
   EXPECT_EQ(ret, SUCCESS);
-  FinalizeGeLib();
-  return ge_root_model;
+  auto graph_model = FlowModelHelper::ToPneModel(model_data, root_graph, model_type);
+  graph_model->SetModelName(root_graph->GetName());
+  return graph_model;
 }
 
 PneModelPtr StubModels::BuildRootModel(ComputeGraphPtr root_graph, bool pipeline_partitioned) {
-  InitGeLib();
-  SetLocalOmgContext(default_context);
-  for (const auto &node : root_graph->GetAllNodes()) {
-    node->GetOpDesc()->SetOpKernelLibName(kKernelLibName);
-    node->GetOpDesc()->SetOpEngineName(kKernelLibName);
-  }
-
   AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
-
-  ge::GraphBuilder graph_builder;
   PneModelPtr root_model;
   if (pipeline_partitioned) {
     root_model = MakeShared<ge::FlowModel>(root_graph);
     EXPECT_NE(root_model, nullptr);
     root_model->SetModelName(root_graph->GetName());
-    auto ret = BuildForPipelinePartitionedGraph(graph_builder, kSessionIdInt, root_graph, root_model);
+    auto ret = BuildForPipelinePartitionedGraph(root_graph, root_model);
     EXPECT_EQ(ret, SUCCESS);
     EXPECT_NE(root_model->GetModelRelation(), nullptr);
   } else {
-    GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
-    EXPECT_EQ(ge_root_model->Initialize(root_graph), SUCCESS);
-    auto ge_model = MakeShared<ge::GeModel>();
-    auto model_task_def = MakeShared<domi::ModelTaskDef>();
-    model_task_def->set_version("test_v100_r001");
-    ge_model->SetModelTaskDef(model_task_def);
-    ge_model->SetName(root_graph->GetName());
-    ge_model->SetGraph(root_graph);
-    ge_root_model->SetModelName(root_graph->GetName());	
-    ge_root_model->SetSubgraphInstanceNameToModel(root_graph->GetName(), ge_model);
-    ModelData model_data{};
-    ModelBufferData model_buffer_data;
-    auto ret = SaveGeRootModelToModelData(ge_root_model, model_data, model_buffer_data);
-    EXPECT_EQ(ret, SUCCESS);
-    root_model = FlowModelHelper::ToPneModel(model_data, root_graph);
+    root_model = BuildGraphModel(root_graph);
   }
-  FinalizeGeLib();
   return root_model;
-}
-
-void StubModels::BuildModel(Graph &graph, ModelBufferData &model_buffer_data) {
-  auto root_graph = GraphUtilsEx::GetComputeGraph(graph);
-  InitGeLib();
-  SetLocalOmgContext(default_context);
-  for (const auto &node : root_graph->GetAllNodes()) {
-    node->GetOpDesc()->SetOpKernelLibName(kKernelLibName);
-    node->GetOpDesc()->SetOpEngineName(kKernelLibName);
-  }
-  AttrUtils::SetStr(*root_graph, ATTR_NAME_SESSION_GRAPH_ID, kSessionId);
-  GeGenerator ge_generator;
-  std::map<std::string, std::string> options;
-  options.emplace(ge::SOC_VERSION, "TestSocType1");
-  ge_generator.Initialize(options);
-  auto ret = ge_generator.GenerateOnlineModel(graph, {}, model_buffer_data);
-
-  //  ge::GraphBuilder graph_builder;
-  //  GeRootModelPtr root_model;
-  //  auto ret = graph_builder.Build(root_graph, root_model);
-  EXPECT_EQ(ret, SUCCESS);
-
-  FinalizeGeLib();
 }
 
 DeployPlan StubModels::BuildSimpleDeployPlan(int32_t remote_node_id) {

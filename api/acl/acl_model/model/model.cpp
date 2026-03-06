@@ -16,7 +16,6 @@
 #include "securec.h"
 #include "acl/acl_base.h"
 #include "executor/ge_executor.h"
-#include "common/ge_inner_error_codes.h"
 #include "common/log_inner.h"
 #include "graph/tensor.h"
 #include "graph/types.h"
@@ -25,7 +24,6 @@
 #include "model_desc_internal.h"
 #include "error_codes_inner.h"
 #include "common/prof_api_reg.h"
-#include "framework/common/ge_types.h"
 #include "framework/runtime/model_v2_executor.h"
 #include "framework/runtime/om2_model_executor.h"
 #include "framework/runtime/gert_api.h"
@@ -2152,7 +2150,7 @@ static aclError BundleInitFromMem(std::shared_ptr<const uint8_t> model, size_t m
   return ACL_SUCCESS;
 }
 
-static aclError BundleLoadFromMem(std::shared_ptr<uint8_t> model, size_t modelSize, const std::string &modelPath,
+static aclError BundleLoadFromMem(std::shared_ptr<const uint8_t> model, size_t modelSize, const std::string &modelPath,
                                   uint32_t *bundleId)
 {
   // BundleLoadFromMem = BundleInitFromMem + load sub model
@@ -2216,9 +2214,9 @@ aclError aclmdlBundleLoadFromMemImpl(const void *model,  size_t modelSize, uint3
     ACL_REQUIRES_POSITIVE_WITH_INPUT_REPORT(modelSize);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(bundleId);
 
-    std::shared_ptr<uint8_t> data;
+    std::shared_ptr<const uint8_t> data;
     // no delete func
-    data.reset(ge::PtrToPtr<void, uint8_t>(const_cast<void *>(model)), [](const uint8_t* const p) { (void) p; });
+    data.reset(ge::PtrToPtr<void, uint8_t>(model), [](const uint8_t* const p) { (void) p; });
     ACL_REQUIRES_OK(BundleLoadFromMem(data, modelSize, "", bundleId));
 
     ACL_LOG_INFO("execute aclmdlBundleLoadFromMem success, bundleId[%u]", *bundleId);

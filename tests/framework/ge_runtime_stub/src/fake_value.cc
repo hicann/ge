@@ -212,7 +212,7 @@ FakeTensors::FakeTensors(std::initializer_list<int64_t> shape, size_t num,
                          void *mem_block, TensorPlacement placement,
                          ge::Format format, ge::DataType data_type) {
   TensorData tensor_data{nullptr, nullptr, 0, placement};
-  size_t tensor_size = 4;  // 1 float takes 4 bytes
+  size_t tensor_size = 8;  // 1 int64 takes 8 bytes
   for (auto dim : shape) {
     tensor_size *= static_cast<size_t>(dim);
   }

@@ -78,8 +78,8 @@ PneModelPtr BuildPneModel(const string &name, ComputeGraphPtr graph) {
   ge_model->SetModelTaskDef(model_task_def);
   ge_model->SetName(name);
   ge_model->SetGraph(graph);
-  ge_root_model->SetModelName(name);	
-  ge_root_model->SetSubgraphInstanceNameToModel(name, ge_model);	
+  ge_root_model->SetModelName(name);
+  ge_root_model->SetSubgraphInstanceNameToModel(name, ge_model);
   bool is_unknown_shape = false;
   GE_ASSERT_SUCCESS(ge_root_model->CheckIsUnknownShape(is_unknown_shape));
   ModelBufferData model_buffer_data{};
@@ -92,6 +92,7 @@ PneModelPtr BuildPneModel(const string &name, ComputeGraphPtr graph) {
 	model_data.model_len = model_buffer_data.length;
   auto graph_model = FlowModelHelper::ToPneModel(model_data, graph, PNE_ID_NPU);
   graph_model->SetLogicDeviceId("0:0:1");
+  graph_model->SetModelName(name);
   return graph_model;
 }
 }
@@ -164,17 +165,20 @@ class MockMmpa : public MmpaStubApiGe {
     if (std::string(func_name) == "InitializeHeterogeneousRuntime") {
       return (void *) &InitializeHeterogeneousRuntime;
     }
-    return dlsym(handle, func_name);
+    return MmpaStubApiGe::DlSym(handle, func_name);
   }
 
   void *DlOpen(const char *file_name, int32_t mode) override {
     if (string("libmodel_deployer.so") == file_name) {
       return (void *) &g_so_addr;
     }
-    return dlopen(file_name, mode);
+    return MmpaStubApiGe::DlOpen(file_name, mode);
   }
   int32_t DlClose(void *handle) override {
-    return 0L;
+    if (handle == &g_so_addr) {
+      return 0;
+    }
+    return MmpaStubApiGe::DlClose(handle);
   }
 };
 
@@ -233,8 +237,6 @@ TEST_F(FlowModelBuilderTest, BuildHeterogeneousModel_EnginePartitioned) {
   npu_engine->SetImpl(std::make_shared<MockNpuEngineImpl>());
   FlowModelBuilder flow_model_builder;
   flow_model_builder.process_node_engines_[PNE_ID_NPU] = npu_engine;
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
 
   auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
@@ -279,8 +281,6 @@ TEST_F(FlowModelBuilderTest, BuildHeterogeneousModel_ParallelPartitioned) {
   npu_engine->SetImpl(std::make_shared<MockNpuEngineImpl>());
   FlowModelBuilder flow_model_builder;
   flow_model_builder.process_node_engines_[PNE_ID_NPU] = npu_engine;
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
 
   auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
@@ -336,8 +336,6 @@ TEST_F(FlowModelBuilderTest, BuildHeterogeneousModel_NoPartition) {
   npu_engine->SetImpl(std::make_shared<MockNpuEngineImpl>());
   FlowModelBuilder flow_model_builder;
   flow_model_builder.process_node_engines_[PNE_ID_NPU] = npu_engine;
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
 
   auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
@@ -414,8 +412,6 @@ TEST_F(FlowModelBuilderTest, FlowModelBuildWithSubgraph) {
                                                          fn_npu);
   ProcessNodeEngineManager::GetInstance().RegisterEngine("HOST_CPU",
                                                          flow_model_builder.process_node_engines_[PNE_ID_CPU], fn_cpu);
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
   auto ge_graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
   EXPECT_EQ(flow_model_builder.BuildModel(ge_graph, {}, {}, flow_model), SUCCESS);
@@ -475,8 +471,6 @@ TEST_F(FlowModelBuilderTest, FlowModelBuild) {
                                                          fn_npu);
   ProcessNodeEngineManager::GetInstance().RegisterEngine("HOST_CPU",
                                                          flow_model_builder.process_node_engines_[PNE_ID_CPU], fn_cpu);
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
   auto ge_graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
   EXPECT_EQ(flow_model_builder.BuildModel(ge_graph, {}, {}, flow_model), SUCCESS);
@@ -689,8 +683,6 @@ TEST_F(FlowModelBuilderTest, BuildModel_DataFlowGraph_SUCCESS) {
   FlowModelBuilder flow_model_builder;
   flow_model_builder.process_node_engines_[PNE_ID_NPU] = npu_engine;
   flow_model_builder.process_node_engines_[PNE_ID_UDF] = std::make_shared<UdfProcessNodeEngine>();
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
 
   auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
@@ -818,8 +810,6 @@ TEST_F(FlowModelBuilderTest, BuildModel_DataFlowGraph_FAILED) {
   FlowModelBuilder flow_model_builder;
   flow_model_builder.process_node_engines_[PNE_ID_NPU] = npu_engine;
   flow_model_builder.process_node_engines_[PNE_ID_UDF] = std::make_shared<UdfProcessNodeEngine>();
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
 
   auto ge_graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
@@ -919,8 +909,6 @@ TEST_F(FlowModelBuilderTest, BuildModel_Invoke_modelpp_SUCCESS) {
   FlowModelBuilder flow_model_builder;
   flow_model_builder.process_node_engines_[PNE_ID_NPU] = npu_engine;
   flow_model_builder.process_node_engines_[PNE_ID_UDF] = std::make_shared<UdfProcessNodeEngine>();
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
 
   auto ge_graph = GraphUtilsEx::CreateGraphFromComputeGraph(comput_graph);
   FlowModelPtr flow_model;
@@ -1017,8 +1005,6 @@ TEST_F(FlowModelBuilderTest, BuildModel_Failed) {
   FlowModelBuilder flow_model_builder;
   flow_model_builder.process_node_engines_[PNE_ID_NPU] = npu_engine;
   flow_model_builder.process_node_engines_[PNE_ID_UDF] = std::make_shared<UdfProcessNodeEngine>();
-  map<string, string> options;
-  EXPECT_EQ(ge::GELib::Initialize(options), SUCCESS);
 
   auto graph = GraphUtilsEx::CreateGraphFromComputeGraph(root_graph);
   FlowModelPtr flow_model;
