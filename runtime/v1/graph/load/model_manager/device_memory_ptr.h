@@ -13,8 +13,6 @@
 #include <cstdint>
 #include "runtime/mem.h"
 #include "graph/def_types.h"
-#include "acl/acl_rt.h"
-
 namespace ge {
 class DeviceMemoryPtr {
  public:
@@ -45,7 +43,7 @@ class DeviceMemoryPtr {
  private:
   void Free() noexcept {
     if (addr_ != 0UL) {
-      if (aclrtFree(ValueToPtr(addr_)) == RT_ERROR_NONE) {
+      if (rtFree(ValueToPtr(addr_)) == RT_ERROR_NONE) {
         addr_ = 0UL;
       }
     }

@@ -318,7 +318,7 @@ private:
   }
 
   Status rtSwitchArgsTraversal(uint64_t &op_args_addr_min, uint64_t &op_args_addr_max) {
-    for (const auto &switch_arg : stub_.GetAclRuntimeStub().GetAllSwitchArgs()) {
+    for (const auto &switch_arg : stub_.GetRtsRuntimeStub().GetAllSwitchArgs()) {
       auto node_name = switch_arg.GetTag();
       uint64_t addresses = 0;
       if (node_name == nullptr) {
@@ -533,7 +533,7 @@ private:
    * @return
    */
   Status GetFakeRtMemcpyArgs(const GeFakeRtMemcpyArgs *&rt_memcpy_args) {
-    for (const auto &args : stub_.GetAclRuntimeStub().GetRtMemcpyRecords()) {
+    for (const auto &args : stub_.GetRtsRuntimeStub().GetRtMemcpyRecords()) {
       uint64_t dst_address = PtrToValue(args.dst_address);
       if (dst_address >= op_args_addr_min_ && dst_address <= op_args_addr_max_) {
         rt_memcpy_args = &args;

@@ -2608,25 +2608,22 @@ TEST_F(DynamicGraphTest, TestSingleOpWithSubGraph) {
 }
 
 TEST_F(DynamicGraphTest, TestAicpuKernels) {
-  class MockAclMemcpy : public AclRuntimeStub {
-   public:
-    // MOCK_METHOD5(aclrtMemcpy, int32_t(void *dst, size_t destMax, const void *src, size_t count, aclrtMemcpyKind kind));
-    aclError aclrtMemcpy(void *dst, size_t destMax, const void *src, size_t count, aclrtMemcpyKind kind) {
-      if (count == 0) {
-        return RT_ERROR_NONE;
-      }
-      if (count == sizeof(aicpu::FWKAdapter::ResultSummary) && kind == ACL_MEMCPY_DEVICE_TO_HOST) {
-        aicpu::FWKAdapter::ResultSummary summary{};
-        summary.shape_data_size = 8;
-        summary.raw_data_size = 4;
-        return memcpy_s(dst, destMax, &summary, count);
-      } else {
-        return memcpy_s(dst, destMax, src, count);
-      }
+  auto mock_memcpy = [](void *dst, uint64_t dest_max, const void *src, uint64_t count, rtMemcpyKind_t kind) -> int {
+    if (count == 0) {
+      return RT_ERROR_NONE;
+    }
+    if (count == sizeof(aicpu::FWKAdapter::ResultSummary) && kind == RT_MEMCPY_DEVICE_TO_HOST) {
+      aicpu::FWKAdapter::ResultSummary summary{};
+      summary.shape_data_size = 8;
+      summary.raw_data_size = 4;
+      return memcpy_s(dst, dest_max, &summary, count);
+    } else {
+      return memcpy_s(dst, dest_max, src, count);
     }
   };
-  auto acl_runtime_stub = std::make_shared<MockAclMemcpy>();
-  AclRuntimeStub::SetInstance(acl_runtime_stub);
+  auto runtime_stub = std::make_shared<MockMemcpy>();
+  RuntimeStub::SetInstance(runtime_stub);
+  EXPECT_CALL(*runtime_stub, rtMemcpy).WillRepeatedly(testing::Invoke(mock_memcpy));
 
   auto generate_aicpu_type_4_kernels =
       [](const Node &node, RunContext &context, std::vector<domi::TaskDef> &tasks) -> Status {
@@ -2697,32 +2694,28 @@ TEST_F(DynamicGraphTest, TestAicpuKernels) {
   MockForGenerateTask("aicpu_tf_kernel", generate_tf_type_3_kernel_check_overflow);
   BuildAndExecDynamicOnlineModelExp(SUCCESS);
   unsetenv(kEnvOverFlowPath);
-  AclRuntimeStub::Reset();
 
   dlog_setlevel(GE_MODULE_NAME, DLOG_ERROR, 0);
 }
 
 TEST_F(DynamicGraphTest, TesthostAicpuKernels) {
   const uint32_t topic_type_flag = RT_KERNEL_HOST_ONLY;
-  class MockAclMemcpy : public AclRuntimeStub {
-   public:
-    // MOCK_METHOD5(aclrtMemcpy, int32_t(void *dst, size_t destMax, const void *src, size_t count, aclrtMemcpyKind kind));
-    aclError aclrtMemcpy(void *dst, size_t destMax, const void *src, size_t count, aclrtMemcpyKind kind) {
-      if (count == 0) {
-        return RT_ERROR_NONE;
-      }
-      if (count == sizeof(aicpu::FWKAdapter::ResultSummary) && kind == ACL_MEMCPY_HOST_TO_HOST) {
-        aicpu::FWKAdapter::ResultSummary summary{};
-        summary.shape_data_size = 8;
-        summary.raw_data_size = 4;
-        return memcpy_s(dst, destMax, &summary, count);
-      } else {
-        return memcpy_s(dst, destMax, src, count);
-      }
+  auto mock_memcpy = [](void *dst, uint64_t dest_max, const void *src, uint64_t count, rtMemcpyKind_t kind) -> int {
+    if (count == 0) {
+      return RT_ERROR_NONE;
+    }
+    if (count == sizeof(aicpu::FWKAdapter::ResultSummary) && kind == RT_MEMCPY_HOST_TO_HOST) {
+      aicpu::FWKAdapter::ResultSummary summary{};
+      summary.shape_data_size = 8;
+      summary.raw_data_size = 4;
+      return memcpy_s(dst, dest_max, &summary, count);
+    } else {
+      return memcpy_s(dst, dest_max, src, count);
     }
   };
-  auto acl_runtime_stub = std::make_shared<MockAclMemcpy>();
-  AclRuntimeStub::SetInstance(acl_runtime_stub);
+  auto runtime_stub = std::make_shared<MockMemcpy>();
+  RuntimeStub::SetInstance(runtime_stub);
+  EXPECT_CALL(*runtime_stub, rtMemcpy).WillRepeatedly(testing::Invoke(mock_memcpy));
 
   auto generate_aicpu_type_4_kernels = [](const Node &node, RunContext &context,
                                           std::vector<domi::TaskDef> &tasks) -> Status {
@@ -2784,7 +2777,6 @@ TEST_F(DynamicGraphTest, TesthostAicpuKernels) {
   MockForGenerateTask("aicpu_ascend_kernel", generate_tf_type_3_kernel_blocking);
   MockForGenerateTask("aicpu_tf_kernel", generate_tf_type_3_kernel_blocking);
   BuildAndExecDynamicOnlineModel();
-  AclRuntimeStub::Reset();
 }
 
 TEST_F(DynamicGraphTest, TestType2AndGeLocal) {

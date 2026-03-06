@@ -18,7 +18,6 @@
 #include "proto/op_mapping.pb.h"
 #include "runtime/stream.h"
 #include "runtime/mem.h"
-#include "acl/acl_rt.h"
 
 namespace ge {
 struct RealAddressAndSize {
