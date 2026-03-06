@@ -14,9 +14,11 @@
 #include "attribute_group/attr_group_shape_env.h"
 
 namespace ge {
+const char_t *kInvalidExpr = "invalid expression";
+
 std::string SymbolicUtils::ToString(const Expression &e) {
   auto ret = e.Str(StrType::kStrCpp);
-  return (ret != nullptr) ? ret.get() : "invalid expression";
+  return (ret != nullptr) ? ret.get() : kInvalidExpr;
 }
 
 TriBool SymbolicUtils::StaticCheckEq(const Expression &e1, const Expression &e2) {
@@ -41,6 +43,18 @@ TriBool SymbolicUtils::StaticCheckGt(const Expression &e1, const Expression &e2)
 
 TriBool SymbolicUtils::StaticCheckGe(const Expression &e1, const Expression &e2) {
   return StaticCheckBool(sym::Ge(e1.Simplify(), e2.Simplify()));
+}
+
+std::string SymbolicUtils::AsNumerDenomToString(const Expression &x) {
+  Expression numer;
+  Expression denom;
+  x.AsNumerDenom(numer, denom);
+  auto numer_str = ToString(numer);
+  auto denom_str = ToString(denom);
+  if (numer_str == kInvalidExpr || denom_str == kInvalidExpr) {
+    return kInvalidExpr;
+  }
+  return "(" + numer_str + ")" + "/" + "(" + denom_str + ")";
 }
 
 TriBool SymbolicUtils::StaticCheckBool(const Expression &expr) {

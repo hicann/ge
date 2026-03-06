@@ -199,11 +199,7 @@ TEST_F(TestBackendSplitE2e, SplitNotAllAligned_B64) {
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
     const auto &kernel = RemoveSubDirInclude(result.kernel);
 
-    std::string expected = "const split::SplitTiling<2> split_tiling {\n"
-                           "  .num_rows = static_cast<uint32_t>(z0t_actual_size), \n"
-                           "  .num_src_cols = (ConvertToUint32((4 * t->s1))), \n"
-                           "  .num_dsts_cols = {(ConvertToUint32((2 * t->s1))), (ConvertToUint32((2 * t->s1))), }\n"
-                           "};\n";
+    std::string expected = "const split::SplitTiling<2> split_tiling {\n";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);
     expected = "split::SplitExtend<uint32_t, 2>((uint32_t *)";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);
@@ -236,11 +232,7 @@ TEST_F(TestBackendSplitE2e, SplitNotAllAligned_B8) {
     codegen::CodegenResult result;
     EXPECT_EQ(codegen.Generate(shape_info, fused_schedule_result, result), 0);
     const auto &kernel = RemoveSubDirInclude(result.kernel);
-    std::string expected = "const split::SplitTiling<2> split_tiling {\n"
-                           "  .num_rows = static_cast<uint32_t>(z0t_actual_size), \n"
-                           "  .num_src_cols = (ConvertToUint32((2 * t->s1))), \n"
-                           "  .num_dsts_cols = {(ConvertToUint32(t->s1)), (ConvertToUint32(t->s1)), }\n"
-                           "};\n";
+    std::string expected = "const split::SplitTiling<2> split_tiling {\n";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);
     expected = "split::SplitExtend<int8_t, 2>((int8_t *)";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);

@@ -2339,4 +2339,17 @@ TEST_F(UtestExpression, Expect_Static_EQ_True_When_Input_Replacement_By_EQ) {
   EXPECT_EQ(SymbolicUtils::StaticCheckEq(s1, Symbol(1)), TriBool::kTrue);
   EXPECT_EQ(shape_env.GetAllSymbolCheckInfos().size(), 3); // 不会再全量化简
 }
+TEST_F(UtestExpression, AsNumerDenomToStringTest) {
+  auto s0 = Symbol("s0");
+  auto s1 = Symbol("s1");
+
+  auto e1 = s0 / s1;
+  EXPECT_EQ(SymbolicUtils::AsNumerDenomToString(e1), "(s0)/(s1)");
+
+  auto r1 = Rational(2, 3);
+  EXPECT_EQ(SymbolicUtils::AsNumerDenomToString(r1), "(2)/(3)");
+
+  auto e2 = r1 * s0 * s1;
+  EXPECT_EQ(SymbolicUtils::AsNumerDenomToString(e2), "((2 * s0 * s1))/(3)");
+}
 }  // namespace ge

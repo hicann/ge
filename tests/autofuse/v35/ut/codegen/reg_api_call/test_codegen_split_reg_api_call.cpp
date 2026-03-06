@@ -190,13 +190,7 @@ TEST_F(SplitRegApiCallUTest, AllAligned) {
    std::string result;
    EXPECT_EQ(call.Generate(tpipe, vector<ge::AxisId>{}, result), SUCCESS);
    EXPECT_EQ(result,
-             "const split::SplitTiling<2> split_tiling {\n"
-             "  .num_rows = static_cast<uint32_t>(t->s0), \n"
-             "  .num_src_cols = (ConvertToUint32(((16 + t->s2_1) * 3))), \n"
-             "  .num_dsts_cols = {(ConvertToUint32((3 * t->s2_1))), 48, }\n"
-             "};\n"
-             "int8_t *split_dst_addrs[] { (int8_t *)local_2.GetPhyAddr(), (int8_t *)local_3.GetPhyAddr(), };\n"
-             "split::SplitExtend<int8_t, 2>((int8_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
+             "const split::SplitTiling<2> split_tiling {\n  .num_rows = static_cast<uint32_t>(t->s0), \n  .num_src_cols = (((16 + t->s2_1) * 3))/(1), \n  .num_dsts_cols = {((3 * t->s2_1))/(1), 48, }\n};\nint8_t *split_dst_addrs[] { (int8_t *)local_2.GetPhyAddr(), (int8_t *)local_3.GetPhyAddr(), };\nsplit::SplitExtend<int8_t, 2>((int8_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
  }
 
  TEST_F(SplitRegApiCallUTest, Unaligned_B8ToB16) {
@@ -225,13 +219,7 @@ TEST_F(SplitRegApiCallUTest, AllAligned) {
    std::string result;
    EXPECT_EQ(call.Generate(tpipe, vector<ge::AxisId>{}, result), SUCCESS);
    EXPECT_EQ(result,
-             "const split::SplitTiling<2> split_tiling {\n"
-             "  .num_rows = static_cast<uint32_t>(t->s0), \n"
-             "  .num_src_cols = (ConvertToUint32((16 + t->s2_1))), \n"
-             "  .num_dsts_cols = {(ConvertToUint32(t->s2_1)), 16, }\n"
-             "};\n"
-             "uint16_t *split_dst_addrs[] { (uint16_t *)local_2.GetPhyAddr(), (uint16_t *)local_3.GetPhyAddr(), };\n"
-             "split::SplitExtend<uint16_t, 2>((uint16_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
+             "const split::SplitTiling<2> split_tiling {\n  .num_rows = static_cast<uint32_t>(t->s0), \n  .num_src_cols = ((16 + t->s2_1))/(1), \n  .num_dsts_cols = {(t->s2_1)/(1), 16, }\n};\nuint16_t *split_dst_addrs[] { (uint16_t *)local_2.GetPhyAddr(), (uint16_t *)local_3.GetPhyAddr(), };\nsplit::SplitExtend<uint16_t, 2>((uint16_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
  }
 
  TEST_F(SplitRegApiCallUTest, Unaligned_B16) {
@@ -260,13 +248,7 @@ TEST_F(SplitRegApiCallUTest, AllAligned) {
    std::string result;
    EXPECT_EQ(call.Generate(tpipe, vector<ge::AxisId>{}, result), SUCCESS);
    EXPECT_EQ(result,
-             "const split::SplitTiling<2> split_tiling {\n"
-             "  .num_rows = static_cast<uint32_t>(t->s0), \n"
-             "  .num_src_cols = (ConvertToUint32(((16 + t->s2_1) * 2))), \n"
-             "  .num_dsts_cols = {(ConvertToUint32((2 * t->s2_1))), 32, }\n"
-             "};\n"
-             "half *split_dst_addrs[] { (half *)local_2.GetPhyAddr(), (half *)local_3.GetPhyAddr(), };\n"
-             "split::SplitExtend<half, 2>((half *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
+             "const split::SplitTiling<2> split_tiling {\n  .num_rows = static_cast<uint32_t>(t->s0), \n  .num_src_cols = (((16 + t->s2_1) * 2))/(1), \n  .num_dsts_cols = {((2 * t->s2_1))/(1), 32, }\n};\nhalf *split_dst_addrs[] { (half *)local_2.GetPhyAddr(), (half *)local_3.GetPhyAddr(), };\nsplit::SplitExtend<half, 2>((half *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
  }
 
  TEST_F(SplitRegApiCallUTest, Unaligned_B32) {
@@ -295,13 +277,7 @@ TEST_F(SplitRegApiCallUTest, AllAligned) {
    std::string result;
    EXPECT_EQ(call.Generate(tpipe, vector<ge::AxisId>{}, result), SUCCESS);
    EXPECT_EQ(result,
-             "const split::SplitTiling<2> split_tiling {\n"
-             "  .num_rows = static_cast<uint32_t>(t->s0), \n"
-             "  .num_src_cols = (ConvertToUint32(((16 + t->s2_1) * 2))), \n"
-             "  .num_dsts_cols = {(ConvertToUint32((2 * t->s2_1))), 32, }\n"
-             "};\n"
-             "int32_t *split_dst_addrs[] { (int32_t *)local_2.GetPhyAddr(), (int32_t *)local_3.GetPhyAddr(), };\n"
-             "split::SplitExtend<int32_t, 2>((int32_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
+             "const split::SplitTiling<2> split_tiling {\n  .num_rows = static_cast<uint32_t>(t->s0), \n  .num_src_cols = (((16 + t->s2_1) * 2))/(1), \n  .num_dsts_cols = {((2 * t->s2_1))/(1), 32, }\n};\nint32_t *split_dst_addrs[] { (int32_t *)local_2.GetPhyAddr(), (int32_t *)local_3.GetPhyAddr(), };\nsplit::SplitExtend<int32_t, 2>((int32_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
  }
 
  TEST_F(SplitRegApiCallUTest, Unalign_B64) {
@@ -330,13 +306,7 @@ TEST_F(SplitRegApiCallUTest, AllAligned) {
    std::string result;
    EXPECT_EQ(call.Generate(tpipe, vector<ge::AxisId>{}, result), SUCCESS);
    EXPECT_EQ(result,
-             "const split::SplitTiling<2> split_tiling {\n"
-             "  .num_rows = static_cast<uint32_t>(t->s0), \n"
-             "  .num_src_cols = (ConvertToUint32(((16 + t->s2_1) * 4))), \n"
-             "  .num_dsts_cols = {(ConvertToUint32((4 * t->s2_1))), 64, }\n"
-             "};\n"
-             "uint32_t *split_dst_addrs[] { (uint32_t *)local_2.GetPhyAddr(), (uint32_t *)local_3.GetPhyAddr(), };\n"
-             "split::SplitExtend<uint32_t, 2>((uint32_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
+             "const split::SplitTiling<2> split_tiling {\n  .num_rows = static_cast<uint32_t>(t->s0), \n  .num_src_cols = (((16 + t->s2_1) * 4))/(1), \n  .num_dsts_cols = {((4 * t->s2_1))/(1), 64, }\n};\nuint32_t *split_dst_addrs[] { (uint32_t *)local_2.GetPhyAddr(), (uint32_t *)local_3.GetPhyAddr(), };\nsplit::SplitExtend<uint32_t, 2>((uint32_t *)local_0.GetPhyAddr(), split_dst_addrs, tmp_buf_0, split_tiling);\n");
  }
 }  // namespace codegen
 

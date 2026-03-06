@@ -44,7 +44,7 @@ TEST_F(TilerTest, Size_ShouldReturnConstExpr_WhenSizeIsConstExpr) {
 TEST_F(TilerTest, Size_ShouldReturnIntCastedConstExpr_WhenSizeIsRational) {
   ascir::SizeExpr size = ge::sym::Rational(3, 2);
   codegen::Tiler tiler;
-  EXPECT_EQ(tiler.Size(size, false), "(ConvertToUint32(Rational(3 , 2)))");
+  EXPECT_EQ(tiler.Size(size, false), "(3)/(2)");
 }
 
 /**
@@ -66,5 +66,5 @@ TEST_F(TilerTest, ActualSize_ShouldReturnConstExpr_WhenSizeIsConstExpr) {
 TEST_F(TilerTest, ActualSize_ShouldReturnIntCastedConstExpr_WhenSizeIsRational) {
   ascir::SizeExpr size = ge::sym::Rational(3, 2);
   codegen::Tiler tiler;
-  EXPECT_EQ(tiler.ActualSize(size, false), "(ConvertToUint32(Rational(3 , 2)))");
+  EXPECT_EQ(tiler.ActualSize(size, false), "(3)/(2)");
 }
