@@ -271,7 +271,7 @@ TEST(CodegenKernel, CastApiCallTwoDimension) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CastExtend(local_1[0], local_0[0], t->s0, t->s1, (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s1))))), (ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s1))))), 4, tmp_buf_0);\n"
+    "CastExtend(local_1[0], local_0[0], t->s0, t->s1, ((16 * Ceiling((Rational(1 , 16) * t->s1))))/(1), ((8 * Ceiling((Rational(1 , 8) * t->s1))))/(1), 4, tmp_buf_0);\n"
   });
 }
 
@@ -358,7 +358,7 @@ TEST(CodegenKernel, CastApiCallThreeDimension) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCastExtend(local_1[outer_for_0 * (ConvertToUint32((16 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1)))], local_0[outer_for_0 * (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)) * t->s1)))], t->s1, t->s2, (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), (ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2))))), 4, tmp_buf_0);\n\n}\n"
+    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCastExtend(local_1[outer_for_0 * ((16 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1))/(1)], local_0[outer_for_0 * ((16 * Ceiling((Rational(1 , 16) * t->s2)) * t->s1))/(1)], t->s1, t->s2, ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), ((8 * Ceiling((Rational(1 , 8) * t->s2))))/(1), 4, tmp_buf_0);\n\n}\n"
   });
 }
 
@@ -444,7 +444,7 @@ TEST(CodegenKernel, CastApiCall_Offset) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CastExtend(local_1[0], local_0[0], t->s1, t->s2, (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), 4, tmp_buf_0);\n"
+    "CastExtend(local_1[0], local_0[0], t->s1, t->s2, ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), 4, tmp_buf_0);\n"
   });
 }
 
@@ -540,7 +540,7 @@ TEST(CodegenKernel, CastApiCall_WithMaskMode) {
     cast->outputs[0].attr.mem.alloc_type = ge::AllocType::kAllocTypeQueue;
     cast->outputs[0].attr.que.id = 2;
     cast->outputs[0].attr.opt.merge_scope = ge::kIdNone;
-    
+
     codegen::Tiler tiler;
     codegen::TPipe tpipe("tpipe", tiler);
 
@@ -564,7 +564,7 @@ TEST(CodegenKernel, CastApiCall_WithMaskMode) {
 
     std::string result;
     call.Generate(tpipe, current_axis, result);
-    std::string expect = "CastExtend(local_1[0], local_0[0], t->s1, t->s2, (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), " + max_size + ", tmp_buf_0);\n";
+    std::string expect = "CastExtend(local_1[0], local_0[0], t->s1, t->s2, ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), " + max_size + ", tmp_buf_0);\n";
     EXPECT_EQ(result, expect);
   }
 }

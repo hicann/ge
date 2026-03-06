@@ -235,6 +235,19 @@ bool Expression::ContainVar(const Expression &e) const {
   return false;
 }
 
+void Expression::AsNumerDenom(Expression &numer, Expression &denom) const {
+  if (impl_ != nullptr) {
+    ExpressionImplPtr impl_numer;
+    ExpressionImplPtr impl_denom;
+    impl_->AsNumerDenom(impl_numer, impl_denom);
+    numer = Expression(std::move(impl_numer));
+    denom = Expression(std::move(impl_denom));
+  } else {
+    numer = Expression(nullptr);
+    denom = Expression(nullptr);
+  }
+}
+
 bool Expression::operator==(const Expression &e) const {
   if (impl_ != nullptr && e.impl_ != nullptr) {
     return (*impl_ == *e.impl_);

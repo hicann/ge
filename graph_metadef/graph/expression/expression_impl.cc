@@ -249,6 +249,14 @@ ExpressionImplPtr ExpressionImpl::Subs(const std::map<ExpressionImpl *, Expressi
   return ExpressionImpl::CreateExpressionImpl<const SymEngineExprPtr &>(subs_expr);
 }
 
+void ExpressionImpl::AsNumerDenom(ExpressionImplPtr &numer, ExpressionImplPtr &denom) const {
+  SymEngineExprPtr symengine_numer;
+  SymEngineExprPtr symengine_denom;
+  as_numer_denom(sym_expr_, outArg(symengine_numer), outArg(symengine_denom));
+  numer = CreateExpressionImpl<const SymEngineExprPtr &>(symengine_numer);
+  denom = CreateExpressionImpl<const SymEngineExprPtr &>(symengine_denom);
+}
+
 ExpressionImplPtr ExpressionImpl::Simplify() const {
   SymEngineExprPtr expanded_expr = SymEngine::expand(sym_expr_);
   SymEngineExprPtr simplified_expr = SymEngine::simplify(expanded_expr);

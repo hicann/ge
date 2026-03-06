@@ -2699,7 +2699,7 @@ TEST(CodegenKernel, CompareApiCallThrowingFor) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CompareExtend<int32_t, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), tmp_buf_0);\n"  });
+    "CompareExtend<int32_t, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), tmp_buf_0);\n"});
 }
 
 // 测试compare api需要外抛for循环的场景
@@ -2817,7 +2817,7 @@ TEST(CodegenKernel, CompareApiCallTwoAxis) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CompareExtend<float, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), tmp_buf_0);\n"
+    "CompareExtend<float, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), tmp_buf_0);\n"
   });
 }
 
@@ -2946,7 +2946,7 @@ TEST(CodegenKernel, CompareApiCallThrowingForWithX2IsUbScalar) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CompareExtend<float, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, (ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2))))), (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), tmp_buf_0);\n"
+    "CompareExtend<float, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, ((8 * Ceiling((Rational(1 , 8) * t->s2))))/(1), ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), tmp_buf_0);\n"
   });
 }
 
@@ -3076,7 +3076,7 @@ TEST(CodegenKernel, CompareApiCallThrowingForWithX2IsUbScalarForUint32) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CompareExtend<uint32_t, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, (ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2))))), (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2))))), tmp_buf_0);\n"
+    "CompareExtend<uint32_t, CMPMODE::GT>(local_3[0], local_0[0], local_1[0], t->s1, t->s2, ((8 * Ceiling((Rational(1 , 8) * t->s2))))/(1), ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1), tmp_buf_0);\n"
   });
 }
 
@@ -3384,7 +3384,7 @@ TEST(CodegenKernel, IsnanExtendThrowingFor) {
   call.Generate(tpipe, current_axis, result);
   std::cout << result << std::endl;
   EXPECT_EQ(result, std::string{
-    "for(int outer_for_0 = 0; outer_for_0 < t->s1; outer_for_0++) {\nIsnanExtend(local_3[outer_for_0 * (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)))))], local_0[outer_for_0 * (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)))))], t->s2 ,tmp_buf_0);\n\n}\n"
+    "for(int outer_for_0 = 0; outer_for_0 < t->s1; outer_for_0++) {\nIsnanExtend(local_3[outer_for_0 * ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1)], local_0[outer_for_0 * ((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1)], t->s2 ,tmp_buf_0);\n\n}\n"
   });
 }
 
@@ -4094,7 +4094,7 @@ TEST(CodegenKernel, Kernel_IndexExprTensorInit) {
   std::string result;
   kernel.GlobalTensorInit(result);
   EXPECT_EQ(result, std::string{
-          "const half scalar_0 = (ConvertToUint32(t->s0));\n"
+          "const half scalar_0 = (t->s0)/(1);\n"
           });
 }
 

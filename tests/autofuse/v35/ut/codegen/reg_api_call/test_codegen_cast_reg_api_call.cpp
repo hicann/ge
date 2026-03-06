@@ -189,9 +189,7 @@ TEST(CastV2ApiCallTest, CastV2ApiCallTwoDimension) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CastExtend(local_1[0], local_0[0], {ConvertToUint32(t->s0), ConvertToUint32(t->s1)}, "
-    "{ConvertToUint32((ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s1)))))), ConvertToUint32(1)}, "
-    "{ConvertToUint32((ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s1)))))), ConvertToUint32(1)});\n"
+    "CastExtend(local_1[0], local_0[0], {ConvertToUint32(t->s0), ConvertToUint32(t->s1)}, {ConvertToUint32(((8 * Ceiling((Rational(1 , 8) * t->s1))))/(1)), ConvertToUint32(1)}, {ConvertToUint32(((16 * Ceiling((Rational(1 , 16) * t->s1))))/(1)), ConvertToUint32(1)});\n"
   });
 }
 
@@ -277,7 +275,7 @@ TEST(CastV2ApiCallTest, CastV2ApiCallThreeDimension) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCastExtend(local_1[outer_for_0 * (ConvertToUint32((16 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1)))], local_0[outer_for_0 * (ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)) * t->s1)))], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32((ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2)))))), ConvertToUint32(1)}, {ConvertToUint32((ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)))))), ConvertToUint32(1)});\n\n}\n"
+    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCastExtend(local_1[outer_for_0 * ((16 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1))/(1)], local_0[outer_for_0 * ((16 * Ceiling((Rational(1 , 16) * t->s2)) * t->s1))/(1)], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32(((8 * Ceiling((Rational(1 , 8) * t->s2))))/(1)), ConvertToUint32(1)}, {ConvertToUint32(((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1)), ConvertToUint32(1)});\n\n}\n"
   });
 }
 
@@ -362,7 +360,7 @@ TEST(CastV2ApiCallTest, CastV2ApiCall_Offset) {
   std::string result;
   call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(result, std::string{
-    "CastExtend(local_1[0], local_0[0], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32((ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)))))), ConvertToUint32(1)}, {ConvertToUint32((ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)))))), ConvertToUint32(1)});\n"
+    "CastExtend(local_1[0], local_0[0], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32(((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1)), ConvertToUint32(1)}, {ConvertToUint32(((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1)), ConvertToUint32(1)});\n"
   });
 }
 
@@ -450,7 +448,7 @@ TEST(CastV2ApiCallTest, CastV2ApiCallThreeDimensionNotSupportNormal) {
   std::cout<<"=============search me============"<<"\n";
   std::cout<<result<<"\n";
   EXPECT_EQ(result, std::string{
-    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCastExtend(local_1[outer_for_0 * (ConvertToUint32((64 * Ceiling((Rational(1 , 32) * t->s2)) * t->s1)))], local_0[outer_for_0 * (ConvertToUint32((4 * Ceiling((Rational(1 , 4) * t->s2)) * t->s1)))], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32((ConvertToUint32((32 * Ceiling((Rational(1 , 32) * t->s2)))))), ConvertToUint32(1)}, {ConvertToUint32((ConvertToUint32((4 * Ceiling((Rational(1 , 4) * t->s2)))))), ConvertToUint32(1)});\n\n}\n"
+    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCastExtend(local_1[outer_for_0 * ((64 * Ceiling((Rational(1 , 32) * t->s2)) * t->s1))/(1)], local_0[outer_for_0 * ((4 * Ceiling((Rational(1 , 4) * t->s2)) * t->s1))/(1)], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32(((32 * Ceiling((Rational(1 , 32) * t->s2))))/(1)), ConvertToUint32(1)}, {ConvertToUint32(((4 * Ceiling((Rational(1 , 4) * t->s2))))/(1)), ConvertToUint32(1)});\n\n}\n"
   });
   
 }
@@ -570,7 +568,7 @@ TEST(CastV2ApiCallTest, CastV2ApiCall_WithMaskMode) {
 
     std::string result;
     call.Generate(tpipe, current_axis, result);
-    std::string expect = "Cast(local_1[0], local_0[0], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32((ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)))))), ConvertToUint32(1)}, {ConvertToUint32((ConvertToUint32((16 * Ceiling((Rational(1 , 16) * t->s2)))))), ConvertToUint32(1)});\n";
+    std::string expect = "Cast(local_1[0], local_0[0], {ConvertToUint32(t->s1), ConvertToUint32(t->s2)}, {ConvertToUint32(((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1)), ConvertToUint32(1)}, {ConvertToUint32(((16 * Ceiling((Rational(1 , 16) * t->s2))))/(1)), ConvertToUint32(1)});\n";
     EXPECT_EQ(result, expect);
   }
 }

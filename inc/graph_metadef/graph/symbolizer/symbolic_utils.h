@@ -90,6 +90,12 @@ class SymbolicUtils {
    */
   static TriBool StaticCheckGe(const Expression &e1, const Expression &e2);
 
+  /**
+  * @brief 将表达式拆成分子除以分母的形式进行序列化，例如表达式Rational(2, 3) * s1，会序列化成(2 * s1) / 3
+  * @param x 要序列化的表达式
+  */
+  static std::string AsNumerDenomToString(const Expression &x);
+
  private:
   static TriBool StaticCheckBool(const Expression &expr);
 };

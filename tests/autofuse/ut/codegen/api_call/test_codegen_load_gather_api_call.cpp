@@ -869,8 +869,7 @@ TEST(CodegenKernel, LoadGatherApiCall_ShouldReturnSuccess_WhenParamHasOnlyOneAxi
   auto status = call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(status, ge::SUCCESS);
   EXPECT_EQ(result, std::string{
-      "GatherExtend(local_2, global_0, global_1[(int64_t)z1TB * (int64_t)(z1Tb_size * z1t_size) + (int64_t)z1Tb * "
-      "(int64_t)z1t_size], (ConvertToUint32(s0)), local_2_actual_size, tmp_buf_0);\n"
+      "GatherExtend(local_2, global_0, global_1[(int64_t)z1TB * (int64_t)(z1Tb_size * z1t_size) + (int64_t)z1Tb * (int64_t)z1t_size], (s0)/(1), local_2_actual_size, tmp_buf_0);\n"
   });
 }
 
@@ -990,7 +989,6 @@ TEST(CodegenKernel,  LoadGatherApiCall_WhenAixsIsLastAxisAndParamHasMoreThanOneA
   auto status = call.Generate(tpipe, current_axis, result);
   EXPECT_EQ(status, ge::SUCCESS);
   EXPECT_EQ(result, std::string{
-      "GatherExtend(local_2, global_0[z0z1z2z3 * (ConvertToUint32(s4))], global_1[(int64_t)z5z6T * "
-      "(int64_t)z5z6t_size], (ConvertToUint32(s4)), local_2_actual_size, tmp_buf_0);\n"
+      "GatherExtend(local_2, global_0[z0z1z2z3 * (s4)/(1)], global_1[(int64_t)z5z6T * (int64_t)z5z6t_size], (s4)/(1), local_2_actual_size, tmp_buf_0);\n"
   });
 }

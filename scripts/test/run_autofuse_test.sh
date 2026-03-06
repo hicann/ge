@@ -426,6 +426,12 @@ build_st_codegen() {
     return 1
   fi
 
+  METADEF_SOS=$(find ${BUILD_PATH}/graph_metadef -name *.so)
+  for METADEF_SO in ${METADEF_SOS}
+  do
+    cp -rf ${METADEF_SO} ${METADEF_LIB_PATH}
+    echo "cp -rf ${METADEF_SO} ${METADEF_LIB_PATH}"
+  done
   export LD_LIBRARY_PATH=${METADEF_LIB_PATH}:${ASCEND_INSTALL_LIB_PATH}
   cp ${BUILD_PATH}/tests/autofuse/st/codegen/codegen_st  ${OUTPUT_PATH}
   RUN_TEST_CASE=${OUTPUT_PATH}/codegen_st && ${RUN_TEST_CASE}

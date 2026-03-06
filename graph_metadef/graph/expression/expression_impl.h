@@ -82,6 +82,7 @@ class ExpressionImpl {
   bool IsBooleanExpr() const;
   ExpressionImplPtr Replace(const std::map<ExpressionImpl *, ExpressionImpl *> &replace_vars) const;
   ExpressionImplPtr Subs(const std::map<ExpressionImpl *, ExpressionImpl *> &subs_vars) const;
+  void AsNumerDenom(ExpressionImplPtr &numer, ExpressionImplPtr &denom) const;
 
   ExpressionImplPtr Simplify() const;
   bool ContainVar(const ExpressionImpl *e) const;

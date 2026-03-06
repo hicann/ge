@@ -111,14 +111,21 @@ class Expression {
    * @return 替换后表达式
    */
   Expression Subs(const std::vector<std::pair<Expression, Expression>> &subs_vars) const;
+
   /**
    * @brief 对当前表达式进行化简。例如2+x+4 -> 6+x
    */
   Expression Simplify() const;
+
   /**
    * @brief 判断当前表达式字符串中是否含有表达式e的子字符串，例如max((x+2), (4*y)) 含有 x和y
    */
   bool ContainVar(const Expression &e) const;
+
+  /**
+  * @brief 获取表达式的分子和分母，例如表达式Rational(2, 3) * s1，分子numer=2*s1，分母denom=3
+  */
+  void AsNumerDenom(Expression &numer, Expression &denom) const;
 
   /**
    * @brief 判断两个Expr是否相等

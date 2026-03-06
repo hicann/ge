@@ -351,13 +351,7 @@ TEST(CompareV2ApiCallTest, CompareV2ApiCall_Scalar_Normal) {
   EXPECT_EQ(call.Generate(tpipe, current_axis, result), 0);
   std::cout << result << std::endl;
   EXPECT_EQ(result, std::string{
-    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCompareExtend<float,2, "
-    "CMPMODE::ge>(local_2[outer_for_0 * (ConvertToUint32((64 * Ceiling((Rational(1 , 32) * t->s2)) * t->s1)))], "
-    "local_0[outer_for_0 * (ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1)))], "
-    "local_blk_tensor_of_scalar_1[0], {static_cast<uint16_t>(t->s1), static_cast<uint16_t>(t->s2)}, "
-    "{static_cast<uint16_t>((ConvertToUint32((32 * Ceiling((Rational(1 , 32) * t->s2)))))), static_cast<uint16_t>(1)}, "
-    "{static_cast<uint16_t>((ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2)))))), static_cast<uint16_t>(1)});"
-    "\n\n}\n"
+    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCompareExtend<float,2, CMPMODE::ge>(local_2[outer_for_0 * ((64 * Ceiling((Rational(1 , 32) * t->s2)) * t->s1))/(1)], local_0[outer_for_0 * ((8 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1))/(1)], local_blk_tensor_of_scalar_1[0], {static_cast<uint16_t>(t->s1), static_cast<uint16_t>(t->s2)}, {static_cast<uint16_t>(((32 * Ceiling((Rational(1 , 32) * t->s2))))/(1)), static_cast<uint16_t>(1)}, {static_cast<uint16_t>(((8 * Ceiling((Rational(1 , 8) * t->s2))))/(1)), static_cast<uint16_t>(1)});\n\n}\n"
   });
 }
 
@@ -476,13 +470,6 @@ TEST(CompareV2ApiCallTest, CompareV2ApiCall_Normal) {
   EXPECT_EQ(call.Generate(tpipe, current_axis, result), 0);
   std::cout << result << std::endl;
   EXPECT_EQ(result, std::string{
-    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCompareExtend<float, 2, "
-    "CMPMODE::ge>(local_2[outer_for_0 * (ConvertToUint32((64 * Ceiling((Rational(1 , 32) * t->s2)) * t->s1)))], "
-    "local_0[outer_for_0 * (ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1)))], "
-    "local_0[outer_for_0 * (ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1)))], "
-    "{static_cast<uint16_t>(t->s1), static_cast<uint16_t>(t->s2)}, "
-    "{static_cast<uint16_t>((ConvertToUint32((32 * Ceiling((Rational(1 , 32) * t->s2)))))), static_cast<uint16_t>(1)}, "
-    "{static_cast<uint16_t>((ConvertToUint32((8 * Ceiling((Rational(1 , 8) * t->s2)))))), static_cast<uint16_t>(1)});"
-    "\n\n}\n"
+    "for(int outer_for_0 = 0; outer_for_0 < t->s0; outer_for_0++) {\nCompareExtend<float, 2, CMPMODE::ge>(local_2[outer_for_0 * ((64 * Ceiling((Rational(1 , 32) * t->s2)) * t->s1))/(1)], local_0[outer_for_0 * ((8 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1))/(1)], local_0[outer_for_0 * ((8 * Ceiling((Rational(1 , 8) * t->s2)) * t->s1))/(1)], {static_cast<uint16_t>(t->s1), static_cast<uint16_t>(t->s2)}, {static_cast<uint16_t>(((32 * Ceiling((Rational(1 , 32) * t->s2))))/(1)), static_cast<uint16_t>(1)}, {static_cast<uint16_t>(((8 * Ceiling((Rational(1 , 8) * t->s2))))/(1)), static_cast<uint16_t>(1)});\n\n}\n"
   });
 }
