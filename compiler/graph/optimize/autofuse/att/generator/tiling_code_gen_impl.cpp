@@ -34,17 +34,6 @@ namespace att {
  constexpr ge::char_t kLogLevelStr[] = "ASCEND_GLOBAL_LOG_LEVEL";
  constexpr ge::char_t kEventEnableStr[] = "ASCEND_GLOBAL_EVENT_ENABLE";
  constexpr ge::char_t kInlineStr[] = "inline ";
- const std::unordered_map<int32_t, std::string> kGeLogLevelMap = {
-     {DLOG_DEBUG, R"( GELOGD("[%s]" fmt, name, ##__VA_ARGS__))"},
-     {DLOG_INFO, R"( GELOGI("[%s]" fmt, name, ##__VA_ARGS__))"},
-     {DLOG_WARN, R"( GELOGW("[%s]" fmt, name, ##__VA_ARGS__))"},
-     {DLOG_ERROR, R"( GELOGE(-1, "[%s]" fmt, name, ##__VA_ARGS__))"},
- };
- inline bool IsEventEnable() {
-   ge::char_t env_path[MMPA_MAX_PATH] = {};
-   bool enable = (mmGetEnv(kEventEnableStr, env_path, MMPA_MAX_PATH) == EN_OK) && (strcmp(env_path, "1") == 0);
-   return enable;
- }
  
  inline int32_t GotLogLevel() {
    ge::char_t env_path[MMPA_MAX_PATH] = {};
@@ -54,10 +43,6 @@ namespace att {
      got_log_level = std::atoi(env_path);
    }
    return got_log_level;
- }
- 
- inline bool IsLogLevelEnable(const int64_t log_level) {
-   return GotLogLevel() <= log_level;
  }
  
  inline const std::string &AddSlogExtend() {
@@ -80,29 +65,33 @@ namespace att {
                   min_value, max_value);
    return ge::SUCCESS;
  }
- 
- inline const std::string &GetGeLogDefine(const int64_t log_level) {
-   // event log is special, it will be enabled when event enable is true
-   const bool is_enable1 = IsProfilingEnabled();
-   // other log is enabled when log level is enabled and log level is not event
-   const bool is_enable2 = IsLogLevelEnable(log_level);
-   const auto iter = kGeLogLevelMap.find(log_level);
-   if ((is_enable1 || is_enable2) && (iter != kGeLogLevelMap.cend())) {
-     return iter->second;
-   }
-   const static std::string NullStr;
-   return NullStr;
- }
- 
+
  void GenLogDefine(ge::CodePrinter &print) {
    const auto &slog_extend = AddSlogExtend();
    const auto &extend_define = slog_extend.empty() ? "\n" : slog_extend + "\n";
+   // 根据 ASCEND_GLOBAL_LOG_LEVEL 决定生成的宏内容：
+   // DLOG_NULL 时生成空宏，否则生成完整宏
+   // 运行时通过 CheckLogLevel 动态判断是否真正输出
+   const bool is_null_log = (GotLogLevel() == DLOG_NULL);
+
    const bool profiling_enabled = IsProfilingEnabled();
-   std::string debug_log_define = std::string("#define OP_LOGD(name, fmt, ...)").append(profiling_enabled ? "" : GetGeLogDefine(DLOG_DEBUG));
-   std::string info_log_define = std::string("#define OP_LOGI(name, fmt, ...)").append(profiling_enabled ? "" : GetGeLogDefine(DLOG_INFO));
-   std::string warn_log_define = std::string("#define OP_LOGW(name, fmt, ...)").append(profiling_enabled ? "" : GetGeLogDefine(DLOG_WARN));
-   std::string err_log_define = std::string("#define OP_LOGE(name, fmt, ...)").append(profiling_enabled ? "" : GetGeLogDefine(DLOG_ERROR));
-   std::string event_log_define = std::string("#define OP_EVENT(name, fmt, ...)").append(profiling_enabled ? GetGeLogDefine(DLOG_INFO) : "");
+   const std::string debug_log_define = is_null_log
+                                          ? R"(#define OP_LOGD(name, fmt, ...))"
+                                          : R"(#define OP_LOGD(name, fmt, ...) GELOGD("[%s]" fmt, name, ##__VA_ARGS__))";
+   const std::string info_log_define = is_null_log
+                                         ? R"(#define OP_LOGI(name, fmt, ...))"
+                                         : R"(#define OP_LOGI(name, fmt, ...) GELOGI("[%s]" fmt, name, ##__VA_ARGS__))";
+   const std::string warn_log_define = is_null_log
+                                         ? R"(#define OP_LOGW(name, fmt, ...))"
+                                         : R"(#define OP_LOGW(name, fmt, ...) GELOGW("[%s]" fmt, name, ##__VA_ARGS__))";
+   const std::string err_log_define = is_null_log
+                                        ? R"(#define OP_LOGE(name, fmt, ...))"
+                                        : R"(#define OP_LOGE(name, fmt, ...) GELOGE(-1, "[%s]" fmt, name, ##__VA_ARGS__))";
+   std::string event_log_define = "#define OP_EVENT(name, fmt, ...)";
+   const std::string event_append_log = (!is_null_log && profiling_enabled) ?
+     R"( GELOGI("[%s]" fmt, name, ##__VA_ARGS__)" : "";
+   event_log_define.append(event_append_log);
+
    print.AddLine(extend_define);
    print.AddLine(debug_log_define);
    print.AddLine(info_log_define);
