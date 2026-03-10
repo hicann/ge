@@ -2701,12 +2701,30 @@ void DavinciModel::InitModelInputsMergeCopyHostMem() {
 
   // init host buff for merge copy, if fail just return and run with no merge copy
   input_merge_copy_mem_size_ = last_input.second + last_input_size - first_input.second;
-  input_merge_copy_mem_base_.reset(new (std::nothrow) uint8_t[input_merge_copy_mem_size_],
-                                   std::default_delete<uint8_t[]>());
-  if (input_merge_copy_mem_base_ == nullptr) {
-    GELOGW("[InputMergeCopy][New] host buffer failed, size:%" PRIu64, input_merge_copy_mem_size_);
+  void *host_mem = nullptr;
+  const rtError_t rt_ret = rtMallocHost(&host_mem, input_merge_copy_mem_size_, GE_MODULE_NAME_U16);
+  if (rt_ret != RT_ERROR_NONE) {
+    input_merge_copy_mem_base_.reset();
+    GELOGW("[InputMergeCopy][rtMallocHost] host buffer alloc failed, size:%" PRIu64 ", ret:%d",
+           input_merge_copy_mem_size_, static_cast<int32_t>(rt_ret));
     return;
   }
+  if (host_mem == nullptr) {
+    input_merge_copy_mem_base_.reset();
+    GELOGW("[InputMergeCopy][rtMallocHost] host buffer is nullptr, size:%" PRIu64 ", ret:%d",
+           input_merge_copy_mem_size_, static_cast<int32_t>(rt_ret));
+    return;
+  }
+  input_merge_copy_mem_base_.reset(static_cast<uint8_t *>(host_mem), [](uint8_t *ptr) {
+    if (ptr == nullptr) {
+      return;
+    }
+    const rtError_t free_ret = rtFreeHost(ptr);
+    if (free_ret != RT_ERROR_NONE) {
+      GELOGW("[InputMergeCopy][rtFreeHost] host buffer free failed, ptr:%p, ret:%d", ptr,
+             static_cast<int32_t>(free_ret));
+    }
+  });
   (void)memset_s(input_merge_copy_mem_base_.get(), input_merge_copy_mem_size_, 0U, input_merge_copy_mem_size_);
 
   // record offset for fusion copy input

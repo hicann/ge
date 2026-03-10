@@ -57,7 +57,8 @@ GE-PY 模块包含以下核心组件：
 ### API 集成
 
 - [x] [***December 2025***]基础接口已经完成设计和落地。
-- [ ] [***February 2026***] es 的 python 算子 api 支持，详见[es api集成路标](../es/README.md#api-集成)。
+- [x] [***February 2026***] es 的 python 算子 api 支持，详见[es api集成路标](../es/README.md#api-集成)。
+- [ ] [***March 2026***] 图异步执行的python接口提供
 
 ### sample和相关文档
 

@@ -5,7 +5,7 @@
 #include "utils/file_utils.h"
 #include "utils/attr_utils.h"
 #include "acl_stub.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 
 using namespace testing;
 using namespace std;

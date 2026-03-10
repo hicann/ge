@@ -7505,6 +7505,81 @@ TEST_F(UtestDavinciModel, InputMergeCopy) {
   ge::GetThreadLocalContext().SetGraphOption({});  // restore option
 }
 
+TEST_F(UtestDavinciModel, InitModelInputsMergeCopyHostMem_rtMallocHost_fail) {
+  RTS_STUB_RETURN_VALUE(rtMallocHost, rtError_t, ACL_ERROR_RT_PARAM_INVALID);
+  const uint64_t input_fusion_size = 25600U;
+  const uint64_t start_logic_addr = 30902000U;  // random value for test
+  std::map<std::string, std::string> options_map;
+  options_map[OPTION_EXEC_INPUT_FUSION_SIZE] = std::to_string(input_fusion_size);
+  ge::GetThreadLocalContext().SetGraphOption(options_map);
+
+  const uint64_t input0_size = input_fusion_size - 1U;
+  const uint64_t input1_size = input_fusion_size;
+
+  DavinciModel davinci_model(0, nullptr);
+  davinci_model.zero_copy_input_indexes_.emplace_back(0);
+  davinci_model.zero_copy_input_indexes_.emplace_back(1);
+  davinci_model.input_index_to_allocation_ids_.emplace_back(0);
+  davinci_model.input_index_to_allocation_ids_.emplace_back(1);
+
+  MemAllocation mem_allocation0 = {};
+  mem_allocation0.data_size = input0_size + 32U;
+  mem_allocation0.tensor_size = input0_size;
+  mem_allocation0.logical_addr = start_logic_addr;
+
+  MemAllocation mem_allocation1;
+  mem_allocation1.data_size = input1_size + 32U;
+  mem_allocation1.tensor_size = input1_size;
+  mem_allocation1.logical_addr = start_logic_addr - mem_allocation1.data_size;
+
+  davinci_model.logical_mem_allocations_.emplace_back(mem_allocation0);
+  davinci_model.logical_mem_allocations_.emplace_back(mem_allocation1);
+
+  davinci_model.InitModelInputsMergeCopyHostMem();
+  EXPECT_EQ(davinci_model.input_merge_copy_mem_base_, nullptr);
+  EXPECT_TRUE(davinci_model.input_index_to_merge_copy_offset_.empty());
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+TEST_F(UtestDavinciModel, InitModelInputsMergeCopyHostMem_rtFreeHost_fail) {
+  const uint64_t input_fusion_size = 25600U;
+  const uint64_t start_logic_addr = 30902000U;  // random value for test
+  std::map<std::string, std::string> options_map;
+  options_map[OPTION_EXEC_INPUT_FUSION_SIZE] = std::to_string(input_fusion_size);
+  ge::GetThreadLocalContext().SetGraphOption(options_map);
+
+  const uint64_t input0_size = input_fusion_size - 1U;
+  const uint64_t input1_size = input_fusion_size;
+
+  DavinciModel davinci_model(0, nullptr);
+  davinci_model.zero_copy_input_indexes_.emplace_back(0);
+  davinci_model.zero_copy_input_indexes_.emplace_back(1);
+  davinci_model.input_index_to_allocation_ids_.emplace_back(0);
+  davinci_model.input_index_to_allocation_ids_.emplace_back(1);
+
+  MemAllocation mem_allocation0 = {};
+  mem_allocation0.data_size = input0_size + 32U;
+  mem_allocation0.tensor_size = input0_size;
+  mem_allocation0.logical_addr = start_logic_addr;
+
+  MemAllocation mem_allocation1;
+  mem_allocation1.data_size = input1_size + 32U;
+  mem_allocation1.tensor_size = input1_size;
+  mem_allocation1.logical_addr = start_logic_addr - mem_allocation1.data_size;
+
+  davinci_model.logical_mem_allocations_.emplace_back(mem_allocation0);
+  davinci_model.logical_mem_allocations_.emplace_back(mem_allocation1);
+
+  davinci_model.InitModelInputsMergeCopyHostMem();
+  EXPECT_NE(davinci_model.input_merge_copy_mem_base_, nullptr);
+  EXPECT_EQ(davinci_model.input_index_to_merge_copy_offset_.size(), 2U);
+
+  RTS_STUB_RETURN_VALUE(rtFreeHost, rtError_t, ACL_ERROR_RT_PARAM_INVALID);
+  davinci_model.input_merge_copy_mem_base_.reset();
+  EXPECT_EQ(davinci_model.input_merge_copy_mem_base_, nullptr);
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
 TEST_F(UtestDavinciModel, GenInputMemAllocations_InValid) {
   DavinciModel davinci_model(0, nullptr);
   std::map<uint32_t, OpDescPtr> index_to_data;

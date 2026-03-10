@@ -63,7 +63,7 @@ bool SplitFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
     return false;
   }
   // split不做水平融合
-  if (BackendUtils::IsHorizontal(node1, node2)) {
+  if (!BackendUtils::IsVertical(node1, node2)) {
     GELOGI("node1 %s(%s) and node2 %s(%s) can not fuse, the reason is [%s][split cannot fuse other node horizontal.]",
            node1->GetName().c_str(), node1->GetType().c_str(), node2->GetName().c_str(), node2->GetType().c_str(),
            ge::NotFuseReasonCode(ge::NotFuseReason::kSplitCanNotFuseHorizontal));

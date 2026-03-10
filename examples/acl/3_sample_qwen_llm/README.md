@@ -27,25 +27,29 @@
 ├── CMakeLists.txt                      // 编译脚本，调用src目录下的CMakeLists文件
 ```
 
-## 环境要求
-
-- 已完成[昇腾AI软件栈在开发环境上的部署](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)
+## 环境准备
+- 通过安装指导 [环境准备](../../../docs/build.md#2-安装软件包)正确安装`toolkit`和`ops`包
+- 设置环境变量 (假设包安装在/usr/local/Ascend/)
+```
+source /usr/local/Ascend/cann/set_env.sh
+```
 
 ## 实现步骤
 
 1.  以运行用户登录开发环境。
 
-2.  下载代码并上传至环境后，请先进入根目录下"examples/acl/2_sample_qwen_llm"样例目录。
+2.  下载代码并上传至环境后，请先进入根目录下"examples/acl/3_sample_qwen_llm"样例目录。
 
-    请注意，下文中的样例目录均指"examples/acl/2_sample_qwen_llm"目录。
+    请注意，下文中的样例目录均指"examples/acl/3_sample_qwen_llm"目录。
 
 3.  准备Qwen模型。
-    1.  获取Qwen AIR格式模型。
+    1.  获取Qwen ONNX格式模型。
 
-        您可以从以下链接中获取Qwen网络的模型文件，并以运行用户将获取的文件上传至开发环境的"样例目录/model"目录下。如果目录不存在，需要自行创建。
-
-        -   Qwen网络的模型文件（qwen.onnx）：单击[Link](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/cann_test/qwen.onnx)下载该文件。
-
+        您可以按照以下命令获取Qwen网络的模型文件，模型文件需要放置到"样例目录/model"目录下。如果目录不存在，需要自行创建。如果wget失败，您也可以直接在浏览器中输入以下链接下载后上传至"样例目录/model"目录。
+        ```
+        cd "样例目录/model"
+        wget https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/cann_test/qwen.onnx
+        ```
     2.  将Qwen原始模型转换为适配昇腾AI处理器的离线模型（\*.om文件）。注意如果生成的om文件带有架构后缀（如qwen_linux_aarch64.om），请将文件重命名为qwen.om。
 
         切换到"样例目录/model", 执行模型转换脚本：
@@ -67,7 +71,7 @@
 
         -   --model：原始模型文件路径。
         -   --input_shape：指定模型输入的shape。
-        -   --output：生成的qwen_*.om文件重命名为qwen.om并存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_qwen\_llm.cpp 中的omModelPath参数值。
+        -   --output：生成的qwen_*.om文件重命名为qwen.om并存放在"样例目录/model"目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_qwen\_llm.cpp 中的omModelPath参数值。
 
             ```
             ret = sampleQwen.PrepareModel("../model/qwen.om");
@@ -83,15 +87,15 @@
 
 1.  以运行用户登录开发环境。
 
-2.  请先进入根目录下"examples/acl/2_sample_qwen_llm"样例目录。
+2.  请先进入根目录下"examples/acl/3_sample_qwen_llm"样例目录。
 
-    请注意，下文中的样例目录均指"examples/acl/2_sample_qwen_llm"目录。
+    请注意，下文中的样例目录均指"examples/acl/3_sample_qwen_llm"目录。
 
 3. 设置环境变量，配置程序编译依赖的头文件与库文件路径。
 
     设置以下环境变量后，编译脚本会根据"{DDK_PATH}环境变量值/include/"目录查找编译依赖的头文件，根据{NPU_HOST_LIB}环境变量指向的目录查找编译依赖的库文件。
 
-    **注意**，在配置{NPU_HOST_LIB}环境变量时，需使用的"devlib"目录下*.so库，确保在编译基于AscendCL接口的应用程序时，不依赖其它组件（例如Driver）的*.so库，编译成功后，运行应用程序时，系统会根据LD_LIBRARY_PATH环境变量查找“Ascend-cann-toolkit安装目录/lib64”目录下的*.so库，同时会自动链接到所依赖的其它组件的*.so库。
+    **注意**，在配置{NPU_HOST_LIB}环境变量时，需使用的"devlib"目录下*.so库，确保在编译基于AscendCL接口的应用程序时，不依赖其它组件（例如Driver）的*.so库，编译成功后，运行应用程序时，系统会根据LD_LIBRARY_PATH环境变量查找"Ascend-cann-toolkit安装目录/lib64"目录下的*.so库，同时会自动链接到所依赖的其它组件的*.so库。
 
     -   配置示例如下所示：
 

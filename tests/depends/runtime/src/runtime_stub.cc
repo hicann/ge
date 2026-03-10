@@ -651,6 +651,8 @@ void rtStubTearDown() {
   DEL_STUB_RETURN_VALUE(rtQueryFunctionRegistered, rtError_t);
 
   DEL_STUB_RETURN_VALUE(rtMalloc, rtError_t);
+  DEL_STUB_RETURN_VALUE(rtMallocHost, rtError_t);
+  DEL_STUB_RETURN_VALUE(rtFreeHost, rtError_t);
   DEL_STUB_RETURN_VALUE(rtMemcpy, rtError_t);
   DEL_STUB_RETURN_VALUE(rtsMemcpyBatch, rtError_t);
   DEL_STUB_RETURN_VALUE(rtDatadumpInfoLoad, rtError_t);
@@ -853,14 +855,22 @@ rtError_t rtFree(void *dev_ptr) {
   return ge::RuntimeStub::GetInstance()->rtFree(dev_ptr);
 }
 
+ADD_STUB_RETURN_VALUE(rtMallocHost, rtError_t);
 rtError_t rtMallocHost(void **host_ptr, uint64_t size, uint16_t moduleId) {
+  const rtError_t ret = GET_STUB_RETURN_VALUE(rtMallocHost, rtError_t, RT_ERROR_NONE);
+  if (ret != RT_ERROR_NONE) {
+    *host_ptr = nullptr;
+    return ret;
+  }
   *host_ptr = new uint8_t[size];
   return RT_ERROR_NONE;
 }
 
+ADD_STUB_RETURN_VALUE(rtFreeHost, rtError_t);
 rtError_t rtFreeHost(void *host_ptr) {
+  const rtError_t ret = GET_STUB_RETURN_VALUE(rtFreeHost, rtError_t, RT_ERROR_NONE);
   delete[](uint8_t *) host_ptr;
-  return RT_ERROR_NONE;
+  return ret;
 }
 
 rtError_t rtStreamCreate(rtStream_t *stream, int32_t priority) {

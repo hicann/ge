@@ -17,7 +17,7 @@
 #include <mutex>
 #include <climits>
 
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "utils/acl_op_map.h"
 #include "types/op_attr.h"
 

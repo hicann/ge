@@ -199,6 +199,11 @@ bool IsSplitComplete(const NodePtr &node) {
     if (ascir_node->GetType() == kSplitType) {
       fused_split_num++;
     }
+    if (kPureSplitIncludedAscirNodeTypes.count(ascir_node->GetType()) == 0U) {
+      GELOGD("split AscBackend node %s has ascir node %s(%s), has fused with other types of AscBackend",
+             node->GetName().c_str(), ascir_node->GetType().c_str(), ascir_node->GetName().c_str());
+      return false;
+    }
   }
   GELOGD("split node %s, original node %s, original output num %zu, fused split node %zu", node->GetName().c_str(),
          origin_node->GetName().c_str(), origin_output_num, fused_split_num);

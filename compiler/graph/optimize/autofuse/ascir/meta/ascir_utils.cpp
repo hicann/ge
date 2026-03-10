@@ -13,6 +13,8 @@
 #include <fstream>
 #include <iomanip>
 #include <queue>
+#include <set>
+#include <algorithm>
 #include "graph/utils/type_utils.h"
 #include "graph_utils.h"
 #include "mmpa/mmpa_api.h"
@@ -21,9 +23,11 @@
 #include "ascend_graph_code_dumper.h"
 #include "asc_graph_dumper_context.h"
 #include "graph_metadef/graph/utils/file_utils.h"
+#include "graph_metadef/graph/utils/readable_dump.h"
 #include "common_utils.h"
 #include "ascir_ops_utils.h"
 #include "ascir_ops.h"
+#include "ascendc_graph_txt_dumper.h"
 
 namespace {
 constexpr int32_t DUMP_ID_WIDTH = 8;
@@ -181,18 +185,29 @@ bool CheckNeedDumpGraphBySuffix(const std::string &suffix) {
 namespace ascir::utils {
 static uint64_t kDumpGraphIndex = 0UL;
 static std::string DtypeToStr(ge::DataType dtype) {
-  const char *kTypeName[] = {
-      [ge::DT_FLOAT] = "float32", [ge::DT_FLOAT16] = "float16", [ge::DT_INT8] = "int8_t",
-      [ge::DT_INT32] = "int32_t", [ge::DT_UINT8] = "uint8_t",   "",
-      [ge::DT_INT16] = "int16_t", [ge::DT_UINT16] = "uint16_t", [ge::DT_UINT32] = "uint32_t",
-      [ge::DT_INT64] = "int64_t", [ge::DT_UINT64] = "uint64_t",
-  };
-
-  if (dtype >= sizeof(kTypeName) / sizeof(kTypeName[0])) {
-    return ge::TypeUtils::DataTypeToSerialString(dtype);
+  switch (dtype) {
+    case ge::DT_FLOAT: return "float32";
+    case ge::DT_FLOAT16: return "float16";
+    case ge::DT_INT8: return "int8_t";
+    case ge::DT_INT32: return "int32_t";
+    case ge::DT_UINT8: return "uint8_t";
+    case ge::DT_INT16: return "int16_t";
+    case ge::DT_UINT16: return "uint16_t";
+    case ge::DT_UINT32: return "uint32_t";
+    case ge::DT_INT64: return "int64_t";
+    case ge::DT_UINT64: return "uint64_t";
+    default: return ge::TypeUtils::DataTypeToSerialString(dtype);
   }
-  return kTypeName[dtype];
-};
+}
+
+// 构建 axis_id 到 axis_name 的映射（供 ascir_utils.cpp 内部使用）
+static std::map<ge::AxisId, std::string> GetAxisIdToName(const std::vector<ge::AxisPtr> &axes) {
+  std::map<ge::AxisId, std::string> axis_id_to_name;
+  for (auto &axis : axes) {
+    axis_id_to_name[axis->id] = axis->name;
+  }
+  return axis_id_to_name;
+}
 
 std::stringstream GetDumpGraphPrefixAndCreateDir() {
   std::stringstream stream_file_name;
@@ -276,14 +291,6 @@ static std::string PositionToStr(ge::Position position) {
     return it->second;
   }
   return "unknown";
-}
-
-static std::map<ge::AxisId, std::string> GetAxisIdToName(const std::vector<ge::AxisPtr> &axes) {
-  std::map<ge::AxisId, std::string> id_to_name;
-  for (const auto &iter : axes) {
-    id_to_name[iter->id] = iter->name;
-  }
-  return id_to_name;
 }
 
 static std::stringstream &GraphNameStr(std::stringstream &ss, const ascir::Graph &graph) {
@@ -399,27 +406,6 @@ static std::stringstream &NodeAttrStr(std::stringstream &ss, const ascir::Graph 
   }
 
   return ss;
-}
-
-static std::vector<std::string> CollectInputNames(const ascir::Graph &graph, const ge::AscNodePtr &node) {
-  (void)graph;
-  std::vector<std::string> input_names;
-
-  for (uint32_t index = 0U; index < node->GetAllInDataAnchorsSize(); index++) {
-    auto in_anchor = node->GetInDataAnchor(static_cast<int32_t>(index));
-    if (in_anchor == nullptr) {
-      input_names.push_back("nil");
-      continue;
-    }
-    auto peer_out_anchor = in_anchor->GetPeerOutAnchor();
-    if (peer_out_anchor == nullptr) {
-      input_names.push_back("nil");
-    } else {
-      auto peer_name = peer_out_anchor->GetOwnerNode()->GetName();
-      input_names.push_back(peer_name + ".y");
-    }
-  }
-  return input_names;
 }
 
 static std::stringstream &NodeInputStr(std::stringstream &ss, const std::vector<std::string> &input_names) {
@@ -610,7 +596,13 @@ static void DumpGraphText(const Graph &graph, const string &suffix, const uint32
   static std::stringstream prefix = GetDumpGraphPrefixAndCreateDir();
   std::stringstream ss;
   ss << prefix.str();
-  auto dump_asc_graph = DebugStr(graph, verbose);
+
+  // 判断是否是子图
+  bool is_subgraph = (suffix.find("_Subgraph_") != std::string::npos);
+
+  // 使用新的 MLIR 风格格式
+  auto dump_asc_graph = DebugStrNew(graph, verbose, is_subgraph);
+
   ss << "ascgraph_" << std::setw(DUMP_ID_WIDTH) << std::setfill('0') << kDumpGraphIndex;
   ss << "_" << graph.GetName() << "_" << suffix << "_" << graph_id << ".txt";
   std::ofstream f_stream(ss.str());
@@ -645,9 +637,6 @@ void DumpGraph(const ascir::Graph &graph, const std::string &suffix, const uint3
     DumpGraphText(subgraph, "_Subgraph_", graph_id, verbose);
   }
 
-  // dump onnx
-  const auto compute_graph = ge::AscGraphUtils::GetComputeGraph(graph);
-  DumpComputeGraph(compute_graph, suffix);
   ++kDumpGraphIndex;
 }
 
@@ -660,9 +649,6 @@ void AlwaysDumpGraph(const Graph &graph, const string &suffix, const uint32_t gr
     DumpGraphText(subgraph, "_Subgraph_", graph_id, verbose);
   }
 
-  // dump onnx
-  const auto compute_graph = ge::AscGraphUtils::GetComputeGraph(graph);
-  DumpComputeGraph(compute_graph, suffix, true);
   ++kDumpGraphIndex;
 }
 
@@ -711,7 +697,7 @@ std::string DebugStr(const ascir::Graph &graph, bool verbose) {
     NodeAttrStr(ss, graph, node, verbose);
 
     // Node inputs
-    auto input_names = CollectInputNames(graph, node);
+    auto input_names = dumper::CollectInputNames(graph, node);
     NodeInputStr(ss, input_names);
 
     // Node outputs
@@ -729,6 +715,10 @@ std::string DebugHintGraphStr(const ascir::HintGraph &graph) {
 
 std::string DebugImplGraphStr(const ascir::ImplGraph &graph) {
   return DebugStr(graph, true);
+}
+
+std::string DebugStrNew(const ascir::Graph &graph, bool verbose, bool is_subgraph) {
+  return ascir::dumper::DumpGraphText(graph, verbose, is_subgraph);
 }
 
 void DumpScheduleResult(const ascir::FusedScheduledResult &fused_scheduled_result, const std::string &suffix,

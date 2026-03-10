@@ -19,7 +19,7 @@
 #include <map>
 
 #include "acl/acl_op.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "types/op_model.h"
 #include "single_op/compile/op_kernel_selector.h"
 #include "framework/runtime/model_v2_executor.h"

@@ -14,7 +14,7 @@
 #include <fstream>
 
 #include "common/log_inner.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "op_executor.h"
 #include "utils/array_utils.h"
 #include "utils/string_utils.h"

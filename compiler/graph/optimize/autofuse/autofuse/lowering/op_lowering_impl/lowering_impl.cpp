@@ -491,13 +491,13 @@ graphStatus ParseSplitNodeAndValidate(const NodePtr &split_node, InDataAnchorPtr
 
 graphStatus ComputeSplitSplits(const NodePtr &node, const Expression &x_dim, vector<Expression> &size_splits) {
   vector<int64_t> num_split_list = {};
-  GE_ASSERT_GRAPH_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node, num_split_list, "num_split", "num_split"),
+  GE_WARN_ASSERT(AutofuseUtils::GetListIntByInputOrAttr(node, num_split_list, "num_split", "num_split"),
                  "Skip lowering node %s, as: Failed to get num_split.", node->GetNamePtr());
   GE_ASSERT(!num_split_list.empty());
 
   vector<int64_t> size_splits_list = {};
   if (node->GetType() == AF_SPLITVD || node->GetType() == AF_SPLITV) {
-    GE_ASSERT_GRAPH_SUCCESS(AutofuseUtils::GetListIntByInputOrAttr(node, size_splits_list, "size_splits", "size_splits"),
+    GE_WARN_ASSERT(AutofuseUtils::GetListIntByInputOrAttr(node, size_splits_list, "size_splits", "size_splits"),
                    "Skip lowering node %s, as: Failed to get size_splits .", node->GetNamePtr());
     GE_ASSERT(!size_splits_list.empty());
     for (size_t i = 0U; i < size_splits_list.size(); ++i) {

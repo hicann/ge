@@ -28,7 +28,7 @@ add_library(acl_op_executor_impl SHARED
     single_op/executor/op_task.cpp
     types/op_attr.cpp
     types/op_model.cpp
-    types/acl_op.cpp
+    types/acl_op_inner.cpp
     ../common/common_inner.cpp
     ../common/log_inner.cpp
     ../common/json_parser.cpp

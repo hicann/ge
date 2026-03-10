@@ -14,7 +14,7 @@
 #include <memory>
 #include <map>
 
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "resource_manager.h"
 #include "single_op/compile/op_kernel_selector.h"
 #include "op_task.h"

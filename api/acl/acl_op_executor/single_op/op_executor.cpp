@@ -11,7 +11,7 @@
 #include "op_executor.h"
 #include <graph/debug/ge_attr_define.h>
 #include "framework/common/profiling_definitions.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "common/log_inner.h"
 #include "model/acl_resource_manager.h"
 #include "single_op/acl_op_resource_manager.h"

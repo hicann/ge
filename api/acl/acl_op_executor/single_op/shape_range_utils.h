@@ -14,7 +14,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 
 namespace acl {
 class MmRDLockGuard {

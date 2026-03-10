@@ -33,9 +33,12 @@
 ├── CMakeLists.txt                      //编译脚本，调用src目录下的CMakeLists文件
 ```
 
-## 环境要求
-
-- 已完成[昇腾AI软件栈在开发环境上的部署](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)
+## 环境准备
+- 通过安装指导 [环境准备](../../../docs/build.md#2-安装软件包)正确安装`toolkit`和`ops`包
+- 设置环境变量 (假设包安装在/usr/local/Ascend/)
+```
+source /usr/local/Ascend/cann/set_env.sh
+```
 
 ## 实现步骤
 
@@ -43,7 +46,7 @@
 
 2.  下载代码并上传至环境后，请先进入根目录下"examples/acl/1_sample_resnet50_imagenet_classification"样例目录。
 
-    请注意，下文中的样例目录均指“examples/acl/1_sample_resnet50_imagenet_classification”目录。
+    请注意，下文中的样例目录均指"examples/acl/1_sample_resnet50_imagenet_classification"目录。
 
 3.  准备ResNet-50模型。
     1.  获取ResNet-50原始模型。
@@ -57,6 +60,7 @@
         切换到样例目录，执行如下命令(以Atlas A2系列产品为例)：
 
         ```
+        cd "样例目录/model"
         atc --model=resnet50_Opset16.onnx --framework=5 --output=resnet50 --soc_version=Ascend910B1 --input_format=NCHW --output_type=FP32
         ```
 
@@ -64,26 +68,27 @@
         -   --framework：原始框架类型。0：表示Caffe；1：表示MindSpore；3：表示TensorFlow；5：表示ONNX。
         -   --soc\_version：昇腾AI处理器的版本。版本获取可参考[Link](https://hiascend.com/document/redirect/CannCommunityAtcSocVersion)。
         -   --output\_type：指定输出的数据类型为float32。
-        -   --output：生成的resnet50.om文件存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_resnet50\_imagenet\_classification.cpp 中的omModelPath参数值。
+        -   --output：生成的resnet50.om文件存放在"样例目录/model"目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_resnet50\_imagenet\_classification.cpp 中的omModelPath参数值。
 
             ```
             const char* omModelPath = "../model/resnet50.om";
             ```
 
 4.  准备测试图片。
-    1.  请从以下链接获取该样例的输入图片，并以运行用户将获取的文件上传至开发环境的"样例目录/data"目录下。如果目录不存在，需自行创建。
+    1.  可以按照以下命令获取样例的输入图片，输入图片需要放置到"样例目录/data"目录下。如果目录不存在，需自行创建。如果wget失败，您也可以直接在浏览器中输入以下链接下载后上传至"样例目录/data"目录。
+        ```
+        cd "样例目录/data"
+        wget https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog1_1024_683.jpg
+        wget https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog2_1024_683.jpg
+        ```
 
-        [https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog1\_1024\_683.jpg](https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog1_1024_683.jpg)
-
-        [https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog2\_1024\_683.jpg](https://obs-9be7.obs.cn-east-2.myhuaweicloud.com/models/aclsample/dog2_1024_683.jpg)
-
-    2.  切换到“样例目录/data“目录下，执行transferPic.py脚本，将\*.jpg转换为\*.bin，同时将图片从1024\*683的分辨率缩放为224\*224。在“样例目录/data“目录下生成2个\*.bin文件。
+    2.  切换到"样例目录/data"目录下，执行transferPic.py脚本，将\*.jpg转换为\*.bin，同时将图片从1024\*683的分辨率缩放为224\*224。在"样例目录/data"目录下生成2个\*.bin文件。
 
         ```
         python3 ../scripts/transferPic.py
         ```
 
-        如果执行脚本报错“ModuleNotFoundError: No module named 'PIL'”，则表示缺少Pillow库，请使用**pip3 install Pillow --user**命令安装Pillow库。
+        如果执行脚本报错"ModuleNotFoundError: No module named 'PIL'"，则表示缺少Pillow库，请使用**pip3 install Pillow --user**命令安装Pillow库。
 
 ## 构建验证
 
@@ -97,7 +102,7 @@
 
     设置以下环境变量后，编译脚本会根据"{DDK_PATH}环境变量值/include/"目录查找编译依赖的头文件，根据{NPU_HOST_LIB}环境变量指向的目录查找编译依赖的库文件。
 
-    **注意**，在配置{NPU_HOST_LIB}环境变量时，需使用的"devlib"目录下*.so库，确保在编译基于AscendCL接口的应用程序时，不依赖其它组件（例如Driver）的*.so库，编译成功后，运行应用程序时，系统会根据LD_LIBRARY_PATH环境变量查找“Ascend-cann-toolkit安装目录/lib64”目录下的*.so库，同时会自动链接到所依赖的其它组件的*.so库。
+    **注意**，在配置{NPU_HOST_LIB}环境变量时，需使用的"devlib"目录下*.so库，确保在编译基于AscendCL接口的应用程序时，不依赖其它组件（例如Driver）的*.so库，编译成功后，运行应用程序时，系统会根据LD_LIBRARY_PATH环境变量查找"Ascend-cann-toolkit安装目录/lib64"目录下的*.so库，同时会自动链接到所依赖的其它组件的*.so库。
 
     -   配置示例如下所示：
 

@@ -18,6 +18,7 @@
 #include "graph_metadef/common/plugin/plugin_manager.h"
 #include "graph_metadef/graph/utils/file_utils.h"
 
+extern "C" __attribute__((weak)) void SetMetadefPluginCustomOpLibPathForC(const char* custom_op_Lib_path);
 namespace {
   const std::string custom_so_name = "libcust_opapi.so";
 }
@@ -168,6 +169,9 @@ graphStatus OpLibRegistry::CallInitFunc(const std::string &custom_opp_path,
     op_lib_paths_ += custom_opp_path; // add origin env path to ensure priority(so mode first, runbag mode second)
   }
   PluginManager::SetCustomOpLibPath(op_lib_paths_);
+  if (SetMetadefPluginCustomOpLibPathForC != nullptr) {
+    SetMetadefPluginCustomOpLibPathForC(op_lib_paths_.c_str());
+  }
   GELOGI("CallInitFunc %zu successfully, op_lib_paths_ is %s", vendor_funcs_.size(), op_lib_paths_.c_str());
   return GRAPH_SUCCESS;
 }

@@ -15,7 +15,7 @@
 #include "op_executor.h"
 #include "acl_op_resource_manager.h"
 #include "common/prof_api_reg.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "utils/array_utils.h"
 #include "acl/acl_rt.h"
 #include "platform/platform_info.h"

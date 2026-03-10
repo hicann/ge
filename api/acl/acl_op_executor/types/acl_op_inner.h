@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef ACL_TYPES_ACL_OP_H
-#define ACL_TYPES_ACL_OP_H
+#ifndef ACL_TYPES_ACL_OP_INNER_H
+#define ACL_TYPES_ACL_OP_INNER_H
 
 #include <string>
 
@@ -68,4 +68,4 @@ public:
 };
 } // namespace acl
 
-#endif // ACL_TYPES_ACL_OP_H
+#endif // ACL_TYPES_ACL_OP_INNER_H

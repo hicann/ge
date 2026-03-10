@@ -11,7 +11,7 @@
 #ifndef TRUNK_PROJ_OP_TASK_H
 #define TRUNK_PROJ_OP_TASK_H
 
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 
 namespace acl {
 class OpTask {

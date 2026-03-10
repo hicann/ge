@@ -2,7 +2,7 @@
 
 ## 功能描述
 
-该样例主要是基于Onnx ResNet-50网络（单输入、动态多Batch）实现图片分类的功能。
+该样例主要是基于Onnx ResNet-50网络（单输入、单Batch）实现多batch场景下图片分类的功能。
 
 在该样例中：
 1.  先使用样例提供的脚本transferPic.py，将2张\*.jpg图片都转换为\*.bin格式，同时将图片从1024\*683的分辨率缩放为224\*224。
@@ -35,7 +35,11 @@
 
 ## 环境要求
 
-- 已完成[昇腾AI软件栈在开发环境上的部署](https://www.hiascend.com/document/redirect/CannCommunityInstSoftware)
+- 通过安装指导 [环境准备](https://gitcode.com/cann/ge/blob/master/docs/build.md#2-%E5%AE%89%E8%A3%85%E8%BD%AF%E4%BB%B6%E5%8C%85) 正确安装 `toolkit` 和 `ops` 包
+- 设置环境变量(假设包安装在/usr/local/Ascend/)
+    ```
+    source /usr/local/Ascend/cann/set_env.sh
+    ```
 
 ## 实现步骤
 
@@ -43,7 +47,7 @@
 
 2.  下载代码并上传至环境后，请先进入根目录下"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"样例目录。
 
-    请注意，下文中的样例目录均指“examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch”目录。
+    请注意，下文中的样例目录均指"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"目录。
 
 3.  准备ResNet-50模型。
     1.  获取ResNet-50原始模型。
@@ -63,10 +67,10 @@
         -   --model：原始模型文件路径。
         -   --framework：原始框架类型。0：表示Caffe；1：表示MindSpore；3：表示TensorFlow；5：表示ONNX。
         -   --soc\_version：昇腾AI处理器的版本。版本获取可参考[Link](https://hiascend.com/document/redirect/CannCommunityAtcSocVersion)。
-        -   --output\_type：指定输出的数据类型为float32。
-        -   --output：生成的resnet50.om文件存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_resnet50\_imagenet\_classification.cpp 中的omModelPath参数值。
         -   --input\_shape: 指定输入数据的shape值，其中不想指定的维度可以将其设置为-1。
         -   --dynamic\_batch\_size: 设置动态batch_size参数。
+        -   --output\_type：指定输出的数据类型为float32。
+        -   --output：生成的resnet50.om文件存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_resnet50\_imagenet\_classification.cpp 中的omModelPath参数值。
 
             ```
             const char* omModelPath = "../model/resnet50_dynamic_batch.om";
@@ -85,7 +89,7 @@
         python3 ../scripts/transferPic.py
         ```
 
-        如果执行脚本报错“ModuleNotFoundError: No module named 'PIL'”，则表示缺少Pillow库，请使用**pip3 install Pillow --user**命令安装Pillow库。
+        如果执行脚本报错"ModuleNotFoundError: No module named 'PIL'"，则表示缺少Pillow库，请使用**pip3 install Pillow --user**命令安装Pillow库。
 
 ## 构建验证
 
@@ -99,7 +103,7 @@
 
     设置以下环境变量后，编译脚本会根据"{DDK_PATH}环境变量值/include/"目录查找编译依赖的头文件，根据{NPU_HOST_LIB}环境变量指向的目录查找编译依赖的库文件。
 
-    **注意**，在配置{NPU_HOST_LIB}环境变量时，需使用的"devlib"目录下*.so库，确保在编译基于AscendCL接口的应用程序时，不依赖其它组件（例如Driver）的*.so库，编译成功后，运行应用程序时，系统会根据LD_LIBRARY_PATH环境变量查找“Ascend-cann-toolkit安装目录/lib64”目录下的*.so库，同时会自动链接到所依赖的其它组件的*.so库。
+    **注意**，在配置{NPU_HOST_LIB}环境变量时，需使用的"devlib"目录下*.so库，确保在编译基于AscendCL接口的应用程序时，不依赖其它组件（例如Driver）的*.so库，编译成功后，运行应用程序时，系统会根据LD_LIBRARY_PATH环境变量查找"Ascend-cann-toolkit安装目录/lib64"目录下的*.so库，同时会自动链接到所依赖的其它组件的*.so库。
 
     -   配置示例如下所示：
 

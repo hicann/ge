@@ -52,6 +52,125 @@ message(STATUS "[add_es_library] Module loaded from: ${_ADD_ES_LIBRARY_CMAKE_DIR
 #   7. 多个 ES 包会自动添加依赖关系，确保共享依赖只构建一次
 # ======================================================================================================================
 
+# ======================================================================================================================
+# add_custom_command 封装宏
+#
+# 统一封装代码生成命令，内部根据 COMBINED_COMMERCIAL_MODE 自动选择模式：
+#   单次模式（COMBINED_COMMERCIAL_MODE=FALSE）：仅执行一次 gen_esb，生成 C++ API
+#   双次模式（COMBINED_COMMERCIAL_MODE=TRUE）： 步骤1 代码生成 + 步骤2 历史原型库归档
+#
+# 三处调用点（外部 gen_esb 有依赖 / 外部 gen_esb 无依赖 / 源码 gen_esb）共用此宏，
+# 仅 gen_esb 路径、LD_LIBRARY_PATH、EXCLUDE_OPS、DEPENDS、COMMENT 不同，由调用方通过参数传入。
+#
+# 参数：
+#   _gen_esb_exe   gen_esb 可执行路径（字面量或生成器表达式 $<TARGET_FILE:gen_esb>）
+#   _lib_dir       LD_LIBRARY_PATH（run 包环境传 ${ASCEND_LIB_DIR}，源码环境传空字符串）
+#   _excl_ops      排除算子列表（INTERFACE 库传空字符串，其他传 ${ARG_EXCLUDE_OPS}）
+#   _comment       COMMENT 说明文字
+#
+# 调用前需设置 _COMBINED_MODE_DEPENDS：
+#   有依赖时：set(_COMBINED_MODE_DEPENDS "DEPENDS;dep1;dep2")
+#   无依赖时：unset(_COMBINED_MODE_DEPENDS)
+# ======================================================================================================================
+macro(_es_add_gen_esb_cmd _gen_esb_exe _lib_dir _excl_ops _comment)
+    if (COMBINED_COMMERCIAL_MODE)
+        set(_HIST_STAGE_DIR "${ARG_OUTPUT_PATH}")
+        if ("${_AUTO_HISTORY_REGISTRY}" STREQUAL "${ARG_OUTPUT_PATH}")
+            # 首次构建（历史库尚不存在于 CANN 路径）：_AUTO_HISTORY_REGISTRY == ARG_OUTPUT_PATH，
+            set(_PREPOPULATE_STAGING "")
+        else ()
+            # 非首次构建：将 CANN 只读历史库内容合并复制到 ARG_OUTPUT_PATH
+            set(_PREPOPULATE_STAGING
+                COMMAND ${CMAKE_COMMAND} -E copy_directory "${_AUTO_HISTORY_REGISTRY}" "${ARG_OUTPUT_PATH}"
+                COMMAND chmod u+w "${ARG_OUTPUT_PATH}/index.json"
+            )
+        endif ()
+
+        add_custom_command(
+                OUTPUT ${CODE_GEN_FLAG}
+                COMMAND ${CMAKE_COMMAND} -E echo "Generating ES code (combined commercial mode) for package: ${ARG_ES_LINKABLE_AND_ALL_TARGET}"
+                COMMAND ${CMAKE_COMMAND} -E remove_directory ${GEN_CODE_DIR}
+                COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN_CODE_DIR}
+                # 步骤1: 代码生成（消费历史原型库，gen_esb 自动选取窗口内历史版本对比）
+                COMMAND bash ${ES_LOCK_SCRIPT}
+                ${GEN_CODE_DIR}/.gen.lock
+                ${_gen_esb_exe}
+                ${OPP_PROTO_PATH}
+                ${GEN_CODE_DIR}
+                ${MODULE_NAME}
+                "${_lib_dir}"
+                "${_excl_ops}"
+                ""
+                ""
+                ${HISTORY_REGISTRY_ARG}
+                ""
+                ""
+                # 步骤2: 归档到 ARG_OUTPUT_PATH；若已有历史库则先复制并授权，gen_esb 追加新条目
+                ${_PREPOPULATE_STAGING}
+                COMMAND ${CMAKE_COMMAND} -E make_directory "${_HIST_STAGE_DIR}"
+                COMMAND bash ${ES_LOCK_SCRIPT}
+                ${_HIST_STAGE_DIR}/.extract.lock
+                ${_gen_esb_exe}
+                ${OPP_PROTO_PATH}
+                ${_HIST_STAGE_DIR}
+                ${MODULE_NAME}
+                "${_lib_dir}"
+                ""
+                ${EXTRACT_HISTORY_FLAG}
+                ${RELEASE_VERSION_ARG}
+                ""
+                ${RELEASE_DATE_ARG}
+                ${BRANCH_NAME_ARG}
+                COMMAND ${CMAKE_COMMAND} -E echo "[ES] Historical prototype library generation completed: ${ARG_OUTPUT_PATH}"
+                # 步骤3: 动态生成 wrapper 文件的 include 内容
+                COMMAND ${CMAKE_COMMAND} -P ${GENERATE_WRAPPER_SCRIPT}
+                COMMAND ${CMAKE_COMMAND} -E touch ${CODE_GEN_FLAG}
+                ${_COMBINED_MODE_DEPENDS}
+                COMMENT "${_comment}"
+                JOB_POOL es_gen_esb_serial
+                VERBATIM
+        )
+    else ()
+        # 历史库路径有效时：代码生成后将 CANN 历史库内容合并复制到 ARG_OUTPUT_PATH
+        if (_AUTO_HISTORY_REGISTRY)
+            set(_COPY_EXISTING_HISTORY
+                COMMAND ${CMAKE_COMMAND} -E copy_directory "${_AUTO_HISTORY_REGISTRY}" "${ARG_OUTPUT_PATH}"
+                COMMAND ${CMAKE_COMMAND} -E echo "[ES] Existing history registry copied to output: ${ARG_OUTPUT_PATH}"
+            )
+        else ()
+            set(_COPY_EXISTING_HISTORY "")
+        endif ()
+        add_custom_command(
+                OUTPUT ${CODE_GEN_FLAG}
+                COMMAND ${CMAKE_COMMAND} -E echo "Generating ES code for package: ${ARG_ES_LINKABLE_AND_ALL_TARGET}"
+                COMMAND ${CMAKE_COMMAND} -E remove_directory ${GEN_CODE_DIR}
+                COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN_CODE_DIR}
+                # 单次代码生成
+                COMMAND bash ${ES_LOCK_SCRIPT}
+                ${GEN_CODE_DIR}/.gen.lock
+                ${_gen_esb_exe}
+                ${OPP_PROTO_PATH}
+                ${GEN_CODE_DIR}
+                ${MODULE_NAME}
+                "${_lib_dir}"
+                "${_excl_ops}"
+                ${CODE_GEN_STEP_EXTRACT_FLAG}
+                ${RELEASE_VERSION_ARG}
+                ${HISTORY_REGISTRY_ARG}
+                ${RELEASE_DATE_ARG}
+                ${BRANCH_NAME_ARG}
+                # 版本重复时将现有历史库复制到输出目录
+                ${_COPY_EXISTING_HISTORY}
+                COMMAND ${CMAKE_COMMAND} -P ${GENERATE_WRAPPER_SCRIPT}
+                COMMAND ${CMAKE_COMMAND} -E touch ${CODE_GEN_FLAG}
+                ${_COMBINED_MODE_DEPENDS}
+                COMMENT "${_comment}"
+                JOB_POOL es_gen_esb_serial
+                VERBATIM
+        )
+    endif ()
+endmacro()
+
 function(_add_es_library_impl)
     # 0. 生成辅助 shell 脚本（自包含，无需外部文件）
     # 在首次调用时创建 run_gen_esb_with_lock.sh 到构建目录
@@ -63,7 +182,7 @@ function(_add_es_library_impl)
 # Auto-generated by generate_es_package.cmake
 # ES code generation wrapper script with detailed logging and flock fallback
 #
-# Args: \$1=lock_file \$2=gen_esb_path \$3=ASCEND_OPP_PATH \$4=output_dir \$5=module_name \$6=LD_LIBRARY_PATH(optional) \$7=EXCLUDE_OPS(optional)
+# Args: \$1=lock_file \$2=gen_esb_path \$3=ASCEND_OPP_PATH \$4=output_dir \$5=module_name \$6=LD_LIBRARY_PATH(optional) \$7=EXCLUDE_OPS(optional) \$8=MODE_ARG(optional, e.g. --es_mode=extract_history) \$9=RELEASE_VERSION(optional) \$10=HISTORY_REGISTRY_ARG(optional) \$11=RELEASE_DATE_ARG(optional) \$12=BRANCH_NAME_ARG(optional)
 
 LOCK_FILE=\"\$1\"
 GEN_ESB_EXE=\"\$2\"
@@ -72,6 +191,11 @@ OUTPUT_DIR=\"\$4\"
 MODULE_NAME=\"\$5\"
 LIB_PATH=\"\${6:-}\"
 EXCLUDE_OPS=\"\${7:-}\"
+EXTRACT_HISTORY_FLAG=\"\${8:-}\"
+RELEASE_VERSION_FLAG=\"\${9:-}\"
+HISTORY_REGISTRY_ARG=\"\${10:-}\"
+RELEASE_DATE_ARG=\"\${11:-}\"
+BRANCH_NAME_ARG=\"\${12:-}\"
 
 # Enable pipefail to ensure exit code from gen_esb is captured through pipes
 set -o pipefail
@@ -152,10 +276,10 @@ execute_gen_esb() {
         else
             ENV_PREFIX=\"ASCEND_OPP_PATH=\${OPP_PATH}\"
         fi
-        log_debug \"Command: \$ENV_PREFIX \\\"\${GEN_ESB_EXE}\\\" --output_dir=\\\"\${OUTPUT_DIR}\\\" --module_name=\\\"\${MODULE_NAME}\\\" --exclude_ops=\\\"\${EXCLUDE_OPS}\\\"\"
+        log_debug \"Command: \$ENV_PREFIX \\\"\${GEN_ESB_EXE}\\\" --output_dir=\\\"\${OUTPUT_DIR}\\\" --module_name=\\\"\${MODULE_NAME}\\\" --exclude_ops=\\\"\${EXCLUDE_OPS}\\\" \${EXTRACT_HISTORY_FLAG} \${RELEASE_VERSION_FLAG} \${HISTORY_REGISTRY_ARG} \${RELEASE_DATE_ARG} \${BRANCH_NAME_ARG}\"
 
         # Execute gen_esb directly (without env -i, with pipefail enabled)
-        if eval \"\$ENV_PREFIX \\\"\${GEN_ESB_EXE}\\\" --output_dir=\\\"\${OUTPUT_DIR}\\\" --module_name=\\\"\${MODULE_NAME}\\\" --exclude_ops=\\\"\${EXCLUDE_OPS}\\\" 2>&1 | tee -a \\\"\${DEBUG_LOG}\\\"\"; then
+        if eval \"\$ENV_PREFIX \\\"\${GEN_ESB_EXE}\\\" --output_dir=\\\"\${OUTPUT_DIR}\\\" --module_name=\\\"\${MODULE_NAME}\\\" --exclude_ops=\\\"\${EXCLUDE_OPS}\\\" \${EXTRACT_HISTORY_FLAG} \${RELEASE_VERSION_FLAG} \${HISTORY_REGISTRY_ARG} \${RELEASE_DATE_ARG} \${BRANCH_NAME_ARG} 2>&1 | tee -a \\\"\${DEBUG_LOG}\\\"\"; then
             log_debug \"[Success] gen_esb executed successfully\"
             return 0
         else
@@ -308,6 +432,54 @@ exit 1
         message(STATUS "_add_es_library_impl: EXCLUDE_OPS is not provided")
     else()
         message(STATUS "_add_es_library_impl: EXCLUDE_OPS is ${ARG_EXCLUDE_OPS}")
+    endif ()
+
+    # 历史原型库相关参数
+    # 使用 cmake 变量（-D 传入）；若未定义则从同名环境变量捕获。
+    # GE_ES_EXTRACT_HISTORY:   bool 开关，ON 时启用历史原型库归档模式（两次 gen_esb 调用）；
+    #                           不设置或 OFF 时走纯代码生成模式（仅生成 C++ API，不归档）
+    # GE_ES_RELEASE_VERSION:   当前新版本号（例如 "8.0.RC1"），用于历史原型库归档
+    # GE_ES_RELEASE_DATE:      归档时的发布日期（可选，格式 YYYY-MM-DD，不指定则 gen_esb 使用当前日期）
+    # GE_ES_BRANCH_NAME:       构建分支名（可选；master 分支自动屏蔽归档参数）
+    #
+    # 历史原型库路径由函数内部从 cmake 文件路径自动推导（${CANN_INSTALL_PATH}/cann/opp/history_registry/<module>），
+    # 路径存在且非空时自动传 --history_registry，无需用户传参。
+    #
+    # 从环境变量兜底捕获（cmake 变量未定义时生效）
+    foreach(_ES_VAR GE_ES_EXTRACT_HISTORY GE_ES_RELEASE_VERSION GE_ES_RELEASE_DATE GE_ES_BRANCH_NAME)
+        if (NOT DEFINED ${_ES_VAR} AND DEFINED ENV{${_ES_VAR}})
+            set(${_ES_VAR} "$ENV{${_ES_VAR}}")
+            message(STATUS "[ES] Captured from environment variable: ${_ES_VAR}=${${_ES_VAR}}")
+        endif ()
+    endforeach ()
+
+    # master 分支：屏蔽全部归档参数，走纯代码生成模式；历史原型库路径仍传递（用于生成带重载 C++ API）
+    if (GE_ES_BRANCH_NAME STREQUAL "master")
+        if (GE_ES_EXTRACT_HISTORY OR GE_ES_RELEASE_VERSION OR GE_ES_RELEASE_DATE)
+            message(STATUS "[ES] Branch is master, ignoring GE_ES_EXTRACT_HISTORY/GE_ES_RELEASE_VERSION/GE_ES_RELEASE_DATE/GE_ES_BRANCH_NAME, using code-generation-only mode")
+        endif ()
+        set(GE_ES_EXTRACT_HISTORY OFF)
+        set(GE_ES_RELEASE_VERSION "")
+        set(GE_ES_RELEASE_DATE "")
+        set(GE_ES_BRANCH_NAME "")
+    endif ()
+
+    set(EXTRACT_HISTORY_FLAG "")
+    if (GE_ES_EXTRACT_HISTORY)
+        set(EXTRACT_HISTORY_FLAG "--es_mode=extract_history")
+        message(STATUS "[ES] Historical prototype library mode enabled (GE_ES_EXTRACT_HISTORY=ON), gen_esb will append --es_mode=extract_history")
+    endif ()
+    set(RELEASE_VERSION_ARG "")
+    if (GE_ES_RELEASE_VERSION)
+        set(RELEASE_VERSION_ARG "--release_version=${GE_ES_RELEASE_VERSION}")
+    endif ()
+    set(RELEASE_DATE_ARG "")
+    if (GE_ES_RELEASE_DATE)
+        set(RELEASE_DATE_ARG "--release_date=${GE_ES_RELEASE_DATE}")
+    endif ()
+    set(BRANCH_NAME_ARG "")
+    if (GE_ES_BRANCH_NAME)
+        set(BRANCH_NAME_ARG "--branch_name=${GE_ES_BRANCH_NAME}")
     endif ()
 
     # 2.1. 检查 OPP_PROTO_TARGET 是否存在
@@ -551,7 +723,72 @@ exit 1
 
     message(STATUS "add_es_package: Module name for gen_esb: ${MODULE_NAME}")
 
-    # 2.7. 检测 eager_style_graph_builder_base 的来源
+    # 2.7. 自动推导历史原型库路径
+    # 从 cmake 文件路径推导安装根目录，查找 ${CANN_INSTALL_PATH}/cann/opp/history_registry/${MODULE_NAME}，
+    # 路径存在且非空时自动传 --history_registry 给 gen_esb，无需用户显式设置。
+    set(HISTORY_REGISTRY_ARG "")
+    set(_AUTO_HISTORY_REGISTRY "")
+    if (USE_EXTERNAL_GEN_ESB)
+        get_filename_component(_HIST_GE_DIR "${_ADD_ES_LIBRARY_CMAKE_DIR}" DIRECTORY)   # 去掉 /cmake
+        get_filename_component(_HIST_INCLUDE_DIR "${_HIST_GE_DIR}" DIRECTORY)           # 去掉 /ge
+        get_filename_component(_HIST_CANN_DIR "${_HIST_INCLUDE_DIR}" DIRECTORY)         # 去掉 /include
+        set(_CANDIDATE "${_HIST_CANN_DIR}/opp/history_registry/${MODULE_NAME}")
+        if (IS_DIRECTORY "${_CANDIDATE}")
+            file(GLOB _HIST_CONTENTS LIST_DIRECTORIES true "${_CANDIDATE}/*")
+            if (_HIST_CONTENTS)
+                set(_AUTO_HISTORY_REGISTRY "${_CANDIDATE}")
+                set(HISTORY_REGISTRY_ARG "--history_registry=${_CANDIDATE}")
+                message(STATUS "[add_es_library] Auto-detected history registry: ${_CANDIDATE}")
+            else ()
+                message(STATUS "[add_es_library] History registry path exists but is empty, skipping: ${_CANDIDATE}")
+            endif ()
+        else ()
+            message(STATUS "[add_es_library] No history registry found at ${_CANDIDATE}, skipping")
+        endif ()
+    endif ()
+
+    # 版本去重：若历史原型库中已存在相同版本号
+    set(_DUPLICATE_VERSION_DETECTED FALSE)
+    if (GE_ES_EXTRACT_HISTORY AND GE_ES_RELEASE_VERSION AND _AUTO_HISTORY_REGISTRY)
+        set(_INDEX_JSON "${_AUTO_HISTORY_REGISTRY}/index.json")
+        if (EXISTS "${_INDEX_JSON}")
+            file(READ "${_INDEX_JSON}" _INDEX_CONTENT)
+            string(FIND "${_INDEX_CONTENT}" "\"${GE_ES_RELEASE_VERSION}\"" _VER_POS)
+            if (_VER_POS GREATER_EQUAL 0)
+                message(STATUS "[ES] Version ${GE_ES_RELEASE_VERSION} already exists in historical prototype library, skipping archive, still using code generation mode")
+                message(STATUS "[ES] Existing history registry will be copied to output: ${ARG_OUTPUT_PATH}")
+                set(GE_ES_EXTRACT_HISTORY OFF)
+                set(EXTRACT_HISTORY_FLAG "")
+                set(_DUPLICATE_VERSION_DETECTED TRUE)
+            endif ()
+        endif ()
+    endif ()
+
+    # 只要 GE_ES_EXTRACT_HISTORY=ON 就走双次调用路径
+    # 有已有历史原型库 → codegen（带重载）+ extract&merge
+    # 无已有历史原型库（首次构建）→ codegen + extract 生成全新历史原型库，输出到 OUTPUT_PATH
+    set(COMBINED_COMMERCIAL_MODE FALSE)
+    if (GE_ES_EXTRACT_HISTORY)
+        set(COMBINED_COMMERCIAL_MODE TRUE)
+        if (_AUTO_HISTORY_REGISTRY)
+            message(STATUS "  - [add_es_library] Combined commercial mode: "
+                    "code gen with overload + extract & merge history registry (two gen_esb calls internally)")
+        else ()
+            set(_AUTO_HISTORY_REGISTRY "${ARG_OUTPUT_PATH}")
+            message(STATUS "  - [add_es_library] Combined commercial mode (first build, no existing history registry): "
+                    "code gen + fresh history registry → ${ARG_OUTPUT_PATH}")
+        endif ()
+    endif ()
+
+    # 代码生成步骤的 --es_mode 参数：
+    # 完整商发模式下，代码生成步骤不传 --es_mode=extract_history（历史原型库生成模式由第二次 gen_esb 调用完成）
+    if (COMBINED_COMMERCIAL_MODE)
+        set(CODE_GEN_STEP_EXTRACT_FLAG "")
+    else ()
+        set(CODE_GEN_STEP_EXTRACT_FLAG "${EXTRACT_HISTORY_FLAG}")
+    endif ()
+
+    # 2.9. 检测 eager_style_graph_builder_base 的来源
     set(HAS_ES_BASE_TARGET FALSE)
     set(ES_BASE_LIB "")
 
@@ -704,6 +941,7 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
     #   然后运行 generate_wrapper.cmake 生成包含所有 #include 的 wrapper 文件
 
     set(CODE_GEN_FLAG "${GEN_CODE_DIR}/generated_code.flag")
+    set(GEN_ESB_OUTPUT_DIR "${GEN_CODE_DIR}")
 
     # 8.1. 准备依赖列表
     # INTERFACE 库不需要构建，不添加到 DEPENDS 中
@@ -716,59 +954,25 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
         endif ()
     endif ()
 
+    # INTERFACE 库不传 EXCLUDE_OPS（无算子需要排除）
+    if (TARGET_TYPE STREQUAL "INTERFACE_LIBRARY")
+        set(_EXCL_OPS_ARG "")
+    else ()
+        set(_EXCL_OPS_ARG "${ARG_EXCLUDE_OPS}")
+    endif ()
+
     if (USE_EXTERNAL_GEN_ESB)
         # 使用 run 包的 gen_esb
         if (CODE_GEN_DEPENDS)
-            add_custom_command(
-                    OUTPUT ${CODE_GEN_FLAG}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Generating ES code for package: ${ARG_ES_LINKABLE_AND_ALL_TARGET}"
-                    # 清理旧的生成文件（删除整个目录）
-                    COMMAND ${CMAKE_COMMAND} -E remove_directory ${GEN_CODE_DIR}
-                    COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN_CODE_DIR}
-                    # 步骤1: 运行 gen_esb 生成各个算子的 .cpp 文件
-                    COMMAND bash ${ES_LOCK_SCRIPT}
-                    ${GEN_CODE_DIR}/.gen.lock
-                    ${GEN_ESB_EXE}
-                    ${OPP_PROTO_PATH}
-                    ${GEN_CODE_DIR}
-                    ${MODULE_NAME}
-                    ${ASCEND_LIB_DIR}
-                    ${ARG_EXCLUDE_OPS}
-                    # 步骤2: 代码生成完成后，动态生成 wrapper 文件的 include 内容
-                    COMMAND ${CMAKE_COMMAND} -P ${GENERATE_WRAPPER_SCRIPT}
-                    # 标记完成
-                    COMMAND ${CMAKE_COMMAND} -E touch ${CODE_GEN_FLAG}
-                    DEPENDS ${CODE_GEN_DEPENDS}
-                    COMMENT "Generating ES API code for package '${ARG_ES_LINKABLE_AND_ALL_TARGET}' using run package gen_esb..."
-                    JOB_POOL es_gen_esb_serial
-                    VERBATIM
-            )
+            set(_COMBINED_MODE_DEPENDS "DEPENDS;${CODE_GEN_DEPENDS}")
         else ()
             # INTERFACE 库，无需依赖
-            add_custom_command(
-                    OUTPUT ${CODE_GEN_FLAG}
-                    COMMAND ${CMAKE_COMMAND} -E echo "Generating ES code for package: ${ARG_ES_LINKABLE_AND_ALL_TARGET}"
-                    # 清理旧的生成文件（删除整个目录）
-                    COMMAND ${CMAKE_COMMAND} -E remove_directory ${GEN_CODE_DIR}
-                    COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN_CODE_DIR}
-                    # 步骤1: 运行 gen_esb 生成各个算子的 .cpp 文件
-                    COMMAND bash ${ES_LOCK_SCRIPT}
-                    ${GEN_CODE_DIR}/.gen.lock
-                    ${GEN_ESB_EXE}
-                    ${OPP_PROTO_PATH}
-                    ${GEN_CODE_DIR}
-                    ${MODULE_NAME}
-                    ${ASCEND_LIB_DIR}
-                    ${ARG_EXCLUDE_OPS}
-                    # 步骤2: 代码生成完成后，动态生成 wrapper 文件的 include 内容
-                    COMMAND ${CMAKE_COMMAND} -P ${GENERATE_WRAPPER_SCRIPT}
-                    # 标记完成
-                    COMMAND ${CMAKE_COMMAND} -E touch ${CODE_GEN_FLAG}
-                    COMMENT "Generating ES API code for package '${ARG_ES_LINKABLE_AND_ALL_TARGET}' using run package gen_esb (no OPP build dependency)..."
-                    JOB_POOL es_gen_esb_serial
-                    VERBATIM
-            )
+            unset(_COMBINED_MODE_DEPENDS)
         endif ()
+        _es_add_gen_esb_cmd(
+                "${GEN_ESB_EXE}" "${ASCEND_LIB_DIR}" "${_EXCL_OPS_ARG}"
+                "Generating ES API code for '${ARG_ES_LINKABLE_AND_ALL_TARGET}' using run package gen_esb..."
+        )
     else ()
         # 使用源码编译的 gen_esb target
         # 源码环境的 OPP_PROTO_TARGET 一定是实际的库 target，需要添加依赖
@@ -777,30 +981,10 @@ message(STATUS \"[ES Wrapper] Total operators included: \${NUM_OPS}\")
         if (USE_STANDARD_PATH AND OPP_COPY_FLAG)
             list(APPEND CODE_GEN_DEPENDS ${OPP_COPY_FLAG})
         endif ()
-
-        add_custom_command(
-                OUTPUT ${CODE_GEN_FLAG}
-                COMMAND ${CMAKE_COMMAND} -E echo "Generating ES code for package: ${ARG_ES_LINKABLE_AND_ALL_TARGET}"
-                # 清理旧的生成文件（删除整个目录）
-                COMMAND ${CMAKE_COMMAND} -E remove_directory ${GEN_CODE_DIR}
-                COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN_CODE_DIR}
-                # 步骤1: 运行 gen_esb 生成各个算子的 .cpp 文件
-                # 使用包装脚本确保 gen_esb 可靠执行（带文件锁、重试机制和快速检查）
-                COMMAND bash ${ES_LOCK_SCRIPT}
-                ${GEN_CODE_DIR}/.gen.lock
-                $<TARGET_FILE:gen_esb>
-                ${OPP_PROTO_PATH}
-                ${GEN_CODE_DIR}
-                ${MODULE_NAME}
-                ${ARG_EXCLUDE_OPS}
-                # 步骤2: 代码生成完成后，动态生成 wrapper 文件的 include 内容
-                COMMAND ${CMAKE_COMMAND} -P ${GENERATE_WRAPPER_SCRIPT}
-                # 标记完成
-                COMMAND ${CMAKE_COMMAND} -E touch ${CODE_GEN_FLAG}
-                DEPENDS ${CODE_GEN_DEPENDS}
-                COMMENT "Generating ES API code for package '${ARG_ES_LINKABLE_AND_ALL_TARGET}' using source-built gen_esb..."
-                JOB_POOL es_gen_esb_serial
-                VERBATIM
+        set(_COMBINED_MODE_DEPENDS "DEPENDS;${CODE_GEN_DEPENDS}")
+        _es_add_gen_esb_cmd(
+                "$<TARGET_FILE:gen_esb>" "" "${_EXCL_OPS_ARG}"
+                "Generating ES API code for '${ARG_ES_LINKABLE_AND_ALL_TARGET}' using source-built gen_esb..."
         )
     endif ()
 

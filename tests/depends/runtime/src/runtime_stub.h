@@ -468,6 +468,8 @@ RTS_STUB_RETURN_EXTERN(rtNpuGetFloatStatus, rtError_t);
 RTS_STUB_RETURN_EXTERN(rtNpuClearFloatStatus, rtError_t);
 
 RTS_STUB_RETURN_EXTERN(rtMalloc, rtError_t);
+RTS_STUB_RETURN_EXTERN(rtMallocHost, rtError_t);
+RTS_STUB_RETURN_EXTERN(rtFreeHost, rtError_t);
 RTS_STUB_RETURN_EXTERN(rtMemcpy, rtError_t);
 RTS_STUB_RETURN_EXTERN(rtsMemcpyBatch, rtError_t);
 RTS_STUB_RETURN_EXTERN(rtDatadumpInfoLoad, rtError_t);

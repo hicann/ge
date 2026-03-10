@@ -19,7 +19,7 @@
 #include "common/ge_common/ge_types.h"
 
 #include "common/common_inner.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "types/op_model.h"
 
 namespace acl {

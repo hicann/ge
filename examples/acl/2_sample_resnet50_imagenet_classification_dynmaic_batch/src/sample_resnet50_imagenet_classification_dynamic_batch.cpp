@@ -95,7 +95,8 @@ Result SampleRes50ImagenetClassification::PrepareModel(const char *modelPath)
     return SUCCESS;
 }
 
-void SampleRes50ImagenetClassification::OutputModelResult(uint64_t batchSize) const {
+void SampleRes50ImagenetClassification::OutputModelResult(uint64_t batchSize) const
+{
     for (size_t i = 0; i < aclmdlGetDatasetNumBuffers(modelOutput_->GetDataSet()); ++i) {
         // Get model output data
         aclDataBuffer* dataBuffer = aclmdlGetDatasetBuffer(modelOutput_->GetDataSet(), i);

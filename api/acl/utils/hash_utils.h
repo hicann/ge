@@ -14,7 +14,7 @@
 #include "utils/string_utils.h"
 #include "utils/attr_utils.h"
 #include "types/op_attr.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "common/log_inner.h"
 
 namespace acl {

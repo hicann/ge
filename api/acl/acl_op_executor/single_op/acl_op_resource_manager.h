@@ -22,7 +22,7 @@
 #include "graph/ge_attr_value.h"
 #include "mmpa/mmpa_api.h"
 #include "types/op_model.h"
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "single_op/op_model_cache.h"
 #include "single_op/compile/op_compiler.h"
 #include "utils/acl_op_map.h"

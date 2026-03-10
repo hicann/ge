@@ -86,7 +86,7 @@ set(OP_EXEC_SRC_FILES
     "${BASE_DIR}/api/acl/acl_op_executor/single_op/executor/op_task.cpp"
     "${BASE_DIR}/api/acl/acl_op_executor/types/op_attr.cpp"
     "${BASE_DIR}/api/acl/acl_op_executor/types/op_model.cpp"
-    "${BASE_DIR}/api/acl/acl_op_executor/types/acl_op.cpp"
+    "${BASE_DIR}/api/acl/acl_op_executor/types/acl_op_inner.cpp"
     "${BASE_DIR}/api/acl/common/common_inner.cpp"
     "${BASE_DIR}/api/acl/common/log_inner.cpp"
     "${BASE_DIR}/api/acl/common/json_parser.cpp"

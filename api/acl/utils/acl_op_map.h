@@ -15,7 +15,7 @@
 #include <mutex>
 #include <vector>
 #include <climits>
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 #include "utils/attr_utils.h"
 #include "utils/hash_utils.h"
 #include <chrono>

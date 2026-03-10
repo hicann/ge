@@ -41,6 +41,7 @@ const std::string kSqueezeType = "Squeeze";
 const std::string kUnsqueezeType = "Unsqueeze";
 const ge::Expression kSymbolZero = ge::Symbol(0);
 const ge::Expression kSymbolOne = ge::Symbol(1);
+const std::set kPureSplitIncludedAscirNodeTypes({kSplitType, kDataType, kLoadType, kStoreType, kOutputType});
 
 struct NodeFuseInfo;
 struct ComparePairs;

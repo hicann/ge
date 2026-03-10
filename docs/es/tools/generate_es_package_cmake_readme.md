@@ -74,6 +74,8 @@ make my_app
 
 ## 参数说明
 
+### 函数参数
+
 两个函数参数完全相同：
 
 | 参数 | 必需性 | 说明 | 示例 |
@@ -92,6 +94,21 @@ make my_app
   类型的 `ES_LINKABLE_AND_ALL_TARGET` 的原因
 - 函数会自动从 `OPP_PROTO_TARGET` 的 `LIBRARY_OUTPUT_DIRECTORY` 推导原型库路径，这是生成原型库对应的 ES 产物的基本条件
 
+### 历史原型库相关 CMake 变量
+
+以下变量在调用函数前通过 `set()` 设置，用于控制历史原型库功能：
+
+| 变量 | 类型 | 说明 | 示例 |
+|------|------|------|------|
+| `GE_ES_EXTRACT_HISTORY` | bool（可选） | ON 时向 gen_esb 传入 `--es_mode=extract_history`，启用**历史原型库生成模式**（归档当前原型为 JSON，供后续版本代码生成时使用）；不设置或 OFF 则 gen_esb 默认 `codegen`（仅生成 C++ API） | `set(GE_ES_EXTRACT_HISTORY ON)` |
+| `GE_ES_RELEASE_VERSION` | 可选 | **当前新版本号**，归档步骤将当前原型归档为此版本；历史原型库生成模式下必须设置 | `set(GE_ES_RELEASE_VERSION "8.0.RC1")` |
+| `GE_ES_RELEASE_DATE` | 可选 | 历史原型库生成模式下指定发布日期（格式 `YYYY-MM-DD`），不设置则由 gen_esb 使用当前日期 | `set(GE_ES_RELEASE_DATE "2026-02-28")` |
+| `GE_ES_BRANCH_NAME` | 可选 | 历史原型库生成模式下指定发布分支名。**注意**：当设为 `master` 时，函数会忽略所有归档相关变量（`GE_ES_EXTRACT_HISTORY`/`GE_ES_RELEASE_VERSION`/`GE_ES_RELEASE_DATE`），仅走纯代码生成模式 | `set(GE_ES_BRANCH_NAME "release/8.0")` |
+
+> **历史原型库路径自动推导**：函数内部根据 cmake 文件安装位置自动推导 `${CANN_INSTALL_PATH}/cann/opp/history_registry/<module>` 路径，路径存在且非空时自动向 gen_esb 传入 `--history_registry`，**调用方无需显式设置历史原型库路径**。
+>
+> **完整商发模式**：`GE_ES_EXTRACT_HISTORY=ON` 且 ops 包中存在历史原型库时，`add_es_library` 内部自动串行执行两次 gen_esb（代码生成 + 历史原型库归档&合并），**调用方无需额外处理**，一次 `add_es_library` 调用即可完成完整商发所需的全部操作（参见示例 9）。
+
 ## 输出产物
 
 ### add_es_library_and_whl 生成的产物
@@ -104,7 +121,8 @@ OUTPUT_PATH/
 │       ├── es_math_ops_c.h    # C 接口聚合头文件
 │       └── es_add.h ...       # 单个算子头文件(一般是有多个文件)
 ├── lib64/
-│   └── libes_math.so          # 动态库
+│   ├── libes_math.so          # 动态库
+│   └── libes_math.a           # 静态库
 └── whl/
     └── es_math-1.0.0-py3-none-any.whl  # Python 包
 ```
@@ -119,9 +137,32 @@ OUTPUT_PATH/
 │       ├── es_math_ops_c.h    # C 接口聚合头文件
 │       └── es_add.h ...       # 单个算子头文件(一般是有多个文件)
 └── lib64/
-    └── libes_math.so          # 动态库
+    ├── libes_math.so          # 动态库
+    └── libes_math.a           # 静态库
 ```
-**聚合的含义**：包含 es_math 下所有算子的构图 API
+
+**说明**：
+- **聚合的含义**：包含 es_math 下所有算子的构图 API
+- **动态库与静态库**：每次生成会同时产出 `lib<name>.so` 与 `lib<name>.a`。对外接口 target（如 `es_math`）默认链接动态库；若需静态链接，可手动指定 `lib64/lib<name>.a` 或通过 `target_link_libraries(your_target PRIVATE ${OUTPUT_PATH}/lib64/libes_math.a)` 等方式链接静态库。
+
+### 启用历史原型库相关模式后的额外产物
+
+#### 历史原型库生成模式（`GE_ES_EXTRACT_HISTORY=ON`）
+
+gen_esb 直接输出到 `OUTPUT_PATH`，生成以下 JSON 结构：
+
+```
+OUTPUT_PATH/
+├── index.json                          # 版本索引（所有已归档版本的列表）
+└── registry/
+    └── <GE_ES_RELEASE_VERSION>/
+        ├── metadata.json               # 版本元信息（版本号、发布日期、分支名等）
+        └── operators.json              # 算子原型数据（IR 结构化描述）
+```
+
+#### 代码生成模式含历史兼容（自动检测到历史原型库时）
+
+C++ 头文件中同一算子会出现多版本重载签名（历史版本签名 + 当前版本签名），`.so` 同时包含所有版本的实现，向前兼容旧版本调用方式。产物目录结构与标准模式相同，仅头文件内容有差异。
 
 ## 生成的 Target
 
@@ -129,7 +170,7 @@ OUTPUT_PATH/
 
 | Target 名称 | 用途 | 说明 |
 |------------|------|------|
-| `es_math` | **链接依赖** | **使用方通过此 target 链接，自动触发构建** |
+| `es_math` | **链接依赖** | **使用方通过此 target 链接，自动触发构建**；默认链接动态库（.so），静态库（.a）同时生成在 `lib64/` 下，需静态链接时请直接指定静态库文件。 |
 
 ## 使用示例
 
@@ -267,6 +308,57 @@ graph = builder.build_and_reset()
 - 可以使用 `ge.es.list_plugins()` 查看所有已加载的插件名称
 - 可以使用 `ge.es.get_plugin('math')` 检查插件是否存在（返回模块对象或 None）。
 
+### 示例 7：历史原型库生成模式（商发首次构建，归档当前版本原型）
+
+```cmake
+# 从已安装的算子原型 .so 中提取 IR 原型，归档为 JSON 供下次商发使用
+set(GE_ES_EXTRACT_HISTORY ON)
+set(GE_ES_RELEASE_VERSION "8.0.RC1")
+set(GE_ES_RELEASE_DATE    "2026-02-28")  # 可选，不设置则使用当前日期
+set(GE_ES_BRANCH_NAME     "release/8.0") # 可选；若设为 master 则不会执行归档，仅走代码生成
+
+add_es_library(
+    ES_LINKABLE_AND_ALL_TARGET es_math
+    OPP_PROTO_TARGET  opgraph_math
+    OUTPUT_PATH       ${CMAKE_BINARY_DIR}/output
+)
+# 产物：output/index.json, output/registry/8.0.RC1/metadata.json, output/registry/8.0.RC1/operators.json
+```
+
+### 示例 8：代码生成模式含历史兼容（自动消费已有历史数据，生成带重载的 C++ API）
+
+```cmake
+# 函数内部自动检测 ${CANN_INSTALL_PATH}/cann/opp/history_registry/math，
+# 路径存在且非空时自动生成带历史兼容重载签名的 C++ 接口，无需手动设置路径
+set(GE_ES_RELEASE_VERSION  "8.0.RC2")
+
+add_es_library(
+    ES_LINKABLE_AND_ALL_TARGET es_math
+    OPP_PROTO_TARGET  opgraph_math
+    OUTPUT_PATH       ${CMAKE_BINARY_DIR}/output
+)
+# 产物头文件中同一算子出现多版本重载（旧签名 + 新签名），向前兼容旧版本调用
+```
+
+### 示例 9：完整商发模式（单次调用，函数内部自动完成代码生成 + 历史原型库归档&合并）
+
+```cmake
+# GE_ES_EXTRACT_HISTORY=ON + ops 包中存在历史原型库（自动检测）= 完整商发模式
+# add_es_library 内部自动串行执行两次 gen_esb，调用方无需额外处理：
+#   gen_esb 调用1：默认 codegen 模式，以当前日期为锚点自动选取窗口内历史版本 → 对比当前原型 → 生成带重载 C++ API
+#   gen_esb 调用2：--es_mode=extract_history，将已有历史库从 _AUTO_HISTORY_REGISTRY 复制至 OUTPUT_PATH，在 OUTPUT_PATH 追加当前版本原型 → OUTPUT_PATH 包含完整历史原型库
+set(GE_ES_EXTRACT_HISTORY  ON)
+set(GE_ES_RELEASE_VERSION  "8.0.RC2")     # 当前新版本号，用于归档步骤
+set(GE_ES_RELEASE_DATE     "2026-02-28")  # 可选
+set(GE_ES_BRANCH_NAME      "develop") # 可选；若设为 master 则不会归档，仅走代码生成
+
+add_es_library(
+    ES_LINKABLE_AND_ALL_TARGET es_math
+    OPP_PROTO_TARGET  opgraph_math
+    OUTPUT_PATH       ${CMAKE_BINARY_DIR}/output
+)
+```
+
 ## 命名规则
 
 ### 产物命名
@@ -274,6 +366,7 @@ graph = builder.build_and_reset()
 | 产物类型 | 命名规则 | 示例 (ES_LINKABLE_AND_ALL_TARGET=es_math) |
 |---------|---------|--------------------------------|
 | 动态库 | `lib<ES_LINKABLE_AND_ALL_TARGET>.so` | `libes_math.so` |
+| 静态库 | `lib<ES_LINKABLE_AND_ALL_TARGET>.a` | `libes_math.a` |
 | Python 包 | `<ES_LINKABLE_AND_ALL_TARGET>-1.0.0-py3-none-any.whl` | `es_math-1.0.0-py3-none-any.whl` |
 | 聚合头文件 | `es_<name>_ops.h` | `es_math_ops.h` |
 
@@ -290,6 +383,17 @@ graph = builder.build_and_reset()
    - 建议使用 `es_` 前缀（如 `es_math`, `es_nn`）
    - 使用小写字母和下划线
    - 避免使用特殊字符和 C++ 关键字
+
+2. **历史原型库相关变量**：
+   - 历史原型库路径由函数**自动推导**（`${CANN_INSTALL_PATH}/cann/opp/history_registry/<module>`），路径存在且非空时自动启用，调用方无需传参
+   - **master 分支**：当 `GE_ES_BRANCH_NAME` 为 `master` 时，会忽略 `GE_ES_EXTRACT_HISTORY`/`GE_ES_RELEASE_VERSION`/`GE_ES_RELEASE_DATE`，仅走纯代码生成模式（历史原型库路径仍会传递，用于生成带重载的 C++ API）
+   - `GE_ES_EXTRACT_HISTORY=ON` 且 ops 包中存在历史原型库（自动检测到）即为**完整商发模式**，函数内部自动执行两次 gen_esb（代码生成 + 历史原型库归档&合并），调用方无需任何额外处理（参见示例 9）
+   - **版本去重**：若历史原型库的 `index.json` 中已存在与 `GE_ES_RELEASE_VERSION` 相同的版本号，则跳过归档步骤，仅执行代码生成（避免重复归档）；同时将 CANN 安装路径中的历史原型库完整复制到 `OUTPUT_PATH`，方便后续换路径安装
+   - 纯历史归档模式（仅设置 `GE_ES_EXTRACT_HISTORY=ON`，ops 包中无历史原型库）：gen_esb 输出到 `OUTPUT_PATH`，只生成 JSON，不生成 C++ API
+   - 完整商发模式下，代码生成步骤 gen_esb 不传 `--release_version`，以当前日期为锚点自动选取窗口内历史版本对比；归档步骤使用 `GE_ES_RELEASE_VERSION` 作为新版本号写入历史库
+   - 完整商发模式下，归档步骤将已有历史库从 `_AUTO_HISTORY_REGISTRY`（CANN 安装路径，只读）复制到 `OUTPUT_PATH`（构建目录，可写），gen_esb 在 `OUTPUT_PATH` 追加当前版本条目；首次构建（CANN 路径中无已有历史库）时直接输出至 `OUTPUT_PATH`；最终 `OUTPUT_PATH` 包含所有历史版本 + 当前版本的完整合并结果
+   - `GE_ES_RELEASE_VERSION` 归档时必须设置，否则归档版本无法识别
+   - 历史原型库数据（JSON 文件）通常随 ops 包安装，默认位于 `${CANN_INSTALL_PATH}/cann/opp/history_registry/<package_name>/`
 
 
 ## 依赖要求
@@ -327,8 +431,8 @@ add_es_library_and_whl(
 # │   ├── es_math/
 # │   └── es_nn/
 # ├── lib64/
-# │   ├── libes_math.so
-# │   └── libes_nn.so
+# │   ├── libes_math.so, libes_math.a
+# │   └── libes_nn.so, libes_nn.a
 # └── whl/
 #     ├── es_math-1.0.0-py3-none-any.whl
 #     └── es_nn-1.0.0-py3-none-any.whl

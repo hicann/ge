@@ -13,7 +13,7 @@
 
 #include <mutex>
 
-#include "types/acl_op.h"
+#include "types/acl_op_inner.h"
 
 struct aclGraphDumpOption {
     std::string stage;

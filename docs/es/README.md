@@ -81,8 +81,8 @@ docs/es/
 ### API 集成
 
 - [x] [***December 2025***]math 分包已完成ES API集成。
-- [ ] [***February 2026***]nn、cv、transformer、hcom分包完成ES API集成。
-- [ ] [***March 2026***]hcom分包完成ES API集成。
+- [x] [***February 2026***]nn、cv、transformer完成ES API集成。
+- [ ] [***April 2026***]hcom分包完成ES API集成。
 
 注：在全量原型的ES API打包到各个算子分包之前，如需使用 ES API，可以参考工具文档中的 [generate_es_package.cmake](tools/generate_es_package_cmake_readme.md) 进行代码生成和集成。
 
@@ -95,7 +95,7 @@ docs/es/
 ### 后向兼容
 - [x] [***December 2025***]Python API后向兼容完成设计并落地。
 - [x] [***January 2026***]C++ API后向兼容性设计完成；C++ API的后向兼容依赖完成`历史原型库`的设计方案。
-- [ ] [***March 2026***]C++ API后向兼容性代码开发完成；实现C++构图场景的完整向后兼容能力。
+- [x] [***March 2026***]C++ API后向兼容性代码开发完成；实现C++构图场景的完整向后兼容能力。
 
 ### 自定义算子工程集成
 

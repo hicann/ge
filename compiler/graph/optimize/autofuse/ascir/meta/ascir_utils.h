@@ -44,6 +44,10 @@ std::string DebugStr(const ascir::Graph &graph, bool verbose = false);
 std::string DebugHintGraphStr(const ascir::HintGraph &graph);
 std::string DebugImplGraphStr(const ascir::ImplGraph &graph);
 
+// New MLIR-style dump format
+// is_subgraph: true for subgraph (simplified mode, VIEW3/.api.unit/.mem are not displayed)
+std::string DebugStrNew(const ascir::Graph &graph, bool verbose = false, bool is_subgraph = false);
+
 void DumpScheduleResult(const ascir::FusedScheduledResult &fused_scheduled_result, const std::string &suffix,
                         uint32_t graph_id = 0U, bool verbose = true);
 
@@ -56,6 +60,7 @@ bool IsConcatAllInputsAligned(const ge::AscNode &node);
 ge::TriBool AreConcatInputShapesEqual(const ge::AscNodePtr &node);
 
 bool AreAllInputsLoad(const ge::NodePtr &node);
+
 }  // namespace ascir::utils
 
 #endif
