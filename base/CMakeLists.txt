@@ -61,12 +61,6 @@ set(SRC_LIST
     "${AIR_CODE_DIR}/compiler/graph/fusion/pass/pass_registry.cc"
 )
 
-file(GLOB_RECURSE OM2_SRCS CONFIGURE_DEPENDS
-        "common/om2/*.cc"
-        "common/helper/om2/*.cc"
-        "common/helper/om2_package_helper.cc"
-)
-
 set(SRC_BASE_LIST
     "common/context/ctx.cc"
     "common/context/local_context.cc"
@@ -178,7 +172,6 @@ if (NOT ENABLE_D AND NOT ENABLE_ACL)
 ############ libge_common.so ############
 add_library(ge_common SHARED
     ${SRC_LIST}
-    ${OM2_SRCS}
 )
 
 add_dependencies(ge_common
@@ -225,8 +218,6 @@ target_link_libraries(ge_common
         intf_pub
         msprof_headers
         runtime_headers
-        $<$<TARGET_EXISTS:cce_headers>:cce_headers>
-        $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         static_mmpa
         -Wl,--no-as-needed
@@ -239,7 +230,6 @@ target_link_libraries(ge_common
         platform
         -Wl,--as-needed
         json
-        minizip_static
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
         ${AIR_COMMON_LINK_OPTION}

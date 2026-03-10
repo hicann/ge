@@ -64,13 +64,7 @@ enum InputAippType : int32_t {
   DYNAMIC_AIPP_NODE
 };
 
-enum class OfflineModelFormat : int32_t {
-  OM_FORMAT_DEFAULT,
-  OM_FORMAT_LITE,
-  OM_FORMAT_NANO,
-  OM_FORMAT_MOBILE,
-  OM_FORMAT_OM2
-};
+enum class OfflineModelFormat : int32_t { OM_FORMAT_DEFAULT, OM_FORMAT_LITE, OM_FORMAT_NANO, OM_FORMAT_MOBILE };
 
 constexpr const char_t *GE_ENGINE_ATTR_MEM_TYPE_HBM = "HBM";
 constexpr const char_t *GE_OPTION_EXEC_PLACEMENT = "ge.exec.placement";
@@ -174,18 +168,6 @@ struct DataBuffer {
   DataBuffer() : data(nullptr), length(0UL), isDataSupportMemShare(false),
                  placement(0U) {}
 };
-
-struct ConditionalDeleter {
-  bool owns_memory;  // 是否需要释放内存
-
-  void operator()(const uint8_t *ptr) const {
-    if (owns_memory && ptr != nullptr) {
-      delete[] ptr;
-    }
-  }
-};
-using UniqueByteBuffer = std::unique_ptr<uint8_t[], ConditionalDeleter>;
-
 
 ///
 /// @ingroup domi_ome

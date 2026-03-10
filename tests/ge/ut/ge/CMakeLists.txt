@@ -52,7 +52,6 @@ include_directories(${AIR_CODE_DIR}/inc/graph_metadef)
 include_directories(${AIR_CODE_DIR}/inc/external)
 include_directories(${AIR_CODE_DIR}/inc/framework)
 include_directories(${AIR_CODE_DIR}/runtime/v2)
-include_directories(${AIR_CODE_DIR}/runtime/om2)
 
 include_directories(${PARSER_DIR})
 include_directories(${AIR_CODE_DIR}/parser)
@@ -125,11 +124,9 @@ set(DISTINCT_GRAPH_LOAD_TEST_FILES
     "graph/load/cpu_queue_schedule_unittest.cc"
     "graph/load/model_parser_base_unittest.cc"
     "executor/ge_executor_unittest.cc"
-    "executor/om2_model_executor_unittest.cc"
     "executor/executor_utils_unittest.cc"
     "executor/runtime/model_rt_var_manager_unittest.cc"
     "graph/load/model_helper_unittest.cc"
-    "graph/load/om2_package_helper_unittest.cc"
     "graph/load/om_file_helper_unittest.cc"
     "hybrid/hybrid_davinci_model_unittest.cc"
     "graph/load/model_utils_unittest.cc"
@@ -396,9 +393,6 @@ set(BASE_COMMON_TEST_FILES
     "common/mobile_model_helper_unittest.cc"
     "common/dump_callback_unittest.cc"
     "common/error_registry_unittest.cc"
-    "common/zip_archive_unittest.cc"
-    "common/om2_codegen_unittest.cc"
-    "common/program_generator_unittest.cc"
 )
 
 file(GLOB_RECURSE SYMBOL_SHAPE_INFER_FUNCS_TEST_SRCS CONFIGURE_DEPENDS "graph/optimize/symbolic/*.cc")
@@ -643,7 +637,6 @@ target_link_libraries(ge_ut_common PRIVATE
     crypto_static
     ascendcl_stub
     data_flow_base
-    minizip_static
 )
 
 target_link_libraries(ge_ut_common PUBLIC
@@ -839,7 +832,6 @@ target_link_libraries(ut_libge_common_utest
     es_ge_test
     gert_op_impl_static rt2_registry_static
     -Wl,--no-whole-archive
-    minizip_static
     ge_running_env GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl
     -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
 )
@@ -1065,14 +1057,11 @@ target_link_libraries(ut_libge_distinct_load_utest
     symengine
     gert
     ge_compiler
-    om2_executor
     -Wl,-z,muldefs
     -Wl,--whole-archive
     ge_graph_dsl ge_runtime_stub
     profiler_stub es_ge_test gert_op_impl_static rt2_registry_static
     -Wl,--no-whole-archive
-    json
-    minizip_static
     ge_running_env GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl ${AIR_COMMON_LINK_OPTION} -lpthread
     -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
 )

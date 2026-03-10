@@ -15,4 +15,3 @@ if(NOT DEFINED BUILD_COMPONENT AND NOT ENABLE_PKG AND NOT ENABLE_LLT_PKG AND NOT
     add_subdirectory(c)
 endif()
 add_subdirectory(ops)
-add_subdirectory(om2)

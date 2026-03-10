@@ -45,7 +45,6 @@ target_include_directories(acl_mdl_impl PRIVATE
     ${AIR_CODE_DIR}/base/metadef/pkg_inc
     ${ASCEND_INSTALL_PATH}/pkg_inc
     ${ASCEND_INSTALL_PATH}/pkg_inc/runtime
-    ${ASCEND_INSTALL_PATH}/pkg_inc/runtime/runtime
 
     ${TOP_DIR}/air/inc/external
     ${TOP_DIR}/runtime/include/external
@@ -101,7 +100,6 @@ target_link_libraries(acl_mdl_impl PRIVATE
     ge_common_base
     graph_base
     graph
-    om2_executor
 
     -Wl,--as-needed
     $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
