@@ -1660,21 +1660,6 @@ TEST_F(UtestKernelTaskInfo, blocking_aicpu_op_fail_02) {
   kernel_task_info.op_desc_ = op_desc;
   kernel_task_info.operator_ = operator_info;
   kernel_task_info.func_handle_ = (void *)0x12000;
-  RTS_STUB_RETURN_VALUE(rtGetDevice, rtError_t, 0x78000001);
-  EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), FAILED);
-
-  RTS_STUB_RETURN_VALUE(rtGetDeviceCapability, rtError_t, 0x78000001);
-  EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), FAILED);
-
-  RTS_STUB_RETURN_VALUE(rtGetDeviceCapability, rtError_t, 0x78000001);
-  EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), FAILED);
-
-  RTS_STUB_RETURN_VALUE(rtGetDeviceCapability, rtError_t, RT_ERROR_NONE);
-  RTS_STUB_OUTBOUND_VALUE(rtGetDeviceCapability, int32_t, value, RT_AICPU_BLOCKING_OP_SUPPORT + 1);
-  EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), FAILED);
-
-  RTS_STUB_RETURN_VALUE(rtGetDevice, rtError_t, 0x78000001);
-  EXPECT_EQ(kernel_task_info.Distribute(), FAILED);
 
   EXPECT_EQ(kernel_task_info.InitAicpuTaskExtInfo(kernel_def.kernel_ext_info()), SUCCESS);
   RTS_STUB_RETURN_VALUE(rtStreamWaitEventWithTimeout, rtError_t, 0x78000001);

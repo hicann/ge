@@ -36,6 +36,7 @@
 #include "common/helper/model_parser_base.h"
 #include "graph/ge_tensor.h"
 #include "framework/runtime/gert_api.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -99,15 +100,15 @@ void DynamicModelExecutor::FinalizeInternal() {
     aicpu_handle_ = nullptr;
   }
   if (stream_ != nullptr) {
-    GE_CHK_RT(rtStreamDestroy(stream_));
+    DF_CHK_ACL(aclrtDestroyStream(stream_));
     stream_ = nullptr;
   }
   if (aicpu_model_handle_ != nullptr) {
-    GE_CHK_RT(rtModelDestroy(aicpu_model_handle_));
+    DF_CHK_ACL(aclmdlRIDestroy(aicpu_model_handle_));
     aicpu_model_handle_ = nullptr;
   }
   if (aicpu_stream_ != nullptr) {
-    GE_CHK_RT(rtStreamDestroy(aicpu_stream_));
+    DF_CHK_ACL(aclrtDestroyStream(aicpu_stream_));
     aicpu_stream_ = nullptr;
   }
   CpuSchedEventDispatcher::GetInstance().Deregister(aicpu_model_id_);
@@ -117,7 +118,7 @@ Status DynamicModelExecutor::FreeEventIOBuffer() {
   std::set<void *> buf_addresses(input_buf_addresses_.cbegin(), input_buf_addresses_.cend());
   buf_addresses.insert(output_buf_addresses_.cbegin(), output_buf_addresses_.cend());
   for (void *buf_address : buf_addresses) {
-    GE_CHK_STATUS_RET(rtFreeHost(buf_address), "rtFreeHost Failed, buf_addresses size = %zu.", buf_addresses.size());
+    GE_CHK_STATUS_RET(aclrtFreeHost(buf_address), "aclrtFreeHost Failed, buf_addresses size = %zu.", buf_addresses.size());
   }
   input_buf_addresses_.clear();
   output_buf_addresses_.clear();
@@ -133,10 +134,10 @@ Status DynamicModelExecutor::AllocEventIOBuffer(const ComputeGraphPtr &root_grap
 Status DynamicModelExecutor::LoadModel(const ModelData &model_data,
                                        const ComputeGraphPtr &root_graph,
                                        const ModelQueueParam &model_queue_param) {
-  GE_CHK_RT_RET(rtGetDevice(&device_id_));
-  GE_CHK_RT_RET(rtCtxGetCurrent(&rt_context_));
+  DF_CHK_ACL_RET(aclrtGetDevice(&device_id_));
+  DF_CHK_ACL_RET(aclrtGetCurrentContext(&rt_context_));
   if (!GetContext().GetHostExecFlag()) {
-    GE_CHK_RT_RET(rtStreamCreate(&stream_, 0));
+    DF_CHK_ACL_RET(aclrtCreateStream(&stream_));
   }
   GE_CHK_STATUS_RET_NOLOG(GetInputAndOutputNum(root_graph, model_queue_param));
   input_queue_attrs_ = model_queue_param.input_queues_attrs;
@@ -925,7 +926,7 @@ bool DynamicModelExecutor::StopAndWaitRestart() {
 
 void DynamicModelExecutor::Run() {
   GELOGD("Run thread started, model_id = %u", model_id_);
-  rtCtxSetCurrent(rt_context_);
+  aclrtSetCurrentContext(rt_context_);
   GELOGD("current rt_context_ is %p, stream is %p.", rt_context_, stream_);
   while (true) {
     task_queue_.Pop(model_execute_param_);
@@ -941,8 +942,8 @@ void DynamicModelExecutor::Run() {
     if (ret == SUCCESS) {
       GELOGD("Execute model successfully, model_id = %u", model_id_);
     } else {
-      rtContext_t rt_ctx = nullptr;
-      rtCtxGetCurrent(&rt_ctx);
+      aclrtContext rt_ctx = nullptr;
+      aclrtGetCurrentContext(&rt_ctx);
       GELOGD("current rt_context is %p, old rt_context is %p, stream is %p.", rt_ctx, rt_context_, stream_);
       GELOGE(ret, "Failed to execute model, model_id = %u", model_id_);
       PublishErrorOutput(ret);
@@ -953,8 +954,8 @@ void DynamicModelExecutor::Run() {
     if (need_report_status_) {
       ret = ReportStatus();
       if (ret != SUCCESS) {
-        rtContext_t rt_ctx = nullptr;
-        rtCtxGetCurrent(&rt_ctx);
+        aclrtContext rt_ctx = nullptr;
+        aclrtGetCurrentContext(&rt_ctx);
         GELOGD("current rt_context is %p, old rt_context is %p, stream is %p.", rt_ctx, rt_context_, stream_);
         GELOGE(ret, "Failed to report status, model_id = %u", model_id_);
         PublishErrorOutput(ret);
@@ -1043,13 +1044,13 @@ Status DynamicModelExecutor::CreateFakeAicpuModelAndStream() {
     }
   } else {
     if (aicpu_model_handle_ == nullptr) {
-      GE_CHK_RT_RET(rtModelCreate(&aicpu_model_handle_, 0U));
+      DF_CHK_ACL_RET(aclmdlRIBuildBegin(&aicpu_model_handle_, 0U));
       GE_CHK_RT_RET(rtModelGetId(aicpu_model_handle_, &aicpu_model_id_));
     }
     if (aicpu_stream_ == nullptr) {
-      uint32_t stream_flags = RT_STREAM_AICPU | RT_STREAM_HEAD;
-      GE_CHK_RT_RET(rtStreamCreateWithFlags(&aicpu_stream_, kDefaultStreamPriority, stream_flags));
-      GE_CHK_RT_RET(rtGetStreamId(aicpu_stream_, &aicpu_stream_id_));
+      uint32_t stream_flags = ACL_STREAM_CPU_SCHEDULE;
+      DF_CHK_ACL_RET(aclrtCreateStreamWithConfig(&aicpu_stream_, kDefaultStreamPriority, stream_flags));
+      DF_CHK_ACL_RET(aclrtStreamGetId(aicpu_stream_, &aicpu_stream_id_));
     }
   }
   GELOGI("[Create][Fake] aicpu model and stream success, model id:%u, stream id:%d", aicpu_model_id_, aicpu_stream_id_);

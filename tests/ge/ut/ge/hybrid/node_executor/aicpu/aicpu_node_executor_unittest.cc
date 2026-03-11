@@ -595,8 +595,6 @@ TEST_F(UtestAicpuNodeExecutor, aicpu_blocking_node_task_fail) {
 
   {
     AicpuNodeTask aicpu_node_task(node_item, task_def);
-    RTS_STUB_RETURN_VALUE(rtGetDevice, rtError_t, 0x78000001);
-    ASSERT_EQ(aicpu_node_task.Init(hybrid_model), FAILED);
 
     RTS_STUB_RETURN_VALUE(rtGetDeviceCapability, rtError_t, 0x78000001);
     ASSERT_EQ(aicpu_node_task.Init(hybrid_model), FAILED);

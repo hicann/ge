@@ -17,6 +17,7 @@
 #include "stub/gert_runtime_stub.h"
 #include "faker/multi_stream_allocator_faker.h"
 #include "runtime/src/runtime_stub.h"
+#include "ascendcl/src/ascendcl_stub.h"
 
 namespace gert {
 namespace memory {
@@ -131,7 +132,9 @@ TEST_F(CacheMemoryAllocatorTest, test_allocate_mem_block_size_4816896UL_sucess) 
 
 TEST_F(CacheMemoryAllocatorTest, test_get_allocator_failed_when_rtGetDevice_failed) {
   RTS_STUB_RETURN_VALUE(rtGetDevice, rtError_t, 0x01);
+  g_acl_stub_mock = "aclrtGetDevice";
   ASSERT_EQ(CachingMemAllocator::GetAllocator(), nullptr);
+  g_acl_stub_mock = "";
 }
 
 TEST_F(CacheMemoryAllocatorTest, test_allocate_mem_block_free_then_alloc_again) {

@@ -2096,6 +2096,32 @@ class CosAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 };
 
+class AcosAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
+    return CalcAcosTmpSizeV2(node);
+  }
+  [[nodiscard]] std::string GetApiCallName() const override {
+    return "UnaryApiTmpV2Call";
+  }
+  [[nodiscard]] std::string GetApiName() const override {
+    return "Acos";
+  }
+  // 如果需要插入cast节点，返回cast的目的类型
+  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
+  GetConversionDtype(const ge::AscNode &node) {
+    std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
+      {DT_BF16, DT_FLOAT},
+    };
+    return GetConversionFromDtypeMap(node, dtype_conversion_map);
+  }
+  [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {
+      "adv_api/math/acos.h",
+    };
+  }
+};
+
 class TanhAscIrCodegenImplV2 : public AscIrCodegenV2 {
  public:
   [[nodiscard]] std::vector<std::unique_ptr<ge::TmpBufDesc>> CalcTmpBufSize(const ge::AscNode &node) override {
@@ -2158,7 +2184,16 @@ class LogicalOrAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
-    (void)node;
+    AscNodeInputs node_inputs = node.inputs;
+    AscNodeOutputs node_outputs = node.outputs;
+    // MicroApi "or" 输入输出的数据类型需要相同
+    for (size_t i = 0; i < node_inputs().size(); i++) {
+      for (size_t j = 0; j < node_outputs().size(); j++) {
+        if (node_inputs[i].attr.dtype != node_outputs[j].attr.dtype) {
+          return false;
+        }
+      }
+    }
     return true;
   }
 
@@ -2329,8 +2364,8 @@ class PowAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
-    // 不支持全scalar输入
-    return !std::all_of(is_scalar_list.begin(), is_scalar_list.end(), [](bool i) { return i; });
+    (void)is_scalar_list; // 支持任意输入是scalar
+    return true;
   }
   [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
     return {

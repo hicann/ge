@@ -115,9 +115,9 @@
      python es_gen_air.py
      ```
      - 执行结束后，在data目录下生成.air格式的模型文件，名称为graph.air。
-     - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾社区](https://www.hiascend.com)查看文档“ATC离线模型编译工具”)，`soc_version`请根据实际环境修改：
+     - 执行ATC工具命令(关于ATC工具的详细说明，请前往[昇腾文档](https://www.hiascend.com/zh/document)搜索文档“ATC离线模型编译工具”)，`soc_version`请根据实际环境修改：
        ```
-       atc --framework=1 --model=./graph.air --soc_version=xxx --output=./model
+       atc --framework=1 --model=./graph.air --soc_version=xxx --output=./model  --input_shape="input_0:2,3;input_1:3,2"
        ```
      - 运行成功后，日志中出现如下打印：
         ```
@@ -126,18 +126,23 @@
         ```
 
 3. 在线推理
-   - 进入data目录执行.py文件进行在线推理（在线推理请确保已安装torch_npu插件）：
+   - 进入data目录执行.py文件进行在线推理（在线推理请确保已安装torch_npu插件），执行`es_forward_1.py`：
       ```
-      python es_forward_1.py/es_forward_2.py/es_forward_3.py
+      python es_forward_1.py
       ```  
    - 对于es_forward_1.py，日志中出现如下打印：
      ```
      Define pattern for MatMulAddFusionPass in matcher config sample
      Define replacement for MatMulAddFusionPass in matcher config sample
      ```
+   - 执行`es_forward_2.py`与`es_forward_3.py`
+      ```
+      python es_forward_2.py
+      python es_forward_3.py
+      ```
    - 对于es_forward_2.py和es_forward_3.py，日志中出现如下打印：
       ```
-      Define pattern for FuseMatMulAndAddPass in matcher config sample
+      Define pattern for MatMulAddFusionPass in matcher config sample
       ```
 
 4. 查看运行结果
@@ -148,7 +153,7 @@
       - `ge_onnx_xxxxx_RunCustomPassBeforeInferShape.pdtxt`执行InferShape前的自定义pass dump图
      
      可以发现模型已按预期优化，即MatMul与Add被GEMM替换。
-   - 若未获得预期结果，可设置如下环境变量让日志打印到屏幕，来定位原因。
+   - 若未获得预期结果，可设置如下环境变量（如使用atc命令，还需添加参数`--log=debug`）让日志打印到屏幕，来定位原因。
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别

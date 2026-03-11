@@ -133,13 +133,11 @@ public:
 
     static bool SetPreBuildResult(const OpBuildTaskPtr &relBuildTaskPtr, const OpBuildTaskResultPtr &opBuildResult);
 
-    bool UpdateInhibitionInfoForLog(const uint64_t &graphId);
+    bool UpdateInhibitionInfoForLog();
 
     bool IsTimeToPrintProgressHint();
 
     void PrintProgressHint();
-
-    void ReportTaskAndRemoveDup(std::vector<FinComTask>& tasksToReport, std::vector<FinComTask>& tasksBeforeReport);
 
     static bool IsFusionCheckTask(const OpBuildTaskPtr &opTask);
 
@@ -159,7 +157,7 @@ public:
     std::map<uint64_t, std::map<uint64_t, OpBuildTaskPtr>> finishedTask_;
 
     std::map<std::string, long> reportedErr_;
-    std::unordered_map<uint64_t, LogInhibitionInfo> taskStatistics_;
+    std::time_t taskStatisticsTime_ = 0;
     std::unordered_map<std::string, FILE *> lockFpHandle_; // lock build dir handle: <kernelName, handle>
 
     // lock for singleton mode
@@ -292,8 +290,6 @@ private:
 
     // compile progress promot, record last print time
     std::time_t lastPrintTime_ = 0;
-
-    std::set<std::pair<int64_t, int64_t>> reportedTaskSet_;
 };
 
 /*

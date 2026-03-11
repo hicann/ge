@@ -25,6 +25,7 @@ class ModelFactory {
   static const std::string &GenerateModel_switch(bool is_dynamic = true, const bool with_fusion = false);
   static const std::string &GenerateModel_4(bool is_dynamic = true, const bool with_fusion = false);
   static const std::string &GenerateModel_data_to_netoutput(bool is_dynamic = true, const bool with_fusion = false);
+  static const std::string &GenerateModel_refdata(bool is_dynamic = true, const bool with_fusion = false);
  private:
   static const std::string &SaveAsModel(const std::string &name, const Graph &graph, const bool with_fusion);
   static std::unordered_map<std::string, std::string> model_names_to_path_;

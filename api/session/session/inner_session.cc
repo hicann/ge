@@ -17,6 +17,7 @@
 #include "analyzer/analyzer.h"
 #include "adx_datadump_server.h"
 #include "common/checker.h"
+#include "acl/acl_rt.h"
 #include "common/dump/dump_properties.h"
 #include "common/dump/dump_manager.h"
 #include "framework/common/util.h"
@@ -212,7 +213,7 @@ Status InnerSession::Initialize() {
   UpdateGlobalSessionContext();
   GetThreadLocalContext().SetGraphOption({});
   SetSessionDeviceId();
-  GE_CHK_STATUS_RET(rtSetDevice(static_cast<int32_t>(GetContext().DeviceId())), "Set device failed.");
+  GE_CHK_STATUS_RET(aclrtSetDevice(static_cast<int32_t>(GetContext().DeviceId())), "Set device failed.");
 
   ModelHelper model_helper;
   GE_CHK_STATUS_RET(model_helper.GetHardwareInfo(options_), "[Get][Hardware]InnerSession Initialize: Get hardware info failed.");
@@ -259,7 +260,7 @@ Status InnerSession::Finalize() {
   // release analyzer saved info(Session Level)
   Analyzer::GetInstance()->DestroySessionJsonObject(session_id_);
 
-  GE_CHK_RT(rtDeviceReset(static_cast<int32_t>(GetContext().DeviceId())));
+  GE_CHK_RT(aclrtResetDevice(static_cast<int32_t>(GetContext().DeviceId())));
   GE_CHK_STATUS_RET(RemoveDumpProperties(), "[Remove][DumpProperties] failed.");
   VarManagerPool::Instance().RemoveVarManager(session_id_);
   SessionMemAllocator<ExpandableActiveMemoryAllocator>::Instance().RemoveAllocator(session_id_);

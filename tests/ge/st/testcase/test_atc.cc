@@ -166,6 +166,7 @@ TEST_F(AtcCommonSTest, pb_model_status_check_error) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpa>());
   auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
   EXPECT_EQ(ret, -1);
+  MmpaStub::GetInstance().Reset();
   ReInitGe(); // the main_impl will call GEFinalize, so re-init after call it
 }
 
@@ -1120,6 +1121,27 @@ TEST_F(AtcCommonSTest, mindspore_model_common) {
     EXPECT_TRUE(is_origin_format_set);
     EXPECT_EQ(origin_shape.GetDims(), std::vector<int64_t>({1,2,3,4,5}));
   };
+}
+
+TEST_F(AtcCommonSTest, TestAtc_Ok_MindsporeModelWithRefData) {
+  auto om_path = PathJoin(GetRunPath().c_str(), "temp");
+  Mkdir(om_path.c_str());
+  om_path = PathJoin(om_path.c_str(), "ms_1");
+  auto path = ModelFactory::GenerateModel_refdata(false, false);
+  std::string model_arg = "--model="+path;
+  std::string output_arg = "--output="+om_path;
+  char *argv[] = {"atc",
+                  const_cast<char *>(model_arg.c_str()),
+                  const_cast<char *>(output_arg.c_str()),
+                  "--framework=1", // FrameworkType
+                  "--soc_version=Ascend310P",
+                  "--status_check=0",
+                  "--host_env_os=linux",
+                  "--host_env_cpu=x86_64"
+                  };
+  DUMP_GRAPH_WHEN("PreRunBegin")
+  auto ret = main_impl(sizeof(argv)/sizeof(argv[0]), argv);
+  EXPECT_EQ(ret, 0);
 }
 
 /*

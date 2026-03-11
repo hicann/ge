@@ -16,6 +16,8 @@
 #include "common/subprocess/subprocess_manager.h"
 #include "deploy/flowrm/tsd_client.h"
 #include "deploy/deployer/deployer.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -153,7 +155,7 @@ Status FlowGwClient::ToVisibleDeviceId(const std::vector<int32_t> &logical_devic
                                        std::vector<int32_t> &visible_device_ids) {
   for (auto logical_device_id : logical_device_ids) {
     int32_t visible_device_id = logical_device_id;
-    GE_CHK_RT_RET(rtGetVisibleDeviceIdByLogicDeviceId(logical_device_id, &visible_device_id));
+    DF_CHK_ACL_RET(aclrtGetUserDevIdByLogicDevId(logical_device_id, &visible_device_id));
     visible_device_ids.emplace_back(visible_device_id);
   }
   return SUCCESS;

@@ -15,8 +15,6 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
-#include "runtime/kernel.h"
-#include "runtime/rt.h"
 #include "ge_running_env/fake_ns.h"
 #include "tests/depends/runtime/src/runtime_stub.h"
 

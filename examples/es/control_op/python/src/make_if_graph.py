@@ -105,7 +105,7 @@ def run_graph(graph) -> None:
         ret = session.run_graph(graph_id, inputs)
         print("[Info] 图运行成功！")
         for idx, tensor in enumerate(ret, start=1):
-            print(f"Tensor{idx}详情：", {tensor})
+            print(f"Tensor{idx}详情：{tensor}")
         return 0
 
     except Exception as e:

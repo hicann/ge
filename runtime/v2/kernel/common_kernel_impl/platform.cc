@@ -13,6 +13,7 @@
 #include "framework/common/helper/model_helper.h"
 #include "register/kernel_registry.h"
 #include "register/core_num_utils.h"
+#include "acl/acl_rt.h"
 
 namespace gert {
 namespace kernel {
@@ -93,7 +94,7 @@ ge::graphStatus AppendCoreTypeToPlatform(KernelContext *context) {
 
   if (is_op_core_num_set) {
     int32_t device_id = -1;
-    GE_CHK_RT_RET(rtGetDevice(&device_id));
+    GE_CHK_RT_RET(aclrtGetDevice(&device_id));
     fe::PlatFormInfos platform_infos_bak;
     GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(
                    static_cast<uint32_t>(device_id), platform_infos_bak, true) == 0,

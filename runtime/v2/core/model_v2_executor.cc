@@ -28,6 +28,7 @@
 #include "subscriber/profiler/cann_profiler_v2.h"
 #include "framework/runtime/model_rt_var_manager.h"
 #include "graph/manager/session_id_manager.h"
+#include "acl/acl_rt.h"
 
 namespace gert {
 namespace {
@@ -124,7 +125,7 @@ ge::graphStatus ModelV2Executor::OccupyStreamResource(const ModelExecuteArg &arg
   GE_ASSERT_NOTNULL(events, "Failed to prepare reusable events, num %zu. Maybe events not enough on device",
                     model_desc_->GetReusableEventNum());
   int32_t device_id = 0;
-  GE_ASSERT_RT_OK(rtGetDevice(&device_id));
+  GE_ASSERT_RT_OK(aclrtGetDevice(&device_id));
   notifies = notifyAllocator->AcquireNotifies(device_id, model_desc_->GetReusableNotifyNum());
   GE_ASSERT_NOTNULL(notifies, "Failed to prepare reusable notifies, num %zu. Maybe notifies not enough on device",
                     model_desc_->GetReusableNotifyNum());

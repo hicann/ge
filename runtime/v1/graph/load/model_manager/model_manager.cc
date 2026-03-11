@@ -36,6 +36,7 @@
 #include "common/kernel_handles_manager/kernel_handle_utils.h"
 #include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 #include "common/kernel_handles_manager/aicpu_kernel_handles_manager.h"
+#include "acl/acl_rt.h"
 
 namespace ge {
 namespace {
@@ -507,7 +508,7 @@ Status ModelManager::DestroyAicpuSessionForDevice(const uint64_t session_id,
   GELOGI("DestroyAicpuSession device id:%u", device_id);
   if (need_set_device) {
     GELOGI("Set device %u.", device_id);
-    GE_CHK_RT_RET(rtSetDevice(static_cast<int32_t>(device_id)));
+    GE_CHK_RT_RET(aclrtSetDevice(static_cast<int32_t>(device_id)));
   }
 
   const auto ret = KernelLaunchEx(aicpu::FWKAdapter::FWKOperateType::FWK_ADPT_SESSION_DESTROY, session_id, 0U, 0U);
@@ -517,7 +518,7 @@ Status ModelManager::DestroyAicpuSessionForDevice(const uint64_t session_id,
 
   if (need_set_device) {
     GELOGI("Reset device %u.", device_id);
-    GE_CHK_RT_RET(rtDeviceReset(static_cast<int32_t>(device_id)));
+    GE_CHK_RT_RET(aclrtResetDevice(static_cast<int32_t>(device_id)));
   }
   return ret;
 }
@@ -840,7 +841,7 @@ std::shared_ptr<DavinciModel> ModelManager::GetModel(const uint32_t id) {
 Status ModelManager::RecoverAllModel(const int32_t device_id) {
   // 校验device_id是否正确
   int32_t current_device_id = -1;
-  GE_ASSERT_RT_OK(rtGetDevice(&current_device_id));
+  GE_ASSERT_RT_OK(aclrtGetDevice(&current_device_id));
   GE_ASSERT_TRUE(current_device_id == device_id);
   const std::lock_guard<std::recursive_mutex> lk(map_mutex_);
 
@@ -895,9 +896,9 @@ Status ModelManager::SyncExecuteModel(const uint32_t model_id, const std::vector
   const auto &model = GetModel(model_id);
   GE_CHECK_NOTNULL(model);
   const auto device_id = model->GetDeviceId();
-  GE_CHK_RT_RET(rtSetDevice(static_cast<int32_t>(device_id)));
+  GE_CHK_RT_RET(aclrtSetDevice(static_cast<int32_t>(device_id)));
   GE_MAKE_GUARD(reset_device, [device_id]() {
-    GE_CHK_RT(rtDeviceReset(static_cast<int32_t>(device_id)));
+    GE_CHK_RT(aclrtResetDevice(static_cast<int32_t>(device_id)));
   });
   GE_CHK_STATUS_RET(model->NnExecute(nullptr, false, inputs, outputs));
   GELOGI("Execute model %u success, device id is %d.", model_id, device_id);
@@ -1429,7 +1430,7 @@ Status ModelManager::LoadModelOffline(const ModelData &model, const ModelParam &
   GE_CHK_STATUS_RET(FileConstantUtils::RefreshRelativePath(model_helper.GetGeRootModel()->GetRootGraph()),
                     "Failed to refresh relative path, model_id:%u.", model_id);
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   (void)MsprofSetDeviceIdByGeModelIdx(model_id, static_cast<uint32_t>(device_id));
   /// In multi-threaded inference,  using the same session_id among multiple threads may cause some threads to fail.
   /// These session_ids come from the same model, so the values of session_id are the same.
@@ -1580,7 +1581,7 @@ Status ModelManager::LoadModelWithQueueParam(uint32_t &model_id,
   GenModelId(model_id);
   davinci_model->SetId(model_id);
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   GELOGD("Get device_id %d success", device_id);
   davinci_model->SetDeviceId(static_cast<uint32_t>(device_id));
   ret = davinci_model->SetQueIds(model_queue_param.input_queues_attrs, model_queue_param.output_queues_attrs);
@@ -1654,7 +1655,7 @@ Status ModelManager::LoadModelWithoutQ(uint32_t &model_id, const GeRootModelPtr 
   davinci_model->SetDumpProperties(dump_properties_);
   davinci_model->SetNeedModelConfig(true);
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   GELOGD("Get device_id %d success", device_id);
   davinci_model->SetDeviceId(static_cast<uint32_t>(device_id));
   GE_CHK_STATUS_RET(davinci_model->InitSpaceRegistry(root_model), "Get space registry failed!");
@@ -1893,7 +1894,7 @@ Status ModelManager::CreateAicpuSession(const uint64_t session_id) {
   const std::lock_guard<std::recursive_mutex> lk(map_mutex_);
   auto &device_ids = sess_id_to_device_ids_[session_id];
   int32_t device_id = 0;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   GELOGI("CreateAicpuSession device id:%d", device_id);
   const auto &it = device_ids.find(static_cast<uint32_t>(device_id));
   // never been created by any model
@@ -2384,9 +2385,9 @@ Status ModelManager::SyncExecuteHybridModel(const uint32_t model_id, const std::
   const auto &model = GetHybridModel(model_id);
   GE_ASSERT_NOTNULL(model);
   const auto device_id = model->GetDeviceId();
-  GE_CHK_RT_RET(rtSetDevice(static_cast<int32_t>(device_id)));
+  GE_CHK_RT_RET(aclrtSetDevice(static_cast<int32_t>(device_id)));
   GE_MAKE_GUARD(reset_device, [device_id]() {
-    GE_CHK_RT(rtDeviceReset(static_cast<int32_t>(device_id)));
+    GE_CHK_RT(aclrtResetDevice(static_cast<int32_t>(device_id)));
   });
   return model->Execute(inputs, outputs);
 }
@@ -2735,14 +2736,14 @@ Status ModelManager::UnloadTaskForDavinciModel(const DumpProperties &dump_proper
     const auto davinci_model = model.second;
     int32_t device_id = 0;
     bool is_set = false;
-    if ((rtGetDevice(&device_id) != RT_ERROR_NONE) || (device_id < 0)) {
+    if ((aclrtGetDevice(&device_id) != ACL_SUCCESS) || (device_id < 0)) {
       device_id = static_cast<int32_t>(davinci_model->GetDeviceId());
-      GE_CHK_RT_RET(rtSetDevice(device_id));
+      GE_CHK_RT_RET(aclrtSetDevice(device_id));
       is_set = true;
     }
     davinci_model->UnloadDumpInfo();
     if (is_set) {
-      GE_CHK_RT(rtDeviceReset(device_id));
+      GE_CHK_RT(aclrtResetDevice(device_id));
     }
   }
   return SUCCESS;

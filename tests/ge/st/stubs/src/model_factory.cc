@@ -403,6 +403,41 @@ const std::string &ge::ModelFactory::GenerateModel_data_to_netoutput(bool is_dyn
   return SaveAsModel(name, ToGeGraph(dynamic_op), with_fusion);
 }
 
+const std::string &ge::ModelFactory::GenerateModel_refdata(bool is_dynamic, const bool with_fusion) {
+  (void)is_dynamic;
+  (void)with_fusion;
+  const std::string name = "ms_ref_data" + std::to_string(is_dynamic);
+  RETURN_WHEN_FOUND(name);
+
+  std::vector<int64_t> shape = {2, 2, 3, 2};  // HWCN
+  auto data_tensor = GenerateTensor(shape);
+
+  DEF_GRAPH(dynamic_op) {
+    auto ref_data1 = OP_CFG(REFDATA)
+                         .Attr(ATTR_NAME_INDEX, 1)
+                         .InCnt(1)
+                         .OutCnt(1)
+                         .TensorDesc(FORMAT_NCHW, DT_FLOAT, {2, 3, 16, 16})
+                         .Build("ref_data1");
+
+    auto data1 = OP_CFG(DATA)
+                     .Attr(ATTR_NAME_INDEX, 0)
+                     .InCnt(1)
+                     .OutCnt(1)
+                     .TensorDesc(FORMAT_NCHW, DT_FLOAT, {2, 3, 16, 16})
+                     .Build("data1");
+
+    auto add1 = OP_CFG(ADD).InCnt(2).OutCnt(1).TensorDesc(FORMAT_NCHW, DT_FLOAT, {2, 3, 16, 16}).Build("add1");
+
+    auto netoutput1 = OP_CFG(NETOUTPUT).InCnt(1).OutCnt(1).Build("netoutput1");
+
+    CHAIN(NODE(ref_data1)->NODE(add1)->NODE(netoutput1));
+    CHAIN(NODE(data1)->EDGE(0, 1)->NODE(add1)->NODE(netoutput1));
+  };
+
+  return SaveAsModel(name, ToGeGraph(dynamic_op), with_fusion);
+}
+
 
 const std::string &ModelFactory::SaveAsModel(const string &name, const Graph &graph, const bool with_fusion) {
   Model model;

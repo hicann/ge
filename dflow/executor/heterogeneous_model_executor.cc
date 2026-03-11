@@ -20,7 +20,6 @@
 #include "framework/common/types.h"
 #include "framework/common/runtime_tensor_desc.h"
 #include "common/model/ge_root_model.h"
-#include "rt_error_codes.h"
 #include "graph/ge_context.h"
 #include "graph/utils/op_type_utils.h"
 #include "proto/task.pb.h"
@@ -28,6 +27,7 @@
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "data_flow_executor_utils.h"
+#include "acl/acl.h"
 
 namespace ge {
 namespace {

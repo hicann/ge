@@ -492,7 +492,7 @@ ge::Status GlobalProfilingWrapper::ReportTaskMemoryInfo(const std::string &model
   auto memory_info_data = reinterpret_cast<MsprofMemoryInfo *>(task_memory_info.data);
   memory_info_data->nodeId = MsprofGetHashId(model_name.c_str(), model_name.size());
   int32_t device_id = 0;
-  (void)rtGetDevice(&device_id);
+  (void)aclrtGetDevice(&device_id);
   memory_info_data->deviceId = static_cast<uint32_t>(device_id);
   memory_info_data->deviceType = 0U;
   while (!DeviceMemoryRecorder::IsRecorderEmpty()) {

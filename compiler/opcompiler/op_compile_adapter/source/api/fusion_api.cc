@@ -440,14 +440,12 @@ extern "C" OpBuildResCode TeFusionV(std::vector<ge::Node *> teGraphNode, ge::OpD
 extern "C" bool WaitAllFinished(uint64_t graphId, vector<FinComTask> &tasks)
 {
     const std::lock_guard<std::mutex> fusionMgrLock(TeFusionManager::mtx_);
-    vector<FinComTask> tasksBeforeReport;
-
     TeFusionManager *pInstance = TeFusionManager::GetInstance();
     if (pInstance == nullptr) {
         TE_WARNLOG("Wrong WaitAllFinished call. graphId[%lu]", graphId);
         return true;
     }
-    bool needRecordLog = pInstance->UpdateInhibitionInfoForLog(graphId);
+    bool needRecordLog = pInstance->UpdateInhibitionInfoForLog();
     if (needRecordLog) {
         TE_DBGLOG("GraphId[%ld] get TeFusionManager lock", graphId);
     }
@@ -481,7 +479,7 @@ extern "C" bool WaitAllFinished(uint64_t graphId, vector<FinComTask> &tasks)
                     return false;
                 });
             }
-            tasksBeforeReport.push_back(finComTaskItem);
+            tasks.push_back(finComTaskItem);
             TE_DBGLOG("Get finished task[%lu:%lu] status[%s] from FinishedTask", finComTaskItem.graphId,
                       finComTaskItem.taskId, (finComTaskItem.status == 0) ? "success" : "unsuccess");
             if (!tmpBuildTaskPtr->superKernelUniqueKey.empty()) {
@@ -492,10 +490,9 @@ extern "C" bool WaitAllFinished(uint64_t graphId, vector<FinComTask> &tasks)
 
         pInstance->finishedTask_.erase(cashedCompilTaskItr);
     } else {
-        res = UpdateFinComTaskListFromPy(pInstance, needRecordLog, graphId, tasksBeforeReport);
+        res = UpdateFinComTaskListFromPy(pInstance, needRecordLog, graphId, tasks);
     }
 
-    pInstance->ReportTaskAndRemoveDup(tasks, tasksBeforeReport);
     return res;
 }
 

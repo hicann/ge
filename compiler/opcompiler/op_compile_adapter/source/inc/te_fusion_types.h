@@ -172,12 +172,6 @@ struct CheckNodeInfo {
     CheckNodeInfo() : scopeId(0) {}
 };
 
-struct LogInhibitionInfo {
-    size_t dispatchedTasks;
-    size_t finishedTasks;
-    std::time_t lastTime;
-};
-
 enum class NullType {
     NORMAL, // default
     SINGLE_VALUE, // a nan/inf/-inf

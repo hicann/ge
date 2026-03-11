@@ -51,6 +51,7 @@ target_include_directories(npu_sched_model_loader PRIVATE
         ${TOP_DIR}/runtime/include/external
         ${TOP_DIR}/runtime/include/external/acl
         ${TOP_DIR}/runtime/include/external/acl/error_codes
+        ${AIR_CODE_DIR}/dflow/inc/data_flow
         .
         )
 
@@ -83,6 +84,7 @@ target_link_libraries(npu_sched_model_loader PRIVATE
         dl
         -Wl,--as-needed
         data_flow_base
+        acl_rt
         )
 
 ########################################## libmodel_deployer #################################
@@ -182,6 +184,7 @@ target_include_directories(model_deployer PRIVATE
         ${TOP_DIR}/runtime/include/external
         ${TOP_DIR}/runtime/include/external/acl
         ${TOP_DIR}/runtime/include/external/acl/error_codes
+        ${AIR_CODE_DIR}/dflow/inc/data_flow
         .
         )
 
@@ -203,7 +206,7 @@ target_link_options(model_deployer PRIVATE
 
 target_link_libraries(model_deployer PRIVATE
         intf_pub
-        ascendcl
+        acl_rt
         msprof_headers
         cce_headers
         datagw_headers
@@ -263,6 +266,7 @@ target_include_directories(deployer_daemon_static PUBLIC
         ${AIR_CODE_DIR}/inc/graph_metadef
         ${DEPLOYER_DAEMON_INC_LIST}
         ${METADEF_DIR}/pkg_inc
+        ${AIR_CODE_DIR}/dflow/inc/data_flow
         )
 
 target_link_libraries(deployer_daemon_static PRIVATE
@@ -335,6 +339,8 @@ target_link_libraries(deployer_daemon PRIVATE
         data_flow_base
         model_deployer
         ge_executor_shared
+        acl_rt
+        acl_mdl
         -Wl,--as-needed
         json
         -Wl,--whole-archive
@@ -358,6 +364,7 @@ set(NPU_EXECUTOR_INC_LIST
         ${AIR_CODE_DIR}/inc/external
         ${AIR_CODE_DIR}/runtime/v2
         ${AIR_CODE_DIR}/compiler
+        ${AIR_CODE_DIR}/dflow/inc/data_flow
         .
         ${CMAKE_BINARY_DIR}/proto/graphengine_protos
         ${CMAKE_BINARY_DIR}/proto/graphengine_protos/proto
@@ -509,6 +516,7 @@ set(HOST_CPU_EXECUTOR_INC_LIST
         ${AIR_CODE_DIR}/inc/external
         ${AIR_CODE_DIR}/runtime/v2
         ${AIR_CODE_DIR}/compiler
+        ${AIR_CODE_DIR}/dflow/inc/data_flow
         .
         ${CMAKE_BINARY_DIR}/proto/graphengine_protos
         ${CMAKE_BINARY_DIR}/proto/graphengine_protos/proto

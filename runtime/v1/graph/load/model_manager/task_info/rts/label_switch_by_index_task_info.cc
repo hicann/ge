@@ -9,7 +9,7 @@
  */
 
 #include "graph/load/model_manager/task_info/rts/label_switch_by_index_task_info.h"
-
+#include "acl/acl_rt.h"
 #include "common/checker.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "graph/load/model_manager/model_utils.h"

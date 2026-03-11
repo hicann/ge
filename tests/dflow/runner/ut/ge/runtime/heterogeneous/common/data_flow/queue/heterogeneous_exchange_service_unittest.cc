@@ -21,10 +21,9 @@
 #include "macro_utils/dt_public_unscope.h"
 
 #include "framework/common/ge_inner_error_codes.h"
-#include "runtime/rt_mem_queue.h"
+#include "depends/runtime/src/runtime_stub.h"
 #include "framework/common/runtime_tensor_desc.h"
 #include "graph/ge_local_context.h"
-#include "rt_error_codes.h"
 #include "common/util/sanitizer_options.h"
 #include "graph_metadef/common/ge_common/util.h"
 

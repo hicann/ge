@@ -105,6 +105,8 @@ struct ShareGraph {
   static ge::ComputeGraphPtr LoadCompareScalarWhereFusedGraph();
   static ge::ComputeGraphPtr LoadCompareWhereFusedGraph();
   static ge::ComputeGraphPtr BinaryApiScalarFusedGraph();
+  static ge::ComputeGraphPtr AcosFloatFusedGraph(size_t dims_size);
+  static ge::ComputeGraphPtr AcosBf16FusedGraph(size_t dims_size);
 };
 }  // namespace ascir
 #endif

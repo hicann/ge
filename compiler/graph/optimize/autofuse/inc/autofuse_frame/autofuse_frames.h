@@ -26,8 +26,7 @@ extern "C" {
 class Counter;
 using CounterPtr = Counter*;
 ge::Status LoweringAndCanFuse(const ge::ComputeGraphPtr &graph);
-ge::Status LoweringAndCanFuseWithCounter(const ge::ComputeGraphPtr &graph, CounterPtr counter,
-                                         const GraphPasses &graph_passes = {});
+ge::Status LoweringAndCanFuseWithCounter(const ge::ComputeGraphPtr &graph, CounterPtr counter);
 }
 class Counter {
  public:

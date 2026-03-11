@@ -27,6 +27,8 @@
 #include "common/utils/rts_api_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph_metadef/graph/utils/file_utils.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -842,7 +844,7 @@ Status DeployContext::UnloadSubmodels(uint32_t root_model_id) {
     std::vector<std::future<Status>> fut_rets;
     for (auto &executor_key : it->second) {
       auto fut = pool.commit([this, &executor_key, root_model_id]() -> Status {
-        GE_CHK_RT_RET(rtSetDevice(executor_key.device_id));
+        DF_CHK_ACL_RET(aclrtSetDevice(executor_key.device_id));
         GE_CHK_STATUS_RET(UnloadSubmodelsFromExecutor(executor_key, root_model_id), "Failed to unload submodel.");
         return SUCCESS;
       });

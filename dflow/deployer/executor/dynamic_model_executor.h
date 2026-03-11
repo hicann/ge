@@ -22,8 +22,8 @@
 #include "common/ge_common/ge_types.h"
 #include "acl/acl_mdl.h"
 #include "acl/acl_rt.h"
+// for rtMbufPtr_t
 #include "runtime/rt.h"
-#include "rt_error_codes.h"
 
 namespace ge {
 class DynamicModelExecutor {
@@ -132,13 +132,13 @@ class DynamicModelExecutor {
   std::vector<bool> is_output_dynamic_;
   uint32_t model_id_ = UINT32_MAX;
   uint32_t aicpu_model_id_ = UINT32_MAX;
-  rtModel_t aicpu_model_handle_ = nullptr;
-  rtStream_t aicpu_stream_ = nullptr;
+  aclmdlRI aicpu_model_handle_ = nullptr;
+  aclrtStream aicpu_stream_ = nullptr;
   int32_t aicpu_stream_id_ = -1;
   int32_t device_id_ = 0;
   bool is_host_ = false;
-  rtStream_t stream_ = nullptr;
-  rtContext_t rt_context_ = nullptr;
+  aclrtStream stream_ = nullptr;
+  aclrtContext rt_context_ = nullptr;
   CpuSchedModel model_;
   std::map<uint32_t, NamedAttrs> align_attrs_;
   uint64_t global_step_ = 0UL;

@@ -30,6 +30,7 @@
 #include "host_cpu_engine/host_cpu_engine.h"
 #include "engines/manager/opskernel_manager/ops_kernel_builder_manager.h"
 #include "register/core_num_utils.h"
+#include "acl/acl_rt.h"
 
 namespace ge {
 namespace {
@@ -292,7 +293,7 @@ Status GELib::SystemInitialize(const std::map<std::string, std::string> &options
   if (is_train_mode_ || (device_id_ != kDefaultDeviceIdForInfer)) {
     mode = is_train_mode_ ? "Training" : "Online infer";
     GetContext().SetCtxDeviceId(static_cast<uint32_t>(device_id_));
-    GE_CHK_STATUS_RET(rtSetDevice(device_id_));
+    GE_CHK_STATUS_RET(aclrtSetDevice(device_id_));
   }
 
   is_system_inited = true;
@@ -309,7 +310,7 @@ Status GELib::SystemFinalize() {
   std::string mode = "Infer";
   if (is_train_mode_ || (device_id_ != kDefaultDeviceIdForInfer)) {
     mode = is_train_mode_ ? "Training" : "Online infer";
-    GE_CHK_RT(rtDeviceReset(device_id_));
+    GE_CHK_RT(aclrtResetDevice(device_id_));
   }
 
   is_system_inited = false;

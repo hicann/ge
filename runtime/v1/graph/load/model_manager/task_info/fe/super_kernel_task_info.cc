@@ -192,7 +192,7 @@ Status SuperKernelV2TaskInfo::Distribute() {
   args_ex_.isNoNeedH2DCopy = 1U;
   cfg_.dumpflag = dump_flag_;
   cfg_.localMemorySize = local_memory_size_;
-  
+
   LaunchKernelParam launch_kernel_param;
   launch_kernel_param.args = args_;
   launch_kernel_param.args_size = args_size_;

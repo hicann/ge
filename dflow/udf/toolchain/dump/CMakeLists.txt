@@ -11,7 +11,7 @@ set(proto_src_files
     ${CMAKE_CURRENT_SOURCE_DIR}/../../proto/ff_dump_data.proto
 )
 
-protobuf_generate(dumpdata PROTO_SRCS PROTO_HDRS ${proto_src_files})
+protobuf_generate(dumpdata PROTO_SRCS PROTO_HDRS ${proto_src_files} TARGET)
 
 set(src_device
     udf_dump_task_device.cpp

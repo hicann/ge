@@ -16,9 +16,7 @@
 #include "dflow/base/exec_runtime/execution_runtime.h"
 #include "framework/common/debug/log.h"
 #include "framework/common/ge_inner_error_codes.h"
-#include "runtime/rt_mem_queue.h"
 #include "common/utils/bind_cpu_utils.h"
-#include "rt_error_codes.h"
 #include "common/utils/rts_api_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "common/util/mem_utils.h"
@@ -26,6 +24,9 @@
 #include "common/utils/heterogeneous_profiler.h"
 #include "common/checker.h"
 #include "graph_metadef/common/ge_common/util.h"
+
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -97,7 +98,7 @@ Status HeterogeneousExchangeService::Finalize() {
   client_queue_ids_.clear();
   std::lock_guard<std::mutex> ctx_lk(ctx_mu_);
   if (rt_context_ != nullptr) {
-    (void) rtCtxDestroy(rt_context_);
+    (void) aclrtDestroyContext(rt_context_);
     rt_context_ = nullptr;
   }
   return SUCCESS;
@@ -336,7 +337,7 @@ Status HeterogeneousExchangeService::CreateQueue(const int32_t device_id,
 Status HeterogeneousExchangeService::DestroyQueue(int32_t device_id, uint32_t queue_id) {
   GELOGD("[DestroyQueue] start, device id = %d, queue_id = %u", device_id, queue_id);
   // fix runtime context invalid
-  (void)rtSetDevice(device_id);
+  (void)aclrtSetDevice(device_id);
   auto ret = rtMemQueueDestroy(device_id, queue_id);
   if (ret != RT_ERROR_NONE) {
     REPORT_INNER_ERR_MSG("E19999", "Call rtMemQueueDestroy fail, ret: 0x%X", static_cast<uint32_t>(ret));
@@ -739,23 +740,23 @@ Status HeterogeneousExchangeService::UpdateTensorDesc(const RuntimeTensorDesc &r
   return SUCCESS;
 }
 
-Status HeterogeneousExchangeService::GetOrCreateRtCtx(rtContext_t &ctx, int32_t device_id) {
+Status HeterogeneousExchangeService::GetOrCreateRtCtx(aclrtContext &ctx, int32_t device_id) {
   std::lock_guard<std::mutex> lk(ctx_mu_);
   if (rt_context_ == nullptr) {
-    GE_CHK_RT(rtCtxCreate(&rt_context_, RT_CTX_NORMAL_MODE, device_id));
+    DF_CHK_ACL(aclrtCreateContext(&rt_context_, device_id));
   }
   ctx = rt_context_;
   return SUCCESS;
 }
 
 Status HeterogeneousExchangeService::AllocAlignedBuffer(const size_t buffer_size, uint8_t *&aligned_ptr, int32_t device_id) {
-  rtContext_t ctx = nullptr;
-  (void)rtCtxGetCurrent(&ctx);
+  aclrtContext ctx = nullptr;
+  (void)aclrtGetCurrentContext(&ctx);
   if (ctx == nullptr) {
     GE_CHK_STATUS_RET(GetOrCreateRtCtx(ctx, device_id), "Failed to get rt context.");
-    GE_CHK_RT_RET(rtCtxSetCurrent(ctx));
+    DF_CHK_ACL_RET(aclrtSetCurrentContext(ctx));
   }
-  GE_CHK_RT_RET(rtMallocHost(reinterpret_cast<void **>(&aligned_ptr), buffer_size, GE_MODULE_NAME_U16));
+  DF_CHK_ACL_RET(aclrtMallocHost(reinterpret_cast<void **>(&aligned_ptr), buffer_size));
   return SUCCESS;
 }
 
@@ -783,7 +784,7 @@ Status HeterogeneousExchangeService::ProcessDequeueBuffTensor(int32_t device_id,
   GE_CHK_STATUS_RET(AllocAlignedBuffer(data_buffer_size, aligned_ptr, device_id), "Failed to alloc buffer");
   auto deleter = [aligned_ptr](const uint8_t *ptr) {
     (void) ptr;
-    GE_CHK_RT(rtFreeHost(aligned_ptr));
+    DF_CHK_ACL(aclrtFreeHost(aligned_ptr));
   };
   RuntimeTensorDesc *const tensor_desc = PtrToPtr<uint8_t, RuntimeTensorDesc>(aligned_ptr);
   *tensor_desc = {};

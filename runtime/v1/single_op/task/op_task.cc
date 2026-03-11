@@ -86,7 +86,7 @@ Status OpTask::SaveExceptionDumpInfo() {
     gert::PrintHex(reinterpret_cast<void **>(extra_op_info.args), extra_op_info.args_size / sizeof(void *), ss);
     extra_op_info.args_before_execute = ss.str();
     int32_t dev_id = 0;
-    GE_CHK_RT_RET(rtGetDevice(&dev_id));
+    GE_CHK_RT_RET(aclrtGetDevice(&dev_id));
     ge::OpDescInfoId id(task_id_, stream_id_, dev_id);
     gert::GlobalDumper::GetInstance()->MutableExceptionDumper()->SaveDumpOpInfo(op_desc_, extra_op_info, id, true);
   }
@@ -1158,10 +1158,10 @@ Status AiCpuBaseTask::UpdateIoAddr(const std::vector<DataBuffer> &inputs, const 
 
 Status AiCpuBaseTask::CheckDeviceSupportBlockingAicpuOpProcess(bool &is_support) const {
   int32_t device_id = 0;
-  auto rt_ret = rtGetDevice(&device_id);
-  if (rt_ret != RT_ERROR_NONE) {
-    REPORT_INNER_ERR_MSG("E19999", "Call rtGetDevice failed, ret:%d", rt_ret);
-    GELOGE(RT_FAILED, "[Call][rtGetDevice] failed, ret:%d", rt_ret);
+  auto rt_ret = aclrtGetDevice(&device_id);
+  if (rt_ret != ACL_SUCCESS) {
+    REPORT_INNER_ERR_MSG("E19999", "Call aclrtGetDevice failed, ret:%d", rt_ret);
+    GELOGE(RT_FAILED, "[Call][aclrtGetDevice] failed, ret:%d", rt_ret);
     return RT_ERROR_TO_GE_STATUS(rt_ret);
   }
   int32_t value = 0;

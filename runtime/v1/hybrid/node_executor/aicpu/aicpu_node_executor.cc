@@ -359,10 +359,10 @@ Status AicpuNodeTaskBase::UpdateEventIdForBlockingAicpuOp() {
 
 Status AicpuNodeTaskBase::CheckDeviceSupportBlockingAicpuOpProcess(bool &is_support) const {
   int32_t device_id = 0;
-  auto rt_ret = rtGetDevice(&device_id);
+  auto rt_ret = aclrtGetDevice(&device_id);
   if (rt_ret != RT_ERROR_NONE) {
-    REPORT_INNER_ERR_MSG("E19999", "Call rtGetDevice failed, ret:%d", rt_ret);
-    GELOGE(RT_FAILED, "[Call][RtGetDevice] failed, ret:%d", rt_ret);
+    REPORT_INNER_ERR_MSG("E19999", "Call aclrtGetDevice failed, ret:%d", rt_ret);
+    GELOGE(RT_FAILED, "[Call][aclrtGetDevice] failed, ret:%d", rt_ret);
     return RT_ERROR_TO_GE_STATUS(rt_ret);
   }
   int32_t value = 0;

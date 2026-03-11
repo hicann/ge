@@ -41,6 +41,7 @@
 #include "mmpa/mmpa_api.h"
 #include "aprof_pub.h"
 #include "framework/runtime/subscriber/global_dumper.h"
+#include "acl/acl_rt.h"
 
 namespace ge {
 constexpr uint32_t kHostMemType = 1U;

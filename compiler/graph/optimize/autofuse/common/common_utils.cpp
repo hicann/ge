@@ -75,7 +75,7 @@ std::string GenValidName(const std::string& t_name) {
       result = result.substr(1);
   }
 
-  if (std::isdigit(result[0]) != 0) {
+  if (!result.empty() && std::isdigit(result[0]) != 0) {
     result = "t_" + result;
   }
   return result;

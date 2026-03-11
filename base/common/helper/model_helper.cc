@@ -40,6 +40,7 @@
 #include "ge_context.h"
 #include "common/opskernel/ops_kernel_info_types.h"
 #include "register/core_num_utils.h"
+#include "acl/acl_rt.h"
 
 namespace {
 constexpr uint32_t kOriginalOmPartitionNum = 1U;
@@ -1555,7 +1556,7 @@ Status ModelHelper::GetBaseNameFromFileName(const std::string &file_name, std::s
 
 Status ModelHelper::GetHardwareInfo(std::map<std::string, std::string> &options) const {
   int32_t device_id = -1;
-  (void)rtGetDevice(&device_id);
+  (void)aclrtGetDevice(&device_id);
 
   const auto iter = options.find(SOC_VERSION);
   GE_ASSERT_TRUE(iter != options.end());
@@ -1588,7 +1589,7 @@ Status ModelHelper::GetHardwareInfo(std::map<std::string, std::string> &options)
 
 Status ModelHelper::InitRuntimePlatform() {
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   // init platform info
   char_t soc_version[kSocVersionLen] = {};
   GE_ASSERT_RT_OK(rtGetSocVersion(soc_version, static_cast<uint32_t>(sizeof(soc_version))));
@@ -1639,7 +1640,7 @@ Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos) const {
 Status ModelHelper::HandleDeviceInfo(fe::PlatFormInfos &platform_infos, fe::PlatformInfo &origin_platform_info) const {
   GELOGD("Begin to handle device info.");
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
 
   char_t soc_version[kSocVersionLen] = {0};
   GE_CHK_RT_RET(rtGetSocVersion(soc_version, kSocVersionLen));

@@ -482,8 +482,13 @@ ge::Status UpdateSwapPerf(const NodeDetail &node_info, const int32_t supported_m
 }
 
 // 获取dma参数，获取外派循环轴/使用的轴，支持根据内轴大小比较进行交换
+// need_swap=true 时的语义（与 codegen SetDmaParams/CreateDmaCallInner 对齐）：
+//   将倒数第(supported_max_dma_len+1)维换入，倒数第supported_max_dma_len维外抛
+//   used_dims = [倒数第(kMaxDmaLen+1)维, 倒数第(kMaxDmaLen-1)维, ..., 倒数第1维]
+//   例：dims=[A,B,C], kMaxDmaLen=2, swap=true
+//     used_dims=[A, C]（跳过B，外抛B），outer_repeat *= B
 ge::Status GetDmaParams(const vector<Expr> &dims, Expr &outer_repeat, vector<Expr> &used_dims,
-                        const int32_t supported_max_dma_len, bool need_swap = false) {
+                        const int32_t supported_max_dma_len, bool need_swap) {
   used_dims.clear();
   GE_ASSERT_TRUE(!dims.empty());
   if (static_cast<int32_t>(dims.size()) <= supported_max_dma_len) {
@@ -492,29 +497,30 @@ ge::Status GetDmaParams(const vector<Expr> &dims, Expr &outer_repeat, vector<Exp
     GELOGD("Got outer loop %s, used dims %s", outer_repeat.Serialize().get(), GetVecString(used_dims).c_str());
   } else {
     size_t dim_size = dims.size();
-    // [0, 1, 2_sw, 3_sw, 4, 5, 6]
-    // dim_size = 7
-    // supported_max_dma_len = 4
-    // need_swap = true
-    // used_dims = [3, 4, 5, 6]
-    // outer_repeat = 0 * 1 * 2
     outer_repeat = accumulate(dims.begin(), (dims.end() - supported_max_dma_len - 1), CreateExpr(1),
                               [](const Expr &a, const Expr &b) { return ge::sym::Mul(a, b); });
     size_t first_dim_index;
     if (need_swap) {
+      // 将倒数第(kMaxDmaLen+1)维换入 DMA，倒数第kMaxDmaLen维外抛
+      // used_dims = [dims[n-kMaxDmaLen-1], dims[n-kMaxDmaLen+1], ..., dims[n-1]]
       first_dim_index = dim_size - supported_max_dma_len - 1;
       used_dims.emplace_back(dims[first_dim_index]);
-      outer_repeat = outer_repeat * dims[dim_size - supported_max_dma_len];
+      outer_repeat = outer_repeat * dims[dim_size - supported_max_dma_len];  // 外抛倒数第kMaxDmaLen维
+      for (int32_t i = 2; i <= supported_max_dma_len; i++) {
+        used_dims.emplace_back(dims[first_dim_index + i]);  // 跳过 dims[first+1]（已外抛）
+      }
     } else {
       first_dim_index = dim_size - supported_max_dma_len;
       used_dims.emplace_back(dims[first_dim_index]);
       outer_repeat = outer_repeat * dims[first_dim_index - 1];
-    }
-    for (int32_t i = 1; i < supported_max_dma_len; i++) {
-      used_dims.emplace_back(dims[first_dim_index + i]);
+      for (int32_t i = 1; i < supported_max_dma_len; i++) {
+        used_dims.emplace_back(dims[first_dim_index + i]);
+      }
     }
 
-    GELOGD("Got dim outer loop %s, used dims %s", outer_repeat.Serialize().get(), GetVecString(used_dims).c_str());
+    GELOGD("[DMA_PARAMS] need_swap=%d, dim_size=%zu, kMaxDmaLen=%d, first_dim_index=%zu, used_dims=[%s], outer_repeat=%s",
+           need_swap, dim_size, supported_max_dma_len, first_dim_index,
+           GetVecString(used_dims).c_str(), outer_repeat.Str().get());
   }
   return ge::SUCCESS;
 }
@@ -672,8 +678,8 @@ StrideResult CalculateStride(const TensorShapeInfo &shape_info, const bool is_ub
     return result;
   }
   auto expr = ge::sym::Sub(filtered_strides[block_count_idx], filtered_repeats[filtered_dim_size - 1]);
-  GELOGD("%s, block_count_idx=%d, %s=[%s], need_swap=%d, actually_swap=%d, filtered_dim_size=%d",
-         node_info.ToString().c_str(), block_count_idx, stride_type, Str(expr).c_str(), need_swap, actually_swap,
+  GELOGD("[STRIDE_CALC] %s: %s, block_count_idx=%d, stride=%s, need_swap=%d, actually_swap=%d, filtered_dim_size=%d",
+         node_info.ToString().c_str(), stride_type, block_count_idx, Str(expr).c_str(), need_swap, actually_swap,
          filtered_dim_size);
   return StrideResult(expr, block_count_idx);
 }
@@ -931,14 +937,15 @@ ge::Status GetDmaPerf(const TensorShapeInfo &tensor_info, NodeDetail &node_info,
                       int32_t supported_max_dma_len, bool need_swap) {
   PerfOutputInfo non_swap_perf;
   vector<Expr> used_dims;
+  vector<Expr> swap_used_dims;  // 交换后的 used_dims，避免覆盖
   PerfOutputInfo swap_perf;
   Expr non_swap_outer_repeat;
   Expr swap_outer_repeat;
   non_swap_perf.cache_line_config = perf_res.cache_line_config;
   swap_perf.cache_line_config = perf_res.cache_line_config;
   const size_t dim_size = node_info.input_dims.size();
-  GELOGD("Begin to get dma perf, dim size [%zu], node name[%s], supported_max_dma_len[%d].", dim_size,
-         node_info.name.c_str(), supported_max_dma_len);
+  GELOGD("[DMA_PERF] %s: BEGIN GetDmaPerf, dim_size=%zu, input_dims=[%s], supported_max_dma_len=%d, need_swap=%d",
+         node_info.name.c_str(), dim_size, GetVecString(node_info.input_dims).c_str(), supported_max_dma_len, need_swap);
   if (static_cast<int32_t>(dim_size) <= supported_max_dma_len) {
     GE_ASSERT_SUCCESS(SetStride(tensor_info, node_info, supported_max_dma_len));
     GE_ASSERT_SUCCESS(GetDMAActualPerf(node_info, ge::sym::kSymbolOne, node_info.input_dims, non_swap_perf));
@@ -949,10 +956,13 @@ ge::Status GetDmaPerf(const TensorShapeInfo &tensor_info, NodeDetail &node_info,
     GE_ASSERT_SUCCESS(GetDMAActualPerf(node_info, non_swap_outer_repeat, used_dims, non_swap_perf));
     GELOGD("Perf without swap is [%s]", non_swap_perf.ToString().c_str());
     if (need_swap) {
-      GE_ASSERT_SUCCESS(GetDmaParams(node_info.input_dims, swap_outer_repeat, used_dims, supported_max_dma_len, true));
+      GELOGD("[DMA_PERF] %s: swap path start, swap_used_dims will be calculated", node_info.name.c_str());
+      GE_ASSERT_SUCCESS(GetDmaParams(node_info.input_dims, swap_outer_repeat, swap_used_dims, supported_max_dma_len, true));
       GE_ASSERT_SUCCESS(SetStride(tensor_info, node_info, supported_max_dma_len, true));
-      GE_ASSERT_SUCCESS(GetDMAActualPerf(node_info, swap_outer_repeat, used_dims, swap_perf));
-      GELOGD("Perf with swap is [%s]", swap_perf.ToString().c_str());
+      GE_ASSERT_SUCCESS(GetDMAActualPerf(node_info, swap_outer_repeat, swap_used_dims, swap_perf));
+      GELOGD("[DMA_PERF] %s: Perf with swap is [%s], swap_used_dims=[%s], swap_outer_repeat=%s",
+             node_info.name.c_str(), swap_perf.ToString().c_str(),
+             GetVecString(swap_used_dims).c_str(), swap_outer_repeat.Str().get());
     }
     GELOGD("The input dim is [%s]", GetVecString(node_info.input_dims).c_str());
     GE_ASSERT_SUCCESS(UpdateTenary(swap_perf, perf_res), "Update swap perf failed, node=%s",

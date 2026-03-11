@@ -1216,84 +1216,110 @@ void SaveCustomCaffeProtoPath() {
 
 #endif
 
-Status ConstructAndUpdateInputTensors(const NodePtr input_node, int64_t &index, std::vector<GeTensor> &inputs) {
-  GE_CHECK_NOTNULL(input_node);
-  const auto op = input_node->GetOpDesc();
+Status ConstructAndUpdateInputTensors(const OpDescPtr &op, const int64_t index, std::vector<GeTensor> &inputs) {
   GE_CHECK_NOTNULL(op);
-  if (OpTypeUtils::IsDataNode(op->GetType())) {
-    if (!op->HasAttr(ATTR_NAME_INDEX)) {
-      (void)AttrUtils::SetInt(op, ATTR_NAME_INDEX, index);
-      GELOGD("Set attr index:%ld for data op:%s", index, op->GetName().c_str());
-    }
-    index++;
-    GELOGI("Data op inputDesc size is: %zu", op->GetAllInputsSize());
-    GeTensorDesc data_tensor_desc = op->GetInputDesc(0);
-    const std::string &data_op_name = op->GetName();
-    GELOGI("Data op name is: %s", data_op_name.c_str());
-    GeShape data_shape;
-    auto iter = domi::GetContext().input_dims.find(data_op_name);
-    if (iter != domi::GetContext().input_dims.end()) {
-      data_shape = GeShape(iter->second);
-      GELOGI("Refresh data %s shape from Context.", op->GetNamePtr());
-      GE_CHECK_NOTNULL(op->MutableInputDesc(0));
-      op->MutableInputDesc(0)->SetShape(data_shape);
-      GE_CHECK_NOTNULL(op->MutableOutputDesc(0));
-      op->MutableOutputDesc(0)->SetShape(data_shape);
-    } else {
-      data_shape = data_tensor_desc.GetShape();
-      GELOGI("Data op get shape from InputDesc in geir graph.");
-    }
-
-    DataType data_type = data_tensor_desc.GetDataType();
-    std::string data_type_str = TypeUtils::DataTypeToSerialString(data_type);
-    GELOGI("Data op get data type:%s from InputDesc in geir graph.", data_type_str.c_str());
-
-    GeTensorDesc desc;
-    // 输入私有格式特性在MS和torchair的在线场景都有使能
-    // 存量网络中ms导出的air模型携带了私有格式配置，但离线推理不使能私有格式
-    // torchair导出的air模型也携带了私有格式配置，希望在离线推理使能输入私有格式。因此通过该属性是否存在，用来区分离线推理是否使能私有格式
-    // 该属性为torchair在私有格式场景配置的，用于配置输入的私有格式是否扩散
-    bool has_storage_format_spread_attr = AttrUtils::HasAttr(op, "_enable_storage_format_spread");
-    bool is_origin_format_set = false;
-    (void)AttrUtils::GetBool(data_tensor_desc, ATTR_NAME_ORIGIN_FORMAT_IS_SET, is_origin_format_set);
-    if (has_storage_format_spread_attr && data_tensor_desc.IsOriginShapeInitialized() && is_origin_format_set) {
-      GELOGI(
-          "Input %s[%ld] enable running format. StorageFormat[%s], OriginFormat[%s], StorageShape[%s], OriginShape[%s]",
-          input_node->GetNamePtr(), index,
-          ge::TypeUtils::FormatToSerialString(data_tensor_desc.GetFormat()).c_str(),
-          ge::TypeUtils::FormatToSerialString(data_tensor_desc.GetOriginFormat()).c_str(),
-          data_shape.ToString().c_str(),
-          data_tensor_desc.GetOriginShape().ToString().c_str());
-      desc.SetShape(data_shape);
-      desc.SetOriginShape(data_tensor_desc.GetOriginShape());
-      desc.SetFormat(data_tensor_desc.GetFormat());
-      desc.SetOriginFormat(data_tensor_desc.GetOriginFormat());
-      (void)AttrUtils::SetBool(desc, ATTR_NAME_ORIGIN_FORMAT_IS_SET, true);
-      desc.SetDataType(data_type);
-    } else {
-      desc.SetShape(data_shape);
-      desc.SetFormat(Format(domi::GetContext().format));
-      desc.SetDataType(data_type);
-    }
-    GeTensor input_tensor;
-    input_tensor.SetTensorDesc(desc);
-    auto normalized_tensor = TensorAdapter::NormalizeGeTensor(input_tensor);
-    GELOGI("Normalize input %s[index:%ld] %s[%s] -> %s[%s]", input_node->GetNamePtr(), index,
-           ge::TypeUtils::FormatToSerialString(input_tensor.GetTensorDesc().GetFormat()).c_str(),
-           input_tensor.GetTensorDesc().GetShape().ToString().c_str(),
-           ge::TypeUtils::FormatToSerialString(normalized_tensor.MutableTensorDesc().GetFormat()).c_str(),
-           normalized_tensor.MutableTensorDesc().GetShape().ToString().c_str());
-    inputs.push_back(normalized_tensor);
+  const std::string &data_op_name = op->GetName();
+  GE_ASSERT_TRUE(index < static_cast<int64_t>(inputs.size()),
+                 "input[%s] data index[%" PRId64 "] out of inputs range[%zu]", data_op_name.c_str(), index,
+                 inputs.size());
+  GELOGI("Begin to build input tensor for Data op[%s], index %" PRId64, data_op_name.c_str(), index);
+  const GeTensorDesc data_tensor_desc = op->GetInputDesc(0);
+  GeShape data_shape;
+  const auto iter = domi::GetContext().input_dims.find(data_op_name);
+  if (iter != domi::GetContext().input_dims.end()) {
+    data_shape = GeShape(iter->second);
+    GELOGI("Refresh Data op[%s] from context, input shape [%s]", op->GetNamePtr(), data_shape.ToString().c_str());
+    GE_CHECK_NOTNULL(op->MutableInputDesc(0));
+    op->MutableInputDesc(0)->SetShape(data_shape);
+    GE_CHECK_NOTNULL(op->MutableOutputDesc(0));
+    op->MutableOutputDesc(0)->SetShape(data_shape);
+  } else {
+    data_shape = data_tensor_desc.GetShape();
+    GELOGI("Data op[%s] get shape [%s] from InputDesc in geir graph.", op->GetNamePtr(), data_shape.ToString().c_str());
   }
+
+  const DataType data_type = data_tensor_desc.GetDataType();
+  const std::string data_type_str = TypeUtils::DataTypeToSerialString(data_type);
+  GELOGI("Data op[%s]  get data type:%s from InputDesc in geir graph.", op->GetNamePtr(), data_type_str.c_str());
+
+  GeTensorDesc desc;
+  // 输入私有格式特性在MS和torchair的在线场景都有使能
+  // 存量网络中ms导出的air模型携带了私有格式配置，但离线推理不使能私有格式
+  // torchair导出的air模型也携带了私有格式配置，希望在离线推理使能输入私有格式。因此通过该属性是否存在，用来区分离线推理是否使能私有格式
+  // 该属性为torchair在私有格式场景配置的，用于配置输入的私有格式是否扩散
+  bool has_storage_format_spread_attr = AttrUtils::HasAttr(op, "_enable_storage_format_spread");
+  bool is_origin_format_set = false;
+  (void)AttrUtils::GetBool(data_tensor_desc, ATTR_NAME_ORIGIN_FORMAT_IS_SET, is_origin_format_set);
+  if (has_storage_format_spread_attr && data_tensor_desc.IsOriginShapeInitialized() && is_origin_format_set) {
+    GELOGI(
+        "Input %s[%ld] enable running format. StorageFormat[%s], OriginFormat[%s], StorageShape[%s], OriginShape[%s]",
+        op->GetNamePtr(), index, ge::TypeUtils::FormatToSerialString(data_tensor_desc.GetFormat()).c_str(),
+        ge::TypeUtils::FormatToSerialString(data_tensor_desc.GetOriginFormat()).c_str(), data_shape.ToString().c_str(),
+        data_tensor_desc.GetOriginShape().ToString().c_str());
+    desc.SetShape(data_shape);
+    desc.SetOriginShape(data_tensor_desc.GetOriginShape());
+    desc.SetFormat(data_tensor_desc.GetFormat());
+    desc.SetOriginFormat(data_tensor_desc.GetOriginFormat());
+    (void)AttrUtils::SetBool(desc, ATTR_NAME_ORIGIN_FORMAT_IS_SET, true);
+    desc.SetDataType(data_type);
+  } else {
+    desc.SetShape(data_shape);
+    desc.SetFormat(Format(domi::GetContext().format));
+    desc.SetDataType(data_type);
+  }
+  GeTensor input_tensor;
+  input_tensor.SetTensorDesc(desc);
+  auto normalized_tensor = TensorAdapter::NormalizeGeTensor(input_tensor);
+  GELOGI("Normalize input %s[index:%ld] %s[%s] -> %s[%s]", op->GetNamePtr(), index,
+         ge::TypeUtils::FormatToSerialString(input_tensor.GetTensorDesc().GetFormat()).c_str(),
+         input_tensor.GetTensorDesc().GetShape().ToString().c_str(),
+         ge::TypeUtils::FormatToSerialString(normalized_tensor.MutableTensorDesc().GetFormat()).c_str(),
+         normalized_tensor.MutableTensorDesc().GetShape().ToString().c_str());
+  inputs[index] = std::move(normalized_tensor);
+
   return SUCCESS;
 }
 
 Status CreateInputsForInference(const Graph &graph, std::vector<GeTensor> &inputs) {
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(graph);
   GE_CHECK_NOTNULL(compute_graph);
-  int64_t index = 0;
-  for (const auto &input_node : compute_graph->GetAllNodes()) {
-    GE_ASSERT_SUCCESS(ConstructAndUpdateInputTensors(input_node, index, inputs), "Construct input tensors failed.");
+  std::vector<OpDescPtr> data_op_desc;
+  std::set<int64_t> indexes;
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    GE_ASSERT_NOTNULL(node);
+    auto op = node->GetOpDesc();
+    GE_ASSERT_NOTNULL(op);
+    if (OpTypeUtils::IsDataNode(op->GetType())) {
+      int64_t index = std::numeric_limits<int64_t>::max();
+      (void) AttrUtils::GetInt(op, ATTR_NAME_INDEX, index);
+      (void)indexes.insert(index);
+      data_op_desc.emplace_back(op);
+    }
+  }
+
+  if (data_op_desc.empty()) {
+    // 没有 Data 节点, 跳过下面的处理流程
+    return SUCCESS;
+  }
+
+  const auto min_index = indexes.begin();
+  auto max_index = indexes.end();
+  --max_index;
+  const auto data_op_size = static_cast<int64_t>(data_op_desc.size());
+  if (indexes.size() != data_op_desc.size() || *min_index != 0 || *max_index != data_op_size - 1) {
+    GELOGI("Graph[%s] has invalid input data index, set data index by topo order", compute_graph->GetName().c_str());
+    int64_t index = 0;
+    for (auto &op : data_op_desc) {
+      (void)AttrUtils::SetInt(op, ATTR_NAME_INDEX, index++);
+    }
+  }
+
+  inputs.resize(data_op_desc.size());
+  for (const auto &input_op : data_op_desc) {
+    int64_t index = 0;
+    GE_ASSERT_TRUE(AttrUtils::GetInt(input_op, ATTR_NAME_INDEX, index));
+    GE_ASSERT_SUCCESS(ConstructAndUpdateInputTensors(input_op, index, inputs),
+                      "Construct input tensor failed, op[%s], index[%" PRId64 "]", input_op->GetNamePtr(), index);
   }
   GELOGI("Build ME model, inputs size is: %zu", inputs.size());
   return SUCCESS;

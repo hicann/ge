@@ -509,6 +509,15 @@ REG_ASC_IR(Cos)
                             ge::ascir::AscIrImplCreator<ge::ascir::CosAscIrCodegenImplV2>(),
                             {{"T", TensorType{DT_FLOAT16, DT_FLOAT, DT_BF16}}}});
 
+REG_ASC_IR(Acos)
+    .Input("x", "T")
+    .Output("y", "T")
+    .DataType("T", TensorType{DT_FLOAT, DT_FLOAT16, DT_BF16})
+    .ComputeType(ge::ComputeType::kComputeElewise)
+    .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::AcosAscIrAttImplV2>(),
+                            ge::ascir::AscIrImplCreator<ge::ascir::AcosAscIrCodegenImplV2>(),
+                            {{"T", TensorType{DT_FLOAT, DT_FLOAT16, DT_BF16}}}});
+
 REG_ASC_IR(Gather)
     .Impl(v2_soc_versions,
           {ge::ascir::AscIrImplCreator<ge::ascir::GatherAscIrAttImplV2>(),

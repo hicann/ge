@@ -232,9 +232,9 @@ Status HybridModelAsyncExecutor::Init(const rtStream_t stream) {
 Status HybridModelAsyncExecutor::RunInternal() {
   const auto device_id = static_cast<int32_t>(device_id_);
   GELOGD("Hybrid model start. model_id = %u, device_id = %u", model_id_, device_id_);
-  GE_CHK_RT_RET(rtSetDevice(device_id));
+  GE_CHK_RT_RET(aclrtSetDevice(device_id));
   // DeviceReset before thread run finished!
-  GE_MAKE_GUARD(not_used_var, [&device_id] { GE_CHK_RT(rtDeviceReset(device_id)); });
+  GE_MAKE_GUARD(not_used_var, [&device_id] { GE_CHK_RT(aclrtResetDevice(device_id)); });
 
   while (run_flag_) {
     // Model has not indeedly started running before received data

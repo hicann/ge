@@ -38,6 +38,7 @@ if (NOT TARGET flow_graph)
             ${AIR_CODE_DIR}/inc/external
             ${AIR_CODE_DIR}/inc/graph_metadef
             ${AIR_CODE_DIR}/dflow/inc
+            ${AIR_CODE_DIR}/dflow/inc/data_flow
             ${CMAKE_BINARY_DIR}
             ${CMAKE_BINARY_DIR}/proto/data_flow_protos
             ${METADEF_DIR}/pkg_inc

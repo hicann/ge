@@ -49,15 +49,19 @@ add_executable(st_flow_func_executor
         ${UDF_SRC_PATH}/toolchain/dump/udf_dump_task_device.cpp
 )
 
+add_dependencies(st_flow_func_executor dumpdata)
+
 target_include_directories(st_flow_func_executor PRIVATE
         ../../
         ${AIR_CODE_DIR}
         ${AIR_CODE_DIR}/inc/graph_metadef
         ${AIR_CODE_DIR}/dflow/inc
+        ${AIR_CODE_DIR}/dflow/inc/data_flow
         ${ASCEND_INSTALL_PATH}/include
         ${UDF_SRC_PATH}/inc/external
         ${UDF_SRC_PATH}/
         ${CMAKE_BINARY_DIR}/proto/udf_exe/proto
+        ${CMAKE_BINARY_DIR}/proto/dumpdata/proto
         ../../../stub
         ../../..
 )
@@ -76,6 +80,7 @@ target_link_libraries(st_flow_func_executor PRIVATE
         $<BUILD_INTERFACE:mmpa_headers>
         $<BUILD_INTERFACE:ascend_hal_headers>
         $<BUILD_INTERFACE:datagw_headers>
+        ascendcl_stub
         GTest::gtest GTest::gmock GTest::gmock_main
 )
 

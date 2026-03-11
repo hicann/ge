@@ -9,14 +9,16 @@
  */
 
 #include "executor/npu_sched_model_loader.h"
-#include "runtime/rt.h"
-#include "rt_error_codes.h"
+#include "acl/acl_mdl.h"
+#include "acl/acl_rt.h"
+#include "runtime/rt_external.h"
 #include "common/checker.h"
 #include "common/dump/dump_manager.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"
 #include "executor/npu_sched_model_configurator.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -149,16 +151,16 @@ Status NpuSchedModelLoader::LoadModel(const ModelQueueParam &model_queue_param, 
   }
   GE_CHK_STATUS_RET(CreateMsgQueues(), "Fail to create message queue.");
   // create model_handle
-  GE_CHK_RT_RET(rtModelCreate(&rt_model_handle_, 0U));
+  DF_CHK_ACL_RET(aclmdlRIBuildBegin(&rt_model_handle_, 0U));
   GE_CHK_RT_RET(rtModelGetId(rt_model_handle_, &runtime_model_id_));
   runtime_model_id = runtime_model_id_;
   GE_CHK_STATUS_RET(SetModelConfig(), "Fail to set model config, model_id:%u, runtime_model_id:%u.", model_id_,
                     runtime_model_id_);
   // create aicpu entry stream and next stream
-  GE_CHK_RT_RET(rtStreamCreateWithFlags(&rt_entry_stream_, kDefaultStreamPriority, RT_STREAM_AICPU));
-  GE_CHK_RT_RET(rtModelBindStream(rt_model_handle_, rt_entry_stream_, static_cast<uint32_t>(RT_HEAD_STREAM)));
-  GE_CHK_RT_RET(rtStreamCreateWithFlags(&rt_next_stream_, kDefaultStreamPriority, RT_STREAM_AICPU));
-  GE_CHK_RT_RET(rtModelBindStream(rt_model_handle_, rt_next_stream_, static_cast<uint32_t>(RT_INVALID_FLAG)));
+  DF_CHK_ACL_RET(aclrtCreateStreamWithConfig(&rt_entry_stream_, kDefaultStreamPriority, ACL_STREAM_CPU_SCHEDULE));
+  DF_CHK_ACL_RET(aclmdlRIBindStream(rt_model_handle_, rt_entry_stream_, static_cast<uint32_t>(ACL_MODEL_STREAM_FLAG_HEAD)));
+  DF_CHK_ACL_RET(aclrtCreateStreamWithConfig(&rt_next_stream_, kDefaultStreamPriority, ACL_STREAM_CPU_SCHEDULE));
+  DF_CHK_ACL_RET(aclmdlRIBindStream(rt_model_handle_, rt_next_stream_, static_cast<uint32_t>(ACL_MODEL_STREAM_FLAG_DEFAULT)));
   // create tasks on entry stream and next stream
   GE_CHK_STATUS_RET(CreateSchedTasks(), "Fail to create sched tasks for model:%u.", model_id_);
   // distribute tasks
@@ -166,7 +168,7 @@ Status NpuSchedModelLoader::LoadModel(const ModelQueueParam &model_queue_param, 
   // create rt stream and distribute end graph task
   GE_CHK_STATUS_RET(DistributeEndGraph());
   // complete to load model
-  GE_CHK_RT_RET(rtModelLoadComplete(rt_model_handle_));
+  DF_CHK_ACL_RET(aclmdlRIBuildEnd(rt_model_handle_, nullptr));
   GELOGD("Success to load model, model_id = %u, runtime_model_id = %u.", model_id_, runtime_model_id_);
   return SUCCESS;
 }
@@ -228,13 +230,13 @@ Status NpuSchedModelLoader::DistributeTasks() const {
 }
 
 Status NpuSchedModelLoader::DistributeEndGraph() {
-  GE_CHK_RT_RET(rtStreamCreateWithFlags(&rt_fake_stream_, kDefaultStreamPriority, RT_STREAM_DEFAULT));
-  GE_CHK_RT_RET(rtModelBindStream(rt_model_handle_, rt_fake_stream_, static_cast<uint32_t>(RT_INVALID_FLAG)));
-  GE_CHK_RT_RET(rtEndGraph(rt_model_handle_, rt_fake_stream_));
+  DF_CHK_ACL_RET(aclrtCreateStreamWithConfig(&rt_fake_stream_, kDefaultStreamPriority, 0));
+  DF_CHK_ACL_RET(aclmdlRIBindStream(rt_model_handle_, rt_fake_stream_, static_cast<uint32_t>(ACL_MODEL_STREAM_FLAG_DEFAULT)));
+  DF_CHK_ACL_RET(aclmdlRIEndTask(rt_model_handle_, rt_fake_stream_));
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::BindInputQueue(const rtStream_t stream) {
+Status NpuSchedModelLoader::BindInputQueue(const aclrtStream stream) {
   // unique input queue ids for input fusion case
   std::vector<uint32_t> unique_input_queue_ids;
   std::vector<uint32_t> unique_align_offsets;  // input align and input fusion are non-coexisting
@@ -270,7 +272,7 @@ Status NpuSchedModelLoader::BindInputQueue(const rtStream_t stream) {
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateModelBatchDequeueTask(const rtStream_t stream,
+Status NpuSchedModelLoader::CreateModelBatchDequeueTask(const aclrtStream stream,
                                                         const std::vector<uint32_t> &queue_ids,
                                                         const uint32_t align_interval,
                                                         const std::vector<uint32_t> &align_offsets,
@@ -284,7 +286,7 @@ Status NpuSchedModelLoader::CreateModelBatchDequeueTask(const rtStream_t stream,
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateModelGatherDequeueTask(const rtStream_t stream,
+Status NpuSchedModelLoader::CreateModelGatherDequeueTask(const aclrtStream stream,
                                                          const std::vector<QueueAttrs> &queues,
                                                          std::vector<uint64_t> &mbuf_addrs) {
   // create model batch dequeue task
@@ -313,7 +315,7 @@ Status NpuSchedModelLoader::UpdateFusionInputsMbufAddr(const std::vector<uint64_
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreatePrepareDynamicInputOutputTask(const rtStream_t stream) {
+Status NpuSchedModelLoader::CreatePrepareDynamicInputOutputTask(const aclrtStream stream) {
   const auto task = MakeShared<SchedTaskPrepareDynamicInputOutput>(stream);
   GE_CHECK_NOTNULL(task);
   GE_CHK_STATUS_RET_NOLOG(task->Init(input_dynamic_flags_, input_mbuf_addrs_,
@@ -323,7 +325,7 @@ Status NpuSchedModelLoader::CreatePrepareDynamicInputOutputTask(const rtStream_t
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateEnqueueTask(const rtStream_t stream, const uint32_t queue_id,
+Status NpuSchedModelLoader::CreateEnqueueTask(const aclrtStream stream, const uint32_t queue_id,
                                               const uint64_t mbuf_addr) {
   const auto task = MakeShared<SchedTaskModelEnqueue>(stream);
   GE_CHECK_NOTNULL(task);
@@ -337,7 +339,7 @@ uint32_t NpuSchedModelLoader::GenerateNotifyId() const {
   return notify_id_gen++;
 }
 
-Status NpuSchedModelLoader::CreateNotifyRecordTask(const rtStream_t stream, const uint32_t notify_id) {
+Status NpuSchedModelLoader::CreateNotifyRecordTask(const aclrtStream stream, const uint32_t notify_id) {
   const auto task = MakeShared<SchedTaskNotifyRecord>(stream);
   GE_CHECK_NOTNULL(task);
   GE_CHK_STATUS_RET_NOLOG(task->Init(notify_id));
@@ -345,7 +347,7 @@ Status NpuSchedModelLoader::CreateNotifyRecordTask(const rtStream_t stream, cons
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateNotifyWaitTask(const rtStream_t stream, const uint32_t notify_id) {
+Status NpuSchedModelLoader::CreateNotifyWaitTask(const aclrtStream stream, const uint32_t notify_id) {
   const auto task = MakeShared<SchedTaskNotifyWait>(stream);
   GE_CHECK_NOTNULL(task);
   GE_CHK_STATUS_RET_NOLOG(task->Init(notify_id));
@@ -353,7 +355,7 @@ Status NpuSchedModelLoader::CreateNotifyWaitTask(const rtStream_t stream, const 
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateStreamRepeatTask(const rtStream_t stream) {
+Status NpuSchedModelLoader::CreateStreamRepeatTask(const aclrtStream stream) {
   const auto task = MakeShared<SchedTaskStreamRepeat>(stream);
   GE_CHECK_NOTNULL(task);
   GE_CHK_STATUS_RET_NOLOG(task->Init(runtime_model_id_));
@@ -361,7 +363,7 @@ Status NpuSchedModelLoader::CreateStreamRepeatTask(const rtStream_t stream) {
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateZeroCopyTask(const rtStream_t stream, const std::vector<uint64_t> &src_addrs,
+Status NpuSchedModelLoader::CreateZeroCopyTask(const aclrtStream stream, const std::vector<uint64_t> &src_addrs,
                                                std::vector<uint64_t> &dst_addrs) {
   const auto task = MakeShared<SchedTaskZeroCopy>(stream);
   GE_CHECK_NOTNULL(task);
@@ -370,7 +372,7 @@ Status NpuSchedModelLoader::CreateZeroCopyTask(const rtStream_t stream, const st
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateDequeueTask(const rtStream_t stream, const uint32_t queue_id,
+Status NpuSchedModelLoader::CreateDequeueTask(const aclrtStream stream, const uint32_t queue_id,
                                               uint64_t &mbuf_addr) {
   const auto task = MakeShared<SchedTaskModelDequeue>(stream);
   GE_CHECK_NOTNULL(task);
@@ -379,7 +381,7 @@ Status NpuSchedModelLoader::CreateDequeueTask(const rtStream_t stream, const uin
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreatePostprocessDynamicOutputTask(const rtStream_t stream) {
+Status NpuSchedModelLoader::CreatePostprocessDynamicOutputTask(const aclrtStream stream) {
   const auto task = MakeShared<SchedTaskPostprocessDynamicOutput>(stream);
   GE_CHECK_NOTNULL(task);
   GE_CHK_STATUS_RET_NOLOG(task->Init(resp_msg_mbuf_addr_, postproc_input_mbuf_addrs_, postproc_output_mbuf_addrs_,
@@ -389,7 +391,7 @@ Status NpuSchedModelLoader::CreatePostprocessDynamicOutputTask(const rtStream_t 
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::BindOutputQueue(const rtStream_t stream) {
+Status NpuSchedModelLoader::BindOutputQueue(const aclrtStream stream) {
   for (const uint32_t queue_id : output_queue_ids_) {
     GE_CHK_RT_RET(rtModelBindQueue(rt_model_handle_, queue_id, RT_MODEL_OUTPUT_QUEUE));
   }
@@ -398,7 +400,7 @@ Status NpuSchedModelLoader::BindOutputQueue(const rtStream_t stream) {
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateModelBatchEnqueueTask(const rtStream_t stream,
+Status NpuSchedModelLoader::CreateModelBatchEnqueueTask(const aclrtStream stream,
                                                         const std::vector<uint32_t> &queue_ids,
                                                         const std::vector<uint64_t> &mbuf_addrs) {
   const auto task = MakeShared<SchedTaskModelBatchEnqueue>(stream);
@@ -408,7 +410,7 @@ Status NpuSchedModelLoader::CreateModelBatchEnqueueTask(const rtStream_t stream,
   return SUCCESS;
 }
 
-Status NpuSchedModelLoader::CreateMarkStepTask(const rtStream_t stream) {
+Status NpuSchedModelLoader::CreateMarkStepTask(const aclrtStream stream) {
   const auto task = MakeShared<SchedTaskMarkStep>(stream);
   GE_CHECK_NOTNULL(task);
   const auto dump_step = DumpManager::GetInstance().GetDumpProperties(kInferSessionId).GetDumpStep();
@@ -421,13 +423,13 @@ Status NpuSchedModelLoader::CreateMarkStepTask(const rtStream_t stream) {
 Status NpuSchedModelLoader::UnloadModel() {
   GELOGD("Begin to unload model, model_id = %u, runtime_model_id = %u.", model_id_, runtime_model_id_);
   // check rt ctx is exist
-  rtContext_t current_ctx = nullptr;
-  if (rtCtxGetCurrent(&current_ctx) == RT_ERROR_NONE) {
+  aclrtContext current_ctx = nullptr;
+  if (aclrtGetCurrentContext(&current_ctx) == ACL_ERROR_NONE) {
     (void) UnbindStreams();
     (void) ReleaseTasks();
     // destroy model
     if (rt_model_handle_ != nullptr) {
-      GE_CHK_RT(rtModelDestroy(rt_model_handle_));
+      DF_CHK_ACL(aclmdlRIDestroy(rt_model_handle_));
       rt_model_handle_ = nullptr;
     }
   }
@@ -441,20 +443,20 @@ Status NpuSchedModelLoader::UnloadModel() {
 Status NpuSchedModelLoader::UnbindStreams() {
   // unbind and destroy entry stream
   if (rt_entry_stream_ != nullptr) {
-    GE_LOGW_IF(rtModelUnbindStream(rt_model_handle_, rt_entry_stream_) != RT_ERROR_NONE, "Fail to unbind stream.");
-    GE_LOGW_IF(rtStreamDestroy(rt_entry_stream_) != RT_ERROR_NONE, "Fail to destroy stream.");
+    GE_LOGW_IF(aclmdlRIUnbindStream(rt_model_handle_, rt_entry_stream_) != ACL_ERROR_NONE, "Fail to unbind stream.");
+    GE_LOGW_IF(aclrtDestroyStream(rt_entry_stream_) != ACL_ERROR_NONE, "Fail to destroy stream.");
     rt_entry_stream_ = nullptr;
   }
   // unbind and destroy next stream
   if (rt_next_stream_ != nullptr) {
-    GE_LOGW_IF(rtModelUnbindStream(rt_model_handle_, rt_next_stream_) != RT_ERROR_NONE, "Fail to unbind stream.");
-    GE_LOGW_IF(rtStreamDestroy(rt_next_stream_) != RT_ERROR_NONE, "Fail to destroy stream.");
+    GE_LOGW_IF(aclmdlRIUnbindStream(rt_model_handle_, rt_next_stream_) != ACL_ERROR_NONE, "Fail to unbind stream.");
+    GE_LOGW_IF(aclrtDestroyStream(rt_next_stream_) != ACL_ERROR_NONE, "Fail to destroy stream.");
     rt_next_stream_ = nullptr;
   }
   // unbind and destroy runtime fake stream
   if (rt_fake_stream_ != nullptr) {
-    GE_LOGW_IF(rtModelUnbindStream(rt_model_handle_, rt_fake_stream_) != RT_ERROR_NONE, "Fail to unbind stream.");
-    GE_LOGW_IF(rtStreamDestroy(rt_fake_stream_) != RT_ERROR_NONE, "Fail to destroy stream.");
+    GE_LOGW_IF(aclmdlRIUnbindStream(rt_model_handle_, rt_fake_stream_) != ACL_ERROR_NONE, "Fail to unbind stream.");
+    GE_LOGW_IF(aclrtDestroyStream(rt_fake_stream_) != ACL_ERROR_NONE, "Fail to destroy stream.");
     rt_fake_stream_ = nullptr;
   }
   return SUCCESS;

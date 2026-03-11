@@ -9,10 +9,11 @@
  */
 
 #include "deploy/flowrm/flow_route_planner.h"
+#include "common/checker.h"
+#include "graph/ge_context.h"
 #include "deploy/flowrm/network_manager.h"
 #include "deploy/resource/resource_manager.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
-#include "graph/ge_context.h"
 
 namespace ge {
 namespace {

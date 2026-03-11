@@ -2512,3 +2512,79 @@ TEST_F(UTestAscirPerfV2, TestReorderGmStrideMismatchUbStrideByTransposeComplex) 
   EXPECT_EQ(Str(tensor.repeats[1]), "d1");
   EXPECT_EQ(Str(tensor.repeats[2]), "d0");
 }
+
+// GetDmaParams swap=false：标准窗口，取最后 kMaxDmaLen 维
+TEST_F(UTestAscirPerfV2, TestGetDmaParamsNoSwap) {
+  Expr z1z2z3t = CreateExpr("z1z2z3t");
+  Expr z0t = CreateExpr("z0t");
+  vector<Expr> dims = {z1z2z3t, z0t, CreateExpr(34)};
+  Expr outer_repeat;
+  vector<Expr> used_dims;
+  const int32_t kMaxDmaLen = 2;
+
+  EXPECT_EQ(ge::SUCCESS, att::GetDmaParams(dims, outer_repeat, used_dims, kMaxDmaLen, false));
+
+  ASSERT_EQ(used_dims.size(), 2U);
+  EXPECT_EQ(Str(used_dims[0]), "z0t");
+  EXPECT_EQ(Str(used_dims[1]), "34");
+  EXPECT_EQ(Str(outer_repeat), "z1z2z3t");
+}
+
+// GetDmaParams swap=true：将倒数第3维换入，倒数第2维外抛
+// dims=[z1z2z3t, z0t, 34], kMaxDmaLen=2
+// 期望: used_dims=[z1z2z3t, 34], outer_repeat=z0t
+TEST_F(UTestAscirPerfV2, TestGetDmaParamsSwap) {
+  Expr z1z2z3t = CreateExpr("z1z2z3t");
+  Expr z0t = CreateExpr("z0t");
+  vector<Expr> dims = {z1z2z3t, z0t, CreateExpr(34)};
+  Expr outer_repeat;
+  vector<Expr> used_dims;
+  const int32_t kMaxDmaLen = 2;
+
+  EXPECT_EQ(ge::SUCCESS, att::GetDmaParams(dims, outer_repeat, used_dims, kMaxDmaLen, true));
+
+  ASSERT_EQ(used_dims.size(), 2U);
+  EXPECT_EQ(Str(used_dims[0]), "z1z2z3t");
+  EXPECT_EQ(Str(used_dims[1]), "34");
+  EXPECT_EQ(Str(outer_repeat), "z0t");
+}
+
+// GetDmaParams swap=true，4维场景：kMaxDmaLen=4
+// dims=[A, B, C, D, E]，swap 将倒数第5维换入，倒数第4维外抛
+// 期望: used_dims=[A, C, D, E], outer_repeat=B
+TEST_F(UTestAscirPerfV2, TestGetDmaParamsSwapFourDim) {
+  Expr a = CreateExpr("A");
+  Expr b = CreateExpr("B");
+  Expr c = CreateExpr("C");
+  Expr d = CreateExpr("D");
+  Expr e = CreateExpr("E");
+  vector<Expr> dims = {a, b, c, d, e};
+  Expr outer_repeat;
+  vector<Expr> used_dims;
+  const int32_t kMaxDmaLen = 4;
+
+  EXPECT_EQ(ge::SUCCESS, att::GetDmaParams(dims, outer_repeat, used_dims, kMaxDmaLen, true));
+
+  ASSERT_EQ(used_dims.size(), 4U);
+  EXPECT_EQ(Str(used_dims[0]), "A");
+  EXPECT_EQ(Str(used_dims[1]), "C");
+  EXPECT_EQ(Str(used_dims[2]), "D");
+  EXPECT_EQ(Str(used_dims[3]), "E");
+  EXPECT_EQ(Str(outer_repeat), "B");
+}
+
+// GetDmaParams：dims 长度 <= kMaxDmaLen 时，swap=true 不生效，直接返回全部维度
+TEST_F(UTestAscirPerfV2, TestGetDmaParamsSwapDimLessEqual) {
+  Expr z0t = CreateExpr("z0t");
+  vector<Expr> dims = {z0t, CreateExpr(34)};
+  Expr outer_repeat;
+  vector<Expr> used_dims;
+  const int32_t kMaxDmaLen = 4;
+
+  EXPECT_EQ(ge::SUCCESS, att::GetDmaParams(dims, outer_repeat, used_dims, kMaxDmaLen, true));
+
+  ASSERT_EQ(used_dims.size(), 2U);
+  EXPECT_EQ(Str(used_dims[0]), "z0t");
+  EXPECT_EQ(Str(used_dims[1]), "34");
+  EXPECT_EQ(Str(outer_repeat), "1");
+}

@@ -32,6 +32,7 @@
 #include "algebraic_simplification_pass.h"
 #include "graph/passes/standard_optimize/prune_pass.h"
 #include "graph/passes/standard_optimize/constant_folding/constant_folding_pass.h"
+#include "graph/optimize/autofuse/autofuse/pattern_fusion/pattern_fusion.h"
 
 namespace ge {
 namespace {
@@ -80,11 +81,7 @@ Status AutoFusePass::Run(ComputeGraphPtr graph) {
 
   auto autofuse_counter = MakeUnique<AutofuseCounter>();
   GE_ASSERT_NOTNULL(autofuse_counter);
-
-  GraphPasses graph_passes;
-  graph_passes.prune_graph_func = [](const ComputeGraphPtr &graph) -> Status { return PrunePass().Run(graph); };
-  graph_passes.constant_folding_func = [](NodePtr &node) -> Status { return ConstantFoldingPass().Run(node); };
-  GE_ASSERT_SUCCESS(LoweringAndCanFuseWithCounter(graph, autofuse_counter.get(), graph_passes));
+  GE_ASSERT_SUCCESS(LoweringAndCanFuseWithCounter(graph, autofuse_counter.get()));
 
   GE_ASSERT_SUCCESS(MarkEngineAttrForAutofuseNode(graph));
   // todo: inner attrs 生命周期在自动融合结束时结束，外部只能看到公开的属性
@@ -94,7 +91,13 @@ Status AutoFusePass::Run(ComputeGraphPtr graph) {
 }
 
 Status AutoFusePass::PreProcess(const ComputeGraphPtr &graph) {
+  // 代数简化
   GE_ASSERT_SUCCESS(AlgebraicSimplificationPass::Run(graph));
+  // 在符号化推导之前执行的 PatternFusion Pass，不需要符号化信息
+  GraphPasses graph_passes;
+  graph_passes.prune_graph_func = [](const ComputeGraphPtr &graph) -> Status { return PrunePass().Run(graph); };
+  graph_passes.constant_folding_func = [](NodePtr &node) -> Status { return ConstantFoldingPass().Run(node); };
+  GE_ASSERT_SUCCESS(ge::PatternFusion::RunEarlyPasses(graph, graph_passes));
   return SUCCESS;
 }
 

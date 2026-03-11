@@ -306,6 +306,7 @@ target_link_libraries(ge_common_base
         graph_base
         ascend_protobuf
         c_sec
+        acl_rt
         error_manager
         unified_dlog
         platform
@@ -430,6 +431,7 @@ target_link_libraries(ge_common
         graph
         ge_common_base
         c_sec
+        acl_rt
         error_manager
         unified_dlog
         platform

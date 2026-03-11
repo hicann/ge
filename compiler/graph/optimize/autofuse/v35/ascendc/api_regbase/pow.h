@@ -26,7 +26,22 @@ inline __aicore__ void Pow(const AscendC::LocalTensor<T> &dst, const AscendC::Lo
 template <typename T>
 inline __aicore__ void Pow(const AscendC::LocalTensor<T> &dst, const AscendC::LocalTensor<T> &src1, const T &src2,
                            const uint32_t calCount, AscendC::LocalTensor<uint8_t> &tmp_buf) {
-  if constexpr (std::is_same_v<T, float>) {
+  if(static_cast<float>(src2) == 0.0f) {
+    Duplicate(dst, static_cast<T>(1.0), calCount);
+  } else if (static_cast<float>(src2) == 1.0f) {
+    DataCopy(dst, src1, calCount);
+  } else if (static_cast<float>(src2) == -1.0f) {
+    Reciprocal(dst, src1, calCount);
+  } else if (static_cast<float>(src2) == 2.0f) {
+    Mul(dst, src1, src1, calCount);
+  } else if (static_cast<float>(src2) == 0.5f) {
+    Sqrt(dst, src1, calCount);
+  } else if (static_cast<float>(src2) == -0.5f) {
+    Rsqrt(dst, src1, calCount);
+  } else if (static_cast<float>(src2) == 3.0f) {
+    Mul(dst, src1, src1, calCount);
+    Mul(dst, dst, src1, calCount);
+  } else if constexpr (std::is_same_v<T, float>) {
     Power<T, false, pow_config>(dst, src1, src2, tmp_buf, calCount);
   } else {
     Power(dst, src1, src2, tmp_buf, calCount);
@@ -56,7 +71,22 @@ inline __aicore__ void Pow(const AscendC::LocalTensor<T> &dst, const T &src1, co
   LocalTensor<uint8_t> left_tmp_buf = tmp_buf[2*ONE_BLK_SIZE].template ReinterpretCast<uint8_t>();
   Duplicate(src1_buf, src1, block_cnt);
   // 调用Power基础API：tensor(block size) + scalar
-  if constexpr (std::is_same_v<T, float>) {
+  if(static_cast<float>(src2) == 0.0f) {
+    Duplicate(dst_buf, static_cast<T>(1.0), calCount);
+  } else if (static_cast<float>(src2) == 1.0f) {
+    DataCopy(dst_buf, src1_buf, calCount);
+  } else if (static_cast<float>(src2) == -1.0f) {
+    Reciprocal(dst_buf, src1_buf, calCount);
+  } else if (static_cast<float>(src2) == 2.0f) {
+    Mul(dst_buf, src1_buf, src1_buf, calCount);
+  } else if (static_cast<float>(src2) == 0.5f) {
+    Sqrt(dst_buf, src1_buf, calCount);
+  } else if (static_cast<float>(src2) == -0.5f) {
+    Rsqrt(dst_buf, src1_buf, calCount);
+  } else if (static_cast<float>(src2) == 3.0f) {
+    Mul(dst_buf, src1_buf, src1_buf, calCount);
+    Mul(dst_buf, dst_buf, src1_buf, calCount);
+  } else if constexpr (std::is_same_v<T, float>) {
     Power<T, false, pow_config>(dst_buf, src1_buf, src2, left_tmp_buf, block_cnt);
   } else {
     Power(dst_buf, src1_buf, src2, left_tmp_buf, block_cnt);

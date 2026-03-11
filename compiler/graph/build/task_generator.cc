@@ -28,6 +28,7 @@
 #include "framework/common/tlv/pre_model_desc.h"
 #include "common/compile_profiling/ge_trace_wrapper.h"
 #include "base/err_mgr.h"
+#include "acl/acl_rt.h"
 
 using domi::LogTimeStampDef;
 using domi::ModelTaskDef;
@@ -498,11 +499,11 @@ Status TaskGenerator::GenerateTaskForNormalNode(Node *const node, const std::str
   GetThreadLocalContext() = ge_context;
   error_message::SetErrMgrContext(error_context);
   if (device_id != kInvalidDeviceId) {
-    GE_CHK_RT_RET(rtSetDevice(device_id));
+    GE_CHK_RT_RET(aclrtSetDevice(device_id));
   }
   GE_MAKE_GUARD(reset_device, [device_id]() {
     if (device_id != kInvalidDeviceId) {
-      GE_CHK_RT(rtDeviceReset(device_id));
+      GE_CHK_RT(aclrtResetDevice(device_id));
     }
   });
   return GenTaskForNormalNode(node, tag, task_def_list_per_node);
@@ -546,11 +547,11 @@ Status TaskGenerator::GenerateTaskForFftsNode(Node *ffts_node, const std::string
   GetThreadLocalContext() = ge_context;
   error_message::SetErrMgrContext(error_context);
   if (device_id != kInvalidDeviceId) {
-    GE_CHK_RT_RET(rtSetDevice(device_id));
+    GE_CHK_RT_RET(aclrtSetDevice(device_id));
   }
   GE_MAKE_GUARD(reset_device, [device_id]() {
     if (device_id != kInvalidDeviceId) {
-      GE_CHK_RT(rtDeviceReset(device_id));
+      GE_CHK_RT(aclrtResetDevice(device_id));
     }
   });
   const auto &op_desc = ffts_node->GetOpDesc();  // node and op desc must not be null
@@ -748,7 +749,7 @@ Status TaskGenerator::GenerateTaskForNodes(const std::vector<Node *> nodes) {
   std::vector<std::future<Status>> vector_future;
   int32_t device_id = kInvalidDeviceId;
   // 离线场景不会SetDevice，所以离线场景GetDevice会报错，可以通过device id是否是-1判断是在线or离线。在线场景需要给子线程SetDevice
-  (void)rtGetDevice(&device_id);
+  (void)aclrtGetDevice(&device_id);
   GELOGI("Get device id %d", device_id);
   for (const auto node : nodes) {
     const auto key = GetKey(node);

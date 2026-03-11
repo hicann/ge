@@ -24,6 +24,7 @@
 #include "aprof_pub.h"
 #include "common/checker.h"
 #include "graph/gnode.h"
+#include "acl/acl_rt.h"
 
 namespace gert {
 constexpr uint32_t kTensorInfoBytes = 44UL;

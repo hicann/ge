@@ -46,6 +46,7 @@ include_directories(${AIR_CODE_DIR}/base)
 include_directories(${AIR_CODE_DIR}/compiler)
 include_directories(${AIR_CODE_DIR}/runtime/v1)
 include_directories(${AIR_CODE_DIR}/api/session)
+include_directories(${AIR_CODE_DIR}/dflow/inc/data_flow)
 include_directories(${AIR_CODE_DIR}/dflow/compiler/session)
 include_directories(${AIR_CODE_DIR}/inc)
 include_directories(${AIR_CODE_DIR}/inc/graph_metadef)
@@ -386,6 +387,8 @@ set(BASE_COMMON_TEST_FILES
     "common/op_tiling_rt2_unittest.cc"
     "common/tiling_context_builder_unittest.cc"
     "common/global_dumper_unittest.cc"
+    "common/model_introduction_unittest.cc"
+    "common/model_saver_unittest.cc"
     "common/model_compress_manager_unittest.cc"
     "common/preload/pre_task_status_unittest.cc"
     "common/preload/pre_model_utils_unittest.cc"

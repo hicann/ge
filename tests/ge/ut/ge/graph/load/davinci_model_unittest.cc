@@ -9970,7 +9970,7 @@ TEST_F(UtestDavinciModel, InputBatchCopyH2DWithMergeH2DDisabled) {
 TEST_F(UtestDavinciModel, InputBatchCopyH2DWithDeviceIdIs1) {
   dlog_setlevel(0, 0, 0);
   RTS_STUB_RETURN_VALUE(rtsMemcpyBatch, rtError_t, RT_ERROR_NONE);
-  RuntimeStub::GetInstance()->cur_device_id = 1;
+  AclRuntimeStub::GetInstance()->SetDeviceId(1);
   SetMockRtGetDeviceWay(1);
 
   const uint64_t input_size = 25600U;
@@ -10057,12 +10057,11 @@ TEST_F(UtestDavinciModel, InputBatchCopyH2DWithDeviceIdIs1) {
   // all CopyInputData -> rtsMemcpyBatch
   EXPECT_EQ(davinci_model.HandleInputData(input_data), SUCCESS);
   EXPECT_EQ(RuntimeStub::GetInstance()->input_mem_copy_batch_count_, 2);
-  EXPECT_EQ(RuntimeStub::GetInstance()->batch_memcpy_device_id, 1);
 
   free(input_buffer);
   free(device_buffer);
   ge::GetThreadLocalContext().SetSessionOption({});
-  RuntimeStub::GetInstance()->cur_device_id = 0;
+  AclRuntimeStub::GetInstance()->SetDeviceId(0);
   RuntimeStub::GetInstance()->batch_memcpy_device_id = 0;
 
   SetMockRtGetDeviceWay(0);

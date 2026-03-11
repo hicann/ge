@@ -7878,6 +7878,170 @@ ge::ComputeGraphPtr ShareGraph::LoadCompareWhereFusedGraph() {
 }
 
 /**
+ *      output
+ *         |
+ *       store
+ *         |
+ *       acos
+ *         |
+ *      load0
+ *         |
+ *      data0
+ */
+static void CreateAcosFloatAscGraph(ge::AscGraph &graph, size_t dims_size) {
+  // Data 节点
+  ge::ascir_op::Data x("data0", graph);
+  x.ir_attr.SetIndex(0);
+  x.y.dtype = ge::DT_FLOAT;
+
+  // Load 节点
+  ge::ascir_op::Load xLocal("load0");
+  xLocal.x = x.y;
+  xLocal.y.dtype = ge::DT_FLOAT;
+
+  // Acos 操作
+  ge::ascir_op::Acos acos("acos");
+  acos.x = xLocal.y;
+  acos.y.dtype = ge::DT_FLOAT;
+
+  // Store 节点
+  ge::ascir_op::Store x_out("store");
+  x_out.x = acos.y;
+  x_out.y.dtype = ge::DT_FLOAT;
+
+  // Output 节点
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+  y.y.dtype = ge::DT_FLOAT;
+
+  // 设置维度信息
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+/**
+ *     NetOutput
+ *         |
+ *       AscBc
+ *         |
+ *       data0
+ */
+ge::ComputeGraphPtr ShareGraph::AcosFloatFusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("acos_float_test");
+
+  // 创建 data 节点
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  // 创建 AscGraph 节点
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  // 连接边
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+
+  // 获取计算图
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+
+  // 创建并序列化子图
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("acos_float");
+  CreateAcosFloatAscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+
+  return compute_graph;
+}
+
+/**
+ *      output
+ *         |
+ *       store
+ *         |
+ *       acos
+ *         |
+ *      load0
+ *         |
+ *      data0
+ */
+static void CreateAcosBf16AscGraph(ge::AscGraph &graph, size_t dims_size) {
+  // Data 节点
+  ge::ascir_op::Data x("data0", graph);
+  x.ir_attr.SetIndex(0);
+  x.y.dtype = ge::DT_BF16;
+
+  // Load 节点
+  ge::ascir_op::Load xLocal("load0");
+  xLocal.x = x.y;
+  xLocal.y.dtype = ge::DT_BF16;
+
+  // Acos 操作
+  ge::ascir_op::Acos acos("acos");
+  acos.x = xLocal.y;
+  acos.y.dtype = ge::DT_BF16;
+
+  // Store 节点
+  ge::ascir_op::Store x_out("store");
+  x_out.x = acos.y;
+  x_out.y.dtype = ge::DT_BF16;
+
+  // Output 节点
+  ge::ascir_op::Output y("output");
+  y.x = x_out.y;
+  y.ir_attr.SetIndex(0);
+  y.y.dtype = ge::DT_BF16;
+
+  // 设置维度信息
+  ConstructVVAscGraphAxisInfo(graph, dims_size);
+}
+
+/**
+ *     NetOutput
+ *         |
+ *       AscBc
+ *         |
+ *       data0
+ */
+ge::ComputeGraphPtr ShareGraph::AcosBf16FusedGraph(size_t dims_size) {
+  auto builder = GraphBuilder("acos_bf16_test");
+
+  // 创建 data 节点
+  auto data0 = builder.AddNode("data0", "Data", 0, 1);
+  ge::AttrUtils::SetInt(data0->GetOpDescBarePtr(), "_parent_node_index", 0);
+
+  // 创建 AscGraph 节点
+  auto ascbc = builder.AddNode("ascbc", "AscGraph", 1, 1);
+  auto netoutput = builder.AddNode("netoutput1", ge::NETOUTPUT, 1, 0);
+
+  // 连接边
+  builder.AddDataEdge(data0, 0, ascbc, 0);
+  builder.AddDataEdge(ascbc, 0, netoutput, 0);
+
+  // 获取计算图
+  ComputeGraphPtr compute_graph = builder.GetGraph();
+  if (compute_graph == nullptr) {
+    return nullptr;
+  }
+
+  // 创建并序列化子图
+  auto ascbc_node = compute_graph->FindNode("ascbc");
+  ge::AscGraph sub_graph("acos_bf16");
+  CreateAcosBf16AscGraph(sub_graph, dims_size);
+
+  std::string sub_graph_str;
+  ge::AscGraphUtils::SerializeToReadable(sub_graph, sub_graph_str);
+  ge::AttrUtils::SetStr(ascbc_node->GetOpDescBarePtr(), "ascgraph", sub_graph_str);
+
+  return compute_graph;
+}
+
+/**
  *                                         add
  *                             /                         \
  *                          add                            \

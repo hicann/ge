@@ -163,7 +163,7 @@ TEST_F(TestBackendConcatE2e, ConcatNotAllAligned_B64) {
 
     std::string expected = "const concat::ConcatTiling<2> concat_tiling {\n";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);
-    expected = "concat::ConcatExtendDyn<uint32_t, 2>((uint32_t *)";
+    expected = "concat::ConcatExtend<uint32_t, 2>((uint32_t *)";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);
   }
   catch (...) {
@@ -192,7 +192,7 @@ TEST_F(TestBackendConcatE2e, ConcatNotAllAligned_B8) {
     const auto &kernel = RemoveSubDirInclude(result.kernel);
     std::string expected = "const concat::ConcatTiling<2> concat_tiling {\n";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);
-    expected = "concat::ConcatExtendDyn<int8_t, 2>((int8_t *)";
+    expected = "concat::ConcatExtend<int8_t, 2>((int8_t *)";
     EXPECT_TRUE(kernel.find(expected) != std::string::npos);
   }
   catch (...) {

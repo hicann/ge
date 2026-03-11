@@ -139,11 +139,25 @@ def ascbc_host_compile(graph_name, kernel_name, host_build_dir, is_last_compile,
 
 
 def gen_valid_name(t_name):
-    invalid_chars = ["/", ".", "+", "-", "*", "%"]
-    ret_name = t_name
-    for char in invalid_chars:
-        ret_name = ret_name.replace(char, "_")
+    result = []
+    last_was_underscore = False
 
+    for c in t_name:
+        if c.isalnum():
+            result.append(c)
+            last_was_underscore = False
+        else:
+            if not last_was_underscore:
+                result.append('_')
+                last_was_underscore = True
+
+    ret_name = ''.join(result)
+
+    # 删除开头的下划线
+    if ret_name and ret_name[0] == '_':
+        ret_name = ret_name[1:]
+
+    # 如果以数字开头，添加前缀
     if ret_name and ret_name[0].isdigit():
         ret_name = "t_" + ret_name
 
@@ -1044,8 +1058,22 @@ inline int32_t compute_basen_basem_align() {{
 #define DTYPE_BIAS {map_dtype_to_string(origin_outputs[-1]["dtype"])}
 """
 
+    tiling_data_undef = f"""
+#ifndef __UNDEF_MATMULV3_HEADER__
+#define __UNDEF_MATMULV3_HEADER__
+#undef GET_TILING_DATA_PTR_WITH_STRUCT
+#undef COPY_TILING_WITH_STRUCT
+#undef COPY_TILING_WITH_ARRAY
+#undef GET_TILING_DATA
+#undef GET_TILING_DATA_MEMBER
+#undef GET_TILING_DATA_WITH_STRUCT
+#undef __tiling_data_ptr__
+#endif
+"""
+
     tiling_info.file_content += device_tiling_data
-    device_tiling_content = tiling_info.file_content
+    device_tiling_content = tiling_data_undef
+    device_tiling_content += tiling_info.file_content
     generate_file(os.path.join(temp_dir, "device"), "autofuse_cube_tiling_data.h", device_tiling_content)
     generate_file(os.path.join(temp_dir, "device", "cv_common"), "autofuse_cube_tiling_data.h",
                   device_tiling_content)

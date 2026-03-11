@@ -17,6 +17,7 @@
 #include "graph/load/model_manager/model_manager.h"
 #include "aprof_pub.h"
 #include "graph/ge_context.h"
+#include "acl/acl_rt.h"
 
 namespace ge {
 namespace {
@@ -234,8 +235,8 @@ rtError_t HandleCtrlSwitch(const MsprofCommandHandle &prof_command_handle) {
 
 rtError_t HandleCtrlSetStepInfo(const ProfStepInfoCmd_t &prof_set_stepinfo) {
   int32_t device_id = 0;
-  const rtError_t rt_ret = rtGetDevice(&device_id);
-  if (rt_ret != RT_ERROR_NONE) {
+  const aclError rt_ret = aclrtGetDevice(&device_id);
+  if (rt_ret != ACL_SUCCESS) {
     GELOGE(ge::RT_FAILED, "[Get][LogicDeviceId]Failed, ret %d", rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "Get logic device id failed, ret %d", rt_ret);
     return RT_ERROR;

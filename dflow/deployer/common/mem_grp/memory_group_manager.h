@@ -14,7 +14,6 @@
 #include <string>
 #include <mutex>
 #include "external/ge_common/ge_api_types.h"
-#include "runtime/rt_mem_queue.h"
 #include "framework/common/debug/log.h"
 #include "ge/ge_api_error_codes.h"
 #include "common/config/configurations.h"

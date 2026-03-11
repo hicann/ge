@@ -10,10 +10,12 @@
 
 #include "block_op_utils.h"
 #include "base/err_msg.h"
+#include "acl/acl_rt.h"
+
 namespace gert {
 ge::Status CheckDeviceSupportBlockingAicpuOpProcess(bool &is_support) {
   int32_t device_id = 0;
-  GE_ASSERT_RT_OK(rtGetDevice(&device_id));
+  GE_ASSERT_RT_OK(aclrtGetDevice(&device_id));
 
   int32_t value = 0;
   GE_ASSERT_RT_OK(rtGetDeviceCapability(device_id, FEATURE_TYPE_BLOCKING_OPERATOR, RT_MODULE_TYPE_AICPU, &value));

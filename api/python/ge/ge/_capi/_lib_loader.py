@@ -15,14 +15,16 @@
 
 import ctypes
 import os
+from typing import Optional
 
 
-def load_lib_from_path(lib_name: str, lib_dir: str) -> ctypes.CDLL:
+def load_lib_from_path(lib_name: str, lib_dir: str, mode: Optional[int] = None) -> ctypes.CDLL:
     """Load library from file system with fallback search paths.
     
     Args:
         lib_name: Library name or absolute path.
         lib_dir: Directory to search for the library if lib_name is not absolute.
+        mode: Optional dlopen mode flags (e.g., os.RTLD_GLOBAL | os.RTLD_NOW).
         
     Returns:
         Loaded ctypes.CDLL object.
@@ -38,9 +40,10 @@ def load_lib_from_path(lib_name: str, lib_dir: str) -> ctypes.CDLL:
     errors = []
     for path in candidates:
         try:
-            return ctypes.CDLL(path)
+            if mode is None:
+                return ctypes.CDLL(path)
+            return ctypes.CDLL(path, mode=mode)
         except OSError as exc:
             errors.append(f"try to load {path} failed: {exc}")
     
     raise OSError("\n".join(errors))
-

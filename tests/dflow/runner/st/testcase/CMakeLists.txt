@@ -81,7 +81,6 @@ target_link_libraries(helper_runtime_test
     intf_llt_pub
     -Wl,-z,muldefs
     model_deployer
-    udf_static
     dflow_runner
     ge_compiler
     flow_graph
@@ -96,10 +95,7 @@ target_link_libraries(helper_runtime_test
     hybrid_executor
     davinci_executor
     mmpa
-    aihacb_autofusion_stub
-    crypto_static
     -Wl,--whole-archive
-    rt2_registry_static
     df_memset_stubs
     -Wl,--no-whole-archive
     ge_graph_dsl df_st_stubs ge_running_env ge_runtime_stub ascendcl_stub

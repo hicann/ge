@@ -1305,7 +1305,7 @@ Status FftsPlusProtoTransfer::InitAicpuTaskExtInfo(const OpDescPtr &op_desc, con
 
 Status FftsPlusProtoTransfer::CheckDeviceSupportBlockingAicpuOpProcess(bool &is_support) const {
   int32_t device_id = 0;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   int32_t value = 0;
   GE_CHK_RT_RET(rtGetDeviceCapability(device_id, FEATURE_TYPE_BLOCKING_OPERATOR, RT_MODULE_TYPE_AICPU, &value));
 

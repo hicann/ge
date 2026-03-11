@@ -34,7 +34,7 @@ set(LIB_PATH $ENV{NPU_HOST_LIB})
 
 # Dynamic libraries in the stub directory can only be used for compilation
 if (NOT DEFINED ENV{NPU_HOST_LIB})
-    set(LIB_PATH "/usr/local/Ascend/cann/lib64/")
+    set(LIB_PATH "/usr/local/Ascend/cann/devlib/")
     message(STATUS "set default LIB_PATH: ${LIB_PATH}")
 else ()
     message(STATUS "env LIB_PATH: ${LIB_PATH}")

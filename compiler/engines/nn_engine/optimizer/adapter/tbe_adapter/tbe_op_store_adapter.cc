@@ -1454,14 +1454,22 @@ Status TbeOpStoreAdapter::WaitTaskFinish(CompileTaskPara &task_para) const {
       continue;
     }
 
-    for (auto &task : fin_com_task) {
-      if (task.status == SUCCESS) {
-        task_para.succ_tasks.emplace(task.taskId, task);
-      } else {
-        task_para.failed_tasks.emplace(task.taskId, task);
+    for (auto it = fin_com_task.begin(); it != fin_com_task.end();) {
+      if (task_para.succ_tasks.count(it->taskId) > 0 || task_para.failed_tasks.count(it->taskId) > 0) {
+        FE_LOGW("[Compile][Wait] Get duplicated task: graphId[%lu], taskId[%lu]", it->graphId, it->taskId);
+        it = fin_com_task.erase(it);
+        continue;
       }
-      FE_LOGD("Tid[%lu], taskId[%lu], task_num[%lu], fin_task_num[%lu], status[%d].", thread_id, task.taskId, task_num,
-              fin_com_task.size(), task.status);
+      FE_LOGI("[Compile][Wait] Report finished task: [%lu:%lu]", it->graphId, it->taskId);
+
+      if (it->status == SUCCESS) {
+        task_para.succ_tasks.emplace(it->taskId, *it);
+      } else {
+        task_para.failed_tasks.emplace(it->taskId, *it);
+      }
+      FE_LOGD("Tid[%lu], taskId[%lu], task_num[%lu], fin_task_num[%lu], status[%d].", thread_id, it->taskId, task_num,
+              fin_com_task.size(), it->status);
+      it++;
     }
 
     if (task_num < fin_com_task.size()) {

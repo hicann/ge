@@ -554,6 +554,8 @@ ApiPerfRegister<ApiPerf> ceil_api_perf_v2(ApiPerfRegisterV2(kCeil, GetPerfFunc(k
                                                                    &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> cos_api_perf_v2(ApiPerfRegisterV2(kCos, GetPerfFunc(kUnitVector), nullptr,
                                                                    &perf_param_table_v2, &tiling_schedule_config_table_v2));
+ApiPerfRegister<ApiPerf> acos_api_perf_v2(ApiPerfRegisterV2(kAcos, GetPerfFunc(kUnitVector), nullptr,
+                                                                   &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> logical_and_api_perf_v2(ApiPerfRegisterV2(kLogicalAnd, GetPerfFunc(kLogicalAnd + "V2"), nullptr,
                                                                    &perf_param_table_v2, &tiling_schedule_config_table_v2));
 ApiPerfRegister<ApiPerf> logical_or_api_perf_v2(ApiPerfRegisterV2(kLogicalOr, GetPerfFunc(kLogicalOr + "V2"), nullptr,

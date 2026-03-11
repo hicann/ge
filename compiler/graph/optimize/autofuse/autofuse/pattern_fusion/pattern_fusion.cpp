@@ -27,10 +27,10 @@
 namespace ge {
 constexpr uint32_t kMaxIterations = 3U;
 
-graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph, const GraphPasses &graph_passes) const {
+// 在符号化推导之前执行的 Pass，不需要符号化信息、不依赖 lowering
+graphStatus PatternFusion::RunEarlyPasses(const ComputeGraphPtr &graph, const GraphPasses &graph_passes) {
   GE_ASSERT_NOTNULL(graph);
 
-  // ============ 优化类 Pass (循环调用直到收敛) ============
   bool changed = true;
   uint32_t iter = 0U;
   while (changed && iter < kMaxIterations) {
@@ -44,6 +44,12 @@ graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph, con
     GE_ASSERT_GRAPH_SUCCESS(ConcatSliceSimplificationPass().Run(graph, graph_passes, changed));
   }
   GE_ASSERT_GRAPH_SUCCESS(graph->TopologicalSorting());
+
+  return GRAPH_SUCCESS;
+}
+
+graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph) {
+  GE_ASSERT_NOTNULL(graph);
   // ============ 融合类pass，先统一只调用一次 ============
   GE_ASSERT_GRAPH_SUCCESS(SliceForwardFusionPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(FlattenConcatPass().Run(graph));
@@ -52,4 +58,4 @@ graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph, con
   GE_ASSERT_GRAPH_SUCCESS(DecomposeLargeConstPass::Run(graph));
   return graph->TopologicalSorting();
 }
-}  // namespace ge
+} // namespace ge

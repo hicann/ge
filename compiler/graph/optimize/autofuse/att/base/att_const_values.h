@@ -241,6 +241,7 @@ inline const std::string kBitwiseOr = "BitwiseOr";
 inline const std::string kBitwiseXor = "BitwiseXor";
 inline const std::string kCeil = "Ceil";
 inline const std::string kCos = "Cos";
+inline const std::string kAcos = "Acos";
 inline const std::string kLogicalAnd = "LogicalAnd";
 inline const std::string kLogicalOr = "LogicalOr";
 inline const std::string kLogicalNot = "LogicalNot";

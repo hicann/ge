@@ -11,7 +11,6 @@
 #include "deploy/flowrm/tsd_client.h"
 #include <atomic>
 #include "aicpu/queue_schedule/dgw_client.h"
-#include "runtime/dev.h"
 #include "mmpa/mmpa_api.h"
 #include "plog.h"
 #include "common/debug/log.h"
@@ -20,6 +19,8 @@
 #include "mmpa/mmpa_api.h"
 #include "common/thread_pool/thread_pool.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -126,7 +127,7 @@ Status TsdClient::SetDevice(int32_t device_id) {
   }
   GELOGI("Set device begin, device_id = %d.", device_id);
   GE_CHK_RT_RET(LoadPackages(device_id));
-  GE_CHK_RT_RET(rtSetDevice(device_id));
+  DF_CHK_ACL_RET(aclrtSetDevice(device_id));
   std::unique_lock<std::mutex> map_guard(map_mutex_);
   set_device_list_.emplace(device_id);
   GELOGI("Set device success, device_id = %d.", device_id);
@@ -247,8 +248,8 @@ Status TsdClient::ForkSubprocess(int32_t device_id,
   // need send back log
   constexpr int32_t kLogSaveMode = 2;
   config.envs.emplace("ASCEND_LOG_SAVE_MODE", std::to_string(kLogSaveMode));
-  uint32_t host_pid = 0U;
-  GE_CHK_RT_RET(rtDeviceGetBareTgid(&host_pid));
+  int32_t host_pid = 0U;
+  DF_CHK_ACL_RET(aclrtDeviceGetBareTgid(&host_pid));
   config.envs.emplace("ASCEND_HOSTPID", std::to_string(host_pid));
 
   std::vector<ProcEnvParam> env_list;
@@ -397,7 +398,7 @@ void TsdClient::Finalize() {
     std::vector<std::future<Status>> fut_rets;
     for (auto device_id : set_device_list_) {
       auto fut = pool.commit([device_id]() -> Status {
-        GE_CHK_RT_RET(rtDeviceReset(device_id));
+        DF_CHK_ACL_RET(aclrtResetDevice(device_id));
         return SUCCESS;
       });
       fut_rets.emplace_back(std::move(fut));

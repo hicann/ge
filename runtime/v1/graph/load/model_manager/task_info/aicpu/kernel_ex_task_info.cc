@@ -17,6 +17,7 @@
 #include "graph/load/model_manager/model_utils.h"
 #include "common/kernel_handles_manager/kernel_handle_utils.h"
 #include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
+#include "acl/acl_rt.h"
 
 namespace {
 const std::string kAttrAicpuAllshape = "_AllShape";
@@ -443,7 +444,7 @@ void KernelExTaskInfo::PostProcess(const domi::TaskDef &task_def) {
 
 Status KernelExTaskInfo::CheckDeviceSupportBlockingAicpuOpProcess(bool &is_support) const {
   int32_t device_id = 0;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   int32_t value = 0;
   GE_CHK_RT_RET(rtGetDeviceCapability(device_id, FEATURE_TYPE_BLOCKING_OPERATOR, RT_MODULE_TYPE_AICPU, &value));
 

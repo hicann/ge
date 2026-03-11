@@ -26,7 +26,6 @@
 #include "common/profiling/profiling_properties.h"
 #include "framework/common/debug/ge_log.h"
 #include "ge/ge_api_error_codes.h"
-#include "runtime/rt_mem_queue.h"
 
 #include "macro_utils/dt_public_scope.h"
 #include "executor/cpu_sched_event_dispatcher.h"
@@ -106,6 +105,7 @@
 #include "dflow/inc/data_flow/model/graph_model.h"
 #include "dflow/compiler/pne/cpu/cpu_process_node_engine.h"
 #include "dflow/base/model/flow_model_om_loader.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 
 using namespace std;
 using namespace ::testing;
@@ -283,6 +283,13 @@ class ModelHandleMock2 : public ExecutorContext::ModelHandle {
 class RuntimeMock : public RuntimeStub {
  public:
   rtError_t rtMalloc(void **dev_ptr, uint64_t size, rtMemType_t type, uint16_t moduleId) override {
+    return 10;
+  }
+};
+
+class AclRuntimeMock : public AclRuntimeStub {
+ public:
+  aclError aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy) override {
     return 10;
   }
 };
@@ -3530,7 +3537,6 @@ TEST_F(STEST_helper_runtime, TestHeterogeneousRegCallback) {
   CallbackManager::GetInstance().Call("NpuExe", &exceptionInfo);
   exceptionInfo.retcode = 555U;
   CallbackManager::GetInstance().Call("NpuExe", &exceptionInfo);
-  engine_daemon.rt_context_ = (rtContext_t)1;
   engine_daemon.Finalize();
   MmpaStub::GetInstance().Reset();
 }
@@ -4644,6 +4650,8 @@ TEST_F(STEST_helper_runtime, TestEventHandlerClearModel) {
 
   auto runtime_stub = std::make_shared<RuntimeMock>();
   RuntimeStub::SetInstance(runtime_stub);
+  auto alc_runtime_stub = std::make_shared<AclRuntimeMock>();
+  AclRuntimeStub::SetInstance(alc_runtime_stub);
 
   auto mock_get_clear_model_handle3 =
     [](std::vector<uint32_t> &davinci_model_runtime_ids,
@@ -4673,6 +4681,7 @@ TEST_F(STEST_helper_runtime, TestEventHandlerClearModel) {
   EXPECT_EQ(response.error_code(), FAILED);
 
   RuntimeStub::Reset();
+  AclRuntimeStub::Reset();
 
   auto model_handle = MakeShared<ExecutorContext::ModelHandle>();
   std::vector<uint32_t> davinci_model_runtime_ids;

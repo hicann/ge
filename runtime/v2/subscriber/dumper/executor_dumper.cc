@@ -51,6 +51,7 @@
 #include "exe_graph/lowering/value_holder_utils.h"
 #include "runtime/rts/rts_stream.h"
 #include "runtime/rts/rts_kernel.h"
+#include "acl/acl_rt.h"
 
 namespace gert {
 namespace {
@@ -239,7 +240,7 @@ ge::Status NormalProcessor(const ge::OpDescPtr &op_desc, ge::ExceptionDumper *du
     int32_t device_id = 0;
     GE_CHK_RT_RET(rtsGetThreadLastTaskId(&task_id));
     GE_CHK_RT_RET(rtsStreamGetId(stream, reinterpret_cast<int32_t*>(&stream_id)));
-    GE_CHK_RT_RET(rtGetDevice(&device_id));
+    GE_CHK_RT_RET(aclrtGetDevice(&device_id));
     ge::OpDescInfoId id(task_id, stream_id, device_id);
     dumper->SaveDumpOpInfo(op_desc, extra_dump_unit, id, true);
   }
@@ -250,7 +251,7 @@ ge::Status FftsPlusProcessor(const ge::OpDescPtr &op_desc, ge::ExceptionDumper *
                              ge::ExtraOpInfo &extra_dump_unit, const rtStream_t &stream) {
   (void) stream;
   int32_t device_id = 0;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   ge::OpDescInfoId id(UINT32_MAX, UINT32_MAX, device_id);
   for (const auto &ctx : dump_unit.context_list) {
     id.context_id = ctx.context_id;
@@ -1444,7 +1445,7 @@ ge::Status ExecutorDumper::DumpOpDebug() {
     data_dumper->SetModelId(extend_info_->model_id);
     GELOGD("[Overflow][Dumper]model name[%s], model id[%u].", extend_info_->model_name.c_str(), extend_info_->model_id);
     int32_t device_id = 0;
-    GE_CHK_RT_RET(rtGetDevice(&device_id));
+    GE_CHK_RT_RET(aclrtGetDevice(&device_id));
     GE_ASSERT_TRUE(device_id >= 0);
     data_dumper->SetDeviceId(static_cast<uint32_t>(device_id));
 

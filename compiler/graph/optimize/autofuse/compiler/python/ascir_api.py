@@ -443,6 +443,16 @@ def Cos(owner_graph: ascir.HintGraph,
     return _common_in_1_out_1_normal_op("Cos", owner_graph, x, axis=axis, size=size, stride=stride)
 
 
+def Acos(owner_graph: ascir.HintGraph,
+               x: ascir.OpsOperatorOutput,
+               *,
+               axis: List[ascir.Axis],
+               size: Optional[List[ascir.SizeExpr]] = None,
+               stride: Optional[List[ascir.SizeExpr]] = None
+               ) -> ascir.OpsOperatorOutput:
+    return _common_in_1_out_1_normal_op("Acos", owner_graph, x, axis=axis, size=size, stride=stride)
+
+
 def Sqrt(owner_graph: ascir.HintGraph,
          x: ascir.OpsOperatorOutput,
          *,

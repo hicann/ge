@@ -10,7 +10,6 @@
 
 #include "executor/executor_context.h"
 #include <fstream>
-#include "rt_error_codes.h"
 #include "nlohmann/json.hpp"
 #include "common/compile_profiling/ge_call_wrapper.h"
 #include "executor/cpu_sched_event_dispatcher.h"
@@ -20,8 +19,6 @@
 #include "framework/executor/ge_executor.h"
 #include "graph/ge_context.h"
 #include "graph/manager/mem_manager.h"
-#include "runtime/mem.h"
-#include "runtime/dev.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/debug/ge_attr_define.h"
 #include "dflow/base/deploy/deploy_planner.h"
@@ -36,6 +33,7 @@
 #include "external/graph/types.h"
 #include "dflow/base/model/flow_model_om_loader.h"
 #include "graph/utils/op_type_utils.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -230,7 +228,7 @@ Status ExecutorContext::SyncSharedVarManager(const deployer::ExecutorRequest &re
   GE_CHK_STATUS_RET(var_mem_manager.Initialize(mem_type),
                     "[Init][MemManager] MemoryAllocatorManager initialize failed.");
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  DF_CHK_ACL_RET(aclrtGetDevice(&device_id));
   GELOGD("SyncSharedVarManager get device_id[%d] success", device_id);
   for (const auto &shared_content_desc : sync_var_manager_request.shared_content_descs()) {
     GeTensorDesc tensor_desc;
@@ -278,8 +276,8 @@ Status ExecutorContext::SetOpTimeout() {
     GE_CHK_STATUS_RET(ConvertToInt64(op_wait_timeout_str, op_wait_timeout_sec),
                       "Convert result[%s] to int32 failed.", op_wait_timeout_str.c_str());
     GE_CHECK_LE(op_wait_timeout_sec, static_cast<int64_t>(UINT32_MAX));
-    auto ret = rtSetOpWaitTimeOut(static_cast<uint32_t>(op_wait_timeout_sec));
-    GELOGI("Set rtSetOpWaitTimeOut[%s], ret = %d.", op_wait_timeout_str.c_str(), ret);
+    auto ret = aclrtSetOpWaitTimeout(static_cast<uint32_t>(op_wait_timeout_sec));
+    GELOGI("Set aclrtSetOpWaitTimeout[%s], ret = %d.", op_wait_timeout_str.c_str(), ret);
   }
 
   std::string op_execute_timeout_str;
@@ -289,8 +287,8 @@ Status ExecutorContext::SetOpTimeout() {
     GE_CHK_STATUS_RET(ConvertToInt64(op_execute_timeout_str, op_execute_timeout_sec),
                       "Convert result[%s] to int32 failed.", op_execute_timeout_str.c_str());
     GE_CHECK_LE(op_execute_timeout_sec, static_cast<int64_t>(UINT32_MAX));
-    auto ret = rtSetOpExecuteTimeOut(static_cast<uint32_t>(op_execute_timeout_sec));
-    GELOGI("Set rtSetOpExecuteTimeOut[%s], ret = %d.", op_execute_timeout_str.c_str(), ret);
+    auto ret = aclrtSetOpExecuteTimeOut(static_cast<uint32_t>(op_execute_timeout_sec));
+    GELOGI("Set aclrtSetOpExecuteTimeOut[%s], ret = %d.", op_execute_timeout_str.c_str(), ret);
   }
   return SUCCESS;
 }
@@ -299,13 +297,13 @@ Status ExecutorContext::SetDeviceSatMode() {
   std::string sat_mode;
   (void)GetContext().GetOption(OPTION_FLOAT_OVERFLOW_MODE, sat_mode);
   if (!sat_mode.empty()) {
-    static std::map<std::string, rtFloatOverflowMode_t> mode_transfer = {
-      {OPTION_FLOAT_OVERFLOW_MODE_SATURATION, RT_OVERFLOW_MODE_SATURATION},
-      {OPTION_FLOAT_OVERFLOW_MODE_INFNAN, RT_OVERFLOW_MODE_INFNAN}};
+    static std::map<std::string, aclrtFloatOverflowMode> mode_transfer = {
+      {OPTION_FLOAT_OVERFLOW_MODE_SATURATION, ACL_RT_OVERFLOW_MODE_SATURATION},
+      {OPTION_FLOAT_OVERFLOW_MODE_INFNAN, ACL_RT_OVERFLOW_MODE_INFNAN}};
     const auto &it = mode_transfer.find(sat_mode);
     if (it != mode_transfer.cend()) {
-      GE_CHK_RT_RET(rtSetDeviceSatMode(it->second));
-      GEEVENT("rtSetDeviceSatMode success, mode = %d.", static_cast<int32_t>(it->second));
+      DF_CHK_ACL_RET(aclrtSetDeviceSatMode(it->second));
+      GEEVENT("aclrtSetDeviceSatMode success, mode = %d.", static_cast<int32_t>(it->second));
     }
   }
   return SUCCESS;

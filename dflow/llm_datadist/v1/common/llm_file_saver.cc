@@ -160,7 +160,7 @@ ge::Status LLMFileSaver::OpenFile(int32_t &fd, const std::string &file_path, con
     std::string reason = "[Errno " + std::to_string(mmGetErrorCode()) + "] " + err_msg + ".";
     LLMLOGE(ge::FAILED, "[Open][File]Failed. errno:%d, errmsg:%s", fd, err_msg);
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
-                              std::vector<const char *>({&real_path[0], "file parameter", reason.c_str()}));
+                              std::vector<const char *>({file_path.c_str(), "file path", reason.c_str()}));
     return ge::FAILED;
   }
   return ge::SUCCESS;

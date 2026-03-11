@@ -78,15 +78,15 @@ void EventHandler::HandleUnloadRequest(deployer::ExecutorRequest &request, deplo
   std::mutex failed_mu;
   std::vector<uint32_t> failed;
   std::vector<std::thread> threads;
-  rtContext_t ctx = nullptr;
-  (void) rtCtxGetCurrent(&ctx);
+  aclrtContext ctx = nullptr;
+  (void) aclrtGetCurrentContext(&ctx);
   const auto &thread_local_ctx = GetThreadLocalContext();
   for (auto it = submodel_map->begin(); it != submodel_map->end(); ++it) {
     auto submodel_id = it->first;
     ExecutorContext::ModelHandle *handle = it->second.get();
     try {
       threads.emplace_back([handle, submodel_id, &failed, &failed_mu, ctx, &thread_local_ctx]() {
-        (void) rtCtxSetCurrent(ctx);
+        (void) aclrtSetCurrentContext(ctx);
         GetThreadLocalContext() = thread_local_ctx;
         if (handle->UnloadModel() != SUCCESS) {
           std::lock_guard<std::mutex> lk(failed_mu);

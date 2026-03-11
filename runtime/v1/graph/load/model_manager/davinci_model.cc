@@ -754,7 +754,7 @@ Status DavinciModel::UpdateStaticModelArgsByFm() {
 
 Status DavinciModel::CreateHcclGroupOrderedEvent() {
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   for (const auto &group_id : hccl_group_id_set_) {
     rtStream_t stream = nullptr;
     if (HcomTopoInfo::Instance().GetGroupOrderedStream(device_id, group_id.c_str(), stream) != GRAPH_SUCCESS) {
@@ -916,7 +916,7 @@ Status DavinciModel::SetTSDevice() {
   const bool ret = AttrUtils::GetInt(ge_model_, ATTR_MODEL_CORE_TYPE, value);
   const uint32_t core_type = ret ? static_cast<uint32_t>(value) : 0U;
   GELOGD("Set TSDevice: %u.", core_type);
-  GE_CHK_RT_RET(rtSetTSDevice(core_type));
+  GE_CHK_RT_RET(aclrtSetTsDevice(static_cast<aclrtTsId>(core_type)));
   return SUCCESS;
 }
 
@@ -2067,8 +2067,8 @@ Status DavinciModel::InitNodes(const ComputeGraphPtr &compute_graph) {
       auto fut = thread_pool.commit([this, node, op_type, thread_local_context, error_manager_context]() -> Status {
         GetThreadLocalContext() = thread_local_context;
         error_message::SetErrMgrContext(error_manager_context);
-        GE_CHK_RT_RET(rtSetDevice(device_id_));
-        GE_MAKE_GUARD(reset_device, [this]() { GE_CHK_RT(rtDeviceReset(device_id_)); });
+        GE_CHK_RT_RET(aclrtSetDevice(device_id_));
+        GE_MAKE_GUARD(reset_device, [this]() { GE_CHK_RT(aclrtResetDevice(device_id_)); });
         if (op_type == FILECONSTANT) {
           GE_CHK_STATUS_RET_NOLOG(InitFileConstant(node));
         } else if (op_type == CONSTANTOP) {
@@ -4454,7 +4454,7 @@ Status DavinciModel::CopyInputData(const InputData &input_data) {
       GELOGW("The switch of input_batch_cpy is open but only one input exists, not enable batch memcpy");
     } else {
       ResetMemcpyBatchParams();
-      GE_CHK_RT_RET(rtGetDevice(&cur_device_id));
+      GE_CHK_RT_RET(aclrtGetDevice(&cur_device_id));
     }
   }
   size_t idx = 0;
@@ -4582,7 +4582,7 @@ Status DavinciModel::CopyInputDataWithMergeH2D(const InputData &input_data) {
 
   int32_t cur_device_id = -1;
   if (enable_input_batch_cpy_) {
-    GE_CHK_RT_RET(rtGetDevice(&cur_device_id));
+    GE_CHK_RT_RET(aclrtGetDevice(&cur_device_id));
     ResetMemcpyBatchParams();
   }
   size_t idx = 0;
@@ -8099,7 +8099,7 @@ Status DavinciModel::SetDataDumperArgs(const ComputeGraphPtr &graph,
   data_dumper_.SetRefInfo(saved_task_addrs_);
 
   int32_t tmp_device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&tmp_device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&tmp_device_id));
   data_dumper_.SetDeviceId(static_cast<uint32_t>(tmp_device_id));
 
   const auto get_var_addr = [&variable_by_name, this](const std::string &var_name) -> uintptr_t {
@@ -8861,7 +8861,7 @@ bool DavinciModel::UpdateCoreCountWithOpDesc(const NodePtr &node, fe::PlatFormIn
 
 Status DavinciModel::UpdatePlatformInfos(const NodePtr &node, fe::PlatFormInfos &platform_infos) const {
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
 
   fe::PlatFormInfos platform_infos_bak;
   auto ret = fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(
@@ -9072,7 +9072,7 @@ Status DavinciModel::LaunchFromOpMasterSo() {
 
 Status DavinciModel::LaunchPlatformInfos(void *&platform_infos_addr, const NodePtr &node) {
   int32_t device_id = -1;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
   fe::PlatFormInfos platform_infos_bak;
   GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetRuntimePlatformInfosByDevice(
                  static_cast<uint32_t>(device_id), platform_infos_bak, true) == 0,

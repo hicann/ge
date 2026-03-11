@@ -33,6 +33,7 @@
 #include "register/op_tiling/op_tiling_constants.h"
 #include "common/kernel_handles_manager/kernel_handle_utils.h"
 #include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
+#include "acl/acl_rt.h"
 
 namespace ge {
 namespace {
@@ -621,19 +622,19 @@ Status KernelTaskInfo::Distribute() {
   const bool is_built_tiling_device = (kernel_type_ == ccKernelType::AI_CPU)
       && (task_type_ == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL);
   if (is_built_tiling_device) {
-    // Use the 5th and 6th bits of dump_flag_ indicate the value of topic_type.	
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx00xxxx: DEVICE_ONLY	
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx01xxxx: DEVICE_FIRST	
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx10xxxx: HOST_ONLY	
-    // xxxxxxxx xxxxxxxx xxxxxxxx xx11xxxx: HOST_FIRST	
-    dump_flag_ = dump_flag_ | static_cast<uint32_t>(deploy_type_flag_);	
-    // Use the 9th-11th bits of dump_flag_ indicate the value of qos. 12th indicate qos on/off	
-    // xxxxxxxx xxxxxxxx xxxx0000 xxxxxxxx: qos off	
-    // xxxxxxxx xxxxxxxx xxxx1000 xxxxxxxx: qos on, level=0(min level)	
-    // xxxxxxxx xxxxxxxx xxxx1111 xxxxxxxx: qos on, level=7(max level)	
-    dump_flag_ = dump_flag_ | qos_level_flag_;	
-    GELOGI("distribute task info kernel_type: %d, flag: %u", static_cast<int32_t>(kernel_type_), dump_flag_);	
-    GE_RETURN_IF_ERROR(AssembleKernelNamesAndLaunch());	
+    // Use the 5th and 6th bits of dump_flag_ indicate the value of topic_type.
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx00xxxx: DEVICE_ONLY
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx01xxxx: DEVICE_FIRST
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx10xxxx: HOST_ONLY
+    // xxxxxxxx xxxxxxxx xxxxxxxx xx11xxxx: HOST_FIRST
+    dump_flag_ = dump_flag_ | static_cast<uint32_t>(deploy_type_flag_);
+    // Use the 9th-11th bits of dump_flag_ indicate the value of qos. 12th indicate qos on/off
+    // xxxxxxxx xxxxxxxx xxxx0000 xxxxxxxx: qos off
+    // xxxxxxxx xxxxxxxx xxxx1000 xxxxxxxx: qos on, level=0(min level)
+    // xxxxxxxx xxxxxxxx xxxx1111 xxxxxxxx: qos on, level=7(max level)
+    dump_flag_ = dump_flag_ | qos_level_flag_;
+    GELOGI("distribute task info kernel_type: %d, flag: %u", static_cast<int32_t>(kernel_type_), dump_flag_);
+    GE_RETURN_IF_ERROR(AssembleKernelNamesAndLaunch());
   } else {
     GE_ASSERT_SUCCESS(DistributeTask());
   }
@@ -695,7 +696,7 @@ void KernelTaskInfo::PostProcess(const domi::TaskDef &task_def) {
 
 Status KernelTaskInfo::CheckDeviceSupportBlockingAicpuOpProcess(bool &is_support) const {
   int32_t device_id = 0;
-  GE_CHK_RT_RET(rtGetDevice(&device_id));
+  GE_CHK_RT_RET(aclrtGetDevice(&device_id));
 
   int32_t val = 0;
   GE_CHK_RT_RET(rtGetDeviceCapability(device_id, FEATURE_TYPE_BLOCKING_OPERATOR, RT_MODULE_TYPE_AICPU, &val));

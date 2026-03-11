@@ -12,10 +12,10 @@
 #define AIR_RUNTIME_DEPLOY_EXECUTOR_SCHED_TASK_INFO_H
 
 #include <cstdint>
-#include "runtime/rt_dfx.h"
 #include "ge/ge_api_types.h"
 #include "framework/common/ge_types.h"
 #include "framework/common/runtime_tensor_desc.h"
+#include "acl/acl.h"
 
 namespace ge {
 struct AicpuNotifyKernelArgs {
@@ -94,7 +94,7 @@ struct PostprocessDynamicOutputKernelArgs {
 
 class SchedTaskInfo {
  public:
-  explicit SchedTaskInfo(rtStream_t const stream);
+  explicit SchedTaskInfo(aclrtStream const stream);
   virtual ~SchedTaskInfo() noexcept = default;
   virtual Status Distribute() = 0;
   virtual Status Release();
@@ -103,7 +103,7 @@ class SchedTaskInfo {
   Status LaunchCpuKernel(const char *kernel_name) const;
   void *args_ = nullptr;
   uint64_t args_size_ = 0UL;
-  rtStream_t stream_ = nullptr;
+  aclrtStream stream_ = nullptr;
 
  private:
   SchedTaskInfo &operator=(const SchedTaskInfo &) & = delete;
@@ -112,7 +112,7 @@ class SchedTaskInfo {
 
 class SchedTaskModelDequeue : public SchedTaskInfo {
  public:
-  explicit SchedTaskModelDequeue(rtStream_t const stream) : SchedTaskInfo(stream) {}
+  explicit SchedTaskModelDequeue(aclrtStream const stream) : SchedTaskInfo(stream) {}
   ~SchedTaskModelDequeue() override = default;
   Status Init(const uint32_t queue_id, uint64_t &mbuf_addr);
   Status Distribute() override;
@@ -120,7 +120,7 @@ class SchedTaskModelDequeue : public SchedTaskInfo {
 
 class SchedTaskModelEnqueue : public SchedTaskInfo {
  public:
-  explicit SchedTaskModelEnqueue(rtStream_t const stream) : SchedTaskInfo(stream) {}
+  explicit SchedTaskModelEnqueue(aclrtStream const stream) : SchedTaskInfo(stream) {}
   ~SchedTaskModelEnqueue() override = default;
   Status Init(const uint32_t queue_id, const uint64_t mbuf_addr);
   Status Distribute() override;
@@ -128,7 +128,7 @@ class SchedTaskModelEnqueue : public SchedTaskInfo {
 
 class SchedTaskModelBatchDequeue : public SchedTaskInfo {
  public:
-  explicit SchedTaskModelBatchDequeue(rtStream_t const stream) : SchedTaskInfo(stream) {}
+  explicit SchedTaskModelBatchDequeue(aclrtStream const stream) : SchedTaskInfo(stream) {}
   ~SchedTaskModelBatchDequeue() override = default;
   Status Init(const std::vector<uint32_t> &queue_ids, const uint32_t align_interval,
               const std::vector<uint32_t> &align_offsets, std::vector<uint64_t> &mbuf_addrs);
@@ -137,7 +137,7 @@ class SchedTaskModelBatchDequeue : public SchedTaskInfo {
 
 class SchedTaskModelGatherDequeue : public SchedTaskInfo {
  public:
-  explicit SchedTaskModelGatherDequeue(rtStream_t const stream) : SchedTaskInfo(stream) {}
+  explicit SchedTaskModelGatherDequeue(aclrtStream const stream) : SchedTaskInfo(stream) {}
   ~SchedTaskModelGatherDequeue() override = default;
   Status Init(const std::vector<QueueAttrs> &queues, const InputAlignAttrs &input_align_attrs,
              std::vector<uint64_t> &mbuf_addrs);
@@ -146,7 +146,7 @@ class SchedTaskModelGatherDequeue : public SchedTaskInfo {
 
 class SchedTaskPrepareDynamicInputOutput : public SchedTaskInfo {
  public:
-  explicit SchedTaskPrepareDynamicInputOutput(rtStream_t const stream) : SchedTaskInfo(stream) {}
+  explicit SchedTaskPrepareDynamicInputOutput(aclrtStream const stream) : SchedTaskInfo(stream) {}
   ~SchedTaskPrepareDynamicInputOutput() override = default;
   Status Init(const std::vector<uint32_t> &input_dynamic_flags, const std::vector<uint64_t> &input_mbuf_addrs,
               const std::vector<int32_t> &input_fusion_offsets, const std::vector<int64_t> &output_tensor_sizes,
@@ -158,7 +158,7 @@ class SchedTaskPrepareDynamicInputOutput : public SchedTaskInfo {
 
 class SchedTaskModelBatchEnqueue : public SchedTaskInfo {
  public:
-  explicit SchedTaskModelBatchEnqueue(rtStream_t const stream) : SchedTaskInfo(stream) {};
+  explicit SchedTaskModelBatchEnqueue(aclrtStream const stream) : SchedTaskInfo(stream) {};
   ~SchedTaskModelBatchEnqueue() override = default;
   Status Init(const std::vector<uint32_t> &queue_ids, const std::vector<uint64_t> &mbuf_addrs);
   Status Distribute() override;
@@ -166,7 +166,7 @@ class SchedTaskModelBatchEnqueue : public SchedTaskInfo {
 
 class SchedTaskPostprocessDynamicOutput : public SchedTaskInfo {
  public:
-  explicit SchedTaskPostprocessDynamicOutput(rtStream_t const stream) : SchedTaskInfo(stream) {};
+  explicit SchedTaskPostprocessDynamicOutput(aclrtStream const stream) : SchedTaskInfo(stream) {};
   ~SchedTaskPostprocessDynamicOutput() override = default;
   Status Init(const uint64_t resp_msg_mbuf_addr, const std::vector<uint64_t> &input_mbuf_addrs,
               const std::vector<uint64_t> &output_mbuf_addrs, const std::vector<uint32_t> &output_dynamic_flags,
@@ -179,7 +179,7 @@ class SchedTaskPostprocessDynamicOutput : public SchedTaskInfo {
 
 class SchedTaskNotifyWait : public SchedTaskInfo {
  public:
-  explicit SchedTaskNotifyWait(rtStream_t const stream) : SchedTaskInfo(stream) {};
+  explicit SchedTaskNotifyWait(aclrtStream const stream) : SchedTaskInfo(stream) {};
   ~SchedTaskNotifyWait() override = default;
   Status Init(const uint32_t notify_id);
   Status Distribute() override;
@@ -187,14 +187,14 @@ class SchedTaskNotifyWait : public SchedTaskInfo {
 
 class SchedTaskNotifyRecord : public SchedTaskNotifyWait {
  public:
-  explicit SchedTaskNotifyRecord(rtStream_t const stream) : SchedTaskNotifyWait(stream) {};
+  explicit SchedTaskNotifyRecord(aclrtStream const stream) : SchedTaskNotifyWait(stream) {};
   ~SchedTaskNotifyRecord() override = default;
   Status Distribute() override;
 };
 
 class SchedTaskZeroCopy : public SchedTaskInfo {
  public:
-  explicit SchedTaskZeroCopy(rtStream_t const stream) : SchedTaskInfo(stream) {};
+  explicit SchedTaskZeroCopy(aclrtStream const stream) : SchedTaskInfo(stream) {};
   ~SchedTaskZeroCopy() override = default;
   Status Init(const std::vector<uint64_t> &src_addrs, std::vector<uint64_t> &dst_addrs);
   Status Distribute() override;
@@ -202,7 +202,7 @@ class SchedTaskZeroCopy : public SchedTaskInfo {
 
 class SchedTaskStreamRepeat : public SchedTaskInfo {
  public:
-  explicit SchedTaskStreamRepeat(rtStream_t const stream) : SchedTaskInfo(stream) {};
+  explicit SchedTaskStreamRepeat(aclrtStream const stream) : SchedTaskInfo(stream) {};
   ~SchedTaskStreamRepeat() override = default;
   Status Init(const uint32_t model_id);
   Status Distribute() override;
@@ -210,7 +210,7 @@ class SchedTaskStreamRepeat : public SchedTaskInfo {
 
 class SchedTaskMarkStep : public SchedTaskInfo {
  public:
-  explicit SchedTaskMarkStep(rtStream_t const stream) : SchedTaskInfo(stream) {};
+  explicit SchedTaskMarkStep(aclrtStream const stream) : SchedTaskInfo(stream) {};
   ~SchedTaskMarkStep() override = default;
   Status Init(const uint32_t group_total_count, const uint32_t group_index, const uint32_t group_policy,
               const std::string &dump_step, const uint64_t step_id_addr);

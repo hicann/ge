@@ -17,7 +17,6 @@
 #include "graph/ge_context.h"
 #include "framework/common/ge_types.h"
 #include "deploy/deployer/deployer_proxy.h"
-#include "rt_error_codes.h"
 
 namespace ge {
 namespace {

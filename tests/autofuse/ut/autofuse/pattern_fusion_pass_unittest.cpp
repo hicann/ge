@@ -239,55 +239,67 @@ TEST_F(PatternFusionPassTest, CastRemoveConsecutiveCastDtypesMatch) {
 }
 
 TEST_F(PatternFusionPassTest, TransposeWithBroadcastMultipleTranspose) {
-  // 测试多个transpose+broadcast的情况
+  // 测试多个 ZerosLike + Transpose 的情况
+  // ZerosLike + Transpose 会被替换为 Constant + BroadcastTo
   auto data1 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(0).OutCnt(1).Build("data1");
   auto zeros1 = OP_CFG("ZerosLike").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(1).OutCnt(1).Build("zeros1");
   auto transpose1 = OP_CFG("Transpose").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 2}).InCnt(1).OutCnt(1).Build("transpose1");
   auto relu = OP_CFG("ReLU").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 2}).InCnt(1).OutCnt(1).Build("relu");
 
-  auto data2 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 2}).InCnt(0).OutCnt(1).Build("data2");
-  auto zeros2 = OP_CFG("OnesLike").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 2}).InCnt(1).OutCnt(1).Build("ones2");
-  auto transpose2 = OP_CFG("Transpose").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(1).OutCnt(1).Build("transpose2");
+  auto data2 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(0).OutCnt(1).Build("data2");
+  auto zeros2 = OP_CFG("ZerosLike").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(1).OutCnt(1).Build("zeros2");
+  auto transpose2 = OP_CFG("Transpose").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 2}).InCnt(1).OutCnt(1).Build("transpose2");
+
   auto add = OP_CFG("Add").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(2).OutCnt(1).Build("add");
 
   DEF_GRAPH(test_graph) {
-    CHAIN(NODE(data1)->NODE(zeros1)->NODE(transpose1)->NODE(relu)->NODE("output_0", NETOUTPUT));
-    CHAIN(NODE(data2)->NODE(zeros2)->NODE(transpose2)->NODE(add)->NODE("output_1", NETOUTPUT));
+    CHAIN(NODE(data1)->NODE(zeros1)->NODE(transpose1)->NODE(relu)->DATA_EDGE(0, 0)->NODE(add)->NODE("output_0",
+      NETOUTPUT));
+    CHAIN(NODE(data2)->NODE(zeros2)->NODE(transpose2)->DATA_EDGE(0, 1)->NODE(add)->NODE("output_0", NETOUTPUT));
   };
 
   auto graph = ToComputeGraph(test_graph);
   std::vector<int64_t> perm1 = {1, 0};
   std::vector<int64_t> perm2 = {1, 0};
   AttrUtils::SetListInt(graph->FindNode("transpose1")->GetOpDesc(), "perm", perm1);
-  AttrUtils::SetListInt(graph->FindNode("transpose2")->GetOpDesc(), "perm", perm2);
-
+  GraphUtils::DumpGEGraphToOnnx(*graph, "BEFORE");
   bool changed = false;
   EXPECT_EQ(TransposeWithBroadcastEliminatePass().Run(graph, changed), GRAPH_SUCCESS);
   EXPECT_TRUE(changed);
+  GraphUtils::DumpGEGraphToOnnx(*graph, "AFTER");
+
+  // 验证原来的 zeros1, zeros2, transpose1, transpose2 节点被删除
   EXPECT_TRUE(graph->FindNode("transpose1") == nullptr);
   EXPECT_TRUE(graph->FindNode("transpose2") == nullptr);
+  EXPECT_TRUE(graph->FindNode("zeros1") == nullptr);
+  EXPECT_TRUE(graph->FindNode("zeros2") == nullptr);
 
-  // 验证zeros1和ones2的shape已更新为对应transpose的输出shape
-  auto zeros1_node = graph->FindNode("zeros1");
-  auto ones2_node = graph->FindNode("ones2");
-  ASSERT_NE(zeros1_node, nullptr);
-  ASSERT_NE(ones2_node, nullptr);
+  // 验证新的 BroadcastTo 节点被创建
+  bool found_broadcast_to = false;
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "BroadcastTo") {
+      found_broadcast_to = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_broadcast_to);
 
-  const auto &zeros1_shape = zeros1_node->GetOpDesc()->GetOutputDesc(0).GetShape();
-  EXPECT_EQ(zeros1_shape.GetDims().size(), 2UL);
-  EXPECT_EQ(zeros1_shape.GetDim(0), 3);
-  EXPECT_EQ(zeros1_shape.GetDim(1), 2);
-
-  const auto &ones2_shape = ones2_node->GetOpDesc()->GetOutputDesc(0).GetShape();
-  EXPECT_EQ(ones2_shape.GetDims().size(), 2UL);
-  EXPECT_EQ(ones2_shape.GetDim(0), 2);
-  EXPECT_EQ(ones2_shape.GetDim(1), 3);
+  // 验证 Constant 节点被创建（用于存放 0 值和 shape）
+  auto const_nodes = graph->GetDirectNode();
+  int const_count = 0;
+  for (const auto &node : const_nodes) {
+    if (node->GetType() == "Constant") {
+      const_count++;
+    }
+  }
+  // 应该有4个 Constant 节点：2个值常量 + 2个shape常量
+  EXPECT_GE(const_count, 4);
 }
 
 TEST_F(PatternFusionPassTest, TransposeFillWithScalarValue) {
-  // 测试 Fill + Transpose 消除，value是标量
+  // 测试 Fill + Transpose 转换为 BroadcastTo，value是标量
   auto shape_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_INT32, {2}).InCnt(0).OutCnt(1).Build("shape_data");
-  auto value_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {1}).InCnt(0).OutCnt(1).Build("value_data");
+  auto value_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {}).InCnt(0).OutCnt(1).Build("value_data");
   auto fill = OP_CFG("Fill").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 4}).InCnt(2).OutCnt(1).Build("fill");
   auto transpose = OP_CFG("Transpose").TensorDesc(FORMAT_ND, DT_FLOAT, {4, 3}).InCnt(1).OutCnt(1).Build("transpose");
 
@@ -300,23 +312,24 @@ TEST_F(PatternFusionPassTest, TransposeFillWithScalarValue) {
   std::vector<int64_t> perm = {1, 0};
   AttrUtils::SetListInt(graph->FindNode("transpose")->GetOpDesc(), "perm", perm);
 
-  bool changed = false;
-  EXPECT_EQ(TransposeWithBroadcastEliminatePass().Run(graph, changed), GRAPH_SUCCESS);
-  // value是标量，应该能消除
-  EXPECT_TRUE(changed);
+  EXPECT_EQ(PatternFusion::RunEarlyPasses(graph), GRAPH_SUCCESS);
+  // value是标量，应该能转换为 BroadcastTo
   EXPECT_TRUE(graph->FindNode("transpose") == nullptr);
+  EXPECT_TRUE(graph->FindNode("fill") == nullptr);
 
-  // 验证fill的shape已更新为transpose的输出shape
-  auto fill_node = graph->FindNode("fill");
-  ASSERT_NE(fill_node, nullptr);
-  const auto &fill_shape = fill_node->GetOpDesc()->GetOutputDesc(0).GetShape();
-  EXPECT_EQ(fill_shape.GetDims().size(), 2UL);
-  EXPECT_EQ(fill_shape.GetDim(0), 4);
-  EXPECT_EQ(fill_shape.GetDim(1), 3);
+  // 验证 BroadcastTo 节点被创建
+  bool found_broadcast_to = false;
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "BroadcastTo") {
+      found_broadcast_to = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(found_broadcast_to);
 }
 
 TEST_F(PatternFusionPassTest, TransposeFillWithConstTensorValue) {
-  // 测试 Fill + Transpose 不消除，value是const张量（只支持scalar）
+  // 测试 Fill + Transpose 不转换为 BroadcastTo，value是const张量（只支持scalar）
   auto shape_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_INT32, {2}).InCnt(0).OutCnt(1).Build("shape_data");
   // 使用Const节点（类型为Constant），value是张量 {3, 2}
   GeTensorDesc value_desc(GeShape({3, 2}), FORMAT_ND, DT_FLOAT);
@@ -334,15 +347,13 @@ TEST_F(PatternFusionPassTest, TransposeFillWithConstTensorValue) {
   std::vector<int64_t> perm = {1, 0};
   AttrUtils::SetListInt(graph->FindNode("transpose")->GetOpDesc(), "perm", perm);
 
-  bool changed = false;
-  EXPECT_EQ(TransposeWithBroadcastEliminatePass().Run(graph, changed), GRAPH_SUCCESS);
-  // value是const张量，但不是scalar，不应该消除
-  EXPECT_FALSE(changed);
+  EXPECT_EQ(PatternFusion::RunEarlyPasses(graph), GRAPH_SUCCESS);
+  // value是const张量，但不是scalar，不应该转换为 BroadcastTo
   EXPECT_TRUE(graph->FindNode("transpose") != nullptr);
 }
 
 TEST_F(PatternFusionPassTest, TransposeFillWithNonConstTensorValue) {
-  // 测试 Fill + Transpose 不消除，value是非const张量
+  // 测试 Fill + Transpose 不转换为 BroadcastTo，value是非const张量
   auto shape_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_INT32, {2}).InCnt(0).OutCnt(1).Build("shape_data");
   auto value_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(0).OutCnt(1).Build("value_data");
   auto fill = OP_CFG("Fill").TensorDesc(FORMAT_ND, DT_FLOAT, {4, 2, 3}).InCnt(2).OutCnt(1).Build("fill");
@@ -357,11 +368,59 @@ TEST_F(PatternFusionPassTest, TransposeFillWithNonConstTensorValue) {
   std::vector<int64_t> perm = {0, 2, 1};
   AttrUtils::SetListInt(graph->FindNode("transpose")->GetOpDesc(), "perm", perm);
 
-  bool changed = false;
-  EXPECT_EQ(TransposeWithBroadcastEliminatePass().Run(graph, changed), GRAPH_SUCCESS);
-  // value是非const张量，不应该消除
-  EXPECT_FALSE(changed);
+  EXPECT_EQ(PatternFusion::RunEarlyPasses(graph), GRAPH_SUCCESS);
+  // value是非const张量，不应该转换为 BroadcastTo
   EXPECT_TRUE(graph->FindNode("transpose") != nullptr);
+}
+
+TEST_F(PatternFusionPassTest, TransposeZerosLikeWithMultipleConsumers) {
+  // 测试 ZerosLike 输出有多个消费者时，不应该消除
+  auto data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(0).OutCnt(1).Build("data");
+  auto zeros = OP_CFG("ZerosLike").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(1).OutCnt(1).Build("zeros");
+  auto transpose = OP_CFG("Transpose").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 2}).InCnt(1).OutCnt(1).Build("transpose");
+  auto mul = OP_CFG("Mul").TensorDesc(FORMAT_ND, DT_FLOAT, {2, 3}).InCnt(2).OutCnt(1).Build("mul");
+
+  DEF_GRAPH(test_graph) {
+    CHAIN(NODE(data)->NODE(zeros));
+    // zeros 有两个消费者：transpose 和 mul
+    CHAIN(NODE(zeros)->NODE(transpose)->NODE("output_0", NETOUTPUT));
+    CHAIN(NODE(zeros)->NODE(mul)->NODE("output_1", NETOUTPUT));
+  };
+
+  auto graph = ToComputeGraph(test_graph);
+  std::vector<int64_t> perm = {1, 0};
+  AttrUtils::SetListInt(graph->FindNode("transpose")->GetOpDesc(), "perm", perm);
+
+  EXPECT_EQ(PatternFusion::RunEarlyPasses(graph), GRAPH_SUCCESS);
+  // zeros 有多个消费者，不应该消除
+  EXPECT_TRUE(graph->FindNode("transpose") != nullptr);
+  EXPECT_TRUE(graph->FindNode("zeros") != nullptr);
+}
+
+TEST_F(PatternFusionPassTest, TransposeFillWithMultipleConsumers) {
+  // 测试 Fill 输出有多个消费者时，不应该消除
+  auto shape_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_INT32, {2}).InCnt(0).OutCnt(1).Build("shape_data");
+  auto value_data = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {}).InCnt(0).OutCnt(1).Build("value_data");
+  auto fill = OP_CFG("Fill").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 4}).InCnt(2).OutCnt(1).Build("fill");
+  auto transpose = OP_CFG("Transpose").TensorDesc(FORMAT_ND, DT_FLOAT, {4, 3}).InCnt(1).OutCnt(1).Build("transpose");
+  auto add = OP_CFG("Add").TensorDesc(FORMAT_ND, DT_FLOAT, {3, 4}).InCnt(2).OutCnt(1).Build("add");
+
+  DEF_GRAPH(test_graph) {
+    CHAIN(NODE(shape_data)->DATA_EDGE(0, 0)->NODE(fill));
+    CHAIN(NODE(value_data)->DATA_EDGE(0, 1)->NODE(fill));
+    // fill 有两个消费者：transpose 和 add
+    CHAIN(NODE(fill)->NODE(transpose)->NODE("output_0", NETOUTPUT));
+    CHAIN(NODE(fill)->NODE(add)->NODE("output_1", NETOUTPUT));
+  };
+
+  auto graph = ToComputeGraph(test_graph);
+  std::vector<int64_t> perm = {1, 0};
+  AttrUtils::SetListInt(graph->FindNode("transpose")->GetOpDesc(), "perm", perm);
+
+  EXPECT_EQ(PatternFusion::RunEarlyPasses(graph), GRAPH_SUCCESS);
+  // fill 有多个消费者，不应该消除
+  EXPECT_TRUE(graph->FindNode("transpose") != nullptr);
+  EXPECT_TRUE(graph->FindNode("fill") != nullptr);
 }
 
 TEST_F(PatternFusionPassTest, SliceForwardSingleElemNoChain) {
@@ -929,24 +988,27 @@ TEST_F(PatternFusionPassTest, SliceForwardMultiInputDifferentSource) {
 }
 
 TEST_F(PatternFusionPassTest, SliceForwardMultiInputFromSameSource) {
-  // 测试多输入 elementwise 的输入来自同一个源节点时，slice 应该上提
-  // 图结构: Data -> Mul(Data, Data) -> Slice -> Output
-  // 前移后:    Data -> Slice -> Mul(Slice输出, Slice输出) -> Output
   [this]() {
     auto data = es_graph_->CreateInput(0, "data0", nullptr);
     data.SetSymbolShape({"s0", "s1", "s2"});
-    data.SetShape({8, 3, 4});
+    data.SetShape({4, 4, 4});
 
-    // Mul 的两个输入都直接来自 data
-    auto mul = es::Mul(data, data);
-    mul.SetSymbolShape({"s0", "s1", "s2"});
-    mul.SetShape({8, 3, 4});
+    // Transpose: perm={1,0,2}, {4,4,4} -> {4,4,4} (shape 相同，但数据布局改变)
+    auto perm = CreateConst(*es_graph_, ge::DT_INT64, {3}, std::vector<int64_t>{1, 0, 2});
+    auto transpose = es::Transpose(data, perm);
+    transpose.SetSymbolShape({"s1", "s0", "s2"});
+    transpose.SetShape({4, 4, 4});
+
+    // Mul 的两个输入都来自 transpose
+    auto mul = es::Mul(transpose, transpose);
+    mul.SetSymbolShape({"s1", "s0", "s2"});
+    mul.SetShape({4, 4, 4});
 
     auto offset = CreateConst(*es_graph_, ge::DT_INT64, {3}, std::vector<int64_t>{0, 0, 0});
-    auto size = CreateConst(*es_graph_, ge::DT_INT32, {3}, std::vector<int32_t>{4, 3, 4});
+    auto size = CreateConst(*es_graph_, ge::DT_INT32, {3}, std::vector<int32_t>{2, 4, 4});
     auto slice = es::Slice(mul, offset, size);
-    slice.SetSymbolShape({"4", "s1", "s2"});
-    slice.SetShape({4, 3, 4});
+    slice.SetSymbolShape({"2", "s0", "s2"});
+    slice.SetShape({2, 4, 4});
 
     es_graph_->SetOutput(slice, 0);
   }();
@@ -956,7 +1018,15 @@ TEST_F(PatternFusionPassTest, SliceForwardMultiInputFromSameSource) {
 
   // 修复：es构图只刷了output_shape，input_shape是空的
   for (const auto &node : cg->GetAllNodes()) {
-    if (node->GetType() == "Mul") {
+    if (node->GetType() == "Transpose") {
+      auto input_desc = node->GetOpDesc()->MutableInputDesc(0);
+      auto output_desc = node->GetOpDesc()->MutableOutputDesc(0);
+      input_desc->SetShape(GeShape({4, 4, 4}));
+      input_desc->SetOriginShape(GeShape({4, 4, 4}));
+      output_desc->SetShape(GeShape({4, 4, 4}));
+      output_desc->SetOriginShape(GeShape({4, 4, 4}));
+      input_desc->CopyAttrsFrom(*output_desc);
+    } else if (node->GetType() == "Mul") {
       auto input_desc = node->GetOpDesc()->MutableInputDesc(0);
       auto output_desc = node->GetOpDesc()->MutableOutputDesc(0);
       if (input_desc != nullptr && output_desc != nullptr) {
@@ -971,41 +1041,21 @@ TEST_F(PatternFusionPassTest, SliceForwardMultiInputFromSameSource) {
         input_desc1->SetOriginShape(output_desc->GetOriginShape());
         input_desc1->CopyAttrsFrom(*output_desc);
       }
-    }
-  }
-
-  // 修复：Mul节点需要设置SymbolicDescAttr，从Data节点的output复制
-  for (const auto &node : cg->GetAllNodes()) {
-    if (node->GetType() == "Mul") {
-      auto data_node = cg->FindFirstNodeMatchType("Data");
-      if (data_node != nullptr) {
-        auto data_output_desc = data_node->GetOpDesc()->MutableOutputDesc(0);
-        if (data_output_desc != nullptr) {
-          auto data_output_attr = data_output_desc->GetAttrsGroup<ge::SymbolicDescAttr>();
-          // 为Mul的输入输出设置SymbolicDescAttr
-          for (size_t i = 0; i < node->GetOpDesc()->GetInputsSize(); ++i) {
-            auto input_desc = node->GetOpDesc()->MutableInputDesc(i);
-            if (input_desc != nullptr) {
-              input_desc->CopyAttrsFrom(*data_output_desc);
-            }
-          }
-          for (size_t i = 0; i < node->GetOpDesc()->GetOutputsSize(); ++i) {
-            auto output_desc = node->GetOpDesc()->MutableOutputDesc(i);
-            if (output_desc != nullptr) {
-              output_desc->CopyAttrsFrom(*data_output_desc);
-            }
-          }
-        }
-      }
+    } else if (node->GetType() == "Slice") {
+      auto input_desc = node->GetOpDesc()->MutableInputDesc(0);
+      auto output_desc = node->GetOpDesc()->MutableOutputDesc(0);
+      input_desc->SetShape(output_desc->GetShape());
+      input_desc->SetOriginShape(output_desc->GetOriginShape());
+      input_desc->CopyAttrsFrom(*output_desc);
     }
   }
 
   EXPECT_EQ(SliceForwardFusionPass().Run(cg), GRAPH_SUCCESS);
 
-  // 验证 slice 的输入来自 Data
+  // 验证 slice 被前移，输入是 Transpose
   auto slice_node = cg->FindFirstNodeMatchType("Slice");
   ASSERT_NE(slice_node, nullptr);
-  EXPECT_EQ(slice_node->GetInDataNodes().at(0)->GetType(), "Data");
+  EXPECT_EQ(slice_node->GetInDataNodes().at(0)->GetType(), "Transpose");
 
   // 验证 mul 的两个输入都来自 Slice
   auto mul_node = cg->FindFirstNodeMatchType("Mul");
@@ -1013,9 +1063,8 @@ TEST_F(PatternFusionPassTest, SliceForwardMultiInputFromSameSource) {
   EXPECT_EQ(mul_node->GetInDataNodes().at(0)->GetType(), "Slice");
   EXPECT_EQ(mul_node->GetInDataNodes().at(1)->GetType(), "Slice");
 
-  // 验证 mul 的 shape 已更新为 slice 的输出 shape
-  const auto &mul_shape = mul_node->GetOpDesc()->GetOutputDesc(0).GetShape();
-  EXPECT_EQ(mul_shape.GetDims(), std::vector<int64_t>({4, 3, 4}));
+  // 验证 Transpose 仍然在图中
+  EXPECT_NE(cg->FindFirstNodeMatchType("Transpose"), nullptr);
 }
 
 }  // namespace ge

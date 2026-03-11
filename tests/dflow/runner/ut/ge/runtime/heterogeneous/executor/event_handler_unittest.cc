@@ -31,11 +31,20 @@
 #include "proto/deployer.pb.h"
 #include "graph/utils/op_desc_utils.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "depends/ascendcl/src/ascendcl_stub.h"
 
 using namespace std;
 
 namespace ge {
 namespace {
+// add mock for aclrt interface
+class AclRuntimeMock : public AclRuntimeStub {
+ public:
+  aclError aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy) override {
+    return 10;
+  }
+};
+
 class RuntimeMock : public RuntimeStub {
  public:
   rtError_t rtMalloc(void **dev_ptr, uint64_t size, rtMemType_t type, uint16_t moduleId) override {
@@ -396,6 +405,8 @@ TEST_F(EventHandlerTest, TestEventHandlerClearModel) {
 
   auto runtime_stub = std::make_shared<RuntimeMock>();
   RuntimeStub::SetInstance(runtime_stub);
+  auto alc_runtime_stub = std::make_shared<AclRuntimeMock>();
+  AclRuntimeStub::SetInstance(alc_runtime_stub);
 
   auto mock_get_clear_model_handle3 =
     [&modelHandle](std::vector<uint32_t> &davinci_model_runtime_ids,
@@ -425,6 +436,7 @@ TEST_F(EventHandlerTest, TestEventHandlerClearModel) {
   EXPECT_EQ(response.error_code(), FAILED);
 
   RuntimeStub::Reset();
+  AclRuntimeStub::Reset();
 
   auto model_handle = MakeShared<ExecutorContext::ModelHandle>();
   std::vector<uint32_t> davinci_model_runtime_ids;
@@ -657,6 +669,9 @@ TEST_F(EventHandlerTest, TestExceptionNotify) {
 
   auto runtime_stub = std::make_shared<RuntimeMock>();
   RuntimeStub::SetInstance(runtime_stub);
+  auto alc_runtime_stub = std::make_shared<AclRuntimeMock>();
+  AclRuntimeStub::SetInstance(alc_runtime_stub);
+
   auto mock_get_clear_model_handle3 =
       [](std::vector<uint32_t> &davinci_model_runtime_ids,
                      std::vector<ExecutorContext::ModelHandle *> &dynamic_model_handles) -> Status {
@@ -682,6 +697,7 @@ TEST_F(EventHandlerTest, TestExceptionNotify) {
   EXPECT_NE(response.error_code(), SUCCESS);
 
   RuntimeStub::Reset();
+  AclRuntimeStub::Reset();
   handler.Finalize();
 }
 

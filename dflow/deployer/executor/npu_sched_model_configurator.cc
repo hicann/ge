@@ -9,11 +9,13 @@
  */
 
 #include "executor/npu_sched_model_configurator.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
+#include "runtime/rt_external.h"
 #include "aicpu_task_struct.h"
 #include "graph/def_types.h"
 #include "framework/common/debug/log.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -46,16 +48,16 @@ Status NpuSchedModelConfigurator::BuildModelConfigTask(const AicpuModelConfig &c
 
 Status NpuSchedModelConfigurator::ExecuteKernel(const std::string &kernel_name,
                                                 const std::vector<uint8_t> &task_args) {
-  rtStream_t stream = nullptr;
-  GE_CHK_RT_RET(rtStreamCreate(&stream, kDefaultPriority));
-  GE_MAKE_GUARD_RTSTREAM(stream);
+  aclrtStream stream = nullptr;
+  DF_CHK_ACL_RET(aclrtCreateStream(&stream));
+  DF_MAKE_GUARD_ACLSTREAM(stream);
   rtArgsEx_t args_info = {};
   args_info.args = const_cast<void *>(static_cast<const void *>(task_args.data()));
   args_info.argsSize = static_cast<uint32_t>(task_args.size());
   GE_CHK_RT_RET(rtCpuKernelLaunchWithFlag(nullptr, kernel_name.c_str(), kKernelBlockDim,
       &args_info, nullptr, stream, RT_KERNEL_DEFAULT));
   GELOGD("Success to launch kernel, kernel name = %s", kernel_name.c_str());
-  GE_CHK_RT_RET(rtStreamSynchronize(stream));
+  DF_CHK_ACL_RET(aclrtSynchronizeStream(stream));
   GELOGD("Success to sync stream, kernel name = %s", kernel_name.c_str());
   return SUCCESS;
 }

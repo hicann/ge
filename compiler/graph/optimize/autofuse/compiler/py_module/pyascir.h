@@ -48,6 +48,7 @@ PyMODINIT_FUNC PyInit_pyautofuse(void);
   OP(BitwiseXor)       \
   OP(Ceil)             \
   OP(Cos)              \
+  OP(Acos)             \
   OP(Sqrt)             \
   OP(Rsqrt)            \
   OP(RemovePad)        \

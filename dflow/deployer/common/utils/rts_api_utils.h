@@ -12,13 +12,14 @@
 #define AIR_RUNTIME_COMMON_UTILS_RTS_API_UTILS_H_
 #include "framework/common/debug/log.h"
 #include "runtime/rt.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 class RtsApiUtils {
  public:
   static inline Status SetDevice(int32_t device_id) {
-    GE_CHK_RT_RET(rtSetDevice(device_id));
+    DF_CHK_ACL_RET(aclrtSetDevice(device_id));
     return SUCCESS;
   }
 

@@ -62,6 +62,9 @@ ge::Status MergeTensorContinuousDims(const ge::AscNodePtr &node, const std::stri
 // 指定支持的循环数，获取外派循环轴/使用的轴
 ge::Status GetOuterParams(const vector<Expr> &dims, Expr &outer_repeat, vector<Expr> &used_dims,
                           const uint32_t dma_max_len = kDmaMaxLen);
+// 获取dma参数，获取外派循环轴/使用的轴，支持根据内轴大小比较进行交换
+ge::Status GetDmaParams(const vector<Expr> &dims, Expr &outer_repeat, vector<Expr> &used_dims,
+                        int32_t supported_max_dma_len, bool need_swap = false);
 // 更新三元表达式的结果到output_res
 ge::Status UpdateTenary(PerfOutputInfo &perf_res, PerfOutputInfo &output_res);
 ge::Status GetDmaPerf(const TensorShapeInfo &tensor_info, NodeDetail &node_info, PerfOutputInfo &perf_res,

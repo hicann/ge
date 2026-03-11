@@ -16,6 +16,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/def_types.h"
 #include "runtime/rt.h"
+#include "acl/acl_rt.h"
 #include "base/err_msg.h"
 
 namespace {
@@ -27,9 +28,9 @@ Status SharedMemAllocator::Allocate(SharedMemInfo &mem_info) {
   GELOGD("SharedMemAllocator::Malloc host mem size= %zu for devid:[%u].", mem_info.mem_size, device_id);
 
   const int32_t dev_id = static_cast<int32_t>(device_id);
-  GE_CHK_RT_RET(rtSetDevice(dev_id));
+  GE_CHK_RT_RET(aclrtSetDevice(dev_id));
   // DeviceReset before memory finished!
-  GE_MAKE_GUARD(not_used_var, [&dev_id]() { GE_CHK_RT(rtDeviceReset(dev_id)); });
+  GE_MAKE_GUARD(not_used_var, [&dev_id]() { GE_CHK_RT(aclrtResetDevice(dev_id)); });
 
   rtMallocHostSharedMemoryIn input_para = {mem_info.shm_name.c_str(), mem_info.mem_size, kMallocHostMemFlag};
   rtMallocHostSharedMemoryOut output_para;

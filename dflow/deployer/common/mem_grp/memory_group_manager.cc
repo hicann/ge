@@ -10,15 +10,14 @@
 
 #include "common/mem_grp/memory_group_manager.h"
 #include <regex>
-#include "rt_error_codes.h"
-#include "runtime/dev.h"
 #include "graph/ge_context.h"
 #include "common/config/configurations.h"
 #include "common/math/math_util.h"
 #include "framework/common/util.h"
-#include "runtime/rt_mem_queue.h"
 #include "mmpa/mmpa_api.h"
 #include "common/data_flow/event/proxy_event_manager.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {

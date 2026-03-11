@@ -11,6 +11,7 @@
 | 自定义算子的自定义pass样例                 | [README](5_add_zero_pass_in_custom_op/README.md)                             |
 | 拆分分组卷积的自定义pass样例                | [README](6_decompose_grouped_conv_to_splited_pass/README.md)           |
 | 移动Concat后ReLu至Concat前的自定义pass样例 | [README](7_move_relu_before_concat_pass/README.md)                     |
+| 修改卷积算子data format的自定义pass样例     | [README](8_modify_conv_data_format_pass/README.md)                     |
 
 ## 开发指南
 

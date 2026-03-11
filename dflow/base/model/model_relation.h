@@ -12,12 +12,9 @@
 #define GE_COMMON_MODEL_MODEL_RELATION_H_
 #include <map>
 #include <vector>
-#include "endpoint.h"
-#include "graph/gnode.h"
-#include "graph/compute_graph.h"
-#include "ge/ge_api_error_codes.h"
 #include "ge/ge_api_types.h"
-#include "common/checker.h"
+#include "graph/compute_graph.h"
+#include "endpoint.h"
 
 namespace ge {
 constexpr const char_t *ATTR_NAME_DATA_FLOW_UDF_INVOKED_NN = "_dflow_udf_invoked_nn";
