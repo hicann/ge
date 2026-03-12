@@ -84,7 +84,7 @@ def generate_cmake_lists(asc_graph_name, kernel_name, host_build_dir, is_last_co
                f" tiling_api graph_base register)\n")
     source += f"target_include_directories({kernel_name} PRIVATE\n"
     source += f"    {ASCEND_PATH}/include\n"
-    source += f"    {ASCEND_PATH}/pkg_inc/base\n"
+    source += f"    {ASCEND_PATH}/include/base\n"
     source += f"    {ASCEND_PATH}/include/experiment\n"
     source += f"    {ASCEND_PATH}/{machine}-linux/include\n"
     source += f"    {ASCEND_PATH}/{machine}-linux/ascendc/include/highlevel_api/tiling/platform\n"
