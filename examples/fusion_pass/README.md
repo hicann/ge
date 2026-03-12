@@ -1,17 +1,11 @@
-## 融合Pass样例
+# 自定义融合pass开发指南
 
-本目录提供了融合Pass相关的样例：
+## 概述
 
-| 样例                              | 样例链接                                                                   |
-|---------------------------------|------------------------------------------------------------------------|
-| MatMul+Add融合为GEMM自定义pass样例      | [README](1_fuse_matmul_add_pass/README.md)                             |
-| capture tensor 功能的使用            | [README](2_fuse_matmul_add_pass_with_capture_tensor/README.md)         |
-| PatternMatcherConfig 功能的使用      | [README](3_fuse_matmul_add_pass_with_pattern_matcher_config/README.md) |
-| 删除加零操作的自定义pass样例                | [README](4_add_zero_pass/README.md)                                    |
-| 自定义算子的自定义pass样例                 | [README](5_add_zero_pass_in_custom_op/README.md)                             |
-| 拆分分组卷积的自定义pass样例                | [README](6_decompose_grouped_conv_to_splited_pass/README.md)           |
-| 移动Concat后ReLu至Concat前的自定义pass样例 | [README](7_move_relu_before_concat_pass/README.md)                     |
-
-## 开发指南
-
-更多关于融合Pass开发的信息，请参考：[融合Pass开发指南](融合Pass开发指南.md)
+自定义融合pass是GE提供的一种改图能力，关于GE相关内容可点击
+[此处](https://www.hiascend.com/document/detail/zh/CANNCommunityEdition/83RC1alpha003/graph/graphdevg/atlasag_25_0081.html)。
+本指南介绍如何开发一个融合pass来实现自定义改图功能，
+此外我们还提供了可运行的样例以供参考,
+其中graph_base_pass[sample](../fusion_pass/graph_base_pass)是通过graph接口来实现自定义融合pass，
+而pattern_base_pass[sample](../fusion_pass/pattern_base_pass)是继承GE提供的类并重写其方法来实现自定义融合pass，
+总体上，推荐开发者通过继承GE提供的类并重写其方法来实现自定义融合pass。
