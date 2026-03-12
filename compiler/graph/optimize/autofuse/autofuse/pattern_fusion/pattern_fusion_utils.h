@@ -31,8 +31,14 @@ inline bool SameShape(const GeShape &shape1, const GeShape &shape2) {
 }
 
 // 注意：broadcast类型也会被标记成PointWise，所以这里增加输入输出shape一致的校验, 更符合后端对Elementwise的理解
+// 注意：Transpose/TransposeD的FuseType是pointwise
 inline bool IsElementwise(const NodePtr &node) {
   if (node == nullptr) {
+    return false;
+  }
+  // 排除会改变数据布局的操作
+  const auto &node_type = node->GetType();
+  if (node_type == "Transpose" || node_type == "TransposeD") {
     return false;
   }
   LoweringManager::Lowering(node);
