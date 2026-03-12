@@ -56,7 +56,7 @@ class KernelHandlesManager {
   void StoredKernelHandle(const rtBinHandle bin_handle, const std::string &bin_name);
   std::unordered_map<std::string, int64_t> local_refer_cnt_;
   static std::unordered_map<std::string, KernelBinInfo> global_bin_store_;
-  static std::mutex mtx_;
+  static std::recursive_mutex mtx_;
 };
 } // namespace ge
 

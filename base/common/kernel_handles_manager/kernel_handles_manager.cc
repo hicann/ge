@@ -14,9 +14,9 @@
 
 namespace ge {
 std::unordered_map<std::string, KernelBinInfo> KernelHandlesManager::global_bin_store_;
-std::mutex KernelHandlesManager::mtx_;
+std::recursive_mutex KernelHandlesManager::mtx_;
 rtBinHandle KernelHandlesManager::FindKernel(const std::string &bin_name) {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto iter = global_bin_store_.find(bin_name);
   if (iter != global_bin_store_.end()) {
     GELOGI("Find kernel by bin_name: %s", bin_name.c_str());
@@ -32,7 +32,7 @@ KernelHandlesManager::~KernelHandlesManager() {
 }
 
 graphStatus KernelHandlesManager::ClearKernel() {
-  std::lock_guard<std::mutex> lock(mtx_);
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
   for (const auto &local_refer_iter : local_refer_cnt_) {
     auto bin_iter = global_bin_store_.find(local_refer_iter.first);
     GE_ASSERT_TRUE(bin_iter != global_bin_store_.end(),
@@ -52,6 +52,7 @@ graphStatus KernelHandlesManager::ClearKernel() {
 
 rtBinHandle KernelHandlesManager::GetOrRegisterKernel(const KernelRegisterInfo &register_info,
     const std::string &bin_name) {
+  std::lock_guard<std::recursive_mutex> lock(mtx_);
   auto bin_handle = FindKernel(bin_name);
   if (bin_handle != nullptr) {
     return bin_handle;
@@ -64,7 +65,6 @@ void KernelHandlesManager::StoredKernelHandle(const rtBinHandle bin_handle, cons
   kernel_bin_handle.bin_handle = bin_handle;
   kernel_bin_handle.refer_cnt = 1;
   local_refer_cnt_[bin_name] = 1;
-  std::lock_guard<std::mutex> lock(mtx_);
   global_bin_store_.emplace(bin_name, kernel_bin_handle);
 }
 }
