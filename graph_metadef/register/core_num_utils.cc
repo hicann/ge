@@ -20,11 +20,11 @@ namespace {
 graphStatus ConvertStrToInt32(const std::string &str, int32_t &val) {
   try {
     val = std::stoi(str);
-  } catch (std::invalid_argument &) {
+  } catch (const std::invalid_argument &) {
     GELOGE(GRAPH_FAILED, "[Parse][Param]Failed, digit str:%s is invalid", str.c_str());
     REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s is invalid", str.c_str());
     return GRAPH_FAILED;
-  } catch (std::out_of_range &) {
+  } catch (const std::out_of_range &) {
     GELOGE(GRAPH_FAILED, "[Parse][Param]Failed, digit str:%s cannot change to int", str.c_str());
     REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s cannot change to int", str.c_str());
     return GRAPH_FAILED;
@@ -40,7 +40,7 @@ graphStatus ConvertStrToInt32(const std::string &str, int32_t &val) {
 graphStatus ReportParamError(const std::string &param_name, const std::string &param_value_str, const std::string &reason) {
   (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                             std::vector<const char *>({param_name.c_str(), param_value_str.c_str(), reason.c_str()}));
-  GELOGE(PARAM_INVALID, "Value %s for parameter %s is invalid. Reason: %s", param_name.c_str(), param_value_str.c_str(), reason.c_str());
+  GELOGE(PARAM_INVALID, "Value %s for parameter %s is invalid. Reason: %s", param_value_str.c_str(), param_name.c_str(), reason.c_str());
   return PARAM_INVALID;
 }
 }  // namespace
@@ -95,7 +95,7 @@ graphStatus CoreNumUtils::GetGeDefaultPlatformInfo(const std::string &soc_versio
 
   fe::OptionalInfo optional_info;
   GE_ASSERT_TRUE(fe::PlatformInfoManager::GeInstance().GetPlatformInfo(soc_version, platform_info, optional_info) == 0U, "Unable to get platform info.");
-  return SUCCESS;
+  return GRAPH_SUCCESS;
 }
 
 graphStatus CoreNumUtils::UpdateCoreCountWithOpDesc(const std::string &param_name, const std::string &op_core_num_str, int32_t soc_core_num,
@@ -107,7 +107,7 @@ graphStatus CoreNumUtils::UpdateCoreCountWithOpDesc(const std::string &param_nam
     res[res_key] = std::to_string(op_core_num);
   }
 
-  return SUCCESS;
+  return GRAPH_SUCCESS;
 }
 
 graphStatus CoreNumUtils::UpdatePlatformInfosWithOpDesc(const fe::PlatformInfo &platform_info, const ge::OpDescPtr &op_desc,
@@ -137,6 +137,6 @@ graphStatus CoreNumUtils::UpdatePlatformInfosWithOpDesc(const fe::PlatformInfo &
     platform_infos.SetPlatformResWithLock(kSocInfo, res);
   }
 
-  return SUCCESS;
+  return GRAPH_SUCCESS;
 }
 }  // namespace ge

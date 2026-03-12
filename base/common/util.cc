@@ -187,7 +187,7 @@ bool CheckInputPathValid(const std::string &file_path, const std::string &atc_pa
       char_t err_buf[kMaxErrorStrLength + 1U] = {};
       const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
       std::string reason = "[Error " + std::to_string(mmGetErrorCode()) + "] " + err_msg;
-      (void)REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
+      (void)REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"path", "errmsg"}),
                                 std::vector<const char *>({file_path.c_str(), reason.c_str()}));
     }
     GELOGW("Input parameter %s is empty.", file_path.c_str());

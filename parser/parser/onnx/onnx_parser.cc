@@ -1163,13 +1163,13 @@ Status OnnxModelParser::ParseFromMemory(const char *data, uint32_t size, ge::Gra
 
 Status OnnxModelParser::ToJson(const char *model_file, const char *json_file) {
   if (model_file == nullptr) {
-    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
+    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"path", "errmsg"}),
                               std::vector<const char *>({"", "param model file is nullptr"}));
     GELOGE(FAILED, "[Check][Param] Model file is nullptr.");
     return FAILED;
   }
   if (json_file == nullptr) {
-    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
+    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"path", "errmsg"}),
                               std::vector<const char *>({"", "param json file is nullptr"}));
     GELOGE(FAILED, "[Check][Param]Json file is nullptr.");
     return FAILED;

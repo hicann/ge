@@ -37,7 +37,7 @@ Status ModelParserBase::LoadFromFile(const char_t *const model_path, const int32
     std::array<char_t, kMaxErrorStringLen + 1U> err_buf = {};
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), err_buf.data(), kMaxErrorStringLen);
     std::string reason = "[Error " + std::to_string(mmGetErrorCode()) + "] " + err_msg;
-    (void)REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
+    (void)REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"path", "errmsg"}),
                        std::vector<const char *>({model_path, reason.c_str()}));
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Check][Param]Model file path %s is invalid",
            model_path);
