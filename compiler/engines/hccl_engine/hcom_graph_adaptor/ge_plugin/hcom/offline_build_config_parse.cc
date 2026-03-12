@@ -122,7 +122,7 @@ HcclResult GetDeterministic(u8 &deterministic) {
     } else if (hcclDeterministicEnv == "TRUE") {
       deterministic = DETERMINISTIC_ENABLE;
     } else if (hcclDeterministicEnv == "STRICT") {
-      CHK_PRT_RET(devType != DevType::DEV_TYPE_910B,
+      CHK_PRT_RET(devType != DevType::DEV_TYPE_910B && devType != DevType::DEV_TYPE_910_93,
                   HCCL_ERROR("ParserHcclDeterministic: "
                              "reduce order preservation is not supported for devType[%d]",
                              devType),
@@ -140,7 +140,7 @@ HcclResult GetDeterministic(u8 &deterministic) {
       if (geOption == "1") {
         deterministic = DETERMINISTIC_ENABLE;
       } else if (geOption == "2") {
-        CHK_PRT_RET(devType != DevType::DEV_TYPE_910B,
+        CHK_PRT_RET(devType != DevType::DEV_TYPE_910B && devType != DevType::DEV_TYPE_910_93,
                     HCCL_ERROR("ParserHcclDeterministic: "
                                "reduce order preservation is not supported for devType[%d]",
                                devType),
