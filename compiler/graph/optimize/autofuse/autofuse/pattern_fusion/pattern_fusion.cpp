@@ -23,6 +23,8 @@
 #include "slice_forward_fusion_pass.h"
 #include "transpose_with_broadcast_eliminate_pass.h"
 #include "cast_remove_pass.h"
+#include "redundant_control_edge_remove_pass.h"
+#include "slices_to_split_pass.h"
 
 namespace ge {
 constexpr uint32_t kMaxIterations = 3U;
@@ -41,6 +43,7 @@ graphStatus PatternFusion::RunEarlyPasses(const ComputeGraphPtr &graph, const Gr
     GE_ASSERT_GRAPH_SUCCESS(CascadeReshapeRemovePass().Run(graph, changed));
     GE_ASSERT_GRAPH_SUCCESS(TransposeWithBroadcastEliminatePass().Run(graph, changed));
     GE_ASSERT_GRAPH_SUCCESS(CastRemovePass().Run(graph, changed));
+    GE_ASSERT_GRAPH_SUCCESS(RedundantControlEdgeRemovePass().Run(graph, changed));
     GE_ASSERT_GRAPH_SUCCESS(ConcatSliceSimplificationPass().Run(graph, graph_passes, changed));
   }
   GE_ASSERT_GRAPH_SUCCESS(graph->TopologicalSorting());
@@ -51,6 +54,7 @@ graphStatus PatternFusion::RunEarlyPasses(const ComputeGraphPtr &graph, const Gr
 graphStatus PatternFusion::RunAllPatternFusion(const ComputeGraphPtr &graph) {
   GE_ASSERT_NOTNULL(graph);
   // ============ 融合类pass，先统一只调用一次 ============
+  GE_ASSERT_GRAPH_SUCCESS(SlicesToSplitPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(SliceForwardFusionPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(FlattenConcatPass().Run(graph));
   GE_ASSERT_GRAPH_SUCCESS(FlattenSplitPass().Run(graph));

@@ -36,29 +36,25 @@ Status SplitConcatOptimizationPass::RunPass(ge::AscGraph &graph) {
   size_t split_dim = 0UL;
   bool is_first_dim_split = false;
   GE_ASSERT_SUCCESS(ScheduleUtils::ResolveDiffDim(split_node, split_dim, is_first_dim_split));
-  if (is_first_dim_split) {
-    GELOGI("%s is first dim split, optimize out concat", split_node->GetNamePtr());
-    GE_ASSERT_SUCCESS(OptimizeOutSplit(graph));
-    return ge::SUCCESS;
-  }
 
   const auto &concat_node = concat_nodes.front();
   size_t concat_dim = 0UL;
   bool is_first_dim_concat = false;
   GE_ASSERT_SUCCESS(ScheduleUtils::ResolveDiffDim(concat_node, concat_dim, is_first_dim_concat));
+
+  if (is_first_dim_split || (concat_dim == split_dim)) {
+    GELOGI("%s is first dim split, optimize out concat", split_node->GetNamePtr());
+    GE_ASSERT_SUCCESS(OptimizeOutSplit(graph));
+    return ge::SUCCESS;
+  }
+
   GE_ASSERT_TRUE(is_first_dim_concat, "%s: concat_dim = %zu, not the first dim", concat_node->GetNamePtr(), concat_dim);
   GE_ASSERT_SUCCESS(OptimizeOutConcat(graph));
   return ge::SUCCESS;
 }
 
 Status SplitConcatOptimizationPass::OptimizeOutSplit(ascir::HintGraph &owner_graph) {
-  // first-dim concat
-  std::vector<ascir::ImplGraph> graphs;
-  std::vector<std::string> unused_score_funcs;
-  // graph被原地修改
-  GE_ASSERT_SUCCESS(SplitFusionCaseGenerator().Generate(owner_graph, graphs, unused_score_funcs));
-  GE_ASSERT_TRUE(graphs.size() == 1UL, "first dim concat should generate only one template, but got %zu",
-                 graphs.size());
+  GE_ASSERT_SUCCESS(SplitFusionCaseGenerator().ConvertSplitToLoadsOnly(owner_graph));
   return ge::SUCCESS;
 }
 
