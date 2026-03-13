@@ -54,6 +54,8 @@ add_executable(ut_flow_func_executor
         ${LOCAL_UDF_EXECUTOR_TEST_CASE_FILES}
 )
 
+add_dependencies(ut_flow_func_executor dumpdata)
+
 target_include_directories(ut_flow_func_executor PRIVATE
         ${AIR_CODE_DIR}
         ${AIR_CODE_DIR}/inc/graph_metadef
@@ -62,6 +64,7 @@ target_include_directories(ut_flow_func_executor PRIVATE
         ${UDF_SRC_PATH}/inc/external
         ${UDF_SRC_PATH}/
         ${CMAKE_BINARY_DIR}/proto/udf_exe/proto
+        ${CMAKE_BINARY_DIR}/proto/dumpdata/proto
         ../../../stub
         ../../../
 )

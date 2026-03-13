@@ -20,6 +20,7 @@ constexpr uint32_t UDF_ST_QUEUE_MAX_DEPTH = 10;
 #pragma pack(push, 1)
 struct MbufStImpl {
   uint32_t mbuf_size;
+  uint32_t reserve; // just for make sure data ptr aligned by 8
   uint8_t reserve_head[256 - sizeof(MbufHeadMsg)];
   MbufHeadMsg head_msg;
   RuntimeTensorDesc tensor_desc;

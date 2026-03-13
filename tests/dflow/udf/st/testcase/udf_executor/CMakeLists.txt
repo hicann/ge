@@ -49,6 +49,8 @@ add_executable(st_flow_func_executor
         ${UDF_SRC_PATH}/toolchain/dump/udf_dump_task_device.cpp
 )
 
+add_dependencies(st_flow_func_executor dumpdata)
+
 target_include_directories(st_flow_func_executor PRIVATE
         ../../
         ${AIR_CODE_DIR}
@@ -58,6 +60,7 @@ target_include_directories(st_flow_func_executor PRIVATE
         ${UDF_SRC_PATH}/inc/external
         ${UDF_SRC_PATH}/
         ${CMAKE_BINARY_DIR}/proto/udf_exe/proto
+        ${CMAKE_BINARY_DIR}/proto/dumpdata/proto
         ../../../stub
         ../../..
 )
