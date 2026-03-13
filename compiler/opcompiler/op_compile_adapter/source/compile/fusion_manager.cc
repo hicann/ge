@@ -397,7 +397,7 @@ void TeFusionManager::Finalize()
     finComTaskList.clear();
     finishedTask_.clear();
     reportedErr_.clear();
-    taskStatistics_.clear();
+    taskStatisticsTime_ = 0;
     lockFpHandle_.clear();
     reuseCount = 0;
     opKernelMap_.clear();
@@ -405,7 +405,6 @@ void TeFusionManager::Finalize()
     taskFusionMap_.clear();
     dispatchedTask_.clear();
     lastPrintTime_ = 0;
-    reportedTaskSet_.clear();
     TE_INFOLOG("Destroy tbe instance success.");
 }
 
@@ -1465,7 +1464,7 @@ void TeFusionManager::GetOpModuleName(const OpBuildTaskPtr &relBuildTaskPtr, str
     }
 }
 
-bool TeFusionManager::UpdateInhibitionInfoForLog(const uint64_t &graphId)
+bool TeFusionManager::UpdateInhibitionInfoForLog()
 {
     const std::time_t now = std::time(nullptr);
     const std::tm *const ptm = std::localtime(&now);
@@ -1474,17 +1473,11 @@ bool TeFusionManager::UpdateInhibitionInfoForLog(const uint64_t &graphId)
         return false;
     }
 
-    auto taskStatistics = taskStatistics_.find(graphId);
-    if (taskStatistics != taskStatistics_.end()) {
-        if (std::difftime(now, taskStatistics->second.lastTime) > TIME_INTERVAL) {
-            taskStatistics_[graphId].lastTime = now;
-            return true;
-        }
-        return false;
+    if (std::difftime(now, taskStatisticsTime_) > TIME_INTERVAL) {
+        taskStatisticsTime_ = now;
+        return true;
     }
-    LogInhibitionInfo logInhibitionInfo = {0, 0, now};
-    taskStatistics_[graphId] = logInhibitionInfo;
-    return true;
+    return false;
 }
 
 bool TeFusionManager::IsTimeToPrintProgressHint()
@@ -2007,23 +2000,6 @@ OpBuildResCode TeFusionManager::BuildTbeOp(OpBuildTaskPtr &opTask,
     }
     opTask->start_time = std::time(nullptr);
     return OP_BUILD_SUCC;
-}
-
-void TeFusionManager::ReportTaskAndRemoveDup(std::vector<FinComTask>& tasksToReport,
-                                             std::vector<FinComTask>& tasksBeforeReport)
-{
-    for (auto task : tasksBeforeReport) {
-        std::pair<int64_t, int64_t> graphTask = std::make_pair<int64_t, int64_t>(task.graphId, task.taskId);
-
-        if (reportedTaskSet_.count(graphTask) > 0) {
-            TE_FUSION_LOG_EXEC(TE_FUSION_LOG_WARNING, "Get duplicated task: graphId[%lu], taskId[%lu]",
-                               task.graphId, task.taskId);
-        } else {
-            reportedTaskSet_.insert(graphTask);
-            tasksToReport.push_back(task);
-            TE_INFOLOG("report finished task: [%lu:%lu] to FE.", task.graphId, task.taskId);
-        }
-    }
 }
 
 bool TeFusionManager::SetOpArgsToNode(const OpBuildTaskPtr &opTask)
