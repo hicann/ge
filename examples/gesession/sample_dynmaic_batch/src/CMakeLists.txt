@@ -1,10 +1,10 @@
-# Copyright (c) Huawei Technologies Co., Ltd. 2015. All rights reserved.
+# Copyright (c) Huawei Technologies Co., Ltd. 2025. All rights reserved.
 
 # CMake lowest version requirement
 cmake_minimum_required(VERSION 3.5.1)
 
 # project information
-project(ACL_RESNET50)
+project(GeSession_DYNAMIC_BATCH)
 
 # Compile options
 add_compile_options(-std=c++17)
@@ -29,20 +29,18 @@ message(STATUS "set LIB_PATH: ${LIB_PATH}")
 
 # Header path
 include_directories(
-    ${INC_PATH}/include/
-    ../inc/
+        ${INC_PATH}/include/
 )
 
 # add host lib path
 link_directories(
-    ${LIB_PATH}
+        ${LIB_PATH}
 )
 
 add_executable(main
-        ../../common/utils.cpp
-        ../../common/sampleModel.cpp
-        sample_resnet50_imagenet_classification.cpp)
+        main.cpp
+        sample_dynamic_batch.cpp)
 
-target_link_libraries(main acl_rt acl_mdl stdc++)
+target_link_libraries(main acl_rt graph ge_runner_v2 fmk_onnx_parser stdc++)
 
 install(TARGETS main DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
