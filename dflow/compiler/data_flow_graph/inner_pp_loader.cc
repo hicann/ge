@@ -16,6 +16,7 @@
 #include "dflow/base/model/flow_model_om_loader.h"
 #include "dflow/flow_graph/data_flow_attr_define.h"
 #include "dflow/inc/data_flow/model/flow_model_helper.h"
+#include "common/checker.h"
 
 namespace ge {
 namespace {

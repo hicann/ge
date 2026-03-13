@@ -17,6 +17,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/types.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "common/checker.h"
 
 namespace ge {
 namespace {

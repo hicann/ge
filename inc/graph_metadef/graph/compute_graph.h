@@ -21,6 +21,7 @@
 #include "graph/node.h"
 #include "graph/op_desc.h"
 #include "graph/range_vistor.h"
+#include "graph/detail/attributes_holder.h"
 
 namespace ge {
 using ConstComputeGraph = const ComputeGraph;
