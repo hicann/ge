@@ -225,7 +225,8 @@ ge::Status ConcatRegApiCall::CanUseGather(ConcatTiling &tiling) const {
       return ge::SUCCESS;
     }
   }
-  tiling.can_use_gather = true;
+  // 输入节点排序问题解决后放开
+  tiling.can_use_gather = false;
   return ge::SUCCESS;
 }
 
