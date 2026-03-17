@@ -41,16 +41,18 @@
 
 1.  以运行用户登录开发环境。
 
-2.  下载代码并上传至环境后，请先进入根目录下"examples/acl/2_sample_qwen_llm"样例目录。
+2.  下载代码并上传至环境后，请先进入根目录下"examples/acl/3_sample_qwen_llm"样例目录。
 
-    请注意，下文中的样例目录均指"examples/acl/2_sample_qwen_llm"目录。
+    请注意，下文中的样例目录均指"examples/acl/3_sample_qwen_llm"目录。
 
 3.  准备Qwen模型。
-    1.  获取Qwen AIR格式模型。
+    1.  获取Qwen ONNX格式模型。
 
-        您可以从以下链接中获取Qwen网络的模型文件，并以运行用户将获取的文件上传至开发环境的"样例目录/model"目录下。如果目录不存在，需要自行创建。
-
-        -   Qwen网络的模型文件（qwen.onnx）：单击[Link](https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/cann_test/qwen.onnx)下载该文件。
+        您可以按照以下命令获取Qwen网络的模型文件，模型文件需要放置到"样例目录/model"目录下。如果目录不存在，需要自行创建。如果wget失败，您也可以直接在浏览器中输入以下链接下载后上传至"样例目录/model"目录。
+        ```
+        cd "样例目录/model"
+        wget https://ascend-cann.obs.cn-north-4.myhuaweicloud.com/cann_test/qwen.onnx
+        ```
 
     2.  将Qwen原始模型转换为适配昇腾AI处理器的离线模型（\*.om文件）。注意如果生成的om文件带有架构后缀（如qwen_linux_aarch64.om），请将文件重命名为qwen.om。
 
@@ -73,7 +75,7 @@
 
         -   --model：原始模型文件路径。
         -   --input_shape：指定模型输入的shape。
-        -   --output：生成的qwen_*.om文件重命名为qwen.om并存放在“样例目录/model“目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_qwen\_llm.cpp 中的omModelPath参数值。
+        -   --output：生成的qwen_*.om文件重命名为qwen.om并存放在"样例目录/model"目录下。建议使用命令中的默认设置，否则在编译代码前，您还需要修改sample\_qwen\_llm.cpp 中的omModelPath参数值。
 
             ```
             ret = sampleQwen.PrepareModel("../model/qwen.om");
@@ -89,9 +91,9 @@
 
 1.  以运行用户登录开发环境。
 
-2.  请先进入根目录下"examples/acl/2_sample_qwen_llm"样例目录。
+2.  请先进入根目录下"examples/acl/3_sample_qwen_llm"样例目录。
 
-    请注意，下文中的样例目录均指"examples/acl/2_sample_qwen_llm"目录。
+    请注意，下文中的样例目录均指"examples/acl/3_sample_qwen_llm"目录。
 
 3.  切换到"样例目录/scripts", 编译程序。
 
