@@ -63,17 +63,16 @@ DEFAULT_GENERATED_LIB_NAME = "libes_all.so"
 # 生成的数学库
 MATH_LIB_NAME = "libes_math.so"
 
-# 加载基础库
+# 优先使用 GLOBAL|NOW，确保符号可见并尽早完成重定位
 _dir = os.path.dirname(os.path.abspath(__file__))
-esb_lib = load_lib_from_path(BASE_LIB_NAME, _dir)
-if esb_lib is None:
-    raise RuntimeError(f"Failed to load {BASE_LIB_NAME}")
+_dlopen_mode = getattr(os, "RTLD_GLOBAL", 0) | getattr(os, "RTLD_NOW", 0)
 
 # 尝试在当前py的安装路径下，加载生成的es api的C库
 _lib_cache: Dict[str, ctypes.CDLL] = {}
 _configured_lib_ids = set()
 _default_lib_available = False
 _default_lib = None
+esb_lib = None
 
 
 def _configure_generated_lib(lib: ctypes.CDLL) -> None:
@@ -90,14 +89,22 @@ def _configure_generated_lib(lib: ctypes.CDLL) -> None:
     _configured_lib_ids.add(lib_id)
 
 
-# Try to load default library at module import time
-try:
-    _default_lib = load_lib_from_path(DEFAULT_GENERATED_LIB_NAME, _dir)
-    _configure_generated_lib(_default_lib)
-    _lib_cache[DEFAULT_GENERATED_LIB_NAME] = _default_lib
-    _default_lib_available = True
-except OSError as e:
-    _default_lib = None
+# Try to load generated libraries first so base weak-symbol calls can bind to strong impls.
+for lib_name in [DEFAULT_GENERATED_LIB_NAME, MATH_LIB_NAME]:
+    try:
+        lib = load_lib_from_path(lib_name, _dir, mode=_dlopen_mode)
+        _configure_generated_lib(lib)
+        _lib_cache[lib_name] = lib
+        if lib_name == DEFAULT_GENERATED_LIB_NAME:
+            _default_lib = lib
+            _default_lib_available = True
+    except OSError:
+        continue
+
+# Load base library after generated libraries.
+esb_lib = load_lib_from_path(BASE_LIB_NAME, _dir, mode=_dlopen_mode)
+if esb_lib is None:
+    raise RuntimeError(f"Failed to load {BASE_LIB_NAME}")
 
 
 def is_generated_lib_available():
@@ -148,7 +155,7 @@ def get_generated_lib(lib_name: str = None):
 
     # Load library from file system
     try:
-        lib = load_lib_from_path(target, _dir)
+        lib = load_lib_from_path(target, _dir, mode=_dlopen_mode)
         _configure_generated_lib(lib)
         _lib_cache[target] = lib
     except OSError as exc:
