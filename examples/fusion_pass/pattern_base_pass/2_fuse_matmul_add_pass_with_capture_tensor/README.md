@@ -144,7 +144,7 @@
 
       可以发现模型已按预期优化，即MatMul与Add被GEMM替换。
 
-   - 若未获得预期结果，可设置如下环境变量将日志打印到屏幕，来定位原因。
+   - 若未获得预期结果，可设置如下环境变量（如使用atc命令，还需添加参数`--log=debug`）让日志打印到屏幕，来定位原因。
      ```bash
       export ASCEND_SLOG_PRINT_TO_STDOUT=1 #日志打印到屏幕
       export ASCEND_GLOBAL_LOG_LEVEL=0 #日志级别为debug级别
