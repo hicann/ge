@@ -84,14 +84,12 @@ include_directories(${ASCGEN_DIR}/inc)
 # test files
 set(COMMON_TEST_FILES
     "graph/passes/graph_builder_utils.cc"
-    "common/model_saver_unittest.cc"
     "test.cc"
 )
 
 set(HETEROGENEOUS_MODEL_TEST_FILES
     "common/execution_runtime_unittest.cc"
     "common/model_relation_unittest.cc"
-    "common/model_introduction_unittest.cc"
     "common/deploy_planner_unittest.cc"
     "runtime/heterogeneous/stub/stub_models.cc"
     "graph/load/heterogeneous_model_executor_unittest.cc"
@@ -177,7 +175,6 @@ SET(HELPER_RUNTIME_TEST_FILES
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/caas_dataflow_auth_stub.cc
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/process_utils_stub.cc
     ${AIR_CODE_DIR}/tests/depends/helper_runtime/src/tsd_client_stub.cc
-    ${AIR_CODE_DIR}/tests/dflow/udf/stub/slog_stub.cpp
 )
 
 SET(DFLOW_EXECUTOR_TEST_FILES
@@ -321,7 +318,6 @@ target_link_libraries(ut_libge_helper_utest
     datagw_headers
     ascend_hal_headers
     runtime_headers
-    flow_func
     dflow_runner
     ge_compiler
     flow_graph
@@ -343,7 +339,6 @@ target_link_libraries(ut_libge_helper_utest
     -Wl,--no-whole-archive
     GTest::gtest GTest::gtest_main GTest::gmock_main ${COMMON_SHARED_LIBRARIES} -lrt -ldl -lpthread
     -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
-    data_flow_base
 )
 
 add_test(NAME ut_libge_helper_utest COMMAND ut_libge_helper_utest --gtest_output=xml:${CMAKE_INSTALL_PREFIX}/report/ut/ut_libge_helper_utest.xml)
