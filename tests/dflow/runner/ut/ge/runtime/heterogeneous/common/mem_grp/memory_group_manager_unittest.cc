@@ -13,7 +13,6 @@
 #include <vector>
 #include <string>
 #include <map>
-#include "runtime/rt.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "graph/ge_local_context.h"
 

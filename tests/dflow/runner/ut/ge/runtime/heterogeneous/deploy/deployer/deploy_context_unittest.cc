@@ -25,7 +25,6 @@
 #include "common/config/configurations.h"
 #include "common/subprocess/subprocess_manager.h"
 #include "macro_utils/dt_public_unscope.h"
-#include "runtime/rt.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "graph/ge_local_context.h"
 #include "graph/utils/tensor_utils.h"

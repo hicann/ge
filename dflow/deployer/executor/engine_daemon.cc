@@ -10,8 +10,6 @@
 
 #include "executor/engine_daemon.h"
 #include <csignal>
-#include "runtime/rt_mem_queue.h"
-#include "rt_error_codes.h"
 #include "mmpa/mmpa_api.h"
 #include "exec_runtime/execution_runtime_utils.h"
 #include "proto/deployer.pb.h"
@@ -31,6 +29,8 @@
 #include "graph/ge_context.h"
 #include "executor/cpu_sched_event_dispatcher.h"
 #include "adx_datadump_server.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -98,7 +98,7 @@ Status EngineDaemon::InitializeExecutor() {
   }
 
   GE_CHK_STATUS_RET_NOLOG(RtsApiUtils::SetDevice(device_id_));
-  GE_CHK_RT(rtCtxCreate(&rt_context_, RT_CTX_NORMAL_MODE, device_id_));
+  DF_CHK_ACL(aclrtCreateContext(&rt_context_, device_id_));
   GE_CHK_STATUS_RET_NOLOG(InitializeGeExecutor());
   const auto reg_ret = rtRegTaskFailCallbackByModule("NpuExe", [](rtExceptionInfo *excpt_info) {
     if (excpt_info != nullptr) {
@@ -134,12 +134,12 @@ void EngineDaemon::Finalize() {
   if (rt_context_ != nullptr) {
     is_finish_.store(false);
     std::thread th(&EngineDaemon::FinalizeThread, this);
-    (void)rtCtxDestroy(rt_context_);
+    (void)aclrtDestroyContext(rt_context_);
     is_finish_.store(true);
     cond_var_.notify_one();
     th.join();
   }
-  (void)rtDeviceReset(device_id_);
+  (void)aclrtResetDevice(device_id_);
   kLoopFlag.store(false);
   GEEVENT("Engine daemon finalized, device id = %d", device_id_);
 }

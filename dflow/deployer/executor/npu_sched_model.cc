@@ -9,11 +9,12 @@
  */
 
 #include "dflow/inc/data_flow/deploy/npu_sched_model.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/common/debug/log.h"
 #include "executor/npu_sched_model_loader.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "common/df_chk.h"
 
 namespace {
 constexpr uint32_t kDummyQId = UINT32_MAX;
@@ -21,7 +22,7 @@ constexpr uint32_t kDynamicFlag = 2U;
 }
 
 uint32_t InitializeNpuSched(int32_t device_id) {
-  GE_CHK_RT_RET(rtSetDevice(device_id));
+  DF_CHK_ACL_RET(aclrtSetDevice(device_id));
   GELOGI("Npu sched init success, device_id = %d.", device_id);
   return 0U;
 }
@@ -82,7 +83,7 @@ uint32_t DestroyNpuSchedModelHandler(NpuSchedModelHandler handler) {
 }
 
 uint32_t FinalizeNpuSched(int32_t device_id) {
-  GE_CHK_RT_RET(rtDeviceReset(device_id));
+  DF_CHK_ACL_RET(aclrtResetDevice(device_id));
   GELOGI("Npu sched finalize success, device_id = %d.", device_id);
   return 0U;
 }

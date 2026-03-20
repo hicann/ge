@@ -11,7 +11,6 @@
 #include "executor/cpu_sched_model_builder.h"
 #include "securec.h"
 #include "framework/common/debug/log.h"
-#include "runtime/stream.h"
 #include "common/debug/ge_log.h"
 #include "graph/def_types.h"
 #include "graph/manager/util/hcom_ome_util.h"
@@ -21,6 +20,7 @@
 #include "executor/cpu_id_resource_manager.h"
 #include "executor/dynamic_model_executor.h"
 #include "executor/sched_task_info.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -119,7 +119,7 @@ Status CpuSchedModelBuilder::AddMarkStepTask(uint32_t stream_id, bool is_head) {
   }
   void * const global_step_addr = ValueToPtr(global_step_);
   if (global_step_addr != nullptr) {
-    GE_CHK_RT_RET(rtMemset(global_step_addr, sizeof(uint64_t), 0U, sizeof(uint64_t)));
+    DF_CHK_ACL_RET(aclrtMemset(global_step_addr, sizeof(uint64_t), 0U, sizeof(uint64_t)));
   }
   task_param->step_id_addr = global_step_;
   task_param->is_not_head = is_head ? 0 : 1;
@@ -356,7 +356,7 @@ Status CpuSchedModelBuilder::Build() {
   model_.streams_.resize(1);
   auto &stream_info = model_.streams_.back();
   stream_info.streamId = stream_id;
-  stream_info.streamFlag = RT_STREAM_AICPU | RT_STREAM_HEAD;
+  stream_info.streamFlag = ACL_STREAM_CPU_SCHEDULE;
   stream_info.taskNum = model_.tasks_[stream_id].size();
   stream_info.tasks = model_.tasks_[stream_id].data();
 

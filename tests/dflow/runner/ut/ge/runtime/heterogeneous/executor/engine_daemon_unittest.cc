@@ -12,7 +12,6 @@
 #include <gmock/gmock.h>
 #include <thread>
 #include "common/ge_inner_attrs.h"
-#include "runtime/rt_mem_queue.h"
 
 #include "macro_utils/dt_public_scope.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
@@ -21,7 +20,6 @@
 
 #include "graph/build/graph_builder.h"
 #include "ge/ge_api.h"
-#include "runtime/rt.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 #include "common/util/sanitizer_options.h"
@@ -378,7 +376,6 @@ TEST_F(EngineDaemonTest, TestEngineDaemonRegCallback) {
   CallbackManager::GetInstance().Call("NpuExe", &exceptionInfo);
   exceptionInfo.retcode = 555U;
   CallbackManager::GetInstance().Call("NpuExe", &exceptionInfo);
-  engine_daemon.rt_context_ = (rtContext_t)1;
   engine_daemon.Finalize();
 }
 

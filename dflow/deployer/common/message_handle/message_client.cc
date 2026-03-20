@@ -13,6 +13,8 @@
 #include "common/util/mem_utils.h"
 #include "common/data_flow/queue/heterogeneous_exchange_service.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -77,7 +79,7 @@ template <class Request, class Response>
 Status MessageClient<Request, Response>::CreateMessageQueue(const std::string &name_suffix, uint32_t &request_qid,
                                                             uint32_t &response_qid, bool is_client) {
   if (is_client) {
-    GE_CHK_RT_RET(rtSetDevice(device_id_));
+    DF_CHK_ACL_RET(aclrtSetDevice(device_id_));
   }
   MemQueueAttr mem_queue_attr{};
   mem_queue_attr.depth = kMsgQueueDepth;

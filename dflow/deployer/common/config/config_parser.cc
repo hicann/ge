@@ -11,8 +11,7 @@
 #include "config_parser.h"
 #include <exception>
 #include <nlohmann/json.hpp>
-#include "runtime/dev.h"
-#include "runtime/config.h"
+#include "runtime/rt_external.h"
 #include "framework/common/debug/ge_log.h"
 #include "common/debug/log.h"
 #include "dflow/base/utils/process_utils.h"
@@ -21,6 +20,7 @@
 #include "common/utils/deploy_location.h"
 #include "deploy/resource/device_info.h"
 #include "graph/ge_context.h"
+#include "acl/acl.h"
 
 namespace ge {
 namespace {
@@ -316,8 +316,7 @@ Status ConfigParser::InitAllNodeConfig(const std::vector<ClusterConfig> &cluster
       auto new_node = node;
       if (new_node.is_local && new_node.device_list.size() > 1) {
         const auto device_id = new_node.device_list[0].device_id;
-        (void) rtGetDeviceCapability(device_id, RT_MODULE_TYPE_SYSTEM, FEATURE_TYPE_MEMQ_EVENT_CROSS_DEV,
-                                     &support_host_flowgw);
+        (void) aclrtGetDeviceCapability(device_id, ACL_FEATURE_SYSTEM_MEMQ_EVENT_CROSS_DEV, &support_host_flowgw);
         bool has_flowgw = false;
         GE_CHK_STATUS_RET(SubprocessManager::HasFlowGw(has_flowgw), "Failed to check has flowgw");
         GEEVENT("Check has host flowgw success, support_flowgw = %d, has_flowgw = %d.",

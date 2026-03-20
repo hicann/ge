@@ -17,7 +17,6 @@
 #include "hybrid/model/hybrid_model_builder.h"
 #include "graph/load/model_manager/model_manager.h"
 #include "macro_utils/dt_public_unscope.h"
-#include "rt_error_codes.h"
 #include "ge_graph_dsl/graph_dsl.h"
 #include "generator/ge_generator.h"
 #include "ge/ge_api.h"

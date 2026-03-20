@@ -10,8 +10,7 @@
 #include <gtest/gtest.h>
 #include "dflow/inc/data_flow/deploy/npu_sched_model.h"
 #include "executor/npu_sched_model_loader.h"
-#include "runtime/rt.h"
-#include "runtime_stub.h"
+#include "depends/runtime/src/runtime_stub.h"
 
 namespace ge {
 // Test cases

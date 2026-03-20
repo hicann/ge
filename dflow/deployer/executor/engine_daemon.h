@@ -13,8 +13,7 @@
 
 #include <string>
 #include <atomic>
-#include "runtime/rt.h"
-#include "runtime/rt_mem_queue.h"
+#include "acl/acl.h"
 #include "framework/common/debug/ge_log.h"
 #include "framework/executor/ge_executor.h"
 #include "common/utils/rts_api_utils.h"
@@ -74,7 +73,7 @@ class EngineDaemon {
   std::string mem_group_name_;
   int32_t device_id_ = -1;
   int32_t msg_queue_device_id_ = -1;
-  rtContext_t rt_context_ = nullptr;
+  aclrtContext rt_context_ = nullptr;
   uint32_t req_msg_queue_id_ = UINT32_MAX;
   uint32_t rsp_msg_queue_id_ = UINT32_MAX;
   bool is_host_cpu_ = false;

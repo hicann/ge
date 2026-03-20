@@ -10,11 +10,7 @@
 
 #include "deploy/abnormal_status_handler/device_abnormal_status_handler.h"
 #include "common/checker.h"
-#include "rt_error_codes.h"
-
-#ifndef ACL_ERROR_RT_DEVICE_OOM
-#define ACL_ERROR_RT_DEVICE_OOM ACL_ERROR_RT_DEVIDE_OOM
-#endif
+#include "acl/acl.h"
 
 namespace ge {
 namespace {

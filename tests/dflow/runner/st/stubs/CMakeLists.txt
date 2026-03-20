@@ -21,6 +21,7 @@ target_include_directories(df_st_stubs PRIVATE
         ${AIR_CODE_DIR}/dflow/base
         ${AIR_CODE_DIR}/dflow/base/exec_runtime
         ${CMAKE_BINARY_DIR}/proto/metadef_protos
+        ${AIR_CODE_DIR}/tests
 )
 
 target_include_directories(df_st_stubs PUBLIC

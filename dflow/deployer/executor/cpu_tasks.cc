@@ -14,7 +14,9 @@
 #include "aicpu/queue_schedule/dgw_client.h"
 #include "framework/common/debug/log.h"
 #include "graph/def_types.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
+#include "runtime/rt_external.h"
+#include "common/df_chk.h"
 #include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
@@ -31,16 +33,16 @@ constexpr int32_t kClearTypeClear = 2;
 }  // namespace
 
 Status CpuTasks::ExecuteKernel(const std::string &kernel_name, std::vector<uint8_t> &args) {
-  rtStream_t stream = nullptr;
-  GE_CHK_RT_RET(rtStreamCreate(&stream, kDefaultPriority));
-  GE_MAKE_GUARD_RTSTREAM(stream);
+  aclrtStream stream = nullptr;
+  DF_CHK_ACL_RET(aclrtCreateStream(&stream));
+  DF_MAKE_GUARD_ACLSTREAM(stream);
   rtArgsEx_t args_info = {};
   args_info.args = static_cast<void *>(args.data());
   args_info.argsSize = static_cast<uint32_t>(args.size());
   GE_CHK_RT_RET(rtCpuKernelLaunchWithFlag(nullptr,
       kernel_name.c_str(), kKernelBlockDim, &args_info, nullptr, stream, RT_KERNEL_DEFAULT));
   GELOGD("Launch cpu kernel successfully, kernel name = %s.", kernel_name.c_str());
-  GE_CHK_RT_RET(rtStreamSynchronize(stream));
+  DF_CHK_ACL_RET(aclrtSynchronizeStream(stream));
   GELOGD("Stream synchronize successfully, kernel name = %s.", kernel_name.c_str());
   return SUCCESS;
 }
@@ -72,13 +74,13 @@ Status CpuTasks::ExecuteModelClearTask(int32_t clear_type,
   }
   void *model_ids_addr = nullptr;
   const uint64_t model_ids_size = davinci_model_runtime_ids.size() * sizeof(uint32_t);
-  GE_CHK_RT_RET(rtMalloc(&model_ids_addr, model_ids_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  DF_CHK_ACL_RET(aclrtMalloc(&model_ids_addr, model_ids_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
   GE_MAKE_GUARD(model_ids_addr, [model_ids_addr]() {
-    GE_CHK_RT(rtFree(model_ids_addr));
+    DF_CHK_ACL(aclrtFree(model_ids_addr));
   });
-  GE_CHK_RT_RET(rtMemcpy(model_ids_addr, model_ids_size,
+  DF_CHK_ACL_RET(aclrtMemcpy(model_ids_addr, model_ids_size,
                          davinci_model_runtime_ids.data(), model_ids_size,
-                         RT_MEMCPY_HOST_TO_DEVICE));
+                         ACL_MEMCPY_HOST_TO_DEVICE));
   const auto args_size = sizeof(ReDeployConfig);
   std::vector<uint8_t> task_args(args_size, 0U);
   auto param_re_deploy_config = PtrToPtr<uint8_t, ReDeployConfig>(task_args.data());
@@ -95,10 +97,10 @@ Status CpuTasks::ExceptionNotify(const std::vector<uint32_t> &davinci_model_runt
 
   void *model_ids_addr = nullptr;
   const uint64_t model_ids_size = davinci_model_runtime_ids.size() * sizeof(uint32_t);
-  GE_CHK_RT_RET(rtMalloc(&model_ids_addr, model_ids_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_MAKE_GUARD(model_ids_addr, [model_ids_addr]() { GE_CHK_RT(rtFree(model_ids_addr)); });
-  GE_CHK_RT_RET(rtMemcpy(model_ids_addr, model_ids_size, davinci_model_runtime_ids.data(), model_ids_size,
-                         RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMalloc(&model_ids_addr, model_ids_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_MAKE_GUARD(model_ids_addr, [model_ids_addr]() { GE_CHK_RT(aclrtFree(model_ids_addr)); });
+  DF_CHK_ACL_RET(aclrtMemcpy(model_ids_addr, model_ids_size, davinci_model_runtime_ids.data(), model_ids_size,
+                         ACL_MEMCPY_HOST_TO_DEVICE));
   const auto args_size = sizeof(DataFlowExceptionNotify);
   std::vector<uint8_t> task_args(args_size, 0U);
   auto notify_info = PtrToPtr<uint8_t, DataFlowExceptionNotify>(task_args.data());
@@ -133,17 +135,17 @@ Status CpuTasks::ExecuteCheckSupported(const std::string &kernel_name, bool &is_
   int32_t result = -1;
   void *dev_result_ptr = nullptr;
   void *dev_name_ptr = nullptr;
-  GE_CHK_RT_RET(rtMalloc(&dev_result_ptr, sizeof(int32_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  DF_CHK_ACL_RET(aclrtMalloc(&dev_result_ptr, sizeof(int32_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
   GE_MAKE_GUARD(dev_result_ptr, ([dev_result_ptr]() {
-    GE_CHK_RT(rtFree(dev_result_ptr));
+    DF_CHK_ACL(aclrtFree(dev_result_ptr));
   }));
-  GE_CHK_RT_RET(rtMalloc(&dev_name_ptr, kernel_name.length(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  DF_CHK_ACL_RET(aclrtMalloc(&dev_name_ptr, kernel_name.length(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
   GE_MAKE_GUARD(dev_name_ptr, ([dev_name_ptr]() {
-    GE_CHK_RT(rtFree(dev_name_ptr));
+    DF_CHK_ACL(aclrtFree(dev_name_ptr));
   }));
-  GE_CHK_RT_RET(rtMemcpy(dev_result_ptr, sizeof(int32_t), &result, sizeof(int32_t), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(dev_name_ptr, kernel_name.length(), kernel_name.c_str(),
-                         kernel_name.length(), RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(dev_result_ptr, sizeof(int32_t), &result, sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(dev_name_ptr, kernel_name.length(), kernel_name.c_str(),
+                         kernel_name.length(), ACL_MEMCPY_HOST_TO_DEVICE));
 
   check_cfg.kernelNameAddr = PtrToValue(dev_name_ptr);
   check_cfg.kernelNameLen = kernel_name.length();
@@ -152,7 +154,7 @@ Status CpuTasks::ExecuteCheckSupported(const std::string &kernel_name, bool &is_
   GELOGI("Start to check[%s] is supported.", kernel_name.c_str());
   GE_CHK_STATUS_RET(ExecuteKernel(kKernelNameCheckSupported, task_args), "Execute kernel for check supported failed.");
 
-  GE_CHK_RT_RET(rtMemcpy(&result, sizeof(int32_t), dev_result_ptr, sizeof(int32_t), RT_MEMCPY_DEVICE_TO_HOST));
+  DF_CHK_ACL_RET(aclrtMemcpy(&result, sizeof(int32_t), dev_result_ptr, sizeof(int32_t), ACL_MEMCPY_DEVICE_TO_HOST));
   GELOGD("Get result %d after cpu kernel task to be executed.", result);
   is_supported = (result == 0);
   return SUCCESS;

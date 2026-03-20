@@ -13,7 +13,7 @@
 
 #include <string>
 #include <vector>
-#include "runtime/rt_mem_queue.h"
+#include "runtime/rt.h"
 #include "ge/ge_api_error_codes.h"
 
 namespace ge {

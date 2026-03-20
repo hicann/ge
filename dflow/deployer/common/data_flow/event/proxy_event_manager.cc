@@ -9,7 +9,6 @@
  */
 
 #include "common/data_flow/event/proxy_event_manager.h"
-#include "runtime/dev.h"
 #include "framework/common/debug/log.h"
 #include "framework/common/ge_inner_error_codes.h"
 #include "mmpa/mmpa_api.h"

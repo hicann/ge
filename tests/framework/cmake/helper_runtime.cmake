@@ -59,6 +59,7 @@ target_include_directories(helper_runtime PUBLIC
     ${AIR_CODE_DIR}/runtime
     ${AIR_CODE_DIR}/runtime/v2
     ${AIR_CODE_DIR}/dflow/inc
+    ${AIR_CODE_DIR}/dflow/inc/data_flow
     ${AIR_CODE_DIR}/dflow/deployer
     ${CMAKE_BINARY_DIR}/proto
     ${CMAKE_BINARY_DIR}/opensrc/json/include

@@ -100,8 +100,8 @@ void DaemonService::SetSupportFlowgwMerged(deployer::DeployerResponse &response)
     support_flowgw_merged = false;
   } else {
     int32_t support_merged = 0;
-    (void) rtGetDeviceCapability(0, RT_MODULE_TYPE_SYSTEM,
-                                 FEATURE_TYPE_MEMQ_EVENT_CROSS_DEV, &support_merged);
+    (void) aclrtGetDeviceCapability(0, ACL_FEATURE_SYSTEM_MEMQ_EVENT_CROSS_DEV,
+                                    &support_merged);
     support_flowgw_merged = (support_merged == 1);
   }
   GEEVENT("Support flowgw merged = %d.", static_cast<int32_t>(support_flowgw_merged));

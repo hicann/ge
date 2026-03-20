@@ -58,7 +58,7 @@ class EngineThread {
   std::condition_variable condition_;
 
   int32_t device_id_;
-  rtContext_t rt_context_ = nullptr;
+  aclrtContext rt_context_ = nullptr;
   std::string base_dir_;
 };
 }  // namespace ge

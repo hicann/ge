@@ -12,10 +12,10 @@
 #include <fstream>
 #include <unistd.h>
 #include <securec.h>
-#include "runtime/rt.h"
 #include "common/debug/ge_log.h"
 #include "common/util.h"
 #include "common/checker.h"
+#include "acl/acl.h"
 
 namespace ge {
 MemoryStatisticManager::~MemoryStatisticManager() {
@@ -183,11 +183,11 @@ void MemoryStatisticManager::StatisticXsmem() {
 }
 
 std::string MemoryStatisticManager::GetXsmemSummaryFile() {
-  uint32_t pid = 0U;
-  const rtError_t rt_ret = rtDeviceGetBareTgid(&pid);
-  if (rt_ret != RT_ERROR_NONE) {
+  int32_t pid = 0U;
+  const aclError rt_ret = aclrtDeviceGetBareTgid(&pid);
+  if (rt_ret != ACL_ERROR_NONE) {
     GELOGE(ge::RT_FAILED, "Call rt api failed, use getpid instead, ret: 0x%X", rt_ret);
-    pid = getpid();
+    pid = static_cast<int32_t>(getpid());
   }
 
   std::string summary_file = "/proc/xsmem/task/" + std::to_string(pid) + "/summary";

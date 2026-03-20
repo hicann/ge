@@ -17,6 +17,7 @@
 #include "common/utils/rts_api_utils.h"
 #include "exec_runtime/execution_runtime_utils.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
+#include "common/df_chk.h"
 
 namespace ge {
 EngineThread::EngineThread(int32_t device_id) : is_running_(false), is_finished_(false), device_id_(device_id) {}
@@ -48,10 +49,10 @@ void EngineThread::Finalize() {
     thread_id_.join();
   }
   if (rt_context_ != nullptr) {
-    (void) rtCtxDestroy(rt_context_);
+    (void) aclrtDestroyContext(rt_context_);
     rt_context_ = nullptr;
   }
-  (void) rtDeviceReset(device_id_);
+  (void) aclrtResetDevice(device_id_);
   GEEVENT("Engine thread finalized");
 }
 
@@ -97,7 +98,7 @@ Status EngineThread::Run() {
   GELOGD("Engine thread started, device_id = %d.", device_id_);
   ExecutionRuntimeUtils::EnableInHeterogeneousExecutor();
   GE_CHK_STATUS_RET_NOLOG(RtsApiUtils::SetDevice(device_id_));
-  GE_CHK_RT(rtCtxCreate(&rt_context_, RT_CTX_NORMAL_MODE, device_id_));
+  DF_CHK_ACL(aclrtCreateContext(&rt_context_, device_id_));
   while (is_running_.load()) {
     std::shared_ptr<deployer::ExecutorRequest> request;
     auto response = MakeShared<deployer::ExecutorResponse>();

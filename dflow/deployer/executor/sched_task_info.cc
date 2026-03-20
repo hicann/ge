@@ -9,9 +9,11 @@
  */
 
 #include "executor/sched_task_info.h"
-#include "runtime/rt.h"
+#include "acl/acl.h"
+#include "runtime/rt_external.h"
 #include "graph/def_types.h"
 #include "framework/common/util.h"
+#include "common/df_chk.h"
 
 namespace ge {
 namespace {
@@ -35,12 +37,12 @@ constexpr const char *kSchedTaskMarkStep = "markStep";
 constexpr const char *kSchedTaskModelGatherDequeue = "gatherDequeue";
 }
 
-SchedTaskInfo::SchedTaskInfo(rtStream_t const stream) {
+SchedTaskInfo::SchedTaskInfo(aclrtStream const stream) {
   stream_ = stream;
 }
 
 Status SchedTaskInfo::Release() {
-  GE_FREE_RT_LOG(args_);
+  DF_FREE_ACL_RT_LOG(args_);
   args_size_ = 0UL;
   return SUCCESS;
 }
@@ -58,13 +60,13 @@ Status SchedTaskModelDequeue::Init(const uint32_t queue_id, uint64_t &mbuf_addr)
   GE_CHK_BOOL_RET_STATUS((args_ == nullptr) && (args_size_ == 0UL), FAILED,
                          "Task:%s has already initialized, size:%lu.", kSchedTaskModelDequeue, args_size_);
   args_size_ = sizeof(QueueInfoKernelArgs) + sizeof(uint64_t);
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   mbuf_addr = PtrToValue(args_) + sizeof(QueueInfoKernelArgs);
   QueueInfoKernelArgs queue_info;
   queue_info.queue_id = queue_id;
   queue_info.mbuf_addr = mbuf_addr;
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &queue_info, sizeof(queue_info), RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_, &queue_info, sizeof(queue_info), ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -80,12 +82,12 @@ Status SchedTaskModelEnqueue::Init(const uint32_t queue_id, const uint64_t mbuf_
   GE_CHK_BOOL_RET_STATUS((args_ == nullptr) && (args_size_ == 0UL), FAILED,
                          "Task:%s has already initialized, size:%lu.", kSchedTaskModelEnqueue, args_size_);
   args_size_ = sizeof(QueueInfoKernelArgs);
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   QueueInfoKernelArgs queue_info{};
   queue_info.queue_id = queue_id;
   queue_info.mbuf_addr = mbuf_addr;
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &queue_info, sizeof(queue_info), RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_, &queue_info, sizeof(queue_info), ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -125,8 +127,8 @@ Status SchedTaskModelBatchDequeue::Init(const std::vector<uint32_t> &queue_ids,
   const uint64_t align_offsets_offset = align_offsets.empty() ? 0UL : args_size_;
   const size_t align_offsets_size = align_offsets.empty() ? 0UL : sizeof(uint32_t) * queue_num;
   args_size_ += align_offsets_size;
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   kernel_args.align_offsets_addr = align_offsets.empty() ? 0UL : PtrToValue(args_) + align_offsets_offset;
   kernel_args.queue_ids_addr = PtrToValue(args_) + queue_ids_offset;
   kernel_args.mbuf_addrs_addr = PtrToValue(args_) + mbuf_addrs_offset;
@@ -134,16 +136,16 @@ Status SchedTaskModelBatchDequeue::Init(const std::vector<uint32_t> &queue_ids,
   for (size_t i = 0UL; i < queue_num; ++i) {
     mbuf_addrs.emplace_back(mbufs_addr + sizeof(uint64_t) * i);
   }
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_,
-                         &kernel_args, sizeof(kernel_args), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.queue_ids_addr), queue_ids_size,
-                         queue_ids.data(), queue_ids_size, RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_,
+                         &kernel_args, sizeof(kernel_args), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.queue_ids_addr), queue_ids_size,
+                         queue_ids.data(), queue_ids_size, ACL_MEMCPY_HOST_TO_DEVICE));
   if (!align_offsets.empty()) {
-    GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.align_offsets_addr), align_offsets_size,
-                           align_offsets.data(), align_offsets_size, RT_MEMCPY_HOST_TO_DEVICE));
+    DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.align_offsets_addr), align_offsets_size,
+                           align_offsets.data(), align_offsets_size, ACL_MEMCPY_HOST_TO_DEVICE));
   }
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.mbuf_addrs_addr), mbuf_addrs_size,
-                         mbuf_addrs.data(), mbuf_addrs.size() * sizeof(uint64_t), RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.mbuf_addrs_addr), mbuf_addrs_size,
+                         mbuf_addrs.data(), mbuf_addrs.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -191,8 +193,8 @@ Status SchedTaskModelGatherDequeue::Init(const std::vector<QueueAttrs> &queues,
   const size_t mbuff_size = sizeof(uint64_t) * queue_num;
   args_size_ += mbuff_size;
 
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   kernel_args.queue_ids_addr = PtrToValue(args_) + queue_ids_offset;
   kernel_args.mbuf_addrs_addr = PtrToValue(args_) + mbuf_addrs_offset;
   kernel_args.queue_device_ids_addr = PtrToValue(args_) + device_ids_offset;
@@ -208,15 +210,15 @@ Status SchedTaskModelGatherDequeue::Init(const std::vector<QueueAttrs> &queues,
     device_ids.emplace_back(queues[i].device_id);
     device_types.emplace_back(queues[i].device_type);
   }
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &kernel_args, sizeof(kernel_args), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.queue_ids_addr), queue_id_addrs_size,
-                         queue_ids.data(), queue_id_addrs_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.mbuf_addrs_addr), mbuf_addrs_size,
-                         mbuf_addrs.data(), mbuf_addrs.size() * sizeof(uint64_t), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.queue_device_ids_addr), device_ids_size,
-                         device_ids.data(), device_ids_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.queue_device_type_addr), device_type_size,
-                         device_types.data(), device_type_size, RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_, &kernel_args, sizeof(kernel_args), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.queue_ids_addr), queue_id_addrs_size,
+                         queue_ids.data(), queue_id_addrs_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.mbuf_addrs_addr), mbuf_addrs_size,
+                         mbuf_addrs.data(), mbuf_addrs.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.queue_device_ids_addr), device_ids_size,
+                         device_ids.data(), device_ids_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.queue_device_type_addr), device_type_size,
+                         device_types.data(), device_type_size, ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -274,8 +276,8 @@ Status SchedTaskPrepareDynamicInputOutput::Init(const std::vector<uint32_t> &inp
   const uint64_t req_msg_mbuf_offset = args_size_;
   const size_t req_msg_mbuf_size = sizeof(uint64_t);
   args_size_ += req_msg_mbuf_size;
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   kernel_args.input_dynamic_flags_addr = PtrToValue(args_) + input_dynamic_flags_offset;
   kernel_args.output_tensor_sizes_addr = PtrToValue(args_) + output_tensor_sizes_offset;
   kernel_args.input_mbuf_addrs_addr = PtrToValue(args_) + input_mbuf_addrs_offset;
@@ -287,19 +289,19 @@ Status SchedTaskPrepareDynamicInputOutput::Init(const std::vector<uint32_t> &inp
     output_mbuf_addrs.emplace_back(output_mbufs_addr + sizeof(uint64_t) * i);
   }
   req_msg_mbuf_addr = kernel_args.req_msg_mbuf_addr;
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_,
-                         &kernel_args, sizeof(kernel_args), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.input_dynamic_flags_addr), input_dynamic_flags_size,
-                         input_dynamic_flags.data(), input_dynamic_flags_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.output_tensor_sizes_addr), output_tensor_sizes_size,
-                         output_tensor_sizes.data(), output_tensor_sizes_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.input_mbuf_addrs_addr), input_mbuf_addrs_size,
-                         input_mbuf_addrs.data(), input_mbuf_addrs_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.input_fusion_offsets_addr), input_fusion_offsets_size,
-                         input_fusion_offsets.data(), input_fusion_offsets_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.output_mbuf_addrs_addr), output_mbufs_size,
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_,
+                         &kernel_args, sizeof(kernel_args), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.input_dynamic_flags_addr), input_dynamic_flags_size,
+                         input_dynamic_flags.data(), input_dynamic_flags_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.output_tensor_sizes_addr), output_tensor_sizes_size,
+                         output_tensor_sizes.data(), output_tensor_sizes_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.input_mbuf_addrs_addr), input_mbuf_addrs_size,
+                         input_mbuf_addrs.data(), input_mbuf_addrs_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.input_fusion_offsets_addr), input_fusion_offsets_size,
+                         input_fusion_offsets.data(), input_fusion_offsets_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.output_mbuf_addrs_addr), output_mbufs_size,
                          output_mbuf_addrs.data(), output_mbuf_addrs.size() * sizeof(uint64_t),
-                         RT_MEMCPY_HOST_TO_DEVICE));
+                         ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -332,16 +334,16 @@ Status SchedTaskModelBatchEnqueue::Init(const std::vector<uint32_t> &queue_ids,
   const uint64_t mbuf_addrs_offset = args_size_;
   const size_t mbuf_addrs_size = sizeof(uint64_t) * outputs_num;
   args_size_ += mbuf_addrs_size;
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   kernel_args.queue_ids_addr = PtrToValue(args_) + queue_ids_offset;
   kernel_args.mbuf_addrs_addr = PtrToValue(args_) + mbuf_addrs_offset;
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_,
-                         &kernel_args, sizeof(kernel_args), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.queue_ids_addr), queue_ids_size,
-                         queue_ids.data(), queue_ids_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.mbuf_addrs_addr), mbuf_addrs_size,
-                         mbuf_addrs.data(), mbuf_addrs_size, RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_,
+                         &kernel_args, sizeof(kernel_args), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.queue_ids_addr), queue_ids_size,
+                         queue_ids.data(), queue_ids_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.mbuf_addrs_addr), mbuf_addrs_size,
+                         mbuf_addrs.data(), mbuf_addrs_size, ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -398,23 +400,23 @@ Status SchedTaskPostprocessDynamicOutput::Init(const uint64_t resp_msg_mbuf_addr
   const uint64_t output_static_tensor_descs_offset = args_size_;
   const size_t output_static_tensor_descs_size = sizeof(RuntimeTensorDesc) * output_static_tensor_num;
   args_size_ += output_static_tensor_descs_size;
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   kernel_args.input_mbuf_addrs_addr = PtrToValue(args_) + input_mbuf_addrs_offset;
   kernel_args.output_mbuf_addrs_addr = PtrToValue(args_) + output_mbuf_addrs_offset;
   kernel_args.output_dynamic_flags_addr = PtrToValue(args_) + output_dynamic_flags_offset;
   kernel_args.output_static_tensor_desc_addr = PtrToValue(args_) + output_static_tensor_descs_offset;
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_,
-                         &kernel_args, sizeof(kernel_args), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.input_mbuf_addrs_addr), input_mbuf_addrs_size,
-                         input_mbuf_addrs.data(), input_mbuf_addrs_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.output_mbuf_addrs_addr), output_mbuf_addrs_size,
-                         output_mbuf_addrs.data(), output_mbuf_addrs_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.output_dynamic_flags_addr), output_dynamic_flags_size,
-                         output_dynamic_flags.data(), output_dynamic_flags_size, RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_,
+                         &kernel_args, sizeof(kernel_args), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.input_mbuf_addrs_addr), input_mbuf_addrs_size,
+                         input_mbuf_addrs.data(), input_mbuf_addrs_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.output_mbuf_addrs_addr), output_mbuf_addrs_size,
+                         output_mbuf_addrs.data(), output_mbuf_addrs_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.output_dynamic_flags_addr), output_dynamic_flags_size,
+                         output_dynamic_flags.data(), output_dynamic_flags_size, ACL_MEMCPY_HOST_TO_DEVICE));
   if (output_static_tensor_num != 0) {
-    GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.output_static_tensor_desc_addr), output_static_tensor_descs_size,
-                           output_static_tensor_descs, output_static_tensor_descs_size, RT_MEMCPY_HOST_TO_DEVICE));
+    DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.output_static_tensor_desc_addr), output_static_tensor_descs_size,
+                           output_static_tensor_descs, output_static_tensor_descs_size, ACL_MEMCPY_HOST_TO_DEVICE));
   }
   return SUCCESS;
 }
@@ -434,11 +436,11 @@ Status SchedTaskNotifyWait::Init(const uint32_t notify_id) {
   GE_CHK_BOOL_RET_STATUS((args_ == nullptr) && (args_size_ == 0UL), FAILED,
                          "Task:%s has already initialized, size:%lu.", kSchedTaskNotifyWait, args_size_);
   args_size_ = sizeof(AicpuNotifyKernelArgs);
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   AicpuNotifyKernelArgs notify_param{};
   notify_param.notify_id = notify_id;
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &notify_param, sizeof(notify_param), RT_MEMCPY_HOST_TO_DEVICE));
+  GE_CHK_RT_RET(aclrtMemcpy(args_, args_size_, &notify_param, sizeof(notify_param), ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -476,19 +478,19 @@ Status SchedTaskZeroCopy::Init(const std::vector<uint64_t> &src_addrs, std::vect
   const uint64_t dsts_offset = args_size_;
   const size_t dsts_size = sizeof(uint64_t) * addrs_num;
   args_size_ += dsts_size;
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   kernel_args.src_addr_list = PtrToValue(args_) + src_addrs_offset;
   kernel_args.dst_addr_list = PtrToValue(args_) + dst_addrs_offset;
   const uint64_t dsts_addr = PtrToValue(args_) + dsts_offset;
   for (size_t i = 0UL; i < addrs_num; ++i) {
     dst_addrs.emplace_back(dsts_addr + sizeof(uint64_t) * i);
   }
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &kernel_args, sizeof(kernel_args), RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.src_addr_list), src_addrs_size,
-                         src_addrs.data(), src_addrs_size, RT_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(rtMemcpy(ValueToPtr(kernel_args.dst_addr_list), dst_addrs_size,
-                         dst_addrs.data(), dst_addrs.size() * sizeof(uint64_t), RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_, &kernel_args, sizeof(kernel_args), ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.src_addr_list), src_addrs_size,
+                         src_addrs.data(), src_addrs_size, ACL_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(ValueToPtr(kernel_args.dst_addr_list), dst_addrs_size,
+                         dst_addrs.data(), dst_addrs.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -504,15 +506,15 @@ Status SchedTaskStreamRepeat::Init(const uint32_t model_id) {
   GE_CHK_BOOL_RET_STATUS((args_ == nullptr) && (args_size_ == 0UL), FAILED,
                          "Task:%s has already initialized, size:%lu.", kSchedTaskStreamRepeat, args_size_);
   int32_t stream_id = kInvalidStreamId;
-  GE_CHK_RT_RET(rtGetStreamId(stream_, &stream_id));
+  DF_CHK_ACL_RET(aclrtStreamGetId(stream_, &stream_id));
   StreamRepeatKernelArgs kernel_args = {
       .model_id = model_id,
       .stream_id = static_cast<uint32_t>(stream_id),
   };
   args_size_ = sizeof(kernel_args);
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &kernel_args, sizeof(kernel_args), RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_, &kernel_args, sizeof(kernel_args), ACL_MEMCPY_HOST_TO_DEVICE));
   return SUCCESS;
 }
 
@@ -531,8 +533,8 @@ Status SchedTaskMarkStep::Init(const uint32_t group_total_count, const uint32_t 
   GE_CHK_BOOL_RET_STATUS((args_ == nullptr) && (args_size_ == 0UL), FAILED,
                          "Task:%s has already initialized, size:%lu.", kSchedTaskMarkStep, args_size_);
   args_size_ = sizeof(MarkStepKernelArgs);
-  GE_CHK_RT_RET(rtMalloc(&args_, args_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
-  GE_PRINT_DYNAMIC_MEMORY(rtMalloc, "args data.", args_size_);
+  DF_CHK_ACL_RET(aclrtMalloc(&args_, args_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   MarkStepKernelArgs kernel_args{};
   kernel_args.group_total_count = group_total_count;
   kernel_args.group_index = group_index;
@@ -543,7 +545,7 @@ Status SchedTaskMarkStep::Init(const uint32_t group_total_count, const uint32_t 
     GELOGE(FAILED, "Fail to call strcpy_s, result: %d, dump_step: %s.", ret, dump_step.c_str());
     return FAILED;
   }
-  GE_CHK_RT_RET(rtMemcpy(args_, args_size_, &kernel_args, sizeof(MarkStepKernelArgs), RT_MEMCPY_HOST_TO_DEVICE));
+  DF_CHK_ACL_RET(aclrtMemcpy(args_, args_size_, &kernel_args, sizeof(MarkStepKernelArgs), ACL_MEMCPY_HOST_TO_DEVICE));
   GELOGI("Mark step, group_total_count:%u, group_index:%u, group_policy:%u, step_id_addr:0x%lx, dump_step:%s.",
          group_total_count, group_index, group_policy, step_id_addr, dump_step.c_str());
   return SUCCESS;

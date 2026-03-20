@@ -15,6 +15,7 @@
 #include "ge/ge_api_types.h"
 #include "common/plugin/ge_make_unique_util.h"
 #include "executor/sched_task_info.h"
+#include "acl/acl.h"
 
 namespace ge {
 using SchedTaskInfoPtr = std::shared_ptr<SchedTaskInfo>;
@@ -46,27 +47,27 @@ class NpuSchedModelLoader {
   Status CreateSchedTasks();
   Status DistributeTasks() const;
   Status DistributeEndGraph();
-  Status BindInputQueue(const rtStream_t stream);
-  Status CreateModelBatchDequeueTask(const rtStream_t stream, const std::vector<uint32_t> &queue_ids,
+  Status BindInputQueue(const aclrtStream stream);
+  Status CreateModelBatchDequeueTask(const aclrtStream stream, const std::vector<uint32_t> &queue_ids,
                                      const uint32_t align_interval, const std::vector<uint32_t> &align_offsets,
                                      std::vector<uint64_t> &mbuf_addrs);
-  Status CreateModelGatherDequeueTask(const rtStream_t stream, const std::vector<QueueAttrs> &queues,
+  Status CreateModelGatherDequeueTask(const aclrtStream stream, const std::vector<QueueAttrs> &queues,
                                       std::vector<uint64_t> &mbuf_addrs);
   Status UpdateFusionInputsMbufAddr(const std::vector<uint64_t> &unique_input_mbuf_addrs);
-  Status CreatePrepareDynamicInputOutputTask(const rtStream_t stream);
-  Status CreateEnqueueTask(const rtStream_t stream, const uint32_t queue_id, const uint64_t mbuf_addr);
+  Status CreatePrepareDynamicInputOutputTask(const aclrtStream stream);
+  Status CreateEnqueueTask(const aclrtStream stream, const uint32_t queue_id, const uint64_t mbuf_addr);
   uint32_t GenerateNotifyId() const;
-  Status CreateNotifyRecordTask(const rtStream_t stream, const uint32_t notify_id);
-  Status CreateNotifyWaitTask(const rtStream_t stream, const uint32_t notify_id);
-  Status CreateStreamRepeatTask(const rtStream_t stream);
-  Status CreateZeroCopyTask(const rtStream_t stream, const std::vector<uint64_t> &src_addrs,
+  Status CreateNotifyRecordTask(const aclrtStream stream, const uint32_t notify_id);
+  Status CreateNotifyWaitTask(const aclrtStream stream, const uint32_t notify_id);
+  Status CreateStreamRepeatTask(const aclrtStream stream);
+  Status CreateZeroCopyTask(const aclrtStream stream, const std::vector<uint64_t> &src_addrs,
                             std::vector<uint64_t> &dst_addrs);
-  Status CreatePostprocessDynamicOutputTask(const rtStream_t stream);
-  Status CreateDequeueTask(const rtStream_t stream, const uint32_t queue_id, uint64_t &mbuf_addr);
-  Status BindOutputQueue(const rtStream_t stream);
-  Status CreateModelBatchEnqueueTask(const rtStream_t stream, const std::vector<uint32_t> &queue_ids,
+  Status CreatePostprocessDynamicOutputTask(const aclrtStream stream);
+  Status CreateDequeueTask(const aclrtStream stream, const uint32_t queue_id, uint64_t &mbuf_addr);
+  Status BindOutputQueue(const aclrtStream stream);
+  Status CreateModelBatchEnqueueTask(const aclrtStream stream, const std::vector<uint32_t> &queue_ids,
                                      const std::vector<uint64_t> &mbuf_addrs);
-  Status CreateMarkStepTask(const rtStream_t stream);
+  Status CreateMarkStepTask(const aclrtStream stream);
   Status UnbindStreams();
   Status ReleaseTasks();
   Status CreateMsgQueues();
@@ -75,12 +76,12 @@ class NpuSchedModelLoader {
   Status EnsureQueueResourceInitialized(const int32_t device_id);
 
  private:
-  rtModel_t rt_model_handle_ = nullptr;
+  aclmdlRI rt_model_handle_ = nullptr;
   uint32_t model_id_ = 0U;
   uint32_t runtime_model_id_ = 0U;
-  rtStream_t rt_entry_stream_ = nullptr;
-  rtStream_t rt_next_stream_ = nullptr;
-  rtStream_t rt_fake_stream_ = nullptr;
+  aclrtStream rt_entry_stream_ = nullptr;
+  aclrtStream rt_next_stream_ = nullptr;
+  aclrtStream rt_fake_stream_ = nullptr;
   std::vector<SchedTaskInfoPtr> sched_tasks_;
   bool has_align_attr_ = false;
   bool enable_post_process_v2_ = false;

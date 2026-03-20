@@ -16,7 +16,6 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-#include "runtime/rt_mem_queue.h"
 #include "ge/ge_api_error_codes.h"
 #include "executor/dynamic_model_executor.h"
 

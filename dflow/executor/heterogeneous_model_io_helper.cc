@@ -14,8 +14,8 @@
 #include "dflow/base/deploy/exchange_service.h"
 #include "graph/utils/tensor_adapter.h"
 #include "data_flow_executor_utils.h"
-#include "runtime/rt.h"
-#include "rt_error_codes.h"
+#include "acl/acl.h"
+#include "common/df_chk.h"
 #include "graph_metadef/common/ge_common/util.h"
 
 namespace ge {
@@ -112,7 +112,7 @@ Status HeterogeneousModelIoHelper::Feed(const std::map<size_t, size_t> &indexes,
                             i, input_queue_attrs_.size(), broadcast_input_queue_attrs_.size());
       EnqueueTask enqueue_task = [this, &tensor_list_idx, &inputs, &control_info, i](
           const DeployQueueAttr &queue_attr) -> Status {
-        GE_CHK_RT_RET(rtSetDevice(queue_attr.device_id));
+        DF_CHK_ACL_RET(aclrtSetDevice(queue_attr.device_id));
         for (const size_t tensor_index : tensor_list_idx) {
           const auto &input = inputs[tensor_index];
           std::vector<ExchangeService::BuffInfo> buffs; // tensor desc and data

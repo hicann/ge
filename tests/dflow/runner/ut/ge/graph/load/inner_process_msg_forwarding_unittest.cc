@@ -25,7 +25,6 @@
 #include "ge_graph_dsl/graph_dsl.h"
 #include "graph/utils/tensor_adapter.h"
 #include "depends/runtime/src/runtime_stub.h"
-#include "rt_error_codes.h"
 #include "stub_models.h"
 
 using namespace std;

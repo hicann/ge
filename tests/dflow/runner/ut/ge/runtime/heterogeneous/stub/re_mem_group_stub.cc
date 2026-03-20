@@ -8,7 +8,7 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#include "runtime/rt_mem_queue.h"
+#include "depends/runtime/src/runtime_stub.h"
 #include <string.h>
 #include <string>
 RTS_API rtError_t rtMemGrpCreate(const char *name, const rtMemGrpConfig_t *cfg) {

@@ -11,7 +11,6 @@
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 #include <fstream>
-#include "rt_error_codes.h"
 #include "ge/ge_api.h"
 #include "flow_graph/data_flow.h"
 #include "graph/utils/graph_utils.h"
@@ -34,6 +33,7 @@
 #include "dflow/base/exec_runtime/execution_runtime.h"
 #include "macro_utils/dt_public_unscope.h"
 #include "common/env_path.h"
+#include "acl/acl.h"
 
 using namespace testing;
 using namespace std;

@@ -9,9 +9,9 @@
  */
 
 #include <gtest/gtest.h>
-#include "rt_error_codes.h"
 #include "depends/runtime/src/runtime_stub.h"
 #include "deploy/abnormal_status_handler/device_abnormal_status_handler.h"
+#include "acl/acl.h"
 
 namespace ge {
 namespace {

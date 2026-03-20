@@ -16,11 +16,10 @@
 #include <thread>
 #include <condition_variable>
 #include <atomic>
-#include "runtime/rt.h"
-#include "runtime/rt_mem_queue.h"
 #include "common/thread_pool/thread_pool.h"
 #include "framework/common/runtime_tensor_desc.h"
 #include "dflow/base/deploy/exchange_service.h"
+#include "acl/acl.h"
 
 namespace ge {
 class HeterogeneousExchangeService : public ExchangeService {
@@ -104,7 +103,7 @@ class HeterogeneousExchangeService : public ExchangeService {
   uint64_t GetCurrentTransId(int32_t device_id, uint32_t queue_id);
   Status ClientQueueDequeueMbuf(int32_t device_id, uint32_t queue_id, rtMbufPtr_t *m_buf, int32_t timeout) const;
   Status AllocAlignedBuffer(const size_t buffer_size, uint8_t *&aligned_ptr, int32_t device_id);
-  Status GetOrCreateRtCtx(rtContext_t &ctx, int32_t device_id);
+  Status GetOrCreateRtCtx(aclrtContext &ctx, int32_t device_id);
   Status ProcessDequeueBuffTensor(int32_t device_id, uint32_t queue_id, GeTensor &tensor, ControlInfo &control_info);
 
   Status MultiThreadCopy(uint8_t *dst, size_t dst_size, const uint8_t *src, size_t src_size);
@@ -133,7 +132,7 @@ class HeterogeneousExchangeService : public ExchangeService {
   std::mutex client_q_mu_;
   std::set<uint32_t> client_queue_ids_;
   std::mutex ctx_mu_;
-  rtContext_t rt_context_ = nullptr;
+  aclrtContext rt_context_ = nullptr;
 
   ThreadPool copy_thread_pool_;
 };

@@ -9,7 +9,6 @@
  */
 
 #include "executor/proxy_dynamic_model_executor.h"
-#include "rt_error_codes.h"
 #include "ge/ge_data_flow_api.h"
 #include "common/utils/heterogeneous_profiler.h"
 #include "graph/utils/tensor_utils.h"

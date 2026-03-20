@@ -16,6 +16,7 @@
 #include <mutex>
 #include "mmpa/mmpa_api.h"
 #include "runtime/rt.h"
+#include "rt_error_codes.h"
 namespace ge {
 class RuntimeStub {
 public:

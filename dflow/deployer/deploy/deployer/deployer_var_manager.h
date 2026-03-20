@@ -13,7 +13,6 @@
 
 #include <map>
 #include <future>
-#include "runtime/rt_mem_queue.h"
 #include "ge/ge_api_types.h"
 #include "proto/deployer.pb.h"
 #include "common/blocking_queue.h"

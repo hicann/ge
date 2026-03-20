@@ -89,6 +89,7 @@ target_include_directories(dflow_runner SYSTEM PRIVATE
     ${METADEF_DIR}/pkg_inc
     ${TOP_DIR}/runtime/include/external
     ${TOP_DIR}/runtime/include/external/acl/error_codes
+    ${AIR_CODE_DIR}/dflow/inc/data_flow
     )
 
 target_link_options(dflow_runner PRIVATE
@@ -101,8 +102,8 @@ target_link_libraries(dflow_runner
         ge_compiler
         ge_runner_v2
         -Wl,--as-needed
+        acl_rt
         graph
-        ascendcl
         graph_base
         ge_common
         ge_common_base
@@ -122,4 +123,5 @@ target_link_libraries(dflow_runner
     PUBLIC
         air_headers
 )
+
 endif()
