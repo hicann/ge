@@ -1033,7 +1033,6 @@ cp ./temp_udf_st/build/_test/X86/release/func_pp1_release.tar.gz ./temp_udf_st/b
     Configurations::GetInstance().information_ = DeployerConfig{};
     ResourceManager::GetInstance().Finalize();
     DeployerProxy::GetInstance().Finalize();
-    DeployContext::LocalContext().has_hcom_rank_table_.clear();
     DeployContext::LocalContext().submodel_devices_.clear();
     DeployContext::LocalContext().submodel_routes_.clear();
     DeployContext::LocalContext().var_managers_.clear();
@@ -1899,8 +1898,6 @@ TEST_F(STEST_helper_runtime, TestProcessSharedConstant) {
   deployer::InitProcessResourceRequest init_process_resource_request;
   init_process_resource_request.set_device_id(0);
   init_process_resource_request.set_device_type(0);
-  init_process_resource_request.set_rank_table("rank_table");
-  init_process_resource_request.set_rank_id(0);
   std::vector<int32_t> res_ids_0 = {0};
   init_process_resource_request.mutable_res_ids()->Add(res_ids_0.begin(), res_ids_0.end());
   EXPECT_EQ(context.InitProcessResource(init_process_resource_request, response), SUCCESS);
@@ -3961,8 +3958,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Success) {
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -3998,8 +3993,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Success) {
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(handler.context_->rank_id_, "0");;
-  EXPECT_EQ(handler.context_->rank_table_, "rank_table_test");
   EXPECT_EQ(handler.context_->model_handles_.size(), 1);
   auto &handle = handler.context_->model_handles_[0U][0U];
   EXPECT_EQ(handle->dynamic_model_executor_->num_outputs_, 1);
@@ -4056,8 +4049,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Without_Max_attr_Succ
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -4093,8 +4084,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_Execute_Without_Max_attr_Succ
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(handler.context_->rank_id_, "0");;
-  EXPECT_EQ(handler.context_->rank_table_, "rank_table_test");
   EXPECT_EQ(handler.context_->model_handles_.size(), 1);
   auto &handle = handler.context_->model_handles_[0U][0U];
   EXPECT_EQ(handle->dynamic_model_executor_->num_outputs_, 1);
@@ -4150,8 +4139,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_with_retcode) {
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -4246,8 +4233,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_null_data_flag) {
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -4349,8 +4334,6 @@ TEST_F(STEST_helper_runtime, TestDynamicModel_WithInputAlign_Execute_Success) {
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -4395,8 +4378,6 @@ TEST_F(STEST_helper_runtime, TestDynamicModel_WithInputAlign_Execute_Success) {
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(handler.context_->rank_id_, "0");;
-  EXPECT_EQ(handler.context_->rank_table_, "rank_table_test");
   EXPECT_EQ(handler.context_->model_handles_.size(), 1);
   auto &handle = handler.context_->model_handles_[0U][0U];
   EXPECT_EQ(handle->dynamic_model_executor_->num_outputs_, 1);
@@ -4417,8 +4398,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_WithInputAlign_Execute_Succes
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -4462,8 +4441,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModel_WithInputAlign_Execute_Succes
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(handler.context_->rank_id_, "0");;
-  EXPECT_EQ(handler.context_->rank_table_, "rank_table_test");
   EXPECT_EQ(handler.context_->model_handles_.size(), 1);
   auto &handle = handler.context_->model_handles_[0U][0U];
   EXPECT_EQ(handle->dynamic_model_executor_->num_outputs_, 1);
@@ -4521,8 +4498,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModelWithDummy_Execute_Success) {
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -4558,8 +4533,6 @@ TEST_F(STEST_helper_runtime, TestProxyDynamicModelWithDummy_Execute_Success) {
   ASSERT_FALSE(handler.context_.get() == nullptr);
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(handler.context_->rank_id_, "0");;
-  EXPECT_EQ(handler.context_->rank_table_, "rank_table_test");
   EXPECT_EQ(handler.context_->model_handles_.size(), 1);
   auto &handle = handler.context_->model_handles_[0U][0U];
   EXPECT_EQ(handle->dynamic_model_executor_->num_outputs_, 1);
@@ -5471,8 +5444,6 @@ TEST_F(STEST_helper_runtime, TestHostCpuEngineModel_Execute_Success) {
   // init request
   deployer::ExecutorRequest request;
   auto batch_load_model_messgae = request.mutable_batch_load_model_message();
-  batch_load_model_messgae->set_rank_table("rank_table_test");
-  batch_load_model_messgae->set_rank_id(std::to_string(0));
   deployer::ExecutorRequest_LoadModelRequest model_request;
   auto *input_queues = model_request.mutable_model_queues_attrs()->add_input_queues_attrs();
   input_queues->set_queue_id(0);
@@ -5502,8 +5473,6 @@ TEST_F(STEST_helper_runtime, TestHostCpuEngineModel_Execute_Success) {
   MmpaStub::GetInstance().SetImpl(std::make_shared<MockMmpaForHeterogeneousRuntime>());
   auto ret = handler.BatchLoadModels(request);
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(handler.context_->rank_id_, "0");;
-  EXPECT_EQ(handler.context_->rank_table_, "rank_table_test");
   EXPECT_EQ(handler.context_->model_handles_.size(), 1);
   auto &handle = handler.context_->model_handles_[0U][0U];
   EXPECT_EQ(handle->dynamic_model_executor_->num_outputs_, 1);
@@ -5627,8 +5596,6 @@ TEST_F(STEST_helper_runtime, TestClearModelExceptionData_flowgw) {
   deployer::InitProcessResourceRequest init_process_resource_request;
   init_process_resource_request.set_device_id(0);
   init_process_resource_request.set_device_type(0);
-  init_process_resource_request.set_rank_table("rank_table");
-  init_process_resource_request.set_rank_id(0);
   std::vector<int32_t> res_ids_0 = {0};
   init_process_resource_request.mutable_res_ids()->Add(res_ids_0.begin(), res_ids_0.end());
   EXPECT_EQ(context.InitProcessResource(init_process_resource_request, response), SUCCESS);
