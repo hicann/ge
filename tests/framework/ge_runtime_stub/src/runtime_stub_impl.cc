@@ -25,6 +25,9 @@ void RuntimeStubImpl::Clear() {
   rt_memcpy_sync_args_.clear();
   all_launch_sqe_update_records_.clear();
   events_to_record_records_.clear();
+  stream_res_limit_records_.clear();
+  use_stream_res_records_.clear();
+  not_use_stream_res_records_.clear();
 }
 
 const std::map<const void *, HandleArgsPtrList> &RuntimeStubImpl::GetLaunchWithHandleArgs() {
@@ -352,14 +355,20 @@ rtError_t RuntimeStubImpl::rtsStreamGetId(void *stm, int32_t *streamId)
 }
 
 rtError_t RuntimeStubImpl::rtsSetStreamResLimit(rtStream_t stm, const rtDevResLimitType_t type, const uint32_t value) {
-  (void) stm;
-  (void) type;
-  (void) value;
+  const std::lock_guard<std::mutex> lk(mtx_);
+  stream_res_limit_records_.push_back(StreamResLimitRecord{stm, type, value});
   return RT_ERROR_NONE;
 }
 
 rtError_t RuntimeStubImpl::rtsUseStreamResInCurrentThread(const rtStream_t stm) {
-  (void) stm;
+  const std::lock_guard<std::mutex> lk(mtx_);
+  use_stream_res_records_.push_back(const_cast<rtStream_t>(stm));
+  return RT_ERROR_NONE;
+}
+
+rtError_t RuntimeStubImpl::rtsNotUseStreamResInCurrentThread(const rtStream_t stm) {
+  const std::lock_guard<std::mutex> lk(mtx_);
+  not_use_stream_res_records_.push_back(const_cast<rtStream_t>(stm));
   return RT_ERROR_NONE;
 }
 

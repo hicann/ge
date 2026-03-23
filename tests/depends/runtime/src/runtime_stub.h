@@ -233,6 +233,7 @@ class RuntimeStub {
   virtual rtError_t rtsStreamGetId(void *stm, int32_t *streamId);
   virtual rtError_t rtsSetStreamResLimit(rtStream_t stm, const rtDevResLimitType_t type, const uint32_t value);
   virtual rtError_t rtsUseStreamResInCurrentThread(const rtStream_t stm);
+  virtual rtError_t rtsNotUseStreamResInCurrentThread(const rtStream_t stm);
 
   virtual rtError_t rtsGetThreadLastTaskId(uint32_t *taskId);
   virtual rtError_t rtsDeviceGetCapability(int32_t deviceId, int32_t devFeatureType, int32_t *val);

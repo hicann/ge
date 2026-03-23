@@ -882,6 +882,19 @@ TEST_F(HybridModelAsyncTest, Test_execute_with_stream_async_with_int4) {
   runtime_stub.Clear();
   //ASSERT_EQ(executor.ExecuteWithStreamAsync(input_tensors, output_tensors, stream), SUCCESS);
   executor.ExecuteWithStreamAsync(input_tensors, output_tensors, stream);
+  const auto &stream_res_limit_records = runtime_stub.GetRtsRuntimeStub().GetStreamResLimitRecords();
+  const auto &use_stream_res_records = runtime_stub.GetRtsRuntimeStub().GetUseStreamResRecords();
+  auto has_stream_res_limit = [stream, &stream_res_limit_records](const rtDevResLimitType_t type,
+                                                                  const uint32_t value) {
+    return std::find_if(stream_res_limit_records.begin(), stream_res_limit_records.end(),
+                        [stream, type, value](const auto &record) {
+                          return (record.stream == stream) && (record.type == type) && (record.value == value);
+                        }) != stream_res_limit_records.end();
+  };
+  EXPECT_TRUE(has_stream_res_limit(RT_DEV_RES_CUBE_CORE, 1U));
+  EXPECT_TRUE(has_stream_res_limit(RT_DEV_RES_VECTOR_CORE, 1U));
+  EXPECT_NE(std::find(use_stream_res_records.begin(), use_stream_res_records.end(), stream),
+            use_stream_res_records.end());
   // check outputsize for int4, size is (4 * 16 * 16 * 3) * 4 / 8 = 1536
   for (size_t i = 0; i < output_tensors.size(); ++i) {
     EXPECT_NE(output_tensors[i].GetAddr(), nullptr);

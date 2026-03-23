@@ -49,6 +49,13 @@ TEST_F(GertRuntimeStubUT, test_rt_kernel_launch_with_flag_success) {
   ASSERT_EQ(rtKernelLaunchWithFlag(stubFunc, 0, &args, &smDesc, stream, 0), RT_ERROR_NONE);
 }
 
+TEST_F(GertRuntimeStubUT, test_rts_not_use_stream_res_in_current_thread_success) {
+  GertRuntimeStub runtime;
+  rtStream_t stream = nullptr;
+
+  ASSERT_EQ(rtsNotUseStreamResInCurrentThread(stream), RT_ERROR_NONE);
+}
+
 TEST_F(GertRuntimeStubUT, test_stub_kernel_launch_with_handle_return_failed) {
   void *handle, *kernelInfo;
   uint8_t args_data[1024];

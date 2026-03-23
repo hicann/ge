@@ -132,7 +132,20 @@ class RuntimeStubImpl : public ge::RuntimeStub {
   const std::list<ge::GeLaunchSqeUpdateTaskArgs> &GetLaunchSqeUpdateTaskArgs() const {
     return all_launch_sqe_update_records_;
   }
-
+  struct StreamResLimitRecord {
+    rtStream_t stream;
+    rtDevResLimitType_t type;
+    uint32_t value;
+  };
+  const std::vector<StreamResLimitRecord> &GetStreamResLimitRecords() const {
+    return stream_res_limit_records_;
+  }
+  const std::vector<rtStream_t> &GetUseStreamResRecords() const {
+    return use_stream_res_records_;
+  }
+  const std::vector<rtStream_t> &GetNotUseStreamResRecords() const {
+    return not_use_stream_res_records_;
+  }
   const std::vector<uintptr_t> &GetLiteEceptionArgs() const {
     return lite_exception_args_;
   }
@@ -223,6 +236,7 @@ class RuntimeStubImpl : public ge::RuntimeStub {
                                const char_t * const kernelName, rtFuncHandle *funcHandle) override;
   rtError_t rtsSetStreamResLimit(rtStream_t stm, const rtDevResLimitType_t type, const uint32_t value) override;
   rtError_t rtsUseStreamResInCurrentThread(const rtStream_t stm) override;
+  rtError_t rtsNotUseStreamResInCurrentThread(const rtStream_t stm) override;
  public:
   rtError_t rtSetTaskTag(const char *taskTag) override;
   rtError_t rtGetAvailStreamNum(uint32_t streamType, uint32_t *const streamCount) override;
@@ -263,6 +277,9 @@ class RuntimeStubImpl : public ge::RuntimeStub {
   std::map<uint64_t, uint32_t> stream_to_task_id_;
   std::vector<uintptr_t> lite_exception_args_;
   std::map<rtEvent_t, std::vector<rtStream_t>> events_to_record_records_;
+  std::vector<StreamResLimitRecord> stream_res_limit_records_;
+  std::vector<rtStream_t> use_stream_res_records_;
+  std::vector<rtStream_t> not_use_stream_res_records_;
   GertStreamStub stream_stub_;
   GertEventStub event_stub_;
 };

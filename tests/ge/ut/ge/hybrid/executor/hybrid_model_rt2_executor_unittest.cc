@@ -34,6 +34,7 @@
 #include "graph_metadef/depends/checker/tensor_check_utils.h"
 #include "runtime/subscriber/built_in_subscriber_definitions.h"
 #include "runtime/subscriber/global_dumper.h"
+#include "stub/gert_runtime_stub.h"
 #include "rt_error_codes.h"
 
 using namespace ge;
@@ -1315,6 +1316,7 @@ TEST_F(UtestHybridRt2Executor, RunCtxInitWithDeviceFileConstants_TensorNotShared
  */
 TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynamic_shape) {
   LoadDefaultSpaceRegistry();
+  GertRuntimeStub runtime_stub;
 
   auto graph = ShareGraph::AicoreGraph();
   graph->TopologicalSorting();
@@ -1352,8 +1354,23 @@ TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynam
     output_tensors[i].SetData(nullptr, 0U);
   }
   executor_rt_v2.run_ctx_.host_exec_flag_ = false;
+  runtime_stub.Clear();
   ret = executor_rt_v2.ExecuteWithStreamAsync(input_tensors, output_tensors, stream);
   EXPECT_EQ(ret, SUCCESS);
+
+  const auto &stream_res_limit_records = runtime_stub.GetRtsRuntimeStub().GetStreamResLimitRecords();
+  const auto &use_stream_res_records = runtime_stub.GetRtsRuntimeStub().GetUseStreamResRecords();
+  auto has_stream_res_limit = [stream, &stream_res_limit_records](const rtDevResLimitType_t type,
+                                                                  const uint32_t value) {
+    return std::find_if(stream_res_limit_records.begin(), stream_res_limit_records.end(),
+                        [stream, type, value](const auto &record) {
+                          return (record.stream == stream) && (record.type == type) && (record.value == value);
+                        }) != stream_res_limit_records.end();
+  };
+  EXPECT_TRUE(has_stream_res_limit(RT_DEV_RES_CUBE_CORE, 1U));
+  EXPECT_TRUE(has_stream_res_limit(RT_DEV_RES_VECTOR_CORE, 1U));
+  EXPECT_NE(std::find(use_stream_res_records.begin(), use_stream_res_records.end(), stream),
+            use_stream_res_records.end());
 
   for (size_t i = 0; i < output_tensors.size(); ++i) {
     EXPECT_NE(output_tensors[i].GetData().GetData(), nullptr);

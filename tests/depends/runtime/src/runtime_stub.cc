@@ -488,6 +488,11 @@ rtError_t RuntimeStub::rtsUseStreamResInCurrentThread(const rtStream_t stm) {
   return RT_ERROR_NONE;
 }
 
+rtError_t RuntimeStub::rtsNotUseStreamResInCurrentThread(const rtStream_t stm) {
+  (void) stm;
+  return RT_ERROR_NONE;
+}
+
 rtError_t RuntimeStub::rtsGetThreadLastTaskId(uint32_t *taskId)
 {
   if (*taskId == 999) {
@@ -1543,6 +1548,12 @@ rtError_t rtsUseStreamResInCurrentThread(const rtStream_t stm) {
   return ge::RuntimeStub::GetInstance()->rtsUseStreamResInCurrentThread(stm);
 }
 
+rtError_t rtsNotUseStreamResInCurrentThread(const rtStream_t stm) {
+  if (std::string(__FUNCTION__) == g_runtime_stub_mock) {
+    return -1;
+  }
+  return ge::RuntimeStub::GetInstance()->rtsNotUseStreamResInCurrentThread(stm);
+}
 
 rtError_t rtsGetThreadLastTaskId(uint32_t *taskId)
 {

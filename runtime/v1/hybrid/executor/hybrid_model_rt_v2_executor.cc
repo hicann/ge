@@ -1026,8 +1026,9 @@ static Status InputTensorValidate(const std::vector<gert::Tensor> &inputs, size_
 
 Status HybridModelRtV2Executor::TryUpdateStreamCoreLimits(const rtStream_t stream) {
   bool update_stream_core_num = false;
+  int32_t aicore_num = -1;
+  int32_t vectorcore_num = -1;
   if (!run_ctx_.aicore_num_str_.empty()) {
-    int32_t aicore_num = -1;
     GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(ge::GetContext().GetReadableName(AICORE_NUM), run_ctx_.aicore_num_str_, 0, INT32_MAX, aicore_num));
     if (aicore_num > 0) {
       GE_CHK_RT_RET(rtsSetStreamResLimit(stream, RT_DEV_RES_CUBE_CORE, static_cast<uint32_t>(aicore_num)));
@@ -1036,7 +1037,6 @@ Status HybridModelRtV2Executor::TryUpdateStreamCoreLimits(const rtStream_t strea
   }
 
   if (!run_ctx_.vectorcore_num_str_.empty()) {
-    int32_t vectorcore_num = -1;
     GE_CHK_STATUS_RET(CoreNumUtils::ParseAndValidateCoreNum(ge::GetContext().GetReadableName(kVectorcoreNum), run_ctx_.vectorcore_num_str_, 0, INT32_MAX, vectorcore_num));
     if (vectorcore_num > 0) {
       GE_CHK_RT_RET(rtsSetStreamResLimit(stream, RT_DEV_RES_VECTOR_CORE, static_cast<uint32_t>(vectorcore_num)));
@@ -1046,7 +1046,8 @@ Status HybridModelRtV2Executor::TryUpdateStreamCoreLimits(const rtStream_t strea
 
   if (update_stream_core_num) {
     GE_CHK_RT_RET(rtsUseStreamResInCurrentThread(stream));
-    GELOGI("Update stream core limits success.");
+    GELOGI("Bind stream resource limit in caller thread success, configured(cube=%d, vector=%d).",
+           aicore_num, vectorcore_num);
   }
 
   return SUCCESS;
