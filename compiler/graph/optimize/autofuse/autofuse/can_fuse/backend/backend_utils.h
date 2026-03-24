@@ -821,6 +821,9 @@ class BackendUtils {
   static bool HasTypesInAscgraph(const NodePtr &node, const std::vector<std::string> &target_types);
   // 判断node的ascgraph是否除了data load store output只有某些节点type
   static bool OnlyHasTypesInAscgraph(const NodePtr &node, const std::vector<std::string> &target_types);
+  static Status GetTransposeInfos(
+      AscGraph &asc_graph, bool &has_only_one_transpose,
+      std::unordered_map<NodePtr, std::vector<std::pair<int64_t, int64_t>>> &fallback_node_to_transpose_info);
 
  private:
   static Status BackSteppingViewOpBroadcast(TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr,
