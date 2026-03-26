@@ -399,6 +399,7 @@ Status VfCall::Generate(const TPipe &tpipe, [[maybe_unused]] const std::vector<a
   size_t loop_num = merge_info.merge_repeats_str.size();
   ss << "#if defined(__DAV_C310__) || (defined(__NPU_ARCH__) && (__NPU_ARCH__ == 5102 || __NPU_ARCH__ == 3510))"
      << std::endl;
+  ss << "AscendC::SetCtrlSpr<60, 60>(0);" << std::endl;
   if (loop_num <= kVFMaxLoop) {
     std::vector<std::string> inputs_ub_offsets = {};
     std::vector<std::string> outputs_ub_offsets = {};
