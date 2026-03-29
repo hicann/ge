@@ -1168,6 +1168,7 @@ class EqAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "MicroCompareApiCall";
   }
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    return false;
     if (!IsAllVecAxisContinuous(node)) {
       return false;
     }
@@ -1286,6 +1287,7 @@ class GtAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "GT";
   }
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
+    return false;
     AscNodeInputs compare_inputs = node.inputs;
     for (const auto &out_node : node.GetOutNodes()) {
       AscNodeInputs where_inputs = std::dynamic_pointer_cast<ge::AscNode>(out_node)->inputs;
@@ -1802,8 +1804,8 @@ class WhereAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     auto in_node = std::dynamic_pointer_cast<ge::AscNode>(node.GetInDataNodes().at(0));
     // 当前节点的第一个输入节点必须是比较算子
-    if (in_node->GetType() != "Ge" && in_node->GetType() != "Eq" && in_node->GetType() != "Ne" &&
-        in_node->GetType() != "Le" && in_node->GetType() != "Lt" && in_node->GetType() != "Gt") {
+    if (in_node->GetType() != "Ge" && in_node->GetType() != "Ne" &&
+        in_node->GetType() != "Le" && in_node->GetType() != "Lt") {
       return false;
     }
     AscNodeInputs compare_inputs = in_node->inputs;
@@ -1857,8 +1859,8 @@ class SelectAscIrCodegenImplV2 : public AscIrCodegenV2 {
     }
     auto in_node = node.GetInDataNodes().at(0);
     // 当前节点的第一个输入节点必须是比较算子
-    if (in_node->GetType() != "Lt" && in_node->GetType() != "Eq" && in_node->GetType() != "Ne" &&
-        in_node->GetType() != "Le" && in_node->GetType() != "Ge" && in_node->GetType() != "Gt") {
+    if (in_node->GetType() != "Lt" && in_node->GetType() != "Ne" &&
+        in_node->GetType() != "Le" && in_node->GetType() != "Ge") {
       return false;
     }
     AscNodeInputs compare_inputs = std::dynamic_pointer_cast<ge::AscNode>(in_node)->inputs;
