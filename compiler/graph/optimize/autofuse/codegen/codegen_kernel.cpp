@@ -2330,7 +2330,7 @@ static bool IsNodeSplitB(const ascir::NodeView &node, const Tiler &tiler, std::s
       return false;
     }
   }
-  return true;
+  return !enable_cache_with_condition.empty();
 }
 
 static bool IsValidCacheCondition(const ge::ExecuteCondition &exec_condition) {
