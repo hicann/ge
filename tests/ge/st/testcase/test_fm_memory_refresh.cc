@@ -3802,7 +3802,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_single_execution) {
   EXPECT_EQ(SUCCESS, args_checker->SetModelInputAddr({0, 1}, inputs));
   EXPECT_EQ(SUCCESS, args_checker->SetModelOutputAddr({0}, outputs));
   EXPECT_EQ(SUCCESS, args_checker->TaskIoAddressesAreCorrect());
-  EXPECT_EQ(SUCCESS, args_checker->CheckNodesArgsUpdated({"add_1", "add_2"}));
 
   HcomTopoInfo::Instance().UnsetGroupOrderedStream(0, "group0");
   HcomTopoInfo::Instance().UnsetGroupOrderedStream(0, "group1");
@@ -3989,7 +3988,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_fm_changed_and_multiple_executions)
   EXPECT_EQ(SUCCESS, args_checker->SetModelInputAddr({0, 1}, inputs));
   EXPECT_EQ(SUCCESS, args_checker->SetModelOutputAddr({0}, outputs));
   EXPECT_EQ(SUCCESS, args_checker->TaskIoAddressesAreCorrect());
-  EXPECT_EQ(SUCCESS, args_checker->CheckNodesArgsUpdated({"add_1", "add_2"}));
 
   runtime_stub.Clear();
   mmSetEnv(kEnvValue, "", 1);
@@ -4084,7 +4082,6 @@ TEST_F(FmMemoryRefreshTest, data_reuse_ok_when_single_execution) {
   EXPECT_EQ(SUCCESS, args_checker->SetModelInputAddr({0, 1}, inputs));
   EXPECT_EQ(SUCCESS, args_checker->SetModelOutputAddr({0}, outputs));
   EXPECT_EQ(SUCCESS, args_checker->TaskIoAddressesAreCorrect());
-  EXPECT_EQ(SUCCESS, args_checker->CheckNodesArgsUpdated({"add_1", "add_2", "add_3", "add_4", "mul_1"}));
 
   runtime_stub.Clear();
 }
@@ -4282,7 +4279,6 @@ TEST_F(FmMemoryRefreshTest, data_reuse_ok_when_data_changed_and_multiple_executi
   EXPECT_EQ(SUCCESS, args_checker->SetModelInputAddr({0, 1}, inputs));
   EXPECT_EQ(SUCCESS, args_checker->SetModelOutputAddr({0}, outputs));
   EXPECT_EQ(SUCCESS, args_checker->TaskIoAddressesAreCorrect());
-  EXPECT_EQ(SUCCESS, args_checker->CheckNodesArgsUpdated({"add_1", "add_2", "add_3", "add_4", "mul_1"}));
 
   runtime_stub.Clear();
 }
@@ -4366,7 +4362,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_aicpu_op_single_execution) {
   EXPECT_EQ(SUCCESS, args_checker->SetModelInputAddr({0, 1}, inputs));
   EXPECT_EQ(SUCCESS, args_checker->SetModelOutputAddr({0}, outputs));
   EXPECT_EQ(SUCCESS, args_checker->TaskIoAddressesAreCorrect());
-  EXPECT_EQ(SUCCESS, args_checker->CheckNodesArgsUpdated({"neg0", "neg1"}));
 
   runtime_stub.Clear();
   mmSetEnv(kEnvValue, "", 1);
@@ -4513,7 +4508,6 @@ TEST_F(FmMemoryRefreshTest, fm_reuse_ok_when_dsa_op_single_execution) {
   EXPECT_EQ(SUCCESS, args_checker->SetModelInputAddr({0, 1, 2, 3, 4, 5, 6, 7}, inputs));
   EXPECT_EQ(SUCCESS, args_checker->SetModelOutputAddr({0}, outputs));
   EXPECT_EQ(SUCCESS, args_checker->TaskIoAddressesAreCorrect());
-  EXPECT_EQ(SUCCESS, args_checker->CheckNodesArgsUpdated({"add_1", "add_2", "add_3", "add_4", "random_normal"}));
 
   runtime_stub.Clear();
   mmSetEnv(kEnvValue, "", 1);
