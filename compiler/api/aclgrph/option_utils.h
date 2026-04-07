@@ -23,6 +23,7 @@
 #include "framework/omg/omg_inner_types.h"
 #include "graph/preprocess/multi_batch_options.h"
 #include "framework/common/string_util.h"
+#include "graph/gnode.h"
 
 namespace ge {
 static std::set<std::string> caffe_support_input_format = {"NCHW", "ND"};

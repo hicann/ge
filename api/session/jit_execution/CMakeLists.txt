@@ -31,6 +31,7 @@ target_compile_definitions(jit_exe PRIVATE
         )
 
 target_compile_options(jit_exe PRIVATE ${AIR_COMMON_COMPILE_OPTION}
+        -ftrapv
         -Wno-error=unused-parameter # TODO remove
         -Wno-error=ignored-qualifiers # TODO remove
         -fPIC

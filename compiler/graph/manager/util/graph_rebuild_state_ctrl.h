@@ -16,6 +16,7 @@
 #include <string>
 #include <mutex>
 #include "graph/compute_graph.h"
+#include "graph/gnode.h"
 
 namespace ge {
 class GraphRebuildStateCtrl {

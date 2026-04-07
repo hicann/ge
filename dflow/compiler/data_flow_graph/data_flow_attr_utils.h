@@ -12,6 +12,7 @@
 #define AIR_DFLOW_DATA_FLOW_ATTR_UTILS_H
 #include "graph/compute_graph.h"
 #include "ge_common/ge_api_types.h"
+#include "graph/gnode.h"
 
 namespace ge {
 class DataFlowAttrUtils {
