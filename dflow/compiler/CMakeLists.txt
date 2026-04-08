@@ -86,6 +86,7 @@ target_include_directories(dflow_runner PRIVATE
     ${AIR_CODE_DIR}/inc/graph_metadef
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/framework
+    ${AIR_CODE_DIR}/inc/graph_metadef/external
     ${AIR_CODE_DIR}/api/session
     ${AIR_CODE_DIR}
     ${CMAKE_BINARY_DIR}

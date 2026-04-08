@@ -418,6 +418,7 @@ target_include_directories(ge_compiler SYSTEM PRIVATE
     ${AIR_CODE_DIR}/inc
     ${AIR_CODE_DIR}/inc/external
     ${AIR_CODE_DIR}/inc/framework
+    ${AIR_CODE_DIR}/inc/graph_metadef/external
     ${ASCGEN_DIR}/inc
     ${CMAKE_BINARY_DIR}
     ${CMAKE_BINARY_DIR}/proto/graphengine_protos

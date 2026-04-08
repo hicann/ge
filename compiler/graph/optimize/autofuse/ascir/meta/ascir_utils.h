@@ -14,6 +14,8 @@
 #include "ascir.h"
 #include "schedule_result.h"
 #include "symbolizer/symbolic_utils.h"
+#include "detail/model_serialize_imp.h"
+#include "node.h"
 
 namespace ascir::utils {
 /**

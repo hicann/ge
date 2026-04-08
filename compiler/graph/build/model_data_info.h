@@ -17,6 +17,7 @@
 #include "graph/graph.h"
 #include "graph/ge_error_codes.h"
 #include "graph/detail/attributes_holder.h"
+#include "graph/attr_store.h"
 
 namespace ge {
 class ModelDataInfo : public AttrHolder {
