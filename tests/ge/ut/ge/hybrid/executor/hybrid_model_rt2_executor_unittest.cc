@@ -204,9 +204,9 @@ std::shared_ptr<HybridModel> FakeHybridModel(const bool is_exec_on_host,
   GE_ASSERT_NOTNULL(file_constant_0);
   GE_ASSERT_NOTNULL(file_constant_1);
   int64_t aligned_mem_size = 0U;
-  ge::TensorUtils::GetTensorMemorySizeInBytes(file_constant_0->GetOpDesc()->GetOutputDesc(0U), aligned_mem_size);
+  ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(file_constant_0->GetOpDesc()->GetOutputDesc(0U), aligned_mem_size);
   ge::TensorUtils::SetSize(*file_constant_0->GetOpDesc()->MutableOutputDesc(0U), aligned_mem_size);
-  ge::TensorUtils::GetTensorMemorySizeInBytes(file_constant_1->GetOpDesc()->GetOutputDesc(0U), aligned_mem_size);
+  ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(file_constant_1->GetOpDesc()->GetOutputDesc(0U), aligned_mem_size);
   ge::TensorUtils::SetSize(*file_constant_1->GetOpDesc()->MutableOutputDesc(0U), aligned_mem_size);
   for (const auto &location : location_config) {
     GE_ASSERT_SUCCESS(CreateFileConstantFile("", location, 5 * 5 * sizeof(int32_t)));

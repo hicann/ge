@@ -97,7 +97,7 @@ Status PlanFixedMemoryLayout(const TaskNodeMap &task_node_map,
         GE_ASSERT_NOTNULL(td, "Failed to calculate fixed address for task %zu, op %s, null input, index %zu",
                           fixed_addr.task_index, op_desc->GetName().c_str(), fixed_addr.iow_index);
         int64_t size{0};
-        GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytes(*td, size));
+        GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(*td, size));
         GE_ASSERT_TRUE(!AddOverflow(total_len, size, total_len));
         break;
       }
@@ -106,7 +106,7 @@ Status PlanFixedMemoryLayout(const TaskNodeMap &task_node_map,
         GE_ASSERT_NOTNULL(td, "Failed to calculate fixed address for task %zu, op %s, null output, index %zu",
                           fixed_addr.task_index, op_desc->GetName().c_str(), fixed_addr.iow_index);
         int64_t size{0};
-        GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytes(*td, size));
+        GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(*td, size));
         GE_ASSERT_TRUE(!AddOverflow(total_len, size, total_len));
         break;
       }

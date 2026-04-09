@@ -819,7 +819,7 @@ Status AtomicAddrCleanOpTask::UpdateIoAddr(const std::vector<DataBuffer> &inputs
     const auto tensor_desc = op_desc_->MutableOutputDesc(static_cast<uint32_t>(atomic_output_index));
     GE_ASSERT_NOTNULL(tensor_desc);
     int64_t size = 0;
-    const graphStatus graph_status = TensorUtils::GetTensorMemorySizeInBytes(*tensor_desc, size);
+    const graphStatus graph_status = TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(*tensor_desc, size);
     if (graph_status != GRAPH_SUCCESS) {
       REPORT_INNER_ERR_MSG("E19999", "Get tensor size in bytes failed!");
       GELOGE(graph_status, "[Get][TensorMemorySize] In Bytes failed!");

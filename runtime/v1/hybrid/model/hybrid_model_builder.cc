@@ -106,7 +106,7 @@ int64_t CalcTensorSizeInBytes(const GeTensorDesc &tensor_desc) {
     return var_size;
   }
 
-  if (TensorUtils::GetTensorMemorySizeInBytes(tensor_desc, var_size) != GRAPH_SUCCESS) {
+  if (TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(tensor_desc, var_size) != GRAPH_SUCCESS) {
     GELOGW("Failed to calc var data size");
     return -1;
   }

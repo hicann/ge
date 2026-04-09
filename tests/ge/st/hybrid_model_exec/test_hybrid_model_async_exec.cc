@@ -2202,7 +2202,7 @@ TEST_F(StestHybridRt2Executor, run_graph_with_ref_fileconstant_success) {
   file_constant_desc->SetOriginShape(GeShape(std::vector<int64_t>{}));
   file_constant_desc->SetDataType(ge::DT_FLOAT);
   int64_t aligned_mem_size = 0U;
-  ge::TensorUtils::GetTensorMemorySizeInBytes(file_constant->GetOpDesc()->GetOutputDesc(0U), aligned_mem_size);
+  ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(file_constant->GetOpDesc()->GetOutputDesc(0U), aligned_mem_size);
   ge::TensorUtils::SetSize(*file_constant->GetOpDesc()->MutableOutputDesc(0U), aligned_mem_size);
 
   variable_desc->SetShape(GeShape(std::vector<int64_t>{}));

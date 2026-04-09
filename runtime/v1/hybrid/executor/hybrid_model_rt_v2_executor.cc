@@ -74,7 +74,7 @@ Status GetTensorDescSize(const GeTensorDesc &desc, int64_t &size) {
     GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetSize(desc, size));
     return SUCCESS;
   }
-  GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytes(desc, size));
+  GE_ASSERT_GRAPH_SUCCESS(TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(desc, size));
   return SUCCESS;
 }
 
