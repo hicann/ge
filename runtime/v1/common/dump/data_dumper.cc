@@ -215,7 +215,7 @@ std::vector<Adx::DumpAttr> DataDumper::BuildDumpAttrs() const {
   std::vector<Adx::DumpAttr> attrs;
   const std::string& dumpStep = dump_properties_.GetDumpStep();  // 引用成员，保证生命周期
 
-  auto addAttr = [&](Adx::DumpAttrId id) {
+  auto addAttr = [&attrs, this, &dumpStep](Adx::DumpAttrId id) {
     Adx::DumpAttr attr;
     attr.id = id;
     if (id == Adx::DUMP_ATTR_MODEL_NAME) {
@@ -253,7 +253,7 @@ std::vector<Adx::DumpAttr> DataDumper::BuildDumpAttrs() const {
 void DataDumper::SaveDumpTask(const OpDescInfoId &id, const std::shared_ptr<OpDesc> &op_desc, const uintptr_t args,
                               const FirstLevelAddressInfo &first_level_address_info,
                               const std::map<uint64_t, uint64_t> &cust_to_relevant_offset,
-                              const ModelTaskType task_type, bool is_op_debug, rtStream_t stream) {
+                              const ModelTaskType task_type, bool is_op_debug, const rtStream_t stream) {
   if (op_desc == nullptr) {
     GELOGE(PARAM_INVALID, "[Check][Param] Opdesc is nullptr");
     return;
@@ -328,7 +328,7 @@ void DataDumper::SaveDumpTask(const OpDescInfoId &id, const std::shared_ptr<OpDe
 
 void DataDumper::SavePrintDumpTask(const OpDescInfoId &id, const std::shared_ptr<OpDesc> &op_desc, const uintptr_t args,
                                    const FirstLevelAddressInfo &first_level_address_info,
-                                   const ModelTaskType task_type, rtStream_t stream) {
+                                   const ModelTaskType task_type, const rtStream_t stream) {
   if (op_desc == nullptr) {
     GELOGE(PARAM_INVALID, "[Check][Param] Opdesc is nullptr");
     return;
@@ -1111,7 +1111,7 @@ Status DataDumper::LoadDumpInfo() {
 
 void DataDumper::FillInputTensorInfos(const OpDescPtr &op_desc, uintptr_t args_base,
                                       const std::map<uint64_t, uint64_t>& cust_offset,
-                                      std::vector<Adx::TensorInfo>& tensors) {
+                                      std::vector<Adx::TensorInfo>& tensors) const {
   const auto input_descs = op_desc->GetAllInputsDescPtr();
   for (size_t i = 0; i < input_descs.size(); ++i) {
     if (IsInInputOpBlacklist(op_desc, i)) {
@@ -1155,7 +1155,7 @@ void DataDumper::FillInputTensorInfos(const OpDescPtr &op_desc, uintptr_t args_b
 
 void DataDumper::FillOutputTensorInfos(const OpDescPtr &op_desc, uintptr_t args_base,
                                        size_t input_count, const std::map<uint64_t, uint64_t>& cust_offset,
-                                       std::vector<Adx::TensorInfo>& tensors) {
+                                       std::vector<Adx::TensorInfo>& tensors) const {
   const auto output_descs = op_desc->GetAllOutputsDescPtr();
   for (size_t i = 0; i < output_descs.size(); ++i) {
     if (IsInOutputOpBlacklist(op_desc, i)) {

@@ -31,7 +31,6 @@
 #include "aicpu_task_struct.h"
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
-#include "ge/ge_error_codes.h"
 #include "common/checker.h"
 #include "base/err_msg.h"
 

@@ -578,14 +578,14 @@ class DavinciModel {
   void SaveDumpTask(const OpDescInfoId &id, const shared_ptr<OpDesc> &op_desc, const uintptr_t args,
                     const FirstLevelAddressInfo &first_level_address_info = {false, {}},
                     const std::map<uint64_t, uint64_t> &cust_to_relevant_offset = {},
-                    const ModelTaskType task_type = ModelTaskType::MODEL_TASK_KERNEL, rtStream_t stream = nullptr) {
+                    const ModelTaskType task_type = ModelTaskType::MODEL_TASK_KERNEL, const rtStream_t stream = nullptr) {
     data_dumper_.SaveDumpTask(id, op_desc, args, first_level_address_info, cust_to_relevant_offset, task_type,
                               is_op_debug_reg_, stream);
   }
 
   void SavePrintDumpTask(const OpDescInfoId &id, const shared_ptr<OpDesc> &op_desc, const uintptr_t args,
                          const FirstLevelAddressInfo &first_level_address_info = {false, {}},
-                         const ModelTaskType task_type = ModelTaskType::MODEL_TASK_KERNEL, rtStream_t stream = nullptr) {
+                         const ModelTaskType task_type = ModelTaskType::MODEL_TASK_KERNEL, const rtStream_t stream = nullptr) {
     data_dumper_.SavePrintDumpTask(id, op_desc, args, first_level_address_info, task_type, stream);
   }
 
