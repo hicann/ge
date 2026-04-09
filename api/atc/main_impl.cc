@@ -1917,8 +1917,8 @@ Status DisplayModelInfo() {
   }
 
   REPORT_PREDEFINED_ERR_MSG("E10057", std::vector<const char *>({"parameter0", "parameter1"}),
-      std::vector<const char *>({"om", "model"}));
-  GELOGE(FAILED, "[Check][Parameter][--model] and [--om], if the value of [--model] is %u,"
+      std::vector<const char *>({"om", "mode"}));
+  GELOGE(FAILED, "[Check][Parameter][--mode] and [--om], if the value of [--mode] is %u,"
          "it can be used only with the [--om] parameter!", static_cast<uint32_t>(RunMode::DISPLAY_OM_INFO));
   return FAILED;
 }

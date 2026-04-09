@@ -326,6 +326,15 @@ GE_FUNC_VISIBILITY bool ValidateStr(const std::string &file_path, const std::str
 
 GE_FUNC_VISIBILITY Status ConvertToInt32(const std::string &str, int32_t &val);
 
+inline std::string FormatErrnoReason(const int32_t error_num, const char_t *err_msg) {
+  std::string reason = "[Errno " + std::to_string(error_num) + "]";
+  if ((err_msg != nullptr) && (err_msg[0] != '\0')) {
+    reason += " ";
+    reason += err_msg;
+  }
+  return reason;
+}
+
 GE_FUNC_VISIBILITY std::string GetErrorNumStr(const int32_t errorNum);
 
 GE_FUNC_VISIBILITY void SplitStringByComma(const std::string &str, std::vector<std::string> &sub_str_vec);
