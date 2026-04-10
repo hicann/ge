@@ -393,6 +393,24 @@ void FilterComplexTilingDataScoreFuncs(std::vector<::ascir::ScheduledResult> &sc
     }
   }
 }
+
+Status CheckGraphValidity(const ge::AscGraph &graph) {
+  for (const auto &node: graph.GetAllNodes()) {
+    if (ScheduleUtils::IsBuffer(node)) {
+      continue;
+    }
+    for (size_t i = 0UL; i < node->outputs().size(); ++i) {
+      const auto &tensor = node->outputs[i];
+      const auto &axis = tensor.attr.axis;
+      const auto &repeats = tensor.attr.repeats;
+      const auto &strides = tensor.attr.strides;
+      GE_ASSERT_TRUE(axis.size() == repeats.size() && repeats.size() == strides.size(),
+                     "Output tensor[%zu] of node [%s] has mismatched sizes: axis=%zu, repeat=%zu, stride=%zu.", i,
+                     node->GetNamePtr(), axis.size(), repeats.size(), strides.size());
+    }
+  }
+  return ge::SUCCESS;
+}
 }  // namespace
 
 Optimizer::Optimizer(const OptimizerOptions &options) : options_(options) {}
@@ -730,7 +748,8 @@ Status Optimizer::OptimizeForHintGraph(ge::AscGraph &hint_graph,
   // 这样原图自身才是dtype和stride连续的
   // 这一步本身不是优化而是图的完整性准备。
   GE_CHK_STATUS_RET(AscGraphInfoComplete::CompleteApiInfo(hint_graph), "CompleteApiInfo failed");
-
+  GE_ASSERT_SUCCESS(CheckGraphValidity(hint_graph),
+                "Check graph validity failed, graph:[%s].", hint_graph.GetName().c_str());
   // 截断 graph name
   std::string base_graph_name = TruncateGraphName(hint_graph.GetName());
   ascir::ImplGraph optimize_graph(base_graph_name.c_str());

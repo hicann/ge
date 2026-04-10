@@ -430,7 +430,7 @@ ge::Status VectorFuncPartitioner::InitClusterAttr(const std::unique_ptr<ge::asci
   return ge::SUCCESS;
 }
 
-void VectorFuncPartitioner::RefineEnableVFFlag(const ge::AscNodePtr &node, bool &enable_vf) {
+void VectorFuncPartitioner::RefineEnableVFFlag(const ge::AscNodePtr &node, bool &enable_vf) const {
   if (!enable_vf) {
     return;
   }

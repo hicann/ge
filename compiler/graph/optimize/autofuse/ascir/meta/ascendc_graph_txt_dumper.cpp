@@ -16,6 +16,15 @@
 #include "graph/utils/type_utils.h"
 #include "graph/symbolizer/symbolic_utils.h"
 
+namespace {
+constexpr int32_t kAxisPriorityBlockOuter = 1;
+constexpr int32_t kAxisPriorityBlockInner = 2;
+constexpr int32_t kAxisPriorityTileOuter = 3;
+constexpr int32_t kAxisPriorityTileInner = 4;
+constexpr int32_t kAxisPriorityOriginal = 5;
+constexpr int32_t kAxisPriorityMerged = 6;
+constexpr int32_t kAxisPriorityDefault = 999;
+} // namespace
 namespace ascir {
 namespace dumper {
 // =============================================================================
@@ -51,13 +60,13 @@ const DtypeInfo *GetDtypeInfo(ge::DataType dtype) {
 
 int32_t GetAxisTypePriority(ge::Axis::Type type) {
   switch (type) {
-    case ge::Axis::Type::kAxisTypeBlockOuter: return 1;
-    case ge::Axis::Type::kAxisTypeBlockInner: return 2;
-    case ge::Axis::Type::kAxisTypeTileOuter: return 3;
-    case ge::Axis::Type::kAxisTypeTileInner: return 4;
-    case ge::Axis::Type::kAxisTypeOriginal: return 5;
-    case ge::Axis::Type::kAxisTypeMerged: return 6;
-    default: return 999;
+    case ge::Axis::Type::kAxisTypeBlockOuter: return kAxisPriorityBlockOuter;
+    case ge::Axis::Type::kAxisTypeBlockInner: return kAxisPriorityBlockInner;
+    case ge::Axis::Type::kAxisTypeTileOuter: return kAxisPriorityTileOuter;
+    case ge::Axis::Type::kAxisTypeTileInner: return kAxisPriorityTileInner;
+    case ge::Axis::Type::kAxisTypeOriginal: return kAxisPriorityOriginal;
+    case ge::Axis::Type::kAxisTypeMerged: return kAxisPriorityMerged;
+    default: return kAxisPriorityDefault;
   }
 }
 
@@ -968,8 +977,8 @@ std::string GetStoreDestinationComment(const ge::AscNodePtr &node) {
   if (out_anchor == nullptr) {
     return "";
   }
-  for (auto peer_in_anchor: out_anchor->GetPeerInDataAnchors()) {
-    auto peer_node = peer_in_anchor->GetOwnerNode();
+  for (const auto &peer_in_anchor: out_anchor->GetPeerInDataAnchors()) {
+    auto peer_node = peer_in_anchor->GetOwnerNodeBarePtr();
     if (peer_node == nullptr) continue;
     auto dest_type = peer_node->GetType();
     if (dest_type == NodeType::kOutput) {
