@@ -41,7 +41,7 @@ cat /usr/local/Ascend/cann/<arch>-linux/ascend_ops_install.info
 
 #### 安装依赖
 
-   以下所列为GE源码编译用到的依赖，请注意版本要求。
+   以下所列为GE源码编译用到的依赖，请注意版本要求（如果遇到安装问题，请尝试切换镜像源）。
 
 - GCC >= 7.3.x
 
@@ -59,12 +59,13 @@ cat /usr/local/Ascend/cann/<arch>-linux/ascend_ops_install.info
 
 - bash >= 5.1.16 
 
-- ccache/asan/autoconf/automake/libtool/gperf/lcov/libasan/patch/graph-easy(其中graph-easy可选)
+- ccache/asan/autoconf/automake/libtool/gperf/lcov/libasan/patch/perl/graph-easy(其中graph-easy可选)
 
   ```bash
   # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
   # asan以gcc 7.5.0版本为例安装的是libasan4，其他版本请安装对应版本asan
-  sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf libgraph-easy-perl patch
+  sudo apt-get update
+  sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf libgraph-easy-perl patch perl
   ```
 
 - 安装Python其他依赖
