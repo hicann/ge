@@ -18,6 +18,7 @@
 #include "ge/ge_api_types.h"
 #include "graph/ge_context.h"
 #include "transfer_shape_utils.h"
+#include "platform/soc_spec.h"
 
 namespace fe {
 namespace {
@@ -62,7 +63,8 @@ const std::map<PlatformUtils::PlatformInfoItem, PlatformUtils::PmItemParseFunc> 
         {PlatformUtils::PlatformInfoItem::L2CacheMode, &PlatformUtils::ParseL2CacheMode},
         {PlatformUtils::PlatformInfoItem::SupportVectorEngine, &PlatformUtils::ParseSupportVectorEngine},
         {PlatformUtils::PlatformInfoItem::SpecifiedMemBase, &PlatformUtils::ParseSpecifiedMemBase},
-        {PlatformUtils::PlatformInfoItem::HardwareCoreSync, &PlatformUtils::ParseHardwareCoreSync}
+        {PlatformUtils::PlatformInfoItem::HardwareCoreSync, &PlatformUtils::ParseHardwareCoreSync},
+        {PlatformUtils::PlatformInfoItem::PaddingSize, &PlatformUtils::ParsePaddingSize}
 };
 
 PlatformUtils::PlatformUtils() : is_init_(false), ai_core_num_(0) {}
@@ -496,6 +498,61 @@ int64_t PlatformUtils::ParseHardwareCoreSync(PlatFormInfos &platform_infos) {
   return static_cast<int64_t>(is_core_sync);
 }
 
+int64_t PlatformUtils::ParsePaddingSize(PlatFormInfos &platform_infos) {
+  int64_t padding_size;
+  if (!ParsePaddingSizeFromPlatFormInfos(platform_infos, padding_size)) {
+    return HandlePaddingSizeByNpuArch(platform_infos);
+  }
+  return padding_size;
+}
+
+bool PlatformUtils::ParsePaddingSizeFromPlatFormInfos(PlatFormInfos &platform_infos, int64_t &padding_size) {
+  std::string padding_size_str;
+  if (!platform_infos.GetPlatformResWithLock(kCfgAICoreSpec, kPaddingSize, padding_size_str))
+    return false;
+  FE_LOGD("Parameter[padding_size] from platform is %s.", padding_size_str.c_str());
+  int64_t padding_size_tmp;
+  try {
+    padding_size_tmp = stoll(padding_size_str);
+  } catch (...) {
+    FE_LOGE("Convert %s to int value failed.", padding_size_str.c_str());
+    return false;
+  }
+  if (padding_size_tmp < 0) {
+    FE_LOGE("Parameter[padding_size] [%d] from the platform is invalid.", padding_size_tmp);
+    return false;
+  }
+  padding_size = padding_size_tmp;
+  return true;
+}
+
+int64_t PlatformUtils::HandlePaddingSizeByNpuArch(PlatFormInfos &platform_infos) {
+  std::string npu_arch_str;
+  (void)platform_infos.GetPlatformRes(kVersion, kNpuArch, npu_arch_str);
+  int32_t npu_arch;
+  uint32_t padding_size;
+  try {
+    npu_arch = stoi(npu_arch_str);
+  } catch (...) {
+    FE_LOGW("Convert %s to int value unsuccess, use default value.", npu_arch_str.c_str());
+    npu_arch = static_cast<int32_t>(NpuArch::DAV_RESV);
+  }
+  switch (static_cast<NpuArch>(npu_arch))
+  {
+    case NpuArch::DAV_3510:
+      padding_size = DEFAULT_DATA_MEMORY_ALIGN_SIZE;
+      break;
+    case NpuArch::DAV_3505:
+      padding_size = DATA_MEMORY_ALIGN_SIZE_FOR_V350;
+      break;
+    default:
+      padding_size = DATA_MEMORY_ALIGN_SIZE;
+      break;
+  }
+  FE_LOGD("Parameter[padding_size] not set, use default value [%u].", padding_size);
+  return static_cast<int64_t>(padding_size);
+}
+
 Status PlatformUtils::Finalize() {
   if (!is_init_) {
     return SUCCESS;
@@ -593,6 +650,10 @@ bool PlatformUtils::IsSpecifiedMemBase() const {
 
 bool PlatformUtils::IsHardwareSupportCoreSync() const  {
   return static_cast<bool>(pm_item_vec_[static_cast<size_t>(PlatformInfoItem::HardwareCoreSync)]);
+}
+
+uint32_t PlatformUtils::GetPaddingSize() const {
+  return static_cast<uint32_t>(pm_item_vec_[static_cast<size_t>(PlatformInfoItem::PaddingSize)]);
 }
 
 bool PlatformUtils::IsDCSoc() const {

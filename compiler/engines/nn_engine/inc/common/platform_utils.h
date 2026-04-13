@@ -77,6 +77,8 @@ class PlatformUtils {
 
   uint32_t GetAICoreNum() const;
 
+  uint32_t GetPaddingSize() const;
+
  private:
   PlatformUtils();
   ~PlatformUtils();
@@ -102,7 +104,9 @@ class PlatformUtils {
   static int64_t ParseSupportVectorEngine(PlatFormInfos &platform_infos);
   static int64_t ParseSpecifiedMemBase(PlatFormInfos &platform_infos);
   static int64_t ParseHardwareCoreSync(PlatFormInfos &platform_infos);
-
+  static int64_t ParsePaddingSize(PlatFormInfos &platform_infos);
+  static int64_t HandlePaddingSizeByNpuArch(PlatFormInfos &platform_infos);
+  static bool ParsePaddingSizeFromPlatFormInfos(PlatFormInfos &platform_infos, int64_t &padding_size);
 private:
   enum class PlatformInfoItem {
     IsaArchVersion = 0,
@@ -119,6 +123,7 @@ private:
     SupportVectorEngine,
     SpecifiedMemBase,
     HardwareCoreSync,
+    PaddingSize,
     ItemBottom
   };
   bool is_init_;

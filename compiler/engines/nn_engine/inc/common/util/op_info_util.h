@@ -280,7 +280,6 @@ const std::string ATTR_NAME_INPUT_SRC_FORMAT_INT = "input_src_format_int";
 const std::string ATTR_NAME_OUTPUT_SRC_FORMAT_INT = "output_src_format_int";
 
 // The align size of data memory
-const uint32_t DATA_MEMORY_ALIGN_SIZE = 32;
 const int64_t UNKNOWN_WORK_SPACE_SIZE = -1;
 const int32_t NON_PERSISTENT_CUSTOM_PRIORITY = -1;
 

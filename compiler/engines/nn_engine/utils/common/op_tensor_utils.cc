@@ -24,11 +24,6 @@
 #include "graph/ge_context.h"
 
 namespace fe {
-namespace {
-// The align size of data memory
-const uint32_t DATA_MEMORY_ALIGN_SIZE = 32;
-const uint32_t DATA_MEMORY_ALIGN_SIZE_FOR_V350 = 16;
-}
 
 Status OpTensorUtils::VerifyTensor(const std::vector<int64_t> &dims, const ge::DataType &data_type) {
   if (data_type < ge::DT_FLOAT || data_type == ge::DT_UNDEFINED || data_type >= ge::DT_MAX) {
@@ -65,15 +60,15 @@ Status OpTensorUtils::ArrayMultiplyInt64WithVerify(const std::vector<int64_t> &d
 }
 
 Status OpTensorUtils::CalibrateTensorSize(int64_t &tensor_size) {
+  uint32_t padding_size = PlatformUtils::Instance().GetPaddingSize();
   if (PlatformUtils::Instance().GetIsaArchVersion() != ISAArchVersion::EN_ISA_ARCH_V350) {
     tensor_size = (tensor_size + DATA_MEMORY_ALIGN_SIZE - 1) / DATA_MEMORY_ALIGN_SIZE;
     FE_MUL_OVERFLOW(tensor_size, DATA_MEMORY_ALIGN_SIZE, tensor_size);
-    FE_ADD_OVERFLOW(tensor_size, DATA_MEMORY_ALIGN_SIZE, tensor_size);
   } else {
     tensor_size = (tensor_size + DATA_MEMORY_ALIGN_SIZE_FOR_V350 - 1) / DATA_MEMORY_ALIGN_SIZE_FOR_V350;
     FE_MUL_OVERFLOW(tensor_size, DATA_MEMORY_ALIGN_SIZE_FOR_V350, tensor_size);
-    FE_ADD_OVERFLOW(tensor_size, DATA_MEMORY_ALIGN_SIZE_FOR_V350, tensor_size);
   }
+  FE_ADD_OVERFLOW(tensor_size, padding_size, tensor_size);
   return SUCCESS;
 }
 

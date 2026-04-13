@@ -114,6 +114,11 @@ const int32_t kDataVisitDistThreshold = 5; // data distance threshlod for rc cac
 
 const int32_t kRuntimeTypeHeterogeneous = 1; // Helper scene
 
+const uint32_t DATA_MEMORY_ALIGN_SIZE = 32;
+
+const uint32_t DATA_MEMORY_ALIGN_SIZE_FOR_V350 = 16;
+
+const uint32_t DEFAULT_DATA_MEMORY_ALIGN_SIZE = 0;
 // mode == 1 indicates we need reserve 8 Bytes for the args beginning
 constexpr const int64_t IS_MIX_FIRST_FIELD_MODE = 1;
 
@@ -177,9 +182,13 @@ const std::string kCubeVecSplit = "split";
 const std::string kHardwareSyncBetweenCore = "hardware_sync_betweencore";
 const std::string kSupportFixPipeAbility = "support_fixpipe_ability";
 const std::string kCfgSocInfo = "SoCInfo";
+const std::string kCfgAICoreSpec = "AICoreSpec";
+const std::string kVersion = "version";
 const std::string kCfgAiCoreCnt = "ai_core_cnt";
 const std::string kCfgVectorCoreCnt = "vector_core_cnt";
 const std::string kCfgVirTypeList = "vir_type_list";
+const std::string kNpuArch = "NpuArch";
+const std::string kPaddingSize = "padding_size";
 const std::string kAttrOptionalInputMode = "optionalInputMode";
 const std::string kAttrOptionalOutputMode = "optionalOutputMode";
 constexpr const char* kInputParaTypeList = "_input_para_type_list";
