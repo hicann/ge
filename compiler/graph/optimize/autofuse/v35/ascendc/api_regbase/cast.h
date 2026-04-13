@@ -233,10 +233,10 @@ inline __simd_vf__ void CastExtendFloatToInt8(__ubuf__ OutT *dstUb, __ubuf__ InT
     uint32_t repeatTimes, uint32_t innerLoopStride)
 {
     static constexpr MicroAPI::CastTrait castTraitFloatToHalf = {MicroAPI::RegLayout::ZERO,
-        MicroAPI::SatMode::SAT, MicroAPI::MaskMergeMode::ZEROING, AscendC::RoundMode::CAST_RINT};
+        MicroAPI::SatMode::NO_SAT, MicroAPI::MaskMergeMode::ZEROING, AscendC::RoundMode::CAST_TRUNC};
 
     static constexpr MicroAPI::CastTrait castTraitHalfToInt8 = {MicroAPI::RegLayout::ZERO,
-        MicroAPI::SatMode::SAT, MicroAPI::MaskMergeMode::ZEROING, AscendC::RoundMode::CAST_TRUNC};
+        MicroAPI::SatMode::NO_SAT, MicroAPI::MaskMergeMode::ZEROING, AscendC::RoundMode::CAST_TRUNC};
 
     uint32_t sreg = static_cast<uint32_t>(count);
     MicroAPI::RegTensor<InT> srcVreg;

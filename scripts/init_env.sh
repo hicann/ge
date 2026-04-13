@@ -194,7 +194,7 @@ install_python_deps() {
         done
 
         if [ ${#failed[@]} -ne 0 ]; then
-            log_warn "Failed to install: ${failed[*]}, try again or install manually."
+            log_warn "Failed to install: ${failed[*]}, try again or try switching the mirror source."
         else
             log_info "All Python packages installed successfully"
         fi

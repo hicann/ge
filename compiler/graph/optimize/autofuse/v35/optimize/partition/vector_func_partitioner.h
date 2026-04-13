@@ -31,8 +31,8 @@ class VectorFuncPartitioner {
   ClusterPtr CreateAndInitCluster(const ge::AscNodePtr &node, size_t &rank);
   void EstablishClusterConnections(ClusterPtr &cluster, const ge::AscNodePtr &node);
   void FixAllCompareClusterConnections();
-  void RefineEnableVFFlag(const ge::AscNodePtr &node, bool &enable_vf);
-  bool HasReduceNodeInGraph(const ge::AscGraph &impl_graph);
+  void RefineEnableVFFlag(const ge::AscNodePtr &node, bool &enable_vf) const;
+  static bool HasReduceNodeInGraph(const ge::AscGraph &impl_graph);
   static ge::Status InitClusterAttr(const std::unique_ptr<ge::ascir::AscIrCodegen> &codegen_impl,
                                     const ge::AscNodePtr &node, ClusterPtr &cluster);
   ge::Status MergeClusters();

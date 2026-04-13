@@ -11,7 +11,6 @@
 #ifndef AUTOFUSE_REDUNDANT_CONTROL_EDGE_REMOVE_PASS_H_
 #define AUTOFUSE_REDUNDANT_CONTROL_EDGE_REMOVE_PASS_H_
 
-#include <memory>
 #include "graph/node.h"
 
 namespace ge {

@@ -1,4 +1,4 @@
-# GE
+# GE（Graph Engine 图引擎）
 
 ## 🔥 Latest News
 
