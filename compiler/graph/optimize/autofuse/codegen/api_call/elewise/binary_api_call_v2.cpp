@@ -44,5 +44,5 @@ Status BinaryApiCallV2::Generate(const TPipe &tpipe, const std::vector<ascir::Ax
   return ge::SUCCESS;
 }
 
-static ApiCallRegister<BinaryApiCallV2> register_unary_api_call("BinaryApiCallV2");
+static ApiCallRegister<BinaryApiCallV2> register_binary_v2_api_call("BinaryApiCallV2");
 }  // namespace codegen
