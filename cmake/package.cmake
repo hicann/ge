@@ -101,7 +101,7 @@ endif ()
 if("${BUILD_COMPONENT}" STREQUAL "ge-compiler")
     message(STATUS "************Install ge-compiler packages***************")
     if(NOT MDC_COMPILE_RUNTIME)
-        install(TARGETS parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler fmk_onnx_parser opskernel ge_runner
+        install(TARGETS parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler ge_python_pass_bridge fmk_onnx_parser opskernel ge_runner
                         slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion dflow_runner eager_style_graph_builder_base
                         eager_style_graph_builder_base_static ge_runner_v2 aihac_codegen aihac_ir aihac_ir_register aihac_symbolizer compress compressweight
                         hcom_gradient_split_tune hcom_graph_adaptor acl_op_compiler

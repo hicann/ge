@@ -65,12 +65,17 @@ GE-PY 模块包含以下核心组件：
 
 - [x] [***December 2025***] `ge-python` 模块已经完成设计和落地，具备了基本的使用es api 构图、 编译图、 执行图的能力。
 
-### API 集成
+### 基础API 集成
 
 - [x] [***December 2025***]基础接口已经完成设计和落地。
 - [x] [***February 2026***] es 的 python 算子 api 支持，详见[es api集成路标](../es/README.md#api-集成)。
 - [x] [***April 2026***] 图异步执行的python接口提供
 - [x] [***April 2026***] 离线图编译执行的python接口提供
+
+### 自定义pass
+
+- [ ] [***May 2026***] 自定义pass的python接口完成设计和落地
+- [ ] [***May 2026***] 自定义pass的python接口ABI兼容性完成设计和落地
 
 ### sample和相关文档
 
