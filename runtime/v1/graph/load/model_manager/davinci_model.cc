@@ -3477,6 +3477,11 @@ Status DavinciModel::LoadWithHardwareQueue() {
   GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_NOTIFY_WAIT));
   GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_DEQUEUE));
 
+  if (input_queue_attrs_.size() > 1) {
+    GELOGI("there are %zu input queues, need frame align", input_queue_attrs_.size());
+    GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_FRAME_ALIGN));
+  }
+
   GE_ASSERT_SUCCESS(LaunchInputZeroCpyCfg());
   GE_ASSERT_RT_OK(LaunchDqsTask(RT_DQS_TASK_PREPARE_OUT));
   GE_ASSERT_SUCCESS(LaunchOutputZeroCpyCfg());
