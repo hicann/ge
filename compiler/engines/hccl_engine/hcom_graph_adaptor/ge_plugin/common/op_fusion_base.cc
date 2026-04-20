@@ -243,7 +243,7 @@ HcclResult OpFusionBase::GetPeerOutDataToInData(std::unordered_set<uintptr_t> &a
       CHK_SMART_PTR_NULL(inDataAnchor->GetOwnerNode());
       CHK_SMART_PTR_NULL(inDataAnchor->GetOwnerNode()->GetOpDesc());
       auto inTensor = inDataAnchor->GetOwnerNode()->GetOpDesc()->GetInputDesc(inDataAnchor->GetIdx());
-      uint64_t memSize = 0;
+      int64_t memSize = 0;
       HcclResult ret = HcomOpUtils::GetTensorMemSize(inTensor, memSize);
       CHK_PRT_RET(ret != HCCL_SUCCESS,
                   HCCL_ERROR("[Get][Peer]node[%s] input[%d] GetTensorMemSize failed.", srcOpName.c_str(),
@@ -251,7 +251,7 @@ HcclResult OpFusionBase::GetPeerOutDataToInData(std::unordered_set<uintptr_t> &a
                   ret);
       CHK_SMART_PTR_NULL(peerOutDataAnchor->GetOwnerNode());
       CHK_SMART_PTR_NULL(peerOutDataAnchor->GetOwnerNode()->GetOpDesc());
-      HCCL_DEBUG("fusion op[%s]: peer out data op: %s, input[%d] size[%llu]", srcOpName.c_str(),
+      HCCL_DEBUG("fusion op[%s]: peer out data op: %s, input[%d] size[%lld]", srcOpName.c_str(),
                  peerOutDataAnchor->GetOwnerNode()->GetOpDesc()->GetName().c_str(), inDataAnchor->GetIdx(), memSize);
       if (dstOpName != srcOpName) {
         CHK_PRT_RET((dstOpDescPtr->AddInputDesc(inTensor) != ge::GRAPH_SUCCESS),

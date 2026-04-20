@@ -91,7 +91,7 @@ class HcomOpUtils {
   static HcclResult GetAllInputsTensorMemSize(const ge::OpDescPtr &opDescPtr, uint64_t &tensorSize);
   static HcclResult GetAllOutputsTensorMemSize(const ge::OpDescPtr &opDescPtr, uint64_t &tensorSize);
   static HcclResult GetAllInputsTensorOriginSize(const ge::OpDescPtr &opDescPtr, uint64_t &tensorSize);
-  static HcclResult GetTensorMemSize(const ge::GeTensorDesc &tensorDesc, uint64_t &memSize);
+  static HcclResult GetTensorMemSize(const ge::GeTensorDesc &tensorDesc, int64_t &memSize);
   static HcclResult GetTensorOriginSize(const ge::GeTensorDesc &tensorDesc, uint64_t &size);
   static HcclResult GetPathFromEnv(char *getTunePath, std::string &fusionPath);
   static bool HcomOpIsSupportedBool(const std::string &opType);

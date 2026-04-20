@@ -70,7 +70,7 @@ HcclResult HCCLOpsKernelBuilder::SetOpOutputMemSize(ge::Node &node, const std::s
     }
 
     // 根据 规则重新计算内存大小
-    CHK_RET(CalcHCCLOutputMemSize(sCollectiveType, memSize));
+    CHK_RET(CalcHCCLOutputMemSize(sCollectiveType, memSize, outputTensor));
 
     // 将内存大小重新传给上层
     ge::TensorUtils::SetSize(outputTensor, memSize);
@@ -88,13 +88,15 @@ HcclResult HCCLOpsKernelBuilder::SetOpOutputMemSize(ge::Node &node, const std::s
   return HCCL_SUCCESS;
 }
 
-HcclResult HCCLOpsKernelBuilder::CalcHCCLOutputMemSize(const std::string &sCollectiveType, int64_t &memSize) {
-  HCCL_DEBUG("[HCCLOpsKernelBuilder][CalcHCCLOutputMemSize] sCollectiveType[%s], memSize[%lld]",
-             sCollectiveType.c_str(), memSize);
-  const u32 MEMORY_ALIGN_RATIO = 2;  // GE要求内存需要32KB对齐后，再外加32KB. out = (in + 2 * 32 - 1) / 32 * 32
-  const u32 MEMORY_ALIGN_SIZE = 32;  // GE要求内存需要32KB对齐后，再外加32KB. out = (in + 2 * 32 - 1) / 32 * 32
-  // GE要求内存需要32KB对齐后，再外加32KB
-  memSize = ((memSize + MEMORY_ALIGN_RATIO * MEMORY_ALIGN_SIZE - 1) / MEMORY_ALIGN_SIZE) * MEMORY_ALIGN_SIZE;
+HcclResult HCCLOpsKernelBuilder::CalcHCCLOutputMemSize(const std::string &sCollectiveType, int64_t &memSize, const ge::GeTensorDesc &desc_temp) {
+  HCCL_DEBUG("[HCCLOpsKernelBuilder][CalcHCCLOutputMemSize]Before sCollectiveType[%s], memSize[%lld B]",
+    sCollectiveType.c_str(), memSize);
+  // 通过ge接口获取32B对齐后的memSize
+  CHK_PRT_RET((ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(desc_temp, memSize) != ge::GRAPH_SUCCESS),
+    HCCL_ERROR("[HCCLOpsKernelBuilder][CalcHCCLOutputMemSize]Get memSize failed"), HCCL_E_PARA);
+
+  HCCL_DEBUG("[HCCLOpsKernelBuilder][CalcHCCLOutputMemSize]After sCollectiveType[%s], memSize[%lld B]",
+    sCollectiveType.c_str(), memSize);
   return HCCL_SUCCESS;
 }
 }  // namespace hccl
