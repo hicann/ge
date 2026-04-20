@@ -488,17 +488,29 @@ void FusionConfigParser::ParseSupportFusionPassFile() {
     return;
   }
 
-  std::string short_soc_version = PlatformUtils::Instance().GetShortSocVersion();
-  auto iter = support_fusion_pass_file_json.find(short_soc_version);
+  int64_t npu_arch_num = PlatformUtils::Instance().GetNpuArch();
+  std::string npu_arch = std::to_string(npu_arch_num);
+  auto iter = support_fusion_pass_file_json.find(npu_arch);
   if (iter != support_fusion_pass_file_json.end()) {
     has_support_fusion_pass_ = true;
     std::string cur_support_fusion_pass = iter.value();
     support_fusion_pass_vec_ = StringUtils::Split(StringUtils::Trim(cur_support_fusion_pass), ',');
-    FE_LOGD("Support fusion pass vec is %s with cur_soc_version[%s].",
-             StringUtils::StrVecToString(support_fusion_pass_vec_).c_str(), short_soc_version.c_str());
+    FE_LOGD("Support fusion pass vec is %s with cur_npu_arch[%s].",
+            StringUtils::StrVecToString(support_fusion_pass_vec_).c_str(), npu_arch.c_str());
   } else {
-    has_support_fusion_pass_ = false;
-    FE_LOGI("Not configure support fusion pass with cur soc_version[%s].", short_soc_version.c_str());
+    std::string short_soc_version = PlatformUtils::Instance().GetShortSocVersion();
+    auto iter1 = support_fusion_pass_file_json.find(short_soc_version);
+    if (iter1 != support_fusion_pass_file_json.end()) {
+      has_support_fusion_pass_ = true;
+      std::string cur_support_fusion_pass1 = iter1.value();
+      support_fusion_pass_vec_ = StringUtils::Split(StringUtils::Trim(cur_support_fusion_pass1), ',');
+      FE_LOGD("Support fusion pass vec is %s with cur_soc_version[%s].",
+                StringUtils::StrVecToString(support_fusion_pass_vec_).c_str(), short_soc_version.c_str());
+    } else {
+      has_support_fusion_pass_ = false;
+      FE_LOGI("Not configure support fusion pass with cur soc_version[%s] or cur_npu_arch[%s].",
+              short_soc_version.c_str(), npu_arch.c_str());
+    }
   }
 
   FE_TIMECOST_END(ParseSupportFusionPassFile, "FusionConfigParser::ParseSupportFusionPassFile");

@@ -79,6 +79,8 @@ class PlatformUtils {
 
   uint32_t GetPaddingSize() const;
 
+  int64_t GetNpuArch() const;
+
  private:
   PlatformUtils();
   ~PlatformUtils();
@@ -107,6 +109,7 @@ class PlatformUtils {
   static int64_t ParsePaddingSize(PlatFormInfos &platform_infos);
   static int64_t HandlePaddingSizeByNpuArch(PlatFormInfos &platform_infos);
   static bool ParsePaddingSizeFromPlatFormInfos(PlatFormInfos &platform_infos, int64_t &padding_size);
+  static int64_t ParseNpuArch(PlatFormInfos &platform_infos);
 private:
   enum class PlatformInfoItem {
     IsaArchVersion = 0,
@@ -124,6 +127,7 @@ private:
     SpecifiedMemBase,
     HardwareCoreSync,
     PaddingSize,
+    NpuArch,
     ItemBottom
   };
   bool is_init_;

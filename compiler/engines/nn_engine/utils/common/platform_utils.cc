@@ -64,7 +64,8 @@ const std::map<PlatformUtils::PlatformInfoItem, PlatformUtils::PmItemParseFunc> 
         {PlatformUtils::PlatformInfoItem::SupportVectorEngine, &PlatformUtils::ParseSupportVectorEngine},
         {PlatformUtils::PlatformInfoItem::SpecifiedMemBase, &PlatformUtils::ParseSpecifiedMemBase},
         {PlatformUtils::PlatformInfoItem::HardwareCoreSync, &PlatformUtils::ParseHardwareCoreSync},
-        {PlatformUtils::PlatformInfoItem::PaddingSize, &PlatformUtils::ParsePaddingSize}
+        {PlatformUtils::PlatformInfoItem::PaddingSize, &PlatformUtils::ParsePaddingSize},
+        {PlatformUtils::PlatformInfoItem::NpuArch, &PlatformUtils::ParseNpuArch}
 };
 
 PlatformUtils::PlatformUtils() : is_init_(false), ai_core_num_(0) {}
@@ -553,6 +554,17 @@ int64_t PlatformUtils::HandlePaddingSizeByNpuArch(PlatFormInfos &platform_infos)
   return static_cast<int64_t>(padding_size);
 }
 
+int64_t PlatformUtils::ParseNpuArch(PlatFormInfos &platform_infos) {
+  std::string npu_arch_str;
+  int64_t npu_arch = 0;
+  if (platform_infos.GetPlatformRes("version", "NpuArch", npu_arch_str) && !npu_arch_str.empty()) {
+    FE_LOGD("Parameter[npu_arch] is [%s]", npu_arch_str.c_str());
+    npu_arch = static_cast<int64_t>(std::strtoll(npu_arch_str.c_str(), nullptr, kDecimal));
+  }
+  FE_LOGI("Npu arch is [%ld]", npu_arch);
+  return npu_arch;
+}
+
 Status PlatformUtils::Finalize() {
   if (!is_init_) {
     return SUCCESS;
@@ -597,6 +609,10 @@ bool PlatformUtils::IsSupportContextSwitch() const {
 
 int64_t PlatformUtils::GetDsaWorkspaceSize() const {
   return static_cast<int64_t>(pm_item_vec_[static_cast<size_t>(PlatformInfoItem::DsaWorkspaceSize)]);
+}
+
+int64_t PlatformUtils::GetNpuArch() const {
+  return static_cast<int64_t>(pm_item_vec_[static_cast<size_t>(PlatformInfoItem::NpuArch)]);
 }
 
 AICoreMode PlatformUtils::GetFftsMode() const {
