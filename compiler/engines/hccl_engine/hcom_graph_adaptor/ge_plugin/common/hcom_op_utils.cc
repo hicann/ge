@@ -136,7 +136,7 @@ HcclResult HcomOpUtils::GetAllInputsTensorMemSize(const ge::OpDescPtr &opDescPtr
   tensorSize = 0;
   for (uint32_t i = 0; i < opDescPtr->GetAllInputsSize(); i++) {
     auto inTensor = opDescPtr->GetInputDesc(i);
-    uint64_t memSize = 0;
+    int64_t memSize = 0;
     HcclResult ret = GetTensorMemSize(inTensor, memSize);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
                 HCCL_ERROR("[Get][AllInputsTensorMemSize]node[%s] input[%u] GetTensorMemSize failed.",
@@ -155,7 +155,7 @@ HcclResult HcomOpUtils::GetAllOutputsTensorMemSize(const ge::OpDescPtr &opDescPt
   tensorSize = 0;
   for (uint32_t i = 0; i < opDescPtr->GetOutputsSize(); i++) {
     auto inTensor = opDescPtr->GetOutputDesc(i);
-    uint64_t memSize = 0;
+    int64_t memSize = 0;
     HcclResult ret = GetTensorMemSize(inTensor, memSize);
     CHK_PRT_RET(ret != HCCL_SUCCESS,
                 HCCL_ERROR("[Get][AllOutputsTensorMemSize]node[%s] output[%u] GetTensorMemSize failed.",
@@ -166,20 +166,12 @@ HcclResult HcomOpUtils::GetAllOutputsTensorMemSize(const ge::OpDescPtr &opDescPt
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpUtils::GetTensorMemSize(const ge::GeTensorDesc &tensorDesc, uint64_t &memSize) {
-  const u32 memoryAlignRatio = 2;  // GE要求内存需要32B对齐后，再外加32B. out = (in + 2 * 32 - 1) / 32 * 32
-  const u32 memoryAlignSize = 32;  // GE要求内存需要32B对齐后，再外加32B. out = (in + 2 * 32 - 1) / 32 * 32
-  auto shape = tensorDesc.GetShape();
-  auto format = tensorDesc.GetFormat();
-  auto dataType = tensorDesc.GetDataType();
-  int64_t size = 0;
-  bool bErr = (ge::GRAPH_SUCCESS != ge::TensorUtils::CalcTensorMemSize(shape, format, dataType, size));
-  CHK_PRT_RET((bErr) || (size < 0),
-              HCCL_ERROR("[Get][TensorMemSize]In GetTensorMemSize, CalcTensorMemSize"
-                         "failed, Format[%d], dataType[%d], size[%lld]",
-                         format, dataType, size),
-              HCCL_E_PARA);
-  memSize = ((size + memoryAlignRatio * memoryAlignSize - 1) / memoryAlignSize) * memoryAlignSize;
+HcclResult HcomOpUtils::GetTensorMemSize(const ge::GeTensorDesc &tensorDesc, int64_t &memSize) {
+  HCCL_DEBUG("[GetTensorMemSize][Before] memSize[%lld B]", memSize);
+  // 通过ge接口获取32B对齐后的memSize
+  CHK_PRT_RET((ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(tensorDesc, memSize) != ge::GRAPH_SUCCESS),
+    HCCL_ERROR("[GetTensorMemSize]In GetTensorMemSize, get memSize failed"), HCCL_E_PARA);
+  HCCL_DEBUG("[GetTensorMemSize][After] memSize[%lld B]", memSize);
   return HCCL_SUCCESS;
 }
 
@@ -824,12 +816,22 @@ HcclResult HcomOpUtils::GetTaskNumFromCrackSize(const ge::Node &node, u32 tensor
       memcpy_s(tensorSize, tensorNum * sizeof(s64), tensorSizeTemp.data(), tensorSizeTemp.size() * sizeof(s64)));
   // 获取缝隙的大小
   for (u32 i = 0; i < tensorNum; i++) {
-    s64 crackSizeTemp = 0;
-    crackSizeTemp =
-        (tensorSize[i] + TENSOR_ALIGNMENT_32 - 1) / TENSOR_ALIGNMENT_32 * TENSOR_ALIGNMENT_32 + TENSOR_ALIGNMENT_32;
+    ge::GeTensorDesc inputTensor = op->GetInputDesc(i);
+    int64_t crackSizeTemp = 0;
+    // 通过ge接口获取32B对齐后的memSize
+    CHK_PRT_RET((ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(inputTensor, crackSizeTemp) != ge::GRAPH_SUCCESS),
+      HCCL_ERROR("[GetTaskNumFromCrackSize]Get memSize failed"), HCCL_E_PARA);
     crackSizeTemp = (crackSizeTemp + TENSOR_ALIGNMENT_512 - 1) / TENSOR_ALIGNMENT_512 * TENSOR_ALIGNMENT_512;
-    crackSizeTemp = crackSizeTemp - tensorSize[i];
-    crackSize[i] = crackSizeTemp;
+    if (crackSizeTemp >= tensorSize[i]) {
+      crackSize[i] = crackSizeTemp - tensorSize[i];
+      HCCL_INFO("[GetTaskNumFromCrackSize]The crackSize obtained through the GE interface is [%lld B], and the original tensorSize is [%ld B]",
+        crackSizeTemp, tensorSize[i]);
+    } else {
+      HCCL_ERROR("[GetTaskNumFromCrackSize]The value of crackSize[%lld B] obtained through the GE interface is less than that of tensorSize[%ld B]",
+        crackSizeTemp, tensorSize[i]);
+      return HCCL_E_PARA;
+    }
+
     if (crackSize[i] < AICORE_MIN_CLEAR_ZEOR_SIZE) {
       taskNum++;
     } else if (!crackSizeBigger32) {

@@ -708,7 +708,7 @@ HcclResult HcomGraphOptimizer::MemOutputForOpDesc(const ge::OpDescPtr &op, const
   }
 
   // 根据 规则重新计算内存大小
-  CHK_RET(CalcHCCLOutputMemSize(sCollectiveType, memSize));
+  CHK_RET(CalcHCCLOutputMemSize(sCollectiveType, memSize, outputTensor));
 
   // 更新output Tensor
   if (op->UpdateOutputDesc(i, outputTensor) != ge::GRAPH_SUCCESS) {
@@ -857,13 +857,15 @@ HcclResult HcomGraphOptimizer::SetOpOutputMemSize(ge::Node &node, const std::str
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomGraphOptimizer::CalcHCCLOutputMemSize(const std::string &sCollectiveType, int64_t &memSize) {
-  HCCL_DEBUG("[HcomGraphOptimizer][CalcHCCLOutputMemSize] sCollectiveType[%s] memSize[%lld]", sCollectiveType.c_str(),
-             memSize);
-  const u32 MEMORY_ALIGN_RATIO = 2;  // GE要求内存需要32KB对齐后，再外加32KB. out = (in + 2 * 32 - 1) / 32 * 32
-  const u32 MEMORY_ALIGN_SIZE = 32;  // GE要求内存需要32KB对齐后，再外加32KB. out = (in + 2 * 32 - 1) / 32 * 32
-  // GE要求内存需要32KB对齐后，再外加32KB
-  memSize = ((memSize + MEMORY_ALIGN_RATIO * MEMORY_ALIGN_SIZE - 1) / MEMORY_ALIGN_SIZE) * MEMORY_ALIGN_SIZE;
+HcclResult HcomGraphOptimizer::CalcHCCLOutputMemSize(const std::string &sCollectiveType, int64_t &memSize, const ge::GeTensorDesc &desc_temp) {
+  HCCL_DEBUG("[HcomGraphOptimizer][CalcHCCLOutputMemSize]Before sCollectiveType[%s] memSize[%lld B]",
+    sCollectiveType.c_str(), memSize);
+// 通过ge接口获取32B对齐后的memSize
+  CHK_PRT_RET((ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(desc_temp, memSize) != ge::GRAPH_SUCCESS),
+    HCCL_ERROR("[HcomGraphOptimizer][CalcHCCLOutputMemSize]Get memSize failed"), HCCL_E_PARA);
+
+  HCCL_DEBUG("[HcomGraphOptimizer][CalcHCCLOutputMemSize]After sCollectiveType[%s] memSize[%lld B]",
+    sCollectiveType.c_str(), memSize);
   return HCCL_SUCCESS;
 }
 

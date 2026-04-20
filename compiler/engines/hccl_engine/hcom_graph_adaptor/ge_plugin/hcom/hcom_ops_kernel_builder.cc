@@ -1054,16 +1054,27 @@ HcclResult HcomOpsKernelBuilder::SetOpWorkerSpaceForKnowShape(ge::Node &node, u6
 
 HcclResult HcomOpsKernelBuilder::GetCrackParamsInfo([[maybe_unused]] const ge::Node &node, u32 tensorNum, int64_t *tensorOffset,
                                                     int64_t *tensorSize, int64_t *crackOffset, int64_t *crackSize) {
+  auto op = node.GetOpDesc();
+  CHK_PTR_NULL(op);
   // 获取缝隙的offset和size
   for (u32 i = 0; i < tensorNum; i++) {
+    // 获取padding_size
+    ge::GeTensorDesc inputTensor = op->GetInputDesc(i);
+    int64_t tensorSizeTemp = 0;
+    CHK_PRT_RET((ge::TensorUtils::GetTensorMemorySizeInBytesWithAutoPadding(inputTensor, tensorSizeTemp) != ge::GRAPH_SUCCESS),
+      HCCL_ERROR("[HcomOpsKernelBuilder][GetCrackParamsInfo]Get tensorSize failed"), HCCL_E_PARA);
     // crackOffset基于LoadTask的inputaddr偏移，而不是基于基地址偏移
     crackOffset[i] = tensorOffset[i] + tensorSize[i] - tensorOffset[0];
-    int64_t tensorSizeTemp = 0;
-    tensorSizeTemp =
-        (tensorSize[i] + TENSOR_ALIGNMENT_32 - 1) / TENSOR_ALIGNMENT_32 * TENSOR_ALIGNMENT_32 + TENSOR_ALIGNMENT_32;
     tensorSizeTemp = (tensorSizeTemp + TENSOR_ALIGNMENT_512 - 1) / TENSOR_ALIGNMENT_512 * TENSOR_ALIGNMENT_512;
-    tensorSizeTemp = tensorSizeTemp - tensorSize[i];
-    crackSize[i] = tensorSizeTemp;
+    if (tensorSizeTemp >= tensorSize[i]) {
+      crackSize[i] = tensorSizeTemp - tensorSize[i];
+      HCCL_INFO("[HcomOpsKernelBuilder][GetCrackParamsInfo]The tensorSize obtained through the GE interface is [%lld B], "\
+        "and the original tensorSize is [%lld B]", tensorSizeTemp, tensorSize[i]);
+    } else {
+      HCCL_ERROR("[HcomOpsKernelBuilder][GetCrackParamsInfo]The value of tensorSizeTemp[%lld B] obtained through" \
+        "the GE interface is less than that of tensorSize[%lld B]", tensorSizeTemp, tensorSize[i]);
+      return HCCL_E_PARA;
+    }
   }
 
   return HCCL_SUCCESS;

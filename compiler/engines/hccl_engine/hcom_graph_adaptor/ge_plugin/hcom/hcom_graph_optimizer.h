@@ -52,7 +52,7 @@ class HcomGraphOptimizer : public ge::GraphOptimizer {
   virtual HcclResult CheckSupportedOP(const std::string &sCollectiveType) const;
   virtual HcclResult CalcOpRunningParam(ge::Node &node, bool uknownShapeGraph);
   virtual HcclResult SetOpOutputMemSize(ge::Node &node, const std::string &sCollectiveType);
-  virtual HcclResult CalcHCCLOutputMemSize(const std::string &sCollectiveType, int64_t &memSize);
+  virtual HcclResult CalcHCCLOutputMemSize(const std::string &sCollectiveType, int64_t &memSize, const ge::GeTensorDesc &desc_temp);
   virtual HcclResult SetOpMemAttr(ge::Node &node, const std::string &sCollectiveType, const u64 &opMemSize);
   HcclResult HcomGraphOptimizeInitialize(const map<std::string, std::string> &options,
                                          ge::OptimizeUtility *const optimizeUtility);
