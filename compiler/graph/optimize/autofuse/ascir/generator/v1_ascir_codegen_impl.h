@@ -1162,7 +1162,7 @@ class SigmoidAscIrCodegenImpl : public AscIrCodegen {
 class Ub2ubAscIrCodegenImpl : public AscIrCodegen {
  public:
   std::string GetApiCallName() const override {
-    return "UnaryApiCall";
+    return "Ub2ubApiCall";
   }
   std::string GetApiName() const override {
     return "DataCopy";

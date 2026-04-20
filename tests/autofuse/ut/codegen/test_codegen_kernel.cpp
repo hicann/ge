@@ -26,6 +26,7 @@
 #include "elewise/unary_tmp_api_call.h"
 #include "elewise/neg_api_call.h"
 #include "elewise/unary_api_call.h"
+#include "elewise/ub2ub_api_call.h"
 #include "autofuse_config/auto_fuse_config.h"
 #include "codegen_graph_check.h"
 #include "platform_context.h"
@@ -3632,14 +3633,14 @@ TEST(CodegenKernel, Ub2ubApiCall) {
 
   codegen::ApiTensor x1;
   x1.id = load->outputs[0].attr.mem.tensor_id;
-  codegen::UnaryApiCall call("DataCopy");
+  codegen::Ub2ubApiCall call("DataCopy");
   EXPECT_EQ(call.Init(ub2ub), 0);
   call.inputs.push_back(&x1);
 
   std::string result;
   call.Generate(tpipe, vector<ge::AxisId>{}, result);
   EXPECT_EQ(result, std::string{
-    "DataCopy(local_1[0], local_0[0], local_0_actual_size);\n"
+    "DataCopy(local_1[0], local_0[0], KernelUtils::BlkAlign<float>(local_0_actual_size));\n"
   });
 }
 

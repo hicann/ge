@@ -1694,7 +1694,7 @@ class SigmoidAscIrCodegenImplV2 : public AscIrCodegenV2 {
 class Ub2ubAscIrCodegenImplV2 : public AscIrCodegenV2 {
  public:
   [[nodiscard]] std::string GetApiCallName() const override {
-    return "UnaryApiCall";
+    return "Ub2ubApiCall";
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "DataCopy";
