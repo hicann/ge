@@ -27,6 +27,10 @@ add_library(test_regbase_ascendc OBJECT
     ./test_trunc_to_int.cpp
     ./test_xor.cpp
     ./test_remainder.cpp
+    ./test_modified_bessel_i0.cpp
+    ./test_modified_bessel_i1.cpp
+    ./test_modified_bessel_k0.cpp
+    ./test_modified_bessel_k1.cpp
     )
 target_link_libraries(test_regbase_ascendc
     ascendc_api_regbase_extend

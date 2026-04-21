@@ -560,7 +560,7 @@ else ((BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC))
             endif ()
             include(ExternalProject)
             ExternalProject_Add(udf_device
-                    SOURCE_DIR ${CMAKE_SOURCE_DIR}/dflow/udf/cmake/device
+                    SOURCE_DIR ${CMAKE_SOURCE_DIR}/cmake/device
                     BINARY_DIR ${CMAKE_BINARY_DIR}/device_build
                     CMAKE_ARGS
                     -DTOP_DIR=${TOP_DIR}

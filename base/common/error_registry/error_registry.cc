@@ -100,7 +100,7 @@ const std::string ge_error_code = R"(
       "Arglist": "",
       "suggestion": {
         "Possible Cause": "N/A",
-        "Solution": "1. If the source model framework is Caffe, try again with a valid --weight argument.  2. If the source model framework is not Caffe, try again with a valid --framework argument."
+        "Solution": "1. If the source model framework is Caffe, try again with a valid --weight argument. 2. If the source model framework is not Caffe, try again with a valid --framework argument."
       }
     },
     {
@@ -111,7 +111,7 @@ const std::string ge_error_code = R"(
       "Arglist": "",
       "suggestion": {
         "Possible Cause": "N/A",
-        "Solution": "1. In dynamic shape scenarios, include only one of these options in your command line.  2. In static shape scenarios, remove these options from your command line."
+        "Solution": "1. In dynamic shape scenarios, include only one of these options in your command line. 2. In static shape scenarios, remove these options from your command line."
       }
     },
     {
@@ -173,7 +173,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument_Operator_Name",
       "ErrCode": "E10016",
-      "ErrMessage": "Opname %s specified in --%s is not found in the model. Confirm whether this node name exists, or the node is not split with the specified delimiter ';'.",
+      "ErrMessage": "Op name %s specified in --%s is not found in the model. Confirm whether this node name exists, or whether the node is not split with the specified delimiter ';'.",
       "Arglist": "opname,parameter",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -338,7 +338,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "File_Operation_Error_Parse",
       "ErrCode": "E10032",
-      "ErrMessage": "Parse json file %s failed. Reason: %s.",
+      "ErrMessage": "Failed to parse JSON file %s. Reason: %s.",
       "Arglist": "file_name,reason",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -349,11 +349,11 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument",
       "ErrCode": "E10034",
-      "ErrMessage": "Nodes (for example, %s) connected to AIPP must not be of type fp16.",
+      "ErrMessage": "Nodes (for example, %s) connected to AIPP must not be of type FP16.",
       "Arglist": "opname",
       "suggestion": {
         "Possible Cause": "N/A",
-        "Solution": "1. To enable AIPP, remove the nodes connected to AIPP from the --input_fp16_nodes argument.  2. If AIPP is not required, remove the --insert_op_conf option from your ATC command line."
+        "Solution": "1. To enable AIPP, remove the nodes connected to AIPP from the --input_fp16_nodes argument. 2. If AIPP is not required, remove the --insert_op_conf option from your ATC command line."
       }
     },
     {
@@ -404,7 +404,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument_Tensor_Dynamic_Shape",
       "ErrCode": "E10039",
-      "ErrMessage": "The --dynamic_batch_size, --dynamic_image_size, or --dynamic_dims argument have duplicate profiles.",
+      "ErrMessage": "The --dynamic_batch_size, --dynamic_image_size, or --dynamic_dims argument has duplicate profiles.",
       "Arglist": "",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -419,7 +419,7 @@ const std::string ge_error_code = R"(
       "Arglist": "",
       "suggestion": {
         "Possible Cause": "N/A",
-        "Solution": "1. In static shape scenarios, remove the --dynamic_batch_size, --dynamic_image_size or --dynamic_dims option from your command line. \n 2. In dynamic multi-batch scenarios, set the corresponding axis of the dynamic-shape input in --input_shape to -1.\n 3. In dynamic shape scenarios, remove the --dynamic_batch_size, --dynamic_image_size or --dynamic_dims option from your command line and set --input_shape to -1 or n1~n2."
+        "Solution": "1. In static shape scenarios, remove the --dynamic_batch_size, --dynamic_image_size or --dynamic_dims option from your command line.\n2. In dynamic multi-batch scenarios, set the corresponding axis of the dynamic-shape input in --input_shape to -1.\n3. In dynamic shape scenarios, remove the --dynamic_batch_size, --dynamic_image_size or --dynamic_dims option from your command line and set --input_shape to -1 or n1~n2."
       }
     },
     {
@@ -492,7 +492,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument_Tensor_Input_Shape_Range",
       "ErrCode": "E10050",
-      "ErrMessage": "Current dimension size %s is not in the range of %s–%s specified by --input_shape.",
+      "ErrMessage": "Current dimension size %s is not in the range of %s-%s specified by --input_shape.",
       "Arglist": "cur_dim,shape_range_left,shape_range_right",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -558,7 +558,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument",
       "ErrCode": "E10057",
-      "ErrMessage": "--%s and --%s can only be used together",
+      "ErrMessage": "--%s and --%s can only be used together.",
       "Arglist": "parameter0, parameter1",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -745,7 +745,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument_Caffe_Model_Data",
       "ErrCode": "E11008",
-      "ErrMessage": "Optype DetectionOutput is unsupported.",
+      "ErrMessage": "Op type DetectionOutput is unsupported.",
       "Arglist": "",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -756,7 +756,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Not_Supported_Operator",
       "ErrCode": "E11009",
-      "ErrMessage": "No Caffe parser is registered for Op %s with optype %s.",
+      "ErrMessage": "No Caffe parser is registered for Op %s with Op type %s.",
       "Arglist": "opname,optype",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -888,7 +888,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument_Caffe_Model_Data",
       "ErrCode": "E11029",
-      "ErrMessage": "Op %s exists in model file but not found in weight file.",
+      "ErrMessage": "Op %s exists in the model file but is not found in weight file.",
       "Arglist": "opname",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -954,7 +954,7 @@ const std::string ge_error_code = R"(
       "errClass": "GE Errors",
       "errTitle": "Invalid_Argument_Operator_Input_Index",
       "ErrCode": "E12004",
-      "ErrMessage": "Failed to register the prototype of Op %s. If input index is less than 0, then input index –%s (absolute value) must be less than the input count %s",
+      "ErrMessage": "Failed to register the prototype of Op %s. If input index is less than 0, then input index -%s (absolute value) must be less than the input count %s.",
       "Arglist": "opname,inputIdx,inputsize",
       "suggestion": {
         "Possible Cause": "N/A",
@@ -1332,7 +1332,7 @@ const std::string ge_error_code = R"(
       "Arglist": "optype, func",
       "suggestion": {
         "Possible Cause": "Incomplete operator implementation.",
-        "Solution": "Ensure all operator required implementations(e.g., tiling) are provided. See the operator developer guide for details."
+        "Solution": "Ensure that all required operator implementations (e.g., tiling) are provided. See the operator developer guide for details."
       }
     }
   ]

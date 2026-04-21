@@ -47,6 +47,15 @@
 | [变量管理](features/variable_manager.md) | 变量生命周期管理：注册、内存分配、格式转换、逻辑地址映射、序列化/反序列化全流程 |
 | [零拷贝](features/zero_copy.md) | 零拷贝特性：输入零拷贝（消除 H2D）、输出零拷贝（消除 D2H/D2D）、编译期规划与运行时执行 |
 | [Concat No Task](features/concat_no_task.md) | Concat 连续内存优化：编译期识别输入连续的 Concat 算子，标记为虚拟算子跳过 Task 生成和内存搬运 |
+| [GE Local 算子](features/ge_local_operator.md) | GE Local 引擎：承载非计算型节点（Data、Constant、控制流、形状变换等）的专用引擎，运行期零计算开销 |
+| [引擎](features/engine.md) | Engine 引擎体系：插件化引擎架构、优先级驱动自动选择、编译期引擎注册与分区、运行时分发 |
+| [Tiling 下沉](features/tiling_sink.md) | Tiling 下沉特性：将 Tiling 计算从 Host 搬到 Device AICPU 执行，消除 Host-Device 同步开销 |
+| [图拆分](features/graph_spliter.md) | 图拆分特性：动静 Shape 拆分、引擎级拆分、流水线阶段拆分、JIT 增量拆分 |
+| [静态执行器](features/known_shape_executor.md) | 静态子图执行器：Task Sink 预分发、DavinciModel 加载/执行、混合执行模式地址刷新 |
+| [动态执行器](features/unknown_shape_executor.md) | RT2.0 动态 Shape 执行器：Lowering 机制、ExecuteGraph、ModelV2Executor、三子图生命周期、Kernel 注册系统 |
+| [Stream Allocator](features/stream_allocator.md) | 流分配特性：逻辑流分配、同步事件管理、物理流拆分、流激活机制 |
+| [InferShape](features/infer_shape.md) | Shape 推导：OriginShape/StorageShape 双体系、编译期 InferShapePass、运行时推导节点、符号化推导 |
+| [Format 推导](features/infer_format.md) | 格式推导：OriginFormat 锚点扩散推导、StorageFormat 自动选择、TransData 插入优化 |
 
 ## 模块关键设计原则与软件约束
 

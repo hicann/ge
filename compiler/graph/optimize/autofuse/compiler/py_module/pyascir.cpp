@@ -84,6 +84,7 @@ static const DTypeEntry dtype_entries[] = {
     {"dual", ge::DT_DUAL},
     {"variant", ge::DT_VARIANT},
     {"bfloat16", ge::DT_BF16},
+    {"bf16", ge::DT_BF16},
     {"undefined", ge::DT_UNDEFINED},
     {"int4", ge::DT_INT4},
     {"uint1", ge::DT_UINT1},

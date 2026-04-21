@@ -8,16 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-cmake_minimum_required(VERSION 3.16)
-project (udf_device)
-
-set(CMAKE_CXX_STANDARD 17)
-
-set(PRODUCT_SIDE device)
-
-set(CMAKE_SKIP_BUILD_RPATH TRUE)
-set(CMAKE_SKIP_INSTALL_RPATH TRUE)
-
 if (NOT DEFINED CMAKE_MODULE_PATH)
     set(CMAKE_MODULE_PATH
         ${TOP_DIR}/cmake/modules

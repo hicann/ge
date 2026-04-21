@@ -1162,7 +1162,7 @@ class SigmoidAscIrCodegenImpl : public AscIrCodegen {
 class Ub2ubAscIrCodegenImpl : public AscIrCodegen {
  public:
   std::string GetApiCallName() const override {
-    return "UnaryApiCall";
+    return "Ub2ubApiCall";
   }
   std::string GetApiName() const override {
     return "DataCopy";
@@ -2052,6 +2052,34 @@ class BatchMatMulAscIrCodegenImpl : public AscIrCodegen {
   [[nodiscard]] bool IsNodeValid(const ge::AscNode &node) const override {
     GE_ASSERT_TRUE(!IsNodeHasScalarInput(node), "Node %s[%s] not support scalar input", node.GetTypePtr(),
                    node.GetNamePtr());
+    return true;
+  }
+};
+
+class Conv2DAscIrCodegenImpl : public AscIrCodegen {
+ public:
+  std::string GetApiCallName() const override {
+    return "Conv2DApiCall";
+  }
+  std::string GetApiName() const override {
+    return "Conv2D";
+  }
+  std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"conv2d_include_headers.h",
+            "conv2d_v2_tilingkey.h",
+            "conv_pingpong_basic_atcos.h",
+            "conv2d.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {"basic_api/kernel_operator_common_intf.h"};
+  }
+  [[nodiscard]] bool IsNodeValid(const ge::AscNode &node) const override {
+    std::string node_type = node.GetType();
+    const auto &inputs = node.GetInDataNodes();
+    GE_ASSERT_TRUE(!(inputs.size() > 0 && inputs.at(0)->GetType() == "Scalar"),
+        "Node %s[%s] not support scalar input at index 0", node.GetTypePtr(), node.GetNamePtr());
+    GE_ASSERT_TRUE(!(inputs.size() > 1 && inputs.at(1)->GetType() == "Scalar"),
+        "Node %s[%s] not support scalar input at index 1", node.GetTypePtr(), node.GetNamePtr());
     return true;
   }
 };

@@ -1694,7 +1694,7 @@ class SigmoidAscIrCodegenImplV2 : public AscIrCodegenV2 {
 class Ub2ubAscIrCodegenImplV2 : public AscIrCodegenV2 {
  public:
   [[nodiscard]] std::string GetApiCallName() const override {
-    return "UnaryApiCall";
+    return "Ub2ubApiCall";
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "DataCopy";
@@ -1827,7 +1827,7 @@ class AddAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return {"scalar_add.h"};
   }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
-    return "MicroAddApiCall";
+    return "MicroBinaryScalarApiCall";
   }
 
   [[nodiscard]] std::string GetMicroApiName() const override {
@@ -1840,11 +1840,15 @@ class AddAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
-    // 不支持第一个输入是scalar，支持第二个输入是scalar
-    if (node.GetInDataNodes().at(0)->GetType() == "Scalar") {
-      return false;
-    }
+    (void)node;
     return true;
+  }
+  [[nodiscard]] bool IsScalarInputSupported(const std::vector<bool> &is_scalar_list) const override {
+    return OnlySecondInputSupportScalar(is_scalar_list);
+  }
+  [[nodiscard]] bool IsScalarInputSupportedIfExchangeInputs(const std::vector<bool> &is_scalar_list) const override {
+    GE_ASSERT_EQ(is_scalar_list.size(), 2UL);
+    return OnlySecondInputSupportScalar({is_scalar_list[1], is_scalar_list[0]});
   }
   [[nodiscard]] bool IsInplaceSupported(const ge::AscNode &add_node) const override {
     (void) add_node;
@@ -1993,7 +1997,7 @@ class MinimumAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return OnlySecondInputSupportScalar(is_scalar_list);
   }
   [[nodiscard]] std::string GetMicroApiCallName() const override {
-    return "MicroApiCall";
+    return "MicroBinaryScalarApiCall";
   }
 
   [[nodiscard]] std::string GetMicroApiName() const override {
@@ -2046,7 +2050,7 @@ class MaximumAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] std::string GetMicroApiCallName() const override {
-    return "MicroApiCall";
+    return "MicroBinaryScalarApiCall";
   }
 
   [[nodiscard]] std::string GetMicroApiName() const override {
@@ -3537,6 +3541,34 @@ class BatchMatMulAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] bool IsNodeValid(const ge::AscNode &node) const override {
     GE_ASSERT_TRUE(!IsNodeHasScalarInput(node), "Node %s[%s] not support scalar input", node.GetTypePtr(),
                    node.GetNamePtr());
+    return true;
+  }
+};
+
+class Conv2DAscIrCodegenImplV2 : public AscIrCodegenV2 {
+ public:
+  std::string GetApiCallName() const override {
+    return "Conv2DApiCall";
+  }
+  std::string GetApiName() const override {
+    return "Conv2D";
+  }
+  std::vector<std::string> LoadApiHeaderFiles() const override {
+    return {"conv2d_include_headers.h",
+            "conv2d_v2_tilingkey.h",
+            "conv_pingpong_basic_atcos.h",
+            "conv2d.h"};
+  }
+  std::vector<std::string> IncludeApiHeaderFiles() const override {
+    return {"basic_api/kernel_operator_common_intf.h"};
+  }
+  [[nodiscard]] bool IsNodeValid(const ge::AscNode &node) const override {
+    std::string node_type = node.GetType();
+    const auto &inputs = node.GetInDataNodes();
+    GE_ASSERT_TRUE(!(inputs.size() > 0 && inputs.at(0)->GetType() == "Scalar"),
+        "Node %s[%s] not support scalar input at index 0", node.GetTypePtr(), node.GetNamePtr());
+    GE_ASSERT_TRUE(!(inputs.size() > 1 && inputs.at(1)->GetType() == "Scalar"),
+        "Node %s[%s] not support scalar input at index 1", node.GetTypePtr(), node.GetNamePtr());
     return true;
   }
 };

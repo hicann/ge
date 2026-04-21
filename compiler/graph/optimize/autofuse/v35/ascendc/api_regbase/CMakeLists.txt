@@ -30,6 +30,11 @@ set(ascendc_api_regbase_extend_src
         expm.h
         trunc_div.h
         remainder.h
+        modified_bessel_i0.h
+        modified_bessel_i1.h
+        modified_bessel_k0.h
+        modified_bessel_k1.h
+        modified_bessel_utils.h
 )
 
 set(generated_regbase_files)
