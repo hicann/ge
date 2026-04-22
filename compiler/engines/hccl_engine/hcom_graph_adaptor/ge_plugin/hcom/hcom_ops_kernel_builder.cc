@@ -699,6 +699,9 @@ HcclResult HcomOpsKernelBuilder::TaskDefSetNumBlocks(const ge::Node &node, domi:
       HCCL_ERROR("[Get][TaskDefSetNumBlocks]op[%s]: get data type failed. ret[%d]", sCollectiveType.c_str(), ret), ret);
 
   CHK_RET(GetCommFromOpDesc(opDescPtr, comm, group));
+  if (group.empty()) {
+    CHK_RET(HcomOpUtils::GetGroupFromOpDesc(opDescPtr, group));
+  }
   // 获取rankSize，用于计算数据量
   u32 rankSize = 0;
   CHK_RET(HcomGetRankSize(group.c_str(), &rankSize));
