@@ -163,7 +163,7 @@ Status FormatTransferC1hwncoc0Hwcn::TransFormat(const TransArgs &args, TransResu
            "src shape %s.",
            total_size, ShapeToString(args.dst_shape).c_str(),
            ShapeToString(args.src_shape).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Get shape faield, total size %" PRId64 " from dst shape %s, src shape %s.",
+    REPORT_INNER_ERR_MSG("E19999", "Get shape failed, total size %" PRId64 " from dst shape %s, src shape %s.",
                       total_size, ShapeToString(args.dst_shape).c_str(),
                       ShapeToString(args.src_shape).c_str());
     return ACL_ERROR_GE_SHAPE_INVALID;
