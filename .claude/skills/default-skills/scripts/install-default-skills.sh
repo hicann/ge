@@ -2,7 +2,7 @@
 
 # 脚本功能：安装项目必备的 skills
 # 默认技能列表
-DEFAULT_SKILLS=("gitcode-pr" "gitcode-issue")
+DEFAULT_SKILLS=("gitcode-pr" "gitcode-issue" "api-doc-generator")
 
 # 脚本所在目录的上上级目录为 .claude/skills/
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
