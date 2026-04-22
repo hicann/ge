@@ -114,6 +114,7 @@ HcclResult HcceReduceScatterGraphMode(void *sendBuf, void *recvBuf, uint64_t rec
  	                                    HcclReduceOp op, const char *group, void *stream, const char *tag, void **streams,
  	                                    size_t streamCount, void *scratchMemAddr, uint64_t scratchMemSize);
 HcclResult HcceSetAivCoreLimitGraphMode(const char *group, u32 aivCoreLimit);
+HcclResult Hcce
 #ifdef __cplusplus
 }
 #endif  // __cplusplus

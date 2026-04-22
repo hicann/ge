@@ -394,7 +394,13 @@ HcclResult HcomOpsKernelBuilder::SetSuperKernelBlockDim(const ge::OpDescPtr &opD
                                                         u32 aivCoreLimit, char *algName, u32 rankSize) const {
   // 计算AIV核数
   u32 blockDim;
-  CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, counts, dataType, aivCoreLimit, algName, &blockDim));
+  bool openSourceTag = false;
+  CHK_RET(IsUsingOpenSource(openSourceTag));
+  if (openSourceTag) {
+    CHK_RET(HcceCalcAivCoreNumGraphMode(aivCoreLimit, &blockDim));
+  } else {
+    CHK_RET(HcomCalcAivCoreNum(group.c_str(), opType, count, counts, dataType, aivCoreLimit, algName, &blockDim));
+  }
   
   // 设置block维度属性
   ge::AttrUtils::SetInt(opDescPtr, "hcom_block_dim", blockDim);
@@ -437,7 +443,7 @@ HcclResult HcomOpsKernelBuilder::SetSuperKernelScopeAttr(ge::Node &node) {
   bool openSourceTag = false;
   CHK_RET(IsUsingOpenSource(openSourceTag));
   if (openSourceTag) {
-    CHK_RET(HcceSelectAlgGraphMode(sGroup.c_str(), count, countsPtr, dataType, reduction, opType, aivCoreLimit, &ifAiv,
+    CHK_RET(HcceSelectAlgGraphMode(sGroup.c_str(), count, dataType, reduction, opType, aivCoreLimit, &ifAiv,
                           &algName));
   } else {
     #ifdef HCOM_SELECT_ALG_POINTER_MODE
