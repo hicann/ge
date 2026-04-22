@@ -69,32 +69,34 @@ std::string InputValueForCondSource::GetSourceStr() const {
       const auto type = tensor->GetDataType();
       switch (type) {
         case ge::DT_STRING:
-          return (tensor_size - (sizeof(ge::StringHead) + 1) > 0) ? 1 : 0;
+          return (tensor_size > (sizeof(ge::StringHead) + 1)) ? 1 : 0;
         case ge::DT_BOOL:
-          return static_cast<int64_t>(*reinterpret_cast<const bool *>(data_ptr));
+          return (tensor_size >= sizeof(bool)) ? static_cast<int64_t>(*reinterpret_cast<const bool *>(data_ptr)) : -1;
         case ge::DT_FLOAT:
-          return static_cast<int64_t>(*reinterpret_cast<const float *>(data_ptr));
+          return (tensor_size >= sizeof(float)) ? static_cast<int64_t>(*reinterpret_cast<const float *>(data_ptr)) : -1;
         case ge::DT_DOUBLE:
-          return static_cast<int64_t>(*reinterpret_cast<const double *>(data_ptr));
+          return (tensor_size >= sizeof(double)) ?
+            static_cast<int64_t>(*reinterpret_cast<const double *>(data_ptr)) : -1;
         case ge::DT_INT8:
         case ge::DT_UINT8:
         case ge::DT_HIFLOAT8:
         case ge::DT_FLOAT8_E5M2:
         case ge::DT_FLOAT8_E4M3FN:
-          return static_cast<int64_t>(*data_ptr);
+          return (tensor_size >= sizeof(uint8_t)) ? static_cast<int64_t>(*data_ptr) : -1;
         case ge::DT_FLOAT16:
         case ge::DT_INT16:
         case ge::DT_UINT16:
-          return static_cast<int64_t>(*reinterpret_cast<const int16_t *>(data_ptr));
+          return (tensor_size >= sizeof(int16_t)) ?
+            static_cast<int64_t>(*reinterpret_cast<const int16_t *>(data_ptr)) : -1;
         case ge::DT_INT32:
-          return static_cast<int64_t>(*reinterpret_cast<const int32_t *>(data_ptr));
         case ge::DT_UINT32:
-          return static_cast<int64_t>(*reinterpret_cast<const int32_t *>(data_ptr));
+          return (tensor_size >= sizeof(int32_t)) ?
+            static_cast<int64_t>(*reinterpret_cast<const int32_t *>(data_ptr)) : -1;
         case ge::DT_INT64:
         case ge::DT_UINT64:
-          return *reinterpret_cast<const int64_t *>(data_ptr);
+          return (tensor_size >= sizeof(int64_t)) ? *reinterpret_cast<const int64_t *>(data_ptr) : -1;
         default:
-          return static_cast<int64_t>(*data_ptr);
+          return (tensor_size >= sizeof(uint8_t)) ? static_cast<int64_t>(*data_ptr) : -1;
       }
     }())";
 }

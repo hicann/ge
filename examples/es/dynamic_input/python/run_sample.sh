@@ -88,7 +88,8 @@ echo "[Info] 检测到系统架构: ${ARCH}"
 echo "[Info] 使用 ASCEND 架构: ${ASCEND_ARCH}"
 
 ASCEND_LIB_DIR="${ASCEND_HOME_PATH}/lib64"
-echo "[Info] ASCEND_LIB_DIR = ${ASCEND_LIB_DIR}"# ----------  生成 build 目录 ----------
+echo "[Info] ASCEND_LIB_DIR = ${ASCEND_LIB_DIR}"
+# ----------  生成 build 目录 ----------
 BUILD_DIR="build"
 if [[ ! -d "${BUILD_DIR}" ]]; then
   echo "[Info] 创建构建目录 ${BUILD_DIR}"

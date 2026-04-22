@@ -97,9 +97,9 @@
 
 1.  以运行用户登录开发环境。
 
-2.  请先进入根目录下"examples/acl/2_sample_resnet50_imagenet_classification_dynmaic_batch"样例目录。
+2.  请先进入根目录下"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"样例目录。
 
-    请注意，下文中的样例目录均指"examples/acl/2_sample_resnet50_imagenet_classification_dynmaic_batch"目录。
+    请注意，下文中的样例目录均指"examples/acl/2_sample_resnet50_imagenet_classification_dynamic_batch"目录。
 
 3.  切换到"样例目录/scripts",编译程序。
 

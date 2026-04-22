@@ -56,7 +56,7 @@ if [[ ! " ${VALID_TARGETS[@]} " =~ " ${TARGET} " ]]; then
 fi
 
 echo "[Info] 目标设置为: ${TARGET}"
-echo "[Info] 测试用例设置为: sigmod"
+echo "[Info] 测试用例设置为: sigmoid"
 
 set +u
 if [[ -z "${ASCEND_HOME_PATH}" ]]; then
