@@ -62,7 +62,7 @@ bool IsContinuesBroadcast(const ascir::ImplGraph &impl_graph, const ge::AscNodeP
     return false;
   }
   const auto &in_nodes = pre_node->GetInDataNodes();
-  if (ge::ops::IsOps<ge::ascir_op::Scalar>(in_nodes.at(0UL))) {
+  if (optimize::ScheduleUtils::IsScalarLikeNode(in_nodes.at(0UL))) {
     GELOGD("Input of Broadcast[%s] is Scalar[%s], support.", brc_node->GetNamePtr(), in_nodes.at(0UL)->GetNamePtr());
     return true;
   }

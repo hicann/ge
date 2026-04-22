@@ -5629,6 +5629,25 @@ TEST_F(TestOptimizer, SkipPruneGraph) {
   EXPECT_EQ(cg->GetAllNodesSize(), 3UL);
 }
 
+TEST_F(TestOptimizer, SkipPruneGraphWithScalarData) {
+  // 测试场景：ScalarData 节点没有下游 Output，PruneGraph 应保留 ScalarData 节点
+  // 图结构：scalar_data0 -> abs0（无 Output）
+  // 预期：ScalarData 节点被保留（与 Data 节点行为一致）
+
+  auto graph = ge::testing::AscGraphBuilder("ScalarDataPrune")
+    .Loops({ge::testing::Sym(32)})
+    .ScalarData("scalar_data0", 0)
+    .Abs("abs0", "scalar_data0")
+    .Build();
+  optimize::AscGraphInfoComplete::CompleteApiInfo(graph);
+  Status res = optimize::PassUtils::PruneGraph(graph);
+  EXPECT_EQ(res, ge::SUCCESS);
+
+  // 验证 ScalarData 节点未被误剪
+  auto scalar_data_node = graph.FindNode("scalar_data0");
+  EXPECT_NE(scalar_data_node, nullptr) << "ScalarData node should be preserved by PruneGraph";
+}
+
 TEST_F(TestOptimizer, TransposeWithUB) {
   // Transpose 尾轴为动态shape
   ge::AscGraph graph("transpose_with_ub");

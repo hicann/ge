@@ -1392,4 +1392,50 @@ TEST_F(ConcatScheduleCaseGeneratorTest, BackwardFusionAndRecompute) {
     }
   }
 }
+TEST_F(ConcatScheduleCaseGeneratorTest, ConcatWithScalarDataInput) {
+  // 测试场景：ScalarData 节点作为多个 concat 分支的输入，SplitDataForDifferentConcatDim 应保持 ScalarData 类型
+  // 图结构：
+  //   data0 -> load0 ----\
+  //                       add0 ----\
+  //   scalar_data0 --/             \
+  //                                concat0 -> store -> output
+  //   scalar_data0 --\             /
+  //   data1 -> load1 ----add1 ---/
+  // 预期：scalar_data0 被分裂为多个副本时保持 ScalarData 类型
+
+  auto graph = ge::testing::AscGraphBuilder("concat_scalar_data")
+    .Loops({ge::testing::Sym(32), ge::testing::Sym(64)})
+    .Data("data0", 0)
+    .Load("load0", "data0")
+    .Data("data1", 1)
+    .Load("load1", "data1")
+    .ScalarData("scalar_data0", 2)
+    .Add("add0", "load0", "scalar_data0")
+    .Add("add1", "load1", "scalar_data0")
+    .Concat("concat0", {"add0", "add1"})
+    .Store("store", "concat0")
+    .Output("out", "store", 0)
+    .Build();
+
+  optimize::ConcatFusionCaseGenerator generator;
+  std::vector<AscGraph> generated_graphs;
+  std::vector<std::string> score_functions;
+  EXPECT_EQ(generator.Generate(graph, generated_graphs, score_functions), ge::SUCCESS);
+
+  // 验证 ScalarData 分裂后的副本保持 ScalarData 类型
+  bool found_scalar_data_copy = false;
+  for (const auto &node : graph.GetAllNodes()) {
+    std::string name(node->GetNamePtr());
+    if (name.find("scalar_data") != std::string::npos) {
+      EXPECT_EQ(std::string(node->GetTypePtr()), "ScalarData")
+        << "Node " << name << " should be ScalarData but got " << node->GetTypePtr();
+      if (name != "scalar_data0") {
+        found_scalar_data_copy = true;
+      }
+    }
+  }
+  // scalar_data0 有两个消费者(add0, add1)，应被分裂出副本
+  EXPECT_TRUE(found_scalar_data_copy) << "Expected ScalarData copy to be created";
+}
+
 }  // namespace schedule

@@ -435,7 +435,7 @@ Status ConcatFusionCaseGenerator::RemoveUnusedNodes(const ge::AscNodePtr &concat
 Status ConcatFusionCaseGenerator::SplitDataForDifferentConcatDim(ascir::ImplGraph &owner_graph) {
   for (const auto &node : owner_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
-    if (!ge::ops::IsOps<ge::ascir_op::Data>(node)) {
+    if (!ScheduleUtils::IsDataInput(node)) {
       continue;
     }
     auto output_anchor = node->GetOutDataAnchor(0);
@@ -443,8 +443,14 @@ Status ConcatFusionCaseGenerator::SplitDataForDifferentConcatDim(ascir::ImplGrap
     auto peer_in_anchors = output_anchor->GetPeerInDataAnchors();
     for (size_t idx = 1UL; idx < peer_in_anchors.size(); ++idx) {
       std::string node_name = node->GetName() + std::string("_") + std::to_string(idx);
-      ge::ascir_op::Data data(node_name.c_str());
-      auto data_node = owner_graph.AddNode(data);
+      ge::AscNodePtr data_node;
+      if (ge::ops::IsOps<ge::ascir_op::ScalarData>(node)) {
+        ge::ascir_op::ScalarData scalar_data(node_name.c_str());
+        data_node = owner_graph.AddNode(scalar_data);
+      } else {
+        ge::ascir_op::Data data(node_name.c_str());
+        data_node = owner_graph.AddNode(data);
+      }
       GE_ASSERT_NOTNULL(data_node);
       data_node->attr = node->attr;
       data_node->outputs[0].attr = node->outputs[0].attr;
