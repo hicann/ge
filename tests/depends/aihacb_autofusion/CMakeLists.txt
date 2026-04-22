@@ -65,7 +65,7 @@ target_link_libraries(ascir_builtin_ops_stub PRIVATE intf_llt_pub metadef_header
 
 set(ops_header_dir ${CMAKE_BINARY_DIR}/graph_metadef/graph/ascendc_ir/generator/)
 
-message(STATUS "ops_header_dir is "${ENABLE_ASAN} ${ops_header_dir}/ascir_ops.h)
+message(STATUS "ops_header_dir is ${ops_header_dir}/ascir_ops.h")
 ascir_generate(ascir_builtin_ops_stub
         ${ops_header_dir}
         ${CMAKE_BINARY_DIR}/tests/depends/aihacb_autofusion/libascir_builtin_ops_stub.so
