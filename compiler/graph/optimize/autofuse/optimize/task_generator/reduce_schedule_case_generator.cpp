@@ -738,6 +738,13 @@ Status RMulticorePhase2Graph::CompleteNodeAttr(ge::AscNodePtr &node, bool before
   return ge::GRAPH_SUCCESS;
 }
 
+Status RMulticorePhase2Graph::CompleteNodeAttrBeforeReduce(ge::AscNodePtr &node) {
+  node->outputs[0].attr.axis = {0, 1};
+  node->outputs[0].attr.strides = {A_org_size, ge::ops::One};
+  node->outputs[0].attr.repeats = {Rm_org_size, A_org_size};
+  return ge::GRAPH_SUCCESS;
+}
+
 Status RMulticorePhase2Graph::SetupArgMaxIndexNodes(const ge::AscNodePtr &reduce_node,
                                                      ascir::ImplGraph &phase2graph) {
   // ArgMax特殊处理：需要设置load_index_node和workspace_index_node的属性
@@ -746,17 +753,13 @@ Status RMulticorePhase2Graph::SetupArgMaxIndexNodes(const ge::AscNodePtr &reduce
     auto workspace_index_node = phase2graph.FindNode((phase2graph.GetName() + "_workspace_index").c_str());
     if (workspace_index_node != nullptr) {
       workspace_index_node->attr.sched.axis = {0, 1};
-      ge::AscTensorDataType index_dtype;
-      index_dtype = ge::DT_INT64;
-      GE_CHK_STATUS_RET(CompleteNodeAttr(workspace_index_node, true, index_dtype));
+      GE_CHK_STATUS_RET(CompleteNodeAttrBeforeReduce(workspace_index_node));
     }
 
     auto index_load_node = phase2graph.FindNode((phase2graph.GetName() + "_load_index").c_str());
     if (index_load_node != nullptr) {
       index_load_node->attr.sched.axis = {0, 1};
-      ge::AscTensorDataType index_dtype;
-      index_dtype = ge::DT_INT64;
-      GE_CHK_STATUS_RET(CompleteNodeAttr(index_load_node, true, index_dtype));
+      GE_CHK_STATUS_RET(CompleteNodeAttrBeforeReduce(index_load_node));
     }
   }
   return ge::GRAPH_SUCCESS;

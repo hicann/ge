@@ -936,10 +936,11 @@ Status ApiCall::PostProcess(const TPipe &tpipe, const std::vector<ascir::AxisId>
           ss << tmp;
         }
       }
-      if (is_all_outputs_ub_scalar) {
-        ss << "}" << std::endl;
-      }
     }
+  }
+
+  if (is_all_outputs_ub_scalar && !current_axis.empty()) {
+    ss << "}" << std::endl;
   }
 
   result = ss.str();
