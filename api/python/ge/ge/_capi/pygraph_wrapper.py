@@ -65,6 +65,9 @@ graph_lib.GeApiWrapper_AttrValue_GetInt.argtypes = [c_void_p, ctypes.POINTER(c_i
 graph_lib.GeApiWrapper_AttrValue_GetDataType.restype = c_int
 graph_lib.GeApiWrapper_AttrValue_GetDataType.argtypes = [c_void_p, ctypes.POINTER(c_int32)]
 
+graph_lib.GeApiWrapper_AttrValue_GetTensor.restype = EsCTensorPtr
+graph_lib.GeApiWrapper_AttrValue_GetTensor.argtypes = [c_void_p]
+
 # 列表值获取
 graph_lib.GeApiWrapper_AttrValue_GetListString.restype = ctypes.POINTER(c_char_p)
 graph_lib.GeApiWrapper_AttrValue_GetListString.argtypes = [c_void_p, ctypes.POINTER(c_int64)]
@@ -96,6 +99,9 @@ graph_lib.GeApiWrapper_AttrValue_SetInt.argtypes = [c_void_p, c_int64]
 
 graph_lib.GeApiWrapper_AttrValue_SetDataType.restype = c_int
 graph_lib.GeApiWrapper_AttrValue_SetDataType.argtypes = [c_void_p, c_int32]
+
+graph_lib.GeApiWrapper_AttrValue_SetTensor.restype = c_int
+graph_lib.GeApiWrapper_AttrValue_SetTensor.argtypes = [c_void_p, EsCTensorPtr]
 
 # 列表值设置
 graph_lib.GeApiWrapper_AttrValue_SetListString.restype = c_int

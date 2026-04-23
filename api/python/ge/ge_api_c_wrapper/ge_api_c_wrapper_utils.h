@@ -156,6 +156,8 @@ using char_t = char;
 extern "C" {
 #endif
 ge::graphStatus GeApiWrapper_AttrValue_SetBool(void *av, bool value);
+EsCTensor *GeApiWrapper_AttrValue_GetTensor(const void *av);
+ge::graphStatus GeApiWrapper_AttrValue_SetTensor(void *av, const EsCTensor *tensor);
 void GeApiWrapper_FreeListString(char **p);
 int64_t *GeApiWrapper_AttrValue_GetListInt(const void *av, int64_t *size);
 float *GeApiWrapper_AttrValue_GetListFloat(const void *av, int64_t *size);

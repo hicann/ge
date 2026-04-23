@@ -74,6 +74,52 @@ inline typename std::enable_if<!std::is_same<T, bool>::value, std::string>::type
   return std::to_string(value);
 }
 
+template <typename T>
+bool GetTensorElementCount(const Tensor &tensor, size_t &data_cnt) {
+  const auto data_size = tensor.GetSize();
+  if (data_size == 0U) {
+    data_cnt = 0U;
+    return true;
+  }
+  if (tensor.GetData() == nullptr) {
+    GELOGW("[Check][Tensor] Tensor data is nullptr while size is %zu.", data_size);
+    return false;
+  }
+  if ((data_size % sizeof(T)) != 0U) {
+    GELOGW("[Check][Tensor] Tensor byte size %zu is not aligned with element size %zu.",
+           data_size, sizeof(T));
+    return false;
+  }
+  data_cnt = data_size / sizeof(T);
+  return true;
+}
+
+/**
+ * @brief 准备 tensor 数据，处理空/无效等边界情况
+ * @tparam T 原始数据类型
+ * @param tensor tensor 对象
+ * @param[out] data_cnt 输出的元素个数
+ * @param[out] data_begin 输出的数据起始指针
+ * @param[out] tensor_value_ss 输出的字符串流
+ * @return true 表示数据准备成功，false 表示已输出边界结果到 tensor_value_ss
+ */
+template <typename T>
+bool PrepareTensorData(const Tensor &tensor, size_t &data_cnt,
+                       const T *&data_begin, std::stringstream &tensor_value_ss) {
+  if (tensor.GetSize() == 0) {
+    tensor_value_ss << "<empty>";
+    return false;
+  }
+
+  data_cnt = 0U;
+  if (!GetTensorElementCount<T>(tensor, data_cnt)) {
+    tensor_value_ss << "<invalid>";
+    return false;
+  }
+  data_begin = reinterpret_cast<const T *>(tensor.GetData());
+  return true;
+}
+
 /**
  * @brief 通用的 tensor 值转换实现，支持自定义转换函数
  * @tparam T 原始数据类型
@@ -86,40 +132,37 @@ inline typename std::enable_if<!std::is_same<T, bool>::value, std::string>::type
 template <typename T, typename ConvertFunc>
 std::string ConvertTensorValueImplWithConverterSkipped(const Tensor &tensor, const std::string &sep,
                                                  ConvertFunc convert_func) {
-  const auto shape = tensor.GetTensorDesc().GetShape();
-  const auto data_cnt = shape.GetShapeSize();
-  const auto data_begin = reinterpret_cast<const T *>(tensor.GetData());
-
   std::stringstream tensor_value_ss;
 
-  if (tensor.GetSize() == 0) {
-    tensor_value_ss << "<empty>";
+  size_t data_cnt = 0U;
+  const T *data_begin = nullptr;
+  if (!PrepareTensorData<T>(tensor, data_cnt, data_begin, tensor_value_ss)) {
     return tensor_value_ss.str();
   }
 
   tensor_value_ss << "[";
-  if (data_cnt == 0 || data_cnt == 1) {
+  if (data_cnt == 1U) {
     auto converted_val = convert_func(*data_begin);
     tensor_value_ss << TensorElementToString(converted_val);
   } else {
-    int32_t count = 0;
+    size_t count = 0U;
     std::stringstream first_three_ss;
     auto first_converted_val = convert_func(*data_begin);
     first_three_ss << TensorElementToString(first_converted_val);
     std::stringstream last_three_ss;
-    for (auto data = std::next(data_begin); data != data_begin + data_cnt; ++data) {
-      auto converted_val = convert_func(*data);
+    for (size_t i = 1U; i < data_cnt; ++i) {
+      auto converted_val = convert_func(data_begin[i]);
       const std::string data_str = TensorElementToString(converted_val);
-      if (count < kAttrTensorShowNumHalf - 1) {
+      if (count < static_cast<size_t>(kAttrTensorShowNumHalf - 1)) {
         first_three_ss << sep << data_str;
-      } else if (count >= data_cnt - 1 - kAttrTensorShowNumHalf) {
+      } else if (count >= (data_cnt - 1U - static_cast<size_t>(kAttrTensorShowNumHalf))) {
         last_three_ss << sep << data_str;
       }
       ++count;
     }
 
     tensor_value_ss << first_three_ss.str();
-    if (count >= kAttrTensorShowNum) {
+    if (count >= static_cast<size_t>(kAttrTensorShowNum)) {
       tensor_value_ss << sep << "...";
     }
     tensor_value_ss << last_three_ss.str();
@@ -141,22 +184,19 @@ std::string ConvertTensorValueImplWithConverterSkipped(const Tensor &tensor, con
 template <typename T, typename ConvertFunc>
 std::string ConvertTensorValueImplWithConverterNoSkip(const Tensor &tensor, const std::string &sep,
                                                  ConvertFunc convert_func) {
-  const auto shape = tensor.GetTensorDesc().GetShape();
-  const auto data_cnt = shape.GetShapeSize();
-  const auto data_begin = reinterpret_cast<const T *>(tensor.GetData());
-
   std::stringstream tensor_value_ss;
 
-  if (tensor.GetSize() == 0) {
-    tensor_value_ss << "<empty>";
+  size_t data_cnt = 0U;
+  const T *data_begin = nullptr;
+  if (!PrepareTensorData<T>(tensor, data_cnt, data_begin, tensor_value_ss)) {
     return tensor_value_ss.str();
   }
 
   tensor_value_ss << "[";
   auto first_converted_val = convert_func(*data_begin);
   tensor_value_ss << TensorElementToString(first_converted_val);
-  for (auto data = std::next(data_begin); data != data_begin + data_cnt; ++data) {
-    auto converted_val = convert_func(*data);
+  for (size_t i = 1U; i < data_cnt; ++i) {
+    auto converted_val = convert_func(data_begin[i]);
     const std::string data_str = TensorElementToString(converted_val);
     tensor_value_ss << sep << data_str;
   }
@@ -226,6 +266,8 @@ std::string TensorValueUtils::ConvertTensorValue(const Tensor &tensor, DataType 
       return ge::ConvertTensorValueImpl<uint16_t>(tensor, sep, is_mid_skipped);
     case DT_FLOAT16:
       return ge::ConvertTensorValueFp16(tensor, sep, is_mid_skipped);
+    case DT_DOUBLE:
+      return ge::ConvertTensorValueImpl<double>(tensor, sep, is_mid_skipped);
     case DT_UINT32:
       return ge::ConvertTensorValueImpl<uint32_t>(tensor, sep, is_mid_skipped);
     case DT_UINT64:

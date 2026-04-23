@@ -15,6 +15,7 @@
 #include <string>
 #include <vector>
 #include "graph/attr_value.h"
+#include "graph/tensor.h"
 #include "ge_api_c_wrapper_utils.h"
 #include "graph/ge_attr_value.h"
 
@@ -152,6 +153,31 @@ ge::graphStatus GeApiWrapper_AttrValue_SetDataType(void *av, ge::DataType value)
 ge::graphStatus GeApiWrapper_AttrValue_GetDataType(const void *av, ge::DataType *value) {
   const auto *attr_value = reinterpret_cast<const ge::AttrValue *>(av);
   return GetScalar<ge::DataType>(attr_value, value);
+}
+
+EsCTensor *GeApiWrapper_AttrValue_GetTensor(const void *av) {
+  const auto *attr_value = reinterpret_cast<const ge::AttrValue *>(av);
+  if (attr_value == nullptr) {
+    return nullptr;
+  }
+  ge::Tensor tensor;
+  if (attr_value->GetAttrValue(tensor) != ge::GRAPH_SUCCESS) {
+    return nullptr;
+  }
+  auto *tensor_copy = new (std::nothrow) ge::Tensor(std::move(tensor));
+  if (tensor_copy == nullptr) {
+    return nullptr;
+  }
+  return static_cast<EsCTensor *>(static_cast<void *>(tensor_copy));
+}
+
+ge::graphStatus GeApiWrapper_AttrValue_SetTensor(void *av, const EsCTensor *tensor) {
+  auto *attr_value = reinterpret_cast<ge::AttrValue *>(av);
+  const auto *ts = static_cast<const ge::Tensor *>(static_cast<const void *>(tensor));
+  if ((attr_value == nullptr) || (ts == nullptr)) {
+    return ge::GRAPH_FAILED;
+  }
+  return attr_value->SetAttrValue(*ts);
 }
 
 // 列表值操作 - 直接使用模板函数

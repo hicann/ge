@@ -117,7 +117,7 @@ graph TB
 **功能**: 图节点操作接口类
 
 **主要方法**:
-- `get_attr(key)` - 获取节点属性
+- `get_attr(key)` - 获取节点属性（可返回 string / number / list / `Tensor` 等 Python 值）
 - `set_attr(key, value)` - 设置节点属性
 - `get_in_data_nodes_and_port_indexes(in_index)` - 获取输入节点和端口
 - `get_out_data_nodes_and_port_indexes(out_index)` - 获取输出节点和端口
@@ -454,7 +454,7 @@ GeApi.ge_finalize()
 **功能**: 基础融合 Pass 基类，直接操作图结构
 
 **主要方法**:
-- `run(graph, context)` - 执行 Pass，接收图对象和 PassContext，返回修改后的图
+- `run(graph, context)` - 执行 Pass，接收图对象和 `PassContext`，返回 `None` / `bool` / `int` 状态值
 
 **关系**:
 - `PatternFusionPass` 和 `DecomposePass` 的父类
@@ -469,13 +469,15 @@ GeApi.ge_finalize()
 **主要方法**:
 - `patterns()` - 定义匹配模式，返回模式列表
 - `meet_requirements(match_result)` - 判断匹配结果是否满足融合条件，默认返回 True
-- `replacement(match_result)` - 根据匹配结果生成替换子图
+- `replacement(match_result)` - 根据匹配结果生成替换子图，必须返回 `Graph`
 
 **可选构造参数**:
 - `matcher_config` - `PatternMatcherConfig`，用于控制常量值匹配、IR 属性匹配等 matcher 选项
 
 **设计约束**:
 - **不支持用户自定义 `run()` 方法**：`PatternFusionPass` 复用 C++ 的 `Run()` 实现来执行标准的 pattern-match-replacement 流程。Python 侧只需实现 `patterns()`、`meet_requirements()` 和 `replacement()` 三个 hook 即可。
+- **若子类覆写 `run()` 会在类定义阶段直接抛出 `TypeError`**：避免用户误以为 `run()` 会在 `PatternFusionPass` 路径中被调用。
+- **不支持在 `replacement()` 中返回 `None` 表示跳过**：若希望放弃当前匹配，需在 `meet_requirements()` 中返回 `False`。
 - **需要完全自定义 `run()` 逻辑的场景**：请直接使用 `FusionBasePass` 基类。
 
 **关系**:
