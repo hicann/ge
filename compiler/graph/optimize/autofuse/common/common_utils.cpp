@@ -194,11 +194,11 @@ bool IsStaticSchedResult(const ascir::FusedScheduledResult& fused_schedule_resul
 ge::Status ScalarValuePreProcess(const std::string& ori_value,
                                  const std::string& dtype,
                                  std::string& after_pre_pro_value) {
-  if (ori_value == "inf") {
+  if (ori_value == "inf" || ori_value == "-inf") {
     if ((dtype != "float") && (dtype != "half")) {
       return ge::FAILED;
     }
-    after_pre_pro_value = "AfInfinity<" + dtype + ">()";
+    after_pre_pro_value = ori_value == "inf" ? "AfInfinity<" + dtype + ">()" : "-AfInfinity<" + dtype + ">()";
   } else {
     after_pre_pro_value = ori_value;
   }
