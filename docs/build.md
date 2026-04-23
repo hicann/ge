@@ -64,10 +64,15 @@ cat /usr/local/Ascend/cann/<arch>-linux/ascend_ops_install.info
 - ccache/asan/autoconf/automake/libtool/gperf/lcov/libasan/patch/perl/graph-easy(其中graph-easy可选)
 
   ```bash
-  # Ubuntu/Debian操作系统安装命令示例如下，其他操作系统请自行安装
+  # Ubuntu操作系统安装命令示例如下
   # asan以gcc 7.5.0版本为例安装的是libasan4，其他版本请安装对应版本asan
   sudo apt-get update
   sudo apt-get install cmake ccache bash lcov libasan4 autoconf automake libtool gperf libgraph-easy-perl patch perl
+  
+  # Debian操作系统安装命令示例如下，其他操作系统请自行安装
+  # 以Debian13为例，asan安装的是libasan8，其他版本请安装对应版本asan；libtool需替换为libtoolize
+  sudo apt-get update
+  sudo apt-get install cmake ccache bash lcov libasan8 autoconf automake libtoolize gperf libgraph-easy-perl patch perl
   ```
 
 - 安装Python其他依赖
