@@ -480,7 +480,7 @@ void VectorFuncPartitioner::RefineEnableVFFlag(const ge::AscNodePtr &node, bool 
 
   // 5. 非ScalarBrc场景：如果算子的任意输入直连scalar且不支持scalar输入，就把enable_vf标记为false
   for (const auto &in_node : node->GetInDataNodes()) {
-    if (ge::ops::IsOps<ge::ascir_op::Scalar>(in_node)) {
+    if (ScheduleUtils::IsScalarLikeNode(in_node)) {
       enable_vf = false;
       GELOGD("Node [%s] has direct Scalar input, disable VF support.", node->GetNamePtr());
       break;
@@ -960,7 +960,8 @@ ge::Status VectorFuncPartitioner::BuildSubgraph(const ClusterPtr &cluster, ge::A
     auto out_anchor = iter.first;
     auto pre_node = out_anchor->GetOwnerNodeBarePtr();
     GE_ASSERT_NOTNULL(pre_node);
-    if (ScheduleUtils::IsConstantScalar(pre_node)) {
+    if (ScheduleUtils::IsConstantScalar(pre_node) || ge::ops::IsOps<ge::ascir_op::ScalarData>(pre_node)) {
+      // 常量Scalar或ScalarData(运行时标量输入)在子图内都保持为Scalar
       GE_ASSERT_SUCCESS(InsertScalarNode(vf_graph, out_anchor, iter.second, parent_in_idx));
     } else {
       GE_ASSERT_SUCCESS(InsertDataAndLoadNode(vf_graph, out_anchor, iter.second, parent_in_idx));

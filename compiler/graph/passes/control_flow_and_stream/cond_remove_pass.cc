@@ -23,7 +23,7 @@ const uint32_t kFalseIndex = 0;
 /// Extra 8 bytes store pointer of string
 /// Extra 8 bytes store length of string
 /// Extra 1 byte store '\0'
-const int32_t kStrHeadLen = sizeof(ge::StringHead) + 1;
+const size_t kStrHeadLen = sizeof(ge::StringHead) + 1U;
 const int32_t kInvalidRetVal = -1;
 }
 
@@ -170,33 +170,39 @@ int32_t CondRemovePass::GetCondIndex(const GeTensor *tensor) {
   GELOGD("Data type is %d, tensor_size is %zu.", type, tensor_size);
   switch (type) {
     case DT_STRING:
-      return static_cast<int32_t>(((tensor_size - kStrHeadLen) > 0) ? kTrueIndex : kFalseIndex);
+      return (tensor_size > kStrHeadLen) ? kTrueIndex : kFalseIndex;
     case DT_BOOL:
-      return static_cast<int32_t>(*reinterpret_cast<const bool *>(data_ptr));
+      return (tensor_size >= sizeof(bool)) ?
+        static_cast<int32_t>(*reinterpret_cast<const bool *>(data_ptr)) : kInvalidRetVal;
     case DT_FLOAT:
-      return static_cast<int32_t>(*reinterpret_cast<const float *>(data_ptr));
+      return (tensor_size >= sizeof(float)) ?
+        static_cast<int32_t>(*reinterpret_cast<const float *>(data_ptr)) : kInvalidRetVal;
     case DT_DOUBLE:
-      return static_cast<int32_t>(*reinterpret_cast<const double *>(data_ptr));
+      return (tensor_size >= sizeof(double)) ?
+        static_cast<int32_t>(*reinterpret_cast<const double *>(data_ptr)) : kInvalidRetVal;
     case DT_INT8:
     case DT_UINT8:
     case DT_HIFLOAT8:
     case DT_HIFLOAT4:
     case DT_FLOAT8_E5M2:
     case DT_FLOAT8_E4M3FN:
-      return static_cast<int32_t>(*data_ptr);
+      return (tensor_size >= sizeof(uint8_t)) ?
+        static_cast<int32_t>(*data_ptr) : kInvalidRetVal;
     case DT_FLOAT16:
     case DT_INT16:
     case DT_UINT16:
-      return static_cast<int32_t>(*reinterpret_cast<const int16_t *>(data_ptr));
+      return (tensor_size >= sizeof(int16_t)) ?
+        static_cast<int32_t>(*reinterpret_cast<const int16_t *>(data_ptr)) : kInvalidRetVal;
     case DT_INT32:
-      return static_cast<int32_t>(*reinterpret_cast<const int32_t *>(data_ptr));
     case DT_UINT32:
-      return *reinterpret_cast<const int32_t *>(data_ptr);
+      return (tensor_size >= sizeof(int32_t)) ?
+        static_cast<int32_t>(*reinterpret_cast<const int32_t *>(data_ptr)) : kInvalidRetVal;
     case DT_INT64:
     case DT_UINT64:
-      return static_cast<int32_t>(*reinterpret_cast<const int64_t *>(data_ptr));
+      return (tensor_size >= sizeof(int64_t)) ?
+        static_cast<int32_t>(*reinterpret_cast<const int64_t *>(data_ptr)) : kInvalidRetVal;
     default:
-      return static_cast<int32_t>(*data_ptr);
+      return (tensor_size >= sizeof(uint8_t)) ? static_cast<int32_t>(*data_ptr) : kInvalidRetVal;
   }
 }
 

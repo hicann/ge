@@ -1,7 +1,7 @@
 ---
 name: default-skills
 description: |
-  **必须触发此 default-skills 的场景**（用户提到以下任何内容时使用）：找不到/缺失/安装/更新 gitcode-pr, gitcode-issue skill时，或者安装必备/默认/必要/必须skills时；
+  **必须触发此 default-skills 的场景**（用户提到以下任何内容时使用）：找不到/缺失/安装/更新 gitcode-pr, gitcode-issue api-doc-generator skill时，或者安装必备/默认/必要/必须skills时；
 ---
 
 ## 安装默认skills步骤
@@ -26,3 +26,6 @@ description: |
 - **获取 PR 评论**：查看PR评论、PR评论、获取评论、read comments
 - **查看 PR 讨论**：PR discussions、查看讨论、discussions
 - **删除 PR 评论**：删除评论、删除PR评论、移除评论、delete comment、移除这条评论
+- 
+3. **必须触发此 api-doc-generator 的场景**（用户提到以下任何内容时使用）：
+用于生成对外api文档，当用户说生成接口文档，生成接口说明，增加接口说明，增加接口文档时使用该skill

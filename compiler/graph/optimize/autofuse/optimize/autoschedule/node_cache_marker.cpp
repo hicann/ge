@@ -108,7 +108,7 @@ ge::ExecuteCondition NodeCacheMarker::DoesNodeNeedCache(const ge::AscNodePtr &no
 
   std::vector<int64_t> in_axis;
   std::vector<ge::Expression> in_repeats;
-  if (ScheduleUtils::IsBroadcast(node) && ge::ops::IsOps<ge::ascir_op::Scalar>(node->GetInDataNodes().at(0))) {
+  if (ScheduleUtils::IsBroadcast(node) && ScheduleUtils::IsScalarLikeNode(node->GetInDataNodes().at(0))) {
     // Scalar+Broadcast
     GELOGD("Graph [%s], find scalar broadcast [%s]", graph_.GetName().c_str(), node->GetNamePtr());
     in_axis = node->outputs[0].attr.axis;

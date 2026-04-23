@@ -399,7 +399,7 @@ Status ReducePartitionCaseGenerator::PartitionByNode(ge::AscNodePtr &src_node, g
   if (ScheduleUtils::IsLoad(src_node)) {
     return PartitionLoad(src_node, dst_node, impl_graph);
   }
-  if (ge::ops::IsOps<ge::ascir_op::Scalar>(src_node)) {
+  if (ScheduleUtils::IsScalarLikeNode(src_node)) {
     return PartitionScalar(src_node, dst_node, impl_graph);
   };
 
@@ -490,8 +490,14 @@ Status ReducePartitionCaseGenerator::PartitionLoad(ge::AscNodePtr &src_node, ge:
 
 Status ReducePartitionCaseGenerator::PartitionScalar(ge::AscNodePtr &src_node, ge::AscNodePtr &dst_node,
                                                      ascir::ImplGraph &impl_graph) {
-  ge::ascir_op::Scalar scalar(("copy_from_" + src_node->GetName()).c_str());
-  auto scalar_node = impl_graph.AddNode(scalar);
+  ge::AscNodePtr scalar_node;
+  if (ge::ops::IsOps<ge::ascir_op::ScalarData>(src_node)) {
+    ge::ascir_op::ScalarData scalar_data(("copy_from_" + src_node->GetName()).c_str());
+    scalar_node = impl_graph.AddNode(scalar_data);
+  } else {
+    ge::ascir_op::Scalar scalar(("copy_from_" + src_node->GetName()).c_str());
+    scalar_node = impl_graph.AddNode(scalar);
+  }
   DoCopyAscNodeTensorAttr(src_node, scalar_node);
   for (const auto &out_anchor : src_node->GetAllOutDataAnchors()) {
     GE_CHK_BOOL_EXEC(out_anchor != nullptr,

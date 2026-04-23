@@ -25,6 +25,7 @@
 #include "ascgraph_info_complete.h"
 #include "runtime_stub.h"
 #include "optimize.h"
+#include "asc_graph_builder.h"
 
 using namespace std;
 using namespace ascir;
@@ -84,7 +85,7 @@ void SetupGraphAxes(ge::AscGraph &graph, const std::vector<ge::Symbol> &loops) {
 }
 }  // namespace
 
-class VfPartition : public testing::Test {
+class VfPartition : public ::testing::Test {
 protected:
   void SetUp() override {
     // setenv("DUMP_GE_GRAPH", "2", 1);
@@ -1046,6 +1047,60 @@ TEST_F(VfPartition, ScalarInputSupportVf) {
   auto maximum_node = sub_graphs[0].FindNode("maximum");
   ASSERT_NE(maximum_node, nullptr);
 
+  auto abs_node = sub_graphs[0].FindNode("abs");
+  ASSERT_NE(abs_node, nullptr);
+
+  auto abs1_node = sub_graphs[0].FindNode("abs1");
+  ASSERT_NE(abs1_node, nullptr);
+}
+
+TEST_F(VfPartition, ScalarDataInputDisableVf) {
+  ge::AscGraph graph("scalardata_disable_vf");
+  ge::ascir_op::Data data0("data0", graph);
+  data0.ir_attr.SetIndex(1);
+
+  ge::ascir_op::Load load("load0");
+  load.x = data0.y;
+  load.y.dtype = ge::DT_FLOAT16;
+
+  ge::ascir_op::Abs abs("abs");
+  abs.x = load.y;
+  abs.y.dtype = ge::DT_FLOAT16;
+
+  ge::ascir_op::Abs abs1("abs1");
+  abs1.x = abs.y;
+  abs1.y.dtype = ge::DT_FLOAT16;
+
+  ge::ascir_op::ScalarData scalar_data0("scalar_data0", graph);
+  scalar_data0.ir_attr.SetIndex(0);
+
+  ge::ascir_op::Maximum maximum("maximum");
+  maximum.x1 = abs1.y;
+  maximum.x2 = scalar_data0.y;
+  maximum.y.dtype = ge::DT_FLOAT16;
+
+  ge::ascir_op::Store store("store");
+  store.x = maximum.y;
+  store.y.dtype = ge::DT_FLOAT16;
+
+  ge::ascir_op::Output out("out");
+  out.x = store.y;
+  out.ir_attr.SetIndex(0);
+
+  SetupGraphAxes(graph, {ge::Symbol(10), ge::Symbol(2)});
+
+  ASSERT_EQ(AlignmentHandler::AlignVectorizedStrides(graph), ge::SUCCESS);
+  VectorFuncPartitioner partitioner(graph);
+  ASSERT_EQ(partitioner.Partition(), ge::SUCCESS);
+  std::vector<ge::AscGraph> sub_graphs;
+  EXPECT_EQ(graph.GetAllSubGraphs(sub_graphs), ge::SUCCESS);
+  ASSERT_EQ(sub_graphs.size(), 1UL);
+
+  auto scalardata_node = graph.FindNode("scalar_data0");
+  ASSERT_NE(scalardata_node, nullptr);
+
+  // ScalarData 作为运行时标量输入，Maximum 因 ScalarData 直连而禁用 VF，
+  // 分区时 ScalarData 走 InsertScalarNode 路径，与常量 Scalar 行为一致
   auto abs_node = sub_graphs[0].FindNode("abs");
   ASSERT_NE(abs_node, nullptr);
 

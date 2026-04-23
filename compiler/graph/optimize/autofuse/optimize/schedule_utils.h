@@ -81,8 +81,24 @@ class ScheduleUtils {
   static bool HasComputeType(const ascir::ImplGraph &impl_graph, const ge::ComputeType compute_type);
 
   static bool IsIOBuffer(const ge::NodePtr &node) {
-    return ge::ops::IsOps<ge::ascir_op::Scalar>(node) || ge::ops::IsOps<ge::ascir_op::Data>(node) ||
+    return ge::ops::IsOps<ge::ascir_op::Scalar>(node) || IsDataInput(node) ||
            ge::ops::IsOps<ge::ascir_op::Output>(node);
+  }
+
+  static bool IsDataInput(const ge::NodePtr &node) {
+    return ge::ops::IsOps<ge::ascir_op::Data>(node) || ge::ops::IsOps<ge::ascir_op::ScalarData>(node);
+  }
+
+  static bool IsDataInput(const ge::Node *const node) {
+    return ge::ops::IsOps<ge::ascir_op::Data>(node) || ge::ops::IsOps<ge::ascir_op::ScalarData>(node);
+  }
+
+  static bool IsScalarLikeNode(const ge::NodePtr &node) {
+    return ge::ops::IsOps<ge::ascir_op::Scalar>(node) || ge::ops::IsOps<ge::ascir_op::ScalarData>(node);
+  }
+
+  static bool IsScalarLikeNode(const ge::Node *const node) {
+    return ge::ops::IsOps<ge::ascir_op::Scalar>(node) || ge::ops::IsOps<ge::ascir_op::ScalarData>(node);
   }
 
   static bool IsConstantScalar(const ge::Node *const node) {

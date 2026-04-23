@@ -367,7 +367,7 @@ Status FusedGraphUnfolder::ReAssembleDataIrAttr(const ge::ComputeGraphPtr &fused
     GE_ASSERT_TRUE(ir_index >= 0, "Cannot find ir attr index from data node [%s].", node->GetNamePtr());
 
     for (const auto &sub_data : iter->second.GetAllNodes()) {
-      if (!ge::ops::IsOps<ge::ascir_op::Data>(sub_data)) {
+      if (!ScheduleUtils::IsDataInput(sub_data)) {
         continue;
       }
       int64_t sub_index = -1;

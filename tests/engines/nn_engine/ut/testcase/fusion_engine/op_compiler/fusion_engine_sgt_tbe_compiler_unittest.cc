@@ -209,7 +209,7 @@ bool WaitAllFinishedStubBothSucc(uint64_t tid, vector<te::FinComTask> &fin_task)
 }
 
 // The first time ub fused compilation is failed and the
-// second time single-node compilation still faield.
+// second time single-node compilation still failed.
 bool WaitAllFinishedSecondTimeStillFailed(uint64_t tid, vector<te::FinComTask> &fin_task)
 {
   static int count = 0;

@@ -69,8 +69,8 @@ ge::Status PassUtils::PruneGraph(ge::AscGraph &graph) {
       continue;
     }
 
-    // Data节点需要保留,否则会影响codegen签名
-    if (IsOps<Data>(node_ptr)) {
+    // Data/ScalarData节点需要保留,否则会影响codegen签名
+    if (IsOps<Data>(node_ptr) || IsOps<ScalarData>(node_ptr)) {
       auto out_control_anchor = node_ptr->GetOutControlAnchor();
       auto in_control_anchor = first_out_node->GetInControlAnchor();
       GE_ASSERT_GRAPH_SUCCESS(ge::GraphUtils::AddEdge(out_control_anchor, in_control_anchor));

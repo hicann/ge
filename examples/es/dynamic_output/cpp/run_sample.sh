@@ -34,7 +34,7 @@ EOF
 # 默认目标
 TARGET="sample"
 # 默认测试用例
-CASE_NAME="spilt"
+CASE_NAME="split"
 
 # ---------- 解析命令行参数 ----------
 while [[ $# -gt 0 ]]; do

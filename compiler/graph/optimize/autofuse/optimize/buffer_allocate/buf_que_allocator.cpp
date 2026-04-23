@@ -186,7 +186,7 @@ Status BufQueAllocator::AllocBufQue(::ascir::FusedScheduledResult &fused_schedul
 Status BufQueAllocator::AllocateForIoNodes(const ge::AscGraph &impl_graph) {
   for (const auto &node : impl_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
-    if (IsOps<Data>(node) || IsOps<Output>(node)) {
+    if (ScheduleUtils::IsDataInput(node) || IsOps<Output>(node)) {
       int64_t index = -1;
       GE_CHK_STATUS_RET(node->attr.ir_attr->GetAttrValue("index", index), "Get attr index failed, node = %s[%s]",
                         node->GetNamePtr(), node->GetTypePtr());
@@ -205,7 +205,7 @@ Status BufQueAllocator::AllocateForIoNodes(const ge::AscGraph &impl_graph) {
         index_to_tensor_id[index] = tensor_id;
         node_type_to_index_to_node_[node->GetType()][index] = node;
       }
-      if (IsOps<Data>(node)) {
+      if (ScheduleUtils::IsDataInput(node)) {
         SetGlobalMemInfo(node->outputs[0], tensor_id);
       } else {
         if (node->GetInDataNodesSize() != 0UL) {
@@ -248,8 +248,10 @@ Status BufQueAllocator::AllocateForIoNodes(::ascir::FusedScheduledResult &fused_
       }
     }
   }
-  for (const auto &index_and_node : node_type_to_index_to_node_[Data::Type]) {
-    fused_scheduled_result.input_nodes.emplace_back(index_and_node.second);
+  for (const auto &type : {Data::Type, ScalarData::Type}) {
+    for (const auto &index_and_node : node_type_to_index_to_node_[type]) {
+      fused_scheduled_result.input_nodes.emplace_back(index_and_node.second);
+    }
   }
   for (const auto &index_and_node : node_type_to_index_to_node_[Output::Type]) {
     fused_scheduled_result.output_nodes.emplace_back(index_and_node.second);
@@ -265,7 +267,7 @@ Status BufQueAllocator::SetOutputTensorAttr(const ge::AscGraph &impl_graph) cons
   for (const auto &node : impl_graph.GetAllNodes()) {
     GE_ASSERT_NOTNULL(node);
     // 前面在IO分配时已经分配过了
-    static std::set<std::string> allocated_types = {Data::Type, Workspace::Type, Store::Type, Output::Type};
+    static std::set<std::string> allocated_types = {Data::Type, ScalarData::Type, Workspace::Type, Store::Type, Output::Type};
     if (allocated_types.count(node->GetType()) > 0UL) {
       continue;
     }

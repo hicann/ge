@@ -562,8 +562,8 @@ __aicore__ inline void CastExtendImplOptimizeS64U8(__ubuf__ OutT *dstUb, __ubuf_
     static_assert(dim == 1 || dim == 2, "CastExtend dim exceeds maximum 2");
     const uint32_t mainBlockCount = innerLoopStride;
     uint32_t tailCount = count % innerLoopStride;
-    uint32_t repeatTimesUnRoll = count / (2 * GetVecLen());
-    uint32_t repeatTimes = (count % (2 * GetVecLen())) / innerLoopStride;
+    uint32_t repeatTimesUnRoll = count / (GetVecLen() / sizeof(InT));
+    uint32_t repeatTimes = count / (GetVecLen() / sizeof(InT));
     uint32_t tailBlockCtrl = (tailCount + count -1) / count;
     if constexpr (dim == 1) {
         func(dstUb, srcUb, count, repeatTimesUnRoll, innerLoopStride, tailCount, repeatTimes, tailBlockCtrl);

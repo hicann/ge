@@ -789,7 +789,7 @@ TEST_F(GraphExecutorMultiStreamSystemTest, Case06_TwoStream_WithStaticSubGraph_o
      （2）model转 exe graph
      （3）构造ModelV2Executor，构造输入输出Tensor，执行
  * 4. 预期结果
-     （1) graph conveter success
+     （1) graph converter success
  */
 TEST_F(GraphExecutorMultiStreamSystemTest, Case07_TwoStream_WithFileConstant_ok) {
   int64_t stream_num = 1;

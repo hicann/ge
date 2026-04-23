@@ -44,7 +44,8 @@ export const InstallSkillsPlugin: Plugin = async ({ $, directory }) => {
       // 记录安装前两个skill文件的状态
       const skillsToCheck = [
         { name: 'gitcode-pr', path: path.join(rootDir, ".claude", "skills", "gitcode-pr", "SKILL.md") },
-        { name: 'gitcode-issue', path: path.join(rootDir, ".claude", "skills", "gitcode-issue", "SKILL.md") }
+        { name: 'gitcode-issue', path: path.join(rootDir, ".claude", "skills", "gitcode-issue", "SKILL.md") },
+        { name: 'api-doc-generator', path: path.join(rootDir, ".claude", "skills", "api-doc-generator", "SKILL.md") }
       ]
 
       const beforeStates: SkillState[] = skillsToCheck.map(skill => ({

@@ -160,7 +160,7 @@ Status NddmaTemplate::TransposeToNddmaNode(const ge::AscNodePtr &transpose_node,
       continue;
     }
     // 更新非Scalar节点的相关属性、当前节点的axis、Vector axis应为转置后的axis、repeats对应需要重排、strides需要重新计算
-    if (!ge::ops::IsOps<ge::ascir_op::Scalar>(current_node)) {
+    if (!ScheduleUtils::IsScalarLikeNode(current_node)) {
       GE_ASSERT_SUCCESS(ReorderRepeats(transpose_node, current_node));
       GE_ASSERT_SUCCESS(ScheduleUtils::RecalculateStridesFromRepeats(current_node->outputs[0].attr.repeats,
                                                                   current_node->outputs[0].attr.strides));

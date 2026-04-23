@@ -34,7 +34,7 @@ ge::graphStatus FreeHbmMem(KernelContext *context);
 ge::graphStatus BatchAllocHbmMem(KernelContext *context);
 
 /*
- * inputs: adress,...
+ * inputs: address,...
  * outputs: none
  */
 ge::graphStatus BatchFreeHbmMem(KernelContext *context);

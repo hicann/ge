@@ -85,7 +85,7 @@ bool IsTailBroadcastNode(ge::AscNode &node) {
 
   const auto &in_nodes = node.GetInDataNodes();
   // scalar广播
-  if (ge::ops::IsOps<ge::ascir_op::Scalar>(in_nodes.at(0UL))) {
+  if (ScheduleUtils::IsScalarLikeNode(in_nodes.at(0UL))) {
     GELOGD("Input of Broadcast[%s] is Scalar[%s], support.", node.GetNamePtr(), in_nodes.at(0UL)->GetNamePtr());
     return true;
   }

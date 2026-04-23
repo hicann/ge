@@ -37,7 +37,7 @@ GE 提供对 PyTorch、TensorFlow 前端的友好接入能力，并同时支持 
 以下项目已集成 GE 作为推理或图模式后端：
 
 - **TorchAir**：将 GE 接入 PyTorch 图模式。[链接](https://gitcode.com/Ascend/torchair)
-- **TFA（TensorFlow Adapter）**：将 GE 作为 TensorFlow 后端（开源筹备中）
+- **TFA（TensorFlow Adapter）**：将 GE 作为 TensorFlow 后端。[链接](https://gitcode.com/cann/tensorflow)
 - **JittorInfer**：基于昇腾芯片的大模型 C++ 推理框架。[链接](https://github.com/Jittor/JittorInfer)
 - **Triton GE Backend**：GE 的 Triton Inference Server 后端。[链接](https://gitcode.com/cann/triton-inference-server-ge-backend)
 

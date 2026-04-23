@@ -34,7 +34,7 @@ Status PermutePass::Run(ComputeGraphPtr graph) {
     GE_IF_BOOL_EXEC(
       op_desc_ptr->GetType() == PERMUTE && GetLocalOmgContext().type == domi::TENSORFLOW,
       /// Input format 5D means NHWC in 4D way. So if input origin foramt is NCHW and
-      /// permute paramter list is [0,3,1,2], this permute can be optimised.
+      /// permute parameter list is [0,3,1,2], this permute can be optimised.
       GE_IF_BOOL_EXEC(
           GetLocalOmgContext().format != DOMI_TENSOR_ND,
         // Get input origin foramt

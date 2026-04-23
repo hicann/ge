@@ -11,7 +11,7 @@
 - [ ] **gitcode-pipeline** — 触发流水线任务、查询流水线状态、获取失败任务日志
 - [x] **ge-dt-runner** — 编译和执行 UT/ST 用例
 - [ ] **ge-tester** — 生成用例，在带有npu的环境上执行用例
-- [ ] **api-doc-generator** — 对外api生成文档
+- [x] **api-doc-generator** — 对外api生成文档
 - [x] **install-cann-toolkit** — 下载最新cann toolkit包，安装
 
 ## agent要支持的流程
@@ -27,7 +27,7 @@
 - 仅在ge仓使用的skills可直接提交到ge仓`.claude/skills`目录
 - 多个仓都时用的skills，源码在公共仓（当前是https://gitcode.com/cann-agent/skills），启动agent时会自动下载或者更新skills到`.claude/skills`目录
 
-> **注意**：`gitcode-issue`、`gitcode-pr` 等跨仓共享的 skills 不在 GE 仓的 `.claude/skills` 目录中维护。它们的源码存放在公共仓，在 ge 目录下启动 agent 后会自动下载并安装到本地 `.claude/skills` 目录。
+> **注意**：`gitcode-issue`、`gitcode-pr`、`api-doc-generator` 等跨仓共享的 skills 不在 GE 仓的 `.claude/skills` 目录中维护。它们的源码存放在公共仓，在 ge 目录下启动 agent 后会自动下载并安装到本地 `.claude/skills` 目录。
 
 ## Agent辅助流程
 ```mermaid
