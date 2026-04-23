@@ -58,6 +58,7 @@ target_link_options(intf_pub_base INTERFACE
     $<$<CONFIG:Release>:-s>
     $<$<STREQUAL:$<TARGET_PROPERTY:TYPE>,EXECUTABLE>:-pie>
     $<$<BOOL:${ENABLE_ASAN}>:-fsanitize=address -fsanitize=leak -fsanitize-recover=address>
+    $<$<AND:$<BOOL:${ENABLE_ASAN}>,$<BOOL:${MDC_COMPILE_RUNTIME}>>:-lunwind -shared-libasan>
     $<$<BOOL:${ENABLE_GCOV}>:-fprofile-arcs -ftest-coverage>
 )
 
