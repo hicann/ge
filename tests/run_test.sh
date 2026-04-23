@@ -634,6 +634,7 @@ build_acl() {
               -DCMAKE_INSTALL_PREFIX=${OUTPUT_PATH} \
               -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH} \
               -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
+              -DENABLE_TEST=True \
               -DENABLE_ACL_COV=${ENABLE_ACL_COV} \
               -DENABLE_ACL_UT=${ENABLE_ACL_UT} \
               -DENABLE_C_COV=${ENABLE_C_COV} \
