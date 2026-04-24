@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional
 
 from ge.graph import Graph
 
-from .base import PassContext, PatternMatcherConfig
+from .base import PassContext, PatternMatcherConfig, StatusLike
 from .bootstrap import get_registered_passes, load_pass_plugins
 from .pattern import ensure_pattern
 from .registry import get_registered_pass_by_descriptor_key
@@ -73,7 +73,7 @@ def destroy_pass_holder(instance_id: str) -> bool:
         return _PASS_HOLDERS.pop(instance_id, None) is not None
 
 
-def run_fusion_base_pass(instance_id: str, graph: Any, context: Optional[Any] = None) -> Any:
+def run_fusion_base_pass(instance_id: str, graph: Graph, context: Optional[PassContext] = None) -> StatusLike:
     holder = _get_holder(instance_id)
     if context is not None and not isinstance(context, PassContext):
         raise TypeError("context type error")
@@ -114,7 +114,7 @@ def call_meet_requirements(instance_id: str, match_result_handle: int) -> bool:
         match_result._invalidate()
 
 
-def call_replacement(instance_id: str, match_result_handle: int) -> Optional[int]:
+def call_replacement(instance_id: str, match_result_handle: int) -> int:
     holder = _get_holder(instance_id)
     match_result = borrow_match_result(match_result_handle)
     try:
@@ -122,10 +122,8 @@ def call_replacement(instance_id: str, match_result_handle: int) -> Optional[int
     finally:
         match_result._invalidate()
 
-    if replacement is None:
-        return None
     if not isinstance(replacement, Graph):
-        raise TypeError("PatternFusionPass.replacement must return ge.graph.Graph or None")
+        raise TypeError("PatternFusionPass.replacement must return ge.graph.Graph")
     return release_graph(replacement)
 
 

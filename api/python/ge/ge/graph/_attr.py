@@ -255,6 +255,8 @@ class _AttrValue:
             return self.get_int()
         elif self.value_type == AttrValueType.VT_DATA_TYPE:
             return self.get_data_type()
+        elif self.value_type == AttrValueType.VT_TENSOR:
+            return self.get_tensor()
         elif self.value_type == AttrValueType.VT_LIST_FLOAT:
             return self.get_list_float()
         elif self.value_type == AttrValueType.VT_LIST_BOOL:
@@ -274,6 +276,8 @@ class _AttrValue:
         Args:
             value: Value to set.
         """
+        from .tensor import Tensor
+
         if isinstance(value, str):
             self.set_string(value)
         elif isinstance(value, float):
@@ -282,6 +286,8 @@ class _AttrValue:
             self.set_bool(value)
         elif isinstance(value, DataType):
             self.set_data_type(value)
+        elif isinstance(value, Tensor):
+            self.set_tensor(value)
         elif isinstance(value, int):
             self.set_int(value)
         elif isinstance(value, list) and all(isinstance(v, float) for v in value):
@@ -461,6 +467,25 @@ class _AttrValue:
             raise RuntimeError("Failed to get DataType value")
         return DataType(value.value)
 
+    @_clear_cache_on_success
+    def set_tensor(self, value) -> bool:
+        """Set Tensor value."""
+        from .tensor import Tensor
+
+        if not isinstance(value, Tensor):
+            raise TypeError("Value must be a Tensor")
+        return graph_lib.GeApiWrapper_AttrValue_SetTensor(self._av_ptr, value._handle)
+
+    @_cache_with_type_check(AttrValueType.VT_TENSOR)
+    def get_tensor(self):
+        """Get Tensor value."""
+        from .tensor import Tensor
+
+        value = graph_lib.GeApiWrapper_AttrValue_GetTensor(self._av_ptr)
+        if not value:
+            raise RuntimeError("Failed to get Tensor value")
+        return Tensor._create_from(value)
+
     # List operations
     set_list_float = _create_list_setter(
         ctypes.c_float,
@@ -570,6 +595,8 @@ class _AttrValue:
                 return f"AttrValue(type: {type_name}, value: {self.get_int()})"
             elif value_type == AttrValueType.VT_DATA_TYPE:
                 return f"AttrValue(type: {type_name}, value: {self.get_data_type()})"
+            elif value_type == AttrValueType.VT_TENSOR:
+                return f"AttrValue(type: {type_name}, value: {self.get_tensor()})"
             elif value_type == AttrValueType.VT_LIST_FLOAT:
                 return f"AttrValue(type: {type_name}, value: {self.get_list_float()})"
             elif value_type == AttrValueType.VT_LIST_BOOL:

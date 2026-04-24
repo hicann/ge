@@ -199,6 +199,91 @@ V1 采用“两层绑定”策略，而不是把所有 Python 接口一次性迁
 
 无论是 embed 还是 extension，都天然会和 Python minor version 产生二进制耦合。`PYBIND11_MODULE` 只是 extension 模式的导出入口，不是版本敏感的根因。
 
+#### 4.4.1 `_ge_pass_native.so` 与 `libge_python_pass_bridge.so` 的装载位置差异
+
+虽然这两个产物都属于 Python pass bridge artifact set，但它们处在两条不同的装载路径上：
+
+- `_ge_pass_native.so`
+  - 作为 Python extension module，由 Python 解释器通过 `import ge.passes._ge_pass_native` 装载
+  - 它进入进程时，宿主解释器已经存在，因此在 Linux 上可以不把 `libpython.so` 显式写入 ELF `NEEDED`
+  - 这类 extension 通常在 import 时直接向当前解释器进程解析 `Py_*` / `PyObject_*` 符号
+
+- `libge_python_pass_bridge.so`
+  - 作为 GE 内部 loader 视角的 embed bridge，由 `ge_compiler` 侧显式 `dlopen`
+  - 它负责解释器初始化、解释器复用、GIL 管理、Python 模块导入和异常翻译
+  - 因为它不能假设进程里已经存在 Python 解释器，所以需要显式链接 `libpython.so`
+
+因此，“`_ge_pass_native.so` 在 ELF 中不显式依赖 `libpython.so`”只说明其装载上下文不同，并不说明它天然比 embed bridge 更容易跨版本复用。
+
+#### 4.4.2 ABI 兼容边界：是否显式 `NEEDED libpython` 与是否受 Python 版本约束不是一回事
+
+需要区分两个层面：
+
+- ELF 层是否显式出现 `NEEDED libpythonX.Y.so`
+- 该产物是否仍然绑定某个 CPython minor version 的 C API / ABI
+
+对当前方案而言：
+
+- `_ge_pass_native.so`
+  - 即使不在 ELF 中显式携带 `libpython`
+  - 仍然是基于当前 `HI_PYTHON` 对应的 `Python.h` / `pybind11` 头文件构建出来的 extension
+  - 只要没有采用 `Py_LIMITED_API` / `abi3` 路线，它默认仍绑定具体的 CPython minor version ABI
+
+- `libge_python_pass_bridge.so`
+  - 因为采用 embed 路径，这种绑定会更直接地体现为显式 `NEEDED libpythonX.Y.so`
+  - 其运行时约束也会更早、更明确地暴露出来
+
+所以：
+
+- `_ge_pass_native.so` 不显式 `NEEDED libpython`，不等于它能安全跨多个 Python minor version 复用
+- `libge_python_pass_bridge.so` 的限制更显式、更硬，但二者在 ABI 意义上都属于 Python 版本敏感产物
+- 如果未来需要扩大跨版本复用能力，方向应是评估 `abi3` / limited API，而不是仅凭“extension 不显式链接 `libpython`”来推断兼容性
+
+结论上，这两个产物仍应被视为同一套 Python-version-sensitive artifact set，一起进入预编译与 fallback 管理。
+
+#### 4.4.3 为什么 pass 基类继续保持纯 Python，而不是也迁到 native wrapper
+
+当前方案刻意把“用户可继承的 pass 合同层”和“生命周期敏感的 native helper 层”分开：
+
+- 用户可继承的 pass 合同层
+  - `FusionBasePass`
+  - `PatternFusionPass`
+  - `DecomposePass`
+  - 保持纯 Python
+
+- 生命周期敏感的 native helper 层
+  - `PassContext`
+  - `MatchResult`
+  - `Pattern`
+  - `PatternMatcherConfig`
+  - `release_graph()` 等 helper
+  - 收敛到 `_ge_pass_native.so`
+
+这样分层的原因是：
+
+- pass 基类本质上是用户 DSL / contract
+- 若把 `FusionBasePass` / `PatternFusionPass` 也迁到 `_ge_pass_native.so`
+  - 会把用户侧 API 一并拉入 Python ABI 敏感面
+  - 增加 import、发布和环境装配约束
+  - 降低 Python 层协议、错误提示、类型约束和注册逻辑的可演进性
+
+- 更重要的是，这样做并不能消除 `libge_python_pass_bridge.so`
+  - 因为“GE 从 C++ 主动调 Python pass”这条 embed 链仍然存在
+  - 也就是说，把 pass 基类 native 化只会扩大版本敏感面，而不会减少 bridge 的必要性
+
+因此，本方案的正式边界仍然是：
+
+- `libge_python_pass_bridge.so`
+  - 负责 C++ 视角的 embed bridge
+
+- `_ge_pass_native.so`
+  - 负责 Python 视角的 native-backed wrapper 与 helper
+
+- `ge.passes.base` / `registry` / `bootstrap` / `_bridge`
+  - 继续承载用户 DSL、注册协议和桥接协议的纯 Python 部分
+
+这也是为什么当前方案更推荐“基类纯 Python + helper native 化”，而不是“把 pass 基类也一起做成 wrapper 模块”。
+
 另外，当前构建里的 `pybind_options` 只是一个 CMake `INTERFACE` 目标，用于屏蔽 pybind 头文件带来的部分编译告警，不承载运行时逻辑，也不是 pybind 的独立依赖产物。
 
 ## 5. 运行链路
@@ -310,7 +395,8 @@ class DecomposeGroupedConv(DecomposePass):
 - `run` 返回 `StatusLike`
 - `meet_requirements` 返回 `bool`
 - `patterns` 返回 `list[Pattern | Graph]`
-- `replacement` 返回 `Graph | None`
+- `replacement` 返回 `Graph`
+- 若希望跳过当前匹配，必须在 `meet_requirements` 返回 `False`，不支持通过 `replacement` 返回 `None` 表达“放弃替换”
 
 其中 `StatusLike` 在 Python 层统一转换为 GE `Status`。
 
@@ -352,6 +438,9 @@ Python 侧统一提供：
 最直接的类型，C++ adapter 调用 Python 对象：
 
 - `run(graph, context)`
+- 返回值约束为 `None` / `bool` / `int` 三类状态值
+- 正式 pass 合同中，`context` 始终为 `PassContext`
+- 仅 `_bridge.py` 的 direct bridge/pytest 辅助入口允许传 `None`
 
 该类型优先打通，作为整条链路的最小闭环。
 
@@ -374,6 +463,7 @@ Python 侧统一提供：
 - 不要求 Python 用户类直接继承一个通过 `PYBIND11_MODULE` 暴露出来的 C++ `PatternFusionPass`
 - 用户继续继承纯 Python 的 `ge.passes.base.PatternFusionPass`
 - 复用 C++ 基类公共 `Run()` 流程的职责放在 `PythonPatternFusionPassAdapter` 上，而不是放在 Python 用户类上
+- Python 子类禁止覆写 `run()`；若误覆写，基类在类定义阶段直接抛出 `TypeError`，避免“实现了但永远不会被调用”的歧义
 
 推荐形态是：
 
@@ -930,11 +1020,13 @@ V1 的设计原则是“把生命周期和并发复杂度收敛在 bridge 内部
    - 调用 Python pass 实例的 `meet_requirements()` 方法
    - 返回是否满足条件
 
-3. **`call_replacement(instance_id: str, match_result_handle: int) -> object | None`**
+3. **`call_replacement(instance_id: str, match_result_handle: int) -> int`**
    - 由 C++ 侧 `PythonPatternFusionPassAdapter::Replacement()` 通过 bridge 回调
    - `match_result_handle` 同上
    - 调用 Python pass 实例的 `replacement()` 方法
-   - 返回 replacement Graph 对象或 `None`（表示失败）
+   - 要求 Python pass 必须返回 replacement Graph
+   - 若当前匹配不应继续，必须在 `meet_requirements()` 阶段返回 `False`
+   - `_bridge.py` 负责校验返回值类型，并将 Graph 所有权转交给 C++
 
 #### 8.13.2 所有权与生命周期约定
 

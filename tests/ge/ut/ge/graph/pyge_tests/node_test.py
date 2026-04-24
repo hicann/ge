@@ -25,7 +25,7 @@ import ctypes
 # 需要添加 ge 到 Python 路径，否则会报错
 try:
     from ge.es.graph_builder import GraphBuilder, TensorHolder
-    from ge.graph import Graph, Node
+    from ge.graph import Graph, Node, Tensor
     from ge.graph.types import DataType, Format
     from ge._capi.pyes_graph_builder_wrapper import is_generated_lib_available
 except ImportError as e:
@@ -165,6 +165,15 @@ class TestNode:
         # 获取属性
         retrieved_attr = node.get_attr("test_attr")
         assert retrieved_attr == "test_value"
+
+    def test_get_tensor_attr_for_const_value(self, graph):
+        """测试获取 Const.value Tensor 属性"""
+        const_node = next(node for node in graph.get_all_nodes() if node.type == "Const")
+        const_value = const_node.get_attr("value")
+        assert isinstance(const_value, Tensor)
+        assert const_value.data_type == DataType.DT_FLOAT
+        assert const_value.shape == []
+        assert const_value.data == 1.0
 
     def test_get_attr_invalid_key(self, node):
         """测试获取无效键属性"""

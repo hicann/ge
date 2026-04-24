@@ -53,6 +53,30 @@ def _write_pattern_pass_module(dir_path: Path, module_name: str, pass_name: str)
     return file_path
 
 
+def _write_invalid_replacement_pass_module(dir_path: Path, module_name: str, pass_name: str) -> Path:
+    file_path = dir_path / f"{module_name}.py"
+    file_path.write_text(textwrap.dedent(f"""
+        from ge.graph import Graph
+        from ge.passes import PassStage, PatternFusionPass, register_fusion_pass
+
+        @register_fusion_pass(name="{pass_name}", stage=PassStage.AFTER_INFER_SHAPE)
+        class {pass_name}(PatternFusionPass):
+            def patterns(self):
+                return [Graph("pattern_graph")]
+
+            def replacement(self, match_result):
+                return None
+    """).strip() + "\n", encoding="utf-8")
+    return file_path
+
+
+def test_pattern_fusion_pass_rejects_run_override():
+    with pytest.raises(TypeError, match="overrides run\\(\\)"):
+        class InvalidPatternPass(passes.PatternFusionPass):
+            def run(self, graph, context):
+                return True
+
+
 def _write_pattern_matcher_config_pass_module(dir_path: Path, module_name: str, pass_name: str) -> Path:
     file_path = dir_path / f"{module_name}.py"
     file_path.write_text(textwrap.dedent(f"""
@@ -192,5 +216,30 @@ def test_bridge_pattern_protocol_functions(tmp_path, monkeypatch):
 
     assert bridge.call_replacement(instance_id, 1) == 20260417
     assert created_match_results[-1].invalidated is True
+
+    assert bridge.destroy_pass_holder(instance_id) is True
+
+
+def test_bridge_pattern_replacement_rejects_none(tmp_path, monkeypatch):
+    module_path = _write_invalid_replacement_pass_module(
+        tmp_path, "invalid_replacement_pattern_pass", "InvalidReplacementPatternPass"
+    )
+    monkeypatch.setenv(bootstrap.ENV_PY_PASS_PATH, str(module_path))
+
+    descriptors = bridge.load_and_get_pass_descriptors()
+
+    assert len(descriptors) == 1
+    descriptor_key = descriptors[0]["descriptor_key"]
+    instance_id = "InvalidReplacementPatternPass#1"
+    assert bridge.create_pass_holder(instance_id, descriptor_key)
+
+    class FakeMatchResult:
+        def _invalidate(self):
+            return None
+
+    monkeypatch.setattr(bridge, "borrow_match_result", lambda _handle: FakeMatchResult())
+
+    with pytest.raises(TypeError, match="must return ge\\.graph\\.Graph"):
+        bridge.call_replacement(instance_id, 1)
 
     assert bridge.destroy_pass_holder(instance_id) is True

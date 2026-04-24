@@ -89,6 +89,7 @@ private:
   ge::AscNodePtr reduce_node;
   Status CreateVarAxis();
   Status CompleteNodeAttr(ge::AscNodePtr &node, bool before_reduce, const ge::AscTensorDataType& data_type);
+  Status CompleteNodeAttrBeforeReduce(ge::AscNodePtr &node);
   Status CompletePhaseGraph(ReduceType &phase2graph_reduce);
   Status PartitionByReduce(ascir::ImplGraph &impl_graph, ReduceType &phase2graph_reduce,
                            std::vector<ge::AscNodePtr> &node_order);

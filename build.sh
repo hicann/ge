@@ -120,6 +120,14 @@ parse_cmake_extra_args() {
     fi
 }
 
+append_build_component() {
+  if [ -z "${BUILD_COMPONENT}" ]; then
+    BUILD_COMPONENT="$1"
+  else
+    BUILD_COMPONENT+=";$1"
+  fi
+}
+
 # parse and set options
 checkopts() {
   VERBOSE=""
@@ -134,6 +142,7 @@ checkopts() {
   BUILD_METADEF="on"
   CMAKE_BUILD_TYPE="Release"
 
+  BUILD_COMPONENT=""
   BUILD_COMPONENT_COMPILER="ge-compiler"
   BUILD_COMPONENT_EXECUTOR="ge-executor"
   BUILD_COMPONENT_DFLOW="dflow-executor"
@@ -165,15 +174,18 @@ checkopts() {
       --ge_compiler)
         ENABLE_GE_COMPILER_PKG="on"
         MDC_BUILD_COMPONENT=${BUILD_COMPONENT_COMPILER}
+        append_build_component ${BUILD_COMPONENT_COMPILER}
         shift
         ;;
       --ge_executor)
         ENABLE_GE_EXECUTOR_PKG="on"
         MDC_BUILD_COMPONENT=${BUILD_COMPONENT_EXECUTOR}
+        append_build_component ${BUILD_COMPONENT_EXECUTOR}
         shift
         ;;
       --dflow)
         ENABLE_DFLOW_EXECUTOR_PKG="on"
+        append_build_component ${BUILD_COMPONENT_DFLOW}
         shift
         ;;
       --asan)
@@ -255,6 +267,7 @@ checkopts() {
     ENABLE_GE_COMPILER_PKG="on"
     ENABLE_GE_EXECUTOR_PKG="on"
     ENABLE_DFLOW_EXECUTOR_PKG="on"
+    BUILD_COMPONENT="${BUILD_COMPONENT_COMPILER};${BUILD_COMPONENT_EXECUTOR};${BUILD_COMPONENT_DFLOW}"
   fi
 
   set +e
@@ -342,25 +355,36 @@ mk_dir() {
 
 copy_pkg() {
   if [ "${ENABLE_BUILD_DEVICE}" = "ON" ]; then
-    mv ${BUILD_PATH}_CPack_Packages/makeself_staging/cann-*.run ${BUILD_OUT_PATH}/
+    mv ${BUILD_PATH}_CPack_Packages/cann-*.run ${BUILD_OUT_PATH}/
   elif [ -z "${CMAKE_TOOLCHAIN_FILE}" ]; then
     if [ -f "/etc/lsb-release" ]; then
       ubuntu_version=$(grep -E '^DISTRIB_RELEASE=' /etc/lsb-release | cut -d'=' -f2 | xargs)
       ubuntu_version="ubuntu${ubuntu_version}"
-      mv ${BUILD_PATH}_CPack_Packages/makeself_staging/cann-*.run ${BUILD_OUT_PATH}/cann-${MDC_BUILD_COMPONENT}-${VERSION_INFO}-${ubuntu_version}.x86_64.run
+      mv ${BUILD_PATH}_CPack_Packages/cann-*.run ${BUILD_OUT_PATH}/cann-${MDC_BUILD_COMPONENT}-${VERSION_INFO}-${ubuntu_version}.x86_64.run
     else
       echo "Error: operate enviroment is not ubuntu."
       exit 1
     fi
   else
-    mv ${BUILD_PATH}_CPack_Packages/makeself_staging/cann-*.run ${BUILD_OUT_PATH}/cann-${MDC_BUILD_COMPONENT}-${VERSION_INFO}-aoskernel.aarch64.run
+    mv ${BUILD_PATH}_CPack_Packages/cann-*.run ${BUILD_OUT_PATH}/cann-${MDC_BUILD_COMPONENT}-${VERSION_INFO}-aoskernel.aarch64.run
   fi
 }
 
-make_package() {
-  echo "---------------- Build AIR package:  $1 ----------------"
-  rm -rf ${BUILD_PATH}_CPack_Packages/makeself_staging/
-  cmake -D BUILD_OPEN_PROJECT=True \
+execute_command() {
+  local cmd=$1
+  eval ${cmd}
+  if [ 0 -ne $? ]; then
+    echo "Failed command: ${cmd}"
+    exit 1
+  fi
+}
+
+build_pkg() {
+  echo "Create build directory and build AIR";
+  mk_dir "${BUILD_PATH}"
+  echo "---------------- Build AIR package:  ${BUILD_COMPONENT} ----------------"
+  cd "${BUILD_PATH}"
+  execute_command "cmake -D BUILD_OPEN_PROJECT=True \
         -D ENABLE_OPEN_SRC=True \
         -D ENABLE_ASAN=${ENABLE_ASAN} \
         -D ENABLE_GCOV=${ENABLE_GCOV} \
@@ -372,7 +396,7 @@ make_package() {
         -D CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
         -D HI_PYTHON=${PYTHON_PATH} \
         -D FORCE_REBUILD_CANN_3RD=False \
-        -D BUILD_COMPONENT=$1 \
+        -D CANN_PACKAGES=\"${BUILD_COMPONENT}\" \
         -D CMAKE_FIND_DEBUG_MODE=OFF \
         -D ENABLE_SIGN=${ENABLE_SIGN} \
         -D CUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT} \
@@ -381,26 +405,10 @@ make_package() {
         -D USE_CXX11_ABI=${USE_CXX11_ABI} \
         -D LLVM_PATH=${LLVM_PATH} \
         -D CMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE} \
-        ..
-  make ${VERBOSE} $1 -j${THREAD_NUM} && cpack
+        .."
+  execute_command "make all ${VERBOSE} -j${THREAD_NUM}"
+  execute_command "cpack"
   copy_pkg
-}
-
-build_pkg() {
-  echo "Create build directory and build AIR";
-  mk_dir "${BUILD_PATH}"
-  cd "${BUILD_PATH}"
-  if [ "X$ENABLE_GE_COMPILER_PKG" == "Xon" ]; then
-    make_package "${BUILD_COMPONENT_COMPILER}" || { echo "Build Build ge-compiler run package failed."; exit 1; }
-  fi
-  if [ "X$ENABLE_GE_EXECUTOR_PKG" == "Xon" ]; then
-    make_package "${BUILD_COMPONENT_EXECUTOR}" || { echo "Build Build ge-executor run package failed."; exit 1; }
-  fi
-  if [ "X$ENABLE_DFLOW_EXECUTOR_PKG" == "Xon" ]; then
-    TOOLCHAIN_DIR=${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc \
-    make_package "${BUILD_COMPONENT_DFLOW}" || { echo "Build Build dflow-executor run package failed."; exit 1; }
-  fi
-
   ls -l ${BUILD_OUT_PATH}/cann-*.run && echo "AIR package success!"
 }
 

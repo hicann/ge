@@ -23,6 +23,7 @@ import os
 # 添加 ge 到 Python 路径
 try:
     from ge.graph._attr import _AttrValue as AttrValue
+    from ge.graph import Tensor
     from ge.graph.types import AttrValueType, DataType
 except ImportError as e:
     pytest.skip(f"无法导入 ge 模块: {e}", allow_module_level=True)
@@ -141,6 +142,16 @@ class TestAttrValue:
         test_data_type_list = [DataType.DT_FLOAT, DataType.DT_INT32, DataType.DT_BOOL, DataType.DT_STRING]
         attr_value.set_list_data_type(test_data_type_list)
         assert attr_value.get_list_data_type() == test_data_type_list
+
+    def test_tensor_operations(self, attr_value):
+        """测试 Tensor 类型 AttrValue 读写"""
+        tensor = Tensor([7], data_type=DataType.DT_INT32, shape=[])
+        attr_value.set_tensor(tensor)
+
+        retrieved_tensor = attr_value.get_tensor()
+        assert retrieved_tensor.data_type == DataType.DT_INT32
+        assert retrieved_tensor.shape == []
+        assert retrieved_tensor.data == 7
 
     def test_type_validation(self, attr_value):
         """测试类型验证"""

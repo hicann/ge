@@ -10,7 +10,7 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # ----------------------------------------------------------------------------
 
-"""Python PatternFusionPass sample for removing Add(x, 0)."""
+"""Python PatternFusionPass sample for strict Add(x, 0.0f) matcher-config matching."""
 
 from ge.es.graph_builder import GraphBuilder
 from ge.passes import (
@@ -26,7 +26,7 @@ from ge.passes import (
 
 @register_fusion_pass(name="PythonAddZeroPass", stage=PassStage.BEFORE_INFER_SHAPE)
 class PythonAddZeroPass(PatternFusionPass):
-    """Recognize Add(x, 0) and replace it with x."""
+    """Recognize Add(x, 0.0f) with strict const-value-match and replace it with x."""
 
     def __init__(self):
         super().__init__(

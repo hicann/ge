@@ -226,7 +226,7 @@ target_compile_definitions(rts_kernel_builder_host_static PRIVATE
 set(SWITCH_BY_INDEX_SOURCE ${CMAKE_CURRENT_LIST_DIR}/op/switch_by_index.cce)
 set(SWITCH_BY_INDEX_OBJ    ${CMAKE_CURRENT_BINARY_DIR}/switch_by_index.o)
 
-add_custom_target(switch_by_index
+add_custom_target(switch_by_index ALL
     DEPENDS ${SWITCH_BY_INDEX_OBJ}
     )
 

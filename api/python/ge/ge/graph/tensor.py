@@ -111,7 +111,7 @@ class Tensor:
         c_data_array = (c_type * len(normalized))(*normalized)
 
         dim_num = len(shape) if shape is not None else 0
-        c_dims_array = (ctypes.c_int64 * dim_num)(*shape) if shape is not None else None
+        c_dims_array = (ctypes.c_int64 * dim_num)(*shape) if dim_num > 0 else None
         self._handle = esb_lib.EsCreateEsCTensor(c_data_array, c_dims_array, dim_num, data_type, format)
 
     def _create_from_file(
@@ -122,7 +122,7 @@ class Tensor:
         shape: Optional[List[int]]):
         """Create Tensor from file."""
         dim_num = len(shape) if shape is not None else 0
-        c_dims_array = (ctypes.c_int64 * dim_num)(*shape) if shape is not None else None
+        c_dims_array = (ctypes.c_int64 * dim_num)(*shape) if dim_num > 0 else None
         file_path_bytes = file_path.encode("utf-8")
         self._handle = esb_lib.EsCreateEsCTensorFromFile(file_path_bytes, c_dims_array, dim_num, data_type, format)
 
@@ -366,4 +366,8 @@ def _parse_str_list(list_str: str) -> List['Number']:
 def unflatten_tensor_data(tensor_data: str, shape: List[int]) -> 'TensorLike':
     from ge.es.tensor_like import _unflatten
     tensor_data_list = _parse_str_list(tensor_data)
+    if len(shape) == 0:
+        if len(tensor_data_list) != 1:
+            raise ValueError(f"Scalar tensor should contain exactly one element, got {len(tensor_data_list)}")
+        return tensor_data_list[0]
     return _unflatten(tensor_data_list, shape)

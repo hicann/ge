@@ -253,6 +253,11 @@ class TestTensor:
         assert len(tensor_data[0][0]) == 3
 
     @staticmethod
+    def test_get_data_scalar_tensor():
+        tensor = Tensor([7], data_type=DataType.DT_INT32, shape=[])
+        assert tensor.get_data() == 7
+
+    @staticmethod
     def test_get_data_error(tensor):
         # 获取当前Data
         handle = tensor._handle

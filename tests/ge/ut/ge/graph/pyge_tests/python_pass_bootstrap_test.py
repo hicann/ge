@@ -43,10 +43,7 @@ def _write_python_pass_module(dir_path: Path, module_name: str, pass_name: str) 
             def run(self, graph, context):
                 assert isinstance(graph, Graph)
                 self.counter += 1
-                return {{
-                    "graph_name": graph.name,
-                    "counter": self.counter,
-                }}
+                return self.counter
     """).strip() + "\n", encoding="utf-8")
     return file_path
 
@@ -98,17 +95,10 @@ def test_bridge_create_run_destroy_holder_from_env(tmp_path, monkeypatch):
 
     first_graph = Graph("g1")
     second_graph = Graph("g2")
-    first = bridge.run_fusion_base_pass(first_instance_id, graph=first_graph, context=None)
-    first_again = bridge.run_fusion_base_pass(first_instance_id,
-                                              graph=first_graph,
-                                              context=None)
-    second = bridge.run_fusion_base_pass(second_instance_id, graph=second_graph, context=None)
-
-    assert first["counter"] == 1
-    assert first["graph_name"] == "g1"
-    assert first_again["counter"] == 2
-    assert first_again["graph_name"] == "g1"
-    assert second["counter"] == 1
-    assert second["graph_name"] == "g2"
+    assert bridge.run_fusion_base_pass(first_instance_id, graph=first_graph, context=None) == 1
+    assert bridge.run_fusion_base_pass(first_instance_id,
+                                       graph=first_graph,
+                                       context=None) == 2
+    assert bridge.run_fusion_base_pass(second_instance_id, graph=second_graph, context=None) == 1
     assert bridge.destroy_pass_holder(first_instance_id)
     assert bridge.destroy_pass_holder(second_instance_id)

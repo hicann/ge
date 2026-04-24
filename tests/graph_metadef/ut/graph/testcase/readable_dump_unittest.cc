@@ -312,11 +312,9 @@ TEST_F(UtestReadableDump, test_GenSimple) {
 }
 
 TEST_F(UtestReadableDump, test_OptionalInputsAndControlEdges) {
-  auto ge_tensor = std::make_shared<GeTensor>();
-  uint8_t data_buf[4096] = {0};
-  data_buf[0] = 7;
-  data_buf[10] = 8;
-  ge_tensor->SetData(data_buf, 4096);
+  auto ge_tensor = std::make_shared<GeTensor>(); // 默认数据类型为DT_FLOAT的标量
+  uint8_t data_buf[4] = {0};
+  ge_tensor->SetData(data_buf, 4);
 
   ut::GraphBuilder builder = ut::GraphBuilder("graph_OptionalInputsAndControlEdges");
   const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 0, 0);
@@ -361,11 +359,9 @@ TEST_F(UtestReadableDump, test_OptionalInputsAndControlEdges) {
 }
 
 TEST_F(UtestReadableDump, test_GenComplex) {
-  auto ge_tensor = std::make_shared<GeTensor>();
-  uint8_t data_buf[4096] = {0};
-  data_buf[0] = 7;
-  data_buf[10] = 8;
-  ge_tensor->SetData(data_buf, 4096);
+  auto ge_tensor = std::make_shared<GeTensor>(); // 默认数据类型为DT_FLOAT的标量
+  uint8_t data_buf[4] = {0};
+  ge_tensor->SetData(data_buf, 4);
 
   ut::GraphBuilder builder = ut::GraphBuilder("graph_complex");
   const auto &netoutput = builder.AddNode("netoutput", NETOUTPUT, 5, 0);

@@ -40,7 +40,7 @@ std::unique_ptr<Tensor> CreateTensor(const T *value, const int64_t *dims, int64_
   int64_t shape_size = 1;  // dims为空代表标量，默认值使用1
   std::vector<int64_t> dims_vec;
   Shape shape;
-  if (dims != nullptr) {
+  if ((dims != nullptr) && (dim_num > 0)) {
     dims_vec.assign(dims, dims + dim_num);
     shape = Shape{dims_vec};
     shape_size = shape.GetShapeSize();

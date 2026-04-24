@@ -54,7 +54,7 @@ else()
 endif()
 
 # 添加自定义目标
-add_custom_target(runtime_update_model_param_dav_2201
+add_custom_target(runtime_update_model_param_dav_2201 ALL
     COMMAND ${CCEC_PATH}/ccec -c -O3 -x cce -DTILING_KEY_VAR=0UL -Dupdate_model_param=UpdateModelParam
         --cce-disable-kernel-global-attr-check --cce-auto-sync -mllvm -api-deps-filter --cce-aicore-arch=dav-c220-vec
         --cce-aicore-only -mllvm -cce-aicore-stack-size=0x8000 -mllvm -cce-aicore-function-stack-size=0x8000

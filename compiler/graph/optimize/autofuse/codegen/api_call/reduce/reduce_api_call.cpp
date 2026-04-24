@@ -120,17 +120,11 @@ Status ReduceApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
       ss << "tmp_argmax_value_saved = " << tpipe.tmp_buf << "_" << std::to_string(tmp_lifetime_2_id)
          << ".template ReinterpretCast<" << dtype_name << ">();" << std::endl;
 
-      // 调用 ArgMaxExtend 获取本次迭代的局部索引
-      ss << "ArgMaxExtend<int64_t, " << dtype_name << ", " << reduce_pattern << ">("
-         << "tmp_argmax_index[0], "
+      // 调用 ArgMaxWithValueExtend 获取本次迭代的局部索引和最大值
+      ss << "ArgMaxWithValueExtend<int64_t, " << dtype_name << ", " << reduce_pattern << ">("
+         << "tmp_argmax_index[0], " << "tmp_argmax_value[0], "
          << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
          << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, false);" << std::endl;
-
-      // 调用 ReduceMax 获取本次迭代的局部最大值
-      ss << "ReduceMax<" << dtype_name << ", " << reduce_pattern << ", false>("
-         << "tmp_argmax_value[0], "
-         << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
-         << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, true);" << std::endl;
 
       ss << "AscendC::PipeBarrier<PIPE_V>();" << std::endl;
 
@@ -175,17 +169,11 @@ Status ReduceApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
       ss << "tmp_argmax1_value = " << tpipe.tmp_buf << "_" << std::to_string(tmp_lifetime_1_id)
          << ".template ReinterpretCast<" << dtype_name << ">();" << std::endl;
 
-      // 调用 ArgMaxExtend 获取本次迭代的局部索引
-      ss << "ArgMaxExtend<int64_t, " << dtype_name << ", " << reduce_pattern << ">("
-         << "tmp_argmax1_index[0], "
+      // 调用 ArgMaxWithValueExtend 获取本次迭代的局部索引和最大值
+      ss << "ArgMaxWithValueExtend<int64_t, " << dtype_name << ", " << reduce_pattern << ">("
+         << "tmp_argmax1_index[0], " << "tmp_argmax1_value[0], "
          << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
          << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, false);" << std::endl;
-
-      // 调用 ReduceMax 获取本次迭代的局部最大值
-      ss << "ReduceMax<" << dtype_name << ", " << reduce_pattern << ", false>("
-         << "tmp_argmax1_value[0], "
-         << x << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x) << "], "
-         << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, true);" << std::endl;
 
       ss << "AscendC::PipeBarrier<PIPE_V>();" << std::endl;
 
@@ -250,17 +238,11 @@ Status ReduceApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
       ss << "tmp_argmax2_value_saved = " << tpipe.tmp_buf << "_" << std::to_string(tmp_lifetime_2_id)
          << ".template ReinterpretCast<" << dtype_name << ">();" << std::endl;
 
-      // 调用 ArgMaxExtend 获取本次迭代的局部索引
-      ss << "ArgMaxExtend<int64_t, " << dtype_name << ", " << reduce_pattern << ">("
-         << "tmp_argmax2_index[0], "
+      // 调用 ArgMaxWithValueExtend 获取本次迭代的局部索引和最大值
+      ss << "ArgMaxWithValueExtend<int64_t, " << dtype_name << ", " << reduce_pattern << ">("
+         << "tmp_argmax2_index[0], " << "tmp_argmax2_value[0], "
          << x_value << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x_value) << "], "
          << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, false);" << std::endl;
-
-      // 调用 ReduceMax 获取本次迭代的局部最大值
-      ss << "ReduceMax<" << dtype_name << ", " << reduce_pattern << ", false>("
-         << "tmp_argmax2_value[0], "
-         << x_value << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x_value) << "], "
-         << tpipe.tmp_buf << "_" << std::to_string(id) << ", tmp_reduce_shape, true);" << std::endl;
 
       ss << "AscendC::PipeBarrier<PIPE_V>();" << std::endl;
 

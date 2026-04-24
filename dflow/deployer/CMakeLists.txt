@@ -467,7 +467,7 @@ target_link_libraries(npu_executor_main PRIVATE
         data_flow_base
         )
 
-if ("${BUILD_COMPONENT}" STREQUAL "dflow-executor")
+if ("dflow-executor" IN_LIST BUILD_COMPONENT)
         target_link_libraries(npu_executor_main PRIVATE
                 -Wl,--no-as-needed
                 acl_mdl
@@ -570,7 +570,7 @@ target_link_libraries(host_cpu_executor_main PRIVATE
         data_flow_base
         )
 
-if ("${BUILD_COMPONENT}" STREQUAL "dflow-executor")
+if ("dflow-executor" IN_LIST BUILD_COMPONENT)
         target_link_libraries(host_cpu_executor_main PRIVATE
                 -Wl,--no-as-needed
                 acl_rt

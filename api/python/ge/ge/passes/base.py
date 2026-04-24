@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 from enum import Enum
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Union
 
 from ._ge_pass_native import MatchResult
 from ._ge_pass_native import PassContext
@@ -23,6 +23,11 @@ from ._ge_pass_native import PatternMatcherConfigBuilder
 
 if TYPE_CHECKING:
     from ge.graph.graph import Graph
+    from .pattern import Pattern
+
+
+PatternOrGraph = Union["Pattern", "Graph"]
+StatusLike = Optional[Union[bool, int]]
 
 
 class PassStage(str, Enum):
@@ -38,27 +43,42 @@ class PassStage(str, Enum):
 class FusionBasePass:
     """Python FusionBasePass contract."""
 
-    def run(self, graph: Graph, context: PassContext) -> Any:
+    def run(self, graph: Graph, context: PassContext) -> StatusLike:
         raise NotImplementedError("FusionBasePass.run must be implemented")
 
 
 class PatternFusionPass(FusionBasePass):
-    """Python PatternFusionPass contract."""
+    """Python PatternFusionPass contract.
+
+    The execution engine calls ``patterns()``, ``meet_requirements()``, and
+    ``replacement()`` — **not** ``run()``.  Overriding ``run()`` in a
+    ``PatternFusionPass`` subclass has no effect; implement the three hook
+    methods above instead.
+    """
 
     def __init__(self, matcher_config: Optional[PatternMatcherConfig] = None) -> None:
         self._matcher_config = matcher_config
+
+    def __init_subclass__(cls, **kwargs) -> None:
+        super().__init_subclass__(**kwargs)
+        if "run" in cls.__dict__:
+            raise TypeError(
+                f"{cls.__name__} overrides run(), which is never invoked "
+                f"by the PatternFusionPass execution path. "
+                f"Implement patterns()/replacement() instead."
+            )
 
     @property
     def matcher_config(self) -> Optional[PatternMatcherConfig]:
         return self._matcher_config
 
-    def patterns(self) -> List[Any]:
+    def patterns(self) -> Iterable[PatternOrGraph]:
         raise NotImplementedError("PatternFusionPass.patterns must be implemented")
 
     def meet_requirements(self, match_result: MatchResult) -> bool:
         return True
 
-    def replacement(self, match_result: MatchResult) -> Any:
+    def replacement(self, match_result: MatchResult) -> "Graph":
         raise NotImplementedError("PatternFusionPass.replacement must be implemented")
 
 
