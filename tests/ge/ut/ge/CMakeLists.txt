@@ -446,6 +446,7 @@ set(MULTI_PARTS_TEST_FILES
     "common/ge_deleted_op_unittest.cc"
     "common/ops_kernel_builder_manager_unittest.cc"
     "common/ops_kernel_manager_unittest.cc"
+    "common/custom_ops_kernel_info_store_unittest.cc"
     "common/platform_info_util_unittest.cc"
     "common/dnnengines_unittest.cc"
     "common/engine_manage_unittest.cc"

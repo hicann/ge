@@ -47,6 +47,9 @@ class GE_FUNC_VISIBILITY OpsKernelManager {
   // get opsKernelInfoStore by name
   OpsKernelInfoStorePtr GetOpsKernelInfoStore(const std::string &name) const;
 
+  // refresh ops kernel info, used for dynamically registered ops after dlopen
+  Status RefreshOpsKernelInfo();
+
   // get all opsKernelInfoStore
   const std::map<std::string, OpsKernelInfoStorePtr> &GetAllOpsKernelInfoStores() const;
 

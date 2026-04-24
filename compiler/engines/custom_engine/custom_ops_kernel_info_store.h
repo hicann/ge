@@ -12,6 +12,7 @@
 #define CUSTOM_ENGINE_CUSTOM_OPS_KERNEL_INFO_STORE_H_
 
 #include <map>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -36,6 +37,12 @@ class GE_FUNC_VISIBILITY CustomOpsKernelInfoStore : public OpsKernelInfoStore {
    * @return status whether this operation success
    */
   Status Finalize() override;
+
+  /**
+   * Refresh op info from CustomOpFactory, used for dynamically registered ops after dlopen
+   * @return status whether this operation success
+   */
+  Status Refresh() override;
 
   /**
    * Check to see if an operator is fully supported or partially supported.
@@ -65,8 +72,10 @@ class GE_FUNC_VISIBILITY CustomOpsKernelInfoStore : public OpsKernelInfoStore {
   CustomOpsKernelInfoStore &operator=(CustomOpsKernelInfoStore &&ops_kernel_store) = delete;
 
  private:
-  // store op name and OpInfo key-value pair
+  Status UpdateOpInfoMap();
+
   std::map<std::string, ge::OpInfo> op_info_map_;
+  mutable std::mutex mu_;
 };
 }  // namespace custom
 }  // namespace ge

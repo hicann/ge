@@ -182,4 +182,10 @@ TEST_F(UtestOpsKernelManager, GetGraphOptimizerByEngine) {
     instance.graph_optimizers_["opt"] = std::make_shared<SubGraphOptimizer>();
     EXPECT_NO_THROW(instance.GetGraphOptimizerByEngine(engine_name, graph_optimizer));
 }
+
+TEST_F(UtestOpsKernelManager, RefreshOpsKernelInfo) {
+    auto &instance = OpsKernelManager::GetInstance();
+    instance.ops_kernel_store_["kernel"] = std::make_shared<SubOpsKernelInfoStore>();
+    EXPECT_EQ(instance.RefreshOpsKernelInfo(), SUCCESS);
+}
 } // namespace ge
