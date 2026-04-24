@@ -118,28 +118,9 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 @.claude/skills/default-skills/SKILL.md
 
 ### 代码检视检查项（Code Review Checklist）
+> **触发词**：检视代码，检视pr
 
-> **触发词**：代码检视、代码审查、code review、review 代码、检视代码、PR 审查、CR、代码走查、检视意见、review comment
-
-进行代码检视时，**必须**逐项检查以下内容，并输出检查结果：
-
-- [ ] **编码红线**：读取 [编码红线.md](docs/guidelines/编码红线.md)，逐条核对修改是否违反红线规则
-- [ ] **关键特性设计原则和软件约束**：根据修改涉及的目录，加载上表"关键特性设计原则和软件约束"中对应的架构文档，确认修改不违反已有设计约束（如内存模型、流分配规则、图拆分策略等），也不要一次性加载全部文档，避免占用过多context，而是匹配触发词、涉及目录或场景中任意一条即加载。。
-- [ ] **跨特性交叉影响（cross-feature-check）**：检查本次修改是否影响其他特性的行为。**必须**先读取 [cross_feature_check.md](docs/guidelines/cross_feature_check.md)，按其指引逐场景分析。具体步骤：
-  1. 识别本次修改涉及的所有模块/目录
-  2. 在"关键特性设计原则和软件约束"文档表中查找与这些模块相关的**其他特性文档**
-  3. 按 cross_feature_check.md 中的场景表逐项评估适用性和影响
-  4. 输出评估结论，如有风险需明确标注
-
-**示例输出格式**：
-```
-### 代码检视检查结果
-- [x] 编码红线：已检查，无违反
-- [x] 关键特性设计原则：已加载 memory-constraints.md，修改符合内存复用约束
-- [x] 跨特性交叉影响：已按 cross_feature_check.md 逐场景分析，
-      修改涉及 compiler/graph/build/memory/，已检查 stream_allocator.md，
-      确认本次内存分配改动不影响流分配逻辑
-```
+**使用技能**: `ge-code-reviewer`
 
 ### 设计文档检查项（Design Document Checklist）
 

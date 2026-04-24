@@ -73,9 +73,9 @@ source ${ASCEND_INSTALL_PATH}/bin/setenv.bash
 - 输出较多
 ```bash
 BASEPATH=$PWD
-ASCEND_3RD_LIB_PATH="$BASEPATH/output/third_party"  # 必须使用绝对路径
+CANN_3RD_LIB_PATH="$BASEPATH/output/third_party"  # 必须使用绝对路径
 core_num=$(($(nproc) - 1))
-bash build_third_party.sh ${ASCEND_3RD_LIB_PATH} ${core_num} "LLT"
+bash build_third_party.sh ${CANN_3RD_LIB_PATH} ${core_num} "LLT"
 ```
 
 ### 步骤 4: 执行 CMake
@@ -95,7 +95,7 @@ cmake -DCMAKE_BUILD_TYPE=GCOV \
       -DENABLE_TEST=True \
       -DENABLE_PKG=ON \
       -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH} \
-      -DASCEND_3RD_LIB_PATH=${ASCEND_3RD_LIB_PATH} \
+      -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
       -S ${BASEPATH} \
       -B ${BASEPATH}/cmake-build-gcov
 ```
@@ -121,7 +121,7 @@ cmake -DCMAKE_BUILD_TYPE=GCOV \
 
 - `BASEPATH`: 项目根目录（.claude 所在路径）
 - `ASCEND_INSTALL_PATH`: toolkit 安装路径
-- `ASCEND_3RD_LIB_PATH`: 第三方依赖库路径
+- `CANN_3RD_LIB_PATH`: 第三方依赖库路径
 
 ### 全量运行单元测试 (UT)
 - 设置 `Bash` 命令超时时间为70分钟
