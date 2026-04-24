@@ -1317,7 +1317,7 @@ TEST_F(UtestHybridRt2Executor, RunCtxInitWithDeviceFileConstants_TensorNotShared
  * 3. 输出的地址不为空指针
  */
 TEST_F(UtestHybridRt2Executor, ExecuteWithStreamAsync_execute_model_online_dynamic_shape) {
-  LoadDefaultSpaceRegistry();
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
   GertRuntimeStub runtime_stub;
 
   auto graph = ShareGraph::AicoreGraph();

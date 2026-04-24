@@ -1644,7 +1644,7 @@ TEST_F(GraphExecutorWithKernelUnitTest, TopologicalExecuteFailThenSuccess) {
       .Build();
   std::vector<Tensor *> outputs{output_holder.GetTensor()};
 
-  auto i0 = TensorFaker().Placement(kOnDeviceHbm).DataType(ge::DT_INT32).Value<int32_t>({1}).Build();
+  auto i0 = TensorFaker().Placement(kOnHost).DataType(ge::DT_FLOAT).Value<float>({1.0f}).Build();
   auto i1 = TensorFaker().Placement(kOnDeviceHbm).DataType(ge::DT_FLOAT).Shape({2, 3, 4, 6}).Build();
   auto inputs0 = std::vector<Tensor *>({i0.GetTensor(), i1.GetTensor()});
 
