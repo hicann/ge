@@ -414,6 +414,17 @@ ge::Status VectorFuncPartitioner::InitClusterAttr(const std::unique_ptr<ge::asci
       cluster->meta_data_.enable_vf = false;
       return ge::SUCCESS;
     }
+    if (node->GetType() == ge::ascir_op::Broadcast::Type) {
+      const auto &axis = output->attr.axis;
+      const auto &vectorized_axis = output->attr.vectorized_axis;
+      size_t axis_id = UINT64_MAX;
+      for (size_t i = 0; i < vectorized_axis.size(); i++) {
+        auto it2 = std::find(axis.begin(), axis.end(), vectorized_axis[i]);
+        GE_ASSERT_TRUE(it2 != axis.end(), "vectorized_axis not in axis");
+        axis_id = std::distance(axis.begin(), it2);
+        cluster->meta_data_.vectorized_repeats.push_back(output->attr.repeats[axis_id]);
+      }
+    }
   }
 
   cluster->meta_data_.ins_num = codegen_impl->GetInstNum();
@@ -701,6 +712,11 @@ bool VectorFuncPartitioner::CanMergeClusters(const Cluster &from, const Cluster 
   // 最大指令数30条
   if (from_meta.ins_num + to_meta.ins_num > kMaxInsNum) {
     GELOGD("the total ins num after fusion exceeds the threshold, skip to fuse [%zu] to [%zu].", from.Id(), to.Id());
+    return false;
+  }
+  // 两个向量化轴对应的repeats都不空时，尾轴大小必须相同
+  if (!from_meta.vectorized_repeats.empty() && !to_meta.vectorized_repeats.empty() && 
+      (from_meta.vectorized_repeats != to_meta.vectorized_repeats)) {
     return false;
   }
 

@@ -364,8 +364,12 @@ void SaveApiLoopAxisParams(VectorizedAxisLoopMergeStatus &merge_info, ApiLoopPar
   } else if (merge_info.merge_repeats.size() > 1) {
     int64_t total_len = merge_info.merge_repeats.size();
     param.cal_count = merge_info.merge_repeats[total_len - 1];
-    param.input_second_to_last_stride = merge_info.inputs_strides[0][total_len - 2];
-    param.output_second_to_last_stride = merge_info.outputs_strides[0][total_len - 2];
+    if (merge_info.inputs_strides.size() > 0) {
+      param.input_second_to_last_stride = merge_info.inputs_strides[0][total_len - 2];
+    }
+    if (merge_info.outputs_strides.size() > 0) {
+      param.output_second_to_last_stride = merge_info.outputs_strides[0][total_len - 2];  
+    }
 
     param.outer_repeats.assign(merge_info.merge_repeats_str.begin(), merge_info.merge_repeats_str.end() - 1);
     for (size_t i = 0; i < param.inputs_strides.size(); i++) {
