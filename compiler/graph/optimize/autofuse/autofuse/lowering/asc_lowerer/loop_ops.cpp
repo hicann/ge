@@ -214,6 +214,11 @@ CseVar LoadOp::Compute(const LoopCtx &ctx) const {
       axis_repeats[i] = Symbol(1);
     }
   }
+  for (size_t i = 0U; i < axis_repeats.size(); ++i) {
+    if (SymbolicUtils::StaticCheckEq(axis_repeats[i], Symbol(1)) == TriBool::kTrue) {
+      axis_strides[i] = Symbol(0);
+    }
+  }
 
   std::string buffer = BufferName(src_);
   Ops()->SetBufferSrc(buffer, src_);
