@@ -22,7 +22,7 @@
 #include "utils/api_call_factory.h"
 #include "elewise/leaky_relu_api_call.h"
 #include "elewise/unary_api_call.h"
-#include "elewise/binary_api_call_v2.h"
+#include "binary_api_call_v2.h"
 
 using namespace ge;
 using namespace ge::ops;

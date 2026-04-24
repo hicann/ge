@@ -20,7 +20,7 @@
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common_utils.h"
 #include "utils/api_call_factory.h"
-#include "elewise/clip_by_value_api_call_v2.h"
+#include "clip_by_value_api_call_v2.h"
 
 using namespace std;
 using namespace ascir;
