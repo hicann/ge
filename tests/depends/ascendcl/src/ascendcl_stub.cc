@@ -612,6 +612,14 @@ aclError AclRuntimeStub::aclrtMallocHost(void **hostPtr, size_t size) {
   return aclrtMalloc(hostPtr, size, ACL_MEM_MALLOC_HUGE_FIRST);
 }
 
+aclError AclRuntimeStub::aclrtMallocWithCfg(void **devPtr, size_t size, aclrtMemMallocPolicy policy, aclrtMallocConfig *cfg) {
+  return aclrtMalloc(devPtr, size, policy);
+}
+
+aclError AclRuntimeStub::aclrtMallocHostWithCfg(void **hostPtr, size_t size, aclrtMallocConfig *cfg) {
+  return aclrtMallocHost(hostPtr, size);
+}
+
 aclError AclRuntimeStub::aclrtMemset(void *devPtr, size_t maxCount, int32_t value, size_t count) {
   if (maxCount == 321) {
     return ACL_ERROR_RT_INTERNAL_ERROR;
@@ -1481,6 +1489,14 @@ aclError aclrtMalloc(void **devPtr, size_t size, aclrtMemMallocPolicy policy) {
 
 aclError aclrtMallocHost(void **hostPtr, size_t size) {
   return ge::AclRuntimeStub::GetInstance()->aclrtMallocHost(hostPtr, size);
+}
+
+aclError aclrtMallocWithCfg(void **devPtr, size_t size, aclrtMemMallocPolicy policy, aclrtMallocConfig *cfg) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtMallocWithCfg(devPtr, size, policy, cfg);
+}
+
+aclError aclrtMallocHostWithCfg(void **hostPtr, size_t size, aclrtMallocConfig *cfg) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtMallocHostWithCfg(hostPtr, size, cfg);
 }
 
 aclError aclrtMemset(void *devPtr, size_t maxCount, int32_t value, size_t count) {

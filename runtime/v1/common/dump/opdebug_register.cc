@@ -10,6 +10,7 @@
 
 #include "common/dump/opdebug_register.h"
 #include "graph/def_types.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 namespace ge {
 namespace {
@@ -84,8 +85,7 @@ Status OpdebugRegister::CreateOpDebugTaskByStream(aclrtStream const stream, cons
   auto &op_debug_task = op_debug_tasks_[stream];
   op_debug_task = MakeUnique<OpDebugTask>();
   GE_CHECK_NOTNULL(op_debug_task);
-  GE_CHK_RT_RET(aclrtMallocForTaskScheduler(&op_debug_task->op_debug_addr_,
-      kOpDebugMemorySize, ACL_MEM_MALLOC_HUGE_FIRST, nullptr));
+  GE_CHK_RT_RET(ge::AclrtMallocForTaskScheduler(&op_debug_task->op_debug_addr_, kOpDebugMemorySize, ACL_MEM_MALLOC_HUGE_FIRST, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(rtDebugRegisterForStream(stream, op_debug_mode, op_debug_task->op_debug_addr_,
                                          &op_debug_task->debug_stream_id_, &op_debug_task->debug_task_id_));
   return SUCCESS;
@@ -149,7 +149,7 @@ Status OpdebugRegister::MallocMemForOpdebug() {
 
   const uint64_t debug_addrs_tmp = PtrToValue(op_debug_addr_);
   // For data dump, aicpu needs the pointer to pointer that save the real debug address.
-  rt_ret = aclrtMalloc(&p2p_debug_addr_, kDebugP2pSize, ACL_MEM_TYPE_HIGH_BAND_WIDTH);
+  rt_ret = ge::AclrtMalloc(&p2p_debug_addr_, kDebugP2pSize, RT_MEMORY_HBM, GE_MODULE_NAME_U16);
   if (rt_ret != ACL_SUCCESS) {
     GELOGE(RT_FAILED, "[Call][aclrtMalloc]Failed, ret %d", rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "Call aclrtMalloc failed, ret %d", rt_ret);

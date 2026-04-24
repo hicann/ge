@@ -53,6 +53,7 @@
 #include "runtime/rts/rts_stream.h"
 #include "runtime/rts/rts_kernel.h"
 #include "acl/acl_rt.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 namespace gert {
 namespace {
@@ -94,7 +95,7 @@ ge::Status CopyH2D(const void *host_addr, const ge::GeTensorDesc &td, const size
       (builtin_tensor_data_size == 0UL) || (builtin_tensor_data_size >= static_cast<uint64_t>(tensor_size));
   GE_ASSERT_TRUE(is_tensor_size_valid, "Built in tensor data size %zu < calc_tensor_size %zu, do nothing.",
                  builtin_tensor_data_size, tensor_size);
-  GE_ASSERT_RT_OK(aclrtMalloc(&device_addr, tensor_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_ASSERT_RT_OK(ge::AclrtMalloc(&device_addr, tensor_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   allocated_mem.emplace_back(device_addr);
   dump_addrs.emplace_back(reinterpret_cast<uintptr_t>(device_addr));
   GE_ASSERT_RT_OK(aclrtMemcpy(device_addr, tensor_size, host_addr, tensor_size, ACL_MEMCPY_HOST_TO_DEVICE));
@@ -1156,7 +1157,7 @@ ge::Status ExecutorDumper::FillDumpInfoByKernel(const Node &node) {
 ge::Status ExecutorDumper::UpdateStepNum() {
   void *step_id = nullptr;
   if (global_step_addr_ == 0U) {
-    GE_CHK_RT_RET(aclrtMalloc(&step_id, sizeof(uint64_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&step_id, sizeof(uint64_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     global_step_addr_ = static_cast<uintptr_t>(ge::PtrToValue(step_id));
   }
   step_id = ge::ValueToPtr(static_cast<uint64_t>(global_step_addr_));

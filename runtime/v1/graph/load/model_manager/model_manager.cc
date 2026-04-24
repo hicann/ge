@@ -44,6 +44,7 @@
 #include "graph/load/model_manager/kernel/kernel_register_info_builder.h"
 #include "common/kernel_handles_manager/aicpu_kernel_handles_manager.h"
 #include "acl/acl_rt.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 namespace ge {
 namespace {
@@ -475,7 +476,7 @@ Status ModelManager::KernelLaunchEx(const aicpu::FWKAdapter::FWKOperateType op_t
 
       const uint64_t kernel_size = sizeof(uint64_t) * (v_aicpu_kernel.size());
       void *aicpu_kernel_addr = nullptr;
-      GE_CHK_RT_RET(aclrtMalloc(&aicpu_kernel_addr, kernel_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+      GE_CHK_RT_RET(ge::AclrtMalloc(&aicpu_kernel_addr, kernel_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
       allocated_mem.emplace_back(aicpu_kernel_addr);
 
       GE_CHK_RT_RET(aclrtMemcpy(aicpu_kernel_addr, kernel_size, v_aicpu_kernel.data(), kernel_size,
@@ -488,7 +489,7 @@ Status ModelManager::KernelLaunchEx(const aicpu::FWKAdapter::FWKOperateType op_t
 
   void *device_base = nullptr;
   constexpr size_t op_kernel_size = sizeof(STR_FWK_OP_KERNEL);
-  GE_CHK_RT_RET(aclrtMalloc(&device_base, op_kernel_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&device_base, op_kernel_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   allocated_mem.emplace_back(device_base);
   GE_CHK_RT_RET(aclrtMemcpy(device_base, op_kernel_size, &param_base, op_kernel_size, ACL_MEMCPY_HOST_TO_DEVICE));
 
@@ -2028,9 +2029,9 @@ Status ModelManager::LaunchKernelCustAicpuSo(const std::string &kernel_name) {
     void *d_aicpu_data = nullptr;
     void *d_so_name = nullptr;
 
-    GE_CHK_RT_RET(aclrtMalloc(&d_aicpu_data, aicpu_data_length, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&d_aicpu_data, aicpu_data_length, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     allocated_mem.push_back(d_aicpu_data);
-    GE_CHK_RT_RET(aclrtMalloc(&d_so_name, so_name.size(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&d_so_name, so_name.size(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     allocated_mem.push_back(d_so_name);
     GE_CHK_RT(aclrtMemcpy(d_aicpu_data, aicpu_data_length, aicpu_data, aicpu_data_length, ACL_MEMCPY_HOST_TO_DEVICE));
     GE_CHK_RT(aclrtMemcpy(d_so_name, so_name.size(), so_name.c_str(), so_name.size(), ACL_MEMCPY_HOST_TO_DEVICE));
@@ -2050,7 +2051,7 @@ Status ModelManager::LaunchKernelCustAicpuSo(const std::string &kernel_name) {
 
   void *args = nullptr;
   const size_t args_size = sizeof(CustAicpuSoBuf) * v_cust_so.size();
-  GE_CHK_RT_RET(aclrtMalloc(&args, args_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args, args_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   allocated_mem.push_back(args);
   GE_CHK_RT(aclrtMemcpy(args, args_size, v_cust_so.data(), args_size, ACL_MEMCPY_HOST_TO_DEVICE));
 
@@ -2241,10 +2242,10 @@ Status ModelManager::LaunchKernelBuiltinAicpuSo(const std::string &kernel_name, 
     const size_t aicpu_data_len = it_so.second.kernel_ptr->GetBinDataSize();
     const std::string &so_name = it_so.first;
     if (kernel_name == kLoadBuiltinSo) {
-      GE_CHK_RT_RET(aclrtMalloc(&d_aicpu_data, aicpu_data_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+      GE_CHK_RT_RET(ge::AclrtMalloc(&d_aicpu_data, aicpu_data_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
       GE_CHK_RT_RET(aclrtMemcpy(d_aicpu_data, aicpu_data_len, aicpu_data, aicpu_data_len, ACL_MEMCPY_HOST_TO_DEVICE));
     }
-    GE_CHK_RT_RET(aclrtMalloc(&d_so_name, so_name.size(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&d_so_name, so_name.size(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     GE_CHK_RT_RET(aclrtMemcpy(d_so_name, so_name.size(), so_name.c_str(), so_name.size(), ACL_MEMCPY_HOST_TO_DEVICE));
 
     LoadSoFromBufArgs aicpu_so_buf;
@@ -2460,24 +2461,24 @@ Status ModelManager::LaunchKernelCheckAicpuOp(const std::vector<std::string> &ai
 
   // malloc sysOpInfoList in SysOpCheckInfo
   void *d_req_op_list = nullptr;
-  GE_CHK_RT_RET(aclrtMalloc(&d_req_op_list, op_nums * sizeof(SysOpInfo), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&d_req_op_list, op_nums * sizeof(SysOpInfo), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   allocated_mem.push_back(d_req_op_list);
 
   // malloc sysOpInfoList in SysOpCheckResp
   void *d_res_op_list = nullptr;
-  GE_CHK_RT_RET(aclrtMalloc(&d_res_op_list, op_nums * sizeof(SysOpInfo), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&d_res_op_list, op_nums * sizeof(SysOpInfo), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   allocated_mem.push_back(d_res_op_list);
 
   // malloc returnCodeList in SysOpCheckResp
   void *d_ret_code_list = nullptr;
-  GE_CHK_RT_RET(aclrtMalloc(&d_ret_code_list, op_nums * sizeof(ReturnCode), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&d_ret_code_list, op_nums * sizeof(ReturnCode), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   allocated_mem.push_back(d_ret_code_list);
 
   for (const auto &op_type : aicpu_optype_list) {
     SysOpInfo op_info;
     // malloc op_type name in SysOpInfo
     void *d_op_type_name = nullptr;
-    GE_CHK_RT_RET(aclrtMalloc(&d_op_type_name, op_type.length(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&d_op_type_name, op_type.length(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
 
     allocated_mem.push_back(d_op_type_name);
     GE_CHK_RT(aclrtMemcpy(d_op_type_name, op_type.length(), op_type.c_str(),
@@ -2492,7 +2493,7 @@ Status ModelManager::LaunchKernelCheckAicpuOp(const std::vector<std::string> &ai
     SysOpInfo op_info;
     // malloc op_type name in SysOpInfo
     void *d_op_type_name = nullptr;
-    GE_CHK_RT_RET(aclrtMalloc(&d_op_type_name, op_type.length(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&d_op_type_name, op_type.length(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
 
     allocated_mem.push_back(d_op_type_name);
     GE_CHK_RT(aclrtMemcpy(d_op_type_name, op_type.size(), op_type.c_str(),

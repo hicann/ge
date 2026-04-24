@@ -27,6 +27,7 @@
 #include "common/checker.h"
 #include "common/dump/kernel_tracing_utils.h"
 #include "runtime/kernel.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 #include "common/dump/dump_utils.h"
 #include "common/error_tracking/error_tracking.h"
 #include "runtime/rts/rts_kernel.h"
@@ -974,7 +975,7 @@ Status AiCpuBaseTask::SetExtInfoAndType(const std::string &kernel_ext_info, cons
     }
   }
 
-  GE_CHK_RT_RET(aclrtMalloc(&ext_info_addr_dev_, aicpu_ext_handle_->GetExtInfoLen(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&ext_info_addr_dev_, aicpu_ext_handle_->GetExtInfoLen(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(ext_info_addr_dev_, aicpu_ext_handle_->GetExtInfoLen(),
       aicpu_ext_handle_->GetExtInfo(), aicpu_ext_handle_->GetExtInfoLen(),
       ACL_MEMCPY_HOST_TO_DEVICE));
@@ -1326,7 +1327,7 @@ Status AiCpuBaseTask::ReadResultSummaryAndPrepareMemory() {
     const size_t shape_data_size = result_summary.shape_data_size;
     void *shape_buffer = nullptr;
     if (shape_data_size > 0U) {
-      GE_CHK_RT_RET(aclrtMalloc(&shape_buffer, shape_data_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+      GE_CHK_RT_RET(ge::AclrtMalloc(&shape_buffer, shape_data_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     }
     out_shape_hbm_.emplace_back(shape_buffer);
   }
@@ -1429,17 +1430,17 @@ Status AiCpuTask::InitForSummaryAndCopy() {
   output_summary_.resize(num_outputs_);
   for (size_t i = 0U; i < num_outputs_; ++i) {
     constexpr size_t result_summary_size = sizeof(aicpu::FWKAdapter::ResultSummary);
-    GE_CHK_RT_RET(aclrtMalloc(&output_summary_[i], result_summary_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&output_summary_[i], result_summary_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   }
   output_summary_host_.resize(num_outputs_);
 
   const size_t copy_input_buf_len = num_outputs_ * kCopyNum * sizeof(uint64_t);
 
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_release_flag_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_data_size_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_src_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_dst_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
-  GE_CHK_RT_RET(aclrtMalloc(&copy_task_args_buf_, sizeof(STR_FWK_OP_KERNEL), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_release_flag_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_data_size_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_src_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_dst_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_task_args_buf_, sizeof(STR_FWK_OP_KERNEL), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
 
   std::vector<uint64_t> copy_io_addr;
   copy_io_addr.emplace_back(PtrToValue(copy_input_release_flag_dev_));
@@ -1449,7 +1450,7 @@ Status AiCpuTask::InitForSummaryAndCopy() {
 
   const uint64_t copy_io_addr_size = sizeof(uint64_t) * static_cast<uint64_t>(copy_io_addr.size());
 
-  GE_CHK_RT_RET(aclrtMalloc(&copy_ioaddr_dev_, copy_io_addr_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_ioaddr_dev_, copy_io_addr_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
 
   GE_CHK_RT_RET(aclrtMemcpy(copy_ioaddr_dev_, copy_io_addr_size,
       copy_io_addr.data(), copy_io_addr_size, ACL_MEMCPY_HOST_TO_DEVICE));
@@ -1464,8 +1465,7 @@ Status AiCpuTask::SetMemCopyTask(const domi::KernelExDef &kernel_def) {
         static_cast<uint64_t>(sizeof(STR_FWK_OP_KERNEL)), kernel_def.args_size());
     return ACL_ERROR_GE_PARAM_INVALID;
   }
-  GE_CHK_RT_RET(aclrtMalloc(&copy_workspace_buf_, static_cast<uint64_t>(kernel_def.task_info_size()),
-      ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_workspace_buf_, static_cast<uint64_t>(kernel_def.task_info_size()), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHECK_GE(kernel_def.task_info().size(), static_cast<size_t>(kernel_def.task_info_size()));
   GE_CHK_RT_RET(aclrtMemcpy(copy_workspace_buf_, static_cast<uint64_t>(kernel_def.task_info_size()),
       kernel_def.task_info().data(), static_cast<uint64_t>(kernel_def.task_info_size()),
@@ -1559,16 +1559,16 @@ Status AiCpuCCTask::InitForSummaryAndCopy() {
   output_summary_.resize(num_outputs_);
   for (size_t i = 0U; i < num_outputs_; ++i) {
     constexpr size_t result_summary_size = sizeof(aicpu::FWKAdapter::ResultSummary);
-    GE_CHK_RT_RET(aclrtMalloc(&output_summary_[i], result_summary_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&output_summary_[i], result_summary_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   }
   output_summary_host_.resize(num_outputs_);
 
   const size_t copy_input_buf_len = num_outputs_ * kCopyNum * sizeof(uint64_t);
 
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_release_flag_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_data_size_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_src_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
-  GE_CHK_RT_RET(aclrtMalloc(&copy_input_dst_dev_, copy_input_buf_len, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_release_flag_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_data_size_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_src_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&copy_input_dst_dev_, copy_input_buf_len, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
 
   copy_io_addr_.emplace_back(PtrToValue(copy_input_release_flag_dev_));
   copy_io_addr_.emplace_back(PtrToValue(copy_input_data_size_dev_));

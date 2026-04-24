@@ -32,6 +32,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "graph/utils/attr_utils.h"
 #include "common/checker.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 #include "base/err_msg.h"
 
 namespace {
@@ -289,7 +290,7 @@ void DumpOp::SetDumpInfo(const DumpProperties &dump_properties, const OpDescPtr 
 
 Status DumpOp::ProtoMallocAndMemcpy(const size_t proto_size, const std::string &proto_msg) {
   GE_FREE_RT_LOG(proto_dev_mem_);
-  aclError rt_ret = aclrtMalloc(&proto_dev_mem_, proto_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH);
+  aclError rt_ret = ge::AclrtMalloc(&proto_dev_mem_, proto_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16);
   if (rt_ret != ACL_SUCCESS) {
     GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][aclrtMalloc]Failed, ret: %d", rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "Call aclrtMalloc failed, ret: %d", rt_ret);
@@ -304,7 +305,7 @@ Status DumpOp::ProtoMallocAndMemcpy(const size_t proto_size, const std::string &
   }
 
   GE_FREE_RT_LOG(proto_size_dev_mem_);
-  rt_ret = aclrtMalloc(&proto_size_dev_mem_, sizeof(size_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH);
+  rt_ret = ge::AclrtMalloc(&proto_size_dev_mem_, sizeof(size_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16);
   if (rt_ret != ACL_SUCCESS) {
     GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][aclrtMalloc]Failed, ret: %d", rt_ret);
     REPORT_INNER_ERR_MSG("E19999", "Call aclrtMalloc failed, ret: %d", rt_ret);
@@ -351,7 +352,7 @@ Status DumpOp::ExecutorDumpOp(bool need_device_args) {
   rtArgsEx_t args_for_launch = {};
   if (need_device_args) {
     GE_ASSERT_TRUE(launch_kernel_args_dev_mem_ == nullptr);
-    GE_CHK_RT_RET(aclrtMalloc(&launch_kernel_args_dev_mem_, args_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&launch_kernel_args_dev_mem_, args_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     GE_CHK_RT_RET(aclrtMemcpy(launch_kernel_args_dev_mem_, args_size, &args[0U], args_size, ACL_MEMCPY_HOST_TO_DEVICE));
     args_for_launch.args = launch_kernel_args_dev_mem_;
     args_for_launch.isNoNeedH2DCopy = 1U;
@@ -584,7 +585,7 @@ Status DumpOp::GenerateFftsDump(const DumpProperties &dump_properties, void *&lo
     GE_FREE_RT_LOG(proto_dev_mem_);
   }
 
-  GE_CHK_RT_RET(aclrtMalloc(&proto_dev_mem_, proto_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&proto_dev_mem_, proto_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(proto_dev_mem_, proto_size, proto_msg.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE));
 
   load_dump_info = proto_dev_mem_;
@@ -625,7 +626,7 @@ Status DumpOp::BuildUnLoadFftsDumpInfo(void *&unload_dump_info, uint32_t &unload
     GE_FREE_RT_LOG(dev_mem_unload_);
   }
 
-  GE_CHK_RT_RET(aclrtMalloc(&dev_mem_unload_, proto_size, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&dev_mem_unload_, proto_size, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "unload dump information.", proto_size);
   GE_CHK_RT_RET(aclrtMemcpy(dev_mem_unload_, proto_size, proto_str.c_str(), proto_size, ACL_MEMCPY_HOST_TO_DEVICE));
 

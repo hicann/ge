@@ -17,6 +17,7 @@
 #include "graph/manager/mem_manager.h"
 #include "graph/utils/tensor_utils_ex.h"
 #include "runtime/rt.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 #include "hybrid/common/npu_memory_allocator.h"
 #include "acl/acl_rt.h"
 
@@ -192,7 +193,7 @@ void *NpuMemoryAllocator::AllocateCachingMem(const std::size_t size, void *const
   if (caching_allocator_ != nullptr) {
     buffer = caching_allocator_->Malloc(size, PtrToPtr<void, uint8_t>(try_reuse_addr), device_id_);
   } else {
-    const aclError rt_ret = aclrtMalloc(&buffer, size, ACL_MEM_TYPE_HIGH_BAND_WIDTH); // check buffer null after call
+    const aclError rt_ret = ge::AclrtMalloc(&buffer, size, RT_MEMORY_HBM, GE_MODULE_NAME_U16); // check buffer null after call
     if (rt_ret != ACL_SUCCESS) {
       GELOGE(rt_ret, "[Call][aclrtMalloc] failed, size:%lu, ret = 0x%X", size, rt_ret);
       return nullptr;
