@@ -13,9 +13,11 @@
 
 #include <set>
 #include <utility>
+#include <sstream>
 #include "ascir.h"
 #include "ascgen_log.h"
 #include "ascir_ops_utils.h"
+#include "codegen_api_param/codegen_api_param.h"
 
 namespace codegen {
 // 前向声明，避免循环依赖
@@ -86,7 +88,15 @@ class ApiCall {
 
   // Public Member Function
   virtual Status Init(const ascir::NodeView &node);
-  virtual Status ParseAttr(const ascir::NodeView &node);
+  virtual Status ParseAttr(const ascir::NodeView &node) {
+    (void) node;
+    return ge::SUCCESS;
+  }
+  virtual Status BuildApiParam(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis,
+                               const std::vector<std::reference_wrapper<const Tensor>> &input,
+                               const std::vector<std::reference_wrapper<const Tensor>> &output) const;
+  virtual Status GenerateApiCallString(std::string &result) const;
+  virtual Status GenDimensionParam(const CodegenApiParamPtr api_param, std::stringstream &ss) const;
   virtual Status PreProcess(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis,
                             const std::vector<std::reference_wrapper<const Tensor>> &outputs,
                             std::string &result) const;
@@ -105,8 +115,7 @@ class ApiCall {
   }
   virtual bool AreContiguousBufsPreferred() const {
     return false;
-  };
-
+  }
   bool FreeInputs(const TPipe &tpipe, std::stringstream &ss) const;
   bool FreeUnusedOutputs(const TPipe &tpipe, std::stringstream &ss) const;
   bool SyncOutputs(const TPipe &tpipe, std::stringstream &ss) const;
@@ -132,6 +141,9 @@ class ApiCall {
   ge::ExecuteCondition exec_condition;
   ApiCallContext api_call_context = {ApiScene::kDefault, ComputeStage::kDefault};
   std::unordered_map<int64_t, int64_t> tmp_buf_id;
+  ge::AscNodePtr node;
+  std::string graph_name;
+  std::string node_name;
 
  private:
   bool WaitInputVector(const TPipe &tpipe, const ApiTensor *in, const Tensor &t, std::stringstream &ss) const;

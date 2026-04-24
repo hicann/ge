@@ -46,6 +46,9 @@ void CreateNddmaCall(const TPipe &tpipe, const Tensor &input, const Tensor &outp
                      const DataCopyParams &data_copy_param, const ascir::SizeExpr &offset, std::stringstream &ss);
 void SetNddmaParams(const TPipe &tpipe, const DataCopyParams &data_copy_param, NddmaParams &nddma_param,
                     const int64_t &tensor_id, std::stringstream &ss);
+void SetLoopModeParams(const TPipe &tpipe, const DataCopyParams &data_copy_param, LoopModeParams &loop_mode_param,
+                       bool copy_in);
+std::string GetPaddingMode(const TPipe &tpipe, const Tensor &ub_tensor, const DataCopyParams &data_copy_param);
 
 }  // namespace codegen
 

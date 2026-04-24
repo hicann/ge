@@ -17,6 +17,7 @@
 #include "graph/ascendc_ir/utils/asc_tensor_utils.h"
 #include "common/checker.h"
 #include "api_call/utils/api_call_factory.h"
+#include "codegen_api_param/codegen_api_param.h"
 
 namespace codegen {
 using namespace std;
@@ -24,20 +25,21 @@ using namespace ge::ops;
 using namespace ge::ascir_op;
 using namespace ascgen_utils;
 
-Status BinaryApiCallV2::Generate(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis,
-                              const std::vector<std::reference_wrapper<const Tensor>> &inputs,
-                              const std::vector<std::reference_wrapper<const Tensor>> &outputs,
-                              std::string &result) const {
+Status BinaryApiCallV2::BuildApiParam(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis,
+                                      const std::vector<std::reference_wrapper<const Tensor>> &inputs,
+                                      const std::vector<std::reference_wrapper<const Tensor>> &outputs) const {
   auto x1 = inputs[0].get();
   auto x2 = inputs[1].get();
   auto y = outputs[0].get();
-  stringstream ss;
-  ss << this->api_name_ << "("
-     << y << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, y) << "], "
-     << x1 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x1) << "], "
-     << x2 << "[" << tpipe.tiler.TensorVectorizedOffset(current_axis, x2) << "], "
-     << x1.actual_size << ");" << std::endl;
-  result = ss.str();
+  auto api_param = ge::ComGraphMakeShared<CodegenApiParam>();
+  GE_ASSERT_NOTNULL(api_param);
+  api_param->api_name = api_name_;
+  api_param->input_params.emplace_back(x1.Str(), true, tpipe.tiler.TensorVectorizedOffset(current_axis, x1));
+  api_param->input_params.emplace_back(x2.Str(), true, tpipe.tiler.TensorVectorizedOffset(current_axis, x2));
+  api_param->output_params.emplace_back(y.Str(), true, tpipe.tiler.TensorVectorizedOffset(current_axis, y));
+  api_param->cal_count = x1.actual_size.Str();
+
+  GE_CHK_STATUS_RET(CodegenApiParam::Register(this->node, api_param));
   return ge::SUCCESS;
 }
 
