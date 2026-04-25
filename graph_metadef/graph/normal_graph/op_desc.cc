@@ -21,6 +21,7 @@
 #include "graph/utils/transformer_utils.h"
 #include "graph/utils/node_utils.h"
 #include "common/util/mem_utils.h"
+#include "graph/debug/ge_util.h"
 #include "graph/debug/ge_attr_define.h"
 #include "register/op_tiling/op_tiling_constants.h"
 #include "common/util/trace_manager/trace_manager.h"
