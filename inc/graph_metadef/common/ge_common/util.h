@@ -357,6 +357,28 @@ GE_FUNC_VISIBILITY void ParseOutputReuseInputMemIndexes(const std::string &reuse
 GE_FUNC_VISIBILITY Status CheckIoReuseAddrPairs(const std::vector<std::pair<size_t, size_t>> &io_same_addr_pairs,
                                                 const AddrGetter& get_input_addr, size_t input_num,
                                                 const AddrGetter& get_output_addr, size_t output_num);
+
+/**
+ * @ingroup domi_common
+ * @brief brief Print options map with line length limitation
+ * @param [in] options The options map to print
+ * @param [in] prefix Log prefix (e.g., "GE option")
+ * @param [in] max_line_length max_line_length Maximum line length, values longer than this will be split
+ */
+void PrintOptionsWithLengthLimit(const std::map<std::string, std::string> &options,
+                                 const std::string &prefix,
+                                 const size_t max_line_length = 800U);
+
+/**
+ * @ingroup domi_common
+ * @brief brief Print options map with line length limitation
+ * @param [in] options The options map to print
+ * @param [in] prefix Log prefix (e.g., "GE option")
+ * @param [in] max_line_length max_line_length Maximum line length, values longer than this will be split
+ */
+void PrintOptionsWithLengthLimit(const std::map<AscendString, AscendString> &options,
+                                 const std::string &prefix,
+                                 const size_t max_line_length = 800U);
 }  // namespace ge
 
 #endif  // AIR_INC_COMMON_UTIL_H_

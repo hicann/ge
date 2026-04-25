@@ -645,6 +645,27 @@ TEST_F(UtestGeApiV2, GEInitialize_test) {
   GeSession session2(options2);
 }
 
+TEST_F(UtestGeApiV2, ge_initialize_info_and_diff_options_warn_log) {
+  std::map<AscendString, AscendString> options1;
+  options1.insert({AscendString(ge::ir_option::OUT_NODES), AscendString("Placeholder:0;Placeholder_1:1")});
+  gert::GertRuntimeStub runtime_stub;
+  runtime_stub.GetSlogStub().NoConsoleOut().SetLevelInfo();
+  runtime_stub.GetSlogStub().Clear();
+  ASSERT_EQ(GEInitializeV2(options1), SUCCESS);
+  EXPECT_GE(runtime_stub.GetSlogStub().FindInfoLogRegex("GEInit option"), 0);
+
+  std::map<AscendString, AscendString> options2 = options1;
+  options2.insert({AscendString(ge::OPTION_EXEC_GRAPH_EXEC_TIMEOUT), AscendString("600000")});
+  runtime_stub.GetSlogStub().Clear();
+  dlog_setlevel(GE_MODULE_NAME, 2, 0);
+  ASSERT_EQ(GEInitializeV2(options2), SUCCESS);
+  auto warn_idx = runtime_stub.GetSlogStub().FindWarnLogEndsWith(
+      "GEInitialize called with different options than previous initialization.");
+  EXPECT_GE(warn_idx, 0);
+  dlog_setlevel(GE_MODULE_NAME, 3, 0);
+  EXPECT_EQ(GEFinalizeV2(), SUCCESS);
+}
+
 TEST_F(UtestGeApiV2, GEInitialize_load_custom_pass_failed) {
   std::map<AscendString, AscendString> options;
   std::string path = __FILE__;

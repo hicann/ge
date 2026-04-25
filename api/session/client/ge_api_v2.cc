@@ -29,6 +29,7 @@
 #include "framework/memory/memory_api.h"
 #include "framework/common/helper/model_helper.h"
 #include "graph/detail/model_serialize_imp.h"
+#include "framework/common/util.h"
 #include "graph/ge_context.h"
 #include "graph/manager/util/rt_context_util.h"
 #include "graph/manager/graph_external_weight_manager.h"
@@ -106,6 +107,8 @@ void ShutDownProfiling() {
 
 static std::atomic_bool g_ge_initialized{false};
 static std::mutex g_ge_release_mutex;  // GEFinalize and ~GeSession use
+static std::map<std::string, std::string> g_last_init_options;
+static std::mutex g_init_options_mutex;
 
 namespace ge {
 namespace {
@@ -118,6 +121,7 @@ void ConstructSession(const std::map<std::string, std::string> &options, Session
     REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitializeV2 call before.");
     return;
   }
+  PrintOptionsWithLengthLimit(options, "GESession option");
   // call Initialize
   if (GEAPICheckSupportedSessionOptions(options) != SUCCESS) {
     GELOGW("[Check][Param] Check supported options failed.");
@@ -180,28 +184,40 @@ static Status CheckOptionsValid(const std::map<std::string, std::string> &option
   return SUCCESS;
 }
 
+bool AreOptionsEqual(const std::map<std::string, std::string>& map1,
+                     const std::map<std::string, std::string>& map2) {
+  if (map1.size() != map2.size()) {
+    return false;
+  }
+
+  for (const auto& item : map1) {
+    auto it = map2.find(item.first);
+    if (it == map2.end()) {
+      return false;
+    }
+    if (it->second != item.second) {
+      return false;
+    }
+  }
+  return true;
+}
+
 // Initialize GE, prepare for execution, call GELib::Initialize
 static Status GEInitializeImpl(const std::map<std::string, std::string> &options) {
   GE_TIMESTAMP_START(GEInitializeAll);
   GELOGT(TRACE_INIT, "GEInitialize start");
-  for (const auto &item : options) {
-    const std::string &key = item.first;
-    const std::string &value = item.second;
-    const size_t max_line_length = 800U;
-    if (value.length() > max_line_length) {
-      GELOGI("GE option: %s, value: %s", key.c_str(), value.substr(0, max_line_length).c_str());
-      for (size_t i = max_line_length; i < value.length(); i += max_line_length) {
-        GELOGI("%s", value.substr(i, max_line_length).c_str());
-      }
-    } else {
-      GELOGI("GE option: %s, value: %s.", key.c_str(), value.c_str());
-    }
-  }
+  PrintOptionsWithLengthLimit(options, "GEInit option");
 
-  // 0.check init status
-  if (g_ge_initialized) {
-    GELOGW("GEInitialize is called more than once");
-    return SUCCESS;
+  {
+    std::lock_guard<std::mutex> lock(g_init_options_mutex);
+    // 0.check init status
+    if (g_ge_initialized) {
+        if (!AreOptionsEqual(options, g_last_init_options)) {
+            GELOGW("GEInitialize called with different options than previous initialization.");
+        }
+        return SUCCESS;
+    }
+    g_last_init_options = options;
   }
   GE_TIMESTAMP_START(GEAPICheckSupportedGlobalOptions);
   if (GEAPICheckSupportedGlobalOptions(options) != SUCCESS) {
@@ -371,6 +387,10 @@ Status GEFinalizeV2() {
     // Unified destruct rt_context
     RtContextUtil::GetInstance().DestroyAllRtContexts();
     g_ge_initialized = false;
+    {
+      std::lock_guard<std::mutex> lock(g_init_options_mutex);
+      g_last_init_options.clear();
+    }
   }
 
   // to avoid memory fragment, use malloc_trim to back free stack to system

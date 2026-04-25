@@ -509,4 +509,41 @@ Status CheckIoReuseAddrPairs(const std::vector<std::pair<size_t, size_t>> &io_sa
   }
   return SUCCESS;
 }
+
+void PrintOptionsWithLengthLimit(const std::map<AscendString, AscendString> &options, 
+                                 const std::string &prefix,
+                                 const size_t max_line_length) {
+  std::map<std::string, std::string> str_options;
+  
+  for (auto &option_item : options) {
+    if (option_item.first.GetLength() == 0) {
+      GELOGW("Option key is empty, skipping this option.");
+      continue;
+    }
+    
+    const std::string &key = option_item.first.GetString();
+    const std::string &val = option_item.second.GetString();
+    str_options[key] = val;
+  }
+  
+  PrintOptionsWithLengthLimit(str_options, prefix, max_line_length);
+}
+ 
+void PrintOptionsWithLengthLimit(const std::map<std::string, std::string> &options, 
+                                 const std::string &prefix,
+                                 const size_t max_line_length) {
+  for (const auto &item : options) {
+    const std::string &key = item.first;
+    const std::string &value = item.second;
+    
+    if (value.length() > max_line_length) {
+      GELOGI("[option]%s: %s, value: %s", prefix.c_str(), key.c_str(), value.substr(0, max_line_length).c_str());
+      for (size_t i = max_line_length; i < value.length(); i += max_line_length) {
+        GELOGI("%s", value.substr(i, max_line_length).c_str());
+      }
+    } else {
+      GELOGI("[option]%s: %s, value: %s.", prefix.c_str(), key.c_str(), value.c_str());
+    }
+  }
+}
 }  //  namespace ge

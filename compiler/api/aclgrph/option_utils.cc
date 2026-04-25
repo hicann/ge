@@ -1315,11 +1315,19 @@ Status CheckAllowHF32ParamValid(const std::string &allow_hf32) {
   return ge::SUCCESS;
 }
 
-void PrintOptionMap(std::map<std::string, std::string> &options, std::string tips) {
-  for (auto iter = options.cbegin(); iter != options.cend(); iter++) {
-    std::string key = iter->first;
-    std::string option_name = iter->second;
-    GELOGD("%s set successfully, option_key=%s, option_value=%s", tips.c_str(), key.c_str(), option_name.c_str());
+void PrintOptionMap(const std::map<std::string, std::string> &options, std::string tips, const size_t max_line_length) {
+  for (const auto &item : options) {
+    const std::string &key = item.first;
+    const std::string &value = item.second;
+    
+    if (value.length() > max_line_length) {
+      GELOGD("[option]%s: %s, value: %s", tips.c_str(), key.c_str(), value.substr(0, max_line_length).c_str());
+      for (size_t i = max_line_length; i < value.length(); i += max_line_length) {
+        GELOGD("%s", value.substr(i, max_line_length).c_str());
+      }
+    } else {
+      GELOGD("[option]%s: %s, value: %s.", tips.c_str(), key.c_str(), value.c_str());
+    }
   }
 }
 
