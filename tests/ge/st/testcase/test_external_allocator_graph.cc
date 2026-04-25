@@ -322,6 +322,7 @@ TEST_F(ExternalAllocatorGraphTest, dynamic_multi_batch_run_success) {
   ge_env.Install(FakeOp("MapIndex").InfoStoreAndBuilder("AiCoreLib"));
   ge_env.Install(FakeOp(CASE).InfoStoreAndBuilder("AiCoreLib"));
   ge_env.Install(FakeOp(CONSTANTOP).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"));
+  ge_env.Install(FakeOp(CONSTANT).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"));
   ge_env.Install(FakeOp(MEMCPYASYNC).InfoStoreAndBuilder("RTSLib"));
   ge_env.Install(FakeOp("LabelSwitchByIndex").InfoStoreAndBuilder("RTSLib"));
   ge_env.Install(FakeOp("LabelSet").InfoStoreAndBuilder("RTSLib"));
@@ -401,6 +402,7 @@ TEST_F(ExternalAllocatorGraphTest, dynamic_multi_batch_run_and_execute_success) 
   ge_env.Install(FakeOp("MapIndex").InfoStoreAndBuilder("AiCoreLib"));
   ge_env.Install(FakeOp(CASE).InfoStoreAndBuilder("AiCoreLib"));
   ge_env.Install(FakeOp(CONSTANTOP).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"));
+  ge_env.Install(FakeOp(CONSTANT).InfoStoreAndBuilder("DNN_VM_GE_LOCAL_OP_STORE"));
   ge_env.Install(FakeOp(MEMCPYASYNC).InfoStoreAndBuilder("RTSLib"));
   ge_env.Install(FakeOp("LabelSwitchByIndex").InfoStoreAndBuilder("RTSLib"));
   ge_env.Install(FakeOp("LabelSet").InfoStoreAndBuilder("RTSLib"));

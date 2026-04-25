@@ -143,6 +143,10 @@ void *CreateCompileInfo() {
   return new AddCompileInfo();
 }
 
+void DeleteCompileInfo(void *ptr) {
+  delete static_cast<AddCompileInfo *>(ptr);
+}
+
 IMPL_OP(ConcatV2).TilingParse<DummyCompileInfo>(DummyTilingParse).Tiling(DummyTiling);
 
 IMPL_OP(Batch).TilingParse<DummyCompileInfo>(DummyTilingParse).Tiling(DummyTiling);
@@ -873,6 +877,7 @@ TEST_F(RegisterOpTilingRT2UT, SoftSyncOpRtParseAndTiling) {
   op_impl_func->tiling = TilingForAdd;
   op_impl_func->tiling_parse = TilingParseForAdd;
   op_impl_func->compile_info_creator = CreateCompileInfo;
+  op_impl_func->compile_info_deleter = DeleteCompileInfo;
 
   // TODOO：用例适配
   auto ret = SoftSyncOpRtParseAndTiling(op, platform_infos, run_info, space_registry);

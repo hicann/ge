@@ -643,6 +643,7 @@ void rtStubTearDown() {
   SetMockRtGetDeviceWay(0);
   DEL_STUB_RETURN_VALUE(rtGetDevice, rtError_t);
   DEL_STUB_RETURN_VALUE(rtGetDeviceCapability, rtError_t);
+  DEL_STUB_OUTBOUND_VALUE(rtGetDeviceCapability, int32_t, value);
   DEL_STUB_RETURN_VALUE(rtStreamWaitEvent, rtError_t);
   DEL_STUB_RETURN_VALUE(rtStreamWaitEventWithTimeout, rtError_t);
   DEL_STUB_RETURN_VALUE(rtEventReset, rtError_t);

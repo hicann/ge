@@ -196,6 +196,7 @@ void SetGeModelAttrs(const GeModelPtr &ge_model, bool set_sub_mem_infos = false)
 class DavinciModelTest : public testing::Test {
  protected:
   void SetUp() override {
+    RTS_STUB_SETUP();
     VarManagerPool::Instance().Destory();
     char runtime2_env[MMPA_MAX_PATH] = {'0'};
     mmSetEnv("ENABLE_RUNTIME_V2", &(runtime2_env[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
@@ -215,6 +216,7 @@ class DavinciModelTest : public testing::Test {
     if (strlen(old_path_env_) > 0U) {
       mmSetEnv("ASCEND_OPP_PATH", old_path_env_, 1);
     }
+    RTS_STUB_TEARDOWN();
   }
 
  private:
