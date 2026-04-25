@@ -175,6 +175,13 @@ function(_add_es_library_impl)
     # 0. 生成辅助 shell 脚本（自包含，无需外部文件）
     # 在首次调用时创建 run_gen_esb_with_lock.sh 到构建目录
     set(ES_LOCK_SCRIPT "${CMAKE_BINARY_DIR}/cmake/run_gen_esb_with_lock.sh")
+    # 将 ENABLE_ASAN 归一化为 "true" 或空字符串
+    # CMake if() 自动识别 TRUE/True/ON/On/on/YES/yes/1 等真值，无需逐一枚举
+    if(ENABLE_ASAN)
+        set(ENABLE_ASAN_NORMALIZED "true")
+    else()
+        set(ENABLE_ASAN_NORMALIZED "")
+    endif()
     if (NOT EXISTS ${ES_LOCK_SCRIPT})
         file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/cmake")
         file(WRITE ${ES_LOCK_SCRIPT} "#!/bin/bash
@@ -276,7 +283,7 @@ execute_gen_esb() {
         else
             ENV_PREFIX=\"ASCEND_OPP_PATH=\${OPP_PATH}\"
         fi
-        if [[ \"${ENABLE_ASAN}\" == \"true\" ]]; then
+        if [[ \"${ENABLE_ASAN_NORMALIZED}\" == \"true\" ]]; then
             USE_ASAN=\$(gcc -print-file-name=libasan.so)
             ENV_PREFIX=\"\${ENV_PREFIX} LD_PRELOAD=\${USE_ASAN}\"
         fi
