@@ -498,7 +498,7 @@ checkopts() {
         ;;
       -h | --help)
         usage
-        exit 1
+        exit 0
         ;;
       -j)
         THREAD_NUM=$2
