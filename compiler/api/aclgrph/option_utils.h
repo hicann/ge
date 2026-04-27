@@ -127,7 +127,7 @@ Status CheckModifyMixlistParamValid(const std::string &precision_mode, const std
 Status CheckAllowHF32ParamValid(const std::string &allow_hf32);
 Status CheckInputFormat(const std::string &input_format);
 Status CheckKeepTypeParamValid(const std::string &keep_dtype);
-void PrintOptionMap(std::map<std::string, std::string> &options, std::string tips);
+void PrintOptionMap(const std::map<std::string, std::string> &options, std::string tips, const size_t max_line_length = 800U);
 void EraseEndSemicolon(std::string &param);
 Status UpdateDataOpShape(const OpDescPtr &op, std::map<std::string, std::vector<int64_t>> &shape_map);
 Status UpdateDataOpShapeRange(

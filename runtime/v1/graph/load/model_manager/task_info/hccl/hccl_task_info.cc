@@ -17,6 +17,7 @@
 #include "opskernel_executor/ops_kernel_executor_manager.h"
 #include "acl/acl_rt.h"
 #include "acl/acl_mdl.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 namespace {
 const ge::char_t *const kDumpOutput = "output";
@@ -667,7 +668,7 @@ void HcclTaskInfo::GetPrivateDefByTaskDef(const OpDescPtr &op_desc, const domi::
   const std::string &private_def_temp = task.private_def();
   if ((!private_def_temp.empty()) && (private_def_temp.size() <= static_cast<size_t>(UINT32_MAX))) {
     private_def_len_ = static_cast<uint32_t>(private_def_temp.size());
-    GE_CHK_RT_EXEC(aclrtMallocHost(&private_def_, static_cast<uint64_t>(private_def_len_)), return);
+    GE_CHK_RT_EXEC(ge::AclrtMallocHost(&private_def_, static_cast<uint64_t>(private_def_len_), GE_MODULE_NAME_U16), return);
     GE_CHK_RT_EXEC(aclrtMemcpy(private_def_, static_cast<uint64_t>(private_def_len_), task.private_def().c_str(),
         static_cast<uint64_t>(private_def_len_), ACL_MEMCPY_HOST_TO_HOST), return);
     GELOGI("The first address of the custom info, privateDef=%p.", private_def_);

@@ -87,8 +87,7 @@ ge::graphStatus GetTensorAddress(const ge::Operator &op, const ge::OpDescPtr &op
   GE_ASSERT_GRAPH_SUCCESS(ge::OpDescUtils::GetInputIrIndexByInstanceIndex(op_desc, instance_index, ir_index),
                           "[Get][InputIrIndexByInstanceIndex] failed, op[%s], instance index[%zu], input_index[%zu]",
                           op_desc->GetName().c_str(), instance_index, index.input_index);
-  GE_ASSERT_NOTNULL(functions);
-  if (functions->IsInputDataDependency(ir_index)) {
+  if ((functions != nullptr) && functions->IsInputDataDependency(ir_index)) {
     ge_tensors_holder[index.input_index] = ge::ComGraphMakeUnique<ge::Tensor>();
     GE_ASSERT_NOTNULL(ge_tensors_holder[index.input_index], "Create ge tensor holder inputs failed.");
     const auto index_name = op_desc->GetInputNameByIndex(static_cast<uint32_t>(index.input_index));

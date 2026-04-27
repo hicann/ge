@@ -12,6 +12,7 @@
 
 #include "framework/common/debug/log.h"
 #include "runtime/rt.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 #include "single_op/single_op_model.h"
 #include "framework/runtime/device_memory_recorder.h"
 #include "acl/acl_rt.h"
@@ -52,7 +53,7 @@ MemBlock *InternalAllocator::Malloc(size_t size) {
   }
 
   uint8_t *buffer = nullptr;
-  auto ret = aclrtMalloc(PtrToPtr<uint8_t *, void *>(&buffer), size, ACL_MEM_TYPE_HIGH_BAND_WIDTH);
+auto ret = ge::AclrtMalloc(PtrToPtr<uint8_t *, void *>(&buffer), size, RT_MEMORY_HBM, GE_MODULE_NAME_U16);
   if (ret != RT_ERROR_NONE) {
     GELOGE(RT_FAILED, "[RtMalloc][Memory] failed, size = %zu, ret = %d", size, ret);
     REPORT_INNER_ERR_MSG("E19999", "aclrtMalloc failed, size = %zu, ret = %d.", size, ret);
@@ -98,7 +99,7 @@ StreamResource::~StreamResource() noexcept {
 }
 
 Status StreamResource::Init() {
-  const auto rt_ret = aclrtMalloc(&device_buffer_, kFuzzDeviceBufferSize, ACL_MEM_TYPE_HIGH_BAND_WIDTH);
+  const auto rt_ret = ge::AclrtMalloc(&device_buffer_, kFuzzDeviceBufferSize, RT_MEMORY_HBM, GE_MODULE_NAME_U16);
   GE_IF_BOOL_EXEC(rt_ret != ACL_SUCCESS, GELOGE(RT_FAILED, "[Malloc][Rt] failed."));
   return SUCCESS;
 }
@@ -189,7 +190,7 @@ uint8_t *StreamResource::MallocMemory(const std::string &purpose, const size_t s
 uint8_t *StreamResource::MallocWeight(const std::string &purpose, const size_t size) {
   GELOGD("To Malloc weight, size = %zu", size);
   uint8_t *buffer = nullptr;
-  const auto ret = aclrtMalloc(PtrToPtr<uint8_t *, void *>(&buffer), size, ACL_MEM_TYPE_HIGH_BAND_WIDTH);
+  const auto ret = ge::AclrtMalloc(PtrToPtr<uint8_t *, void *>(&buffer), size, RT_MEMORY_HBM, GE_MODULE_NAME_U16);
   if (ret != ACL_SUCCESS) {
     GELOGE(RT_FAILED, "[RtMalloc][Memory] failed, size = %zu, ret = %d", size, ret);
     REPORT_INNER_ERR_MSG("E19999", "aclrtMalloc failed, size = %zu, ret = %d.", size, ret);

@@ -4618,3 +4618,93 @@ TEST_F(UtestMemoryAssignerTest, ValidWorkSpaceNeg1) {
   size_t zero_memory_size = 0U;
   EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
 }
+
+/*
+ *  relu0       relu1     _arg_0
+ *    |         /   \        |
+ *    |        /     \       v
+ *    v       v       v   new_reshape
+ *  [0]ConcatD       Reshape[0]
+ *    |               |
+ *    v               v
+ *  netoutput      identity
+ *                    |
+ *                    v
+ *                 netoutput
+ *
+ *  ConcatD: nopadding continuous input, output ref input(index 0)
+ *  Reshape: output ref input(index 0, i.e., relu1)
+ *  new_reshape: output ref input(from _arg_0)
+ *  验证：Reshape不会被满足IsRefFromInputOpCascade处理的条件，relu1与relu0地址满足连续性要求
+ */
+TEST_F(UtestMemoryAssignerTest, NoPaddingConcatWithReshapeRefInput) {
+  ge::ut::GraphBuilder builder("graph");
+  auto relu0 = builder.AddNode("relu0", "Relu", 0, 1, FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto relu1 = builder.AddNode("relu1", "Relu", 0, 1, FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto arg0 = builder.AddNode("_arg_0", "Data", 0, 1, FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto new_reshape = builder.AddNode("new_reshape", "Reshape", 1, 1, FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto concatd = builder.AddNode("concatd", "ConcatD", 2, 1, FORMAT_NCHW, DT_FLOAT, {1, 2, 224, 224});
+  auto reshape = builder.AddNode("reshape", "Reshape", 2, 1, FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto identity = builder.AddNode("identity", "Identity", 1, 1, FORMAT_NCHW, DT_FLOAT, {1, 1, 224, 224});
+  auto netoutput0 = builder.AddNode("netoutput0", "NetOutput", 1, 0);
+  auto netoutput1 = builder.AddNode("netoutput1", "NetOutput", 1, 0);
+
+  // ConcatD: nopadding continuous input, output ref input(index 0)
+  (void)ge::AttrUtils::SetBool(concatd->GetOpDesc(), ATTR_NAME_NOPADDING_CONTINUOUS_INPUT, true);
+  (void)ge::AttrUtils::SetBool(concatd->GetOpDesc(), ATTR_NAME_OUTPUT_REUSE_INPUT, true);
+  (void)ge::AttrUtils::SetInt(concatd->GetOpDesc(), ATTR_NAME_REUSE_INPUT_ON_DIM_INDEX, 0);
+  auto concatd_output = concatd->GetOpDesc()->MutableOutputDesc(0);
+  ge::TensorUtils::SetReuseInput(*concatd_output, true);
+  ge::TensorUtils::SetReuseInputIndex(*concatd_output, 0);
+
+  // Reshape: output ref input(index 0, i.e., relu1)
+  auto reshape_output = reshape->GetOpDesc()->MutableOutputDesc(0);
+  ge::TensorUtils::SetReuseInput(*reshape_output, true);
+  ge::TensorUtils::SetReuseInputIndex(*reshape_output, 0);
+
+  // new_reshape: output ref input(from _arg_0)
+  auto new_reshape_output = new_reshape->GetOpDesc()->MutableOutputDesc(0);
+  ge::TensorUtils::SetReuseInput(*new_reshape_output, true);
+  ge::TensorUtils::SetReuseInputIndex(*new_reshape_output, 0);
+
+  // Set tensor sizes
+  auto arg0_output = arg0->GetOpDesc()->MutableOutputDesc(0);
+  auto relu0_output = relu0->GetOpDesc()->MutableOutputDesc(0);
+  auto relu1_output = relu1->GetOpDesc()->MutableOutputDesc(0);
+  auto new_reshape_input = new_reshape->GetOpDesc()->MutableInputDesc(0);
+  auto reshape_input0 = reshape->GetOpDesc()->MutableInputDesc(0);
+  auto reshape_input1 = reshape->GetOpDesc()->MutableInputDesc(1);
+  auto identity_input = identity->GetOpDesc()->MutableInputDesc(0);
+  auto identity_output = identity->GetOpDesc()->MutableOutputDesc(0);
+  TensorUtils::SetSize(*arg0_output, 2048);
+  TensorUtils::SetSize(*relu0_output, 2048);
+  TensorUtils::SetSize(*relu1_output, 2048);
+  TensorUtils::SetSize(*new_reshape_input, 2048);
+  TensorUtils::SetSize(*new_reshape_output, 2048);
+  TensorUtils::SetSize(*concatd_output, 4096);
+  TensorUtils::SetSize(*reshape_input0, 2048);
+  TensorUtils::SetSize(*reshape_input1, 2048);
+  TensorUtils::SetSize(*reshape_output, 2048);
+  TensorUtils::SetSize(*identity_input, 2048);
+  TensorUtils::SetSize(*identity_output, 2048);
+
+  // Build edges
+  builder.AddDataEdge(arg0, 0, new_reshape, 0);
+  builder.AddDataEdge(relu0, 0, concatd, 0);
+  builder.AddDataEdge(relu1, 0, concatd, 1);
+  builder.AddDataEdge(relu1, 0, reshape, 0);
+  builder.AddDataEdge(new_reshape, 0, reshape, 1);
+  builder.AddDataEdge(concatd, 0, netoutput0, 0);
+  builder.AddControlEdge(concatd, reshape);
+  builder.AddDataEdge(reshape, 0, identity, 0);
+  builder.AddDataEdge(identity, 0, netoutput1, 0);
+
+  auto graph = builder.GetGraph();
+  UpdateGraphTensorSize(graph);
+  graph->TopologicalSorting();
+
+  MemoryAssigner memory_assigner(graph);
+  map<uint64_t, size_t> mem_offset;
+  size_t zero_memory_size = 0U;
+  EXPECT_EQ(memory_assigner.AssignMemory(mem_offset, zero_memory_size), GRAPH_SUCCESS);
+}

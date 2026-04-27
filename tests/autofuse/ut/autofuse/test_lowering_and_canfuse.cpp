@@ -136,6 +136,51 @@ class LoweringAndCanfuseUT : public testing::Test {
     es_graph_->SetOutput(cast3, 1);
   }
 
+  ComputeGraphPtr BuildConcatFirstDimGraph(const std::string &last_dim, bool contains_reduce) {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+
+    auto abs0 = es::Abs(data0);
+    abs0.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+
+    if (contains_reduce) {
+      auto sum = es::ReduceSumD(data1, {1}, true);
+      sum.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+      auto concat = es::ConcatD({abs0, sum}, 1);
+      concat.SetSymbolShape({"1", "4", "1", last_dim.c_str()});
+      es_graph_->SetOutput(concat, 0);
+    } else {
+      auto concat = es::ConcatD({abs0, data1}, 1);
+      concat.SetSymbolShape({"1", "4", "1", last_dim.c_str()});
+      es_graph_->SetOutput(concat, 0);
+    }
+    auto graph = es_graph_->Build();
+    auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+    return cg;
+  }
+
+  ComputeGraphPtr BuildConcatFirstDimWithReuseGraph(const std::string &last_dim) {
+    auto data0 = es_graph_->CreateInput(0, "data0", nullptr);
+    data0.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+    auto data1 = es_graph_->CreateInput(1, "data1", nullptr);
+    data1.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+
+    auto abs0 = es::Abs(data0);
+    abs0.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+
+    auto sum = es::ReduceSumD(data1, {1}, true);
+    sum.SetSymbolShape({"1", "2", "1", last_dim.c_str()});
+    auto concat = es::ConcatD({abs0, sum, abs0}, 1);
+    concat.SetSymbolShape({"1", "6", "1", last_dim.c_str()});
+    es_graph_->SetOutput(concat, 0);
+    auto graph = es_graph_->Build();
+    auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+    auto concat_node = cg->FindFirstNodeMatchType("ConcatD");
+    return cg;
+  }
+
   void PrintComputeGraphNodes(const ComputeGraphPtr &cg) {
     for (const auto &node : cg->GetAllNodes()) {
       std::cout << "Node: " << node->GetName() << ", Type: " << node->GetType() << std::endl;
@@ -205,6 +250,44 @@ class LoweringAndCanfuseUT : public testing::Test {
         if (node->GetType() == "AscBackend") {
           VerifyAscBackendNode(node);
         }
+      }
+    }
+  }
+
+  void VerifySingleAscBackendStridesAlignment(const NodePtr &asc_backend_node) {
+    auto autofuse_attr = BackendUtils::GetNodeAutoFuseAttr(asc_backend_node);
+    ASSERT_NE(autofuse_attr, nullptr);
+    const auto attr = asc_backend_node->GetOpDesc()->GetAttrsGroup<ge::AutoFuseAttrs>();
+    ASSERT_NE(attr, nullptr);
+    ASSERT_NE(attr->GetAscGraph(), nullptr);
+
+    for (const auto &asc_node : attr->GetAscGraph()->GetAllNodes()) {
+      asc_adapt::TensorInfo tensor_desc;
+      ASSERT_EQ(asc_adapt::GetTensorInfo(asc_node, tensor_desc), SUCCESS);
+      for (size_t i = 0; i < tensor_desc.repeats.size(); ++i) {
+        if (BackendUtils::IsEqOne(tensor_desc.repeats[i])) {
+          EXPECT_TRUE(BackendUtils::IsEqZero(tensor_desc.strides[i]))
+              << "Node " << asc_node->GetName() << " axis " << i
+              << " repeats=1 but strides=" << tensor_desc.strides[i].Serialize().get()
+              << " (expected 0)";
+        }
+      }
+    }
+  }
+
+  void VerifyRepeatsOneImpliesStridesZero(const ComputeGraphPtr &cg) {
+    for (const auto &node : cg->GetDirectNode()) {
+      if (node->GetType() == "FusedAscBackend") {
+        const auto attr = node->GetOpDescBarePtr()->GetAttrsGroup<AutoFuseAttrs>();
+        auto fused_graph = attr->GetFuseComputeGraph();
+        for (const auto &inner_node : fused_graph->GetAllNodes()) {
+          if (inner_node->GetType() == kAscBackendType) {
+            VerifySingleAscBackendStridesAlignment(inner_node);
+          }
+        }
+      }
+      if (node->GetType() == kAscBackendType) {
+        VerifySingleAscBackendStridesAlignment(node);
       }
     }
   }
@@ -1466,6 +1549,120 @@ TEST_F(LoweringAndCanfuseUT, ReluCastReshapeMultiRefConcat) {
   PrintComputeGraphNodes(cg);
   VerifyFusedAscBackendNodes(cg);
 
+  SetCurShapeEnvContext(nullptr);
+}
+
+// 验证 slice+slice+broadcast_add 场景下 Load 节点 strides 的具体值
+// 这是真实出问题的网络：slice -> strided_slice -> abs -> log -> relu -> broadcast_add
+// broadcast_add: (1,10,1,14) + (32,10,1,14) -> (32,10,1,14)
+// 问题：broadcast 可能导致 loop_axis 变化，进而影响 Load strides 的计算
+TEST_F(LoweringAndCanfuseUT, SliceSliceLoadStridesVerification) {
+  [this]() {
+    auto data = es_graph_->CreateInput(0, "data", nullptr);
+    data.SetSymbolShape({"80", "80", "80", "80"});
+
+    // slice1 (tf.slice): (80,80,80,80) -> (60,60,60,60)
+    const std::vector<int64_t> offsets1 = {0, 0, 0, 0};
+    const std::vector<int64_t> sizes1 = {60, 60, 60, 60};
+    auto slice1 = es::SliceD(data, offsets1, sizes1);
+    slice1.SetSymbolShape({"60", "60", "60", "60"});
+
+    // slice2 (tf.strided_slice): (60,60,60,60) -> (1,10,1,14)
+    auto slice2 = es::StridedSliceD(slice1, {5, 5, 5, 5}, {6, 15, 6, 19}, {1, 1, 1, 1});
+    slice2.SetSymbolShape({"1", "10", "1", "14"});
+
+    auto abs1 = es::Abs(slice2);
+    abs1.SetSymbolShape({"1", "10", "1", "14"});
+    auto log1 = es::Log(abs1);
+    log1.SetSymbolShape({"1", "10", "1", "14"});
+    auto relu1 = es::Relu(log1);
+    relu1.SetSymbolShape({"1", "10", "1", "14"});
+
+    // broadcast add: (1,10,1,14) + (32,10,1,14) -> (32,10,1,14)
+    auto const_val = CreateConst(*es_graph_, ge::DT_FLOAT,
+                                 {32 * 10 * 1 * 14},
+                                 std::vector<float>(32 * 10 * 1 * 14, 1.0f));
+    const_val.SetSymbolShape({"32", "10", "1", "14"});
+    auto add = es::Add(relu1, const_val);
+    add.SetSymbolShape({"32", "10", "1", "14"});
+    es_graph_->SetOutput(add, 0);
+  }();
+
+  auto graph = es_graph_->Build();
+  auto cg = GraphUtilsEx::GetComputeGraph(*graph);
+
+  // PatternFusion: slice+slice should fuse
+  ge::PatternFusion patter_fusion;
+  ASSERT_EQ(patter_fusion.RunAllPatternFusion(cg), GRAPH_SUCCESS);
+
+  // Lowering: convert AscendIR to AscBackend
+  ge::AscIrLowerer lowerer;
+  ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+  ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+
+  // Fuse + Lifting
+  FusionStrategySolver fusion_strategy_solver;
+  FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+  EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+  ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+
+  // PostProcess（包含 RemoveAllZeroStrideLoopAxis）
+  AscBackendPostProcessor post_processor;
+  EXPECT_EQ(post_processor.Do(cg), SUCCESS);
+
+  // 验证：repeats=1 时 strides 应为 0
+  VerifyRepeatsOneImpliesStridesZero(cg);
+
+  SetCurShapeEnvContext(nullptr);
+}
+
+TEST_F(LoweringAndCanfuseUT, LiftConcat_FirstDim) {
+  auto run_test = [](const ComputeGraphPtr &cg) -> void {
+    ge::AscIrLowerer lowerer;
+    ASSERT_EQ(lowerer.Lowering(cg), GRAPH_SUCCESS);
+    ASSERT_EQ(asc_adapt::GeFallback(cg), GRAPH_SUCCESS);
+    FusionStrategySolver fusion_strategy_solver;
+    FusionDeciderRegistry::Instance().Register(std::unique_ptr<FusionDecider>(new AscBackendFusionDecider()));
+    EXPECT_EQ(fusion_strategy_solver.Fuse(cg), SUCCESS);
+    ASSERT_EQ(lowerer.Lifting(cg), GRAPH_SUCCESS);
+    EXPECT_EQ(AscBackendPostProcessor().Do(cg), SUCCESS);
+  };
+  // no task, mid
+  {
+    auto cg = BuildConcatFirstDimGraph("262144", true);
+    run_test(cg);
+    EXPECT_FALSE(cg->FindFirstNodeMatchType(kFusedAscBackendType) != nullptr);
+  }
+  // no task, small
+  {
+    es_graph_ = std::make_unique<es::Graph>("graph");
+    auto cg = BuildConcatFirstDimGraph("131072", true);
+    run_test(cg);
+    EXPECT_TRUE(cg->FindFirstNodeMatchType(kFusedAscBackendType) != nullptr);
+  }
+
+  // connected to Data, does not support no task
+  {
+    es_graph_ = std::make_unique<es::Graph>("graph");
+    auto cg = BuildConcatFirstDimGraph("262144", false);
+    run_test(cg);
+    EXPECT_TRUE(cg->FindFirstNodeMatchType(kFusedAscBackendType) != nullptr);
+  }
+
+  // not all aligned, does not support no task
+  {
+    es_graph_ = std::make_unique<es::Graph>("graph");
+    auto cg = BuildConcatFirstDimGraph("3", true);
+    run_test(cg);
+    EXPECT_TRUE(cg->FindFirstNodeMatchType(kFusedAscBackendType) != nullptr);
+  }
+  // reuse input, does not support no task
+  {
+    es_graph_ = std::make_unique<es::Graph>("graph");
+    auto cg = BuildConcatFirstDimWithReuseGraph("262144");
+    run_test(cg);
+    EXPECT_TRUE(cg->FindFirstNodeMatchType(kFusedAscBackendType) != nullptr);
+  }
   SetCurShapeEnvContext(nullptr);
 }
 }  // namespace ge

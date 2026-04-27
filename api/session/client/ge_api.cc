@@ -30,6 +30,7 @@
 #include "framework/executor/ge_executor.h"
 #include "framework/memory/memory_api.h"
 #include "framework/common/helper/model_helper.h"
+#include "framework/common/util.h"
 #include "graph/detail/model_serialize_imp.h"
 #include "graph/ge_context.h"
 #include "graph/manager/util/rt_context_util.h"

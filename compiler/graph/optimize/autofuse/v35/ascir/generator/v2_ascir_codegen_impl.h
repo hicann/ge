@@ -132,7 +132,7 @@ class LoadAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "LoadRegApiCall";
   }
   [[nodiscard]] std::string GetApiName() const override {
-    return "Load";
+    return "DataCopyPadExtend";
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {std::string("datacopy") + std::string("_reg_base.h")};
@@ -2284,7 +2284,7 @@ class StoreAscIrCodegenImplV2 : public AscIrCodegenV2 {
     return "StoreRegApiCall";
   }
   [[nodiscard]] std::string GetApiName() const override {
-    return "Store";
+    return "DataCopyPadExtend";
   }
   [[nodiscard]] std::vector<std::string> LoadApiHeaderFiles() const override {
     return {std::string("datacopy") + std::string("_reg_base.h")};

@@ -22,6 +22,7 @@
 #include "common/ge_common/ge_types.h"
 #include "debug/ge_op_types.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/debug/ge_util.h"
 #include "graph/utils/transformer_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/graph_utils_ex.h"

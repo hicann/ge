@@ -16,7 +16,6 @@
 #include <google/protobuf/stubs/port.h>
 
 #include <graph/anchor.h>
-#include <graph/debug/ge_util.h>
 #include <graph/detail/attributes_holder.h>
 #include <graph/ge_tensor.h>
 #include <graph/graph.h>

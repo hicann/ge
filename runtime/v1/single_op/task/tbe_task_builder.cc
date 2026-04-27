@@ -24,6 +24,7 @@
 #include "runtime/rt.h"
 #include "single_op/task/build_task_utils.h"
 #include "acl/acl_rt.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 namespace ge {
 namespace {
@@ -485,7 +486,7 @@ Status MixL2TaskBuilder::BuildMixL2Task(MixL2OpTask &task, SingleOpModelParam &p
   task.arg_size_ = kernel_def_arg_size + task.max_tiling_size_ + len;
   if (task.arg_size_ > 0UL) {
     task.host_args_.resize(task.arg_size_ / sizeof(uintptr_t));
-    GE_CHK_RT_RET(aclrtMalloc(&task.device_args_, task.arg_size_, ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&task.device_args_, task.arg_size_, RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   }
 
   // Init Mode addr

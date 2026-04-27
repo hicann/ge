@@ -866,8 +866,11 @@ bool GraphMemoryAssigner::IsRefFromInputOpCascade(const NodePtr &node) const {
   for (const auto &in_anchor : node->GetAllInDataAnchors()) {
     const auto &peer_out_anchor = in_anchor->GetPeerOutAnchor();
     GE_IF_BOOL_EXEC(peer_out_anchor == nullptr, continue);
+    if (ref_input_index.count(in_anchor->GetIdx()) == 0) {
+      continue;
+    }
     auto in_node = peer_out_anchor->GetOwnerNode();
-    if (isVariableMemoryNode(in_node) && (ref_input_index.count(in_anchor->GetIdx()) > 0)) {
+    if (isVariableMemoryNode(in_node)) {
       GELOGD("Reuse variable memory, input node:%s, type:%s.", in_node->GetName().c_str(), in_node->GetType().c_str());
       return false;
     }

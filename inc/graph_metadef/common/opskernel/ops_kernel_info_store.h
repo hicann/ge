@@ -133,6 +133,9 @@ class OpsKernelInfoStore {
     (void)flag;
     return CheckSupported(node, un_supported_reason);
   }
+
+  // refresh opsKernelInfo, default empty implementation
+  virtual Status Refresh() { return SUCCESS; }
 };
 }  // namespace ge
 #endif  // INC_COMMON_OPSKERNEL_OPS_KERNEL_INFO_STORE_H_

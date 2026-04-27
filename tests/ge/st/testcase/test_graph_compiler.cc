@@ -1236,6 +1236,7 @@ static void MockAIcoreEngineEnGenerateTask() {
 
 class GraphCompilerTest : public testing::Test {
   void SetUp() {
+    RTS_STUB_SETUP();
     char runtime2_env[MMPA_MAX_PATH] = {'0'};
     mmSetEnv("ENABLE_RUNTIME_V2", &(runtime2_env[0U]), static_cast<uint32_t>(MMPA_MAX_PATH));
     const std::vector<rtMemType_t> mem_type{RT_MEMORY_HBM, RT_MEMORY_P2P_DDR};
@@ -1252,6 +1253,7 @@ class GraphCompilerTest : public testing::Test {
     OpsKernelBuilderRegistry::GetInstance().Unregister("AiCoreLib");
     OpsKernelBuilderRegistry::GetInstance().Unregister("AIcoreEngine");
     unsetenv("ENABLE_DYNAMIC_SHAPE_MULTI_STREAM");
+    RTS_STUB_TEARDOWN();
   }
 public:
   void SetFakerBuilder() {

@@ -314,10 +314,7 @@ Status InnerSession::AddGraph(uint32_t graph_id, const Graph &graph,
                               const std::map<std::string, std::string> &options) {
   std::lock_guard<std::mutex> lock(resource_mutex_);
 
-  for (const auto &item : options) {
-    GELOGI("GE option: %s, value: %s, innerSession:%lu, graphid: %u.", item.first.c_str(), item.second.c_str(),
-           session_id_, graph_id);
-  }
+  PrintOptionsWithLengthLimit(options, "AddGraph option");
 
   auto iter = options.find("ge.autoTuneMode");
   if ((iter != options.end()) && (!iter->second.empty())) {
@@ -369,6 +366,7 @@ Status InnerSession::SetSessionGraphId(const Graph &graph, uint64_t session_id, 
 Status InnerSession::LoadGraph(const uint32_t graph_id,
                                const std::map<AscendString, AscendString> &options, void *stream) {
   GELOGI("[InnerSession] Load graph by graph_id=%u, stream = %p", graph_id, stream);
+  PrintOptionsWithLengthLimit(options, "LoadGraph option");
   UpdateGlobalSessionContext();
   GE_ASSERT_NOTNULL(user_graphs_manager_);
   const auto ret = user_graphs_manager_->LoadGraph(graph_id, options, stream);
@@ -383,6 +381,7 @@ Status InnerSession::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
                                       const std::map<std::string, std::string> &options) {
   std::lock_guard<std::mutex> lock(resource_mutex_);
   GE_ASSERT_SUCCESS(SetSessionGraphId(graph, session_id_, graph_id));
+  PrintOptionsWithLengthLimit(options, "AddGraphWithCopy option");
   UpdateGlobalSessionContext();
   Status ret = graph_manager_.AddGraphWithCopy(graph_id, graph, options, domi::GetContext());
   if (ret != SUCCESS) {

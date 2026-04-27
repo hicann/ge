@@ -954,6 +954,7 @@ graphStatus Impl::BuildModel(const Graph &graph, const std::map<std::string, std
     return ret;
   }
   GE_ASSERT_SUCCESS(CheckInputHintShape(options));
+  ge::PrintOptionMap(options, "BuildModel option");
   ret = Init(graph, options);
   if (ret != GRAPH_SUCCESS) {
     GELOGE(ret, "[Init][GeGenerator]Build ir model Init failed!");

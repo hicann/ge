@@ -1474,7 +1474,11 @@ TEST(CodegenKernel, TPipe_LocalTQueAlloc) {
 }
 
 TEST(CodegenKernel, ApiCall_Generate) {
+  ge::AscGraph graph("test");
+  ge::ascir_op::Data x("x", graph);
+  auto node = graph.FindNode("x");
   codegen::ApiCall call("call");
+  call.Init(node);
   codegen::Tiler tiler;
   codegen::TPipe tpipe("tpipe", tiler);
   std::string result;

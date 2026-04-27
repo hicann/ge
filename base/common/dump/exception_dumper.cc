@@ -37,6 +37,7 @@
 #include "common/checker.h"
 #include "graph/serialization/attr_serializer_registry.h"
 #include "framework/runtime/subscriber/global_dumper.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 #include "adump_opinfo_builder.h"
 #include "exe_graph/runtime/tensor.h"
@@ -529,9 +530,9 @@ void ExceptionDumper::LogExceptionArgs(const OpDescInfo &op_desc_info) const {
     return;
   }
   uint8_t *host_addr = nullptr;
-  aclError ret = aclrtMallocHost(PtrToPtr<uint8_t *, void *>(&host_addr), op_desc_info.args_size);
+  aclError ret = ge::AclrtMallocHost(PtrToPtr<uint8_t *, void *>(&host_addr), op_desc_info.args_size, GE_MODULE_NAME_U16);
   if (ret != ACL_SUCCESS) {
-    REPORT_INNER_ERR_MSG("E19999", "Call aclrtMallocHost failed, size:%zu, ret:%d", op_desc_info.args_size,
+    REPORT_INNER_ERR_MSG("E19999", "Call AclrtMallocHost failed, size:%zu, ret:%d", op_desc_info.args_size,
                       ret);
     GELOGE(FAILED, "[Call][RtMallocHost] failed, size:%zu, ret:%d", op_desc_info.args_size, ret);
     return;
@@ -756,10 +757,10 @@ Status ExceptionDumper::DumpDevMem(const ge::char_t *const file, const void *con
     return SUCCESS;
   }
   uint8_t *host_addr = nullptr;
-  aclError ret = aclrtMallocHost(PtrToPtr<uint8_t *, void *>(&host_addr), size);
+  aclError ret = ge::AclrtMallocHost(PtrToPtr<uint8_t *, void *>(&host_addr), size, GE_MODULE_NAME_U16);
   if (ret != ACL_SUCCESS) {
-    REPORT_INNER_ERR_MSG("E19999", "Call aclrtMallocHost failed, size:%" PRIu64 ", ret:%d", size, ret);
-    GELOGE(FAILED, "[Call][RtMallocHost] failed, size:%zu, ret:%d", size, ret);
+    REPORT_INNER_ERR_MSG("E19999", "Call AclrtMallocHost failed, size:%" PRIu64 ", ret:%d", size, ret);
+    GELOGE(FAILED, "[Call][AclrtMallocHost] failed, size:%zu, ret:%d", size, ret);
     return FAILED;
   }
   GE_MAKE_GUARD_RTMEM(host_addr);

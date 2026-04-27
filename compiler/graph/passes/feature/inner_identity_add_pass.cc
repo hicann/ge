@@ -30,7 +30,7 @@ bool IsChangedByRefNode(const NodePtr &node) {
 bool IsNoNeedInsertIdentity(const OutDataAnchorPtr &anchor) {
   std::stack<OutDataAnchorPtr> out_data_anchor_stack;
   out_data_anchor_stack.push(anchor);
-  NodePtr input_node = anchor->GetOwnerNode();
+  auto input_node = anchor->GetOwnerNode();
   // 类似多重ref->ref场景，找到非ref输入
   while (!out_data_anchor_stack.empty()) {
     auto out_data_anchor = out_data_anchor_stack.top();
@@ -91,7 +91,7 @@ Status InnerIdentityAddPass::Run(ComputeGraphPtr graph) {
       auto peer_out_data_anchor = in_data_anchor->GetPeerOutAnchor();
       GE_ASSERT_NOTNULL(peer_out_data_anchor);
 
-      auto ref_input_node = peer_out_data_anchor->GetOwnerNode();
+      auto ref_input_node = peer_out_data_anchor->GetOwnerNodeBarePtr();
       if ((ref_input_node->GetType() == TENSORMOVE) && (peer_out_data_anchor->GetPeerInDataNodesSize() == 1U)) {
         GELOGD("ref node %s input is TensorMove %s, this Tensormove has only one output, skip insert inner identity",
                node->GetNamePtr(), ref_input_node->GetNamePtr());

@@ -13,7 +13,6 @@
 #include "common/ge_common/string_util.h"
 #include "common/checker.h"
 #include "graph/ge_local_context.h"
-#include "external/ge_common/ge_api_types.h"
 
 namespace ge {
 namespace {

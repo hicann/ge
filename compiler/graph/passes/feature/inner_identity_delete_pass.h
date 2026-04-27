@@ -34,7 +34,7 @@ class InnerIdentityDeletePass : public GraphPass {
  private:
   Status DeleteInnerIdentity(const NodePtr &node);
 
-  Status IsolateAndDeleteIdentityNode(const NodePtr &node);
+  Status IsolateAndDeleteIdentityNode(const NodePtr &node) const;
 
  private:
   std::unique_ptr<ConnectionMatrix> connectivity_{nullptr};

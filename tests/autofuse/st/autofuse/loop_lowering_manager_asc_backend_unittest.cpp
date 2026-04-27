@@ -1744,7 +1744,7 @@ TEST_F(LoopLoweringToAscBackendUT, SimpleSquareSumV1AllOne) {
 
   EXPECT_EQ(ReadableAscGraph(asc_graph->Graph()), R"(AscGraph(graph, axis=[0:1, 1:1, 2:s2])
 tmp0 = ascir.Data(Data_0, [])
-tmp0.attr = {axis = [0, 1, 2], repeats = [1, 1, s2], strides = [(s1 * s2), s2, 1]}
+tmp0.attr = {axis = [0, 1, 2], repeats = [1, 1, s2], strides = [0, 0, 1]}
 tmp1 = ascir.Load(Load_0, [tmp0])
 tmp1.attr = {axis = [0, 1, 2], repeats = [1, 1, s2], strides = [0, 0, 1]}
 tmp2 = ascir.Mul(Mul_0, [tmp1, tmp1])

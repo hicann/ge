@@ -15,6 +15,7 @@
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/node_utils.h"
 #include "runtime/rt.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 #include "aicpu_resources.h"
 
 namespace ge {
@@ -56,7 +57,7 @@ Status AiCpuResources::CreateQueue(const std::string &name, const uint32_t depth
   GELOGD("Start to create queue, name = %s, depth = %u", name.c_str(), depth);
   std::vector<uint8_t> task_args;
   void *queue_id_dev = nullptr;
-  GE_CHK_RT_RET(aclrtMalloc(&queue_id_dev, sizeof(queue_id), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&queue_id_dev, sizeof(queue_id), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_MAKE_GUARD(queue_id_dev, [&queue_id_dev]() {
     GE_CHK_RT(aclrtFree(queue_id_dev));
   });
@@ -433,7 +434,7 @@ Status AiCpuResources::SetStaticModelShapeConfig(const AiCpuModelShapeConfig &co
   }
 
   void *tlv_device_addr = nullptr;
-  GE_CHK_RT_RET(aclrtMalloc(&tlv_device_addr, config_buff.size(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&tlv_device_addr, config_buff.size(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_MAKE_GUARD(tlv_device_addr, [&tlv_device_addr]() { GE_CHK_RT(aclrtFree(tlv_device_addr)); });
   GE_CHK_RT_RET(aclrtMemcpy(tlv_device_addr, config_buff.size(), config_buff.data(),
       config_buff.size(), ACL_MEMCPY_HOST_TO_DEVICE));

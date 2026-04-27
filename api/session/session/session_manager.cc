@@ -13,6 +13,7 @@
 #include <utility>
 #include "common/plugin/ge_make_unique_util.h"
 #include "framework/common/debug/ge_log.h"
+#include "framework/common/util.h"
 #include "graph/ge_context.h"
 #include "graph/manager/util/rt_context_util.h"
 #include "graph/manager/session_id_manager.h"
@@ -57,9 +58,7 @@ Status SessionManager::CreateSession(const std::map<std::string, std::string> &o
     return GE_SESSION_MANAGER_NOT_INIT;
   }
 
-  for (const auto &item : options) {
-    GELOGI("GE option: %s, value: [%s].", item.first.c_str(), item.second.c_str());
-  }
+  PrintOptionsWithLengthLimit(options, "Session option");
 
   SessionId next_session_id = 0;
 

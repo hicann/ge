@@ -22,6 +22,7 @@
 #include "framework/common/debug/ge_log.h"
 #include "runtime/mem.h"
 #include "graph_metadef/common/ge_common/util.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 #include <set>
 #include <utility>
@@ -68,10 +69,9 @@ struct ExtraOpInfo {
   void RecordArgsBefore() {
     if ((args != 0U) && (args_size != 0UL)) {
       uint8_t *host_addr = nullptr;
-      aclError rt_ret =
-          aclrtMallocHost(PtrToPtr<uint8_t *, void *>(&host_addr), args_size);
+      aclError rt_ret = ge::AclrtMallocHost(PtrToPtr<uint8_t *, void *>(&host_addr), args_size, GE_MODULE_NAME_U16);
       if (rt_ret != ACL_SUCCESS) {
-        GELOGW("[Call][RtMallocHost] failed, size:%zu, ret:0x%X", args_size, rt_ret);
+        GELOGW("[Call][AclrtMallocHost] failed, size:%zu, ret:0x%X", args_size, rt_ret);
         return;
       }
       GE_MAKE_GUARD_RTMEM(host_addr);

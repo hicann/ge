@@ -12,6 +12,7 @@
 #include "securec.h"
 #include "framework/common/runtime_tensor_desc.h"
 #include "framework/common/debug/log.h"
+#include "runtime/v1/common/aclrt_malloc_helper.h"
 
 namespace {
 constexpr uint32_t kCoreDim = 1U;  // for rtCpuKernelLaunch
@@ -58,7 +59,7 @@ Status CpuTaskModelDequeue::Init(const uint32_t queue_id, uintptr_t &in_mbuf) {
   }
 
   args_size_ = sizeof(MbufQueueInfo) + sizeof(uintptr_t);  // sizeof(uintptr_t) for save in_mbuf.
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   in_mbuf = PtrToValue(args_) + sizeof(MbufQueueInfo);
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
 
@@ -181,11 +182,11 @@ Status CpuTaskZeroCopy::Init(std::vector<uintptr_t> &mbuf_list,
   }
 
   // malloc mem for src_addrs/dst_addrs, and copy data of src_addrs/dst_addrs
-  GE_CHK_RT_RET(aclrtMalloc(&src_addr_, src_addrs_.size() * sizeof(uint64_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&src_addr_, src_addrs_.size() * sizeof(uint64_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(src_addr_, src_addrs_.size() * sizeof(uint64_t), src_addrs_.data(),
       src_addrs_.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
 
-  GE_CHK_RT_RET(aclrtMalloc(&dst_addr_, dst_addrs_.size() * sizeof(uint64_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&dst_addr_, dst_addrs_.size() * sizeof(uint64_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(dst_addr_, dst_addrs_.size() * sizeof(uint64_t), dst_addrs_.data(),
       dst_addrs_.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
 
@@ -205,17 +206,13 @@ Status CpuTaskZeroCopy::Init(std::vector<uintptr_t> &mbuf_list,
       addr_map_info.src_addr_list, addr_map_info.dst_addr_list);
   } else {
     AddrMapInfoV2 *const addr_map_info_v2 = PtrToPtr<uint8_t, AddrMapInfoV2>(&buff[0]);
-    GE_CHK_RT_RET(aclrtMalloc(&no_tiling_addr_, no_tilings_.size() * sizeof(int32_t),
-        ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&no_tiling_addr_, no_tilings_.size() * sizeof(int32_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     GE_CHK_RT_RET(aclrtMemcpy(no_tiling_addr_, no_tilings_.size() * sizeof(int32_t), no_tilings_.data(),
         no_tilings_.size() * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE));
-
-    GE_CHK_RT_RET(aclrtMalloc(&dest_is_tiling_addr_, dest_is_tilings_.size() * sizeof(int32_t),
-        ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&dest_is_tiling_addr_, dest_is_tilings_.size() * sizeof(int32_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     GE_CHK_RT_RET(aclrtMemcpy(dest_is_tiling_addr_, dest_is_tilings_.size() * sizeof(int32_t),
         dest_is_tilings_.data(), dest_is_tilings_.size() * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE));
-    GE_CHK_RT_RET(aclrtMalloc(&fusion_offsets_addr_,
-        fusion_offsets_.size() * sizeof(int32_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&fusion_offsets_addr_, fusion_offsets_.size() * sizeof(int32_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     GE_CHK_RT_RET(aclrtMemcpy(fusion_offsets_addr_, fusion_offsets_.size() * sizeof(int32_t), fusion_offsets_.data(),
         fusion_offsets_.size() * sizeof(int32_t), ACL_MEMCPY_HOST_TO_DEVICE));
     addr_map_info_v2->addr_num = addr_num_;
@@ -242,7 +239,7 @@ Status CpuTaskZeroCopy::Init(std::vector<uintptr_t> &mbuf_list,
            addr_map_info_v2->len, args_size_);
   }
 
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   GE_CHK_RT_RET(aclrtMemcpy(args_, static_cast<uint64_t>(args_size_), args, static_cast<uint64_t>(args_size_),
       ACL_MEMCPY_HOST_TO_DEVICE));
@@ -293,7 +290,7 @@ Status CpuTaskProcessOutput::Init(const uintptr_t addr, const uint32_t size, con
       static_cast<uint32_t>(sizeof(ProcessOutputInfo) + sizeof(uintptr_t));  // sizeof(uintptr_t) for save out_mbuf.
   if (output_desc != nullptr) {
     args_size_ += static_cast<uint32_t>(sizeof(RuntimeTensorDesc));
-    GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     out_mbuf = PtrToValue(args_) + static_cast<uint64_t>(sizeof(ProcessOutputInfo)) +
                static_cast<uint64_t>(sizeof(RuntimeTensorDesc));
     RuntimeTensorDesc tensor_desc{};
@@ -314,7 +311,7 @@ Status CpuTaskProcessOutput::Init(const uintptr_t addr, const uint32_t size, con
         (static_cast<uint64_t>(args_size_) - static_cast<uint64_t>(sizeof(ProcessOutputInfo))),
         &tensor_desc, static_cast<uint64_t>(sizeof(RuntimeTensorDesc)), ACL_MEMCPY_HOST_TO_DEVICE));
   } else {
-    GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+    GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
     out_mbuf = PtrToValue(args_) + sizeof(ProcessOutputInfo);
     GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   }
@@ -374,7 +371,7 @@ Status CpuTaskModelEnqueue::Init(const uint32_t queue_id, const uintptr_t out_mb
 
   // Get NetOutput Input address and bind to queue.
   args_size_ = sizeof(MbufQueueInfo);
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
 
   MbufQueueInfo queue_info;
@@ -438,7 +435,7 @@ Status CpuTaskMarkStep::Init(const GroupInfo &group_info, const std::string &dum
   }
 
   args_size_ = static_cast<uint32_t>(sizeof(MarkStepInfo));
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
 
   MarkStepInfo mark_step_info{};
@@ -492,7 +489,7 @@ Status CpuTaskWaitEndGraph::Init(const uint32_t model_id) {
   }
 
   args_size_ = sizeof(model_id);
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
 
   GE_CHK_RT_RET(aclrtMemcpy(args_, static_cast<uint64_t>(args_size_), &model_id, static_cast<uint64_t>(args_size_),
@@ -522,7 +519,7 @@ Status CpuTaskModelReportStatus::Init(const uint32_t model_uuid,
     return FAILED;
   }
   args_size_ = static_cast<uint32_t>(sizeof(ReportStatusInfo) + (sizeof(QueueAttrs) * input_queues.size()));
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
 
   ReportStatusInfo report_status_info;
@@ -564,7 +561,7 @@ Status CpuTaskModelRepeat::Init(const uint32_t model_id) {
   }
 
   args_size_ = sizeof(model_id);
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
 
   GE_CHK_RT_RET(aclrtMemcpy(args_, static_cast<uint64_t>(args_size_), &model_id, static_cast<uint64_t>(args_size_),
@@ -608,7 +605,7 @@ Status CpuTaskModelBatchDequeue::Init(const uint32_t align_interval,
   const uint32_t align_offsets_offset = args_size_;
   const size_t align_offsets_size = sizeof(uint32_t) * num_inputs;
   args_size_+= static_cast<uint32_t>(sizeof(uint32_t) * align_offsets_size);
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   kernel_args.align_offsets_addr = PtrToValue(args_) + align_offsets_offset;
   kernel_args.queue_ids_addr = PtrToValue(args_) + queue_ids_offset;
   kernel_args.mbuf_addrs_addr = PtrToValue(args_) + mbuf_addrs_offset;
@@ -670,7 +667,7 @@ Status CpuTaskModelGatherDequeue::Init(const std::vector<QueueAttrs> &queues,
   const size_t mbuff_size = sizeof(uint64_t) * queue_num;
   args_size_ += static_cast<uint32_t>(mbuff_size);
 
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   kernel_args.queue_ids_addr = PtrToValue(args_) + queue_ids_offset;
   kernel_args.mbuf_addrs_addr = PtrToValue(args_) + mbuf_addrs_offset;
@@ -732,19 +729,18 @@ Status CpuTaskProcessInputsMemCopy::Init(const std::vector<uintptr_t> &mbuf_list
   }
 
   // construct InputCopyAddrMapInfo and copy data to device
-  GE_CHK_RT_RET(aclrtMalloc(&src_addr_, mbuf_list.size() * sizeof(uint64_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&src_addr_, mbuf_list.size() * sizeof(uint64_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(src_addr_, mbuf_list.size() * sizeof(uint64_t), mbuf_list.data(),
       mbuf_list.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
 
-  GE_CHK_RT_RET(aclrtMalloc(&dst_addr_, data_addr_list.size() * sizeof(uint64_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&dst_addr_, data_addr_list.size() * sizeof(uint64_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(dst_addr_, data_addr_list.size() * sizeof(uint64_t), data_addr_list.data(),
       data_addr_list.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
 
-  GE_CHK_RT_RET(aclrtMalloc(&len_list_, length_list.size() * sizeof(uint64_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&len_list_, length_list.size() * sizeof(uint64_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(len_list_, length_list.size() * sizeof(uint64_t), length_list.data(),
       length_list.size() * sizeof(uint64_t), ACL_MEMCPY_HOST_TO_DEVICE));
-  GE_CHK_RT_RET(aclrtMalloc(&input_fusion_offset_list_,
-      input_fusion_offset_list.size() * sizeof(int32_t), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&input_fusion_offset_list_, input_fusion_offset_list.size() * sizeof(int32_t), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(input_fusion_offset_list_, input_fusion_offset_list.size() * sizeof(int32_t),
       input_fusion_offset_list.data(), input_fusion_offset_list.size() * sizeof(int32_t),
       ACL_MEMCPY_HOST_TO_DEVICE));
@@ -757,7 +753,7 @@ Status CpuTaskProcessInputsMemCopy::Init(const std::vector<uintptr_t> &mbuf_list
   args_size_ = static_cast<uint32_t>(sizeof(InputCopyAddrMapInfo));
   GELOGI("src_addr_list is 0x%" PRIx64 ", dst_addr_list is 0x%" PRIx64 ", data_len_addr is 0x%" PRIx64,
          addr_map_info.src_addr_list, addr_map_info.dst_addr_list, addr_map_info.data_len_list);
-  GE_CHK_RT_RET(aclrtMalloc(&args_, static_cast<uint64_t>(args_size_), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, static_cast<uint64_t>(args_size_), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_PRINT_DYNAMIC_MEMORY(aclrtMalloc, "args data.", args_size_);
   GE_CHK_RT_RET(aclrtMemcpy(args_, static_cast<uint64_t>(args_size_), &addr_map_info,
       static_cast<uint64_t>(args_size_), ACL_MEMCPY_HOST_TO_DEVICE));
@@ -805,15 +801,14 @@ Status CpuTaskProcessInputsShapeCheck::Init(const std::vector<uintptr_t> &mbuf_l
     validation.offset = static_cast<uint64_t>(input_fusion_offset_list[i]);
     shape_validation.emplace_back(validation);
   }
-  GE_CHK_RT_RET(aclrtMalloc(&shape_validation_addr_,
-      sizeof(ShapeValidation) * shape_validation.size(), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&shape_validation_addr_, sizeof(ShapeValidation) * shape_validation.size(), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(shape_validation_addr_, sizeof(ShapeValidation) * shape_validation.size(),
       shape_validation.data(), sizeof(ShapeValidation) * shape_validation.size(), ACL_MEMCPY_HOST_TO_DEVICE));
   ShapeValidationInfo shape_validation_info = {};
   shape_validation_info.validation_num = shape_validation.size();
   shape_validation_info.validation_info_device_addr = PtrToValue(shape_validation_addr_);
   GELOGI("Addr of shape validation info is 0x%" PRIx64 ".", shape_validation_addr_);
-  GE_CHK_RT_RET(aclrtMalloc(&args_, sizeof(ShapeValidationInfo), ACL_MEM_TYPE_HIGH_BAND_WIDTH));
+  GE_CHK_RT_RET(ge::AclrtMalloc(&args_, sizeof(ShapeValidationInfo), RT_MEMORY_HBM, GE_MODULE_NAME_U16));
   GE_CHK_RT_RET(aclrtMemcpy(args_, sizeof(ShapeValidationInfo),
       &shape_validation_info, sizeof(ShapeValidationInfo), ACL_MEMCPY_HOST_TO_DEVICE));
   args_size_ = static_cast<uint32_t>(sizeof(ShapeValidationInfo));

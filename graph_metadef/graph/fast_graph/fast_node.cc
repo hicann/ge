@@ -15,6 +15,7 @@
 #include "utils/ge_ir_utils.h"
 #include "fast_graph_utils.h"
 #include "graph/debug/ge_op_types.h"
+#include "graph/debug/ge_util.h"
 
 namespace ge {
 namespace {

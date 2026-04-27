@@ -78,6 +78,7 @@
 #include "graph/passes/variable_optimize/ref_identity_delete_op_pass.h"
 #include "graph/passes/standard_optimize/remove_same_const_pass.h"
 #include "graph/passes/shape_optimize/reshape_recovery_pass.h"
+#include "engines/manager/opskernel_manager/ops_kernel_manager.h"
 #include "graph/passes/shape_optimize/reshape_remove_pass.h"
 #include "graph/passes/standard_optimize/same_transdata_breadth_fusion_pass.h"
 #include "graph/passes/memory_conflict/subgraph_pass.h"
@@ -1314,6 +1315,10 @@ Status GraphManager::PreRun(const GraphNodePtr &graph_node, const std::vector<Ge
   GE_CHECK_NOTNULL(graph_node->GetGraph());
   auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph_node->GetGraph());
   GE_CHECK_NOTNULL(compute_graph);
+
+  GE_CHK_STATUS_RET(OpsKernelManager::GetInstance().RefreshOpsKernelInfo(),
+                    "[Refresh][OpsKernelInfo] failed.");
+
   compute_graph->SetSessionID(session_id);
   GEEVENT("PreRun start: graph node size %zu, session id %lu, graph id %u, graph name %s.",
           compute_graph->GetDirectNodesSize(), session_id, compute_graph->GetGraphID(),

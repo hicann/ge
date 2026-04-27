@@ -118,7 +118,7 @@ bool IsStableRDFS() {
 }
 }
 
-Status InnerIdentityDeletePass::IsolateAndDeleteIdentityNode(const NodePtr &node) {
+Status InnerIdentityDeletePass::IsolateAndDeleteIdentityNode(const NodePtr &node) const {
   GE_ASSERT_NOTNULL(node);
   if (!IsInneridentity(node)) {
     GELOGE(FAILED, "node %s is not inner tensor move, cannot delete", node->GetNamePtr());
@@ -134,7 +134,7 @@ Status InnerIdentityDeletePass::DeleteInnerIdentity(const NodePtr &node) {
   GE_ASSERT_TRUE(node->GetInDataNodesSize() == 1U);
   auto identity_peer_out_anchor = node->GetInDataAnchor(0)->GetPeerOutAnchor();
   GE_ASSERT_NOTNULL(identity_peer_out_anchor);
-  auto input_node = identity_peer_out_anchor->GetOwnerNode();
+  auto input_node = identity_peer_out_anchor->GetOwnerNodeBarePtr();
   GE_ASSERT_NOTNULL(input_node);
   // 场景一：identity输入节点是const之类不可改写的类型，则不可以删除
   if (OpTypeUtils::IsConstNode(input_node->GetType())) {

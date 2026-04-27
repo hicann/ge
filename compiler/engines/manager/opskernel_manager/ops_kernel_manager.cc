@@ -346,6 +346,15 @@ OpsKernelInfoStorePtr OpsKernelManager::GetOpsKernelInfoStore(const std::string 
   return nullptr;
 }
 
+Status OpsKernelManager::RefreshOpsKernelInfo() {
+  for (const auto &it : ops_kernel_store_) {
+    GELOGI("Refresh OpsKernelInfoStore: %s", it.first.c_str());
+    GE_CHK_STATUS_RET(it.second->Refresh(), "Refresh OpsKernelInfoStore %s failed", it.first.c_str());
+  }
+  GELOGI("OpsKernelInfo refreshed");
+  return SUCCESS;
+}
+
 const std::map<std::string, OpsKernelInfoStorePtr> &OpsKernelManager::GetAllOpsKernelInfoStores() const {
   return ops_kernel_store_;
 }

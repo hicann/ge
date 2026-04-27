@@ -275,8 +275,8 @@ Status Loop::ConstructFromNodes(ascir::NodeViewVisitorConst nodes, const Tiler &
     // Add call
     auto call = CreateApiCallObject(node);
     GE_ASSERT_NOTNULL(call, "Create api call object failed, ascir type:%s", node->GetTypePtr());
-    GE_CHK_STATUS_RET(call->Init(node), "ApiCall Init failed, ascir type:%s", node->GetTypePtr());
     current_loop->AddCall(call);
+    GE_CHK_STATUS_RET(call->Init(node), "ApiCall Init failed, ascir type:%s", node->GetTypePtr());
     call->exec_condition = node->attr.sched.exec_condition;
     call->enable_cache = this->is_graph_has_reduce_node
                               ? IsNodeSplitB(node, tiler, call->enable_cache_with_condition, current_loop->is_ar)
@@ -864,11 +864,9 @@ Status ApiCall::Init(const ascir::NodeView &node) {
     }
   }
   GE_CHK_STATUS_RET(ParseAttr(node));
-  return ge::SUCCESS;
-}
-
-Status ApiCall::ParseAttr(const ascir::NodeView &node) {
-  (void) node;
+  this->node = node;
+  this->graph_name = node->GetOwnerComputeGraph()->GetName();
+  this->node_name = node->GetNamePtr();
   return ge::SUCCESS;
 }
 
@@ -1429,14 +1427,26 @@ bool ApiCall::FreeUnusedOutputs(const TPipe &tpipe, std::stringstream &ss) const
   }
   return true;
 }
+
+Status ApiCall::BuildApiParam(const TPipe &tpipe, const std::vector<ascir::AxisId> &current_axis,
+                              const std::vector<std::reference_wrapper<const Tensor>> &input,
+                              const std::vector<std::reference_wrapper<const Tensor>> &output) const {
+  (void)tpipe;
+  (void)current_axis;
+  (void)input;
+  (void)output;
+  CodegenApiParamPtr api_param = ge::ComGraphMakeShared<CodegenApiParam>();
+  GE_CHK_STATUS_RET(CodegenApiParam::Register(this->node, api_param));
+  return ge::SUCCESS;
+}
+
 Status ApiCall::Generate(const TPipe &tpipe, const vector<ascir::AxisId> &current_axis,
                          const vector<std::reference_wrapper<const Tensor>> &input,
                          const vector<std::reference_wrapper<const Tensor>> &output, string &result) const {
-  (void) tpipe;
-  (void) current_axis;
-  (void) input;
-  (void) output;
-  (void) result;
+  GE_CHK_STATUS_RET(BuildApiParam(tpipe, current_axis, input, output),
+                    "BuildApiParam failed, graph name: %s, node name: %s", graph_name.c_str(), node_name.c_str());
+  GE_CHK_STATUS_RET(GenerateApiCallString(result), "GenerateApiCallString failed, graph name: %s, node name: %s",
+                    graph_name.c_str(), node_name.c_str());
   return ge::SUCCESS;
 }
 
@@ -1447,4 +1457,96 @@ bool ApiCall::IsUnitLastRead(const ApiTensor &tensor) const {
     }
   }
   return false;
+}
+
+namespace {
+static void GenTemplateParams(const CodegenApiParamPtr api_param, stringstream &ss) {
+  if (api_param->template_params.empty()) {
+    return;
+  }
+  ss << "<";
+  bool first = true;
+  for (const auto &template_param : api_param->template_params) {
+    if (first) {
+      first = false;
+    } else {
+      ss << ", ";
+    }
+    ss << template_param;
+  }
+  ss << ">";
+}
+
+static void GenOuterLoopAxesPreProcess(const CodegenApiParamPtr api_param, stringstream &ss) {
+  if (api_param->outer_loop_axes.empty()) {
+    return;
+  }
+  for (size_t i = 0; i < api_param->outer_loop_axes.size(); i++) {
+    std::string loop_iter = "outer_for_" + std::to_string(i);
+    ss << "for (int " << loop_iter << " = 0; " << loop_iter << " < " << api_param->outer_loop_axes[i] << "; "
+       << loop_iter << "++) {" << std::endl;
+  }
+}
+
+static void GenOuterLoopAxesPostProcess(const CodegenApiParamPtr api_param, stringstream &ss) {
+  if (api_param->outer_loop_axes.empty()) {
+    return;
+  }
+  for (size_t i = 0; i < api_param->outer_loop_axes.size(); i++) {
+    ss << "}" << std::endl;
+  }
+}
+
+static void GenApiCallCommon(const CodegenApiParamPtr api_param, stringstream &ss) {
+  ss << api_param->api_name;
+  GenTemplateParams(api_param, ss);
+  ss << "(";
+  for (const auto &output : api_param->output_params) {
+    ss << output.name << (output.is_tensor ? "[" + output.offset + "]" : "") << ", ";
+  }
+  for (const auto &input : api_param->input_params) {
+    ss << input.name << (input.is_tensor ? "[" + input.offset + "]" : "") << ", ";
+  }
+  if (!api_param->tmp_buf_name.empty()) {
+    ss << api_param->tmp_buf_name << ", ";
+  }
+}
+
+static void GenApiCallPreProcess(const CodegenApiParamPtr api_param, stringstream &ss) {
+  if (api_param->api_pre_process.empty()) {
+    return;
+  }
+  for (const auto &pre_process : api_param->api_pre_process) {
+    ss << pre_process << std::endl;
+  }
+}
+
+static void GenApiCallPostProcess(const CodegenApiParamPtr api_param, stringstream &ss) {
+  if (api_param->api_post_process.empty()) {
+    return;
+  }
+  for (const auto &post_process : api_param->api_post_process) {
+    ss << post_process << std::endl;
+  }
+}
+}
+
+Status ApiCall::GenDimensionParam(const CodegenApiParamPtr api_param, stringstream &ss) const {
+  ss << api_param->cal_count << ");" << std::endl;
+  return ge::SUCCESS;
+}
+
+Status ApiCall::GenerateApiCallString(std::string &result) const {
+  auto api_param = CodegenApiParam::GetNodeApiParam(this->node);
+  GE_ASSERT_NOTNULL(api_param, "ApiParam of graph %s node %s is null", graph_name.c_str(), node_name.c_str());
+  stringstream ss;
+  GenOuterLoopAxesPreProcess(api_param, ss);
+  GenApiCallPreProcess(api_param, ss);
+  GenApiCallCommon(api_param, ss);
+  GE_CHK_STATUS_RET(GenDimensionParam(api_param, ss), "GenDimensionParam failed, graph name: %s, node name: %s",
+                    graph_name.c_str(), node_name.c_str());
+  GenApiCallPostProcess(api_param, ss);
+  GenOuterLoopAxesPostProcess(api_param, ss);
+  result = ss.str();
+  return ge::SUCCESS;
 }

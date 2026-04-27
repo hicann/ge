@@ -15,6 +15,7 @@
 #include "graph/normal_graph/ge_tensor_impl.h"
 #include "graph/normal_graph/node_impl.h"
 #include "graph/normal_graph/op_desc_impl.h"
+#include "graph/debug/ge_util.h"
 #include "mmpa/mmpa_api.h"
 #include "attribute_group/attr_group_serialize.h"
 
