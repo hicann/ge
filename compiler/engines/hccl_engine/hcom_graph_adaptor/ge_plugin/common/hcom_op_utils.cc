@@ -721,7 +721,10 @@ HcclResult HcomOpUtils::CalcCommonCount(const ge::OpDescPtr &op, const std::stri
     // 根据算子类型计算 blockSize
     u64 blockSize = 0;
     if (sCollectiveType == HCCL_KERNEL_OP_TYPE_REDUCESCATTER) {
-      blockSize = is_continuous_input ? inputSize / rankSize * (inputSize + ALIGNED_SIZE - 1) / ALIGNED_SIZE : inputSize / rankSize;
+      const u32 paddingLen = 1024;
+      blockSize = is_continuous_input ?
+        ((inputSize + ALIGNED_SIZE - 1) / ALIGNED_SIZE * ALIGNED_SIZE + paddingLen) / rankSize :
+        (inputSize + paddingLen) / rankSize;
     } else if (sCollectiveType == HCCL_KERNEL_OP_TYPE_ALLGATHER) {
       // ALLGATHER算子判断是否连续内存，连续内存需要对齐，非连续内存不需要对齐
  	    blockSize = is_continuous_input ? (inputSize + ALIGNED_SIZE - 1) / ALIGNED_SIZE * ALIGNED_SIZE : inputSize;
