@@ -11,11 +11,10 @@
 #ifndef API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_BINDING_COMMON_H_
 #define API_PYTHON_GE_GE_PASSES_NATIVE_BINDINGS_BINDING_COMMON_H_
 
+#include "pybind11/detail/common.h"
 #ifdef ASCEND_CI_LIMITED_PY37
 #undef PyCFunction_NewEx
 #endif
-
-#include "Python.h"
 #include "pybind11/pybind11.h"
 #include "pybind11/stl.h"
 
