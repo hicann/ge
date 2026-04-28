@@ -135,6 +135,7 @@
 #include "graph/optimize/autofuse/autofuse_optimize.h"
 #include "graph/passes/standard_optimize/tensor_move_delete_pass.h"
 #include "acl/acl_rt.h"
+#include "graph/preprocess/hccl_offline_option_builder.h"
 
 namespace ge {
 namespace {
@@ -1424,6 +1425,7 @@ Status GraphManager::VerifyCommNodesOrderAfterBuild(const ComputeGraphPtr &compu
 Status GraphManager::DoBuildModel(ComputeGraphPtr &compute_graph,
                                   const std::vector<GeTensor> &input_tensors,
                                   GeRootModelPtr &ge_root_model) {
+  GE_CHK_STATUS_RET(SetDefaultHcclOptions());
   GE_ASSERT_SUCCESS(SaveOriginCommunicationNodes(compute_graph));
   GE_CHK_STATUS_RET(OptimizeGraph(input_tensors, compute_graph),
                     "[Optimize][Graph] failed, graph = %s", compute_graph->GetName().c_str());
@@ -5218,6 +5220,32 @@ Status GraphManager::DoSubgraphPartitionWithMode(const GraphNodePtr &graph_node,
   GE_COMPILE_TRACE_TIMESTAMP_END(SubgraphPartitionAndOptimization_Mode, timestamp_name.c_str());
   std::string dump_name = std::string("MergedComputeGraphAfter") + mode_name + "Partition";
   GE_DUMP(compute_graph, dump_name.c_str());
+  return SUCCESS;
+}
+
+Status GraphManager::SetDefaultHcclOptions() const {
+  if (!HcclOfflineOptionBuilder::Instance().IsInitialized()) {
+    GELOGI("[GraphManager] HcclOfflineOptionBuilder not initialized, skip SetDefaultHcclOptions.");
+    return SUCCESS;
+  }
+  auto graph_options = GetThreadLocalContext().GetAllGraphOptions();
+  if (graph_options.find(OPTION_EXEC_HCOM_GROUPLIST) != graph_options.end()) {
+    GELOGE(FAILED, "[Check][HcomGrouplist] OPTION_EXEC_HCOM_GROUPLIST conflicts with"
+      "OPTION_EXEC_HCOM_GROUPLIST_V2, cannot coexist.");
+    return FAILED;
+  }
+  graph_options[OPTION_EXEC_RANK_TABLE] = HcclOfflineOptionBuilder::Instance().GetLogicRankTable();
+  GELOGI("Get rank table:%s", graph_options[OPTION_EXEC_RANK_TABLE].c_str());
+  graph_options[OPTION_EXEC_GLOBAL_HCCL_COMM_CONFIG] = HcclOfflineOptionBuilder::Instance().GetHcclCommConfig();
+  GELOGI("Get hccl comm config:%s", graph_options[OPTION_EXEC_GLOBAL_HCCL_COMM_CONFIG].c_str());
+
+  graph_options[OPTION_EXEC_HCOM_GROUPLIST_V2] = HcclOfflineOptionBuilder::Instance().GetHcomGrouplist();
+  GELOGI("Get hcom grouplist:%s", graph_options[OPTION_EXEC_HCOM_GROUPLIST_V2].c_str());
+  graph_options[OPTION_HCCL_COMPILER_OFFLINE] = "1";
+  if (graph_options[SOC_VERSION].empty()) {
+    graph_options[SOC_VERSION] = HcclOfflineOptionBuilder::Instance().GetSocVersion();
+  }
+  GetThreadLocalContext().SetGraphOption(graph_options);
   return SUCCESS;
 }
 }  // namespace ge
