@@ -1488,8 +1488,7 @@ Status GenerateModelBySingleGraph(GeGenerator &ge_generator, const std::string &
     graph = GraphUtilsEx::CreateGraphFromComputeGraph(load_model.GetGraph());
 
     GE_CHK_STATUS_EXEC(InitDomiOmgContext(FLAGS_input_shape, FLAGS_input_format, "", is_dynamic_input),
-                       GELOGE(FAILED, "[Init][DomiOmgContext]ATC Generate call InitDomiOmgContext ret fail");
-                       return FAILED);
+                       return FAILED, "[Init][DomiOmgContext]ATC Generate call InitDomiOmgContext ret fail");
     GE_ASSERT_SUCCESS(CheckParamForAirInput(graph));
     ret = CreateInputsForInference(graph, inputs);
     if (ret != SUCCESS) {
@@ -1529,8 +1528,7 @@ Status GenerateModelBySingleGraph(GeGenerator &ge_generator, const std::string &
   }
 
   GE_CHK_STATUS_EXEC(CallAmctInterface(graph, options),
-                     GELOGE(FAILED, "[Call][AmctInterface]ATC Generate call AmctInterface ret fail");
-                     return FAILED);
+                     return FAILED, "[Call][AmctInterface]ATC Generate call AmctInterface ret fail");
   ret = GenerateOfflineModel(ge_generator, graph, output, inputs);
   if (ret != SUCCESS) {
     REPORT_INNER_ERR_MSG("E19999", "GE GenerateOfflineModel execute failed");
