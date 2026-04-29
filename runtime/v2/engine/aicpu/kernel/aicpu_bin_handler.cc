@@ -43,8 +43,7 @@ bool OpJsonBinHandler::IsSupportBinHandle()
         return;
       }
 
-      if ((strncmp(soc_version, "Ascend950", (sizeof("Ascend950") - 1UL)) == 0)
-        || (strncmp(soc_version, "Ascend910_96", (sizeof("Ascend910_96") - 1UL)) == 0)) {
+      if (strncmp(soc_version, "Ascend910_96", (sizeof("Ascend910_96") - 1UL)) == 0) {
         is_support_ = false;
       }
       GELOGI("Init bin handle support status, val=%u, socVersion=%s", static_cast<uint32_t>(is_support_), soc_version);
