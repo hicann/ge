@@ -1141,13 +1141,13 @@ graphStatus InnerLowerMatMul(const NodePtr &node, bool is_batch) {
     (void)AttrUtils::GetBool(node->GetOpDesc(), "enable_hf32", enable_hf32);
     matmul_attr.enable_hf32 = static_cast<int64_t>(enable_hf32);
     if (TryLowerBatchMatMulToVector(node, matmul_attr) == GRAPH_SUCCESS) {
-      GELOGI("batch matmul lowrring to elemwise.");
+      GELOGI("batch matmul lowering to elemwise.");
       return GRAPH_SUCCESS;
     }
   } else {
     (void)AttrUtils::GetInt(node->GetOpDesc(), "opImplMode", matmul_attr.enable_hf32);
     if (TryLowerMatMulToVector(node, matmul_attr) == GRAPH_SUCCESS) {
-      GELOGI("matmul lowrring to elemwise.");
+      GELOGI("matmul lowering to elemwise.");
       return GRAPH_SUCCESS;
     }
   }
