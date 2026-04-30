@@ -39,6 +39,8 @@ set(ascendc_api_regbase_extend_src
         modified_bessel_utils.h
         laguerre_polynomial_l.h
         legendre_polynomial_p.h
+        igamma.h
+        igammac.h
 )
 
 set(generated_regbase_files)
