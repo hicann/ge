@@ -1275,7 +1275,7 @@ TEST_F(PatternFusionPassTest, BroadcastReduceMax_EliminateWithSqueeze) {
   EXPECT_EQ(graph->FindNode("reduce_max"), nullptr);
 
   // 验证创建了 Reshape 节点
-  auto reshape_node = graph->FindNode("data_reshape");
+  auto reshape_node = graph->FindNode("data_reduce_max_reshape");
   ASSERT_NE(reshape_node, nullptr);
   EXPECT_EQ(reshape_node->GetType(), "Reshape");
 
@@ -1337,7 +1337,7 @@ TEST_F(PatternFusionPassTest, FillReduceMax_EliminateWithKeepDims) {
   EXPECT_EQ(graph->FindNode("reduce_max"), nullptr);
 
   // 验证创建了 Reshape 节点（value 是 scalar，reduce 输出是 [1, 1]）
-  auto reshape_node = graph->FindNode("value_data_reshape");
+  auto reshape_node = graph->FindNode("value_data_reduce_max_reshape");
   ASSERT_NE(reshape_node, nullptr);
   EXPECT_EQ(reshape_node->GetType(), "Reshape");
 
@@ -1529,7 +1529,7 @@ TEST_F(PatternFusionPassTest, TileReduceMax_EliminateWithoutKeepDims) {
   EXPECT_EQ(graph->FindNode("reduce_max"), nullptr);
 
   // 验证创建了 Reshape 节点
-  auto reshape_node = graph->FindNode("data_reshape");
+  auto reshape_node = graph->FindNode("data_reduce_max_reshape");
   ASSERT_NE(reshape_node, nullptr);
   EXPECT_EQ(reshape_node->GetType(), "Reshape");
 }
