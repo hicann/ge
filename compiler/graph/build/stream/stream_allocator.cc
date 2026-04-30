@@ -1089,12 +1089,12 @@ Status StreamAllocator::OptimizeSyncEvents(
       GELOGI("node_to_send_events STREAMSWITCH.");
 
       for (auto event_id : pair.second) {
-        GELOGI("Curren switch node is %s, remove send %s_id %d.", GetEventTypeStr(event_type).c_str(),
+        GELOGI("Current switch node is %s, remove send %s_id %d.", GetEventTypeStr(event_type).c_str(),
                pair.first->GetName().c_str(), event_id);
         StreamUtils::RmvSendEventId(pair.first, event_id, node_to_send_events);
         auto recv_node = StreamUtils::GetNodeFromSyncId(event_id, node_to_recv_events);
         GE_CHECK_NOTNULL(recv_node);
-        GELOGI("Curren recv_node is %s, remove recv %s_id %d.", GetEventTypeStr(event_type).c_str(),
+        GELOGI("Current recv_node is %s, remove recv %s_id %d.", GetEventTypeStr(event_type).c_str(),
                recv_node->GetName().c_str(), event_id);
         StreamUtils::RmvRecvEventId(recv_node, event_id, node_to_recv_events);
       }
