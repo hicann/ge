@@ -385,19 +385,19 @@ HcclResult IsUsingOpenSource(bool &openSource) {
   }
   std::string socVersion{};
   if (ge::GetThreadLocalContext().GetOption(ge::SOC_VERSION, socVersion) != ge::GRAPH_SUCCESS) {
-    HCCL_ERROR("[HcomBaseFuns][IsUsingOpenSource] get soc version failed");
+    HCCL_ERROR("[HcomBaseFuns] IsUsingOpenSource get soc version failed");
     return HCCL_E_NOT_FOUND;
   }
-  HCCL_INFO("[HcomBaseFuns] IsUsingOpenSource: socVersion[%s]", socVersion.c_str());
   const char *indOp = getenv("HCCL_INDEPENDENT_OP");
-
   if (socVersion.find("Ascend950") == std::string::npos) {
     openSource = false;
-  } else if (indOp != nullptr && strcmp(indOp, "") != 0) {
-    openSource = true;
-  } else {
+  } else if (indOp != nullptr && strcmp(indOp, "0") == 0) {
     openSource = false;
+  } else {
+    openSource = true;
   }
+  HCCL_INFO("[HcomBaseFuns] IsUsingOpenSource: openSource[%d]", openSource);
+
   return HCCL_SUCCESS;
 }
 }  // namespace hccl
