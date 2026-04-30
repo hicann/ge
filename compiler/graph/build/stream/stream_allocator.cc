@@ -1367,6 +1367,13 @@ Status StreamAllocator::SplitStreams(
   GE_ASSERT_SUCCESS(GetMaxStreamAndTask(is_huge_stream, helper.max_stream_count, helper.max_task_count),
                     "[Get][MaxCount] of stream and task failed.");
 
+  static std::atomic<bool> has_printed_hw_spec{false};
+  if (!has_printed_hw_spec.exchange(true)) {
+    GELOGI("Static shape stream split: get hardware spec from rts, "
+           "max_stream_count=%u, max_task_count_per_stream=%u, is_huge_stream=%d",
+           helper.max_stream_count, helper.max_task_count, is_huge_stream ? 1 : 0);
+  }
+
   GE_ASSERT_SUCCESS(CollectTaskSize(node_id_2_node_tasks, helper.max_task_count));
   for (const auto &cur_node : whole_graph_->GetNodes(whole_graph_->GetGraphUnknownFlag())) {
     auto op_desc = cur_node->GetOpDesc();
