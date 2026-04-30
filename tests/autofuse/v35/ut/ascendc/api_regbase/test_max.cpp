@@ -44,7 +44,7 @@ class TestApiMax :public testing::Test {
         param.src1 = static_cast<InT *>(AscendC::GmAlloc(sizeof(InT) * param.size));
 
         std::mt19937 eng(1);
-        
+
         auto distr = []() {
               if constexpr (std::is_integral_v<InT>) {
                   return std::uniform_int_distribution<int32_t>(-10, 10);
@@ -52,8 +52,6 @@ class TestApiMax :public testing::Test {
                   return std::uniform_real_distribution<float>(-10.0f, 10.0f);
               }
           }();
-        // std::uniform_int_distribution distr(0, input_range);  // Define the range
-        // std::uniform_real_distribution<float> distr(-10.0f, static_cast<float>(input_range));
 
         for (int i = 0; i < param.size; i++) {
             InT input0 = static_cast<InT>(distr(eng));
@@ -91,6 +89,11 @@ class TestApiMax :public testing::Test {
         // 验证结果
         uint32_t diff_count = Valid<InT>(param.y, param.exp, param.size);
         EXPECT_EQ(diff_count, 0);
+        // 释放内存
+        AscendC::GmFree(param.y);
+        AscendC::GmFree(param.exp);
+        AscendC::GmFree(param.src0);
+        AscendC::GmFree(param.src1);
     }
 };
 
