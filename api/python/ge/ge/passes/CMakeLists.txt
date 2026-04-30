@@ -53,7 +53,5 @@ target_compile_options(_ge_pass_native PRIVATE
 )
 
 target_link_options(_ge_pass_native PRIVATE
-        -s
+        $<$<CONFIG:Release>:-s>
 )
-
-#set_target_properties(_ge_pass_native PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

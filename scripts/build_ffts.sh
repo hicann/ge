@@ -1,15 +1,26 @@
 #!/bin/bash
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
-# This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
 set -e
+
+# Source lcov version detection support
+BASEPATH=$(cd "$(dirname $0)/.."; pwd)
+source ${BASEPATH}/scripts/support_multiple_versions_of_lcov.sh 2>/dev/null || true
+
+# Get lcov ignore-errors parameters based on version
+get_lcov_params() {
+  if [ "$(get_lcov_major_version 2>/dev/null)" -ge 2 ] 2>/dev/null; then
+    echo "--ignore-errors mismatch,unused,negative --rc geninfo_unexecuted_blocks=1"
+  fi
+}
 BASEPATH=$(cd "$(dirname $0)/.."; pwd)
 AIRDIR="$(basename $BASEPATH)"
 OUTPUT_PATH="${BASEPATH}/output"
@@ -157,8 +168,8 @@ run_llt()
     then
       cd "${BASEPATH}"
       mk_dir "${BASEPATH}/cov_ffts_ut/"
-      lcov -c -d build/tests/engines/ffts_engine/ut -o cov_ffts_ut/tmp.info
-      lcov -r cov_ffts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_ffts_ut/coverage.info
+      lcov -c -d build/tests/engines/ffts_engine/ut $(get_lcov_params) -o cov_ffts_ut/tmp.info
+      lcov -r cov_ffts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' $(get_lcov_params) -o cov_ffts_ut/coverage.info
       cd "${BASEPATH}/cov_ffts_ut/"
       genhtml coverage.info
       cd "${BASEPATH}"
@@ -174,8 +185,8 @@ run_llt()
     then
       cd "${BASEPATH}"
       mk_dir "${BASEPATH}/cov_ffts_st/"
-      lcov -c -d build/tests/engines/ffts_engine/st -o cov_ffts_st/tmp.info
-      lcov -r cov_ffts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_ffts_st/coverage.info
+      lcov -c -d build/tests/engines/ffts_engine/st $(get_lcov_params) -o cov_ffts_st/tmp.info
+      lcov -r cov_ffts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' $(get_lcov_params) -o cov_ffts_st/coverage.info
       cd "${BASEPATH}/cov_ffts_st/"
       genhtml coverage.info
       cd "${BASEPATH}"

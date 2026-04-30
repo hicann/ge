@@ -219,6 +219,7 @@ class TestGeneralizationPass : public PatternFusionBasePass {
     pattern1->AddOpDesc("TestGen", {"TestGen"})
         .SetOutput("TestGen");
     patterns.push_back(pattern1);
+    return patterns;
   };
 
   Status Fusion(ge::ComputeGraph &graph, Mapping &mapping, vector<ge::NodePtr> &fusion_nodes) override {

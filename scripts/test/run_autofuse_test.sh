@@ -1,10 +1,10 @@
 #!/bin/bash
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
-# This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
@@ -12,6 +12,12 @@
 set -e
 
 BASEPATH=$(cd "$(dirname $0)"; pwd)/../../
+
+# Source common lcov version detection functions
+source ${BASEPATH}/scripts/support_multiple_versions_of_lcov.sh
+
+# Detect lcov version and set appropriate ignore-errors flag
+detect_lcov_ignore_errors
 BUILD_RELATIVE_PATH="build"
 BUILD_PATH="${BASEPATH}/${BUILD_RELATIVE_PATH}/"
 OUTPUT_PATH="${BASEPATH}/output"
@@ -468,9 +474,10 @@ get_coverage() {
     mk_dir ${BASEPATH}/cov
     lcov -c \
       -d ${BUILD_RELATIVE_PATH}/ \
+      ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} \
       -o cov/tmp.info
     echo ${ASCEND_INSTALL_PATH}
-    lcov -r cov/tmp.info '${ASCEND_INSTALL_PATH}/*' '*/output/*' '*/base/metadef/*' '*/nlohmann/*' '*/${BUILD_RELATIVE_PATH}/opensrc/*' '*/${BUILD_RELATIVE_PATH}/proto/*' '*/third_party/*' '/usr/*' -o cov/coverage.info
+    lcov -r cov/tmp.info '${ASCEND_INSTALL_PATH}/*' '*/output/*' '*/base/metadef/*' '*/nlohmann/*' '*/${BUILD_RELATIVE_PATH}/opensrc/*' '*/${BUILD_RELATIVE_PATH}/proto/*' '*/third_party/*' '/usr/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov/coverage.info
     genhtml cov/coverage.info --output-directory cov/coverage_report
 }
 
