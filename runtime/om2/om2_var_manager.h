@@ -26,8 +26,8 @@ class Om2VarManager {
   Om2VarManager() = default;
   ~Om2VarManager();
 
-  ge::Status GetOrCreateVarAddr(const std::string &key, uint32_t device_id, size_t size, void *&addr);
-  bool TryGetVarAddr(const std::string &key, uint32_t device_id, void *&addr) const;
+  ge::Status GetOrCreateVarAddr(const std::string &key, const uint32_t device_id, const size_t size, void *&addr);
+  bool TryGetVarAddr(const std::string &key, const uint32_t device_id, void *&addr) const;
   void Finalize() noexcept;
 
  private:
@@ -36,7 +36,8 @@ class Om2VarManager {
     size_t size = 0U;
   };
 
-  ge::Status TryGetExistingVarAddr(const std::string &key, uint32_t device_id, size_t size, void *&addr) const;
+  ge::Status TryGetExistingVarAddr(const std::string &key, const uint32_t device_id, const size_t size,
+                                   void *&addr) const;
 
   mutable std::mutex mutex_;
   std::map<uint32_t, std::map<std::string, VarAddrInfo>> device_to_vars_;
@@ -50,8 +51,8 @@ class Om2VarManagerPool {
 
   ~Om2VarManagerPool();
 
-  Om2VarManagerPtr GetManager(uint64_t session_id);
-  void RemoveManager(uint64_t session_id);
+  Om2VarManagerPtr GetManager(const uint64_t session_id);
+  void RemoveManager(const uint64_t session_id);
   void Destroy() noexcept;
 
  private:

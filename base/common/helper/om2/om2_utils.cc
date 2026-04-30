@@ -87,7 +87,7 @@ Status Om2Utils::RmOm2WorkspaceDir(const std::string &ws_dir) {
 }
 
 Status Om2Utils::CompileGeneratedCppToSo(const std::vector<std::string> &cpp_file_paths,
-                                         const std::string &so_output_path, const bool is_release) {
+                                         const std::string &so_output_path, bool is_release) {
   GE_ASSERT_TRUE(!cpp_file_paths.empty(), "No cpp files provided");
   for (const auto &cpp_file_path : cpp_file_paths) {
     GE_ASSERT_TRUE(mmAccess2(cpp_file_path.c_str(), M_F_OK) == EN_OK, "Cpp file not exist: %s", cpp_file_path.c_str());

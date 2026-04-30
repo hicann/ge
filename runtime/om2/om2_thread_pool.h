@@ -18,7 +18,6 @@
 #include <memory>
 #include <queue>
 #include <thread>
-#include <utility>
 #include <vector>
 
 #include "framework/common/debug/ge_log.h"
@@ -30,7 +29,7 @@ using ThreadTask = std::function<void()>;
 
 class ThreadPool {
  public:
-  explicit ThreadPool(std::string thread_name_prefix, uint32_t size = 4U);
+  explicit ThreadPool(std::string thread_name_prefix, const uint32_t size = 4U);
   ~ThreadPool();
   void Destroy();
 
@@ -60,7 +59,7 @@ class ThreadPool {
     return future;
   }
 
-  static void ThreadFunc(ThreadPool *thread_pool, uint32_t thread_idx);
+  static void ThreadFunc(ThreadPool *const thread_pool, uint32_t thread_idx);
 
  private:
   std::string thread_name_prefix_;

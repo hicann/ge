@@ -39,7 +39,7 @@ class GE_FUNC_VISIBILITY Om2PackageHelper : public ModelSaveHelper {
                               const size_t model_index);
   static Status SaveManifest(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeRootModelPtr &ge_root_model);
   static Status SaveCodegenArtifacts(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model,
-                                     const size_t model_indx, std::vector<Om2ConstMeta> &const_metas);
+                                     const size_t model_index, std::vector<Om2ConstMeta> &const_metas);
 
  private:
   bool is_offline_{true};

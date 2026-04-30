@@ -191,7 +191,6 @@ struct KernelTaskSemantic {
 };
 
 struct TaskSemanticHeader {
-  ModelTaskType task_type;
   int64_t op_index{kInvalidOpIndex};
   std::string op_name;
   std::string op_type;

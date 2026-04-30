@@ -255,7 +255,7 @@ Status Om2CodegenModelBuilder::BuildRuntimeResource(const GeModelPtr &model, Om2
   return SUCCESS;
 }
 
-Status Om2CodegenModelBuilder::UpdateStreamFlag(const GeModelPtr &model, Om2CodegenModel &codegen_model) {
+Status Om2CodegenModelBuilder::UpdateStreamFlag(const GeModelPtr &model, Om2CodegenModel &codegen_model) const {
   std::vector<int64_t> huge_stream_list;
   (void)AttrUtils::GetListInt(model, ATTR_MODEL_HUGE_STREAM_LIST, huge_stream_list);
   const std::set<int64_t> huge_streams(huge_stream_list.begin(), huge_stream_list.end());
@@ -329,7 +329,7 @@ Status Om2CodegenModelBuilder::InitStreamSwitch(const OpDescPtr &op_desc,
   return SUCCESS;
 }
 
-Status Om2CodegenModelBuilder::BuildModelIo(const GeModelPtr &model, Om2CodegenModel &codegen_model) {
+Status Om2CodegenModelBuilder::BuildModelIo(const GeModelPtr &model, Om2CodegenModel &codegen_model) const {
   GE_ASSERT_NOTNULL(model);
   const auto compute_graph = model->GetGraph();
   GE_ASSERT_NOTNULL(compute_graph);

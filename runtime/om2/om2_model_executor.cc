@@ -17,7 +17,6 @@
 #include "runtime/om2_model_executor.h"
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
-#include "ge/ge_error_codes.h"
 #include "graph/utils/type_utils.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "runtime/mem.h"
@@ -58,7 +57,7 @@ struct RunModelInfo {
 
 struct KernelBinInfo {
   std::string file;
-  ge::UniqueByteBuffer data;
+  ge::ReadonlyByteBuffer data;
   size_t data_size;
 };
 
@@ -241,7 +240,7 @@ ge::Status ClassifyConstItems(const std::vector<Om2ConstItem> &const_items, Clas
 
 class Om2ModelExecutor::Impl {
  public:
-  ge::Status ParseModel(ge::ModelData &model_data, ge::UniqueByteBuffer &weight_buf,
+  ge::Status ParseModel(ge::ModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
                         std::vector<KernelBinInfo> &kernel_bin_info) {
     has_model_ = false;
     run_model_info_ = RunModelInfo();
@@ -277,7 +276,7 @@ class Om2ModelExecutor::Impl {
 
  private:
   ge::Status ParseArchiveFiles(ge::RAIIZipArchive &archive, const std::vector<std::string> &file_names,
-                               ge::UniqueByteBuffer &weight_buf,
+                               ge::ReadonlyByteBuffer &weight_buf,
                                std::vector<KernelBinInfo> &kernel_bin_info) {
     for (const auto &file_name : file_names) {
       if (IsFileNameEndsWith(file_name, "manifest.json") || IsFileNameEndsWith(file_name, "model_meta.json")) {
@@ -344,7 +343,7 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status CreateModel(ge::ModelData &model_data, ge::UniqueByteBuffer &weight_buf,
+  ge::Status CreateModel(ge::ModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
                          std::vector<KernelBinInfo> &kernel_bin_info, const Om2ModelLoadArg &load_arg,
                          uint64_t session_id) {
     GE_ASSERT_TRUE(has_model_);
@@ -470,7 +469,7 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status PrepareConstants(const ge::ModelData &model_data, const ge::UniqueByteBuffer &weight_buf,
+  ge::Status PrepareConstants(const ge::ModelData &model_data, const ge::ReadonlyByteBuffer &weight_buf,
                               const Om2ModelLoadArg &load_arg, std::vector<void *> &constants) {
     std::vector<Om2ConstItem> const_items;
     size_t internal_weight_size = 0U;
@@ -492,7 +491,7 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
-  ge::Status PrepareInternalConsts(const ge::UniqueByteBuffer &weight_buf, const Om2ModelLoadArg &load_arg,
+  ge::Status PrepareInternalConsts(const ge::ReadonlyByteBuffer &weight_buf, const Om2ModelLoadArg &load_arg,
                                    const std::vector<Om2ConstItem> &const_items, size_t internal_weight_size,
                                    std::vector<void *> &constants) {
     if (const_items.empty()) {
@@ -585,7 +584,7 @@ Om2ModelExecutor::~Om2ModelExecutor() {
 
 ge::Status Om2ModelExecutor::Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg,
                                   const uint64_t session_id) const {
-  ge::UniqueByteBuffer weight_buf;
+  ge::ReadonlyByteBuffer weight_buf;
   std::vector<KernelBinInfo> kernel_bin_info;
   GE_CHK_STATUS_RET(impl_->ParseModel(model_data, weight_buf, kernel_bin_info),
                     "[OM2][Load] Parse model failed.");
@@ -695,7 +694,7 @@ ge::Status GetOm2MemAndWeightSize(const std::string &model_path, size_t &work_si
 
 ge::Status GetOm2MemAndWeightSize(const void *model_data, size_t model_size, size_t &work_size,
                                   size_t &internal_weight_size) {
-  ge::RAIIZipArchive archive(static_cast<uint8_t *>(const_cast<void *>(model_data)), model_size);
+  ge::RAIIZipArchive archive(static_cast<const uint8_t *>(model_data), model_size);
   GE_ASSERT_TRUE(archive.IsGood());
   GE_ASSERT_SUCCESS(GetOm2MemAndWeightSizeFromArchive(archive, work_size, internal_weight_size));
   return ge::SUCCESS;

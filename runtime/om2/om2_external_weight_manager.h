@@ -24,7 +24,7 @@ class Om2ExternalWeightManager {
   Om2ExternalWeightManager() = default;
   ~Om2ExternalWeightManager() = default;
 
-  bool CheckAndSetWeightLoading(const std::string &key, uint32_t device_id);
+  bool CheckAndSetWeightLoading(const std::string &key, const uint32_t device_id);
   void Finalize() noexcept;
 
  private:
@@ -40,8 +40,8 @@ class Om2ExternalWeightManagerPool {
 
   ~Om2ExternalWeightManagerPool();
 
-  Om2ExternalWeightManagerPtr GetManager(uint64_t session_id);
-  void RemoveManager(uint64_t session_id);
+  Om2ExternalWeightManagerPtr GetManager(const uint64_t session_id);
+  void RemoveManager(const uint64_t session_id);
   void Destroy() noexcept;
 
  private:

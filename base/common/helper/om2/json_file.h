@@ -12,6 +12,7 @@
 #define BASE_COMMON_HELPER_JSON_FILE_H
 
 #include "nlohmann/json.hpp"
+#include <cstdint>
 #include <string>
 #include <fstream>
 #include "framework/common/debug/log.h"
@@ -89,7 +90,7 @@ class JsonFile {
     if (!valid_) {
       return "{}";
     }
-    return pretty ? data_.dump(4) : data_.dump();
+    return pretty ? data_.dump(kJsonPrettyIndent) : data_.dump();
   }
 
   const json &Raw() const {
@@ -101,6 +102,7 @@ class JsonFile {
   }
 
  private:
+  static constexpr int32_t kJsonPrettyIndent = 4;
   json data_;
   bool valid_;
 };

@@ -42,7 +42,7 @@ class Om2CodegenModelBuilder {
   Status BuildOpInputEdges(const GeModelPtr &model);
   Status BuildModelInfo(const GeModelPtr &model, Om2CodegenModel &codegen_model) const;
   Status BuildRuntimeResource(const GeModelPtr &model, Om2CodegenModel &codegen_model);
-  Status BuildModelIo(const GeModelPtr &model, Om2CodegenModel &codegen_model);
+  Status BuildModelIo(const GeModelPtr &model, Om2CodegenModel &codegen_model) const;
   Status CollectModelIoItems(Om2CodegenModel &codegen_model, const ComputeGraphPtr &compute_graph,
                              std::vector<InputModelIoItem> &input_items,
                              std::vector<OutputModelIoItem> &output_items) const;
@@ -58,7 +58,7 @@ class Om2CodegenModelBuilder {
                               Om2CodegenModel &codegen_model) const;
   Status CollectConstInputsFromOp(const OpDescPtr &op_desc, Om2CodegenModel &codegen_model,
                                   Om2ConstMetas &const_metas);
-  Status UpdateStreamFlag(const GeModelPtr &model, Om2CodegenModel &codegen_model);
+  Status UpdateStreamFlag(const GeModelPtr &model, Om2CodegenModel &codegen_model) const;
   Status InitStreamActive(const OpDescPtr &op_desc, std::set<uint32_t> &active_stream_indication) const;
   Status InitStreamSwitch(const OpDescPtr &op_desc, std::set<uint32_t> &active_stream_indication) const;
   static void ReportUnsupportedTask(TaskCodeBuilderPtr &task_builder,  domi::TaskDef *const task_def,
