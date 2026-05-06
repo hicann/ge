@@ -12,6 +12,7 @@
 ################################################################################
 set(PARSER_SRC_FILES
     "${PARSER_DIR}/parser/caffe/caffe_parser.cc"
+    "${PARSER_DIR}/parser/func_to_graph/func2graph.cc"
 )
 
 # include directories
@@ -38,6 +39,7 @@ set(PARSER_UT_FILES
     "testcase/onnx_parser_testcase/message2operator_unittest.cc"
     "testcase/tensorflow_parser_testcase/tensorflow_parser_unittest.cc"
     "testcase/tensorflow_parser_testcase/tensorflow_auto_mapping_parser_adapter_unittest.cc"
+    "testcase/tensorflow_parser_testcase/func2graph_unittest.cc"
     "testcase/graph_optimizer_testcase/graph_optimizer_unittest.cc"
 )
 
@@ -49,6 +51,7 @@ add_executable(ut_parser
 target_compile_options(ut_parser PRIVATE
     -g
     -fno-access-control
+    --coverage
 )
 
 target_compile_definitions(ut_parser PRIVATE
@@ -76,4 +79,5 @@ target_link_libraries(ut_parser
     # Workaround for undefined references
     ge_common_base
     ascendcl_stub
+    -lgcov
 )

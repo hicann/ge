@@ -83,8 +83,6 @@
     </file_info>
     <file_info value="python" copy_type="source" dst_path="python/func2graph" install_path="$(TARGET_ENV)/python/func2graph" install_type="all" install_mod="550">
         <file value="func2graph.py"/>
-        <file value="util_3_14" install_type="devel"/>
-        <file value="util" install_type="devel"/>
     </file_info>
     <file_info value="lib64" copy_type="source" dst_path="lib64" install_path="$(TARGET_ENV)/lib64" install_type="all" install_mod="440">
         <!-- ge -->

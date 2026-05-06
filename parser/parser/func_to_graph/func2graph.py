@@ -15,11 +15,12 @@
 import os
 import sys
 import getopt
+import ctypes
+from pathlib import Path
+from ctypes import POINTER, c_void_p, c_char_p, c_size_t, c_int, c_uint8
 
-from google.protobuf import text_format
 import tensorflow as tf
 from tensorflow.python.framework.errors_impl import NotFoundError
-from tensorflow.python.platform import gfile
 
 from tensorflow.core.framework import graph_pb2
 from tensorflow.core.framework import tensor_shape_pb2
@@ -28,33 +29,6 @@ from tensorflow.core.framework import versions_pb2
 from tensorflow.python.eager import context
 from tensorflow.python.framework import ops
 from tensorflow.python.framework import versions
-import google.protobuf
-
-def parse_version(version_str):
-    parts = version_str.split('.')
-    version_nums = []
-
-    for part in parts:
-        num_part = ''
-        for char in part:
-            if char.isdigit():
-                num_part += char
-            else:
-                break
-        version_nums.append(int(num_part) if num_part else 0)
-
-    while len(version_nums) < 3:
-        version_nums.append(0)
-    return tuple(version_nums)
-
-cur_protobuf_version = google.protobuf.__version__
-print(f"cur protobuf version is {cur_protobuf_version}")
-if parse_version(cur_protobuf_version) >= parse_version("4.25.1"):
-    sys.path.append(os.path.join(os.path.split(os.path.realpath(__file__))[0], "util"))
-else:
-    sys.path.append(os.path.join(os.path.split(os.path.realpath(__file__))[0], "util_3_14"))
-
-import graph_library_pb2
 
 
 def _get_num_args(arg_def, node_def):
@@ -109,7 +83,7 @@ def create_retval_for_output_nodes(fdef, graph_def, nested_to_flat_tensor_name):
         node_def.input.append(nested_to_flat_tensor_name[ret_name])
 
 
-def updat_input_index(node_def, op_def, nested_to_flat_tensor_name):
+def update_input_index(node_def, op_def, nested_to_flat_tensor_name):
     """Update input index."""
     flattened_index = 0
     for arg_def in op_def.output_arg:
@@ -129,7 +103,24 @@ def updat_input_index(node_def, op_def, nested_to_flat_tensor_name):
     return
 
 
-def build_tensor_name(fdef, default_graph):
+def check_function_attributes(node_def, op_def):
+    """Check op attributes"""
+    for attr in op_def.attr:
+        if attr.type == "func":
+            fname = node_def.attr[attr.name].func.name
+            if not is_function(fname):
+                raise ValueError("%s function not found." % fname)
+
+        if attr.type != "list(func)":
+            continue
+
+        for fn in node_def.attr[attr.name].list.func:
+            fname = fn.name
+            if not is_function(fname):
+                raise ValueError("%s function not found." % fname)
+
+
+def build_tensor_name(fdef, default_graph, copied_functions, graph_def):
     """Build tensor name."""
     nested_to_flat_tensor_name = {}
     for arg_def in fdef.signature.input_arg:
@@ -151,21 +142,12 @@ def build_tensor_name(fdef, default_graph):
         else:
             op_def = ops.get_default_graph()._get_op_def(node_def.op)
 
-        for attr in op_def.attr:
-            if attr.type == "func":
-                fname = node_def.attr[attr.name].func.name
-                if not is_function(fname):
-                    raise ValueError("%s function not found." % fname)
-            elif attr.type == "list(func)":
-                for fn in node_def.attr[attr.name].list.func:
-                    fname = fn.name
-                    if not is_function(fname):
-                        raise ValueError("%s function not found." % fname)
+        check_function_attributes(node_def, op_def)
 
         # Iterate over output_args in op_def to build the map.
         # Index of the output tensor in the flattened list of *all* output
         # tensors of the op.
-        updat_input_index(node_def, op_def, nested_to_flat_tensor_name)
+        update_input_index(node_def, op_def, nested_to_flat_tensor_name)
     return  nested_to_flat_tensor_name
 
 
@@ -204,7 +186,7 @@ def convert_function_def_to_graph_def(fdef, input_shapes=None, copy_functions=Tr
     # Build the tensor name mapping then flatten the tensor names.
     # See comment on `FunctionDef.node_def` on how the tensor naming in
     # FunctionDefs is different from GraphDefs.
-    nested_to_flat_tensor_name = build_tensor_name(fdef, default_graph)
+    nested_to_flat_tensor_name = build_tensor_name(fdef, default_graph, copied_functions, graph_def)
 
     # Update inputs of all nodes in graph.
     for node_def in graph_def.node:
@@ -238,30 +220,112 @@ def convert_graphs(filename):
     return
 
 
+def find_so_path():
+    """
+    1. toolkit run package structure
+        - xxx/Ascend/cann/ <-- env:ASCNED_HOME_PATH / env:ASCEND_TOOLKIT_HOME
+            - lib64/libfunc2graph.so
+            - <arch>-linux/python/func2graph/func2graph.py
+
+    2. if func2graph.py is moved to another directory, you need to source set_env.bash before execution
+    """
+    c_library_name = 'libfunc2graph.so'
+    # method 1: absolute path
+    parent_paths = Path(__file__).resolve().parents
+    if len(parent_paths) > 3:
+        so_path = parent_paths[3] / "lib64" / c_library_name
+        # if it cannot be found, it means func2graph.py has been moved
+        if Path(so_path).exists():
+            return so_path
+
+    # method 2: env ASCEND_HOME_PATH
+    ascend_home_path = os.environ.get('ASCEND_HOME_PATH')
+    if not ascend_home_path:
+        raise ValueError('ERROR: please source set_env.bash before execution')
+
+    return c_library_name
+
+
+def load_and_setup_c_library():
+    """Load libfunc2graph.so and setup c interface"""
+    so_path = find_so_path()
+    try:
+        lib = ctypes.CDLL(str(so_path))
+    except OSError as e:
+        print(f'ERROR: shared library {so_path} load failed, reason: {e}')
+        return None
+
+    # 2. setup c interface
+    lib.GraphDefLibCreate.argtypes = ()
+    lib.GraphDefLibCreate.restype = c_void_p
+
+    lib.GraphDefLibDestroy.argtypes = (POINTER(c_void_p), )
+    lib.GraphDefLibDestroy.restype = None
+
+    lib.GraphDefLibAddGraphDef.argtypes = (c_void_p, c_void_p)
+    lib.GraphDefLibAddGraphDef.restype = None
+
+    lib.GraphDefLibGetGraphDef.argtypes = (c_void_p, c_int)
+    lib.GraphDefLibGetGraphDef.restype = c_void_p
+
+    lib.GraphDefLibGetPbtxt.argtypes = (c_void_p, )
+    lib.GraphDefLibGetPbtxt.restype = c_char_p
+
+    lib.GeGraphDefCreate.argtypes = ()
+    lib.GeGraphDefCreate.restype = c_void_p
+
+    lib.GeGraphDefSetName.argtypes = (c_void_p, c_char_p)
+    lib.GeGraphDefSetName.restype = None
+
+    lib.GeGraphDefSetGraph.argtypes = (c_void_p, POINTER(c_uint8), c_size_t)
+    lib.GeGraphDefSetGraph.restype = None
+
+    lib.GeGraphDefToString.argtypes = (c_void_p, )
+    lib.GeGraphDefToString.restype = c_char_p
+
+    return lib
+
+
 def convert_subgraphs(graph_def, filename):
     """Convert sub graphs."""
-    graph_def_library = graph_library_pb2.GraphDefLibrary()
+    lib = load_and_setup_c_library()
+    if not lib:
+        return
+
+    graph_def_library = lib.GraphDefLibCreate()
+    if not graph_def_library:
+        print("ERROR: Create GraphDefLib failed.")
+        return
     for i, fdef in enumerate(graph_def.library.function):
         sub_graph, _ = convert_function_def_to_graph_def(fdef, copy_functions=False)
         print("INFO: Convert FunctionDef, index:{}, name:{}".format(str(i), fdef.signature.name))
         sub_graph_name = '{}.pb'.format(fdef.signature.name)
         result_path = '{}/results'.format(os.path.dirname(os.path.abspath(filename)))
         tf.io.write_graph(sub_graph, result_path, sub_graph_name, as_text=False)
-        data = sub_graph.SerializeToString()
-        ge_graph_def = graph_library_pb2.GeGraphDef()
-        ge_graph_def.name = fdef.signature.name
-        ge_graph_def.graph.ParseFromString(data)
-        graph_def_library.graph_def.append(ge_graph_def)
-        print(graph_def_library.graph_def[i])
+        data_bytes = sub_graph.SerializeToString()
+        data_len = len(data_bytes)
+        data_buffer = (c_uint8 * data_len).from_buffer_copy(data_bytes)
+
+        ge_graph_def = lib.GeGraphDefCreate()
+        if not ge_graph_def:
+            print("ERROR: Create GeGraphDef failed.")
+            lib.GraphDefLibDestroy(ctypes.byref(c_void_p(graph_def_library)))
+            return
+        lib.GeGraphDefSetName(ge_graph_def, fdef.signature.name.encode('utf-8'))
+        lib.GeGraphDefSetGraph(ge_graph_def, data_buffer, data_len)
+
+        lib.GraphDefLibAddGraphDef(graph_def_library, ge_graph_def)
+        print(lib.GeGraphDefToString(lib.GraphDefLibGetGraphDef(graph_def_library, i)).decode('utf-8'))
 
     # Write to prototxt
     graph_def_file = '{}/graph_def_library.pbtxt'.format(os.path.dirname(os.path.abspath(filename)))
     print("graph_def_file: ", graph_def_file)
     try:
         with open(graph_def_file, "w") as f:
-            print(graph_def_library, file=f)
+            print(lib.GraphDefLibGetPbtxt(graph_def_library).decode('utf-8'), file=f)
     except IOError:
         print("Could not open file. Creating a new one.")
+    lib.GraphDefLibDestroy(ctypes.byref(c_void_p(graph_def_library)))
 
 
 def usage():
@@ -291,6 +355,7 @@ if __name__ == '__main__':
         opts, args = getopt.getopt(sys.argv[1:], '-v-h-m:', ['version', 'help', 'model='])
     except getopt.GetoptError:
         print("ERROR: Input parameters is invalid, use '--help' to view the help.")
+        sys.exit()
     for opt_name, opt_value in opts:
         if opt_name in ('-m', '--model'):
             model = opt_value

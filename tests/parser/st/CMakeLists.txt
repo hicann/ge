@@ -31,7 +31,9 @@ set(PARSER_ST_FILES
     "testcase/test_onnx_parser.cc"
     "testcase/test_caffe_parser.cc"
     "testcase/test_tensorflow_parser.cc"
+    "testcase/test_func2graph.cc"
     "${PARSER_DIR}/parser/caffe/caffe_parser.cc"
+    "${PARSER_DIR}/parser/func_to_graph/func2graph.cc"
 )
 
 ################################################################################
@@ -42,6 +44,7 @@ add_executable(st_parser
 target_compile_options(st_parser PRIVATE
     -g
     -fno-access-control
+    --coverage
 )
 
 target_compile_definitions(st_parser PRIVATE
@@ -71,4 +74,5 @@ target_link_libraries(st_parser PRIVATE
     # Workaround for undefined references
     ge_common_base
     ascendcl_stub
+    -lgcov
 )

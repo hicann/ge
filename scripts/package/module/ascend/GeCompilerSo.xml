@@ -62,6 +62,7 @@
         <file value="libcompress.so" file_type="shared"/>
         <file value="libcompressweight.so" file_type="shared"/>
         <file value="libacl_op_compiler.so" file_type="shared"/>
+        <file value="libfunc2graph.so" file_type="shared"/>
     </file_info>
     <file_info value="devlib" copy_type="delivery" dst_path="lib64/stub/linux/x86_64" install_path="$(TARGET_ENV)/devlib/linux/x86_64" install_mod="440" optional="true">
         <file value="libfmk_parser.so" file_type="shared" install_type="devel"/>
