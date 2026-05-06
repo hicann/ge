@@ -127,6 +127,8 @@ class BackendUtils {
    */
   static bool IsSimplestLoad(const NodePtr &node, const NodePtr &load_node, const NodePtr &data_node,
                              std::vector<ViewOpAttrInfo> &attr_infos, const bool is_condition_with_node_type = true);
+  static bool IsSimplestLoad(const ge::Node *node, const NodePtr &load_node, const ge::Node *data_node,
+                             std::vector<ViewOpAttrInfo> &attr_infos, const bool is_condition_with_node_type = true);
 
   /**
    * 该函数用于查找指定输出锚点的前置 Load 节点。
@@ -247,6 +249,7 @@ class BackendUtils {
    * @return 返回 AutoFuseAttrs 属性指针，如果属性不存在则返回 nullptr
    */
   static AutoFuseAttrs *GetNodeAutoFuseAttr(const NodePtr &node);
+  static AutoFuseAttrs *GetNodeAutoFuseAttr(const ge::Node *node);
 
   /**
    * 该函数用于获取指定节点的融合子图（fused_graph）的computer graph。
@@ -297,6 +300,7 @@ class BackendUtils {
    * @return 返回布尔值，true 表示节点需要后端融合，false 表示不需要
    */
   static bool IsBackendFuseNode(const NodePtr &node);
+  static bool IsBackendFuseNode(const ge::Node *node);
 
   /**
    * 该函数用于更新子图的 fused_subgraph_outputs 属性，确保融合后的节点输出与子图的输出节点对应，简化对子图输出的管理。
@@ -657,8 +661,11 @@ class BackendUtils {
                                     InDataAnchorPtr &in_anchor);
   static Status GetPreAscNode(const NodePtr &parent_node, const InDataAnchorPtr &peer_in_anchor, NodePtr &asc_node);
   static Status GetViewOpNextNodeByLoad(const NodePtr &load_node, NodePtr &finded_node);
+  static Status GetViewOpNextNodeByLoad(const ge::Node *load_node, NodePtr &finded_node);
   static Status UpdateBroadcastInfoToLoad(AscGraph &asc_graph);
   static Status FusedBackSteppingViewOp(const NodePtr &data_node, const NodePtr &load_node, ViewOpAttrInfo &attr_info,
+                                        const bool is_merge_check);
+  static Status FusedBackSteppingViewOp(const ge::Node *data_node, const ge::Node *load_node, ViewOpAttrInfo &attr_info,
                                         const bool is_merge_check);
   static Status FusedBackSteppingViewOpBroadcast(TensorAttrInfo &temp_graph_attr, TensorAttrInfo &temp_load_attr,
                                                  ViewOpAttrInfo &attr_info);
@@ -842,7 +849,7 @@ class BackendUtils {
                                           ViewOpAttrInfo &attr_info);
   static Status BackSteppingViewOpTranspose(const TensorAttrInfo &temp_data_attr, ViewOpAttrInfo &attr_info);
   static Status BackSteppingViewOpSlice(TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr,
-                                        const NodePtr &load_node, ViewOpAttrInfo &attr_info, bool is_fuse,
+                                        const ge::Node *load_node, ViewOpAttrInfo &attr_info, bool is_fuse,
                                         const bool is_merge_check);
   static Status FusedApplyViewOpBroadcast(const AscNodeAttr *node_attr, AscTensorAttr *output_attr,
                                           ViewOpAttrInfo &attr_info);

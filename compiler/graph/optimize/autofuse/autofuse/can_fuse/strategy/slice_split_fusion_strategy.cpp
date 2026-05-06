@@ -140,11 +140,11 @@ bool CheckIfSliceAscBackendNodeContainsBroadcast(const NodePtr &node) {
   for (auto &data_node: subgraph_input_nodes) {
     const auto data_out_anchor = data_node->GetOutDataAnchor(0);
     GE_ASSERT_NOTNULL(data_out_anchor);
-    for (const auto &node_peer_anchor : data_out_anchor->GetPeerInDataAnchors()) {
+    for (const auto &node_peer_anchor : data_out_anchor->GetPeerInDataAnchorsPtr()) {
       const auto load_node = node_peer_anchor->GetOwnerNode();
       GE_ASSERT_NOTNULL(load_node);
       ViewOpAttrInfo attr_info;
-      GE_ASSERT_SUCCESS(BackendUtils::FusedBackSteppingViewOp(data_node, load_node, attr_info, true));
+      GE_ASSERT_SUCCESS(BackendUtils::FusedBackSteppingViewOp(data_node.get(), load_node.get(), attr_info, true));
       NodePtr found_node = nullptr;
       GE_ASSERT_SUCCESS(BackendUtils::GetViewOpNextNodeByLoad(load_node, found_node));
       if (found_node != nullptr) {
