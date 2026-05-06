@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <cstddef>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -52,11 +53,11 @@ class RAIIZipArchive {
    * @return true if extraction succeeded, false otherwise.
    */
   bool ExtractToFile(const std::string &entry_name, const std::string &output_dir) const;
-  UniqueByteBuffer ExtractToMem(const std::string &entry_name, size_t &buff_size) const;
+  ReadonlyByteBuffer ExtractToMem(const std::string &entry_name, size_t &buff_size) const;
 
  private:
-  UniqueByteBuffer FastReadRawDataToMem(const std::string &entry_name, const size_t pos_in_central_dir,
-                                        const size_t buff_size) const;
+  ReadonlyByteBuffer FastReadRawDataToMem(const std::string &entry_name, const size_t pos_in_central_dir,
+                                          const size_t buff_size) const;
 
  private:
   MemoryFileReadonly mem_file_{};

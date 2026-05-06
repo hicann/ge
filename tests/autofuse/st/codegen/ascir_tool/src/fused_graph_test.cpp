@@ -415,7 +415,7 @@ int FuseGraphTest(int deviceId, aclrtStream &stream, const std::string config_pa
   // 构造tiling
   std::unique_ptr<uint8_t[]> tiling_data_holder = MakeUnique<uint8_t[]>(tiling_size);
   CHECK_FREE_RET(tiling_data_holder != nullptr, LOG_PRINT("ERROR: tiling_data_holder is nullptr\n"); return FAILED);
-  
+
   // tiling & malloc workspace addr
   uint32_t workspace_size = 0U;
   ret = fuse_kernel.DoTiling(tiling_data_holder, workspace_size);

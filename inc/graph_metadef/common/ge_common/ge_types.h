@@ -185,9 +185,7 @@ struct ConditionalDeleter {
     }
   }
 };
-using UniqueByteBuffer = std::unique_ptr<uint8_t[], ConditionalDeleter>;
-
-
+using ReadonlyByteBuffer = std::unique_ptr<const uint8_t[], ConditionalDeleter>;
 ///
 /// @ingroup domi_ome
 /// @brief External input data

@@ -1452,9 +1452,17 @@ TEST_F(UtestFusionPassExecutor, PythonPassHolder_ReusedAcrossAdapters) {
 
 // CPython 内部分配器（_PyObject_Malloc / PyThread_allocate_lock）在 Py_Finalize()
 // 后仍有残余内存不被回收，这是 CPython 的已知行为，不是业务代码的泄漏。
+// pybind11 的内部类型对象（make_static_property_type / make_object_base_type）
+// 在 get_internals() 中创建，在解释器关闭时也不会被释放，这是 pybind11 的已知行为。
+// _ge_pass_native.so 中的 pybind11 绑定在模块卸载时的少量残余内存是 Python C 扩展的已知行为。
 // 通过 LSan 抑制规则让 ut_fusion_pass_executor_utest 不因此失败。
 extern "C" const char *__lsan_default_suppressions() {
   return "leak:_PyObject_Malloc\n"
          "leak:PyThread_allocate_lock\n"
-         "leak:_PyObject_Realloc\n";
+         "leak:_PyObject_Realloc\n"
+         "leak:PyType_GenericAlloc\n"
+         "leak:pybind11::detail::make_static_property_type\n"
+         "leak:pybind11::detail::make_object_base_type\n"
+         "leak:pybind11::detail::get_internals\n"
+         "leak:pybind11::detail::get_local_internals\n";
 }

@@ -1,16 +1,23 @@
 #!/bin/bash
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
-# This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
 set -e
+
 BASEPATH=$(cd "$(dirname $0)/.."; pwd)
+
+# Source common lcov version detection functions
+source ${BASEPATH}/scripts/support_multiple_versions_of_lcov.sh
+
+# Detect lcov version and set appropriate ignore-errors flag
+detect_lcov_ignore_errors
 echo "ASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}"
 echo "CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}"
 echo "BUILD_METADEF=${BUILD_METADEF}"
@@ -210,8 +217,8 @@ if [[ "X$ENABLE_GE_C_LLT" = "Xon" ]]; then
       if [[ "X$ENABLE_GE_C_UT" = "Xon" ]]; then
         rm -rf ${BASEPATH}/cov_executor_c_ut
         mk_dir ${BASEPATH}/cov_executor_c_ut
-        lcov -c -d ${BUILD_PATH}/tests/test_c/ut/testcase/executor -o cov_executor_c_ut/tmp.info
-        lcov -r cov_executor_c_ut/tmp.info '*/output/*' '*/${BUILD_RELATIVE_PATH}/opensrc/*' '*/gtest_shared/*' '*/third_party/*' '*/tests/test_c/*' '/usr/local/*' '/usr/include/*' '*/metadef/*' '*/parser/*' '*/c_base/*' -o cov_executor_c_ut/coverage.info
+        lcov -c -d ${BUILD_PATH}/tests/test_c/ut/testcase/executor ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_executor_c_ut/tmp.info
+        lcov -r cov_executor_c_ut/tmp.info '*/output/*' '*/${BUILD_RELATIVE_PATH}/opensrc/*' '*/gtest_shared/*' '*/third_party/*' '*/tests/test_c/*' '/usr/local/*' '/usr/include/*' '*/metadef/*' '*/parser/*' '*/c_base/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_executor_c_ut/coverage.info
         cd ${BASEPATH}/cov_executor_c_ut
         genhtml coverage.info
       fi
@@ -219,8 +226,8 @@ if [[ "X$ENABLE_GE_C_LLT" = "Xon" ]]; then
       if [[ "X$ENABLE_GE_C_ST" = "Xon" ]]; then
         rm -rf ${BASEPATH}/cov_executor_c_st
         mk_dir ${BASEPATH}/cov_executor_c_st
-        lcov -c -d ${BUILD_PATH}/tests/test_c/ut/testcase/executor -o cov_executor_c_st/tmp.info
-        lcov -r cov_executor_c_st/tmp.info '*/output/*' '*/${BUILD_RELATIVE_PATH}/opensrc/*' '*/gtest_shared/*' '*/third_party/*' '*/tests/test_c/*' '/usr/local/*' '/usr/include/*' '*/metadef/*' '*/parser/*' '*/c_base/*' -o cov_executor_c_st/coverage.info
+        lcov -c -d ${BUILD_PATH}/tests/test_c/ut/testcase/executor ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_executor_c_st/tmp.info
+        lcov -r cov_executor_c_st/tmp.info '*/output/*' '*/${BUILD_RELATIVE_PATH}/opensrc/*' '*/gtest_shared/*' '*/third_party/*' '*/tests/test_c/*' '/usr/local/*' '/usr/include/*' '*/metadef/*' '*/parser/*' '*/c_base/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_executor_c_st/coverage.info
         cd ${BASEPATH}/cov_executor_c_st
         genhtml coverage.info
       fi

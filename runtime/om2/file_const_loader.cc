@@ -20,7 +20,6 @@
 #include "common/checker.h"
 #include "common/ge_common/scope_guard.h"
 #include "common/ge_inner_error_codes.h"
-#include "ge/ge_error_codes.h"
 #include "om2_external_weight_manager.h"
 #include "om2_var_manager.h"
 #include "om2_file_utils.h"

@@ -73,13 +73,8 @@ class TaskCodeBuilder : public Om2ModelClassGeneratorBase {
     return io_addr_refresh_records_;
   }
 
-  ModelTaskType GetTaskType() const {
-    return header_.task_type;
-  }
-
  protected:
   static void FillTaskSemanticHeader(const TaskSemanticContributeContext &context, TaskSemanticHeader &header) {
-    header.task_type = context.task_type;
     header.op_index = context.op_index;
     header.stream_id = context.task_def.stream_id();
     if (context.op_desc != nullptr) {

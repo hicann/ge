@@ -94,7 +94,7 @@ voidpf ZCALLBACK MemOpenFileFuncWithBuffer(voidpf opaque, const void *filename, 
   mem_file->grow_mode = 1;
   mem_file->release_from_outside = 1;
 
-  if (mode & ZLIB_FILEFUNC_MODE_CREATE) {
+  if ((mode & ZLIB_FILEFUNC_MODE_CREATE) != 0) {
     if (MemGrow(mem_file, kMemInitialCapacity) != kMemZipOk) {
       GELOGE(FAILED, "[MEMZIP] Failed to allocate initial capacity[%zu bytes]", kMemInitialCapacity);
       return nullptr;

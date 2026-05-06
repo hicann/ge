@@ -305,8 +305,8 @@ Status KernelTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
   } else if (IsAicpuTask(semantic_)) {
     GE_ASSERT_SUCCESS(AppendDistributionForAicpu(args_vars, items));
   } else {
-    REPORT_INNER_ERR_MSG("E19999", "Unsupported task type %d", static_cast<int32_t>(header_.task_type));
-    GELOGE(FAILED, "[OM2] Unsupported task type %d, op_name=%s", static_cast<int32_t>(header_.task_type),
+    REPORT_INNER_ERR_MSG("E19999", "Unsupported task type %d", static_cast<int32_t>(semantic_.task_type));
+    GELOGE(FAILED, "[OM2] Unsupported task type %d, op_name=%s", static_cast<int32_t>(semantic_.task_type),
            header_.op_name.c_str());
     return FAILED;
   }

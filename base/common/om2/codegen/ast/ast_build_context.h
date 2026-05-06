@@ -155,6 +155,11 @@ class AstBuildContext {
  public:
   explicit AstBuildContext(AstContext &ctx);
 
+  AstBuildContext(const AstBuildContext &) = delete;
+  AstBuildContext &operator=(const AstBuildContext &) = delete;
+  AstBuildContext(AstBuildContext &&) = delete;
+  AstBuildContext &operator=(AstBuildContext &&) = delete;
+
   TranslationUnit *File(const std::vector<DeclNode *> &items);
   TranslationUnit *File(std::initializer_list<DeclNode *> items);
   IncludeDecl *Include(const std::string &path, IncludeDecl::Kind kind = IncludeDecl::Kind::kQuote);

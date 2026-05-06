@@ -441,24 +441,21 @@ struct ConcatNormalAxisInfo {
 };
 
 // 创建Data节点（输入数据）并设置属性
-Data CreateDataNode(ascir::HintGraph &graph, const char *name, int &exec_order,
+void CreateDataNode(Data &node, ascir::HintGraph &graph, const char *name, int &exec_order,
                     const ConcatNormalAxisInfo &ax, ge::DataType dtype,
                     const std::vector<ge::Expression> &repeats, const std::vector<ge::Expression> &strides) {
-  Data node(name, graph);
   node.attr.sched.exec_order = exec_order++;
   node.attr.sched.axis = {ax.a_id, ax.r_id, ax.bl_id};
   node.y.dtype = dtype;
   *node.y.axis = {ax.a_id, ax.r_id, ax.bl_id};
   *node.y.repeats = repeats;
   *node.y.strides = strides;
-  return node;
 }
 
 // 创建Load节点并设置属性
-Load CreateLoadNode(const char *name, const Data &src, int &exec_order,
+void CreateLoadNode(Load &node, const Data &src, int &exec_order,
                     const ConcatNormalAxisInfo &ax, ge::DataType dtype,
                     const std::vector<ge::Expression> &repeats, const std::vector<ge::Expression> &strides) {
-  Load node(name);
   node.x = src.y;
   node.attr.sched.exec_order = exec_order++;
   node.attr.sched.axis = {ax.a_id, ax.r_id, ax.bl_id};
@@ -466,41 +463,35 @@ Load CreateLoadNode(const char *name, const Data &src, int &exec_order,
   *node.y.axis = {ax.a_id, ax.r_id, ax.bl_id};
   *node.y.repeats = repeats;
   *node.y.strides = strides;
-  return node;
 }
 
 // 创建Store节点并设置属性
-Store CreateStoreNode(const char *name, int &exec_order, const ConcatNormalAxisInfo &ax,
+void CreateStoreNode(Store &node, int &exec_order, const ConcatNormalAxisInfo &ax,
                       ge::DataType dtype, const std::vector<ge::Expression> &repeats,
                       const std::vector<ge::Expression> &strides) {
-  Store node(name);
   node.attr.sched.exec_order = exec_order++;
   node.attr.sched.axis = {ax.a_id, ax.r_id, ax.bl_id};
   node.y.dtype = dtype;
   *node.y.axis = {ax.a_id, ax.r_id, ax.bl_id};
   *node.y.repeats = repeats;
   *node.y.strides = strides;
-  return node;
 }
 
 // 创建Output节点并设置属性
-Output CreateOutputNode(const char *name, int &exec_order, const ConcatNormalAxisInfo &ax,
+void CreateOutputNode(Output &node, int &exec_order, const ConcatNormalAxisInfo &ax,
                         ge::DataType dtype, const std::vector<ge::Expression> &repeats,
                         const std::vector<ge::Expression> &strides) {
-  Output node(name);
   node.attr.sched.exec_order = exec_order++;
   node.y.dtype = dtype;
   *node.y.axis = {ax.a_id, ax.r_id, ax.bl_id};
   *node.y.repeats = repeats;
   *node.y.strides = strides;
-  return node;
 }
 
-Concat BuildMeanConcatNode(int &exec_order, const ConcatNormalAxisInfo &ax,
+void BuildMeanConcatNode(Concat &mean, int &exec_order, const ConcatNormalAxisInfo &ax,
                             const std::vector<ge::AscOpOutput> &inputs) {
   auto aoo = std::vector<ge::Expression>{ax.A, ax.ONE, ax.ONE};
   auto oss_v = std::vector<ge::Expression>{ax.ONE, ax.ZERO, ax.ZERO};
-  Concat mean("mean");
   mean.attr.api.unit = ge::ComputeUnit::kUnitVector;
   mean.x = inputs;
   mean.attr.sched.exec_order = exec_order++;
@@ -509,7 +500,6 @@ Concat BuildMeanConcatNode(int &exec_order, const ConcatNormalAxisInfo &ax,
   *mean.y.axis = {ax.a_id, ax.r_id, ax.bl_id};
   *mean.y.repeats = aoo;
   *mean.y.strides = oss_v;
-  return mean;
 }
 
 void BuildConcatOutputNodes(int &exec_order, const ConcatNormalAxisInfo &ax,
@@ -526,13 +516,17 @@ void BuildConcatOutputNodes(int &exec_order, const ConcatNormalAxisInfo &ax,
   *buf1.y.repeats = arb;
   *buf1.y.strides = rs;
 
-  Output buf2 = CreateOutputNode("buf2", exec_order, ax, ge::DT_FLOAT, aoo, oss_v);
+  Output buf2("buf2");
+  CreateOutputNode(buf2, exec_order, ax, ge::DT_FLOAT, aoo, oss_v);
   buf2.x = output_stores[0].y;
-  Output buf3 = CreateOutputNode("buf3", exec_order, ax, ge::DT_FLOAT, aoo, oss_v);
+  Output buf3("buf3");
+  CreateOutputNode(buf3, exec_order, ax, ge::DT_FLOAT, aoo, oss_v);
   buf3.x = output_stores[1].y;
-  Output buf = CreateOutputNode("buf", exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Output buf("buf");
+  CreateOutputNode(buf, exec_order, ax, ge::DT_FLOAT16, arb, rs);
   buf.x = output_stores[2].y;
-  Output buf4 = CreateOutputNode("buf4", exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Output buf4("buf4");
+  CreateOutputNode(buf4, exec_order, ax, ge::DT_FLOAT16, arb, rs);
   buf4.x = output_stores[3].y;
 }
 
@@ -544,9 +538,8 @@ struct ConcatVecExprs {
 };
 
 
-Store CreateStoreFp16Node(const char *name, int &exec_order, const ConcatNormalAxisInfo &ax,
+void CreateStoreFp16Node(Store &store, int &exec_order, const ConcatNormalAxisInfo &ax,
                            const ge::AscOpOutput &input, const ConcatVecExprs &vecs) {
-  Store store(name);
   store.attr.sched.exec_order = exec_order++;
   store.attr.sched.axis = {ax.a_id, ax.r_id, ax.bl_id};
   store.x = input;
@@ -554,7 +547,6 @@ Store CreateStoreFp16Node(const char *name, int &exec_order, const ConcatNormalA
   *store.y.axis = {ax.a_id, ax.r_id, ax.bl_id};
   *store.y.repeats = vecs.arb;
   *store.y.strides = vecs.rs;
-  return store;
 }
 
 void BuildConcatRstdYAndOutputs(int &exec_order, const ConcatNormalAxisInfo &ax, const ConcatVecExprs &vecs,
@@ -562,7 +554,8 @@ void BuildConcatRstdYAndOutputs(int &exec_order, const ConcatNormalAxisInfo &ax,
                                 ascir::HintGraph &graph, const ge::AscOpOutput &x1_out, const ge::AscOpOutput &x2_out) {
   auto oob = std::vector<ge::Expression>{ax.ONE, ax.ONE, ax.BL};
   auto oso = std::vector<ge::Expression>{ax.ZERO, ax.ZERO, ax.ONE};
-  Data one = CreateDataNode(graph, "one", exec_order, ax, ge::DT_FLOAT, oob, oso);
+  Data one("one", graph);
+  CreateDataNode(one, graph, "one", exec_order, ax, ge::DT_FLOAT, oob, oso);
   Concat rstd("rstd");
   rstd.attr.api.unit = ge::ComputeUnit::kUnitVector;
   rstd.attr.sched.exec_order = exec_order++;
@@ -573,15 +566,20 @@ void BuildConcatRstdYAndOutputs(int &exec_order, const ConcatNormalAxisInfo &ax,
   *rstd.y.repeats = vecs.arb;
   *rstd.y.strides = vecs.rs;
 
-  Store rstd_out = CreateStoreNode("rstd_out", exec_order, ax, ge::DT_FLOAT, vecs.aoo, vecs.oss_v);
+  Store rstd_out("rstd_out");
+  CreateStoreNode(rstd_out, exec_order, ax, ge::DT_FLOAT, vecs.aoo, vecs.oss_v);
   rstd_out.x = rstd.y;
 
   auto orb = std::vector<ge::Expression>{ax.ONE, ax.R, ax.ONE};
   auto bg_strides = std::vector<ge::Expression>{ax.ZERO, ax.ONE, ax.ZERO};
-  Data beta = CreateDataNode(graph, "beta", exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
-  Load betaLocal = CreateLoadNode("betaLocal", beta, exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
-  Data gamma = CreateDataNode(graph, "gamma", exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
-  Load gammaLocal = CreateLoadNode("gammaLocal", gamma, exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
+  Data beta("beta", graph);
+  CreateDataNode(beta, graph, "beta", exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
+  Load betaLocal("betaLocal");
+  CreateLoadNode(betaLocal, beta, exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
+  Data gamma("gamma", graph);
+  CreateDataNode(gamma, graph, "gamma", exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
+  Load gammaLocal("gammaLocal");
+  CreateLoadNode(gammaLocal, gamma, exec_order, ax, ge::DT_FLOAT16, orb, bg_strides);
 
   Concat y("y");
   y.attr.api.unit = ge::ComputeUnit::kUnitVector;
@@ -602,8 +600,10 @@ void BuildConcatRstdYAndOutputs(int &exec_order, const ConcatNormalAxisInfo &ax,
   *concat.y.repeats = vecs.arb;
   *concat.y.strides = vecs.rs;
 
-  Store y_out = CreateStoreFp16Node("y_out", exec_order, ax, y.y, vecs);
-  Store cat_out = CreateStoreFp16Node("cat_out", exec_order, ax, y.y, vecs);
+  Store y_out("y_out");
+  CreateStoreFp16Node(y_out, exec_order, ax, y.y, vecs);
+  Store cat_out("cat_out");
+  CreateStoreFp16Node(cat_out, exec_order, ax, y.y, vecs);
   (void)y_out;
   (void)cat_out;
 
@@ -625,16 +625,25 @@ void Concat_Normal_BeforeAutofuse(ascir::HintGraph &graph) {
 
   auto arb = std::vector<ge::Expression>{ax.A, ax.R, ax.ONE};
   auto rs = std::vector<ge::Expression>{ax.R, ax.ONE, ax.ZERO};
-  Data x1 = CreateDataNode(graph, "x1", exec_order, ax, ge::DT_FLOAT16, arb, rs);
-  Load x1Local = CreateLoadNode("x1Local", x1, exec_order, ax, ge::DT_FLOAT16, arb, rs);
-  Data x2 = CreateDataNode(graph, "x2", exec_order, ax, ge::DT_FLOAT16, arb, rs);
-  Load x2Local = CreateLoadNode("x2Local", x2, exec_order, ax, ge::DT_FLOAT16, arb, rs);
-  Data bias = CreateDataNode(graph, "bias", exec_order, ax, ge::DT_FLOAT16, arb, rs);
-  Load biasLocal = CreateLoadNode("biasLocal", bias, exec_order, ax, ge::DT_FLOAT16, arb, rs);
-  Concat mean = BuildMeanConcatNode(exec_order, ax, {x1Local.y, x2Local.y, biasLocal.y});
+  Data x1("x1", graph);
+  CreateDataNode(x1, graph, "x1", exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Load x1Local("x1Local");
+  CreateLoadNode(x1Local, x1, exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Data x2("x2", graph);
+  CreateDataNode(x2, graph, "x2", exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Load x2Local("x2Local");
+  CreateLoadNode(x2Local, x2, exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Data bias("bias", graph);
+  CreateDataNode(bias, graph, "bias", exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Load biasLocal("biasLocal");
+  CreateLoadNode(biasLocal, bias, exec_order, ax, ge::DT_FLOAT16, arb, rs);
+  Concat mean("mean");
+  BuildMeanConcatNode(mean, exec_order, ax, {x1Local.y, x2Local.y, biasLocal.y});
 
-  Store x_out = CreateStoreFp16Node("x_out", exec_order, ax, mean.y, vecs);
-  Store mean_out = CreateStoreNode("mean_out", exec_order, ax, ge::DT_FLOAT, vecs.aoo, vecs.oss_v);
+  Store x_out("x_out");
+  CreateStoreFp16Node(x_out, exec_order, ax, mean.y, vecs);
+  Store mean_out("mean_out");
+  CreateStoreNode(mean_out, exec_order, ax, ge::DT_FLOAT, vecs.aoo, vecs.oss_v);
   mean_out.x = mean.y;
 
   BuildConcatRstdYAndOutputs(exec_order, ax, vecs, mean.y, x_out, mean_out, graph, x1Local.y, x2Local.y);

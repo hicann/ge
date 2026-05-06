@@ -1,10 +1,10 @@
 #!/bin/bash
 # -----------------------------------------------------------------------------------------------------------
 # Copyright (c) 2025 Huawei Technologies Co., Ltd.
-# This program is free software, you can redistribute it and/or modify it under the terms and conditions of 
+# This program is free software, you can redistribute it and/or modify it under the terms and conditions of
 # CANN Open Software License Agreement Version 2.0 (the "License").
 # Please refer to the License for details. You may not use this file except in compliance with the License.
-# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED, 
+# THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
 # INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
@@ -12,6 +12,12 @@
 set -e
 
 BASEPATH=$(cd "$(dirname $0)/.."; pwd)
+
+# Source common lcov version detection functions
+source ${BASEPATH}/scripts/support_multiple_versions_of_lcov.sh
+
+# Detect lcov version and set appropriate ignore-errors flag
+detect_lcov_ignore_errors
 AIRDIR="$(basename $BASEPATH)"
 echo "ASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH}"
 echo "CANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}"
@@ -371,8 +377,8 @@ run_llt_with_cov()
         echo "---------------- Begin to generate coverage of fe ut ----------------"
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_fe_ut/"
-        lcov -c -d build/tests/engines/nn_engine/ut -o cov_fe_ut/tmp.info
-        lcov -r cov_fe_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_fe_ut/coverage.info
+        lcov -c -d build/tests/engines/nn_engine/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},negative} -o cov_fe_ut/tmp.info
+        lcov -r cov_fe_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} -o cov_fe_ut/coverage.info
         cd "${BASEPATH}/cov_fe_ut/"
         genhtml coverage.info
         echo "---------------- Finish the generating coverage of fe ut ----------------"
@@ -402,8 +408,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_fe_st/"
-        lcov -c -d build/tests/engines/nn_engine/st -o cov_fe_st/tmp.info
-        lcov -r cov_fe_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_fe_st/coverage.info
+        lcov -c -d build/tests/engines/nn_engine/st ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},negative} -o cov_fe_st/tmp.info
+        lcov -r cov_fe_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} -o cov_fe_st/coverage.info
         cd "${BASEPATH}/cov_fe_st/"
         genhtml coverage.info
       fi
@@ -427,8 +433,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_fe_st_whole_process/"
-        lcov -c -d build/tests/engines/nn_engine/st -o cov_fe_st_whole_process/tmp.info
-        lcov -r cov_fe_st_whole_process/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_fe_st_whole_process/coverage.info
+        lcov -c -d build/tests/engines/nn_engine/st ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},negative} -o cov_fe_st_whole_process/tmp.info
+        lcov -r cov_fe_st_whole_process/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused,negative} -o cov_fe_st_whole_process/coverage.info
         cd "${BASEPATH}/cov_fe_st_whole_process/"
         genhtml coverage.info
       fi
@@ -447,8 +453,8 @@ run_llt_with_cov()
         echo "---------------- Begin to generate coverage of tefusion ut ----------------"
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_tefusion_ut/"
-        lcov -c -d build/tests/engines/te_fusion/ut -o cov_tefusion_ut/tmp.info
-        lcov -r cov_tefusion_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_tefusion_ut/coverage.info
+        lcov -c -d build/tests/engines/te_fusion/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_tefusion_ut/tmp.info
+        lcov -r cov_tefusion_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_tefusion_ut/coverage.info
         cd "${BASEPATH}/cov_tefusion_ut/"
         genhtml coverage.info
         echo "---------------- Finish generating coverage of tefusion ut ----------------"
@@ -464,8 +470,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_tefusion_st/"
-        lcov -c -d build/tests/engines/te_fusion/st -o cov_tefusion_st/tmp.info
-        lcov -r cov_tefusion_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_tefusion_st/coverage.info
+        lcov -c -d build/tests/engines/te_fusion/st ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_tefusion_st/tmp.info
+        lcov -r cov_tefusion_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_tefusion_st/coverage.info
         cd "${BASEPATH}/cov_tefusion_st/"
         genhtml coverage.info
       fi
@@ -484,8 +490,8 @@ run_llt_with_cov()
         echo "---------------- Begin to generate coverage of ffts ut ----------------"
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_ffts_ut/"
-        lcov -c -d build/tests/engines/ffts_engine/ut -o cov_ffts_ut/tmp.info
-        lcov -r cov_ffts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_ffts_ut/coverage.info
+        lcov -c -d build/tests/engines/ffts_engine/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_ffts_ut/tmp.info
+        lcov -r cov_ffts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_ffts_ut/coverage.info
         cd "${BASEPATH}/cov_ffts_ut/"
         genhtml coverage.info
         echo "---------------- Finish the generating coverage of ffts ut ----------------"
@@ -501,8 +507,8 @@ run_llt_with_cov()
       then
         cd "${BASEPATH}"
         mk_dir "${BASEPATH}/cov_ffts_st/"
-        lcov -c -d build/tests/engines/ffts_engine/st -o cov_ffts_st/tmp.info
-        lcov -r cov_ffts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_ffts_st/coverage.info
+        lcov -c -d build/tests/engines/ffts_engine/st ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_ffts_st/tmp.info
+        lcov -r cov_ffts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_ffts_st/coverage.info
         cd "${BASEPATH}/cov_ffts_st/"
         genhtml coverage.info
       fi
@@ -529,8 +535,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_rts_ut/"
         fi
         mk_dir "${BASEPATH}/cov_rts_ut/"
-        lcov -c -d ${BASEPATH}/build/tests/engines/rts_engine/ut -o ${BASEPATH}/cov_rts_ut/tmp.info
-        lcov -r ${BASEPATH}/cov_rts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' -o ${BASEPATH}/cov_rts_ut/coverage.info
+        lcov -c -d ${BASEPATH}/build/tests/engines/rts_engine/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o ${BASEPATH}/cov_rts_ut/tmp.info
+        lcov -r ${BASEPATH}/cov_rts_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o ${BASEPATH}/cov_rts_ut/coverage.info
         cd "${BASEPATH}/cov_rts_ut/"
         genhtml coverage.info
         echo "---------------- Finish the generating coverage of rts ut ----------------"
@@ -552,8 +558,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_rts_st/"
         fi
         mk_dir "${BASEPATH}/cov_rts_st/"
-        lcov -c -d ${BASEPATH}/build/tests/engines/rts_engine/ut -o ${BASEPATH}/cov_rts_st/tmp.info
-        lcov -r ${BASEPATH}/cov_rts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' -o ${BASEPATH}/cov_rts_st/coverage.info
+        lcov -c -d ${BASEPATH}/build/tests/engines/rts_engine/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o ${BASEPATH}/cov_rts_st/tmp.info
+        lcov -r ${BASEPATH}/cov_rts_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o ${BASEPATH}/cov_rts_st/coverage.info
         cd "${BASEPATH}/cov_rts_st/"
         genhtml coverage.info
       fi
@@ -580,8 +586,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_aicpu_ut/"
         fi
         mk_dir "${BASEPATH}/cov_aicpu_ut/"
-        lcov -c -d build/tests/engines/cpueng/ut -o cov_aicpu_ut/tmp.info
-        lcov -r cov_aicpu_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_aicpu_ut/coverage.info
+        lcov -c -d build/tests/engines/cpueng/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_aicpu_ut/tmp.info
+        lcov -r cov_aicpu_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_aicpu_ut/coverage.info
         cd "${BASEPATH}/cov_aicpu_ut/"
         genhtml coverage.info
         echo "---------------- Finish the generating coverage of aicpu ut ----------------"
@@ -604,8 +610,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_aicpu_st/"
         fi
         mk_dir "${BASEPATH}/cov_aicpu_st/"
-        lcov -c -d build/tests/engines/cpueng/st -o cov_aicpu_st/tmp.info
-        lcov -r cov_aicpu_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*'  -o cov_aicpu_st/coverage.info
+        lcov -c -d build/tests/engines/cpueng/st ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o cov_aicpu_st/tmp.info
+        lcov -r cov_aicpu_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o cov_aicpu_st/coverage.info
         cd "${BASEPATH}/cov_aicpu_st/"
         genhtml coverage.info
       fi
@@ -631,8 +637,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_dvpp_ut/"
         fi
         mk_dir "${BASEPATH}/cov_dvpp_ut/"
-        lcov -c -d ${BASEPATH}/build/tests/engines/dvppeng/ut -o ${BASEPATH}/cov_dvpp_ut/tmp.info
-        lcov -r ${BASEPATH}/cov_dvpp_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' -o ${BASEPATH}/cov_dvpp_ut/coverage.info
+        lcov -c -d ${BASEPATH}/build/tests/engines/dvppeng/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o ${BASEPATH}/cov_dvpp_ut/tmp.info
+        lcov -r ${BASEPATH}/cov_dvpp_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o ${BASEPATH}/cov_dvpp_ut/coverage.info
         cd "${BASEPATH}/cov_dvpp_ut/"
         genhtml coverage.info
         echo "---------------- Finish the generating coverage of dvpp ut ----------------"
@@ -654,8 +660,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_dvpp_st/"
         fi
         mk_dir "${BASEPATH}/cov_dvpp_st/"
-        lcov -c -d ${BASEPATH}/build/tests/engines/dvppeng/ut -o ${BASEPATH}/cov_dvpp_st/tmp.info
-        lcov -r ${BASEPATH}/cov_dvpp_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' -o ${BASEPATH}/cov_dvpp_st/coverage.info
+        lcov -c -d ${BASEPATH}/build/tests/engines/dvppeng/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o ${BASEPATH}/cov_dvpp_st/tmp.info
+        lcov -r ${BASEPATH}/cov_dvpp_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/test/*' '/usr/local/*' '/usr/include/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o ${BASEPATH}/cov_dvpp_st/coverage.info
         cd "${BASEPATH}/cov_dvpp_st/"
         genhtml coverage.info
       fi
@@ -681,8 +687,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_hcce_ut/"
         fi
         mk_dir "${BASEPATH}/cov_hcce_ut/"
-        lcov -c -d ${BASEPATH}/build/tests/engines/hccl_engine/ut -o ${BASEPATH}/cov_hcce_ut/tmp.info
-        lcov -r ${BASEPATH}/cov_hcce_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/tests/*' '/usr/local/*' '/usr/include/*' '*/opensdk/*' '*/inc/*' -o ${BASEPATH}/cov_hcce_ut/coverage.info
+        lcov -c -d ${BASEPATH}/build/tests/engines/hccl_engine/ut ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o ${BASEPATH}/cov_hcce_ut/tmp.info
+        lcov -r ${BASEPATH}/cov_hcce_ut/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/tests/*' '/usr/local/*' '/usr/include/*' '*/opensdk/*' '*/inc/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o ${BASEPATH}/cov_hcce_ut/coverage.info
         cd "${BASEPATH}/cov_hcce_ut/"
         genhtml coverage.info
         echo "---------------- Finish the generating coverage of hcce ut ----------------"
@@ -704,8 +710,8 @@ run_llt_with_cov()
           rm -rf "${BASEPATH}/cov_hcce_st/"
         fi
         mk_dir "${BASEPATH}/cov_hcce_st/"
-        lcov -c -d ${BASEPATH}/build/tests/engines/hccl_engine/st -o ${BASEPATH}/cov_hcce_st/tmp.info
-        lcov -r ${BASEPATH}/cov_hcce_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/tests/*' '/usr/local/*' '/usr/include/*' '*/opensdk/*' '*/inc/*' -o ${BASEPATH}/cov_hcce_st/coverage.info
+        lcov -c -d ${BASEPATH}/build/tests/engines/hccl_engine/st ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS}} -o ${BASEPATH}/cov_hcce_st/tmp.info
+        lcov -r ${BASEPATH}/cov_hcce_st/tmp.info '*/output/*' '*/build/opensrc/*' '*/build/proto/*' '*/third_party/*' '*/tests/*' '/usr/local/*' '/usr/include/*' '*/opensdk/*' '*/inc/*' ${LCOV_IGNORE_ERRORS:+--ignore-errors ${LCOV_IGNORE_ERRORS},unused} -o ${BASEPATH}/cov_hcce_st/coverage.info
         cd "${BASEPATH}/cov_hcce_st/"
         genhtml coverage.info
       fi

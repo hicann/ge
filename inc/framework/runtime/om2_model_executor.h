@@ -40,7 +40,7 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   Om2ModelExecutor &operator=(const Om2ModelExecutor &) = delete;
   Om2ModelExecutor &operator=(Om2ModelExecutor &&) = delete;
 
-  ge::Status Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg, uint64_t session_id) const;
+  ge::Status Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg, const uint64_t session_id) const;
   ge::Status Run(std::vector<gert::Tensor *> &inputs, std::vector<gert::Tensor *> &outputs) const;
   ge::Status RunAsync(void *const stream, std::vector<gert::Tensor *> &inputs, std::vector<gert::Tensor *> &outputs) const;
   ge::Status GetModelDescInfo(std::vector<ge::TensorDesc> &input_desc, std::vector<ge::TensorDesc> &output_desc,

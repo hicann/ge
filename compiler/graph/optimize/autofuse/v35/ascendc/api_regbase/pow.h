@@ -30,7 +30,7 @@ inline __aicore__ void Pow(const AscendC::LocalTensor<T> &dst, const AscendC::Lo
     Duplicate(dst, static_cast<T>(1.0), calCount);
     return;
   } else if (static_cast<float>(src2) == 1.0f) {
-    DataCopy(dst, src1, calCount);
+    DataCopy(dst, src1, KernelUtils::BlkAlign<T>(calCount));
     return;
   } else if (static_cast<float>(src2) == -1.0f) {
     if constexpr (std::is_same_v<T, float> || std::is_same_v<T, half>) {
@@ -92,7 +92,7 @@ inline __aicore__ void Pow(const AscendC::LocalTensor<T> &dst, const T &src1, co
     Duplicate(dst_buf, static_cast<T>(1.0), calCount);
     return;
   } else if (static_cast<float>(src2) == 1.0f) {
-    DataCopy(dst_buf, src1_buf, calCount);
+    DataCopy(dst_buf, src1_buf, KernelUtils::BlkAlign<T>(calCount));
     return;
   } else if (static_cast<float>(src2) == -1.0f) {
     if constexpr (std::is_same_v<T, float> || std::is_same_v<T, half>) {

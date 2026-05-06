@@ -415,7 +415,7 @@ graphStatus ProcessBroadcastReduce(const NodePtr &brc_node, const NodePtr &reduc
   auto broadcast_output_dims = brc_node->GetOpDesc()->GetOutputDesc(0).GetShape().GetDims();
   auto reduce_output_dims = ComputeReduceOutputShape(broadcast_output_dims, reduce_axes, keep_dims);
   auto replacement_node = CreateReplacementNode(graph, brc_input, reduce_output_dims,
-                                                brc_input->GetNamePtr());
+                                                std::string(brc_input->GetNamePtr()) + "_" + reduce_node->GetNamePtr());
   if (!replacement_node) {
     GELOGW("Failed to create replacement node for %s + %s",
            brc_node->GetNamePtr(), reduce_node->GetNamePtr());

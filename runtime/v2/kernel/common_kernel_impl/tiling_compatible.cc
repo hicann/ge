@@ -19,7 +19,6 @@
 #include "common/checker.h"
 #include "compatible_utils.h"
 #include "graph/utils/math_util.h"
-#include "ge/ge_error_codes.h"
 
 namespace gert {
 namespace kernel {

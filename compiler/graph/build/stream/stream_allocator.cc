@@ -1089,12 +1089,12 @@ Status StreamAllocator::OptimizeSyncEvents(
       GELOGI("node_to_send_events STREAMSWITCH.");
 
       for (auto event_id : pair.second) {
-        GELOGI("Curren switch node is %s, remove send %s_id %d.", GetEventTypeStr(event_type).c_str(),
+        GELOGI("Current switch node is %s, remove send %s_id %d.", GetEventTypeStr(event_type).c_str(),
                pair.first->GetName().c_str(), event_id);
         StreamUtils::RmvSendEventId(pair.first, event_id, node_to_send_events);
         auto recv_node = StreamUtils::GetNodeFromSyncId(event_id, node_to_recv_events);
         GE_CHECK_NOTNULL(recv_node);
-        GELOGI("Curren recv_node is %s, remove recv %s_id %d.", GetEventTypeStr(event_type).c_str(),
+        GELOGI("Current recv_node is %s, remove recv %s_id %d.", GetEventTypeStr(event_type).c_str(),
                recv_node->GetName().c_str(), event_id);
         StreamUtils::RmvRecvEventId(recv_node, event_id, node_to_recv_events);
       }
@@ -1366,6 +1366,13 @@ Status StreamAllocator::SplitStreams(
   }
   GE_ASSERT_SUCCESS(GetMaxStreamAndTask(is_huge_stream, helper.max_stream_count, helper.max_task_count),
                     "[Get][MaxCount] of stream and task failed.");
+
+  static std::atomic<bool> has_printed_hw_spec{false};
+  if (!has_printed_hw_spec.exchange(true)) {
+    GELOGI("Static shape stream split: get hardware spec from rts, "
+           "max_stream_count=%u, max_task_count_per_stream=%u, is_huge_stream=%d",
+           helper.max_stream_count, helper.max_task_count, is_huge_stream ? 1 : 0);
+  }
 
   GE_ASSERT_SUCCESS(CollectTaskSize(node_id_2_node_tasks, helper.max_task_count));
   for (const auto &cur_node : whole_graph_->GetNodes(whole_graph_->GetGraphUnknownFlag())) {

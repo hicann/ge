@@ -343,7 +343,8 @@ Status CppEmitter::Emit(const IncludeDecl &node, std::string &output) {
   return SUCCESS;
 }
 
-Status CppEmitter::Emit(const SpaceDecl &, std::string &output) {
+Status CppEmitter::Emit(const SpaceDecl &node, std::string &output) {
+  (void)node;
   output.append("\n");
   return SUCCESS;
 }
@@ -769,7 +770,8 @@ Status CppEmitter::Emit(const CommentStmt &node, std::string &output) {
   return SUCCESS;
 }
 
-Status CppEmitter::Emit(const BlankLineStmt &, std::string &output) {
+Status CppEmitter::Emit(const BlankLineStmt &node, std::string &output) {
+  (void)node;
   output.append("\n");
   return SUCCESS;
 }

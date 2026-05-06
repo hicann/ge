@@ -342,7 +342,7 @@ bool RAIIZipArchive::ExtractToFile(const std::string &entry_name, const std::str
   return true;
 }
 
-UniqueByteBuffer RAIIZipArchive::ExtractToMem(const std::string &entry_name, size_t &buff_size) const {
+ReadonlyByteBuffer RAIIZipArchive::ExtractToMem(const std::string &entry_name, size_t &buff_size) const {
   GE_ASSERT_NOTNULL(zip_handle_, "Invalid status of archive");
 
   auto uz_ret = unzLocateFile(zip_handle_, entry_name.c_str(), 0);
@@ -365,14 +365,14 @@ UniqueByteBuffer RAIIZipArchive::ExtractToMem(const std::string &entry_name, siz
     return FastReadRawDataToMem(entry_name, file_pos.pos_in_zip_directory, buff_size);
   }
 
-  auto buffer = UniqueByteBuffer(new (std::nothrow) uint8_t[buff_size], ConditionalDeleter{true});
-  GE_ASSERT_NOTNULL(buffer, "Failed to allocate buffer, size = %zu", buff_size);
+  auto mutable_buffer = std::make_unique<uint8_t[]>(buff_size);
+  GE_ASSERT_NOTNULL(mutable_buffer, "Failed to allocate buffer, size = %zu", buff_size);
   size_t total_read = 0;
   int32_t bytes_read = 0;
   do {
     const uint32_t remaining = static_cast<uint32_t>(
         std::min<size_t>(buff_size - total_read, static_cast<size_t>(std::numeric_limits<int32_t>::max())));
-    bytes_read = unzReadCurrentFile(zip_handle_, buffer.get() + total_read, remaining);
+    bytes_read = unzReadCurrentFile(zip_handle_, mutable_buffer.get() + total_read, remaining);
 
     GE_ASSERT_TRUE(bytes_read >= 0, "Failed to read file [%s], ret = %d", entry_name.c_str(), bytes_read);
     total_read += static_cast<size_t>(bytes_read);
@@ -382,11 +382,12 @@ UniqueByteBuffer RAIIZipArchive::ExtractToMem(const std::string &entry_name, siz
                  entry_name.c_str(), buff_size, total_read);
   GELOGI("Successfully extract file [%s], total_read = %d bytes", entry_name.c_str(), total_read);
 
-  return buffer;
+  return ReadonlyByteBuffer(mutable_buffer.release(), ConditionalDeleter{true});
 }
 
-UniqueByteBuffer RAIIZipArchive::FastReadRawDataToMem(const std::string &entry_name, const size_t pos_in_central_dir,
-                                                      const size_t buff_size) const {
+ReadonlyByteBuffer RAIIZipArchive::FastReadRawDataToMem(const std::string &entry_name,
+                                                        const size_t pos_in_central_dir,
+                                                        const size_t buff_size) const {
   GELOGI("Begin to read raw data of entry [%s]", entry_name.c_str());
 
   ZipEntryInfo entry_info{};
@@ -402,7 +403,7 @@ UniqueByteBuffer RAIIZipArchive::FastReadRawDataToMem(const std::string &entry_n
   GELOGI("Successfully get raw data of entry [%s], offset = %zu, size = %zu", entry_name.c_str(), raw_data_offset,
          buff_size);
 
-  return UniqueByteBuffer(const_cast<uint8_t *>(mem_file_.buffer + raw_data_offset), ConditionalDeleter{false});
+  return ReadonlyByteBuffer(mem_file_.buffer + raw_data_offset, ConditionalDeleter{false});
 }
 
 }  // namespace ge

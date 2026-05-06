@@ -81,15 +81,13 @@ void SetQueueNode(const NodeT &node,
   node->outputs[0].attr.opt.ref_tensor = ascir::ID_NONE;
 }
 
-Load CreateDataAndLoad(ascir::HintGraph &graph, const char *data_name, const char *load_name,
-                       int &exec_order, std::initializer_list<int64_t> axis,
-                       ge::DataType dtype, std::initializer_list<ge::Expression> repeats,
+void CreateDataAndLoad(Load &load, ascir::HintGraph &graph, const char *data_name, int &exec_order,
+                       std::initializer_list<int64_t> axis, ge::DataType dtype,
+                       std::initializer_list<ge::Expression> repeats,
                        std::initializer_list<ge::Expression> strides) {
   Data data(data_name, graph);
   SetNodeScheduleAndTensor(data, exec_order, axis, dtype, repeats, strides);
-  Load load(load_name);
   InitInputNode(load, data.y, exec_order, axis, dtype, repeats, strides);
-  return load;
 }
 
 template <typename NodeT>
@@ -162,9 +160,12 @@ void Add_Layer_Norm_Normal_BeforeAutofuseConstInput(ascir::HintGraph &graph) {
   const std::initializer_list<int64_t> axes = {a.id, r.id, bl.id};
 
   int exec_order = 0;
-  auto x1Local = CreateDataAndLoad(graph, "x1", "x1Local", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
-  auto x2Local = CreateDataAndLoad(graph, "x2", "x2Local", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
-  auto biasLocal = CreateDataAndLoad(graph, "bias", "biasLocal", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
+  Load x1Local("x1Local");
+  CreateDataAndLoad(x1Local, graph, "x1", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
+  Load x2Local("x2Local");
+  CreateDataAndLoad(x2Local, graph, "x2", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
+  Load biasLocal("biasLocal");
+  CreateDataAndLoad(biasLocal, graph, "bias", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
 
   Concat mean("mean");
   mean.x = {x1Local.y, x2Local.y, biasLocal.y};
@@ -185,8 +186,10 @@ void Add_Layer_Norm_Normal_BeforeAutofuseConstInput(ascir::HintGraph &graph) {
   Store rstd_out("rstd_out");
   InitInputNode(rstd_out, rstd.y, exec_order, axes, ge::DT_FLOAT, {A, ONE, ONE}, {ONE, ZERO, ZERO});
 
-  auto betaLocal = CreateDataAndLoad(graph, "beta", "betaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
-  auto gammaLocal = CreateDataAndLoad(graph, "gamma", "gammaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
+  Load betaLocal("betaLocal");
+  CreateDataAndLoad(betaLocal, graph, "beta", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
+  Load gammaLocal("gammaLocal");
+  CreateDataAndLoad(gammaLocal, graph, "gamma", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
 
   Concat y("y");
   y.attr.api.unit = ge::ComputeUnit::kUnitVector;
@@ -226,9 +229,12 @@ void Add_Layer_Norm_Normal_BeforeAutofuse(ascir::HintGraph &graph, const std::st
   const std::initializer_list<int64_t> axes = {a.id, r.id, bl.id};
 
   int exec_order = 0;
-  auto x1Local = CreateDataAndLoad(graph, "x1", "x1Local", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
-  auto x2Local = CreateDataAndLoad(graph, "x2", "x2Local", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
-  auto biasLocal = CreateDataAndLoad(graph, "bias", "biasLocal", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
+  Load x1Local("x1Local");
+  CreateDataAndLoad(x1Local, graph, "x1", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
+  Load x2Local("x2Local");
+  CreateDataAndLoad(x2Local, graph, "x2", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
+  Load biasLocal("biasLocal");
+  CreateDataAndLoad(biasLocal, graph, "bias", exec_order, axes, ge::DT_FLOAT16, {A, R, ONE}, {R, ONE, ZERO});
 
   Concat mean("mean");
   mean.x = {x1Local.y, x2Local.y, biasLocal.y};
@@ -249,8 +255,10 @@ void Add_Layer_Norm_Normal_BeforeAutofuse(ascir::HintGraph &graph, const std::st
   Store rstd_out("rstd_out");
   InitInputNode(rstd_out, rstd.y, exec_order, axes, ge::DT_FLOAT, {A, ONE, ONE}, {ONE, ZERO, ZERO});
 
-  auto betaLocal = CreateDataAndLoad(graph, "beta", "betaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
-  auto gammaLocal = CreateDataAndLoad(graph, "gamma", "gammaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
+  Load betaLocal("betaLocal");
+  CreateDataAndLoad(betaLocal, graph, "beta", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
+  Load gammaLocal("gammaLocal");
+  CreateDataAndLoad(gammaLocal, graph, "gamma", exec_order, axes, ge::DT_FLOAT16, {ONE, R, ONE}, {ZERO, ONE, ZERO});
 
   Concat y("y");
   y.attr.api.unit = ge::ComputeUnit::kUnitVector;
@@ -377,9 +385,12 @@ void Add_Layer_Norm_Slice_BeforeAutofuse(ascir::HintGraph &graph) {
   const std::initializer_list<int64_t> axes = {a.id, r.id};
 
   int exec_order = 0;
-  auto x1Local = CreateDataAndLoad(graph, "x1", "x1Local", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
-  auto x2Local = CreateDataAndLoad(graph, "x2", "x2Local", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
-  auto biasLocal = CreateDataAndLoad(graph, "bias", "biasLocal", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
+  Load x1Local("x1Local");
+  CreateDataAndLoad(x1Local, graph, "x1", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
+  Load x2Local("x2Local");
+  CreateDataAndLoad(x2Local, graph, "x2", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
+  Load biasLocal("biasLocal");
+  CreateDataAndLoad(biasLocal, graph, "bias", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
 
   Concat mean("mean");
   mean.attr.api.unit = ge::ComputeUnit::kUnitVector;
@@ -399,8 +410,10 @@ void Add_Layer_Norm_Slice_BeforeAutofuse(ascir::HintGraph &graph) {
   Store rstd_out("rstd_out");
   InitInputNode(rstd_out, rstd.y, exec_order, axes, ge::DT_FLOAT, {A, ONE}, {ONE, ONE});
 
-  auto betaLocal = CreateDataAndLoad(graph, "beta", "betaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
-  auto gammaLocal = CreateDataAndLoad(graph, "gamma", "gammaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
+  Load betaLocal("betaLocal");
+  CreateDataAndLoad(betaLocal, graph, "beta", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
+  Load gammaLocal("gammaLocal");
+  CreateDataAndLoad(gammaLocal, graph, "gamma", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
 
   Concat y("y");
   y.attr.api.unit = ge::ComputeUnit::kUnitVector;
@@ -538,9 +551,12 @@ void Add_Layer_Norm_Welford_BeforeAutofuse(ascir::HintGraph &graph) {
   const std::initializer_list<int64_t> axes = {a.id, r.id};
 
   int exec_order = 0;
-  auto x1Local = CreateDataAndLoad(graph, "x1", "x1Local", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
-  auto x2Local = CreateDataAndLoad(graph, "x2", "x2Local", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
-  auto biasLocal = CreateDataAndLoad(graph, "bias", "biasLocal", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
+  Load x1Local("x1Local");
+  CreateDataAndLoad(x1Local, graph, "x1", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
+  Load x2Local("x2Local");
+  CreateDataAndLoad(x2Local, graph, "x2", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
+  Load biasLocal("biasLocal");
+  CreateDataAndLoad(biasLocal, graph, "bias", exec_order, axes, ge::DT_FLOAT16, {A, R}, {R, ONE});
 
   Concat part1("part1");
   part1.attr.api.unit = ge::ComputeUnit::kUnitVector;
@@ -564,8 +580,10 @@ void Add_Layer_Norm_Welford_BeforeAutofuse(ascir::HintGraph &graph) {
 
   Load x32("x32");
   InitInputNode(x32, x_fp32_out.y, exec_order, axes, ge::DT_FLOAT, {A, R}, {R, ONE});
-  auto betaLocal = CreateDataAndLoad(graph, "beta", "betaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
-  auto gammaLocal = CreateDataAndLoad(graph, "gamma", "gammaLocal", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
+  Load betaLocal("betaLocal");
+  CreateDataAndLoad(betaLocal, graph, "beta", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
+  Load gammaLocal("gammaLocal");
+  CreateDataAndLoad(gammaLocal, graph, "gamma", exec_order, axes, ge::DT_FLOAT16, {ONE, R}, {ZERO, ONE});
 
   Concat y("y");
   y.attr.api.unit = ge::ComputeUnit::kUnitVector;

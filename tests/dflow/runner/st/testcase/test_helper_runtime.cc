@@ -3823,6 +3823,18 @@ TEST_F(STEST_helper_runtime, TestEnqueueAndDequeueSuccess) {
   // rtQueue中的Mbuf需要释放
   ASSERT_EQ(exchange_service.DequeueMbuf(0, queue_id, &dev_m_buf, control_info.timeout), SUCCESS);
   rtMbufFree(dev_m_buf);
+
+  // 清空client_queue中可能存在的残留数据，限制最多清空10次
+  rtMbufPtr_t temp_mbuf = nullptr;
+  int cleanup_count = 0;
+  const int max_cleanup = 10;
+  while (cleanup_count < max_cleanup &&
+         exchange_service.DequeueMbuf(0, client_queue_id, &temp_mbuf, 10) == SUCCESS) {
+    rtMbufFree(temp_mbuf);
+    temp_mbuf = nullptr;
+    cleanup_count++;
+  }
+
   RuntimeStub::SetInstance(std::make_shared<MockRuntime>());
   GE_MAKE_GUARD(recover, []() { MmpaStub::GetInstance().Reset(); });
   g_runtime_stub_mock = "rtCtxGetCurrent";
