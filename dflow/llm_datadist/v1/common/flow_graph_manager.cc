@@ -89,7 +89,13 @@ ge::Status DeployInfo::ParserDeployInfo(const std::map<ge::AscendString, ge::Asc
   auto iter = options.find(LLM_OPTION_CLUSTER_INFO);
   LLM_CHK_BOOL_RET_STATUS(iter != options.cend(), ge::LLM_PARAM_INVALID,
                          "get LLM_OPTION_CLUSTER_INFO failed, options must contain key:%s.", LLM_OPTION_CLUSTER_INFO);
-  const nlohmann::ordered_json json = nlohmann::ordered_json::parse(iter->second.GetString());
+  nlohmann::ordered_json json;
+  try {
+    json = nlohmann::ordered_json::parse(iter->second.GetString());
+  } catch (const nlohmann::json::exception &e) {
+    LLMLOGE(ge::LLM_PARAM_INVALID, "Parse %s failed, exception = %s", LLM_OPTION_CLUSTER_INFO, e.what());
+    return ge::LLM_PARAM_INVALID;
+  }
   LLM_CHK_BOOL_RET_STATUS(json.find(kLogicDeviceId) != json.cend() && json[kLogicDeviceId].is_array(),
                          ge::LLM_PARAM_INVALID, "%s must be array.", kLogicDeviceId);
   for (const auto &logical_device_id : json[kLogicDeviceId]) {

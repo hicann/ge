@@ -22,6 +22,7 @@
 #include "common/llm_ge_api.h"
 #include "common/cache_manager.h"
 #include "common/llm_checker.h"
+#include "flow_graph_manager.h"
 #include "depends/mmpa/src/mmpa_stub.h"
 
 using namespace std;
@@ -184,6 +185,19 @@ TEST_F(LLMUtilsTest, TestParserOptions) {
   std::vector<int32_t> device_ids;
   ret = llm::LLMUtils::ParseDeviceId(llm_options, device_ids, ge::OPTION_EXEC_DEVICE_ID);
   EXPECT_EQ(ret, ge::SUCCESS);
+}
+
+TEST_F(LLMUtilsTest, ParseDeployInfoInvalidClusterInfo) {
+  const std::map<ge::AscendString, ge::AscendString> llm_options = {
+      {llm::LLM_OPTION_ROLE, "decoder"},
+      {llm::LLM_OPTION_CLUSTER_INFO, R"({"cluster_id: 0", "logic_device_id": [)"},
+  };
+
+  llm::DeployInfo deploy_info;
+  ge::Status ret = ge::SUCCESS;
+  
+  EXPECT_NO_THROW(ret = deploy_info.ParserDeployInfo(llm_options));
+  EXPECT_EQ(ret, ge::LLM_PARAM_INVALID);
 }
 
 TEST_F(LLMUtilsTest, TestCacheManager) {
