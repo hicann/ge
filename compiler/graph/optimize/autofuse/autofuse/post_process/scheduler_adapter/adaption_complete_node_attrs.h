@@ -61,7 +61,7 @@ inline Status UpdateTensorAttrsIfEmpty(const NodePtr &node, AscTensorAttr *tenso
     tensor_attr->repeats = peer_output_attr->repeats;
     tensor_attr->strides = peer_output_attr->strides;
   }
-  GELOGD("after complete attrs: node %s(%s) ,axis:%s, repeats:%s stride:%s.", node->GetName().c_str(),
+  GELOGD("after complete attrs: node %s(%s), axis:%s, repeats:%s, stride:%s.", node->GetName().c_str(),
          node->GetType().c_str(), AutofuseUtils::VectorToStr(tensor_attr->axis).c_str(),
          AutofuseUtils::VectorToStr(tensor_attr->repeats).c_str(),
          AutofuseUtils::VectorToStr(tensor_attr->strides).c_str());

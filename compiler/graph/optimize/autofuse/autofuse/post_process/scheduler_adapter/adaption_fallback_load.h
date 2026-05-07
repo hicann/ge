@@ -399,7 +399,7 @@ inline Status GeFallbackPro(AscGraph &asc_graph, [[maybe_unused]] const NodePtr 
     if (data_node->GetType() != kDataType) {
       // 非Data后面的load节点如果不需要补轴，则预期在canfuse融合，不在此处删除
       if (attr_info.broadcast_info.empty()) {
-        GELOGW("node %s %s, which doesnt't need to add broadcast and is not after data in graph %s, is abnormal.",
+        GELOGW("node %s %s, which doesn't need to add broadcast and is not after data in graph %s, is abnormal.",
                node->GetName().c_str(), node->GetType().c_str(), asc_graph.GetName().c_str());
       }
       GELOGI("node %s %s is not after data node in graph %s, it need to be removed.", node->GetName().c_str(),
