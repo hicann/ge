@@ -84,6 +84,9 @@ class AutoFuseAttrs : public ge::AttrGroupsBase {
                    const loop::FuseType fuse_type = loop::FuseType::kExtern) {
     asc_graph_ = asc_graph;
     SetFuseType(fuse_type);
+    if (fuse_type == loop::FuseType::kSplit) {
+      InitSplitGlobalIdFromGraph();
+    }
   }
 
   [[nodiscard]] const ComputeGraphPtr &GetFuseComputeGraph() const { return fused_compute_graph_; }
@@ -152,35 +155,13 @@ class AutoFuseAttrs : public ge::AttrGroupsBase {
 
   void SetSplitGlobalId(const size_t global_id) { inner_attrs_.split_global_id = static_cast<int64_t>(global_id); }
 
-  int32_t GetSplitGlobalId() {
-    // split的融合树的叶子节点调用get接口时，AutoFuseAttrs 未初始化 split_global_id，需要根据node的属性进行初始化；
-    if (inner_attrs_.split_global_id == -1) {
-      GE_ASSERT_TRUE(this->HasFuseType(loop::FuseType::kSplit), "Non-split Node trying to get split global id.");
-      auto graph_ptr = this->GetAscGraph();
-      GE_ASSERT_NOTNULL(graph_ptr);
-      auto &graph = *graph_ptr;
-      GELOGD("graph: %s, number of ir nodes: %d.", graph_ptr->GetName().c_str(),
-             AscGraphUtils::GetComputeGraph(graph)->GetAllNodes().size());
-      for (const auto &ir_node : AscGraphUtils::GetComputeGraph(graph)->GetAllNodes()) {
-        GELOGD("ir node: %s(%s)", ir_node->GetType().c_str(), ir_node->GetName().c_str());
-        if (ir_node->GetType() == kSplitTypeStub) {
-          const auto &ir_desc = ir_node->GetOpDesc();
-          const auto &ir_attr = ir_desc->GetAttrsGroup<AscNodeAttr>();
-          GE_ASSERT_NOTNULL(ir_attr);
-          const auto split_attr = dynamic_cast<ascir_op::Split::AscSplitIrAttrDef *>(ir_attr->ir_attr.get());
-          GE_ASSERT_NOTNULL(split_attr);
-          GE_ASSERT_SUCCESS(split_attr->GetGid(inner_attrs_.split_global_id),
-                            "node: %s(%s) failed to get global split id.", ir_node->GetType().c_str(),
-                            ir_node->GetName().c_str());
-          GELOGD("origin node info: [node: %s(%s), global id: %d]", ir_node->GetType().c_str(),
-                 ir_node->GetName().c_str(), inner_attrs_.split_global_id);
-        }
-      }
-    }
+  int32_t GetSplitGlobalId() const {
+    GE_ASSERT_TRUE(inner_attrs_.split_global_id != -1 || !this->HasFuseType(loop::FuseType::kSplit),
+                   "Split global id not initialized for split node.");
     return inner_attrs_.split_global_id;
   }
 
-  SplitFusionRatioRequirementState GetSplitFusionRatioRequirementState() {
+  SplitFusionRatioRequirementState GetSplitFusionRatioRequirementState() const {
     return inner_attrs_.split_fusion_ratio_requirement_state;
   }
 
@@ -242,6 +223,22 @@ class AutoFuseAttrs : public ge::AttrGroupsBase {
   std::shared_ptr<AscGraph> asc_graph_;
   ComputeGraphPtr fused_compute_graph_;
   AutofuseInnerAttrs inner_attrs_;
+
+  void InitSplitGlobalIdFromGraph() {
+    if (asc_graph_ == nullptr) return;
+    for (const auto &ir_node : AscGraphUtils::GetComputeGraph(*asc_graph_)->GetAllNodes()) {
+      if (ir_node->GetType() == kSplitTypeStub) {
+        const auto &ir_desc = ir_node->GetOpDesc();
+        const auto &ir_attr = ir_desc->GetAttrsGroup<AscNodeAttr>();
+        if (ir_attr == nullptr) continue;
+        const auto split_attr = dynamic_cast<ascir_op::Split::AscSplitIrAttrDef *>(ir_attr->ir_attr.get());
+        if (split_attr == nullptr) continue;
+        (void) split_attr->GetGid(inner_attrs_.split_global_id);
+        GELOGD("Init split global id from IR node: [node: %s(%s), global id: %d]",
+               ir_node->GetType().c_str(), ir_node->GetName().c_str(), inner_attrs_.split_global_id);
+      }
+    }
+  }
 };
 
 inline AutoFuseAttrs *GetOrCreateAutoFuseAttrs(const OpDescPtr &op_desc) {

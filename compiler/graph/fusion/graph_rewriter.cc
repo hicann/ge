@@ -103,14 +103,22 @@ Status InheritedOriginAttrAndOpName(const InnerSubgraphBoundary &subgraph, const
   return SUCCESS;
 }
 
-Status MakeSureReplacementNodeNameUnique(const ComputeGraphPtr &replacement) {
+Status MakeSureReplacementNodeNameUnique(const ComputeGraphPtr &replacement,
+                                         const std::vector<NodePtr> &subgraph_nodes) {
   thread_local int64_t new_node_count = 0;
+  std::string subgraph_name_suffix;
+  for (const auto &subgraph_node : subgraph_nodes) {
+    if (!subgraph_name_suffix.empty()) {
+      subgraph_name_suffix += "_";
+    }
+    subgraph_name_suffix += subgraph_node->GetName();
+  }
   for (const auto &node : replacement->GetDirectNode()) {
     if (OpTypeUtils::IsDataNode(node->GetTypePtr()) || (strcmp(node->GetTypePtr(), NETOUTPUT) == 0)) {
       continue;
     }
     auto name = node->GetName();
-    node->GetOpDesc()->SetName(name + to_string(new_node_count++));
+    node->GetOpDesc()->SetName(name + "_" + subgraph_name_suffix + "_" + to_string(new_node_count++));
   }
   return SUCCESS;
 }
@@ -222,7 +230,7 @@ Status ReplaceSubgraph(const ComputeGraphPtr &target_graph, const InnerSubgraphB
 
   const std::vector<NodePtr> r_nodes_except_io = CollectNodes(replacement);
   GE_ASSERT_SUCCESS(InheritedOriginAttrAndOpName(subgraph, r_nodes_except_io));
-  GE_ASSERT_SUCCESS(MakeSureReplacementNodeNameUnique(replacement));
+  GE_ASSERT_SUCCESS(MakeSureReplacementNodeNameUnique(replacement, subgraph.GetNodes()));
 
   std::map<int32_t, NodePtr> r_index_2_data_node;
   std::map<int32_t, OutDataAnchorPtr> r_index_2_output_data_anchor;

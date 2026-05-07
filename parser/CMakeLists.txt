@@ -32,6 +32,7 @@ target_include_directories(parser_headers INTERFACE
     $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc/parser/>
     $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc/parser/external>
     $<BUILD_INTERFACE:${AIR_CODE_DIR}/inc/parser/external/parser>
+    $<BUILD_INTERFACE:${CMAKE_BINARY_DIR}/proto/parser_protos/proto>
     $<INSTALL_INTERFACE:include>
     $<INSTALL_INTERFACE:include/parser>
     $<INSTALL_INTERFACE:include/parser/external>
@@ -154,7 +155,7 @@ if (BUILD_METADEF AND BUILD_WITHOUT_AIR)
     add_subdirectory(metadef)
 endif()
 
-install(TARGETS _caffe_parser parser_common fmk_onnx_parser fmk_parser parser_headers
+install(TARGETS _caffe_parser parser_common fmk_onnx_parser fmk_parser func2graph parser_headers
     EXPORT parser-targets
     LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL} COMPONENT opensdk
     ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL} COMPONENT opensdk

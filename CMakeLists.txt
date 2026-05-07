@@ -431,7 +431,7 @@ else ()
         add_dependencies(select_targets graph graph_base register exe_graph lowering rt2_registry_static)
     endif()
 
-    add_dependencies(select_targets fmk_parser parser_common _caffe_parser fmk_onnx_parser)
+    add_dependencies(select_targets fmk_parser parser_common _caffe_parser fmk_onnx_parser func2graph)
 
     if(MINDSPORE_MODE)
         add_dependencies(select_targets ge_common ge_common_base graph graph_base)
@@ -443,7 +443,7 @@ if (NOT BUILD_OPEN_PROJECT)
     if (ENABLE_OPEN_SRC)
         install(TARGETS gert ge_common ge_common_base ge_executor_shared davinci_executor hybrid_executor ge_runner
                 ge_runner_v2 dflow_runner data_flow_base
-                ge_compiler slice air_headers _caffe_parser fmk_onnx_parser fmk_parser parser_common
+                ge_compiler slice air_headers _caffe_parser fmk_onnx_parser fmk_parser parser_common func2graph
                 EXPORT air-targets
                 LIBRARY DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL} COMPONENT opensdk
                 ARCHIVE DESTINATION ${INSTALL_LIBRARY_DIR} ${INSTALL_OPTIONAL} COMPONENT opensdk
@@ -527,7 +527,7 @@ elseif (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
             add_dependencies(ge-compiler parser_common aicore_utils fusion_pass op_compile_adapter aicpu_engine_common fmk_parser ge_compiler
                     fmk_onnx_parser opskernel ge_runner slice aicpu_const_folding llm_engine jit_exe _caffe_parser flow_graph aihac_autofusion
                     dflow_runner eager_style_graph_builder_base eager_style_graph_builder_base_static gen_esb aihac_ir aihac_ir_register
-                    aihac_symbolizer pyautofuse ge_python llm_datadist_python_v1 dataflow_python ge_python_pass_bridge)
+                    aihac_symbolizer pyautofuse ge_python llm_datadist_python_v1 dataflow_python ge_python_pass_bridge func2graph)
             add_dependencies(ge-compiler hcom_gradient_split_tune hcom_graph_adaptor hcom_opskernel_builder hcom_gradtune_opskernel_builder)
             add_dependencies(ge-compiler aicpu_ascend_engine aicpu_tf_engine dvpp_engine fe ffts ge_local_engine ge_local_opskernel_builder
                     host_cpu_opskernel_builder host_cpu_engine engine)
