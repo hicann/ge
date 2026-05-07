@@ -527,7 +527,7 @@ std::string Loop::GetReduceType() const {
   return "";
 }
 
-/* 获取reduce api的输入/输出tensor */
+/* 获取reduce api的输出tensor */
 const Tensor* Loop::GetReduceOutputTensor(const TPipe &tpipe) const {
   for (auto it = this->bodys.rbegin(); it != this->bodys.rend(); ++it) {
     if (it->type == LoopType::CALL) {
@@ -536,6 +536,18 @@ const Tensor* Loop::GetReduceOutputTensor(const TPipe &tpipe) const {
     }
   }
   GELOGE(ge::FAILED, "No valid reduce output tensor found.");
+  return nullptr;
+}
+
+/* 获取reduce api的输入tensor */
+const Tensor* Loop::GetReduceInputTensor(const TPipe &tpipe) const {
+  for (auto it = this->bodys.rbegin(); it != this->bodys.rend(); ++it) {
+    if (it->type == LoopType::CALL) {
+      auto in_tensor_ptr = tpipe.GetTensor(it->call->inputs[0]->id);
+      return in_tensor_ptr;
+    }
+  }
+  GELOGE(ge::FAILED, "No valid reduce input tensor found.");
   return nullptr;
 }
 
@@ -637,12 +649,13 @@ Status Loop::GenerateLoop(const Tiler &tiler, const TPipe &tpipe, std::vector<as
                       "Codegen generate body failed for normal loop");
     ss << "}" << std::endl;
     if (IsReduceDoubleTile(tiler, tpipe, this->is_graph_has_reduce_node) && GetReduceType() == "Mean") {
+      auto reduce_src_tensor = GetReduceInputTensor(tpipe);
       auto reduce_dst_tensor = GetReduceOutputTensor(tpipe);
       std::string dtype_name;
       Tensor::DtypeName(reduce_dst_tensor->dtype, dtype_name);
       std::set<ascir::AxisId> r_from_axis;
       for (size_t i = 0; i < reduce_dst_tensor->axis_strides.size(); i++) {
-        if (reduce_dst_tensor->axis_strides[i] == 0) {  // 如果目标张量的轴步长为0
+        if (reduce_src_tensor->axis_strides[i] != 0 && reduce_dst_tensor->axis_strides[i] == 0) {  // 如果目标张量的轴步长为0
           auto axis_id = reduce_dst_tensor->axis[i];    // 获取当前轴ID
           // 定义递归函数用于收集原始轴
           std::function<void(int32_t)> collect_original_axes = [&tiler, &r_from_axis, &collect_original_axes](int32_t current_axis_id) {
