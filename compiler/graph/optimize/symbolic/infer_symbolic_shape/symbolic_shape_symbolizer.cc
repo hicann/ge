@@ -29,7 +29,6 @@
 
 namespace ge {
 namespace {
-const std::vector<int64_t> kDummyShape = {-3};
 
 struct DataSymbolizeInfo {
   int32_t dataIndex;
@@ -60,9 +59,12 @@ Status BuildDataSymbolizeInfo(const NodePtr &data_node, const std::vector<GeTens
   } else {
     info.inputShape = ge_tensor_desc.GetShape();
   }
-  // atc + acl场景动态shape下开启自动融合会产生[-3]的shape，在这里拦截报错
-  GE_ASSERT_TRUE(info.inputShape.GetDims() != kDummyShape,
-    "Node[%s] is not supported symbolize, input origin shape is [-3].", data_node->GetNamePtr());
+  // 动态shape，未配置inputHintShape，不支持符号化
+  if (info.inputShape.GetDims() == DUMMY_SHAPE) {
+    GELOGI("Node[%s] has placeholder shape, skip symbolization. Please check ge.inputHintShape configuration.",
+           data_node->GetNamePtr());
+    return ge::UNSUPPORTED;
+  }
   return SUCCESS;
 }
 

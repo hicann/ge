@@ -35,6 +35,7 @@
 #include "register/optimization_option_registry.h"
 #include "graph/option/optimization_option.h"
 #include "base/err_msg.h"
+#include "graph/tuning_utils.h"
 
 namespace ge {
 namespace {
@@ -106,7 +107,6 @@ const char *const kInputShapeRangeSample5 = "\"16\"";
 const char *const kInputShapeRangeSample6 = "\"input_name1:n1~n2,c1,h1,w1\"";
 const char *const kInputShapeRangeSample7 = "\"n1~n2,c1,h1,w1;n3,c2,h2,w2\"";
 const char *const kHintInputShape = "ge.inputHintShape";
-const std::vector<int64_t> kDummyShape = {-3};
 
 const std::unordered_set<std::string> kSupportedPrintMode = {"enable", "disable"};
 
@@ -1047,7 +1047,7 @@ Status ParseHintInputShape(std::vector<GeShape> &option_shape) {
     parse_shape.emplace_back(std::make_pair(index, shape));
   }
 
-  option_shape.resize(max_index + 1, GeShape(kDummyShape));
+  option_shape.resize(max_index + 1, GeShape(DUMMY_SHAPE));
   for (const auto &shape : parse_shape) {
     option_shape[shape.first] = shape.second;
   }
@@ -1819,5 +1819,92 @@ bool EnableSliceSchedule() {
   static const bool kSliceSheduleEnable = ((ge::GetAutofuseFlagValue(kAutoFuseEnableOption) == "true") &&
       (ge::GetAutofuseFlagValue(kSliceScheduleOption) == "true"));
   return kSliceSheduleEnable;
+}
+
+namespace {
+const std::set<std::string> kUnsupportedOpList = {
+    "Switch",
+    "RefSwitch",
+    "StreamSwitch",
+    "Merge",
+    "RefMerge",
+    "StreamMerge",
+    "Enter",
+    "RefEnter",
+    "Exit",
+    "RefExit",
+    "LoopCond",
+    "NextIteration",
+    "RefNextIteration",
+    "GetNext",
+    "IteratorGetNext",
+    "DynamicGetNext",
+    "DynamicGetNextV2"
+};
+
+void LogSliceScheduleFallback(const std::string &graph_name, const std::string &reason) {
+  GELOGI("Graph[%s] %s, slice schedule is automatically disabled. To explicitly disable slice schedule, "
+         "you can set AUTOFUSE_FLAGS='--experimental_enable_jit_executor_v2=false'.",
+         graph_name.c_str(), reason.c_str());
+}
+
+bool HasResourceDataType(const OpDescPtr &op_desc) {
+  const auto &all_input_desc = op_desc->GetAllInputsDescPtr();
+  for (const auto &input_desc : all_input_desc) {
+    if (input_desc != nullptr && input_desc->GetOriginDataType() == DT_RESOURCE) {
+      return true;
+    }
+  }
+  const auto &all_output_desc = op_desc->GetAllOutputsDescPtr();
+  for (const auto &output_desc : all_output_desc) {
+    if (output_desc != nullptr && output_desc->GetOriginDataType() == DT_RESOURCE) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool CheckUnsupportedOps(const ComputeGraphPtr &graph) {
+  const auto &nodes = graph->GetAllNodes();
+  for (const auto &node : nodes) {
+    const auto &op_type = node->GetType();
+    if (kUnsupportedOpList.count(op_type) > 0U) {
+      LogSliceScheduleFallback(graph->GetName(), "contains unsupported op [" + op_type + "]");
+      return true;
+    }
+    const auto &op_desc = node->GetOpDesc();
+    if (op_desc != nullptr && HasResourceDataType(op_desc)) {
+      LogSliceScheduleFallback(graph->GetName(), "contains resource op [" + std::string(op_desc->GetType()) + "]");
+      return true;
+    }
+  }
+  return false;
+}
+}
+
+/*
+ * 以下场景暂不支持 slice schedule
+ * 1 动态分档
+ * 2 aoe场景
+ * 3 包含v1版本控制算子
+ * 4 包含资源类算子
+ */
+bool IsGraphSupportSliceSchedule(const ComputeGraphPtr &graph, const std::map<std::string, std::string> &options) {
+  // 1. 动态分档场景
+  const auto dynamic_dims_it = options.find(kDynamicDims);
+  if (dynamic_dims_it != options.end() && !dynamic_dims_it->second.empty()) {
+    LogSliceScheduleFallback(graph->GetName(), "is multi_batch");
+    return false;
+  }
+
+  // 2. aoe场景
+  const auto build_mode_it = options.find(BUILD_MODE);
+  if (build_mode_it != options.end() && !build_mode_it->second.empty()) {
+    LogSliceScheduleFallback(graph->GetName(), "is in aoe mode");
+    return false;
+  }
+
+  // 3&4. 一次遍历检查：不支持算子 + 资源算子
+  return !CheckUnsupportedOps(graph);
 }
 }  // namespace ge

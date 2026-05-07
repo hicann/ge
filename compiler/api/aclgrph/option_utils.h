@@ -157,5 +157,6 @@ std::string SupportedHostEnvCpuList(std::unordered_set<std::string> &supported_o
 std::string SupportedHostEnvOsList(std::unordered_map<std::string, std::unordered_set<std::string>>
                                    &opp_supported_os_cpu);
 bool EnableSliceSchedule();
+bool IsGraphSupportSliceSchedule(const ComputeGraphPtr &graph, const std::map<std::string, std::string> &options);
 }
 #endif  // FRAMEWORK_DOMI_ATC_IR_COMMON_H_

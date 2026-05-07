@@ -250,112 +250,6 @@ TEST_F(UserGraphsManagerlUT, ExecuteGraphWithStreamAsync_Success) {
   dlog_setlevel(GE_MODULE_NAME, 3, 1);
 }
 
-#if 0
-TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_success_when_input_dynamic_graph_not_partition) {
-  ModelExecutor model_executor;
-  model_executor.Initialize({}, 0);
-  GraphManager graph_manager;
-  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
-  UserGraphsManager user_graph_manager(graph_manager);
-
-  uint32_t user_graph_id = 0u;
-  auto graph = JitShareGraph::AllNormalNodes();
-  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
-  const std::map<std::string, std::string> options;
-  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  CompiledGraphSummaryPtr summary;
-  EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
-  EXPECT_NE(summary, nullptr);
-  // dynamic shape graph
-  EXPECT_EQ(summary->IsStatic(), false);
-  std::vector<ge::Shape> output_shape;
-  EXPECT_NE(summary->GetOutputShapes(output_shape), ge::SUCCESS);
-
-  std::map<AscendString, AscendString> load_options;
-  EXPECT_EQ(user_graph_manager.LoadGraph(user_graph_id, load_options, nullptr), SUCCESS);
-
-  // prepare run task
-  std::vector<gert::Tensor> gert_inputs;
-  std::vector<gert::Tensor> gert_outputs;
-  gert_inputs.resize(1);
-  gert_outputs.resize(1);
-  std::vector<int32_t> input_data_1(1 * 2 * 3 * 4, 666);
-  gert_inputs[0] = {{{1, 2, 3, 4}, {1, 2, 3, 4}},                // shape
-                    {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},  // format
-                    gert::kOnDeviceHbm,                          // placement
-                    ge::DT_INT32,                                // data type
-                    (void *) input_data_1.data()};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS);
-  EXPECT_EQ(gert_outputs.size(), 1);
-  EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
-
-  gert_inputs.clear();
-  gert_outputs.clear();
-  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
-
-  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
-  dlog_setlevel(GE_MODULE_NAME, 3, 1);
-}
-
-TEST_F(UserGraphsManagerlUT, return_compile_load_skip_summary_not_null_execute_success_when_input_dynamic_graph_contain_partition) {
-  ModelExecutor model_executor;
-  model_executor.Initialize({}, 0);
-  GraphManager graph_manager;
-  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
-  UserGraphsManager user_graph_manager(graph_manager);
-
-  uint32_t user_graph_id = 0u;
-  auto graph = JitShareGraph::OneReshapeNode();
-  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
-  const std::map<std::string, std::string> options;
-  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
-  dlog_setlevel(GE_MODULE_NAME, 0, 1);
-  EXPECT_EQ(user_graph_manager.CompileGraph(user_graph_id, 0, {}), SUCCESS);
-  CompiledGraphSummaryPtr summary;
-  EXPECT_EQ(user_graph_manager.GetCompiledGraphSummary(user_graph_id, summary), SUCCESS);
-  EXPECT_NE(summary, nullptr);
-  // dynamic shape graph
-  EXPECT_EQ(summary->IsStatic(), false);
-  std::vector<ge::Shape> output_shape;
-  EXPECT_NE(summary->GetOutputShapes(output_shape), ge::SUCCESS);
-
-  std::map<AscendString, AscendString> load_options;
-  EXPECT_EQ(user_graph_manager.LoadGraph(user_graph_id, load_options, nullptr), SUCCESS);
-
-  // prepare run task
-  std::vector<gert::Tensor> gert_inputs;
-  std::vector<gert::Tensor> gert_outputs;
-  gert_inputs.resize(2);
-  gert_outputs.resize(1);
-  std::vector<int32_t> input_data_1(1 * 2 * 3 * 4, 666);
-  gert_inputs[0] = {{{1, 2, 3, 4}, {1, 2, 3, 4}},                // shape
-                    {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},  // format
-                    gert::kOnDeviceHbm,                          // placement
-                    ge::DT_INT32,                                // data type
-                    (void *) input_data_1.data()};
-  std::vector<int64_t> input_data_2{1, 2, 3, 4, 0, 0, 0, 0};
-  gert_inputs[1] = {{{4}, {4}},                                  // shape
-                    {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},  // format
-                    gert::kOnDeviceHbm,                          // placement
-                    ge::DT_INT64,                                // data type
-                    (void *) input_data_2.data()};
-  EXPECT_EQ(user_graph_manager.ExecuteGraphWithStreamAsync(user_graph_id, nullptr, gert_inputs, gert_outputs, 0), SUCCESS);
-  EXPECT_EQ(gert_outputs.size(), 1);
-  EXPECT_EQ(gert_outputs[0].GetOriginShape(), gert::Shape({1, 2, 3, 4}));
-
-  gert_inputs.clear();
-  gert_outputs.clear();
-  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
-
-  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
-  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
-  dlog_setlevel(GE_MODULE_NAME, 3, 1);
-}
-#endif
-
 TEST_F(UserGraphsManagerlUT, return_compile_load_summary_execute_success_when_input_static_graph_not_partition) {
   ModelExecutor model_executor;
   model_executor.Initialize({}, 0);
@@ -805,10 +699,9 @@ TEST_F(UserGraphsManagerlUT, set_memory_skip_by_slice_scheduler_enable) {
   unsetenv("AUTOFUSE_FLAGS");
 }
 
-// 跳过断图调度的场景
-TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule) {
-  dlog_setlevel(0, 0, 0);
-  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1); // 开启自动融合
+// 跳过断图调度的场景 - 降级到传统模式
+TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_dynamic_batch) {
+  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
 
   ModelExecutor model_executor;
   model_executor.Initialize({}, 0);
@@ -820,16 +713,112 @@ TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule) {
 
   uint32_t user_graph_id = 0u;
   auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
-  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph.get());
   std::map<std::string, std::string> options;
 
-  // 动态分档场景
-  options.insert({"ge.dynamicDims","xxxx"});
-  EXPECT_NE(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  // 动态分档场景 - 不支持 slice schedule，降级到传统模式
+  options["ge.dynamicDims"] = "1,1,1;2,2,2;3,3,3";
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  
   EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
   EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
   rtStreamDestroy(new_stream);
-  dlog_setlevel(GE_MODULE_NAME, 3, 1);
+  unsetenv("AUTOFUSE_FLAGS");
+}
+
+TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_aoe_mode) {
+  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
+
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+  rtStream_t new_stream;
+  (void)rtStreamCreate(&new_stream, 0);
+
+  uint32_t user_graph_id = 1u;
+  auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
+  std::map<std::string, std::string> options;
+
+  // aoe 场景 - 不支持 slice schedule，降级到传统模式
+  options["ge.buildMode"] = "tuning";
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+  rtStreamDestroy(new_stream);
+  unsetenv("AUTOFUSE_FLAGS");
+}
+
+TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_unsupported_op) {
+  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
+
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+  rtStream_t new_stream;
+  (void)rtStreamCreate(&new_stream, 0);
+
+  uint32_t user_graph_id = 2u;
+  auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
+  
+  // 添加不支持算子（Switch）到图中
+  auto switch_op = std::make_shared<OpDesc>("switch_node", "Switch");
+  GeTensorDesc input_desc(GeShape({1, 2, 3, 4}), FORMAT_ND, DT_FLOAT);
+  switch_op->AddInputDesc(input_desc);
+  switch_op->AddInputDesc(input_desc);
+  switch_op->AddOutputDesc(input_desc);
+  switch_op->AddOutputDesc(input_desc);
+  compute_graph->AddNode(switch_op);
+  
+  std::map<std::string, std::string> options;
+  // 包含不支持算子 - 不支持 slice schedule，降级到传统模式
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+  rtStreamDestroy(new_stream);
+  unsetenv("AUTOFUSE_FLAGS");
+}
+
+TEST_F(UserGraphsManagerlUT, graph_skip_slice_schedule_resource_op) {
+  mmSetEnv("AUTOFUSE_FLAGS", "--enable_autofuse=true;--experimental_enable_jit_executor_v2=true", 1);
+
+  ModelExecutor model_executor;
+  model_executor.Initialize({}, 0);
+  GraphManager graph_manager;
+  EXPECT_EQ(graph_manager.Initialize({}, &model_executor), SUCCESS);
+  UserGraphsManager user_graph_manager(graph_manager);
+  rtStream_t new_stream;
+  (void)rtStreamCreate(&new_stream, 0);
+
+  uint32_t user_graph_id = 3u;
+  auto graph = JitShareGraph::AllNormalNodes({1, 2, 3, 4});
+  auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);
+  
+  // 添加资源算子（输出类型为 DT_RESOURCE）到图中
+  auto resource_op = std::make_shared<OpDesc>("resource_node", "ResourceOp");
+  GeTensorDesc input_desc(GeShape({1, 2, 3, 4}), FORMAT_ND, DT_FLOAT);
+  GeTensorDesc output_desc(GeShape({1, 2, 3, 4}), FORMAT_ND);
+  output_desc.SetOriginDataType(DT_RESOURCE);
+  resource_op->AddInputDesc(input_desc);
+  resource_op->AddOutputDesc(output_desc);
+  compute_graph->AddNode(resource_op);
+  
+  std::map<std::string, std::string> options;
+  // 包含资源算子 - 不支持 slice schedule，降级到传统模式
+  EXPECT_EQ(user_graph_manager.AddGraph(user_graph_id, *graph, options), SUCCESS);
+  EXPECT_EQ(user_graph_manager.RemoveGraph(user_graph_id), SUCCESS);
+  
+  EXPECT_EQ(user_graph_manager.Finalize(), SUCCESS);
+  EXPECT_EQ(graph_manager.Finalize(), SUCCESS);
+  rtStreamDestroy(new_stream);
   unsetenv("AUTOFUSE_FLAGS");
 }
 }  // namespace ge
