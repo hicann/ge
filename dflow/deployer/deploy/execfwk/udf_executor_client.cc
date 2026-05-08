@@ -755,7 +755,8 @@ done
 chmod -R 750 "$target_path"
 )");
 
-  GE_CHK_STATUS_RET(ProcessUtils::System(untar_cmd), "Failed to execute cmd[%s].", untar_cmd.c_str());
+  GE_CHK_STATUS_RET(ProcessUtils::System("/bin/bash << 'EOF'\n" + untar_cmd + "\nEOF"), "Failed to execute cmd[%s].",
+                    untar_cmd.c_str());
   return SUCCESS;
 }
 
