@@ -37,7 +37,7 @@ Status GetBroadcastAxis(const AscGraph &graph, std::set<int64_t> &broadcast_axis
       cur_node = peer_node;
     }
     if ((peer_node->GetType() != kLoadType) && (peer_node->GetType() != kGatherType)) {
-      GELOGI("Graph %s not support CyclicExternalLift because broadcast node not at the beginning.",
+      GELOGI("Graph %s does not support CyclicExternalLift because a broadcast node is not at the beginning.",
              graph.GetName().c_str());
       return FAILED;
     }
@@ -45,7 +45,7 @@ Status GetBroadcastAxis(const AscGraph &graph, std::set<int64_t> &broadcast_axis
     AscTensorAttr *output_tensor_attr;
     GE_ASSERT_SUCCESS(asc_adapt::GetOutputTensorAttr(peer_node, output_tensor_attr));
     if (AutofuseUtils::IsUbScalar(output_tensor_attr->repeats)) {
-      GELOGI("Graph %s not support CyclicExternalLift because broadcast node's input is a UB scalar.",
+      GELOGI("Graph %s does not support CyclicExternalLift because the broadcast node's input is a UB scalar.",
              graph.GetName().c_str());
       return FAILED;
     }
@@ -54,7 +54,7 @@ Status GetBroadcastAxis(const AscGraph &graph, std::set<int64_t> &broadcast_axis
     broadcast_axis.insert(attr_info.broadcast_info.begin(), attr_info.broadcast_info.end());
   }
   if (broadcast_axis.empty()) {
-    GELOGI("Graph %s no broadcast node.", graph.GetName().c_str());
+    GELOGI("Graph %s has no broadcast node.", graph.GetName().c_str());
     return FAILED;
   }
   return SUCCESS;
@@ -223,7 +223,7 @@ Status CheckBroadcastAxisInputRepeat(const AscGraph &graph, const std::set<size_
 Status CyclicExternalLift(AscGraph &graph, [[maybe_unused]] const NodePtr &asc_node) {
   std::set<int64_t> broadcast_axis;
   if (GetBroadcastAxis(graph, broadcast_axis) != SUCCESS) {
-    GELOGI("Graph %s no need CyclicExternalLift.", graph.GetName().c_str());
+    GELOGI("Graph %s does not need CyclicExternalLift.", graph.GetName().c_str());
     return SUCCESS;
   }
 
@@ -233,13 +233,13 @@ Status CyclicExternalLift(AscGraph &graph, [[maybe_unused]] const NodePtr &asc_n
   GE_ASSERT_SUCCESS(GetBroadcastAxisIndexAndRepeats(graph, broadcast_axis, axis_index, graph_repeats));
   // 判断Broadcast轴是不是外轴连续
   if ((*axis_index.rbegin() + 1U) != axis_index.size()) {
-    GELOGI("Graph %s broadcast axis not outer continuous.", graph.GetName().c_str());
+    GELOGI("Graph %s's broadcast axis is not outer continuous.", graph.GetName().c_str());
     return SUCCESS;
   }
 
   // 检查Broadcast轴的输入数据repeat是否一致
   if (CheckBroadcastAxisInputRepeat(graph, axis_index) != SUCCESS) {
-    GELOGI("Graph %s broadcast axis input data repeat not same.", graph.GetName().c_str());
+    GELOGI("Graph %s's broadcast axis input data repeats are not the same.", graph.GetName().c_str());
     return SUCCESS;
   }
 
@@ -252,14 +252,14 @@ Status CyclicExternalLift(AscGraph &graph, [[maybe_unused]] const NodePtr &asc_n
          AutofuseUtils::VectorToStr(vec1).c_str(), AutofuseUtils::VectorToStr(vec2).c_str());
   // 搬运类算子轴在Broadcast轴中无法循环外提
   if (!special_index.empty() && (*special_index.begin() <= *axis_index.rbegin())) {
-    GELOGI("Graph %s have some view op axis in broadcast axis.", graph.GetName().c_str());
+    GELOGI("Graph %s has some view op axes in the broadcast axis.", graph.GetName().c_str());
     return SUCCESS;
   }
 
   DataType output_dtype;
   if (IsDtypeNotSupport(graph, output_dtype)) {
     // Broadcast不支持的dtype不进行外提
-    GELOGI("Graph %s can not do cyclic external lift with dtype(%s)", graph.GetName().c_str(),
+    GELOGI("Graph %s cannot do cyclic external lift with dtype(%s).", graph.GetName().c_str(),
            TypeUtils::DataTypeToSerialString(output_dtype).c_str());
     return SUCCESS;
   }

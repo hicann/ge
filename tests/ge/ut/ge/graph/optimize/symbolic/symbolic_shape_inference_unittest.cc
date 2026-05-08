@@ -3545,69 +3545,92 @@ TEST_F(SymbolicShapeInferenceUT, NestIfGraphTest) {
   DisableSliceScheduleEnv();
 }
 
-TEST_F(SymbolicShapeInferenceUT, NestCaseGraphTest) {
+// 测试 SymbolicInfoPreProcessor::Run 中满足 IsGraphSupportSliceSchedule 的分支
+TEST_F(SymbolicShapeInferenceUT, SymbolicInfoPreProcessorSupportedSliceSchedule) {
   EnableSliceScheduleEnv();
-  auto root_graph = gert::ShareGraph::BuildNestCaseGraph();
+  auto root_graph = gert::ShareGraph::BuildNestIfGraph();
 
-  // data
+  // data_0: 标量输入（条件）
   DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
   SetNoStorage(root_graph, "data_0", di0, 0);
-  // data1
+  // data_1: tensor 输入
   DataInfo di1 = {FORMAT_NCHW, DT_INT32, {2, 3}};
   SetNoStorage(root_graph, "data_1", di1, 1);
 
-  // data
+  // 创建 input tensors
   std::vector<GeTensor> input_vec;
   auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
-  auto input1 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  auto input1 = BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
   input_vec.emplace_back(input0);
   input_vec.emplace_back(input1);
 
+  // 不设置 graph options，IsGraphSupportSliceSchedule 返回 true，执行 passes
+  std::map<std::string, std::string> graph_options;
+  GetThreadLocalContext().SetGraphOption(graph_options);
+
+  // 先符号化，设置 ShapeEnvAttr
   SymbolicShapeSymbolizer symboilzer;
   ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+
+  // 记录执行前的节点数量和关键节点
+  const size_t node_count_before = root_graph->GetAllNodes().size();
+  auto if_node_before = root_graph->FindNode("if1");
+  ASSERT_NE(if_node_before, nullptr);
+
+  // 调用 SymbolicInfoPreProcessor::Run，预期返回 SUCCESS（执行 passes）
   ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
-  SymbolicShapeInference ssi;
-  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
 
-  ASSERT_EQ(root_graph->FindNode("case1"), nullptr);
+  // 验证图被修改：if 算子被消除
+  auto if_node_after = root_graph->FindNode("if1");
+  ASSERT_EQ(if_node_after, nullptr);
 
-  auto sqrt_node = root_graph->FindNode("batch2_subgraph_sqrt1");
+  // 验证 then 分支的算子仍然存在
+  auto sqrt_node = root_graph->FindNode("then_subgraph_sqrt1");
   ASSERT_NE(sqrt_node, nullptr);
+
   DisableSliceScheduleEnv();
 }
 
-// if的条件输入是其它算子的输出
-TEST_F(SymbolicShapeInferenceUT, NestIfGraph1Test) {
+TEST_F(SymbolicShapeInferenceUT, SymbolicInfoPreProcessorUnsupportedSliceSchedule) {
   EnableSliceScheduleEnv();
-  auto root_graph = gert::ShareGraph::BuildNestIfGraph1();
+  auto root_graph = gert::ShareGraph::BuildNestIfGraph();
 
-  // data
+  // data_0: 标量输入（条件）
   DataInfo di0 = {FORMAT_NCHW, DT_INT32, {}};
   SetNoStorage(root_graph, "data_0", di0, 0);
-  // data1
-  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {}};
+  // data_1: tensor 输入
+  DataInfo di1 = {FORMAT_NCHW, DT_INT32, {2, 3}};
   SetNoStorage(root_graph, "data_1", di1, 1);
-  // data2
-  DataInfo di2 = {FORMAT_NCHW, DT_INT32, {2, 3}};
-  SetNoStorage(root_graph, "data_2", di2, 2);
 
-
-  // data
+  // 创建 input tensors（与 SupportedSliceSchedule 相同）
   std::vector<GeTensor> input_vec;
   auto input0 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
-  auto input1 = BuildGeTensor<int32_t, DT_INT32>({}, {1});
-  auto input2 =  BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
+  auto input1 = BuildGeTensor<int32_t, DT_INT32>({2, 3}, {});
   input_vec.emplace_back(input0);
   input_vec.emplace_back(input1);
-  input_vec.emplace_back(input2);
 
+  // 设置 graph options 使 IsGraphSupportSliceSchedule 返回 false（dynamicDims）
+  std::map<std::string, std::string> graph_options;
+  graph_options["ge.dynamicDims"] = "1,1,1;2,2,2;3,3,3";
+  GetThreadLocalContext().SetGraphOption(graph_options);
+
+  // 先符号化，设置 ShapeEnvAttr
   SymbolicShapeSymbolizer symboilzer;
   ASSERT_EQ(symboilzer.Symbolize(root_graph, input_vec), SUCCESS);
+
+  // 记录执行前的节点数量和关键节点
+  const size_t node_count_before = root_graph->GetAllNodes().size();
+  auto if_node_before = root_graph->FindNode("if1");
+  ASSERT_NE(if_node_before, nullptr);
+
+  // 调用 SymbolicInfoPreProcessor::Run，预期返回 SUCCESS（不执行 passes）
   ASSERT_EQ(SymbolicInfoPreProcessor::Run(root_graph, input_vec), SUCCESS);
-  SymbolicShapeInference ssi;
-  ASSERT_EQ(ssi.Infer(root_graph), SUCCESS);
-  
-  ASSERT_NE(root_graph->FindNode("if1"), nullptr);
+
+  // 验证图未被修改：if 算子仍然存在，节点数量不变
+  const size_t node_count_after = root_graph->GetAllNodes().size();
+  auto if_node_after = root_graph->FindNode("if1");
+  ASSERT_EQ(node_count_after, node_count_before);
+  ASSERT_NE(if_node_after, nullptr);
 
   DisableSliceScheduleEnv();
 }
@@ -3738,7 +3761,7 @@ TEST_F(SymbolicShapeInferenceUT, DummyShapeTest) {
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor0));
   input_vec.emplace_back(ge::TensorAdapter::AsGeTensor(tensor1));
 
-  ASSERT_NE(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), SUCCESS);
+  ASSERT_EQ(SymbolicShapeSymbolizer::Symbolize(cg, input_vec), SUCCESS);
 }
 
 // 动态分档场景符号化推导

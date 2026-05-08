@@ -4964,9 +4964,8 @@ Status GraphManager::ConstructInputTensors(const ComputeGraphPtr &compute_graph,
         GELOGI("Set data node %s input[%lld] tensor shape: [%s] from option %s",
             node->GetNamePtr(), data_index, hint_shape[data_index].ToString().c_str(), kHintInputShape);
       } else {
-        const std::vector<int64_t> invalid_shape = {-3};
-        tensor_desc_tmp.SetShape(GeShape(invalid_shape));
-        tensor_desc_tmp.SetOriginShape(GeShape(invalid_shape));
+        tensor_desc_tmp.SetShape(GeShape(DUMMY_SHAPE));
+        tensor_desc_tmp.SetOriginShape(GeShape(DUMMY_SHAPE));
       }
     }
     inputs_temp.emplace_back(tensor_desc_tmp);
@@ -5043,7 +5042,7 @@ Status GraphManager::CompileGraph(uint32_t graph_id, uint64_t session_id, const 
 
   std::vector<GeTensor> ge_tensor_inputs;
   if (inputs.empty()) {
-    // inputs take precedence over hit_shape in the evaluation.
+    // inputs take precedence over hint_shape in the evaluation.
     std::vector<GeShape> hint_shape;
     GE_ASSERT_SUCCESS(ParseHintInputShape(hint_shape));
     GE_ASSERT_SUCCESS(ConstructInputTensors(compute_graph, hint_shape, ge_tensor_inputs),

@@ -89,21 +89,24 @@ ge::graphStatus TilingContextBuilder::GetDependInputTensorAddr(const ge::Operato
 }
 
 ge::graphStatus TilingContextBuilder::BuildRtTensor(const ge::GeTensorDesc &tensor_desc,
-                                                    ConstTensorAddressPtr address,
+                                                    TensorAddress address,
                                                     std::unique_ptr<uint8_t[]> &rt_tensor_holder) const {
   gert::StorageShape storage_shape;
   GetStorageShape(tensor_desc, storage_shape);
 
   rt_tensor_holder = ge::ComGraphMakeUnique<uint8_t[]>(sizeof(gert::Tensor));
   GE_ASSERT_NOTNULL(rt_tensor_holder, "Create context holder inputs failed.");
-  auto rt_tensor = ge::PtrToPtr<uint8_t, gert::Tensor>(rt_tensor_holder.get());
-  rt_tensor->SetDataType(tensor_desc.GetDataType());
-  rt_tensor->MutableStorageShape() = storage_shape.GetStorageShape();
-  rt_tensor->MutableOriginShape() = storage_shape.GetOriginShape();
-  rt_tensor->MutableFormat().SetStorageFormat(tensor_desc.GetFormat());
-  rt_tensor->MutableFormat().SetOriginFormat(tensor_desc.GetOriginFormat());
-  (void)rt_tensor->MutableTensorData().SetAddr(address, nullptr);
-  rt_tensor->MutableTensorData().SetPlacement(gert::kOnHost);
+  if (address == nullptr) {
+    new (rt_tensor_holder.get())
+        gert::Tensor(storage_shape,
+                     {tensor_desc.GetOriginFormat(), tensor_desc.GetFormat(), {}},
+                     tensor_desc.GetDataType());
+  } else {
+    new (rt_tensor_holder.get())
+        gert::Tensor(storage_shape,
+                     {tensor_desc.GetOriginFormat(), tensor_desc.GetFormat(), {}},
+                     gert::kOnHost, tensor_desc.GetDataType(), address);
+  }
   return ge::GRAPH_SUCCESS;
 }
 

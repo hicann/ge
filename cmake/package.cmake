@@ -251,12 +251,6 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
     install(FILES ${CMAKE_SOURCE_DIR}/parser/parser/func_to_graph/func2graph.py
             DESTINATION ge-compiler/python/func2graph COMPONENT ge-compiler
     )
-    install(DIRECTORY ${CMAKE_SOURCE_DIR}/parser/parser/func_to_graph/proto_python_3_14/
-            DESTINATION ge-compiler/python/func2graph/util_3_14/ COMPONENT ge-compiler
-    )
-    install(DIRECTORY ${CMAKE_SOURCE_DIR}/parser/parser/func_to_graph/proto_python_3_14/
-            DESTINATION ge-compiler/python/func2graph/util COMPONENT ge-compiler
-    )
 endif()
 if("ge-executor" IN_LIST BUILD_COMPONENT)
     message(STATUS "************Install ge-executor packages***************")

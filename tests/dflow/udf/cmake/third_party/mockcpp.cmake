@@ -67,7 +67,7 @@ else ()
         set(REQ_URL ${MOCKCPP_FILE})
     else ()
         message(STATUS "[mockcpp] mockcpp source not found, download.")
-        set(REQ_URL "https://gitcode.com/cann-src-third-party/mockcpp/releases/download/v2.7-h1/mockcpp-2.7.tar.gz")
+        set(REQ_URL "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/mockcpp/mockcpp-2.7.tar.gz")
     endif ()
 
     if (CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "aarch64")

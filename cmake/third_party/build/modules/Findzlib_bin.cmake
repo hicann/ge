@@ -58,7 +58,7 @@ else()
         set(REQ_URL ${REQ_URL_BACK})
     else()
         message(STATUS "[zlib] ${REQ_URL} not found, need download.")
-        set(REQ_URL "https://gitcode.com/cann-src-third-party/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.gz")
+        set(REQ_URL "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/zlib/zlib-1.2.13.tar.gz")
     endif()
 
     set(ZLIB_C_FLAGS "-fPIC -fexceptions -O2")

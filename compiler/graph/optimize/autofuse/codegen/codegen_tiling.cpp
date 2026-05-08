@@ -213,7 +213,10 @@ std::map<std::string, std::string> TilingLib::GenerateForInductor(
   GE_CHK_BOOL_RET_STATUS_NOLOG(CheckTilingHeadersValid(tiling_file_name_to_content), tiling_file_name_to_content);
   std::stringstream ss;
   AppendCommonTilingHeaders(ss);
+  ss << "#pragma GCC diagnostic push\n";
+  ss << "#pragma GCC diagnostic ignored \"-Wreturn-type-c-linkage\"\n";
   ss << "extern \"C\" std::string GetTilingDataRepr(const AutofuseTilingData *tiling_data);\n";
+  ss << "#pragma GCC diagnostic pop\n";
   ss << TilingFuncDefForInductor(fused_schedule_result) << std::endl;
   ss << this->GenGetTopnSolutionsFuncForInductor(fused_schedule_result, "AutofuseTilingData") << std::endl;
   ss << this->GenGetTilingDataReprFuncForInductor(fused_schedule_result, "AutofuseTilingData") << std::endl;
@@ -441,7 +444,7 @@ void TilingLib::GenPgoHeaders(std::stringstream &ss) const {
   ss << "#include <vector>" << std::endl << std::endl;
 
   ss << "#include \"acl/acl.h\"" << std::endl;
-  ss << "#include \"toolchain/slog.h\"" << std::endl;
+  ss << "#include \"dlog_pub.h\"" << std::endl;
   ss << "#include \"mspti.h\"" << std::endl;
   ss << "#include \"tiling/platform/platform_ascendc.h\"" << std::endl << std::endl;
 
@@ -1529,7 +1532,7 @@ std::string TilingLib::StubHeadersWithoutCodegenFunc() const {
 	ss << "#include <sys/syscall.h>" << std::endl;
 	ss << "#include <unistd.h>" << std::endl;
 	ss << "#include <securec.h>" << std::endl;
-	ss << "#include \"toolchain/slog.h\"" << std::endl;
+	ss << "#include \"dlog_pub.h\"" << std::endl;
 	ss << "#define OP_LOGD(name, fmt, ...)" << std::endl;
 	ss << "#define OP_LOGI(name, fmt, ...)" << std::endl;
 	ss << "#define GE_MODULE_NAME static_cast<int32_t>(45)" << std::endl;
@@ -1901,6 +1904,7 @@ std::string TilingLib::GenPgoAutofuseTiling(const ascir::FusedScheduledResult &f
         ss << "    }" << std::endl;
         ss << "  }" << std::endl;
     } else {
+        ss << "  (void)config_file;" << std::endl;
         ss << "  if (!optiling::GetTiling(*tiling, tiling_case_id)) {" << std::endl;
         ss << "    return -1;" << std::endl;
         ss << "  }" << std::endl;
@@ -3121,6 +3125,8 @@ std::string TilingLib::GenGetTilingDataReprFuncForInductor(const ascir::FusedSch
                                                            const std::string &tiling) const {
   std::stringstream ss;
   ss << "// GetTilingDataRepr returns a valid C++ designated initializer string for " << tiling << "." << std::endl;
+  ss << "#pragma GCC diagnostic push" << std::endl;
+  ss << "#pragma GCC diagnostic ignored \"-Wreturn-type-c-linkage\"" << std::endl;
   ss << "extern \"C\" std::string GetTilingDataRepr(const " << tiling << " *tiling_data)" << std::endl;
   ss << "{" << std::endl;
   ss << "  if (tiling_data == nullptr) {" << std::endl;
@@ -3155,6 +3161,7 @@ std::string TilingLib::GenGetTilingDataReprFuncForInductor(const ascir::FusedSch
   ss << "  repr << std::endl << \"}\";" << std::endl;
   ss << "  return repr.str();" << std::endl;
   ss << "}" << std::endl;
+  ss << "#pragma GCC diagnostic pop" << std::endl;
   return ss.str();
 }
 

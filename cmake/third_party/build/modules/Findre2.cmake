@@ -25,7 +25,7 @@ elseif(EXISTS ${REQ_URL_BACK})
   set(REQ_URL ${REQ_URL_BACK})
 else()
   message(STATUS "[re2] ${REQ_URL} not found, need download.")
-  set(REQ_URL "https://gitcode.com/cann-src-third-party/re2/releases/download/2024-02-01/re2-2024-02-01.tar.gz")
+  set(REQ_URL "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/re2/re2-2024-02-01.tar.gz")
   list(APPEND RE2_EXTRA_ARGS
       DOWNLOAD_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/re2
   )

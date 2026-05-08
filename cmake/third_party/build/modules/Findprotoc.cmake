@@ -43,7 +43,7 @@ else()
         set(REQ_URL ${REQ_URL_BACK})
     else()
         message(STATUS "[protoc] ${REQ_URL} not found, need download.")
-        set(REQ_URL "https://gitcode.com/cann-src-third-party/protobuf/releases/download/v25.1/protobuf-25.1.tar.gz")
+        set(REQ_URL "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/protobuf/protobuf-25.1.tar.gz")
         list(APPEND PROTOBUF_EXTRA_ARGS
             DOWNLOAD_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/protoc
         )

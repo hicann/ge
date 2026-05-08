@@ -13,6 +13,7 @@
 #include "graph/attribute_group/attr_group_symbolic_desc.h"
 #include "graph/attribute_group/attr_group_shape_env.h"
 #include "graph/utils/graph_utils.h"
+#include "graph/ge_local_context.h"
 #include "graph/optimize/symbolic/codegen/guard_codegen.h"
 #include "graph/passes/standard_optimize/constant_folding/dimension_compute_pass.h"
 #include "graph/passes/control_flow_and_stream/switch_dead_branch_elimination.h"
@@ -34,31 +35,44 @@ Status SymbolicInfoPreProcessor::Run(const ComputeGraphPtr &graph, const std::ve
    * 6. GraphUnfold: 将partitioncall子图在根图上展开
    */
 
-  if (EnableSliceSchedule()) {
-    GELOGI("SliceSchedule is enable, add SymbolicCondRemovePass");
-    auto shape_env = graph->GetAttrsGroup<ShapeEnvAttr>();
-    GE_ASSERT_NOTNULL(shape_env);
-    ShapeEnvGuarder guarder(shape_env);
-
-    DimensionComputePass dimension_compute_pass;
-    CondRemovePass condition_remove_pass;
-    SwitchDeadBranchElimination switch_dead_branch_elimination;
-    SwitchLogicRemovePass switch_logic_remove_pass;
-    SymbolicCondRemovePass symbolic_cond_remove_pass(graph_inputs);
-
-    NamesToPass names_to_passes;
-    names_to_passes.emplace_back("DimensionComputePass", &dimension_compute_pass);
-    names_to_passes.emplace_back("CondRemovePass", &condition_remove_pass);
-    names_to_passes.emplace_back("SwitchDeadBranchElimination", &switch_dead_branch_elimination);
-    names_to_passes.emplace_back("SwitchLogicRemovePass", &switch_logic_remove_pass);
-    names_to_passes.emplace_back("SymbolicCondRemovePass", &symbolic_cond_remove_pass);
-
-    GE_TRACE_START(names_to_passes);
-    const auto ret = GEPass(graph).Run(names_to_passes);
-    GE_COMPILE_TRACE_TIMESTAMP_END(
-        names_to_passes, "SymbolicShapeInference::PreProcess::" + graph->GetName());
-    GE_ASSERT_SUCCESS(ret, "[Run][GEPasses] SymbolicShapeInference PreProcess failed, ret:%d.", ret);
+  if (!EnableSliceSchedule()) {
+    GELOGI("Slice schedule is not enabled, skip symbolic optimization.", graph->GetName().c_str());
+    GE_ASSERT_SUCCESS(gert::GraphUnfolder::UnfoldAllPartitioncallInPlace(graph));
+    GE_DUMP(graph, "Autofuser_AfterSymbolicInferPreProcess");
+    return SUCCESS;
   }
+  
+  // 从 ThreadLocalContext 读取 options，与 UserGraphsManager 逻辑一致
+  const auto &options = GetThreadLocalContext().GetAllGraphOptions();
+  if (!IsGraphSupportSliceSchedule(graph, options)) {
+    GELOGI("Graph[%s] does not support slice schedule, skip symbolic optimization.", graph->GetName().c_str());
+    GE_ASSERT_SUCCESS(gert::GraphUnfolder::UnfoldAllPartitioncallInPlace(graph));
+    GE_DUMP(graph, "Autofuser_AfterSymbolicInferPreProcess");
+    return SUCCESS;
+  }
+
+  GELOGI("SliceSchedule is enable, add SymbolicCondRemovePass");
+  auto shape_env = graph->GetAttrsGroup<ShapeEnvAttr>();
+  GE_ASSERT_NOTNULL(shape_env);
+  ShapeEnvGuarder guarder(shape_env);
+
+  DimensionComputePass dimension_compute_pass;
+  CondRemovePass condition_remove_pass;
+  SwitchDeadBranchElimination switch_dead_branch_elimination;
+  SwitchLogicRemovePass switch_logic_remove_pass;
+  SymbolicCondRemovePass symbolic_cond_remove_pass(graph_inputs);
+
+  NamesToPass names_to_passes;
+  names_to_passes.emplace_back("DimensionComputePass", &dimension_compute_pass);
+  names_to_passes.emplace_back("CondRemovePass", &condition_remove_pass);
+  names_to_passes.emplace_back("SwitchDeadBranchElimination", &switch_dead_branch_elimination);
+  names_to_passes.emplace_back("SwitchLogicRemovePass", &switch_logic_remove_pass);
+  names_to_passes.emplace_back("SymbolicCondRemovePass", &symbolic_cond_remove_pass);
+
+  GE_TRACE_START(names_to_passes);
+  const auto ret = GEPass(graph).Run(names_to_passes);
+  GE_COMPILE_TRACE_TIMESTAMP_END(names_to_passes, ("SymbolicShapeInference::PreProcess::" + graph->GetName()).c_str());
+  GE_ASSERT_SUCCESS(ret, "[Run][GEPasses] SymbolicShapeInference PreProcess failed, ret:%d.", ret);
 
   GE_ASSERT_SUCCESS(gert::GraphUnfolder::UnfoldAllPartitioncallInPlace(graph));
   GE_DUMP(graph, "Autofuser_AfterSymbolicInferPreProcess");

@@ -17,6 +17,7 @@
 #include "graph/utils/op_desc_utils.h"
 #include "graph/utils/node_utils.h"
 #include "graph/utils/graph_utils.h"
+#include "graph/utils/tensor_utils.h"
 #include "exe_graph/runtime/atomic_clean_tiling_context.h"
 #include "exe_graph/lowering/value_holder.h"
 #include "platform/platform_infos_def.h"
@@ -294,6 +295,63 @@ TEST_F(TilingContextBuilderUT, BuildWithInputConstSuccess) {
       .Workspace(reinterpret_cast<gert::ContinuousVector *>(workspace_size.get()))
       .SetSpaceRegistryV2(space_registry, gert::OppImplVersionTag::kOpp)
       .Build(op);
+
+  bg::ValueHolder::PopGraphFrame();
+  DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);
+}
+
+TEST_F(TilingContextBuilderUT, BuildDependInputTensorSizeSuccess) {
+  auto tiling_data = gert::TilingData::CreateCap(1024);
+  auto workspace_size = gert::ContinuousVector::Create<size_t>(16);
+  std::string op_compile_info_json = "{}";
+  fe::PlatFormInfos platform_infos;
+  gert::SpaceRegistryFaker::CreateDefaultSpaceRegistryImpl2();
+  auto space_registry = gert::DefaultOpImplSpaceRegistryV2::GetInstance().GetSpaceRegistry();
+  ASSERT_NE(space_registry, nullptr);
+  auto builder = TilingContextBuilder();
+
+  auto node = ComputeNodeFaker().NameAndType("Test", "DDIT02").IoNum(1, 1).InputNames({"x"}).Build();
+  ASSERT_NE(node, nullptr);
+  node->GetOpDesc()->SetOpInferDepends({"x"});
+
+  auto const_node = ComputeNodeFaker().NameAndType("Const", "Const").IoNum(1, 1).InputNames({"x"}).Build();
+  ASSERT_NE(const_node, nullptr);
+  ASSERT_EQ(ge::GraphUtils::AddEdge(const_node->GetOutDataAnchor(0), node->GetInDataAnchor(0)), ge::GRAPH_SUCCESS);
+
+  int32_t weight[1] = {1};
+  ge::GeTensorDesc weight_desc(ge::GeShape({1}), ge::FORMAT_ND, ge::DT_INT32);
+  ge::GeTensorPtr weight_tensor = std::make_shared<ge::GeTensor>(weight_desc, reinterpret_cast<uint8_t *>(weight),
+                                                                 sizeof(weight));
+  ge::OpDescUtils::SetWeights(const_node, {weight_tensor});
+
+  auto op_desc = node->GetOpDesc();
+  op_desc->MutableInputDesc(0)->SetDataType(ge::DT_INT32);
+  op_desc->MutableInputDesc(0)->SetShape(ge::GeShape({1}));
+  op_desc->MutableInputDesc(0)->SetOriginShape(ge::GeShape({1}));
+  ge::TensorUtils::SetSize(*op_desc->MutableInputDesc(0), static_cast<int64_t>(sizeof(weight)));
+  int64_t expect_size = 0;
+  ASSERT_EQ(ge::TensorUtils::GetSize(op_desc->GetInputDesc(0), expect_size), ge::GRAPH_SUCCESS);
+  ASSERT_EQ(expect_size, static_cast<int64_t>(sizeof(weight)));
+
+  auto op = ge::OpDescUtils::CreateOperatorFromNode(node->shared_from_this());
+  ge::graphStatus ret;
+  auto tiling_context_holder = builder.CompileInfo(const_cast<char *>(op_compile_info_json.c_str()))
+                                   .PlatformInfo(reinterpret_cast<void *>(&platform_infos))
+                                   .TilingData(tiling_data.get())
+                                   .Workspace(reinterpret_cast<gert::ContinuousVector *>(workspace_size.get()))
+                                   .SetSpaceRegistryV2(space_registry, gert::OppImplVersionTag::kOpp)
+                                   .Build(op, ret);
+  ASSERT_EQ(ret, ge::GRAPH_SUCCESS);
+
+  auto tiling_context = reinterpret_cast<TilingContext *>(tiling_context_holder.context_);
+  ASSERT_NE(tiling_context, nullptr);
+  const auto *input_tensor = tiling_context->GetInputTensor(0);
+  ASSERT_NE(input_tensor, nullptr);
+  EXPECT_NE(input_tensor->GetAddr(), nullptr);
+  EXPECT_EQ(input_tensor->GetDataType(), ge::DT_INT32);
+  EXPECT_EQ(input_tensor->GetOriginShape().GetDim(0), 1);
+  EXPECT_EQ(input_tensor->GetSize(), static_cast<size_t>(expect_size));
+  EXPECT_EQ(input_tensor->GetTensorData().GetSize(), static_cast<size_t>(expect_size));
 
   bg::ValueHolder::PopGraphFrame();
   DefaultOpImplSpaceRegistryV2::GetInstance().SetSpaceRegistry(nullptr);

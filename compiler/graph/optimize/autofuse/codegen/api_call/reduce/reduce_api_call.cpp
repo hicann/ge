@@ -91,7 +91,7 @@ Status ReduceApiCall::Generate(const TPipe &tpipe, const std::vector<ascir::Axis
          << tpipe.tmp_buf << "_" << std::to_string(id) <<", tmp_reduce_shape, true);" << std::endl;
     }
     if (this->api_name_== "Mean") {
-      ReduceMeanCodeGen(dtype_name, tpipe, y, ss);
+      ReduceMeanCodeGen(dtype_name, tpipe, x, y, ss);
     }
   } else {
     int64_t tmp_lifetime_0_id = GetTmpBufIdByLifeTime(0L, this->api_name_);

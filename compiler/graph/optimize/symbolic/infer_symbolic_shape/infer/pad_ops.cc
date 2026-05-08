@@ -84,7 +84,7 @@ graphStatus InferShape4PadD(gert::InferSymbolShapeContext *context) {
     const auto cv_padding = cvv_padding->Get(i);
     GE_ASSERT_NOTNULL(cv_padding);
     GE_ASSERT_EQ(cv_padding->GetSize(), 2U);  // 如果不为2是异常场景
-    const int64_t *data = reinterpret_cast<const int64_t *>(cv_padding->GetData());
+    const int64_t *data = static_cast<const int64_t *>(cv_padding->GetData());
     GE_ASSERT_NOTNULL(data);
     const auto dim0 = *(data + 0U);
     const auto dim1 = *(data + 1U);

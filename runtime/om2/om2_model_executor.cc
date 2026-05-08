@@ -284,7 +284,8 @@ class Om2ModelExecutor::Impl {
       }
 
       size_t buff_size = 0UL;
-      if (file_name.find("constant_") != std::string::npos) {
+      if (std::regex_search(file_name, std::regex("constant_\\d+$"))) {
+        GELOGI("file name:%s is constant file.", file_name.c_str());
         auto buff_data = archive.ExtractToMem(file_name, buff_size);
         GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
         weight_buf = std::move(buff_data);

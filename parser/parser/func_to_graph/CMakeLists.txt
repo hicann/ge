@@ -8,38 +8,6 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-# .py后续不需要，鉴于存在依赖关系，待二阶段删除
-set(PROTO_LIST
-    "${METADEF_PROTO_DIR}/tensorflow/graph.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/node_def.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/tensor_shape.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/attr_value.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/function.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/op_def.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/resource_handle.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/tensor.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/types.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/versions.proto"
-    "${METADEF_PROTO_DIR}/tensorflow/graph_library.proto"
-)
-
-protobuf_generate_py(ge PROTO_SRCS ${PROTO_LIST})
-
-include_directories(${CMAKE_CURRENT_LIST_DIR})
-
-############ func2graph/util ############
-add_custom_target(util ALL
-        DEPENDS ${PROTO_SRCS}
-        COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/util
-                && cp -r ${PROTO_SRCS} ${CMAKE_CURRENT_BINARY_DIR}/util
-        )
-
-install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/util ${INSTALL_OPTIONAL}
-    DESTINATION ${INSTALL_LIBRARY_DIR}/func2graph
-)
-########## 以上都删除 ##########
-
-
 ############ libfunc2graph.so ############
 add_library(func2graph SHARED
         $<TARGET_OBJECTS:parser_graph_library_proto_obj>
