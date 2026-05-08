@@ -76,7 +76,7 @@ static void SetDataCopyParams(const MergeInfo &merge_info, DataCopyParams &param
   param.repeats.assign(merge_repeats.begin(), merge_repeats.end());
   param.gm_strides.assign(merge_gm_strides.begin(), merge_gm_strides.end());
   param.ub_strides.assign(merge_ub_strides.begin(), merge_ub_strides.end());
-  if (multi_axis_copy) {
+  if (multi_axis_copy) { // nddma场景尾轴stride可以不等于1或者0，这种情况不需要补轴
     return;
   }
   if (param.repeats.size() != 0 &&
