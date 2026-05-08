@@ -166,7 +166,7 @@ REG_ASC_IR(Nddma)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::NddmaAscIrAttImplV2>(),
                             ge::ascir::AscIrImplCreator<ge::ascir::NddmaAscIrCodegenImplV2>(),
                             {{"T", TensorType{DT_INT8, DT_UINT8, DT_INT16, DT_UINT16, DT_INT32, DT_UINT32, DT_FLOAT16,
-                                              DT_FLOAT, DT_INT64, DT_BF16}}}});
+                                              DT_FLOAT, DT_INT64, DT_BF16, DT_UINT64}}}});
 
 REG_ASC_IR(Store)
     .Impl(v2_soc_versions, {ge::ascir::AscIrImplCreator<ge::ascir::StoreAscIrAttImplV2>(),
