@@ -13,7 +13,7 @@ set -e
 
 # 脚本功能：安装项目必备的 skills
 # 默认技能列表
-DEFAULT_SKILLS=("gitcode-pr" "gitcode-issue" "api-doc-generator")
+DEFAULT_SKILLS=("gitcode-pr" "gitcode-issue" "api-doc-generator" "gitcode-pipeline")
 
 # 超时时间（秒）
 CONNECT_TIMEOUT=5
@@ -97,6 +97,7 @@ for skill in "${DEFAULT_SKILLS[@]}"; do
     if [ -d "$TEMP_DIR/skills/skills/$skill" ]; then
         cp -r "$TEMP_DIR/skills/skills/$skill" "$REMOTE_DIR/"
         # 创建符号链接使 Claude Code 能发现 _remote 下的 skill（仅扫描一级目录）
+        rm -rf "$SKILLS_DIR/$skill"
         ln -sfn "_remote/$skill" "$SKILLS_DIR/$skill"
         echo "Installed skill: $skill"
     else

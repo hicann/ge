@@ -65,11 +65,10 @@ bash build_third_party.sh
 rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 ```
 
-### 需求开发与新增功能
+## 需求开发与新增功能
 > **触发词**：新增功能/需求/特性、开发新功能/需求/特性、实现功能/需求/特性
 
 **使用技能**: `superpower brainstorming skill`
-
 
 ## 架构文档加载
 
@@ -114,7 +113,7 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 
 ## 开发规范
-**gitcode pr/issue 操作**
+**gitcode pr/issue/ci 操作**
 @.claude/skills/default-skills/SKILL.md
 
 ### 代码检视检查项（Code Review Checklist）
@@ -146,13 +145,6 @@ rm -rf build_ut/ build_st/ output/ build/ build_out/ cov/ build_cmake_gcov/
 
 ### 代码风格
 - 遵循 Google 开源代码规范
-
-## 环境要求
-- GCC >= 7.3.x
-- Python 3 >= 3.9.x（需额外 `pip3 install coverage`）
-- CMake >= 3.16.0（推荐 3.20.0）
-- 需要安装 CANN Toolkit
-- 第三方库：protobuf、grpc、boost、gtest 等
 
 ## 语言
 使用中文回答问题
