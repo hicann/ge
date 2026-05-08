@@ -36,7 +36,7 @@ else()
         message(STATUS "[protoc grpc] ${REQ_URL} found, start compile.")
     else()
         message(STATUS "[protoc grpc] ${REQ_URL} not found, need download.")
-        set(REQ_URL "https://gitcode.com/cann-src-third-party/grpc/releases/download/v1.60.0/grpc-1.60.0.tar.gz")
+        set(REQ_URL "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/grpc/grpc-1.60.0.tar.gz")
         list(APPEND GRPC_EXTRA_ARGS
             DOWNLOAD_DIR ${CMAKE_THIRD_PARTY_LIB_DIR}/protoc_grpc
         )

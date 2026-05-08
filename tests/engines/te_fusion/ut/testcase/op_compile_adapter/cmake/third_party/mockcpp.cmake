@@ -73,7 +73,7 @@ else ()
     set(PATCH_FILE ${CMAKE_CURRENT_LIST_DIR}/patch/mockcpp-2.7_py3.patch)
     include(ExternalProject)
     ExternalProject_Add(mockcpp
-            URL "https://gitcode.com/cann-src-third-party/mockcpp/releases/download/v2.7-h1/mockcpp-2.7.tar.gz"
+            URL "https://cann-3rd.obs.cn-north-4.myhuaweicloud.com/mockcpp/mockcpp-2.7.tar.gz"
             URL_HASH SHA256=73ab0a8b6d1052361c2cebd85e022c0396f928d2e077bf132790ae3be766f603
             DOWNLOAD_DIR ${MOCKCPP_DOWNLOAD_PATH}/src
             SOURCE_DIR ${MOCKCPP_DOWNLOAD_PATH}/src
