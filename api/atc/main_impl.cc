@@ -697,7 +697,7 @@ class GFlagUtils {
       return false;
     }
     if ((!FLAGS_weight.empty()) && (!CheckInputPathValid(FLAGS_weight, "--weight"))) {
-      DOMI_LOGE("[Check][Param:weight]value:%s: is invalid, path can not reach.", FLAGS_weight.c_str());
+      DOMI_LOGE("[Check][Param:weight]value:%s: is invalid, path cannot reach.", FLAGS_weight.c_str());
       return false;
     }
     if ((FLAGS_mode != static_cast<int32_t>(RunMode::GEN_OM_MODEL)) &&
@@ -1180,7 +1180,7 @@ void LoadCustomOpLib(bool need_load_ops_plugin) {
 
   // no file
   if (fileList.empty() && caffe_parser_path.empty()) {
-    GELOGW("can not find any plugin file in plugin_path: %s", plugin_path.c_str());
+    GELOGW("cannot find any plugin file in plugin_path: %s", plugin_path.c_str());
   }
 
   LoadModelParserLib(caffe_parser_path);
@@ -1988,7 +1988,7 @@ long GetMemInfo(const std::string &key) {
   std::string file_path = "/proc/meminfo";
   std::ifstream fs(file_path, std::ifstream::in);
   if (!fs.is_open()) {
-    GELOGW("Can not open %s .", file_path.c_str());
+    GELOGW("Cannot open %s .", file_path.c_str());
     return 0;
   }
   std::string line;

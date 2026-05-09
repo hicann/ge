@@ -161,7 +161,7 @@ void OpsProtoManager::LoadBuiltinOpsPluginSo(const std::string &path_list) {
 
   // Not found any .so file in the lib path
   if (file_list.empty()) {
-    GELOGW("[LoadSo][Check] OpsProtoManager can not find any plugin file in pluginPath: %s \n", path_list.c_str());
+    GELOGW("[LoadSo][Check] OpsProtoManager cannot find any plugin file in pluginPath: %s \n", path_list.c_str());
     return;
   }
   // Warning message

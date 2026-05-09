@@ -706,7 +706,7 @@ ge::Status IsOm2Model(const void *data, size_t size, bool &is_support) {
   if (data == nullptr) {
     REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                                     std::vector<const char *>({"data", "nullptr", "Model data cannot be nullptr."}));
-    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Param] Invalid om2 model. Model data can not be nullptr.");
+    GELOGE(ACL_ERROR_GE_PARAM_INVALID, "[Check][Param] Invalid om2 model. Model data cannot be nullptr.");
     return ACL_ERROR_GE_PARAM_INVALID;
   }
 

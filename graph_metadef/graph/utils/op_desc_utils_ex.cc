@@ -43,7 +43,7 @@ bool EnableIgnoreInferError() {
   const char_t *env_value = nullptr;
   MM_SYS_GET_ENV(MM_ENV_IGNORE_INFER_ERROR, env_value);
   if (env_value == nullptr) {
-    GELOGD("Can not get env [IGNORE_INFER_ERROR]. Disable ignore infer validation.");
+    GELOGD("Cannot get env [IGNORE_INFER_ERROR]. Disable ignore infer validation.");
     return false;
   }
 

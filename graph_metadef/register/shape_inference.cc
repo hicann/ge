@@ -154,7 +154,7 @@ ge::graphStatus ConstructCompileKernelContextInputs(const ge::Operator &op, cons
     }
     gert::StorageShape storage_shape;
     GetStorageShape(op_desc->GetInputDesc(static_cast<uint32_t>(i)), storage_shape);
-    // init tensor address, if can not get const tensor input, set it to nullptr
+    // init tensor address, if cannot get const tensor input, set it to nullptr
     TensorAddress address = nullptr;
     Index index;
     index.input_index = i;
@@ -205,7 +205,7 @@ ge::graphStatus ConstructInferShapeRangeContextInputs(
     input_tensor_ranges_holder[i].second.SetStorageFormat(input_desc.GetFormat());
     input_tensor_ranges_holder[i].second.SetDataType(input_desc.GetDataType());
 
-    // init tensor address, if can not get const tensor input, set it to nullptr
+    // init tensor address, if cannot get const tensor input, set it to nullptr
     TensorAddress address = nullptr;
     Index index;
     index.input_index = i;
@@ -246,7 +246,7 @@ ge::graphStatus ConstructInferShapeContextInputs(const ge::Operator &op, const g
     gert::StorageShape max_storage_shape;
     GetMinMaxStorageShape(op_desc->GetInputDesc(static_cast<size_t>(i)), min_storage_shape, max_storage_shape);
 
-    // init tensor address, if can not get const tensor input, set it to nullptr
+    // init tensor address, if cannot get const tensor input, set it to nullptr
     TensorAddress address = nullptr;
     Index index;
     index.input_index = i;
@@ -541,12 +541,12 @@ ge::graphStatus InferShapeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpI
   const auto shape_infer_rule = ge::ShapeInferenceRule::FromOpDesc(op_desc);
   if (shape_infer_rule == nullptr) {
     REPORT_INNER_ERR_MSG("EZ9999",
-                         "Can not find infer_shape func of node %s[%s]. Please confirm whether the op_proto shared "
+                         "Cannot find infer_shape func of node %s[%s]. Please confirm whether the op_proto shared "
                          "library (.so) has been loaded "
                          "successfully, and that you have already developed the infer_shape func.",
                          op_desc->GetNamePtr(), op_desc->GetTypePtr());
     GELOGE(ge::GRAPH_FAILED,
-           "Can not find infer_shape func of node %s[%s]. Please confirm whether the op_proto shared library (.so) "
+           "Cannot find infer_shape func of node %s[%s]. Please confirm whether the op_proto shared library (.so) "
            "has been loaded "
            "successfully, and that you have already developed the infer_shape func.",
            op_desc->GetNamePtr(), op_desc->GetTypePtr());
@@ -578,13 +578,13 @@ ge::graphStatus InferDtypeByRegisteredFuncOrRule(const OpImplKernelRegistry::OpI
   const auto dtype_infer_rule = ge::DtypeInferenceRule::FromOpDesc(op_desc);
   if (dtype_infer_rule == nullptr) {
     REPORT_INNER_ERR_MSG("EZ9999",
-                         "Can not find Node %s[%s] custom infer_datatype func. Please confirm whether the op_proto "
+                         "Cannot find Node %s[%s] custom infer_datatype func. Please confirm whether the op_proto "
                          "shared library (.so) has been "
                          "loaded successfully, and that you have already developed the infer_datatype func or marked "
                          "the T-derivation rules on the IR.",
                          op_desc->GetNamePtr(), op_desc->GetTypePtr());
     GELOGE(ge::GRAPH_FAILED,
-           "Can not find Node %s[%s] custom infer_datatype func. Please confirm whether the op_proto shared library "
+           "Cannot find Node %s[%s] custom infer_datatype func. Please confirm whether the op_proto shared library "
            "(.so) has been "
            "loaded successfully, and that you have already developed the infer_datatype func or marked "
            "the T-derivation rules on the IR.",
@@ -625,7 +625,7 @@ ge::graphStatus InferShapeRangeOnCompile(const ge::Operator &op, const ge::OpDes
     return InferShapeRangeCustom(op, op_desc, functions->infer_shape_range);
   }
   if (functions->infer_shape != nullptr) {
-    GELOGD("Can not get infer shape range func op[%s], type[%s], will use an automatic derivation strategy.",
+    GELOGD("Cannot get infer shape range func op[%s], type[%s], will use an automatic derivation strategy.",
            op_desc->GetName().c_str(), op_desc->GetType().c_str());
     return InferShapeRangeAutomaticly(op, op_desc, functions->infer_shape);
   }
@@ -723,13 +723,13 @@ ge::graphStatus InferFormatOnCompile(const ge::Operator &op, const ge::OpDescPtr
   const auto &functions = space_registry->GetOpImpl(op_desc->GetType().c_str());
   if ((functions == nullptr) || (functions->infer_format_func == nullptr)) {
     REPORT_INNER_ERR_MSG("EZ9999",
-                         "Can not find infer_format func of node %s[%s]. Please confirm whether the op_proto shared "
+                         "Cannot find infer_format func of node %s[%s]. Please confirm whether the op_proto shared "
                          "library (.so) has been loaded "
                          "successfully, and that you have already developed the infer_format func.",
                          op_desc->GetNamePtr(), op_desc->GetTypePtr());
     GELOGE(
         ge::GRAPH_FAILED,
-        "Can not find infer_format func of node %s[%s]. Please confirm whether the op_proto shared library (.so) has been loaded "
+        "Cannot find infer_format func of node %s[%s]. Please confirm whether the op_proto shared library (.so) has been loaded "
         "successfully, and that you have already developed the infer_format func.",
         op_desc->GetNamePtr(), op_desc->GetTypePtr());
     return ge::GRAPH_FAILED;
