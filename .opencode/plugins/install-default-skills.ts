@@ -45,7 +45,8 @@ export const InstallSkillsPlugin: Plugin = async ({ $, directory }) => {
       const skillsToCheck = [
         { name: 'gitcode-pr', path: path.join(rootDir, ".claude", "skills", "gitcode-pr", "SKILL.md") },
         { name: 'gitcode-issue', path: path.join(rootDir, ".claude", "skills", "gitcode-issue", "SKILL.md") },
-        { name: 'api-doc-generator', path: path.join(rootDir, ".claude", "skills", "api-doc-generator", "SKILL.md") }
+        { name: 'api-doc-generator', path: path.join(rootDir, ".claude", "skills", "api-doc-generator", "SKILL.md") },
+        { name: 'gitcode-pipeline', path: path.join(rootDir, ".claude", "skills", "gitcode-pipeline", "SKILL.md") }
       ]
 
       const beforeStates: SkillState[] = skillsToCheck.map(skill => ({

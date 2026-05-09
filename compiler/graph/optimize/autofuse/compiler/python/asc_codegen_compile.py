@@ -779,6 +779,7 @@ def build_pgo_compile_command(source_file, output_file, mspti_dir, mspti_link_fl
     ]
     libs = [
         f"-L{ASCEND_PATH}/lib64", "-lascendcl", "-lruntime", "-lunified_dlog",
+        "-lc_sec",
         *mspti_link_flags,
         "-ldl"
     ]

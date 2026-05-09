@@ -3,7 +3,10 @@
   "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"],
   "permission": {
     "external_directory": {
-      "~/.config/**": "allow"
+      "~/.config/**": "allow",
+      "/tmp/**": "allow",
+      "~/Ascend/**": "allow",
+      "/usr/local/Ascend/**": "allow"
     }
   }
 }

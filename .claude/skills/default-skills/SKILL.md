@@ -1,7 +1,7 @@
 ---
 name: default-skills
 description: |
-  **必须触发此 default-skills 的场景**（用户提到以下任何内容时使用）：找不到/缺失/安装/更新 gitcode-pr, gitcode-issue api-doc-generator skill时，或者安装必备/默认/必要/必须skills时；
+  **必须触发此 default-skills 的场景**（用户提到以下任何内容时使用）：找不到/缺失/安装/更新 gitcode-pr, gitcode-issue, api-doc-generator, gitcode-pipeline skill时，或者安装必备/默认/必要/必须skills时；
 ---
 
 ## 安装默认skills步骤
@@ -29,3 +29,9 @@ description: |
 - 
 3. **必须触发此 api-doc-generator 的场景**（用户提到以下任何内容时使用）：
 用于生成对外api文档，当用户说生成接口文档，生成接口说明，增加接口说明，增加接口文档时使用该skill
+
+4. **必须触发此 gitcode-pipeline 的场景**（用户提到以下任何内容时使用）：
+- 触发流水线、启动CI、跑流水线、触发pipeline
+- 查看流水线状态、流水线结果、CI状态、pipeline状态
+- 等待流水线结果、盯流水线、盯CI、看一下PR的CI
+- 流水线失败、CI失败、pipeline失败
