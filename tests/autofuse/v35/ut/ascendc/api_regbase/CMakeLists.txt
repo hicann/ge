@@ -39,6 +39,7 @@ add_library(test_regbase_ascendc OBJECT
     ./test_legendre_polynomial_p.cpp
     ./test_igamma.cpp
     ./test_igammac.cpp
+    ./test_transpose.cpp
     )
 target_link_libraries(test_regbase_ascendc
     ascendc_api_regbase_extend
