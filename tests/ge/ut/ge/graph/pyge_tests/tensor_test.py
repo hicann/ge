@@ -16,7 +16,7 @@ import ctypes
 
 # 添加 ge 到 Python 路径
 try:
-    from ge.graph import Tensor
+    from ge.graph import Shape, Tensor, TensorDesc
     from ge.graph.tensor import _parse_str_list, unflatten_tensor_data
     from ge.graph.types import DataType, Format, Placement
 except ImportError as e:
@@ -234,6 +234,19 @@ class TestTensor:
             tensor._transfer_ownership_when_pass_as_attr(builder)
         # 还原为了避免内存泄漏
         tensor._owns_handle = True
+
+    @staticmethod
+    def test_get_tensor_desc(tensor):
+        desc = tensor.get_tensor_desc()
+        assert isinstance(desc, TensorDesc)
+        shape = desc.get_shape()
+        assert isinstance(shape, Shape)
+        assert isinstance(shape, list)
+        assert shape == [1, 2, 3]
+        assert shape.get_shape_size() == 6
+        assert shape.is_unknown_shape() is False
+        assert desc.get_format() == Format.FORMAT_ND
+        assert desc.get_data_type() == DataType.DT_INT8
 
     @staticmethod
     def test_get_shape(tensor):

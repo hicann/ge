@@ -44,6 +44,12 @@ ge::DataType GeApiWrapper_Tensor_GetDataType(EsCTensor *tensor) {
   return ts->GetDataType();
 }
 
+TensorDesc *GeApiWrapper_Tensor_GetTensorDesc(EsCTensor *tensor) {
+  GE_ASSERT_NOTNULL(tensor);
+  auto *ts = static_cast<Tensor *>(static_cast<void *>(tensor));
+  return new (std::nothrow) TensorDesc(ts->GetTensorDesc());
+}
+
 int32_t GeApiWrapper_Tensor_GetPlacement(EsCTensor *tensor) {
   GE_ASSERT_NOTNULL(tensor);
   auto *ts = static_cast<Tensor *>(static_cast<void *>(tensor));

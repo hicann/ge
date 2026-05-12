@@ -271,6 +271,57 @@ graph_lib.GeApiWrapper_GNode_GetOutputAttr.argtypes = [c_void_p, c_char_p, c_uin
 graph_lib.GeApiWrapper_GNode_SetOutputAttr.restype = c_int
 graph_lib.GeApiWrapper_GNode_SetOutputAttr.argtypes = [c_void_p, c_char_p, c_uint32, c_void_p]
 
+graph_lib.GeApiWrapper_GNode_GetInputDesc.restype = c_void_p
+graph_lib.GeApiWrapper_GNode_GetInputDesc.argtypes = [c_void_p, c_int32]
+
+graph_lib.GeApiWrapper_GNode_UpdateInputDesc.restype = c_int
+graph_lib.GeApiWrapper_GNode_UpdateInputDesc.argtypes = [c_void_p, c_int32, c_void_p]
+
+graph_lib.GeApiWrapper_GNode_GetOutputDesc.restype = c_void_p
+graph_lib.GeApiWrapper_GNode_GetOutputDesc.argtypes = [c_void_p, c_int32]
+
+graph_lib.GeApiWrapper_GNode_UpdateOutputDesc.restype = c_int
+graph_lib.GeApiWrapper_GNode_UpdateOutputDesc.argtypes = [c_void_p, c_int32, c_void_p]
+
+
+# ============ TensorDesc C API ============
+graph_lib.GeApiWrapper_TensorDesc_Create.restype = c_void_p
+graph_lib.GeApiWrapper_TensorDesc_Create.argtypes = [ctypes.POINTER(c_int64), c_size_t, c_int, c_int]
+
+graph_lib.GeApiWrapper_TensorDesc_Destroy.restype = None
+graph_lib.GeApiWrapper_TensorDesc_Destroy.argtypes = [c_void_p]
+
+graph_lib.GeApiWrapper_TensorDesc_GetShape.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_GetShape.argtypes = [c_void_p, ctypes.POINTER(ctypes.POINTER(c_int64)),
+                                                       ctypes.POINTER(c_size_t)]
+
+graph_lib.GeApiWrapper_TensorDesc_SetShape.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_SetShape.argtypes = [c_void_p, ctypes.POINTER(c_int64), c_size_t]
+
+graph_lib.GeApiWrapper_TensorDesc_GetOriginShape.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_GetOriginShape.argtypes = [c_void_p, ctypes.POINTER(ctypes.POINTER(c_int64)),
+                                                             ctypes.POINTER(c_size_t)]
+
+graph_lib.GeApiWrapper_TensorDesc_SetOriginShape.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_SetOriginShape.argtypes = [c_void_p, ctypes.POINTER(c_int64), c_size_t]
+
+graph_lib.GeApiWrapper_TensorDesc_GetFormat.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_GetFormat.argtypes = [c_void_p]
+
+graph_lib.GeApiWrapper_TensorDesc_SetFormat.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_SetFormat.argtypes = [c_void_p, c_int]
+
+graph_lib.GeApiWrapper_TensorDesc_GetOriginFormat.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_GetOriginFormat.argtypes = [c_void_p]
+
+graph_lib.GeApiWrapper_TensorDesc_SetOriginFormat.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_SetOriginFormat.argtypes = [c_void_p, c_int]
+
+graph_lib.GeApiWrapper_TensorDesc_GetDataType.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_GetDataType.argtypes = [c_void_p]
+
+graph_lib.GeApiWrapper_TensorDesc_SetDataType.restype = c_int
+graph_lib.GeApiWrapper_TensorDesc_SetDataType.argtypes = [c_void_p, c_int]
 
 # ============ Tensor C API ============
 graph_lib.GeApiWrapper_Tensor_SetFormat.restype = c_int
@@ -284,6 +335,9 @@ graph_lib.GeApiWrapper_Tensor_SetDataType.argtypes = [c_void_p, ctypes.POINTER(c
 
 graph_lib.GeApiWrapper_Tensor_GetDataType.restype = c_int
 graph_lib.GeApiWrapper_Tensor_GetDataType.argtypes = [c_void_p]
+
+graph_lib.GeApiWrapper_Tensor_GetTensorDesc.restype = c_void_p
+graph_lib.GeApiWrapper_Tensor_GetTensorDesc.argtypes = [c_void_p]
 
 graph_lib.GeApiWrapper_Tensor_CreateTensor.restype = EsCTensorPtr
 graph_lib.GeApiWrapper_Tensor_CreateTensor.argtypes = []

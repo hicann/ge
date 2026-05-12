@@ -177,6 +177,42 @@ bool GeApiWrapper_GNode_HasAttr(GNode *node, const char *attr_name) {
   return node->HasAttr(name);
 }
 
+TensorDesc *GeApiWrapper_GNode_GetInputDesc(const GNode *node, const int32_t index) {
+  GE_ASSERT_NOTNULL(node);
+  auto *tensor_desc = new (std::nothrow) TensorDesc();
+  GE_ASSERT_NOTNULL(tensor_desc);
+  const auto ret = node->GetInputDesc(index, *tensor_desc);
+  if (ret != GRAPH_SUCCESS) {
+    delete tensor_desc;
+    return nullptr;
+  }
+  return tensor_desc;
+}
+
+graphStatus GeApiWrapper_GNode_UpdateInputDesc(GNode *node, const int32_t index, const TensorDesc *tensor_desc) {
+  GE_ASSERT_NOTNULL(node);
+  GE_ASSERT_NOTNULL(tensor_desc);
+  return node->UpdateInputDesc(index, *tensor_desc);
+}
+
+TensorDesc *GeApiWrapper_GNode_GetOutputDesc(const GNode *node, const int32_t index) {
+  GE_ASSERT_NOTNULL(node);
+  auto *tensor_desc = new (std::nothrow) TensorDesc();
+  GE_ASSERT_NOTNULL(tensor_desc);
+  const auto ret = node->GetOutputDesc(index, *tensor_desc);
+  if (ret != GRAPH_SUCCESS) {
+    delete tensor_desc;
+    return nullptr;
+  }
+  return tensor_desc;
+}
+
+graphStatus GeApiWrapper_GNode_UpdateOutputDesc(GNode *node, const int32_t index, const TensorDesc *tensor_desc) {
+  GE_ASSERT_NOTNULL(node);
+  GE_ASSERT_NOTNULL(tensor_desc);
+  return node->UpdateOutputDesc(index, *tensor_desc);
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -15,6 +15,7 @@ from typing import Optional, List, Any, Union, TYPE_CHECKING
 from ge._capi.pygraph_wrapper import graph_lib
 from ge._capi.pyes_graph_builder_wrapper import esb_lib
 from ge._capi.pytensor_runtime_wrapper import tensor_runtime_lib
+from .tensor_desc import Shape, TensorDesc
 from .types import DataType, Format, Placement
 from ._numeric import float_list_to_fp16_bits
 
@@ -261,25 +262,8 @@ class Tensor:
     def data_type(self) -> DataType:
         return self.get_data_type()
 
-    def get_shape(self) -> List[int]:
-        """Get shape of tensor.
-
-        Returns:
-            Shape of tensor
-        """
-        dims_num = ctypes.c_size_t()
-        dims_arr = ctypes.POINTER(ctypes.c_int64)()
-        ret = graph_lib.GeApiWrapper_Tensor_GetShape(self._handle, ctypes.byref(dims_arr), ctypes.byref(dims_num))
-
-        if ret != 0:  # GRAPH_SUCCESS
-            raise RuntimeError(f"Failed to get shape of tensor")
-        try: 
-            return [dims_arr[i] for i in range(dims_num.value)]
-        finally:
-            graph_lib.GeApiWrapper_Tensor_FreeDimsArray(dims_arr)
-    
     @property
-    def shape(self) -> List[int]:
+    def shape(self) -> Shape:
         return self.get_shape()
 
     def get_data(self) -> 'TensorLike':
@@ -304,6 +288,34 @@ class Tensor:
     @property
     def data(self) -> 'TensorLike':
         return self.get_data()
+
+    def get_tensor_desc(self) -> TensorDesc:
+        """Get tensor descriptor.
+
+        Returns:
+            TensorDesc object.
+        """
+        desc_handle = graph_lib.GeApiWrapper_Tensor_GetTensorDesc(self._handle)
+        if not desc_handle:
+            raise RuntimeError("Failed to get tensor desc")
+        return TensorDesc._create_from(desc_handle)
+
+    def get_shape(self) -> Shape:
+        """Get shape of tensor.
+
+        Returns:
+            Shape of tensor
+        """
+        dims_num = ctypes.c_size_t()
+        dims_arr = ctypes.POINTER(ctypes.c_int64)()
+        ret = graph_lib.GeApiWrapper_Tensor_GetShape(self._handle, ctypes.byref(dims_arr), ctypes.byref(dims_num))
+
+        if ret != 0:  # GRAPH_SUCCESS
+            raise RuntimeError(f"Failed to get shape of tensor")
+        try:
+            return Shape([dims_arr[i] for i in range(dims_num.value)])
+        finally:
+            graph_lib.GeApiWrapper_Tensor_FreeDimsArray(dims_arr)
 
     def get_placement(self) -> Placement:
         """Get tensor placement.
