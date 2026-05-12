@@ -12,7 +12,6 @@
 #define BASE_COMMON_HELPER_CUSTOM_OP_SO_LOADER_H_
 
 #include <cstdint>
-#include <cstddef>
 #include <string>
 #include <unordered_map>
 #include <vector>
