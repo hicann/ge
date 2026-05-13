@@ -64,7 +64,12 @@ Status OverflowDumpImpl::RegisterForModel(rtModel_t rt_model_handle) {
 }
 
 void OverflowDumpImpl::UnregisterForModel(rtModel_t rt_model_handle) {
-  GELOGD("OverflowDumpImpl::UnregisterForModel, rt_model_handle=%p", rt_model_handle);
+  GELOGD("OverflowDumpImpl::UnregisterForModel, rt_model_handle=%p, is_registered=%u",
+         rt_model_handle, static_cast<uint32_t>(is_op_debug_enabled_));
+  if (!is_op_debug_enabled_) {
+    GELOGD("Overflow not registered, skip unregister");
+    return;
+  }
   if (rt_model_handle != nullptr) {
     rtError_t rt_ret = rtDebugUnRegister(rt_model_handle);
     if (rt_ret != RT_ERROR_NONE) {
