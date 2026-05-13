@@ -25,83 +25,8 @@
 namespace {
 constexpr uint32_t kMaxInsNum = 30U;
 constexpr size_t kMaxIONum = 8UL;
-constexpr int32_t kMaxBitWidthGap = 2;
 constexpr int64_t kOutLoopAxisId = -1L;
 constexpr size_t kMinVfNodesNum = 2UL;
-
-namespace cast_helpers {
-bool HasHighToLowCastNode(const std::unordered_set<ge::AscNodePtr> &nodes) {
-  for (const auto &node : nodes) {
-    if (!ge::ops::IsOps<ge::ascir_op::Cast>(node)) {
-      continue;
-    }
-    const auto in_dtype_size = ge::GetSizeByDataType(node->inputs[0].attr.dtype);
-    const auto out_dtype_size = ge::GetSizeByDataType(node->outputs[0].attr.dtype);
-    return in_dtype_size > out_dtype_size;
-  }
-  return false;
-}
-
-// 检查 connected_nodes 在 to 中的输出节点是否是低→高 Cast
-bool HasLowToHighCastNode(const optimize::Cluster &to, const std::unordered_set<ge::AscNodePtr> &connected_nodes) {
-  for (const auto &node : connected_nodes) {
-    // 找到边界节点的输出节点
-    for (const auto &out_node : node->GetOutDataNodes()) {
-      auto asc_out_node = std::dynamic_pointer_cast<ge::AscNode>(out_node);
-      GE_ASSERT_NOTNULL(asc_out_node);
-      if (!to.ContainsNode(asc_out_node)) {
-        continue;
-      }
-      // 检查是否是低→高 Cast
-      if (!ge::ops::IsOps<ge::ascir_op::Cast>(asc_out_node)) {
-        continue;
-      }
-      const auto in_dtype_size = ge::GetSizeByDataType(asc_out_node->inputs[0].attr.dtype);
-      const auto out_dtype_size = ge::GetSizeByDataType(asc_out_node->outputs[0].attr.dtype);
-      if (in_dtype_size < out_dtype_size) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-// 检查两个 Cluster 内所有 Cast 节点的位宽差距是否超过阈值
-// 检查所有 Cast 涉及的最大位宽和最小位宽，判断整体位宽变换倍数
-bool CheckCastBitWidthGap(const optimize::Cluster &from, const optimize::Cluster &to, int32_t max_gap) {
-  int32_t global_max_width = 0;
-  int32_t global_min_width = std::numeric_limits<int32_t>::max();
-  bool has_cast = false;
-
-  // 直接遍历两个 cluster 的节点，避免创建临时集合
-  for (const auto &cluster : {std::ref(from), std::ref(to)}) {
-    for (const auto &node : cluster.get().nodes_) {
-      if (!ge::ops::IsOps<ge::ascir_op::Cast>(node)) {
-        continue;
-      }
-      has_cast = true;
-      const auto in_dtype_size = ge::GetSizeByDataType(node->inputs[0].attr.dtype);
-      const auto out_dtype_size = ge::GetSizeByDataType(node->outputs[0].attr.dtype);
-
-      global_max_width = std::max({global_max_width, in_dtype_size, out_dtype_size});
-      global_min_width = std::min({global_min_width, in_dtype_size, out_dtype_size});
-    }
-  }
-
-  // 如果没有 Cast 节点，直接返回 true
-  if (!has_cast) {
-    return true;
-  }
-
-  // 检查整体位宽变换倍数是否超过阈值
-  if (global_max_width > global_min_width * max_gap) {
-    GELOGD("Cast nodes global bit width gap [%d vs %d] exceeds threshold [%d].",
-           global_max_width, global_min_width, max_gap);
-    return false;
-  }
-  return true;
-}
-}  // namespace cast_helpers
 
 ge::Status UnalignNode(const ge::AscNodePtr &node) {
   for (const auto &tensor : node->outputs()) {
@@ -662,28 +587,9 @@ bool VectorFuncPartitioner::CanMergeClusters(const Cluster &from, const Cluster 
   }
 
   auto connected_nodes = Cluster::FindConnectedNodes(from, to);
-  // 只针对 Cast 节点进行位宽限制
-  // 1. 低位宽→高位宽的 Cast：不允许和输入节点融合
-  //    检查 connected_nodes 在 to 中的输出节点是否是低→高 Cast
-  if (cast_helpers::HasLowToHighCastNode(to, connected_nodes)) {
-    GELOGD("Low-to-high cast in to cluster, skip fuse [%s] to [%s].", from.DebugString().c_str(),
-           to.DebugString().c_str());
-    return false;
-  }
 
-  // 2. 高位宽→低位宽的 Cast：不允许和输出节点融合
-  if (cast_helpers::HasHighToLowCastNode(connected_nodes)) {
-    GELOGD("High-to-low cast in connected nodes, skip fuse [%s] to [%s].", from.DebugString().c_str(),
-           to.DebugString().c_str());
-    return false;
-  }
-
-  // 3. 防止出现两个cluster上各有一个Cast导致位宽差距超过2倍
-  if (!cast_helpers::CheckCastBitWidthGap(from, to, kMaxBitWidthGap)) {
-    GELOGD("Cast bit width gap exceeds threshold, skip fuse [%s] to [%s].", from.DebugString().c_str(),
-           to.DebugString().c_str());
-    return false;
-  }
+  // 放开限制：移除 Cast 节点的位宽融合限制
+  // 原限制：低→高 Cast 不融合输入、高→低 Cast 不融合输出、跨 Cluster 位宽差距≤2
 
   // 输入+输出节点个数<=8
   auto merged_in = Cluster::CalculateMergedInNodes(from, to, connected_nodes);

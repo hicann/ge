@@ -495,7 +495,9 @@ TEST_F(VectorFuncSt, cast_bit_with) {
   std::vector<ge::AscGraph> asc_graphs;
   fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetAllSubGraphs(
       asc_graphs);
-  EXPECT_EQ(asc_graphs.size(), 2UL);
+  // Cast VF融合限制放开后，DT_FLOAT→DT_INT64 和 DT_INT64→DT_FLOAT 都支持VF融合
+  // 所有算子融合到单个VF子图，只生成1个子图
+  EXPECT_EQ(asc_graphs.size(), 1UL);
 }
 
 TEST_F(VectorFuncSt, cycle_bugfix) {
@@ -1319,18 +1321,22 @@ TEST_F(VectorFuncSt, CastNotFusion) {
   std::vector<ge::AscGraph> asc_graphs;
   fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetAllSubGraphs(
       asc_graphs);
-  EXPECT_EQ(asc_graphs.size(), 2UL);
-  auto graph1 = fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[1];
+  // Cast 类型转换 DT_FLOAT→DT_INT64 在白名单中，支持 VF 融合
+  // 所有算子融合到单个VF子图，只生成1个子图
+  EXPECT_EQ(asc_graphs.size(), 1UL);
+  auto graph1 = fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0];
   std::vector<ge::AscGraph> asc_graphs1;
   graph1.GetAllSubGraphs(asc_graphs1);
-  ASSERT_EQ(asc_graphs1.size(), 2UL);
+  // 子图内部也只有1个VF子图
+  ASSERT_EQ(asc_graphs1.size(), 1UL);
   size_t cast_num = 0UL;
   for (const auto &node : graph1.GetAllNodes()) {
     if (node->GetType() == "Cast") {
       ++cast_num;
     }
   }
-  EXPECT_EQ(cast_num, 1UL);
+  // Cast节点被融合到VF子图中，主图中不存在独立的Cast节点
+  EXPECT_EQ(cast_num, 0UL);
 }
 
 TEST_F(VectorFuncSt, MaximumNotFusion) {

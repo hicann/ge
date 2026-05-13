@@ -12,6 +12,7 @@
 #define __V2_ASCIR_CODEGEN_IMPL__
 
 #include <algorithm>
+#include <set>
 #include "ascendc_ir.h"
 #include "reg_func/defalut_reg_func.h"
 #include "reg_func/default_reg_func_v2.h"
@@ -252,32 +253,47 @@ class CastAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
 
   [[nodiscard]] bool IsVectorFunctionSupported(const ge::AscNode &node) const override {
-    std::map<ge::DataType, std::set<ge::DataType>> supported_map = {
- 	    {DT_FLOAT,   {DT_FLOAT16, DT_INT64, DT_INT16, DT_INT32, DT_BF16}},
- 	    {DT_FLOAT16, {DT_UINT8, DT_INT8, DT_FLOAT}},
- 	    {DT_INT32,   {DT_FLOAT, DT_INT16}},
- 	    {DT_INT64,   {DT_INT32, DT_FLOAT}},
- 	    {DT_BF16,    {DT_FLOAT}},
- 	    {DT_UINT8,   {DT_FLOAT16}},
- 	    {DT_INT8,    {DT_FLOAT16, DT_INT16}},
- 	    {DT_INT16,   {DT_FLOAT, DT_UINT8}},
- 	  };
+    // AscendC::Reg::Cast 接口支持的类型转换白名单
+    // 只有明确在此列表中的类型转换才支持 VF 融合
+    static const std::set<std::pair<ge::DataType, ge::DataType>> supported_cast_types = {
+        // 表3：浮点转整数 (float→int)
+        {DT_FLOAT16, DT_INT8},   {DT_FLOAT16, DT_UINT8}, {DT_FLOAT16, DT_INT16}, {DT_FLOAT16, DT_INT32},
+        {DT_FLOAT, DT_INT16},    {DT_FLOAT, DT_INT64},   {DT_FLOAT, DT_INT32},
+        // 表4：浮点转浮点 (float→float)
+        {DT_FLOAT16, DT_FLOAT},  {DT_FLOAT16, DT_BF16},
+        {DT_BF16, DT_FLOAT},     {DT_BF16, DT_FLOAT16},
+        {DT_FLOAT, DT_BF16},     {DT_FLOAT, DT_FLOAT16},
+        // 表5：整数转浮点 (int→float)
+        {DT_UINT8, DT_FLOAT16},
+        {DT_INT8, DT_FLOAT16},
+        {DT_INT16, DT_FLOAT},    {DT_INT16, DT_FLOAT16},
+        {DT_INT64, DT_FLOAT},
+        {DT_INT32, DT_FLOAT},
+        // 表6：整数转整数 (int→int)
+        {DT_UINT32, DT_UINT8},   {DT_UINT32, DT_UINT16}, {DT_UINT32, DT_INT16},
+        {DT_INT32, DT_UINT8},    {DT_INT32, DT_UINT16},  {DT_INT32, DT_INT16},  {DT_INT32, DT_INT64},
+        {DT_UINT16, DT_UINT8},   {DT_UINT16, DT_UINT32},
+        {DT_INT16, DT_UINT8},    {DT_INT16, DT_UINT32},  {DT_INT16, DT_INT32},
+        {DT_UINT8, DT_UINT16},   {DT_UINT8, DT_UINT32},
+        {DT_INT8, DT_INT16},     {DT_INT8, DT_INT32},
+        {DT_INT64, DT_INT32},
+    };
+
+    // 获取输入和输出类型
     AscNodeInputs node_inputs = node.inputs;
     AscNodeOutputs node_outputs = node.outputs;
-    uint32_t input_dtype_size = GetSizeByDataType(node_inputs[0].attr.dtype);
-    uint32_t output_dtype_size = GetSizeByDataType(node_outputs[0].attr.dtype);
-    // Cast只能处理2倍及以内位宽变化的场景
-    if ((input_dtype_size > output_dtype_size * 2U) || (output_dtype_size > input_dtype_size * 2U)) {
+    ge::DataType input_dtype = node_inputs[0].attr.dtype;
+    ge::DataType output_dtype = node_outputs[0].attr.dtype;
+
+    // 检查是否在支持列表中（白名单模式）
+    if (supported_cast_types.find(std::make_pair(input_dtype, output_dtype)) == supported_cast_types.end()) {
+      GELOGD("Cast node [%s] type conversion [%s→%s] not supported by AscendC::Reg::Cast, disable VF fusion.",
+             node.GetNamePtr(), TypeUtils::DataTypeToSerialString(input_dtype).c_str(),
+             TypeUtils::DataTypeToSerialString(output_dtype).c_str());
       return false;
     }
 
-    auto iter = supported_map.find(node_inputs[0].attr.dtype);
-    if (iter != supported_map.end()) {
-      if (iter->second.find(node_outputs[0].attr.dtype) != iter->second.end()) {
-        return true;
-      }
-    }
-    return false;
+    return true;
   }
   [[nodiscard]] std::vector<std::string> IncludeApiHeaderFiles() const override {
     return {
@@ -322,7 +338,7 @@ class AbsAscIrCodegenImplV2 : public AscIrCodegenV2 {
   GetConversionDtype(const ge::AscNode &node) {
     std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
       {DT_BF16, DT_FLOAT},
-      {DT_UINT8, DT_INT16}
+      {DT_UINT8, DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
@@ -848,7 +864,7 @@ class NegAscIrCodegenImplV2 : public AscIrCodegenV2 {
 
   [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
     const std::map<ge::DataType, ge::DataType> neg_dtype_map = {
-      {ge::DataType::DT_INT8, ge::DataType::DT_INT16},
+      {ge::DataType::DT_INT8, ge::DataType::DT_FLOAT16},
       {ge::DataType::DT_BF16, ge::DataType::DT_FLOAT}
     };
     return GetConversionFromDtypeMap(node, neg_dtype_map);
@@ -1091,7 +1107,7 @@ class MaxAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
     const std::map<ge::DataType, ge::DataType> max_dtype_map = {
-      {ge::DataType::DT_UINT8, ge::DataType::DT_INT16}
+      {ge::DataType::DT_UINT8, ge::DataType::DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, max_dtype_map);
   }
@@ -1128,7 +1144,7 @@ class SumAscIrCodegenImplV2 : public AscIrCodegenV2 {
     const std::map<ge::DataType, ge::DataType> sum_dtype_map = {
       {ge::DataType::DT_BF16, ge::DataType::DT_FLOAT},
       {ge::DataType::DT_FLOAT16, ge::DataType::DT_FLOAT},
-      {ge::DataType::DT_INT8, ge::DataType::DT_FLOAT},
+      {ge::DataType::DT_INT8, ge::DataType::DT_FLOAT16},
       {ge::DataType::DT_INT16, ge::DataType::DT_FLOAT}
     };
     return GetConversionFromDtypeMap(node, sum_dtype_map);
@@ -1164,7 +1180,7 @@ class MinAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
     const std::map<ge::DataType, ge::DataType> min_dtype_map = {
-      {ge::DataType::DT_UINT8, ge::DataType::DT_INT16}
+      {ge::DataType::DT_UINT8, ge::DataType::DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, min_dtype_map);
   }
@@ -1368,23 +1384,6 @@ class NeAscIrCodegenImplV2 : public CompareAscIrCodegenImplV2 {
   [[nodiscard]] bool IsScalarInputSupportedIfExchangeInputs(const std::vector<bool> &is_scalar_list) const override {
     GE_ASSERT_EQ(is_scalar_list.size(), 2UL);
     return OnlySecondInputSupportScalar({is_scalar_list[1], is_scalar_list[0]});
-  }
-  [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(
-      const ge::AscNode &node) {
-    std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> conversion_dtype;
-    AscNodeInputs node_inputs = node.inputs;
-    AscNodeOutputs node_outputs = node.outputs;
-    for (size_t i = 0; i < node_inputs().size(); i++) {
-      if (node_inputs[i].attr.dtype == ge::DataType::DT_UINT8) {
-        conversion_dtype.first.emplace_back(ge::DataType::DT_INT16);
-      } else {
-        conversion_dtype.first.emplace_back(node_inputs[i].attr.dtype);
-      }
-    }
-    for (size_t i = 0; i < node_outputs().size(); i++) {
-      conversion_dtype.second.emplace_back(node_outputs[i].attr.dtype);
-    }
-    return conversion_dtype;
   }
   [[nodiscard]] std::string GetApiName() const override {
     return "NE";
@@ -1669,8 +1668,8 @@ class MulAscIrCodegenImplV2 : public AscIrCodegenV2 {
 
   [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
     const std::map<ge::DataType, ge::DataType> mul_dtype_map = {
-      {ge::DataType::DT_INT8, ge::DataType::DT_INT16},
-      {ge::DataType::DT_UINT8, ge::DataType::DT_INT16}
+      {ge::DataType::DT_INT8, ge::DataType::DT_FLOAT16},
+      {ge::DataType::DT_UINT8, ge::DataType::DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, mul_dtype_map);
   }
@@ -2938,7 +2937,7 @@ class FloorDivAscIrCodegenImplV2 : public AscIrCodegenV2 {
   }
   [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>> GetConversionDtype(const ge::AscNode &node) {
     std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
-      {DT_INT8, DT_FLOAT},
+      {DT_INT8, DT_FLOAT16},
       {DT_INT16, DT_FLOAT},
       {DT_UINT8, DT_FLOAT16}
     };
@@ -3595,7 +3594,7 @@ class SquareAscIrCodegenImplV2 : public AscIrCodegenV2 {
   [[nodiscard]] std::pair<std::vector<ge::DataType>, std::vector<ge::DataType>>
   GetConversionDtype(const ge::AscNode &node) override {
     std::map<ge::DataType, ge::DataType> dtype_conversion_map = {
-      {DT_UINT8, DT_INT16}
+      {DT_UINT8, DT_FLOAT16}
     };
     return GetConversionFromDtypeMap(node, dtype_conversion_map);
   }
