@@ -17,6 +17,7 @@ import ctypes
 from typing import List, Optional, Tuple, Any
 from ge._capi.pygraph_wrapper import graph_lib
 from ._attr import _AttrValue
+from .tensor_desc import TensorDesc
 
 
 class Node:
@@ -392,3 +393,69 @@ class Node:
 
         attr_name_bytes = attr_name.encode("utf-8")
         return  graph_lib.GeApiWrapper_GNode_HasAttr(self._handle, attr_name_bytes)
+
+    def get_input_desc(self, index: int) -> TensorDesc:
+        """Get input tensor descriptor.
+
+        Args:
+            index: Input index.
+
+        Returns:
+            TensorDesc object.
+        """
+        if not isinstance(index, int):
+            raise TypeError("Input index must be an integer")
+
+        desc_handle = graph_lib.GeApiWrapper_GNode_GetInputDesc(self._handle, ctypes.c_int32(index))
+        if not desc_handle:
+            raise RuntimeError(f"Failed to get input desc for index {index}")
+        return TensorDesc._create_from(desc_handle)
+
+    def update_input_desc(self, index: int, tensor_desc: TensorDesc) -> None:
+        """Update input tensor descriptor.
+
+        Args:
+            index: Input index.
+            tensor_desc: New tensor descriptor.
+        """
+        if not isinstance(index, int):
+            raise TypeError("Input index must be an integer")
+        if not isinstance(tensor_desc, TensorDesc):
+            raise TypeError("tensor_desc must be a TensorDesc")
+
+        ret = graph_lib.GeApiWrapper_GNode_UpdateInputDesc(self._handle, ctypes.c_int32(index), tensor_desc._handle)
+        if ret != 0:
+            raise RuntimeError(f"Failed to update input desc for index {index}")
+
+    def get_output_desc(self, index: int) -> TensorDesc:
+        """Get output tensor descriptor.
+
+        Args:
+            index: Output index.
+
+        Returns:
+            TensorDesc object.
+        """
+        if not isinstance(index, int):
+            raise TypeError("Output index must be an integer")
+
+        desc_handle = graph_lib.GeApiWrapper_GNode_GetOutputDesc(self._handle, ctypes.c_int32(index))
+        if not desc_handle:
+            raise RuntimeError(f"Failed to get output desc for index {index}")
+        return TensorDesc._create_from(desc_handle)
+
+    def update_output_desc(self, index: int, tensor_desc: TensorDesc) -> None:
+        """Update output tensor descriptor.
+
+        Args:
+            index: Output index.
+            tensor_desc: New tensor descriptor.
+        """
+        if not isinstance(index, int):
+            raise TypeError("Output index must be an integer")
+        if not isinstance(tensor_desc, TensorDesc):
+            raise TypeError("tensor_desc must be a TensorDesc")
+
+        ret = graph_lib.GeApiWrapper_GNode_UpdateOutputDesc(self._handle, ctypes.c_int32(index), tensor_desc._handle)
+        if ret != 0:
+            raise RuntimeError(f"Failed to update output desc for index {index}")

@@ -5,6 +5,7 @@ set(GRAPH_WRAPPER_SRCS
         "${GE_API_C_WRAPPER_DIR}/c_graph.cc"
         "${GE_API_C_WRAPPER_DIR}/c_gnode.cc"
         "${GE_API_C_WRAPPER_DIR}/c_tensor.cc"
+        "${GE_API_C_WRAPPER_DIR}/c_tensor_desc.cc"
 )
 
 set(GE_RUNTIME_WRAPPER_SRCS

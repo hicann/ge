@@ -50,7 +50,7 @@ Status ModelHelper::CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_model
 }
 
 Status ModelHelper::SerializeCustomOpKernel(PortableOp *serializable_op, const std::string &op_type_str,
-                                            std::vector<uint8_t> &merged_buffers) {
+                                            std::vector<uint8_t> &merged_buffers) const {
   if (serializable_op == nullptr) {
     GELOGE(FAILED, "[CUSTOM OP] serializable custom op is null, op_type:%s", op_type_str.c_str());
     return FAILED;

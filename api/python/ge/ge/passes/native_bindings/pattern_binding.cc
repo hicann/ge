@@ -78,13 +78,13 @@ class NativePattern {
 }  // namespace
 
 void BindPattern(py::module_ &m) {
-  py::class_<NativePattern>(m, "Pattern")
+  py::class_<NativePattern>(m, "Pattern", "Pattern template used for matching in target graph")
       .def(py::init<py::object>(), py::arg("graph"))
       .def("capture_tensor", &NativePattern::CaptureTensor, py::return_value_policy::reference_internal,
-           py::arg("source"), py::arg("index") = py::none())
-      .def("get_captured_tensors", &NativePattern::GetCapturedTensors)
-      .def("release", &NativePattern::Release)
-      .def("is_valid", &NativePattern::IsValid);
+           py::arg("source"), py::arg("index") = py::none(), "Record a capture tensor")
+      .def("get_captured_tensors", &NativePattern::GetCapturedTensors, "Get captured tensor list")
+      .def("release", &NativePattern::Release, "Release resource ownership")
+      .def("is_valid", &NativePattern::IsValid, "Check if the object is valid");
 }
 
 }  // namespace python_pass_native

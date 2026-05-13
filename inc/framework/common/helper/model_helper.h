@@ -148,7 +148,7 @@ class GE_FUNC_VISIBILITY ModelHelper : public ModelSaveHelper {
   Status CollectUsedCustomOpTypes(const GeRootModelPtr &ge_root_model,
                                   std::set<std::string> &used_custom_op_types) const;
   Status SerializeCustomOpKernel(PortableOp *serializable_op, const std::string &op_type_str,
-                                 std::vector<uint8_t> &merged_buffers);
+                                 std::vector<uint8_t> &merged_buffers) const;
   Status SaveModelHeader(shared_ptr<OmFileSaveHelper> &om_file_save_helper, const GeModelPtr &ge_model,
                          const size_t model_num = 1U, const bool need_check_os_cpu = false,
                          const bool is_unknow_shape = false) const;

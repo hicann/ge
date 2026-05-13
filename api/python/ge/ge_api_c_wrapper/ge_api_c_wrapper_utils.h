@@ -14,6 +14,7 @@
 #include <cstring>
 #include <vector>
 #include "graph/gnode.h"
+#include "graph/tensor.h"
 #include "graph/ascend_string.h"
 #include "graph/utils/math_util.h"
 #include "common/checker.h"
@@ -208,6 +209,27 @@ ge::graphStatus GeApiWrapper_GNode_GetAttr(const ge::GNode *node, const char *ke
 ge::graphStatus GeApiWrapper_GNode_SetOutputAttr(ge::GNode *node, const char *attr_name, uint32_t output_index,
                                                  const void *attr_value);
 void GeApiWrapper_GNode_FreeIntArray(int32_t *arrs);
+ge::TensorDesc *GeApiWrapper_GNode_GetInputDesc(const ge::GNode *node, int32_t index);
+ge::graphStatus GeApiWrapper_GNode_UpdateInputDesc(ge::GNode *node, int32_t index,
+                                                   const ge::TensorDesc *tensor_desc);
+ge::TensorDesc *GeApiWrapper_GNode_GetOutputDesc(const ge::GNode *node, int32_t index);
+ge::graphStatus GeApiWrapper_GNode_UpdateOutputDesc(ge::GNode *node, int32_t index,
+                                                    const ge::TensorDesc *tensor_desc);
+ge::TensorDesc *GeApiWrapper_TensorDesc_Create(const int64_t *dims, size_t dims_num, C_Format format,
+                                               C_DataType dtype);
+void GeApiWrapper_TensorDesc_Destroy(const ge::TensorDesc *tensor_desc);
+ge::graphStatus GeApiWrapper_TensorDesc_GetShape(const ge::TensorDesc *tensor_desc, int64_t **dims, size_t *dims_num);
+ge::graphStatus GeApiWrapper_TensorDesc_SetShape(ge::TensorDesc *tensor_desc, const int64_t *dims, size_t dims_num);
+ge::graphStatus GeApiWrapper_TensorDesc_GetOriginShape(const ge::TensorDesc *tensor_desc, int64_t **dims,
+                                                       size_t *dims_num);
+ge::graphStatus GeApiWrapper_TensorDesc_SetOriginShape(ge::TensorDesc *tensor_desc, const int64_t *dims,
+                                                       size_t dims_num);
+C_Format GeApiWrapper_TensorDesc_GetFormat(const ge::TensorDesc *tensor_desc);
+ge::graphStatus GeApiWrapper_TensorDesc_SetFormat(ge::TensorDesc *tensor_desc, C_Format format);
+C_Format GeApiWrapper_TensorDesc_GetOriginFormat(const ge::TensorDesc *tensor_desc);
+ge::graphStatus GeApiWrapper_TensorDesc_SetOriginFormat(ge::TensorDesc *tensor_desc, C_Format format);
+C_DataType GeApiWrapper_TensorDesc_GetDataType(const ge::TensorDesc *tensor_desc);
+ge::graphStatus GeApiWrapper_TensorDesc_SetDataType(ge::TensorDesc *tensor_desc, C_DataType dtype);
 ge::graphStatus GeApiWrapper_Graph_LoadFromAir(ge::Graph *graph, const char_t *file_name);
 ge::graphStatus GeApiWrapper_Graph_AddControlEdge(ge::Graph *graph, ge::GNode &src_node, ge::GNode &dst_node);
 ge::graphStatus GeApiWrapper_Graph_SetAttr(ge::Graph *graph, const char *key, const void *attr_value);
@@ -238,6 +260,7 @@ void GeApiWrapper_Tensor_DestroyEsCTensor(EsCTensor *tensor);
 ge::graphStatus GeApiWrapper_Tensor_SetFormat(EsCTensor *tensor, const ge::Format &format);
 ge::DataType GeApiWrapper_Tensor_GetDataType(EsCTensor *tensor);
 ge::graphStatus GeApiWrapper_Tensor_SetDataType(EsCTensor *tensor, const ge::DataType &dtype);
+ge::TensorDesc *GeApiWrapper_Tensor_GetTensorDesc(EsCTensor *tensor);
 int32_t GeApiWrapper_Tensor_GetPlacement(EsCTensor *tensor);
 #ifdef __cplusplus
 }

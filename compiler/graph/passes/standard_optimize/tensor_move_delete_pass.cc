@@ -534,8 +534,8 @@ bool CollectSiblingConsumers(const NodePtr &tensor_move_node, const OutDataAncho
                              std::vector<InDataAnchorPtr> &sibling_in_anchors) {
   bool tensor_move_is_direct_consumer = false;
   for (const auto &peer_in_anchor : out_data_anchor->GetPeerInDataAnchors()) {
-    const auto owner_node = (peer_in_anchor == nullptr) ? nullptr : peer_in_anchor->GetOwnerNode();
-    if (owner_node == tensor_move_node) {
+    const auto owner_node = (peer_in_anchor == nullptr) ? nullptr : peer_in_anchor->GetOwnerNodeBarePtr();
+    if (owner_node == tensor_move_node.get()) {
       tensor_move_is_direct_consumer = true;
       continue;
     }
@@ -592,8 +592,8 @@ bool CheckSiblingAgainstSuccessors(const NodePtr &tensor_move_node, const InData
   const auto sibling_input_idx = sibling_in_anchor->GetIdx();
   const bool sibling_overwrites_source = WillNodeOverwriteSourceMemory(sibling_node, sibling_input_idx);
 
-  for (const auto &tensor_move_succ_in_anchor : tensor_move_out_anchor->GetPeerInDataAnchors()) {
-    GE_WARN_ASSERT((tensor_move_succ_in_anchor) != nullptr);
+  for (const auto *tensor_move_succ_in_anchor : tensor_move_out_anchor->GetPeerInDataAnchorsPtr()) {
+    GE_WARN_ASSERT(tensor_move_succ_in_anchor != nullptr);
     const auto tensor_move_succ = tensor_move_succ_in_anchor->GetOwnerNode();
     GE_WARN_ASSERT((tensor_move_succ) != nullptr);
 
@@ -693,7 +693,7 @@ bool IsSourceNodeWithSinglePath(const NodePtr &tensor_move_node,
     }
 
     // 单输出多引用
-    if (out_data_anchor->GetPeerInDataAnchors().size() > 1U) {
+    if (out_data_anchor->GetPeerInDataAnchorsPtr().size() > 1U) {
       if (!TryHandleBasicMultiRefBranch(tensor_move_node, out_data_anchor, ctx)) {
         GELOGI("Out data anchor %d of node %s(type %s) has multiple peer intput data anchors, cannot delete tensor move %s.",
                out_data_anchor->GetIdx(), node->GetName().c_str(), node->GetType().c_str(), tensor_move_node->GetName().c_str());

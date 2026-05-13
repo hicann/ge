@@ -81,10 +81,11 @@ BorrowedMatchResult BorrowMatchResult(uintptr_t match_result_handle) {
 }  // namespace
 
 void BindMatchResult(py::module_ &m) {
-  py::class_<BorrowedMatchResult>(m, "MatchResult")
-      .def("get_matched_nodes", &BorrowedMatchResult::GetMatchedNodes)
-      .def("get_captured_tensor", &BorrowedMatchResult::GetCapturedTensor, py::arg("capture_index"))
-      .def("get_pattern_graph_name", &BorrowedMatchResult::GetPatternGraphName)
+  py::class_<BorrowedMatchResult>(m, "MatchResult", "Pattern matching result")
+      .def("get_matched_nodes", &BorrowedMatchResult::GetMatchedNodes, "Get list of matched nodes")
+      .def("get_captured_tensor", &BorrowedMatchResult::GetCapturedTensor, py::arg("capture_index"),
+           "Get captured tensor at specified index")
+      .def("get_pattern_graph_name", &BorrowedMatchResult::GetPatternGraphName, "Get pattern graph name")
       .def("_invalidate", &BorrowedMatchResult::Invalidate)
       .def("__str__", &BorrowedMatchResult::ToString);
 

@@ -76,16 +76,19 @@ uintptr_t ClonePatternMatcherConfigHandle(const NativePatternMatcherConfig &conf
 }  // namespace
 
 void BindPatternMatcherConfig(py::module_ &m) {
-  py::class_<NativePatternMatcherConfig>(m, "PatternMatcherConfig")
-      .def("is_enable_const_value_match", &NativePatternMatcherConfig::IsEnableConstValueMatch)
-      .def("is_enable_ir_attr_match", &NativePatternMatcherConfig::IsEnableIrAttrMatch);
+  py::class_<NativePatternMatcherConfig>(m, "PatternMatcherConfig", "Pattern matcher configuration")
+      .def("is_enable_const_value_match", &NativePatternMatcherConfig::IsEnableConstValueMatch,
+           "Check if const value matching is enabled")
+      .def("is_enable_ir_attr_match", &NativePatternMatcherConfig::IsEnableIrAttrMatch,
+           "Check if IR attribute matching is enabled");
 
-  py::class_<NativePatternMatcherConfigBuilder>(m, "PatternMatcherConfigBuilder")
+  py::class_<NativePatternMatcherConfigBuilder>(m, "PatternMatcherConfigBuilder",
+                                                "Pattern matcher configuration builder")
       .def(py::init<>())
       .def("enable_const_value_match", &NativePatternMatcherConfigBuilder::EnableConstValueMatch,
-           py::return_value_policy::reference_internal)
+           py::return_value_policy::reference_internal, "Enable const value matching")
       .def("enable_ir_attr_match", &NativePatternMatcherConfigBuilder::EnableIrAttrMatch,
-           py::return_value_policy::reference_internal)
+           py::return_value_policy::reference_internal, "Enable IR attribute matching")
       .def("build", &NativePatternMatcherConfigBuilder::Build);
 
   m.def("clone_pattern_matcher_config", &ClonePatternMatcherConfigHandle, py::arg("config"));

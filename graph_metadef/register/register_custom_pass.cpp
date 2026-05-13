@@ -19,6 +19,7 @@
 #include "register/custom_pass_context_impl.h"
 #include "graph/utils/graph_utils_ex.h"
 #include "graph/utils/graph_utils.h"
+#include "graph/ge_context.h"
 
 namespace ge {
 const std::set<CustomPassStage> kConstGraphStages = {CustomPassStage::kAfterAssignLogicStream};
@@ -50,6 +51,18 @@ Status RunAllocateStreamPass(const PassRegistrationData &reg_data, const GraphPt
     (void) REPORT_PREDEFINED_ERR_MSG("E13030", std::vector<const char_t *>({"passname", "reason"}),
                               std::vector<const char_t *>({reg_data.GetPassName().c_str(), reason.str().c_str()}));
     return FAILED;
+  }
+
+  // DAG 模块开关判断：对于 MiniDAGStreamPass，先判断 option
+  // 后续 DAG 迁移出去后，外部无法访问 GE 的 Options，所以在框架层判断
+  if (reg_data.GetPassName() == "MiniDAGStreamPass") {
+    std::string multi_stream_mode;
+    if (GetContext().GetOption("ge.autoMultistreamParallelMode", multi_stream_mode) != GRAPH_SUCCESS ||
+        multi_stream_mode != "dag_multi_stream") {
+      GELOGI("MiniDAGStreamPass skipped: ge.autoMultistreamParallelMode=%s (require dag_multi_stream)",
+             multi_stream_mode.empty() ? "not set" : multi_stream_mode.c_str());
+      return SUCCESS;
+    }
   }
 
   const auto compute_graph = GraphUtilsEx::GetComputeGraph(*graph);

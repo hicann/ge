@@ -102,7 +102,7 @@ Status CustomOpSoLoader::CalculateSoBinFingerprint(const OpSoBinPtr &op_so_bin,
   GE_ASSERT_TRUE(op_so_bin->GetBinData() != nullptr, "so[%s] bin data is null.", op_so_bin->GetSoName().c_str());
   GE_ASSERT_TRUE(op_so_bin->GetBinDataSize() > 0U, "so[%s] bin data size is zero.", op_so_bin->GetSoName().c_str());
 
-  const auto *bin_data = reinterpret_cast<const uint8_t *>(op_so_bin->GetBinData());
+  const auto *bin_data = op_so_bin->GetBinData();
   fingerprint.bin_size = op_so_bin->GetBinDataSize();
   fingerprint.content_hash = CalculateFnv1a64(bin_data, fingerprint.bin_size);
   return SUCCESS;
@@ -132,7 +132,7 @@ Status CustomOpSoLoader::WriteSoBinToFd(const OpSoBinPtr &op_so_bin, const int32
   GE_ASSERT_TRUE(op_so_bin->GetBinData() != nullptr, "so[%s] bin data is null.", op_so_bin->GetSoName().c_str());
   GE_ASSERT_TRUE(op_so_bin->GetBinDataSize() > 0U, "so[%s] bin data size is zero.", op_so_bin->GetSoName().c_str());
   size_t written_len = 0U;
-  const auto *bin_data = reinterpret_cast<const uint8_t *>(op_so_bin->GetBinData());
+  const auto *bin_data = op_so_bin->GetBinData();
   const size_t bin_size = static_cast<size_t>(op_so_bin->GetBinDataSize());
   while (written_len < bin_size) {
     const ssize_t current_write_len = write(mem_fd, bin_data + written_len, bin_size - written_len);

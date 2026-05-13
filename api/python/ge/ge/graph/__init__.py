@@ -22,11 +22,14 @@ graph模块 - 图操作接口
 - Format: 数据格式
 - Placement: 数据存储位置格式
 - DumpFormat:  dump格式
+- Shape: 张量形状对象
+- TensorDesc: 张量元信息描述对象
 """
 
 from .graph import Graph, DumpFormat
 from .node import Node
 from .tensor import Tensor
+from .tensor_desc import Shape, TensorDesc
 from .types import DataType, Format, Placement
 
 __all__ = [
@@ -35,6 +38,8 @@ __all__ = [
     'DataType',
     'Format',
     'Placement',
+    'Shape',
     'Tensor',
+    'TensorDesc',
     'DumpFormat',
 ]

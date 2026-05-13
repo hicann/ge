@@ -25,7 +25,7 @@ import ctypes
 # 需要添加 ge 到 Python 路径，否则会报错
 try:
     from ge.es.graph_builder import GraphBuilder, TensorHolder
-    from ge.graph import Graph, Node, Tensor
+    from ge.graph import Graph, Node, Shape, Tensor, TensorDesc
     from ge.graph.types import DataType, Format
     from ge._capi.pyes_graph_builder_wrapper import is_generated_lib_available
 except ImportError as e:
@@ -83,6 +83,69 @@ class TestNode:
         # 返回第一个节点用于测试
         return nodes[0]
 
+    @staticmethod
+    def test_get_and_update_input_desc(graph):
+        """测试获取和更新输入 TensorDesc"""
+        net_output = next(node for node in graph.get_all_nodes() if node.type == "NetOutput")
+        desc = net_output.get_input_desc(0)
+        assert isinstance(desc, TensorDesc)
+        shape = desc.get_shape()
+        assert isinstance(shape, list)
+        assert shape == []
+        assert desc.get_format() == Format.FORMAT_ND
+        assert desc.get_data_type() == DataType.DT_FLOAT
+
+        desc.set_shape([1, 3, 224, 224])
+        desc.set_format(Format.FORMAT_NCHW)
+        desc.set_data_type(DataType.DT_INT32)
+        net_output.update_input_desc(0, desc)
+        updated = net_output.get_input_desc(0)
+
+        updated_shape = updated.get_shape()
+        assert isinstance(updated_shape, list)
+        assert updated_shape == [1, 3, 224, 224]
+        assert updated_shape.get_shape_size() == 3 * 224 * 224
+        assert updated_shape.is_unknown_shape() is False
+        assert updated.get_format() == Format.FORMAT_NCHW
+        assert updated.get_data_type() == DataType.DT_INT32
+
+    @staticmethod
+    def test_get_and_update_output_desc(graph):
+        """测试获取和更新输出 TensorDesc"""
+        data_node = next(node for node in graph.get_all_nodes() if node.type == "Data")
+        desc = data_node.get_output_desc(0)
+        assert isinstance(desc, TensorDesc)
+        shape = desc.get_shape()
+        assert isinstance(shape, list)
+        assert shape == [1, 3, 224, 224]
+        assert shape.get_shape_size() == 3 * 224 * 224
+        assert shape.is_unknown_shape() is False
+        assert desc.get_format() == Format.FORMAT_ND
+        assert desc.get_data_type() == DataType.DT_FLOAT
+
+        new_desc = TensorDesc([1, 3, -1, 224], Format.FORMAT_NCHW, DataType.DT_INT32)
+        new_desc.set_origin_format(Format.FORMAT_NHWC)
+        data_node.update_output_desc(0, new_desc)
+        updated = data_node.get_output_desc(0)
+        updated_shape = updated.get_shape()
+        assert isinstance(updated_shape, list)
+        assert updated_shape == [1, 3, -1, 224]
+        assert updated_shape.get_shape_size() == -1
+        assert updated_shape.is_unknown_shape() is True
+        assert updated.get_format() == Format.FORMAT_NCHW
+        assert updated.get_data_type() == DataType.DT_INT32
+
+    @staticmethod
+    def test_desc_invalid_args(node):
+        """测试 TensorDesc 接口无效参数"""
+        with pytest.raises(TypeError, match="Input index must be an integer"):
+            node.get_input_desc("0")
+        with pytest.raises(TypeError, match="Output index must be an integer"):
+            node.get_output_desc("0")
+        with pytest.raises(TypeError, match="tensor_desc must be a TensorDesc"):
+            node.update_input_desc(0, "desc")
+        with pytest.raises(TypeError, match="tensor_desc must be a TensorDesc"):
+            node.update_output_desc(0, "desc")
 
     def test_node_create_from_array(self, graph):
         """测试从数组创建 Node 对象"""
