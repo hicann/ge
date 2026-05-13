@@ -62,7 +62,7 @@ target_link_libraries(om2_executor PRIVATE
         runtime
         json
         minizip_static
-        ascend_protobuf_static
+        ascend_protobuf
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
 )
