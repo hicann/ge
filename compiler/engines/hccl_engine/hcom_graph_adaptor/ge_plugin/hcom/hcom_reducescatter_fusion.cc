@@ -227,17 +227,18 @@ HcclResult HcomReduceScatterFusion::GetFusionOption(const ge::NodePtr &nodePtr, 
 }
 
 HcclResult HcomReduceScatterFusion::GenerateFusionLabel(const FusionOption &fusionOption, std::string &fusionLabel) {
+  std::string identifier;
   if (fusionOption.fusionComm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
-    fusionLabel = fusionOption.optype + "-" + fusionOption.group + "-" + to_string(fusionOption.fusionId) + "-" +
-                  fusionOption.dtype + "-" + fusionOption.reduction;
+    identifier = fusionOption.group;
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(fusionOption.fusionComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(fusionOption.fusionComm, &group));
     std::string identifier = std::string(group);
-    fusionLabel = fusionOption.optype + "-" + identifier + "-" + to_string(fusionOption.fusionId) + "-" +
-                  fusionOption.dtype + "-" + fusionOption.reduction;
+    identifier = std::string(group);
     HCCL_DEBUG("[HcclCommGraph][Type]GenerateFusionLabel.");
   }
+  fusionLabel = fusionOption.optype + "-" + identifier + "-" + to_string(fusionOption.fusionId) + "-" +
+                fusionOption.dtype + "-" + fusionOption.reduction;
   return HCCL_SUCCESS;
 }
 

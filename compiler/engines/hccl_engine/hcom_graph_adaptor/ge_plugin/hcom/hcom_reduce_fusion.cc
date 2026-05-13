@@ -206,16 +206,16 @@ HcclResult HcomReduceFusion::GetFusionRootAndLabel(const ge::NodePtr &nodePtr, F
 }
 HcclResult HcomReduceFusion::GenerateFusionLabel(const FusionOption &fusionOption, std::string &fusionLabel) {
   std::string operation = fusionOption.reduction.empty() ? "NA" : fusionOption.reduction;
+  std::string identifier;
   if (fusionOption.fusionComm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
-    fusionLabel = fusionOption.optype + "-" + fusionOption.group + "-" + to_string(fusionOption.fusionId) + "-" +
-                  fusionOption.dtype + "-" + to_string(fusionOption.root) + "-" + operation;
+    identifier = fusionOption.group;
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(fusionOption.fusionComm, &group));
-    std::string identifier = std::string(group);
-    fusionLabel = fusionOption.optype + "-" + identifier + "-" + to_string(fusionOption.fusionId) + "-" +
-                  fusionOption.dtype + "-" + to_string(fusionOption.root) + "-" + operation;
+    CHK_RET(HcomGetGroupNameByOpBase(fusionOption.fusionComm, &group));
+    identifier = std::string(group);
   }
+  fusionLabel = fusionOption.optype + "-" + identifier + "-" + to_string(fusionOption.fusionId) + "-" +
+                fusionOption.dtype + "-" + to_string(fusionOption.root) + "-" + operation;
   return HCCL_SUCCESS;
 }
 

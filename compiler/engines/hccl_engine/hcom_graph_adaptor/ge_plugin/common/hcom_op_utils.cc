@@ -478,7 +478,7 @@ HcclResult HcomOpUtils::GetRankId(const int64_t &hcomComm, const string &sGroup,
     CHK_RET(HcomGetRankId(sGroup.c_str(), &rankId));
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(HcomGetRankId(group, &rankId));
   }
   return HCCL_SUCCESS;

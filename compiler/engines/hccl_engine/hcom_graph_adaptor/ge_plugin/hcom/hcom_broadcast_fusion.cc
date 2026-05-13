@@ -151,7 +151,7 @@ HcclResult HcomBroadcastFusion::GenerateFusionLabel(const FusionOption &fusionOp
                   fusionOption.dtype + "-" + to_string(fusionOption.root) + "-" + operation;
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(fusionOption.fusionComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(fusionOption.fusionComm, &group));
     std::string identifier = std::string(group);
     fusionLabel = fusionOption.optype + "-" + identifier + "-" + to_string(fusionOption.fusionId) + "-" +
                   fusionOption.dtype + "-" + to_string(fusionOption.root) + "-" + operation;

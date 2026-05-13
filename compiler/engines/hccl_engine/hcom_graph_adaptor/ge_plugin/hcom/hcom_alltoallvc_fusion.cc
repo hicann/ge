@@ -157,17 +157,17 @@ HcclResult HcomAlltoAllVCFusion::GetFusionOption(const ge::NodePtr &nodePtr, Fus
 }
 
 HcclResult HcomAlltoAllVCFusion::GenerateFusionLabel(const FusionOption &fusionOption, std::string &fusionLabel) {
+  std::string identifier;
   if (fusionOption.fusionComm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
-    fusionLabel = fusionOption.optype + "-" + fusionOption.group + "-" + to_string(fusionOption.fusionId) + "-" +
-                  fusionOption.dtype;
+    identifier = fusionOption.group;
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(fusionOption.fusionComm, &group));
-    std::string identifier = std::string(group);
-    fusionLabel =
-        fusionOption.optype + "-" + identifier + "-" + to_string(fusionOption.fusionId) + "-" + fusionOption.dtype;
+    CHK_RET(HcomGetGroupNameByOpBase(fusionOption.fusionComm, &group));
+    identifier = std::string(group);
     HCCL_DEBUG("[HcclCommGraph][Type]GenerateFusionLabel.");
   }
+  fusionLabel = fusionOption.optype + "-" + identifier + "-" + to_string(fusionOption.fusionId) + "-" +
+                fusionOption.dtype;
   return HCCL_SUCCESS;
 }
 

@@ -1703,7 +1703,7 @@ HcclResult HcomOpsKernelBuilder::SetHcomOpParam(const ge::Node &node, HcomOpPara
       HCCL_ERROR("[Get][OpWorkspaceMemSize]op[%s]: GetGroupFromOpDesc failed. ret[%d]", sCollectiveType.c_str(), ret),
       ret);
   if (hcomComm != static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &(hcomOpParam->group)));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &(hcomOpParam->group)));
   } else {
     hcomOpParam->group = const_cast<char *>(sGroup.c_str());
   }
@@ -1714,7 +1714,7 @@ HcclResult HcomOpsKernelBuilder::SetHcomOpParam(const ge::Node &node, HcomOpPara
       CHK_RET(HcomGetRankSize(sGroup.c_str(), &rankSize));
     } else {
       char *group = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+      CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
       CHK_RET(HcomGetRankSize(group, &rankSize));
     }
   } else {
@@ -1932,7 +1932,7 @@ HcclResult HcomOpsKernelBuilder::SetHcclOpParam(const ge::Node &node, HcomOpPara
       HCCL_ERROR("[Get][OpWorkspaceMemSize]op[%s]: GetGroupFromOpDesc failed. ret[%d]", sCollectiveType.c_str(), ret),
       ret);
   if (hcomComm != static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &(hcomOpParam->group)));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &(hcomOpParam->group)));
   } else {
     hcomOpParam->group = const_cast<char *>(sGroup.c_str());
   }
@@ -1943,7 +1943,7 @@ HcclResult HcomOpsKernelBuilder::SetHcclOpParam(const ge::Node &node, HcomOpPara
       CHK_RET(HcomGetRankSize(sGroup.c_str(), &rankSize));
     } else {
       char *group = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+      CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
       CHK_RET(HcomGetRankSize(group, &rankSize));
     }
   } else {

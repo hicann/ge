@@ -125,7 +125,7 @@ HcclResult HcomOpsKernelInfoStore::GenerateOpTagFromTaskInfo(const ge::GETaskInf
       HCCL_DEBUG("[Generate][OpTag][Send]: group[%s], srTag[%s], srcRank[%s], dstRank[%s]", group.c_str(), sSrTag.c_str(), sSrcRank.c_str(), sDestRank.c_str());
     } else {
       char *groupname = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
       ret = HcomGetRankId(groupname, &srcRank);
       CHK_PRT_RET(ret != HCCL_SUCCESS,
                   HCCL_ERROR("[Generate][OpTag]op[%s]: get rank id failed. ret[%d]", opType.c_str(), ret), ret);
@@ -152,7 +152,7 @@ HcclResult HcomOpsKernelInfoStore::GenerateOpTagFromTaskInfo(const ge::GETaskInf
       HCCL_DEBUG("[Generate][OpTag][Recv]: group[%s], srTag[%s], srcRank[%s], dstRank[%s]", group.c_str(), sSrTag.c_str(), sSrcRank.c_str(), sDestRank.c_str());
     } else {
       char *groupname = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
       ret = HcomGetRankId(groupname, &destRank);
       CHK_PRT_RET(ret != HCCL_SUCCESS,
                   HCCL_ERROR("[Generate][OpTag]op[%s]: get rank id failed. ret[%d]", opType.c_str(), ret), ret);
@@ -224,7 +224,7 @@ HcclResult HcomOpsKernelInfoStore::GetOpKernelLoopTime(const ge::GETaskInfo &tas
       CHK_RET(HcomGetRankSize(group.c_str(), &rankSize));
     } else {
       char *groupname = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
       CHK_RET(HcomGetRankSize(groupname, &rankSize));
     }
 
@@ -247,7 +247,7 @@ HcclResult HcomOpsKernelInfoStore::GetOpKernelLoopTime(const ge::GETaskInfo &tas
       CHK_RET(HcomGetRankSize(group.c_str(), &rankSize));
     } else {
       char *groupname = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
       CHK_RET(HcomGetRankSize(groupname, &rankSize));
     }
 
@@ -502,7 +502,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAlltoAllVOpKernel(const ge::GETaskInfo &t
     groupName = group.c_str();
   } else {
     char *tmp = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
     groupName = tmp;
   }
   HCCL_INFO("[HcomAlltoAllVOpKernel] groupName: [%s]", groupName);
@@ -543,7 +543,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAlltoAllOpKernel(const ge::GETaskInfo &ta
     CHK_RET(HcomGetRankSize(group.c_str(), &rankSize));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(HcomGetRankSize(groupname, &rankSize));
   }
 
@@ -634,7 +634,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAlltoAllVCOpKernel(const ge::GETaskInfo &
     groupName = group.c_str();
   } else {
     char *tmp = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
     groupName = tmp;
   }
   HCCL_INFO("[HcomAlltoAllVCOpKernel] groupName: [%s]", groupName);
@@ -853,7 +853,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceOpKernel(const ge::GETaskInfo &t
 
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
     HCCL_INFO("[HcomAllReduceOpKernel] groupName: [%s]", groupName);
@@ -959,7 +959,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceLoop(const ge::GETaskInfo &task,
 
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
 
@@ -1041,7 +1041,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherOpKernel(const ge::GETaskInfo &t
       groupName = group.c_str();
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
     HCCL_INFO("[HcomAllGatherOpKernel] groupName: [%s]", groupName);
@@ -1103,7 +1103,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherVOpKernel(const ge::GETaskInfo &
  	  groupName = group.c_str();
  	} else {
  	  char *tmp = nullptr;
- 	  CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+ 	  CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
  	  groupName = tmp;
  	}
  	HCCL_INFO("[HcomAllGatherVOpKernel] groupName: [%s]", groupName);
@@ -1140,7 +1140,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherLoop(const std::vector<std::stri
     CHK_RET(HcomGetRankSize(group.c_str(), &rankSize));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(HcomGetRankSize(groupname, &rankSize));
   }
   u64 maxCountPerLoop = commOutputSize / (rankSize * unitSize);  // ccl buffer内存单次最多能够接受的input count
@@ -1184,7 +1184,7 @@ HcclResult HcomOpsKernelInfoStore::HcomAllGatherLoop(const std::vector<std::stri
       groupName = group.c_str();
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
     HCCL_INFO("[HcomAllGatherLoop] groupName: [%s]", groupName);
@@ -1264,7 +1264,7 @@ HcclResult HcomOpsKernelInfoStore::GetOutputCCLbufPtrAndIndirectOutCCLbufPtr(con
     }
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(GetOutCCLbuffer(group, commOutputPtr, commOutputSize));
     if (commOutputPtr == nullptr || commOutputSize == 0) {
       CHK_RET(HcomCreateCommCCLbuffer(group));
@@ -1367,7 +1367,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcomOutCCLbufferSize(u64 &commOutputSize, 
     }
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(GetOutCCLbuffer(group, commOutputPtr, commOutputSize));
     if (commOutputPtr == nullptr || commOutputSize == 0) {
       CHK_RET(HcomCreateCommCCLbuffer(group));
@@ -1389,7 +1389,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcomInCCLbufferSize(u64 &commInputSize, u3
     }
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
     if (commInputPtr == nullptr || commInputSize == 0) {
       CHK_RET(HcomCreateCommCCLbuffer(group));
@@ -1454,7 +1454,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterOpKernel(const ge::GETaskInf
       groupName = group.c_str();
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
     HCCL_INFO("[HcomReduceScatterOpKernel] groupName[%s]", groupName);
@@ -1524,7 +1524,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterVOpKernel(const ge::GETaskIn
     groupName = group.c_str();
   } else {
     char *tmp = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
     groupName = tmp;
   }
   HCCL_INFO("[HcomReduceScatterVOpKernel] groupName: [%s]", groupName);
@@ -1563,7 +1563,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterLoop(const ge::GETaskInfo &t
     CHK_RET(HcomGetRankSize(group.c_str(), &rankSize));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(HcomGetRankSize(groupname, &rankSize));
   }
   u64 maxCountPerLoop = commInputSize / (rankSize * unitSize);  // 中转内存单次最多能够接受的output count
@@ -1623,7 +1623,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceScatterLoop(const ge::GETaskInfo &t
       groupName = group.c_str();
     } else {
       char *tmp = nullptr;
- 	    CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+ 	    CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
  	    groupName = tmp;
  	  }
  	  HCCL_INFO("[HcomReduceScatterLoop] groupName[%s]", groupName);
@@ -1746,7 +1746,7 @@ HcclResult HcomOpsKernelInfoStore::HcomBroadcastOpKernel(const ge::GETaskInfo &t
       groupName = group.c_str();
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
 	  }
  	  HCCL_INFO("[HcomBroadcastOpKernel] groupName: [%s]", groupName);
@@ -1817,7 +1817,7 @@ HcclResult HcomOpsKernelInfoStore::HcomBroadcastLoop(const std::vector<std::stri
       groupName = group.c_str();
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
  	  HCCL_INFO("[HcomBroadcastLoop] groupName: [%s]", groupName);
@@ -1909,7 +1909,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceOpKernel(const ge::GETaskInfo &task
 
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
     HCCL_INFO("[HcomReduceOpKernel] groupName: [%s]", groupName);
@@ -1952,7 +1952,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceLoop(const ge::GETaskInfo &task, co
     CHK_RET(HcomGetRankSize(group.c_str(), &rankSize));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(HcomGetRankId(groupname, &rankId));
     CHK_RET(HcomGetRankSize(groupname, &rankSize));
   }
@@ -2006,7 +2006,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceLoop(const ge::GETaskInfo &task, co
 
     } else {
       char *tmp = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
       groupName = tmp;
     }
 
@@ -2081,7 +2081,7 @@ HcclResult HcomOpsKernelInfoStore::HcomSendOpKernel(const ge::GETaskInfo &task,
     groupName = group;
   } else {
     char *tmp = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
     groupName = tmp;
   }
   HCCL_INFO("[HcomSendOpKernel] groupName: [%s]", groupName.c_str());
@@ -2167,7 +2167,7 @@ HcclResult HcomOpsKernelInfoStore::HcomSendLoop(
         CHK_RET(GetInCCLbuffer(group.c_str(), commInputPtr, commInputSize));
       } else {
         char *groupname = nullptr;
-        CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+        CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
         CHK_RET(GetInCCLbuffer(groupname, commInputPtr, commInputSize));
       }
     }
@@ -2231,7 +2231,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReceiveOpKernel(const ge::GETaskInfo &tas
     groupName = group;
   } else {
     char *tmp = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &tmp));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
     groupName = tmp;
   }
   HCCL_INFO("[HcomReceiveOpKernel] groupName: [%s]", groupName.c_str());
@@ -2314,7 +2314,7 @@ HcclResult HcomOpsKernelInfoStore::HcomReceiveLoop(
         CHK_RET(GetOutCCLbuffer(group.c_str(), commOutputPtr, commOutputSize));
       } else {
         char *groupname = nullptr;
-        CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+        CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
         CHK_RET(GetOutCCLbuffer(groupname, commOutputPtr, commOutputSize));
       }
     }
@@ -2358,7 +2358,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcomAlltoallVOpMemSize(u32 shapeType, cons
     CHK_RET(HcomGetRankSize(sGroup.c_str(), &rankSize));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &groupname));
     CHK_RET(HcomGetRankSize(groupname, &rankSize));
   }
 
@@ -2396,7 +2396,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcomAlltoallVCOpMemSize(u32 shapeType, con
     CHK_RET(HcomGetRankId(sGroup.c_str(), &rankId));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &groupname));
     CHK_RET(HcomGetRankSize(groupname, &rankSize));
     CHK_RET(HcomGetRankId(groupname, &rankId));
   }
@@ -2427,7 +2427,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcomOpMemSize(u32 shapeType, const std::st
     CHK_RET(HcomGetRankSize(sGroup.c_str(), &rankSize));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &groupname));
     CHK_RET(HcomGetRankSize(groupname, &rankSize));
   }
 
@@ -2476,7 +2476,7 @@ HcclResult HcomOpsKernelInfoStore::GetCommCCLBuf(u32 shapeType, const int64_t &h
     CHK_RET(GetOutCCLbuffer(sGroup.c_str(), commOutputPtr, commOutputSize));
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
     CHK_RET(GetOutCCLbuffer(group, commOutputPtr, commOutputSize));
   }
@@ -2526,7 +2526,7 @@ HcclResult HcomOpsKernelInfoStore::GetCommCCLBuf(u32 shapeType, const std::strin
     CHK_RET(GetInCCLbuffer(sGroup.c_str(), commInputPtr, commInputSize));
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
   }
 
@@ -2592,7 +2592,7 @@ HcclResult HcomOpsKernelInfoStore::SetUnknownShapeWorkspaceResource(const ge::GE
   } else {
     auto workSpaceIter = workSpaceMemInfo_.find(to_string(comm));
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &group));
     if (workSpaceIter != workSpaceMemInfo_.end()) {
       CHK_RET(SetWorkspaceResourceFromtagVec(task, group, tagVec, std::get<0>(workSpaceMemInfo_[to_string(comm)]),
                                              std::get<1>(workSpaceMemInfo_[to_string(comm)])));
@@ -2668,7 +2668,7 @@ HcclResult HcomOpsKernelInfoStore::SetKnownShapeWorkspaceResource(const ge::GETa
         SetWorkspaceResourceFromtagVec(task, group.c_str(), tagVec, hcclInfo.workSpaceAddr, hcclInfo.workSpaceMemSize));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(SetWorkspaceResourceFromtagVec(task, groupname, tagVec, hcclInfo.workSpaceAddr, hcclInfo.workSpaceMemSize));
   }
 
@@ -2693,7 +2693,7 @@ HcclResult HcomOpsKernelInfoStore::SetAttachedStream(const ge::GETaskInfo &task)
     CHK_RET(HcomSetAttachedStream(group.c_str(), graphId, streamPtr, streamNum));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(HcomSetAttachedStream(groupname, graphId, streamPtr, streamNum));
   }
 
@@ -2726,7 +2726,7 @@ HcclResult HcomOpsKernelInfoStore::RefreshInputAddr(u32 shapeType, const int64_t
     }
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
     if (commInputPtr == nullptr || commInputSize == 0) {
       CHK_RET(HcomCreateCommCCLbuffer(group));
@@ -2869,7 +2869,7 @@ HcclResult HcomOpsKernelInfoStore::RefreshOutputAddr(DevType deviceType, u32 sha
     CHK_RET(GetIndirectInCCLbuf(indirectInCCLbufPtr, indirectCommInputSize));
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
     CHK_RET(GetIndirectInCCLbuf(indirectInCCLbufPtr, indirectCommInputSize));
   }
@@ -3269,7 +3269,7 @@ ge::Status HcomOpsKernelInfoStore::LoadTask(ge::GETaskInfo &task) {
     if (graphIdByCommId_.find(comm) == graphIdByCommId_.end() || graphIdByCommId_[comm] != privateDefBuf->graphId) {
       graphIdByCommId_[comm] = privateDefBuf->graphId;
       char *groupname = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
       CHK_RET(HcomClearAivSyncBuf(groupname, true));
     }
   }
@@ -3290,7 +3290,7 @@ ge::Status HcomOpsKernelInfoStore::LoadTask(ge::GETaskInfo &task) {
     CHK_RET(HcceGetandClearOverFlowTasks(group.c_str(), &hcclDumpInfoPtr, &len));
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(HcceGetandClearOverFlowTasks(groupname, &hcclDumpInfoPtr, &len));
   }
   HCCL_DEBUG("hcclDumpInfo.size = %d", len);
@@ -3334,7 +3334,7 @@ ge::Status HcomOpsKernelInfoStore::UnloadTask(ge::GETaskInfo &task) {
       CHK_RET(HcomUnloadTask(group.c_str(), (*tagIter).c_str()));
     } else {
       char *groupname = nullptr;
-      CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+      CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
       CHK_RET(HcomUnloadTask(groupname, (*tagIter).c_str()));
     }
   }
@@ -3374,7 +3374,7 @@ HcclResult HcomOpsKernelInfoStore::GetHcclGroup(ge::GETaskInfo &task, std::strin
     CHK_RET(GetGroupFromTaskInfo(task, sGroup));
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &group));
     sGroup = group;
   }
   HCCL_INFO("%s success, comm:%llu, group:%s", __func__, comm, sGroup.c_str());
@@ -3465,7 +3465,7 @@ HcclResult HcomOpsKernelInfoStore::SetGlobalWorkSpace(const int64_t &hcomComm, c
     CHK_RET(HcomSetGlobalWorkSpace(sGroup.c_str(), globalWorkSpaceAddrPtr, globalWorkSpaceAddr.size()));
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
     CHK_RET(HcomSetGlobalWorkSpace(group, globalWorkSpaceAddrPtr, globalWorkSpaceAddr.size()));
   }
   return HCCL_SUCCESS;
@@ -3490,7 +3490,7 @@ HcclResult HcomOpsKernelInfoStore::SetAivCoreLimit(const ge::GETaskInfo &task) {
     }
   } else {
     char *groupname = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(comm, &groupname));
+    CHK_RET(HcomGetGroupNameByOpBase(comm, &groupname));
     CHK_RET(HcomSetAivCoreLimit(groupname, privateDefBuf->aivCoreLimit));
   }
 

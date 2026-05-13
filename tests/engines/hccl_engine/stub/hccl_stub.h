@@ -172,7 +172,7 @@ HcclResult CommGetInstSizeByNetLayer(HcclComm comm, uint32_t netLayer, uint32_t 
 
 HcclResult CommGetInstTopoTypeByNetLayer(HcclComm comm, uint32_t netLayer, uint32_t *topoType);
 
-HcclResult GetGroupNameByOpBaseHcom(s64 opBaseHcom, char **groupname);
+HcclResult HcomGetGroupNameByOpBase(s64 opBaseHcom, char **groupname);
 
 HcclResult HcomGetRankId(const char *group, u32 *rankId);
 

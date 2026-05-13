@@ -28,7 +28,7 @@ HcclResult CommGetInstTopoTypeByNetLayer(HcclComm comm, uint32_t netLayer, uint3
     return HCCL_SUCCESS;
 }
 
-HcclResult GetGroupNameByOpBaseHcom(s64 opBaseHcom, char **groupname)
+HcclResult HcomGetGroupNameByOpBase(s64 opBaseHcom, char **groupname)
 {
     return HCCL_SUCCESS;
 }
