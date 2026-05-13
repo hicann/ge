@@ -37,7 +37,7 @@ def build_matmul_add_graph():
         input1,
         input2,
         None,
-        transpose_x1=True,  # 与pattern中定义的不同
+        transpose_x1=False,
         transpose_x2=False
     )
     add_tensor_holder = Add(matmul_tensor_holder, Const(builder, value=input3))
@@ -87,7 +87,7 @@ def run_matmul_add_graph(graph) -> int:
         print(f"图已添加到Session (Graph ID: {graph_id})")
 
         # 4. 准备输入数据
-        input1_data = np.random.randn(3, 2).astype(np.float32)
+        input1_data = np.random.randn(2, 3).astype(np.float32)
         input2_data = np.random.randn(3, 2).astype(np.float32)
 
         # 创建Tensor对象
@@ -96,7 +96,7 @@ def run_matmul_add_graph(graph) -> int:
             None,
             DataType.DT_FLOAT,
             Format.FORMAT_ND,
-            [3, 2]
+            [2, 3]
         )
         tensor2 = Tensor(
             input2_data.flatten().tolist(),
@@ -128,6 +128,6 @@ def run_matmul_add_graph(graph) -> int:
         print("[Success] GE环境已清理")
 
 
-graph = build_matmul_add_graph()
-dump_matmul_add_graph(graph)
-run_matmul_add_graph(graph)
+origin_graph = build_matmul_add_graph()
+dump_matmul_add_graph(origin_graph)
+run_matmul_add_graph(origin_graph)

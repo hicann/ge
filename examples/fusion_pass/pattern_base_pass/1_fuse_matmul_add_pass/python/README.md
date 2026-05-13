@@ -1,68 +1,41 @@
-## Python Pass[v1]
+# FuseMatMulAndAddPass Python 样例使用指导
 
-### 功能描述
+本目录提供 `pattern_base_pass/1_fuse_matmul_add_pass` 的 **纯 Python** 版本示例，逻辑与 C++ [`FuseMatMulAndAddPass`](../cpp/src/fuse_matmul_add_pass.cpp) 一致：~~
 
-本目录提供 [src/test_python_pass.py](./src/test_python_pass.py)，
-演示如何使用纯 Python 编写 `FusionBasePass` 并通过 `@register_fusion_pass` 注册。
-sample 会在 GE 编译流程中打印 `PassContext` 与 `Graph` 信息，并演示图属性的读写。
+- **Pattern 0**：`MatMul(a, b)` → `Add(..., c)`，图输入 `0/1/2` 对应 `a/b/c`
+- **Pattern 1**：`BatchMatMulV2(a, b)` → `Add(..., c)`，同上三输入拓扑
+- **Replacement**：`GEMM(r_a, r_b, r_c, alpha=1, beta=1)`（标量 `1.0` 对齐 C++ `CreateScalar(1)`）
+- 继承 **`PatternFusionPass`**，实现 `patterns()` / `meet_requirements()` / `replacement()`；阶段为 **`BeforeInferShape`**
 
-该 sample 对应 [C++ 版本样例](../cpp/README.md)，使用方式是：
+未启用 `enable_const_value_match()` 等额外 matcher 配置，与 C++ 默认匹配行为一致。
 
-- Python pass 文件通过 `ASCEND_GE_PY_PASS_PATH` 被 GE 编译流程发现
-- 模型生成、ATC 离线编译、在线推理步骤继续复用 C++ README 中已有流程
+## 前置条件
 
-### 环境要求
-
-- 临时要求：**run 包编译时使用的 Python 版本，需要与执行 sample 的 Python 版本保持一致**
-- CANN 软件包安装请参考 [环境准备](../../../../../docs/build.md#1-环境准备)
+- 已 source CANN 环境（`source ${ASCEND_PATH}/set_env.sh`）
+- **run 包编译使用的 Python 版本**与执行本样例的 Python 版本一致
 - 环境变量设置请参考 [C++ 样例 README 的程序编译-配置环境变量](../cpp/README.md#程序编译a-namesection6645633456813a)
-- 已安装图编译流程相关 Python 依赖：`attrs`、`decorator`、`sympy`、`numpy`、`psutil`、`scipy`
+- Python 可导入 ES API（通常来自 run 包）：`MatMul`、`Add`、`GEMM`（`ge.es.math` 或 `ge.es.all`）、`BatchMatMulV2`（`ge.es.nn` 或 `ge.es.all`）
+- 可导入 GE Python 包（含 `ge.passes` 与 pass 加载链路）
 
-run 包已包含 GE Python 运行时所需的 `ge_py` wheel，本节不需要再单独安装 `ge_py-*.whl`。
+run 包一般已包含 `ge_py` wheel，无需单独再装一份 `ge_py-*.whl`。
 
-### 使用方式
+## 使用方式
 
-1. 设置 Python pass 插件路径：
-
-   ```bash
-   export ASCEND_GE_PY_PASS_PATH=$(pwd)/src/test_python_pass.py
-   ```
-
-2. 复用 [C++ pass 样例 README](../cpp/README.md#程序运行) 中的模型生成、ATC 或在线推理步骤执行编译。
-
-3. 说明：
-
-   - 该 sample 不是独立执行脚本，直接运行 `python src/test_python_pass.py` 不会触发 pass 执行
-   - 预期输出会在 GE 编译流程真正加载该 Python pass 后打印
-
-### 预期日志
-
-运行成功后，日志中会出现类似输出：
-
-```text
---------PassContext as follow--------
-<ge.passes.ge_pass_native.PassContext object at 0x...>
-TestPass
-halo, i'm testpass
------------Graph as follow-----------
-graph("model"):
-  ...
-a test attr
-```
-
-### Conda 环境示例（Python 3.11）
-
-如果本机没有现成的匹配环境，可以参考下面的方式创建：
+1. 通过环境变量让 GE 在编译期加载该 Python pass（在 `1_fuse_matmul_add_pass/python` 目录下时）：
 
 ```bash
-conda create -n ge-pass-py311 python=3.11 -y
-conda activate ge-pass-py311
-python -m pip install --upgrade pip
-python -m pip install attrs decorator sympy numpy psutil scipy
+export ASCEND_GE_PY_PASS_PATH=$PWD/src/python_fuse_matmul_add_pass.py
 ```
 
-创建环境后，请确认：
+2. 复用 [C++ pass 样例 程序运行](../cpp/README.md#程序运行a-namesection4524573456563512a) 中的模型生成、ATC 离线编译或在线推理步骤。
 
-- 该环境中的 Python 版本与 run 包编译时使用的 Python 版本一致
-- 再按 [C++ 样例 README 的程序编译-配置环境变量](../cpp/README.md#程序编译a-namesection6645633456813a) 完成环境变量设置
-- 最后按上文设置 `ASCEND_GE_PY_PASS_PATH` 并复用 C++ sample 的运行步骤
+## 预期现象
+
+与 C++ 样例类似，在 pattern / replacement 被调用时可看到：
+
+```text
+Define pattern for FuseMatMulAndAddPass
+Define replacement for FuseMatMulAndAddPass
+```
+
+直接运行 `python src/python_fuse_matmul_add_pass.py` 只会打印注册提示，**不会**触发 GE 编译流程中的 pass 执行。
