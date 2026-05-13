@@ -20,51 +20,6 @@
 #include "framework/runtime/om2_model_executor.h"
 #include "model_common.h"
 
-
-// C 接口：用于上层调用，避免直接依赖 C++ 类
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * @brief 通过模型 ID 判断是否为 OM2 模型
- * @param modelId 模型 ID
- * @return true 表示是 OM2 模型，false 表示不是
- */
-ACL_FUNC_VISIBILITY bool AclIsOm2ModelById(uint32_t modelId);
-
-/**
- * @brief 通过文件路径判断是否为 OM2 模型
- * @param modelPath 模型文件路径
- * @return true 表示是 OM2 模型，false 表示不是
- */
-ACL_FUNC_VISIBILITY bool AclIsOm2ModelByPath(const char *modelPath);
-
-/**
- * @brief 通过内存数据判断是否为 OM2 模型
- * @param modelData 模型数据指针
- * @param modelSize 模型数据大小
- * @return true 表示是 OM2 模型，false 表示不是
- */
-ACL_FUNC_VISIBILITY bool AclIsOm2ModelByData(const void *modelData, size_t modelSize);
-
-/**
- * @brief 通过配置句柄判断是否为 OM2 模型
- * @param handle 模型配置句柄
- * @return true 表示是 OM2 模型，false 表示不是
- */
-ACL_FUNC_VISIBILITY bool AclIsOm2ModelByConfig(const aclmdlConfigHandle *handle);
-
-/**
- * @brief 通过 Bundle ID 判断是否为 OM2 Bundle
- * @param bundleId Bundle ID
- * @return true 表示是 OM2 Bundle，false 表示不是
- */
-ACL_FUNC_VISIBILITY bool AclIsOm2BundleById(uint32_t bundleId);
-
-#ifdef __cplusplus
-}
-#endif
 namespace acl {
 
 class ACL_FUNC_VISIBILITY AclResourceManagerOm2 {
@@ -84,9 +39,6 @@ public:
     aclError GetOpDescInfo(uint32_t deviceId, uint32_t streamId, uint32_t taskId, ge::OpDescInfo &opDescInfo);
     aclError DeleteOm2Executor(const uint32_t modelId);
     bool IsOm2ModelById(const uint32_t modelId) const;
-    bool IsOm2ModelByConfig(const aclmdlConfigHandle *handle) const;
-    bool IsOm2ModelByPath(const char *file_path) const;
-    bool IsOm2ModelByData(const void *data, size_t size) const;
 
     // Bundle管理
     void AddBundleSubmodelId(const uint32_t bundleId, uint32_t modelId);
