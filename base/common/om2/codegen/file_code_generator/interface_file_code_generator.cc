@@ -39,6 +39,26 @@ StructDecl *InterfaceFileCodeGenerator::BuildAicpuSessionInfoStruct() {
   });
 }
 
+StructDecl *InterfaceFileCodeGenerator::BuildTfAiCpuExInfoStruct() {
+  return ast_.Struct("TfAiCpuExInfo", {
+    ast_.Field("uint32_t", "fwkKernelType"),
+    ast_.Field("uint32_t", "fwkOperateType"),
+    ast_.Field("uint64_t", "sessionID"),
+    ast_.Field("uint64_t", "stepIDAddr"),
+    ast_.Field("uint64_t", "kernelID"),
+    ast_.Field("uint64_t", "nodeDefLen"),
+    ast_.Field("uint64_t", "nodeDefBuf"),
+    ast_.Field("uint64_t", "funDefLibLen"),
+    ast_.Field("uint64_t", "funDefLibBuf"),
+    ast_.Field("uint64_t", "inputOutputLen"),
+    ast_.Field("uint64_t", "inputOutputBuf"),
+    ast_.Field("uint64_t", "workspaceBaseAddr"),
+    ast_.Field("uint64_t", "inputOutputAddr"),
+    ast_.Field("uint64_t", "extInfoLen"),
+    ast_.Field("uint64_t", "extInfoAddr"),
+  });
+}
+
 StructDecl *InterfaceFileCodeGenerator::BuildArgsInfoStruct() {
   return ast_.Struct("ArgsInfo", {
       ast_.Field("void *", "host_addr"),

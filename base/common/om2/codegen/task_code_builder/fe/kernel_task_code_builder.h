@@ -59,9 +59,6 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
     std::vector<std::vector<int64_t>> shape_infos;
     size_t level1_addr_cnt{0UL};
   };
-  StructDecl *BuildLaunchKernelCfgHolder() const;
-  StructDecl *BuildLaunchKernelConfig() const;
-  FunctionDef *BuildAssembleLaunchConfig() const;
   FunctionDef *BuildKernelTaskDistribute() const;
   FunctionDef *BuildUpdateExtInfoSession() const;
   FunctionDef *BuildAssembleAicpuExtInfo() const;

@@ -32,6 +32,7 @@
 #include "aicpu_engine_struct.h"
 #include "aicpu_task_struct.h"
 #include "engine/aicpu/kernel/aicpu_ext_info_handle.h"
+#include "common/om2/codegen/om2_aicpu_ext_info_handler.h"
 
 namespace ge {
 namespace {
@@ -250,8 +251,9 @@ GeRootModelPtr CreateGeRootModelWithAicoreOp() {
   gert::GeModelBuilder builder(graph);
   auto ge_root_model =
       builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
+          .AddTaskDef(
+              "Add",
+              gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
           .FakeTbeBin({"Add"})
           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
@@ -302,9 +304,7 @@ GeRootModelPtr CreateGeRootModelWithAicoreOp2() {
   }
   gert::GeModelBuilder builder(graph);
   auto ge_root_model =
-      builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i0*}{i1*}{o0*}{ws0*}"))
+      builder.AddTaskDef("Add", gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i0*}{i1*}{o0*}{ws0*}"))
           .FakeTbeBin({"Add"})
           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
@@ -378,8 +378,8 @@ GeRootModelPtr CreateGeRootModelWithAicpuOp() {
   gert::GeModelBuilder builder(graph);
   gert::AiCpuCCTaskDefFaker aicpu_task_def_faker;
   auto ge_root_model = builder.AddTaskDef("add1", aicpu_task_def_faker.SetNeedMemcpy(false))
-                              .AddTaskDef("add2", aicpu_task_def_faker.SetNeedMemcpy(false))
-                              .BuildGeRootModel();
+                           .AddTaskDef("add2", aicpu_task_def_faker.SetNeedMemcpy(false))
+                           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
 
   compute_graph->SetGraphUnknownFlag(false);
@@ -414,6 +414,61 @@ GeRootModelPtr CreateGeRootModelWithAicpuOp() {
         kernel_def->set_args_size(args.head.length);
         kernel_def->set_kernel_ext_info(ext_info.c_str(), ext_info.size());
         kernel_def->set_kernel_ext_info_size(ext_info.size());
+      }
+    }
+  }
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  return ge_root_model;
+}
+
+GeRootModelPtr CreateGeRootModelWithTfAicpuOp() {
+  auto graph = gert::ShareGraph::Aicpu4thGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  gert::AiCpuTfTaskDefFaker tf_aicpu_task_def_faker;
+  auto ge_root_model = builder.AddTaskDef("add1", tf_aicpu_task_def_faker).BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def != nullptr) {
+    for (int32_t i = 0; i < model_task_def->task_size(); ++i) {
+      auto *task_def = model_task_def->mutable_task(i);
+      if ((task_def != nullptr) && task_def->has_kernel_ex()) {
+        auto ext_info = GetFakeExtInfo();
+        auto kernel_ex_def = task_def->mutable_kernel_ex();
+        AicpuTaskArgs args = {};
+        args.head.length = sizeof(args);
+        args.head.ioAddrNum = 3;
+        kernel_ex_def->set_args(reinterpret_cast<const char *>(&args), args.head.length);
+        kernel_ex_def->set_args_size(args.head.length);
+        kernel_ex_def->set_kernel_ext_info(ext_info.c_str(), ext_info.size());
+        kernel_ex_def->set_kernel_ext_info_size(ext_info.size());
+        kernel_ex_def->set_task_info("kernel_ex_test_task");
+        kernel_ex_def->set_task_info_size(kernel_ex_def->task_info().size());
       }
     }
   }
@@ -463,9 +518,7 @@ GeRootModelPtr CreateGeRootModelWithAicoreOpOfDynamicIo() {
   graph->TopologicalSorting();
   gert::GeModelBuilder builder(graph);
   auto ge_root_model =
-      builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_desc0}{i_desc1}{o_desc0}"))
+      builder.AddTaskDef("Add", gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_desc0}{i_desc1}{o_desc0}"))
           .FakeTbeBin({"Add"})
           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
@@ -512,8 +565,8 @@ GeRootModelPtr CreateGeRootModelWithArgs() {
   gert::GeModelBuilder builder(graph);
   auto ge_root_model =
       builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_desc0}{i_desc1}{o_desc0}{event_addr}{ffts_addr}{overflow_addr}{t}"))
+          .AddTaskDef("Add", gert::AiCoreTaskDefFaker("add_stub")
+                                 .ArgsFormat("{i_desc0}{i_desc1}{o_desc0}{event_addr}{ffts_addr}{overflow_addr}{t}"))
           .FakeTbeBin({"Add"})
           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
@@ -555,8 +608,9 @@ GeRootModelPtr CreateGeRootModelWithMemcpyAddrAsync() {
   gert::GeModelBuilder builder(graph);
   auto ge_root_model =
       builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
+          .AddTaskDef(
+              "Add",
+              gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
           .FakeTbeBin({"Add"})
           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
@@ -611,8 +665,9 @@ GeRootModelPtr CreateGeRootModelWithMemcpyAsync() {
   gert::GeModelBuilder builder(graph);
   auto ge_root_model =
       builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
+          .AddTaskDef(
+              "Add",
+              gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
           .FakeTbeBin({"Add"})
           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
@@ -714,12 +769,9 @@ Status GenerateProgramFiles(ProgramGenerator &generator, std::map<GeneratedFileI
   Om2CodegenArtifacts artifacts;
   code_printer.GetOutputFiles(artifacts);
   outputs.clear();
-  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile,
-                                GeneratedFileIndex::kResourcesFile,
-                                GeneratedFileIndex::kArgsManagerFile,
-                                GeneratedFileIndex::kLoadingAndRunningFile,
-                                GeneratedFileIndex::kInterfaceHeaderFile,
-                                GeneratedFileIndex::kCMakeListsFile}) {
+  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
+                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
+                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
     std::string output;
     GE_ASSERT_SUCCESS(ReadGeneratedArtifact(artifacts, file_index, output));
     outputs.emplace(file_index, std::move(output));
@@ -1060,6 +1112,24 @@ struct ArgsInfo {
   size_t size;
 };
 
+struct TfAiCpuExInfo {
+  uint32_t fwkKernelType;
+  uint32_t fwkOperateType;
+  uint64_t sessionID;
+  uint64_t stepIDAddr;
+  uint64_t kernelID;
+  uint64_t nodeDefLen;
+  uint64_t nodeDefBuf;
+  uint64_t funDefLibLen;
+  uint64_t funDefLibBuf;
+  uint64_t inputOutputLen;
+  uint64_t inputOutputBuf;
+  uint64_t workspaceBaseAddr;
+  uint64_t inputOutputAddr;
+  uint64_t extInfoLen;
+  uint64_t extInfoAddr;
+};
+
 class ScopeGuard {
   public:
     ScopeGuard(const ScopeGuard &) = delete;
@@ -1135,7 +1205,8 @@ class Om2Model {
 #ifdef __cplusplus
 extern "C" {
 #endif
-)" + GetInterfaceDumpApisExpected() + R"(
+)" + GetInterfaceDumpApisExpected() +
+                               R"(
 aclError Om2ModelCreate(om2::Om2ModelHandle *model_handle, aclmdlRI *rt_model_handle, const char **bin_files, const void **bin_data, size_t *bin_size, int bin_num, void **constants, void *work_ptr, uint64_t *session_id, uint32_t model_id, void *instance_handle);
 
 aclError Om2ModelLoad(om2::Om2ModelHandle *model_handle);
@@ -1182,9 +1253,9 @@ struct AicpuRegisterInfo {
 };
 
 struct CustAicpuRegisterInfo {
-  const char *kernel_name;
+  std::string file;
+  const char *op_type;
   const char *func_name;
-  const char *kernel_file;
 };
 
 BinaryBuffer ReadBinaryFileToBuffer(const std::string &file_path) {
@@ -1274,13 +1345,16 @@ aclError RegisterAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_h
   return ACL_SUCCESS;
 }
 
-aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const CustAicpuRegisterInfo &register_info) {
-  const auto &kernel_buf = ReadBinaryFileToBuffer(register_info.kernel_file);
-  OM2_CHK_TRUE(((kernel_buf.size > 0) && (kernel_buf.data != nullptr)));
+aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const CustAicpuRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> &bin_info_map) {
+  auto &bin_info = bin_info_map[register_info.file];
   aclrtBinaryLoadOptions load_options;
-  AssembleAicpuLoadOptions(load_options, 2);
-  OM2_CHK_STATUS(aclrtBinaryLoadFromData(kernel_buf.data.get(), kernel_buf.size, &load_options, &bin_handle));
-  OM2_CHK_STATUS(aclrtRegisterCpuFunc(bin_handle, register_info.func_name, register_info.kernel_name, &func_handle));
+  aclrtBinaryLoadOption option;
+  load_options.numOpt = 1;
+  load_options.options = &option;
+  option.type = ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE;
+  option.value.cpuKernelMode = 2;
+  OM2_CHK_STATUS(aclrtBinaryLoadFromData(bin_info.data, bin_info.size, &load_options, &bin_handle));
+  OM2_CHK_STATUS(aclrtRegisterCpuFunc(bin_handle, register_info.func_name, register_info.op_type, &func_handle));
   return ACL_SUCCESS;
 }
 } // namespace
@@ -1317,7 +1391,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
 
 namespace om2 {
 namespace {
-)" + GetLoadAndRunDumpHelpersExpected() + R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+)" + GetLoadAndRunDumpHelpersExpected() +
+                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -1334,7 +1409,6 @@ aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t me
   return ACL_SUCCESS;
 }
 constexpr const size_t max_launch_cfg_num = 8UL;
-constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 struct LaunchKernelCfgHolder {
   aclrtLaunchKernelCfg cfg{};
   aclrtLaunchKernelAttr attrs[max_launch_cfg_num];
@@ -1345,7 +1419,7 @@ struct LaunchKernelConfig {
   aclrtEngineType engine_type{ACL_RT_ENGINE_TYPE_AIC};
   uint32_t block_dim_offset{0U};
   bool is_block_task_prefetch{false};
-  uint8_t is_data_dump{0U};
+  bool is_data_dump{false};
   uint16_t time_out{0U};
   uint32_t local_memory_size{0U};
 };
@@ -1365,7 +1439,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.attrs[actual_cfg_num].value.isBlockTaskPrefetch = static_cast<uint8_t>(launch_config.is_block_task_prefetch);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DATA_DUMP;
-  holder.attrs[actual_cfg_num].value.isDataDump = launch_config.is_data_dump;
+  holder.attrs[actual_cfg_num].value.isDataDump = static_cast<uint8_t>(launch_config.is_data_dump);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE;
   holder.attrs[actual_cfg_num].value.dynUBufSize = launch_config.local_memory_size;
@@ -1376,7 +1450,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
 }
-
+constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
   OM2_CHK_NOTNULL(args_info);
   OM2_CHK_STATUS(memcpy_s(args_info->host_addr, args_info->size, io_addrs.data(), (io_addrs.size() * sizeof(uint64_t))));
@@ -1552,7 +1626,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
 
 namespace om2 {
 namespace {
-)" + GetLoadAndRunDumpHelpersExpected() + R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+)" + GetLoadAndRunDumpHelpersExpected() +
+                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -1569,7 +1644,6 @@ aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t me
   return ACL_SUCCESS;
 }
 constexpr const size_t max_launch_cfg_num = 8UL;
-constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 struct LaunchKernelCfgHolder {
   aclrtLaunchKernelCfg cfg{};
   aclrtLaunchKernelAttr attrs[max_launch_cfg_num];
@@ -1580,7 +1654,7 @@ struct LaunchKernelConfig {
   aclrtEngineType engine_type{ACL_RT_ENGINE_TYPE_AIC};
   uint32_t block_dim_offset{0U};
   bool is_block_task_prefetch{false};
-  uint8_t is_data_dump{0U};
+  bool is_data_dump{false};
   uint16_t time_out{0U};
   uint32_t local_memory_size{0U};
 };
@@ -1600,7 +1674,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.attrs[actual_cfg_num].value.isBlockTaskPrefetch = static_cast<uint8_t>(launch_config.is_block_task_prefetch);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DATA_DUMP;
-  holder.attrs[actual_cfg_num].value.isDataDump = launch_config.is_data_dump;
+  holder.attrs[actual_cfg_num].value.isDataDump = static_cast<uint8_t>(launch_config.is_data_dump);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE;
   holder.attrs[actual_cfg_num].value.dynUBufSize = launch_config.local_memory_size;
@@ -1611,7 +1685,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
 }
-
+constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
   OM2_CHK_NOTNULL(args_info);
   OM2_CHK_STATUS(memcpy_s(args_info->host_addr, args_info->size, io_addrs.data(), (io_addrs.size() * sizeof(uint64_t))));
@@ -1787,8 +1861,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ConstInputTensor_Ok) {
   EXPECT_NE(source.find("std::vector<int64_t> const_0_shape = {1, 1, 224, 224};"), std::string::npos);
   EXPECT_NE(source.find("Om2Tensor const_0 = BuildOm2Tensor(constants_[0], 200704UL, 1, 0, const_0_shape);"),
             std::string::npos);
-  EXPECT_NE(source.find("FlattenHostArgs(const_0, op2_input1, op2_output0, op2_ws0)"),
-            std::string::npos);
+  EXPECT_NE(source.find("FlattenHostArgs(const_0, op2_input1, op2_output0, op2_ws0)"), std::string::npos);
   EXPECT_NE(source.find("ReportLaunchedOm2Task(\"add1\", \"Add\", 2U, "
                         "reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), "
                         "args_table_.GetArgsInfo(0)->size, {{&const_0, 0U}, {&op2_input1, 8U}}, "
@@ -1807,7 +1880,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
 
 namespace om2 {
 namespace {
-)" + GetLoadAndRunDumpHelpersExpected() + R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+)" + GetLoadAndRunDumpHelpersExpected() +
+                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -1824,7 +1898,6 @@ aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t me
   return ACL_SUCCESS;
 }
 constexpr const size_t max_launch_cfg_num = 8UL;
-constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 struct LaunchKernelCfgHolder {
   aclrtLaunchKernelCfg cfg{};
   aclrtLaunchKernelAttr attrs[max_launch_cfg_num];
@@ -1835,7 +1908,7 @@ struct LaunchKernelConfig {
   aclrtEngineType engine_type{ACL_RT_ENGINE_TYPE_AIC};
   uint32_t block_dim_offset{0U};
   bool is_block_task_prefetch{false};
-  uint8_t is_data_dump{0U};
+  bool is_data_dump{false};
   uint16_t time_out{0U};
   uint32_t local_memory_size{0U};
 };
@@ -1855,7 +1928,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.attrs[actual_cfg_num].value.isBlockTaskPrefetch = static_cast<uint8_t>(launch_config.is_block_task_prefetch);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DATA_DUMP;
-  holder.attrs[actual_cfg_num].value.isDataDump = launch_config.is_data_dump;
+  holder.attrs[actual_cfg_num].value.isDataDump = static_cast<uint8_t>(launch_config.is_data_dump);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE;
   holder.attrs[actual_cfg_num].value.dynUBufSize = launch_config.local_memory_size;
@@ -1866,7 +1939,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
 }
-
+constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
   OM2_CHK_NOTNULL(args_info);
   OM2_CHK_STATUS(memcpy_s(args_info->host_addr, args_info->size, io_addrs.data(), (io_addrs.size() * sizeof(uint64_t))));
@@ -2051,7 +2124,6 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
-
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOpOfDynamicIo();
   auto generator = CreateProgramGenerator(ge_root_model);
@@ -2062,7 +2134,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
 
 namespace om2 {
 namespace {
-)" + GetLoadAndRunDumpHelpersExpected() + R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+)" + GetLoadAndRunDumpHelpersExpected() +
+                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -2079,7 +2152,6 @@ aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t me
   return ACL_SUCCESS;
 }
 constexpr const size_t max_launch_cfg_num = 8UL;
-constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 struct LaunchKernelCfgHolder {
   aclrtLaunchKernelCfg cfg{};
   aclrtLaunchKernelAttr attrs[max_launch_cfg_num];
@@ -2090,7 +2162,7 @@ struct LaunchKernelConfig {
   aclrtEngineType engine_type{ACL_RT_ENGINE_TYPE_AIC};
   uint32_t block_dim_offset{0U};
   bool is_block_task_prefetch{false};
-  uint8_t is_data_dump{0U};
+  bool is_data_dump{false};
   uint16_t time_out{0U};
   uint32_t local_memory_size{0U};
 };
@@ -2110,7 +2182,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.attrs[actual_cfg_num].value.isBlockTaskPrefetch = static_cast<uint8_t>(launch_config.is_block_task_prefetch);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DATA_DUMP;
-  holder.attrs[actual_cfg_num].value.isDataDump = launch_config.is_data_dump;
+  holder.attrs[actual_cfg_num].value.isDataDump = static_cast<uint8_t>(launch_config.is_data_dump);
   actual_cfg_num++;
   holder.attrs[actual_cfg_num].id = ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE;
   holder.attrs[actual_cfg_num].value.dynUBufSize = launch_config.local_memory_size;
@@ -2121,7 +2193,7 @@ void AssembleLaunchConfig(LaunchKernelCfgHolder &holder, const LaunchKernelConfi
   holder.cfg.attrs = &holder.attrs[0];
   holder.cfg.numAttrs = actual_cfg_num;
 }
-
+constexpr int64_t kDImEndFlag = std::numeric_limits<int64_t>::min();
 aclError KernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo *args_info, aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config) {
   OM2_CHK_NOTNULL(args_info);
   OM2_CHK_STATUS(memcpy_s(args_info->host_addr, args_info->size, io_addrs.data(), (io_addrs.size() * sizeof(uint64_t))));
@@ -2295,10 +2367,10 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
-TEST_F(ProgramGeneratorUt, DoesNotDependOnGeModel_Ok) {	 
-  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();	 
-  auto generator = CreateProgramGenerator(ge_root_model);	 
-  std::map<GeneratedFileIndex, std::string> outputs;	 
+TEST_F(ProgramGeneratorUt, DoesNotDependOnGeModel_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAicoreOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 }
 
@@ -2309,17 +2381,30 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForArgs_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   // overflow_addr_
-  EXPECT_NE(outputs[GeneratedFileIndex::kResourcesFile].find("OM2_CHK_STATUS(aclrtCtxGetFloatOverflowAddr(&overflow_addr_));"), std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kResourcesFile].find(
+                "OM2_CHK_STATUS(aclrtCtxGetFloatOverflowAddr(&overflow_addr_));"),
+            std::string::npos);
 
   // event_addr
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OM2_CHK_STATUS(GetEventIdAddr(&op2_event_desc0, mem_event_id_mem_map_, 0, dev_dynamic_mem_ptrs_));"), std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
+                "OM2_CHK_STATUS(GetEventIdAddr(&op2_event_desc0, mem_event_id_mem_map_, 0, dev_dynamic_mem_ptrs_));"),
+            std::string::npos);
   // ffts_addr
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&op2_hardware_sync_addr_));"), std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
+                "OM2_CHK_STATUS(aclrtGetHardwareSyncAddr(&op2_hardware_sync_addr_));"),
+            std::string::npos);
   // tiling
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("*op2_tiling_str"), std::string::npos);
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OM2_CHK_STATUS(MallocDeviceMemory(op2_tiling, 0, 2, dev_dynamic_mem_ptrs_));"), std::string::npos);
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OM2_CHK_STATUS(aclrtMemcpy(op2_tiling, 0, op2_tiling_str, 0, ACL_MEMCPY_HOST_TO_DEVICE));"), std::string::npos);
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("KernelTaskDistribute(FlattenHostArgs(op2_io_desc0, op2_io_desc1, op2_io_desc2, op2_event_desc0, op2_hardware_sync_addr_, overflow_addr_, op2_tiling,"), std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
+                "OM2_CHK_STATUS(MallocDeviceMemory(op2_tiling, 0, 2, dev_dynamic_mem_ptrs_));"),
+            std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
+                "OM2_CHK_STATUS(aclrtMemcpy(op2_tiling, 0, op2_tiling_str, 0, ACL_MEMCPY_HOST_TO_DEVICE));"),
+            std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
+                "KernelTaskDistribute(FlattenHostArgs(op2_io_desc0, op2_io_desc1, op2_io_desc2, op2_event_desc0, "
+                "op2_hardware_sync_addr_, overflow_addr_, op2_tiling,"),
+            std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAddrAsync_Ok) {
@@ -2329,7 +2414,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAddrAsync_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   // KernelMemcpyAddrAsyncDistribute helper function should be generated
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("KernelMemcpyAddrAsyncDistribute"), std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("KernelMemcpyAddrAsyncDistribute"),
+            std::string::npos);
   // rtMemcpyAsyncPtr should be called in the helper
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("rtMemcpyAsyncPtr"), std::string::npos);
   // memcpy_addr_async always generates iow_addr variable
@@ -2349,13 +2435,13 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAsync_Ok) {
   // rtGeneralCtrl should be called in the helper
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("rtGeneralCtrl"), std::string::npos);
   // memcpy_async should generate KernelMemcpyAsyncDistribute call in Load()
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OM2_CHK_STATUS(KernelMemcpyAsyncDistribute("), std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("OM2_CHK_STATUS(KernelMemcpyAsyncDistribute("),
+            std::string::npos);
   // IO refresh path still materializes tensors, then flattens refreshed addresses into args table.
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
                 "Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 2048),"),
             std::string::npos);
-  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
-                "FlattenHostArgs(op2_input0, op2_output0)"),
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("FlattenHostArgs(op2_input0, op2_output0)"),
             std::string::npos);
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
                 "OM2_CHK_STATUS(memcpy_s(args_table_.GetArgsInfo(1)->host_addr"),
@@ -2387,8 +2473,7 @@ GeRootModelPtr CreateGeRootModelWithDsaOp() {
       op_desc->SetWorkspaceBytes({64, 128});
       op_desc->SetWorkspace({0, 64});
       // Mark second workspace as session scope (kSessionNoReuse = 1)
-      (void)AttrUtils::SetListInt(op_desc, ATTR_NAME_WORKSPACE_MEMORY_NO_REUSE_SCOPE,
-                                  std::vector<int32_t>{0, 1});
+      (void)AttrUtils::SetListInt(op_desc, ATTR_NAME_WORKSPACE_MEMORY_NO_REUSE_SCOPE, std::vector<int32_t>{0, 1});
     }
   }
 
@@ -2449,14 +2534,20 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDsa_Ok) {
 
   const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
   // DSA op comment header
-  EXPECT_NE(load_run.find("// ============================= random_normal ==============================="), std::string::npos);
+  EXPECT_NE(load_run.find("// ============================= random_normal ==============================="),
+            std::string::npos);
   // Input address declarations (4 inputs)
-  EXPECT_NE(load_run.find("Om2Tensor op4_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"), std::string::npos);
-  EXPECT_NE(load_run.find("Om2Tensor op4_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"), std::string::npos);
-  EXPECT_NE(load_run.find("Om2Tensor op4_input2 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"), std::string::npos);
-  EXPECT_NE(load_run.find("Om2Tensor op4_input3 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"), std::string::npos);
+  EXPECT_NE(load_run.find("Om2Tensor op4_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"),
+            std::string::npos);
+  EXPECT_NE(load_run.find("Om2Tensor op4_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"),
+            std::string::npos);
+  EXPECT_NE(load_run.find("Om2Tensor op4_input2 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"),
+            std::string::npos);
+  EXPECT_NE(load_run.find("Om2Tensor op4_input3 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024),"),
+            std::string::npos);
   // Output address declaration
-  EXPECT_NE(load_run.find("Om2Tensor op4_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 2048),"), std::string::npos);
+  EXPECT_NE(load_run.find("Om2Tensor op4_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 2048),"),
+            std::string::npos);
   // Workspace address declarations (ws0 normal, ws1 session scope)
   EXPECT_NE(load_run.find("auto op4_ws0 = GET_ADDR(total_dev_mem_ptr_, 0);"), std::string::npos);
   EXPECT_NE(load_run.find("auto op4_ws1 = GET_ADDR(session_scope_mem_ptr_, 64);"), std::string::npos);
@@ -2496,7 +2587,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDsa_Ok) {
   // IO address vector and memcpy
   EXPECT_NE(load_run.find("std::vector<uint64_t> op4_dsa_iow_addr = FlattenHostArgs("), std::string::npos);
   EXPECT_NE(load_run.find("FlattenHostArgs(op4_dsa_input1, op4_dsa_input2, op4_input0, op4_input1, op4_input2, "
-                           "op4_input3, op4_output0)"),
+                          "op4_input3, op4_output0)"),
             std::string::npos);
   EXPECT_NE(load_run.find("memcpy_s(args_table_.GetArgsInfo(0)->host_addr"), std::string::npos);
   EXPECT_NE(load_run.find("aclrtMemcpy(args_table_.GetArgsInfo(0)->dev_addr, 168,"), std::string::npos);
@@ -2543,10 +2634,8 @@ struct GetRtAddressTestContext {
     edges.output_var_names = {"op0_output0"};
     op_id_to_input_edges[op_desc->GetId()] = edges;
     context = std::make_unique<TaskSemanticContributeContext>(TaskSemanticContributeContext{
-        ModelTaskType::MODEL_TASK_KERNEL, task_def, 0, op_desc,
-        &runtime, &model_io, nullptr,
-        &weight_offset_to_varname, &fileconst_output_offset_to_varname,
-        &op_id_to_input_edges, nullptr, nullptr, nullptr, nullptr});
+        ModelTaskType::MODEL_TASK_KERNEL, task_def, 0, op_desc, &runtime, &model_io, nullptr, &weight_offset_to_varname,
+        &fileconst_output_offset_to_varname, &op_id_to_input_edges, nullptr, nullptr, nullptr, nullptr});
   }
 };
 
@@ -2554,8 +2643,9 @@ TEST_F(ProgramGeneratorUt, GetRtAddress_Placeholder_ReturnsSuccess) {
   GetRtAddressTestContext ctx;
   AddrSemantic addr_node;
   uint64_t mem_type = 0U;
-  EXPECT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, std::numeric_limits<uintptr_t>::max(),
-                                        mem_type, addr_node, true, 0U), SUCCESS);
+  EXPECT_EQ(
+      Om2ModelUtils::GetRtAddress(*ctx.context, std::numeric_limits<uintptr_t>::max(), mem_type, addr_node, true, 0U),
+      SUCCESS);
 }
 
 TEST_F(ProgramGeneratorUt, GetRtAddress_InMemRange_SetsFmMemType) {
@@ -2632,8 +2722,11 @@ GeRootModelPtr CreateGeRootModelWithAicoreTilingOp() {
   gert::GeModelBuilder builder(graph);
   auto ge_root_model =
       builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}{event_addr}{ffts_addr}{overflow_addr}{t}"))
+          .AddTaskDef(
+              "Add",
+              gert::AiCoreTaskDefFaker("add_stub")
+                  .ArgsFormat(
+                      "{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}{event_addr}{ffts_addr}{overflow_addr}{t}"))
           .FakeTbeBin({"Add"})
           .BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
@@ -2720,11 +2813,7 @@ GeRootModelPtr CreateGeRootModelWithAicoreOpWithoutArgsFormat() {
   // No ArgsFormat set, so kernel_context.args_format() will be empty,
   // triggering BuildOrderedArgValuesWithoutArgsFormat
   auto ge_root_model =
-      builder
-          .AddTaskDef("Add",
-                      gert::AiCoreTaskDefFaker("add_stub"))
-          .FakeTbeBin({"Add"})
-          .BuildGeRootModel();
+      builder.AddTaskDef("Add", gert::AiCoreTaskDefFaker("add_stub")).FakeTbeBin({"Add"}).BuildGeRootModel();
   auto &compute_graph = ge_root_model->GetRootGraph();
 
   compute_graph->SetGraphUnknownFlag(false);
@@ -2796,4 +2885,430 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicoreWithoutArgsFormat_Ok
   EXPECT_NE(load_run.find("overflow_addr_"), std::string::npos);
 }
 
-} // namespace
+GeRootModelPtr CreateGeRootModelWithCustAicpuOp() {
+  auto graph = gert::ShareGraph::Aicpu4thGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  gert::AiCpuCCTaskDefFaker aicpu_task_def_faker;
+  auto ge_root_model = builder.AddTaskDef("add1", aicpu_task_def_faker.SetNeedMemcpy(false))
+                           .AddTaskDef("add2", aicpu_task_def_faker.SetNeedMemcpy(false))
+                           .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def != nullptr) {
+    for (int32_t i = 0; i < model_task_def->task_size(); ++i) {
+      auto *task_def = model_task_def->mutable_task(i);
+      if ((task_def != nullptr) && task_def->has_kernel()) {
+        // kernel_type=7 is CUST_AI_CPU, do NOT override to 6 (AI_CPU)
+        auto ext_info = GetFakeExtInfo();
+        auto kernel_def = task_def->mutable_kernel();
+        AicpuTaskArgs args = {};
+        args.head.length = sizeof(args);
+        args.head.ioAddrNum = 3;
+        kernel_def->set_args(reinterpret_cast<const char *>(&args), args.head.length);
+        kernel_def->set_args_size(args.head.length);
+        kernel_def->set_kernel_ext_info(ext_info.c_str(), ext_info.size());
+        kernel_def->set_kernel_ext_info_size(ext_info.size());
+      }
+    }
+  }
+
+  // Set CUST_AICPU kernel binary on op_desc extended attributes
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() != DATA) && (op_desc->GetType() != NETOUTPUT)) {
+      std::vector<char> kernel_bin(64, '\0');
+      auto cust_aicpu_kernel = std::make_shared<ge::OpKernelBin>("libcust_aicpu_kernel.so", std::move(kernel_bin));
+      op_desc->SetExtAttr(ge::OP_EXTATTR_CUSTAICPU_KERNEL, cust_aicpu_kernel);
+      (void)ge::AttrUtils::SetStr(op_desc, "kernelSo", "libcust_aicpu_kernel.so");
+    }
+  }
+
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  return ge_root_model;
+}
+
+TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithCustAicpuOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &kernel_reg = outputs[GeneratedFileIndex::kKernelRegistryFile];
+  std::cout << "=== kernel_reg content ===" << std::endl << kernel_reg << std::endl << "=== end ===" << std::endl;
+  ASSERT_FALSE(kernel_reg.empty());
+  EXPECT_NE(kernel_reg.find("struct CustAicpuRegisterInfo"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("std::string file"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("const char *op_type"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("const char *func_name"), std::string::npos);
+  EXPECT_NE(kernel_reg.find(
+                "aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_handle, const "
+                "CustAicpuRegisterInfo &register_info, std::unordered_map<std::string, BinDataInfo> &bin_info_map) {"),
+            std::string::npos);
+  EXPECT_NE(kernel_reg.find("auto &bin_info = bin_info_map[register_info.file];"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("aclrtBinaryLoadOptions load_options;"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("aclrtBinaryLoadOption option;"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("load_options.numOpt = 1;"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("load_options.options = &option;"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("option.type = ACL_RT_BINARY_LOAD_OPT_CPU_KERNEL_MODE;"), std::string::npos);
+  EXPECT_NE(kernel_reg.find("option.value.cpuKernelMode = 2;"), std::string::npos);
+  EXPECT_NE(kernel_reg.find(
+                "OM2_CHK_STATUS(aclrtBinaryLoadFromData(bin_info.data, bin_info.size, &load_options, &bin_handle));"),
+            std::string::npos);
+  EXPECT_NE(kernel_reg.find("OM2_CHK_STATUS(aclrtRegisterCpuFunc(bin_handle, register_info.func_name, "
+                            "register_info.op_type, &func_handle));"),
+            std::string::npos);
+  EXPECT_NE(kernel_reg.find("OM2_CHK_STATUS(RegisterCustAicpuKernel(bin_handles_[0], func_handles_[0], {\"add1\", "
+                            "\"Add\", \"name\"}, bin_info_map_));"),
+            std::string::npos);
+
+  const auto &load_and_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  // std::cout << "=== load_and_run content ===" << std::endl << load_and_run << std::endl << "=== end ===" <<
+  // std::endl;
+  EXPECT_NE(
+      load_and_run.find("std::vector<uint64_t> op2_iow_addr = FlattenHostArgs(op2_input0, op2_input1, op2_output0);"),
+      std::string::npos);
+  EXPECT_NE(load_and_run.find("const char *op2_args_str"), std::string::npos);
+  EXPECT_NE(load_and_run.find("const char *op2_ext_info_str"), std::string::npos);
+  EXPECT_NE(load_and_run.find("std::vector<uint8_t> op2_args;"), std::string::npos);
+  EXPECT_NE(load_and_run.find("op2_args.resize"), std::string::npos);
+  EXPECT_NE(load_and_run.find("AssembleAicpuExtInfo"), std::string::npos);
+  EXPECT_NE(load_and_run.find("AssembleAicpuArgs"), std::string::npos);
+  EXPECT_NE(load_and_run.find("LaunchKernelCfgHolder op2_cfg_holder;"), std::string::npos);
+  EXPECT_NE(load_and_run.find("OM2_CHK_STATUS(AicpuKernelTaskDistribute(op2_args, args_table_.GetArgsInfo(0), "
+                              "func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));"),
+            std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithTfAicpuOp();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  // Verify that the generated code contains kernel_ex_task handling
+  const auto &load_run_code = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  std::cout << "load_run_code :" << load_run_code << std::endl;
+  ASSERT_FALSE(load_run_code.empty());
+  EXPECT_NE(load_run_code.find("aclError TfAicpuKernelTaskDistribute(const std::vector<uint64_t> &io_addrs, ArgsInfo "
+                               "*args_info, void *kernel_buf, uint32_t kernel_buf_size, aclrtFuncHandle func_handle, "
+                               "uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg *config)"),
+            std::string::npos);
+  EXPECT_NE(
+      load_run_code.find("aclError AssembleTfAicpuExSessionIdInfo(uint64_t *session_id, size_t op_kernel_size, "
+                         "aclrtFuncHandle func_handle, uint32_t block_dim, aclrtStream stream, aclrtLaunchKernelCfg "
+                         "*config, TfAiCpuExInfo *tf_ai_cpu_ex_info, std::vector<void *> &mem_ptrs)"),
+      std::string::npos);
+  EXPECT_NE(load_run_code.find(
+                "aclError AssembleTfAicpuExKernelIdInfo(uint64_t *kernel_id, TfAiCpuExInfo *tf_ai_cpu_ex_info) {"),
+            std::string::npos);
+  EXPECT_NE(
+      load_run_code.find("aclError AssembleTfAicpuExWorkSpaceAddrInfo(uint8_t *kernel_ex_task_info, size_t "
+                         "kernel_ex_task_info_len, TfAiCpuExInfo *tf_ai_cpu_ex_info, std::vector<void *> &mem_ptrs)"),
+      std::string::npos);
+  EXPECT_NE(
+      load_run_code.find(
+          "aclError AssembleTfAicpuExInputOutputAddrInfo(ArgsInfo *args_info, TfAiCpuExInfo *tf_ai_cpu_ex_info) {"),
+      std::string::npos);
+  EXPECT_NE(
+      load_run_code.find("aclError AssembleTfAicpuExExtInfo(uint8_t *kernel_ex_ext_info, size_t "
+                         "kernel_ex_ext_info_len, TfAiCpuExInfo *tf_ai_cpu_ex_info, std::vector<void *> &mem_ptrs)"),
+      std::string::npos);
+  EXPECT_NE(load_run_code.find("aclError AssembleTfAicpuArgs(uint8_t *kernel_ex_args, size_t kernel_ex_args_len, void "
+                               "*target_args_ptr, size_t target_args_len, TfAiCpuExInfo *tf_ai_cpu_ex_info)"),
+            std::string::npos);
+  EXPECT_NE(load_run_code.find("std::vector<uint8_t> op2_args;"), std::string::npos);
+  EXPECT_NE(load_run_code.find("op2_args.resize(112);"), std::string::npos);
+  EXPECT_NE(load_run_code.find("void *op2_kernel_buf = nullptr;"), std::string::npos);
+  EXPECT_NE(load_run_code.find("TfAiCpuExInfo op2_tf_ai_cpu_ex_info;"), std::string::npos);
+  EXPECT_NE(load_run_code.find("const char *op2_kernel_ex_args_str"), std::string::npos);
+  EXPECT_NE(load_run_code.find("const char *op2_kernel_ex_task_info_str"), std::string::npos);
+  EXPECT_NE(load_run_code.find("const char *op2_kernel_ex_ext_info_str"), std::string::npos);
+  EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExSessionIdInfo"), std::string::npos);
+  EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExKernelIdInfo"), std::string::npos);
+  EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExWorkSpaceAddrInfo"), std::string::npos);
+  EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExInputOutputAddrInfo"), std::string::npos);
+  EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExExtInfo"), std::string::npos);
+  EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuArgs"), std::string::npos);
+  EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(TfAicpuKernelTaskDistribute"), std::string::npos);
+}
+
+void AppendAsyncWait(std::string &out) {
+  size_t len = sizeof(AsyncWaitInfo) + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_ASYNCWAIT;
+  aicpu_ext_info->infoLen = sizeof(AsyncWaitInfo);
+  AsyncWaitInfo async_wait = {};
+  *(ge::PtrToPtr<char, AsyncWaitInfo>(aicpu_ext_info->infoMsg)) = async_wait;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+void AppendWorkSpaceInfo(std::string &out) {
+  size_t len = sizeof(WorkSpaceInfo) + sizeof(AicpuExtInfo);
+  vector<char> vec(len, 0);
+  AicpuExtInfo *aicpu_ext_info = reinterpret_cast<AicpuExtInfo *>(vec.data());
+  aicpu_ext_info->infoType = aicpu::FWKAdapter::FWK_ADPT_EXT_WORKSPACE_INFO;
+  aicpu_ext_info->infoLen = sizeof(WorkSpaceInfo);
+  WorkSpaceInfo workspace_info = {};
+  *(ge::PtrToPtr<char, WorkSpaceInfo>(aicpu_ext_info->infoMsg)) = workspace_info;
+  std::string s(vec.data(), len);
+  out.append(s);
+}
+
+std::string GetFakeExtInfoWithAsyncWait() {
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendSessionInfo(ext_info);
+  AppendAsyncWait(ext_info);
+  AppendBitMap(ext_info);
+  AppendUpdateAddr(ext_info);
+  AppendTopicType(ext_info);
+  return ext_info;
+}
+
+std::string GetFakeExtInfoWithWorkSpace() {
+  std::string ext_info;
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_INPUT_SHAPE, 2, ext_info);
+  AppendShape(aicpu::FWKAdapter::FWK_ADPT_EXT_OUTPUT_SHAPE, 1, ext_info);
+  AppendWorkSpaceInfo(ext_info);
+  return ext_info;
+}
+
+TEST_F(ProgramGeneratorUt, UpdateInputShapeAndType_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc input_desc;
+  input_desc.SetShape(GeShape({1, 2, 3, 4}));
+  input_desc.SetDataType(DT_FLOAT);
+
+  ASSERT_EQ(handler.UpdateInputShapeAndType(0, input_desc), SUCCESS);
+  ASSERT_EQ(handler.UpdateInputShapeAndType(1, input_desc), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateInputShapeAndType_IndexOutOfRange) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc input_desc;
+  input_desc.SetShape(GeShape({1, 2, 3, 4}));
+  input_desc.SetDataType(DT_FLOAT);
+
+  ASSERT_EQ(handler.UpdateInputShapeAndType(2, input_desc), ACL_ERROR_GE_INTERNAL_ERROR);
+  ASSERT_EQ(handler.UpdateInputShapeAndType(3, input_desc), ACL_ERROR_GE_INTERNAL_ERROR);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateInputShapeAndTypeWithDims_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc input_desc;
+  input_desc.SetDataType(DT_FLOAT);
+  std::vector<int64_t> dims = {1, 2, 3, 4};
+
+  ASSERT_EQ(handler.UpdateInputShapeAndType(0, input_desc, dims), SUCCESS);
+  ASSERT_EQ(handler.UpdateInputShapeAndType(1, input_desc, dims), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateInputShapeAndTypeWithDims_IndexOutOfRange) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc input_desc;
+  input_desc.SetDataType(DT_FLOAT);
+  std::vector<int64_t> dims = {1, 2, 3, 4};
+
+  ASSERT_EQ(handler.UpdateInputShapeAndType(2, input_desc, dims), ACL_ERROR_GE_INTERNAL_ERROR);
+  ASSERT_EQ(handler.UpdateInputShapeAndType(3, input_desc, dims), ACL_ERROR_GE_INTERNAL_ERROR);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateOutputShapeAndType_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc output_desc;
+  output_desc.SetShape(GeShape({1, 2, 3, 4}));
+  output_desc.SetDataType(DT_FLOAT);
+
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(0, output_desc), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateOutputShapeAndType_IndexOutOfRange) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc output_desc;
+  output_desc.SetShape(GeShape({1, 2, 3, 4}));
+  output_desc.SetDataType(DT_FLOAT);
+
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(1, output_desc), ACL_ERROR_GE_INTERNAL_ERROR);
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(2, output_desc), ACL_ERROR_GE_INTERNAL_ERROR);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateOutputShapeAndTypeWithDims_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc output_desc;
+  output_desc.SetDataType(DT_FLOAT);
+  std::vector<int64_t> dims = {1, 2, 3, 4};
+
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(0, output_desc, dims), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateOutputShapeAndTypeWithDims_IndexOutOfRange) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc output_desc;
+  output_desc.SetDataType(DT_FLOAT);
+  std::vector<int64_t> dims = {1, 2, 3, 4};
+
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(1, output_desc, dims), ACL_ERROR_GE_INTERNAL_ERROR);
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(2, output_desc, dims), ACL_ERROR_GE_INTERNAL_ERROR);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateSessionInfo_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  uint64_t session_id = 12345;
+  uint64_t kernel_id = 67890;
+  bool sess_flag = true;
+
+  ASSERT_EQ(handler.UpdateSessionInfo(session_id, kernel_id, sess_flag), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateSessionInfo_NoSessionInfo) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfoWithWorkSpace();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  uint64_t session_id = 12345;
+  uint64_t kernel_id = 67890;
+  bool sess_flag = true;
+
+  ASSERT_EQ(handler.UpdateSessionInfo(session_id, kernel_id, sess_flag), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateEventId_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfoWithAsyncWait();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  uint32_t event_id = 100;
+
+  ASSERT_EQ(handler.UpdateEventId(event_id), SUCCESS);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateEventId_NoAsyncWait) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  uint32_t event_id = 100;
+
+  ASSERT_EQ(handler.UpdateEventId(event_id), FAILED);
+}
+
+TEST_F(ProgramGeneratorUt, GetOutputShapeAndType_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc output_desc;
+  output_desc.SetShape(GeShape({1, 2, 3, 4}));
+  output_desc.SetDataType(DT_FLOAT);
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(0, output_desc), SUCCESS);
+
+  GeShape shape;
+  DataType data_type;
+  ASSERT_EQ(handler.GetOutputShapeAndType(0, shape, data_type), SUCCESS);
+  EXPECT_EQ(shape.GetDims(), std::vector<int64_t>({1, 2, 3, 4}));
+  EXPECT_EQ(data_type, DT_FLOAT);
+}
+
+TEST_F(ProgramGeneratorUt, GetOutputShapeAndType_IndexOutOfRange) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeShape shape;
+  DataType data_type;
+  ASSERT_EQ(handler.GetOutputShapeAndType(1, shape, data_type), ACL_ERROR_GE_INTERNAL_ERROR);
+  ASSERT_EQ(handler.GetOutputShapeAndType(2, shape, data_type), ACL_ERROR_GE_INTERNAL_ERROR);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateShapeAndType_DimsOverMax) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, static_cast<UnknowShapeOpType>(0));
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc input_desc;
+  std::vector<int64_t> dims;
+  for (size_t i = 0; i <= aicpu::FWKAdapter::kMaxShapeDims + 1; ++i) {
+    dims.push_back(static_cast<int64_t>(i));
+  }
+  input_desc.SetDataType(DT_FLOAT);
+
+  ASSERT_EQ(handler.UpdateInputShapeAndType(0, input_desc, dims), ACL_ERROR_GE_PARAM_INVALID);
+}
+
+TEST_F(ProgramGeneratorUt, UpdateOutputShapeAndType_DependShapeRange_Success) {
+  om2::Om2AicpuExtInfoHandler handler("test_node", 2, 1, DEPEND_SHAPE_RANGE);
+  std::string ext_info = GetFakeExtInfo();
+  ASSERT_EQ(handler.Parse(ext_info), SUCCESS);
+
+  GeTensorDesc output_desc;
+  output_desc.SetShape(GeShape({-1, 2, -1, 4}));
+  output_desc.SetDataType(DT_FLOAT);
+  std::vector<std::pair<int64_t, int64_t>> range = {{1, 10}, {2, 2}, {1, 20}, {4, 4}};
+  output_desc.SetShapeRange(range);
+
+  ASSERT_EQ(handler.UpdateOutputShapeAndType(0, output_desc), SUCCESS);
+
+  GeShape shape;
+  DataType data_type;
+  ASSERT_EQ(handler.GetOutputShapeAndType(0, shape, data_type), SUCCESS);
+  EXPECT_EQ(shape.GetDim(0), 10);
+  EXPECT_EQ(shape.GetDim(2), 20);
+}
+
+}  // namespace ge

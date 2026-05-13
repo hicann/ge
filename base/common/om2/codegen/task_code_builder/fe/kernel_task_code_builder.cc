@@ -80,6 +80,10 @@ bool IsAicpuTask(const KernelTaskSemantic &semantic) {
   return semantic.kernel_type == ge::ccKernelType::AI_CPU;
 }
 
+bool IsCustAicpuTask(const KernelTaskSemantic &semantic) {
+  return semantic.kernel_type == ge::ccKernelType::CUST_AI_CPU;
+}
+
 uint64_t GetOrderedArgByteSize(const AddrSemantic &semantic) {
   if ((semantic.kind == AddrValueKind::kShapeInfoBuffer) && semantic.shape_info.has_value()) {
     return semantic.shape_info->size() * kAddressLen;
@@ -161,11 +165,11 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
                               Om2CodegenUtils::IsSeparatelyCleanTask(context.op_desc, kernel_name_);
   is_blocking_aicpu_op_ = IsAicpuTask(semantic_) && Om2CodegenUtils::IsBlockingAicpuOp(context.op_desc);
   GE_ASSERT_SUCCESS(CheckTaskSupport());
-  if (IsAicpuTask(semantic_)) {
+  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
     semantic_.aicpu_task_index = *context.aicpu_task_count;
     ++(*context.aicpu_task_count);
   }
-  if (IsAicpuTask(semantic_)) {
+  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
     GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
     GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
   } else {
@@ -176,7 +180,7 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
 
   GE_ASSERT_SUCCESS(BuildLaunchSemantic(context));
 
-  if (IsAicpuTask(semantic_)) {
+  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
     GE_ASSERT_SUCCESS(BuildOrderedArgValuesForAicpu(context));
     GE_ASSERT_SUCCESS(BuildAicpuArgsSemantic(context));
     GE_ASSERT_SUCCESS(BuildAicpuExtInfoSemantic(context));
@@ -222,7 +226,8 @@ Status KernelTaskCodeBuilder::BuildLaunchSemantic(const TaskSemanticContributeCo
     }
   }
   const std::string kernel_name = context.task_def.kernel().kernel_name();
-  const std::string func_handle_key = IsAicpuTask(semantic_) ? context.op_desc->GetType() + kernel_name : kernel_name;
+  const std::string func_handle_key = (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_))
+                                       ? context.op_desc->GetType() + kernel_name : kernel_name;
   const auto func_handle_it = context.func_handle_indices->find(func_handle_key);
   GE_ASSERT_TRUE(func_handle_it != context.func_handle_indices->end(),
                  "[OM2] Func handle key %s not found.", func_handle_key.c_str());
@@ -471,7 +476,7 @@ Status KernelTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
         stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
         cfg_holder.Attr("cfg").Addr()})));
     items.emplace_back(ChkStatus(BuildReportLaunchedTaskCall()));
-  } else if (IsAicpuTask(semantic_)) {
+  } else if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
     GE_ASSERT_SUCCESS(AppendDistributionForAicpu(args_vars, items));
   } else {
     REPORT_INNER_ERR_MSG("E19999", "Unsupported task type %d", static_cast<int32_t>(semantic_.task_type));
@@ -485,11 +490,7 @@ Status KernelTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
 }
 
 Status KernelTaskCodeBuilder::RenderDistHelper(std::vector<DeclNode *> &items) {
-  items.push_back(ast_.Field("constexpr const size_t", "max_launch_cfg_num = 8UL"));
   items.push_back(ast_.Field("constexpr int64_t", "kDImEndFlag = std::numeric_limits<int64_t>::min()"));
-  items.push_back(BuildLaunchKernelCfgHolder());
-  items.push_back(BuildLaunchKernelConfig());
-  items.push_back(BuildAssembleLaunchConfig());
   items.push_back(BuildKernelTaskDistribute());
   items.push_back(ast_.Field("constexpr uint32_t", "kAicpuArgsExtInfoAddrOffset",
                              ast_.UInt(kAicpuArgsExtInfoAddrOffset)));
@@ -501,61 +502,6 @@ Status KernelTaskCodeBuilder::RenderDistHelper(std::vector<DeclNode *> &items) {
   items.push_back(BuildAicpuKernelTaskDistribute());
   items.push_back(BuildGetEventIdAddr());
   return SUCCESS;
-}
-
-StructDecl *KernelTaskCodeBuilder::BuildLaunchKernelCfgHolder() const {
-  return ast_.Struct("LaunchKernelCfgHolder", {
-      ast_.Field("aclrtLaunchKernelCfg", "cfg{}"),
-      ast_.Field("aclrtLaunchKernelAttr", "attrs[max_launch_cfg_num]"),
-  });
-}
-
-StructDecl *KernelTaskCodeBuilder::BuildLaunchKernelConfig() const {
-  return ast_.Struct("LaunchKernelConfig", {
-      ast_.Field("uint8_t", "schedule_mode{0U}"),
-      ast_.Field("aclrtEngineType", "engine_type{ACL_RT_ENGINE_TYPE_AIC}"),
-      ast_.Field("uint32_t", "block_dim_offset{0U}"),
-      ast_.Field("bool", "is_block_task_prefetch{false}"),
-      ast_.Field("uint8_t", "is_data_dump{0U}"),
-      ast_.Field("uint16_t", "time_out{0U}"),
-      ast_.Field("uint32_t", "local_memory_size{0U}"),
-  });
-}
-
-FunctionDef *KernelTaskCodeBuilder::BuildAssembleLaunchConfig() const {
-  auto holder = ast_.Var("LaunchKernelCfgHolder &", "holder");
-  auto launch_config = ast_.Var("const LaunchKernelConfig &", "launch_config");
-  auto actual_cfg_num = ast_.Var("size_t", "actual_cfg_num");
-  auto attrs = holder.Attr("attrs");
-  std::vector<BodyItem> body = {
-      ast_.VarDecl(actual_cfg_num, "0UL"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_SCHEM_MODE"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("schemMode"), launch_config.Attr("schedule_mode")),
-      ast_.PostInc(actual_cfg_num),
-      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_ENGINE_TYPE"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("engineType"), launch_config.Attr("engine_type")),
-      ast_.PostInc(actual_cfg_num),
-      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("blockDimOffset"), launch_config.Attr("block_dim_offset")),
-      ast_.PostInc(actual_cfg_num),
-      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_BLOCK_TASK_PREFETCH"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("isBlockTaskPrefetch"),
-                  ast_.StaticCast("uint8_t", launch_config.Attr("is_block_task_prefetch"))),
-      ast_.PostInc(actual_cfg_num),
-      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_DATA_DUMP"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("isDataDump"), launch_config.Attr("is_data_dump")),
-      ast_.PostInc(actual_cfg_num),
-      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("dynUBufSize"),
-                  launch_config.Attr("local_memory_size")),
-      ast_.PostInc(actual_cfg_num),
-      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT"),
-      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("timeout"), launch_config.Attr("time_out")),
-      ast_.PostInc(actual_cfg_num),
-      ast_.Assign(holder.Attr("cfg").Attr("attrs"), attrs[0].Addr()),
-      ast_.Assign(holder.Attr("cfg").Attr("numAttrs"), actual_cfg_num),
-  };
-  return ast_.DefineFunction("AssembleLaunchConfig", {holder, launch_config}, "void", ast_.Body(body));
 }
 
 FunctionDef *KernelTaskCodeBuilder::BuildKernelTaskDistribute() const {

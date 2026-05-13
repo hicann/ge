@@ -192,6 +192,66 @@ Status LoadAndRunFileCodeGenerator::BuildCommonHelperFunctions(std::vector<DeclN
       mem_ptrs.PushBack(dev_ptr),
       ast_.Return("ACL_SUCCESS"),
   }));
+  items.push_back(ast_.Field("constexpr const size_t", "max_launch_cfg_num = 8UL"));
+  items.push_back(BuildLaunchKernelCfgHolder());
+  items.push_back(BuildLaunchKernelConfig());
+  items.push_back(BuildAssembleLaunchConfig());
   return SUCCESS;
+}
+
+StructDecl *LoadAndRunFileCodeGenerator::BuildLaunchKernelCfgHolder() const {
+  return ast_.Struct("LaunchKernelCfgHolder", {
+      ast_.Field("aclrtLaunchKernelCfg", "cfg{}"),
+      ast_.Field("aclrtLaunchKernelAttr", "attrs[max_launch_cfg_num]"),
+  });
+}
+
+StructDecl *LoadAndRunFileCodeGenerator::BuildLaunchKernelConfig() const {
+  return ast_.Struct("LaunchKernelConfig", {
+      ast_.Field("uint8_t", "schedule_mode{0U}"),
+      ast_.Field("aclrtEngineType", "engine_type{ACL_RT_ENGINE_TYPE_AIC}"),
+      ast_.Field("uint32_t", "block_dim_offset{0U}"),
+      ast_.Field("bool", "is_block_task_prefetch{false}"),
+      ast_.Field("bool", "is_data_dump{false}"),
+      ast_.Field("uint16_t", "time_out{0U}"),
+      ast_.Field("uint32_t", "local_memory_size{0U}"),
+  });
+}
+
+FunctionDef *LoadAndRunFileCodeGenerator::BuildAssembleLaunchConfig() const {
+  auto holder = ast_.Var("LaunchKernelCfgHolder &", "holder");
+  auto launch_config = ast_.Var("const LaunchKernelConfig &", "launch_config");
+  auto actual_cfg_num = ast_.Var("size_t", "actual_cfg_num");
+  auto attrs = holder.Attr("attrs");
+  std::vector<BodyItem> body = {
+      ast_.VarDecl(actual_cfg_num, "0UL"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_SCHEM_MODE"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("schemMode"), launch_config.Attr("schedule_mode")),
+      ast_.PostInc(actual_cfg_num),
+      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_ENGINE_TYPE"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("engineType"), launch_config.Attr("engine_type")),
+      ast_.PostInc(actual_cfg_num),
+      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_BLOCKDIM_OFFSET"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("blockDimOffset"), launch_config.Attr("block_dim_offset")),
+      ast_.PostInc(actual_cfg_num),
+      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_BLOCK_TASK_PREFETCH"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("isBlockTaskPrefetch"),
+                  ast_.StaticCast("uint8_t", launch_config.Attr("is_block_task_prefetch"))),
+      ast_.PostInc(actual_cfg_num),
+      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_DATA_DUMP"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("isDataDump"),
+                  ast_.StaticCast("uint8_t", launch_config.Attr("is_data_dump"))),
+      ast_.PostInc(actual_cfg_num),
+      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_DYN_UBUF_SIZE"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("dynUBufSize"),
+                  launch_config.Attr("local_memory_size")),
+      ast_.PostInc(actual_cfg_num),
+      ast_.Assign(attrs[actual_cfg_num].Attr("id"), "ACL_RT_LAUNCH_KERNEL_ATTR_TIMEOUT"),
+      ast_.Assign(attrs[actual_cfg_num].Attr("value").Attr("timeout"), launch_config.Attr("time_out")),
+      ast_.PostInc(actual_cfg_num),
+      ast_.Assign(holder.Attr("cfg").Attr("attrs"), attrs[0].Addr()),
+      ast_.Assign(holder.Attr("cfg").Attr("numAttrs"), actual_cfg_num),
+  };
+  return ast_.DefineFunction("AssembleLaunchConfig", {holder, launch_config}, "void", ast_.Body(body));
 }
 }  // namespace ge

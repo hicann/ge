@@ -35,7 +35,7 @@ class KernelRegFileCodeGenerator : public Om2ModelClassGeneratorBase {
   ExprRef AssembleAicpuLoadOptionsCall(Arg load_options, Arg cpu_kernel_mode) const;
   ExprRef CallRegisterAicoreKernel(Arg bin_handle, Arg func_handle, Arg register_info, Arg bin_info_map) const;
   ExprRef CallRegisterAicpuKernel(Arg bin_handle, Arg func_handle, Arg register_info) const;
-  ExprRef CallRegisterCustAicpuKernel(Arg bin_handle, Arg func_handle, Arg register_info) const;
+  ExprRef CallRegisterCustAicpuKernel(Arg bin_handle, Arg func_handle, Arg register_info, Arg bin_info_map) const;
 };
 }  // namespace ge
 
