@@ -13,7 +13,7 @@
 #include "graph/symbolizer/symbolic_utils.h"
 #include "graph/ascendc_ir/utils/asc_graph_utils.h"
 #include "ascir_ops.h"
-#include "schedule_utils.h"
+#include "norm_like_reduce_checker.h"
 #include "ascir_utils.h"
 #include "node_utils.h"
 #include "reduce_schedule_case_generator.h"
@@ -216,12 +216,20 @@ Status ReducePartitionCaseGenerator::GeneratorRCoreTask(ascir::HintGraph &optimi
 
 Status ReducePartitionCaseGenerator::GeneratorTask(ascir::HintGraph &optimize_graph, std::vector<ScheduleTask> &tasks,
                                                    const OptimizerOptions &options) {
-  GE_CHK_STATUS_RET(GeneratorGeneralTask(optimize_graph, tasks));
-  // inductor 流程后融合场景存在workspace计算问题，暂不增加多核模板
-  if (options.graph_type != GraphType::kFusedAscBackend) {
+  // 检查optimize_graph是否满足norm-like reduce条件
+  bool is_norm_like_reduce = optimize::NormLikeReduceChecker::IsNormLikeReduceGraph(optimize_graph);
+  (void)options;
+  if (is_norm_like_reduce) {
+    // 满足norm-like reduce条件（R轴<=65536且A轴>=16），仅执行GeneratorAllLoadTask分支
+    GELOGI("Graph %s satisfies norm-like reduce conditions, only generate AllLoad tasks", optimize_graph.GetName().c_str());
+    GE_CHK_STATUS_RET(GeneratorAllLoadTask(optimize_graph, tasks));
+  } else {
+    // 不满足norm-like reduce条件，使用通用任务生成策略
+    GELOGI("Graph %s does not satisfy norm-like reduce conditions, use general strategy", optimize_graph.GetName().c_str());
+    GE_CHK_STATUS_RET(GeneratorGeneralTask(optimize_graph, tasks));
     GE_CHK_STATUS_RET(GeneratorRCoreTask(optimize_graph, tasks));
+    GE_CHK_STATUS_RET(GeneratorAllLoadTask(optimize_graph, tasks));
   }
-  GE_CHK_STATUS_RET(GeneratorAllLoadTask(optimize_graph, tasks));
   return ge::GRAPH_SUCCESS;
 }
 

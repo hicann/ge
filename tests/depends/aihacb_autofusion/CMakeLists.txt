@@ -11,6 +11,7 @@
 include(${GE_METADEF_DIR}/graph/ascendc_ir/generator/generator.cmake)
 file(GLOB_RECURSE ASC_SRC_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
         "src/*.cc"
+        "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/optimize/norm_like_reduce_checker.cpp"
         "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/*.cpp"
         "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/lowering/*.cpp"
         "${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/can_fuse/*.cpp"
@@ -88,6 +89,8 @@ target_include_directories(aihacb_autofusion_stub PRIVATE
         "src/"
         ${AIR_CODE_DIR}/
         ${AIR_CODE_DIR}/compiler
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse
+        ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/optimize
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/common
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/autofuse/lowering
@@ -99,6 +102,7 @@ target_include_directories(aihacb_autofusion_stub PRIVATE
         ${GE_METADEF_INC_DIR}/
         ${GE_METADEF_INC_DIR}/graph/ascendc_ir
         ${GE_METADEF_INC_DIR}/graph/ascendc_ir/ascendc_ir_core
+        ${GE_METADEF_INC_DIR}/graph/ascendc_ir/utils
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/att/
         ${AIR_CODE_DIR}/compiler/graph/optimize/autofuse/ascir/meta
         ${CMAKE_BINARY_DIR}/proto/metadef_protos

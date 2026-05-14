@@ -36,6 +36,7 @@ target_compile_options(autofusion_ut PRIVATE ${ASCGEN_DT_COMPILE_OPTION}
 
 target_include_directories(autofusion_ut PUBLIC
         ${AUTOFUSE_ROOT_DIR}
+        ${CODE_ROOT_DIR}
         ${CODE_ROOT_DIR}/../../../../
         ${CODE_ROOT_DIR}/../../../../tests/autofuse/framework/easy_graph/include
         ${CODE_ROOT_DIR}/../../../../tests/autofuse/framework/ge_graph_dsl/include

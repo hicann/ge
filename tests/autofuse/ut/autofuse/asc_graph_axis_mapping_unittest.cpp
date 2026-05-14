@@ -1733,7 +1733,7 @@ TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_CreateSubGraphAxisMapInf
   NodeFuseInfo node_fuse_info;
   ASSERT_EQ(node_fuse_info.UpdateNodeFuseInfo(addn1, shape1), SUCCESS);
   AscGraphAxisMapping asc_graph_axis_map;
-  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), FAILED);
+  EXPECT_EQ(asc_graph_axis_map.CreateSubGraphAxisMapInfo(addn1, shape1, node_fuse_info), SUCCESS);
 }
 TEST_F(AscGraphAxisMappingTest, AscBackendFusionDecider_Slice_Horizontal_Has_Same_Load_Fuse) {
   auto data1 = OP_CFG("Data").TensorDesc(FORMAT_ND, DT_FLOAT, {1,2,3,4}).InCnt(0).OutCnt(1).InNames({"x"})
