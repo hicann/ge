@@ -901,15 +901,13 @@ TEST_F(VfPartition, cast_fused) {
   ::ascir::utils::DumpImplGraphs({graph}, "AfterPartition");
   std::vector<ge::AscGraph> sub_graphs;
   EXPECT_EQ(graph.GetAllSubGraphs(sub_graphs), ge::SUCCESS);
-  // Cast VF融合限制放开后，DT_FLOAT16→DT_FLOAT 和 DT_FLOAT→DT_FLOAT16 都支持VF融合
-  // 所有算子融合到单个VF子图，只生成1个子图
-  ASSERT_EQ(sub_graphs.size(), 1UL);
+  ASSERT_EQ(sub_graphs.size(), 2UL);
 
-  auto cast_node = sub_graphs[0].FindNode("cast");
+  auto cast_node = sub_graphs[1].FindNode("cast");
   EXPECT_NE(cast_node, nullptr);
-  auto cast2_node = sub_graphs[0].FindNode("cast2");
+  auto cast2_node = sub_graphs[1].FindNode("cast2");
   EXPECT_NE(cast2_node, nullptr);
-  auto exp2_node = sub_graphs[0].FindNode("exp2");
+  auto exp2_node = graph.FindNode("exp2");
   EXPECT_NE(exp2_node, nullptr);
 }
 

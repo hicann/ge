@@ -4741,9 +4741,7 @@ TEST_F(TestOptimizerV2, MatmulAndCastBroadcastAdd) {
   }
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 5) {
-      // Cast VF融合限制放开后，DT_FLOAT→DT_FLOAT16 支持VF融合
-      // Cast+Broadcast+Add 融合成 VectorFunc，节点ID映射发生变化，id=5 现在对应 Store
-      EXPECT_EQ(node->GetOpDesc()->GetType(), "Store");
+      EXPECT_EQ(node->GetOpDesc()->GetType(), "Add");
     }
   }
 }
@@ -5377,9 +5375,7 @@ TEST_F(TestOptimizerV2, MatmulAndCastAdd) {
   }
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 5) {
-      // Cast VF融合限制放开后，DT_FLOAT→DT_FLOAT16 支持VF融合
-      // Cast+Add 融合成 VectorFunc，节点ID映射发生变化，id=5 现在对应 Store
-      EXPECT_EQ(node->GetOpDesc()->GetType(), "Store");
+      EXPECT_EQ(node->GetOpDesc()->GetType(), "VectorFunc");
     }
   }
 }
@@ -5491,9 +5487,7 @@ TEST_F(TestOptimizerV2, MatmulAndCastMultiRefsAdd) {
   }
   for (const auto &node : fused_scheduled_result.node_idx_to_scheduled_results[0][0].schedule_groups[0].impl_graphs[0].GetAllNodes()) {
     if (node->GetOpDesc()->GetId() == 3) {
-      // Cast VF融合限制放开后，DT_FLOAT→DT_FLOAT16 支持VF融合
-      // Cast+Add 融合成 VectorFunc，节点ID映射发生变化，id=3 现在对应 Store
-      EXPECT_EQ(node->GetOpDesc()->GetType(), "Store");
+      EXPECT_EQ(node->GetOpDesc()->GetType(), "Add");
     }
   }
 }
