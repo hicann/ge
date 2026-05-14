@@ -71,6 +71,15 @@ class Om2CodegenModelBuilder {
                                     const std::string op_type,
                                     const std::string &kernel_name,
                                     const std::string &aicpu_kernel_sign) ;
+  static Status BuildKernelRegistryForCustAicpu(Om2CodegenModel &codegen_model,
+                                                 const OpDescPtr &op_desc,
+                                                 const std::string &op_type,
+                                                 const std::string &kernel_name,
+                                                 const std::string &kernel_sign);
+  static Status BuildKernelRegistryForTFAicpu(Om2CodegenModel &codegen_model, const std::string op_type,
+                                                const std::string &tf_aicpu_kernel_sign);
+  static Status BuildKernelRegistryForTFAicpuSession(Om2CodegenModel &codegen_model, const std::string op_type,
+                                             const std::string &tf_aicpu_kernel_sign);
   std::unordered_map<int64_t, OpDescPtr> op_desc_by_index_;
   std::unordered_map<int64_t, OpInputEdges> op_id_to_input_edges_;
   std::unordered_map<int64_t, std::string> weight_offset_to_varname_;

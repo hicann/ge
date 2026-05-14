@@ -451,6 +451,24 @@ struct ArgsInfo {
   size_t size;
 };
 
+struct TfAiCpuExInfo {
+  uint32_t fwkKernelType;
+  uint32_t fwkOperateType;
+  uint64_t sessionID;
+  uint64_t stepIDAddr;
+  uint64_t kernelID;
+  uint64_t nodeDefLen;
+  uint64_t nodeDefBuf;
+  uint64_t funDefLibLen;
+  uint64_t funDefLibBuf;
+  uint64_t inputOutputLen;
+  uint64_t inputOutputBuf;
+  uint64_t workspaceBaseAddr;
+  uint64_t inputOutputAddr;
+  uint64_t extInfoLen;
+  uint64_t extInfoAddr;
+};
+
 class ScopeGuard {
   public:
     ScopeGuard(const ScopeGuard &) = delete;

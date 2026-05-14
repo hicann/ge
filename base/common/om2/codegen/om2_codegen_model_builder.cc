@@ -22,10 +22,12 @@
 #include "graph/utils/op_type_utils.h"
 #include "graph/utils/tensor_utils.h"
 #include "framework/common/types.h"
+#include "graph/op_kernel_bin.h"
 
 namespace ge {
 namespace {
 constexpr uint32_t kTrueBranchStreamCount = 1U;
+const std::string kTfSessionTask = "TfSessionTask";
 
 bool CompareInputModelIoItem(const InputModelIoItem &lhs, const InputModelIoItem &rhs) {
   if (lhs.index != rhs.index) {
@@ -546,6 +548,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistry(const GeModelPtr &model,
   GE_ASSERT_NOTNULL(model_task_def);
 
   const size_t task_size = static_cast<size_t>(model_task_def->task_size());
+  bool need_registry_tf_session_task = false;
   for (size_t i = 0U; i < task_size; ++i) {
     const auto &task_def = model_task_def->task(static_cast<int32_t>(i));
     const auto task_type = static_cast<ModelTaskType>(task_def.type());
@@ -567,6 +570,17 @@ Status Om2CodegenModelBuilder::BuildKernelRegistry(const GeModelPtr &model,
     const auto &op_desc = op_desc_it->second;
     GE_ASSERT_NOTNULL(op_desc);
 
+    if (task_type == ModelTaskType::MODEL_TASK_KERNEL_EX) {
+      const std::string op_type = op_desc->GetType();
+      const std::string tf_aicpu_kernel_sign = op_type;
+      if (codegen_model.kernel_registry.func_handle_indices.find(tf_aicpu_kernel_sign) !=
+          codegen_model.kernel_registry.func_handle_indices.end()) {
+        continue;
+      }
+      GE_ASSERT_SUCCESS(BuildKernelRegistryForTFAicpu(codegen_model, op_type, tf_aicpu_kernel_sign));
+      need_registry_tf_session_task = true;
+      continue;
+    }
     const auto &kernel_name = task_def.kernel().kernel_name();
     auto kernel_type = Om2CodegenUtils::IsAllKernel(task_type) ? task_def.kernel_with_handle().context().kernel_type()
                                                                : task_def.kernel().context().kernel_type();
@@ -592,10 +606,25 @@ Status Om2CodegenModelBuilder::BuildKernelRegistry(const GeModelPtr &model,
       continue;
     }
 
+    if (static_cast<ge::ccKernelType>(kernel_type) == ge::ccKernelType::CUST_AI_CPU) {
+      const std::string op_type = op_desc->GetType();
+      const std::string cust_aicpu_kernel_sign = op_type + kernel_name;
+      if (codegen_model.kernel_registry.func_handle_indices.find(cust_aicpu_kernel_sign) !=
+          codegen_model.kernel_registry.func_handle_indices.end()) {
+        continue;
+      }
+      GE_ASSERT_SUCCESS(BuildKernelRegistryForCustAicpu(codegen_model, op_desc, op_type, kernel_name,
+                                                        cust_aicpu_kernel_sign));
+      continue;
+    }
+
     REPORT_INNER_ERR_MSG("E19999", "Unsupported task type %d", static_cast<int32_t>(task_type));
     GELOGE(FAILED, "[OM2] Unsupported task type %d, task def %s", static_cast<int32_t>(task_type),
            task_def.ShortDebugString().c_str());
     return FAILED;
+  }
+  if (need_registry_tf_session_task) {
+    GE_ASSERT_SUCCESS(BuildKernelRegistryForTFAicpuSession(codegen_model, kTfSessionTask, kTfSessionTask));
   }
   codegen_model.runtime.kernel_bin_num = static_cast<uint32_t>(codegen_model.kernel_registry.binaries.size());
   return SUCCESS;
@@ -639,6 +668,59 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicpu(Om2CodegenModel &code
                                                                       func_handle_index});
   codegen_model.kernel_registry.func_handle_indices.emplace(aicpu_kernel_sign, func_handle_index);
   return SUCCESS;
+}
+
+Status Om2CodegenModelBuilder::BuildKernelRegistryForCustAicpu(Om2CodegenModel &codegen_model,
+                                                               const OpDescPtr &op_desc,
+                                                               const std::string &op_type,
+                                                               const std::string &kernel_name,
+                                                               const std::string &kernel_sign) {
+  const auto cust_aicpu_bin_ptr = op_desc->TryGetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, CustAICPUKernelPtr());
+  GE_ASSERT_NOTNULL(cust_aicpu_bin_ptr);
+  const std::string file_name = op_desc->GetName();
+  const uint32_t func_handle_index =
+      static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+  codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{KernelBinaryKind::kCustAicpu,
+                                                                      kernel_name,
+                                                                      file_name,
+                                                                      op_type,
+                                                                      "",
+                                                                      "",
+                                                                      "",
+                                                                      func_handle_index});
+  codegen_model.kernel_registry.func_handle_indices.emplace(kernel_sign, func_handle_index);
+  return SUCCESS;
+}
+
+Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpu(Om2CodegenModel &codegen_model,
+ 	                                                              const std::string op_type,
+ 	                                                              const std::string &tf_aicpu_kernel_sign) {
+  const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+  codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{KernelBinaryKind::kAicpu,
+    "TFOperateAPI",
+    "",
+    op_type,
+    "libtf_kernels.so",
+    "TFKernel",
+    "",
+    func_handle_index});
+  codegen_model.kernel_registry.func_handle_indices.emplace(tf_aicpu_kernel_sign, func_handle_index);
+  return SUCCESS;
+}
+
+Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpuSession(Om2CodegenModel &codegen_model,
+  const std::string op_type, const std::string &tf_aicpu_kernel_sign) {
+  const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+  codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{KernelBinaryKind::kAicpu,
+    "TFOperateAPI",
+    "",
+    op_type,
+    "libtf_kernels.so",
+    "TFKernel",
+    "",
+    func_handle_index});
+  codegen_model.kernel_registry.func_handle_indices.emplace(tf_aicpu_kernel_sign, func_handle_index);
+ 	return SUCCESS;
 }
 
 Status Om2CodegenModelBuilder::BuildTaskSemantics(const GeModelPtr &model,

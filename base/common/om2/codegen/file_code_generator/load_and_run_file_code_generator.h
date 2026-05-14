@@ -27,6 +27,9 @@ class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
   MethodDef *BuildGetRtModelHandleMethod();
   MethodDef *BuildRunAsyncMethod(const Om2CodegenModel &codegen_model);
   MethodDef *BuildRunMethod(const Om2CodegenModel &codegen_model);
+  StructDecl *BuildLaunchKernelCfgHolder() const;
+  StructDecl *BuildLaunchKernelConfig() const;
+  FunctionDef *BuildAssembleLaunchConfig() const;
 
  private:
   Status BuildLoadBody(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model,

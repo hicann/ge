@@ -40,6 +40,7 @@ const std::unordered_set<ModelTaskType> kSupportedTaskTypes = {
     ModelTaskType::MODEL_TASK_MEMCPY_ASYNC,
     ModelTaskType::MODEL_TASK_MEMCPY_ADDR_ASYNC,
     ModelTaskType::MODEL_TASK_DSA,
+    ModelTaskType::MODEL_TASK_KERNEL_EX,
 };
 }
 std::string Om2CodegenUtils::GetKernelNameWithExtension(const std::string &kernel_name) {
@@ -91,7 +92,8 @@ bool Om2CodegenUtils::RequireBinaryKernel(const ModelTaskType model_task_type) {
          model_task_type == ModelTaskType::MODEL_TASK_ALL_KERNEL ||
          model_task_type == ModelTaskType::MODEL_TASK_VECTOR_KERNEL ||
          model_task_type == ModelTaskType::MODEL_TASK_VECTOR_ALL_KERNEL ||
-         model_task_type == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL;
+         model_task_type == ModelTaskType::MODEL_TASK_PREPROCESS_KERNEL ||
+         model_task_type == ModelTaskType::MODEL_TASK_KERNEL_EX;
 }
 
 bool Om2CodegenUtils::IsAllKernel(const ModelTaskType task_type) {

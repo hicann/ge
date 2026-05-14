@@ -326,6 +326,152 @@ GeRootModelPtr CreateGeRootModelWithAicpuOp() {
   return ge_root_model;
 }
 
+GeRootModelPtr CreateGeRootModelWithCustAicpuOp() {
+  auto graph = gert::ShareGraph::Aicpu4thGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  gert::AiCpuCCTaskDefFaker aicpu_task_def_faker;
+  auto ge_root_model = builder.AddTaskDef("add1", aicpu_task_def_faker.SetNeedMemcpy(false))
+                              .AddTaskDef("add2", aicpu_task_def_faker.SetNeedMemcpy(false))
+                              .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def != nullptr) {
+    for (int32_t i = 0; i < model_task_def->task_size(); ++i) {
+      auto *task_def = model_task_def->mutable_task(i);
+      if ((task_def != nullptr) && task_def->has_kernel()) {
+        // kernel_type=7 is CUST_AI_CPU, do NOT override to 6 (AI_CPU)
+        auto ext_info = GetFakeExtInfo();
+        auto kernel_def = task_def->mutable_kernel();
+        AicpuTaskArgs args = {};
+        args.head.length = sizeof(args);
+        args.head.ioAddrNum = 3;
+        kernel_def->set_args(reinterpret_cast<const char *>(&args), args.head.length);
+        kernel_def->set_args_size(args.head.length);
+        kernel_def->set_kernel_ext_info(ext_info.c_str(), ext_info.size());
+        kernel_def->set_kernel_ext_info_size(ext_info.size());
+      }
+    }
+  }
+
+  // Set CUST_AICPU kernel binary on op_desc extended attributes
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() != DATA) && (op_desc->GetType() != NETOUTPUT)) {
+      std::vector<char> kernel_bin(64, '\0');
+      auto cust_aicpu_kernel = std::make_shared<ge::OpKernelBin>("libcust_aicpu_kernel.so", std::move(kernel_bin));
+      op_desc->SetExtAttr(ge::OP_EXTATTR_CUSTAICPU_KERNEL, cust_aicpu_kernel);
+      (void)ge::AttrUtils::SetStr(op_desc, "kernelSo", "libcust_aicpu_kernel.so");
+    }
+  }
+
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  return ge_root_model;
+}
+
+GeRootModelPtr CreateGeRootModelWithTfAicpuOp() {
+  auto graph = gert::ShareGraph::Aicpu4thGraph();
+  graph->TopologicalSorting();
+  for (const auto &node : graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == "Add")) {
+      op_desc->AppendIrInput("x1", kIrInputRequired);
+      op_desc->AppendIrInput("x2", kIrInputRequired);
+      op_desc->AppendIrOutput("y", kIrOutputRequired);
+    }
+  }
+  gert::GeModelBuilder builder(graph);
+  gert::AiCpuTfTaskDefFaker tf_aicpu_task_def_faker;
+  gert::AiCpuCCTaskDefFaker aicpu_task_def_faker;
+  auto ge_root_model = builder.AddTaskDef("add1", tf_aicpu_task_def_faker)
+                              .AddTaskDef("add2", aicpu_task_def_faker.SetNeedMemcpy(false))
+                              .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if ((op_desc->GetType() == DATA)) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def != nullptr) {
+    for (int32_t i = 0; i < model_task_def->task_size(); ++i) {
+      auto *task_def = model_task_def->mutable_task(i);
+      if ((task_def != nullptr) && task_def->has_kernel_ex()) {
+        auto ext_info = GetFakeExtInfo();
+        auto kernel_ex_def = task_def->mutable_kernel_ex();
+        AicpuTaskArgs args = {};
+        args.head.length = sizeof(args);
+        args.head.ioAddrNum = 3;
+        kernel_ex_def->set_args(reinterpret_cast<const char *>(&args), args.head.length);
+        kernel_ex_def->set_args_size(args.head.length);
+        kernel_ex_def->set_kernel_ext_info(ext_info.c_str(), ext_info.size());
+        kernel_ex_def->set_kernel_ext_info_size(ext_info.size());
+        kernel_ex_def->set_task_info("kernel_ex_test_task");
+        kernel_ex_def->set_task_info_size(kernel_ex_def->task_info().size());
+      }
+      if ((task_def != nullptr) && task_def->has_kernel()) {
+        task_def->mutable_kernel()->mutable_context()->set_kernel_type(6U);
+        auto ext_info = GetFakeExtInfo();
+        auto kernel_def = task_def->mutable_kernel();
+        AicpuTaskArgs args = {};
+        args.head.length = sizeof(args);
+        args.head.ioAddrNum = 3;
+        kernel_def->set_args(reinterpret_cast<const char *>(&args), args.head.length);
+        kernel_def->set_args_size(args.head.length);
+        kernel_def->set_kernel_ext_info(ext_info.c_str(), ext_info.size());
+        kernel_def->set_kernel_ext_info_size(ext_info.size());
+      }
+    }
+  }
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  return ge_root_model;
+}
+
 GeRootModelPtr CreateGeRootModelWithAicoreOpOfDynamicIo() {
   auto graph = std::make_shared<ComputeGraph>("g1");
   GeTensorDesc tensor_desc(GeShape({1, 1, 224, 224}), FORMAT_NCHW, DT_FLOAT);
@@ -901,6 +1047,72 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
       "fake_test/data/constants/model_0_constants_config.json",
       "fake_test/data/model_0/model_meta.json",
     "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/manifest.json",
+  };
+  EXPECT_EQ(file_names.size(), expect_files.size());
+  for (const auto &file_name : file_names) {
+    EXPECT_EQ(expect_files.count(file_name), 1);
+  }
+}
+
+TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithCustAicpuOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+  const auto file_names = archive.ListFiles();
+  const std::set<std::string> expect_files = {
+      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/g1_interface.h",
+      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/libg1_om2.so",
+      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/model_0/model_meta.json",
+      "fake_test/data/model_0/debug/op_attr.json",
+      "fake_test/manifest.json",
+  };
+  EXPECT_EQ(file_names.size(), expect_files.size());
+  for (const auto &file_name : file_names) {
+    EXPECT_EQ(expect_files.count(file_name), 1);
+  }
+}
+
+TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithTfAicpuOp) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithTfAicpuOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+  ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+  const auto file_names = archive.ListFiles();
+  const std::set<std::string> expect_files = {
+      "fake_test/data/model_0/runtime/g1_kernel_reg.cpp",
+      "fake_test/data/model_0/runtime/g1_resources.cpp",
+      "fake_test/data/model_0/runtime/g1_args_manager.cpp",
+      "fake_test/data/model_0/runtime/g1_load_and_run.cpp",
+      "fake_test/data/model_0/runtime/g1_interface.h",
+      "fake_test/data/model_0/runtime/Makefile",
+      "fake_test/data/model_0/runtime/libg1_om2.so",
+      "fake_test/data/constants/model_0_constants_config.json",
+      "fake_test/data/model_0/model_meta.json",
+      "fake_test/data/model_0/debug/op_attr.json",
       "fake_test/manifest.json",
   };
   EXPECT_EQ(file_names.size(), expect_files.size());

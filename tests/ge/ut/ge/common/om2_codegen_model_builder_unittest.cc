@@ -398,6 +398,53 @@ GeRootModelPtr CreateGeRootModelWithAicpuOp() {
   return ge_root_model;
 }
 
+GeRootModelPtr CreateGeRootModelWithTfAicpuOp() {
+  auto graph = gert::ShareGraph::Aicpu4thGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  gert::AiCpuTfTaskDefFaker tf_aicpu_task_def_faker;
+  gert::AiCpuCCTaskDefFaker aicpu_task_def_faker;
+  auto ge_root_model = builder.AddTaskDef("add1", tf_aicpu_task_def_faker)
+                              .AddTaskDef("add2", aicpu_task_def_faker.SetNeedMemcpy(false))
+                              .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def != nullptr) {
+    for (int32_t i = 0; i < model_task_def->task_size(); ++i) {
+      auto *task_def = model_task_def->mutable_task(i);
+      if ((task_def != nullptr) && task_def->has_kernel()) {
+        task_def->mutable_kernel()->mutable_context()->set_kernel_type(6U);
+      }
+    }
+  }
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  return ge_root_model;
+}
+
 GeRootModelPtr CreateGeRootModelWithAicoreChainOp() {
   auto graph = gert::ShareGraph::Aicpu4thGraph();
   graph->TopologicalSorting();
@@ -1408,5 +1455,83 @@ TEST_F(Om2CodegenModelBuilderUt, RenderDistribution_UsesSemanticSimpleTaskContri
   EXPECT_EQ(code.find("stream_list_[101]"), std::string::npos);
   EXPECT_EQ(code.find("stream_list_[102]"), std::string::npos);
   EXPECT_EQ(code.find("stream_list_[103]"), std::string::npos);
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistry_TFAicpu_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithTfAicpuOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+
+  // TF AiCPU (add1) + CC AiCPU (add2) + TF session task
+  ASSERT_EQ(doc.kernel_registry.binaries.size(), 3U);
+  EXPECT_EQ(doc.runtime.kernel_bin_num, 3U);
+
+  // add1 is a TF AiCPU task (MODEL_TASK_KERNEL_EX)
+  const auto &tf_binary = doc.kernel_registry.binaries[0];
+  EXPECT_EQ(tf_binary.kind, KernelBinaryKind::kAicpu);
+  EXPECT_EQ(tf_binary.kernel_name, "TFOperateAPI");
+  EXPECT_EQ(tf_binary.op_type, "Add");
+  EXPECT_EQ(tf_binary.so_name, "libtf_kernels.so");
+  EXPECT_EQ(tf_binary.op_kernel_lib, "TFKernel");
+  EXPECT_EQ(tf_binary.func_handle_index, 0U);
+
+  // add2 is a CC AiCPU task (MODEL_TASK_KERNEL)
+  const auto &aicpu_binary = doc.kernel_registry.binaries[1];
+  EXPECT_EQ(aicpu_binary.kind, KernelBinaryKind::kAicpu);
+  EXPECT_EQ(aicpu_binary.op_type, "Add");
+  EXPECT_EQ(aicpu_binary.op_kernel_lib, "AICPUKernel");
+  EXPECT_EQ(aicpu_binary.func_handle_index, 1U);
+
+  // TF session task registered automatically
+  const auto &session_binary = doc.kernel_registry.binaries[2];
+  EXPECT_EQ(session_binary.kind, KernelBinaryKind::kAicpu);
+  EXPECT_EQ(session_binary.kernel_name, "TFOperateAPI");
+  EXPECT_EQ(session_binary.func_handle_index, 2U);
+
+  ASSERT_EQ(doc.kernel_registry.func_handle_indices.size(), 3U);
+  EXPECT_EQ(doc.kernel_registry.func_handle_indices.at("Add"), 0U);
+  EXPECT_NE(doc.kernel_registry.func_handle_indices.find("TfSessionTask"),
+            doc.kernel_registry.func_handle_indices.end());
+}
+
+TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistry_TFAicpu_DuplicateOpType_Ok) {
+  auto graph = gert::ShareGraph::Aicpu4thGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  gert::AiCpuTfTaskDefFaker tf_aicpu_task_def_faker;
+  auto ge_root_model = builder.AddTaskDef("add1", tf_aicpu_task_def_faker)
+                              .AddTaskDef("add2", tf_aicpu_task_def_faker)
+                              .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return;
+    }
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+    }
+  }
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  Om2CodegenModel doc;
+  ASSERT_EQ(BuildCodegenModel(ge_root_model, doc), SUCCESS);
+
+  // Two TF AiCPU tasks with same op_type "Add" should only register once + TF session
+  ASSERT_EQ(doc.kernel_registry.binaries.size(), 2U);
+  EXPECT_EQ(doc.kernel_registry.func_handle_indices.count("Add"), 1U);
 }
 }  // namespace ge

@@ -25,7 +25,8 @@ def build_matmul_add_graph():
     builder = GraphBuilder("MakeMatmulAddGraph")
     # 2、创建图输入节点
     input1, input2 = builder.create_inputs(2)
-    input3_data = np.array([[0.1, 0.1], [0.1, 0.1]], dtype=np.float32)
+    # input3的值与pattern不同
+    input3_data = np.array([[0.1, 0.1], [0.2, 0.2]], dtype=np.float32)
     input3 = Tensor(
         input3_data.flatten().tolist(),
         None,
@@ -128,6 +129,6 @@ def run_matmul_add_graph(graph) -> int:
         print("[Success] GE环境已清理")
 
 
-graph = build_matmul_add_graph()
-dump_matmul_add_graph(graph)
-run_matmul_add_graph(graph)
+origin_graph = build_matmul_add_graph()
+dump_matmul_add_graph(origin_graph)
+run_matmul_add_graph(origin_graph)

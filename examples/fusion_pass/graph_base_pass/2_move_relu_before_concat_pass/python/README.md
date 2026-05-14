@@ -18,7 +18,7 @@
 - Python 环境可导入 ES API（通常来自 run 包/ops 包）：
   - `ge.es.math.ConcatV2`
   - `ge.es.nn.Relu`（若环境中没有该符号，请确认 ES Python API 安装完整）
-- 已构建并安装/可导入 GE Python 包（包含 `ge.passes._ge_pass_native` 新增的 GraphRewriter 绑定）
+- 可导入 GE Python 包（含 `ge.graph`、`ge.passes` 及 pass 加载链路）
 
 ## 使用方式
 

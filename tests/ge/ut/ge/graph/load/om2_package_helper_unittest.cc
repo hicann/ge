@@ -18,6 +18,7 @@
 #undef private
 #include "framework/common/types.h"
 #include "common/helper/om2/json_file.h"
+#include "common/helper/om2/om2_package_contants.h"
 #include "common/model/ge_model.h"
 #include "file_utils.h"
 #include <algorithm>
@@ -27,6 +28,7 @@
 #include "common/env_path.h"
 #include "mmpa/mmpa_api.h"
 #include "graph/debug/ge_attr_define.h"
+#include "graph/op_kernel_bin.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/file_utils.h"
 #include <cstdio>
@@ -639,5 +641,121 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_EmptyOriginalOpNames_GenValidOpAttrJso
   const auto &attr_value = raw_json.at("add1").at("_datadump_original_op_names");
   EXPECT_TRUE(attr_value.at("value").is_array());
   EXPECT_EQ(attr_value.at("value").size(), 0U);
+}
+
+TEST_F(Om2PackageHelperUt, SaveCustAICpuKernels_Ok_SingleKernel) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_cust_aicpu.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  const char kernel_data[] = "fake_cust_aicpu_kernel_bin";
+  std::vector<char> kernel_bin(kernel_data, kernel_data + strlen(kernel_data));
+  auto cust_kernel = std::make_shared<ge::OpKernelBin>("libcust_aicpu_kernel.so", std::move(kernel_bin));
+  CustAICPUKernelStore cust_aicpu_kernel_store;
+  cust_aicpu_kernel_store.AddCustAICPUKernel(cust_kernel);
+  ASSERT_TRUE(cust_aicpu_kernel_store.Build());
+  ge_model->SetCustAICPUKernelStore(cust_aicpu_kernel_store);
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  add_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, cust_kernel);
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveCustAICpuKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  const auto file_names = archive.ListFiles();
+  ASSERT_EQ(file_names.size(), 1U);
+  const std::string &kernel_entry = file_names[0];
+  const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
+  EXPECT_NE(kernel_entry.find(kernel_bin_dir), std::string::npos);
+  EXPECT_NE(kernel_entry.find("_CustAicpuKernel.o"), std::string::npos);
+
+  size_t extracted_size = 0;
+  const auto extracted_buf = archive.ExtractToMem(kernel_entry, extracted_size);
+  ASSERT_NE(extracted_buf, nullptr);
+  EXPECT_EQ(extracted_size, strlen(kernel_data));
+  EXPECT_EQ(memcmp(extracted_buf.get(), kernel_data, extracted_size), 0);
+}
+
+TEST_F(Om2PackageHelperUt, SaveCustAICpuKernels_Ok_DuplicateKernelOnlyOnce) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_dup_cust_aicpu.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  const char kernel_data[] = "fake_cust_aicpu_kernel_bin";
+  std::vector<char> kernel_bin(kernel_data, kernel_data + strlen(kernel_data));
+  auto cust_kernel = std::make_shared<ge::OpKernelBin>("libcust_aicpu_kernel.so", std::move(kernel_bin));
+  ge_model->GetCustAICPUKernelStore().AddCustAICPUKernel(cust_kernel);
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add1_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add1_desc->AddInputDesc(tensor_desc);
+  (void)add1_desc->AddInputDesc(tensor_desc);
+  (void)add1_desc->AddOutputDesc(tensor_desc);
+  add1_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, cust_kernel);
+  auto add1_node = graph->AddNode(add1_desc);
+  ASSERT_NE(add1_node, nullptr);
+
+  auto add2_desc = std::make_shared<OpDesc>("add2", "Add");
+  (void)add2_desc->AddInputDesc(tensor_desc);
+  (void)add2_desc->AddInputDesc(tensor_desc);
+  (void)add2_desc->AddOutputDesc(tensor_desc);
+  add2_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, cust_kernel);
+  auto add2_node = graph->AddNode(add2_desc);
+  ASSERT_NE(add2_node, nullptr);
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveCustAICpuKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveCustAICpuKernels_Ok_EmptyKernelStore) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_empty_cust_aicpu.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveCustAICpuKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveCustAICpuKernels_Ok_KernelNotInStore) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_missing_cust_aicpu.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  auto cust_kernel = std::make_shared<ge::OpKernelBin>("libcust_aicpu_kernel.so", std::vector<char>(64, '\0'));
+  add_desc->SetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL, cust_kernel);
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveCustAICpuKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
 }
 }  // namespace ge

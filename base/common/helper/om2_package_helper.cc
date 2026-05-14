@@ -238,7 +238,9 @@ Status Om2PackageHelper::SaveToOmModel(const GeModelPtr &ge_model, const std::st
   GE_ASSERT_SUCCESS(SaveConstants(zip_writer, ge_model, 0UL, const_metas));
   // 3. Save TBE kernels
   GE_ASSERT_SUCCESS(SaveTbeKernels(zip_writer, ge_model));
-  // 4. Save meta infos of the compiled model
+  // 4. Save cust AI cpu kernels
+  GE_ASSERT_SUCCESS(SaveCustAICpuKernels(zip_writer, ge_model));
+  // 5. Save meta infos of the compiled model
   GE_ASSERT_SUCCESS(SaveModelInfo(zip_writer, ge_model, 0UL));
   // 5. Save operator attributes
   GE_ASSERT_SUCCESS(SaveOpAttrJson(zip_writer, ge_model, 0UL));
@@ -323,6 +325,36 @@ Status Om2PackageHelper::SaveTbeKernels(std::shared_ptr<ZipArchiveWriter> &zip_w
     }
   }
   GELOGI("[OM2] Successfully saved all TBE kernels");
+  return SUCCESS;
+}
+
+Status Om2PackageHelper::SaveCustAICpuKernels(std::shared_ptr<ZipArchiveWriter> &zip_writer, const GeModelPtr &ge_model) {
+  GELOGI("[OM2] Begin to save cust aicpu kernels");
+  const auto &graph = ge_model->GetGraph();
+  GE_ASSERT_NOTNULL(graph);
+  const auto &cust_aicpu_kernel_store = ge_model->GetCustAICPUKernelStore();
+  if (cust_aicpu_kernel_store.DataSize() > 0U) {
+    const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
+    std::unordered_set<std::string> added_kernels;
+    for (const auto &node : graph->GetNodes(graph->GetGraphUnknownFlag())) {
+      const auto op_desc = node->GetOpDesc();
+      GE_IF_BOOL_EXEC(op_desc == nullptr, continue);
+      const auto cust_aicpu_kernel = op_desc->TryGetExtAttr(OP_EXTATTR_CUSTAICPU_KERNEL,
+        CustAICPUKernelPtr());
+      GE_IF_BOOL_EXEC(cust_aicpu_kernel == nullptr, continue);
+      std::string kernel_name = cust_aicpu_kernel->GetName();
+      auto kernel_bin = cust_aicpu_kernel_store.FindKernel(kernel_name);
+      if ((kernel_bin != nullptr) && (added_kernels.count(kernel_name) == 0)) {
+        GELOGD("[OM2] Save kernel for node [%s], kernel name is [%s]", node->GetName().c_str(), kernel_name.c_str());
+        const size_t hash_id = std::hash<std::string>{}(std::string(kernel_bin->GetBinData(),
+          kernel_bin->GetBinData() + kernel_bin->GetBinDataSize()));
+        const auto entry_path = kernel_bin_dir + std::to_string(hash_id) + "_CustAicpuKernel.o";
+        GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kernel_bin->GetBinData(), kernel_bin->GetBinDataSize(), false));
+        added_kernels.insert(cust_aicpu_kernel->GetName());
+      }
+    }
+  }
+  GELOGI("[OM2] Successfully saved all CustAICpu kernels");
   return SUCCESS;
 }
 

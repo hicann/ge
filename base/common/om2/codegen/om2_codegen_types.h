@@ -206,6 +206,7 @@ struct LaunchCallSemantic {
   uint32_t stream_id{0U};
   LaunchConfigSemantic config;
   uint32_t func_handle_index{0U};
+  uint32_t tf_session_func_handle_index{0U};
 };
 
 enum class AddrValueKind : int32_t {

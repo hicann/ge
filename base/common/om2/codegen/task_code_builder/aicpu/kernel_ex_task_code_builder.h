@@ -11,6 +11,7 @@
 #ifndef AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_AICPU_KERNEL_EX_TASK_CODE_GENERATOR_H_
 #define AIR_CXX_BASE_COMMON_OM2_CODEGEN_TASK_CODE_GENERATOR_AICPU_KERNEL_EX_TASK_CODE_GENERATOR_H_
 
+#include "common/om2/codegen/om2_aicpu_ext_info_handler.h"
 #include "common/om2/codegen/task_code_builder/task_code_builder.h"
 
 namespace ge {
@@ -19,7 +20,40 @@ class KernelExTaskCodeBuilder : public TaskCodeBuilder {
   using TaskCodeBuilder::TaskCodeBuilder;
   Status RenderDistribution(std::vector<BodyItem> &items) override;
   Status RenderDistHelper(std::vector<DeclNode *> &items) override;
+  Status Contribute(TaskSemanticContributeContext &context) override;
   int64_t ParseOpIndex(const domi::TaskDef &task_def) override;
+
+private:
+  static std::string SerializeBytesToOctalString(const std::vector<uint8_t> &buffer);
+  Status InitIowAddrRefreshInfo(uint64_t current_offset);
+  Status InitLaunchInfo(const TaskSemanticContributeContext &context);
+  Status InitTaskExtInfo(const TaskSemanticContributeContext &context);
+  Status InitTaskExInfo(const TaskSemanticContributeContext &context);
+  Status InitArgsTableInfo(const TaskSemanticContributeContext &context);
+  Status RenderGetAddrInfo(std::vector<BodyItem> &items, std::vector<Arg> &args) const;
+  Expr *BuildLaunchConfigExpr(const LaunchConfigSemantic &launch_config) const;
+  VarRef AppendLaunchConfigSetup(size_t op_index, std::vector<BodyItem> &items) const;
+  FunctionDef *BuildAssembleTfAicpuArgs() const;
+  FunctionDef *BuildTfAicpuKernelTaskDistribute() const;
+  FunctionDef *BuildAssembleTfAicpuExSessionIdInfo() const;
+  FunctionDef *BuildAssembleTfAicpuExKernelIdInfo() const;
+  FunctionDef *BuildAssembleTfAicpuExWorkSpaceAddrInfo() const;
+  FunctionDef *BuildAssembleTfAicpuExInputOutputAddrInfo() const;
+  FunctionDef *BuildAssembleTfAicpuExExtInfo() const;
+
+  KernelTaskSemantic semantic_;
+  rtMemType_t mem_type_{RT_MEMORY_HBM};
+  int32_t deploy_type_flag_{0};
+  aclrtMemcpyKind memcpy_kind_{ACL_MEMCPY_HOST_TO_DEVICE};
+  std::string task_def_kernel_ex_args_;
+  size_t task_def_kernel_ex_args_size_;
+  std::string task_def_kernel_ex_task_info_;
+  size_t task_def_kernel_ex_task_info_size_;
+  std::string task_def_kernel_ex_ext_info_;
+  size_t task_def_kernel_ex_ext_info_size_;
+  size_t ext_info_len_;
+  uint8_t *ext_info_;
+  std::vector<uint8_t> ext_info_buffer_;
 };
 }  // namespace ge
 
