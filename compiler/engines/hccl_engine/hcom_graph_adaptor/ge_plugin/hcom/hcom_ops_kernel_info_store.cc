@@ -1284,30 +1284,24 @@ HcclResult HcomOpsKernelInfoStore::GetInputCCLbufPtrAndIndirectInCCLbufPtr(const
                                                                            void *&commInputPtr, u64 &commInputSize,
                                                                            void *&indirectInCCLbufPtr,
                                                                            u64 &indirectCommInputSize) {
+  std::string groupName;
   if (hcomComm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
-    CHK_RET(GetInCCLbuffer(sGroup.c_str(), commInputPtr, commInputSize));
-    if (commInputPtr == nullptr || commInputSize == 0) {
-      CHK_RET(HcomCreateCommCCLbuffer(sGroup.c_str()));
-      CHK_RET(GetInCCLbuffer(sGroup.c_str(), commInputPtr, commInputSize));
-    }
-    CHK_RET(GetIndirectInCCLbuf(indirectInCCLbufPtr, indirectCommInputSize));
-    if (indirectInCCLbufPtr == nullptr || indirectCommInputSize == 0) {
-      CHK_RET(CreateIndirectCCLbuf());
-      CHK_RET(GetIndirectInCCLbuf(indirectInCCLbufPtr, indirectCommInputSize));
-    }
+    groupName = sGroup;
   } else {
     char *group = nullptr;
-    CHK_RET(GetGroupNameByOpBaseHcom(hcomComm, &group));
+    CHK_RET(HcomGetGroupNameByOpBase(hcomComm, &group));
+    groupName = group;
+  }
+  const char *group = groupName.c_str();
+  CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
+  if (commInputPtr == nullptr || commInputSize == 0) {
+    CHK_RET(HcomCreateCommCCLbuffer(group));
     CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
-    if (commInputPtr == nullptr || commInputSize == 0) {
-      CHK_RET(HcomCreateCommCCLbuffer(group));
-      CHK_RET(GetInCCLbuffer(group, commInputPtr, commInputSize));
-    }
+  }
+  CHK_RET(GetIndirectInCCLbuf(indirectInCCLbufPtr, indirectCommInputSize));
+  if (indirectInCCLbufPtr == nullptr || indirectCommInputSize == 0) {
+    CHK_RET(CreateIndirectCCLbuf());
     CHK_RET(GetIndirectInCCLbuf(indirectInCCLbufPtr, indirectCommInputSize));
-    if (indirectInCCLbufPtr == nullptr || indirectCommInputSize == 0) {
-      CHK_RET(CreateIndirectCCLbuf());
-      CHK_RET(GetIndirectInCCLbuf(indirectInCCLbufPtr, indirectCommInputSize));
-    }
   }
   return HCCL_SUCCESS;
 }
