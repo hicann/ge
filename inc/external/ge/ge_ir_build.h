@@ -34,6 +34,7 @@ namespace ge {
 const int32_t IR_MAJOR_VERSION = 1;
 const int32_t IR_MINOR_VERSION = 0;
 const int32_t IR_PATCH_VERSION = 0;
+typedef void* aclmdlModel;
 
 struct ModelBufferData {
   std::shared_ptr<uint8_t> data = nullptr;
@@ -201,6 +202,66 @@ GE_FUNC_VISIBILITY graphStatus aclgrphGenerateForOp(const AscendString &json_pat
  * @return graphStatus
  */
 GE_FUNC_VISIBILITY graphStatus aclgrphSetOpAttr(Graph &graph, aclgrphAttrType attr_type, const char_t *cfg_path);
+
+/**
+ * @ingroup AscendCL
+ * @brief compile model with om model
+ *
+ * @param graph_file      [IN] the model to be compiled
+ * @param build_options  [IN] build option
+ * @param model   [OUT] compiled model
+ * @retval GRAPH_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+GE_FUNC_VISIBILITY graphStatus aclgrphBuildModel(const char_t *graph_file, const std::map<AscendString, AscendString> &build_options, aclmdlModel **model);
+
+/**
+ * @ingroup AscendCL
+ * @brief compile model with model address
+ *
+ * @param graph_data      [IN] model memory address
+  * @param graph_size      [IN] model memory size
+ * @param build_options  [IN] build option
+ * @param model   [OUT] compiled model
+ * @retval GRAPH_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+GE_FUNC_VISIBILITY graphStatus aclgrphBuildModel(const void *graph_data, size_t graph_size, const std::map<AscendString, AscendString> &build_options, aclmdlModel **model);
+
+/**
+ * @ingroup AscendCL
+ * @brief save the compiled model
+ *
+ * @param model      [IN] compiled model
+ * @param output_file   [IN] the file to save model
+ * @retval GRAPH_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+GE_FUNC_VISIBILITY graphStatus aclgrphSaveModel(const char_t *output_file, const aclmdlModel *model);
+
+/**
+ * @ingroup AscendCL
+ * @brief save the compiled model
+ *
+ * @param model      [IN] compiled model
+ * @param data   [IN] save model memory address
+ * @param size   [IN] save model size
+ * @param realSize   [IN] the actual model size
+ * @retval GRAPH_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+GE_FUNC_VISIBILITY graphStatus aclgrphSaveModel(const void *data, size_t size, size_t *realSize, const aclmdlModel *model);
+
+/**
+ * @ingroup AscendCL
+ * @brief destroy compiled model
+ *
+ * @param model      [IN] compiled model
+ * @retval GRAPH_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+GE_FUNC_VISIBILITY graphStatus aclgrphDestroyModel(const aclmdlModel *model);
+
 
 };      // namespace ge
 #endif  // INC_EXTERNAL_GE_IR_BUILD_H_

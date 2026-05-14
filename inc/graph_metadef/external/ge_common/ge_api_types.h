@@ -682,6 +682,8 @@ static const char_t *const OPTION_EXPORT_COMPILE_STAT = ge::OPTION_EXPORT_COMPIL
 static const char_t *const OPTIMIZATION_SWITCH = ge::OPTIMIZATION_SWITCH;
 static const char_t *const INPUT_HINT_SHAPE = ge::INPUT_HINT_SHAPE;
 static const char_t *const OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES = ge::OPTION_OUTPUT_REUSE_INPUT_MEM_INDEXES;
+static const char_t *const EXEC_DEVICE_CONFIG_PATH = "ge.exec.exec_device_config_path";
+
 // for interface: aclgrphBuildModel
 #ifdef __GNUC__
 const std::set<std::string> ir_builder_suppported_options = {INPUT_FORMAT,
