@@ -204,7 +204,7 @@ GE_FUNC_VISIBILITY graphStatus aclgrphGenerateForOp(const AscendString &json_pat
 GE_FUNC_VISIBILITY graphStatus aclgrphSetOpAttr(Graph &graph, aclgrphAttrType attr_type, const char_t *cfg_path);
 
 /**
- * @ingroup AscendCL
+ * @ingroup GE
  * @brief compile model with om model
  *
  * @param graph_file      [IN] the model to be compiled
@@ -213,10 +213,10 @@ GE_FUNC_VISIBILITY graphStatus aclgrphSetOpAttr(Graph &graph, aclgrphAttrType at
  * @retval GRAPH_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
  */
-GE_FUNC_VISIBILITY graphStatus aclgrphBuildModel(const char_t *graph_file, const std::map<AscendString, AscendString> &build_options, aclmdlModel **model);
+GE_FUNC_VISIBILITY graphStatus aclgrphBuildModelFromFile(const char_t *graph_file, const std::map<AscendString, AscendString> &build_options, aclmdlModel **model);
 
 /**
- * @ingroup AscendCL
+ * @ingroup GE
  * @brief compile model with model address
  *
  * @param graph_data      [IN] model memory address
@@ -226,10 +226,10 @@ GE_FUNC_VISIBILITY graphStatus aclgrphBuildModel(const char_t *graph_file, const
  * @retval GRAPH_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
  */
-GE_FUNC_VISIBILITY graphStatus aclgrphBuildModel(const void *graph_data, size_t graph_size, const std::map<AscendString, AscendString> &build_options, aclmdlModel **model);
+GE_FUNC_VISIBILITY graphStatus aclgrphBuildModelFromData(const void *graph_data, size_t graph_size, const std::map<AscendString, AscendString> &build_options, aclmdlModel **model);
 
 /**
- * @ingroup AscendCL
+ * @ingroup GE
  * @brief save the compiled model
  *
  * @param model      [IN] compiled model
@@ -237,10 +237,10 @@ GE_FUNC_VISIBILITY graphStatus aclgrphBuildModel(const void *graph_data, size_t 
  * @retval GRAPH_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
  */
-GE_FUNC_VISIBILITY graphStatus aclgrphSaveModel(const char_t *output_file, const aclmdlModel *model);
+GE_FUNC_VISIBILITY graphStatus aclgrphSaveModel(const aclmdlModel *model, const char_t *output_file);
 
 /**
- * @ingroup AscendCL
+ * @ingroup GE
  * @brief save the compiled model
  *
  * @param model      [IN] compiled model
@@ -250,10 +250,10 @@ GE_FUNC_VISIBILITY graphStatus aclgrphSaveModel(const char_t *output_file, const
  * @retval GRAPH_SUCCESS The function is successfully executed.
  * @retval OtherValues Failure
  */
-GE_FUNC_VISIBILITY graphStatus aclgrphSaveModel(const void *data, size_t size, size_t *realSize, const aclmdlModel *model);
+GE_FUNC_VISIBILITY graphStatus aclgrphSaveModel(const aclmdlModel *model, const void *data, size_t size, size_t *realSize);
 
 /**
- * @ingroup AscendCL
+ * @ingroup GE
  * @brief destroy compiled model
  *
  * @param model      [IN] compiled model
