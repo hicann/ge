@@ -16,7 +16,8 @@ add_library(acl_mdl_impl SHARED
     model/acl_resource_manager.cpp
     model/init_callback_register.cpp
     types/tensor_desc_internal.cpp
-    ../common/json_parser.cpp
+    ../common/log_inner.cpp
+    ../common/prof_api_reg.cpp
 )
 
 target_include_directories(acl_mdl_impl PRIVATE
@@ -195,9 +196,8 @@ target_link_libraries(acl_mdl_impl_om2 PRIVATE
     unified_dlog    # ACL_LOG_INFO/ACL_LOG_ERROR/ACL_LOG_WARN (all source files)
     mmpa            # MmGetEnv/MmGetPid, platform abstraction (acl_resource_manager_om2.cpp)
     profapi_share   # ACL_PROFILING_REG, profiling registration (model_om2.cpp)
-    runtime         # gert::RtSession/CreateRtSession (acl_resource_manager_om2.cpp)
+    ge_common_base
     error_manager   # AclErrorLogManager::ReportInputError (model_common.cpp, model_config_om2.cpp)
-    gert            # gert::IsOm2Model/LoadOm2ExecutorFromData/Om2ModelExecutor (model_om2.cpp, acl_model_router.cpp)
     om2_executor    # gert::LoadOm2DataFromFile, executor->Run/GetModelDescInfo (model_om2.cpp)
     -Wl,--as-needed
 

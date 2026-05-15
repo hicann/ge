@@ -27,6 +27,11 @@ public:
     ~AclResourceManagerOm2();
     static AclResourceManagerOm2 &GetInstance();
 
+    bool IsRuntimeV2Enable(bool isModel) const
+    {
+        return isModel ? enableRuntimeV2ForModel_ : enableRuntimeV2ForSingleOp_;
+    }
+
     // OM2 Executor管理
     void AddOm2Executor(uint32_t &modelId,
                         std::unique_ptr<gert::Om2ModelExecutor> &&executor,
@@ -55,8 +60,10 @@ public:
 
 private:
     AclResourceManagerOm2();
-
+    void GetRuntimeV2Env();
 private:
+    bool enableRuntimeV2ForModel_ = true;
+    bool enableRuntimeV2ForSingleOp_ = true;
     std::unordered_map<uint32_t, std::shared_ptr<gert::Om2ModelExecutor>> om2ExecutorMap_{{0U, nullptr}};
     std::atomic_uint32_t modelIdGenerator_{std::numeric_limits<uint32_t>::max() / 2U};
     std::unordered_map<uint32_t, BundleModelInfo> bundleInfos_;

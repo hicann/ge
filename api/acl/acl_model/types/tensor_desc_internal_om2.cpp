@@ -13,17 +13,21 @@
 #include "utils/math_utils.h"
 #include "utils/string_utils.h"
 #include "common/prof_api_reg.h"
+#include "model/acl_resource_manager_om2.h"
+
 #include <sstream>
 
 // aclTensorDesc base method implementations for libacl_mdl_impl_om2.so.
-// OM2 always runs on v2 runtime, so storageDims is always initialized from dims.
 aclTensorDesc::aclTensorDesc(const aclDataType aclTensorDataType,
     const std::initializer_list<int64_t> shape, const aclFormat aclTensorFormat) :
     dataType(aclTensorDataType),
     format(aclTensorFormat),
-    dims(shape),
-    storageDims(shape)
-{}
+    dims(shape)
+{
+    if (acl::AclResourceManagerOm2::GetInstance().IsRuntimeV2Enable(false)) { // how to deal with it for model?
+        this->storageDims = dims;
+    }
+}
 
 aclTensorDesc::aclTensorDesc(const aclDataType aclTensorDataType,
     const size_t numDims, const int64_t *const aclTensorDims, const aclFormat aclTensorFormat) :
@@ -33,7 +37,9 @@ aclTensorDesc::aclTensorDesc(const aclDataType aclTensorDataType,
     for (size_t i = 0U; i < numDims; ++i) {
         this->dims.push_back(*(aclTensorDims + i));
     }
-    this->storageDims = dims;
+    if (acl::AclResourceManagerOm2::GetInstance().IsRuntimeV2Enable(false)) { // how to deal with it for model?
+        this->storageDims = dims;
+    }
 }
 
 aclTensorDesc::aclTensorDesc(const aclTensorDesc &tensorDesc)

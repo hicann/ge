@@ -18,6 +18,7 @@
 #include "common/error_codes_inner.h"
 #include "model/acl_model_impl.h"
 #include "model/acl_model_impl_om2.h"
+#include "model/acl_resource_manager_om2.h"
 
 namespace acl {
     void ConvertSvecToVec(const ge::SmallVector<int64_t, static_cast<size_t>(ge::kDefaultMaxInputNum)> &svec,
@@ -37,52 +38,6 @@ namespace acl {
             svec[i] = vec[i];
         }
     }
-}
-
-aclTensorDesc::aclTensorDesc(const aclDataType aclTensorDataType,
-    const std::initializer_list<int64_t> shape, const aclFormat aclTensorFormat) :
-    dataType(aclTensorDataType),
-    format(aclTensorFormat),
-    dims(shape)
-{
-    if (acl::AclResourceManager::GetInstance().IsRuntimeV2Enable(false)) { // how to deal with it for model?
-        this->storageDims = dims;
-    }
-}
-
-aclTensorDesc::aclTensorDesc(const aclDataType aclTensorDataType,
-    const size_t numDims, const int64_t *const aclTensorDims, const aclFormat aclTensorFormat) :
-    dataType(aclTensorDataType),
-    format(aclTensorFormat)
-{
-    for (size_t i = 0U; i < numDims; ++i) {
-        this->dims.push_back(*(aclTensorDims + i));
-    }
-    if (acl::AclResourceManager::GetInstance().IsRuntimeV2Enable(false)) { // how to deal with it for model?
-        this->storageDims = dims;
-    }
-}
-
-std::string aclTensorDesc::DebugString() const
-{
-    std::stringstream ss;
-    ss << "[TensorDesc] ";
-    ss << "DataType = " << dataType;
-    ss << ", Format = " << format;
-    ss << ", StorageFormat = " << storageFormat;
-    ss << ", Shape = " << acl::StringUtils::VectorToString(dims);
-    ss << ", StorageShape = " << acl::StringUtils::VectorToString(storageDims);
-    ss << ", shapeRange = " << acl::StringUtils::VectorToString(shapeRange);
-    ss << ", memtype = " << memtype;
-    ss << ", isConst = " << isConst;
-    if (isConst) {
-        ss << " , isConst = true, Const Len = " << (constDataLen / sizeof(int32_t)) << " , Const data = ";
-        for (size_t i = 0U; i < (constDataLen / sizeof(int32_t)); ++i) {
-            ss <<  *(static_cast<const int32_t*>(constDataBuf.get()) + i);
-            ss << ",";
-        }
-    }
-    return ss.str();
 }
 
 bool aclTensorDesc::IsDynamicTensor() const

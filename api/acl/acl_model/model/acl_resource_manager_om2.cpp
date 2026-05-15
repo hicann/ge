@@ -10,13 +10,17 @@
 
 #include "acl_resource_manager_om2.h"
 #include "common/log_inner.h"
+#include "mmpa/mmpa_api.h"
 #include "runtime/rt_session.h"
 #include "framework/runtime/om2_model_executor.h"
 #include "model_desc_internal.h"
 
 namespace acl {
 
-AclResourceManagerOm2::AclResourceManagerOm2() {}
+AclResourceManagerOm2::AclResourceManagerOm2()
+{
+    GetRuntimeV2Env();
+}
 
 AclResourceManagerOm2::~AclResourceManagerOm2() {}
 
@@ -24,6 +28,27 @@ AclResourceManagerOm2 &AclResourceManagerOm2::GetInstance()
 {
     static AclResourceManagerOm2 instance;
     return instance;
+}
+
+void AclResourceManagerOm2::GetRuntimeV2Env()
+{
+    const char_t *enableRuntimeV2Flag = nullptr;
+    MM_SYS_GET_ENV(MM_ENV_ENABLE_RUNTIME_V2, enableRuntimeV2Flag);
+    if (enableRuntimeV2Flag != nullptr) {
+        if (enableRuntimeV2Flag[0] == '0') { // 0 both model and singleOp disable
+            enableRuntimeV2ForModel_ = false;
+            enableRuntimeV2ForSingleOp_ = false;
+        } else if (enableRuntimeV2Flag[0] == '2') { // 2: model enable, singleOp disable
+            enableRuntimeV2ForModel_ = true;
+            enableRuntimeV2ForSingleOp_ = false;
+        } else {
+            enableRuntimeV2ForModel_ = true;
+            enableRuntimeV2ForSingleOp_ = true;
+        }
+    }
+    ACL_LOG_EVENT("runtime v2 flag : model flag = %d, singleOp flag = %d",
+                  static_cast<int32_t>(enableRuntimeV2ForModel_),
+                  static_cast<int32_t>(enableRuntimeV2ForSingleOp_));
 }
 
 void AclResourceManagerOm2::AddOm2Executor(uint32_t &modelId,
