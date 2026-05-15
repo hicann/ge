@@ -307,19 +307,6 @@ class AscBackendFusionDecider : public FusionDecider {
                         const ComputeGraph::Vistor<NodePtr> &subgraph2_nodes, const NodeFuseInfo &node_fuse_info) const;
 
   /**
-   * 合并两个 reduce_all_load_state 状态
-   * 优先级规则：
-   * 1. 如果任一状态为 REDUCE_ALL_LOAD_NOT_ALL，则返回 REDUCE_ALL_LOAD_NOT_ALL
-   * 2. 否则如果任一状态为 REDUCE_ALL_LOAD_ALL，则返回 REDUCE_ALL_LOAD_ALL
-   * 3. 否则返回 REDUCE_ALL_LOAD_INIT
-   *
-   * @param state1 第一个节点的 reduce_all_load 状态
-   * @param state2 第二个节点的 reduce_all_load 状态
-   * @return 合并后的 reduce_all_load 状态
-   */
-  static int32_t MergeReduceAllLoadState(int32_t state1, int32_t state2);
-
-  /**
    * 该函数用于更新融合后的新节点的属性，将两个原始节点的属性信息合并到新节点的属性中。
    *
    * @param op 新节点的 OpDesc 指针，用于获取或创建新节点的属性

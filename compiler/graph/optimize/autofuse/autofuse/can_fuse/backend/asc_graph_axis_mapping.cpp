@@ -506,6 +506,8 @@ bool AscGraphAxisMapping::CanAxisMap(std::vector<int64_t> &node1_axis, std::vect
                                      std::vector<int64_t> &node2_axis, std::vector<ge::Expression> &node2_repeats,
                                      AxisPairSet &node1_map, AxisPairSet &node2_map, AxisPairSet &temp_node1_map,
                                      AxisPairSet &temp_node2_map) const {
+  temp_node1_map.clear();
+  temp_node2_map.clear();
   if (node1_repeats.size() >= node2_repeats.size()) {
     std::vector<uint32_t> axis_index;
     if (FindAxisIndex(node2_repeats, node1_repeats, axis_index) != SUCCESS) {
@@ -517,8 +519,6 @@ bool AscGraphAxisMapping::CanAxisMap(std::vector<int64_t> &node1_axis, std::vect
         return false;
       }
     }
-    temp_node1_map.clear(); // 放到这里是为了返回失败的话保留之前的结果
-    temp_node2_map.clear();
     for (auto i = 0U; i < axis_index.size(); i++) {
       GE_ASSERT_TRUE(static_cast<size_t>(axis_index[i]) < node1_axis.size());
       temp_node2_map.insert(std::pair<int64_t, int64_t>(node2_axis[i], node1_axis[axis_index[i]]));
@@ -537,8 +537,6 @@ bool AscGraphAxisMapping::CanAxisMap(std::vector<int64_t> &node1_axis, std::vect
         return false;
       }
     }
-    temp_node1_map.clear();
-    temp_node2_map.clear();
     for (auto i = 0U; i < axis_index.size(); i++) {
       GE_ASSERT_TRUE(static_cast<size_t>(axis_index[i]) < node2_axis.size());
       temp_node1_map.insert(std::pair<int64_t, int64_t>(node1_axis[i], node2_axis[axis_index[i]]));
@@ -631,7 +629,8 @@ Status AscGraphAxisMapping::CheckSubGraphtVerticalAxisMapping(const NodePtr &nod
     if (pre_node_is_reduction_ &&
       !CanAxisMap(pre_axis_info.node_axis, pre_axis_info.node_repeats, cur_axis_info.graph_axis,
                   cur_axis_info.graph_size, node1_map_, node2_map_, temp_node1_map, temp_node2_map)) {
-        GELOGI_IF(open_log_, "pre node is reduction, only allow norm like fuse.");
+        GELOGI_IF(open_log_, "pre node is reduction, graph sched axis can't map, can't fuse.");
+        return FAILED;
     }
   } else {
     // 2. graph1 store节点和graph2轴能直接映射

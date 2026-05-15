@@ -1513,11 +1513,11 @@ void VerifyBroadcastAndReduceNodes(const ComputeGraphPtr &cg, const Symbol &s0, 
       VerifyAscBackendNode(node, broadcast_cnt, found_reduce, reduce_node, broadcast_node);
 
       ASSERT_TRUE(found_reduce);
-      // 支持reduce后接broadcast ASSERT_EQ(broadcast_cnt, 3);
+      ASSERT_EQ(broadcast_cnt, 3);
       ASSERT_NE(broadcast_node, nullptr);
 
-      // 支持reduce后接broadcast VerifyBroadcastNode(broadcast_node, s0, s1, s2);
-      // 支持reduce后接broadcast VerifyReduceNode(reduce_node, ONE, s1, s2);
+      VerifyBroadcastNode(broadcast_node, s0, s1, s2);
+      VerifyReduceNode(reduce_node, ONE, s1, s2);
     }
   }
 }
@@ -1552,8 +1552,8 @@ TEST_F(LoweringAndCanfuseUT, BroadcastWithReduceInSameAxis) {
   }();
   auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
   SetCurShapeEnvContext(&shape_env);
-  auto s0 = shape_env.CreateSymbol(64, MakeShared<GraphInputShapeSourceStub>(0, 0));
-  auto s1 = shape_env.CreateSymbol(64, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  auto s0 = shape_env.CreateSymbol(16, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  auto s1 = shape_env.CreateSymbol(32, MakeShared<GraphInputShapeSourceStub>(0, 1));
   auto s2 = shape_env.CreateSymbol(64, MakeShared<GraphInputShapeSourceStub>(0, 2));
   auto graph = es_graph_->Build();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);
@@ -1585,8 +1585,8 @@ TEST_F(LoweringAndCanfuseUT, BroadcastWithReduceInSameAxis2) {
   }();
   auto shape_env = ShapeEnvAttr(ShapeEnvSetting(false, DynamicMode::kDynamic));
   SetCurShapeEnvContext(&shape_env);
-  auto s0 = shape_env.CreateSymbol(64, MakeShared<GraphInputShapeSourceStub>(0, 0));
-  auto s1 = shape_env.CreateSymbol(64, MakeShared<GraphInputShapeSourceStub>(0, 1));
+  auto s0 = shape_env.CreateSymbol(16, MakeShared<GraphInputShapeSourceStub>(0, 0));
+  auto s1 = shape_env.CreateSymbol(32, MakeShared<GraphInputShapeSourceStub>(0, 1));
   auto s2 = shape_env.CreateSymbol(64, MakeShared<GraphInputShapeSourceStub>(0, 2));
   auto graph = es_graph_->Build();
   auto cg = GraphUtilsEx::GetComputeGraph(*graph);

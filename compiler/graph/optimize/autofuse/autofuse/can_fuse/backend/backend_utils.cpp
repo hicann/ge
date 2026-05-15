@@ -32,7 +32,6 @@
 #include "can_fuse/graph_manager.h"
 #include "utils/not_fuse_reason_code.h"
 #include "lowering/asc_lowerer/loop_common.h"
-#include "optimize/norm_like_reduce_checker.h"
 
 namespace ge {
 using namespace autofuse;
@@ -3346,19 +3345,4 @@ Status BackendUtils::GetTransposeInfos(
   has_only_one_transpose = (swap_count_tal == 1);
   return SUCCESS;
 }
-
-bool BackendUtils::IfNormLikeReduce(const NodePtr &node) {
-  GE_CHECK_NOTNULL(node);
-
-  // 获取节点的AscGraph
-  auto asc_graph = BackendUtils::GetNodeFusedAscGraph(node);
-  if (!asc_graph) {
-    GELOGD("Failed to get AscGraph for node %s", node->GetName().c_str());
-    return true;
-  }
-
-  // 调用optimize层的检查函数（内部会根据图类型自动区分）
-  return optimize::NormLikeReduceChecker::IsNormLikeReduceGraph(*asc_graph);
-}
-
 }  // namespace ge

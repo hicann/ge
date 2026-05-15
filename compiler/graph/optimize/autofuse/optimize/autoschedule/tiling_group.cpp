@@ -184,6 +184,9 @@ static bool MergeYRAndY(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool i
 
 static bool MergeYRAndYR(AxisGroup &lhs_group, AxisGroup &rhs_group, const bool is_canfuse_call, const bool is_ge_call) {
   (void)is_ge_call;
+  if (is_ge_call && is_canfuse_call) {
+    return false;
+  }
   // y0 == y1, r0 == r1，可以做融合
   if (is_canfuse_call) {
     std::set<int64_t> l_y(lhs_group.y_group.begin(), lhs_group.y_group.end());
