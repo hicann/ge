@@ -104,7 +104,8 @@ typedef enum {
     ACL_MDL_FIFO_PTR, /**< pointer to fifo memory of model with shallow copy */
     ACL_MDL_FIFO_SIZET,
     ACL_MDL_WITHOUT_GRAPH_INT32,
-    ACL_NPU_PERF_MODE = 100
+    ACL_NPU_PERF_MODE,
+    RESERVED = 0xFFFF,
 } aclmdlConfigAttr;
 
 typedef enum {
