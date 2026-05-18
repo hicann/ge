@@ -82,9 +82,9 @@ aclError AclResourceManagerOm2::GetOpDescInfo(const uint32_t deviceId, const uin
             return ACL_SUCCESS;
         }
     }
-    ACL_LOG_ERROR("[OM2][Get][OpDescInfo] cannot find op desc info, deviceId[%u], streamId[%u], taskId[%u]",
-                  deviceId, streamId, taskId);
-    return ACL_ERROR_FAILURE;
+    ACL_LOG_INFO("[OM2][Get][OpDescInfo] cannot find op desc info, deviceId[%u], streamId[%u], taskId[%u]",
+                 deviceId, streamId, taskId);
+    return ACL_ERROR_GE_FAILURE;
 }
 
 aclError AclResourceManagerOm2::DeleteOm2Executor(const uint32_t modelId)
