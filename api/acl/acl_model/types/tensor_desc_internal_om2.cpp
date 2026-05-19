@@ -95,7 +95,131 @@ std::string aclTensorDesc::DebugString() const
     return ss.str();
 }
 
+bool aclTensorDesc::IsDynamicTensor() const
+{
+    for (size_t i = 0U; i < dims.size(); ++i) {
+        if ((dims[i] == acl::UNKNOW_DIM) || (dims[i] == acl::UNKNOW_RANK)) {
+            return true;
+        }
+    }
+    if (!valueRange.empty()) {
+        return true;
+    }
+    return false;
+}
 
+bool aclTensorDesc::IsSameTensor(const aclTensorDesc *const other) const
+{
+    // when check model matched failed, we should report WARNING log not ERROR
+    if (other == nullptr) {
+        ACL_LOG_DEBUG("aclTensorDesc must not be null.");
+        return false;
+    }
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->dataType), static_cast<int32_t>(other->dataType));
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->format), static_cast<int32_t>(other->format));
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->storageFormat), static_cast<int32_t>(other->storageFormat));
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->isConst), static_cast<int32_t>(other->isConst));
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->memtype), static_cast<int32_t>(other->memtype));
+
+    return true;
+}
+
+bool aclTensorDesc::CheckShapeRange() const
+{
+    if ((dims.size() > 0U) && (dims.at(0U) == acl::UNKNOW_RANK)) {
+        return shapeRange.empty();
+    }
+    bool isUnkownDim = false;
+    for (size_t i = 0U; i < dims.size(); ++i) {
+        if (dims[i] == acl::UNKNOW_DIM) {
+            isUnkownDim = true;
+            break;
+        }
+    }
+    if (isUnkownDim) {
+        if (dims.size() != shapeRange.size()) {
+            return false;
+        }
+    }
+    return true;
+}
+
+void aclTensorDesc::UpdateTensorShape(const std::vector<int64_t> &shape)
+{
+    dims.clear();
+    for (size_t i = 0U; i < shape.size(); ++i) {
+        dims.emplace_back(shape[i]);
+    }
+}
+
+void aclTensorDesc::UpdateTensorShapeRange(const std::vector<std::pair<int64_t, int64_t>> &ranges)
+{
+    shapeRange.clear();
+    for (size_t i = 0U; i < ranges.size(); ++i) {
+        shapeRange.emplace_back(ranges[i]);
+    }
+}
+
+bool aclTensorDesc::operator==(const aclTensorDesc *const other) const
+{
+    // when check model matched failed, we should report WARNING log not ERROR
+    if (other == nullptr) {
+        ACL_LOG_DEBUG("aclTensorDesc must not be null.");
+        return false;
+    }
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->dataType), static_cast<int32_t>(other->dataType));
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->format), static_cast<int32_t>(other->format));
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->storageFormat), static_cast<int32_t>(other->storageFormat));
+
+    if (this->dims != other->dims) {
+        return false;
+    }
+    if (this->shapeRange != other->shapeRange) {
+        return false;
+    }
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->isConst), static_cast<int32_t>(other->isConst));
+
+    ACL_CHECK_INT32_EQUAL(static_cast<int32_t>(this->memtype), static_cast<int32_t>(other->memtype));
+
+    return true;
+}
+
+void aclTensorDesc::BackupDimsAndShapeRanges()
+{
+    dimsBackup = dims;
+    storageDimsBackup = storageDims;
+    shapeRangeBackup = shapeRange;
+}
+
+void aclTensorDesc::RecoverDimsAndShapeRanges()
+{
+    dims = dimsBackup;
+    storageDims = storageDimsBackup;
+    shapeRange = shapeRangeBackup;
+}
+
+void aclTensorDesc::BackupConst()
+{
+    isConstBackup = isConst;
+    constDataBufBackup = constDataBuf;
+    constDataLenBackup = constDataLen;
+}
+
+void aclTensorDesc::RecoverConst()
+{
+    isConst = isConstBackup;
+    constDataBuf = constDataBufBackup;
+    constDataLen = constDataLenBackup;
+}
 aclTensorDesc *aclCreateTensorDescImplOm2(aclDataType dataType,
                                           int numDims,
                                           const int64_t *dims,
