@@ -10,10 +10,11 @@
 
 #ifndef ACL_MODEL_CONFIG_API_H_
 #define ACL_MODEL_CONFIG_API_H_
+#include "acl/acl_base.h"
 #include "acl/acl_mdl.h"
 
 namespace acl {
-bool CheckMdlConfigHandle(const aclmdlConfigHandle *const handle);
+ACL_FUNC_VISIBILITY bool CheckMdlConfigHandle(const aclmdlConfigHandle *const handle);
 }
 
 #endif // ACL_MODEL_CONFIG_API_H_

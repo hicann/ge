@@ -10,10 +10,7 @@
 
 #include "acl_model_impl.h"
 #include "acl_model_impl_om2.h"
-#include "model_common.h"
-#include "model_desc_internal.h"
-#include "acl_resource_manager_om2.h"
-#include "common/log_inner.h"
+#include "acl_model_router.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,21 +28,36 @@ aclError aclmdlDestroyDesc(aclmdlDesc *modelDesc)
 
 aclError aclmdlGetDesc(aclmdlDesc *modelDesc, uint32_t modelId)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlGetDescImplOm2(modelDesc, modelId) :
         aclmdlGetDescImpl(modelDesc, modelId);
 }
 
 aclError aclmdlGetDescFromFile(aclmdlDesc *modelDesc, const char *modelPath)
 {
-    return AclIsOm2ModelByPath(modelPath) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(modelPath, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlGetDescFromFileImplOm2(modelDesc, modelPath) :
         aclmdlGetDescFromFileImpl(modelDesc, modelPath);
 }
 
 aclError aclmdlGetDescFromMem(aclmdlDesc *modelDesc, const void *model, size_t modelSize)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlGetDescFromMemImplOm2(modelDesc, model, modelSize) :
         aclmdlGetDescFromMemImpl(modelDesc, model, modelSize);
 }
@@ -117,42 +129,72 @@ aclDataBuffer *aclmdlGetDatasetBuffer(const aclmdlDataset *dataset, size_t index
 
 aclError aclmdlLoadFromFile(const char *modelPath, uint32_t *modelId)
 {
-    return AclIsOm2ModelByPath(modelPath) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(modelPath, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlLoadFromFileImplOm2(modelPath, modelId) :
         aclmdlLoadFromFileImpl(modelPath, modelId);
 }
 
 aclError aclmdlBundleLoadFromFile(const char *modelPath, uint32_t *bundleId)
 {
-    return AclIsOm2ModelByPath(modelPath) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(modelPath, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleLoadFromFileImplOm2(modelPath, bundleId) :
         aclmdlBundleLoadFromFileImpl(modelPath, bundleId);
 }
 
 aclError aclmdlBundleLoadFromMem(const void *model,  size_t modelSize, uint32_t *bundleId)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleLoadFromMemImplOm2(model, modelSize, bundleId) :
         aclmdlBundleLoadFromMemImpl(model, modelSize, bundleId);
 }
 
 aclError aclmdlBundleUnload(uint32_t bundleId)
 {
-    return AclIsOm2BundleById(bundleId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2BundleById(bundleId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleUnloadImplOm2(bundleId) :
         aclmdlBundleUnloadImpl(bundleId);
 }
 
 aclError aclmdlBundleGetModelNum(uint32_t bundleId, size_t *modelNum)
 {
-    return AclIsOm2BundleById(bundleId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2BundleById(bundleId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleGetModelNumImplOm2(bundleId, modelNum) :
         aclmdlBundleGetModelNumImpl(bundleId, modelNum);
 }
 
 aclError aclmdlBundleGetModelId(uint32_t bundleId, size_t index, uint32_t *modelId)
 {
-    return AclIsOm2BundleById(bundleId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2BundleById(bundleId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleGetModelIdImplOm2(bundleId, index, modelId) :
         aclmdlBundleGetModelIdImpl(bundleId, index, modelId);
 }
@@ -169,14 +211,24 @@ aclError aclmdlBundleDestroyQueryInfo(aclmdlBundleQueryInfo *queryInfo)
 
 aclError aclmdlBundleQueryInfoFromFile(const char* fileName, aclmdlBundleQueryInfo *queryInfo)
 {
-    return AclIsOm2ModelByPath(fileName) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(fileName, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleQueryInfoFromFileImplOm2(fileName, queryInfo) :
         aclmdlBundleQueryInfoFromFileImpl(fileName, queryInfo);
 }
 
 aclError aclmdlBundleQueryInfoFromMem(const void *model, size_t modelSize, aclmdlBundleQueryInfo *queryInfo)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleQueryInfoFromMemImplOm2(model, modelSize, queryInfo) :
         aclmdlBundleQueryInfoFromMemImpl(model, modelSize, queryInfo);
 }
@@ -200,7 +252,12 @@ aclError aclmdlBundleGetSize(const aclmdlBundleQueryInfo *queryInfo, size_t inde
 aclError aclmdlBundleInitFromFile(const char* modelPath, void *varWeightPtr,
                                   size_t varWeightSize, uint32_t *bundleId)
 {
-    return AclIsOm2ModelByPath(modelPath) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(modelPath, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleInitFromFileImplOm2(modelPath, varWeightPtr, varWeightSize, bundleId) :
         aclmdlBundleInitFromFileImpl(modelPath, varWeightPtr, varWeightSize, bundleId);
 }
@@ -208,14 +265,24 @@ aclError aclmdlBundleInitFromFile(const char* modelPath, void *varWeightPtr,
 aclError aclmdlBundleInitFromMem(const void* model, size_t modelSize, void *varWeightPtr,
                                  size_t varWeightSize, uint32_t *bundleId)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleInitFromMemImplOm2(model, modelSize, varWeightPtr, varWeightSize, bundleId) :
         aclmdlBundleInitFromMemImpl(model, modelSize, varWeightPtr, varWeightSize, bundleId);
 }
 
 aclError aclmdlBundleLoadModel(uint32_t bundleId, size_t index, uint32_t *modelId)
 {
-    return AclIsOm2BundleById(bundleId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2BundleById(bundleId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleLoadModelImplOm2(bundleId, index, modelId) :
         aclmdlBundleLoadModelImpl(bundleId, index, modelId);
 }
@@ -224,7 +291,12 @@ aclError aclmdlBundleLoadModelWithMem(uint32_t bundleId, size_t index, void *wor
                                       size_t workSize, void *weightPtr,
                                       size_t weightSize, uint32_t *modelId)
 {
-    return AclIsOm2BundleById(bundleId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2BundleById(bundleId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleLoadModelWithMemImplOm2(bundleId, index, workPtr, workSize, weightPtr, weightSize, modelId) :
         aclmdlBundleLoadModelWithMemImpl(bundleId, index, workPtr, workSize, weightPtr, weightSize, modelId);
 }
@@ -232,21 +304,36 @@ aclError aclmdlBundleLoadModelWithMem(uint32_t bundleId, size_t index, void *wor
 aclError aclmdlBundleLoadModelWithConfig(uint32_t bundleId, size_t index,
                                          aclmdlConfigHandle *handle, uint32_t *modelId)
 {
-    return AclIsOm2BundleById(bundleId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2BundleById(bundleId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleLoadModelWithConfigImplOm2(bundleId, index, handle, modelId) :
         aclmdlBundleLoadModelWithConfigImpl(bundleId, index, handle, modelId);
 }
 
 aclError aclmdlBundleUnloadModel(uint32_t bundleId, uint32_t modelId)
 {
-    return AclIsOm2BundleById(bundleId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2BundleById(bundleId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlBundleUnloadModelImplOm2(bundleId, modelId) :
         aclmdlBundleUnloadModelImpl(bundleId, modelId);
 }
 
 aclError aclmdlLoadFromMem(const void *model,  size_t modelSize, uint32_t *modelId)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlLoadFromMemImplOm2(model, modelSize, modelId) :
         aclmdlLoadFromMemImpl(model, modelSize, modelId);
 }
@@ -255,7 +342,12 @@ aclError aclmdlLoadFromFileWithMem(const char *modelPath,
                                    uint32_t *modelId, void *workPtr, size_t workSize,
                                    void *weightPtr, size_t weightSize)
 {
-    return AclIsOm2ModelByPath(modelPath) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(modelPath, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlLoadFromFileWithMemImplOm2(modelPath, modelId, workPtr, workSize, weightPtr, weightSize) :
         aclmdlLoadFromFileWithMemImpl(modelPath, modelId, workPtr, workSize, weightPtr, weightSize);
 }
@@ -264,7 +356,12 @@ aclError aclmdlLoadFromMemWithMem(const void *model, size_t modelSize,
                                   uint32_t *modelId, void *workPtr, size_t workSize,
                                   void *weightPtr, size_t weightSize)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlLoadFromMemWithMemImplOm2(model, modelSize, modelId, workPtr, workSize, weightPtr, weightSize) :
         aclmdlLoadFromMemWithMemImpl(model, modelSize, modelId, workPtr, workSize, weightPtr, weightSize);
 }
@@ -272,7 +369,12 @@ aclError aclmdlLoadFromMemWithMem(const void *model, size_t modelSize,
 aclError aclmdlLoadFromFileWithQ(const char *modelPath, uint32_t *modelId, const uint32_t *inputQ,
                                  size_t inputQNum, const uint32_t *outputQ, size_t outputQNum)
 {
-    return AclIsOm2ModelByPath(modelPath) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(modelPath, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlLoadFromFileWithQImplOm2(modelPath, modelId, inputQ, inputQNum, outputQ, outputQNum) :
         aclmdlLoadFromFileWithQImpl(modelPath, modelId, inputQ, inputQNum, outputQ, outputQNum);
 }
@@ -281,14 +383,24 @@ aclError aclmdlLoadFromMemWithQ(const void *model, size_t modelSize, uint32_t *m
                                 const uint32_t *inputQ, size_t inputQNum,
                                 const uint32_t *outputQ, size_t outputQNum)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlLoadFromMemWithQImplOm2(model, modelSize, modelId, inputQ, inputQNum, outputQ, outputQNum) :
         aclmdlLoadFromMemWithQImpl(model, modelSize, modelId, inputQ, inputQNum, outputQ, outputQNum);
 }
 
 aclError aclmdlExecute(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlExecuteImplOm2(modelId, input, output) :
         aclmdlExecuteImpl(modelId, input, output);
 }
@@ -296,7 +408,12 @@ aclError aclmdlExecute(uint32_t modelId, const aclmdlDataset *input, aclmdlDatas
 aclError aclmdlExecuteV2(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output,
                          aclrtStream stream, const aclmdlExecConfigHandle *handle)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlExecuteV2ImplOm2(modelId, input, output, stream, handle) :
         aclmdlExecuteV2Impl(modelId, input, output, stream, handle);
 }
@@ -304,21 +421,36 @@ aclError aclmdlExecuteV2(uint32_t modelId, const aclmdlDataset *input, aclmdlDat
 aclError aclmdlExecuteAsync(uint32_t modelId, const aclmdlDataset *input,
                             aclmdlDataset *output, aclrtStream stream)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlExecuteAsyncImplOm2(modelId, input, output, stream) :
         aclmdlExecuteAsyncImpl(modelId, input, output, stream);
 }
 
 aclError aclmdlUnload(uint32_t modelId)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlUnloadImplOm2(modelId) :
         aclmdlUnloadImpl(modelId);
 }
 
 aclError aclmdlQuerySize(const char *fileName, size_t *workSize, size_t *weightSize)
 {
-    return AclIsOm2ModelByPath(fileName) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByPath(fileName, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlQuerySizeImplOm2(fileName, workSize, weightSize) :
         aclmdlQuerySizeImpl(fileName, workSize, weightSize);
 }
@@ -326,7 +458,12 @@ aclError aclmdlQuerySize(const char *fileName, size_t *workSize, size_t *weightS
 aclError aclmdlQuerySizeFromMem(const void *model, size_t modelSize, size_t *workSize,
                                 size_t *weightSize)
 {
-    return AclIsOm2ModelByData(model, modelSize) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByData(model, modelSize, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlQuerySizeFromMemImplOm2(model, modelSize, workSize, weightSize) :
         aclmdlQuerySizeFromMemImpl(model, modelSize, workSize, weightSize);
 }
@@ -334,7 +471,12 @@ aclError aclmdlQuerySizeFromMem(const void *model, size_t modelSize, size_t *wor
 aclError aclmdlSetDynamicBatchSize(uint32_t modelId, aclmdlDataset *dataset, size_t index,
                                    uint64_t batchSize)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlSetDynamicBatchSizeImplOm2(modelId, dataset, index, batchSize) :
         aclmdlSetDynamicBatchSizeImpl(modelId, dataset, index, batchSize);
 }
@@ -342,7 +484,12 @@ aclError aclmdlSetDynamicBatchSize(uint32_t modelId, aclmdlDataset *dataset, siz
 aclError aclmdlSetDynamicHWSize(uint32_t modelId, aclmdlDataset *dataset, size_t index,
                                 uint64_t height, uint64_t width)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlSetDynamicHWSizeImplOm2(modelId, dataset, index, height, width) :
         aclmdlSetDynamicHWSizeImpl(modelId, dataset, index, height, width);
 }
@@ -350,7 +497,12 @@ aclError aclmdlSetDynamicHWSize(uint32_t modelId, aclmdlDataset *dataset, size_t
 aclError aclmdlSetInputDynamicDims(uint32_t modelId, aclmdlDataset *dataset, size_t index,
                                    const aclmdlIODims *dims)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlSetInputDynamicDimsImplOm2(modelId, dataset, index, dims) :
         aclmdlSetInputDynamicDimsImpl(modelId, dataset, index, dims);
 }
@@ -378,7 +530,14 @@ aclError aclmdlGetOutputDims(const aclmdlDesc *modelDesc, size_t index, aclmdlIO
 
 aclError aclmdlGetCurOutputDims(const aclmdlDesc *modelDesc, size_t index, aclmdlIODims *dims)
 {
-    return aclmdlGetCurOutputDimsImpl(modelDesc, index, dims);
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByDesc(modelDesc, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
+        aclmdlGetCurOutputDimsImplOm2(modelDesc, index, dims) :
+        aclmdlGetCurOutputDimsImpl(modelDesc, index, dims);
 }
 
 const char *aclmdlGetOpAttr(aclmdlDesc *modelDesc, const char *opName, const char *attr)
@@ -386,7 +545,12 @@ const char *aclmdlGetOpAttr(aclmdlDesc *modelDesc, const char *opName, const cha
     if (modelDesc == nullptr) {
         return nullptr;
     }
-    return AclIsOm2ModelById(modelDesc->modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByDesc(modelDesc, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return nullptr;
+    }
+    return isOm2 ?
         aclmdlGetOpAttrImplOm2(modelDesc, opName, attr) :
         aclmdlGetOpAttrImpl(modelDesc, opName, attr);
 }
@@ -565,7 +729,12 @@ aclError aclmdlSetInputAIPP(uint32_t modelId,
                             size_t index,
                             const aclmdlAIPP *aippParmsSet)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlSetInputAIPPImplOm2(modelId, dataset, index, aippParmsSet) :
         aclmdlSetInputAIPPImpl(modelId, dataset, index, aippParmsSet);
 }
@@ -575,7 +744,12 @@ aclError aclmdlSetAIPPByInputIndex(uint32_t modelId,
                                    size_t index,
                                    const aclmdlAIPP *aippParmsSet)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlSetAIPPByInputIndexImplOm2(modelId, dataset, index, aippParmsSet) :
         aclmdlSetAIPPByInputIndexImpl(modelId, dataset, index, aippParmsSet);
 }
@@ -585,14 +759,24 @@ aclError aclmdlGetAippType(uint32_t modelId,
                            aclmdlInputAippType *type,
                            size_t *dynamicAttachedDataIndex)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlGetAippTypeImplOm2(modelId, index, type, dynamicAttachedDataIndex) :
         aclmdlGetAippTypeImpl(modelId, index, type, dynamicAttachedDataIndex);
 }
 
 aclError aclmdlGetFirstAippInfo(uint32_t modelId, size_t index, aclAippInfo *aippInfo)
 {
-    return AclIsOm2ModelById(modelId) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlGetFirstAippInfoImplOm2(modelId, index, aippInfo) :
         aclmdlGetFirstAippInfoImpl(modelId, index, aippInfo);
 }
@@ -614,7 +798,12 @@ aclError aclmdlCreateAndGetOpDesc(uint32_t deviceId, uint32_t streamId,
 
 aclError aclmdlLoadWithConfig(const aclmdlConfigHandle *handle, uint32_t *modelId)
 {
-    return AclIsOm2ModelByConfig(handle) ?
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelByConfig(handle, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
         aclmdlLoadWithConfigImplOm2(handle, modelId) :
         aclmdlLoadWithConfigImpl(handle, modelId);
 }
