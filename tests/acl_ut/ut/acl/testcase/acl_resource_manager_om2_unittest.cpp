@@ -126,7 +126,7 @@ TEST_F(UTEST_ACL_Resource_Manager_Om2, GetOpDescInfo_NotFound) {
 
     aclError ret = acl::AclResourceManagerOm2::GetInstance().GetOpDescInfo(0U, 0U, 0U, opDescInfo);
 
-    EXPECT_NE(ret, ACL_SUCCESS);
+    EXPECT_EQ(ret, ACL_ERROR_GE_FAILURE);
 }
 
 TEST_F(UTEST_ACL_Resource_Manager_Om2, DeleteOm2Executor_Success) {
