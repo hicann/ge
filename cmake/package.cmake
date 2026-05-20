@@ -282,6 +282,7 @@ if("ge-executor" IN_LIST BUILD_COMPONENT)
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/ct_infer_shape_context.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_reg.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/gnode.h
+        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/named_io_node_builder.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/graph_buffer.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/inference_context.h
         ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/attr_value.h
