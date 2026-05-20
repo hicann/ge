@@ -85,8 +85,15 @@ bash build_third_party.sh ${CANN_3RD_LIB_PATH} ${core_num} "LLT"
 - 新增文件
 - 修改了 CMake 相关文件
 
+**CRITICAL: 构建目录唯一性规则**
+- 构建目录**必须且只能**使用 `cmake-build-gcov`
+- **禁止**使用 `build_ut`、`build_st` 或其他任何目录，即使这些目录已存在
+- `build_ut` 是 `tests/run_test.sh` 全量测试脚本的产物，与本 skill 无关
+- 编译和执行测试的根目录始终是 `cmake-build-gcov`
+
 ```bash
 BASEPATH=$PWD
+BUILD_DIR=${BASEPATH}/cmake-build-gcov
 ASCEND_INSTALL_PATH=<从步骤2获取的路径>
 cmake -DCMAKE_BUILD_TYPE=GCOV \
       -DENABLE_OPEN_SRC=True \
@@ -97,7 +104,7 @@ cmake -DCMAKE_BUILD_TYPE=GCOV \
       -DASCEND_INSTALL_PATH=${ASCEND_INSTALL_PATH} \
       -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH} \
       -S ${BASEPATH} \
-      -B ${BASEPATH}/cmake-build-gcov
+      -B ${BUILD_DIR}
 ```
 
 ### 步骤 5: 编译受影响的 target
@@ -110,10 +117,15 @@ cmake -DCMAKE_BUILD_TYPE=GCOV \
 - 设置 `Bash` 命令超时时间为50分钟
 - 输出较多
 - core_num=$(($(nproc) - 1))
-- 使用 `make --target -j $core_num` 单独编译
+- 在 `cmake-build-gcov` 目录下执行 `make <target> -j $core_num`
+  ```bash
+  core_num=$(($(nproc) - 1))
+  make -C ${BASEPATH}/cmake-build-gcov <target> -j $core_num
+  ```
 
 ### 步骤 6: 执行测试
 - `unset LD_LIBRARY_PATH; unset ASCEND_OPP_PATH`，执行用例前需要执行这两条unset命令，原因是用例执行需要首先在同目录下寻找依赖的so
+- 测试可执行文件位于 `cmake-build-gcov/` 目录下，绝对路径为 `${BASEPATH}/cmake-build-gcov/<target>`
 - 使用 `--gtest_filter` 单独运行指定的测试用例。
 - 输出较多，注意不要直接读取输出
 
@@ -122,55 +134,6 @@ cmake -DCMAKE_BUILD_TYPE=GCOV \
 - `BASEPATH`: 项目根目录（.claude 所在路径）
 - `ASCEND_INSTALL_PATH`: toolkit 安装路径
 - `CANN_3RD_LIB_PATH`: 第三方依赖库路径
-
-### 全量运行单元测试 (UT)
-- 设置 `Bash` 命令超时时间为70分钟
-```bash
-# 运行所有单元测试
-bash tests/run_test.sh --ut
-
-# 运行特定单元测试类别
-bash tests/run_test.sh --ut=ge           # 所有 GE 单元测试
-bash tests/run_test.sh --ut=ge_common    # GE 通用测试
-bash tests/run_test.sh --ut=rt           # 运行时测试
-bash tests/run_test.sh --ut=python       # Python 绑定测试
-bash tests/run_test.sh --ut=parser       # 解析器测试
-bash tests/run_test.sh --ut=dflow        # Dflow 测试
-bash tests/run_test.sh --ut=engines      # 所有引擎测试
-bash tests/run_test.sh --ut=fe           # 融合引擎测试
-bash tests/run_test.sh --ut=aicpu        # AICPU 引擎测试
-```
-
-### 全量运行系统测试 (ST)
-- 设置 `Bash` 命令超时时间为70分钟
-```bash
-# 运行所有系统测试
-bash tests/run_test.sh --st
-
-# 运行特定系统测试类别
-bash tests/run_test.sh --st=ge           # 所有 GE 系统测试
-bash tests/run_test.sh --st=engines      # 所有引擎系统测试
-```
-
-### 测试选项
-```bash
-bash tests/run_test.sh -c                # 启用代码覆盖率（需要 lcov）
-bash tests/run_test.sh -j16              # 16个并行线程
-bash tests/run_test.sh --verbose         # 详细输出
-```
-
-## 常用测试命令参考
-
-```bash
-# 运行特定 UT
-bash tests/run_test.sh --ut=ge_common
-
-# 运行特定 ST
-bash tests/run_test.sh --st=ge
-
-# 使用 gtest filter
-./test_executable --gtest_filter=TestSuite.TestCase
-```
 
 ## 注意
 - 一般ut和st文件比较大，在读取前先使用wc -l查看文件行，如果太大了不要全读
