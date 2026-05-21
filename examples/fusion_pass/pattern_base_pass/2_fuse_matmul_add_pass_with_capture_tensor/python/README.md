@@ -4,15 +4,11 @@
 
 - **Pattern 0**：`MatMul(a, b)` → `Add(..., c)`，图输入 `0/1/2` 对应 `a/b/c`；在模式图上按序 `capture_tensor`：**MatMul 输出**、**Add 输出**（与 C++ `CaptureTensor` 顺序一致）
 - **Pattern 1**：`BatchMatMulV2(a, b)` → `Add(..., c)`，同上三输入拓扑及相同 `capture_tensor` 顺序
-- **MeetRequirements**：对匹配到的 **Add** 的两路输入做 **FP32（`DT_FLOAT`）** 校验；不满足时打印 `Only support Add inputs are fp32` 并返回 `False`（与 C++ 行为一致；Python 侧 dtype 解析方式见下文说明）
+- **MeetRequirements**：对匹配到的 **Add** 的两路输入通过 `get_input_desc(index)` 读取 TensorDesc 并做 **FP32（`DT_FLOAT`）** 校验；不满足时打印 `Only support Add inputs are fp32` 并返回 `False`（与 C++ 行为一致）
 - **Replacement**：`GEMM(r_a, r_b, r_c, alpha=1, beta=1, transpose_a, transpose_b)`（标量 `1.0` 对齐 C++ `CreateScalar(1)`）；`transpose_a` / `transpose_b` 由匹配到的 MatMul / BatchMatMul 节点属性推导（优先 `transpose_x1` / `transpose_x2`，`BatchMatMulV2` 可回退 `adj_x1` / `adj_x2`）
 - 继承 **`PatternFusionPass`**，实现 `patterns()` / `meet_requirements()` / `replacement()`；阶段为 **`BeforeInferShape`**
 
 未启用 `enable_const_value_match()` 等额外 matcher 配置，与 C++ 默认匹配行为一致。
-
-## 与 C++ MeetRequirements 的差异说明
-
-C++ 通过 `GNode::GetInputDesc` 读取 Add 两路输入的 TensorDesc。当前公开 Python **`Node` 接口不提供 `GetInputDesc`**，本样例通过 `get_in_data_nodes_and_port_indexes` 沿 **`Data` 节点的 `data_type` 属性**，以及一层 **`MatMul` / `BatchMatMulV2`** 汇聚 dtype 来近似判断。若两路均能解析出 dtype 且任一路非 `DT_FLOAT`，则拦截；若解析不到 dtype（返回 `None`），**不拦截**（避免误杀），与「总能取到 TensorDesc」的 C++ 场景可能存在细微差别。若图在 Add 前有 Cast 等复杂形态，需以实际图为准或等待 Python 侧补齐等价 API。
 
 ## 前置条件
 
