@@ -35,7 +35,7 @@ find_path(MOCKCPP_INCLUDE
 find_path(BOOST_INCLUDE
         NAMES boost/config.hpp
         PATHS
-        ${CANN_3RD_LIB_PATH}/boost/include
+        ${CANN_3RD_LIB_PATH}/lib_cache/boost/include
         ${CMAKE_INSTALL_PREFIX}/boost_src
         NO_DEFAULT_PATH
         NO_CMAKE_FIND_ROOT_PATH)

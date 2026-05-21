@@ -14,38 +14,32 @@ if (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
         # 1. 三个组件全部都需要
         add_cann_third_party(json)
         add_cann_third_party(zlib)
+        add_cann_third_party(openssl)
         find_package(protoc MODULE REQUIRED)
         find_package(ascend_protobuf_shared MODULE REQUIRED)
         find_package(ascend_protobuf_static MODULE REQUIRED)
         find_package(SymEngine CONFIG REQUIRED)
 
-        # 2. ge-compiler 或 dflow-executor
-        if("ge-compiler" IN_LIST BUILD_COMPONENT OR "dflow-executor" IN_LIST BUILD_COMPONENT)
-        find_package(openssl MODULE REQUIRED)
-        endif()
-
-        # 3. ge-executor 或 dflow-executor
+        # 2. ge-executor 或 dflow-executor
         if("ge-executor" IN_LIST BUILD_COMPONENT OR "dflow-executor" IN_LIST BUILD_COMPONENT)
-        find_package(protoc_grpc MODULE REQUIRED)
-        find_package(protobuf_grpc MODULE REQUIRED)
-        find_package(gRPC CONFIG REQUIRED)
-        find_package(Boost CONFIG REQUIRED)
+            add_cann_third_party(grpc)
+            find_package(gRPC CONFIG REQUIRED)
+            find_package(Boost CONFIG REQUIRED)
         endif()
 
-        # 4. 各组件【独有】依赖
+        # 43. 各组件【独有】依赖
         if("dflow-executor" IN_LIST BUILD_COMPONENT)
-        find_package(Threads)
-        find_package(protobuf_static MODULE REQUIRED)
+            find_package(Threads)
+            find_package(protobuf_static MODULE REQUIRED)
         endif()
     else()
         message(STATUS "find third party packages in normal mode")
         find_package(Threads)
         add_cann_third_party(json)
-        find_package(openssl MODULE REQUIRED)
+        add_cann_third_party(openssl)
         add_cann_third_party(zlib)
         find_package(protoc MODULE REQUIRED)
-        find_package(protoc_grpc MODULE REQUIRED)
-        find_package(protobuf_grpc MODULE REQUIRED)
+        add_cann_third_party(grpc)
         find_package(protobuf_static MODULE REQUIRED)
         find_package(ascend_protobuf_shared MODULE REQUIRED)
         find_package(ascend_protobuf_static MODULE REQUIRED)

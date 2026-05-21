@@ -77,7 +77,7 @@ else()
                             -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                             -Dprotobuf_BUILD_PROTOC_BINARIES=OFF
                             -Dprotobuf_ABSL_PROVIDER=module
-                            -DABSL_ROOT_DIR=${CMAKE_BINARY_DIR}/abseil_build-prefix/src/abseil_build
+                            -DABSL_ROOT_DIR=${CANN_3RD_LIB_PATH}/lib_cache/abseil-cpp
                             <SOURCE_DIR>
                         BUILD_COMMAND $(MAKE)
                         INSTALL_COMMAND $(MAKE) install

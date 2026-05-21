@@ -20,7 +20,7 @@ set(CMAKE_MODULE_PATH
 include(CMakePrintHelpers)
 include(CMakePackageConfigHelpers)
 
-message(STATUS "[Third part build] Variables for third_party packages:")
+message(STATUS "[ThirdPartyLib] Variables for third_party packages:")
 cmake_print_variables(CANN_3RD_LIB_PATH)
 cmake_print_variables(CMAKE_BUILD_COMPONENT)
 cmake_print_variables(ENABLE_BUILD_DEVICE)
@@ -62,125 +62,93 @@ endif(CCACHE_PROGRAM)
 
 if (NOT DEFINED CMAKE_PREFIX_PATH)
     set(CMAKE_PREFIX_PATH
-        ${CANN_3RD_LIB_PATH}/openssl
         ${CANN_3RD_LIB_PATH}/protoc
-        ${CANN_3RD_LIB_PATH}/protoc_grpc
-        ${CANN_3RD_LIB_PATH}/grpc
         ${CANN_3RD_LIB_PATH}/protobuf_static
         ${CANN_3RD_LIB_PATH}/ascend_protobuf
         ${CANN_3RD_LIB_PATH}/ascend_protobuf_static
-        ${CANN_3RD_LIB_PATH}/symengine/lib/cmake/symengine
-        ${CANN_3RD_LIB_PATH}/boost/lib/cmake/Boost-1.87.0
     )
 endif()
 
-message(STATUS "[${CMAKE_BUILD_COMPONENT}] third-party process")
+message(STATUS "[ThirdPartyLib][${CMAKE_BUILD_COMPONENT}] third-party process")
 if(CMAKE_BUILD_COMPONENT STREQUAL "ge-compiler")
     add_cann_third_party(json)
-    find_package(openssl MODULE REQUIRED)
-    find_package(abseil-cpp MODULE REQUIRED)
+    add_cann_third_party(openssl)
+    add_cann_third_party(abseil-cpp)
     find_package(protoc MODULE REQUIRED)
     find_package(ascend_protobuf_shared MODULE REQUIRED)
     find_package(ascend_protobuf_static MODULE REQUIRED)
-    find_package(boost MODULE REQUIRED)
-    find_package(symengine MODULE REQUIRED)
+    add_cann_third_party(boost)
+    add_cann_third_party(symengine)
     add_cann_third_party(zlib)
     set(selected_targets
-            ascend_protobuf_build
-            ascend_protobuf_static_build
-            third_party_json
-            openssl_build
-            protoc_build
-            boost_build
-            symengine_build
-            zlib_bin_build
+        ascend_protobuf_build
+        ascend_protobuf_static_build
+        third_party_json
+        openssl_project
+        protoc_build
+        third_party_boost
+        symengine_build
+        zlib_bin_build
     )
 elseif(CMAKE_BUILD_COMPONENT STREQUAL "ge-executor")
-    find_package(grpc MODULE REQUIRED)
-    find_package(protoc_grpc MODULE REQUIRED)
-    # protoc_grpc_build或grpc_build需要编译则强制重新编译abseil-cpp,protobuf_static,cares,re2
-    if(TARGET protoc_grpc_build OR TARGET grpc_build)
-        set(FORCE_REBUILD_CANN_3RD true)
-    endif()
-    find_package(abseil-cpp MODULE REQUIRED)
+    add_cann_third_party(grpc)
+    add_cann_third_party(abseil-cpp)
     find_package(protobuf_static MODULE REQUIRED)
-    find_package(cares MODULE REQUIRED)
-    find_package(re2 MODULE REQUIRED)
-    # grpc_build需要编译则强制重新编译zlib,openssl
-    if(TARGET grpc_build)
-        set(FORCE_REBUILD_CANN_3RD true)
-    else()
-        set(FORCE_REBUILD_CANN_3RD false)
-    endif()
+    add_cann_third_party(cares)
+    add_cann_third_party(re2)
     add_cann_third_party(zlib)
-    find_package(openssl MODULE REQUIRED)
-    # 以下独立判断是否重新编译
-    set(FORCE_REBUILD_CANN_3RD false)
+    add_cann_third_party(openssl)
     find_package(ascend_protobuf_shared MODULE REQUIRED)
     find_package(ascend_protobuf_static MODULE REQUIRED)
     add_cann_third_party(json)
     find_package(protoc MODULE REQUIRED)
-    find_package(boost MODULE REQUIRED)
-    find_package(symengine MODULE REQUIRED)
+    add_cann_third_party(boost)
+    add_cann_third_party(symengine)
     set(selected_targets
-            ascend_protobuf_build
-            ascend_protobuf_static_build
-            grpc_build
-            third_party_json
-            protobuf_static_build
-            protoc_build
-            protoc_grpc_build
-            zlib_bin_build
-            boost_build
-            symengine_build
+        ascend_protobuf_build
+        ascend_protobuf_static_build
+        grpc_build
+        third_party_json
+        protobuf_static_build
+        protoc_build
+        protoc_grpc_build
+        zlib_bin_build
+        third_party_boost
+        symengine_build
     )
 else()
-    find_package(grpc MODULE REQUIRED)
-    find_package(protoc_grpc MODULE REQUIRED)
-    # protoc_grpc_build或grpc_build需要编译则强制重新编译abseil-cpp,protobuf_static,cares,re2
-    if(TARGET protoc_grpc_build OR TARGET grpc_build)
-        set(FORCE_REBUILD_CANN_3RD true)
-    endif()
-    find_package(abseil-cpp MODULE REQUIRED)
+    add_cann_third_party(grpc)
+    add_cann_third_party(abseil-cpp)
     find_package(protobuf_static MODULE REQUIRED)
-    find_package(cares MODULE REQUIRED)
-    find_package(re2 MODULE REQUIRED)
-    # grpc_build需要编译则强制重新编译zlib,openssl
-    if(TARGET grpc_build)
-        set(FORCE_REBUILD_CANN_3RD true)
-    else()
-        set(FORCE_REBUILD_CANN_3RD false)
-    endif()
+    add_cann_third_party(cares)
+    add_cann_third_party(re2)
     add_cann_third_party(zlib)
-    find_package(openssl MODULE REQUIRED)
-    # 以下独立判断是否重新编译
-    set(FORCE_REBUILD_CANN_3RD false)
-    find_package(boost MODULE REQUIRED)
-    find_package(symengine MODULE REQUIRED)
+    add_cann_third_party(openssl)
+    add_cann_third_party(boost)
+    add_cann_third_party(symengine)
     find_package(ascend_protobuf_shared MODULE REQUIRED)
     find_package(ascend_protobuf_static MODULE REQUIRED)
     add_cann_third_party(json)
     find_package(protoc MODULE REQUIRED)
-
     # abseil_build,cares_build,re2_build只在被依赖时编译,不主动编译
     set(selected_targets
-            ascend_protobuf_build
-            ascend_protobuf_static_build
-            grpc_build
-            third_party_json
-            openssl_build
-            protobuf_static_build
-            protoc_build
-            protoc_grpc_build
-            zlib_bin_build
-            boost_build
-            symengine_build
+        ascend_protobuf_build
+        ascend_protobuf_static_build
+        grpc_build
+        third_party_json
+        openssl_project
+        protobuf_static_build
+        protoc_build
+        protoc_grpc_build
+        zlib_bin_build
+        third_party_boost
+        symengine_build
     )
 endif()
 
 if(CMAKE_BUILD_COMPONENT STREQUAL "LLT")
-    find_package(gbenchmark MODULE REQUIRED)
-    find_package(gtest_shared MODULE REQUIRED)
+    add_cann_third_party(benchmark)
+    add_cann_third_party(gtest_shared)
     set(selected_targets
         ${selected_targets}
         benchmark_build
@@ -188,14 +156,14 @@ if(CMAKE_BUILD_COMPONENT STREQUAL "LLT")
     )
 endif()
 
-message(STATUS "[Third part build] Building default targets")
+message(STATUS "[ThirdPartyLib] Building default targets")
 add_custom_target(select_targets)
 foreach(dep ${selected_targets})
     if(TARGET ${dep})
         add_dependencies(select_targets ${dep})
-        message(STATUS "[Third part build] add dependence:${dep} success.")
+        message(STATUS "[ThirdPartyLib] add dependence:${dep} success.")
     else()
-        message(STATUS "[Third part build] add dependence:${dep} ignored.")
+        message(STATUS "[ThirdPartyLib] add dependence:${dep} ignored.")
     endif()
 endforeach()
 
