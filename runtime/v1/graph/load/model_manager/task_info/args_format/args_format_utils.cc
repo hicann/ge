@@ -55,7 +55,7 @@ Status ArgsFormatUtils::GetHcomHiddenInputs(const OpDescPtr &op_desc, const Davi
     GELOGI("Op %s %s set attached stream %zu stream handle %p and stream type %" PRId64 " successfully.",
       op_desc->GetNamePtr(), op_desc->GetTypePtr(), stream_id, stream_list[stream_id], stream_type);
   }
-  GELOGI("start to to call op %s %s hidden func", op_desc->GetNamePtr(), op_desc->GetTypePtr());
+  GELOGI("start to call op %s %s hidden func", op_desc->GetNamePtr(), op_desc->GetTypePtr());
   const auto hiddens_func = HiddenInputsFuncRegistry::GetInstance().FindHiddenInputsFunc(hi_type);
   GE_ASSERT_NOTNULL(hiddens_func, "Hidden func for type HCOM is not found, op:[%s].", op_desc->GetNamePtr());
   GE_ASSERT_SUCCESS(hiddens_func(op_desc, hidden_addrs), "call %s hidden inputs func fail", op_desc->GetNamePtr());

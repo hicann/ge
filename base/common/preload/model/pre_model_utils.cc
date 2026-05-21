@@ -401,7 +401,7 @@ std::vector<int64_t> PreModelUtils::GetInputSize(const ConstOpDescPtr &op_desc) 
 
     int64_t tensor_size = 0;
     GE_IF_BOOL_EXEC(TensorUtils::GetSize(*tensor_desc, tensor_size) != GRAPH_SUCCESS,
-                    GELOGI("Get size from TensorDesc failed, op:%s, input index:%zu.", op_desc->GetName().c_str(), i);
+                    GELOGI("TensorDesc size unavailable, op:%s, input index:%zu.", op_desc->GetName().c_str(), i);
                     continue);
 
     GELOGI("GetInputSize op:%s, index:%zu, size:%" PRId64 "", op_desc->GetName().c_str(), i, tensor_size);
@@ -430,7 +430,7 @@ std::vector<int64_t> PreModelUtils::GetOutputSize(const ConstOpDescPtr &op_desc)
 
     int64_t tensor_size = 0;
     GE_IF_BOOL_EXEC(TensorUtils::GetSize(*tensor_desc, tensor_size) != GRAPH_SUCCESS,
-                    GELOGI("Get size from TensorDesc failed, op:%s, output index:%zu.", op_desc->GetName().c_str(), i);
+                    GELOGI("TensorDesc size unavailable, op:%s, output index:%zu.", op_desc->GetName().c_str(), i);
                     continue);
 
     GELOGI("GetOutputSize op:%s, index:%zu, size:%" PRId64 "", op_desc->GetName().c_str(), i, tensor_size);

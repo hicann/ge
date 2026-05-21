@@ -164,7 +164,7 @@ Status SymbolicCondRemovePass::Run(NodePtr &node) {
     GELOGI("condIndex of cond[%s] is negative, skip.", node->GetNamePtr());
     return SUCCESS;
   } else if (ret != SUCCESS) {
-    GELOGI("Get condIndex of cond[%s] failed.", node->GetNamePtr());
+    GELOGI("Get condIndex of cond[%s] unavailable.", node->GetNamePtr());
     return ret;
   }
 

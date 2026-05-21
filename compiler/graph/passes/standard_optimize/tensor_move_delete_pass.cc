@@ -325,7 +325,7 @@ bool HasAtomicWriteFromInput(const NodePtr &node, const int32_t input_idx) {
 
   std::vector<int64_t> atomic_output_indexes;
   if (!AttrUtils::GetListInt(node->GetOpDesc(), ATOMIC_ATTR_OUTPUT_INDEX, atomic_output_indexes)) {
-    GELOGI("Node %s has attr %s but failed to parse output indexes, treat as source overwrite conservatively.",
+    GELOGI("Node %s has attr %s but output indexes parse skipped, treat as source overwrite conservatively.",
            node->GetName().c_str(), ATOMIC_ATTR_OUTPUT_INDEX.c_str());
     return true;
   }

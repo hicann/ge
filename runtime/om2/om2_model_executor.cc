@@ -636,7 +636,7 @@ class Om2ModelExecutor::Impl {
     if (run_model_info_.destroy_func != nullptr && run_model_info_.model_handle != nullptr) {
       const auto destroy_ret = run_model_info_.destroy_func(&run_model_info_.model_handle);
       if (destroy_ret != ge::GRAPH_SUCCESS) {
-        GELOGI("[OM2] Releasing resources failed, so file: %s", run_model_info_.so_file.c_str());
+        GELOGI("[OM2] Resource release issue for so file: %s", run_model_info_.so_file.c_str());
       }
     } else {
       GELOGI("[OM2] Destroy func not found or model not created, so file: %s", run_model_info_.so_file.c_str());
@@ -645,7 +645,7 @@ class Om2ModelExecutor::Impl {
       if (mmDlclose(run_model_info_.so_handle) != 0) {
         const char_t *error = mmDlerror();
         error = (error == nullptr) ? "" : error;
-        GELOGI("[OM2][Invoke][Dlclose] failed. path = %s, error = %s", run_model_info_.so_file.c_str(), error);
+        GELOGI("[OM2][Dlclose] path = %s, error = %s", run_model_info_.so_file.c_str(), error);
       }
       run_model_info_.so_handle = nullptr;
     }

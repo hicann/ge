@@ -528,7 +528,7 @@ Status ExecutorContext::ModelHandle::ExceptionNotify(uint32_t type, uint64_t tra
   return dynamic_model_executor_->ExceptionNotify(type, trans_id);
 }
 Status ExecutorContext::ModelHandle::ParseModel(const std::string &model_path) {
-  GELOGD("Begin to to parse model[%s].", model_path.c_str());
+  GELOGD("Begin to parse model[%s].", model_path.c_str());
   ge::ModelData model{};
   GE_CHK_STATUS_RET(ModelParserBase::LoadFromFile(model_path.c_str(), 0, model),
                     "Load model from file[%s] failed.", model_path.c_str());

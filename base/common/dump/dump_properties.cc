@@ -113,7 +113,7 @@ Status DumpProperties::CheckDumpMode(const std::string &dump_mode) const {
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({ge::GetContext().GetReadableName("ge.exec.dumpMode").c_str(), dump_mode.c_str(),
                                   "The dump mode must be selected from [input, output, all]."}));
-    GELOGE(PARAM_INVALID, "[Check][Param] the dump_debug_mode:%s, is is not supported,"
+    GELOGE(PARAM_INVALID, "[Check][Param] the dump_debug_mode:%s, is not supported,"
            "should be one of the following:[input, output, all].", dump_mode.c_str());
     return PARAM_INVALID;
   }

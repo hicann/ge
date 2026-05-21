@@ -579,7 +579,7 @@ Status HybridModelBuilder::ParseDependentForFusedSubgraph(const NodeItem &node_i
     if (!AttrUtils::GetInt(*data_op_desc, ATTR_NAME_PARENT_NODE_INDEX, parent_index)) {
       GELOGE(INTERNAL_ERROR, "[Get][Attr] failed, node:[%s(%s)] attr:[%s]", data_op_desc->GetName().c_str(),
              data_op_desc->GetType().c_str(), ATTR_NAME_PARENT_NODE_INDEX.c_str());
-      REPORT_INNER_ERR_MSG("E19999", "invoke GetInt failed, node:[%s(%s)]  attr:[%s]",
+      REPORT_INNER_ERR_MSG("E19999", "invoke GetInt failed, node:[%s(%s)] attr:[%s]",
                         data_op_desc->GetName().c_str(), data_op_desc->GetType().c_str(),
                         ATTR_NAME_PARENT_NODE_INDEX.c_str());
       return INTERNAL_ERROR;

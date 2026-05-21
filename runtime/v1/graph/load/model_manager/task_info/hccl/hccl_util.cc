@@ -25,7 +25,7 @@ HcclDllHcomMgr::HcclDllHcomMgr()
     GELOGI("hccl_HcomGetCcuTaskInfo_func load start.");
     dll_handle = dlopen("libhccl_v2.so", RTLD_LAZY);
     if (dll_handle == nullptr) {
-        GELOGI("hccl_HcomGetCcuTaskInfo_func load fail: libhccl_v2.so no found");
+        GELOGI("hccl_HcomGetCcuTaskInfo_func: libhccl_v2.so not available");
         return;
     }
     hccl_HcomGetCcuTaskInfo_func = (HcclResult(*)(const std::string &group, void *tilingData, void *ccuTaskGroup))dlsym(dll_handle, "HcomGetCcuTaskInfo");

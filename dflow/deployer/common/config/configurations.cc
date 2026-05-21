@@ -54,7 +54,7 @@ Status Configurations::GetConfigDir(std::string &config_dir) {
     GEEVENT("Get config dir[%s] success from env[%s]", config_dir.c_str(), kHelperResFilePath);
     return SUCCESS;
   }
-  GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Env HELPER_RES_FILE_PATH  don't exist.");
+  GELOGE(ACL_ERROR_GE_PARAM_INVALID, "Env HELPER_RES_FILE_PATH doesn't exist.");
   return ACL_ERROR_GE_PARAM_INVALID;
 }
 

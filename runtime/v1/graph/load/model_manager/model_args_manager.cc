@@ -831,7 +831,7 @@ Status ModelArgsManager::PrintKernelLaunchArgsDfxInfo(aclrtStream const stm) {
           model_args_[0].model_args_host_addr.get() + j * sizeof(uint64_t));
     if (model_args_device_addrs[j] !=
         *(reinterpret_cast<uint64_t*>(static_cast<void*>(model_args_[0].model_args_host_addr.get())) + j)) {
-      GELOGI("Print different args. Index: %" PRId64 ", device addr is is :%" PRId64 ", host addr is: %" PRId64,
+      GELOGI("Print different args. Index: %" PRId64 ", device addr is: %" PRId64 ", host addr is: %" PRId64,
         j, model_args_device_addrs[j],
         *(reinterpret_cast<uint64_t*>(static_cast<void*>(model_args_[0].model_args_host_addr.get())) + j));
     }

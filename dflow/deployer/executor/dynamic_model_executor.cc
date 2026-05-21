@@ -976,7 +976,7 @@ Status DynamicModelExecutor::ReportStatus() {
     rtMemQueueInfo_t info;
     const auto ret = rtMemQueueQueryInfo(device_id_, input_queue_id, &info);
     if (ret != RT_ERROR_NONE) {
-      GELOGI("query queue info failed, queue id is %u, device id is %d, ret is %d.",
+      GELOGI("Queue info query returned %d for queue %u, device %d.",
         input_queue_id, device_id_, ret);
     } else {
       queue_depth = info.size;

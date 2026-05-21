@@ -468,7 +468,7 @@ bool CheckIrSpec(const ge::OpDescPtr &desc) {
          desc->GetName().c_str(), input_num, ir_def.inputs.size(), output_num, ir_def.outputs.size());
   if (((input_num != ir_def.inputs.size()) && !ir_input_include_dynamic) ||
       ((output_num != ir_def.outputs.size()) && !ir_output_include_dynamic)) {
-    GELOGI("Node:%s inputs/outputs num has changed, compatibility check fail", desc->GetName().c_str());
+    GELOGI("Node:%s inputs/outputs num changed, compatibility check skipped", desc->GetName().c_str());
     return false;
   }
   // attr

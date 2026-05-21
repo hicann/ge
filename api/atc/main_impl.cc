@@ -1289,7 +1289,7 @@ Status ConstructAndUpdateInputTensors(const OpDescPtr &op, const int64_t index, 
 
   const DataType data_type = data_tensor_desc.GetDataType();
   const std::string data_type_str = TypeUtils::DataTypeToSerialString(data_type);
-  GELOGI("Data op[%s]  get data type:%s from InputDesc in geir graph.", op->GetNamePtr(), data_type_str.c_str());
+  GELOGI("Data op[%s] get data type:%s from InputDesc in geir graph.", op->GetNamePtr(), data_type_str.c_str());
 
   GeTensorDesc desc;
   // 输入私有格式特性在MS和torchair的在线场景都有使能

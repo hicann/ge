@@ -262,7 +262,7 @@ std::string GetPlatformSoPath() {
   char path_env[MMPA_MAX_PATH] = {0};
   int32_t ret = mmGetEnv(kAscendHomePath, path_env, MMPA_MAX_PATH);
   if ((ret != EN_OK) && (strlen(path_env) == 0)) {
-    GELOGI("Get platform so path failed because %s is not set", kAscendHomePath);
+    GELOGI("Platform so path unavailable: %s not configured", kAscendHomePath);
     return "";
   }
   std::string so_path = std::string(path_env) + kPlatformSoPathSuffix;
@@ -3217,7 +3217,7 @@ Status DavinciModel::InitLabelSet(const OpDescPtr &op_desc) {
     return INTERNAL_ERROR;
   }
   if (label_id_indication_.count(label_index) > 0U) {
-    REPORT_INNER_ERR_MSG("E19999", "label_switch_index:%u in op:%s(%s) is already used  in model:%u, check invalid",
+    REPORT_INNER_ERR_MSG("E19999", "label_switch_index:%u in op:%s(%s) is already used in model:%u, check invalid",
                        label_index, op_desc->GetName().c_str(), op_desc->GetType().c_str(), model_id_);
     GELOGE(INTERNAL_ERROR, "[Check][Param] label_switch_index:%u in op: %s(%s) is already used in model: %u",
            label_index, op_desc->GetName().c_str(), op_desc->GetType().c_str(), model_id_);

@@ -590,7 +590,7 @@ graphStatus LoweringManager::PostPrecessAfterLoweringNode(const NodePtr &node, c
            "different core num scope with after nodes.",
            node->GetName().c_str(), node->GetType().c_str());
     if (RealizeInputsAndLowering(node) != GRAPH_SUCCESS) {
-      GELOGI("Fallback lowering for node %s, type %s as lowered failed after realize inputs", node->GetName().c_str(),
+      GELOGI("Fallback lowering for node %s, type %s after input realization", node->GetName().c_str(),
              node->GetType().c_str());
       GraphFusionReasonStore::CountNodeFuseFailReason(node->GetName(), "lowered failed after realize inputs, "
                                                       "maybe kernel box is oversize, or this node has "
