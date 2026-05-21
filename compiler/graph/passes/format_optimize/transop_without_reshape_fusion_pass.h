@@ -31,7 +31,11 @@ class TransOpWithoutReshapeFusionPass : public GraphPass {
   bool CheckIfHasSameOutControlEdge(const NodePtr node, const NodePtr out_node);
   void SetRemainNode(const std::vector<std::pair<OutDataAnchorPtr, InDataAnchorPtr>> &nodes_anchor);
   bool IsFormatContinuous(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor) const;
+  bool IsTransOpDataTypeContinuous(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor) const;
   bool HasPrecisionLoss(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor) const;
+  graphStatus NeedRemainNode(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor,
+                             bool &need_remain) const;
+  graphStatus IsTransposeNoNeedFusion(const NodePtr &node, bool &no_need_fusion) const;
   void RemoveNousedNodes(const ComputeGraphPtr &graph);
   void GetBeginOutDescAndEndInDesc(const int32_t index, GeTensorDesc &out_desc, GeTensorDesc &in_desc);
 
@@ -74,6 +78,8 @@ class TransOpWithoutReshapeFusionPass : public GraphPass {
   );
 
   graphStatus GetSubGraphNodesInfo();
+  graphStatus GetSubGraphNodesInfo(const size_t index, bool &has_remain_node, int32_t &transop_num_count,
+                                   std::vector<NodePtr> &sub_graph_nodes) const;
 
   void GetControlAnchors();
 
@@ -149,4 +155,3 @@ class TransOpWithoutReshapeFusionPass : public GraphPass {
 }  // namespace ge
 
 #endif  // GE_GRAPH_PASSES_TRANSOP_WITHOUT_RESHAPE_FUSION_PASS_H_
-
