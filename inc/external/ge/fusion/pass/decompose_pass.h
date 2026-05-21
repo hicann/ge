@@ -52,6 +52,36 @@ class DecomposePass : public FusionBasePass {
   std::vector<AscendString> op_types_;
 };
 
+/**
+ * DecomposePass V2：在 V1 基础上把 CustomPassContext 透传到 MeetRequirements / Replacement，
+ * 子类可在钩子内读取配置项或写入错误信息。
+ *
+ * 与 V1 共用 REG_DECOMPOSE_PASS 注册（工厂返回 FusionBasePass*，对版本无感知）。V1 与 V2 的
+ * 匹配/替换主循环共享同一份实现（compiler/graph/fusion/pass/decompose_pass_run.h）。
+ */
+class DecomposePassV2 : public FusionBasePass {
+ public:
+  explicit DecomposePassV2(const std::vector<AscendString> &op_types);
+  ~DecomposePassV2() override = default;
+
+  Status Run(GraphPtr &graph, CustomPassContext &pass_context) override;
+
+ protected:
+  /**
+   * 对匹配节点做条件校验，返回 true 表示允许替换。默认返回 true。
+   * 相比 V1，本钩子可读取 pass_context 获取配置项 / 写入错误信息后再决策。
+   */
+  virtual bool MeetRequirements(const GNode &matched_node, CustomPassContext &pass_context);
+
+  /**
+   * 返回与 matched_node 对应的替换子图。子类可向 pass_context 写入错误信息后返回 nullptr 终止替换。
+   */
+  virtual GraphUniqPtr Replacement(const GNode &matched_node, CustomPassContext &pass_context) = 0;
+
+ private:
+  std::vector<AscendString> op_types_;
+};
+
 #define REG_DECOMPOSE_PASS(pass_class, decompose_op_types) \
   REG_DECOMPOSE_PASS_UNIQ_HELPER(__COUNTER__, #pass_class, pass_class, decompose_op_types)
 #define REG_DECOMPOSE_PASS_UNIQ_HELPER(ctr, pass_name, pass_class, decompose_op_types) \

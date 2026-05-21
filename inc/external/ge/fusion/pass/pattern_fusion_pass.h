@@ -71,6 +71,40 @@ class PatternFusionPass : public FusionBasePass {
   std::unique_ptr<PatternMatcherConfig> match_config_;
 };
 
+/**
+ * PatternFusionPass V2：在 V1 基础上把 CustomPassContext 透传到 MeetRequirements / Replacement，
+ * 子类可在钩子内读取配置项或写入错误信息。
+ *
+ * 与 V1 共用 REG_FUSION_PASS 注册（工厂返回 FusionBasePass*，对版本无感知）。V1 与 V2 的
+ * 匹配/替换主循环共享同一份实现（compiler/graph/fusion/pass/pattern_fusion_run.h）。
+ */
+class PatternFusionPassV2 : public FusionBasePass {
+ public:
+  PatternFusionPassV2();
+  explicit PatternFusionPassV2(std::unique_ptr<PatternMatcherConfig> match_config);
+
+  Status Run(GraphPtr &graph, CustomPassContext &pass_context) override;
+
+ protected:
+  virtual std::vector<PatternUniqPtr> Patterns() = 0;
+
+  /**
+   * 对匹配结果做条件校验，返回 true 表示允许替换。默认返回 true。
+   * 相比 V1，本钩子可读取 pass_context 获取配置项 / 写入错误信息后再决策。
+   */
+  virtual bool MeetRequirements(const std::unique_ptr<MatchResult> &match_result,
+                                CustomPassContext &pass_context);
+
+  /**
+   * 返回与 match_result 对应的替换子图。子类可向 pass_context 写入错误信息后返回 nullptr 终止替换。
+   */
+  virtual GraphUniqPtr Replacement(const std::unique_ptr<MatchResult> &match_result,
+                                   CustomPassContext &pass_context) = 0;
+
+ private:
+  std::unique_ptr<PatternMatcherConfig> match_config_;
+};
+
 #define REG_FUSION_PASS(pass_class) REG_FUSION_PASS_UNIQ_HELPER(__COUNTER__, #pass_class, pass_class)
 #define REG_FUSION_PASS_UNIQ_HELPER(ctr, pass_name, pass_class) REG_FUSION_PASS_UNIQ(ctr, pass_name, pass_class)
 #define REG_FUSION_PASS_UNIQ(ctr, pass_name, pass_class)                                                          \
