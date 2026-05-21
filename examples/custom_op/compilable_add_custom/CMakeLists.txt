@@ -65,13 +65,11 @@ if(COMPILABLE_ADD_BUILD_CUSTOM_OP)
   # GE 侧自定义算子交付件，供 ATC/GE 装载。
   # 这里将执行逻辑（custom_op.cpp）、编译辅助工具（compile_utils.cpp）
   # 和多 bin 序列化工具（kernel_binary_map_utils.cpp）
-  # 与 shape/type 推导注册（infershape.cpp）
   # 一并编入同一个 libcust_opapi.so，便于按单一交付件给 GE/ATC 使用。
   add_library(cust_opapi SHARED
     ge/utils/compile_utils.cpp
     ge/custom_op.cpp
     ge/utils/kernel_binary_map_utils.cpp
-    ge/infershape.cpp
   )
   target_compile_options(cust_opapi PRIVATE ${COMMON_COMPILE_OPTIONS})
   target_compile_definitions(cust_opapi PRIVATE _GLIBCXX_USE_CXX11_ABI=0)

@@ -112,6 +112,7 @@ add_executable(graph_engine_test
     "${AIR_CODE_DIR}/tests/ge/st/testcase/test_om2.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_adapter_integration_test.cc"
     "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/build/dag/dag_stream_allocator_pass_test.cc"
+    "${AIR_CODE_DIR}/tests/ge/st/testcase/graph/ir/named_io_node_builder_test.cc"
 )
 
 add_dependencies(graph_engine_test mdat fmk_parser engine optimizer_priority_pbtxt)

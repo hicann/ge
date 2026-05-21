@@ -43,6 +43,7 @@
         <file value="ct_infer_shape_context.h"/>
         <file value="operator_reg.h"/>
         <file value="gnode.h"/>
+        <file value="named_io_node_builder.h"/>
         <file value="graph_buffer.h"/>
         <file value="attr_value.h"/>
         <file value="inference_context.h"/>
