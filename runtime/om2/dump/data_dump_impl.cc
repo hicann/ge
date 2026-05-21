@@ -153,8 +153,8 @@ Status DataDumpImpl::ExecuteLoadDumpInfo(const toolkit::aicpu::dump::OpMappingIn
   return SUCCESS;
 }
 
-void DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo& model_info,
-                                            toolkit::aicpu::dump::OpMappingInfo& op_mapping_info) const {
+Status DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo& model_info,
+                                                toolkit::aicpu::dump::OpMappingInfo& op_mapping_info) {
   const char* model_name = (model_info.model_name != nullptr) ? model_info.model_name : "";
   op_mapping_info.set_dump_path(DumpConfig::Instance().GetDumpPath() +
                                 std::to_string(model_info.device_id) + "/");
@@ -163,10 +163,30 @@ void DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo& model_info,
   op_mapping_info.set_dump_step(DumpConfig::Instance().GetDumpStep());
   op_mapping_info.set_flag(kAicpuLoadFlag);
 
-  // 设置 loop 地址
-  if (model_info.step_id_addr != 0U) {
-    op_mapping_info.set_step_id_addr(model_info.step_id_addr);
+  // step_id_addr 分配设备内存并初始化为 0，先释放旧的
+  if (step_id_dev_addr_ != nullptr) {
+    (void)aclrtFree(step_id_dev_addr_);
+    step_id_dev_addr_ = nullptr;
   }
+
+  void* step_id_dev_addr = nullptr;
+  const aclError ret = aclrtMalloc(&step_id_dev_addr, sizeof(uint32_t), ACL_MEM_MALLOC_HUGE_FIRST);
+  if (ret != ACL_SUCCESS) {
+    GELOGE(RT_FAILED, "Malloc step_id_addr failed, ret=%d", ret);
+    return RT_FAILED;
+  }
+  const uint32_t zero_val = 0U;
+  const aclError cpy_ret = aclrtMemcpy(step_id_dev_addr, sizeof(uint32_t), &zero_val,
+                                        sizeof(uint32_t), ACL_MEMCPY_HOST_TO_DEVICE);
+  if (cpy_ret != ACL_SUCCESS) {
+    GELOGE(RT_FAILED, "Memcpy step_id_addr failed, ret=%d", cpy_ret);
+    (void)aclrtFree(step_id_dev_addr);
+    return RT_FAILED;
+  }
+  step_id_dev_addr_ = step_id_dev_addr;
+  op_mapping_info.set_step_id_addr(reinterpret_cast<uint64_t>(step_id_dev_addr));
+
+  // loop_cond_addr 和 iterations_per_loop_addr 保持原逻辑
   if (model_info.loop_cond_addr != 0U) {
     op_mapping_info.set_loop_cond_addr(model_info.loop_cond_addr);
   }
@@ -181,6 +201,7 @@ void DataDumpImpl::BuildOpMappingBasicInfo(const ModelDumpInfo& model_info,
   } else {
     op_mapping_info.set_dump_data(toolkit::aicpu::dump::DumpData::TENSOR_DUMP_DATA);
   }
+  return ge::SUCCESS;
 }
 
 Status DataDumpImpl::BuildTaskList(toolkit::aicpu::dump::OpMappingInfo& op_mapping_info) const {
@@ -354,9 +375,13 @@ Status DataDumpImpl::BuildAndLoadOpMappingInfo(const ModelDumpInfo& model_info) 
   }
 
   toolkit::aicpu::dump::OpMappingInfo op_mapping_info;
-  BuildOpMappingBasicInfo(model_info, op_mapping_info);
+  Status ret = BuildOpMappingBasicInfo(model_info, op_mapping_info);
+  if (ret != SUCCESS) {
+    GELOGE(ret, "Build op mapping basic info failed, ret=%u", ret);
+    return ret;
+  }
 
-  Status ret = BuildTaskList(op_mapping_info);
+  ret = BuildTaskList(op_mapping_info);
   if (ret != SUCCESS) {
     GELOGE(ret, "[Build][TaskList] failed, ret:%u", ret);
     return ret;
@@ -444,6 +469,10 @@ void DataDumpImpl::Clear() {
   if (dev_mem_load_ != nullptr) {
     (void)aclrtFree(dev_mem_load_);
     dev_mem_load_ = nullptr;
+  }
+  if (step_id_dev_addr_ != nullptr) {
+    (void)aclrtFree(step_id_dev_addr_);
+    step_id_dev_addr_ = nullptr;
   }
   task_list_.clear();
   load_flag_ = false;
