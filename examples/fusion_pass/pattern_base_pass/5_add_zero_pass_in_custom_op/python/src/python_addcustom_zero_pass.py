@@ -44,8 +44,8 @@ except ImportError:
 def _require_es_custom_apis() -> None:
     if AddCustom is None:
         raise RuntimeError(
-            "未找到 ge.es.custom.AddCustom。请先根据 python/README.md 生成 es_custom Python ES 包，"
-            "并设置 PYTHONPATH 与 LD_LIBRARY_PATH。"
+            "未找到 ge.es.custom.AddCustom。请先参考 README 的使用方式生成 es_custom Python ES 包，"
+            "设置 PYTHONPATH 与 LD_LIBRARY_PATH 后重新执行。"
         )
 
 
@@ -53,11 +53,11 @@ def _require_es_apis() -> None:
     _require_es_custom_apis()
     if Identity is None:
         raise RuntimeError(
-            "未找到 ge.es.math.Identity。请先 source CANN 环境，并确认本地 run 包中的 es_math 已正确安装。"
+            "未找到 ge.es.math.Identity。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 说明”后重新执行。"
         )
     if TensorMove is None:
         raise RuntimeError(
-            "未找到 ge.es.math.TensorMove。请先 source CANN 环境，并确认本地 run 包中的 es_math 已正确安装。"
+            "未找到 ge.es.math.TensorMove。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 说明”后重新执行。"
         )
 
 

@@ -54,7 +54,7 @@ def _require_es_apis() -> None:
         raise RuntimeError(
             "未找到 ES API: "
             + ", ".join(missing)
-            + "。请先 source CANN 环境，并确认 run 包中的 es_math / es_nn（或 es_all）已正确安装。"
+            + "。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
         )
 
 

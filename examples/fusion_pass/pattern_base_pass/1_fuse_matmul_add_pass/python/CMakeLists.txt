@@ -1,10 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
-project(add_custom_zero_pass_python_es LANGUAGES CXX)
+project(fuse_matmul_add_pass_python_es LANGUAGES CXX)
 
 if (DEFINED ENV{ASCEND_HOME_PATH})
     set(ASCEND_PATH $ENV{ASCEND_HOME_PATH})
 else ()
-    set(ASCEND_PATH /usr/local/Ascend/cann) # 可根据实际修改
+    set(ASCEND_PATH /usr/local/Ascend/cann) # update if needed
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -28,28 +28,6 @@ include_directories(
         ${ASCEND_PATH}/include/graph
 )
 
-#生成自定义算子API及wheel
-add_library(custom_op_proto SHARED
-        ../cpp/proto/add_custom_proto.cc)
-target_compile_definitions(custom_op_proto PRIVATE OP_PROTO_LIB)
-target_compile_options(custom_op_proto PRIVATE
-        -fvisibility=hidden
-)
-if (ENABLE_CROSS_COMPILE)
-    target_link_directories(custom_op_proto PRIVATE
-            ${CMAKE_COMPILE_COMPILER_LIBRARY}
-            ${CMAKE_COMPILE_RUNTIME_LIBRARY}
-    )
-endif()
-
-add_es_library_and_whl(
-        ES_LINKABLE_AND_ALL_TARGET es_custom
-        OPP_PROTO_TARGET custom_op_proto
-        OUTPUT_PATH ${ES_OUTPUT_PATH}
-)
-
-# 生成内置算子 Python ES API。默认使用方式不依赖该目标，仅在运行环境缺少
-# Identity / TensorMove 等内置 ES API 时按 README 可选构建。
 add_library(opgraph_all INTERFACE)
 set_target_properties(opgraph_all PROPERTIES
         INTERFACE_LIBRARY_OUTPUT_DIRECTORY "${ASCEND_PATH}/opp/built-in/op_proto"

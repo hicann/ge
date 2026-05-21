@@ -46,7 +46,7 @@ def _require_es_apis() -> None:
         raise RuntimeError(
             "未找到 ES API: "
             + ", ".join(missing)
-            + "。请先 source CANN 环境，并确认 run 包中的 es_math（或 es_all）已正确安装。"
+            + "。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
         )
 
 
@@ -88,4 +88,4 @@ class PythonMatmulAddFusionPass(PatternFusionPass):
 if __name__ == "__main__":
     print("PythonMatmulAddFusionPass 已注册。")
     print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
-    print("  export ASCEND_GE_PY_PASS_PATH=$PWD/python/src/test_python_pass.py")
+    print("  export ASCEND_GE_PY_PASS_PATH=$PWD/src/python_fuse_matmul_add_pass.py")
