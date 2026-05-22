@@ -48,33 +48,54 @@ public:
 
 void FEOpsKernelInfoStore::GetAllOpsKernelInfo(map<string, ge::OpInfo> &infos) const
 {
-    map<string, OpInfo> opkInfos{};
     OpInfo aicore_op = {"v100", "FEOpsStore", 0, true, false};
-    infos.emplace(std::make_pair("TransData", aicore_op));
+    infos.emplace("TransData", aicore_op);
+    infos.emplace("Transpose", aicore_op);
+    infos.emplace("Flatten", aicore_op);
+    infos.emplace("Permute", aicore_op);
+}
+
+// stub aicpu opskernel info store
+class AICPUOpsKernelInfoStore : public ge::OpsKernelInfoStore {
+public:
+    AICPUOpsKernelInfoStore() {};
+    ~AICPUOpsKernelInfoStore() {};
+    AICPUOpsKernelInfoStore(const AICPUOpsKernelInfoStore &) = delete;
+    AICPUOpsKernelInfoStore &operator=(const AICPUOpsKernelInfoStore &) = delete;
+    Status Initialize(const map<string, string> &options) {return 0;}
+    Status Finalize() { return 0;}
+    Status CreateSession(const std::map<std::string, std::string> &sessionOptions) {return 0;}
+    Status DestroySession(const std::map<std::string, std::string> &sessionOptions) {return 0;}
+    Status CalcOpRunningParam(Node& node){ return 0;}
+    Status GenerateTask(const Node &node,
+                        RunContext &context,
+                        std::vector<domi::TaskDef> &tasks){ return 0;}
+    bool CheckSupported(const ge::OpDescPtr &opDescPtr, std::string& unSupportReason) const {return true;}
+    bool CheckAccuracySupported(const OpDescPtr &opDescPtr, std::string &un_supported_reason,
+                                      const bool realQuery = false) const { return true;}
+    void GetAllOpsKernelInfo(std::map<std::string, ge::OpInfo> &infos) const override;
+};
+
+void AICPUOpsKernelInfoStore::GetAllOpsKernelInfo(map<string, ge::OpInfo> &infos) const
+{
+    OpInfo aicpu_op = {"DNN_VM_TF", "aicpu_kernel", 0, false, false};
+    infos.emplace("Transpose", aicpu_op);
+    infos.emplace("Flatten", aicpu_op);
+    infos.emplace("Permute", aicpu_op);
+    infos.emplace("Cast", aicpu_op);
 }
 
 void InitOpsKernelInfoStub()
 {
-    auto &opsKernelInfo = OpsKernelManager::GetInstance().ops_kernel_info_;
-    // init opsKernelInfo
-    map<string, OpInfo> opkInfos{};
-    vector<OpInfo> flatten;
-    vector<OpInfo> fullConnection;
-    vector<OpInfo> cast;
-    OpInfo aicpu_op = {"DNN_VM_TF", "aicpu_kernel", 1, false, false};
-    OpInfo aicore_op = {"v100", "FEOpsStore", 0, true, false};
-    flatten.push_back(aicpu_op);
-    flatten.push_back(aicore_op);
-    cast.push_back(aicpu_op);
-    opsKernelInfo["FullConnection"] = fullConnection;
-    opsKernelInfo["Permute"] = flatten;
-    opsKernelInfo["Transpose"] = flatten;
-    opsKernelInfo["Flatten"] = flatten;
-    opsKernelInfo["Cast"] = cast;
     auto &opsKernelStore = OpsKernelManager::GetInstance().ops_kernel_store_;
     // init opsKernelStore
     auto aicore_kernel_store = MakeShared<FEOpsKernelInfoStore>();
+    auto aicpu_kernel_store = MakeShared<AICPUOpsKernelInfoStore>();
     opsKernelStore.emplace(std::pair<string, OpsKernelInfoStorePtr>("FEOpsStore", aicore_kernel_store));
+    opsKernelStore.emplace(std::pair<string, OpsKernelInfoStorePtr>("aicpu_kernel", aicpu_kernel_store));
+
+    // rebuild ops_kernel_info_ from stores
+    OpsKernelManager::GetInstance().RefreshOpsKernelInfo();
 }
 } // namespace
 class UtestGraphPassesTransposeTransdataPass : public testing::Test {
@@ -270,9 +291,10 @@ TEST_F(UtestGraphPassesTransposeTransdataPass, run_success2) {
   Status ret = pass.Run(transpose);
 
   EXPECT_EQ(ret, SUCCESS);
-  EXPECT_EQ(compute_graph->GetDirectNodesSize(), 2);
+  ASSERT_EQ(compute_graph->GetDirectNodesSize(), 2);
 
   auto node = compute_graph->FindNode("transpose1transdata2");
+  ASSERT_NE(nullptr, node);
   bool same_format = node->GetOpDesc()->MutableInputDesc(0)->GetFormat() == FORMAT_NHWC;
   EXPECT_EQ(same_format, true);
 

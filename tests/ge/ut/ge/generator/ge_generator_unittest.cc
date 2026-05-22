@@ -83,8 +83,9 @@ class UtestGeGenerator : public testing::Test {
 
   class FakeOpsKernelInfoStore : public OpsKernelInfoStore {
    public:
-    FakeOpsKernelInfoStore(){supported_ = true;};
+    FakeOpsKernelInfoStore() {supported_ = true;};
     bool supported_;
+    std::map<std::string, OpInfo> op_info_map_;
 
    private:
     Status Initialize(const std::map<std::string, std::string> &options) override {
@@ -96,7 +97,9 @@ class UtestGeGenerator : public testing::Test {
     bool CheckSupported(const OpDescPtr &op_desc, std::string &reason) const override {
       return supported_;
     };
-    void GetAllOpsKernelInfo(std::map<std::string, ge::OpInfo> &infos) const override {};
+    void GetAllOpsKernelInfo(std::map<std::string, ge::OpInfo> &infos) const override {
+      infos = op_info_map_;
+    };
   };
 
   class FakeOpsKernelBuilder : public OpsKernelBuilder {
@@ -136,19 +139,18 @@ class UtestGeGenerator : public testing::Test {
     scheduler_confs["scheduler"] = scheduler_conf;
     instance_ptr->DNNEngineManagerObj().schedulers_[kKernelLibName] = scheduler_conf;
 
-    OpsKernelInfoStorePtr ops_kernel_info_store_ptr = std::make_shared<FakeOpsKernelInfoStore>();
-    OpsKernelManager::GetInstance().ops_kernel_store_.emplace(kKernelLibName, ops_kernel_info_store_ptr);
+    auto fake_store = std::make_shared<FakeOpsKernelInfoStore>();
+    OpsKernelManager::GetInstance().ops_kernel_store_.emplace(kKernelLibName, fake_store);
     OpsKernelBuilderPtr fake_builder = std::make_shared<FakeOpsKernelBuilder>();
     OpsKernelBuilderRegistry::GetInstance().kernel_builders_[kKernelLibName] = fake_builder;
     OpInfo op_info;
     op_info.engine = kKernelLibName;
     op_info.opKernelLib = kKernelLibName;
-    OpsKernelManager &ops_kernel_manager = instance_ptr->OpsKernelManagerObj();
-    ops_kernel_manager.ops_kernel_info_[DATA].emplace_back(op_info);
-    ops_kernel_manager.ops_kernel_info_[ADD].emplace_back(op_info);
-    ops_kernel_manager.ops_kernel_info_[ADDN].emplace_back(op_info);
-    ops_kernel_manager.ops_kernel_info_[NETOUTPUT].emplace_back(op_info);
-    ops_kernel_manager.ops_kernel_info_[IDENTITY].emplace_back(op_info);
+    fake_store->op_info_map_[DATA] = op_info;
+    fake_store->op_info_map_[ADD] = op_info;
+    fake_store->op_info_map_[ADDN] = op_info;
+    fake_store->op_info_map_[NETOUTPUT] = op_info;
+    fake_store->op_info_map_[IDENTITY] = op_info;
   }
 
   void FinalizeGeLib() {

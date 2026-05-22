@@ -137,7 +137,7 @@ GeRunningEnvFaker& GeRunningEnvFaker::Install(const EnvInstaller& installer) {
 
 void GeRunningEnvFaker::flush() {
   op_kernel_info_.clear();
-  OpsKernelManager::GetInstance().GetOpsKernelInfo("");
+  OpsKernelManager::GetInstance().RefreshOpsKernelInfo();
 }
 
 GeRunningEnvFaker& GeRunningEnvFaker::InstallDefault() {
