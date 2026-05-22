@@ -133,9 +133,6 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   Status BuildAddrGenInfoForFftsAddr(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
   Status BuildAddrGenInfoForEventAddr(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
   Status BuildAddrGenInfoForTiling(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
-  Expr *BuildTaskIoEntries(const std::vector<AddrSemantic> &addrs) const;
-  Expr *BuildWorkspaceAddrs(const std::vector<AddrSemantic> &addrs) const;
-  Expr *BuildWorkspaceSizes(const std::vector<AddrSemantic> &addrs) const;
   ExprRef BuildReportLaunchedTaskCall() const;
   Status CheckTaskSupport() const;
   Status GetKernelTaskMeta(const domi::TaskDef &task_def, domi::KernelContext &kernel_context,

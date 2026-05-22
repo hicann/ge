@@ -9,6 +9,7 @@
  */
 
 #include "kernel_ex_task_code_builder.h"
+#include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "aicpu_engine_struct.h"
@@ -34,23 +35,24 @@ std::string KernelExTaskCodeBuilder::SerializeBytesToOctalString(const std::vect
   return code_stream.str();
 }
 
-Expr *KernelExTaskCodeBuilder::BuildLaunchConfigExpr(const LaunchConfigSemantic &launch_config) const {
+Expr *KernelExTaskCodeBuilder::BuildLaunchConfigExpr(const LaunchConfigSemantic &launch_config, Arg is_data_dump) const {
   return ast_.InitList({
       ast_.UInt(launch_config.schedule_mode),
       launch_config.engine_type,
       ast_.UInt(launch_config.block_dim_offset),
       launch_config.is_block_task_prefetch,
-      launch_config.is_data_dump,
+      is_data_dump.Empty() ? Arg(ast_.Call("GetIsDataDump", {
+          Arg::StringLiteral(header_.op_name), model_id_, instance_handle_})) : is_data_dump,
       ast_.UInt(launch_config.time_out)});
 }
 
-VarRef KernelExTaskCodeBuilder::AppendLaunchConfigSetup(size_t op_index, std::vector<BodyItem> &items) const {
+VarRef KernelExTaskCodeBuilder::AppendLaunchConfigSetup(size_t op_index, std::vector<BodyItem> &items, Arg is_data_dump) const {
   const std::string cfg_holder_var_name = "op" + std::to_string(op_index) + "_cfg_holder";
   auto cfg_holder = ast_.Var("LaunchKernelCfgHolder", cfg_holder_var_name);
   items.emplace_back(ast_.VarDecl(cfg_holder));
   items.emplace_back(ast_.Call("AssembleLaunchConfig",{
     cfg_holder,
-    BuildLaunchConfigExpr(semantic_.launch.config)}));
+    BuildLaunchConfigExpr(semantic_.launch.config, is_data_dump)}));
   return cfg_holder;
 }
 
@@ -493,6 +495,10 @@ Status KernelExTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items)
     static_cast<int64_t>(semantic_.launch.block_dim),
     stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
     cfg_holder.Attr("cfg").Addr()})));
+  items.emplace_back(ChkStatus(TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(
+      ast_, header_, semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
+      semantic_.input_addrs, semantic_.output_addrs, semantic_.workspace_addrs, semantic_.task_type,
+      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)], model_id_, instance_handle_, args_table_, true)));
   return SUCCESS;
 }
 

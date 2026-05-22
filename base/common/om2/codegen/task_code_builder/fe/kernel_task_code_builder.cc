@@ -11,6 +11,7 @@
 #include "kernel_task_code_builder.h"
 #include <cinttypes>
 #include <sstream>
+#include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "common/checker.h"
@@ -468,7 +469,8 @@ Status KernelTaskCodeBuilder::AppendDistributionForAicpu(const std::vector<Arg> 
   const std::string args_var_name = "op" + std::to_string(op_index) + "_args";
   auto args_var = ast_.Var("std::vector<uint8_t>", args_var_name);
   GE_ASSERT_SUCCESS(AppendAicpuArgsCode(ioaddr_var, args_var, items));
-  auto cfg_holder = AppendLaunchConfigSetup(op_index, items);
+  auto cfg_holder = AppendLaunchConfigSetup(op_index, items,
+                                            ast_.Call("GetIsDataDump", {Arg::StringLiteral(header_.op_name), model_id_, instance_handle_}));
   items.emplace_back(ChkStatus(ast_.Call("AicpuKernelTaskDistribute", {
       args_var,
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(semantic_.args_table_entry->table_index)),
@@ -476,6 +478,7 @@ Status KernelTaskCodeBuilder::AppendDistributionForAicpu(const std::vector<Arg> 
       static_cast<int64_t>(semantic_.launch.block_dim),
       stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
       cfg_holder.Attr("cfg").Addr()})));
+  items.emplace_back(ChkStatus(BuildReportLaunchedTaskCall()));
   return SUCCESS;
 }
 
@@ -840,54 +843,11 @@ Status KernelTaskCodeBuilder::BuildAddrGenInfoForShapeInfoBuffer(const AddrSeman
   return SUCCESS;
 }
 
-Expr *KernelTaskCodeBuilder::BuildTaskIoEntries(const std::vector<AddrSemantic> &addrs) const {
-  std::vector<Arg> entries;
-  for (const auto &addr : addrs) {
-    if (!addr.tensor_info.has_value()) {
-      continue;
-    }
-    entries.emplace_back(std::vector<Arg>{
-        ast_.Var("Om2Tensor", addr.symbol_hint).Addr(),
-        std::to_string(addr.tensor_info->args_offset) + "U"});
-  }
-  return ast_.InitList(entries);
-}
-
-Expr *KernelTaskCodeBuilder::BuildWorkspaceAddrs(const std::vector<AddrSemantic> &addrs) const {
-  std::vector<Arg> entries;
-  entries.reserve(addrs.size());
-  for (const auto &addr : addrs) {
-    entries.emplace_back(ast_.Call("PtrToU64", {ast_.Var("auto", addr.symbol_hint)}));
-  }
-  return ast_.InitList(entries);
-}
-
-Expr *KernelTaskCodeBuilder::BuildWorkspaceSizes(const std::vector<AddrSemantic> &addrs) const {
-  std::vector<Arg> entries;
-  entries.reserve(addrs.size());
-  for (const auto &addr : addrs) {
-    entries.emplace_back(std::to_string(addr.byte_size) + "U");
-  }
-  return ast_.InitList(entries);
-}
-
 ExprRef KernelTaskCodeBuilder::BuildReportLaunchedTaskCall() const {
-  const auto table_index = static_cast<int64_t>(semantic_.args_table_entry->table_index);
-  auto args_info = args_table_.Attr("GetArgsInfo")(table_index);
-  return ast_.Call("ReportLaunchedOm2Task", {
-      Arg::StringLiteral(header_.op_name),
-      Arg::StringLiteral(header_.op_type),
-      std::to_string(header_.op_desc_id) + "U",
-      ast_.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")),
-      args_info.Arrow("size"),
-      BuildTaskIoEntries(semantic_.input_addrs),
-      BuildTaskIoEntries(semantic_.output_addrs),
-      BuildWorkspaceAddrs(semantic_.workspace_addrs),
-      BuildWorkspaceSizes(semantic_.workspace_addrs),
-      ast_.UInt(static_cast<uint32_t>(semantic_.task_type)),
-      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
-      model_id_,
-      instance_handle_});
+  return TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(
+      ast_, header_, semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
+      semantic_.input_addrs, semantic_.output_addrs, semantic_.workspace_addrs, semantic_.task_type,
+      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)], model_id_, instance_handle_, args_table_, true);
 }
 
 Status KernelTaskCodeBuilder::AppendAicpuArgsCode(Arg iow_addr, const VarRef &args_var,

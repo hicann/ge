@@ -2086,8 +2086,9 @@ aclError Om2Model::Load() {
   AssembleAicpuExtInfo(reinterpret_cast<uint8_t *>(const_cast<char *>(op2_ext_info_str)), 285, 228, session_id_, &kernel_id_, dev_ext_info_mem_ptrs_, 0);
   AssembleAicpuArgs(reinterpret_cast<uint8_t *>(const_cast<char *>(op2_args_str)), 68, dev_ext_info_mem_ptrs_[0], 285, op2_iow_addr, op2_args.data());
   LaunchKernelCfgHolder op2_cfg_holder;
-  AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, 0U, 0U, 0U});
+  AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(op2_args, args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 0U}}, {{&op2_output0, 0U}}, {}, {}, 0U, stream_list_[0], model_id_, instance_handle_));
 
   // ============================= add2 ===============================
   std::vector<int64_t> op3_output0_shape = {-1, -1, -1, -1};
@@ -2100,8 +2101,9 @@ aclError Om2Model::Load() {
   AssembleAicpuExtInfo(reinterpret_cast<uint8_t *>(const_cast<char *>(op3_ext_info_str)), 285, 228, session_id_, &kernel_id_, dev_ext_info_mem_ptrs_, 1);
   AssembleAicpuArgs(reinterpret_cast<uint8_t *>(const_cast<char *>(op3_args_str)), 68, dev_ext_info_mem_ptrs_[1], 285, op3_iow_addr, op3_args.data());
   LaunchKernelCfgHolder op3_cfg_holder;
-  AssembleLaunchConfig(op3_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, 0U, 0U, 0U});
+  AssembleLaunchConfig(op3_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add2", model_id_, instance_handle_), 0U, 0U});
   OM2_CHK_STATUS(AicpuKernelTaskDistribute(op3_args, args_table_.GetArgsInfo(1), func_handles_[0], 8, stream_list_[0], &op3_cfg_holder.cfg));
+  OM2_CHK_STATUS(ReportLaunchedOm2Task("add2", "Add", 3U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(1)->dev_addr), args_table_.GetArgsInfo(1)->size, {{&op2_input0, 0U}, {&op2_output0, 0U}}, {{&op3_output0, 0U}}, {}, {}, 0U, stream_list_[0], model_id_, instance_handle_));
 
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
   return ACL_SUCCESS;
@@ -2680,6 +2682,12 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDsa_Ok) {
   EXPECT_NE(load_run.find("KernelDsaTaskDistribute(&op4_dsa_sqe"), std::string::npos);
   // KernelDsaTaskDistribute helper function
   EXPECT_NE(load_run.find("aclError KernelDsaTaskDistribute(const void *const sqe"), std::string::npos);
+  // dump_flag variable for data dump support
+  EXPECT_NE(load_run.find("dump_flag ="), std::string::npos);
+  // GetIsDataDump call for dump flag calculation
+  EXPECT_NE(load_run.find("GetIsDataDump("), std::string::npos);
+  // ReportLaunchedOm2Task call for dump reporting
+  EXPECT_NE(load_run.find("ReportLaunchedOm2Task("), std::string::npos);
 
   // Session scope memory should be allocated in InitResources
   EXPECT_NE(outputs[GeneratedFileIndex::kResourcesFile].find("aclrtMalloc"), std::string::npos);
@@ -3089,6 +3097,8 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
   EXPECT_NE(load_and_run.find("OM2_CHK_STATUS(AicpuKernelTaskDistribute(op2_args, args_table_.GetArgsInfo(0), "
                               "func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));"),
             std::string::npos);
+  EXPECT_NE(load_and_run.find("GetIsDataDump("), std::string::npos);
+  EXPECT_NE(load_and_run.find("ReportLaunchedOm2Task("), std::string::npos);
 }
 
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
@@ -3147,6 +3157,8 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExExtInfo"), std::string::npos);
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuArgs"), std::string::npos);
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(TfAicpuKernelTaskDistribute"), std::string::npos);
+  EXPECT_NE(load_run_code.find("GetIsDataDump("), std::string::npos);
+  EXPECT_NE(load_run_code.find("ReportLaunchedOm2Task("), std::string::npos);
 }
 
 void AppendAsyncWait(std::string &out) {

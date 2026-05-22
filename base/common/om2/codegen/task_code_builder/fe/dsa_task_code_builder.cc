@@ -12,6 +12,7 @@
 
 #include <cinttypes>
 
+#include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "common/ge_common/ge_types.h"
@@ -260,11 +261,24 @@ void DSATaskCodeBuilder::RenderHbmArgsCopy(const VarRef &sqe_var, std::vector<Bo
 
   items.push_back(ChkRt(RtSetTaskTag(ast_.Str(header_.op_name))));
 
+  // 根据GetIsDataDump结果设置dump flag: true -> 2, false -> 0
+  const std::string var_prefix = "op" + std::to_string(header_.op_index) + "_dsa_";
+  auto is_data_dump_var = ast_.Var("const uint8_t", var_prefix + "is_data_dump");
+  items.emplace_back(ast_.VarDecl(is_data_dump_var,
+      ast_.Call("GetIsDataDump", {Arg::StringLiteral(header_.op_name), model_id_, instance_handle_})));
+  auto dump_flag_var = ast_.Var("const uint32_t", var_prefix + "dump_flag");
+  items.emplace_back(ast_.VarDecl(dump_flag_var,
+      is_data_dump_var * ast_.UInt(2U)));
+
   items.push_back(ChkStatus(ast_.Call("KernelDsaTaskDistribute", {
       sqe_var.Ref().Addr(),
       ast_.StaticCast("uint32_t", ast_.Sizeof("rtStarsDsaSqe_t")),
       stream_list_[static_cast<int>(header_.stream_id)],
-      0})));
+      dump_flag_var})));
+  items.emplace_back(ChkStatus(TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(
+      ast_, header_, hbm_entry_.has_value() ? &(*hbm_entry_) : nullptr, input_addrs_, output_addrs_, workspace_addrs_,
+      ModelTaskType::MODEL_TASK_DSA, stream_list_[static_cast<int64_t>(header_.stream_id)], model_id_, instance_handle_,
+      args_table_, false)));
 }
 
 Status DSATaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {

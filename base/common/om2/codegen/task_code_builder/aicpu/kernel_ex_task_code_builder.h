@@ -33,8 +33,8 @@ private:
   Status RenderGetAddrInfo(std::vector<BodyItem> &items, std::vector<Arg> &args) const;
   Status AppendOm2TensorAddrInfo(const AddrSemantic &addr, const char *addr_type, std::vector<BodyItem> &items,
                                  std::vector<Arg> &args) const;
-  Expr *BuildLaunchConfigExpr(const LaunchConfigSemantic &launch_config) const;
-  VarRef AppendLaunchConfigSetup(size_t op_index, std::vector<BodyItem> &items) const;
+  Expr *BuildLaunchConfigExpr(const LaunchConfigSemantic &launch_config, Arg is_data_dump = {}) const;
+  VarRef AppendLaunchConfigSetup(size_t op_index, std::vector<BodyItem> &items, Arg is_data_dump = {}) const;
   FunctionDef *BuildAssembleTfAicpuArgs() const;
   FunctionDef *BuildTfAicpuKernelTaskDistribute() const;
   FunctionDef *BuildAssembleTfAicpuExSessionIdInfo() const;
