@@ -100,8 +100,7 @@ protected:
         auto replace_graph = replacement_graph_builder.BuildAndReset({res});
 
         // 当前pass注册在after infershape阶段，需要自行保证替换部分的shape连续
-        bool is_support = InferShapeAndCheckSupport(matched_node, *replace_graph);
-        if (!is_support) {
+        if (!InferShape(matched_node, *replace_graph)) {
             return nullptr;
         }
         return replace_graph;
@@ -110,7 +109,7 @@ protected:
 private:
     // 因为pass会被重复执行，不建议使用私有成员
     // 如果使用，需要保证pass对象的可重入性
-    bool InferShapeAndCheckSupport(const GNode &matched_node, const Graph &graph) {
+    bool InferShape(const GNode &matched_node, const Graph &graph) {
         // Shape推导
         std::vector<Shape> input_shapes;
         auto input_size = matched_node.GetInputsSize();
@@ -122,30 +121,6 @@ private:
         if (GeUtils::InferShape(graph, input_shapes) != SUCCESS) {
             std::cout << "InferShape failed" << std::endl;
             return false;
-        }
-
-        // 检查当前ai core是否支持新节点，在Shape推导之后调用CheckNodeSupportOnAicore
-        auto nodes = graph.GetAllNodes();
-        for (GNode node: nodes) {
-            AscendString node_type;
-            node.GetType(node_type);
-            if (node_type == "Const" || node_type == "Data") {
-                continue;
-            }
-            bool is_support;
-            AscendString unsupport_reason;
-            if (GeUtils::CheckNodeSupportOnAicore(node, is_support, unsupport_reason) != SUCCESS) {
-                std::cout << "CheckNodeSupportOnAicore failed, reason: " << unsupport_reason.GetString() << std::endl;
-                return false;
-            }
-            if (!is_support) {
-                AscendString node_name;
-                node.GetName(node_name);
-                std::cout << "Node is not supported on current ai core! reason: " << unsupport_reason.GetString()
-                        << " node name: " << node_name.GetString() << " node type: " << node_type.GetString() <<
-                        std::endl;
-                return false;
-            }
         }
         return true;
     }
