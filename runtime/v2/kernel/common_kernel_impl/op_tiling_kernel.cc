@@ -76,7 +76,7 @@ ge::graphStatus BuildOpTilingUnmanagedTensorData(KernelContext *context) {
   // the node before is tiling fuction. Using tiling output to construct current input
   int32_t tiling_cond = context->GetInputValue<int32_t>(TilingContext::kOutputTilingCond);
   if (tiling_cond < 0) {
-    GELOGE(ge::GRAPH_PARAM_INVALID, "kOutputTilingCond value：%d is invalid which should be >= 0.", tiling_cond);
+    GELOGE(ge::GRAPH_PARAM_INVALID, "kOutputTilingCond value:%d is invalid which should be >= 0.", tiling_cond);
     return ge::GRAPH_PARAM_INVALID;
   }
   for (uint32_t i = 0U; i < kOpTilingOutputSize; ++i) {

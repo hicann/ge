@@ -32,10 +32,8 @@ class UTestTbeTimeEstimator : public testing::Test
 {
  protected:
   static void SetUpTestCase() {
-    std::string soc_version = "Ascend310P3";
-    PlatformInfoManager::Instance().opti_compilation_info_.soc_version = soc_version;
-    PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
-    PlatformUtils::Instance().soc_version_ = soc_version;
+    fe::InitPlatformInfo("Ascend310P3", true);
+    PlatformUtils::Instance().soc_version_ = "Ascend310P3";
     PlatformUtils::Instance().short_soc_version_ = "Ascend310P";
   }
   static void TearDownTestCase() {
@@ -67,7 +65,7 @@ class UTestTbeTimeEstimator : public testing::Test
 
 /* ge.virtual_type is off*/
 TEST_F(UTestTbeTimeEstimator, test_case_01) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
+  fe::InitPlatformInfo("Ascend910B1", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {12, 2, 21, 32, 16};
@@ -91,7 +89,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_01) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_02) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {12, 2, 21, 32, 16};
@@ -116,7 +114,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_02) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_02_1) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P1");
+  fe::InitPlatformInfo("Ascend310P1", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {12, 2, 21, 32, 16};
@@ -141,7 +139,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_02_1) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_02_2) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P1");
+  fe::InitPlatformInfo("Ascend310P1", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {12, 2, 21, 2, 16};
@@ -166,7 +164,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_02_2) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_02_3) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P1");
+  fe::InitPlatformInfo("Ascend310P1", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {12, 2, 7, 2, 16};
@@ -191,7 +189,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_02_3) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_02_4) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P1");
+  fe::InitPlatformInfo("Ascend310P1", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {70000, 2, 7, 2, 16};
@@ -216,7 +214,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_02_4) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_02_5) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P1");
+  fe::InitPlatformInfo("Ascend310P1", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {1, 2, 7, 2, 16};
@@ -241,7 +239,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_02_5) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_03) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {1, 2, 21, 32, 16};
@@ -266,7 +264,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_03) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_04) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {1, 2, 5, 32, 16};
@@ -291,7 +289,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_04) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_05) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {2, 2, 21, 32, 16};
@@ -317,7 +315,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_05) {
 
 /* Vector op */
 TEST_F(UTestTbeTimeEstimator, test_case_06) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr relu = std::make_shared<OpDesc>("relu", fe::RELU);
   vector<int64_t> dims = {2, 2, 21, 32, 16};
@@ -340,7 +338,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_06) {
 
 /* Vector op */
 TEST_F(UTestTbeTimeEstimator, test_case_07) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr relu = std::make_shared<OpDesc>("relu", fe::RELU);
   vector<int64_t> dims = {12, 2, 21, 32, 16};
@@ -362,7 +360,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_07) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_07_1) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr relu = std::make_shared<OpDesc>("relu", fe::RELU);
   vector<int64_t> dims = {53, 2, 8, 4, 256};
@@ -385,7 +383,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_07_1) {
 
 /* Vector op */
 TEST_F(UTestTbeTimeEstimator, test_case_08) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr relu = std::make_shared<OpDesc>("relu", fe::RELU);
   vector<int64_t> dims = {12, 8, 21, 32, 16};
@@ -408,7 +406,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_08) {
 
 /* Vector op */
 TEST_F(UTestTbeTimeEstimator, test_case_09) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr relu = std::make_shared<OpDesc>("relu", fe::RELU);
   vector<int64_t> dims = {120000, 8, 210, 32, 16};
@@ -430,7 +428,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_09) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_09_1) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr pooling = std::make_shared<OpDesc>("relu", fe::POOLING);
   vector<int64_t> dims = {12, 8, 210, 32, 16};
@@ -452,7 +450,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_09_1) {
 
 /* MatMul Op */
 TEST_F(UTestTbeTimeEstimator, test_case_10) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr matmul = std::make_shared<OpDesc>("matmul", fe::MATMULV2OP);
   ge::AttrUtils::SetBool(matmul, "transpose_x1", false);
@@ -481,7 +479,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_10) {
 
 /* MatMul Op */
 TEST_F(UTestTbeTimeEstimator, test_case_11) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr matmul = std::make_shared<OpDesc>("matmul", fe::MATMULV2OP);
   ge::AttrUtils::SetBool(matmul, "transpose_x1", true);
@@ -510,7 +508,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_11) {
 
 /* MatMul Op */
 TEST_F(UTestTbeTimeEstimator, test_case_12) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr matmul = std::make_shared<OpDesc>("matmul", fe::MATMULV2OP);
   ge::AttrUtils::SetBool(matmul, "transpose_x1", true);
@@ -539,7 +537,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_12) {
 
 /* MatMul Op */
 TEST_F(UTestTbeTimeEstimator, test_case_13) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr matmul = std::make_shared<OpDesc>("matmul", fe::MATMULV2OP);
   ge::AttrUtils::SetBool(matmul, "transpose_x1", false);
@@ -567,7 +565,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_13) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_14) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr matmul = std::make_shared<OpDesc>("matmul", fe::MATMULV2OP);
   ge::AttrUtils::SetBool(matmul, "transpose_x1", false);
@@ -596,7 +594,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_14) {
 
 
 TEST_F(UTestTbeTimeEstimator, test_case_14_1) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr matmul = std::make_shared<OpDesc>("matmul", fe::MATMULV2OP);
   ge::AttrUtils::SetBool(matmul, "transpose_x1", false);
@@ -625,7 +623,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_14_1) {
 
 
 TEST_F(UTestTbeTimeEstimator, test_case_14_2) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr matmul = std::make_shared<OpDesc>("matmul", fe::MATMULV2OP);
   ge::AttrUtils::SetBool(matmul, "transpose_x1", false);
@@ -653,7 +651,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_14_2) {
 }
 
 TEST_F(UTestTbeTimeEstimator, test_case_no_need_to_calibrate_corenum) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P1");
+  fe::InitPlatformInfo("Ascend310P1", true);
   tbe_info_assembler_ptr_->Initialize();
   OpDescPtr conv = std::make_shared<OpDesc>("conv2d", fe::CONV2D);
   vector<int64_t> fm_dims = {70000, 2, 7, 2, 16};
@@ -676,7 +674,7 @@ TEST_F(UTestTbeTimeEstimator, test_case_no_need_to_calibrate_corenum) {
   tbe_info_assembler_ptr_->CalibrateCoreNum(*conv, AI_CORE_NAME, nullptr, options);
   EXPECT_EQ(options[ge::AICORE_NUM], "40");
 
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B");
+  fe::InitPlatformInfo("Ascend910B", true);
   PlatformUtils::Instance().soc_version_ = "Ascend910B";
   PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
   options[ge::AICORE_NUM] = "10";

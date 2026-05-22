@@ -11,7 +11,6 @@
 # ----------------------------------------------------------------------------
 """Python PatternFusionPass aligned with C++ FuseMatMulAndAddPass (capture tensor sample)."""
 from __future__ import annotations
-from typing import Optional
 from ge.es.graph_builder import GraphBuilder
 from ge.graph.types import DataType
 from ge.graph.node import Node
@@ -54,57 +53,10 @@ def _require_es_apis() -> None:
     missing = [name for name, obj in pairs if obj is None]
     if missing:
         raise RuntimeError(
-            "Missing ES APIs: "
+            "未找到 ES API: "
             + ", ".join(missing)
-            + ". Source the CANN environment and ensure es_math / es_nn (or es_all) is installed."
+            + "。请先 source CANN 环境；如仍缺失，请参考 README 的“ES API 缺失时处理（可选）”生成并加载 es_all 后重新执行。"
         )
-
-
-def _as_datatype(value: object) -> Optional[DataType]:
-    if isinstance(value, DataType):
-        return value
-    if isinstance(value, int):
-        try:
-            return DataType(value)
-        except ValueError:
-            return None
-    return None
-
-
-def _dtype_from_producer_output(node: Node, _out_port: int) -> Optional[DataType]:
-    """Best-effort dtype for the tensor produced at (node, out_port).
-    Python ``Node`` does not expose ``GetInputDesc`` / ``GetOutputDesc`` like C++; this
-    walks ``Data`` producers (and one level through ``MatMul`` / ``BatchMatMulV2``) and
-    reads the ``data_type`` graph attribute on ``Data`` nodes, matching the intent of the
-    C++ sample's ``MeetRequirements`` check.
-    """
-    if node.type == "Data":
-        try:
-            return _as_datatype(node.get_attr("data_type"))
-        except RuntimeError:
-            return None
-    if node.type in ("MatMul", "BatchMatMulV2"):
-        dtypes: list[DataType] = []
-        for i in range(node.get_inputs_size()):
-            try:
-                pred, pred_out = node.get_in_data_nodes_and_port_indexes(i)
-            except RuntimeError:
-                return None
-            dt = _dtype_from_producer_output(pred, pred_out)
-            if dt is None:
-                return None
-            dtypes.append(dt)
-        if dtypes and all(d == dtypes[0] for d in dtypes):
-            return dtypes[0]
-    return None
-
-
-def _dtype_at_add_input(add_node: Node, input_index: int) -> Optional[DataType]:
-    try:
-        pred, pred_out = add_node.get_in_data_nodes_and_port_indexes(input_index)
-    except RuntimeError:
-        return None
-    return _dtype_from_producer_output(pred, pred_out)
 
 
 @register_fusion_pass(
@@ -134,13 +86,14 @@ class PythonFuseMatMulAndAddCaptureTensorPass(PatternFusionPass):
         print("Define MeetRequirements for FuseMatMulAndAddPass in capture tensor sample")
         add_io = match_result.get_captured_tensor(_K_ADD_CAPTURE_IDX)
         add_node = add_io.node
-        for idx in (0, 1):
-            dt = _dtype_at_add_input(add_node, idx)
-            if dt is None:
-                continue
-            if dt != DataType.DT_FLOAT:
-                print("Only support Add inputs are fp32")
-                return False
+        add_input0_dt = add_node.get_input_desc(0).get_data_type()
+        add_input1_dt = add_node.get_input_desc(1).get_data_type()
+        if add_input0_dt != DataType.DT_FLOAT or add_input1_dt != DataType.DT_FLOAT:
+            print(
+                f"Only support Add inputs are {DataType.DT_FLOAT.name}, "
+                f"got input0={add_input0_dt.name}, input1={add_input1_dt.name}"
+            )
+            return False
         return True
 
     def replacement(self, match_result):
@@ -177,4 +130,4 @@ class PythonFuseMatMulAndAddCaptureTensorPass(PatternFusionPass):
 if __name__ == "__main__":
     print("PythonFuseMatMulAndAddCaptureTensorPass 已注册。")
     print("请通过 ASCEND_GE_PY_PASS_PATH 指向本文件，例如：")
-    print("  export ASCEND_GE_PY_PASS_PATH=$(pwd)/src/python_fuse_matmul_add_capture_tensor_pass.py")
+    print("  export ASCEND_GE_PY_PASS_PATH=$(pwd)/src/python_fuse_matmul_add_pass.py")

@@ -840,7 +840,7 @@ graphStatus AutofuseUtils::GetListIntFromInput(const NodePtr &node, std::vector<
   const auto op = ge::OpDescUtils::CreateOperatorFromNode(node);
   ge::Tensor val_tensor;
   if (op.GetInputConstData(input.c_str(), val_tensor) != ge::SUCCESS) {
-    GELOGI("Force skip lowering node %s %s as failed to get tensor", node->GetNamePtr(), node->GetTypePtr());
+    GELOGI("Skip lowering node %s %s due to tensor unavailable", node->GetNamePtr(), node->GetTypePtr());
     return GRAPH_FAILED;
   }
   const auto dims = val_tensor.GetTensorDesc().GetShape().GetDims();

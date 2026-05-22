@@ -149,7 +149,7 @@ Status DeployerServiceImpl::Process(DeployContext &context,
          context.GetName().c_str(), deployer::DeployerRequestType_Name(type).c_str());
   auto it = process_fns_.find(type);
   if (it == process_fns_.end()) {
-    REPORT_INNER_ERR_MSG("E19999", "Find api type[%d]  failed.", type);
+    REPORT_INNER_ERR_MSG("E19999", "Find api type[%d] failed.", type);
     GELOGE(FAILED, "[Find][Api] Find api type[%d] failed.", type);
     response.set_error_code(FAILED);
     response.set_error_message("Api does not exist");

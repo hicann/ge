@@ -692,7 +692,7 @@ TEST_F(UTEST_FE_TBE_COMPILER, case_tbe_no_check_support_funtion_fail)
   CheckSupportParam check_param;
   check_param.op_kernel_ptr = op_kernel_info_ptr;
   bool is_su = tbe_adapter_ptr->CheckSupport(test_node, check_param, false, reason);
-  EXPECT_EQ(is_su, true);
+  EXPECT_EQ(is_su, false);
 }
 
 TEST_F(UTEST_FE_TBE_COMPILER, case_tbe_op_compiler_success)

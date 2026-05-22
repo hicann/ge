@@ -47,3 +47,15 @@ add_es_library_and_whl(
         OPP_PROTO_TARGET custom_op_proto
         OUTPUT_PATH ${ES_OUTPUT_PATH}
 )
+
+# 生成内置算子 Python ES API。默认使用方式不依赖该目标，仅在运行环境缺少
+# Identity / TensorMove 等内置 ES API 时按 README 可选构建。
+add_library(opgraph_all INTERFACE)
+set_target_properties(opgraph_all PROPERTIES
+        INTERFACE_LIBRARY_OUTPUT_DIRECTORY "${ASCEND_PATH}/opp/built-in/op_proto"
+)
+add_es_library_and_whl(
+        ES_LINKABLE_AND_ALL_TARGET es_all
+        OPP_PROTO_TARGET opgraph_all
+        OUTPUT_PATH ${ES_OUTPUT_PATH}
+)

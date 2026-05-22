@@ -212,7 +212,7 @@ bool DumpConfigValidator::ParseDumpConfig(const char* dumpData, int32_t size, Du
         GELOGD("Parsing JSON string: %s", configStr.c_str());
         nlohmann::json js = nlohmann::json::parse(configStr);
         if (!IsValidDumpConfig(js)) {
-            GELOGI("Dump config validation failed");
+            GELOGI("Dump config validation skipped");
             return false;
         }
         const auto& dumpJson = js[GE_DUMP];

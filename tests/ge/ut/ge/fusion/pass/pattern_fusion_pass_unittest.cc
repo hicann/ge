@@ -30,6 +30,94 @@
 namespace ge {
 namespace fusion {
 using namespace ge::es;
+namespace {
+// Pattern: data -> transdata（多个用例共用的最小匹配图）
+PatternUniqPtr BuildSingleTransDataPattern() {
+  auto pattern_graph = ge::es::EsGraphBuilder("pattern");
+  auto esb_graph = pattern_graph.GetCGraphBuilder();
+  auto data = EsCreateGraphInput(esb_graph, 0);
+  auto transdata = EsTransData(data, "0", "29", 0, 0, 0);
+  esb_graph->SetGraphOutput(transdata, 0);
+  return std::make_unique<Pattern>(std::move(*pattern_graph.BuildAndReset()));
+}
+
+// Replacement: data -> relu，所有节点挂 input shape 透传到 output 的 stub infer func。
+GraphUniqPtr BuildReluReplacementWithInfer() {
+  auto replace_graph_builder = ge::es::EsGraphBuilder("replacement");
+  auto esb_graph = replace_graph_builder.GetCGraphBuilder();
+  auto data = EsCreateGraphInput(esb_graph, 0);
+  auto relu = EsRelu(data);
+  esb_graph->SetGraphOutput(relu, 0);
+  auto replacement_graph = replace_graph_builder.BuildAndReset();
+  const auto stub_infer_func = [](Operator &op) {
+    auto out_desc = op.GetOutputDesc(0);
+    out_desc.SetShape(op.GetInputDesc(0).GetShape());
+    op.UpdateOutputDesc((int) 0, out_desc);
+    return GRAPH_SUCCESS;
+  };
+  for (const auto &node : GraphUtilsEx::GetComputeGraph(*replacement_graph)->GetDirectNode()) {
+    node->GetOpDesc()->AddInferFunc(stub_infer_func);
+  }
+  return replacement_graph;
+}
+
+// 从 match_result 的 boundary 取每个输入的 shape，作为 InferShape 的输入。
+std::vector<ge::Shape> CollectInputShapesFromBoundary(const std::unique_ptr<MatchResult> &match_result) {
+  std::vector<SubgraphInput> subgraph_inputs;
+  match_result->ToSubgraphBoundary()->GetAllInputs(subgraph_inputs);
+  std::vector<ge::Shape> input_shapes;
+  for (const auto &subgraph_input : subgraph_inputs) {
+    auto boundary_input = subgraph_input.GetAllInputs();
+    auto node_output = boundary_input.at(0);
+    TensorDesc tensor_desc;
+    node_output.node.GetOutputDesc(node_output.index, tensor_desc);
+    input_shapes.emplace_back(tensor_desc.GetShape());
+  }
+  return input_shapes;
+}
+
+// 校验融合后图的拓扑：DynamicRNNV3 / x_reshape / y_reshape 的连接关系，并定位 transdata_4
+// 对应的 Relu，比对其 input/output shape；返回 true 表示找到了 transdata_4 的 Relu。
+bool VerifyReplacedTopologyAndShape(const ComputeGraphPtr &graph) {
+  bool found_transdata_4 = false;
+  for (const auto &node : graph->GetDirectNode()) {
+    if (node->GetType() == "DynamicRNNV3") {
+      auto checker = gert::NodeTopoChecker(node);
+      EXPECT_EQ(checker.StrictConnectFrom({{"Relu"}, {CONSTANT}, {CONSTANT}, {"Relu"}, {"Relu"}, {CONSTANT}}),
+                "success");
+      EXPECT_EQ(checker.StrictConnectTo(0, {{"Relu"}}), "success");
+      EXPECT_EQ(checker.StrictConnectTo(1, {{"Relu"}}), "success");
+      EXPECT_EQ(checker.StrictConnectTo(2, {{"Relu"}}), "success");
+    } else if (node->GetName() == "x_reshape") {
+      EXPECT_EQ(gert::NodeTopoChecker(node).StrictConnectTo(0, {{"Relu"}}), "success");
+    } else if (node->GetName() == "y_reshape") {
+      EXPECT_EQ(gert::NodeTopoChecker(node).StrictConnectFrom({{"Relu"}, {CONSTANT}}), "success");
+    } else if (node->GetType() == "Relu") {
+      std::vector<std::string> origin_types;
+      EXPECT_TRUE(ge::AttrUtils::GetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_TYPES, origin_types));
+      EXPECT_EQ(origin_types.size(), 1U);
+      EXPECT_STREQ(origin_types[0].c_str(), TRANSDATA);
+
+      std::vector<std::string> origin_op_names;
+      ge::AttrUtils::GetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, origin_op_names);
+      if (!origin_op_names.empty() && origin_op_names[0] == "transdata_4") {
+        found_transdata_4 = true;
+        const std::vector<int64_t> expect_shape = {1, -1, 256};
+        const auto in_shape = node->GetOpDesc()->GetInputDesc(0).GetShape();
+        const auto out_shape = node->GetOpDesc()->GetOutputDesc(0).GetShape();
+        EXPECT_EQ(in_shape.GetDimNum(), expect_shape.size());
+        EXPECT_EQ(out_shape.GetDimNum(), expect_shape.size());
+        for (size_t i = 0u; i < expect_shape.size(); ++i) {
+          EXPECT_EQ(in_shape.GetDim(i), expect_shape[i]);
+          EXPECT_EQ(out_shape.GetDim(i), expect_shape[i]);
+        }
+      }
+    }
+  }
+  return found_transdata_4;
+}
+} // namespace
+
 class UtestPatternFusionPass : public testing::Test {
  public:
   static void SetUpTestSuite() {}
@@ -109,52 +197,18 @@ TEST_F(UtestPatternFusionPass, SingleNode_1Input_1Output) {
 }
 
 TEST_F(UtestPatternFusionPass, SingleNode_1Input_1Output_AfterInfershape) {
-  // define pass
   class TransDataToReluPass : public PatternFusionPass {
    protected:
     std::vector<PatternUniqPtr> Patterns() override {
       std::vector<PatternUniqPtr> patterns;
-      auto pattern_graph = ge::es::EsGraphBuilder("pattern");
-      auto esb_graph = pattern_graph.GetCGraphBuilder();
-      auto data = EsCreateGraphInput(esb_graph, 0);
-      auto transdata = EsTransData(data, "0", "29", 0, 0, 0);
-      esb_graph->SetGraphOutput(transdata, 0);
-      auto pattern = std::make_unique<Pattern>(std::move(*pattern_graph.BuildAndReset()));
-      patterns.emplace_back(std::move(pattern));
+      patterns.emplace_back(BuildSingleTransDataPattern());
       return patterns;
     }
     std::unique_ptr<Graph> Replacement(const unique_ptr<MatchResult> &match_result) override {
-      auto replace_graph_builder = ge::es::EsGraphBuilder("replacement");
-      auto esb_graph = replace_graph_builder.GetCGraphBuilder();
-      auto data = EsCreateGraphInput(esb_graph, 0);
-      auto relu = EsRelu(data);
-      esb_graph->SetGraphOutput(relu, 0);
-      auto repalcement_graph = replace_graph_builder.BuildAndReset();
-      // mock infer func
-      const auto stub_infer_func = [](Operator &op) {
-        auto input_shape = op.GetInputDesc(0).GetShape();
-        auto output_desc = op.GetOutputDesc(0);
-        output_desc.SetShape(input_shape);
-        op.UpdateOutputDesc((int)0, output_desc);
-        return GRAPH_SUCCESS;
-      };
-      for (const auto &node : GraphUtilsEx::GetComputeGraph(*repalcement_graph)->GetDirectNode()) {
-        node->GetOpDesc()->AddInferFunc(stub_infer_func);
-      }
-
-      std::vector<SubgraphInput> subgraph_inputs;
-      match_result->ToSubgraphBoundary()->GetAllInputs(subgraph_inputs);
-      std::vector<ge::Shape> input_shapes;
-      for (const auto &subgraph_input : subgraph_inputs) {
-        auto boundary_input = subgraph_input.GetAllInputs();
-
-        auto node_output = boundary_input.at(0);
-        TensorDesc tensor_desc;
-        node_output.node.GetOutputDesc(node_output.index, tensor_desc);
-        input_shapes.emplace_back(tensor_desc.GetShape());
-      }
-      GE_ASSERT_SUCCESS(GeUtils::InferShape(*repalcement_graph, input_shapes));
-      return repalcement_graph;
+      auto replacement_graph = BuildReluReplacementWithInfer();
+      const auto input_shapes = CollectInputShapesFromBoundary(match_result);
+      GE_ASSERT_SUCCESS(GeUtils::InferShape(*replacement_graph, input_shapes));
+      return replacement_graph;
     }
   };
 
@@ -165,55 +219,7 @@ TEST_F(UtestPatternFusionPass, SingleNode_1Input_1Output_AfterInfershape) {
   EXPECT_EQ(transdata_2_relu_pass.Run(target_graph, context), SUCCESS);
 
   GraphUtils::DumpGEGraphToOnnx(*target_compute_graph, "after_replace");
-  bool find_transdata_4 = false;
-  for (const auto &node : target_compute_graph->GetDirectNode()) {
-    if (node->GetType() == "DynamicRNNV3") {
-      auto checker = gert::NodeTopoChecker(node);
-      EXPECT_EQ(checker.StrictConnectFrom({{"Relu"}, {CONSTANT}, {CONSTANT}, {"Relu"}, {"Relu"}, {CONSTANT}}),
-                "success");
-      EXPECT_EQ(checker.StrictConnectTo(0, {{"Relu"}}), "success");
-      EXPECT_EQ(checker.StrictConnectTo(1, {{"Relu"}}), "success");
-      EXPECT_EQ(checker.StrictConnectTo(2, {{"Relu"}}), "success");
-    }
-    if (node->GetName() == "x_reshape") {
-      auto checker = gert::NodeTopoChecker(node);
-      EXPECT_EQ(checker.StrictConnectTo(0, {{"Relu"}}), "success");
-    }
-    if (node->GetName() == "y_reshape") {
-      auto checker = gert::NodeTopoChecker(node);
-      EXPECT_EQ(checker.StrictConnectFrom({{"Relu"}, {CONSTANT}}), "success");
-    }
-
-    if (node->GetType() == "Relu") {
-      // check attr
-      std::vector<std::string> origin_types;
-      const bool has_origin_op_attr =
-          ge::AttrUtils::GetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_TYPES, origin_types);
-      EXPECT_TRUE(has_origin_op_attr);
-      EXPECT_TRUE(origin_types.size() == 1);
-      EXPECT_STREQ(origin_types[0].c_str(), TRANSDATA);
-
-      std::vector<std::string> origin_op_names;
-      ge::AttrUtils::GetListStr(node->GetOpDesc(), ATTR_NAME_DATA_DUMP_ORIGIN_OP_NAMES, origin_op_names);
-
-      if (origin_op_names[0] == "transdata_4") {
-        std::vector<int64_t> expect_shape = {1, -1, 256};
-        find_transdata_4 = true;
-        // check shape
-        const auto input_shape = node->GetOpDesc()->GetInputDesc(0).GetShape();
-        EXPECT_EQ(input_shape.GetDimNum(), expect_shape.size());
-        for (size_t i = 0u; i < expect_shape.size(); ++i) {
-          EXPECT_EQ(input_shape.GetDim(i), expect_shape[i]);
-        }
-        const auto output_shape = node->GetOpDesc()->GetOutputDesc(0).GetShape();
-        EXPECT_EQ(output_shape.GetDimNum(), expect_shape.size());
-        for (size_t i = 0u; i < expect_shape.size(); ++i) {
-          EXPECT_EQ(output_shape.GetDim(i), expect_shape[i]);
-        }
-      }
-    }
-  }
-  EXPECT_TRUE(find_transdata_4);
+  EXPECT_TRUE(VerifyReplacedTopologyAndShape(target_compute_graph));
 }
 
 TEST_F(UtestPatternFusionPass, NotMeetRequirement) {

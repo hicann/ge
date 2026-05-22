@@ -65,7 +65,6 @@ set(TEFUSION_SRC_CC_LIST
  	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/assemble_json/te_op_custom_utils.cc
  	    ${OP_COMPILE_ADAPTER_ROOT_PATH}/source/file_handle/te_file_handle.cc)
 
-include(ut/testcase/op_compile_adapter/cmake/third_party/boost.cmake)
 include(ut/testcase/op_compile_adapter/cmake/third_party/mockcpp.cmake)
 
 SET(FE_ROOT_PATH ${AIR_CODE_DIR}/compiler/engines/nn_engine)

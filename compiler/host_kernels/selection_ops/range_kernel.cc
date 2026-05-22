@@ -101,7 +101,7 @@ Status RangeKernel::RangeCheck(const std::vector<ConstGeTensorPtr> &input) const
   GE_CHECK_NOTNULL(delta);
   // check whether there is data in Tensor
   if (start->GetData().size() == 0 || limit->GetData().size() == 0 || delta->GetData().size() == 0) {
-    GELOGI("Check data size fail. start: %zu, limit: %zu, delta: %zu", start->GetData().size(), limit->GetData().size(),
+    GELOGI("Data size check skipped: empty input. start: %zu, limit: %zu, delta: %zu", start->GetData().size(), limit->GetData().size(),
            delta->GetData().size());
     return NOT_CHANGED;
   }

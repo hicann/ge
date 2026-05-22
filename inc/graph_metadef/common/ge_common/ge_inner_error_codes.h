@@ -163,7 +163,7 @@ GE_ERRORNO_RUNTIME(GE_RTI_DEVICE_ID_INVALID, 1, "device id is invalid");
 GE_ERRORNO_RUNTIME(GE_RTI_DEVICE_NOT_READY, 2, "set device failed, device not ready");
 GE_ERRORNO_RUNTIME(GE_RTI_MEMALLOC_FAILED, 3, "malloc memory failed");
 GE_ERRORNO_RUNTIME(GE_RTI_MODEL_NOT_LOADED, 4, "model has not been loaded");
-GE_ERRORNO_RUNTIME(GE_RTI_THREAD_POOL_IS_NULL, 5, "model excute failed");
+GE_ERRORNO_RUNTIME(GE_RTI_THREAD_POOL_IS_NULL, 5, "model execute failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_CCE_CREATE_HANDLE_FAILED, 6, "cce create handle failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_CCE_SET_STREAM_FAILED, 7, "cce set stream failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_CREATE_RTMODEL_FAILED, 8, "call runtime create rtModel failed");
@@ -183,7 +183,7 @@ GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_MEM_ALLOC_MANAGED_FAILED, 21, "call runti
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_MEM_FREE_MANAGED_FAILED, 22, "call runtime mem free managed failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_FREE_FAILED, 23, "call runtime free failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_STREAM_SYNC_FAILED, 24, "call runtime sync stream failed");
-GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_MODEL_EXCUTE_FAILED, 25, "call runtime model excute failed");
+GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_MODEL_EXCUTE_FAILED, 25, "call runtime model execute failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_MEM_ASYNC_FAILED, 26, "call runtime mem async failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_MEM_ALLOC_HOST_FAILED, 27, "call runtime alloc host memory failed");
 GE_ERRORNO_RUNTIME(GE_RTI_CALL_RUNTIME_MEM_FREE_HOST_FAILED, 28, "call runtime free host memory failed");

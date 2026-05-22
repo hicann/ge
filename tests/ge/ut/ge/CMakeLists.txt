@@ -282,6 +282,7 @@ set(PASS_TEST_FILES
     "fusion/fusion_component_test.cc"
     "fusion/pass/pattern_fusion_pass_unittest.cc"
     "fusion/pass/decompose_pass_unittest.cc"
+    "fusion/pass/decompose_pass_v2_unittest.cc"
     "fusion/pass/reg_pass_unittest.cc"
 )
 
@@ -417,6 +418,7 @@ set(MULTI_PARTS_TEST_FILES
     "${AIR_CODE_DIR}/tests/ge/ut/ge/ffts_plus_proto_tools.cc"
     "graph/common/trans_op_creator_unittest.cc"
     "graph/common/ge_utils_unittest.cc"
+    "fusion/pass/pattern_fusion_pass_v2_unittest.cc"
     "graph/build/test_memory_shared_graph.cc"
     "graph/build/var_mem_assign_util_unittest.cc"
     "graph/build/buffer_pool_mem_assigner_unittest.cc"

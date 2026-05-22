@@ -47,11 +47,10 @@ else()
     set(protobuf_static_FOUND FALSE)
 endif()
 
-if(protobuf_static_FOUND AND NOT FORCE_REBUILD_CANN_3RD)
+if(protobuf_static_FOUND)
     message(STATUS "[protobuf static] protobuf_static found, skip compiling.")
+    add_custom_target(protobuf_static_build)
 else()
-    message(STATUS "[protobuf static] protobuf_static_FOUND:${protobuf_static_FOUND}, FORCE_REBUILD_CANN_3RD:${FORCE_REBUILD_CANN_3RD}")
-
     set(REQ_URL "${CANN_3RD_LIB_PATH}/protobuf/protobuf-all-25.1.tar.gz")
     set(REQ_URL_BACK "${CANN_3RD_LIB_PATH}/protobuf/protobuf-25.1.tar.gz")
     # 初始化可选参数列表
@@ -90,10 +89,12 @@ else()
                             -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                             -Dprotobuf_BUILD_PROTOC_BINARIES=OFF
                             -Dprotobuf_ABSL_PROVIDER=module
-                            -DABSL_ROOT_DIR=${CMAKE_BINARY_DIR}/abseil_build-prefix/src/abseil_build
+                            -DABSL_ROOT_DIR=${CANN_3RD_LIB_PATH}/lib_cache/abseil-cpp
                             <SOURCE_DIR>
                         BUILD_COMMAND $(MAKE)
                         INSTALL_COMMAND $(MAKE) install
+                            COMMAND ${CMAKE_COMMAND} -E make_directory ${CANN_3RD_LIB_PATH}/protobuf_static/build
+                            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_BINARY_DIR}/protobuf_static_build-prefix/src/protobuf_static_build ${CANN_3RD_LIB_PATH}/protobuf_static/build
                         EXCLUDE_FROM_ALL TRUE
     )
     add_dependencies(protobuf_static_build abseil_build)

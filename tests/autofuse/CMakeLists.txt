@@ -66,20 +66,15 @@ endif()
 
 if (NOT DEFINED CMAKE_PREFIX_PATH)
     set(CMAKE_PREFIX_PATH
-            ${CANN_3RD_LIB_PATH}/json
-            ${CANN_3RD_LIB_PATH}/openssl
-            ${CANN_3RD_LIB_PATH}/protoc
-            ${CANN_3RD_LIB_PATH}/protoc_grpc
-            ${CANN_3RD_LIB_PATH}/grpc
-            ${CANN_3RD_LIB_PATH}/protobuf_static
-            ${CANN_3RD_LIB_PATH}/ascend_protobuf
-            ${CANN_3RD_LIB_PATH}/ascend_protobuf_static
-            ${CANN_3RD_LIB_PATH}/gtest_shared/lib64/cmake/GTest
-            ${CANN_3RD_LIB_PATH}/gtest
-            ${CANN_3RD_LIB_PATH}/benchmark
-            ${CANN_3RD_LIB_PATH}/pybind11
-            ${CANN_3RD_LIB_PATH}/symengine/lib/cmake/symengine
-            ${CANN_3RD_LIB_PATH}/boost/lib/cmake/Boost-1.87.0
+        ${CANN_3RD_LIB_PATH}/protoc
+        ${CANN_3RD_LIB_PATH}/lib_cache/grpc
+        ${CANN_3RD_LIB_PATH}/protobuf_static
+        ${CANN_3RD_LIB_PATH}/ascend_protobuf
+        ${CANN_3RD_LIB_PATH}/ascend_protobuf_static
+        ${CANN_3RD_LIB_PATH}/lib_cache/gtest_shared/lib64/cmake/GTest
+        ${CANN_3RD_LIB_PATH}/lib_cache/benchmark
+        ${CANN_3RD_LIB_PATH}/lib_cache/symengine/lib/cmake/symengine
+        ${CANN_3RD_LIB_PATH}/lib_cache/boost/lib/cmake/Boost-1.87.0
     )
 endif()
 

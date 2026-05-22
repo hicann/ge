@@ -14,6 +14,7 @@
 #include "common/fe_op_info_common.h"
 #include "common/scope_allocator.h"
 #include "adapter/common/op_store_adapter_manager.h"
+#include "common/configuration.h"
 #include "ops_kernel_builder/aicore_ops_kernel_builder.h"
 #include "graph/utils/tensor_utils.h"
 #include "ops_kernel_builder/task_builder/superkernel_task_builder.h"
@@ -42,11 +43,14 @@ namespace fe {
 class SuperkernelTaskBuilderUT : public testing::Test {
 protected:
   static void SetUpTestCase() {
+    fe::InitPlatformInfo("Ascend910B", true);
     OpStoreAdapterManager::Instance(AI_CORE_NAME).Finalize();
+    Configuration::Instance(AI_CORE_NAME).Finalize();
     map<string, string> options;
+    Configuration::Instance(AI_CORE_NAME).Initialize(options);
     OpStoreAdapterManager::Instance(AI_CORE_NAME).Initialize(options);
-    fe::PlatformInfoManager::Instance().InitializePlatformInfo();
     PlatformUtils::Instance().short_soc_version_ = "Ascend910B";
+    PlatformUtils::Instance().soc_version_ = "Ascend910B";
     cout << "SuperkernelTaskBuilderUT SetUp" << endl;
   }
 

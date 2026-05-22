@@ -861,7 +861,7 @@ std::vector<NodePtr> ComputeGraphImpl::FuseNodeKeepTopo(const std::vector<NodePt
     return {};
   }
   if (InheritSkFromOriginNodes(ori_nodes, fusion_ops) != GRAPH_SUCCESS) {
-    GELOGI("Abandoned to fuse nodes because inherit sk attrs failed.");
+    GELOGI("Skip node fusion due to sk attrs inheritance issue.");
     return {};
   }
   if (InheritCoreNumFromOriginNodes(ori_nodes, fusion_ops) != GRAPH_SUCCESS) {

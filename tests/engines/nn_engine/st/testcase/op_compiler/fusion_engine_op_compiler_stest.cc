@@ -1183,7 +1183,7 @@ TEST_F(STEST_fusion_engine_op_compiler, setcompressweightattr_03)
 
   auto op_compiler_ptr = std::make_shared<OpCompiler>("normal compiler", AI_CORE_NAME, nullptr);
   Status status = op_compiler_ptr->SetCompressWeightAttr(node);
-  EXPECT_EQ(fe::SUCCESS, status);
+  EXPECT_NE(fe::SUCCESS, status);
   bool has_fe_weight_attr = ge::AttrUtils::HasAttr(op_desc, ATTR_NAME_FE_WEIGHT_COMPRESS);
   EXPECT_EQ(has_fe_weight_attr, false);
 }

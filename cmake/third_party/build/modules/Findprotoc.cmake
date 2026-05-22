@@ -68,7 +68,7 @@ else()
                             -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
                             -DCMAKE_INSTALL_PREFIX=${CANN_3RD_LIB_PATH}/protoc
                             -Dprotobuf_ABSL_PROVIDER=module
-                            -DABSL_ROOT_DIR=${CMAKE_BINARY_DIR}/abseil_build-prefix/src/abseil_build
+                            -DABSL_ROOT_DIR=${CANN_3RD_LIB_PATH}/lib_cache/abseil-cpp
                             <SOURCE_DIR>
                         BUILD_COMMAND $(MAKE)
                         INSTALL_COMMAND $(MAKE) install

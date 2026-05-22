@@ -244,8 +244,8 @@ graphStatus FormatRefiner::GetAnchorPoints(const ge::ComputeGraphPtr &com_graph,
     }
     const auto &one_op_desc = one_node_ptr->GetOpDesc();
     if (one_op_desc == nullptr) {
-      REPORT_INNER_ERR_MSG("E18888", "node's opdesc is nullptr，graph:%s", com_graph->GetName().c_str());
-      GELOGE(GRAPH_FAILED, "[Check][Param] node's opdesc is nullptr，graph:%s", com_graph->GetName().c_str());
+      REPORT_INNER_ERR_MSG("E18888", "node's opdesc is nullptr, graph:%s", com_graph->GetName().c_str());
+      GELOGE(GRAPH_FAILED, "[Check][Param] node's opdesc is nullptr, graph:%s", com_graph->GetName().c_str());
       return GRAPH_FAILED;
     }
     graphStatus ret_status = RefreshConstantOutProcess(com_graph, one_op_desc);

@@ -13,10 +13,38 @@
 1. **整图回滚**：C++ 在 `SetAttr` 或删边失败时用备份图恢复。当前 Python `Graph` 不支持整图深拷贝，本样例在失败时抛出异常，**不保证**与 C++ 相同的原子回滚语义。
 2. **读取 Transpose 的 perm**：C++ 使用 `GNode::GetInputConstData`。Python 侧通过 perm 输入端的 `Const` / `Constant` 节点的 `value` 属性读取（与 `pattern_base_pass/4_add_zero_pass` 中 Const 校验方式一致）。若图中 perm 不以此形式出现，可能无法识别并删除 `Transpose`，与 C++ 覆盖范围可能略有差别。
 
+## 目录结构
+
+```
+python/
+├── README.md                     // Python 样例说明
+├── CMakeLists.txt                // 生成 es_all Python ES API 的编译脚本
+├── src
+│   ├── python_modify_conv_data_format_pass.py // Python pass 实现文件
+```
+
 ## 前置条件
 
-- 已 source CANN 环境（`source ${ASCEND_PATH}/set_env.sh`）
+- 已完成 CANN 环境变量设置，设置方式为 `source ${ASCEND_PATH}/set_env.sh`，更多指导请参考 [C++ 样例 README](../cpp/README.md) 的配置环境变量步骤
+- **run 包编译使用的 Python 版本**与执行本样例的 Python 版本一致。原因是 Python pass 相关扩展模块等与编译时 Python ABI 相关，版本不一致时可能导入失败或加载异常
 - 可导入 GE Python 包（含 `ge.graph`、`ge.passes` 及 pass 加载链路）
+
+## Conda 环境示例（Python 3.11）
+
+如果本机没有现成的匹配环境，可以参考下面的方式创建：
+
+```bash
+conda create -n ge-pass-py311 python=3.11 -y
+conda activate ge-pass-py311
+python -m pip install --upgrade pip
+python -m pip install attrs decorator sympy numpy psutil scipy
+```
+
+创建环境后，请确认：
+
+- 该环境中的 Python 版本与 run 包编译时使用的 Python 版本一致
+- 再按 [C++ 样例 README](../cpp/README.md) 的配置环境变量步骤，完成环境变量设置
+- 最后按本文使用方式设置 `ASCEND_GE_PY_PASS_PATH` 并参考 C++ 样例的运行步骤
 
 ## 使用方式
 
@@ -26,7 +54,7 @@
 export ASCEND_GE_PY_PASS_PATH=$PWD/python/src/python_modify_conv_data_format_pass.py
 ```
 
-2. 复用 [C++ pass 样例 README](../cpp/README.md) 中的程序编译+程序执行进行验证。
+2. 参考 [C++ 样例 README](../cpp/README.md) 的程序运行章节进行验证。
 
 ## 预期现象
 

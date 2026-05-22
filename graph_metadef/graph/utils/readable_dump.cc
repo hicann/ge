@@ -205,7 +205,7 @@ std::string ReadableDump::GetNodeInputInstance(const Node *node, OutputHandler &
     return input_instance_with_ir;
   }
 
-  GELOGI("[ReadableDump][GetNodeInputInstance] get node %s input instance with IR definition failed, "
+  GELOGI("[ReadableDump][GetNodeInputInstance] IR definition unavailable for node %s input instance, "
          "using parameters (_input_0, _input_1, ...) instead.", node->GetName().c_str());
   std::stringstream input_instance_ss;
   bool first = true;
@@ -404,7 +404,7 @@ std::string ReadableDump::GetSubgraphAttrs(const Node *node, std::vector<Compute
     return subgraph_attrs_contents;
   }
 
-  GELOGI("[ReadableDump][GetSubgraphAttrs] get node %s subgraph attrs with IR definition failed, "
+  GELOGI("[ReadableDump][GetSubgraphAttrs] IR definition unavailable for node %s subgraph attrs, "
          "using parameters (_graph_0, _graph_1, ...) instead.", node->GetName().c_str());
 
   std::stringstream ss;

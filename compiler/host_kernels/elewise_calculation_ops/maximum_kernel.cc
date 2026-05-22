@@ -165,7 +165,7 @@ Status MaximumKernel::MaximumCheck(const std::vector<ConstGeTensorPtr> &input) c
 
   // check whether there is data in Tensor
   if ((input_x1->GetData().size() == 0) || (input_x2->GetData().size() == 0)) {
-    GELOGI("Check data size fail. x1: %zu, x2: %zu", input_x1->GetData().size(), input_x2->GetData().size());
+    GELOGI("Data size check skipped: empty input. x1: %zu, x2: %zu", input_x1->GetData().size(), input_x2->GetData().size());
     return NOT_CHANGED;
   }
 

@@ -57,9 +57,7 @@ class FormatDtypeSelectorManagerSTest : public testing::Test {
  protected:
 
   static void SetUpTestCase() {
-    fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = "Ascend910A";
-    fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910A");
-    PlatformUtils::Instance().soc_version_ = "Ascend910A";
+    fe::InitPlatformInfo("Ascend910A", true);
     cout << "FEOpsKernelInfoStoreTest SetUP" << endl;
   }
 

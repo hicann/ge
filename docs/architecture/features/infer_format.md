@@ -321,6 +321,8 @@ InferOriginFormat  ← OriginFormat 推导
 | `UnchangedTransposeRemovePass` | 移除不改变数据的 Transpose |
 | `CastRemovePass` | 移除不必要的 Cast |
 
+其中 `TransOpWithoutReshapeFusionPass` 只处理 shape、format 和转换算子输入 dtype 均连续的转换链；如果转换算子输入 dtype 与上游输出 dtype 不一致，则保留原链路，避免误删转换节点。
+
 ## 5. 关键设计决策
 
 ### 5.1 为什么 FormatRefiner 使用锚点扩散而非全图遍历

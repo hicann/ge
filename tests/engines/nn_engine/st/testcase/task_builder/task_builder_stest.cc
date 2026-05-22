@@ -661,20 +661,19 @@ TEST_F(STEST_TaskBuilder, dynamic_node_generate_task_5)
 
 TEST_F(STEST_TaskBuilder, mix_static_node_generate_task_1)
 {
-
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
-  string real_path = fe::RealPath(path);
   string soc_version = "Ascend310P3";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/" + soc_version + ".ini";;
+  string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   fe::PlatformInfoManager::Instance().init_flag_ = true;
   fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = soc_version;
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.Init();
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
   fe::PlatformInfoManager::GeInstance().platform_info_map_.clear();
   fe::PlatformInfoManager::GeInstance().platform_infos_map_.clear();
-  init_ret = fe::PlatformInfoManager::GeInstance().LoadConfigFile(real_path);
+  init_ret = fe::PlatformInfoManager::GeInstance().LoadIniFile(real_path);
   fe::PlatformInfoManager::GeInstance().init_flag_ = true;
   fe::PlatformInfoManager::GeInstance().opti_compilation_info_.soc_version = soc_version;
   fe::PlatformInfoManager::GeInstance().opti_compilation_infos_.Init();

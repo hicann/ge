@@ -47,18 +47,22 @@ uint32_t InitPlatformInfo(const std::string &soc_version, const bool is_force) {
   if (fe::PlatformInfoManager::Instance().init_flag_ && !is_force) {
     return 0;
   }
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/" + soc_version + ".ini";
   string real_path = fe::RealPath(path);
+  if (real_path.empty()) {
+    path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
+    real_path = fe::RealPath(path);
+  }
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   fe::PlatformInfoManager::Instance().init_flag_ = true;
   fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = soc_version;
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.Init();
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
   fe::PlatformInfoManager::GeInstance().platform_info_map_.clear();
   fe::PlatformInfoManager::GeInstance().platform_infos_map_.clear();
-  init_ret = fe::PlatformInfoManager::GeInstance().LoadConfigFile(real_path);
+  init_ret = fe::PlatformInfoManager::GeInstance().LoadIniFile(real_path);
   fe::PlatformInfoManager::GeInstance().init_flag_ = true;
   fe::PlatformInfoManager::GeInstance().opti_compilation_info_.soc_version = soc_version;
   fe::PlatformInfoManager::GeInstance().opti_compilation_infos_.Init();

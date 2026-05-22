@@ -45,10 +45,7 @@ class configuration_ut: public testing::Test
 {
 protected:
   static void SetUpTestCase() {
-    std::string soc_version = "Ascend910B1";
-    PlatformInfoManager::Instance().opti_compilation_info_.soc_version = soc_version;
-    PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
-    PlatformUtils::Instance().soc_version_ = soc_version;
+    fe::InitPlatformInfo("Ascend910B1", true);
     PlatformUtils::Instance().pm_item_vec_[static_cast<size_t>(PlatformUtils::PlatformInfoItem::IsaArchVersion)] = static_cast<int64_t>(ISAArchVersion::EN_ISA_ARCH_V300);
   }
   void SetUp() {

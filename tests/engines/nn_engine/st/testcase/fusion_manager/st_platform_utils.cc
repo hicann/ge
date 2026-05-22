@@ -12,6 +12,7 @@
 #include <nlohmann/json.hpp>
 #include "ge/ge_api_types.h"
 #include "common/util/json_util.h"
+#include "graph_constructor/fe_llt_utils.h"
 
 #define protected public
 #define private public
@@ -39,6 +40,7 @@ class PlatFormUtilsST: public testing::Test
 
 TEST_F(PlatFormUtilsST, init_success_case1)
 {
+  fe::InitPlatformInfo("Ascend910B", true);
   PlatformUtils instance;
   std::map<std::string, std::string> options;
   options.emplace(ge::AICORE_NUM, "10");
@@ -71,6 +73,7 @@ TEST_F(PlatFormUtilsST, init_success_case1)
 
 TEST_F(PlatFormUtilsST, init_success_case2)
 {
+  fe::InitPlatformInfo("Ascend035", true);
   PlatformUtils instance;
   std::map<std::string, std::string> options;
   options.emplace(ge::CORE_TYPE, "VectorCore");

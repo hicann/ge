@@ -844,7 +844,7 @@ Status FftsPlusProtoTransfer::InitManualMixAicAivCtx(const domi::FftsPlusMixAicA
                                             kernel_name_prefixes[i], addr_pref_cnt),
                           "Get addr and pref cnt failed, kernel_name=%s",
                           ctx_def.kernel_name(static_cast<int32_t>(i)).c_str());
-        GELOGI("Get addr and pref cnt failed, kernel_name=%s", ctx_def.kernel_name(static_cast<int32_t>(i)).c_str());
+        GELOGI("Addr and pref cnt unavailable for kernel %s", ctx_def.kernel_name(static_cast<int32_t>(i)).c_str());
         GE_ASSERT_EQ(addr_pref_cnt.size(), kMixMultiKernelPcAddrCnt);
         aic_task_start_pc = addr_pref_cnt[0].first;
         aic_i_cache_prefetch_cnt = addr_pref_cnt[0].second;

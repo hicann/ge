@@ -27,7 +27,7 @@ Status DbgDumpInit(const char *cfg) {
   Status ret = DumpConfigInit(cfg);
   if (ret != SUCCESS) {
     FreeDumpConfigRes();
-    GELOGI("get dump config file failed, result = %u", ret);
+    GELOGI("Dump config file unavailable, result = %u", ret);
     return SUCCESS;
   }
   if (GetDumpEnableFlag()) {

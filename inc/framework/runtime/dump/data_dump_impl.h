@@ -70,8 +70,8 @@ class DataDumpImpl {
 
   Status ExecuteLoadDumpInfo(const toolkit::aicpu::dump::OpMappingInfo& op_mapping_info);
 
-  void BuildOpMappingBasicInfo(const ModelDumpInfo& model_info,
-                                toolkit::aicpu::dump::OpMappingInfo& op_mapping_info) const;
+  Status BuildOpMappingBasicInfo(const ModelDumpInfo& model_info,
+                                  toolkit::aicpu::dump::OpMappingInfo& op_mapping_info);
 
   Status BuildTaskList(toolkit::aicpu::dump::OpMappingInfo& op_mapping_info) const;
 
@@ -86,6 +86,7 @@ class DataDumpImpl {
   std::vector<InnerDumpInfo> task_list_;
   toolkit::aicpu::dump::OpMappingInfo op_mapping_info_;
   void* dev_mem_load_ = nullptr;
+  void* step_id_dev_addr_ = nullptr;
   bool load_flag_ = false;
 
   // Overflow dump 相关成员

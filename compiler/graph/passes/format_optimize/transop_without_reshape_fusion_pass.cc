@@ -142,7 +142,59 @@ bool TransOpWithoutReshapeFusionPass::IsFormatContinuous(const OutDataAnchorPtr 
       return false;
     }
   }
+
   return true;
+}
+
+//      AxpyV2 （FP16 -> FP32）
+//        ｜
+//       CAST （FP16 -> FP32）
+// 修改背景：AxpyV2算子的原始输出dtype是BF16，在OpJudge阶段storage shape被刷成FP32，被该pass认为两个node的输入输出type一致，将cast节点删除
+// FE在重型格式扩散时，由于cast不是aicore算子，无法扩散到AxpyV2节点，在该阶段FE会插入Trans_cast算子和Cast节点刚好对消
+// 如果该pass认为两个node的输入输出type一致，将cast节点删除，FE在重型格式扩散时，会将AxpyV2格式也设置为NZ格式，插入Trans_cast算子时无法和Cast节点对消
+bool TransOpWithoutReshapeFusionPass::IsTransOpDataTypeContinuous(const OutDataAnchorPtr &out_anchor,
+                                                                  const InDataAnchorPtr &in_anchor) const {
+  if ((out_anchor == nullptr) || (in_anchor == nullptr)) {
+    return false;
+  }
+  const auto in_node = in_anchor->GetOwnerNode();
+  if (in_node == nullptr) {
+    return false;
+  }
+  if (!IsTransOp(in_node)) {
+    return true;
+  }
+
+  const auto out_node = out_anchor->GetOwnerNode();
+  if (out_node == nullptr) {
+    return false;
+  }
+  const auto in_op_desc = in_node->GetOpDesc();
+  if (in_op_desc == nullptr) {
+    return false;
+  }
+  const auto out_op_desc = out_node->GetOpDesc();
+  if (out_op_desc == nullptr) {
+    return false;
+  }
+
+  // 转换链融合前需要确认数据类型连续性：当前数据边上游输出 dtype 必须等于下游 TransOp 输入 dtype。
+  const auto input_desc = in_op_desc->GetInputDescPtr(in_anchor->GetIdx());
+  const auto output_desc = out_op_desc->GetOutputDescPtr(out_anchor->GetIdx());
+  if ((input_desc == nullptr) || (output_desc == nullptr)) {
+    return false;
+  }
+  if (input_desc->GetDataType() == output_desc->GetDataType()) {
+    return true;
+  }
+
+  GELOGD("[Check][DataType] Trans op fusion is skipped, node:%s(%s), input idx:%d, input datatype:%s, "
+         "prev node:%s(%s), output idx:%d, output datatype:%s.",
+         in_op_desc->GetNamePtr(), in_op_desc->GetTypePtr(), in_anchor->GetIdx(),
+         TypeUtils::DataTypeToSerialString(input_desc->GetDataType()).c_str(),
+         out_op_desc->GetNamePtr(), out_op_desc->GetTypePtr(), out_anchor->GetIdx(),
+         TypeUtils::DataTypeToSerialString(output_desc->GetDataType()).c_str());
+  return false;
 }
 
 bool TransOpWithoutReshapeFusionPass::HasPrecisionLoss(const OutDataAnchorPtr &out_anchor,
@@ -160,74 +212,117 @@ bool TransOpWithoutReshapeFusionPass::HasPrecisionLoss(const OutDataAnchorPtr &o
   return false;
 }
 
+graphStatus TransOpWithoutReshapeFusionPass::IsTransposeNoNeedFusion(const NodePtr &node, bool &no_need_fusion) const {
+  no_need_fusion = false;
+  if ((node->GetType() != TRANSPOSE) && (node->GetType() != TRANSPOSED)) {
+    return GRAPH_SUCCESS;
+  }
+
+  GE_CHECK_NOTNULL(node->GetOpDesc());
+  GE_ASSERT_NOTNULL(node->GetOpDesc()->GetInputDescPtr(0));
+  auto input_format = node->GetOpDesc()->GetInputDescPtr(0)->GetFormat();
+  GE_ASSERT_NOTNULL(node->GetOpDesc()->GetOutputDescPtr(0));
+  auto output_format = node->GetOpDesc()->GetOutputDescPtr(0)->GetFormat();
+  bool is_unknown = false;
+  // No need to fusion when input and output format is same or is unknown shape
+  if ((input_format == output_format) ||
+      ((NodeUtils::GetNodeUnknownShapeStatus(*node, is_unknown) == GRAPH_SUCCESS) && is_unknown)) {
+    GELOGD("Abandoned Fusion node %s(%s) is unknown shape.", node->GetNamePtr(), node->GetTypePtr());
+    no_need_fusion = true;
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus TransOpWithoutReshapeFusionPass::NeedRemainNode(const OutDataAnchorPtr &out_anchor,
+                                                            const InDataAnchorPtr &in_anchor,
+                                                            bool &need_remain) const {
+  need_remain = false;
+  GE_CHECK_NOTNULL(in_anchor);
+  auto in_node = in_anchor->GetOwnerNode();
+  GE_CHECK_NOTNULL(in_node);
+  if (in_node->GetType() == RESHAPE) {
+    GELOGD("Abandoned Fusion node %s type: RESHAPE", in_node->GetNamePtr());
+    need_remain = true;
+    return GRAPH_SUCCESS;
+  }
+
+  GE_CHK_STATUS_RET(IsTransposeNoNeedFusion(in_node, need_remain));
+  if (need_remain) {
+    return GRAPH_SUCCESS;
+  }
+
+  GE_CHECK_NOTNULL(out_anchor);
+  auto out_node = out_anchor->GetOwnerNode();
+  GE_CHECK_NOTNULL(out_node);
+  if (!IsFormatContinuous(out_anchor, in_anchor)) {
+    GELOGD("Abandoned Fusion node %s(%s) and node %s(%s) format is uncontinuous or not support.",
+           out_node->GetNamePtr(), out_node->GetTypePtr(), in_node->GetNamePtr(), in_node->GetTypePtr());
+    need_remain = true;
+    return GRAPH_SUCCESS;
+  }
+
+  if (!IsTransOpDataTypeContinuous(out_anchor, in_anchor)) {
+    GELOGD("Abandoned Fusion node %s(%s) input datatype is uncontinuous.", in_node->GetNamePtr(),
+           in_node->GetTypePtr());
+    need_remain = true;
+    return GRAPH_SUCCESS;
+  }
+
+  if (HasPrecisionLoss(out_anchor, in_anchor)) {
+    GELOGD("Abandoned Fusion node %s(%s) and node %s(%s) has precision loss.", out_node->GetNamePtr(),
+           out_node->GetTypePtr(), in_node->GetNamePtr(), in_node->GetTypePtr());
+    need_remain = true;
+  }
+  return GRAPH_SUCCESS;
+}
+
+graphStatus TransOpWithoutReshapeFusionPass::GetSubGraphNodesInfo(const size_t index, bool &has_remain_node,
+                                                                  int32_t &transop_num_count,
+                                                                  std::vector<NodePtr> &sub_graph_nodes) const {
+  has_remain_node = false;
+  transop_num_count = 0;
+  auto nodes_anchor = sub_graph_anchors_[index];
+  auto iter = nodes_anchor.begin();
+  auto first_out_anchor = iter->first;
+  if (first_out_anchor == nullptr) {
+    return GRAPH_SUCCESS;
+  }
+  sub_graph_nodes.push_back(first_out_anchor->GetOwnerNode());
+
+  while (iter != nodes_anchor.end()) {
+    auto in_anchor = iter->second;
+    bool need_remain = false;
+    GE_CHK_STATUS_RET(NeedRemainNode(iter->first, in_anchor, need_remain));
+    if (need_remain) {
+      has_remain_node = true;
+      break;
+    }
+
+    auto in_node = in_anchor->GetOwnerNode();
+    GE_CHECK_NOTNULL(in_node);
+    sub_graph_nodes.push_back(in_node);
+    if (IsTransOp(in_node)) {
+      ++transop_num_count;
+    }
+    ++iter;
+  }
+  return GRAPH_SUCCESS;
+}
+
 graphStatus TransOpWithoutReshapeFusionPass::GetSubGraphNodesInfo() {
   std::vector<bool> sub_graph_has_reshape_node(sub_graph_anchors_.size(), false);
   std::vector<int32_t> transop_num_count(sub_graph_anchors_.size(), 0);
   std::vector<std::vector<NodePtr>> sub_graph_nodes(sub_graph_anchors_.size());
   for (size_t i = 0; i < sub_graph_anchors_.size(); ++i) {
-    auto nodes_anchor = sub_graph_anchors_[i];
+    bool has_remain_node = false;
+    int32_t current_transop_num_count = 0;
     std::vector<NodePtr> nodes_tmp;
-    auto iter = nodes_anchor.begin();
-    auto first_out_anchor = iter->first;
-    if (first_out_anchor == nullptr) {
-      continue;
-    }
-    nodes_tmp.push_back(first_out_anchor->GetOwnerNode());
-    while (iter != nodes_anchor.end()) {
-      auto in_anchor = iter->second;
-      GE_CHECK_NOTNULL(in_anchor);
-      auto in_node = in_anchor->GetOwnerNode();
-      GE_CHECK_NOTNULL(in_node);
-      if (in_node->GetType() == RESHAPE) {
-        GELOGD("Abandoned Fusion node %s type: RESHAPE", in_node->GetNamePtr());
-        sub_graph_has_reshape_node[i] = true;
-        break;
-      }
-      if ((in_node->GetType() == TRANSPOSE) || (in_node->GetType() == TRANSPOSED)) {
-        GE_CHECK_NOTNULL(in_node->GetOpDesc());
-        GE_ASSERT_NOTNULL(in_node->GetOpDesc()->GetInputDescPtr(0));
-        auto input_format = in_node->GetOpDesc()->GetInputDescPtr(0)->GetFormat();
-        GE_ASSERT_NOTNULL(in_node->GetOpDesc()->GetOutputDescPtr(0));
-        auto output_format = in_node->GetOpDesc()->GetOutputDescPtr(0)->GetFormat();
-        bool is_unknown = false;
-        // No need to fusion when input and output format is same or is unknown shape
-        if ((input_format == output_format) ||
-            ((NodeUtils::GetNodeUnknownShapeStatus(*in_node, is_unknown) == GRAPH_SUCCESS) && is_unknown)) {
-          GELOGD("Abandoned Fusion node %s(%s) is unknown shape.", in_node->GetNamePtr(), in_node->GetTypePtr());
-          sub_graph_has_reshape_node[i] = true;
-          break;
-        }
-      }
-
-      auto out_anchor = iter->first;
-      GE_CHECK_NOTNULL(out_anchor);
-      auto out_node = out_anchor->GetOwnerNode();
-      GE_CHECK_NOTNULL(out_node);
-      if (!IsFormatContinuous(out_anchor, in_anchor)) {
-        GELOGD("Abandoned Fusion node %s(%s) and node %s(%s) format is uncontinuous or not support.",
-               out_node->GetNamePtr(),
-               out_node->GetTypePtr(), in_node->GetNamePtr(), in_node->GetTypePtr());
-        sub_graph_has_reshape_node[i] = true;
-        break;
-      }
-
-      if (HasPrecisionLoss(out_anchor, in_anchor)) {
-        GELOGD("Abandoned Fusion node %s(%s) and node %s(%s) has precision loss.", out_node->GetNamePtr(),
-               out_node->GetTypePtr(), in_node->GetNamePtr(), in_node->GetTypePtr());
-        sub_graph_has_reshape_node[i] = true;
-        break;
-      }
-
-      nodes_tmp.push_back(in_node);
-      if (IsTransOp(in_node)) {
-        // count transop num
-        transop_num_count[i]++;
-      }
-      ++iter;
-    }
+    GE_CHK_STATUS_RET(GetSubGraphNodesInfo(i, has_remain_node, current_transop_num_count, nodes_tmp));
+    sub_graph_has_reshape_node[i] = has_remain_node;
+    transop_num_count[i] = current_transop_num_count;
     sub_graph_nodes[i].swap(nodes_tmp);
     if (sub_graph_has_reshape_node[i]) {
-      SetRemainNode(nodes_anchor);
+      SetRemainNode(sub_graph_anchors_[i]);
     }
   }
 

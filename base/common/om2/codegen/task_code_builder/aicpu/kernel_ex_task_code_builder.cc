@@ -375,19 +375,33 @@ Status KernelExTaskCodeBuilder::Contribute(TaskSemanticContributeContext &contex
 Status KernelExTaskCodeBuilder::RenderGetAddrInfo(std::vector<BodyItem> &items,
   std::vector<Arg> &flatten_args_vars) const {
   for (const auto &input_addr : semantic_.input_addrs) {
-    if (!input_addr.is_reused_from_upstream) {
-      items.push_back(ast_.VarDecl("auto", input_addr.symbol_hint,
-        GetAddr(total_dev_mem_ptr_, input_addr.mem_offset)));
-      flatten_args_vars.emplace_back(ast_.Var("auto", input_addr.symbol_hint));
-    }
+    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(input_addr, "input", items, flatten_args_vars));
   }
   for (const auto &output_addr : semantic_.output_addrs) {
-    if (!output_addr.is_reused_from_upstream) {
-      items.push_back(ast_.VarDecl("auto", output_addr.symbol_hint,
-        GetAddr(total_dev_mem_ptr_, output_addr.mem_offset)));
-      flatten_args_vars.emplace_back(ast_.Var("auto", output_addr.symbol_hint));
-    }
+    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(output_addr, "output", items, flatten_args_vars));
   }
+  return SUCCESS;
+}
+
+Status KernelExTaskCodeBuilder::AppendOm2TensorAddrInfo(const AddrSemantic &addr, const char *addr_type,
+                                                        std::vector<BodyItem> &items,
+                                                        std::vector<Arg> &flatten_args_vars) const {
+  GE_ASSERT_TRUE(!addr.symbol_hint.empty(), "[OM2] KernelEx %s addr symbol hint is empty.", addr_type);
+  if (!addr.is_reused_from_upstream) {
+    GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] KernelEx %s tensor info is required for %s.",
+                   addr_type, addr.symbol_hint.c_str());
+    const auto &tensor_info = *addr.tensor_info;
+    const std::string shape_var_name = addr.symbol_hint + "_shape";
+    items.push_back(
+        ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+    items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
+        GetAddr(total_dev_mem_ptr_, addr.mem_offset),
+        ast_.ULong(tensor_info.size),
+        tensor_info.data_type,
+        tensor_info.format,
+        ast_.Var("std::vector<int64_t>", shape_var_name)})));
+  }
+  flatten_args_vars.emplace_back(ast_.Var("auto", addr.symbol_hint));
   return SUCCESS;
 }
 

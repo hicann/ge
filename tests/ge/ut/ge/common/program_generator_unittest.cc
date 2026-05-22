@@ -3049,6 +3049,11 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForKernelExTask_Ok) {
   EXPECT_NE(load_run_code.find("const char *op2_kernel_ex_args_str"), std::string::npos);
   EXPECT_NE(load_run_code.find("const char *op2_kernel_ex_task_info_str"), std::string::npos);
   EXPECT_NE(load_run_code.find("const char *op2_kernel_ex_ext_info_str"), std::string::npos);
+  EXPECT_NE(load_run_code.find("std::vector<int64_t> op2_input0_shape"), std::string::npos);
+  EXPECT_NE(load_run_code.find("Om2Tensor op2_input0 = BuildOm2Tensor("), std::string::npos);
+  EXPECT_NE(load_run_code.find("Om2Tensor op2_input1 = BuildOm2Tensor("), std::string::npos);
+  EXPECT_NE(load_run_code.find("Om2Tensor op2_output0 = BuildOm2Tensor("), std::string::npos);
+  EXPECT_NE(load_run_code.find("FlattenHostArgs(op2_input0, op2_input1, op2_output0)"), std::string::npos);
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExSessionIdInfo"), std::string::npos);
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExKernelIdInfo"), std::string::npos);
   EXPECT_NE(load_run_code.find("OM2_CHK_STATUS(AssembleTfAicpuExWorkSpaceAddrInfo"), std::string::npos);

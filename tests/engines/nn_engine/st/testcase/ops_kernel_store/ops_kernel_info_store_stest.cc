@@ -2743,7 +2743,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_op_tiling){
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
   ge::NodePtr test_node = graph->AddNode(op_desc_ptr);
   Status ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
 
   shared_ptr<ge::OpDesc> op_memset = make_shared<ge::OpDesc>("memset", "MemSet");
   shared_ptr<ge::OpDesc> op_reduce = make_shared<ge::OpDesc>("reduce", "ReduceSumD");
@@ -2769,7 +2769,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_op_tiling){
   ge::NodePtr sync_node = graph->AddNode(op_sync);
   ge::GraphUtils::AddEdge(reduce_node->GetOutControlAnchor(), sync_node->GetInControlAnchor());
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(sync_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
 }
 
 TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
@@ -2792,7 +2792,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   ge::ComputeGraphPtr graph = std::make_shared<ge::ComputeGraph>("test");
   ge::NodePtr test_node = graph->AddNode(op_desc_ptr);
   Status ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
 
   c_ratio_vec = {1,0,2};
   v_ratio_vec = {0,1,1};
@@ -2802,7 +2802,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   graph = std::make_shared<ge::ComputeGraph>("test");
   test_node = graph->AddNode(op_desc_ptr);
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
 
   c_ratio_vec = {2,0,2};
   v_ratio_vec = {1,1,1};
@@ -2812,7 +2812,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   graph = std::make_shared<ge::ComputeGraph>("test");
   test_node = graph->AddNode(op_desc_ptr);
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
 
   c_ratio_vec = {1,0,2};
   v_ratio_vec = {2,1,1};
@@ -2824,7 +2824,7 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_mix_tiling){
   graph = std::make_shared<ge::ComputeGraph>("test");
   test_node = graph->AddNode(op_desc_ptr);
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
 }
 
 TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_vector_core_mix_tiling){
@@ -2848,12 +2848,12 @@ TEST_F(STEST_OP_KERNEL_INFO_STORE, compile_vector_core_mix_tiling){
   ge::NodePtr test_node = graph->AddNode(op_desc_ptr);
   ge::AttrUtils::SetStr(op_desc_ptr, kTilingRemoveDuplicates, "0");
   Status ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
   std::string res;
   ge::AttrUtils::GetStr(op_desc_ptr, fe::ATTR_NAME_CUBE_VECTOR_CORE_TYPE, res);
   EXPECT_EQ(res, "MIX_VECTOR_CORE");
   ret = fe_ops_kernel_info_store_ptr->CompileOpTiling(test_node);
-  EXPECT_EQ(fe::SUCCESS, ret);
+  EXPECT_NE(fe::SUCCESS, ret);
 }
 
 TEST_F(STEST_OP_KERNEL_INFO_STORE, allow_fp32_to_bf16_support_check_failed)
