@@ -266,7 +266,7 @@ GeRootModelPtr CreateGeRootModelWithAicoreOp2() {
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-  std::cout << ge_model->GetModelTaskDefPtr()->DebugString() << std::endl;
+  // std::cout << ge_model->GetModelTaskDefPtr()->DebugString() << std::endl;
 
   return ge_root_model;
 }
@@ -323,7 +323,7 @@ GeRootModelPtr CreateGeRootModelWithAicpuOp() {
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-  std::cout << ge_model->GetModelTaskDefPtr()->DebugString() << std::endl;
+  // std::cout << ge_model->GetModelTaskDefPtr()->DebugString() << std::endl;
 
   return ge_root_model;
 }
@@ -546,7 +546,7 @@ GeRootModelPtr CreateGeRootModelWithAicoreOpOfDynamicIo() {
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
   (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
-  std::cout << ge_model->GetModelTaskDefPtr()->DebugString() << std::endl;
+  // std::cout << ge_model->GetModelTaskDefPtr()->DebugString() << std::endl;
 
   return ge_root_model;
 }

@@ -157,7 +157,7 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
   semantic_.kernel_type = static_cast<ccKernelType>(Om2CodegenUtils::IsAllKernel(context.task_type)
                                                         ? context.task_def.kernel_with_handle().context().kernel_type()
                                                         : context.task_def.kernel().context().kernel_type());
-  kernel_name_ = context.task_def.kernel().kernel_name();
+  GE_ASSERT_SUCCESS(ResolveKernelName(semantic_, context.op_desc, context.task_def, kernel_name_));
   GE_ASSERT_NOTNULL(context.op_desc);
   op_need_print_ = Om2CodegenUtils::OpNeedPrint(context.op_desc);
   is_soft_sync_op_ = IsAllKernelTask(semantic_) && Om2CodegenUtils::IsSoftSyncOp(context.op_desc);
@@ -165,18 +165,7 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
                               Om2CodegenUtils::IsSeparatelyCleanTask(context.op_desc, kernel_name_);
   is_blocking_aicpu_op_ = IsAicpuTask(semantic_) && Om2CodegenUtils::IsBlockingAicpuOp(context.op_desc);
   GE_ASSERT_SUCCESS(CheckTaskSupport());
-  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
-    semantic_.aicpu_task_index = *context.aicpu_task_count;
-    ++(*context.aicpu_task_count);
-  }
-  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
-  } else {
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveWorkspaceAddrs(context, semantic_.workspace_addrs));
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
-  }
+  GE_ASSERT_SUCCESS(ResolveTaskAddrs(context));
 
   GE_ASSERT_SUCCESS(BuildLaunchSemantic(context));
 
@@ -191,6 +180,40 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
   if (semantic_.args_table_entry.has_value()) {
     ++(*context.next_args_table_index);
     *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(semantic_.args_table_entry->args_size);
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::ResolveKernelName(const KernelTaskSemantic &semantic, const OpDescPtr &op_desc,
+                                                 const domi::TaskDef &task_def, std::string &kernel_name) {
+  if (IsAicoreTask(semantic)) {
+    const auto kernel_name_ptr = AttrUtils::GetStr(op_desc, "_kernelname");
+    GE_ASSERT_NOTNULL(kernel_name_ptr, "[OM2] Failed to get kernel_name from op_desc, op=%s", op_desc->GetName().c_str());
+    kernel_name = *kernel_name_ptr;
+  } else {
+    kernel_name = task_def.kernel().kernel_name();
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::ResolveTaskAddrs(TaskSemanticContributeContext &context) {
+  const bool is_aicpu = IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_);
+  if (is_aicpu) {
+    semantic_.aicpu_task_index = *context.aicpu_task_count;
+    ++(*context.aicpu_task_count);
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
+  } else {
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveWorkspaceAddrs(context, semantic_.workspace_addrs));
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
+  }
+  if (IsAllKernelTask(semantic_)) {
+    const auto tiling_info =
+        context.op_desc->GetExtAttr<std::shared_ptr<optiling::utils::OpRunInfo>>(ge::ATTR_NAME_OP_RUN_INFO);
+    if ((tiling_info != nullptr) && (*tiling_info != nullptr)) {
+      semantic_.tiling_key = (*tiling_info)->GetTilingKey();
+    }
   }
   return SUCCESS;
 }
@@ -225,9 +248,16 @@ Status KernelTaskCodeBuilder::BuildLaunchSemantic(const TaskSemanticContributeCo
       launch_semantic.config.schedule_mode = static_cast<uint8_t>(kernel_def.schedule_mode() & k2BitsMask);
     }
   }
-  const std::string kernel_name = context.task_def.kernel().kernel_name();
-  const std::string func_handle_key = (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_))
-                                       ? context.op_desc->GetType() + kernel_name : kernel_name;
+  std::string kernel_name;
+  GE_ASSERT_SUCCESS(ResolveKernelName(semantic_, context.op_desc, context.task_def, kernel_name));
+  std::string func_handle_key;
+  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
+    func_handle_key = context.op_desc->GetType() + kernel_name;
+  } else if (IsAllKernelTask(semantic_)) {
+    func_handle_key = kernel_name + "#" + std::to_string(semantic_.tiling_key);
+  } else {
+    func_handle_key = kernel_name;
+  }
   const auto func_handle_it = context.func_handle_indices->find(func_handle_key);
   GE_ASSERT_TRUE(func_handle_it != context.func_handle_indices->end(),
                  "[OM2] Func handle key %s not found.", func_handle_key.c_str());

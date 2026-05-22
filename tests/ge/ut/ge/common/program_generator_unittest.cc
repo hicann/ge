@@ -659,6 +659,63 @@ GeRootModelPtr CreateGeRootModelWithMemcpyAddrAsync() {
   return ge_root_model;
 }
 
+GeRootModelPtr CreateGeRootModelWithMemcpyAddrAsyncAndCustomValue() {
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model =
+      builder
+          .AddTaskDef(
+              "Add",
+              gert::AiCoreTaskDefFaker("add_stub").ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
+          .FakeTbeBin({"Add"})
+          .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->AppendIrInput("x1", kIrInputRequired);
+      op_desc->AppendIrInput("x2", kIrInputRequired);
+      op_desc->AppendIrOutput("y", kIrOutputRequired);
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+      op_desc->SetWorkspaceBytes(std::vector<int64_t>(1, 64));
+      op_desc->SetWorkspace(std::vector<int64_t>(1, 0));
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  auto *memcpy_addr_task = model_task_def->add_task();
+  memcpy_addr_task->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_MEMCPY_ADDR_ASYNC));
+  memcpy_addr_task->set_stream_id(0U);
+  auto *memcpy_async_def = memcpy_addr_task->mutable_memcpy_async();
+  const uint64_t logic_mem_base = 0U;
+  memcpy_async_def->set_op_index(2);
+  memcpy_async_def->set_src(logic_mem_base + 1024);
+  memcpy_async_def->set_dst(logic_mem_base + 2048);
+  memcpy_async_def->set_dst_max(1024U);
+  memcpy_async_def->set_count(512U);
+  memcpy_async_def->set_kind(1U);
+  memcpy_async_def->set_args_format("{#42}{#.32b114}{#514}{i_instance0*}{o_instance0*}");
+
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 4096);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+  return ge_root_model;
+}
+
 GeRootModelPtr CreateGeRootModelWithMemcpyAsync() {
   auto graph = gert::ShareGraph::AicoreStaticGraph();
   graph->TopologicalSorting();
@@ -1241,6 +1298,8 @@ struct BinaryBuffer {
 
 struct AicoreRegisterInfo {
   uint32_t magic;
+  bool use_tiling_key = false;
+  uint64_t tiling_key = 0;
   const char *kernel_name;
   std::string file;
 };
@@ -1323,7 +1382,11 @@ aclError RegisterAicoreKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &func_
   option.type = ACL_RT_BINARY_LOAD_OPT_MAGIC;
   option.value.magic = register_info.magic;
   OM2_CHK_STATUS(aclrtBinaryLoadFromData(bin_info.data, bin_info.size, &load_options, &bin_handle));
-  OM2_CHK_STATUS(aclrtBinaryGetFunction(bin_handle, register_info.kernel_name, &func_handle));
+  if (register_info.use_tiling_key) {
+    OM2_CHK_STATUS(aclrtBinaryGetFunctionByEntry(bin_handle, register_info.tiling_key, &func_handle));
+  } else {
+    OM2_CHK_STATUS(aclrtBinaryGetFunction(bin_handle, register_info.kernel_name, &func_handle));
+  }
   return ACL_SUCCESS;
 }
 
@@ -1359,7 +1422,7 @@ aclError RegisterCustAicpuKernel(aclrtBinHandle &bin_handle, aclrtFuncHandle &fu
 }
 } // namespace
 aclError Om2Model::RegisterKernels() {
-  OM2_CHK_STATUS(RegisterAicoreKernel(bin_handles_[0], func_handles_[0], {ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, "name", "name.o"}, bin_info_map_));
+  OM2_CHK_STATUS(RegisterAicoreKernel(bin_handles_[0], func_handles_[0], {ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE, false, 0, "add1_faked_kernel", "add1_faked_kernel.o"}, bin_info_map_));
   return ACL_SUCCESS;
 }
 } // namespace om2
@@ -2424,6 +2487,26 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAddrAsync_Ok) {
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("args_table_.GetArgsInfo"), std::string::npos);
 }
 
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_MemcpyAddrAsync_CustomValue_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithMemcpyAddrAsyncAndCustomValue();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  // KernelMemcpyAddrAsyncDistribute helper function should be generated
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("KernelMemcpyAddrAsyncDistribute"),
+            std::string::npos);
+  // custom value writeback should be generated for 64-bit value
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("ValueToPtr"), std::string::npos);
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("PtrToValue"), std::string::npos);
+  // should generate assignment for custom value
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("*reinterpret_cast<uint64_t *>"),
+            std::string::npos);
+  // should generate assignment for 32-bit custom value
+  EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find("*reinterpret_cast<uint32_t *>"),
+            std::string::npos);
+}
+
 TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAsync_Ok) {
   GeRootModelPtr ge_root_model = CreateGeRootModelWithMemcpyAsync();
   auto generator = CreateProgramGenerator(ge_root_model);
@@ -2983,9 +3066,12 @@ TEST_F(ProgramGeneratorUt, GenerateKernelRegistryForCustAicpu_Ok) {
   EXPECT_NE(kernel_reg.find("OM2_CHK_STATUS(aclrtRegisterCpuFunc(bin_handle, register_info.func_name, "
                             "register_info.op_type, &func_handle));"),
             std::string::npos);
-  EXPECT_NE(kernel_reg.find("OM2_CHK_STATUS(RegisterCustAicpuKernel(bin_handles_[0], func_handles_[0], {\"add1\", "
-                            "\"Add\", \"name\"}, bin_info_map_));"),
-            std::string::npos);
+  const size_t cust_aicpu_hash_id = std::hash<std::string>{}(std::string(64, '\0'));
+  const std::string cust_aicpu_file_name = std::to_string(cust_aicpu_hash_id) + "_CustAicpuKernel";
+  const std::string expected_reg_call =
+      "OM2_CHK_STATUS(RegisterCustAicpuKernel(bin_handles_[0], func_handles_[0], {\"" + cust_aicpu_file_name +
+      "\", \"Add\", \"name\"}, bin_info_map_));";
+  EXPECT_NE(kernel_reg.find(expected_reg_call), std::string::npos);
 
   const auto &load_and_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
   // std::cout << "=== load_and_run content ===" << std::endl << load_and_run << std::endl << "=== end ===" <<
@@ -3314,6 +3400,85 @@ TEST_F(ProgramGeneratorUt, UpdateOutputShapeAndType_DependShapeRange_Success) {
   ASSERT_EQ(handler.GetOutputShapeAndType(0, shape, data_type), SUCCESS);
   EXPECT_EQ(shape.GetDim(0), 10);
   EXPECT_EQ(shape.GetDim(2), 20);
+}
+
+GeRootModelPtr CreateGeRootModelWithAllKernelOp() {
+  auto graph = gert::ShareGraph::AicoreStaticGraph();
+  graph->TopologicalSorting();
+  gert::GeModelBuilder builder(graph);
+  auto ge_root_model = builder
+                           .AddTaskDef("add1", gert::AiCoreTaskDefFaker("add_stub")
+                                                   .WithHandle()
+                                                   .ArgsFormat("{i_instance0*}{i_instance1*}{o_instance0*}{ws0*}"))
+                           .FakeTbeBin({"Add"})
+                           .BuildGeRootModel();
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  compute_graph->SetGraphUnknownFlag(false);
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if (op_desc == nullptr) {
+      return nullptr;
+    }
+    if (op_desc->GetType() == DATA) {
+      op_desc->SetOutputOffset({1024});
+    } else if (op_desc->GetType() == NETOUTPUT) {
+      op_desc->SetInputOffset({3072});
+    } else {
+      op_desc->AppendIrInput("x1", kIrInputRequired);
+      op_desc->AppendIrInput("x2", kIrInputRequired);
+      op_desc->AppendIrOutput("y", kIrOutputRequired);
+      op_desc->SetInputOffset(std::vector<int64_t>(op_desc->GetInputsSize(), 1024));
+      op_desc->SetOutputOffset(std::vector<int64_t>(op_desc->GetOutputsSize(), 1024));
+      op_desc->SetWorkspaceBytes(std::vector<int64_t>(1, 64));
+      op_desc->SetWorkspace(std::vector<int64_t>(1, 0));
+      if (op_desc->GetName() == "add1") {
+        (void)AttrUtils::SetStr(op_desc, "_kernelname", "add_stub");
+      }
+    }
+  }
+
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def != nullptr) {
+    for (int32_t i = 0; i < model_task_def->task_size(); ++i) {
+      auto *task_def = model_task_def->mutable_task(i);
+      if ((task_def != nullptr) && task_def->has_kernel_with_handle()) {
+        task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_ALL_KERNEL));
+        auto *kernel_with_handle = task_def->mutable_kernel_with_handle();
+        auto *context = kernel_with_handle->mutable_context();
+        context->set_kernel_type(static_cast<uint32_t>(ccKernelType::TE));
+      }
+    }
+  }
+
+  std::vector<uint64_t> weights_value(64, 1024);
+  const size_t weight_size = weights_value.size() * sizeof(uint64_t);
+  ge_model->SetWeight(Buffer::CopyFrom(reinterpret_cast<uint8_t *>(weights_value.data()), weight_size));
+
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 2048);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  return ge_root_model;
+}
+
+TEST_F(ProgramGeneratorUt, GenerateProgram_AllKernel_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithAllKernelOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  for (const auto file_index : {GeneratedFileIndex::kKernelRegistryFile, GeneratedFileIndex::kResourcesFile,
+                                GeneratedFileIndex::kArgsManagerFile, GeneratedFileIndex::kLoadingAndRunningFile,
+                                GeneratedFileIndex::kInterfaceHeaderFile, GeneratedFileIndex::kCMakeListsFile}) {
+    ASSERT_NE(outputs.find(file_index), outputs.end());
+    ASSERT_FALSE(outputs[file_index].empty());
+  }
+
+  const auto &kernel_reg_source = outputs[GeneratedFileIndex::kKernelRegistryFile];
+  EXPECT_NE(kernel_reg_source.find("ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE"), std::string::npos);
 }
 
 }  // namespace ge

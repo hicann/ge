@@ -70,6 +70,9 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   Status InitAicpuTaskExtInfo(uint8_t *ext_info, size_t ext_info_len, const OpDescPtr op_desc,
                               int32_t &session_info_offset);
   Status BuildLaunchSemantic(const TaskSemanticContributeContext &context);
+  static Status ResolveKernelName(const KernelTaskSemantic &semantic, const OpDescPtr &op_desc,
+                                   const domi::TaskDef &task_def, std::string &kernel_name);
+  Status ResolveTaskAddrs(TaskSemanticContributeContext &context);
   Status CopyTilingDataIfNeeded(const TaskSemanticContributeContext &context, const ArgsFormatInfo &args_format_holder);
   Status ConstructDfxInfo(const ge::OpDescPtr &op_desc, const optiling::OpRunInfoV2 &run_info,
                           const std::vector<ge::ArgDesc> &arg_descs, std::string &dfx_info) const;

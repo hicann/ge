@@ -174,6 +174,7 @@ enum class KernelBinaryKind : int32_t {
   kAicore,
   kAicpu,
   kCustAicpu,
+  kAllKernel,
 };
 
 struct KernelBinaryRecord {
@@ -184,6 +185,7 @@ struct KernelBinaryRecord {
   std::string so_name;
   std::string op_kernel_lib;
   std::string magic;
+  uint64_t tiling_key{0U};
   uint32_t func_handle_index{0U};
 };
 
@@ -269,6 +271,7 @@ struct AicpuExtInfoSemantic {
 struct KernelTaskSemantic {
   ModelTaskType task_type{ModelTaskType::MODEL_TASK_KERNEL};
   ccKernelType kernel_type{ccKernelType::INVALID};
+  uint64_t tiling_key{0U};
   LaunchCallSemantic launch;
   std::vector<AddrSemantic> input_addrs;
   std::vector<AddrSemantic> output_addrs;

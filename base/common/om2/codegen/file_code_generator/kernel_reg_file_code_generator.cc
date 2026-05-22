@@ -24,6 +24,8 @@ StructDecl *KernelRegFileCodeGenerator::BuildBinaryBufferStruct() const {
 StructDecl *KernelRegFileCodeGenerator::BuildAicoreRegisterInfoStruct() const {
   return ast_.Struct("AicoreRegisterInfo", {
       ast_.Field("uint32_t", "magic"),
+      ast_.Field("bool", "use_tiling_key", false),
+      ast_.Field("uint64_t", "tiling_key", 0U),
       ast_.Field("const char *", "kernel_name"),
       ast_.Field("std::string", "file"),
   });
@@ -77,7 +79,11 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterAicoreKernel() const {
       ast_.Assign(option.Attr("value").Attr("magic"), register_info.Attr("magic")),
       ChkStatus(AclrtBinaryLoadFromData(bin_info.Attr("data"), bin_info.Attr("size"), load_options.Addr(),
                                        bin_handle.Addr())),
-      ChkStatus(AclrtBinaryGetFunction(bin_handle, register_info.Attr("kernel_name"), func_handle.Addr())),
+      ast_.If(register_info.Attr("use_tiling_key"), {
+          ChkStatus(AclrtBinaryGetFunctionByEntry(bin_handle, register_info.Attr("tiling_key"), func_handle.Addr())),
+      }, {
+          ChkStatus(AclrtBinaryGetFunction(bin_handle, register_info.Attr("kernel_name"), func_handle.Addr())),
+      }),
       ast_.Return("ACL_SUCCESS"),
   });
 }
@@ -135,11 +141,13 @@ FunctionDef *KernelRegFileCodeGenerator::BuildRegisterCustAicpuKernel() const {
 MethodDef *KernelRegFileCodeGenerator::BuildRegisterKernels(const Om2CodegenModel &codegen_model) {
   std::vector<BodyItem> items;
   for (const auto &binary : codegen_model.kernel_registry.binaries) {
-    if (binary.kind == KernelBinaryKind::kAicore) {
+    if (binary.kind == KernelBinaryKind::kAicore || binary.kind == KernelBinaryKind::kAllKernel) {
+      const bool use_tiling_key = (binary.kind == KernelBinaryKind::kAllKernel);
       items.emplace_back(ChkStatus(CallRegisterAicoreKernel(
           bin_handles_[binary.func_handle_index],
           func_handles_[binary.func_handle_index],
-          {binary.magic, ast_.Str(binary.kernel_name), ast_.Str(binary.file_name)}, bin_info_map_)));
+          {binary.magic, use_tiling_key, binary.tiling_key, ast_.Str(binary.kernel_name), ast_.Str(binary.file_name)},
+          bin_info_map_)));
       continue;
     }
     if (binary.kind == KernelBinaryKind::kAicpu) {

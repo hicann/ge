@@ -65,7 +65,7 @@ class Om2CodegenModelBuilder {
   static void ReportUnsupportedTask(TaskCodeBuilderPtr &task_builder,  domi::TaskDef *const task_def,
                              std::unordered_map<int64_t, OpDescPtr> &op_desc_by_index, const ModelTaskType &task_type);
   static Status BuildKernelRegistryForAicore(Om2CodegenModel &codegen_model, const OpDescPtr &op_desc,
-                                             const std::string &kernel_name);
+                                             ModelTaskType task_type);
   static Status BuildKernelRegistryForAicpu(Om2CodegenModel &codegen_model,
                                     const domi::TaskDef task_def,
                                     const std::string op_type,
