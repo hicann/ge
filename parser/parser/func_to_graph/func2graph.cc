@@ -84,7 +84,7 @@ GeGraphDefHandle GraphDefLibGetGraphDef(GraphDefLibHandle handle, int index) {
  * @param handle /
  * @return
  */
-const char* GraphDefLibGetPbtxt(GraphDefLibHandle handle) {
+const char* GraphDefLibGetPbtxt(GraphDefLibConstHandle handle) {
   if (handle == nullptr) {
     LOGE("handle is nullptr");
     return nullptr;
@@ -92,7 +92,7 @@ const char* GraphDefLibGetPbtxt(GraphDefLibHandle handle) {
 
   static thread_local std::string pbtxt;
 
-  const auto* library = static_cast<GraphDefLibrary *>(handle);
+  const auto* library = static_cast<const GraphDefLibrary *>(handle);
   google::protobuf::TextFormat::PrintToString(*library, &pbtxt);
   return pbtxt.c_str();
 }
@@ -162,14 +162,14 @@ void GeGraphDefSetGraph(GeGraphDefHandle handle, const uint8_t* data, std::size_
  * @param handle GeGraphDef instance
  * @return
  */
-const char* GeGraphDefToString(GeGraphDefHandle handle) {
+const char* GeGraphDefToString(GeGraphDefConstHandle handle) {
   if (handle == nullptr) {
     LOGE("handle is nullptr");
     return nullptr;
   }
 
   static thread_local std::string text;
-  const auto* graph = static_cast<GeGraphDef *>(handle);
+  const auto* graph = static_cast<const GeGraphDef *>(handle);
 
   text = graph->DebugString();
   return text.c_str();
