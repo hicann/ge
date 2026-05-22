@@ -487,11 +487,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, singel_reduce_fusion_01) {
   tbe_adapter_ptr_->GetOpInfo = get_tbe_opinfo_fusion_check_stub_succ;
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 
@@ -521,11 +521,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, singel_norm_fusion_01) {
   tbe_adapter_ptr_->GetOpInfo = get_tbe_opinfo_fusion_check_stub_succ;
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
 
@@ -556,11 +556,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, multiple_reduce_fusion_01) {
   tbe_adapter_ptr_->GetOpInfo = get_tbe_opinfo_fusion_check_stub_succ;
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 
@@ -587,11 +587,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, multiple_reduce_fusion_01) {
 TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, multiple_norm_fusion_02) {
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 
@@ -621,11 +621,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, multiple_reduce_fusion_03) {
   tbe_adapter_ptr_->GetOpInfo = get_tbe_opinfo_fusion_check_stub_succ;
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 
@@ -664,11 +664,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, multiple_reduce_and_dataaccess_fusi
   tbe_adapter_ptr_->GetOpInfo = get_tbe_opinfo_fusion_check_stub_succ;
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 
@@ -698,11 +698,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, multiple_reduce_and_dataaccess_fusi
   tbe_adapter_ptr_->GetOpInfo = get_tbe_opinfo_fusion_check_stub_succ;
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 
@@ -732,11 +732,11 @@ TEST_F(UB_FUSION_ST_AUTO_FUSION_PASS_RUNNER, multiple_reduce_and_dataaccess_fusi
   tbe_adapter_ptr_->GetOpInfo = get_tbe_opinfo_fusion_check_stub_succ;
   fusion_nodes_num = 0;
   last_fusion_nodes_num = 0;
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = fe::RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
   fe::PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B1");
 

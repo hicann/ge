@@ -36,11 +36,11 @@ class fusion_manager_unittest : public testing::Test
 protected:
   static void TearDownTestCase()
   {
-    string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+    string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
     string real_path = fe::RealPath(path);
     fe::PlatformInfoManager::Instance().platform_info_map_.clear();
     fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-    uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+    uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
     EXPECT_EQ(init_ret, 0);
     fe::PlatformInfoManager::Instance().init_flag_ = true;
     fe::PlatformInfoManager::Instance().opti_compilation_info_.soc_version = "Ascend910B1";
@@ -131,13 +131,13 @@ TEST_F(fusion_manager_unittest, platform_info_manager_test2)
     PlatformInfoManager pm;
     std::string path = GetCodeDir() + "/tests/engines/nn_engine/ut/testcase/fusion_engine/fusion_manager/platform_config_new";
     std::string real_path = RealPath(path);
-    Status ret = pm.LoadConfigFile(real_path);
+    Status ret = pm.LoadIniFile(real_path);
     EXPECT_EQ(ret, fe::FAILED);
 
     path = GetCodeDir() + "/tests/engines/nn_engine/ut/testcase/fusion_engine/fusion_manager";
     real_path = RealPath(path);
-    ret = pm.LoadConfigFile(real_path);
-    EXPECT_EQ(ret, fe::FAILED);
+    ret = pm.LoadIniFile(real_path);
+    EXPECT_EQ(ret, fe::SUCCESS);
 
     path = GetCodeDir() + "/tests/engines/nn_engine/ut/testcase/fusion_engine/fusion_manager/Ascend000.ini";
     real_path = RealPath(path);
@@ -221,11 +221,12 @@ TEST_F(fusion_manager_unittest, platform_info_manager_test3)
 
 TEST_F(fusion_manager_unittest, platform_info_manager_testfieldvalue)
 {
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  fe::InitPlatformInfo("Ascend310P3", true);
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend310P3.ini";
   string real_path = RealPath(path);
   PlatformInfoManager::Instance().platform_info_map_.clear();
   PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
 
   PlatformInfo platform_info;
@@ -383,11 +384,11 @@ TEST_F(fusion_manager_unittest, init_platform_info_test)
 }
 
 TEST_F(fusion_manager_unittest, platform_info_manager_test6) {
-  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config";
+  string path = GetCodeDir() + "/tests/engines/nn_engine/config/data/platform_config/Ascend910B1.ini";
   string real_path = RealPath(path);
   PlatformInfoManager::Instance().platform_info_map_.clear();
   PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = PlatformInfoManager::Instance().LoadIniFile(real_path);
   EXPECT_EQ(init_ret, ge::GRAPH_SUCCESS);
 
   PlatformInfo platform_info;

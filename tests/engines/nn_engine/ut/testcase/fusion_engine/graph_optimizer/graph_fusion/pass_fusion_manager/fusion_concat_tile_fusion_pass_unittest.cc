@@ -15,6 +15,7 @@
 #define protected public
 #include "graph_optimizer/graph_fusion/fusion_pass_manager/builtin_pass/concat_tile_fusion_pass.h"
 #include "common/fe_utils.h"
+#include "graph_constructor/fe_llt_utils.h"
 #include "pass_manager.h"
 #include "common/util/op_info_util.h"
 #include "graph/utils/attr_utils.h"
@@ -39,7 +40,9 @@ public:
   const string TILED = "TileD";
   const string TILE = "Tile";
 protected:
-  void SetUp() {}
+  void SetUp() {
+    fe::InitPlatformInfo("Ascend910B2", true);
+  }
 
   void TearDown() {}
 

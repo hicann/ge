@@ -3299,7 +3299,7 @@ TEST_F(STEST_fusion_engine_op_judge_new, set_two_nodes_format_dtype_allow_fp32_t
 
 TEST_F(STEST_fusion_engine_op_judge_new, set_two_nodes_format_dtype_allow_fp32_to_bf16)
 {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B2");
+  fe::InitPlatformInfo("Ascend910B2", true);
   ge::GetThreadLocalContext().graph_options_[ge::PRECISION_MODE] = ALLOW_FP32_TO_BF16;
   op_format_dtype_judge_ptr_ = std::make_shared<OpFormatDtypeJudge>(AI_CORE_NAME, reflection_builder_ptr_);
   op_format_dtype_judge_ptr_->Initialize();
@@ -3359,7 +3359,7 @@ TEST_F(STEST_fusion_engine_op_judge_new, set_two_nodes_format_dtype_allow_fp32_t
 
 TEST_F(STEST_fusion_engine_op_judge_new, test_bf16_notsupported)
 {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B");
+  fe::InitPlatformInfo("Ascend910B", true);
   ge::GetThreadLocalContext().graph_options_[ge::PRECISION_MODE] = ALLOW_FP32_TO_BF16;
   op_format_dtype_judge_ptr_ = std::make_shared<OpFormatDtypeJudge>(AI_CORE_NAME, reflection_builder_ptr_);
   EXPECT_EQ(op_format_dtype_judge_ptr_->Initialize(), fe::FAILED);
@@ -3487,7 +3487,7 @@ TEST_F(STEST_fusion_engine_op_judge_new, set_two_nodes_format_dtype_allow_mix_to
 
 TEST_F(STEST_fusion_engine_op_judge_new, set_two_nodes_format_dtype_allow_mix_to_bf16)
 {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B2");
+  fe::InitPlatformInfo("Ascend910B2", true);
   ge::GetThreadLocalContext().graph_options_[ge::PRECISION_MODE] = ALLOW_MIX_PRECISION_BF16;
   op_format_dtype_judge_ptr_ = std::make_shared<OpFormatDtypeJudge>(AI_CORE_NAME, reflection_builder_ptr_);
   op_format_dtype_judge_ptr_->Initialize();

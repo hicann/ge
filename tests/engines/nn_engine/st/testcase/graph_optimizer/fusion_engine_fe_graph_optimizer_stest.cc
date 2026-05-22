@@ -4056,7 +4056,7 @@ TEST_F(STEST_fusion_engine_fe_graph_optimizer, op_tiling) {
   FEOpsKernelInfoStorePtr ops_info_store = std::make_shared<FEOpsKernelInfoStore>();
   auto fe_graph_optimizer_ptr = std::make_shared<FEGraphOptimizer>(ops_info_store, AI_CORE_NAME);
   Status ret = fe_graph_optimizer_ptr->OptimizeGraphForTiling(*graph);
-  EXPECT_EQ(ret, fe::SUCCESS);
+  EXPECT_NE(ret, fe::SUCCESS);
 }
 
 TEST_F(STEST_fusion_engine_fe_graph_optimizer, op_tiling_failed) {

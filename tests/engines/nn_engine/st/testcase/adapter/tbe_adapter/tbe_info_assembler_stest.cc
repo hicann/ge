@@ -115,7 +115,7 @@ TEST_F(STEST_TbeInfoAssembler, Test_FeedFlagInt64ToTbeOpInfo){
 }
 
 TEST_F(STEST_TbeInfoAssembler, get_options_01) {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   PlatformInfoManager::Instance().opti_compilation_infos_.SetAICoreNum(10);
   TbeInfoAssembler tbe_info_assembler;
   tbe_info_assembler.Initialize();
@@ -142,7 +142,7 @@ TEST_F(STEST_TbeInfoAssembler, set_tensor_constvalue_1) {
 }
 
 TEST_F(STEST_TbeInfoAssembler, GetAllOptions_SOFTSYNC_OP) {
-  SetPlatformSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   TbeInfoAssembler tbe_info_assembler;
   tbe_info_assembler.Initialize();
   auto geGraphOptions = ge::GetThreadLocalContext().GetAllGraphOptions();
@@ -165,7 +165,7 @@ TEST_F(STEST_TbeInfoAssembler, GetAllOptions_SOFTSYNC_OP) {
 }
 
 TEST_F(STEST_TbeInfoAssembler, GetAllOptions_SOFTSYNC_OP_RNN) {
-  SetPlatformSocVersion("Ascend310P3");
+  fe::InitPlatformInfo("Ascend310P3", true);
   TbeInfoAssembler tbe_info_assembler;
   tbe_info_assembler.Initialize();
   auto geGraphOptions = ge::GetThreadLocalContext().GetAllGraphOptions();

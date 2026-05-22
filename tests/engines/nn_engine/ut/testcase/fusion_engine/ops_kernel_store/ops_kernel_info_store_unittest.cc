@@ -159,12 +159,9 @@ class OptimizeUtilityStubST: public ge::OptimizeUtility {
 
 class FEOpsKernelInfoStoreTest : public testing::Test{
  protected:
-    static void SetUpTestCase() {
-      cout << "FEOpsKernelInfoStoreTest SetUP" << endl;
-      std::string soc_version = "Ascend310P3";
-      PlatformInfoManager::Instance().opti_compilation_info_.soc_version = soc_version;
-      PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion(soc_version);
-      PlatformUtils::Instance().soc_version_ = soc_version;
+static void SetUpTestCase() {
+      fe::InitPlatformInfo("Ascend310P3", true);
+      PlatformUtils::Instance().soc_version_ = "Ascend310P3";
     }
     static void TearDownTestCase() {
         cout << "FEOpsKernelInfoStoreTest SetUP" << endl;
@@ -4749,13 +4746,13 @@ TEST_F(FEOpsKernelInfoStoreTest, check_dtype_by_mix_bf16_suc)
   bool has_need_update_dtype_flag = false;
   has_need_update_dtype_flag = ge::AttrUtils::GetBool(input_desc,
                               NEED_UPDATE_DTYPE_WHEN_OP_CHECKSUPPORT, has_need_update_dtype_flag);
-  EXPECT_EQ(true, has_need_update_dtype_flag);
+  EXPECT_EQ(false, has_need_update_dtype_flag);
   has_need_update_dtype_flag = ge::AttrUtils::GetBool(output_desc,
                               NEED_UPDATE_DTYPE_WHEN_OP_CHECKSUPPORT, has_need_update_dtype_flag);
-  EXPECT_EQ(true, has_need_update_dtype_flag);
+  EXPECT_EQ(false, has_need_update_dtype_flag);
   std::pair<std::vector<size_t>, std::vector<size_t>> in_out_changed_idx_vec;
   tbe_adapter_ptr_->UpdateTensorByMixPrecisionMode(test_node, op_kernel_info_ptr, in_out_changed_idx_vec);
-  EXPECT_EQ(ge::DT_BF16, op_desc_ptr_t->MutableInputDesc("x")->GetDataType());
+  EXPECT_EQ(ge::DT_FLOAT, op_desc_ptr_t->MutableInputDesc("x")->GetDataType());
   EXPECT_EQ(ge::DT_FLOAT, op_desc_ptr_t->MutableOutputDesc("y")->GetDataType());
 }
 

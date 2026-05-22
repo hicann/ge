@@ -47,6 +47,7 @@ TEST_F(PlatFormUtilsUT, init_success_case_cloud)
   options.emplace(ge::AICORE_NUM, "10");
   options.emplace(ge::BUFFER_OPTIMIZE, "l2_optimize");
   options.emplace(ge::SOC_VERSION, "Ascend910B");
+  fe::InitPlatformInfo("Ascend910B", true);
   Status status = instance.Initialize(options);
   ASSERT_EQ(status, SUCCESS);
   EXPECT_EQ(instance.GetSocVersion(), "Ascend910B");
@@ -96,6 +97,7 @@ TEST_F(PlatFormUtilsUT, init_success_case_mini)
   std::map<std::string, std::string> options;
   options.emplace(ge::BUFFER_OPTIMIZE, "l1_optimize");
   options.emplace(ge::SOC_VERSION, "Ascend310");
+  fe::InitPlatformInfo("Ascend310", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(instance.GetSocVersion(), "Ascend310");
@@ -146,6 +148,7 @@ TEST_F(PlatFormUtilsUT, init_success_case_ascend310p)
   options.emplace(ge::CORE_TYPE, "VectorCore");
   options.emplace(ge::BUFFER_OPTIMIZE, "l1_optimize");
   options.emplace(ge::SOC_VERSION, "Ascend310P1");
+  fe::InitPlatformInfo("Ascend310P1", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(instance.GetSocVersion(), "Ascend310P1");
@@ -195,6 +198,7 @@ TEST_F(PlatFormUtilsUT, init_success_case_ascend910b)
   std::map<std::string, std::string> options;
   options.emplace(ge::BUFFER_OPTIMIZE, "l1_optimize");
   options.emplace(ge::SOC_VERSION, "Ascend910B1");
+  fe::InitPlatformInfo("Ascend910B1", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(instance.GetSocVersion(), "Ascend910B1");
@@ -244,6 +248,7 @@ TEST_F(PlatFormUtilsUT, init_success_case_ascend310b)
   std::map<std::string, std::string> options;
   options.emplace(ge::BUFFER_OPTIMIZE, "l1_optimize");
   options.emplace(ge::SOC_VERSION, "Ascend310B1");
+  fe::InitPlatformInfo("Ascend310B1", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(instance.GetSocVersion(), "Ascend310B1");
@@ -293,6 +298,7 @@ TEST_F(PlatFormUtilsUT, init_success_case_nano)
   std::map<std::string, std::string> options;
   options.emplace(ge::BUFFER_OPTIMIZE, "l1_optimize");
   options.emplace(ge::SOC_VERSION, "Ascend035");
+  fe::InitPlatformInfo("Ascend035", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, SUCCESS);
   EXPECT_EQ(instance.GetSocVersion(), "Ascend035");
@@ -341,6 +347,7 @@ TEST_F(PlatFormUtilsUT, init_fail_case1) {
   std::map<std::string, std::string> options;
   options.emplace(ge::CORE_TYPE, "CubeCore");
   options.emplace(ge::SOC_VERSION, "Ascend035");
+  fe::InitPlatformInfo("Ascend035", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, FAILED);
 }
@@ -350,6 +357,7 @@ TEST_F(PlatFormUtilsUT, init_fail_case2) {
   std::map<std::string, std::string> options;
   options.emplace(ge::AICORE_NUM, "CubeCore");
   options.emplace(ge::SOC_VERSION, "Ascend035");
+  fe::InitPlatformInfo("Ascend035", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, FAILED);
 }
@@ -368,6 +376,7 @@ TEST_F(PlatFormUtilsUT, init_fail_case4) {
   std::map<std::string, std::string> options;
   options.emplace(ge::AICORE_NUM, "-1");
   options.emplace(ge::SOC_VERSION, "Ascend035");
+  fe::InitPlatformInfo("Ascend035", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, FAILED);
 }
@@ -385,6 +394,7 @@ TEST_F(PlatFormUtilsUT, init_fail_case6) {
   PlatformUtils instance;
   std::map<std::string, std::string> options;
   options.emplace(ge::SOC_VERSION, "Ascend000");
+  fe::InitPlatformInfo("Ascend000", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, FAILED);
 }
@@ -394,6 +404,7 @@ TEST_F(PlatFormUtilsUT, init_fail_case7) {
   std::map<std::string, std::string> options;
   options.emplace(ge::SOC_VERSION, "Ascend910B");
   options.emplace(ge::CORE_TYPE, "AAAAC");
+  fe::InitPlatformInfo("Ascend910B", true);
   Status status = instance.Initialize(options);
   EXPECT_EQ(status, FAILED);
 }

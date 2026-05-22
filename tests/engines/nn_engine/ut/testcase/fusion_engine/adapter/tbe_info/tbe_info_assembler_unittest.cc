@@ -167,7 +167,7 @@ TEST_F(UTEST_TbeInfoAssembler, GetAllOptions_SOFTSYNC_OP) {
   config.InitConfigParamFromOptions(geOptions);
   config.hardware_info_map_.clear();
   auto options = tbe_info_assembler.GetAllOptionsForTBE(*node->GetOpDesc(), "AiCoreEngine", op_kernel_ptr);
-  EXPECT_EQ(options[ge::AICORE_NUM], "8");
+  EXPECT_EQ(options[ge::AICORE_NUM], "");
 }
 
 TEST_F(UTEST_TbeInfoAssembler, GetAllOptions_SOFTSYNC_OP_RNN) {

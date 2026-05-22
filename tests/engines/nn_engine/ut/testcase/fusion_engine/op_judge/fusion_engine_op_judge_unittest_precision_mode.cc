@@ -2969,7 +2969,7 @@ TEST_F(UTEST_fusion_engine_op_judge_precision_mode, set_nodes_IO_dtypes_float_al
 
 TEST_F(UTEST_fusion_engine_op_judge_precision_mode, set_nodes_IO_dtypes_float_allow_fp32_bf16)
 {
-  PlatformInfoManager::Instance().opti_compilation_infos_.SetSocVersion("Ascend910B2");
+  fe::InitPlatformInfo("Ascend910B2", true);
   ge::GetThreadLocalContext().graph_options_[ge::PRECISION_MODE] = ALLOW_FP32_TO_BF16;
   op_format_dtype_judge_ptr_ = std::make_shared<OpFormatDtypeJudge>(AI_CORE_NAME, reflection_builder_ptr_);
   op_format_dtype_judge_ptr_->Initialize();

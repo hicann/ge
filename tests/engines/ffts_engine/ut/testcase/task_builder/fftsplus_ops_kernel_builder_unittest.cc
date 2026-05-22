@@ -973,11 +973,11 @@ TEST_F(FFTSPlusOpsKernelBuilderUTest, Initialize_SUCCESS) {
   string pre_soc_version = EngineManager::Instance(kFFTSPlusCoreName).GetSocVersion();
   EngineManager::Instance(kFFTSPlusCoreName).soc_version_ = "ascend910b2";
 
-  std::string path = GetCodeDir() + "/tests/engines/ffts_engine/config/data/platform_config";
+  std::string path = GetCodeDir() + "/tests/engines/ffts_engine/config/data/platform_config/Ascend910B2.ini";
   std::string real_path = RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
 
   std::map<std::string, std::vector<std::string>> a;
   std::map<std::string, std::vector<std::string>> b;
@@ -1004,11 +1004,11 @@ TEST_F(FFTSPlusOpsKernelBuilderUTest, Initialize_FAILED) {
   string pre_soc_version = EngineManager::Instance(kFFTSPlusCoreName).GetSocVersion();
   EngineManager::Instance(kFFTSPlusCoreName).soc_version_ = "ascend910b2";
 
-  std::string path = GetCodeDir() + "/tests/engines/ffts_engine/config/data/platform_config";
+  std::string path = GetCodeDir() + "/tests/engines/ffts_engine/config/data/platform_config/Ascend910B2.ini";
   std::string real_path = RealPath(path);
   fe::PlatformInfoManager::Instance().platform_info_map_.clear();
   fe::PlatformInfoManager::Instance().platform_infos_map_.clear();
-  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadConfigFile(real_path);
+  uint32_t init_ret = fe::PlatformInfoManager::Instance().LoadIniFile(real_path);
 
   std::map<std::string, std::vector<std::string>> a;
   std::map<std::string, std::vector<std::string>> b;

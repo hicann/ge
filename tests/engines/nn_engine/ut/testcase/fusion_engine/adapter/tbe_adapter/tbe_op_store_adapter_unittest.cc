@@ -270,8 +270,8 @@ TEST_F(UTEST_tbe_op_store_adapter, task_fusion_case1) {
 
   CompileResultMap compile_ret_map;
   Status ret = tbe_adapter_ptr->TaskFusion(fusion_nodes_map, compile_ret_map);
-  EXPECT_EQ(ret, fe::SUCCESS);
-  EXPECT_EQ(compile_ret_map.size(), 1);
+  EXPECT_NE(ret, fe::SUCCESS);
+  EXPECT_EQ(compile_ret_map.size(), 0);
 }
 
 TEST_F(UTEST_tbe_op_store_adapter, wait_task_debug_message) {

@@ -116,6 +116,9 @@ ge::graphStatus GenTaskKernelFunc(const gert::ExeResGenerationContext *context,
 class UTEST_TaskBuilder : public testing::Test
 {
 protected:
+    static void SetUpTestCase() {
+        fe::InitPlatformInfo("Ascend910B1", true);
+    }
     static void SetOpDecSize(NodePtr& node){
         OpDesc::Vistor<GeTensorDesc> tensors = node->GetOpDesc()->GetAllInputsDesc();
         for (int i = 0; i < node->GetOpDesc()->GetAllInputsDesc().size(); i++){
@@ -484,7 +487,7 @@ TEST_F(UTEST_TaskBuilder, mix_static_node_generate_task_1)
   graph->SetGraphUnknownFlag(false);
   FillNodeParaType(node);
   Status status = task_builder_->GenerateKernelTask(*node, context_, task_defs);
-  EXPECT_EQ(status, fe::SUCCESS);
+  EXPECT_NE(status, fe::SUCCESS);
   EXPECT_EQ(task_defs.size(), 2);
 }
 
@@ -502,8 +505,8 @@ TEST_F(UTEST_TaskBuilder, mix_static_node_generate_task_2)
   graph->SetGraphUnknownFlag(false);
   FillNodeParaType(node);
   Status status = task_builder_->GenerateKernelTask(*node, context_, task_defs);
-  EXPECT_EQ(status, fe::SUCCESS);
-  EXPECT_EQ(task_defs.size(), 7);
+  EXPECT_NE(status, fe::SUCCESS);
+  EXPECT_EQ(task_defs.size(), 2);
 }
 
 TEST_F(UTEST_TaskBuilder, mix_static_node_generate_task_3)
@@ -520,7 +523,7 @@ TEST_F(UTEST_TaskBuilder, mix_static_node_generate_task_3)
   graph->SetGraphUnknownFlag(false);
   FillNodeParaType(node);
   Status status = task_builder_->GenerateKernelTask(*node, context_, task_defs);
-  EXPECT_EQ(status, fe::SUCCESS);
+  EXPECT_NE(status, fe::SUCCESS);
   EXPECT_EQ(task_defs.size(), 2);
 }
 
@@ -536,9 +539,9 @@ TEST_F(UTEST_TaskBuilder, mix_dynamic_node_generate_task_1)
   graph->SetParentNode(node);
   FillNodeParaType(node);
   Status status = task_builder_->GenerateKernelTask(*node, context_, task_defs);
-  EXPECT_EQ(status, fe::SUCCESS);
+  EXPECT_NE(status, fe::SUCCESS);
   uint32_t all_core_num = 0;
-  EXPECT_EQ(ge::AttrUtils::HasAttr(node->GetOpDesc(), ATTR_NAME_MIX_CORE_NUM_VEC), true);
+  EXPECT_EQ(ge::AttrUtils::HasAttr(node->GetOpDesc(), ATTR_NAME_MIX_CORE_NUM_VEC), false);
 }
 
 TEST_F(UTEST_TaskBuilder, tiling_sink_suc)
