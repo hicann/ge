@@ -12,7 +12,7 @@
 
 #include <cstdio>
 #include <cstring>
-#include <unordered_set>
+#include <queue>
 #include <vector>
 #include "common/log_inner.h"
 #include "model_desc_internal.h"
@@ -22,31 +22,7 @@
 namespace {
 constexpr size_t DYNAMIC_BATCH_SIZE = 1U;
 constexpr size_t DYNAMIC_HW_SIZE = 2U;
-
-// OM2 supported load config options
-const std::unordered_set<aclmdlConfigAttr> kOm2SupportedLoadConfigOpts = {
-    ACL_MDL_LOAD_TYPE_SIZET,
-    ACL_MDL_PATH_PTR,
-    ACL_MDL_MEM_ADDR_PTR,
-    ACL_MDL_MEM_SIZET,
-    ACL_MDL_WEIGHT_ADDR_PTR,
-    ACL_MDL_WEIGHT_SIZET,
-    ACL_MDL_WORKSPACE_ADDR_PTR,
-    ACL_MDL_WORKSPACE_SIZET,
-    ACL_MDL_WEIGHT_PATH_PTR
-};
 } // namespace
-
-aclError CheckOm2UserLoadConfigOptValid(const aclmdlConfigHandle* handle) {
-    ACL_REQUIRES_NOT_NULL(handle);
-    for (const aclmdlConfigAttr& attr : handle->attrState) {
-        if (kOm2SupportedLoadConfigOpts.find(attr) == kOm2SupportedLoadConfigOpts.end()) {
-            ACL_LOG_ERROR("[Check][ConfigOpt]config opt [%d] is not supported in om2",  static_cast<int>(attr));
-            return ACL_ERROR_INVALID_PARAM;
-        }
-    }
-    return ACL_SUCCESS;
-}
 
 namespace acl {
 // Parse batch info helper (inline implementation)
@@ -206,7 +182,7 @@ static bool CheckMdlLoadConfigWithQ(const aclmdlConfigHandle *const handle)
         return true;
 }
 
-bool CheckMdlConfigHandle(const aclmdlConfigHandle *const handle)
+ACL_FUNC_VISIBILITY bool CheckMdlConfigHandle(const aclmdlConfigHandle *const handle)
 {
     if (handle->attrState.find(ACL_MDL_LOAD_TYPE_SIZET) == handle->attrState.end()) {
         ACL_LOG_ERROR("[Find][Type]model load type is not set in aclmdlConfigHandle");
@@ -244,9 +220,8 @@ bool CheckMdlConfigHandle(const aclmdlConfigHandle *const handle)
     }
     return true;
 }
-} // namespace acl
 
-aclError GetDynamicTensorInfoHelp(aclmdlDesc *const modelDesc, const int32_t dynamicType,
+ACL_FUNC_VISIBILITY aclError GetDynamicTensorInfoHelp(aclmdlDesc *const modelDesc, const int32_t dynamicType,
                                   const std::vector<std::vector<int64_t>> &batchInfo)
 {
     if (batchInfo.empty()) {
@@ -255,7 +230,7 @@ aclError GetDynamicTensorInfoHelp(aclmdlDesc *const modelDesc, const int32_t dyn
     }
 
     ACL_LOG_INFO("model is dynamic, modelId[%u]", modelDesc->modelId);
-    const aclError retVal = acl::ParseBatchInfoInline(modelDesc, dynamicType, batchInfo);
+    const aclError retVal = ParseBatchInfoInline(modelDesc, dynamicType, batchInfo);
     if (retVal != ACL_SUCCESS) {
         ACL_LOG_INNER_ERROR("[Parse][BatchInfo]get model dynamic info failed, result[%d], model id[%u]",
             retVal, modelDesc->modelId);
@@ -265,8 +240,107 @@ aclError GetDynamicTensorInfoHelp(aclmdlDesc *const modelDesc, const int32_t dyn
     return ACL_SUCCESS;
 }
 
-aclError GetDimsFromModelDesc(const aclmdlDesc *const modelDesc, const TensorType tensorType,
-                              const DimsType dimsType, const size_t idx, aclmdlIODims *const dims)
+// get real tensor name from modelDesc, it will return nullptr if tensorName isn't in modelDesc
+ACL_FUNC_VISIBILITY const char_t *GetRealTensorName(const aclmdlDesc *const modelDesc, const std::string &tensorName)
+{
+    for (size_t idx = 0U; idx < modelDesc->inputDesc.size(); ++idx) {
+        if (modelDesc->inputDesc[idx].name == tensorName) {
+            return modelDesc->inputDesc[idx].name.c_str();
+        }
+    }
+
+    for (size_t idx = 0U; idx < modelDesc->outputDesc.size(); ++idx) {
+        if (modelDesc->outputDesc[idx].name == tensorName) {
+            return modelDesc->outputDesc[idx].name.c_str();
+        }
+    }
+    return nullptr;
+}
+
+// Check if conversion tensor name is legal
+bool IsConvertTensorNameLegal(const aclmdlDesc *const modelDesc, const std::string &tensorName)
+{
+    return (GetRealTensorName(modelDesc, tensorName) == nullptr);
+}
+
+// current conversion tensor name illegal needs to be transformed
+ACL_FUNC_VISIBILITY bool TransConvertTensorNameToLegal(const aclmdlDesc *const modelDesc, std::string &tensorName)
+{
+    size_t depth = 0U;
+    tensorName = tensorName + "_";
+    std::queue<std::string> q;
+    q.push(tensorName);
+    constexpr size_t maxDepth = 3U;
+    while (!q.empty()) {
+        if (depth == maxDepth) {
+            ACL_LOG_INFO("reach max depth[%zu], cannot generate legal convert tensor name", maxDepth);
+            tensorName = tensorName.substr(0U, tensorName.size() - 1U);
+            return false;
+        }
+        const size_t len = q.size();
+        for (size_t idx = 0U; idx < len; ++idx) {
+            std::string curTensorName = q.front();
+            q.pop();
+            for (char_t c = 'a'; c <= 'z'; ++c) {
+                curTensorName += c;
+                if (IsConvertTensorNameLegal(modelDesc, curTensorName)) {
+                    tensorName = curTensorName;
+                    return true;
+                }
+                q.push(curTensorName);
+                curTensorName = curTensorName.substr(0U, curTensorName.size() - 1U);
+            }
+        }
+        depth++;
+    }
+    return false;
+}
+
+// Get conversion tensor name from params
+ACL_FUNC_VISIBILITY void GetConvertTensorName(const aclmdlDesc *const modelDesc, const size_t idx,
+                          const TensorType tensorType, std::string &convertName)
+{
+    convertName = std::string(TENSOR_NAME_PREFIX) + "_" +
+        std::string(MODEL_ID_STR) + "_" + std::to_string(modelDesc->modelId);
+    if (tensorType == TensorType::INPUT_TENSOR_TYPE) {
+        convertName += ("_" + std::string(TENSOR_INPUT_STR));
+    } else {
+        convertName += ("_" + std::string(TENSOR_OUTPUT_STR));
+    }
+    convertName += ("_" + std::to_string(idx));
+    ACL_LOG_INFO("convert realname of tensor success, conversion name = %s", convertName.c_str());
+}
+
+// get tensor name to dims with or without realname
+ACL_FUNC_VISIBILITY aclError GetTensorDescNameToDims(const aclmdlDesc *const modelDesc, const std::string &realName,
+                                 const TensorType tensorType, const size_t idx, aclmdlIODims *const dims)
+{
+    const size_t dimsNameLen = sizeof(dims->name);
+    std::string tensorName;
+    if ((realName.size() + 1U) > dimsNameLen) {
+        // use conversion name because realname is too long
+        ACL_LOG_INFO("use conversion name because real tensor name is over than %zu", dimsNameLen);
+        GetConvertTensorName(modelDesc, idx, tensorType, tensorName);
+        if (!IsConvertTensorNameLegal(modelDesc, tensorName)) {
+            if (!TransConvertTensorNameToLegal(modelDesc, tensorName)) {
+                ACL_LOG_WARN("cannot generate legal tensor name, use conversion name %s may has conflict risk",
+                    tensorName.c_str());
+            }
+        }
+    } else {
+        tensorName = realName;
+    }
+
+    const auto ret = strncpy_s(dims->name, dimsNameLen, tensorName.c_str(), tensorName.size());
+    if (ret != EOK) {
+        ACL_LOG_INNER_ERROR("[Copy][Str]call strncpy_s failed, result = %d", ret);
+        return ACL_ERROR_FAILURE;
+    }
+    return ACL_SUCCESS;
+}
+
+ACL_FUNC_VISIBILITY aclError GetDims(const aclmdlDesc *const modelDesc, const TensorType tensorType, const DimsType dimsType,
+                 const size_t idx, aclmdlIODims *const dims)
 {
     ACL_REQUIRES_NOT_NULL(dims);
     std::vector<aclmdlTensorDesc> desc;
@@ -278,12 +352,17 @@ aclError GetDimsFromModelDesc(const aclmdlDesc *const modelDesc, const TensorTyp
 
     const size_t descSize = desc.size();
     if (idx >= descSize) {
-        ACL_LOG_INNER_ERROR("[Check][Params]GetDims failed, index[%zu] can not greater than or equal to tensor "
+        ACL_LOG_INNER_ERROR("[Check][Params]GetDims failed, index[%zu] cannot greater than or equal to tensor "
             "size[%zu]", idx, descSize);
         return ACL_ERROR_INVALID_PARAM;
     }
 
     const aclmdlTensorDesc &tensorDesc = desc[idx];
+    const auto ret = GetTensorDescNameToDims(modelDesc, tensorDesc.name, tensorType, idx, dims);
+    if (ret != ACL_SUCCESS) {
+        ACL_LOG_INNER_ERROR("[Get][TensorDescName]get tensor desc name to dims failed, errorCode = %d", ret);
+        return ret;
+    }
     std::vector<int64_t> tensorDims;
     if (dimsType == DimsType::DIMS_TYPE_V1) {
         tensorDims = tensorDesc.dims;
@@ -296,7 +375,7 @@ aclError GetDimsFromModelDesc(const aclmdlDesc *const modelDesc, const TensorTyp
 
     const size_t dimSize = tensorDims.size();
     if (dimSize > static_cast<size_t>(ACL_MAX_DIM_CNT)) {
-        ACL_LOG_INNER_ERROR("[Check][dimSize]get dims failed, dims count[%zu] can not larger than max[%d]",
+        ACL_LOG_INNER_ERROR("[Check][dimSize]get dims failed, dims count[%zu] cannot larger than max[%d]",
             dims->dimCount, ACL_MAX_DIM_CNT);
         return ACL_ERROR_STORAGE_OVER_LIMIT;
     }
@@ -306,13 +385,7 @@ aclError GetDimsFromModelDesc(const aclmdlDesc *const modelDesc, const TensorTyp
         dims->dims[i] = tensorDims[i];
     }
 
-    // Copy tensor name
-    const auto ret = strncpy_s(dims->name, ACL_MAX_TENSOR_NAME_LEN, tensorDesc.name.c_str(), tensorDesc.name.size());
-    if (ret != EOK) {
-        ACL_LOG_INNER_ERROR("[Copy][Str]call strncpy_s failed, result = %d", ret);
-        return ACL_ERROR_FAILURE;
-    }
-
     return ACL_SUCCESS;
 }
 
+} // namespace acl
