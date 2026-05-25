@@ -8,7 +8,7 @@
 - `meet_requirements()` 中检查 `groups != 1` 且 `data_format == "NCHW"`
 - `replacement()` 中按 `Split(input) + Split(filter) + 多个 Conv2D + Concat` 构造 replacement graph
 - 对 replacement graph 中每个 `Conv2D` 更新输入/输出 `TensorDesc`，设置 `FORMAT_NCHW` / `DT_FLOAT`
-- 对 replacement graph 执行 `InferShape`，并对非 `Data` / `Const` 节点做 AICore 支持性校验
+- 对 replacement graph 执行 `InferShape`，完成替换子图的 shape 推导
 
 ## 目录结构
 
@@ -71,8 +71,8 @@ export LD_LIBRARY_PATH="$PWD/build/es_output/lib64:${LD_LIBRARY_PATH:-}"
 运行成功后，日志中会出现类似输出：
 
 ```text
-Define MeetRequirements for DecomposeGroupedConvToSplitedPass
-Define Replacement for DecomposeGroupedConvToSplitedPass
+Define MeetRequirements for PythonDecomposeGroupedConvToSplitedPass
+Define Replacement for PythonDecomposeGroupedConvToSplitedPass
 ```
 
 ## Conda 环境示例（Python 3.11）

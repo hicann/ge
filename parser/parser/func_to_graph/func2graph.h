@@ -20,6 +20,8 @@ extern "C" {
 
 typedef void* GraphDefLibHandle; // 对应 GraphDefLibrary
 typedef void* GeGraphDefHandle; // 对应 GeGraphDef
+typedef const void* GraphDefLibConstHandle;
+typedef const void* GeGraphDefConstHandle;
 
 /**
  * Create GraphDefLibrary instance
@@ -54,7 +56,7 @@ GeGraphDefHandle GraphDefLibGetGraphDef(GraphDefLibHandle handle, int index);
  * @param handle /
  * @return
  */
-const char* GraphDefLibGetPbtxt(GraphDefLibHandle handle);
+const char* GraphDefLibGetPbtxt(GraphDefLibConstHandle handle);
 
 /**
  * Create GeGraphDef instance
@@ -88,7 +90,7 @@ void GeGraphDefSetGraph(GeGraphDefHandle handle, const uint8_t* data, std::size_
  * @param handle GeGraphDef instance
  * @return
  */
-const char* GeGraphDefToString(GeGraphDefHandle handle);
+const char* GeGraphDefToString(GeGraphDefConstHandle handle);
 
 #ifdef __cplusplus
 }

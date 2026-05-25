@@ -32,7 +32,7 @@
 2. 定义构造函数，使用传入的算子类型初始化基类，传入的算子类型会被该 pass 捕获。
 3. 重写父类 `DecomposePass` 中的 2 个函数：
    - `MeetRequirements` 对模板匹配到的拓扑进行筛选。
-   - `Replacement` 定义替换部分。其中 `InferShape` 进行 shape 推导，`CheckNodeSupportOnAicore` 判断 ai core 是否支持替换节点。
+   - `Replacement` 定义替换部分，并调用 `InferShape` 完成替换子图的 shape 推导。
 4. 注册 `DecomposeGroupedConvToSplitedPass` 为自定义 decompose pass，构造函数中算子类型传入 `"Conv2D"`，执行阶段为 AfterInferShape。
 
 ## 程序编译

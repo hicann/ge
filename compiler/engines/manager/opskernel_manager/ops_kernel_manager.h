@@ -92,7 +92,7 @@ class GE_FUNC_VISIBILITY OpsKernelManager {
 
   void GetExternalEnginePath(std::string &extern_engine_path, const std::map<std::string, std::string>& options) const;
 
-  void InitOpsKernelInfo();
+  void InitOpsKernelInfo(bool is_refresh = false);
 
   Status InitGraphOptimizers(const std::map<std::string, std::string> &options);
 
@@ -126,8 +126,6 @@ class GE_FUNC_VISIBILITY OpsKernelManager {
   std::map<std::string, std::vector<OpInfo>> ops_kernel_info_{};
 
   std::map<std::string, std::string> initialize_{};
-
-  std::vector<OpInfo> empty_op_info_{};
 
   bool init_flag_;
 

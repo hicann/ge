@@ -4,7 +4,7 @@
  * CANN Open Software License Agreement Version 2.0 (the "License").
  * Please refer to the License for details. You may not use this file except in compliance with the License.
  * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR IMPLIED,
- * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY, OR FITNESS FOR A PARTICULAR PURPOSE.
+ * INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT, MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
@@ -146,7 +146,11 @@ Status MemcpyAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &ite
       ioaddr_var.Data(), ioaddr_var.Size() * ast_.Sizeof("uint64_t")))),
     items.push_back(ChkStatus(ast_.Call("KernelMemcpyAsyncDistribute", {
       ast_.Str(header_.op_name),
-      args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_->table_index)).Arrow("dev_addr") + ast_.Sizeof("uint64_t"),
+      ast_.Call(
+          "ValueToPtr",
+          {ast_.Call("PtrToValue", {args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_->table_index))
+                                        .Arrow("dev_addr")}) +
+           ast_.Sizeof("uint64_t")}),
       ast_.UInt(dst_max_),
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_->table_index)).Arrow("dev_addr"),
       ast_.UInt(count_),

@@ -65,7 +65,7 @@ def _concat_tensors(tensors: list[TensorHolder]) -> TensorHolder:
     return ConcatV2(tensors, 1, N=len(tensors))
 
 
-def _infer_shape_and_check_support(matched_node: Node, graph: Graph) -> bool:
+def _infer_shape(matched_node: Node, graph: Graph) -> bool:
     input_shapes = []
     for input_index in range(matched_node.get_inputs_size()):
         input_shapes.append(matched_node.get_input_desc(input_index).get_shape())
@@ -75,22 +75,6 @@ def _infer_shape_and_check_support(matched_node: Node, graph: Graph) -> bool:
     except RuntimeError as exc:
         print(f"InferShape failed, reason: {exc}")
         return False
-
-    for graph_node in graph.get_all_nodes():
-        node_type = graph_node.type
-        if node_type in ("Const", "Data"):
-            continue
-        try:
-            is_supported, unsupported_reason = GeUtils.check_node_support_on_aicore(graph_node)
-        except RuntimeError as exc:
-            print(f"CheckNodeSupportOnAicore failed, reason: {exc}")
-            return False
-        if not is_supported:
-            print(
-                f"Node is not supported on current ai core! reason: {unsupported_reason} "
-                f"node name: {graph_node.name} node type: {node_type}"
-            )
-            return False
     return True
 
 
@@ -103,7 +87,7 @@ class PythonDecomposeGroupedConvToSplitedPass(DecomposePass):
     """Split grouped Conv2D into Split + Conv2D + Concat."""
 
     def meet_requirements(self, node: Node) -> bool:
-        print("Define MeetRequirements for DecomposeGroupedConvToSplitedPass")
+        print("Define MeetRequirements for PythonDecomposeGroupedConvToSplitedPass")
         try:
             groups = node.get_attr("groups")
             data_format = node.get_attr("data_format")
@@ -113,7 +97,7 @@ class PythonDecomposeGroupedConvToSplitedPass(DecomposePass):
         return groups != 1 and data_format == "NCHW"
 
     def replacement(self, node: Node) -> Graph:
-        print("Define Replacement for DecomposeGroupedConvToSplitedPass")
+        print("Define Replacement for PythonDecomposeGroupedConvToSplitedPass")
         try:
             groups = node.get_attr("groups")
             strides = node.get_attr("strides")
@@ -153,8 +137,8 @@ class PythonDecomposeGroupedConvToSplitedPass(DecomposePass):
 
         result = _concat_tensors(conv_outputs)
         replacement_graph = builder.build_and_reset([result])
-        if not _infer_shape_and_check_support(node, replacement_graph):
-            raise RuntimeError("InferShape or CheckNodeSupportOnAicore failed")
+        if not _infer_shape(node, replacement_graph):
+            raise RuntimeError("InferShape failed")
 
         return replacement_graph
 

@@ -983,12 +983,12 @@ TEST_F(Om2CodegenModelBuilderUt, BuildKernelRegistry_Aicore_Ok) {
   ASSERT_EQ(doc.kernel_registry.binaries.size(), 1U);
   EXPECT_EQ(doc.runtime.kernel_bin_num, 1U);
   ASSERT_EQ(doc.kernel_registry.func_handle_indices.size(), 1U);
-  EXPECT_EQ(doc.kernel_registry.func_handle_indices.at("name"), 0U);
+  EXPECT_EQ(doc.kernel_registry.func_handle_indices.at("add1_faked_kernel"), 0U);
 
   const auto &binary = doc.kernel_registry.binaries[0];
   EXPECT_EQ(binary.kind, KernelBinaryKind::kAicore);
-  EXPECT_EQ(binary.kernel_name, "name");
-  EXPECT_EQ(binary.file_name, "name.o");
+  EXPECT_EQ(binary.kernel_name, "add1_faked_kernel");
+  EXPECT_EQ(binary.file_name, "add1_faked_kernel.o");
   EXPECT_EQ(binary.magic, "ACL_RT_BINARY_MAGIC_ELF_VECTOR_CORE");
   EXPECT_EQ(binary.func_handle_index, 0U);
 }
@@ -1039,7 +1039,6 @@ TEST_F(Om2CodegenModelBuilderUt, BuildTaskSemantics_SimpleTasksAndStub_Ok) {
 
   const auto *end_graph_builder = dynamic_cast<EndGraphTaskCodeBuilder *>(task_builders[3].get());
   ASSERT_NE(end_graph_builder, nullptr);
-
 }
 
 TEST_F(Om2CodegenModelBuilderUt, BuildTaskSemantics_AicpuTaskCount_Ok) {

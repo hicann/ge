@@ -11,6 +11,7 @@
 #include "kernel_task_code_builder.h"
 #include <cinttypes>
 #include <sstream>
+#include "common/om2/codegen/task_code_builder/task_code_builder_util.h"
 #include "common/om2/codegen/task_code_builder_factory.h"
 #include "common/om2/codegen/om2_model_utils.h"
 #include "common/checker.h"
@@ -157,7 +158,7 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
   semantic_.kernel_type = static_cast<ccKernelType>(Om2CodegenUtils::IsAllKernel(context.task_type)
                                                         ? context.task_def.kernel_with_handle().context().kernel_type()
                                                         : context.task_def.kernel().context().kernel_type());
-  kernel_name_ = context.task_def.kernel().kernel_name();
+  GE_ASSERT_SUCCESS(ResolveKernelName(semantic_, context.op_desc, context.task_def, kernel_name_));
   GE_ASSERT_NOTNULL(context.op_desc);
   op_need_print_ = Om2CodegenUtils::OpNeedPrint(context.op_desc);
   is_soft_sync_op_ = IsAllKernelTask(semantic_) && Om2CodegenUtils::IsSoftSyncOp(context.op_desc);
@@ -165,18 +166,7 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
                               Om2CodegenUtils::IsSeparatelyCleanTask(context.op_desc, kernel_name_);
   is_blocking_aicpu_op_ = IsAicpuTask(semantic_) && Om2CodegenUtils::IsBlockingAicpuOp(context.op_desc);
   GE_ASSERT_SUCCESS(CheckTaskSupport());
-  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
-    semantic_.aicpu_task_index = *context.aicpu_task_count;
-    ++(*context.aicpu_task_count);
-  }
-  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
-  } else {
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveWorkspaceAddrs(context, semantic_.workspace_addrs));
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
-    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
-  }
+  GE_ASSERT_SUCCESS(ResolveTaskAddrs(context));
 
   GE_ASSERT_SUCCESS(BuildLaunchSemantic(context));
 
@@ -191,6 +181,40 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
   if (semantic_.args_table_entry.has_value()) {
     ++(*context.next_args_table_index);
     *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(semantic_.args_table_entry->args_size);
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::ResolveKernelName(const KernelTaskSemantic &semantic, const OpDescPtr &op_desc,
+                                                 const domi::TaskDef &task_def, std::string &kernel_name) {
+  if (IsAicoreTask(semantic)) {
+    const auto kernel_name_ptr = AttrUtils::GetStr(op_desc, "_kernelname");
+    GE_ASSERT_NOTNULL(kernel_name_ptr, "[OM2] Failed to get kernel_name from op_desc, op=%s", op_desc->GetName().c_str());
+    kernel_name = *kernel_name_ptr;
+  } else {
+    kernel_name = task_def.kernel().kernel_name();
+  }
+  return SUCCESS;
+}
+
+Status KernelTaskCodeBuilder::ResolveTaskAddrs(TaskSemanticContributeContext &context) {
+  const bool is_aicpu = IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_);
+  if (is_aicpu) {
+    semantic_.aicpu_task_index = *context.aicpu_task_count;
+    ++(*context.aicpu_task_count);
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
+  } else {
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveWorkspaceAddrs(context, semantic_.workspace_addrs));
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveInputAddrs(context, semantic_.input_addrs));
+    GE_ASSERT_SUCCESS(Om2ModelUtils::ResolveOutputAddrs(context, true, semantic_.output_addrs));
+  }
+  if (IsAllKernelTask(semantic_)) {
+    const auto tiling_info =
+        context.op_desc->GetExtAttr<std::shared_ptr<optiling::utils::OpRunInfo>>(ge::ATTR_NAME_OP_RUN_INFO);
+    if ((tiling_info != nullptr) && (*tiling_info != nullptr)) {
+      semantic_.tiling_key = (*tiling_info)->GetTilingKey();
+    }
   }
   return SUCCESS;
 }
@@ -225,9 +249,16 @@ Status KernelTaskCodeBuilder::BuildLaunchSemantic(const TaskSemanticContributeCo
       launch_semantic.config.schedule_mode = static_cast<uint8_t>(kernel_def.schedule_mode() & k2BitsMask);
     }
   }
-  const std::string kernel_name = context.task_def.kernel().kernel_name();
-  const std::string func_handle_key = (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_))
-                                       ? context.op_desc->GetType() + kernel_name : kernel_name;
+  std::string kernel_name;
+  GE_ASSERT_SUCCESS(ResolveKernelName(semantic_, context.op_desc, context.task_def, kernel_name));
+  std::string func_handle_key;
+  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
+    func_handle_key = context.op_desc->GetType() + kernel_name;
+  } else if (IsAllKernelTask(semantic_)) {
+    func_handle_key = kernel_name + "#" + std::to_string(semantic_.tiling_key);
+  } else {
+    func_handle_key = kernel_name;
+  }
   const auto func_handle_it = context.func_handle_indices->find(func_handle_key);
   GE_ASSERT_TRUE(func_handle_it != context.func_handle_indices->end(),
                  "[OM2] Func handle key %s not found.", func_handle_key.c_str());
@@ -438,7 +469,8 @@ Status KernelTaskCodeBuilder::AppendDistributionForAicpu(const std::vector<Arg> 
   const std::string args_var_name = "op" + std::to_string(op_index) + "_args";
   auto args_var = ast_.Var("std::vector<uint8_t>", args_var_name);
   GE_ASSERT_SUCCESS(AppendAicpuArgsCode(ioaddr_var, args_var, items));
-  auto cfg_holder = AppendLaunchConfigSetup(op_index, items);
+  auto cfg_holder = AppendLaunchConfigSetup(op_index, items,
+                                            ast_.Call("GetIsDataDump", {Arg::StringLiteral(header_.op_name), model_id_, instance_handle_}));
   items.emplace_back(ChkStatus(ast_.Call("AicpuKernelTaskDistribute", {
       args_var,
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(semantic_.args_table_entry->table_index)),
@@ -446,6 +478,7 @@ Status KernelTaskCodeBuilder::AppendDistributionForAicpu(const std::vector<Arg> 
       static_cast<int64_t>(semantic_.launch.block_dim),
       stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
       cfg_holder.Attr("cfg").Addr()})));
+  items.emplace_back(ChkStatus(BuildReportLaunchedTaskCall()));
   return SUCCESS;
 }
 
@@ -810,54 +843,11 @@ Status KernelTaskCodeBuilder::BuildAddrGenInfoForShapeInfoBuffer(const AddrSeman
   return SUCCESS;
 }
 
-Expr *KernelTaskCodeBuilder::BuildTaskIoEntries(const std::vector<AddrSemantic> &addrs) const {
-  std::vector<Arg> entries;
-  for (const auto &addr : addrs) {
-    if (!addr.tensor_info.has_value()) {
-      continue;
-    }
-    entries.emplace_back(std::vector<Arg>{
-        ast_.Var("Om2Tensor", addr.symbol_hint).Addr(),
-        std::to_string(addr.tensor_info->args_offset) + "U"});
-  }
-  return ast_.InitList(entries);
-}
-
-Expr *KernelTaskCodeBuilder::BuildWorkspaceAddrs(const std::vector<AddrSemantic> &addrs) const {
-  std::vector<Arg> entries;
-  entries.reserve(addrs.size());
-  for (const auto &addr : addrs) {
-    entries.emplace_back(ast_.Call("PtrToU64", {ast_.Var("auto", addr.symbol_hint)}));
-  }
-  return ast_.InitList(entries);
-}
-
-Expr *KernelTaskCodeBuilder::BuildWorkspaceSizes(const std::vector<AddrSemantic> &addrs) const {
-  std::vector<Arg> entries;
-  entries.reserve(addrs.size());
-  for (const auto &addr : addrs) {
-    entries.emplace_back(std::to_string(addr.byte_size) + "U");
-  }
-  return ast_.InitList(entries);
-}
-
 ExprRef KernelTaskCodeBuilder::BuildReportLaunchedTaskCall() const {
-  const auto table_index = static_cast<int64_t>(semantic_.args_table_entry->table_index);
-  auto args_info = args_table_.Attr("GetArgsInfo")(table_index);
-  return ast_.Call("ReportLaunchedOm2Task", {
-      Arg::StringLiteral(header_.op_name),
-      Arg::StringLiteral(header_.op_type),
-      std::to_string(header_.op_desc_id) + "U",
-      ast_.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")),
-      args_info.Arrow("size"),
-      BuildTaskIoEntries(semantic_.input_addrs),
-      BuildTaskIoEntries(semantic_.output_addrs),
-      BuildWorkspaceAddrs(semantic_.workspace_addrs),
-      BuildWorkspaceSizes(semantic_.workspace_addrs),
-      ast_.UInt(static_cast<uint32_t>(semantic_.task_type)),
-      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
-      model_id_,
-      instance_handle_});
+  return TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(
+      ast_, header_, semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
+      semantic_.input_addrs, semantic_.output_addrs, semantic_.workspace_addrs, semantic_.task_type,
+      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)], model_id_, instance_handle_, args_table_, true);
 }
 
 Status KernelTaskCodeBuilder::AppendAicpuArgsCode(Arg iow_addr, const VarRef &args_var,

@@ -183,7 +183,7 @@ Status OpsKernelManager::InitOpKernelInfoStores(const std::map<std::string, std:
   return SUCCESS;
 }
 
-void OpsKernelManager::InitOpsKernelInfo() {
+void OpsKernelManager::InitOpsKernelInfo(bool is_refresh) {
   FuncPerfScope func_perf_scope("OpsKernelManager", __FUNCTION__);
   ops_kernel_info_.clear();
   for (const auto &it : ops_kernel_store_) {
@@ -191,8 +191,9 @@ void OpsKernelManager::InitOpsKernelInfo() {
     const uint64_t start = ge::GetCurrentTimestamp();
     it.second->GetAllOpsKernelInfo(op_infos);
     const uint64_t end = ge::GetCurrentTimestamp();
-    GEEVENT("[GEPERFTRACE] The time cost of InitOpsKernelInfo::GetAllOpsKernelInfo[%s] is [%lu] micro seconds.",
-            (it.first.c_str()), (end - start));
+    GEEVENT(
+        "[GEPERFTRACE] The time cost of InitOpsKernelInfo::GetAllOpsKernelInfo[%s] is [%lu] micro seconds. (stage=%s)",
+        (it.first.c_str()), (end - start), is_refresh ? "Refresh" : "Initialize");
     for (const auto &op_info_it : op_infos) {
       auto op_info_copy = op_info_it.second;
       // flush ops kernel
@@ -320,15 +321,9 @@ std::vector<OpInfo> OpsKernelManager::GetOpsKernelInfo(const std::string &op_typ
   std::map<std::string, std::vector<OpInfo>>::const_iterator find = ops_kernel_info_.find(op_type);
   if (find != ops_kernel_info_.cend()) {
     return find->second;
-  } else {
-    InitOpsKernelInfo();
-    find = ops_kernel_info_.find(op_type);
-    if (find != ops_kernel_info_.end()) {
-      return find->second;
-    }
-    GELOGW("Failed to get opsKernelInfo object by type: %s.", op_type.c_str());
-    return empty_op_info_;
   }
+  GELOGW("Failed to get opsKernelInfo object by type: %s.", op_type.c_str());
+  return {};
 }
 
 const std::map<std::string, std::vector<OpInfo>> &OpsKernelManager::GetAllOpsKernelInfo() const {
@@ -351,7 +346,11 @@ Status OpsKernelManager::RefreshOpsKernelInfo() {
     GELOGI("Refresh OpsKernelInfoStore: %s", it.first.c_str());
     GE_CHK_STATUS_RET(it.second->Refresh(), "Refresh OpsKernelInfoStore %s failed", it.first.c_str());
   }
-  GELOGI("OpsKernelInfo refreshed");
+  {
+    std::lock_guard<std::mutex> lock(ops_kernel_info_mutex);
+    InitOpsKernelInfo(true);
+  }
+  GELOGI("OpsKernelInfo refreshed successfully");
   return SUCCESS;
 }
 

@@ -560,6 +560,14 @@ TEST_F(Om2PackageHelperUt, Om2CodegenAndCompile_Fail_DumpGeneratedFiles) {
   auto *kernel_def = ge_model->GetModelTaskDefPtr()->mutable_task(0)->mutable_kernel();
   ASSERT_NE(kernel_def, nullptr);
   kernel_def->set_kernel_name("bad\"kernel_name");
+  // AICore 代码生成从 op_desc 的 _kernelname 属性读取 kernel_name，需同步修改
+  const auto &compute_graph = ge_root_model->GetRootGraph();
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() != DATA) && (op_desc->GetType() != NETOUTPUT)) {
+      ge::AttrUtils::SetStr(op_desc, "_kernelname", "bad\"kernel_name");
+    }
+  }
 
   Om2CodegenArtifacts artifacts;
   Om2ConstMetas const_metas;

@@ -157,20 +157,28 @@ Status MemcpyAddrAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> 
   items.emplace_back(ast_.VarDecl(ioaddr_var, FlattenHostArgs(args_vars)));
   items.push_back(ChkStatus(ast_.Call("KernelMemcpyAddrAsyncDistribute", {
       ast_.Str(header_.op_name),
-      args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("dev_addr") + align_offset_,
+      ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
+          {args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("dev_addr")}) +
+           ast_.UInt(align_offset_)}),
       ast_.UInt(dst_max_),
       ast_.UInt(count_),
       ast_.StaticCast("rtMemcpyKind_t", static_cast<int64_t>(kind_)),
       stream_list_[static_cast<int>(header_.stream_id)],
       0})));
   items.push_back(ChkStatus(AclrtMemcpy(
-      args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("host_addr") + align_offset_,
+      ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
+          {args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("host_addr")}) +
+           ast_.UInt(align_offset_)}),
       args_size_,
-      args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("dev_addr") + align_offset_,
+      ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
+          {args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("dev_addr")}) +
+           ast_.UInt(align_offset_)}),
       args_size_,
       "ACL_MEMCPY_DEVICE_TO_HOST")));
   items.push_back(ChkStatus(MemcpyS(
-      args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("host_addr") + aligned_io_offset_,
+      ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
+          {args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("host_addr")}) +
+           ast_.UInt(aligned_io_offset_)}),
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("size") - aligned_io_offset_,
       ioaddr_var.Data(), ioaddr_var.Size() * ast_.Sizeof("uint64_t"))));
   RenderCustomValueWriteback(items);
@@ -210,12 +218,14 @@ void MemcpyAddrAsyncTaskCodeBuilder::RenderCustomValueWriteback(std::vector<Body
   for (size_t i = 0; i < arg_descs_.size(); ++i) {
     if (arg_descs_[i].addr_type == AddrType::CUSTOM_VALUE) {
       const uint64_t value = *reinterpret_cast<const uint64_t *>(arg_descs_[i].reserved);
-      auto host_base = args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("host_addr");
+      auto host_base_expr = ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
+          {args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("host_addr")}) +
+           ast_.UInt(host_offset)});
       if (arg_descs_[i].ir_idx == static_cast<int32_t>(ArgsFormatWidth::BIT32)) {
-        auto target_ptr = ast_.ReinterpretCast("uint32_t *", host_base + host_offset);
+        auto target_ptr = ast_.ReinterpretCast("uint32_t *", host_base_expr);
         items.push_back(ast_.Assign(ast_.Deref(target_ptr), ast_.StaticCast("uint32_t", value)));
       } else {
-        auto target_ptr = ast_.ReinterpretCast("uint64_t *", host_base + host_offset);
+        auto target_ptr = ast_.ReinterpretCast("uint64_t *", host_base_expr);
         items.push_back(ast_.Assign(ast_.Deref(target_ptr), ast_.UInt(value)));
       }
     }

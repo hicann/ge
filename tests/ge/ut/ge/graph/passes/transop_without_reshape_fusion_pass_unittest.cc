@@ -168,22 +168,6 @@ extern "C" void GetDNNEngineObjs(std::map<std::string, DNNEnginePtr> &engines);
 
 void InitOpsKernelInfoStub()
 {
-    auto &opsKernelInfo = OpsKernelManager::GetInstance().ops_kernel_info_;
-    // init opsKernelInfo
-    map<string, OpInfo> opkInfos{};
-    vector<OpInfo> flatten;
-    vector<OpInfo> fullConnection;
-    vector<OpInfo> cast;
-    OpInfo aicpu_op = {"DNN_VM_TF", "aicpu_kernel", 1, false, false};
-    OpInfo aicore_op = {"v100", "FEOpsStore", 0, true, false};
-    flatten.push_back(aicpu_op);
-    flatten.push_back(aicore_op);
-    cast.push_back(aicpu_op);
-    opsKernelInfo["FullConnection"] = fullConnection;
-    opsKernelInfo["Permute"] = flatten;
-    opsKernelInfo["Transpose"] = flatten;
-    opsKernelInfo["Flatten"] = flatten;
-    opsKernelInfo["Cast"] = cast;
     auto &opsKernelStore = OpsKernelManager::GetInstance().ops_kernel_store_;
 
     // init opsKernelStore
@@ -191,6 +175,9 @@ void InitOpsKernelInfoStub()
     auto aicore_kernel_store = MakeShared<FEOpsKernelInfoStore>();
     opsKernelStore.emplace(std::pair<string, OpsKernelInfoStorePtr>("aicpu_kernel", aicpu_kernel_store));
     opsKernelStore.emplace(std::pair<string, OpsKernelInfoStorePtr>("FEOpsStore", aicore_kernel_store));
+
+    // rebuild ops_kernel_info_ from stores
+    OpsKernelManager::GetInstance().RefreshOpsKernelInfo();
 }
 } // namespace
 class UtestTransopWithoutReshapeFusionPass : public testing::Test {

@@ -42,6 +42,9 @@ class CodeGeneratorBase {
   ExprRef AclrtBinaryGetFunction(Arg bin_handle, Arg kernel_name, Arg func_handle) const {
     return ast_.Call("aclrtBinaryGetFunction", {bin_handle, kernel_name, func_handle});
   }
+  ExprRef AclrtBinaryGetFunctionByEntry(Arg bin_handle, Arg tiling_key, Arg func_handle) const {
+    return ast_.Call("aclrtBinaryGetFunctionByEntry", {bin_handle, tiling_key, func_handle});
+  }
   ExprRef AclrtRegisterCpuFunc(Arg bin_handle, Arg func_name, Arg kernel_name, Arg func_handle) const {
     return ast_.Call("aclrtRegisterCpuFunc", {bin_handle, func_name, kernel_name, func_handle});
   }
