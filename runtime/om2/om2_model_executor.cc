@@ -22,7 +22,7 @@
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
 #include "../../inc/framework/runtime/om2_context.h"
-#include "graph/utils/type_utils.h"
+#include "graph/utils/type_utils_inner.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "runtime/mem.h"
 #include "common/helper/om2/json_file.h"
@@ -143,10 +143,10 @@ ge::Status SetTensorDesc(ge::JsonFile::json &tensor_array_json, std::vector<ge::
     tensor_desc.SetName(name);
     std::string data_type;
     GE_ASSERT_TRUE(tensor_obj.Get("data_type", data_type));
-    tensor_desc.SetDataType(ge::TypeUtils::SerialStringToDataType(data_type));
+    tensor_desc.SetDataType(ge::TypeUtilsInner::SerialStringToDataType(data_type));
     std::string format;
     GE_ASSERT_TRUE(tensor_obj.Get("format", format));
-    tensor_desc.SetFormat(ge::TypeUtils::SerialStringToFormat(format));
+    tensor_desc.SetFormat(ge::TypeUtilsInner::SerialStringToFormat(format));
     int64_t size;
     GE_ASSERT_TRUE(tensor_obj.Get("size", size));
     tensor_desc.SetSize(static_cast<size_t>(size));
