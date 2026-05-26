@@ -103,9 +103,7 @@ typedef enum {
     ACL_MDL_MEM_MALLOC_POLICY_SIZET,
     ACL_MDL_FIFO_PTR, /**< pointer to fifo memory of model with shallow copy */
     ACL_MDL_FIFO_SIZET,
-    ACL_MDL_WITHOUT_GRAPH_INT32,
-    ACL_NPU_PERF_MODE,
-    RESERVED = 0xFFFF,
+    ACL_MDL_WITHOUT_GRAPH_INT32
 } aclmdlConfigAttr;
 
 typedef enum {
@@ -116,7 +114,9 @@ typedef enum {
     ACL_MDL_MPAIMID_SIZET, /**< param reserved */
     ACL_MDL_AICQOS_SIZET, /**< param reserved */
     ACL_MDL_AICOST_SIZET, /**< param reserved */
-    ACL_MDL_MEC_TIMETHR_SIZET /**< param reserved */
+    ACL_MDL_MEC_TIMETHR_SIZET, /**< param reserved */
+    ACL_MDL_EXEC_PRIORITY_INT32,
+    ACL_MDL_NPU_PERF_MODEL
 } aclmdlExecConfigAttr;
 
 typedef enum {
