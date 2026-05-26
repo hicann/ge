@@ -773,6 +773,121 @@ GeRootModelPtr CreateGeRootModelWithMemcpyAsync() {
   return ge_root_model;
 }
 
+// -----------------------------------------------------------------------
+// Helper: 在现有 AiCore 模型上添加 BARRIER task_def
+// -----------------------------------------------------------------------
+GeRootModelPtr CreateGeRootModelWithCmoBarrierTask(int32_t barrier_count = 1) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def == nullptr) {
+    return nullptr;
+  }
+  auto *task_def = model_task_def->add_task();
+  task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_BARRIER));
+  task_def->set_stream_id(0U);
+  auto *barrier = task_def->mutable_cmo_barrier_task();
+  barrier->set_logic_id_num(static_cast<uint32_t>(barrier_count));
+  for (int32_t i = 0; i < barrier_count; ++i) {
+    auto *info = barrier->add_barrier_info();
+    info->set_cmo_type(static_cast<uint32_t>(i));
+    info->set_logic_id(static_cast<uint32_t>(i));
+  }
+  return ge_root_model;
+}
+
+// -----------------------------------------------------------------------
+// Helper: 在现有 AiCore 模型上添加 CMO task_def
+// -----------------------------------------------------------------------
+GeRootModelPtr CreateGeRootModelWithCmoTask(uint32_t cmo_type = 1U, uint32_t op_code = 3U) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def == nullptr) {
+    return nullptr;
+  }
+  auto *task_def = model_task_def->add_task();
+  task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CMO));
+  task_def->set_stream_id(0U);
+  auto *cmo = task_def->mutable_cmo_task();
+  cmo->set_cmo_type(cmo_type);
+  cmo->set_logic_id(0);
+  cmo->set_qos(0);
+  cmo->set_part_id(0);
+  cmo->set_pmg(0);
+  cmo->set_op_code(op_code);
+  cmo->set_num_inner(0);
+  cmo->set_num_outer(0);
+  cmo->set_length_inner(0);
+  cmo->set_source_addr(0U);
+  cmo->set_strider_outer(0);
+  cmo->set_strider_inner(0);
+  return ge_root_model;
+}
+
+// -----------------------------------------------------------------------
+// Helper: 在现有 AiCore 模型上添加 CMO_ADDR task_def
+// 空 args_format 会触发 BuildAutoArgsFormat 自动生成
+// -----------------------------------------------------------------------
+GeRootModelPtr CreateGeRootModelWithCmoAddrTask(bool with_explicit_format = false) {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def == nullptr) {
+    return nullptr;
+  }
+
+  // 为 Add 节点设置 tensor_desc 和 offset 属性（BuildAutoArgsFormat 需要）
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() != DATA) && (op_desc->GetType() != NETOUTPUT)) {
+      GeTensorDesc tensor(GeShape({4, 4, 4, 4}), FORMAT_ND, DT_INT64);
+      TensorUtils::SetSize(tensor, 2048);
+      op_desc->UpdateInputDesc(0, tensor);
+      (void)AttrUtils::SetInt(op_desc, "offset", 512);
+    }
+  }
+
+  auto add_node = compute_graph->FindNode("add1");
+  const int64_t op_index = (add_node != nullptr) ? add_node->GetOpDescBarePtr()->GetId() : 2;
+
+  auto *task_def = model_task_def->add_task();
+  task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CMO_ADDR));
+  task_def->set_stream_id(0U);
+  auto *cmo_addr = task_def->mutable_cmo_addr_task();
+  cmo_addr->set_op_index(static_cast<uint32_t>(op_index));
+  cmo_addr->set_cmo_op_code(6);  // PREFETCH
+  cmo_addr->set_src(0U);
+  cmo_addr->set_num_inner(0);
+  cmo_addr->set_num_outer(0);
+  cmo_addr->set_length_inner(1024);
+  cmo_addr->set_stride_outer(0);
+  cmo_addr->set_stride_inner(0);
+  if (with_explicit_format) {
+    cmo_addr->set_args_format("{}{.32b}{#.32b64}{i_instance0*}{}");
+  }
+  return ge_root_model;
+}
+
 ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model) {
   static AstContext ast_ctx;
   static AstBuildContext ast(ast_ctx);
@@ -2532,6 +2647,82 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForMemcpyAsync_Ok) {
   EXPECT_NE(outputs[GeneratedFileIndex::kLoadingAndRunningFile].find(
                 "OM2_CHK_STATUS(memcpy_s(args_table_.GetArgsInfo(1)->host_addr"),
             std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoBarrierTask_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithCmoBarrierTask(3);
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  // Barrier comment header
+  EXPECT_NE(load_run.find("(Barrier)"), std::string::npos);
+  // Barrier info variable declaration
+  EXPECT_NE(load_run.find("rtBarrierTaskInfo_t barrier_info"), std::string::npos);
+  // KernelBarrierTaskDistribute call in Load()
+  EXPECT_NE(load_run.find("KernelBarrierTaskDistribute("), std::string::npos);
+  // KernelBarrierTaskDistribute helper function
+  EXPECT_NE(load_run.find("RT_GNL_CTRL_TYPE_BARRIER_TSK"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoTask_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithCmoTask(1U, 3U);
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  // CMO comment header
+  EXPECT_NE(load_run.find("(CMO)"), std::string::npos);
+  // cmo_info variable declaration
+  EXPECT_NE(load_run.find("rtCmoTaskInfo_t cmo_info"), std::string::npos);
+  // KernelCmoTaskDistribute call in Load()
+  EXPECT_NE(load_run.find("KernelCmoTaskDistribute("), std::string::npos);
+  // KernelCmoTaskDistribute helper function
+  EXPECT_NE(load_run.find("RT_GNL_CTRL_TYPE_CMO_TSK"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoAddrTask_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithCmoAddrTask(false);
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  // CMO_ADDR comment header
+  EXPECT_NE(load_run.find("(CMO_ADDR)"), std::string::npos);
+  // iow_addr variable
+  EXPECT_NE(load_run.find("_iow_addr0"), std::string::npos);
+  // KernelCmoAddrTaskDistribute call
+  EXPECT_NE(load_run.find("KernelCmoAddrTaskDistribute("), std::string::npos);
+  // KernelCmoAddrTaskDistribute helper: rtCmoAddrTaskLaunch
+  EXPECT_NE(load_run.find("rtCmoAddrTaskLaunch"), std::string::npos);
+  // args_table_.GetArgsInfo
+  EXPECT_NE(load_run.find("args_table_.GetArgsInfo("), std::string::npos);
+  // aclrtMemcpy with DEVICE_TO_HOST
+  EXPECT_NE(load_run.find("ACL_MEMCPY_DEVICE_TO_HOST"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoAddrTaskExplicitFormat_Ok) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithCmoAddrTask(true);
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  // CMO_ADDR comment header
+  EXPECT_NE(load_run.find("(CMO_ADDR)"), std::string::npos);
+  // iow_addr variable
+  EXPECT_NE(load_run.find("_iow_addr0"), std::string::npos);
+  // KernelCmoAddrTaskDistribute call
+  EXPECT_NE(load_run.find("KernelCmoAddrTaskDistribute("), std::string::npos);
+  // KernelCmoAddrTaskDistribute helper: rtCmoAddrTaskLaunch
+  EXPECT_NE(load_run.find("rtCmoAddrTaskLaunch"), std::string::npos);
+  // args_table_.GetArgsInfo
+  EXPECT_NE(load_run.find("args_table_.GetArgsInfo("), std::string::npos);
+  // aclrtMemcpy with DEVICE_TO_HOST
+  EXPECT_NE(load_run.find("ACL_MEMCPY_DEVICE_TO_HOST"), std::string::npos);
 }
 
 GeRootModelPtr CreateGeRootModelWithDsaOp() {
