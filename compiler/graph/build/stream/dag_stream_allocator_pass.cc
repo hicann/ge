@@ -25,6 +25,7 @@ namespace ge {
 
 namespace {
 constexpr int32_t kMaxStreamLimit = 64;
+constexpr int32_t kDefaultMaxPhysicalStreams = 8;
 
 bool ParseStreamConfig(const std::string &multi_stream_mode, int64_t &out_max_stream_id,
                        minidag::StreamMergeStrategy &out_strategy) {
@@ -96,10 +97,15 @@ Status RunMiniDAGStreamPass(const ConstGraphPtr &graph, StreamPassContext &conte
         return FAILED;
     }
 
-    // 3. 解析配置（解析失败直接返回 FAILED）
+    // 3. 特殊场景：LoadBalance 不带数字，使用默认 8 条流
     int64_t effective_max_stream_id = -1;
     minidag::StreamMergeStrategy strategy;
-    if (!ParseStreamConfig(multi_stream_mode, effective_max_stream_id, strategy)) {
+    if (multi_stream_mode == "LoadBalance") {
+        strategy = minidag::StreamMergeStrategy::kLoadBalance;
+        effective_max_stream_id = kDefaultMaxPhysicalStreams - 1;
+        GELOGI("LoadBalance without stream count, using default 8 streams.");
+    } else if (!ParseStreamConfig(multi_stream_mode, effective_max_stream_id, strategy)) {
+        // 原有解析路径
         return FAILED;
     }
 
