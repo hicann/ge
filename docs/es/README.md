@@ -82,7 +82,7 @@ docs/es/
 
 - [x] [***December 2025***]math 分包已完成ES API集成。
 - [x] [***February 2026***]nn、cv、transformer完成ES API集成。
-- [ ] [***April 2026***]hcom分包完成ES API集成。
+- [ ] [***June 2026***]hcom分包完成ES API集成。
 
 注：在全量原型的ES API打包到各个算子分包之前，如需使用 ES API，可以参考工具文档中的 [generate_es_package.cmake](tools/generate_es_package_cmake_readme.md) 进行代码生成和集成。
 

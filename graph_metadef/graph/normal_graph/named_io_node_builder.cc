@@ -55,7 +55,7 @@ class NamedIoNodeBuilder::Impl {
     TensorDesc desc;
   };
 
-  static std::string DynamicInstanceName(const std::string &ir_name, size_t index);
+  static std::string DynamicInstanceName(const std::string &ir_name, const size_t index);
 
   graphStatus ValidateBuildParam(AscendString &error_message) const;
   OpDescPtr CreateOpDesc(AscendString &error_message) const;
