@@ -44,6 +44,19 @@ GE-PY 模块包含以下核心组件：
 
 - **[pyatc CLI 设计文档](design/pyatc_cli_design.md)** - pyatc 命令行的详细设计说明
 
+### API 参考
+
+- **[API 参考文档](api/)** - 各模块的接口参考文档
+  - [Graph](api/Graph.md)、[Node](api/Node.md)、[Tensor](api/Tensor.md)、[TensorDesc](api/TensorDesc.md)、[Shape](api/Shape.md)、[DataType](api/DataType.md)
+  - [Session](api/Session.md)、[Allocator](api/Allocator.md)、[GeApi](api/GeApi.md)
+  - [GraphBuilder](api/GraphBuilder.md)、[TensorHolder](api/TensorHolder.md)
+  - [OfflineCompile](api/OfflineCompile.md)、[GeUtils](api/GeUtils.md)
+  - [Passes](api/Passes.md)、[pyatc](api/pyatc.md)
+
+### 环境变量
+
+- **[ASCEND_GE_PY_PASS_PATH](env/ASCEND_GE_PY_PASS_PATH.md)** - Python Pass 插件路径发现环境变量
+
 ## 模块关系
 
 - **graph 模块** - 提供图的基础操作能力，是其他模块的基础
@@ -88,11 +101,13 @@ GE-PY 模块包含以下核心组件：
 - [x] [***February 2026***] es 的 python 算子 api 支持，详见[es api集成路标](../es/README.md#api-集成)。
 - [x] [***April 2026***] 图异步执行的python接口提供
 - [x] [***April 2026***] 离线图编译执行的python接口提供
+- [x] [***April 2026***] pyatc接口提供
 
 ### 自定义pass
 
-- [~] [***April 2026***] 开发态主链已完成 `FusionBasePass` 与 `PatternFusionPass`，`DecomposePass` 待补齐
-- [ ] [***后续阶段***] 预制版本、fallback、多版本 native artifact 与 `entry_points` 产品化待补齐
+- [x] [***April 2026***] 开发态主链已完成 `FusionBasePass`  `PatternFusionPass` `DecomposePass` 
+- [x] [***May 2026***] 预制版本、多版本 native artifact 补齐
+- [~] [***June 2026***] fallback codegen 能力补齐
 
 ### sample和相关文档
 
@@ -104,3 +119,4 @@ GE-PY 模块包含以下核心组件：
 - [x] [***December 2025***]Python api 后向兼容完成设计并落地。
 
 ### others
+- [] [***后续阶段***] 自定义算子入图python化支持

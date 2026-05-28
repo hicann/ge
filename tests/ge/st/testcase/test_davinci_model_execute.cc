@@ -23,7 +23,7 @@
 #include "graph/debug/ge_attr_define.h"
 #include "ge/ge_api.h"
 #include "framework/executor/ge_executor.h"
-#include "framework/common/types.h"
+#include "framework/common/framework_types_internal.h"
 #include "graph/execute/model_executor.h"
 #include "runtime/subscriber/global_dumper.h"
 #include "graph/utils/attr_utils.h"
@@ -6570,6 +6570,7 @@ TEST_F(DavinciModelTest, Adump_Interface_DirectCall) {
   dump_info.args = 0x1000;
   dump_info.stream = reinterpret_cast<rtStream_t>(0xdeadbeef);
   dump_info.cust_to_relevant_offset_ = {};
+  dump_info.is_op_debug = false;
 
   Status ret = dumper.DumpOpWithAdump(dump_info);
   EXPECT_EQ(ret, SUCCESS);
@@ -6604,6 +6605,7 @@ TEST_F(DavinciModelTest, Adump_OverflowNotSupported_Direct) {
   dump_info.args = 0x1000;
   dump_info.stream = reinterpret_cast<rtStream_t>(0xdeadbeef);
   dump_info.cust_to_relevant_offset_ = {};
+  dump_info.is_op_debug = false;
 
   Status ret = dumper.DumpOpWithAdump(dump_info);
   EXPECT_FALSE(dumper.IsDumpOpWithAdump());

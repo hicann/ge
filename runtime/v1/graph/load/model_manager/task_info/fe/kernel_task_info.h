@@ -21,7 +21,7 @@
 #include "graph/ge_context.h"
 #include "graph/utils/attr_utils.h"
 #include "framework/omg/parser/parser_types.h"
-#include "framework/common/types.h"
+#include "framework/common/framework_types_internal.h"
 #include "register/op_tiling_registry.h"
 #include "common/dump/kernel_tracing_utils.h"
 #include "acl/acl_rt.h"
@@ -273,6 +273,7 @@ class KernelTaskInfo : public TaskInfo {
   bool own_args_memory_ = false;
   bool is_separately_clean_task_ = false;
   bool is_addrs_folded_ = false;
+  bool is_optional_input_placeholder_ = false;
 
   // for dynamic kernel
   uint64_t tiling_key_ = 0U;
