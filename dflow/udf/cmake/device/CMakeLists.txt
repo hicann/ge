@@ -73,7 +73,8 @@ if (ENABLE_SIGN)
 
     install(FILES
             ${udf_compat_sign_file}
-            DESTINATION ${CMAKE_INSTALL_PREFIX}
+            DESTINATION compat
+            COMPONENT dflow-executor
     )
 
     # pack Ascend-runtime_device-minios.tar.gz
@@ -122,16 +123,18 @@ if (ENABLE_SIGN)
 
     install(FILES
             ${runtime_device_sign_file}
-            DESTINATION ${CMAKE_INSTALL_PREFIX}
+            DESTINATION runtime/lib64
+            COMPONENT dflow-executor
     )
 else ()
     install(
             FILES "${CMAKE_BINARY_DIR}/${PACKAGE_TAR_FILE_NAME}"
-            DESTINATION ${CMAKE_INSTALL_PREFIX}
-            COMPONENT application_packaging
+            DESTINATION compat
+            COMPONENT dflow-executor
     )
 endif ()
 
 install(TARGETS flow_func
-    LIBRARY DESTINATION device/lib64
+    DESTINATION ${CMAKE_HOST_SYSTEM_PROCESSOR}-linux/devlib/device
+    COMPONENT dflow-executor
 )

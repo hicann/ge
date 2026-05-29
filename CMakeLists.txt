@@ -578,7 +578,6 @@ elseif (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
                 reader_writer udf_profiling flow_func built_in_flowfunc udf_executor)
         add_dependencies(dflow-executor version_dflow-executor_info)
         if (ENABLE_BUILD_DEVICE)
-            set(CHILD_INSTALL_DIR ${CMAKE_BINARY_DIR}/device_install)
             cmake_print_variables(ENABLE_SIGN CUSTOM_SIGN_SCRIPT)
             include(ExternalProject)
             ExternalProject_Add(udf_device
@@ -586,8 +585,7 @@ elseif (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
                     BINARY_DIR ${CMAKE_BINARY_DIR}/device_build
                     CMAKE_ARGS
                     -DTOOLCHAIN_DIR=${ASCEND_INSTALL_PATH}/toolkit/toolchain/hcc
-                    -DCMAKE_INSTALL_PREFIX=${CHILD_INSTALL_DIR}
-                    -DCMAKE_TOOLCHAIN_FILE=${CMAKE_SOURCE_DIR}/dflow/udf/cmake/aarch64-hcc-toolchain.cmake
+                    -DCMAKE_TOOLCHAIN_FILE=${CANN_CMAKE_DIR}/toolchain/aarch64-hcc-toolchain.cmake
                     -DCANN_3RD_LIB_PATH=${CANN_3RD_LIB_PATH}
                     -DCMAKE_C_COMPILER_LAUNCHER=${CMAKE_C_COMPILER_LAUNCHER}
                     -DCMAKE_CXX_COMPILER_LAUNCHER=${CMAKE_CXX_COMPILER_LAUNCHER}
@@ -598,7 +596,12 @@ elseif (BUILD_OPEN_PROJECT OR ENABLE_OPEN_SRC)
                     -DENABLE_SIGN=${ENABLE_SIGN}
                     -DCUSTOM_SIGN_SCRIPT=${CUSTOM_SIGN_SCRIPT}
                     -DVERSION_INFO=${VERSION_INFO}
+                    INSTALL_COMMAND ${CMAKE_CPACK_COMMAND}
                     BUILD_ALWAYS TRUE)
+            install(FILES
+                    ${CMAKE_BINARY_DIR}/device_build/device-dflow-executor.tar.gz
+                    DESTINATION .
+                    COMPONENT dflow-executor)
             add_dependencies(dflow-executor udf_device)
         endif ()
     endif()
