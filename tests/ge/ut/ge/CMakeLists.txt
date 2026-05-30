@@ -1275,10 +1275,10 @@ target_include_directories(ge_manual_test PRIVATE ${AIR_CODE_DIR}/tests/framewor
         ${CMAKE_BINARY_DIR}/tests/depends/aihacb_autofusion
         ${CMAKE_BINARY_DIR}/graph_metadef/graph/ascendc_ir/generator/
         ${ASCEND_INSTALL_PATH}/include
-        ${ASCEND_INSTALL_PATH}/include/autofuse
-        ${ASCEND_INSTALL_PATH}/include/autofuse/graph_metadef
-        ${ASCEND_INSTALL_PATH}/include/autofuse/graph_metadef/graph
-        ${ASCEND_INSTALL_PATH}/include/autofuse/ascir
+        ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
+        ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef
+        ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef/graph
+        ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/ascir
         ${ASCGEN_DIR}/inc
 )
 
@@ -1337,9 +1337,9 @@ target_include_directories(ut_jit_execution PRIVATE
         ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
         ${AIR_CODE_DIR}/tests/ge/st/stubs/utils
         ${ASCEND_INSTALL_PATH}/include
-        ${ASCEND_INSTALL_PATH}/include/autofuse
-        ${ASCEND_INSTALL_PATH}/include/autofuse/graph_metadef
-        ${ASCEND_INSTALL_PATH}/include/autofuse/graph_metadef/graph
+        ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
+        ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef
+        ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef/graph
         ${ASCGEN_DIR}/inc
 )
 
