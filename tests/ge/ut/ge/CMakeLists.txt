@@ -1306,7 +1306,6 @@ file(GLOB_RECURSE JIT_EXECUTION_UTIL_SRC_FILES CONFIGURE_DEPENDS "graph/passes/g
 
 # libjit_execution_utest
 add_executable(ut_jit_execution
-        ${JIT_EXECUTION_SRC_FILES}
         ${JIT_EXECUTION_TEST_FILES}
         ${JIT_EXECUTION_UTIL_SRC_FILES}
         "${SYMBOL_SHAPE_INFER_FUNCS_SRCS}"
@@ -1346,6 +1345,7 @@ target_include_directories(ut_jit_execution PRIVATE
 target_link_options(ut_jit_execution PRIVATE
     -Wl,--disable-new-dtags
     -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
+    $<$<BOOL:${ENABLE_GCOV}>:--coverage>
 )
 
 target_link_libraries(ut_jit_execution
@@ -1365,6 +1365,7 @@ target_link_libraries(ut_jit_execution
         rt2_registry_static
         es_ge_test
         -Wl,--no-whole-archive
+        jit_exe
         ge_ut_common
         ge_running_env ge_runtime_stub st_stubs GTest::gtest GTest::gtest_main GTest::gmock_main -lrt -ldl
         -Wl,--no-as-needed GTest::gmock -Wl,--as-needed
