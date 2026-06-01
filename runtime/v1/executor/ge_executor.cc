@@ -279,11 +279,6 @@ Status GeExecutor::Initialize(const std::map<std::string, std::string> &options)
   GE_ASSERT_GRAPH_SUCCESS(OpLibRegistry::GetInstance().PreProcessForCustomOp());
 
   const std::string path_base = GetModelPath();
-  const Status init_hostcpu_engine_status = HostCpuEngine::GetInstance().Initialize(path_base);
-  if (init_hostcpu_engine_status != SUCCESS) {
-    GELOGE(init_hostcpu_engine_status, "[initialize][HostCpuEngine] failed");
-    return init_hostcpu_engine_status;
-  }
 
   const Status rt_plugin_status = ge::RuntimePluginLoader::GetInstance().Initialize(path_base);
   if (rt_plugin_status != SUCCESS) {
@@ -294,6 +289,9 @@ Status GeExecutor::Initialize(const std::map<std::string, std::string> &options)
   GE_CHK_STATUS_RET_NOLOG(OpsKernelExecutorManager::GetInstance().Initialize(options));
   // 加载顺序遵循3.0目录结构，按op_graph->op_impl->op_proto->framework顺序加载，详细规则见PluginManager::GetOpsProtoPath注释
   gert::OppPackageUtils::LoadAllOppPackage();
+
+  // libops_host_cpu.h include all_ops.h头文件，注册了原型，需要放到开源so后面加载
+  GE_CHK_STATUS_RET(HostCpuEngine::GetInstance().Initialize(path_base), "[initialize][HostCpuEngine] failed");
   OpTilingManager::GetInstance().LoadSo();
   InitOpsProtoManager();
 
