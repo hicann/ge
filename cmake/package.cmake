@@ -159,6 +159,7 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pattern_matcher.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/subgraph_boundary.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pattern_matcher_config.h
+                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/infer_shape_util.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge/fusion COMPONENT ge-compiler
     )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pass/decompose_pass.h

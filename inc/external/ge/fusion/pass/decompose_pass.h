@@ -48,7 +48,7 @@ class DecomposePass : public FusionBasePass {
    */
   virtual GraphUniqPtr Replacement(const GNode &matched_node) = 0;
 
- private:
+  private:
   std::vector<AscendString> op_types_;
 };
 

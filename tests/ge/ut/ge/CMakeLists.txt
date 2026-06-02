@@ -285,6 +285,7 @@ set(PASS_TEST_FILES
     "fusion/pattern_matcher_config_unittest.cc"
     "fusion/match_result_unittest.cc"
     "fusion/fusion_component_test.cc"
+    "fusion/infer_shape_util_unittest.cc"
     "fusion/pass/pattern_fusion_pass_unittest.cc"
     "fusion/pass/decompose_pass_unittest.cc"
     "fusion/pass/decompose_pass_v2_unittest.cc"

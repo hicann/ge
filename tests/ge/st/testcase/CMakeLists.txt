@@ -276,6 +276,7 @@ add_executable(graph_engine_compile_test
         "${AIR_CODE_DIR}/tests/ge/ut/ge/fusion/subgraph_boundary_unittest.cc"
         "${AIR_CODE_DIR}/tests/ge/ut/ge/fusion/graph_rewriter_unittest.cc"
         "${AIR_CODE_DIR}/tests/ge/ut/ge/fusion/match_result_unittest.cc"
+        "${AIR_CODE_DIR}/tests/ge/ut/ge/fusion/infer_shape_util_unittest.cc"
         "${AIR_CODE_DIR}/tests/ge/ut/ge/fusion/pass/pattern_fusion_pass_unittest.cc"
         "${AIR_CODE_DIR}/tests/ge/ut/ge/fusion/pass/decompose_pass_unittest.cc"
         "${AIR_CODE_DIR}/tests/ge/ut/ge/fusion/pass/decompose_pass_v2_unittest.cc"
