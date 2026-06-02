@@ -145,19 +145,12 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
     install(DIRECTORY ${CMAKE_SOURCE_DIR}/inc/external/flow_graph
             DESTINATION ${ARCH_LINUX_PATH}/include COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/llm_datadist/llm_datadist.h
-            DESTINATION ${ARCH_LINUX_PATH}/include/llm_datadist COMPONENT ge-compiler
-    )
     install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_gradient_split_tune.h
                   ${CMAKE_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_ops_stores.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge COMPONENT ge-compiler
     )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_ir_build.h
                   ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_utils.h
-            DESTINATION ${ARCH_LINUX_PATH}/include/ge COMPONENT ge-compiler
-    )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/llm_datadist/llm_error_codes.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/llm_datadist/llm_engine_types.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge COMPONENT ge-compiler
     )
     install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/graph_rewriter.h
