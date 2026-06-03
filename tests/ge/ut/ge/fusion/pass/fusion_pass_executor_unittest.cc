@@ -1375,9 +1375,9 @@ TEST_F(UtestFusionPassExecutor, PythonPassBridgeLoader_SkipsBrokenPrebuiltCandid
 
   ScopedEnvVar scoped_python_path("PYTHONPATH", temp_dir.FilePath("site-packages"));
   auto runtime_key = ResolveRuntimeKeyForBridgeLoaderUt();
-  const auto candidates = python_pass_artifact::BuildBridgeLibraryCandidates(
-      runtime_key, "", "libge_python_pass_bridge.so", kPythonFusionPassBridgeAbiVersion);
-  ASSERT_GE(candidates.size(), 2U);
+  const auto candidates = python_pass_artifact::BuildPrebuiltBridgeLibraryCandidates(
+      runtime_key, "", kPythonFusionPassBridgeAbiVersion);
+  ASSERT_EQ(candidates.size(), 1U);
   EXPECT_EQ(candidates.front().bridge_path, python_pass_artifact::ResolveRealPath(broken_bridge_path.c_str()));
   EXPECT_EQ(candidates.front().artifact_root,
             python_pass_artifact::ResolveRealPath(temp_dir.FilePath(artifact_dir).c_str()));

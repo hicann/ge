@@ -17,16 +17,25 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import wraps
 import inspect
-from typing import Callable, Dict, Iterator, List, Type, Union, overload
+from typing import Callable, Dict, Iterator, List, Type, Union, overload, TYPE_CHECKING
 
 from ge.graph import Graph, Node
 from ge.es.graph_builder import GraphBuilder
 from ge.es.tensor_holder import TensorHolder
 
-from ._native import Pattern
+if TYPE_CHECKING:
+    from ._native import Pattern
 
 
 _PATTERN_METHOD_MARK = "__ge_expression_pattern_method__"
+
+
+def __getattr__(name: str):
+    if name == "Pattern":
+        from ._native import Pattern
+        globals()["Pattern"] = Pattern
+        return Pattern
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 @dataclass(frozen=True)
@@ -94,14 +103,15 @@ class PatternInputs:
         return [self._inputs[index] for index in sorted(self._inputs)]
 
 
-def create_pattern(graph: Graph) -> Pattern:
+def create_pattern(graph: Graph) -> "Pattern":
     """Build a native Pattern from a pattern graph."""
-
+    from ._native import Pattern
     return Pattern(graph)
 
 
-def ensure_pattern(pattern_or_graph: Union[Pattern, Graph]) -> Pattern:
+def ensure_pattern(pattern_or_graph: Union["Pattern", Graph]) -> "Pattern":
     """Convert a Graph into Pattern on demand for bridge helpers."""
+    from ._native import Pattern
 
     if isinstance(pattern_or_graph, Graph):
         return create_pattern(pattern_or_graph)
@@ -129,7 +139,7 @@ def _adapt_decorated_pattern_methods(cls: Type[object]) -> Callable[..., object]
         _check_required_arg_count(method, min_count=2, max_count=2,
                                   message="@pattern methods only support method(self, inputs)")
 
-    def wrapper(self) -> List[Pattern]:
+    def wrapper(self) -> List["Pattern"]:
         patterns = []
         for method in methods:
             builder = GraphBuilder(_decorated_pattern_graph_name(self, method))
@@ -212,7 +222,7 @@ def _decorated_pattern_graph_name(instance: object, method: Callable[..., object
 
 
 def _build_patterns_from_expression_result(builder: GraphBuilder, inputs: PatternInputs,
-                                           result: object) -> List[Pattern]:
+                                           result: object) -> List["Pattern"]:
     if _is_pattern_or_graph(result):
         return [ensure_pattern(result)]
     if isinstance(result, (list, tuple)) and result and all(_is_pattern_or_graph(item) for item in result):
@@ -250,4 +260,6 @@ def _normalize_tensor_outputs(result: object, hook_name: str) -> List[TensorHold
 
 
 def _is_pattern_or_graph(result: object) -> bool:
+    from ._native import Pattern
+
     return isinstance(result, (Pattern, Graph))

@@ -461,6 +461,7 @@ GeApi.ge_finalize()
 ├── replacement.py   # replacement graph 构建辅助接口
 ├── registry.py      # Pass 注册中心与装饰器
 ├── bootstrap.py     # 插件发现与加载
+├── runtime.py       # 运行时 artifact 装载与 fallback codegen
 └── _bridge.py       # Bridge 运行时辅助（Pass 实例管理，供 C++ bridge .so 回调）
 ```
 注：下划线开头的为 Python 风格下的对内模块
@@ -476,7 +477,12 @@ ge/passes/python_pass_artifacts/<python_tag>-<platform>/_ge_pass_native.so
 ge/passes/python_pass_artifacts/<python_tag>-<platform>/libge_python_pass_bridge.so
 ```
 
-主 wheel 保持一份纯 Python 接口，不再内置当前 Python 的默认 native artifact set。native 子 wheel 按 `cp39` 到 `cp314` 的 Python minor 版本矩阵分别承载预制 artifact set，并额外提供 `ge/passes/_ge_pass_native.so` 兼容副本，用于默认 bridge 路径下的 `import ge.passes._ge_pass_native`。native 子 wheel 通过标准 `bdist_wheel` 生成。仓内提供矩阵 builder 入口用于自动嗅探 PATH 中可用的 Python minor 版本并分别构建；如果某个 Python 可执行文件存在但开发头文件或 libpython 不完整，builder 会跳过该版本并继续构建其他可用版本。run 包可携带多个 `ge_py_pass_bridge` native 子 wheel，但安装脚本只应安装与当前执行安装脚本的 Python 解释器兼容的一个子 wheel；推荐使用 `pip install --no-index --find-links <ge-compiler/lib64> <ge_py wheel> ge-py-pass-bridge`，由 pip 按 wheel tag 自动选择。运行时优先选择与当前进程 Python tag、平台 tag、bridge ABI 匹配的预制 artifact；若没有命中，则回退到同目录 legacy bridge 路径。runtime fallback codegen 作为后续独立阶段接入。
+主 wheel 保持一份纯 Python 接口，不再内置当前 Python 的默认 native artifact set。native 子 wheel 按 `cp39` 到 `cp314` 的 Python minor 版本矩阵分别承载预制 artifact set，并额外提供 `ge/passes/_ge_pass_native.so` 兼容副本，用于默认 bridge 路径下的 `import ge.passes._ge_pass_native`。native 子 wheel 通过标准 `bdist_wheel` 生成。仓内提供矩阵 builder 入口用于自动嗅探 PATH 中可用的 Python minor 版本并分别构建；如果某个 Python 可执行文件存在但开发头文件或 libpython 不完整，builder 会跳过该版本并继续构建其他可用版本。
+run 包可携带多个 `ge_py_pass_bridge` native 子 wheel，但安装脚本只应安装与当前执行安装脚本的 Python 解释器兼容的一个子 wheel；推荐使用 `pip install --no-index --find-links <ge-compiler/lib64> <ge_py wheel> ge-py-pass-bridge`，由 pip 按 wheel tag 自动选择。运行时选择顺序为：
+
+1. 与当前进程 Python tag、平台 tag、bridge ABI 匹配的预制 artifact。
+2. runtime fallback codegen 新生成到 `ge/passes/python_pass_artifacts/<python_tag>-<platform>/`，且与当前进程 Python tag、平台 tag、bridge ABI 匹配的 artifact。
+3. 同目录或系统搜索路径中的 legacy bridge。
 
 #### 类详细说明
 

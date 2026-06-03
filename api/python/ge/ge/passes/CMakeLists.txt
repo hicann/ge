@@ -9,14 +9,23 @@
 # -----------------------------------------------------------------------------------------------------------
 
 set(_ge_pass_native_sources
-        native_bindings/module.cc
-        native_bindings/pass_context_binding.cc
-        native_bindings/pattern_binding.cc
-        native_bindings/match_result_binding.cc
-        native_bindings/pattern_matcher_config_binding.cc
-        native_bindings/graph_handle_binding.cc
-        native_bindings/graph_rewriter_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/module.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/pass_context_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/pattern_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/match_result_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/pattern_matcher_config_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/graph_handle_binding.cc
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/graph_rewriter_binding.cc
 )
+
+set(_ge_pass_native_headers
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/binding_common.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/binding_utils.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/native_bindings/bindings.h
+)
+
+set(GE_PYTHON_PASS_NATIVE_SOURCES ${_ge_pass_native_sources} PARENT_SCOPE)
+set(GE_PYTHON_PASS_NATIVE_HEADERS ${_ge_pass_native_headers} PARENT_SCOPE)
 
 add_library(_ge_pass_native MODULE ${_ge_pass_native_sources})
 target_include_directories(_ge_pass_native PRIVATE

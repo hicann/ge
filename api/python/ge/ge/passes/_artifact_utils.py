@@ -83,6 +83,10 @@ def _load_manifest(manifest_path: Path) -> Optional[PythonPassArtifact]:
     return artifact
 
 
+def load_artifact_from_dir(artifact_dir: Path) -> Optional[PythonPassArtifact]:
+    return _load_manifest(artifact_dir / "manifest.json")
+
+
 def iter_artifacts(root: Optional[Path] = None) -> Iterable[PythonPassArtifact]:
     for manifest_path in _manifest_paths(root or artifacts_root()):
         artifact = _load_manifest(manifest_path)

@@ -22,6 +22,10 @@ __all__ = [
     "PatternMatcherConfig",
     "PatternMatcherConfigBuilder",
     "PatternFusionPass",
+    "SubgraphInput",
+    "SubgraphOutput",
+    "SubgraphBoundary",
+    "SubgraphRewriter",
     "clear_registered_passes",
     "create_pattern",
     "create_replacement",
@@ -33,26 +37,45 @@ __all__ = [
     "register_fusion_pass",
 ]
 
-from .base import DecomposePass
-from .base import FusionBasePass
-from .base import MatchResult
-from .base import PassStage
-from .base import PassContext
-from .base import PatternMatcherConfig
-from .base import PatternMatcherConfigBuilder
-from .base import PatternFusionPass
-from .base import SubgraphInput
-from .base import SubgraphOutput
-from .base import SubgraphBoundary
-from .base import SubgraphRewriter
-from .pattern import NodeIo
-from .pattern import Pattern
-from .pattern import create_pattern
 from .pattern import pattern
-from .replacement import create_replacement
-from .registry import clear_registered_passes
-from .registry import get_registered_pass_by_descriptor_key
-from .registry import get_registered_pass_dicts
-from .registry import get_registered_passes
-from .registry import register_decompose_pass
-from .registry import register_fusion_pass
+
+_LAZY_EXPORTS = {
+    "DecomposePass": ".base",
+    "FusionBasePass": ".base",
+    "MatchResult": ".base",
+    "PassStage": ".base",
+    "PassContext": ".base",
+    "PatternMatcherConfig": ".base",
+    "PatternMatcherConfigBuilder": ".base",
+    "PatternFusionPass": ".base",
+    "SubgraphInput": ".base",
+    "SubgraphOutput": ".base",
+    "SubgraphBoundary": ".base",
+    "SubgraphRewriter": ".base",
+    "NodeIo": ".pattern",
+    "Pattern": ".pattern",
+    "create_pattern": ".pattern",
+    "create_replacement": ".replacement",
+    "clear_registered_passes": ".registry",
+    "get_registered_pass_by_descriptor_key": ".registry",
+    "get_registered_pass_dicts": ".registry",
+    "get_registered_passes": ".registry",
+    "register_decompose_pass": ".registry",
+    "register_fusion_pass": ".registry",
+}
+
+
+def __getattr__(name: str):
+    module_name = _LAZY_EXPORTS.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    import importlib
+    module = importlib.import_module(module_name, __name__)
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__():
+    return sorted(set(globals()) | set(__all__))

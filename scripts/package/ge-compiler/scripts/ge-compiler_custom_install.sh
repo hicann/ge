@@ -194,6 +194,16 @@ ge_compiler_find_bridge_wheel() {
     return 1
 }
 
+ge_compiler_clean_python_pass_artifacts() {
+    local _pythonlocalpath="$1"
+    if [ "$pylocal" != "y" ] || [ -z "${_pythonlocalpath}" ]; then
+        return 0
+    fi
+    chmod u+w "${_pythonlocalpath}/ge/passes" 2> /dev/null
+    chmod u+w -R "${_pythonlocalpath}/ge/passes/python_pass_artifacts" 2> /dev/null
+    rm -fr "${_pythonlocalpath}/ge/passes/python_pass_artifacts" 2> /dev/null
+}
+
 ge_compiler_install_ge_package() {
     local _ge_package="$1"
     local _wheel_dir="$2"
@@ -211,6 +221,7 @@ ge_compiler_install_ge_package() {
         log "ERROR" "ERR_NO:0x0080;ERR_DES:install ${_ge_package} faied, can not find the matched package for this platform."
         exit 1
     fi
+    ge_compiler_clean_python_pass_artifacts "${_pythonlocalpath}"
     _python_tag=$(ge_compiler_get_python_tag)
     _available_bridge_tags=$(ge_compiler_list_bridge_python_tags "${_wheel_dir}")
     log "INFO" "python package installer: $(ge_compiler_get_python_info); expected native tag: ${_python_tag:-unknown}; available native wheel tags: ${_available_bridge_tags}."

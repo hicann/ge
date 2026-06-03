@@ -30,10 +30,8 @@
 
 #include "pybind11/embed.h"
 #include "pybind11/stl.h"
-#include "framework/common/debug/ge_log.h"
+#include "common/ge_common/debug/ge_log.h"
 #include "graph/ascend_string.h"
-#include "graph/utils/graph_utils_ex.h"
-#include "graph_metadef/register/custom_pass_context_impl.h"
 #include "python_pass_adapter.h"
 
 #undef PYBIND11_CHECK_PYTHON_VERSION
