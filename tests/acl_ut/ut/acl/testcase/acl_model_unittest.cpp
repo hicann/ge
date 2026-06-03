@@ -141,6 +141,46 @@ ge::Status GetModelDescInfo_Invoke3(uint32_t modelId, std::vector<ge::TensorDesc
     return ge::SUCCESS;
 }
 
+ge::Status GetOm2ModelDescInfo_Invoke(const std::vector<ge::Om2TensorDesc>*& inputDesc,
+                                      const std::vector<ge::Om2TensorDesc>*& outputDesc,
+                                      bool new_model_desc)
+{
+    (void)new_model_desc;
+    static const std::vector<ge::Om2TensorDesc> input_desc = [] {
+        ge::Om2TensorDesc desc;
+        desc.SetName("input");
+        desc.SetDataType(ge::DT_FLOAT);
+        desc.SetFormat(ge::FORMAT_ND);
+        desc.SetShape({1});
+        desc.SetShapeRange({});
+        desc.SetSize(sizeof(float));
+        return std::vector<ge::Om2TensorDesc>{desc};
+    }();
+    static const std::vector<ge::Om2TensorDesc> output_desc = [] {
+        ge::Om2TensorDesc desc;
+        desc.SetName("output");
+        desc.SetDataType(ge::DT_FLOAT);
+        desc.SetFormat(ge::FORMAT_ND);
+        desc.SetShape({1});
+        desc.SetShapeRange({});
+        desc.SetSize(sizeof(float));
+        return std::vector<ge::Om2TensorDesc>{desc};
+    }();
+    inputDesc = &input_desc;
+    outputDesc = &output_desc;
+    return ge::SUCCESS;
+}
+
+ge::Status GetOm2ModelDescInfoNull_Invoke(const std::vector<ge::Om2TensorDesc>*& inputDesc,
+                                          const std::vector<ge::Om2TensorDesc>*& outputDesc,
+                                          bool new_model_desc)
+{
+    (void)new_model_desc;
+    inputDesc = nullptr;
+    outputDesc = nullptr;
+    return ge::SUCCESS;
+}
+
 ge::Status GetDynamicBatchInfo_Invoke(uint32_t model_id, std::vector<std::vector<int64_t>> &batch_info,
                                       int32_t &dynamic_type)
 {
@@ -568,6 +608,10 @@ TEST_F(UTEST_ACL_Model, aclmdlGetDesc_Ok_GetDescFromOm2) {
     auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
     ASSERT_NE(om2_executor, nullptr);
     acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(om2_executor));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+                GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc>*&>(),
+                                 A<const std::vector<ge::Om2TensorDesc>*&>(), _))
+        .WillRepeatedly(Invoke(GetOm2ModelDescInfo_Invoke));
     
     aclmdlDesc* desc = aclmdlCreateDesc();
     EXPECT_NE(desc, nullptr);
@@ -5130,6 +5174,10 @@ TEST_F(UTEST_ACL_Model, aclmdlExecuteV2_Om2Executor_RoutesToOm2ModelExecute)
     auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
     ASSERT_NE(om2_executor, nullptr);
     acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(modelId, std::move(om2_executor));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+                GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc>*&>(),
+                                 A<const std::vector<ge::Om2TensorDesc>*&>(), _))
+        .WillRepeatedly(Invoke(GetOm2ModelDescInfoNull_Invoke));
 
     aclmdlExecConfigHandle *handle = aclmdlCreateExecConfigHandle();
     EXPECT_NE(handle, nullptr);
@@ -5146,8 +5194,7 @@ TEST_F(UTEST_ACL_Model, aclmdlExecuteV2_Om2Executor_RoutesToOm2ModelExecute)
 
     // Execute with OM2 executor - should route to Om2ModelExecute
     aclError ret = aclmdlExecuteV2(modelId, inputDataset, outputDataset, nullptr, handle);
-    // Note: This test verifies routing, but actual execution may fail due to incomplete mock setup
-    // In real test environment, would mock Om2ModelExecute internals
+    EXPECT_NE(ret, ACL_SUCCESS);
 
     free(inputBuffer);
     free(outputBuffer);
@@ -5470,6 +5517,10 @@ TEST_F(UTEST_ACL_Model, aclmdlGetDesc_Om2ModelId_RoutesToOm2Impl)
     auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
     ASSERT_NE(om2_executor, nullptr);
     acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+                GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc>*&>(),
+                                 A<const std::vector<ge::Om2TensorDesc>*&>(), _))
+        .WillRepeatedly(Invoke(GetOm2ModelDescInfo_Invoke));
 
     // Get model descriptor - should route to OM2 implementation
     aclmdlDesc *desc = aclmdlCreateDesc();

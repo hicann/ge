@@ -44,7 +44,8 @@ class VISIBILITY_EXPORT Om2ModelExecutor {
   ge::Status Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg, const uint64_t session_id) const;
   ge::Status Run(std::vector<gert::Tensor *> &inputs, std::vector<gert::Tensor *> &outputs) const;
   ge::Status RunAsync(void *const stream, std::vector<gert::Tensor *> &inputs, std::vector<gert::Tensor *> &outputs) const;
-  ge::Status GetModelDescInfo(std::vector<ge::Om2TensorDesc> &input_desc, std::vector<ge::Om2TensorDesc> &output_desc,
+  ge::Status GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
+                              const std::vector<ge::Om2TensorDesc> *&output_desc,
                               bool new_model_desc = false) const;
   ge::Status GetModelAttrs(std::vector<std::string> &dynamic_output_shape) const;
   ge::Status GetDynamicBatchInfo(std::vector<std::vector<int64_t>> &dynamic_batch_info, int32_t &dynamic_type) const;

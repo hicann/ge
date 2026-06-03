@@ -1365,11 +1365,13 @@ TEST_F(Om2St, LoadGeneratedOm2_Ok_ExecutorMainFlow) {
   ASSERT_EQ(error_code, SUCCESS);
   ASSERT_NE(executor, nullptr);
 
-  std::vector<ge::Om2TensorDesc> input_desc;
-  std::vector<ge::Om2TensorDesc> output_desc;
+  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
+  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
   EXPECT_EQ(executor->GetModelDescInfo(input_desc, output_desc), SUCCESS);
-  EXPECT_EQ(input_desc.size(), 2U);
-  EXPECT_EQ(output_desc.size(), 1U);
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(output_desc, nullptr);
+  EXPECT_EQ(input_desc->size(), 2U);
+  EXPECT_EQ(output_desc->size(), 1U);
 
   std::vector<std::vector<int64_t>> dynamic_batch_info;
   int32_t dynamic_type = -1;
@@ -1426,11 +1428,13 @@ TEST_F(Om2St, LoadGeneratedOm2WithExternalResources_Ok) {
   ASSERT_EQ(error_code, SUCCESS);
   ASSERT_NE(executor, nullptr);
 
-  std::vector<ge::Om2TensorDesc> input_desc;
-  std::vector<ge::Om2TensorDesc> output_desc;
+  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
+  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
   EXPECT_EQ(executor->GetModelDescInfo(input_desc, output_desc), SUCCESS);
-  EXPECT_EQ(input_desc.size(), 2U);
-  EXPECT_EQ(output_desc.size(), 1U);
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(output_desc, nullptr);
+  EXPECT_EQ(input_desc->size(), 2U);
+  EXPECT_EQ(output_desc->size(), 1U);
 }
 
 TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {

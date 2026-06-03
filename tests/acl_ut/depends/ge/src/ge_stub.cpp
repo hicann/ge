@@ -2429,8 +2429,8 @@ namespace gert {
         (void)outputs;
         return ge::GRAPH_SUCCESS;
     }
-    ge::Status Om2ModelExecutor::GetModelDescInfo(std::vector<ge::Om2TensorDesc> &input_desc,
-                                                  std::vector<ge::Om2TensorDesc> &output_desc,
+    ge::Status Om2ModelExecutor::GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
+                                                  const std::vector<ge::Om2TensorDesc> *&output_desc,
                                                   bool new_model_desc) const {
 
       return MockFunctionTest::aclStubInstance().GetModelDescInfo(input_desc, output_desc, new_model_desc);
