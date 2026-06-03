@@ -96,6 +96,10 @@ ACL_FUNC_VISIBILITY aclError aclmdlExecuteAsyncImpl(uint32_t modelId, const aclm
 
 ACL_FUNC_VISIBILITY aclError aclmdlUnloadImpl(uint32_t modelId);
 
+ACL_FUNC_VISIBILITY aclError aclmdlSetAttributeImpl(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue);
+
+ACL_FUNC_VISIBILITY aclError aclmdlGetAttributeImpl(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue);
+
 ACL_FUNC_VISIBILITY aclError aclmdlQuerySizeImpl(const char *fileName, size_t *workSize, size_t *weightSize);
 
 ACL_FUNC_VISIBILITY aclError aclmdlQueryExeOMDescImpl(const char *fileName, aclmdlExeOMDesc *mdlPartitionSize);

@@ -36,6 +36,7 @@
 #include "types/data_buffer_internal.h"
 #include "acl_model_impl.h"
 #include "acl_model_impl_om2.h"
+#include "acl/acl_rt.h"
 #include "model_common.h"
 
 namespace ge {
@@ -1782,6 +1783,74 @@ aclError aclmdlExecuteImpl(uint32_t modelId, const aclmdlDataset *input, aclmdlD
         ACL_LOG_INNER_ERROR("[Exec][Model]modelId[%u] execute failed, result[%d]", modelId, ret);
     }
     return ret;
+}
+
+namespace {
+static aclError AclMdlSetPriority(uint32_t model_id, const aclmdlAttrValue_t *value) {
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(value);
+  const uint32_t priority = value->mdlPriority;
+  int32_t least_priority = 0;
+  int32_t greatest_priority = 0;
+  aclError ret = aclrtDeviceGetStreamPriorityRange(&least_priority, &greatest_priority);
+  if (ret != ACL_SUCCESS) {
+    ACL_LOG_ERROR("[SetAttr][Priority] Failed to get priority range, ret=%d", ret);
+    return ret;
+  }
+  if ((priority < static_cast<uint32_t>(greatest_priority)) ||
+      (priority > static_cast<uint32_t>(least_priority))) {
+    ACL_LOG_ERROR("[SetAttr][Priority] Priority %u out of range [%d, %d]",
+                  priority, greatest_priority, least_priority);
+    return ACL_ERROR_INVALID_PARAM;
+  }
+  ge::Status status = ge::GeExecutor().SetModelStreamPriority(model_id, priority);
+  if (status != ge::SUCCESS) {
+    ACL_LOG_ERROR("[SetAttr][Priority] SetModelStreamPriority failed, model_id=%u, ret=%u", model_id, status);
+    return ACL_GET_ERRCODE_GE(static_cast<int32_t>(status));
+  }
+  return ACL_SUCCESS;
+}
+
+static aclError AclMdlGetPriority(uint32_t model_id, aclmdlAttrValue_t *value) {
+  ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(value);
+  uint32_t priority = 0;
+  ge::Status status = ge::GeExecutor().GetModelStreamPriority(model_id, priority);
+  if (status != ge::SUCCESS) {
+    ACL_LOG_ERROR("[GetAttr][Priority] GetModelStreamPriority failed, model_id=%u, ret=%u", model_id, status);
+    return ACL_GET_ERRCODE_GE(static_cast<int32_t>(status));
+  }
+  value->mdlPriority = priority;
+  return ACL_SUCCESS;
+}
+}  // namespace
+
+aclError aclmdlSetAttributeImpl(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue)
+{
+    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(attrValue);
+    switch (attr) {
+        case ACL_MDL_ATTR_PRIORITY_INT32: {
+            ACL_LOG_INFO("start to execute aclmdlSetAttribute for ACL_MDL_ATTR_PRIORITY_INT32, modelId[%u]", modelId);
+            return AclMdlSetPriority(modelId, attrValue);
+        }
+        default: {
+            ACL_LOG_ERROR("[SetAttr] Unsupported attr=%d", attr);
+            return ACL_ERROR_INVALID_PARAM;
+        }
+    }
+}
+
+aclError aclmdlGetAttributeImpl(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue)
+{
+    ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(attrValue);
+    switch (attr) {
+        case ACL_MDL_ATTR_PRIORITY_INT32: {
+            ACL_LOG_INFO("start to execute aclmdlGetAttribute for ACL_MDL_ATTR_PRIORITY_INT32, modelId[%u]", modelId);
+            return AclMdlGetPriority(modelId, attrValue);
+        }
+        default: {
+            ACL_LOG_ERROR("[GetAttr] Unsupported attr=%d", attr);
+            return ACL_ERROR_INVALID_PARAM;
+        }
+    }
 }
 
 aclError aclmdlExecuteV2Impl(uint32_t modelId, const aclmdlDataset *input, aclmdlDataset *output, aclrtStream stream,

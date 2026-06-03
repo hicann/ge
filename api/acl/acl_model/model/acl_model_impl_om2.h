@@ -355,6 +355,10 @@ ACL_FUNC_VISIBILITY aclError aclSetTensorConstImplOm2(aclTensorDesc *desc, void 
 
 ACL_FUNC_VISIBILITY aclError aclSetTensorPlaceMentImplOm2(aclTensorDesc *desc, aclMemType memType);
 
+ACL_FUNC_VISIBILITY aclError aclmdlSetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue);
+
+ACL_FUNC_VISIBILITY aclError aclmdlGetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue);
+
 #ifdef __cplusplus
 }
 #endif

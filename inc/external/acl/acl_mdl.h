@@ -110,6 +110,15 @@ typedef enum {
 } aclmdlConfigAttr;
 
 typedef enum {
+    ACL_MDL_ATTR_PRIORITY_INT32 = 0
+} aclmdlAttr;
+
+typedef union {
+    uint32_t mdlPriority; /**< model priority, smaller value indicates higher priority, default is 0 */
+    uint32_t reserved[8]; /**< reserved for future extension */
+} aclmdlAttrValue_t;
+
+typedef enum {
     ACL_MDL_STREAM_SYNC_TIMEOUT = 0,
     ACL_MDL_EVENT_SYNC_TIMEOUT,
     ACL_MDL_WORK_ADDR_PTR, /**< param */
@@ -888,6 +897,32 @@ ACL_FUNC_VISIBILITY aclError aclmdlExecuteAsync(uint32_t modelId, const aclmdlDa
  * @retval OtherValues Failure
  */
 ACL_FUNC_VISIBILITY aclError aclmdlUnload(uint32_t modelId);
+
+/**
+ * @ingroup AscendCL
+ * @brief Set model attribute by model id
+ *
+ * @param modelId [IN]     model id
+ * @param attr [IN]        model attribute to set
+ * @param attrValue [IN]   pointer to attribute value
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlSetAttribute(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue);
+
+/**
+ * @ingroup AscendCL
+ * @brief Get model attribute by model id
+ *
+ * @param modelId [IN]     model id
+ * @param attr [IN]        model attribute to get
+ * @param attrValue [OUT]  pointer to attribute value
+ *
+ * @retval ACL_SUCCESS The function is successfully executed.
+ * @retval OtherValues Failure
+ */
+ACL_FUNC_VISIBILITY aclError aclmdlGetAttribute(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue);
 
 /**
  * @ingroup AscendCL

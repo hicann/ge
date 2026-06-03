@@ -513,3 +513,19 @@ aclError aclmdlGetFirstAippInfoImplOm2(uint32_t modelId,
     (void)aippInfo;
     return ACL_ERROR_API_NOT_SUPPORT;
 }
+
+aclError aclmdlSetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue)
+{
+    (void)modelId;
+    (void)attr;
+    (void)attrValue;
+    return ACL_ERROR_API_NOT_SUPPORT;
+}
+
+aclError aclmdlGetAttributeImplOm2(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue)
+{
+    (void)modelId;
+    (void)attr;
+    (void)attrValue;
+    return ACL_ERROR_API_NOT_SUPPORT;
+}

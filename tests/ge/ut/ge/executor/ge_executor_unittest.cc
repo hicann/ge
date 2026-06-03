@@ -1866,5 +1866,20 @@ TEST_F(UtestGeExecutor, test_ge_initialize_without_hccl) {
     {OPTION_EXEC_HCCL_FLAG, "0"}});
   EXPECT_EQ(executor.Initialize(options), SUCCESS);
 }
-} // namespace ge
 
+TEST_F(UtestGeExecutor, set_get_model_stream_priority) {
+  GeExecutor executor;
+  const uint32_t model_id = 123U;
+  uint32_t priority = 0U;
+
+  EXPECT_EQ(executor.SetModelStreamPriority(model_id, 6), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
+  EXPECT_EQ(executor.GetModelStreamPriority(model_id, priority), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
+
+  auto model = std::make_shared<DavinciModel>(model_id, nullptr);
+  ModelManager::GetInstance().InsertModel(model_id, model);
+  EXPECT_EQ(executor.SetModelStreamPriority(model_id, 6), SUCCESS);
+  EXPECT_EQ(executor.GetModelStreamPriority(model_id, priority), SUCCESS);
+  EXPECT_EQ(priority, 6);
+  EXPECT_EQ(ModelManager::GetInstance().DeleteModel(model_id), SUCCESS);
+}
+} // namespace ge

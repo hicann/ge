@@ -765,6 +765,14 @@ aclError AclRuntimeStub::aclrtSetStreamFailureMode(aclrtStream stream, uint64_t 
   return ACL_SUCCESS;
 }
 
+aclError AclRuntimeStub::aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr,
+                                                 aclrtStreamAttrValue *value) {
+  (void)stream;
+  (void)attr;
+  (void)value;
+  return ACL_SUCCESS;
+}
+
 aclError AclRuntimeStub::aclrtActiveStream(aclrtStream activeStream, aclrtStream stream) {
   return ACL_SUCCESS;
 }
@@ -1634,6 +1642,10 @@ aclError aclrtDestroyContext(aclrtContext context) {
 
 aclError aclrtSetStreamFailureMode(aclrtStream stream, uint64_t mode) {
   return ge::AclRuntimeStub::GetInstance()->aclrtSetStreamFailureMode(stream, mode);
+}
+
+aclError aclrtSetStreamAttribute(aclrtStream stream, aclrtStreamAttr attr, aclrtStreamAttrValue *value) {
+  return ge::AclRuntimeStub::GetInstance()->aclrtSetStreamAttribute(stream, attr, value);
 }
 
 aclError aclrtActiveStream(aclrtStream activeStream, aclrtStream stream) {

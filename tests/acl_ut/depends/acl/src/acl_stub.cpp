@@ -324,17 +324,9 @@ void MockFunctionTest::ResetToDefaultMock() {
         .WillByDefault([this](void *devPtr) {
           return aclStub::aclrtFree(devPtr);
         });
-    ON_CALL(*this, aclrtFree)
-        .WillByDefault([this](void *devPtr) {
-          return aclStub::aclrtFree(devPtr);
-        });
     ON_CALL(*this, aclCreateDataBuffer)
         .WillByDefault([this](void *data, size_t size) {
           return aclStub::aclCreateDataBuffer(data, size);
-        });
-    ON_CALL(*this, aclGetDataBufferAddr)
-        .WillByDefault([this](const aclDataBuffer *dataBuffer) {
-          return aclStub::aclGetDataBufferAddr(dataBuffer);
         });
     ON_CALL(*this, aclGetDataBufferAddr)
         .WillByDefault([this](const aclDataBuffer *dataBuffer) {
@@ -359,6 +351,14 @@ void MockFunctionTest::ResetToDefaultMock() {
     ON_CALL(*this, aclrtCtxGetCurrentDefaultStream)
         .WillByDefault([this](aclrtStream *stream) {
           return aclStub::aclrtCtxGetCurrentDefaultStream(stream);
+        });
+    ON_CALL(*this, SetModelStreamPriority)
+        .WillByDefault([this](uint32_t model_id, uint32_t priority) {
+          return this->aclStub::SetModelStreamPriority(model_id, priority);
+        });
+    ON_CALL(*this, GetModelStreamPriority)
+        .WillByDefault([this](uint32_t model_id, uint32_t &priority) {
+          return this->aclStub::GetModelStreamPriority(model_id, priority);
         });
 }
 

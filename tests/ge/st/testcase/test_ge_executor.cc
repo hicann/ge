@@ -2717,5 +2717,60 @@ TEST_F(GeExecutorTest, testHWQ) {
   GetThreadLocalContext().SetGraphOption(graph_options);
 }
 
-} // namespace ge
+TEST_F(GeExecutorTest, test_stream_priority_set_get) {
+  {
+    ComputeGraphPtr graph = MakeShared<ComputeGraph>("default");
+    GeModelPtr ge_model = MakeShared<GeModel>();
+    ge_model->SetGraph(graph);
 
+    EXPECT_TRUE(AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 5120));
+    std::vector<std::vector<int64_t>> sub_memory_infos;
+    sub_memory_infos.push_back({RT_MEMORY_HBM, 0, 1024, 1});
+    (void) AttrUtils::SetListListInt(ge_model, ATTR_MODEL_SUB_MEMORY_INFO, sub_memory_infos);
+    const auto model_def = MakeShared<domi::ModelTaskDef>();
+    ge_model->SetModelTaskDef(model_def);
+
+    DavinciModel model(0, nullptr);
+    model.SetId(100);
+    model.Assign(ge_model);
+
+    model.reusable_stream_allocator_ = ReusableStreamAllocator::Create();
+    rtStream_t stream1 = nullptr;
+    rtStream_t stream2 = nullptr;
+    model.reusable_stream_allocator_->GetOrCreateRtStream(stream1, 0, 0, 0);
+    model.reusable_stream_allocator_->GetOrCreateRtStream(stream2, 0, 0, 1);
+    model.stream_list_ = {stream1, stream2};
+
+    std::vector<aclrtStream> collected_streams;
+    model.CollectOwnedStreams(collected_streams);
+    EXPECT_EQ(collected_streams.size(), 2U);
+
+    EXPECT_EQ(model.SetStreamPriority(3), SUCCESS);
+
+    uint32_t priority = 0U;
+    EXPECT_EQ(model.GetStreamPriority(priority), SUCCESS);
+    EXPECT_EQ(priority, 3);
+
+    EXPECT_EQ(model.SetStreamPriority(5), SUCCESS);
+    EXPECT_EQ(model.GetStreamPriority(priority), SUCCESS);
+    EXPECT_EQ(priority, 5);
+
+    EXPECT_EQ(model.SetStreamPriority(8), PARAM_INVALID);
+    EXPECT_EQ(model.GetStreamPriority(priority), SUCCESS);
+    EXPECT_EQ(priority, 5);
+
+    DavinciModel model_empty(0, nullptr);
+    model_empty.SetId(101);
+    EXPECT_EQ(model_empty.SetStreamPriority(2), SUCCESS);
+    EXPECT_EQ(model_empty.GetStreamPriority(priority), SUCCESS);
+    EXPECT_EQ(priority, 2);
+  }
+
+  {
+    uint32_t priority = 0U;
+    EXPECT_EQ(ge_executor_.GetModelStreamPriority(99999, priority), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
+    EXPECT_EQ(ge_executor_.SetModelStreamPriority(99999, 3), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
+  }
+}
+
+} // namespace ge

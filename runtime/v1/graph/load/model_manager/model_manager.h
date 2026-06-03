@@ -262,6 +262,9 @@ class ModelManager {
   /// @brief Get model according to given id
   std::shared_ptr<DavinciModel> GetModel(const uint32_t id);
 
+  Status SetModelStreamPriority(const uint32_t model_id, const uint32_t priority);
+  Status GetModelStreamPriority(const uint32_t model_id, uint32_t &priority);
+
   bool IsModelSharedSession(const uint32_t model_id);
 
   Status RecoverAllModel(const int32_t device_id);

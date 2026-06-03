@@ -191,6 +191,10 @@ class GE_FUNC_VISIBILITY GeExecutor {
 
   Status GetAippType(const uint32_t model_id, const uint32_t index, InputAippType &type, size_t &aipp_index);
 
+  Status SetModelStreamPriority(const uint32_t model_id, const uint32_t priority);
+
+  Status GetModelStreamPriority(const uint32_t model_id, uint32_t &priority);
+
   Status CommandHandle(const Command &command) const;
 
   Status SetDump(const DumpConfig &dump_config);

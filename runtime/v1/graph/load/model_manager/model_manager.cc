@@ -3053,4 +3053,25 @@ Status ModelManager::FreeWeightsMem(const std::string &weights_mem_id, const uin
   }
   return SUCCESS;
 }
+
+Status ModelManager::SetModelStreamPriority(const uint32_t model_id, const uint32_t priority) {
+  std::lock_guard<std::recursive_mutex> lock(map_mutex_);
+  auto it = model_map_.find(model_id);
+  if (it == model_map_.end()) {
+    GELOGE(ACL_ERROR_GE_EXEC_MODEL_ID_INVALID, "[SetModelStreamPriority] Model not found, model_id=%u", model_id);
+    return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
+  }
+  return it->second->SetStreamPriority(priority);
+}
+
+Status ModelManager::GetModelStreamPriority(const uint32_t model_id, uint32_t &priority) {
+  std::lock_guard<std::recursive_mutex> lock(map_mutex_);
+  auto it = model_map_.find(model_id);
+  if (it == model_map_.end()) {
+    GELOGE(ACL_ERROR_GE_EXEC_MODEL_ID_INVALID, "[GetModelStreamPriority] Model not found, model_id=%u", model_id);
+    return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
+  }
+  return it->second->GetStreamPriority(priority);
+}
+
 }  // namespace ge
