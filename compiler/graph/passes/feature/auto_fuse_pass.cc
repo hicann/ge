@@ -64,7 +64,8 @@ class AutofuseCounter : public Counter {
 }  // namespace
 
 Status AutoFusePass::Run(ComputeGraphPtr graph) {
-  GE_DUMP(graph, "AutoFuser_BeforeAutoFuse");
+  const char *kSuffix = (graph->GetParentGraph() != nullptr) ? "_Subgraph" : "";
+  GE_DUMP(graph, std::string("AutoFuser_BeforeAutoFuse") + kSuffix);
   GE_TRACE_START(PreProcess);
   GE_ASSERT_SUCCESS(PreProcess(graph));
   GE_COMPILE_TRACE_TIMESTAMP_END(PreProcess, ("AutoFusePass::PreProcess::" + graph->GetName()).c_str());
@@ -72,7 +73,7 @@ Status AutoFusePass::Run(ComputeGraphPtr graph) {
   GE_TRACE_START(Infer);
   GE_ASSERT_SUCCESS(symbolic_shape_inference.Infer(graph));
   GE_COMPILE_TRACE_TIMESTAMP_END(Infer, ("SymbolicShapeInference::Infer::" + graph->GetName()).c_str());
-  GE_DUMP(graph, "AutoFuser_AfterPreprocess");
+  GE_DUMP(graph, std::string("AutoFuser_AfterPreprocess") + kSuffix);
 
   auto root_graph = ge::GraphUtils::FindRootGraph(graph);
   GE_ASSERT_NOTNULL(root_graph);
@@ -85,7 +86,7 @@ Status AutoFusePass::Run(ComputeGraphPtr graph) {
 
   GE_ASSERT_SUCCESS(MarkEngineAttrForAutofuseNode(graph));
   // todo: inner attrs 生命周期在自动融合结束时结束，外部只能看到公开的属性
-  GE_DUMP(graph, "AutoFuser_AfterAllFuse");
+  GE_DUMP(graph, std::string("AutoFuser_AfterAllFuse") + kSuffix);
 
   return SUCCESS;
 }
