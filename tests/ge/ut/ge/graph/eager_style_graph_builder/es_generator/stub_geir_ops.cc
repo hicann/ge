@@ -292,6 +292,16 @@ REG_OP(phony_dup_name)
     .ATTR(dx, Int, 2)
     .OP_END_FACTORY_REG(phony_dup_name);
 
+// Op with keyword
+REG_OP(phony_keyword)
+    .INPUT(for, TensorType::ALL())
+    .DYNAMIC_INPUT(case, TensorType::ALL())
+    .OUTPUT(break, TensorType::ALL())
+    .DYNAMIC_OUTPUT(if, TensorType::ALL())
+    .GRAPH(or)
+    .ATTR(not, Int, 0)
+    .OP_END_FACTORY_REG(phony_keyword);
+
 // Invalid Ops
 REG_OP(phony_same_name)
     .INPUT(x, TensorType::ALL())
