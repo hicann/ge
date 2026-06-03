@@ -645,26 +645,31 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicore(Om2CodegenModel &cod
     aicore_sign = kernel_name + "#" + std::to_string(tiling_key);
     kind = KernelBinaryKind::kAllKernel;
   }
-  if (codegen_model.kernel_registry.func_handle_indices.find(aicore_sign) !=
-      codegen_model.kernel_registry.func_handle_indices.end()) {
+  const auto RegisterKernel = [&codegen_model, &op_desc, &kind](const std::string &sign, const std::string &name,
+                                                                uint64_t tiling_key, bool is_atomic) -> Status {
+    if (codegen_model.kernel_registry.func_handle_indices.find(sign) !=
+        codegen_model.kernel_registry.func_handle_indices.end()) {
+      return SUCCESS;
+    }
+    std::string magic;
+    GE_CHK_STATUS(Om2CodegenUtils::GetMagic(op_desc, magic, is_atomic));
+    const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+    GELOGI("[OM2] RegisterKernel: op=%s, sign=%s, func_idx=%u, tiling_key=%lu", op_desc->GetNamePtr(), sign.c_str(),
+           func_handle_index, tiling_key);
+    codegen_model.kernel_registry.binaries.push_back(
+        KernelBinaryRecord{kind, name, Om2CodegenUtils::GetKernelNameWithExtension(name), "", "", "", magic, tiling_key,
+                           func_handle_index});
+    codegen_model.kernel_registry.func_handle_indices.emplace(sign, func_handle_index);
     return SUCCESS;
-  }
+  };
 
-  std::string magic;
-  GE_CHK_STATUS(Om2CodegenUtils::GetMagic(op_desc, magic));
-  const uint32_t func_handle_index =
-      static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
-  codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{kind,
-                                                                      kernel_name,
-                                                                      Om2CodegenUtils::GetKernelNameWithExtension(
-                                                                          kernel_name),
-                                                                      "",
-                                                                      "",
-                                                                      "",
-                                                                      magic,
-                                                                      tiling_key,
-                                                                      func_handle_index});
-  codegen_model.kernel_registry.func_handle_indices.emplace(aicore_sign, func_handle_index);
+  GE_CHK_STATUS(RegisterKernel(aicore_sign, kernel_name, tiling_key, false));
+
+  std::string atomic_kernel_name;
+  (void)AttrUtils::GetStr(op_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, atomic_kernel_name);
+  if (!atomic_kernel_name.empty()) {
+    GE_CHK_STATUS(RegisterKernel(atomic_kernel_name + "_atomic", atomic_kernel_name, 0U, true));
+  }
   return SUCCESS;
 }
 
@@ -677,6 +682,8 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicpu(Om2CodegenModel &code
   const std::string op_kernel_lib = "AICPUKernel";
   const uint32_t func_handle_index =
       static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+  GELOGI("[OM2] RegisterAicpu: op_type=%s, kernel=%s, sign=%s, func_idx=%u", op_type.c_str(), kernel_name.c_str(),
+         aicpu_kernel_sign.c_str(), func_handle_index);
   codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{KernelBinaryKind::kAicpu,
                                                                       kernel_name,
                                                                       "",
@@ -702,6 +709,8 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForCustAicpu(Om2CodegenModel &
   const std::string file_name = std::to_string(hash_id) + "_CustAicpuKernel";
   const uint32_t func_handle_index =
       static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+  GELOGI("[OM2] RegisterCustAicpu: op_type=%s, kernel=%s, sign=%s, func_idx=%u", op_type.c_str(), kernel_name.c_str(),
+         kernel_sign.c_str(), func_handle_index);
   codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{KernelBinaryKind::kCustAicpu,
                                                                       kernel_name,
                                                                       file_name,
@@ -716,9 +725,11 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForCustAicpu(Om2CodegenModel &
 }
 
 Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpu(Om2CodegenModel &codegen_model,
- 	                                                              const std::string op_type,
- 	                                                              const std::string &tf_aicpu_kernel_sign) {
+                                                             const std::string op_type,
+                                                             const std::string &tf_aicpu_kernel_sign) {
   const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+  GELOGI("[OM2] RegisterTFAicpu: op_type=%s, sign=%s, func_idx=%u", op_type.c_str(), tf_aicpu_kernel_sign.c_str(),
+         func_handle_index);
   codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{KernelBinaryKind::kAicpu,
     "TFOperateAPI",
     "",
@@ -733,8 +744,11 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpu(Om2CodegenModel &co
 }
 
 Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpuSession(Om2CodegenModel &codegen_model,
-  const std::string op_type, const std::string &tf_aicpu_kernel_sign) {
+                                                                    const std::string op_type,
+                                                                    const std::string &tf_aicpu_kernel_sign) {
   const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
+  GELOGI("[OM2] RegisterTFAicpuSession: op_type=%s, sign=%s, func_idx=%u", op_type.c_str(),
+         tf_aicpu_kernel_sign.c_str(), func_handle_index);
   codegen_model.kernel_registry.binaries.push_back(KernelBinaryRecord{KernelBinaryKind::kAicpu,
     "TFOperateAPI",
     "",

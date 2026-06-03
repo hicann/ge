@@ -38,11 +38,37 @@
 #include "ge_runtime_stub/include/common/share_graph.h"
 #include "ge_runtime_stub/include/faker/ge_model_builder.h"
 #include "ge_runtime_stub/include/faker/aicore_taskdef_faker.h"
+#include "common/tbe_handle_store/tbe_kernel_store.h"
 
 namespace ge {
 namespace {
 constexpr const char *kTmpDir = "/tmp";
 constexpr const char *kOm2DumpDir = "/tmp/.tmp_om2_workspace";
+
+static void SyncKernelNameFromOpDesc(const GeModelPtr &ge_model) {
+  auto model_task_def = ge_model->GetModelTaskDefPtr();
+  if (model_task_def == nullptr) { return; }
+  const auto &graph = ge_model->GetGraph();
+  if (graph == nullptr) { return; }
+  for (int i = 0; i < model_task_def->task_size(); ++i) {
+    auto *task_def = model_task_def->mutable_task(i);
+    for (const auto &node : graph->GetDirectNode()) {
+      auto op_desc = node->GetOpDesc();
+      if (op_desc == nullptr) { continue; }
+      std::string kernel_name;
+      if (ge::AttrUtils::GetStr(op_desc, "_kernelname", kernel_name)) {
+        task_def->mutable_kernel()->set_kernel_name(kernel_name);
+      }
+    }
+  }
+}
+
+static void SyncKernelNameForAllModels(const GeRootModelPtr &ge_root_model) {
+  if (ge_root_model == nullptr) { return; }
+  for (const auto &kv : ge_root_model->GetSubgraphInstanceNameToModel()) {
+    SyncKernelNameFromOpDesc(kv.second);
+  }
+}
 
 class ScopedEnvVar {
  public:
@@ -256,6 +282,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   ge_model->GetGraph()->SetParentGraph(parent_graph);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -402,6 +429,7 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeFalse_ReturnsModelBuffer) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_buffer.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   EXPECT_NE(mmAccess2(output_file.c_str(), M_F_OK), EOK);
   ASSERT_NE(model_data.data, nullptr);
@@ -442,6 +470,7 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeFalse_FallbacksToOutputFileWhen
 
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_empty_name_buffer.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   EXPECT_NE(mmAccess2(output_file.c_str(), M_F_OK), EOK);
   ASSERT_NE(model_data.data, nullptr);
@@ -464,6 +493,7 @@ TEST_F(Om2PackageHelperUt, SaveToOmModel_SaveModeTrue_WritesFile) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_file.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
   EXPECT_EQ(model_data.data, nullptr);
@@ -600,6 +630,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, "fake_fileconst.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
 
   uint32_t model_buf_size = 0;
@@ -756,6 +787,7 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_WithAttr_GenValidOpAttrJson) {
 
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, "test_op_attr.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
 
   // 解压并验证op_attr.json
@@ -798,6 +830,7 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_NoAttr_GenEmptyOpAttrJson) {
   // 不设置任何属性
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, "test_empty_attr.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
 
   // 解压并验证op_attr.json为空对象
@@ -839,6 +872,7 @@ TEST_F(Om2PackageHelperUt, SaveOpAttrJson_EmptyOriginalOpNames_GenValidOpAttrJso
 
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, "test_empty_list_attr.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
 
   // 解压并验证op_attr.json
@@ -976,5 +1010,199 @@ TEST_F(Om2PackageHelperUt, SaveCustAICpuKernels_Ok_KernelNotInStore) {
 
   ASSERT_EQ(Om2PackageHelper::SaveCustAICpuKernels(zip_writer, ge_model), SUCCESS);
   ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+}
+
+TEST_F(Om2PackageHelperUt, SaveTbeKernels_AtomicKernel_Ok) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_atomic_kernel.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  const char normal_kernel_data[] = "fake_normal_tbe_kernel_bin";
+  const char atomic_kernel_data[] = "fake_atomic_tbe_kernel_bin";
+  auto normal_kernel = std::make_shared<ge::OpKernelBin>(
+      "normal_kernel", std::vector<char>(normal_kernel_data, normal_kernel_data + strlen(normal_kernel_data)));
+  auto atomic_kernel = std::make_shared<ge::OpKernelBin>(
+      "atomic_kernel", std::vector<char>(atomic_kernel_data, atomic_kernel_data + strlen(atomic_kernel_data)));
+  ge_model->GetTBEKernelStore().AddKernel(normal_kernel);
+  ge_model->GetTBEKernelStore().AddKernel(atomic_kernel);
+  ASSERT_TRUE(ge_model->GetTBEKernelStore().Build());
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(add_desc, "_kernelname", "normal_kernel");
+  (void)AttrUtils::SetStr(add_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "atomic_kernel");
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  graph->SetGraphUnknownFlag(false);
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveTbeKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  const auto file_names = archive.ListFiles();
+  const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
+  bool found_normal = false;
+  bool found_atomic = false;
+  for (const auto &name : file_names) {
+    if (name.find(kernel_bin_dir) != std::string::npos) {
+      if (name.find("normal_kernel") != std::string::npos) { found_normal = true; }
+      if (name.find("atomic_kernel") != std::string::npos) { found_atomic = true; }
+    }
+  }
+  EXPECT_TRUE(found_normal) << "Normal kernel not saved";
+  EXPECT_TRUE(found_atomic) << "Atomic kernel not saved";
+}
+
+TEST_F(Om2PackageHelperUt, SaveTbeKernels_AtomicKernel_DuplicateNotSavedTwice) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_atomic_dup.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  const char atomic_kernel_data[] = "fake_atomic_tbe_kernel_bin";
+  auto atomic_kernel = std::make_shared<ge::OpKernelBin>(
+      "atomic_kernel", std::vector<char>(atomic_kernel_data, atomic_kernel_data + strlen(atomic_kernel_data)));
+  ge_model->GetTBEKernelStore().AddKernel(atomic_kernel);
+  ASSERT_TRUE(ge_model->GetTBEKernelStore().Build());
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+
+  auto add1_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add1_desc->AddInputDesc(tensor_desc);
+  (void)add1_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(add1_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "atomic_kernel");
+  auto add1_node = graph->AddNode(add1_desc);
+  ASSERT_NE(add1_node, nullptr);
+
+  auto add2_desc = std::make_shared<OpDesc>("add2", "Add");
+  (void)add2_desc->AddInputDesc(tensor_desc);
+  (void)add2_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(add2_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "atomic_kernel");
+  auto add2_node = graph->AddNode(add2_desc);
+  ASSERT_NE(add2_node, nullptr);
+
+  graph->SetGraphUnknownFlag(false);
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveTbeKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  const auto file_names = archive.ListFiles();
+  const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
+  int atomic_count = 0;
+  for (const auto &name : file_names) {
+    if (name.find(kernel_bin_dir) != std::string::npos &&
+        name.find("atomic_kernel") != std::string::npos) {
+      ++atomic_count;
+    }
+  }
+  EXPECT_EQ(atomic_count, 1) << "Atomic kernel should be saved exactly once, got " << atomic_count;
+}
+
+TEST_F(Om2PackageHelperUt, SaveTbeKernels_AtomicKernel_NotInStore) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_atomic_missing.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  const char normal_kernel_data[] = "fake_normal_tbe_kernel_bin";
+  auto normal_kernel = std::make_shared<ge::OpKernelBin>(
+      "normal_kernel", std::vector<char>(normal_kernel_data, normal_kernel_data + strlen(normal_kernel_data)));
+  ge_model->GetTBEKernelStore().AddKernel(normal_kernel);
+  ASSERT_TRUE(ge_model->GetTBEKernelStore().Build());
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(add_desc, "_kernelname", "normal_kernel");
+  (void)AttrUtils::SetStr(add_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "missing_atomic_kernel");
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  graph->SetGraphUnknownFlag(false);
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveTbeKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  const auto file_names = archive.ListFiles();
+  const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
+  bool found_normal = false;
+  bool found_atomic = false;
+  for (const auto &name : file_names) {
+    if (name.find(kernel_bin_dir) != std::string::npos) {
+      if (name.find("normal_kernel") != std::string::npos) { found_normal = true; }
+      if (name.find("missing_atomic") != std::string::npos) { found_atomic = true; }
+    }
+  }
+  EXPECT_TRUE(found_normal) << "Normal kernel should still be saved";
+  EXPECT_FALSE(found_atomic) << "Missing atomic kernel should not be saved";
+}
+
+TEST_F(Om2PackageHelperUt, SaveTbeKernels_AtomicKernel_EmptyName) {
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_atomic_empty.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  auto ge_model = std::make_shared<GeModel>();
+  const char normal_kernel_data[] = "fake_normal_tbe_kernel_bin";
+  auto normal_kernel = std::make_shared<ge::OpKernelBin>(
+      "normal_kernel", std::vector<char>(normal_kernel_data, normal_kernel_data + strlen(normal_kernel_data)));
+  ge_model->GetTBEKernelStore().AddKernel(normal_kernel);
+  ASSERT_TRUE(ge_model->GetTBEKernelStore().Build());
+
+  auto graph = std::make_shared<ComputeGraph>("g1");
+  GeTensorDesc tensor_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  auto add_desc = std::make_shared<OpDesc>("add1", "Add");
+  (void)add_desc->AddInputDesc(tensor_desc);
+  (void)add_desc->AddOutputDesc(tensor_desc);
+  (void)AttrUtils::SetStr(add_desc, "_kernelname", "normal_kernel");
+  (void)AttrUtils::SetStr(add_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, "");
+  auto add_node = graph->AddNode(add_desc);
+  ASSERT_NE(add_node, nullptr);
+  graph->SetGraphUnknownFlag(false);
+  ge_model->SetGraph(graph);
+
+  ASSERT_EQ(Om2PackageHelper::SaveTbeKernels(zip_writer, ge_model), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  const auto file_names = archive.ListFiles();
+  const auto kernel_bin_dir = FormatOm2Path(OM2_KERNELS_DIR_FORMAT, "npu_arch");
+  bool found_normal = false;
+  for (const auto &name : file_names) {
+    if (name.find(kernel_bin_dir) != std::string::npos &&
+        name.find("normal_kernel") != std::string::npos) {
+      found_normal = true;
+    }
+  }
+  EXPECT_TRUE(found_normal) << "Normal kernel should be saved";
+  EXPECT_EQ(file_names.size(), 1U) << "Only normal kernel should be saved";
 }
 }  // namespace ge

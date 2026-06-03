@@ -25,6 +25,21 @@
 namespace ge {
 constexpr int32_t kSessionNoReuse = 1;
 constexpr uint32_t kAlign8B = 8U;
+constexpr const char *kConstVarPrefix = "const_";
+
+Status ResolveConstIndex(const std::string &var_name, size_t &const_index) {
+  const std::string prefix(kConstVarPrefix);
+  GE_ASSERT_TRUE(var_name.compare(0U, prefix.size(), prefix) == 0,
+                 "[OM2] Const var name %s is invalid.", var_name.c_str());
+  size_t index = 0U;
+  for (size_t i = prefix.size(); i < var_name.size(); ++i) {
+    const char ch = var_name[i];
+    GE_ASSERT_TRUE((ch >= '0') && (ch <= '9'), "[OM2] Const var name %s is invalid.", var_name.c_str());
+    index = index * 10U + static_cast<size_t>(ch - '0');
+  }
+  const_index = index;
+  return SUCCESS;
+}
 
 uint64_t Om2ModelUtils::GetWorkspaceMemTypeByPriority(const bool is_p2p_memory, const bool is_l1_memory,
                                                       const bool is_ub_memory,
@@ -174,6 +189,7 @@ Status Om2ModelUtils::ConstructAddrSemanticForInputConst(
                   context.op_desc->GetName().c_str(), index);
   input_addr.kind = AddrValueKind::kConstTensor;
   input_addr.symbol_hint = var_name_it->second;
+  GE_ASSERT_SUCCESS(ResolveConstIndex(input_addr.symbol_hint, input_addr.const_index.emplace()));
   input_addr.mem_offset = data_offset;
   input_addr.is_reused_from_upstream = true;
   return SUCCESS;
@@ -242,6 +258,7 @@ Status Om2ModelUtils::ResolveInputAddrs(const TaskSemanticContributeContext &con
       if (GetFileConstInputVarName(input_offset, *context.fileconst_output_offset_to_varname,
                                    input_addr.symbol_hint)) {
         input_addr.kind = AddrValueKind::kConstTensor;
+        GE_ASSERT_SUCCESS(ResolveConstIndex(input_addr.symbol_hint, input_addr.const_index.emplace()));
         input_addr.mem_offset = input_offset;
         input_addr.is_reused_from_upstream = true;
         input_addr.tensor_info.emplace();
@@ -519,6 +536,7 @@ Status Om2ModelUtils::GetRtWeightAddress(const TaskSemanticContributeContext &co
                   context.op_desc != nullptr ? context.op_desc->GetName().c_str() : "null", index);
   addr_node.kind = AddrValueKind::kConstTensor;
   addr_node.symbol_hint = var_name_it->second;
+  GE_ASSERT_SUCCESS(ResolveConstIndex(addr_node.symbol_hint, addr_node.const_index.emplace()));
   addr_node.mem_offset = logical_offset;
   addr_node.is_reused_from_upstream = true;
   if (context.op_desc != nullptr) {
@@ -539,6 +557,7 @@ Status Om2ModelUtils::GetRtVarAddress(const TaskSemanticContributeContext &conte
   if (iter != context.fileconst_output_offset_to_varname->end()) {
     addr_node.symbol_hint = iter->second;
     addr_node.kind = AddrValueKind::kConstTensor;
+    GE_ASSERT_SUCCESS(ResolveConstIndex(addr_node.symbol_hint, addr_node.const_index.emplace()));
     addr_node.mem_offset = static_cast<int64_t>(logic_addr);
     addr_node.is_reused_from_upstream = true;
     mem_type = kConstantMemType;

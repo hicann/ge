@@ -124,6 +124,7 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   Status BuildAicpuArgsSemantic(const TaskSemanticContributeContext &context);
   Status BuildAicpuExtInfoSemantic(const TaskSemanticContributeContext &context);
   Status BuildAddrGenInfoFromSemantic(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
+  Status BuildAddrGenInfoForConstTensor(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
   Status BuildAddrGenInfoForIoTensor(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
   Status BuildAddrGenInfoForShapeInfoBuffer(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
   Status BuildAddrGenInfoForLevel1DescPtr(const AddrSemantic &semantic,
@@ -132,8 +133,8 @@ class KernelTaskCodeBuilder : public TaskCodeBuilder {
   Status BuildAddrGenInfoForFftsAddr(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
   Status BuildAddrGenInfoForEventAddr(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
   Status BuildAddrGenInfoForTiling(const AddrSemantic &semantic, RenderedAddrInfo &addr_gen_info) const;
-  ExprRef BuildReportLaunchedTaskCall() const;
   ExprRef BuildReportTaskPreprocessCall(Arg l0_info) const;
+  void AssignTaskLocalIoNames();
   Status CheckTaskSupport() const;
   Status GetKernelTaskMeta(const domi::TaskDef &task_def, domi::KernelContext &kernel_context,
                            uint32_t &args_size, uint32_t &kernel_type) const;

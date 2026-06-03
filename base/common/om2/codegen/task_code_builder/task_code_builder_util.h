@@ -21,7 +21,8 @@ class TaskCodeBuilderUtil {
   static Expr *BuildWorkspaceAddrs(AstBuildContext &ast, const std::vector<AddrSemantic> &addrs);
   static Expr *BuildWorkspaceSizes(AstBuildContext &ast, const std::vector<AddrSemantic> &addrs);
   static Expr *BuildL0ArgSlotEntries(AstBuildContext &ast, const std::vector<AddrSemantic> &ordered_args);
-  static ExprRef BuildReportLaunchedTaskCall(AstBuildContext &ast, const TaskSemanticHeader &header,
+  static Status AppendReportLaunchedTaskCall(AstBuildContext &ast, std::vector<BodyItem> &items,
+                                             const std::string &var_prefix, const TaskSemanticHeader &header,
                                              const ArgsTableEntrySemantic *args_table_entry,
                                              const std::vector<AddrSemantic> &input_addrs,
                                              const std::vector<AddrSemantic> &output_addrs,

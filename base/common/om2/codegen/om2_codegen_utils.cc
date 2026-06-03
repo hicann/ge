@@ -11,13 +11,13 @@
 #include <regex>
 #include "om2_codegen_utils.h"
 #include "common/ge_common/debug/ge_log.h"
+#include "common/ge_common/ge_types.h"
 #include "common/om2/codegen/om2_codegen_types.h"
 #include "graph/utils/op_type_utils.h"
 #include "graph/op_desc.h"
 #include "graph/debug/ge_attr_define.h"
 #include "framework/common/taskdown_common.h"
 #include "graph/debug/ge_op_types.h"
-
 
 namespace ge {
 namespace {
@@ -59,11 +59,12 @@ std::string Om2CodegenUtils::GetOpName(const OpDescPtr &op_desc) {
   return std::regex_replace(origin_op_name, kOpNameInvalidRegex, "_");
 }
 
-ge::Status Om2CodegenUtils::GetMagic(const OpDescPtr &op_desc, std::string &magic) {
+ge::Status Om2CodegenUtils::GetMagic(const OpDescPtr &op_desc, std::string &magic, bool is_atomic) {
   std::string json_string;
-  const std::string *json_string_ptr = AttrUtils::GetStr(op_desc, TVM_ATTR_NAME_MAGIC);
+  const std::string tvm_magic_attr = is_atomic ? (kAtomicPrefix + TVM_ATTR_NAME_MAGIC) : TVM_ATTR_NAME_MAGIC;
+  const std::string *json_string_ptr = AttrUtils::GetStr(op_desc, tvm_magic_attr);
   if (json_string_ptr != nullptr) {
-    GELOGI("[OM2] Get json_string of tvm_magic from op_desc.");
+    GELOGI("[OM2] Get json_string of tvm_magic from op_desc, attr=%s.", tvm_magic_attr.c_str());
     json_string = *json_string_ptr;
   }
   static const std::unordered_map<std::string, std::string> rt_to_acl_magic = {
@@ -76,9 +77,9 @@ ge::Status Om2CodegenUtils::GetMagic(const OpDescPtr &op_desc, std::string &magi
     magic =
         (rt_to_acl_magic.find(json_string) == rt_to_acl_magic.end()) ? json_string : rt_to_acl_magic.at(json_string);
   } else {
-    GELOGE(PARAM_INVALID, "[OM2][Check][JsonStr]Attr:%s in op:%s(%s), value:%s check invalid", TVM_ATTR_NAME_MAGIC.c_str(),
+    GELOGE(PARAM_INVALID, "[OM2][Check][JsonStr]Attr:%s in op:%s(%s), value:%s check invalid", tvm_magic_attr.c_str(),
            op_desc->GetName().c_str(), op_desc->GetType().c_str(), json_string.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Attr:%s in op:%s(%s), value:%s check invalid", TVM_ATTR_NAME_MAGIC.c_str(),
+    REPORT_INNER_ERR_MSG("E19999", "Attr:%s in op:%s(%s), value:%s check invalid", tvm_magic_attr.c_str(),
                          op_desc->GetName().c_str(), op_desc->GetType().c_str(), json_string.c_str());
     return PARAM_INVALID;
   }

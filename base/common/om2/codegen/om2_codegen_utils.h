@@ -30,7 +30,7 @@ class Om2CodegenUtils {
  public:
   static std::string GetKernelNameWithExtension(const std::string &kernel_name);
   static std::string GetOpName(const OpDescPtr &op_desc);
-  static Status GetMagic(const OpDescPtr &op_desc, std::string &magic);
+  static Status GetMagic(const OpDescPtr &op_desc, std::string &magic, bool is_atomic = false);
   static bool IsSupportedTask(ModelTaskType model_task_type);
   static bool IsAllKernel(const ModelTaskType task_type);
   static bool IsAICoreKernel(const ge::ccKernelType kernel_type);

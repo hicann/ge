@@ -123,15 +123,94 @@ Expr *TaskCodeBuilderUtil::BuildL0ArgSlotEntries(AstBuildContext &ast,
   return ast.InitList(entries);
 }
 
-namespace {
-void AppendReportTaskCommonArgs(AstBuildContext &ast, const TaskSemanticHeader &header,
-                                const ArgsTableEntrySemantic *args_table_entry,
-                                const std::vector<AddrSemantic> &input_addrs,
-                                const std::vector<AddrSemantic> &output_addrs,
-                                const std::vector<AddrSemantic> &workspace_addrs,
-                                ModelTaskType task_type, Arg stream,
-                                const VarRef &args_table, bool use_args_info_size,
-                                std::vector<Arg> &args) {
+Status TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(AstBuildContext &ast, std::vector<BodyItem> &items,
+                                                         const std::string &var_prefix,
+                                                         const TaskSemanticHeader &header,
+                                                         const ArgsTableEntrySemantic *args_table_entry,
+                                                         const std::vector<AddrSemantic> &input_addrs,
+                                                         const std::vector<AddrSemantic> &output_addrs,
+                                                         const std::vector<AddrSemantic> &workspace_addrs,
+                                                         ModelTaskType task_type, Arg stream,
+                                                         const VarRef &model_id, const VarRef &instance_handle,
+                                                         const VarRef &args_table, bool use_args_info_size,
+                                                         bool is_raw_address) {
+  std::vector<Arg> args;
+  args.reserve(17U);
+  args.emplace_back(Arg::StringLiteral(header.op_name));
+  args.emplace_back(Arg::StringLiteral(header.op_type));
+  args.emplace_back(std::to_string(header.op_desc_id) + "U");
+  if (args_table_entry != nullptr) {
+    auto args_info = args_table.Attr("GetArgsInfo")(static_cast<int64_t>(args_table_entry->table_index));
+    args.emplace_back(ast.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")));
+    args.emplace_back(use_args_info_size ? Arg(args_info.Arrow("size"))
+                                         : Arg(std::to_string(args_table_entry->args_size) + "U"));
+  } else {
+    args.emplace_back(ast.UInt(0U));
+    args.emplace_back("0U");
+  }
+  const std::string inputs_var = var_prefix + "_report_inputs";
+  const std::string outputs_var = var_prefix + "_report_outputs";
+  const std::string workspace_addrs_var = var_prefix + "_report_workspace_addrs";
+  const std::string workspace_sizes_var = var_prefix + "_report_workspace_sizes";
+  auto input_entries = TaskCodeBuilderUtil::BuildTaskIoEntries(ast, input_addrs);
+  auto output_entries = TaskCodeBuilderUtil::BuildTaskIoEntries(ast, output_addrs);
+  auto workspace_addr_entries = TaskCodeBuilderUtil::BuildWorkspaceAddrs(ast, workspace_addrs);
+  auto workspace_size_entries = TaskCodeBuilderUtil::BuildWorkspaceSizes(ast, workspace_addrs);
+  auto count_report_tensors = [](const std::vector<AddrSemantic> &addrs) {
+    size_t count = 0U;
+    for (const auto &addr : addrs) {
+      if (addr.tensor_info.has_value()) {
+        ++count;
+      }
+    }
+    return count;
+  };
+  const auto input_num = count_report_tensors(input_addrs);
+  const auto output_num = count_report_tensors(output_addrs);
+  const auto workspace_num = workspace_addrs.size();
+  if (input_num > 0U) {
+    items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", inputs_var + "[]", input_entries));
+    args.emplace_back(inputs_var);
+  } else {
+    args.emplace_back("nullptr");
+  }
+  args.emplace_back(ast.ULong(input_num));
+  if (output_num > 0U) {
+    items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", outputs_var + "[]", output_entries));
+    args.emplace_back(outputs_var);
+  } else {
+    args.emplace_back("nullptr");
+  }
+  args.emplace_back(ast.UInt(static_cast<uint32_t>(output_num)));
+  if (workspace_num > 0U) {
+    items.emplace_back(ast.VarDecl("const uint64_t", workspace_addrs_var + "[]", workspace_addr_entries));
+    items.emplace_back(ast.VarDecl("const uint64_t", workspace_sizes_var + "[]", workspace_size_entries));
+    args.emplace_back(workspace_addrs_var);
+    args.emplace_back(workspace_sizes_var);
+  } else {
+    args.emplace_back("nullptr");
+    args.emplace_back("nullptr");
+  }
+  args.emplace_back(ast.UInt(static_cast<uint32_t>(workspace_num)));
+  args.emplace_back(ast.UInt(static_cast<uint32_t>(task_type)));
+  args.emplace_back(stream);
+  args.emplace_back(model_id);
+  args.emplace_back(instance_handle);
+  if (is_raw_address) {
+    args.emplace_back(ast.UInt(1U));
+  }
+  items.emplace_back(ast.Call("OM2_CHK_STATUS", {ast.Call("ReportLaunchedOm2Task", args)}));
+  return SUCCESS;
+}
+
+ExprRef TaskCodeBuilderUtil::BuildReportTaskPreprocessCall(
+    AstBuildContext &ast, const TaskSemanticHeader &header, const ArgsTableEntrySemantic *args_table_entry,
+    const std::vector<AddrSemantic> &input_addrs, const std::vector<AddrSemantic> &output_addrs,
+    const std::vector<AddrSemantic> &workspace_addrs, ModelTaskType task_type, Arg stream,
+    const VarRef &model_id, const VarRef &instance_handle, const VarRef &args_table, Arg l0_info,
+    bool use_args_info_size, bool is_raw_address) {
+  std::vector<Arg> args;
+  args.reserve(14U);
   args.emplace_back(Arg::StringLiteral(header.op_name));
   args.emplace_back(Arg::StringLiteral(header.op_type));
   args.emplace_back(std::to_string(header.op_desc_id) + "U");
@@ -150,40 +229,6 @@ void AppendReportTaskCommonArgs(AstBuildContext &ast, const TaskSemanticHeader &
   args.emplace_back(TaskCodeBuilderUtil::BuildWorkspaceSizes(ast, workspace_addrs));
   args.emplace_back(ast.UInt(static_cast<uint32_t>(task_type)));
   args.emplace_back(stream);
-}
-}  // namespace
-
-ExprRef TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(AstBuildContext &ast, const TaskSemanticHeader &header,
-                                                         const ArgsTableEntrySemantic *args_table_entry,
-                                                         const std::vector<AddrSemantic> &input_addrs,
-                                                         const std::vector<AddrSemantic> &output_addrs,
-                                                         const std::vector<AddrSemantic> &workspace_addrs,
-                                                         ModelTaskType task_type, Arg stream,
-                                                         const VarRef &model_id, const VarRef &instance_handle,
-                                                         const VarRef &args_table, bool use_args_info_size,
-                                                         bool is_raw_address) {
-  std::vector<Arg> args;
-  args.reserve(13U);
-  AppendReportTaskCommonArgs(ast, header, args_table_entry, input_addrs, output_addrs, workspace_addrs,
-                             task_type, stream, args_table, use_args_info_size, args);
-  args.emplace_back(model_id);
-  args.emplace_back(instance_handle);
-  if (is_raw_address) {
-    args.emplace_back(ast.UInt(1U));
-  }
-  return ast.Call("ReportLaunchedOm2Task", args);
-}
-
-ExprRef TaskCodeBuilderUtil::BuildReportTaskPreprocessCall(
-    AstBuildContext &ast, const TaskSemanticHeader &header, const ArgsTableEntrySemantic *args_table_entry,
-    const std::vector<AddrSemantic> &input_addrs, const std::vector<AddrSemantic> &output_addrs,
-    const std::vector<AddrSemantic> &workspace_addrs, ModelTaskType task_type, Arg stream,
-    const VarRef &model_id, const VarRef &instance_handle, const VarRef &args_table, Arg l0_info,
-    bool use_args_info_size, bool is_raw_address) {
-  std::vector<Arg> args;
-  args.reserve(14U);
-  AppendReportTaskCommonArgs(ast, header, args_table_entry, input_addrs, output_addrs, workspace_addrs,
-                             task_type, stream, args_table, use_args_info_size, args);
   args.emplace_back(l0_info);
   args.emplace_back(model_id);
   args.emplace_back(instance_handle);

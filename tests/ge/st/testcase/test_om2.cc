@@ -47,6 +47,32 @@ using AicpuExtInfo = aicpu::FWKAdapter::ExtInfo;
 using AsyncWaitInfo = aicpu::FWKAdapter::AsyncWait;
 using WorkSpaceInfo = aicpu::FWKAdapter::WorkSpaceInfo;
 using AicpuSessionInfo = SessionInfo;
+
+static void SyncKernelNameFromOpDesc(const GeModelPtr &ge_model) {
+  auto model_task_def = ge_model->GetModelTaskDefPtr();
+  if (model_task_def == nullptr) { return; }
+  const auto &graph = ge_model->GetGraph();
+  if (graph == nullptr) { return; }
+  for (int i = 0; i < model_task_def->task_size(); ++i) {
+    auto *task_def = model_task_def->mutable_task(i);
+    for (const auto &node : graph->GetDirectNode()) {
+      auto op_desc = node->GetOpDesc();
+      if (op_desc == nullptr) { continue; }
+      std::string kernel_name;
+      if (ge::AttrUtils::GetStr(op_desc, "_kernelname", kernel_name)) {
+        task_def->mutable_kernel()->set_kernel_name(kernel_name);
+      }
+    }
+  }
+}
+
+static void SyncKernelNameForAllModels(const GeRootModelPtr &ge_root_model) {
+  if (ge_root_model == nullptr) { return; }
+  for (const auto &kv : ge_root_model->GetSubgraphInstanceNameToModel()) {
+    SyncKernelNameFromOpDesc(kv.second);
+  }
+}
+
 struct AicpuTaskArgs {
   aicpu::AicpuParamHead head;
   uint64_t io_addrp[6];
@@ -937,6 +963,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -967,6 +994,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithInternalConst) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1012,6 +1040,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithFileConstMeta) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1060,6 +1089,7 @@ TEST_F(Om2St, SaveOm2Model_Ok_SaveOnlineBufferWithAclgrphSaveModel) {
 
   ModelBufferData model_data;
   const std::string package_file = PathUtils::Join({test_work_dir, kZipFileBaseName + "_buffer.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, package_file, model_data, false), SUCCESS);
   ASSERT_NE(model_data.data, nullptr);
   ASSERT_GT(model_data.length, 0U);
@@ -1165,6 +1195,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOp2) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1199,6 +1230,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicoreOpOfDynamicIo) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1233,6 +1265,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithAicpuOp) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1266,6 +1299,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCustAicpuOp) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1299,6 +1333,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithTfAicpuOp) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1443,6 +1478,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoTask) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1474,6 +1510,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithBarrierTask) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1505,6 +1542,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoAddrTask) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
@@ -1536,6 +1574,7 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoAddrTaskExplicitFormat) {
   ASSERT_NE(ge_root_model, nullptr);
   ModelBufferData model_data;
   const std::string output_file = PathUtils::Join({test_work_dir, kZipFileBaseName + ".om2"});
+  SyncKernelNameForAllModels(ge_root_model);
   ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
   ASSERT_EQ(mmAccess2(output_file.c_str(), M_F_OK), EOK);
 
