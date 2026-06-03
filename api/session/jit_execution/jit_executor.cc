@@ -347,7 +347,8 @@ Status JitExecutor::MallocOutputsForStatic(uint32_t guarded_ep_instance_id, cons
   graph_node->SetComputeGraph(gep->GetGraph());
   // 只有静态的slice graph需要手动申请output内存，动态的ge内部会申请
   if (summary->IsStatic()) {
-    GE_ASSERT_SUCCESS(MallocOutputsMemory(guarded_ep_instance_id, graph_node, external_allocator_, outputs));
+    GE_ASSERT_SUCCESS(ModelManager::GetInstance().MallocOutputsMemory(
+                      guarded_ep_instance_id, graph_node, guarded_ep_instance_id, stream_, outputs));
   }
   return SUCCESS;
 }

@@ -1079,6 +1079,7 @@ TEST_F(FmMemoryRefreshTest, fm_memory_refresh_with_check_tensor_size) {
   inputs.emplace_back(input_tensor_2);
 
   ge::Tensor output_tensor_1;
+  output_tensor_1.SetData(reinterpret_cast<uint8_t *>(input_data_2.data()), input_data_2.size() * sizeof(bool));
   outputs.emplace_back(output_tensor_1);
   dlog_setlevel(GE_MODULE_NAME, DLOG_DEBUG, 0);
   EXPECT_NE(SUCCESS, session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, outputs));

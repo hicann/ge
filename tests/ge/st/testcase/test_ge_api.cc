@@ -1892,4 +1892,98 @@ TEST_F(GeApiTest, QueryUnregisteredIr) {
   OutType inputs, outputs, attrs;
   EXPECT_NE(GetRegisteredIrDef("QueryIrTestOpNotRegistered", inputs, outputs, attrs), SUCCESS);
 }
+
+TEST_F(GeApiTest, RunGraphWithStreamAsync_builtin_allocator_output_memory) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  gert::GertRuntimeStub runtime_stub(false);
+  MockGenerateTask();
+
+  std::map<AscendString, AscendString> options;
+  options.emplace(ge::OPTION_GRAPH_RUN_MODE, AscendString("0"));
+  Session session(options);
+
+  auto graph = BuildAddGraph();
+  uint32_t graph_id = 1;
+  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
+  EXPECT_EQ(session.CompileGraph(graph_id), SUCCESS);
+
+  std::vector<ge::Tensor> inputs;
+  std::vector<ge::Tensor> outputs;
+  ConstructInputOutputTensor(inputs, outputs);
+  std::vector<ge::Tensor> builtin_outputs;
+
+  ge::diagnoseSwitch::DisableDumper();
+  runtime_stub.Clear();
+  EXPECT_EQ(SUCCESS, session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, builtin_outputs));
+
+  EXPECT_NE(builtin_outputs.size(), 0U);
+  for (size_t i = 0UL; i < builtin_outputs.size(); ++i) {
+    EXPECT_NE(builtin_outputs[i].GetData(), nullptr);
+    EXPECT_GT(builtin_outputs[i].GetSize(), 0U);
+  }
+
+  std::vector<ge::Tensor> builtin_outputs2;
+  EXPECT_EQ(SUCCESS, session.RunGraphWithStreamAsync(graph_id, nullptr, inputs, builtin_outputs2));
+  EXPECT_NE(builtin_outputs2.size(), 0U);
+  for (size_t i = 0UL; i < builtin_outputs2.size(); ++i) {
+    EXPECT_NE(builtin_outputs2[i].GetData(), nullptr);
+    EXPECT_GT(builtin_outputs2[i].GetSize(), 0U);
+  }
+}
+
+TEST_F(GeApiTest, ExecuteGraphWithStreamAsync_builtin_allocator_output_memory) {
+  dlog_setlevel(GE_MODULE_NAME, DLOG_INFO, 0);
+  gert::GertRuntimeStub runtime_stub(false);
+  MockGenerateTask();
+
+  std::map<std::string, std::string> options_init;
+  options_init.emplace(ge::OPTION_CONST_LIFECYCLE, "graph");
+  options_init.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
+  options_init.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
+
+  std::map<AscendString, AscendString> options;
+  Session session(options_init);
+
+  auto graph = BuildAddGraph();
+  uint32_t graph_id = 1;
+  EXPECT_EQ(session.AddGraph(graph_id, graph), SUCCESS);
+  EXPECT_EQ(session.CompileGraph(graph_id), SUCCESS);
+
+  options.emplace("ge.exec.frozenInputIndexes", "0,1111,10");
+  EXPECT_EQ(SUCCESS, session.LoadGraph(graph_id, options, nullptr));
+
+  std::vector<int32_t> input_data_1(1 * 2 * 3 * 4, 666);
+  std::vector<int32_t> input_data_2(1 * 2 * 3 * 4, 666);
+  std::vector<gert::Tensor> gert_inputs;
+  gert_inputs.resize(2);
+  gert_inputs[0] = {{{1, 2, 3, 4}, {1, 2, 3, 4}},
+                         {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},
+                         gert::kOnDeviceHbm,
+                         ge::DT_INT32,
+                         (void *) input_data_1.data()};
+  gert_inputs[1] = {{{1, 2, 3, 4}, {1, 2, 3, 4}},
+                         {ge::FORMAT_ND, ge::FORMAT_FRACTAL_NZ, {}},
+                         gert::kOnDeviceHbm,
+                         ge::DT_INT32,
+                         (void *) input_data_2.data()};
+
+  std::vector<gert::Tensor> gert_outputs;
+  ge::diagnoseSwitch::DisableDumper();
+  runtime_stub.Clear();
+  EXPECT_EQ(SUCCESS, session.ExecuteGraphWithStreamAsync(graph_id, nullptr, gert_inputs, gert_outputs));
+
+  EXPECT_NE(gert_outputs.size(), 0U);
+  for (size_t i = 0UL; i < gert_outputs.size(); ++i) {
+    EXPECT_NE(gert_outputs[i].GetAddr(), nullptr);
+    EXPECT_GT(gert_outputs[i].GetSize(), 0U);
+  }
+
+  std::vector<gert::Tensor> gert_outputs2;
+  EXPECT_EQ(SUCCESS, session.ExecuteGraphWithStreamAsync(graph_id, nullptr, gert_inputs, gert_outputs2));
+  EXPECT_NE(gert_outputs2.size(), 0U);
+  for (size_t i = 0UL; i < gert_outputs2.size(); ++i) {
+    EXPECT_NE(gert_outputs2[i].GetAddr(), nullptr);
+    EXPECT_GT(gert_outputs2[i].GetSize(), 0U);
+  }
+}
 }  // namespace ge

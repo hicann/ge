@@ -1227,7 +1227,7 @@ TEST_F(UtestModelExecutorTest, test_run_graph_with_stream) {
   model_executor.StartRunThread();
 
   GraphId graph_id = 1;
-  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  auto compute_graph = CreateGraphWithConstOutput();
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
 
@@ -1240,6 +1240,7 @@ TEST_F(UtestModelExecutorTest, test_run_graph_with_stream) {
 
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
+  graph_node->SetComputeGraph(compute_graph);
   graph_node->SetLoadFlag(false);
   graph_node->SetAsync(true);
 
@@ -1249,7 +1250,7 @@ TEST_F(UtestModelExecutorTest, test_run_graph_with_stream) {
 
   rtStream_t stream = nullptr;
   rtStreamCreate(&stream, 0);
-  EXPECT_EQ(model_executor.RunGraphWithStream(graph_node, graph_id, stream, inputs, outputs), 1343225857);
+  EXPECT_EQ(model_executor.RunGraphWithStream(graph_node, graph_id, stream, inputs, outputs), PARAM_INVALID);
 
   EXPECT_EQ(model_executor.Finalize(), SUCCESS);
 
@@ -1263,7 +1264,7 @@ TEST_F(UtestModelExecutorTest, test_execute_graph_with_stream) {
   model_executor.StartRunThread();
 
   GraphId graph_id = 1;
-  auto compute_graph = MakeShared<ComputeGraph>("test_graph");
+  auto compute_graph = CreateGraphWithConstOutput();
   GeRootModelPtr ge_root_model = MakeShared<GeRootModel>();
   EXPECT_EQ(ge_root_model->Initialize(compute_graph), SUCCESS);
 
@@ -1276,6 +1277,7 @@ TEST_F(UtestModelExecutorTest, test_execute_graph_with_stream) {
 
   GraphNodePtr graph_node = MakeShared<ge::GraphNode>(graph_id);
   graph_node->SetGeRootModel(ge_root_model);
+  graph_node->SetComputeGraph(compute_graph);
   graph_node->SetLoadFlag(false);
   graph_node->SetAsync(true);
 
@@ -1294,7 +1296,7 @@ TEST_F(UtestModelExecutorTest, test_execute_graph_with_stream) {
   GeTensor tensor;
   std::vector<GeTensor> inputs{tensor};
   std::vector<GeTensor> outputs;
-  EXPECT_EQ(model_executor.RunGraphWithStream(graph_node, graph_id, stream, inputs, outputs), 1343225857);
+  EXPECT_EQ(model_executor.RunGraphWithStream(graph_node, graph_id, stream, inputs, outputs), PARAM_INVALID);
   EXPECT_EQ(model_executor.ExecuteGraphWithStream(graph_node, graph_id, stream, gert_inputs, gert_outputs), ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
   GraphNodePtr graph_node_2 = MakeShared<ge::GraphNode>(2);
   EXPECT_NE(model_executor.ExecuteGraphWithStream(graph_node_2, 2, stream, gert_inputs, gert_outputs), SUCCESS);

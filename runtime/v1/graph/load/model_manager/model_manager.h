@@ -34,6 +34,7 @@
 #include "graph/manager/graph_manager_utils.h"
 #include "graph/load/model_manager/davinci_model.h"
 #include "hybrid/hybrid_davinci_model.h"
+#include "hybrid/executor/runtime_v2/scalable_allocator_manager.h"
 #include "mmpa/mmpa_api.h"
 #include "runtime/context.h"
 #include "runtime/rt.h"
@@ -44,6 +45,12 @@ namespace ge {
 struct AICPUKernelHolder {
   KernelBinPtr kernel_ptr;
   size_t launch_count;
+};
+
+struct ModelOutputTensorInfo {
+  std::vector<size_t> ret_tensor_size;
+  std::vector<GeTensorDescPtr> ge_tensor_descs;
+  ge::Allocator *allocator_ptr = nullptr;
 };
 
 class ModelManager {
@@ -353,6 +360,21 @@ class ModelManager {
       platform_bin_handle_ = bin_handle;
     }
   }
+  Status GetOutputAllocator(const uint32_t model_id, const aclrtStream stream,
+                             ge::Allocator *&allocator_ptr);
+
+  Status EnsureTensorInfo(const GraphId &graph_id, const GraphNodePtr &graph_node,
+                          const uint32_t model_id, const aclrtStream stream,
+                          ModelOutputTensorInfo &info);
+
+  Status MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
+                             const uint32_t model_id, const aclrtStream stream,
+                             std::vector<GeTensor> &outputs);
+
+  Status MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
+                             const uint32_t model_id, const aclrtStream stream,
+                             std::vector<gert::Tensor> &outputs);
+
  private:
   /// @ingroup domi_ome
   /// @brief constructor
@@ -413,6 +435,7 @@ class ModelManager {
   std::set<uint32_t> model_shared_session_; // 存在多个模型共享同一份rtSession资源场景，在此记录这些modelID
   std::map<uint32_t, std::shared_ptr<DavinciModel>> model_map_;
   std::map<uint32_t, std::shared_ptr<hybrid::HybridDavinciModel>> hybrid_model_map_;
+  std::map<uint32_t, ScalableAllocatorManager> model_built_allocator_;
   std::map<std::string, std::vector<uint64_t>> model_aicpu_kernel_;
   std::atomic<uint32_t> max_model_id_ = 1U;
   std::recursive_mutex map_mutex_;
@@ -463,11 +486,6 @@ Status CalcTensorSizeByShape(const GeShape &shape, DataType data_type, size_t &r
 
 Status SetNetOutputTensorInfo(const GraphId &graph_id, const GraphNodePtr &graph_node);
 
-Status MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
-                           const AllocatorPtr external_allocator, std::vector<GeTensor> &outputs);
-
-Status MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
-                           const AllocatorPtr external_allocator, std::vector<gert::Tensor> &outputs);
 Status CreateGertTensor(const GeTensorDescPtr ge_tensor_desc, gert::Tensor &gert_tensor);
 void FreeFeatureMemory(const ge::GraphNodePtr &graph_node);
 }  // namespace ge
