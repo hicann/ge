@@ -37,6 +37,8 @@ constexpr int32_t kMaxBuffSize = 256;
 constexpr size_t kMaxErrorStrLength = 128U;
 const std::string kPathValidReason =
     "The path can only contain 'a-z' 'A-Z' '0-9' '-' '.' '_' and Chinese characters.";
+constexpr uint32_t kChineseCodePointStart = 0x4E00U;
+constexpr uint32_t kChineseCodePointEnd = 0x9FA5U;
 
 void PathValidErrReport(const std::string &file_path, const std::string &atc_param, const std::string &reason) {
   if (!atc_param.empty()) {
@@ -45,6 +47,82 @@ void PathValidErrReport(const std::string &file_path, const std::string &atc_par
   } else {
     REPORT_INNER_ERR_MSG("E19999", "Path[%s] invalid, reason:%s", file_path.c_str(), reason.c_str());
   }
+}
+
+bool IsAllowedAsciiPathChar(const unsigned char ch) {
+  return (((ch >= 'a') && (ch <= 'z')) || ((ch >= 'A') && (ch <= 'Z')) ||
+          ((ch >= '0') && (ch <= '9')) || (ch == '.') || (ch == '/') || (ch == '_') || (ch == '-'));
+}
+
+bool IsUtf8ContinuationByte(const unsigned char ch) {
+  return (ch & 0xC0U) == 0x80U;
+}
+
+bool DecodeMultiByteUtf8CodePoint(const std::string &str, size_t &index, uint32_t &code_point) {
+  if (index >= str.size()) {
+    return false;
+  }
+
+  const auto first = static_cast<unsigned char>(str[index]);
+  size_t length = 0U;
+  uint32_t min_code_point = 0U;
+  if ((first & 0xE0U) == 0xC0U) {
+    length = 2U;
+    code_point = static_cast<uint32_t>(first & 0x1FU);
+    min_code_point = 0x80U;
+  } else if ((first & 0xF0U) == 0xE0U) {
+    length = 3U;
+    code_point = static_cast<uint32_t>(first & 0x0FU);
+    min_code_point = 0x800U;
+  } else if ((first & 0xF8U) == 0xF0U) {
+    length = 4U;
+    code_point = static_cast<uint32_t>(first & 0x07U);
+    min_code_point = 0x10000U;
+  } else {
+    return false;
+  }
+
+  if (length > (str.size() - index)) {
+    return false;
+  }
+
+  for (size_t i = 1U; i < length; ++i) {
+    const auto ch = static_cast<unsigned char>(str[index + i]);
+    if (!IsUtf8ContinuationByte(ch)) {
+      return false;
+    }
+    code_point = (code_point << 6U) | static_cast<uint32_t>(ch & 0x3FU);
+  }
+
+  if ((code_point < min_code_point) || ((code_point >= 0xD800U) && (code_point <= 0xDFFFU)) ||
+      (code_point > 0x10FFFFU)) {
+    return false;
+  }
+
+  index += length;
+  return true;
+}
+
+bool IsPathCharsValid(const std::string &path) {
+  for (size_t i = 0U; i < path.size();) {
+    const auto ch = static_cast<unsigned char>(path[i]);
+    if (ch < 0x80U) {
+      if (!IsAllowedAsciiPathChar(ch)) {
+        return false;
+      }
+      ++i;
+      continue;
+    }
+
+    uint32_t code_point = 0U;
+    if (!DecodeMultiByteUtf8CodePoint(path, i, code_point)) {
+      return false;
+    }
+    if ((code_point < kChineseCodePointStart) || (code_point > kChineseCodePointEnd)) {
+      return false;
+    }
+  }
+  return true;
 }
 }  // namespace
 
@@ -205,16 +283,12 @@ bool CheckInputPathValid(const std::string &file_path, const std::string &atc_pa
     return false;
   }
 
-  // A regular matching expression to verify the validity of the input file path
-  // Path section: Support upper and lower case letters, numbers dots(.) chinese and underscores
-  // File name section: Support upper and lower case letters, numbers, underscores chinese and dots(.)
 #ifdef __GNUC__
-  const std::string mode = "^[\u4e00-\u9fa5A-Za-z0-9./_-]+$";
+  if (!IsPathCharsValid(real_path)) {
 #else
   std::string mode = "^[a-zA-Z]:([\\\\/][^\\s\\\\/:*?<>\"|][^\\\\/:*?<>\"|]*)*([/\\\\][^\\s\\\\/:*?<>\"|])?$";
-#endif
-
   if (!ValidateStr(real_path, mode)) {
+#endif
     PathValidErrReport(file_path, atc_param, kPathValidReason);
     GELOGE(FAILED, "Invalid value for %s[%s], %s.", atc_param.c_str(), real_path.c_str(), kPathValidReason.c_str());
     return false;
@@ -254,16 +328,12 @@ bool CheckOutputPathValid(const std::string &file_path, const std::string &atc_p
     return false;
   }
 
-  // A regular matching expression to verify the validity of the input file path
-  // Path section: Support upper and lower case letters, numbers dots(.) chinese and underscores
-  // File name section: Support upper and lower case letters, numbers, underscores chinese and dots(.)
 #ifdef __GNUC__
-  const std::string mode = "^[\u4e00-\u9fa5A-Za-z0-9./_-]+$";
+  if (!IsPathCharsValid(file_path)) {
 #else
   std::string mode = "^[a-zA-Z]:([\\\\/][^\\s\\\\/:*?<>\"|][^\\\\/:*?<>\"|]*)*([/\\\\][^\\s\\\\/:*?<>\"|])?$";
-#endif
-
   if (!ValidateStr(file_path, mode)) {
+#endif
     PathValidErrReport(file_path, atc_param, kPathValidReason);
     GELOGE(FAILED, "Invalid value for %s[%s], %s.", atc_param.c_str(), file_path.c_str(), kPathValidReason.c_str());
     return false;
