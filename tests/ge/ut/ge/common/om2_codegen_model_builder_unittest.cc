@@ -97,6 +97,31 @@ T *FindTaskBuilder(const std::vector<TaskCodeBuilderPtr> &task_builders) {
   return nullptr;
 }
 
+static void SyncKernelNameFromOpDesc(const GeModelPtr &ge_model) {
+  auto model_task_def = ge_model->GetModelTaskDefPtr();
+  if (model_task_def == nullptr) { return; }
+  const auto &graph = ge_model->GetGraph();
+  if (graph == nullptr) { return; }
+  for (int i = 0; i < model_task_def->task_size(); ++i) {
+    auto *task_def = model_task_def->mutable_task(i);
+    for (const auto &node : graph->GetDirectNode()) {
+      auto op_desc = node->GetOpDesc();
+      if (op_desc == nullptr) { continue; }
+      std::string kernel_name;
+      if (ge::AttrUtils::GetStr(op_desc, "_kernelname", kernel_name)) {
+        task_def->mutable_kernel()->set_kernel_name(kernel_name);
+      }
+    }
+  }
+}
+
+static void SyncKernelNameForAllModels(const GeRootModelPtr &ge_root_model) {
+  if (ge_root_model == nullptr) { return; }
+  for (const auto &kv : ge_root_model->GetSubgraphInstanceNameToModel()) {
+    SyncKernelNameFromOpDesc(kv.second);
+  }
+}
+
 GeRootModelPtr CreateGeRootModelWithAicoreOp() {
   auto graph = gert::ShareGraph::AicoreStaticGraph();
   graph->TopologicalSorting();
@@ -761,6 +786,7 @@ Status BuildCodegenModel(const GeRootModelPtr &ge_root_model, Om2CodegenModel &d
                      std::vector<TaskCodeBuilderPtr> *task_generators_out = nullptr,
                      Om2ConstMetas *const_metas_out = nullptr) {
   GE_ASSERT_NOTNULL(ge_root_model);
+  SyncKernelNameForAllModels(ge_root_model);
   const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
   GE_ASSERT_TRUE(!name_to_ge_model.empty());
   const auto &ge_model = name_to_ge_model.begin()->second;
@@ -786,6 +812,7 @@ Status BuildCodegenModel(const GeModelPtr &ge_model, Om2CodegenModel &doc,
                          std::vector<TaskCodeBuilderPtr> *task_generators_out = nullptr,
                          Om2ConstMetas *const_metas_out = nullptr) {
   GE_ASSERT_NOTNULL(ge_model);
+  SyncKernelNameFromOpDesc(ge_model);
   std::vector<TaskCodeBuilderPtr> task_builders;
   GE_ASSERT_SUCCESS(
       Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, GetOm2CodegenModelBuilderUtAst(), task_builders, doc));
@@ -806,6 +833,7 @@ Status BuildCodegenModelWithTaskGenerators(const GeRootModelPtr &ge_root_model,
                                        const std::vector<TaskCodeBuilderPtr> &task_builders,
                                        Om2CodegenModel &doc) {
   GE_ASSERT_NOTNULL(ge_root_model);
+  SyncKernelNameForAllModels(ge_root_model);
   const auto &name_to_ge_model = ge_root_model->GetSubgraphInstanceNameToModel();
   GE_ASSERT_TRUE(!name_to_ge_model.empty());
   const auto &ge_model = name_to_ge_model.begin()->second;
@@ -1243,18 +1271,18 @@ TEST_F(Om2CodegenModelBuilderUt, RenderDistribution_UsesSemanticLaunchAndArgs_Ai
   std::stringstream output;
   EmitCodeFromNodes(nodes, output);
   const auto code = output.str();
-  EXPECT_NE(code.find("std::vector<int64_t> op2_input0_shape = {1, 1, 224, 224};"), std::string::npos);
+  EXPECT_NE(code.find("static constexpr int64_t op2_input0_shape[] = {1, 1, 224, 224};"), std::string::npos);
   EXPECT_NE(code.find("Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), "
-                      "200704UL, 1, 0, op2_input0_shape);"),
+                      "200704UL, 1, 0, op2_input0_shape, 4UL);"),
             std::string::npos);
   EXPECT_NE(code.find("FlattenHostArgs(op2_input0, op2_input1, op2_output0, op2_ws0)"),
             std::string::npos);
   EXPECT_NE(code.find("GetIsDataDump(\"add1\", model_id_, instance_handle_)"), std::string::npos);
-  EXPECT_NE(code.find("ReportLaunchedOm2Task(\"add1\", \"Add\", 2U, "
+  EXPECT_NE(code.find("OM2_CHK_STATUS(ReportLaunchedOm2Task(\"add1\", \"Add\", 2U, "
                       "reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), "
-                      "args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 8U}}, "
-                      "{{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, "
-                      "stream_list_[0], model_id_, instance_handle_)"),
+                      "args_table_.GetArgsInfo(0)->size, op2_report_inputs, 2UL, op2_report_outputs, 1U, "
+                      "op2_report_workspace_addrs, op2_report_workspace_sizes, 1U, 0U, "
+                      "stream_list_[0], model_id_, instance_handle_))"),
             std::string::npos);
   EXPECT_NE(code.find("args_table_.GetArgsInfo(" +
                           std::to_string(kernel_task.args_table_entry->table_index) + ")"),
@@ -1283,13 +1311,13 @@ TEST_F(Om2CodegenModelBuilderUt, RenderDistribution_UsesConstInputTensor_Aicore_
   std::stringstream output;
   EmitCodeFromNodes(nodes, output);
   const auto code = output.str();
-  EXPECT_NE(code.find("FlattenHostArgs(const_0, op2_input1, op2_output0, op2_ws0)"),
+  EXPECT_NE(code.find("FlattenHostArgs(op2_input0, op2_input1, op2_output0, op2_ws0)"),
             std::string::npos);
-  EXPECT_NE(code.find("ReportLaunchedOm2Task(\"add1\", \"Add\", 2U, "
+  EXPECT_NE(code.find("OM2_CHK_STATUS(ReportLaunchedOm2Task(\"add1\", \"Add\", 2U, "
                       "reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), "
-                      "args_table_.GetArgsInfo(0)->size, {{&const_0, 0U}, {&op2_input1, 8U}}, "
-                      "{{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, "
-                      "stream_list_[0], model_id_, instance_handle_)"),
+                      "args_table_.GetArgsInfo(0)->size, op2_report_inputs, 2UL, op2_report_outputs, 1U, "
+                      "op2_report_workspace_addrs, op2_report_workspace_sizes, 1U, 0U, "
+                      "stream_list_[0], model_id_, instance_handle_))"),
             std::string::npos);
 }
 

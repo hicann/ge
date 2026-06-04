@@ -13,7 +13,6 @@
 #include <fstream>
 #include <sys/stat.h>
 #include "common/helper/om2/om2_utils.h"
-#include "common/compile_profiling/ge_call_wrapper.h"
 #include "common/om2/codegen/ast/ast_build_context.h"
 #include "common/om2/codegen/ast/ast_context.h"
 #include "common/om2/codegen/om2_codegen_model_builder.h"

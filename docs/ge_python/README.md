@@ -40,7 +40,7 @@ GE-PY 模块包含以下核心组件：
   - PatternFusionPass 类：模式匹配融合 Pass 基类
   - DecomposePass 类：算子分解 Pass 基类
   - Pass 注册与发现机制
-  - Bridge 架构、native helper 与多版本产物装载设计
+  - Bridge 架构、native helper、多版本产物装载与 runtime fallback codegen 设计
 
 - **[pyatc CLI 设计文档](design/pyatc_cli_design.md)** - pyatc 命令行的详细设计说明
 
@@ -107,7 +107,7 @@ GE-PY 模块包含以下核心组件：
 
 - [x] [***April 2026***] 开发态主链已完成 `FusionBasePass`  `PatternFusionPass` `DecomposePass` 
 - [x] [***May 2026***] 预制版本、多版本 native artifact 补齐
-- [~] [***June 2026***] fallback codegen 能力补齐
+- [x] [***June 2026***] fallback codegen 能力补齐
 
 ### sample和相关文档
 

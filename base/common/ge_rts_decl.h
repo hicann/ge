@@ -42,32 +42,6 @@ typedef struct tagRtKernelInfo {
 extern "C" {
 #endif
 
-RTS_API rtError_t rtKernelLaunchWithHandleV2(void *hdl, uint64_t tilingKey, uint32_t numBlocks,
-    rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc, rtStream_t stm, const rtTaskCfgInfo_t *cfgInfo);
-
-RTS_API rtError_t rtKernelLaunchWithFlagV2(const void *stubFunc, uint32_t numBlocks, rtArgsEx_t *argsInfo,
-    rtSmDesc_t *smDesc, rtStream_t stm, uint32_t flags, const rtTaskCfgInfo_t *cfgInfo);
-
-RTS_API rtError_t rtKernelLaunchEx(void *args, uint32_t argsSize, uint32_t flags, rtStream_t stm);
-
-RTS_API rtError_t rtKernelLaunchFwk(const char_t *opName, void *args, uint32_t argsSize,
-    uint32_t flags, rtStream_t stm);
-
-RTS_API rtError_t rtAicpuKernelLaunchWithFlag(const rtKernelLaunchNames_t *launchNames, uint32_t numBlocks,
-    const rtArgsEx_t *argsInfo, rtSmDesc_t *smDesc, rtStream_t stm, uint32_t flags);
-
-RTS_API rtError_t rtDevBinaryUnRegister(void *hdl);
-
-RTS_API rtError_t rtMetadataRegister(void *hdl, const char_t *metadata);
-
-RTS_API rtError_t rtFunctionRegister(void *binHandle, const void *stubFunc, const char_t *stubName,
-    const void *kernelInfoExt, uint32_t funcMode);
-
-RTS_API rtError_t rtGetFunctionByName(const char_t *stubName, void **stubFunc);
-
-RTS_API rtError_t rtKernelGetAddrAndPrefCntV2(void *hdl, const uint64_t tilingKey, const void * const stubFunc,
-                                              const uint32_t flag, rtKernelDetailInfo_t *kernelInfo);
-
 #ifndef CCE_RUNTIME_DEVICE_H
 typedef enum tagRtMemRequestFeature {
   MEM_REQUEST_FEATURE_DEFAULT = 0,

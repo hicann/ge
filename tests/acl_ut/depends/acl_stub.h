@@ -115,6 +115,8 @@ public:
     virtual Format GetFormat();
     virtual ge::Status GetDynamicBatchInfo(uint32_t model_id, std::vector<std::vector<int64_t>> &batch_info,
                                            int32_t &dynamic_type);
+    virtual ge::Status SetModelStreamPriority(uint32_t model_id, uint32_t priority);
+    virtual ge::Status GetModelStreamPriority(uint32_t model_id, uint32_t &priority);
     virtual ge::Status LoadModelFromData(uint32_t &model_id, const ModelData &modelData,
                                          void *dev_ptr, size_t memsize, void *weight_ptr, size_t weightsize);
     virtual ge::Status LoadModelFromDataWithArgs(uint32_t &model_id, const ModelData &model_data, const ModelLoadArg &load_arg);
@@ -361,6 +363,8 @@ public:
     MOCK_METHOD1(GetShapeRange, graphStatus(std::vector<std::pair<int64_t, int64_t>> &range));
     MOCK_METHOD0(GetFormat, Format());
     MOCK_METHOD3(GetDynamicBatchInfo, ge::Status(uint32_t model_id, std::vector<std::vector<int64_t>> &batch_info, int32_t &dynamic_type));
+    MOCK_METHOD2(SetModelStreamPriority, ge::Status(uint32_t model_id, uint32_t priority));
+    MOCK_METHOD2(GetModelStreamPriority, ge::Status(uint32_t model_id, uint32_t &priority));
     MOCK_METHOD6(LoadModelFromData, ge::Status(uint32_t &model_id, const ModelData &modelData,
                                                void *dev_ptr, size_t memsize, void *weight_ptr, size_t weightsize));
     MOCK_METHOD3(LoadModelFromDataWithArgs, ge::Status(uint32_t &model_id, const ModelData &model_data, const ModelLoadArg &load_arg));
@@ -457,8 +461,9 @@ public:
     MOCK_METHOD2(IsOm2Model, ge::Status(const char *file_path, bool &is_support));
     MOCK_METHOD3(GetModelDescInfo, ge::Status(std::vector<ge::TensorDesc> &input_desc,
                                               std::vector<ge::TensorDesc> &output_desc, bool new_model_desc));
-    MOCK_METHOD3(GetModelDescInfo, ge::Status(std::vector<ge::Om2TensorDesc> &input_desc,
-                                              std::vector<ge::Om2TensorDesc> &output_desc, bool new_model_desc));
+    MOCK_METHOD3(GetModelDescInfo, ge::Status(const std::vector<ge::Om2TensorDesc> *&input_desc,
+                                              const std::vector<ge::Om2TensorDesc> *&output_desc,
+                                              bool new_model_desc));
 
     // fe function
     MOCK_METHOD0(InitializePlatformInfo, uint32_t());

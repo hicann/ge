@@ -61,6 +61,20 @@ file(WRITE ${GE_PYTHON_PASS_ARTIFACT_MANIFEST}
         "  }\n"
         "}\n"
 )
+set(GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/python_pass_fallback_codegen)
+set(GE_PYTHON_PASS_FALLBACK_CODEGEN_CONFIG
+        ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}/build_config.json)
+set(GE_PYTHON_PASS_FALLBACK_CODEGEN_SOURCES_PY
+        ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}/_sources.py)
+set(GE_PYTHON_PASS_FALLBACK_CODEGEN_INIT_PY
+        ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}/__init__.py)
+set(GE_PYTHON_PASS_BRIDGE_SOURCES
+        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_pybind_bridge.cc)
+set(GE_PYTHON_PASS_BRIDGE_HEADERS
+        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_pybind_bridge.h
+        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_adapter.h
+        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/pass_registry.h
+        ${CMAKE_SOURCE_DIR}/compiler/graph/fusion/pass/python_pass_bridge_c_api.h)
 
 add_custom_target(ge_python ALL)
 add_custom_target(ge_python_main_wheel DEPENDS ${GE_PYTHON_MAIN_WHEEL})
@@ -79,8 +93,32 @@ add_custom_target(ge_python_pass_native_wheel_matrix
             ${GE_PYTHON_PASS_MATRIX_COMPILER_ARGS}
          COMMENT "Build GE python pass native wheels for all supported Python versions found in PATH"
 )
+add_custom_target(ge_python_pass_fallback_codegen
+        DEPENDS ${GE_PYTHON_PASS_FALLBACK_CODEGEN_CONFIG}
+                ${GE_PYTHON_PASS_FALLBACK_CODEGEN_SOURCES_PY}
+                ${GE_PYTHON_PASS_FALLBACK_CODEGEN_INIT_PY})
+add_dependencies(ge_python_main_wheel ge_python_pass_fallback_codegen)
 add_dependencies(ge_python_pass_native_wheel_matrix ge_python_native_wheel)
 add_dependencies(ge_python ge_python_main_wheel ge_python_pass_native_wheel_matrix)
+add_custom_command(
+         OUTPUT ${GE_PYTHON_PASS_FALLBACK_CODEGEN_CONFIG}
+                ${GE_PYTHON_PASS_FALLBACK_CODEGEN_SOURCES_PY}
+                ${GE_PYTHON_PASS_FALLBACK_CODEGEN_INIT_PY}
+         COMMAND ${HI_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/gen_fallback_resources.py
+            --output-dir ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR}
+            --bridge-abi ${GE_PYTHON_PASS_BRIDGE_ABI_VERSION}
+            --bridge-source ${GE_PYTHON_PASS_BRIDGE_SOURCES}
+            --bridge-header ${GE_PYTHON_PASS_BRIDGE_HEADERS}
+            --native-source ${GE_PYTHON_PASS_NATIVE_SOURCES}
+            --native-header ${GE_PYTHON_PASS_NATIVE_HEADERS}
+         DEPENDS ${GE_PYTHON_PASS_BRIDGE_SOURCES}
+                 ${GE_PYTHON_PASS_BRIDGE_HEADERS}
+                 ${GE_PYTHON_PASS_NATIVE_SOURCES}
+                 ${GE_PYTHON_PASS_NATIVE_HEADERS}
+                 ${CMAKE_CURRENT_SOURCE_DIR}/python_pass_native_build/gen_fallback_resources.py
+         COMMAND_EXPAND_LISTS
+         COMMENT "Generate GE python pass fallback codegen resources"
+)
 add_custom_command(
          OUTPUT ${GE_PYTHON_MAIN_WHEEL}
          COMMAND echo "Start to build ge-py wheel package"
@@ -92,6 +130,8 @@ add_custom_command(
          && ${CMAKE_COMMAND} -E remove ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/passes/CMakeLists.txt
          && ${CMAKE_COMMAND} -E remove_directory ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/passes/native_bindings
          && ${CMAKE_COMMAND} -E remove_directory ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/passes/python_pass_artifacts
+         && ${CMAKE_COMMAND} -E remove_directory ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/passes/fallback_codegen
+         && ${CMAKE_COMMAND} -E copy_directory ${GE_PYTHON_PASS_FALLBACK_CODEGEN_DIR} ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/passes/fallback_codegen
          && find ${GE_PYTHON_MAIN_WHEEL_DIR}/ge -name __pycache__ -type d -exec rm -rf {} +
          && cp $<TARGET_FILE:graph_wrapper> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/_capi/
          && cp $<TARGET_FILE:ge_runtime_wrapper> ${GE_PYTHON_MAIN_WHEEL_DIR}/ge/_capi/
@@ -104,6 +144,7 @@ add_custom_command(
          && echo "Build ge-py wheel package end"
          DEPENDS eager_style_graph_builder_base ge_api_c_wrapper graph_wrapper
                  ${GE_API_C_WRAPPER}
+                 ${GE_PYTHON_PASS_FALLBACK_CODEGEN_CONFIG}
  )
 add_custom_command(
          OUTPUT ${GE_PYTHON_PASS_NATIVE_WHEEL}

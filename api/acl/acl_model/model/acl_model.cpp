@@ -988,6 +988,30 @@ void *aclGetTensorDescAddress(const aclTensorDesc *desc)
     return aclGetTensorDescAddressImplOm2(desc);
 }
 
+aclError aclmdlSetAttribute(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue)
+{
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
+        aclmdlSetAttributeImplOm2(modelId, attr, attrValue) :
+        aclmdlSetAttributeImpl(modelId, attr, attrValue);
+}
+
+aclError aclmdlGetAttribute(uint32_t modelId, aclmdlAttr attr, aclmdlAttrValue_t *attrValue)
+{
+    bool isOm2 = false;
+    aclError ret = AclIsOm2ModelById(modelId, &isOm2);
+    if (ret != ACL_ERROR_NONE) {
+        return ret;
+    }
+    return isOm2 ?
+        aclmdlGetAttributeImplOm2(modelId, attr, attrValue) :
+        aclmdlGetAttributeImpl(modelId, attr, attrValue);
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -487,6 +487,10 @@ VarDeclStmt *AstBuildContext::VarDecl(const VarRef &symbol, Arg init) {
   return VarDecl(symbol.TypeName(), symbol.SymbolName(), init);
 }
 
+BlockStmt *AstBuildContext::Block(const std::vector<BodyItem> &items) {
+  return BlockStmt::Create(ctx_, Body(items));
+}
+
 IfStmt *AstBuildContext::If(Arg cond, std::initializer_list<BodyItem> then_items) {
   return IfStmt::Create(ctx_, ResolveArg(cond, ctx_), BlockStmt::Create(ctx_, Body(then_items)));
 }

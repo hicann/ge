@@ -30,44 +30,9 @@ __all__ = [
     "release_graph",
 ]
 
-import sys
-from ._artifact_utils import current_platform_tag
-from ._artifact_utils import current_python_tag
-from ._artifact_utils import find_prebuilt_artifact
-from ._artifact_utils import artifacts_root
-from ._artifact_utils import BRIDGE_ABI_VERSION
-from ._artifact_utils import iter_artifacts
-from ._artifact_utils import load_native_module
-from ._artifact_utils import NATIVE_MODULE_NAME
+from .runtime import ensure_native_module
 
-
-def _format_missing_artifact_error() -> str:
-    python_tag = current_python_tag()
-    platform_tag = current_platform_tag()
-    discovered_artifacts = sorted(
-        f"{artifact.python_tag}-{artifact.platform_tag}-abi{artifact.bridge_abi}"
-        for artifact in iter_artifacts()
-    )
-    discovered_text = ", ".join(discovered_artifacts) if discovered_artifacts else "none"
-    expected_wheel = f"ge_py_pass_bridge-*-{python_tag}-{python_tag}-*.whl"
-    return (
-        "No matching GE Python pass native artifact was found for runtime "
-        f"python tag '{python_tag}', platform '{platform_tag}', "
-        f"bridge ABI {BRIDGE_ABI_VERSION}. "
-        f"Searched artifact root: {artifacts_root()}. "
-        f"Discovered valid artifacts: {discovered_text}. "
-        "Please install the native artifact wheel that matches this Python "
-        f"runtime, for example '{expected_wheel}', or reinstall the CANN run "
-        "package that contains the matching ge_py_pass_bridge wheel."
-    )
-
-
-_native = sys.modules.get(NATIVE_MODULE_NAME)
-if _native is None:
-    _artifact = find_prebuilt_artifact()
-    if _artifact is None:
-        raise ImportError(_format_missing_artifact_error())
-    _native = load_native_module(_artifact.native_path)
+_native = ensure_native_module()
 
 MatchResult = _native.MatchResult
 PassContext = _native.PassContext

@@ -243,6 +243,7 @@ struct AddrSemantic {
   uint64_t byte_size{0U};
   uint64_t custom_value{0U};
   uint32_t event_id{0U};
+  std::optional<size_t> const_index;
   int64_t compile_state_io_addr_offset{0};
   bool is_reused_from_upstream{false};
   std::optional<std::vector<int64_t>> shape_info;

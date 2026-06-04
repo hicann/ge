@@ -275,10 +275,11 @@ void DSATaskCodeBuilder::RenderHbmArgsCopy(const VarRef &sqe_var, std::vector<Bo
       ast_.StaticCast("uint32_t", ast_.Sizeof("rtStarsDsaSqe_t")),
       stream_list_[static_cast<int>(header_.stream_id)],
       dump_flag_var})));
-  items.emplace_back(ChkStatus(TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(
-      ast_, header_, hbm_entry_.has_value() ? &(*hbm_entry_) : nullptr, input_addrs_, output_addrs_, workspace_addrs_,
-      ModelTaskType::MODEL_TASK_DSA, stream_list_[static_cast<int64_t>(header_.stream_id)], model_id_, instance_handle_,
-      args_table_, false, true)));
+  (void)TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(
+      ast_, items, "op" + std::to_string(header_.op_index) + "_dsa", header_,
+      hbm_entry_.has_value() ? &(*hbm_entry_) : nullptr, input_addrs_, output_addrs_, workspace_addrs_,
+      ModelTaskType::MODEL_TASK_DSA, stream_list_[static_cast<int64_t>(header_.stream_id)], model_id_,
+      instance_handle_, args_table_, false, true);
 }
 
 Status DSATaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
@@ -286,36 +287,37 @@ Status DSATaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
                                + " ==============================="));
 
   for (auto &addr : input_addrs_) {
-    if (!addr.is_reused_from_upstream) {
-      GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] DSA input tensor info is required for %s.",
-                     addr.symbol_hint.c_str());
-      const auto &tensor_info = *addr.tensor_info;
-      const std::string shape_var_name = addr.symbol_hint + "_shape";
-      items.push_back(
-          ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-      items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
-          GetAddr(total_dev_mem_ptr_, addr.mem_offset),
-          ast_.ULong(tensor_info.size),
-          tensor_info.data_type,
-          tensor_info.format,
-          ast_.Var("std::vector<int64_t>", shape_var_name)})));
-    }
+    GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] DSA input tensor info is required for %s.",
+                   addr.symbol_hint.c_str());
+    const auto &tensor_info = *addr.tensor_info;
+    const std::string shape_var_name = addr.symbol_hint + "_shape";
+    items.push_back(
+        ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+    const auto device_addr = (addr.kind == AddrValueKind::kConstTensor && addr.const_index.has_value())
+                                 ? Arg(constants_[static_cast<int64_t>(*addr.const_index)])
+                                 : Arg(GetAddr(total_dev_mem_ptr_, addr.mem_offset));
+    items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
+        device_addr,
+        ast_.ULong(tensor_info.size),
+        tensor_info.data_type,
+        tensor_info.format,
+        ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
+        ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
   }
   for (auto &addr : output_addrs_) {
-    if (!addr.is_reused_from_upstream) {
-      GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] DSA output tensor info is required for %s.",
-                     addr.symbol_hint.c_str());
-      const auto &tensor_info = *addr.tensor_info;
-      const std::string shape_var_name = addr.symbol_hint + "_shape";
-      items.push_back(
-          ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-      items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
-          GetAddr(total_dev_mem_ptr_, addr.mem_offset),
-          ast_.ULong(tensor_info.size),
-          tensor_info.data_type,
-          tensor_info.format,
-          ast_.Var("std::vector<int64_t>", shape_var_name)})));
-    }
+    GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] DSA output tensor info is required for %s.",
+                   addr.symbol_hint.c_str());
+    const auto &tensor_info = *addr.tensor_info;
+    const std::string shape_var_name = addr.symbol_hint + "_shape";
+    items.push_back(
+        ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+    items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
+        GetAddr(total_dev_mem_ptr_, addr.mem_offset),
+        ast_.ULong(tensor_info.size),
+        tensor_info.data_type,
+        tensor_info.format,
+        ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
+        ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
   }
   for (auto &addr : workspace_addrs_) {
     if (!addr.is_reused_from_upstream) {

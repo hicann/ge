@@ -1799,7 +1799,9 @@ TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_AppRefreshable) {
   graph_node->SetCompiledFlag(true);
   graph_node->SetAppRefreshFeatureMemoryFlag();
   std::vector<gert::Tensor> outputs_empty;
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, nullptr, outputs_empty), SUCCESS);
+  uint32_t model_id = 1;
+  aclrtStream stream = reinterpret_cast<aclrtStream>(1);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs_empty), SUCCESS);
 }
 
 TEST_F(UtestModelManagerModelManager, MallocConstMemory_AppRefreshable) {
@@ -2156,6 +2158,7 @@ TEST_F(UtestModelManagerModelManager, test_execute_model3) {
 
   EXPECT_NE(mm.ExecuteModelWithStreamAsync(model_id, graph_node, gert_input_tensor,
     gert_output_tensor, stream), SUCCESS);
+  ExternalAllocatorManager::DeleteExternalAllocator(stream);
 }
 
 TEST_F(UtestModelManagerModelManager, CalcTensorSizeByShape_string) {
@@ -2206,14 +2209,18 @@ TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_success) {
   output.ClearData();
   outputs.emplace_back(std::move(output));
 
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, external_allocator, outputs), SUCCESS);
+  uint32_t model_id = 1;
+  aclrtStream stream = reinterpret_cast<aclrtStream>(1);
+  ExternalAllocatorManager::SetExternalAllocator(stream, external_allocator);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs), SUCCESS);
   EXPECT_NE(outputs[0].GetData().GetSize(), 0);
 
   uint8_t mem = 0;
   const AlignedPtr::Deleter deleter = [](const uint8_t *const ptr){ (void)ptr; };
   outputs[0].SetData(static_cast<uint8_t *>(&mem), 10, deleter);
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, external_allocator, outputs), SUCCESS);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs), SUCCESS);
   EXPECT_EQ(outputs[0].GetData().GetSize(), 10);
+  ExternalAllocatorManager::DeleteExternalAllocator(stream);
 }
 
 TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_outputs_empty_success) {
@@ -2232,8 +2239,12 @@ TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_outputs_empty_success)
   graph_manager.executor_ = &executor;
   std::vector<GeTensor> outputs;
 
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, external_allocator, outputs), SUCCESS);
+  uint32_t model_id = 1;
+  aclrtStream stream = reinterpret_cast<aclrtStream>(1);
+  ExternalAllocatorManager::SetExternalAllocator(stream, external_allocator);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs), SUCCESS);
   EXPECT_NE(outputs[0].GetData().GetSize(), 0);
+  ExternalAllocatorManager::DeleteExternalAllocator(stream);
 }
 
 TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_success_with_gertTensor) {
@@ -2259,14 +2270,18 @@ TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_success_with_gertTenso
                              ge::DT_FLOAT,                              // data type
                              (void *) output_data_1.data()};
 
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, external_allocator, outputs), SUCCESS);
+  uint32_t model_id = 1;
+  aclrtStream stream = reinterpret_cast<aclrtStream>(1);
+  ExternalAllocatorManager::SetExternalAllocator(stream, external_allocator);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs), SUCCESS);
   EXPECT_EQ(outputs[0].GetSize(), 96);
   std::vector<gert::Tensor> outputs_empty;
   outputs_empty.resize(1);
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, external_allocator, outputs_empty), SUCCESS);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs_empty), SUCCESS);
   EXPECT_EQ(outputs[0].GetSize(), 96);
   graph_node->SetAppRefreshFeatureMemoryFlag();
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, external_allocator, outputs_empty), SUCCESS);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs_empty), SUCCESS);
+  ExternalAllocatorManager::DeleteExternalAllocator(stream);
 }
 
 TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_outputs_empty_success_with_gertTensor) {
@@ -2285,8 +2300,12 @@ TEST_F(UtestModelManagerModelManager, MallocOutputsMemory_outputs_empty_success_
   graph_manager.executor_ = &executor;
   std::vector<gert::Tensor> outputs = {};
 
-  EXPECT_EQ(MallocOutputsMemory(graph_id, graph_node, external_allocator, outputs), SUCCESS);
+  uint32_t model_id = 1;
+  aclrtStream stream = reinterpret_cast<aclrtStream>(1);
+  ExternalAllocatorManager::SetExternalAllocator(stream, external_allocator);
+  EXPECT_EQ(ModelManager::GetInstance().MallocOutputsMemory(graph_id, graph_node, model_id, stream, outputs), SUCCESS);
   EXPECT_NE(outputs[0].GetSize(), 0);
+  ExternalAllocatorManager::DeleteExternalAllocator(stream);
 }
 
 TEST_F(UtestModelManagerModelManager, test_CreateGertTensor) {
@@ -2537,4 +2556,29 @@ TEST_F(UtestModelManagerModelManager, ReadDumpDebugJsonFile_success) {
   EXPECT_EQ(json_result, expected_content);
   remove(test_file.c_str());
 }
+
+TEST_F(UtestModelManagerModelManager, GetOutputAllocator_external_allocator_found) {
+  std::shared_ptr<Allocator> external_allocator = MakeShared<ExternalAllocatorUtStub>();
+  aclrtStream stream = reinterpret_cast<aclrtStream>(0x1);
+  ExternalAllocatorManager::SetExternalAllocator(stream, external_allocator);
+
+  uint32_t model_id = 1;
+  ge::Allocator *allocator_ptr = nullptr;
+  EXPECT_EQ(ModelManager::GetInstance().GetOutputAllocator(model_id, stream, allocator_ptr), SUCCESS);
+  EXPECT_EQ(allocator_ptr, external_allocator.get());
+  ExternalAllocatorManager::DeleteExternalAllocator(stream);
+}
+
+
+TEST_F(UtestModelManagerModelManager, DeleteModel_erases_model_built_allocator) {
+  ModelManager mm;
+  uint32_t model_id = 42;
+  mm.model_built_allocator_[model_id];
+  EXPECT_TRUE(mm.model_built_allocator_.find(model_id) != mm.model_built_allocator_.end());
+  auto hybrid_model = std::make_shared<hybrid::HybridDavinciModel>();
+  mm.hybrid_model_map_[model_id] = hybrid_model;
+  mm.DeleteModel(model_id);
+  EXPECT_TRUE(mm.model_built_allocator_.find(model_id) == mm.model_built_allocator_.end());
+}
+
 }  // namespace ge

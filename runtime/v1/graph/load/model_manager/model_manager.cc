@@ -137,13 +137,31 @@ int32_t GetGraphMaxParallelModelNum() {
   return max_num;
 }
 
-Status MallocOutputMemBlock(const GraphId &graph_id, const AllocatorPtr &external_allocator,
+Status CreateHbmManager(void *block, gert::TensorOperateType operate_type, void **out) {
+  GE_ASSERT_NOTNULL(block);
+  auto mem_block = reinterpret_cast<ge::MemBlock *>(block);
+  GE_ASSERT((operate_type == gert::kGetTensorAddress || operate_type == gert::kFreeTensor ||
+    operate_type == gert::kPlusShareCount), "Unexpected operate type %d", static_cast<int32_t>(operate_type));
+  if (operate_type == gert::kGetTensorAddress) {
+    GE_ASSERT_NOTNULL(out);
+    *out = mem_block->GetAddr();
+  }
+  if (operate_type == gert::kFreeTensor) {
+    mem_block->Free();
+  }
+  if (operate_type == gert::kPlusShareCount) {
+    mem_block->AddCount();
+  }
+  return SUCCESS;
+}
+
+Status MallocOutputMemBlock(const GraphId &graph_id, ge::Allocator *allocator,
                             const size_t tensor_size, ge::MemBlock *&mem_block) {
-  mem_block = external_allocator->Malloc(tensor_size);
-  GE_ASSERT((mem_block != nullptr), "malloc output memory failed by external allocator, graph_id:%u.", graph_id);
+  mem_block = allocator->Malloc(tensor_size);
+  GE_ASSERT((mem_block != nullptr), "malloc output memory failed by allocator, graph_id:%u.", graph_id);
   GE_ASSERT((mem_block->GetAddr() != nullptr),
-            "malloc output memory failed by external allocator, output memory addr is null, graph_id:%u.", graph_id);
-  GELOGI("Alloc output memory success by external allocator, mem_block:%p, addr:%p, size:%zu.", mem_block,
+            "malloc output memory failed by allocator, output memory addr is null, graph_id:%u.", graph_id);
+  GELOGI("Alloc output memory success by allocator, mem_block:%p, addr:%p, size:%zu.", mem_block,
          mem_block->GetAddr(), tensor_size);
   return SUCCESS;
 }
@@ -151,7 +169,7 @@ Status MallocOutputMemBlock(const GraphId &graph_id, const AllocatorPtr &externa
 Status BindOutputMemBlock(const size_t tensor_size, ge::MemBlock *const mem_block, GeTensor &ge_tensor) {
   const auto deleter = [mem_block](const uint8_t *device_data) {
     (void)device_data;
-    GELOGI("Free output memory which alloc by external allocator, mem_block:%p, addr:%p.", mem_block,
+    GELOGI("Free output memory which alloc by allocator, mem_block:%p, addr:%p.", mem_block,
            mem_block->GetAddr());
     mem_block->Free();
   };
@@ -160,12 +178,12 @@ Status BindOutputMemBlock(const size_t tensor_size, ge::MemBlock *const mem_bloc
   return SUCCESS;
 }
 }  // namespace
-
 Status SetNetOutputTensorInfo(const GraphId &graph_id, const GraphNodePtr &graph_node) {
   if (graph_node->IsSavedNetOutputTensorInfoFlag()) {
     return SUCCESS;
   }
   auto compute_graph = graph_node->GetComputeGraph();
+  GE_ASSERT_NOTNULL(compute_graph, "compute graph is null, graph_id:%u.", graph_id);
   auto net_output_node = compute_graph->FindFirstNodeMatchType(NETOUTPUT);
   GE_ASSERT_NOTNULL(net_output_node, "netoutput node null, graph_id:%u.", graph_id);
 
@@ -178,6 +196,29 @@ Status SetNetOutputTensorInfo(const GraphId &graph_id, const GraphNodePtr &graph
     graph_node->SetGeTensorDescPtr(ge_tensor_desc);
   }
   graph_node->SetSavedNetOutputTensorInfoFlag(true);
+  return SUCCESS;
+}
+
+Status ModelManager::GetOutputAllocator(const uint32_t model_id, const aclrtStream stream,
+                                          ge::Allocator *&allocator_ptr) {
+  AllocatorPtr allocator = ExternalAllocatorManager::GetExternalAllocator(stream);
+  if (allocator != nullptr) {
+    GELOGI("Get external allocator for outputs, stream:%p, model_id:%u.", stream, model_id);
+    allocator_ptr = allocator.get();
+    return SUCCESS;
+  }
+  const std::lock_guard<std::recursive_mutex> lk(map_mutex_);
+  auto iter = model_built_allocator_.find(model_id);
+  if (iter == model_built_allocator_.end()) {
+    iter = model_built_allocator_.try_emplace(model_id).first;
+  }
+  auto *allocators = iter->second.GetAllocator("", stream);
+  GE_ASSERT_NOTNULL(allocators, "get built-in allocator failed, model_id:%u.", model_id);
+  auto *device_allocator = allocators->GetAllocator(gert::kOnDeviceHbm,
+                                                  static_cast<size_t>(gert::AllocatorUsage::kAllocNodeOutput));
+  GE_ASSERT_NOTNULL(device_allocator, "get device allocator failed, model_id:%u.", model_id);
+  GELOGI("Get built-in allocator for outputs, stream:%p, model_id:%u.", stream, model_id);
+  allocator_ptr = device_allocator;
   return SUCCESS;
 }
 
@@ -314,106 +355,93 @@ Status CreateGertTensor(const GeTensorDescPtr ge_tensor_desc, gert::Tensor &gert
   return SUCCESS;
 }
 
-Status MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
-                           const AllocatorPtr external_allocator, std::vector<gert::Tensor> &outputs) {
-  // If the app is set, do not use external allocator
+Status ModelManager::EnsureTensorInfo(const GraphId &graph_id, const GraphNodePtr &graph_node,
+                                      const uint32_t model_id, const aclrtStream stream,
+                                      ModelOutputTensorInfo &info) {
+  GE_ASSERT_SUCCESS(SetNetOutputTensorInfo(graph_id, graph_node));
+  info.ret_tensor_size = graph_node->GetTensorSize();
+  info.ge_tensor_descs = graph_node->GetGeTensorDescPtr();
+  GE_ASSERT((info.ret_tensor_size.size() == info.ge_tensor_descs.size()), "tensor info invalid, graph_id:%u.", graph_id);
+  GE_ASSERT_SUCCESS(GetOutputAllocator(model_id, stream, info.allocator_ptr));
+  return SUCCESS;
+}
+
+Status ModelManager::MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
+                                          const uint32_t model_id, const aclrtStream stream,
+                                          std::vector<gert::Tensor> &outputs) {
   if (graph_node->IsAppRefreshFeatureMemory() || graph_node->IsAppRefreshConstMemory()) {
     GELOGI("Outputs memory base has been set by app, graph_id:%u.", graph_id);
     return SUCCESS;
   }
-  GE_ASSERT_SUCCESS(SetNetOutputTensorInfo(graph_id, graph_node));
-  auto ret_tensor_size = graph_node->GetTensorSize();
-  auto ge_tensor_descs = graph_node->GetGeTensorDescPtr();
-  GE_ASSERT((ret_tensor_size.size() == ge_tensor_descs.size()), "tensor info invalid, graph_id:%u.", graph_id);
-  auto HbmManager = [](void *block, gert::TensorOperateType operate_type, void **out) -> ge::graphStatus {
-    GE_ASSERT_NOTNULL(block);
-    auto mem_block = reinterpret_cast<ge::MemBlock *>(block);
-    GE_ASSERT((operate_type == gert::kGetTensorAddress || operate_type == gert::kFreeTensor ||
-      operate_type == gert::kPlusShareCount), "Unexpected operate type %d", static_cast<int32_t>(operate_type));
-    if (operate_type == gert::kGetTensorAddress) {
-      GE_ASSERT_NOTNULL(out);
-      *out = mem_block->GetAddr();
-    }
-    if (operate_type == gert::kFreeTensor) {
-      mem_block->Free();
-    }
-    if (operate_type == gert::kPlusShareCount) {
-      mem_block->AddCount();
-    }
-    return ge::GRAPH_SUCCESS;
-  };
-  // the outputs is empty
-  if (outputs.size() == 0U) {
-    outputs.resize(ge_tensor_descs.size());
-    for (size_t i = 0UL; i < ge_tensor_descs.size(); i++) {
-      auto &gert_tensor = outputs[i];
-      CreateGertTensor(ge_tensor_descs[i], gert_tensor);
-      auto mem_block = external_allocator->Malloc(ret_tensor_size[i]);
-      GE_ASSERT((mem_block != nullptr), "malloc output memory failed by external allocator, graph_id:%u.", graph_id);
-      GE_ASSERT((mem_block->GetAddr() != nullptr),
-        "malloc output memory failed by external allocator, output memory addr is null, graph_id:%u.", graph_id);
-      gert_tensor.SetData(gert::TensorData{mem_block, HbmManager, mem_block->GetSize(), gert_tensor.GetPlacement()});
-      GELOGI("Alloc output memory success by external allocator, mem_block:%p, addr:%p, size:%u.", mem_block,
-              mem_block->GetAddr(), ret_tensor_size[i]);
-    }
-    return SUCCESS;
-  }
 
-  GE_ASSERT((ret_tensor_size.size() == outputs.size()), "tensor info invalid, graph_id:%u.", graph_id);
-  // just device memory don't alloc
+  ModelOutputTensorInfo info;
+  bool ensure_tensor_info_initialized = false;
+  auto EnsureInfo = [&]() -> Status {
+    if (ensure_tensor_info_initialized) { return SUCCESS; }
+    GE_ASSERT_SUCCESS(EnsureTensorInfo(graph_id, graph_node, model_id, stream, info));
+    ensure_tensor_info_initialized = true;
+    return SUCCESS;
+  };
+  // outputs empty, create tensor objects without allocating memory
+  if (outputs.size() == 0U) {
+    GE_ASSERT_SUCCESS(EnsureInfo());
+    outputs.resize(info.ge_tensor_descs.size());
+    for (size_t i = 0UL; i < info.ge_tensor_descs.size(); i++) {
+      CreateGertTensor(info.ge_tensor_descs[i], outputs[i]);
+    }
+  }
+  // check each output, skip if already has memory, allocate if not
   for (size_t i = 0UL; i < outputs.size(); i++) {
-    if (outputs[i].GetSize() != 0 && outputs[i].GetAddr() != nullptr) {
-      continue;
-    }
-    // for outputs not init
+    if (outputs[i].GetSize() != 0 && outputs[i].GetAddr() != nullptr) { continue; }
+    GE_ASSERT_SUCCESS(EnsureInfo());
+    GE_ASSERT((info.ret_tensor_size.size() == outputs.size()), "tensor info invalid, graph_id:%u.", graph_id);
+
     if (outputs[i].GetFormat().GetOriginFormat() == FORMAT_RESERVED) {
-      auto &gert_tensor = outputs[i];
-      CreateGertTensor(ge_tensor_descs[i], gert_tensor);
+      CreateGertTensor(info.ge_tensor_descs[i], outputs[i]);
     }
-    auto mem_block = external_allocator->Malloc(ret_tensor_size[i]);
-    GE_ASSERT((mem_block != nullptr), "malloc output memory failed by external allocator, graph_id:%u.", graph_id);
+    auto mem_block = info.allocator_ptr->Malloc(info.ret_tensor_size[i]);
+    GE_ASSERT((mem_block != nullptr), "malloc output memory failed by allocator, graph_id:%u.", graph_id);
     GE_ASSERT((mem_block->GetAddr() != nullptr),
-        "malloc output memory failed by external allocator, output memory addr is null, graph_id:%u.", graph_id);
-    outputs[i].SetData(gert::TensorData{mem_block, HbmManager, mem_block->GetSize(), gert::kOnDeviceHbm});
-    GELOGI("Alloc output memory success by external allocator, mem_block:%p, addr:%p, size:%u.", mem_block,
-           mem_block->GetAddr(), ret_tensor_size[i]);
+        "malloc output memory failed by allocator, output memory addr is null, graph_id:%u.", graph_id);
+    outputs[i].SetData(gert::TensorData{mem_block, CreateHbmManager, mem_block->GetSize(), outputs[i].GetPlacement()});
+    GELOGI("Alloc output memory success by allocator, mem_block:%p, addr:%p, size:%u.", mem_block,
+            mem_block->GetAddr(), info.ret_tensor_size[i]);
   }
   return SUCCESS;
 }
 
-Status MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
-                           const AllocatorPtr external_allocator, std::vector<GeTensor> &outputs) {
-  // If the app is set, do not use external allocator
+Status ModelManager::MallocOutputsMemory(const GraphId &graph_id, const GraphNodePtr &graph_node,
+                                          const uint32_t model_id, const aclrtStream stream,
+                                          std::vector<GeTensor> &outputs) {
   if (graph_node->IsAppRefreshFeatureMemory() || graph_node->IsAppRefreshConstMemory()) {
     GELOGI("Outputs memory base has been set by app, graph_id:%u.", graph_id);
     return SUCCESS;
   }
-  GE_ASSERT_SUCCESS(SetNetOutputTensorInfo(graph_id, graph_node));
-  auto ret_tensor_size = graph_node->GetTensorSize();
-  auto ge_tensor_descs = graph_node->GetGeTensorDescPtr();
-  GE_ASSERT((ret_tensor_size.size() == ge_tensor_descs.size()), "tensor info invalid, graph_id:%u.", graph_id);
 
-  // the outputs is empty
-  if (outputs.size() == 0U) {
-    for (size_t i = 0UL; i < ge_tensor_descs.size(); i++) {
-      GeTensor ge_tensor(*(ge_tensor_descs[i]));
-      ge::MemBlock *mem_block = nullptr;
-      GE_ASSERT_SUCCESS(MallocOutputMemBlock(graph_id, external_allocator, ret_tensor_size[i], mem_block));
-      GE_ASSERT_SUCCESS(BindOutputMemBlock(ret_tensor_size[i], mem_block, ge_tensor));
-      outputs.emplace_back(std::move(ge_tensor));
-    }
+  ModelOutputTensorInfo info;
+  bool tensor_info_initialized = false;
+  auto EnsureInfo = [&]() -> Status {
+    if (tensor_info_initialized) { return SUCCESS; }
+    GE_ASSERT_SUCCESS(EnsureTensorInfo(graph_id, graph_node, model_id, stream, info));
+    tensor_info_initialized = true;
     return SUCCESS;
-  }
-
-  GE_ASSERT((ret_tensor_size.size() == outputs.size()), "tensor info invalid, graph_id:%u.", graph_id);
-  // just device memory don't alloc
-  for (size_t i = 0UL; i < outputs.size(); i++) {
-    if (outputs[i].GetData().GetSize() != 0) {
-      continue;
+  };
+  // outputs empty, create tensor objects without allocating memory
+  if (outputs.size() == 0U) {
+    GE_ASSERT_SUCCESS(EnsureInfo());
+    for (size_t i = 0UL; i < info.ge_tensor_descs.size(); i++) {
+      outputs.emplace_back(GeTensor(*(info.ge_tensor_descs[i])));
     }
+  }
+  // check each output, skip if already has memory, allocate if not
+  for (size_t i = 0UL; i < outputs.size(); i++) {
+    if (outputs[i].GetData().GetSize() != 0) { continue; }
+    GE_ASSERT_SUCCESS(EnsureInfo());
+
+    GE_ASSERT((info.ret_tensor_size.size() == outputs.size()), "tensor info invalid, graph_id:%u.", graph_id);
     ge::MemBlock *mem_block = nullptr;
-    GE_ASSERT_SUCCESS(MallocOutputMemBlock(graph_id, external_allocator, ret_tensor_size[i], mem_block));
-    GE_ASSERT_SUCCESS(BindOutputMemBlock(ret_tensor_size[i], mem_block, outputs[i]));
+    GE_ASSERT_SUCCESS(MallocOutputMemBlock(graph_id, info.allocator_ptr, info.ret_tensor_size[i], mem_block));
+    GE_ASSERT_SUCCESS(BindOutputMemBlock(info.ret_tensor_size[i], mem_block, outputs[i]));
   }
   return SUCCESS;
 }
@@ -828,6 +856,7 @@ Status ModelManager::DeleteModel(const uint32_t id) {
       (void)model_aicpu_kernel_.erase(model_key);
       davinci_model_delay_destruction = it->second;
       (void)model_map_.erase(it);
+      (void)model_built_allocator_.erase(id);
       return SUCCESS;
     }
 
@@ -835,6 +864,7 @@ Status ModelManager::DeleteModel(const uint32_t id) {
     if (hybrid_model_it != hybrid_model_map_.end()) {
       hybrid_davinci_model_delay_destruction = hybrid_model_it->second;
       (void)hybrid_model_map_.erase(hybrid_model_it);
+      (void)model_built_allocator_.erase(id);
     } else {
       REPORT_INNER_ERR_MSG("E19999", "model_id:%u does not exist in model_map, check invalid", id);
       GELOGE(ACL_ERROR_GE_EXEC_MODEL_ID_INVALID, "model id %u does not exist.", id);
@@ -1858,15 +1888,13 @@ Status ModelManager::ExecuteModelWithStreamAsync(const uint32_t model_id, const 
   if (external_allocator != nullptr) {
     is_refreshable = graph_node->IsFeatureBaseRefreshable();
     if (is_refreshable) {
-      // malloc feature memory by external allocator
       GE_ASSERT_SUCCESS(
           MallocFeatureMemory(graph_node->GetGraphId(), model_id, graph_node, external_allocator),
           "malloc feature memory failed, graph_id:%u.", graph_node->GetGraphId());
     }
-    // malloc outputs memory by external allocator
-    GE_ASSERT_SUCCESS(MallocOutputsMemory(graph_node->GetGraphId(), graph_node, external_allocator, output_tensor),
-                      "malloc outputs memory failed, graph_id:%u.", graph_node->GetGraphId());
   }
+  GE_ASSERT_SUCCESS(MallocOutputsMemory(graph_node->GetGraphId(), graph_node, model_id, stream, output_tensor),
+                    "malloc outputs memory failed, graph_id:%u.", graph_node->GetGraphId());
   // ExecuteModelWithStreamAsync: static model use default
   Status result = ExecuteModel(model_id, stream, true, input_tensor, output_tensor);
   if (is_refreshable) {
@@ -1889,14 +1917,12 @@ Status ModelManager::ExecuteModelWithStreamAsync(const uint32_t model_id, const 
   if (external_allocator != nullptr) {
     is_refreshable = graph_node->IsFeatureBaseRefreshable();
     if (is_refreshable) {
-      // malloc feature memory by external allocator
       GE_ASSERT_SUCCESS(MallocFeatureMemory(graph_node->GetGraphId(), model_id, graph_node, external_allocator),
                         "malloc feature memory failed, graph_id:%u.", graph_node->GetGraphId());
     }
-    // malloc outputs memory by external allocator
-    GE_ASSERT_SUCCESS(MallocOutputsMemory(graph_node->GetGraphId(), graph_node, external_allocator, output_tensor),
-                      "malloc outputs memory failed, graph_id:%u.", graph_node->GetGraphId());
   }
+  GE_ASSERT_SUCCESS(MallocOutputsMemory(graph_node->GetGraphId(), graph_node, model_id, stream, output_tensor),
+                    "malloc outputs memory failed, graph_id:%u.", graph_node->GetGraphId());
 
   Status result = ExecuteModelWithStream(model_id, stream, true, input_tensor, output_tensor);
   if (is_refreshable) {
@@ -2930,7 +2956,7 @@ Status ModelManager::ExternalAllocatorMalloc(const GraphId graph_id, const uint3
 }
 
 Status ModelManager::InitOpMasterDeviceSo(const uint32_t &model_id, const GeRootModelPtr &ge_root_model) {
-  GE_ASSERT_SUCCESS(ge_root_model->CheckAndSetNeedSoInOM());
+  GE_ASSERT_SUCCESS(ge_root_model->CheckAndSetNeedOpMasterDeviceSo());
   GELOGI("so in om flag:0x%x", ge_root_model->GetSoInOmFlag());
   if (!OpSoStoreUtils::IsSoBinType(ge_root_model->GetSoInOmFlag(), SoBinType::kOpMasterDevice)) {
     return SUCCESS;
@@ -3027,4 +3053,25 @@ Status ModelManager::FreeWeightsMem(const std::string &weights_mem_id, const uin
   }
   return SUCCESS;
 }
+
+Status ModelManager::SetModelStreamPriority(const uint32_t model_id, const uint32_t priority) {
+  std::lock_guard<std::recursive_mutex> lock(map_mutex_);
+  auto it = model_map_.find(model_id);
+  if (it == model_map_.end()) {
+    GELOGE(ACL_ERROR_GE_EXEC_MODEL_ID_INVALID, "[SetModelStreamPriority] Model not found, model_id=%u", model_id);
+    return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
+  }
+  return it->second->SetStreamPriority(priority);
+}
+
+Status ModelManager::GetModelStreamPriority(const uint32_t model_id, uint32_t &priority) {
+  std::lock_guard<std::recursive_mutex> lock(map_mutex_);
+  auto it = model_map_.find(model_id);
+  if (it == model_map_.end()) {
+    GELOGE(ACL_ERROR_GE_EXEC_MODEL_ID_INVALID, "[GetModelStreamPriority] Model not found, model_id=%u", model_id);
+    return ACL_ERROR_GE_EXEC_MODEL_ID_INVALID;
+  }
+  return it->second->GetStreamPriority(priority);
+}
+
 }  // namespace ge

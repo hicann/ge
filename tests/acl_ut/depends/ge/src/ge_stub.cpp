@@ -253,6 +253,20 @@ Status aclStub::GetDynamicBatchInfo(uint32_t model_id, std::vector<std::vector<i
     return SUCCESS;
 }
 
+Status aclStub::SetModelStreamPriority(uint32_t model_id, uint32_t priority)
+{
+    (void)model_id;
+    (void)priority;
+    return FAILED;
+}
+
+Status aclStub::GetModelStreamPriority(uint32_t model_id, uint32_t &priority)
+{
+    (void)model_id;
+    (void)priority;
+    return FAILED;
+}
+
 Status aclStub::LoadModelFromData(uint32_t &model_id, const ModelData &modelData,
                                 void *dev_ptr, size_t memsize, void *weight_ptr, size_t weightsize)
 {
@@ -653,6 +667,14 @@ MockFunctionTest& MockFunctionTest::aclStubInstance()
 };
 
 void  MockFunctionTest::ResetToDefaultMock() {
+    ON_CALL(*this, SetModelStreamPriority)
+        .WillByDefault([this](uint32_t model_id, uint32_t priority) {
+            return this->aclStub::SetModelStreamPriority(model_id, priority);
+        });
+    ON_CALL(*this, GetModelStreamPriority)
+        .WillByDefault([this](uint32_t model_id, uint32_t &priority) {
+            return this->aclStub::GetModelStreamPriority(model_id, priority);
+        });
 }
 
 namespace ge {
@@ -918,6 +940,16 @@ std::map<string, AnyValue> g_geAttrMap;
                                            int32_t &dynamic_type)
     {
         return MockFunctionTest::aclStubInstance().GetDynamicBatchInfo(model_id, batch_info, dynamic_type);
+    }
+
+    Status GeExecutor::SetModelStreamPriority(uint32_t model_id, uint32_t priority)
+    {
+        return MockFunctionTest::aclStubInstance().SetModelStreamPriority(model_id, priority);
+    }
+
+    Status GeExecutor::GetModelStreamPriority(uint32_t model_id, uint32_t &priority)
+    {
+        return MockFunctionTest::aclStubInstance().GetModelStreamPriority(model_id, priority);
     }
 
     Status GeExecutor::GetCombinedDynamicDims(uint32_t model_id, vector<vector<int64_t>> &batch_info)
@@ -2429,8 +2461,8 @@ namespace gert {
         (void)outputs;
         return ge::GRAPH_SUCCESS;
     }
-    ge::Status Om2ModelExecutor::GetModelDescInfo(std::vector<ge::Om2TensorDesc> &input_desc,
-                                                  std::vector<ge::Om2TensorDesc> &output_desc,
+    ge::Status Om2ModelExecutor::GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
+                                                  const std::vector<ge::Om2TensorDesc> *&output_desc,
                                                   bool new_model_desc) const {
 
       return MockFunctionTest::aclStubInstance().GetModelDescInfo(input_desc, output_desc, new_model_desc);

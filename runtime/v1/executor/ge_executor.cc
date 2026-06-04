@@ -945,6 +945,14 @@ Status GeExecutor::CommandHandle(const Command &command) const {
   return SUCCESS;
 }
 
+Status GeExecutor::SetModelStreamPriority(const uint32_t model_id, const uint32_t priority) {
+  return ModelManager::GetInstance().SetModelStreamPriority(model_id, priority);
+}
+
+Status GeExecutor::GetModelStreamPriority(const uint32_t model_id, uint32_t &priority) {
+  return ModelManager::GetInstance().GetModelStreamPriority(model_id, priority);
+}
+
 Status GeExecutor::GetMaxUsedMemory(const uint32_t model_id, uint32_t &max_size) {
   GELOGI("Get max used memory begin.");
   if (!is_inited_) {

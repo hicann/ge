@@ -537,15 +537,17 @@ TEST_F(UtestInnerSession, CopyGeOutputsMemToUserOutputs_test) {
   ge_tensor.SetData(mem1, size1, deleter);
   ge_outputs.emplace_back(std::move(ge_tensor));
 
-  CopyGeOutputsMemToUserOutputs(&stream, ge_outputs, outputs);
-  EXPECT_EQ(outputs.size(), 0);
+  CopyGeOutputsMemToUserOutputs(ge_outputs, outputs);
+  EXPECT_EQ(outputs.size(), 1);
+  EXPECT_EQ(outputs[0].GetData(), mem1);
 
   EXPECT_EQ(inner_session.RegisterExternalAllocator(&stream, external_allocator), SUCCESS);
   EXPECT_EQ(ExternalAllocatorManager::GetExternalAllocator(&stream), external_allocator);
 
-  CopyGeOutputsMemToUserOutputs(&stream, ge_outputs, outputs);
-  EXPECT_EQ(outputs.size(), 1);
-  EXPECT_EQ(outputs[0].GetData(), mem1);
+  std::vector<ge::Tensor> outputs2;
+  CopyGeOutputsMemToUserOutputs(ge_outputs, outputs2);
+  EXPECT_EQ(outputs2.size(), 1);
+  EXPECT_EQ(outputs2[0].GetData(), mem1);
 }
 
 TEST_F(UtestInnerSession, PaRemapped_Match) {
@@ -769,6 +771,7 @@ TEST_F(UtestInnerSession, ForkAndLoadGraph_SUCCESS) {
   inputs.emplace_back(tensor2);
 
   std::map<std::string, std::string> options;
+  options[ge::SOC_VERSION] = "Ascend910B";
   EXPECT_EQ(GEInitialize(options), SUCCESS);
   InnerSession inner_session(0, options);
   EXPECT_EQ(inner_session.Initialize(), SUCCESS);
@@ -783,6 +786,7 @@ TEST_F(UtestInnerSession, ForkAndLoadGraph_SUCCESS) {
   EXPECT_EQ(inner_session.ForkGraph(origin_graph_id, forked_graph_id), SUCCESS);
 
   std::map<AscendString, AscendString> load_options;
+  load_options[ge::SOC_VERSION.c_str()] = "Ascend910B";
   EXPECT_NE(inner_session.LoadGraph(forked_graph_id, load_options, nullptr), SUCCESS); // mock lowering func failed
 
   // remove origin graph, fork graph will not removed together

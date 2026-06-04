@@ -163,11 +163,13 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
   op_need_print_ = Om2CodegenUtils::OpNeedPrint(context.op_desc);
   op_need_assert_or_printf_ = Om2CodegenUtils::OpNeedAssertOrPrintf(context.op_desc);
   is_soft_sync_op_ = IsAllKernelTask(semantic_) && Om2CodegenUtils::IsSoftSyncOp(context.op_desc);
-  is_separately_clean_task_ = (!IsAllKernelTask(semantic_)) &&
-                              Om2CodegenUtils::IsSeparatelyCleanTask(context.op_desc, kernel_name_);
+  is_separately_clean_task_ =
+      (!IsAllKernelTask(semantic_)) &&
+      Om2CodegenUtils::IsSeparatelyCleanTask(context.op_desc, context.task_def.kernel().kernel_name());
   is_blocking_aicpu_op_ = IsAicpuTask(semantic_) && Om2CodegenUtils::IsBlockingAicpuOp(context.op_desc);
   GE_ASSERT_SUCCESS(CheckTaskSupport());
   GE_ASSERT_SUCCESS(ResolveTaskAddrs(context));
+  AssignTaskLocalIoNames();
 
   GE_ASSERT_SUCCESS(BuildLaunchSemantic(context));
 
@@ -188,7 +190,7 @@ Status KernelTaskCodeBuilder::Contribute(TaskSemanticContributeContext &context)
 
 Status KernelTaskCodeBuilder::ResolveKernelName(const KernelTaskSemantic &semantic, const OpDescPtr &op_desc,
                                                  const domi::TaskDef &task_def, std::string &kernel_name) {
-  if (IsAicoreTask(semantic)) {
+  if (IsAllKernelTask(semantic)) {
     const auto kernel_name_ptr = AttrUtils::GetStr(op_desc, "_kernelname");
     GE_ASSERT_NOTNULL(kernel_name_ptr, "[OM2] Failed to get kernel_name from op_desc, op=%s", op_desc->GetName().c_str());
     kernel_name = *kernel_name_ptr;
@@ -253,7 +255,10 @@ Status KernelTaskCodeBuilder::BuildLaunchSemantic(const TaskSemanticContributeCo
   std::string kernel_name;
   GE_ASSERT_SUCCESS(ResolveKernelName(semantic_, context.op_desc, context.task_def, kernel_name));
   std::string func_handle_key;
-  if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
+  if (is_separately_clean_task_) {
+    (void)AttrUtils::GetStr(context.op_desc, ATOMIC_ATTR_TBE_KERNEL_NAME, func_handle_key);
+    func_handle_key += "_atomic";
+  } else if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
     func_handle_key = context.op_desc->GetType() + kernel_name;
   } else if (IsAllKernelTask(semantic_)) {
     func_handle_key = kernel_name + "#" + std::to_string(semantic_.tiling_key);
@@ -446,11 +451,6 @@ Status KernelTaskCodeBuilder::CheckTaskSupport() const {
     GELOGE(FAILED, "Unsupported scenario for static_to_dynamic_softsync_op.");
     return FAILED;
   }
-  if (is_separately_clean_task_) {
-    REPORT_INNER_ERR_MSG("E19999", "Unsupported scenario for dfx.");
-    GELOGE(FAILED, "Unsupported scenario for atomic clean task.");
-    return FAILED;
-  }
   if (is_blocking_aicpu_op_) {
     REPORT_INNER_ERR_MSG("E19999", "Unsupported scenario for dfx.");
     GELOGE(FAILED, "Unsupported scenario for blocking_op.");
@@ -479,7 +479,12 @@ Status KernelTaskCodeBuilder::AppendDistributionForAicpu(const std::vector<Arg> 
       static_cast<int64_t>(semantic_.launch.block_dim),
       stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
       cfg_holder.Attr("cfg").Addr()})));
-  items.emplace_back(ChkStatus(BuildReportLaunchedTaskCall()));
+  GE_ASSERT_SUCCESS(TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(
+      ast_, items, "op" + std::to_string(header_.op_index), header_,
+      semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
+      semantic_.input_addrs, semantic_.output_addrs, semantic_.workspace_addrs,
+      semantic_.task_type, stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
+      model_id_, instance_handle_, args_table_, /*use_args_info_size=*/true));
   return SUCCESS;
 }
 
@@ -521,7 +526,12 @@ Status KernelTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
         static_cast<int64_t>(semantic_.launch.block_dim),
         stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
         cfg_holder.Attr("cfg").Addr()})));
-    items.emplace_back(ChkStatus(BuildReportLaunchedTaskCall()));
+    GE_ASSERT_SUCCESS(TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(
+        ast_, items, "op" + std::to_string(header_.op_index), header_,
+        semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
+        semantic_.input_addrs, semantic_.output_addrs, semantic_.workspace_addrs,
+        semantic_.task_type, stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
+        model_id_, instance_handle_, args_table_, /*use_args_info_size=*/true));
   } else if (IsAicpuTask(semantic_) || IsCustAicpuTask(semantic_)) {
     GE_ASSERT_SUCCESS(AppendDistributionForAicpu(args_vars, items));
   } else {
@@ -713,17 +723,10 @@ Status KernelTaskCodeBuilder::BuildAddrGenInfoFromSemantic(const AddrSemantic &s
   switch (semantic.kind) {
     case AddrValueKind::kConstTensor:
       GE_ASSERT_TRUE(!semantic.symbol_hint.empty(), "[OM2] Const tensor symbol hint is empty.");
-      addr_gen_info.tensor_var_name = semantic.symbol_hint;
-      return SUCCESS;
+      return BuildAddrGenInfoForConstTensor(semantic, addr_gen_info);
     case AddrValueKind::kInputInstance:
     case AddrValueKind::kOutputInstance:
       GE_ASSERT_TRUE(!semantic.symbol_hint.empty(), "[OM2] Addr semantic symbol hint is empty.");
-      if (semantic.is_reused_from_upstream) {
-        if (semantic.tensor_info.has_value()) {
-          addr_gen_info.tensor_var_name = semantic.symbol_hint;
-        }
-        return SUCCESS;
-      }
       if (semantic.tensor_info.has_value()) {
         return BuildAddrGenInfoForIoTensor(semantic, addr_gen_info);
       }
@@ -763,6 +766,35 @@ Status KernelTaskCodeBuilder::BuildAddrGenInfoFromSemantic(const AddrSemantic &s
   }
 }
 
+Status KernelTaskCodeBuilder::BuildAddrGenInfoForConstTensor(const AddrSemantic &semantic,
+                                                             RenderedAddrInfo &addr_gen_info) const {
+  GE_ASSERT_TRUE(semantic.tensor_info.has_value(), "[OM2] Const tensor info is required for %s.",
+                 semantic.symbol_hint.c_str());
+  GE_ASSERT_TRUE(semantic.const_index.has_value(), "[OM2] Const index is required for %s.",
+                 semantic.symbol_hint.c_str());
+  const auto &tensor_info = *semantic.tensor_info;
+  addr_gen_info.tensor_var_name = semantic.symbol_hint;
+  std::vector<Arg> tensor_args = {
+      constants_[static_cast<int64_t>(*semantic.const_index)],
+      ast_.ULong(tensor_info.size),
+      tensor_info.data_type,
+      tensor_info.format,
+  };
+  if (tensor_info.shape_dims.empty()) {
+    tensor_args.emplace_back("nullptr");
+    tensor_args.emplace_back("0U");
+  } else {
+    const std::string shape_var_name = semantic.symbol_hint + "_shape";
+    addr_gen_info.nodes.emplace_back(ast_.VarDecl("static constexpr int64_t", shape_var_name + "[]",
+                                                  ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+    tensor_args.emplace_back(ast_.Var("const int64_t *", shape_var_name));
+    tensor_args.emplace_back(ast_.ULong(tensor_info.shape_dims.size()));
+  }
+  addr_gen_info.nodes.emplace_back(
+      ast_.VarDecl("Om2Tensor", semantic.symbol_hint, ast_.Call("BuildOm2Tensor", tensor_args)));
+  return SUCCESS;
+}
+
 Status KernelTaskCodeBuilder::BuildAddrGenInfoForInstance(const AddrSemantic &semantic,
                                                           RenderedAddrInfo &addr_gen_info) const {
   GE_ASSERT_TRUE(!semantic.symbol_hint.empty(), "[OM2] Addr semantic symbol hint is empty.");
@@ -780,19 +812,27 @@ Status KernelTaskCodeBuilder::BuildAddrGenInfoForIoTensor(const AddrSemantic &se
                                                           RenderedAddrInfo &addr_gen_info) const {
   GE_ASSERT_TRUE(semantic.tensor_info.has_value(), "[OM2] Tensor info is required for io tensor render.");
   const auto &tensor_info = *semantic.tensor_info;
-  const std::string shape_var_name = semantic.symbol_hint + "_shape";
   auto &base_ptr = (semantic.memory_type == (kSessionScopeMemoryMask | RT_MEMORY_HBM))
                        ? session_scope_mem_ptr_ : total_dev_mem_ptr_;
   addr_gen_info.tensor_var_name = semantic.symbol_hint;
+  std::vector<Arg> tensor_args = {
+      GetAddr(base_ptr, semantic.mem_offset),
+      ast_.ULong(tensor_info.size),
+      tensor_info.data_type,
+      tensor_info.format,
+  };
+  if (tensor_info.shape_dims.empty()) {
+    tensor_args.emplace_back("nullptr");
+    tensor_args.emplace_back("0U");
+  } else {
+    const std::string shape_var_name = semantic.symbol_hint + "_shape";
+    addr_gen_info.nodes.emplace_back(ast_.VarDecl("static constexpr int64_t", shape_var_name + "[]",
+                                                  ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+    tensor_args.emplace_back(ast_.Var("const int64_t *", shape_var_name));
+    tensor_args.emplace_back(ast_.ULong(tensor_info.shape_dims.size()));
+  }
   addr_gen_info.nodes.emplace_back(
-      ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-  addr_gen_info.nodes.emplace_back(
-      ast_.VarDecl("Om2Tensor", semantic.symbol_hint, ast_.Call("BuildOm2Tensor", {
-          GetAddr(base_ptr, semantic.mem_offset),
-          ast_.ULong(tensor_info.size),
-          tensor_info.data_type,
-          tensor_info.format,
-          ast_.Var("std::vector<int64_t>", shape_var_name)})));
+      ast_.VarDecl("Om2Tensor", semantic.symbol_hint, ast_.Call("BuildOm2Tensor", tensor_args)));
   return SUCCESS;
 }
 
@@ -856,13 +896,19 @@ Status KernelTaskCodeBuilder::BuildAddrGenInfoForShapeInfoBuffer(const AddrSeman
   return SUCCESS;
 }
 
-ExprRef KernelTaskCodeBuilder::BuildReportLaunchedTaskCall() const {
-  return TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(
-      ast_, header_, semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
-      semantic_.input_addrs, semantic_.output_addrs, semantic_.workspace_addrs, semantic_.task_type,
-      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)], model_id_, instance_handle_, args_table_, true);
+void KernelTaskCodeBuilder::AssignTaskLocalIoNames() {
+  const std::string task_prefix = "op" + std::to_string(header_.op_index);
+  for (size_t i = 0U; i < semantic_.input_addrs.size(); ++i) {
+    if (semantic_.input_addrs[i].tensor_info.has_value()) {
+      semantic_.input_addrs[i].symbol_hint = task_prefix + "_input" + std::to_string(i);
+    }
+  }
+  for (size_t i = 0U; i < semantic_.output_addrs.size(); ++i) {
+    if (semantic_.output_addrs[i].tensor_info.has_value()) {
+      semantic_.output_addrs[i].symbol_hint = task_prefix + "_output" + std::to_string(i);
+    }
+  }
 }
-
 ExprRef KernelTaskCodeBuilder::BuildReportTaskPreprocessCall(Arg l0_info) const {
   return TaskCodeBuilderUtil::BuildReportTaskPreprocessCall(
       ast_, header_, semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,

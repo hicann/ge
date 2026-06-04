@@ -477,6 +477,19 @@ Status Om2PackageHelper::SaveTbeKernels(std::shared_ptr<ZipArchiveWriter> &zip_w
       GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kernel_bin->GetBinData(), kernel_bin->GetBinDataSize(), false));
       added_kernels.insert(kernel_name);
     }
+    std::string atomic_kernel_name;
+    (void)AttrUtils::GetStr(node->GetOpDesc(), ATOMIC_ATTR_TBE_KERNEL_NAME, atomic_kernel_name);
+    if (!atomic_kernel_name.empty()) {
+      const auto atomic_kernel_bin = tbe_kernel_store.FindKernel(atomic_kernel_name);
+      if ((atomic_kernel_bin != nullptr) && (added_kernels.count(atomic_kernel_name) == 0)) {
+        GELOGD("[OM2] Save atomic kernel for node [%s], kernel name is [%s]", node_name.c_str(),
+               atomic_kernel_name.c_str());
+        const auto entry_path = kernel_bin_dir + Om2CodegenUtils::GetKernelNameWithExtension(atomic_kernel_name);
+        GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, atomic_kernel_bin->GetBinData(),
+                                              atomic_kernel_bin->GetBinDataSize(), false));
+        added_kernels.insert(atomic_kernel_name);
+      }
+    }
   }
   GELOGI("[OM2] Successfully saved all TBE kernels");
   return SUCCESS;

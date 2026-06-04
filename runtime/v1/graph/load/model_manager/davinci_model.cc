@@ -61,6 +61,8 @@
 namespace ge {
 namespace {
 constexpr uint32_t kDataIndex = 0U;
+constexpr uint32_t kPriorityMin = 0U;
+constexpr uint32_t kPriorityMax = 7U;
 constexpr uint32_t kTrueBranchStreamCount = 1U;
 constexpr uint32_t kGetDynamicDimsCount = 1U;
 constexpr uint32_t kAddrSize = static_cast<uint32_t>(sizeof(uint64_t));
@@ -744,34 +746,28 @@ Status DavinciModel::BindModelStream() {
 
 // 对于纯静态图，在load阶段完成fm相关连的args刷新
 Status DavinciModel::UpdateStaticModelArgsByFm() {
+  const bool has_queue_attrs = (!input_queue_attrs_.empty()) || (!output_queue_attrs_.empty());
+  const bool need_static_update = (!feature_base_refreshable_) || (host_input_size_ > 0U);
+  if (!has_queue_attrs && !need_static_update) {
+    return SUCCESS;
+  }
+
+  GELOGI("Update %s model args, model_id:%u", has_queue_attrs ? "cpu" : "static", model_id_);
   // 首次刷新为all-one-time
   uint32_t ret_up = kUpdatePolicyAllOneTime;
-  if ((!input_queue_attrs_.empty()) || (!output_queue_attrs_.empty())) {
-    GELOGI("Update cpu model args, model_id:%u", model_id_);
-    args_manager_.InitDfxStage1Begin();
-    ConstructActiveMemBaseAddrs();
-    // 此时已经确定了执行时是否走算子化刷新，使用正确的device地址来 更新对应io的device地址
-    GE_ASSERT_SUCCESS(InitCopyHostInputInfos());
-    aclrtStream stream = nullptr;
-    GE_CHK_RT_RET(aclrtCreateStream(&stream));
-    GE_MAKE_GUARD_ACLRTSTREAM(stream);
-    // 加载阶段同老流程走全量model args h2d拷贝
-    GE_ASSERT_SUCCESS(args_manager_.UpdateForExecute(ret_up, stream, kModelLoadStage));
-    args_manager_.InitDfxStatsticsEnd();
-    args_manager_.PrintDfxStatistics(kModelLoadStage);
-    GE_CHK_RT_RET(aclrtSynchronizeStream(stream));
-    GELOGI("Sync stream successfully, model_id: %u", model_id_);
-  } else if ((!feature_base_refreshable_) || (host_input_size_ > 0U)) {
-    GELOGI("Update static model args, model_id: %u", model_id_);
-    args_manager_.InitDfxStage1Begin();
-    ConstructActiveMemBaseAddrs();
-    // 此时已经确定了执行时是否走算子化刷新，使用正确的device地址来 更新对应io的device地址
-    GE_ASSERT_SUCCESS(InitCopyHostInputInfos());
-    // 加载阶段同老流程走全量model args h2d拷贝
-    GE_ASSERT_SUCCESS(args_manager_.UpdateForExecute(ret_up, rt_model_stream_, kModelLoadStage));
-    args_manager_.InitDfxStatsticsEnd();
-    args_manager_.PrintDfxStatistics(kModelLoadStage);
-  }
+  args_manager_.InitDfxStage1Begin();
+  ConstructActiveMemBaseAddrs();
+  // 此时已经确定了执行时是否走算子化刷新，使用正确的device地址来 更新对应io的device地址
+  GE_ASSERT_SUCCESS(InitCopyHostInputInfos());
+  aclrtStream stream = nullptr;
+  GE_CHK_RT_RET(aclrtCreateStream(&stream));
+  GE_MAKE_GUARD_ACLRTSTREAM(stream);
+  // 加载阶段同老流程走全量model args h2d拷贝
+  GE_ASSERT_SUCCESS(args_manager_.UpdateForExecute(ret_up, stream, kModelLoadStage));
+  args_manager_.InitDfxStatsticsEnd();
+  args_manager_.PrintDfxStatistics(kModelLoadStage);
+  GE_CHK_RT_RET(aclrtSynchronizeStream(stream));
+  GELOGI("Sync stream successfully, model_id: %u", model_id_);
   return SUCCESS;
 }
 
@@ -9291,4 +9287,78 @@ Status DavinciModel::ParseHostInputIndexOption(const size_t input_num) {
 
   return SUCCESS;
 }
+
+void DavinciModel::CollectOwnedStreams(std::vector<aclrtStream> &streams) const {
+  for (const auto &s : stream_list_) {
+    if (s != nullptr) {
+      GELOGI("Collect stream_list_: %p", s);
+      streams.push_back(s);
+    }
+  }
+  for (const auto &s : all_hccl_stream_list_) {
+    if (s != nullptr) {
+      GELOGI("Collect all_hccl_stream_list_: %p", s);
+      streams.push_back(s);
+    }
+  }
+  if (rt_head_stream_ != nullptr) {
+    GELOGI("Collect rt_head_stream_: %p", rt_head_stream_);
+    streams.push_back(rt_head_stream_);
+  }
+  if (rt_entry_stream_ != nullptr) {
+    GELOGI("Collect rt_entry_stream_: %p", rt_entry_stream_);
+    streams.push_back(rt_entry_stream_);
+  }
+  if (is_inner_model_stream_ && rt_model_stream_ != nullptr) {
+    GELOGI("Collect rt_model_stream_: %p", rt_model_stream_);
+    streams.push_back(rt_model_stream_);
+  }
+  std::sort(streams.begin(), streams.end());
+  streams.erase(std::unique(streams.begin(), streams.end()), streams.end());
+}
+
+Status DavinciModel::SetStreamPriority(const uint32_t priority) {
+  if (priority > kPriorityMax) {
+    GELOGE(PARAM_INVALID, "[Check][Param] Invalid priority value %u, should be in range [%u, %u]",
+      priority, kPriorityMin, kPriorityMax);
+    return PARAM_INVALID;
+  }
+  std::vector<aclrtStream> streams;
+  {
+    std::lock_guard<std::mutex> lock(priority_mutex_);
+    CollectOwnedStreams(streams);
+  }
+  if (streams.empty()) {
+    GELOGW("[SetStreamPriority] No owned streams found, model_id=%u", GetModelId());
+    std::lock_guard<std::mutex> lock(priority_mutex_);
+    priority_ = static_cast<int32_t>(priority);
+    return SUCCESS;
+  }
+  for (size_t i = 0; i < streams.size(); ++i) {
+    GELOGI("[SetStreamPriority] Setting priority=%u on stream[%zu/%zu] stream=%p", priority, i + 1, streams.size(), streams[i]);
+    aclrtStreamAttrValue attr_value = {};
+    attr_value.streamPriority = priority;
+    aclError acl_ret = aclrtSetStreamAttribute(streams[i], ACL_STREAM_ATTR_PRIORITY, &attr_value);
+    if (acl_ret == ACL_ERROR_RT_FEATURE_NOT_SUPPORT) {
+      GELOGW("[SetStreamPriority] aclrtSetStreamAttribute not supported, stream[%zu], ret=%d", i, acl_ret);
+    } else if (acl_ret != ACL_SUCCESS) {
+      GELOGE(FAILED, "[SetStreamPriority] aclrtSetStreamAttribute failed, stream[%zu], ret=%d", i, acl_ret);
+      return FAILED;
+    }
+  }
+  {
+    std::lock_guard<std::mutex> lock(priority_mutex_);
+    priority_ = static_cast<int32_t>(priority);
+  }
+  GELOGI("[SetStreamPriority] Success, model_id=%u, priority=%u, streams=%zu",
+         GetModelId(), priority, streams.size());
+  return SUCCESS;
+}
+
+Status DavinciModel::GetStreamPriority(uint32_t &priority) const {
+  std::lock_guard<std::mutex> lock(priority_mutex_);
+  priority = static_cast<uint32_t>(priority_);
+  return SUCCESS;
+}
+
 }  // namespace ge

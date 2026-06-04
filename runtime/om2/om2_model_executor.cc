@@ -51,8 +51,6 @@ using RunAsyncFunc = ge::graphStatus (*)(Om2ModelHandle *, rtStream_t, int, void
 struct RunModelInfo {
   std::string so_file;
   int32_t so_fd = -1;
-  ge::JsonFile model_meta_json;
-  ge::JsonFile constants_json;
   ge::JsonFile op_attr_json;
   void *so_handle = nullptr;
   std::string model_name;
@@ -64,6 +62,18 @@ struct RunModelInfo {
   DestroyFunc destroy_func = nullptr;
   RunFunc run_func = nullptr;
   RunAsyncFunc run_async_func = nullptr;
+};
+
+struct ModelMetaInfo {
+  size_t work_size = 0U;
+  std::vector<ge::Om2TensorDesc> input_desc;
+  std::vector<ge::Om2TensorDesc> output_desc;
+  std::vector<ge::Om2TensorDesc> input_desc_v2;
+  std::vector<ge::Om2TensorDesc> output_desc_v2;
+  std::vector<std::vector<int64_t>> dynamic_batch_info;
+  int32_t dynamic_type = 0;
+  std::vector<std::string> dynamic_output_shape;
+  std::vector<std::string> user_designate_shape_order;
 };
 
 struct KernelBinInfo {
@@ -339,10 +349,11 @@ void ParseOpAttrJsonToMapInternal(const ge::JsonFile &op_attr_json,
 class Om2ModelExecutor::Impl {
  public:
   ge::Status ParseModel(ge::ModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
-                        std::vector<KernelBinInfo> &kernel_bin_info) {
+                        ge::JsonFile &constants_json, std::vector<KernelBinInfo> &kernel_bin_info) {
     has_model_ = false;
     CloseMemFd(run_model_info_.so_fd);
     run_model_info_ = RunModelInfo();
+    model_meta_info_ = ModelMetaInfo();
     weight_buf.reset(nullptr);
     kernel_bin_info.clear();
 
@@ -359,25 +370,48 @@ class Om2ModelExecutor::Impl {
         size_t buff_size = 0UL;
         auto buff_data = archive.ExtractToMem(file_name, buff_size);
         GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
-        run_model_info_.model_meta_json = ge::JsonFile(buff_data.get(), buff_size);
-        GE_ASSERT_TRUE(run_model_info_.model_meta_json.IsValid());
-        GE_ASSERT_SUCCESS(GetModelJsonValue("name", run_model_info_.model_name, run_model_info_.model_meta_json));
-        if (!run_model_info_.model_meta_json.Get("root_graph_name", run_model_info_.root_graph_name)) {
-          run_model_info_.root_graph_name = run_model_info_.model_name;
-        }
+        const ge::JsonFile model_meta_json(buff_data.get(), buff_size);
+        GE_ASSERT_TRUE(model_meta_json.IsValid());
+        GE_ASSERT_SUCCESS(ParseModelMetaInfo(model_meta_json));
         has_model_ = true;
         break;
       }
     }
     GE_ASSERT_TRUE(has_model_);
-    GE_ASSERT_SUCCESS(ParseArchiveFiles(archive, file_names, weight_buf, kernel_bin_info));
+    GE_ASSERT_SUCCESS(ParseArchiveFiles(archive, file_names, weight_buf, constants_json, kernel_bin_info));
     GE_ASSERT_TRUE(!run_model_info_.so_file.empty(), "[OM2] Om2 compiled so not found, need to check .om2 file.");
     return ge::SUCCESS;
   }
 
  private:
+  ge::Status ParseModelMetaInfo(const ge::JsonFile &model_meta_json) {
+    GE_ASSERT_TRUE(model_meta_json.IsValid());
+    GE_ASSERT_SUCCESS(GetModelJsonValue("name", run_model_info_.model_name, model_meta_json));
+    if (!model_meta_json.Get("root_graph_name", run_model_info_.root_graph_name)) {
+      run_model_info_.root_graph_name = run_model_info_.model_name;
+    }
+    GE_ASSERT_SUCCESS(GetModelJsonValue("work_size", model_meta_info_.work_size, model_meta_json));
+    GE_ASSERT_SUCCESS(GetModelJsonValue("dynamic_batch_info", model_meta_info_.dynamic_batch_info, model_meta_json));
+    GE_ASSERT_SUCCESS(GetModelJsonValue("dynamic_type", model_meta_info_.dynamic_type, model_meta_json));
+    GE_ASSERT_SUCCESS(GetModelJsonValue("dynamic_output_shape", model_meta_info_.dynamic_output_shape,
+                                        model_meta_json));
+    GE_ASSERT_SUCCESS(GetModelJsonValue("user_designate_shape_order", model_meta_info_.user_designate_shape_order,
+                                        model_meta_json));
+    ge::JsonFile::json inputs;
+    GE_ASSERT_TRUE(model_meta_json.Get("inputs", inputs));
+    GE_ASSERT_SUCCESS(SetTensorDesc(inputs, model_meta_info_.input_desc));
+    GE_ASSERT_SUCCESS(SetTensorDesc(inputs, model_meta_info_.input_desc_v2, true));
+    ge::JsonFile::json outputs;
+    GE_ASSERT_TRUE(model_meta_json.Get("outputs", outputs));
+    GE_ASSERT_SUCCESS(SetTensorDesc(outputs, model_meta_info_.output_desc));
+    // Output desc currently uses the same schema for both old and new model desc views.
+    model_meta_info_.output_desc_v2 = model_meta_info_.output_desc;
+    return ge::SUCCESS;
+  }
+
   ge::Status ParseArchiveFiles(ge::RAIIZipArchive &archive, const std::vector<std::string> &file_names,
                                ge::ReadonlyByteBuffer &weight_buf,
+                               ge::JsonFile &constants_json,
                                std::vector<KernelBinInfo> &kernel_bin_info) {
     for (const auto &file_name : file_names) {
       if (IsFileNameEndsWith(file_name, "manifest.json") || IsFileNameEndsWith(file_name, "model_meta.json")) {
@@ -395,8 +429,8 @@ class Om2ModelExecutor::Impl {
       if (IsFileNameEndsWith(file_name, "_constants_config.json")) {
         auto buff_data = archive.ExtractToMem(file_name, buff_size);
         GE_ASSERT_TRUE(buff_data != nullptr && buff_size != 0U);
-        run_model_info_.constants_json = ge::JsonFile(buff_data.get(), buff_size);
-        GE_ASSERT_TRUE(run_model_info_.constants_json.IsValid());
+        constants_json = ge::JsonFile(buff_data.get(), buff_size);
+        GE_ASSERT_TRUE(constants_json.IsValid());
         continue;
       }
       if (IsFileNameEndsWith(file_name, "op_attr.json")) {
@@ -464,8 +498,8 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status CreateModel(ge::ModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
-                         std::vector<KernelBinInfo> &kernel_bin_info, const Om2ModelLoadArg &load_arg,
-                         uint64_t session_id, std::vector<void *> &constants) {
+                         std::vector<KernelBinInfo> &kernel_bin_info, const ge::JsonFile &constants_json,
+                         const Om2ModelLoadArg &load_arg, uint64_t session_id, std::vector<void *> &constants) {
     GE_ASSERT_TRUE(has_model_);
     GE_ASSERT_TRUE(load_arg.device_id >= 0, "[OM2][Check] Invalid device id.");
     device_id_ = load_arg.device_id;
@@ -480,7 +514,7 @@ class Om2ModelExecutor::Impl {
     }
     session_id_ = session_id;
     GE_ASSERT_SUCCESS(PrepareWorkPtr(load_arg, work_ptr));
-    GE_ASSERT_SUCCESS(PrepareConstants(model_data, weight_buf, load_arg, constants));
+    GE_ASSERT_SUCCESS(PrepareConstants(model_data, weight_buf, constants_json, load_arg, constants));
     GE_ASSERT_SUCCESS(run_model_info_.create_func(&run_model_info_.model_handle, &run_model_info_.rt_model_handle,
                                                   bin_files.data(), bin_data.data(),
                                                   bin_sizes.data(), static_cast<int>(bin_data.size()),
@@ -490,10 +524,12 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status CreateAndLoadModel(ge::ModelData &model_data, ge::ReadonlyByteBuffer &weight_buf,
-                                std::vector<KernelBinInfo> &kernel_bin_info, const Om2ModelLoadArg &load_arg,
-                                uint64_t session_id) {
+                                std::vector<KernelBinInfo> &kernel_bin_info, const ge::JsonFile &constants_json,
+                                const Om2ModelLoadArg &load_arg, uint64_t session_id) {
+    // The generated model consumes this pointer array during create/load, so keep it alive until LoadModel returns.
     std::vector<void *> constants;
-    GE_ASSERT_SUCCESS(CreateModel(model_data, weight_buf, kernel_bin_info, load_arg, session_id, constants));
+    GE_ASSERT_SUCCESS(CreateModel(model_data, weight_buf, kernel_bin_info, constants_json, load_arg, session_id,
+                                  constants));
     GE_ASSERT_SUCCESS(InitModelDumpInfo(load_arg));
     GE_ASSERT_SUCCESS(LoadModel());
     GE_ASSERT_SUCCESS(DispatchDumpInfo());
@@ -574,34 +610,34 @@ class Om2ModelExecutor::Impl {
 
   ge::Status GetDynamicBatchInfo(std::vector<std::vector<int64_t>> &dynamic_batch_info, int32_t &dynamic_type) const {
     GE_ASSERT_TRUE(has_model_);
-    GE_ASSERT_SUCCESS(GetModelJsonValue("dynamic_batch_info", dynamic_batch_info, run_model_info_.model_meta_json));
-    GE_ASSERT_SUCCESS(GetModelJsonValue("dynamic_type", dynamic_type, run_model_info_.model_meta_json));
+    dynamic_batch_info = model_meta_info_.dynamic_batch_info;
+    dynamic_type = model_meta_info_.dynamic_type;
     return ge::SUCCESS;
   }
 
   ge::Status GetModelAttrs(std::vector<std::string> &dynamic_output_shape) const {
     GE_ASSERT_TRUE(has_model_);
-    GE_ASSERT_SUCCESS(GetModelJsonValue("dynamic_output_shape", dynamic_output_shape, run_model_info_.model_meta_json));
+    dynamic_output_shape = model_meta_info_.dynamic_output_shape;
     return ge::SUCCESS;
   }
 
-  ge::Status GetModelDescInfo(std::vector<ge::Om2TensorDesc> &input_desc, std::vector<ge::Om2TensorDesc> &output_desc,
+  ge::Status GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
+                              const std::vector<ge::Om2TensorDesc> *&output_desc,
                               const bool new_model_desc) const {
     GE_ASSERT_TRUE(has_model_);
-    GE_ASSERT_TRUE(run_model_info_.model_meta_json.IsValid());
-    ge::JsonFile::json inputs;
-    GE_ASSERT_TRUE(run_model_info_.model_meta_json.Get("inputs", inputs));
-    GE_ASSERT_SUCCESS(SetTensorDesc(inputs, input_desc, new_model_desc));
-    ge::JsonFile::json outputs;
-    GE_ASSERT_TRUE(run_model_info_.model_meta_json.Get("outputs", outputs));
-    GE_ASSERT_SUCCESS(SetTensorDesc(outputs, output_desc));
+    if (new_model_desc) {
+      input_desc = &model_meta_info_.input_desc_v2;
+      output_desc = &model_meta_info_.output_desc_v2;
+    } else {
+      input_desc = &model_meta_info_.input_desc;
+      output_desc = &model_meta_info_.output_desc;
+    }
     return ge::SUCCESS;
   }
 
   ge::Status GetUserDesignateShapeOrder(std::vector<std::string> &user_designate_shape_order) const {
     GE_ASSERT_TRUE(has_model_);
-    GE_ASSERT_SUCCESS(
-        GetModelJsonValue("user_designate_shape_order", user_designate_shape_order, run_model_info_.model_meta_json));
+    user_designate_shape_order = model_meta_info_.user_designate_shape_order;
     return ge::SUCCESS;
   }
 
@@ -659,8 +695,7 @@ class Om2ModelExecutor::Impl {
 
  private:
   ge::Status PrepareWorkPtr(const Om2ModelLoadArg &load_arg, void *&work_ptr) {
-    size_t required_work_size = 0U;
-    GE_ASSERT_SUCCESS(GetModelJsonValue("work_size", required_work_size, run_model_info_.model_meta_json));
+    const size_t required_work_size = model_meta_info_.work_size;
     if (load_arg.work_ptr != nullptr) {
       GE_ASSERT_TRUE(load_arg.work_size >= required_work_size, "[OM2][Check] Invalid external work_ptr size.");
       work_ptr = load_arg.work_ptr;
@@ -676,10 +711,11 @@ class Om2ModelExecutor::Impl {
   }
 
   ge::Status PrepareConstants(const ge::ModelData &model_data, const ge::ReadonlyByteBuffer &weight_buf,
-                              const Om2ModelLoadArg &load_arg, std::vector<void *> &constants) {
+                              const ge::JsonFile &constants_json, const Om2ModelLoadArg &load_arg,
+                              std::vector<void *> &constants) {
     std::vector<Om2ConstItem> const_items;
     size_t internal_weight_size = 0U;
-    GE_ASSERT_SUCCESS(ParseConstItems(run_model_info_.constants_json, const_items, internal_weight_size));
+    GE_ASSERT_SUCCESS(ParseConstItems(constants_json, const_items, internal_weight_size));
     if (const_items.empty()) {
       return ge::SUCCESS;
     }
@@ -773,6 +809,7 @@ class Om2ModelExecutor::Impl {
   }
 
   RunModelInfo run_model_info_;
+  ModelMetaInfo model_meta_info_;
   std::unique_ptr<ge::dump::ModelDumpManager> dump_manager_;
   std::vector<void *> owned_buffers_;
   uint32_t model_id_ = 0U;
@@ -792,13 +829,15 @@ Om2ModelExecutor::~Om2ModelExecutor() {
 ge::Status Om2ModelExecutor::Load(ge::ModelData &model_data, const Om2ModelLoadArg &load_arg,
                                   const uint64_t session_id) const {
   ge::ReadonlyByteBuffer weight_buf;
+  ge::JsonFile constants_json;
   std::vector<KernelBinInfo> kernel_bin_info;
-  GE_CHK_STATUS_RET(impl_->ParseModel(model_data, weight_buf, kernel_bin_info),
+  GE_CHK_STATUS_RET(impl_->ParseModel(model_data, weight_buf, constants_json, kernel_bin_info),
                     "[OM2][Load] Parse model failed.");
   GE_ASSERT_SUCCESS(impl_->LoadSharedObject());
   GE_ASSERT_SUCCESS(impl_->ResolveSymbols());
   GE_ASSERT_SUCCESS(impl_->CreateDumpManager(load_arg));
-  GE_ASSERT_SUCCESS(impl_->CreateAndLoadModel(model_data, weight_buf, kernel_bin_info, load_arg, session_id));
+  GE_ASSERT_SUCCESS(impl_->CreateAndLoadModel(model_data, weight_buf, kernel_bin_info, constants_json, load_arg,
+                                              session_id));
   return ge::SUCCESS;
 }
 
@@ -811,8 +850,9 @@ ge::Status Om2ModelExecutor::RunAsync(void *const stream, std::vector<gert::Tens
   return impl_->RunAsync(stream, inputs, outputs);
 }
 
-ge::Status Om2ModelExecutor::GetModelDescInfo(std::vector<ge::Om2TensorDesc> &input_desc,
-                                              std::vector<ge::Om2TensorDesc> &output_desc, bool new_model_desc) const {
+ge::Status Om2ModelExecutor::GetModelDescInfo(const std::vector<ge::Om2TensorDesc> *&input_desc,
+                                              const std::vector<ge::Om2TensorDesc> *&output_desc,
+                                              bool new_model_desc) const {
   return impl_->GetModelDescInfo(input_desc, output_desc, new_model_desc);
 }
 

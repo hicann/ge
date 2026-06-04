@@ -41,6 +41,25 @@ using AicpuExtInfo = aicpu::FWKAdapter::ExtInfo;
 using AsyncWaitInfo = aicpu::FWKAdapter::AsyncWait;
 using WorkSpaceInfo = aicpu::FWKAdapter::WorkSpaceInfo;
 using AicpuSessionInfo = SessionInfo;
+
+static void SyncKernelNameFromOpDesc(const GeModelPtr &ge_model) {
+  auto model_task_def = ge_model->GetModelTaskDefPtr();
+  if (model_task_def == nullptr) { return; }
+  const auto &graph = ge_model->GetGraph();
+  if (graph == nullptr) { return; }
+  for (int i = 0; i < model_task_def->task_size(); ++i) {
+    auto *task_def = model_task_def->mutable_task(i);
+    for (const auto &node : graph->GetDirectNode()) {
+      auto op_desc = node->GetOpDesc();
+      if (op_desc == nullptr) { continue; }
+      std::string kernel_name;
+      if (ge::AttrUtils::GetStr(op_desc, "_kernelname", kernel_name)) {
+        task_def->mutable_kernel()->set_kernel_name(kernel_name);
+      }
+    }
+  }
+}
+
 struct AicpuTaskArgs {
   aicpu::AicpuParamHead head;
   uint64_t io_addrp[6];
@@ -201,14 +220,14 @@ __attribute__((weak)) int32_t IsDataDumpEnabled(uint32_t model_id,
 
 std::string GetLoadAndRunDumpHelpersExpected() {
   return R"(Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,
-                         int32_t format, std::vector<int64_t> &shape_dims) {
+                         int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {
   Om2Tensor tensor{};
   tensor.device_address = PtrToU64(device_address);
   tensor.size = size;
   tensor.data_type = data_type;
   tensor.format = format;
-  tensor.shape_dims = shape_dims.data();
-  tensor.shape_dims_num = static_cast<uint64_t>(shape_dims.size());
+  tensor.shape_dims = shape_dims;
+  tensor.shape_dims_num = shape_dims_num;
   return tensor;
 }
 
@@ -276,10 +295,10 @@ aclError ReportOm2TaskPreprocess(const char *op_name, const char *op_type, uint6
 
 aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,
                                uintptr_t args_base, uint64_t args_size,
-                               const std::vector<Om2TaskIoEntry> &inputs,
-                               const std::vector<Om2TaskIoEntry> &outputs,
-                               const std::vector<uint64_t> &workspace_addrs,
-                               const std::vector<uint64_t> &workspace_sizes,
+                               const Om2TaskIoEntry *inputs, uint64_t input_num,
+                               const Om2TaskIoEntry *outputs, uint32_t output_num,
+                               const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
+                               uint32_t workspace_num,
                                uint32_t task_type, void *stream,
                                uint32_t model_id, void *instance_handle,
                                uint32_t is_raw_address = 0U) {
@@ -289,16 +308,12 @@ aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_
   uint32_t stream_id = 0U;
   OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
 
-  OM2_CHK_TRUE(workspace_addrs.size() == workspace_sizes.size());
-
   Om2TaskInfo task_info{};
   OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, task_id, stream_id, op_desc_id,
                                       args_base, args_size,
-                                      inputs.data(), static_cast<uint64_t>(inputs.size()),
-                                      outputs.data(), static_cast<uint32_t>(outputs.size()),
-                                      workspace_addrs.empty() ? nullptr : workspace_addrs.data(),
-                                      workspace_sizes.empty() ? nullptr : workspace_sizes.data(),
-                                      static_cast<uint32_t>(workspace_addrs.size()),
+                                      inputs, input_num,
+                                      outputs, output_num,
+                                      workspace_addrs, workspace_sizes, workspace_num,
                                       task_type, stream, is_raw_address));
   task_info.l0_exception_dump_info = nullptr;
   if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
@@ -960,6 +975,63 @@ GeRootModelPtr CreateGeRootModelWithCmoAddrTask(bool with_explicit_format = fals
   return ge_root_model;
 }
 
+GeRootModelPtr CreateGeRootModelWithCmoAddrTaskConstTensor() {
+  auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  if (ge_root_model == nullptr) {
+    return nullptr;
+  }
+  auto &compute_graph = ge_root_model->GetRootGraph();
+  const auto ge_model = ge_root_model->GetSubgraphInstanceNameToModel().begin()->second;
+  if (ge_model == nullptr) {
+    return nullptr;
+  }
+  auto *model_task_def = ge_model->GetModelTaskDefPtr().get();
+  if (model_task_def == nullptr) {
+    return nullptr;
+  }
+
+  // Set up weight data for const tensor
+  std::vector<uint8_t> weights_value(256 * 1024, 0);
+  const size_t weight_size = weights_value.size();
+  ge_model->SetWeight(Buffer::CopyFrom(weights_value.data(), weight_size));
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_WEIGHT_SIZE, weight_size);
+  // Place weight address range beyond FM range so GetRtAddress enters Weight range
+  (void)AttrUtils::SetInt(ge_model, MODEL_ATTR_TASK_GEN_WEIGHT_ADDR, 2048);
+
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() != DATA) && (op_desc->GetType() != NETOUTPUT)) {
+      GeTensorDesc tensor(GeShape({4, 4, 4, 4}), FORMAT_ND, DT_INT64);
+      TensorUtils::SetSize(tensor, 2048);
+      op_desc->UpdateInputDesc(0, tensor);
+      (void)AttrUtils::SetInt(op_desc, "offset", 512);
+      // Mark input 0 as const and set data offset into weight area
+      op_desc->SetIsInputConst({true});
+      auto input_desc = op_desc->MutableInputDesc(0);
+      if (input_desc != nullptr) {
+        (void)TensorUtils::SetDataOffset(*input_desc, 128);
+      }
+    }
+  }
+
+  auto add_node = compute_graph->FindNode("add1");
+  const int64_t op_index = (add_node != nullptr) ? add_node->GetOpDescBarePtr()->GetId() : 2;
+
+  auto *task_def = model_task_def->add_task();
+  task_def->set_type(static_cast<uint32_t>(ModelTaskType::MODEL_TASK_CMO_ADDR));
+  task_def->set_stream_id(0U);
+  auto *cmo_addr = task_def->mutable_cmo_addr_task();
+  cmo_addr->set_op_index(static_cast<uint32_t>(op_index));
+  cmo_addr->set_cmo_op_code(6);
+  cmo_addr->set_src(2048U + 128U);  // weight_base + data_offset for kConstTensor
+  cmo_addr->set_num_inner(0);
+  cmo_addr->set_num_outer(0);
+  cmo_addr->set_length_inner(1024);
+  cmo_addr->set_stride_outer(0);
+  cmo_addr->set_stride_inner(0);
+  return ge_root_model;
+}
+
 ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model) {
   static AstContext ast_ctx;
   static AstBuildContext ast(ast_ctx);
@@ -969,6 +1041,7 @@ ProgramGenerator CreateProgramGenerator(GeRootModelPtr &ge_root_model) {
     return ProgramGenerator(ast, {}, Om2CodegenModel());
   }
   const auto &ge_model = name_to_ge_model.begin()->second;
+  SyncKernelNameFromOpDesc(ge_model);
   std::vector<TaskCodeBuilderPtr> task_code_builders;
   Om2CodegenModel codegen_model;
   if (Om2CodegenModelBuilder::CreateTaskCodeBuilders(ge_model, ast, task_code_builders, codegen_model) != SUCCESS) {
@@ -1642,7 +1715,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_Ok) {
 namespace om2 {
 namespace {
 )" + GetLoadAndRunDumpHelpersExpected() +
-                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+                                                              R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -1769,22 +1842,28 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 
 aclError Om2Model::Load() {
   dev_ext_info_mem_ptrs_.resize(0);
-  // ============================= add1 ===============================
-  std::vector<int64_t> op2_input0_shape = {1, 1, 224, 224};
-  Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input0_shape);
-  std::vector<int64_t> op2_input1_shape = {1, 1, 224, 224};
-  Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input1_shape);
-  std::vector<int64_t> op2_output0_shape = {1, 1, 224, 224};
-  Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_output0_shape);
-  auto op2_ws0 = GET_ADDR(total_dev_mem_ptr_, 0);
-  LaunchKernelCfgHolder op2_cfg_holder;
-  AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
-  const Om2L0ArgSlotInfo op2_l0_arg_slots[] = {{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}};
-  const Om2L0TaskRawInfo op2_l0_info = {1U, 0U, 4UL, op2_l0_arg_slots};
-  OM2_CHK_STATUS(ReportOm2TaskPreprocess("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 8U}}, {{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, stream_list_[0], &op2_l0_info, model_id_, instance_handle_));
-  OM2_CHK_STATUS(KernelTaskDistribute(FlattenHostArgs(op2_input0, op2_input1, op2_output0, op2_ws0), args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 8U}}, {{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, stream_list_[0], model_id_, instance_handle_));
+{
+    // ============================= add1 ===============================
+    static constexpr int64_t op2_input0_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input0_shape, 4UL);
+    static constexpr int64_t op2_input1_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input1_shape, 4UL);
+    static constexpr int64_t op2_output0_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_output0_shape, 4UL);
+    auto op2_ws0 = GET_ADDR(total_dev_mem_ptr_, 0);
+    LaunchKernelCfgHolder op2_cfg_holder;
+    AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
+    const Om2L0ArgSlotInfo op2_l0_arg_slots[] = {{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}};
+    const Om2L0TaskRawInfo op2_l0_info = {1U, 0U, 4UL, op2_l0_arg_slots};
+    OM2_CHK_STATUS(ReportOm2TaskPreprocess("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 8U}}, {{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, stream_list_[0], &op2_l0_info, model_id_, instance_handle_));
+    OM2_CHK_STATUS(KernelTaskDistribute(FlattenHostArgs(op2_input0, op2_input1, op2_output0, op2_ws0), args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
+    const Om2TaskIoEntry op2_report_inputs[] = {{&op2_input0, 0U}, {&op2_input1, 8U}};
+    const Om2TaskIoEntry op2_report_outputs[] = {{&op2_output0, 16U}};
+    const uint64_t op2_report_workspace_addrs[] = {PtrToU64(op2_ws0)};
+    const uint64_t op2_report_workspace_sizes[] = {64U};
+    OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, op2_report_inputs, 2UL, op2_report_outputs, 1U, op2_report_workspace_addrs, op2_report_workspace_sizes, 1U, 0U, stream_list_[0], model_id_, instance_handle_));
 
+  }
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
   return ACL_SUCCESS;
 }
@@ -1880,7 +1959,7 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource2_Ok) {
 namespace om2 {
 namespace {
 )" + GetLoadAndRunDumpHelpersExpected() +
-                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+                                                              R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -2007,22 +2086,28 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 
 aclError Om2Model::Load() {
   dev_ext_info_mem_ptrs_.resize(0);
-  // ============================= add1 ===============================
-  std::vector<int64_t> op2_input0_shape = {1, 1, 224, 224};
-  Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input0_shape);
-  std::vector<int64_t> op2_input1_shape = {1, 1, 224, 224};
-  Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input1_shape);
-  std::vector<int64_t> op2_output0_shape = {1, 1, 224, 224};
-  Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_output0_shape);
-  auto op2_ws0 = GET_ADDR(total_dev_mem_ptr_, 0);
-  LaunchKernelCfgHolder op2_cfg_holder;
-  AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
-  const Om2L0ArgSlotInfo op2_l0_arg_slots[] = {{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}};
-  const Om2L0TaskRawInfo op2_l0_info = {1U, 0U, 4UL, op2_l0_arg_slots};
-  OM2_CHK_STATUS(ReportOm2TaskPreprocess("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 8U}}, {{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, stream_list_[0], &op2_l0_info, model_id_, instance_handle_));
-  OM2_CHK_STATUS(KernelTaskDistribute(FlattenHostArgs(op2_input0, op2_input1, op2_output0, op2_ws0), args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 8U}}, {{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, stream_list_[0], model_id_, instance_handle_));
+{
+    // ============================= add1 ===============================
+    static constexpr int64_t op2_input0_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input0_shape, 4UL);
+    static constexpr int64_t op2_input1_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input1_shape, 4UL);
+    static constexpr int64_t op2_output0_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_output0_shape, 4UL);
+    auto op2_ws0 = GET_ADDR(total_dev_mem_ptr_, 0);
+    LaunchKernelCfgHolder op2_cfg_holder;
+    AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
+    const Om2L0ArgSlotInfo op2_l0_arg_slots[] = {{OM2_L0_ARG_INPUT, 0U, 0U, 0UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 8U, 0UL, 1U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 16U, 0UL, 2U, 0U, 0U}, {OM2_L0_ARG_WORKSPACE, 0U, 24U, 0UL, 0U, 0U, 0U}};
+    const Om2L0TaskRawInfo op2_l0_info = {1U, 0U, 4UL, op2_l0_arg_slots};
+    OM2_CHK_STATUS(ReportOm2TaskPreprocess("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 8U}}, {{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, stream_list_[0], &op2_l0_info, model_id_, instance_handle_));
+    OM2_CHK_STATUS(KernelTaskDistribute(FlattenHostArgs(op2_input0, op2_input1, op2_output0, op2_ws0), args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
+    const Om2TaskIoEntry op2_report_inputs[] = {{&op2_input0, 0U}, {&op2_input1, 8U}};
+    const Om2TaskIoEntry op2_report_outputs[] = {{&op2_output0, 16U}};
+    const uint64_t op2_report_workspace_addrs[] = {PtrToU64(op2_ws0)};
+    const uint64_t op2_report_workspace_sizes[] = {64U};
+    OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, op2_report_inputs, 2UL, op2_report_outputs, 1U, op2_report_workspace_addrs, op2_report_workspace_sizes, 1U, 0U, stream_list_[0], model_id_, instance_handle_));
 
+  }
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
   return ACL_SUCCESS;
 }
@@ -2114,15 +2199,12 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSource_ConstInputTensor_Ok) {
   ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
 
   const auto &source = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
-  EXPECT_NE(source.find("std::vector<int64_t> const_0_shape = {1, 1, 224, 224};"), std::string::npos);
-  EXPECT_NE(source.find("Om2Tensor const_0 = BuildOm2Tensor(constants_[0], 200704UL, 1, 0, const_0_shape);"),
-            std::string::npos);
-  EXPECT_NE(source.find("FlattenHostArgs(const_0, op2_input1, op2_output0, op2_ws0)"), std::string::npos);
+  EXPECT_NE(source.find("op2_input0_shape"), std::string::npos);
+  EXPECT_NE(source.find("BuildOm2Tensor(constants_[0]"), std::string::npos);
+  EXPECT_NE(source.find("FlattenHostArgs(op2_input0"), std::string::npos);
   EXPECT_NE(source.find("ReportLaunchedOm2Task(\"add1\", \"Add\", 2U, "
                         "reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), "
-                        "args_table_.GetArgsInfo(0)->size, {{&const_0, 0U}, {&op2_input1, 8U}}, "
-                        "{{&op2_output0, 16U}}, {PtrToU64(op2_ws0)}, {64U}, 0U, "
-                        "stream_list_[0], model_id_, instance_handle_)"),
+                        "args_table_.GetArgsInfo(0)->size"),
             std::string::npos);
 }
 
@@ -2136,8 +2218,118 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForAicpu_Ok) {
 
 namespace om2 {
 namespace {
-)" + GetLoadAndRunDumpHelpersExpected() +
-                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,
+                         int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {
+  Om2Tensor tensor{};
+  tensor.device_address = PtrToU64(device_address);
+  tensor.size = size;
+  tensor.data_type = data_type;
+  tensor.format = format;
+  tensor.shape_dims = shape_dims;
+  tensor.shape_dims_num = shape_dims_num;
+  return tensor;
+}
+
+aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const char *op_type,
+                             uint32_t task_id, uint32_t stream_id, uint64_t op_desc_id,
+                             uintptr_t args_base, uint64_t args_size,
+                             const Om2TaskIoEntry *inputs, uint64_t input_num,
+                             const Om2TaskIoEntry *outputs, uint32_t output_num,
+                             const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
+                             uint32_t workspace_num, uint32_t task_type, void *stream,
+                             uint32_t is_raw_address = 0U) {
+  task_info->op_name = op_name;
+  task_info->op_type = op_type;
+  task_info->task_id = task_id;
+  task_info->stream_id = stream_id;
+  task_info->context_id = 0U;
+  task_info->thread_id = 0U;
+  task_info->op_desc_id = op_desc_id;
+  task_info->args_base = args_base;
+  task_info->args_size = args_size;
+  task_info->input_num = input_num;
+  task_info->inputs = inputs;
+  task_info->output_num = output_num;
+  task_info->outputs = outputs;
+  task_info->workspace_num = workspace_num;
+  task_info->workspace_addrs = workspace_addrs;
+  task_info->workspace_sizes = workspace_sizes;
+  task_info->task_type = task_type;
+  task_info->stream = stream;
+  task_info->is_raw_address = is_raw_address;
+  task_info->l0_exception_dump_info = nullptr;
+  return ACL_SUCCESS;
+}
+
+aclError ReportOm2TaskPreprocess(const char *op_name, const char *op_type, uint64_t op_desc_id,
+                                uintptr_t args_base, uint64_t args_size,
+                                const std::vector<Om2TaskIoEntry> &inputs,
+                                const std::vector<Om2TaskIoEntry> &outputs,
+                                const std::vector<uint64_t> &workspace_addrs,
+                                const std::vector<uint64_t> &workspace_sizes,
+                                uint32_t task_type, void *stream,
+                                const Om2L0TaskRawInfo *l0_info,
+                                uint32_t model_id, void *instance_handle,
+                                uint32_t is_raw_address = 0U) {
+  uint32_t stream_id = 0U;
+  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
+
+  OM2_CHK_TRUE(workspace_addrs.size() == workspace_sizes.size());
+
+  Om2TaskInfo task_info{};
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, 0U, stream_id, op_desc_id,
+                                      args_base, args_size,
+                                      inputs.data(), static_cast<uint64_t>(inputs.size()),
+                                      outputs.data(), static_cast<uint32_t>(outputs.size()),
+                                      workspace_addrs.empty() ? nullptr : workspace_addrs.data(),
+                                      workspace_sizes.empty() ? nullptr : workspace_sizes.data(),
+                                      static_cast<uint32_t>(workspace_addrs.size()),
+                                      task_type, stream, is_raw_address));
+  task_info.l0_exception_dump_info = l0_info;
+  if (ReportDfxTaskPreprocess != nullptr && instance_handle != nullptr) {
+    OM2_CHK_STATUS(ReportDfxTaskPreprocess(model_id, instance_handle, &task_info, nullptr, 0U));
+  }
+  return ACL_SUCCESS;
+}
+
+aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,
+                               uintptr_t args_base, uint64_t args_size,
+                               const Om2TaskIoEntry *inputs, uint64_t input_num,
+                               const Om2TaskIoEntry *outputs, uint32_t output_num,
+                               const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
+                               uint32_t workspace_num,
+                               uint32_t task_type, void *stream,
+                               uint32_t model_id, void *instance_handle,
+                               uint32_t is_raw_address = 0U) {
+  uint32_t task_id = 0U;
+  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
+
+  uint32_t stream_id = 0U;
+  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
+
+  Om2TaskInfo task_info{};
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, task_id, stream_id, op_desc_id,
+                                      args_base, args_size,
+                                      inputs, input_num,
+                                      outputs, output_num,
+                                      workspace_addrs, workspace_sizes, workspace_num,
+                                      task_type, stream, is_raw_address));
+  task_info.l0_exception_dump_info = nullptr;
+  if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
+    OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
+  }
+  return ACL_SUCCESS;
+}
+
+uint8_t GetIsDataDump(const char *op_name, uint32_t model_id, void *instance_handle) {
+  if (IsDataDumpEnabled != nullptr && instance_handle != nullptr) {
+    uint8_t is_data_dump = 0U;
+    auto ret = IsDataDumpEnabled(model_id, instance_handle, op_name, &is_data_dump);
+    return ret == 0 ? is_data_dump : 0U;
+  }
+  return 0U;
+}
+constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -2264,40 +2456,52 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 
 aclError Om2Model::Load() {
   dev_ext_info_mem_ptrs_.resize(2);
-  // ============================= add1 ===============================
-  std::vector<int64_t> op2_input0_shape = {-1, -1, -1, -1};
-  Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op2_input0_shape);
-  std::vector<int64_t> op2_input1_shape = {-1, -1, -1, -1};
-  Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op2_input1_shape);
-  std::vector<int64_t> op2_output0_shape = {-1, -1, -1, -1};
-  Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op2_output0_shape);
-  std::vector<uint64_t> op2_iow_addr = FlattenHostArgs(op2_input0, op2_input1, op2_output0);
-  const char *op2_args_str = "\104\000\000\000\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000";
-  const char *op2_ext_info_str = "\001\000\000\000\210\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\002\000\000\000\104\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\021\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\006\000\000\000\010\000\000\000\001\000\000\000\000\000\000\000\003\000\000\000\004\000\000\000\001\000\000\000\007\000\000\000\004\000\000\000\001\000\000\000";
-  std::vector<uint8_t> op2_args;
-  op2_args.resize(68);
-  AssembleAicpuExtInfo(reinterpret_cast<uint8_t *>(const_cast<char *>(op2_ext_info_str)), 285, 228, session_id_, &kernel_id_, dev_ext_info_mem_ptrs_, 0);
-  AssembleAicpuArgs(reinterpret_cast<uint8_t *>(const_cast<char *>(op2_args_str)), 68, dev_ext_info_mem_ptrs_[0], 285, op2_iow_addr, op2_args.data());
-  LaunchKernelCfgHolder op2_cfg_holder;
-  AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
-  OM2_CHK_STATUS(AicpuKernelTaskDistribute(op2_args, args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 0U}, {&op2_input1, 0U}}, {{&op2_output0, 0U}}, {}, {}, 0U, stream_list_[0], model_id_, instance_handle_));
+{
+    // ============================= add1 ===============================
+    static constexpr int64_t op2_input0_shape[] = {-1, -1, -1, -1};
+    Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op2_input0_shape, 4UL);
+    static constexpr int64_t op2_input1_shape[] = {-1, -1, -1, -1};
+    Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op2_input1_shape, 4UL);
+    static constexpr int64_t op2_output0_shape[] = {-1, -1, -1, -1};
+    Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op2_output0_shape, 4UL);
+    std::vector<uint64_t> op2_iow_addr = FlattenHostArgs(op2_input0, op2_input1, op2_output0);
+    const char *op2_args_str = "\104\000\000\000\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000";
+    const char *op2_ext_info_str = "\001\000\000\000\210\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\002\000\000\000\104\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\021\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\006\000\000\000\010\000\000\000\001\000\000\000\000\000\000\000\003\000\000\000\004\000\000\000\001\000\000\000\007\000\000\000\004\000\000\000\001\000\000\000";
+    std::vector<uint8_t> op2_args;
+    op2_args.resize(68);
+    AssembleAicpuExtInfo(reinterpret_cast<uint8_t *>(const_cast<char *>(op2_ext_info_str)), 285, 228, session_id_, &kernel_id_, dev_ext_info_mem_ptrs_, 0);
+    AssembleAicpuArgs(reinterpret_cast<uint8_t *>(const_cast<char *>(op2_args_str)), 68, dev_ext_info_mem_ptrs_[0], 285, op2_iow_addr, op2_args.data());
+    LaunchKernelCfgHolder op2_cfg_holder;
+    AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
+    OM2_CHK_STATUS(AicpuKernelTaskDistribute(op2_args, args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
+    const Om2TaskIoEntry op2_report_inputs[] = {{&op2_input0, 0U}, {&op2_input1, 0U}};
+    const Om2TaskIoEntry op2_report_outputs[] = {{&op2_output0, 0U}};
+    OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, op2_report_inputs, 2UL, op2_report_outputs, 1U, nullptr, nullptr, 0U, 0U, stream_list_[0], model_id_, instance_handle_));
 
-  // ============================= add2 ===============================
-  std::vector<int64_t> op3_output0_shape = {-1, -1, -1, -1};
-  Om2Tensor op3_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op3_output0_shape);
-  std::vector<uint64_t> op3_iow_addr = FlattenHostArgs(op2_input0, op2_output0, op3_output0);
-  const char *op3_args_str = "\104\000\000\000\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000";
-  const char *op3_ext_info_str = "\001\000\000\000\210\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\002\000\000\000\104\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\021\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\006\000\000\000\010\000\000\000\001\000\000\000\000\000\000\000\003\000\000\000\004\000\000\000\001\000\000\000\007\000\000\000\004\000\000\000\001\000\000\000";
-  std::vector<uint8_t> op3_args;
-  op3_args.resize(68);
-  AssembleAicpuExtInfo(reinterpret_cast<uint8_t *>(const_cast<char *>(op3_ext_info_str)), 285, 228, session_id_, &kernel_id_, dev_ext_info_mem_ptrs_, 1);
-  AssembleAicpuArgs(reinterpret_cast<uint8_t *>(const_cast<char *>(op3_args_str)), 68, dev_ext_info_mem_ptrs_[1], 285, op3_iow_addr, op3_args.data());
-  LaunchKernelCfgHolder op3_cfg_holder;
-  AssembleLaunchConfig(op3_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add2", model_id_, instance_handle_), 0U, 0U});
-  OM2_CHK_STATUS(AicpuKernelTaskDistribute(op3_args, args_table_.GetArgsInfo(1), func_handles_[0], 8, stream_list_[0], &op3_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task("add2", "Add", 3U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(1)->dev_addr), args_table_.GetArgsInfo(1)->size, {{&op2_input0, 0U}, {&op2_output0, 0U}}, {{&op3_output0, 0U}}, {}, {}, 0U, stream_list_[0], model_id_, instance_handle_));
+  }
+{
+    // ============================= add2 ===============================
+    static constexpr int64_t op3_input0_shape[] = {-1, -1, -1, -1};
+    Om2Tensor op3_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op3_input0_shape, 4UL);
+    static constexpr int64_t op3_input1_shape[] = {-1, -1, -1, -1};
+    Om2Tensor op3_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op3_input1_shape, 4UL);
+    static constexpr int64_t op3_output0_shape[] = {-1, -1, -1, -1};
+    Om2Tensor op3_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 0UL, 1, 2, op3_output0_shape, 4UL);
+    std::vector<uint64_t> op3_iow_addr = FlattenHostArgs(op3_input0, op3_input1, op3_output0);
+    const char *op3_args_str = "\104\000\000\000\003\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000";
+    const char *op3_ext_info_str = "\001\000\000\000\210\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\002\000\000\000\104\000\000\000\000\000\000\000\005\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\005\000\000\000\021\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\000\006\000\000\000\010\000\000\000\001\000\000\000\000\000\000\000\003\000\000\000\004\000\000\000\001\000\000\000\007\000\000\000\004\000\000\000\001\000\000\000";
+    std::vector<uint8_t> op3_args;
+    op3_args.resize(68);
+    AssembleAicpuExtInfo(reinterpret_cast<uint8_t *>(const_cast<char *>(op3_ext_info_str)), 285, 228, session_id_, &kernel_id_, dev_ext_info_mem_ptrs_, 1);
+    AssembleAicpuArgs(reinterpret_cast<uint8_t *>(const_cast<char *>(op3_args_str)), 68, dev_ext_info_mem_ptrs_[1], 285, op3_iow_addr, op3_args.data());
+    LaunchKernelCfgHolder op3_cfg_holder;
+    AssembleLaunchConfig(op3_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add2", model_id_, instance_handle_), 0U, 0U});
+    OM2_CHK_STATUS(AicpuKernelTaskDistribute(op3_args, args_table_.GetArgsInfo(1), func_handles_[0], 8, stream_list_[0], &op3_cfg_holder.cfg));
+    const Om2TaskIoEntry op3_report_inputs[] = {{&op3_input0, 0U}, {&op3_input1, 0U}};
+    const Om2TaskIoEntry op3_report_outputs[] = {{&op3_output0, 0U}};
+    OM2_CHK_STATUS(ReportLaunchedOm2Task("add2", "Add", 3U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(1)->dev_addr), args_table_.GetArgsInfo(1)->size, op3_report_inputs, 2UL, op3_report_outputs, 1U, nullptr, nullptr, 0U, 0U, stream_list_[0], model_id_, instance_handle_));
 
+  }
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
   return ACL_SUCCESS;
 }
@@ -2379,6 +2583,8 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
 })";
+
+
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
@@ -2392,8 +2598,118 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForDynamicIo_Ok) {
 
 namespace om2 {
 namespace {
-)" + GetLoadAndRunDumpHelpersExpected() +
-                               R"(constexpr uint16_t GE_MODULE_NAME_U16 = 45;
+Om2Tensor BuildOm2Tensor(void *device_address, uint64_t size, int32_t data_type,
+                         int32_t format, const int64_t *shape_dims, uint64_t shape_dims_num) {
+  Om2Tensor tensor{};
+  tensor.device_address = PtrToU64(device_address);
+  tensor.size = size;
+  tensor.data_type = data_type;
+  tensor.format = format;
+  tensor.shape_dims = shape_dims;
+  tensor.shape_dims_num = shape_dims_num;
+  return tensor;
+}
+
+aclError AssembleOm2TaskInfo(Om2TaskInfo *task_info, const char *op_name, const char *op_type,
+                             uint32_t task_id, uint32_t stream_id, uint64_t op_desc_id,
+                             uintptr_t args_base, uint64_t args_size,
+                             const Om2TaskIoEntry *inputs, uint64_t input_num,
+                             const Om2TaskIoEntry *outputs, uint32_t output_num,
+                             const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
+                             uint32_t workspace_num, uint32_t task_type, void *stream,
+                             uint32_t is_raw_address = 0U) {
+  task_info->op_name = op_name;
+  task_info->op_type = op_type;
+  task_info->task_id = task_id;
+  task_info->stream_id = stream_id;
+  task_info->context_id = 0U;
+  task_info->thread_id = 0U;
+  task_info->op_desc_id = op_desc_id;
+  task_info->args_base = args_base;
+  task_info->args_size = args_size;
+  task_info->input_num = input_num;
+  task_info->inputs = inputs;
+  task_info->output_num = output_num;
+  task_info->outputs = outputs;
+  task_info->workspace_num = workspace_num;
+  task_info->workspace_addrs = workspace_addrs;
+  task_info->workspace_sizes = workspace_sizes;
+  task_info->task_type = task_type;
+  task_info->stream = stream;
+  task_info->is_raw_address = is_raw_address;
+  task_info->l0_exception_dump_info = nullptr;
+  return ACL_SUCCESS;
+}
+
+aclError ReportOm2TaskPreprocess(const char *op_name, const char *op_type, uint64_t op_desc_id,
+                                uintptr_t args_base, uint64_t args_size,
+                                const std::vector<Om2TaskIoEntry> &inputs,
+                                const std::vector<Om2TaskIoEntry> &outputs,
+                                const std::vector<uint64_t> &workspace_addrs,
+                                const std::vector<uint64_t> &workspace_sizes,
+                                uint32_t task_type, void *stream,
+                                const Om2L0TaskRawInfo *l0_info,
+                                uint32_t model_id, void *instance_handle,
+                                uint32_t is_raw_address = 0U) {
+  uint32_t stream_id = 0U;
+  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
+
+  OM2_CHK_TRUE(workspace_addrs.size() == workspace_sizes.size());
+
+  Om2TaskInfo task_info{};
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, 0U, stream_id, op_desc_id,
+                                      args_base, args_size,
+                                      inputs.data(), static_cast<uint64_t>(inputs.size()),
+                                      outputs.data(), static_cast<uint32_t>(outputs.size()),
+                                      workspace_addrs.empty() ? nullptr : workspace_addrs.data(),
+                                      workspace_sizes.empty() ? nullptr : workspace_sizes.data(),
+                                      static_cast<uint32_t>(workspace_addrs.size()),
+                                      task_type, stream, is_raw_address));
+  task_info.l0_exception_dump_info = l0_info;
+  if (ReportDfxTaskPreprocess != nullptr && instance_handle != nullptr) {
+    OM2_CHK_STATUS(ReportDfxTaskPreprocess(model_id, instance_handle, &task_info, nullptr, 0U));
+  }
+  return ACL_SUCCESS;
+}
+
+aclError ReportLaunchedOm2Task(const char *op_name, const char *op_type, uint64_t op_desc_id,
+                               uintptr_t args_base, uint64_t args_size,
+                               const Om2TaskIoEntry *inputs, uint64_t input_num,
+                               const Om2TaskIoEntry *outputs, uint32_t output_num,
+                               const uint64_t *workspace_addrs, const uint64_t *workspace_sizes,
+                               uint32_t workspace_num,
+                               uint32_t task_type, void *stream,
+                               uint32_t model_id, void *instance_handle,
+                               uint32_t is_raw_address = 0U) {
+  uint32_t task_id = 0U;
+  OM2_CHK_RT(aclrtGetThreadLastTaskId(&task_id));
+
+  uint32_t stream_id = 0U;
+  OM2_CHK_STATUS(aclrtStreamGetId(stream, reinterpret_cast<int32_t *>(&stream_id)));
+
+  Om2TaskInfo task_info{};
+  OM2_CHK_STATUS(AssembleOm2TaskInfo(&task_info, op_name, op_type, task_id, stream_id, op_desc_id,
+                                      args_base, args_size,
+                                      inputs, input_num,
+                                      outputs, output_num,
+                                      workspace_addrs, workspace_sizes, workspace_num,
+                                      task_type, stream, is_raw_address));
+  task_info.l0_exception_dump_info = nullptr;
+  if (ReportDfxTaskPostprocess != nullptr && instance_handle != nullptr) {
+    OM2_CHK_STATUS(ReportDfxTaskPostprocess(model_id, instance_handle, &task_info, nullptr, 0U));
+  }
+  return ACL_SUCCESS;
+}
+
+uint8_t GetIsDataDump(const char *op_name, uint32_t model_id, void *instance_handle) {
+  if (IsDataDumpEnabled != nullptr && instance_handle != nullptr) {
+    uint8_t is_data_dump = 0U;
+    auto ret = IsDataDumpEnabled(model_id, instance_handle, op_name, &is_data_dump);
+    return ret == 0 ? is_data_dump : 0U;
+  }
+  return 0U;
+}
+constexpr uint16_t GE_MODULE_NAME_U16 = 45;
 aclError MallocDeviceMemory(void *&dev_ptr, const size_t size, const uint32_t mem_type, std::vector<void *> &mem_ptrs) {
   uint64_t block_size = 2097152;
   if ((mem_type == RT_MEMORY_TS)) {
@@ -2520,30 +2836,34 @@ aclmdlRI Om2Model::GetRtModelHandle() {
 
 aclError Om2Model::Load() {
   dev_ext_info_mem_ptrs_.resize(0);
-  // ============================= add1 ===============================
-  auto op2_io_desc0 = args_table_.GetDevArgAddr(24);
-  OM2_CHK_NOTNULL(op2_io_desc0);
-  auto op2_io_desc1 = args_table_.GetDevArgAddr(80);
-  OM2_CHK_NOTNULL(op2_io_desc1);
-  auto op2_io_desc2 = args_table_.GetDevArgAddr(136);
-  OM2_CHK_NOTNULL(op2_io_desc2);
-  std::vector<int64_t> op2_shape_info0 = {48, 4294967300, 1, 1, 224, 224};
-  std::vector<int64_t> op2_input0_shape = {1, 1, 224, 224};
-  Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input0_shape);
-  std::vector<int64_t> op2_shape_info1 = {48, 4294967300, 1, 1, 224, 224};
-  std::vector<int64_t> op2_input1_shape = {1, 1, 224, 224};
-  Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input1_shape);
-  std::vector<int64_t> op2_shape_info2 = {48, 4294967300, 1, 1, 224, 224};
-  std::vector<int64_t> op2_output0_shape = {1, 1, 224, 224};
-  Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_output0_shape);
-  LaunchKernelCfgHolder op2_cfg_holder;
-  AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
-  const Om2L0ArgSlotInfo op2_l0_arg_slots[] = {{OM2_L0_ARG_LEVEL1_DESC, 0U, 0U, 0UL, 0U, 0U, 24U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 8U, 0UL, 0U, 0U, 80U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 16U, 0UL, 0U, 0U, 136U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 24U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 72U, 0UL, 9U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 80U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 128U, 0UL, 16U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 136U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 184U, 0UL, 23U, 0U, 0U}};
-  const Om2L0TaskRawInfo op2_l0_info = {1U, 0U, 9UL, op2_l0_arg_slots};
-  OM2_CHK_STATUS(ReportOm2TaskPreprocess("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 72U}, {&op2_input1, 128U}}, {{&op2_output0, 184U}}, {}, {}, 0U, stream_list_[0], &op2_l0_info, model_id_, instance_handle_));
-  OM2_CHK_STATUS(KernelTaskDistribute(FlattenHostArgs(op2_io_desc0, op2_io_desc1, op2_io_desc2, op2_shape_info0, op2_input0, op2_shape_info1, op2_input1, op2_shape_info2, op2_output0), args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
-  OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 72U}, {&op2_input1, 128U}}, {{&op2_output0, 184U}}, {}, {}, 0U, stream_list_[0], model_id_, instance_handle_));
+{
+    // ============================= add1 ===============================
+    auto op2_io_desc0 = args_table_.GetDevArgAddr(24);
+    OM2_CHK_NOTNULL(op2_io_desc0);
+    auto op2_io_desc1 = args_table_.GetDevArgAddr(80);
+    OM2_CHK_NOTNULL(op2_io_desc1);
+    auto op2_io_desc2 = args_table_.GetDevArgAddr(136);
+    OM2_CHK_NOTNULL(op2_io_desc2);
+    std::vector<int64_t> op2_shape_info0 = {48, 4294967300, 1, 1, 224, 224};
+    static constexpr int64_t op2_input0_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_input0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input0_shape, 4UL);
+    std::vector<int64_t> op2_shape_info1 = {48, 4294967300, 1, 1, 224, 224};
+    static constexpr int64_t op2_input1_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_input1 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_input1_shape, 4UL);
+    std::vector<int64_t> op2_shape_info2 = {48, 4294967300, 1, 1, 224, 224};
+    static constexpr int64_t op2_output0_shape[] = {1, 1, 224, 224};
+    Om2Tensor op2_output0 = BuildOm2Tensor(GET_ADDR(total_dev_mem_ptr_, 1024), 200704UL, 1, 0, op2_output0_shape, 4UL);
+    LaunchKernelCfgHolder op2_cfg_holder;
+    AssembleLaunchConfig(op2_cfg_holder, {0U, ACL_RT_ENGINE_TYPE_AIC, 0U, false, GetIsDataDump("add1", model_id_, instance_handle_), 0U, 0U});
+    const Om2L0ArgSlotInfo op2_l0_arg_slots[] = {{OM2_L0_ARG_LEVEL1_DESC, 0U, 0U, 0UL, 0U, 0U, 24U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 8U, 0UL, 0U, 0U, 80U}, {OM2_L0_ARG_LEVEL1_DESC, 0U, 16U, 0UL, 0U, 0U, 136U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 24U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 72U, 0UL, 9U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 80U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_INPUT, 0U, 128U, 0UL, 16U, 0U, 0U}, {OM2_L0_ARG_SHAPE_INFO, 0U, 136U, 6UL, 0U, 0U, 0U}, {OM2_L0_ARG_OUTPUT, 0U, 184U, 0UL, 23U, 0U, 0U}};
+    const Om2L0TaskRawInfo op2_l0_info = {1U, 0U, 9UL, op2_l0_arg_slots};
+    OM2_CHK_STATUS(ReportOm2TaskPreprocess("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, {{&op2_input0, 72U}, {&op2_input1, 128U}}, {{&op2_output0, 184U}}, {}, {}, 0U, stream_list_[0], &op2_l0_info, model_id_, instance_handle_));
+    OM2_CHK_STATUS(KernelTaskDistribute(FlattenHostArgs(op2_io_desc0, op2_io_desc1, op2_io_desc2, op2_shape_info0, op2_input0, op2_shape_info1, op2_input1, op2_shape_info2, op2_output0), args_table_.GetArgsInfo(0), func_handles_[0], 8, stream_list_[0], &op2_cfg_holder.cfg));
+    const Om2TaskIoEntry op2_report_inputs[] = {{&op2_input0, 72U}, {&op2_input1, 128U}};
+    const Om2TaskIoEntry op2_report_outputs[] = {{&op2_output0, 184U}};
+    OM2_CHK_STATUS(ReportLaunchedOm2Task("add1", "Add", 2U, reinterpret_cast<uintptr_t>(args_table_.GetArgsInfo(0)->dev_addr), args_table_.GetArgsInfo(0)->size, op2_report_inputs, 2UL, op2_report_outputs, 1U, nullptr, nullptr, 0U, 0U, stream_list_[0], model_id_, instance_handle_));
 
+  }
   OM2_CHK_STATUS(aclmdlRIBuildEnd(model_handle_, nullptr));
   return ACL_SUCCESS;
 }
@@ -2625,6 +2945,8 @@ aclError Om2ModelDestroy(om2::Om2ModelHandle *model_handle) {
   delete static_cast<om2::Om2Model*>(*model_handle);
   return ACL_SUCCESS;
 })";
+
+
   ASSERT_EQ(outputs[GeneratedFileIndex::kLoadingAndRunningFile], expected + "\n");
 }
 
@@ -2803,6 +3125,21 @@ TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoAddrTaskExplicitFormat_
   EXPECT_NE(load_run.find("args_table_.GetArgsInfo("), std::string::npos);
   // aclrtMemcpy with DEVICE_TO_HOST
   EXPECT_NE(load_run.find("ACL_MEMCPY_DEVICE_TO_HOST"), std::string::npos);
+}
+
+TEST_F(ProgramGeneratorUt, GenerateLoadAndRunSourceForCmoAddrTask_ConstTensor) {
+  GeRootModelPtr ge_root_model = CreateGeRootModelWithCmoAddrTaskConstTensor();
+  auto generator = CreateProgramGenerator(ge_root_model);
+  std::map<GeneratedFileIndex, std::string> outputs;
+  ASSERT_EQ(GenerateProgramFiles(generator, outputs), SUCCESS);
+
+  const auto &load_run = outputs[GeneratedFileIndex::kLoadingAndRunningFile];
+  // CMO_ADDR comment header
+  EXPECT_NE(load_run.find("(CMO_ADDR)"), std::string::npos);
+  // KernelCmoAddrTaskDistribute call
+  EXPECT_NE(load_run.find("KernelCmoAddrTaskDistribute("), std::string::npos);
+  // const tensor with const_index path: uses constants_[N]
+  EXPECT_NE(load_run.find("BuildOm2Tensor(constants_[0]"), std::string::npos);
 }
 
 GeRootModelPtr CreateGeRootModelWithDsaOp() {
@@ -3025,7 +3362,7 @@ TEST_F(ProgramGeneratorUt, GetRtAddress_InMemRange_SetsFmMemType) {
 
 TEST_F(ProgramGeneratorUt, GetRtAddress_InWeightRange_SetsWeightMemType) {
   GetRtAddressTestContext ctx;
-  ctx.weight_offset_to_varname[256] = "weight_256";
+  ctx.weight_offset_to_varname[256] = "const_256";
   const uintptr_t logic_addr = ctx.runtime.logic_weight_base + 256U;
   AddrSemantic addr_node;
   uint64_t mem_type = 0U;
@@ -3057,14 +3394,14 @@ TEST_F(ProgramGeneratorUt, GetRtAddress_InConstantRange_SetsConstantMemType) {
   ctx.runtime.logic_var_base = kMemoryVarLogicBase;
   const uintptr_t logic_addr = kMemoryVarLogicBase + 256U;
   const int64_t addr_key = static_cast<int64_t>(logic_addr);
-  ctx.fileconst_output_offset_to_varname[addr_key] = "const_var_256";
+  ctx.fileconst_output_offset_to_varname[addr_key] = "const_256";
   AddrSemantic addr_node;
   uint64_t mem_type = 0U;
   EXPECT_EQ(Om2ModelUtils::GetRtAddress(*ctx.context, logic_addr, mem_type, addr_node, true, 0U), SUCCESS);
   EXPECT_EQ(mem_type, kConstantMemType);
   EXPECT_EQ(addr_node.kind, AddrValueKind::kConstTensor);
   EXPECT_TRUE(addr_node.is_reused_from_upstream);
-  EXPECT_EQ(addr_node.symbol_hint, "const_var_256");
+  EXPECT_EQ(addr_node.symbol_hint, "const_256");
   EXPECT_EQ(addr_node.mem_offset, addr_key);
 }
 

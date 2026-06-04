@@ -102,36 +102,37 @@ void MemcpyAsyncTaskCodeBuilder::SetupIoAddrRefresh(TaskSemanticContributeContex
 
 Status MemcpyAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
   items.push_back(ast_.Comment("============================= " + header_.op_name + " ==============================="));
-  if (!input_addr_node_.is_reused_from_upstream) {
-    GE_ASSERT_TRUE(input_addr_node_.tensor_info.has_value(),
-                   "[OM2] MemcpyAsync input tensor info is required for %s.",
-                   input_addr_node_.symbol_hint.c_str());
-    const auto &input_tensor_info = *input_addr_node_.tensor_info;
-    const std::string input_shape_var_name = input_addr_node_.symbol_hint + "_shape";
-    items.push_back(ast_.VarDecl("std::vector<int64_t>", input_shape_var_name,
-                                 ast_.InitList(ConvertToArgs(input_tensor_info.shape_dims))));
-    items.push_back(ast_.VarDecl("Om2Tensor", input_addr_node_.symbol_hint, ast_.Call("BuildOm2Tensor", {
-        GetAddr(total_dev_mem_ptr_, input_addr_node_.mem_offset),
-        ast_.ULong(input_tensor_info.size),
-        input_tensor_info.data_type,
-        input_tensor_info.format,
-        ast_.Var("std::vector<int64_t>", input_shape_var_name)})));
-  }
-  if (!output_addr_node_.is_reused_from_upstream) {
-    GE_ASSERT_TRUE(output_addr_node_.tensor_info.has_value(),
-                   "[OM2] MemcpyAsync output tensor info is required for %s.",
-                   output_addr_node_.symbol_hint.c_str());
-    const auto &output_tensor_info = *output_addr_node_.tensor_info;
-    const std::string output_shape_var_name = output_addr_node_.symbol_hint + "_shape";
-    items.push_back(ast_.VarDecl("std::vector<int64_t>", output_shape_var_name,
-                                 ast_.InitList(ConvertToArgs(output_tensor_info.shape_dims))));
-    items.push_back(ast_.VarDecl("Om2Tensor", output_addr_node_.symbol_hint, ast_.Call("BuildOm2Tensor", {
-        GetAddr(total_dev_mem_ptr_, output_addr_node_.mem_offset),
-        ast_.ULong(output_tensor_info.size),
-        output_tensor_info.data_type,
-        output_tensor_info.format,
-        ast_.Var("std::vector<int64_t>", output_shape_var_name)})));
-  }
+  GE_ASSERT_TRUE(input_addr_node_.tensor_info.has_value(),
+                 "[OM2] MemcpyAsync input tensor info is required for %s.",
+                 input_addr_node_.symbol_hint.c_str());
+  const auto &input_tensor_info = *input_addr_node_.tensor_info;
+  const std::string input_shape_var_name = input_addr_node_.symbol_hint + "_shape";
+  items.push_back(ast_.VarDecl("std::vector<int64_t>", input_shape_var_name,
+                               ast_.InitList(ConvertToArgs(input_tensor_info.shape_dims))));
+  const auto input_device_addr = (input_addr_node_.kind == AddrValueKind::kConstTensor && input_addr_node_.const_index.has_value())
+                                     ? Arg(constants_[static_cast<int64_t>(*input_addr_node_.const_index)])
+                                     : Arg(GetAddr(total_dev_mem_ptr_, input_addr_node_.mem_offset));
+  items.push_back(ast_.VarDecl("Om2Tensor", input_addr_node_.symbol_hint, ast_.Call("BuildOm2Tensor", {
+      input_device_addr,
+      ast_.ULong(input_tensor_info.size),
+      input_tensor_info.data_type,
+      input_tensor_info.format,
+      ast_.Var("std::vector<int64_t>", input_shape_var_name).Data(),
+      ast_.Var("std::vector<int64_t>", input_shape_var_name).Size()})));
+  GE_ASSERT_TRUE(output_addr_node_.tensor_info.has_value(),
+                 "[OM2] MemcpyAsync output tensor info is required for %s.",
+                 output_addr_node_.symbol_hint.c_str());
+  const auto &output_tensor_info = *output_addr_node_.tensor_info;
+  const std::string output_shape_var_name = output_addr_node_.symbol_hint + "_shape";
+  items.push_back(ast_.VarDecl("std::vector<int64_t>", output_shape_var_name,
+                               ast_.InitList(ConvertToArgs(output_tensor_info.shape_dims))));
+  items.push_back(ast_.VarDecl("Om2Tensor", output_addr_node_.symbol_hint, ast_.Call("BuildOm2Tensor", {
+      GetAddr(total_dev_mem_ptr_, output_addr_node_.mem_offset),
+      ast_.ULong(output_tensor_info.size),
+      output_tensor_info.data_type,
+      output_tensor_info.format,
+      ast_.Var("std::vector<int64_t>", output_shape_var_name).Data(),
+      ast_.Var("std::vector<int64_t>", output_shape_var_name).Size()})));
   if (io_refresh_) {
     std::vector<Arg> args_vars;
     args_vars.emplace_back(ast_.Var("auto", input_addr_node_.symbol_hint));

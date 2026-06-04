@@ -125,23 +125,22 @@ Status CmoAddrTaskCodeBuilder::BuildOrderedArgs(TaskSemanticContributeContext &c
 Status CmoAddrTaskCodeBuilder::CollectIoAddrVars(std::vector<BodyItem> &items, std::vector<Arg> &args_vars) {
   for (const auto &semantic : ordered_arg_values_) {
     if (semantic.kind == AddrValueKind::kInputInstance || semantic.kind == AddrValueKind::kOutputInstance) {
-      if (!semantic.is_reused_from_upstream) {
-        if (!semantic.tensor_info.has_value()) {
-          GELOGE(FAILED, "[OM2] CmoAddrAsync tensor info is required for %s.", semantic.symbol_hint.c_str());
-          return FAILED;
-        }
-        const auto &tensor_info = *semantic.tensor_info;
-        const std::string shape_var_name = semantic.symbol_hint + "_shape";
-        items.push_back(
-            ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-        auto &base_ptr = (semantic.memory_type == (kSessionScopeMemoryMask | RT_MEMORY_HBM))
-                             ? session_scope_mem_ptr_ : total_dev_mem_ptr_;
-        items.push_back(ast_.VarDecl(
-            "Om2Tensor", semantic.symbol_hint,
-            ast_.Call("BuildOm2Tensor",
-                      {GetAddr(base_ptr, semantic.mem_offset), ast_.ULong(tensor_info.size),
-                       tensor_info.data_type, tensor_info.format, ast_.Var("std::vector<int64_t>", shape_var_name)})));
+      if (!semantic.tensor_info.has_value()) {
+        GELOGE(FAILED, "[OM2] CmoAddrAsync tensor info is required for %s.", semantic.symbol_hint.c_str());
+        return FAILED;
       }
+      const auto &tensor_info = *semantic.tensor_info;
+      const std::string shape_var_name = semantic.symbol_hint + "_shape";
+      items.push_back(
+          ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+      auto &base_ptr = (semantic.memory_type == (kSessionScopeMemoryMask | RT_MEMORY_HBM))
+                           ? session_scope_mem_ptr_ : total_dev_mem_ptr_;
+      items.push_back(ast_.VarDecl(
+          "Om2Tensor", semantic.symbol_hint,
+          ast_.Call("BuildOm2Tensor",
+                    {GetAddr(base_ptr, semantic.mem_offset), ast_.ULong(tensor_info.size),
+                     tensor_info.data_type, tensor_info.format, ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
+                     ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
       args_vars.emplace_back(ast_.Var("auto", semantic.symbol_hint));
     } else if (semantic.kind == AddrValueKind::kConstTensor) {
       args_vars.emplace_back(ast_.Var("auto", semantic.symbol_hint));

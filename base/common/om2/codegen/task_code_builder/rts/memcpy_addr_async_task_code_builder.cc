@@ -190,25 +190,25 @@ void MemcpyAddrAsyncTaskCodeBuilder::CollectIoAddrVars(std::vector<BodyItem> &it
   GELOGI("[OM2][CollectIoAddrVars] ordered_arg_values size=%zu", ordered_arg_values_.size());
   for (size_t i = 0; i < ordered_arg_values_.size(); ++i) {
     const auto &semantic = ordered_arg_values_[i];
-    if (!semantic.is_reused_from_upstream) {
-      if (!semantic.tensor_info.has_value()) {
-        GELOGE(FAILED, "[OM2] MemcpyAddrAsync tensor info is required for %s.",
-                semantic.symbol_hint.c_str());
-        return;
-      }
-      const auto &tensor_info = *semantic.tensor_info;
-      const std::string shape_var_name = semantic.symbol_hint + "_shape";
-      items.push_back(
-          ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-      items.push_back(ast_.VarDecl("Om2Tensor", semantic.symbol_hint, ast_.Call("BuildOm2Tensor", {
-          GetAddr(total_dev_mem_ptr_, semantic.mem_offset),
-          ast_.ULong(tensor_info.size),
-          tensor_info.data_type,
-          tensor_info.format,
-          ast_.Var("std::vector<int64_t>", shape_var_name)})));
-    } else {
-      GELOGI("[OM2][CollectIoAddrVars] [%zu] reusing upstream: symbol=%s", i, semantic.symbol_hint.c_str());
+    if (!semantic.tensor_info.has_value()) {
+      GELOGE(FAILED, "[OM2] MemcpyAddrAsync tensor info is required for %s.",
+              semantic.symbol_hint.c_str());
+      return;
     }
+    const auto &tensor_info = *semantic.tensor_info;
+    const std::string shape_var_name = semantic.symbol_hint + "_shape";
+    items.push_back(
+        ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+    const auto device_addr = (semantic.kind == AddrValueKind::kConstTensor && semantic.const_index.has_value())
+                                 ? Arg(constants_[static_cast<int64_t>(*semantic.const_index)])
+                                 : Arg(GetAddr(total_dev_mem_ptr_, semantic.mem_offset));
+    items.push_back(ast_.VarDecl("Om2Tensor", semantic.symbol_hint, ast_.Call("BuildOm2Tensor", {
+        device_addr,
+        ast_.ULong(tensor_info.size),
+        tensor_info.data_type,
+        tensor_info.format,
+        ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
+        ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
     args_vars.emplace_back(ast_.Var("auto", semantic.symbol_hint));
   }
 }
@@ -217,7 +217,7 @@ void MemcpyAddrAsyncTaskCodeBuilder::RenderCustomValueWriteback(std::vector<Body
   size_t host_offset = align_offset_;
   for (size_t i = 0; i < arg_descs_.size(); ++i) {
     if (arg_descs_[i].addr_type == AddrType::CUSTOM_VALUE) {
-      const uint64_t value = *(PtrToPtr<uint8_t, uint64_t>(arg_descs_[i].reserved));
+      const uint64_t value = *reinterpret_cast<const uint64_t *>(arg_descs_[i].reserved);
       auto host_base_expr = ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
           {args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_.table_index)).Arrow("host_addr")}) +
            ast_.UInt(host_offset)});

@@ -353,7 +353,7 @@ TEST(PythonPassArtifactSelectorTest, BuildGePackageDirCandidatesUsesPythonPathFa
   EXPECT_EQ(dirs[0], tree.Path("py/site-packages/ge"));
 }
 
-TEST(PythonPassArtifactSelectorTest, BuildBridgeLibraryCandidatesPrefersMatchingPrebuiltArtifact) {
+TEST(PythonPassArtifactSelectorTest, BuildPrebuiltBridgeLibraryCandidatesReturnsMatchingArtifact) {
   const ScopedEnvVar python_path(selector::kPythonPathEnvName, "");
   ScopedTempTree tree;
   ASSERT_FALSE(tree.Root().empty());
@@ -365,26 +365,23 @@ TEST(PythonPassArtifactSelectorTest, BuildBridgeLibraryCandidatesPrefersMatching
 
   selector::PythonRuntimeKey runtime_key;
   runtime_key.python_tag = "cp313";
-  const auto candidates = selector::BuildBridgeLibraryCandidates(
-      runtime_key, tree.Path("run/lib64/ge_compiler.so"), "libge_python_pass_bridge.so", 1U);
+  const auto candidates = selector::BuildPrebuiltBridgeLibraryCandidates(
+      runtime_key, tree.Path("run/lib64/ge_compiler.so"), 1U);
 
-  ASSERT_EQ(candidates.size(), 3U);
+  ASSERT_EQ(candidates.size(), 1U);
   EXPECT_EQ(selector::BaseName(candidates[0].bridge_path), "libge_python_pass_bridge.so");
   EXPECT_EQ(selector::BaseName(candidates[0].native_module_path), "_ge_pass_native.so");
   EXPECT_NE(candidates[0].artifact_root.find("cp313-linux"), std::string::npos);
-  EXPECT_EQ(candidates[1].bridge_path, tree.Path("run/lib64/libge_python_pass_bridge.so"));
-  EXPECT_EQ(candidates[2].bridge_path, "libge_python_pass_bridge.so");
 }
 
-TEST(PythonPassArtifactSelectorTest, BuildBridgeLibraryCandidatesFallsBackWhenRuntimeTagIsUnknown) {
+TEST(PythonPassArtifactSelectorTest, BuildLegacyBridgeLibraryCandidatesReturnsLoaderLocalAndBareName) {
   const ScopedEnvVar python_path(selector::kPythonPathEnvName, "");
   ScopedTempTree tree;
   ASSERT_FALSE(tree.Root().empty());
   tree.MakeDir("run/lib64");
 
-  selector::PythonRuntimeKey runtime_key;
-  const auto candidates = selector::BuildBridgeLibraryCandidates(
-      runtime_key, tree.Path("run/lib64/ge_compiler.so"), "libge_python_pass_bridge.so", 1U);
+  const auto candidates = selector::BuildLegacyBridgeLibraryCandidates(
+      tree.Path("run/lib64/ge_compiler.so"), "libge_python_pass_bridge.so");
 
   ASSERT_EQ(candidates.size(), 2U);
   EXPECT_EQ(candidates[0].bridge_path, tree.Path("run/lib64/libge_python_pass_bridge.so"));
@@ -404,6 +401,37 @@ TEST(PythonPassArtifactSelectorTest, BuildPrebuiltBridgeLibraryCandidatesSkipsIn
   const auto candidates = selector::BuildPrebuiltBridgeLibraryCandidates(
       runtime_key, tree.Path("run/lib64/ge_compiler.so"), 1U);
   EXPECT_TRUE(candidates.empty());
+}
+
+TEST(PythonPassArtifactSelectorTest, LoadBridgeCandidateFromArtifactRootLoadsMatchingGeneratedArtifact) {
+  ScopedTempTree tree;
+  ASSERT_FALSE(tree.Root().empty());
+  PrepareArtifactSet(tree, "generated", "cp313", 1U);
+
+  selector::PythonRuntimeKey runtime_key;
+  runtime_key.python_tag = "cp313";
+  const auto candidate = selector::LoadBridgeCandidateFromArtifactRoot(tree.Path("generated"), runtime_key, 1U);
+  ASSERT_FALSE(candidate.bridge_path.empty());
+  EXPECT_EQ(selector::BaseName(candidate.bridge_path), "libge_python_pass_bridge.so");
+  EXPECT_EQ(selector::BaseName(candidate.native_module_path), "_ge_pass_native.so");
+  EXPECT_EQ(candidate.artifact_root, selector::ResolveRealPath(tree.Path("generated").c_str()));
+}
+
+TEST(PythonPassArtifactSelectorTest, LoadBridgeCandidateFromArtifactRootRejectsMismatchedGeneratedArtifact) {
+  ScopedTempTree tree;
+  ASSERT_FALSE(tree.Root().empty());
+  PrepareArtifactSet(tree, "generated", "cp313", 1U);
+
+  selector::PythonRuntimeKey runtime_key;
+  runtime_key.python_tag = "cp312";
+  auto candidate = selector::LoadBridgeCandidateFromArtifactRoot(tree.Path("generated"), runtime_key, 1U);
+  EXPECT_TRUE(candidate.bridge_path.empty());
+
+  runtime_key.python_tag = "cp313";
+  candidate = selector::LoadBridgeCandidateFromArtifactRoot(tree.Path("generated"), runtime_key, 2U);
+  EXPECT_TRUE(candidate.bridge_path.empty());
+  candidate = selector::LoadBridgeCandidateFromArtifactRoot("", runtime_key, 1U);
+  EXPECT_TRUE(candidate.bridge_path.empty());
 }
 
 TEST(PythonPassArtifactSelectorTest, AppendMatchedArtifactCandidateRejectsPlatformMismatch) {

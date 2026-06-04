@@ -231,6 +231,7 @@ class AstBuildContext {
   ReturnStmt *Return(Arg value = {});
   VarDeclStmt *VarDecl(const std::string &type_spec, const std::string &name, Arg init = {});
   VarDeclStmt *VarDecl(const VarRef &symbol, Arg init = {});
+  BlockStmt *Block(const std::vector<BodyItem> &items);
   IfStmt *If(Arg cond, std::initializer_list<BodyItem> then_items);
   IfStmt *If(Arg cond, std::initializer_list<BodyItem> then_items, std::initializer_list<BodyItem> else_items);
   ForStmt *For(Stmt *init, Arg cond, Arg step, std::initializer_list<BodyItem> items);

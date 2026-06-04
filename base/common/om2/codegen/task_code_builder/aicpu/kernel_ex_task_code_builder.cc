@@ -389,20 +389,22 @@ Status KernelExTaskCodeBuilder::AppendOm2TensorAddrInfo(const AddrSemantic &addr
                                                         std::vector<BodyItem> &items,
                                                         std::vector<Arg> &flatten_args_vars) const {
   GE_ASSERT_TRUE(!addr.symbol_hint.empty(), "[OM2] KernelEx %s addr symbol hint is empty.", addr_type);
-  if (!addr.is_reused_from_upstream) {
-    GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] KernelEx %s tensor info is required for %s.",
-                   addr_type, addr.symbol_hint.c_str());
-    const auto &tensor_info = *addr.tensor_info;
-    const std::string shape_var_name = addr.symbol_hint + "_shape";
-    items.push_back(
-        ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-    items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
-        GetAddr(total_dev_mem_ptr_, addr.mem_offset),
-        ast_.ULong(tensor_info.size),
-        tensor_info.data_type,
-        tensor_info.format,
-        ast_.Var("std::vector<int64_t>", shape_var_name)})));
-  }
+  GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] KernelEx %s tensor info is required for %s.",
+                 addr_type, addr.symbol_hint.c_str());
+  const auto &tensor_info = *addr.tensor_info;
+  const std::string shape_var_name = addr.symbol_hint + "_shape";
+  items.push_back(
+      ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
+  const auto device_addr = (addr.kind == AddrValueKind::kConstTensor && addr.const_index.has_value())
+                               ? Arg(constants_[static_cast<int64_t>(*addr.const_index)])
+                               : Arg(GetAddr(total_dev_mem_ptr_, addr.mem_offset));
+  items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
+      device_addr,
+      ast_.ULong(tensor_info.size),
+      tensor_info.data_type,
+      tensor_info.format,
+      ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
+      ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
   flatten_args_vars.emplace_back(ast_.Var("auto", addr.symbol_hint));
   return SUCCESS;
 }
@@ -495,10 +497,11 @@ Status KernelExTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items)
     static_cast<int64_t>(semantic_.launch.block_dim),
     stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)],
     cfg_holder.Attr("cfg").Addr()})));
-  items.emplace_back(ChkStatus(TaskCodeBuilderUtil::BuildReportLaunchedTaskCall(
-      ast_, header_, semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
+  GE_ASSERT_SUCCESS(TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(
+      ast_, items, "op" + std::to_string(header_.op_index) + "_kernel_ex", header_,
+      semantic_.args_table_entry.has_value() ? &(*semantic_.args_table_entry) : nullptr,
       semantic_.input_addrs, semantic_.output_addrs, semantic_.workspace_addrs, semantic_.task_type,
-      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)], model_id_, instance_handle_, args_table_, true)));
+      stream_list_[static_cast<int64_t>(semantic_.launch.stream_id)], model_id_, instance_handle_, args_table_, true));
   return SUCCESS;
 }
 

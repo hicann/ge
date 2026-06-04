@@ -141,6 +141,29 @@ std::string MakeModelMetaJsonWithoutRootGraphName() {
 })";
 }
 
+std::string MakeModelMetaJsonWithoutInputShapeV2() {
+  return R"({
+    "dynamic_batch_info": [],
+    "dynamic_output_shape": [],
+    "dynamic_type": 0,
+    "inputs": [
+        {
+            "data_type": "DT_FLOAT",
+            "format": "ND",
+            "index": 0,
+            "name": "data1",
+            "shape": [1, 2, 3, 4],
+            "shape_range": [],
+            "size": 0
+        }
+    ],
+    "name": "g1",
+    "outputs": [],
+    "work_size": 2048,
+    "user_designate_shape_order": []
+})";
+}
+
 std::string MakeInterfaceHeader() {
   return R"(#pragma once
 
@@ -1036,6 +1059,35 @@ TEST_F(Om2ModelExecutorUt, load_fallbacks_root_graph_name_to_model_name_when_met
   EXPECT_EQ(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
 }
 
+TEST_F(Om2ModelExecutorUt, load_failed_when_model_desc_is_invalid) {
+  const std::string om2_file_path = PathUtils::Join({test_work_dir_, "invalid_model_desc.om2"});
+  ZipArchiveWriter zip_writer(om2_file_path);
+  ASSERT_TRUE(zip_writer.IsMemFileOpened());
+  const auto manifest = MakeManifestJson();
+  // Missing input shape_v2 should fail while parsing the cached v2 model desc.
+  const auto model_meta = MakeModelMetaJsonWithoutInputShapeV2();
+  ASSERT_TRUE(zip_writer.WriteBytes("manifest.json", manifest.data(), manifest.size(), false));
+  ASSERT_TRUE(zip_writer.WriteBytes("data/model_0/model_meta.json", model_meta.data(), model_meta.size(), false));
+  ASSERT_TRUE(zip_writer.WriteFile("data/model_0/runtime/libg1_om2.so",
+                                   PathUtils::Join({test_work_dir_, "fake_runtime", "libg1_om2.so"}), false));
+  const std::string constants_config = "{}";
+  ASSERT_TRUE(zip_writer.WriteBytes("data/constants/model_0_constants_config.json", constants_config.data(),
+                                    constants_config.size(), false));
+  ASSERT_TRUE(zip_writer.SaveModelDataToFile());
+  uint32_t model_buf_size = 0U;
+  auto model_buf = GetBinDataFromFile(om2_file_path, model_buf_size);
+  ASSERT_NE(model_buf, nullptr);
+  ModelDataHolder holder;
+  holder.model_data.model_data = model_buf.get();
+  holder.model_data.model_len = model_buf_size;
+  holder.model_data.om_path = om2_file_path;
+  holder.buffer = std::move(model_buf);
+
+  gert::Om2ModelExecutor executor;
+  auto load_arg = MakeOm2LoadArg();
+  EXPECT_NE(executor.Load(holder.model_data, load_arg, 1U), SUCCESS);
+}
+
 TEST_F(Om2ModelExecutorUt, load_generates_session_id_without_rt_session) {
   auto model_data_holder = LoadValidModelData();
   auto load_arg = MakeOm2LoadArg();
@@ -1270,20 +1322,24 @@ TEST_F(Om2ModelExecutorUt, get_model_desc_info_ok) {
   auto load_arg = MakeOm2LoadArg();
   ASSERT_EQ(executor.Load(model_data_holder.model_data, load_arg, 1U), SUCCESS);
 
-  std::vector<ge::Om2TensorDesc> input_desc;
-  std::vector<ge::Om2TensorDesc> output_desc;
+  const std::vector<ge::Om2TensorDesc> *input_desc = nullptr;
+  const std::vector<ge::Om2TensorDesc> *output_desc = nullptr;
   EXPECT_EQ(executor.GetModelDescInfo(input_desc, output_desc, false), SUCCESS);
-  ASSERT_EQ(input_desc.size(), 2U);
-  ASSERT_EQ(output_desc.size(), 1U);
-  EXPECT_EQ(input_desc[0].GetName(), "data1");
-  EXPECT_EQ(input_desc[1].GetName(), "data2");
-  EXPECT_EQ(output_desc[0].GetName(), "output_0_reshape1_0");
+  ASSERT_NE(input_desc, nullptr);
+  ASSERT_NE(output_desc, nullptr);
+  ASSERT_EQ(input_desc->size(), 2U);
+  ASSERT_EQ(output_desc->size(), 1U);
+  EXPECT_EQ((*input_desc)[0].GetName(), "data1");
+  EXPECT_EQ((*input_desc)[1].GetName(), "data2");
+  EXPECT_EQ((*output_desc)[0].GetName(), "output_0_reshape1_0");
 
-  std::vector<ge::Om2TensorDesc> input_desc_v2;
-  std::vector<ge::Om2TensorDesc> output_desc_v2;
+  const std::vector<ge::Om2TensorDesc> *input_desc_v2 = nullptr;
+  const std::vector<ge::Om2TensorDesc> *output_desc_v2 = nullptr;
   EXPECT_EQ(executor.GetModelDescInfo(input_desc_v2, output_desc_v2, true), SUCCESS);
-  EXPECT_EQ(input_desc_v2.size(), input_desc.size());
-  EXPECT_EQ(output_desc_v2.size(), output_desc.size());
+  ASSERT_NE(input_desc_v2, nullptr);
+  ASSERT_NE(output_desc_v2, nullptr);
+  EXPECT_EQ(input_desc_v2->size(), input_desc->size());
+  EXPECT_EQ(output_desc_v2->size(), output_desc->size());
 }
 
 TEST_F(Om2ModelExecutorUt, get_model_attrs_ok) {

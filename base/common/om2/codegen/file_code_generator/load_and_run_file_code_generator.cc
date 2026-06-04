@@ -22,15 +22,6 @@ namespace {
 constexpr uint64_t kDefaultMemBlockSize = 2UL * 1024UL * 1024UL;
 constexpr uint64_t kTsMemBlockSize = 4UL * 1024UL;
 constexpr uint64_t kMemAlignSize = 512UL;
-
-std::vector<Arg> ConvertToArgs(const std::vector<int64_t> &values) {
-  std::vector<Arg> args;
-  args.reserve(values.size());
-  for (const auto value : values) {
-    args.emplace_back(value);
-  }
-  return args;
-}
 }  // namespace
 
 LoadAndRunFileCodeGenerator::LoadAndRunFileCodeGenerator(AstBuildContext &ast) : Om2ModelClassGeneratorBase(ast) {}
@@ -65,22 +56,11 @@ MethodDef *LoadAndRunFileCodeGenerator::BuildGetRtModelHandleMethod() const {
 Status LoadAndRunFileCodeGenerator::BuildLoadBody(std::vector<BodyItem> &body, const Om2CodegenModel &codegen_model,
                                                 const std::vector<TaskCodeBuilderPtr> &task_code_builders) {
   body.push_back(dev_ext_info_mem_ptrs_.Resize(codegen_model.aicpu_task_count));
-  for (const auto &entry : codegen_model.const_inputs) {
-    const auto &tensor_info = entry.tensor_info;
-    const std::string shape_var_name = entry.var_name + "_shape";
-    body.push_back(
-        ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-    body.push_back(ast_.VarDecl("Om2Tensor", entry.var_name,
-                                ast_.Call("BuildOm2Tensor",
-                                          {constants_[static_cast<int64_t>(entry.const_index)],
-                                           ast_.ULong(tensor_info.size),
-                                           tensor_info.data_type,
-                                           tensor_info.format,
-                                           ast_.Var("std::vector<int64_t>", shape_var_name)})));
-  }
   for (const auto &task_code_builder : task_code_builders) {
     GE_ASSERT_NOTNULL(task_code_builder);
-    GE_ASSERT_SUCCESS(task_code_builder->RenderDistribution(body));
+    std::vector<BodyItem> task_body;
+    GE_ASSERT_SUCCESS(task_code_builder->RenderDistribution(task_body));
+    body.push_back(ast_.Block(task_body));
   }
   body.push_back(ChkStatus(AclmdlRIBuildEnd(model_handle_, nullptr)));
   body.push_back(ast_.Return("ACL_SUCCESS"));

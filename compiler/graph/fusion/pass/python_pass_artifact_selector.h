@@ -54,6 +54,7 @@ struct PythonRuntimeKey {
   bool is_initialized{false};
   std::string python_tag;
   std::string version;
+  std::string python_command;
   std::string source;
 
   std::string ToString() const {
@@ -340,6 +341,24 @@ inline void AppendMatchedArtifactCandidate(const PythonRuntimeKey &runtime_key, 
   });
 }
 
+inline BridgeLibraryCandidate LoadBridgeCandidateFromArtifactRoot(const std::string &artifact_root,
+                                                                  const PythonRuntimeKey &runtime_key,
+                                                                  const uint32_t expected_bridge_abi) {
+  if (artifact_root.empty() || runtime_key.python_tag.empty()) {
+    return BridgeLibraryCandidate {};
+  }
+  PythonPassArtifactSet artifact;
+  if (!LoadArtifactManifest(JoinPath(artifact_root, kArtifactManifestName), artifact)) {
+    return BridgeLibraryCandidate {};
+  }
+  std::vector<BridgeLibraryCandidate> candidates;
+  AppendMatchedArtifactCandidate(runtime_key, artifact, CurrentPlatformTag(), expected_bridge_abi, candidates);
+  if (candidates.empty()) {
+    return BridgeLibraryCandidate {};
+  }
+  return candidates.front();
+}
+
 inline std::vector<BridgeLibraryCandidate> BuildPrebuiltBridgeLibraryCandidates(const PythonRuntimeKey &runtime_key,
     const std::string &loader_library_path, const uint32_t expected_bridge_abi) {
   std::vector<BridgeLibraryCandidate> candidates;
@@ -358,10 +377,9 @@ inline std::vector<BridgeLibraryCandidate> BuildPrebuiltBridgeLibraryCandidates(
   return candidates;
 }
 
-inline std::vector<BridgeLibraryCandidate> BuildBridgeLibraryCandidates(const PythonRuntimeKey &runtime_key,
-    const std::string &loader_library_path, const char *bridge_library_name, const uint32_t expected_bridge_abi) {
-  std::vector<BridgeLibraryCandidate> candidates =
-      BuildPrebuiltBridgeLibraryCandidates(runtime_key, loader_library_path, expected_bridge_abi);
+inline std::vector<BridgeLibraryCandidate> BuildLegacyBridgeLibraryCandidates(
+    const std::string &loader_library_path, const char *bridge_library_name) {
+  std::vector<BridgeLibraryCandidate> candidates;
   if (!loader_library_path.empty()) {
     candidates.push_back(BridgeLibraryCandidate{
         JoinPath(DirName(loader_library_path), bridge_library_name),

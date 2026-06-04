@@ -327,7 +327,10 @@ class DavinciModel {
   }
 
   // get model priority
-  int32_t Priority() const { return priority_; }
+  int32_t Priority() const {
+    std::lock_guard<std::mutex> lock(priority_mutex_);
+    return priority_;
+  }
 
   // get total mem size
   size_t TotalMemSize() const { return runtime_param_.mem_size; }
@@ -350,6 +353,10 @@ class DavinciModel {
   const std::vector<aclrtEvent> &GetEventList() const { return event_list_; }
 
   const std::vector<aclrtStream> &GetStreamList() const { return stream_list_; }
+
+  Status SetStreamPriority(const uint32_t priority);
+  Status GetStreamPriority(uint32_t &priority) const;
+  void CollectOwnedStreams(std::vector<aclrtStream> &streams) const;
 
   void SetReusableStreamAllocator(ReusableStreamAllocator *reusable_stream_allocator) {
     reusable_stream_allocator_ = reusable_stream_allocator;
@@ -1501,6 +1508,7 @@ class DavinciModel {
   std::unordered_map<uint32_t, int32_t> stream_task_num_;
   std::map<uint32_t, uint32_t> stream_to_first_task_id_;
   int32_t priority_;
+  mutable std::mutex priority_mutex_;
 
   std::vector<aclrtStream> stream_list_;
   std::vector<uint32_t> stream_flag_list_;

@@ -100,6 +100,8 @@ chmod_end() {
     chmod_recur "$current_install_path/python" 750 dir
  
     if [ "$pylocal" = "y" ]; then
+        local ge_python_pass_artifacts="$current_install_path/python/site-packages/ge/passes/python_pass_artifacts"
+        mkdir -p "$ge_python_pass_artifacts" 2> /dev/null
         chmod_recur "$current_install_path/python/site-packages/llm_datadist_v1" 550 dir
         chmod_recur "$current_install_path/python/site-packages/llm_datadist_v1" 550 file
         chmod_recur "$current_install_path/python/site-packages/llm_datadist_v1-0.0.1.dist-info" 550 dir
@@ -110,6 +112,8 @@ chmod_end() {
         chmod_recur "$current_install_path/python/site-packages/dataflow-0.0.1.dist-info" 550 file
         chmod_recur "$current_install_path/python/site-packages/ge" 550 dir
         chmod_recur "$current_install_path/python/site-packages/ge" 550 file
+        chmod_recur "$ge_python_pass_artifacts" 750 dir
+        chmod_recur "$ge_python_pass_artifacts" 550 file
         chmod_recur "$current_install_path/python/site-packages/ge_py-0.0.1.dist-info" 550 dir
         chmod_recur "$current_install_path/python/site-packages/ge_py-0.0.1.dist-info" 550 file
         chmod_recur "$current_install_path/python/site-packages/ge_py_pass_bridge-0.0.1.dist-info" 550 dir

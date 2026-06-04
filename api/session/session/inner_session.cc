@@ -44,21 +44,16 @@
 #include "register/core_num_utils.h"
 
 namespace ge {
-void CopyGeOutputsMemToUserOutputs(const aclrtStream stream, const std::vector<GeTensor> &ge_outputs,
-                                   std::vector<Tensor> &outputs) {
-  // if alloc output memory by external allocator, should copy to user.
-  AllocatorPtr external_allocator = ExternalAllocatorManager::GetExternalAllocator(stream);
-  if (external_allocator == nullptr) {
+void CopyGeOutputsMemToUserOutputs(const std::vector<GeTensor> &ge_outputs, std::vector<Tensor> &outputs) {
+  if (outputs.size() != 0U) {
     return;
   }
 
-  if (outputs.size() == 0U) {
-    outputs.reserve(ge_outputs.size());
-    for (size_t i = 0UL; i < ge_outputs.size(); i++) {
-      outputs.emplace_back(TensorAdapter::AsTensor(ge_outputs[i]));
-      GELOGI("Return outputs memory malloc by external allocator success, mem:%p, size:%u", outputs[i].GetData(),
-             outputs[i].GetSize());
-    }
+  outputs.reserve(ge_outputs.size());
+  for (size_t i = 0UL; i < ge_outputs.size(); i++) {
+    outputs.emplace_back(TensorAdapter::AsTensor(ge_outputs[i]));
+    GELOGI("Return outputs memory malloc by allocator success, mem:%p, size:%u", outputs[i].GetData(),
+           outputs[i].GetSize());
   }
 }
 namespace {
@@ -479,7 +474,7 @@ Status InnerSession::RunGraphWithStreamAsync(uint32_t graph_id, aclrtStream stre
   }
 
   // if alloc output memory by external allocator, should return to user.
-  CopyGeOutputsMemToUserOutputs(stream, ge_outputs, outputs);
+  CopyGeOutputsMemToUserOutputs(ge_outputs, outputs);
   if (logLevel_ <= DLOG_INFO) {
     GELOGI("Run graph with stream async success, session id = %" PRIu64 ", graph id = %u, stream = %p.",
           session_id_, graph_id, stream);

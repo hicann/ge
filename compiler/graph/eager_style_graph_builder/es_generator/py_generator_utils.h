@@ -152,7 +152,7 @@ class SubgraphHandler {
 
  private:
   static std::string SubgraphName(const std::string &ir_name) {
-    return ir_name;
+    return ge::es::SubgraphName(ir_name, GenLanType::GenPy);
   }
 };
 
@@ -175,7 +175,7 @@ class InputHandler {
   }
 
   static void GenOwnerGraphBuilder(const std::pair<std::string, IrInputType> &input_info, std::stringstream &ss) {
-    const std::string &input_name = InName(input_info.first);
+    const std::string &input_name = InName(input_info.first, GenLanType::GenPy);
     const IrInputType &input_type = input_info.second;
 
     if (input_type == kIrInputRequired || input_type == kIrInputOptional) {
@@ -202,7 +202,7 @@ class InputHandler {
       }
       first = false;
 
-      const std::string &input_name = InName(input.first);
+      const std::string &input_name = InName(input.first, GenLanType::GenPy);
       const IrInputType &input_type = input.second;
 
       if (input_type == kIrInputRequired || input_type == kIrInputOptional) {

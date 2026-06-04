@@ -134,7 +134,8 @@ aclError PrepareOm2Tensor(std::vector<gert::Tensor>& tensor, std::vector<gert::T
     return ACL_SUCCESS;
 }
 
-aclError Om2GetModelTensorDesc(std::vector<ge::Om2TensorDesc>& inputDesc, std::vector<ge::Om2TensorDesc>& outputDesc,
+aclError Om2GetModelTensorDesc(const std::vector<ge::Om2TensorDesc>*& inputDesc,
+                               const std::vector<ge::Om2TensorDesc>*& outputDesc,
                                size_t& inputNum, size_t& outputNum,
                                const std::shared_ptr<gert::Om2ModelExecutor>& executor,
                                const aclmdlDataset* const input, const aclmdlDataset* const output,
@@ -144,9 +145,11 @@ aclError Om2GetModelTensorDesc(std::vector<ge::Om2TensorDesc>& inputDesc, std::v
         ACL_LOG_ERROR("[Get][ModelDesc]Get model desc info failed, ge result[%u], modelId[%u]", getDescRet, modelId);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(getDescRet));
     }
+    ACL_REQUIRES_NOT_NULL(inputDesc);
+    ACL_REQUIRES_NOT_NULL(outputDesc);
 
-    inputNum = inputDesc.size();
-    outputNum = outputDesc.size();
+    inputNum = inputDesc->size();
+    outputNum = outputDesc->size();
     ACL_LOG_INFO(
         "Om2GetModelTensorDesc get model input num %zu, output num %zu, input blobs num %zu, output blobs num %zu",
         inputNum, outputNum, input->blobs.size(), output->blobs.size());
@@ -163,13 +166,31 @@ aclError Om2GetModelTensorDesc(std::vector<ge::Om2TensorDesc>& inputDesc, std::v
     return ACL_SUCCESS;
 }
 
-aclError Om2UpdateOutputTensorDesc(aclmdlDataset* const & output, std::vector<gert::Tensor>& outputTensor,
-                                   const bool isAsync) {
-    for (size_t i = 0UL; i < output->blobs.size(); ++i) {
-        if (output->blobs[i].tensorDesc != nullptr) {
-            aclDestroyTensorDescImplOm2(output->blobs[i].tensorDesc);
+bool HasInputTensorDesc(const aclmdlDataset* const input) {
+    // Input tensorDesc is only supplied for dynamic-shape execution.
+    for (const auto& blob : input->blobs) {
+        if (blob.tensorDesc != nullptr) {
+            return true;
         }
-        output->blobs[i].tensorDesc = aclCreateTensorDescImplOm2(ACL_DT_UNDEFINED, 0, nullptr, ACL_FORMAT_UNDEFINED);
+    }
+    return false;
+}
+
+aclError CreateOm2OutputTensorDescIfNeeded(aclmdlDataset* const output) {
+    for (auto& blob : output->blobs) {
+        if (blob.tensorDesc == nullptr) {
+            blob.tensorDesc = aclCreateTensorDescImplOm2(ACL_DT_UNDEFINED, 0, nullptr, ACL_FORMAT_UNDEFINED);
+            ACL_REQUIRES_NOT_NULL(blob.tensorDesc);
+        }
+    }
+    return ACL_SUCCESS;
+}
+
+aclError Om2UpdateOutputTensorDesc(aclmdlDataset* const & output, std::vector<gert::Tensor>& outputTensor,
+                                   const bool isAsync, const bool dynamicFlag) {
+    ACL_REQUIRES_LE(outputTensor.size(), output->blobs.size());
+    if (dynamicFlag) {
+        ACL_REQUIRES_OK(CreateOm2OutputTensorDescIfNeeded(output));
     }
 
     for (size_t i = 0UL; i < outputTensor.size(); ++i) {
@@ -334,25 +355,29 @@ aclError PopulateDescFromOm2Data(aclmdlDesc* modelDesc, const ge::ModelData& om2
     }
 
     // Get model desc info (v1)
-    std::vector<ge::Om2TensorDesc> inputDesc;
-    std::vector<ge::Om2TensorDesc> outputDesc;
+    const std::vector<ge::Om2TensorDesc>* inputDesc = nullptr;
+    const std::vector<ge::Om2TensorDesc>* outputDesc = nullptr;
     ret = executor->GetModelDescInfo(inputDesc, outputDesc);
     if (ret != ge::SUCCESS) {
         ACL_LOG_CALL_ERROR("[Get][ModelDescInfo]get om2 model description failed, ge result[%u]", ret);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
     }
+    ACL_REQUIRES_NOT_NULL(inputDesc);
+    ACL_REQUIRES_NOT_NULL(outputDesc);
 
     // Get model desc info (v2)
-    std::vector<ge::Om2TensorDesc> inputDescV2;
-    std::vector<ge::Om2TensorDesc> outputDescV2;
+    const std::vector<ge::Om2TensorDesc>* inputDescV2 = nullptr;
+    const std::vector<ge::Om2TensorDesc>* outputDescV2 = nullptr;
     ret = executor->GetModelDescInfo(inputDescV2, outputDescV2, true);
     if (ret != ge::SUCCESS) {
         ACL_LOG_CALL_ERROR("[Get][ModelDescInfo]get om2 model description v2 failed, ge result[%u]", ret);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
     }
+    ACL_REQUIRES_NOT_NULL(inputDescV2);
+    ACL_REQUIRES_NOT_NULL(outputDescV2);
 
     // Fill aclmdlDesc using common helper
-    ACL_REQUIRES_OK(FillModelDescFromTensorDescs(modelDesc, inputDesc, outputDesc, inputDescV2, outputDescV2));
+    ACL_REQUIRES_OK(FillModelDescFromTensorDescs(modelDesc, *inputDesc, *outputDesc, *inputDescV2, *outputDescV2));
 
     ACL_LOG_INFO("Successfully populated aclmdlDesc from OM2 data");
     return ACL_SUCCESS;
@@ -370,10 +395,11 @@ aclError Om2ModelExecuteCommon(uint32_t modelId, const aclmdlDataset* input, acl
         ACL_LOG_ERROR("input modelId[%u] is invalid, please make sure model has been loaded", modelId);
         return static_cast<aclError>(ACL_ERROR_GE_EXEC_MODEL_ID_INVALID);
     }
+    const bool dynamicFlag = HasInputTensorDesc(input);
 
     // Get model description info
-    std::vector<ge::Om2TensorDesc> inputDesc;
-    std::vector<ge::Om2TensorDesc> outputDesc;
+    const std::vector<ge::Om2TensorDesc>* inputDesc = nullptr;
+    const std::vector<ge::Om2TensorDesc>* outputDesc = nullptr;
     size_t inputNum = 0;
     size_t outputNum = 0;
     auto ret = Om2GetModelTensorDesc(inputDesc, outputDesc, inputNum, outputNum, executor, input, output, modelId);
@@ -385,7 +411,7 @@ aclError Om2ModelExecuteCommon(uint32_t modelId, const aclmdlDataset* input, acl
     // Prepare input tensors
     std::vector<gert::Tensor> inputTensor(inputNum);
     std::vector<gert::Tensor*> inputVec(inputNum);
-    ret = PrepareOm2Tensor(inputTensor, inputVec, inputNum, input, inputDesc, modelId);
+    ret = PrepareOm2Tensor(inputTensor, inputVec, inputNum, input, *inputDesc, modelId);
     if (ret != ACL_SUCCESS) {
         ACL_LOG_ERROR("Prepare input tensors failed.");
         return ret;
@@ -394,7 +420,7 @@ aclError Om2ModelExecuteCommon(uint32_t modelId, const aclmdlDataset* input, acl
     // Prepare output tensors
     std::vector<gert::Tensor> outputTensor(outputNum);
     std::vector<gert::Tensor*> outputVec(outputNum);
-    ret = PrepareOm2Tensor(outputTensor, outputVec, outputNum, output, outputDesc, modelId);
+    ret = PrepareOm2Tensor(outputTensor, outputVec, outputNum, output, *outputDesc, modelId);
     if (ret != ACL_SUCCESS) {
         ACL_LOG_ERROR("Prepare output tensors failed.");
         return ret;
@@ -413,7 +439,7 @@ aclError Om2ModelExecuteCommon(uint32_t modelId, const aclmdlDataset* input, acl
     }
 
     // Update output tensor descriptions
-    ret = Om2UpdateOutputTensorDesc(output, outputTensor, isAsync);
+    ret = Om2UpdateOutputTensorDesc(output, outputTensor, isAsync, dynamicFlag);
     if (ret != ACL_SUCCESS) {
         ACL_LOG_ERROR("Update output tensors descriptions failed.");
         return ret;
@@ -712,27 +738,31 @@ aclError aclmdlGetDescImplOm2(aclmdlDesc* modelDesc, uint32_t modelId) {
     ACL_REQUIRES_NOT_NULL(executor);
 
     // Get model desc info (v1)
-    std::vector<ge::Om2TensorDesc> inputDesc;
-    std::vector<ge::Om2TensorDesc> outputDesc;
+    const std::vector<ge::Om2TensorDesc>* inputDesc = nullptr;
+    const std::vector<ge::Om2TensorDesc>* outputDesc = nullptr;
     ge::Status ret = executor->GetModelDescInfo(inputDesc, outputDesc);
     if (ret != ge::SUCCESS) {
         ACL_LOG_CALL_ERROR("[Get][ModelDescInfo]get om2 model description failed, ge result[%u], modelId[%u]",
                            ret, modelId);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
     }
+    ACL_REQUIRES_NOT_NULL(inputDesc);
+    ACL_REQUIRES_NOT_NULL(outputDesc);
 
     // Get model desc info (v2)
-    std::vector<ge::Om2TensorDesc> inputDescV2;
-    std::vector<ge::Om2TensorDesc> outputDescV2;
+    const std::vector<ge::Om2TensorDesc>* inputDescV2 = nullptr;
+    const std::vector<ge::Om2TensorDesc>* outputDescV2 = nullptr;
     ret = executor->GetModelDescInfo(inputDescV2, outputDescV2, true);
     if (ret != ge::SUCCESS) {
         ACL_LOG_CALL_ERROR("[Get][ModelDescInfo]get om2 model description v2 failed, ge result[%u], modelId[%u]",
                            ret, modelId);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(ret));
     }
+    ACL_REQUIRES_NOT_NULL(inputDescV2);
+    ACL_REQUIRES_NOT_NULL(outputDescV2);
 
     // Fill aclmdlDesc using common helper
-    ACL_REQUIRES_OK(FillModelDescFromTensorDescs(modelDesc, inputDesc, outputDesc, inputDescV2, outputDescV2));
+    ACL_REQUIRES_OK(FillModelDescFromTensorDescs(modelDesc, *inputDesc, *outputDesc, *inputDescV2, *outputDescV2));
 
     modelDesc->modelId = modelId;
     ACL_LOG_INFO("[OM2] successfully execute aclmdlGetDesc, modelId[%u]", modelId);

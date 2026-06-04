@@ -20,6 +20,7 @@ set(UT_FILES
     "testcase/acl_common_unittest.cpp"
     "testcase/acl_utils_unittest.cpp"
     "testcase/acl_model_unittest.cpp"
+    "testcase/acl_model_attr_test.cpp"
     "testcase/acl_opCompile_unittest.cpp"
     "testcase/acl_opAttr_unittest.cpp"
     "testcase/acl_opExecutor_unittest.cpp"

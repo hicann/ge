@@ -175,8 +175,7 @@ class InnerSession {
   UserHybridGraphManagerPtr user_hybrid_graph_manager_{nullptr};
 };
 using SessionPtr = std::shared_ptr<InnerSession>;
-void CopyGeOutputsMemToUserOutputs(const aclrtStream stream, const std::vector<GeTensor> &ge_outputs,
-                                   std::vector<Tensor> &outputs);
+void CopyGeOutputsMemToUserOutputs(const std::vector<GeTensor> &ge_outputs, std::vector<Tensor> &outputs);
 }  // namespace ge
 
 #endif  // GE_SESSION_INNER_SESSION_H_

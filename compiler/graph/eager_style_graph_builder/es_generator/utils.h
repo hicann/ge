@@ -311,12 +311,11 @@ inline std::string OutName(const std::string &name, const OpDescPtr &op_desc, Ge
   }
   return IsKeyword(name) ? "out_" + name : name;
 }
-inline std::string SubgraphName(const std::string &name) {
-  if (IsKeyword(name)) {
-    return "subgraph_" + name;
-  } else {
-    return name;
+inline std::string SubgraphName(const std::string &name, GenLanType type = GenLanType::GenCpp) {
+  if (type == GenLanType::GenPy) {
+    return IsPyKeyword(name) ? "subgraph_" + name : name;
   }
+  return IsKeyword(name) ? "subgraph_" + name : name;
 }
 inline std::string DynamicSubgraphVectorName(const std::string &name) {
   return "dynamic_" + SubgraphName(name);
