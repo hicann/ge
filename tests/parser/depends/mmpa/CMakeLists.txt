@@ -16,7 +16,7 @@ add_library(parser_mmpa_stub SHARED ${SRCS})
 target_link_libraries(parser_mmpa_stub
     PRIVATE
         intf_llt_pub
-        metadef_headers        
+        ge_metadef_headers
         -Wl,--no-as-needed
         ascend_protobuf
         -Wl,--as-needed

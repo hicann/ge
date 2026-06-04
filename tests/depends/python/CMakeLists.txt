@@ -39,7 +39,7 @@ target_link_libraries(llm_wrapper PRIVATE
         msprof_headers
         air_headers
         slog_headers
-        metadef_headers
+        ge_metadef_headers
         c_sec
         slog_stub
         error_manager

@@ -46,7 +46,7 @@ target_link_libraries(ut_expression PRIVATE
     platform
     unified_dlog
     slog_headers
-    metadef_headers
+    ge_metadef_headers
     register
     metadef
     rt2_registry_static

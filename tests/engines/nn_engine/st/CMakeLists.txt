@@ -238,7 +238,7 @@ target_link_libraries(fe_st PRIVATE
         lowering_pkg
         graph_pkg
         air_headers
-        metadef_headers
+        ge_metadef_headers
         metadef
         register_pkg
         graph_base_pkg

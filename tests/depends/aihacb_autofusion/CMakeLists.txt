@@ -93,7 +93,7 @@ set_target_properties(aihac_codegen_toolkit PROPERTIES
 
 target_link_libraries(aihacb_autofusion_stub PRIVATE
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         slog_headers
         mmpa_headers
         msprof_headers

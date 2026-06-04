@@ -66,7 +66,9 @@ target_include_directories(tefusion_st PRIVATE
         ${TEFUSION_TEST_ROOT_PATH}
         ${AIR_CODE_DIR}/compiler/opcompiler/op_compile_adapter/source
         ${AIR_CODE_DIR}/tests/engines/te_fusion/st/stub
-        ${AIR_CODE_DIR}/tests/engines/te_fusion/st/testcase/op_compile_adapter/stub)
+        ${AIR_CODE_DIR}/tests/engines/te_fusion/st/testcase/op_compile_adapter/stub
+        ${ASCEND_INSTALL_PATH}/include/exe_graph
+        ${ASCEND_INSTALL_PATH}/include/experiment/metadef)
 
 target_compile_options(tefusion_st PRIVATE
         -D__OPTIMIZER_KT_TEST__
@@ -92,7 +94,7 @@ target_link_libraries(tefusion_st PRIVATE
         lowering
         graph
         air_headers
-        metadef_headers
+        ge_metadef_headers
         metadef
         $<BUILD_INTERFACE:atrace_headers>
         atrace_stub

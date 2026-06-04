@@ -14,7 +14,7 @@ target_link_libraries(error_manager_stub
         intf_llt_pub
         c_sec
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
         json
         mmpa
 )

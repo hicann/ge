@@ -61,7 +61,7 @@ target_link_libraries(op_tiling_rt2_stub PRIVATE
         msprof_headers
         mmpa_headers
         runtime_headers
-        metadef_headers
+        ge_metadef_headers
         cce_headers
         -Wl,--no-as-needed
         ascend_protobuf

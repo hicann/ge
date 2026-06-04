@@ -43,7 +43,7 @@ target_link_libraries(test_common_st ${ASCGEN_COMMON_LINK_OPTION}
         atrace
         json
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         error_manager
         ascend_protobuf
         c_sec

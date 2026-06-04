@@ -68,7 +68,7 @@ target_link_libraries(autofuse_test PRIVATE
         ${ASCEND_INSTALL_PATH}/lib64/libaihac_ir.so
         ge_runner
         gert
-        metadef_headers
+        ge_metadef_headers
         ascendcl_stub
         GTestShared::gtest
         GTestShared::gtest_main

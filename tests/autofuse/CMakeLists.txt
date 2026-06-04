@@ -160,7 +160,7 @@ if (ENABLE_OPEN_SRC)
     target_link_libraries(autofuse PUBLIC
         -lgcov
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         ascend_protobuf
         c_sec
         json
@@ -180,7 +180,7 @@ else ()
         atrace_share
         graph_base
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         atrace_headers
         error_manager
         ascend_protobuf

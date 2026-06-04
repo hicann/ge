@@ -39,7 +39,7 @@ target_link_libraries(cann_kb_stub
                 c_sec
                 aicore_utils
                 air_headers
-                metadef_headers)
+                ge_metadef_headers)
 
 set(INSTALL_BASE_DIR "")
 set(INSTALL_INCLUDE_DIR include)

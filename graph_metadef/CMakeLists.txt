@@ -31,9 +31,11 @@ if (ENABLE_METADEF_UT OR ENABLE_METADEF_ST OR ENABLE_BENCHMARK)
 endif()
 
 set(_metadef_install_targets lowering graph graph_base register aihac_symbolizer)
-get_target_property(_mh_imported_install metadef_headers IMPORTED)
-if(NOT _mh_imported_install)
-    list(APPEND _metadef_install_targets metadef_headers)
+if(TARGET metadef_headers)
+    get_target_property(_mh_imported_install metadef_headers IMPORTED)
+    if(NOT _mh_imported_install)
+        list(APPEND _metadef_install_targets metadef_headers)
+    endif()
 endif()
 install(TARGETS ${_metadef_install_targets}
     EXPORT graph_metadef-targets

@@ -652,7 +652,7 @@ target_link_options(ge_ut_common PRIVATE
 
 target_link_libraries(ge_ut_common PRIVATE
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     datagw_headers
     adump_headers
     c_sec
@@ -696,6 +696,7 @@ target_include_directories(ut_libge_multiparts_utest PRIVATE
     ${AIR_CODE_DIR}/tests/st/stubs
     ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
     ${ASCEND_INSTALL_PATH}/include
+    ${ASCEND_INSTALL_PATH}/include/exe_graph
     ${ASCGEN_DIR}/inc
     ${CMAKE_BINARY_DIR}/proto/data_flow_protos
     ${AIR_CODE_DIR}/inc/graph_metadef
@@ -709,7 +710,7 @@ target_link_options(ut_libge_multiparts_utest PRIVATE
 
 target_link_libraries(ut_libge_multiparts_utest
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     ascendcl_stub
     -Wl,-z,muldefs
     symengine
@@ -766,6 +767,7 @@ target_compile_definitions(ut_libge_symbol_infer_utest PRIVATE
 target_include_directories(ut_libge_symbol_infer_utest PRIVATE
         ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
         ${ASCEND_INSTALL_PATH}/include
+        ${ASCEND_INSTALL_PATH}/include/exe_graph
         ${ASCGEN_DIR}/inc
         ${METADEF_DIR}/base/registry
         ${METADEF_DIR}/register
@@ -829,6 +831,10 @@ target_compile_definitions(ut_libge_common_utest PRIVATE
     CMAKE_BINARY_DIR=\"${CMAKE_BINARY_DIR}\"
 )
 
+target_include_directories(ut_libge_common_utest PRIVATE
+    ${ASCEND_INSTALL_PATH}/include/exe_graph
+)
+
 target_link_options(ut_libge_common_utest PRIVATE
     -Wl,--disable-new-dtags
     -Wl,-rpath,${CMAKE_CURRENT_LIST_DIR}
@@ -836,7 +842,7 @@ target_link_options(ut_libge_common_utest PRIVATE
 
 target_link_libraries(ut_libge_common_utest
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     ascendcl_stub
     symengine
     slice
@@ -897,6 +903,7 @@ target_compile_options(ut_libge_others_utest PRIVATE ${AIR_COMMON_COMPILE_OPTION
 target_include_directories(ut_libge_others_utest PRIVATE
     ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
     ${ASCEND_INSTALL_PATH}/include
+    ${ASCEND_INSTALL_PATH}/include/exe_graph
     ${ASCGEN_DIR}/inc
 )
 
@@ -913,7 +920,7 @@ target_link_options(ut_libge_others_utest PRIVATE
 
 target_link_libraries(ut_libge_others_utest
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     ascendcl_stub
     ${AIR_COMMON_LINK_OPTION}
     ge_compiler
@@ -1019,7 +1026,7 @@ target_link_options(ut_fusion_pass_executor_utest PRIVATE
 
 target_link_libraries(ut_fusion_pass_executor_utest
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     ascendcl_stub
     ascend_hal_stub
     ${AIR_COMMON_LINK_OPTION}
@@ -1113,7 +1120,7 @@ target_link_options(ut_libge_label_maker_utest PRIVATE
 # TODO:ge_ut_common need shrink; it has too many depends so
 target_link_libraries(ut_libge_label_maker_utest
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     ascendcl_stub
     ascend_hal_stub
     ge_common
@@ -1165,7 +1172,7 @@ target_include_directories(ut_libge_kernel_utest PRIVATE
 
 target_link_libraries(ut_libge_kernel_utest
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         -Wl,--whole-archive
         ascendcl_stub
         ascend_hal_stub
@@ -1218,7 +1225,10 @@ target_include_directories(ut_libge_distinct_load_utest PRIVATE
     ${AIR_CODE_DIR}/tests/ge/ut/ge/runtime/fast_v2
     ${AIR_CODE_DIR}/tests/depends/op_stub
     ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
-    ${ASCEND_INSTALL_PATH}/include)
+    ${ASCEND_INSTALL_PATH}/include/experiment/metadef
+    ${ASCEND_INSTALL_PATH}/include
+    ${ASCEND_INSTALL_PATH}/include/base
+    ${ASCEND_INSTALL_PATH}/include/exe_graph)
 
 target_link_options(ut_libge_distinct_load_utest PRIVATE
     -Wl,--disable-new-dtags
@@ -1228,7 +1238,7 @@ target_link_options(ut_libge_distinct_load_utest PRIVATE
 target_link_libraries(ut_libge_distinct_load_utest
     intf_llt_pub
     ascend_hal_stub
-    metadef_headers
+    ge_metadef_headers
     ascendcl_stub
     datagw_headers
     msprof_headers
@@ -1296,7 +1306,7 @@ target_link_options(ge_manual_test PRIVATE
 
 target_link_libraries(ge_manual_test
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         ascendcl_stub
         ge_compiler
         graph_base
@@ -1343,6 +1353,7 @@ target_include_directories(ut_jit_execution PRIVATE
         ${AIR_CODE_DIR}/tests/framework/ge_runtime_stub/include
         ${AIR_CODE_DIR}/tests/ge/st/stubs/utils
         ${ASCEND_INSTALL_PATH}/include
+        ${ASCEND_INSTALL_PATH}/include/exe_graph
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef
         ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse/graph_metadef/graph
@@ -1357,7 +1368,7 @@ target_link_options(ut_jit_execution PRIVATE
 
 target_link_libraries(ut_jit_execution
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         ascendcl_stub
         ${AIR_COMMON_LINK_OPTION}
         -Wl,--whole-archive
@@ -1420,7 +1431,7 @@ target_link_libraries(ut_eager_style_builder
         intf_llt_pub
         -Wl,-z,muldefs
         ascend_hal_stub
-        metadef_headers
+        ge_metadef_headers
         es_generator_inner_headers
         json
         symengine

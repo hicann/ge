@@ -58,7 +58,7 @@ target_link_libraries(aihac_symbolizer
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
 )
 set_target_properties(aihac_symbolizer PROPERTIES
         CXX_EXTENSIONS NO)

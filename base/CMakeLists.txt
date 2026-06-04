@@ -248,7 +248,7 @@ target_link_libraries(ge_common
         ${AIR_COMMON_LINK_OPTION}
     PUBLIC
         $<BUILD_INTERFACE:air_headers>
-        $<BUILD_INTERFACE:metadef_headers>
+        $<BUILD_INTERFACE:ge_metadef_headers>
 )
 
 ############ libge_common_base.so ############
@@ -323,7 +323,7 @@ target_link_libraries(ge_common_base
         ${AIR_COMMON_LINK_OPTION}
     PUBLIC
         air_headers
-        metadef_headers
+        ge_metadef_headers
         $<$<NOT:$<BOOL:${MDC_COMPILE_RUNTIME}>>:atrace_headers>
 )
 
@@ -375,7 +375,7 @@ target_link_libraries(ge_common_static PRIVATE
     adump_headers
     runtime_headers
     mmpa_headers
-    metadef_headers
+    ge_metadef_headers
     datagw_headers
     ascend_protobuf_static
     json
@@ -513,7 +513,7 @@ target_link_libraries(ge_common_base
         ${AIR_COMMON_LINK_OPTION}
     PUBLIC
         air_headers
-        metadef_headers
+        ge_metadef_headers
         $<$<NOT:$<BOOL:${MDC_COMPILE_RUNTIME}>>:atrace_headers>
 )
 endif ()
@@ -618,7 +618,7 @@ target_link_libraries(ge_common_stub
     PRIVATE
         intf_pub
         slog_headers
-        metadef_headers
+        ge_metadef_headers
         runtime_headers
         msprof_headers
         mmpa_headers

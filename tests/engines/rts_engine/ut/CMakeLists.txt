@@ -165,7 +165,7 @@ target_link_libraries(rts_engine_utest PRIVATE
     $<BUILD_INTERFACE:runtime_headers>
     $<BUILD_INTERFACE:cce_headers>
     $<BUILD_INTERFACE:atrace_headers>
-    metadef_headers
+    ge_metadef_headers
     c_sec
     alog
     graph

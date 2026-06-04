@@ -53,7 +53,7 @@ target_link_options(ut_libgraph PRIVATE
 target_link_libraries(ut_libgraph
     -Wl,-z,muldefs
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     mmpa_stub
     GTestShared::gtest
     GTestShared::gtest_main

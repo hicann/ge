@@ -47,7 +47,7 @@ target_include_directories(lowering PRIVATE
 target_link_libraries(lowering PRIVATE
     intf_pub
     mmpa_headers
-    metadef_headers
+    ge_metadef_headers
     error_manager_headers
     c_sec
     slog
@@ -137,7 +137,7 @@ target_link_libraries(stub_lowering
         intf_pub
         c_sec_headers
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
 )
 
 set_target_properties(stub_lowering PROPERTIES

@@ -77,7 +77,7 @@ target_compile_definitions(gert_stub PRIVATE ${GERT_COMPILE_DEF})
 target_link_libraries(gert_stub PRIVATE
     intf_pub
     slog_headers
-    metadef_headers
+    ge_metadef_headers
     mmpa_headers
     msprof_headers
     runtime_headers

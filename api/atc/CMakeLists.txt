@@ -60,7 +60,7 @@ target_link_libraries(cmd_flag_info_static PRIVATE
 		slog
 		mmpa_headers
 		static_mmpa
-		metadef_headers
+		ge_metadef_headers
 		runtime_headers
 		-lrt
 		-ldl
@@ -103,7 +103,7 @@ target_link_libraries(atc_static PRIVATE
         intf_pub
         cce_headers
         msprof_headers
-        metadef_headers
+        ge_metadef_headers
         ascend_protobuf
         ge_common
         ge_common_base

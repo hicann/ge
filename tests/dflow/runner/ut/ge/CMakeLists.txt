@@ -176,7 +176,7 @@ target_link_options(ut_libge_helper_utest PRIVATE
 
 target_link_libraries(ut_libge_helper_utest
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     ascendcl_stub
     datagw_headers
     ascend_hal_headers

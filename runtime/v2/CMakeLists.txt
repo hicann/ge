@@ -66,7 +66,7 @@ target_link_libraries(gert_static PRIVATE
         msprof_headers
         adump_headers
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         runtime_headers
         datagw_headers
         ascend_dump
@@ -94,7 +94,7 @@ target_link_libraries(gert PRIVATE
         $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         msprof_headers
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         adump_headers
         $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         ${AIR_COMMON_LINK_OPTION}

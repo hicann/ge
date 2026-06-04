@@ -91,7 +91,7 @@ target_link_directories(acl_op_executor_impl PRIVATE
 
 target_link_libraries(acl_op_executor_impl PRIVATE
     $<BUILD_INTERFACE:intf_pub>
-    $<BUILD_INTERFACE:metadef_headers>
+    $<BUILD_INTERFACE:ge_metadef_headers>
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:slog_headers>>
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:msprof_headers>>
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:mmpa_headers>>

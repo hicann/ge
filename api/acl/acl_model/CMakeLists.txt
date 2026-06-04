@@ -168,7 +168,7 @@ target_link_libraries(acl_mdl_impl_om2 PRIVATE
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:msprof_headers>>
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:mmpa_headers>>
     $<BUILD_INTERFACE:runtime_headers>
-    $<$<BOOL:${ENABLE_OPEN_SRC}>:$<BUILD_INTERFACE:metadef_headers>>
+    $<$<BOOL:${ENABLE_OPEN_SRC}>:$<BUILD_INTERFACE:ge_metadef_headers>>
     -Wl,--whole-archive
     -Wl,--no-whole-archive
     -Wl,--no-as-needed

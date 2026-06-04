@@ -49,7 +49,7 @@ target_link_options(ut_flow_graph PRIVATE
 target_link_libraries(ut_flow_graph PRIVATE
         intf_llt_pub
         -lgcov
-        metadef_headers
+        ge_metadef_headers
         ascend_protobuf
         c_sec_headers
         c_sec
