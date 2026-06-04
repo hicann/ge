@@ -40,7 +40,6 @@ class PassStage(str, Enum):
 
     BEFORE_INFER_SHAPE = "BeforeInferShape"
     AFTER_INFER_SHAPE = "AfterInferShape"
-    AFTER_ASSIGN_LOGIC_STREAM = "AfterAssignLogicStream"
     AFTER_BUILTIN_FUSION_PASS = "AfterBuiltinFusionPass"
     AFTER_ORIGIN_GRAPH_OPTIMIZE = "AfterOriginGraphOptimize"
 
