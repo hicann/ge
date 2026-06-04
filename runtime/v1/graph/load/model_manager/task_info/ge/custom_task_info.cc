@@ -99,6 +99,8 @@ Status CustomTaskInfo::UpdateCustomDumpAddrs(const std::vector<uint64_t> &input_
     return SUCCESS;
   }
 
+  GELOGI("UpdateCustomDumpAddrs: op_name=%s, inputs=%zu, outputs=%zu",
+         op_desc_->GetName().c_str(), input_addrs_value.size(), output_addrs_value.size());
   std::vector<uintptr_t> input_addrs;
   std::vector<uintptr_t> output_addrs;
   input_addrs.reserve(input_addrs_value.size());
@@ -463,8 +465,13 @@ Status CustomTaskInfo::UpdateHostArgs(void* base_addr, size_t mem_size) {
 
     if (tensor != nullptr) {
       tensor->MutableTensorData().SetAddr(reinterpret_cast<void*>(new_addr), nullptr);
-      GELOGI("UpdateHostArgs: io_index=%zu, allocation_id=%" PRIu64 ", offset=%" PRIu64 ", new_addr=0x%" PRIx64,
-             io_index, allocation_id, offset, new_addr);
+      const bool is_input = io_index < input_count_;
+      GELOGI("UpdateHostArgs: op_name=%s, io_index=%zu, %s[%zu], "
+             "allocation_id=%" PRIu64 ", offset=%" PRIu64 ", new_addr=0x%" PRIx64,
+             op_desc_->GetName().c_str(), io_index,
+             is_input ? "input" : "output",
+             is_input ? io_index : io_index - input_count_,
+             allocation_id, offset, new_addr);
     }
 
     io_index++;

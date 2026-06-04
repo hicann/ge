@@ -170,4 +170,84 @@ TEST_F(CustomTaskInfoModeTest, NeedReserveArgsTable_MatchesIsAddressRefreshable)
   EXPECT_EQ(task_info.NeedReserveArgsTable(), task_info.is_args_refreshable_);
 }
 
+/**
+ * 用例描述：测试 CustomTaskInfo 在 dump 使能时，UpdateCustomDumpAddrs 正确更新 input/output dump 地址
+ * 预置条件：
+ *   1. 构造 DavinciModel 并使能 dump
+ *   2. 构造 CustomTaskInfo 并设置 op_desc、input/output 地址
+ *   3. 调用 InsertDumpOp 初始化 input/output dump 算子
+ * 测试步骤：
+ *   1. 调用 UpdateCustomDumpAddrs 传入 input 和 output 地址
+ * 预期结果：
+ *   1. UpdateCustomDumpAddrs 返回 SUCCESS
+ *   2. input_custom_dump_ 的 op_mapping_info 中记录了正确的 input 地址
+ *   3. output_custom_dump_ 的 op_mapping_info 中记录了正确的 output 地址
+ */
+TEST_F(CustomTaskInfoModeTest, UpdateCustomDumpAddrs_DumpEnabled_Success) {
+  DavinciModel model(0, nullptr);
+  auto op_desc = std::make_shared<OpDesc>("dump_custom_op", "CustomOp");
+  GeTensorDesc desc;
+  op_desc->AddInputDesc(desc);
+  op_desc->AddOutputDesc(desc);
+  op_desc->SetId(0);
+  op_desc->SetStreamId(0);
+  model.op_list_[0] = op_desc;
+
+  DumpProperties dump_properties;
+  dump_properties.SetDumpMode("all");
+  dump_properties.AddPropertyValue(DUMP_ALL_MODEL, {});
+  model.SetDumpProperties(dump_properties);
+
+  CustomTaskInfo task_info;
+  task_info.davinci_model_ = &model;
+  task_info.op_desc_ = op_desc;
+  task_info.input_data_addrs_ = {0x1000};
+  task_info.output_data_addrs_ = {0x2000};
+
+  ASSERT_EQ(task_info.InsertDumpOp("input"), SUCCESS);
+  ASSERT_EQ(task_info.InsertDumpOp("output"), SUCCESS);
+
+  const Status ret = task_info.UpdateCustomDumpAddrs({0x3000}, {0x3008});
+  EXPECT_EQ(ret, SUCCESS);
+  ASSERT_EQ(task_info.input_custom_dump_.op_mapping_info_.task_size(), 1);
+  ASSERT_EQ(task_info.output_custom_dump_.op_mapping_info_.task_size(), 1);
+  ASSERT_EQ(task_info.input_custom_dump_.op_mapping_info_.task(0).input_size(), 1);
+  ASSERT_EQ(task_info.output_custom_dump_.op_mapping_info_.task(0).output_size(), 1);
+  EXPECT_EQ(task_info.input_custom_dump_.op_mapping_info_.task(0).input(0).address(), 0x3000);
+  EXPECT_EQ(task_info.output_custom_dump_.op_mapping_info_.task(0).output(0).address(), 0x3008);
+
+  if (task_info.input_custom_dump_.proto_dev_mem_ != nullptr) {
+    (void)aclrtFree(task_info.input_custom_dump_.proto_dev_mem_);
+    task_info.input_custom_dump_.proto_dev_mem_ = nullptr;
+  }
+  if (task_info.input_custom_dump_.proto_size_dev_mem_ != nullptr) {
+    (void)aclrtFree(task_info.input_custom_dump_.proto_size_dev_mem_);
+    task_info.input_custom_dump_.proto_size_dev_mem_ = nullptr;
+  }
+  if (task_info.input_custom_dump_.launch_kernel_args_dev_mem_ != nullptr) {
+    (void)aclrtFree(task_info.input_custom_dump_.launch_kernel_args_dev_mem_);
+    task_info.input_custom_dump_.launch_kernel_args_dev_mem_ = nullptr;
+  }
+  if (task_info.input_custom_dump_.dev_mem_unload_ != nullptr) {
+    (void)aclrtFree(task_info.input_custom_dump_.dev_mem_unload_);
+    task_info.input_custom_dump_.dev_mem_unload_ = nullptr;
+  }
+  if (task_info.output_custom_dump_.proto_dev_mem_ != nullptr) {
+    (void)aclrtFree(task_info.output_custom_dump_.proto_dev_mem_);
+    task_info.output_custom_dump_.proto_dev_mem_ = nullptr;
+  }
+  if (task_info.output_custom_dump_.proto_size_dev_mem_ != nullptr) {
+    (void)aclrtFree(task_info.output_custom_dump_.proto_size_dev_mem_);
+    task_info.output_custom_dump_.proto_size_dev_mem_ = nullptr;
+  }
+  if (task_info.output_custom_dump_.launch_kernel_args_dev_mem_ != nullptr) {
+    (void)aclrtFree(task_info.output_custom_dump_.launch_kernel_args_dev_mem_);
+    task_info.output_custom_dump_.launch_kernel_args_dev_mem_ = nullptr;
+  }
+  if (task_info.output_custom_dump_.dev_mem_unload_ != nullptr) {
+    (void)aclrtFree(task_info.output_custom_dump_.dev_mem_unload_);
+    task_info.output_custom_dump_.dev_mem_unload_ = nullptr;
+  }
+}
+
 }  // namespace ge
