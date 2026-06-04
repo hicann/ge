@@ -43,7 +43,7 @@ struct TaskSemanticContributeContext {
 
 class TaskCodeBuilder : public Om2ModelClassGeneratorBase {
  public:
-  explicit TaskCodeBuilder(AstBuildContext &ast) : Om2ModelClassGeneratorBase(ast) {}
+  using Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase;
   ~TaskCodeBuilder() override = default;
 
   virtual int64_t ParseOpIndex(const domi::TaskDef &task_def) {
@@ -87,7 +87,7 @@ class TaskCodeBuilder : public Om2ModelClassGeneratorBase {
   static std::vector<Arg> ConvertToArgs(const std::vector<int64_t> &values) {
     std::vector<Arg> args;
     args.reserve(values.size());
-    for (const auto value : values) {
+    for (const int64_t value : values) {
       args.emplace_back(value);
     }
     return args;

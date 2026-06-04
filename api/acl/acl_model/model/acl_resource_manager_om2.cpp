@@ -22,7 +22,7 @@ AclResourceManagerOm2::AclResourceManagerOm2()
     GetRuntimeV2Env();
 }
 
-AclResourceManagerOm2::~AclResourceManagerOm2() {}
+AclResourceManagerOm2::~AclResourceManagerOm2() = default;
 
 AclResourceManagerOm2 &AclResourceManagerOm2::GetInstance()
 {

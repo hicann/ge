@@ -45,7 +45,7 @@ Status ProgramGenerator::GenerateProgram(Om2CodePrinter &code_printer) {
 Status ProgramGenerator::GenerateInterfaceHeader(Om2CodePrinter &code_printer) {
   InterfaceFileCodeGenerator interface_handler(ast_);
   auto external_api_decls = interface_handler.BuildExternalApiDecls();
-  external_api_decls.insert(external_api_decls.begin(), ast_.StablePart(StablePartId::kInterfaceDumpApis));
+  (void)external_api_decls.insert(external_api_decls.begin(), ast_.StablePart(StablePartId::kInterfaceDumpApis));
   auto *translation_unit = ast_.File({
       ast_.Include("iostream", IncludeDecl::Kind::kAngle),
       ast_.Include("cstddef", IncludeDecl::Kind::kAngle),
@@ -162,7 +162,7 @@ Status ProgramGenerator::GenerateKernelRegSource(Om2CodePrinter &code_printer) {
 Status ProgramGenerator::GenerateLoadAndRunSource(Om2CodePrinter &code_printer) {
   LoadAndRunFileCodeGenerator load_and_run_handler(ast_);
   auto anonymous_items = load_and_run_handler.BuildAnonymousNamespaceItems(codegen_model_, task_code_builder_list_);
-  anonymous_items.insert(anonymous_items.begin(), ast_.StablePart(StablePartId::kLoadAndRunDumpHelpers,
+  (void)anonymous_items.insert(anonymous_items.begin(), ast_.StablePart(StablePartId::kLoadAndRunDumpHelpers,
                                                                   StablePartPlacement::kNamespace));
   auto *translation_unit = ast_.File({
       ast_.Include(codegen_model_.model_name + "_interface.h"),

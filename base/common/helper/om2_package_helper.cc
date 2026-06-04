@@ -74,13 +74,13 @@ Status GetDynamicBatchInfo(const OpDescPtr &op_desc, JsonFile::json &batch_info,
 }
 
 Status FillTensorInfo(JsonFile &tensor_info, const ConstGeTensorDescPtr &tensor_desc, const int64_t tensor_size) {
-  tensor_info.Set("shape", tensor_desc->GetShape().GetDims())
+  (void)tensor_info.Set("shape", tensor_desc->GetShape().GetDims())
       .Set("data_type", TypeUtils::DataTypeToSerialString(tensor_desc->GetDataType()))
       .Set("format", TypeUtils::FormatToSerialString(tensor_desc->GetFormat()))
       .Set("size", tensor_size);
   std::vector<std::pair<int64_t, int64_t>> range;
   if (tensor_desc->GetShapeRange(range) == SUCCESS) {
-    tensor_info.Set("shape_range", range);
+    (void)tensor_info.Set("shape_range", range);
   }
   return SUCCESS;
 }
@@ -152,7 +152,7 @@ Status RewriteOm2ConstantsConfig(const std::string &output_file_name, JsonFile &
     changed = true;
   }
   if (changed) {
-    constants_json.Set("consts", consts_json);
+    (void)constants_json.Set("consts", consts_json);
   }
   return SUCCESS;
 }
@@ -244,7 +244,7 @@ Status BuildInputJsonArray(const std::map<uint32_t, OpDescPtr> &input_ops, JsonF
                         op_desc->GetName().c_str());
     }
     JsonFile input_info;
-    input_info.Set("name", op_desc->GetName()).Set("index", index);
+    (void)input_info.Set("name", op_desc->GetName()).Set("index", index);
     GE_ASSERT_SUCCESS(FillTensorInfo(input_info, tensor_desc, input_size));
     std::vector<int64_t> model_input_dims;
     if (op_desc->HasAttr(ATTR_NAME_INPUT_DIMS)) {
@@ -252,7 +252,7 @@ Status BuildInputJsonArray(const std::map<uint32_t, OpDescPtr> &input_ops, JsonF
     } else {
       model_input_dims = tensor_desc->GetShape().GetDims();
     }
-    input_info.Set("shape_v2", model_input_dims);
+    (void)input_info.Set("shape_v2", model_input_dims);
     input_json_array.push_back(input_info.Raw());
   }
   return SUCCESS;
@@ -275,7 +275,7 @@ Status BuildOutputJsonArray(const std::vector<OpDescPtr> &output_ops, const std:
         output_name =
             std::string("output_") + std::to_string(i) + "_" + src_name[i] + "_" + std::to_string(src_index[i]);
       }
-      const auto &tensor_desc = op_desc->GetInputDescPtr(i);
+      const auto &tensor_desc = op_desc->GetInputDescPtr(static_cast<uint32_t>(i));
       GE_ASSERT_NOTNULL(tensor_desc);
       int64_t tensor_size = 0;
       if (AttrUtils::GetInt(tensor_desc, ATTR_NAME_SPECIAL_OUTPUT_SIZE, tensor_size) && (tensor_size > 0)) {
@@ -283,7 +283,7 @@ Status BuildOutputJsonArray(const std::vector<OpDescPtr> &output_ops, const std:
       } else {
         (void)TensorUtils::GetTensorSizeInBytes(*tensor_desc, tensor_size);
       }
-      output_info.Set("name", output_name).Set("index", i);
+      (void)output_info.Set("name", output_name).Set("index", i);
       GE_ASSERT_SUCCESS(FillTensorInfo(output_info, tensor_desc, tensor_size));
       output_json_array.push_back(output_info.Raw());
     }
@@ -308,15 +308,15 @@ void FillModelMetaInfo(const GeModelPtr &ge_model, const JsonFile::json &input_j
                        JsonFile &model_meta_info) {
   int64_t work_size = 0;
   (void)AttrUtils::GetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, work_size);
-  model_meta_info.Set("inputs", input_json_array);
-  model_meta_info.Set("outputs", output_json_array);
-  model_meta_info.Set("dynamic_output_shape", extra_info.dynamic_output_shape);
-  model_meta_info.Set("dynamic_batch_info", extra_info.dynamic_batch_info);
-  model_meta_info.Set("user_designate_shape_order", extra_info.user_designate_shape_order);
-  model_meta_info.Set("dynamic_type", extra_info.dynamic_type);
-  model_meta_info.Set("work_size", work_size);
-  model_meta_info.Set("name", ge_model->GetName());
-  model_meta_info.Set("root_graph_name", root_graph_name);
+  (void)model_meta_info.Set("inputs", input_json_array);
+  (void)model_meta_info.Set("outputs", output_json_array);
+  (void)model_meta_info.Set("dynamic_output_shape", extra_info.dynamic_output_shape);
+  (void)model_meta_info.Set("dynamic_batch_info", extra_info.dynamic_batch_info);
+  (void)model_meta_info.Set("user_designate_shape_order", extra_info.user_designate_shape_order);
+  (void)model_meta_info.Set("dynamic_type", extra_info.dynamic_type);
+  (void)model_meta_info.Set("work_size", work_size);
+  (void)model_meta_info.Set("name", ge_model->GetName());
+  (void)model_meta_info.Set("root_graph_name", root_graph_name);
 }
 
 std::string GetRootGraphName(const GeModelPtr &ge_model) {
@@ -426,26 +426,26 @@ Status Om2PackageHelper::SaveConstants(std::shared_ptr<ZipArchiveWriter> &zip_wr
   }
 
   JsonFile json_file;
-  json_file.Set("internal_weight_size", has_internal_const ? ge_model->GetWeightSize() : 0U);
+  (void)json_file.Set("internal_weight_size", has_internal_const ? ge_model->GetWeightSize() : 0U);
   auto const_json_object = JsonFile::json::object();
   for (const auto &const_meta : const_metas) {
     JsonFile const_info;
-    const_info.Set("index", const_meta.index);
-    const_info.Set("type", const_meta.type);
-    const_info.Set("file_name", const_meta.file_name);
+    (void)const_info.Set("index", const_meta.index);
+    (void)const_info.Set("type", const_meta.type);
+    (void)const_info.Set("file_name", const_meta.file_name);
     if (save_file_path && (const_meta.type != "INTERNAL") && !const_meta.file_path.empty()) {
-      const_info.Set("file_path", const_meta.file_path);
+      (void)const_info.Set("file_path", const_meta.file_path);
     }
-    const_info.Set("offset", const_meta.offset);
-    const_info.Set("size", const_meta.size);
-    const_info.Set("op_name", const_meta.op_name);
+    (void)const_info.Set("offset", const_meta.offset);
+    (void)const_info.Set("size", const_meta.size);
+    (void)const_info.Set("op_name", const_meta.op_name);
     std::string const_key = const_meta.op_name.empty() ? const_meta.file_name : const_meta.op_name;
     if (const_key.empty()) {
       const_key = "constant_" + std::to_string(const_meta.index);
     }
     const_json_object[const_key] = const_info.Raw();
   }
-  json_file.Set("consts", const_json_object);
+  (void)json_file.Set("consts", const_json_object);
   const std::string constants_json_str = json_file.Dump();
   const auto constants_config_path =
       FormatOm2Path(OM2_CONSTANTS_CONFIG_PATH_FORMAT, std::to_string(model_index).c_str());
@@ -475,7 +475,7 @@ Status Om2PackageHelper::SaveTbeKernels(std::shared_ptr<ZipArchiveWriter> &zip_w
       GELOGD("[OM2] Save kernel for node [%s], kernel name is [%s]", node_name.c_str(), kernel_name.c_str());
       const auto entry_path = kernel_bin_dir + Om2CodegenUtils::GetKernelNameWithExtension(kernel_name);
       GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kernel_bin->GetBinData(), kernel_bin->GetBinDataSize(), false));
-      added_kernels.insert(kernel_name);
+      (void)added_kernels.insert(kernel_name);
     }
     std::string atomic_kernel_name;
     (void)AttrUtils::GetStr(node->GetOpDesc(), ATOMIC_ATTR_TBE_KERNEL_NAME, atomic_kernel_name);
@@ -517,7 +517,7 @@ Status Om2PackageHelper::SaveCustAICpuKernels(std::shared_ptr<ZipArchiveWriter> 
           kernel_bin->GetBinData() + kernel_bin->GetBinDataSize()));
         const auto entry_path = kernel_bin_dir + std::to_string(hash_id) + "_CustAicpuKernel.o";
         GE_ASSERT_TRUE(zip_writer->WriteBytes(entry_path, kernel_bin->GetBinData(), kernel_bin->GetBinDataSize(), false));
-        added_kernels.insert(cust_aicpu_kernel->GetName());
+        (void)added_kernels.insert(cust_aicpu_kernel->GetName());
       }
     }
   }
@@ -603,9 +603,9 @@ Status Om2PackageHelper::SaveOpAttrJson(std::shared_ptr<ZipArchiveWriter> &zip_w
 Status Om2PackageHelper::SaveManifest(std::shared_ptr<ZipArchiveWriter> &zip_writer,
                                       const GeRootModelPtr &ge_root_model) {
   JsonFile json_file;
-  json_file.Set<std::string>(OM2_ARCHIVE_VERSION, OM2_ARCHIVE_VERSION_VALUE);
-  json_file.Set(OM2_MODEL_NUM, ge_root_model->GetSubgraphInstanceNameToModel().size());
-  json_file.Set(OM2_ATC_COMMAND, domi::GetContext().atc_cmdline);
+  (void)json_file.Set<std::string>(OM2_ARCHIVE_VERSION, OM2_ARCHIVE_VERSION_VALUE);
+  (void)json_file.Set(OM2_MODEL_NUM, ge_root_model->GetSubgraphInstanceNameToModel().size());
+  (void)json_file.Set(OM2_ATC_COMMAND, domi::GetContext().atc_cmdline);
   const auto manifest_str = json_file.Dump();
   GE_ASSERT_TRUE(zip_writer->WriteBytes(OM2_MANIFEST_PATH, manifest_str.data(), manifest_str.size(), false));
   return SUCCESS;

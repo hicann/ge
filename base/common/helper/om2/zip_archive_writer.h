@@ -31,9 +31,9 @@ struct MemoryFile {
   uint64_t length;          // Actual writable buffer content length.
   uint64_t capacity;        // Writable buffer capacity.
   uint64_t position;        // Current position.
-  int error;                // Error flag.
-  int grow_mode;            // Whether the buffer can grow.
-  int release_from_outside; // 0 means zipClose releases buffer, 1 means external release.
+  int32_t error;                // Error flag.
+  int32_t grow_mode;            // Whether the buffer can grow.
+  int32_t release_from_outside; // 0 means zipClose releases buffer, 1 means external release.
 };
 
 struct SimpleZipMemoryFileReadonly {
@@ -53,7 +53,7 @@ class SimpleZipArchiveReader {
   ReadonlyByteBuffer ExtractToMem(const std::string &entry_name, size_t &buffer_size) const;
 
  private:
-  SimpleZipMemoryFileReadonly mem_file_{};
+  SimpleZipMemoryFileReadonly mem_file_;
   unzFile zip_handle_ = nullptr;
 };
 

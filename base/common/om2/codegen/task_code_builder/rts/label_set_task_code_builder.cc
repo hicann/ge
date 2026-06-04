@@ -36,8 +36,8 @@ Status LabelSetTaskCodeBuilder::Contribute(TaskSemanticContributeContext &contex
 Status LabelSetTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
   items.push_back(ast_.Comment("============================= " + header_.op_name + " ==============================="));
   items.push_back(ChkStatus(ast_.Call("KernelLabelSetDistribute", {
-      label_list_[static_cast<int>(label_index_)],
-      stream_list_[static_cast<int>(header_.stream_id)],
+      label_list_[static_cast<int32_t>(label_index_)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
   })));
   return SUCCESS;
 }

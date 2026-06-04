@@ -16,7 +16,7 @@
 namespace ge {
 class KernelRegFileCodeGenerator : public Om2ModelClassGeneratorBase {
  public:
-  explicit KernelRegFileCodeGenerator(AstBuildContext &ast);
+  using Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase;
   ~KernelRegFileCodeGenerator() override = default;
 
   StructDecl *BuildBinaryBufferStruct() const;

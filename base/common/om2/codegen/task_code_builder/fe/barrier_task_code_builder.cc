@@ -60,7 +60,7 @@ Status BarrierTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) 
 
   items.push_back(
       ChkStatus(ast_.Call("KernelBarrierTaskDistribute",
-                          {barrier_info_var, stream_list_[static_cast<int>(header_.stream_id)], ast_.UInt(0)})));
+                          {barrier_info_var, stream_list_[static_cast<int32_t>(header_.stream_id)], ast_.UInt(0)})));
 
   return SUCCESS;
 }

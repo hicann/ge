@@ -35,7 +35,7 @@ aclTensorDesc::aclTensorDesc(const aclDataType aclTensorDataType,
     format(aclTensorFormat)
 {
     for (size_t i = 0U; i < numDims; ++i) {
-        this->dims.push_back(*(aclTensorDims + i));
+        this->dims.push_back(aclTensorDims[i]);
     }
     if (acl::AclResourceManagerOm2::GetInstance().IsRuntimeV2Enable(false)) { // how to deal with it for model?
         this->storageDims = dims;
@@ -49,7 +49,9 @@ aclTensorDesc::aclTensorDesc(const aclTensorDesc &tensorDesc)
 
 aclTensorDesc &aclTensorDesc::operator=(const aclTensorDesc &tensorDesc)
 {
-    Init(tensorDesc);
+    if (this != &tensorDesc) {
+        Init(tensorDesc);
+    }
     return *this;
 }
 
@@ -383,7 +385,7 @@ aclError aclGetTensorDescDimRangeImplOm2(const aclTensorDesc* desc,
         return ACL_ERROR_INVALID_PARAM;
     }
     *dimRange = desc->shapeRange[index].first;
-    *(dimRange + 1) = desc->shapeRange[index].second;
+    dimRange[1] = desc->shapeRange[index].second;
 
     return ACL_SUCCESS;
 }
@@ -486,7 +488,7 @@ aclError aclSetTensorStorageShapeImplOm2(aclTensorDesc *desc, int numDims, const
 
     desc->storageDims.clear();
     for (int32_t i = 0; i < static_cast<int32_t>(numDims); ++i) {
-        desc->storageDims.push_back(*(dims + i));
+        desc->storageDims.push_back(dims[i]);
     }
 
     return ACL_SUCCESS;
@@ -508,7 +510,7 @@ aclError aclSetTensorShapeImplOm2(aclTensorDesc *desc, int numDims, const int64_
 
     desc->storageDims.clear();
     for (int32_t i = 0; i < static_cast<int32_t>(numDims); ++i) {
-        desc->storageDims.push_back(*(dims + i));
+        desc->storageDims.push_back(dims[i]);
     }
 
     return ACL_SUCCESS;
@@ -530,7 +532,7 @@ aclError aclSetTensorOriginShapeImplOm2(aclTensorDesc *desc, int numDims, const 
 
     desc->dims.clear();
     for (int32_t i = 0; i < numDims; ++i) {
-        desc->dims.push_back(*(dims + i));
+        desc->dims.push_back(dims[i]);
     }
 
     return ACL_SUCCESS;
@@ -539,7 +541,7 @@ aclError aclSetTensorOriginShapeImplOm2(aclTensorDesc *desc, int numDims, const 
 aclTensorDesc *aclGetTensorDescByIndexImplOm2(aclTensorDesc *desc, size_t index)
 {
     ACL_REQUIRES_NOT_NULL_RET_NULL_INPUT_REPORT(desc);
-    return (desc + index);
+    return &desc[index];
 }
 
 void *aclGetTensorDescAddressImplOm2(const aclTensorDesc *desc)

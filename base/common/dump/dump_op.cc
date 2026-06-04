@@ -106,9 +106,15 @@ static void SetLoopAddrToOpMapping(const uintptr_t step_id, const uintptr_t loop
 
 bool DumpOp::IsInBlacklist(const std::string &op_name, const std::string &op_type, size_t index, bool is_input) const {
   std::set<std::string> check_names;
-  if (!dynamic_model_name_.empty()) check_names.insert(dynamic_model_name_);
-  if (!root_graph_name_.empty()) check_names.insert(root_graph_name_);
-  if (!dynamic_om_name_.empty()) check_names.insert(dynamic_om_name_);
+  if (!dynamic_model_name_.empty()) {
+    (void)check_names.insert(dynamic_model_name_);
+  }
+  if (!root_graph_name_.empty()) {
+    (void)check_names.insert(root_graph_name_);
+  }
+  if (!dynamic_om_name_.empty()) {
+    (void)check_names.insert(dynamic_om_name_);
+  }
 
   for (const auto &mn : check_names) {
     if (is_input) {

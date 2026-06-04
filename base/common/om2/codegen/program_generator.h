@@ -23,7 +23,7 @@
 #include "framework/common/ge_inner_error_codes.h"
 
 namespace ge {
-#define EMIT_CODE(ss, code) (ss << code << '\n')
+#define EMIT_CODE(ss, code) ((ss) << (code) << '\n')
 
 class ProgramGenerator {
  public:

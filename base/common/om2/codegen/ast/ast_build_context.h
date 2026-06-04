@@ -38,7 +38,7 @@ class BodyItem;
 
 class Arg {
  public:
-  enum class Kind {
+  enum class Kind : uint8_t {
     kEmpty = 0,
     kExpr,
     kIdentifier,
@@ -122,7 +122,7 @@ class VarRef : public ExprRef {
 
   const std::string &TypeName() const;
   const std::string &SymbolName() const;
-  ExprRef Ref() const { return *this; }
+  ExprRef Ref() const { return ExprRef(*Ctx(), Get()); }
 
  private:
   std::string type_name_;
@@ -160,95 +160,95 @@ class AstBuildContext {
   AstBuildContext(AstBuildContext &&) = delete;
   AstBuildContext &operator=(AstBuildContext &&) = delete;
 
-  TranslationUnit *File(const std::vector<DeclNode *> &items);
-  TranslationUnit *File(std::initializer_list<DeclNode *> items);
-  IncludeDecl *Include(const std::string &path, IncludeDecl::Kind kind = IncludeDecl::Kind::kQuote);
-  SpaceDecl *Space();
-  CommentStmt *Comment(const std::string &text);
-  BlankLineStmt *BlankLine();
-  AccessSectionDecl *Public();
-  AccessSectionDecl *Private();
-  Expr *Str(const std::string &text);
-  Expr *UInt(uint64_t value);
-  Expr *ULong(uint64_t value);
-  TypeAliasDecl *TypeAlias(const std::string &type_spec, const std::string &name);
-  FieldDecl *Field(const std::string &type_spec, const std::string &name, Arg init = {});
-  ClassDecl *Class(const std::string &name, const std::vector<DeclNode *> &items);
-  ClassDecl *Class(const std::string &name, std::initializer_list<DeclNode *> items);
-  StructDecl *Struct(const std::string &name, const std::vector<DeclNode *> &items);
-  StructDecl *Struct(const std::string &name, std::initializer_list<DeclNode *> items);
-  NamespaceDecl *Namespace(const std::string &name, const std::vector<DeclNode *> &items);
-  NamespaceDecl *Namespace(const std::string &name, std::initializer_list<DeclNode *> items);
-  ExternBlockDecl *ExternBlock(const std::string &lang, const std::vector<DeclNode *> &items);
-  ExternBlockDecl *ExternBlock(const std::string &lang, std::initializer_list<DeclNode *> items);
-  StablePartDecl *StablePart(StablePartId id, StablePartPlacement placement = StablePartPlacement::kTranslationUnit);
+  TranslationUnit *File(const std::vector<DeclNode *> &items) const;
+  TranslationUnit *File(std::initializer_list<DeclNode *> items) const;
+  IncludeDecl *Include(const std::string &path, IncludeDecl::Kind kind = IncludeDecl::Kind::kQuote) const;
+  SpaceDecl *Space() const;
+  CommentStmt *Comment(const std::string &text) const;
+  BlankLineStmt *BlankLine() const;
+  AccessSectionDecl *Public() const;
+  AccessSectionDecl *Private() const;
+  Expr *Str(const std::string &text) const;
+  Expr *UInt(uint64_t value) const;
+  Expr *ULong(uint64_t value) const;
+  TypeAliasDecl *TypeAlias(const std::string &type_spec, const std::string &name) const;
+  FieldDecl *Field(const std::string &type_spec, const std::string &name, Arg init = {}) const;
+  ClassDecl *Class(const std::string &name, const std::vector<DeclNode *> &items) const;
+  ClassDecl *Class(const std::string &name, std::initializer_list<DeclNode *> items) const;
+  StructDecl *Struct(const std::string &name, const std::vector<DeclNode *> &items) const;
+  StructDecl *Struct(const std::string &name, std::initializer_list<DeclNode *> items) const;
+  NamespaceDecl *Namespace(const std::string &name, const std::vector<DeclNode *> &items) const;
+  NamespaceDecl *Namespace(const std::string &name, std::initializer_list<DeclNode *> items) const;
+  ExternBlockDecl *ExternBlock(const std::string &lang, const std::vector<DeclNode *> &items) const;
+  ExternBlockDecl *ExternBlock(const std::string &lang, std::initializer_list<DeclNode *> items) const;
+  StablePartDecl *StablePart(StablePartId id, StablePartPlacement placement = StablePartPlacement::kTranslationUnit) const;
   FunctionDecl *DeclareFunction(const std::string &name, const std::vector<VarRef> &params,
-                                const std::string &return_type);
+                                const std::string &return_type) const;
   FunctionDecl *DeclareFunction(const std::string &name, std::initializer_list<VarRef> params,
-                                const std::string &return_type);
+                                const std::string &return_type) const;
   MethodDecl *DeclareMethod(const std::string &name, const std::vector<VarRef> &params,
-                            const std::string &return_type, const std::string &trailing_spec = "");
+                            const std::string &return_type, const std::string &trailing_spec = "") const;
   MethodDecl *DeclareMethod(const std::string &name, std::initializer_list<VarRef> params,
-                            const std::string &return_type, const std::string &trailing_spec = "");
+                            const std::string &return_type, const std::string &trailing_spec = "") const;
   FunctionDef *DefineFunction(const std::string &name, const std::vector<VarRef> &params,
-                              const std::string &return_type, const std::vector<Stmt *> &body);
+                              const std::string &return_type, const std::vector<Stmt *> &body) const;
   FunctionDef *DefineFunction(const std::string &name, std::initializer_list<VarRef> params,
-                              const std::string &return_type, std::initializer_list<BodyItem> items);
+                              const std::string &return_type, std::initializer_list<BodyItem> items) const;
   MethodDef *DefineMethod(const std::string &owner, const std::string &name, const std::vector<VarRef> &params,
-                          const std::string &return_type, const std::vector<Stmt *> &body);
+                          const std::string &return_type, const std::vector<Stmt *> &body) const;
   MethodDef *DefineMethod(const std::string &owner, const std::string &name, const std::vector<VarRef> &params,
-                          const std::string &return_type, const std::vector<BodyItem> &items);
+                          const std::string &return_type, const std::vector<BodyItem> &items) const;
   MethodDef *DefineMethod(const std::string &owner, const std::string &name, std::initializer_list<VarRef> params,
-                          const std::string &return_type, std::initializer_list<BodyItem> items);
+                          const std::string &return_type, std::initializer_list<BodyItem> items) const;
   MethodDef *DefineMethod(const std::string &owner, const std::string &name, const std::vector<VarRef> &params,
                           const std::string &return_type, const std::vector<MemberInitSpec> &member_inits,
-                          const std::vector<Stmt *> &body);
+                          const std::vector<Stmt *> &body) const;
   MethodDef *DefineMethod(const std::string &owner, const std::string &name, const std::vector<VarRef> &params,
                           const std::string &return_type, const std::vector<MemberInitSpec> &member_inits,
-                          const std::vector<BodyItem> &items);
+                          const std::vector<BodyItem> &items) const;
   MethodDef *DefineMethod(const std::string &owner, const std::string &name, std::initializer_list<VarRef> params,
                           const std::string &return_type, std::initializer_list<MemberInitSpec> member_inits,
-                          std::initializer_list<BodyItem> items);
-  InitListExpr *InitList(std::initializer_list<Arg> items);
-  InitListExpr *InitList(const std::vector<Arg> &items);
-  VarRef Var(const std::string &type_name, const std::string &symbol_name);
-  ExprRef Assign(Arg lhs, Arg rhs);
-  ExprRef Deref(Arg expr);
-  ExprRef PreInc(Arg expr);
-  ExprRef PostInc(Arg expr);
-  ExprRef ToStr(Arg expr);
-  ExprRef Memcpy(Arg dst, Arg src, Arg size);
-  ExprRef Sizeof(Arg expr);
-  ExprRef RemoveFile(Arg path);
-  ExprRef IgnoreOutput(Arg expr);
+                          std::initializer_list<BodyItem> items) const;
+  InitListExpr *InitList(std::initializer_list<Arg> items) const;
+  InitListExpr *InitList(const std::vector<Arg> &items) const;
+  VarRef Var(const std::string &type_name, const std::string &symbol_name) const;
+  ExprRef Assign(Arg lhs, Arg rhs) const;
+  ExprRef Deref(Arg expr) const;
+  ExprRef PreInc(Arg expr) const;
+  ExprRef PostInc(Arg expr) const;
+  ExprRef ToStr(Arg expr) const;
+  ExprRef Memcpy(Arg dst, Arg src, Arg size) const;
+  ExprRef Sizeof(Arg expr) const;
+  ExprRef RemoveFile(Arg path) const;
+  ExprRef IgnoreOutput(Arg expr) const;
   LambdaCaptureSpec CaptureRef(const VarRef &symbol) const;
-  ExprRef Lambda(std::initializer_list<LambdaCaptureSpec> captures, std::initializer_list<BodyItem> items);
-  ExprRef Call(const std::string &callee_name, std::initializer_list<Arg> args);
-  ExprRef Call(const std::string &callee_name, const std::vector<Arg> &args);
-  ExprRef MakeUniqueArray(BuiltinType elem_type, Arg count);
-  ExprRef MakeUniqueArray(const std::string &elem_type, Arg count);
-  ExprRef MakeUniqueArray(const char *elem_type, Arg count);
-  ReturnStmt *Return(Arg value = {});
-  VarDeclStmt *VarDecl(const std::string &type_spec, const std::string &name, Arg init = {});
-  VarDeclStmt *VarDecl(const VarRef &symbol, Arg init = {});
-  BlockStmt *Block(const std::vector<BodyItem> &items);
-  IfStmt *If(Arg cond, std::initializer_list<BodyItem> then_items);
-  IfStmt *If(Arg cond, std::initializer_list<BodyItem> then_items, std::initializer_list<BodyItem> else_items);
-  ForStmt *For(Stmt *init, Arg cond, Arg step, std::initializer_list<BodyItem> items);
-  RangeForStmt *RangeFor(const VarRef &loop_var, Arg range, std::initializer_list<BodyItem> items);
+  ExprRef Lambda(std::initializer_list<LambdaCaptureSpec> captures, std::initializer_list<BodyItem> items) const;
+  ExprRef Call(const std::string &callee_name, std::initializer_list<Arg> args) const;
+  ExprRef Call(const std::string &callee_name, const std::vector<Arg> &args) const;
+  ExprRef MakeUniqueArray(BuiltinType elem_type, Arg count) const;
+  ExprRef MakeUniqueArray(const std::string &elem_type, Arg count) const;
+  ExprRef MakeUniqueArray(const char *elem_type, Arg count) const;
+  ReturnStmt *Return(Arg value = {}) const;
+  VarDeclStmt *VarDecl(const std::string &type_spec, const std::string &name, Arg init = {}) const;
+  VarDeclStmt *VarDecl(const VarRef &symbol, Arg init = {}) const;
+  BlockStmt *Block(const std::vector<BodyItem> &items) const;
+  IfStmt *If(Arg cond, std::initializer_list<BodyItem> then_items) const;
+  IfStmt *If(Arg cond, std::initializer_list<BodyItem> then_items, std::initializer_list<BodyItem> else_items) const;
+  ForStmt *For(Stmt *init, Arg cond, Arg step, std::initializer_list<BodyItem> items) const;
+  RangeForStmt *RangeFor(const VarRef &loop_var, Arg range, std::initializer_list<BodyItem> items) const;
   RangeForStmt *RangeFor(const std::string &type_spec, const std::string &name, Arg range,
-                         std::initializer_list<BodyItem> items);
+                         std::initializer_list<BodyItem> items) const;
   MemberInitSpec MemberInit(const std::string &member_name, Arg init) const;
-  std::vector<Stmt *> Body(std::initializer_list<BodyItem> items);
-  std::vector<Stmt *> Body(const std::vector<BodyItem> &items);
-  ExprRef StaticCast(const std::string &target_type, Arg expr);
-  ExprRef ConstCast(const std::string &target_type, Arg expr);
-  ExprRef ReinterpretCast(const std::string &target_type, Arg expr);
+  std::vector<Stmt *> Body(std::initializer_list<BodyItem> items) const;
+  std::vector<Stmt *> Body(const std::vector<BodyItem> &items) const;
+  ExprRef StaticCast(const std::string &target_type, Arg expr) const;
+  ExprRef ConstCast(const std::string &target_type, Arg expr) const;
+  ExprRef ReinterpretCast(const std::string &target_type, Arg expr) const;
 
  private:
   AstContext &ctx_;
 
-  ExprRef MakeUniqueArray(const TypeName &elem_type, Arg count);
+  ExprRef MakeUniqueArray(const TypeName &elem_type, Arg count) const;
 };
 
 class BodyItem {

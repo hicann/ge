@@ -187,7 +187,8 @@ int32_t Om2CodegenUtils::TopicTypeToRtsFlag(const int32_t topic_type) {
   // xxxxxxxx xxxxxxxx xxxx0000 xxxxxxxx: qos off
   // xxxxxxxx xxxxxxxx xxxx1000 xxxxxxxx: qos on, level=0(min level)
   // xxxxxxxx xxxxxxxx xxxx1111 xxxxxxxx: qos on, level=7(max level)
-  const auto it = kTopicTypeToRtsFlagMap.find(static_cast<int32_t>(((static_cast<uint32_t>(topic_type)) & 0x30U) >> 4));
+  const uint32_t topic_bits = static_cast<uint32_t>(topic_type);
+  const auto it = kTopicTypeToRtsFlagMap.find(static_cast<int32_t>((topic_bits & 0x30U) >> 4));
   if (it != kTopicTypeToRtsFlagMap.end()) {
     return it->second;
   }

@@ -92,24 +92,24 @@ Status DSATaskCodeBuilder::InitHbmArgsTable(TaskSemanticContributeContext &conte
   const uint64_t io_size = sizeof(uint64_t) * (input_addrs_.size() + output_addrs_.size());
   hbm_args_len_ = dev_size + io_size;
 
-  hbm_entry_.emplace();
+  (void)hbm_entry_.emplace();
   hbm_entry_->table_index = *context.next_args_table_index;
   hbm_entry_->args_size = static_cast<uint32_t>(hbm_args_len_);
   hbm_entry_->host_offset = *context.next_host_args_offset;
   args_table_entry_ = &(*hbm_entry_);
   ++(*context.next_args_table_index);
-  *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(hbm_entry_->args_size);
+  *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(hbm_entry_->args_size));
 
   for (auto &addr : input_addrs_) {
     if (addr.memory_app == MemoryAppType::kModelIo) {
-      io_addr_refresh_records_.push_back(
+      (void)io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(addr.compile_state_io_addr_offset),
                               hbm_entry_->host_offset});
     }
   }
   for (auto &addr : output_addrs_) {
     if (addr.memory_app == MemoryAppType::kModelIo) {
-      io_addr_refresh_records_.push_back(
+      (void)io_addr_refresh_records_.push_back(
           IoAddrRefreshRecord{static_cast<uint64_t>(addr.compile_state_io_addr_offset),
                               hbm_entry_->host_offset});
     }
@@ -149,10 +149,10 @@ Status DSATaskCodeBuilder::Contribute(TaskSemanticContributeContext &context) {
 
 void DSATaskCodeBuilder::RenderAddrLowHigh(const ExprRef &sqe_attr_low, const ExprRef &sqe_attr_high,
                                            const std::string &addr_expr, std::vector<BodyItem> &items) const {
-  items.push_back(ast_.Assign(sqe_attr_low,
+  (void)items.push_back(ast_.Assign(sqe_attr_low,
       ast_.StaticCast("uint32_t",
           ast_.ReinterpretCast("uintptr_t", addr_expr) & ast_.UInt(kMask32Bits))));
-  items.push_back(ast_.Assign(sqe_attr_high,
+  (void)items.push_back(ast_.Assign(sqe_attr_high,
       ast_.StaticCast("uint32_t",
           ast_.ReinterpretCast("uintptr_t", addr_expr) >> k32Bits)));
 }
@@ -174,13 +174,13 @@ void DSATaskCodeBuilder::RenderSqeAddrFields(const VarRef &sqe_var, std::vector<
 
   // 3. dsaCfgParamAddr
   auto param_addr_var = ast_.Var("uint64_t", "op" + std::to_string(header_.op_index) + "_dsa_param_addr");
-  items.push_back(ast_.VarDecl(param_addr_var,
+  (void)items.push_back(ast_.VarDecl(param_addr_var,
       ast_.StaticCast("uint64_t",
           ast_.ReinterpretCast("uintptr_t",
               args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(hbm_entry_->table_index)).Arrow("dev_addr")))));
-  items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgParamAddrLow"),
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgParamAddrLow"),
       ast_.StaticCast("uint32_t", param_addr_var & ast_.UInt(kMask32Bits))));
-  items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgParamAddrHigh"),
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgParamAddrHigh"),
       ast_.StaticCast("uint32_t", param_addr_var >> k32Bits)));
 }
 
@@ -188,55 +188,55 @@ void DSATaskCodeBuilder::RenderSqeVarFields(const VarRef &sqe_var, std::vector<B
   // 4. dsaCfgSeed
   auto seed_var = ast_.Var("uint64_t", "op" + std::to_string(header_.op_index) + "_dsa_seed");
   if (dsa_sqe_.seed_is_addr) {
-    items.push_back(ast_.VarDecl(seed_var, ast_.Var("auto", input_addrs_[1U].symbol_hint).Attr("device_address")));
+    (void)items.push_back(ast_.VarDecl(seed_var, ast_.Var("auto", input_addrs_[1U].symbol_hint).Attr("device_address")));
   } else {
-    items.push_back(ast_.VarDecl(seed_var, ast_.UInt(dsa_sqe_.seed_value)));
+    (void)items.push_back(ast_.VarDecl(seed_var, ast_.UInt(dsa_sqe_.seed_value)));
   }
-  items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgSeedLow"),
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgSeedLow"),
       ast_.StaticCast("uint32_t", seed_var & ast_.UInt(kMask32Bits))));
-  items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgSeedHigh"),
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgSeedHigh"),
       ast_.StaticCast("uint32_t", seed_var >> k32Bits)));
 
   // 5. dsaCfgNumber
   auto count_var = ast_.Var("uint64_t", "op" + std::to_string(header_.op_index) + "_dsa_count");
   if (dsa_sqe_.random_count_is_addr) {
-    items.push_back(ast_.VarDecl(count_var, ast_.Var("auto", input_addrs_[0U].symbol_hint).Attr("device_address")));
+    (void)items.push_back(ast_.VarDecl(count_var, ast_.Var("auto", input_addrs_[0U].symbol_hint).Attr("device_address")));
   } else {
-    items.push_back(ast_.VarDecl(count_var, ast_.UInt(dsa_sqe_.random_count_value)));
+    (void)items.push_back(ast_.VarDecl(count_var, ast_.UInt(dsa_sqe_.random_count_value)));
   }
-  items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgNumberLow"),
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgNumberLow"),
       ast_.StaticCast("uint32_t", count_var & ast_.UInt(kMask32Bits))));
-  items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgNumberHigh"),
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("dsaCfgNumberHigh"),
       ast_.StaticCast("uint32_t", count_var >> k32Bits)));
 }
 
 void DSATaskCodeBuilder::BuildIoArgsVars(std::vector<Arg> &io_args_vars, std::vector<BodyItem> &items) {
   // input1/input2
   if (dsa_sqe_.input1_is_addr) {
-    io_args_vars.emplace_back(input_addrs_[kDSAInput1AddrIndex].symbol_hint);
+    (void)io_args_vars.emplace_back(input_addrs_[kDSAInput1AddrIndex].symbol_hint);
     if ((input_addrs_.size() == kDSAStateInputAddrSize) ||
         ((input_addrs_.size() == kDSAArgsInputAddrSize) && (workspace_addrs_.size() == kDSAWorkspaceAddrSize))) {
-      io_args_vars.emplace_back(input_addrs_[kDSAInput2AddrIndex].symbol_hint);
+      (void)io_args_vars.emplace_back(input_addrs_[kDSAInput2AddrIndex].symbol_hint);
     }
   } else {
     auto input1_var = ast_.Var("uint64_t", "op" + std::to_string(header_.op_index) + "_dsa_input1");
-    items.push_back(ast_.VarDecl(input1_var, ast_.UInt(dsa_sqe_.input1_value)));
-    io_args_vars.emplace_back(input1_var);
+    (void)items.push_back(ast_.VarDecl(input1_var, ast_.UInt(dsa_sqe_.input1_value)));
+    (void)io_args_vars.emplace_back(input1_var);
     auto input2_var = ast_.Var("uint64_t", "op" + std::to_string(header_.op_index) + "_dsa_input2");
     if ((input_addrs_.size() == kDSAStateInputAddrSize) ||
         ((input_addrs_.size() == kDSAArgsInputAddrSize) && (workspace_addrs_.size() == kDSAWorkspaceAddrSize))) {
-      items.push_back(ast_.VarDecl(input2_var, ast_.UInt(dsa_sqe_.input2_value)));
+      (void)items.push_back(ast_.VarDecl(input2_var, ast_.UInt(dsa_sqe_.input2_value)));
     } else {
-      items.push_back(ast_.VarDecl(input2_var, ast_.UInt(0U)));
+      (void)items.push_back(ast_.VarDecl(input2_var, ast_.UInt(0U)));
     }
-    io_args_vars.emplace_back(input2_var);
+    (void)io_args_vars.emplace_back(input2_var);
   }
   // input/output addrs
   for (auto &addr : input_addrs_) {
-    io_args_vars.emplace_back(addr.symbol_hint);
+    (void)io_args_vars.emplace_back(addr.symbol_hint);
   }
   for (auto &addr : output_addrs_) {
-    io_args_vars.emplace_back(addr.symbol_hint);
+    (void)io_args_vars.emplace_back(addr.symbol_hint);
   }
 }
 
@@ -246,34 +246,34 @@ void DSATaskCodeBuilder::RenderHbmArgsCopy(const VarRef &sqe_var, std::vector<Bo
 
   auto ioaddr_var = ast_.Var("std::vector<uint64_t>",
                               "op" + std::to_string(header_.op_index) + "_dsa_iow_addr");
-  items.emplace_back(ast_.VarDecl(ioaddr_var, FlattenHostArgs(io_args_vars)));
+  (void)items.emplace_back(ast_.VarDecl(ioaddr_var, FlattenHostArgs(io_args_vars)));
 
-  items.push_back(ChkStatus(MemcpyS(
+  (void)items.push_back(ChkStatus(MemcpyS(
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(hbm_entry_->table_index)).Arrow("host_addr"),
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(hbm_entry_->table_index)).Arrow("size"),
       ioaddr_var.Data(), ioaddr_var.Size() * ast_.Sizeof("uint64_t"))));
 
-  items.push_back(ChkStatus(AclrtMemcpy(
+  (void)items.push_back(ChkStatus(AclrtMemcpy(
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(hbm_entry_->table_index)).Arrow("dev_addr"),
       hbm_entry_->args_size,
       ioaddr_var.Data(), ioaddr_var.Size() * ast_.Sizeof("uint64_t"),
       "ACL_MEMCPY_HOST_TO_DEVICE")));
 
-  items.push_back(ChkRt(RtSetTaskTag(ast_.Str(header_.op_name))));
+  (void)items.push_back(ChkRt(RtSetTaskTag(ast_.Str(header_.op_name))));
 
   // 根据GetIsDataDump结果设置dump flag: true -> 2, false -> 0
   const std::string var_prefix = "op" + std::to_string(header_.op_index) + "_dsa_";
   auto is_data_dump_var = ast_.Var("const uint8_t", var_prefix + "is_data_dump");
-  items.emplace_back(ast_.VarDecl(is_data_dump_var,
+  (void)items.emplace_back(ast_.VarDecl(is_data_dump_var,
       ast_.Call("GetIsDataDump", {Arg::StringLiteral(header_.op_name), model_id_, instance_handle_})));
   auto dump_flag_var = ast_.Var("const uint32_t", var_prefix + "dump_flag");
-  items.emplace_back(ast_.VarDecl(dump_flag_var,
+  (void)items.emplace_back(ast_.VarDecl(dump_flag_var,
       is_data_dump_var * ast_.UInt(2U)));
 
-  items.push_back(ChkStatus(ast_.Call("KernelDsaTaskDistribute", {
+  (void)items.push_back(ChkStatus(ast_.Call("KernelDsaTaskDistribute", {
       sqe_var.Ref().Addr(),
       ast_.StaticCast("uint32_t", ast_.Sizeof("rtStarsDsaSqe_t")),
-      stream_list_[static_cast<int>(header_.stream_id)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
       dump_flag_var})));
   (void)TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(
       ast_, items, "op" + std::to_string(header_.op_index) + "_dsa", header_,
@@ -283,7 +283,7 @@ void DSATaskCodeBuilder::RenderHbmArgsCopy(const VarRef &sqe_var, std::vector<Bo
 }
 
 Status DSATaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
-  items.push_back(ast_.Comment("============================= " + header_.op_name
+  (void)items.push_back(ast_.Comment("============================= " + header_.op_name
                                + " ==============================="));
 
   for (auto &addr : input_addrs_) {
@@ -291,12 +291,12 @@ Status DSATaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
                    addr.symbol_hint.c_str());
     const auto &tensor_info = *addr.tensor_info;
     const std::string shape_var_name = addr.symbol_hint + "_shape";
-    items.push_back(
+    (void)items.push_back(
         ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
     const auto device_addr = (addr.kind == AddrValueKind::kConstTensor && addr.const_index.has_value())
                                  ? Arg(constants_[static_cast<int64_t>(*addr.const_index)])
                                  : Arg(GetAddr(total_dev_mem_ptr_, addr.mem_offset));
-    items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
+    (void)items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
         device_addr,
         ast_.ULong(tensor_info.size),
         tensor_info.data_type,
@@ -309,9 +309,9 @@ Status DSATaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
                    addr.symbol_hint.c_str());
     const auto &tensor_info = *addr.tensor_info;
     const std::string shape_var_name = addr.symbol_hint + "_shape";
-    items.push_back(
+    (void)items.push_back(
         ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
-    items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
+    (void)items.push_back(ast_.VarDecl("Om2Tensor", addr.symbol_hint, ast_.Call("BuildOm2Tensor", {
         GetAddr(total_dev_mem_ptr_, addr.mem_offset),
         ast_.ULong(tensor_info.size),
         tensor_info.data_type,
@@ -323,22 +323,22 @@ Status DSATaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
     if (!addr.is_reused_from_upstream) {
       auto &base_ptr = (addr.memory_type == (kSessionScopeMemoryMask | RT_MEMORY_HBM))
                            ? session_scope_mem_ptr_ : total_dev_mem_ptr_;
-      items.push_back(ast_.VarDecl("auto", addr.symbol_hint,
+      (void)items.push_back(ast_.VarDecl("auto", addr.symbol_hint,
                                    GetAddr(base_ptr, addr.mem_offset)));
     }
   }
 
   auto sqe_var = ast_.Var("rtStarsDsaSqe_t", "op" + std::to_string(header_.op_index) + "_dsa_sqe");
-  items.push_back(ast_.VarDecl(sqe_var, ast_.InitList({})));
+  (void)items.push_back(ast_.VarDecl(sqe_var, ast_.InitList({})));
 
-  items.push_back(ast_.Assign(sqe_var.Attr("sqeHeader").Attr("type"), ast_.UInt(dsa_sqe_.sqe_type)));
-  items.push_back(ast_.Assign(sqe_var.Attr("start"), ast_.UInt(dsa_sqe_.start)));
-  items.push_back(ast_.Assign(sqe_var.Attr("functionType"), ast_.UInt(dsa_sqe_.distribution_type)));
-  items.push_back(ast_.Assign(sqe_var.Attr("dataType"), ast_.UInt(dsa_sqe_.data_type)));
-  items.push_back(ast_.Assign(sqe_var.Attr("algoType"), ast_.UInt(dsa_sqe_.alg_type)));
-  items.push_back(ast_.Assign(sqe_var.Attr("paramVldBitmap"), ast_.UInt(dsa_sqe_.param_vld_bitmap)));
-  items.push_back(ast_.Assign(sqe_var.Attr("paramAddrValBitmap"), ast_.UInt(dsa_sqe_.param_addr_val_bitmap)));
-  items.push_back(ast_.Assign(sqe_var.Attr("kernelCredit"), kDsaKernelCredit));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("sqeHeader").Attr("type"), ast_.UInt(static_cast<uint64_t>(dsa_sqe_.sqe_type))));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("start"), ast_.UInt(static_cast<uint64_t>(dsa_sqe_.start))));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("functionType"), ast_.UInt(static_cast<uint64_t>(dsa_sqe_.distribution_type))));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("dataType"), ast_.UInt(static_cast<uint64_t>(dsa_sqe_.data_type))));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("algoType"), ast_.UInt(static_cast<uint64_t>(dsa_sqe_.alg_type))));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("paramVldBitmap"), ast_.UInt(static_cast<uint64_t>(dsa_sqe_.param_vld_bitmap))));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("paramAddrValBitmap"), ast_.UInt(static_cast<uint64_t>(dsa_sqe_.param_addr_val_bitmap))));
+  (void)items.push_back(ast_.Assign(sqe_var.Attr("kernelCredit"), kDsaKernelCredit));
 
   RenderSqeAddrFields(sqe_var, items);
   RenderSqeVarFields(sqe_var, items);
@@ -355,7 +355,7 @@ Status DSATaskCodeBuilder::RenderDistHelper(std::vector<DeclNode *> &items) {
 
   auto inputs = ast_.Var("std::array<uintptr_t, 4>", "inputs");
 
-  items.push_back(ast_.DefineFunction("KernelDsaTaskDistribute",
+  (void)items.push_back(ast_.DefineFunction("KernelDsaTaskDistribute",
       {sqe, sqe_len, stream, flag}, "aclError", {
       ast_.VarDecl(inputs, ast_.InitList({
           ast_.ReinterpretCast("uintptr_t", sqe),

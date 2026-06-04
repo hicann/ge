@@ -38,9 +38,9 @@ Status StreamActiveTaskCodeBuilder::Contribute(TaskSemanticContributeContext &co
   GE_ASSERT_TRUE(internal_index < active_stream_index_list_.size(),
                 "[OM2][Check][Param] stream id index invalid. index:%u, list size:%zu, op:%s", internal_index,
                 active_stream_index_list_.size(), context.op_desc->GetName().c_str());
-  GE_ASSERT_TRUE(active_stream_index_list_[internal_index] < context.runtime->stream_num,
+  GE_ASSERT_TRUE(active_stream_index_list_[static_cast<size_t>(internal_index)] < context.runtime->stream_num,
                 "[OM2][Check][Param] active_stream_index:%u in op:%s(%s) >= stream size:%u in model",
-                active_stream_index_list_[internal_index], context.op_desc->GetName().c_str(),
+                active_stream_index_list_[static_cast<size_t>(internal_index)], context.op_desc->GetName().c_str(),
                 context.op_desc->GetType().c_str(), context.runtime->stream_num);
 
   // stream
@@ -49,8 +49,8 @@ Status StreamActiveTaskCodeBuilder::Contribute(TaskSemanticContributeContext &co
                  "[OM2][Check][Param] stream list size:%u, cur:%u!", context.runtime->stream_num, stream_id);
 
   GELOGI("Stream Active Task Codegen: op[%s], internal index[%u], active stream id[%u], stream id[%u].",
-        context.op_desc->GetName().c_str(), internal_index, active_stream_index_list_[internal_index], stream_id);
-  active_stream_id_ = active_stream_index_list_[internal_index];
+        context.op_desc->GetName().c_str(), internal_index, active_stream_index_list_[static_cast<size_t>(internal_index)], stream_id);
+  active_stream_id_ = active_stream_index_list_[static_cast<size_t>(internal_index)];
   return SUCCESS;
 }
 
@@ -58,8 +58,8 @@ Status StreamActiveTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &it
   items.push_back(ast_.Comment("============================= " + header_.op_name + " ==============================="));
   items.push_back(ChkStatus(ast_.Call("KernelStreamActiveDistribute", {
       ast_.Str(header_.op_name),
-      stream_list_[static_cast<int>(active_stream_id_)],
-      stream_list_[static_cast<int>(header_.stream_id)],
+      stream_list_[static_cast<int32_t>(active_stream_id_)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
   })));
   return SUCCESS;
 }

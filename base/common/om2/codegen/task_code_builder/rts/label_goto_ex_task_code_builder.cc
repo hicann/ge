@@ -60,8 +60,8 @@ Status LabelGotoExTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &ite
   items.push_back(ChkStatus(ast_.Call("KernelLabelGotoExDistribute", {
       index_value,
       1,
-      label_goto_ex_label_list[static_cast<int>(header_.op_index)],
-      stream_list_[static_cast<int>(header_.stream_id)],
+      label_goto_ex_label_list[static_cast<int32_t>(header_.op_index)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
   })));
   return SUCCESS;
 }

@@ -193,7 +193,7 @@ Status CmoAddrTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) 
       {ast_.Str(header_.op_name),
        dev_addr_expr,
        ast_.UInt(static_cast<uint32_t>(args_size_)), ast_.StaticCast("rtCmoOpCode_t", cmo_op_code_),
-       stream_list_[static_cast<int>(header_.stream_id)], ast_.UInt(0)})));
+       stream_list_[static_cast<int32_t>(header_.stream_id)], ast_.UInt(0)})));
 
   items.push_back(ChkStatus(AclrtMemcpy(
       host_addr_expr,

@@ -76,7 +76,7 @@ Status CmoTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
                      ast_.UInt(cmo_task_info_.striderInner)})));
 
   items.push_back(ChkStatus(ast_.Call(
-      "KernelCmoTaskDistribute", {cmo_info_var, stream_list_[static_cast<int>(header_.stream_id)], ast_.UInt(0)})));
+      "KernelCmoTaskDistribute", {cmo_info_var, stream_list_[static_cast<int32_t>(header_.stream_id)], ast_.UInt(0)})));
 
   return SUCCESS;
 }

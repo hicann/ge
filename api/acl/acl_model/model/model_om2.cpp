@@ -140,7 +140,7 @@ aclError Om2GetModelTensorDesc(const std::vector<ge::Om2TensorDesc>*& inputDesc,
                                const std::shared_ptr<gert::Om2ModelExecutor>& executor,
                                const aclmdlDataset* const input, const aclmdlDataset* const output,
                                const uint32_t modelId) {
-    ge::Status getDescRet = executor->GetModelDescInfo(inputDesc, outputDesc);
+    const ge::Status getDescRet = executor->GetModelDescInfo(inputDesc, outputDesc);
     if (getDescRet != ge::SUCCESS) {
         ACL_LOG_ERROR("[Get][ModelDesc]Get model desc info failed, ge result[%u], modelId[%u]", getDescRet, modelId);
         return ACL_GET_ERRCODE_GE(static_cast<int32_t>(getDescRet));
@@ -385,7 +385,7 @@ aclError PopulateDescFromOm2Data(aclmdlDesc* modelDesc, const ge::ModelData& om2
 
 // Om2ModelExecuteCommon - internal function for executing OM2 models
 aclError Om2ModelExecuteCommon(uint32_t modelId, const aclmdlDataset* input, aclmdlDataset* output,
-                               bool isAsync, const aclrtStream stream) {
+                               bool isAsync, aclrtStream stream) {
     ACL_LOG_INFO("start to execute Om2ModelExecuteCommon, modelId[%u]", modelId);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(input);
     ACL_REQUIRES_NOT_NULL_WITH_INPUT_REPORT(output);
@@ -639,7 +639,13 @@ static const char_t* TransTensorNameToReal(const aclmdlDesc* const modelDesc, co
     }
     const int32_t base = 10;
     if ((valArr[1U] == MODEL_ID_STR) && (acl::StringUtils::IsDigit(valArr[2U]))) {
+        errno = 0;
         const auto modelId = strtoul(valArr[2U].c_str(), nullptr, base);
+        if (errno != 0 || modelId > UINT32_MAX) { return nullptr; }
+        if (errno == ERANGE) {
+            ACL_LOG_INNER_ERROR("[Check][modelId]strtoul overflow, tensorName[%s]", tensorName.c_str());
+            return nullptr;
+        }
         if (modelId != modelDesc->modelId) {
             ACL_LOG_INNER_ERROR("[Check][modelId]modelId[%lu] is invalid, tensorName[%s]", modelId, tensorName.c_str());
             return nullptr;
@@ -650,7 +656,12 @@ static const char_t* TransTensorNameToReal(const aclmdlDesc* const modelDesc, co
         return nullptr;
     }
     if (acl::StringUtils::IsDigit(valArr[4U])) {
+        errno = 0;
         const auto idex = strtoul(valArr[4U].c_str(), nullptr, base);
+        if (errno == ERANGE) {
+            ACL_LOG_INNER_ERROR("[Check][index]strtoul overflow, tensorName[%s]", tensorName.c_str());
+            return nullptr;
+        }
         if (valArr[3U] == TENSOR_INPUT_STR) {
             if (idex >= modelDesc->inputDesc.size()) {
                 ACL_LOG_INNER_ERROR("[Check][index]inputDesc index[%lu] should be in [0, %zu), tensorName[%s]",
@@ -1392,10 +1403,9 @@ const char* aclmdlGetOpAttrImplOm2(aclmdlDesc* modelDesc, const char* opName, co
     }
 
     // Lookup in opAttrValueMap only
-    std::map<std::string, std::map<std::string, std::string>>::const_iterator itOpName =
-        modelDesc->opAttrValueMap.find(opName);
+    const auto itOpName = modelDesc->opAttrValueMap.find(opName);
     if (itOpName != modelDesc->opAttrValueMap.cend()) {
-        std::map<std::string, std::string>::const_iterator itAttr = itOpName->second.find(attr);
+        const auto itAttr = itOpName->second.find(attr);
         if (itAttr != itOpName->second.cend()) {
             ACL_LOG_INFO("opName is [%s], the value of attr [%s] is %s", opName, attr, itAttr->second.c_str());
             return itAttr->second.c_str();

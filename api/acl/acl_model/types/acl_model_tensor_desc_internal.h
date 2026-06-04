@@ -44,9 +44,9 @@ struct ACL_FUNC_VISIBILITY aclTensorDesc {
     aclTensorDesc &operator=(const aclTensorDesc &tensorDesc);
     aclTensorDesc() = default;
     ~aclTensorDesc() = default;
-    aclDataType dataType;
+    aclDataType dataType = ACL_DT_UNDEFINED;
     aclFormat storageFormat = ACL_FORMAT_UNDEFINED;
-    aclFormat format;
+    aclFormat format = ACL_FORMAT_UNDEFINED;
     ge::SmallVector<int64_t, static_cast<size_t>(ge::kDefaultMaxInputNum)> dims;
     ge::SmallVector<int64_t, static_cast<size_t>(ge::kDefaultMaxInputNum)> dimsBackup;
     ge::SmallVector<int64_t, static_cast<size_t>(ge::kDefaultMaxInputNum)> storageDims;

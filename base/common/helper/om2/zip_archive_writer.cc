@@ -28,10 +28,10 @@
 
 namespace ge {
 namespace {
-constexpr int kMemZipOk = 0;
-constexpr int kMemZipError = -1;
+constexpr int32_t kMemZipOk = 0;
+constexpr int32_t kMemZipError = -1;
 constexpr uint64_t kMemInitialCapacity = 64 * 1024;
-constexpr int kMemGrowFactor = 2;
+constexpr int32_t kMemGrowFactor = 2;
 constexpr int64_t kBufSize = 16384UL;  // same as UNZ_BUFSIZE
 constexpr uint32_t kMaxWriteSize = std::numeric_limits<uint32_t>::max();
 constexpr uint32_t kMaxFileNameLength = 4096U;  // same as UNZ_MAXFILENAMEINZIP
@@ -97,7 +97,8 @@ voidpf ZCALLBACK MemOpenFileFuncWithBuffer(voidpf opaque, const void *filename, 
   mem_file->grow_mode = 1;
   mem_file->release_from_outside = 1;
 
-  if ((mode & ZLIB_FILEFUNC_MODE_CREATE) != 0) {
+  const auto mode_value = static_cast<uint32_t>(mode);
+  if ((mode_value & static_cast<uint32_t>(ZLIB_FILEFUNC_MODE_CREATE)) != 0U) {
     if (MemGrow(mem_file, kMemInitialCapacity) != kMemZipOk) {
       GELOGE(FAILED, "[MEMZIP] Failed to allocate initial capacity[%zu bytes]", kMemInitialCapacity);
       return nullptr;
@@ -119,7 +120,7 @@ uLong MemReadFileImpl(T *mem_file, void *buf, const uLong size) {
   }
 
   if (bytes_to_read > 0) {
-    const auto ret = GeMemcpy(static_cast<uint8_t *>(buf), size, mem_file->buffer + mem_file->position, bytes_to_read);
+    const auto ret = GeMemcpy(static_cast<uint8_t *>(buf), size, &mem_file->buffer[mem_file->position], bytes_to_read);
     if (ret != SUCCESS) {
       GELOGE(FAILED,
              "[MEMZIP] Failed to copy, ret=%d: dest_ptr[%p], dest_max[%zu], src_base_ptr[%p], src_position[%zu], "
@@ -156,7 +157,12 @@ uLong ZCALLBACK MemWriteFileFunc(voidpf opaque, voidpf stream, const void *buf, 
     return 0;
   }
 
-  uint64_t new_size = mem_file->position + size;
+  if (mem_file->position > std::numeric_limits<uint64_t>::max() - size) {
+    GELOGE(FAILED, "[MEMZIP] Position overflow: position=%zu, size=%zu", mem_file->position, size);
+    mem_file->error = kMemZipError;
+    return 0;
+  }
+  const uint64_t new_size = mem_file->position + size;
   if (new_size > mem_file->capacity) {
     if (MemGrow(mem_file, new_size) != kMemZipOk) {
       GELOGE(FAILED, "[MEMZIP] Failed to expand memory capacity[%zu bytes]", new_size);
@@ -164,7 +170,7 @@ uLong ZCALLBACK MemWriteFileFunc(voidpf opaque, voidpf stream, const void *buf, 
       return 0;
     }
   }
-  const auto ret = memcpy_s(mem_file->buffer + mem_file->position, size, buf, size);
+  const auto ret = memcpy_s(&mem_file->buffer[mem_file->position], size, buf, size);
   if (ret != EOK) {
     GELOGE(FAILED,
            "[MEMZIP] Failed to copy, ret=%d: dest_base_ptr[%p], dest_position[%zu], dest_max[%zu], src_ptr[%p], "
@@ -266,13 +272,13 @@ int ZCALLBACK MemErrorFileFunc(voidpf opaque, voidpf stream) {
 }
 
 void FillMemFileFuncWithBuffer(zlib_filefunc64_def *file_func_def, MemoryFile *mem_file) {
-  file_func_def->zopen64_file = MemOpenFileFuncWithBuffer;
-  file_func_def->zread_file = MemReadFileFunc;
-  file_func_def->zwrite_file = MemWriteFileFunc;
-  file_func_def->ztell64_file = MemTell64FileFunc;
-  file_func_def->zseek64_file = MemSeek64FileFunc;
-  file_func_def->zclose_file = MemCloseFileFunc;
-  file_func_def->zerror_file = MemErrorFileFunc;
+  file_func_def->zopen64_file = &MemOpenFileFuncWithBuffer;
+  file_func_def->zread_file = &MemReadFileFunc;
+  file_func_def->zwrite_file = &MemWriteFileFunc;
+  file_func_def->ztell64_file = &MemTell64FileFunc;
+  file_func_def->zseek64_file = &MemSeek64FileFunc;
+  file_func_def->zclose_file = &MemCloseFileFunc;
+  file_func_def->zerror_file = &MemErrorFileFunc;
   file_func_def->opaque = mem_file;
 }
 
@@ -336,13 +342,13 @@ int ZCALLBACK MemErrorFileFuncReadonly(voidpf opaque, voidpf stream) {
 }
 
 void FillMemFileFuncReadonly(zlib_filefunc64_def *file_func_def, SimpleZipMemoryFileReadonly *mem_file) {
-  file_func_def->zopen64_file = MemOpenFileFuncReadonly;
-  file_func_def->zread_file = MemReadFileFuncReadonly;
-  file_func_def->zwrite_file = MemWriteFileFuncReadonly;
-  file_func_def->ztell64_file = MemTell64FileFuncReadonly;
-  file_func_def->zseek64_file = MemSeek64FileFuncReadonly;
-  file_func_def->zclose_file = MemCloseFileFuncReadonly;
-  file_func_def->zerror_file = MemErrorFileFuncReadonly;
+  file_func_def->zopen64_file = &MemOpenFileFuncReadonly;
+  file_func_def->zread_file = &MemReadFileFuncReadonly;
+  file_func_def->zwrite_file = &MemWriteFileFuncReadonly;
+  file_func_def->ztell64_file = &MemTell64FileFuncReadonly;
+  file_func_def->zseek64_file = &MemSeek64FileFuncReadonly;
+  file_func_def->zclose_file = &MemCloseFileFuncReadonly;
+  file_func_def->zerror_file = &MemErrorFileFuncReadonly;
   file_func_def->opaque = mem_file;
 }
 
@@ -358,7 +364,9 @@ std::string GetBaseName(const std::string &path) {
   }
 
   const auto pos_dot = file_name.find_last_of('.');
-  if (pos_dot == std::string::npos || pos_dot == 0) return file_name;
+  if ((pos_dot == std::string::npos) || (pos_dot == 0)) {
+    return file_name;
+  }
 
   return file_name.substr(0, pos_dot);
 }
@@ -397,7 +405,7 @@ std::vector<std::string> SimpleZipArchiveReader::ListFiles() const {
     GE_ASSERT_TRUE(uz_ret == UNZ_OK, "Failed to get the current file information, ret = %d", uz_ret);
     const std::string file_name(name_buff.data());
     if (!file_name.empty() && file_name.back() != '/') {
-      file_list.emplace_back(file_name);
+      (void)file_list.emplace_back(file_name);
     }
     uz_ret = unzGoToNextFile(zip_handle_);
   } while (uz_ret == UNZ_OK);
@@ -468,13 +476,13 @@ bool ZipArchiveWriter::WriteFile(const std::string &entry_name, const std::strin
 
   std::ifstream fin(src_file_path, std::ios::binary);
   GE_ASSERT_TRUE(fin.is_open(), "Failed to open file [%s]", src_file_path.c_str());
-  fin.seekg(0, std::ios::end);
+  (void)fin.seekg(0, std::ios::end);
   const auto file_size = fin.tellg();
-  fin.seekg(0, std::ios::beg);
+  (void)fin.seekg(0, std::ios::beg);
 
   zip_fileinfo file_info{};
-  const auto compression_method = compress ? Z_DEFLATED : Z_BINARY;
-  const auto compression_level = compress ? Z_DEFAULT_COMPRESSION : Z_NO_COMPRESSION;
+  const int compression_method = compress ? Z_DEFLATED : Z_BINARY;
+  const int compression_level = compress ? Z_DEFAULT_COMPRESSION : Z_NO_COMPRESSION;
   auto ret = zipOpenNewFileInZip64(zip_handle_, arc_name_with_prefix.c_str(), &file_info, nullptr, 0, nullptr, 0,
                                    nullptr, compression_method, compression_level, 1);
   GE_ASSERT_TRUE(ret == ZIP_OK, "Failed to open zip entry [%s], ret = %d", arc_name_with_prefix.c_str(), ret);
@@ -484,18 +492,18 @@ bool ZipArchiveWriter::WriteFile(const std::string &entry_name, const std::strin
   auto remaining = static_cast<int64_t>(file_size);
   while (remaining > 0) {
     const int64_t chunk = remaining > kBufSize ? kBufSize : remaining;
-    fin.read(buffer.data(), chunk);
-    auto read_bytes = fin.gcount();
+    (void)fin.read(buffer.data(), chunk);
+    const auto read_bytes = fin.gcount();
     GE_ASSERT_TRUE(read_bytes == chunk, "Failed to read from file [%s], expected = %zu bytes, bytes_read = %zu bytes",
                    src_file_path.c_str(), chunk, read_bytes);
 
-    ret = zipWriteInFileInZip(zip_handle_, buffer.data(), static_cast<unsigned>(chunk));
+    ret = zipWriteInFileInZip(zip_handle_, buffer.data(), static_cast<uint32_t>(chunk));
     GE_ASSERT_TRUE(ret == ZIP_OK, "zipWriteInFileInZip failed for [%s], ret = %d, bytes_left = %zu bytes",
                    arc_name_with_prefix.c_str(), ret, remaining);
     remaining -= chunk;
   }
   GELOGI("Successfully written [%s] to archive, file_size = %zu bytes", src_file_path.c_str(), file_size);
-  files_written_.insert(arc_name_with_prefix);
+  (void)files_written_.insert(arc_name_with_prefix);
   return true;
 }
 
@@ -512,8 +520,8 @@ bool ZipArchiveWriter::WriteBytes(const std::string &entry_name, const void *dat
   }
 
   zip_fileinfo file_info{};
-  const auto compression_method = compress ? Z_DEFLATED : Z_BINARY;
-  const auto compression_level = compress ? Z_DEFAULT_COMPRESSION : Z_NO_COMPRESSION;
+  const int compression_method = compress ? Z_DEFLATED : Z_BINARY;
+  const int compression_level = compress ? Z_DEFAULT_COMPRESSION : Z_NO_COMPRESSION;
   auto ret = zipOpenNewFileInZip64(zip_handle_, arc_name_with_prefix.c_str(), &file_info, nullptr, 0, nullptr, 0,
                                    nullptr, compression_method, compression_level, 1);
   GE_ASSERT_TRUE(ret == ZIP_OK, "Failed to open file [%s] in zip, ret = %d", arc_name_with_prefix.c_str(), ret);
@@ -522,18 +530,18 @@ bool ZipArchiveWriter::WriteBytes(const std::string &entry_name, const void *dat
   auto pdata = static_cast<const uint8_t *>(data);
   size_t remaining = data_size;
   while (remaining > 0) {
-    const auto chunk = remaining > kMaxWriteSize ? kMaxWriteSize : static_cast<uint32_t>(remaining);
+    const uint32_t chunk = remaining > kMaxWriteSize ? kMaxWriteSize : static_cast<uint32_t>(remaining);
 
     ret = zipWriteInFileInZip(zip_handle_, pdata, chunk);
     GE_ASSERT_TRUE(ret == ZIP_OK, "zipWriteInFileInZip failed for [%s], ret = %d, bytes_left = %zu bytes",
                    arc_name_with_prefix.c_str(), ret, remaining);
 
-    pdata += chunk;
+    pdata = &pdata[chunk];
     remaining -= chunk;
   }
 
   GELOGI("Successfully written [%s] to archive, data_size = %zu bytes", entry_name.c_str(), data_size);
-  files_written_.insert(arc_name_with_prefix);
+  (void)files_written_.insert(arc_name_with_prefix);
   return true;
 }
 
@@ -560,7 +568,9 @@ bool ZipArchiveWriter::SaveModelDataToBuffer(ModelBufferData &model) {
   GE_ASSERT_NOTNULL(mem_file_.buffer);
   GE_ASSERT_TRUE(mem_file_.length > 0U);
   model.length = mem_file_.length;
-  model.data = std::shared_ptr<uint8_t>(mem_file_.buffer, [](uint8_t *ptr) { std::free(ptr); });
+  model.data = std::shared_ptr<uint8_t>(mem_file_.buffer, [](uint8_t *ptr) {
+    std::free(ptr);
+  });
   mem_file_ = {};
   return true;
 }

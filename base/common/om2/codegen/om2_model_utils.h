@@ -17,7 +17,7 @@
 
 namespace ge {
 struct TaskSemanticContributeContext;
-enum IowMemoryType : uint64_t {
+enum IowMemType : uint64_t {
  	   kFmMemType = 0x1000000000UL,
  	   kFixMemType,
  	   kWeightMemType,
@@ -50,6 +50,7 @@ class Om2ModelUtils {
                                     uint64_t &mem_type, AddrSemantic &addr_node, bool isInput, uint32_t index);
 
   static uint32_t ArgsSizeAlign8(uint32_t args_size);
+  static uint64_t ArgsSizeAlign8(uint64_t args_size);
 
  private:
   struct WorkspaceMemAttrs {

@@ -51,7 +51,7 @@ class AstNodePool {
 class StringRef {
  public:
   StringRef() : data_(nullptr), length_(0UL) {}
-  explicit StringRef(const char_t *str) : data_(str), length_(str ? std::strlen(str) : 0UL) {}
+  explicit StringRef(const char_t *str) : data_(str), length_((str != nullptr) ? std::strlen(str) : 0UL) {}
   StringRef(const char_t *str, const size_t len) : data_(str), length_(len) {}
 
   const char_t *Data() const {
@@ -119,7 +119,7 @@ class ArrayRef {
 template <typename T>
 class MutableArrayRef : public ArrayRef<T> {
  public:
-  MutableArrayRef(T *mutable_data, size_t length) : ArrayRef<T>(mutable_data, length) {}
+  using ArrayRef<T>::ArrayRef;
 
   T &operator[](size_t index) const {
     if (index >= this->length_) {
@@ -172,7 +172,7 @@ class AstContext {
   }
 
   StringRef CopyString(const char_t *s) {
-    if (!s) {
+    if (s == nullptr) {
       return {};
     }
     const size_t len = std::strlen(s);

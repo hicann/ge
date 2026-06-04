@@ -12,7 +12,6 @@
 
 namespace ge {
 
-KernelRegFileCodeGenerator::KernelRegFileCodeGenerator(AstBuildContext &ast) : Om2ModelClassGeneratorBase(ast) {}
 
 StructDecl *KernelRegFileCodeGenerator::BuildBinaryBufferStruct() const {
   return ast_.Struct("BinaryBuffer", {
@@ -143,7 +142,7 @@ MethodDef *KernelRegFileCodeGenerator::BuildRegisterKernels(const Om2CodegenMode
   for (const auto &binary : codegen_model.kernel_registry.binaries) {
     if (binary.kind == KernelBinaryKind::kAicore || binary.kind == KernelBinaryKind::kAllKernel) {
       const bool use_tiling_key = (binary.kind == KernelBinaryKind::kAllKernel);
-      items.emplace_back(ChkStatus(CallRegisterAicoreKernel(
+      (void)items.emplace_back(ChkStatus(CallRegisterAicoreKernel(
           bin_handles_[binary.func_handle_index],
           func_handles_[binary.func_handle_index],
           {binary.magic, use_tiling_key, binary.tiling_key, ast_.Str(binary.kernel_name), ast_.Str(binary.file_name)},
@@ -151,20 +150,20 @@ MethodDef *KernelRegFileCodeGenerator::BuildRegisterKernels(const Om2CodegenMode
       continue;
     }
     if (binary.kind == KernelBinaryKind::kAicpu) {
-      items.emplace_back(ChkStatus(CallRegisterAicpuKernel(
+      (void)items.emplace_back(ChkStatus(CallRegisterAicpuKernel(
           bin_handles_[binary.func_handle_index],
           func_handles_[binary.func_handle_index],
           {ast_.Str(binary.op_type), ast_.Str(binary.so_name), ast_.Str(binary.kernel_name),
            ast_.Str(binary.op_kernel_lib)})));
       continue;
     }
-    items.emplace_back(ChkStatus(CallRegisterCustAicpuKernel(
+    (void)items.emplace_back(ChkStatus(CallRegisterCustAicpuKernel(
         bin_handles_[binary.func_handle_index],
         func_handles_[binary.func_handle_index],
         {ast_.Str(binary.file_name), ast_.Str(binary.op_type), ast_.Str(binary.kernel_name)},
         bin_info_map_)));
   }
-  items.emplace_back(ast_.Return("ACL_SUCCESS"));
+  (void)items.emplace_back(ast_.Return("ACL_SUCCESS"));
   return ast_.DefineMethod("Om2Model", "RegisterKernels", std::vector<VarRef>{}, "aclError", items);
 }
 

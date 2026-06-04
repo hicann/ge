@@ -17,7 +17,7 @@ namespace ge {
 namespace {
 void AppendStringRef(StringRef value, std::string &output) {
   if (!value.Empty()) {
-    output.append(value.Data(), value.Length());
+    (void)output.append(value.Data(), value.Length());
   }
 }
 
@@ -27,7 +27,7 @@ void AppendTypeNameSeparator(StringRef type_spec, std::string &output) {
   }
   const char last = type_spec.Data()[type_spec.Length() - 1];
   if ((last != '*') && (last != '&') && (last != ' ')) {
-    output.push_back(' ');
+    (void)output.push_back(' ');
   }
 }
 
@@ -180,7 +180,7 @@ const char *BuiltinTypeToken(BuiltinType type) {
 
 void AppendTypeName(const TypeName &type_name, std::string &output) {
   if (std::holds_alternative<BuiltinType>(type_name)) {
-    output.append(BuiltinTypeToken(std::get<BuiltinType>(type_name)));
+    (void)output.append(BuiltinTypeToken(std::get<BuiltinType>(type_name)));
     return;
   }
   AppendStringRef(std::get<StringRef>(type_name), output);
@@ -192,7 +192,7 @@ Status EmitForInitStmt(const Stmt &node, CppEmitter &emitter, std::string &outpu
     AppendTypeNameSeparator(var_decl->GetTypeSpec(), output);
     AppendStringRef(var_decl->GetName(), output);
     if (var_decl->GetInit() != nullptr) {
-      output.append(" = ");
+      (void)output.append(" = ");
       return var_decl->GetInit()->Accept(emitter, output);
     }
     return SUCCESS;
@@ -229,8 +229,10 @@ bool IsSpacingBoundaryDecl(const DeclNode &node) {
 }  // namespace
 
 void CppEmitter::AppendIndentAt(size_t level, std::string &output) const {
-  for (size_t i = 0; i < level; ++i) {
-    output.append(indent_unit_);
+  size_t count = level;
+  while (count > 0U) {
+    (void)output.append(indent_unit_);
+    --count;
   }
 }
 
@@ -239,7 +241,7 @@ void CppEmitter::AppendIndent(std::string &output) const { AppendIndentAt(indent
 Status CppEmitter::EmitParamList(const ArrayRef<ParamDecl *> &params, std::string &output) {
   for (size_t i = 0; i < params.Size(); ++i) {
     if (i > 0) {
-      output.append(", ");
+      (void)output.append(", ");
     }
     const auto status = params[i]->Accept(*this, output);
     if (status != SUCCESS) {
@@ -253,15 +255,15 @@ Status CppEmitter::EmitFunctionSignature(StringRef return_type, StringRef name,
                                          const ArrayRef<ParamDecl *> &params, std::string &output) {
   if (!return_type.Empty()) {
     AppendStringRef(return_type, output);
-    output.append(" ");
+    (void)output.append(" ");
   }
   AppendStringRef(name, output);
-  output.append("(");
+  (void)output.append("(");
   auto status = EmitParamList(params, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
@@ -273,7 +275,7 @@ Status CppEmitter::EmitDeclBlock(const ArrayRef<DeclNode *> &items, bool separat
   for (size_t i = 0; i < items.Size(); ++i) {
     if (separate_items && emitted_decl && !prev_is_space_decl && prev_is_spacing_boundary_decl &&
         !prev_is_namespace_decl && IsSpacingBoundaryDecl(*items[i])) {
-      output.append("\n");
+      (void)output.append("\n");
     }
     const auto status = items[i]->Accept(*this, output);
     if (status != SUCCESS) {
@@ -296,17 +298,22 @@ Status CppEmitter::EmitRecordDecl(const char *keyword, StringRef name, const Arr
       break;
     }
   }
-  output.append(keyword);
-  output.append(" ");
+  (void)output.append(keyword);
+  (void)output.append(" ");
   AppendStringRef(name, output);
-  output.append(" {\n");
-  indent_level_ += has_access_section ? 2U : 1U;
+  (void)output.append(" {\n");
+  const uint32_t indent_step = has_access_section ? 2U : 1U;
+  if (indent_level_ <= std::numeric_limits<uint32_t>::max() - indent_step) {
+    indent_level_ += indent_step;
+  }
   const auto status = EmitDeclBlock(items, false, output);
-  indent_level_ -= has_access_section ? 2U : 1U;
+  if (indent_level_ >= indent_step) {
+    indent_level_ -= indent_step;
+  }
   if (status != SUCCESS) {
     return status;
   }
-  output.append("};\n");
+  (void)output.append("};\n");
   return SUCCESS;
 }
 
@@ -325,74 +332,74 @@ Status CppEmitter::Emit(const StablePartDecl &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append(stable_text);
+  (void)output.append(stable_text);
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const IncludeDecl &node, std::string &output) {
-  output.append("#include ");
+  (void)output.append("#include ");
   if (node.GetKind() == IncludeDecl::Kind::kAngle) {
-    output.push_back('<');
+    (void)output.push_back('<');
     AppendStringRef(node.GetPath(), output);
-    output.append(">\n");
+    (void)output.append(">\n");
   } else {
-    output.push_back('"');
+    (void)output.push_back('"');
     AppendStringRef(node.GetPath(), output);
-    output.append("\"\n");
+    (void)output.append("\"\n");
   }
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const SpaceDecl &node, std::string &output) {
   (void)node;
-  output.append("\n");
+  (void)output.append("\n");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const TypeAliasDecl &node, std::string &output) {
-  output.append("typedef ");
+  (void)output.append("typedef ");
   AppendStringRef(node.GetTypeSpec(), output);
   AppendTypeNameSeparator(node.GetTypeSpec(), output);
   AppendStringRef(node.GetName(), output);
-  output.append(";\n");
+  (void)output.append(";\n");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const NamespaceDecl &node, std::string &output) {
-  output.append("namespace");
+  (void)output.append("namespace");
   if (!node.GetName().Empty()) {
-    output.append(" ");
+    (void)output.append(" ");
     AppendStringRef(node.GetName(), output);
   }
-  output.append(" {\n");
+  (void)output.append(" {\n");
   auto status = EmitDeclBlock(node.GetItems(), true, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append("} // namespace");
+  (void)output.append("} // namespace");
   if (!node.GetName().Empty()) {
-    output.append(" ");
+    (void)output.append(" ");
     AppendStringRef(node.GetName(), output);
   }
-  output.append("\n");
+  (void)output.append("\n");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const ExternBlockDecl &node, std::string &output) {
-  output.append("#ifdef __cplusplus\n");
-  output.append("extern \"");
+  (void)output.append("#ifdef __cplusplus\n");
+  (void)output.append("extern \"");
   AppendStringRef(node.GetLanguage(), output);
-  output.append("\" {\n");
-  output.append("#endif\n");
-  output.append("\n");
+  (void)output.append("\" {\n");
+  (void)output.append("#endif\n");
+  (void)output.append("\n");
   auto status = EmitDeclBlock(node.GetItems(), true, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append("\n");
-  output.append("#ifdef __cplusplus\n");
-  output.append("}\n");
-  output.append("#endif\n");
+  (void)output.append("\n");
+  (void)output.append("#ifdef __cplusplus\n");
+  (void)output.append("}\n");
+  (void)output.append("#endif\n");
   return SUCCESS;
 }
 
@@ -407,8 +414,8 @@ Status CppEmitter::Emit(const StructDecl &node, std::string &output) {
 Status CppEmitter::Emit(const AccessSectionDecl &node, std::string &output) {
   const size_t access_level = indent_level_ == 0 ? 0 : indent_level_ - 1;
   AppendIndentAt(access_level, output);
-  output.append(AccessLabel(node.GetKind()));
-  output.append(":\n");
+  (void)output.append(AccessLabel(node.GetKind()));
+  (void)output.append(":\n");
   return SUCCESS;
 }
 
@@ -418,13 +425,13 @@ Status CppEmitter::Emit(const FieldDecl &node, std::string &output) {
   AppendTypeNameSeparator(node.GetTypeSpec(), output);
   AppendStringRef(node.GetName(), output);
   if (node.GetInit() != nullptr) {
-    output.append(" = ");
+    (void)output.append(" = ");
     const auto status = node.GetInit()->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
     }
   }
-  output.append(";\n");
+  (void)output.append(";\n");
   return SUCCESS;
 }
 
@@ -435,7 +442,7 @@ Status CppEmitter::Emit(const MethodDecl &node, std::string &output) {
     return status;
   }
   AppendStringRef(node.GetTrailingSpec(), output);
-  output.append(";\n");
+  (void)output.append(";\n");
   return SUCCESS;
 }
 
@@ -444,7 +451,7 @@ Status CppEmitter::Emit(const FunctionDecl &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append(";\n");
+  (void)output.append(";\n");
   return SUCCESS;
 }
 
@@ -453,43 +460,43 @@ Status CppEmitter::Emit(const FunctionDef &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append(" ");
+  (void)output.append(" ");
   return node.GetBody()->Accept(*this, output);
 }
 
 Status CppEmitter::Emit(const MethodDef &node, std::string &output) {
   if (!node.GetReturnType().Empty()) {
     AppendStringRef(node.GetReturnType(), output);
-    output.append(" ");
+    (void)output.append(" ");
   }
   AppendStringRef(node.GetOwner(), output);
-  output.append("::");
+  (void)output.append("::");
   AppendStringRef(node.GetName(), output);
-  output.append("(");
+  (void)output.append("(");
   auto status = EmitParamList(node.GetParams(), output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   if (node.GetMemberInitNames().Size() > 0U) {
-    output.append("\n");
+    (void)output.append("\n");
     AppendIndentAt(1, output);
-    output.append(": ");
+    (void)output.append(": ");
     for (size_t i = 0; i < node.GetMemberInitNames().Size(); ++i) {
       if (i > 0) {
-        output.append(", ");
+        (void)output.append(", ");
       }
       AppendStringRef(node.GetMemberInitNames()[i], output);
-      output.append("(");
+      (void)output.append("(");
       status = node.GetMemberInitExprs()[i]->Accept(*this, output);
       if (status != SUCCESS) {
         return status;
       }
-      output.append(")");
+      (void)output.append(")");
     }
-    output.append(" ");
+    (void)output.append(" ");
   } else {
-    output.append(" ");
+    (void)output.append(" ");
   }
   return node.GetBody()->Accept(*this, output);
 }
@@ -502,19 +509,19 @@ Status CppEmitter::Emit(const IdentifierExpr &node, std::string &output) {
 Status CppEmitter::Emit(const LiteralExpr &node, std::string &output) {
   switch (node.GetKind()) {
     case LiteralExpr::Kind::kInt:
-      output.append(std::to_string(node.GetIntValue()));
-      output.append(IntSuffixToken(node.GetIntSuffix()));
+      (void)output.append(std::to_string(node.GetIntValue()));
+      (void)output.append(IntSuffixToken(node.GetIntSuffix()));
       return SUCCESS;
     case LiteralExpr::Kind::kBool:
-      output.append(node.GetBoolValue() ? "true" : "false");
+      (void)output.append(node.GetBoolValue() ? "true" : "false");
       return SUCCESS;
     case LiteralExpr::Kind::kString:
-      output.push_back('"');
+      (void)output.push_back('"');
       AppendStringRef(node.GetStringValue(), output);
-      output.push_back('"');
+      (void)output.push_back('"');
       return SUCCESS;
     case LiteralExpr::Kind::kNullptr:
-      output.append("nullptr");
+      (void)output.append("nullptr");
       return SUCCESS;
     default:
       return FAILED;
@@ -526,44 +533,44 @@ Status CppEmitter::Emit(const AssignExpr &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append(" = ");
+  (void)output.append(" = ");
   return node.GetRhs()->Accept(*this, output);
 }
 
 Status CppEmitter::Emit(const BinaryExpr &node, std::string &output) {
-  output.append("(");
+  (void)output.append("(");
   auto status = node.GetLhs()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(" ");
-  output.append(BinaryOpToken(node.GetOp()));
-  output.append(" ");
+  (void)output.append(" ");
+  (void)output.append(BinaryOpToken(node.GetOp()));
+  (void)output.append(" ");
   status = node.GetRhs()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const UnaryExpr &node, std::string &output) {
   if (IsPrefixUnaryOp(node.GetOp())) {
-    output.append(UnaryOpToken(node.GetOp()));
+    (void)output.append(UnaryOpToken(node.GetOp()));
   }
   const bool need_paren = dynamic_cast<const BinaryExpr *>(node.GetExpr()) != nullptr;
   if (need_paren) {
-    output.append("(");
+    (void)output.append("(");
   }
   const auto status = node.GetExpr()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
   if (need_paren) {
-    output.append(")");
+    (void)output.append(")");
   }
   if (!IsPrefixUnaryOp(node.GetOp())) {
-    output.append(UnaryOpToken(node.GetOp()));
+    (void)output.append(UnaryOpToken(node.GetOp()));
   }
   return SUCCESS;
 }
@@ -573,11 +580,11 @@ Status CppEmitter::Emit(const CallExpr &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append("(");
+  (void)output.append("(");
   const auto args = node.GetArgs();
   for (size_t i = 0; i < args.Size(); ++i) {
     if (i > 0) {
-      output.append(", ");
+      (void)output.append(", ");
     }
     status = args[i]->Accept(*this, output);
     if (status != SUCCESS) {
@@ -588,74 +595,74 @@ Status CppEmitter::Emit(const CallExpr &node, std::string &output) {
       output.back() == '\n') {
     output.pop_back();
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const MakeUniqueArrayExpr &node, std::string &output) {
-  output.append("std::make_unique<");
+  (void)output.append("std::make_unique<");
   AppendTypeName(node.GetElemType(), output);
-  output.append("[]>(");
+  (void)output.append("[]>(");
   const auto status = node.GetCount()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const ToStrExpr &node, std::string &output) {
-  output.append("std::string(");
+  (void)output.append("std::string(");
   const auto status = node.GetExpr()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const MemcpyExpr &node, std::string &output) {
-  output.append("std::memcpy(");
+  (void)output.append("std::memcpy(");
   auto status = node.GetDst()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(", ");
+  (void)output.append(", ");
   status = node.GetSrc()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(", ");
+  (void)output.append(", ");
   status = node.GetSize()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const SizeofExpr &node, std::string &output) {
-  output.append("sizeof(");
+  (void)output.append("sizeof(");
   const auto status = node.GetExpr()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const RemoveFileExpr &node, std::string &output) {
-  output.append("std::remove(");
+  (void)output.append("std::remove(");
   const auto status = node.GetPath()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const IgnoreOutputExpr &node, std::string &output) {
-  output.append("(void)");
+  (void)output.append("(void)");
   return node.GetExpr()->Accept(*this, output);
 }
 
@@ -664,25 +671,25 @@ Status CppEmitter::Emit(const ContainerMethodExpr &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append(".");
-  output.append(ContainerMethodName(node.GetMethod()));
-  output.append("(");
+  (void)output.append(".");
+  (void)output.append(ContainerMethodName(node.GetMethod()));
+  (void)output.append("(");
   const auto args = node.GetArgs();
   for (size_t i = 0; i < args.Size(); ++i) {
     if (i > 0) {
-      output.append(", ");
+      (void)output.append(", ");
     }
     status = args[i]->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
     }
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const AddrOfExpr &node, std::string &output) {
-  output.append("&");
+  (void)output.append("&");
   return node.GetExpr()->Accept(*this, output);
 }
 
@@ -691,12 +698,12 @@ Status CppEmitter::Emit(const SubscriptExpr &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append("[");
+  (void)output.append("[");
   status = node.GetIndex()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append("]");
+  (void)output.append("]");
   return SUCCESS;
 }
 
@@ -705,7 +712,7 @@ Status CppEmitter::Emit(const MemberExpr &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append(".");
+  (void)output.append(".");
   AppendStringRef(node.GetField(), output);
   return SUCCESS;
 }
@@ -715,64 +722,64 @@ Status CppEmitter::Emit(const CppArrowMemberExpr &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append("->");
+  (void)output.append("->");
   AppendStringRef(node.GetField(), output);
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const CppCastExpr &node, std::string &output) {
-  output.append(CastKeyword(node.GetKind()));
-  output.append("<");
+  (void)output.append(CastKeyword(node.GetKind()));
+  (void)output.append("<");
   AppendStringRef(node.GetTargetType(), output);
-  output.append(">(");
+  (void)output.append(">(");
   const auto status = node.GetExpr()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(")");
+  (void)output.append(")");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const LambdaExpr &node, std::string &output) {
-  output.append("[");
+  (void)output.append("[");
   const auto captures = node.GetCaptures();
   for (size_t i = 0; i < captures.Size(); ++i) {
     if (i > 0) {
-      output.append(", ");
+      (void)output.append(", ");
     }
     AppendStringRef(captures[i], output);
   }
-  output.append("]() ");
+  (void)output.append("]() ");
   return node.GetBody()->Accept(*this, output);
 }
 
 Status CppEmitter::Emit(const InitListExpr &node, std::string &output) {
-  output.append("{");
+  (void)output.append("{");
   const auto elements = node.GetElements();
   for (size_t i = 0; i < elements.Size(); ++i) {
     if (i > 0) {
-      output.append(", ");
+      (void)output.append(", ");
     }
     const auto status = elements[i]->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
     }
   }
-  output.append("}");
+  (void)output.append("}");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const CommentStmt &node, std::string &output) {
   AppendIndent(output);
-  output.append("// ");
+  (void)output.append("// ");
   AppendStringRef(node.GetText(), output);
-  output.append("\n");
+  (void)output.append("\n");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const BlankLineStmt &node, std::string &output) {
   (void)node;
-  output.append("\n");
+  (void)output.append("\n");
   return SUCCESS;
 }
 
@@ -782,13 +789,13 @@ Status CppEmitter::Emit(const VarDeclStmt &node, std::string &output) {
   AppendTypeNameSeparator(node.GetTypeSpec(), output);
   AppendStringRef(node.GetName(), output);
   if (node.GetInit() != nullptr) {
-    output.append(" = ");
+    (void)output.append(" = ");
     const auto status = node.GetInit()->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
     }
   }
-  output.append(";\n");
+  (void)output.append(";\n");
   return SUCCESS;
 }
 
@@ -798,27 +805,29 @@ Status CppEmitter::Emit(const ExprStmt &node, std::string &output) {
   if (status != SUCCESS) {
     return status;
   }
-  output.append(";\n");
+  (void)output.append(";\n");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const ReturnStmt &node, std::string &output) {
   AppendIndent(output);
-  output.append("return");
+  (void)output.append("return");
   if (node.GetValue() != nullptr) {
-    output.append(" ");
+    (void)output.append(" ");
     const auto status = node.GetValue()->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
     }
   }
-  output.append(";\n");
+  (void)output.append(";\n");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const BlockStmt &node, std::string &output) {
-  output.append("{\n");
-  indent_level_++;
+  (void)output.append("{\n");
+  if (indent_level_ < std::numeric_limits<uint32_t>::max()) {
+    indent_level_++;
+  }
   const auto statements = node.GetStatements();
   for (size_t i = 0; i < statements.Size(); ++i) {
     const auto status = statements[i]->Accept(*this, output);
@@ -826,20 +835,22 @@ Status CppEmitter::Emit(const BlockStmt &node, std::string &output) {
       return status;
     }
   }
-  indent_level_--;
+  if (indent_level_ > 0U) {
+    indent_level_--;
+  }
   AppendIndent(output);
-  output.append("}\n");
+  (void)output.append("}\n");
   return SUCCESS;
 }
 
 Status CppEmitter::Emit(const IfStmt &node, std::string &output) {
   AppendIndent(output);
-  output.append("if (");
+  (void)output.append("if (");
   auto status = node.GetCond()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(") ");
+  (void)output.append(") ");
   status = node.GetThenBlock()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
@@ -848,7 +859,7 @@ Status CppEmitter::Emit(const IfStmt &node, std::string &output) {
     if (!output.empty() && output.back() == '\n') {
       output.pop_back();
     }
-    output.append(" else ");
+    (void)output.append(" else ");
     status = node.GetElseBlock()->Accept(*this, output);
     if (status != SUCCESS) {
       return status;
@@ -859,37 +870,37 @@ Status CppEmitter::Emit(const IfStmt &node, std::string &output) {
 
 Status CppEmitter::Emit(const ForStmt &node, std::string &output) {
   AppendIndent(output);
-  output.append("for (");
+  (void)output.append("for (");
   auto status = EmitForInitStmt(*node.GetInit(), *this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append("; ");
+  (void)output.append("; ");
   status = node.GetCond()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append("; ");
+  (void)output.append("; ");
   status = node.GetStep()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(") ");
+  (void)output.append(") ");
   return node.GetBody()->Accept(*this, output);
 }
 
 Status CppEmitter::Emit(const RangeForStmt &node, std::string &output) {
   AppendIndent(output);
-  output.append("for (");
+  (void)output.append("for (");
   AppendStringRef(node.GetTypeSpec(), output);
   AppendTypeNameSeparator(node.GetTypeSpec(), output);
   AppendStringRef(node.GetName(), output);
-  output.append(" : ");
+  (void)output.append(" : ");
   auto status = node.GetRange()->Accept(*this, output);
   if (status != SUCCESS) {
     return status;
   }
-  output.append(") ");
+  (void)output.append(") ");
   return node.GetBody()->Accept(*this, output);
 }
 }  // namespace ge

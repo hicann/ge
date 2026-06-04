@@ -16,7 +16,7 @@
 #include "common/om2/codegen/om2_codegen_types.h"
 
 namespace ge {
-enum class GeneratedFileIndex {
+enum class GeneratedFileIndex : uint32_t {
   kKernelRegistryFile = 0U,
   kResourcesFile,
   kArgsManagerFile,

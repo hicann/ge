@@ -63,12 +63,12 @@ class Om2CodegenModelBuilder {
   Status InitStreamSwitch(const OpDescPtr &op_desc, std::set<uint32_t> &active_stream_indication) const;
   std::vector<MemInfo> GetAllMemoryTypeSize(const GeModelPtr &model) const;
   static void ReportUnsupportedTask(TaskCodeBuilderPtr &task_builder,  domi::TaskDef *const task_def,
-                             std::unordered_map<int64_t, OpDescPtr> &op_desc_by_index, const ModelTaskType &task_type);
+                             std::unordered_map<int64_t, OpDescPtr> &op_desc_by_index, ModelTaskType task_type);
   static Status BuildKernelRegistryForAicore(Om2CodegenModel &codegen_model, const OpDescPtr &op_desc,
                                              ModelTaskType task_type);
   static Status BuildKernelRegistryForAicpu(Om2CodegenModel &codegen_model,
-                                    const domi::TaskDef task_def,
-                                    const std::string op_type,
+                                    const domi::TaskDef &task_def,
+                                    const std::string &op_type,
                                     const std::string &kernel_name,
                                     const std::string &aicpu_kernel_sign) ;
   static Status BuildKernelRegistryForCustAicpu(Om2CodegenModel &codegen_model,
@@ -76,9 +76,9 @@ class Om2CodegenModelBuilder {
                                                  const std::string &op_type,
                                                  const std::string &kernel_name,
                                                  const std::string &kernel_sign);
-  static Status BuildKernelRegistryForTFAicpu(Om2CodegenModel &codegen_model, const std::string op_type,
+  static Status BuildKernelRegistryForTFAicpu(Om2CodegenModel &codegen_model, const std::string &op_type,
                                                 const std::string &tf_aicpu_kernel_sign);
-  static Status BuildKernelRegistryForTFAicpuSession(Om2CodegenModel &codegen_model, const std::string op_type,
+  static Status BuildKernelRegistryForTFAicpuSession(Om2CodegenModel &codegen_model, const std::string &op_type,
                                              const std::string &tf_aicpu_kernel_sign);
   std::unordered_map<int64_t, OpDescPtr> op_desc_by_index_;
   std::unordered_map<int64_t, OpInputEdges> op_id_to_input_edges_;
