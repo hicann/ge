@@ -73,6 +73,7 @@ target_link_libraries(ge_executor_c_static PRIVATE
     $<BUILD_INTERFACE:intf_pub>
     c_sec_headers
     msprof_headers
+    error_manager_headers
     -Wl,--whole-archive
     c_base_static
     runtime_static

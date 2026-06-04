@@ -53,6 +53,8 @@ target_link_libraries(gen_esb_impl PRIVATE
         graph
         graph_base
         error_manager
+        mmpa_headers
+        slog_headers
         geir_collector
         json
         c_sec

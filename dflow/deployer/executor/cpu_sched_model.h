@@ -13,7 +13,7 @@
 
 #include <map>
 #include <vector>
-#include "aicpu/aicpu_schedule/aicpusd_info.h"
+#include "aicpusd_info.h"
 #include "framework/common/ge_types.h"
 #include "hccl/base.h"
 

@@ -75,6 +75,7 @@ if (ENABLE_OPEN_SRC)
                ge_metadef_headers
                error_manager
                $<$<TARGET_EXISTS:autofuse_headers>:autofuse_headers>
+               runtime_headers
                ascend_protobuf
                c_sec
                json
@@ -93,6 +94,7 @@ else ()
                atrace_headers
                error_manager
                $<$<TARGET_EXISTS:autofuse_headers>:autofuse_headers>
+               runtime_headers
                ascend_protobuf
                c_sec
                json

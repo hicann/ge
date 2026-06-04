@@ -49,6 +49,7 @@ target_link_libraries(lowering PRIVATE
     mmpa_headers
     ge_metadef_headers
     error_manager_headers
+    runtime_headers
     c_sec
     slog
     $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>

@@ -377,6 +377,7 @@ target_link_libraries(ge_common_static PRIVATE
     mmpa_headers
     ge_metadef_headers
     datagw_headers
+    error_manager_headers
     ascend_protobuf_static
     json
     $<$<STREQUAL:${GE_DT},>:ascend_dump>$<$<BOOL:${GE_DT}>:profiler_stub>

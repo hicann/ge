@@ -233,7 +233,7 @@ target_link_libraries(acl_mdl PRIVATE
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:slog_headers>>
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:msprof_headers>>
     $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:mmpa_headers>>
-    $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:runtime_headers>>
+    $<BUILD_INTERFACE:runtime_headers>
     -Wl,--whole-archive
     -Wl,--no-whole-archive
     -Wl,--no-as-needed

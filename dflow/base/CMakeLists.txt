@@ -75,6 +75,7 @@ target_link_libraries(data_flow_base PRIVATE
     metadef_headers
     msprof_headers
     runtime_headers
+    error_manager_headers
     unified_dlog
     c_sec
     ge_common

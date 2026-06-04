@@ -16,7 +16,7 @@
 #include <set>
 #include "proto/deployer.pb.h"
 #include "ge/ge_api_error_codes.h"
-#include "aicpu/tsd/tsd_client.h"
+#include "tsd/tsd_client.h"
 #include "common/subprocess/subprocess_manager.h"
 
 namespace ge {

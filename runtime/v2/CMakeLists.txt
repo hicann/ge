@@ -68,6 +68,7 @@ target_link_libraries(gert_static PRIVATE
         mmpa_headers
         ge_metadef_headers
         runtime_headers
+        error_manager_headers
         datagw_headers
         ascend_dump
         json
@@ -96,6 +97,7 @@ target_link_libraries(gert PRIVATE
         mmpa_headers
         ge_metadef_headers
         adump_headers
+        runtime_headers
         $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         ${AIR_COMMON_LINK_OPTION}
         -Wl,--no-as-needed

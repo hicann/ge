@@ -55,6 +55,7 @@ target_link_libraries(eager_style_graph_builder_base_static
         unified_dlog
         air_headers
         error_manager
+        runtime_headers
         mmpa_headers
         graph
         graph_base

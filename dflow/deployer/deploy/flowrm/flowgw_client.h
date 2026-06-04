@@ -13,8 +13,8 @@
 
 #include <string>
 #include "ge/ge_api_error_codes.h"
-#include "aicpu/queue_schedule/dgw_client.h"
-#include "aicpu/queue_schedule/qs_client.h"
+#include "queue_schedule/dgw_client.h"
+#include "queue_schedule/qs_client.h"
 #include "common/mem_grp/memory_group_manager.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "common/config/json_parser.h"

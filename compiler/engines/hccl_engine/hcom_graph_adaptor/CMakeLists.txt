@@ -218,6 +218,8 @@ if(BUILD_OPEN_PROJECT)
         gert
         platform
         error_manager
+        runtime_headers
+        unified_dlog
         hcomm_stub
         -Wl,--as-needed
         -lpthread

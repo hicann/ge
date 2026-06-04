@@ -243,6 +243,7 @@ target_link_libraries(ge_executor PRIVATE
     mmpa_headers
     ge_metadef_headers
     runtime_headers
+    error_manager_headers
     hccl_headers
     datagw_headers
     ascend_protobuf_static
@@ -326,6 +327,7 @@ target_link_libraries(ge_executor_shared
         graph_base
         register
         error_manager
+        runtime_headers
         ascend_protobuf
         c_sec
         json
@@ -393,6 +395,7 @@ target_link_libraries(davinci_executor
     adump_headers
     mmpa_headers
     hccl_headers
+    runtime_headers
     acl_rt
     $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
     -Wl,--no-as-needed
@@ -502,6 +505,7 @@ target_link_libraries(hybrid_executor
     davinci_executor
     ascend_dump
     error_manager
+    runtime_headers
     ascend_protobuf
     unified_dlog
     platform

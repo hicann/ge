@@ -12,7 +12,7 @@
 # ARCH is set by init_cann_project() as TARGET_ARCH
 # 打印路径
 message(STATUS "CMAKE_INSTALL_PREFIX = ${CMAKE_INSTALL_PREFIX}")
-message(STATUS "CMAKE_SOURCE_DIR = ${CMAKE_SOURCE_DIR}")
+message(STATUS "CMAKE_CURRENT_SOURCE_DIR = ${CMAKE_CURRENT_SOURCE_DIR}")
 message(STATUS "CMAKE_BINARY_DIR = ${CMAKE_BINARY_DIR}")
 set(ARCH_LINUX_PATH "${CMAKE_SYSTEM_PROCESSOR}-linux")
 set(INSTALL_LIBRARY_DIR ${ARCH_LINUX_PATH}/lib64)
@@ -109,10 +109,10 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
         install(TARGETS fwk_atc.bin ${INSTALL_OPTIONAL}
                 RUNTIME DESTINATION ${ARCH_LINUX_PATH}/bin COMPONENT ge-compiler
         )
-        install(FILES ${CMAKE_SOURCE_DIR}/api/atc/atc
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/api/atc/atc
                 DESTINATION ${ARCH_LINUX_PATH}/bin COMPONENT ge-compiler
         )
-        install(PROGRAMS ${CMAKE_SOURCE_DIR}/api/atc/pyatc
+        install(PROGRAMS ${CMAKE_CURRENT_SOURCE_DIR}/api/atc/pyatc
                 DESTINATION ${ARCH_LINUX_PATH}/bin COMPONENT ge-compiler
         )
         install(FILES ${CMAKE_CURRENT_BINARY_DIR}/api/python/wheel2/dist/llm_datadist_v1-0.0.1-py3-none-any.whl
@@ -142,76 +142,76 @@ if("ge-compiler" IN_LIST BUILD_COMPONENT)
         )
     endif()
 
-    install(DIRECTORY ${CMAKE_SOURCE_DIR}/inc/external/flow_graph
+    install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/flow_graph
             DESTINATION ${ARCH_LINUX_PATH}/include COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_gradient_split_tune.h
-                  ${CMAKE_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_ops_stores.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_gradient_split_tune.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_ops_stores.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_ir_build.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_utils.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_ir_build.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_utils.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/graph_rewriter.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/match_result.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pattern.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pattern_matcher.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/subgraph_boundary.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pattern_matcher_config.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/infer_shape_util.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/graph_rewriter.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/match_result.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/pattern.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/pattern_matcher.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/subgraph_boundary.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/pattern_matcher_config.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/infer_shape_util.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge/fusion COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pass/decompose_pass.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pass/fusion_base_pass.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pass/fusion_pass_reg.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/fusion/pass/pattern_fusion_pass.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/pass/decompose_pass.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/pass/fusion_base_pass.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/pass/fusion_pass_reg.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/fusion/pass/pattern_fusion_pass.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge/fusion/pass COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/cmake/FindGenerateEsPackage.cmake
-                  ${CMAKE_SOURCE_DIR}/cmake/generate_es_package.cmake
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGenerateEsPackage.cmake
+                  ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate_es_package.cmake
             DESTINATION ${ARCH_LINUX_PATH}/include/ge/cmake COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/parser/external/parser/caffe_parser.h
-                  ${CMAKE_SOURCE_DIR}/inc/parser/external/parser/onnx_parser.h
-                  ${CMAKE_SOURCE_DIR}/inc/parser/external/parser/tensorflow_parser.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/parser/external/parser/caffe_parser.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/parser/external/parser/onnx_parser.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/parser/external/parser/tensorflow_parser.h
             DESTINATION ${ARCH_LINUX_PATH}/include/parser COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api_v2.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_feature_memory.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_data_flow_api.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_graph_compile_summary.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/c/esb_funcs.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/compliant_node_builder.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_c_graph_builder.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_c_tensor_holder.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_graph_builder.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_tensor_holder.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_tensor_like.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_api.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_api_v2.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_feature_memory.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_data_flow_api.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_graph_compile_summary.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/c/esb_funcs.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/compliant_node_builder.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_c_graph_builder.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_c_tensor_holder.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_graph_builder.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_tensor_holder.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/eager_style_graph_builder/cpp/es_tensor_like.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/manager/engine_manager/engine_conf.json
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/manager/engine_manager/engine_conf.json
             DESTINATION ${ARCH_LINUX_PATH}/lib64/plugin/nnengine/ge_config COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/manager/opskernel_manager/optimizer_priority.pbtxt
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/manager/opskernel_manager/optimizer_priority.pbtxt
             DESTINATION ${ARCH_LINUX_PATH}/lib64/plugin/opskernel COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/cpu_engine/common/config/init.conf
-                  ${CMAKE_SOURCE_DIR}/compiler/engines/cpu_engine/tf_engine/config/ir2tf/ir2tf_op_mapping_lib.json
-                  ${CMAKE_SOURCE_DIR}/compiler/engines/cpu_engine/common/config/aicpu_ops_parallel_rule.json
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/cpu_engine/common/config/init.conf
+                  ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/cpu_engine/tf_engine/config/ir2tf/ir2tf_op_mapping_lib.json
+                  ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/cpu_engine/common/config/aicpu_ops_parallel_rule.json
             DESTINATION ${ARCH_LINUX_PATH}/lib64/plugin/opskernel/config COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/nn_engine/optimizer/fe_config/fe.ini
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/nn_engine/optimizer/fe_config/fe.ini
             DESTINATION ${ARCH_LINUX_PATH}/lib64/plugin/opskernel/fe_config COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/ffts_engine/common/ffts_config/ffts.ini
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/ffts_engine/common/ffts_config/ffts.ini
             DESTINATION ${ARCH_LINUX_PATH}/lib64/plugin/opskernel/ffts_config COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/acl/acl_op_compiler.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/acl/acl_op_compiler.h
             DESTINATION ${ARCH_LINUX_PATH}/include/acl COMPONENT ge-compiler
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/parser/parser/func_to_graph/func2graph.py
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/parser/parser/func_to_graph/func2graph.py
             DESTINATION ${ARCH_LINUX_PATH}/python/func2graph COMPONENT ge-compiler
     )
 endif()
@@ -242,7 +242,7 @@ if("ge-executor" IN_LIST BUILD_COMPONENT)
                     DESTINATION ${INSTALL_LIBRARY_DIR} COMPONENT ge-executor
             )
         endif()
-        install(FILES ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/graph.h
+        install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/graph.h
                 DESTINATION ${ARCH_LINUX_PATH}/include/graph COMPONENT ge-executor
         )
     else()
@@ -254,73 +254,73 @@ if("ge-executor" IN_LIST BUILD_COMPONENT)
         )
     endif()
 
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api_types.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_api_error_codes.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/ge/ge_external_weight_desc.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_api_types.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_api_error_codes.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/ge/ge_external_weight_desc.h
             DESTINATION ${ARCH_LINUX_PATH}/include/ge COMPONENT ge-executor
     )
 
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/ge_common/ge_api_types.h
-                  ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/ge_common/ge_common_api_types.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/ge_common/ge_api_types.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/ge_common/ge_common_api_types.h
             DESTINATION ${ARCH_LINUX_PATH}/include/external/ge_common COMPONENT ge-executor
     )
 
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/acl/acl_mdl.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/acl/acl_base_mdl.h
-                  ${CMAKE_SOURCE_DIR}/inc/external/acl/acl_op.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/acl/acl_mdl.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/acl/acl_base_mdl.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/acl/acl_op.h
             DESTINATION ${ARCH_LINUX_PATH}/include/acl COMPONENT ge-executor
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/external/acl/ops/acl_cblas.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/external/acl/ops/acl_cblas.h
             DESTINATION ${ARCH_LINUX_PATH}/include/acl/ops COMPONENT ge-executor
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/eager_op_execution_context.h
-            ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/op_compile_context.h
-            ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/update_args_context.h
-            ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/kernel_args.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/eager_op_execution_context.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/op_compile_context.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/update_args_context.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/exe_graph/runtime/kernel_args.h
             DESTINATION ${ARCH_LINUX_PATH}/include/exe_graph/runtime COMPONENT ge-executor
     )
     set(EXTERNAL_GRAPH_FILES
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/ct_infer_shape_range_context.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/ct_infer_shape_context.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_reg.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/gnode.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/named_io_node_builder.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/graph_buffer.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/inference_context.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/attr_value.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_factory.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/resource_context.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/kernel_launch_info.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/arg_desc_info.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/graph/custom_op.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/ct_infer_shape_range_context.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/ct_infer_shape_context.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_reg.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/gnode.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/named_io_node_builder.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/graph_buffer.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/inference_context.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/attr_value.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/operator.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/operator_factory.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/resource_context.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/kernel_launch_info.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/arg_desc_info.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/graph/custom_op.h
     )
     install(FILES ${EXTERNAL_GRAPH_FILES}
             DESTINATION ${ARCH_LINUX_PATH}/include/graph COMPONENT ge-executor
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_executor.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/compiler/engines/hccl_engine/inc/hcom_executor.h
             DESTINATION ${ARCH_LINUX_PATH}/include/graph COMPONENT ge-executor
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/graph_metadef/proto/caffe/caffe.proto
-                  ${CMAKE_SOURCE_DIR}/graph_metadef/proto/onnx/ge_onnx.proto
-                  ${CMAKE_SOURCE_DIR}/graph_metadef/proto/ge_ir.proto
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/graph_metadef/proto/caffe/caffe.proto
+                  ${CMAKE_CURRENT_SOURCE_DIR}/graph_metadef/proto/onnx/ge_onnx.proto
+                  ${CMAKE_CURRENT_SOURCE_DIR}/graph_metadef/proto/ge_ir.proto
             DESTINATION ${ARCH_LINUX_PATH}/include/proto COMPONENT ge-executor
     )
 
     set(EXTERNAL_REGISTER_FILES
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/register_base.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_lib_register.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/register_custom_pass.h
-        ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/op_binary_resource_manager.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/register/register_base.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/register/op_lib_register.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/register/register_custom_pass.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/register/op_binary_resource_manager.h
     )
     install(FILES ${EXTERNAL_REGISTER_FILES}
             DESTINATION ${ARCH_LINUX_PATH}/include/register COMPONENT ge-executor
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/inc/graph_metadef/external/register/scope/scope_fusion_pass_register.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/inc/graph_metadef/external/register/scope/scope_fusion_pass_register.h
             DESTINATION ${ARCH_LINUX_PATH}/include/register/scope COMPONENT ge-executor
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/graph_metadef/third_party/transformer/inc/transfer_def.h
-                  ${CMAKE_SOURCE_DIR}/graph_metadef/third_party/transformer/inc/transfer_shape_according_to_format_ext.h
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/graph_metadef/third_party/transformer/inc/transfer_def.h
+                  ${CMAKE_CURRENT_SOURCE_DIR}/graph_metadef/third_party/transformer/inc/transfer_shape_according_to_format_ext.h
             DESTINATION ${ARCH_LINUX_PATH}/include/transformer COMPONENT ge-executor
     )
 endif()
@@ -335,24 +335,24 @@ if("dflow-executor" IN_LIST BUILD_COMPONENT)
             RUNTIME DESTINATION ${ARCH_LINUX_PATH}/bin COMPONENT dflow-executor
     )
     install(FILES
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/ascend_string.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/balance_config.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_func_log.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_msg_queue.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_flow_func.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_params.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/out_options.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/attr_value.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/dflow_attr_value.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_func_defines.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_msg.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_context.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_multi_func.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_run_context.h
-            ${CMAKE_SOURCE_DIR}/dflow/udf/inc/external/flow_func/tensor_data_type.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/ascend_string.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/balance_config.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_func_log.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_msg_queue.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_flow_func.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_params.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/out_options.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/attr_value.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/dflow_attr_value.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_func_defines.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/flow_msg.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_context.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_multi_func.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/meta_run_context.h
+            ${CMAKE_CURRENT_SOURCE_DIR}/dflow/udf/inc/external/flow_func/tensor_data_type.h
             DESTINATION ${ARCH_LINUX_PATH}/include/flow_func COMPONENT dflow-executor
     )
-    install(FILES ${CMAKE_SOURCE_DIR}/dflow/deployer/monitor_cpu.sh
+    install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/dflow/deployer/monitor_cpu.sh
             DESTINATION ${ARCH_LINUX_PATH}/bin COMPONENT dflow-executor
             RENAME "monitor.sh")
     # 兼容性处理：copy_all 模式下 expand_content_list 的 pkg_softlink 未被共享 package.py 处理，

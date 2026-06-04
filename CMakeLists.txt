@@ -130,7 +130,7 @@ cmake_print_variables(BUILD_OPEN_PROJECT ENABLE_LLT_COV ENABLE_FE_LLT ENABLE_FFT
 
 # 针对 GCC/Clang 编译器, 开启编译告警转报错
 # TODO(For autofuse): Remove ' AND (NOT DEFINED ENV{DISABLE_COMPILATION_WERROR})' and fix the related compilation errors.
-if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND (NOT DEFINED ENV{DISABLE_COMPILATION_WERROR}))
+if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND (NOT DEFINED ENV{DISABLE_COMPILATION_WERROR}) AND NOT ENABLE_UNIFIED_BUILD)
     add_compile_options(-Wall -Wextra -Werror -Wfloat-equal)
 endif()
 # 针对 Clang 编译器，关闭特定警告（避免 -Werror 触发编译错误）

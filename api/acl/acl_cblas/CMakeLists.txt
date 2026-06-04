@@ -72,6 +72,8 @@ target_link_libraries(acl_cblas PRIVATE
     profapi_share
     runtime
     error_manager
+    runtime_headers
+    metadef_headers
     -Wl,--as-needed
     $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
     -ldl

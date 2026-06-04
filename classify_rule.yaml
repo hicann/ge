@@ -59,6 +59,7 @@ graphengine:
       - parser/parser/
     unrelease:
       - dflow/llm_datadist/v1/llm_error_codes.cc
+      - dflow/udf/toolchain/dump
       - python/llm_wrapper/CMakeLists.txt
       - python/llm_wrapper/llm_wrapper.cc
       - python/ge/ge_api_c_wrapper
