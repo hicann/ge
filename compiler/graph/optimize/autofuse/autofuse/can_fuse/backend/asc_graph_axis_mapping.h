@@ -525,7 +525,8 @@ class AscGraphAxisMapping {
   AxisPairSet node1_map_;
   AxisPairSet node2_map_;
   bool pre_node_is_reduction_{false};
-  bool open_log_;  // 是否打印轴映射日志，true表示打印，false表示不打印
+  int32_t pre_node_reduce_all_load_state_{0};
+  bool open_log_;
 };
 }  // namespace ge
 

@@ -506,8 +506,6 @@ bool AscGraphAxisMapping::CanAxisMap(std::vector<int64_t> &node1_axis, std::vect
                                      std::vector<int64_t> &node2_axis, std::vector<ge::Expression> &node2_repeats,
                                      AxisPairSet &node1_map, AxisPairSet &node2_map, AxisPairSet &temp_node1_map,
                                      AxisPairSet &temp_node2_map) const {
-  temp_node1_map.clear();
-  temp_node2_map.clear();
   if (node1_repeats.size() >= node2_repeats.size()) {
     std::vector<uint32_t> axis_index;
     if (FindAxisIndex(node2_repeats, node1_repeats, axis_index) != SUCCESS) {
@@ -519,6 +517,8 @@ bool AscGraphAxisMapping::CanAxisMap(std::vector<int64_t> &node1_axis, std::vect
         return false;
       }
     }
+    temp_node1_map.clear();
+    temp_node2_map.clear();
     for (auto i = 0U; i < axis_index.size(); i++) {
       GE_ASSERT_TRUE(static_cast<size_t>(axis_index[i]) < node1_axis.size());
       temp_node2_map.insert(std::pair<int64_t, int64_t>(node2_axis[i], node1_axis[axis_index[i]]));
@@ -537,6 +537,8 @@ bool AscGraphAxisMapping::CanAxisMap(std::vector<int64_t> &node1_axis, std::vect
         return false;
       }
     }
+    temp_node1_map.clear();
+    temp_node2_map.clear();
     for (auto i = 0U; i < axis_index.size(); i++) {
       GE_ASSERT_TRUE(static_cast<size_t>(axis_index[i]) < node2_axis.size());
       temp_node1_map.insert(std::pair<int64_t, int64_t>(node1_axis[i], node2_axis[axis_index[i]]));
@@ -624,13 +626,15 @@ Status AscGraphAxisMapping::CheckSubGraphtVerticalAxisMapping(const NodePtr &nod
   if (CanAxisMap(pre_axis_info.node_axis, pre_axis_info.node_repeats, cur_axis_info.node_axis,
                    cur_axis_info.node_repeats, node1_map, node2_map, temp_node1_map, temp_node2_map)) {
     // 1.graph1 store和 graph2 data轴是否能映射
-    GELOGD_IF(open_log_, "node %s(%s) pre store and cur data axis can axis map.", node->GetNamePtr(),
-              node->GetType().c_str());
+    GELOGD_IF(open_log_, "node %s(%s) pre store and cur data axis can axis map.", node->GetNamePtr(), node->GetType().c_str());
     if (pre_node_is_reduction_ &&
       !CanAxisMap(pre_axis_info.node_axis, pre_axis_info.node_repeats, cur_axis_info.graph_axis,
                   cur_axis_info.graph_size, node1_map_, node2_map_, temp_node1_map, temp_node2_map)) {
-        GELOGI_IF(open_log_, "pre node is reduction, graph sched axis can't map, can't fuse.");
-        return FAILED;
+        GELOGI_IF(open_log_, "pre node is reduction, norm like state: (%d).", pre_node_reduce_all_load_state_);
+        if (pre_node_reduce_all_load_state_ != REDUCE_ALL_LOAD_ALL) {
+          GELOGI_IF(open_log_, "pre node is reduction, only allow norm like fuse, can't fuse.");
+          return FAILED;
+        }
     }
   } else {
     // 2. graph1 store节点和graph2轴能直接映射
@@ -928,6 +932,7 @@ Status AscGraphAxisMapping::ProcessSubGraphVerticalMapInfo(const NodePtr &node1,
     GE_ASSERT_NOTNULL(autofuse_attr1);
     is_reduction = GetInterAttrs(autofuse_attr1).IsReduction();
     pre_node_is_reduction_ = is_reduction;
+    pre_node_reduce_all_load_state_ = autofuse_attr1->GetReduceAllLoadState();
     NodePtr asc_node1, asc_node2;
     if (GetVerticalAxisMapInfo(node2, subgraph_link.second, node1_map, node2_map, asc_node1, asc_node2) != SUCCESS) {
       return FAILED;
@@ -1007,6 +1012,7 @@ Status AscGraphAxisMapping::CreateSubGraphAxisMapInfo(const NodePtr &node1, cons
   node1_map_.clear();
   node2_map_.clear();
   pre_node_is_reduction_ = false;
+  pre_node_reduce_all_load_state_ = 0;
   // 垂直融合轴映射
   if (ProcessSubGraphVerticalMapInfo(node1, node2, fuse_info, node1_map_, node2_map_) != SUCCESS) {
     return FAILED;

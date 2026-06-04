@@ -861,6 +861,8 @@ class BackendUtils {
       AscGraph &asc_graph, bool &has_only_one_transpose,
       std::unordered_map<NodePtr, std::vector<std::pair<int64_t, int64_t>>> &fallback_node_to_transpose_info);
 
+  static bool IfNormLikeReduce(const NodePtr &node);
+
  private:
   static Status BackSteppingViewOpBroadcast(TensorAttrInfo &temp_data_attr, TensorAttrInfo &temp_load_attr,
                                             ViewOpAttrInfo &attr_info);

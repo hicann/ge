@@ -17,7 +17,46 @@
 #include "can_fuse/backend/asc_graph_axis_mapping.h"
 
 namespace ge {
+// 检查并初始化节点的is_reduce_all_load状态
+void CheckAndInitReduceAllLoadState(const NodePtr &node, AutoFuseAttrs *attr, const std::string &node_desc) {
+  // 只在状态为未初始化且节点为Reduce类型时才检查
+  if (attr->HasFuseType(loop::FuseType::kReduction) &&
+      attr->GetReduceAllLoadState() == REDUCE_ALL_LOAD_INIT) {
+    int32_t state;
+    // 调用BackendUtils::IfNormLikeReduce检查是否为norm-like reduce
+    if (BackendUtils::IfNormLikeReduce(node)) {
+      // 所有load都满足norm-like条件
+      state = REDUCE_ALL_LOAD_ALL;
+    } else {
+      // 不是所有load都满足norm-like条件
+      state = REDUCE_ALL_LOAD_NOT_ALL;
+    }
+    GELOGI("%s norm-like state %u, depend on whether satisfy conditions (R axis <= 65536, A axis >= 16)", node_desc.c_str());
+    attr->SetReduceAllLoadState(state);
+  }
+}
+
 bool ReduceFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
+  const auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
+  GE_ASSERT_NOTNULL(attr1);
+  const auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
+  GE_ASSERT_NOTNULL(attr2);
+
+  // 构建节点描述信息用于日志
+  std::string node1_desc = std::string("node1 ") + node1->GetNamePtr() + "(" + node1->GetType().c_str() + ")";
+  std::string node2_desc = std::string("node2 ") + node2->GetNamePtr() + "(" + node2->GetType().c_str() + ")";
+
+  // 检查并初始化node1的is_reduce_all_load状态
+  CheckAndInitReduceAllLoadState(node1, attr1, node1_desc);
+
+  // 检查并初始化node2的is_reduce_all_load状态（注意：这里检查的是node2，不是node1）
+  CheckAndInitReduceAllLoadState(node2, attr2, node2_desc);
+
+  // 检查两个节点的norm-like reduce状态是否允许融合
+  if (attr1->GetReduceAllLoadState() != REDUCE_ALL_LOAD_NOT_ALL && attr2->GetReduceAllLoadState() != REDUCE_ALL_LOAD_NOT_ALL) {
+    return true;
+  }
+
   // reduce不支持水平融合
   if (BackendUtils::IsHorizontal(node1, node2)) {
     GELOGI(
@@ -27,10 +66,6 @@ bool ReduceFusionStrategy::CanFuse(const NodePtr &node1, const NodePtr &node2) {
     return false;
   }
 
-  const auto attr1 = BackendUtils::GetNodeAutoFuseAttr(node1);
-  GE_ASSERT_NOTNULL(attr1);
-  const auto attr2 = BackendUtils::GetNodeAutoFuseAttr(node2);
-  GE_ASSERT_NOTNULL(attr2);
   if (attr1->HasFuseType(loop::FuseType::kReduction)) {
     // 不支持reduce后融合 非 elementwise
     if (!BackendUtils::IsOnlyPointwise(node2)) {

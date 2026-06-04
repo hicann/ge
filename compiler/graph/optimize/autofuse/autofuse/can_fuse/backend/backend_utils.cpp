@@ -33,6 +33,10 @@
 #include "utils/not_fuse_reason_code.h"
 #include "lowering/asc_lowerer/loop_common.h"
 
+extern "C" {
+bool IsNormLikeReduceGraph(const af::AscGraph &graph);
+}
+
 namespace ge {
 using namespace autofuse;
 namespace {
@@ -3344,5 +3348,16 @@ Status BackendUtils::GetTransposeInfos(
   }
   has_only_one_transpose = (swap_count_tal == 1);
   return SUCCESS;
+}
+
+bool BackendUtils::IfNormLikeReduce(const NodePtr &node) {
+  GE_CHECK_NOTNULL(node);
+
+  auto asc_graph = BackendUtils::GetNodeFusedAscGraph(node);
+  if (!asc_graph) {
+    return true;
+  }
+
+  return IsNormLikeReduceGraph(*asc_graph);
 }
 }  // namespace ge
