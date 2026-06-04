@@ -686,10 +686,10 @@ TEST_F(UserGraphsManagerlUT, set_memory_skip_by_slice_scheduler_enable) {
   EXPECT_EQ(UNSUPPORTED, session.UpdateGraphRefreshableFeatureMemoryBase(graph_id, nullptr, 0));
 
   std::vector<std::string> expect_log_list = {
-    "SetGraphConstMemoryBase unsupport slice scheduler currently",
-    "UpdateGraphFeatureMemoryBase unsupport slice scheduler currently",
-    "SetGraphFixedFeatureMemoryBaseWithType unsupport slice scheduler currently",
-    "UpdateGraphRefreshableFeatureMemoryBase unsupport slice scheduler currently"
+    "SetGraphConstMemoryBase does not support the slice scheduler currently",
+    "UpdateGraphFeatureMemoryBase does not support the slice scheduler currently",
+    "SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently",
+    "UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler currently"
   };
   for (auto &it : expect_log_list) {
     EXPECT_NE(gert_stub_.GetSlogStub().FindLog(-1, it.c_str()), -1);

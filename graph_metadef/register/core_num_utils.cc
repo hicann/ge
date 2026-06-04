@@ -22,15 +22,21 @@ graphStatus ConvertStrToInt32(const std::string &str, int32_t &val) {
     val = std::stoi(str);
   } catch (const std::invalid_argument &) {
     GELOGE(GRAPH_FAILED, "[Parse][Param]Failed, digit str:%s is invalid", str.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s is invalid", str.c_str());
+    const std::string reason = "digit str:" + str + " is invalid";
+    REPORT_PREDEFINED_ERR_MSG("E10060", std::vector<const char *>({"reason"}),
+                              std::vector<const char *>({reason.c_str()}));
     return GRAPH_FAILED;
   } catch (const std::out_of_range &) {
     GELOGE(GRAPH_FAILED, "[Parse][Param]Failed, digit str:%s cannot change to int", str.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s cannot change to int", str.c_str());
+    const std::string reason = "digit str:" + str + " cannot change to int";
+    REPORT_PREDEFINED_ERR_MSG("E10060", std::vector<const char *>({"reason"}),
+                              std::vector<const char *>({reason.c_str()}));
     return GRAPH_FAILED;
   } catch (...) {
     GELOGE(GRAPH_FAILED, "[Parse][Param]Failed, digit str:%s cannot change to int", str.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, digit str:%s cannot change to int", str.c_str());
+    const std::string reason = "digit str:" + str + " cannot change to int";
+    REPORT_PREDEFINED_ERR_MSG("E10060", std::vector<const char *>({"reason"}),
+                              std::vector<const char *>({reason.c_str()}));
     return GRAPH_FAILED;
   }
 

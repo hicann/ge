@@ -426,9 +426,9 @@ bool DumpConfigValidator::CheckDumpOpNameRange(const std::vector<ModelDumpConfig
 
             for (const auto &range : dumpConfig.dump_op_ranges) {
                 if (range.first.empty() || range.second.empty()) {
-                    GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpOpNameRange]op name range is imcomplete, "
+                    GELOGE(ACL_GE_INVALID_DUMP_CONFIG, "[Check][DumpOpNameRange]op name range is incomplete, "
                            "op name range begin[%s] end[%s].", range.first.c_str(), range.second.c_str());
-                    REPORT_INNER_ERR_MSG("E19999", "op name range is imcomplete, op name range begin[%s] end[%s]",
+                    REPORT_INNER_ERR_MSG("E19999", "op name range is incomplete, op name range begin[%s] end[%s]",
                                         range.first.c_str(), range.second.c_str());
                     return false;
                 }

@@ -60,7 +60,8 @@ Status ModelParserBase::LoadFromFile(const char_t *const model_path, const int32
     const std::string reason = FormatErrnoReason(mmGetErrorCode(), err_msg);
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Open][File]Failed, file %s, error %s",
            model_path, err_msg);
-    REPORT_INNER_ERR_MSG("E19999", "Open file %s failed, reason:%s", model_path, reason.c_str());
+    (void)REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                       std::vector<const char *>({model_path, reason.c_str()}));
     return ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID;
   }
 

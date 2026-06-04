@@ -104,7 +104,7 @@ Status CheckOpPrecisionMode(const std::map<std::string, std::string> &options) {
   if (iter != options.end() && !iter->second.empty() && !ge::CheckInputPathValid(iter->second)) {
     REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
-        std::vector<const char *>({ge::OP_PRECISION_MODE.c_str(), iter->second.c_str(), "path is not found"}));
+        std::vector<const char *>({ge::OP_PRECISION_MODE.c_str(), iter->second.c_str(), "path is not found."}));
     GELOGE(PARAM_INVALID, "[Check][OP_PRECISION_MODE] %s not found", iter->second.c_str());
     return FAILED;
   }
@@ -433,7 +433,7 @@ Status InnerSession::ExecuteGraphWithStreamAsync(uint32_t graph_id, const aclrtS
   if (res != SUCCESS) {
     GELOGE(res, "[Execute][GraphWithStreamAsync]failed,"
             "session id = %" PRIu64 ", graph id = %u, stream = %p.", session_id_, graph_id, stream);
-    REPORT_INNER_ERR_MSG("E19999", "GraphManager ExecuteGrapWithStreamhAsync failed,"
+    REPORT_INNER_ERR_MSG("E19999", "GraphManager ExecuteGraphWithStreamAsync failed,"
                       "session id = %" PRIu64 ", graph id = %u, stream = %p.", session_id_, graph_id, stream);
     return res;
   }
@@ -468,7 +468,7 @@ Status InnerSession::RunGraphWithStreamAsync(uint32_t graph_id, aclrtStream stre
   if (res != SUCCESS) {
     GELOGE(res, "[Run][GraphWithStreamAsync]failed,"
             "session id = %" PRIu64 ", graph id = %u, stream = %p.", session_id_, graph_id, stream);
-    REPORT_INNER_ERR_MSG("E19999", "GraphManager RunGrapWithStreamhAsync failed,"
+    REPORT_INNER_ERR_MSG("E19999", "GraphManager RunGraphWithStreamAsync failed,"
                       "session id = %" PRIu64 ", graph id = %u, stream = %p.", session_id_, graph_id, stream);
     return res;
   }
@@ -708,7 +708,7 @@ Status InnerSession::RemoveDumpProperties() {
     GE_IF_BOOL_EXEC(AdxDataDumpServerUnInit() != kDumpStatus,
                     GELOGE(PARAM_INVALID, "[UnInit][AdxDataDumpServer] failed, session_id:%" PRIu64 ".", session_id_);
                     REPORT_INNER_ERR_MSG("E19999", "RemoveDumpProperties failed because AdxDataDumpServerUnInit failed,"
-                                       "session_id:%" PRIu64 "", session_id_);
+                                       "session_id:%" PRIu64 ".", session_id_);
                     return PARAM_INVALID)
     GELOGI("UnInit adx data dump server success");
     is_dump_server_inited_ = false;

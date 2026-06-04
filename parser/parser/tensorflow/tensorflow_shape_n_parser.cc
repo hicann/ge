@@ -126,7 +126,7 @@ Status TensorFlowShapeNParser::ParseParams(const Message *op_src, ge::OpDescPtr 
     }
     const graphStatus status = op_dest->AddDynamicOutputDesc("y", dynamic_tensor_num);
     if (status != GRAPH_SUCCESS) {
-      REPORT_INNER_ERR_MSG("E19999", "Add Dynamic OuputDesc name:y to node:%s(%s) failed",
+      REPORT_INNER_ERR_MSG("E19999", "Add Dynamic OutputDesc name:y to node:%s(%s) failed",
                         op_dest->GetName().c_str(), op_dest->GetType().c_str());
       GELOGE(FAILED, "Add dynamic output:y for node:%s failed.", op_dest->GetName().c_str());
       return FAILED;

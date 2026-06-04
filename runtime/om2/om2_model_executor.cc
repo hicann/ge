@@ -986,7 +986,7 @@ ge::Status IsOm2Model(const char *file_path, bool &is_support) {
     std::array<char_t, kMaxErrorStringLen + 1U> err_buf = {};
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), err_buf.data(), kMaxErrorStringLen);
     std::string reason = ge::FormatErrnoReason(mmGetErrorCode(), err_msg);
-    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"patch", "errmsg"}),
+    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"path", "errmsg"}),
                               std::vector<const char *>({file_path, reason.c_str()}));
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID, "[Check][Param]Model file path %s is invalid", file_path);
     return ACL_ERROR_GE_EXEC_MODEL_PATH_INVALID;

@@ -65,14 +65,14 @@ class BCast {
                       const std::function<OutT(InT const &, InT const &)> &func) {
     Status ret;
     if (func == nullptr) {
-      REPORT_INNER_ERR_MSG("E19999", "Check param func nullptr");
+      REPORT_INNER_ERR_MSG("E19999", "Check param func nullptr.");
       GELOGE(domi::PARAM_INVALID, "Param func is null");
       return domi::PARAM_INVALID;
     }
     // Min input num is 2
     constexpr size_t kMinDimNum = 2U;
     if (input.size() < kMinDimNum) {
-      REPORT_INNER_ERR_MSG("E19999", "Param input.size():%zu < %zu, check invalid",
+      REPORT_INNER_ERR_MSG("E19999", "Param input.size():%zu < %zu, check invalid.",
                          input.size(), kMinDimNum);
       GELOGE(domi::PARAM_INVALID, "Input size is smaller than two.");
       return domi::PARAM_INVALID;
@@ -112,14 +112,14 @@ class BCast {
   Status BCastComputeCheck(const std::vector<ConstGeTensorPtr> &input, std::vector<OutT> &v_output,
                            const std::function<OutT(InT const &, InT const &, DataType &type, Status &)> &func) {
     if (func == nullptr) {
-      REPORT_INNER_ERR_MSG("E19999", "Check param func nullptr");
+      REPORT_INNER_ERR_MSG("E19999", "Check param func nullptr.");
       GELOGE(PARAM_INVALID, "Param func is null");
       return PARAM_INVALID;
     }
     // Min input num is 2
     constexpr size_t kMinDimNum = 2U;
     if (input.size() < kMinDimNum) {
-      REPORT_INNER_ERR_MSG("E19999", "Param input.size():%zu < %zu, check invalid",
+      REPORT_INNER_ERR_MSG("E19999", "Param input.size():%zu < %zu, check invalid.",
                          input.size(), kMinDimNum);
       GELOGE(PARAM_INVALID, "Input size is smaller than two.");
       return PARAM_INVALID;

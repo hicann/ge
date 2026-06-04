@@ -238,8 +238,9 @@ Status ProtoFileParser::CreatProtoFile() {
 
   int fd = open(fusion_proto_path.c_str(), O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP);
   if (fd < kOpenRetValue) {
-    REPORT_INNER_ERR_MSG("E19999", "creat tmp proto file[%s] failed.", fusion_proto_path.c_str());
-    GELOGE(FAILED, "[Open][File] creat tmp proto file[%s] failed.", fusion_proto_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({fusion_proto_path.c_str(), "create tmp proto file failed"}));
+    GELOGE(FAILED, "[Open][File] create tmp proto file[%s] failed.", fusion_proto_path.c_str());
     return FAILED;
   }
   close(fd);
@@ -252,8 +253,9 @@ Status ProtoFileParser::ParseProtoFile(const string &proto_file,
   ifstream read_file;
   read_file.open(proto_file, std::ios::in);
   if (read_file.fail()) {
-    REPORT_INNER_ERR_MSG("E19999", "ifsream open proto file[%s] failed.", proto_file.c_str());
-    GELOGE(FAILED, "[Open][File] ifsream open proto file[%s] failed.", proto_file.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({proto_file.c_str(), "ifstream open proto file failed"}));
+    GELOGE(FAILED, "[Open][File] ifstream open proto file[%s] failed.", proto_file.c_str());
     return FAILED;
   }
 
@@ -290,8 +292,9 @@ Status ProtoFileParser::AddCustomAndConflictLayer(const char *custom_proto_file,
   ifstream read_custom;
   read_custom.open(custom_proto_file, std::ios::in);
   if (read_custom.fail()) {
-    REPORT_INNER_ERR_MSG("E19999", "ifsream open custom proto file[%s] failed.", custom_proto_file);
-    GELOGE(FAILED, "[Open][File] ifsream open custom proto file[%s] failed.", custom_proto_file);
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({custom_proto_file, "ifstream open custom proto file failed"}));
+    GELOGE(FAILED, "[Open][File] ifstream open custom proto file[%s] failed.", custom_proto_file);
     return FAILED;
   }
 
@@ -329,8 +332,9 @@ Status ProtoFileParser::AddCustomAndConflictMessage(const char *custom_proto_fil
   ifstream read_custom;
   read_custom.open(custom_proto_file, std::ios::in);
   if (read_custom.fail()) {
-    REPORT_INNER_ERR_MSG("E19999", "ifsream open custom proto file[%s] failed.", custom_proto_file);
-    GELOGE(FAILED, "[Open][File] ifsream open custom proto file[%s] failed.", custom_proto_file);
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({custom_proto_file, "ifstream open custom proto file failed"}));
+    GELOGE(FAILED, "[Open][File] ifstream open custom proto file[%s] failed.", custom_proto_file);
     return FAILED;
   }
 
@@ -403,13 +407,15 @@ Status ProtoFileParser::WriteProtoFile(const char *caffe_proto_file,
   std::ofstream write_tmp;
   read_caffe.open(caffe_proto_file, std::ios::in);
   if (read_caffe.fail()) {
-    REPORT_INNER_ERR_MSG("E19999", "ifsream open proto file[%s] failed.", caffe_proto_file);
-    GELOGE(FAILED, "[Open][File] ifsream open proto file[%s] failed.", caffe_proto_file);
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({caffe_proto_file, "ifstream open proto file failed"}));
+    GELOGE(FAILED, "[Open][File] ifstream open proto file[%s] failed.", caffe_proto_file);
     return FAILED;
   }
   write_tmp.open(fusion_proto_path, std::ios::out);
   if (write_tmp.fail()) {
-    REPORT_INNER_ERR_MSG("E19999", "ofstream open proto file[%s] failed.", fusion_proto_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({fusion_proto_path.c_str(), "ofstream open proto file failed"}));
     GELOGE(FAILED, "[Open][File] ofstream open proto file[%s] failed.", fusion_proto_path.c_str());
     read_caffe.close();
     return FAILED;
@@ -531,8 +537,8 @@ Status ProtoFileParser::RecordProtoMessage(const string &proto_file) {
   ifstream read_file;
   read_file.open(proto_file, std::ios::in);
   if (read_file.fail()) {
-    REPORT_INNER_ERR_MSG("E19999", "ifsream open proto file[%s] failed.", proto_file.c_str());
-    GELOGE(FAILED, "[Open][File] ifsream open proto file[%s] failed.", proto_file.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "ifstream open proto file[%s] failed.", proto_file.c_str());
+    GELOGE(FAILED, "[Open][File] ifstream open proto file[%s] failed.", proto_file.c_str());
     return FAILED;
   }
 

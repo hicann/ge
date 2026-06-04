@@ -180,7 +180,7 @@ class GraphManager {
 
   Status GenerateInfershapeGraph(GraphId &graph_id);
 
-  Status CheckGraphVaildBeforeExecute(const GraphId &graph_id, GraphNodePtr &graph_node) const;
+  Status CheckGraphValidBeforeExecute(const GraphId &graph_id, GraphNodePtr &graph_node) const;
 
   const std::map<std::string, std::string> *GetGraphOptions(uint32_t graph_id);
 

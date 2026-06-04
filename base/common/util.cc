@@ -45,7 +45,8 @@ void PathValidErrReport(const std::string &file_path, const std::string &atc_par
     (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"parameter", "value", "reason"}),
                               std::vector<const char *>({atc_param.c_str(), file_path.c_str(), reason.c_str()}));
   } else {
-    REPORT_INNER_ERR_MSG("E19999", "Path[%s] invalid, reason:%s", file_path.c_str(), reason.c_str());
+    (void)REPORT_PREDEFINED_ERR_MSG("E13026", std::vector<const char *>({"pathname", "reason"}),
+                              std::vector<const char *>({file_path.c_str(), reason.c_str()}));
   }
 }
 
@@ -177,7 +178,8 @@ bool ReadBytesFromBinaryFile(const char_t *const file_name, char_t **const buffe
   std::ifstream file(real_path.c_str(), std::ios::binary | std::ios::ate);
   if (!file.is_open()) {
     GELOGE(ge::FAILED, "[Read][File]Failed, file %s", file_name);
-    REPORT_INNER_ERR_MSG("E19999", "Read file %s failed", file_name);
+    (void)REPORT_PREDEFINED_ERR_MSG("E13003", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({file_name, "check the file path and permissions"}));
     return false;
   }
 
@@ -192,8 +194,8 @@ bool ReadBytesFromBinaryFile(const char_t *const file_name, char_t **const buffe
   
   *buffer = new (std::nothrow) char[static_cast<size_t>(length)]();
   if (*buffer == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "new an object failed.");
-    GELOGE(FAILED, "new an object failed.");
+    REPORT_INNER_ERR_MSG("E19999", "Failed to allocate buffer, size=%zu.", static_cast<size_t>(length));
+    GELOGE(FAILED, "Failed to allocate buffer, size=%zu.", static_cast<size_t>(length));
     file.close();
     return false;
   }
@@ -211,7 +213,8 @@ std::string CurrentTimeInStr() {
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrorStrLength);
     const std::string reason = FormatErrnoReason(mmGetErrorCode(), err_msg);
     GELOGE(ge::FAILED, "[Check][Param]Localtime incorrect, errmsg %s", err_msg);
-    REPORT_INNER_ERR_MSG("E19999", "Localtime incorrect, reason:%s", reason.c_str());
+    (void)REPORT_PREDEFINED_ERR_MSG("E10063", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"localtime", reason.c_str()}));
     return "";
   }
 
@@ -313,10 +316,9 @@ bool CheckOutputPathValid(const std::string &file_path, const std::string &atc_p
     if (!atc_param.empty()) {
       (void)REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char_t *>({"parameter"}), std::vector<const char_t *>({atc_param.c_str()}));
     } else {
-      REPORT_INNER_ERR_MSG("E19999", "Param file_path is empty, check invalid.");
+      (void)REPORT_PREDEFINED_ERR_MSG("E10058", std::vector<const char *>({"parameter"}),
+                                std::vector<const char *>({"file_path"}));
     }
-    (void)REPORT_PREDEFINED_ERR_MSG("E10004", std::vector<const char *>({"parameter"}),
-                              std::vector<const char *>({atc_param.c_str()}));
     GELOGW("Input parameter's value is empty.");
     return false;
   }

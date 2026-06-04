@@ -289,9 +289,9 @@ Status RdmaNodeTask::ExtractTensor(const TaskContext &context,
       GELOGD("data is null, no need to do rdma read/write, node=%s", context.GetNodeName());
       return SUCCESS;
     } else {
-      REPORT_INNER_ERR_MSG("E19999", "Tensor data is nullptr. and kRdmaScatterTypes not contain %s",
+      REPORT_INNER_ERR_MSG("E19999", "Tensor data is nullptr, and kRdmaScatterTypes does not contain %s",
                          context.GetNodeItem().NodeType().c_str());
-      GELOGE(FAILED, "[Find][NodeType]Tensor data is nullptr. and kRdmaScatterTypes not contain %s",
+      GELOGE(FAILED, "[Find][NodeType]Tensor data is nullptr, and kRdmaScatterTypes does not contain %s",
              context.GetNodeItem().NodeType().c_str());
       return FAILED;
     }

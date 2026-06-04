@@ -271,8 +271,9 @@ void TransConstValue(const std::string &type_str, const Json &j, SingleOpTensorD
       default:
         GELOGE(UNSUPPORTED, "[Find][JsonAttr] name=%s, type=%s failed for Unsupported type.",
             kKeyType, type_str.c_str());
-        REPORT_INNER_ERR_MSG("E19999", "[Find][JsonAttr] name=%s, type=%s failed for Unsupported type.",
-            kKeyType, type_str.c_str());
+        (void)REPORT_PREDEFINED_ERR_MSG("E13006",
+            std::vector<const char *>({"file", "current_type", "expect_type"}),
+            std::vector<const char *>({kKeyType, type_str.c_str(), "a supported type"}));
         break;
     }
   }
@@ -330,8 +331,9 @@ void from_json(const Json &j, SingleOpAttr &attr) {
   if (it == kAttrTypeDict.cend()) {
     GELOGE(UNSUPPORTED, "[Find][JsonAttr] name=%s, type=%s failed for Unsupported type.",
         attr.name.c_str(), attr.type.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Find jsonattr name=%s, type=%s failed for Unsupported type.",
-        attr.name.c_str(), attr.type.c_str());
+    (void)REPORT_PREDEFINED_ERR_MSG("E13006",
+        std::vector<const char *>({"file", "current_type", "expect_type"}),
+        std::vector<const char *>({attr.name.c_str(), attr.type.c_str(), "a supported type"}));
     return;
   }
 
@@ -369,8 +371,9 @@ void from_json(const Json &j, SingleOpAttr &attr) {
     default:
       GELOGE(UNSUPPORTED, "[Find][JsonAttr] name=%s, type=%s failed for Unsupported type.",
           attr.name.c_str(), attr.type.c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Find jsonattr name=%s, type=%s failed for Unsupported type.",
-          attr.name.c_str(), attr.type.c_str());
+      (void)REPORT_PREDEFINED_ERR_MSG("E13006",
+          std::vector<const char *>({"file", "current_type", "expect_type"}),
+          std::vector<const char *>({attr.name.c_str(), attr.type.c_str(), "a supported type"}));
       break;
   }
 }

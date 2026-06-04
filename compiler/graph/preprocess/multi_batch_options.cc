@@ -101,9 +101,11 @@ Status DistinguishGetNextAndData(const ComputeGraphPtr &graph, std::vector<NodeP
 
 Status CheckNodeSize(const ComputeGraphPtr &graph, const std::vector<NodePtr> &data_nodes) {
   if (data_nodes.size() != GetLocalOmgContext().user_input_dims.size()) {
-    REPORT_INNER_ERR_MSG("E19999", "Count:%zu of data_nodes in graph:%s should be equal to "
-                       "input_shape count:%zu from option, check invalid",
-                       data_nodes.size(), graph->GetName().c_str(), GetLocalOmgContext().user_input_dims.size());
+    const std::string reason = "Count:" + std::to_string(data_nodes.size()) + " of data_nodes in graph:" +
+        graph->GetName() + " should be equal to input_shape count:" +
+        std::to_string(GetLocalOmgContext().user_input_dims.size()) + " from option.";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({std::to_string(data_nodes.size()).c_str(), "input_shape", reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] Count:%zu of data_nodes in graph:%s should be equal to "
            "input_shape count:%zu from option",
            data_nodes.size(), graph->GetName().c_str(), GetLocalOmgContext().user_input_dims.size());
@@ -128,11 +130,12 @@ Status CheckSequenceOfData(const ComputeGraphPtr &graph, const std::vector<NodeP
       continue;
     }
     if (dynamic_dims.size() != output_shape.size()) {
-      REPORT_INNER_ERR_MSG("E19999", "The output shape of %s is %s, the input shape from options of %s is %s, graph:%s,"
-                         "check invalid", data_node->GetName().c_str(),
-                         ToString(output_shape).c_str(),
-                         GetLocalOmgContext().user_input_dims.at(i).first.c_str(),
-                         ToString(dynamic_dims).c_str(), graph->GetName().c_str());
+      const std::string param_name = GetLocalOmgContext().user_input_dims.at(i).first;
+      const std::string reason = "The output shape of " + data_node->GetName() + " is " +
+          ToString(output_shape) + ", the input shape from options of " + param_name + " is " +
+          ToString(dynamic_dims) + ", graph:" + graph->GetName() + ".";
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+          std::vector<const char *>({ToString(output_shape).c_str(), param_name.c_str(), reason.c_str()}));
       GELOGE(PARAM_INVALID, "[Check][Param] The output shape of %s is %s, "
              "the input shape from options of %s is %s, graph:%s",
              data_node->GetName().c_str(), ToString(output_shape).c_str(),
@@ -142,11 +145,12 @@ Status CheckSequenceOfData(const ComputeGraphPtr &graph, const std::vector<NodeP
     }
     for (size_t j = 0; j < dynamic_dims.size(); ++j) {
       if (dynamic_dims.at(j) != kDynmaicDims && dynamic_dims.at(j) != output_shape.at(j)) {
-        REPORT_INNER_ERR_MSG("E19999", "Value of input shape %s from option and output shape %s of data op:%s "
-                           "should be equal to %d, index:%zu, graph:%s, check invalid",
-                           ToString(dynamic_dims).c_str(),
-                           ToString(output_shape).c_str(), data_node->GetName().c_str(), kDynmaicDims,
-                           j, graph->GetName().c_str());
+        const std::string reason = "Value of input shape " + ToString(dynamic_dims) +
+            " from option and output shape " + ToString(output_shape) + " of data op:" +
+            data_node->GetName() + " should be equal to " + std::to_string(kDynmaicDims) + ", index:" +
+            std::to_string(j) + ", graph:" + graph->GetName() + ".";
+        REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+            std::vector<const char *>({ToString(dynamic_dims).c_str(), "input_shape", reason.c_str()}));
         GELOGE(INTERNAL_ERROR, "[Check][Param] Value of input shape %s from option and output shape %s of data op:%s "
                "should be equal to %d, index:%zu, graph:%s",
                ToString(dynamic_dims).c_str(), ToString(output_shape).c_str(),
@@ -174,9 +178,11 @@ Status CheckSequenceOfGetnext(const ComputeGraphPtr &graph, const std::vector<No
   GE_CHECK_NOTNULL(op_desc);
   size_t data_count = data_node->GetAllOutDataAnchors().size() / kDivisionConst;
   if (data_count != GetLocalOmgContext().user_input_dims.size()) {
-    REPORT_INNER_ERR_MSG("E19999", "Output desc count of %s is %zu, should be equal to count of input shape:%zu, "
-                       "graph:%s, check invalid", op_desc->GetName().c_str(), data_count,
-                       GetLocalOmgContext().user_input_dims.size(), graph->GetName().c_str());
+    const std::string reason = "Output desc count of " + op_desc->GetName() + " is " +
+        std::to_string(data_count) + ", should be equal to count of input shape:" +
+        std::to_string(GetLocalOmgContext().user_input_dims.size()) + ", graph:" + graph->GetName() + ".";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({std::to_string(data_count).c_str(), "input_shape", reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param] Output desc count of %s is %zu, "
            "should be equal to count of input shape:%zu, graph:%s", op_desc->GetName().c_str(),
            data_count, GetLocalOmgContext().user_input_dims.size(), graph->GetName().c_str());
@@ -192,12 +198,12 @@ Status CheckSequenceOfGetnext(const ComputeGraphPtr &graph, const std::vector<No
       continue;
     }
     if (dynamic_dims.size() != output_shape.size()) {
-      REPORT_INNER_ERR_MSG("E19999", "The %zu output_shape of %s is %s not equal to the input_shape:%s "
-                         "from options of %s, graph:%s, check invalid", i,
-                         data_node->GetName().c_str(), ToString(output_shape).c_str(),
-                         ToString(dynamic_dims).c_str(),
-                         GetLocalOmgContext().user_input_dims.at(i).first.c_str(),
-                         graph->GetName().c_str());
+      const std::string param_name = GetLocalOmgContext().user_input_dims.at(i).first;
+      const std::string reason = "The " + std::to_string(i) + " output_shape of " + data_node->GetName() +
+          " is " + ToString(output_shape) + " not equal to the input_shape:" + ToString(dynamic_dims) +
+          " from options of " + param_name + ", graph:" + graph->GetName() + ".";
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+          std::vector<const char *>({ToString(output_shape).c_str(), param_name.c_str(), reason.c_str()}));
       GELOGE(PARAM_INVALID, "[Check][Param] The %zu output_shape of %s is %s not equal to the input_shape:%s "
              "from options of %s, graph:%s", i, data_node->GetName().c_str(),
              ToString(output_shape).c_str(), ToString(dynamic_dims).c_str(),
@@ -206,11 +212,12 @@ Status CheckSequenceOfGetnext(const ComputeGraphPtr &graph, const std::vector<No
     }
     for (size_t j = 0; j < dynamic_dims.size(); ++j) {
       if (dynamic_dims.at(j) != kDynmaicDims && dynamic_dims.at(j) != output_shape.at(j)) {
-        REPORT_INNER_ERR_MSG("E19999", "Value of input shape %s from option and output shape %s of data op:%s "
-                           "should be equal to %d, index:%zu, graph:%s, check invalid",
-                           ToString(dynamic_dims).c_str(),
-                           ToString(output_shape).c_str(), data_node->GetName().c_str(), kDynmaicDims,
-                           j, graph->GetName().c_str());
+        const std::string reason = "Value of input shape " + ToString(dynamic_dims) +
+            " from option and output shape " + ToString(output_shape) + " of data op:" +
+            data_node->GetName() + " should be equal to " + std::to_string(kDynmaicDims) + ", index:" +
+            std::to_string(j) + ", graph:" + graph->GetName() + ".";
+        REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+            std::vector<const char *>({ToString(dynamic_dims).c_str(), "input_shape", reason.c_str()}));
         GELOGE(INTERNAL_ERROR, "[Check][Param] Value of input shape %s from option and output shape %s of data op:%s "
                "should be equal to %d, index:%zu, graph:%s", ToString(dynamic_dims).c_str(),
                ToString(output_shape).c_str(), data_node->GetName().c_str(), kDynmaicDims,
@@ -239,9 +246,11 @@ Status UpdateNameOfGetnext(const ComputeGraphPtr &graph, const std::vector<NodeP
   // user want getnext dynamic, just getnext or data+getnext_sink
   size_t data_count = input_node->GetAllOutDataAnchors().size() / kDivisionConst;
   if (data_count != GetLocalOmgContext().user_input_dims.size()) {
-    REPORT_INNER_ERR_MSG("E19999", "Output desc count of %s is %zu, should be equal to count of input shape:%zu, "
-                                 "graph:%s, check invalid", op_desc->GetName().c_str(), data_count,
-                       GetLocalOmgContext().user_input_dims.size(), graph->GetName().c_str());
+    const std::string reason = "Output desc count of " + op_desc->GetName() + " is " +
+        std::to_string(data_count) + ", should be equal to count of input shape:" +
+        std::to_string(GetLocalOmgContext().user_input_dims.size()) + ", graph:" + graph->GetName() + ".";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({std::to_string(data_count).c_str(), "input_shape", reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][Param]Output desc count of %s is %zu, "
                           "should be equal to count of input shape:%zu, graph:%s", op_desc->GetName().c_str(), data_count,
            GetLocalOmgContext().user_input_dims.size(), graph->GetName().c_str());

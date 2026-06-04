@@ -1064,7 +1064,7 @@ Status ModelManager::GetModelIdByCmd(const Command &cmd_info, uint32_t &model_id
   }
 
   if (cmd_info.cmd_params[0U] != PROFILE_MODEL_ID) {
-    REPORT_INNER_ERR_MSG("E19999", "Fisrt cmd_param not %s, check invalid", PROFILE_MODEL_ID.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "First cmd_param not %s, check invalid", PROFILE_MODEL_ID.c_str());
     GELOGE(FAILED, "[Check][Param] The model_id parameter is not found in the command.");
     return FAILED;
   }

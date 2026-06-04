@@ -110,8 +110,8 @@ void ConstructSession(const std::map<std::string, std::string> &options, Session
   GELOGT(TRACE_INIT, "DFlowSession Constructor start");
   // check init status
   if (!g_dflow_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because GEInitialize was not called before.");
+    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because GEInitialize was not called before.");
     return;
   }
   // call Initialize
@@ -172,8 +172,8 @@ DFlowSession::~DFlowSession() {
 
 Status DFlowSession::AddGraph(uint32_t graph_id, const FlowGraph &graph, const std::map<AscendString, AscendString> &options) {
   if (!g_dflow_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because GEInitialize was not called before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because GEInitialize was not called before.");
     return FAILED;
   }
   GE_CHECK_NOTNULL(dflow_session_impl_);
@@ -199,8 +199,8 @@ Status DFlowSession::AddGraph(uint32_t graph_id, const FlowGraph &graph, const s
 
 Status DFlowSession::RemoveGraph(uint32_t graph_id) {
   if (!g_dflow_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because GEInitialize was not called before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because GEInitialize was not called before.");
     return FAILED;
   }
   GE_CHECK_NOTNULL(dflow_session_impl_);
@@ -219,8 +219,8 @@ Status DFlowSession::RemoveGraph(uint32_t graph_id) {
 
 Status DFlowSession::BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inputs) {
   if (!g_dflow_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][DFlowSession]Failed because GEInitialize was not called before.");
+    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because GEInitialize was not called before.");
     return FAILED;
   }
 
@@ -252,8 +252,8 @@ Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<Tens
 Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                   const std::vector<Tensor> &inputs, const DataFlowInfo &info, int32_t timeout) {
   if (!g_dflow_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][Data]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Feed data failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][Data]Failed because GEInitialize was not called before.");
+    REPORT_INNER_ERR_MSG("E19999", "Feed data failed because GEInitialize was not called before.");
     return FAILED;
   }
 
@@ -278,7 +278,7 @@ Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<Flow
 Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                   const std::vector<FlowMsgPtr> &inputs, int32_t timeout) {
   GE_CHK_BOOL_RET_STATUS(g_dflow_ge_initialized, FAILED,
-                         "[Feed][FlowMsg]Failed because lack GEInitialize call before.");
+                         "[Feed][FlowMsg]Failed because GEInitialize was not called before.");
 
   GE_CHECK_NOTNULL(dflow_session_impl_);
   const auto &session_id = dflow_session_impl_->GetSessionId();
@@ -295,8 +295,8 @@ Status DFlowSession::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint
 Status DFlowSession::FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_data_list, uint32_t index,
                             const DataFlowInfo &info, int32_t timeout) {
   if (!g_dflow_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][RawData]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Feed raw data failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][RawData]Failed because GEInitialize was not called before.");
+    REPORT_INNER_ERR_MSG("E19999", "Feed raw data failed because GEInitialize was not called before.");
     return FAILED;
   }
   GE_CHECK_NOTNULL(dflow_session_impl_);
@@ -321,8 +321,8 @@ Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, std::vector<Tensor> &
 Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                    std::vector<Tensor> &outputs, DataFlowInfo &info, int32_t timeout) {
   if (!g_dflow_ge_initialized) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Fetch][Data]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Fetch data failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Fetch][Data]Failed because GEInitialize was not called before.");
+    REPORT_INNER_ERR_MSG("E19999", "Fetch data failed because GEInitialize was not called before.");
     return FAILED;
   }
 
@@ -349,7 +349,7 @@ Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, std::vector<FlowMsgPt
 Status DFlowSession::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                    std::vector<FlowMsgPtr> &outputs, int32_t timeout) {
   GE_CHK_BOOL_RET_STATUS(g_dflow_ge_initialized, FAILED,
-                         "[Fetch][FlowMsg]Failed because lack GEInitialize call before.");
+                         "[Fetch][FlowMsg]Failed because GEInitialize was not called before.");
   GE_CHECK_NOTNULL(dflow_session_impl_);
   const auto &session_id = dflow_session_impl_->GetSessionId();
 

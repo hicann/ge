@@ -826,9 +826,9 @@ Status CreateSubGraphWithScopePass::CheckCtrlAnchorInvalid(const NodePtr &node,
       }
       const auto &it = std::find(scope_nodes.begin(), scope_nodes.end(), peer_node);
       if (it == scope_nodes.end()) {
-        REPORT_INNER_ERR_MSG("E19999", "Exit control edge bwtween [%s] and [%s].",
+        REPORT_INNER_ERR_MSG("E19999", "Exit control edge between [%s] and [%s].",
                            peer_node->GetName().c_str(), node->GetName().c_str());
-        GELOGE(PARAM_INVALID, "Exit control edge bwtween [%s] and [%s].",
+        GELOGE(PARAM_INVALID, "Exit control edge between [%s] and [%s].",
                peer_node->GetName().c_str(), node->GetName().c_str());
         return FAILED;
       }
@@ -855,9 +855,9 @@ Status CreateSubGraphWithScopePass::CheckCtrlAnchorInvalid(const NodePtr &node,
       }
 
       if (it == scope_nodes.end()) {
-        REPORT_INNER_ERR_MSG("E19999", "Exist control edge bwtween [%s] and [%s].",
+        REPORT_INNER_ERR_MSG("E19999", "Exist control edge between [%s] and [%s].",
                            node->GetName().c_str(), peer_node->GetName().c_str());
-        GELOGE(PARAM_INVALID, "Exist control edge bwtween [%s] and [%s].",
+        GELOGE(PARAM_INVALID, "Exist control edge between [%s] and [%s].",
                node->GetName().c_str(), peer_node->GetName().c_str());
         return FAILED;
       }

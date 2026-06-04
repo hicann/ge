@@ -1346,7 +1346,7 @@ Status TensorFlowModelParser::ParseFromMemory(const char *data, uint32_t size, g
     const string &node_op = node_def->op();
     if (tensorflow_op_map.find(node_op) == tensorflow_op_map.cend()) {
       DeleteFuisonNodeDef();
-      REPORT_INNER_ERR_MSG("E19999", "Op type %s unsupport", node_op.c_str());
+      REPORT_INNER_ERR_MSG("E19999", "Op type %s is unsupported", node_op.c_str());
       GELOGE(FAILED, "Unsupport op type %s", node_op.c_str());
       return INTERNAL_ERROR;
     }
@@ -3467,19 +3467,19 @@ Status TensorFlowModelParser::OptimizeConstNodes4CustomOp(domi::tensorflow::Grap
       } else if (it.moveType == domi::RemoveInputType::OMG_INPUT_REORDER) {
         auto inputs = current_node->input();
         if (static_cast<size_t>(inputs.size()) != it.input_order.size()) {
-          REPORT_INNER_ERR_MSG("E19999", "Input size of node:%s(%s) is mismatched, new order size:%zu, input size:%d",
+          REPORT_INNER_ERR_MSG("E19999", "Input size of node:%s(%s) is mismatched, new order size:%zu, input size:%zu",
                              current_node->name().c_str(), current_node->op().c_str(), it.input_order.size(),
-                             inputs.size());
-          GELOGE(INTERNAL_ERROR, "Size of input is mismatched, new order size is %zu, input size is %d.",
-                 it.input_order.size(), inputs.size());
+                             static_cast<size_t>(inputs.size()));
+          GELOGE(INTERNAL_ERROR, "Size of input is mismatched, new order size is %zu, input size is %zu.",
+                 it.input_order.size(), static_cast<size_t>(inputs.size()));
           return INTERNAL_ERROR;
         }
         for (size_t i = 0; i < it.input_order.size(); ++i) {
           int new_index = it.input_order[i];
           const bool is_input_invalid = (new_index < 0) || (new_index >= inputs.size());
           if (is_input_invalid) {
-            REPORT_INNER_ERR_MSG("E19999", "New order of %s has invalid index %d, out of range(0, %d)",
-                               it_node_map.first.c_str(), new_index, inputs.size());
+            REPORT_INNER_ERR_MSG("E19999", "New order of %s has invalid index %d, out of range(0, %zu)",
+                               it_node_map.first.c_str(), new_index, static_cast<size_t>(inputs.size()));
             GELOGE(INTERNAL_ERROR, "New order of %s has invalid index %d.", it_node_map.first.c_str(), new_index);
             return INTERNAL_ERROR;
           }

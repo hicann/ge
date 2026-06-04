@@ -31,9 +31,10 @@ bool NodeDoneManager::Cond::Await() {
     if (!cv_.wait_for(lk,
                       std::chrono::seconds(timeout_in_sec),
                       [this]() { return is_released_ || is_cancelled_; })) {
-      if (rtGetDevMsg(RT_GET_DEV_RUNNING_STREAM_SNAPSHOT_MSG, &DevMsgCallback) != RT_ERROR_NONE) {
-        GELOGE(INTERNAL_ERROR, "[Call][RTS]Call rtGetDevMsg failed.");
-        REPORT_INNER_ERR_MSG("E19999", "[Call][RTS]Call rtGetDevMsg failed.");
+      const auto ret = rtGetDevMsg(RT_GET_DEV_RUNNING_STREAM_SNAPSHOT_MSG, &DevMsgCallback);
+      if (ret != RT_ERROR_NONE) {
+        GELOGE(INTERNAL_ERROR, "[Call][RTS]Call rtGetDevMsg failed, ret=%d.", static_cast<int>(ret));
+        REPORT_INNER_ERR_MSG("E19999", "[Call][RTS]Call rtGetDevMsg failed, ret=%d.", static_cast<int>(ret));
         return false;
       }
       if (subject_ts_msg_ != ts_msg_) {

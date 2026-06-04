@@ -71,7 +71,7 @@ graphStatus WeightCompressFunc(const ComputeGraphPtr &graph, const std::string &
     REPORT_PREDEFINED_ERR_MSG(
         "W11002", std::vector<const char *>({"filename", "opnames"}),
         std::vector<const char *>({real_path.c_str(), node_names.c_str()}));
-    GELOGW("In the compression weight configuration file [%s], some nodes do not exist in graph: %s.",
+    GELOGW("In the compression weight configuration file [%s], some nodes do not exist in the graph: %s.",
            real_path.c_str(), node_names.c_str());
   }
   return GRAPH_SUCCESS;

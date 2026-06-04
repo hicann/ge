@@ -275,7 +275,9 @@ Status GetValidGraphNodeForBuild(const GraphManager *const graph_manager, const 
                                  GraphNodePtr &graph_node) {
   Status ret = graph_manager->GetGraphNode(graph_id, graph_node);
   if (ret != SUCCESS) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph:%u does not exist in graph_map, check invalid", graph_id);
+    const std::string reason = "the graph " + std::to_string(graph_id) + " does not exist in graph_map";
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call BuildGraph", reason.c_str()}));
     GELOGE(ret, "[Get][GraphNode] failed, graph does not exist, graph_id = %u.", graph_id);
     return ret;
   }
@@ -287,8 +289,9 @@ Status GetValidGraphNodeForBuild(const GraphManager *const graph_manager, const 
   }
 
   if (graph_node->GetRunFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph_id:%u, "
-                       "check invalid", graph_id);
+    const std::string reason = "the graph is already running, graph_id:" + std::to_string(graph_id);
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call BuildGraph", reason.c_str()}));
     GELOGE(GE_GRAPH_ALREADY_RUNNING, "[Get][RunFlag] graph already running, graph id = %u", graph_node->GetGraphId());
     return GE_GRAPH_ALREADY_RUNNING;
   }
@@ -1583,8 +1586,10 @@ Status GraphManager::StartForRunGraph(const GraphNodePtr &graph_node, const std:
   Status ret = SUCCESS;
   if (IsGraphNeedBuild(graph_node)) {
     if (graph_node->GetBuildFlag()) {
-      REPORT_INNER_ERR_MSG("E19999", "Graph:%u has not build before, can't run directly, "
-                         "check invalid", graph_node->GetGraphId());
+      const std::string reason = "the graph " + std::to_string(graph_node->GetGraphId()) +
+          " has not been built before, can't run directly; remove it from GE first, then AddGraph again and rebuild it";
+      REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+          std::vector<const char *>({"call RunGraph", reason.c_str()}));
       GELOGE(PARAM_INVALID,
              "[Get][BuildFlag] The graph %u need to re-build, you should remove it from GE "
              "first, then AddGraph again and rebuild it.",
@@ -1717,13 +1722,16 @@ Status GraphManager::LoadGraph(const uint32_t graph_id, const std::map<AscendStr
   GE_CHECK_NOTNULL(ge_root_model);
 
   if (graph_node->GetRunFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph_id:%u, check invalid",
-      graph_id);
+    const std::string reason = "the graph is already running, graph_id:" + std::to_string(graph_id);
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call LoadGraph", reason.c_str()}));
     GELOGE(GE_GRAPH_ALREADY_RUNNING, "[Get][RunFlag] graph already running, graph id = %u", graph_id);
     return GE_GRAPH_ALREADY_RUNNING;
   }
   if (graph_node->GetLoadFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph has been loaded, graph_id = %u", graph_id);
+    const std::string reason = "the graph has been loaded, graph_id:" + std::to_string(graph_id);
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call LoadGraph", reason.c_str()}));
     GELOGE(GE_GRAPH_REPEAT_OPERATION, "[Check][LoadFlag] Graph has been loaded, graph_id = %u", graph_id);
     return GE_GRAPH_REPEAT_OPERATION;
   }
@@ -1836,7 +1844,7 @@ Status GraphManager::NormalizeInputsOutputs(const ComputeGraphPtr &compute_graph
   return SUCCESS;
 }
 
-Status GraphManager::CheckGraphVaildBeforeExecute(const GraphId &graph_id, GraphNodePtr &graph_node) const {
+Status GraphManager::CheckGraphValidBeforeExecute(const GraphId &graph_id, GraphNodePtr &graph_node) const {
   if (graph_node->GetRunFlag()) {
     REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph id = %u, "
                        "check invalid.", graph_id);
@@ -1888,7 +1896,7 @@ Status GraphManager::ExecuteGraphWithStreamAsync(const GraphId &graph_id, const 
 
   std::lock_guard<std::mutex> lock(graph_node->GetRunMutex());
 
-  Status checkStatus = CheckGraphVaildBeforeExecute(graph_id, graph_node);
+  Status checkStatus = CheckGraphValidBeforeExecute(graph_id, graph_node);
   if (checkStatus != SUCCESS) {
     return checkStatus;
   }
@@ -1929,8 +1937,9 @@ Status GraphManager::RunGraphWithStreamAsync(const GraphId &graph_id, const aclr
   std::lock_guard<std::mutex> lock(graph_node->GetRunMutex());
 
   if (graph_node->GetRunFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph id = %u, "
-                       "check invalid.", graph_id);
+    const std::string reason = "the graph is already running, graph id = " + std::to_string(graph_id);
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call RunGraphWithStreamAsync", reason.c_str()}));
     GELOGE(GE_GRAPH_ALREADY_RUNNING, "[Get][RunFlag] Run graph with stream async graph already running, "
            "graph id = %u.", graph_id);
     return GE_GRAPH_ALREADY_RUNNING;
@@ -2033,8 +2042,9 @@ Status GraphManager::RunGraph(const GraphId &graph_id, const std::vector<gert::T
   std::lock_guard<std::mutex> lock(graph_node->GetRunMutex());
 
   if (graph_node->GetRunFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph_id:%u, check invalid",
-      graph_id);
+    const std::string reason = "the graph is already running, graph_id:" + std::to_string(graph_id);
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call RunGraph", reason.c_str()}));
     GELOGE(GE_GRAPH_ALREADY_RUNNING, "[Get][RunFlag] graph already running, graph id = %u", graph_id);
     return GE_GRAPH_ALREADY_RUNNING;
   }
@@ -2237,8 +2247,10 @@ Status GraphManager::BuildGraphWithoutLoad(const GraphId &graph_id, const std::v
     return SUCCESS;
   }
   if (graph_node->GetBuildFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph:%u has not build before, can't run directly, check invalid",
-                       graph_node->GetGraphId());
+    const std::string reason = "the graph " + std::to_string(graph_node->GetGraphId()) +
+        " has not been built before, can't run directly; remove it from GE first, then AddGraph again and rebuild it";
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call BuildGraphWithoutLoad", reason.c_str()}));
     GELOGE(PARAM_INVALID,
            "[Get][BuildFlag] The graph %u need to re-build, you should remove it from GE "
            "first, then AddGraph again and rebuild it.",
@@ -2342,7 +2354,9 @@ Status GraphManager::InnerRemoveGraph(const GraphId &graph_id) {
   GraphNodePtr graph_node = nullptr;
   Status ret = GetGraphNode(graph_id, graph_node);
   if (ret != SUCCESS || graph_node == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph:%u does not exist in graph_map, check invalid", graph_id);
+    const std::string reason = "the graph " + std::to_string(graph_id) + " does not exist in graph_map";
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call InnerRemoveGraph", reason.c_str()}));
     GELOGE(GE_GRAPH_GRAPH_NOT_EXIST, "[Get][GraphNode] Id %u does not exist.", graph_id);
     return GE_GRAPH_GRAPH_NOT_EXIST;
   }
@@ -2371,7 +2385,9 @@ Status GraphManager::RemoveGraph(const GraphId &graph_id) {
   GraphNodePtr graph_node = nullptr;
   Status ret = GetGraphNode(graph_id, graph_node);
   if (ret != SUCCESS || graph_node == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph:%u does not exist in graph_map, check invalid", graph_id);
+    const std::string reason = "the graph " + std::to_string(graph_id) + " does not exist in graph_map";
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call RemoveGraph", reason.c_str()}));
     GELOGE(GE_GRAPH_GRAPH_NOT_EXIST, "[Get][GraphNode] Id %u does not exist.", graph_id);
     return GE_GRAPH_GRAPH_NOT_EXIST;
   }
@@ -2749,7 +2765,9 @@ Status GraphManager::GetGraphNode(const GraphId &graph_id, GraphNodePtr &out) co
   auto iter = graph_map_.find(graph_id);
   if (iter == graph_map_.end()) {
     out = nullptr;
-    REPORT_INNER_ERR_MSG("E19999", "Graph:%u does not exist in graph_map, check invalid", graph_id);
+    const std::string reason = "the graph " + std::to_string(graph_id) + " does not exist in graph_map";
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call GetGraphNode", reason.c_str()}));
     GELOGE(GE_GRAPH_GRAPH_NOT_EXIST, "[Check][Param] graph does not exist, graph_id= %u.", graph_id);
     return GE_GRAPH_GRAPH_NOT_EXIST;
   }
@@ -2781,7 +2799,9 @@ Status GraphManager::GetCompiledModel(uint32_t graph_id, ModelBufferData &model_
   }
   GetThreadLocalContext().SetGraphOption(graph_node->GetOptions());
   if (!graph_node->GetBuildFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph is not compiled, graph_id:%u", graph_id);
+    const std::string reason = "the graph is not compiled, graph_id:" + std::to_string(graph_id);
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call GetCompiledModel", reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Check][CompileFlag] Graph is not compiled, graph_id:%u", graph_id);
     return PARAM_INVALID;
   }
@@ -5019,8 +5039,9 @@ Status GraphManager::CompileGraph(uint32_t graph_id, uint64_t session_id, const 
   GE_ASSERT_SUCCESS(GetGraphNode(graph_id, graph_node), "get graph failed, graph_id:%u.", graph_id);
   GE_ASSERT_NOTNULL(graph_node, "graph_node is nullptr, session_id:%" PRIu64 ", graph_id:%u.", session_id, graph_id);
   if (graph_node->GetRunFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph is already running, can't be run again, graph_id:%u, "
-                         "check invalid", graph_id);
+    const std::string reason = "the graph is already running, graph_id:" + std::to_string(graph_id);
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call CompileGraph", reason.c_str()}));
     GELOGE(GE_GRAPH_ALREADY_RUNNING, "[Get][RunFlag] graph already running, graph id = %u", graph_node->GetGraphId());
     return GE_GRAPH_ALREADY_RUNNING;
   }
@@ -5029,8 +5050,10 @@ Status GraphManager::CompileGraph(uint32_t graph_id, uint64_t session_id, const 
   if (graph_node->GetBuildFlag()) {
     // has compiled before, but now need to re-build, report error
     if (IsGraphNeedBuild(graph_node)) {
-      REPORT_INNER_ERR_MSG("E19999", "[Get][BuildFlag] The graph %u need to re-build, you should remove it from GE "
-                           "first, then AddGraph again and re-compile it.", graph_node->GetGraphId());
+      const std::string reason = "the graph " + std::to_string(graph_node->GetGraphId()) +
+          " need to re-build, you should remove it from GE first, then AddGraph again and re-compile it";
+      REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+          std::vector<const char *>({"call CompileGraph", reason.c_str()}));
       GELOGE(PARAM_INVALID, "[Get][BuildFlag] The graph %u need to re-build, you should remove it from GE "
             "first, then AddGraph again and re-compile it.", graph_node->GetGraphId());
       return PARAM_INVALID;
@@ -5177,7 +5200,9 @@ Status GraphManager::ForkGraph(uint32_t origin_graph_id, uint32_t forked_graph_i
     return ret;
   }
   if (!origin_graph_node->GetBuildFlag()) {
-    REPORT_INNER_ERR_MSG("E19999", "Graph:%u to fork not compiled, check invalid", origin_graph_id);
+    const std::string reason = "the graph " + std::to_string(origin_graph_id) + " to fork is not compiled";
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+        std::vector<const char *>({"call ForkGraph", reason.c_str()}));
     GELOGE(GRAPH_FAILED, "[Get][GraphNode] failed, graph to fork not compiled, graph_id = %u.", origin_graph_id);
     return GRAPH_FAILED;
   }

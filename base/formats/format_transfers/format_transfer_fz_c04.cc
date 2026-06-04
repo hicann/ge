@@ -131,7 +131,7 @@ Status TransFormatNchwToFzC04(const TransArgs &args, TransResult &result) {
     GELOGE(ret, "[Trans][Formats]Failed from NCHW to HWCN, src_shape %s, src_data_type %s",
            ShapeToString(args.src_shape).c_str(),
            TypeUtils::DataTypeToSerialString(args.src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failede to trans formats from NCHW to HWCN, src_shape %s, "
+    REPORT_INNER_ERR_MSG("E19999", "Failed to trans formats from NCHW to HWCN, src_shape %s, "
                       "src_data_type %s",
                       ShapeToString(args.src_shape).c_str(),
                       TypeUtils::DataTypeToSerialString(args.src_data_type).c_str());

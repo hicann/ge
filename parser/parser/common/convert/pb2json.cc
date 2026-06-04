@@ -306,7 +306,9 @@ int Pb2Json::AttrReplaceKV(Json &json, const std::vector<string> &idx2name,
     std::string attr_name;
     auto ret = EnumAttrUtils::GetAttrName(idx2name, use_string_val, key, attr_name, is_value_string);
     if (ret != GRAPH_SUCCESS) {
-      REPORT_INNER_ERR_MSG("E19999", "Key convert failed.");
+      REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                                std::vector<const char *>({"Decode attr in pb2json",
+                                                           "failed to get attr name for the 'key' field"}));
       return -1;
     }
     key = attr_name;
@@ -334,7 +336,9 @@ int Pb2Json::AttrReplaceKV(Json &json, const std::vector<string> &idx2name,
     }
 
     if (ret != GRAPH_SUCCESS) {
-      REPORT_INNER_ERR_MSG("E19999", "Value of \"%s\" convert failed.", attr_name.c_str());
+      const std::string reason = "failed to resolve attr value for: " + attr_name;
+      REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                                std::vector<const char *>({"Decode attr in pb2json", reason.c_str()}));
       return -1;
     }
   }

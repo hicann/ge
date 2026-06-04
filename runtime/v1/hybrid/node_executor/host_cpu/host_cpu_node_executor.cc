@@ -153,18 +153,18 @@ Status HostCpuNodeExecutor::PrepareTask(NodeTask &task, TaskContext &context) co
 Status HostCpuNodeExecutor::ValidateTaskDef(const domi::TaskDef &task_def) {
   const auto task_type = static_cast<ModelTaskType>(task_def.type());
   if (task_type != ModelTaskType::MODEL_TASK_KERNEL) {
-    REPORT_INNER_ERR_MSG("E19999", "[Check][TaskType]Invalid task type (%d) in host cpu excutor.",
+    REPORT_INNER_ERR_MSG("E19999", "[Check][TaskType]Invalid task type (%d) in host cpu executor.",
                       static_cast<int32_t>(task_type));
     GELOGE(INTERNAL_ERROR,
-           "[Check][TaskType]Invalid task type (%d) in host cpu excutor.", static_cast<int32_t>(task_type));
+           "[Check][TaskType]Invalid task type (%d) in host cpu executor.", static_cast<int32_t>(task_type));
     return INTERNAL_ERROR;
   }
   const auto kernel_type = static_cast<ccKernelType>(task_def.kernel().context().kernel_type());
   if (kernel_type != ccKernelType::HOST_CPU) {
-    REPORT_INNER_ERR_MSG("E19999", "Invalid kernel type(%d) in host cpu excutor.",
+    REPORT_INNER_ERR_MSG("E19999", "Invalid kernel type(%d) in host cpu executor.",
                        static_cast<int32_t>(kernel_type));
     GELOGE(INTERNAL_ERROR,
-           "[Check][TaskType]Invalid kernel type(%d) in host cpu excutor.", static_cast<int32_t>(kernel_type));
+           "[Check][TaskType]Invalid kernel type(%d) in host cpu executor.", static_cast<int32_t>(kernel_type));
     return INTERNAL_ERROR;
   }
 

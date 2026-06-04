@@ -104,7 +104,7 @@ Status UserGraphControl::Finalize() {
       GELOGI("Wait jit thread to finish.");
       const Status ret_status = jit_futures_.front().get();
       if (ret_status != SUCCESS) {
-        REPORT_INNER_ERR_MSG("E19999", "UserGraph %u run failed", user_graph_id_);
+        REPORT_INNER_ERR_MSG("E19999", "UserGraph %u run failed.", user_graph_id_);
         GELOGE(ret_status, "[UserGraphCtrl][RunGraphAsync] UserGraph %u run failed", user_graph_id_);
       }
       jit_futures_.pop();

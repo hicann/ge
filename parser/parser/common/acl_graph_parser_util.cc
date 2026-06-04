@@ -843,7 +843,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY bool ReadProtoFromBinaryFile(co
 
   std::string real_path = RealPath(file);
   if (real_path.empty()) {
-    REPORT_INNER_ERR_MSG("E19999", "file path '%s' not valid, realpath failed", file);
+    REPORT_PREDEFINED_ERR_MSG("E13026", std::vector<const char *>({"pathname", "reason"}),
+                              std::vector<const char *>({file, "realpath failed"}));
     GELOGE(FAILED, "[Check][Param]pb file path '%s' not valid, realpath failed", file);
     return false;
   }
@@ -909,7 +910,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY bool ReadProtoFromText(const ch
   std::ifstream fs(real_path.c_str(), std::ifstream::in);
 
   if (!fs.is_open()) {
-    REPORT_INNER_ERR_MSG("E19999", "open file:%s failed", real_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({real_path.c_str(), reason.c_str()}));
     GELOGE(ge::FAILED, "[Open][ProtoFile] failed, real path is '%s' when orginal file path is '%s'.",
            real_path.c_str(), file);
     return false;
@@ -938,7 +940,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY bool ReadProtoFromMem(const cha
 
   google::protobuf::io::IstreamInputStream input(&fs);
   bool ret = google::protobuf::TextFormat::Parse(&input, message);
-  GE_IF_BOOL_EXEC(!ret, REPORT_INNER_ERR_MSG("E19999", "parse failed, please check your text file.");
+  GE_IF_BOOL_EXEC(!ret, REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                                                  std::vector<const char *>({"memory", "parse failed, please check your text file"}));
                   GELOGE(ret, "[Call][Parse] ret fail, please check your text file."));
 
   return ret;

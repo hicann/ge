@@ -115,8 +115,9 @@ void ConstructSession(const std::map<std::string, std::string> &options, Session
   // check init status
   session_id = 0U;
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Construct session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "Construct session failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call Session", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before creating a session."}));
     return;
   }
   // call Initialize
@@ -169,7 +170,8 @@ Status CheckCompiledFlag(const SessionPtr &inner_session, uint32_t graph_id, boo
         "Graph needs to be compiled first, graph_id=" + std::to_string(graph_id) :
         "Incompatible with API CompileGraph, graph_id=" + std::to_string(graph_id);
     GELOGE(error_code, "%s", error_msg.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "%s", error_msg.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"verify the graph status", error_msg.c_str()}));
     return error_code;
   }
   return SUCCESS;
@@ -311,7 +313,7 @@ Session::~Session() {
   } catch (std::exception &e) {
     (void)e;
     GELOGE(GE_CLI_SESS_DESTROY_FAILED, "[Destructor][Session]Failed: an exception occurred");
-    REPORT_INNER_ERR_MSG("E19999", "Failed to destroy session: an exception occurred");
+    REPORT_INNER_ERR_MSG("E19999", "Failed to destroy session: an exception occurred.");
   }
 
   // check return status, return, update session id if success
@@ -332,8 +334,9 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph) {
 // Add Graph
 Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<std::string, std::string> &options) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call AddGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before adding a graph."}));
     return FAILED;
   }
 
@@ -373,8 +376,9 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<s
 // Add Graph
 Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<AscendString, AscendString> &options) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call AddGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before adding a graph."}));
     return FAILED;
   }
   AscendString graph_name;
@@ -386,7 +390,8 @@ Status Session::AddGraph(uint32_t graph_id, const Graph &graph, const std::map<A
   for (auto &option_item : options) {
     if (option_item.first.GetLength() == 0) {
       GELOGE(FAILED, "Add graph failed, option key is empty.");
-      REPORT_INNER_ERR_MSG("E19999", "Add graph failed, option key is empty.");
+      REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                                std::vector<const char *>({"AddGraph", "an option key is empty"}));
       return FAILED;
     }
 
@@ -429,8 +434,9 @@ Status Session::AddGraphWithCopy(uint32_t graph_id, const Graph &graph) {
 Status Session::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
                                  const std::map<AscendString, AscendString> &options) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call AddGraphWithCopy", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before adding a graph with copy."}));
     return FAILED;
   }
 
@@ -468,8 +474,9 @@ Status Session::AddGraphWithCopy(uint32_t graph_id, const Graph &graph,
 // Remove Graph
 Status Session::RemoveGraph(uint32_t graph_id) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call RemoveGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before deleting the graph."}));
     return FAILED;
   }
 
@@ -547,8 +554,9 @@ static void PrintOutputResult(std::vector<Tensor> &outputs) {
 // Run Graph
 Status Session::RunGraph(uint32_t graph_id, const std::vector<Tensor> &inputs, std::vector<Tensor> &outputs) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call RunGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before executing the graph."}));
     return FAILED;
   }
 
@@ -590,8 +598,9 @@ Status Session::RunGraph(uint32_t graph_id, const std::vector<Tensor> &inputs, s
 Status Session::RunGraphWithStreamAsync(uint32_t graph_id, void *stream, const std::vector<Tensor> &inputs,
                                         std::vector<Tensor> &outputs) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call RunGraphWithStreamAsync", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before executing the graph with stream asynchronously."}));
     return FAILED;
   }
 
@@ -615,8 +624,9 @@ Status Session::ExecuteGraphWithStreamAsync(uint32_t graph_id, void *stream, con
                                         std::vector<gert::Tensor> &outputs) {
   RT2_PROFILING_SCOPE(gert::profiling::kUnknownName, gert::profiling::kStaticGraphExecute);
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call ExecuteGraphWithStreamAsync", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before executing the graph with stream asynchronously."}));
     return FAILED;
   }
 
@@ -639,8 +649,9 @@ Status Session::ExecuteGraphWithStreamAsync(uint32_t graph_id, void *stream, con
 // Register Call Back
 Status Session::RegisterCallBackFunc(const std::string &key, const pCallBackFunc &callback) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call RegisterCallBackFunc", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before registering the callback function."}));
     return FAILED;
   }
 
@@ -657,8 +668,9 @@ Status Session::RegisterCallBackFunc(const std::string &key, const pCallBackFunc
 
 Status Session::RegisterCallBackFunc(const char *key, const session::pCallBackFunc &callback) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call RegisterCallBackFunc", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before registering the callback function."}));
     return FAILED;
   }
 
@@ -681,8 +693,9 @@ Status Session::RegisterCallBackFunc(const char *key, const session::pCallBackFu
 // Build Graph
 Status Session::BuildGraph(uint32_t graph_id, const std::vector<InputTensorInfo> &inputs) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call BuildGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before building the graph."}));
     return FAILED;
   }
 
@@ -725,8 +738,9 @@ Status Session::LoadGraph(const uint32_t graph_id, const std::map<AscendString, 
   GELOGD("Loading graph to session, graph_id: %u, session_id: %u, stream:%p .",
          graph_id, sessionId_, stream);
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call LoadGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before loading the graph."}));
     return FAILED;
   }
 
@@ -744,8 +758,9 @@ Status Session::LoadGraph(const uint32_t graph_id, const std::map<AscendString, 
 
 Status Session::GraphDebugJSONPrint(const uint32_t graph_id, uint32_t flags, AscendString &json_result) const {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call GraphDebugJSONPrint", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before printing the graph debug JSON."}));
     return FAILED;
   }
 
@@ -763,8 +778,9 @@ Status Session::GraphDebugJSONPrint(const uint32_t graph_id, uint32_t flags, Asc
 // Build Graph
 Status Session::BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inputs) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call BuildGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before building the graph."}));
     return FAILED;
   }
 
@@ -802,8 +818,9 @@ Status Session::BuildGraph(uint32_t graph_id, const std::vector<ge::Tensor> &inp
 Status Session::RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tensor> &inputs,
                               RunAsyncCallback callback) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call RunGraphAsync", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before running the graph asynchronously."}));
     return FAILED;
   }
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kRunGraphAsync);
@@ -834,7 +851,10 @@ Status Session::RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tensor> &
       callback(check_ret, outputs);
     }
     GELOGE(check_ret, "Run graph async failed, incompatible with API CompileGraph, graph_id=%u", graph_id);
-    REPORT_INNER_ERR_MSG("E19999", "Run graph async failed, incompatible with API CompileGraph, graph_id=%u", graph_id);
+    const std::string reason = "Graph " + std::to_string(graph_id) +
+        " has been compiled by calling CompileGraph. RunGraphAsync and CompileGraph are mutually exclusive and cannot be used together.";
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call RunGraphAsync", reason.c_str()}));
     return check_ret;
   }
 
@@ -852,8 +872,9 @@ Status Session::RunGraphAsync(uint32_t graph_id, const std::vector<ge::Tensor> &
 // Get Variables
 Status Session::GetVariables(const std::vector<std::string> &var_names, std::vector<Tensor> &var_values) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call GetVariables", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before getting the variables."}));
     return FAILED;
   }
 
@@ -869,8 +890,9 @@ Status Session::GetVariables(const std::vector<std::string> &var_names, std::vec
 // Get Variables
 Status Session::GetVariables(const std::vector<AscendString> &var_names, std::vector<Tensor> &var_values) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call GetVariables", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before getting the variables."}));
     return FAILED;
   }
 
@@ -879,7 +901,8 @@ Status Session::GetVariables(const std::vector<AscendString> &var_names, std::ve
   for (auto &var_name : var_names) {
     if (var_name.GetString() == nullptr) {
       GELOGE(FAILED, "[Get][Variable]Failed, variables' names are nullptr.");
-      REPORT_INNER_ERR_MSG("E19999", "GetVariables failed, variables' names are nullptr.");
+      REPORT_PREDEFINED_ERR_MSG("E10058", std::vector<const char *>({"parameter"}),
+                                std::vector<const char *>({"var_names"}));
       return FAILED;
     }
     str_var_names.emplace_back(var_name.GetString());
@@ -896,8 +919,9 @@ Status Session::GetVariables(const std::vector<AscendString> &var_names, std::ve
 bool Session::IsGraphNeedRebuild(uint32_t graph_id) {
   GRAPH_PROFILING_REG(gert::GeProfInfoType::kIsGraphNeedRebuild);
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Creating session failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Construct][Session]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call IsGraphNeedRebuild", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before checking if graph needs to be rebuilt."}));
     return false;
   }
   auto inner_session = g_session_manager->GetSession(sessionId_);
@@ -917,8 +941,9 @@ Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<Tensor> &
 Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                   const std::vector<Tensor> &inputs, const DataFlowInfo &info, int32_t timeout) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][Data]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Feed data failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][Data]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call FeedDataFlowGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before feeding the data flow graph."}));
     return FAILED;
   }
 
@@ -945,7 +970,7 @@ Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<FlowMsgPt
 Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                   const std::vector<FlowMsgPtr> &inputs, int32_t timeout) {
   GE_CHK_BOOL_RET_STATUS(IsGEInitialize(), FAILED,
-                         "[Feed][FlowMsg]Failed because lack GEInitialize call before.");
+                         "[Feed][FlowMsg]Failed because GEInitialize was not called before.");
 
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%" PRIu64 ".", sessionId_);
@@ -964,8 +989,9 @@ Status Session::FeedDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t>
 Status Session::FeedRawData(uint32_t graph_id, const std::vector<RawData> &raw_data_list, const uint32_t index,
                             const DataFlowInfo &info, int32_t timeout) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][RawData]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Feed raw data failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Feed][RawData]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call FeedRawData", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before feeding the raw data."}));
     return FAILED;
   }
 
@@ -993,8 +1019,9 @@ Status Session::FetchDataFlowGraph(uint32_t graph_id, std::vector<Tensor> &outpu
 Status Session::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                    std::vector<Tensor> &outputs, DataFlowInfo &info, int32_t timeout) {
   if (!IsGEInitialize()) {
-    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Fetch][Data]Failed because lack GEInitialize call before.");
-    REPORT_INNER_ERR_MSG("E19999", "Fetch data failed because lack GEInitialize call before.");
+    GELOGE(GE_CLI_GE_NOT_INITIALIZED, "[Fetch][Data]Failed because GEInitialize was not called before.");
+    REPORT_PREDEFINED_ERR_MSG("E10062", std::vector<const char *>({"interface", "reason"}),
+                              std::vector<const char *>({"call FetchDataFlowGraph", "GE is not correctly initialized. Ensure that the GEInitialize API has been correctly executed before fetching the data flow graph."}));
     return FAILED;
   }
 
@@ -1023,7 +1050,7 @@ Status Session::FetchDataFlowGraph(uint32_t graph_id, std::vector<FlowMsgPtr> &o
 Status Session::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t> &indexes,
                                    std::vector<FlowMsgPtr> &outputs, int32_t timeout) {
   GE_CHK_BOOL_RET_STATUS(IsGEInitialize(), FAILED,
-                         "[Fetch][FlowMsg]Failed because lack GEInitialize call before.");
+                         "[Fetch][FlowMsg]Failed because GEInitialize was not called before.");
 
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%" PRIu64 ".", sessionId_);
@@ -1042,7 +1069,7 @@ Status Session::FetchDataFlowGraph(uint32_t graph_id, const std::vector<uint32_t
 }
 
 Status Session::CompileGraph(uint32_t graph_id) {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   GELOGT(TRACE_INIT, "Start to compile graph, graph_id: %u", graph_id);
 
   const auto inner_session = g_session_manager->GetSession(sessionId_);
@@ -1070,7 +1097,7 @@ Status Session::CompileGraph(uint32_t graph_id) {
 }
 
 CompiledGraphSummaryPtr Session::GetCompiledGraphSummary(uint32_t graph_id) {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   CompiledGraphSummaryPtr summary = nullptr;
   const auto inner_session = g_session_manager->GetSession(sessionId_);
   GE_ASSERT_NOTNULL(inner_session, "[Get][User Graph]Failed, session_id:%" PRIu64 ".", sessionId_);
@@ -1082,11 +1109,11 @@ CompiledGraphSummaryPtr Session::GetCompiledGraphSummary(uint32_t graph_id) {
 }
 
 Status Session::SetGraphConstMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   if (EnableSliceSchedule()) {
-    GELOGE(UNSUPPORTED, "[Construct][Session]SetGraphConstMemoryBase unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
+    GELOGE(UNSUPPORTED, "[Construct][Session]SetGraphConstMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
            sessionId_, graph_id, memory, size);
-    REPORT_INNER_ERR_MSG("E19999", "SetGraphConstMemoryBase unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
+    REPORT_INNER_ERR_MSG("E19999", "SetGraphConstMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
                        sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
   }
@@ -1110,11 +1137,11 @@ Status Session::SetGraphConstMemoryBase(uint32_t graph_id, const void *const mem
 }
 
 Status Session::UpdateGraphFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   if (EnableSliceSchedule()) {
-    GELOGE(UNSUPPORTED, "[Construct][Session]UpdateGraphFeatureMemoryBase unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
+    GELOGE(UNSUPPORTED, "[Construct][Session]UpdateGraphFeatureMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
            sessionId_, graph_id, memory, size);
-    REPORT_INNER_ERR_MSG("E19999", "UpdateGraphFeatureMemoryBase unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
+    REPORT_INNER_ERR_MSG("E19999", "UpdateGraphFeatureMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
                        sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
   }
@@ -1142,11 +1169,11 @@ Status Session::SetGraphFixedFeatureMemoryBase(uint32_t graph_id, const void *co
 
 Status Session::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, MemoryType type, const void *const memory,
                                                        size_t size) {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   if (EnableSliceSchedule()) {
-    GELOGE(UNSUPPORTED, "[Construct][Session]SetGraphFixedFeatureMemoryBaseWithType unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, type:%d, memory:%p, size:%zu",
+    GELOGE(UNSUPPORTED, "[Construct][Session]SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, type:%d, memory:%p, size:%zu",
            sessionId_, graph_id, type, memory, size);
-    REPORT_INNER_ERR_MSG("E19999", "SetGraphFixedFeatureMemoryBaseWithType unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
+    REPORT_INNER_ERR_MSG("E19999", "SetGraphFixedFeatureMemoryBaseWithType does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
                        sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
   }
@@ -1169,11 +1196,11 @@ Status Session::SetGraphFixedFeatureMemoryBaseWithType(uint32_t graph_id, Memory
 }
 
 Status Session::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, const void *const memory, size_t size) {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   if (EnableSliceSchedule()) {
-    GELOGE(UNSUPPORTED, "[Construct][Session]UpdateGraphRefreshableFeatureMemoryBase unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
+    GELOGE(UNSUPPORTED, "[Construct][Session]UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
            sessionId_, graph_id, memory, size);
-    REPORT_INNER_ERR_MSG("E19999", "UpdateGraphRefreshableFeatureMemoryBase unsupport slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
+    REPORT_INNER_ERR_MSG("E19999", "UpdateGraphRefreshableFeatureMemoryBase does not support the slice scheduler currently, session_id:%" PRIu64 ", graph_id:%u, memory:%p, size:%zu",
                        sessionId_, graph_id, memory, size);
     return UNSUPPORTED;
   }
@@ -1196,7 +1223,7 @@ Status Session::UpdateGraphRefreshableFeatureMemoryBase(uint32_t graph_id, const
 }
 
 Status Session::RegisterExternalAllocator(const void *const stream, AllocatorPtr allocator) const {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%" PRIu64 ".", sessionId_);
 
@@ -1205,7 +1232,7 @@ Status Session::RegisterExternalAllocator(const void *const stream, AllocatorPtr
 }
 
 Status Session::UnregisterExternalAllocator(const void *const stream) const {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, FAILED, "[Get][Session] failed, session_id:%" PRIu64 ".", sessionId_);
 
@@ -1231,7 +1258,7 @@ Status Session::SaveGraphsToPb(const char_t *file_path) const {
 }
 
 Status Session::PaRemapped(const uint64_t va, const uint64_t new_pa, const uint64_t len) const {
-  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because lack GEInitialize call before.");
+  GE_ASSERT(IsGEInitialize(), "[Construct][Session]Failed because GEInitialize was not called before.");
   const SessionPtr inner_session = g_session_manager->GetSession(sessionId_);
   GE_CHK_BOOL_RET_STATUS(inner_session != nullptr, INTERNAL_ERROR, "[Get][Session] failed, session_id:%" PRIu64 ".",
                          sessionId_);

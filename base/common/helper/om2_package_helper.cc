@@ -345,7 +345,8 @@ Status Om2PackageHelper::SaveToOmRootModel(const GeRootModelPtr &ge_root_model, 
 
   // todo 动态 shape 场景暂时不支持
   GELOGE(FAILED, "[OM2] Unknown shape models are not supported for .om2 format conversion");
-  REPORT_INNER_ERR_MSG("E19999", "[OM2] Unknown shape models are not supported for .om2 format conversion");
+  (void)REPORT_PREDEFINED_ERR_MSG("E10055", std::vector<const char *>({"reason"}),
+      std::vector<const char *>({"Unknown shape models are not supported for .om2 format conversion"}));
   return FAILED;
 }
 

@@ -337,7 +337,7 @@ Status FileSaver::SaveToFile(const std::string &file_path, const ge::ModelData &
   if ((model.model_data == nullptr) || (model.model_len == 0U)) {
     GELOGE(FAILED, "[Save][File]Incorrect input param, model_data is nullptr or model_len is 0");
     REPORT_INNER_ERR_MSG("E19999", "Save file failed, at least one of the "
-                       "input parameters(model_data, model_len) is incorrect");
+                       "input parameters(model_data, model_len) is incorrect.");
     return FAILED;
   }
 

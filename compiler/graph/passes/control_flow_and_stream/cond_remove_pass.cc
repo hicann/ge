@@ -101,7 +101,7 @@ Status CondRemovePass::GetCaseChosenBranch(const NodePtr &node, const uint32_t c
   uint32_t subgraph_names_size = static_cast<uint32_t>(node->GetOpDesc()->GetSubgraphInstanceNames().size());
   uint32_t cond_index_new = cond_index;
   if (subgraph_names_size == 0) {
-    REPORT_INNER_ERR_MSG("E19999", "subgraph size of op:%s(%s) is 0, check invavlid",
+    REPORT_INNER_ERR_MSG("E19999", "subgraph size of op:%s(%s) is 0, check invalid",
                        node->GetName().c_str(), node->GetType().c_str());
     GELOGE(FAILED, "[Check][Param] Node %s has none subgraph.", node->GetName().c_str());
     return ge::FAILED;
@@ -129,7 +129,7 @@ Status CondRemovePass::GetIfChosenBranch(const NodePtr &node, const uint32_t con
   uint32_t subgraph_names_size = static_cast<uint32_t>(node->GetOpDesc()->GetSubgraphInstanceNames().size());
   uint32_t cond_index_new = 0;
   if (subgraph_names_size == 0) {
-    REPORT_INNER_ERR_MSG("E19999", "subgraph size of op:%s(%s) is 0, check invavlid",
+    REPORT_INNER_ERR_MSG("E19999", "subgraph size of op:%s(%s) is 0, check invalid",
                        node->GetName().c_str(), node->GetType().c_str());
     GELOGE(FAILED, "[Check][Param] Node %s has none subgraph.", node->GetName().c_str());
     return ge::FAILED;

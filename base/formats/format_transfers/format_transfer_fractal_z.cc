@@ -202,10 +202,10 @@ Status TransFormatFromNchwToFz(const TransArgs &args, TransResult &result) {
 
   const std::shared_ptr<uint8_t> dst(new (std::nothrow) uint8_t[dst_size], std::default_delete<uint8_t[]>());
   if (dst == nullptr) {
-    GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "Failed to allcoate memory for dst buf %" PRId64 " when trans "
+    GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "Failed to allocate memory for dst buf %" PRId64 " when trans "
            "format from %s to %s", dst_size, TypeUtils::FormatToSerialString(args.src_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_format).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to allcoate memory for dst buf %" PRId64 " when trans format "
+    REPORT_INNER_ERR_MSG("E19999", "Failed to allocate memory for dst buf %" PRId64 " when trans format "
 		      "from %s to %s", dst_size, TypeUtils::FormatToSerialString(args.src_format).c_str(),
                       TypeUtils::FormatToSerialString(args.dst_format).c_str());
     return ACL_ERROR_GE_MEMORY_ALLOCATION;
@@ -306,11 +306,11 @@ Status TransFormatHwcnToFzWithGroups(const TransArgs &args, TransResult &result,
   errno_t ret = EOK;
   const std::shared_ptr<uint8_t> dst(new (std::nothrow) uint8_t[size_output_data], std::default_delete<uint8_t[]>());
   if (dst == nullptr) {
-      GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "[Allocate][DSTMemory]Failed to allcoate memory "
+      GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "[Allocate][DSTMemory]Failed to allocate memory "
              "for dst buf %" PRId64 " when trans format from %s to %s",
              size_output_data, TypeUtils::FormatToSerialString(args.src_format).c_str(),
              TypeUtils::FormatToSerialString(args.dst_format).c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Failed to allcoate memory for dst buf %" PRId64 " "
+      REPORT_INNER_ERR_MSG("E19999", "Failed to allocate memory for dst buf %" PRId64 " "
                         "when trans format from %s to %s",
                         size_output_data, TypeUtils::FormatToSerialString(args.src_format).c_str(),
                         TypeUtils::FormatToSerialString(args.dst_format).c_str());
@@ -386,10 +386,10 @@ Status TransFormatHwcnToFz(const TransArgs &args, TransResult &result) {
 
   const std::shared_ptr<uint8_t> dst(new (std::nothrow) uint8_t[dst_size], std::default_delete<uint8_t[]>());
   if (dst == nullptr) {
-    GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "Failed to allcoate memory for dst buf %" PRId64 " when trans "
+    GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "Failed to allocate memory for dst buf %" PRId64 " when trans "
            "format from %s to %s", dst_size, TypeUtils::FormatToSerialString(args.src_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_format).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to allcoate memory for dst buf %" PRId64 " when trans format "
+    REPORT_INNER_ERR_MSG("E19999", "Failed to allocate memory for dst buf %" PRId64 " when trans format "
 		      "from %s to %s", dst_size, TypeUtils::FormatToSerialString(args.src_format).c_str(),
                       TypeUtils::FormatToSerialString(args.dst_format).c_str());
     return ACL_ERROR_GE_MEMORY_ALLOCATION;
@@ -431,7 +431,7 @@ Status TransFormatHwcnToFz(const TransArgs &args, TransResult &result) {
               GELOGE(ACL_ERROR_GE_MEMORY_OPERATE_FAILED, "[Operate][DSTMemory]Failed, "
                      "at offset %" PRId64 ", error-code %d, pad mode %d", dst_offset,
 		     ret, static_cast<int32_t>(pad_zero));
-              REPORT_INNER_ERR_MSG("E19999", "Failed to operate dst memoery at offset %" PRId64 ", "
+              REPORT_INNER_ERR_MSG("E19999", "Failed to operate dst memory at offset %" PRId64 ", "
                                 "error-code %d, pad mode %d",
                                 dst_offset, ret, static_cast<int32_t>(pad_zero));
               return ACL_ERROR_GE_MEMORY_OPERATE_FAILED;
@@ -475,10 +475,10 @@ Status TransFormatNhwcToFz(const TransArgs &args, TransResult &result) {
 
   const std::shared_ptr<uint8_t> dst(new (std::nothrow) uint8_t[dst_size], std::default_delete<uint8_t[]>());
   if (dst == nullptr) {
-    GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "Failed to allcoate memory for dst buf %" PRId64 " when "
+    GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "Failed to allocate memory for dst buf %" PRId64 " when "
 	   "trans format from %s to %s", dst_size, TypeUtils::FormatToSerialString(args.src_format).c_str(),
            TypeUtils::FormatToSerialString(args.dst_format).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to allcoate memory for dst buf %" PRId64 " when "
+    REPORT_INNER_ERR_MSG("E19999", "Failed to allocate memory for dst buf %" PRId64 " when "
 		      "trans format from %s to %s", dst_size,
 		      TypeUtils::FormatToSerialString(args.src_format).c_str(),
                       TypeUtils::FormatToSerialString(args.dst_format).c_str());

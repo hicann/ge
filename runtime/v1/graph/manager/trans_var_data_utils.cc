@@ -249,9 +249,9 @@ Status TransVarOnHost(uint8_t *const var_data, const VarTransRoad &trans_road, f
         return ret;
       }
     } else {
-      REPORT_INNER_ERR_MSG("E19999", "Trans var data failed, the trans type %s does not supported, check invalid",
+      REPORT_INNER_ERR_MSG("E19999", "Trans var data failed, the trans type %s is not supported, check invalid",
                          trans_info.node_type.c_str());
-      GELOGE(UNSUPPORTED, "[Trans][VarData] failed, the trans type %s does not supported",
+      GELOGE(UNSUPPORTED, "[Trans][VarData] failed, the trans type %s is not supported",
              trans_info.node_type.c_str());
       return UNSUPPORTED;
     }
