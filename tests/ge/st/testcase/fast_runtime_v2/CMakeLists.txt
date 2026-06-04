@@ -72,7 +72,7 @@ target_link_libraries(st_fast_runtime2_test PRIVATE
         hybrid_executor
         ge_common
         ge_common_base
-        metadef_headers
+        ge_metadef_headers
         -Wl,--no-as-needed
         ge_runner
         ge_running_env

@@ -241,7 +241,7 @@ target_link_libraries(ge_executor PRIVATE
     msprof_headers
     adump_headers
     mmpa_headers
-    metadef_headers
+    ge_metadef_headers
     runtime_headers
     hccl_headers
     datagw_headers
@@ -596,7 +596,7 @@ target_link_libraries(hybrid_executor_stub PRIVATE
     msprof_headers
     mmpa_headers
     runtime_headers
-    metadef_headers
+    ge_metadef_headers
     error_manager_headers
     $<$<TARGET_EXISTS:cce_headers>:cce_headers>
     $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>

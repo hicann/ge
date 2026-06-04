@@ -29,7 +29,7 @@ target_link_libraries(llm_mmpa_stub PRIVATE
         msprof_headers
         air_headers
         slog_headers
-        metadef_headers
+        ge_metadef_headers
         slog_stub
         -Wl,-as-needed
         ${AIR_COMMON_LINK_OPTION}
@@ -74,7 +74,7 @@ target_link_libraries(llm_engine_base PRIVATE
         msprof_headers
         air_headers
         slog_headers
-        metadef_headers
+        ge_metadef_headers
         $<BUILD_INTERFACE:intf_llt_pub>
         llm_mmpa_stub
         mmpa

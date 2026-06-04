@@ -29,7 +29,7 @@ target_link_libraries(mmpa_stub2
         msprof_headers
         air_headers
         slog_headers
-        metadef_headers
+        ge_metadef_headers
         slog_stub
         c_sec
         -ldl

@@ -53,7 +53,7 @@ target_compile_definitions(attr_util_stub PRIVATE
 
 target_link_libraries(attr_util_stub PRIVATE
     intf_llt_pub
-    metadef_headers
+    ge_metadef_headers
     air_headers
     slog_headers
     ascend_protobuf

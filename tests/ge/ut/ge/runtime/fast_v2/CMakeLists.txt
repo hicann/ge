@@ -73,7 +73,7 @@ target_link_libraries(ut_fast_runtime2_test PRIVATE
         -Wl,--whole-archive
         rt2_registry_static
         -Wl,--no-whole-archive
-        metadef_headers
+        ge_metadef_headers
         datagw_headers
         GTestShared::gtest
         GTestShared::gmock

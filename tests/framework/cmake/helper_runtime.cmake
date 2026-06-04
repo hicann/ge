@@ -83,7 +83,7 @@ target_link_libraries(helper_runtime PUBLIC
     intf_llt_pub
     mmpa_headers
     slog_headers
-    metadef_headers
+    ge_metadef_headers
     runtime_headers
     cce_headers
     datagw_headers
@@ -153,7 +153,7 @@ target_link_libraries(helper_runtime_no_grpc PUBLIC
         intf_llt_pub
         mmpa_headers
         slog_headers
-        metadef_headers
+        ge_metadef_headers
         -Wl,--no-as-needed
         ${STUB_LIBS}
         dl

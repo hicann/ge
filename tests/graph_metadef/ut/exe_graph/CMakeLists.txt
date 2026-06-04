@@ -21,6 +21,10 @@ target_include_directories(ut_exe_graph PRIVATE
         ${CMAKE_BINARY_DIR}
         ${CMAKE_BINARY_DIR}/proto/metadef_protos
         ${METADEF_DIR}/inc/external/base
+        ${ASCEND_INSTALL_PATH}/include/experiment/metadef
+        ${ASCEND_INSTALL_PATH}/include
+        ${ASCEND_INSTALL_PATH}/include/base
+        ${ASCEND_INSTALL_PATH}/include/exe_graph
 		${AIR_CODE_DIR}/inc/framework
         )
 
@@ -53,7 +57,7 @@ target_link_libraries(ut_exe_graph PRIVATE
         ge_runtime_stub exe_graph lowering register opp_registry error_manager
         mmpa
         GTestShared::gtest GTestShared::gtest_main unified_dlog ascend_protobuf c_sec mmpa_stub -lrt -ldl -lgcov
-        metadef_headers
+        ge_metadef_headers
         graph
         graph_base
 		unified_dlog

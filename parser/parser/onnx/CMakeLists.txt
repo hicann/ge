@@ -110,7 +110,7 @@ target_include_directories(fmk_onnx_parser_stub PRIVATE
 
 target_link_libraries(fmk_onnx_parser_stub PRIVATE
     intf_pub
-    metadef_headers
+    ge_metadef_headers
 )
 
 set_target_properties(fmk_onnx_parser_stub PROPERTIES

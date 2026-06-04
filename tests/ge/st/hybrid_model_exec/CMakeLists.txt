@@ -17,6 +17,7 @@ target_include_directories(hybrid_model_async_exec_test
         ${AIR_CODE_DIR}
         ${AIR_CODE_DIR}/tests/depends/op_stub
         ${AIR_CODE_DIR}/tests/depends/ascendcl
+        ${ASCEND_INSTALL_PATH}/include/exe_graph
         )
 
 target_compile_options(hybrid_model_async_exec_test PUBLIC -g

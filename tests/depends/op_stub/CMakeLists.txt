@@ -28,7 +28,7 @@ target_compile_definitions(gert_op_impl PRIVATE
 target_link_libraries(gert_op_impl
         PRIVATE
             intf_llt_pub
-            metadef_headers
+            ge_metadef_headers
             slog_headers
             c_sec_headers
             c_sec
@@ -64,7 +64,7 @@ target_compile_definitions(gert_op_impl2 PRIVATE
 target_link_libraries(gert_op_impl2
         PRIVATE
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         slog_headers
         c_sec_headers
         c_sec
@@ -93,7 +93,7 @@ target_compile_definitions(autofuse_stub PRIVATE
 target_link_libraries(autofuse_stub
         PRIVATE
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         c_sec_headers
         c_sec
         json
@@ -113,7 +113,7 @@ target_compile_definitions(slice_autofuse_stub PRIVATE
 target_link_libraries(slice_autofuse_stub
         PRIVATE
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         c_sec_headers
         c_sec
         json
@@ -140,7 +140,7 @@ target_compile_definitions(gert_op_impl_static PRIVATE
 target_link_libraries(gert_op_impl_static
         PRIVATE
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         slog_headers
         c_sec_headers
         c_sec

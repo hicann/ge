@@ -125,7 +125,7 @@ target_link_options(register PRIVATE
 
 target_link_libraries(register
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
     PRIVATE
         intf_pub
         msprof_headers
@@ -204,7 +204,7 @@ target_link_libraries(register_static PRIVATE
     $<$<TARGET_EXISTS:cce_headers>:cce_headers>
     $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
     runtime_headers
-    metadef_headers
+    ge_metadef_headers
 )
 
 target_link_libraries(register_static PRIVATE
@@ -256,7 +256,7 @@ target_link_libraries(op_tiling_o2 PRIVATE
     intf_pub
     slog_headers
     mmpa_headers
-    metadef_headers
+    ge_metadef_headers
     error_manager_headers
     runtime_headers
     ascend_protobuf
@@ -361,7 +361,7 @@ target_link_libraries(stub_register
         unified_dlog
         json
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
 )
 
 set_target_properties(stub_register PROPERTIES

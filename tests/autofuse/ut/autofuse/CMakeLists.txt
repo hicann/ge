@@ -72,7 +72,7 @@ target_link_libraries(autofusion_ut PRIVATE ${ASCGEN_COMMON_LINK_OPTION}
         graph_base
         graph
         metadef
-        metadef_headers
+        ge_metadef_headers
         atrace_headers
         asc_slog_stub
         autofuse_runtime_stub

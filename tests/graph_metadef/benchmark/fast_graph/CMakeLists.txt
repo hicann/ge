@@ -37,7 +37,7 @@ target_compile_options(fast_graph_benchmark PRIVATE -O2 -std=c++17)
 
 target_link_libraries(fast_graph_benchmark  PRIVATE benchmark::benchmark
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         -Wl,--no-as-needed
         graph
         graph_base

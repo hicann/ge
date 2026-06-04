@@ -188,7 +188,7 @@ target_link_libraries(graph_base
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
         ge_metadef_headers
 )
 
@@ -260,7 +260,7 @@ target_link_libraries(graph
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
         ge_metadef_headers
 )
 
@@ -317,7 +317,7 @@ else()
             $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
             -ldl
             PUBLIC
-            metadef_headers
+            ge_metadef_headers
             )
 
     target_clone(graph_share graph_static STATIC)
@@ -441,7 +441,7 @@ target_link_libraries(atc_stub_graph
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
 )
 
 set_target_properties(atc_stub_graph PROPERTIES
@@ -502,7 +502,7 @@ target_link_libraries(fwk_stub_graph
         $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
         -ldl
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
 )
 
 set_target_properties(fwk_stub_graph PROPERTIES

@@ -478,7 +478,7 @@ target_link_libraries(ge_compiler
     PUBLIC
         ge_common
         air_headers
-        metadef_headers
+        ge_metadef_headers
 )
 
 add_library(ge_python_pass_bridge SHARED
@@ -535,7 +535,7 @@ target_link_libraries(ge_python_pass_bridge
     PUBLIC
         ge_common
         air_headers
-        metadef_headers
+        ge_metadef_headers
 )
 
     ###############################################################

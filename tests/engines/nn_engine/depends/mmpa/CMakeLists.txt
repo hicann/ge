@@ -23,7 +23,7 @@ target_link_libraries(mmpa_stub
                 intf_llt_pub
                 msprof_headers
                 runtime_headers
-                metadef_headers
+                ge_metadef_headers
                 c_sec -ldl
         PUBLIC
                 mmpa_headers

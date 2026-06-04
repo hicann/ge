@@ -86,7 +86,7 @@ target_link_libraries(te_fusion_stub
         intf_llt_pub
         msprof_headers
         runtime_headers
-        metadef_headers
+        ge_metadef_headers
         c_sec
         json
         graph)

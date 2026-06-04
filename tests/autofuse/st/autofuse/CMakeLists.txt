@@ -59,7 +59,7 @@ target_link_options(autofusion_st PRIVATE
         )
 
 target_link_libraries(autofusion_st ${ASCGEN_COMMON_LINK_OPTION}
-        metadef_headers
+        ge_metadef_headers
         easy_graph_b
         ge_graph_dsl_b
         autofuse_eager_graph_builder_lib

@@ -57,7 +57,7 @@ target_link_libraries(om2_executor PRIVATE
         msprof_headers
         adump_headers
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         runtime_headers
         error_manager
         c_sec

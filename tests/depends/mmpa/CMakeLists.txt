@@ -22,7 +22,7 @@ target_include_directories(mmpa_stub PRIVATE
 target_link_libraries(mmpa_stub
     PRIVATE
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         runtime_headers
         msprof_headers
         slog_headers

@@ -30,7 +30,7 @@ set(GE_API_C_WRAPPER_COMMON_LINK_LIBS
         intf_pub
         slog_headers
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         error_manager_headers
         runtime_headers
         c_sec

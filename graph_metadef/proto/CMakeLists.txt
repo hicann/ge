@@ -171,7 +171,7 @@ target_link_libraries(stub_op_common
         intf_pub
         c_sec
     PUBLIC
-        metadef_headers
+        ge_metadef_headers
 )
 
 set_target_properties(stub_op_common PROPERTIES

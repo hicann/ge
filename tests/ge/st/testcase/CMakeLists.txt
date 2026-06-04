@@ -132,6 +132,7 @@ target_include_directories(graph_engine_test PRIVATE
     ${AIR_CODE_DIR}/inc
     ${CMAKE_BINARY_DIR}/proto/data_flow_protos
     ${AIR_CODE_DIR}/inc/graph_metadef
+    ${ASCEND_INSTALL_PATH}/include/exe_graph
     ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
 )
 
@@ -218,6 +219,7 @@ target_include_directories(ge_common_atc PRIVATE
     ${AIR_CODE_DIR}/inc
     ${CMAKE_BINARY_DIR}/proto/data_flow_protos
     ${AIR_CODE_DIR}/inc/graph_metadef
+    ${ASCEND_INSTALL_PATH}/include/exe_graph
     ${ASCEND_INSTALL_PATH}/pkg_inc/autofuse
     )
 

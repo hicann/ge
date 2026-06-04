@@ -48,7 +48,7 @@ target_link_options(engine PRIVATE
 
 target_link_libraries(engine PRIVATE
     intf_pub
-    metadef_headers
+    ge_metadef_headers
     error_manager
     runtime_headers
     -Wl,--no-as-needed

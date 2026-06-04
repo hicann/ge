@@ -218,7 +218,7 @@ target_link_directories(fe_ut PRIVATE
 target_link_libraries(fe_ut PRIVATE
         $<$<STREQUAL:${ENABLE_ASAN},true>:-fsanitize=address>
         air_headers
-        metadef_headers
+        ge_metadef_headers
         slog_headers
         mmpa_headers
         cce_headers

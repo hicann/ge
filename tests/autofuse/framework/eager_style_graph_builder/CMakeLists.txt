@@ -26,7 +26,7 @@ target_link_libraries(autofuse_eager_graph_builder PRIVATE
         intf_llt_pub
         slog_headers
         mmpa_headers
-        metadef_headers
+        ge_metadef_headers
         c_sec
         -ldl
 )

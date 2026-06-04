@@ -72,7 +72,7 @@ if (ENABLE_OPEN_SRC)
                atrace_share
                graph_base
                mmpa_headers
-               metadef_headers
+               ge_metadef_headers
                error_manager
                $<$<TARGET_EXISTS:autofuse_headers>:autofuse_headers>
                ascend_protobuf
@@ -88,7 +88,7 @@ else ()
                atrace_share
                graph_base
                mmpa_headers
-               metadef_headers
+               ge_metadef_headers
                ascir_ops_headers
                atrace_headers
                error_manager

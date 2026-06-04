@@ -61,6 +61,8 @@ target_include_directories(tefusion_ut PRIVATE
         ${AIR_CODE_DIR}/inc/external
         ${AIR_CODE_DIR}/inc/framework
         ${AIR_CODE_DIR}/inc/graph_metadef/exe_graph
+        ${ASCEND_INSTALL_PATH}/include/exe_graph
+        ${ASCEND_INSTALL_PATH}/include/experiment/metadef
         ${GTEST_INCLUDE}
         ${CMAKE_BINARY_DIR}/proto/tefusion_ut
         ${AIR_CODE_DIR}/compiler/opcompiler/op_compile_adapter/source
@@ -85,7 +87,7 @@ target_link_directories(tefusion_ut PRIVATE
 target_link_libraries(tefusion_ut PRIVATE
         $<$<STREQUAL:${ENABLE_ASAN},true>:-fsanitize=address>
         air_headers
-        metadef_headers
+        ge_metadef_headers
         slog_headers
         mmpa_headers
         cce_headers

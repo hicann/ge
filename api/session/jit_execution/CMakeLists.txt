@@ -41,7 +41,7 @@ target_link_options(jit_exe PRIVATE ${AIR_COMMON_LINK_OPTION})
 target_link_libraries(jit_exe PRIVATE
         $<BUILD_INTERFACE:intf_pub>
         slog_headers
-        metadef_headers
+        ge_metadef_headers
         msprof_headers
         error_manager
         cce_headers

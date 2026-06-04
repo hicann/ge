@@ -37,7 +37,7 @@ target_compile_options(ge_running_env PRIVATE
 
 target_link_libraries(ge_running_env PUBLIC
         intf_llt_pub
-        metadef_headers
+        ge_metadef_headers
         runtime_headers
         cce_headers
         slog_headers

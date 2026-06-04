@@ -31,7 +31,7 @@ target_link_libraries(graph_tuner_stub
     PRIVATE
         intf_llt_pub
         msprof_headers
-        metadef_headers
+        ge_metadef_headers
         air_headers
         runtime_headers
         c_sec
