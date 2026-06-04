@@ -52,4 +52,26 @@ TEST_F(UtestCustAicpuKernelStore, LoadCustAICPUKernelBinToOpDesc) {
   ai_cpu_kernel_store = nullptr;
 }
 
+TEST_F(UtestCustAicpuKernelStore, BuildKernelSoToOpNameMap) {
+  CustAICPUKernelStore ai_cpu_kernel_store;
+  const char data[] = "1234";
+  vector<char> buffer(data, data + strlen(data));
+  ge::OpKernelBinPtr cust_aicpu_kernel = std::make_shared<ge::OpKernelBin>(
+        "owner_node", std::move(buffer));
+  ai_cpu_kernel_store.AddCustAICPUKernel(cust_aicpu_kernel);
+
+  auto graph = std::make_shared<ComputeGraph>("test_graph");
+  auto owner_op_desc = std::make_shared<OpDesc>("owner_node", "op");
+  ASSERT_TRUE(ge::AttrUtils::SetStr(owner_op_desc, "kernelSo", "libcust_aicpu_kernel.so"));
+  ASSERT_NE(graph->AddNode(owner_op_desc), nullptr);
+  EXPECT_EQ(ai_cpu_kernel_store.BuildKernelSoToOpNameMap(graph), SUCCESS);
+
+  auto reuse_op_desc = std::make_shared<OpDesc>("reuse_node", "op");
+  ASSERT_TRUE(ge::AttrUtils::SetStr(reuse_op_desc, "kernelSo", "libcust_aicpu_kernel.so"));
+  ai_cpu_kernel_store.LoadCustAICPUKernelBinToOpDesc(reuse_op_desc);
+  const ge::OpKernelBinPtr bin_ptr =
+      reuse_op_desc->TryGetExtAttr<ge::OpKernelBinPtr>(ge::OP_EXTATTR_CUSTAICPU_KERNEL, nullptr);
+  EXPECT_EQ(bin_ptr, cust_aicpu_kernel);
+}
+
 }

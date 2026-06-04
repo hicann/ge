@@ -18,16 +18,15 @@ void CustAICPUKernelStore::AddCustAICPUKernel(const CustAICPUKernelPtr &kernel) 
 
 void CustAICPUKernelStore::LoadCustAICPUKernelBinToOpDesc(const std::shared_ptr<OpDesc> &op_desc) const {
   GE_CHECK_NOTNULL_JUST_RETURN(op_desc);
-  std::string kernel_so_name;
-  (void)ge::AttrUtils::GetStr(op_desc, "kernelSo", kernel_so_name);
-  if (kernel_so_name.empty()) {
+  const std::string *kernel_so_name = ge::AttrUtils::GetStr(op_desc, "kernelSo");
+  if ((kernel_so_name == nullptr) || kernel_so_name->empty()) {
     return;
   }
   std::string bin_key = op_desc->GetName();
-  auto iter = kernel_so_to_op_name_map_.find(kernel_so_name);
+  auto iter = kernel_so_to_op_name_map_.find(*kernel_so_name);
   if (iter != kernel_so_to_op_name_map_.end()) {
     GELOGI("Node: %s has same aicpu kernel with node: %s, kernel_so_name: %s",
-        op_desc->GetNamePtr(), iter->second.c_str(), kernel_so_name.c_str());
+        op_desc->GetNamePtr(), iter->second.c_str(), kernel_so_name->c_str());
     bin_key = iter->second;
   }
   const auto &kernel_bin = FindKernel(bin_key);
@@ -41,16 +40,15 @@ void CustAICPUKernelStore::LoadCustAICPUKernelBinToOpDesc(const std::shared_ptr<
 
 graphStatus CustAICPUKernelStore::BuildKernelSoToOpNameMap(const ComputeGraphPtr &graph) {
   for (const auto &node : graph->GetAllNodes()) {
-    std::string kernel_so_name;
     GE_ASSERT_NOTNULL(node);
     const auto op_desc = node->GetOpDesc();
     GE_ASSERT_NOTNULL(op_desc);
-    (void)ge::AttrUtils::GetStr(op_desc, "kernelSo", kernel_so_name);
-    if (kernel_so_name.empty()) {
+    const std::string *kernel_so_name = ge::AttrUtils::GetStr(op_desc, "kernelSo");
+    if ((kernel_so_name == nullptr) || kernel_so_name->empty()) {
       continue;
     }
     if (FindKernel(op_desc->GetName()) != nullptr) {
-      kernel_so_to_op_name_map_.emplace(std::make_pair(kernel_so_name, op_desc->GetName()));
+      kernel_so_to_op_name_map_.emplace(std::make_pair(*kernel_so_name, op_desc->GetName()));
     }
   }
   return SUCCESS;
