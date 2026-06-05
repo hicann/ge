@@ -46,10 +46,10 @@ Status LabelSwitchByIndexTaskCodeBuilder::Contribute(TaskSemanticContributeConte
 Status LabelSwitchByIndexTaskCodeBuilder::RenderInitResource(std::vector<BodyItem> &items) {
   std::vector<Arg> label_args;
   label_args.reserve(label_idx_list_.size());
-  for (const auto label_id : label_idx_list_) {
-    label_args.emplace_back(static_cast<int64_t>(label_id));
+  for (const uint32_t label_id : label_idx_list_) {
+    (void)label_args.emplace_back(static_cast<int64_t>(label_id));
   }
-  items.push_back(ChkStatus(ast_.Call("CreateLabelListForLabelSwitch",
+  (void)items.push_back(ChkStatus(ast_.Call("CreateLabelListForLabelSwitch",
                                       {header_.op_index, ast_.InitList(label_args)})));
   return SUCCESS;
 }
@@ -63,7 +63,7 @@ Status LabelSwitchByIndexTaskCodeBuilder::RenderDistribution(std::vector<BodyIte
                    input_addr_node.symbol_hint.c_str());
     const auto &tensor_info = *input_addr_node.tensor_info;
     const std::string shape_var_name = input_addr_node.symbol_hint + "_shape";
-    items.emplace_back(
+    (void)items.emplace_back(
         ast_.VarDecl("std::vector<int64_t>", shape_var_name, ast_.InitList(ConvertToArgs(tensor_info.shape_dims))));
     const auto device_addr = (input_addr_node.kind == AddrValueKind::kConstTensor && input_addr_node.const_index.has_value())
                                  ? Arg(constants_[static_cast<int64_t>(*input_addr_node.const_index)])
@@ -79,8 +79,8 @@ Status LabelSwitchByIndexTaskCodeBuilder::RenderDistribution(std::vector<BodyIte
   items.push_back(ChkStatus(ast_.Call("KernelLabelSwitchByIndexDistribute", {
       ast_.Call("ValueToPtr", {ast_.Var("auto", input_addr_nodes_[0].symbol_hint).Attr("device_address")}),
       static_cast<int64_t>(branch_max_),
-      label_switch_label_list_[static_cast<int>(header_.op_index)],
-      stream_list_[static_cast<int>(header_.stream_id)],
+      label_switch_label_list_[static_cast<int32_t>(header_.op_index)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
   })));
   return SUCCESS;
 }

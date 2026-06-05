@@ -11,6 +11,11 @@
 #ifndef ASCEND_ACL_MODEL_ROUTER_H
 #define ASCEND_ACL_MODEL_ROUTER_H
 
+#include <cstddef>
+#include <cstdint>
+
+#include "acl/acl_mdl.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

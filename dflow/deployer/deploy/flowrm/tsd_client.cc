@@ -11,7 +11,7 @@
 #include "deploy/flowrm/tsd_client.h"
 #include <atomic>
 #include <cinttypes>
-#include "aicpu/queue_schedule/dgw_client.h"
+#include "queue_schedule/dgw_client.h"
 #include "mmpa/mmpa_api.h"
 #include "plog.h"
 #include "common/debug/log.h"

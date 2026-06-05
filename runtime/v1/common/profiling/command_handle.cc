@@ -80,7 +80,7 @@ bool IsProfConfigValid(const uint32_t deviceid_list[], const uint32_t device_num
     const uint32_t dev_id = deviceid_list[i];
     if (!record.insert(dev_id).second) {
       GELOGE(PARAM_INVALID, "[Check][DeviceId]Device id %u is duplicatedly set", dev_id);
-      REPORT_INNER_ERR_MSG("E19999", "Device id %u is not unique, duplicatedly set", dev_id);
+      REPORT_INNER_ERR_MSG("E19999", "Device id %u is not unique and is set repeatedly", dev_id);
       return false;
     }
   }

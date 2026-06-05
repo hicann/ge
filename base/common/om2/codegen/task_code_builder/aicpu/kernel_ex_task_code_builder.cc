@@ -22,35 +22,35 @@ namespace ge {
 namespace {
 const std::string kAttrAicpuAllshape = "_AllShape";
 const std::string kTfSessionTask = "TfSessionTask";
-const int64_t kOffset = 8;
-const int32_t kWidthPerChar = 3;
+constexpr int64_t kOffset = 8;
+constexpr int32_t kWidthPerChar = 3;
 }
 
 std::string KernelExTaskCodeBuilder::SerializeBytesToOctalString(const std::vector<uint8_t> &buffer) {
   std::ostringstream code_stream;
   for (size_t i = 0; i < buffer.size(); ++i) {
     code_stream << "\\";
-    code_stream << std::oct << std::setw(kWidthPerChar) << std::setfill('0') << static_cast<int>(buffer[i]);
+    code_stream << std::oct << std::setw(kWidthPerChar) << std::setfill('0') << static_cast<int32_t>(buffer[i]);
   }
   return code_stream.str();
 }
 
 Expr *KernelExTaskCodeBuilder::BuildLaunchConfigExpr(const LaunchConfigSemantic &launch_config, Arg is_data_dump) const {
   return ast_.InitList({
-      ast_.UInt(launch_config.schedule_mode),
+      ast_.UInt(static_cast<uint64_t>(launch_config.schedule_mode)),
       launch_config.engine_type,
-      ast_.UInt(launch_config.block_dim_offset),
+      ast_.UInt(static_cast<uint64_t>(launch_config.block_dim_offset)),
       launch_config.is_block_task_prefetch,
       is_data_dump.Empty() ? Arg(ast_.Call("GetIsDataDump", {
           Arg::StringLiteral(header_.op_name), model_id_, instance_handle_})) : is_data_dump,
-      ast_.UInt(launch_config.time_out)});
+      ast_.UInt(static_cast<uint64_t>(launch_config.time_out))});
 }
 
 VarRef KernelExTaskCodeBuilder::AppendLaunchConfigSetup(size_t op_index, std::vector<BodyItem> &items, Arg is_data_dump) const {
   const std::string cfg_holder_var_name = "op" + std::to_string(op_index) + "_cfg_holder";
   auto cfg_holder = ast_.Var("LaunchKernelCfgHolder", cfg_holder_var_name);
-  items.emplace_back(ast_.VarDecl(cfg_holder));
-  items.emplace_back(ast_.Call("AssembleLaunchConfig",{
+  (void)items.emplace_back(ast_.VarDecl(cfg_holder));
+  (void)items.emplace_back(ast_.Call("AssembleLaunchConfig",{
     cfg_holder,
     BuildLaunchConfigExpr(semantic_.launch.config, is_data_dump)}));
   return cfg_holder;
@@ -125,16 +125,16 @@ Status KernelExTaskCodeBuilder::InitArgsTableInfo(const TaskSemanticContributeCo
   }
   GELOGI("kernel task name %s, args_size %u, args_size_t %u, deploy_type_flag %d", context.op_desc->GetName().c_str(),
     mem_size, mem_size_t, deploy_type_flag);
-  semantic_.args_table_entry.emplace();
+  (void)semantic_.args_table_entry.emplace();
   semantic_.args_table_entry->table_index = *context.next_args_table_index;
   semantic_.args_table_entry->host_offset = *context.next_host_args_offset;
   semantic_.args_table_entry->args_size = static_cast<int64_t>(mem_size) + kOffset;
   args_table_entry_ = &(*semantic_.args_table_entry);
   if (semantic_.args_table_entry.has_value()) {
     ++(*context.next_args_table_index);
-    *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(semantic_.args_table_entry->args_size);
+    *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(static_cast<uint32_t>(semantic_.args_table_entry->args_size));
   }
-  uint64_t current_offset = args_table_entry_->host_offset;
+  const uint64_t current_offset = args_table_entry_->host_offset;
   GE_ASSERT_SUCCESS(InitIowAddrRefreshInfo(current_offset));
   return SUCCESS;
 }
@@ -375,19 +375,19 @@ Status KernelExTaskCodeBuilder::Contribute(TaskSemanticContributeContext &contex
 }
 
 Status KernelExTaskCodeBuilder::RenderGetAddrInfo(std::vector<BodyItem> &items,
-  std::vector<Arg> &flatten_args_vars) const {
+  std::vector<Arg> &args) const {
   for (const auto &input_addr : semantic_.input_addrs) {
-    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(input_addr, "input", items, flatten_args_vars));
+    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(input_addr, "input", items, args));
   }
   for (const auto &output_addr : semantic_.output_addrs) {
-    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(output_addr, "output", items, flatten_args_vars));
+    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(output_addr, "output", items, args));
   }
   return SUCCESS;
 }
 
 Status KernelExTaskCodeBuilder::AppendOm2TensorAddrInfo(const AddrSemantic &addr, const char *addr_type,
                                                         std::vector<BodyItem> &items,
-                                                        std::vector<Arg> &flatten_args_vars) const {
+                                                        std::vector<Arg> &args) const {
   GE_ASSERT_TRUE(!addr.symbol_hint.empty(), "[OM2] KernelEx %s addr symbol hint is empty.", addr_type);
   GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] KernelEx %s tensor info is required for %s.",
                  addr_type, addr.symbol_hint.c_str());
@@ -405,48 +405,48 @@ Status KernelExTaskCodeBuilder::AppendOm2TensorAddrInfo(const AddrSemantic &addr
       tensor_info.format,
       ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
       ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
-  flatten_args_vars.emplace_back(ast_.Var("auto", addr.symbol_hint));
+  (void)args.emplace_back(ast_.Var("auto", addr.symbol_hint));
   return SUCCESS;
 }
 
 Status KernelExTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
   GELOGD("[OM2] start to generate kernel ex task distribute code.");
   const int64_t op_index = header_.op_index;
-  items.emplace_back(
+  (void)items.emplace_back(
     ast_.Comment("============================= " + header_.op_name + " ==============================="));
   std::vector<Arg> flatten_args_vars;
   GE_ASSERT_SUCCESS(RenderGetAddrInfo(items, flatten_args_vars));
 
   auto args_var = ast_.Var("std::vector<uint8_t>", "op" + std::to_string(op_index) + "_args");
-  items.emplace_back(ast_.VarDecl(args_var));
-  items.emplace_back(args_var.Resize(sizeof(STR_FWK_OP_KERNEL)));
+  (void)items.emplace_back(ast_.VarDecl(args_var));
+  (void)items.emplace_back(args_var.Resize(sizeof(STR_FWK_OP_KERNEL)));
   auto kernel_buf_var = ast_.Var("void *", "op" + std::to_string(op_index) + "_kernel_buf");
-  items.emplace_back(ast_.VarDecl(kernel_buf_var, nullptr));
+  (void)items.emplace_back(ast_.VarDecl(kernel_buf_var, nullptr));
   auto tf_ai_cpu_ex_info_var = ast_.Var("TfAiCpuExInfo",
 "op" + std::to_string(op_index) + "_tf_ai_cpu_ex_info");
-  items.emplace_back(ast_.VarDecl(tf_ai_cpu_ex_info_var));
+  (void)items.emplace_back(ast_.VarDecl(tf_ai_cpu_ex_info_var));
 
   const std::string kernel_ex_args_str_var_name = "op" + std::to_string(op_index) + "_kernel_ex_args_str";
   auto kernel_ex_args_str_var = ast_.Var("const char *", kernel_ex_args_str_var_name);
   std::vector<uint8_t> kernel_ex_args_buffer(task_def_kernel_ex_args_.begin(), task_def_kernel_ex_args_.end());
-  items.emplace_back(ast_.VarDecl(kernel_ex_args_str_var,
+  (void)items.emplace_back(ast_.VarDecl(kernel_ex_args_str_var,
     Arg::StringLiteral(SerializeBytesToOctalString(kernel_ex_args_buffer))));
 
   const std::string kernel_ex_task_info_str_var_name = "op" + std::to_string(op_index) + "_kernel_ex_task_info_str";
   auto kernel_ex_task_info_str_var = ast_.Var("const char *", kernel_ex_task_info_str_var_name);
   std::vector<uint8_t>  kernel_ex_task_info_buffer(task_def_kernel_ex_task_info_.begin(),
     task_def_kernel_ex_task_info_.end());
-  items.emplace_back(ast_.VarDecl(kernel_ex_task_info_str_var,
+  (void)items.emplace_back(ast_.VarDecl(kernel_ex_task_info_str_var,
     Arg::StringLiteral(SerializeBytesToOctalString(kernel_ex_task_info_buffer))));
 
   const std::string kernel_ex_ext_info_str_var_name = "op" + std::to_string(op_index) + "_kernel_ex_ext_info_str";
   auto kernel_ex_ext_info_str_var = ast_.Var("const char *", kernel_ex_ext_info_str_var_name);
-  items.emplace_back(ast_.VarDecl(kernel_ex_ext_info_str_var,
+  (void)items.emplace_back(ast_.VarDecl(kernel_ex_ext_info_str_var,
     Arg::StringLiteral(SerializeBytesToOctalString(ext_info_buffer_))));
 
   auto cfg_holder = AppendLaunchConfigSetup(op_index, items);
   auto mem_ptrs = ast_.Var("std::vector<void *>", "dev_dynamic_mem_ptrs_");
-  items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExSessionIdInfo", {
+  (void)items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExSessionIdInfo", {
     session_id_,
     static_cast<uint32_t>(sizeof(STR_FWK_OP_KERNEL)),
     func_handles_[static_cast<int64_t>(semantic_.launch.tf_session_func_handle_index)],
@@ -455,27 +455,27 @@ Status KernelExTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items)
     cfg_holder.Attr("cfg").Addr(),
     tf_ai_cpu_ex_info_var.Addr(), mem_ptrs})));
 
-  items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExKernelIdInfo", {
+  (void)items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExKernelIdInfo", {
     kernel_id_.Addr(),
     tf_ai_cpu_ex_info_var.Addr()})));
 
-  items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExWorkSpaceAddrInfo", {
+  (void)items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExWorkSpaceAddrInfo", {
     ast_.ReinterpretCast("uint8_t *",
       ast_.ConstCast("char *", kernel_ex_task_info_str_var)),
     static_cast<int64_t>(task_def_kernel_ex_task_info_size_),
     tf_ai_cpu_ex_info_var.Addr(), mem_ptrs})));
 
-  items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExInputOutputAddrInfo", {
+  (void)items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExInputOutputAddrInfo", {
     args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(semantic_.args_table_entry->table_index)),
     tf_ai_cpu_ex_info_var.Addr()})));
 
-  items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExExtInfo", {
+  (void)items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuExExtInfo", {
     ast_.ReinterpretCast("uint8_t *",
       ast_.ConstCast("char *", kernel_ex_ext_info_str_var)),
     static_cast<int64_t>(ext_info_len_),
     tf_ai_cpu_ex_info_var.Addr(),mem_ptrs})));
 
-  items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuArgs", {
+  (void)items.emplace_back(ChkStatus(ast_.Call("AssembleTfAicpuArgs", {
     ast_.ReinterpretCast("uint8_t *",
       ast_.ConstCast("char *", kernel_ex_args_str_var)),
     static_cast<int64_t>(task_def_kernel_ex_args_size_),
@@ -483,12 +483,12 @@ Status KernelExTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items)
     sizeof(STR_FWK_OP_KERNEL),
     tf_ai_cpu_ex_info_var.Addr()})));
 
-  items.emplace_back(ChkStatus(AclrtMallocAlign32(kernel_buf_var.Addr(),
+  (void)items.emplace_back(ChkStatus(AclrtMallocAlign32(kernel_buf_var.Addr(),
     sizeof(STR_FWK_OP_KERNEL), "ACL_MEM_MALLOC_HUGE_FIRST")));
-  items.emplace_back(mem_ptrs.PushBack(kernel_buf_var));
-  items.emplace_back(ChkStatus(AclrtMemcpy(kernel_buf_var, sizeof(STR_FWK_OP_KERNEL),
+  (void)items.emplace_back(mem_ptrs.PushBack(kernel_buf_var));
+  (void)items.emplace_back(ChkStatus(AclrtMemcpy(kernel_buf_var, sizeof(STR_FWK_OP_KERNEL),
     args_var.Data(),sizeof(STR_FWK_OP_KERNEL), "ACL_MEMCPY_HOST_TO_DEVICE")));
-  items.emplace_back(ChkStatus(ast_.Call("TfAicpuKernelTaskDistribute", {
+  (void)items.emplace_back(ChkStatus(ast_.Call("TfAicpuKernelTaskDistribute", {
     FlattenHostArgs(flatten_args_vars),
     args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(semantic_.args_table_entry->table_index)),
     kernel_buf_var,

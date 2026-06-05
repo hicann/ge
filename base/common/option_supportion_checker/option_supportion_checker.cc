@@ -852,8 +852,8 @@ Status CheckAllowParallelCompile(const std::map<std::string, std::string> &optio
     (void)REPORT_PREDEFINED_ERR_MSG(
         "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
         std::vector<const char *>({ge::OPTION_EXEC_VARIABLE_ACC, "True",
-        "The options ge.AllowMultiGraphParallelCompile and ge.exec.variable_acc cannot both enabled simultaneously."}));
-    GELOGE(UNSUPPORTED, "The options ge.AllowMultiGraphParallelCompile and ge.exec.variable_acc cannot both enabled"
+        "The options ge.AllowMultiGraphParallelCompile and ge.exec.variable_acc cannot both be enabled simultaneously."}));
+    GELOGE(UNSUPPORTED, "The options ge.AllowMultiGraphParallelCompile and ge.exec.variable_acc cannot both be enabled"
         " simultaneously.");
     return ge::UNSUPPORTED;
   }

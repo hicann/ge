@@ -54,8 +54,8 @@ Status StreamSwitchTaskCodeBuilder::Contribute(TaskSemanticContributeContext &co
             ATTR_NAME_SWITCH_DATA_TYPE.c_str(), context.op_desc->GetName().c_str(), context.op_desc->GetType().c_str());
     return FAILED;
   }
-  GELOGI("Stream Switch Task Codegen: op[%s], cond_[%u], true stream id[%lu], stream id[%u], data type[%ld].",
-         context.op_desc->GetName().c_str(), cond_, static_cast<unsigned long>(true_stream_id_), header_.stream_id,
+  GELOGI("Stream Switch Task Codegen: op[%s], cond_[%u], true stream id[%" PRIu64 "], stream id[%u], data type[%" PRId64 "].",
+         context.op_desc->GetName().c_str(), cond_, static_cast<uint64_t>(true_stream_id_), header_.stream_id,
          data_type_);
   return SUCCESS;
 }
@@ -86,8 +86,8 @@ Status StreamSwitchTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &it
       ast_.Call("ValueToPtr", {ast_.Var("auto", input_addr_nodes_[0].symbol_hint).Attr("device_address")}),
       ast_.StaticCast("aclrtCondition", static_cast<int64_t>(cond_)),
       ast_.Call("ValueToPtr", {ast_.Var("auto", input_addr_nodes_[1].symbol_hint).Attr("device_address")}),
-      stream_list_[static_cast<int>(true_stream_id_)],
-      stream_list_[static_cast<int>(header_.stream_id)],
+      stream_list_[static_cast<int32_t>(true_stream_id_)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
       ast_.StaticCast("aclrtCompareDataType", data_type_),
   })));
   return SUCCESS;

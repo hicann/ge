@@ -57,14 +57,14 @@ Status MemcpyAddrAsyncTaskCodeBuilder::Contribute(TaskSemanticContributeContext 
                                                 logical_src_mem_type, src_addr_node, true, internal_index_));
   GELOGI("[OM2][MemcpyAddrAsync] src resolved: kind=%d, memory_app=%d, symbol_hint=%s, mem_offset=%" PRId64
          ", is_reused=%d, has_tensor_info=%d",
-         static_cast<int>(src_addr_node.kind), static_cast<int>(src_addr_node.memory_app),
+         static_cast<int32_t>(src_addr_node.kind), static_cast<int32_t>(src_addr_node.memory_app),
          src_addr_node.symbol_hint.c_str(), src_addr_node.mem_offset,
          src_addr_node.is_reused_from_upstream, src_addr_node.tensor_info.has_value());
   GE_ASSERT_SUCCESS(Om2ModelUtils::GetRtAddress(context, static_cast<uintptr_t>(memcpy_async.dst()),
                                                 logical_dst_mem_type, dst_addr_node, false, internal_index_));
   GELOGI("[OM2][MemcpyAddrAsync] dst resolved: kind=%d, memory_app=%d, symbol_hint=%s, mem_offset=%" PRId64
          ", is_reused=%d, has_tensor_info=%d",
-         static_cast<int>(dst_addr_node.kind), static_cast<int>(dst_addr_node.memory_app),
+         static_cast<int32_t>(dst_addr_node.kind), static_cast<int32_t>(dst_addr_node.memory_app),
          dst_addr_node.symbol_hint.c_str(), dst_addr_node.mem_offset,
          dst_addr_node.is_reused_from_upstream, dst_addr_node.tensor_info.has_value());
 
@@ -102,6 +102,10 @@ Status MemcpyAddrAsyncTaskCodeBuilder::CalcArgSizes(const TaskSemanticContribute
   for (const auto &arg_desc : arg_descs_) {
     size_t arg_size = 0U;
     GE_ASSERT_SUCCESS(ArgsFormatDesc::GetArgSize(context.op_desc, arg_desc, arg_size));
+    if (args_size_ > std::numeric_limits<size_t>::max() - arg_size) {
+      GELOGE(FAILED, "Args size overflow: current=%zu, adding=%zu", args_size_, arg_size);
+      return FAILED;
+    }
     args_size_ += arg_size;
     arg_sizes_.push_back(arg_size);
   }
@@ -141,7 +145,7 @@ Status MemcpyAddrAsyncTaskCodeBuilder::BuildOrderedArgs(TaskSemanticContributeCo
   entry_.host_offset = *context.next_host_args_offset;
   args_table_entry_ = &entry_;
   ++(*context.next_args_table_index);
-  *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(entry_.args_size);
+  *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(entry_.args_size));
   return SUCCESS;
 }
 
@@ -154,7 +158,7 @@ Status MemcpyAddrAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> 
   const std::string ioaddr_var_name = "op" + std::to_string(header_.op_index) +
                                       "_iow_addr" + std::to_string(internal_index_);
   auto ioaddr_var = ast_.Var("std::vector<uint64_t>", ioaddr_var_name);
-  items.emplace_back(ast_.VarDecl(ioaddr_var, FlattenHostArgs(args_vars)));
+  (void)items.emplace_back(ast_.VarDecl(ioaddr_var, FlattenHostArgs(args_vars)));
   items.push_back(ChkStatus(ast_.Call("KernelMemcpyAddrAsyncDistribute", {
       ast_.Str(header_.op_name),
       ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
@@ -163,7 +167,7 @@ Status MemcpyAddrAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> 
       ast_.UInt(dst_max_),
       ast_.UInt(count_),
       ast_.StaticCast("rtMemcpyKind_t", static_cast<int64_t>(kind_)),
-      stream_list_[static_cast<int>(header_.stream_id)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
       0})));
   items.push_back(ChkStatus(AclrtMemcpy(
       ast_.Call("ValueToPtr", {ast_.Call("PtrToValue",
@@ -209,7 +213,7 @@ void MemcpyAddrAsyncTaskCodeBuilder::CollectIoAddrVars(std::vector<BodyItem> &it
         tensor_info.format,
         ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
         ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
-    args_vars.emplace_back(ast_.Var("auto", semantic.symbol_hint));
+    (void)args_vars.emplace_back(ast_.Var("auto", semantic.symbol_hint));
   }
 }
 

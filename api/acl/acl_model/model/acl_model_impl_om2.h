@@ -11,8 +11,8 @@
 #ifndef ACL_MODEL_SRC_MODEL_ACL_MODEL_IMPL_OM2_H_
 #define ACL_MODEL_SRC_MODEL_ACL_MODEL_IMPL_OM2_H_
 
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 #include "acl_base_rt.h"
 #include "acl_rt.h"

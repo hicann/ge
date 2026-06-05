@@ -68,13 +68,14 @@ target_link_options(data_flow_base PRIVATE
 )
 
 target_link_libraries(data_flow_base PRIVATE
-    intf_pub
+    ge_intf_pub
     -Wl,--no-as-needed
     ascend_protobuf
     static_mmpa
     metadef_headers
     msprof_headers
     runtime_headers
+    error_manager_headers
     unified_dlog
     c_sec
     ge_common

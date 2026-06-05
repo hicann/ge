@@ -54,8 +54,8 @@ using TypeName = std::variant<BuiltinType, StringRef>;
 class ParamDecl final : public AstNode {
  public:
   static ParamDecl *Create(AstContext &ctx, const std::string &type_spec, const std::string &name);
-  ParamDecl(StringRef type_spec, StringRef name) : type_spec_(type_spec), name_(name) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  ParamDecl(StringRef type_spec, StringRef name) : AstNode(), type_spec_(type_spec), name_(name) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetTypeSpec() const { return type_spec_; }
   StringRef GetName() const { return name_; }
@@ -68,8 +68,8 @@ class ParamDecl final : public AstNode {
 class TranslationUnit final : public DeclNode {
  public:
   static TranslationUnit *Create(AstContext &ctx, const std::vector<DeclNode *> &items);
-  explicit TranslationUnit(ArrayRef<DeclNode *> items) : items_(items) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit TranslationUnit(ArrayRef<DeclNode *> items) : DeclNode(), items_(items) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   ArrayRef<DeclNode *> GetItems() const { return items_; }
 
@@ -112,8 +112,8 @@ class StablePartDecl final : public DeclNode {
  public:
   static StablePartDecl *Create(AstContext &ctx, StablePartId id, StablePartRole role, StablePartPlacement placement);
   StablePartDecl(StablePartId id, StablePartRole role, StablePartPlacement placement)
-      : id_(id), role_(role), placement_(placement) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : DeclNode(), id_(id), role_(role), placement_(placement) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StablePartId GetId() const { return id_; }
   StablePartRole GetRole() const { return role_; }
@@ -133,8 +133,8 @@ class IncludeDecl final : public DeclNode {
   };
 
   static IncludeDecl *Create(AstContext &ctx, const std::string &path, Kind kind);
-  IncludeDecl(StringRef path, Kind kind) : path_(path), kind_(kind) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  IncludeDecl(StringRef path, Kind kind) : DeclNode(), path_(path), kind_(kind) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetPath() const { return path_; }
   Kind GetKind() const { return kind_; }
@@ -147,15 +147,15 @@ class IncludeDecl final : public DeclNode {
 class SpaceDecl final : public DeclNode {
  public:
   static SpaceDecl *Create(AstContext &ctx);
-  SpaceDecl() = default;
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  SpaceDecl() : DeclNode() {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 };
 
 class TypeAliasDecl final : public DeclNode {
  public:
   static TypeAliasDecl *Create(AstContext &ctx, const std::string &type_spec, const std::string &name);
-  TypeAliasDecl(StringRef type_spec, StringRef name) : type_spec_(type_spec), name_(name) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  TypeAliasDecl(StringRef type_spec, StringRef name) : DeclNode(), type_spec_(type_spec), name_(name) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetTypeSpec() const { return type_spec_; }
   StringRef GetName() const { return name_; }
@@ -168,8 +168,8 @@ class TypeAliasDecl final : public DeclNode {
 class NamespaceDecl final : public DeclNode {
  public:
   static NamespaceDecl *Create(AstContext &ctx, const std::string &name, const std::vector<DeclNode *> &items);
-  NamespaceDecl(StringRef name, ArrayRef<DeclNode *> items) : name_(name), items_(items) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  NamespaceDecl(StringRef name, ArrayRef<DeclNode *> items) : DeclNode(), name_(name), items_(items) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetName() const { return name_; }
   ArrayRef<DeclNode *> GetItems() const { return items_; }
@@ -182,8 +182,8 @@ class NamespaceDecl final : public DeclNode {
 class ExternBlockDecl final : public DeclNode {
  public:
   static ExternBlockDecl *Create(AstContext &ctx, const std::string &language, const std::vector<DeclNode *> &items);
-  ExternBlockDecl(StringRef language, ArrayRef<DeclNode *> items) : language_(language), items_(items) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  ExternBlockDecl(StringRef language, ArrayRef<DeclNode *> items) : DeclNode(), language_(language), items_(items) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetLanguage() const { return language_; }
   ArrayRef<DeclNode *> GetItems() const { return items_; }
@@ -196,8 +196,8 @@ class ExternBlockDecl final : public DeclNode {
 class ClassDecl final : public DeclNode {
  public:
   static ClassDecl *Create(AstContext &ctx, const std::string &name, const std::vector<DeclNode *> &items);
-  ClassDecl(StringRef name, ArrayRef<DeclNode *> items) : name_(name), items_(items) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  ClassDecl(StringRef name, ArrayRef<DeclNode *> items) : DeclNode(), name_(name), items_(items) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetName() const { return name_; }
   ArrayRef<DeclNode *> GetItems() const { return items_; }
@@ -210,8 +210,8 @@ class ClassDecl final : public DeclNode {
 class StructDecl final : public DeclNode {
  public:
   static StructDecl *Create(AstContext &ctx, const std::string &name, const std::vector<DeclNode *> &items);
-  StructDecl(StringRef name, ArrayRef<DeclNode *> items) : name_(name), items_(items) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  StructDecl(StringRef name, ArrayRef<DeclNode *> items) : DeclNode(), name_(name), items_(items) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetName() const { return name_; }
   ArrayRef<DeclNode *> GetItems() const { return items_; }
@@ -230,8 +230,8 @@ class AccessSectionDecl final : public DeclNode {
   };
 
   static AccessSectionDecl *Create(AstContext &ctx, Kind kind);
-  explicit AccessSectionDecl(Kind kind) : kind_(kind) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit AccessSectionDecl(Kind kind) : DeclNode(), kind_(kind) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Kind GetKind() const { return kind_; }
 
@@ -242,8 +242,8 @@ class AccessSectionDecl final : public DeclNode {
 class FieldDecl final : public DeclNode {
  public:
   static FieldDecl *Create(AstContext &ctx, const std::string &type_spec, const std::string &name, Expr *init = nullptr);
-  FieldDecl(StringRef type_spec, StringRef name, Expr *init) : type_spec_(type_spec), name_(name), init_(init) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  FieldDecl(StringRef type_spec, StringRef name, Expr *init) : DeclNode(), type_spec_(type_spec), name_(name), init_(init) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetTypeSpec() const { return type_spec_; }
   StringRef GetName() const { return name_; }
@@ -260,8 +260,8 @@ class MethodDecl final : public DeclNode {
   static MethodDecl *Create(AstContext &ctx, const std::string &name, const std::vector<ParamDecl *> &params,
                             const std::string &return_type, const std::string &trailing_spec = "");
   MethodDecl(StringRef name, ArrayRef<ParamDecl *> params, StringRef return_type, StringRef trailing_spec)
-      : name_(name), params_(params), return_type_(return_type), trailing_spec_(trailing_spec) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : DeclNode(), name_(name), params_(params), return_type_(return_type), trailing_spec_(trailing_spec) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetName() const { return name_; }
   ArrayRef<ParamDecl *> GetParams() const { return params_; }
@@ -280,8 +280,8 @@ class FunctionDecl final : public DeclNode {
   static FunctionDecl *Create(AstContext &ctx, const std::string &name, const std::vector<ParamDecl *> &params,
                               const std::string &return_type);
   FunctionDecl(StringRef name, ArrayRef<ParamDecl *> params, StringRef return_type)
-      : name_(name), params_(params), return_type_(return_type) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : DeclNode(), name_(name), params_(params), return_type_(return_type) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetName() const { return name_; }
   ArrayRef<ParamDecl *> GetParams() const { return params_; }
@@ -300,8 +300,8 @@ class FunctionDef final : public DeclNode {
   static FunctionDef *Create(AstContext &ctx, const std::string &name, const std::vector<ParamDecl *> &params,
                              const std::string &return_type, BlockStmt *body);
   FunctionDef(StringRef name, ArrayRef<ParamDecl *> params, StringRef return_type, BlockStmt *body)
-      : name_(name), params_(params), return_type_(return_type), body_(body) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : DeclNode(), name_(name), params_(params), return_type_(return_type), body_(body) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetName() const { return name_; }
   ArrayRef<ParamDecl *> GetParams() const { return params_; }
@@ -323,9 +323,9 @@ class MethodDef final : public DeclNode {
                            BlockStmt *body);
   MethodDef(StringRef owner, StringRef name, ArrayRef<ParamDecl *> params, StringRef return_type,
             ArrayRef<StringRef> member_init_names, ArrayRef<Expr *> member_init_exprs, BlockStmt *body)
-      : owner_(owner), name_(name), params_(params), return_type_(return_type), member_init_names_(member_init_names),
+      : DeclNode(), owner_(owner), name_(name), params_(params), return_type_(return_type), member_init_names_(member_init_names),
         member_init_exprs_(member_init_exprs), body_(body) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetOwner() const { return owner_; }
   StringRef GetName() const { return name_; }
@@ -348,8 +348,8 @@ class MethodDef final : public DeclNode {
 class IdentifierExpr final : public Expr {
  public:
   static IdentifierExpr *Create(AstContext &ctx, const std::string &name);
-  explicit IdentifierExpr(StringRef name) : name_(name) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit IdentifierExpr(StringRef name) : Expr(), name_(name) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetName() const { return name_; }
 
@@ -378,8 +378,8 @@ class LiteralExpr final : public Expr {
   static LiteralExpr *CreateString(AstContext &ctx, const std::string &value);
   static LiteralExpr *CreateNullptr(AstContext &ctx);
   LiteralExpr(Kind kind, int64_t int_value, IntSuffix int_suffix, bool bool_value, StringRef string_value)
-      : kind_(kind), int_value_(int_value), int_suffix_(int_suffix), bool_value_(bool_value), string_value_(string_value) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : Expr(), kind_(kind), int_value_(int_value), int_suffix_(int_suffix), bool_value_(bool_value), string_value_(string_value) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Kind GetKind() const { return kind_; }
   int64_t GetIntValue() const { return int_value_; }
@@ -398,8 +398,8 @@ class LiteralExpr final : public Expr {
 class AssignExpr final : public Expr {
  public:
   static AssignExpr *Create(AstContext &ctx, Expr *lhs, Expr *rhs);
-  AssignExpr(Expr *lhs, Expr *rhs) : lhs_(lhs), rhs_(rhs) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  AssignExpr(Expr *lhs, Expr *rhs) : Expr(), lhs_(lhs), rhs_(rhs) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetLhs() const { return lhs_; }
   Expr *GetRhs() const { return rhs_; }
@@ -433,8 +433,8 @@ class BinaryExpr final : public Expr {
   };
 
   static BinaryExpr *Create(AstContext &ctx, Op op, Expr *lhs, Expr *rhs);
-  BinaryExpr(Op op, Expr *lhs, Expr *rhs) : op_(op), lhs_(lhs), rhs_(rhs) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  BinaryExpr(Op op, Expr *lhs, Expr *rhs) : Expr(), op_(op), lhs_(lhs), rhs_(rhs) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Op GetOp() const { return op_; }
   Expr *GetLhs() const { return lhs_; }
@@ -458,8 +458,8 @@ class UnaryExpr final : public Expr {
   };
 
   static UnaryExpr *Create(AstContext &ctx, Op op, Expr *expr);
-  UnaryExpr(Op op, Expr *expr) : op_(op), expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  UnaryExpr(Op op, Expr *expr) : Expr(), op_(op), expr_(expr) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Op GetOp() const { return op_; }
   Expr *GetExpr() const { return expr_; }
@@ -472,8 +472,8 @@ class UnaryExpr final : public Expr {
 class CallExpr final : public Expr {
 public:
   static CallExpr *Create(AstContext &ctx, Expr *callee, const std::vector<Expr *> &args);
-  CallExpr(Expr *callee, ArrayRef<Expr *> args) : callee_(callee), args_(args) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  CallExpr(Expr *callee, ArrayRef<Expr *> args) : Expr(), callee_(callee), args_(args) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetCallee() const { return callee_; }
   ArrayRef<Expr *> GetArgs() const { return args_; }
@@ -486,8 +486,8 @@ public:
 class MakeUniqueArrayExpr final : public Expr {
  public:
   static MakeUniqueArrayExpr *Create(AstContext &ctx, const TypeName &elem_type, Expr *count);
-  MakeUniqueArrayExpr(TypeName elem_type, Expr *count) : elem_type_(elem_type), count_(count) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  MakeUniqueArrayExpr(TypeName elem_type, Expr *count) : Expr(), elem_type_(elem_type), count_(count) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   const TypeName &GetElemType() const { return elem_type_; }
   Expr *GetCount() const { return count_; }
@@ -500,8 +500,8 @@ class MakeUniqueArrayExpr final : public Expr {
 class ToStrExpr final : public Expr {
  public:
   static ToStrExpr *Create(AstContext &ctx, Expr *expr);
-  explicit ToStrExpr(Expr *expr) : expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit ToStrExpr(Expr *expr) : Expr(), expr_(expr) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetExpr() const { return expr_; }
 
@@ -512,8 +512,8 @@ class ToStrExpr final : public Expr {
 class MemcpyExpr final : public Expr {
  public:
   static MemcpyExpr *Create(AstContext &ctx, Expr *dst, Expr *src, Expr *size);
-  MemcpyExpr(Expr *dst, Expr *src, Expr *size) : dst_(dst), src_(src), size_(size) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  MemcpyExpr(Expr *dst, Expr *src, Expr *size) : Expr(), dst_(dst), src_(src), size_(size) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetDst() const { return dst_; }
   Expr *GetSrc() const { return src_; }
@@ -528,8 +528,8 @@ class MemcpyExpr final : public Expr {
 class SizeofExpr final : public Expr {
  public:
   static SizeofExpr *Create(AstContext &ctx, Expr *expr);
-  explicit SizeofExpr(Expr *expr) : expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit SizeofExpr(Expr *expr) : Expr(), expr_(expr) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetExpr() const { return expr_; }
 
@@ -540,8 +540,8 @@ class SizeofExpr final : public Expr {
 class RemoveFileExpr final : public Expr {
  public:
   static RemoveFileExpr *Create(AstContext &ctx, Expr *path);
-  explicit RemoveFileExpr(Expr *path) : path_(path) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit RemoveFileExpr(Expr *path) : Expr(), path_(path) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetPath() const { return path_; }
 
@@ -552,8 +552,8 @@ class RemoveFileExpr final : public Expr {
 class IgnoreOutputExpr final : public Expr {
  public:
   static IgnoreOutputExpr *Create(AstContext &ctx, Expr *expr);
-  explicit IgnoreOutputExpr(Expr *expr) : expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit IgnoreOutputExpr(Expr *expr) : Expr(), expr_(expr) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetExpr() const { return expr_; }
 
@@ -577,8 +577,8 @@ class ContainerMethodExpr final : public Expr {
 
   static ContainerMethodExpr *Create(AstContext &ctx, Method method, Expr *container, const std::vector<Expr *> &args);
   ContainerMethodExpr(Method method, Expr *container, ArrayRef<Expr *> args)
-      : method_(method), container_(container), args_(args) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : Expr(), method_(method), container_(container), args_(args) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Method GetMethod() const { return method_; }
   Expr *GetContainer() const { return container_; }
@@ -593,8 +593,8 @@ class ContainerMethodExpr final : public Expr {
 class AddrOfExpr final : public Expr {
 public:
   static AddrOfExpr *Create(AstContext &ctx, Expr *expr);
-  explicit AddrOfExpr(Expr *expr) : expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit AddrOfExpr(Expr *expr) : Expr(), expr_(expr) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetExpr() const { return expr_; }
 
@@ -605,8 +605,8 @@ public:
 class SubscriptExpr final : public Expr {
  public:
   static SubscriptExpr *Create(AstContext &ctx, Expr *base, Expr *index);
-  SubscriptExpr(Expr *base, Expr *index) : base_(base), index_(index) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  SubscriptExpr(Expr *base, Expr *index) : Expr(), base_(base), index_(index) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetBase() const { return base_; }
   Expr *GetIndex() const { return index_; }
@@ -619,8 +619,8 @@ class SubscriptExpr final : public Expr {
 class MemberExpr final : public Expr {
  public:
   static MemberExpr *Create(AstContext &ctx, Expr *object, const std::string &field);
-  MemberExpr(Expr *object, StringRef field) : object_(object), field_(field) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  MemberExpr(Expr *object, StringRef field) : Expr(), object_(object), field_(field) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetObject() const { return object_; }
   StringRef GetField() const { return field_; }
@@ -633,8 +633,8 @@ class MemberExpr final : public Expr {
 class CppArrowMemberExpr final : public Expr {
  public:
   static CppArrowMemberExpr *Create(AstContext &ctx, Expr *object, const std::string &field);
-  CppArrowMemberExpr(Expr *object, StringRef field) : object_(object), field_(field) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  CppArrowMemberExpr(Expr *object, StringRef field) : Expr(), object_(object), field_(field) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetObject() const { return object_; }
   StringRef GetField() const { return field_; }
@@ -653,8 +653,8 @@ class CppCastExpr final : public Expr {
   };
 
   static CppCastExpr *Create(AstContext &ctx, Kind kind, const std::string &target_type, Expr *expr);
-  CppCastExpr(Kind kind, StringRef target_type, Expr *expr) : kind_(kind), target_type_(target_type), expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  CppCastExpr(Kind kind, StringRef target_type, Expr *expr) : Expr(), kind_(kind), target_type_(target_type), expr_(expr) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Kind GetKind() const { return kind_; }
   StringRef GetTargetType() const { return target_type_; }
@@ -669,8 +669,8 @@ class CppCastExpr final : public Expr {
 class LambdaExpr final : public Expr {
  public:
   static LambdaExpr *Create(AstContext &ctx, const std::vector<std::string> &captures, BlockStmt *body);
-  LambdaExpr(ArrayRef<StringRef> captures, BlockStmt *body) : captures_(captures), body_(body) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  LambdaExpr(ArrayRef<StringRef> captures, BlockStmt *body) : Expr(), captures_(captures), body_(body) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   ArrayRef<StringRef> GetCaptures() const { return captures_; }
   BlockStmt *GetBody() const { return body_; }
@@ -683,8 +683,8 @@ class LambdaExpr final : public Expr {
 class InitListExpr final : public Expr {
  public:
   static InitListExpr *Create(AstContext &ctx, const std::vector<Expr *> &elements);
-  explicit InitListExpr(ArrayRef<Expr *> elements) : elements_(elements) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit InitListExpr(ArrayRef<Expr *> elements) : Expr(), elements_(elements) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   ArrayRef<Expr *> GetElements() const { return elements_; }
 
@@ -695,8 +695,8 @@ class InitListExpr final : public Expr {
 class CommentStmt final : public Stmt {
  public:
   static CommentStmt *Create(AstContext &ctx, const std::string &text);
-  explicit CommentStmt(StringRef text) : text_(text) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit CommentStmt(StringRef text) : Stmt(), text_(text) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetText() const { return text_; }
 
@@ -707,15 +707,15 @@ class CommentStmt final : public Stmt {
 class BlankLineStmt final : public Stmt {
  public:
   static BlankLineStmt *Create(AstContext &ctx);
-  BlankLineStmt() = default;
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  BlankLineStmt() : Stmt() {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 };
 
 class VarDeclStmt final : public Stmt {
  public:
   static VarDeclStmt *Create(AstContext &ctx, const std::string &type_spec, const std::string &name, Expr *init = nullptr);
-  VarDeclStmt(StringRef type_spec, StringRef name, Expr *init) : type_spec_(type_spec), name_(name), init_(init) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  VarDeclStmt(StringRef type_spec, StringRef name, Expr *init) : Stmt(), type_spec_(type_spec), name_(name), init_(init) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetTypeSpec() const { return type_spec_; }
   StringRef GetName() const { return name_; }
@@ -730,8 +730,8 @@ class VarDeclStmt final : public Stmt {
 class ExprStmt final : public Stmt {
  public:
   static ExprStmt *Create(AstContext &ctx, Expr *expr);
-  explicit ExprStmt(Expr *expr) : expr_(expr) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit ExprStmt(Expr *expr) : Stmt(), expr_(expr) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetExpr() const { return expr_; }
 
@@ -742,8 +742,8 @@ class ExprStmt final : public Stmt {
 class ReturnStmt final : public Stmt {
  public:
   static ReturnStmt *Create(AstContext &ctx, Expr *value = nullptr);
-  explicit ReturnStmt(Expr *value) : value_(value) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit ReturnStmt(Expr *value) : Stmt(), value_(value) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetValue() const { return value_; }
 
@@ -754,8 +754,8 @@ class ReturnStmt final : public Stmt {
 class BlockStmt final : public Stmt {
  public:
   static BlockStmt *Create(AstContext &ctx, const std::vector<Stmt *> &statements);
-  explicit BlockStmt(ArrayRef<Stmt *> statements) : statements_(statements) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  explicit BlockStmt(ArrayRef<Stmt *> statements) : Stmt(), statements_(statements) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   ArrayRef<Stmt *> GetStatements() const { return statements_; }
 
@@ -767,8 +767,8 @@ class IfStmt final : public Stmt {
  public:
   static IfStmt *Create(AstContext &ctx, Expr *cond, BlockStmt *then_block, BlockStmt *else_block = nullptr);
   IfStmt(Expr *cond, BlockStmt *then_block, BlockStmt *else_block)
-      : cond_(cond), then_block_(then_block), else_block_(else_block) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : Stmt(), cond_(cond), then_block_(then_block), else_block_(else_block) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Expr *GetCond() const { return cond_; }
   BlockStmt *GetThenBlock() const { return then_block_; }
@@ -783,8 +783,8 @@ class IfStmt final : public Stmt {
 class ForStmt final : public Stmt {
  public:
   static ForStmt *Create(AstContext &ctx, Stmt *init, Expr *cond, Expr *step, BlockStmt *body);
-  ForStmt(Stmt *init, Expr *cond, Expr *step, BlockStmt *body) : init_(init), cond_(cond), step_(step), body_(body) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+  ForStmt(Stmt *init, Expr *cond, Expr *step, BlockStmt *body) : Stmt(), init_(init), cond_(cond), step_(step), body_(body) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   Stmt *GetInit() const { return init_; }
   Expr *GetCond() const { return cond_; }
@@ -803,8 +803,8 @@ class RangeForStmt final : public Stmt {
   static RangeForStmt *Create(AstContext &ctx, const std::string &type_spec, const std::string &name, Expr *range,
                               BlockStmt *body);
   RangeForStmt(StringRef type_spec, StringRef name, Expr *range, BlockStmt *body)
-      : type_spec_(type_spec), name_(name), range_(range), body_(body) {}
-  Status Accept(CodeEmitter &emitter, std::string &output) const override;
+      : Stmt(), type_spec_(type_spec), name_(name), range_(range), body_(body) {}
+  Status Accept(CodeEmitter &emitter, std::string &output) const override final;
 
   StringRef GetTypeSpec() const { return type_spec_; }
   StringRef GetName() const { return name_; }

@@ -16,7 +16,7 @@
 namespace ge {
 class InterfaceFileCodeGenerator : public CodeGeneratorBase {
  public:
-  explicit InterfaceFileCodeGenerator(AstBuildContext &ast) : CodeGeneratorBase(ast) {}
+  using CodeGeneratorBase::CodeGeneratorBase;
   ~InterfaceFileCodeGenerator() override = default;
 
   TypeAliasDecl *BuildOm2ModelHandleAlias();

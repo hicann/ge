@@ -106,9 +106,15 @@ static void SetLoopAddrToOpMapping(const uintptr_t step_id, const uintptr_t loop
 
 bool DumpOp::IsInBlacklist(const std::string &op_name, const std::string &op_type, size_t index, bool is_input) const {
   std::set<std::string> check_names;
-  if (!dynamic_model_name_.empty()) check_names.insert(dynamic_model_name_);
-  if (!root_graph_name_.empty()) check_names.insert(root_graph_name_);
-  if (!dynamic_om_name_.empty()) check_names.insert(dynamic_om_name_);
+  if (!dynamic_model_name_.empty()) {
+    (void)check_names.insert(dynamic_model_name_);
+  }
+  if (!root_graph_name_.empty()) {
+    (void)check_names.insert(root_graph_name_);
+  }
+  if (!dynamic_om_name_.empty()) {
+    (void)check_names.insert(dynamic_om_name_);
+  }
 
   for (const auto &mn : check_names) {
     if (is_input) {
@@ -208,7 +214,7 @@ Status DumpOp::DumpOutput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_
     if (TensorUtils::GetTensorSizeInBytes(*output_descs.at(i), output_size) != SUCCESS) {
       GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "[Get][TensorSize]Failed, output %zu, node %s(%s),",
              i, op_desc->GetName().c_str(), op_desc->GetType().c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Get output %zu tensor size of node %s(%s) failed",
+      REPORT_INNER_ERR_MSG("E19999", "Get output %zu tensor size of node %s(%s) failed.",
                         i, op_desc->GetName().c_str(), op_desc->GetType().c_str());
       return ACL_ERROR_GE_INTERNAL_ERROR;
     }
@@ -262,7 +268,7 @@ Status DumpOp::DumpInput(toolkit::aicpu::dump::Task &task, const OpDescPtr &op_d
     if (TensorUtils::GetTensorSizeInBytes(*input_descs, input_size) != SUCCESS) {
       GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "[Get][TensorSize]Failed, input %zu, node %s(%s)",
              i, op_desc->GetName().c_str(), op_desc->GetType().c_str());
-      REPORT_INNER_ERR_MSG("E19999", "Get input %zu tensor size of node %s(%s) failed",
+      REPORT_INNER_ERR_MSG("E19999", "Get input %zu tensor size of node %s(%s) failed.",
                         i, op_desc->GetName().c_str(), op_desc->GetType().c_str());
       return ACL_ERROR_GE_INTERNAL_ERROR;
     }
@@ -363,8 +369,8 @@ Status DumpOp::ExecutorDumpOp(bool need_device_args) {
   const rtError_t rt_ret = rtCpuKernelLaunchWithFlag(nullptr, kDumpKernelsDumpOp.c_str(), 1U,
                                                      &args_for_launch, nullptr, stream_, RT_KERNEL_DEFAULT);
   if (rt_ret != RT_ERROR_NONE) {
-    GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][rtCpuKernelLaunch]Failed, ret %d", rt_ret);
-    REPORT_INNER_ERR_MSG("E19999", "Call rtCpuKernelLaunch failed, ret %d", rt_ret);
+    GELOGE(RT_ERROR_TO_GE_STATUS(rt_ret), "[Call][rtCpuKernelLaunchWithFlag]Failed, ret %d", rt_ret);
+    REPORT_INNER_ERR_MSG("E19999", "Call rtCpuKernelLaunchWithFlag failed, ret %d", rt_ret);
     return RT_ERROR_TO_GE_STATUS(rt_ret);
   }
   GELOGI("Kernel launch dump op %s success", op_desc_->GetName().c_str());
@@ -648,7 +654,7 @@ Status DumpOp::LaunchDumpOp(const bool is_single_op_dump, bool need_device_args)
   }
   if (device_id < 0) {
     GELOGE(ACL_ERROR_GE_INTERNAL_ERROR, "[Check][DeviceId]Failed, device_id %d", device_id);
-    REPORT_INNER_ERR_MSG("E19999", "Check device_id %d failed", device_id);
+    REPORT_INNER_ERR_MSG("E19999", "Check device_id %d failed.", device_id);
     return ACL_ERROR_GE_INTERNAL_ERROR;
   }
   const auto dump_path = dump_properties_.GetDumpPath() + std::to_string(device_id) + "/";

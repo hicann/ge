@@ -82,7 +82,7 @@ Status Om2CodegenModelBuilder::CollectConstInputsFromOp(const OpDescPtr &op_desc
     entry.var_name = var_name;
     GE_ASSERT_SUCCESS(Om2ModelUtils::BuildInputTensorInfo(tensor_desc, entry.tensor_info));
     codegen_model.const_inputs.push_back(std::move(entry));
-    weight_offset_to_varname_.emplace(data_offset, var_name);
+    (void)weight_offset_to_varname_.emplace(data_offset, var_name);
     const_metas.push_back(Om2ConstMeta{const_index,
                                        "INTERNAL",
                                        "",
@@ -96,7 +96,7 @@ Status Om2CodegenModelBuilder::CollectConstInputsFromOp(const OpDescPtr &op_desc
 
 void Om2CodegenModelBuilder::ReportUnsupportedTask(TaskCodeBuilderPtr &task_builder,  domi::TaskDef *const task_def,
                                                std::unordered_map<int64_t, OpDescPtr> &op_desc_by_index,
-                                               const ModelTaskType &task_type) {
+                                               ModelTaskType task_type) {
   const auto op_index =
       (task_builder == nullptr) ? kInvalidOpIndex : task_builder->ParseOpIndex(*task_def);
   if (task_builder == nullptr || op_index == kInvalidOpIndex) {
@@ -190,7 +190,7 @@ Status Om2CodegenModelBuilder::BuildOpDescLookup(const GeModelPtr &model) {
     GE_ASSERT_NOTNULL(node);
     const auto &op_desc = node->GetOpDesc();
     GE_ASSERT_NOTNULL(op_desc);
-    op_desc_by_index_.emplace(op_desc->GetId(), op_desc);
+    (void)op_desc_by_index_.emplace(op_desc->GetId(), op_desc);
   }
   return SUCCESS;
 }
@@ -257,26 +257,26 @@ std::vector<MemInfo> Om2CodegenModelBuilder::GetAllMemoryTypeSize(const GeModelP
   (void)AttrUtils::GetInt(model, ATTR_MODEL_P2P_MEMORY_SIZE, p2p_mem_info.memory_size);
   p2p_mem_info.memory_type = RT_MEMORY_P2P_DDR;
   p2p_mem_info.memory_key = "_p";
-  all_mem_info.emplace_back(std::move(p2p_mem_info));
+  (void)all_mem_info.emplace_back(std::move(p2p_mem_info));
 
   MemInfo session_scope_mem_info{};
   (void)AttrUtils::GetInt(model, ATTR_MODEL_SESSION_SCOPE_MEMORY_SIZE, session_scope_mem_info.memory_size);
   session_scope_mem_info.memory_type = (kSessionScopeMemoryMask | RT_MEMORY_HBM);
-  all_mem_info.emplace_back(std::move(session_scope_mem_info));
+  (void)all_mem_info.emplace_back(std::move(session_scope_mem_info));
 
   MemInfo host_mem_info{};
   (void)AttrUtils::GetInt(model, MODEL_ATTR_HOST_MEMORY_SIZE, host_mem_info.memory_size);
   (void)AttrUtils::GetInt(model, MODEL_ATTR_TASK_GEN_HOST_BASE_ADDR, host_mem_info.logic_memory_base);
   host_mem_info.memory_type = RT_MEMORY_HOST;
   host_mem_info.memory_key = "_h";
-  all_mem_info.emplace_back(std::move(host_mem_info));
+  (void)all_mem_info.emplace_back(std::move(host_mem_info));
 
   MemInfo host_svm_mem_info{};
   (void)AttrUtils::GetInt(model, MODEL_ATTR_HOST_SVM_SIZE, host_svm_mem_info.memory_size);
   (void)AttrUtils::GetInt(model, MODEL_ATTR_TASK_GEN_HOST_SVM_BASE_ADDR, host_svm_mem_info.logic_memory_base);
   host_svm_mem_info.memory_type = RT_MEMORY_HOST_SVM;
   host_svm_mem_info.memory_key = "_svm";
-  all_mem_info.emplace_back(std::move(host_svm_mem_info));
+  (void)all_mem_info.emplace_back(std::move(host_svm_mem_info));
   return all_mem_info;
 }
 
@@ -389,7 +389,7 @@ Status Om2CodegenModelBuilder::BuildModelIo(const GeModelPtr &model, Om2CodegenM
   GE_ASSERT_SUCCESS(CollectModelIoItems(codegen_model, compute_graph, input_items, output_items));
   std::set<int64_t> input_offsets;
   for (const auto &item : input_items) {
-    input_offsets.insert(item.memory_offset);
+    (void)input_offsets.insert(item.memory_offset);
   }
   for (const auto &item : output_items) {
     if (input_offsets.count(item.memory_offset) > 0U) {
@@ -400,7 +400,7 @@ Status Om2CodegenModelBuilder::BuildModelIo(const GeModelPtr &model, Om2CodegenM
       return PARAM_INVALID;
     }
   }
-  std::stable_sort(input_items.begin(), input_items.end(), CompareInputModelIoItem);
+  std::stable_sort(input_items.begin(), input_items.end(), &CompareInputModelIoItem);
   uint32_t update_host_args_index = 0U;
   for (const auto &item : input_items) {
     codegen_model.model_io.entries.push_back(ModelIoEntry{item.index, item.memory_offset, update_host_args_index, true});
@@ -450,7 +450,7 @@ Status Om2CodegenModelBuilder::CollectModelIoItems(Om2CodegenModel &codegen_mode
       GE_ASSERT_TRUE(i < input_offsets.size(), "[OM2] NetOutput input offset is out of range, node=%s, index=%zu",
                      node->GetName().c_str(), i);
       output_items.push_back(OutputModelIoItem{static_cast<uint32_t>(output_items.size()), input_offsets[i]});
-      codegen_model.model_io.io_offsets.emplace(input_offsets[i]);
+      (void)codegen_model.model_io.io_offsets.emplace(input_offsets[i]);
     }
   }
   return SUCCESS;
@@ -527,7 +527,7 @@ Status Om2CodegenModelBuilder::BuildFileConstInputs(const GeModelPtr &model, Om2
     entry.var_name = var_name;
     GE_ASSERT_SUCCESS(Om2ModelUtils::BuildOutputTensorInfo(output_desc, entry.tensor_info));
     codegen_model.const_inputs.push_back(std::move(entry));
-    fileconst_output_offset_to_varname_.emplace(output_offsets[0U], var_name);
+    (void)fileconst_output_offset_to_varname_.emplace(output_offsets[0U], var_name);
     const_metas.push_back(Om2ConstMeta{const_index, is_combined ? "COMBINED" : "INDIVIDUAL",
                                        StringUtils::GetFileName(file_path), file_path, static_cast<int64_t>(offset),
                                        tensor_size, op_desc->GetName()});
@@ -674,8 +674,8 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicore(Om2CodegenModel &cod
 }
 
 Status Om2CodegenModelBuilder::BuildKernelRegistryForAicpu(Om2CodegenModel &codegen_model,
-                                                           const domi::TaskDef task_def,
-                                                           const std::string op_type,
+                                                           const domi::TaskDef &task_def,
+                                                           const std::string &op_type,
                                                            const std::string &kernel_name,
                                                            const std::string &aicpu_kernel_sign) {
   const std::string &so_name = task_def.kernel().so_name();
@@ -693,7 +693,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForAicpu(Om2CodegenModel &code
                                                                       "",
                                                                       0U,
                                                                       func_handle_index});
-  codegen_model.kernel_registry.func_handle_indices.emplace(aicpu_kernel_sign, func_handle_index);
+  (void)codegen_model.kernel_registry.func_handle_indices.emplace(aicpu_kernel_sign, func_handle_index);
   return SUCCESS;
 }
 
@@ -720,13 +720,13 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForCustAicpu(Om2CodegenModel &
                                                                       "",
                                                                       0U,
                                                                       func_handle_index});
-  codegen_model.kernel_registry.func_handle_indices.emplace(kernel_sign, func_handle_index);
+  (void)codegen_model.kernel_registry.func_handle_indices.emplace(kernel_sign, func_handle_index);
   return SUCCESS;
 }
 
 Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpu(Om2CodegenModel &codegen_model,
-                                                             const std::string op_type,
-                                                             const std::string &tf_aicpu_kernel_sign) {
+ 	                                                              const std::string &op_type,
+ 	                                                              const std::string &tf_aicpu_kernel_sign) {
   const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
   GELOGI("[OM2] RegisterTFAicpu: op_type=%s, sign=%s, func_idx=%u", op_type.c_str(), tf_aicpu_kernel_sign.c_str(),
          func_handle_index);
@@ -739,13 +739,12 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpu(Om2CodegenModel &co
     "",
     0U,
     func_handle_index});
-  codegen_model.kernel_registry.func_handle_indices.emplace(tf_aicpu_kernel_sign, func_handle_index);
+  (void)codegen_model.kernel_registry.func_handle_indices.emplace(tf_aicpu_kernel_sign, func_handle_index);
   return SUCCESS;
 }
 
 Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpuSession(Om2CodegenModel &codegen_model,
-                                                                    const std::string op_type,
-                                                                    const std::string &tf_aicpu_kernel_sign) {
+  const std::string &op_type, const std::string &tf_aicpu_kernel_sign) {
   const uint32_t func_handle_index = static_cast<uint32_t>(codegen_model.kernel_registry.func_handle_indices.size());
   GELOGI("[OM2] RegisterTFAicpuSession: op_type=%s, sign=%s, func_idx=%u", op_type.c_str(),
          tf_aicpu_kernel_sign.c_str(), func_handle_index);
@@ -758,7 +757,7 @@ Status Om2CodegenModelBuilder::BuildKernelRegistryForTFAicpuSession(Om2CodegenMo
     "",
     0U,
     func_handle_index});
-  codegen_model.kernel_registry.func_handle_indices.emplace(tf_aicpu_kernel_sign, func_handle_index);
+  (void)codegen_model.kernel_registry.func_handle_indices.emplace(tf_aicpu_kernel_sign, func_handle_index);
  	return SUCCESS;
 }
 
@@ -815,7 +814,7 @@ Status Om2CodegenModelBuilder::AggregateArgsTable(const std::vector<TaskCodeBuil
     codegen_model.args_table.entries.push_back(*entry);
     const auto &records = task_builder->GetIoAddrRefreshRecords();
     for (const auto &record : records) {
-      io_addr_offset_map.emplace(record.compile_state_io_addr_offset, record.host_offset);
+      (void)io_addr_offset_map.emplace(record.compile_state_io_addr_offset, record.host_offset);
     }
     max_end = std::max(max_end, entry->host_offset + entry->args_size);
   }

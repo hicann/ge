@@ -26,8 +26,8 @@ Status EventRecordTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &ite
   items.push_back(ast_.Comment("============================= " + header_.op_name + " ==============================="));
   items.push_back(ChkStatus(ast_.Call("KernelEventRecordDistribute", {
       ast_.Str(header_.op_name),
-      event_list_[static_cast<int>(event_id_)],
-      stream_list_[static_cast<int>(header_.stream_id)],
+      event_list_[static_cast<int32_t>(event_id_)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
   })));
   return SUCCESS;
 }

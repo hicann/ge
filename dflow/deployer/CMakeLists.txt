@@ -62,7 +62,7 @@ target_link_options(npu_sched_model_loader PRIVATE
         )
 
 target_link_libraries(npu_sched_model_loader PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         datagw_headers
         -Wl,--no-as-needed
@@ -72,6 +72,7 @@ target_link_libraries(npu_sched_model_loader PRIVATE
         ge_common
         ge_common_base
         error_manager
+        runtime_headers
         dl
         -Wl,--as-needed
         data_flow_base
@@ -194,10 +195,9 @@ target_link_options(model_deployer PRIVATE
         )
 
 target_link_libraries(model_deployer PRIVATE
-        intf_pub
+        ge_intf_pub
         acl_rt
         msprof_headers
-        cce_headers
         datagw_headers
         metadef_headers
         hccl_headers
@@ -215,6 +215,7 @@ target_link_libraries(model_deployer PRIVATE
         ge_executor_shared
         gert
         error_manager
+        runtime_headers
         dgw_client
         dl
         -Wl,--as-needed
@@ -257,12 +258,14 @@ target_include_directories(deployer_daemon_static PUBLIC
         )
 
 target_link_libraries(deployer_daemon_static PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         datagw_headers
         air_headers
         metadef_headers
+        runtime_headers
         error_manager_headers
+        c_sec_headers
         -Wl,--no-as-needed
         unified_dlog
         ascend_protobuf
@@ -300,7 +303,7 @@ target_link_options(deployer_daemon PRIVATE
         )
 
 target_link_libraries(deployer_daemon PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         datagw_headers
         air_headers
@@ -386,10 +389,15 @@ target_include_directories(npu_executor_static PUBLIC
         )
 
 target_link_libraries(npu_executor_static PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         datagw_headers
         air_headers
+        runtime_headers
+        metadef_headers
+        error_manager_headers
+        hccl_headers
+        c_sec_headers
         -Wl,--no-as-needed
         unified_dlog
         ascend_protobuf
@@ -430,7 +438,7 @@ target_link_options(npu_executor_main PRIVATE
         -Wl,--exclude-libs,ALL)
 
 target_link_libraries(npu_executor_main PRIVATE
-        intf_pub
+        ge_intf_pub
         datagw_headers
         cce_headers
         hccl_headers
@@ -536,7 +544,7 @@ target_link_options(host_cpu_executor_main PRIVATE
         -Wl,--exclude-libs,ALL)
 
 target_link_libraries(host_cpu_executor_main PRIVATE
-        intf_pub
+        ge_intf_pub
         datagw_headers
         hccl_headers
         air_headers

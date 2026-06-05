@@ -203,7 +203,7 @@ ExprRef operator~(ExprRef expr) { return BuildUnaryExpr(*expr.Ctx(), UnaryExpr::
 
 #define DEFINE_FREE_BINARY_OP(op_symbol, op_value) \
   ExprRef operator op_symbol(ExprRef lhs, Arg rhs) { \
-    return BuildBinaryExpr(*lhs.Ctx(), op_value, lhs.Get(), ResolveArg(rhs, *lhs.Ctx())); \
+    return BuildBinaryExpr(*lhs.Ctx(), (op_value), lhs.Get(), ResolveArg(rhs, *lhs.Ctx())); \
   }
 DEFINE_FREE_BINARY_OP(==, BinaryExpr::Op::kEq)
 DEFINE_FREE_BINARY_OP(!=, BinaryExpr::Op::kNe)
@@ -248,107 +248,107 @@ Stmt *BodyItem::Resolve(AstContext &ctx) const {
 
 AstBuildContext::AstBuildContext(AstContext &ctx) : ctx_(ctx) {}
 
-TranslationUnit *AstBuildContext::File(const std::vector<DeclNode *> &items) { return ::ge::TranslationUnit::Create(ctx_, items); }
+TranslationUnit *AstBuildContext::File(const std::vector<DeclNode *> &items) const { return ::ge::TranslationUnit::Create(ctx_, items); }
 
-TranslationUnit *AstBuildContext::File(std::initializer_list<DeclNode *> items) {
+TranslationUnit *AstBuildContext::File(std::initializer_list<DeclNode *> items) const {
   return File(std::vector<DeclNode *>(items.begin(), items.end()));
 }
 
-IncludeDecl *AstBuildContext::Include(const std::string &path, IncludeDecl::Kind kind) {
+IncludeDecl *AstBuildContext::Include(const std::string &path, IncludeDecl::Kind kind) const {
   return IncludeDecl::Create(ctx_, path, kind);
 }
 
-SpaceDecl *AstBuildContext::Space() { return SpaceDecl::Create(ctx_); }
-CommentStmt *AstBuildContext::Comment(const std::string &text) { return CommentStmt::Create(ctx_, text); }
-BlankLineStmt *AstBuildContext::BlankLine() { return BlankLineStmt::Create(ctx_); }
+SpaceDecl *AstBuildContext::Space() const { return SpaceDecl::Create(ctx_); }
+CommentStmt *AstBuildContext::Comment(const std::string &text) const { return CommentStmt::Create(ctx_, text); }
+BlankLineStmt *AstBuildContext::BlankLine() const { return BlankLineStmt::Create(ctx_); }
 
-AccessSectionDecl *AstBuildContext::Public() { return AccessSectionDecl::Create(ctx_, AccessSectionDecl::Kind::kPublic); }
-AccessSectionDecl *AstBuildContext::Private() { return AccessSectionDecl::Create(ctx_, AccessSectionDecl::Kind::kPrivate); }
-Expr *AstBuildContext::Str(const std::string &text) { return LiteralExpr::CreateString(ctx_, text); }
-Expr *AstBuildContext::UInt(uint64_t value) {
+AccessSectionDecl *AstBuildContext::Public() const { return AccessSectionDecl::Create(ctx_, AccessSectionDecl::Kind::kPublic); }
+AccessSectionDecl *AstBuildContext::Private() const { return AccessSectionDecl::Create(ctx_, AccessSectionDecl::Kind::kPrivate); }
+Expr *AstBuildContext::Str(const std::string &text) const { return LiteralExpr::CreateString(ctx_, text); }
+Expr *AstBuildContext::UInt(uint64_t value) const {
   return LiteralExpr::CreateInt(ctx_, static_cast<int64_t>(value), LiteralExpr::IntSuffix::kU);
 }
-Expr *AstBuildContext::ULong(uint64_t value) {
+Expr *AstBuildContext::ULong(uint64_t value) const {
   return LiteralExpr::CreateInt(ctx_, static_cast<int64_t>(value), LiteralExpr::IntSuffix::kUL);
 }
 
-TypeAliasDecl *AstBuildContext::TypeAlias(const std::string &type_spec, const std::string &name) {
+TypeAliasDecl *AstBuildContext::TypeAlias(const std::string &type_spec, const std::string &name) const {
   return TypeAliasDecl::Create(ctx_, type_spec, name);
 }
 
-FieldDecl *AstBuildContext::Field(const std::string &type_spec, const std::string &name, Arg init) {
+FieldDecl *AstBuildContext::Field(const std::string &type_spec, const std::string &name, Arg init) const {
   return FieldDecl::Create(ctx_, type_spec, name, ResolveArg(init, ctx_));
 }
 
-ClassDecl *AstBuildContext::Class(const std::string &name, const std::vector<DeclNode *> &items) {
+ClassDecl *AstBuildContext::Class(const std::string &name, const std::vector<DeclNode *> &items) const {
   return ClassDecl::Create(ctx_, name, items);
 }
 
-ClassDecl *AstBuildContext::Class(const std::string &name, std::initializer_list<DeclNode *> items) {
+ClassDecl *AstBuildContext::Class(const std::string &name, std::initializer_list<DeclNode *> items) const {
   return Class(name, std::vector<DeclNode *>(items.begin(), items.end()));
 }
 
-StructDecl *AstBuildContext::Struct(const std::string &name, const std::vector<DeclNode *> &items) {
+StructDecl *AstBuildContext::Struct(const std::string &name, const std::vector<DeclNode *> &items) const {
   return StructDecl::Create(ctx_, name, items);
 }
 
-StructDecl *AstBuildContext::Struct(const std::string &name, std::initializer_list<DeclNode *> items) {
+StructDecl *AstBuildContext::Struct(const std::string &name, std::initializer_list<DeclNode *> items) const {
   return Struct(name, std::vector<DeclNode *>(items.begin(), items.end()));
 }
 
-NamespaceDecl *AstBuildContext::Namespace(const std::string &name, const std::vector<DeclNode *> &items) {
+NamespaceDecl *AstBuildContext::Namespace(const std::string &name, const std::vector<DeclNode *> &items) const {
   return NamespaceDecl::Create(ctx_, name, items);
 }
 
-NamespaceDecl *AstBuildContext::Namespace(const std::string &name, std::initializer_list<DeclNode *> items) {
+NamespaceDecl *AstBuildContext::Namespace(const std::string &name, std::initializer_list<DeclNode *> items) const {
   return Namespace(name, std::vector<DeclNode *>(items.begin(), items.end()));
 }
 
-ExternBlockDecl *AstBuildContext::ExternBlock(const std::string &lang, const std::vector<DeclNode *> &items) {
+ExternBlockDecl *AstBuildContext::ExternBlock(const std::string &lang, const std::vector<DeclNode *> &items) const {
   return ExternBlockDecl::Create(ctx_, lang, items);
 }
 
-ExternBlockDecl *AstBuildContext::ExternBlock(const std::string &lang, std::initializer_list<DeclNode *> items) {
+ExternBlockDecl *AstBuildContext::ExternBlock(const std::string &lang, std::initializer_list<DeclNode *> items) const {
   return ExternBlock(lang, std::vector<DeclNode *>(items.begin(), items.end()));
 }
 
-StablePartDecl *AstBuildContext::StablePart(StablePartId id, StablePartPlacement placement) {
+StablePartDecl *AstBuildContext::StablePart(StablePartId id, StablePartPlacement placement) const {
   return StablePartDecl::Create(ctx_, id, InferStablePartRole(id), placement);
 }
 
 FunctionDecl *AstBuildContext::DeclareFunction(const std::string &name, const std::vector<VarRef> &params,
-                                               const std::string &return_type) {
+                                               const std::string &return_type) const {
   return ::ge::FunctionDecl::Create(ctx_, name, BuildParamDecls(ctx_, params), return_type);
 }
 
 FunctionDecl *AstBuildContext::DeclareFunction(const std::string &name, std::initializer_list<VarRef> params,
-                                               const std::string &return_type) {
+                                               const std::string &return_type) const {
   return DeclareFunction(name, std::vector<VarRef>(params.begin(), params.end()), return_type);
 }
 
 MethodDecl *AstBuildContext::DeclareMethod(const std::string &name, const std::vector<VarRef> &params,
-                                           const std::string &return_type, const std::string &trailing_spec) {
+                                           const std::string &return_type, const std::string &trailing_spec) const {
   return ::ge::MethodDecl::Create(ctx_, name, BuildParamDecls(ctx_, params), return_type, trailing_spec);
 }
 
 MethodDecl *AstBuildContext::DeclareMethod(const std::string &name, std::initializer_list<VarRef> params,
-                                           const std::string &return_type, const std::string &trailing_spec) {
+                                           const std::string &return_type, const std::string &trailing_spec) const {
   return DeclareMethod(name, std::vector<VarRef>(params.begin(), params.end()), return_type, trailing_spec);
 }
 
 FunctionDef *AstBuildContext::DefineFunction(const std::string &name, const std::vector<VarRef> &params,
-                                             const std::string &return_type, const std::vector<Stmt *> &body) {
+                                             const std::string &return_type, const std::vector<Stmt *> &body) const {
   return ::ge::FunctionDef::Create(ctx_, name, BuildParamDecls(ctx_, params), return_type, BlockStmt::Create(ctx_, body));
 }
 
 FunctionDef *AstBuildContext::DefineFunction(const std::string &name, std::initializer_list<VarRef> params,
-                                             const std::string &return_type, std::initializer_list<BodyItem> items) {
+                                             const std::string &return_type, std::initializer_list<BodyItem> items) const {
   return DefineFunction(name, std::vector<VarRef>(params.begin(), params.end()), return_type, Body(items));
 }
 
 MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::string &name,
                                          const std::vector<VarRef> &params, const std::string &return_type,
-                                         const std::vector<Stmt *> &body) {
+                                         const std::vector<Stmt *> &body) const {
   return ::ge::MethodDef::Create(ctx_, owner, name, BuildParamDecls(ctx_, params), return_type, std::vector<std::string>{},
                                  std::vector<Expr *>{},
                                  BlockStmt::Create(ctx_, body));
@@ -356,20 +356,20 @@ MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::st
 
 MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::string &name,
                                          const std::vector<VarRef> &params, const std::string &return_type,
-                                         const std::vector<BodyItem> &items) {
+                                         const std::vector<BodyItem> &items) const {
   return DefineMethod(owner, name, params, return_type, Body(items));
 }
 
 MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::string &name,
                                          std::initializer_list<VarRef> params, const std::string &return_type,
-                                         std::initializer_list<BodyItem> items) {
+                                         std::initializer_list<BodyItem> items) const {
   return DefineMethod(owner, name, std::vector<VarRef>(params.begin(), params.end()), return_type, Body(items));
 }
 
 MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::string &name,
                                          const std::vector<VarRef> &params, const std::string &return_type,
                                          const std::vector<MemberInitSpec> &member_inits,
-                                         const std::vector<Stmt *> &body) {
+                                         const std::vector<Stmt *> &body) const {
   const auto built_member_inits = BuildMemberInits(ctx_, member_inits);
   return ::ge::MethodDef::Create(ctx_, owner, name, BuildParamDecls(ctx_, params), return_type,
                                  built_member_inits.first, built_member_inits.second, BlockStmt::Create(ctx_, body));
@@ -378,23 +378,23 @@ MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::st
 MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::string &name,
                                          const std::vector<VarRef> &params, const std::string &return_type,
                                          const std::vector<MemberInitSpec> &member_inits,
-                                         const std::vector<BodyItem> &items) {
+                                         const std::vector<BodyItem> &items) const {
   return DefineMethod(owner, name, params, return_type, member_inits, Body(items));
 }
 
 MethodDef *AstBuildContext::DefineMethod(const std::string &owner, const std::string &name,
                                          std::initializer_list<VarRef> params, const std::string &return_type,
                                          std::initializer_list<MemberInitSpec> member_inits,
-                                         std::initializer_list<BodyItem> items) {
+                                         std::initializer_list<BodyItem> items) const {
   return DefineMethod(owner, name, std::vector<VarRef>(params.begin(), params.end()), return_type,
                       std::vector<MemberInitSpec>(member_inits.begin(), member_inits.end()), Body(items));
 }
 
-InitListExpr *AstBuildContext::InitList(std::initializer_list<Arg> items) {
+InitListExpr *AstBuildContext::InitList(std::initializer_list<Arg> items) const {
   return InitList(std::vector<Arg>(items.begin(), items.end()));
 }
 
-InitListExpr *AstBuildContext::InitList(const std::vector<Arg> &items) {
+InitListExpr *AstBuildContext::InitList(const std::vector<Arg> &items) const {
   std::vector<Expr *> resolved;
   resolved.reserve(items.size());
   for (const auto &item : items) {
@@ -403,39 +403,39 @@ InitListExpr *AstBuildContext::InitList(const std::vector<Arg> &items) {
   return InitListExpr::Create(ctx_, resolved);
 }
 
-VarRef AstBuildContext::Var(const std::string &type_name, const std::string &symbol_name) {
+VarRef AstBuildContext::Var(const std::string &type_name, const std::string &symbol_name) const {
   return VarRef(ctx_, type_name, symbol_name);
 }
 
-ExprRef AstBuildContext::Assign(Arg lhs, Arg rhs) {
+ExprRef AstBuildContext::Assign(Arg lhs, Arg rhs) const {
   return ExprRef(ctx_, AssignExpr::Create(ctx_, ResolveArg(lhs, ctx_), ResolveArg(rhs, ctx_)));
 }
 
-ExprRef AstBuildContext::Deref(Arg expr) {
+ExprRef AstBuildContext::Deref(Arg expr) const {
   return ExprRef(ctx_, UnaryExpr::Create(ctx_, UnaryExpr::Op::kDeref, ResolveArg(expr, ctx_)));
 }
 
-ExprRef AstBuildContext::PreInc(Arg expr) {
+ExprRef AstBuildContext::PreInc(Arg expr) const {
   return ExprRef(ctx_, UnaryExpr::Create(ctx_, UnaryExpr::Op::kPreInc, ResolveArg(expr, ctx_)));
 }
 
-ExprRef AstBuildContext::PostInc(Arg expr) {
+ExprRef AstBuildContext::PostInc(Arg expr) const {
   return ExprRef(ctx_, UnaryExpr::Create(ctx_, UnaryExpr::Op::kPostInc, ResolveArg(expr, ctx_)));
 }
 
-ExprRef AstBuildContext::ToStr(Arg expr) { return ExprRef(ctx_, ToStrExpr::Create(ctx_, ResolveArg(expr, ctx_))); }
+ExprRef AstBuildContext::ToStr(Arg expr) const { return ExprRef(ctx_, ToStrExpr::Create(ctx_, ResolveArg(expr, ctx_))); }
 
-ExprRef AstBuildContext::Memcpy(Arg dst, Arg src, Arg size) {
+ExprRef AstBuildContext::Memcpy(Arg dst, Arg src, Arg size) const {
   return ExprRef(ctx_, MemcpyExpr::Create(ctx_, ResolveArg(dst, ctx_), ResolveArg(src, ctx_), ResolveArg(size, ctx_)));
 }
 
-ExprRef AstBuildContext::Sizeof(Arg expr) { return ExprRef(ctx_, SizeofExpr::Create(ctx_, ResolveArg(expr, ctx_))); }
+ExprRef AstBuildContext::Sizeof(Arg expr) const { return ExprRef(ctx_, SizeofExpr::Create(ctx_, ResolveArg(expr, ctx_))); }
 
-ExprRef AstBuildContext::RemoveFile(Arg path) {
+ExprRef AstBuildContext::RemoveFile(Arg path) const {
   return ExprRef(ctx_, RemoveFileExpr::Create(ctx_, ResolveArg(path, ctx_)));
 }
 
-ExprRef AstBuildContext::IgnoreOutput(Arg expr) {
+ExprRef AstBuildContext::IgnoreOutput(Arg expr) const {
   return ExprRef(ctx_, IgnoreOutputExpr::Create(ctx_, ResolveArg(expr, ctx_)));
 }
 
@@ -444,7 +444,7 @@ LambdaCaptureSpec AstBuildContext::CaptureRef(const VarRef &symbol) const {
 }
 
 ExprRef AstBuildContext::Lambda(std::initializer_list<LambdaCaptureSpec> captures,
-                                std::initializer_list<BodyItem> items) {
+                                std::initializer_list<BodyItem> items) const {
   std::vector<std::string> built_captures;
   built_captures.reserve(captures.size());
   for (const auto &capture : captures) {
@@ -453,64 +453,64 @@ ExprRef AstBuildContext::Lambda(std::initializer_list<LambdaCaptureSpec> capture
   return ExprRef(ctx_, LambdaExpr::Create(ctx_, built_captures, BlockStmt::Create(ctx_, Body(items))));
 }
 
-ExprRef AstBuildContext::Call(const std::string &callee_name, std::initializer_list<Arg> args) {
+ExprRef AstBuildContext::Call(const std::string &callee_name, std::initializer_list<Arg> args) const {
   return BuildCallExpr(ctx_, IdentifierExpr::Create(ctx_, callee_name), args);
 }
 
-ExprRef AstBuildContext::Call(const std::string &callee_name, const std::vector<Arg> &args) {
+ExprRef AstBuildContext::Call(const std::string &callee_name, const std::vector<Arg> &args) const {
   return BuildCallExpr(ctx_, IdentifierExpr::Create(ctx_, callee_name), args);
 }
 
-ExprRef AstBuildContext::MakeUniqueArray(BuiltinType elem_type, Arg count) {
+ExprRef AstBuildContext::MakeUniqueArray(BuiltinType elem_type, Arg count) const {
   return MakeUniqueArray(TypeName(elem_type), count);
 }
 
-ExprRef AstBuildContext::MakeUniqueArray(const std::string &elem_type, Arg count) {
+ExprRef AstBuildContext::MakeUniqueArray(const std::string &elem_type, Arg count) const {
   return MakeUniqueArray(TypeName(ctx_.CopyString(elem_type.c_str())), count);
 }
 
-ExprRef AstBuildContext::MakeUniqueArray(const char *elem_type, Arg count) {
+ExprRef AstBuildContext::MakeUniqueArray(const char *elem_type, Arg count) const {
   return MakeUniqueArray(std::string(elem_type == nullptr ? "" : elem_type), count);
 }
 
-ExprRef AstBuildContext::MakeUniqueArray(const TypeName &elem_type, Arg count) {
+ExprRef AstBuildContext::MakeUniqueArray(const TypeName &elem_type, Arg count) const {
   return ExprRef(ctx_, MakeUniqueArrayExpr::Create(ctx_, elem_type, ResolveArg(count, ctx_)));
 }
 
-ReturnStmt *AstBuildContext::Return(Arg value) { return ReturnStmt::Create(ctx_, ResolveArg(value, ctx_)); }
+ReturnStmt *AstBuildContext::Return(Arg value) const { return ReturnStmt::Create(ctx_, ResolveArg(value, ctx_)); }
 
-VarDeclStmt *AstBuildContext::VarDecl(const std::string &type_spec, const std::string &name, Arg init) {
+VarDeclStmt *AstBuildContext::VarDecl(const std::string &type_spec, const std::string &name, Arg init) const {
   return VarDeclStmt::Create(ctx_, type_spec, name, ResolveArg(init, ctx_));
 }
 
-VarDeclStmt *AstBuildContext::VarDecl(const VarRef &symbol, Arg init) {
+VarDeclStmt *AstBuildContext::VarDecl(const VarRef &symbol, Arg init) const {
   return VarDecl(symbol.TypeName(), symbol.SymbolName(), init);
 }
 
-BlockStmt *AstBuildContext::Block(const std::vector<BodyItem> &items) {
+BlockStmt *AstBuildContext::Block(const std::vector<BodyItem> &items) const {
   return BlockStmt::Create(ctx_, Body(items));
 }
 
-IfStmt *AstBuildContext::If(Arg cond, std::initializer_list<BodyItem> then_items) {
+IfStmt *AstBuildContext::If(Arg cond, std::initializer_list<BodyItem> then_items) const{
   return IfStmt::Create(ctx_, ResolveArg(cond, ctx_), BlockStmt::Create(ctx_, Body(then_items)));
 }
 
 IfStmt *AstBuildContext::If(Arg cond, std::initializer_list<BodyItem> then_items,
-                            std::initializer_list<BodyItem> else_items) {
+                            std::initializer_list<BodyItem> else_items) const {
   return IfStmt::Create(ctx_, ResolveArg(cond, ctx_), BlockStmt::Create(ctx_, Body(then_items)),
                         BlockStmt::Create(ctx_, Body(else_items)));
 }
 
-ForStmt *AstBuildContext::For(Stmt *init, Arg cond, Arg step, std::initializer_list<BodyItem> items) {
+ForStmt *AstBuildContext::For(Stmt *init, Arg cond, Arg step, std::initializer_list<BodyItem> items) const {
   return ForStmt::Create(ctx_, init, ResolveArg(cond, ctx_), ResolveArg(step, ctx_), BlockStmt::Create(ctx_, Body(items)));
 }
 
-RangeForStmt *AstBuildContext::RangeFor(const VarRef &loop_var, Arg range, std::initializer_list<BodyItem> items) {
+RangeForStmt *AstBuildContext::RangeFor(const VarRef &loop_var, Arg range, std::initializer_list<BodyItem> items) const {
   return RangeFor(loop_var.TypeName(), loop_var.SymbolName(), range, items);
 }
 
 RangeForStmt *AstBuildContext::RangeFor(const std::string &type_spec, const std::string &name, Arg range,
-                                        std::initializer_list<BodyItem> items) {
+                                        std::initializer_list<BodyItem> items) const {
   return RangeForStmt::Create(ctx_, type_spec, name, ResolveArg(range, ctx_), BlockStmt::Create(ctx_, Body(items)));
 }
 
@@ -518,11 +518,11 @@ MemberInitSpec AstBuildContext::MemberInit(const std::string &member_name, Arg i
   return MemberInitSpec{member_name, init};
 }
 
-std::vector<Stmt *> AstBuildContext::Body(std::initializer_list<BodyItem> items) {
+std::vector<Stmt *> AstBuildContext::Body(std::initializer_list<BodyItem> items) const {
   return Body(std::vector<BodyItem>(items.begin(), items.end()));
 }
 
-std::vector<Stmt *> AstBuildContext::Body(const std::vector<BodyItem> &items) {
+std::vector<Stmt *> AstBuildContext::Body(const std::vector<BodyItem> &items) const {
   std::vector<Stmt *> body;
   body.reserve(items.size());
   for (const auto &item : items) {
@@ -531,15 +531,15 @@ std::vector<Stmt *> AstBuildContext::Body(const std::vector<BodyItem> &items) {
   return body;
 }
 
-ExprRef AstBuildContext::StaticCast(const std::string &target_type, Arg expr) {
+ExprRef AstBuildContext::StaticCast(const std::string &target_type, Arg expr) const {
   return ExprRef(ctx_, CppCastExpr::Create(ctx_, CppCastExpr::Kind::kStatic, target_type, ResolveArg(expr, ctx_)));
 }
 
-ExprRef AstBuildContext::ConstCast(const std::string &target_type, Arg expr) {
+ExprRef AstBuildContext::ConstCast(const std::string &target_type, Arg expr) const {
   return ExprRef(ctx_, CppCastExpr::Create(ctx_, CppCastExpr::Kind::kConst, target_type, ResolveArg(expr, ctx_)));
 }
 
-ExprRef AstBuildContext::ReinterpretCast(const std::string &target_type, Arg expr) {
+ExprRef AstBuildContext::ReinterpretCast(const std::string &target_type, Arg expr) const {
   return ExprRef(ctx_,
                  CppCastExpr::Create(ctx_, CppCastExpr::Kind::kReinterpret, target_type, ResolveArg(expr, ctx_)));
 }

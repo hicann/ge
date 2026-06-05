@@ -1618,7 +1618,7 @@ Status VarManager::SetAllMemoryMaxValue(const std::map<std::string, std::string>
   FMK_SIZET_ADDCHECK(graph_mem_max_size_, var_mem_max_size_);
   use_max_mem_size_ = graph_mem_max_size_ + var_mem_max_size_;
   if (use_max_mem_size_ > kMaxMemorySize) {
-    REPORT_INNER_ERR_MSG("E19999", "all mem_use size:%" PRIu64 " cannot exeed limit:%" PRIu64 ", "
+    REPORT_INNER_ERR_MSG("E19999", "all mem_use size:%" PRIu64 " can not exceed limit:%" PRIu64 ", "
 		       "session_id:%" PRIu64 ", check invalid", use_max_mem_size_, kMaxMemorySize, session_id_);
     GELOGE(ge::GE_GRAPH_OPTIONS_INVALID, "[Check][Param] kUseMaxMemorySize:%zu cannot exceed "
            "max memory size:%zu, session_id:%" PRIu64 ".", use_max_mem_size_, kMaxMemorySize, session_id_);

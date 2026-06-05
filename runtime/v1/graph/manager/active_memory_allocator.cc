@@ -1102,8 +1102,8 @@ Status PhysicalMemoryAllocator::MallocPhysicalPage(const std::string &purpose, s
     if (prop_.pg_type == ge::kDrvMemPropPgType1G) {
       const bool use_1g_only = VarManager::IsVariableUse1gHugePageOnly();
       const auto failed_log = use_1g_only ? k1gHugePageOnlyMallocFail : k1gHugePageFirstMallocFail;
-      REPORT_INNER_ERR_MSG("E19999", "call rtMallocPhysical failed, size:%zu, pg_type: %s, %s", page_size_,
-                           GetPgType(prop_.pg_type).c_str(), failed_log.c_str());
+      REPORT_INNER_ERR_MSG("E19999", "call rtMallocPhysical failed, size:%zu, pg_type: %s, %s, ret=%d", page_size_,
+                           GetPgType(prop_.pg_type).c_str(), failed_log.c_str(), static_cast<int>(ret));
       GELOGE(FAILED, "call rtMallocPhysical failed, size:%zu, pg_type: %s, %s", page_size_,
              GetPgType(prop_.pg_type).c_str(), failed_log.c_str());
       if (use_1g_only) {
@@ -1115,8 +1115,8 @@ Status PhysicalMemoryAllocator::MallocPhysicalPage(const std::string &purpose, s
     }
   }
   if (ret != RT_ERROR_NONE) {
-    REPORT_INNER_ERR_MSG("E19999", "call rtMallocPhysical failed, size:%zu, pg_type: %s", page_size_,
-                       GetPgType(prop_.pg_type).c_str());
+    REPORT_INNER_ERR_MSG("E19999", "call rtMallocPhysical failed, size:%zu, pg_type: %s, ret=%d", page_size_,
+                       GetPgType(prop_.pg_type).c_str(), static_cast<int>(ret));
     GELOGE(FAILED, "call rtMallocPhysical failed, size:%zu, pg_type: %s", page_size_,
            GetPgType(prop_.pg_type).c_str());
     return FAILED;

@@ -97,7 +97,7 @@ void MemcpyAsyncTaskCodeBuilder::SetupIoAddrRefresh(TaskSemanticContributeContex
   entry_->host_offset = *context.next_host_args_offset;
   args_table_entry_ = &(*entry_);
   ++(*context.next_args_table_index);
-  *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(entry_->args_size);
+  *context.next_host_args_offset += Om2ModelUtils::ArgsSizeAlign8(static_cast<uint64_t>(entry_->args_size));
 }
 
 Status MemcpyAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &items) {
@@ -135,16 +135,16 @@ Status MemcpyAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &ite
       ast_.Var("std::vector<int64_t>", output_shape_var_name).Size()})));
   if (io_refresh_) {
     std::vector<Arg> args_vars;
-    args_vars.emplace_back(ast_.Var("auto", input_addr_node_.symbol_hint));
-    args_vars.emplace_back(ast_.Var("auto", output_addr_node_.symbol_hint));
+    (void)args_vars.emplace_back(ast_.Var("auto", input_addr_node_.symbol_hint));
+    (void)args_vars.emplace_back(ast_.Var("auto", output_addr_node_.symbol_hint));
     const std::string ioaddr_var_name = "op" + std::to_string(header_.op_index) + "_iow_addr" +
                                         std::to_string(internal_index_);
     auto ioaddr_var = ast_.Var("std::vector<uint64_t>", ioaddr_var_name);
-    items.emplace_back(ast_.VarDecl(ioaddr_var, FlattenHostArgs(args_vars)));
+    (void)items.emplace_back(ast_.VarDecl(ioaddr_var, FlattenHostArgs(args_vars)));
     items.push_back(ChkStatus(MemcpyS(
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_->table_index)).Arrow("host_addr"),
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_->table_index)).Arrow("size"),
-      ioaddr_var.Data(), ioaddr_var.Size() * ast_.Sizeof("uint64_t")))),
+      ioaddr_var.Data(), ioaddr_var.Size() * ast_.Sizeof("uint64_t"))));
     items.push_back(ChkStatus(ast_.Call("KernelMemcpyAsyncDistribute", {
       ast_.Str(header_.op_name),
       ast_.Call(
@@ -156,7 +156,7 @@ Status MemcpyAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &ite
       args_table_.Attr("GetArgsInfo")(static_cast<int64_t>(entry_->table_index)).Arrow("dev_addr"),
       ast_.UInt(count_),
       ast_.StaticCast("rtMemcpyKind_t", static_cast<int64_t>(kind_)),
-      stream_list_[static_cast<int>(header_.stream_id)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
       0})));
     return SUCCESS;
   }
@@ -167,7 +167,7 @@ Status MemcpyAsyncTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &ite
       ast_.Call("ValueToPtr", {ast_.Var("auto", input_addr_node_.symbol_hint).Attr("device_address")}),
       ast_.UInt(count_),
       ast_.StaticCast("rtMemcpyKind_t", static_cast<int64_t>(kind_)),
-      stream_list_[static_cast<int>(header_.stream_id)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
       0})));
   return SUCCESS;
 }

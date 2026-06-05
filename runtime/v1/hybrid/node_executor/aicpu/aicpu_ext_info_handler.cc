@@ -285,7 +285,7 @@ Status AicpuExtInfoHandler::ParseExtTopicType(AicpuExtInfo &aicpu_ext_info) {
   // xxxxxxxx xxxxxxxx xxxx1111 xxxxxxxx: qos on, level=7(max level)
   deploy_type_flag_ = TopicTypeToRtsFlag(type);
   if (deploy_type_flag_ == -1) {
-    REPORT_INNER_ERR_MSG("E19999", "Node[%s] parse ext topic type failed as need %d %d %d %d but %d.",
+    REPORT_INNER_ERR_MSG("E19999", "Node[%s] parse ext topic type failed because it requires %d %d %d %d but got %d.",
                        node_name_.c_str(),
                        aicpu::FWKAdapter::FWK_ADPT_TOPIC_DEVICE_ONLY,
                        aicpu::FWKAdapter::FWK_ADPT_TOPIC_DEVICE_FIRST,
@@ -439,9 +439,9 @@ Status AicpuExtInfoHandler::UpdateShapeAndType(const std::vector<int64_t> &dims,
   const auto dim_num = dims.size();
   if (dim_num > aicpu::FWKAdapter::kMaxShapeDims) {
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-           "[Check][DimNum]Node[%s] Update shape and type failed, as dim_num %zu is over max shape dims %u.",
+           "[Check][DimNum]Node[%s] Update shape and type failed because dim_num %zu exceeds the maximum shape dims %u.",
            node_name_.c_str(), dim_num, aicpu::FWKAdapter::kMaxShapeDims);
-    REPORT_INNER_ERR_MSG("E19999", "Node[%s] Update shape and type failed, as dim_num %zu is over max shape dims %u.",
+    REPORT_INNER_ERR_MSG("E19999", "Node[%s] Update shape and type failed because dim_num %zu exceeds the maximum shape dims %u.",
                        node_name_.c_str(), dim_num, aicpu::FWKAdapter::kMaxShapeDims);
     return ACL_ERROR_GE_PARAM_INVALID;
   }
@@ -477,9 +477,9 @@ Status AicpuExtInfoHandler::UpdateShapeAndType(const GeShape &shape, const DataT
   const auto dim_num = shape.GetDimNum();
   if (dim_num > aicpu::FWKAdapter::kMaxShapeDims) {
     GELOGE(ACL_ERROR_GE_PARAM_INVALID,
-           "[Check][DimNum]Update shape and type failed, as dim_num %zu is over max shape dims %u.",
+           "[Check][DimNum]Update shape and type failed because dim_num %zu exceeds the maximum shape dims %u.",
            dim_num, aicpu::FWKAdapter::kMaxShapeDims);
-    REPORT_INNER_ERR_MSG("E19999", "Update shape and type failed, as dim_num %zu is over max shape dims %u.",
+    REPORT_INNER_ERR_MSG("E19999", "Update shape and type failed because dim_num %zu exceeds the maximum shape dims %u.",
                        dim_num, aicpu::FWKAdapter::kMaxShapeDims);
     return ACL_ERROR_GE_PARAM_INVALID;
   }

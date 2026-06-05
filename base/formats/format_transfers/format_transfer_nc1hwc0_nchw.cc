@@ -61,7 +61,7 @@ Status CheckArgsForNc1hwc0ToNchw(const TransArgs &args) {
   if (c0 <= 0) {
     GELOGE(ACL_ERROR_GE_DATATYPE_INVALID, "[Get][Cube]Failed, the data type %s is invalid",
            TypeUtils::DataTypeToSerialString(args.src_data_type).c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to get cube size, the data tyep %s is invalid",
+    REPORT_INNER_ERR_MSG("E19999", "Failed to get cube size, the data type %s is invalid",
                       TypeUtils::DataTypeToSerialString(args.src_data_type).c_str());
     return ACL_ERROR_GE_DATATYPE_INVALID;
   }

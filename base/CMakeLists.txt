@@ -225,7 +225,7 @@ target_link_options(ge_common PRIVATE
 
 target_link_libraries(ge_common
     PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         runtime_headers
         $<$<TARGET_EXISTS:cce_headers>:cce_headers>
@@ -295,7 +295,7 @@ target_link_options(ge_common_base PRIVATE
 
 target_link_libraries(ge_common_base
     PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         adump_headers
         runtime_headers
@@ -369,7 +369,7 @@ target_include_directories(ge_common_static PRIVATE
 )
 
 target_link_libraries(ge_common_static PRIVATE
-    intf_pub
+    ge_intf_pub
     slog_headers
     msprof_headers
     adump_headers
@@ -377,6 +377,7 @@ target_link_libraries(ge_common_static PRIVATE
     mmpa_headers
     ge_metadef_headers
     datagw_headers
+    error_manager_headers
     ascend_protobuf_static
     json
     $<$<STREQUAL:${GE_DT},>:ascend_dump>$<$<BOOL:${GE_DT}>:profiler_stub>
@@ -424,7 +425,7 @@ target_link_options(ge_common PRIVATE
 
 target_link_libraries(ge_common
     PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         runtime_headers
         datagw_headers
@@ -491,7 +492,7 @@ target_link_options(ge_common_base PRIVATE
 
 target_link_libraries(ge_common_base
     PRIVATE
-        intf_pub
+        ge_intf_pub
         msprof_headers
         runtime_headers
         datagw_headers
@@ -616,7 +617,7 @@ target_link_options(ge_common_stub PRIVATE
 
 target_link_libraries(ge_common_stub
     PRIVATE
-        intf_pub
+        ge_intf_pub
         slog_headers
         ge_metadef_headers
         runtime_headers

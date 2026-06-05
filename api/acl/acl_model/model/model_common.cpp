@@ -278,9 +278,11 @@ ACL_FUNC_VISIBILITY bool TransConvertTensorNameToLegal(const aclmdlDesc *const m
             return false;
         }
         const size_t len = q.size();
-        for (size_t idx = 0U; idx < len; ++idx) {
+        size_t idx = 0U;
+        while (idx < len) {
             std::string curTensorName = q.front();
             q.pop();
+            ++idx;
             for (char_t c = 'a'; c <= 'z'; ++c) {
                 curTensorName += c;
                 if (IsConvertTensorNameLegal(modelDesc, curTensorName)) {

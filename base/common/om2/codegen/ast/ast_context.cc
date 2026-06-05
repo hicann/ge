@@ -11,6 +11,7 @@
 #include "ast_context.h"
 #include "framework/common/debug/log.h"
 
+#include <limits>
 #include <checker.h>
 
 namespace {
@@ -53,7 +54,9 @@ size_t AstNodePool::CreateNewBlock(const size_t min_size) {
     return 0;
   }
   blocks_.push_back({new_block_data, block_size, 0});
-  total_mem_usage_ += block_size;
+  if (total_mem_usage_ <= std::numeric_limits<size_t>::max() - block_size) {
+    total_mem_usage_ += block_size;
+  }
   return block_size;
 }
 }  // namespace ge

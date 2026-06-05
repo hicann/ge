@@ -59,6 +59,7 @@ graphengine:
       - parser/parser/
     unrelease:
       - dflow/llm_datadist/v1/llm_error_codes.cc
+      - dflow/udf/toolchain/dump
       - python/llm_wrapper/CMakeLists.txt
       - python/llm_wrapper/llm_wrapper.cc
       - python/ge/ge_api_c_wrapper
@@ -121,6 +122,7 @@ graphengine:
       - runtime/v2/engine/aicpu
       - base/common/atrace
       - graph_metadef/graph/stub/stub_operator_factory_impl.cc
+      - graph_metadef/graph/normal_graph/ge_tensor.cc
   llt:
     ut_check:true
     st_check:true

@@ -8,8 +8,8 @@
  * See LICENSE in the root of the software repository for the full text of the License.
  */
 
-#ifndef BASE_COMMON_HELPER_OM2_CONTANTS_H
-#define BASE_COMMON_HELPER_OM2_CONTANTS_H
+#ifndef BASE_COMMON_HELPER_OM2_OM2_PACKAGE_CONSTANTS_H_
+#define BASE_COMMON_HELPER_OM2_OM2_PACKAGE_CONSTANTS_H_
 
 #include <string>
 #include <vector>
@@ -45,7 +45,7 @@ std::string FormatOm2Path(const char *fmt, Args... args) {
     return "";
   }
 
-  std::vector<char> buf(len + 1, '\0');
+  std::vector<char> buf(static_cast<size_t>(len + 1), '\0');
   if (snprintf_s(buf.data(), buf.size(), buf.size() - 1, fmt, args...) < 0) {
     return "";
   }
@@ -53,4 +53,4 @@ std::string FormatOm2Path(const char *fmt, Args... args) {
   return {buf.data()};
 }
 }  // namespace ge
-#endif  // BASE_COMMON_HELPER_OM2_CONTANTS_H
+#endif  // BASE_COMMON_HELPER_OM2_OM2_PACKAGE_CONSTANTS_H_

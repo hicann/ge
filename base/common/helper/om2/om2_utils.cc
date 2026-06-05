@@ -49,8 +49,8 @@ Status CreateMemFdFile(const std::string &name, const std::string &data, MemFdFi
   if (!data.empty()) {
     const auto write_count = mmWrite(file.fd, const_cast<char_t *>(data.data()), data.size());
     GE_ASSERT_TRUE(write_count == static_cast<int64_t>(data.size()),
-                   "[OM2] Failed to write memfd %s, expected=%zu, actual=%lld", name.c_str(), data.size(),
-                   static_cast<long long>(write_count));
+                   "[OM2] Failed to write memfd %s, expected=%zu, actual=%" PRId64, name.c_str(),
+                   static_cast<int64_t>(data.size()), static_cast<int64_t>(write_count));
   }
   (void)lseek(file.fd, 0, SEEK_SET);
   file.file_name = name;
@@ -116,7 +116,7 @@ std::string JoinFdPaths(const std::vector<MemFdFile> &files) {
 
 bool IsMakefileLineContinued(const std::string &data, const size_t line_begin, const size_t line_end) {
   size_t pos = line_end;
-  while ((pos > line_begin) && std::isspace(static_cast<unsigned char>(data[pos - 1U]))) {
+  while ((pos > line_begin) && std::isspace(static_cast<uint8_t>(data[pos - 1U]))) {
     --pos;
   }
   return (pos > line_begin) && (data[pos - 1U] == '\\');
@@ -142,7 +142,7 @@ Status ReplaceMakefileVariable(std::string &makefile_data, const std::string &va
       const size_t value_begin = line_begin + variable_prefix.size();
       const size_t replace_end = FindMakefileVariableReplaceEnd(makefile_data, line_begin);
       const size_t value_size = (replace_end == std::string::npos) ? std::string::npos : (replace_end - value_begin);
-      makefile_data.replace(value_begin, value_size, " " + value);
+      (void)makefile_data.replace(value_begin, value_size, " " + value);
       return SUCCESS;
     }
     if (line_end == std::string::npos) {
@@ -183,10 +183,12 @@ Status CreateCompileCppFiles(const Om2CodegenArtifacts &artifacts, const std::st
     std::string compile_data = artifact.data;
     size_t pos = 0U;
     bool replaced = false;
-    while ((pos = compile_data.find(old_include, pos)) != std::string::npos) {
+    pos = compile_data.find(old_include, pos);
+    while (pos != std::string::npos) {
       compile_data.replace(pos, old_include.size(), new_include);
       pos += new_include.size();
       replaced = true;
+      pos = compile_data.find(old_include, pos);
     }
     GE_ASSERT_TRUE(replaced, "[OM2] Interface include %s not found in %s", interface_name.c_str(),
                    artifact.file_name.c_str());
@@ -233,12 +235,13 @@ Status Om2Utils::CompileGeneratedCppToSo(const Om2CodegenArtifacts &artifacts, c
   std::vector<MemFdFile> cpp_files;
   MemFdFile so_file;
   MemFdFile makefile_file;
-  GE_MAKE_GUARD(memfd_cleanup, [&]() {
+  auto memfd_cleanup_callback = [&header_file, &cpp_files, &so_file, &makefile_file]() {
     CloseMemFdFile(header_file);
     CloseMemFdFiles(cpp_files);
     CloseMemFdFile(so_file);
     CloseMemFdFile(makefile_file);
-  });
+  };
+  GE_MAKE_GUARD(memfd_cleanup, memfd_cleanup_callback);
   GE_ASSERT_SUCCESS(CreateMemFdFile(interface_name, interface_artifact->data, header_file));
   GE_ASSERT_SUCCESS(CreateCompileCppFiles(artifacts, interface_name, header_file.fd_path, cpp_files));
   GE_CHK_BOOL_RET_STATUS(!cpp_files.empty(), FAILED, "[OM2] No generated cpp artifacts found for model %s",

@@ -28,17 +28,17 @@ Status NetworkManager::BindMainPort() {
   std::string ports_range = host_information.host_info.data_panel.available_ports;
   auto ports = ge::StringUtils::Split(ports_range, '~');
   if (ports.size() != 2UL) { // available ports string has 2 numbers, which represent start and end port
-    REPORT_INNER_ERR_MSG("E19999", "[Invaild][Port] ports_range[%s] is illegal.", ports_range.c_str());
-    GELOGE(FAILED, "[Invaild][Port] ports_range[%s] is illegal.", ports_range.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "[Invalid][Port] ports_range[%s] is illegal.", ports_range.c_str());
+    GELOGE(FAILED, "[Invalid][Port] ports_range[%s] is illegal.", ports_range.c_str());
     return FAILED;
   }
   std::regex port_reg("[1-9]\\d*|0");
   bool start_reg = std::regex_match(ports[0], port_reg);
   bool end_reg = std::regex_match(ports[1], port_reg);
   if (!(start_reg && end_reg)) {
-    REPORT_INNER_ERR_MSG("E19999", "[Invaild][Port] start_port[%s] or end_port[%s] is illegal.",
+    REPORT_INNER_ERR_MSG("E19999", "[Invalid][Port] start_port[%s] or end_port[%s] is illegal.",
                        ports[0].c_str(), ports[1].c_str());
-    GELOGE(FAILED, "[Invaild][Port] start_port[%s] or end_port[%s] is illegal.", ports[0].c_str(), ports[1].c_str());
+    GELOGE(FAILED, "[Invalid][Port] start_port[%s] or end_port[%s] is illegal.", ports[0].c_str(), ports[1].c_str());
     return FAILED;
   }
 
@@ -48,14 +48,14 @@ Status NetworkManager::BindMainPort() {
     start_port = std::stoi(ports[0]);
     end_port = std::stoi(ports[1]);
   } catch (...) {
-    REPORT_INNER_ERR_MSG("E19999", "[Invaild][Port] start_port[%s] or end_port[%s] is illegal.",
+    REPORT_INNER_ERR_MSG("E19999", "[Invalid][Port] start_port[%s] or end_port[%s] is illegal.",
                        ports[0].c_str(), ports[1].c_str());
-    GELOGE(FAILED, "[Invaild][Port] start_port[%s] or end_port[%s] is illegal.", ports[0].c_str(), ports[1].c_str());
+    GELOGE(FAILED, "[Invalid][Port] start_port[%s] or end_port[%s] is illegal.", ports[0].c_str(), ports[1].c_str());
     return FAILED;
   }
   if ((end_port <= start_port) || (start_port > kMaxPort) || (end_port > kMaxPort)) {
-    REPORT_INNER_ERR_MSG("E19999", "[Invaild][Port] start_port[%u] is larger than end_port[%u].", start_port, end_port);
-    GELOGE(FAILED, "[Invaild][Port] start_port[%u] is larger than end_port[%u].", start_port, end_port);
+    REPORT_INNER_ERR_MSG("E19999", "[Invalid][Port] start_port[%u] is larger than end_port[%u].", start_port, end_port);
+    GELOGE(FAILED, "[Invalid][Port] start_port[%u] is larger than end_port[%u].", start_port, end_port);
     return FAILED;
   }
 
@@ -78,8 +78,8 @@ Status NetworkManager::BindMainPort() {
     }
   }
 
-  REPORT_INNER_ERR_MSG("E19999", "[Bind][Port]All main port cannot be bind, all prots in data panel cannot be used.");
-  GELOGE(FAILED, "[Bind][Port]All main port cannot be bind, all prots in data panel cannot be used.");
+  REPORT_INNER_ERR_MSG("E19999", "[Bind][Port]All main ports cannot be bound, all ports in data panel cannot be used.");
+  GELOGE(FAILED, "[Bind][Port]All main ports cannot be bound, all ports in data panel cannot be used.");
   return FAILED;
 }
 

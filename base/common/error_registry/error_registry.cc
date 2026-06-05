@@ -611,6 +611,28 @@ const std::string ge_error_code = R"(
     },
     {
       "errClass": "GE Errors",
+      "errTitle": "Invalid_Argument_API_Call_Sequence",
+      "ErrCode": "E10062",
+      "ErrMessage": "Failed to %s. Reason: %s.",
+      "Arglist": "interface, reason",
+      "suggestion": {
+        "Possible Cause": "N/A",
+        "Solution": "N/A"
+      }
+    },
+    {
+      "errClass": "GE Errors",
+      "errTitle": "Environment_Error",
+      "ErrCode": "E10063",
+      "ErrMessage": "Failed to call the %s API of the system or third-party software. Reason: %s.",
+      "Arglist": "interface, reason",
+      "suggestion": {
+        "Possible Cause": "N/A",
+        "Solution": "N/A"
+      }
+    },
+    {
+      "errClass": "GE Errors",
       "errTitle": "Invalid_Argument_Operator_Input_Count",
       "ErrCode": "E10401",
       "ErrMessage": "The number of operator inputs %s exceeds the allowed maximum %s.",

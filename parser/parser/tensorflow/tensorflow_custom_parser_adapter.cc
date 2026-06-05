@@ -30,7 +30,8 @@ Status TensorFlowCustomParserAdapter::ParseParams(const Message *op_src, ge::OpD
   ParseParamFunc custom_op_parser = domi::OpRegistry::Instance()->GetParseParamFunc(
       op_dest->GetType(), node_src->op());
   if (custom_op_parser == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "No ParseParamFunc of node:%s exist in OpRegistry", node_src->name().c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13010", std::vector<const char *>({"opname", "optype"}),
+                              std::vector<const char *>({node_src->name().c_str(), node_src->op().c_str()}));
     GELOGE(FAILED, "No ParseParamFunc of node:%s exist in OpRegistry", node_src->name().c_str());
     return FAILED;
   }
@@ -50,8 +51,10 @@ Status TensorFlowCustomParserAdapter::ParseParams(const Operator &op_src, ge::Op
   ParseParamByOpFunc custom_op_parser = domi::OpRegistry::Instance()->GetParseParamByOperatorFunc(
       ParserUtils::GetOperatorType(op_src));
   if (custom_op_parser == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "No ParseParamByOperatorFunc of node:%s exist in OpRegistry",
-                      ParserUtils::GetOperatorName(op_src).c_str());
+    const std::string op_name = ParserUtils::GetOperatorName(op_src);
+    const std::string op_type = ParserUtils::GetOperatorType(op_src);
+    REPORT_PREDEFINED_ERR_MSG("E13010", std::vector<const char *>({"opname", "optype"}),
+                              std::vector<const char *>({op_name.c_str(), op_type.c_str()}));
     GELOGE(FAILED, "No ParseParamByOperatorFunc of node:%s exist in OpRegistry",
            ParserUtils::GetOperatorName(op_src).c_str());
     return FAILED;

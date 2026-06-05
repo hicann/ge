@@ -17,7 +17,7 @@
 namespace ge {
 class ResourcesFileCodeGenerator : public Om2ModelClassGeneratorBase {
  public:
-  explicit ResourcesFileCodeGenerator(AstBuildContext &ast);
+  using Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase;
   ~ResourcesFileCodeGenerator() override = default;
 
   MethodDef *BuildOm2ModelConstructor(const Om2CodegenModel &codegen_model);

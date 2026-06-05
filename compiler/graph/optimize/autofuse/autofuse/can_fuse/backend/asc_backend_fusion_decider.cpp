@@ -355,6 +355,18 @@ ComputeGraphPtr AscBackendFusionDecider::MergeAscGraphByLoop(const ComputeGraphP
   return subgraph1;
 }
 
+int32_t AscBackendFusionDecider::MergeReduceAllLoadState(int32_t state1, int32_t state2) {
+  GELOGD("Merged reduce_all_load state in (node1=%d, node2=%d)", state1, state2);
+  if (state1 == REDUCE_ALL_LOAD_NOT_ALL || state2 == REDUCE_ALL_LOAD_NOT_ALL) {
+    return REDUCE_ALL_LOAD_NOT_ALL;
+  }
+  if (state1 == REDUCE_ALL_LOAD_ALL || state2 == REDUCE_ALL_LOAD_ALL) {
+    return REDUCE_ALL_LOAD_ALL;
+  }
+  GELOGD("Merged reduce_all_load state to REDUCE_ALL_LOAD_INIT (node1=%d, node2=%d)", state1, state2);
+  return REDUCE_ALL_LOAD_INIT;
+}
+
 Status AscBackendFusionDecider::UpdateNewNodeAttr(const OpDescPtr op, const NodePtr &node1, const NodePtr &node2,
                                                   const NodeFuseInfo &node_fuse_info) const {
   auto attr = GetOrCreateAutoFuseAttrs(op);
@@ -400,6 +412,16 @@ Status AscBackendFusionDecider::UpdateNewNodeAttr(const OpDescPtr op, const Node
   GetInterAttrs(attr).fuse_type = fuse_type;
   BackendUtils::SetReduceOriginalAxisInfo(GetInterAttrs(attr), GetInterAttrs(autofuse_attr1),
                                           GetInterAttrs(autofuse_attr2));
+
+  // 处理is_reduce_all_load属性：按照优先级设置融合后的值
+  // 优先级1：存在REDUCE_ALL_LOAD_NOT_ALL，则设置为REDUCE_ALL_LOAD_NOT_ALL
+  // 优先级2：存在REDUCE_ALL_LOAD_ALL，则设置为REDUCE_ALL_LOAD_ALL
+  // 优先级3：都没有，则设置为REDUCE_ALL_LOAD_INIT
+  auto state1 = autofuse_attr1->GetReduceAllLoadState();
+  auto state2 = autofuse_attr2->GetReduceAllLoadState();
+  int32_t merged_state = MergeReduceAllLoadState(state1, state2);
+  attr->SetReduceAllLoadState(merged_state);
+
   return SUCCESS;
 }
 

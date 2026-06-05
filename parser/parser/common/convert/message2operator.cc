@@ -141,11 +141,15 @@ Status Message2Operator::ParseRepeatedField(const google::protobuf::Reflection *
       try {
         repeated_message_str = message_json.dump(kInteval, ' ', false, Json::error_handler_t::ignore);
       } catch (std::exception &e) {
-        REPORT_INNER_ERR_MSG("E19999", "Failed to convert JSON to string, reason: %s.", e.what());
+        const std::string reason = "field " + field->name() + ": " + e.what();
+        REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                                  std::vector<const char *>({"Convert protobuf field to JSON string", reason.c_str()}));
         GELOGE(FAILED, "[Parse][JSON]Failed to convert JSON to string, reason: %s.", e.what());
         return FAILED;
       } catch (...) {
-        REPORT_INNER_ERR_MSG("E19999", "Failed to convert JSON to string.");
+        const std::string reason = "field " + field->name() + ": failed to convert JSON to string";
+        REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                                  std::vector<const char *>({"Convert protobuf field to JSON string", reason.c_str()}));
         GELOGE(FAILED, "[Parse][JSON]Failed to convert JSON to string.");
         return FAILED;
       }

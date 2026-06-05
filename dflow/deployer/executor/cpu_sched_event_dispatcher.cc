@@ -12,7 +12,7 @@
 #include "mmpa/mmpa_api.h"
 #include "common/utils/rts_api_utils.h"
 #include "executor/dynamic_model_executor.h"
-#include "aicpu/aicpu_schedule/aicpusd_interface.h"
+#include "aicpu_schedule/aicpusd_interface.h"
 #include "graph/ge_context.h"
 #include "common/compile_profiling/ge_call_wrapper.h"
 

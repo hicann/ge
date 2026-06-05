@@ -44,7 +44,8 @@ Status MemoryDumper::DumpToFile(const char_t *const filename, const void *const 
   const int32_t fd = OpenFile(filename);
   if (fd == kInvalidFd) {
     GELOGE(FAILED, "[Open][File]Failed, filename:%s.", filename);
-    REPORT_INNER_ERR_MSG("E19999", "Opne file failed, filename:%s.", filename);
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({filename, "check the file path and permissions"}));
     return FAILED;
   }
 

@@ -119,7 +119,7 @@ Status Om2AicpuExtInfoHandler::ParseExtWorkSpaceInfo(AicpuExtInfo &aicpu_ext_inf
   }
 
   workspace_info_ = PtrToPtr<char, WorkSpaceInfo>(aicpu_ext_info.infoMsg);
-  UpdateWorkSpaceInfo(0U, 0U);
+  (void)UpdateWorkSpaceInfo(0U, 0U);
   GELOGI("[OM2] Node[%s] parse work space info success infoLen=%u.", node_name_.c_str(), aicpu_ext_info.infoLen);
   return SUCCESS;
 }
@@ -189,7 +189,7 @@ Status Om2AicpuExtInfoHandler::ParseExtInputShape(AicpuExtInfo &aicpu_ext_info) 
   const auto input = PtrToPtr<char, AicpuShapeAndType>(aicpu_ext_info.infoMsg);
 
   for (uint32_t index = 0U; index < input_num_; ++index) {
-    input_shape_and_type_.emplace_back(PtrAdd<AicpuShapeAndType>(input, static_cast<size_t>(input_num_),
+    (void)input_shape_and_type_.emplace_back(PtrAdd<AicpuShapeAndType>(input, static_cast<size_t>(input_num_),
                                                                  static_cast<size_t>(index)));
   }
   GELOGI("[OM2] Node[%s] parse ext input shape success infoLen=%u.", node_name_.c_str(), aicpu_ext_info.infoLen);
@@ -210,7 +210,7 @@ Status Om2AicpuExtInfoHandler::ParseExtOutputShape(AicpuExtInfo &aicpu_ext_info)
 
   const auto output = PtrToPtr<char, AicpuShapeAndType>(aicpu_ext_info.infoMsg);
   for (uint32_t index = 0U; index < output_num_; ++index) {
-    output_shape_and_type_.emplace_back(PtrAdd<AicpuShapeAndType>(output, static_cast<size_t>(output_num_),
+    (void)output_shape_and_type_.emplace_back(PtrAdd<AicpuShapeAndType>(output, static_cast<size_t>(output_num_),
                                                                   static_cast<size_t>(index)));
   }
   GELOGI("[OM2] Node[%s] parse ext output shape success infoLen=%u.", node_name_.c_str(), aicpu_ext_info.infoLen);
@@ -302,7 +302,7 @@ Status Om2AicpuExtInfoHandler::ParseExtTopicType(AicpuExtInfo &aicpu_ext_info) {
            type);
     return ACL_ERROR_GE_PARAM_INVALID;
   }
-  qos_level_flag_ = (static_cast<uint32_t>(type) & 0xf00U);
+  qos_level_flag_ = (static_cast<uint32_t>(type) & 0xF00U);
   GELOGI("[OM2] Node[%s] parse ext topic type info success infoLen=%u, topic_type=%d, rts_flag=%d, qos_flag=%u.",
          node_name_.c_str(), aicpu_ext_info.infoLen, type, deploy_type_flag_, qos_level_flag_);
   return SUCCESS;
@@ -502,14 +502,15 @@ void Om2AicpuExtInfoHandler::GetShapeAndType(const AicpuShapeAndType *const shap
     if (shape_and_type->dims[i] == kDimEndFlag) {
       break;
     }
-    dims.emplace_back(shape_and_type->dims[i]);
+    (void)dims.emplace_back(shape_and_type->dims[i]);
   }
   data_type = static_cast<DataType>(shape_and_type->type);
   shape = GeShape(dims);
 }
 
 int32_t Om2AicpuExtInfoHandler::TopicTypeToRtsFlag(const int32_t topic_type) {
-  const auto it = kTopicTypeToRtsFlagMap.find(static_cast<int32_t>(((static_cast<uint32_t>(topic_type)) & 0x30U) >> 4));
+  const uint32_t topic_bits = static_cast<uint32_t>(topic_type);
+  const auto it = kTopicTypeToRtsFlagMap.find(static_cast<int32_t>((topic_bits & 0x30U) >> 4));
   if (it != kTopicTypeToRtsFlagMap.end()) {
     return it->second;
   }

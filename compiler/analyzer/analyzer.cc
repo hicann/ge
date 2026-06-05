@@ -197,7 +197,7 @@ ge::Status Analyzer::CreateAnalyzerFile() {
   if (close(fd) != 0) {
     GELOGE(INTERNAL_ERROR, "[FileClose][AnalyzeFile]Fail to close the analyze file: %s.",
            json_file_name_.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Failed to clsoe analyze file %s", json_file_name_.c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Failed to close analyze file %s", json_file_name_.c_str());
     return INTERNAL_ERROR;
   }
   is_json_file_create_ = true;

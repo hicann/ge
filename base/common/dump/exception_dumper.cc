@@ -667,7 +667,7 @@ Status ExceptionDumper::DumpNodeInfo(const OpDescInfo &op_desc_info, const std::
   GE_CHECK_LE(proto_size, static_cast<uint64_t>(std::numeric_limits<int32_t>::max()));
   const bool ret = dump_data.SerializeToArray(proto_msg.get(), static_cast<int32_t>(proto_size));
   if ((!ret) || (proto_size == 0U)) {
-    REPORT_INNER_ERR_MSG("E19999", "Serialize proto to std::string fail");
+    REPORT_INNER_ERR_MSG("E19999", "Serialize proto to std::string fail.");
     GELOGE(PARAM_INVALID, "[Dump][Exception] Dump data proto serialize failed");
     return PARAM_INVALID;
   }

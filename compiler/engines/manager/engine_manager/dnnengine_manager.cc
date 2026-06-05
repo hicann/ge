@@ -142,8 +142,8 @@ Status DNNEngineManager::Initialize(const std::map<std::string, std::string> &op
       if ((attrs.mem_type.size()) != 1 ||
           ((attrs.mem_type.size() > 1) && (attrs.mem_type[0] != GE_ENGINE_ATTR_MEM_TYPE_HBM))) {
         GELOGE(GE_ENG_MEMTYPE_ERROR, "[Check][Param]Engine %s in aicore, but the memory type is "
-               "not HBM, mem_type_size %lu", (iter->first).c_str(), attrs.mem_type.size());
-        REPORT_INNER_ERR_MSG("E19999", "Engine %s in aicore, but the memory type is not HBM, mem_type_size %lu",
+               "not HBM, mem_type_size %zu", (iter->first).c_str(), attrs.mem_type.size());
+        REPORT_INNER_ERR_MSG("E19999", "Engine %s in aicore, but the memory type is not HBM, mem_type_size %zu",
                            (iter->first).c_str(), attrs.mem_type.size());
         return GE_ENG_MEMTYPE_ERROR;
       }
@@ -697,7 +697,8 @@ Status DNNEngineManager::ParserJsonFile() {
     }
   } catch (const nlohmann::detail::type_error &e) {
     GELOGE(FAILED, "[Parse][JsonFile]Failed, file %s, reason %s", path.c_str(), e.what());
-    REPORT_INNER_ERR_MSG("E19999", "Parse json file %s failed, reason %s", path.c_str(), e.what());
+    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                              std::vector<const char *>({path.c_str(), e.what()}));
     return FAILED;
   }
 
@@ -763,7 +764,8 @@ Status DNNEngineManager::ParserEngineMessage(const json engines_json, const std:
     }
   } catch (const json::exception &e) {
     GELOGE(FAILED, "[Construct][JsonContent]Failed, reason %s", e.what());
-    REPORT_INNER_ERR_MSG("E19999", "Construct json content failed, reason %s", e.what());
+    REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                              std::vector<const char *>({"Parse engine config JSON", e.what()}));
     return FAILED;
   }
   GELOGI("Parser engine massage success");
@@ -774,7 +776,8 @@ Status DNNEngineManager::ReadJsonFile(const std::string &file_path, JsonHandle h
   GELOGD("Begin to read json file");
   if (file_path.empty()) {
     GELOGE(FAILED, "[Check][Param]Json path is empty");
-    REPORT_INNER_ERR_MSG("E19999", "Json path is empty");
+    REPORT_PREDEFINED_ERR_MSG("E13000", std::vector<const char *>({"path", "errmsg"}),
+                              std::vector<const char *>({file_path.c_str(), "the json file path is not configured"}));
     return FAILED;
   }
   nlohmann::json *json_file = reinterpret_cast<nlohmann::json *>(handle);
@@ -788,8 +791,8 @@ Status DNNEngineManager::ReadJsonFile(const std::string &file_path, JsonHandle h
     if (engines_map_.size() != 0) {
       GELOGE(FAILED, "[Check][Param]The json file %s does not exist, err %s",
              file_path.c_str(), strerror(errno));
-      REPORT_INNER_ERR_MSG("E19999", "Json file %s does not exist, err %s",
-                        file_path.c_str(), strerror(errno));
+      REPORT_PREDEFINED_ERR_MSG("E10410", std::vector<const char *>({"cfgpath"}),
+                                std::vector<const char *>({file_path.c_str()}));
       return FAILED;
     } else {
       GELOGW("The json file %s is not needed.", file_path.c_str());
@@ -800,7 +803,8 @@ Status DNNEngineManager::ReadJsonFile(const std::string &file_path, JsonHandle h
   std::ifstream ifs(file_path);
   if (!ifs.is_open()) {
     GELOGE(FAILED, "[Open][JsonFile]Failed, file %s", file_path.c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Open json file %s failed", file_path.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13001", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({file_path.c_str(), "failed to open the file"}));
     return FAILED;
   }
 
@@ -808,7 +812,8 @@ Status DNNEngineManager::ReadJsonFile(const std::string &file_path, JsonHandle h
     ifs >> *json_file;
   } catch (const json::exception &e) {
     GELOGE(FAILED, "[Read][JsonFile]Failed, reason %s", e.what());
-    REPORT_INNER_ERR_MSG("E19999", "Read json file failed, reason %s", e.what());
+    REPORT_PREDEFINED_ERR_MSG("E10032", std::vector<const char *>({"file_name", "reason"}),
+                              std::vector<const char *>({file_path.c_str(), e.what()}));
     ifs.close();
     return FAILED;
   }

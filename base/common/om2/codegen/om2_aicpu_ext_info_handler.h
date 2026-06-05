@@ -74,7 +74,7 @@ class Om2AicpuExtInfoHandler {
     return qos_level_flag_;
   };
   rtMemType_t GetMemType() const {
-    return (deploy_type_flag_ == RT_KERNEL_HOST_ONLY) ? RT_MEMORY_HOST_SVM : RT_MEMORY_HBM;
+    return static_cast<rtMemType_t>((deploy_type_flag_ == RT_KERNEL_HOST_ONLY) ? RT_MEMORY_HOST_SVM : RT_MEMORY_HBM);
   };
   aclrtMemcpyKind GetMemcpyKind() const {
     return (deploy_type_flag_ == RT_KERNEL_HOST_ONLY) ? ACL_MEMCPY_HOST_TO_HOST : ACL_MEMCPY_HOST_TO_DEVICE;

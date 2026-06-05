@@ -147,12 +147,12 @@ Status ModelHelper::SaveModelPartition(std::shared_ptr<OmFileSaveHelper> &om_fil
           std::vector<const char *>({std::to_string(size).c_str(), item.c_str(), std::to_string(UINT32_MAX).c_str()}));
     }
     REPORT_INNER_ERR_MSG("E19999", "Add model partition failed, partition size %zu "
-                       "invalid", size);
+                       "invalid.", size);
     return PARAM_INVALID;
   }
   if (data == nullptr) {
     GELOGE(PARAM_INVALID, "[Add][ModelPartition]Failed, data is null");
-    REPORT_INNER_ERR_MSG("E19999", "Add model partition failed, data is null");
+    REPORT_INNER_ERR_MSG("E19999", "Add model partition failed, data is null.");
     return PARAM_INVALID;
   }
   ModelPartition partition_model;
@@ -237,7 +237,7 @@ Status ModelHelper::SaveModelDef(std::shared_ptr<OmFileSaveHelper> &om_file_save
   const ModelPtr model_tmp = ge::MakeShared<ge::Model>(ge_model->GetName(), ge_model->GetPlatformVersion());
   if (model_tmp == nullptr) {
     GELOGE(FAILED, "[Creat][Model]Failed, Model %s Ptr", ge_model->GetName().c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Create Model %s Ptr failed", ge_model->GetName().c_str());
+    REPORT_INNER_ERR_MSG("E19999", "Create Model %s Ptr failed.", ge_model->GetName().c_str());
     return FAILED;
   }
   model_tmp->SetGraph(ge_model->GetGraph());
@@ -259,7 +259,7 @@ Status ModelHelper::SaveModelDef(std::shared_ptr<OmFileSaveHelper> &om_file_save
                            model_buffer.GetSize(), model_index) != SUCCESS) {
       GELOGE(PARAM_INVALID, "[Add][ModelPartition]Failed, model %s, model_def size %zu, model_index %zu",
              ge_model->GetName().c_str(), model_buffer.GetSize(), model_index);
-      REPORT_INNER_ERR_MSG("E19999", "Add model graph partititon failed, model %s, model_def %zu, "
+      REPORT_INNER_ERR_MSG("E19999", "Add model graph partition failed, model %s, model_def %zu, "
                         "model_index %zu", ge_model->GetName().c_str(), model_buffer.GetSize(), model_index);
       return PARAM_INVALID;
     }
@@ -339,7 +339,7 @@ Status ModelHelper::SaveModelTaskDef(std::shared_ptr<OmFileSaveHelper> &om_file_
   if (model_task_def == nullptr) {
     GELOGE(ACL_ERROR_GE_MEMORY_ALLOCATION, "[Creat][ModelTaskDef]Failed, it is nullptr, "
            "model %s", ge_model->GetName().c_str());
-    REPORT_INNER_ERR_MSG("E19999", "Creat model task def failed, it is nullptr, model %s",
+    REPORT_INNER_ERR_MSG("E19999", "Create model task def failed, it is nullptr, model %s",
                       ge_model->GetName().c_str());
     return ACL_ERROR_GE_MEMORY_ALLOCATION;
   }
@@ -716,8 +716,8 @@ Status ModelHelper::SaveToOmModel(const GeModelPtr &ge_model, const std::string 
   if (output_file.empty()) {
     GELOGE(FAILED, "[Save][Model]GraphBuilder SaveModel received invalid file name prefix, "
            "model %s", ge_model->GetName().c_str());
-    REPORT_INNER_ERR_MSG("E19999", "GraphBuilder SaveModel received invalid file name prefix, "
-                      "model %s", ge_model->GetName().c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+        std::vector<const char *>({output_file.c_str(), "output_file", "the file name prefix is empty"}));
     return FAILED;
   }
 
@@ -922,7 +922,7 @@ Status ModelHelper::SaveOriginalGraphToOmModel(const ge::Graph &graph, const std
   const auto compute_graph = ge::GraphUtilsEx::GetComputeGraph(graph);
   if (compute_graph == nullptr) {
     GELOGE(FAILED, "[Save][Model]Failed for compute_graph null");
-    REPORT_INNER_ERR_MSG("E19999", "Save model failed for compute_graph null");
+    REPORT_INNER_ERR_MSG("E19999", "Save model failed for compute_graph null.");
     return FAILED;
   }
   GE_DUMP(compute_graph, "OriginalGraph");
@@ -1044,8 +1044,8 @@ Status ModelHelper::LoadModel(const ge::ModelData &model_data) {
   if ((model_data.model_data == nullptr) || (model_data.model_len == 0U)) {
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID,
            "[Load][Model]Model_data is nullptr or model_data_size is 0");
-    REPORT_INNER_ERR_MSG("E19999", "Load model failed, "
-                       "Model_data is nullptr or model_data_size is 0");
+    REPORT_PREDEFINED_ERR_MSG("E10058", std::vector<const char *>({"parameter"}),
+                              std::vector<const char *>({"model_data"}));
     return ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID;
   }
 
@@ -1093,7 +1093,8 @@ Status ModelHelper::LoadPartInfoFromModel(const ge::ModelData &model_data, Model
   if ((model_data.model_data == nullptr) || (model_data.model_len == 0U)) {
     GELOGE(ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID, "[Load][RootModel] "
            "Model_data is nullptr or model data is empty.");
-    REPORT_INNER_ERR_MSG("E19999", "Load root model failed, model_data is nullptr or its size is 0");
+    REPORT_PREDEFINED_ERR_MSG("E10058", std::vector<const char *>({"parameter"}),
+                              std::vector<const char *>({"model_data"}));
     return ACL_ERROR_GE_EXEC_MODEL_DATA_SIZE_INVALID;
   }
 

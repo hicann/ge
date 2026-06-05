@@ -424,8 +424,9 @@ Status DumpManager::SetDumpConf(const DumpConfig &dump_config) {
     GE_CHK_STATUS_RET(SetDumpPath(dump_config, dump_properties), "[Init][DumpPath] failed.");
     infer_dump_properties_map_[kInferSessionId] = dump_properties;
   } else if (CheckHasNpuCollectPath() && (!IsExceptionDumpOpen(dump_config))) {
-    GELOGE(PARAM_INVALID, "It's not support to open Data dump and open L1 exception dump by env at once.");
-    REPORT_INNER_ERR_MSG("E19999", "It's not support to open Data dump and open L1 exception dump by env at once.");
+    GELOGE(PARAM_INVALID, "Data dump and L1 exception dump cannot both be enabled by env at once.");
+    REPORT_PREDEFINED_ERR_MSG("E10056", std::vector<const char *>({"parameter1", "parameter2"}),
+                              std::vector<const char *>({"data dump", "L1 exception dump"}));
     return PARAM_INVALID;
   }
   if ((is_acl_open_before) && (dump_properties.IsDumpOpen() || dump_properties.IsOpDebugOpen())) {

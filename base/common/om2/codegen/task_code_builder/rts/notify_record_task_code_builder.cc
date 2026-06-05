@@ -26,8 +26,8 @@ Status NotifyRecordTaskCodeBuilder::RenderDistribution(std::vector<BodyItem> &it
   items.push_back(ast_.Comment("============================= " + header_.op_name + " ==============================="));
   items.push_back(ChkStatus(ast_.Call("KernelNotifyRecordDistribute", {
       ast_.Str(header_.op_name),
-      notify_list_[static_cast<int>(notify_id_)],
-      stream_list_[static_cast<int>(header_.stream_id)],
+      notify_list_[static_cast<int32_t>(notify_id_)],
+      stream_list_[static_cast<int32_t>(header_.stream_id)],
   })));
   return SUCCESS;
 }

@@ -16,7 +16,7 @@
 #include "flow_func/flow_func_config_manager.h"
 #include "udf_dump_common_utils.h"
 #include "ascend_hal.h"
-#include "aicpu/aicpu_schedule/aicpusd_info.h"
+#include "aicpu_schedule/aicpusd_info.h"
 
 namespace FlowFunc {
 namespace {

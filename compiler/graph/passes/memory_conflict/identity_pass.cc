@@ -141,10 +141,10 @@ Status IdentityPass::Run(NodePtr &node) {
   }
   size_t n = node->GetOpDesc()->GetOutputsSize();
   if (node->GetOpDesc()->GetInputsSize() != n) {
-    REPORT_INNER_ERR_MSG("E19999", "Num:%zu of input desc node:%s(%s) not equal to it's output desc num:%zu, "
+    REPORT_INNER_ERR_MSG("E19999", "Num:%zu of input desc node:%s(%s) not equal to its output desc num:%zu, "
                       "check invalid", node->GetOpDesc()->GetInputsSize(),
                       node->GetName().c_str(), node->GetType().c_str(), n);
-    GELOGE(PARAM_INVALID, "[Check][Param] Num:%zu of input desc node:%s(%s) not equal to it's output desc num:%zu",
+    GELOGE(PARAM_INVALID, "[Check][Param] Num:%zu of input desc node:%s(%s) not equal to its output desc num:%zu",
            node->GetOpDesc()->GetInputsSize(), node->GetName().c_str(), node->GetType().c_str(), n);
     return PARAM_INVALID;
   }

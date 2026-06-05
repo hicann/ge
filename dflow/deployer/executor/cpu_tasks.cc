@@ -9,9 +9,9 @@
  */
 
 #include "executor/cpu_tasks.h"
-#include "aicpu/aicpu_schedule/aicpusd_info.h"
+#include "aicpusd_info.h"
 #include "aicpu_task_struct.h"
-#include "aicpu/queue_schedule/dgw_client.h"
+#include "queue_schedule/dgw_client.h"
 #include "framework/common/debug/log.h"
 #include "graph/def_types.h"
 #include "acl/acl.h"

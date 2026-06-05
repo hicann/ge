@@ -601,7 +601,9 @@ domi::Status InitDomiOmgContext(const std::string &input_shape, const std::strin
 
   if (!ge::ParseInputShape(input_shape, domi::GetContext().input_dims, domi::GetContext().user_input_dims,
                            is_dynamic_input) || shape_map.empty()) {
-    REPORT_INNER_ERR_MSG("E19999", "ParseInputShape failed for %s", input_shape.c_str());
+    const std::string reason = "failed to parse the input shape.";
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+                              std::vector<const char *>({input_shape.c_str(), "input_shape", reason.c_str()}));
     GELOGE(PARAM_INVALID, "[Parse][InputShape] %s failed.", input_shape.c_str());
     return PARAM_INVALID;
   }
@@ -1010,7 +1012,8 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertOm(const char *model_file, const ch
       OmFileLoadHelper om_load_helper;
       ret = om_load_helper.Init(model);
       if (ret != SUCCESS) {
-        REPORT_INNER_ERR_MSG("E19999", "Om file:%s init failed", model_file);
+        REPORT_PREDEFINED_ERR_MSG("E10041", std::vector<const char *>({"parameter"}),
+                                  std::vector<const char *>({model_file}));
         GELOGE(ge::FAILED, "[Invoke][Init]Om file init failed.");
         break;
       }
@@ -1018,7 +1021,8 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertOm(const char *model_file, const ch
       ModelPartition ir_part;
       ret = om_load_helper.GetModelPartition(MODEL_DEF, ir_part, 0U);
       if (ret != SUCCESS) {
-        REPORT_INNER_ERR_MSG("E19999", "Get model part of om file:%s failed", model_file);
+        REPORT_PREDEFINED_ERR_MSG("E10041", std::vector<const char *>({"parameter"}),
+                                  std::vector<const char *>({model_file}));
         GELOGE(ge::FAILED, "[Get][ModelPartition] failed.");
         break;
       }
@@ -1038,14 +1042,17 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertOm(const char *model_file, const ch
         }
       } else {
         ret = INTERNAL_ERROR;
-        REPORT_INNER_ERR_MSG("E19999", "ReadProtoFromArray failed for om file:%s", model_file);
+        REPORT_PREDEFINED_ERR_MSG("E10041", std::vector<const char *>({"parameter"}),
+                                  std::vector<const char *>({model_file}));
         GELOGE(ret, "[Read][Proto]From Array failed.");
       }
     } while (false);
     return ret;
   } catch (const std::exception &e) {
-    REPORT_INNER_ERR_MSG("E19999", "Convert om model to json failed, exception message:%s, model_file:%s",
-                       std::string(e.what()).c_str(), model_file);
+    const std::string reason = "an exception occurred while converting om file " + std::string(model_file) +
+        ": " + e.what();
+    REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                              std::vector<const char *>({"Convert om model to JSON", reason.c_str()}));
     GELOGE(FAILED, "[Save][Model]Convert om model to json failed, exception message : %s.", e.what());
     return FAILED;
   }
@@ -1056,7 +1063,8 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertPbtxtToJson(const char *model_file,
     ge::proto::ModelDef model_def;
     const bool flag = GraphUtils::ReadProtoFromTextFile(model_file, &model_def);
     if (!flag) {
-      REPORT_INNER_ERR_MSG("E19999", "ReadProtoFromTextFile failed for model_file:%s", model_file);
+      REPORT_PREDEFINED_ERR_MSG("E10041", std::vector<const char *>({"parameter"}),
+                                std::vector<const char *>({model_file}));
       GELOGE(FAILED, "[Invoke][ReadProtoFromTextFile] failed.");
       return FAILED;
     }
@@ -1065,14 +1073,17 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertPbtxtToJson(const char *model_file,
     Pb2Json::Message2Json(model_def, kOmBlackFields, j, true);
     auto ret = ModelSaver::SaveJsonToFile(json_file, j);
     if (ret != SUCCESS) {
-      REPORT_INNER_ERR_MSG("E19999", "SaveJsonToFile failed.");
+      REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
+                                std::vector<const char *>({json_file, "check the file path and permissions"}));
       GELOGE(ret, "[Save][Json] to file fail.");
       return ret;
     }
     return SUCCESS;
   } catch (const std::exception &e) {
-    REPORT_INNER_ERR_MSG("E19999", "ConvertPbtxtToJson failed, exception message:%s, model_file:%s",
-                       std::string(e.what()).c_str(), model_file);
+    const std::string reason = "an exception occurred while converting pbtxt file " + std::string(model_file) +
+        ": " + e.what();
+    REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                              std::vector<const char *>({"Convert pbtxt to JSON", reason.c_str()}));
     GELOGE(FAILED, "[Save][pbtxt]Convert pbtxt to json failed, exception message : %s.", e.what());
     return FAILED;
   }
@@ -1094,7 +1105,7 @@ FMK_FUNC_HOST_VISIBILITY domi::Status ConvertFwkModelToJson(const domi::Framewor
       "E10001", std::vector<const char *>({"parameter", "value", "reason"}),
       std::vector<const char *>(
           {"--framework", std::to_string(framework).c_str(),
-           "The ramework must be selected from {0(Caffe), 3(TensorFlow), 5(Onnx)} when model is set to 1(JSON)."}));
+           "The framework must be selected from {0(Caffe), 3(TensorFlow), 5(Onnx)} when model is set to 1(JSON)."}));
   GELOGE(PARAM_INVALID, "[Check][Param]Input parameter[--framework] is mandatory "
          "and it's value must be: 0(Caffe) 3(TensorFlow) or 5(Onnx).");
   return PARAM_INVALID;
@@ -1112,7 +1123,8 @@ FMK_FUNC_HOST_VISIBILITY domi::Status DumpInfershapeJson(const ge::Graph &graph,
   if (buffer.GetData() != nullptr) {
     std::string str(PtrToPtr<void, char>(buffer.GetData()), buffer.GetSize());
     if (!ge_proto.ParseFromString(str)) {
-      REPORT_INNER_ERR_MSG("E19999", "ParseFromString failed.");
+      REPORT_PREDEFINED_ERR_MSG("E13005", std::vector<const char *>({"file"}),
+                                std::vector<const char *>({json_file}));
       GELOGE(GRAPH_FAILED, "[Invoke][ParseFromString] failed.");
       return FAILED;
     }

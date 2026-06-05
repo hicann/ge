@@ -31,10 +31,10 @@ MethodDef *ArgsManagerFileCodeGenerator::BuildInitMethod(const Om2CodegenModel &
   for (const auto &group : codegen_model.args_table.host_args_offsets) {
     std::vector<Arg> host_offsets;
     host_offsets.reserve(group.size());
-    for (const auto host_offset : group) {
-      host_offsets.push_back(GetHostArgAddr(host_offset));
+    for (const uint64_t host_offset : group) {
+      (void)host_offsets.push_back(GetHostArgAddr(host_offset));
     }
-    refresh_group_items.push_back(host_offsets);
+    (void)refresh_group_items.push_back(host_offsets);
   }
 
   return ast_.DefineMethod("Om2ArgsTable", "Init", {}, "aclError", {

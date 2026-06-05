@@ -59,10 +59,9 @@ target_link_options(ge_local_engine PRIVATE
 )
 
 target_link_libraries(ge_local_engine PRIVATE
-    intf_pub
+    ge_intf_pub
     msprof_headers
     runtime_headers
-    cce_headers
     error_manager_headers
     -Wl,--no-as-needed
     graph
@@ -109,10 +108,9 @@ target_link_options(atc_ge_local_engine PRIVATE
 )
 
 target_link_libraries(atc_ge_local_engine PRIVATE
-    intf_pub
+    ge_intf_pub
     msprof_headers
     runtime_headers
-    cce_headers
     error_manager_headers
     -Wl,--no-as-needed
     graph
@@ -160,7 +158,7 @@ target_link_options(ge_local_opskernel_builder PRIVATE
 )
 
 target_link_libraries(ge_local_opskernel_builder PRIVATE
-    intf_pub
+    ge_intf_pub
     msprof_headers
     runtime_headers
     cce_headers
@@ -212,7 +210,7 @@ target_link_options(atc_ge_local_opskernel_builder PRIVATE
 )
 
 target_link_libraries(atc_ge_local_opskernel_builder PRIVATE
-    intf_pub
+    ge_intf_pub
     msprof_headers
     runtime_headers
     cce_headers

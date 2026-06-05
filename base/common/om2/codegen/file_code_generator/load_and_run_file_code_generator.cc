@@ -24,7 +24,6 @@ constexpr uint64_t kTsMemBlockSize = 4UL * 1024UL;
 constexpr uint64_t kMemAlignSize = 512UL;
 }  // namespace
 
-LoadAndRunFileCodeGenerator::LoadAndRunFileCodeGenerator(AstBuildContext &ast) : Om2ModelClassGeneratorBase(ast) {}
 
 std::vector<DeclNode *> LoadAndRunFileCodeGenerator::BuildAnonymousNamespaceItems(
     const Om2CodegenModel &codegen_model, const std::vector<TaskCodeBuilderPtr> &task_code_builders) const {

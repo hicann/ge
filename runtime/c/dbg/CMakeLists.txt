@@ -54,7 +54,6 @@ if(${TARGET_SYSTEM_NAME} STREQUAL "Linux")
     )
 
     target_compile_options(ge_dbg_c PRIVATE
-        -Os
         -fno-common
         -Wextra
         -Wfloat-equal
@@ -66,7 +65,7 @@ if(${TARGET_SYSTEM_NAME} STREQUAL "Linux")
     )
 
     target_link_libraries(ge_dbg_c PRIVATE
-        intf_pub
+        ge_intf_pub_Os
         c_sec_headers
         msprof_headers
         npu_runtime_headers
@@ -113,7 +112,7 @@ elseif(${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
     )
 
     target_link_libraries(ge_dbg_c_static_stub PRIVATE
-        intf_pub
+        ge_intf_pub
         c_sec_headers
         msprof_headers
         c_mmpa_headers
@@ -158,7 +157,7 @@ elseif(${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
     )
 
     target_link_libraries(ge_dbg_c_static_debug PRIVATE
-        intf_pub
+        ge_intf_pub
         c_sec_headers
         msprof_headers
         npu_runtime_headers

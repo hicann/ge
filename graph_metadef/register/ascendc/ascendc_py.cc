@@ -102,7 +102,8 @@ void ParseConstShapeDescV2(const nlohmann::json &shape_json, ge::Operator &op_pa
     return;
   }
   if (!shape_json.contains("name")) {
-    REPORT_INNER_ERR_MSG("E19999", "const tensor has no name");
+    REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}),
+                              std::vector<const char *>({"const tensor has no name"}));
     return;
   }
   std::string name = shape_json["name"];
@@ -120,7 +121,8 @@ void ParseConstShapeDescV2(const nlohmann::json &shape_json, ge::Operator &op_pa
   std::vector<uint8_t> value;
   const bool bres = CopyConstData(dtype_str, shape_json["const_value"], value);
   if (!bres) {
-    REPORT_INNER_ERR_MSG("E19999", "CopyConstData failed, buffer is null.");
+    REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char *>({"reason"}),
+                              std::vector<const char *>({"CopyConstData failed, buffer is null."}));
     return;
   }
   auto res = const_values.emplace(name, std::move(value));
@@ -266,7 +268,8 @@ const std::map<std::string, ParseAndSetAttrValuePtr> parse_attr_dtype_map = {
 
 void ParseAndSetAttr(const nlohmann::json &attr, ge::Operator &op) {
   if ((!attr.contains("name")) || (!attr.contains("dtype")) || (!attr.contains("value"))) {
-    REPORT_INNER_ERR_MSG("E19999", "cur attr does not contain name or dtype or value.");
+    REPORT_PREDEFINED_ERR_MSG("E10058", std::vector<const char *>({"parameter"}),
+                              std::vector<const char *>({"attr name/dtype/value"}));
     return;
   }
   std::string attr_name;
@@ -341,9 +344,10 @@ extern "C" int32_t AscendCPyInterfaceCheckOp(const char *check_type, const char 
     ParseInputsAndOutputs(inputs, outputs, op_desc_ptr, operator_param, const_values);
     CheckAndSetAttr(attrs, operator_param);
   } catch (...) {
-    REPORT_INNER_ERR_MSG("E19999",
-                         "Failed to parse json in AscendCPyInterfaceCheckOp. inputs = %s, outputs = %s, attrs = %s",
-                         inputs, outputs, attrs);
+    const std::string parse_reason =
+        std::string("inputs = ") + inputs + ", outputs = " + outputs + ", attrs = " + attrs;
+    REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                              std::vector<const char *>({"AscendCPyInterfaceCheckOp", parse_reason.c_str()}));
     return 0;
   }
 

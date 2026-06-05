@@ -1538,7 +1538,9 @@ Status GenerateModelBySingleGraph(GeGenerator &ge_generator, const std::string &
     ret = CreateInputsForInference(graph, inputs);
     if (ret != SUCCESS) {
       GELOGE(FAILED, "[Create][InputsForInference] failed.");
-      REPORT_INNER_ERR_MSG("E19999", "CreateInputsForInference failed for input --graph and --inputs.");
+      const std::string reason = "Failed to create inputs for inference from --graph and --inputs.";
+      REPORT_PREDEFINED_ERR_MSG("E10003", std::vector<const char *>({"value", "parameter", "reason"}),
+                                std::vector<const char *>({"N/A", "graph", reason.c_str()}));
       return FAILED;
     }
   } else {
@@ -1576,7 +1578,7 @@ Status GenerateModelBySingleGraph(GeGenerator &ge_generator, const std::string &
                      return FAILED, "[Call][AmctInterface]ATC Generate call AmctInterface ret fail");
   ret = GenerateOfflineModel(ge_generator, graph, output, inputs);
   if (ret != SUCCESS) {
-    REPORT_INNER_ERR_MSG("E19999", "GE GenerateOfflineModel execute failed");
+    REPORT_INNER_ERR_MSG("E19999", "GE GenerateOfflineModel execute failed.");
     DOMI_LOGE("GE GenerateOfflineModel execute failed");
     return FAILED;
   }
@@ -1997,8 +1999,9 @@ Status ConvertPbtxtToJson() {
   ret = ConvertPbtxtToJson(FLAGS_om.c_str(), FLAGS_json.c_str());
   if (ret != SUCCESS) {
     GELOGE(FAILED, "[Convert][PbtxtToJson] fail.");
-    REPORT_INNER_ERR_MSG("E19999", "ConvertPbtxtToJson failed, FLAGS_om:%s, FLAGS_json:%s.",
-                      FLAGS_om.c_str(), FLAGS_json.c_str());
+    const std::string reason = "failed to convert pbtxt file " + FLAGS_om + " to JSON.";
+    REPORT_PREDEFINED_ERR_MSG("E10059", std::vector<const char *>({"stage", "reason"}),
+                              std::vector<const char *>({"Convert pbtxt to JSON", reason.c_str()}));
     return FAILED;
   }
 
@@ -2067,7 +2070,7 @@ int32_t OutputErrMessageToStdout() {
   if (msg_ptr == nullptr) {
     std::stringstream err_stream;
     err_stream << "E19999: Inner Error!" << std::endl;
-    err_stream << "        " << "Unknown error occurred. Please check the log." << std::endl;
+    err_stream << "        " << "An unknown error occurred. Please check the log." << std::endl;
     std::cout << err_stream.str() << std::endl;
   } else {
     std::cout << msg_ptr.get() << std::endl;

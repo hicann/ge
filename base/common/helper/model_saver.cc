@@ -33,8 +33,10 @@ constexpr int32_t kInteval = 2;
 Status ModelSaver::SaveJsonToFile(const char_t *const file_path, const Json &model) {
   Status ret = SUCCESS;
   if ((file_path == nullptr) || (CheckPathValid(file_path) != SUCCESS)) {
-    GELOGE(FAILED, "[Check][OutputFile]Failed, file %s", file_path);
-    REPORT_INNER_ERR_MSG("E19999", "Output file %s check invalid", file_path);
+    const char_t *const safe_path = (file_path == nullptr) ? "null" : file_path;
+    GELOGE(FAILED, "[Check][OutputFile]Failed, file %s", safe_path);
+    (void)REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+                              std::vector<const char *>({safe_path, "output_file", "the output file path is invalid"}));
     return FAILED;
   }
   std::string model_str;

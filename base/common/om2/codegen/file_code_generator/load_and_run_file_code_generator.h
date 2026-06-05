@@ -17,7 +17,7 @@
 namespace ge {
 class LoadAndRunFileCodeGenerator : public Om2ModelClassGeneratorBase {
  public:
-  explicit LoadAndRunFileCodeGenerator(AstBuildContext &ast);
+  using Om2ModelClassGeneratorBase::Om2ModelClassGeneratorBase;
   ~LoadAndRunFileCodeGenerator() override = default;
 
   std::vector<DeclNode *> BuildAnonymousNamespaceItems(const Om2CodegenModel &codegen_model,

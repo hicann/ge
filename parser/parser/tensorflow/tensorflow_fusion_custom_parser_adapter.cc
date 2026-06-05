@@ -36,8 +36,10 @@ Status TensorFlowFusionCustomParserAdapter::ParseParams(const vector<const NodeD
   FusionParseParamFunc
       custom_op_parser = domi::OpRegistry::Instance()->GetFusionParseParamFunc(op_dest->GetType(), ori_type);
   if (custom_op_parser == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "No FusionParseParamFunc of node:%s(%s) exist in OpRegistry",
-                      node->GetName().c_str(), node->GetType().c_str());
+    const std::string op_name = node->GetName();
+    const std::string op_type = node->GetType();
+    REPORT_PREDEFINED_ERR_MSG("E13010", std::vector<const char *>({"opname", "optype"}),
+                              std::vector<const char *>({op_name.c_str(), op_type.c_str()}));
     GELOGE(FAILED, "No FusionParseParamFunc of node:%s(%s) exist in OpRegistry",
            node->GetName().c_str(), node->GetType().c_str());
     return FAILED;
@@ -65,8 +67,10 @@ Status TensorFlowFusionCustomParserAdapter::ParseParams(const std::vector<ge::Op
   FusionParseParamByOpFunc
       custom_op_parser = domi::OpRegistry::Instance()->GetFusionParseParamByOpFunc(op_dest->GetType(), ori_type);
   if (custom_op_parser == nullptr) {
-    REPORT_INNER_ERR_MSG("E19999", "No FusionParseParamByOpFunc of node:%s(%s) exist in OpRegistry",
-                      node->GetName().c_str(), node->GetType().c_str());
+    const std::string op_name = node->GetName();
+    const std::string op_type = node->GetType();
+    REPORT_PREDEFINED_ERR_MSG("E13010", std::vector<const char *>({"opname", "optype"}),
+                              std::vector<const char *>({op_name.c_str(), op_type.c_str()}));
     GELOGE(FAILED, "No FusionParseParamByOpFunc of node:%s(%s) exist in OpRegistry",
            node->GetName().c_str(), node->GetType().c_str());
     return FAILED;

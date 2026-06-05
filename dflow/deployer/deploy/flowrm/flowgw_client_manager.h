@@ -16,8 +16,8 @@
 #include <mutex>
 #include "ge/ge_api_types.h"
 #include "ge/ge_api_error_codes.h"
-#include "aicpu/queue_schedule/dgw_client.h"
-#include "aicpu/queue_schedule/qs_client.h"
+#include "queue_schedule/dgw_client.h"
+#include "queue_schedule/qs_client.h"
 #include "deploy/flowrm/flowgw_client.h"
 
 namespace ge {

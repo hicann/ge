@@ -788,10 +788,10 @@ Status OnnxModelParser::SetExternalPath(const char *file, ge::onnx::ModelProto &
 
   const auto ret = strncpy_s(tmp_file.get(), file_len + 1U, real_path.c_str(), file_len);
   if (ret != EN_OK) {
-    REPORT_INNER_ERR_MSG("E19999", "strncpy_s failed, src=%p, dst=%p, src_len=%zu, dst_len=%zu, ret=%d.",
-                      real_path.c_str(), tmp_file.get(), file_len, file_len + 1U, ret);
-    GELOGE(FAILED, "strncpy_s failed, src=%p, dst=%p, src_len=%zu, dst_len=%zu.",
-           real_path.c_str(), tmp_file.get(), file_len, file_len + 1U);
+    REPORT_INNER_ERR_MSG("E19999", "strncpy_s failed, src=%s, dst=%p, src_len=%zu, dst_len=%zu, ret=%d.",
+                      real_path.c_str(), static_cast<void *>(tmp_file.get()), file_len, file_len + 1U, ret);
+    GELOGE(FAILED, "strncpy_s failed, src=%s, dst=%p, src_len=%zu, dst_len=%zu.",
+           real_path.c_str(), static_cast<void *>(tmp_file.get()), file_len, file_len + 1U);
     return FAILED;
   }
   const char *const dir = mmDirName(tmp_file.get());

@@ -92,7 +92,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY Status ModelSaver::SaveJsonToFi
     char_t err_buf[kMaxErrStrLen + 1U] = {};
     const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrStrLen);
     const std::string reason = FormatErrnoReason(mmGetErrorCode(), err_msg);
-    REPORT_INNER_ERR_MSG("E19999", "close file:%s failed. reason:%s", file_path, reason.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
+                              std::vector<const char *>({file_path, reason.c_str()}));
     GELOGE(FAILED, "[Close][File] %s failed. errmsg:%s", file_path, err_msg);
     ret = FAILED;
   }
@@ -102,7 +103,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY Status ModelSaver::SaveJsonToFi
 FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY Status ModelSaver::CheckPath(const std::string &file_path) {
   // Determine file path length
   if (file_path.size() >= PATH_MAX) {
-    REPORT_INNER_ERR_MSG("E19999", "Path is too long:%zu", file_path.size());
+    REPORT_PREDEFINED_ERR_MSG("E13026", std::vector<const char *>({"pathname", "reason"}),
+                              std::vector<const char *>({file_path.c_str(), "the path is too long"}));
     GELOGE(FAILED, "[Check][Param] Path is too long:%zu", file_path.size());
     return FAILED;
   }
@@ -150,9 +152,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY int ModelSaver::CreateDirectory
             char_t err_buf[kMaxErrStrLen + 1U] = {};
             const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrStrLen);
             const std::string reason = FormatErrnoReason(mmGetErrorCode(), err_msg);
-            REPORT_INNER_ERR_MSG("E19999",
-                                 "Cannot create directory %s. Make sure the directory exists and writable. reason:%s",
-                                 directory_path.c_str(), reason.c_str());
+            REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
+                                      std::vector<const char *>({directory_path.c_str(), reason.c_str()}));
             GELOGW("Cannot create directory %s. Make sure the directory exists and writable. errmsg:%s",
                    directory_path.c_str(), err_msg);
             return ret;
@@ -167,9 +168,8 @@ FMK_FUNC_HOST_VISIBILITY FMK_FUNC_DEV_VISIBILITY int ModelSaver::CreateDirectory
       char_t err_buf[kMaxErrStrLen + 1U] = {};
       const auto err_msg = mmGetErrorFormatMessage(mmGetErrorCode(), &err_buf[0], kMaxErrStrLen);
       const std::string reason = FormatErrnoReason(mmGetErrorCode(), err_msg);
-      REPORT_INNER_ERR_MSG("E19999",
-                           "Cannot create directory %s. Make sure the directory exists and writable. reason:%s",
-                           directory_path.c_str(), reason.c_str());
+      REPORT_PREDEFINED_ERR_MSG("E13004", std::vector<const char *>({"file", "errmsg"}),
+                                std::vector<const char *>({directory_path.c_str(), reason.c_str()}));
       GELOGW("Cannot create directory %s. Make sure the directory exists and writable. errmsg:%s",
              directory_path.c_str(), err_msg);
       return ret;

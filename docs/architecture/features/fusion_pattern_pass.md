@@ -261,7 +261,6 @@ Pass 注册时需要指定执行阶段。阶段决定 pass 能看到的图状态
 |----------|-------------|----------|----------|
 | InferShape 前 | `PassStage.BEFORE_INFER_SHAPE` | `CustomPassStage::kBeforeInferShape` | 最常用。replacement 后续会进入统一 shape 推导流程 |
 | InferShape 后 | `PassStage.AFTER_INFER_SHAPE` | `CustomPassStage::kAfterInferShape` | replacement 需要自行保证输出 shape 等信息正确 |
-| 逻辑流分配后 | `PassStage.AFTER_ASSIGN_LOGIC_STREAM` | `CustomPassStage::kAfterAssignLogicStream` | 主要用于流相关自定义逻辑，普通融合不建议使用 |
 | 内置融合后 | `PassStage.AFTER_BUILTIN_FUSION_PASS` | `CustomPassStage::kAfterBuiltinFusionPass` | 希望在 GE 内置融合完成后再处理时使用 |
 | 原图优化后 | `PassStage.AFTER_ORIGIN_GRAPH_OPTIMIZE` | `CustomPassStage::kAfterOriginGraphOptimize` | 希望在原图优化结束后追加自定义处理时使用 |
 

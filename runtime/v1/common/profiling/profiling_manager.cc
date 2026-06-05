@@ -171,7 +171,7 @@ Status ProfilingManager::ProfParseDeviceId(const std::map<std::string, std::stri
     }
   } else {
     GELOGE(FAILED, "[Parse][DeviceId]Config para not contain device id list");
-    REPORT_INNER_ERR_MSG("E19999", "Parse device id failed, config para not contain device id list");
+    REPORT_INNER_ERR_MSG("E19999", "Parse device id failed, config parameter does not contain device id list");
     return FAILED;
   }
   return SUCCESS;
@@ -188,7 +188,7 @@ Status ProfilingManager::ProfParseParam(const std::map<std::string, std::string>
   const auto iter = config_para.find(kConfigNumsdev);
   if (iter == config_para.end()) {
     GELOGE(FAILED, "[Parse][Param]Config para not contain device num");
-    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, config para not contain device num");
+    REPORT_INNER_ERR_MSG("E19999", "Parse param failed, config parameter does not contain device num");
     return FAILED;
   }
   GE_CHK_STATUS_RET_NOLOG(ConvertToInt32(iter->second, device_num));

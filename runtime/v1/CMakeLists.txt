@@ -199,7 +199,6 @@ target_compile_options(ge_executor PRIVATE
     $<$<OR:$<STREQUAL:${TARGET_SYSTEM_NAME},Linux>,$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:${AIR_COMMON_COMPILE_OPTION}>
     $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Debug>>:/MTd>
     $<$<AND:$<STREQUAL:${TARGET_SYSTEM_NAME},Windows>,$<STREQUAL:${CMAKE_CONFIGURATION_TYPES},Release>>:/MT>
-    -Os
     -fvisibility=hidden
     -fvisibility-inlines-hidden
     -ffunction-sections
@@ -235,7 +234,7 @@ target_include_directories(ge_executor PRIVATE
 )
 
 target_link_libraries(ge_executor PRIVATE
-    intf_pub
+    ge_intf_pub_Os
     cce_headers
     slog_headers
     msprof_headers
@@ -243,6 +242,7 @@ target_link_libraries(ge_executor PRIVATE
     mmpa_headers
     ge_metadef_headers
     runtime_headers
+    error_manager_headers
     hccl_headers
     datagw_headers
     ascend_protobuf_static
@@ -305,7 +305,7 @@ target_link_options(ge_executor_shared PRIVATE
 
 target_link_libraries(ge_executor_shared
     PRIVATE
-        intf_pub
+        ge_intf_pub
         $<$<TARGET_EXISTS:cce_headers>:cce_headers>
         $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         msprof_headers
@@ -326,6 +326,7 @@ target_link_libraries(ge_executor_shared
         graph_base
         register
         error_manager
+        runtime_headers
         ascend_protobuf
         c_sec
         json
@@ -386,13 +387,14 @@ target_link_options(davinci_executor PRIVATE
 
 target_link_libraries(davinci_executor
   PRIVATE
-    intf_pub
+    ge_intf_pub
     $<$<TARGET_EXISTS:cce_headers>:cce_headers>
     $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
     msprof_headers
     adump_headers
     mmpa_headers
     hccl_headers
+    runtime_headers
     acl_rt
     $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
     -Wl,--no-as-needed
@@ -483,7 +485,7 @@ target_link_options(hybrid_executor PRIVATE
 
 target_link_libraries(hybrid_executor
   PRIVATE
-    intf_pub
+    ge_intf_pub
     $<$<TARGET_EXISTS:cce_headers>:cce_headers>
     $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
     msprof_headers
@@ -502,6 +504,7 @@ target_link_libraries(hybrid_executor
     davinci_executor
     ascend_dump
     error_manager
+    runtime_headers
     ascend_protobuf
     unified_dlog
     platform
@@ -561,7 +564,7 @@ add_dependencies(hybrid_executor_stub
 )
 
 target_compile_options(hybrid_executor_stub PRIVATE
-    -fno-common -Wfloat-equal -fvisibility=default -Os
+    -fno-common -Wfloat-equal -fvisibility=default
     -Werror=return-type
     -Wno-unused-parameter
 )
@@ -591,7 +594,7 @@ target_include_directories(hybrid_executor_stub PRIVATE
 )
 
 target_link_libraries(hybrid_executor_stub PRIVATE
-    intf_pub
+    ge_intf_pub_Os
     slog_headers
     msprof_headers
     mmpa_headers

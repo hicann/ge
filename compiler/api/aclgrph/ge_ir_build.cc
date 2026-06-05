@@ -666,10 +666,11 @@ graphStatus Impl::CheckDataOpAttrIndexValid(const Graph &graph, const std::strin
   std::vector<int64_t> attr_index;
   if (!IsAttrIndexSetByUser(compute_graph, data_num, attr_index)) {
     if (index_input_shape_range_flag) {
-      std::string situation = "Data op index";
-      std::string reason = "When setting the input shape range by index, you must set the index attribute of all DATA operators";
-      REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"situation", "reason"}),
-                                std::vector<const char_t *>({situation.c_str(), reason.c_str()}));
+      std::string reason =
+          "Data op index is not set. When setting the input shape range by index, you must set the index attribute "
+          "of all DATA operators";
+      REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
+                                std::vector<const char_t *>({reason.c_str()}));
       GELOGE(GRAPH_FAILED, "[Check][AttrIndex] Data op index is not set, total data op num[%ld], "
              "when set input shape range by index.", data_num);
       return GRAPH_FAILED;
@@ -682,10 +683,10 @@ graphStatus Impl::CheckDataOpAttrIndexValid(const Graph &graph, const std::strin
     if (std::find(attr_index.begin(), attr_index.end(), i) == attr_index.end()) {
       omg_context_.user_attr_index_valid = false;
       if (index_input_shape_range_flag) {
-        std::string situation = "Data op index[" + std::to_string(i) + "]";
-        std::string reason = "When setting the input shape range by index, you must set the index attribute of all DATA operators";
-        REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"situation", "reason"}),
-                                  std::vector<const char_t *>({situation.c_str(), reason.c_str()}));
+        std::string reason = "Data op index[" + std::to_string(i) + "] is not set. When setting the input shape range "
+            "by index, you must set the index attribute of all DATA operators";
+        REPORT_PREDEFINED_ERR_MSG("E13025", std::vector<const char_t *>({"reason"}),
+                                  std::vector<const char_t *>({reason.c_str()}));
         GELOGE(GRAPH_FAILED, "[Check][AttrIndex] Attr index [%ld] is not set, total data op num[%ld], "
                "when set input shape range by index", i, data_num);
         return GRAPH_FAILED;
@@ -863,8 +864,10 @@ graphStatus Impl::CheckOptions(const std::map<std::string, std::string> &options
   bool mode_is_invalid = build_mode_iter != options_.cend() &&
                          build_mode_iter->second != kShapeGeneralized && build_mode_iter->second != kShapePrecise;
   if (mode_is_invalid) {
-    REPORT_INNER_ERR_MSG("E19999", "Value[%s] of SHAPE_GENERALIZED_BUILD_MODE is invalid, must be shape_generalized "
-                                 "or shape_precise.", build_mode_iter->second.c_str());
+    REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char_t *>({"value", "parameter", "reason"}),
+                              std::vector<const char_t *>({build_mode_iter->second.c_str(),
+                                                           ge::ir_option::SHAPE_GENERALIZED_BUILD_MODE,
+                                                           "must be shape_generalized or shape_precise."}));
     GELOGE(GRAPH_PARAM_INVALID, "[Check][SHAPE_GENERALIZED_BUILD_MODE]Shape generalized build mode %s is invalid, "
                                 "only support shape_generalized or shape_precise", build_mode_iter->second.c_str());
     return GRAPH_PARAM_INVALID;

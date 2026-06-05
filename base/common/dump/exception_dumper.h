@@ -20,9 +20,9 @@
 #include "exe_graph/runtime/dfx_info_filler.h"
 #include "common/dump/kernel_tracing_utils.h"
 #include "framework/common/debug/ge_log.h"
-#include "runtime/mem.h"
 #include "graph_metadef/common/ge_common/util.h"
 #include "common/aclrt_malloc_helper.h"
+#include "runtime/mem.h"
 
 #include <set>
 #include <utility>
@@ -75,7 +75,7 @@ struct ExtraOpInfo {
         return;
       }
       GE_MAKE_GUARD_RTMEM(host_addr);
-      rt_ret = aclrtMemcpy(host_addr, static_cast<uint64_t>(args_size), reinterpret_cast<void *>(args),
+      rt_ret = aclrtMemcpy(host_addr, static_cast<uint64_t>(args_size), ValueToPtr(args),
           static_cast<uint64_t>(args_size), ACL_MEMCPY_DEVICE_TO_HOST);
       if (rt_ret != ACL_SUCCESS) {
         GELOGW("[Call][aclrtMemcpy] failed, size:%zu, ret:0x%X", args_size, rt_ret);
@@ -83,7 +83,7 @@ struct ExtraOpInfo {
       }
       std::stringstream ss;
       ss << "args before execute: ";
-      gert::PrintHex(reinterpret_cast<void **>(host_addr), args_size / sizeof(void *), ss);
+      gert::PrintHex(PtrToPtr<uint8_t, void *>(host_addr), args_size / sizeof(void *), ss);
       args_before_execute = ss.str();
     }
   }

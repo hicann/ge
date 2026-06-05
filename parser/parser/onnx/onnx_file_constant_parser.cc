@@ -123,7 +123,10 @@ Status OnnxFileConstantParser::SetPathAttr(const ge::onnx::StringStringEntryProt
     try {
       value = stol(string_proto.value());
     } catch (const std::exception &e) {
-      REPORT_INNER_ERR_MSG("E19999", "Convert %s to int64_t value failed:%s", string_proto.value().c_str(), e.what());
+      const std::string proto_value = string_proto.value();
+      const std::string proto_key = string_proto.key();
+      REPORT_PREDEFINED_ERR_MSG("E10001", std::vector<const char *>({"value", "parameter", "reason"}),
+                                std::vector<const char *>({proto_value.c_str(), proto_key.c_str(), e.what()}));
       GELOGE(domi::PARAM_INVALID, "Convert %s to int64_t value failed:%s", string_proto.value().c_str(), e.what());
       return FAILED;
     }

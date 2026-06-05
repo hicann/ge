@@ -495,7 +495,6 @@ run 包可携带多个 `ge_py_pass_bridge` native 子 wheel，但安装脚本只
 **枚举值**:
 - `BEFORE_INFER_SHAPE` - 在 InferShape 之前执行
 - `AFTER_INFER_SHAPE` - 在 InferShape 之后执行
-- `AFTER_ASSIGN_LOGIC_STREAM` - 在逻辑流分配之后执行
 - `AFTER_BUILTIN_FUSION_PASS` - 在内置融合 Pass 之后执行
 - `AFTER_ORIGIN_GRAPH_OPTIMIZE` - 在原始图优化之后执行
 

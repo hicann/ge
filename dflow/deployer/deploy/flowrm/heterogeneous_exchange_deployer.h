@@ -14,8 +14,8 @@
 #include <cstdint>
 #include <vector>
 #include "dflow/base/deploy/exchange_service.h"
-#include "aicpu/queue_schedule/qs_client.h"
-#include "aicpu/queue_schedule/dgw_client.h"
+#include "queue_schedule/qs_client.h"
+#include "queue_schedule/dgw_client.h"
 #include "ge/ge_api_error_codes.h"
 #include "proto/deployer.pb.h"
 #include "deploy/flowrm/flowgw_client_manager.h"

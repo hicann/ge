@@ -60,7 +60,7 @@ target_include_directories(gert_static PUBLIC
         )
 target_compile_definitions(gert_static PRIVATE ${GERT_COMPILE_DEF})
 target_link_libraries(gert_static PRIVATE
-        intf_pub
+        ge_intf_pub
         cce_headers
         slog_headers
         msprof_headers
@@ -68,6 +68,7 @@ target_link_libraries(gert_static PRIVATE
         mmpa_headers
         ge_metadef_headers
         runtime_headers
+        error_manager_headers
         datagw_headers
         ascend_dump
         json
@@ -89,13 +90,14 @@ target_include_directories(gert PRIVATE
 )
 target_compile_definitions(gert PRIVATE ${GERT_COMPILE_DEF})
 target_link_libraries(gert PRIVATE
-        intf_pub
+        ge_intf_pub
         $<$<TARGET_EXISTS:cce_headers>:cce_headers>
         $<$<TARGET_EXISTS:aicpu_headers>:aicpu_headers>
         msprof_headers
         mmpa_headers
         ge_metadef_headers
         adump_headers
+        runtime_headers
         $<$<TARGET_EXISTS:datagw_headers>:datagw_headers>
         ${AIR_COMMON_LINK_OPTION}
         -Wl,--no-as-needed

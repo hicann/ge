@@ -80,12 +80,33 @@ TEST_F(UtestUtilTransfer, CheckOutputPathValid) {
   std::string max_file_path(14097, 1);
   EXPECT_EQ(CheckOutputPathValid(max_file_path, "model"), false);
 
+  EXPECT_EQ(CheckOutputPathValid(std::string({static_cast<char>(0x80)}), ""), false);
   EXPECT_EQ(CheckOutputPathValid("$#%", ""), false);
+  EXPECT_EQ(CheckOutputPathValid("に", ""), false);
+  EXPECT_EQ(CheckOutputPathValid("é", ""), false);
+  EXPECT_EQ(CheckOutputPathValid("😀", ""), false);
   EXPECT_EQ(CheckOutputPathValid("./", ""), true);
+  EXPECT_EQ(CheckOutputPathValid("./中文一龥", ""), true);
   // system("touch test_util");
   // system("chmod 555 test_util");
   // EXPECT_EQ(CheckOutputPathValid("./test_util", ""), false);
   // system("rm -rf test_util");
+}
+
+TEST_F(UtestUtilTransfer, CheckOutputPathValidWithUtf8Locale) {
+  const char *old_locale = std::setlocale(LC_CTYPE, nullptr);
+  std::string old_locale_str = (old_locale == nullptr) ? "C" : old_locale;
+  if (std::setlocale(LC_CTYPE, "C.UTF-8") == nullptr) {
+    GTEST_SKIP() << "C.UTF-8 locale is not available";
+  }
+
+  EXPECT_EQ(CheckOutputPathValid("$#%", ""), false);
+  EXPECT_EQ(CheckOutputPathValid("に", ""), false);
+  EXPECT_EQ(CheckOutputPathValid("é", ""), false);
+  EXPECT_EQ(CheckOutputPathValid("😀", ""), false);
+  EXPECT_EQ(CheckOutputPathValid("./中文一龥", ""), true);
+
+  std::setlocale(LC_CTYPE, old_locale_str.c_str());
 }
 
 TEST_F(UtestUtilTransfer, CheckInputPathValid) {
