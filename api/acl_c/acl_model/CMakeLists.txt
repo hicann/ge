@@ -12,6 +12,7 @@ cmake_minimum_required(VERSION 3.14)
 if (ENABLE_OPEN_SRC)
     find_cann_package(c_base MODULE REQUIRED)
     find_cann_package(c_mmpa MODULE REQUIRED)
+    find_cann_package(msprof MODULE REQUIRED)
 endif()
 
 set(INSTALL_LIBRARY_DIR lib)
@@ -49,12 +50,9 @@ if (${TARGET_SYSTEM_NAME} STREQUAL "Linux")
             ${TOP_DIR}/runtime/src/acl/aclrt_c/common
             ${TOP_DIR}/runtime/pkg_inc/base
         else()
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${CANN_GE_DIR}/inc>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime/runtime>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/msprof>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/slog>
         endif()
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../inc
@@ -88,7 +86,7 @@ if (${TARGET_SYSTEM_NAME} STREQUAL "Linux")
         -Wl,--as-needed
         slog_headers
         -s
-        $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:msprof_headers>>
+        msprof_headers
         c_mmpa_headers
     )
 
@@ -113,12 +111,9 @@ elseif (${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
             ${TOP_DIR}/inc/external
             ${TOP_DIR}/runtime/src/acl/aclrt_c/common
         else()
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${CANN_GE_DIR}/inc>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime>
             $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_OPENSDK_DIR}/include/runtime/runtime>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/msprof>
-            $<$<BOOL:${ENABLE_OPEN_SRC}>:${ASCEND_INSTALL_PATH}/include/experiment/slog>
         endif()
         ${CMAKE_CURRENT_SOURCE_DIR}/model
         ${CMAKE_CURRENT_SOURCE_DIR}/../../../inc
@@ -153,7 +148,7 @@ elseif (${TARGET_SYSTEM_NAME} STREQUAL "LiteOS")
         -Wl,--as-needed
         slog_headers
         -s
-        $<$<NOT:$<BOOL:${ENABLE_OPEN_SRC}>>:$<BUILD_INTERFACE:msprof_headers>>
+        msprof_headers
         c_mmpa_headers
     )
 
