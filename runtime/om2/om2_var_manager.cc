@@ -16,8 +16,8 @@
 #include "common/checker.h"
 #include "common/ge_inner_error_codes.h"
 #include "common/ge_common/debug/ge_log.h"
+#include "om2_malloc_helper.h"
 #include "runtime/mem.h"
-#include "common/aclrt_malloc_helper.h"
 
 namespace gert {
 Om2VarManager::~Om2VarManager() {
@@ -57,7 +57,7 @@ ge::Status Om2VarManager::GetOrCreateVarAddr(const std::string &key, const uint3
 
   void *new_addr = nullptr;
   if (size > 0U) {
-    const auto malloc_ret = ge::AclrtMalloc(&new_addr, size, RT_MEMORY_HBM, 0);
+    const auto malloc_ret = Om2Malloc(&new_addr, size, RT_MEMORY_HBM, 0);
     if (malloc_ret != ACL_SUCCESS) {
       GELOGE(ge::FAILED, "[OM2][Alloc][Var] aclrtMalloc failed, key=%s, size=%zu, rt_ret=%u", key.c_str(), size,
              malloc_ret);

@@ -13,7 +13,6 @@
 
 #include <cstdint>
 #include <map>
-#include <mutex>
 #include <string>
 #include <vector>
 #include "common/ge_common/ge_types.h"
@@ -31,7 +30,6 @@ struct FileConstContext {
   std::string weight_dir;
   const std::map<std::string, ge::FileConstantMem> *user_file_const_mems = nullptr;
   std::vector<void *> *owned_buffers = nullptr;
-  std::mutex *owned_buffers_mutex = nullptr;
   uint64_t session_id = 0U;
   int32_t device_id = -1;
 };

@@ -30,9 +30,9 @@
 #include "file_const_loader.h"
 #include "om2_external_weight_manager.h"
 #include "om2_file_utils.h"
+#include "om2_malloc_helper.h"
 #include "om2_var_manager.h"
 #include "zip_archive_reader.h"
-#include "common/aclrt_malloc_helper.h"
 
 namespace gert {
 namespace {
@@ -214,7 +214,7 @@ ge::Status RtMallocBuffer(size_t size, void *&ptr) {
   if (size == 0U) {
     return ge::SUCCESS;
   }
-  const auto rt_ret = ge::AclrtMalloc(&ptr, size, RT_MEMORY_HBM, 0);
+  const auto rt_ret = Om2Malloc(&ptr, size, RT_MEMORY_HBM, 0);
   if (rt_ret != ACL_SUCCESS) {
     GELOGE(ge::FAILED, "[OM2][Alloc] aclrtMalloc failed, size=%zu, rt_ret=%u", size, rt_ret);
     return ge::FAILED;
@@ -766,14 +766,8 @@ class Om2ModelExecutor::Impl {
     if (const_items.empty()) {
       return ge::SUCCESS;
     }
-    std::string weight_dir;
-    GE_ASSERT_SUCCESS(ResolveFileConstWeightDir(model_data, weight_dir));
     FileConstContext file_const_ctx;
-    file_const_ctx.weight_dir = weight_dir;
-    file_const_ctx.user_file_const_mems = &user_file_const_mems;
-    file_const_ctx.owned_buffers = &owned_buffers_;
-    file_const_ctx.session_id = session_id_;
-    file_const_ctx.device_id = device_id_;
+    GE_ASSERT_SUCCESS(BuildFileConstContext(model_data, user_file_const_mems, file_const_ctx));
     GE_ASSERT_SUCCESS(gert::PrepareCombinedConsts(const_items, file_const_ctx, constants));
     return ge::SUCCESS;
   }
@@ -784,18 +778,22 @@ class Om2ModelExecutor::Impl {
     if (const_items.empty()) {
       return ge::SUCCESS;
     }
+    FileConstContext file_const_ctx;
+    GE_ASSERT_SUCCESS(BuildFileConstContext(model_data, user_file_const_mems, file_const_ctx));
+    GE_ASSERT_SUCCESS(gert::PrepareIndividualConsts(const_items, file_const_ctx, device_id_, constants));
+    return ge::SUCCESS;
+  }
+
+  ge::Status BuildFileConstContext(const ge::ModelData &model_data,
+                                   const std::map<std::string, ge::FileConstantMem> &user_file_const_mems,
+                                   FileConstContext &file_const_ctx) {
     std::string weight_dir;
     GE_ASSERT_SUCCESS(ResolveFileConstWeightDir(model_data, weight_dir));
-    std::mutex owned_buffers_mutex;
-    FileConstContext file_const_ctx;
     file_const_ctx.weight_dir = weight_dir;
     file_const_ctx.user_file_const_mems = &user_file_const_mems;
     file_const_ctx.owned_buffers = &owned_buffers_;
-    file_const_ctx.owned_buffers_mutex = &owned_buffers_mutex;
     file_const_ctx.session_id = session_id_;
     file_const_ctx.device_id = device_id_;
-
-    GE_ASSERT_SUCCESS(gert::PrepareIndividualConsts(const_items, file_const_ctx, device_id_, constants));
     return ge::SUCCESS;
   }
 
