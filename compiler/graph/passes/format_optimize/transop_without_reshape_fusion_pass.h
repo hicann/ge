@@ -35,7 +35,7 @@ class TransOpWithoutReshapeFusionPass : public GraphPass {
   bool HasPrecisionLoss(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor) const;
   graphStatus NeedRemainNode(const OutDataAnchorPtr &out_anchor, const InDataAnchorPtr &in_anchor,
                              bool &need_remain) const;
-  graphStatus IsTransposeNoNeedFusion(const NodePtr &node, bool &no_need_fusion) const;
+  graphStatus IsTransposeNoNeedFusion(const Node *node, bool &no_need_fusion) const;
   void RemoveNousedNodes(const ComputeGraphPtr &graph);
   void GetBeginOutDescAndEndInDesc(const int32_t index, GeTensorDesc &out_desc, GeTensorDesc &in_desc);
 
@@ -134,6 +134,7 @@ class TransOpWithoutReshapeFusionPass : public GraphPass {
   /// @param node
   /// @return True or False
   static bool IsTransOp(const NodePtr &node);
+  static bool IsTransOp(const Node *node);
 
   static bool FusionFormatSupport(Format format);
 

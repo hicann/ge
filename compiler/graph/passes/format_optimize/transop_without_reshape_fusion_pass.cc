@@ -157,7 +157,7 @@ bool TransOpWithoutReshapeFusionPass::IsTransOpDataTypeContinuous(const OutDataA
   if ((out_anchor == nullptr) || (in_anchor == nullptr)) {
     return false;
   }
-  const auto in_node = in_anchor->GetOwnerNode();
+  const auto in_node = in_anchor->GetOwnerNodeBarePtr();
   if (in_node == nullptr) {
     return false;
   }
@@ -165,7 +165,7 @@ bool TransOpWithoutReshapeFusionPass::IsTransOpDataTypeContinuous(const OutDataA
     return true;
   }
 
-  const auto out_node = out_anchor->GetOwnerNode();
+  const auto out_node = out_anchor->GetOwnerNodeBarePtr();
   if (out_node == nullptr) {
     return false;
   }
@@ -212,7 +212,7 @@ bool TransOpWithoutReshapeFusionPass::HasPrecisionLoss(const OutDataAnchorPtr &o
   return false;
 }
 
-graphStatus TransOpWithoutReshapeFusionPass::IsTransposeNoNeedFusion(const NodePtr &node, bool &no_need_fusion) const {
+graphStatus TransOpWithoutReshapeFusionPass::IsTransposeNoNeedFusion(const Node *node, bool &no_need_fusion) const {
   no_need_fusion = false;
   if ((node->GetType() != TRANSPOSE) && (node->GetType() != TRANSPOSED)) {
     return GRAPH_SUCCESS;
@@ -238,7 +238,7 @@ graphStatus TransOpWithoutReshapeFusionPass::NeedRemainNode(const OutDataAnchorP
                                                             bool &need_remain) const {
   need_remain = false;
   GE_CHECK_NOTNULL(in_anchor);
-  auto in_node = in_anchor->GetOwnerNode();
+  auto in_node = in_anchor->GetOwnerNodeBarePtr();
   GE_CHECK_NOTNULL(in_node);
   if (in_node->GetType() == RESHAPE) {
     GELOGD("Abandoned Fusion node %s type: RESHAPE", in_node->GetNamePtr());
@@ -252,7 +252,7 @@ graphStatus TransOpWithoutReshapeFusionPass::NeedRemainNode(const OutDataAnchorP
   }
 
   GE_CHECK_NOTNULL(out_anchor);
-  auto out_node = out_anchor->GetOwnerNode();
+  auto out_node = out_anchor->GetOwnerNodeBarePtr();
   GE_CHECK_NOTNULL(out_node);
   if (!IsFormatContinuous(out_anchor, in_anchor)) {
     GELOGD("Abandoned Fusion node %s(%s) and node %s(%s) format is uncontinuous or not support.",
@@ -1403,6 +1403,10 @@ graphStatus TransOpWithoutReshapeFusionPass::GetSubGraphsBetweenNormalNode(
 }
 
 bool TransOpWithoutReshapeFusionPass::IsTransOp(const NodePtr &node) {
+  return IsTransOp(node.get());
+}
+
+bool TransOpWithoutReshapeFusionPass::IsTransOp(const Node *node) {
   // The caller guarantees that the pointer is not null.
   return node->GetType() == CAST || node->GetType() == RESHAPE || node->GetType() == TRANSPOSE ||
          node->GetType() == TRANSPOSED || node->GetType() == TRANSDATA;
