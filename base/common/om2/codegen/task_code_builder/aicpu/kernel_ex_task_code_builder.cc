@@ -375,19 +375,19 @@ Status KernelExTaskCodeBuilder::Contribute(TaskSemanticContributeContext &contex
 }
 
 Status KernelExTaskCodeBuilder::RenderGetAddrInfo(std::vector<BodyItem> &items,
-  std::vector<Arg> &args) const {
+  std::vector<Arg> &flatten_args_vars) const {
   for (const auto &input_addr : semantic_.input_addrs) {
-    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(input_addr, "input", items, args));
+    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(input_addr, "input", items, flatten_args_vars));
   }
   for (const auto &output_addr : semantic_.output_addrs) {
-    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(output_addr, "output", items, args));
+    GE_ASSERT_SUCCESS(AppendOm2TensorAddrInfo(output_addr, "output", items, flatten_args_vars));
   }
   return SUCCESS;
 }
 
 Status KernelExTaskCodeBuilder::AppendOm2TensorAddrInfo(const AddrSemantic &addr, const char *addr_type,
                                                         std::vector<BodyItem> &items,
-                                                        std::vector<Arg> &args) const {
+                                                        std::vector<Arg> &flatten_args_vars) const {
   GE_ASSERT_TRUE(!addr.symbol_hint.empty(), "[OM2] KernelEx %s addr symbol hint is empty.", addr_type);
   GE_ASSERT_TRUE(addr.tensor_info.has_value(), "[OM2] KernelEx %s tensor info is required for %s.",
                  addr_type, addr.symbol_hint.c_str());
@@ -405,7 +405,7 @@ Status KernelExTaskCodeBuilder::AppendOm2TensorAddrInfo(const AddrSemantic &addr
       tensor_info.format,
       ast_.Var("std::vector<int64_t>", shape_var_name).Data(),
       ast_.Var("std::vector<int64_t>", shape_var_name).Size()})));
-  (void)args.emplace_back(ast_.Var("auto", addr.symbol_hint));
+  (void)flatten_args_vars.emplace_back(ast_.Var("auto", addr.symbol_hint));
   return SUCCESS;
 }
 
