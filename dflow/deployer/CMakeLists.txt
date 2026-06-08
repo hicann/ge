@@ -309,7 +309,6 @@ target_link_libraries(deployer_daemon PRIVATE
         air_headers
         -Wl,--no-as-needed
         unified_dlog
-        alog
         static_mmpa
         c_sec
         ascend_protobuf
