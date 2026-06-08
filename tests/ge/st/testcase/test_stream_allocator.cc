@@ -31,6 +31,7 @@
 #include "base/err_msg.h"
 #include "base/err_mgr.h"
 #include "common/opskernel/ops_kernel_info_types.h"
+#include "graph/build/stream/dag_stream_allocator_pass.h"
 
 extern std::string g_runtime_stub_mock;
 
@@ -1034,6 +1035,98 @@ class STEST_stream_allocator : public testing::Test {
     OpsKernelBuilderRegistry::GetInstance().Unregister("VectorEngine");
   }
 };
+
+/**
+ * 用例描述：MiniDAG流分配支持子图，验证子图内节点获得流ID且子图边界event同步正确
+ * 预置条件：
+ *   1. 构造包含PartitionedCall节点和子图的计算图
+ *   2. 子图内包含多个Relu节点
+ *   3. 根图中DATA和PartitionedCall之间加入RELU节点，确保有有效流ID触发event插入
+ * 测试步骤：
+ *   1. 设置ge.autoMultistreamParallelMode=LoadBalance:8
+ *   2. 通过Session编译图
+ *   3. 检查子图内节点是否获得流ID
+ *   4. 检查子图边界是否正确插入event同步
+ * 预期结果：
+ *   1. 子图内Relu节点获得有效流ID
+ *   2. 编译成功，子图边界event同步正确
+ */
+TEST_F(STEST_stream_allocator, MiniDAGStreamPass_WithSubgraph) {
+  REGISTER_CUSTOM_PASS("MiniDAGStreamPass")
+    .CustomAllocateStreamPassFn([](const ge::ConstGraphPtr &graph,
+                                   ge::StreamPassContext &context) -> ge::Status {
+      return ge::RunMiniDAGStreamPass(graph, context);
+    })
+    .Stage(ge::CustomPassStage::kAfterAssignLogicStream);
+  DEF_GRAPH(sub) {
+    CHAIN(NODE("sub_relu1", RELU)->NODE("sub_relu2", RELU)->NODE("sub_output", NETOUTPUT));
+  };
+
+  DEF_GRAPH(root) {
+    CHAIN(NODE("data1", DATA)->NODE("relu1", RELU)->NODE("pc", PARTITIONEDCALL, sub)->NODE("output", NETOUTPUT));
+  };
+
+  auto graph = ToGeGraph(root);
+  map<string, string> options = {{"ge.autoMultistreamParallelMode", "LoadBalance:8"}};
+  options["ge.enableSingleStream"] = "false";
+  GetThreadLocalContext().SetGlobalOption(options);
+  ASSERT_EQ(ge::GELib::Initialize(options), SUCCESS);
+  Session session(options);
+  auto ret = session.AddGraph(0, graph, options);
+  EXPECT_EQ(ret, SUCCESS);
+
+  std::vector<InputTensorInfo> inputs;
+  ret = session.BuildGraph(0, inputs);
+  EXPECT_EQ(ret, SUCCESS);
+
+  CHECK_GRAPH(PreRunAfterBuild) {
+    ASSERT_EQ(graph->GetAllSubgraphs().size(), 1);
+    auto subgraph = graph->GetAllSubgraphs().at(0);
+    ASSERT_NE(subgraph, nullptr);
+
+    bool sub_has_stream = false;
+    for (const auto &node : subgraph->GetAllNodes()) {
+      auto op_desc = node->GetOpDesc();
+      if (op_desc == nullptr) {
+        continue;
+      }
+      std::string type = op_desc->GetType();
+      if (type != "Data" && type != "NetOutput") {
+        auto stream_id = op_desc->GetStreamId();
+        if (stream_id >= 0) {
+          sub_has_stream = true;
+        }
+      }
+    }
+    EXPECT_TRUE(sub_has_stream);
+
+    auto relu1 = graph->FindNode("relu1");
+    ASSERT_NE(relu1, nullptr);
+    bool has_send = false;
+    for (const auto &out_node : relu1->GetOutControlNodes()) {
+      if (out_node != nullptr && out_node->GetType() == SEND) {
+        has_send = true;
+        break;
+      }
+    }
+    EXPECT_TRUE(has_send);
+
+    auto stream_active = subgraph->FindFirstNodeMatchType(STREAMACTIVE);
+    ASSERT_NE(stream_active, nullptr);
+    bool has_recv = false;
+    for (const auto &in_node : stream_active->GetInControlNodes()) {
+      if (in_node != nullptr && in_node->GetType() == RECV) {
+        has_recv = true;
+        break;
+      }
+    }
+    EXPECT_TRUE(has_recv);
+  };
+  options = {{"ge.autoMultistreamParallelMode", ""}};
+  options["ge.enableSingleStream"] = "false";
+  GetThreadLocalContext().SetGlobalOption(options);
+  ASSERT_EQ(ge::GELib::Initialize(options), SUCCESS);
+}
 
 TEST_F(STEST_stream_allocator, link_genmask_nodes) {
   auto graph = BuildGenmaskGraph();
@@ -2378,6 +2471,8 @@ TEST_F(STEST_stream_allocator, single_stream_with_partitionedcall) {
     }
     EXPECT_TRUE(has_stream_active);
   };
+  options["ge.enableSingleStream"] = "false";
+  GELib::Initialize(options);
   ge_env.Reset();
   ge_env.InstallDefault();
 }
@@ -2462,6 +2557,8 @@ TEST_F(STEST_stream_allocator, UserDefinedStreamLabel_with_SingleStreamOption_fa
   // Check ErrorMsg Print in Screen
   auto error_msg = std::string(error_message::GetErrMgrErrorMessage().get());
   EXPECT_TRUE(error_msg.find("Stream labels are not supported in SingleStream mode") != std::string::npos);
+  options["ge.enableSingleStream"] = "false";
+  GELib::Initialize(options);
 }
 
 /**

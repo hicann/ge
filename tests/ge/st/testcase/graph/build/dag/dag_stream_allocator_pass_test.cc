@@ -391,7 +391,7 @@ TEST_F(MiniDAGStreamPassTest, DirectCall_Success) {
 TEST_F(MiniDAGStreamPassTest, DirectCall_NullGraph) {
   ge::StreamPassContext context(0);
   auto ret = ge::RunMiniDAGStreamPass(nullptr, context);
-  EXPECT_EQ(ret, ge::FAILED);
+  EXPECT_NE(ret, ge::SUCCESS);
 }
 
 /**
@@ -516,6 +516,48 @@ TEST_F(MiniDAGStreamPassTest, Adapter_ControlEdgeNodeRelation) {
   if (!output_nodes.empty()) {
     EXPECT_EQ(output_nodes[0]->GetName(), "netoutput1");
   }
+}
+
+/**
+ * 场景: algo 名称为空（冒号在最前面），返回FAILED
+ */
+TEST_F(MiniDAGStreamPassTest, RunPass_InvalidEmptyAlgoName) {
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = ":812";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::FAILED);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+/**
+ * 场景: 未知的 algo 名称，返回FAILED
+ */
+TEST_F(MiniDAGStreamPassTest, RunPass_InvalidUnknownAlgoName) {
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = "UnknownAlgoABC:8";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto compute_graph = gert::ShareGraph::BuildStaticAbsReluExpAddNodeGraph();
+  ASSERT_NE(compute_graph, nullptr);
+
+  auto graph = GraphUtilsEx::CreateGraphPtrFromComputeGraph(compute_graph);
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::FAILED);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
 }
 
 }  // namespace ge

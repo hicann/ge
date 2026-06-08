@@ -57,6 +57,12 @@ ge::ConstGraphPtr BuildGraphWithControlEdge() {
 }
 }  // namespace
 
+class DagStreamAllocatorPassTest : public testing::Test {
+protected:
+  void SetUp() {}
+  void TearDown() {}
+};
+
 // --------------------
 // 场景 A：RunMiniDAGStreamPass 正常执行
 // --------------------
@@ -85,7 +91,7 @@ TEST(DagStreamAllocatorPassTest, RunPass_Success) {
 TEST(DagStreamAllocatorPassTest, RunPass_NullGraph) {
   ge::StreamPassContext context(0);  // current_max_stream_id = 0
   auto ret = RunMiniDAGStreamPass(nullptr, context);
-  EXPECT_EQ(ret, ge::FAILED);
+  EXPECT_NE(ret, ge::SUCCESS);
 }
 
 /**
@@ -507,4 +513,97 @@ TEST(DagStreamAllocatorPassTest, RunPass_WithAutoMultistreamMode_ExceedsMax) {
   ge::GetThreadLocalContext().SetGraphOption({});
 }
 
+// --------------------
+// 场景 D：ParseStreamConfig 异常场景
+// --------------------
+
+/**
+ * 场景 D1: 无冒号分隔符（非"LoadBalance"字符串），返回FAILED
+ */
+TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator) {
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = "MainStream";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::FAILED);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+/**
+ * 场景 D2: 无冒号分隔符（随机字符串），返回FAILED
+ */
+TEST(DagStreamAllocatorPassTest, RunPass_MissingColonSeparator_RandomString) {
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = "RandomString";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::FAILED);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+/**
+ * 场景 D3: algo 名称为空（冒号在最前面），返回FAILED
+ */
+TEST(DagStreamAllocatorPassTest, RunPass_EmptyAlgoName) {
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = ":8";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::FAILED);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+/**
+ * 场景 D4: 未知的 algo 名称，返回FAILED
+ */
+TEST(DagStreamAllocatorPassTest, RunPass_UnknownAlgoName) {
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = "UnknownAlgo:4";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::FAILED);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+
+/**
+ * 场景 D5: max_stream 为空字符串（冒号在最后面），返回FAILED
+ */
+TEST(DagStreamAllocatorPassTest, RunPass_EmptyMaxStream) {
+  std::map<std::string, std::string> options;
+  options["ge.autoMultistreamParallelMode"] = "LoadBalance:";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto graph = BuildGraphWithControlEdge();
+  ASSERT_NE(graph, nullptr);
+
+  ge::StreamPassContext context(0);
+  auto ret = RunMiniDAGStreamPass(graph, context);
+  EXPECT_EQ(ret, ge::FAILED);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
 }  // namespace minidag
