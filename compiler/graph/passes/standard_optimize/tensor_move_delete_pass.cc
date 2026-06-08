@@ -25,7 +25,8 @@
 #include "framework/common/util.h"
 #include "graph/optimize/mem_rw_conflict_optimize.h"
 #include "graph/optimize/mem_layout_conflict_optimize/mem_layout_conflict_util.h"
-
+#include "common/ge_common/util.h"
+#include "graph/passes/standard_optimize/tensor_move_delete_pass.h"
 namespace ge {
 namespace {
 struct TensorMoveDeleteContext {
@@ -737,6 +738,7 @@ bool IsSourceNodeWithSinglePath(const NodePtr &tensor_move_node,
   return true;
 }
 
+
 /**
  * @brief 检查当前源输入节点索引是否在允许的内存复用配置中
  * @param src_out_idx 源节点（通常为 Data 节点）的输出索引，表示第几个输入
@@ -769,7 +771,10 @@ bool IsMemoryReuseAllowed(int32_t src_out_idx, const std::string &node_name) {
     std::vector<std::string> input_indexes;
     SplitStringByComma(input_reuse_config, input_indexes);
     for (const auto &index_str : input_indexes) {
-      const int32_t index = std::stoi(index_str);
+      int32_t index = 0;
+      if (ge::ConvertToInt32(index_str, index) != SUCCESS) {
+        return false;
+      }
       if (index == src_out_idx) {
         GELOGI("Memory reuse check passed: input index %d found in ge.exec.inputReuseMemIndexes config %s for node %s.",
                 src_out_idx, input_reuse_config.c_str(), node_name.c_str());

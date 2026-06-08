@@ -1824,7 +1824,88 @@ TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_MemReuse_Deleted2) {
 
   ge::GetThreadLocalContext().SetGraphOption({});
 }
+TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_MemReuse_InvalidIndex) {
+  setenv("DUMP_GRAPH_LEVEL", "2", 1);
+  setenv("DUMP_GE_GRAPH", "2", 1);
 
+  std::map<std::string, std::string> options;
+  options[OPTION_INPUT_REUSE_MEM_INDEXES] = "abc";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+  auto builder = ut::GraphBuilder("g1");
+  auto data_node = builder.AddNode("Data", DATA, 1, 1);
+  auto node1 = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
+  auto node2 = builder.AddNode("NetOutput", NETOUTPUT, 1, 1);
+
+  AttrUtils::SetInt(data_node->GetOpDesc(), ATTR_NAME_INDEX, 0);
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), node1->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+
+  ge::GEPass pass(builder.GetGraph());
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+  EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_MemReuse_OutOfRangeIndex) {
+  setenv("DUMP_GRAPH_LEVEL", "2", 1);
+  setenv("DUMP_GE_GRAPH", "2", 1);
+
+  std::map<std::string, std::string> options;
+  options[OPTION_INPUT_REUSE_MEM_INDEXES] = "999999999999999999999999";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto builder = ut::GraphBuilder("g1");
+  auto data_node = builder.AddNode("Data", DATA, 1, 1);
+  auto node1 = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
+  auto node2 = builder.AddNode("NetOutput", NETOUTPUT, 1, 1);
+
+  AttrUtils::SetInt(data_node->GetOpDesc(), ATTR_NAME_INDEX, 0);
+
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), node1->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+
+  ge::GEPass pass(builder.GetGraph());
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+  EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
+TEST_F(UtestTensorMoveDeletePass, TensorMoveFromData_MemReuse_PartialInvalidIndex) {
+  setenv("DUMP_GRAPH_LEVEL", "2", 1);
+  setenv("DUMP_GE_GRAPH", "2", 1);
+
+  std::map<std::string, std::string> options;
+  options[OPTION_INPUT_REUSE_MEM_INDEXES] = "12abc";
+  ge::GetThreadLocalContext().SetGraphOption(options);
+
+  auto builder = ut::GraphBuilder("g1");
+  auto data_node = builder.AddNode("Data", DATA, 1, 1);
+  auto node1 = builder.AddNode("TensorMove", TENSORMOVE, 1, 1);
+  auto node2 = builder.AddNode("NetOutput", NETOUTPUT, 1, 1);
+
+  AttrUtils::SetInt(data_node->GetOpDesc(), ATTR_NAME_INDEX, 0);
+
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), node1->GetInDataAnchor(0));
+  GraphUtils::AddEdge(node1->GetOutDataAnchor(0), node2->GetInDataAnchor(0));
+
+  ge::GEPass pass(builder.GetGraph());
+  TensorMoveDeletePass tensor_move_delete_pass;
+  ge::NamesToPass names_to_pass;
+  names_to_pass.emplace_back("TensorMoveDeletePass", &tensor_move_delete_pass);
+
+  EXPECT_EQ(pass.Run(names_to_pass), SUCCESS);
+  EXPECT_NE(builder.GetGraph()->FindNode("TensorMove"), nullptr);
+
+  ge::GetThreadLocalContext().SetGraphOption({});
+}
 /**
  *       Variable
  *          |
