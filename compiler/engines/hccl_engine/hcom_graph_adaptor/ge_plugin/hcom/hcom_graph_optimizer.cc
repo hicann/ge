@@ -1083,7 +1083,6 @@ HcclResult HcomGraphOptimizer::CalcOpRunningResources(const ge::Node &node, std:
 HcclResult HcomGraphOptimizer::SetOpRunningParamAttributes(ge::Node &node, const std::string &sCollectiveType,
                                                             u32 &streamNum, u64 opMemSize) {
   std::string nodeName = node.GetName();
-  
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_SEND || sCollectiveType == HCCL_KERNEL_OP_TYPE_RECEIVE ||
       (sCollectiveType == HCCL_KERNEL_OP_TYPE_BROADCAST && nodeName.find(NO_CALCULATION) != std::string::npos)) {
     streamNum = 0;

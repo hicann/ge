@@ -856,7 +856,6 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceOpKernel(const ge::GETaskInfo &t
     const char *groupName = nullptr;
     if (comm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
       groupName = group.c_str();
-
     } else {
       char *tmp = nullptr;
       CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
@@ -962,7 +961,6 @@ HcclResult HcomOpsKernelInfoStore::HcomAllReduceLoop(const ge::GETaskInfo &task,
     const char *groupName = nullptr;
     if (comm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
       groupName = group.c_str();
-
     } else {
       char *tmp = nullptr;
       CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
@@ -1906,7 +1904,6 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceOpKernel(const ge::GETaskInfo &task
     const char *groupName = nullptr;
     if (comm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
       groupName = group.c_str();
-
     } else {
       char *tmp = nullptr;
       CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));
@@ -2003,7 +2000,6 @@ HcclResult HcomOpsKernelInfoStore::HcomReduceLoop(const ge::GETaskInfo &task, co
     const char *groupName = nullptr;
     if (comm == static_cast<int64_t>(CommNumHcom::COMM_VALUE_DEFAULT)) {
       groupName = group.c_str();
-
     } else {
       char *tmp = nullptr;
       CHK_RET(HcomGetGroupNameByOpBase(comm, &tmp));

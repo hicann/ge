@@ -177,7 +177,4 @@ HcclResult HCCLOpsKernelInfoStore::GetWorkSpaceTaskInfo(const ge::GETaskKernelHc
   return HCCL_SUCCESS;
 }
 
-
-
-
 }  // namespace hccl

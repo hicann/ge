@@ -828,7 +828,6 @@ HcclResult HcomOpsKernelBuilder::HcomCalcOpRunningParam(ge::Node &node) {
 HcclResult HcomOpsKernelBuilder::CalcOpRunningResources(const ge::Node &node, std::string &sCollectiveType,
                                                          std::string &sGroup, u32 &streamNum,
                                                          u64 &opMemSize, u32 &taskNum, u32 &aivCoreNum) {
-
   std::vector<int64_t> sendCountMatrix;
   std::vector<int64_t> sendCounts;
   std::vector<int64_t> sendDispls;
@@ -916,7 +915,6 @@ HcclResult HcomOpsKernelBuilder::SetOpRunningParamAttributes(ge::Node &node, con
                                                               const std::string &sGroup, u32 &streamNum,
                                                               u64 opMemSize, u32 taskNum) {
   std::string nodeName = node.GetName();
-  
   if (sCollectiveType == HCCL_KERNEL_OP_TYPE_SEND || sCollectiveType == HCCL_KERNEL_OP_TYPE_RECEIVE ||
       (sCollectiveType == HCCL_KERNEL_OP_TYPE_BROADCAST && nodeName.find(NO_CALCULATION) != std::string::npos)) {
     // 重新刷新从流为0

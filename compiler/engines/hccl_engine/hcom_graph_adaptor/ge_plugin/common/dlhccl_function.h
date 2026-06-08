@@ -108,7 +108,6 @@ class DlHcclFunction {
                                   HcclCMDType opType, bool clearEnable, HcclDataType dataType, HcclReduceOp op,
                                   void **commContext, u64 *len, u32 aivCoreLimit);
     
-
   private:
   DlHcclFunction();
   ~DlHcclFunction();
