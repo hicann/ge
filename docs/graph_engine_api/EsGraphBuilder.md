@@ -10,6 +10,8 @@
 
 -   **[CreateConst](CreateConst.md)**  
 
+-   **[CreateConstV2](CreateConstV2.md)**
+
 -   **[GetCGraphBuilder](GetCGraphBuilder.md)**  
 
 -   **[CreateInput](CreateInput.md)**  
@@ -34,9 +36,10 @@
 
 -   **[EsCreateConst](EsCreateConst.md)**  
 
+-   **[EsCreateConstV2](EsCreateConstV2.md)**
+
 -   **[GeGraphsToEsCGraphs](GeGraphsToEsCGraphs.md)**  
 
 -   **[ListListTypeToPtrAndCounts](ListListTypeToPtrAndCounts.md)**  
 
 -   **[TensorsToEsCTensorHolders](TensorsToEsCTensorHolders.md)**  
-

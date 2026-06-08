@@ -8,7 +8,7 @@
 
 ```
 template <typename T>
-EsCTensorHolder *EsCreateConst(EsCGraphBuilder *graph, const T *value, const int64_t *dims, int64_t dim_num, ge::DataType dt, ge::Format format = FORMAT_ND) 
+EsCTensorHolder *EsCreateConst(EsCGraphBuilder *graph, const T *value, const int64_t *dims, int64_t dim_num, ge::DataType dt, ge::Format format = FORMAT_ND)
 ```
 
 ## 参数说明<a name="section62999330"></a>
@@ -97,7 +97,9 @@ EsCTensorHolder *EsCreateConst(EsCGraphBuilder *graph, const T *value, const int
 
 ## 约束说明<a name="section24049039"></a>
 
-无
+`EsCreateConst`内部使用`IrDefOutputs/IrDefAttrs`接口，IR定义结构体中包含`std::string`字段，不保证跨不同C++ ABI配置的兼容性。该接口保留用于兼容老GE包。
+
+需要ABI安全时，请使用`EsCreateConstV2`。`EsCreateConstV2`要求运行时GE包支持`CompliantNodeBuilder` V2接口。
 
 ## 调用示例<a name="section16305113853313"></a>
 
@@ -107,4 +109,3 @@ std::vector<int64_t> data = {1, 2, 3};
 std::vector<int64_t> dims = {3};
 auto const_tensor = ge::es::EsCreateConst<int64_t>(graph, data.data(), dims.data(), dims.size(), ge::DT_INT64);
 ```
-

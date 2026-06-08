@@ -86,10 +86,55 @@ std::unique_ptr<Tensor> CreateTensorFromFile(const char *data_file_path, const s
  *
  * 该函数用于创建具有指定数据类型和形状的Const算子。
  * 支持原始指针输入，适用于C风格数组。
+ * @note 非ABI兼容：内部使用IrDefOutputs/IrDefAttrs接口，IR定义结构体中包含std::string字段，
+ *       若调用方与GE库使用不同的编译器ABI，会导致内存布局不一致。请使用EsCreateConstV2代替。
  */
 template <typename T>
 EsCTensorHolder *EsCreateConst(EsCGraphBuilder *graph, const T *value, const int64_t *dims, int64_t dim_num,
                                 ge::DataType dt, ge::Format format = FORMAT_ND) {
+  if (graph == nullptr || value == nullptr) {
+    return nullptr;
+  }
+  auto tensor = ge::es::CreateTensor<T>(value, dims, dim_num, dt, format);
+  if (tensor == nullptr) {
+    return nullptr;
+  }
+  auto av = ge::AttrValue();
+  if (av.SetAttrValue(*tensor) != ge::GRAPH_SUCCESS) {
+    return nullptr;
+  }
+  if (graph->GetGraph() == nullptr) {
+    return nullptr;
+  }
+  auto node = ge::es::CompliantNodeBuilder(graph->GetGraph())
+                  .OpType("Const")
+                  .Name(graph->GenerateNodeName("Const").GetString())
+                  .IrDefOutputs({{"y", ge::es::CompliantNodeBuilder::kEsIrOutputRequired, ""}})
+                  .IrDefAttrs({{"value", ge::es::CompliantNodeBuilder::kEsAttrOptional, "VT_TENSOR", av}})
+                  .InstanceOutputShape("y", tensor->GetTensorDesc().GetShape().GetDims())
+                  .InstanceOutputDataType("y", dt)
+                  .InstanceOutputFormat("y", format)
+                  .Build();
+  return graph->GetTensorHolderFromNode(node, 0);
+}
+
+/**
+ * @brief ABI安全的Const算子创建接口（原始指针版本）
+ * @tparam T 张量数据类型
+ * @param graph 图构建器指针
+ * @param value 张量数据指针
+ * @param dims 张量维度数组指针
+ * @param dim_num 维度数量
+ * @param dt 张量的数据类型
+ * @param format 张量格式，默认为FORMAT_ND
+ * @return 返回创建的Const的张量持有者算子，失败时返回nullptr
+ *
+ * 该函数用于创建具有指定数据类型和形状的Const算子。
+ * 支持原始指针输入，适用于C风格数组。
+ */
+template <typename T>
+EsCTensorHolder *EsCreateConstV2(EsCGraphBuilder *graph, const T *value, const int64_t *dims, int64_t dim_num,
+                                  ge::DataType dt, ge::Format format = FORMAT_ND) {
   if (graph == nullptr || value == nullptr) {
     return nullptr;
   }
@@ -317,6 +362,8 @@ class EsGraphBuilder {
    * @return 返回创建的Const的张量持有者算子
    *
    * 创建具有指定数据类型、格式和形状的Const算子。
+   * @note 非ABI兼容：内部使用IrDefOutputs/IrDefAttrs接口，IR定义结构体中包含std::string字段，
+   *       若调用方与GE库使用不同的编译器ABI，会导致内存布局不一致。请使用CreateConstV2代替。
    */
   template <typename T>
   EsTensorHolder CreateConst(const std::vector<T> &value, const std::vector<int64_t> &dims, ge::DataType dt,
@@ -324,6 +371,25 @@ class EsGraphBuilder {
     return EsTensorHolder(
         ge::es::EsCreateConst<T>(graph_builder_.get(), value.data(), dims.data(), static_cast<int64_t>(dims.size()),
                                  dt, format));
+  }
+
+  /**
+   * @brief ABI安全的Const算子创建接口
+   * @tparam T 张量数据类型
+   * @param value 张量数据向量
+   * @param dims 张量维度向量
+   * @param dt 张量的数据类型
+   * @param format 张量格式，默认为FORMAT_ND
+   * @return 返回创建的Const的张量持有者算子
+   *
+   * 创建具有指定数据类型、格式和形状的Const算子。
+   */
+  template <typename T>
+  EsTensorHolder CreateConstV2(const std::vector<T> &value, const std::vector<int64_t> &dims, ge::DataType dt,
+                               ge::Format format = FORMAT_ND) {
+    return EsTensorHolder(
+        ge::es::EsCreateConstV2<T>(graph_builder_.get(), value.data(), dims.data(), static_cast<int64_t>(dims.size()),
+                                   dt, format));
   }
 
   /**
