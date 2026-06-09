@@ -72,7 +72,7 @@ Expr *TaskCodeBuilderUtil::BuildTaskIoEntries(AstBuildContext &ast, const std::v
     if (!addr.tensor_info.has_value()) {
       continue;
     }
-    entries.emplace_back(std::vector<Arg>{
+    (void)entries.emplace_back(std::vector<Arg>{
         ast.Var("Om2Tensor", addr.symbol_hint).Addr(),
         std::to_string(addr.tensor_info->args_offset) + "U"});
   }
@@ -83,7 +83,7 @@ Expr *TaskCodeBuilderUtil::BuildWorkspaceAddrs(AstBuildContext &ast, const std::
   std::vector<Arg> entries;
   entries.reserve(addrs.size());
   for (const auto &addr : addrs) {
-    entries.emplace_back(ast.Call("PtrToU64", {ast.Var("auto", addr.symbol_hint)}));
+    (void)entries.emplace_back(ast.Call("PtrToU64", {ast.Var("auto", addr.symbol_hint)}));
   }
   return ast.InitList(entries);
 }
@@ -92,7 +92,7 @@ Expr *TaskCodeBuilderUtil::BuildWorkspaceSizes(AstBuildContext &ast, const std::
   std::vector<Arg> entries;
   entries.reserve(addrs.size());
   for (const auto &addr : addrs) {
-    entries.emplace_back(std::to_string(addr.byte_size) + "U");
+    (void)entries.emplace_back(std::to_string(addr.byte_size) + "U");
   }
   return ast.InitList(entries);
 }
@@ -110,7 +110,7 @@ Expr *TaskCodeBuilderUtil::BuildL0ArgSlotEntries(AstBuildContext &ast,
                                   : (addr.tensor_info.has_value()
                                          ? Arg(std::to_string(addr.tensor_info->args_offset / sizeof(uint64_t)) + "U")
                                          : Arg("0U"));
-    entries.emplace_back(std::vector<Arg>{
+    (void)entries.emplace_back(std::vector<Arg>{
         ToOm2L0ArgKind(addr.kind),
         "0U",
         std::to_string(args_offset) + "U",
@@ -136,17 +136,17 @@ Status TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(AstBuildContext &ast, s
                                                          bool is_raw_address) {
   std::vector<Arg> args;
   args.reserve(17U);
-  args.emplace_back(Arg::StringLiteral(header.op_name));
-  args.emplace_back(Arg::StringLiteral(header.op_type));
-  args.emplace_back(std::to_string(header.op_desc_id) + "U");
+  (void)args.emplace_back(Arg::StringLiteral(header.op_name));
+  (void)args.emplace_back(Arg::StringLiteral(header.op_type));
+  (void)args.emplace_back(std::to_string(header.op_desc_id) + "U");
   if (args_table_entry != nullptr) {
     auto args_info = args_table.Attr("GetArgsInfo")(static_cast<int64_t>(args_table_entry->table_index));
-    args.emplace_back(ast.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")));
-    args.emplace_back(use_args_info_size ? Arg(args_info.Arrow("size"))
+    (void)args.emplace_back(ast.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")));
+    (void)args.emplace_back(use_args_info_size ? Arg(args_info.Arrow("size"))
                                          : Arg(std::to_string(args_table_entry->args_size) + "U"));
   } else {
-    args.emplace_back(ast.UInt(0U));
-    args.emplace_back("0U");
+    (void)args.emplace_back(ast.UInt(0U));
+    (void)args.emplace_back("0U");
   }
   const std::string inputs_var = var_prefix + "_report_inputs";
   const std::string outputs_var = var_prefix + "_report_outputs";
@@ -169,37 +169,37 @@ Status TaskCodeBuilderUtil::AppendReportLaunchedTaskCall(AstBuildContext &ast, s
   const auto output_num = count_report_tensors(output_addrs);
   const auto workspace_num = workspace_addrs.size();
   if (input_num > 0U) {
-    items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", inputs_var + "[]", input_entries));
-    args.emplace_back(inputs_var);
+    (void)items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", inputs_var + "[]", input_entries));
+    (void)args.emplace_back(inputs_var);
   } else {
-    args.emplace_back("nullptr");
+    (void)args.emplace_back("nullptr");
   }
-  args.emplace_back(ast.ULong(input_num));
+  (void)args.emplace_back(ast.ULong(input_num));
   if (output_num > 0U) {
-    items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", outputs_var + "[]", output_entries));
-    args.emplace_back(outputs_var);
+    (void)items.emplace_back(ast.VarDecl("const Om2TaskIoEntry", outputs_var + "[]", output_entries));
+    (void)args.emplace_back(outputs_var);
   } else {
-    args.emplace_back("nullptr");
+    (void)args.emplace_back("nullptr");
   }
-  args.emplace_back(ast.UInt(static_cast<uint32_t>(output_num)));
+  (void)args.emplace_back(ast.UInt(static_cast<uint32_t>(output_num)));
   if (workspace_num > 0U) {
-    items.emplace_back(ast.VarDecl("const uint64_t", workspace_addrs_var + "[]", workspace_addr_entries));
-    items.emplace_back(ast.VarDecl("const uint64_t", workspace_sizes_var + "[]", workspace_size_entries));
-    args.emplace_back(workspace_addrs_var);
-    args.emplace_back(workspace_sizes_var);
+    (void)items.emplace_back(ast.VarDecl("const uint64_t", workspace_addrs_var + "[]", workspace_addr_entries));
+    (void)items.emplace_back(ast.VarDecl("const uint64_t", workspace_sizes_var + "[]", workspace_size_entries));
+    (void)args.emplace_back(workspace_addrs_var);
+    (void)args.emplace_back(workspace_sizes_var);
   } else {
-    args.emplace_back("nullptr");
-    args.emplace_back("nullptr");
+    (void)args.emplace_back("nullptr");
+    (void)args.emplace_back("nullptr");
   }
-  args.emplace_back(ast.UInt(static_cast<uint32_t>(workspace_num)));
-  args.emplace_back(ast.UInt(static_cast<uint32_t>(task_type)));
-  args.emplace_back(stream);
-  args.emplace_back(model_id);
-  args.emplace_back(instance_handle);
+  (void)args.emplace_back(ast.UInt(static_cast<uint32_t>(workspace_num)));
+  (void)args.emplace_back(ast.UInt(static_cast<uint32_t>(task_type)));
+  (void)args.emplace_back(stream);
+  (void)args.emplace_back(model_id);
+  (void)args.emplace_back(instance_handle);
   if (is_raw_address) {
-    args.emplace_back(ast.UInt(1U));
+    (void)args.emplace_back(ast.UInt(1U));
   }
-  items.emplace_back(ast.Call("OM2_CHK_STATUS", {ast.Call("ReportLaunchedOm2Task", args)}));
+  (void)items.emplace_back(ast.Call("OM2_CHK_STATUS", {ast.Call("ReportLaunchedOm2Task", args)}));
   return SUCCESS;
 }
 
@@ -211,29 +211,29 @@ ExprRef TaskCodeBuilderUtil::BuildReportTaskPreprocessCall(
     bool use_args_info_size, bool is_raw_address) {
   std::vector<Arg> args;
   args.reserve(14U);
-  args.emplace_back(Arg::StringLiteral(header.op_name));
-  args.emplace_back(Arg::StringLiteral(header.op_type));
-  args.emplace_back(std::to_string(header.op_desc_id) + "U");
+  (void)args.emplace_back(Arg::StringLiteral(header.op_name));
+  (void)args.emplace_back(Arg::StringLiteral(header.op_type));
+  (void)args.emplace_back(std::to_string(header.op_desc_id) + "U");
   if (args_table_entry != nullptr) {
     auto args_info = args_table.Attr("GetArgsInfo")(static_cast<int64_t>(args_table_entry->table_index));
-    args.emplace_back(ast.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")));
-    args.emplace_back(use_args_info_size ? Arg(args_info.Arrow("size"))
+    (void)args.emplace_back(ast.ReinterpretCast("uintptr_t", args_info.Arrow("dev_addr")));
+    (void)args.emplace_back(use_args_info_size ? Arg(args_info.Arrow("size"))
                                          : Arg(std::to_string(args_table_entry->args_size) + "U"));
   } else {
-    args.emplace_back(ast.UInt(0U));
-    args.emplace_back("0U");
+    (void)args.emplace_back(ast.UInt(0U));
+    (void)args.emplace_back("0U");
   }
-  args.emplace_back(TaskCodeBuilderUtil::BuildTaskIoEntries(ast, input_addrs));
-  args.emplace_back(TaskCodeBuilderUtil::BuildTaskIoEntries(ast, output_addrs));
-  args.emplace_back(TaskCodeBuilderUtil::BuildWorkspaceAddrs(ast, workspace_addrs));
-  args.emplace_back(TaskCodeBuilderUtil::BuildWorkspaceSizes(ast, workspace_addrs));
-  args.emplace_back(ast.UInt(static_cast<uint32_t>(task_type)));
-  args.emplace_back(stream);
-  args.emplace_back(l0_info);
-  args.emplace_back(model_id);
-  args.emplace_back(instance_handle);
+  (void)args.emplace_back(TaskCodeBuilderUtil::BuildTaskIoEntries(ast, input_addrs));
+  (void)args.emplace_back(TaskCodeBuilderUtil::BuildTaskIoEntries(ast, output_addrs));
+  (void)args.emplace_back(TaskCodeBuilderUtil::BuildWorkspaceAddrs(ast, workspace_addrs));
+  (void)args.emplace_back(TaskCodeBuilderUtil::BuildWorkspaceSizes(ast, workspace_addrs));
+  (void)args.emplace_back(ast.UInt(static_cast<uint32_t>(task_type)));
+  (void)args.emplace_back(stream);
+  (void)args.emplace_back(l0_info);
+  (void)args.emplace_back(model_id);
+  (void)args.emplace_back(instance_handle);
   if (is_raw_address) {
-    args.emplace_back(ast.UInt(1U));
+    (void)args.emplace_back(ast.UInt(1U));
   }
   return ast.Call("ReportOm2TaskPreprocess", args);
 }

@@ -149,7 +149,7 @@ class AstContext {
   }
 
   template <typename T>
-  MutableArrayRef<T> AllocateMutableArray(const size_t count) {
+  auto AllocateMutableArray(const size_t count) -> MutableArrayRef<T> {
     static_assert(std::is_pointer<T>::value || std::is_same<std::decay_t<T>, StringRef>::value,
                   "ArrayRef element type must be a pointer or StringRef.");
     static_assert(std::is_trivially_destructible<T>::value, "Array elements T must be trivially destructible");

@@ -22,7 +22,7 @@ class DeclNode;
 
 class CppEmitter final : public CodeEmitter {
  public:
-  CppEmitter() : indent_unit_("  ") {}
+  CppEmitter() = default;
   explicit CppEmitter(std::string indent_unit) : indent_unit_(std::move(indent_unit)) {}
 
   Status Emit(const ParamDecl &node, std::string &output) override final;
@@ -85,7 +85,7 @@ class CppEmitter final : public CodeEmitter {
   Status EmitFunctionSignature(StringRef return_type, StringRef name, const ArrayRef<ParamDecl *> &params,
                                std::string &output);
 
-  std::string indent_unit_;
+  std::string indent_unit_{"  "};
   size_t indent_level_{0U};
 };
 

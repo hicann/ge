@@ -15,8 +15,8 @@
 #include <checker.h>
 
 namespace {
-constexpr size_t kBlockSize = 16 * 1024;
-constexpr int32_t kMemAlignSize = 8;
+constexpr size_t kBlockSize = 16UL * 1024UL;
+constexpr size_t kMemAlignSize = 8UL;
 }
 
 namespace ge {
@@ -40,7 +40,7 @@ uint8_t *AstNodePool::Allocate(const size_t mem_size) {
   }
 
   Block &current_block = blocks_.back();
-  uint8_t *allocated_memory = current_block.data + current_block.offset;
+  uint8_t *allocated_memory = &current_block.data[current_block.offset];
   current_block.offset += aligned_mem_size;
   return allocated_memory;
 }

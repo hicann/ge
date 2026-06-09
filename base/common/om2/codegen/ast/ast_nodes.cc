@@ -15,7 +15,7 @@
 namespace ge {
 namespace {
 template <typename T>
-ArrayRef<T> CopyArray(AstContext &ctx, const std::vector<T> &items) {
+auto CopyArray(AstContext &ctx, const std::vector<T> &items) -> ArrayRef<T> {
   auto copied = ctx.AllocateMutableArray<T>(items.size());
   GE_ASSERT_TRUE(copied.Data() != nullptr || items.empty());
   for (size_t i = 0; i < items.size(); ++i) {
@@ -25,14 +25,14 @@ ArrayRef<T> CopyArray(AstContext &ctx, const std::vector<T> &items) {
 }
 
 template <typename NodeT, typename... Args>
-NodeT *AllocateNode(AstContext &ctx, Args &&...args) {
+auto AllocateNode(AstContext &ctx, Args &&...args) -> NodeT * {
   void *mem = ctx.Allocate(sizeof(NodeT));
   GE_ASSERT_NOTNULL(mem);
   return new (mem) NodeT(std::forward<Args>(args)...);
 }
 
 template <typename NodeT>
-NodeT *CreateNamedContainer(AstContext &ctx, const std::string &name, const std::vector<DeclNode *> &items) {
+auto CreateNamedContainer(AstContext &ctx, const std::string &name, const std::vector<DeclNode *> &items) -> NodeT * {
   return AllocateNode<NodeT>(ctx, ctx.CopyString(name.c_str()), CopyArray(ctx, items));
 }
 }  // namespace
