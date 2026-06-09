@@ -29,7 +29,7 @@ class DlHcclFunction {
   static DlHcclFunction &get_instance();
   HcclResult init();
   void deinit();
-  bool isLoadHcclGraphModeFunctions() const;
+  bool isLoadHcclGraphModeFunctions();
   HcclResult dlHcclAllReduce(void *sendBuf, void *recvBuf, uint64_t count, HcclDataType dataType, HcclReduceOp op,
                              HcclComm comm, aclrtStream stream);
 
@@ -71,8 +71,8 @@ class DlHcclFunction {
   HcclResult dlHcomGetandClearOverFlowTasks(const char *group, hccl::HcclDumpInfo **hcclDumpInfoPtr, s32 *len);
 
   // 图模式相关函数
-  HcclResult dlHcclCreateOpParamGraphMode(const OpParamGraphModePtr *opParam);
-  HcclResult dlHcclDestroyOpParamGraphMode(const OpParamGraphModePtr opParam);
+  HcclResult dlHcclCreateOpParamGraphMode(OpParamGraphModePtr *opParam);
+  HcclResult dlHcclDestroyOpParamGraphMode(OpParamGraphModePtr opParam);
   HcclResult dlHcclSetOpParamGraphModeOpType(OpParamGraphModePtr opParam, const char *opType);
   HcclResult dlHcclSetOpParamGraphModeDataCount(OpParamGraphModePtr opParam, const u64 *dataCount);
   HcclResult dlHcclSetOpParamGraphModeDataType(OpParamGraphModePtr opParam, const HcclDataType dataType);
