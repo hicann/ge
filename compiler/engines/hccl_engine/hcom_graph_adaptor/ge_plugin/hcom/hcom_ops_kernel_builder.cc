@@ -1906,7 +1906,8 @@ HcclResult HcomOpsKernelBuilder::SetHcomOpParam(const ge::Node &node, HcomOpPara
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::SetHcclOpParam(const ge::Node &node, HcomOpParam *hcomOpParam, OpParamGraphModePtr opParam, std::string &sCollectiveType,
+HcclResult HcomOpsKernelBuilder::SetHcclOpParam(const ge::Node &node, HcomOpParam *hcomOpParam,
+                                                OpParamGraphModePtr opParam, std::string &sCollectiveType,
                                                 std::vector<int64_t> &sendCounts, std::vector<int64_t> &sendDispls,
                                                 std::vector<int64_t> &recvCounts, std::vector<int64_t> &recvDispls) {
   HCCL_INFO("[Calc][SetHcclOpParam] with [%s].", sCollectiveType.c_str());

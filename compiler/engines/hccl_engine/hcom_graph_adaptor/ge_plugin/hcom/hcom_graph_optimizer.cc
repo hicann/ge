@@ -1378,7 +1378,8 @@ HcclResult HcomGraphOptimizer::SetHcomOpParam(const ge::Node &node, HcomOpParam 
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam *hcomOpParam, OpParamGraphModePtr opParam, std::string &sCollectiveType,
+HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam *hcomOpParam,
+                                              OpParamGraphModePtr opParam, std::string &sCollectiveType,
                                               std::vector<int64_t> &sendCounts, std::vector<int64_t> &sendDispls,
                                               std::vector<int64_t> &recvCounts, std::vector<int64_t> &recvDispls) {
   HCCL_INFO("[Calc][SetHcclOpParam] with [%s].", sCollectiveType.c_str());
