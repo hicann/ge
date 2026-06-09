@@ -68,7 +68,6 @@ target_link_libraries(acl_cblas PRIVATE
     unified_dlog
     mmpa
     profapi_share
-    runtime
     error_manager
     runtime_headers
     metadef_headers

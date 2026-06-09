@@ -62,7 +62,7 @@ if (NOT TARGET flow_graph)
             $<$<NOT:$<STREQUAL:${TARGET_SYSTEM_NAME},Android>>:-lrt>
             -ldl
             PUBLIC
-            metadef_headers
+            ge_metadef_headers
     )
 
     target_link_libraries(flow_graph PRIVATE ascend_protobuf error_manager runtime_headers)

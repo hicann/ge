@@ -199,7 +199,7 @@ target_link_libraries(model_deployer PRIVATE
         acl_rt
         msprof_headers
         datagw_headers
-        metadef_headers
+        ge_metadef_headers
         hccl_headers
         gRPC::grpc++
         gRPC::grpc
