@@ -3712,6 +3712,72 @@ TEST_F(FmMemoryRefreshTest, ann_data_reuse_mem_01)  {
 
   runtime_stub.Clear();
 }
+TEST_F(FmMemoryRefreshTest, ann_data_reuse_mem_partial_invalid_input_index) {
+  GertRuntimeStub runtime_stub;
+
+  std::map<AscendString, AscendString> options;
+  options.emplace(ge::OPTION_CONST_LIFECYCLE, "graph");
+  options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
+  options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
+  Session session(options);
+
+  auto graph = BuildRefDataReuseMemGraph();
+
+  std::map<AscendString, AscendString> graph_options;
+  graph_options.emplace(ge::OPTION_INPUT_REUSE_MEM_INDEXES, "12abc");
+  graph_options.emplace(ge::OPTION_OUTPUT_REUSE_MEM_INDEXES, "0,1");
+
+  uint32_t graph_id = 1;
+  EXPECT_NE(session.AddGraph(graph_id, graph, graph_options), SUCCESS);
+
+  runtime_stub.Clear();
+}
+TEST_F(FmMemoryRefreshTest, ann_data_reuse_mem_invalid_input_index) {
+  GertRuntimeStub runtime_stub;
+
+  std::map<AscendString, AscendString> options;
+  options.emplace(ge::OPTION_CONST_LIFECYCLE, "graph");
+  options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
+  options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
+  Session session(options);
+
+  auto graph = BuildRefDataReuseMemGraph();
+
+  std::map<AscendString, AscendString> graph_options;
+  graph_options.emplace(ge::OPTION_INPUT_REUSE_MEM_INDEXES, "abc");
+  graph_options.emplace(ge::OPTION_OUTPUT_REUSE_MEM_INDEXES, "0,1");
+
+  uint32_t graph_id = 1;
+  EXPECT_NE(session.AddGraph(graph_id, graph, graph_options), SUCCESS);
+
+
+  runtime_stub.Clear();
+}
+TEST_F(FmMemoryRefreshTest, ann_data_reuse_mem_out_of_range_input_index) {
+  GertRuntimeStub runtime_stub;
+
+  std::map<AscendString, AscendString> options;
+  options.emplace(ge::OPTION_CONST_LIFECYCLE, "graph");
+  options.emplace(ge::OPTION_FEATURE_BASE_REFRESHABLE, "1");
+  options.emplace(ge::OPTION_GRAPH_RUN_MODE, "1");
+  Session session(options);
+
+  auto graph = BuildRefDataReuseMemGraph();
+
+  std::map<AscendString, AscendString> graph_options;
+  graph_options.emplace(ge::OPTION_INPUT_REUSE_MEM_INDEXES, "99999999999999999999999999999999");
+  graph_options.emplace(ge::OPTION_OUTPUT_REUSE_MEM_INDEXES, "0,1");
+
+  uint32_t graph_id = 1;
+  EXPECT_NE(session.AddGraph(graph_id, graph, graph_options), SUCCESS);
+
+
+  runtime_stub.Clear();
+}
+TEST_F(FmMemoryRefreshTest, convert_to_int32_partial_invalid_string) {
+  int32_t value = 0;
+  EXPECT_NE(ge::ConvertToInt32("12abc", value), SUCCESS);
+}
 
 /**
  * 用例描述：fm可刷新场景，单次执行模型，args table正确

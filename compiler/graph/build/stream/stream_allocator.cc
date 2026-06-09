@@ -1028,6 +1028,17 @@ Status StreamAllocator::InsertEventsForSubgraph(const EventType insert_event_typ
     for (const auto &node : subgraph->GetDirectNode()) {
       const auto &op_desc = node->GetOpDesc();
       GE_CHECK_NOTNULL(op_desc);
+      // Insert events between subgraph begin node and parent node's in nodes
+      if ((op_desc->GetStreamId() != kInvalidStream) && node->GetInAllNodes().empty()) {
+        for (const auto &parent_node_in_anchor : parent_node->GetAllInAnchors()) {
+          for (const auto &peer_out_anchor : parent_node_in_anchor->GetPeerAnchors()) {
+            auto in_node = peer_out_anchor->GetOwnerNode();
+            GE_ASSERT_SUCCESS(InsertOneEventInTwoNodes(insert_event_type, in_node, node),
+                              "[Insert][One %s] In Two Nodes failed! cur node:%s", node->GetName().c_str(),
+                              GetEventTypeStr(insert_event_type).c_str());
+          }
+        }
+      }
       bool is_subgraph_end_node = false;
       if (!AttrUtils::GetBool(op_desc, ATTR_NAME_SUBGRAPH_END_NODE, is_subgraph_end_node) || !is_subgraph_end_node) {
         continue;

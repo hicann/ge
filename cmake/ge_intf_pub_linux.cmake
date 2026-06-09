@@ -8,13 +8,26 @@
 # See LICENSE in the root of the software repository for the full text of the License.
 # -----------------------------------------------------------------------------------------------------------
 
-include_guard(GLOBAL)
-
 if ((CMAKE_BUILD_TYPE MATCHES GCOV) OR (CMAKE_BUILD_TYPE MATCHES Debug))
     set(OPTIMIZE_OPTION "-O0")
 else ()
     set(OPTIMIZE_OPTION "-O2")
 endif ()
+
+include_guard(GLOBAL)
+if(TARGET intf_pub AND NOT ENABLE_UNIFIED_BUILD)
+    message(STATUS "Found intf_pub")
+    add_library(ge_intf_pub ALIAS intf_pub)
+    add_library(ge_intf_pub_Os INTERFACE)
+    target_compile_options(ge_intf_pub_Os INTERFACE
+        -Os
+    )
+    target_link_libraries(ge_intf_pub_Os INTERFACE
+        $<BUILD_INTERFACE:intf_pub>
+    )
+    add_library(ge_intf_pub_cxx14 ALIAS intf_pub_cxx14)
+    return()
+endif()
 
 ########## imported intf_pub_base|intf_pub ##########
 add_cann_target_options()

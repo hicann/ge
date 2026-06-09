@@ -429,7 +429,13 @@ FMK_FUNC_HOST_VISIBILITY bool ValidateStr(const std::string &file_path, const st
 
 Status ConvertToInt32(const std::string &str, int32_t &val) {
   try {
-    val = std::stoi(str);
+    size_t pos = 0;
+    val = std::stoi(str, &pos);
+    if (pos != str.size()) {
+      GELOGE(FAILED, "[Parse][Param]Failed, digit str:%s cannot change to int", str.c_str());
+      REPORT_INNER_ERR_MSG("E18888", "Parse param failed, digit str:%s cannot change to int", str.c_str());
+      return FAILED;
+    }
   } catch (std::invalid_argument &) {
     GELOGE(FAILED, "[Parse][Param]Failed, digit str:%s is invalid", str.c_str());
     REPORT_INNER_ERR_MSG("E18888", "Parse param failed, digit str:%s is invalid", str.c_str());

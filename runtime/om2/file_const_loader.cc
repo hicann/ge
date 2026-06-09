@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <fstream>
 #include <future>
+#include <memory>
 #include <set>
 #include <vector>
 
@@ -22,13 +23,15 @@
 #include "common/ge_inner_error_codes.h"
 #include "om2_external_weight_manager.h"
 #include "om2_var_manager.h"
-#include "common/aclrt_malloc_helper.h"
 #include "om2_file_utils.h"
+#include "om2_malloc_helper.h"
 #include "om2_thread_pool.h"
 #include "runtime/mem.h"
 
 namespace gert {
 namespace {
+constexpr size_t kCombinedConstCopyBlockSize = 10485760U;
+
 ge::Status RtMemcpyToDevice(const void *const host_addr, const size_t size, void *const device_addr) {
   if ((size == 0U) || (device_addr == nullptr)) {
     return ge::SUCCESS;
@@ -47,7 +50,7 @@ ge::Status RtMallocAndCopyToDevice(const void *const host_addr, const size_t siz
   if (size == 0U) {
     return ge::SUCCESS;
   }
-  const auto malloc_ret = ge::AclrtMalloc(&device_addr, size, RT_MEMORY_HBM, 0);
+  const auto malloc_ret = Om2Malloc(&device_addr, size, RT_MEMORY_HBM, 0);
   if (malloc_ret != ACL_SUCCESS) {
     GELOGE(ge::FAILED, "[OM2][Alloc] aclrtMalloc failed, size=%zu, rt_ret=%u", size, malloc_ret);
     return ge::FAILED;
@@ -59,12 +62,38 @@ ge::Status RtMallocAndCopyToDevice(const void *const host_addr, const size_t siz
     return memcpy_ret;
   }
   if ((ctx.owned_buffers != nullptr) && (device_addr != nullptr)) {
-    if (ctx.owned_buffers_mutex != nullptr) {
-      const std::lock_guard<std::mutex> lock(*ctx.owned_buffers_mutex);
-      ctx.owned_buffers->push_back(device_addr);
-    } else {
-      ctx.owned_buffers->push_back(device_addr);
+    ctx.owned_buffers->push_back(device_addr);
+  }
+  return ge::SUCCESS;
+}
+
+ge::Status CopyCombinedConstFromFile(std::ifstream &ifs, const std::string &file_path, void *const device_addr,
+                                     const size_t file_size) {
+  if (file_size == 0U) {
+    return ge::SUCCESS;
+  }
+  const size_t host_buffer_size = std::min(kCombinedConstCopyBlockSize, file_size);
+  auto host_buffer = std::make_unique<uint8_t[]>(host_buffer_size);
+  GE_ASSERT_NOTNULL(host_buffer, "[OM2][Alloc] Failed to allocate combined host buffer, path=%s, size=%zu.",
+                    file_path.c_str(), host_buffer_size);
+  size_t copied_size = 0U;
+  while (copied_size < file_size) {
+    const size_t copy_size = std::min(kCombinedConstCopyBlockSize, file_size - copied_size);
+    ifs.read(reinterpret_cast<char *>(host_buffer.get()), static_cast<std::streamsize>(copy_size));
+    const auto read_size = static_cast<size_t>(ifs.gcount());
+    GE_ASSERT_TRUE(read_size == copy_size,
+                   "[OM2][Read] Failed to read combined file, path=%s, expected=%zu, actual=%zu.", file_path.c_str(),
+                   copy_size, read_size);
+
+    auto *const cur_device_addr = static_cast<uint8_t *>(device_addr) + copied_size;
+    const auto memcpy_ret =
+        aclrtMemcpy(cur_device_addr, file_size - copied_size, host_buffer.get(), copy_size, ACL_MEMCPY_HOST_TO_DEVICE);
+    if (memcpy_ret != ACL_SUCCESS) {
+      GELOGE(ge::FAILED, "[OM2][Memcpy] Combined const H2D failed, path=%s, offset=%zu, size=%zu, rt_ret=%u.",
+             file_path.c_str(), copied_size, copy_size, memcpy_ret);
+      return ge::FAILED;
     }
+    copied_size += copy_size;
   }
   return ge::SUCCESS;
 }
@@ -73,27 +102,14 @@ ge::Status ReadFileSlice(const std::string &file_path, size_t offset, size_t siz
   std::ifstream ifs(file_path, std::ios::binary);
   GE_ASSERT_TRUE(ifs.is_open(), "[OM2][Open] Failed to open file const file.");
   (void)ifs.seekg(0, std::ifstream::end);
-  const auto file_size = static_cast<size_t>(ifs.tellg());
+  const auto end_pos = ifs.tellg();
+  GE_ASSERT_TRUE(end_pos >= 0, "[OM2][Check] Failed to get file const file size.");
+  const auto file_size = static_cast<size_t>(end_pos);
   GE_ASSERT_TRUE((offset + size) <= file_size, "[OM2][Check] Invalid file const offset or size.");
   (void)ifs.seekg(static_cast<std::streamoff>(offset), std::ifstream::beg);
   buffer.resize(size);
   ifs.read(reinterpret_cast<char *>(buffer.data()), static_cast<std::streamsize>(size));
   GE_ASSERT_TRUE(ifs.good(), "[OM2][Read] Failed to read file const slice.");
-  return ge::SUCCESS;
-}
-
-ge::Status ReadWholeFile(const std::string &file_path, std::vector<uint8_t> &buffer) {
-  std::ifstream ifs(file_path, std::ios::binary);
-  GE_ASSERT_TRUE(ifs.is_open(), "[OM2][Open] Failed to open combined file.");
-  (void)ifs.seekg(0, std::ifstream::end);
-  const auto file_size = static_cast<size_t>(ifs.tellg());
-  (void)ifs.seekg(0, std::ifstream::beg);
-  buffer.resize(file_size);
-  if (file_size == 0U) {
-    return ge::SUCCESS;
-  }
-  ifs.read(reinterpret_cast<char *>(buffer.data()), static_cast<std::streamsize>(file_size));
-  GE_ASSERT_TRUE(ifs.good(), "[OM2][Read] Failed to read combined file.");
   return ge::SUCCESS;
 }
 
@@ -131,10 +147,33 @@ ge::Status LoadCombinedConstBase(const std::string &file_name, const FileConstCo
 
   std::string file_path;
   GE_ASSERT_SUCCESS(ResolveFileConstFilePath(ctx.weight_dir, file_name, file_path));
-  std::vector<uint8_t> host_buffer;
-  GE_ASSERT_SUCCESS(ReadWholeFile(file_path, host_buffer));
-  file_size = host_buffer.size();
-  GE_ASSERT_SUCCESS(RtMallocAndCopyToDevice(host_buffer.data(), host_buffer.size(), ctx, base_addr));
+  std::ifstream ifs(file_path, std::ios::binary);
+  GE_ASSERT_TRUE(ifs.is_open(), "[OM2][Open] Failed to open combined file.");
+  (void)ifs.seekg(0, std::ifstream::end);
+  const auto end_pos = ifs.tellg();
+  GE_ASSERT_TRUE(end_pos >= 0, "[OM2][Check] Failed to get combined file size.");
+  file_size = static_cast<size_t>(end_pos);
+  (void)ifs.seekg(0, std::ifstream::beg);
+  GE_ASSERT_TRUE(ifs.good(), "[OM2][Seek] Failed to seek combined file to beginning.");
+  if (file_size == 0U) {
+    return ge::SUCCESS;
+  }
+
+  const auto malloc_ret = Om2Malloc(&base_addr, file_size, RT_MEMORY_HBM, 0);
+  if (malloc_ret != ACL_SUCCESS) {
+    GELOGE(ge::FAILED, "[OM2][Alloc] aclrtMalloc failed, size=%zu, rt_ret=%u", file_size, malloc_ret);
+    return ge::FAILED;
+  }
+
+  const auto copy_ret = CopyCombinedConstFromFile(ifs, file_path, base_addr, file_size);
+  if (copy_ret != ge::SUCCESS) {
+    (void)aclrtFree(base_addr);
+    base_addr = nullptr;
+    return copy_ret;
+  }
+  if ((ctx.owned_buffers != nullptr) && (base_addr != nullptr)) {
+    ctx.owned_buffers->push_back(base_addr);
+  }
   return ge::SUCCESS;
 }
 

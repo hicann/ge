@@ -13,6 +13,7 @@
 #include "common/summary_checker.h"
 #include "common/topo_checker.h"
 #include "utils/graph_utils_ex.h"
+#include "graph/utils/node_adapter.h"
 #include "es_graph_builder.h"
 #include "es_c_graph_builder.h"
 #include "esb_funcs.h"
@@ -38,6 +39,38 @@ auto check = [](EsTensorHolder &t) {
   EXPECT_EQ(td1.GetShape().GetDims(), std::vector<int64_t>());
   EXPECT_EQ(td1.GetOriginShape().GetDims(), std::vector<int64_t>());
 };
+
+template <typename T>
+void CheckConstTensorHolder(const EsTensorHolder &holder, const std::vector<T> &value,
+                            const std::vector<int64_t> &dims, ge::DataType dt, ge::Format format) {
+  ASSERT_NE(holder.GetCTensorHolder(), nullptr);
+  ASSERT_NE(holder.GetProducer(), nullptr);
+
+  ge::TensorDesc output_desc;
+  ASSERT_EQ(holder.GetProducer()->GetOutputDesc(0, output_desc), ge::GRAPH_SUCCESS);
+  EXPECT_EQ(output_desc.GetDataType(), dt);
+  EXPECT_EQ(output_desc.GetFormat(), format);
+  EXPECT_EQ(output_desc.GetShape().GetDims(), dims);
+
+  ge::AnyValue attr_value;
+  auto node = ge::NodeAdapter::GNode2Node(*holder.GetProducer());
+  ASSERT_NE(node, nullptr);
+  auto op_desc = node->GetOpDesc();
+  ASSERT_NE(op_desc, nullptr);
+  ASSERT_EQ(op_desc->GetAttr("value", attr_value), ge::GRAPH_SUCCESS);
+  ASSERT_FALSE(attr_value.IsEmpty());
+  auto tensor_attr = attr_value.Get<ge::GeTensor>();
+  ASSERT_NE(tensor_attr, nullptr);
+  EXPECT_EQ(tensor_attr->GetTensorDesc().GetDataType(), dt);
+  EXPECT_EQ(tensor_attr->GetTensorDesc().GetFormat(), format);
+  EXPECT_EQ(tensor_attr->GetTensorDesc().GetShape().GetDims(), dims);
+  ASSERT_EQ(tensor_attr->GetData().GetSize(), value.size() * sizeof(T));
+  const auto tensor_data = reinterpret_cast<const T *>(tensor_attr->GetData().data());
+  ASSERT_NE(tensor_data, nullptr);
+  for (size_t i = 0; i < value.size(); ++i) {
+    EXPECT_EQ(tensor_data[i], value[i]);
+  }
+}
 } // namespace
 class EsGraphBuilderLLT : public ::testing::Test {
   protected:
@@ -164,6 +197,31 @@ TEST_F(EsGraphBuilderLLT, CreateConsts) {
   std::vector<float> vecf = {1.1, 2.2, 3.3};
   auto c5 = builder.CreateConst(vecf, dims);
   EXPECT_NE(c5.GetCTensorHolder(), nullptr);
+}
+
+TEST_F(EsGraphBuilderLLT, CreateConstTemplateV1AndV2) {
+  EsGraphBuilder builder("test_graph");
+  std::vector<int32_t> value = {1, 2, 3, 4};
+  std::vector<int64_t> dims = {2, 2};
+
+  auto c1 = builder.CreateConst<int32_t>(value, dims, ge::DT_INT32, ge::FORMAT_NCHW);
+  CheckConstTensorHolder(c1, value, dims, ge::DT_INT32, ge::FORMAT_NCHW);
+
+  auto c2 = builder.CreateConstV2<int32_t>(value, dims, ge::DT_INT32, ge::FORMAT_NCHW);
+  CheckConstTensorHolder(c2, value, dims, ge::DT_INT32, ge::FORMAT_NCHW);
+}
+
+TEST_F(EsGraphBuilderLLT, EsCreateConstV2) {
+  auto *graph = EsCreateGraphBuilder("test_graph");
+  ASSERT_NE(graph, nullptr);
+  std::vector<int32_t> value = {1, 2, 3, 4};
+  std::vector<int64_t> dims = {2, 2};
+
+  auto *const_tensor = ge::es::EsCreateConstV2<int32_t>(graph, value.data(), dims.data(),
+                                                        static_cast<int64_t>(dims.size()), ge::DT_INT32,
+                                                        ge::FORMAT_NCHW);
+  CheckConstTensorHolder(EsTensorHolder(const_tensor), value, dims, ge::DT_INT32, ge::FORMAT_NCHW);
+  EsDestroyGraphBuilder(graph);
 }
 
 TEST_F(EsGraphBuilderLLT, CreateConstValue) {

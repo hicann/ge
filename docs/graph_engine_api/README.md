@@ -154,6 +154,7 @@
         -   [BuildAndReset](BuildAndReset.md)
         -   [CreateBoolTensor](CreateBoolTensor.md)
         -   [CreateConst](CreateConst.md)
+        -   [CreateConstV2](CreateConstV2.md)
         -   [GetCGraphBuilder](GetCGraphBuilder.md)
         -   [CreateInput](CreateInput.md)
         -   [CreateInputs](CreateInputs.md)
@@ -166,6 +167,7 @@
         -   [CreateTensorFromFile](CreateTensorFromFile.md)
         -   [DataTypesToEsCDataTypes](DataTypesToEsCDataTypes.md)
         -   [EsCreateConst](EsCreateConst.md)
+        -   [EsCreateConstV2](EsCreateConstV2.md)
         -   [GeGraphsToEsCGraphs](GeGraphsToEsCGraphs.md)
         -   [ListListTypeToPtrAndCounts](ListListTypeToPtrAndCounts.md)
         -   [TensorsToEsCTensorHolders](TensorsToEsCTensorHolders.md)
@@ -909,4 +911,3 @@
         -   [aclmdlExecConfigHandle](aclmdlExecConfigHandle.md)
             -   [aclmdlCreateExecConfigHandle](aclmdlCreateExecConfigHandle.md)
             -   [aclmdlDestroyExecConfigHandle](aclmdlDestroyExecConfigHandle.md)
-

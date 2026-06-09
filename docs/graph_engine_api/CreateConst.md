@@ -62,7 +62,7 @@
 
     ```
     template <typename T>
-    EsTensorHolder CreateConst(const std::vector<T> &value, const std::vector<int64_t> &dims, ge::DataType dt,ge::Format format = FORMAT_ND)
+    EsTensorHolder CreateConst(const std::vector<T> &value, const std::vector<int64_t> &dims, ge::DataType dt, ge::Format format = FORMAT_ND)
     ```
 
 ## 参数说明<a name="section62999330"></a>
@@ -137,7 +137,9 @@
 
 ## 约束说明<a name="section24049039"></a>
 
-无
+`CreateConst`通用模板方法内部使用`IrDefOutputs/IrDefAttrs`接口，IR定义结构体中包含`std::string`字段，不保证跨不同C++ ABI配置的兼容性。该接口保留用于兼容老GE包。
+
+需要ABI安全时，请使用`CreateConstV2`。`CreateConstV2`要求运行时GE包支持`CompliantNodeBuilder` V2接口。
 
 ## 调用示例<a name="section16305113853313"></a>
 
@@ -158,4 +160,3 @@
     std::vector<int64_t> dims = {4};
     auto c1 = builder.CreateConst<float>(vecf, dims, ge::DT_FLOAT);
     ```
-

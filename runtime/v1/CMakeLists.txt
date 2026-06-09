@@ -325,7 +325,7 @@ target_link_libraries(ge_executor_shared
         register
         error_manager
         runtime_headers
-        ascend_protobuf
+        ascend_protobuf_shared_headers
         c_sec
         json
         -Wl,--as-needed

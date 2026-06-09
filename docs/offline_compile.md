@@ -27,6 +27,7 @@ GE在编译时，依赖的第三方开源软件列表如下：
 | makeself | 2.5.0 | [makeself-release-2.5.0-patch1.tar.gz](https://gitcode.com/cann-src-third-party/makeself/releases/download/release-2.5.0-patch1.0/makeself-release-2.5.0-patch1.tar.gz) |
 | mockcpp | 2.7 | [mockcpp-2.7.tar.gz](https://gitcode.com/cann-src-third-party/mockcpp/releases/download/v2.7-h1/mockcpp-2.7.tar.gz) |
 | libseccomp | 2.5.4 | [libseccomp-2.5.4.tar.gz](https://gitcode.com/cann-src-third-party/libseccomp/releases/download/v2.5.4/libseccomp-2.5.4.tar.gz) |
+| cann-cmake | master | [cmake-master.tar.gz](https://raw.gitcode.com/cann/cmake/archive/refs/heads/master.tar.gz) |
 
 - 方式一（推荐）：通过GE仓提供[一键式第三方软件下载打包脚本](../scripts/download_third_party_source.sh)，使用方法如下：
   ```bash
@@ -52,10 +53,8 @@ GE在编译时，依赖的第三方开源软件列表如下：
 │  ├── base
 │  └── ...
 ├── opensource                       # 三方软件依赖解压后目录
-│  └── abseil-cpp
-|     └── abseil-cpp-20230802.1.tar.gz
-│  └── benchmark
-|     └── benchmark-1.8.3.tar.gz
+│  └── abseil-cpp-20230802.1.tar.gz
+│  └── benchmark-1.8.3.tar.gz
 │  └── ...
 ```
 
@@ -76,10 +75,8 @@ GE在编译时，依赖的第三方开源软件列表如下：
 │  ├── ...
 │  └── output                        # 三方软件默认目录
 │     └── third_party
-│         └── abseil-cpp
-|             └── abseil-cpp-20230802.1.tar.gz
-│         └── benchmark
-|             └── benchmark-1.8.3.tar.gz
+│         └── abseil-cpp-20230802.1.tar.gz
+│         └── benchmark-1.8.3.tar.gz
 │         └── ...
 ```
 
