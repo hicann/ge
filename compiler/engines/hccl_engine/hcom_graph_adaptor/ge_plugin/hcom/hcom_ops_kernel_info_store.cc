@@ -2920,7 +2920,7 @@ HcclResult HcomOpsKernelInfoStore::ConfigHcclDumpDebugMode() {
       dumpDebug = dumpFlag;
     } else {
       CHK_RET(SalStrToInt(dumpDebugValue, HCCL_BASE_DECIMAL, value));  // 校验是否为有效值
-      dumpDebug = value ? true : false;
+      dumpDebug = (value != 0) ? true : false;
     }
     HCCL_INFO("LoadTask: enable_dump_debug mode is [%d] (OPTION_EXEC_ENABLE_DUMP_DEBUG[%s]), value[%u].", dumpDebug,
               dumpDebugValue.c_str(), value);
