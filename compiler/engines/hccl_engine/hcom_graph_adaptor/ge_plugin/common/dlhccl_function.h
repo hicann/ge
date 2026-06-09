@@ -102,7 +102,7 @@ class DlHcclFunction {
   HcclResult dlHcclReduceScatterGraphMode(void *sendBuf, void *recvBuf, uint64_t recvCount, HcclDataType dataType, HcclReduceOp op, const char *group, void *stream, const char *optag, void **streams, size_t streamCount, void *scratchMemAddr, uint64_t scratchMemSize);
   HcclResult dlHcclSetAivCoreLimitGraphMode(const char *group, u32 aivCoreLimit);
   HcclResult dlHcclSelectAlgGraphMode(const char *group, u64 count, HcclDataType dataType, HcclReduceOp op, HcclCMDType opType,
-    int32_t aivCoreLimit, bool *ifAiv, const char *algName);
+    int32_t aivCoreLimit, bool *ifAiv, char *algName);
   HcclResult dlHcclCalcAivCoreNumGraphMode(u32 aivCoreLimit, u32 *blockDim);
   HcclResult dlHcclGetAlgExecParamGraphMode(const char *tag, const char *group, u64 count, void *inputPtr, void *outputPtr,
                                   HcclCMDType opType, bool clearEnable, HcclDataType dataType, HcclReduceOp op,
