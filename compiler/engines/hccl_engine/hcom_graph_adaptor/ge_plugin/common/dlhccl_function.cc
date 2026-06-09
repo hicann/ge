@@ -257,7 +257,7 @@ HcclResult DlHcclFunction::initHcclGraphModeFunctions() {
   return HCCL_SUCCESS;
 }
 
-bool DlHcclFunction::isLoadHcclGraphModeFunctions() {
+bool DlHcclFunction::isLoadHcclGraphModeFunctions() const{
   return isHcclGraphModeFunctionsLoaded_;
 };
 
@@ -346,11 +346,11 @@ HcclResult DlHcclFunction::dlHcomGetandClearOverFlowTasks(const char *group, hcc
 }
 
 // 图模式相关函数实现
-HcclResult DlHcclFunction::dlHcclCreateOpParamGraphMode(OpParamGraphModePtr *opParam) {
+HcclResult DlHcclFunction::dlHcclCreateOpParamGraphMode(const OpParamGraphModePtr *opParam) {
   return dlHcclCreateOpParamGraphModeFunc(opParam);
 }
 
-HcclResult DlHcclFunction::dlHcclDestroyOpParamGraphMode(OpParamGraphModePtr opParam) {
+HcclResult DlHcclFunction::dlHcclDestroyOpParamGraphMode(const OpParamGraphModePtr opParam) {
   return dlHcclDestroyOpParamGraphModeFunc(opParam);
 }
 
