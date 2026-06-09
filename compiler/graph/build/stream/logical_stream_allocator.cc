@@ -836,11 +836,11 @@ Status LogicalStreamAllocator::Assign(const ComputeGraphPtr &root_graph, const G
     }
   }
 
-  RefreshContinuousStreams(root_graph);
   if (!context_.enable_single_stream) {
     // stream id从0开始分配，next_stream为stream_num， (next_stream - 1)为当前图上最大stream id
     GE_ASSERT_SUCCESS(StreamUtils::RunCustomStreamPass(root_graph, context_.next_stream));
   }
+  RefreshContinuousStreams(root_graph);
   main_stream_num = context_.next_stream;
   // AssignAttachedStreamPass应该放在最后, 因为在分配attached从流之前，主流需要保证分配完成
   const auto &assign_attached_stream_pass = MakeShared<AssignAttachedStreamPass>();
@@ -1038,6 +1038,7 @@ void LogicalStreamAllocator::RefreshContinuousStreams(const ComputeGraphPtr &gra
   for (size_t old_stream = 0; old_stream < stream_has_node.size(); old_stream++) {
     if (stream_has_node[old_stream]) {
       old_to_new_streams[old_stream] = context_.next_stream;
+      GELOGI("refresh continuous stream from old stream id %ld to new stream id %ld", old_stream, context_.next_stream);
       context_.next_stream++;
     }
   }

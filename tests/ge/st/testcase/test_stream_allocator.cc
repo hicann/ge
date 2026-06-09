@@ -110,7 +110,7 @@ Status BuildHCCLGraphStreamPass(const ConstGraphPtr &graph, StreamPassContext &c
     if (name != "hcom1") {
       continue;
     }
-    context.SetStreamId(n, 1);
+    context.SetStreamId(n, 2);
   }
   std::cout << "after current max stream id is " << context.GetCurrMaxStreamId() << std::endl;
   return SUCCESS;
@@ -1063,7 +1063,7 @@ TEST_F(STEST_stream_allocator, MiniDAGStreamPass_WithSubgraph) {
   };
 
   DEF_GRAPH(root) {
-    CHAIN(NODE("data1", DATA)->NODE("relu1", RELU)->NODE("pc", PARTITIONEDCALL, sub)->NODE("output", NETOUTPUT));
+    CHAIN(NODE("const", CONSTANT)->NODE("relu1", RELU)->NODE("pc", PARTITIONEDCALL, sub)->NODE("output", NETOUTPUT));
   };
 
   auto graph = ToGeGraph(root);
@@ -1420,7 +1420,7 @@ TEST_F(STEST_stream_allocator, hcom_nodes_independent_stream_custom_pass) {
     auto hcom1 = graph->FindNode("hcom1");
     EXPECT_NE(hcom1, nullptr);
     auto stream_id = hcom1->GetOpDesc()->GetStreamId();
-    EXPECT_EQ(stream_id, 1);
+    EXPECT_EQ(stream_id, 0);
     EXPECT_EQ(hcom1->GetInControlNodesSize(), 0); // hcom无跨流等待节点
   };
 }
