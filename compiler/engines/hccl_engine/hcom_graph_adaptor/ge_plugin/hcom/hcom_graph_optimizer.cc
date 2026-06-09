@@ -1483,7 +1483,7 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
     CHK_RET(
         HcomOpUtils::GetReduceScatterVCountsDispl(const_cast<ge::Node &>(node), sendCounts, sendDispls, recvCounts));
     count = *std::max_element(sendCounts.begin(), sendCounts.end());
-    ret = HcceSetOpParamGraphModeDataCount(opParamPtr, &count);
+    ret = HcceSetOpParamGraphModeDataCount(opParam, &count);
     HCCL_INFO("REDUCESCATTERV Count[%llu]", count);
     CHK_PRT_RET(
       ret != HCCL_SUCCESS,
