@@ -1378,7 +1378,7 @@ HcclResult HcomGraphOptimizer::SetHcomOpParam(const ge::Node &node, HcomOpParam 
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam *hcomOpParam, OpParamGraphModePtr opParamPtr, std::string &sCollectiveType,
+HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam *hcomOpParam, OpParamGraphModePtr opParam, std::string &sCollectiveType,
                                               std::vector<int64_t> &sendCounts, std::vector<int64_t> &sendDispls,
                                               std::vector<int64_t> &recvCounts, std::vector<int64_t> &recvDispls) {
   HCCL_INFO("[Calc][SetHcclOpParam] with [%s].", sCollectiveType.c_str());
@@ -1397,13 +1397,13 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
   // 计算Aiv参数
  	CHK_RET(GetAivParam(node, sCollectiveType, aivCoreLimit));
   // 设置aiv参数
-  ret = HcceSetAivSelectOpParamGraphMode(opParamPtr, aivCoreLimit);
+  ret = HcceSetAivSelectOpParamGraphMode(opParam, aivCoreLimit);
   CHK_PRT_RET(
       ret != HCCL_SUCCESS,
       HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] set aivParam failed.", ret),
       ret);
   // 设置 opType
-  ret = HcceSetOpParamGraphModeOpType(opParamPtr, sCollectiveType.c_str());
+  ret = HcceSetOpParamGraphModeOpType(opParam, sCollectiveType.c_str());
   CHK_PRT_RET(
       ret != HCCL_SUCCESS,
       HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] set op type[%s] failed.", ret, sCollectiveType.c_str()),
@@ -1414,7 +1414,7 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
       ret != HCCL_SUCCESS,
       HCCL_ERROR("[Get][OpWorkspaceMemSize]op[%s]: get data type failed. ret[%d]", sCollectiveType.c_str(), ret), ret);
 
-  ret = HcceSetOpParamGraphModeDataType(opParamPtr, dataType);
+  ret = HcceSetOpParamGraphModeDataType(opParam, dataType);
   CHK_PRT_RET(
       ret != HCCL_SUCCESS,
       HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] set data type failed.", ret),
@@ -1457,7 +1457,7 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
                            sCollectiveType.c_str(), rankSize),
                 HCCL_E_PARA);
   }
-  ret = HcceSetOpParamGraphModeRankSize(opParamPtr, &rankSize);
+  ret = HcceSetOpParamGraphModeRankSize(opParam, &rankSize);
   CHK_PRT_RET(
       ret != HCCL_SUCCESS,
       HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] set rank_size[%d] failed.", ret, rankSize),
@@ -1471,7 +1471,7 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
   CHK_PRT_RET(ret != HCCL_SUCCESS,
               HCCL_ERROR("[Get][OpWorkspaceMemSize]op[%s]: get count failed. ret[%d]", sCollectiveType.c_str(), ret),
               ret);
-  ret = HcceSetOpParamGraphModeDataCount(opParamPtr, &count);
+  ret = HcceSetOpParamGraphModeDataCount(opParam, &count);
   HCCL_INFO("Count[%llu]", count);
   CHK_PRT_RET(
       ret != HCCL_SUCCESS,
@@ -1495,7 +1495,7 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
     // allgatherv复用HcomOpParam的All2AllDataDes字段
     CHK_RET(HcomOpUtils::GetAllGatherVCountsDispl(const_cast<ge::Node &>(node), sendCounts, recvCounts, recvDispls));
     count = *std::max_element(recvCounts.begin(), recvCounts.end());
-    ret = HcceSetOpParamGraphModeDataCount(opParamPtr, &count);
+    ret = HcceSetOpParamGraphModeDataCount(opParam, &count);
     HCCL_INFO("ALLGATHERV Count[%llu]", count);
     CHK_PRT_RET(
       ret != HCCL_SUCCESS,
@@ -1533,7 +1533,7 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
   // 获取cclbuffer size
   u64 cclBuffSize;
   CHK_RET(GetCCLBufferAvailableSize(cclBuffSize));
-  ret = HcceSetOpParamGraphModeHCCLBufferSize(opParamPtr, &cclBuffSize);
+  ret = HcceSetOpParamGraphModeHCCLBufferSize(opParam, &cclBuffSize);
   CHK_PRT_RET(
       ret != HCCL_SUCCESS,
       HCCL_ERROR("[Calc][OpRunningParam]errNo[0x%016llx] set op type[%s] failed.", ret, sCollectiveType.c_str()),
