@@ -669,7 +669,7 @@ ge::Status HcomOpsKernelBuilder::GenerateTask([[maybe_unused]] const ge::Node &n
 }
 
 // 获取算子的counts，为后续选择算法和设置核数做准备
-HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, std::vector<int64_t> &counts, HcclCMDType opType) {
+HcclResult HcomOpsKernelBuilder::GetCountsFromOpDesc(const ge::Node &node, std::vector<int64_t> &counts, HcclCMDType opType) const {
   if (opType == HcclCMDType::HCCL_CMD_ALLGATHER_V) {
     std::vector<int64_t> sendCounts;
     std::vector<int64_t> recvDispls;
@@ -1119,7 +1119,7 @@ HcclResult HcomOpsKernelBuilder::SetOpWorkerSpaceForKnowShape(ge::Node &node, u6
 }
 
 HcclResult HcomOpsKernelBuilder::GetCrackParamsInfo([[maybe_unused]] const ge::Node &node, u32 tensorNum, int64_t *tensorOffset,
-                                                    int64_t *tensorSize, int64_t *crackOffset, int64_t *crackSize) {
+                                                    int64_t *tensorSize, int64_t *crackOffset, int64_t *crackSize) const {
   auto op = node.GetOpDesc();
   CHK_PTR_NULL(op);
   // 获取缝隙的offset和size
@@ -2067,7 +2067,7 @@ HcclResult HcomOpsKernelBuilder::SetHcclOpParam(const ge::Node &node, HcomOpPara
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomOpsKernelBuilder::GetAivParam(const ge::Node &node, std::string &sCollectiveType, u32 &aivCoreLimit) {
+HcclResult HcomOpsKernelBuilder::GetAivParam(const ge::Node &node, std::string &sCollectiveType, u32 &aivCoreLimit) const {
   CHK_RET(HcomOpUtils::GetAivCoreLimit(node.GetOpDesc(), sCollectiveType, aivCoreLimit));
   return HCCL_SUCCESS;
 }
