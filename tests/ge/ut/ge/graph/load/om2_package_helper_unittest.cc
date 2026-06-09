@@ -31,6 +31,7 @@
 #include "graph/op_kernel_bin.h"
 #include "graph/utils/tensor_utils.h"
 #include "graph/utils/file_utils.h"
+#include "graph/utils/graph_utils.h"
 #include <cstdio>
 #include <sstream>
 #include <system_error>
@@ -209,6 +210,40 @@ void RemoveOm2DumpFile(const std::string &file_name) {
   (void)std::remove(GetOm2DumpPath(file_name).c_str());
 }
 
+GeModelPtr CreateGeModelWithCaseOp() {
+  auto graph = std::make_shared<ComputeGraph>("g1");
+
+  GeTensorDesc data_tensor_desc(GeShape({1}), FORMAT_ND, DT_FLOAT);
+  auto data_desc = std::make_shared<OpDesc>("data1", DATA);
+  (void)data_desc->AddInputDesc(data_tensor_desc);
+  (void)data_desc->AddOutputDesc(data_tensor_desc);
+  AttrUtils::SetInt(data_desc, ATTR_NAME_INDEX, 0);
+  auto data_node = graph->AddNode(data_desc);
+
+  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
+  GeTensorDesc case_input0_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  GeTensorDesc case_input1_desc(GeShape({1, 1}), FORMAT_ND, DT_FLOAT);
+  (void)case_desc->AddInputDesc(case_input0_desc);
+  (void)case_desc->AddInputDesc(case_input1_desc);
+  auto case_node = graph->AddNode(case_desc);
+
+  auto netoutput_desc = std::make_shared<OpDesc>("NetOutput", NETOUTPUT);
+  (void)netoutput_desc->AddInputDesc(case_input1_desc);
+  netoutput_desc->SetSrcName({"case1"});
+  netoutput_desc->SetSrcIndex({0});
+  auto netoutput_node = graph->AddNode(netoutput_desc);
+
+  GraphUtils::AddEdge(data_node->GetOutDataAnchor(0), case_node->GetInDataAnchor(0));
+  GraphUtils::AddEdge(case_node->GetOutDataAnchor(0), netoutput_node->GetInDataAnchor(0));
+
+  auto ge_model = std::make_shared<GeModel>();
+  ge_model->SetGraph(graph);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_MEMORY_SIZE, 1024);
+  (void)AttrUtils::SetInt(ge_model, ATTR_MODEL_STREAM_NUM, 1);
+
+  return ge_model;
+}
+
 }  // namespace
 
 class Om2PackageHelperUt : public testing::Test {
@@ -369,6 +404,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
                                                                        {"shape", JsonFile::json::array({1, 2, 3, 4})},
                                                                        {"shape_range", JsonFile::json::array()},
                                                                        {"shape_v2", JsonFile::json::array({1, 2, 3, 4})},
+                                                                       {"origin_input_dims", JsonFile::json::array({1, 2, 3, 4})},
                                                                        {"size", 0}},
                                                                    {{"data_type", "DT_FLOAT"},
                                                                        {"format", "NCHW"},
@@ -377,6 +413,7 @@ TEST_F(Om2PackageHelperUt, ConvertOm2Model_Ok_GenOm2WithAicoreNode) {
                                                                        {"shape", JsonFile::json::array({1, 1, 224, 224})},
                                                                        {"shape_range", JsonFile::json::array()},
                                                                        {"shape_v2", JsonFile::json::array({1, 1, 224, 224})},
+                                                                       {"origin_input_dims", JsonFile::json::array({1, 1, 224, 224})},
                                                                        {"size", 0}},
                                                                });
   EXPECT_EQ(model_meta_json.Raw().at("inputs"), expected_inputs);
@@ -1204,5 +1241,172 @@ TEST_F(Om2PackageHelperUt, SaveTbeKernels_AtomicKernel_EmptyName) {
   }
   EXPECT_TRUE(found_normal) << "Normal kernel should be saved";
   EXPECT_EQ(file_names.size(), 1U) << "Only normal kernel should be saved";
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithDynamicBatchCase_WritesCorrectJson) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  auto case_node = graph->FindNode("case1");
+  ASSERT_NE(case_node, nullptr);
+  auto case_desc = case_node->GetOpDesc();
+  ASSERT_NE(case_desc, nullptr);
+
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(ge::DYNAMIC_BATCH));
+  std::vector<int64_t> batch_shape_0 = {1, 1, 1};
+  std::vector<int64_t> batch_shape_1 = {2, 1, 1};
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", batch_shape_0);
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", batch_shape_1);
+  std::vector<std::string> shape_order = {"data1"};
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, shape_order);
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_dynamic_batch.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  SimpleZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0;
+  const auto model_meta_buf = archive.ExtractToMem("test_dynamic_batch/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_type"), JsonFile::json(static_cast<int32_t>(ge::DYNAMIC_BATCH)));
+  ASSERT_EQ(model_meta_json.Raw().at("dynamic_batch_info").size(), 2U);
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_batch_info")[0], JsonFile::json({1, 1, 1}));
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_batch_info")[1], JsonFile::json({2, 1, 1}));
+  ASSERT_EQ(model_meta_json.Raw().at("user_designate_shape_order").size(), 1U);
+  EXPECT_EQ(model_meta_json.Raw().at("user_designate_shape_order")[0], JsonFile::json("data1"));
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithDynamicDimsCase_WritesCorrectJson) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  auto case_node = graph->FindNode("case1");
+  ASSERT_NE(case_node, nullptr);
+  auto case_desc = case_node->GetOpDesc();
+  ASSERT_NE(case_desc, nullptr);
+
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 3U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(ge::DYNAMIC_DIMS));
+  std::vector<int64_t> batch_shape_0 = {1, 3, 224, 224};
+  std::vector<int64_t> batch_shape_1 = {1, 3, 448, 448};
+  std::vector<int64_t> batch_shape_2 = {2, 3, 224, 224};
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", batch_shape_0);
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", batch_shape_1);
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_2", batch_shape_2);
+  std::vector<std::string> shape_order = {"data1"};
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, shape_order);
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_dynamic_dims.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  SimpleZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0;
+  const auto model_meta_buf = archive.ExtractToMem("test_dynamic_dims/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_type"), JsonFile::json(static_cast<int32_t>(ge::DYNAMIC_DIMS)));
+  ASSERT_EQ(model_meta_json.Raw().at("dynamic_batch_info").size(), 3U);
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_batch_info")[0], JsonFile::json({1, 3, 224, 224}));
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_batch_info")[1], JsonFile::json({1, 3, 448, 448}));
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_batch_info")[2], JsonFile::json({2, 3, 224, 224}));
+  ASSERT_EQ(model_meta_json.Raw().at("user_designate_shape_order").size(), 1U);
+  EXPECT_EQ(model_meta_json.Raw().at("user_designate_shape_order")[0], JsonFile::json("data1"));
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithoutCaseNode_EmptyDynamicInfo) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  // Do NOT set any batch attributes on the CASE node
+  // GetDynamicBatchInfo will return SUCCESS with empty batch_info
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_no_dynamic.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  SimpleZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0;
+  const auto model_meta_buf = archive.ExtractToMem("test_no_dynamic/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_type"), JsonFile::json(0));
+  EXPECT_EQ(model_meta_json.Raw().at("dynamic_batch_info"), JsonFile::json::array());
+  EXPECT_EQ(model_meta_json.Raw().at("user_designate_shape_order"), JsonFile::json::array());
+}
+
+TEST_F(Om2PackageHelperUt, SaveModelInfo_WithMbatchOriginInputDims_SerializesOriginDims) {
+  auto ge_model = CreateGeModelWithCaseOp();
+  ASSERT_NE(ge_model, nullptr);
+  auto graph = ge_model->GetGraph();
+  ASSERT_NE(graph, nullptr);
+
+  // Set ATTR_MBATCH_ORIGIN_INPUT_DIMS with dynamic batch axis (-1) on the DATA node
+  auto data_node = graph->FindNode("data1");
+  ASSERT_NE(data_node, nullptr);
+  auto data_desc = data_node->GetOpDesc();
+  ASSERT_NE(data_desc, nullptr);
+  std::vector<int64_t> origin_dims = {-1, 2, 3, 4};
+  AttrUtils::SetListInt(data_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_dims);
+
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_origin_input_dims.om2"});
+  auto zip_writer = std::make_shared<ZipArchiveWriter>(output_file);
+  ASSERT_TRUE(zip_writer->IsMemFileOpened());
+
+  ASSERT_EQ(Om2PackageHelper::SaveModelInfo(zip_writer, ge_model, 0UL), SUCCESS);
+  ASSERT_TRUE(zip_writer->SaveModelDataToFile());
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  SimpleZipArchiveReader archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0;
+  const auto model_meta_buf =
+      archive.ExtractToMem("test_origin_input_dims/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+
+  // origin_input_dims should be {-1,2,3,4} from ATTR_MBATCH_ORIGIN_INPUT_DIMS, not {1} from tensor shape
+  const auto &inputs = model_meta_json.Raw().at("inputs");
+  ASSERT_EQ(inputs.size(), 1U);
+  EXPECT_EQ(inputs[0].at("origin_input_dims"), JsonFile::json({-1, 2, 3, 4}));
+  EXPECT_EQ(inputs[0].at("shape"), JsonFile::json({1}));
 }
 }  // namespace ge

@@ -88,9 +88,6 @@ const uint8_t kZipLocalFileHeaderMagic[kZipMagicSize] = {0x50U, 0x4BU, 0x03U, 0x
 const std::set<std::string> kOm2UnsupportedOptions = {
     ge::ir_option::OP_NAME_MAP,
     ge::ir_option::INSERT_OP_FILE,
-    ge::ir_option::DYNAMIC_BATCH_SIZE,
-    ge::ir_option::DYNAMIC_IMAGE_SIZE,
-    ge::ir_option::DYNAMIC_DIMS,
     ge::ir_option::AC_PARALLEL_ENABLE,
     ge::ir_option::QUANT_DUMPABLE,
     ge::ir_option::TILING_SCHEDULE_OPTIMIZE,

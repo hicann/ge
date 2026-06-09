@@ -408,9 +408,6 @@ DEFINE_string(oo_level, "O3", "Optional; The optimization level of the graph opt
 
 const std::unordered_set<std::string> kOm2UnsuppotedFlag = {
     "input_hint_shape",
-    "dynamic_batch_size",
-    "dynamic_image_size",
-    "dynamic_dims",
     "om",
     "singleop",
     "check_report",

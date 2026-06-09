@@ -444,6 +444,12 @@ Status aclStub::GetUserDesignateShapeOrder(uint32_t model_id, vector<string> &us
     return SUCCESS;
 }
 
+const std::vector<std::vector<int64_t>> &aclStub::GetOriginInputDims()
+{
+    static const std::vector<std::vector<int64_t>> empty_result;
+    return empty_result;
+}
+
 ge::Status aclStub::GetCurShape(const uint32_t model_id, std::vector<int64_t> &batch_info, int32_t &dynamic_type)
 {
     batch_info.push_back(1);
@@ -2479,8 +2485,7 @@ namespace gert {
     }
     ge::graphStatus Om2ModelExecutor::GetUserDesignateShapeOrder(
         std::vector<std::string> &user_designate_shape_order) const {
-      (void)user_designate_shape_order;
-      return ge::GRAPH_SUCCESS;
+      return MockFunctionTest::aclStubInstance().GetUserDesignateShapeOrder(0U, user_designate_shape_order);
     }
 
     ge::Status Om2ModelExecutor::GetOpAttr(std::map<std::string, std::map<std::string, std::string>> &op_attr_map) const {
@@ -2495,6 +2500,22 @@ namespace gert {
         (void)task_id;
         (void)op_desc_info;
         return ge::FAILED;
+    }
+
+    ge::Status Om2ModelExecutor::SetDynamicSize(const std::vector<uint64_t> &batch_num, int32_t dynamic_type) {
+        (void)batch_num;
+        (void)dynamic_type;
+        return ge::SUCCESS;
+    }
+
+    ge::Status Om2ModelExecutor::GetCurrentShape(std::vector<int64_t> &batch_info, int32_t &dynamic_type) const {
+        (void)batch_info;
+        (void)dynamic_type;
+        return ge::SUCCESS;
+    }
+
+    const std::vector<std::vector<int64_t>> &Om2ModelExecutor::GetOriginInputDims() const {
+        return MockFunctionTest::aclStubInstance().GetOriginInputDims();
     }
 
     class Om2ModelExecutor::Impl {

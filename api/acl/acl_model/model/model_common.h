@@ -34,6 +34,15 @@ namespace acl {
 aclError GetDynamicTensorInfoHelp(aclmdlDesc* const modelDesc, const int32_t dynamicType,
                                   const std::vector<std::vector<int64_t>>& batchInfo);
 
+aclError GetCurGearIndex(const aclmdlDesc* const modelDesc, const std::vector<uint64_t>& shapeInfo,
+                         const int32_t dynamicType, size_t& curGearIndex);
+
+aclError GetCurOuputShapeInfo(const aclmdlDesc* const modelDesc, const size_t index,
+                              const size_t curGearIndex, aclmdlIODims* const dims);
+
+aclError GetModelOutputShapeInfoHelp(aclmdlDesc* const modelDesc,
+                                     std::vector<std::string>& geDynamicOutputShape);
+
 bool TransConvertTensorNameToLegal(const aclmdlDesc* const modelDesc, std::string& tensorName);
 
 void GetConvertTensorName(const aclmdlDesc* const modelDesc, const size_t idx,

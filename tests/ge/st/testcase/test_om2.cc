@@ -1596,4 +1596,103 @@ TEST_F(Om2St, ConvertOm2Model_Ok_GenOm2WithCmoAddrTaskExplicitFormat) {
   ExpectOm2ArchiveFiles(archive, expect_files);
   GELOGI("Om2St: CMO_ADDR task packaging succeeded (explicit format).");
 }
+
+TEST_F(Om2St, SaveModelInfo_WithMbatchOriginInputDims_SerializesOriginDims) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  // Set ATTR_MBATCH_ORIGIN_INPUT_DIMS on data nodes with -1 for dynamic batch axis
+  for (const auto &node : compute_graph->GetDirectNode()) {
+    auto op_desc = node->GetOpDesc();
+    if ((op_desc != nullptr) && (op_desc->GetType() == DATA)) {
+      const auto &shape = op_desc->GetOutputDescPtr(0)->GetShape().GetDims();
+      std::vector<int64_t> origin_dims = shape;
+      if (!origin_dims.empty()) {
+        origin_dims[0] = -1;
+      }
+      AttrUtils::SetListInt(op_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_dims);
+    }
+  }
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_origin_dims.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0;
+  const auto model_meta_buf =
+      archive.ExtractToMem("test_origin_dims/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+
+  const auto &inputs = model_meta_json.Raw().at("inputs");
+  ASSERT_GE(inputs.size(), 1U);
+  for (const auto &input : inputs) {
+    ASSERT_TRUE(input.contains("origin_input_dims"));
+    const auto &origin_dims = input.at("origin_input_dims");
+    const auto &shape = input.at("shape");
+    ASSERT_TRUE(origin_dims.is_array());
+    ASSERT_TRUE(shape.is_array());
+    if (!origin_dims.empty()) {
+      EXPECT_EQ(origin_dims[0], JsonFile::json(-1)) << "Dynamic batch axis should be -1 in origin_input_dims";
+      EXPECT_NE(origin_dims[0], shape[0]) << "origin_input_dims should differ from shape for dynamic batch";
+    }
+  }
+}
+
+TEST_F(Om2St, SaveModelInfo_WithDynamicBatchCase_WritesDynamicBatchInfo) {
+  Om2PackageHelper om2_packager;
+  const auto ge_root_model = CreateGeRootModelWithAicoreOp();
+  ASSERT_NE(ge_root_model, nullptr);
+  auto &compute_graph = ge_root_model->GetRootGraph();
+
+  // Add a CASE node with dynamic batch attributes
+  auto case_desc = std::make_shared<OpDesc>("case1", CASE);
+  GeTensorDesc case_input_desc(GeShape({1}), FORMAT_ND, DT_INT32);
+  (void)case_desc->AddInputDesc(case_input_desc);
+  AttrUtils::SetInt(case_desc, ATTR_NAME_BATCH_NUM, 2U);
+  AttrUtils::SetInt(case_desc, ATTR_DYNAMIC_TYPE, static_cast<int32_t>(DYNAMIC_BATCH));
+  std::vector<int64_t> batch_shape_0 = {1, 1, 224, 224};
+  std::vector<int64_t> batch_shape_1 = {2, 1, 224, 224};
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_0", batch_shape_0);
+  AttrUtils::SetListInt(case_desc, ATTR_NAME_PRED_VALUE + "_1", batch_shape_1);
+  std::vector<std::string> shape_order = {"data1", "data2"};
+  AttrUtils::SetListStr(case_desc, ATTR_USER_DESIGNEATE_SHAPE_ORDER, shape_order);
+  auto case_node = compute_graph->AddNode(case_desc);
+  ASSERT_NE(case_node, nullptr);
+
+  ModelBufferData model_data;
+  const std::string output_file = PathUtils::Join({test_work_dir, "test_dynamic_batch.om2"});
+  SyncKernelNameForAllModels(ge_root_model);
+  ASSERT_EQ(om2_packager.SaveToOmRootModel(ge_root_model, output_file, model_data, false), SUCCESS);
+
+  uint32_t model_buf_size = 0;
+  const auto model_buf = GetBinDataFromFile(output_file, model_buf_size);
+  RAIIZipArchive archive(reinterpret_cast<const uint8_t *>(model_buf.get()), model_buf_size);
+  ASSERT_TRUE(archive.IsGood());
+
+  size_t model_meta_size = 0;
+  const auto model_meta_buf =
+      archive.ExtractToMem("test_dynamic_batch/data/model_0/model_meta.json", model_meta_size);
+  ASSERT_NE(model_meta_buf, nullptr);
+  const JsonFile model_meta_json(reinterpret_cast<const uint8_t *>(model_meta_buf.get()), model_meta_size);
+  ASSERT_TRUE(model_meta_json.IsValid());
+
+  const auto &raw = model_meta_json.Raw();
+  EXPECT_EQ(raw.at("dynamic_type"), JsonFile::json(static_cast<int32_t>(DYNAMIC_BATCH)));
+  ASSERT_EQ(raw.at("dynamic_batch_info").size(), 2U);
+  EXPECT_EQ(raw.at("dynamic_batch_info")[0], JsonFile::json({1, 1, 224, 224}));
+  EXPECT_EQ(raw.at("dynamic_batch_info")[1], JsonFile::json({2, 1, 224, 224}));
+  ASSERT_EQ(raw.at("user_designate_shape_order").size(), 2U);
+  EXPECT_EQ(raw.at("user_designate_shape_order")[0], JsonFile::json("data1"));
+  EXPECT_EQ(raw.at("user_designate_shape_order")[1], JsonFile::json("data2"));
+}
 }  // namespace ge

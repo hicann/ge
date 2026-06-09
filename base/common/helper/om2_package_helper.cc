@@ -33,6 +33,7 @@ const std::string kOm2ExternalWeightDirName = "weight";
 struct ModelIoNodes {
   std::map<uint32_t, OpDescPtr> input_ops;
   std::vector<OpDescPtr> output_ops;
+  std::vector<OpDescPtr> case_ops;
 };
 
 struct ModelMetaExtraInfo {
@@ -227,6 +228,10 @@ Status CollectModelIoNodes(const ComputeGraphPtr &graph, ModelIoNodes &io_nodes)
       io_nodes.output_ops.push_back(op_desc);
       GELOGD("Find output node [%s]", node->GetNamePtr());
     }
+    if (op_desc->GetType() == CASE) {
+      io_nodes.case_ops.push_back(op_desc);
+      GELOGD("Find case node [%s]", node->GetNamePtr());
+    }
   }
   return SUCCESS;
 }
@@ -253,7 +258,23 @@ Status BuildInputJsonArray(const std::map<uint32_t, OpDescPtr> &input_ops, JsonF
       model_input_dims = tensor_desc->GetShape().GetDims();
     }
     (void)input_info.Set("shape_v2", model_input_dims);
+    // Serialize original shape: with -1 for dynamic axes (from MultiBatchClonePass), or same as shape for static models
+    std::vector<int64_t> origin_input_dims;
+    if (op_desc->HasAttr(ATTR_MBATCH_ORIGIN_INPUT_DIMS) &&
+        AttrUtils::GetListInt(op_desc, ATTR_MBATCH_ORIGIN_INPUT_DIMS, origin_input_dims)) {
+      input_info.Set("origin_input_dims", origin_input_dims);
+    } else {
+      input_info.Set("origin_input_dims", tensor_desc->GetShape().GetDims());
+    }
     input_json_array.push_back(input_info.Raw());
+  }
+  return SUCCESS;
+}
+
+Status CollectDynamicBatchInfo(const std::vector<OpDescPtr> &case_ops, ModelMetaExtraInfo &extra_info) {
+  for (const auto &op_desc : case_ops) {
+    GE_ASSERT_SUCCESS(GetDynamicBatchInfo(op_desc, extra_info.dynamic_batch_info,
+                                          extra_info.user_designate_shape_order, extra_info.dynamic_type));
   }
   return SUCCESS;
 }
@@ -292,11 +313,6 @@ Status BuildOutputJsonArray(const std::vector<OpDescPtr> &output_ops, const std:
       for (const auto &s : shape_info) {
         extra_info.dynamic_output_shape.push_back(s);
       }
-    }
-    if (op_desc->GetType() == CASE) {
-      GE_ASSERT_SUCCESS(
-          GetDynamicBatchInfo(op_desc, extra_info.dynamic_batch_info, extra_info.user_designate_shape_order,
-                              extra_info.dynamic_type));
     }
   }
   return SUCCESS;
@@ -543,6 +559,7 @@ Status Om2PackageHelper::SaveModelInfo(std::shared_ptr<ZipArchiveWriter> &zip_wr
   (void)AttrUtils::GetListStr(ge_model, ATTR_MODEL_OUT_NODES_NAME, out_node_name);
   ModelMetaExtraInfo extra_info;
   GE_ASSERT_SUCCESS(BuildOutputJsonArray(io_nodes.output_ops, out_node_name, output_json_array, extra_info));
+  GE_ASSERT_SUCCESS(CollectDynamicBatchInfo(io_nodes.case_ops, extra_info));
   FillModelMetaInfo(ge_model, input_json_array, output_json_array, extra_info, GetRootGraphName(ge_model),
                     model_meta_info);
 

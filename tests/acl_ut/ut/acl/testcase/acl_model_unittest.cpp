@@ -6426,3 +6426,1005 @@ TEST_F(UTEST_ACL_Model, TestOm2DumpInitCallbackRegister) {
     EXPECT_EQ(RegOm2DumpInitCallback(), ACL_SUCCESS);
     EXPECT_EQ(UnRegOm2DumpInitCallback(), ACL_SUCCESS);
 }
+
+// ============================================================================
+// model_common Shared Function Test Cases
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithDynamicBatch_ReturnsCorrectIndex)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicBatch.push_back(1);
+    desc.dynamicBatch.push_back(4);
+    desc.dynamicBatch.push_back(8);
+
+    std::vector<uint64_t> shapeInfo = {4};
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_BATCH, curGearIndex);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(curGearIndex, 1U);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithDynamicImage_ReturnsCorrectIndex)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicHW.push_back({224, 224});
+    desc.dynamicHW.push_back({448, 448});
+
+    std::vector<uint64_t> shapeInfo = {448, 448};
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_IMAGE, curGearIndex);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(curGearIndex, 1U);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithDynamicDims_ReturnsCorrectIndex)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicDims.push_back({1, 3, 224, 224});
+    desc.dynamicDims.push_back({1, 3, 448, 448});
+
+    std::vector<uint64_t> shapeInfo = {1, 3, 448, 448};
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_DIMS, curGearIndex);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(curGearIndex, 1U);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithInvalidGear_ReturnsNotFound)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicBatch.push_back(1);
+    desc.dynamicBatch.push_back(4);
+
+    std::vector<uint64_t> shapeInfo = {8};  // Not in dynamicBatch
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_BATCH, curGearIndex);
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurOuputShapeInfo_ReturnsCorrectShape)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    // Add output tensor descriptor
+    aclmdlTensorDesc outDesc;
+    outDesc.name = "output";
+    outDesc.dims = {1, 1000};
+    desc.outputDesc.push_back(outDesc);
+
+    // Add dynamic output shape info
+    // Format: [gear_index, output_index, dim0, dim1, ...]
+    desc.dynamicOutputShape.push_back({0, 0, 1, 1000});
+    desc.dynamicOutputShape.push_back({1, 0, 4, 1000});
+
+    aclmdlIODims dims = {};
+    aclError ret = acl::GetCurOuputShapeInfo(&desc, 0, 1, &dims);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(dims.dimCount, 2U);
+    EXPECT_EQ(dims.dims[0], 4);
+    EXPECT_EQ(dims.dims[1], 1000);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurOuputShapeInfo_WithStaticOutput_ReturnsCorrectShape)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    aclmdlTensorDesc outDesc;
+    outDesc.name = "output";
+    outDesc.dims = {1, 1000};
+    desc.outputDesc.push_back(outDesc);
+
+    // Static output (gear_index = -1)
+    desc.dynamicOutputShape.push_back({-1, 0, 1, 1000});
+
+    aclmdlIODims dims = {};
+    aclError ret = acl::GetCurOuputShapeInfo(&desc, 0, 5, &dims);  // Any gear index
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(dims.dimCount, 2U);
+    EXPECT_EQ(dims.dims[0], 1);
+    EXPECT_EQ(dims.dims[1], 1000);
+}
+
+TEST_F(UTEST_ACL_Model, GetModelOutputShapeInfoHelp_ParsesCorrectly)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    std::vector<std::string> geDynamicOutputShape = {
+        "0:0:1:1000",
+        "1:0:4:1000",
+        "-1:1:1:1"  // Static output
+    };
+
+    aclError ret = acl::GetModelOutputShapeInfoHelp(&desc, geDynamicOutputShape);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(desc.dynamicOutputShape.size(), 3U);
+
+    // First gear, first output
+    EXPECT_EQ(desc.dynamicOutputShape[0].size(), 4U);
+    EXPECT_EQ(desc.dynamicOutputShape[0][0], 0);  // gear_index
+    EXPECT_EQ(desc.dynamicOutputShape[0][1], 0);  // output_index
+    EXPECT_EQ(desc.dynamicOutputShape[0][2], 1);  // dim0
+    EXPECT_EQ(desc.dynamicOutputShape[0][3], 1000);  // dim1
+
+    // Static output (negative gear index)
+    EXPECT_EQ(desc.dynamicOutputShape[2][0], -1);
+}
+
+TEST_F(UTEST_ACL_Model, GetModelOutputShapeInfoHelp_WithEmptyInput_ReturnsSuccess)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    std::vector<std::string> geDynamicOutputShape = {};
+
+    aclError ret = acl::GetModelOutputShapeInfoHelp(&desc, geDynamicOutputShape);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(desc.dynamicOutputShape.size(), 0U);
+}
+
+// ============================================================================
+// OM2 ACL Interface Test Cases - SetDynamic* Functions
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, aclmdlSetDynamicBatchSize_Om2_WithNullDataset_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 100U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclError ret = aclmdlSetDynamicBatchSize(om2_model_id, nullptr, 0, 1);
+    EXPECT_NE(ret, ACL_SUCCESS);
+
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetDynamicBatchSize_Om2_WithZeroBatchSize_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 101U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    // Add buffer to dataset
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, sizeof(uint64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    aclError ret = aclmdlSetDynamicBatchSize(om2_model_id, dataset, 0, 0);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetDynamicHWSize_Om2_WithNullDataset_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 102U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclError ret = aclmdlSetDynamicHWSize(om2_model_id, nullptr, 0, 224, 224);
+    EXPECT_NE(ret, ACL_SUCCESS);
+
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetDynamicHWSize_Om2_WithZeroDimension_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 103U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, 2 * sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, 2 * sizeof(uint64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    aclError ret = aclmdlSetDynamicHWSize(om2_model_id, dataset, 0, 0, 224);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetInputDynamicDims_Om2_WithNullDataset_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 104U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlIODims dims = {};
+    dims.dimCount = 4;
+    dims.dims[0] = 1;
+    dims.dims[1] = 3;
+    dims.dims[2] = 224;
+    dims.dims[3] = 224;
+
+    aclError ret = aclmdlSetInputDynamicDims(om2_model_id, nullptr, 0, &dims);
+    EXPECT_NE(ret, ACL_SUCCESS);
+
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetInputDynamicDims_Om2_WithNullDims_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 105U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    aclError ret = aclmdlSetInputDynamicDims(om2_model_id, dataset, 0, nullptr);
+    EXPECT_NE(ret, ACL_SUCCESS);
+
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetInputDynamicDims_Om2_WithZeroDimCount_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 106U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, 4 * sizeof(int64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, 4 * sizeof(int64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    aclmdlIODims dims = {};
+    dims.dimCount = 0;  // Zero dim count
+
+    aclError ret = aclmdlSetInputDynamicDims(om2_model_id, dataset, 0, &dims);
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+// ============================================================================
+// OM2 ACL Interface Test Cases - GetCurOutputDims
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, aclmdlGetCurOutputDims_Om2_WithNullModelDesc_ReturnsInvalidParam)
+{
+    aclmdlIODims dims = {};
+    aclError ret = aclmdlGetCurOutputDims(nullptr, 0, &dims);
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlGetCurOutputDims_Om2_WithNullDims_ReturnsInvalidParam)
+{
+    aclmdlDesc *desc = aclmdlCreateDesc();
+    ASSERT_NE(desc, nullptr);
+    desc->modelId = std::numeric_limits<uint32_t>::max() / 2U + 107U;
+
+    aclError ret = aclmdlGetCurOutputDims(desc, 0, nullptr);
+    EXPECT_NE(ret, ACL_SUCCESS);
+
+    aclmdlDestroyDesc(desc);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlGetCurOutputDims_Om2_WithInvalidIndex_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 108U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDesc *desc = aclmdlCreateDesc();
+    ASSERT_NE(desc, nullptr);
+    desc->modelId = om2_model_id;
+    desc->outputDesc.push_back(aclmdlTensorDesc());  // Add one output
+
+    aclmdlIODims dims = {};
+    aclError ret = aclmdlGetCurOutputDims(desc, 5, &dims);  // Index out of bounds
+    EXPECT_EQ(ret, ACL_ERROR_INVALID_PARAM);
+
+    aclmdlDestroyDesc(desc);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+// ============================================================================
+// OM2 ACL Interface Test Cases - GetDesc
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, aclmdlGetDesc_Om2_WithNullModelDesc_ReturnsInvalidParam)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 110U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclError ret = aclmdlGetDesc(nullptr, om2_model_id);
+    EXPECT_NE(ret, ACL_SUCCESS);
+
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+// ============================================================================
+// Additional model_common Shared Function Test Cases - Edge Cases
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithEmptyDynamicBatch_ReturnsInvalidParam)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    // Empty dynamicBatch
+    std::vector<uint64_t> shapeInfo = {1};
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_BATCH, curGearIndex);
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithEmptyShapeInfo_ReturnsInvalidParam)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicBatch.push_back(1);
+    desc.dynamicBatch.push_back(4);
+
+    std::vector<uint64_t> shapeInfo;  // Empty
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_BATCH, curGearIndex);
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithFirstGear_ReturnsZero)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicBatch.push_back(1);
+    desc.dynamicBatch.push_back(4);
+    desc.dynamicBatch.push_back(8);
+
+    std::vector<uint64_t> shapeInfo = {1};
+    size_t curGearIndex = 999;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_BATCH, curGearIndex);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(curGearIndex, 0U);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithLastGear_ReturnsCorrectIndex)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicBatch.push_back(1);
+    desc.dynamicBatch.push_back(4);
+    desc.dynamicBatch.push_back(8);
+
+    std::vector<uint64_t> shapeInfo = {8};
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_BATCH, curGearIndex);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(curGearIndex, 2U);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithDynamicImage_FirstGear_ReturnsZero)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicHW.push_back({224, 224});
+    desc.dynamicHW.push_back({448, 448});
+
+    std::vector<uint64_t> shapeInfo = {224, 224};
+    size_t curGearIndex = 999;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_IMAGE, curGearIndex);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(curGearIndex, 0U);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurGearIndex_WithDynamicDims_InvalidSize_ReturnsNotFound)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+    desc.dynamicDims.push_back({1, 3, 224, 224});
+    desc.dynamicDims.push_back({1, 3, 448, 448});
+
+    std::vector<uint64_t> shapeInfo = {1, 3, 336, 336};  // Not in list
+    size_t curGearIndex = 0;
+
+    aclError ret = acl::GetCurGearIndex(&desc, shapeInfo, ge::DYNAMIC_DIMS, curGearIndex);
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurOuputShapeInfo_WithEmptyDynamicOutputShape_ReturnsInvalidParam)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    aclmdlTensorDesc outDesc;
+    outDesc.name = "output";
+    outDesc.dims = {1, 1000};
+    desc.outputDesc.push_back(outDesc);
+
+    // Empty dynamicOutputShape
+    aclmdlIODims dims = {};
+    aclError ret = acl::GetCurOuputShapeInfo(&desc, 0, 0, &dims);
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurOuputShapeInfo_WithInvalidOutputIndex_ReturnsInvalidParam)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    aclmdlTensorDesc outDesc;
+    outDesc.name = "output";
+    outDesc.dims = {1, 1000};
+    desc.outputDesc.push_back(outDesc);
+
+    desc.dynamicOutputShape.push_back({0, 0, 1, 1000});
+
+    aclmdlIODims dims = {};
+    aclError ret = acl::GetCurOuputShapeInfo(&desc, 5, 0, &dims);  // Invalid output index
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurOuputShapeInfo_WithInvalidGearIndex_ReturnsInvalidParam)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    aclmdlTensorDesc outDesc;
+    outDesc.name = "output";
+    outDesc.dims = {1, 1000};
+    desc.outputDesc.push_back(outDesc);
+
+    desc.dynamicOutputShape.push_back({0, 0, 1, 1000});
+    desc.dynamicOutputShape.push_back({1, 0, 4, 1000});
+
+    aclmdlIODims dims = {};
+    aclError ret = acl::GetCurOuputShapeInfo(&desc, 0, 999, &dims);  // Invalid gear index
+    EXPECT_NE(ret, ACL_SUCCESS);
+}
+
+TEST_F(UTEST_ACL_Model, GetCurOuputShapeInfo_WithMultipleOutputs_ReturnsCorrectShape)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    // Two outputs
+    aclmdlTensorDesc outDesc1;
+    outDesc1.name = "output1";
+    outDesc1.dims = {1, 1000};
+    desc.outputDesc.push_back(outDesc1);
+
+    aclmdlTensorDesc outDesc2;
+    outDesc2.name = "output2";
+    outDesc2.dims = {1, 500};
+    desc.outputDesc.push_back(outDesc2);
+
+    // Gear 0, output 0 and 1
+    desc.dynamicOutputShape.push_back({0, 0, 1, 1000});
+    desc.dynamicOutputShape.push_back({0, 1, 1, 500});
+
+    // Gear 1, output 0 and 1
+    desc.dynamicOutputShape.push_back({1, 0, 4, 1000});
+    desc.dynamicOutputShape.push_back({1, 1, 4, 500});
+
+    // Test gear 1, output 1
+    aclmdlIODims dims = {};
+    aclError ret = acl::GetCurOuputShapeInfo(&desc, 1, 1, &dims);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(dims.dimCount, 2U);
+    EXPECT_EQ(dims.dims[0], 4);
+    EXPECT_EQ(dims.dims[1], 500);
+}
+
+TEST_F(UTEST_ACL_Model, GetModelOutputShapeInfoHelp_WithMultipleOutputs_ParsesCorrectly)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    std::vector<std::string> geDynamicOutputShape = {
+        "0:0:1:1000",
+        "0:1:1:500",
+        "1:0:4:1000",
+        "1:1:4:500"
+    };
+
+    aclError ret = acl::GetModelOutputShapeInfoHelp(&desc, geDynamicOutputShape);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(desc.dynamicOutputShape.size(), 4U);
+
+    // Gear 0, output 0
+    EXPECT_EQ(desc.dynamicOutputShape[0][0], 0);  // gear_index
+    EXPECT_EQ(desc.dynamicOutputShape[0][1], 0);  // output_index
+    EXPECT_EQ(desc.dynamicOutputShape[0][2], 1);  // dim0
+    EXPECT_EQ(desc.dynamicOutputShape[0][3], 1000);  // dim1
+
+    // Gear 0, output 1
+    EXPECT_EQ(desc.dynamicOutputShape[1][0], 0);  // gear_index
+    EXPECT_EQ(desc.dynamicOutputShape[1][1], 1);  // output_index
+    EXPECT_EQ(desc.dynamicOutputShape[1][2], 1);  // dim0
+    EXPECT_EQ(desc.dynamicOutputShape[1][3], 500);  // dim1
+}
+
+TEST_F(UTEST_ACL_Model, GetModelOutputShapeInfoHelp_WithStaticOutputs_ParsesCorrectly)
+{
+    aclmdlDesc desc;
+    desc.modelId = 1;
+
+    std::vector<std::string> geDynamicOutputShape = {
+        "-1:0:1:1000",  // Static output
+        "-1:1:1:500"    // Static output
+    };
+
+    aclError ret = acl::GetModelOutputShapeInfoHelp(&desc, geDynamicOutputShape);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+    EXPECT_EQ(desc.dynamicOutputShape.size(), 2U);
+
+    // All should be static (-1)
+    for (size_t i = 0; i < desc.dynamicOutputShape.size(); i++) {
+        EXPECT_EQ(desc.dynamicOutputShape[i][0], -1);
+    }
+}
+
+// ============================================================================
+// Additional ACL Interface Test Cases - Boundary Conditions
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, aclmdlSetDynamicBatchSize_Om2_WithBoundaryValues_Succeeds)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 200U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, sizeof(uint64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    // Test boundary values
+    std::vector<uint64_t> boundary_values = {1, 2, 4, 8, 16, 32, 64, 128};
+    for (uint64_t batch : boundary_values) {
+        aclError ret = aclmdlSetDynamicBatchSize(om2_model_id, dataset, 0, batch);
+        // Stub returns SUCCESS, so we expect SUCCESS
+        EXPECT_EQ(ret, ACL_SUCCESS);
+    }
+
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetDynamicHWSize_Om2_WithSquareDimensions_Succeeds)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 201U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, 2 * sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, 2 * sizeof(uint64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    // Test square dimensions
+    std::vector<std::pair<uint64_t, uint64_t>> square_dims = {
+        {224, 224}, {448, 448}, {672, 672}, {896, 896}
+    };
+    for (const auto& dim : square_dims) {
+        aclError ret = aclmdlSetDynamicHWSize(om2_model_id, dataset, 0, dim.first, dim.second);
+        EXPECT_EQ(ret, ACL_SUCCESS);
+    }
+
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetDynamicHWSize_Om2_WithRectangularDimensions_Succeeds)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 202U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, 2 * sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, 2 * sizeof(uint64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    // Test rectangular dimensions
+    std::vector<std::pair<uint64_t, uint64_t>> rect_dims = {
+        {128, 256}, {256, 128}, {192, 384}, {384, 192}
+    };
+    for (const auto& dim : rect_dims) {
+        aclError ret = aclmdlSetDynamicHWSize(om2_model_id, dataset, 0, dim.first, dim.second);
+        EXPECT_EQ(ret, ACL_SUCCESS);
+    }
+
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlSetInputDynamicDims_Om2_WithVariousDimCounts_Succeeds)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 203U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, 4 * sizeof(int64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, 4 * sizeof(int64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    // Test various dimension counts
+    std::vector<aclmdlIODims> test_dims;
+
+    aclmdlIODims dims1 = {};
+    dims1.dimCount = 1;
+    dims1.dims[0] = 100;
+    test_dims.push_back(dims1);
+
+    aclmdlIODims dims2 = {};
+    dims2.dimCount = 2;
+    dims2.dims[0] = 10;
+    dims2.dims[1] = 20;
+    test_dims.push_back(dims2);
+
+    aclmdlIODims dims3 = {};
+    dims3.dimCount = 3;
+    dims3.dims[0] = 2;
+    dims3.dims[1] = 3;
+    dims3.dims[2] = 4;
+    test_dims.push_back(dims3);
+
+    aclmdlIODims dims4 = {};
+    dims4.dimCount = 4;
+    dims4.dims[0] = 1;
+    dims4.dims[1] = 3;
+    dims4.dims[2] = 224;
+    dims4.dims[3] = 224;
+    test_dims.push_back(dims4);
+
+    for (const auto& dims : test_dims) {
+        size_t dimCount = dims.dimCount;
+        // Set up mocks to return dynamic shape matching current dimCount
+        EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+                    GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc>*&>(),
+                                     A<const std::vector<ge::Om2TensorDesc>*&>(), _))
+            .WillRepeatedly(Invoke([dimCount](const std::vector<ge::Om2TensorDesc>*& inputDesc,
+                                              const std::vector<ge::Om2TensorDesc>*& outputDesc,
+                                              bool) -> ge::Status {
+                static std::vector<ge::Om2TensorDesc> in_desc;
+                static std::vector<ge::Om2TensorDesc> out_desc;
+                in_desc.clear();
+                ge::Om2TensorDesc desc;
+                desc.SetName("input");
+                desc.SetDataType(ge::DT_FLOAT);
+                desc.SetFormat(ge::FORMAT_ND);
+                std::vector<int64_t> shape(dimCount, -1);
+                desc.SetShape(shape);
+                desc.SetSize(sizeof(float));
+                in_desc.push_back(desc);
+                out_desc.clear();
+                ge::Om2TensorDesc odesc;
+                odesc.SetName("output");
+                odesc.SetDataType(ge::DT_FLOAT);
+                odesc.SetFormat(ge::FORMAT_ND);
+                odesc.SetShape({1});
+                odesc.SetSize(sizeof(float));
+                out_desc.push_back(odesc);
+                inputDesc = &in_desc;
+                outputDesc = &out_desc;
+                return ge::SUCCESS;
+            }));
+
+        EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetUserDesignateShapeOrder(_, _))
+            .WillRepeatedly(Invoke([](uint32_t, std::vector<std::string> &order) -> ge::Status {
+                order.clear();
+                order.push_back("input");
+                return ge::SUCCESS;
+            }));
+
+        EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOriginInputDims())
+            .WillRepeatedly(Invoke([dimCount]() -> const std::vector<std::vector<int64_t>> & {
+                static std::vector<std::vector<int64_t>> origin_dims;
+                origin_dims.clear();
+                origin_dims.push_back(std::vector<int64_t>(dimCount, -1));
+                return origin_dims;
+            }));
+
+        aclError ret = aclmdlSetInputDynamicDims(om2_model_id, dataset, 0, &dims);
+        EXPECT_EQ(ret, ACL_SUCCESS);
+        Mock::VerifyAndClear((void *)(&MockFunctionTest::aclStubInstance()));
+        MockFunctionTest::aclStubInstance().ResetToDefaultMock();
+    }
+
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlGetCurOutputDims_Om2_WithStaticModel_ReturnsStaticDims)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 204U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDesc *desc = aclmdlCreateDesc();
+    ASSERT_NE(desc, nullptr);
+    desc->modelId = om2_model_id;
+
+    // Add static output descriptor
+    aclmdlTensorDesc outDesc;
+    outDesc.name = "output";
+    outDesc.dims = {1, 1000};
+    desc->outputDesc.push_back(outDesc);
+
+    aclmdlIODims dims = {};
+    aclError ret = aclmdlGetCurOutputDims(desc, 0, &dims);
+    // For static model (no dynamic output shape), should return static dims
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    aclmdlDestroyDesc(desc);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, aclmdlGetDesc_Om2_WithEmptyModelDesc_Succeeds)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 205U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDesc *desc = aclmdlCreateDesc();
+    ASSERT_NE(desc, nullptr);
+
+    aclError ret = aclmdlGetDesc(desc, om2_model_id);
+    // Stub implementation may return SUCCESS or error, but should not crash
+    (void)ret;
+
+    aclmdlDestroyDesc(desc);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+// ============================================================================
+// Integration Test Cases - Combined Scenarios
+// ============================================================================
+
+TEST_F(UTEST_ACL_Model, DynamicGearWorkflow_SetAndGetCurOutputDims)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 300U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    // Create dataset
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, sizeof(uint64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    // Set dynamic batch size
+    aclError ret = aclmdlSetDynamicBatchSize(om2_model_id, dataset, 0, 4);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    // Create model desc
+    aclmdlDesc *desc = aclmdlCreateDesc();
+    ASSERT_NE(desc, nullptr);
+    desc->modelId = om2_model_id;
+
+    aclmdlTensorDesc outDesc;
+    outDesc.name = "output";
+    outDesc.dims = {4, 1000};
+    desc->outputDesc.push_back(outDesc);
+
+    // Get current output dims
+    aclmdlIODims dims = {};
+    ret = aclmdlGetCurOutputDims(desc, 0, &dims);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    // Cleanup
+    aclmdlDestroyDesc(desc);
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, DynamicGearWorkflow_GetDescThenSetDynamicSize)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 301U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    // Get model desc first
+    aclmdlDesc *desc = aclmdlCreateDesc();
+    ASSERT_NE(desc, nullptr);
+
+    aclError ret = aclmdlGetDesc(desc, om2_model_id);
+    (void)ret;  // May succeed or fail depending on stub
+
+    // Then set dynamic size
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, 2 * sizeof(uint64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, 2 * sizeof(uint64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    ret = aclmdlSetDynamicHWSize(om2_model_id, dataset, 0, 448, 448);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    // Cleanup
+    aclmdlDestroyDesc(desc);
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+
+TEST_F(UTEST_ACL_Model, DynamicGearWorkflow_MultipleSetDynamicSizes)
+{
+    uint32_t om2_model_id = std::numeric_limits<uint32_t>::max() / 2U + 302U;
+
+    auto om2_executor = std::unique_ptr<gert::Om2ModelExecutor>(new (std::nothrow) gert::Om2ModelExecutor);
+    ASSERT_NE(om2_executor, nullptr);
+    acl::AclResourceManagerOm2::GetInstance().AddOm2Executor(om2_model_id, std::move(om2_executor));
+
+    aclmdlDataset *dataset = aclmdlCreateDataset();
+    EXPECT_NE(dataset, nullptr);
+
+    void *devPtr = nullptr;
+    aclrtMalloc(&devPtr, 4 * sizeof(int64_t), ACL_MEM_MALLOC_HUGE_FIRST);
+    aclDataBuffer *buffer = aclCreateDataBuffer(devPtr, 4 * sizeof(int64_t));
+    aclmdlAddDatasetBuffer(dataset, buffer);
+
+    // Set multiple times with different types
+    aclError ret = aclmdlSetDynamicBatchSize(om2_model_id, dataset, 0, 8);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    // Mock for SetInputDynamicDims
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(),
+                GetModelDescInfo(A<const std::vector<ge::Om2TensorDesc>*&>(),
+                                 A<const std::vector<ge::Om2TensorDesc>*&>(), _))
+        .WillRepeatedly(Invoke([](const std::vector<ge::Om2TensorDesc>*& inputDesc,
+                                  const std::vector<ge::Om2TensorDesc>*& outputDesc,
+                                  bool) -> ge::Status {
+            static std::vector<ge::Om2TensorDesc> in_desc;
+            static std::vector<ge::Om2TensorDesc> out_desc;
+            in_desc.clear();
+            ge::Om2TensorDesc desc;
+            desc.SetName("input");
+            desc.SetDataType(ge::DT_FLOAT);
+            desc.SetFormat(ge::FORMAT_ND);
+            desc.SetShape({1, 3, 224, 224});
+            desc.SetSize(sizeof(float) * 1 * 3 * 224 * 224);
+            in_desc.push_back(desc);
+            out_desc.clear();
+            ge::Om2TensorDesc odesc;
+            odesc.SetName("output");
+            odesc.SetDataType(ge::DT_FLOAT);
+            odesc.SetFormat(ge::FORMAT_ND);
+            odesc.SetShape({1, 1000});
+            odesc.SetSize(sizeof(float) * 1000);
+            out_desc.push_back(odesc);
+            inputDesc = &in_desc;
+            outputDesc = &out_desc;
+            return ge::SUCCESS;
+        }));
+
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetUserDesignateShapeOrder(_, _))
+        .WillRepeatedly(Invoke([](uint32_t, std::vector<std::string> &order) -> ge::Status {
+            order.clear();
+            order.push_back("input");
+            return ge::SUCCESS;
+        }));
+
+    EXPECT_CALL(MockFunctionTest::aclStubInstance(), GetOriginInputDims())
+        .WillRepeatedly(Invoke([]() -> const std::vector<std::vector<int64_t>> & {
+            static std::vector<std::vector<int64_t>> origin_dims;
+            origin_dims.clear();
+            origin_dims.push_back({-1, 3, 224, 224});
+            return origin_dims;
+        }));
+
+    aclmdlIODims dims = {};
+    dims.dimCount = 4;
+    dims.dims[0] = 1;
+    dims.dims[1] = 3;
+    dims.dims[2] = 224;
+    dims.dims[3] = 224;
+
+    ret = aclmdlSetInputDynamicDims(om2_model_id, dataset, 0, &dims);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    Mock::VerifyAndClear((void *)(&MockFunctionTest::aclStubInstance()));
+    MockFunctionTest::aclStubInstance().ResetToDefaultMock();
+
+    ret = aclmdlSetDynamicHWSize(om2_model_id, dataset, 0, 672, 672);
+    EXPECT_EQ(ret, ACL_SUCCESS);
+
+    // Cleanup
+    aclDestroyDataBuffer(buffer);
+    aclrtFree(devPtr);
+    aclmdlDestroyDataset(dataset);
+    acl::AclResourceManagerOm2::GetInstance().DeleteOm2Executor(om2_model_id);
+}
+

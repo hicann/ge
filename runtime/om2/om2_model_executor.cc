@@ -18,6 +18,7 @@
 #include "registry/op_impl_space_registry_v2.h"
 #include "framework/runtime/rt_session.h"
 #include "framework/runtime/dump/model_dump_manager.h"
+#include "framework/common/framework_types_internal.h"
 #include "runtime/om2_model_executor.h"
 #include "common/checker.h"
 #include "mmpa/mmpa_api.h"
@@ -74,6 +75,7 @@ struct ModelMetaInfo {
   int32_t dynamic_type = 0;
   std::vector<std::string> dynamic_output_shape;
   std::vector<std::string> user_designate_shape_order;
+  std::vector<std::vector<int64_t>> origin_input_dims;  // 原始shape（含-1标识动态轴）
 };
 
 struct KernelBinInfo {
@@ -401,6 +403,13 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_TRUE(model_meta_json.Get("inputs", inputs));
     GE_ASSERT_SUCCESS(SetTensorDesc(inputs, model_meta_info_.input_desc));
     GE_ASSERT_SUCCESS(SetTensorDesc(inputs, model_meta_info_.input_desc_v2, true));
+    // Parse origin_input_dims from each input (original shape with -1 for dynamic axes)
+    for (const auto &input_item : inputs) {
+      ge::JsonFile input_obj{input_item};
+      std::vector<int64_t> origin_dims;
+      (void)input_obj.Get("origin_input_dims", origin_dims);  // 没有字段时为空vector，保持索引对齐
+      model_meta_info_.origin_input_dims.push_back(std::move(origin_dims));
+    }
     ge::JsonFile::json outputs;
     GE_ASSERT_TRUE(model_meta_json.Get("outputs", outputs));
     GE_ASSERT_SUCCESS(SetTensorDesc(outputs, model_meta_info_.output_desc));
@@ -641,6 +650,10 @@ class Om2ModelExecutor::Impl {
     return ge::SUCCESS;
   }
 
+  const std::vector<std::vector<int64_t>> &GetOriginInputDims() const {
+    return model_meta_info_.origin_input_dims;
+  }
+
   ge::Status GetOpAttr(std::map<std::string, std::map<std::string, std::string>> &op_attr_map) const {
     GE_ASSERT_TRUE(has_model_);
     op_attr_map.clear();
@@ -663,6 +676,66 @@ class Om2ModelExecutor::Impl {
     GE_ASSERT_NOTNULL(dump_manager_);
     return dump_manager_->GetOpDescInfo(ge::OpDescInfoId(task_id, stream_id, static_cast<int32_t>(device_id)),
                                         op_desc_info) ? ge::SUCCESS : ge::FAILED;
+  }
+
+  ge::Status SetDynamicSize(const std::vector<uint64_t> &batch_num, const int32_t dynamic_type) {
+    GE_ASSERT_TRUE(has_model_);
+
+    int32_t model_dynamic_type = static_cast<int32_t>(ge::FIXED);
+    std::vector<std::vector<int64_t>> dynamic_batch_info;
+    ge::Status ret = GetDynamicBatchInfo(dynamic_batch_info, model_dynamic_type);
+    if (ret != ge::SUCCESS) {
+      GELOGE(ge::FAILED, "[OM2][SetDynamicSize] GetDynamicBatchInfo failed, ret=%u.", ret);
+      return ge::FAILED;
+    }
+
+    if (dynamic_type != model_dynamic_type) {
+      GELOGE(ge::FAILED,
+             "[OM2][SetDynamicSize] dynamic_type mismatch: requested %d, model compiled with %d.",
+             dynamic_type, model_dynamic_type);
+      return ge::FAILED;
+    }
+
+    std::vector<int64_t> requested_gear;
+    requested_gear.reserve(batch_num.size());
+    for (const auto v : batch_num) {
+      requested_gear.push_back(static_cast<int64_t>(v));
+    }
+
+    bool gear_found = false;
+    for (const auto &gear : dynamic_batch_info) {
+      if (gear == requested_gear) {
+        gear_found = true;
+        break;
+      }
+    }
+
+    if (!gear_found) {
+      GELOGE(ge::FAILED,
+             "[OM2][SetDynamicSize] Requested gear not found in dynamic_batch_info.");
+      return ge::FAILED;
+    }
+
+    cur_batch_size_ = batch_num;
+    dynamic_type_ = dynamic_type;
+    GELOGI("[OM2][SetDynamicSize] Set dynamic size success, type=%d, size=%zu.",
+           dynamic_type_, cur_batch_size_.size());
+    return ge::SUCCESS;
+  }
+
+  ge::Status GetCurrentShape(std::vector<int64_t> &batch_info, int32_t &dynamic_type) const {
+    GE_ASSERT_TRUE(has_model_);
+    batch_info.clear();
+    if (cur_batch_size_.empty()) {
+      GELOGD("[OM2][GetCurrentShape] User has not set dynamic size.");
+      dynamic_type = static_cast<int32_t>(ge::FIXED);
+      return ge::SUCCESS;
+    }
+    for (const auto v : cur_batch_size_) {
+      batch_info.emplace_back(static_cast<int64_t>(v));
+    }
+    dynamic_type = dynamic_type_;
+    return ge::SUCCESS;
   }
 
   void Cleanup() {
@@ -814,6 +887,9 @@ class Om2ModelExecutor::Impl {
   int32_t device_id_ = -1;
   uint64_t session_id_ = 0U;
   bool has_model_ = false;
+  // 当前档位维度值，由 SetDynamicSize 写入，GetCurrentShape 读取
+  std::vector<uint64_t> cur_batch_size_;
+  int32_t dynamic_type_ = 0;  // 0=FIXED
 };
 
 Om2ModelExecutor::Om2ModelExecutor() : impl_(std::make_unique<Impl>()) {}
@@ -865,6 +941,18 @@ ge::Status Om2ModelExecutor::GetDynamicBatchInfo(std::vector<std::vector<int64_t
 
 ge::Status Om2ModelExecutor::GetUserDesignateShapeOrder(std::vector<std::string> &user_designate_shape_order) const {
   return impl_->GetUserDesignateShapeOrder(user_designate_shape_order);
+}
+
+ge::Status Om2ModelExecutor::SetDynamicSize(const std::vector<uint64_t> &batch_num, int32_t dynamic_type) {
+  return impl_->SetDynamicSize(batch_num, dynamic_type);
+}
+
+ge::Status Om2ModelExecutor::GetCurrentShape(std::vector<int64_t> &batch_info, int32_t &dynamic_type) const {
+  return impl_->GetCurrentShape(batch_info, dynamic_type);
+}
+
+const std::vector<std::vector<int64_t>> &Om2ModelExecutor::GetOriginInputDims() const {
+  return impl_->GetOriginInputDims();
 }
 
 ge::Status Om2ModelExecutor::GetOpAttr(std::map<std::string, std::map<std::string, std::string>> &op_attr_map) const {
