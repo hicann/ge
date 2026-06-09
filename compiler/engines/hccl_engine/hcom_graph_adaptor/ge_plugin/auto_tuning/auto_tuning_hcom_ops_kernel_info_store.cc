@@ -398,7 +398,7 @@ HcclResult AutoTuningHcomOpsKernelInfoStore::HcomReceiveOpKernel([[maybe_unused]
   return HCCL_SUCCESS;
 }
 
-HcclResult AutoTuningHcomOpsKernelInfoStore::HcomSendOpKernel([[maybe_unused]] const ge::GETaskInfo &task) {
+HcclResult AutoTuningHcomOpsKernelInfoStore::HcomSendOpKernel([[maybe_unused]] const ge::GETaskInfo &task) const {
   return HCCL_SUCCESS;
 }
 
