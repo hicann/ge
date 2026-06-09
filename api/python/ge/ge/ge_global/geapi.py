@@ -16,6 +16,7 @@
 import ctypes
 
 from ge._capi.pygeapi_wrapper import geapi_lib
+from ge.error import raise_ge_error
 
 class GeApi:
 
@@ -41,9 +42,12 @@ class GeApi:
         c_array_value = _self._python_list_to_c_array(values)
         if len(c_array_key) == 0 or len(c_array_value) == 0:
             raise TypeError("Ge init config must not be empty")
-        ret = geapi_lib.GeApiWrapper_GEInitialize(ctypes.cast(c_array_key, ctypes.POINTER(ctypes.c_char_p)), ctypes.cast(c_array_value, ctypes.POINTER(ctypes.c_char_p)), len(keys))
+        ret = geapi_lib.GeApiWrapper_GEInitialize(
+            ctypes.cast(c_array_key, ctypes.POINTER(ctypes.c_char_p)),
+            ctypes.cast(c_array_value, ctypes.POINTER(ctypes.c_char_p)),
+            len(keys))
         if ret != 0:
-            raise RuntimeError("GE initialization failed")
+            raise_ge_error("GEInitialize", ret)
         return ret
 
     @classmethod
@@ -53,7 +57,7 @@ class GeApi:
         """
         ret = geapi_lib.GeApiWrapper_GEFinalize()
         if ret != 0:
-            raise RuntimeError("GE finalization failed")
+            raise_ge_error("GEFinalize", ret)
         return ret
 
     def _python_list_to_c_array(self, python_list: list):

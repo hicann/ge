@@ -11,11 +11,14 @@
 
 ```python
 from ge.session import Session
+from ge.error import GeError
 ```
 
 ## 功能说明
 
-Session 类用于管理图的编译和执行会话。支持同步执行（run_graph）和异步执行（run_graph_with_stream_async）。异步执行场景下，可通过 register_external_allocator 注册自定义内存分配器。不支持拷贝和深拷贝。
+Session 类用于管理图的编译和执行会话。支持同步执行（run_graph）和异步执行
+（run_graph_with_stream_async）。异步执行场景下，可通过 register_external_allocator 注册自定义内存分配器。
+不支持拷贝和深拷贝。
 
 ## 类定义
 
@@ -50,7 +53,7 @@ def __init__(self, options: Optional[dict] = None) -> None
 
 **约束说明**：
 - options 必须为 dict 类型或 None，传入其他类型将抛出 TypeError。
-- 会话创建失败时将抛出 RuntimeError。
+- 会话创建失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 - Session 不支持拷贝（copy）和深拷贝（deepcopy），尝试拷贝将抛出 RuntimeError。
 
 ### add_graph
@@ -75,7 +78,7 @@ def add_graph(self, graph_id: int, graph: Graph, options: Optional[dict] = None)
 - graph_id 必须为 int 类型，否则抛出 TypeError。
 - graph 必须为 Graph 类型，否则抛出 TypeError。
 - options 必须为 dict 类型或 None，否则抛出 TypeError。
-- 添加图失败时将抛出 RuntimeError。
+- 添加图失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 
 ### remove_graph
 
@@ -95,7 +98,7 @@ def remove_graph(self, graph_id: int) -> None
 
 **约束说明**：
 - graph_id 必须为 int 类型，否则抛出 TypeError。
-- 移除图失败时将抛出 RuntimeError。
+- 移除图失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 
 ### run_graph
 
@@ -121,7 +124,7 @@ def run_graph(self, graph_id: int, inputs: List[Tensor]) -> List[Tensor]
 **约束说明**：
 - graph_id 必须为 int 类型，否则抛出 TypeError。
 - inputs 中所有元素必须为 Tensor 类型，否则抛出 TypeError。
-- 图执行失败时将抛出 RuntimeError。
+- 图执行失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 
 ### run_graph_with_stream_async
 
@@ -129,7 +132,8 @@ def run_graph(self, graph_id: int, inputs: List[Tensor]) -> List[Tensor]
 def run_graph_with_stream_async(self, graph_id: int, stream: int, inputs: List[Tensor]) -> List[Tensor]
 ```
 
-**功能说明**：在指定 stream 上异步执行图，传入输入张量列表，返回输出张量列表。输出张量的内存分配优先使用通过 register_external_allocator 注册的外部分配器；若未注册外部分配器，GE 将自动使用内置分配器。
+**功能说明**：在指定 stream 上异步执行图，传入输入张量列表，返回输出张量列表。输出张量的内存分配优先使用
+通过 register_external_allocator 注册的外部分配器；若未注册外部分配器，GE 将自动使用内置分配器。
 
 **参数说明**：
 
@@ -149,8 +153,8 @@ def run_graph_with_stream_async(self, graph_id: int, stream: int, inputs: List[T
 - graph_id 必须为 int 类型，否则抛出 TypeError。
 - stream 必须为 int 类型，否则抛出 TypeError。
 - inputs 必须为 list 类型且所有元素必须为 Tensor 类型，否则抛出 TypeError。
-- 若该 stream 未注册外部分配器且默认分配器注册失败，将抛出 RuntimeError。
-- 图执行失败时将抛出 RuntimeError。
+- 若该 stream 未注册外部分配器且默认分配器注册失败，将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
+- 图执行失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 
 ### register_external_allocator
 
@@ -172,7 +176,7 @@ def register_external_allocator(self, stream: int, allocator: Allocator) -> None
 **约束说明**：
 - stream 必须为 int 类型，否则抛出 TypeError。
 - allocator 必须为 Allocator 实例，否则抛出 TypeError。
-- 注册失败时将抛出 RuntimeError。
+- 注册失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 - 同一 stream 重复注册会覆盖之前的外部分配器。
 
 ### unregister_external_allocator
@@ -193,4 +197,4 @@ def unregister_external_allocator(self, stream: int) -> None
 
 **约束说明**：
 - stream 必须为 int 类型，否则抛出 TypeError。
-- 注销失败时将抛出 RuntimeError。
+- 注销失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。

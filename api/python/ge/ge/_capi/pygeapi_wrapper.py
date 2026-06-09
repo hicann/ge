@@ -23,13 +23,17 @@ geapi_lib = load_lib_from_path(LIB_NAME, _dir)
 
 c_char_p = ctypes.c_char_p
 c_int = ctypes.c_int
+c_uint32 = ctypes.c_uint32
 
 # 初始化阶段
 geapi_lib.GeApiWrapper_GEInitialize.argtypes = [ctypes.POINTER(c_char_p), ctypes.POINTER(c_char_p), c_int]
-geapi_lib.GeApiWrapper_GEInitialize.restype = c_int
+geapi_lib.GeApiWrapper_GEInitialize.restype = c_uint32
 
 geapi_lib.GeApiWrapper_GEFinalize.argtypes = []
-geapi_lib.GeApiWrapper_GEFinalize.restype = c_int
+geapi_lib.GeApiWrapper_GEFinalize.restype = c_uint32
+
+geapi_lib.GeApiWrapper_GEGetErrorMsg.argtypes = []
+geapi_lib.GeApiWrapper_GEGetErrorMsg.restype = c_char_p
 
 
 def get_geapi_lib():

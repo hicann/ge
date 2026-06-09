@@ -10,7 +10,11 @@
 ## 模块导入
 
 ```python
-from ge.offline_compile import build_initialize, build_finalize, build_model, save_model, bundle_build_model, bundle_save_model, GraphWithOptions, ModelBuffer
+from ge.offline_compile import (
+    build_initialize, build_finalize, build_model, save_model,
+    bundle_build_model, bundle_save_model, GraphWithOptions, ModelBuffer
+)
+from ge.error import GeError
 ```
 
 ## 功能说明
@@ -25,6 +29,10 @@ from ge.offline_compile import build_initialize, build_finalize, build_model, sa
 4. 调用 `build_finalize` 释放离线编译资源。
 
 `build_options` 中的配置优先级高于 `build_initialize` 中的 `global_options`。
+
+当 GE 底层接口执行失败时，`build_initialize`、`build_model`、`save_model`、`bundle_build_model`、
+`bundle_save_model` 将抛出 `GeError`。`GeError` 继承自 `RuntimeError`，
+异常信息包含 GE 内部错误信息和接口上下文。
 
 ## 数据类
 
@@ -118,7 +126,7 @@ def bundle_save_model(output_file: str, model: ModelBuffer) -> None
 | 参数 | 类型 | 必选 | 说明 |
 | :--- | :--- | :---: | :--- |
 | graph | Graph | 是 | 待编译的计算图对象 |
-| build_options | Optional[dict] | 否 | 图级别的编译配置字典，键和值均为字符串。若某选项同时在此处和 `build_initialize` 的 `global_options` 中配置，则以本参数的值为准。默认为 None |
+| build_options | Optional[dict] | 否 | 图级别的编译配置字典，键和值均为字符串。配置优先级见约束说明。默认为 None |
 
 ### save_model
 
@@ -166,6 +174,7 @@ def bundle_save_model(output_file: str, model: ModelBuffer) -> None
 - `ModelBuffer` 对象不支持拷贝（copy）和深拷贝（deepcopy），也不支持直接实例化。
 - `save_model` 和 `bundle_save_model` 的 `output_file` 参数为输出文件的基础名称，系统会自动添加 `.om` 后缀。
 - `build_options` 中的配置优先级高于 `build_initialize` 中的 `global_options`。
+- GE 底层接口执行失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 
 ## 使用示例
 

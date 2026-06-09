@@ -9,6 +9,7 @@ GE-PY 模块包含以下核心组件：
 - **graph 模块** - 图基础操作模块，提供 Graph、Node、Tensor、TensorDesc 等核心类
 - **passes 模块** - 自定义 Fusion Pass 开发模块，提供 Python 级别的图融合 Pass 开发能力
 - **ge_global 模块** - GE 全局初始化和析构接口
+- **error 模块** - GE Python API 失败时抛出的错误类型，携带 GE 内部错误信息和接口上下文
 - **offline_compile 模块** - 离线图编译接口
 - **session 模块** - 图编译执行接口
 - **allocator 模块** - 内存分配器抽象，供异步执行场景注册外置 allocator
@@ -27,6 +28,7 @@ GE-PY 模块包含以下核心组件：
   - Tensor 类：张量数据类
   - Shape/TensorDesc 类：张量形状和元信息描述
   - GeApi 类：GE 初始化和析构
+  - GeError 类：GE Python API 错误类型
   - Session 类：图编译执行接口
   - Allocator 类：异步执行场景下的外置内存分配器接口
   - GeUtils 类：Shape 推导与节点 AICore 支持性校验工具接口
@@ -47,8 +49,9 @@ GE-PY 模块包含以下核心组件：
 ### API 参考
 
 - **[API 参考文档](api/)** - 各模块的接口参考文档
-  - [Graph](api/Graph.md)、[Node](api/Node.md)、[Tensor](api/Tensor.md)、[TensorDesc](api/TensorDesc.md)、[Shape](api/Shape.md)、[DataType](api/DataType.md)
-  - [Session](api/Session.md)、[Allocator](api/Allocator.md)、[GeApi](api/GeApi.md)
+  - [Graph](api/Graph.md)、[Node](api/Node.md)、[Tensor](api/Tensor.md)、[TensorDesc](api/TensorDesc.md)、
+    [Shape](api/Shape.md)、[DataType](api/DataType.md)
+  - [Session](api/Session.md)、[Allocator](api/Allocator.md)、[GeApi](api/GeApi.md)、[Error](api/Error.md)
   - [GraphBuilder](api/GraphBuilder.md)、[TensorHolder](api/TensorHolder.md)
   - [OfflineCompile](api/OfflineCompile.md)、[GeUtils](api/GeUtils.md)
   - [Passes](api/Passes.md)、[pyatc](api/pyatc.md)
@@ -66,6 +69,7 @@ GE-PY 模块包含以下核心组件：
 - **utils 模块** - 面向 graph 模块对象提供公共工具能力，供 Python pass 等场景对 replacement graph 执行 Shape 推导和节点支持性校验
 - **session 模块** - 使用 graph 模块构建的图进行编译和执行，编译过程中会加载并执行 passes 模块注册的 Pass
 - **ge_global 模块** - 提供全局初始化和资源管理
+- **error 模块** - 提供 GE Python API 统一错误类型，失败异常中包含 GE 内部错误信息和接口上下文
 - **offline_compile 模块** - 提供离线模型构建、导出能力
 - **pyatc 模块** - 提供与 `atc` 等价的命令行入口，便于指定 ATC 进程内的 python 解释器
 
@@ -87,7 +91,8 @@ GE-PY 模块包含以下核心组件：
 
 ## 开发路线图
 
-我们在2025年首次推出了`ge-python`的模块，目标是提供 Python 语言的构图、编译图、执行图的能力， 2026Q1 我们主要工作是重点完成 es api 集成，让用户安装好 ops 包后使用 Python 的 es api 构图能力：
+我们在2025年首次推出了`ge-python`的模块，目标是提供 Python 语言的构图、编译图、执行图的能力。
+2026Q1 我们主要工作是重点完成 es api 集成，让用户安装好 ops 包后使用 Python 的 es api 构图能力：
 
 ---
 

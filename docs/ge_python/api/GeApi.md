@@ -11,6 +11,7 @@
 
 ```python
 from ge.ge_global import GeApi
+from ge.error import GeError
 ```
 
 ## 功能说明
@@ -50,7 +51,7 @@ def ge_initialize(cls, config: dict) -> None
 **约束说明**：
 - config 必须为 dict 类型，否则抛出 TypeError。
 - config 不能为空字典，否则抛出 TypeError。
-- GE 初始化失败时将抛出 RuntimeError。
+- GE 初始化失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 - 必须在使用其他 GE 接口之前调用此方法。
 - 请勿重复调用 ge_initialize，重复调用可能导致未定义行为。
 
@@ -69,5 +70,5 @@ def ge_finalize(cls) -> None
 
 **约束说明**：
 - 在调用 ge_finalize 之前，须确保所有 Session 已销毁，所有图资源已释放。
-- GE 资源释放失败时将抛出 RuntimeError。
+- GE 资源释放失败时将抛出 GeError，异常信息包含 GE 内部错误信息和接口上下文。
 - 请勿在 ge_finalize 之后继续使用任何 GE 接口。

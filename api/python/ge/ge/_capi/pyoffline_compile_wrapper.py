@@ -24,6 +24,7 @@ offline_compile_lib = load_lib_from_path(LIB_NAME, _dir)
 c_void_p = ctypes.c_void_p
 c_char_p = ctypes.c_char_p
 c_int = ctypes.c_int
+c_uint32 = ctypes.c_uint32
 c_uint64 = ctypes.c_uint64
 c_p_to_char_p = ctypes.POINTER(c_char_p)
 c_pp_to_char_p = ctypes.POINTER(c_p_to_char_p)
@@ -42,7 +43,7 @@ ModelBufferDataPtr = ctypes.POINTER(ModelBufferData)
 # ============ Offline compile C API ============
 
 offline_compile_lib.GeApiWrapper_OfflineCompile_BuildInitialize.argtypes = [c_p_to_char_p, c_p_to_char_p, c_int]
-offline_compile_lib.GeApiWrapper_OfflineCompile_BuildInitialize.restype = c_int
+offline_compile_lib.GeApiWrapper_OfflineCompile_BuildInitialize.restype = c_uint32
 
 offline_compile_lib.GeApiWrapper_OfflineCompile_BuildFinalize.argtypes = []
 offline_compile_lib.GeApiWrapper_OfflineCompile_BuildFinalize.restype = None
@@ -50,18 +51,18 @@ offline_compile_lib.GeApiWrapper_OfflineCompile_BuildFinalize.restype = None
 offline_compile_lib.GeApiWrapper_OfflineCompile_BuildModel.argtypes = [
     c_void_p, c_p_to_char_p, c_p_to_char_p, c_int, ctypes.POINTER(ModelBufferDataPtr),
 ]
-offline_compile_lib.GeApiWrapper_OfflineCompile_BuildModel.restype = c_int
+offline_compile_lib.GeApiWrapper_OfflineCompile_BuildModel.restype = c_uint32
 
 offline_compile_lib.GeApiWrapper_OfflineCompile_SaveModel.argtypes = [c_char_p, ModelBufferDataPtr]
-offline_compile_lib.GeApiWrapper_OfflineCompile_SaveModel.restype = c_int
+offline_compile_lib.GeApiWrapper_OfflineCompile_SaveModel.restype = c_uint32
 
 offline_compile_lib.GeApiWrapper_OfflineCompile_BundleBuildModel.argtypes = [
     c_p_to_void_p, c_pp_to_char_p, c_pp_to_char_p, c_p_to_int, c_int, ctypes.POINTER(ModelBufferDataPtr),
 ]
-offline_compile_lib.GeApiWrapper_OfflineCompile_BundleBuildModel.restype = c_int
+offline_compile_lib.GeApiWrapper_OfflineCompile_BundleBuildModel.restype = c_uint32
 
 offline_compile_lib.GeApiWrapper_OfflineCompile_BundleSaveModel.argtypes = [c_char_p, ModelBufferDataPtr]
-offline_compile_lib.GeApiWrapper_OfflineCompile_BundleSaveModel.restype = c_int
+offline_compile_lib.GeApiWrapper_OfflineCompile_BundleSaveModel.restype = c_uint32
 
 offline_compile_lib.GeApiWrapper_ModelBuffer_Destroy.argtypes = [ModelBufferDataPtr]
 offline_compile_lib.GeApiWrapper_ModelBuffer_Destroy.restype = None

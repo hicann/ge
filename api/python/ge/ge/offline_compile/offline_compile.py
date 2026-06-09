@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 from ge._capi.pyoffline_compile_wrapper import ModelBufferDataPtr, offline_compile_lib
+from ge.error import raise_ge_error
 from ge.graph.graph import Graph
 
 
@@ -160,7 +161,7 @@ def build_initialize(global_options: Optional[dict] = None) -> None:
 
     Raises:
         TypeError: If arguments have incorrect types.
-        RuntimeError: If GE fails to initialize build resources.
+        GeError: If GE fails to initialize build resources.
     """
     options = _normalize_options(global_options, "global_options")
     key_array, value_array, size = _dict_to_c_arrays(options)
@@ -170,7 +171,7 @@ def build_initialize(global_options: Optional[dict] = None) -> None:
         size,
     )
     if ret != 0:
-        raise RuntimeError("Failed to initialize aclgrph build")
+        raise_ge_error("BuildInitialize", ret)
 
 
 def build_finalize() -> None:
@@ -193,7 +194,7 @@ def build_model(graph: Graph, build_options: Optional[dict] = None) -> ModelBuff
 
     Raises:
         TypeError: If arguments have incorrect types.
-        RuntimeError: If GE fails to compile the graph.
+        GeError: If GE fails to compile the graph.
     """
     if not isinstance(graph, Graph):
         raise TypeError("graph must be a Graph")
@@ -208,7 +209,7 @@ def build_model(graph: Graph, build_options: Optional[dict] = None) -> ModelBuff
         ctypes.byref(model_buffer_handle),
     )
     if ret != 0:
-        raise RuntimeError("Failed to build model")
+        raise_ge_error("BuildModel", ret)
     return ModelBuffer._create_from(model_buffer_handle)
 
 
@@ -225,7 +226,7 @@ def save_model(output_file: str, model: ModelBuffer) -> None:
 
     Raises:
         TypeError: If arguments have incorrect types.
-        RuntimeError: If GE fails to save the model.
+        GeError: If GE fails to save the model.
     """
     if not isinstance(output_file, str):
         raise TypeError("output_file must be a string")
@@ -233,7 +234,7 @@ def save_model(output_file: str, model: ModelBuffer) -> None:
         raise TypeError("model must be a ModelBuffer")
     ret = offline_compile_lib.GeApiWrapper_OfflineCompile_SaveModel(output_file.encode("utf-8"), model._handle)
     if ret != 0:
-        raise RuntimeError("Failed to save model")
+        raise_ge_error("SaveModel", ret, output_file=output_file)
 
 
 def bundle_build_model(graph_with_options: List[GraphWithOptions]) -> ModelBuffer:
@@ -250,7 +251,7 @@ def bundle_build_model(graph_with_options: List[GraphWithOptions]) -> ModelBuffe
     Raises:
         TypeError: If arguments have incorrect types.
         ValueError: If fewer than two graphs are provided.
-        RuntimeError: If GE fails to compile the bundle model.
+        GeError: If GE fails to compile the bundle model.
     """
     normalized_items = _normalize_bundle_options(graph_with_options)
     graph_count = len(normalized_items)
@@ -277,7 +278,7 @@ def bundle_build_model(graph_with_options: List[GraphWithOptions]) -> ModelBuffe
         ctypes.byref(model_buffer_handle),
     )
     if ret != 0:
-        raise RuntimeError("Failed to build bundle model")
+        raise_ge_error("BundleBuildModel", ret, graph_count=graph_count)
     return ModelBuffer._create_from(model_buffer_handle)
 
 
@@ -294,7 +295,7 @@ def bundle_save_model(output_file: str, model: ModelBuffer) -> None:
 
     Raises:
         TypeError: If arguments have incorrect types.
-        RuntimeError: If GE fails to save the bundle model.
+        GeError: If GE fails to save the bundle model.
     """
     if not isinstance(output_file, str):
         raise TypeError("output_file must be a string")
@@ -305,4 +306,4 @@ def bundle_save_model(output_file: str, model: ModelBuffer) -> None:
         model._handle
     )
     if ret != 0:
-        raise RuntimeError("Failed to save bundle model")
+        raise_ge_error("BundleSaveModel", ret, output_file=output_file)
