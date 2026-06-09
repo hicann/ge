@@ -1543,12 +1543,12 @@ HcclResult HcomGraphOptimizer::SetHcclOpParam(const ge::Node &node, HcomOpParam 
   return HCCL_SUCCESS;
 }
 
-HcclResult HcomGraphOptimizer::GetAivParam(const ge::Node &node, std::string &sCollectiveType, u32 &aivCoreLimit) {
+HcclResult HcomGraphOptimizer::GetAivParam(const ge::Node &node, std::string &sCollectiveType, u32 &aivCoreLimit) const {
   CHK_RET(HcomOpUtils::GetAivCoreLimit(node.GetOpDesc(), sCollectiveType, aivCoreLimit));
   return HCCL_SUCCESS;
 }
 
-bool HcomGraphOptimizer::TryGetOpDesc(const ge::NodePtr &nodePtr, ge::OpDescPtr &opDescPtr) {
+bool HcomGraphOptimizer::TryGetOpDesc(const ge::NodePtr &nodePtr, ge::OpDescPtr &opDescPtr) const {
   if (!nodePtr) {
     HCCL_WARNING("OptimizeGraphPrepare: null node exists.");
     return false;
